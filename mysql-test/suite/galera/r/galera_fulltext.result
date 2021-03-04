@@ -34,3 +34,31 @@ COUNT(f1) = 1000
 1
 DROP TABLE t1;
 DROP TABLE ten;
+connection node_1;
+SET @value=REPEAT (1,5001);
+CREATE TABLE t (a VARCHAR(5000),FULLTEXT (a)) engine=innodb;
+INSERT IGNORE INTO t VALUES(@value);
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT COUNT(*) FROM t;
+COUNT(*)
+1
+connection node_2;
+SELECT COUNT(*) FROM t;
+COUNT(*)
+1
+connection node_1;
+DROP TABLE t;
+CREATE TABLE t (a VARCHAR(5000)) engine=innodb;
+INSERT IGNORE INTO t VALUES(@value);
+Warnings:
+Warning	1265	Data truncated for column 'a' at row 1
+SELECT COUNT(*) FROM t;
+COUNT(*)
+1
+connection node_2;
+SELECT COUNT(*) FROM t;
+COUNT(*)
+1
+connection node_1;
+DROP TABLE t;
