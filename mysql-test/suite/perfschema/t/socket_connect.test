@@ -237,7 +237,7 @@ WHERE EVENT_NAME LIKE '%client_connection%'
 --echo #
 --echo # 4.1 Verify that there are two TCP/IP connections in the socket instance table
 --echo #
-eval SELECT COUNT(*) = 2 AS 'Expect 1'
+eval SELECT COUNT(*) = 2 AS 'Expect 2'
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin
@@ -246,7 +246,7 @@ WHERE EVENT_NAME LIKE '%client_connection%'
 --echo #
 --echo # 4.2 Verify that there are two TCP/IP connections in the summary instance table
 --echo #
-eval SELECT COUNT(*) = 2 AS 'Expect 1'
+eval SELECT COUNT(*) = 2 AS 'Expect 2'
 FROM performance_schema.socket_summary_by_instance
 WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin;
@@ -274,7 +274,7 @@ WHERE EVENT_NAME LIKE '%client_connection%'
 --echo # 6.1 Verify that there are no TCP/IP connections in the socket instance table
 --echo #
 let $wait_condition=
-SELECT COUNT(*) = 0 AS 'Expect 1'
+SELECT COUNT(*) = 0 AS 'Expect 0'
 FROM performance_schema.socket_instances
 WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin
@@ -285,7 +285,7 @@ WHERE EVENT_NAME LIKE '%client_connection%'
 --echo # 6.2 Verify that there are no TCP/IP connections in the summary instance table
 --echo #
 let $wait_condition=
-SELECT COUNT(*) = 0 AS 'Expect 1'
+SELECT COUNT(*) = 0 AS 'Expect 0'
 FROM performance_schema.socket_summary_by_instance
 WHERE EVENT_NAME LIKE '%client_connection%'
   AND OBJECT_INSTANCE_BEGIN <> @default_object_instance_begin;
