@@ -4718,13 +4718,12 @@ fail_before_log_copying_thread_start:
 	log_file_op = NULL;
 	pthread_mutex_destroy(&backup_mutex);
 	pthread_cond_destroy(&scanned_lsn_cond);
-	if (opt_log_innodb_page_corruption && !corrupted_pages.empty()) {
+	if (!corrupted_pages.empty()) {
+		ut_ad(opt_log_innodb_page_corruption);
 		msg("Error: corrupted innodb pages are found and logged to "
 			MB_CORRUPTED_PAGES_FILE " file");
-		return false;
 	}
-	else
-		return(true);
+	return(true);
 }
 
 
