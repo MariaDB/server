@@ -8486,7 +8486,7 @@ choose_plan(JOIN *join, table_map join_tables)
 
   Json_writer_object wrapper(thd);
 
-  if (join->conds && (join->sort_nest_possible || thd->trace_started()))
+  if (join->conds && join->sort_nest_possible)
   {
     bool cardinality_accurate;
     SAME_FIELD arg= {NULL, FALSE};
