@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 1995, 2018, MariaDB Corporation.
+   Copyright (c) 1995, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -213,9 +213,7 @@ enum ha_extra_function {
   /** Start writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_BEGIN_ALTER_COPY,
   /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
-  HA_EXTRA_END_ALTER_COPY,
-  /** Fake the start of a statement after wsrep_load_data_splitting hack */
-  HA_EXTRA_FAKE_START_STMT
+  HA_EXTRA_END_ALTER_COPY
 };
 
 /* Compatible option, to be deleted in 6.0 */
