@@ -5501,6 +5501,23 @@ EXISTS(SELECT 1 FROM t1 GROUP BY a IN (select a from t1))
 0
 DROP TABLE t1;
 #
+# MDEV-25006: Failed assertion on executing EXPLAIN DELETE statement as a prepared statement
+#
+CREATE TABLE t1(c1 CHAR(255) PRIMARY KEY);
+PREPARE stmt FROM 'EXPLAIN DELETE b FROM t1 AS a JOIN t1 AS b';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	a	system	NULL	NULL	NULL	NULL	0	Const row not found
+1	SIMPLE	b	system	NULL	NULL	NULL	NULL	0	Const row not found
+DROP TABLE t1;
+CREATE TABLE t1(a INT);
+PREPARE stmt FROM 'EXPLAIN DELETE FROM t1.* USING t1';
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	system	NULL	NULL	NULL	NULL	0	Const row not found
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+#
 # End of 10.2 tests
 #
 #

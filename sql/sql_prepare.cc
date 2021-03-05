@@ -4241,6 +4241,16 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
+  /*
+    Set variables specified by
+      SET STATEMENT var1=value1 [, var2=value2, ...] FOR <statement>
+    clause for duration of prepare phase. Original values of variable
+    listed in the SET STATEMENT clause is restored right after return
+    from the function check_prepared_statement()
+  */
+  if (likely(error == 0))
+    error= run_set_statement_if_requested(thd, lex);
+
   /* 
    The only case where we should have items in the thd->free_list is
    after stmt->set_params_from_vars(), which may in some cases create
@@ -4258,6 +4268,12 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     */
     lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_PREPARE;
   }
+
+  /*
+    Restore original values of variables modified on handling
+    SET STATEMENT clause.
+  */
+  thd->lex->restore_set_statement_var();
 
   /* The order is important */
   lex->unit.cleanup();

@@ -4942,6 +4942,20 @@ EXECUTE stmt;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-25006: Failed assertion on executing EXPLAIN DELETE statement as a prepared statement
+--echo #
+
+CREATE TABLE t1(c1 CHAR(255) PRIMARY KEY);
+PREPARE stmt FROM 'EXPLAIN DELETE b FROM t1 AS a JOIN t1 AS b';
+EXECUTE stmt;
+DROP TABLE t1;
+CREATE TABLE t1(a INT);
+PREPARE stmt FROM 'EXPLAIN DELETE FROM t1.* USING t1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

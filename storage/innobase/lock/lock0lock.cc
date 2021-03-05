@@ -4266,6 +4266,18 @@ lock_check_dict_lock(
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx)
 {
+#ifdef UNIV_DEBUG
+	std::set<table_id_t> to_evict;
+	if (innodb_evict_tables_on_commit_debug && !trx->is_recovered)
+# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
+	if (!mutex_own(&dict_sys.mutex))
+# else /* this would be more proper way to do it */
+	if (!trx->dict_operation_lock_mode && !trx->dict_operation)
+# endif
+	for (const auto& p : trx->mod_tables)
+		if (!p.first->is_temporary())
+			to_evict.emplace(p.first->id);
+#endif
 	ulint		count = 0;
 	trx_id_t	max_trx_id = trx_sys.get_max_trx_id();
 
@@ -4314,6 +4326,25 @@ void lock_release(trx_t* trx)
 	}
 
 	lock_mutex_exit();
+
+#ifdef UNIV_DEBUG
+	if (to_evict.empty()) {
+		return;
+	}
+	mutex_enter(&dict_sys.mutex);
+	lock_mutex_enter();
+	for (table_id_t id : to_evict) {
+		if (dict_table_t *table = dict_table_open_on_id(
+			    id, TRUE, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)) {
+			if (!table->get_ref_count()
+			    && !UT_LIST_GET_LEN(table->locks)) {
+				dict_sys.remove(table, true);
+			}
+		}
+	}
+	lock_mutex_exit();
+	mutex_exit(&dict_sys.mutex);
+#endif
 }
 
 /* True if a lock mode is S or X */

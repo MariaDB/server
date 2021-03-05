@@ -2882,8 +2882,12 @@ deallocate prepare stmt;
 drop view v1;
 drop table t1,t2,t3;
 #
-# End of 10.3 tests
+# MDEV-24919: subselect formed by TVC and used in set function
 #
+select sum((values(1)));
+sum((values(1)))
+1
+End of 10.3 tests
 #
 # MDEV-22610 Crash in INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT))
 #

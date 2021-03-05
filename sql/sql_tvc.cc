@@ -647,7 +647,7 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
                         st_select_lex *parent_select)
 {
   LEX *lex= thd->lex;
-  select_result *save_result= thd->lex->result;
+  select_result *save_result= lex->result;
   uint8 save_derived_tables= lex->derived_tables;
   thd->lex->result= NULL;
 
@@ -728,13 +728,13 @@ st_select_lex *wrap_tvc(THD *thd, st_select_lex *tvc_sl,
 
   if (arena)
     thd->restore_active_arena(arena, &backup);
-  thd->lex->result= save_result;
+  lex->result= save_result;
   return wrapper_sl;
 
 err:
   if (arena)
     thd->restore_active_arena(arena, &backup);
-  thd->lex->result= save_result;
+  lex->result= save_result;
   lex->derived_tables= save_derived_tables;
   return 0;
 }
@@ -818,14 +818,9 @@ Item_subselect::wrap_tvc_into_select(THD *thd, st_select_lex *tvc_sl)
   {
     if (engine->engine_type() == subselect_engine::SINGLE_SELECT_ENGINE)
       ((subselect_single_select_engine *) engine)->change_select(wrapper_sl);
-    lex->current_select= wrapper_sl;
-    return wrapper_sl;
   }
-  else
-  {
-    lex->current_select= parent_select;
-    return 0;
-  }
+  lex->current_select= parent_select;
+  return wrapper_sl;
 }
 
 

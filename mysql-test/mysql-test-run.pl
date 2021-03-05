@@ -4966,7 +4966,7 @@ sub mysqld_start ($$) {
   $ENV{'MYSQLD_LAST_CMD'}= "$exe  @$args";
 
   My::Debugger::setup_args(\$args, \$exe, $mysqld->name());
-  $ENV{'VALGRIND_TEST'}= $opt_valgrind = int($exe && $exe eq 'valgrind');
+  $ENV{'VALGRIND_TEST'}= $opt_valgrind = int(($exe || '') eq 'valgrind');
 
   # Remove the old pidfile if any
   unlink($mysqld->value('pid-file'));

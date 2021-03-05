@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -6422,6 +6422,17 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value);
   bool get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate);
   bool val_native(THD *thd, Native *to);
+  bool val_native_result(THD *thd, Native *to);
+
+  /* Result variants */
+  double val_result();
+  longlong val_int_result();
+  String *str_result(String* tmp);
+  my_decimal *val_decimal_result(my_decimal *val);
+  bool val_bool_result();
+  bool is_null_result();
+  bool get_date_result(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+
   bool send(Protocol *protocol, st_value *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
   bool save_in_param(THD *thd, Item_param *param)
@@ -6450,6 +6461,8 @@ public:
   }
 
   Item *transform(THD *thd, Item_transformer transformer, uchar *args);
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param);
 };
 
 

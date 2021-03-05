@@ -1272,16 +1272,6 @@ trx_update_mod_tables_timestamp(
 	const time_t now = time(NULL);
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
-#ifdef UNIV_DEBUG
-	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
-		|| trx->is_recovered /* avoid trouble with XA recovery */
-# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| mutex_own(&dict_sys.mutex)
-# else /* this would be more proper way to do it */
-		|| trx->dict_operation_lock_mode || trx->dict_operation
-# endif
-		;
-#endif
 
 	for (trx_mod_tables_t::const_iterator it = trx->mod_tables.begin();
 	     it != end;
@@ -1297,26 +1287,6 @@ trx_update_mod_tables_timestamp(
 		intrusive. */
 		dict_table_t* table = it->first;
 		table->update_time = now;
-#ifdef UNIV_DEBUG
-		if (preserve_tables || table->get_ref_count()
-		    || UT_LIST_GET_LEN(table->locks)) {
-			/* do not evict when committing DDL operations
-			or if some other transaction is holding the
-			table handle */
-			continue;
-		}
-		/* recheck while holding the mutex that blocks
-		table->acquire() */
-		mutex_enter(&dict_sys.mutex);
-		mutex_enter(&lock_sys.mutex);
-		const bool do_evict = !table->get_ref_count()
-			&& !UT_LIST_GET_LEN(table->locks);
-		mutex_exit(&lock_sys.mutex);
-		if (do_evict) {
-			dict_sys.remove(table, true);
-		}
-		mutex_exit(&dict_sys.mutex);
-#endif
 	}
 
 	trx->mod_tables.clear();
@@ -1402,16 +1372,9 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       so that there will be no race condition in lock_release(). */
       while (UNIV_UNLIKELY(is_referenced()))
         ut_delay(srv_spin_wait_delay);
-      release_locks();
-      id= 0;
     }
     else
-    {
       ut_ad(read_only || !rsegs.m_redo.rseg);
-      release_locks();
-    }
-
-    DEBUG_SYNC_C("after_trx_committed_in_memory");
 
     if (read_only || !rsegs.m_redo.rseg)
     {
@@ -1423,6 +1386,10 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       MONITOR_INC(MONITOR_TRX_RW_COMMIT);
       is_recovered= false;
     }
+
+    release_locks();
+    id= 0;
+    DEBUG_SYNC_C("after_trx_committed_in_memory");
 
     while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
     {
