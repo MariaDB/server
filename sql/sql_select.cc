@@ -8497,6 +8497,12 @@ choose_plan(JOIN *join, table_map join_tables)
     wrapper.add("cardinality_accurate", cardinality_accurate);
     if (!cardinality_accurate)
       join->sort_nest_possible= false;
+
+    if (join->sort_nest_possible)
+    {
+      join->estimate_cardinality_for_join(join_tables);
+      wrapper.add("cardinality_estimate", join->cardinality_estimate);
+    }
   }
 
   Json_writer_array trace_plan(thd,"considered_execution_plans");
@@ -8517,10 +8523,6 @@ choose_plan(JOIN *join, table_map join_tables)
     if (search_depth == 0)
       /* Automatically determine a reasonable value for 'search_depth' */
       search_depth= determine_search_depth(join);
-
-    if (join->sort_nest_possible &&
-        join->estimate_cardinality_for_join(join_tables))
-      DBUG_RETURN(TRUE);
 
     if (greedy_search(join, join_tables, search_depth, prune_level,
                       use_cond_selectivity))
@@ -29785,48 +29787,94 @@ bool JOIN::is_order_by_expensive()
     cardinality for a join by reducing the number of permutations of
     join orders to be considered. We can do this by running the join planner
     with a small value for system variable optimizer_search_depth.
-
-  @retval
-    TRUE         error
-    FALSE        otherwise
 */
 
-bool JOIN::estimate_cardinality_for_join(table_map joined_tables)
+void JOIN::estimate_cardinality_for_join(table_map joined_tables)
 {
-  Json_writer_temp_disable disable_tracing(thd);
-  uint use_cond_selectivity;
-  uint search_depth= thd->variables.optimizer_search_depth;
-  if (search_depth == 0)
-    search_depth= determine_search_depth(this);
-  uint prune_level=  thd->variables.optimizer_prune_level;
-  use_cond_selectivity= thd->variables.optimizer_use_condition_selectivity;
-
-  TABLE *save_sort_by_table= sort_by_table;
-  JOIN_TAB *save_best_ref[MAX_TABLES];
-  for (uint i= 0; i < table_count; i++)
-    save_best_ref[i]= best_ref[i];
-
-  get_cardinality_estimate= TRUE;
-  cardinality_estimate= DBL_MAX;
-
-  if (greedy_search(this, joined_tables, search_depth, prune_level,
-                    use_cond_selectivity))
-    return TRUE;
-
-  set_if_bigger(join_record_count, 1);
-  cardinality_estimate= join_record_count;
-
-  cur_embedding_map= 0;
-  reset_nj_counters(this, join_list);
-  cur_sj_inner_tables= 0;
-  get_cardinality_estimate= FALSE;
-  sort_by_table= save_sort_by_table;
-
-  for (uint i= 0; i < table_count; i++)
-    best_ref[i]= save_best_ref[i];
-
-  return FALSE;
+  /*
+    cardinality_estimate should be set to the value of the estimate join
+    output cardinality
+  */
+  cardinality_estimate= 1;
+  JOIN_TAB *tab;
+  cardinality_estimate*= multi_eq_join_cond_selectivity();
+  for (JOIN_TAB **pos= best_ref; (tab= *pos) ; pos++)
+  {
+    TABLE *table= tab->table;
+    cardinality_estimate*= (table->stat_records() * table->cond_selectivity);
+  }
 }
+
+
+static int cmp_double(double *a, double *b)
+{
+  return *a < *b ? -1 : 1;
+}
+
+
+double JOIN::multi_eq_join_cond_selectivity()
+{
+  double sel= 1.0;
+  uint max_size= 0;
+  if (!cond_equal || !cond_equal->current_level.elements)
+    return sel;
+
+  Item_equal *item_equal;
+  List_iterator_fast<Item_equal> it(cond_equal->current_level);
+  while ((item_equal= it++))
+  {
+    set_if_bigger(max_size, item_equal->elements_count());
+  }
+
+  double *ndv_for_cols= new double[max_size];
+  it.rewind();
+  while ((item_equal= it++))
+  {
+    uint size= item_equal->elements_count();
+    /*
+      If the multiple equality involves a constant, then the selectivity for
+      all the predicates is already taken into account in
+      TABLE::cond_selectivity
+    */
+    if (item_equal->get_const())
+      continue;
+
+    /*
+      The formula used to calculate the selectivity for an equi-join
+      predicate(col1=col2) is:
+         selectivity(col1=col2) =  1/max(ndv(col1), ndv(col2));
+
+     The selectivity of the entire multiple equality like
+     col1=col2 = ............colN is:
+     1 / ( ndv(col2) * ndv(col3) * ... * ndv(colN) )
+
+     Assuming that
+       ndv(col1) <= ndv(col2) <= ... <=ndv(colN)
+    */
+    uint idx=0;
+    Item_equal_fields_iterator fi(*item_equal);
+    while ((fi++))
+    {
+      double curr_eq_fld_sel;
+      Field *fld= fi.get_curr_field();
+      curr_eq_fld_sel= get_column_avg_frequency(fld) /
+                       fld->table->stat_records();
+      ndv_for_cols[idx++]= curr_eq_fld_sel;
+    }
+
+    my_qsort(ndv_for_cols, size, sizeof(double), (qsort_cmp)cmp_double);
+
+    idx= 0;
+    while (idx < size-1)
+    {
+      sel*= ndv_for_cols[idx++];
+    }
+  }
+
+  delete [] ndv_for_cols;
+  return sel;
+}
+
 
 
 /*

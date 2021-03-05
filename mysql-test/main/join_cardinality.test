@@ -5,6 +5,7 @@
 SET @save_optimizer_switch=@@optimizer_switch;
 SET optimizer_trace=1;
 SET optimizer_switch='rowid_filter=off';
+set optimizer_switch='cost_based_order_by_limit=on';
 
 CREATE TABLE t1(a INT, b INT, c INT, KEY(b), KEY(a));
 INSERT INTO t1 SELECT seq, seq, seq from seq_1_to_100;
@@ -391,10 +392,63 @@ INSERT INTO t2 SELECT seq, seq from seq_1_to_10 ;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 ANALYZE TABLE t2 PERSISTENT FOR ALL;
 
-EXPLAIN EXTENDED SELECT * FROM t1,t2 WHERE t1.a= t2.a;
+EXPLAIN EXTENDED SELECT * FROM t1,t2 WHERE t1.a= t2.a ORDER BY t1.b LIMIT 10;
 SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
 FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
 
 DROP TABLE t1,t2;
 
-SET optimizer_switch=@save_optimizer_switch;
+--echo #
+--echo # Test to check the estimates of join output cardinality
+--echo #
+
+CREATE TABLE t1(a int, b int);
+INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_20;
+INSERT INTO t1 SELECT seq-1, seq-1 from seq_1_to_20;
+CREATE TABLE t2(a int, b int);
+INSERT INTO t2   SELECT seq-1, seq-1 from seq_1_to_10;
+INSERT INTO t2   SELECT seq-1, seq-1 from seq_1_to_10;
+CREATE TABLE t3(a int, b int);
+INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_100;
+INSERT INTO t3 SELECT seq-1, seq-1 from seq_1_to_100;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+ANALYZE TABLE t2 PERSISTENT FOR ALL;
+ANALYZE TABLE t3 PERSISTENT FOR ALL;
+
+let $query=
+SELECT * FROM t1,t2
+WHERE t1.a = t2.a
+ORDER BY t2.b
+LIMIT 5;
+
+eval EXPLAIN $query;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_estimate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+let $query=
+SELECT * FROM t1,t2,t3
+WHERE t1.a = t2.a AND t3.a=t2.a
+ORDER BY t2.b
+LIMIT 5;
+
+eval EXPLAIN $query;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_estimate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+let $query=
+SELECT * FROM t1,t2,t3
+WHERE t1.a = t2.a AND t3.b=t2.b
+ORDER BY t2.b
+LIMIT 5;
+
+eval EXPLAIN $query;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_accurate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.cardinality_estimate'))
+FROM INFORMATION_SCHEMA.OPTIMIZER_TRACE;
+
+DROP TABLE t1,t2,t3;

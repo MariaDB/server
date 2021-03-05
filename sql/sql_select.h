@@ -1955,7 +1955,8 @@ public:
 
   bool sort_nest_allowed();
   bool is_order_by_expensive();
-  bool estimate_cardinality_for_join(table_map joined_tables);
+  void estimate_cardinality_for_join(table_map joined_tables);
+  double multi_eq_join_cond_selectivity();
   bool check_if_sort_nest_present(uint* n_tables, table_map *tables_map);
   bool create_sort_nest_info(uint n_tables, table_map nest_tables_map);
   bool remove_const_from_order_by();
