@@ -1799,6 +1799,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL (1 << 17)
 
+/*
+  Table requires and close and reopen after truncate
+  If the handler has HTON_CAN_RECREATE, this flag is not used
+*/
+#define HTON_REQUIRES_CLOSE_AFTER_TRUNCATE (1 << 18)
+
 class Ha_trx_info;
 
 struct THD_TRANS

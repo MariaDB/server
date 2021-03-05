@@ -1395,7 +1395,9 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
     /*
       Presumably, ANALYZE and binlog writing doesn't require synchronization
     */
+    thd->get_stmt_da()->set_overwrite_status(true);
     res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+    thd->get_stmt_da()->set_overwrite_status(false);
   }
   m_lex->first_select_lex()->table_list.first= first_table;
   m_lex->query_tables= first_table;
