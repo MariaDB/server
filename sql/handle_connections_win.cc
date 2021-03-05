@@ -601,7 +601,7 @@ void handle_connections_win()
   wait_events.push_back(hEventShutdown);
   n_waits= 1;
 
-  for (int i= 0; i < all_listeners.size(); i++)
+  for (size_t i= 0; i < all_listeners.size(); i++)
   {
     HANDLE wait_handle= all_listeners[i]->wait_handle();
     if (wait_handle)
