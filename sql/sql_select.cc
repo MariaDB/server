@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4692,6 +4692,9 @@ mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &fields, COND *conds,
   }
   else
   {
+    if (thd->lex->describe)
+      select_options|= SELECT_DESCRIBE;
+
     /*
       When in EXPLAIN, delay deleting the joins so that they are still
       available when we're producing EXPLAIN EXTENDED warning text.
@@ -14483,21 +14486,70 @@ return_zero_rows(JOIN *join, select_result *result, List<TABLE_LIST> &tables,
   DBUG_RETURN(0);
 }
 
-/*
-  used only in JOIN::clear
+/**
+  used only in JOIN::clear (always) and in do_select()
+  (if there where no matching rows)
+
+  @param join            JOIN
+  @param cleared_tables  If not null, clear also const tables and mark all
+                         cleared tables in the map. cleared_tables is only
+                         set when called from do_select() when there is a
+                         group function and there where no matching rows.
 */
-static void clear_tables(JOIN *join)
+
+static void clear_tables(JOIN *join, table_map *cleared_tables)
 {
   /* 
-    must clear only the non-const tables, as const tables
-    are not re-calculated.
+    must clear only the non-const tables as const tables are not re-calculated.
   */
   for (uint i= 0 ; i < join->table_count ; i++)
   {
-    if (!(join->table[i]->map & join->const_table_map))
-      mark_as_null_row(join->table[i]);		// All fields are NULL
+    TABLE *table= join->table[i];
+
+    if (table->null_row)
+      continue;                                 // Nothing more to do
+    if (!(table->map & join->const_table_map) || cleared_tables)
+    {
+      if (cleared_tables)
+      {
+        (*cleared_tables)|= (((table_map) 1) << i);
+        if (table->s->null_bytes)
+        {
+          /*
+            Remember null bits for the record so that we can restore the
+            original const record in unclear_tables()
+          */
+          memcpy(table->record[1], table->null_flags, table->s->null_bytes);
+        }
+      }
+      mark_as_null_row(table);                  // All fields are NULL
+    }
   }
 }
+
+
+/**
+   Reverse null marking for tables and restore null bits.
+
+   We have to do this because the tables may be re-used in a sub query
+   and the subquery will assume that the const tables contains the original
+   data before clear_tables().
+*/
+
+static void unclear_tables(JOIN *join, table_map *cleared_tables)
+{
+  for (uint i= 0 ; i < join->table_count ; i++)
+  {
+    if ((*cleared_tables) & (((table_map) 1) << i))
+    {
+      TABLE *table= join->table[i];
+      if (table->s->null_bytes)
+        memcpy(table->null_flags, table->record[1], table->s->null_bytes);
+      unmark_as_null_row(table);
+    }
+  }
+}
+
 
 /*****************************************************************************
   Make som simple condition optimization:
@@ -17969,14 +18021,31 @@ Field *Item_field::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
   src->set_field(field);
   if (!(result= create_tmp_field_from_item_field(root, table, NULL, param)))
     return NULL;
-  /*
-    Fields that are used as arguments to the DEFAULT() function already have
-    their data pointers set to the default value during name resolution. See
-    Item_default_value::fix_fields.
-  */
-  if (type() != Item::DEFAULT_VALUE_ITEM && field->eq_def(result))
+  if (field->eq_def(result))
     src->set_default_field(field);
   return result;
+}
+
+
+Field *Item_default_value::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
+                                               Tmp_field_src *src,
+                                               const Tmp_field_param *param)
+{
+  if (field->default_value && (field->flags & BLOB_FLAG))
+  {
+    /*
+      We have to use a copy function when using a blob with default value
+      as the we have to calculate the default value before we can use it.
+    */
+     get_tmp_field_src(src, param);
+     return tmp_table_field_from_field_type(root, table);
+  }
+  /*
+    Same code as in Item_field::create_tmp_field_ex, except no default field
+    handling
+  */
+  src->set_field(field);
+  return create_tmp_field_from_item_field(root, table, nullptr, param);
 }
 
 
@@ -18081,7 +18150,13 @@ Field *Item_func_sp::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
                        the record in the original table.
                        If modify_item is 0 then fill_record() will update
                        the temporary table
-
+  @param table_cant_handle_bit_fields
+                       Set to 1 if the temporary table cannot handle bit
+                       fields. Only set for heap tables when the bit field
+                       is part of an index.
+  @param make_copy_field
+                       Set when using with rollup when we want to have
+                       an exact copy of the field.
   @retval
     0                  on error
   @retval
@@ -20146,6 +20221,7 @@ do_select(JOIN *join, Procedure *procedure)
   if (join->only_const_tables() && !join->need_tmp)
   {
     Next_select_func end_select= setup_end_select_func(join, NULL);
+
     /*
       HAVING will be checked after processing aggregate functions,
       But WHERE should checked here (we alredy have read tables).
@@ -20172,6 +20248,17 @@ do_select(JOIN *join, Procedure *procedure)
     }
     else if (join->send_row_on_empty_set())
     {
+      table_map cleared_tables= (table_map) 0;
+      if (end_select == end_send_group)
+      {
+        /*
+          Was a grouping query but we did not find any rows. In this case
+          we clear all tables to get null in any referenced fields,
+          like in case of:
+          SELECT MAX(a) AS f1, a AS f2 FROM t1 WHERE VALUE(a) IS NOT NULL
+        */
+        clear_tables(join, &cleared_tables);
+      }
       if (!join->having || join->having->val_int())
       {
         List<Item> *columns_list= (procedure ? &join->procedure_fields_list :
@@ -20179,6 +20266,12 @@ do_select(JOIN *join, Procedure *procedure)
         rc= join->result->send_data_with_check(*columns_list,
                                                join->unit, 0) > 0;
       }
+      /*
+        We have to remove the null markings from the tables as this table
+        may be part of a sub query that is re-evaluated
+      */
+      if (cleared_tables)
+        unclear_tables(join, &cleared_tables);
     }
     /*
       An error can happen when evaluating the conds 
@@ -21146,8 +21239,8 @@ join_read_const_table(THD *thd, JOIN_TAB *tab, POSITION *pos)
     if ((table->null_row= MY_TEST((*tab->on_expr_ref)->val_int() == 0)))
       mark_as_null_row(table);  
   }
-  if (!table->null_row)
-    table->maybe_null=0;
+  if (!table->null_row && ! tab->join->mixed_implicit_grouping)
+    table->maybe_null= 0;
 
   {
     JOIN *join= tab->join;
@@ -26313,7 +26406,7 @@ int JOIN::rollup_write_data(uint idx, TMP_TABLE_PARAM *tmp_table_param_arg, TABL
 
 void JOIN::clear()
 {
-  clear_tables(this);
+  clear_tables(this, 0);
   copy_fields(&tmp_table_param);
 
   if (sum_funcs)

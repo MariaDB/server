@@ -2418,18 +2418,6 @@ trx_is_registered_for_2pc(
 }
 
 /*********************************************************************//**
-Note that a transaction has been registered with MySQL 2PC coordinator. */
-static inline
-void
-trx_register_for_2pc(
-/*==================*/
-	trx_t*	trx)	/* in: transaction */
-{
-	trx->is_registered = 1;
-	ut_ad(!trx->active_commit_ordered);
-}
-
-/*********************************************************************//**
 Note that a transaction has been deregistered. */
 static inline
 void
@@ -3631,8 +3619,10 @@ static int innodb_init(void* p)
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->notify_tabledef_changed= innodb_notify_tabledef_changed;
 	innobase_hton->flags =
-		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS
-		| HTON_NATIVE_SYS_VERSIONING | HTON_WSREP_REPLICATION;
+		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS |
+		HTON_NATIVE_SYS_VERSIONING |
+		HTON_WSREP_REPLICATION |
+		HTON_REQUIRES_CLOSE_AFTER_TRUNCATE;
 
 #ifdef WITH_WSREP
 	innobase_hton->abort_transaction=wsrep_abort_transaction;
@@ -15150,10 +15140,6 @@ ha_innobase::extra(
 	case HA_EXTRA_END_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 0;
 		break;
-	case HA_EXTRA_FAKE_START_STMT:
-		trx_register_for_2pc(m_prebuilt->trx);
-		m_prebuilt->sql_stat_start = true;
-		goto stmt_boundary;
 	default:/* Do nothing */
 		;
 	}

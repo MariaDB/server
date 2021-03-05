@@ -20,7 +20,6 @@ sub start_test {
     ($path, $args) = ($cmd, , [ ])
   }
 
-
   my $oldpwd=getcwd();
   chdir $::opt_vardir;
   my $proc=My::SafeProcess->new
@@ -49,12 +48,12 @@ sub start_test {
   my ($command, %tests, $prefix);
   for (@ctest_list) {
     chomp;
-    if (/^\d+: Test command: +/) {
-      $command= $';
+    if (/^\d+: Test command: +([^ \t]+)/) {
+      $command= $1;
       $prefix= /libmariadb/ ? 'conc_' : '';
-    } elsif (/^ +Test +#\d+: +/) {
-      if ($command ne "NOT_AVAILABLE") {
-        $tests{$prefix.$'}=$command;
+    } elsif (/^ +Test +#\d+: ([^ \t]+)/) {
+      if ($command ne "NOT_AVAILABLE" && $command ne "/bin/sh") {
+        $tests{$prefix.$1}=$command;
       }
     }
   }

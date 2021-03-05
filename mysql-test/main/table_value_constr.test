@@ -1517,8 +1517,12 @@ drop view v1;
 drop table t1,t2,t3;
 
 --echo #
---echo # End of 10.3 tests
+--echo # MDEV-24919: subselect formed by TVC and used in set function
 --echo #
+
+select sum((values(1)));
+
+--echo End of 10.3 tests
 
 --echo #
 --echo # MDEV-22610 Crash in INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT))

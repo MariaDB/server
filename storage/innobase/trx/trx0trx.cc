@@ -1233,7 +1233,7 @@ inline void trx_t::commit_tables()
     const trx_id_t max_trx_id= trx_sys.get_max_trx_id();
     const auto now= start_time;
 
-    for (const auto& p : mod_tables)
+    for (const auto &p : mod_tables)
     {
       dict_table_t *table= p.first;
       table->update_time= now;
@@ -1337,7 +1337,6 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
     release_locks();
     id= 0;
-
     DEBUG_SYNC_C("after_trx_committed_in_memory");
 
     while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))

@@ -218,8 +218,6 @@ enum ha_extra_function {
   HA_EXTRA_BEGIN_ALTER_COPY,
   /** Finish writing rows during ALTER TABLE...ALGORITHM=COPY. */
   HA_EXTRA_END_ALTER_COPY,
-  /** Fake the start of a statement after wsrep_load_data_splitting hack */
-  HA_EXTRA_FAKE_START_STMT,
   /** IGNORE is being used for the insert statement */
   HA_EXTRA_IGNORE_INSERT
 };
