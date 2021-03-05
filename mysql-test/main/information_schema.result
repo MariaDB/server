@@ -2316,5 +2316,12 @@ count(*)
 2
 DROP TABLE t1;
 #
+# MDEV-24868 Server crashes in optimize_schema_tables_memory_usage after select from information_schema.innodb_sys_columns
+#
+create table t1 ( name varchar(64) character set utf8, len int);
+select * from t1 where (name, len) in (select  name, len from information_schema.innodb_sys_columns having len = 8);
+name	len
+drop table t1;
+#
 # End of 10.3 tests
 #
