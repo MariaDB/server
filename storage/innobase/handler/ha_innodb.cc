@@ -2385,18 +2385,6 @@ trx_is_registered_for_2pc(
 }
 
 /*********************************************************************//**
-Note that a transaction has been registered with MySQL 2PC coordinator. */
-static inline
-void
-trx_register_for_2pc(
-/*==================*/
-	trx_t*	trx)	/* in: transaction */
-{
-	trx->is_registered = 1;
-	ut_ad(!trx->active_commit_ordered);
-}
-
-/*********************************************************************//**
 Note that a transaction has been deregistered. */
 static inline
 void
