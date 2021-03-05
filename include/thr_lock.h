@@ -47,6 +47,8 @@ enum thr_lock_type { TL_IGNORE=-1,
 		     TL_READ_HIGH_PRIORITY,
 		     /* READ, Don't allow concurrent insert */
 		     TL_READ_NO_INSERT,
+		     /* READ, but skip locks if found */
+		     TL_READ_SKIP_LOCKED,
 		     /* 
 			Write lock, but allow other threads to read / write.
 			Used by BDB tables in MySQL to mark that someone is
@@ -67,6 +69,8 @@ enum thr_lock_type { TL_IGNORE=-1,
                      TL_WRITE_DEFAULT,
 		     /* WRITE lock that has lower priority than TL_READ */
 		     TL_WRITE_LOW_PRIORITY,
+		     /* WRITE, but skip locks if found */
+		     TL_WRITE_SKIP_LOCKED,
 		     /* Normal WRITE lock */
 		     TL_WRITE,
 		     /* Abort new lock request with an error */

@@ -8875,7 +8875,8 @@ bool st_select_lex::add_window_spec(THD *thd,
 /**
   Set lock for all tables in current select level.
 
-  @param lock_type			Lock to set for tables
+  @param lock_type		Lock to set for tables
+  @param skip_locked		(SELECT {FOR UPDATE/LOCK IN SHARED MODE} SKIP LOCKED)
 
   @note
     If lock is a write lock, then tables->updating is set 1
@@ -8883,16 +8884,19 @@ bool st_select_lex::add_window_spec(THD *thd,
     query
 */
 
-void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update)
+void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update,
+					bool skip_locked_arg)
 {
   DBUG_ENTER("set_lock_for_tables");
-  DBUG_PRINT("enter", ("lock_type: %d  for_update: %d", lock_type,
-		       for_update));
+  DBUG_PRINT("enter", ("lock_type: %d  for_update: %d  skip_locked %d",
+                       lock_type, for_update, skip_locked));
+  skip_locked= skip_locked_arg;
   for (TABLE_LIST *tables= table_list.first;
        tables;
        tables= tables->next_local)
   {
     tables->lock_type= lock_type;
+    tables->skip_locked= skip_locked;
     tables->updating=  for_update;
     tables->mdl_request.set_type((lock_type >= TL_FIRST_WRITE) ?
                                  MDL_SHARED_WRITE : MDL_SHARED_READ);

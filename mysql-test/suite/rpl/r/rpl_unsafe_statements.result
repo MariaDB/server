@@ -63,4 +63,33 @@ connection slave;
 include/diff_tables.inc [master:t1, slave:t1]
 connection master;
 DROP TABLE t1;
+CREATE TABLE t1(i INT,PRIMARY KEY(i)) ENGINE=INNODB;
+CREATE TABLE t2(i INT,PRIMARY KEY(i)) ENGINE=INNODB;
+INSERT INTO t1 (i) VALUES (1),(2),(3),(4),(5);
+connect  con1, localhost, root,;
+START TRANSACTION;
+SELECT i FROM t1 WHERE i=3 FOR UPDATE;
+i
+3
+connection master;
+INSERT INTO t2 SELECT i FROM t1 LOCK IN SHARE MODE SKIP LOCKED;
+CREATE TABLE t3 AS SELECT i FROM t1 LOCK IN SHARE MODE SKIP LOCKED;
+SELECT * FROM t2 ORDER BY i;
+i
+1
+2
+4
+5
+SELECT * FROM t3 ORDER BY i;
+i
+1
+2
+4
+5
+connection slave;
+include/diff_tables.inc [master:t2, slave:t2]
+include/diff_tables.inc [master:t3, slave:t3]
+disconnect con1;
+connection master;
+DROP TABLE t1, t2, t3;
 include/rpl_end.inc

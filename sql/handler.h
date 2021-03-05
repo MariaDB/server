@@ -353,7 +353,10 @@ enum chf_create_flags {
  */
 #define HA_ONLINE_ANALYZE             (1ULL << 59)
 
-#define HA_LAST_TABLE_FLAG HA_ONLINE_ANALYZE
+/* Implements SELECT ... FOR UPDATE SKIP LOCKED */
+#define HA_CAN_SKIP_LOCKED  (1ULL << 60)
+
+#define HA_LAST_TABLE_FLAG HA_CAN_SKIP_LOCKED
 
 
 /* bits in index_flags(index_number) for what you can do with index */

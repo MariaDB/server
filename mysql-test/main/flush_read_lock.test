@@ -1323,6 +1323,16 @@ let $statement= select f2_temp();
 let $cleanup_stmt= delete from t1_temp limit 1;
 --source include/check_ftwrl_compatible.inc
 
+--echo # 30.f) SELECT ... FOR UPDATE SKIP LOCKED is incompatible with FTWRL.
+let $statement= select count(*) from t1_base for update skip locked;
+let $cleanup_stmt1= ;
+--source include/check_ftwrl_incompatible.inc
+
+--echo # 30.g) SELECT ... LOCK IN SHARE MODE SKIP LOCKED is compatible with FTWRL.
+let $statement= select count(*) from t1_base lock in share mode skip locked;
+let $cleanup_stmt= ;
+--source include/check_ftwrl_compatible.inc
+
 
 --echo #
 --echo # 31) Compatibility of SET statement with FTWRL depends on its

@@ -5129,16 +5129,17 @@ no_gap_lock:
 					!= ROW_READ_TRY_SEMI_CONSISTENT)
 			    || unique_search
 			    || index != clust_index) {
-
-				goto lock_wait_or_error;
+				if (!prebuilt->skip_locked) {
+					goto lock_wait_or_error;
+				}
+			} else {
+				/* The following call returns 'offsets'
+				associated with 'old_vers' */
+				row_sel_build_committed_vers_for_mysql(
+					clust_index, prebuilt, rec,
+					&offsets, &heap, &old_vers,
+					need_vrow ? &vrow : NULL, &mtr);
 			}
-
-			/* The following call returns 'offsets'
-			associated with 'old_vers' */
-			row_sel_build_committed_vers_for_mysql(
-				clust_index, prebuilt, rec,
-				&offsets, &heap, &old_vers, need_vrow ? &vrow : NULL,
-			        &mtr);
 
 			/* Check whether it was a deadlock or not, if not
 			a deadlock and the transaction had to wait then
@@ -5161,7 +5162,16 @@ no_gap_lock:
 			case DB_LOCK_WAIT:
 				ut_ad(!dict_index_is_spatial(index));
 				err = DB_SUCCESS;
+				if (prebuilt->skip_locked) {
+					goto next_rec;
+				}
 				break;
+		        case DB_LOCK_WAIT_TIMEOUT:
+				if (prebuilt->skip_locked) {
+					err = DB_SUCCESS;
+					goto next_rec;
+				}
+				/* fall through */
 			default:
 				ut_error;
 			}
@@ -5181,7 +5191,13 @@ no_gap_lock:
 			} else {
 				goto lock_wait_or_error;
 			}
-
+			break;
+		case DB_LOCK_WAIT_TIMEOUT:
+			if (prebuilt->skip_locked) {
+				err = DB_SUCCESS;
+				goto next_rec;
+			}
+			/* fall through */
 		default:
 
 			goto lock_wait_or_error;
@@ -5356,6 +5372,10 @@ requires_clust_rec:
 						      &offsets, &heap,
 						      need_vrow ? &vrow : NULL,
 						      &mtr);
+		if (prebuilt->skip_locked &&
+		    err == DB_LOCK_WAIT) {
+			err = lock_trx_handle_wait(trx);
+		}
 		switch (err) {
 		case DB_SUCCESS:
 			if (clust_rec == NULL) {
@@ -5375,6 +5395,13 @@ requires_clust_rec:
 			}
 			err = DB_SUCCESS;
 			break;
+		case DB_LOCK_WAIT_TIMEOUT:
+		case DB_LOCK_WAIT:
+			if (prebuilt->skip_locked) {
+				err = DB_SUCCESS;
+				goto next_rec;
+			}
+			/* fall through */
 		default:
 			vrow = NULL;
 			goto lock_wait_or_error;

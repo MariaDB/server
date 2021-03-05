@@ -2619,6 +2619,7 @@ ha_innobase::ha_innobase(
                           | HA_CAN_TABLES_WITHOUT_ROLLBACK
                           | HA_CAN_ONLINE_BACKUPS
 			  | HA_CONCURRENT_OPTIMIZE
+			  | HA_CAN_SKIP_LOCKED
 			  |  (srv_force_primary_key ? HA_REQUIRE_PRIMARY_KEY : 0)
 		  ),
 	m_start_of_scan(),
@@ -15226,6 +15227,7 @@ ha_innobase::reset()
 	/* This is a statement level counter. */
 	m_prebuilt->autoinc_last_value = 0;
 
+	m_prebuilt->skip_locked = false;
 	return(0);
 }
 
@@ -15901,6 +15903,7 @@ ha_innobase::store_lock(
 	} else if ((lock_type == TL_READ && in_lock_tables)
 		   || (lock_type == TL_READ_HIGH_PRIORITY && in_lock_tables)
 		   || lock_type == TL_READ_WITH_SHARED_LOCKS
+		   || lock_type == TL_READ_SKIP_LOCKED
 		   || lock_type == TL_READ_NO_INSERT
 		   || (lock_type != TL_IGNORE
 		       && sql_command != SQLCOM_SELECT)) {
@@ -15910,11 +15913,12 @@ ha_innobase::store_lock(
 		are processing a stored procedure or function, or
 		2) (we do not know when TL_READ_HIGH_PRIORITY is used), or
 		3) this is a SELECT ... IN SHARE MODE, or
-		4) we are doing a complex SQL statement like
+		4) this is a SELECT ... IN SHARE MODE SKIP LOCKED, or
+		5) we are doing a complex SQL statement like
 		INSERT INTO ... SELECT ... and the logical logging (MySQL
 		binlog) requires the use of a locking read, or
 		MySQL is doing LOCK TABLES ... READ.
-		5) we let InnoDB do locking reads for all SQL statements that
+		6) we let InnoDB do locking reads for all SQL statements that
 		are not simple SELECTs; note that select_lock_type in this
 		case may get strengthened in ::external_lock() to LOCK_X.
 		Note that we MUST use a locking read in all data modifying
@@ -15960,6 +15964,8 @@ ha_innobase::store_lock(
 		m_prebuilt->select_lock_type = LOCK_NONE;
 		m_prebuilt->stored_select_lock_type = LOCK_NONE;
 	}
+	m_prebuilt->skip_locked= (lock_type == TL_WRITE_SKIP_LOCKED ||
+				  lock_type == TL_READ_SKIP_LOCKED);
 
 	if (!trx_is_started(trx)
 	    && (m_prebuilt->select_lock_type != LOCK_NONE

@@ -4421,14 +4421,18 @@ restart:
     /* Set appropriate TABLE::lock_type. */
     if (tbl && tables->lock_type != TL_UNLOCK && !thd->locked_tables_mode)
     {
-      if (tables->lock_type == TL_WRITE_DEFAULT)
-        tbl->reginfo.lock_type= thd->update_lock_default;
-      else if (tables->lock_type == TL_READ_DEFAULT)
-          tbl->reginfo.lock_type=
-            read_lock_type_for_table(thd, thd->lex, tables,
-                                     some_routine_modifies_data);
+      if (tables->lock_type == TL_WRITE_DEFAULT ||
+          unlikely(tables->lock_type == TL_WRITE_SKIP_LOCKED &&
+           !(tables->table->file->ha_table_flags() & HA_CAN_SKIP_LOCKED)))
+          tbl->reginfo.lock_type= thd->update_lock_default;
+      else if (likely(tables->lock_type == TL_READ_DEFAULT) ||
+               (tables->lock_type == TL_READ_SKIP_LOCKED &&
+                !(tables->table->file->ha_table_flags() & HA_CAN_SKIP_LOCKED)))
+          tbl->reginfo.lock_type= read_lock_type_for_table(thd, thd->lex, tables,
+                                                           some_routine_modifies_data);
       else
         tbl->reginfo.lock_type= tables->lock_type;
+      tbl->reginfo.skip_locked= tables->skip_locked;
     }
 #ifdef WITH_WSREP
     /*

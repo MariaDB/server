@@ -1298,6 +1298,11 @@ public:
   /* index in the select list of the expression currently being fixed */
   int cur_pos_in_select_list;
 
+  /* SELECT [FOR UPDATE/LOCK IN SHARE MODE] [SKIP LOCKED] */
+  enum select_lock_type {NONE, IN_SHARE_MODE, FOR_UPDATE};
+  enum select_lock_type select_lock;
+  bool skip_locked;
+
   List<udf_func>     udf_list;                  /* udf function calls stack */
 
   /* 
@@ -1410,7 +1415,8 @@ public:
   TABLE_LIST *convert_right_join();
   List<Item>* get_item_list();
   ulong get_table_join_options();
-  void set_lock_for_tables(thr_lock_type lock_type, bool for_update);
+  void set_lock_for_tables(thr_lock_type lock_type, bool for_update,
+                           bool skip_locks);
   /*
     This method created for reiniting LEX in mysql_admin_table() and can be
     used only if you are going remove all SELECT_LEX & units except belonger
@@ -1941,6 +1947,13 @@ public:
        primary key.
     */
     BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST,
+
+    /**
+       INSERT .. SELECT ... SKIP LOCKED is unlikely to have the same
+       rows locked on the replica.
+       primary key.
+    */
+    BINLOG_STMT_UNSAFE_SKIP_LOCKED,
 
     /* The last element of this enumeration type. */
     BINLOG_STMT_UNSAFE_COUNT

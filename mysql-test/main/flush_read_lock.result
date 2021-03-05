@@ -1096,6 +1096,14 @@ Success: FTWRL is blocked when 'select f2_base()' is active in another connectio
 Success: Was able to run 'select f2_temp()' under FTWRL.
 Success: Was able to run 'select f2_temp()' with FTWRL active in another connection.
 Success: Was able to run FTWRL while 'select f2_temp()' was active in another connection.
+# 30.f) SELECT ... FOR UPDATE SKIP LOCKED is incompatible with FTWRL.
+Success: Was not able to run 'select count(*) from t1_base for update skip locked' under FTWRL.
+Success: 'select count(*) from t1_base for update skip locked' is blocked by FTWRL active in another connection.
+Success: FTWRL is blocked when 'select count(*) from t1_base for update skip locked' is active in another connection.
+# 30.g) SELECT ... LOCK IN SHARE MODE SKIP LOCKED is compatible with FTWRL.
+Success: Was able to run 'select count(*) from t1_base lock in share mode skip locked' under FTWRL.
+Success: Was able to run 'select count(*) from t1_base lock in share mode skip locked' with FTWRL active in another connection.
+Success: Was able to run FTWRL while 'select count(*) from t1_base lock in share mode skip locked' was active in another connection.
 #
 # 31) Compatibility of SET statement with FTWRL depends on its
 #     expression and on whether it is a special SET statement.

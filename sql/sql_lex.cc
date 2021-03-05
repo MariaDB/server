@@ -612,7 +612,8 @@ Query_tables_list::binlog_stmt_unsafe_errcode[BINLOG_STMT_UNSAFE_COUNT] =
   ER_BINLOG_UNSAFE_CREATE_SELECT_AUTOINC,
   ER_BINLOG_UNSAFE_UPDATE_IGNORE,
   ER_BINLOG_UNSAFE_INSERT_TWO_KEYS,
-  ER_BINLOG_UNSAFE_AUTOINC_NOT_FIRST
+  ER_BINLOG_UNSAFE_AUTOINC_NOT_FIRST,
+  ER_BINLOG_UNSAFE_SKIP_LOCKED
 };
 
 
@@ -3009,6 +3010,8 @@ void st_select_lex::init_select()
   select_limit= 0;      /* denotes the default limit = HA_POS_ERROR */
   offset_limit= 0;      /* denotes the default offset = 0 */
   is_set_query_expr_tail= false;
+  select_lock= select_lock_type::NONE;
+  skip_locked= false;
   with_sum_func= 0;
   with_all_modifier= 0;
   is_correlated= 0;
@@ -9690,19 +9693,24 @@ void Lex_select_lock::set_to(SELECT_LEX *sel)
       sel->master_unit()->set_lock_to_the_last_select(*this);
     else
     {
+      thr_lock_type lock_type;
       sel->parent_lex->safe_to_cache_query= 0;
-      if (update_lock)
+      if (unlikely(skip_locked))
       {
-        sel->lock_type= TL_WRITE;
-        sel->set_lock_for_tables(TL_WRITE, false);
+        lock_type= update_lock ? TL_WRITE_SKIP_LOCKED : TL_READ_SKIP_LOCKED;
       }
       else
       {
-        sel->lock_type= TL_READ_WITH_SHARED_LOCKS;
-        sel->set_lock_for_tables(TL_READ_WITH_SHARED_LOCKS, false);
+        lock_type= update_lock ? TL_WRITE : TL_READ_WITH_SHARED_LOCKS;
       }
+      sel->lock_type= lock_type;
+      sel->select_lock= (update_lock ? st_select_lex::select_lock_type::FOR_UPDATE :
+                         st_select_lex::select_lock_type::IN_SHARE_MODE);
+      sel->set_lock_for_tables(lock_type, false, skip_locked);
     }
   }
+  else
+    sel->select_lock= st_select_lex::select_lock_type::NONE;
 }
 
 bool Lex_order_limit_lock::set_to(SELECT_LEX *sel)

@@ -49,11 +49,13 @@ static const char *lock_descriptions[] =
   /* TL_READ_WITH_SHARED_LOCKS  */  "Shared read lock",
   /* TL_READ_HIGH_PRIORITY      */  "High priority read lock",
   /* TL_READ_NO_INSERT          */  "Read lock without concurrent inserts",
+  /* TL_READ_SKIP_LOCKED        */  "Read lock without blocking if row is locked",
   /* TL_WRITE_ALLOW_WRITE       */  "Write lock that allows other writers",
   /* TL_WRITE_CONCURRENT_INSERT */  "Concurrent insert lock",
   /* TL_WRITE_DELAYED           */  "Lock used by delayed insert",
   /* TL_WRITE_DEFAULT           */  NULL,
   /* TL_WRITE_LOW_PRIORITY      */  "Low priority write lock",
+  /* TL_WRITE_SKIP_LOCKED       */  "Write lock but skip existing locked rows",
   /* TL_WRITE                   */  "High priority write lock",
   /* TL_WRITE_ONLY              */  "Highest priority write lock"
 };

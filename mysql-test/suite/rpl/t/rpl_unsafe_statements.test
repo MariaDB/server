@@ -19,6 +19,7 @@
 #    Case-2: BINLOG_STMT_UNSAFE_WRITE_AUTOINC_SELECT
 #    Case-3: BINLOG_STMT_UNSAFE_AUTOINC_NOT_FIRST
 #    Case-4: BINLOG_STMT_UNSAFE_INSERT_TWO_KEYS
+#    Case-5: BINLOG_STMT_UNSAFE_SKIP_LOCKED
 ################################################################################
 
 --source include/have_innodb.inc
@@ -172,5 +173,43 @@ COMMIT;
 # Step-4.6: Cleanup
 --connection master
 DROP TABLE t1;
+
+# Case-5: BINLOG_STMT_UNSAFE_SKIP_LOCKED
+#  INSERT... ON KEY UPDATE SKIP LOCKED is unsafe Statement
+
+# Step-5.1: Create a table some index
+CREATE TABLE t1(i INT,PRIMARY KEY(i)) ENGINE=INNODB;
+CREATE TABLE t2(i INT,PRIMARY KEY(i)) ENGINE=INNODB;
+
+# Step-5.2: Inserting some values
+INSERT INTO t1 (i) VALUES (1),(2),(3),(4),(5);
+
+# Step-5.3: Lock one of the values
+connect (con1, localhost, root,);
+START TRANSACTION;
+SELECT i FROM t1 WHERE i=3 FOR UPDATE;
+
+# Step-5.4: Create non-deterministic inserts/tables
+--connection master
+INSERT INTO t2 SELECT i FROM t1 LOCK IN SHARE MODE SKIP LOCKED;
+CREATE TABLE t3 AS SELECT i FROM t1 LOCK IN SHARE MODE SKIP LOCKED;
+SELECT * FROM t2 ORDER BY i;
+SELECT * FROM t3 ORDER BY i;
+
+# Step-5.5: Sync slave with master
+--sync_slave_with_master
+
+# Step-5.6: Diff master-replica tables insert statements are in sync
+--let $diff_tables=master:t2, slave:t2
+--source include/diff_tables.inc
+
+# Step-5.7: Diff master-replica tables create select table is in sync
+--let $diff_tables=master:t3, slave:t3
+--source include/diff_tables.inc
+
+# Step-5.8: Cleanup
+--disconnect con1
+--connection master
+DROP TABLE t1, t2, t3;
 
 --source include/rpl_end.inc
