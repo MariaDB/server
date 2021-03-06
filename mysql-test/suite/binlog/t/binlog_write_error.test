@@ -75,5 +75,8 @@ source include/binlog_inject_error.inc;
 let $query= REVOKE ALL PRIVILEGES, GRANT OPTION FROM user1;
 source include/binlog_inject_error.inc;
 
+let $query= SET PASSWORD FOR user1=PASSWORD('foobar');
+source include/binlog_inject_error.inc;
+
 let $query= DROP USER user1;
 source include/binlog_inject_error.inc;

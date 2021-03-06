@@ -100,6 +100,12 @@ ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
 SET GLOBAL debug_dbug='d,injecting_fault_writing';
+SET PASSWORD FOR user1=PASSWORD('foobar');
+SET PASSWORD FOR user1=PASSWORD('foobar');
+ERROR HY000: Error writing file 'master-bin' ((errno: #)
+set @@global.debug_dbug = @saved_dbug;
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug='d,injecting_fault_writing';
 DROP USER user1;
 DROP USER user1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
