@@ -49,7 +49,6 @@
 #include "sp_head.h"
 #include "sp.h"
 #include "sql_trigger.h"
-#include "sql_parse.h"
 #include "sql_show.h"
 #include "transaction.h"
 #include "sql_audit.h"
