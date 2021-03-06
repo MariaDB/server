@@ -37,6 +37,7 @@ REMOTEIP=""
 tcert=""
 tpem=""
 tkey=""
+tmode="DISABLED"
 sockopt=""
 progress=""
 ttime=0
@@ -71,6 +72,8 @@ xtmpdir=""
 
 scomp=""
 sdecomp=""
+
+readonly SECRET_TAG="secret"
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
@@ -264,24 +267,30 @@ get_transfer()
                 exit 22
             fi
             stagemsg+="-OpenSSL-Encrypted-3"
-            if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
-                if [[ -z $tcert ]];then
+            if [[ -z $tcert ]];then
+                # no verification
+                if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
                     wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, verify=0"
                     tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},key=${tkey},verify=0${sockopt} stdio"
                 else
-                    wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},key=${tkey},cafile=${tcert}${sockopt} stdio"
-                fi
-            else
-                if [[ -z $tcert ]];then
                     wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, verify=0"
                     tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},verify=0${sockopt}"
+                fi
+            else
+                # CA verification
+                if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
+                    wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
+                    tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert=${tpem},key=${tkey},cafile=${tcert}${sockopt} stdio"
                 else
+                    if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+                        CN_option=",commonname=$WSREP_SST_OPT_REMOTE_USER"
+                    else
+                        CN_option=""
+                    fi
                     wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${sockopt}"
+                    tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert=${tpem},key=${tkey},cafile=${tcert}${CN_option}${sockopt}"
                 fi
             fi
-
         else 
             if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
                 tcmd="socat -u TCP-LISTEN:${TSST_PORT},reuseaddr${sockopt} stdio"
@@ -290,7 +299,6 @@ get_transfer()
             fi
         fi
     fi
-
 }
 
 parse_cnf()
@@ -298,10 +306,17 @@ parse_cnf()
     local group=$1
     local var=$2
     # print the default settings for given group using my_print_default.
+    # remove possible 'loose' variable name prefix
     # normalize the variable names specified in cnf file (user can use _ or - for example log-bin or log_bin)
     # then grep for needed variable
     # finally get the variable value (if variables has been specified multiple time use the last value only)
-    reval=$($MY_PRINT_DEFAULTS $group | awk -F= '{if ($1 ~ /_/) { gsub(/_/,"-",$1); print $1"="$2 } else { print $0 }}' | grep -- "--$var=" | cut -d= -f2- | tail -1)
+    reval=$($MY_PRINT_DEFAULTS $group | \
+            awk -F= '{ sub(/^--loose/,"-",$0); \
+                       if ($1 ~ /_/) \
+                           { gsub(/_/,"-",$1); print $1"="$2 } \
+                       else \
+                           { print $0 }}' | \
+            grep -- "--$var=" | cut -d= -f2- | tail -1)
     if [[ -z $reval ]];then 
         [[ -n $3 ]] && reval=$3
     fi
@@ -351,6 +366,24 @@ adjust_progress()
     fi
 }
 
+check_server_ssl_config()
+{
+    local section=$1
+    tcert=$(parse_cnf $section ssl-ca "")
+    tpem=$(parse_cnf $section ssl-cert "")
+    tkey=$(parse_cnf $section ssl-key "")
+    if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
+    then
+         encrypt=3 # enable cert/key SSL encyption
+
+         # avoid CA verification if not set explicitly:
+         # nodes may happen to have different CA if self-generated
+         # zeroing up tcert does the trick
+         local mode=$(parse_cnf SST ssl-mode "")
+         [[ ${tmode} = *VERIFY* ]] || tcert=""
+    fi
+}
+
 read_cnf()
 {
     sfmt=$(parse_cnf sst streamfmt "xbstream")
@@ -359,6 +392,26 @@ read_cnf()
     tpem=$(parse_cnf sst tcert "")
     tkey=$(parse_cnf sst tkey "")
     encrypt=$(parse_cnf sst encrypt 0)
+    tmode=$(parse_cnf sst ssl-mode "DISABLED" | tr [:lower:] [:upper:])
+
+    if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]
+    then # no old-style SSL config in [sst]
+        if [ "$tmode" != "DISABLED" ]
+        then # backward-incompatible behavior
+            check_server_ssl_config "sst"
+            if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]
+            then # no new-stype SSL config in [sst], try server-wide SSL config
+                check_server_ssl_config "mysqld.$WSREP_SST_OPT_SUFFIX_VALUE"
+                if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]
+                then
+                    check_server_ssl_config "mysqld"
+                fi
+            fi
+        fi
+    fi
+    wsrep_log_info "SSL configuration: CA='"$tcert"', CERT='"$tpem"'," \
+                   "KEY='"$tkey"', MODE='"$tmode"', encrypt="$encrypt
+
     sockopt=$(parse_cnf sst sockopt "")
     progress=$(parse_cnf sst progress "")
     rebuild=$(parse_cnf sst rebuild 0)
@@ -404,7 +457,7 @@ read_cnf()
 
     if [[ $encrypt -eq 1 ]]; then
         wsrep_log_error "Xtrabackup-based encryption is currently not" \
-            "supported with MariaBackup"
+                        "supported with MariaBackup"
         exit 2
     fi
 }
@@ -631,8 +684,8 @@ recv_joiner()
     popd 1>/dev/null 
 
     if [[ ${RC[0]} -eq 124 ]];then 
-        wsrep_log_error "Possible timeout in receiving first data from "
-	                "donor in gtid stage: exit codes: ${RC[@]}"
+        wsrep_log_error "Possible timeout in receiving first data from " \
+                        "donor in gtid stage: exit codes: ${RC[@]}"
         exit 32
     fi
 
@@ -644,12 +697,27 @@ recv_joiner()
         fi
     done
 
-    if [[ $checkf -eq 1 && ! -r "${MAGIC_FILE}" ]];then
-        # this message should cause joiner to abort
-        wsrep_log_error "xtrabackup process ended without creating '${MAGIC_FILE}'"
-        wsrep_log_info "Contents of datadir" 
-        wsrep_log_info "$(ls -l ${dir}/*)"
-        exit 32
+    if [[ $checkf -eq 1 ]]; then
+        if [[ ! -r "${MAGIC_FILE}" ]];then
+            # this message should cause joiner to abort
+            wsrep_log_error "receiving process ended without creating " \
+                            "'${MAGIC_FILE}'"
+            wsrep_log_info "Contents of datadir" 
+            wsrep_log_info "$(ls -l ${dir}/*)"
+            exit 32
+        fi
+
+        # check donor supplied secret
+        SECRET=$(grep "$SECRET_TAG " ${MAGIC_FILE} 2>/dev/null | cut -d ' ' -f 2)
+        if [[ $SECRET != $MY_SECRET ]]; then
+            wsrep_log_error "Donor does not know my secret!"
+            wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
+            exit 32
+        fi
+
+        # remove secret from magic file
+        grep -v "$SECRET_TAG " ${MAGIC_FILE} > ${MAGIC_FILE}.new
+        mv ${MAGIC_FILE}.new ${MAGIC_FILE}
     fi
 }
 
@@ -665,10 +733,9 @@ send_donor()
     set -e
     popd 1>/dev/null 
 
-
     for ecode in "${RC[@]}";do 
         if [[ $ecode -ne 0 ]];then 
-            wsrep_log_error "Error while getting data from donor node: " \
+            wsrep_log_error "Error while sending data to joiner node: " \
                             "exit codes: ${RC[@]}"
             exit 32
         fi
@@ -891,6 +958,11 @@ then
         # (separated by a space).
         echo "${WSREP_SST_OPT_GTID} ${WSREP_SST_OPT_GTID_DOMAIN_ID}" > "${MAGIC_FILE}"
 
+        if [[ -n ${WSREP_SST_OPT_REMOTE_PSWD} ]]; then
+            # Let joiner know that we know its secret
+            echo "$SECRET_TAG ${WSREP_SST_OPT_REMOTE_PSWD}" >> ${MAGIC_FILE}
+        fi
+
         ttcmd="$tcmd"
 
         if [[ $encrypt -eq 1 ]];then
@@ -1003,7 +1075,6 @@ then
 
     stagemsg="Joiner-Recv"
 
-
     sencrypted=1
     nthreads=1
 
@@ -1025,7 +1096,26 @@ then
         fi
     fi
 
-    wait_for_listen ${SST_PORT} ${ADDR} ${MODULE} &
+    if [[ "$tmode" = *"VERIFY"* ]]
+    then # backward-incompatible behavior
+        if [ -n "$tpem" ]
+        then
+            # find out my Common Name
+            wsrep_check_programs openssl
+            CN=$(openssl x509 -noout -subject -in $tpem | \
+                 tr "," "\n" | grep "CN =" | cut -d= -f2 | sed s/^\ // | \
+                 sed s/\ %//)
+        else
+            CN=""
+        fi
+        MY_SECRET=$(wsrep_gen_secret)
+        # Add authentication data to address
+        ADDR="$CN:$MY_SECRET@$ADDR"
+    else
+        MY_SECRET="" # for check down in recv_joiner()
+    fi # tmode == *VERIFY*
+
+    wait_for_listen ${SST_PORT} "${ADDR}" ${MODULE} &
 
     trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_joiner EXIT
