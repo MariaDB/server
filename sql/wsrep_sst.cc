@@ -702,49 +702,30 @@ err:
   return NULL;
 }
 
-#define WSREP_SST_AUTH_ENV "WSREP_SST_OPT_AUTH"
+#define WSREP_SST_AUTH_ENV        "WSREP_SST_OPT_AUTH"
+#define WSREP_SST_REMOTE_AUTH_ENV "WSREP_SST_OPT_REMOTE_AUTH"
+#define DATA_HOME_DIR_ENV         "INNODB_DATA_HOME_DIR"
 
-static int sst_append_auth_env(wsp::env& env, const char* sst_auth)
+static int sst_append_env_var(wsp::env&   env,
+                              const char* const var,
+                              const char* const val)
 {
-  int const sst_auth_size= strlen(WSREP_SST_AUTH_ENV) + 1 /* = */
-    + (sst_auth ? strlen(sst_auth) : 0) + 1 /* \0 */;
+  int const env_str_size= strlen(var) + 1 /* = */
+                          + (val ? strlen(val) : 0) + 1 /* \0 */;
 
-  wsp::string sst_auth_str(sst_auth_size); // for automatic cleanup on return
-  if (!sst_auth_str()) return -ENOMEM;
+  wsp::string env_str(env_str_size); // for automatic cleanup on return
+  if (!env_str()) return -ENOMEM;
 
-  int ret= snprintf(sst_auth_str(), sst_auth_size, "%s=%s",
-                    WSREP_SST_AUTH_ENV, sst_auth ? sst_auth : "");
+  int ret= snprintf(env_str(), env_str_size, "%s=%s", var, val ? val : "");
 
-  if (ret < 0 || ret >= sst_auth_size)
+  if (ret < 0 || ret >= env_str_size)
   {
-    WSREP_ERROR("sst_append_auth_env(): snprintf() failed: %d", ret);
+    WSREP_ERROR("sst_append_env_var(): snprintf(%s=%s) failed: %d",
+                var, val, ret);
     return (ret < 0 ? ret : -EMSGSIZE);
   }
 
-  env.append(sst_auth_str());
-  return -env.error();
-}
-
-#define DATA_HOME_DIR_ENV "INNODB_DATA_HOME_DIR"
-
-static int sst_append_data_dir(wsp::env& env, const char* data_dir)
-{
-  int const data_dir_size= strlen(DATA_HOME_DIR_ENV) + 1 /* = */
-    + (data_dir ? strlen(data_dir) : 0) + 1 /* \0 */;
-
-  wsp::string data_dir_str(data_dir_size); // for automatic cleanup on return
-  if (!data_dir_str()) return -ENOMEM;
-
-  int ret= snprintf(data_dir_str(), data_dir_size, "%s=%s",
-                    DATA_HOME_DIR_ENV, data_dir ? data_dir : "");
-
-  if (ret < 0 || ret >= data_dir_size)
-  {
-    WSREP_ERROR("sst_append_data_dir(): snprintf() failed: %d", ret);
-    return (ret < 0 ? ret : -EMSGSIZE);
-  }
-
-  env.append(data_dir_str());
+  env.append(env_str());
   return -env.error();
 }
 
@@ -1155,7 +1136,7 @@ static ssize_t sst_prepare_other (const char*  method,
     return -env.error();
   }
 
-  if ((ret= sst_append_auth_env(env, sst_auth)))
+  if ((ret= sst_append_env_var(env, WSREP_SST_AUTH_ENV, sst_auth)))
   {
     WSREP_ERROR("sst_prepare_other(): appending auth failed: %d", ret);
     return ret;
@@ -1163,7 +1144,7 @@ static ssize_t sst_prepare_other (const char*  method,
 
   if (data_home_dir)
   {
-    if ((ret= sst_append_data_dir(env, data_home_dir)))
+    if ((ret= sst_append_env_var(env, DATA_HOME_DIR_ENV, data_home_dir)))
     {
       WSREP_ERROR("sst_prepare_other(): appending data "
                   "directory failed: %d", ret);
@@ -1477,6 +1458,8 @@ static int sst_donate_mysqldump (const char*         addr,
                             wsrep::gtid(gtid.id(),
                                         wsrep::seqno::undefined()));
   Wsrep_server_state::instance().sst_sent(sst_sent_gtid, ret);
+
+  wsrep_donor_monitor_end();
 
   return ret;
 }
@@ -1859,6 +1842,7 @@ static int sst_donate_other (const char*        method,
                  "wsrep_sst_%s "
                  WSREP_SST_OPT_ROLE " 'donor' "
                  WSREP_SST_OPT_ADDR " '%s' "
+                 WSREP_SST_OPT_LPORT " '%u' "
                  WSREP_SST_OPT_SOCKET " '%s' "
                  WSREP_SST_OPT_DATA " '%s' "
                  "%s"
@@ -1867,7 +1851,8 @@ static int sst_donate_other (const char*        method,
                  "%s"
                  "%s"
                  "%s",
-                 method, addr, mysqld_unix_port, mysql_real_data_home,
+                 method, addr, mysqld_port, mysqld_unix_port,
+                 mysql_real_data_home,
                  wsrep_defaults_file,
                  uuid_oss.str().c_str(), gtid.seqno().get(), wsrep_gtid_server.domain_id,
                  binlog_opt_val, binlog_index_opt_val,
@@ -1956,7 +1941,21 @@ int wsrep_sst_donate(const std::string& msg,
 
   const char* data= method + method_len + 1;
 
-  if (check_request_str(data, address_char))
+  /* check for auth@addr separator */
+  const char* addr= strrchr(data, '@');
+  wsp::string remote_auth;
+  if (addr)
+  {
+    remote_auth.set(strndup(data, addr - data));
+    addr++;
+  }
+  else
+  {
+    // no auth part
+    addr= data;
+  }
+
+  if (check_request_str(addr, address_char))
   {
     WSREP_ERROR("Bad SST address string. SST canceled.");
     return WSREP_CB_FAILURE;
@@ -1970,15 +1969,25 @@ int wsrep_sst_donate(const std::string& msg,
   }
 
   int ret;
-  if ((ret= sst_append_auth_env(env, sst_auth_real)))
+  if ((ret= sst_append_env_var(env, WSREP_SST_AUTH_ENV, sst_auth_real)))
   {
     WSREP_ERROR("wsrep_sst_donate_cb(): appending auth env failed: %d", ret);
     return WSREP_CB_FAILURE;
   }
 
+  if (remote_auth())
+  {
+    if ((ret= sst_append_env_var(env, WSREP_SST_REMOTE_AUTH_ENV,remote_auth())))
+    {
+      WSREP_ERROR("wsrep_sst_donate_cb(): appending remote auth env failed: "
+                  "%d", ret);
+      return WSREP_CB_FAILURE;
+    }
+  }
+
   if (data_home_dir)
   {
-    if ((ret= sst_append_data_dir(env, data_home_dir)))
+    if ((ret= sst_append_env_var(env, DATA_HOME_DIR_ENV, data_home_dir)))
     {
       WSREP_ERROR("wsrep_sst_donate_cb(): appending data "
                   "directory failed: %d", ret);
@@ -2000,11 +2009,11 @@ int wsrep_sst_donate(const std::string& msg,
 
   if (!strcmp (WSREP_SST_MYSQLDUMP, method))
   {
-    ret= sst_donate_mysqldump(data, current_gtid, bypass, env());
+    ret= sst_donate_mysqldump(addr, current_gtid, bypass, env());
   }
   else
   {
-    ret= sst_donate_other(method, data, current_gtid, bypass, env());
+    ret= sst_donate_other(method, addr, current_gtid, bypass, env());
   }
 
   return (ret >= 0 ? 0 : 1);

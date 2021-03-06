@@ -25,6 +25,7 @@ WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH=${WSREP_SST_OPT_AUTH:-}
 WSREP_SST_OPT_USER=${WSREP_SST_OPT_USER:-}
 WSREP_SST_OPT_PSWD=${WSREP_SST_OPT_PSWD:-}
+WSREP_SST_OPT_REMOTE_AUTH=${WSREP_SST_OPT_REMOTE_AUTH:-}
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
@@ -34,6 +35,7 @@ INNODB_DATA_HOME_DIR_ARG=""
 INNODB_LOG_GROUP_HOME_ARG=""
 INNODB_UNDO_DIR_ARG=""
 LOG_BIN_ARG=""
+readonly WSREP_SST_OPT_REMOTE_AUTH
 
 while [ $# -gt 0 ]; do
 case "$1" in
@@ -121,7 +123,8 @@ case "$1" in
         WSREP_SST_OPT_BYPASS=1
         ;;
     '--datadir')
-        readonly WSREP_SST_OPT_DATA="$2"
+        # strip trailing '/'
+        readonly WSREP_SST_OPT_DATA="${2%/}"
         shift
         ;;
     '--innodb-data-home-dir')
@@ -323,11 +326,21 @@ readonly WSREP_SST_OPT_AUTH
 # Splitting AUTH into potential user:password pair
 if ! wsrep_auth_not_set
 then
-    WSREP_SST_OPT_USER="${WSREP_SST_OPT_AUTH%%:*}"
+    WSREP_SST_OPT_USER="${WSREP_SST_OPT_AUTH%:*}"
     WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_AUTH##*:}"
 fi
 readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD
+
+if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]
+then
+    # Split auth string at the last ':'
+    readonly WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%:*}"
+    readonly WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH##*:}"
+else
+    readonly WSREP_SST_OPT_REMOTE_USER=
+    readonly WSREP_SST_OPT_REMOTE_PSWD=
+fi
 
 if [ -n "${WSREP_SST_OPT_DATA:-}" ]
 then
@@ -386,6 +399,19 @@ wsrep_check_programs()
     done
 }
 
+# Generate a string equivalent to 16 random bytes
+wsrep_gen_secret()
+{
+    if [ -x /usr/bin/openssl ]
+    then
+        echo `/usr/bin/openssl rand -hex 16`
+    else
+        printf "%04x%04x%04x%04x%04x%04x%04x%04x" \
+                $RANDOM $RANDOM $RANDOM $RANDOM   \
+                $RANDOM $RANDOM $RANDOM $RANDOM
+    fi
+}
+
 #
 # user can specify mariabackup specific settings that will be used during sst
 # process like encryption, etc.....
@@ -397,14 +423,22 @@ wsrep_check_programs()
 parse_cnf()
 {
     local group=$1
-    local var=$2
+    local var=${2//_/-} # normalize variable name by replacing all '_' with '-'
     local reval=""
 
-    # normalize the variable names specified in cnf file (user can use _ or - for example log-bin or log_bin)
+    # first normalize output variable names specified in cnf file:
+    # user can use _ or - (for example log-bin or log_bin) and/or prefix
+    # variable with --loose-
     # then search for needed variable
     # finally get the variable value (if variables has been specified multiple time use the last value only)
 
-    reval=$($MY_PRINT_DEFAULTS "${group}" | awk -v var="${var}" 'BEGIN { OFS=FS="=" } { gsub(/_/,"-",$1); if ( $1=="--"var) lastval=substr($0,length($1)+2) } END { print lastval}')
+    reval=$($MY_PRINT_DEFAULTS "${group}" | \
+            awk -v var="${var}" 'BEGIN { OFS=FS="=" } \
+                                       { sub(/^--loose/,"-",$0); \
+                                         gsub(/_/,"-",$1); \
+                                         if ( $1=="--"var) \
+                                             lastval=substr($0,length($1)+2) } \
+                                 END { print lastval}')
 
     # use default if we haven't found a value
     if [ -z "$reval" ]; then
