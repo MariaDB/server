@@ -38,9 +38,6 @@ Created 2012/04/12 by Sunny Bains
 # error CPU_LEVEL1_DCACHE_LINESIZE is undefined
 #endif /* CPU_LEVEL1_DCACHE_LINESIZE */
 
-/** Default number of slots to use in ib_counter_t */
-#define IB_N_SLOTS		64
-
 /** Use the result of my_timer_cycles(), which mainly uses RDTSC for cycles
 as a random value. See the comments for my_timer_cycles() */
 /** @return result from RDTSC or similar functions. */
@@ -69,10 +66,11 @@ get_rnd_value()
 so the results are not guaranteed to be 100% accurate but close
 enough. Creates an array of counters and separates each element by the
 CACHE_LINE_SIZE bytes */
-template <typename Type, int N = IB_N_SLOTS>
+template <typename Type, int N = 128 >
 struct ib_counter_t {
 	/** Increment the counter by 1. */
 	void inc() { add(1); }
+	ib_counter_t& operator++() { inc(); return *this; }
 
 	/** Increment the counter by 1.
 	@param[in]	index	a reasonably thread-unique identifier */
@@ -90,7 +88,7 @@ struct ib_counter_t {
 
 		ut_ad(index < UT_ARR_SIZE(m_counter));
 
-		m_counter[index].value.fetch_add(n, std::memory_order_relaxed);
+		m_counter[index].value.fetch_add(n);
 	}
 
 	/* @return total value - not 100% accurate, since it is relaxed atomic*/
@@ -98,7 +96,7 @@ struct ib_counter_t {
 		Type	total = 0;
 
 		for (const auto &counter : m_counter) {
-			total += counter.value.load(std::memory_order_relaxed);
+			total += counter.value;
 		}
 
 		return(total);
@@ -113,7 +111,7 @@ private:
 	be zero-initialized by the run-time environment.
 	@see srv_stats */
 	struct ib_counter_element_t {
-		MY_ALIGNED(CACHE_LINE_SIZE) std::atomic<Type> value;
+		MY_ALIGNED(CACHE_LINE_SIZE) Atomic_relaxed<Type> value;
 	};
 	static_assert(sizeof(ib_counter_element_t) == CACHE_LINE_SIZE, "");
 

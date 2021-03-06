@@ -1220,7 +1220,8 @@ struct buf_buddy_free_t {
 
 /** @brief The buffer pool statistics structure. */
 struct buf_pool_stat_t{
-	ulint	n_page_gets;	/*!< number of page gets performed;
+	ib_counter_t<ulint>	n_page_gets;
+				/*!< number of page gets performed;
 				also successful searches through
 				the adaptive hash index are
 				counted as page gets; this field
