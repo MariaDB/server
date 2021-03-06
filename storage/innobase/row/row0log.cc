@@ -351,7 +351,7 @@ row_log_online_op(
 	row_merge_buf_encode(), because here we do not encode
 	extra_size+1 (and reserve 0 as the end-of-chunk marker). */
 
-	size = rec_get_converted_size_temp(
+	size = rec_get_converted_size_temp<false>(
 		index, tuple->fields, tuple->n_fields, &extra_size);
 	ut_ad(size >= extra_size);
 	ut_ad(size <= sizeof log->tail.buf);
@@ -399,7 +399,7 @@ row_log_online_op(
 		*b++ = (byte) extra_size;
 	}
 
-	rec_convert_dtuple_to_temp(
+	rec_convert_dtuple_to_temp<false>(
 		b + extra_size, index, tuple->fields, tuple->n_fields);
 	b += size;
 
@@ -741,7 +741,7 @@ row_log_table_delete(
 		      old_pk, old_pk->n_fields - 2)->len);
 	ut_ad(DATA_ROLL_PTR_LEN == dtuple_get_nth_field(
 		      old_pk, old_pk->n_fields - 1)->len);
-	old_pk_size = rec_get_converted_size_temp(
+	old_pk_size = rec_get_converted_size_temp<false>(
 		new_index, old_pk->fields, old_pk->n_fields,
 		&old_pk_extra_size);
 	ut_ad(old_pk_extra_size < 0x100);
@@ -754,7 +754,7 @@ row_log_table_delete(
 		*b++ = ROW_T_DELETE;
 		*b++ = static_cast<byte>(old_pk_extra_size);
 
-		rec_convert_dtuple_to_temp(
+		rec_convert_dtuple_to_temp<false>(
 			b + old_pk_extra_size, new_index,
 			old_pk->fields, old_pk->n_fields);
 
@@ -854,7 +854,7 @@ row_log_table_low_redundant(
 	rec_comp_status_t status = is_instant
 		? REC_STATUS_COLUMNS_ADDED : REC_STATUS_ORDINARY;
 
-	size = rec_get_converted_size_temp(
+	size = rec_get_converted_size_temp<true>(
 		index, tuple->fields, tuple->n_fields, &extra_size, status);
 	if (is_instant) {
 		size++;
@@ -874,7 +874,7 @@ row_log_table_low_redundant(
 		ut_ad(DATA_ROLL_PTR_LEN == dtuple_get_nth_field(
 			      old_pk, old_pk->n_fields - 1)->len);
 
-		old_pk_size = rec_get_converted_size_temp(
+		old_pk_size = rec_get_converted_size_temp<false>(
 			new_index, old_pk->fields, old_pk->n_fields,
 			&old_pk_extra_size);
 		ut_ad(old_pk_extra_size < 0x100);
@@ -891,7 +891,7 @@ row_log_table_low_redundant(
 			if (old_pk_size) {
 				*b++ = static_cast<byte>(old_pk_extra_size);
 
-				rec_convert_dtuple_to_temp(
+				rec_convert_dtuple_to_temp<false>(
 					b + old_pk_extra_size, new_index,
 					old_pk->fields, old_pk->n_fields);
 				b += old_pk_size;
@@ -914,7 +914,7 @@ row_log_table_low_redundant(
 			*b = status;
 		}
 
-		rec_convert_dtuple_to_temp(
+		rec_convert_dtuple_to_temp<true>(
 			b + extra_size, index, tuple->fields, tuple->n_fields,
 			status);
 		b += size;
@@ -1036,7 +1036,7 @@ row_log_table_low(
 		ut_ad(DATA_ROLL_PTR_LEN == dtuple_get_nth_field(
 			      old_pk, old_pk->n_fields - 1)->len);
 
-		old_pk_size = rec_get_converted_size_temp(
+		old_pk_size = rec_get_converted_size_temp<false>(
 			new_index, old_pk->fields, old_pk->n_fields,
 			&old_pk_extra_size);
 		ut_ad(old_pk_extra_size < 0x100);
@@ -1052,7 +1052,7 @@ row_log_table_low(
 			if (old_pk_size) {
 				*b++ = static_cast<byte>(old_pk_extra_size);
 
-				rec_convert_dtuple_to_temp(
+				rec_convert_dtuple_to_temp<false>(
 					b + old_pk_extra_size, new_index,
 					old_pk->fields, old_pk->n_fields);
 				b += old_pk_size;
@@ -4039,4 +4039,10 @@ row_log_apply(
 	row_log_free(log);
 
 	DBUG_RETURN(error);
+}
+
+unsigned row_log_get_n_core_fields(const dict_index_t *index)
+{
+  ut_ad(index->online_log);
+  return index->online_log->n_core_fields;
 }

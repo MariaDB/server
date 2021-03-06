@@ -247,6 +247,11 @@ row_log_apply(
 	ut_stage_alter_t*	stage)
 	MY_ATTRIBUTE((warn_unused_result));
 
+/** Get the n_core_fields of online log for the index
+@param	 index	index whose n_core_fields of log to be accessed
+@return number of n_core_fields */
+unsigned row_log_get_n_core_fields(const dict_index_t *index);
+
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Estimate how much work is to be done by the log apply phase
 of an ALTER TABLE for this index.
