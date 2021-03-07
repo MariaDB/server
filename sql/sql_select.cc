@@ -3268,10 +3268,10 @@ bool JOIN::make_aggr_tables_info()
           DBUG_RETURN(1);
         TABLE* table= create_tmp_table(thd, curr_tab->tmp_table_param,
                                        all_fields,
-                                       NULL, query.distinct,
+                                       NULL, distinct,
                                        TRUE, select_options, HA_POS_ERROR,
                                        &empty_clex_str, !need_tmp,
-                                       query.order_by || query.group_by);
+                                       keep_row_order);
         if (!table)
           DBUG_RETURN(1);
 
