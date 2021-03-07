@@ -6,22 +6,22 @@ CREATE TABLE t1 ( a INT, KEY (a) );
 SHOW KEYS FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
-ALTER TABLE t1 ALTER INDEX a IGNORE;
+ALTER TABLE t1 ALTER INDEX a IGNORED;
 SHOW KEYS FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
-ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORED;
 SHOW KEYS FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 DROP TABLE t1;
-# Test of CREATE INDEX syntax with IGNORE indexes.
+# Test of CREATE INDEX syntax with IGNORED indexes.
 CREATE TABLE t1 ( a INT, b INT );
-CREATE INDEX a_ignorable ON t1(a) IGNORE;
-CREATE INDEX b_not_ignorable ON t1(a) NOT IGNORE;
+CREATE INDEX a_ignorable ON t1(a) IGNORED;
+CREATE INDEX b_not_ignorable ON t1(a) NOT IGNORED;
 Warnings:
 Note	1831	Duplicate index `b_not_ignorable`. This is deprecated and will be disallowed in a future release
-CREATE INDEX a_b_ignorable ON t1(a, b) IGNORE;
+CREATE INDEX a_b_ignorable ON t1(a, b) IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a_ignorable	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
@@ -29,9 +29,9 @@ t1	1	b_not_ignorable	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 t1	1	a_b_ignorable	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
 t1	1	a_b_ignorable	2	b	A	NULL	NULL	NULL	YES	BTREE			YES
 DROP TABLE t1;
-# Test that IGNORE indexes are not used.
+# Test that IGNORED indexes are not used.
 CREATE TABLE t1 ( a INT, KEY (a) );
-CREATE TABLE t2 ( a INT, KEY (a) IGNORE );
+CREATE TABLE t2 ( a INT, KEY (a) IGNORED );
 INSERT INTO t1 VALUES (1), (2), (3), (4), (5);
 INSERT INTO t2 SELECT * FROM t1;
 ANALYZE TABLE t1, t2;
@@ -43,18 +43,18 @@ test.t2	analyze	status	Table is already up to date
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	5	NULL	5	Using index
-ALTER TABLE t1 ALTER INDEX a IGNORE;
+ALTER TABLE t1 ALTER INDEX a IGNORED;
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	
-ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORED;
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	5	NULL	5	Using index
 EXPLAIN SELECT a FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	5	
-ALTER TABLE t2 ALTER INDEX a NOT IGNORE;
+ALTER TABLE t2 ALTER INDEX a NOT IGNORED;
 EXPLAIN SELECT a FROM t2;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t2	index	NULL	a	5	NULL	5	Using index
@@ -62,7 +62,7 @@ DROP TABLE t1, t2;
 # Test that renaming an index does not change ignorability and vice versa.
 CREATE TABLE t1 (
 a INT, INDEX (a),
-b INT, INDEX (b) IGNORE
+b INT, INDEX (b) IGNORED
 );
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -74,8 +74,8 @@ SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a1	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 t1	1	b1	1	b	A	NULL	NULL	NULL	YES	BTREE			YES
-ALTER TABLE t1 ALTER INDEX a1 IGNORE;
-ALTER TABLE t1 ALTER INDEX b1 NOT IGNORE;
+ALTER TABLE t1 ALTER INDEX a1 IGNORED;
+ALTER TABLE t1 ALTER INDEX b1 NOT IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a1	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
@@ -86,8 +86,8 @@ CREATE TABLE t1 (
 a INT,
 b INT,
 c INT,
-INDEX (a) NOT IGNORE,
-INDEX (b) IGNORE,
+INDEX (a) NOT IGNORED,
+INDEX (b) IGNORED,
 INDEX (c)
 );
 SHOW CREATE TABLE t1;
@@ -102,58 +102,58 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
 # Test that primary key indexes can't be made ignorable.
-CREATE TABLE t1 ( a INT, PRIMARY KEY (a) IGNORE );
+CREATE TABLE t1 ( a INT, PRIMARY KEY (a) IGNORED );
 ERROR HY000: A primary key cannot be marked as IGNORE
-CREATE TABLE t1 ( a INT PRIMARY KEY IGNORE );
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IGNORE )' at line 1
-CREATE TABLE t1 ( a INT KEY IGNORE );
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IGNORE )' at line 1
-ALTER TABLE t1 ALTER INDEX PRIMARY IGNORE;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PRIMARY IGNORE' at line 1
+CREATE TABLE t1 ( a INT PRIMARY KEY IGNORED );
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IGNORED )' at line 1
+CREATE TABLE t1 ( a INT KEY IGNORED );
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'IGNORED )' at line 1
+ALTER TABLE t1 ALTER INDEX PRIMARY IGNORED;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'PRIMARY IGNORED' at line 1
 CREATE TABLE t1(a INT NOT NULL);
-ALTER TABLE t1 ADD PRIMARY KEY (a) IGNORE;
+ALTER TABLE t1 ADD PRIMARY KEY (a) IGNORED;
 ERROR HY000: A primary key cannot be marked as IGNORE
 DROP TABLE t1;
 CREATE TABLE t1 (
 a INT, KEY (a),
-b INT, KEY (b) IGNORE
+b INT, KEY (b) IGNORED
 );
 ALTER TABLE t1 RENAME INDEX no_such_index TO x;
 ERROR 42000: Key 'no_such_index' doesn't exist in table 't1'
-ALTER TABLE t1 ALTER INDEX no_such_index IGNORE;
+ALTER TABLE t1 ALTER INDEX no_such_index IGNORED;
 ERROR 42000: Key 'no_such_index' doesn't exist in table 't1'
 DROP TABLE t1;
 CREATE TABLE t1 (
 a INT, KEY (a),
-b INT, KEY (b) IGNORE
+b INT, KEY (b) IGNORED
 );
 ALTER TABLE t1 RENAME INDEX no_such_index TO x;
 ERROR 42000: Key 'no_such_index' doesn't exist in table 't1'
-ALTER TABLE t1 ALTER INDEX no_such_index IGNORE;
+ALTER TABLE t1 ALTER INDEX no_such_index IGNORED;
 ERROR 42000: Key 'no_such_index' doesn't exist in table 't1'
 #
 # Repeated alter actions. Should work.
 #
-ALTER TABLE t1 ALTER INDEX a IGNORE, ALTER INDEX a NOT IGNORE;
+ALTER TABLE t1 ALTER INDEX a IGNORED, ALTER INDEX a NOT IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			YES
-ALTER TABLE t1 ALTER INDEX a NOT IGNORE, ALTER INDEX b IGNORE;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORED, ALTER INDEX b IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 t1	1	b	1	b	A	NULL	NULL	NULL	YES	BTREE			YES
 #
-# Various combinations of RENAME INDEX and ALTER INDEX ... IGNORE.
+# Various combinations of RENAME INDEX and ALTER INDEX ... IGNORED.
 #
 ALTER TABLE t1 RENAME INDEX a TO x, RENAME INDEX x TO a;
 ERROR 42000: Key 'x' doesn't exist in table 't1'
-ALTER TABLE t1 RENAME INDEX a TO x, ALTER INDEX x IGNORE;
+ALTER TABLE t1 RENAME INDEX a TO x, ALTER INDEX x IGNORED;
 ERROR 42000: Key 'x' doesn't exist in table 't1'
-ALTER TABLE t1 RENAME INDEX a TO x, ALTER INDEX a NOT IGNORE;
+ALTER TABLE t1 RENAME INDEX a TO x, ALTER INDEX a NOT IGNORED;
 ERROR 42000: Key 'a' doesn't exist in table 't1'
-ALTER TABLE t1 ALTER INDEX a NOT IGNORE, RENAME INDEX a TO x;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORED, RENAME INDEX a TO x;
 ERROR 42000: Key 'a' doesn't exist in table 't1'
 #
 # Various algorithms and their effects.
@@ -163,7 +163,7 @@ ANALYZE TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
-ALTER TABLE t1 ALTER INDEX a IGNORE, ALGORITHM = COPY;
+ALTER TABLE t1 ALTER INDEX a IGNORED, ALGORITHM = COPY;
 affected rows: 3
 info: Records: 3  Duplicates: 0  Warnings: 0
 ANALYZE TABLE t1;
@@ -174,7 +174,7 @@ SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL	YES	BTREE			YES
 t1	1	b	1	b	A	3	NULL	NULL	YES	BTREE			YES
-ALTER TABLE t1 ALTER INDEX a NOT IGNORE, ALGORITHM = INPLACE;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORED, ALGORITHM = INPLACE;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ANALYZE TABLE t1;
@@ -185,7 +185,7 @@ SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL	YES	BTREE			NO
 t1	1	b	1	b	A	3	NULL	NULL	YES	BTREE			YES
-ALTER TABLE t1 ALTER INDEX a IGNORE, ALGORITHM = DEFAULT;
+ALTER TABLE t1 ALTER INDEX a IGNORED, ALGORITHM = DEFAULT;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ANALYZE TABLE t1;
@@ -196,7 +196,7 @@ SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL	YES	BTREE			YES
 t1	1	b	1	b	A	3	NULL	NULL	YES	BTREE			YES
-ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORED;
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
 ANALYZE TABLE t1;
@@ -207,7 +207,7 @@ SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL	YES	BTREE			NO
 t1	1	b	1	b	A	3	NULL	NULL	YES	BTREE			YES
-ALTER TABLE t1 ADD INDEX ab(a, b), ALTER INDEX ab IGNORE;
+ALTER TABLE t1 ADD INDEX ab(a, b), ALTER INDEX ab IGNORED;
 ERROR 42000: Key 'ab' doesn't exist in table 't1'
 DROP TABLE t1;
 #
@@ -217,7 +217,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (
 a INT NOT NULL,
 b INT NOT NULL PRIMARY KEY,
-UNIQUE KEY (a) IGNORE
+UNIQUE KEY (a) IGNORED
 );
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -229,16 +229,16 @@ CREATE TABLE t1 (
 a INT NOT NULL,
 b INT NOT NULL,
 UNIQUE KEY (a),
-UNIQUE KEY (b) IGNORE
+UNIQUE KEY (b) IGNORED
 );
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	a	1	a	A	0	NULL	NULL		BTREE			NO
 t1	0	b	1	b	A	0	NULL	NULL		BTREE			YES
 DROP TABLE t1;
-CREATE TABLE t1 ( a INT NOT NULL, UNIQUE KEY (a) IGNORE);
+CREATE TABLE t1 ( a INT NOT NULL, UNIQUE KEY (a) IGNORED);
 ERROR HY000: A primary key cannot be marked as IGNORE
-CREATE TEMPORARY TABLE t1 ( a INT, KEY (a) IGNORE);
+CREATE TEMPORARY TABLE t1 ( a INT, KEY (a) IGNORED);
 INSERT INTO t1 VALUES (0), (1), (2), (3);
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
@@ -246,13 +246,13 @@ t1	1	a	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	4	
-ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORED;
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	5	NULL	4	Using index
 DROP TABLE t1;
 #
-# IGNORE fulltext indexes.
+# IGNORED fulltext indexes.
 #
 CREATE TABLE t1 (a VARCHAR(200), b TEXT, FULLTEXT (a,b));
 INSERT INTO t1 VALUES('Some data', 'for full-text search');
@@ -264,12 +264,12 @@ test.t1	analyze	status	OK
 EXPLAIN SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ("collections");
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	fulltext	a	a	0		1	Using where
-ALTER TABLE t1 ALTER INDEX a IGNORE;
+ALTER TABLE t1 ALTER INDEX a IGNORED;
 EXPLAIN SELECT * FROM t1 WHERE MATCH(a, b) AGAINST ("collections");
 ERROR HY000: Can't find FULLTEXT index matching the column list
 DROP TABLE t1;
 #
-# IGNORE indexes on AUTO_INCREMENT columns.
+# IGNORED indexes on AUTO_INCREMENT columns.
 #
 CREATE TABLE t1 ( a INT AUTO_INCREMENT, KEY ( a ) );
 INSERT INTO t1 VALUES (), (), ();
@@ -280,7 +280,7 @@ test.t1	analyze	status	OK
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	4	NULL	3	Using index
-ALTER TABLE t1 ALTER INDEX a IGNORE;
+ALTER TABLE t1 ALTER INDEX a IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	a	1	a	A	3	NULL	NULL		BTREE			YES
@@ -289,7 +289,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
 DROP TABLE t1;
 #
-# IGNORE spatial indexes
+# IGNORED spatial indexes
 #
 CREATE TABLE t1 (
 fid INT NOT NULL AUTO_INCREMENT PRIMARY KEY,
@@ -300,7 +300,7 @@ EXPLAIN SELECT fid, AsText(g) FROM t1
 WHERE Within(g, GeomFromText('Polygon((140 140,160 140,160 160,140 160,140 140))'));
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	key1	key1	34	NULL	8	Using where
-ALTER TABLE t1 ALTER INDEX key1 IGNORE;
+ALTER TABLE t1 ALTER INDEX key1 IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	0	PRIMARY	1	fid	A	150	NULL	NULL		BTREE			NO
@@ -318,7 +318,7 @@ t1	1	key1	1	a	A	NULL	NULL	NULL	YES	BTREE			NO
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	key1	5	NULL	3	Using index
-ALTER TABLE t1 ALTER INDEX key1 IGNORE;
+ALTER TABLE t1 ALTER INDEX key1 IGNORED;
 SHOW INDEXES FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	key1	1	a	A	NULL	NULL	NULL	YES	BTREE			YES
@@ -327,7 +327,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
 DROP TABLE t1;
 #
-# Partitioning on keys with an IGNORE index, IGNORE indexes over
+# Partitioning on keys with an IGNORED index, IGNORED indexes over
 # partitioned tables.
 #
 CREATE TABLE t1 (
@@ -336,7 +336,7 @@ b CHAR(2) NOT NULL,
 c INT(10) UNSIGNED NOT NULL,
 d VARCHAR(255) DEFAULT NULL,
 e VARCHAR(1000) DEFAULT NULL,
-KEY (a) IGNORE,
+KEY (a) IGNORED,
 KEY (b)
 ) PARTITION BY KEY (a) PARTITIONS 20;
 INSERT INTO t1 (a, b, c, d, e) VALUES
@@ -367,27 +367,27 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT * FROM t1 WHERE a = '04';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using where
-ALTER TABLE t1 ALTER INDEX a NOT IGNORE;
+ALTER TABLE t1 ALTER INDEX a NOT IGNORED;
 EXPLAIN SELECT a FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	a	2	NULL	14	Using index
 EXPLAIN SELECT * FROM t1 WHERE a = '04';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ref	a	a	2	const	2	Using where
-ALTER TABLE t1 ALTER INDEX b IGNORE;
+ALTER TABLE t1 ALTER INDEX b IGNORED;
 EXPLAIN SELECT b FROM t1;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	14	
 DROP TABLE t1;
 #
-# Using FORCE INDEX for an ignored index
+# Using FORCE INDEX for an IGNORED index
 #
 CREATE TABLE t1(a INT, key k1(a));
 INSERT INTO t1 VALUES (1),(2),(3);
 EXPLAIN SELECT * FROM t1 FORCE INDEX(k1);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index	NULL	k1	5	NULL	3	Using index
-ALTER TABLE t1 ALTER INDEX k1 IGNORE;
+ALTER TABLE t1 ALTER INDEX k1 IGNORED;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -396,4 +396,26 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 EXPLAIN SELECT * FROM t1 FORCE INDEX(k1);
 ERROR 42000: Key 'k1' doesn't exist in table 't1'
+DROP TABLE t1;
+#
+# MDEV-25075: Ignorable index makes the resulting CREATE TABLE invalid
+#
+CREATE TABLE t1 (a INT, KEY (a));
+ALTER TABLE t1 ALTER INDEX a IGNORED;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  KEY `a` (`a`) IGNORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE t1;
+CREATE TABLE t1 ( a INT, KEY (a) IGNORED);
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  KEY `a` (`a`) IGNORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1;
+/*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE t1;

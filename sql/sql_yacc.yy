@@ -532,6 +532,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd> IF_SYM
 %token  <kwd> IGNORE_DOMAIN_IDS_SYM
 %token  <kwd> IGNORE_SYM
+%token  <kwd> IGNORED_SYM
 %token  <kwd> INDEX_SYM
 %token  <kwd> INFILE
 %token  <kwd> INNER_SYM                     /* SQL-2003-R */
@@ -7095,8 +7096,8 @@ btree_or_rtree:
         ;
 
 ignorability:
-          IGNORE_SYM { $$= true; }
-        | NOT_SYM IGNORE_SYM { $$= false; }
+          IGNORED_SYM { $$= true; }
+        | NOT_SYM IGNORED_SYM { $$= false; }
         ;
 
 key_list:
@@ -15975,6 +15976,7 @@ reserved_keyword_udt_not_param_type:
         | IF_SYM
         | IGNORE_DOMAIN_IDS_SYM
         | IGNORE_SYM
+        | IGNORED_SYM
         | INDEX_SYM
         | INFILE
         | INNER_SYM
