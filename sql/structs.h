@@ -820,11 +820,12 @@ class Lex_select_limit
 public:
   /* explicit LIMIT clause was used */
   bool explicit_limit;
+  bool with_ties;
   Item *select_limit, *offset_limit;
 
   void empty()
   {
-    explicit_limit= FALSE;
+    explicit_limit= with_ties= FALSE;
 
     /* denotes the default limit = HA_POS_ERROR */
     /* denotes the default offset = 0 */
