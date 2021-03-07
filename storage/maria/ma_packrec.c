@@ -1413,10 +1413,12 @@ uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
 {
   uchar *header= info->header;
   uint head_length,UNINIT_VAR(ref_length);
+  MARIA_SHARE *share= maria->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
 
   if (file >= 0)
   {
-    ref_length=maria->s->pack.ref_length;
+    ref_length=share->pack.ref_length;
     /*
       We can't use my_pread() here because _ma_read_rnd_pack_record assumes
       position is ok
@@ -1426,11 +1428,11 @@ uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
       return BLOCK_FATAL_ERROR;
     DBUG_DUMP("header", header, ref_length);
   }
-  head_length= read_pack_length((uint) maria->s->pack.version, header,
+  head_length= read_pack_length((uint) share->pack.version, header,
                                 &info->rec_len);
-  if (maria->s->base.blobs)
+  if (share->base.blobs)
   {
-    head_length+= read_pack_length((uint) maria->s->pack.version,
+    head_length+= read_pack_length((uint) share->pack.version,
                                    header + head_length, &info->blob_len);
     /*
       Ensure that the record buffer is big enough for the compressed
@@ -1439,7 +1441,7 @@ uint _ma_pack_get_block_info(MARIA_HA *maria, MARIA_BIT_BUFF *bit_buff,
     */
     if (_ma_alloc_buffer(rec_buff_p, rec_buff_size_p,
                          info->rec_len + info->blob_len +
-                         maria->s->base.extra_rec_buff_size))
+                         share->base.extra_rec_buff_size, flag))
       return BLOCK_FATAL_ERROR;			/* not enough memory */
     bit_buff->blob_pos= *rec_buff_p + info->rec_len;
     bit_buff->blob_end= bit_buff->blob_pos + info->blob_len;
@@ -1580,15 +1582,18 @@ _ma_mempack_get_block_info(MARIA_HA *maria,
                            size_t *rec_buff_size_p,
                            uchar *header)
 {
-  header+= read_pack_length((uint) maria->s->pack.version, header,
+  MARIA_SHARE *share= maria->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
+
+  header+= read_pack_length((uint) share->pack.version, header,
                             &info->rec_len);
-  if (maria->s->base.blobs)
+  if (share->base.blobs)
   {
-    header+= read_pack_length((uint) maria->s->pack.version, header,
+    header+= read_pack_length((uint) share->pack.version, header,
                               &info->blob_len);
     /* _ma_alloc_rec_buff sets my_errno on error */
     if (_ma_alloc_buffer(rec_buff_p, rec_buff_size_p,
-                         info->blob_len + maria->s->base.extra_rec_buff_size))
+                      info->blob_len + share->base.extra_rec_buff_size, flag))
       return 0;				/* not enough memory */
     bit_buff->blob_pos= *rec_buff_p;
     bit_buff->blob_end= *rec_buff_p + info->blob_len;

@@ -232,15 +232,16 @@ my_bool _ma_bitmap_init(MARIA_SHARE *share, File file,
   uint max_page_size;
   MARIA_FILE_BITMAP *bitmap= &share->bitmap;
   uint size= share->block_size;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   pgcache_page_no_t first_bitmap_with_space;
 #ifndef DBUG_OFF
   /* We want to have a copy of the bitmap to be able to print differences */
   size*= 2;
 #endif
 
-  if (((bitmap->map= (uchar*) my_malloc(size, MYF(MY_WME))) == NULL) ||
+  if (((bitmap->map= (uchar*) my_malloc(size, flag)) == NULL) ||
       my_init_dynamic_array(&bitmap->pinned_pages,
-                            sizeof(MARIA_PINNED_PAGE), 1, 1, MYF(0)))
+                            sizeof(MARIA_PINNED_PAGE), 1, 1, flag))
     return 1;
 
   bitmap->share= share;
