@@ -623,4 +623,17 @@ SELECT JSON_DETAILED(JSON_EXTRACT(trace, '$**.range_scan_alternatives')) from IN
 DROP TABLE t1;
 
 set optimizer_trace='enabled=off';
+
+--echo #
+--echo # MDEV-24975 Server consumes extra 4G memory upon querying INFORMATION_SCHEMA.OPTIIMIZER_TRACE
+--echo #
+set max_session_mem_used=1024*1024*1024;
+--disable_result_log
+select count(*) from information_schema.optimizer_trace;
+select * from information_schema.optimizer_trace;
+--enable_result_log
+set max_session_mem_used=default;
+
+--echo #
 --echo # End of 10.4 tests
+--echo #

@@ -8767,6 +8767,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
       {
         /* all fields were optimized away. Force a non-0-length row */
         table->s->reclength= to_recinfo->length= 1;
+        to_recinfo->type= FIELD_NORMAL;
         to_recinfo++;
       }
       p->recinfo= to_recinfo;
