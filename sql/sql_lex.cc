@@ -2996,7 +2996,6 @@ void st_select_lex::init_select()
   type= 0;
   db= null_clex_str;
   having= 0;
-  table_join_options= 0;
   in_sum_expr= with_wild= 0;
   options= 0;
   ftfunc_list_alloc.empty();
@@ -3495,12 +3494,6 @@ List<Item>* st_select_lex::get_item_list()
 {
   return &item_list;
 }
-
-ulong st_select_lex::get_table_join_options()
-{
-  return table_join_options;
-}
-
 
 bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
 {

@@ -1230,7 +1230,6 @@ public:
   enum_parsing_place context_analysis_place; /* where we are in prepare */
   bool with_sum_func;   /* sum function indicator */
 
-  ulong table_join_options;
   uint in_sum_expr;
   uint select_number; /* number of select (used for EXPLAIN) */
 
