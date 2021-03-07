@@ -11969,10 +11969,8 @@ table_primary_ident:
           table_ident opt_use_partition opt_for_system_time_clause
           opt_table_alias_clause opt_key_definition
           {
-            SELECT_LEX *sel= Select;
-            sel->table_join_options= 0;
             if (!($$= Select->add_table_to_list(thd, $1, $4,
-                                                Select->get_table_join_options(),
+                                                0,
                                                 YYPS->m_lock_type,
                                                 YYPS->m_mdl_type,
                                                 Select->pop_index_hints(),
@@ -13349,10 +13347,8 @@ update_table_list:
           table_ident opt_use_partition for_portion_of_time_clause
           opt_table_alias_clause opt_key_definition
           {
-            SELECT_LEX *sel= Select;
-            sel->table_join_options= 0;
             if (!($$= Select->add_table_to_list(thd, $1, $4,
-                                                Select->get_table_join_options(),
+                                                0,
                                                 YYPS->m_lock_type,
                                                 YYPS->m_mdl_type,
                                                 Select->pop_index_hints(),
