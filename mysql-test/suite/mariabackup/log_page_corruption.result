@@ -23,11 +23,12 @@ INSERT INTO t6_corrupted_to_drop VALUES (3), (4), (5), (6), (7), (8), (9);
 INSERT INTO t7_corrupted_to_alter VALUES (3), (4), (5), (6), (7), (8), (9);
 # Corrupt tables
 # restart
-# Backup must fail due to page corruption
+# Backup must  fail due to page corruption
 FOUND 1 /Database page corruption detected.*/ in backup.log
 # "innodb_corrupted_pages" file must not exist
-# Backup must fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
+# Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
 FOUND 1 /Database page corruption detected.*/ in backup.log
+FOUND 1 /completed OK!/ in backup.log
 --- "innodb_corrupted_pages" file content: ---
 test/t1_corrupted
 6 8 9
@@ -44,7 +45,7 @@ INSERT INTO t1_inc_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
 INSERT INTO t2_inc_corrupted VALUES (3), (4), (5), (6), (7), (8), (9);
 INSERT INTO t3_inc VALUES (3), (4), (5), (6), (7), (8), (9);
 # restart
-# Backup must fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
+# Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
 --- "innodb_corrupted_pages" file content: ---
 test/t1_corrupted
 6 8 9

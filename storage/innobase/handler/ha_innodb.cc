@@ -13413,17 +13413,10 @@ innobase_drop_database(
 @param[in,out]	trx	InnoDB data dictionary transaction
 @param[in]	from	old table name
 @param[in]	to	new table name
-@param[in]	commit	whether to commit trx
-@param[in]	use_fk	whether to parse and enforce FOREIGN KEY constraints
+@param[in]	commit	whether to commit trx (and to enforce FOREIGN KEY)
 @return DB_SUCCESS or error code */
-inline
-dberr_t
-innobase_rename_table(
-	trx_t*		trx,
-	const char*	from,
-	const char*	to,
-	bool		commit,
-	bool		use_fk)
+inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
+                                     const char *to, bool commit)
 {
 	dberr_t	error;
 	char	norm_to[FN_REFLEN];
@@ -13450,7 +13443,7 @@ innobase_rename_table(
 	}
 
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, commit,
-					   use_fk);
+					   commit);
 
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
@@ -13555,9 +13548,11 @@ int ha_innobase::truncate()
 	++trx->will_lock;
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 	row_mysql_lock_data_dictionary(trx);
+	dict_stats_wait_bg_to_stop_using_table(ib_table, trx);
+
 	int err = convert_error_code_to_mysql(
 		innobase_rename_table(trx, ib_table->name.m_name, temp_name,
-				      false, false),
+				      false),
 		ib_table->flags, m_user_thd);
 	if (err) {
 		trx_rollback_for_mysql(trx);
@@ -13640,7 +13635,7 @@ ha_innobase::rename_table(
 	++trx->will_lock;
 	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
 
-	dberr_t	error = innobase_rename_table(trx, from, to, true, true);
+	dberr_t	error = innobase_rename_table(trx, from, to, true);
 
 	DEBUG_SYNC(thd, "after_innobase_rename_table");
 

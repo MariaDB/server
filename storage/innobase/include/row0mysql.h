@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -804,12 +804,6 @@ struct row_prebuilt_t {
 					search key values from MySQL format
 					to InnoDB format.*/
 	uint		srch_key_val_len; /*!< Size of search key */
-	/** Disable prefetch. */
-	bool		m_no_prefetch;
-
-	/** Return materialized key for secondary index scan */
-	bool		m_read_virtual_key;
-
 	/** The MySQL table object */
 	TABLE*		m_mysql_table;
 
