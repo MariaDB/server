@@ -4442,6 +4442,16 @@ n_field_mismatch:
 		} else {
 			fixed_size = dict_col_get_fixed_size(
 				field->col, page_is_comp(page));
+			if (rec_offs_nth_extern(offsets, i)) {
+				const byte* data = rec_get_nth_field(
+					rec, offsets, i, &len);
+				len -= BTR_EXTERN_FIELD_REF_SIZE;
+				ulint extern_len = mach_read_from_4(
+					data + len + BTR_EXTERN_LEN + 4);
+				if (fixed_size == extern_len) {
+					continue;
+				}
+			}
 		}
 
 		/* Note that if fixed_size != 0, it equals the

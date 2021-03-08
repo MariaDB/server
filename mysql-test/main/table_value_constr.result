@@ -2885,6 +2885,181 @@ drop table t1,t2,t3;
 select sum((values(1)));
 sum((values(1)))
 1
+#
+# MDEV-22786: Nested table values constructors
+#
+values ((values (2)));
+(values (2))
+2
+values ((values (2)), (5), (select 4));
+(values (2))	5	(select 4)
+2	5	4
+values ((7), (values (2)), (5), (select 4));
+7	(values (2))	5	(select 4)
+7	2	5	4
+values ((values (2))) union values ((values (3)));
+(values (2))
+2
+3
+values ((values (2))), ((values (3)));
+(values (2))
+2
+3
+values ((values (2))), ((select 4)), ((values (3)));
+(values (2))
+2
+4
+3
+values ((values (4)), (values (5))), ((values (1)), (values (7)));
+(values (4))	(values (5))
+4	5
+1	7
+values ((values (4)), (select 5)), ((select 1), (values (7)));
+(values (4))	(select 5)
+4	5
+1	7
+values ((select 2)) union values ((values (3)));
+(select 2)
+2
+3
+values ((values (2))) union values((select 3));
+(values (2))
+2
+3
+values ((values (2))) union all values ((values (2)));
+(values (2))
+2
+2
+values ((values (4)), (values (5))), ((values (1)), (values (7)))
+union
+values ((values (4)), (select 5)), ((select 2), (values (8)));
+(values (4))	(values (5))
+4	5
+1	7
+2	8
+values ((values (4)), (values (5))), ((values (1)), (values (7)))
+union all
+values ((values (4)), (select 5)), ((select 2), (values (8)));
+(values (4))	(values (5))
+4	5
+1	7
+4	5
+2	8
+values ((values (1) union values (1)));
+(values (1) union values (1))
+1
+values ((values (1) union values (1) union values (1)));
+(values (1) union values (1) union values (1))
+1
+values ((values ((values (4)))));
+(values ((values (4))))
+4
+values ((values ((select 5))));
+(values ((select 5)))
+5
+values ((select (values (4))), (values ((values(5)))));
+(select (values (4)))	(values ((values(5))))
+4	5
+values ((select (values (4))), (values ((select 5))));
+(select (values (4)))	(values ((select 5)))
+4	5
+values ((select (values (4))), (values ((values(5)))))
+union
+values ((select (values (4))), (values ((select 7))));
+(select (values (4)))	(values ((values(5))))
+4	5
+4	7
+values ((values (2))), ((values ((values (4)))));
+(values (2))
+2
+4
+values ((values (2))), ((values ((select 4))));
+(values (2))
+2
+4
+values ((values (2))), ((values ((values (4)))))
+union
+values ((values (8))), ((values ((select 4))));
+(values (2))
+2
+4
+8
+values ((values (2))), ((values ((values (4)))))
+union all
+values ((values (8))), ((values ((select 4))));
+(values (2))
+2
+4
+8
+4
+select * from (values ((values (2)))) dt;
+(values (2))
+2
+select * from (values ((values (2)), (5), (select 4))) dt;
+(values (2))	5	(select 4)
+2	5	4
+select * from (values ((values (2))) union values ((values (3)))) dt;
+(values (2))
+2
+3
+select * from (values ((values (2))), ((values (3)))) dt;
+(values (2))
+2
+3
+select * from (values ((values (2))), ((values (3)))) dt;
+(values (2))
+2
+3
+select * from (values ((values (2))), ((select 4)), ((values (3)))) dt;
+(values (2))
+2
+4
+3
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+values ((values ((select a from t1 where a=7))));
+(values ((select a from t1 where a=7)))
+7
+values ((values ((select (values(2)) from t1 where a=8))));
+(values ((select (values(2)) from t1 where a=8)))
+NULL
+values ((values ((select a from t1 where a=7))))
+union
+values ((values ((select (values(2)) from t1 where a=8))));
+(values ((select a from t1 where a=7)))
+7
+NULL
+values ((values ((select a from t1 where a in ((values (7)))))));
+(values ((select a from t1 where a in ((values (7))))))
+7
+values ((values ((select a from t1 where a in ((values (7), (8)))))));
+(values ((select a from t1 where a in ((values (7), (8))))))
+7
+values ((values
+((select a from t1 where a in (values (7) union values (8))))));
+(values
+((select a from t1 where a in (values (7) union values (8)))))
+7
+values ((values ((select (values(2)) from t1 where a=8))));
+(values ((select (values(2)) from t1 where a=8)))
+NULL
+values ((select (values(2)) from t1 where a<7));
+ERROR 21000: Subquery returns more than 1 row
+select * from (values ((values ((select a from t1 where a=7))))) dt;
+(values ((select a from t1 where a=7)))
+7
+select * from (values ((values ((select (values(2)) from t1 where a=8))))) dt;
+(values ((select (values(2)) from t1 where a=8)))
+NULL
+insert into t1(a) values ((values (2))), ((values (3)));
+select * from t1;
+a
+3
+7
+1
+2
+3
+drop table t1;
 End of 10.3 tests
 #
 # MDEV-22610 Crash in INSERT INTO t1 (VALUES (DEFAULT) UNION VALUES (DEFAULT))

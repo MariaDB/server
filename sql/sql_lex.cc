@@ -3024,6 +3024,8 @@ void st_select_lex::init_select()
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
+  save_many_values.empty();
+  save_insert_list= 0;
   tvc= 0;
   in_funcs.empty();
   curr_tvc_name= 0;
@@ -9578,7 +9580,6 @@ bool LEX::last_field_generated_always_as_row_end()
                                                          VERS_SYS_END_FLAG);
 }
 
-
 void st_select_lex_unit::reset_distinct()
 {
   union_distinct= NULL;
@@ -9591,6 +9592,20 @@ void st_select_lex_unit::reset_distinct()
       union_distinct= sl;
     }
   }
+}
+
+
+void LEX::save_values_list_state()
+{
+  current_select->save_many_values= many_values;
+  current_select->save_insert_list= insert_list;
+}
+
+
+void LEX::restore_values_list_state()
+{
+  many_values= current_select->save_many_values;
+  insert_list= current_select->save_insert_list;
 }
 
 
@@ -10102,6 +10117,7 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
 bool LEX::parsed_TVC_start()
 {
   SELECT_LEX *sel;
+  save_values_list_state();
   many_values.empty();
   insert_list= 0;
   if (!(sel= alloc_select(TRUE)) ||
@@ -10115,14 +10131,13 @@ bool LEX::parsed_TVC_start()
 
 SELECT_LEX *LEX::parsed_TVC_end()
 {
-
   SELECT_LEX *res= pop_select(); // above TVC select
   if (!(res->tvc=
         new (thd->mem_root) table_value_constr(many_values,
           res,
           res->options)))
     return NULL;
-  many_values.empty();
+  restore_values_list_state();
   return res;
 }
 

@@ -958,9 +958,6 @@ row_create_prebuilt(
 	prebuilt->fts_doc_id_in_read_set = 0;
 	prebuilt->blob_heap = NULL;
 
-	prebuilt->m_no_prefetch = false;
-	prebuilt->m_read_virtual_key = false;
-
 	DBUG_RETURN(prebuilt);
 }
 
@@ -4073,7 +4070,6 @@ row_rename_table_for_mysql(
 					FOREIGN KEY constraints */
 {
 	dict_table_t*	table			= NULL;
-	ibool		dict_locked		= FALSE;
 	dberr_t		err			= DB_ERROR;
 	mem_heap_t*	heap			= NULL;
 	const char**	constraints_to_drop	= NULL;
@@ -4087,6 +4083,8 @@ row_rename_table_for_mysql(
 	ut_a(old_name != NULL);
 	ut_a(new_name != NULL);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
+	const bool dict_locked = trx->dict_operation_lock_mode == RW_X_LATCH;
+	ut_ad(!commit || dict_locked);
 
 	if (high_level_read_only) {
 		return(DB_READ_ONLY);
@@ -4104,8 +4102,6 @@ row_rename_table_for_mysql(
 
 	old_is_tmp = dict_table_t::is_temporary_name(old_name);
 	new_is_tmp = dict_table_t::is_temporary_name(new_name);
-
-	dict_locked = trx->dict_operation_lock_mode == RW_X_LATCH;
 
 	table = dict_table_open_on_name(old_name, dict_locked, FALSE,
 					DICT_ERR_IGNORE_FK_NOKEY);
@@ -4210,6 +4206,10 @@ row_rename_table_for_mysql(
 	}
 
 	if (!table->is_temporary()) {
+		if (commit) {
+			dict_stats_wait_bg_to_stop_using_table(table, trx);
+		}
+
 		err = trx_undo_report_rename(trx, table);
 
 		if (err != DB_SUCCESS) {
@@ -4237,7 +4237,7 @@ row_rename_table_for_mysql(
 	if (err != DB_SUCCESS) {
 		// Assume the caller guarantees destination name doesn't exist.
 		ut_ad(err != DB_DUPLICATE_KEY);
-		goto end;
+		goto err_exit;
 	}
 
 	if (!new_is_tmp) {
@@ -4381,8 +4381,8 @@ row_rename_table_for_mysql(
 		}
 	}
 
-end:
 	if (err != DB_SUCCESS) {
+err_exit:
 		if (err == DB_DUPLICATE_KEY) {
 			ib::error() << "Possible reasons:";
 			ib::error() << "(1) Table rename would cause two"
@@ -4535,6 +4535,9 @@ funct_exit:
 	}
 
 	if (table != NULL) {
+		if (commit && !table->is_temporary()) {
+			table->stats_bg_flag &= ~BG_STAT_SHOULD_QUIT;
+		}
 		dict_table_close(table, dict_locked, FALSE);
 	}
 
