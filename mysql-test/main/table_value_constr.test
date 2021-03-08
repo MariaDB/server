@@ -1522,6 +1522,112 @@ drop table t1,t2,t3;
 
 select sum((values(1)));
 
+--echo #
+--echo # MDEV-22786: Nested table values constructors
+--echo #
+
+values ((values (2)));
+
+values ((values (2)), (5), (select 4));
+
+values ((7), (values (2)), (5), (select 4));
+
+values ((values (2))) union values ((values (3)));
+
+values ((values (2))), ((values (3)));
+
+values ((values (2))), ((select 4)), ((values (3)));
+
+values ((values (4)), (values (5))), ((values (1)), (values (7)));
+
+values ((values (4)), (select 5)), ((select 1), (values (7)));
+
+values ((select 2)) union values ((values (3)));
+
+values ((values (2))) union values((select 3));
+
+values ((values (2))) union all values ((values (2)));
+
+values ((values (4)), (values (5))), ((values (1)), (values (7)))
+union
+values ((values (4)), (select 5)), ((select 2), (values (8)));
+
+values ((values (4)), (values (5))), ((values (1)), (values (7)))
+union all
+values ((values (4)), (select 5)), ((select 2), (values (8)));
+
+values ((values (1) union values (1)));
+
+values ((values (1) union values (1) union values (1)));
+
+values ((values ((values (4)))));
+
+values ((values ((select 5))));
+
+values ((select (values (4))), (values ((values(5)))));
+
+values ((select (values (4))), (values ((select 5))));
+
+values ((select (values (4))), (values ((values(5)))))
+union
+values ((select (values (4))), (values ((select 7))));
+
+values ((values (2))), ((values ((values (4)))));
+
+values ((values (2))), ((values ((select 4))));
+
+values ((values (2))), ((values ((values (4)))))
+union
+values ((values (8))), ((values ((select 4))));
+
+values ((values (2))), ((values ((values (4)))))
+union all
+values ((values (8))), ((values ((select 4))));
+
+select * from (values ((values (2)))) dt;
+
+select * from (values ((values (2)), (5), (select 4))) dt;
+
+select * from (values ((values (2))) union values ((values (3)))) dt;
+
+select * from (values ((values (2))), ((values (3)))) dt;
+
+select * from (values ((values (2))), ((values (3)))) dt;
+
+select * from (values ((values (2))), ((select 4)), ((values (3)))) dt;
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+values ((values ((select a from t1 where a=7))));
+
+values ((values ((select (values(2)) from t1 where a=8))));
+
+values ((values ((select a from t1 where a=7))))
+union
+values ((values ((select (values(2)) from t1 where a=8))));
+
+values ((values ((select a from t1 where a in ((values (7)))))));
+
+values ((values ((select a from t1 where a in ((values (7), (8)))))));
+
+values ((values
+ ((select a from t1 where a in (values (7) union values (8))))));
+
+values ((values ((select (values(2)) from t1 where a=8))));
+
+--error ER_SUBQUERY_NO_1_ROW
+values ((select (values(2)) from t1 where a<7));
+
+select * from (values ((values ((select a from t1 where a=7))))) dt;
+
+select * from (values ((values ((select (values(2)) from t1 where a=8))))) dt;
+
+insert into t1(a) values ((values (2))), ((values (3)));
+select * from t1;
+
+drop table t1;
+
 --echo End of 10.3 tests
 
 --echo #
