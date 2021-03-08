@@ -41,4 +41,4 @@
 #define VERSION_thd_specifics           0x0100
 #define VERSION_thd_timezone            0x0100
 #define VERSION_thd_wait                0x0100
-#define VERSION_wsrep                   0x0202
+#define VERSION_wsrep                   0x0300
