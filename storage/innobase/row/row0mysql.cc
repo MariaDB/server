@@ -4536,7 +4536,7 @@ funct_exit:
 
 	if (table != NULL) {
 		if (commit && !table->is_temporary()) {
-			table->stats_bg_flag &= ~BG_STAT_SHOULD_QUIT;
+			table->stats_bg_flag &= byte(~BG_STAT_SHOULD_QUIT);
 		}
 		dict_table_close(table, dict_locked, FALSE);
 	}
