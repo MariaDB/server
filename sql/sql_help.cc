@@ -802,6 +802,7 @@ bool mysqld_help_prepare(THD *thd, const char *mask, List<Item> *fields)
 
   List<String> topics_list;
 
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
   initialize_tables_for_help_command(thd, tables);
 
   /*
@@ -846,7 +847,10 @@ bool mysqld_help_prepare(THD *thd, const char *mask, List<Item> *fields)
                                   &name, &description, &example);
   delete select;
 
-  if (count_topics)
+  if (thd->is_error())
+    return cleanup_and_return(true);
+
+  if (count_topics == 0)
   {
     int UNINIT_VAR(key_id);
     /*
@@ -873,7 +877,24 @@ bool mysqld_help_prepare(THD *thd, const char *mask, List<Item> *fields)
   }
 
   if (count_topics == 0)
-    fill_header_2_fields(thd, fields, true);
+  {
+    if (!(select=
+        prepare_select_for_name(thd, mask, mlen, tables[1].table,
+                                used_fields[help_category_name].field,
+                                &error)))
+      return cleanup_and_return(true);
+
+    List<String> categories_list;
+    int16 category_id;
+    int count_categories= search_categories(thd, tables[1].table, used_fields,
+                                            select,
+                                            &categories_list,&category_id);
+    delete select;
+    if (count_categories == 1)
+      fill_header_2_fields(thd, fields, true);
+    else
+      fill_header_2_fields(thd, fields, false);
+  }
   else if (count_topics == 1)
     fill_answer_1_fields(thd, fields);
   else
