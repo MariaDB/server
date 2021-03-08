@@ -6451,8 +6451,9 @@ void handle_options(int argc, char **argv, char ***argv_server,
 			}
 	}
 
+        mariabackup_args.push_back(nullptr);
         *argv_client= *argv_server= *argv_backup= &mariabackup_args[0];
-        int argc_backup= static_cast<int>(mariabackup_args.size());
+        int argc_backup= static_cast<int>(mariabackup_args.size() - 1);
         int argc_client= argc_backup;
         int argc_server= argc_backup;
 
