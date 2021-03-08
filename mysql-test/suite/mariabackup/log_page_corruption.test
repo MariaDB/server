@@ -59,7 +59,7 @@ EOF
 --let corrupted_pages_file_filt = $MYSQLTEST_VARDIR/tmp/innodb_corrupted_pages_filt
 --let perl_result_file=$MYSQLTEST_VARDIR/tmp/perl_result
 
---echo # Backup must fail due to page corruption
+--echo # Backup must  fail due to page corruption
 --disable_result_log
 --error 1
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir > $backuplog;
@@ -80,15 +80,19 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=
 --let after_copy_test_t7_corrupted_to_alter=ALTER TABLE test.t7_corrupted_to_alter ADD COLUMN (d INT)
 --let add_corrupted_page_for_test_t7_corrupted_to_alter=3
 
---echo # Backup must fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
+--echo # Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
 --disable_result_log
---error 1
 --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$targetdir --dbug=+d,mariabackup_events,mariabackup_inject_code  > $backuplog
 --enable_result_log
 
 --let SEARCH_PATTERN=Database page corruption detected.*
 --let SEARCH_FILE=$backuplog
 --source include/search_pattern_in_file.inc
+
+--let SEARCH_PATTERN=completed OK!
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+
 --echo --- "innodb_corrupted_pages" file content: ---
 perl;
 do "$ENV{MTR_SUITE_DIR}/include/corrupt-page.pl";
@@ -145,9 +149,8 @@ EOF
 --let after_copy_test_t7_inc_corrupted_to_alter=ALTER TABLE test.t7_inc_corrupted_to_alter ADD COLUMN (d INT)
 --let add_corrupted_page_for_test_t7_inc_corrupted_to_alter=3
 
---echo # Backup must fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
+--echo # Backup must not fail, but "innodb_corrupted_pages" file must be created due to --log-innodb-page-corruption option
 --disable_result_log
---error 1
 --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$incdir --incremental-basedir=$targetdir --dbug=+d,mariabackup_events,mariabackup_inject_code  > $backuplog
 --disable_result_log
 
@@ -161,6 +164,9 @@ EOF
 --let SEARCH_PATTERN=Database page corruption detected.*
 --let SEARCH_FILE=$backuplog
 --source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=completed OK!
+--source include/search_pattern_in_file.inc
+
 --let corrupted_pages_file = $incdir/innodb_corrupted_pages
 --echo --- "innodb_corrupted_pages" file content: ---
 perl;
@@ -260,7 +266,6 @@ EOF
 
 --echo # Full backup with --log-innodb-page-corruption
 --disable_result_log
---error 1
 --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$targetdir
 --enable_result_log
 --let corrupted_pages_file = $targetdir/innodb_corrupted_pages
@@ -288,7 +293,6 @@ EOF
 
 --echo # Incremental backup --log-innodb-page-corruption
 --disable_result_log
---error 1
 --exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --log-innodb-page-corruption --target-dir=$incdir --incremental-basedir=$targetdir --dbug=+d,mariabackup_events,mariabackup_inject_code  > $backuplog
 --disable_result_log
 --let corrupted_pages_file = $incdir/innodb_corrupted_pages
