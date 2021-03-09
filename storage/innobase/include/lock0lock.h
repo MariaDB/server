@@ -670,10 +670,11 @@ public:
   /** mutex covering lock waits; @see trx_lock_t::wait_lock */
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t wait_mutex;
 private:
-  /** Cumulative number of lock waits; protected by wait_mutex */
-  ulint wait_count;
-  /** Pending number of lock waits; protected by wait_mutex */
-  uint32_t wait_pending;
+  /** The increment of wait_count for a wait. Anything smaller is a
+  pending wait count. */
+  static constexpr uint64_t WAIT_COUNT_STEP= 1U << 19;
+  /** waits and total number of lock waits; protected by wait_mutex */
+  uint64_t wait_count;
   /** Cumulative wait time; protected by wait_mutex */
   uint32_t wait_time;
   /** Longest wait time; protected by wait_mutex */
@@ -818,9 +819,13 @@ public:
   inline void wait_resume(THD *thd, my_hrtime_t start, my_hrtime_t now);
 
   /** @return pending number of lock waits */
-  ulint get_wait_pending() const { return wait_pending; }
+  ulint get_wait_pending() const
+  {
+    return static_cast<ulint>(wait_count & (WAIT_COUNT_STEP - 1));
+  }
   /** @return cumulative number of lock waits */
-  ulint get_wait_cumulative() const { return wait_count; }
+  ulint get_wait_cumulative() const
+  { return static_cast<ulint>(wait_count / WAIT_COUNT_STEP); }
   /** Cumulative wait time; protected by wait_mutex */
   ulint get_wait_time_cumulative() const { return wait_time; }
   /** Longest wait time; protected by wait_mutex */

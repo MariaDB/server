@@ -1587,8 +1587,11 @@ lock_rec_has_to_wait_in_queue(const hash_cell_t &cell, const lock_t *wait_lock)
 inline void lock_sys_t::wait_start()
 {
   mysql_mutex_assert_owner(&wait_mutex);
-  wait_pending++;
-  wait_count++;
+  wait_count+= WAIT_COUNT_STEP + 1;
+  /* The maximum number of concurrently waiting transactions is one less
+  than the maximum number of concurrent transactions. */
+  static_assert(WAIT_COUNT_STEP == UNIV_PAGE_SIZE_MAX / 16 * TRX_SYS_N_RSEGS,
+                "compatibility");
 }
 
 /** Note that a record lock wait resumed */
@@ -1596,7 +1599,9 @@ inline
 void lock_sys_t::wait_resume(THD *thd, my_hrtime_t start, my_hrtime_t now)
 {
   mysql_mutex_assert_owner(&wait_mutex);
-  wait_pending--;
+  ut_ad(get_wait_pending());
+  ut_ad(get_wait_cumulative());
+  wait_count--;
   if (now.val >= start.val)
   {
     const uint32_t diff_time=
