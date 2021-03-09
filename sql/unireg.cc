@@ -1241,14 +1241,12 @@ ulonglong Foreign_key_io::fk_size(FK_info &fk)
   }
   store_size+= net_length_size(fk.update_method);
   store_size+= net_length_size(fk.delete_method);
-  store_size+= net_length_size(fk.foreign_fields.elements);
-  DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
-  List_iterator_fast<Lex_cstring> ref_it(fk.referenced_fields);
-  for (Lex_cstring &fcol: fk.foreign_fields)
+  store_size+= net_length_size(fk.foreign_fields.size());
+  DBUG_ASSERT(fk.foreign_fields.size() == fk.referenced_fields.size());
+  for (size_t i= 0; i < fk.foreign_fields.size(); i++)
   {
-    store_size+= string_size(fcol);
-    Lex_cstring *ref_col= ref_it++;
-    store_size+= string_size(*ref_col);
+    store_size+= string_size(fk.foreign_fields[i]);
+    store_size+= string_size(fk.referenced_fields[i]);
   }
   return store_size;
 }
@@ -1283,14 +1281,12 @@ void Foreign_key_io::store_fk(FK_info &fk, uchar *&pos)
   }
   pos= store_length(pos, fk.update_method);
   pos= store_length(pos, fk.delete_method);
-  pos= store_length(pos, fk.foreign_fields.elements);
-  DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
-  List_iterator_fast<Lex_cstring> ref_it(fk.referenced_fields);
-  for (Lex_cstring &fcol: fk.foreign_fields)
+  pos= store_length(pos, fk.foreign_fields.size());
+  DBUG_ASSERT(fk.foreign_fields.size() == fk.referenced_fields.size());
+  for (size_t i= 0; i < fk.foreign_fields.size(); i++)
   {
-    pos= store_string(pos, fcol);
-    Lex_cstring *ref_col= ref_it++;
-    pos= store_string(pos, *ref_col);
+    pos= store_string(pos, fk.foreign_fields[i]);
+    pos= store_string(pos, fk.referenced_fields[i]);
   }
   DBUG_ASSERT(pos - old_pos == (long int)fk_size(fk));
 }
@@ -1419,25 +1415,16 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
     size_t col_count;
     if (read_length(col_count, p))
       return true;
+    if (!dst->alloc(&s->mem_root, col_count))
+    {
+      my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      return true;
+    }
     for (uint j= 0; j < col_count; ++j)
     {
-      Lex_cstring *field_name= new (&s->mem_root) Lex_cstring;
-      if (!field_name ||
-          dst->foreign_fields.push_back(field_name, &s->mem_root))
-      {
-        my_error(ER_OUT_OF_RESOURCES, MYF(0));
+      if (read_string(dst->foreign_fields[j], &s->mem_root, p))
         return true;
-      }
-      if (read_string(*field_name, &s->mem_root, p))
-        return true;
-      field_name= new (&s->mem_root) Lex_cstring;
-      if (!field_name ||
-          dst->referenced_fields.push_back(field_name, &s->mem_root))
-      {
-        my_error(ER_OUT_OF_RESOURCES, MYF(0));
-        return true;
-      }
-      if (read_string(*field_name, &s->mem_root, p))
+      if (read_string(dst->referenced_fields[j], &s->mem_root, p))
         return true;
     }
     /* If it is self-reference we also push to referenced_keys: */
