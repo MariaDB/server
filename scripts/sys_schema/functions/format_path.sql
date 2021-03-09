@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS format_path;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION format_path (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION format_path (
         in_path VARCHAR(512)
     )
     RETURNS VARCHAR(512) CHARSET UTF8

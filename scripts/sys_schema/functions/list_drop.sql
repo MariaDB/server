@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS list_drop;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION list_drop (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION list_drop (
         in_list TEXT,
         in_drop_value TEXT
     )

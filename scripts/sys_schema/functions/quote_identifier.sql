@@ -22,7 +22,7 @@ DELIMITER $$
 -- Before that, user variables could have any length.
 --
 -- Based on Paul Dubois' suggestion in Bug #78823/Bug #22011361.
-CREATE DEFINER='root'@'localhost' FUNCTION quote_identifier(in_identifier TEXT)
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION quote_identifier(in_identifier TEXT)
     RETURNS TEXT CHARSET UTF8
     COMMENT '
              Description

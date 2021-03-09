@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS version_major;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION version_major ()
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION version_major ()
     RETURNS TINYINT UNSIGNED
     COMMENT '
              Description

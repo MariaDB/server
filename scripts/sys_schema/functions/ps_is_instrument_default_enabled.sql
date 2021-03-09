@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS ps_is_instrument_default_enabled;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION ps_is_instrument_default_enabled (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_is_instrument_default_enabled (
         in_instrument VARCHAR(128)
     ) 
     RETURNS ENUM('YES', 'NO')

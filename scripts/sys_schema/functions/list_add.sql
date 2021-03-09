@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS list_add;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION list_add (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION list_add (
         in_list TEXT,
         in_add_value TEXT
     )

@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_setup_reset_to_default;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_setup_reset_to_default (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_reset_to_default (
        IN in_verbose BOOLEAN
     )
     COMMENT '

@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS ps_is_consumer_enabled;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION ps_is_consumer_enabled (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_is_consumer_enabled (
         in_consumer varchar(64)
    )
    RETURNS enum('YES', 'NO')

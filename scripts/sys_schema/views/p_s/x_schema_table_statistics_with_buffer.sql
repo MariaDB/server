@@ -56,7 +56,7 @@ DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN END;
 
 CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
-  DEFINER = 'root'@'localhost'
+  DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER 
 VIEW x$schema_table_statistics_with_buffer (
   table_schema,

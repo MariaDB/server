@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS <function name>;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION <function name> (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION <function name> (
         /* Variables */
     )
     RETURNS <data type>

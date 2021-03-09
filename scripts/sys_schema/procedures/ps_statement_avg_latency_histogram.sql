@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_statement_avg_latency_histogram;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_statement_avg_latency_histogram ()
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_statement_avg_latency_histogram ()
     COMMENT '
              Description
              -----------

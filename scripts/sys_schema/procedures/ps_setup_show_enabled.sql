@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_setup_show_enabled;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_setup_show_enabled (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_show_enabled (
         IN in_show_instruments BOOLEAN,
         IN in_show_threads BOOLEAN
     )

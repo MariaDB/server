@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_setup_enable_consumer;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_setup_enable_consumer (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_enable_consumer (
         IN consumer VARCHAR(128)
     )
     COMMENT '

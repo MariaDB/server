@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS ps_is_thread_instrumented;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION ps_is_thread_instrumented (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_is_thread_instrumented (
         in_connection_id BIGINT UNSIGNED
     ) RETURNS ENUM('YES', 'NO', 'UNKNOWN')
     COMMENT '

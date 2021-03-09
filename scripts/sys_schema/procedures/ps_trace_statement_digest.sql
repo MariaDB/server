@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_trace_statement_digest;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_trace_statement_digest (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_trace_statement_digest (
         IN in_digest VARCHAR(32),
         IN in_runtime INT, 
         IN in_interval DECIMAL(2,2),

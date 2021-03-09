@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS ps_thread_account;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION ps_thread_account (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_thread_account (
         in_thread_id BIGINT UNSIGNED
     ) RETURNS TEXT
     COMMENT '

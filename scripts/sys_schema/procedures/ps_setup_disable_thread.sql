@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_setup_disable_thread;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_setup_disable_thread (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_disable_thread (
         IN in_connection_id BIGINT
     )
     COMMENT '

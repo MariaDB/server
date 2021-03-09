@@ -58,7 +58,7 @@ DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN END;
 
 CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
-  DEFINER = 'root'@'localhost'
+  DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER 
 VIEW x$innodb_lock_waits (
   wait_started,

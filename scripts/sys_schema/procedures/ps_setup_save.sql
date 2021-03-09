@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_setup_save;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_setup_save (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_save (
         IN in_timeout INT
     )
     COMMENT '

@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS table_exists;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE table_exists (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
         IN in_db VARCHAR(64), IN in_table VARCHAR(64),
         OUT out_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY')
     )

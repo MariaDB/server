@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS sys_get_config;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION sys_get_config (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION sys_get_config (
         in_variable_name VARCHAR(128),
         in_default_value VARCHAR(128)
     )

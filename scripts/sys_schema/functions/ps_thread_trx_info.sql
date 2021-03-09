@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS ps_thread_trx_info;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION ps_thread_trx_info (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_thread_trx_info (
         in_thread_id BIGINT UNSIGNED
     ) RETURNS LONGTEXT
     COMMENT '

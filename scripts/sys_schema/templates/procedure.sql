@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS <procedure_name>;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE <procedure_name> (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE <procedure_name> (
         /* Variables */
     )
     COMMENT '
