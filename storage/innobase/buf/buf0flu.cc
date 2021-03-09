@@ -57,6 +57,9 @@ Created 11/11/1995 Heikki Tuuri
 Also included in buf_flush_page_count. */
 ulint buf_lru_flush_page_count;
 
+/** Number of pages freed without flushing. Protected by buf_pool.mutex. */
+ulint buf_lru_freed_page_count;
+
 /** Number of pages flushed. Protected by buf_pool.mutex. */
 ulint buf_flush_page_count;
 
@@ -1347,13 +1350,6 @@ reacquire_mutex:
   if (space)
     space->release();
 
-  /* We keep track of all flushes happening as part of LRU flush. When
-  estimating the desired rate at which flush_list should be flushed,
-  we factor in this value. */
-  buf_lru_flush_page_count+= n->flushed;
-
-  mysql_mutex_assert_owner(&buf_pool.mutex);
-
   if (scanned)
     MONITOR_INC_VALUE_CUMULATIVE(MONITOR_LRU_BATCH_SCANNED,
                                  MONITOR_LRU_BATCH_SCANNED_NUM_CALL,
@@ -1374,14 +1370,13 @@ static ulint buf_do_LRU_batch(ulint max)
   n.flushed= 0;
   n.evicted= n_unzip_LRU_evicted;
   buf_flush_LRU_list_batch(max, &n);
+  mysql_mutex_assert_owner(&buf_pool.mutex);
 
   if (const ulint evicted= n.evicted - n_unzip_LRU_evicted)
-  {
-    MONITOR_INC_VALUE_CUMULATIVE(MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
-                                 MONITOR_LRU_BATCH_EVICT_COUNT,
-                                 MONITOR_LRU_BATCH_EVICT_PAGES,
-                                 evicted);
-  }
+    buf_lru_freed_page_count+= evicted;
+
+  if (n.flushed)
+    buf_lru_flush_page_count+= n.flushed;
 
   return n.flushed;
 }

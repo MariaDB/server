@@ -495,34 +495,16 @@ static monitor_info_t	innodb_counter_info[] =
 	/* Cumulative counter for LRU batch pages flushed */
 	{"buffer_LRU_batch_flush_total_pages", "buffer",
 	 "Total pages flushed as part of LRU batches",
-	 MONITOR_SET_OWNER, MONITOR_LRU_BATCH_FLUSH_COUNT,
-	 MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE},
-
-	{"buffer_LRU_batches_flush", "buffer",
-	 "Number of LRU batches",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
-	 MONITOR_LRU_BATCH_FLUSH_COUNT},
-
-	{"buffer_LRU_batch_flush_pages", "buffer",
-	 "Pages queued as an LRU batch",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE,
-	 MONITOR_LRU_BATCH_FLUSH_PAGES},
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE},
 
 	/* Cumulative counter for LRU batch pages flushed */
 	{"buffer_LRU_batch_evict_total_pages", "buffer",
 	 "Total pages evicted as part of LRU batches",
-	 MONITOR_SET_OWNER, MONITOR_LRU_BATCH_EVICT_COUNT,
-	 MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE},
-
-	{"buffer_LRU_batches_evict", "buffer",
-	 "Number of LRU batches",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
-	 MONITOR_LRU_BATCH_EVICT_COUNT},
-
-	{"buffer_LRU_batch_evict_pages", "buffer",
-	 "Pages queued as an LRU batch",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
-	 MONITOR_LRU_BATCH_EVICT_PAGES},
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
+	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE},
 
 	{"buffer_LRU_single_flush_failure_count", "Buffer",
 	 "Number of times attempt to flush a single page from LRU failed",
@@ -1573,6 +1555,14 @@ srv_mon_process_existing_counter(
 	/* innodb_non_index_pages_written, the number of non index pages written */
 	case MONITOR_OVLD_NON_INDEX_PAGES_WRITTEN:
 		value = srv_stats.non_index_pages_written;
+		break;
+
+	case MONITOR_LRU_BATCH_FLUSH_TOTAL_PAGE:
+		value = buf_lru_flush_page_count;
+		break;
+
+	case MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE:
+		value = buf_lru_freed_page_count;
 		break;
 
 	/* innodb_pages_read */

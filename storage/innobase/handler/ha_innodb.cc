@@ -950,6 +950,7 @@ static SHOW_VAR innodb_status_variables[]= {
   {"buffer_pool_pages_total",
    &export_vars.innodb_buffer_pool_pages_total, SHOW_SIZE_T},
   {"buffer_pool_pages_LRU_flushed", &buf_lru_flush_page_count, SHOW_SIZE_T},
+  {"buffer_pool_pages_LRU_freed", &buf_lru_freed_page_count, SHOW_SIZE_T},
   {"buffer_pool_read_ahead_rnd",
    &export_vars.innodb_buffer_pool_read_ahead_rnd, SHOW_SIZE_T},
   {"buffer_pool_read_ahead",
