@@ -11748,18 +11748,20 @@ public:
 			return;
 		}
 		*(ptr++)  = '(';
-		List_iterator_fast<Lex_cstring> it(key->foreign_fields);
-		while (Lex_cstring* field_name = it++) {
+		auto sz = key->foreign_fields.size();
+		for (uint i = 0; i < sz; i++) {
+			Lex_cstring *field_name = &key->foreign_fields[i];
+			bool last = i == sz - 1;
 			/* 3 is etc continuation ("...");
 			   2 is comma separator (", ") in case of next exists;
 			   1 is terminating ')' */
 			if (MAX_TEXT - (size_t)(ptr - buf)
-				>= (it.peek() ? 3 + 2 + 1 : 3 + 1)
+				>= (last ? 3 + 2 + 1 : 3 + 1)
 				+ field_name->length) {
 				memcpy(ptr, field_name->str,
 				       field_name->length);
 				ptr += field_name->length;
-				if (it.peek()) {
+				if (last) {
 					*(ptr++) = ',';
 					*(ptr++) = ' ';
 				}
@@ -11876,7 +11878,6 @@ create_table_info_t::create_foreign_keys()
 			continue;
 		}
 
-		LEX_CSTRING*   col;
 		bool	       success;
 
 		dict_foreign_t* foreign = dict_mem_foreign_create();
@@ -11924,11 +11925,10 @@ create_table_info_t::create_foreign_keys()
 		}
 
 
-		List_iterator_fast<Lex_cstring> col_it(fk->foreign_fields);
 		unsigned			  i = 0, j = 0;
-		while ((col = col_it++)) {
+		for (Lex_cstring &col: fk->foreign_fields) {
 			column_names[i] = mem_heap_strdupl(
-				foreign->heap, col->str, col->length);
+				foreign->heap, col.str, col.length);
 			success = find_col(table, column_names + i);
 			if (!success) {
 				key_text k(fk);
@@ -12029,10 +12029,9 @@ create_table_info_t::create_foreign_keys()
 			return (DB_CANNOT_ADD_CONSTRAINT);
 		}
 
-		col_it.init(fk->referenced_fields);
-		while ((col = col_it++)) {
+		for (Lex_cstring &col: fk->referenced_fields) {
 			ref_column_names[j] = mem_heap_strdupl(
-				foreign->heap, col->str, col->length);
+				foreign->heap, col.str, col.length);
 			if (foreign->referenced_table) {
 				success = find_col(foreign->referenced_table,
 						   ref_column_names + j);
@@ -20737,10 +20736,12 @@ struct fk_legacy_data {
 	TABLE_SHARE*  s;
 	char	      ref_name[MAX_FULL_NAME_LEN + 1];
 	FK_info*      fk;
+	uint          col_num;
 	dberr_t	      err;
 	FK_list	      foreign_keys;
 	fk_legacy_data(trx_t* _t, dict_table_t* _tab, TABLE_SHARE* _s)
-	    : trx(_t), table(_tab), s(_s), fk(NULL), err(DB_SUCCESS){};
+	    : trx(_t), table(_tab), s(_s), fk(NULL), col_num(0),
+	      err(DB_SUCCESS){};
 };
 
 static ibool
@@ -20871,6 +20872,18 @@ fk_upgrade_create_fk(
 		d.err = DB_OUT_OF_MEMORY;
 		return 0;
 	}
+
+	// Get column count
+	exp = que_node_get_next(exp);
+	fld = que_node_get_val(exp);
+
+	ut_a(fld);
+	ib_uint64_t col_num = row_parse_int(
+				static_cast<const byte*>(fld->data),
+				fld->len,
+				fld->type.mtype,
+				fld->type.prtype & DATA_UNSIGNED);
+	d.fk->alloc(&d.s->mem_root, col_num);
 	d.err = DB_LEGACY_FK;
 	return 1;
 }
@@ -20891,39 +20904,24 @@ fk_upgrade_add_col(
 	// Get FOR_COL_NAME
 	dfield_t* fld = que_node_get_val(exp);
 	ut_a(fld);
-	Lex_cstring* dst_f = new (&d.s->mem_root) Lex_cstring();
-	if (!dst_f) {
-		d.err = DB_OUT_OF_MEMORY;
-		return 0;
-	}
-	dst_f->strdup(&d.s->mem_root, {(char*)fld->data, fld->len});
-	if (!dst_f->str) {
-		d.err = DB_OUT_OF_MEMORY;
-		return 0;
-	}
 
-	if (d.fk->foreign_fields.push_back(dst_f, &d.s->mem_root)) {
-		d.err = DB_OUT_OF_MEMORY;
-		return 0;
-	}
+	d.fk->foreign_fields[d.col_num] = {
+		strmake_root(&d.s->mem_root, (char *)fld->data, fld->len),
+		fld->len
+	};
 
 	// Get REF_COL_NAME
 	exp = que_node_get_next(exp);
 	fld = que_node_get_val(exp);
 	ut_a(exp);
 	ut_a(fld);
-	dst_f = new (&d.s->mem_root) Lex_cstring();
-	if (!dst_f) {
-		d.err = DB_OUT_OF_MEMORY;
-		return 0;
-	}
-	dst_f->strdup(&d.s->mem_root, {(char*)fld->data, fld->len});
-	if (!dst_f->str) {
-		d.err = DB_OUT_OF_MEMORY;
-		return 0;
-	}
+	d.fk->referenced_fields[d.col_num] = {
+		strmake_root(&d.s->mem_root, (char *)fld->data, fld->len),
+		fld->len
+	};
 
-	if (d.fk->referenced_fields.push_back(dst_f, &d.s->mem_root)) {
+	if (!d.fk->foreign_fields[d.col_num].str ||
+	    !d.fk->referenced_fields[d.col_num].str) {
 		d.err = DB_OUT_OF_MEMORY;
 		return 0;
 	}
@@ -20944,22 +20942,19 @@ fk_upgrade_push_fk(
 	}
 	// Check indexes on ref and on foreign
 	FK_info& fk = *d.fk;
-	ut_ad(fk.foreign_fields.elements < MAX_NUM_FK_COLUMNS);
-	ut_ad(fk.foreign_fields.elements == fk.referenced_fields.elements);
-	uint				i = 0;
+	ut_ad(fk.foreign_fields.size() < MAX_NUM_FK_COLUMNS);
+	ut_ad(fk.foreign_fields.size() == fk.referenced_fields.size());
 	char				norm_name[FN_REFLEN];
 	const char*			column_names[MAX_NUM_FK_COLUMNS];
 	const char*			ref_column_names[MAX_NUM_FK_COLUMNS];
 	dict_index_t*			index;
-	List_iterator_fast<Lex_cstring> it(fk.referenced_fields);
-	for (Lex_cstring& col : fk.foreign_fields) {
-		column_names[i]	      = col.str;
-		Lex_cstring* rcol     = it++;
-		ref_column_names[i++] = rcol->str;
+	for (uint i = 0; i < fk.foreign_fields.size(); i++) {
+		column_names[i]	      = fk.foreign_fields[i].str;
+		ref_column_names[i] = fk.referenced_fields[i].str;
 	}
 	dict_sys.mutex_lock();
 	index = dict_foreign_find_index(d.table, NULL, column_names,
-					fk.foreign_fields.elements, NULL, true,
+					fk.foreign_fields.size(), NULL, true,
 					false);
 	if (!index) {
 		dict_sys.mutex_unlock();
@@ -20985,7 +20980,7 @@ fk_upgrade_push_fk(
 		return 0;
 	}
 	index = dict_foreign_find_index(ref_table, NULL, ref_column_names,
-					fk.foreign_fields.elements, NULL, true,
+					fk.foreign_fields.size(), NULL, true,
 					false);
 	dict_table_close(ref_table, true, false);
 	dict_sys.mutex_unlock();
@@ -21104,7 +21099,7 @@ fk_upgrade_legacy_storage(dict_table_t* table, trx_t* trx, THD* thd,
 		  "DECLARE FUNCTION fk_upgrade_push_fk;\n"
 
 		  "DECLARE CURSOR c IS"
-		  " SELECT ID, REF_NAME FROM SYS_FOREIGN"
+		  " SELECT ID, REF_NAME, N_COLS FROM SYS_FOREIGN"
 		  " WHERE FOR_NAME = :for_name;"
 
 		  "DECLARE CURSOR c2 IS"
@@ -21330,25 +21325,23 @@ dict_load_foreigns(THD* thd, dict_table_t* table, TABLE_SHARE* share,
 		}
 
 		// NB: see innobase_get_foreign_key_info() for index checks
-		ut_ad(fk.foreign_fields.elements
-		      == fk.referenced_fields.elements);
-		ut_ad(fk.foreign_fields.elements <= MAX_NUM_FK_COLUMNS);
-		DBUG_ASSERT(fk.foreign_fields.elements <= 0x3ff);
-		foreign->n_fields = fk.foreign_fields.elements & 0x3ff;
+		ut_ad(fk.foreign_fields.size()
+		      == fk.referenced_fields.size());
+		ut_ad(fk.foreign_fields.size() <= MAX_NUM_FK_COLUMNS);
+		DBUG_ASSERT(fk.foreign_fields.size() <= 0x3ff);
+		foreign->n_fields = fk.foreign_fields.size() & 0x3ff;
 
-		List_iterator_fast<Lex_cstring> ref_it(fk.referenced_fields);
-		uint				i = 0;
-		for (Lex_cstring& fcol : fk.foreign_fields) {
-			Lex_cstring& ref_col = *(ref_it++);
-			column_names[i]	     = mem_heap_strdupl(
-				     foreign->heap, LEX_STRING_WITH_LEN(fcol));
+		for (uint i = 0; i < fk.foreign_fields.size(); i++) {
+			column_names[i]	    = mem_heap_strdupl(
+				     foreign->heap,
+				    LEX_STRING_WITH_LEN(fk.foreign_fields[i]));
 			if (!column_names[i])
 				return DB_OUT_OF_MEMORY;
 			ref_column_names[i] = mem_heap_strdupl(
-				foreign->heap, LEX_STRING_WITH_LEN(ref_col));
+				foreign->heap,
+				LEX_STRING_WITH_LEN(fk.referenced_fields[i]));
 			if (!ref_column_names[i])
 				return DB_OUT_OF_MEMORY;
-			++i;
 		}
 
 		size_t dblen = table->name.dblen() + 1;

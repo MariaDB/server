@@ -7257,12 +7257,12 @@ static int get_schema_key_column_usage_record(THD *thd,
 
     for (FK_info &fk: show_table->s->foreign_keys)
     {
-      List_iterator_fast<Lex_cstring> rf_it(fk.referenced_fields);
       uint f_idx= 0;
-      DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
-      for (const Lex_cstring &ff: fk.foreign_fields)
+      DBUG_ASSERT(fk.foreign_fields.size() == fk.referenced_fields.size());
+      for (size_t i= 0; i < fk.foreign_fields.size(); i++)
       {
-        const Lex_cstring &rf= *(rf_it++);
+        const Lex_cstring &ff= fk.foreign_fields[i];
+        const Lex_cstring &rf= fk.referenced_fields[i];
         f_idx++;
         restore_record(table, s->default_values);
         store_key_column_usage(table, db_name, table_name,

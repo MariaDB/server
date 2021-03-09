@@ -2953,7 +2953,7 @@ innobase_get_foreign_key_info(
 		ulint		referenced_num_col = 0;
 		bool		correct_option;
 
-		if (fk_key.foreign_fields.elements > 0) {
+		if (fk_key.foreign_fields.size() > 0) {
 			ulint	i = 0;
 
 			/* Get all the foreign key column info for the
@@ -3019,7 +3019,7 @@ innobase_get_foreign_key_info(
 			goto err_exit;
 		}
 
-		if (fk_key.referenced_fields.elements > 0) {
+		if (fk_key.referenced_fields.size() > 0) {
 			ulint	i = 0;
 
 			for (Lex_cstring &column: fk_key.referenced_fields) {

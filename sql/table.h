@@ -22,6 +22,7 @@
 #include "datadict.h"
 #include "sql_string.h"                         /* String */
 #include "lex_string.h"
+#include "span.h"
 
 #ifndef MYSQL_CLIENT
 
@@ -1864,8 +1865,8 @@ public:
   Lex_cstring referenced_table;
   enum_fk_option update_method;
   enum_fk_option delete_method;
-  List<Lex_cstring> foreign_fields;
-  List<Lex_cstring> referenced_fields;
+  st_::span<Lex_cstring> foreign_fields;
+  st_::span<Lex_cstring> referenced_fields;
 
 public:
   FK_info() :
@@ -1887,34 +1888,29 @@ public:
     // TODO: keep NULL in referenced_table for self-refs
     return 0 == cmp_table(referenced_table, foreign_table);
   }
-  bool fields_eq(/* const */ FK_info &fk) /* const */
+  bool fields_eq(const FK_info &fk) const
   {
-    if (foreign_fields.elements == 0 ||
-        foreign_fields.elements != referenced_fields.elements ||
-        fk.foreign_fields.elements != fk.referenced_fields.elements)
+    if (foreign_fields.size() == 0 ||
+        foreign_fields.size() != referenced_fields.size() ||
+        fk.foreign_fields.size() != fk.referenced_fields.size())
     {
       DBUG_ASSERT(0);
       return false;
     }
-    if (foreign_fields.elements != fk.foreign_fields.elements)
+    if (foreign_fields.size() != fk.foreign_fields.size())
       return false;
-    List_iterator_fast<Lex_cstring> ff_it(foreign_fields);
-    List_iterator_fast<Lex_cstring> ff_it2(fk.foreign_fields);
-    List_iterator_fast<Lex_cstring> rf_it(referenced_fields);
-    List_iterator_fast<Lex_cstring> rf_it2(fk.referenced_fields);
-    while (Lex_cstring *ff= ff_it++)
+
+    for (size_t i = 0; i < foreign_fields.size(); i++)
     {
-      Lex_cstring *ff2= ff_it2++;
-      if (!ff2 || cmp(ff, ff2))
-        return false;
-      Lex_cstring *rf= rf_it++;
-      Lex_cstring *rf2= rf_it2++;
-      if (cmp(rf, rf2))
+      bool match= cmp(fk.referenced_fields[i], referenced_fields[i]) == 0 &&
+                  cmp(fk.foreign_fields[i], foreign_fields[i]) == 0;
+      if (!match)
         return false;
     }
     return true;
   }
-  bool assign(Foreign_key &fk, Table_name table);
+  bool alloc(MEM_ROOT *mem_root, size_t size);
+  void assign(Foreign_key &fk, Table_name table);
   FK_info * clone(MEM_ROOT *mem_root) const;
   Table_name for_table(MEM_ROOT *mem_root, bool copy= false) const;
   Table_name ref_table(MEM_ROOT *mem_root, bool copy= false) const;

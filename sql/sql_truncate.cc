@@ -40,15 +40,13 @@
 */
 
 static bool fk_info_append_fields(THD *thd, String *str,
-                                  List<Lex_cstring> *fields)
+                                  st_::span<Lex_cstring> *fields)
 {
   bool res= FALSE;
-  Lex_cstring *field;
-  List_iterator_fast<Lex_cstring> it(*fields);
 
-  while ((field= it++))
+  for (const Lex_cstring &field: *fields)
   {
-    res|= append_identifier(thd, str, field);
+    res|= append_identifier(thd, str, &field);
     res|= str->append(STRING_WITH_LEN(", "));
   }
 

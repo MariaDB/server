@@ -2931,6 +2931,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       {
         FK_info *fk= new (thd->mem_root) FK_info();
         Foreign_key &fkey= static_cast<Foreign_key &>(*key);
+        if (!fk || !fk->alloc(thd->mem_root, fkey.columns.elements))
+        {
+          my_error(ER_OUT_OF_RESOURCES, MYF(0));
+          DBUG_RETURN(true);
+        }
+
         fk->assign(fkey, {db, table_name});
         if (!fk->foreign_id.str)
         {
@@ -2999,6 +3005,11 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     if (key->foreign)
     {
       FK_info *fk= new (thd->mem_root) FK_info();
+      if (!fk || !fk->alloc(thd->mem_root, key->columns.elements))
+      {
+        my_error(ER_OUT_OF_RESOURCES, MYF(0));
+        DBUG_RETURN(true);
+      }
       fk->assign(*(Foreign_key *) key, {db, table_name});
       fk->foreign_id= key_name;
       if (foreign_keys.push_back(fk))
@@ -5906,7 +5917,7 @@ drop_create_field:
           {
             if (fk->update_method != new_fk->update_opt ||
                 fk->delete_method != new_fk->delete_opt ||
-                fk->foreign_fields.elements != new_fk->columns.elements)
+                fk->foreign_fields.size() != new_fk->columns.elements)
               continue;
             if (cmp_table(fk->ref_db(), new_fk->ref_db.str ?
                                           new_fk->ref_db : table->s->db) ||
@@ -8685,17 +8696,14 @@ enum fk_column_change_type
 
 static enum fk_column_change_type
 fk_check_column_changes(THD *thd, Alter_info *alter_info,
-                        List<Lex_cstring> &fk_columns,
+                        st_::span<Lex_cstring> &fk_columns,
                         const char **bad_column_name)
 {
-  List_iterator_fast<Lex_cstring> column_it(fk_columns);
-  Lex_cstring *column;
-
   *bad_column_name= NULL;
 
-  while ((column= column_it++))
+  for(Lex_cstring &column: fk_columns)
   {
-    Create_field *new_field= get_field_by_old_name(alter_info, column->str);
+    Create_field *new_field= get_field_by_old_name(alter_info, column.str);
 
     if (new_field)
     {
@@ -8710,7 +8718,7 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
           SE that foreign keys should be updated to use new name of column
           like it happens in case of in-place algorithm.
         */
-        *bad_column_name= column->str;
+        *bad_column_name= column.str;
         return FK_COLUMN_RENAMED;
       }
 
@@ -8726,7 +8734,7 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
             means values in this column might be changed by ALTER
             and thus referential integrity might be broken,
           */
-          *bad_column_name= column->str;
+          *bad_column_name= column.str;
           return FK_COLUMN_DATA_CHANGE;
         }
       }
@@ -8742,7 +8750,7 @@ fk_check_column_changes(THD *thd, Alter_info *alter_info,
         field being dropped since it is easy to break referential
         integrity in this case.
       */
-      *bad_column_name= column->str;
+      *bad_column_name= column.str;
       return FK_COLUMN_DROPPED;
     }
   }
@@ -11828,10 +11836,10 @@ bool fk_prepare_create_table(THD *thd, Alter_info &alter_info, FK_list &foreign_
 
   for (FK_info &fk: foreign_keys)
   {
-    DBUG_ASSERT(fk.foreign_fields.elements == fk.referenced_fields.elements);
-    List_iterator_fast<Lex_cstring> rf_it(fk.referenced_fields);
-    for (Lex_cstring &ff: fk.foreign_fields)
+    DBUG_ASSERT(fk.foreign_fields.size() == fk.referenced_fields.size());
+    for (size_t i= 0; i < fk.foreign_fields.size(); i++)
     {
+      Lex_cstring &ff= fk.foreign_fields[i];
       TABLE_SHARE *ref_share= NULL;
       if (!fk.self_ref())
       {
@@ -11843,7 +11851,7 @@ bool fk_prepare_create_table(THD *thd, Alter_info &alter_info, FK_list &foreign_
         ref_share= ref_it->second.share;
         DBUG_ASSERT(ref_share);
       }
-      Lex_cstring &rf= *(rf_it++);
+      Lex_cstring &rf= fk.referenced_fields[i];
       Create_field *cf;
       cl_it.rewind();
       while ((cf= cl_it++))
