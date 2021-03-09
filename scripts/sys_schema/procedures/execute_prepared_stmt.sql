@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS execute_prepared_stmt;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE execute_prepared_stmt (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE execute_prepared_stmt (
         IN in_query longtext CHARACTER SET UTF8
     )
     COMMENT '

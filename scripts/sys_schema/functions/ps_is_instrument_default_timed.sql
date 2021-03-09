@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS ps_is_instrument_default_timed;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION ps_is_instrument_default_timed (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_is_instrument_default_timed (
         in_instrument VARCHAR(128)
     ) 
     RETURNS ENUM('YES', 'NO')

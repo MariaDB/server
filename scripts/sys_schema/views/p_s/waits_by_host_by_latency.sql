@@ -32,7 +32,7 @@
 
 CREATE OR REPLACE
   ALGORITHM = MERGE
-  DEFINER = 'root'@'localhost'
+  DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER 
 VIEW waits_by_host_by_latency (
   host,

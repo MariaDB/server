@@ -38,7 +38,7 @@
 
 CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
-  DEFINER = 'root'@'localhost'
+  DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER 
 VIEW io_by_thread_by_latency (
   user,

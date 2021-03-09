@@ -16,7 +16,7 @@
 DROP PROCEDURE IF EXISTS ps_trace_thread;
 
 DELIMITER $$
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_trace_thread (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_trace_thread (
         IN in_thread_id BIGINT UNSIGNED,
         IN in_outfile VARCHAR(255),
         IN in_max_runtime DECIMAL(20,2),

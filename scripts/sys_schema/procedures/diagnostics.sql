@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS diagnostics;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE diagnostics (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE diagnostics (
         IN in_max_runtime int unsigned, IN in_interval int unsigned,
         IN in_auto_config enum ('current', 'medium', 'full')
     )

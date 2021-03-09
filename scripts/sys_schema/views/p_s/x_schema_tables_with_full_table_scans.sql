@@ -33,7 +33,7 @@
 
 CREATE OR REPLACE
   ALGORITHM = MERGE
-  DEFINER = 'root'@'localhost'
+  DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER 
 VIEW x$schema_tables_with_full_table_scans (
   object_schema,

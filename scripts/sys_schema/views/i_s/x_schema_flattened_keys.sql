@@ -17,7 +17,7 @@
 
 CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
-  DEFINER = 'root'@'localhost'
+  DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER
 VIEW x$schema_flattened_keys (
   table_schema,

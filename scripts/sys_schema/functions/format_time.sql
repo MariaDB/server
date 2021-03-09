@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS format_time;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION format_time (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION format_time (
         -- We feed in and return TEXT here, as aggregates of
         -- picoseconds can return numbers larger than BIGINT UNSIGNED
         picoseconds TEXT

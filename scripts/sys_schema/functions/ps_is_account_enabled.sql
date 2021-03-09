@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS ps_is_account_enabled;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION ps_is_account_enabled (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION ps_is_account_enabled (
         in_host VARCHAR(60), 
         in_user VARCHAR(16)
     ) 

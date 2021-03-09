@@ -34,7 +34,7 @@
 
 CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
-  DEFINER = 'root'@'localhost'
+  DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER 
 VIEW x$memory_by_thread_by_current_bytes (
   thread_id,

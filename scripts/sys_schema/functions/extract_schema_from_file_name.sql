@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS extract_schema_from_file_name;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION extract_schema_from_file_name (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION extract_schema_from_file_name (
         path VARCHAR(512)
     )
     RETURNS VARCHAR(64) 

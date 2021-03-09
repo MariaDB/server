@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS create_synonym_db;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE create_synonym_db (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE create_synonym_db (
         IN in_db_name VARCHAR(64), 
         IN in_synonym VARCHAR(64)
     )

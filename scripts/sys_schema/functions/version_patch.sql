@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS version_patch;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION version_patch ()
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION version_patch ()
     RETURNS TINYINT UNSIGNED
     COMMENT '
              Description

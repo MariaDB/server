@@ -36,7 +36,7 @@ BEGIN NOT ATOMIC
   END;
 CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
-  DEFINER = 'root'@'localhost'
+  DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER 
 VIEW x$innodb_buffer_stats_by_schema (
   object_schema,

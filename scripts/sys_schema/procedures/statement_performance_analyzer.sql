@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS statement_performance_analyzer;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE statement_performance_analyzer (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE statement_performance_analyzer (
         IN in_action ENUM('snapshot', 'overall', 'delta', 'create_table', 'create_tmp', 'save', 'cleanup'),
         IN in_table VARCHAR(129),
         IN in_views SET ('with_runtimes_in_95th_percentile', 'analysis', 'with_errors_or_warnings', 'with_full_table_scans', 'with_sorting', 'with_temp_tables', 'custom')

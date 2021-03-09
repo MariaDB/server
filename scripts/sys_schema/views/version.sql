@@ -27,7 +27,7 @@
 -- 
 
 CREATE OR REPLACE
-  DEFINER = 'root'@'localhost'
+  DEFINER = 'mariadb.sys'@'localhost'
   SQL SECURITY INVOKER 
 VIEW version (
   sys_version,

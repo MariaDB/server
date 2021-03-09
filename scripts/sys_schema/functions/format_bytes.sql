@@ -17,7 +17,7 @@ DROP FUNCTION IF EXISTS format_bytes;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' FUNCTION format_bytes (
+CREATE DEFINER='mariadb.sys'@'localhost' FUNCTION format_bytes (
         -- We feed in and return TEXT here, as aggregates of
         -- bytes can return numbers larger than BIGINT UNSIGNED
         bytes TEXT

@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_setup_reload_saved;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_setup_reload_saved ()
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_reload_saved ()
     COMMENT '
              Description
              -----------

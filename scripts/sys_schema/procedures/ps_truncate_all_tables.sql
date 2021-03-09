@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_truncate_all_tables;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_truncate_all_tables (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_truncate_all_tables (
         IN in_verbose BOOLEAN
     )
     COMMENT '

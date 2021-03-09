@@ -17,7 +17,7 @@ DROP PROCEDURE IF EXISTS ps_setup_enable_instrument;
 
 DELIMITER $$
 
-CREATE DEFINER='root'@'localhost' PROCEDURE ps_setup_enable_instrument (
+CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE ps_setup_enable_instrument (
         IN in_pattern VARCHAR(128)
     )
     COMMENT '
