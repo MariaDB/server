@@ -1305,6 +1305,33 @@ void fil_system_t::close()
 #endif /* UNIV_LINUX */
 }
 
+/** Extend all open data files to the recovered size */
+ATTRIBUTE_COLD void fil_system_t::extend_to_recv_size()
+{
+  ut_ad(is_initialised());
+  mutex_enter(&mutex);
+  for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list); space;
+       space= UT_LIST_GET_NEXT(space_list, space))
+  {
+    const uint32_t size= space->recv_size;
+
+    if (size > space->size)
+    {
+      if (space->is_closing())
+        continue;
+      space->reacquire();
+      bool success;
+      while (fil_space_extend_must_retry(space, UT_LIST_GET_LAST(space->chain),
+                                         size, &success))
+        mutex_enter(&mutex);
+      /* Crash recovery requires the file extension to succeed. */
+      ut_a(success);
+      space->release();
+    }
+  }
+  mutex_exit(&mutex);
+}
+
 /** Close all tablespace files at shutdown */
 void fil_space_t::close_all()
 {

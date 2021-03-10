@@ -2663,6 +2663,8 @@ void recv_sys_t::apply(bool last_batch)
         trim(page_id_t(id + srv_undo_space_id_start, t.pages), t.lsn);
     }
 
+    fil_system.extend_to_recv_size();
+
     buf_block_t *free_block= buf_LRU_get_free_block(false);
 
     for (map::iterator p= pages.begin(); p != pages.end(); )
