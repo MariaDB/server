@@ -106,6 +106,14 @@ then
   sed '/-DWITH_URING=YES/d' -i debian/rules
 fi
 
+# From Debian Buster/Ubuntu Focal onwards libpmem-dev is available
+# Don't reference it when built in distro releases that lack it
+if ! apt-cache madison libpmem-dev | grep 'libpmem-dev' >/dev/null 2>&1
+then
+  sed '/libpmem-dev/d' -i debian/control
+  sed '/-DWITH_PMEM=YES/d' -i debian/rules
+fi
+
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
 
