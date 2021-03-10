@@ -1169,7 +1169,8 @@ ulonglong ha_connect::table_flags() const
 //                   HA_NULL_IN_KEY |    not implemented yet
 //                   HA_FAST_KEY_READ |  causes error when sorting (???)
                      HA_NO_TRANSACTIONS | HA_DUPLICATE_KEY_NOT_IN_ORDER |
-                     HA_NO_BLOBS | HA_MUST_USE_TABLE_CONDITION_PUSHDOWN;
+                     HA_NO_BLOBS | HA_MUST_USE_TABLE_CONDITION_PUSHDOWN |
+                     HA_REUSES_FILE_NAMES;
   ha_connect *hp= (ha_connect*)this;
   PTOS        pos= hp->GetTableOptionStruct();
 
@@ -5244,6 +5245,14 @@ int ha_connect::delete_or_rename_table(const char *name, const char *to)
     thd->push_internal_handler(&error_handler);
     bool got_error= open_table_def(thd, share);
     thd->pop_internal_handler();
+    if (!got_error && share->db_type() != connect_hton)
+    {
+      /* The .frm file is not for the connect engine. Something is wrong! */
+      got_error= 1;
+      rc= HA_ERR_INTERNAL_ERROR;
+      my_error(HA_ERR_INTERNAL_ERROR, MYF(0),
+               "TABLE_SHARE is not for the CONNECT engine");
+    }
     if (!got_error) {
       // Now we can work
       if ((pos= share->option_struct)) {

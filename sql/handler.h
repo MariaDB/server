@@ -307,7 +307,11 @@ enum chf_create_flags {
 
 #define HA_PERSISTENT_TABLE              (1ULL << 48)
 
-/* If storage engine uses another engine as a base */
+/*
+  If storage engine uses another engine as a base
+  This flag is also needed if the table tries to open the .frm file
+  as part of drop table.
+*/
 #define HA_REUSES_FILE_NAMES             (1ULL << 49)
 
 /*
