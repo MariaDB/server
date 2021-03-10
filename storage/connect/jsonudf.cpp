@@ -5865,7 +5865,7 @@ char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		PUSH_WARNING(g->Message ? g->Message : "Unexpected error");
+		PUSH_WARNING(g->Message[0] != '\0' ? g->Message : "Unexpected error");
 		*is_null = 1;
 		*error = 1;
 		*res_length = 0;
@@ -5926,7 +5926,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	if (!g->Xchk) {
 		int 	msgid = MSGID_OPEN_MODE_STRERROR;
-		FILE *fout;
+		FILE *fout = NULL;
 		FILE *fin;
 
 		if (!(fin = global_fopen(g, msgid, fn, "rt")))
@@ -5993,7 +5993,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (g->Message)
+		if (g->Message[0] != '\0')
 			str = strcpy(result, g->Message);
 		else
 			str = strcpy(result, "Unexpected error");

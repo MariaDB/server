@@ -653,7 +653,7 @@ PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
 {
 	// For calculated arrays, a local Value must be used
 	int     lng = 0;
-	short   type, prec = 0;
+	short   type = 0, prec = 0;
 	bool    b = n < Nod - 1;
 	PVAL    valp;
 	PBVAL   vlp, vp;
@@ -4714,7 +4714,7 @@ char *bfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		PUSH_WARNING(g->Message ? g->Message : "Unexpected error");
+		PUSH_WARNING(g->Message[0] != '\0' ? g->Message : "Unexpected error");
 		*is_null = 1;
 		*error = 1;
 		*res_length = 0;
@@ -4774,7 +4774,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	if (!g->Xchk) {
 		int 	msgid = MSGID_OPEN_MODE_STRERROR;
-		FILE *fout;
+		FILE *fout = NULL;
 		FILE *fin;
 
 		if (!(fin = global_fopen(g, msgid, fn, "rt")))
@@ -4837,7 +4837,7 @@ char *bfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (g->Message)
+		if (g->Message[0] != '\0')
 			str = strcpy(result, g->Message);
 		else
 			str = strcpy(result, "Unexpected error");
@@ -5003,7 +5003,7 @@ char *bbin_array_add(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		uint	n = 2;
 		int* x = GetIntArgPtr(g, args, n);
 		BJNX  bnx(g, NULL, TYPE_STRING);
-		PBVAL jarp, top, jvp = NULL;
+		PBVAL top, jarp = NULL, jvp = NULL;
 		PBVAL jsp = bnx.MakeValue(args, 0, true, &top);
 
 		if (bnx.CheckPath(g, args, jsp, jvp, 2))
@@ -5636,7 +5636,7 @@ char *bbin_object_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	if (!bsp) {
 		if (!CheckMemory(g, initid, args, 1, true, true)) {
 			BJNX  bnx(g);
-			PBVAL top, jarp;
+			PBVAL top, jarp = NULL;
 			PBVAL jvp = bnx.MakeValue(args, 0, true, &top);
 
 			if (jvp->Type == TYPE_JOB) {
