@@ -15316,6 +15316,7 @@ keyword_table_alias:
         | keyword_verb_clause
         | FUNCTION_SYM
         | EXCEPTION_ORACLE_SYM
+        | IGNORED_SYM
         ;
 
 /* Keyword that we allow for identifiers (except SP labels) */
@@ -15332,6 +15333,7 @@ keyword_ident:
         | FUNCTION_SYM
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
+        | IGNORED_SYM
         ;
 
 keyword_sysvar_name:
@@ -15346,6 +15348,7 @@ keyword_sysvar_name:
         | FUNCTION_SYM
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
+        | IGNORED_SYM
         ;
 
 keyword_set_usual_case:
@@ -15360,6 +15363,7 @@ keyword_set_usual_case:
         | FUNCTION_SYM
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
+        | IGNORED_SYM
         ;
 
 non_reserved_keyword_udt:
@@ -17872,6 +17876,7 @@ keyword_label:
         | keyword_sysvar_type
         | FUNCTION_SYM
         | EXCEPTION_ORACLE_SYM
+        | IGNORED_SYM
         ;
 
 keyword_sp_decl:
@@ -17886,6 +17891,7 @@ keyword_sp_decl:
         | keyword_verb_clause
         | FUNCTION_SYM
         | WINDOW_SYM
+        | IGNORED_SYM
         ;
 
 opt_truncate_table_storage_clause:
@@ -18285,6 +18291,7 @@ keyword_label:
         | FUNCTION_SYM
         | COMPRESSED_SYM
         | EXCEPTION_ORACLE_SYM
+        | IGNORED_SYM
         ;
 
 keyword_sp_decl:
@@ -18295,6 +18302,7 @@ keyword_sp_decl:
         | keyword_sysvar_type
         | keyword_verb_clause
         | WINDOW_SYM
+        | IGNORED_SYM
         ;
 
 opt_truncate_table_storage_clause:
