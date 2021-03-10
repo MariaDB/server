@@ -62,6 +62,7 @@ addons:
       - libnuma-dev
       - libpam0g-dev
       - libpcre2-dev
+      - libpmem-dev
       - libreadline-gplv2-dev
       - libsnappy-dev
       - libssl-dev

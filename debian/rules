@@ -43,6 +43,7 @@ ifeq (32,$(DEB_HOST_ARCH_BITS))
     CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
 endif
 
+# Cross building requires stack direction instruction
 ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
     ifneq (,$(filter $(DEB_HOST_ARCH_CPU),alpha amd64 arm arm64 i386 ia64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64))
         CMAKEFLAGS += -DSTACK_DIRECTION=-1
@@ -50,6 +51,12 @@ ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
     ifneq (,$(filter $(DEB_HOST_ARCH_CPU),hppa))
         CMAKEFLAGS += -DSTACK_DIRECTION=1
     endif
+endif
+
+# Only attempt to build with PMEM on archs that have package libpmem-dev available
+# See https://packages.debian.org/search?searchon=names&keywords=libpmem-dev
+ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64 ppc64el))
+		CMAKEFLAGS += -DWITH_PMEM=yes
 endif
 
 # Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
