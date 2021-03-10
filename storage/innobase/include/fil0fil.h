@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1422,6 +1422,9 @@ public:
   @retval NULL if this was the last */
   inline fil_space_t* keyrotate_next(fil_space_t *space, bool recheck,
                                      bool encrypt);
+
+  /** Extend all open data files to the recovered size */
+  ATTRIBUTE_COLD void extend_to_recv_size();
 };
 
 /** The tablespace memory cache. */
