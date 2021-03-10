@@ -7794,7 +7794,7 @@ alter_list_item:
             if (unlikely(Lex->add_alter_list($4, $7, $3)))
               MYSQL_YYABORT;
           }
-        | ALTER INDEX_SYM ident ignorability
+        | ALTER key_or_index ident ignorability
           {
             LEX *lex= Lex;
             Alter_index_ignorability *ac= new (thd->mem_root)
