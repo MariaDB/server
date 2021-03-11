@@ -4014,5 +4014,41 @@ select f2 from t2,t1 where f2 = 0;
 drop table t1, t2;
 set join_buffer_size=@save_join_buffer_size;
 
+
+--echo #
+--echo # MDEV-21104: BNLH used for multi-join query with embedded outer join
+--echo #             and possible 'not exists' optimization
+--echo #
+
+set join_cache_level=4;
+
+CREATE TABLE t1 (a int) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int, c int) ENGINE=MyISAM;
+INSERT INTO t2 VALUES  (1,2),(2,4);
+CREATE TABLE t3 (d int, KEY(d)) ENGINE=MyISAM;
+INSERT INTO t3 VALUES (1),(2);
+CREATE TABLE t4 (e int primary key) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (1),(2);
+ANALYZE TABLE t1,t2,t3,t4;
+
+SELECT * FROM t2 LEFT JOIN t3 ON c = d;
+SELECT * FROM (t2 LEFT JOIN t3 ON c = d ) JOIN t4;
+
+let $q1=
+SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e;
+eval EXPLAIN $q1;
+eval $q1;
+
+let $q2=
+SELECT * FROM t1 LEFT JOIN ( ( t2 LEFT JOIN t3 ON c = d ) JOIN t4 ) ON b = e
+  WHERE e IS NULL;
+eval EXPLAIN $q2;
+eval $q2;
+
+DROP TABLE t1,t2,t3,t4;
+
+set join_cache_level=@save_join_cache_level;
+
 # The following command must be the last one in the file 
 set @@optimizer_switch=@save_optimizer_switch;
