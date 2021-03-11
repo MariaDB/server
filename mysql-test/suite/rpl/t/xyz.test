@@ -6,28 +6,47 @@ connect (slave,127.0.0.1,root,,test,$SERVER_MYPORT_2,);
 
 --connection slave
 eval change master to master_host= "127.0.0.1", master_port=$SERVER_MYPORT_1, master_user="root";
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+SET GLOBAL slave_parallel_threads=5;
+SET @old_parallel_mode=@@GLOBAL.slave_parallel_mode;
+SET @@GLOBAL.slave_parallel_mode='aggressive';
 --source include/start_slave.inc
---query_vertical show slave status
 
 --connection master
 create table t1(a int, b int , c int );
 insert into t1 values(1,1,1);
-insert into t1 select * from t1;
-insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
-#insert into t1 select * from t1;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
+insert into t1 select * from t1 limit 10;
 #insert into t1 select * from t1;
 #insert into t1 select * from t1;
 #insert into t1 select * from t1;
@@ -40,7 +59,7 @@ select count(*) from t1;
 --connection slave
 --source include/sync_with_master_gtid.inc
 select count(*) from t1;
---query_vertical show slave status
+show binlog events;
 
 --connection master
 drop table t1;
@@ -49,6 +68,9 @@ drop table t1;
 --connection slave
 --source include/sync_with_master_gtid.inc
 --source include/stop_slave.inc
+SET @@GLOBAL.slave_parallel_threads=@old_parallel_threads;
+SET @@GLOBAL.slave_parallel_mode=@old_parallel_mode;
 
 
+--sleep 1000
 

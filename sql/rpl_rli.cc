@@ -1418,7 +1418,7 @@ bool Relay_log_info::is_until_satisfied(Log_event *ev)
 
 
 bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
-                               rpl_group_info *rgi)
+                               rpl_group_info *rgi, Log_event *ev)
 {
   int error= 0;
   DBUG_ENTER("Relay_log_info::stmt_done");
@@ -1480,6 +1480,13 @@ bool Relay_log_info::stmt_done(my_off_t event_master_log_pos, THD *thd,
         error= 1;
       if (rgi->is_parallel_exec)
         mysql_mutex_unlock(&data_lock);
+    }
+    if(mi->rpl_queue && ev->get_type_code() == QUERY_EVENT)
+    {
+      Query_log_event *qev= (Query_log_event* )ev;
+      if (!qev->is_commit() && !qev->is_rollback())
+        mi->rpl_queue->dequeue_by_tail_ptr((uchar *)ev+
+                                       sizeof(*(Query_log_event *)this));
     }
     DBUG_EXECUTE_IF("inject_crash_after_flush_rli", DBUG_SUICIDE(););
   }

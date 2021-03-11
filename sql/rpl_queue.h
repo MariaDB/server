@@ -274,8 +274,11 @@ class circular_buffer_queue_events :public circular_buffer_queue<slave_queue_ele
     //enqueue_1 will take care of it.
     head+= size;
   }
-  
-  void* dequeue_1(uint32 size)
+ 
+  //Dequeue by size , 
+  //So the the size of element which needs to be dequeued will be
+  //given in argument
+  void* dequeue_by_size(uint32 size)
   {
     if (used_buffer() > 0 )
     {
@@ -298,6 +301,15 @@ class circular_buffer_queue_events :public circular_buffer_queue<slave_queue_ele
       return old_tail;
     }
     return NULL;
+  }
+
+  // This will simple update the tail ptr
+  void dequeue_by_tail_ptr(void *ptr)
+  {
+    DBUG_ASSERT(free_size() > 0);
+    lock_mutex();
+    tail= (uchar *)ptr;
+    unlock_mutex();
   }
 
 };

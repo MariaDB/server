@@ -668,7 +668,7 @@ file '%s')", fname);
     goto err;
 
   mi->rpl_queue= new circular_buffer_queue_events();
-  mi->rpl_queue->init(20000000);
+  mi->rpl_queue->init(200000);
   mi->inited = 1;
   mi->rli.is_relay_log_recovery= FALSE;
   // now change cache READ -> WRITE - must do this before flush_master_info

@@ -625,7 +625,7 @@ int Log_event::do_update_pos(rpl_group_info *rgi)
       the actual event execution reaches that point.
     */
     if (!rgi->is_parallel_exec || is_group_event(get_type_code()))
-      rli->stmt_done(log_pos, thd, rgi);
+      rli->stmt_done(log_pos, thd, rgi, this);
   }
   DBUG_RETURN(0);                                  // Cannot fail currently
 }
@@ -1859,6 +1859,13 @@ int Query_log_event::do_apply_event(rpl_group_info *rgi,
             goto end;
           }
         }
+        //Update tail ptr to end of this event 
+        //We are freeing memory on queue(dequeue) on the time commit only
+        rli->mi->rpl_queue->dequeue_by_tail_ptr((uchar *)this+sizeof(*this));
+        //debug info
+        sql_print_information("Setiya , Size of available buffer Dequeue Time%ld",
+                                       rli->mi->rpl_queue->free_size());
+
       }
 
       thd->table_map_for_update= (table_map)table_map_for_update;

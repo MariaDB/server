@@ -29,7 +29,7 @@ void enqueue(circular_buffer_queue_events *queue, char c)
 }
 void dequeue(circular_buffer_queue_events *queue)
 {
-  dummy_Log_event *dl= static_cast<dummy_Log_event *>(queue->dequeue_1(dummy_Log_event::get_size()));
+  dummy_Log_event *dl= static_cast<dummy_Log_event *>(queue->dequeue_by_size(dummy_Log_event::get_size()));
   fwrite(dl->arr, sizeof(char), 20, stdout);
   printf("\n");
 }

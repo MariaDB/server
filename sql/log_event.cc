@@ -1033,9 +1033,10 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
               r_queue *rpl_queue, uint32* size)
 {
   Log_event *ev;
-  void *memory __attribute__((unused)) =  NULL ;
-  uint32 ev_size= 0;
   DBUG_ASSERT(buf == NULL || size == NULL);
+  void *memory =  NULL ;
+#ifndef MYSQL_CLIENT
+  uint32 ev_size= 0;
   if (rpl_queue && !size)
   {
     //get the size of the Log_event object
@@ -1044,8 +1045,12 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
     {
       return NULL;
     }
+    //debug info
+    sql_print_information("Setiya , Size of available buffer Enqueue time%ld",
+                                   rpl_queue->free_size());
     memory= rpl_queue->enqueue_1(ev_size);
   }
+#endif
   switch(event_type) {
     case QUERY_EVENT:
       if (!buf)
@@ -1360,8 +1365,10 @@ Log_event * create_log_event_or_get_size(const char *buf, uint event_len,
     size= NULL;
     break;
   }
+#ifndef MYSQL_CLIENT
   if (rpl_queue)
     rpl_queue->enqueue_2(ev_size);
+#endif
   return ev;
 }
 
