@@ -171,14 +171,14 @@ bool Key_part_spec::init_multiple_key_for_blob(const handler *file)
 */
 
 Key::Key(const Key &rhs, MEM_ROOT *mem_root)
-  :DDL_options(rhs), type(rhs.type), foreign(rhs.foreign),
+  :DDL_options(rhs), type(rhs.type),
+  foreign(rhs.foreign), generated(rhs.generated), invisible(rhs.invisible),
+  without_overlaps(rhs.without_overlaps), ignore(rhs.ignore),
   key_create_info(rhs.key_create_info),
   columns(rhs.columns, mem_root),
   name(rhs.name),
   option_list(rhs.option_list),
-  generated(rhs.generated), invisible(rhs.invisible),
-  without_overlaps(rhs.without_overlaps), period(rhs.period),
-  ignore(rhs.ignore)
+  period(rhs.period)
 {
   list_copy_and_replace_each_value(columns, mem_root);
 }
