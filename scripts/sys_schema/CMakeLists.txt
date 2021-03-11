@@ -1,3 +1,4 @@
+IF(TARGET perfschema)
 SET(files
 ${CMAKE_CURRENT_SOURCE_DIR}/before_setup.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/views/version.sql
@@ -156,14 +157,20 @@ ${CMAKE_CURRENT_SOURCE_DIR}/procedures/statement_performance_analyzer.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/procedures/table_exists.sql
 ${CMAKE_CURRENT_SOURCE_DIR}/after_setup.sql
 )
-
+ELSE()
+SET(files
+  ${CMAKE_CURRENT_SOURCE_DIR}/before_setup.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/tables/sys_config.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/tables/sys_config_data_57.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/triggers/sys_config_insert_set_user.sql
+  ${CMAKE_CURRENT_SOURCE_DIR}/triggers/sys_config_update_set_user.sql   
+  ${CMAKE_CURRENT_SOURCE_DIR}/after_setup.sql)
+ENDIF()
 
 SET(CMAKE_CONFIGURABLE_FILE_CONTENT)
 
-IF(TARGET perfschema)
-  FOREACH(f ${files})
-    FILE(READ ${f} content)
-    SET(CMAKE_CONFIGURABLE_FILE_CONTENT "${CMAKE_CONFIGURABLE_FILE_CONTENT}${content}\n")
-  ENDFOREACH()
-ENDIF()
+FOREACH(f ${files})
+  FILE(READ ${f} content)
+  SET(CMAKE_CONFIGURABLE_FILE_CONTENT "${CMAKE_CONFIGURABLE_FILE_CONTENT}${content}\n")
+ENDFOREACH()
 CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/cmake/configurable_file_content.in ${CMAKE_BINARY_DIR}/scripts/mysql_sys_schema.sql)

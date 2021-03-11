@@ -2,6 +2,9 @@
 
 # Can't run test of external client with embedded server
 -- source include/not_embedded.inc
+# diff in the output, if perfschema is not compiled in
+# (sys schema views are missing)
+-- source include/have_perfschema.inc
 #
 # Hack:
 #
