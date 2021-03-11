@@ -98,6 +98,14 @@ then
   sed 's/libcurl4/libcurl3/g' -i debian/control
 fi
 
+# From Debian Bullseye/Ubuntu Groovy, liburing replaces libaio
+if ! apt-cache madison liburing-dev | grep 'liburing-dev' >/dev/null 2>&1
+then
+  sed 's/liburing-dev/libaio-dev/g' -i debian/control
+  sed '/-DIGNORE_AIO_CHECK=YES/d' -i debian/rules
+  sed '/-DWITH_URING=YES/d' -i debian/rules
+fi
+
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
 
