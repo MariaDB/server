@@ -23,7 +23,7 @@
 /*
   Compare ASCII string against the string with the specified
   character set.
-  Only compares the equality, case insencitive.
+  Only compares the equality, case insensitive.
 */
 static bool eq_ascii_string(const CHARSET_INFO *cs,
                             const char *ascii,
@@ -1115,7 +1115,7 @@ static int check_contains(json_engine_t *js, json_engine_t *value)
     if (value->value_type != JSON_VALUE_STRING)
       return FALSE;
     /*
-       TODO: make proper json-json comparison here that takes excapint
+       TODO: make proper json-json comparison here that takes excipient
              into account.
      */
     return value->value_len == js->value_len &&
@@ -1403,7 +1403,7 @@ longlong Item_func_json_contains_path::val_int()
     n_found= arg_count - 2;
   }
   else
-    n_found= 0; /* Jost to prevent 'uninitialized value' warnings */
+    n_found= 0; /* Just to prevent 'uninitialized value' warnings */
 
   result= 0;
   while (json_get_path_next(&je, &p) == 0)
@@ -3373,7 +3373,7 @@ bool Item_func_json_search::fix_length_and_dec()
 
   /*
     It's rather difficult to estimate the length of the result.
-    I belive arglen^2 is the reasonable upper limit.
+    I believe arglen^2 is the reasonable upper limit.
   */
   if (args[0]->max_length > SQR_MAX_BLOB_WIDTH)
     max_length= MAX_BLOB_WIDTH;
