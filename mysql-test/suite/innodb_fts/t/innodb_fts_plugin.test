@@ -125,6 +125,8 @@ CREATE TABLE articles (
        FULLTEXT (title, body) WITH PARSER simple_parser
 ) ENGINE=InnoDB;
 
+# Enable MDEV-515 table-level undo logging when inserting into empty table
+SET unique_checks=0, foreign_key_checks=0;
 BEGIN;
 INSERT INTO articles (title, body) VALUES
   ('MySQL Tutorial','DBMS stands for MySQL DataBase ...'),

@@ -1,6 +1,9 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 
+# Enable MDEV-515 table-level undo logging for insert into empty table
+SET foreign_key_checks=0, unique_checks=0;
+
 --echo #
 --echo # MDEV-24715 Assertion !node->table->skip_alter_undo
 --echo #

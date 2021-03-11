@@ -115,6 +115,7 @@ title VARCHAR(200),
 body TEXT,
 FULLTEXT (title, body) WITH PARSER simple_parser
 ) ENGINE=InnoDB;
+SET unique_checks=0, foreign_key_checks=0;
 BEGIN;
 INSERT INTO articles (title, body) VALUES
 ('MySQL Tutorial','DBMS stands for MySQL DataBase ...'),
