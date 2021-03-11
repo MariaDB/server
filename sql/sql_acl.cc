@@ -3794,7 +3794,7 @@ bool change_password(THD *thd, LEX_USER *user)
   char buff[512];
   ulong query_length= 0;
   enum_binlog_format save_binlog_format;
-  bool result, acl_cache_is_locked= false;
+  bool result= false, acl_cache_is_locked= false;
   ACL_USER *acl_user;
   ACL_USER::AUTH auth;
   const char *password_plugin= 0;
