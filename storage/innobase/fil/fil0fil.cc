@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1300,6 +1300,33 @@ void fil_system_t::close()
   ssd.clear();
   ssd.shrink_to_fit();
 #endif /* UNIV_LINUX */
+}
+
+/** Extend all open data files to the recovered size */
+ATTRIBUTE_COLD void fil_system_t::extend_to_recv_size()
+{
+  ut_ad(is_initialised());
+  mysql_mutex_lock(&mutex);
+  for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list); space;
+       space= UT_LIST_GET_NEXT(space_list, space))
+  {
+    const uint32_t size= space->recv_size;
+
+    if (size > space->size)
+    {
+      if (space->is_closing())
+        continue;
+      space->reacquire();
+      bool success;
+      while (fil_space_extend_must_retry(space, UT_LIST_GET_LAST(space->chain),
+                                         size, &success))
+        mysql_mutex_lock(&mutex);
+      /* Crash recovery requires the file extension to succeed. */
+      ut_a(success);
+      space->release();
+    }
+  }
+  mysql_mutex_unlock(&mutex);
 }
 
 /** Close all tablespace files at shutdown */

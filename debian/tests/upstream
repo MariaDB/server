@@ -50,8 +50,12 @@ EOF
 fi
 
 ARCH=$(dpkg --print-architecture)
-if [ "$ARCH" = "s390x" ]; then
-    echo "main.func_regexp_pcre : recursion fails on s390x https://bugs.launchpad.net/ubuntu/+source/mariadb-10.1/+bug/1723947" >> $SKIP_TEST_LST
+if [ "$ARCH" = "s390x" ]
+then
+  echo "main.func_regexp_pcre : recursion fails on s390x https://bugs.launchpad.net/ubuntu/+source/mariadb-10.1/+bug/1723947" >> $SKIP_TEST_LST
+elif [ "$ARCH" = "armhf" ] || [ "$ARCH" = "i386" ]
+then
+  echo "main.failed_auth_unixsocket : Test returns wrong exit code on armhf and i386 (but only in debci) https://jira.mariadb.org/browse/MDEV-23933" >> $SKIP_TEST_LST
 fi
 
 cd /usr/share/mysql/mysql-test

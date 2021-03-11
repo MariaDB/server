@@ -8501,14 +8501,19 @@ end:
 
 bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
 {
+  DBUG_ENTER("optimize_schema_tables_memory_usage");
+
   List_iterator<TABLE_LIST> tli(tables);
 
   while (TABLE_LIST *table_list= tli++)
   {
+    if (!table_list->schema_table)
+      continue;
+
     TABLE *table= table_list->table;
     THD *thd=table->in_use;
 
-    if (!table_list->schema_table || !thd->fill_information_schema_tables())
+    if (!thd->fill_information_schema_tables())
       continue;
 
     if (!table->is_created())
@@ -8548,6 +8553,7 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
       {
         /* all fields were optimized away. Force a non-0-length row */
         table->s->reclength= to_recinfo->length= 1;
+        to_recinfo->type= FIELD_NORMAL;
         to_recinfo++;
       }
       p->recinfo= to_recinfo;
@@ -8555,10 +8561,10 @@ bool optimize_schema_tables_memory_usage(List<TABLE_LIST> &tables)
       // TODO switch from Aria to Memory if all blobs were optimized away?
       if (instantiate_tmp_table(table, p->keyinfo, p->start_recinfo, &p->recinfo,
                    table_list->select_lex->options | thd->variables.option_bits))
-        return 1;
+        DBUG_RETURN(1);
     }
   }
-  return 0;
+  DBUG_RETURN(0);
 }
 
 

@@ -1,15 +1,4 @@
 #
-# Initialization
-#
-DROP TABLE IF EXISTS t1, t2;
-DROP FUNCTION IF EXISTS f1;
-DROP FUNCTION IF EXISTS f2;
-DROP PROCEDURE IF EXISTS p1;
-DROP PROCEDURE IF EXISTS p2;
-DROP TRIGGER IF EXISTS tr1;
-DROP TRIGGER IF EXISTS tr2;
-DROP VIEW IF EXISTS v1, v2;
-#
 # Test injecting binlog write error when executing queries
 #
 set @saved_dbug = @@global.debug_dbug;
@@ -111,15 +100,13 @@ ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
 set @saved_dbug = @@global.debug_dbug;
 SET GLOBAL debug_dbug='d,injecting_fault_writing';
+SET PASSWORD FOR user1=PASSWORD('foobar');
+SET PASSWORD FOR user1=PASSWORD('foobar');
+ERROR HY000: Error writing file 'master-bin' ((errno: #)
+set @@global.debug_dbug = @saved_dbug;
+set @saved_dbug = @@global.debug_dbug;
+SET GLOBAL debug_dbug='d,injecting_fault_writing';
 DROP USER user1;
 DROP USER user1;
 ERROR HY000: Error writing file 'master-bin' ((errno: #)
 set @@global.debug_dbug = @saved_dbug;
-#
-# Cleanup
-#
-DROP TABLE IF EXISTS t1, t2;
-DROP FUNCTION IF EXISTS f1;
-DROP PROCEDURE IF EXISTS p1;
-DROP TRIGGER IF EXISTS tr1;
-DROP VIEW IF EXISTS v1, v2;

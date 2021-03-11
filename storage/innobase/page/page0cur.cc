@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2288,7 +2288,7 @@ page_cur_delete_rec(
 written by page_cur_insert_rec_low() for a ROW_FORMAT=REDUNDANT page.
 @param block      B-tree or R-tree page in ROW_FORMAT=COMPACT or DYNAMIC
 @param reuse      false=allocate from PAGE_HEAP_TOP; true=reuse PAGE_FREE
-@param prev       byte offset of the predecessor, relative to PAGE_NEW_INFIMUM
+@param prev       byte offset of the predecessor, relative to PAGE_OLD_INFIMUM
 @param enc_hdr    encoded fixed-size header bits
 @param hdr_c      number of common record header bytes with prev
 @param data_c     number of common data bytes with prev
@@ -2350,6 +2350,8 @@ corrupted:
   if (prev_rec == &block.frame[PAGE_OLD_INFIMUM]);
   else if (UNIV_UNLIKELY(prev_rec - pextra_size < heap_bot))
     goto corrupted;
+  if (UNIV_UNLIKELY(hdr_c && prev_rec - hdr_c < heap_bot))
+    goto corrupted;
   const ulint pdata_size= rec_get_data_size_old(prev_rec);
   if (UNIV_UNLIKELY(prev_rec + pdata_size > heap_top))
     goto corrupted;
@@ -2365,7 +2367,7 @@ corrupted:
   const ulint extra_size= REC_N_OLD_EXTRA_BYTES +
     (is_short ? n_fields : n_fields * 2);
   hdr_c+= REC_N_OLD_EXTRA_BYTES;
-  if (UNIV_UNLIKELY(hdr_c > extra_size || hdr_c > pextra_size))
+  if (UNIV_UNLIKELY(hdr_c > extra_size))
     goto corrupted;
   if (UNIV_UNLIKELY(extra_size - hdr_c > data_len))
     goto corrupted;

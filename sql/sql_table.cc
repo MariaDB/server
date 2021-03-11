@@ -11002,12 +11002,11 @@ do_continue:;
       The above is mainly true for the sequence and the partition engine.
   */
   engine_changed= ((new_table->file->ht != table->file->ht) &&
-                   (((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
-                      !(table->file->ha_table_flags() & HA_FILE_BASED))) ||
-                    (!(table->file->ha_table_flags() & HA_REUSES_FILE_NAMES) &&
-                     !(new_table->file->ha_table_flags() &
-                       HA_REUSES_FILE_NAMES))));
-
+                   ((!(new_table->file->ha_table_flags() & HA_FILE_BASED) ||
+                     !(table->file->ha_table_flags() & HA_FILE_BASED))) &&
+                   !(table->file->ha_table_flags() & HA_REUSES_FILE_NAMES) &&
+                   !(new_table->file->ha_table_flags() &
+                     HA_REUSES_FILE_NAMES));
   /*
     Close the intermediate table that will be the new table, but do
     not delete it! Even though MERGE tables do not have their children
