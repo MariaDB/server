@@ -412,9 +412,7 @@ void buf_flush_update_zip_checksum(buf_frame_t *page, ulint size)
 {
   ut_ad(size > 0);
   mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
-                  page_zip_calc_checksum(page, size,
-                                         static_cast<srv_checksum_algorithm_t>
-                                         (srv_checksum_algorithm)));
+                  page_zip_calc_checksum(page, size, false));
 }
 
 /** Assign the full crc32 checksum for non-compressed page.
@@ -569,38 +567,8 @@ buf_flush_init_for_writing(
 		}
 	}
 
-	uint32_t checksum = BUF_NO_CHECKSUM_MAGIC;
-
-	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
-	case SRV_CHECKSUM_ALGORITHM_INNODB:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-		checksum = buf_calc_page_new_checksum(page);
-		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
-				checksum);
-		/* With the InnoDB checksum, we overwrite the first 4 bytes of
-		the end lsn field to store the old formula checksum. Since it
-		depends also on the field FIL_PAGE_SPACE_OR_CHKSUM, it has to
-		be calculated after storing the new formula checksum. */
-		checksum = buf_calc_page_old_checksum(page);
-		break;
-	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-		/* In other cases we write the same checksum to both fields. */
-		checksum = buf_calc_page_crc32(page);
-		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
-				checksum);
-		break;
-	case SRV_CHECKSUM_ALGORITHM_NONE:
-	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM,
-				checksum);
-		break;
-		/* no default so the compiler will emit a warning if
-		new enum is added and not handled here */
-	}
-
+	const uint32_t checksum = buf_calc_page_crc32(page);
+	mach_write_to_4(page + FIL_PAGE_SPACE_OR_CHKSUM, checksum);
 	mach_write_to_4(page + srv_page_size - FIL_PAGE_END_LSN_OLD_CHKSUM,
 			checksum);
 }

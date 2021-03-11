@@ -3,7 +3,6 @@
 #************************************************************
 --source include/innodb_page_size_small.inc
 --source include/have_debug.inc
---source include/no_valgrind_without_big.inc
 # Avoid CrashReporter popup on Mac.
 --source include/not_crashrep.inc
 
@@ -93,27 +92,3 @@ EOF
 --source include/start_mysqld.inc
 
 DROP TABLE t1;
-
---echo [5]:# Check the innochecksum for compressed table t1 with different key_block_size
---echo # Test for KEY_BLOCK_SIZE=1
---let $size=1
---source ../include/innodb-wl6045.inc
-
---echo # Test for KEY_BLOCK_SIZE=2
---let $size=2
---source ../include/innodb-wl6045.inc
-
---echo # Test for for KEY_BLOCK_SIZE=4
---let $size=4
---source ../include/innodb-wl6045.inc
-
-set innodb_strict_mode=off;
---echo # Test for for KEY_BLOCK_SIZE=8
---let $size=8
---source ../include/innodb-wl6045.inc
-
-set innodb_strict_mode=off;
---echo # Test for KEY_BLOCK_SIZE=16
---let $size=16
---source ../include/innodb-wl6045.inc
---echo # Test[5] completed

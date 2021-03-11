@@ -300,7 +300,7 @@ func_exit:
     for (ulint i= 0; i < size * 2; i++, page += srv_page_size)
     {
       memset(page + FIL_PAGE_SPACE_ID, 0, 4);
-      /* For innodb_checksum_algorithm=innodb, we do not need to
+      /* For pre-MySQL-4.1 innodb_checksum_algorithm=innodb, we do not need to
       calculate new checksums for the pages because the field
       .._SPACE_ID does not affect them. Write the page back to where
       we read it from. */

@@ -40,9 +40,6 @@ Created 10/8/1995 Heikki Tuuri
 *******************************************************/
 
 #include "my_global.h"
-// JAN: TODO: MySQL 5.7 missing header
-//#include "my_thread.h"
-//
 #include "mysql/psi/mysql_stage.h"
 #include "mysql/psi/psi.h"
 
@@ -218,6 +215,9 @@ ulong srv_buf_pool_load_pages_abort = LONG_MAX;
 #endif
 /** Lock table size in bytes */
 ulint	srv_lock_table_size	= ULINT_MAX;
+
+/** the value of innodb_checksum_algorithm */
+ulong	srv_checksum_algorithm;
 
 /** innodb_read_io_threads */
 uint	srv_n_read_io_threads;

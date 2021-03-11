@@ -54,7 +54,7 @@ close IBD_FILE;
 EOF
 
 --error 1
-exec $INNOCHECKSUM -C crc32 -l $resultlog $MYSQLD_DATADIR/test/t1.ibd;
+exec $INNOCHECKSUM -l $resultlog $MYSQLD_DATADIR/test/t1.ibd;
 
 let SEARCH_FILE = $MYSQLTEST_VARDIR/tmp/result.log;
 let SEARCH_PATTERN=page id mismatch;

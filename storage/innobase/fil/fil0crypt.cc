@@ -2466,46 +2466,31 @@ bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 	/* If stored checksum matches one of the calculated checksums
 	page is not corrupted. */
 
-	switch (srv_checksum_algorithm_t(srv_checksum_algorithm)) {
+#ifndef UNIV_INNOCHECKSUM
+	switch (srv_checksum_algorithm) {
 	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
 	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+#endif /* !UNIV_INNOCHECKSUM */
 		if (zip_size) {
 			return checksum == page_zip_calc_checksum(
-				page, zip_size, SRV_CHECKSUM_ALGORITHM_CRC32);
+				page, zip_size, false);
 		}
 
 		return checksum == buf_calc_page_crc32(page);
-	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		/* Starting with MariaDB 10.1.25, 10.2.7, 10.3.1,
-		due to MDEV-12114, fil_crypt_calculate_checksum()
-		is only using CRC32 for the encrypted pages.
-		Due to this, we must treat "strict_none" as "none". */
-	case SRV_CHECKSUM_ALGORITHM_NONE:
-		return true;
-	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-		/* Starting with MariaDB 10.1.25, 10.2.7, 10.3.1,
-		due to MDEV-12114, fil_crypt_calculate_checksum()
-		is only using CRC32 for the encrypted pages.
-		Due to this, we must treat "strict_innodb" as "innodb". */
-	case SRV_CHECKSUM_ALGORITHM_INNODB:
-	case SRV_CHECKSUM_ALGORITHM_CRC32:
-	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+#ifndef UNIV_INNOCHECKSUM
+	default:
 		if (checksum == BUF_NO_CHECKSUM_MAGIC) {
 			return true;
 		}
 		if (zip_size) {
 			return checksum == page_zip_calc_checksum(
-				page, zip_size,
-				SRV_CHECKSUM_ALGORITHM_CRC32)
+				page, zip_size, false)
 				|| checksum == page_zip_calc_checksum(
-					page, zip_size,
-					SRV_CHECKSUM_ALGORITHM_INNODB);
+					page, zip_size, true);
 		}
 
 		return checksum == buf_calc_page_crc32(page)
 			|| checksum == buf_calc_page_new_checksum(page);
 	}
-
-	ut_ad("unhandled innodb_checksum_algorithm" == 0);
-	return false;
+#endif /* !UNIV_INNOCHECKSUM */
 }

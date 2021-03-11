@@ -343,6 +343,9 @@ extern ulong srv_buf_pool_load_pages_abort;
 /** Lock table size in bytes */
 extern ulint	srv_lock_table_size;
 
+/** the value of innodb_checksum_algorithm */
+extern ulong	srv_checksum_algorithm;
+
 extern uint	srv_n_file_io_threads;
 extern my_bool	srv_random_read_ahead;
 extern ulong	srv_read_ahead_threshold;

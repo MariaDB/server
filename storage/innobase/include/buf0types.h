@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2015, Oracle and/or its affiliates. All rights reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -52,44 +52,26 @@ enum buf_io_fix {
 /** Alternatives for srv_checksum_algorithm, which can be changed by
 setting innodb_checksum_algorithm */
 enum srv_checksum_algorithm_t {
-	SRV_CHECKSUM_ALGORITHM_CRC32,		/*!< Write crc32, allow crc32,
-						innodb or none when reading */
-	SRV_CHECKSUM_ALGORITHM_STRICT_CRC32,	/*!< Write crc32, allow crc32
-						when reading */
-	SRV_CHECKSUM_ALGORITHM_INNODB,		/*!< Write innodb, allow crc32,
-						innodb or none when reading */
-	SRV_CHECKSUM_ALGORITHM_STRICT_INNODB,	/*!< Write innodb, allow
-						innodb when reading */
-	SRV_CHECKSUM_ALGORITHM_NONE,		/*!< Write none, allow crc32,
-						innodb or none when reading */
-	SRV_CHECKSUM_ALGORITHM_STRICT_NONE,	/*!< Write none, allow none
-						when reading */
-
-	/** For new files, always compute CRC-32C for the whole page.
-	For old files, allow crc32, innodb or none when reading. */
-	SRV_CHECKSUM_ALGORITHM_FULL_CRC32,
-
-	/** For new files, always compute CRC-32C for the whole page.
-	For old files, allow crc32 when reading. */
-	SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32
+  /** Write crc32; allow full_crc32,crc32,innodb,none when reading */
+  SRV_CHECKSUM_ALGORITHM_CRC32,
+  /** Write crc32; allow full_crc23,crc32 when reading */
+  SRV_CHECKSUM_ALGORITHM_STRICT_CRC32,
+  /** For new files, always compute CRC-32C for the whole page.
+  For old files, allow crc32, innodb or none when reading. */
+  SRV_CHECKSUM_ALGORITHM_FULL_CRC32,
+  /** For new files, always compute CRC-32C for the whole page.
+  For old files, allow crc32 when reading. */
+  SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32
 };
 
-inline
-bool
-is_checksum_strict(srv_checksum_algorithm_t algo)
+inline bool is_checksum_strict(srv_checksum_algorithm_t algo)
 {
-	return(algo == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32
-	       || algo == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB
-	       || algo == SRV_CHECKSUM_ALGORITHM_STRICT_NONE);
+  return algo == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32;
 }
 
-inline
-bool
-is_checksum_strict(ulint algo)
+inline bool is_checksum_strict(ulint algo)
 {
-	return(algo == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32
-	       || algo == SRV_CHECKSUM_ALGORITHM_STRICT_INNODB
-	       || algo == SRV_CHECKSUM_ALGORITHM_STRICT_NONE);
+  return algo == SRV_CHECKSUM_ALGORITHM_STRICT_CRC32;
 }
 
 /** Parameters of binary buddy system for compressed pages (buf0buddy.h) */

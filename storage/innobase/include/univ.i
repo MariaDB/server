@@ -78,15 +78,7 @@ support cross-platform development and expose comonly used SQL names. */
 #include <my_global.h>
 #include "my_counter.h"
 #include <m_string.h>
-
-/* JAN: TODO: missing 5.7 header */
-#ifdef HAVE_MY_THREAD_H
-//# include <my_thread.h>
-#endif
-
-#ifndef UNIV_INNOCHECKSUM
-# include <mysqld_error.h>
-#endif /* !UNIV_INNOCHECKSUM */
+#include <mysqld_error.h>
 
 /* Include <sys/stat.h> to get S_I... macros defined for os0file.cc */
 #include <sys/stat.h>
@@ -414,12 +406,6 @@ in both 32-bit and 64-bit environments. */
 # define UINT64scan	PRIu64
 # define UINT64PFx	"%016" PRIx64
 #endif
-
-#ifdef UNIV_INNOCHECKSUM
-extern bool 			strict_verify;
-extern FILE* 			log_file;
-extern unsigned long long	cur_page_num;
-#endif /* UNIV_INNOCHECKSUM */
 
 typedef int64_t ib_int64_t;
 typedef uint64_t ib_uint64_t;

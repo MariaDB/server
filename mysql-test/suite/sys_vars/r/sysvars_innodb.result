@@ -294,7 +294,7 @@ VARIABLE_COMMENT	The algorithm InnoDB uses for page checksumming. Possible value
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
-ENUM_VALUE_LIST	crc32,strict_crc32,innodb,strict_innodb,none,strict_none,full_crc32,strict_full_crc32
+ENUM_VALUE_LIST	crc32,strict_crc32,full_crc32,strict_full_crc32
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	INNODB_CMP_PER_INDEX_ENABLED

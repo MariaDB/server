@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,9 +33,6 @@ Created Aug 11, 2011 Vasil Dimov
 #include "srv0srv.h"
 #endif /* !UNIV_INNOCHECKSUM */
 
-/** the value of innodb_checksum_algorithm */
-ulong	srv_checksum_algorithm;
-
 /** Calculate the CRC32 checksum of a page. The value is stored to the page
 when it is written to a file and also checked for a match when reading from
 the file. Note that we must be careful to calculate the same value on all
@@ -57,6 +54,7 @@ uint32_t buf_calc_page_crc32(const byte* page)
 			   - (FIL_PAGE_DATA + FIL_PAGE_END_LSN_OLD_CHKSUM));
 }
 
+#ifndef UNIV_INNOCHECKSUM
 /** Calculate a checksum which is stored to the page when it is written
 to a file. Note that we must be careful to calculate the same value on
 32-bit and 64-bit architectures.
@@ -98,32 +96,4 @@ buf_calc_page_old_checksum(const byte* page)
 	return(static_cast<uint32_t>
 	       (ut_fold_binary(page, FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION)));
 }
-
-/** Return a printable string describing the checksum algorithm.
-@param[in]	algo	algorithm
-@return algorithm name */
-const char*
-buf_checksum_algorithm_name(srv_checksum_algorithm_t algo)
-{
-	switch (algo) {
-	case SRV_CHECKSUM_ALGORITHM_CRC32:
-		return("crc32");
-	case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
-		return("strict_crc32");
-	case SRV_CHECKSUM_ALGORITHM_INNODB:
-		return("innodb");
-	case SRV_CHECKSUM_ALGORITHM_STRICT_INNODB:
-		return("strict_innodb");
-	case SRV_CHECKSUM_ALGORITHM_NONE:
-		return("none");
-	case SRV_CHECKSUM_ALGORITHM_STRICT_NONE:
-		return("strict_none");
-	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
-		return("full_crc32");
-	case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
-		return("strict_full_crc32");
-	}
-
-	ut_error;
-	return(NULL);
-}
+#endif /* !UNIV_INNOCHECKSUM */

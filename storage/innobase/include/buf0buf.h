@@ -413,42 +413,6 @@ Decrements the bufferfix count. */
 @return whether the buffer is all zeroes */
 bool buf_is_zeroes(st_::span<const byte> buf);
 
-/** Checks if the page is in crc32 checksum format.
-@param[in]	read_buf		database page
-@param[in]	checksum_field1		new checksum field
-@param[in]	checksum_field2		old checksum field
-@return true if the page is in crc32 checksum format. */
-bool
-buf_page_is_checksum_valid_crc32(
-	const byte*			read_buf,
-	ulint				checksum_field1,
-	ulint				checksum_field2)
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
-/** Checks if the page is in innodb checksum format.
-@param[in]	read_buf	database page
-@param[in]	checksum_field1	new checksum field
-@param[in]	checksum_field2	old checksum field
-@return true if the page is in innodb checksum format. */
-bool
-buf_page_is_checksum_valid_innodb(
-	const byte*			read_buf,
-	ulint				checksum_field1,
-	ulint				checksum_field2)
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
-/** Checks if the page is in none checksum format.
-@param[in]	read_buf	database page
-@param[in]	checksum_field1	new checksum field
-@param[in]	checksum_field2	old checksum field
-@return true if the page is in none checksum format. */
-bool
-buf_page_is_checksum_valid_none(
-	const byte*			read_buf,
-	ulint				checksum_field1,
-	ulint				checksum_field2)
-	MY_ATTRIBUTE((nonnull(1), warn_unused_result));
-
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page

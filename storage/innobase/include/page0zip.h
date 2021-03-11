@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -361,15 +361,11 @@ page_zip_copy_recs(
 #endif /* !UNIV_INNOCHECKSUM */
 
 /** Calculate the compressed page checksum.
-@param[in]	data			compressed page
-@param[in]	size			size of compressed page
-@param[in]	algo			algorithm to use
+@param data		compressed page
+@param size		size of compressed page
+@param use_adler	whether to use Adler32 instead of a XOR of 3 CRC-32C
 @return page checksum */
-uint32_t
-page_zip_calc_checksum(
-	const void*			data,
-	ulint				size,
-	srv_checksum_algorithm_t	algo);
+uint32_t page_zip_calc_checksum(const void *data, size_t size, bool use_adler);
 
 /** Validate the checksum on a ROW_FORMAT=COMPRESSED page.
 @param data    ROW_FORMAT=COMPRESSED page

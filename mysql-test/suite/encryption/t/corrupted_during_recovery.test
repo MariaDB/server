@@ -11,10 +11,7 @@ call mtr.add_suppression("InnoDB: The page \\[page id: space=\\d+, page number=3
 call mtr.add_suppression("InnoDB: Table in tablespace \\d+ encrypted. However key management plugin or used key_version \\d+ is not found or used encryption algorithm or method does not match. Can't continue opening the table.");
 --enable_query_log
 
-let INNODB_CHECKSUM_ALGORITHM = `SELECT @@innodb_checksum_algorithm`;
 let INNODB_PAGE_SIZE=`select @@innodb_page_size`;
---echo # Work around MDEV-19541
-SET GLOBAL innodb_checksum_algorithm=crc32;
 CREATE TABLE t1(a BIGINT PRIMARY KEY) ENGINE=InnoDB, ENCRYPTED=YES;
 INSERT INTO t1 VALUES(1);
 # Force a redo log checkpoint.
