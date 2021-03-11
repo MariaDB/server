@@ -625,7 +625,7 @@ mysql-8.0 Focal to mariadb-10.6 upgrade:
   # Installation often fails (not a MariaDB reason), so do not require this test to pass
   allow_failure: true
 
-mysql-5.7 Bionic to mariadb-10.5 upgrade:
+mysql-5.7 Bionic to mariadb-10.6 upgrade:
   stage: upgrade extras
   needs:
     - job: build stretch-backports
