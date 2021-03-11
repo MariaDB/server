@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -33,14 +33,6 @@ Created 3/26/1996 Heikki Tuuri
 
 extern bool		trx_rollback_is_active;
 extern const trx_t*	trx_roll_crash_recv_trx;
-
-/*******************************************************************//**
-Returns a transaction savepoint taken at this point in time.
-@return savepoint */
-trx_savept_t
-trx_savept_take(
-/*============*/
-	trx_t*	trx);	/*!< in: transaction */
 
 /** Report progress when rolling back a row of a recovered transaction. */
 void trx_roll_report_progress();

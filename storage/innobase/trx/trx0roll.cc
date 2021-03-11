@@ -303,11 +303,11 @@ trx_rollback_last_sql_stat_for_mysql(
 
 		if (trx->fts_trx != NULL) {
 			fts_savepoint_rollback_last_stmt(trx);
+			fts_savepoint_laststmt_refresh(trx);
 		}
 
-		/* The following call should not be needed,
-		but we play it safe: */
-		trx_mark_sql_stat_end(trx);
+		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
+		trx->end_bulk_insert();
 
 		trx->op_info = "";
 
@@ -532,7 +532,8 @@ trx_savepoint_for_mysql(
 
 	savep->name = mem_strdup(savepoint_name);
 
-	savep->savept = trx_savept_take(trx);
+	savep->savept.least_undo_no = trx->undo_no;
+	trx->last_sql_stat_start.least_undo_no = trx->undo_no;
 
 	savep->mysql_binlog_cache_pos = binlog_cache_pos;
 
@@ -567,21 +568,6 @@ trx_release_savepoint_for_mysql(
 	}
 
 	return(savep != NULL ? DB_SUCCESS : DB_NO_SAVEPOINT);
-}
-
-/*******************************************************************//**
-Returns a transaction savepoint taken at this point in time.
-@return savepoint */
-trx_savept_t
-trx_savept_take(
-/*============*/
-	trx_t*	trx)	/*!< in: transaction */
-{
-	trx_savept_t	savept;
-
-	savept.least_undo_no = trx->undo_no;
-
-	return(savept);
 }
 
 /*******************************************************************//**

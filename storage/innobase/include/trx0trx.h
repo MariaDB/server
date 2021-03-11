@@ -788,6 +788,8 @@ public:
 					wants to suppress foreign key checks,
 					(in table imports, for example) we
 					set this FALSE */
+  /** whether an insert into an empty table is active */
+  bool bulk_insert;
 	/*------------------------------*/
 	/* MySQL has a transaction coordinator to coordinate two phase
 	commit between multiple storage engines and the binary log. When
@@ -1088,6 +1090,17 @@ public:
   {
     for (auto& t : mod_tables)
       t.second.end_bulk_insert();
+  }
+
+  /** @return whether a bulk insert into empty table is in progress */
+  bool is_bulk_insert() const
+  {
+    if (!bulk_insert || check_unique_secondary || check_foreigns)
+      return false;
+    for (const auto& t : mod_tables)
+      if (t.second.is_bulk_insert())
+        return true;
+    return false;
   }
 
 private:

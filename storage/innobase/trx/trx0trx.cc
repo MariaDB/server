@@ -1683,12 +1683,17 @@ trx_mark_sql_stat_end(
 		trx->undo_no = 0;
 		/* fall through */
 	case TRX_STATE_ACTIVE:
-		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
-
 		if (trx->fts_trx != NULL) {
 			fts_savepoint_laststmt_refresh(trx);
 		}
 
+		if (trx->is_bulk_insert()) {
+			/* Allow a subsequent INSERT into an empty table
+			if !unique_checks && !foreign_key_checks. */
+			return;
+		}
+
+		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
 		trx->end_bulk_insert();
 		return;
 	}
