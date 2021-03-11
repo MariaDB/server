@@ -541,9 +541,8 @@ mysql-8.0 Sid to mariadb-10.5 upgrade:
       - ${WORKING_DIR}/debug
   script:
     - *test-prepare-container
-    # First install often fail due to bug in mysql-8.0
-    - apt-get install -y mysql-server 'libmysqlc*' || true
-    - sleep 10 && apt-get install -f
+    # The postinst fails often if 'ps' is missing from system, so install procps
+    - apt-get install -y procps mysql-server 'libmysqlc*'
     - *test-verify-initial
     - *test-install
     - service mysql status
@@ -647,8 +646,13 @@ mariadb.org-10.5 to mariadb-10.5 upgrade:
     - echo 'deb http://mirror.one.com/mariadb/repo/10.5/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
     - *test-install-readline-in-sid-for-backwards-compat
+    # The 10.5.9 relase is missing mariadb-plugin-columnstore, define all other packages but it to avoid hitting the error:
+    #   The following packages have unmet dependencies:
+    #   mariadb-plugin-columnstore : Depends: mariadb-server-10.5 (= 1:10.5.8+maria~sid) but 1:10.5.9+maria~sid is to be installed
+    - apt-get install -y libmariadb3 'libmariadb-*' 'libmariadbd*' 'mariadb-c*' 'mariadb-b*' 'mariadb-s*' 'mariadb-t*' 'mariadb-plugin-con*' 'mariadb-plugin-cr*' 'mariadb-plugin-g*' 'mariadb-plugin-m*' 'mariadb-plugin-o*' 'mariadb-plugin-s*'
+    # Once 10.5.10 is out, revert back to:
     # Package libmariadbclient-dev from mariadb.org conficts with libmariadb-dev in Sid, so cannot use wildcard that would include it
-    - apt-get install -y 'mariadb*' libmariadb3 'libmariadb-*' 'libmariadbd*'
+    #- apt-get install -y 'mariadb*' libmariadb3 'libmariadb-*' 'libmariadbd*'
     - *test-verify-initial
     # Install MariaDB built in this commit
     # Force downgrades so our version installs on top of upstream revision, e.g. 1:10.5.5-1 vs 1:10.5.5+mariadb~sid
