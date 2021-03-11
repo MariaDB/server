@@ -1,3 +1,4 @@
+SET foreign_key_checks=0, unique_checks=0;
 #
 # MDEV-24715 Assertion !node->table->skip_alter_undo
 #

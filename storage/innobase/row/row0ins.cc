@@ -2660,6 +2660,7 @@ commit_exit:
 	if (!(flags & BTR_NO_UNDO_LOG_FLAG)
 	    && page_is_empty(block->frame)
 	    && !entry->is_metadata() && !trx->duplicates
+	    && !trx->check_unique_secondary && !trx->check_foreigns
 	    && !trx->ddl && !trx->internal
 	    && block->page.id().page_no() == index->page
 	    && !index->table->skip_alter_undo
