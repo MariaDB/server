@@ -1220,6 +1220,9 @@ struct buf_buddy_free_t {
 
 /** @brief The buffer pool statistics structure. */
 struct buf_pool_stat_t{
+	/** Initialize the counters */
+	void init() { memset((void*) this, 0, sizeof *this); }
+
 	ib_counter_t<ulint>	n_page_gets;
 				/*!< number of page gets performed;
 				also successful searches through

@@ -3897,8 +3897,8 @@ void buf_pool_invalidate()
 	buf_pool.freed_page_clock = 0;
 	buf_pool.LRU_old = NULL;
 	buf_pool.LRU_old_len = 0;
+	buf_pool.stat.init();
 
-	memset(&buf_pool.stat, 0x00, sizeof(buf_pool.stat));
 	buf_refresh_io_stats();
 	mysql_mutex_unlock(&buf_pool.mutex);
 }
