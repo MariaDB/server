@@ -730,8 +730,13 @@ handle_new_error:
 
 			trx->rollback(savept);
 		}
+		if (!trx->bulk_insert) {
+			/* MariaDB will roll back the latest SQL statement */
+			break;
+		}
+		/* MariaDB will roll back the entire transaction. */
 		trx->bulk_insert = false;
-		/* MariaDB will roll back the latest SQL statement */
+		trx->last_sql_stat_start.least_undo_no = 0;
 		break;
 	case DB_LOCK_WAIT:
 		err = lock_wait(thr);
