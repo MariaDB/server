@@ -2426,6 +2426,7 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   switch (sql_command) {
   case SQLCOM_REPLACE:
   case SQLCOM_INSERT:
+  case SQLCOM_LOAD:
     res= mysql_test_insert(stmt, tables, lex->field_list,
                            lex->many_values,
                            lex->update_list, lex->value_list,
