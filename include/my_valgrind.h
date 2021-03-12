@@ -47,7 +47,7 @@
 # define MEM_GET_VBITS(a,b,len) VALGRIND_GET_VBITS(a,b,len)
 # define MEM_SET_VBITS(a,b,len) VALGRIND_SET_VBITS(a,b,len)
 # define REDZONE_SIZE 8
-#elif defined(__SANITIZE_ADDRESS__)
+#elif defined(__SANITIZE_ADDRESS__) && (!defined(_MSC_VER) || defined (__clang__))
 # include <sanitizer/asan_interface.h>
 /* How to do manual poisoning:
 https://github.com/google/sanitizers/wiki/AddressSanitizerManualPoisoning */
