@@ -1220,7 +1220,8 @@ struct buf_buddy_free_t {
 
 /** @brief The buffer pool statistics structure. */
 struct buf_pool_stat_t{
-	ulint	n_page_gets;	/*!< number of page gets performed;
+	ib_counter_t<ulint>	n_page_gets;
+				/*!< number of page gets performed;
 				also successful searches through
 				the adaptive hash index are
 				counted as page gets; this field
@@ -1831,6 +1832,8 @@ public:
 private:
   /** whether the page cleaner needs wakeup from indefinite sleep */
   bool page_cleaner_is_idle;
+  /** track server activity count for signaling idle flushing */
+  ulint last_activity_count;
 public:
   /** signalled to wake up the page_cleaner; protected by flush_list_mutex */
   pthread_cond_t do_flush_list;
@@ -1849,6 +1852,13 @@ public:
   {
     mysql_mutex_assert_owner(&flush_list_mutex);
     page_cleaner_is_idle= deep_sleep;
+  }
+
+  /** Update server last activity count */
+  void update_last_activity_count(ulint activity_count)
+  {
+    mysql_mutex_assert_owner(&flush_list_mutex);
+    last_activity_count= activity_count;
   }
 
   // n_flush_LRU + n_flush_list is approximately COUNT(io_fix()==BUF_IO_WRITE)

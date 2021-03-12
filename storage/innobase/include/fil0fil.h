@@ -1460,6 +1460,9 @@ public:
   @retval NULL if this was the last */
   inline fil_space_t* keyrotate_next(fil_space_t *space, bool recheck,
                                      bool encrypt);
+
+  /** Extend all open data files to the recovered size */
+  ATTRIBUTE_COLD void extend_to_recv_size();
 };
 
 /** The tablespace memory cache. */

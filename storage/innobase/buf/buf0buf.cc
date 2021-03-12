@@ -1241,6 +1241,8 @@ bool buf_pool_t::create()
   srv_buf_pool_old_size= srv_buf_pool_size;
   srv_buf_pool_base_size= srv_buf_pool_size;
 
+  last_activity_count= srv_get_activity_count();
+
   chunk_t::map_ref= chunk_t::map_reg;
   buf_LRU_old_ratio_update(100 * 3 / 8, false);
   btr_search_sys_create();
@@ -2251,7 +2253,7 @@ void buf_page_free(fil_space_t *space, uint32_t page, mtr_t *mtr)
       )
     mtr->add_freed_offset(space, page);
 
-  buf_pool.stat.n_page_gets++;
+  ++buf_pool.stat.n_page_gets;
   const page_id_t page_id(space->id, page);
   const ulint fold= page_id.fold();
   page_hash_latch *hash_lock= buf_pool.page_hash.lock<false>(fold);
@@ -2291,7 +2293,7 @@ buf_page_t* buf_page_get_zip(const page_id_t page_id, ulint zip_size)
 {
   ut_ad(zip_size);
   ut_ad(ut_is_2pow(zip_size));
-  buf_pool.stat.n_page_gets++;
+  ++buf_pool.stat.n_page_gets;
 
   bool discard_attempted= false;
   const ulint fold= page_id.fold();
@@ -2590,7 +2592,7 @@ buf_page_get_low(
 	ut_ad(!mtr || !ibuf_inside(mtr)
 	      || ibuf_page_low(page_id, zip_size, FALSE, NULL));
 
-	buf_pool.stat.n_page_gets++;
+	++buf_pool.stat.n_page_gets;
 loop:
 	buf_block_t* fix_block;
 	block = guess;
@@ -3187,7 +3189,7 @@ func_exit:
 	ut_ad(block->page.buf_fix_count());
 	ut_ad(block->page.state() == BUF_BLOCK_FILE_PAGE);
 
-	buf_pool.stat.n_page_gets++;
+	++buf_pool.stat.n_page_gets;
 
 	return(TRUE);
 }
@@ -3234,7 +3236,7 @@ buf_block_t *buf_page_try_get(const page_id_t page_id, mtr_t *mtr)
   ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
   ut_ad(bpage->id() == page_id);
 
-  buf_pool.stat.n_page_gets++;
+  ++buf_pool.stat.n_page_gets;
   return block;
 }
 

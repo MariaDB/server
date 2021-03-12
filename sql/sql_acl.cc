@@ -3924,7 +3924,7 @@ bool change_password(THD *thd, LEX_USER *user)
   char buff[512];
   ulong query_length= 0;
   enum_binlog_format save_binlog_format;
-  int result=0;
+  bool result= false, acl_cache_is_locked= false;
   ACL_USER *acl_user;
   ACL_USER::AUTH auth;
   const char *password_plugin= 0;
@@ -3949,7 +3949,7 @@ bool change_password(THD *thd, LEX_USER *user)
   if ((result= tables.open_and_lock(thd, Table_user, TL_WRITE)))
     DBUG_RETURN(result != 1);
 
-  result= 1;
+  acl_cache_is_locked= 1;
   mysql_mutex_lock(&acl_cache->lock);
 
   if (!(acl_user= find_user_exact(user->host.str, user->user.str)))
@@ -4002,7 +4002,7 @@ bool change_password(THD *thd, LEX_USER *user)
 
   acl_cache->clear(1);                          // Clear locked hostname cache
   mysql_mutex_unlock(&acl_cache->lock);
-  result= 0;
+  result= acl_cache_is_locked= 0;
   if (mysql_bin_log.is_open())
   {
     query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
@@ -4013,7 +4013,7 @@ bool change_password(THD *thd, LEX_USER *user)
                               FALSE, FALSE, FALSE, 0) > 0;
   }
 end:
-  if (result)
+  if (acl_cache_is_locked)
     mysql_mutex_unlock(&acl_cache->lock);
   close_mysql_tables(thd);
 

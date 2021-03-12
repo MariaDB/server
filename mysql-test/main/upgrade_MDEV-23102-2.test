@@ -75,7 +75,6 @@ CREATE DEFINER='superuser'@'localhost' SQL SECURITY DEFINER VIEW IF NOT EXISTS u
   CAST(IFNULL(JSON_VALUE(Priv, '$.max_statement_time'), 0.0) AS DECIMAL(12,6)) AS max_statement_time
   FROM global_priv;
 
-
 DROP PROCEDURE IF EXISTS mysql.AddGeometryColumn;
 DROP PROCEDURE IF EXISTS mysql.DropGeometryColumn;
 

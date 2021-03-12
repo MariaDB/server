@@ -78,7 +78,7 @@ private:
 /** Global counters used inside InnoDB. */
 struct srv_stats_t
 {
-	typedef ib_counter_t<ulint, 64> ulint_ctr_64_t;
+	typedef ib_counter_t<ulint> ulint_ctr_n_t;
 	typedef simple_counter<lsn_t> lsn_ctr_1_t;
 	typedef simple_counter<ulint> ulint_ctr_1_t;
 	typedef simple_counter<int64_t> int64_ctr_1_t;
@@ -117,76 +117,76 @@ struct srv_stats_t
 	ulint_ctr_1_t		buf_pool_reads;
 
 	/** Number of bytes saved by page compression */
-	ulint_ctr_64_t          page_compression_saved;
+	ulint_ctr_n_t          page_compression_saved;
 	/* Number of index pages written */
-	ulint_ctr_64_t          index_pages_written;
+	ulint_ctr_n_t          index_pages_written;
 	/* Number of non index pages written */
-	ulint_ctr_64_t          non_index_pages_written;
+	ulint_ctr_n_t          non_index_pages_written;
 	/* Number of pages compressed with page compression */
-        ulint_ctr_64_t          pages_page_compressed;
+        ulint_ctr_n_t          pages_page_compressed;
 	/* Number of TRIM operations induced by page compression */
-        ulint_ctr_64_t          page_compressed_trim_op;
+        ulint_ctr_n_t          page_compressed_trim_op;
 	/* Number of pages decompressed with page compression */
-        ulint_ctr_64_t          pages_page_decompressed;
+        ulint_ctr_n_t          pages_page_decompressed;
 	/* Number of page compression errors */
-	ulint_ctr_64_t          pages_page_compression_error;
+	ulint_ctr_n_t          pages_page_compression_error;
 	/* Number of pages encrypted */
-	ulint_ctr_64_t          pages_encrypted;
+	ulint_ctr_n_t          pages_encrypted;
    	/* Number of pages decrypted */
-	ulint_ctr_64_t          pages_decrypted;
+	ulint_ctr_n_t          pages_decrypted;
 	/* Number of merge blocks encrypted */
-	ulint_ctr_64_t          n_merge_blocks_encrypted;
+	ulint_ctr_n_t          n_merge_blocks_encrypted;
 	/* Number of merge blocks decrypted */
-	ulint_ctr_64_t          n_merge_blocks_decrypted;
+	ulint_ctr_n_t          n_merge_blocks_decrypted;
 	/* Number of row log blocks encrypted */
-	ulint_ctr_64_t          n_rowlog_blocks_encrypted;
+	ulint_ctr_n_t          n_rowlog_blocks_encrypted;
 	/* Number of row log blocks decrypted */
-	ulint_ctr_64_t          n_rowlog_blocks_decrypted;
+	ulint_ctr_n_t          n_rowlog_blocks_decrypted;
 
 	/** Number of data read in total (in bytes) */
 	ulint_ctr_1_t		data_read;
 
 	/** Number of rows read. */
-	ulint_ctr_64_t		n_rows_read;
+	ulint_ctr_n_t		n_rows_read;
 
 	/** Number of rows updated */
-	ulint_ctr_64_t		n_rows_updated;
+	ulint_ctr_n_t		n_rows_updated;
 
 	/** Number of rows deleted */
-	ulint_ctr_64_t		n_rows_deleted;
+	ulint_ctr_n_t		n_rows_deleted;
 
 	/** Number of rows inserted */
-	ulint_ctr_64_t		n_rows_inserted;
+	ulint_ctr_n_t		n_rows_inserted;
 
 	/** Number of system rows read. */
-	ulint_ctr_64_t		n_system_rows_read;
+	ulint_ctr_n_t		n_system_rows_read;
 
 	/** Number of system rows updated */
-	ulint_ctr_64_t		n_system_rows_updated;
+	ulint_ctr_n_t		n_system_rows_updated;
 
 	/** Number of system rows deleted */
-	ulint_ctr_64_t		n_system_rows_deleted;
+	ulint_ctr_n_t		n_system_rows_deleted;
 
 	/** Number of system rows inserted */
-	ulint_ctr_64_t		n_system_rows_inserted;
+	ulint_ctr_n_t		n_system_rows_inserted;
 
 	/** Number of times secondary index lookup triggered cluster lookup */
-	ulint_ctr_64_t		n_sec_rec_cluster_reads;
+	ulint_ctr_n_t		n_sec_rec_cluster_reads;
 
 	/** Number of times prefix optimization avoided triggering cluster lookup */
-	ulint_ctr_64_t		n_sec_rec_cluster_reads_avoided;
+	ulint_ctr_n_t		n_sec_rec_cluster_reads_avoided;
 
 	/** Number of encryption_get_latest_key_version calls */
-	ulint_ctr_64_t		n_key_requests;
+	ulint_ctr_n_t		n_key_requests;
 
 	/** Number of spaces in keyrotation list */
-	ulint_ctr_64_t		key_rotation_list_length;
+	ulint_ctr_n_t		key_rotation_list_length;
 
 	/** Number of temporary tablespace blocks encrypted */
-	ulint_ctr_64_t		n_temp_blocks_encrypted;
+	ulint_ctr_n_t		n_temp_blocks_encrypted;
 
 	/** Number of temporary tablespace blocks decrypted */
-	ulint_ctr_64_t		n_temp_blocks_decrypted;
+	ulint_ctr_n_t		n_temp_blocks_decrypted;
 };
 
 /** We are prepared for a situation that we have this many threads waiting for

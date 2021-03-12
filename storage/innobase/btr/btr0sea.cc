@@ -1122,7 +1122,7 @@ got_no_latch:
 		}
 		mtr->memo_push(block, fix_type);
 
-		buf_pool.stat.n_page_gets++;
+		++buf_pool.stat.n_page_gets;
 
 		part->latch.rd_unlock();
 

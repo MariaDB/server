@@ -4449,7 +4449,7 @@ n_field_mismatch:
 				ulint extern_len = mach_read_from_4(
 					data + len + BTR_EXTERN_LEN + 4);
 				if (fixed_size == extern_len) {
-					continue;
+					goto next_field;
 				}
 			}
 		}
@@ -4484,7 +4484,7 @@ len_mismatch:
 			}
 			return(FALSE);
 		}
-
+next_field:
 		field++;
 	}
 
