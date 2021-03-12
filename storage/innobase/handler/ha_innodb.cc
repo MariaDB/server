@@ -3062,7 +3062,6 @@ ha_innobase::reset_template(void)
 		m_prebuilt->pk_filter = NULL;
 		m_prebuilt->template_type = ROW_MYSQL_NO_TEMPLATE;
 	}
-	m_prebuilt->trx->bulk_insert = false;
 }
 
 /*****************************************************************//**
@@ -3117,6 +3116,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	m_prebuilt->used_in_HANDLER = TRUE;
 
 	reset_template();
+	m_prebuilt->trx->bulk_insert = false;
 }
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
