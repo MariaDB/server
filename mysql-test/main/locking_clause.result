@@ -1,0 +1,160 @@
+CREATE TABLE t1 ( a INT, b INT );
+INSERT INTO t1 VALUES (1, 1);
+CREATE VIEW v1 AS SELECT * FROM t1;
+CREATE TABLE t2 ( a INT );
+INSERT INTO t2 VALUES (1);
+#
+# The new non-standard keywords should still be useable as identifiers.
+# The standard ones should not.
+#
+CREATE TABLE t ( of INT );
+CREATE TABLE t0 ( skip INT, locked INT, nowait INT );
+DROP TABLE t, t0;
+CREATE PROCEDURE p0() BEGIN of: LOOP LEAVE of; END LOOP of; END|
+CREATE PROCEDURE p1() BEGIN skip: LOOP LEAVE skip; END LOOP skip; END|
+CREATE PROCEDURE p2() BEGIN locked: LOOP LEAVE locked; END LOOP locked; END|
+CREATE PROCEDURE p3() BEGIN nowait: LOOP LEAVE nowait; END LOOP nowait; END|
+DROP PROCEDURE p0;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+#
+#  Test of the syntax.
+#
+#
+#  UPDATE ...
+#
+SELECT * FROM t1 FOR UPDATE;
+a	b
+1	1
+SELECT * FROM t1 FOR UPDATE NOWAIT;
+a	b
+1	1
+SELECT * FROM t1 FOR UPDATE SKIP LOCKED;
+a	b
+1	1
+#
+#  Dual locking clauses
+#
+SELECT * FROM t1 JOIN t2 FOR UPDATE;
+a	b	a
+1	1	1
+SELECT * FROM t1 STRAIGHT_JOIN t2 FOR UPDATE;
+a	b	a
+1	1	1
+#
+# Derived tables and views.
+#
+SELECT 1 FROM ( SELECT 1 ) AS t2 FOR UPDATE;
+1
+1
+SELECT 1 FROM v1 FOR UPDATE;
+1
+1
+#
+#  Test of syntax errors.
+#
+SELECT * FROM t1 FOR SHARE WAIT WAIT;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SHARE WAIT WAIT' at line 1
+SELECT * FROM t1 FOR SHARE WAIT NOWAIT;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SHARE WAIT NOWAIT' at line 1
+SELECT * FROM t1 FOR SHARE WAIT SKIP LOCKED;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SHARE WAIT SKIP LOCKED' at line 1
+SELECT 1 FOR UPDATE UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
+SELECT 1 LOCK IN SHARE MODE UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
+SELECT 1 FOR SHARE UNION SELECT 2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SHARE UNION SELECT 2' at line 1
+SELECT * FROM t1 LEFT JOIN t2 FOR UPDATE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FOR UPDATE' at line 1
+SELECT * FROM t1 LEFT JOIN t2 FOR SHARE;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FOR SHARE' at line 1
+SELECT * FROM t1 LEFT JOIN t2 FOR SHARE OF t1 FOR UPDATE OF t2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FOR SHARE OF t1 FOR UPDATE OF t2' at line 1
+SELECT * FROM t1 RIGHT JOIN t2 FOR SHARE OF t1 FOR UPDATE OF t2;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'FOR SHARE OF t1 FOR UPDATE OF t2' at line 1
+#
+# Test of error messages.
+#
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 ( a INT, b INT );
+INSERT INTO t1 VALUES (10, 10);
+SELECT MIN(a) FROM t1 FOR UPDATE SKIP LOCKED;
+MIN(a)
+1
+SELECT MAX(a) FROM t1 FOR UPDATE SKIP LOCKED;
+MAX(a)
+10
+SELECT SUM(a) FROM t1 FOR UPDATE SKIP LOCKED;
+SUM(a)
+11
+SELECT MIN(a) FROM t1 FOR UPDATE NOWAIT;
+MIN(a)
+1
+SELECT MAX(a) FROM t1 FOR UPDATE NOWAIT;
+MAX(a)
+10
+SELECT SUM(a) FROM t1 FOR UPDATE NOWAIT;
+SUM(a)
+11
+SELECT DISTINCT * FROM t1 FOR UPDATE SKIP LOCKED;
+a	b
+1	1
+10	10
+SELECT DISTINCT * FROM t1 FOR UPDATE NOWAIT;
+a	b
+1	1
+10	10
+SELECT MIN(b) FROM t1 GROUP BY a FOR UPDATE SKIP LOCKED;
+MIN(b)
+1
+10
+#
+# Regression testing.
+#
+DROP DATABASE db1;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
+# Bug#25972285: UNCLEAR ERROR MESSAGE FOR NOWAIT
+#
+CREATE USER test@localhost;
+GRANT CREATE, SELECT, UPDATE on *.* to test@localhost;
+CREATE USER test2@localhost;
+GRANT CREATE, SELECT, UPDATE on *.* to test2@localhost;
+CREATE TABLE t1 ( a INT ) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ( 1 );
+connect  con1, localhost, test, , test;
+BEGIN;
+SELECT * FROM t1 WHERE a = 2 FOR UPDATE ;
+a
+connect  con2,localhost,test2,,test;
+BEGIN;
+SELECT * FROM t1 FOR UPDATE NOWAIT;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+COMMIT;
+connection default;
+disconnect con1;
+disconnect con2;
+DROP TABLE t1;
+DROP USER test@localhost;
+DROP USER test2@localhost;
+#
+# Bug#30237291: "SELECT ... INTO VAR_NAME FOR UPDATE" NOT WORKING IN
+#               MYSQL 8
+#
+SELECT 1 FROM DUAL LIMIT 1 INTO @var FOR UPDATE;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SELECT 1 FROM DUAL LIMIT 1 FOR UPDATE INTO @var;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SELECT 1 FROM DUAL LIMIT 1 INTO @var FOR UPDATE INTO @var;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'INTO @var' at line 1
+SELECT 1 UNION SELECT 1 FOR UPDATE INTO @var;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+SELECT 1 UNION SELECT 1 INTO @var FOR UPDATE;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead

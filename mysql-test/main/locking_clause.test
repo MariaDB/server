@@ -1,0 +1,157 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t1 ( a INT, b INT );
+INSERT INTO t1 VALUES (1, 1);
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+CREATE TABLE t2 ( a INT );
+INSERT INTO t2 VALUES (1);
+
+--echo #
+--echo # The new non-standard keywords should still be useable as identifiers.
+--echo # The standard ones should not.
+--echo #
+
+CREATE TABLE t ( of INT );
+CREATE TABLE t0 ( skip INT, locked INT, nowait INT );
+DROP TABLE t, t0;
+
+delimiter |;
+
+CREATE PROCEDURE p0() BEGIN of: LOOP LEAVE of; END LOOP of; END|
+CREATE PROCEDURE p1() BEGIN skip: LOOP LEAVE skip; END LOOP skip; END|
+CREATE PROCEDURE p2() BEGIN locked: LOOP LEAVE locked; END LOOP locked; END|
+CREATE PROCEDURE p3() BEGIN nowait: LOOP LEAVE nowait; END LOOP nowait; END|
+
+delimiter ;|
+
+DROP PROCEDURE p0;
+DROP PROCEDURE p1;
+DROP PROCEDURE p2;
+DROP PROCEDURE p3;
+
+--echo #
+--echo #  Test of the syntax.
+--echo #
+
+--echo #
+--echo #  UPDATE ...
+--echo #
+SELECT * FROM t1 FOR UPDATE;
+SELECT * FROM t1 FOR UPDATE NOWAIT;
+SELECT * FROM t1 FOR UPDATE SKIP LOCKED;
+
+--echo #
+--echo #  Dual locking clauses
+--echo #
+SELECT * FROM t1 JOIN t2 FOR UPDATE;
+SELECT * FROM t1 STRAIGHT_JOIN t2 FOR UPDATE;
+
+--echo #
+--echo # Derived tables and views.
+--echo #
+SELECT 1 FROM ( SELECT 1 ) AS t2 FOR UPDATE;
+SELECT 1 FROM v1 FOR UPDATE;
+
+--echo #
+--echo #  Test of syntax errors.
+--echo #
+
+--error ER_PARSE_ERROR
+SELECT * FROM t1 FOR SHARE WAIT WAIT;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 FOR SHARE WAIT NOWAIT;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 FOR SHARE WAIT SKIP LOCKED;
+--error ER_PARSE_ERROR
+SELECT 1 FOR UPDATE UNION SELECT 2;
+--error ER_PARSE_ERROR
+SELECT 1 LOCK IN SHARE MODE UNION SELECT 2;
+--error ER_PARSE_ERROR
+SELECT 1 FOR SHARE UNION SELECT 2;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 LEFT JOIN t2 FOR UPDATE;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 LEFT JOIN t2 FOR SHARE;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 LEFT JOIN t2 FOR SHARE OF t1 FOR UPDATE OF t2;
+--error ER_PARSE_ERROR
+SELECT * FROM t1 RIGHT JOIN t2 FOR SHARE OF t1 FOR UPDATE OF t2;
+
+--echo #
+--echo # Test of error messages.
+--echo #
+
+CREATE DATABASE db1;
+CREATE TABLE db1.t1 ( a INT, b INT );
+INSERT INTO t1 VALUES (10, 10);
+
+SELECT MIN(a) FROM t1 FOR UPDATE SKIP LOCKED;
+SELECT MAX(a) FROM t1 FOR UPDATE SKIP LOCKED;
+SELECT SUM(a) FROM t1 FOR UPDATE SKIP LOCKED;
+
+SELECT MIN(a) FROM t1 FOR UPDATE NOWAIT;
+SELECT MAX(a) FROM t1 FOR UPDATE NOWAIT;
+SELECT SUM(a) FROM t1 FOR UPDATE NOWAIT;
+
+SELECT DISTINCT * FROM t1 FOR UPDATE SKIP LOCKED;
+SELECT DISTINCT * FROM t1 FOR UPDATE NOWAIT;
+
+SELECT MIN(b) FROM t1 GROUP BY a FOR UPDATE SKIP LOCKED;
+
+--echo #
+--echo # Regression testing.
+--echo #
+
+DROP DATABASE db1;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # Bug#25972285: UNCLEAR ERROR MESSAGE FOR NOWAIT
+--echo #
+CREATE USER test@localhost;
+GRANT CREATE, SELECT, UPDATE on *.* to test@localhost;
+
+CREATE USER test2@localhost;
+GRANT CREATE, SELECT, UPDATE on *.* to test2@localhost;
+
+CREATE TABLE t1 ( a INT ) ENGINE=InnoDB;
+INSERT INTO t1 VALUES ( 1 );
+
+connect (con1, localhost, test, , test);
+
+BEGIN;
+SELECT * FROM t1 WHERE a = 2 FOR UPDATE ;
+
+connect (con2,localhost,test2,,test);
+BEGIN;
+
+--error ER_LOCK_WAIT_TIMEOUT
+SELECT * FROM t1 FOR UPDATE NOWAIT;
+
+COMMIT;
+
+connection default;
+disconnect con1;
+disconnect con2;
+
+DROP TABLE t1;
+DROP USER test@localhost;
+DROP USER test2@localhost;
+
+--echo #
+--echo # Bug#30237291: "SELECT ... INTO VAR_NAME FOR UPDATE" NOT WORKING IN
+--echo #               MYSQL 8
+--echo #
+
+SELECT 1 FROM DUAL LIMIT 1 INTO @var FOR UPDATE;
+SELECT 1 FROM DUAL LIMIT 1 FOR UPDATE INTO @var;
+
+# Double INTO should fail:
+--error ER_PARSE_ERROR
+SELECT 1 FROM DUAL LIMIT 1 INTO @var FOR UPDATE INTO @var;
+
+SELECT 1 UNION SELECT 1 FOR UPDATE INTO @var;
+SELECT 1 UNION SELECT 1 INTO @var FOR UPDATE;
