@@ -1260,11 +1260,17 @@ insert_params_from_actual_params_with_log(Prepared_statement *stmt,
   DBUG_RETURN(0);
 }
 
-/**
+
+/*
   Validate INSERT statement.
 
   @param stmt               prepared statement
-  @param tables             global/local table list
+  @param table_list         global/local table list
+  @param fields             list of the table's fields to insert values
+  @param values_list        values to be inserted into the table
+  @param update_fields      the update fields.
+  @param update_values      the update values.
+  @param duplic             a way to handle duplicates
 
   @retval
     FALSE             success
@@ -1272,29 +1278,18 @@ insert_params_from_actual_params_with_log(Prepared_statement *stmt,
     TRUE              error, error message is set in THD
 */
 
-static bool mysql_test_insert(Prepared_statement *stmt,
-                              TABLE_LIST *table_list,
-                              List<Item> &fields,
-                              List<List_item> &values_list,
-                              List<Item> &update_fields,
-                              List<Item> &update_values,
-                              enum_duplicates duplic)
+static bool mysql_test_insert_common(Prepared_statement *stmt,
+                                     TABLE_LIST *table_list,
+                                     List<Item> &fields,
+                                     List<List_item> &values_list,
+                                     List<Item> &update_fields,
+                                     List<Item> &update_values,
+                                     enum_duplicates duplic)
 {
   THD *thd= stmt->thd;
   List_iterator_fast<List_item> its(values_list);
   List_item *values;
-  DBUG_ENTER("mysql_test_insert");
-
-  /*
-    Since INSERT DELAYED doesn't support temporary tables, we could
-    not pre-open temporary tables for SQLCOM_INSERT / SQLCOM_REPLACE.
-    Open them here instead.
-  */
-  if (table_list->lock_type != TL_WRITE_DELAYED)
-  {
-    if (thd->open_temporary_tables(table_list))
-      goto error;
-  }
+  DBUG_ENTER("mysql_test_insert_common");
 
   if (insert_precheck(thd, table_list))
     goto error;
@@ -1358,6 +1353,44 @@ static bool mysql_test_insert(Prepared_statement *stmt,
 error:
   /* insert_values is cleared in open_table */
   DBUG_RETURN(TRUE);
+}
+
+
+/**
+  Open temporary tables if required and validate INSERT statement.
+
+  @param stmt               prepared statement
+  @param tables             global/local table list
+
+  @retval
+    FALSE             success
+  @retval
+    TRUE              error, error message is set in THD
+*/
+
+static bool mysql_test_insert(Prepared_statement *stmt,
+                              TABLE_LIST *table_list,
+                              List<Item> &fields,
+                              List<List_item> &values_list,
+                              List<Item> &update_fields,
+                              List<Item> &update_values,
+                              enum_duplicates duplic)
+{
+  THD *thd= stmt->thd;
+
+  /*
+    Since INSERT DELAYED doesn't support temporary tables, we could
+    not pre-open temporary tables for SQLCOM_INSERT / SQLCOM_REPLACE.
+    Open them here instead.
+  */
+  if (table_list->lock_type != TL_WRITE_DELAYED)
+  {
+    if (thd->open_temporary_tables(table_list))
+      return true;
+  }
+
+  return mysql_test_insert_common(stmt, table_list, fields, values_list,
+                                  update_fields, update_values, duplic);
 }
 
 
@@ -2426,11 +2459,17 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   switch (sql_command) {
   case SQLCOM_REPLACE:
   case SQLCOM_INSERT:
-  case SQLCOM_LOAD:
     res= mysql_test_insert(stmt, tables, lex->field_list,
                            lex->many_values,
                            lex->update_list, lex->value_list,
                            lex->duplicates);
+    break;
+
+  case SQLCOM_LOAD:
+    res= mysql_test_insert_common(stmt, tables, lex->field_list,
+                                  lex->many_values,
+                                  lex->update_list, lex->value_list,
+                                  lex->duplicates);
     break;
 
   case SQLCOM_UPDATE:
