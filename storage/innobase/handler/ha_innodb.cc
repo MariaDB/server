@@ -159,6 +159,7 @@ void close_thread_tables(THD* thd);
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include <partition_info.h>
 #include <partition_element.h>
+#include <sql_partition.h>
 #endif
 
 /** to force correct commit order in binlog */
@@ -12265,8 +12266,23 @@ dict_table_t::build_name(
 
 	database_name_len = tablename_to_filename(db_name, database_name,
 						  MAX_DATABASE_NAME_LEN);
-	table_name_len = tablename_to_filename(tbl_name, table_name,
-					       MAX_TABLE_NAME_LEN);
+	if (subpart_name) {
+		ut_ad(part_name);
+		if (create_subpartition_name(
+			table_name, MAX_TABLE_NAME_LEN, tbl_name, part_name,
+			subpart_name, NORMAL_PART_NAME)) {
+			return true;
+		}
+	} else if (part_name) {
+		if (create_partition_name(
+			table_name, MAX_TABLE_NAME_LEN, tbl_name, part_name,
+			NORMAL_PART_NAME, true)) {
+			return true;
+		}
+	} else {
+		table_name_len = tablename_to_filename(tbl_name, table_name,
+						MAX_TABLE_NAME_LEN);
+	}
 
 	dict_name_len = database_name_len + table_name_len + 1;
 
@@ -12308,6 +12324,12 @@ check_legacy_fk(trx_t *trx, const TABLE *table, bool lock_dict_mutex)
 	if (err != DB_SUCCESS) {
 		return convert_error_code_to_mysql(err, 0, NULL);
 	}
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+	if (table->part_info) {
+		return DB_SUCCESS;
+	}
+#endif
 
 	if (dict_table_t::build_name(LEX_STRING_WITH_LEN(table->s->db),
 				     LEX_STRING_WITH_LEN(table->s->table_name),
