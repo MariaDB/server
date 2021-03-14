@@ -644,9 +644,10 @@ public:
 	dberr_t create_foreign_keys();
 	dberr_t create_foreign_key(
 		FK_info* fk, dict_table_t* table, ulint &number,
-		dict_foreign_set &local_fk_set, const char **column_names,
+		dict_foreign_set &local_fk_set, const char** column_names,
 		const char** ref_column_names, char* create_name,
-		const char* operation);
+		const char* operation, const char* part_name,
+		const char* subpart_name);
 
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
@@ -720,7 +721,7 @@ public:
 	/** @return whether the table needs to be dropped on rollback */
 	bool drop_before_rollback() const { return m_drop_before_rollback; }
 
-	THD* thd() const
+	THD* 	thd() const
 	{ return(m_thd); }
 
 	/** Normalizes a table name string.

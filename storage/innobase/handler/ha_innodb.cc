@@ -156,6 +156,11 @@ void close_thread_tables(THD* thd);
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
 
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+#include <partition_info.h>
+#include <partition_element.h>
+#endif
+
 /** to force correct commit order in binlog */
 static mysql_mutex_t pending_checkpoint_mutex;
 
@@ -11792,6 +11797,7 @@ create_table_info_t::create_foreign_keys()
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
 	const char*	      name	= m_table_name;
 	uint		      old_fkeys = m_create_info->alter_info->tmp_old_fkeys;
+	dberr_t err;
 
 	bool alter = enum_sql_command(thd_sql_command(m_thd)) == SQLCOM_ALTER_TABLE;
 	const char*	 operation = alter ? "Alter " : "Create ";
@@ -11816,6 +11822,7 @@ create_table_info_t::create_foreign_keys()
 		char*	      n = dict_get_referenced_table(
 			name, LEX_STRING_WITH_LEN(m_form->s->db),
 			LEX_STRING_WITH_LEN(m_form->s->table_name),
+			NULL, NULL,
 			&table_to_alter, heap);
 
 		/* Starting from 4.0.18 and 4.1.2, we generate foreign key id's
@@ -11869,11 +11876,51 @@ create_table_info_t::create_foreign_keys()
 			old_fkeys--;
 			continue;
 		}
-		dberr_t err = create_foreign_key(
-			fk, table, number, local_fk_set, column_names,
-			ref_column_names, create_name, operation);
-		if (err != DB_SUCCESS) {
-			return err;
+		Share_acquire sa;
+		TABLE_SHARE *ref_share;
+		if (!fk->self_ref()) {
+			sa.acquire(m_thd, fk->ref_db(), fk->referenced_table);
+			if (!sa.share) {
+				return DB_CANNOT_ADD_CONSTRAINT;
+			}
+			ref_share = sa.share;
+		} else {
+			ref_share = m_form->s;
+		}
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+		if (ref_share->part_info && ref_share->part_info->is_sub_partitioned()) {
+			// FIXME: iterator over partitions+subpartitions
+			for (partition_element el: ref_share->part_info->partitions) {
+				for (partition_element sel: el.subpartitions) {
+					err = create_foreign_key(
+						fk, table, number, local_fk_set, column_names,
+						ref_column_names, create_name, operation, el.partition_name,
+						sel.partition_name);
+					if (err != DB_SUCCESS) {
+						return err;
+					}
+				}
+			}
+		} else if (ref_share->part_info) {
+			for (partition_element el: ref_share->part_info->partitions) {
+				err = create_foreign_key(
+					fk, table, number, local_fk_set, column_names,
+					ref_column_names, create_name, operation, el.partition_name,
+					NULL);
+				if (err != DB_SUCCESS) {
+					return err;
+				}
+			}
+		} else
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
+		{
+			err = create_foreign_key(
+				fk, table, number, local_fk_set, column_names,
+				ref_column_names, create_name, operation, NULL,
+				NULL);
+			if (err != DB_SUCCESS) {
+				return err;
+			}
 		}
 	}
 
@@ -11906,7 +11953,8 @@ dberr_t
 create_table_info_t::create_foreign_key(
 	FK_info* fk, dict_table_t* table, ulint &number,
 	dict_foreign_set &local_fk_set, const char** column_names,
-	const char** ref_column_names, char* create_name, const char* operation)
+	const char** ref_column_names, char* create_name, const char* operation,
+	const char* part_name, const char* subpart_name)
 {
 	dict_index_t*	      index	  = NULL;
 	fkerr_t		      index_error = FK_SUCCESS;
@@ -12022,6 +12070,7 @@ create_table_info_t::create_foreign_key(
 		foreign->referenced_table_name = dict_get_referenced_table(
 			m_table_name, LEX_STRING_WITH_LEN(fk->ref_db()),
 			LEX_STRING_WITH_LEN(fk->referenced_table),
+			part_name, subpart_name,
 			&foreign->referenced_table, foreign->heap);
 
 		if (!foreign->referenced_table_name) {
@@ -12201,6 +12250,8 @@ dict_table_t::build_name(
 	ulint	       database_name_len, /*!< in: db name length */
 	const char*    tbl_name,	  /*!< in: table name */
 	ulint	       table_name_len,	  /*!< in: table name length */
+	const char* part_name,
+	const char* subpart_name,
 	char *&dict_name,
 	ulint &dict_name_len,
 	mem_heap_t*    alloc)
@@ -12260,6 +12311,7 @@ check_legacy_fk(trx_t *trx, const TABLE *table, bool lock_dict_mutex)
 
 	if (dict_table_t::build_name(LEX_STRING_WITH_LEN(table->s->db),
 				     LEX_STRING_WITH_LEN(table->s->table_name),
+				     NULL, NULL,
 				     bufptr, len)) {
 		return HA_ERR_OUT_OF_MEM;
 	}
@@ -21404,8 +21456,9 @@ dict_load_foreigns(THD* thd, dict_table_t* table, TABLE_SHARE* share,
 
 		if (dict_table_t::build_name(
 			    LEX_STRING_WITH_LEN(fk.ref_db()),
-			    LEX_STRING_WITH_LEN(fk.referenced_table), bufptr,
-			    len)) {
+			    LEX_STRING_WITH_LEN(fk.referenced_table),
+			    NULL, NULL,
+			    bufptr, len)) {
 			return DB_CANNOT_ADD_CONSTRAINT;
 		}
 
@@ -21495,7 +21548,8 @@ dict_load_foreigns(THD* thd, dict_table_t* table, TABLE_SHARE* share,
 		for (const Table_name& t : tables_missing) {
 			if (dict_table_t::build_name(
 				    LEX_STRING_WITH_LEN(t.db),
-				    LEX_STRING_WITH_LEN(t.name), bufptr, len)) {
+				    LEX_STRING_WITH_LEN(t.name), NULL, NULL,
+				    bufptr, len)) {
 				return DB_CANNOT_ADD_CONSTRAINT;
 			}
 			dict_table_t* for_table

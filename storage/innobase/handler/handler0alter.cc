@@ -3001,6 +3001,7 @@ innobase_get_foreign_key_info(
 			table->name.m_name,
 			LEX_STRING_WITH_LEN(fk_key.ref_db()),
 			LEX_STRING_WITH_LEN(fk_key.referenced_table),
+			NULL, NULL,
 			&referenced_table,
 			add_fk[num_fk]->heap);
 

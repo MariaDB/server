@@ -3424,6 +3424,8 @@ dict_get_referenced_table(
 	ulint	       database_name_len, /*!< in: db name length */
 	const char*    table_name,	  /*!< in: table name */
 	ulint	       table_name_len,	  /*!< in: table name length */
+	const char* part_name,
+	const char* subpart_name,
 	dict_table_t** table,		  /*!< out: table object or NULL */
 	mem_heap_t*    heap)		  /*!< in/out: heap memory */
 {
@@ -3440,7 +3442,8 @@ dict_get_referenced_table(
 	}
 
 	if (dict_table_t::build_name(database_name, database_name_len,
-				     table_name, table_name_len, dict_name,
+				     table_name, table_name_len, part_name,
+				     subpart_name, dict_name,
 				     dict_name_len, heap)) {
 		return NULL;
 	}

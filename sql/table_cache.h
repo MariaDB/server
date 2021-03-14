@@ -143,6 +143,7 @@ public:
   ~Share_acquire();
   bool fk_error(THD *thd, bool use_check_foreign= true) const;
   void acquire(THD *thd, TABLE_LIST &tl, uint flags= 0);
+  void acquire(THD *thd, LEX_CSTRING db, LEX_CSTRING table_name, uint flags= 0);
   void release()
   {
     if (share)

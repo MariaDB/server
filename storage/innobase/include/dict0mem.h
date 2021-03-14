@@ -1959,6 +1959,8 @@ struct dict_table_t {
 		ulint	       database_name_len, /*!< in: db name length */
 		const char*    table_name,	  /*!< in: table name */
 		ulint	       table_name_len,	  /*!< in: table name length */
+		const char* part_name,
+		const char* subpart_name,
 		char *&dict_name,
 		ulint &dict_name_len,
 		mem_heap_t*    alloc = NULL);

@@ -68,6 +68,8 @@ dict_get_referenced_table(
 	ulint		database_name_len,/*!< in: db name length */
 	const char*	table_name,	/*!< in: table name */
 	ulint		table_name_len,	/*!< in: table name length */
+	const char*	part_name,
+	const char*	subpart_name,
 	dict_table_t**	table,		/*!< out: table object or NULL */
 	mem_heap_t*	heap);		/*!< in: heap memory */
 /*********************************************************************//**

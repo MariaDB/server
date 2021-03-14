@@ -1316,6 +1316,15 @@ void Share_acquire::acquire(THD *thd, TABLE_LIST &tl, uint flags)
 }
 
 
+void Share_acquire::acquire(THD *thd, LEX_CSTRING db, LEX_CSTRING table_name,
+                            uint flags)
+{
+  TABLE_LIST tl;
+  tl.init_one_table(&db, &table_name, &table_name, TL_IGNORE);
+  acquire(thd, tl, flags);
+}
+
+
 bool Share_acquire::fk_error(THD *thd, bool use_check_foreign) const
 {
   if (share)
