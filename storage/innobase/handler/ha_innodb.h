@@ -630,6 +630,11 @@ public:
 
 	/** Create InnoDB foreign keys from MySQL alter_info. */
 	dberr_t create_foreign_keys();
+	dberr_t create_foreign_key(
+		FK_info* fk, dict_table_t* table,
+		dict_foreign_set &local_fk_set, const char **column_names,
+		const char** ref_column_names, char* create_name,
+		const char* operation);
 
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
