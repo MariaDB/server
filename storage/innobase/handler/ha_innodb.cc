@@ -12225,7 +12225,7 @@ check_legacy_fk(trx_t *trx, const TABLE *table, bool lock_dict_mutex)
 
 	dberr_t err = fk_legacy_storage_exists(lock_dict_mutex);
 	if (err == DB_TABLE_NOT_FOUND) {
-		return 0;
+		return DB_SUCCESS;
 	}
 	if (err != DB_SUCCESS) {
 		return convert_error_code_to_mysql(err, 0, NULL);
@@ -12251,7 +12251,7 @@ check_legacy_fk(trx_t *trx, const TABLE *table, bool lock_dict_mutex)
 	if (data.found) {
 		return HA_ERR_FK_UPGRADE;
 	}
-	return 0;
+	return DB_SUCCESS;
 }
 #endif /* WITH_INNODB_FOREIGN_UPGRADE */
 
