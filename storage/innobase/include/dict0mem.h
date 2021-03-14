@@ -1961,9 +1961,7 @@ struct dict_table_t {
 		ulint	       table_name_len,	  /*!< in: table name length */
 		char *&dict_name,
 		ulint &dict_name_len,
-		mem_heap_t*    alloc = NULL,
-		CHARSET_INFO*  cs_db = system_charset_info,
-		CHARSET_INFO*  cs_table = system_charset_info); /*!< in: table name charset */
+		mem_heap_t*    alloc = NULL);
 
 private:
 	/** Initialize instant->field_map.

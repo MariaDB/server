@@ -11790,7 +11790,6 @@ create_table_info_t::create_foreign_keys()
 	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
 					  MAX_TABLE_NAME_LEN + 1];
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
-	const CHARSET_INFO*   cs	= thd_charset(m_thd);
 	const char*	      name	= m_table_name;
 	uint		      old_fkeys = m_create_info->alter_info->tmp_old_fkeys;
 
@@ -11817,7 +11816,7 @@ create_table_info_t::create_foreign_keys()
 		char*	      n = dict_get_referenced_table(
 			name, LEX_STRING_WITH_LEN(m_form->s->db),
 			LEX_STRING_WITH_LEN(m_form->s->table_name),
-			&table_to_alter, heap, cs);
+			&table_to_alter, heap);
 
 		/* Starting from 4.0.18 and 4.1.2, we generate foreign key id's
 		in the format databasename/tablename_ibfk_[number], where
@@ -12032,8 +12031,7 @@ create_table_info_t::create_foreign_key(
 		foreign->referenced_table_name = dict_get_referenced_table(
 			m_table_name, LEX_STRING_WITH_LEN(fk->ref_db()),
 			LEX_STRING_WITH_LEN(fk->referenced_table),
-			&foreign->referenced_table, foreign->heap,
-			thd_charset(m_thd));
+			&foreign->referenced_table, foreign->heap);
 
 		if (!foreign->referenced_table_name) {
 			return (DB_OUT_OF_MEMORY);

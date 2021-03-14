@@ -3414,64 +3414,25 @@ convert_id:
 
 bool
 dict_table_t::build_name(
-	const char*    database_name,	  /*!< in: table db name */
+	const char*    db_name,	  /*!< in: table db name */
 	ulint	       database_name_len, /*!< in: db name length */
-	const char*    table_name,	  /*!< in: table name */
+	const char*    tbl_name,	  /*!< in: table name */
 	ulint	       table_name_len,	  /*!< in: table name length */
 	char *&dict_name,
 	ulint &dict_name_len,
-	mem_heap_t*    alloc,
-	CHARSET_INFO*  cs_db,
-	CHARSET_INFO*  cs_table) /*!< in: table name charset */
+	mem_heap_t*    alloc)
 {
-	char		db_name[MAX_DATABASE_NAME_LEN];
-	char		tbl_name[MAX_TABLE_NAME_LEN];
-	CHARSET_INFO*	to_cs = &my_charset_filename;
-	uint		errors;
-	ut_ad(database_name);
+	char		database_name[MAX_DATABASE_NAME_LEN + 1];
+	char		table_name[MAX_TABLE_NAME_LEN + 1];
+	ut_ad(db_name);
 	ut_ad(database_name_len);
-	ut_ad(table_name);
+	ut_ad(tbl_name);
 	ut_ad(table_name_len);
 
-	if (!strncmp(table_name, srv_mysql50_table_name_prefix,
-		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-		/* This is a pre-5.1 table name
-		containing chars other than [A-Za-z0-9].
-		Discard the prefix and use raw UTF-8 encoding. */
-		table_name += sizeof(srv_mysql50_table_name_prefix) - 1;
-		table_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
-
-		to_cs = system_charset_info;
-	}
-
-	if (cs_table != to_cs) {
-		table_name_len = strconvert(cs_table, table_name,
-					    table_name_len, to_cs, tbl_name,
-					    MAX_TABLE_NAME_LEN, &errors);
-		if (errors > 0) {
-			return true;
-		}
-		table_name = tbl_name;
-	}
-
-	if (!strncmp(database_name, srv_mysql50_table_name_prefix,
-		     sizeof(srv_mysql50_table_name_prefix) - 1)) {
-		database_name += sizeof(srv_mysql50_table_name_prefix) - 1;
-		database_name_len -= sizeof(srv_mysql50_table_name_prefix) - 1;
-		to_cs = system_charset_info;
-	} else {
-		to_cs = &my_charset_filename;
-	}
-
-	if (cs_db != to_cs) {
-		database_name_len = strconvert(
-			cs_table, database_name, database_name_len, to_cs,
-			db_name, MAX_DATABASE_NAME_LEN, &errors);
-		if (errors > 0) {
-			return true;
-		}
-		database_name = db_name;
-	}
+	database_name_len = tablename_to_filename(db_name, database_name,
+						  MAX_DATABASE_NAME_LEN);
+	table_name_len = tablename_to_filename(tbl_name, table_name,
+					       MAX_TABLE_NAME_LEN);
 
 	dict_name_len = database_name_len + table_name_len + 1;
 
@@ -3511,12 +3472,10 @@ dict_get_referenced_table(
 	const char*    table_name,	  /*!< in: table name */
 	ulint	       table_name_len,	  /*!< in: table name length */
 	dict_table_t** table,		  /*!< out: table object or NULL */
-	mem_heap_t*    heap,		  /*!< in/out: heap memory */
-	CHARSET_INFO*  from_cs)		  /*!< in: table name charset */
+	mem_heap_t*    heap)		  /*!< in/out: heap memory */
 {
 	char*	      dict_name;
 	ulint	      dict_name_len;
-	CHARSET_INFO* db_cs = from_cs;
 	ut_ad(database_name || name);
 	ut_ad(table_name);
 
@@ -3525,12 +3484,11 @@ dict_get_referenced_table(
 
 		database_name = name;
 		database_name_len = dict_get_db_name_len(name);
-		db_cs		  = &my_charset_filename;
 	}
 
 	if (dict_table_t::build_name(database_name, database_name_len,
 				     table_name, table_name_len, dict_name,
-				     dict_name_len, heap, from_cs, db_cs)) {
+				     dict_name_len, heap)) {
 		return NULL;
 	}
 
