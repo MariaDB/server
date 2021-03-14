@@ -12331,8 +12331,7 @@ create_table_info_t::create_foreign_keys()
 	dict_foreign_set      local_fk_set;
 	dict_foreign_set_free local_fk_set_free(local_fk_set);
 	dberr_t		      error;
-	ulint		      number	      = 1;
-	static const unsigned MAX_COLS_PER_FK = 500;
+	ulint                 number          = 1;
 	const char*	      column_names[MAX_COLS_PER_FK];
 	const char*	      ref_column_names[MAX_COLS_PER_FK];
 	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
@@ -12340,10 +12339,6 @@ create_table_info_t::create_foreign_keys()
 	char db_name[MAX_DATABASE_NAME_LEN + 1];
 	char t_name[MAX_TABLE_NAME_LEN + 1];
 	static_assert(MAX_TABLE_NAME_LEN == MAX_DATABASE_NAME_LEN, "");
-	dict_index_t*	      index	  = NULL;
-	fkerr_t		      index_error = FK_SUCCESS;
-	dict_index_t*	      err_index	  = NULL;
-	ulint		      err_col	= 0;
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
 	const CHARSET_INFO*   cs	= thd_charset(m_thd);
 	const char*	      operation = "Create ";
@@ -12426,8 +12421,60 @@ create_table_info_t::create_foreign_keys()
 			ut_ad("should be unreachable" == 0);
 			return DB_CANNOT_ADD_CONSTRAINT;
 		}
-
 		Foreign_key*   fk = static_cast<Foreign_key*>(key);
+		dberr_t err = create_foreign_key(
+			fk, table, local_fk_set, column_names,
+			ref_column_names, create_name, operation, number,
+			db_name, t_name);
+		if (err != DB_SUCCESS) {
+			return err;
+		}
+	}
+
+	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
+		return (DB_NO_FK_ON_S_BASE_COL);
+	}
+
+	/**********************************************************/
+	/* The following call adds the foreign key constraints
+	to the data dictionary system tables on disk */
+	m_trx->op_info = "adding foreign keys";
+
+	trx_start_if_not_started_xa(m_trx, true);
+
+	m_trx->dict_operation = true;
+
+	error = dict_create_add_foreigns_to_dictionary(local_fk_set, table,
+						       m_trx);
+
+	if (error == DB_SUCCESS) {
+
+		table->foreign_set.insert(local_fk_set.begin(),
+					  local_fk_set.end());
+		std::for_each(local_fk_set.begin(), local_fk_set.end(),
+			      dict_foreign_add_to_referenced_table());
+		local_fk_set.clear();
+
+		dict_mem_table_fill_foreign_vcol_set(table);
+	}
+	return (error);
+}
+
+dberr_t
+create_table_info_t::create_foreign_key(
+	Foreign_key*   fk, dict_table_t* table,
+	dict_foreign_set &local_fk_set, const char** column_names,
+	const char** ref_column_names, char* create_name, const char* operation,
+	ulint &number, char *db_name, char *t_name)
+{
+	dict_index_t*	      index	  = NULL;
+	fkerr_t		      index_error = FK_SUCCESS;
+	dict_index_t*	      err_index	  = NULL;
+	ulint		      err_col = 0;
+	dberr_t		      error;
+	const CHARSET_INFO*   cs	= thd_charset(m_thd);
+
+	{
 		Key_part_spec* col;
 		bool	       success;
 
@@ -12730,34 +12777,7 @@ create_table_info_t::create_foreign_keys()
 # pragma GCC diagnostic pop
 #endif
 	}
-
-	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
-		return (DB_NO_FK_ON_S_BASE_COL);
-	}
-
-	/**********************************************************/
-	/* The following call adds the foreign key constraints
-	to the data dictionary system tables on disk */
-	m_trx->op_info = "adding foreign keys";
-
-	trx_start_if_not_started_xa(m_trx, true);
-
-	m_trx->dict_operation = true;
-
-	error = dict_create_add_foreigns_to_dictionary(local_fk_set, table,
-						       m_trx);
-
-	if (error == DB_SUCCESS) {
-
-		table->foreign_set.insert(local_fk_set.begin(),
-					  local_fk_set.end());
-		std::for_each(local_fk_set.begin(), local_fk_set.end(),
-			      dict_foreign_add_to_referenced_table());
-		local_fk_set.clear();
-
-		dict_mem_table_fill_foreign_vcol_set(table);
-	}
-	return (error);
+	return (DB_SUCCESS);
 }
 
 /** Create the internal innodb table.
