@@ -829,7 +829,8 @@ int ha_archive::create(const char *name, TABLE *table_arg,
   /*
     Here is where we open up the frm and pass it to archive to store 
   */
-  if (!table_arg->s->read_frm_image(&frm_ptr, &frm_len))
+  if (table_arg->s->db_type()->discover_table &&
+      !table_arg->s->read_frm_image(&frm_ptr, &frm_len))
   {
     azwrite_frm(&create_stream, frm_ptr, frm_len);
     table_arg->s->free_frm_image(frm_ptr);

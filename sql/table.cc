@@ -3426,11 +3426,6 @@ bool TABLE_SHARE::write_par_image(const uchar *par, size_t len)
 
 int TABLE_SHARE::read_frm_image(const uchar **frm, size_t *len)
 {
-  if (IF_PARTITIONING(part_info, 0))   // cannot discover a partition
-  {
-    DBUG_ASSERT(db_type()->discover_table == 0);
-    return 1;
-  }
   if (frm_image)
   {
     *frm= frm_image->str;
