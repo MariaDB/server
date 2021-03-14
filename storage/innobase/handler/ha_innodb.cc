@@ -11789,10 +11789,6 @@ create_table_info_t::create_foreign_keys()
 	const char*	      ref_column_names[MAX_NUM_FK_COLUMNS];
 	char		      create_name[MAX_DATABASE_NAME_LEN + 1 +
 					  MAX_TABLE_NAME_LEN + 1];
-	dict_index_t*	      index	  = NULL;
-	fkerr_t		      index_error = FK_SUCCESS;
-	dict_index_t*	      err_index	  = NULL;
-	ulint		      err_col;
 	const bool	      tmp_table = m_flags2 & DICT_TF2_TEMPORARY;
 	const CHARSET_INFO*   cs	= thd_charset(m_thd);
 	const char*	      name	= m_table_name;
@@ -11870,12 +11866,55 @@ create_table_info_t::create_foreign_keys()
 	}
 
 	while (FK_info* fk = key_it++) {
-
 		if (old_fkeys) {
 			old_fkeys--;
 			continue;
 		}
+		dberr_t err = create_foreign_key(
+			fk, table, number, local_fk_set, column_names,
+			ref_column_names, create_name, operation);
+		if (err != DB_SUCCESS) {
+			return err;
+		}
+	}
 
+	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
+		return (DB_NO_FK_ON_S_BASE_COL);
+	}
+
+	table->foreign_set.insert(local_fk_set.begin(), local_fk_set.end());
+
+	for (dict_foreign_t *foreign: local_fk_set) {
+		if (!foreign->referenced_table) {
+			continue;
+		}
+		auto ret = foreign->referenced_table->referenced_set.insert(foreign);
+		// Duplicate constraint id in referenced table
+		if (!ret.second) {
+			ut_ad(0);
+			return DB_CANNOT_ADD_CONSTRAINT;
+		}
+	}
+
+	local_fk_set.clear();
+
+	dict_mem_table_fill_foreign_vcol_set(table);
+
+	return (DB_SUCCESS);
+}
+
+dberr_t
+create_table_info_t::create_foreign_key(
+	FK_info* fk, dict_table_t* table, ulint &number,
+	dict_foreign_set &local_fk_set, const char** column_names,
+	const char** ref_column_names, char* create_name, const char* operation)
+{
+	dict_index_t*	      index	  = NULL;
+	fkerr_t		      index_error = FK_SUCCESS;
+	dict_index_t*	      err_index	  = NULL;
+	ulint		      err_col;
+
+	{
 		LEX_CSTRING*   col;
 		bool	       success;
 
@@ -11991,9 +12030,10 @@ create_table_info_t::create_foreign_keys()
 		       i * sizeof(void*));
 
 		foreign->referenced_table_name = dict_get_referenced_table(
-			name, LEX_STRING_WITH_LEN(fk->ref_db()),
+			m_table_name, LEX_STRING_WITH_LEN(fk->ref_db()),
 			LEX_STRING_WITH_LEN(fk->referenced_table),
-			&foreign->referenced_table, foreign->heap, cs);
+			&foreign->referenced_table, foreign->heap,
+			thd_charset(m_thd));
 
 		if (!foreign->referenced_table_name) {
 			return (DB_OUT_OF_MEMORY);
@@ -12174,30 +12214,6 @@ create_table_info_t::create_foreign_keys()
 			break;
 		}
 	}
-
-	if (dict_foreigns_has_s_base_col(local_fk_set, table)) {
-		return (DB_NO_FK_ON_S_BASE_COL);
-	}
-
-	table->foreign_set.insert(local_fk_set.begin(),
-					local_fk_set.end());
-
-	for (dict_foreign_t *foreign: local_fk_set) {
-		if (!foreign->referenced_table) {
-			continue;
-		}
-		auto ret = foreign->referenced_table->referenced_set.insert(foreign);
-		// Duplicate constraint id in referenced table
-		if (!ret.second) {
-			ut_ad(0);
-			return DB_CANNOT_ADD_CONSTRAINT;
-		}
-	}
-
-	local_fk_set.clear();
-
-	dict_mem_table_fill_foreign_vcol_set(table);
-
 	return (DB_SUCCESS);
 }
 
