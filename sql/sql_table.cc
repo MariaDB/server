@@ -6899,10 +6899,8 @@ static bool mysql_inplace_alter_table(THD *thd,
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
   bool res;
-
   const enum_alter_inplace_result inplace_supported=
     ha_alter_info->inplace_supported;
-
   DBUG_ENTER("mysql_inplace_alter_table");
 
   /* Downgrade DDL lock while we are waiting for exclusive lock below */
@@ -7152,7 +7150,7 @@ static bool mysql_inplace_alter_table(THD *thd,
     DBUG_RETURN(true);
   }
 
-  // Rename altered table if requested.
+  // Rename altered table in case of ALTER TABLE ... RENAME
   if (alter_ctx->is_table_renamed())
   {
     DBUG_ASSERT(!tdc_share_is_cached(thd, alter_ctx->db.str,

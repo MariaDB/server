@@ -566,7 +566,7 @@ typedef struct st_join_table {
   }
   bool is_first_inner_for_outer_join()
   {
-    return first_inner && first_inner == this;
+    return first_inner == this;
   }
   bool use_match_flag()
   {

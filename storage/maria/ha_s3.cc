@@ -736,7 +736,15 @@ static int s3_hton_panic(handlerton *hton, ha_panic_function flag)
 
 
 /**
-  Check if a table is in S3 as part of discovery
+  Check if a table is in S3 as part of discovery. Returns TABLE_SHARE if found.
+
+  @param hton           S3 handlerton
+  @param thd            MariaDB thd
+  @param [out] share    If table exists, this is updated to contain the found
+                        TABLE_SHARE (based on the .frm in S3)
+
+  @return 0  Table exists
+  @return #  Error number
 */
 
 static int s3_discover_table(handlerton *hton, THD* thd, TABLE_SHARE *share)
