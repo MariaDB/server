@@ -35,6 +35,7 @@ typedef bool (*check_constants_func)(THD *thd, partition_info *part_info);
 struct st_ddl_log_memory_entry;
 
 #define MAX_PART_NAME_SIZE 8
+#define DEFAULT_NUM_PARTS 1
 
 
 struct Vers_part_info : public Sql_alloc
@@ -350,14 +351,12 @@ public:
     return num_parts * (is_sub_partitioned() ? num_subparts : 1);
   }
 
-  bool set_up_defaults_for_partitioning(THD *thd, handler *file,
-                                        HA_CREATE_INFO *info,
-                                        uint start_no);
+  bool set_up_defaults_for_partitioning(THD *thd, uint start_no);
   const char *find_duplicate_field();
   char *find_duplicate_name();
   bool check_engine_mix(handlerton *engine_type, bool default_engine);
   bool check_partition_info(THD *thd, handlerton **eng_type,
-                            handler *file, HA_CREATE_INFO *info,
+                            HA_CREATE_INFO *info,
                             partition_info *add_or_reorg_part= NULL);
   void print_no_partition_found(TABLE *table, myf errflag);
   void print_debug(const char *str, uint*);
@@ -384,10 +383,8 @@ public:
   bool has_same_partitioning(partition_info *new_part_info);
   bool error_if_requires_values() const;
 private:
-  bool set_up_default_partitions(THD *thd, handler *file, HA_CREATE_INFO *info,
-                                 uint start_no);
-  bool set_up_default_subpartitions(THD *thd, handler *file,
-                                    HA_CREATE_INFO *info);
+  bool set_up_default_partitions(THD *thd, uint start_no);
+  bool set_up_default_subpartitions(THD *thd);
   char *create_default_partition_names(THD *thd, uint part_no, uint num_parts,
                                        uint start_no);
   char *create_default_subpartition_name(THD *thd, uint subpart_no,
