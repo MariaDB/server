@@ -137,6 +137,8 @@ trx_init(
 
 	trx->internal = false;
 
+	trx->bulk_insert = false;
+
 	ut_d(trx->start_file = 0);
 
 	ut_d(trx->start_line = 0);
