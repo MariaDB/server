@@ -467,14 +467,20 @@ public:
         if (++subpart_it == subpart_it.end())
         {
           if (++part_it == part_it.end())
+          {
+            part_info= NULL;
             return end();
+          }
           subpart_it= part_it->subpartitions.begin();
         }
       }
       else
       {
         if (++part_it == part_it.end())
+        {
+          part_info= NULL;
           return end();
+        }
       }
       return *this;
     }

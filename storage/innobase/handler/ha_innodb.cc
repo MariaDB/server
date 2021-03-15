@@ -11985,6 +11985,32 @@ create_table_info_t::create_foreign_key(
 		ut_ad(fk->foreign_id.str);
 		{
 			ulint db_len;
+			char id[FN_REFLEN + 1];
+			const char *foreign_id;
+			size_t id_len;
+
+			if (subpart_name) {
+				ut_ad(part_name);
+				if (create_subpartition_name(
+					id, sizeof(id), fk->foreign_id.str,
+					part_name, subpart_name,
+					NORMAL_PART_NAME)) {
+					return (DB_CANNOT_ADD_CONSTRAINT);
+				}
+				id_len = strlen(id);
+				foreign_id = id;
+			} else if (part_name) {
+				if (create_partition_name(
+					id, sizeof(id), fk->foreign_id.str,
+					part_name, NORMAL_PART_NAME, true)) {
+					return (DB_CANNOT_ADD_CONSTRAINT);
+				}
+				id_len = strlen(id);
+				foreign_id = id;
+			} else {
+				id_len = fk->foreign_id.length;
+				foreign_id = fk->foreign_id.str;
+			}
 
 			/* Catenate 'databasename/' to the constraint name
 			specified by the user: we conceive the constraint as
@@ -11994,13 +12020,14 @@ create_table_info_t::create_foreign_key(
 			db_len = dict_get_db_name_len(table->name.m_name);
 
 			foreign->id = static_cast<char*>(mem_heap_alloc(
-				foreign->heap,
-				db_len + fk->foreign_id.length + 2));
+				foreign->heap, db_len + id_len + 2));
+			if (!foreign->id) {
+				return (DB_OUT_OF_MEMORY);
+			}
 
 			memcpy(foreign->id, table->name.m_name, db_len);
 			foreign->id[db_len] = '/';
-			strcpy(foreign->id + db_len + 1,
-			       fk->foreign_id.str);
+			strcpy(foreign->id + db_len + 1, foreign_id);
 		}
 
 		std::pair<dict_foreign_set::iterator, bool> ret
@@ -12269,7 +12296,7 @@ dict_table_t::build_name(
 	mem_heap_t*    alloc)
 {
 	char		database_name[MAX_DATABASE_NAME_LEN + 1];
-	char		table_name[MAX_TABLE_NAME_LEN + 1];
+	char		table_name[FN_REFLEN + 1];
 	ut_ad(db_name);
 	ut_ad(database_name_len);
 	ut_ad(tbl_name);
@@ -12280,16 +12307,18 @@ dict_table_t::build_name(
 	if (subpart_name) {
 		ut_ad(part_name);
 		if (create_subpartition_name(
-			table_name, MAX_TABLE_NAME_LEN, tbl_name, part_name,
+			table_name, sizeof(table_name), tbl_name, part_name,
 			subpart_name, NORMAL_PART_NAME)) {
 			return true;
 		}
+		table_name_len = strlen(table_name);
 	} else if (part_name) {
 		if (create_partition_name(
-			table_name, MAX_TABLE_NAME_LEN, tbl_name, part_name,
+			table_name, sizeof(table_name), tbl_name, part_name,
 			NORMAL_PART_NAME, true)) {
 			return true;
 		}
+		table_name_len = strlen(table_name);
 	} else {
 		table_name_len = tablename_to_filename(tbl_name, table_name,
 						MAX_TABLE_NAME_LEN);
