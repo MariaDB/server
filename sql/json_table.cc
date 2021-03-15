@@ -1153,9 +1153,8 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
 
   if (m_dep_tables)
   {
-    sql_table->dep_tables|= m_dep_tables;
     t->no_cache= TRUE;
-    if (unlikely(sql_table->dep_tables & sql_table->get_map()))
+    if (unlikely(m_dep_tables & sql_table->get_map()))
     {
       /* Table itself is used in the argument. */
       my_error(ER_WRONG_USAGE, MYF(0), "JSON_TABLE", "argument"); 
@@ -1308,8 +1307,9 @@ static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
 
 /*
   @brief
-    Add extra dependencies implied by table functions so that the join
-    optimizer does not construct "dead-end" join prefixes.
+    Add table dependencies that are directly caused by table functions, also
+    add extra dependencies so that the join optimizer does not construct
+    "dead-end" join prefixes.
 
   @detail
     There are two kinds of limitations on join order:
@@ -1320,6 +1320,9 @@ static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
     2. Table function argument may refer to *any* table that precedes the
     current table in the query text. The table maybe outside of the current
     nested join and/or inside another nested join.
+
+    One may think that adding dependency according to #2 would be sufficient,
+    but this is not the case.
 
     @example
 
@@ -1387,7 +1390,10 @@ table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
                                              nested_join->used_tables);
     }
     else if (table->table_function)
+    {
+      table->dep_tables |= table->table_function->used_tables();
       res |= table->dep_tables;
+    }
   }
   res= res & ~nest_tables & ~PSEUDO_TABLE_BITS;
   // Then, make all "peers" have them:
