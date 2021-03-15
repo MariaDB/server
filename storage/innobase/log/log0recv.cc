@@ -584,6 +584,9 @@ typedef std::map<
 
 static recv_spaces_t	recv_spaces;
 
+/** The last parsed FILE_RENAME records */
+static std::map<uint32_t,std::string> renamed_spaces;
+
 /** Report an operation to create, delete, or rename a file during backup.
 @param[in]	space_id	tablespace identifier
 @param[in]	create		whether the file is being created
@@ -942,6 +945,7 @@ void recv_sys_t::close()
   }
 
   recv_spaces.clear();
+  renamed_spaces.clear();
   mlog_init.clear();
 
   close_files();
@@ -2201,11 +2205,15 @@ same_page:
                       l, static_cast<ulint>(fnend - fn),
                       reinterpret_cast<const byte*>(fn2),
                       fn2 ? static_cast<ulint>(fn2end - fn2) : 0);
-
-        if (!fn2 || !apply);
-        else if (!fil_op_replay_rename(space_id, fn, fn2))
-          found_corrupt_fs= true;
         const_cast<char&>(fn[rlen])= saved_end;
+
+        if (fn2 && apply)
+        {
+          const size_t len= fn2end - fn2;
+          auto r= renamed_spaces.emplace(space_id, std::string{fn2, len});
+          if (!r.second)
+            r.first->second= std::string{fn2, len};
+        }
         if (UNIV_UNLIKELY(found_corrupt_fs))
           return true;
       }
@@ -2753,6 +2761,62 @@ next_page:
   {
     buf_pool_invalidate();
     mysql_mutex_lock(&log_sys.mutex);
+  }
+#if 1 /* Mariabackup FIXME: Remove or adjust rename_table_in_prepare() */
+  else if (srv_operation != SRV_OPERATION_NORMAL);
+#endif
+  else
+  {
+    /* In the last batch, we will apply any rename operations. */
+    for (auto r : renamed_spaces)
+    {
+      const uint32_t id= r.first;
+      fil_space_t *space= fil_space_t::get(id);
+      if (!space)
+        continue;
+      ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+      const char *old= space->chain.start->name;
+      if (r.second != old)
+      {
+        bool exists;
+        os_file_type_t ftype;
+        const char *new_name= r.second.c_str();
+        if (!os_file_status(new_name, &exists, &ftype) || exists)
+        {
+          ib::error() << "Cannot replay rename of tablespace " << id
+                      << " from '" << old << "' to '" << r.second <<
+                      (exists ? "' because the target file exists" : "'");
+          found_corrupt_fs= true;
+        }
+        else
+        {
+          size_t base= r.second.rfind(OS_PATH_SEPARATOR);
+          ut_ad(base != std::string::npos);
+          size_t start= r.second.rfind(OS_PATH_SEPARATOR, base - 1);
+          if (start == std::string::npos)
+            start= 0;
+          else
+            ++start;
+          /* Keep only databasename/tablename without .ibd suffix */
+          std::string space_name(r.second, start, r.second.size() - start - 4);
+          ut_ad(space_name[base - start] == OS_PATH_SEPARATOR);
+#if OS_PATH_SEPARATOR != '/'
+          space_name[base - start]= '/';
+#endif
+          mysql_mutex_lock(&log_sys.mutex);
+          if (dberr_t err= space->rename(space_name.c_str(), r.second.c_str(),
+                                         false))
+          {
+            ib::error() << "Cannot replay rename of tablespace " << id
+                        << " to '" << r.second << "': " << err;
+            found_corrupt_fs= true;
+          }
+          mysql_mutex_unlock(&log_sys.mutex);
+        }
+      }
+      space->release();
+    }
+    renamed_spaces.clear();
   }
 
   mutex_enter(&mutex);

@@ -113,19 +113,6 @@ bool fil_space_t::try_to_close(bool print_info)
   return false;
 }
 
-/** Test if a tablespace file can be renamed to a new filepath by checking
-if that the old filepath exists and the new filepath does not exist.
-@param[in]	old_path	old filepath
-@param[in]	new_path	new filepath
-@param[in]	is_discarded	whether the tablespace is discarded
-@param[in]	replace_new	whether to ignore the existence of new_path
-@return innodb error code */
-static dberr_t
-fil_rename_tablespace_check(
-	const char*	old_path,
-	const char*	new_path,
-	bool		is_discarded,
-	bool		replace_new = false);
 /** Rename a single-table tablespace.
 The tablespace must exist in the memory cache.
 @param[in]	id		tablespace identifier
@@ -1584,89 +1571,6 @@ fil_name_write(
   mtr->log_file_op(FILE_MODIFY, space_id, name);
 }
 
-/** Replay a file rename operation if possible.
-@param[in]	space_id	tablespace identifier
-@param[in]	name		old file name
-@param[in]	new_name	new file name
-@return	whether the operation was successfully applied
-(the name did not exist, or new_name did not exist and
-name was successfully renamed to new_name)  */
-bool
-fil_op_replay_rename(
-	ulint		space_id,
-	const char*	name,
-	const char*	new_name)
-{
-	/* In order to replay the rename, the following must hold:
-	* The new name is not already used.
-	* A tablespace exists with the old name.
-	* The space ID for that tablepace matches this log entry.
-	This will prevent unintended renames during recovery. */
-	fil_space_t*	space = fil_space_get(space_id);
-
-	if (space == NULL) {
-		return(true);
-	}
-
-	const bool name_match
-		= strcmp(name, UT_LIST_GET_FIRST(space->chain)->name) == 0;
-
-	if (!name_match) {
-		return(true);
-	}
-
-	/* Create the database directory for the new name, if
-	it does not exist yet */
-
-	const char*	namend = strrchr(new_name, OS_PATH_SEPARATOR);
-	ut_a(namend != NULL);
-
-	char*		dir = static_cast<char*>(
-		ut_malloc_nokey(ulint(namend - new_name) + 1));
-
-	memcpy(dir, new_name, ulint(namend - new_name));
-	dir[namend - new_name] = '\0';
-
-	bool		success = os_file_create_directory(dir, false);
-	ut_a(success);
-
-	ulint		dirlen = 0;
-
-	if (const char* dirend = strrchr(dir, OS_PATH_SEPARATOR)) {
-		dirlen = ulint(dirend - dir) + 1;
-	}
-
-	ut_free(dir);
-
-	/* New path must not exist. */
-	dberr_t		err = fil_rename_tablespace_check(
-		name, new_name, false);
-	if (err != DB_SUCCESS) {
-		ib::error() << " Cannot replay file rename."
-			" Remove either file and try again.";
-		return(false);
-	}
-
-	char*		new_table = mem_strdupl(
-		new_name + dirlen,
-		strlen(new_name + dirlen)
-		- 4 /* remove ".ibd" */);
-
-	ut_ad(new_table[ulint(namend - new_name) - dirlen]
-	      == OS_PATH_SEPARATOR);
-#if OS_PATH_SEPARATOR != '/'
-	new_table[namend - new_name - dirlen] = '/';
-#endif
-
-	if (!fil_rename_tablespace(
-		    space_id, name, new_table, new_name)) {
-		ut_error;
-	}
-
-	ut_free(new_table);
-	return(true);
-}
-
 /** Check for pending operations.
 @param[in]	space	tablespace
 @param[in]	count	number of attempts so far
@@ -2093,22 +1997,18 @@ fil_make_filepath(
 if that the old filepath exists and the new filepath does not exist.
 @param[in]	old_path	old filepath
 @param[in]	new_path	new filepath
-@param[in]	is_discarded	whether the tablespace is discarded
 @param[in]	replace_new	whether to ignore the existence of new_path
 @return innodb error code */
 static dberr_t
 fil_rename_tablespace_check(
 	const char*	old_path,
 	const char*	new_path,
-	bool		is_discarded,
 	bool		replace_new)
 {
 	bool	exists = false;
 	os_file_type_t	ftype;
 
-	if (!is_discarded
-	    && os_file_status(old_path, &exists, &ftype)
-	    && !exists) {
+	if (os_file_status(old_path, &exists, &ftype) && !exists) {
 		ib::error() << "Cannot rename '" << old_path
 			<< "' to '" << new_path
 			<< "' because the source file"
@@ -2168,7 +2068,7 @@ dberr_t fil_space_t::rename(const char* name, const char* path, bool log,
 
 	if (log) {
 		dberr_t err = fil_rename_tablespace_check(
-			chain.start->name, path, false, replace);
+			chain.start->name, path, replace);
 		if (err != DB_SUCCESS) {
 			return(err);
 		}

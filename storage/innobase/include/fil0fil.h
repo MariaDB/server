@@ -1525,20 +1525,6 @@ fil_write_flushed_lsn(
 	lsn_t	lsn)
 MY_ATTRIBUTE((warn_unused_result));
 
-/** Replay a file rename operation if possible.
-@param[in]	space_id	tablespace identifier
-@param[in]	name		old file name
-@param[in]	new_name	new file name
-@return	whether the operation was successfully applied
-(the name did not exist, or new_name did not exist and
-name was successfully renamed to new_name)  */
-bool
-fil_op_replay_rename(
-	ulint		space_id,
-	const char*	name,
-	const char*	new_name)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	if_exists	whether to ignore missing tablespace
