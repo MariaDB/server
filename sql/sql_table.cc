@@ -4053,7 +4053,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
     DBUG_PRINT("info", ("db_type = %s create_info->db_type = %s",
              ha_resolve_storage_engine_name(part_info->default_engine_type),
              ha_resolve_storage_engine_name(create_info->db_type)));
-    if (part_info->check_partition_info(thd, &engine_type, file,
+    if (part_info->check_partition_info(thd, &engine_type,
                                         create_info, FALSE))
       goto err;
     part_info->default_engine_type= engine_type;
@@ -4117,8 +4117,7 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
       */
       if (part_info->use_default_num_partitions &&
           part_info->num_parts &&
-          (int)part_info->num_parts !=
-          file->get_default_no_partitions(create_info))
+          part_info->num_parts != DEFAULT_NUM_PARTS)
       {
         uint i;
         List_iterator<partition_element> part_it(part_info->partitions);
@@ -4130,11 +4129,10 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
       else if (part_info->is_sub_partitioned() &&
                part_info->use_default_num_subpartitions &&
                part_info->num_subparts &&
-               (int)part_info->num_subparts !=
-                 file->get_default_no_partitions(create_info))
+               part_info->num_subparts != DEFAULT_NUM_PARTS)
       {
         DBUG_ASSERT(thd->lex->sql_command != SQLCOM_CREATE_TABLE);
-        part_info->num_subparts= file->get_default_no_partitions(create_info);
+        part_info->num_subparts= DEFAULT_NUM_PARTS;
       }
     }
     else if (create_info->db_type != engine_type)

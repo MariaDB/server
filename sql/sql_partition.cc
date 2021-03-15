@@ -222,8 +222,7 @@ bool partition_default_handling(THD *thd, TABLE *table, partition_info *part_inf
     DBUG_ASSERT((num_parts % part_info->num_parts) == 0);
     part_info->num_subparts= num_parts / part_info->num_parts;
   }
-  part_info->set_up_defaults_for_partitioning(thd, table->file,
-                                              NULL, 0U);
+  part_info->set_up_defaults_for_partitioning(thd, 0);
   DBUG_RETURN(FALSE);
 }
 
@@ -4865,7 +4864,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         my_error(ER_REORG_NO_PARAM_ERROR, MYF(0));
         goto err;
       }
-      new_part_no= table->file->get_default_no_partitions(create_info);
+      new_part_no= DEFAULT_NUM_PARTS;
       curr_part_no= tab_part_info->num_parts;
       if (new_part_no == curr_part_no)
       {
@@ -5078,7 +5077,7 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
       }
       alt_part_info->part_type= tab_part_info->part_type;
       alt_part_info->subpart_type= tab_part_info->subpart_type;
-      if (alt_part_info->set_up_defaults_for_partitioning(thd, table->file, 0,
+      if (alt_part_info->set_up_defaults_for_partitioning(thd,
                               tab_part_info->next_part_no(num_new_partitions)))
       {
         goto err;
@@ -5551,8 +5550,7 @@ state of p1.
       DBUG_ASSERT(!alt_part_info->use_default_partitions);
       /* We specified partitions explicitly so don't use defaults anymore. */
       tab_part_info->use_default_partitions= FALSE;
-      if (alt_part_info->set_up_defaults_for_partitioning(thd, table->file, 0,
-                                                          0))
+      if (alt_part_info->set_up_defaults_for_partitioning(thd, 0))
       {
         goto err;
       }
@@ -5687,7 +5685,7 @@ the generated partition syntax in a correct manner.
       }
 
       if (tab_part_info->check_partition_info(thd, (handlerton**)NULL,
-                                              table->file, 0, alt_part_info))
+                                              0, alt_part_info))
       {
         goto err;
       }

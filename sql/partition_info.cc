@@ -379,8 +379,6 @@ char *partition_info::create_default_subpartition_name(THD *thd, uint subpart_no
 
   SYNOPSIS
     set_up_default_partitions()
-    file                A reference to a handler of the table
-    info                Create info
     start_no            Starting partition number
 
   RETURN VALUE
@@ -396,9 +394,7 @@ char *partition_info::create_default_subpartition_name(THD *thd, uint subpart_no
     The external routine needing this code is check_partition_info
 */
 
-bool partition_info::set_up_default_partitions(THD *thd, handler *file,
-                                               HA_CREATE_INFO *info,
-                                               uint start_no)
+bool partition_info::set_up_default_partitions(THD *thd, uint start_no)
 {
   uint i;
   char *default_name;
@@ -424,12 +420,8 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
     goto end;
   }
 
-  if ((num_parts == 0) &&
-      ((num_parts= file->get_default_no_partitions(info)) == 0))
-  {
-    my_error(ER_PARTITION_NOT_DEFINED_ERROR, MYF(0), "partitions");
-    goto end;
-  }
+  if (num_parts == 0)
+    num_parts= DEFAULT_NUM_PARTS;
 
   if (unlikely(num_parts > MAX_PARTITIONS))
   {
@@ -477,8 +469,6 @@ end:
 
   SYNOPSIS
     set_up_default_subpartitions()
-    file                A reference to a handler of the table
-    info                Create info
 
   RETURN VALUE
     TRUE                Error, attempted default values not possible
@@ -493,8 +483,7 @@ end:
     The external routine needing this code is check_partition_info
 */
 
-bool partition_info::set_up_default_subpartitions(THD *thd, handler *file,
-                                                  HA_CREATE_INFO *info)
+bool partition_info::set_up_default_subpartitions(THD *thd)
 {
   uint i, j;
   bool result= TRUE;
@@ -503,7 +492,7 @@ bool partition_info::set_up_default_subpartitions(THD *thd, handler *file,
   DBUG_ENTER("partition_info::set_up_default_subpartitions");
 
   if (num_subparts == 0)
-    num_subparts= file->get_default_no_partitions(info);
+    num_subparts= DEFAULT_NUM_PARTS;
   if (unlikely((num_parts * num_subparts) > MAX_PARTITIONS))
   {
     my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(0));
@@ -555,9 +544,7 @@ end:
     this will return an error.
 */
 
-bool partition_info::set_up_defaults_for_partitioning(THD *thd, handler *file,
-                                                      HA_CREATE_INFO *info, 
-                                                      uint start_no)
+bool partition_info::set_up_defaults_for_partitioning(THD *thd, uint start_no)
 {
   DBUG_ENTER("partition_info::set_up_defaults_for_partitioning");
 
@@ -565,11 +552,11 @@ bool partition_info::set_up_defaults_for_partitioning(THD *thd, handler *file,
   {
     default_partitions_setup= TRUE;
     if (use_default_partitions &&
-        set_up_default_partitions(thd, file, info, start_no))
+        set_up_default_partitions(thd, start_no))
       DBUG_RETURN(TRUE);
     if (is_sub_partitioned() && 
         use_default_subpartitions)
-      DBUG_RETURN(set_up_default_subpartitions(thd, file, info));
+      DBUG_RETURN(set_up_default_subpartitions(thd));
   }
   DBUG_RETURN(FALSE);
 }
@@ -1062,7 +1049,6 @@ static void warn_if_dir_in_part_elem(THD *thd, partition_element *part_elem)
     check_partition_info()
     thd                 Thread object
     eng_type            Return value for used engine in partitions
-    file                A reference to a handler of the table
     info                Create info
     add_or_reorg_part   Is it ALTER TABLE ADD/REORGANIZE command
 
@@ -1079,7 +1065,7 @@ static void warn_if_dir_in_part_elem(THD *thd, partition_element *part_elem)
 */
 
 bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
-                                          handler *file, HA_CREATE_INFO *info,
+                                          HA_CREATE_INFO *info,
                                           partition_info *add_or_reorg_part)
 {
   handlerton *table_engine= default_engine_type;
@@ -1136,7 +1122,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
     my_error(ER_SUBPARTITION_ERROR, MYF(0));
     goto end;
   }
-  if (unlikely(set_up_defaults_for_partitioning(thd, file, info, (uint)0)))
+  if (unlikely(set_up_defaults_for_partitioning(thd, 0)))
     goto end;
   if (!(tot_partitions= get_tot_partitions()))
   {
