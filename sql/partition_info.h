@@ -337,13 +337,13 @@ public:
   bool set_partition_bitmaps(List<String> *partition_names);
   bool set_partition_bitmaps_from_table(TABLE_LIST *table_list);
   /* Answers the question if subpartitioning is used for a certain table */
-  bool is_sub_partitioned()
+  bool is_sub_partitioned() const
   {
     return (subpart_type == NOT_A_PARTITION ?  FALSE : TRUE);
   }
 
   /* Returns the total number of partitions on the leaf level */
-  uint get_tot_partitions()
+  uint get_tot_partitions() const
   {
     return num_parts * (is_sub_partitioned() ? num_subparts : 1);
   }
@@ -418,6 +418,106 @@ public:
     return NULL;
   }
   uint next_part_no(uint new_parts) const;
+
+  class Iterator;
+  using value_type= std::pair<partition_element *, partition_element *>;
+  using iterator= Iterator;
+  using const_iterator= const Iterator;
+
+  Iterator begin() const { return Iterator(this); }
+  static Iterator end() { return Iterator(); }
+
+  class Iterator
+  {
+  private:
+    typedef List<partition_element>::Iterator part_elem_iterator;
+    part_elem_iterator part_it;
+    part_elem_iterator subpart_it;
+    const partition_info *part_info;
+
+  public:
+    using iterator_category= std::forward_iterator_tag;
+    using value_type= partition_info::value_type;
+    using difference_type= std::ptrdiff_t;
+    using pointer= value_type *;
+    using reference= value_type &;
+
+    Iterator(const partition_info *p= NULL) : part_info{p}
+    {
+      if (part_info)
+      {
+        part_it= part_info->partitions.begin();
+        if (part_it == part_it.end())
+          part_info= NULL;
+        else if (part_info->is_sub_partitioned())
+        {
+          subpart_it= part_it->subpartitions.begin();
+          DBUG_ASSERT(subpart_it != subpart_it.end());
+        }
+      }
+    }
+    Iterator begin() const { return Iterator(part_info); }
+    static Iterator end() { return Iterator(); }
+
+    Iterator operator++()
+    {
+      DBUG_ASSERT(part_it != part_it.end());
+      if (part_info->is_sub_partitioned())
+      {
+        if (++subpart_it == subpart_it.end())
+        {
+          if (++part_it == part_it.end())
+            return end();
+          subpart_it= part_it->subpartitions.begin();
+        }
+      }
+      else
+      {
+        if (++part_it == part_it.end())
+          return end();
+      }
+      return *this;
+    }
+
+//     T operator++(int)
+//     {
+//       Iterator tmp(*this);
+//       operator++();
+//       return tmp;
+//     }
+
+
+    value_type operator*()
+    {
+      return value_type(&*part_it,
+                        part_info->is_sub_partitioned() ?
+                          &*subpart_it :
+                          NULL);
+    }
+
+//     value_type operator->()
+//     {
+//       return operator*();
+//     }
+
+//     T *operator->() { return static_cast<T *>(node->info); }
+
+    bool operator==(const Iterator &rhs) const
+    {
+      if (!part_info)
+        return rhs.part_info == NULL;
+      if (part_info != rhs.part_info ||
+          part_it != rhs.part_it ||
+          (part_info->is_sub_partitioned() && subpart_it != rhs.subpart_it))
+        return false;
+      return true;
+    }
+
+    bool operator!=(const Iterator &rhs) const
+    {
+      return !(*this == rhs);
+    }
+  };
 };
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);

@@ -540,7 +540,7 @@ public:
   using const_iterator= const Iterator;
 
   Iterator begin() const { return Iterator(first); }
-  Iterator end() const { return Iterator(); }
+  static Iterator end() { return Iterator(); }
 
   class Iterator
   {
@@ -571,15 +571,17 @@ public:
     T &operator*() { return *static_cast<T *>(node->info); }
     T *operator->() { return static_cast<T *>(node->info); }
 
-    bool operator==(const typename List<T>::iterator &rhs)
+    bool operator==(const Iterator &rhs) const
     {
       return node == rhs.node;
     }
 
-    bool operator!=(const typename List<T>::iterator &rhs)
+    bool operator!=(const Iterator &rhs) const
     {
       return node != rhs.node;
     }
+
+    static Iterator end() { return Iterator(); }
 
   private:
     list_node *node{&end_of_list};
