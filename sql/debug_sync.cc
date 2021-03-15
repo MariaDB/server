@@ -201,13 +201,12 @@ void debug_sync_end(void)
 
     /* Print statistics. */
     {
-      char llbuff[22];
-      sql_print_information("Debug sync points hit:                   %22s",
-                            llstr(debug_sync_global.dsp_hits, llbuff));
-      sql_print_information("Debug sync points executed:              %22s",
-                            llstr(debug_sync_global.dsp_executed, llbuff));
-      sql_print_information("Debug sync points max active per thread: %22s",
-                            llstr(debug_sync_global.dsp_max_active, llbuff));
+      sql_print_information("Debug sync points hit:                   %lld",
+                            debug_sync_global.dsp_hits);
+      sql_print_information("Debug sync points executed:              %lld",
+                            debug_sync_global.dsp_executed);
+      sql_print_information("Debug sync points max active per thread: %lld",
+                            debug_sync_global.dsp_max_active);
     }
   }
 
