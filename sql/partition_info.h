@@ -485,14 +485,6 @@ public:
       return *this;
     }
 
-//     T operator++(int)
-//     {
-//       Iterator tmp(*this);
-//       operator++();
-//       return tmp;
-//     }
-
-
     value_type operator*()
     {
       return value_type(&*part_it,
@@ -500,13 +492,6 @@ public:
                           &*subpart_it :
                           NULL);
     }
-
-//     value_type operator->()
-//     {
-//       return operator*();
-//     }
-
-//     T *operator->() { return static_cast<T *>(node->info); }
 
     bool operator==(const Iterator &rhs) const
     {

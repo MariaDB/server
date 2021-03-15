@@ -11889,40 +11889,20 @@ create_table_info_t::create_foreign_keys()
 			ref_share = m_form->s;
 		}
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-		if (false && ref_share->part_info && ref_share->part_info->is_sub_partitioned()) {
-			// FIXME: remove
-			for (partition_element el: ref_share->part_info->partitions) {
-				for (partition_element sel: el.subpartitions) {
-					err = create_foreign_key(
-						fk, table, number, local_fk_set, column_names,
-						ref_column_names, create_name, operation, el.partition_name,
-						sel.partition_name);
-					if (err != DB_SUCCESS) {
-						return err;
-					}
-				}
-			}
-		} else if (ref_share->part_info) {
+		if (ref_share->part_info) {
 			for (auto els: *ref_share->part_info) {
 				err = create_foreign_key(
-					fk, table, number, local_fk_set, column_names,
-					ref_column_names, create_name, operation, els.first->partition_name,
-					els.second ? els.second->partition_name : NULL);
+					fk, table, number, local_fk_set,
+					column_names, ref_column_names,
+					create_name, operation,
+					els.first->partition_name,
+					els.second
+						? els.second->partition_name
+						: NULL);
 				if (err != DB_SUCCESS) {
 					return err;
 				}
 			}
-#if 0
-			for (partition_element el: ref_share->part_info->partitions) {
-				err = create_foreign_key(
-					fk, table, number, local_fk_set, column_names,
-					ref_column_names, create_name, operation, el.partition_name,
-					NULL);
-				if (err != DB_SUCCESS) {
-					return err;
-				}
-			}
-#endif
 		} else
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 		{
