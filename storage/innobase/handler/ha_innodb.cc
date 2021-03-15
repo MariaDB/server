@@ -12206,6 +12206,53 @@ create_table_info_t::create_foreign_key(
 	return (DB_SUCCESS);
 }
 
+bool
+dict_table_t::build_name(
+	const char*    db_name,	  /*!< in: table db name */
+	ulint	       database_name_len, /*!< in: db name length */
+	const char*    tbl_name,	  /*!< in: table name */
+	ulint	       table_name_len,	  /*!< in: table name length */
+	char *&dict_name,
+	ulint &dict_name_len,
+	mem_heap_t*    alloc)
+{
+	char		database_name[MAX_DATABASE_NAME_LEN + 1];
+	char		table_name[MAX_TABLE_NAME_LEN + 1];
+	ut_ad(db_name);
+	ut_ad(database_name_len);
+	ut_ad(tbl_name);
+	ut_ad(table_name_len);
+
+	database_name_len = tablename_to_filename(db_name, database_name,
+						  MAX_DATABASE_NAME_LEN);
+	table_name_len = tablename_to_filename(tbl_name, table_name,
+					       MAX_TABLE_NAME_LEN);
+
+	dict_name_len = database_name_len + table_name_len + 1;
+
+	/* Copy database_name, '/', table_name, '\0' */
+	if (alloc) {
+		dict_name = static_cast<char*>(
+			mem_heap_alloc(alloc, dict_name_len + 1));
+		if (!dict_name) {
+			return true;
+		}
+	}
+	memcpy(dict_name, database_name, database_name_len);
+	dict_name[database_name_len] = '/';
+	memcpy(dict_name + database_name_len + 1, table_name,
+	       table_name_len + 1);
+
+	/* Values;  0 = Store and compare as given; case sensitive
+		    1 = Store and compare in lower; case insensitive
+		    2 = Store as given, compare in lower; case semi-sensitive */
+	if (innobase_get_lower_case_table_names() == 1) {
+		innobase_casedn_str(dict_name);
+	}
+
+	return false;
+}
+
 #ifdef WITH_INNODB_FOREIGN_UPGRADE
 static int
 check_legacy_fk(trx_t *trx, const TABLE *table, bool lock_dict_mutex)
