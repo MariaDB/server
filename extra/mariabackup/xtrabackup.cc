@@ -2141,6 +2141,11 @@ static bool innodb_init_param()
 	if (srv_use_native_aio) {
 		msg("InnoDB: Using Linux native AIO");
 	}
+#elif defined(HAVE_URING)
+
+	if (srv_use_native_aio) {
+		msg("InnoDB: Using liburing");
+	}
 #else
 	/* Currently native AIO is supported only on windows and linux
 	and that also when the support is compiled in. In all other

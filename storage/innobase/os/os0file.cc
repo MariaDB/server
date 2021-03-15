@@ -4024,6 +4024,17 @@ disable:
   }
 #endif
 
+#ifdef HAVE_URING
+  if (ret)
+  {
+    ut_ad(srv_use_native_aio);
+    ib::warn()
+	    << "liburing disabled: falling back to innodb_use_native_aio=OFF";
+    srv_use_native_aio= false;
+    ret= srv_thread_pool->configure_aio(false, max_events);
+  }
+#endif
+
   if (!ret)
   {
     read_slots= new io_slots(max_read_events, srv_n_read_io_threads);

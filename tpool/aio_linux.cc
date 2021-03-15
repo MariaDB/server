@@ -16,7 +16,6 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #include "tpool_structs.h"
 #include "tpool.h"
 
-#ifdef LINUX_NATIVE_AIO
 # include <thread>
 # include <atomic>
 # include <libaio.h>
@@ -69,7 +68,6 @@ static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
   }
   return ret;
 }
-#endif
 
 
 /*
@@ -84,7 +82,6 @@ static int my_getevents(io_context_t ctx, long min_nr, long nr, io_event *ev)
 */
 namespace tpool
 {
-#ifdef LINUX_NATIVE_AIO
 
 class aio_linux final : public aio
 {
@@ -187,7 +184,4 @@ aio *create_linux_aio(thread_pool *pool, int max_io)
   }
   return new aio_linux(ctx, pool);
 }
-#else
-aio *create_linux_aio(thread_pool*, int) { return nullptr; }
-#endif
 }

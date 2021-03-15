@@ -38,7 +38,11 @@ namespace tpool
 {
 
 #ifdef __linux__
+#if defined(HAVE_URING) || defined(LINUX_NATIVE_AIO)
   extern aio* create_linux_aio(thread_pool* tp, int max_io);
+#else
+  aio *create_linux_aio(thread_pool *, int) { return nullptr; };
+#endif
 #endif
 #ifdef _WIN32
   extern aio* create_win_aio(thread_pool* tp, int max_io);

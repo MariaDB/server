@@ -269,7 +269,7 @@ Group=mysql
 
 # Number of files limit. previously [mysqld_safe] open-files-limit
 LimitNOFILE=16384
-
+@SYSTEMD_LIMIT@
 # Maximium core size. previously [mysqld_safe] core-file-size
 # LimitCore=
 

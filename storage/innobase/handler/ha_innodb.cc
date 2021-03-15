@@ -3543,8 +3543,7 @@ static int innodb_init_params()
 		srv_use_doublewrite_buf = FALSE;
 	}
 
-#ifdef LINUX_NATIVE_AIO
-#elif !defined _WIN32
+#if !defined LINUX_NATIVE_AIO && !defined HAVE_URING && !defined _WIN32
 	/* Currently native AIO is supported only on windows and linux
 	and that also when the support is compiled in. In all other
 	cases, we ignore the setting of innodb_use_native_aio. */
