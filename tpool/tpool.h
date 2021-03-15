@@ -22,6 +22,9 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111 - 1301 USA*/
 #ifdef LINUX_NATIVE_AIO
 #include <libaio.h>
 #endif
+#ifdef HAVE_URING
+#include <sys/uio.h>
+#endif
 #ifdef _WIN32
 #ifndef NOMINMAX
 #define NOMINMAX
@@ -123,6 +126,8 @@ struct aiocb
   :OVERLAPPED
 #elif defined LINUX_NATIVE_AIO
   :iocb
+#elif defined HAVE_URING
+  :iovec
 #endif
 {
   native_file_handle m_fh;

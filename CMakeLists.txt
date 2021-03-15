@@ -174,6 +174,7 @@ INCLUDE(mysql_add_executable)
 INCLUDE(symlinks)
 INCLUDE(compile_flags)
 INCLUDE(pmem)
+INCLUDE(uring)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -394,7 +395,7 @@ MYSQL_CHECK_READLINE()
 SET(MALLOC_LIBRARY "system")
 
 CHECK_PCRE()
-
+CHECK_URING()
 CHECK_SYSTEMD()
 
 IF(CMAKE_CROSSCOMPILING)
