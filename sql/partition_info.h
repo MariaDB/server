@@ -351,6 +351,7 @@ public:
     return num_parts * (is_sub_partitioned() ? num_subparts : 1);
   }
 
+  bool default_handling(THD *thd, handler *file, const char *normalized_path);
   bool set_up_defaults_for_partitioning(THD *thd, uint start_no);
   const char *find_duplicate_field();
   char *find_duplicate_name();

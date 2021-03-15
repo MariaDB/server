@@ -188,8 +188,7 @@ static bool is_name_in_list(const char *name, List<const char> list_names)
   Set-up defaults for partitions. 
 
   SYNOPSIS
-    partition_default_handling()
-    table                         Table object
+    partition_info::default_handling()
     part_info                     Partition info to set up
     normalized_path               Normalized path name of table and database
 
@@ -198,31 +197,30 @@ static bool is_name_in_list(const char *name, List<const char> list_names)
     FALSE                         Success
 */
 
-bool partition_default_handling(THD *thd, TABLE *table, partition_info *part_info,
-                                const char *normalized_path)
+bool partition_info::default_handling(THD *thd, handler *file,
+                                      const char *normalized_path)
 {
-  DBUG_ENTER("partition_default_handling");
+  DBUG_ENTER("partition_info::default_handling");
 
-  if (part_info->use_default_num_partitions)
+  if (use_default_num_partitions)
   {
-    if (table->file->get_no_parts(normalized_path, &part_info->num_parts))
+    if (file->get_no_parts(normalized_path, &num_parts))
     {
       DBUG_RETURN(TRUE);
     }
   }
-  else if (part_info->is_sub_partitioned() &&
-            part_info->use_default_num_subpartitions)
+  else if (is_sub_partitioned() && use_default_num_subpartitions)
   {
     uint num_parts;
-    if (table->file->get_no_parts(normalized_path, &num_parts))
+    if (file->get_no_parts(normalized_path, &num_parts))
     {
       DBUG_RETURN(TRUE);
     }
-    DBUG_ASSERT(part_info->num_parts > 0);
-    DBUG_ASSERT((num_parts % part_info->num_parts) == 0);
-    part_info->num_subparts= num_parts / part_info->num_parts;
+    DBUG_ASSERT(num_parts > 0);
+    DBUG_ASSERT((num_parts % num_parts) == 0);
+    num_subparts= num_parts / num_parts;
   }
-  part_info->set_up_defaults_for_partitioning(thd, 0);
+  set_up_defaults_for_partitioning(thd, 0);
   DBUG_RETURN(FALSE);
 }
 
@@ -1918,11 +1916,6 @@ bool fix_partition_func(THD *thd, TABLE *table)
   thd->column_usage= COLUMNS_WRITE;
   DBUG_PRINT("info", ("thd->column_usage: %d", thd->column_usage));
 
-  if (partition_default_handling(thd, table, part_info,
-                                 table->s->normalized_path.str))
-  {
-    DBUG_RETURN(TRUE);
-  }
   if (part_info->is_sub_partitioned())
   {
     DBUG_ASSERT(part_info->subpart_type == HASH_PARTITION);
