@@ -99,6 +99,8 @@ endif
 	    -DBUILD_CONFIG=mysql_release \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
 	    -DPLUGIN_COLUMNSTORE=NO \
+	    -DIGNORE_AIO_CHECK=YES \
+	    -DWITH_URING=yes \
 	    -DDEB=$(DEB_VENDOR)
 
 # This is needed, otherwise 'make test' will run before binaries have been built
