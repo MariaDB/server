@@ -1924,6 +1924,9 @@ JOIN::optimize_inner()
 
     /* Convert all outer joins to inner joins if possible */
     conds= simplify_joins(this, join_list, conds, TRUE, FALSE);
+
+    add_table_function_dependencies(join_list, table_map(-1));
+
     if (thd->is_error() || select_lex->save_leaf_tables(thd))
     {
       if (arena)

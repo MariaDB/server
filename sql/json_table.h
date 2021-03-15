@@ -252,5 +252,8 @@ private:
 
 TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table);
 
+table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
+                                          table_map nest_tables);
+
 #endif /* JSON_TABLE_INCLUDED */
 

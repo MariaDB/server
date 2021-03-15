@@ -1,3 +1,5 @@
+--source include/have_sequence.inc
+
 select * from json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
 
 select * from JSON_TABLE( '[ {"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
@@ -347,5 +349,34 @@ select * from json_table('[]', '$' COLUMNS(x FOR ORDINALITY));
 select min(x) from json_table('[]', '$' COLUMNS(x FOR ORDINALITY)) a;
 
 --echo #
---echo # End of 10.5 tests
+--echo # Test for the problem with 
+--echo #   - Cross-outer-join dependency
+--echo #   - dead-end join prefix
+--echo #   - join order pruning
+--echo #
+
+create table t20 (a int not null);
+create table t21 (a int not null primary key, js varchar(100));
+
+insert into t20 select seq from seq_1_to_100;
+insert into t21 select a, '{"a":100}' from t20;
+
+create table t31(a int);
+create table t32(b int);
+insert into t31 values (1);
+insert into t32 values (1);
+
+explain
+select
+  t20.a, jt1.ab
+from
+  t20
+  left join t21 on t20.a=t21.a
+  join
+  (t31 left join (t32 join JSON_TABLE(t21.js,'$' COLUMNS (ab INT PATH '$.a')) AS jt1) on t31.a<3);
+
+drop table t20,t21,t31,t32;
+
+--echo #
+--echo # End of 10.6 tests
 --echo #

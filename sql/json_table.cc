@@ -1284,3 +1284,117 @@ void Table_function_json_table::fix_after_pullout(TABLE_LIST *sql_table,
 }
 
 
+/*
+  @brief
+     Recursively make all tables in the join_list also depend on deps.
+*/
+
+static void add_extra_deps(List<TABLE_LIST> *join_list, table_map deps)
+{
+  TABLE_LIST *table;
+  List_iterator<TABLE_LIST> li(*join_list);
+  while ((table= li++))
+  {
+    table->dep_tables |= deps;
+    NESTED_JOIN *nested_join;
+    if ((nested_join= table->nested_join))
+    {
+       // set the deps inside, too
+       add_extra_deps(&nested_join->join_list, deps);
+    }
+  }
+}
+
+
+/*
+  @brief
+    Add extra dependencies implied by table functions so that the join
+    optimizer does not construct "dead-end" join prefixes.
+
+  @detail
+    There are two kinds of limitations on join order:
+    1A. Outer joins require that inner tables follow outer.
+    1B. Tables within a join nest must be present in the join order
+        "without interleaving". See check_interleaving_with_nj for details.
+
+    2. Table function argument may refer to *any* table that precedes the
+    current table in the query text. The table maybe outside of the current
+    nested join and/or inside another nested join.
+
+    @example
+
+      select ...
+      from
+        t20 left join t21 on t20.a=t21.a
+      join
+        (t31 left join (t32 join
+                        JSON_TABLE(t21.js,
+                                   '$' COLUMNS (ab INT PATH '$.a')) AS jt
+                       ) on t31.a<3
+        )
+
+      Here, jt's argument refers to t21.
+
+      Table dependencies are:
+        t21 -> t20
+        t32 -> t31
+        jt  -> t21 t31  (also indirectly depends on t20 through t21)
+
+      This allows to construct a "dead-end" join prefix, like:
+
+       t31, t32
+
+      Here, "no interleaving" rule requires the next table to be jt, but we
+      can't add it, because it depends on t21 which is not in the join prefix.
+
+    @end example
+
+    Dead-end join prefixes do not work with join prefix pruning done for
+    @@optimizer_prune_level: it is possible that all non-dead-end prefixes are
+    pruned away.
+
+    The solution is as follows: if there is an outer join that contains
+    (directly on indirectly) a table function JT which has a reference JREF
+    outside of the outer join:
+
+      left join ( T_I ... json_table(JREF, ...) as JT ...)
+
+    then make *all* tables T_I also dependent on outside references in JREF.
+    This way, the optimizer will put table T_I into the join prefix only when
+    JT can be put there as well, and "dead-end" prefixes will not be built.
+
+  @param  join_list    List of tables to process. Initial invocation should
+                       supply the JOIN's top-level table list.
+  @param  nest_tables  Bitmap of all tables in the join list.
+
+  @return Bitmap of all outside references that tables in join_list have
+*/
+
+table_map add_table_function_dependencies(List<TABLE_LIST> *join_list,
+                                          table_map nest_tables)
+{
+  TABLE_LIST *table;
+  table_map res= 0;
+  List_iterator<TABLE_LIST> li(*join_list);
+
+  // Recursively compute extra dependencies
+  while ((table= li++))
+  {
+    NESTED_JOIN *nested_join;
+    if ((nested_join= table->nested_join))
+    {
+      res |= add_table_function_dependencies(&nested_join->join_list,
+                                             nested_join->used_tables);
+    }
+    else if (table->table_function)
+      res |= table->dep_tables;
+  }
+  res= res & ~nest_tables & ~PSEUDO_TABLE_BITS;
+  // Then, make all "peers" have them:
+  if (res)
+    add_extra_deps(join_list,  res);
+
+  return res;
+}
+
+
