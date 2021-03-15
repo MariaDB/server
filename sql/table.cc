@@ -1935,30 +1935,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           goto err;
         }
         share->part_sql.length= partition_info_str_len;
-        /*
-          In this execution we must avoid calling thd->change_item_tree since
-          we might release memory before statement is completed. We do this
-          by changing to a new statement arena. As part of this arena we also
-          set the memory root to be the memory root of the table since we
-          call the parser and fix_fields which both can allocate memory for
-          item objects. We keep the arena to ensure that we can release the
-          free_list when closing the table object.
-          SEE Bug #21658
-        */
-
-        Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
-        Query_arena backup_arena;
-        Query_arena part_func_arena(&mem_root, Query_arena::STMT_INITIALIZED);
-        thd->set_n_backup_active_arena(&part_func_arena, &backup_arena);
-        thd->stmt_arena= &part_func_arena;
-
-        bool error=
-          share->unpack_partition(thd, plugin_hton(share->default_part_plugin));
-        thd->stmt_arena= backup_stmt_arena_ptr;
-        thd->restore_active_arena(&part_func_arena, &backup_arena);
-        share->part_info->item_free_list= part_func_arena.free_list;
-        if (error)
-          goto err;
       }
 #else
       if (partition_info_str_len)
@@ -2170,6 +2146,45 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
   if (handler_file->set_ha_share_ref(&share->ha_share))
     goto err;
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (share->part_sql.length)
+  {
+    /*
+       NB: we could place that into partition_create_handler()
+       if it had thd in arguments
+    */
+    /*
+      In this execution we must avoid calling thd->change_item_tree since
+      we might release memory before statement is completed. We do this
+      by changing to a new statement arena. As part of this arena we also
+      set the memory root to be the memory root of the table since we
+      call the parser and fix_fields which both can allocate memory for
+      item objects. We keep the arena to ensure that we can release the
+      free_list when closing the table object.
+      SEE Bug #21658
+    */
+
+    Query_arena *backup_stmt_arena_ptr= thd->stmt_arena;
+    Query_arena backup_arena;
+    Query_arena part_func_arena(&share->mem_root, Query_arena::STMT_INITIALIZED);
+    thd->set_n_backup_active_arena(&part_func_arena, &backup_arena);
+    thd->stmt_arena= &part_func_arena;
+
+    bool error=
+      share->unpack_partition(thd, plugin_hton(share->default_part_plugin));
+
+    if (!error)
+      error= share->part_info->default_handling(thd, handler_file,
+                                                share->normalized_path.str);
+
+    thd->stmt_arena= backup_stmt_arena_ptr;
+    thd->restore_active_arena(&part_func_arena, &backup_arena);
+    share->part_info->item_free_list= part_func_arena.free_list;
+    if (error)
+      goto err;
+  }
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
 
   record= share->default_values-1;              /* Fieldstart = 1 */
   null_bits_are_used= share->null_fields != 0;
