@@ -666,7 +666,11 @@ extern void my_mutex_end(void);
   with the current number of keys and key parts.
 */
 #if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+#ifndef DBUG_OFF
+#define DEFAULT_THREAD_STACK	(1024*1024L)
+#else
 #define DEFAULT_THREAD_STACK	(383*1024L) /* 392192 */
+#endif
 #else
 #define DEFAULT_THREAD_STACK	(292*1024L) /* 299008 */
 #endif

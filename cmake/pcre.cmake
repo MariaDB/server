@@ -36,8 +36,8 @@ MACRO(BUNDLE_PCRE2)
     IF(MSVC)
       # Suppress a warning
       STRING(APPEND pcre2_flags${v} " /wd4244 " )
-      # Need this only for ASAN support
-      SET(stdlibs "-DCMAKE_C_STANDARD_LIBRARIES=${CMAKE_C_STANDARD_LIBRARIES}")
+      # Disable asan support
+      STRING(REPLACE "-fsanitize=address" "" pcre2_flags${v} "${CMAKE_C_FLAGS${v}}")
     ENDIF()
   ENDFOREACH()
   ExternalProject_Add(
