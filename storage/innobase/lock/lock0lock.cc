@@ -5346,7 +5346,7 @@ static void lock_release_autoinc_locks(trx_t *trx)
 }
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
-void lock_sys_t::lock_cancel_waiting_and_release(lock_t *lock)
+void lock_cancel_waiting_and_release(lock_t *lock)
 {
   lock_sys.assert_locked(*lock);
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
@@ -5374,6 +5374,23 @@ void lock_sys_t::lock_cancel_waiting_and_release(lock_t *lock)
   lock_wait_end(trx);
   trx->mutex_unlock();
 }
+#ifdef WITH_WSREP
+/* if trx is waiting for a lock, cancel the waiting
+*/
+void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
+{
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  mysql_mutex_lock(&lock_sys.wait_mutex);
+  if (lock_t *lock= trx->lock.wait_lock)
+  {
+    /* check if victim is still waiting */
+    if (lock->is_waiting())
+      lock_cancel_waiting_and_release(lock);
+  }
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
+  lock_sys.wr_unlock();
+}
+#endif /* WITH_WSREP */
 
 /** Cancel a waiting lock request.
 @param lock   waiting lock request
@@ -5895,7 +5912,7 @@ namespace Deadlock
       ut_ad(victim->state == TRX_STATE_ACTIVE);
 
       victim->lock.was_chosen_as_deadlock_victim= true;
-      lock_sys.lock_cancel_waiting_and_release(victim->lock.wait_lock);
+      lock_cancel_waiting_and_release(victim->lock.wait_lock);
 #ifdef WITH_WSREP
       if (victim->is_wsrep() && wsrep_thd_is_SR(victim->mysql_thd))
         wsrep_handle_SR_rollback(trx->mysql_thd, victim->mysql_thd);
