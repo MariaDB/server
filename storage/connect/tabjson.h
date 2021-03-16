@@ -1,7 +1,7 @@
 /*************** tabjson H Declares Source Code File (.H) **************/
 /*  Name: tabjson.h   Version 1.3                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2018  */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2021  */
 /*                                                                     */
 /*  This file contains the JSON classes declares.                      */
 /***********************************************************************/
@@ -67,10 +67,11 @@ public:
 	PJSON   jsp;
 	PJOB    row;
 	PCSZ    sep;
+  PCSZ    strfy;
 	char    colname[65], fmt[129], buf[16];
 	uint   *length;
 	int     i, n, bf, ncol, lvl, sz, limit;
-	bool    all, strfy;
+	bool    all;
 }; // end of JSONDISC
 
 /***********************************************************************/

@@ -99,12 +99,12 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 
 	if (Uri) {
 		if (*Uri == '/' || Http[strlen(Http) - 1] == '/')
-			sprintf(buf, "curl %s%s -o %s", Http, Uri, filename);
+			sprintf(buf, "curl \"%s%s\" -o %s", Http, Uri, filename);
 		else
-			sprintf(buf, "curl %s/%s -o %s", Http, Uri, filename);
+			sprintf(buf, "curl \"%s/%s\" -o %s", Http, Uri, filename);
 
 	} else
-		sprintf(buf, "curl %s -o %s", Http, filename);
+		sprintf(buf, "curl \"%s\" -o %s", Http, filename);
 
 	if ((pipe = popen(buf, "rt"))) {
 		if (trace(515))
@@ -202,11 +202,11 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
   PQRYRES  qrp= NULL;
   char     filename[_MAX_PATH + 1];  // MAX PATH ???
 	int      rc;
-	bool     curl = false;
   PCSZ     http, uri, fn, ftype;
-	XGETREST grf = GetRestFunction(g);
+	XGETREST grf = NULL;
+	bool     curl = GetBooleanTableOption(g, tp, "Curl", false);
 
-	if (!grf)
+	if (!curl && !(grf = GetRestFunction(g)))
 		curl = true;
 
   http = GetStringTableOption(g, tp, "Http", NULL);
@@ -230,28 +230,25 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 			filename[n + i] = tolower(ftype[i]);
 
 		fn = filename;
-		tp->filename = PlugDup(g, fn);
+		tp->subtype = PlugDup(g, fn);
 		sprintf(g->Message, "No file name. Table will use %s", fn);
 		PUSH_WARNING(g->Message);
 	}	// endif fn
 
   //  We used the file name relative to recorded datapath
 	PlugSetPath(filename, fn, db);
-	curl = GetBooleanTableOption(g, tp, "Curl", curl);
+	remove(filename);
 
   // Retrieve the file from the web and copy it locally
 	if (curl)
 		rc = Xcurl(g, http, uri, filename);
-	else if (grf)
+	else
 		rc = grf(g->Message, trace(515), http, uri, filename);
-	else {
-		strcpy(g->Message, "Cannot access to curl nor casablanca");
-		rc = 1;
-	}	// endif !grf
 
-	if (rc)
+	if (rc) {
+		strcpy(g->Message, "Cannot access to curl nor casablanca");
 		return NULL;
-  else if (!stricmp(ftype, "JSON"))
+	} else if (!stricmp(ftype, "JSON"))
     qrp = JSONColumns(g, db, NULL, tp, info);
   else if (!stricmp(ftype, "CSV"))
     qrp = CSVColumns(g, NULL, tp, info);
@@ -274,11 +271,12 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
 	char     filename[_MAX_PATH + 1];
   int      rc = 0, n;
-	bool     curl = false, xt = trace(515);
+	bool     xt = trace(515);
 	LPCSTR   ftype;
-	XGETREST grf = GetRestFunction(g);
+	XGETREST grf = NULL;
+	bool     curl = GetBoolCatInfo("Curl", false);
 
-	if (!grf)
+	if (!curl && !(grf = GetRestFunction(g)))
 		curl = true;
 
 #if defined(MARIADB)
@@ -309,24 +307,21 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 
   //  We used the file name relative to recorded datapath
   PlugSetPath(filename, Fn, GetPath());
-
-	curl = GetBoolCatInfo("Curl", curl);
+	remove(filename);
 
   // Retrieve the file from the web and copy it locally
 	if (curl) {
 		rc = Xcurl(g, Http, Uri, filename);
 		xtrc(515, "Return from Xcurl: rc=%d\n", rc);
-	} else if (grf) {
+	} else {
 		rc = grf(g->Message, xt, Http, Uri, filename);
 		xtrc(515, "Return from restGetFile: rc=%d\n", rc);
-	} else {
-		strcpy(g->Message, "Cannot access to curl nor casablanca");
-		rc = 1;
-	}	// endif !grf
+	} // endelse
 
-  if (rc)
-    return true;
-  else switch (n) {
+	if (rc) {
+		strcpy(g->Message, "Cannot access to curl nor casablanca");
+		return true;
+	} else switch (n) {
     case 1: Tdp = new (g) JSONDEF; break;
 #if defined(XML_SUPPORT)
 		case 2: Tdp = new (g) XMLDEF;  break;

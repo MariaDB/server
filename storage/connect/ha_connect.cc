@@ -5391,12 +5391,7 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 	                    int len, int dec, char* key, uint tm, const char* rem,
 	                    char* dft, char* xtra, char* fmt, int flag, bool dbf, char v)
 {
-#if defined(DEVELOPMENT)
-	// Some client programs regard CHAR(36) as GUID
-	char var = (len > 255 || len == 36) ? 'V' : v;
-#else
 	char var = (len > 255) ? 'V' : v;
-#endif
 	bool q, error = false;
 	const char* type = PLGtoMYSQLtype(typ, dbf, var);
 
