@@ -2637,10 +2637,10 @@ innobase_init_foreign(
                         foreign->heap, column_names[i]);
         }
 
-	foreign->referenced_index = referenced_index;
-	foreign->referenced_table = referenced_table;
+	foreign->ref_info[0].referenced_index = referenced_index;
+	foreign->ref_info[0].referenced_table = referenced_table;
 
-	foreign->referenced_table_name = mem_heap_strdup(
+	foreign->ref_info[0].referenced_table_name = mem_heap_strdup(
 		foreign->heap, referenced_table_name);
         dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
 
@@ -7274,10 +7274,10 @@ innobase_check_foreign_key_index(
 	     it != fks->end(); ++it) {
 
 		dict_foreign_t*	foreign = *it;
-		if (foreign->referenced_index != index) {
+		if (foreign->referenced_index() != index) {
 			continue;
 		}
-		ut_ad(indexed_table == foreign->referenced_table);
+		ut_ad(indexed_table == foreign->referenced_table());
 
 		if (NULL == dict_foreign_find_index(
 			    indexed_table, col_names,
@@ -9574,7 +9574,7 @@ innobase_update_foreign_try(
 			fk->foreign_index = dict_foreign_find_index(
 				ctx->new_table, ctx->col_names,
 				fk->foreign_col_names,
-				fk->n_fields, fk->referenced_index, TRUE,
+				fk->n_fields, fk->referenced_index(), TRUE,
 				fk->type
 				& (DICT_FOREIGN_ON_DELETE_SET_NULL
 					| DICT_FOREIGN_ON_UPDATE_SET_NULL),

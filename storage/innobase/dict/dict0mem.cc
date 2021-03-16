@@ -634,7 +634,7 @@ dict_mem_table_col_rename_low(
 
 		foreign = *it;
 
-		if (!foreign->referenced_index) {
+		if (!foreign->referenced_index()) {
 			/* Referenced index could have been dropped
 			when foreign_key_checks is disabled. In that case,
 			rename the corresponding referenced_col_names and
@@ -661,8 +661,8 @@ dict_mem_table_col_rename_low(
 			/* New index can be null if InnoDB already dropped
 			the referenced index when FOREIGN_KEY_CHECKS is
 			disabled */
-			foreign->referenced_index = dict_foreign_find_index(
-				foreign->referenced_table, NULL,
+			foreign->ref_info[0].referenced_index = dict_foreign_find_index(
+				foreign->ref_info[0].referenced_table, NULL,
 				foreign->referenced_col_names,
 				foreign->n_fields, NULL, true, false,
 				NULL, NULL, NULL);
@@ -677,7 +677,7 @@ dict_mem_table_col_rename_low(
 			parent table is dropped. */
 
 			const char* col_name = dict_index_get_nth_field(
-				foreign->referenced_index, f)->name;
+				foreign->referenced_index(), f)->name;
 
 			if (strcmp(foreign->referenced_col_names[f],
 				   col_name)) {
@@ -867,18 +867,18 @@ dict_mem_referenced_table_name_lookup_set(
 		if (do_alloc) {
 			ulint	len;
 
-			len = strlen(foreign->referenced_table_name) + 1;
+			len = strlen(foreign->referenced_table_name()) + 1;
 
-			foreign->referenced_table_name_lookup =
+			foreign->ref_info[0].referenced_table_name_lookup =
 				static_cast<char*>(
 					mem_heap_alloc(foreign->heap, len));
 		}
-		strcpy(foreign->referenced_table_name_lookup,
-		       foreign->referenced_table_name);
-		innobase_casedn_str(foreign->referenced_table_name_lookup);
+		strcpy(foreign->referenced_table_name_lookup(),
+		       foreign->referenced_table_name());
+		innobase_casedn_str(foreign->referenced_table_name_lookup());
 	} else {
-		foreign->referenced_table_name_lookup
-			= foreign->referenced_table_name;
+		foreign->ref_info[0].referenced_table_name_lookup
+			= foreign->referenced_table_name();
 	}
 }
 
@@ -1195,7 +1195,7 @@ operator<< (std::ostream& out, const dict_foreign_set& fk_set)
 key constraint. */
 bool dict_foreign_t::affects_fulltext() const
 {
-  if (foreign_table == referenced_table || !foreign_table->fts)
+  if (foreign_table == referenced_table() || !foreign_table->fts)
     return false;
 
   for (ulint i= 0; i < n_fields; i++)

@@ -1528,7 +1528,7 @@ constraint. */
 struct dict_foreign_remove_partial
 {
 	void operator()(dict_foreign_t* foreign) {
-		dict_table_t*	table = foreign->referenced_table;
+		dict_table_t*	table = foreign->referenced_table();
 		if (table != NULL) {
 			table->referenced_set.erase(foreign);
 		}
@@ -1703,8 +1703,8 @@ dict_table_rename_in_cache(
 		     ++it) {
 
 			foreign = *it;
-			foreign->referenced_table = NULL;
-			foreign->referenced_index = NULL;
+			foreign->ref_info[0].referenced_table = NULL;
+			foreign->ref_info[0].referenced_index = NULL;
 
 		}
 
@@ -1731,8 +1731,8 @@ dict_table_rename_in_cache(
 
 		foreign = *it;
 
-		if (foreign->referenced_table) {
-			foreign->referenced_table->referenced_set.erase(foreign);
+		if (foreign->referenced_table()) {
+			foreign->referenced_table()->referenced_set.erase(foreign);
 		}
 
 		if (strlen(foreign->foreign_table_name)
@@ -1894,8 +1894,8 @@ dict_table_rename_in_cache(
 		table->foreign_set.erase(it);
 		fk_set.insert(foreign);
 
-		if (foreign->referenced_table) {
-			foreign->referenced_table->referenced_set.insert(foreign);
+		if (foreign->referenced_table()) {
+			foreign->referenced_table()->referenced_set.insert(foreign);
 		}
 	}
 
@@ -1908,19 +1908,19 @@ dict_table_rename_in_cache(
 
 		foreign = *it;
 
-		if (strlen(foreign->referenced_table_name)
+		if (strlen(foreign->referenced_table_name())
 		    < strlen(table->name.m_name)) {
 			/* Allocate a longer name buffer;
 			TODO: store buf len to save memory */
 
-			foreign->referenced_table_name = mem_heap_strdup(
+			foreign->ref_info[0].referenced_table_name = mem_heap_strdup(
 				foreign->heap, table->name.m_name);
 
 			dict_mem_referenced_table_name_lookup_set(
 				foreign, TRUE);
 		} else {
 			/* Use the same buffer */
-			strcpy(foreign->referenced_table_name,
+			strcpy(foreign->referenced_table_name(),
 			       table->name.m_name);
 
 			dict_mem_referenced_table_name_lookup_set(
@@ -1981,8 +1981,8 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 	     ++it) {
 
 		foreign = *it;
-		foreign->referenced_table = NULL;
-		foreign->referenced_index = NULL;
+		foreign->ref_info[0].referenced_table = NULL;
+		foreign->ref_info[0].referenced_index = NULL;
 	}
 
 	/* Remove the indexes from the cache */
@@ -2883,8 +2883,8 @@ dict_foreign_remove_from_cache(
 	dict_sys.assert_locked();
 	ut_a(foreign);
 
-	if (foreign->referenced_table != NULL) {
-		foreign->referenced_table->referenced_set.erase(foreign);
+	if (foreign->referenced_table() != NULL) {
+		foreign->referenced_table()->referenced_set.erase(foreign);
 	}
 
 	if (foreign->foreign_table != NULL) {
@@ -3064,7 +3064,7 @@ dict_foreign_add_to_cache(
 		foreign->foreign_table_name_lookup);
 
 	ref_table = dict_table_check_if_in_cache_low(
-		foreign->referenced_table_name_lookup);
+		foreign->referenced_table_name_lookup());
 	ut_a(for_table || ref_table);
 
 	if (for_table) {
@@ -3088,7 +3088,7 @@ dict_foreign_add_to_cache(
 		for_in_cache = foreign;
 	}
 
-	if (ref_table && !for_in_cache->referenced_table) {
+	if (ref_table && !for_in_cache->referenced_table()) {
 		index = dict_foreign_find_index(
 			ref_table, NULL,
 			for_in_cache->referenced_col_names,
@@ -3113,8 +3113,8 @@ dict_foreign_add_to_cache(
 			DBUG_RETURN(DB_CANNOT_ADD_CONSTRAINT);
 		}
 
-		for_in_cache->referenced_table = ref_table;
-		for_in_cache->referenced_index = index;
+		for_in_cache->ref_info[0].referenced_table = ref_table;
+		for_in_cache->ref_info[0].referenced_index = index;
 
 		std::pair<dict_foreign_set::iterator, bool>	ret
 			= ref_table->referenced_set.insert(for_in_cache);
@@ -3129,7 +3129,7 @@ dict_foreign_add_to_cache(
 			for_table, col_names,
 			for_in_cache->foreign_col_names,
 			for_in_cache->n_fields,
-			for_in_cache->referenced_index, check_charsets,
+			for_in_cache->referenced_index(), check_charsets,
 			for_in_cache->type
 			& (DICT_FOREIGN_ON_DELETE_SET_NULL
 			   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
@@ -4028,14 +4028,14 @@ dict_print_info_on_foreign_key_in_create_format(
 	str.append(") REFERENCES ");
 
 	if (dict_tables_have_same_db(foreign->foreign_table_name_lookup,
-				     foreign->referenced_table_name_lookup)) {
+				     foreign->referenced_table_name_lookup())) {
 		/* Do not print the database name of the referenced table */
 		str.append(ut_get_name(trx,
 			      dict_remove_db_name(
-				      foreign->referenced_table_name)));
+				      foreign->referenced_table_name())));
 	} else {
 		str.append(ut_get_name(trx,
-				foreign->referenced_table_name));
+				foreign->referenced_table_name()));
 	}
 
 	str.append(" (");
@@ -4122,7 +4122,7 @@ dict_print_info_on_foreign_keys(
 
 			str.append(") REFER ");
 			str.append(ut_get_name(trx,
-					foreign->referenced_table_name));
+					foreign->referenced_table_name()));
 			str.append(")");
 
 			for (i = 0; i < foreign->n_fields; i++) {
@@ -4541,11 +4541,11 @@ dict_foreign_replace_index(
 	     ++it) {
 
 		foreign = *it;
-		if (foreign->referenced_index == index) {
-			ut_ad(foreign->referenced_table == index->table);
+		if (foreign->referenced_index() == index) {
+			ut_ad(foreign->referenced_table() == index->table);
 
 			dict_index_t* new_index = dict_foreign_find_index(
-				foreign->referenced_table, NULL,
+				foreign->referenced_table(), NULL,
 				foreign->referenced_col_names,
 				foreign->n_fields, index,
 				/*check_charsets=*/TRUE, /*check_null=*/FALSE,
@@ -4559,7 +4559,7 @@ dict_foreign_replace_index(
 				found = false;
 			}
 
-			foreign->referenced_index = new_index;
+			foreign->ref_info[0].referenced_index = new_index;
 		}
 	}
 

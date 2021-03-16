@@ -267,7 +267,7 @@ row_upd_check_references_constraints(
 		referenced in a foreign key constraint. Then the update does
 		NOT break the constraint. */
 
-		if (foreign->referenced_index == index
+		if (foreign->referenced_index() == index
 		    && (node->is_delete
 			|| row_upd_changes_first_fields_binary(
 				entry, index, node->update,

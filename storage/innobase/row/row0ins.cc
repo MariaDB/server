@@ -450,8 +450,8 @@ row_ins_cascade_calc_update_vec(
 	the referenced index record will get in the update. */
 
 	parent_table = node->table;
-	ut_a(parent_table == foreign->referenced_table);
-	parent_index = foreign->referenced_index;
+	ut_a(parent_table == foreign->referenced_table());
+	parent_index = foreign->referenced_index();
 	parent_update = node->update;
 
 	update = cascade->update;
@@ -760,7 +760,7 @@ row_ins_foreign_report_err(
 	putc('\n', ef);
 	fputs(errstr, ef);
 	fprintf(ef, " in parent table, in index %s",
-		foreign->referenced_index->name());
+		foreign->referenced_index()->name());
 	if (entry) {
 		fputs(" tuple:\n", ef);
 		dtuple_print(ef, entry);
@@ -826,10 +826,10 @@ row_ins_foreign_report_add_err(
 		dtuple_print(ef, entry);
 	}
 	fputs("\nBut in parent table ", ef);
-	ut_print_name(ef, trx, foreign->referenced_table_name);
+	ut_print_name(ef, trx, foreign->referenced_table_name());
 	fprintf(ef, ", in index %s,\n"
 		"the closest match we can find is record:\n",
-		foreign->referenced_index->name());
+		foreign->referenced_index()->name());
 	if (rec && page_rec_is_supremum(rec)) {
 		/* If the cursor ended on a supremum record, it is better
 		to report the previous record in the error message, so that
@@ -838,7 +838,7 @@ row_ins_foreign_report_add_err(
 	}
 
 	if (rec) {
-		rec_print(ef, rec, foreign->referenced_index);
+		rec_print(ef, rec, foreign->referenced_index());
 	}
 	putc('\n', ef);
 
@@ -1543,8 +1543,8 @@ row_ins_check_foreign_constraint(
 	}
 
 	if (check_ref) {
-		check_table = foreign->referenced_table;
-		check_index = foreign->referenced_index;
+		check_table = foreign->referenced_table();
+		check_index = foreign->referenced_index();
 	} else {
 		check_table = foreign->foreign_table;
 		check_index = foreign->foreign_index;
@@ -1563,7 +1563,7 @@ row_ins_check_foreign_constraint(
 		fputs("Foreign key constraint fails for table ", ef);
 		ut_print_name(ef, trx, check_ref
 			      ? foreign->foreign_table_name
-			      : foreign->referenced_table_name);
+			      : foreign->referenced_table_name());
 		fputs(":\n", ef);
 		fk_str = dict_print_info_on_foreign_key_in_create_format(
 			trx, foreign, TRUE);
@@ -1578,15 +1578,15 @@ row_ins_check_foreign_constraint(
 			}
 			dtuple_print(ef, entry);
 			fputs("\nBut the parent table ", ef);
-			ut_print_name(ef, trx, foreign->referenced_table_name);
+			ut_print_name(ef, trx, foreign->referenced_table_name());
 			fputs("\nor its .ibd file or the required index does"
 			      " not currently exist!\n", ef);
 			err = DB_NO_REFERENCED_ROW;
 		} else {
-			if (foreign->referenced_index) {
+			if (foreign->referenced_index()) {
 				fprintf(ef, "\nTrying to modify index %s"
 					" tuple:\n",
-					foreign->referenced_index->name());
+					foreign->referenced_index()->name());
 			} else {
 				fputs("\nTrying to modify tuple:\n", ef);
 			}
@@ -1953,12 +1953,12 @@ row_ins_check_foreign_constraints(
 
 			dict_table_t*	ref_table = NULL;
 			dict_table_t*	referenced_table
-						= foreign->referenced_table;
+						= foreign->referenced_table();
 
 			if (referenced_table == NULL) {
 
 				ref_table = dict_table_open_on_name(
-					foreign->referenced_table_name_lookup,
+					foreign->referenced_table_name_lookup(),
 					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 			}
 

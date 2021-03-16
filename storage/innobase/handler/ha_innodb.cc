@@ -11923,10 +11923,10 @@ create_table_info_t::create_foreign_keys()
 	table->foreign_set.insert(local_fk_set.begin(), local_fk_set.end());
 
 	for (dict_foreign_t *foreign: local_fk_set) {
-		if (!foreign->referenced_table) {
+		if (!foreign->referenced_table()) {
 			continue;
 		}
-		auto ret = foreign->referenced_table->referenced_set.insert(foreign);
+		auto ret = foreign->referenced_table()->referenced_set.insert(foreign);
 		// Duplicate constraint id in referenced table
 		if (!ret.second) {
 			ut_ad(0);
@@ -12086,24 +12086,24 @@ create_table_info_t::create_foreign_key(
 		memcpy(foreign->foreign_col_names, column_names,
 		       i * sizeof(void*));
 
-		foreign->referenced_table_name = dict_get_referenced_table(
+		foreign->ref_info[0].referenced_table_name = dict_get_referenced_table(
 			m_table_name, LEX_STRING_WITH_LEN(fk->ref_db()),
 			LEX_STRING_WITH_LEN(fk->referenced_table),
 			part_name, subpart_name,
-			&foreign->referenced_table, foreign->heap);
+			&foreign->ref_info[0].referenced_table, foreign->heap);
 
-		if (!foreign->referenced_table_name) {
+		if (!foreign->referenced_table_name()) {
 			return (DB_OUT_OF_MEMORY);
 		}
 
-		if (!foreign->referenced_table && m_trx->check_foreigns) {
+		if (!foreign->referenced_table() && m_trx->check_foreigns) {
 			char  buf[MAX_TABLE_NAME_LEN + 1] = "";
 			char* bufend;
 
 			bufend = innobase_convert_name(
 				buf, MAX_TABLE_NAME_LEN,
-				foreign->referenced_table_name,
-				strlen(foreign->referenced_table_name), m_thd);
+				foreign->referenced_table_name(),
+				strlen(foreign->referenced_table_name()), m_thd);
 			buf[bufend - buf] = '\0';
 			key_text k(fk);
 			ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT,
@@ -12119,8 +12119,8 @@ create_table_info_t::create_foreign_key(
 		while ((col = col_it++)) {
 			ref_column_names[j] = mem_heap_strdupl(
 				foreign->heap, col->str, col->length);
-			if (foreign->referenced_table) {
-				success = find_col(foreign->referenced_table,
+			if (foreign->referenced_table()) {
+				success = find_col(foreign->referenced_table(),
 						   ref_column_names + j);
 				if (!success) {
 					key_text k(fk);
@@ -12146,9 +12146,9 @@ create_table_info_t::create_foreign_key(
 		fields and in the right order, and the types are the same as in
 		foreign->foreign_index */
 
-		if (foreign->referenced_table) {
+		if (foreign->referenced_table()) {
 			index = dict_foreign_find_index(
-				foreign->referenced_table, NULL,
+				foreign->referenced_table(), NULL,
 				ref_column_names, i, foreign->foreign_index,
 				TRUE, FALSE, &index_error, &err_col,
 				&err_index);
@@ -12158,7 +12158,7 @@ create_table_info_t::create_foreign_key(
 				foreign_push_index_error(
 					m_trx, operation, create_name, k.str(),
 					column_names, index_error, err_col,
-					err_index, foreign->referenced_table);
+					err_index, foreign->referenced_table());
 
 				return (DB_CANNOT_ADD_CONSTRAINT);
 			}
@@ -12167,7 +12167,7 @@ create_table_info_t::create_foreign_key(
 			index = NULL;
 		}
 
-		foreign->referenced_index = index;
+		foreign->ref_info[0].referenced_index = index;
 		dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
 
 		foreign->referenced_col_names = static_cast<const char**>(
@@ -19687,8 +19687,8 @@ innobase_get_field_from_update_vector(
 	upd_t*		update,
 	ulint		col_no)
 {
-	dict_table_t*	parent_table = foreign->referenced_table;
-	dict_index_t*	parent_index = foreign->referenced_index;
+	dict_table_t*	parent_table = foreign->referenced_table();
+	dict_index_t*	parent_index = foreign->referenced_index();
 	ulint		parent_field_no;
 	ulint		parent_col_no;
 	ulint		prefix_col_no;
@@ -21504,9 +21504,9 @@ dict_load_foreigns(THD* thd, dict_table_t* table, TABLE_SHARE* share,
 			return DB_CANNOT_ADD_CONSTRAINT;
 		}
 
-		foreign->referenced_table_name
+		foreign->ref_info[0].referenced_table_name
 			= mem_heap_strdupl(foreign->heap, buf, len);
-		if (!foreign->referenced_table_name)
+		if (!foreign->referenced_table_name())
 			return DB_OUT_OF_MEMORY;
 		dict_mem_foreign_table_name_lookup_set(foreign, true);
 		dict_mem_referenced_table_name_lookup_set(foreign, true);

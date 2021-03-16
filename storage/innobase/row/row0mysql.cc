@@ -2932,7 +2932,7 @@ row_discard_tablespace_foreign_key_checks(
 	FILE*			ef	= dict_foreign_err_file;
 
 	ut_ad(foreign->foreign_table != table);
-	ut_ad(foreign->referenced_table == table);
+	ut_ad(foreign->referenced_table() == table);
 
 	/* We only allow discarding a referenced table if
 	FOREIGN_KEY_CHECKS is set to 0 */

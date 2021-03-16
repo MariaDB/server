@@ -6094,7 +6094,7 @@ i_s_dict_fill_sys_foreign(
 			      foreign->foreign_table_name));
 
 	OK(field_store_string(fields[SYS_FOREIGN_REF_NAME],
-			      foreign->referenced_table_name));
+			      foreign->referenced_table_name()));
 
 	OK(fields[SYS_FOREIGN_NUM_COL]->store(foreign->n_fields));
 

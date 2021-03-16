@@ -543,6 +543,9 @@ err_len:
 	Since the heap used here is freed elsewhere, foreign->heap
 	is not assigned. */
 	foreign->id = mem_heap_strdupl(heap, (const char*) field, len);
+	if (!foreign->id) {
+		return "memory allocation error!";
+	}
 
 	rec_get_nth_field_offs_old(
 		rec, DICT_FLD__SYS_FOREIGN__DB_TRX_ID, &len);
@@ -565,14 +568,20 @@ err_len:
 	}
 	foreign->foreign_table_name = mem_heap_strdupl(
 		heap, (const char*) field, len);
+	if (!foreign->foreign_table_name) {
+		return "memory allocation error!";
+	}
 
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_FOREIGN__REF_NAME, &len);
 	if (len == 0 || len == UNIV_SQL_NULL) {
 		goto err_len;
 	}
-	foreign->referenced_table_name = mem_heap_strdupl(
-		heap, (const char*) field, len);
+	foreign->ref_info.resize(1);
+	if (!(foreign->ref_info[0].referenced_table_name = mem_heap_strdupl(
+		heap, (const char*) field, len))) {
+		return "memory allocation error!";
+	}
 
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_FOREIGN__N_COLS, &len);

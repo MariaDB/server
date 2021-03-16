@@ -53,6 +53,7 @@ Created 1/8/1996 Heikki Tuuri
 #include <iterator>
 #include <ostream>
 #include <mutex>
+#include <vector>
 
 /* Forward declaration. */
 struct ib_rbt_t;
@@ -1403,6 +1404,38 @@ key constraint. */
 typedef std::set<dict_v_col_t*, std::less<dict_v_col_t*>,
 		ut_allocator<dict_v_col_t*> >		dict_vcol_set;
 
+
+struct dict_foreign_ref_info {
+	char*		referenced_table_name;/*!< referenced table name */
+	char*		referenced_table_name_lookup;
+				/*!< referenced table name for dict lookup*/
+	dict_table_t*	referenced_table;/*!< table where the referenced key
+					is */
+	dict_index_t*	referenced_index;/*!< referenced index */
+
+	struct check_index
+	{
+		const dict_index_t* m_index;
+		check_index(const dict_index_t* index) : m_index(index) {}
+		bool operator()(const dict_foreign_ref_info& i) const
+		{
+			return i.referenced_index == m_index;
+		}
+	};
+
+	struct check_table
+	{
+		const dict_table_t* m_table;
+		check_table(const dict_table_t* table) : m_table(table) {}
+		bool operator()(const dict_foreign_ref_info& i) const
+		{
+			return i.referenced_table == m_table;
+		}
+	};
+};
+
+typedef std::vector<dict_foreign_ref_info> ref_info_seq;
+
 /** Data structure for a foreign key constraint; an example:
 FOREIGN KEY (A, B) REFERENCES TABLE2 (C, D).  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_foreign_create(). */
@@ -1425,11 +1458,26 @@ struct dict_foreign_t{
 	dict_table_t*	foreign_table;	/*!< table where the foreign key is */
 	const char**	foreign_col_names;/*!< names of the columns in the
 					foreign key */
-	char*		referenced_table_name;/*!< referenced table name */
-	char*		referenced_table_name_lookup;
-				/*!< referenced table name for dict lookup*/
-	dict_table_t*	referenced_table;/*!< table where the referenced key
-					is */
+	char*	referenced_table_name()
+	{
+		ut_ad(ref_info.size() > 0);
+		return ref_info[0].referenced_table_name;
+	}
+	char*		referenced_table_name_lookup()
+	{
+		ut_ad(ref_info.size() > 0);
+		return ref_info[0].referenced_table_name_lookup;
+	}
+	dict_table_t*	referenced_table() const
+	{
+		ut_ad(ref_info.size() > 0);
+		return ref_info[0].referenced_table;
+	}
+	dict_index_t*	referenced_index() const
+	{
+		ut_ad(ref_info.size() > 0);
+		return ref_info[0].referenced_index;
+	}
 	const char**	referenced_col_names;/*!< names of the referenced
 					columns in the referenced table */
 	dict_index_t*	foreign_index;	/*!< foreign index; we require that
@@ -1437,10 +1485,9 @@ struct dict_foreign_t{
 					indexes for the constraint: InnoDB
 					does not generate new indexes
 					implicitly */
-	dict_index_t*	referenced_index;/*!< referenced index */
-
 	dict_vcol_set*	v_cols;		/*!< set of virtual columns affected
 					by foreign key constraint. */
+	ref_info_seq	ref_info;
 
 	/** Check whether the fulltext index gets affected by
 	foreign key constraint */
@@ -1485,9 +1532,10 @@ struct dict_foreign_with_index {
 	: m_index(index)
 	{}
 
-	bool operator()(const dict_foreign_t*	foreign) const
+	bool operator()(const dict_foreign_t* f) const
 	{
-		return(foreign->referenced_index == m_index);
+		return(std::any_of(f->ref_info.begin(), f->ref_info.end(),
+				   dict_foreign_ref_info::check_index(m_index)));
 	}
 
 	const dict_index_t*	m_index;
@@ -1516,9 +1564,11 @@ tables.  Returns true if foreign key constraint is between different tables,
 false otherwise. */
 struct dict_foreign_different_tables {
 
-	bool operator()(const dict_foreign_t*	foreign) const
+	bool operator()(const dict_foreign_t* f) const
 	{
-		return(foreign->foreign_table != foreign->referenced_table);
+		return(std::none_of(f->ref_info.begin(), f->ref_info.end(),
+				    dict_foreign_ref_info
+					::check_table(f->foreign_table)));
 	}
 };
 
