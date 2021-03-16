@@ -5346,7 +5346,7 @@ static void lock_release_autoinc_locks(trx_t *trx)
 }
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
-void lock_cancel_waiting_and_release(lock_t *lock)
+void lock_sys_t::lock_cancel_waiting_and_release(lock_t *lock)
 {
   lock_sys.assert_locked(*lock);
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
@@ -5773,7 +5773,7 @@ namespace Deadlock
       (trx->mysql_thd &&
 #ifdef WITH_WSREP
        (thd_has_edited_nontrans_tables(trx->mysql_thd) ||
-        wsrep_thd_is_BF(trx->mysql_thd, false))
+        (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, false)))
 #else
        thd_has_edited_nontrans_tables(trx->mysql_thd)
 #endif /* WITH_WSREP */
@@ -5804,7 +5804,7 @@ namespace Deadlock
           (next->mysql_thd &&
 #ifdef WITH_WSREP
            (thd_has_edited_nontrans_tables(next->mysql_thd) ||
-            wsrep_thd_is_BF(next->mysql_thd, false))
+            (next->is_wsrep() && wsrep_thd_is_BF(next->mysql_thd, false)))
 #else
            thd_has_edited_nontrans_tables(next->mysql_thd)
 #endif /* WITH_WSREP */
@@ -5895,7 +5895,7 @@ namespace Deadlock
       ut_ad(victim->state == TRX_STATE_ACTIVE);
 
       victim->lock.was_chosen_as_deadlock_victim= true;
-      lock_cancel_waiting_and_release(victim->lock.wait_lock);
+      lock_sys.lock_cancel_waiting_and_release(victim->lock.wait_lock);
 #ifdef WITH_WSREP
       if (victim->is_wsrep() && wsrep_thd_is_SR(victim->mysql_thd))
         wsrep_handle_SR_rollback(trx->mysql_thd, victim->mysql_thd);

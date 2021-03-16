@@ -857,6 +857,10 @@ public:
   @param id   page to be discarded
   @param page whether to discard also from lock_sys.prdt_hash */
   void prdt_page_free_from_discard(const page_id_t id, bool all= false);
+#ifdef WITH_WSREP
+  /** Cancel a waiting lock request and release possibly waiting transactions */
+  static void lock_cancel_waiting_and_release(lock_t *lock);
+#endif /* WITH_WSREP */
 };
 
 /** The lock system */
@@ -1022,9 +1026,6 @@ lock_rtr_move_rec_list(
 	rtr_rec_move_t*		rec_move,	/*!< in: recording records
 						moved */
 	ulint			num_move);	/*!< in: num of rec to move */
-
-/** Cancel a waiting lock request and release possibly waiting transactions */
-void lock_cancel_waiting_and_release(lock_t *lock);
 
 #include "lock0lock.ic"
 

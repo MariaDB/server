@@ -7978,13 +7978,14 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
   {
     /*  Release commit order here */
     if (wsrep_ordered_commit(entry->thd, entry->all))
-    {
       result= -2;
-    }
+
     /* return -3, if this is leader */
     if (orig_queue == NULL)
-        result= -3;
+      result= -3;
   }
+  else
+    DBUG_ASSERT(result != -2 && result != -3);
 #endif /* WITH_WSREP */
 
 #ifdef WITH_WSREP

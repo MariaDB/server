@@ -18084,7 +18084,7 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
   {
     bool aborting= false;
     wsrep_thd_LOCK(vthd);
-    trx_t *vtrx= thd_to_trx(vthd);
+    trx_t *vtrx = thd_to_trx(vthd);
     if (vtrx)
     {
       lock_sys.wr_lock(SRW_LOCK_CALL);
@@ -18120,9 +18120,7 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
         /* Mark transaction as a victim for Galera abort */
         vtrx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
         if (!wsrep_thd_set_wsrep_aborter(bf_thd, vthd))
-        {
-          aborting= true;
-        }
+          aborting = true;
         else
           WSREP_DEBUG("kill transaction skipped due to wsrep_aborter set");
       }
@@ -18136,17 +18134,16 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
       /* if victim is waiting for some other lock, we have to cancel
          that waiting
       */
+      lock_sys.wr_lock(SRW_LOCK_CALL);
+      mysql_mutex_lock(&lock_sys.wait_mutex);
       if (lock_t *lock= vtrx->lock.wait_lock)
       {
-        lock_sys.wr_lock(SRW_LOCK_CALL);
-        mysql_mutex_lock(&lock_sys.wait_mutex);
-	/* check if victim is still waiting */
-	if (lock->is_waiting())
-	  lock_cancel_waiting_and_release(lock);
-
-        mysql_mutex_unlock(&lock_sys.wait_mutex);
-        lock_sys.wr_unlock();
+        /* check if victim is still waiting */
+        if (lock->is_waiting())
+          lock_sys.lock_cancel_waiting_and_release(lock);
       }
+      mysql_mutex_unlock(&lock_sys.wait_mutex);
+      lock_sys.wr_unlock();
       DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
       wsrep_thd_bf_abort(bf_thd, vthd, true);
     }
@@ -18175,7 +18172,7 @@ wsrep_abort_transaction(
 	ut_ad(bf_thd);
 	ut_ad(victim_thd);
 
-	trx_t* victim_trx	= thd_to_trx(victim_thd);
+	trx_t* victim_trx = thd_to_trx(victim_thd);
 
 	WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %s",
 			wsrep_thd_query(bf_thd),
