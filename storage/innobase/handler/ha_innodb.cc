@@ -241,7 +241,7 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
     if (thd_kill_level(thd))
       break;
     srv_wake_purge_thread_if_not_active();
-    os_thread_sleep(100000);
+    std::this_thread::sleep_for(std::chrono::milliseconds(100));
   }
   mysql_mutex_lock(&LOCK_global_system_variables);
 }
@@ -17445,7 +17445,8 @@ innodb_buffer_pool_evict_update(THD*, st_mysql_sys_var*, void*,
 					return;
 				}
 
-				os_thread_sleep(10000);
+				std::this_thread::sleep_for(
+					std::chrono::milliseconds(10));
 			}
 
 			/* We failed to evict all uncompressed pages. */

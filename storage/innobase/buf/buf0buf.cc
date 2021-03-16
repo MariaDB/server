@@ -310,8 +310,7 @@ void page_hash_latch::write_lock_wait()
   while (!write_lock_poll());
 }
 
-/** Value in microseconds */
-constexpr int WAIT_FOR_READ= 100;
+constexpr std::chrono::microseconds WAIT_FOR_READ(100);
 constexpr int WAIT_FOR_WRITE= 100;
 /** Number of attempts made to read in a page in the buffer pool */
 constexpr ulint	BUF_PAGE_READ_MAX_RETRIES= 100;
@@ -1810,7 +1809,8 @@ withdraw_retry:
 	if (should_retry_withdraw) {
 		ib::info() << "Will retry to withdraw " << retry_interval
 			<< " seconds later.";
-		os_thread_sleep(retry_interval * 1000000);
+		std::this_thread::sleep_for(
+			std::chrono::seconds(retry_interval));
 
 		if (retry_interval > 5) {
 			retry_interval = 10;
@@ -1831,7 +1831,9 @@ withdraw_retry:
 			should_wait = false;
 			DBUG_EXECUTE_IF(
 				"ib_buf_pool_resize_wait_before_resize",
-				should_wait = true; os_thread_sleep(10000););
+				should_wait = true;
+				std::this_thread::sleep_for(
+					std::chrono::milliseconds(10)););
 		}
 	}
 #endif /* !DBUG_OFF */
@@ -2375,7 +2377,7 @@ got_block:
   if (must_read)
     /* Let us wait until the read operation completes */
     while (bpage->io_fix() == BUF_IO_READ)
-      os_thread_sleep(WAIT_FOR_READ);
+      std::this_thread::sleep_for(WAIT_FOR_READ);
 
   return bpage;
 }
@@ -2763,7 +2765,8 @@ got_block:
 			Avoid returning reference to this page.
 			Instead wait for the flush action to complete. */
 			fix_block->unfix();
-			os_thread_sleep(WAIT_FOR_WRITE);
+			std::this_thread::sleep_for(
+				std::chrono::microseconds(WAIT_FOR_WRITE));
 			goto loop;
 		}
 
@@ -2814,7 +2817,7 @@ evict_from_pool:
 
 			/* The block is buffer-fixed or I/O-fixed.
 			Try again later. */
-			os_thread_sleep(WAIT_FOR_READ);
+			std::this_thread::sleep_for(WAIT_FOR_READ);
 
 			goto loop;
 		}

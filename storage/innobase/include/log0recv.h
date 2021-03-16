@@ -32,6 +32,7 @@ Created 9/20/1997 Heikki Tuuri
 #include "mtr0types.h"
 
 #include <deque>
+#include <map>
 
 /** @return whether recovery is currently running. */
 #define recv_recovery_is_on() UNIV_UNLIKELY(recv_sys.recovery_on)

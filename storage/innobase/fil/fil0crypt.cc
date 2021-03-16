@@ -2349,7 +2349,7 @@ fil_space_crypt_close_tablespace(
 		pthread_cond_broadcast(&fil_crypt_threads_cond);
 		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
-		os_thread_sleep(20000);
+		std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		dict_sys.mutex_lock();
 		mysql_mutex_lock(&crypt_data->mutex);
 

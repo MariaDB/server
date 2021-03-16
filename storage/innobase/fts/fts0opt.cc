@@ -2583,7 +2583,7 @@ fts_optimize_remove_table(
     ib::info() << "Try to remove table " << table->name
                << " after FTS optimize thread exiting.";
     while (fts_optimize_wq)
-      os_thread_sleep(10000);
+      std::this_thread::sleep_for(std::chrono::milliseconds(10));
     return;
   }
 
@@ -2784,7 +2784,8 @@ static void fts_optimize_sync_table(dict_table_t *table,
     }
   }
 
-  DBUG_EXECUTE_IF("ib_optimize_wq_hang", os_thread_sleep(6000000););
+  DBUG_EXECUTE_IF("ib_optimize_wq_hang",
+		  std::this_thread::sleep_for(std::chrono::seconds(6)););
 
   if (mdl_ticket)
     dict_table_close(sync_table, false, false, fts_opt_thd, mdl_ticket);
@@ -2870,7 +2871,9 @@ static void fts_optimize_callback(void *)
 			case FTS_MSG_SYNC_TABLE:
 				DBUG_EXECUTE_IF(
 					"fts_instrument_msg_sync_sleep",
-					os_thread_sleep(300000););
+					std::this_thread::sleep_for(
+						std::chrono::milliseconds(
+							300)););
 
 				fts_optimize_sync_table(
 					static_cast<dict_table_t*>(msg->ptr),

@@ -25,6 +25,7 @@ Created 3/14/1997 Heikki Tuuri
 *******************************************************/
 
 #include "row0purge.h"
+#include "btr0cur.h"
 #include "fsp0fsp.h"
 #include "mach0data.h"
 #include "dict0stats.h"
@@ -194,7 +195,7 @@ row_purge_remove_clust_if_poss(
 			return(true);
 		}
 
-		os_thread_sleep(BTR_CUR_RETRY_SLEEP_TIME);
+		std::this_thread::sleep_for(BTR_CUR_RETRY_SLEEP_TIME);
 	}
 
 	return(false);
@@ -576,7 +577,7 @@ retry:
 
 		n_tries++;
 
-		os_thread_sleep(BTR_CUR_RETRY_SLEEP_TIME);
+		std::this_thread::sleep_for(BTR_CUR_RETRY_SLEEP_TIME);
 
 		goto retry;
 	}
@@ -955,7 +956,7 @@ already_locked:
 			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
 				return(false);
 			}
-			os_thread_sleep(1000000);
+			std::this_thread::sleep_for(std::chrono::seconds(1));
 			goto try_again;
 		}
 	}
@@ -1116,7 +1117,7 @@ row_purge(
 			}
 
 			/* Retry the purge in a second. */
-			os_thread_sleep(1000000);
+			std::this_thread::sleep_for(std::chrono::seconds(1));
 		}
 	}
 }

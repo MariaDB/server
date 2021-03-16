@@ -198,7 +198,7 @@ retry:
 
 		n_tries++;
 
-		os_thread_sleep(BTR_CUR_RETRY_SLEEP_TIME);
+		std::this_thread::sleep_for(BTR_CUR_RETRY_SLEEP_TIME);
 
 		goto retry;
 	}
@@ -334,7 +334,7 @@ retry:
 
 		n_tries++;
 
-		os_thread_sleep(BTR_CUR_RETRY_SLEEP_TIME);
+		std::this_thread::sleep_for(BTR_CUR_RETRY_SLEEP_TIME);
 
 		goto retry;
 	}

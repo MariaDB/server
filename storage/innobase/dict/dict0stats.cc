@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2009, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -37,6 +37,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include <algorithm>
 #include <map>
 #include <vector>
+#include <thread>
 
 /* Sampling algorithm description @{
 
@@ -3775,7 +3776,8 @@ dict_stats_rename_table(
 
 		if (ret != DB_SUCCESS) {
 			dict_sys_unlock();
-			os_thread_sleep(200000 /* 0.2 sec */);
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(200));
 			dict_sys_lock();
 		}
 	} while ((ret == DB_DEADLOCK
@@ -3828,7 +3830,8 @@ dict_stats_rename_table(
 
 		if (ret != DB_SUCCESS) {
 			dict_sys_unlock();
-			os_thread_sleep(200000 /* 0.2 sec */);
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(200));
 			dict_sys_lock();
 		}
 	} while ((ret == DB_DEADLOCK

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -472,7 +472,8 @@ buf_load_throttle_if_needed(
 	ut_time_ms() that often may turn out to be too expensive. */
 
 	if (elapsed_time < 1000 /* 1 sec (1000 milli secs) */) {
-		os_thread_sleep((1000 - elapsed_time) * 1000 /* micro secs */);
+		std::this_thread::sleep_for(
+			std::chrono::milliseconds(1000 - elapsed_time));
 	}
 
 	*last_check_time = ut_time_ms();

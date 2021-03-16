@@ -435,7 +435,7 @@ static bool fil_node_open_file(fil_node_t *node)
     else
     {
       mysql_mutex_unlock(&fil_system.mutex);
-      os_thread_sleep(20000);
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
       /* Flush tablespaces so that we can close modified files. */
       fil_flush_file_spaces();
       mysql_mutex_lock(&fil_system.mutex);
@@ -557,7 +557,7 @@ fil_space_extend_must_retry(
 		It'd have been better to use event driven mechanism but
 		the entire module is peppered with polling stuff. */
 		mysql_mutex_unlock(&fil_system.mutex);
-		os_thread_sleep(100000);
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		return(true);
 	}
 
@@ -731,7 +731,7 @@ inline pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
   {
     mysql_mutex_unlock(&fil_system.mutex);
     while (space->referenced())
-      os_thread_sleep(100);
+      std::this_thread::sleep_for(std::chrono::microseconds(100));
     mysql_mutex_lock(&fil_system.mutex);
   }
 
@@ -826,7 +826,7 @@ fil_space_free_low(
 	fil_system_t::detach(), the tablespace cannot be found, so
 	fil_space_t::get() would return NULL */
 	while (space->referenced()) {
-		os_thread_sleep(100);
+		std::this_thread::sleep_for(std::chrono::microseconds(100));
 	}
 
 	for (fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
@@ -1355,7 +1355,8 @@ next:
 					goto next;
 				}
 				mysql_mutex_unlock(&fil_system.mutex);
-				os_thread_sleep(100);
+				std::this_thread::sleep_for(
+					std::chrono::microseconds(100));
 				mysql_mutex_lock(&fil_system.mutex);
 				if (!node->is_open()) {
 					goto next;
@@ -1673,7 +1674,8 @@ fil_check_pending_operations(
 		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (count) {
-			os_thread_sleep(20000); // Wait 0.02 seconds
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(20));
 		} else if (!sp) {
 			return nullptr;
 		}
@@ -1704,7 +1706,7 @@ fil_check_pending_operations(
 			break;
 		}
 
-		os_thread_sleep(20000);         // Wait 0.02 seconds
+		std::this_thread::sleep_for(std::chrono::milliseconds(20));
 		mysql_mutex_lock(&fil_system.mutex);
 		sp = fil_space_get_by_id(id);
 

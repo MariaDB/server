@@ -65,8 +65,8 @@ Created 9/17/2000 Heikki Tuuri
 #include "srv0start.h"
 
 #include <algorithm>
-#include <deque>
 #include <vector>
+#include <thread>
 
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
@@ -127,7 +127,7 @@ row_wait_for_background_drop_list_empty()
 		mysql_mutex_lock(&row_drop_list_mutex);
 		empty = (UT_LIST_GET_LEN(row_mysql_drop_list) == 0);
 		mysql_mutex_unlock(&row_drop_list_mutex);
-		os_thread_sleep(100000);
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 	}
 }
 #endif /* UNIV_DEBUG */
@@ -140,7 +140,8 @@ row_mysql_delay_if_needed(void)
 /*===========================*/
 {
 	if (srv_dml_needed_delay) {
-		os_thread_sleep(srv_dml_needed_delay);
+		std::this_thread::sleep_for(
+			std::chrono::microseconds(srv_dml_needed_delay));
 	}
 }
 
@@ -3946,7 +3947,8 @@ loop:
 		if (!dict_stats_stop_bg(table)) {
 			row_mysql_unlock_data_dictionary(trx);
 
-			os_thread_sleep(250000);
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(250));
 
 			ut_free(table_name);
 
@@ -3964,7 +3966,7 @@ loop:
 				" there are still open handles to table "
 				<< table->name << ".";
 
-			os_thread_sleep(1000000);
+			std::this_thread::sleep_for(std::chrono::seconds(1));
 
 			ut_free(table_name);
 

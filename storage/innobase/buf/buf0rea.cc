@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -748,7 +748,8 @@ void buf_read_recv_pages(ulint space_id, const uint32_t* page_nos, ulint n)
 		}
 
 		for (ulint count = 0; buf_pool.n_pend_reads >= limit; ) {
-			os_thread_sleep(10000);
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(10));
 
 			if (!(++count % 1000)) {
 

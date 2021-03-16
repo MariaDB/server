@@ -674,7 +674,8 @@ row_merge_buf_add(
 				while (psort_info[bucket].memory_used
 				       > FTS_PENDING_DOC_MEMORY_LIMIT
 				       && trial_count++ < max_trial_count) {
-					os_thread_sleep(1000);
+					std::this_thread::sleep_for(
+						std::chrono::milliseconds(1));
 				}
 
 				n_row_added = 1;
@@ -4629,9 +4630,9 @@ row_merge_build_indexes(
 						      buf, i + 1, n_indexes);
 			}
 
-			DBUG_EXECUTE_IF(
-				"ib_merge_wait_after_sort",
-				os_thread_sleep(20000000););  /* 20 sec */
+			DBUG_EXECUTE_IF("ib_merge_wait_after_sort",
+					std::this_thread::sleep_for(
+						std::chrono::seconds(20)););
 
 			if (error == DB_SUCCESS) {
 				BtrBulk	btr_bulk(sort_idx, trx);

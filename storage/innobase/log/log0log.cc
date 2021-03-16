@@ -963,7 +963,8 @@ func_exit:
 
     /* We must wait to prevent the tail of the log overwriting the head. */
     buf_flush_wait_flushed(std::min(sync_lsn, checkpoint + (1U << 20)));
-    os_thread_sleep(10000); /* Sleep 10ms to avoid a thundering herd */
+    /* Sleep to avoid a thundering herd */
+    std::this_thread::sleep_for(std::chrono::milliseconds(10));
   }
 }
 
@@ -1027,7 +1028,7 @@ loop:
 
 #define COUNT_INTERVAL 600U
 #define CHECK_INTERVAL 100000U
-	os_thread_sleep(CHECK_INTERVAL);
+	std::this_thread::sleep_for(std::chrono::microseconds(CHECK_INTERVAL));
 
 	count++;
 

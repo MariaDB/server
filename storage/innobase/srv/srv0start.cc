@@ -967,7 +967,8 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 				count = 0;
 			}
 
-			os_thread_sleep(100000);
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(100));
 			continue;
 		}
 
@@ -1953,7 +1954,7 @@ void innodb_preshutdown()
 
     if (trx_sys.is_initialised())
       while (trx_sys.any_active_transactions())
-        os_thread_sleep(1000);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1));
   }
   srv_shutdown_bg_undo_sources();
   srv_purge_shutdown();

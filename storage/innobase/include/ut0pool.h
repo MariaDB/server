@@ -254,7 +254,8 @@ struct PoolManager {
 					except crash and burn, however lets
 					be a little optimistic and wait for
 					a resource to be freed. */
-					os_thread_sleep(delay * 1000000);
+					std::this_thread::sleep_for(
+						std::chrono::seconds(delay));
 
 					if (delay < 32) {
 						delay <<= 1;

@@ -2219,7 +2219,7 @@ do_checkpoint:
 #ifdef UNIV_DEBUG
     while (innodb_page_cleaner_disabled_debug && !buf_flush_sync_lsn &&
            srv_shutdown_state == SRV_SHUTDOWN_NONE)
-      os_thread_sleep(100000);
+      std::this_thread::sleep_for(std::chrono::milliseconds(100));
 #endif /* UNIV_DEBUG */
 
 #ifndef DBUG_OFF

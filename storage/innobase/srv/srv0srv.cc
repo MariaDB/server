@@ -2069,7 +2069,8 @@ void srv_purge_shutdown()
 		while(!srv_purge_should_exit()) {
 			ut_a(!purge_sys.paused());
 			srv_wake_purge_thread_if_not_active();
-			os_thread_sleep(1000);
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(1));
 		}
 		purge_sys.coordinator_shutdown();
 		srv_shutdown_purge_tasks();

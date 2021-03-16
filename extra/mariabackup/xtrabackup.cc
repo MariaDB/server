@@ -3561,7 +3561,8 @@ retry:
 	/* TRX_SYS page can't be compressed or encrypted. */
 	if (buf_page_is_corrupted(false, page, fsp_flags)) {
 		if (n_retries--) {
-			os_thread_sleep(1000);
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(1));
 			goto retry;
 		} else {
 			msg("mariabackup: TRX_SYS page corrupted.\n");
@@ -4085,7 +4086,7 @@ static void stop_backup_threads(bool running)
     {
       putc('.', stderr);
       fflush(stderr);
-      os_thread_sleep(200000); /*0.2 sec*/
+      std::this_thread::sleep_for(std::chrono::milliseconds(200));
     }
     putc('\n', stderr);
     mysql_cond_destroy(&log_copying_stop);
@@ -4471,7 +4472,7 @@ fail_before_log_copying_thread_start:
 
 	/* Wait for threads to exit */
 	while (1) {
-		os_thread_sleep(1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 		pthread_mutex_lock(&count_mutex);
 		bool stop = count == 0;
 		pthread_mutex_unlock(&count_mutex);

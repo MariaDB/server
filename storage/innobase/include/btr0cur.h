@@ -934,9 +934,9 @@ is still a good change of success a little later.  Try this many
 times. */
 #define BTR_CUR_RETRY_DELETE_N_TIMES	100
 /** If pessimistic delete fails because of lack of file space, there
-is still a good change of success a little later.  Sleep this many
-microseconds between retries. */
-#define BTR_CUR_RETRY_SLEEP_TIME	50000
+is still a good change of success a little later.  Sleep this time
+between retries. */
+static const std::chrono::milliseconds BTR_CUR_RETRY_SLEEP_TIME(50);
 
 /** The reference in a field for which data is stored on a different page.
 The reference is at the end of the 'locally' stored part of the field.

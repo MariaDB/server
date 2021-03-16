@@ -85,7 +85,7 @@ static const ulint FTS_CACHE_SIZE_UPPER_LIMIT_IN_MB = 1024;
 #endif
 
 /** Time to sleep after DEADLOCK error before retrying operation. */
-static const ulint FTS_DEADLOCK_RETRY_WAIT = 100000;
+static const std::chrono::milliseconds FTS_DEADLOCK_RETRY_WAIT(100);
 
 /** InnoDB default stopword list:
 There are different versions of stopwords, the stop words listed
@@ -2684,7 +2684,7 @@ func_exit:
 		fts_sql_rollback(trx);
 
 		if (error == DB_DEADLOCK) {
-			os_thread_sleep(FTS_DEADLOCK_RETRY_WAIT);
+			std::this_thread::sleep_for(FTS_DEADLOCK_RETRY_WAIT);
 			goto retry;
 		}
 	}
@@ -3938,8 +3938,10 @@ fts_sync_write_words(
 
 		word = rbt_value(fts_tokenizer_word_t, rbt_node);
 
-		DBUG_EXECUTE_IF("fts_instrument_write_words_before_select_index",
-				os_thread_sleep(300000););
+		DBUG_EXECUTE_IF(
+			"fts_instrument_write_words_before_select_index",
+			std::this_thread::sleep_for(
+				std::chrono::milliseconds(300)););
 
 		selected = fts_select_index(
 			index_cache->charset, word->text.f_str,
@@ -3975,9 +3977,10 @@ fts_sync_write_words(
 				DBUG_EXECUTE_IF("fts_write_node_crash",
 					DBUG_SUICIDE(););
 
-				DBUG_EXECUTE_IF("fts_instrument_sync_sleep",
-					os_thread_sleep(1000000);
-				);
+				DBUG_EXECUTE_IF(
+					"fts_instrument_sync_sleep",
+					std::this_thread::sleep_for(
+						std::chrono::seconds(1)););
 
 				if (unlock_cache) {
 					mysql_mutex_lock(
@@ -4279,7 +4282,8 @@ begin_sync:
 		}
 
 		DBUG_EXECUTE_IF("fts_instrument_sync_before_syncing",
-				os_thread_sleep(300000););
+				std::this_thread::sleep_for(
+					std::chrono::milliseconds(300)););
 		error = fts_sync_index(sync, index_cache);
 
 		if (error != DB_SUCCESS) {

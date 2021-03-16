@@ -791,7 +791,7 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 		if (!have_queries_to_wait_for(connection, threshold)) {
 			return(true);
 		}
-		os_thread_sleep(1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(1));
 	}
 
 	msg("Unable to obtain lock. Please try again later.");
@@ -963,8 +963,9 @@ unlock_all(MYSQL *connection)
 	if (opt_debug_sleep_before_unlock) {
 		msg("Debug sleep for %u seconds",
 		       opt_debug_sleep_before_unlock);
-		os_thread_sleep(opt_debug_sleep_before_unlock * 1000);
-	}
+                std::this_thread::sleep_for(
+                    std::chrono::milliseconds(opt_debug_sleep_before_unlock));
+        }
 
 	msg("Executing BACKUP STAGE END");
 	xb_mysql_query(connection, "BACKUP STAGE END", false);
@@ -1042,7 +1043,7 @@ wait_for_safe_slave(MYSQL *connection)
 		       "remaining)...", sleep_time, n_attempts);
 
 		xb_mysql_query(connection, "START SLAVE SQL_THREAD", false);
-		os_thread_sleep(sleep_time * 1000000);
+		std::this_thread::sleep_for(std::chrono::seconds(sleep_time));
 		xb_mysql_query(connection, "STOP SLAVE SQL_THREAD", false);
 
 		open_temp_tables = get_open_temp_tables(connection);

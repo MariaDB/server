@@ -74,10 +74,3 @@ os_thread_t os_thread_create(os_thread_func_t func, void *arg= nullptr);
 
 /** Detach and terminate the current thread. */
 ATTRIBUTE_NORETURN void os_thread_exit();
-
-#ifdef _WIN32
-# define os_thread_sleep(usec) Sleep((DWORD) usec / 1000)
-#else
-/** Sleep for some time */
-void os_thread_sleep(ulint usec);
-#endif

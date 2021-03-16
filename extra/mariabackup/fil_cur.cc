@@ -457,7 +457,8 @@ read_retry:
 				msg(cursor->thread_n, "Database page corruption detected at page "
 				    UINT32PF ", retrying...",
 				    page_no);
-				os_thread_sleep(100000);
+				std::this_thread::sleep_for(
+					std::chrono::milliseconds(100));
 				goto read_retry;
 			}
 		}

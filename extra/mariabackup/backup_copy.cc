@@ -970,7 +970,7 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 
 	/* Wait for threads to exit */
 	while (1) {
-		os_thread_sleep(100000);
+		std::this_thread::sleep_for(std::chrono::milliseconds(100));
 		pthread_mutex_lock(&count_mutex);
 		if (count == 0) {
 			pthread_mutex_unlock(&count_mutex);

@@ -97,25 +97,3 @@ ATTRIBUTE_NORETURN void os_thread_exit()
 	pthread_exit(NULL);
 #endif
 }
-
-#ifndef _WIN32
-/** Sleep for some time */
-void os_thread_sleep(ulint tm)
-{
-# ifdef HAVE_NANOSLEEP
-	struct timespec	t;
-
-	t.tv_sec = tm / 1000000;
-	t.tv_nsec = (tm % 1000000) * 1000;
-
-	::nanosleep(&t, NULL);
-# else
-	struct timeval  t;
-
-	t.tv_sec = tm / 1000000;
-	t.tv_usec = tm % 1000000;
-
-	select(0, NULL, NULL, NULL, &t);
-# endif
-}
-#endif /* !_WIN32 */
