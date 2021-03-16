@@ -982,7 +982,7 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
     (*f)->sql_type(column_type);
 
     if (str->append(column_type) ||
-        str->append(m_column_type == PATH ? " PATH " : " EXISTS ") ||
+        str->append(m_column_type == PATH ? " PATH " : " EXISTS PATH ") ||
         print_path(str, &m_path))
       return 1;
     break;

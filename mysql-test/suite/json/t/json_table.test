@@ -378,5 +378,16 @@ from
 drop table t20,t21,t31,t32;
 
 --echo #
+--echo # MDEV-25142: JSON_TABLE: CREATE VIEW involving EXISTS PATH ends up with invalid frm
+--echo #
+--disable_warnings
+drop view if exists v1;
+--enable_warnings
+
+CREATE VIEW v1 AS SELECT * FROM JSON_TABLE('[]', '$' COLUMNS (f INT EXISTS PATH '$')) a ;
+show create view v1;
+drop view v1;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
