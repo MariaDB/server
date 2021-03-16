@@ -1,0 +1,88 @@
+connection node_2;
+connection node_1;
+connection node_1;
+create table t1_Aria(a int, count int, b int, key(b)) engine=Aria;
+INSERT INTO t1_Aria values (1,1,1);
+create table t1_MyISAM(a int, count int, b int, key(b)) engine=MyISAM;
+INSERT INTO t1_MyISAM values (1,1,1);
+create table t1_InnoDB(a int, count int, b int, key(b)) engine=InnoDB;
+INSERT INTO t1_InnoDB values (1,1,1);
+SET SESSION default_storage_engine=MyISAM;
+CREATE TABLE t2 AS SELECT * FROM t1_Aria;
+CREATE TABLE t3 AS SELECT * FROM t1_MyISAM;
+CREATE TABLE t4 AS SELECT * FROM t1_InnoDB;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `count` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` int(11) DEFAULT NULL,
+  `count` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `a` int(11) DEFAULT NULL,
+  `count` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t2, t3,t4;
+SET SESSION default_storage_engine=Aria;
+CREATE TABLE t2 AS SELECT * FROM t1_Aria;
+CREATE TABLE t3 AS SELECT * FROM t1_MyISAM;
+CREATE TABLE t4 AS SELECT * FROM t1_InnoDB;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `count` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` int(11) DEFAULT NULL,
+  `count` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `a` int(11) DEFAULT NULL,
+  `count` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+DROP TABLE t2, t3,t4;
+SET SESSION default_storage_engine=InnoDB;
+CREATE TABLE t2 AS SELECT * FROM t1_Aria;
+CREATE TABLE t3 AS SELECT * FROM t1_MyISAM;
+CREATE TABLE t4 AS SELECT * FROM t1_InnoDB;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `count` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t3;
+Table	Create Table
+t3	CREATE TABLE `t3` (
+  `a` int(11) DEFAULT NULL,
+  `count` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SHOW CREATE TABLE t4;
+Table	Create Table
+t4	CREATE TABLE `t4` (
+  `a` int(11) DEFAULT NULL,
+  `count` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t2, t3,t4;
+DROP TABLE t1_MyISAM, t1_Aria,t1_InnoDB;
