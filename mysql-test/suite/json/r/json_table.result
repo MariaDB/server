@@ -491,5 +491,22 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	jt1	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table
 drop table t20,t21,t31,t32;
 #
+# MDEV-25142: JSON_TABLE: CREATE VIEW involving EXISTS PATH ends up with invalid frm
+#
+drop view if exists v1;
+CREATE VIEW v1 AS SELECT * FROM JSON_TABLE('[]', '$' COLUMNS (f INT EXISTS PATH '$')) a ;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `a`.`f` AS `f` from JSON_TABLE('[]', '$' COLUMNS (`f` int(11) EXISTS PATH '$')) `a`	latin1	latin1_swedish_ci
+drop view v1;
+#
+# MDEV-25145: JSON_TABLE: Assertion `fixed == 1' failed in Item_load_file::val_str on 2nd execution of PS	
+#
+PREPARE stmt FROM "SELECT * FROM (SELECT * FROM JSON_TABLE(LOAD_FILE('x'), '$' COLUMNS (a FOR ORDINALITY)) AS t) AS sq";
+EXECUTE stmt;
+a
+EXECUTE stmt;
+a
+#
 # End of 10.6 tests
 #

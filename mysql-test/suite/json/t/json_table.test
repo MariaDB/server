@@ -389,5 +389,12 @@ show create view v1;
 drop view v1;
 
 --echo #
+--echo # MDEV-25145: JSON_TABLE: Assertion `fixed == 1' failed in Item_load_file::val_str on 2nd execution of PS	
+--echo #
+PREPARE stmt FROM "SELECT * FROM (SELECT * FROM JSON_TABLE(LOAD_FILE('x'), '$' COLUMNS (a FOR ORDINALITY)) AS t) AS sq";
+EXECUTE stmt;
+EXECUTE stmt;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

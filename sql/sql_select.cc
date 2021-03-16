@@ -1243,11 +1243,14 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
                      thd->lex->current_select->context_analysis_place;
   thd->lex->current_select->context_analysis_place= SELECT_LIST;
 
-  for (TABLE_LIST *tbl= tables_list; tbl; tbl= tbl->next_local)
   {
-    if (tbl->table_function &&
-        tbl->table_function->setup(thd, tbl, select_lex_arg))
-      DBUG_RETURN(-1);
+    List_iterator_fast<TABLE_LIST> it(select_lex->leaf_tables);
+    while ((tbl= it++))
+    {
+      if (tbl->table_function &&
+          tbl->table_function->setup(thd, tbl, select_lex_arg))
+        DBUG_RETURN(-1);
+    }
   }
 
   if (setup_fields(thd, ref_ptrs, fields_list, MARK_COLUMNS_READ,
