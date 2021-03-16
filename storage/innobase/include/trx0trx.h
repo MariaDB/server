@@ -491,12 +491,8 @@ class trx_mod_table_time_t
   covered by a TRX_UNDO_EMPTY record (for the first statement to
   insert into an empty table) */
   static constexpr undo_no_t BULK= 1ULL << 63;
-  /** Flag in 'first' to indicate that some operations were
-  covered by a TRX_UNDO_EMPTY record (for the first statement to
-  insert into an empty table) */
-  static constexpr undo_no_t WAS_BULK= 1ULL << 62;
 
-  /** First modification of the table, possibly ORed with BULK or WAS_BULK */
+  /** First modification of the table, possibly ORed with BULK */
   undo_no_t first;
   /** First modification of a system versioned column (or NONE) */
   undo_no_t first_versioned= NONE;
@@ -525,15 +521,13 @@ public:
   }
 
   /** Notify the start of a bulk insert operation */
-  void start_bulk_insert() { first|= BULK | WAS_BULK; }
+  void start_bulk_insert() { first|= BULK; }
 
   /** Notify the end of a bulk insert operation */
   void end_bulk_insert() { first&= ~BULK; }
 
   /** @return whether an insert is covered by TRX_UNDO_EMPTY record */
   bool is_bulk_insert() const { return first & BULK; }
-  /** @return whether an insert was covered by TRX_UNDO_EMPTY record */
-  bool was_bulk_insert() const { return first & WAS_BULK; }
 
   /** Invoked after partial rollback
   @param limit	number of surviving modified rows (trx_t::undo_no)
@@ -788,6 +782,8 @@ public:
 					wants to suppress foreign key checks,
 					(in table imports, for example) we
 					set this FALSE */
+  /** whether an insert into an empty table is active */
+  bool bulk_insert;
 	/*------------------------------*/
 	/* MySQL has a transaction coordinator to coordinate two phase
 	commit between multiple storage engines and the binary log. When
@@ -1088,6 +1084,17 @@ public:
   {
     for (auto& t : mod_tables)
       t.second.end_bulk_insert();
+  }
+
+  /** @return whether a bulk insert into empty table is in progress */
+  bool is_bulk_insert() const
+  {
+    if (!bulk_insert || check_unique_secondary || check_foreigns)
+      return false;
+    for (const auto& t : mod_tables)
+      if (t.second.is_bulk_insert())
+        return true;
+    return false;
   }
 
 private:

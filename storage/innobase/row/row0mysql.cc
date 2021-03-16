@@ -730,7 +730,13 @@ handle_new_error:
 
 			trx->rollback(savept);
 		}
-		/* MySQL will roll back the latest SQL statement */
+		if (!trx->bulk_insert) {
+			/* MariaDB will roll back the latest SQL statement */
+			break;
+		}
+		/* MariaDB will roll back the entire transaction. */
+		trx->bulk_insert = false;
+		trx->last_sql_stat_start.least_undo_no = 0;
 		break;
 	case DB_LOCK_WAIT:
 		err = lock_wait(thr);
@@ -1089,10 +1095,10 @@ row_get_prebuilt_insert_row(
 		    && prebuilt->ins_node->entry_list.size()
 		    == UT_LIST_GET_LEN(table->indexes)) {
 
-			if (prebuilt->ins_node->bulk_insert
+			if (prebuilt->trx->bulk_insert
 			    && prebuilt->ins_node->trx_id
 			       != prebuilt->trx->id) {
-				prebuilt->ins_node->bulk_insert= false;
+				prebuilt->trx->bulk_insert = false;
 			}
 
 			return(prebuilt->ins_node->row);
@@ -1362,7 +1368,12 @@ row_insert_for_mysql(
           node->vers_update_end(prebuilt, ins_mode == ROW_INS_HISTORICAL);
         }
 
-	savept = trx_savept_take(trx);
+	/* Because we now allow multiple INSERT into the same
+	initially empty table in bulk insert mode, on error we must
+	roll back to the start of the transaction. For correctness, it
+	would suffice to roll back to the start of the first insert
+	into this empty table, but we will keep it simple and efficient. */
+	savept.least_undo_no = trx->bulk_insert ? 0 : trx->undo_no;
 
 	thr = que_fork_get_first_thr(prebuilt->ins_graph);
 
@@ -1776,7 +1787,7 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	generated for the table: MySQL does not know anything about
 	the row id used as the clustered index key */
 
-	savept = trx_savept_take(trx);
+	savept.least_undo_no = trx->undo_no;
 
 	thr = que_fork_get_first_thr(prebuilt->upd_graph);
 

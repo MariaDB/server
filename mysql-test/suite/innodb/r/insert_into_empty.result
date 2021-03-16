@@ -51,3 +51,54 @@ DROP TEMPORARY TABLE t,t2;
 ERROR 25006: Cannot execute statement in a READ ONLY transaction
 SET tx_read_only=0;
 DROP TEMPORARY TABLE t,t2;
+#
+# MDEV-24818 Optimize multiple INSERT into empty table
+#
+CREATE TABLE t1(f1 INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES (5),(6),(7);
+INSERT INTO t1 VALUES (4),(5),(6);
+ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
+COMMIT;
+SELECT * FROM t1;
+f1
+BEGIN;
+INSERT INTO t1 VALUES (5),(6),(7);
+SAVEPOINT a;
+INSERT INTO t1 VALUES (4),(5),(6);
+ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
+ROLLBACK TO SAVEPOINT a;
+COMMIT;
+SELECT * FROM t1;
+f1
+5
+6
+7
+DROP TABLE t1;
+SET foreign_key_checks=1;
+CREATE TABLE t1(f1 INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t1 VALUES (5),(6),(7);
+INSERT INTO t1 VALUES (4),(5),(6);
+ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
+COMMIT;
+SELECT * FROM t1;
+f1
+5
+6
+7
+BEGIN;
+INSERT INTO t1 VALUES (5),(6),(7);
+ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
+SAVEPOINT a;
+INSERT INTO t1 VALUES (4),(5),(6);
+ERROR 23000: Duplicate entry '5' for key 'PRIMARY'
+ROLLBACK TO SAVEPOINT a;
+COMMIT;
+SELECT * FROM t1;
+f1
+5
+6
+7
+DROP TABLE t1;
+SET foreign_key_checks=0;

@@ -3547,12 +3547,11 @@ fail_err:
 					      DATA_TRX_ID_LEN));
 			} else {
 				ut_ad(thr->graph->trx->id);
-				ut_ad(thr->graph->trx->id
+				ut_ad(thr->graph->trx->bulk_insert
+				      || thr->graph->trx->id
 				      == trx_read_trx_id(
 					      static_cast<const byte*>(
-						      trx_id->data))
-				      || static_cast<ins_node_t*>(
-					     thr->run_node)->bulk_insert);
+						      trx_id->data)));
 			}
 		}
 #endif

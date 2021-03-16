@@ -2012,12 +2012,9 @@ trx_undo_report_row_operation(
 		/* We already wrote a TRX_UNDO_EMPTY record. */
 		ut_ad(thr->run_node);
 		ut_ad(que_node_get_type(thr->run_node) == QUE_NODE_INSERT);
-		ut_ad(static_cast<ins_node_t*>(thr->run_node)->bulk_insert);
+		ut_ad(trx->bulk_insert);
 		return DB_SUCCESS;
-	} else if (m.second
-		   && thr->run_node
-		   && que_node_get_type(thr->run_node) == QUE_NODE_INSERT
-		   && static_cast<ins_node_t*>(thr->run_node)->bulk_insert) {
+	} else if (m.second && trx->bulk_insert) {
 		m.first->second.start_bulk_insert();
 	} else {
 		bulk = false;

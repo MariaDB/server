@@ -3543,40 +3543,6 @@ static void lock_table_dequeue(lock_t *in_lock, bool owns_wait_mutex)
 	}
 }
 
-/** Release a table X lock after rolling back an insert into an empty table
-(which was covered by a TRX_UNDO_EMPTY record).
-@param table    table to be X-unlocked
-@param trx      transaction */
-void lock_table_x_unlock(dict_table_t *table, trx_t *trx)
-{
-  ut_ad(!trx->is_recovered);
-
-  for (lock_t*& lock : trx->lock.table_locks)
-  {
-    ut_ad(!lock || lock->trx == trx);
-    if (!lock)
-      continue;
-    ut_ad(!lock->is_waiting());
-    if (lock->type_mode != (LOCK_TABLE | LOCK_X) ||
-        lock->un_member.tab_lock.table != table)
-      continue;
-    lock_sys.rd_lock(SRW_LOCK_CALL);
-    table->lock_mutex_lock();
-    mysql_mutex_lock(&lock_sys.wait_mutex);
-    trx->mutex_lock();
-    /* There is no need to check for new deadlocks, because only one
-    exclusive lock may exist on an object at a time. */
-    lock_table_dequeue(lock, true);
-    mysql_mutex_unlock(&lock_sys.wait_mutex);
-    trx->mutex_unlock();
-    table->lock_mutex_unlock();
-    lock_sys.rd_unlock();
-    lock= nullptr;
-    return;
-  }
-  ut_ad("lock not found" == 0);
-}
-
 /** Sets a lock on a table based on the given mode.
 @param[in]	table	table to lock
 @param[in,out]	trx	transaction

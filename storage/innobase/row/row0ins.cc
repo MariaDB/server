@@ -2689,7 +2689,7 @@ commit_exit:
 #endif /* BTR_CUR_HASH_ADAPT */
 		}
 
-		static_cast<ins_node_t*>(thr->run_node)->bulk_insert = true;
+		trx->bulk_insert = true;
 	}
 
 #ifndef DBUG_OFF

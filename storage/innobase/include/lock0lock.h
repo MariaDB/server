@@ -379,12 +379,6 @@ lock_table(
 @param mode     LOCK_X or LOCK_IX */
 void lock_table_resurrect(dict_table_t *table, trx_t *trx, lock_mode mode);
 
-/** Release a table X lock after rolling back an insert into an empty table
-(which was covered by a TRX_UNDO_EMPTY record).
-@param table    table to be X-unlocked
-@param trx      transaction */
-void lock_table_x_unlock(dict_table_t *table, trx_t *trx);
-
 /** Sets a lock on a table based on the given mode.
 @param[in]	table	table to lock
 @param[in,out]	trx	transaction

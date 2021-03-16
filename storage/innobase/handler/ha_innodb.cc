@@ -3062,9 +3062,6 @@ ha_innobase::reset_template(void)
 		m_prebuilt->pk_filter = NULL;
 		m_prebuilt->template_type = ROW_MYSQL_NO_TEMPLATE;
 	}
-	if (ins_node_t* node = m_prebuilt->ins_node) {
-		node->bulk_insert = false;
-	}
 }
 
 /*****************************************************************//**
@@ -3119,6 +3116,7 @@ ha_innobase::init_table_handle_for_HANDLER(void)
 	m_prebuilt->used_in_HANDLER = TRUE;
 
 	reset_template();
+	m_prebuilt->trx->bulk_insert = false;
 }
 
 #ifdef WITH_INNODB_DISALLOW_WRITES
@@ -15091,9 +15089,7 @@ ha_innobase::extra(
 		shared lock instead of an exclusive lock. */
 	stmt_boundary:
 		trx->end_bulk_insert(*m_prebuilt->table);
-		if (ins_node_t* node = m_prebuilt->ins_node) {
-			node->bulk_insert = false;
-		}
+		trx->bulk_insert = false;
 		break;
 	case HA_EXTRA_NO_KEYREAD:
 		m_prebuilt->read_just_key = 0;
@@ -15109,12 +15105,22 @@ ha_innobase::extra(
 		goto stmt_boundary;
 	case HA_EXTRA_NO_IGNORE_DUP_KEY:
 		trx->duplicates &= ~TRX_DUP_IGNORE;
+		if (trx->is_bulk_insert()) {
+			/* Allow a subsequent INSERT into an empty table
+			if !unique_checks && !foreign_key_checks. */
+			break;
+		}
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CAN_REPLACE:
 		trx->duplicates |= TRX_DUP_REPLACE;
 		goto stmt_boundary;
 	case HA_EXTRA_WRITE_CANNOT_REPLACE:
 		trx->duplicates &= ~TRX_DUP_REPLACE;
+		if (trx->is_bulk_insert()) {
+			/* Allow a subsequent INSERT into an empty table
+			if !unique_checks && !foreign_key_checks. */
+			break;
+		}
 		goto stmt_boundary;
 	case HA_EXTRA_BEGIN_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 1;
@@ -15192,17 +15198,34 @@ ha_innobase::start_stmt(
 	/* Reset the AUTOINC statement level counter for multi-row INSERTs. */
 	trx->n_autoinc_rows = 0;
 
-	m_prebuilt->sql_stat_start = TRUE;
+	const auto sql_command = thd_sql_command(thd);
+
 	m_prebuilt->hint_need_to_fetch_extra_cols = 0;
 	reset_template();
-	trx->end_bulk_insert(*m_prebuilt->table);
+
+	switch (sql_command) {
+	case SQLCOM_INSERT:
+	case SQLCOM_INSERT_SELECT:
+		if (trx->is_bulk_insert()) {
+			/* Allow a subsequent INSERT into an empty table
+			if !unique_checks && !foreign_key_checks. */
+			break;
+		}
+		/* fall through */
+	default:
+		trx->end_bulk_insert(*m_prebuilt->table);
+		m_prebuilt->sql_stat_start = TRUE;
+		if (!trx->bulk_insert) {
+			break;
+		}
+		trx->bulk_insert = false;
+		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
+	}
 
 	if (m_prebuilt->table->is_temporary()
 	    && m_mysql_has_locked
 	    && m_prebuilt->select_lock_type == LOCK_NONE) {
-		dberr_t error;
-
-		switch (thd_sql_command(thd)) {
+		switch (sql_command) {
 		case SQLCOM_INSERT:
 		case SQLCOM_UPDATE:
 		case SQLCOM_DELETE:
@@ -15210,12 +15233,9 @@ ha_innobase::start_stmt(
 			init_table_handle_for_HANDLER();
 			m_prebuilt->select_lock_type = LOCK_X;
 			m_prebuilt->stored_select_lock_type = LOCK_X;
-			error = row_lock_table(m_prebuilt);
-
-			if (error != DB_SUCCESS) {
-				int	st = convert_error_code_to_mysql(
-					error, 0, thd);
-				DBUG_RETURN(st);
+			if (dberr_t error = row_lock_table(m_prebuilt)) {
+				DBUG_RETURN(convert_error_code_to_mysql(
+						    error, 0, thd));
 			}
 			break;
 		}
@@ -15229,9 +15249,9 @@ ha_innobase::start_stmt(
 
 		m_prebuilt->select_lock_type = LOCK_X;
 
-	} else if (trx->isolation_level != TRX_ISO_SERIALIZABLE
-		   && thd_sql_command(thd) == SQLCOM_SELECT
-		   && lock_type == TL_READ) {
+	} else if (sql_command == SQLCOM_SELECT
+		   && lock_type == TL_READ
+		   && trx->isolation_level != TRX_ISO_SERIALIZABLE) {
 
 		/* For other than temporary tables, we obtain
 		no lock for consistent read (plain SELECT). */
@@ -15339,9 +15359,11 @@ ha_innobase::external_lock(
 		}
 	}
 
+	const auto sql_command = thd_sql_command(thd);
+
 	/* Check for UPDATEs in read-only mode. */
 	if (srv_read_only_mode) {
-		switch (thd_sql_command(thd)) {
+		switch (sql_command) {
 		case SQLCOM_CREATE_TABLE:
 			if (lock_type != F_WRLCK) {
 				break;
@@ -15368,13 +15390,29 @@ ha_innobase::external_lock(
 	m_prebuilt->hint_need_to_fetch_extra_cols = 0;
 
 	reset_template();
-	trx->end_bulk_insert(*m_prebuilt->table);
+	switch (sql_command) {
+	case SQLCOM_INSERT:
+	case SQLCOM_INSERT_SELECT:
+		if (trx->is_bulk_insert()) {
+			/* Allow a subsequent INSERT into an empty table
+			if !unique_checks && !foreign_key_checks. */
+			break;
+		}
+		/* fall through */
+	default:
+		trx->end_bulk_insert(*m_prebuilt->table);
+		if (!trx->bulk_insert) {
+			break;
+		}
+		trx->bulk_insert = false;
+		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
+	}
 
 	switch (m_prebuilt->table->quiesce) {
 	case QUIESCE_START:
 		/* Check for FLUSH TABLE t WITH READ LOCK; */
 		if (!srv_read_only_mode
-		    && thd_sql_command(thd) == SQLCOM_FLUSH
+		    && sql_command == SQLCOM_FLUSH
 		    && lock_type == F_RDLCK) {
 
 			if (!m_prebuilt->table->space) {
@@ -15458,7 +15496,7 @@ ha_innobase::external_lock(
 
 		if (m_prebuilt->select_lock_type != LOCK_NONE) {
 
-			if (thd_sql_command(thd) == SQLCOM_LOCK_TABLES
+			if (sql_command == SQLCOM_LOCK_TABLES
 			    && THDVAR(thd, table_locks)
 			    && thd_test_options(thd, OPTION_NOT_AUTOCOMMIT)
 			    && thd_in_lock_tables(thd)) {

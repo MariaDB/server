@@ -207,9 +207,6 @@ struct ins_node_t
 				and buffers for sys fields in row allocated */
         void vers_update_end(row_prebuilt_t *prebuilt, bool history_row);
 	bool vers_history_row() const; /* true if 'row' is historical */
-
-	/** Bulk insert enabled for this table */
-	bool		bulk_insert= false;
 };
 
 /** Create an insert object.
