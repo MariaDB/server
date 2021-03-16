@@ -4205,7 +4205,7 @@ row_rename_table_for_mysql(
 	for (retry = 0; retry < 100
 	     && table->n_foreign_key_checks_running > 0; ++retry) {
 		row_mysql_unlock_data_dictionary(trx);
-		os_thread_yield();
+		std::this_thread::yield();
 		row_mysql_lock_data_dictionary(trx);
 	}
 

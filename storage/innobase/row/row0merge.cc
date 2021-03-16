@@ -1994,7 +1994,7 @@ row_merge_read_clustered_index(
 				mtr_started = false;
 
 				/* Give the waiters a chance to proceed. */
-				os_thread_yield();
+				std::this_thread::yield();
 scan_next:
 				ut_ad(!mtr_started);
 				ut_ad(!mtr.is_active());

@@ -2171,7 +2171,7 @@ btr_search_hash_table_validate(ulint hash_table_id)
 			mysql_mutex_unlock(&buf_pool.mutex);
 			btr_search_x_unlock_all();
 
-			os_thread_yield();
+			std::this_thread::yield();
 
 			btr_search_x_lock_all();
 
@@ -2279,7 +2279,7 @@ state_ok:
 			mysql_mutex_unlock(&buf_pool.mutex);
 			btr_search_x_unlock_all();
 
-			os_thread_yield();
+			std::this_thread::yield();
 
 			btr_search_x_lock_all();
 

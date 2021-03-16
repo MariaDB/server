@@ -1927,7 +1927,7 @@ void srv_shutdown_bg_undo_sources()
 		dict_stats_shutdown();
 		while (row_get_background_drop_list_len_low()) {
 			srv_inc_activity_count();
-			os_thread_yield();
+			std::this_thread::yield();
 		}
 		srv_undo_sources = false;
 	}

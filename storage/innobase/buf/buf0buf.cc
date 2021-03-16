@@ -288,7 +288,7 @@ void page_hash_latch::read_lock_wait()
   }
   /* Fall back to yielding to other threads. */
   do
-    os_thread_yield();
+    std::this_thread::yield();
   while (!read_trylock());
 }
 
@@ -306,7 +306,7 @@ void page_hash_latch::write_lock_wait()
 
   /* Fall back to yielding to other threads. */
   do
-    os_thread_yield();
+    std::this_thread::yield();
   while (!write_lock_poll());
 }
 

@@ -60,7 +60,6 @@ extern "C"  { typedef void*	(*os_thread_func_t)(void*); }
 typedef void* (*os_posix_f_t) (void*);
 
 #define os_thread_eq(a,b) IF_WIN(a == b, pthread_equal(a, b))
-#define os_thread_yield() IF_WIN(SwitchToThread(), sched_yield())
 #define os_thread_get_curr_id() IF_WIN(GetCurrentThreadId(), pthread_self())
 
 /****************************************************************//**

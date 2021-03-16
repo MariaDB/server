@@ -919,7 +919,7 @@ loop:
 	}
 
 	if (doc_item == NULL) {
-		os_thread_yield();
+		std::this_thread::yield();
 	}
 
 	row_merge_fts_get_next_doc_item(psort_info, &doc_item);

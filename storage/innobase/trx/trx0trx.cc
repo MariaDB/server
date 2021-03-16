@@ -1378,7 +1378,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     }
 
     /* NOTE that we could possibly make a group commit more efficient
-    here: call os_thread_yield here to allow also other trxs to come
+    here: call std::this_thread::yield() here to allow also other trxs to come
     to commit! */
 
     /*-------------------------------------*/

@@ -967,7 +967,7 @@ trx_purge_choose_next_log(void)
 		trx_purge_read_undo_rec();
 	} else {
 		/* There is nothing to do yet. */
-		os_thread_yield();
+		std::this_thread::yield();
 	}
 }
 

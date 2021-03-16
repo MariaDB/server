@@ -260,7 +260,7 @@ void buf_flush_remove_pages(ulint id)
       break;
 
     mysql_mutex_unlock(&buf_pool.mutex);
-    os_thread_yield();
+    std::this_thread::yield();
     mysql_mutex_lock(&buf_pool.mutex);
     buf_flush_wait_batch_end(false);
   }
