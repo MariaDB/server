@@ -1,0 +1,16 @@
+--source include/have_innodb.inc
+
+#
+# Check if marking index as [not] ignored is an instant operation with InnoDB
+# 
+create table t1 (a int, b int, key a1(a)) engine=innodb;
+insert into t1 values (1,1),(2,2),(3,3);
+
+set alter_algorithm='instant';
+alter table t1 alter index a1 ignored;
+
+alter table t1 alter index a1 not ignored;
+
+set alter_algorithm=default;
+drop table t1;
+
