@@ -315,6 +315,7 @@ ELSE()
       mariadbd-multi
       mariadbd-safe
       mariadb-dumpslow
+      ${SYSTEMD_SCRIPTS}
     )
   ENDIF()
   # Configure this one, for testing, but do not install it.
@@ -333,7 +334,6 @@ ELSE()
     mariadb-hotcopy
     ${SERVER_SCRIPTS}
     ${WSREP_SCRIPTS}
-    ${SYSTEMD_SCRIPTS}
   )
 
   FOREACH(file ${BIN_SCRIPTS})
