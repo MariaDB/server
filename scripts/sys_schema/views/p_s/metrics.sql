@@ -68,6 +68,9 @@
 -- | UNIX_TIMESTAMP()                              | 1433042870.382          ...| System Time                          | YES     |
 -- +-----------------------------------------------+-------------------------...+--------------------------------------+---------+
 -- 412 rows in set (0.02 sec)
+DELIMITER $$
+BEGIN NOT ATOMIC
+DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN END;
 
 CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
@@ -85,7 +88,7 @@ SELECT LOWER(VARIABLE_NAME) AS Variable_name, VARIABLE_VALUE AS Variable_value, 
 ) UNION ALL (
 SELECT NAME AS Variable_name, COUNT AS Variable_value,
        CONCAT('InnoDB Metrics - ', SUBSYSTEM) AS Type,
-       IF(STATUS = 'enabled', 'YES', 'NO') AS Enabled
+      'YES' AS Enabled
   FROM information_schema.INNODB_METRICS
   -- Deduplication - some variables exists both in GLOBAL_STATUS and INNODB_METRICS
   -- Keep the one from GLOBAL_STATUS as it is always enabled and it's more likely to be used for existing tools.
@@ -119,3 +122,5 @@ SELECT 'NOW()' AS Variable_name, NOW(3) AS Variable_value, 'System Time' AS Type
 SELECT 'UNIX_TIMESTAMP()' AS Variable_name, ROUND(UNIX_TIMESTAMP(NOW(3)), 3) AS Variable_value, 'System Time' AS Type, 'YES' AS Enabled
 )
  ORDER BY Type, Variable_name;
+END$$
+DELIMITER ;

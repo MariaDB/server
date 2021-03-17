@@ -14,3 +14,5 @@
 -- Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA
 
 SET @@sql_log_bin = @sql_log_bin;
+use mysql;
+

@@ -83,9 +83,13 @@ CREATE DEFINER='root'@'localhost' FUNCTION sys_get_config (
     READS SQL DATA
 BEGIN
     DECLARE v_value VARCHAR(128) DEFAULT NULL;
+    DECLARE old_val INTEGER DEFAULT NULL;
+    SET old_val = @@session.sql_notes;
+    SET SESSION sql_notes=0;
 
     -- Check if we have the variable in the sys.sys_config table
     SET v_value = (SELECT value FROM sys.sys_config WHERE variable = in_variable_name);
+    SET SESSION sql_notes=old_val;
   
     -- Protection against the variable not existing in sys_config
     IF (v_value IS NULL) THEN

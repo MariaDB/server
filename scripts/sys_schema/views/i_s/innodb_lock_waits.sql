@@ -51,7 +51,11 @@
 -- sql_kill_blocking_connection: KILL 4
 -- 1 row in set (0.01 sec)
 --
-
+DELIMITER $$
+BEGIN NOT ATOMIC
+  DECLARE EXIT HANDLER FOR SQLEXCEPTION
+  BEGIN
+  END;
 CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
   DEFINER = 'root'@'localhost'
@@ -116,3 +120,5 @@ SELECT r.trx_wait_started AS wait_started,
        INNER JOIN information_schema.innodb_locks bl ON bl.lock_id = w.blocking_lock_id
        INNER JOIN information_schema.innodb_locks rl ON rl.lock_id = w.requested_lock_id
  ORDER BY r.trx_wait_started;
+ END$$
+DELIMITER ;

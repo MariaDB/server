@@ -24,4 +24,6 @@ CREATE TABLE IF NOT EXISTS sys_config (
     value VARCHAR(128),
     set_time TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     set_by VARCHAR(128)
-) ENGINE = InnoDB;
+) ENGINE = Aria transactional=1;
+
+

@@ -128,7 +128,7 @@ BEGIN
     -- in the setup_actors table were enabled.
     SELECT CONCAT('\'', user, '\'@\'', host, '\'') AS enabled_users
       FROM performance_schema.setup_actors
-     /*!50706 WHERE enabled = 'YES' */
+      WHERE enabled = 'YES'
      ORDER BY enabled_users;
 
     SELECT object_type,
@@ -150,7 +150,7 @@ BEGIN
                   REPLACE(name, 'thread/', '')) AS enabled_threads,
         TYPE AS thread_type
           FROM performance_schema.threads
-         WHERE INSTRUMENTED = 'YES'
+         WHERE INSTRUMENTED = 'YES' AND name <> 'thread/innodb/thread_pool_thread'
          ORDER BY enabled_threads;
     END IF;
 

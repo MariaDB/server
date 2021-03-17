@@ -272,8 +272,6 @@ BEGIN
     UNION ALL
     SELECT 'Datadir' AS 'Name', @@global.datadir AS 'Value'
     UNION ALL
-    SELECT 'Server UUID' AS 'Name', @@global.server_uuid AS 'Value'
-    UNION ALL
     SELECT REPEAT('-', 23) AS 'Name', v_banner AS 'Value'
     UNION ALL
     SELECT 'MySQL Version' AS 'Name', VERSION() AS 'Value'
@@ -307,10 +305,7 @@ BEGIN
                                    'YES',
                                    'NO'
                                ),
-        v_has_replication    = /*!50707 IF(v_has_ps_replication = 'YES', IF((SELECT COUNT(*) FROM performance_schema.replication_connection_status) > 0, 'YES', 'NO'),*/
-                                  IF(@@master_info_repository = 'TABLE', IF((SELECT COUNT(*) FROM mysql.slave_master_info) > 0, 'YES', 'NO'),
-                                     IF(@@relay_log_info_repository = 'TABLE', IF((SELECT COUNT(*) FROM mysql.slave_relay_log_info) > 0, 'YES', 'NO'),
-                                        'MAYBE'))/*!50707 )*/,
+        v_has_replication    = 'MAYBE',
         v_has_metrics        = IF(v_has_ps = 'YES' OR (sys.version_major() = 5 AND sys.version_minor() = 6), 'YES', 'NO'),
         v_has_ps_vars        = 'NO';
 
@@ -576,23 +571,6 @@ BEGIN
             SELECT 'Replication - Applier Configuration' AS 'The following output is:';
             SELECT * FROM performance_schema.replication_applier_configuration ORDER BY CHANNEL_NAME;
         END IF;
-
-        IF (@@master_info_repository = 'TABLE') THEN
-            SELECT 'Replication - Master Info Repository Configuration' AS 'The following output is:';
-            -- Can't just do SELECT *  as the password may be present in plain text
-            -- Don't include binary log file and position as that will be determined in each iteration as well
-            SELECT /*!50706 Channel_name, */Host, User_name, Port, Connect_retry,
-                   Enabled_ssl, Ssl_ca, Ssl_capath, Ssl_cert, Ssl_cipher, Ssl_key, Ssl_verify_server_cert,
-                   Heartbeat, Bind, Ignored_server_ids, Uuid, Retry_count, Ssl_crl, Ssl_crlpath,
-                   Tls_version, Enabled_auto_position
-              FROM mysql.slave_master_info/*!50706 ORDER BY Channel_name*/;
-        END IF;
-
-        IF (@@relay_log_info_repository = 'TABLE') THEN
-            SELECT 'Replication - Relay Log Repository Configuration' AS 'The following output is:';
-            SELECT /*!50706 Channel_name, */Sql_delay, Number_of_workers, Id
-              FROM mysql.slave_relay_log_info/*!50706 ORDER BY Channel_name*/;
-        END IF;
     END IF;
 
 
@@ -696,38 +674,6 @@ BEGIN
         IF (v_has_replication <> 'NO') THEN
             SELECT 'SHOW SLAVE STATUS' AS 'The following output is:';
             SHOW SLAVE STATUS;
-            
-            IF (v_has_ps_replication = 'YES') THEN
-                SELECT 'Replication Connection Status' AS 'The following output is:';
-                SELECT * FROM performance_schema.replication_connection_status;
-
-                SELECT 'Replication Applier Status' AS 'The following output is:';
-                SELECT * FROM performance_schema.replication_applier_status ORDER BY CHANNEL_NAME;
-                
-                SELECT 'Replication Applier Status - Coordinator' AS 'The following output is:';
-                SELECT * FROM performance_schema.replication_applier_status_by_coordinator ORDER BY CHANNEL_NAME;
-
-                SELECT 'Replication Applier Status - Worker' AS 'The following output is:';
-                SELECT * FROM performance_schema.replication_applier_status_by_worker ORDER BY CHANNEL_NAME, WORKER_ID;
-            END IF;
-
-            IF (@@master_info_repository = 'TABLE') THEN
-                SELECT 'Replication - Master Log Status' AS 'The following output is:';
-                SELECT Master_log_name, Master_log_pos FROM mysql.slave_master_info;
-            END IF;
-
-            IF (@@relay_log_info_repository = 'TABLE') THEN
-                SELECT 'Replication - Relay Log Status' AS 'The following output is:';
-                SELECT sys.format_path(Relay_log_name) AS Relay_log_name, Relay_log_pos, Master_log_name, Master_log_pos FROM mysql.slave_relay_log_info;
-
-                SELECT 'Replication - Worker Status' AS 'The following output is:';
-                SELECT Id, sys.format_path(Relay_log_name) AS Relay_log_name, Relay_log_pos, Master_log_name, Master_log_pos,
-                       sys.format_path(Checkpoint_relay_log_name) AS Checkpoint_relay_log_name, Checkpoint_relay_log_pos,
-                       Checkpoint_master_log_name, Checkpoint_master_log_pos, Checkpoint_seqno, Checkpoint_group_size,
-                       HEX(Checkpoint_group_bitmap) AS Checkpoint_group_bitmap/*!50706 , Channel_name*/
-                  FROM mysql.slave_worker_info
-              ORDER BY /*!50706 Channel_name, */Id;
-            END IF;
         END IF;
 
         -- We need one table per output as a temporary table cannot be opened twice in the same query, and we need to
@@ -739,7 +685,7 @@ BEGIN
         CALL sys.execute_prepared_stmt(CONCAT('CREATE TEMPORARY TABLE ', v_table_name, ' (
   Variable_name VARCHAR(193) NOT NULL,
   Variable_value VARCHAR(1024),
-  Type VARCHAR(225) NOT NULL,
+  Type VARCHAR(100) NOT NULL,
   Enabled ENUM(''YES'', ''NO'', ''PARTIAL'') NOT NULL,
   PRIMARY KEY (Type, Variable_name)
 ) ENGINE = InnoDB DEFAULT CHARSET=utf8'));
@@ -784,7 +730,7 @@ SELECT ''UNIX_TIMESTAMP()'' AS Variable_name, ROUND(UNIX_TIMESTAMP(NOW(3)), 3) A
 
         -- Prepare the query to retrieve the summary
         CALL sys.execute_prepared_stmt(
-            CONCAT('(SELECT Variable_value INTO @sys.diagnostics.output_time FROM ', v_table_name, ' WHERE Type = ''System Time'' AND Variable_name = ''UNIX_TIMESTAMP()'')')
+            CONCAT('SELECT Variable_value INTO @sys.diagnostics.output_time FROM ', v_table_name, ' WHERE Type = ''System Time'' AND Variable_name = ''UNIX_TIMESTAMP()''')
         );
         SET v_output_time = @sys.diagnostics.output_time;
 

@@ -49,7 +49,11 @@
 --    innodb_buffer_pages_old: 42
 --  innodb_buffer_rows_cached: 210
 --
- 
+
+DELIMITER $$
+BEGIN NOT ATOMIC
+DECLARE EXIT HANDLER FOR SQLEXCEPTION BEGIN END;
+
 CREATE OR REPLACE
   ALGORITHM = TEMPTABLE
   DEFINER = 'root'@'localhost'
@@ -114,3 +118,5 @@ SELECT pst.object_schema AS table_schema,
     ON pst.object_schema = ibp.object_schema
    AND pst.object_name = ibp.object_name
  ORDER BY pst.sum_timer_wait DESC;
+END$$
+DELIMITER ;
