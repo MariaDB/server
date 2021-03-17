@@ -9186,4 +9186,32 @@ json_detailed(json_extract(trace, '$**.lateral_derived'))
     }
 ]
 drop table t1,t2;
+#
+# Test table functions.
+#
+CREATE TABLE t1(id INT, f1 JSON);
+INSERT INTO t1 VALUES (1, '{\"1\": 1}'), (2, '{\"1\": 2}'), (3, '{\"1\": 3}'),
+(4, '{\"1\": 4}'), (5, '{\"1\": 5}'), (6, '{\"1\": 6}');
+SELECT * FROM t1 WHERE id IN
+(SELECT id FROM t1 as tt2,
+JSON_TABLE(f1, "$" COLUMNS (jf FOR ORDINALITY)) AS tbl);
+id	f1
+1	{"1": 1}
+2	{"1": 2}
+3	{"1": 3}
+4	{"1": 4}
+5	{"1": 5}
+6	{"1": 6}
+select json_detailed(json_extract(trace, '$**.best_join_order'))
+from information_schema.OPTIMIZER_TRACE;
+json_detailed(json_extract(trace, '$**.best_join_order'))
+[
+    
+    [
+        "t1",
+        "<subquery2>"
+    ]
+]
+DROP TABLE t1;
+# End of 10.6 tests
 set optimizer_trace='enabled=off';

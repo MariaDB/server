@@ -7104,6 +7104,9 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
     if (table_ref->is_anonymous_derived_table())
       continue;
 
+    if (table_ref->table_function)
+      continue;
+
     if (table_ref->sequence)
     {
       /* We want to have either SELECT or INSERT rights to sequences depending
@@ -8159,7 +8162,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 					     enum_mdl_type mdl_type,
 					     List<Index_hint> *index_hints_arg,
                                              List<String> *partition_names,
-                                             LEX_STRING *option)
+                                             LEX_STRING *option,
+                                             Table_function_json_table *tfunc)
 {
   TABLE_LIST *ptr;
   TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
@@ -8184,6 +8188,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
   }
 
   if (unlikely(table->is_derived_table() == FALSE && table->db.str &&
+               !(table_options & TL_OPTION_TABLE_FUNCTION) &&
                check_db_name((LEX_STRING*) &table->db)))
   {
     my_error(ER_WRONG_DB_NAME, MYF(0), table->db.str);
@@ -8227,6 +8232,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
       
   ptr->table_name= table->table;
   ptr->lock_type=   lock_type;
+  ptr->table_function= tfunc;
   ptr->updating=    MY_TEST(table_options & TL_OPTION_UPDATING);
   /* TODO: remove TL_OPTION_FORCE_INDEX as it looks like it's not used */
   ptr->force_index= MY_TEST(table_options & TL_OPTION_FORCE_INDEX);
@@ -8271,7 +8277,9 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     {
       if (unlikely(!my_strcasecmp(table_alias_charset, alias_str.str,
                                   tables->alias.str) &&
-                   !cmp(&ptr->db, &tables->db) && ! tables->sequence))
+                   (tables->table_function || ptr->table_function ||
+                    !cmp(&ptr->db, &tables->db)) &&
+                   !tables->sequence))
       {
 	my_error(ER_NONUNIQ_TABLE, MYF(0), alias_str.str); /* purecov: tested */
 	DBUG_RETURN(0);				/* purecov: tested */

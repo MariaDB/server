@@ -115,10 +115,6 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
 }
 
 
-void report_json_error_ex(String *js, json_engine_t *je,
-                          const char *fname, int n_param,
-                          Sql_condition::enum_warning_level lv);
-
 String *Item_func_geometry_from_json::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
@@ -178,7 +174,8 @@ String *Item_func_geometry_from_json::val_str(String *str)
       my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeomFromGeoJSON");
       break;
     default:
-      report_json_error_ex(js, &je, func_name(), 0, Sql_condition::WARN_LEVEL_WARN);
+      report_json_error_ex(js->ptr(), &je, func_name(), 0,
+                           Sql_condition::WARN_LEVEL_WARN);
       return NULL;
     }
 

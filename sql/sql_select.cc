@@ -1242,6 +1242,14 @@ JOIN::prepare(TABLE_LIST *tables_init, COND *conds_init, uint og_num,
   enum_parsing_place save_place=
                      thd->lex->current_select->context_analysis_place;
   thd->lex->current_select->context_analysis_place= SELECT_LIST;
+
+  for (TABLE_LIST *tbl= tables_list; tbl; tbl= tbl->next_local)
+  {
+    if (tbl->table_function &&
+        tbl->table_function->setup(thd, tbl, select_lex_arg))
+      DBUG_RETURN(-1);
+  }
+
   if (setup_fields(thd, ref_ptrs, fields_list, MARK_COLUMNS_READ,
                    &all_fields, &select_lex->pre_fix, 1))
     DBUG_RETURN(-1);
@@ -12753,6 +12761,10 @@ uint check_join_cache_usage(JOIN_TAB *tab,
       !join->allowed_outer_join_with_cache)
     goto no_join_cache;
 
+  if (tab->table->pos_in_table_list->table_function &&
+      !tab->table->pos_in_table_list->table_function->join_cache_allowed())
+    goto no_join_cache;
+
   /*
     Non-linked join buffers can't guarantee one match
   */
@@ -16531,7 +16543,7 @@ simplify_joins(JOIN *join, List<TABLE_LIST> *join_list, COND *conds, bool top,
       if (table->outer_join && !table->embedding && table->table)
         table->table->maybe_null= FALSE;
       table->outer_join= 0;
-      if (!(straight_join || table->straight))
+      if (!(straight_join || table->straight || table->table_function))
       {
         table->dep_tables= 0;
         TABLE_LIST *embedding= table->embedding;
@@ -26854,6 +26866,9 @@ bool JOIN_TAB::save_explain_data(Explain_table_access *eta,
       !((QUICK_ROR_INTERSECT_SELECT*)cur_quick)->need_to_fetch_row)
     key_read=1;
     
+  if (table_list->table_function)
+    eta->push_extra(ET_TABLE_FUNCTION);
+
   if (info)
   {
     eta->push_extra(info);
@@ -27689,6 +27704,14 @@ void TABLE_LIST::print(THD *thd, table_map eliminated_tables, String *str,
         append_identifier(thd, str, &table_name);
         cmp_name= table_name.str;
       }
+    }
+    else if (table_function)
+    {
+      /* A table function. */
+      (void) table_function->print(thd, this, str, query_type);
+      str->append(' ');
+      append_identifier(thd, str, &alias);
+      cmp_name= alias.str;
     }
     else
     {

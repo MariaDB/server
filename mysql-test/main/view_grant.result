@@ -1954,3 +1954,18 @@ connection default;
 drop user user_11766767;
 drop database mysqltest1;
 drop database mysqltest2;
+# Check that a user without access to the schema 'foo' cannot query
+# a JSON_TABLE view in that schema.
+CREATE SCHEMA foo;
+CREATE VIEW foo.v AS SELECT * FROM JSON_TABLE('[1,2,3]', '$[*]' COLUMNS (num INT PATH '$[0]')) AS jt;
+CREATE USER foo@localhost;
+connect  con1,localhost,foo,,;
+SELECT * FROM foo.v;
+ERROR 42000: SELECT command denied to user 'foo'@'localhost' for table 'v'
+#
+# Clean-up.
+#
+connection default;
+disconnect con1;
+drop user foo@localhost;
+drop schema foo;

@@ -637,6 +637,22 @@ void eliminate_tables(JOIN *join)
   List_iterator<Item> it(join->fields_list);
   while ((item= it++))
     used_tables |= item->used_tables();
+
+  {
+    /*
+      Table function JSON_TABLE() can have references to other tables. Do not
+      eliminate the tables that JSON_TABLE() refers to.
+      Note: the JSON_TABLE itself cannot be eliminated as it doesn't
+            have unique keys.
+    */
+    List_iterator<TABLE_LIST> it(join->select_lex->leaf_tables);
+    TABLE_LIST *tbl;
+    while ((tbl= it++))
+    {
+      if (tbl->table_function)
+        used_tables|= tbl->table_function->used_tables();
+    }
+  }
  
   /* Add tables referred to from ORDER BY and GROUP BY lists */
   ORDER *all_lists[]= { join->order, join->group_list};

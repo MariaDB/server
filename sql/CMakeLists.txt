@@ -164,6 +164,7 @@ SET (SQL_SOURCE
                rowid_filter.cc rowid_filter.h
                opt_trace.cc
                table_cache.cc encryption.cc temporary_tables.cc
+               json_table.cc
                proxy_protocol.cc backup.cc xa.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h

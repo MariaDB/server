@@ -619,10 +619,12 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
 }
 
 
+const char *hton_no_exts[]= { 0 };
+
+
 int ha_initialize_handlerton(st_plugin_int *plugin)
 {
   handlerton *hton;
-  static const char *no_exts[]= { 0 };
   DBUG_ENTER("ha_initialize_handlerton");
   DBUG_PRINT("plugin", ("initialize plugin: '%s'", plugin->name.str));
 
@@ -635,7 +637,7 @@ int ha_initialize_handlerton(st_plugin_int *plugin)
     goto err_no_hton_memory;
   }
 
-  hton->tablefile_extensions= no_exts;
+  hton->tablefile_extensions= hton_no_exts;
   hton->discover_table_names= hton_ext_based_table_discovery;
   hton->drop_table= hton_drop_table;
 

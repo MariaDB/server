@@ -8150,6 +8150,14 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     if (!want_access)
       continue;                                 // ok
 
+    if (t_ref->table_function)
+    {
+      /* Table function doesn't need any privileges to be checked.  */
+      t_ref->grant.privilege|= TMP_TABLE_ACLS;
+      t_ref->grant.want_privilege= NO_ACL;
+      continue;
+    }
+
     if (!(~t_ref->grant.privilege & want_access) ||
         t_ref->is_anonymous_derived_table() || t_ref->schema_table)
     {

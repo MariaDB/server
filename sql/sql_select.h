@@ -2448,7 +2448,6 @@ bool instantiate_tmp_table(TABLE *table, KEY *keyinfo,
                            TMP_ENGINE_COLUMNDEF **recinfo,
                            ulonglong options);
 bool open_tmp_table(TABLE *table);
-void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
 double prev_record_reads(const POSITION *positions, uint idx, table_map found_ref);
 void fix_list_after_tbl_changes(SELECT_LEX *new_parent, List<TABLE_LIST> *tlist);
 double get_tmp_table_lookup_cost(THD *thd, double row_count, uint row_size);

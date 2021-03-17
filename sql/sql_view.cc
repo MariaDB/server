@@ -522,7 +522,7 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     {
       /* is this table temporary and is not view? */
       if (tbl->table->s->tmp_table != NO_TMP_TABLE && !tbl->view &&
-          !tbl->schema_table)
+          !tbl->schema_table && !tbl->table_function)
       {
         my_error(ER_VIEW_SELECT_TMPTABLE, MYF(0), tbl->alias.str);
         res= TRUE;

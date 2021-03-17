@@ -1,0 +1,351 @@
+select * from json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+
+select * from JSON_TABLE( '[ {"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+SELECT *  FROM   JSON_TABLE( '[ {"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'), NESTED PATH '$.b[*]' COLUMNS (c INT PATH '$') ) ) jt;
+
+create table t1 (id varchar(5), json varchar(1024));
+insert into t1 values ('j1', '[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]');
+insert into t1 values ('j2', '[{"a": 3, "b": [11,111]}, {"a": 4, "b": [22,222]}, {"a": 5, "b": [22,222]}]');
+select id, json, a from t1, json_table(t1.json, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a')) as tt;
+select * from t1, JSON_TABLE(t1.json, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (l_js_id FOR ORDINALITY, b INT PATH '$'))) as jt;
+--error ER_BAD_FIELD_ERROR
+select * from t1, JSON_TABLE(t1.no_field, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (l_js_id FOR ORDINALITY, b INT PATH '$'))) as jt;
+
+--error ER_DUP_FIELDNAME
+select * from t1, JSON_TABLE(t1.no_field, '$[*]' COLUMNS(js_id FOR ORDINALITY, a INT PATH '$.a', NESTED PATH '$.b[*]' COLUMNS (l_js_id FOR ORDINALITY, a INT PATH '$'))) as jt;
+
+DROP TABLE t1;
+
+create table t1 (item_name varchar(32), item_props varchar(1024));
+insert into t1 values ('Laptop', '{"color": "black", "price": 1000}');
+insert into t1 values ('Jeans',  '{"color": "blue", "price": 50}');
+
+select * from t1 left join json_table(t1.item_props,'$' columns( color varchar(100) path '$.color')) as T on 1;
+
+--error ER_WRONG_OUTER_JOIN
+select * from t1 right join json_table(t1.item_props,'$' columns( color varchar(100) path '$.color')) as T on 1;
+
+DROP TABLE t1;
+
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+select * from JSON_TABLE( '[ {"xa": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+select * from JSON_TABLE( '[ {"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+select * from JSON_TABLE( '[ {"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+--error ER_JSON_SYNTAX
+select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3} xx YY]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' error on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
+
+#
+# MDEV-22290 JSON_TABLE: Decimal type with M equal D causes Assertion
+#    `scale <= precision' failure
+#
+select * from json_table('{"a":0}',"$" columns(a decimal(1,1) path '$.a')) foo;
+
+
+#
+# MDEV-22291 JSON_TABLE: SELECT from json_table does not work without default database
+#
+connect (con1,localhost,root,,);
+select a from json_table('{"a":0}',"$" columns(a for ordinality)) foo;
+connection default;
+disconnect con1;
+
+#
+# MDEV-22302 JSON_TABLE: Column privilege is insufficient for query with json_table
+#
+
+create database db;
+use db;
+create table t (a text);
+insert into t values ('{"foo":"bar"}');
+create user u@localhost;
+grant select (a) on db.t to u@localhost;
+ 
+--connect (con1,localhost,u,,db)
+select a from t;
+select * from t, json_table(t.a, '$' columns(f varchar(20) path '$.foo')) as jt;
+
+connection default;
+disconnect con1;
+
+drop user u@localhost;
+drop database db;
+
+use test;
+create table t1 (
+      color varchar(32),
+        price int
+    );
+insert into t1 values ("red", 100), ("blue", 50);
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+
+set @save_optimizer_switch=@@optimizer_switch;
+set optimizer_switch='firstmatch=off';
+select * from 
+  json_table('[{"color": "blue", "price": 50},
+                     {"color": "red", "price": 100}]',
+                                  '$[*]' columns( color varchar(100) path '$.color',
+                                                              price text path '$.price'
+                                                                                      )
+                                               ) as T
+  where
+    T.color in (select color from t1 where t1.price=T.price);
+set @@optimizer_switch=@save_optimizer_switch;
+
+drop table t1;
+
+select * from
+json_table(' [ {"color": "blue", "sizes": [1,2,3,4],  "prices" : [10,20]},
+               {"color": "red",  "sizes": [10,11,12,13,14],  "prices" : [100,200,300]} ]',
+    '$[*]' columns(
+      color varchar(4) path '$.color',
+      seq0 for ordinality,
+      nested path '$.sizes[*]'
+      columns (seq1 for ordinality,
+        size int path '$'),
+      nested path '$.prices[*]'
+      columns (seq2 for ordinality,
+        price int path '$')
+      )
+    ) as T;
+
+
+select * from   json_table('[{"color": "blue", "price": 50},
+    {"color": "red", "price": 100},
+    {"color": "rojo", "price": 10.0},
+    {"color": "blanco", "price": 11.0}]',
+    '$[*]' columns( color varchar(100) path '$.color',
+      price text path '$.price', seq for ordinality)) as T order by color desc;
+
+create view v as select * from json_table('{"as":"b", "x":123}',"$" columns(a varchar(8) path '$.a' default '-' on empty, x int path '$.x')) x;
+select * from v;
+show create table v;
+drop view v;
+
+--error ER_PARSE_ERROR
+select * from json_table('{"as":"b", "x":123}',
+        "$" columns(a varchar(8) path '$.a' default '-' on empty null on error null on empty, x int path '$.x')) x;
+
+select * from json_table('{"a":"foo","b":"bar"}', '$'
+      columns (v varchar(20) path '$.*')) as jt;
+
+select * from json_table('{"a":"foo","b":"bar"}', '$'
+      columns (v varchar(20) path '$.*' default '-' on error)) as jt;
+
+select * from json_table('{"b":"bar"}', '$'
+      columns (v varchar(20) path '$.*' default '-' on error)) as jt;
+
+create table t1 (a varchar(100));
+insert into t1 values ('1');
+--error ER_NONUNIQ_TABLE
+select * from t1 as T, json_table(T.a, '$[*]' columns(color varchar(100) path '$.nonexistent', seq for ordinality)) as T;
+
+drop table t1;
+
+prepare s from 'select * from
+json_table(?,
+    \'$[*]\' columns( color varchar(100) path \'$.color\',
+      price text path \'$.price\',
+      seq for ordinality)) as T
+order by color desc; ';
+
+execute s using '[{"color": "red", "price":1}, {"color":"brown", "price":2}]';
+deallocate prepare s;
+
+create view v2 as select * from   json_table('[{"co\\\\lor": "blue", "price": 50}]',              '$[*]' columns( color varchar(100) path '$.co\\\\lor')              ) as T;
+select * from v2;
+drop view v2;
+
+explain format=json select * from
+  json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+explain select * from
+  json_table('[{"a": 1, "b": [11,111]}, {"a": 2, "b": [22,222]}]', '$[*]' COLUMNS( a INT PATH '$.a')) as tt;
+
+create view v1 as select * from
+  json_table('[{"color": "blue", "price": 50}]',
+             '$[*]' columns(color text path '$.nonexistent',
+              seq for ordinality)) as `ALIAS NOT QUOTED`;
+select * from v1;
+drop view v1;
+create view v1 as select * from
+  json_table('[{"color": "blue", "price": 50},
+               {"color": "red", "price": 100}]',
+               '$[*]' columns(
+                   color text path "$.QUOTES \" HERE \"",
+                   color1 text path '$.QUOTES " HERE "',
+                   color2 text path "$.QUOTES ' HERE '",
+                   seq for ordinality)) as T;
+select * from v1;
+drop view v1;
+
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (1), (2), (3);
+--error ER_BAD_FIELD_ERROR
+SELECT t1.x*2 m, jt.* FROM t1,
+       JSON_TABLE(m, '$[*]' COLUMNS (i INT PATH '$')) jt;
+DROP TABLE t1;
+
+--error ER_UNKNOWN_TABLE
+select *  from   json_table(JS3.size, '$' columns (size INT PATH '$.size')) as JS1,   json_table(JS1.size, '$' columns (size INT PATH '$.size')) as JS2,   json_table(JS1.size, '$' columns (size INT PATH '$.size')) as JS3 where  1;
+
+create table t1 (json varchar(100) character set utf8);
+insert into t1 values ('{"value":"АБВ"}');
+create table tj1 as 
+select T.value
+  from t1, json_table(t1.json, '$' columns (value varchar(32) PATH '$.value')) T;
+show create table tj1;
+drop table t1;
+drop table tj1;
+
+CREATE TABLE t1(id INT, f1 JSON);
+INSERT INTO t1 VALUES
+ (1, '{\"1\": 1}'),
+ (2, '{\"1\": 2}'),
+ (3, '{\"1\": 3}'),
+ (4, '{\"1\": 4}'),
+ (5, '{\"1\": 5}'),
+ (6, '{\"1\": 6}');
+ANALYZE TABLE t1;
+
+--error ER_UNKNOWN_TABLE
+SELECT * FROM JSON_TABLE(tt3.f1, "$" COLUMNS (id FOR ORDINALITY)) AS tbl STRAIGHT_JOIN t1 AS tt3;
+--error ER_BAD_FIELD_ERROR
+SELECT * FROM t1 as jj1,
+  (SELECT tt2.*
+   FROM
+      t1 as tt2,
+      JSON_TABLE(tt3.f1, "$" COLUMNS (id FOR ORDINALITY)) AS tbl
+      STRAIGHT_JOIN
+      t1 AS tt3
+   ) dt
+ORDER BY 1,3 LIMIT 10;
+
+drop table t1;
+
+select collation(x) from 
+    JSON_TABLE('["abc"]', '$[*]' COLUMNS (x VARCHAR(10) CHARSET latin1 PATH '$')) tbl;
+
+SELECT * FROM  JSON_TABLE('{"x":1, "y":2}', _utf8mb4'$' COLUMNS (NESTED PATH _utf8mb4'$.x'
+  COLUMNS(y INT PATH _utf8mb4'$.y' DEFAULT _utf8mb4'1' ON EMPTY DEFAULT _utf8mb4'2' ON ERROR))) jt;
+
+select * from json_table(
+'{"name":"t-shirt", "colors": ["yellow", "blue"],"sizes":  ["small", "medium", "large"]}', 
+ '$' columns(name varchar(32) path '$.name',
+             nested path '$.colors[*]' columns (
+               color varchar(32) path '$',
+               nested path '$.sizes[*]' columns (
+                 size varchar(32) path '$' 
+)))) as t;
+
+SELECT x, length(x) FROM
+  JSON_TABLE('{}', '$' COLUMNS (x VARCHAR(10) PATH '$.x' DEFAULT 'abcdefg' ON EMPTY)) jt;
+
+# check how conversion works for JSON NULL, TRUE and FALSE
+
+select * from
+  json_table('[{"a":"aa"}, {"b":null}]', '$[*]'
+      columns (col1 int path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":true}]', '$[*]'
+      columns (col1 int path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":false}]', '$[*]'
+      columns (col1 int path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":null}]', '$[*]'
+      columns (col1 varchar(100) path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":true}]', '$[*]'
+      columns (col1 varchar(100) path '$.b' default '456' on empty)) as tt;
+
+select * from
+  json_table('[{"a":"aa"}, {"b":false}]', '$[*]'
+      columns (col1 varchar(100) path '$.b' default '456' on empty)) as tt;
+
+
+select * from
+  json_table( '[{"a":"asd"}, {"a":123}, {"a":[]}, {"a":{}} ]', '$[*]'
+      columns (id for ordinality,
+        intcol int path '$.a' default '1234' on empty default '5678' on error)
+      ) as tt;
+
+SELECT COUNT(*) FROM JSON_TABLE('[1, 2]', '$[*]' COLUMNS( I INT PATH '$')) tt;
+
+create table t1 (a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+create table t2 (js json, b int);
+insert into t2 select '[1,2,3]',A.a from t1 A, t1 B;
+
+explain select * from t1,
+    (select * from t2, json_table(t2.js, '$[*]' columns (o for ordinality)) as jt) as TT2
+    where 1;
+
+drop table t1, t2;
+
+CREATE TABLE t1 (x INT);
+INSERT INTO t1 VALUES (1);
+CREATE TABLE t2 (j JSON);
+INSERT INTO t2 (j) VALUES ('[1,2,3]');
+--sorted_result
+SELECT * FROM t1 RIGHT JOIN
+  (SELECT o FROM t2, JSON_TABLE(j, '$[*]' COLUMNS (o FOR ORDINALITY)) AS jt) AS t3 ON (t3.o = t1.x);
+DROP TABLE t1, t2;
+
+create table t20 (a int not null);
+create table t21 (a int not null primary key, js varchar(100));
+insert into t20 values (1),(2);
+insert into t21 values (1, '{"a":100}');
+
+explain select t20.a, jt1.ab
+  from t20 left join t21 on t20.a=t21.a
+    join JSON_TABLE(t21.js,'$' COLUMNS (ab INT PATH '$.a')) AS jt1;
+
+drop table t20, t21;
+
+select * from
+json_table(
+'[
+  {"name": "X",
+    "colors":["blue"], "sizes": [1,2,3,4],  "prices" : [10,20]},
+  {"name": "Y",
+    "colors":["red"], "sizes": [10,11],  "prices" : [100,200,300]}
+]',
+'$[*]' columns
+(
+  seq0 for ordinality,
+  name varchar(4) path '$.name',
+  nested path '$.colors[*]' columns (
+    seq1 for ordinality,
+    color text path '$'
+  ),
+  nested path '$.sizes[*]' columns (
+    seq2 for ordinality,
+    size int path '$'
+  ),
+  nested path '$.prices[*]' columns (
+    seq3 for ordinality,
+    price int path '$'
+  )
+)
+) as T order by seq0, name;
+
+# MDEV-25140 Success of query execution depends on the outcome of previous queries.
+--error ER_JSON_TABLE_ALIAS_REQUIRED
+select * from json_table('[]', '$' COLUMNS(x FOR ORDINALITY));
+select min(x) from json_table('[]', '$' COLUMNS(x FOR ORDINALITY)) a;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -63,6 +63,7 @@ class Range_rowid_filter_cost_info;
 class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
+class Table_function_json_table;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -2209,6 +2210,7 @@ struct TABLE_LIST
   const char    *option;                /* Used by cache index  */
   Item		*on_expr;		/* Used with outer join */
   Name_resolution_context *on_context;  /* For ON expressions */
+  Table_function_json_table *table_function; /* If it's the table function. */
 
   Item          *sj_on_expr;
   /*
@@ -2601,7 +2603,7 @@ struct TABLE_LIST
   void cleanup_items();
   bool placeholder()
   {
-    return derived || view || schema_table || !table;
+    return derived || view || schema_table || !table || table_function;
   }
   void print(THD *thd, table_map eliminated_tables, String *str, 
              enum_query_type query_type);

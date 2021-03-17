@@ -1807,6 +1807,17 @@ drop table t1;
 set global Query_cache_size=18446744073709547520;
 --enable_warnings
 
+--echo #
+--echo # MDEV-22301 JSON_TABLE: Queries are not inserted into query cache.
+--echo #
+create table t1 (a text);
+insert into t1 values ('{"a":"foo"}');
+flush status;
+SHOW STATUS LIKE 'Qcache_inserts';
+select * from t1, json_table(t1.a, '$' columns (f varchar(20) path '$.a')) as jt;
+SHOW STATUS LIKE 'Qcache_inserts';
+drop table t1;
+
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;

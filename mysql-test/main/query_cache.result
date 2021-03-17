@@ -2211,6 +2211,22 @@ drop table t1;
 # MDEV-24858 SIGABRT in DbugExit from my_malloc in Query_cache::init_cache Regression
 #
 set global Query_cache_size=18446744073709547520;
+#
+# MDEV-22301 JSON_TABLE: Queries are not inserted into query cache.
+#
+create table t1 (a text);
+insert into t1 values ('{"a":"foo"}');
+flush status;
+SHOW STATUS LIKE 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	0
+select * from t1, json_table(t1.a, '$' columns (f varchar(20) path '$.a')) as jt;
+a	f
+{"a":"foo"}	foo
+SHOW STATUS LIKE 'Qcache_inserts';
+Variable_name	Value
+Qcache_inserts	0
+drop table t1;
 restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;

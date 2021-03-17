@@ -1753,7 +1753,8 @@ bool Field_num::get_int(CHARSET_INFO *cs, const char *from, size_t len,
   if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
       check_int(cs, from, len, end, error))
     return 1;
-  return 0;
+
+  return error && get_thd()->count_cuted_fields == CHECK_FIELD_EXPRESSION;
 
 out_of_range:
   set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);

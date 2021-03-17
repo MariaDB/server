@@ -1635,6 +1635,9 @@ void Explain_table_access::tag_to_json(Json_writer *writer, enum explain_extra_t
     case ET_DISTINCT:
       writer->add_member("distinct").add_bool(true);
       break;
+    case ET_TABLE_FUNCTION:
+      writer->add_member("table_function").add_str("json_table");
+      break;
 
     default:
       DBUG_ASSERT(0);
@@ -2026,6 +2029,9 @@ void Explain_table_access::append_tag_name(String *str, enum explain_extra_tag t
       str->append(extra_tag_text[tag]);
       if (loose_scan_is_scanning)
         str->append(" (scanning)");
+      break;
+    case ET_TABLE_FUNCTION:
+      str->append("Table function: json_table");
       break;
     }
     default:

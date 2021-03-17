@@ -1414,6 +1414,14 @@ void get_delayed_table_estimates(TABLE *table,
                                  double *startup_cost)
 {
   Item_in_subselect *item= table->pos_in_table_list->jtbm_subselect;
+  Table_function_json_table *table_function=
+                               table->pos_in_table_list->table_function;
+
+  if (table_function)
+  {
+    table_function->get_estimates(out_rows, scan_time, startup_cost);
+    return;
+  }
 
   DBUG_ASSERT(item->engine->engine_type() ==
               subselect_engine::HASH_SJ_ENGINE);
@@ -1783,6 +1791,10 @@ static bool convert_subq_to_sj(JOIN *parent_join, Item_in_subselect *subq_pred)
       Item *dummy= tl->jtbm_subselect;
       tl->jtbm_subselect->fix_after_pullout(parent_lex, &dummy, true);
       DBUG_ASSERT(dummy == tl->jtbm_subselect);
+    }
+    else if (tl->table_function)
+    {
+      tl->table_function->fix_after_pullout(tl, parent_lex, true);
     }
     SELECT_LEX *old_sl= tl->select_lex;
     tl->select_lex= parent_join->select_lex; 

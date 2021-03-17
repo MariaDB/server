@@ -7975,3 +7975,7 @@ ER_PK_INDEX_CANT_BE_IGNORED
         eng "A primary key cannot be marked as IGNORE"
 ER_BINLOG_UNSAFE_SKIP_LOCKED
 	eng "SKIP LOCKED makes this statement unsafe"
+ER_JSON_TABLE_ERROR_ON_FIELD
+        eng "Field '%s' can't be set for JSON_TABLE '%s'."
+ER_JSON_TABLE_ALIAS_REQUIRED
+        eng "Every table function must have an alias."

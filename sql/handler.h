@@ -1724,6 +1724,8 @@ struct handlerton
 };
 
 
+extern const char *hton_no_exts[];
+
 static inline LEX_CSTRING *hton_name(const handlerton *hton)
 {
   return &(hton2plugin[hton->slot]->name);

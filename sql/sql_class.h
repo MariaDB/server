@@ -7723,5 +7723,9 @@ public:
 
 extern THD_list server_threads;
 
+void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
+void
+setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count);
+
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

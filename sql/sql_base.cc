@@ -3684,6 +3684,14 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
     error= TRUE;
     goto end;
   }
+
+  if (tables->table_function)
+  {
+    if (!create_table_for_function(thd, tables))
+      error= TRUE;
+    goto end;
+  }
+
   DBUG_PRINT("tcache", ("opening table: '%s'.'%s'  item: %p",
                         tables->db.str, tables->table_name.str, tables));
   (*counter)++;
@@ -6454,7 +6462,10 @@ find_field_in_tables(THD *thd, Item_ident *item,
     db= name_buff;
   }
 
-  if (last_table)
+  if (first_table && first_table->select_lex &&
+      first_table->select_lex->end_lateral_table)
+    last_table= first_table->select_lex->end_lateral_table;
+  else if (last_table)
     last_table= last_table->next_name_resolution_table;
 
   for (; cur_table != last_table ;

@@ -34,6 +34,7 @@
 #include "sql_tvc.h"
 #include "item.h"
 #include "sql_limit.h"                // Select_limit_counters
+#include "json_table.h"               // Json_table_column
 #include "sql_schema.h"
 
 /* Used for flags of nesting constructs */
@@ -454,6 +455,7 @@ enum enum_drop_mode
 #define TL_OPTION_IGNORE_LEAVES 4
 #define TL_OPTION_ALIAS         8
 #define TL_OPTION_SEQUENCE      16
+#define TL_OPTION_TABLE_FUNCTION        32
 
 typedef List<Item> List_item;
 typedef Mem_root_array<ORDER*, true> Group_list_ptrs;
@@ -1182,6 +1184,8 @@ public:
   enum leaf_list_state {UNINIT, READY, SAVED};
   enum leaf_list_state prep_leaf_list_state;
   uint insert_tables;
+  // Last table for LATERAL join, used by table functions
+  TABLE_LIST *end_lateral_table;
   st_select_lex *merged_into; /* select which this select is merged into */
                               /* (not 0 only for views/derived tables)   */
 
@@ -1405,7 +1409,8 @@ public:
                                 enum_mdl_type mdl_type= MDL_SHARED_READ,
                                 List<Index_hint> *hints= 0,
                                 List<String> *partition_names= 0,
-                                LEX_STRING *option= 0);
+                                LEX_STRING *option= 0,
+                                Table_function_json_table *tfunc= 0);
   TABLE_LIST* get_table_list();
   bool init_nested_join(THD *thd);
   TABLE_LIST *end_nested_join(THD *thd);
@@ -1444,8 +1449,8 @@ public:
   ha_rows get_limit();
 
   friend struct LEX;
-  st_select_lex() : group_list_ptrs(NULL), braces(0), automatic_brackets(0),
-  n_sum_items(0), n_child_sum_items(0)
+  st_select_lex() : group_list_ptrs(NULL), end_lateral_table(NULL), braces(0),
+                    automatic_brackets(0), n_sum_items(0), n_child_sum_items(0)
   {}
   void make_empty_select()
   {
@@ -3313,6 +3318,7 @@ public:
   SQL_I_List<ORDER> proc_list;
   SQL_I_List<TABLE_LIST> auxiliary_table_list, save_list;
   Column_definition *last_field;
+  Table_function_json_table *json_table;
   Item_sum *in_sum_func;
   udf_func udf;
   HA_CHECK_OPT   check_opt;                        // check/repair options
