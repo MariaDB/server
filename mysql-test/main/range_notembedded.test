@@ -140,3 +140,13 @@ WHERE
 --enable_query_log
 
 drop table t1;
+
+--echo #
+--echo # MDEV-25069: Assertion `root->weight >= ...' failed in SEL_ARG::tree_delete #2
+--echo #
+
+SELECT *
+FROM mysql.help_relation
+WHERE
+  (help_topic_id < '2' OR help_topic_id != 8 OR help_topic_id < 1) AND
+  help_keyword_id = help_topic_id;
