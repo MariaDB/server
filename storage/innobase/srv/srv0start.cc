@@ -1042,6 +1042,11 @@ static dberr_t find_and_check_log_file(bool &log_file_found)
   return DB_SUCCESS;
 }
 
+static tpool::task_group rollback_all_recovered_group(1);
+static tpool::task rollback_all_recovered_task(trx_rollback_all_recovered,
+                                               nullptr,
+                                               &rollback_all_recovered_group);
+
 /** Start InnoDB.
 @param[in]	create_new_db	whether to create a new database
 @return DB_SUCCESS or error code */
@@ -1785,7 +1790,7 @@ file_checked:
 
 			/* Rollback incomplete non-DDL transactions */
 			trx_rollback_is_active = true;
-			os_thread_create(trx_rollback_all_recovered);
+			srv_thread_pool->submit_task(&rollback_all_recovered_task);
 		}
 	}
 

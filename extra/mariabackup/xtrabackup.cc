@@ -898,7 +898,6 @@ typedef struct {
 	uint			num;
 	uint			*count;
 	pthread_mutex_t*	count_mutex;
-	os_thread_id_t		id;
 	CorruptedPages *corrupted_pages;
 } data_thread_ctxt_t;
 
@@ -3013,7 +3012,7 @@ void backup_wait_for_lsn(lsn_t lsn) {
 
 extern lsn_t server_lsn_after_lock;
 
-static os_thread_ret_t DECLARE_THREAD(log_copying_thread)(void*)
+static void log_copying_thread()
 {
   my_thread_init();
   mysql_mutex_lock(&log_sys.mutex);
@@ -3027,8 +3026,6 @@ static os_thread_ret_t DECLARE_THREAD(log_copying_thread)(void*)
   log_copying_running= false;
   mysql_mutex_unlock(&log_sys.mutex);
   my_thread_end();
-  os_thread_exit();
-  return 0;
 }
 
 static bool have_io_watching_thread;
@@ -3096,15 +3093,9 @@ void dbug_mariabackup_event(const char *event,const char *key)
 }
 #endif // DBUG_OFF
 
-/**************************************************************************
-Datafiles copying thread.*/
-static
-os_thread_ret_t
-DECLARE_THREAD(data_copy_thread_func)(
-/*==================*/
-	void *arg) /* thread context */
+/** Datafiles copying thread.*/
+static void data_copy_thread_func(data_thread_ctxt_t *ctxt) /* thread context */
 {
-	data_thread_ctxt_t	*ctxt = (data_thread_ctxt_t *) arg;
 	uint			num = ctxt->num;
 	fil_node_t*		node;
 	ut_ad(ctxt->corrupted_pages);
@@ -3136,8 +3127,6 @@ DECLARE_THREAD(data_copy_thread_func)(
 	pthread_mutex_unlock(ctxt->count_mutex);
 
 	my_thread_end();
-	os_thread_exit();
-	OS_THREAD_DUMMY_RETURN;
 }
 
 /************************************************************************
@@ -4424,7 +4413,7 @@ fail_before_log_copying_thread_start:
 	DBUG_MARIABACKUP_EVENT("before_innodb_log_copy_thread_started",0);
 
 	mysql_cond_init(0, &log_copying_stop, nullptr);
-	os_thread_create(log_copying_thread);
+	std::thread(log_copying_thread).detach();
 
 	/* FLUSH CHANGED_PAGE_BITMAPS call */
 	if (!flush_changed_page_bitmaps()) {
@@ -4466,8 +4455,7 @@ fail_before_log_copying_thread_start:
 		data_threads[i].count = &count;
 		data_threads[i].count_mutex = &count_mutex;
 		data_threads[i].corrupted_pages = &corrupted_pages;
-		data_threads[i].id = os_thread_create(data_copy_thread_func,
-						      data_threads + i);
+		std::thread(data_copy_thread_func, data_threads + i).detach();
 	}
 
 	/* Wait for threads to exit */

@@ -799,7 +799,7 @@ wait_for_no_updates(MYSQL *connection, uint timeout, uint threshold)
 	return(false);
 }
 
-static os_thread_ret_t DECLARE_THREAD(kill_query_thread)(void*)
+static void kill_query_thread()
 {
   mysql_mutex_lock(&kill_query_thread_mutex);
 
@@ -835,9 +835,6 @@ func_exit:
   kill_query_thread_running= false;
   mysql_cond_signal(&kill_query_thread_stopped);
   mysql_mutex_unlock(&kill_query_thread_mutex);
-
-  os_thread_exit();
-  OS_THREAD_DUMMY_RETURN;
 }
 
 
@@ -849,7 +846,7 @@ static void start_query_killer()
   mysql_mutex_init(0, &kill_query_thread_mutex, nullptr);
   mysql_cond_init(0, &kill_query_thread_stop, nullptr);
   mysql_cond_init(0, &kill_query_thread_stopped, nullptr);
-  os_thread_create(kill_query_thread);
+  std::thread(kill_query_thread).detach();
 }
 
 static void stop_query_killer()

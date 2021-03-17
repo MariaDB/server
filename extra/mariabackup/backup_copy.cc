@@ -129,7 +129,6 @@ struct datadir_thread_ctxt_t {
 	uint			n_thread;
 	uint			*count;
 	pthread_mutex_t*	count_mutex;
-	os_thread_id_t		id;
 	bool			ret;
 };
 
@@ -947,7 +946,7 @@ backup_file_printf(const char *filename, const char *fmt, ...)
 
 static
 bool
-run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
+run_data_threads(datadir_iter_t *it, void (*func)(datadir_thread_ctxt_t *ctxt), uint n)
 {
 	datadir_thread_ctxt_t	*data_threads;
 	uint			i, count;
@@ -965,7 +964,7 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 		data_threads[i].n_thread = i + 1;
 		data_threads[i].count = &count;
 		data_threads[i].count_mutex = &count_mutex;
-		data_threads[i].id = os_thread_create(func, data_threads + i);
+		std::thread(func, data_threads + i).detach();
 	}
 
 	/* Wait for threads to exit */
@@ -2036,13 +2035,10 @@ decrypt_decompress_file(const char *filepath, uint thread_n)
  	return(true);
 }
 
-static
-os_thread_ret_t STDCALL
-decrypt_decompress_thread_func(void *arg)
+static void decrypt_decompress_thread_func(datadir_thread_ctxt_t *ctxt)
 {
 	bool ret = true;
 	datadir_node_t node;
-	datadir_thread_ctxt_t *ctxt = (datadir_thread_ctxt_t *)(arg);
 
 	datadir_node_init(&node);
 
@@ -2072,9 +2068,6 @@ cleanup:
 	pthread_mutex_unlock(ctxt->count_mutex);
 
 	ctxt->ret = ret;
-
-	os_thread_exit();
-	OS_THREAD_DUMMY_RETURN;
 }
 
 bool

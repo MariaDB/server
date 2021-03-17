@@ -2025,11 +2025,9 @@ static ulint page_cleaner_flush_pages_recommendation(ulint last_pages_in,
 	return(n_pages);
 }
 
-/******************************************************************//**
-page_cleaner thread tasked with flushing dirty pages from the buffer
-pools. As of now we'll have only one coordinator.
-@return a dummy parameter */
-static os_thread_ret_t DECLARE_THREAD(buf_flush_page_cleaner)(void*)
+/** page_cleaner thread tasked with flushing dirty pages from the buffer
+pools. As of now we'll have only one coordinator. */
+static void buf_flush_page_cleaner()
 {
   my_thread_init();
 #ifdef UNIV_PFS_THREAD
@@ -2253,11 +2251,10 @@ next:
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
   my_thread_end();
-  /* We count the number of threads in os_thread_exit(). A created
-  thread should always use that to exit and not use return() to exit. */
-  os_thread_exit();
 
-  OS_THREAD_DUMMY_RETURN;
+#ifdef UNIV_PFS_THREAD
+  pfs_delete_thread();
+#endif
 }
 
 /** Initialize page_cleaner. */
@@ -2269,7 +2266,7 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init()
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
   buf_flush_sync_lsn= 0;
   buf_page_cleaner_is_active= true;
-  os_thread_create(buf_flush_page_cleaner);
+  std::thread(buf_flush_page_cleaner).detach();
 }
 
 /** @return the number of dirty pages in the buffer pool */

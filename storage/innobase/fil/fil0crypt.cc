@@ -2062,10 +2062,9 @@ static void fil_crypt_complete_rotate_space(rotate_thread_t* state)
 	mysql_mutex_unlock(&crypt_data->mutex);
 }
 
-/*********************************************************************//**
-A thread which monitors global key state and rotates tablespaces accordingly
-@return a dummy parameter */
-static os_thread_ret_t DECLARE_THREAD(fil_crypt_thread)(void*)
+/** A thread which monitors global key state and rotates tablespaces
+accordingly */
+static void fil_crypt_thread()
 {
 	mysql_mutex_lock(&fil_crypt_threads_mutex);
 	rotate_thread_t thr(srv_n_fil_crypt_threads_started++);
@@ -2144,12 +2143,9 @@ wait_for_work:
 	pthread_cond_signal(&fil_crypt_cond); /* signal that we stopped */
 	mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
-	/* We count the number of threads in os_thread_exit(). A created
-	thread should always use that to exit and not use return() to exit. */
-
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
+#ifdef UNIV_PFS_THREAD
+	pfs_delete_thread();
+#endif
 }
 
 /*********************************************************************
@@ -2172,10 +2168,12 @@ fil_crypt_set_thread_cnt(
 		uint add = new_cnt - srv_n_fil_crypt_threads;
 		srv_n_fil_crypt_threads = new_cnt;
 		for (uint i = 0; i < add; i++) {
+			std::thread thd(fil_crypt_thread);
 			ib::info() << "Creating #"
 				   << i+1 << " encryption thread id "
-				   << os_thread_create(fil_crypt_thread)
+				   << thd.get_id()
 				   << " total threads " << new_cnt << ".";
+			thd.detach();
 		}
 	} else if (new_cnt < srv_n_fil_crypt_threads) {
 		srv_n_fil_crypt_threads = new_cnt;
