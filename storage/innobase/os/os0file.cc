@@ -4305,7 +4305,9 @@ os_file_create_func(
 
 	case SRV_ALL_O_DIRECT_FSYNC:
 		/*Traditional Windows behavior, no buffering for any files.*/
-		attributes |= FILE_FLAG_NO_BUFFERING;
+		if (type != OS_DATA_FILE_NO_O_DIRECT) {
+			attributes |= FILE_FLAG_NO_BUFFERING;
+		}
 		break;
 
 	case SRV_FSYNC:
