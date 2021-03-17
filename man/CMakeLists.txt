@@ -18,12 +18,11 @@ SET(MAN1_SERVER innochecksum.1 myisam_ftdump.1 myisamchk.1
                 aria_chk.1 aria_dump_log.1 aria_ftdump.1 aria_pack.1 aria_read_log.1
                 aria_s3_copy.1
 		myisamlog.1 myisampack.1 mysql.server.1 mariadb-conv.1
-		mysql_convert_table_format.1 mysql_fix_extensions.1
+		mysql_fix_extensions.1
 		mysql_install_db.1
-		mysql_secure_installation.1 mysql_setpermission.1
 		mysql_tzinfo_to_sql.1 mysql_upgrade.1
-		mysqld_multi.1 mysqld_safe.1 mysqldumpslow.1 mysqlhotcopy.1
-		perror.1 replace.1 resolve_stack_dump.1
+		mysqld_multi.1 mysqld_safe.1 mysqldumpslow.1
+		perror.1 resolve_stack_dump.1
 		resolveip.1 mariadb-service-convert.1
 		mysqld_safe_helper.1
 		wsrep_sst_mysqldump.1
@@ -34,7 +33,9 @@ SET(MAN8_SERVER mysqld.8)
 SET(MAN1_CLIENT msql2mysql.1 mysql.1 mysql_find_rows.1 mysql_waitpid.1
 		mysqlaccess.1 mysqladmin.1 mysqlbinlog.1 mysqlcheck.1
 		mysqldump.1 mysqlimport.1 mysqlshow.1 mysqlslap.1 mytop.1
-                mysql_plugin.1 mysql_embedded.1 my_print_defaults.1)
+                mysql_plugin.1 mysql_embedded.1 my_print_defaults.1
+                mysqlhotcopy.1 mysql_setpermission.1
+                mysql_convert_table_format.1 replace.1 mysql_secure_installation.1)
 SET(MAN1_DEVEL mysql_config.1)
 SET(MAN1_TEST mysql-stress-test.pl.1 mysql-test-run.pl.1 mysql_client_test.1
               mysqltest.1 mysqltest_embedded.1 mysql_client_test_embedded.1
