@@ -445,7 +445,7 @@ error_return:
 
 int ha_json_table::rnd_pos(uchar * buf, uchar *pos)
 {
-  return fill_column_values(buf, pos);
+  return fill_column_values(buf, pos) ? HA_ERR_TABLE_IN_FK_CHECK : 0;
 }
 
 

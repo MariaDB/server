@@ -508,5 +508,10 @@ a
 EXECUTE stmt;
 a
 #
+# MDEV-JSON_TABLE: Server crashes in handler::print_error / hton_name upon ERROR ON EMPTY
+#
+SELECT a, b FROM JSON_TABLE('[]', '$' COLUMNS (a FOR ORDINALITY, b INT PATH '$[*]' ERROR ON EMPTY)) AS t ORDER BY a;
+ERROR HY000: Field 'b' can't be set for JSON_TABLE 't'.
+#
 # End of 10.6 tests
 #
