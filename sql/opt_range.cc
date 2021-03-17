@@ -10642,8 +10642,14 @@ key_or(RANGE_OPT_PARAM *param, SEL_ARG *key1,SEL_ARG *key2)
          */
         tmp->maybe_flag|= key2_cpy.maybe_flag;
         key2_cpy.increment_use_count(key1->use_count+1);
+
+        uint old_weight= tmp->next_key_part? tmp->next_key_part->weight: 0;
+
         tmp->next_key_part= key_or(param, tmp->next_key_part,
                                    key2_cpy.next_key_part);
+
+        uint new_weight= tmp->next_key_part? tmp->next_key_part->weight: 0;
+        key1->weight += (new_weight - old_weight);
 
         if (!cmp)
           break;                     // case b: done with this key2 range
