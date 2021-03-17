@@ -6941,10 +6941,14 @@ static int get_check_constraints_record(THD *thd, TABLE_LIST *tables,
       table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
       table->field[3]->store(check->name.str, check->name.length,
                              system_charset_info);
+      const char *tmp_buff;
+      tmp_buff= (check->get_vcol_type() == VCOL_CHECK_FIELD ?
+                 "Column" : "Table");
+      table->field[4]->store(tmp_buff, strlen(tmp_buff), system_charset_info);
       /* Make sure the string is empty between each print. */
       str.length(0);
       check->print(&str);
-      table->field[4]->store(str.ptr(), str.length(), system_charset_info);
+      table->field[5]->store(str.ptr(), str.length(), system_charset_info);
       if (schema_table_store_record(thd, table))
         DBUG_RETURN(1);
     }
@@ -9518,6 +9522,7 @@ ST_FIELD_INFO check_constraints_fields_info[]=
   Column("CONSTRAINT_SCHEMA",  Name(),    NOT_NULL, OPEN_FULL_TABLE),
   Column("TABLE_NAME",         Name(),    NOT_NULL, OPEN_FULL_TABLE),
   Column("CONSTRAINT_NAME",    Name(),    NOT_NULL, OPEN_FULL_TABLE),
+  Column("LEVEL",              Varchar(6),NOT_NULL, OPEN_FULL_TABLE),
   Column("CHECK_CLAUSE",       Longtext(MAX_FIELD_VARCHARLENGTH),
                                           NOT_NULL, OPEN_FULL_TABLE),
   CEnd()
@@ -9534,7 +9539,7 @@ extern ST_FIELD_INFO optimizer_trace_info[];
 } //namespace Show
 
 /*
-  Description of ST_FIELD_INFO in table.h
+  Description of ST_FIELD_INFO in sql_i_s.h
 
   Make sure that the order of schema_tables and enum_schema_tables are the same.
 
