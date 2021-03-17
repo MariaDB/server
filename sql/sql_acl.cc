@@ -8150,16 +8150,9 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
     if (!want_access)
       continue;                                 // ok
 
-    if (t_ref->table_function)
-    {
-      /* Table function doesn't need any privileges to be checked.  */
-      t_ref->grant.privilege|= TMP_TABLE_ACLS;
-      t_ref->grant.want_privilege= NO_ACL;
-      continue;
-    }
-
     if (!(~t_ref->grant.privilege & want_access) ||
-        t_ref->is_anonymous_derived_table() || t_ref->schema_table)
+        t_ref->is_anonymous_derived_table() || t_ref->schema_table ||
+        t_ref->table_function)
     {
       /*
         It is subquery in the FROM clause. VIEW set t_ref->derived after
@@ -8168,7 +8161,8 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
         NOTE: is_derived() can't be used here because subquery in this case
         the FROM clase (derived tables) can be not be marked yet.
       */
-      if (t_ref->is_anonymous_derived_table() || t_ref->schema_table)
+      if (t_ref->is_anonymous_derived_table() || t_ref->schema_table ||
+          t_ref->table_function)
       {
         /*
           If it's a temporary table created for a subquery in the FROM

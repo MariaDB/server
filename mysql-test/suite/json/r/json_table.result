@@ -111,6 +111,8 @@ a
 select * from t, json_table(t.a, '$' columns(f varchar(20) path '$.foo')) as jt;
 a	f
 {"foo":"bar"}	bar
+select * into outfile 'f' from json_table('[]', '$' columns(x for ordinality)) q;
+ERROR 28000: Access denied for user 'u'@'localhost' (using password: NO)
 connection default;
 disconnect con1;
 drop user u@localhost;

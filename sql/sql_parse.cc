@@ -7104,9 +7104,6 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
     if (table_ref->is_anonymous_derived_table())
       continue;
 
-    if (table_ref->table_function)
-      continue;
-
     if (table_ref->sequence)
     {
       /* We want to have either SELECT or INSERT rights to sequences depending
@@ -7116,7 +7113,9 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
                     INSERT_ACL : SELECT_ACL);
     }
 
-    if (check_access(thd, want_access, table_ref->get_db_name(),
+    if (check_access(thd, want_access,
+                     table_ref->table_function ? any_db :
+                                                 table_ref->get_db_name(),
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
                      0, no_errors))
