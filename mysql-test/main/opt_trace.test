@@ -696,5 +696,35 @@ from information_schema.optimizer_trace;
 set in_predicate_conversion_threshold=@tmp;
 drop table t0;
 
+--echo #
 --echo # End of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-23677: Optimizer trace ... (test coverage)
+--echo #
+create table t1(a int, b int, c int, primary key (a,b,c));
+insert into t1 values (0,0,0),(1,1,1),(2,2,2),(3,3,3),(4,4,4);
+
+create table t2 (a int, b int);
+insert into t2 values (1,1),(2,2);
+
+create table t3 (a int, b int, c int);
+insert into t3 values (0,0,0),(1,1,1),(2,2,2),(3,3,3),(4,4,4);
+
+explain select * from t2,t1,t3 where t2.b= t1.b and t1.a=t3.a;
+
+set @trace=(select trace from information_schema.optimizer_trace);
+set @path= (select json_search(@trace, 'one', 'no predicate for first keypart'));
+set @sub_path= substr(@path, 2, locate('.best_access_path', @path)-2);
+
+select @sub_path;
+select 
+  json_detailed(json_extract(
+     @trace,
+     concat(@sub_path,'.best_access_path.considered_access_paths[0]')
+  )) as S;
+
+drop table t1,t2,t3;
+
 set optimizer_trace='enabled=off';

@@ -4010,6 +4010,7 @@ explain delete t0,t1 from t0, t1 where t0.a=t1.a and t1.a<3	{
                         {
                           "access_type": "ref",
                           "index": "a",
+                          "rec_per_key_stats_missing": true,
                           "used_range_estimates": false,
                           "cause": "not better than ref estimates",
                           "rows": 2,
@@ -8793,5 +8794,42 @@ json_detailed(json_extract(trace, '$**.in_to_subquery_conversion'))
 ]
 set in_predicate_conversion_threshold=@tmp;
 drop table t0;
+#
 # End of 10.5 tests
+#
+#
+# MDEV-23677: Optimizer trace ... (test coverage)
+#
+create table t1(a int, b int, c int, primary key (a,b,c));
+insert into t1 values (0,0,0),(1,1,1),(2,2,2),(3,3,3),(4,4,4);
+create table t2 (a int, b int);
+insert into t2 values (1,1),(2,2);
+create table t3 (a int, b int, c int);
+insert into t3 values (0,0,0),(1,1,1),(2,2,2),(3,3,3),(4,4,4);
+explain select * from t2,t1,t3 where t2.b= t1.b and t1.a=t3.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	SIMPLE	t3	ALL	NULL	NULL	NULL	NULL	5	Using where; Using join buffer (flat, BNL join)
+1	SIMPLE	t1	ref	PRIMARY	PRIMARY	8	test.t3.a,test.t2.b	1	Using index
+set @trace=(select trace from information_schema.optimizer_trace);
+set @path= (select json_search(@trace, 'one', 'no predicate for first keypart'));
+set @sub_path= substr(@path, 2, locate('.best_access_path', @path)-2);
+select @sub_path;
+@sub_path
+$.steps[1].join_optimization.steps[4].considered_execution_plans[0].rest_of_plan[0]
+select 
+json_detailed(json_extract(
+@trace,
+concat(@sub_path,'.best_access_path.considered_access_paths[0]')
+)) as S;
+S
+{
+    "access_type": "ref",
+    "index": "PRIMARY",
+    "rows": 1.79769e308,
+    "cost": 1.79769e308,
+    "chosen": false,
+    "cause": "no predicate for first keypart"
+}
+drop table t1,t2,t3;
 set optimizer_trace='enabled=off';

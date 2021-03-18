@@ -7637,6 +7637,7 @@ best_access_path(JOIN      *join,
             {
               if (!(records= keyinfo->actual_rec_per_key(key_parts-1)))
               {                                   /* Prefer longer keys */
+                trace_access_idx.add("rec_per_key_stats_missing", true);
                 records=
                   ((double) s->records / (double) rec *
                    (1.0 +
@@ -7663,7 +7664,7 @@ best_access_path(JOIN      *join,
                   records > (double) table->opt_range[key].rows)
               {
                 records= (double) table->opt_range[key].rows;
-                trace_access_idx.add("used_range_estimates", true);
+                trace_access_idx.add("used_range_estimates", "clipped down");
               }
               else
               {
@@ -7780,19 +7781,15 @@ best_access_path(JOIN      *join,
                     if (!found_ref &&                                  // (1)
                         records < rows)                                // (3)
                     {
-                      trace_access_idx.add("used_range_estimates", true);
+                      trace_access_idx.add("used_range_estimates", "clipped up");
                       records= rows;
                     }
-                  }
-                  else /* (table->quick_key_parts[key] < max_key_part) */
-                  {
-                    trace_access_idx.add("chosen", true);
-                    cause= "range uses less keyparts";
                   }
                 }
               }
               else
               {
+                trace_access_idx.add("rec_per_key_stats_missing", true);
                 /*
                   Assume that the first key part matches 1% of the file
                   and that the whole key matches 10 (duplicates) or 1
@@ -7856,6 +7853,7 @@ best_access_path(JOIN      *join,
                                                            const_part)) &&
                   records > (double) table->opt_range[key].rows)
               {
+                trace_access_idx.add("used_range_estimates", true);
                 records= (double) table->opt_range[key].rows;
               }
             }
