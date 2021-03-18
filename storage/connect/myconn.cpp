@@ -642,7 +642,7 @@ int MYSQLC::PrepareSQL(PGLOBAL g, const char *stmt)
 int MYSQLC::BindParams(PGLOBAL g, MYSQL_BIND *bind)
   {
   if (!m_DB) {
-    strcpy(g->Message, "MySQL not connected");
+    strcpy(g->Message, "MariaDB not connected");
     return RC_FX;
   } else
     assert(m_Stmt);

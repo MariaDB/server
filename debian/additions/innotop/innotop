@@ -987,12 +987,12 @@ sub parse_tx_text {
    # Parsing the line that begins 'MySQL thread id' is complicated.  The only
    # thing always in the line is the thread and query id.  See function
    # innobase_mysql_print_thd in InnoDB source file sql/ha_innodb.cc.
-   my ( $thread_line ) = $txn =~ m/^(MySQL thread id .*)$/m;
+   my ( $thread_line ) = $txn =~ m/^((?:MariaDB|MySQL) thread id .*)$/m;
    my ( $mysql_thread_id, $query_id, $hostname, $ip, $user, $query_status );
 
    if ( $thread_line ) {
       # These parts can always be gotten.
-      ( $mysql_thread_id, $query_id ) = $thread_line =~ m/^MySQL thread id $d, .*?query id $d/m;
+      ( $mysql_thread_id, $query_id ) = $thread_line =~ m/^(?:MariaDB|MySQL) thread id $d, .*?query id $d/m;
 
       # If it's a master/slave thread, "Has (read|sent) all" may be the thread's
       # proc_info.  In these cases, there won't be any host/ip/user info
@@ -4144,15 +4144,15 @@ my $innodb_parser = InnoDBParser->new;
 
 my $nonfatal_errs = join('|',
    'Access denied for user',
-   'Unknown MySQL server host',
+   'Unknown MariaDB server host',
    'Unknown database',
-   'Can\'t connect to local MySQL server through socket',
-   'Can\'t connect to MySQL server on',
+   'Can\'t connect to local MariaDB server through socket',
+   'Can\'t connect to MariaDB server on',
    'MySQL server has gone away',
    'Cannot call SHOW INNODB STATUS',
    'Access denied',
    'AutoCommit',
-   'Lost connection to MySQL server',
+   'Lost connection to MariaDB server',
    'Lost connection to server',
    'Too many connections',
 );
@@ -7693,7 +7693,7 @@ sub get_driver_status {
 sub get_new_db_connection {
    my ( $connection, $destroy ) = @_;
    if ( $file ) {
-      die "You can't connect to a MySQL server while monitoring a file.  This is probably a bug.";
+      die "You can't connect to a MariaDB server while monitoring a file.  This is probably a bug.";
    }
 
    my $dsn = $connections{$connection}

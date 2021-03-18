@@ -172,7 +172,7 @@ to a hash table. Each tablespace and log file is given an unique 32-bit
 identifier. */
 
 /** Reference to the server data directory. Usually it is the
-current working directory ".", but in the MySQL Embedded Server Library
+current working directory ".", but in the MariaDB Embedded Server Library
 it is an absolute path. */
 const char*	fil_path_to_mysql_datadir;
 

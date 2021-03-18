@@ -3,7 +3,8 @@ include/master-slave.inc
 connection slave;
 call mtr.add_suppression("Slave I/O: Master command COM_REGISTER_SLAVE failed: .*");
 call mtr.add_suppression("Slave I/O: .* failed with error: Lost connection to server at 'reading initial communication packet'");
-call mtr.add_suppression("Fatal error: The slave I/O thread stops because master and slave have equal MySQL server ids; .*");
+call mtr.add_suppression("Fatal error: The slave I/O thread stops because
+master and slave have equal MariaDB server ids; .*");
 call mtr.add_suppression("Slave I/O thread .* register on master");
 SET @saved_dbug = @@GLOBAL.debug_dbug;
 connection slave;

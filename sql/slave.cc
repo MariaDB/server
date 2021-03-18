@@ -1768,7 +1768,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
   {
     errmsg= err_buff2;
     snprintf(err_buff2, sizeof(err_buff2),
-             "Master reported unrecognized MySQL version: %s",
+             "Master reported unrecognized MariaDB version: %s",
              mysql->server_version);
     err_code= ER_SLAVE_FATAL_ERROR;
     sprintf(err_buff, ER_DEFAULT(err_code), err_buff2);
@@ -1784,7 +1784,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
     case 2:
       errmsg= err_buff2;
       snprintf(err_buff2, sizeof(err_buff2),
-               "Master reported unrecognized MySQL version: %s",
+               "Master reported unrecognized MariaDB version: %s",
                mysql->server_version);
       err_code= ER_SLAVE_FATAL_ERROR;
       sprintf(err_buff, ER_DEFAULT(err_code), err_buff2);
@@ -1957,7 +1957,7 @@ static int get_master_version_and_clock(MYSQL* mysql, Master_info* mi)
         !mi->rli.replicate_same_server_id)
     {
       errmsg= "The slave I/O thread stops because master and slave have equal \
-MySQL server ids; these ids must be different for replication to work (or \
+MariaDB server ids; these ids must be different for replication to work (or \
 the --replicate-same-server-id option must be used on slave but this does \
 not always make sense; please check the manual before using it).";
       err_code= ER_SLAVE_FATAL_ERROR;
@@ -2118,7 +2118,7 @@ be equal for the Statement-format replication to work";
       /* We use ERROR_LEVEL to get the error logged to file */
       mi->report(ERROR_LEVEL, err_code, NULL,
 
-                 "MySQL master doesn't have a TIME_ZONE variable. Note that"
+                 "MariaDB master doesn't have a TIME_ZONE variable. Note that"
                  "if your timezone is not same between master and slave, your "
                  "slave may get wrong data into timestamp columns");
     }
@@ -4471,7 +4471,7 @@ Could not parse relay log event entry. The possible reasons are: the master's \
 binary log is corrupted (you can check this by running 'mysqlbinlog' on the \
 binary log), the slave's relay log is corrupted (you can check this by running \
 'mysqlbinlog' on the relay log), a network problem, or a bug in the master's \
-or slave's MySQL code. If you want to check the master's binary log or slave's \
+or slave's MariaDB code. If you want to check the master's binary log or slave's \
 relay log, you will be able to know their names by issuing 'SHOW SLAVE STATUS' \
 on this slave.\
 ");

@@ -2317,8 +2317,8 @@ row_create_table_for_mysql(
 
 	if (row_mysql_is_system_table(table->name.m_name)) {
 
-		ib::error() << "Trying to create a MySQL system table "
-			<< table->name << " of type InnoDB. MySQL system"
+		ib::error() << "Trying to create a MariaDB system table "
+			<< table->name << " of type InnoDB. MariaDB system"
 			" tables must be of the MyISAM type!";
 
 err_exit:
@@ -3732,8 +3732,8 @@ row_rename_table_for_mysql(
 
 	} else if (row_mysql_is_system_table(new_name)) {
 
-		ib::error() << "Trying to create a MySQL system table "
-			<< new_name << " of type InnoDB. MySQL system tables"
+		ib::error() << "Trying to create a MariaDB system table "
+			<< new_name << " of type InnoDB. MariaDB system tables"
 			" must be of the MyISAM type!";
 
 		goto funct_exit;

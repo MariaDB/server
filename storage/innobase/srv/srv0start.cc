@@ -1087,7 +1087,7 @@ dberr_t srv_start(bool create_new_db)
 	if (srv_start_has_been_called) {
 		ib::error() << "Startup called second time"
 			" during the process lifetime."
-			" In the MySQL Embedded Server Library"
+			" In the MariaDB Embedded Server Library"
 			" you cannot call server_init() more than"
 			" once during the process lifetime.";
 	}

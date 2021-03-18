@@ -3168,7 +3168,7 @@ sub mysql_install_db {
        ) != 0)
   {
     my $data= mtr_grab_file($path_bootstrap_log);
-    mtr_error("Error executing mysqld --bootstrap\n" .
+    mtr_error("Error executing mariadbd --bootstrap\n" .
               "Could not install system database from $bootstrap_sql_file\n" .
 	      "The $path_bootstrap_log file contains:\n$data\n");
   }

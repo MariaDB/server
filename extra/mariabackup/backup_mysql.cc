@@ -104,7 +104,7 @@ xb_mysql_connect()
 	sprintf(mysql_port_str, "%d", opt_port);
 
 	if (connection == NULL) {
-		msg("Failed to init MySQL struct: %s.",
+		msg("Failed to init MariaDB struct: %s.",
 			mysql_error(connection));
 		return(NULL);
 	}
@@ -127,7 +127,7 @@ xb_mysql_connect()
 	mysql_options(connection, MYSQL_OPT_PROTOCOL, &opt_protocol);
 	mysql_options(connection,MYSQL_SET_CHARSET_NAME, "utf8");
 
-	msg("Connecting to MySQL server host: %s, user: %s, password: %s, "
+	msg("Connecting to MariaDB server host: %s, user: %s, password: %s, "
 	       "port: %s, socket: %s", opt_host ? opt_host : "localhost",
 	       opt_user ? opt_user : "not set",
 	       opt_password ? "set" : "not set",
@@ -154,7 +154,7 @@ xb_mysql_connect()
 				opt_password,
 				"" /*database*/, opt_port,
 				opt_socket, 0)) {
-		msg("Failed to connect to MySQL server: %s.", mysql_error(connection));
+		msg("Failed to connect to MariaDB server: %s.", mysql_error(connection));
 		mysql_close(connection);
 		return(NULL);
 	}
@@ -462,7 +462,7 @@ bool get_mysql_vars(MYSQL *connection)
     }
     if (!directory_exists(datadir_var, false))
     {
-      msg("Warning: MySQL variable 'datadir' points to "
+      msg("Warning: MariaDB variable 'datadir' points to "
           "nonexistent directory '%s'",
           datadir_var);
     }

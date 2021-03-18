@@ -2,7 +2,7 @@
 # Bug #19306524 FAILING ASSERTION WITH TEMP TABLE FOR A PROCEDURE
 # CALLED FROM A FUNCTION
 #
-call mtr.add_suppression("MySQL is trying to drop table");
+call mtr.add_suppression("MariaDB is trying to drop table");
 CREATE PROCEDURE cachedata(
 IN obj_id BIGINT UNSIGNED,
 IN start  DATETIME,

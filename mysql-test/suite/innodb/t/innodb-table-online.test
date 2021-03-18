@@ -9,7 +9,7 @@ SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl
 call mtr.add_suppression("InnoDB: Warning: Small buffer pool size");
 # these will be triggered by DISCARD TABLESPACE
 call mtr.add_suppression("InnoDB: Error: table 'test/t1'");
-call mtr.add_suppression("MySQL is trying to open a table handle but the .ibd file for");
+call mtr.add_suppression("MariaDB is trying to open a table handle but the .ibd file for");
 
 # DISCARD TABLESPACE needs file-per-table
 SET @global_innodb_file_per_table_orig = @@global.innodb_file_per_table;

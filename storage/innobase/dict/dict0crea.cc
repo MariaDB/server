@@ -1550,7 +1550,7 @@ dict_foreign_eval_sql(
 		      "in front of the user-defined constraint name.)\n"
 		      "Note that InnoDB's FOREIGN KEY system tables store\n"
 		      "constraint names as case-insensitive, with the\n"
-		      "MySQL standard latin1_swedish_ci collation. If you\n"
+		      "MariaDB standard latin1_swedish_ci collation. If you\n"
 		      "create tables or databases whose names differ only in\n"
 		      "the character case, then collisions in constraint\n"
 		      "names can occur. Workaround: name your constraints\n"
@@ -1572,7 +1572,7 @@ dict_foreign_eval_sql(
 		      " for table ", ef);
 		ut_print_name(ef, trx, name);
 		fputs(".\n"
-		      "See the MySQL .err log in the datadir"
+		      "See the MariaDB .err log in the datadir"
 		      " for more information.\n", ef);
 		mysql_mutex_unlock(&dict_foreign_err_mutex);
 

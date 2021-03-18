@@ -1202,7 +1202,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
           (glob_description_event->flags & LOG_EVENT_BINLOG_IN_USE_F))
       {
         error("Attempting to dump binlog '%s', which was not closed properly. "
-              "Most probably, mysqld is still writing it, or it crashed. "
+              "Most probably, mariadbd is still writing it, or it crashed. "
               "Rerun with --force-if-open to ignore this problem.", logname);
         DBUG_RETURN(ERROR_STOP);
       }

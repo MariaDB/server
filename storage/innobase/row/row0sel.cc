@@ -2667,7 +2667,7 @@ row_sel_convert_mysql_key_to_innobase(
 				<< ". Last data field length "
 				<< data_field_len << " bytes, key ptr now"
 				" exceeds key end by " << (key_ptr - key_end)
-				<< " bytes. Key value in the MySQL format:";
+				<< " bytes. Key value in the MariaDB format:";
 
 			ut_print_buf(stderr, original_key_ptr, key_len);
 			putc('\n', stderr);

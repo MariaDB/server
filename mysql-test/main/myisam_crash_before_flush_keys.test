@@ -9,7 +9,7 @@
 --source include/have_debug.inc
 
 call mtr.add_suppression("Got an error from thread_id=.*ha_myisam.cc:");
-call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
+call mtr.add_suppression("MariaDB thread id .*, query id .* localhost.*root Checking table");
 flush tables;
 # Avoid CrashReporter popup on Mac
 --source include/not_crashrep.inc

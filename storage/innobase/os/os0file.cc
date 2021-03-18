@@ -351,7 +351,7 @@ os_file_lock(
 
 			ib::info()
 				<< "Check that you do not already have"
-				" another mysqld process using the"
+				" another mariadbd process using the"
 				" same InnoDB data or log files.";
 		}
 
@@ -826,7 +826,7 @@ os_file_get_last_error_low(
 		} else if (err == EACCES) {
 
 			ib::error()
-				<< "The error means mysqld does not have"
+				<< "The error means mariadbd does not have"
 				" the access rights to the directory.";
 
 		} else {
@@ -1833,7 +1833,7 @@ os_file_get_last_error_low(
 		} else if (err == ERROR_ACCESS_DENIED) {
 
 			ib::error()
-				<< "The error means mysqld does not have"
+				<< "The error means mariadbd does not have"
 				" the access rights to"
 				" the directory. It may also be"
 				" you have created a subdirectory"
@@ -1847,7 +1847,7 @@ os_file_get_last_error_low(
 				" is using InnoDB's files."
 				" This might be a backup or antivirus"
 				" software or another instance"
-				" of MySQL."
+				" of MariaDB."
 				" Please close it to get rid of this error.";
 
 		} else if (err == ERROR_WORKING_SET_QUOTA

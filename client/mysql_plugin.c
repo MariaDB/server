@@ -947,7 +947,7 @@ static int check_access()
   }
   if (opt_mysqld && (error= my_access(opt_mysqld, F_OK)))
   {
-    fprintf(stderr, "ERROR: Cannot access mysqld path '%s'.\n",
+    fprintf(stderr, "ERROR: Cannot access mariadbd path '%s'.\n",
             opt_mysqld);
     goto exit;
   }

@@ -10076,7 +10076,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   size_t len;
 
   len= my_snprintf(header, sizeof(header),
-                   "MySQL thread id %u, OS thread handle %lu, query id %llu",
+                   "MariaDB thread id %u, OS thread handle %lu, query id %llu",
                    (uint)thd->thread_id, (ulong) thd->real_id, (ulonglong) thd->query_id);
   str.length(0);
   str.append(header, len);

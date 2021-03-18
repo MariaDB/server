@@ -7177,7 +7177,7 @@ static void test_embedded_start_stop()
   if (mysql_server_init(embedded_server_arg_count,
                         embedded_server_args,
                         (char**) embedded_server_groups))
-    DIE("Can't initialize MySQL server");
+    DIE("Can't initialize MariaDB server");
 
   /* connect to server with no flags, default protocol, auto reconnect true */
   mysql= client_connect(0, MYSQL_PROTOCOL_DEFAULT, 1);
@@ -15959,7 +15959,7 @@ static void test_bug15752()
                            opt_unix_socket,
                            CLIENT_MULTI_STATEMENTS))
   {
-    printf("Unable connect to MySQL server: %s\n", mysql_error(&mysql_local));
+    printf("Unable connect to MariaDB server: %s\n", mysql_error(&mysql_local));
     DIE_UNLESS(0);
   }
   rc= mysql_real_query(&mysql_local, query, strlen(query));

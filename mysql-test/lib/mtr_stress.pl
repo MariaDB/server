@@ -44,7 +44,7 @@ sub run_stress_test ()
   {
     if ( ! mysqld_start($::master->[0],[],[]) )
     {
-      mtr_error("Can't start the mysqld server");
+      mtr_error("Can't start the mariadbd server");
     }
   }
 

@@ -50,7 +50,7 @@ ut_dbg_assertion_failed(
 	      " to https://jira.mariadb.org/\n"
 	      "InnoDB: If you get repeated assertion failures"
 	      " or crashes, even\n"
-	      "InnoDB: immediately after the mysqld startup, there may be\n"
+	      "InnoDB: immediately after the mariadbd startup, there may be\n"
 	      "InnoDB: corruption in the InnoDB tablespace. Please refer to\n"
 	      "InnoDB: https://mariadb.com/kb/en/library/innodb-recovery-modes/\n"
 	      "InnoDB: about forcing recovery.\n", stderr);

@@ -5230,7 +5230,7 @@ static int rocksdb_init_func(void *const p) {
   {
     my_error(ER_INTERNAL_ERROR, MYF(0),
              "Loading MyRocks plugin after it has been unloaded is not "
-             "supported. Please restart mysqld");
+             "supported. Please restart mariadbd");
     DBUG_RETURN(1);
   }
 
@@ -5249,7 +5249,7 @@ static int rocksdb_init_func(void *const p) {
       sql_print_error(
           "RocksDB: The server will exit normally and stop restart "
           "attempts. Remove %s file from data directory and "
-          "start mysqld manually.",
+          "start mariadbd manually.",
           rdb_corruption_marker_file_name().c_str());
       exit(0);
     }

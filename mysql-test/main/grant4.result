@@ -166,7 +166,7 @@ End of 5.5 tests
 # are insufficient are discovered.
 #
 call mtr.add_suppression("Got an error from thread_id=.*ha_myisam.cc:");
-call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*mysqltest_u1 Checking table");
+call mtr.add_suppression("MariaDB thread id .*, query id .* localhost.*mysqltest_u1 Checking table");
 drop database if exists mysqltest_db1;
 create database mysqltest_db1;
 # Create tables which we are going to CHECK/REPAIR.
