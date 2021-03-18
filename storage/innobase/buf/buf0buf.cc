@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 1995, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 1995, 2021, Oracle and/or its affiliates.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2013, 2021, MariaDB Corporation.
 
@@ -1896,8 +1896,6 @@ buf_pool_init_instance(
 			LATCH_ID_HASH_TABLE_RW_LOCK,
 			srv_n_page_hash_locks, MEM_HEAP_FOR_PAGE_HASH);
 
-		buf_pool->page_hash_old = NULL;
-
 		buf_pool->zip_hash = hash_create(2 * buf_pool->curr_size);
 
 		buf_pool->last_printout_time = time(NULL);
@@ -2556,8 +2554,6 @@ buf_pool_resize_hash(
 {
 	hash_table_t*	new_hash_table;
 
-	ut_ad(buf_pool->page_hash_old == NULL);
-
 	/* recreate page_hash */
 	new_hash_table = ib_recreate(
 		buf_pool->page_hash, 2 * buf_pool->curr_size);
@@ -2589,8 +2585,14 @@ buf_pool_resize_hash(
 		}
 	}
 
-	buf_pool->page_hash_old = buf_pool->page_hash;
-	buf_pool->page_hash = new_hash_table;
+	/* Concurrent threads may be accessing
+	buf_pool->page_hash->n_cells, n_sync_obj and try to latch
+	sync_obj[i] while we are resizing. Therefore we never
+	deallocate page_hash, instead we overwrite n_cells (and other
+	fields) with the new values. The n_sync_obj and sync_obj are
+	actually same in both. */
+	std::swap(*buf_pool->page_hash, *new_hash_table);
+	hash_table_free(new_hash_table);
 
 	/* recreate zip_hash */
 	new_hash_table = hash_create(2 * buf_pool->curr_size);
@@ -3031,11 +3033,6 @@ calc_buf_pool_size:
 
 		hash_unlock_x_all(buf_pool->page_hash);
 		buf_pool_mutex_exit(buf_pool);
-
-		if (buf_pool->page_hash_old != NULL) {
-			hash_table_free(buf_pool->page_hash_old);
-			buf_pool->page_hash_old = NULL;
-		}
 	}
 
 	UT_DELETE(chunk_map_old);
