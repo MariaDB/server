@@ -566,6 +566,10 @@ bool fil_node_t::read_page0(bool first)
 
 		this->size = ulint(size_bytes / psize);
 		space->committed_size = space->size += this->size;
+
+		if (block_size == 0) {
+			block_size = os_file_get_block_size(handle, name);
+		}
 	} else if (space->id != TRX_SYS_SPACE || space->size_in_header) {
 		/* If this is not the first-time open, do nothing.
 		For the system tablespace, we always get invoked as
@@ -605,12 +609,15 @@ static bool fil_node_open_file(fil_node_t* node)
 
 	const bool first_time_open = node->size == 0;
 
-	bool o_direct_possible = !FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
-	if (const ulint ssize = FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
-		compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
-		if (ssize < 3) {
-			o_direct_possible = false;
-		}
+	ulint type;
+	compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
 	}
 
 	if (first_time_open
@@ -632,9 +639,7 @@ retry:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 
@@ -668,9 +673,7 @@ retry:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 	}
@@ -3601,11 +3604,22 @@ fil_ibd_create(
 		return(err);
 	}
 
+	ulint type;
+	compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
+	}
+
 	file = os_file_create(
 		innodb_data_file_key, path,
 		OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
 		OS_FILE_NORMAL,
-		OS_DATA_FILE,
+		type,
 		srv_read_only_mode,
 		&success);
 
