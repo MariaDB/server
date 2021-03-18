@@ -105,23 +105,23 @@ CREATE TABLE auto_incs.bigintcol (
 id BIGINT AUTO_INCREMENT PRIMARY KEY,
 foo INT
 );
-1INSERT INTO auto_incs.bigintcol (foo) VALUES (500);
-2INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-4INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-8INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-16INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-32INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-64INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-128 INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-256INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-512INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-1024INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-2048INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-4096INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-8192INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-16384INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-32768INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
-65536INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) VALUES (500);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
+INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
 INSERT INTO auto_incs.bigintcol (foo) (SELECT foo FROM auto_incs.bigintcol);
 CREATE TABLE auto_incs.bigintcolunsigned (
 id BIGINT UNSIGNED AUTO_INCREMENT PRIMARY KEY,
