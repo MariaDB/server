@@ -386,6 +386,10 @@ uint32_t ExtendImpl(uint32_t crc, const char* buf, size_t size) {
   const uint8_t *e = p + size;
   uint64_t l = crc ^ 0xffffffffu;
 
+#ifdef ALIGN
+#undef ALIGN
+#endif
+
 // Align n to (1 << m) byte boundary
 #define ALIGN(n, m)     ((n + ((1 << m) - 1)) & ~((1 << m) - 1))
 
@@ -488,6 +492,17 @@ static int arch_ppc_probe(void) {
   elf_aux_info(AT_HWCAP2, &cpufeatures, sizeof(cpufeatures));
   if (cpufeatures & PPC_FEATURE2_HAS_VEC_CRYPTO) arch_ppc_crc32 = 1;
 #endif  /* __powerpc64__ */
+
+  return arch_ppc_crc32;
+}
+#elif _AIX
+static int arch_ppc_probe(void) {
+  arch_ppc_crc32 = 0;
+
+#if defined(__powerpc64__)
+  // AIX 7.1+ has vector crypto features on all POWER 8+
+  arch_ppc_crc32 = 1;
+#endif /* __powerpc64__ */
 
   return arch_ppc_crc32;
 }

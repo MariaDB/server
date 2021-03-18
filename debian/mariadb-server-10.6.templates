@@ -43,33 +43,3 @@ _Description: Remove all MariaDB databases?
  If you're removing the MariaDB package in order to later install a more
  recent version or if a different mariadb-server package is already
  using it, the data should be kept.
-
-Template: mysql-server/root_password
-Type: password
-_Description: New password for the MariaDB "root" user:
- While not mandatory, it is highly recommended that you set a password
- for the MariaDB administrative "root" user.
- .
- If this field is left blank, the password will not be changed.
-
-Template: mysql-server/root_password_again
-Type: password
-_Description: Repeat password for the MariaDB "root" user:
-
-Template: mysql-server/error_setting_password
-Type: error
-_Description: Unable to set password for the MariaDB "root" user
- An error occurred while setting the password for the MariaDB
- administrative user. This may have happened because the account
- already has a password, or because of a communication problem with
- the MariaDB server.
- .
- You should check the account's password after the package installation.
- .
- Please read the /usr/share/doc/mariadb-server-10.6/README.Debian file
- for more information.
-
-Template: mysql-server/password_mismatch
-Type: error
-_Description: Password input error
- The two passwords you entered were not the same. Please try again.

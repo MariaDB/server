@@ -3633,6 +3633,11 @@ mysql_execute_command(THD *thd)
   Json_writer_object trace_command(thd);
   Json_writer_array trace_command_steps(thd, "steps");
 
+  /* store old value of binlog format */
+  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
+
+  thd->get_binlog_format(&orig_binlog_format,
+                         &orig_current_stmt_binlog_format);
 #ifdef WITH_WSREP
   if (WSREP(thd))
   {
@@ -3683,12 +3688,6 @@ mysql_execute_command(THD *thd)
                                           CF_REPORT_PROGRESS);
 
   DBUG_ASSERT(thd->transaction->stmt.modified_non_trans_table == FALSE);
-
-  /* store old value of binlog format */
-  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
-
-  thd->get_binlog_format(&orig_binlog_format,
-                         &orig_current_stmt_binlog_format);
 
   /*
     Assign system variables with values specified by the clause
@@ -7582,9 +7581,14 @@ void THD::reset_for_next_command(bool do_clear_error)
 
   save_prep_leaf_list= false;
 
-  DBUG_PRINT("debug",
-             ("is_current_stmt_binlog_format_row(): %d",
-              is_current_stmt_binlog_format_row()));
+#ifdef WITH_WSREP
+#if !defined(DBUG_OFF)
+  if (mysql_bin_log.is_open())
+#endif
+#endif
+    DBUG_PRINT("debug",
+               ("is_current_stmt_binlog_format_row(): %d",
+                 is_current_stmt_binlog_format_row()));
 
   DBUG_VOID_RETURN;
 }

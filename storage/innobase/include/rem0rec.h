@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -937,12 +937,14 @@ rec_copy(
 	const rec_offs*	offsets);
 
 /** Determine the size of a data tuple prefix in a temporary file.
+@tparam redundant_temp whether to use the ROW_FORMAT=REDUNDANT format
 @param[in]	index		clustered or secondary index
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		record header size
 @param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT
 @return	total size, in bytes */
+template<bool redundant_temp>
 ulint
 rec_get_converted_size_temp(
 	const dict_index_t*	index,
@@ -981,11 +983,13 @@ rec_init_offsets_temp(
 	MY_ATTRIBUTE((nonnull));
 
 /** Convert a data tuple prefix to the temporary file format.
+@tparam redundant_temp whether to use the ROW_FORMAT=REDUNDANT format
 @param[out]	rec		record in temporary file format
 @param[in]	index		clustered or secondary index
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT */
+template<bool redundant_temp>
 void
 rec_convert_dtuple_to_temp(
 	rec_t*			rec,
