@@ -11,3 +11,5 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+
+instant_alter_crash: MDEV-25180 FIXME: table does not exist

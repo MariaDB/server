@@ -203,5 +203,4 @@ SHOW CREATE TABLE t2;
 SHOW CREATE TABLE t3;
 DROP TABLE t1,t2,t3;
 
---remove_files_wildcard $MYSQLD_DATADIR/test #sql*.frm
 --list_files $MYSQLD_DATADIR/test

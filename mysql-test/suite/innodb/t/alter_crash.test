@@ -74,19 +74,6 @@ let $orig_table_id = `SELECT table_id
 --error 2013
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
 
-let TABLENAME_INC= $MYSQLTEST_VARDIR/tmp/tablename.inc;
-perl;
-die unless open OUT, ">$ENV{TABLENAME_INC}";
-chdir "$ENV{'datadir'}/test";
-my @frm_file = map { substr($_, 0, -4) } glob "#sql-*.frm";
-print OUT 'let $tablename=', $frm_file[0], ';';
-close OUT or die;
-EOF
-source $TABLENAME_INC;
-remove_file $TABLENAME_INC;
-
-move_file $datadir/test/$tablename.frm $datadir/test/t1.frm;
-
 --echo # Restart mysqld after the crash and reconnect.
 --source include/start_mysqld.inc
 
@@ -126,8 +113,6 @@ let $orig_table_id = `SELECT table_id
 
 --error 2013
 ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
-
-remove_files_wildcard $datadir/test #sql-*.frm;
 
 --echo # Startup the server after the crash
 --source include/start_mysqld.inc
@@ -169,18 +154,6 @@ let $orig_table_id = `select table_id from
 --error 2013
 ALTER TABLE t1 ADD INDEX (b), CHANGE c d int, ALGORITHM=INPLACE;
 
-perl;
-die unless open OUT, ">$ENV{TABLENAME_INC}";
-chdir "$ENV{'datadir'}/test";
-my @frm_file = map { substr($_, 0, -4) } glob "#sql-*.frm";
-print OUT 'let $tablename=', $frm_file[0], ';';
-close OUT or die;
-EOF
-source $TABLENAME_INC;
-remove_file $TABLENAME_INC;
-
-move_file $datadir/test/$tablename.frm $datadir/test/t1.frm;
-
 --echo # Restart mysqld after the crash and reconnect.
 --source include/start_mysqld.inc
 
@@ -188,7 +161,6 @@ move_file $datadir/test/$tablename.frm $datadir/test/t1.frm;
 eval SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = $orig_table_id;
 
---echo # Files in datadir after manual recovery.
 --list_files $MYSQLD_DATADIR/test
 
 SHOW TABLES;

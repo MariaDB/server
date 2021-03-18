@@ -2166,15 +2166,17 @@ public:
 	foreign key checks running on it. */
 	Atomic_counter<int32_t>			n_foreign_key_checks_running;
 
-	/** Transaction id that last touched the table definition. Either when
-	loading the definition or CREATE TABLE, or ALTER TABLE (prepare,
-	commit, and rollback phases). */
-	trx_id_t				def_trx_id;
-	/** Last transaction that inserted into an empty table.
-	Updated while holding exclusive table lock and an exclusive
-	latch on the clustered index root page (which must also be
-	an empty leaf page), and an ahi_latch (if btr_search_enabled). */
-	Atomic_relaxed<trx_id_t>		bulk_trx_id;
+  /** DDL transaction that last touched the table definition, or 0 if
+  no history is available. This includes possible changes in
+  ha_innobase::prepare_inplace_alter_table() and
+  ha_innobase::commit_inplace_alter_table(). */
+  trx_id_t def_trx_id;
+
+  /** Last transaction that inserted into an empty table.
+  Updated while holding exclusive table lock and an exclusive
+  latch on the clustered index root page (which must also be
+  an empty leaf page), and an ahi_latch (if btr_search_enabled). */
+  Atomic_relaxed<trx_id_t> bulk_trx_id;
 
 	/*!< set of foreign key constraints in the table; these refer to
 	columns in other tables */
@@ -2370,9 +2372,9 @@ public:
   /** Timestamp of the last modification of this table. */
   Atomic_relaxed<time_t> update_time;
   /** Transactions whose view low limit is greater than this number are
-  not allowed to store to the query cache or retrieve from it.
-  When a trx with undo logs commits, it sets this to the value of the
-  transaction id. */
+  not allowed to access the MariaDB query cache.
+  @see innobase_query_caching_table_check_low()
+  @see trx_t::commit_tables() */
   Atomic_relaxed<trx_id_t> query_cache_inv_trx_id;
 
 #ifdef UNIV_DEBUG

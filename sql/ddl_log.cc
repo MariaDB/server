@@ -90,7 +90,7 @@ const char *ddl_log_action_name[DDL_LOG_LAST_ACTION]=
   "rename table", "rename view",
   "initialize drop table", "drop table",
   "drop view", "drop trigger", "drop db", "create table", "create view",
-  "delete tmp file", "create trigger",
+  "delete tmp file", "create trigger", "alter table", "store query"
 };
 
 /* Number of phases per entry */
@@ -101,6 +101,7 @@ const uchar ddl_log_entry_phases[DDL_LOG_LAST_ACTION]=
   (uchar) DDL_DROP_PHASE_END, 1, 1,
   (uchar) DDL_DROP_DB_PHASE_END, (uchar) DDL_CREATE_TABLE_PHASE_END,
   (uchar) DDL_CREATE_VIEW_PHASE_END, 0, (uchar) DDL_CREATE_TRIGGER_PHASE_END,
+  DDL_ALTER_TABLE_PHASE_END, 1
 };
 
 
@@ -117,13 +118,20 @@ struct st_global_ddl_log
   bool open;
 };
 
-/* The following structure is only used during startup recovery */
+/*
+  The following structure is only used during startup recovery
+  for writing queries to the binary log.
+ */
+
 class st_ddl_recovery {
 public:
   String drop_table;
   String drop_view;
+  String query;
   size_t drop_table_init_length, drop_view_init_length;
   char   current_db[NAME_LEN];
+  uint   execute_entry_pos;
+  ulonglong xid;
 };
 
 static st_global_ddl_log global_ddl_log;
@@ -297,12 +305,32 @@ static bool write_ddl_log_file_entry(uint entry_pos)
 static bool update_phase(uint entry_pos, uchar phase)
 {
   DBUG_ENTER("update_phase");
+  DBUG_PRINT("enter", ("phase: %d", (int) phase));
 
   DBUG_RETURN(mysql_file_pwrite(global_ddl_log.file_id, &phase, 1,
                                 global_ddl_log.io_size * entry_pos +
                                 DDL_LOG_PHASE_POS,
                                 MYF(MY_WME | MY_NABP)) ||
               ddl_log_sync_file());
+}
+
+
+/*
+  Update flags in ddl log entry
+
+  This is not synced as it usually followed by a phase change, which will sync.
+*/
+
+static bool update_flags(uint entry_pos, uint16 flags)
+{
+  uchar buff[2];
+  DBUG_ENTER("update_flags");
+
+  int2store(buff, flags);
+  DBUG_RETURN(mysql_file_pwrite(global_ddl_log.file_id, buff, sizeof(buff),
+                                global_ddl_log.io_size * entry_pos +
+                                DDL_LOG_FLAG_POS,
+                                MYF(MY_WME | MY_NABP)));
 }
 
 
@@ -325,7 +353,7 @@ static bool update_xid(uint entry_pos, ulonglong xid)
   DBUG_ENTER("update_xid");
 
   int8store(buff, xid);
-  DBUG_RETURN(mysql_file_pwrite(global_ddl_log.file_id, buff, 8,
+  DBUG_RETURN(mysql_file_pwrite(global_ddl_log.file_id, buff, sizeof(buff),
                                 global_ddl_log.io_size * entry_pos +
                                 DDL_LOG_XID_POS,
                                 MYF(MY_WME | MY_NABP)) ||
@@ -561,6 +589,7 @@ static void set_global_from_ddl_log_entry(const DDL_LOG_ENTRY *ddl_log_entry)
   pos= store_string(pos, end, &ddl_log_entry->from_db);
   pos= store_string(pos, end, &ddl_log_entry->from_name);
   pos= store_string(pos, end, &ddl_log_entry->tmp_name);
+  pos= store_string(pos, end, &ddl_log_entry->extra_name);
   bzero(pos, global_ddl_log.io_size - (pos - file_entry_buf));
 }
 
@@ -582,6 +611,7 @@ static size_t ddl_log_free_space_in_entry(const DDL_LOG_ENTRY *ddl_log_entry)
   length+= ddl_log_entry->from_db.length;
   length+= ddl_log_entry->from_name.length;
   length+= ddl_log_entry->tmp_name.length;
+  length+= ddl_log_entry->extra_name.length;
   return global_ddl_log.io_size - length - 3;   // 3 is for storing next string
 }
 
@@ -623,6 +653,7 @@ static void set_ddl_log_entry_from_global(DDL_LOG_ENTRY *ddl_log_entry,
   ddl_log_entry->from_db=      get_string(&pos, end);
   ddl_log_entry->from_name=    get_string(&pos, end);
   ddl_log_entry->tmp_name=     get_string(&pos, end);
+  ddl_log_entry->extra_name=   get_string(&pos, end);
 }
 
 
@@ -820,6 +851,19 @@ static bool ddl_log_increment_phase_no_lock(uint entry_pos)
 
 
 /*
+  Increment phase and sync ddl log. This expects LOCK_gdl to be locked
+*/
+
+static bool increment_phase(uint entry_pos)
+{
+  if (ddl_log_increment_phase_no_lock(entry_pos))
+    return 1;
+  ddl_log_sync_no_lock();
+  return 0;
+}
+
+
+/*
   Ignore errors from the file system about:
   - Non existing tables or file (from drop table or delete file)
   - Error about tables files that already exists.
@@ -937,7 +981,7 @@ static void ddl_log_to_binary_log(THD *thd, String *query)
 static bool ddl_log_drop_to_binary_log(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
                                   String *query)
 {
-  DBUG_ENTER("ddl_log_binary_log");
+  DBUG_ENTER("ddl_log_drop_to_binary_log");
   if (mysql_bin_log.is_open())
   {
     if (!ddl_log_entry->next_entry ||
@@ -960,6 +1004,227 @@ static bool ddl_log_drop_to_binary_log(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
     }
   }
   DBUG_RETURN(0);
+}
+
+/*
+  Create a new handler based on handlerton name
+*/
+
+static handler *create_handler(THD *thd, MEM_ROOT *mem_root,
+                               LEX_CSTRING *name)
+{
+  handlerton *hton;
+  plugin_ref plugin= my_plugin_lock_by_name(thd, name,
+                                            MYSQL_STORAGE_ENGINE_PLUGIN);
+  if (!plugin)
+  {
+    my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), name->str);
+    return 0;
+  }
+  hton= plugin_hton(plugin);
+  return get_new_handler((TABLE_SHARE*)0, mem_root, hton);
+}
+
+
+/*
+  Rename a table and its .frm file for a ddl_log_entry
+
+  We first rename the table and then the .frm file as some engines,
+  like connect, needs the .frm file to exists to be able to do an rename.
+*/
+
+static void execute_rename_table(DDL_LOG_ENTRY *ddl_log_entry, handler *file,
+                                 const LEX_CSTRING *from_db,
+                                 const LEX_CSTRING *from_table,
+                                 const LEX_CSTRING *to_db,
+                                 const LEX_CSTRING *to_table,
+                                 uint flags,
+                                 char *from_path, char *to_path)
+{
+  uint to_length=0, fr_length=0;
+  DBUG_ENTER("execute_rename_table");
+
+  if (file->needs_lower_case_filenames())
+  {
+    build_lower_case_table_filename(from_path, FN_REFLEN,
+                                    from_db, from_table,
+                                    flags & FN_FROM_IS_TMP);
+    build_lower_case_table_filename(to_path, FN_REFLEN,
+                                    to_db, to_table, flags & FN_TO_IS_TMP);
+  }
+  else
+  {
+    fr_length= build_table_filename(from_path, FN_REFLEN,
+                                    from_db->str, from_table->str, "",
+                                    flags & FN_TO_IS_TMP);
+    to_length= build_table_filename(to_path, FN_REFLEN,
+                                    to_db->str, to_table->str, "",
+                                    flags & FN_TO_IS_TMP);
+  }
+  file->ha_rename_table(from_path, to_path);
+  if (file->needs_lower_case_filenames())
+  {
+    /*
+      We have to rebuild the file names as the .frm file should be used
+      without lower case conversion
+    */
+    fr_length= build_table_filename(from_path, FN_REFLEN,
+                                    from_db->str, from_table->str, reg_ext,
+                                    flags & FN_FROM_IS_TMP);
+    to_length= build_table_filename(to_path, FN_REFLEN,
+                                    to_db->str, to_table->str, reg_ext,
+                                    flags & FN_TO_IS_TMP);
+  }
+  else
+  {
+    strmov(from_path+fr_length, reg_ext);
+    strmov(to_path+to_length,   reg_ext);
+  }
+  if (!access(from_path, F_OK))
+    (void) mysql_file_rename(key_file_frm, from_path, to_path, MYF(MY_WME));
+  DBUG_VOID_RETURN;
+}
+
+
+/*
+  Update triggers
+
+  If swap_tables == 0  (Restoring the original in case of failed rename)
+    Convert triggers for db.name -> from_db.from_name
+  else (Doing the rename in case of ALTER TABLE ... RENAME)
+    Convert triggers for from_db.from_name -> db.extra_name
+*/
+
+static void rename_triggers(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
+                            bool swap_tables)
+{
+  LEX_CSTRING to_table, from_table, to_db, from_db, from_converted_name;
+  char to_path[FN_REFLEN+1], from_path[FN_REFLEN+1], conv_path[FN_REFLEN+1];
+
+  if (!swap_tables)
+  {
+    from_db=    ddl_log_entry->db;
+    from_table= ddl_log_entry->name;
+    to_db=      ddl_log_entry->from_db;
+    to_table=   ddl_log_entry->from_name;
+  }
+  else
+  {
+    from_db=    ddl_log_entry->from_db;
+    from_table= ddl_log_entry->from_name;
+    to_db=      ddl_log_entry->db;
+    to_table=   ddl_log_entry->extra_name;
+  }
+
+  build_filename_and_delete_tmp_file(from_path, sizeof(from_path),
+                                     &from_db, &from_table,
+                                     TRG_EXT, key_file_trg);
+  build_filename_and_delete_tmp_file(to_path, sizeof(to_path),
+                                     &to_db, &to_table,
+                                     TRG_EXT, key_file_trg);
+  if (lower_case_table_names)
+  {
+    uint errors;
+    from_converted_name.str= conv_path;
+    from_converted_name.length=
+      strconvert(system_charset_info, from_table.str, from_table.length,
+                 files_charset_info, conv_path, FN_REFLEN, &errors);
+  }
+  else
+    from_converted_name= from_table;
+
+  if (!access(to_path, F_OK))
+  {
+    /*
+      The original file was never renamed or we crashed in recovery
+      just after renaming back the file.
+      In this case the current file is correct and we can remove any
+      left over copied files
+    */
+    (void) mysql_file_delete(key_file_trg, from_path, MYF(0));
+  }
+  else if (!access(from_path, F_OK))
+  {
+    /* .TRG file was renamed. Rename it back */
+    /*
+      We have to create a MDL lock as change_table_names() checks that we
+      have a mdl locks for the table
+    */
+    MDL_request mdl_request;
+    TRIGGER_RENAME_PARAM trigger_param;
+    int error __attribute__((unused));
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
+                     from_db.str,
+                     from_converted_name.str,
+                     MDL_EXCLUSIVE, MDL_EXPLICIT);
+    error= thd->mdl_context.acquire_lock(&mdl_request, 1);
+    /* acquire_locks() should never fail during recovery */
+    DBUG_ASSERT(error == 0);
+
+    (void) Table_triggers_list::prepare_for_rename(thd,
+                                                   &trigger_param,
+                                                   &from_db,
+                                                   &from_table,
+                                                   &from_converted_name,
+                                                   &to_db,
+                                                   &to_table);
+    (void) Table_triggers_list::change_table_name(thd,
+                                                  &trigger_param,
+                                                  &from_db,
+                                                  &from_table,
+                                                  &from_converted_name,
+                                                  &to_db,
+                                                  &to_table);
+    thd->mdl_context.release_lock(mdl_request.ticket);
+  }
+}
+
+
+/*
+  Update stat tables
+
+  If swap_tables == 0
+    Convert stats for from_db.from_table -> db.name
+  else
+    Convert stats for db.name -> from_db.from_table
+*/
+
+static void rename_in_stat_tables(THD *thd, DDL_LOG_ENTRY *ddl_log_entry,
+                                  bool swap_tables)
+{
+  LEX_CSTRING from_table, to_table, from_db, to_db, from_converted_name;
+  char conv_path[FN_REFLEN+1];
+
+  if (!swap_tables)
+  {
+    from_db=    ddl_log_entry->db;
+    from_table= ddl_log_entry->name;
+    to_db=      ddl_log_entry->from_db;
+    to_table=   ddl_log_entry->from_name;
+  }
+  else
+  {
+    from_db=    ddl_log_entry->from_db;
+    from_table= ddl_log_entry->from_name;
+    to_db=      ddl_log_entry->db;
+    to_table=   ddl_log_entry->extra_name;
+  }
+  if (lower_case_table_names)
+  {
+    uint errors;
+    from_converted_name.str= conv_path;
+    from_converted_name.length=
+      strconvert(system_charset_info, from_table.str, from_table.length,
+                 files_charset_info, conv_path, FN_REFLEN, &errors);
+  }
+  else
+    from_converted_name= from_table;
+
+  (void) rename_table_in_stat_tables(thd,
+                                     &from_db,
+                                     &from_converted_name,
+                                     &to_db,
+                                     &to_table);
 }
 
 
@@ -1011,17 +1276,9 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     frm_action= TRUE;
   else if (ddl_log_entry->handler_name.length)
   {
-    plugin_ref plugin= my_plugin_lock_by_name(thd, &handler_name,
-                                              MYSQL_STORAGE_ENGINE_PLUGIN);
-    if (!plugin)
-    {
-      my_error(ER_UNKNOWN_STORAGE_ENGINE, MYF(0), ddl_log_entry->handler_name);
+    if (!(file= create_handler(thd, mem_root, &handler_name)))
       goto end;
-    }
-    hton= plugin_hton(plugin);
-    file= get_new_handler((TABLE_SHARE*)0, mem_root, hton);
-    if (unlikely(!file))
-      goto end;
+    hton= file->ht;
   }
 
   switch (ddl_log_entry->action_type) {
@@ -1051,9 +1308,8 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
             break;
         }
       }
-      if (ddl_log_increment_phase_no_lock(entry_pos))
+      if (increment_phase(entry_pos))
         break;
-      (void) ddl_log_sync_no_lock();
       error= 0;
       if (ddl_log_entry->action_type == DDL_LOG_DELETE_ACTION)
         break;
@@ -1084,9 +1340,8 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     else
       (void) file->ha_rename_table(ddl_log_entry->from_name.str,
                                    ddl_log_entry->name.str);
-    if (ddl_log_increment_phase_no_lock(entry_pos))
+    if (increment_phase(entry_pos))
       break;
-    (void) ddl_log_sync_no_lock();
     break;
   }
   case DDL_LOG_EXCHANGE_ACTION:
@@ -1137,130 +1392,35 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     /*
       We should restore things by renaming from
       'entry->name' to 'entry->from_name'
-
-      In the following code 'to_' stands for what the table was renamed to
-      that we have to rename back.
     */
-    size_t fr_length, to_length;
-    LEX_CSTRING from_table, to_table, to_converted_name;
-    from_table= ddl_log_entry->from_name;
-    to_table= ddl_log_entry->name;
-
-    /* Some functions wants to have the lower case table name as an argument */
-    if (lower_case_table_names)
-    {
-      uint errors;
-      to_converted_name.str= to_path;
-      to_converted_name.length=
-        strconvert(system_charset_info, to_table.str, to_table.length,
-                   files_charset_info, from_path, FN_REFLEN, &errors);
-    }
-    else
-      to_converted_name= to_table;
-
     switch (ddl_log_entry->phase) {
     case DDL_RENAME_PHASE_TRIGGER:
-    {
-      MDL_request mdl_request;
-      TRIGGER_RENAME_PARAM trigger_param;
-
-      build_filename_and_delete_tmp_file(to_path, sizeof(to_path),
-                                         &ddl_log_entry->db,
-                                         &ddl_log_entry->name,
-                                         TRG_EXT,
-                                         key_file_trg);
-      build_filename_and_delete_tmp_file(from_path, sizeof(from_path),
-                                         &ddl_log_entry->from_db,
-                                         &ddl_log_entry->from_name,
-                                         TRG_EXT, key_file_trg);
-
-      if (!access(from_path, F_OK))
-      {
-        /*
-          The original file was never renamed or we crashed in recovery
-          just after renaming back the file.
-          In this case the current file is correct and we can remove any
-          left over copied files
-        */
-        (void) mysql_file_delete(key_file_trg, to_path, MYF(0));
-      }
-      else if (!access(to_path, F_OK))
-      {
-        /* .TRG file was renamed. Rename it back */
-        /*
-          We have to create a MDL lock as change_table_names() checks that we
-          have a mdl locks for the table
-        */
-        MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE,
-                         ddl_log_entry->db.str,
-                         to_converted_name.str,
-                         MDL_EXCLUSIVE, MDL_EXPLICIT);
-        error= thd->mdl_context.acquire_lock(&mdl_request, 1);
-        /* acquire_locks() should never fail during recovery */
-        DBUG_ASSERT(error == 0);
-        (void) Table_triggers_list::prepare_for_rename(thd,
-                                                       &trigger_param,
-                                                       &ddl_log_entry->db,
-                                                       &to_table,
-                                                       &to_converted_name,
-                                                       &ddl_log_entry->from_db,
-                                                       &from_table);
-        (void) Table_triggers_list::change_table_name(thd,
-                                                      &trigger_param,
-                                                      &ddl_log_entry->db,
-                                                      &to_table,
-                                                      &to_converted_name,
-                                                      &ddl_log_entry->from_db,
-                                                      &from_table);
-        thd->mdl_context.release_lock(mdl_request.ticket);
-      }
-      if (ddl_log_increment_phase_no_lock(entry_pos))
+      rename_triggers(thd, ddl_log_entry, 0);
+      if (increment_phase(entry_pos))
         break;
-      (void) ddl_log_sync_no_lock();
-    }
     /* fall through */
     case DDL_RENAME_PHASE_STAT:
-    {
-      (void) rename_table_in_stat_tables(thd,
-                                         &ddl_log_entry->db,
-                                         &to_converted_name,
-                                         &ddl_log_entry->from_db,
-                                         &from_table);
-      if (ddl_log_increment_phase_no_lock(entry_pos))
-        break;
-      (void) ddl_log_sync_no_lock();
-    }
+      /*
+        Stat tables must be updated last so that we can handle a rename of
+        a stat table. For now we just rememeber that we have to update it
+      */
+      update_flags(ddl_log_entry->entry_pos, DDL_LOG_FLAG_UPDATE_STAT);
+      ddl_log_entry->flags|= DDL_LOG_FLAG_UPDATE_STAT;
     /* fall through */
     case DDL_RENAME_PHASE_TABLE:
       /* Restore frm and table to original names */
-      to_length= build_table_filename(to_path, sizeof(to_path) - 1,
-                                      ddl_log_entry->db.str,
-                                      ddl_log_entry->name.str,
-                                      reg_ext, 0);
-      fr_length= build_table_filename(from_path, sizeof(from_path) - 1,
-                                      ddl_log_entry->from_db.str,
-                                      ddl_log_entry->from_name.str,
-                                      reg_ext, 0);
-      (void) mysql_file_rename(key_file_frm, to_path, from_path, MYF(MY_WME));
+      execute_rename_table(ddl_log_entry, file,
+                           &ddl_log_entry->db, &ddl_log_entry->name,
+                           &ddl_log_entry->from_db, &ddl_log_entry->from_name,
+                           0,
+                           from_path, to_path);
 
-      if (file->needs_lower_case_filenames())
+      if (ddl_log_entry->flags & DDL_LOG_FLAG_UPDATE_STAT)
       {
-        build_lower_case_table_filename(to_path, sizeof(to_path) - 1,
-                                        &ddl_log_entry->db,
-                                        &to_table, 0);
-        build_lower_case_table_filename(from_path, sizeof(from_path) - 1,
-                                        &ddl_log_entry->from_db,
-                                        &from_table, 0);
-      }
-      else
-      {
-        /* remove extension from file name */
-        DBUG_ASSERT(to_length != 0 && fr_length != 0);
-        to_path[to_length - reg_ext_length]= 0;
-        from_path[fr_length - reg_ext_length]= 0;
+        /* Update stat tables last */
+        rename_in_stat_tables(thd, ddl_log_entry, 0);
       }
 
-      file->ha_rename_table(to_path, from_path);
       /* disable the entry and sync */
       (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
       break;
@@ -1350,19 +1510,17 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         /* Not found or already deleted. Delete .frm if it exists */
         strxnmov(to_path, sizeof(to_path)-1, path.str, reg_ext, NullS);
         mysql_file_delete(key_file_frm, to_path, MYF(MY_WME|MY_IGNORE_ENOENT));
+        error= 0;
       }
-      if (ddl_log_increment_phase_no_lock(entry_pos))
+      if (increment_phase(entry_pos))
         break;
-      (void) ddl_log_sync_no_lock();
       /* Fall through */
     case DDL_DROP_PHASE_TRIGGER:
       Table_triggers_list::drop_all_triggers(thd, &db, &table,
                                              MYF(MY_WME | MY_IGNORE_ENOENT));
-      if (ddl_log_increment_phase_no_lock(entry_pos))
+      if (increment_phase(entry_pos))
         break;
-      (void) ddl_log_sync_no_lock();
-      /* Fall through */
-
+      /* fall through */
     case DDL_DROP_PHASE_COLLECT:
       if (strcmp(recovery_state.current_db, db.str))
       {
@@ -1376,7 +1534,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       if (ddl_log_drop_to_binary_log(thd, ddl_log_entry,
                                      &recovery_state.drop_table))
       {
-        if (ddl_log_increment_phase_no_lock(entry_pos))
+        if (increment_phase(entry_pos))
           break;
       }
       break;
@@ -1410,7 +1568,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       if (ddl_log_drop_to_binary_log(thd, ddl_log_entry,
                                      &recovery_state.drop_view))
       {
-        if (ddl_log_increment_phase_no_lock(entry_pos))
+        if (increment_phase(entry_pos))
           break;
       }
     }
@@ -1504,9 +1662,9 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       mysql_file_delete_with_symlink(key_file_misc, to_path, "", MYF(0));
 
       (void) rm_dir_w_symlink(path.str, 0);
-      if (ddl_log_increment_phase_no_lock(entry_pos))
+      if (increment_phase(entry_pos))
         break;
-      /* Fall through */
+      /* fall through */
     case DDL_DROP_DB_PHASE_LOG:
     {
       String *query= &recovery_state.drop_table;
@@ -1580,6 +1738,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
       }
     }
     (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+    error= 0;
     break;
   }
   case DDL_LOG_CREATE_VIEW_ACTION:
@@ -1735,6 +1894,320 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     }
     break;
   }
+  case DDL_LOG_ALTER_TABLE_ACTION:
+  {
+    handlerton *org_hton;
+    handler *org_file;
+    bool is_renamed= ddl_log_entry->flags & DDL_LOG_FLAG_ALTER_RENAME;
+    bool new_version_ready __attribute__((unused))= 0;
+    LEX_CSTRING db, table;
+    db=     ddl_log_entry->db;
+    table=  ddl_log_entry->name;
+
+    my_debug_put_break_here();
+    if (!(org_file= create_handler(thd, mem_root,
+                                   &ddl_log_entry->from_handler_name)))
+      goto end;
+    /* Handlerton of the final table and any temporary tables */
+    org_hton= org_file->ht;
+
+    switch (ddl_log_entry->phase) {
+    case DDL_ALTER_TABLE_PHASE_RENAME_FAILED:
+      /*
+        We come here when the final rename of temporary table (#sql-alter) to
+        the original name failed. Now we have to delete the temporary table
+        and restore the backup.
+      */
+      quick_rm_table(thd, hton, &db, &table, FN_IS_TMP);
+      if (!is_renamed)
+      {
+        execute_rename_table(ddl_log_entry, file,
+                             &ddl_log_entry->from_db,
+                             &ddl_log_entry->extra_name, // #sql-backup
+                             &ddl_log_entry->from_db,
+                             &ddl_log_entry->from_name,
+                             FN_FROM_IS_TMP,
+                             from_path, to_path);
+      }
+      (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+      break;
+    case DDL_ALTER_TABLE_PHASE_INPLACE_COPIED:
+      /* The inplace alter table is committed and ready to be used */
+      new_version_ready= 1;
+    /* fall through */
+    case DDL_ALTER_TABLE_PHASE_INPLACE:
+    {
+      int fr_length __attribute__((unused)) , to_length;
+      /*
+        Inplace alter table was used.
+        On disk there are now a table with the original name, the
+        original .frm file and potentially a #sql-alter...frm file
+        with the new definition.
+      */
+      fr_length= build_table_filename(from_path, sizeof(from_path) - 1,
+                                      ddl_log_entry->db.str,
+                                      ddl_log_entry->name.str,
+                                      reg_ext, 0);
+      to_length= build_table_filename(to_path, sizeof(to_path) - 1,
+                                      ddl_log_entry->from_db.str,
+                                      ddl_log_entry->from_name.str,
+                                      reg_ext, 0);
+      if (!access(from_path, F_OK))             // Does #sql-alter.. exists?
+      {
+        LEX_CUSTRING version= {ddl_log_entry->uuid, MY_UUID_SIZE};
+        /*
+          Temporary .frm file exists.  This means that that the table in
+          the storage engine can be of either old or new version.
+          If old version, delete the new .frm table and keep the old one.
+          If new version, replace the old .frm with the new one.
+        */
+        to_path[to_length - reg_ext_length]= 0;  // Remove .frm
+        if (!hton->check_version || new_version_ready ||
+            !hton->check_version(hton, to_path, &version,
+                                 ddl_log_entry->unique_id))
+        {
+          /* Table is up to date */
+
+          /*
+            Update state so that if we crash and retry the ddl log entry,
+            we know that we can use the new table even if .frm is renamed.
+          */
+          if (ddl_log_entry->phase != DDL_ALTER_TABLE_PHASE_INPLACE_COPIED)
+            (void) update_phase(entry_pos,
+                                DDL_ALTER_TABLE_PHASE_INPLACE_COPIED);
+          /* Replace old .frm file with new one */
+          to_path[to_length - reg_ext_length]= FN_EXTCHAR;
+          (void) mysql_file_rename(key_file_frm, from_path, to_path,
+                                   MYF(MY_WME));
+          new_version_ready= 1;
+        }
+        else
+        {
+          DBUG_ASSERT(!new_version_ready);
+          /*
+            Use original version of the .frm file.
+            Remove temporary #sql-alter.frm file and the #sql-alter table.
+            We have also to remove the table as some storage engines,
+            like InnoDB, may use it as an internal temporary table
+            during inplace alter table.
+          */
+          error= org_hton->drop_table(org_hton, from_path);
+          if (non_existing_table_error(error))
+            error= 0;
+          mysql_file_delete(key_file_frm, from_path,
+                            MYF(MY_WME|MY_IGNORE_ENOENT));
+          (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+          break;
+        }
+      }
+      if (is_renamed && new_version_ready)
+      {
+        /* After the renames above, the original table is now in from_name */
+        ddl_log_entry->name= ddl_log_entry->from_name;
+        /* Rename db.name -> db.extra_name */
+        execute_rename_table(ddl_log_entry, file,
+                             &ddl_log_entry->db, &ddl_log_entry->name,
+                             &ddl_log_entry->db, &ddl_log_entry->extra_name,
+                             0,
+                             from_path, to_path);
+      }
+      (void) update_phase(entry_pos, DDL_ALTER_TABLE_PHASE_UPDATE_TRIGGERS);
+      goto update_triggers;
+    }
+    case DDL_ALTER_TABLE_PHASE_COPIED:
+    {
+      char *from_end;
+      /*
+        New table is created and we have the query for the binary log.
+        We should remove the original table and in the next stage replace
+        it with the new one.
+      */
+      build_table_filename(from_path, sizeof(from_path) - 1,
+                           ddl_log_entry->from_db.str,
+                           ddl_log_entry->from_name.str,
+                           "", 0);
+      build_table_filename(to_path, sizeof(to_path) - 1,
+                           ddl_log_entry->db.str,
+                           ddl_log_entry->name.str,
+                           "", 0);
+      from_end= strend(from_path);
+      if (likely(org_hton))
+      {
+        error= org_hton->drop_table(org_hton, from_path);
+        if (non_existing_table_error(error))
+          error= 0;
+      }
+      strmov(from_end, reg_ext);
+      mysql_file_delete(key_file_frm, from_path,
+                        MYF(MY_WME|MY_IGNORE_ENOENT));
+      *from_end= 0;                             // Remove extension
+
+      (void) update_phase(entry_pos, DDL_ALTER_TABLE_PHASE_OLD_RENAMED);
+    }
+    /* fall through */
+    case DDL_ALTER_TABLE_PHASE_OLD_RENAMED:
+    {
+      /*
+        The new table (from_path) is up to date.
+        Original table is either renamed as backup table (normal case),
+        only frm is renamed (in case of engine change) or deleted above.
+      */
+      if (!is_renamed)
+      {
+        uint length;
+        /* Rename new "temporary" table to the original wanted name */
+        execute_rename_table(ddl_log_entry, file,
+                             &ddl_log_entry->db,
+                             &ddl_log_entry->name,
+                             &ddl_log_entry->from_db,
+                             &ddl_log_entry->from_name,
+                             FN_FROM_IS_TMP,
+                             from_path, to_path);
+
+        /*
+          Remove backup (only happens if alter table used without rename).
+          Backup name is always in lower case, so there is no need for
+          converting table names.
+        */
+        length= build_table_filename(from_path, sizeof(from_path) - 1,
+                                     ddl_log_entry->from_db.str,
+                                     ddl_log_entry->extra_name.str,
+                                     "", FN_IS_TMP);
+        if (likely(org_hton))
+        {
+          if (ddl_log_entry->flags & DDL_LOG_FLAG_ALTER_ENGINE_CHANGED)
+          {
+            /* Only frm is renamed, storage engine files have original name */
+            build_table_filename(to_path, sizeof(from_path) - 1,
+                                 ddl_log_entry->from_db.str,
+                                 ddl_log_entry->from_name.str,
+                                 "", 0);
+            error= org_hton->drop_table(org_hton, to_path);
+          }
+          else
+            error= org_hton->drop_table(org_hton, from_path);
+          if (non_existing_table_error(error))
+            error= 0;
+        }
+        strmov(from_path + length, reg_ext);
+        mysql_file_delete(key_file_frm, from_path,
+                          MYF(MY_WME|MY_IGNORE_ENOENT));
+      }
+      else
+        execute_rename_table(ddl_log_entry, file,
+                             &ddl_log_entry->db, &ddl_log_entry->name,
+                             &ddl_log_entry->db, &ddl_log_entry->extra_name,
+                             FN_FROM_IS_TMP,
+                             from_path, to_path);
+      (void) update_phase(entry_pos, DDL_ALTER_TABLE_PHASE_UPDATE_TRIGGERS);
+    }
+    /* fall through */
+    case DDL_ALTER_TABLE_PHASE_UPDATE_TRIGGERS:
+    update_triggers:
+    {
+      if (is_renamed)
+      {
+        // rename_triggers will rename from: from_db.from_name -> db.extra_name
+        rename_triggers(thd, ddl_log_entry, 1);
+        (void) update_phase(entry_pos, DDL_ALTER_TABLE_PHASE_UPDATE_STATS);
+      }
+    }
+    /* fall through */
+    case DDL_ALTER_TABLE_PHASE_UPDATE_STATS:
+      if (is_renamed)
+      {
+        ddl_log_entry->name= ddl_log_entry->from_name;
+        ddl_log_entry->from_name= ddl_log_entry->extra_name;
+        rename_in_stat_tables(thd, ddl_log_entry, 1);
+        (void) update_phase(entry_pos, DDL_ALTER_TABLE_PHASE_UPDATE_STATS);
+      }
+      /* fall through */
+    case DDL_ALTER_TABLE_PHASE_UPDATE_BINARY_LOG:
+    {
+      /* Write ALTER TABLE query to binary log */
+      if (recovery_state.query.length() && mysql_bin_log.is_open())
+      {
+        /* Reuse old xid value if possible */
+        if (!recovery_state.xid)
+          recovery_state.xid= server_uuid_value();
+        thd->binlog_xid= recovery_state.xid;
+        update_xid(recovery_state.execute_entry_pos, thd->binlog_xid);
+
+        mysql_mutex_unlock(&LOCK_gdl);
+        (void) thd->binlog_query(THD::STMT_QUERY_TYPE,
+                                 recovery_state.query.ptr(),
+                                 recovery_state.query.length(),
+                                 TRUE, FALSE, FALSE, 0);
+        thd->binlog_xid= 0;
+        mysql_mutex_lock(&LOCK_gdl);
+      }
+      recovery_state.query.length(0);
+      (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+      break;
+    }
+    /*
+      The following cases are when alter table failed and we have to roll
+      back
+    */
+    case DDL_ALTER_TABLE_PHASE_CREATED:
+    {
+      /*
+        Temporary table should have been created. Delete it.
+      */
+      if (likely(hton))
+      {
+        error= hton->drop_table(hton, ddl_log_entry->tmp_name.str);
+        if (non_existing_table_error(error))
+          error= 0;
+      }
+      (void) update_phase(entry_pos, DDL_ALTER_TABLE_PHASE_INIT);
+    }
+    /* fall through */
+    case DDL_ALTER_TABLE_PHASE_INIT:
+    {
+      /*
+        A temporary .frm and possible a .par files should have been created
+      */
+      strxmov(to_path, ddl_log_entry->tmp_name.str, reg_ext, NullS);
+      mysql_file_delete(key_file_frm, to_path, MYF(MY_WME|MY_IGNORE_ENOENT));
+      strxmov(to_path, ddl_log_entry->tmp_name.str, PAR_EXT, NullS);
+      mysql_file_delete(key_file_partition_ddl_log, to_path,
+                        MYF(MY_WME|MY_IGNORE_ENOENT));
+      (void) update_phase(entry_pos, DDL_LOG_FINAL_PHASE);
+      break;
+    }
+    }
+    break;
+  }
+  case DDL_LOG_STORE_QUERY_ACTION:
+  {
+    /*
+      Read query for next ddl command
+    */
+    if (ddl_log_entry->flags)
+    {
+      /*
+        First QUERY event. Allocate query string.
+        Query length is stored in unique_id
+      */
+      if (recovery_state.query.alloc((size_t) (ddl_log_entry->unique_id+1)))
+        goto end;
+      recovery_state.query.length(0);
+    }
+    if (unlikely(recovery_state.query.length() +
+                 ddl_log_entry->extra_name.length >
+                 recovery_state.query.alloced_length()))
+    {
+      /* Impossible length. Ignore query */
+      recovery_state.query.length(0);
+      error= 1;
+      my_error(ER_INTERNAL_ERROR, MYF(0),
+               "DDL log: QUERY event has impossible length");
+      break;
+    }
+    recovery_state.query.qs_append(&ddl_log_entry->extra_name);
+    break;
+  }
   default:
     DBUG_ASSERT(0);
     break;
@@ -1742,7 +2215,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
 
 end:
   delete file;
-  if ((error= no_such_table_handler.unhandled_errors > 0))
+  if ((error= (no_such_table_handler.unhandled_errors > 0)))
     my_errno= no_such_table_handler.first_error;
   thd->pop_internal_handler();
   DBUG_RETURN(error);
@@ -1821,6 +2294,8 @@ void ddl_log_release_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry)
     global_ddl_log.first_used= next_log_entry;
   if (next_log_entry)
     next_log_entry->prev_log_entry= prev_log_entry;
+  // Ensure we get a crash if we try to access this link again.
+  log_entry->next_active_log_entry= (DDL_LOG_MEMORY_ENTRY*) 0x1;
   DBUG_VOID_RETURN;
 }
 
@@ -2060,6 +2535,8 @@ bool ddl_log_sync()
 
   Executing an entry means executing a linked list of actions.
 
+  This function is called for recovering partitioning in case of error.
+
   @param first_entry           Reference to first action in entry
 
   @return Operation status
@@ -2173,6 +2650,7 @@ int ddl_log_execute_recovery()
   thd->store_globals();
   recovery_state.drop_table.free();
   recovery_state.drop_view.free();
+  recovery_state.query.free();
 
   thd->set_query(recover_query_string, strlen(recover_query_string));
 
@@ -2186,6 +2664,13 @@ int ddl_log_execute_recovery()
     }
     if (ddl_log_entry.entry_type == DDL_LOG_EXECUTE_CODE)
     {
+      /*
+        Remeber information about executive ddl log entry,
+        used for binary logging during recovery
+      */
+      recovery_state.execute_entry_pos= i;
+      recovery_state.xid= ddl_log_entry.xid;
+
       /* purecov: begin tested */
       if (ddl_log_entry.unique_id >= DDL_LOG_MAX_RETRY)
       {
@@ -2201,6 +2686,7 @@ int ddl_log_execute_recovery()
         continue;
       }
       /* purecov: end tested */
+
       if (ddl_log_execute_entry_no_lock(thd, ddl_log_entry.next_entry))
       {
         /* Real unpleasant scenario but we have to continue anyway  */
@@ -2212,6 +2698,7 @@ int ddl_log_execute_recovery()
   }
   recovery_state.drop_table.free();
   recovery_state.drop_view.free();
+  recovery_state.query.free();
   close_ddl_log();
   mysql_mutex_unlock(&LOCK_gdl);
   thd->reset_query();
@@ -2279,7 +2766,7 @@ static void add_log_entry(DDL_LOG_STATE *state,
                           DDL_LOG_MEMORY_ENTRY *log_entry)
 {
   log_entry->next_active_log_entry= state->list;
-  state->list= log_entry;
+  state->main_entry= state->list= log_entry;
 }
 
 
@@ -2328,6 +2815,8 @@ void ddl_log_complete(DDL_LOG_STATE *state)
 
 /**
   Revert (execute) all entries in the ddl log
+
+  This is called for failed rename table, create trigger or drop trigger.
 */
 
 void ddl_log_revert(THD *thd, DDL_LOG_STATE *state)
@@ -2351,13 +2840,48 @@ void ddl_log_revert(THD *thd, DDL_LOG_STATE *state)
 
 
 /*
-  Update phase of last created ddl log entry
+  Update phase of main ddl log entry (usually the last one created,
+  except in case of query events, the one before the query event).
 */
 
 bool ddl_log_update_phase(DDL_LOG_STATE *state, uchar phase)
 {
   DBUG_ENTER("ddl_log_update_phase");
-  DBUG_RETURN(update_phase(state->list->entry_pos, phase));
+  if (likely(state->list))
+    DBUG_RETURN(update_phase(state->main_entry->entry_pos, phase));
+  DBUG_RETURN(0);
+}
+
+
+/*
+  Update flag bits in main ddl log entry (usually last created, except in case
+  of query events, the one before the query event.
+*/
+
+bool ddl_log_add_flag(DDL_LOG_STATE *state, uint16 flags)
+{
+  DBUG_ENTER("ddl_log_update_phase");
+  if (likely(state->list))
+  {
+    state->flags|= flags;
+    DBUG_RETURN(update_flags(state->main_entry->entry_pos, state->flags));
+  }
+  DBUG_RETURN(0);
+}
+
+
+/**
+   Update unique_id (used for inplace alter table)
+*/
+
+bool ddl_log_update_unique_id(DDL_LOG_STATE *state, ulonglong id)
+{
+  DBUG_ENTER("ddl_log_update_unique_id");
+  DBUG_PRINT("enter", ("id: %llu", id));
+  /* The following may not be true in case of temporary tables */
+  if (likely(state->list))
+    DBUG_RETURN(update_unique_id(state->main_entry->entry_pos, id));
+  DBUG_RETURN(0);
 }
 
 
@@ -2392,6 +2916,8 @@ bool ddl_log_update_xid(DDL_LOG_STATE *state, ulonglong xid)
 
 /*
   Write ddl_log_entry and write or update ddl_execute_entry
+
+  Will update DDL_LOG_STATE->flags
 */
 
 static bool ddl_log_write(DDL_LOG_STATE *ddl_state,
@@ -2413,6 +2939,7 @@ static bool ddl_log_write(DDL_LOG_STATE *ddl_state,
     DBUG_RETURN(1);
   }
   add_log_entry(ddl_state, log_entry);
+  ddl_state->flags|= ddl_log_entry->flags;      // Update cache
   DBUG_RETURN(0);
 }
 
@@ -2674,7 +3201,7 @@ bool ddl_log_create_table(THD *thd, DDL_LOG_STATE *ddl_state,
   ddl_log_entry.db=           *const_cast<LEX_CSTRING*>(db);
   ddl_log_entry.name=         *const_cast<LEX_CSTRING*>(table);
   ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(path);
-  ddl_log_entry.flags=        only_frm;
+  ddl_log_entry.flags=        only_frm ? DDL_LOG_FLAG_ONLY_FRM : 0;
 
   DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
 }
@@ -2745,4 +3272,142 @@ bool ddl_log_create_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
   ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(trigger_name);
   ddl_log_entry.phase=        (uchar) phase;
   DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
+}
+
+
+/**
+   Log ALTER TABLE
+
+   $param backup_name   Name of backup table. In case of ALTER TABLE rename
+                        this is the final table name
+*/
+
+bool ddl_log_alter_table(THD *thd, DDL_LOG_STATE *ddl_state,
+                         handlerton *org_hton,
+                         const LEX_CSTRING *db, const LEX_CSTRING *table,
+                         handlerton *new_hton,
+                         const LEX_CSTRING *new_db,
+                         const LEX_CSTRING *new_table,
+                         const LEX_CSTRING *frm_path,
+                         const LEX_CSTRING *backup_name,
+                         const LEX_CUSTRING *version,
+                         ulonglong table_version,
+                         bool is_renamed)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  DBUG_ENTER("ddl_log_alter_table");
+  DBUG_ASSERT(new_hton);
+  DBUG_ASSERT(org_hton);
+
+  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+  ddl_log_entry.action_type=  DDL_LOG_ALTER_TABLE_ACTION;
+  if (new_hton)
+    lex_string_set(&ddl_log_entry.handler_name,
+                   ha_resolve_storage_engine_name(new_hton));
+  /* Store temporary table name */
+  ddl_log_entry.db=           *const_cast<LEX_CSTRING*>(new_db);
+  ddl_log_entry.name=         *const_cast<LEX_CSTRING*>(new_table);
+  if (org_hton)
+    lex_string_set(&ddl_log_entry.from_handler_name,
+                   ha_resolve_storage_engine_name(org_hton));
+  ddl_log_entry.from_db=      *const_cast<LEX_CSTRING*>(db);
+  ddl_log_entry.from_name=    *const_cast<LEX_CSTRING*>(table);
+  ddl_log_entry.tmp_name=     *const_cast<LEX_CSTRING*>(frm_path);
+  ddl_log_entry.extra_name=   *const_cast<LEX_CSTRING*>(backup_name);
+  ddl_log_entry.flags=        is_renamed ? DDL_LOG_FLAG_ALTER_RENAME : 0;
+  ddl_log_entry.unique_id=    table_version;
+
+  DBUG_ASSERT(version->length == MY_UUID_SIZE);
+  memcpy(ddl_log_entry.uuid, version->str, version->length);
+  DBUG_RETURN(ddl_log_write(ddl_state, &ddl_log_entry));
+}
+
+
+/*
+  Store query that later should be logged to binary log
+
+  The links of the query log event is
+
+  execute_log_event -> first log_query_event [-> log_query_event...] ->
+  action_log_event (probably a LOG_ALTER_TABLE_ACTION event)
+
+  This ensures that when we execute the log_query_event it can collect
+  the full query from the log_query_events and then execute the
+  action_log_event with the original query stored in 'recovery_state.query'.
+
+  The query is stored in ddl_log_entry.extra_name as this is the last string
+  stored in the log block (makes it easier to check and debug).
+*/
+
+bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_state,
+                         const char *query, size_t length)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  DDL_LOG_MEMORY_ENTRY *first_entry, *next_entry= 0;
+  DDL_LOG_MEMORY_ENTRY *original_entry= ddl_state->list;
+  size_t max_query_length;
+  uint entry_pos, next_entry_pos= 0, parent_entry_pos;
+  DBUG_ENTER("ddl_log_store_query");
+  DBUG_ASSERT(length <= UINT_MAX32);
+  DBUG_ASSERT(length > 0);
+  DBUG_ASSERT(ddl_state->list);
+
+  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+  ddl_log_entry.action_type=  DDL_LOG_STORE_QUERY_ACTION;
+  ddl_log_entry.unique_id=    length;
+  ddl_log_entry.flags=        1;                // First entry
+
+  max_query_length= ddl_log_free_space_in_entry(&ddl_log_entry);
+
+  mysql_mutex_lock(&LOCK_gdl);
+  ddl_log_entry.entry_type= DDL_LOG_ENTRY_CODE;
+
+  if (ddl_log_get_free_entry(&first_entry))
+    goto err;
+  parent_entry_pos= ddl_state->list->entry_pos;
+  entry_pos= first_entry->entry_pos;
+  add_log_entry(ddl_state, first_entry);
+
+  while (length)
+  {
+    size_t write_length= MY_MIN(length, max_query_length);
+    ddl_log_entry.extra_name.str= query;
+    ddl_log_entry.extra_name.length= write_length;
+
+    query+= write_length;
+    length-= write_length;
+
+    if (length > 0)
+    {
+      if (ddl_log_get_free_entry(&next_entry))
+        goto err;
+      ddl_log_entry.next_entry= next_entry_pos= next_entry->entry_pos;
+      add_log_entry(ddl_state, next_entry);
+    }
+    else
+    {
+      /* point next link of last query_action event to the original action */
+      ddl_log_entry.next_entry= parent_entry_pos;
+    }
+    set_global_from_ddl_log_entry(&ddl_log_entry);
+    if (unlikely(write_ddl_log_file_entry(entry_pos)))
+      goto err;
+    entry_pos= next_entry_pos;
+    ddl_log_entry.flags= 0;           // Only first entry has this set
+  }
+  if (ddl_log_write_execute_entry(first_entry->entry_pos,
+                                  &ddl_state->execute_entry))
+    goto err;
+
+  /* Set the original entry to be used for future PHASE updates */
+  ddl_state->main_entry= original_entry;
+  mysql_mutex_unlock(&LOCK_gdl);
+  DBUG_RETURN(0);
+err:
+  /*
+    Allocated ddl_log entries will be released by the
+    ddl_log_release_entries() call in dl_log_complete()
+  */
+  mysql_mutex_unlock(&LOCK_gdl);
+  DBUG_RETURN(1);
 }

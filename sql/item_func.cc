@@ -6833,14 +6833,18 @@ void uuid_short_init()
                (((ulonglong) server_start_time) << 24));
 }
 
-
-longlong Item_func_uuid_short::val_int()
+ulonglong server_uuid_value()
 {
   ulonglong val;
   mysql_mutex_lock(&LOCK_short_uuid_generator);
   val= uuid_value++;
   mysql_mutex_unlock(&LOCK_short_uuid_generator);
-  return (longlong) val;
+  return val;
+}
+
+longlong Item_func_uuid_short::val_int()
+{
+  return (longlong) server_uuid_value();
 }
 
 

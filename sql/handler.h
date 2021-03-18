@@ -1543,6 +1543,33 @@ struct handlerton
 			    THD *victim_thd, my_bool signal);
    int (*set_checkpoint)(handlerton *hton, const XID* xid);
    int (*get_checkpoint)(handlerton *hton, XID* xid);
+  /**
+     Check if the version of the table matches the version in the .frm
+     file.
+
+     This is mainly used to verify in recovery to check if an inplace
+     ALTER TABLE succeded.
+     Storage engines that does not support inplace alter table does not
+     have to implement this function.
+
+     @param hton      handlerton
+     @param path      Path for table
+     @param version   The unique id that is stored in the .frm file for
+                      CREATE and updated for each ALTER TABLE (but not for
+                      simple renames).
+                      This is the ID used for the final table.
+     @param create_id The value returned from handler->table_version() for
+                      the original table (before ALTER TABLE).
+
+     @retval 0     If id matches or table is newer than create_id (depending
+                   on what version check the engine supports. This means that
+                   The (inplace) alter table did succeed.
+     @retval # > 0 Alter table did not succeed.
+
+     Related to handler::discover_check_version().
+   */
+  int (*check_version)(handlerton *hton, const char *path,
+                       const LEX_CUSTRING *version, ulonglong create_id);
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -4030,6 +4057,15 @@ public:
   { return 0; }
   virtual int extra_opt(enum ha_extra_function operation, ulong arg)
   { return extra(operation); }
+  /*
+    Table version id for the the table. This should change for each
+    sucessfull ALTER TABLE.
+    This is used by the handlerton->check_version() to ask the engine
+    if the table definition has been updated.
+    Storage engines that does not support inplace alter table does not
+    have to support this call.
+  */
+  virtual ulonglong table_version() const { return 0; }
 
   /**
     In an UPDATE or DELETE, if the row under the cursor was locked by another

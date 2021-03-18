@@ -157,21 +157,43 @@ row_undo_mod_clust_low(
 		}
 	}
 
-	if (err == DB_SUCCESS
-	    && btr_cur_get_index(btr_cur)->table->id == DICT_COLUMNS_ID) {
+	if (err != DB_SUCCESS) {
+		return err;
+	}
+
+	switch (const auto id = btr_cur_get_index(btr_cur)->table->id) {
+		unsigned c;
+	case DICT_TABLES_ID:
+		if (node->trx != trx_roll_crash_recv_trx) {
+			break;
+		}
+		c = DICT_COL__SYS_TABLES__ID;
+		goto evict;
+	case DICT_INDEXES_ID:
+		if (node->trx != trx_roll_crash_recv_trx) {
+			break;
+		}
+		/* fall through */
+	case DICT_COLUMNS_ID:
+		static_assert(!DICT_COL__SYS_INDEXES__TABLE_ID, "");
+		static_assert(!DICT_COL__SYS_COLUMNS__TABLE_ID, "");
+		c = DICT_COL__SYS_COLUMNS__TABLE_ID;
 		/* This is rolling back an UPDATE or DELETE on SYS_COLUMNS.
 		If it was part of an instant ALTER TABLE operation, we
 		must evict the table definition, so that it can be
 		reloaded after the dictionary operation has been
 		completed. At this point, any corresponding operation
 		to the metadata record will have been rolled back. */
-		const dfield_t& table_id = *dtuple_get_nth_field(node->row, 0);
+	evict:
+		const dfield_t& table_id = *dtuple_get_nth_field(node->row, c);
 		ut_ad(dfield_get_len(&table_id) == 8);
-		node->trx->evict_table(mach_read_from_8(static_cast<byte*>(
-					table_id.data)));
+		node->trx->evict_table(mach_read_from_8(
+					       static_cast<byte*>(
+						       table_id.data)),
+				       id == DICT_COLUMNS_ID);
 	}
 
-	return(err);
+	return DB_SUCCESS;
 }
 
 /** Get the byte offset of the DB_TRX_ID column

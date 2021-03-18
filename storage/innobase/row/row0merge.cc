@@ -3919,8 +3919,11 @@ row_merge_drop_indexes(
 	/* Invalidate all row_prebuilt_t::ins_graph that are referring
 	to this table. That is, force row_get_prebuilt_insert_row() to
 	rebuild prebuilt->ins_node->entry_list). */
-	ut_ad(table->def_trx_id <= trx->id);
-	table->def_trx_id = trx->id;
+	if (table->def_trx_id < trx->id) {
+		table->def_trx_id = trx->id;
+	} else {
+		ut_ad(table->def_trx_id == trx->id || table->name.part());
+	}
 
 	next_index = dict_table_get_next_index(index);
 

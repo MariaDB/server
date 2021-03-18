@@ -2713,6 +2713,7 @@ row_mysql_drop_garbage_tables()
 			heap,
 			reinterpret_cast<const char*>(field), len);
 		if (strstr(table_name, "/" TEMP_FILE_PREFIX "-") &&
+                    !strstr(table_name, "/" TEMP_FILE_PREFIX "-alter-") &&
                     !strstr(table_name, "/" TEMP_FILE_PREFIX "-backup-") &&
                     !strstr(table_name, "/" TEMP_FILE_PREFIX "-exchange-"))
                 {

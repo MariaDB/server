@@ -105,7 +105,8 @@ row_purge_remove_clust_if_poss_low(
 	ulint		mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
 {
 	dict_index_t* index = dict_table_get_first_index(node->table);
-
+	table_id_t table_id = 0;
+retry:
 	log_free_check();
 
 	mtr_t mtr;
@@ -118,12 +119,38 @@ row_purge_remove_clust_if_poss_low(
 		return true;
 	}
 
+	rec_t* rec = btr_pcur_get_rec(&node->pcur);
+
 	if (node->table->id == DICT_INDEXES_ID) {
 		/* If this is a record of the SYS_INDEXES table, then
 		we have to free the file segments of the index tree
 		associated with the index */
+		if (!table_id) {
+			/* Ensure that the dict_table_t::def_trx_id
+			will be recovered correctly for
+			innodb_check_version(), even if the only
+			operation is DROP INDEX */
+			static_assert(!DICT_FLD__SYS_INDEXES__TABLE_ID,
+				      "compatibility");
+			table_id = mach_read_from_8(rec);
+			ut_ad(table_id);
+			if (UNIV_LIKELY(table_id)) {
+				mtr.commit();
+				MDL_ticket* mdl= nullptr;
+				if (dict_table_t* t = dict_table_open_on_id(
+					    table_id, false,
+					    DICT_TABLE_OP_LOAD_TABLESPACE,
+					    node->purge_thd, &mdl)) {
+					dict_table_close(t, false, false,
+							 node->purge_thd, mdl);
+				}
+				goto retry;
+			}
+		}
+
 		dict_drop_index_tree(&node->pcur, nullptr, &mtr);
 		mtr.commit();
+		log_free_check();
 		mtr.start();
 		index->set_modified(mtr);
 
@@ -131,9 +158,10 @@ row_purge_remove_clust_if_poss_low(
 			mtr.commit();
 			return true;
 		}
+
+		rec = btr_pcur_get_rec(&node->pcur);
 	}
 
-	rec_t* rec = btr_pcur_get_rec(&node->pcur);
 	rec_offs offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_);
 	mem_heap_t* heap = NULL;
@@ -661,12 +689,50 @@ row_purge_del_mark(
 	return(row_purge_remove_clust_if_poss(node));
 }
 
+/** Try to extract a table identifier from a record, so that
+dict_table_t::def_trx_id can be recovered for innodb_check_version().
+@param id    table identifier
+@param rec   clustered index record
+@return user table identifier
+@retval 0 if id does not refer to SYS_TABLES, SYS_INDEXES, SYS_COLUMNS */
+static table_id_t row_purge_get_table_id(table_id_t id, const rec_t *rec)
+{
+  unsigned table_id_field;
+
+  switch (id)
+  {
+  default:
+    return 0;
+  case DICT_TABLES_ID:
+    table_id_field= DICT_FLD__SYS_TABLES__ID;
+    break;
+  case DICT_COLUMNS_ID:
+  case DICT_INDEXES_ID:
+    static_assert(!DICT_FLD__SYS_COLUMNS__TABLE_ID, "compatibility");
+    static_assert(!DICT_FLD__SYS_INDEXES__TABLE_ID, "compatibility");
+    table_id_field= 0;
+  }
+
+  ulint len;
+  const byte* field= rec_get_nth_field_old(rec, table_id_field, &len);
+  if (UNIV_UNLIKELY(len != 8))
+  {
+    ut_ad("corrupted SYS_ table" == 0);
+    return 0;
+  }
+  const table_id_t table_id= mach_read_from_8(field);
+  ut_ad(table_id);
+  return table_id;
+}
+
 /** Reset DB_TRX_ID, DB_ROLL_PTR of a clustered index record
 whose old history can no longer be observed.
 @param[in,out]	node	purge node
 @param[in,out]	mtr	mini-transaction (will be started and committed) */
 static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 {
+	table_id_t table_id = 0;
+retry:
 	/* Reset DB_TRX_ID, DB_ROLL_PTR for old records. */
 	mtr->start();
 
@@ -701,6 +767,20 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 			ut_ad(!rec_get_deleted_flag(
 					rec, rec_offs_comp(offsets))
 			      || rec_is_alter_metadata(rec, *index));
+			if (!table_id && (table_id = row_purge_get_table_id(
+						  node->table->id, rec))) {
+				mtr->commit();
+				MDL_ticket* mdl= nullptr;
+				if (dict_table_t* t = dict_table_open_on_id(
+					    table_id, false,
+					    DICT_TABLE_OP_LOAD_TABLESPACE,
+					    node->purge_thd, &mdl)) {
+					dict_table_close(t, false, false,
+							 node->purge_thd, mdl);
+				}
+				goto retry;
+			}
+
 			DBUG_LOG("purge", "reset DB_TRX_ID="
 				 << ib::hex(row_get_rec_trx_id(
 						    rec, index, offsets)));

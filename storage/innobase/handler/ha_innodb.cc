@@ -1626,6 +1626,39 @@ static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
+
+ulonglong ha_innobase::table_version() const
+{
+  /* This is either "garbage" or something that was assigned
+  on a successful ha_innobase::prepare_inplace_alter_table(). */
+  return m_prebuilt->trx_id;
+}
+
+static int innodb_check_version(handlerton *hton, const char *path,
+                                const LEX_CUSTRING *version,
+                                ulonglong create_id)
+{
+  DBUG_ENTER("innodb_check_version");
+  DBUG_ASSERT(hton == innodb_hton_ptr);
+
+  if (!create_id)
+    DBUG_RETURN(0);
+
+  char norm_path[FN_REFLEN];
+  normalize_table_name(norm_path, path);
+
+  if (dict_table_t *table= dict_table_open_on_name(norm_path, false, false,
+                                                   DICT_ERR_IGNORE_NONE))
+  {
+    const trx_id_t trx_id= table->def_trx_id;
+    DBUG_ASSERT(trx_id <= create_id);
+    dict_table_close(table, false, false);
+    DBUG_RETURN(create_id != trx_id);
+  }
+  else
+    DBUG_RETURN(2);
+}
+
 /********************************************************************//**
 Converts an InnoDB error code to a MySQL error code and also tells to MySQL
 about a possible transaction rollback inside InnoDB caused by a lock wait
@@ -3694,6 +3727,8 @@ static int innodb_init(void* p)
 	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
 	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
 #endif /* WITH_WSREP */
+
+	innobase_hton->check_version = innodb_check_version;
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;
 	innobase_hton->table_options = innodb_table_option_list;

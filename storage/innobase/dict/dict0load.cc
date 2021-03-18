@@ -1183,11 +1183,14 @@ err_len:
 
 	pos = mach_read_from_4(field);
 
-	rec_get_nth_field_offs_old(
+	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_COLUMNS__DB_TRX_ID, &len);
 	if (len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL) {
 		goto err_len;
 	}
+
+	const trx_id_t trx_id = mach_read_from_6(field);
+
 	rec_get_nth_field_offs_old(
 		rec, DICT_FLD__SYS_COLUMNS__DB_ROLL_PTR, &len);
 	if (len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL) {
@@ -1273,6 +1276,10 @@ err_len:
 			ut_ad(num_base == 0);
 			dict_mem_table_add_col(table, heap, name, mtype,
 					       prtype, col_len);
+		}
+
+		if (trx_id > table->def_trx_id) {
+			table->def_trx_id = trx_id;
 		}
 	} else {
 		dict_mem_fill_column_struct(column, pos, mtype,
@@ -2072,10 +2079,23 @@ dict_load_indexes(
 			}
 
 			break;
-		} else if (err_msg == dict_load_index_del) {
-			/* Skip delete-marked records. */
-			goto next_rec;
-		} else if (err_msg) {
+		}
+
+		if (!err_msg || err_msg == dict_load_index_del) {
+			ulint len;
+			trx_id_t id = mach_read_from_6(
+				rec_get_nth_field_old(
+					rec, DICT_FLD__SYS_INDEXES__DB_TRX_ID,
+					&len));
+			ut_ad(len == DATA_TRX_ID_LEN);
+			if (id > table->def_trx_id) {
+				table->def_trx_id = id;
+			}
+			if (err_msg) {
+				/* Skip delete-marked records. */
+				goto next_rec;
+			}
+		} else {
 			ib::error() << err_msg;
 			if (ignore_err & DICT_ERR_IGNORE_CORRUPT) {
 				goto next_rec;
@@ -2255,6 +2275,12 @@ static const char* dict_load_table_low(const table_name_t& name,
 	(*table)->id = table_id;
 	(*table)->file_unreadable = !!(flags2 & DICT_TF2_DISCARDED);
 
+	ulint len;
+	(*table)->def_trx_id = mach_read_from_6(
+		rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__DB_TRX_ID,
+				      &len));
+	ut_ad(len == DATA_TRX_ID_LEN);
+	static_assert(DATA_TRX_ID_LEN == 6, "compatibility");
 	return(NULL);
 }
 

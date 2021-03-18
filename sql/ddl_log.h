@@ -86,6 +86,8 @@ enum ddl_log_action_code
   DDL_LOG_CREATE_VIEW_ACTION=13,
   DDL_LOG_DELETE_TMP_FILE_ACTION=14,
   DDL_LOG_CREATE_TRIGGER_ACTION=15,
+  DDL_LOG_ALTER_TABLE_ACTION=16,
+  DDL_LOG_STORE_QUERY_ACTION=17,
   DDL_LOG_LAST_ACTION                          /* End marker */
 };
 
@@ -142,6 +144,29 @@ enum enum_ddl_log_create_trigger_phase {
   DDL_CREATE_TRIGGER_PHASE_END
 };
 
+enum enum_ddl_log_alter_table_phase {
+  DDL_ALTER_TABLE_PHASE_INIT,
+  DDL_ALTER_TABLE_PHASE_RENAME_FAILED,
+  DDL_ALTER_TABLE_PHASE_INPLACE_COPIED,
+  DDL_ALTER_TABLE_PHASE_INPLACE,
+  DDL_ALTER_TABLE_PHASE_CREATED,
+  DDL_ALTER_TABLE_PHASE_COPIED,
+  DDL_ALTER_TABLE_PHASE_OLD_RENAMED,
+  DDL_ALTER_TABLE_PHASE_UPDATE_TRIGGERS,
+  DDL_ALTER_TABLE_PHASE_UPDATE_STATS,
+  DDL_ALTER_TABLE_PHASE_UPDATE_BINARY_LOG,
+  DDL_ALTER_TABLE_PHASE_END
+};
+
+
+/*
+  Flags stored in DDL_LOG_ENTRY.flags
+  The flag values can be reused for different commands
+*/
+#define DDL_LOG_FLAG_ALTER_RENAME         (1 << 0)
+#define DDL_LOG_FLAG_ALTER_ENGINE_CHANGED (1 << 1)
+#define DDL_LOG_FLAG_ONLY_FRM             (1 << 2)
+#define DDL_LOG_FLAG_UPDATE_STAT          (1 << 3)
 
 /*
   Setting ddl_log_entry.phase to this has the same effect as setting
@@ -155,21 +180,22 @@ typedef struct st_ddl_log_entry
   LEX_CSTRING name;
   LEX_CSTRING from_name;
   LEX_CSTRING handler_name;
-  LEX_CSTRING tmp_name;
   LEX_CSTRING db;
   LEX_CSTRING from_db;
   LEX_CSTRING from_handler_name;
+  LEX_CSTRING tmp_name;                /* frm file or temporary file name */
+  LEX_CSTRING extra_name;              /* Backup table name */
   uchar uuid[MY_UUID_SIZE];            // UUID for new frm file
 
   ulonglong xid;                       // Xid stored in the binary log
-  uint next_entry;
-  uint entry_pos;                      // Set by write_dll_log_entry()
   /*
     unique_id can be used to store a unique number to check current state.
-    Currently it is used to store new size of frm file or link to a ddl log
-    entry.
+    Currently it is used to store new size of frm file, link to another ddl log
+    entry or store an a uniq version for a storage engine in alter table.
   */
-  uint32 unique_id;                    // Unique id for file version
+  ulonglong unique_id;                 // Unique id for file version
+  uint next_entry;
+  uint entry_pos;                      // Set by write_dll_log_entry()
   uint16 flags;                        // Flags unique for each command
   enum ddl_log_entry_code entry_type;  // Set automatically
   enum ddl_log_action_code action_type;
@@ -197,6 +223,12 @@ typedef struct st_ddl_log_state
   DDL_LOG_MEMORY_ENTRY *list;
   /* One execute entry per list */
   DDL_LOG_MEMORY_ENTRY *execute_entry;
+  /*
+    Entry used for PHASE updates. Normally same as first in 'list', but in
+    case of a query log event, this points to the main event.
+  */
+  DDL_LOG_MEMORY_ENTRY *main_entry;
+  uint16 flags;                                 /* Cache for flags */
   bool is_active() { return list != 0; }
 } DDL_LOG_STATE;
 
@@ -219,6 +251,8 @@ void ddl_log_complete(DDL_LOG_STATE *ddl_log_state);
 void ddl_log_revert(THD *thd, DDL_LOG_STATE *ddl_log_state);
 
 bool ddl_log_update_phase(DDL_LOG_STATE *entry, uchar phase);
+bool ddl_log_add_flag(DDL_LOG_STATE *entry, uint16 flag);
+bool ddl_log_update_unique_id(DDL_LOG_STATE *state, ulonglong id);
 bool ddl_log_update_xid(DDL_LOG_STATE *state, ulonglong xid);
 bool ddl_log_disable_entry(DDL_LOG_STATE *state);
 bool ddl_log_increment_phase(uint entry_pos);
@@ -281,5 +315,18 @@ bool ddl_log_create_trigger(THD *thd, DDL_LOG_STATE *ddl_state,
                             const LEX_CSTRING *db, const LEX_CSTRING *table,
                             const LEX_CSTRING *trigger_name,
                             enum_ddl_log_create_trigger_phase phase);
+bool ddl_log_alter_table(THD *thd, DDL_LOG_STATE *ddl_state,
+                         handlerton *org_hton,
+                         const LEX_CSTRING *db, const LEX_CSTRING *table,
+                         handlerton *new_hton,
+                         const LEX_CSTRING *new_db,
+                         const LEX_CSTRING *new_table,
+                         const LEX_CSTRING *frm_path,
+                         const LEX_CSTRING *backup_table_name,
+                         const LEX_CUSTRING *version,
+                         ulonglong table_version,
+                         bool is_renamed);
+bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_log_state,
+                         const char *query, size_t length);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */

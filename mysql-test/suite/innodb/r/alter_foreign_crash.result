@@ -19,9 +19,14 @@ SET DEBUG_SYNC='now SIGNAL s2 WAIT_FOR s1';
 disconnect con1;
 show tables;
 Tables_in_bug
+child
 parent
 alter table parent row_format=dynamic;
-Warnings:
-Warning	1088	failed to load FOREIGN KEY constraints
+select * from child;
+a
+1
+drop table parent;
+ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
+drop table child;
 drop table parent;
 drop database bug;

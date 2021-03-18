@@ -6166,8 +6166,9 @@ static void release_part_info_log_entries(DDL_LOG_MEMORY_ENTRY *log_entry)
 
   while (log_entry)
   {
+    DDL_LOG_MEMORY_ENTRY *next= log_entry->next_active_log_entry;
     ddl_log_release_memory_entry(log_entry);
-    log_entry= log_entry->next_active_log_entry;
+    log_entry= next;
   }
   DBUG_VOID_RETURN;
 }

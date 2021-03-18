@@ -1245,8 +1245,9 @@ inline void trx_t::commit_tables()
 }
 
 /** Evict a table definition due to the rollback of ALTER TABLE.
-@param[in]	table_id	table identifier */
-void trx_t::evict_table(table_id_t table_id)
+@param table_id   table identifier
+@param reset_only whether to only reset dict_table_t::def_trx_id */
+void trx_t::evict_table(table_id_t table_id, bool reset_only)
 {
 	ut_ad(in_rollback);
 
@@ -1256,12 +1257,18 @@ void trx_t::evict_table(table_id_t table_id)
 		return;
 	}
 
+	table->def_trx_id = 0;
+
 	if (!table->release()) {
 		/* This must be a DDL operation that is being rolled
 		back in an active connection. */
 		ut_a(table->get_ref_count() == 1);
 		ut_ad(!is_recovered);
 		ut_ad(mysql_thd);
+		return;
+	}
+
+	if (reset_only) {
 		return;
 	}
 
