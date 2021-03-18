@@ -59,34 +59,6 @@ select a from json_table('{"a":0}',"$" columns(a for ordinality)) foo;
 connection default;
 disconnect con1;
 
-#
-# MDEV-22302 JSON_TABLE: Column privilege is insufficient for query with json_table
-#
-
-create database db;
-use db;
-create table t (a text);
-insert into t values ('{"foo":"bar"}');
-create user u@localhost;
-grant select (a) on db.t to u@localhost;
- 
---connect (con1,localhost,u,,db)
-select a from t;
-select * from t, json_table(t.a, '$' columns(f varchar(20) path '$.foo')) as jt;
-
-#
-# MDEV-25141 JSON_TABLE: SELECT into outfile bypasses file privilege check
-#
---error ER_ACCESS_DENIED_ERROR
-select * into outfile 'f' from json_table('[]', '$' columns(x for ordinality)) q;
-
-connection default;
-disconnect con1;
-
-drop user u@localhost;
-drop database db;
-
-use test;
 create table t1 (
       color varchar(32),
         price int
@@ -406,6 +378,14 @@ EXECUTE stmt;
 --echo #
 --error ER_JSON_TABLE_ERROR_ON_FIELD
 SELECT a, b FROM JSON_TABLE('[]', '$' COLUMNS (a FOR ORDINALITY, b INT PATH '$[*]' ERROR ON EMPTY)) AS t ORDER BY a;
+
+--echo #
+--echo # MDEV-25151 JSON_TABLE: Unexpectedly padded values in a PATH column.
+--echo #
+SET @old_character_set_connection= @@character_set_connection;
+SET @@character_set_connection= utf8;
+select hex(a), b from json_table('["foo","bar"]','$[*]' columns (a char(3) path '$', b for ordinality)) t;
+SET @@character_set_connection= @old_character_set_connection;
 
 --echo #
 --echo # End of 10.6 tests

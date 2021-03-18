@@ -98,26 +98,6 @@ a
 1
 connection default;
 disconnect con1;
-create database db;
-use db;
-create table t (a text);
-insert into t values ('{"foo":"bar"}');
-create user u@localhost;
-grant select (a) on db.t to u@localhost;
-connect  con1,localhost,u,,db;
-select a from t;
-a
-{"foo":"bar"}
-select * from t, json_table(t.a, '$' columns(f varchar(20) path '$.foo')) as jt;
-a	f
-{"foo":"bar"}	bar
-select * into outfile 'f' from json_table('[]', '$' columns(x for ordinality)) q;
-ERROR 28000: Access denied for user 'u'@'localhost' (using password: NO)
-connection default;
-disconnect con1;
-drop user u@localhost;
-drop database db;
-use test;
 create table t1 (
 color varchar(32),
 price int
@@ -514,6 +494,16 @@ a
 #
 SELECT a, b FROM JSON_TABLE('[]', '$' COLUMNS (a FOR ORDINALITY, b INT PATH '$[*]' ERROR ON EMPTY)) AS t ORDER BY a;
 ERROR HY000: Field 'b' can't be set for JSON_TABLE 't'.
+#
+# MDEV-25151 JSON_TABLE: Unexpectedly padded values in a PATH column.
+#
+SET @old_character_set_connection= @@character_set_connection;
+SET @@character_set_connection= utf8;
+select hex(a), b from json_table('["foo","bar"]','$[*]' columns (a char(3) path '$', b for ordinality)) t;
+hex(a)	b
+666F6F	1
+626172	2
+SET @@character_set_connection= @old_character_set_connection;
 #
 # End of 10.6 tests
 #

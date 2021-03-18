@@ -1134,12 +1134,31 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
   }
 
   {
+    /*
+      The m_json defines it's charset during the fix_fields stage so we're
+      changing the field's current charsets with it.
+      The complicated part is that the length of the field can be changed so
+      in this case we should move all the consequent fiedlds.
+    */
     List_iterator_fast<Json_table_column> jc_i(m_columns);
-    for (uint i= 0; t->field[i]; i++)
+    int field_offset= 0;
+    Field *f;
+    for (uint i= 0; (f= t->field[i]); i++)
     {
       Json_table_column *jc= jc_i++;
-      t->field[i]->change_charset(
-          jc->m_explicit_cs ? jc->m_explicit_cs : m_json->collation);
+      uint32 old_pack_length= f->pack_length();
+
+      f->change_charset(
+           jc->m_explicit_cs ? jc->m_explicit_cs : m_json->collation);
+
+      if (field_offset)
+      {
+        f->move_field(f->ptr + field_offset, f->null_ptr, f->null_bit);
+        f->reset();
+      }
+
+      field_offset= (field_offset + f->pack_length()) - old_pack_length;
+
       /*
         The m_field->charset is going to be reused if it's the prepared
         statement running several times. So should restored the original
