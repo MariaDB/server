@@ -5172,9 +5172,9 @@ bool ha_flush_logs();
 void ha_drop_database(char* path);
 void ha_checkpoint_state(bool disable);
 void ha_commit_checkpoint_request(void *cookie, void (*pre_hook)(void *));
-int ha_create_table(THD *thd, const char *path,
-                    const char *db, const char *table_name,
-                    HA_CREATE_INFO *create_info, LEX_CUSTRING *frm);
+int ha_create_table(THD *thd, const char *path, const char *db,
+                    const char *table_name, HA_CREATE_INFO *create_info,
+                    LEX_CUSTRING *frm, bool skip_frm_file);
 int ha_delete_table(THD *thd, handlerton *db_type, const char *path,
                     const LEX_CSTRING *db, const LEX_CSTRING *alias,
                     bool generate_warning);

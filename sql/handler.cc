@@ -5525,9 +5525,9 @@ int handler::calculate_checksum()
   @retval
    1  error
 */
-int ha_create_table(THD *thd, const char *path,
-                    const char *db, const char *table_name,
-                    HA_CREATE_INFO *create_info, LEX_CUSTRING *frm)
+int ha_create_table(THD *thd, const char *path, const char *db,
+                    const char *table_name, HA_CREATE_INFO *create_info,
+                    LEX_CUSTRING *frm, bool skip_frm_file)
 {
   int error= 1;
   TABLE table;
@@ -5543,8 +5543,8 @@ int ha_create_table(THD *thd, const char *path,
 
   if (frm)
   {
-    bool write_frm_now= !create_info->db_type->discover_table &&
-                        !create_info->tmp_table();
+    bool write_frm_now= (!create_info->db_type->discover_table &&
+                         !create_info->tmp_table() && !skip_frm_file);
 
     share.frm_image= frm;
 
