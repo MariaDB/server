@@ -1880,7 +1880,6 @@ call p_verify_reprepare_count(8);
 drop table if exists t1;
 --enable_warnings
 create table t1 (a varchar(20));
---error ER_UNSUPPORTED_PS
 prepare stmt from "load data infile '../std_data_ln/words.dat' into table t1";
 drop table t1;
 
@@ -2202,7 +2201,6 @@ call p_verify_reprepare_count(17);
 drop view if exists v1;
 --enable_warnings
 create view v1 as select 1;
---error ER_UNSUPPORTED_PS
 prepare stmt from "alter view v1 as select 2";
 drop view v1;
 

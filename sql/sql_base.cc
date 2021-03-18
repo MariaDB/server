@@ -2801,7 +2801,6 @@ check_and_update_table_version(THD *thd,
   if (! tables->is_table_ref_id_equal(table_share))
   {
     if (thd->m_reprepare_observer &&
-        !tables->is_fresh_table() &&
         thd->m_reprepare_observer->report_error(thd))
     {
       /*
