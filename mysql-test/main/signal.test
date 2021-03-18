@@ -669,10 +669,7 @@ delimiter ;$$
 --echo # PART 2: non preparable statements
 --echo #
 
---error ER_UNSUPPORTED_PS
 prepare stmt from 'SIGNAL SQLSTATE \'23000\'';
-
---error ER_UNSUPPORTED_PS
 prepare stmt from 'RESIGNAL SQLSTATE \'23000\'';
 
 --echo #
