@@ -7251,7 +7251,7 @@ ha_innobase::innobase_set_max_autoinc(
 }
 
 /** @return whether the table is read-only */
-bool ha_innobase::is_read_only() const
+bool ha_innobase::is_read_only(bool altering_to_supported) const
 {
   ut_ad(m_prebuilt->trx == thd_to_trx(m_user_thd));
 
@@ -7260,6 +7260,9 @@ bool ha_innobase::is_read_only() const
     ib_senderrf(m_user_thd, IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
     return true;
   }
+
+  if (altering_to_supported)
+    return false;
 
   if (!DICT_TF_GET_ZIP_SSIZE(m_prebuilt->table->flags) ||
       !innodb_read_only_compressed)

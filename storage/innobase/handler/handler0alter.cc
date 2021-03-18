@@ -1988,7 +1988,11 @@ ha_innobase::check_if_supported_inplace_alter(
 
 	update_thd();
 
-	if (is_read_only()) {
+	if (is_read_only(!high_level_read_only
+			 && (ha_alter_info->handler_flags & ALTER_OPTIONS)
+			 && ha_alter_info->create_info->key_block_size == 0
+			 && ha_alter_info->create_info->row_type
+			 != ROW_TYPE_COMPRESSED)) {
 		ha_alter_info->unsupported_reason =
 			my_get_err_msg(ER_READ_ONLY_MODE);
 

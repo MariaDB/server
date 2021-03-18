@@ -458,7 +458,7 @@ protected:
 	void reset_template();
 
 	/** @return whether the table is read-only */
-	bool is_read_only() const;
+	bool is_read_only(bool altering_to_supported= false) const;
 
 	inline void update_thd(THD* thd);
 	void update_thd();

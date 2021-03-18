@@ -96,8 +96,6 @@ SELECT * FROM tab;
 a	b
 1	Check with max column size
 ALTER TABLE tab ROW_FORMAT=Dynamic;
-Warnings:
-Warning	4047	InnoDB refuses to write tables with ROW_FORMAT=COMPRESSED or KEY_BLOCK_SIZE.
 SET GLOBAL innodb_read_only_compressed=@save_innodb_read_only_compressed;
 SHOW TABLE STATUS LIKE 'tab';
 Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
