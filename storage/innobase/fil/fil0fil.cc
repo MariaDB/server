@@ -488,12 +488,16 @@ static bool fil_node_open_file(fil_node_t* node)
 
 	const bool first_time_open = node->size == 0;
 
-	bool o_direct_possible = !FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
-	if (const ulint ssize = FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
-		compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
-		if (ssize < 3) {
-			o_direct_possible = false;
-		}
+	ulint type;
+	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
+		      "compatibility");
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
 	}
 
 	if (first_time_open
@@ -514,9 +518,7 @@ retry:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 
@@ -556,9 +558,7 @@ fail:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 	}
@@ -2904,13 +2904,22 @@ fil_ibd_create(
 		return NULL;
 	}
 
+	ulint type;
+	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
+		      "compatibility");
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
+	}
+
 	file = os_file_create(
 		innodb_data_file_key, path,
 		OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
-		OS_FILE_NORMAL,
-		OS_DATA_FILE,
-		srv_read_only_mode,
-		&success);
+		OS_FILE_NORMAL, type, srv_read_only_mode, &success);
 
 	if (!success) {
 		/* The following call will print an error message */
