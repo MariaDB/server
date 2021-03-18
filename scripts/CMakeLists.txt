@@ -329,6 +329,7 @@ ELSE()
     mariadb-access
     mariadb-convert-table-format
     mariadb-find-rows
+    mariadb-dumpslow
     mysql_config
     mytop
     mariadb-hotcopy
