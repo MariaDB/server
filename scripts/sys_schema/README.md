@@ -4,52 +4,6 @@ A collection of views, functions and procedures to help MySQL administrators get
 
 There are install files available for 5.6 and 5.7 respectively. To load these, you must position yourself within the directory that you downloaded to, as these top level files SOURCE individual files that are shared across versions in most cases (though not all).
 
-## Installation
-
-The objects should all be created as the root user (but run with the privileges of the invoker).
-
-For instance if you download to /tmp/mysql-sys/, and want to install the 5.6 version you should:
-
-    cd /tmp/mysql-sys/
-    mysql -u root -p < ./sys_56.sql
-
-Or if you would like to log in to the client, and install the 5.7 version:
-
-    cd /tmp/mysql-sys/
-    mysql -u root -p 
-    SOURCE ./sys_57.sql
-
-Alternatively, you could just choose to load individual files based on your needs, but beware, certain objects have dependencies on other objects. You will need to ensure that these are also loaded.
-
-### Generating a single SQL file
-
-There is bash script within the root of the branch directory, called `generate_sql_file.sh`, that allows you to create a single SQL file from the branch.
-
-This includes substitution parameters for the MySQL user to use, and whether to include or exclude `SET sql_log_bin` commands from the scripts. This is particularly useful for installations such as Amazon RDS, which do not have the root@localhost user, or disallow setting sql_log_bin.
-
-When run, this outputs a file named such as `sys_<sys_version>_<mysql_version_identifier>_inline.sql`, i.e. `sys_1.2.0_56_inline.sql` is sys version 1.2.0, built for MySQL 5.6.
-
-#### Options
-
-* v: The version of MySQL to build the sys schema for, either '56' or '57'
-* b: Whether to omit any lines that deal with sql_log_bin (useful for RDS)
-* u: The user to set as the owner of the objects (useful for RDS)
-* m: Whether to generate a mysql_install_db / mysqld --initialize formatted file
-
-#### Examples
-
-Generate a MySQL 5.7 SQL file that uses the 'mark'@'localhost' user:
-
-    ./generate_sql_file.sh -v 57 -u "'mark'@'localhost'"
-
-Generate a MySQL 5.6 SQL file for RDS:
-
-    ./generate_sql_file.sh -v 56 -b -u CURRENT_USER
-
-Generate a MySQL 5.7 bootstrap file:
-
-    ./generate_sql_file.sh -v 57 -m
-
 ## Overview of objects
 
 ### Tables
