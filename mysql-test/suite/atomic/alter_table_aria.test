@@ -1,0 +1,7 @@
+#
+# Test atomic alter table with aria
+
+let $engine_count=1;
+let $engines='aria';
+let $extra_engine=myisam;
+--source alter_table.test

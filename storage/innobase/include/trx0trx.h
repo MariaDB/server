@@ -903,8 +903,9 @@ public:
   inline void release_locks();
 
   /** Evict a table definition due to the rollback of ALTER TABLE.
-  @param[in]	table_id	table identifier */
-  void evict_table(table_id_t table_id);
+  @param table_id   table identifier
+  @param reset_only whether to only reset dict_table_t::def_trx_id */
+  void evict_table(table_id_t table_id, bool reset_only= false);
 
   /** Initiate rollback.
   @param savept     savepoint to which to roll back

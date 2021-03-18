@@ -946,7 +946,7 @@ next:
 			continue;
 		}
 
-		if (strstr(table_name.m_name, "/" TEMP_FILE_PREFIX "-")) {
+		if (strstr(table_name.m_name, "/" TEMP_FILE_PREFIX_INNODB)) {
 			/* This table will be dropped by
 			row_mysql_drop_garbage_tables().
 			We do not care if the file exists. */
@@ -1097,11 +1097,14 @@ err_len:
 
 	pos = mach_read_from_4(field);
 
-	rec_get_nth_field_offs_old(
+	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_COLUMNS__DB_TRX_ID, &len);
 	if (len != DATA_TRX_ID_LEN && len != UNIV_SQL_NULL) {
 		goto err_len;
 	}
+
+	const trx_id_t trx_id = mach_read_from_6(field);
+
 	rec_get_nth_field_offs_old(
 		rec, DICT_FLD__SYS_COLUMNS__DB_ROLL_PTR, &len);
 	if (len != DATA_ROLL_PTR_LEN && len != UNIV_SQL_NULL) {
@@ -1187,6 +1190,10 @@ err_len:
 			ut_ad(num_base == 0);
 			dict_mem_table_add_col(table, heap, name, mtype,
 					       prtype, col_len);
+		}
+
+		if (trx_id > table->def_trx_id) {
+			table->def_trx_id = trx_id;
 		}
 	} else {
 		dict_mem_fill_column_struct(column, pos, mtype,
@@ -1754,10 +1761,6 @@ dict_load_index_low(
 		*index = NULL;
 	}
 
-	if (rec_get_deleted_flag(rec, 0)) {
-		return(dict_load_index_del);
-	}
-
 	if (rec_get_n_fields_old(rec) == DICT_NUM_FIELDS__SYS_INDEXES) {
 		/* MERGE_THRESHOLD exists */
 		field = rec_get_nth_field_old(
@@ -1819,9 +1822,10 @@ err_len:
 
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__NAME, &name_len);
-	if (name_len == UNIV_SQL_NULL) {
+	if (name_len == 0 || name_len == UNIV_SQL_NULL) {
 		goto err_len;
 	}
+	ut_ad(field == &rec[8 + 8 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN]);
 
 	name_buf = mem_heap_strdupl(heap, (const char*) field,
 				    name_len);
@@ -1847,6 +1851,10 @@ err_len:
 		rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
 	if (len != 4) {
 		goto err_len;
+	}
+
+	if (rec_get_deleted_flag(rec, 0)) {
+		return(dict_load_index_del);
 	}
 
 	if (allocate) {
@@ -1976,8 +1984,7 @@ dict_load_indexes(
 				ib::warn() << "Failed to load the"
 					" clustered index for table "
 					<< table->name
-					<< " because of the following error: "
-					<< err_msg << "."
+					<< " because of TABLE_ID mismatch."
 					" Refusing to load the rest of the"
 					" indexes (if any) and the whole table"
 					" altogether.";
@@ -1986,8 +1993,13 @@ dict_load_indexes(
 			}
 
 			break;
-		} else if (err_msg == dict_load_index_del) {
-			/* Skip delete-marked records. */
+		}
+
+		if (err_msg == dict_load_index_del) {
+			const trx_id_t id = mach_read_from_6(rec + 8 + 8);
+			if (id > table->def_trx_id) {
+				table->def_trx_id = id;
+			}
 			goto next_rec;
 		} else if (err_msg) {
 			ib::error() << err_msg;
@@ -1999,6 +2011,11 @@ dict_load_indexes(
 		} else if (rec[8 + 8 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN]
 			   == static_cast<byte>(*TEMP_INDEX_PREFIX_STR)) {
 			goto next_rec;
+		} else {
+			const trx_id_t id = mach_read_from_6(rec + 8 + 8);
+			if (id > table->def_trx_id) {
+				table->def_trx_id = id;
+			}
 		}
 
 		ut_ad(index);
@@ -2172,6 +2189,12 @@ static const char* dict_load_table_low(const table_name_t& name,
 	(*table)->id = table_id;
 	(*table)->file_unreadable = !!(flags2 & DICT_TF2_DISCARDED);
 
+	ulint len;
+	(*table)->def_trx_id = mach_read_from_6(
+		rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__DB_TRX_ID,
+				      &len));
+	ut_ad(len == DATA_TRX_ID_LEN);
+	static_assert(DATA_TRX_ID_LEN == 6, "compatibility");
 	return(NULL);
 }
 

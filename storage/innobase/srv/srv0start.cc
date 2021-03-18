@@ -1830,13 +1830,6 @@ skip_monitors:
 		}
 	}
 
-	if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL
-	    && srv_force_recovery < SRV_FORCE_NO_BACKGROUND) {
-		srv_init_purge_tasks();
-		purge_sys.coordinator_startup();
-		srv_wake_purge_thread_if_not_active();
-	}
-
 	srv_is_being_started = false;
 
 	if (srv_print_verbose_log) {

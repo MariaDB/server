@@ -46,12 +46,6 @@ disconnect con1;
 SHOW KEYS FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
 t1	1	f1	1	f1	A	2	NULL	NULL		BTREE			NO
-t1	1	f2	1	f2	A	NULL	NULL	NULL		Corrupted			NO
-Warnings:
-Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
-Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
-Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
-Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
 DROP TABLE t1;
 #
 # MDEV-25503 InnoDB hangs on startup during recovery

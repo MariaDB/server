@@ -449,7 +449,8 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 	case TRX_UNDO_RENAME_TABLE:
 		dict_table_t* table = node->table;
 		ut_ad(!table->is_temporary());
-		ut_ad(dict_table_is_file_per_table(table)
+		ut_ad(table->file_unreadable
+		      || dict_table_is_file_per_table(table)
 		      == !is_system_tablespace(table->space_id));
 		size_t len = mach_read_from_2(node->undo_rec)
 			+ size_t(node->undo_rec - ptr) - 2;

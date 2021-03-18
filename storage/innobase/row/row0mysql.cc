@@ -2669,10 +2669,7 @@ row_mysql_drop_garbage_tables()
 		table_name = mem_heap_strdupl(
 			heap,
 			reinterpret_cast<const char*>(field), len);
-		if (strstr(table_name, "/" TEMP_FILE_PREFIX "-") &&
-                    !strstr(table_name, "/" TEMP_FILE_PREFIX "-backup-") &&
-                    !strstr(table_name, "/" TEMP_FILE_PREFIX "-exchange-"))
-                {
+		if (strstr(table_name, "/" TEMP_FILE_PREFIX_INNODB)) {
 			btr_pcur_store_position(&pcur, &mtr);
 			btr_pcur_commit_specify_mtr(&pcur, &mtr);
 
@@ -3269,7 +3266,7 @@ row_drop_table_for_mysql(
 	pfs_os_file_t detached_handle = OS_FILE_CLOSED;
 
 	const bool is_temp_name = strstr(table->name.m_name,
-					 "/" TEMP_FILE_PREFIX);
+					 "/" TEMP_FILE_PREFIX_INNODB);
 
 	if (table->is_temporary()) {
 		ut_ad(table->space == fil_system.temp_space);
@@ -3402,15 +3399,11 @@ row_drop_table_for_mysql(
 
 	if (table->n_foreign_key_checks_running > 0) {
 defer:
-		/* Rename #sql-backup to #sql-ib if table has open ref count
-		while dropping the table. This scenario can happen
-		when purge thread is waiting for dict_sys.mutex so
-		that it could close the table. But drop table acquires
-		dict_sys.mutex.
-                In the future this should use 'tmp_file_prefix'!
-                */
-		if (!is_temp_name
-		    || strstr(table->name.m_name, "/#sql-backup-")) {
+		/* Rename the table to #sql-ib prefix. This scenario can
+		occur also for #sql tables when purge is waiting for
+		dict_sys.mutex so that it could close the table. But
+		DROP TABLE acquires dict_sys.mutex. */
+		if (!is_temp_name) {
 			heap = mem_heap_create(FN_REFLEN);
 			const char* tmp_name
 				= dict_mem_create_temporary_tablename(

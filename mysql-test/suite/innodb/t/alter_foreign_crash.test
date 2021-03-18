@@ -32,6 +32,9 @@ disconnect con1;
 
 show tables;
 alter table parent row_format=dynamic;
-
+select * from child;
+--error ER_ROW_IS_REFERENCED_2
+drop table parent;
+drop table child;
 drop table parent;
 drop database bug;

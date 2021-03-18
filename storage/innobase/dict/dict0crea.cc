@@ -1405,13 +1405,15 @@ dict_create_or_check_foreign_constraint_tables(void)
 			"PROCEDURE CREATE_GARBAGE_TABLE_PROC () IS\n"
 			"BEGIN\n"
 			"CREATE TABLE\n"
-			"\"test/#sql-ib-garbage\"(ID CHAR);\n"
-			"CREATE UNIQUE CLUSTERED INDEX PRIMARY"
-			" ON \"test/#sql-ib-garbage\"(ID);\n"
+			"\"test/" TEMP_FILE_PREFIX_INNODB "-garbage\""
+			"(ID CHAR);\n"
+			"CREATE UNIQUE CLUSTERED INDEX PRIMARY ON "
+			"\"test/" TEMP_FILE_PREFIX_INNODB "-garbage\"(ID);\n"
 			"END;\n", FALSE, trx);
 		ut_ad(err == DB_SUCCESS);
-		row_drop_table_for_mysql("test/#sql-ib-garbage", trx,
-					 SQLCOM_DROP_DB, true););
+		row_drop_table_for_mysql("test/"
+					 TEMP_FILE_PREFIX_INNODB "-garbage",
+					 trx, SQLCOM_DROP_DB, true););
 
 	ib::info() << "Creating foreign key constraint system tables.";
 

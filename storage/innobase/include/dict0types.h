@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2019, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -90,13 +90,8 @@ enum ib_quiesce_t {
 	QUIESCE_COMPLETE		/*!< All done */
 };
 
-/** Prefix for tmp tables, adopted from sql/table.h */
-#define TEMP_FILE_PREFIX		"#sql"
-#define TEMP_FILE_PREFIX_LENGTH		4
+/** Prefix for InnoDB internal tables, adopted from sql/table.h */
 #define TEMP_FILE_PREFIX_INNODB		"#sql-ib"
-
-#define TEMP_TABLE_PREFIX                "#sql"
-#define TEMP_TABLE_PATH_PREFIX           "/" TEMP_TABLE_PREFIX
 
 /** Table name wrapper for pretty-printing */
 struct table_name_t

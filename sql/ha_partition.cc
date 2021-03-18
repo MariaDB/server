@@ -304,8 +304,10 @@ ha_partition::ha_partition(handlerton *hton, TABLE_SHARE *share)
 
 void ha_partition::ha_partition_init()
 {
+  DBUG_ENTER("ha_partition::ha_partition_init");
   init_alloc_root(PSI_INSTRUMENT_ME, &m_mem_root, 512, 512, MYF(0));
   init_handler_variables();
+  DBUG_VOID_RETURN;
 }
 
 /*

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -127,15 +127,17 @@ private:
 class purge_sys_t
 {
 public:
-	/** latch protecting view, m_enabled */
-	MY_ALIGNED(CACHE_LINE_SIZE) mutable srw_lock latch;
+  /** latch protecting view, m_enabled */
+  MY_ALIGNED(CACHE_LINE_SIZE) mutable srw_lock latch;
 private:
-	/** The purge will not remove undo logs which are >= this view */
-	ReadViewBase	view;
-	/** whether purge is enabled; protected by latch and std::atomic */
-	std::atomic<bool>		m_enabled;
-	/** number of pending stop() calls without resume() */
-	Atomic_counter<int32_t>		m_paused;
+  /** The purge will not remove undo logs which are >= this view */
+  ReadViewBase view;
+  /** whether purge is enabled; protected by latch and std::atomic */
+  std::atomic<bool> m_enabled;
+  /** number of pending stop() calls without resume() */
+  Atomic_counter<uint32_t> m_paused;
+  /** number of stop_SYS() calls without resume_SYS() */
+  Atomic_counter<uint32_t> m_SYS_paused;
 public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
@@ -245,6 +247,19 @@ public:
   void stop();
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
+
+private:
+  void wait_SYS();
+public:
+  /** Suspend purge in data dictionary tables */
+  void stop_SYS();
+  /** Resume purge in data dictionary tables */
+  static void resume_SYS(void *);
+  /** @return whether stop_SYS() is in effect */
+  bool must_wait_SYS() const { return m_SYS_paused; }
+  /** check stop_SYS() */
+  void check_stop_SYS() { if (must_wait_SYS()) wait_SYS(); }
+
   /** A wrapper around ReadView::changes_visible(). */
   bool changes_visible(trx_id_t id, const table_name_t &name) const
   {

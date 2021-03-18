@@ -716,9 +716,7 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   db_buf[db_len]= 0;
 
   size_t tbl_len= strlen(name.m_name + db_len + 1);
-
-  const bool is_temp= tbl_len > TEMP_FILE_PREFIX_LENGTH &&
-    !strncmp(name.m_name, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH);
+  const bool is_temp= name.is_temporary();
 
   if (is_temp);
   else if (const char *is_part= static_cast<const char*>
@@ -1714,15 +1712,13 @@ dict_table_rename_in_cache(
 			to store foreign key constraint name in charset
 			my_charset_filename for comparison further below. */
 			char    fkid[MAX_TABLE_NAME_LEN+20];
-			ibool	on_tmp = FALSE;
 
 			/* The old table name in my_charset_filename is stored
 			in old_name_cs_filename */
 
 			strcpy(old_name_cs_filename, old_name);
 			old_name_cs_filename[MAX_FULL_NAME_LEN] = '\0';
-			if (strstr(old_name, TEMP_TABLE_PATH_PREFIX) == NULL) {
-
+			if (!dict_table_t::is_temporary_name(old_name)) {
 				innobase_convert_to_system_charset(
 					strchr(old_name_cs_filename, '/') + 1,
 					strchr(old_name, '/') + 1,
@@ -1749,13 +1745,14 @@ dict_table_rename_in_cache(
 
 			strncpy(fkid, foreign->id, MAX_TABLE_NAME_LEN);
 
-			if (strstr(fkid, TEMP_TABLE_PATH_PREFIX) == NULL) {
+			const bool on_tmp = dict_table_t::is_temporary_name(
+				fkid);
+
+			if (!on_tmp) {
 				innobase_convert_to_filename_charset(
 					strchr(fkid, '/') + 1,
 					strchr(foreign->id, '/') + 1,
 					MAX_TABLE_NAME_LEN+20);
-			} else {
-				on_tmp = TRUE;
 			}
 
 			old_id = mem_strdup(foreign->id);

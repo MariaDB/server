@@ -59,6 +59,10 @@ public:
 	ha_innobase(handlerton* hton, TABLE_SHARE* table_arg);
 	~ha_innobase() override;
 
+	/** @return the transaction that last modified the table definition
+	@see dict_table_t::def_trx_id */
+	ulonglong table_version() const override;
+
 	/** Get the row type from the storage engine.  If this method returns
 	ROW_TYPE_NOT_USED, the information in HA_CREATE_INFO should be used. */
         enum row_type get_row_type() const override;

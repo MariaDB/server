@@ -4046,6 +4046,7 @@ public:
 
 
 void uuid_short_init();
+ulonglong server_uuid_value();
 
 class Item_func_uuid_short :public Item_longlong_func
 {

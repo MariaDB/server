@@ -167,6 +167,7 @@ void purge_sys_t::create()
   ut_ad(!heap);
   ut_ad(!enabled());
   m_paused= 0;
+  m_SYS_paused= 0;
   query= purge_graph_build();
   next_stored= false;
   rseg= NULL;

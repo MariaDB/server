@@ -46,6 +46,7 @@ Smart ALTER TABLE
 #include "row0row.h"
 #include "row0upd.h"
 #include "trx0trx.h"
+#include "trx0purge.h"
 #include "handler0alter.h"
 #include "srv0mon.h"
 #include "srv0srv.h"
@@ -8107,6 +8108,15 @@ err_exit:
 			DBUG_RETURN(true);
 		}
 
+success:
+		/* Memorize the future transaction ID for committing
+		the data dictionary change, to be reported by
+		ha_innobase::table_version(). */
+		m_prebuilt->trx_id = (ha_alter_info->handler_flags
+				      & ~INNOBASE_INPLACE_IGNORE)
+			? static_cast<ha_innobase_inplace_ctx*>
+			(ha_alter_info->handler_ctx)->trx->id
+			: 0;
 		DBUG_RETURN(false);
 	}
 
@@ -8210,12 +8220,16 @@ found_col:
 		ha_alter_info->ignore || !thd_is_strict_mode(m_user_thd),
 		alt_opt.page_compressed, alt_opt.page_compression_level);
 
-	DBUG_RETURN(prepare_inplace_alter_table_dict(
-			    ha_alter_info, altered_table, table,
-			    table_share->table_name.str,
-			    info.flags(), info.flags2(),
-			    fts_doc_col_no, add_fts_doc_id,
-			    add_fts_doc_id_idx));
+	if (!prepare_inplace_alter_table_dict(
+		    ha_alter_info, altered_table, table,
+		    table_share->table_name.str,
+		    info.flags(), info.flags2(),
+		    fts_doc_col_no, add_fts_doc_id,
+		    add_fts_doc_id_idx)) {
+		goto success;
+	}
+
+	DBUG_RETURN(true);
 }
 
 /** Check that the column is part of a virtual index(index contains
@@ -8826,6 +8840,7 @@ func_exit:
 	}
 
 	trx_commit_for_mysql(prebuilt->trx);
+	prebuilt->trx_id = 0;
 	MONITOR_ATOMIC_DEC(MONITOR_PENDING_ALTER_TABLE);
 	DBUG_RETURN(fail);
 }
@@ -11106,6 +11121,9 @@ ha_innobase::commit_inplace_alter_table(
 		ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 		ut_ad(!new_clustered || trx->has_logged());
 
+		ha_alter_info->inplace_alter_table_committed =
+			purge_sys.resume_SYS;
+		purge_sys.stop_SYS();
 		trx->commit();
 		log_write_up_to(trx->commit_lsn, true);
 		DBUG_EXECUTE_IF("innodb_alter_commit_crash_after_commit",

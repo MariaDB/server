@@ -943,6 +943,24 @@ void ha_kill_query(THD* thd, enum thd_kill_levels level)
 }
 
 
+static my_bool signal_ddl_recovery_done(THD *, plugin_ref plugin, void *)
+{
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->signal_ddl_recovery_done)
+    (hton->signal_ddl_recovery_done)(hton);
+  return 0;
+}
+
+
+void ha_signal_ddl_recovery_done()
+{
+  DBUG_ENTER("ha_signal_ddl_recovery_done");
+  plugin_foreach(NULL, signal_ddl_recovery_done, MYSQL_STORAGE_ENGINE_PLUGIN,
+                 NULL);
+  DBUG_VOID_RETURN;
+}
+
+
 /*****************************************************************************
   Backup functions
 ******************************************************************************/
@@ -4954,19 +4972,9 @@ Alter_inplace_info::Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
     alter_info(alter_info_arg),
     key_info_buffer(key_info_arg),
     key_count(key_count_arg),
-    index_drop_count(0),
-    index_drop_buffer(nullptr),
-    index_add_count(0),
-    index_add_buffer(nullptr),
-    index_altered_ignorability_count(0),
     rename_keys(current_thd->mem_root),
-    handler_ctx(nullptr),
-    group_commit_ctx(nullptr),
-    handler_flags(0),
     modified_part_info(modified_part_info_arg),
     ignore(ignore_arg),
-    online(false),
-    unsupported_reason(nullptr),
     error_if_not_empty(error_non_empty)
   {}
 

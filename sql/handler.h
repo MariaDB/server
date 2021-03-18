@@ -1546,6 +1546,37 @@ struct handlerton
 			    THD *victim_thd, my_bool signal);
    int (*set_checkpoint)(handlerton *hton, const XID* xid);
    int (*get_checkpoint)(handlerton *hton, XID* xid);
+  /**
+     Check if the version of the table matches the version in the .frm
+     file.
+
+     This is mainly used to verify in recovery to check if an inplace
+     ALTER TABLE succeded.
+     Storage engines that does not support inplace alter table does not
+     have to implement this function.
+
+     @param hton      handlerton
+     @param path      Path for table
+     @param version   The unique id that is stored in the .frm file for
+                      CREATE and updated for each ALTER TABLE (but not for
+                      simple renames).
+                      This is the ID used for the final table.
+     @param create_id The value returned from handler->table_version() for
+                      the original table (before ALTER TABLE).
+
+     @retval 0     If id matches or table is newer than create_id (depending
+                   on what version check the engine supports. This means that
+                   The (inplace) alter table did succeed.
+     @retval # > 0 Alter table did not succeed.
+
+     Related to handler::discover_check_version().
+   */
+  int (*check_version)(handlerton *hton, const char *path,
+                       const LEX_CUSTRING *version, ulonglong create_id);
+
+  /* Called for all storage handlers after ddl recovery is done */
+  void (*signal_ddl_recovery_done)(handlerton *hton);
+
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -1819,6 +1850,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
   If the handler has HTON_CAN_RECREATE, this flag is not used
 */
 #define HTON_REQUIRES_CLOSE_AFTER_TRUNCATE (1 << 18)
+
+/*
+  Used by mysql_inplace_alter_table() to decide if we should call
+  hton->notify_tabledef_changed() before commit (MyRocks) or after (InnoDB).
+*/
+#define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 19)
 
 class Ha_trx_info;
 
@@ -2485,27 +2522,27 @@ public:
   uint key_count;
 
   /** Size of index_drop_buffer array. */
-  uint index_drop_count;
+  uint index_drop_count= 0;
 
   /**
      Array of pointers to KEYs to be dropped belonging to the TABLE instance
      for the old version of the table.
   */
-  KEY  **index_drop_buffer;
+  KEY  **index_drop_buffer= nullptr;
 
   /** Size of index_add_buffer array. */
-  uint index_add_count;
+  uint index_add_count= 0;
 
   /**
      Array of indexes into key_info_buffer for KEYs to be added,
      sorted in increasing order.
   */
-  uint *index_add_buffer;
+  uint *index_add_buffer= nullptr;
 
-  KEY_PAIR  *index_altered_ignorability_buffer;
+  KEY_PAIR  *index_altered_ignorability_buffer= nullptr;
 
   /** Size of index_altered_ignorability_buffer array. */
-  uint index_altered_ignorability_count;
+  uint index_altered_ignorability_count= 0;
 
   /**
      Old and new index names. Used for index rename.
@@ -2536,7 +2573,7 @@ public:
 
      @see inplace_alter_handler_ctx for information about object lifecycle.
   */
-  inplace_alter_handler_ctx *handler_ctx;
+  inplace_alter_handler_ctx *handler_ctx= nullptr;
 
   /**
     If the table uses several handlers, like ha_partition uses one handler
@@ -2548,13 +2585,13 @@ public:
 
     @see inplace_alter_handler_ctx for information about object lifecycle.
   */
-  inplace_alter_handler_ctx **group_commit_ctx;
+  inplace_alter_handler_ctx **group_commit_ctx= nullptr;
 
   /**
      Flags describing in detail which operations the storage engine is to
      execute. Flags are defined in sql_alter.h
   */
-  alter_table_operations handler_flags;
+  alter_table_operations handler_flags= 0;
 
   /* Alter operations involving parititons are strored here */
   ulong partition_flags;
@@ -2565,13 +2602,24 @@ public:
      with partitions to be dropped or changed marked as such + all partitions
      to be added in the new version of table marked as such.
   */
-  partition_info *modified_part_info;
+  partition_info * const modified_part_info;
 
   /** true for ALTER IGNORE TABLE ... */
   const bool ignore;
 
   /** true for online operation (LOCK=NONE) */
-  bool online;
+  bool online= false;
+
+  /**
+    When ha_commit_inplace_alter_table() is called the the engine can
+    set this to a function to be called after the ddl log
+    is committed.
+  */
+  typedef void (inplace_alter_table_commit_callback)(void *);
+  inplace_alter_table_commit_callback *inplace_alter_table_committed= nullptr;
+
+  /* This will be used as the argument to the above function when called */
+  void *inplace_alter_table_committed_argument= nullptr;
 
   /** which ALGORITHM and LOCK are supported by the storage engine */
   enum_alter_inplace_result inplace_supported;
@@ -2588,10 +2636,10 @@ public:
      Please set to a properly localized string, for example using
      my_get_err_msg(), so that the error message as a whole is localized.
   */
-  const char *unsupported_reason;
+  const char *unsupported_reason= nullptr;
 
   /** true when InnoDB should abort the alter when table is not empty */
-  bool error_if_not_empty;
+  const bool error_if_not_empty;
 
   Alter_inplace_info(HA_CREATE_INFO *create_info_arg,
                      Alter_info *alter_info_arg,
@@ -4044,6 +4092,15 @@ public:
   { return 0; }
   virtual int extra_opt(enum ha_extra_function operation, ulong arg)
   { return extra(operation); }
+  /*
+    Table version id for the the table. This should change for each
+    sucessfull ALTER TABLE.
+    This is used by the handlerton->check_version() to ask the engine
+    if the table definition has been updated.
+    Storage engines that does not support inplace alter table does not
+    have to support this call.
+  */
+  virtual ulonglong table_version() const { return 0; }
 
   /**
     In an UPDATE or DELETE, if the row under the cursor was locked by another
@@ -5179,6 +5236,7 @@ TYPELIB *ha_known_exts(void);
 int ha_panic(enum ha_panic_function flag);
 void ha_close_connection(THD* thd);
 void ha_kill_query(THD* thd, enum thd_kill_levels level);
+void ha_signal_ddl_recovery_done();
 bool ha_flush_logs();
 void ha_drop_database(const char* path);
 void ha_checkpoint_state(bool disable);

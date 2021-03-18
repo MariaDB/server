@@ -973,6 +973,9 @@ public:
       my_core::Alter_inplace_info *const ha_alter_info, bool commit) override;
 
   void set_skip_unique_check_tables(const char *const whitelist);
+
+  virtual ulonglong table_version() const override;
+
 #ifdef MARIAROCKS_NOT_YET // MDEV-10976
   bool is_read_free_rpl_table() const;
 #endif

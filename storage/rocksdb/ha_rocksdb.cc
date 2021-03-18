@@ -224,6 +224,12 @@ static handler *rocksdb_create_handler(my_core::handlerton *hton,
                                        my_core::TABLE_SHARE *table_arg,
                                        my_core::MEM_ROOT *mem_root);
 
+void save_table_version(rocksdb::WriteBatch *wb, const char *path,
+                        ulonglong version);
+ulonglong get_table_version(const char *path);
+void delete_table_version(rocksdb::WriteBatch *wb,
+                          const char *path);
+
 static rocksdb::CompactRangeOptions getCompactRangeOptions(
     int concurrency = 0) {
   rocksdb::CompactRangeOptions compact_range_options;
@@ -5200,6 +5206,18 @@ static rocksdb::Status check_rocksdb_options_compatibility(
 bool prevent_myrocks_loading= false;
 
 
+static int rocksdb_check_version(handlerton *hton,
+                                 const char *path,
+                                 const LEX_CUSTRING *version,
+                                 ulonglong create_id) {
+  ulonglong ver= get_table_version(path);
+  DBUG_PRINT("note",
+             ("MYROCKS-VER: rocksdb_check_version(): path: %s  create_id: %llu "
+              "on_disk_create_id: %llu",
+              path, create_id, ver));
+
+  return (create_id == ver);
+}
 /*
   Storage Engine initialization function, invoked when plugin is loaded.
 */
@@ -5319,6 +5337,7 @@ static int rocksdb_init_func(void *const p) {
   rocksdb_hton->handle_single_table_select = rocksdb_handle_single_table_select;
 
   */
+  rocksdb_hton->check_version = rocksdb_check_version;
 
   rocksdb_hton->flags = HTON_TEMPORARY_NOT_SUPPORTED |
                         HTON_SUPPORTS_EXTENDED_KEYS | HTON_CAN_RECREATE;
@@ -7739,6 +7758,7 @@ int ha_rocksdb::create_table(const std::string &table_name,
     goto error;
   }
 
+  save_table_version(batch, table_arg->s->path.str, 0);
   err = dict_manager.commit(batch);
   if (err != HA_EXIT_SUCCESS) {
     dict_manager.unlock();
@@ -11336,6 +11356,8 @@ ulonglong ha_rocksdb::table_flags() const
       - have no PK
       - have some (or all) of PK that can't be decoded from the secondary
         index.
+    HA_REUSES_FILE_NAMES
+      - Ensures that there is a .frm file when table is dropped or renamed.
   */
   THD *thd= ha_thd();
   DBUG_RETURN(HA_BINLOG_ROW_CAPABLE |
@@ -11344,7 +11366,7 @@ ulonglong ha_rocksdb::table_flags() const
               HA_REC_NOT_IN_SEQ | HA_CAN_INDEX_BLOBS |
               HA_PRIMARY_KEY_IN_READ_INDEX |
               HA_PRIMARY_KEY_REQUIRED_FOR_POSITION | HA_NULL_IN_KEY |
-              HA_PARTIAL_COLUMN_READ |
+              HA_PARTIAL_COLUMN_READ | HA_REUSES_FILE_NAMES |
               HA_TABLE_SCAN_ON_INDEX);
 }
 
@@ -11687,11 +11709,14 @@ int ha_rocksdb::delete_table(Rdb_tbl_def *const tbl) {
 
   dict_manager.add_drop_table(tbl->m_key_descr_arr, tbl->m_key_count, batch);
 
+  std::string path = std::string("./") + tbl->base_dbname() +
+                     "/" + tbl->base_tablename();
   /*
     Remove the table entry in data dictionary (this will also remove it from
     the persistent data dictionary).
   */
   ddl_manager.remove(tbl, batch, true);
+  delete_table_version(batch, path.c_str());
 
   int err = dict_manager.commit(batch);
   if (err) {
@@ -13034,6 +13059,13 @@ bool ha_rocksdb::commit_inplace_alter_table(
       */
       ddl_manager.remove_uncommitted_keydefs(ctx->m_added_indexes);
     }
+
+    /*
+      Increment the table version.
+    */
+    ulonglong table_ver = get_table_version(table->s->path.str);
+    table_ver++;
+    save_table_version(batch, table->s->path.str, table_ver);
 
     if (dict_manager.commit(batch)) {
       /*
@@ -14572,6 +14604,75 @@ void ha_rocksdb::print_error(int error, myf errflag) {
   handler::print_error(error, errflag);
 }
 
+
+std::string make_table_version_lookup_key(const char *path) {
+  std::string res;
+  char buf[Rdb_key_def::INDEX_NUMBER_SIZE];
+  rdb_netbuf_store_index((uchar*)buf, Rdb_key_def::TABLE_VERSION);
+  res.append(buf, Rdb_key_def::INDEX_NUMBER_SIZE);
+  res.append("MariaDB:table-version:");
+  res.append(path);
+  return res;
+}
+
+
+/*
+  Save the table version in the data dictionary
+
+  @param  wb      Where to write
+  @param  path    Table's path "./db_name/table_name"
+  @param  version Version
+*/
+
+void save_table_version(rocksdb::WriteBatch *wb, const char *path,
+                        ulonglong version) {
+  ulonglong val= htobe64(version);
+  auto lookup_key = make_table_version_lookup_key(path);
+  wb->Put(dict_manager.get_system_cf(), lookup_key,
+          rocksdb::Slice((const char*)&val, sizeof(val)));
+}
+
+/*
+  @brief Read table's version from the data dictionary
+
+  @param path  The table's path, "./db_name/table_name"
+
+  @return
+    number  TTable version as stored in the data dictionary
+    0       If there's no table version stored.
+   -1       Read error
+*/
+
+ulonglong get_table_version(const char *path) {
+  auto lookup_key = make_table_version_lookup_key(path);
+  std::string value;
+  ulonglong res;
+
+  auto s = dict_manager.get_value(rocksdb::Slice(lookup_key), &value);
+  if (s.IsNotFound()) {
+    res = 0;
+  } else if (s.ok()) {
+    // decode the value
+    if (value.length() == sizeof(res)) {
+      memcpy(&res, value.data(), sizeof(res));
+      res = be64toh(res);
+    }
+    else
+      res = ulonglong(-1);
+  } else {
+    res = ulonglong(-1);
+  }
+  return res;
+}
+
+void delete_table_version(rocksdb::WriteBatch *wb, const char *path) {
+  auto lookup_key = make_table_version_lookup_key(path);
+  wb->Delete(dict_manager.get_system_cf(), lookup_key);
+}
+
+ulonglong ha_rocksdb::table_version() const {
+  return get_table_version(table->s->path.str);
+}
 std::string rdb_corruption_marker_file_name() {
   std::string ret(rocksdb_datadir);
   ret.append("/ROCKSDB_CORRUPTED");

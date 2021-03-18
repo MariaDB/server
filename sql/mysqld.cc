@@ -5313,6 +5313,10 @@ static int init_server_components()
   }
 #endif
 
+  if (ddl_log_execute_recovery() > 0)
+    unireg_abort(1);
+  ha_signal_ddl_recovery_done();
+
   if (opt_myisam_log)
     (void) mi_log(1);
 
@@ -5680,9 +5684,6 @@ int mysqld_main(int argc, char **argv)
 #endif
 
   initialize_information_schema_acl();
-
-  if (ddl_log_execute_recovery() > 0)
-    unireg_abort(1);
 
   /*
     Change EVENTS_ORIGINAL to EVENTS_OFF (the default value) as there is no

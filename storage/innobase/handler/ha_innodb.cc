@@ -108,9 +108,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srv0mon.h"
 #include "srv0start.h"
 #include "rem0rec.h"
-#ifdef UNIV_DEBUG
 #include "trx0purge.h"
-#endif /* UNIV_DEBUG */
 #include "trx0roll.h"
 #include "trx0rseg.h"
 #include "trx0trx.h"
@@ -1916,6 +1914,59 @@ static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
+
+ulonglong ha_innobase::table_version() const
+{
+  /* This is either "garbage" or something that was assigned
+  on a successful ha_innobase::prepare_inplace_alter_table(). */
+  return m_prebuilt->trx_id;
+}
+
+#ifdef UNIV_DEBUG
+/** whether the DDL log recovery has been completed */
+static bool ddl_recovery_done;
+#endif
+
+static int innodb_check_version(handlerton *hton, const char *path,
+                                const LEX_CUSTRING *version,
+                                ulonglong create_id)
+{
+  DBUG_ENTER("innodb_check_version");
+  DBUG_ASSERT(hton == innodb_hton_ptr);
+  ut_ad(!ddl_recovery_done);
+
+  if (!create_id)
+    DBUG_RETURN(0);
+
+  char norm_path[FN_REFLEN];
+  normalize_table_name(norm_path, path);
+
+  if (dict_table_t *table= dict_table_open_on_name(norm_path, false, false,
+                                                   DICT_ERR_IGNORE_NONE))
+  {
+    const trx_id_t trx_id= table->def_trx_id;
+    DBUG_ASSERT(trx_id <= create_id);
+    dict_table_close(table, false, false);
+    DBUG_PRINT("info", ("create_id: %llu  trx_id: %llu", create_id, trx_id));
+    DBUG_RETURN(create_id != trx_id);
+  }
+  else
+    DBUG_RETURN(2);
+}
+
+static void innodb_ddl_recovery_done(handlerton*)
+{
+  ut_ad(!ddl_recovery_done);
+  ut_d(ddl_recovery_done= true);
+  if (!srv_read_only_mode && srv_operation == SRV_OPERATION_NORMAL &&
+      srv_force_recovery < SRV_FORCE_NO_BACKGROUND)
+  {
+    srv_init_purge_tasks();
+    purge_sys.coordinator_startup();
+    srv_wake_purge_thread_if_not_active();
+  }
+}
+
 /********************************************************************//**
 Converts an InnoDB error code to a MySQL error code and also tells to MySQL
 about a possible transaction rollback inside InnoDB caused by a lock wait
@@ -3950,13 +4001,17 @@ static int innodb_init(void* p)
 		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS |
 		HTON_NATIVE_SYS_VERSIONING |
 		HTON_WSREP_REPLICATION |
-		HTON_REQUIRES_CLOSE_AFTER_TRUNCATE;
+		HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
+		HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT;
 
 #ifdef WITH_WSREP
 	innobase_hton->abort_transaction=wsrep_abort_transaction;
 	innobase_hton->set_checkpoint=innobase_wsrep_set_checkpoint;
 	innobase_hton->get_checkpoint=innobase_wsrep_get_checkpoint;
 #endif /* WITH_WSREP */
+
+	innobase_hton->check_version = innodb_check_version;
+	innobase_hton->signal_ddl_recovery_done = innodb_ddl_recovery_done;
 
 	innobase_hton->tablefile_extensions = ha_innobase_exts;
 	innobase_hton->table_options = innodb_table_option_list;

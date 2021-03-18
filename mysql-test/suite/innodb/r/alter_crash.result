@@ -131,7 +131,6 @@ ERROR HY000: Lost connection to server during query
 SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE
-# Files in datadir after manual recovery.
 db.opt
 t1.frm
 t1.ibd

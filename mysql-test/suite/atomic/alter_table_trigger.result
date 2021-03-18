@@ -1,0 +1,131 @@
+
+engine: myisam
+
+
+query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+
+crash point: ddl_log_alter_before_rename_triggers
+t1_trg.TRN
+t2.MYD
+t2.MYI
+t2.TRG
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new'
+count(*)
+2
+sum(a)
+1003
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_triggers
+t1_trg.TRN
+t2.MYD
+t2.MYI
+t2.TRG
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new'
+count(*)
+2
+sum(a)
+1003
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+crash point: ddl_log_alter_after_drop_original_table
+t1_trg.TRN
+t2.MYD
+t2.MYI
+t2.TRG
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new'
+count(*)
+2
+sum(a)
+1003
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+
+query: ALTER TABLE t1 COMMENT "new", rename t2
+
+crash point: ddl_log_alter_before_rename_triggers
+t1_trg.TRN
+t2.MYD
+t2.MYI
+t2.TRG
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new'
+count(*)
+2
+sum(a)
+1003
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_triggers
+t1_trg.TRN
+t2.MYD
+t2.MYI
+t2.TRG
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new'
+count(*)
+2
+sum(a)
+1003
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+crash point: ddl_log_alter_after_drop_original_table
+"No crash!"
+
+query: ALTER TABLE t1 change column b c int, COMMENT "new", rename t2
+
+crash point: ddl_log_alter_before_rename_triggers
+t1_trg.TRN
+t2.MYD
+t2.MYI
+t2.TRG
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new'
+count(*)
+2
+sum(a)
+1003
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column b c int, COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_triggers
+t1_trg.TRN
+t2.MYD
+t2.MYI
+t2.TRG
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 COMMENT='new'
+count(*)
+2
+sum(a)
+1003
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column b c int, COMMENT "new", rename t2
+crash point: ddl_log_alter_after_drop_original_table
+"No crash!"
