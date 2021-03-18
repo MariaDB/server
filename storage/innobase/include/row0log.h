@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -246,6 +246,11 @@ row_log_apply(
 	struct TABLE*		table,
 	ut_stage_alter_t*	stage)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Get the n_core_fields of online log for the index
+@param	 index	index whose n_core_fields of log to be accessed
+@return number of n_core_fields */
+unsigned row_log_get_n_core_fields(const dict_index_t *index);
 
 #ifdef HAVE_PSI_STAGE_INTERFACE
 /** Estimate how much work is to be done by the log apply phase

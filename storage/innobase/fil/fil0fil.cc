@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -355,12 +355,16 @@ static bool fil_node_open_file_low(fil_node_t *node)
   ut_ad(!node->is_open());
   ut_ad(node->space->is_closing());
   ut_ad(mutex_own(&fil_system.mutex));
-  const auto flags= node->space->flags;
-  bool o_direct_possible= !FSP_FLAGS_HAS_PAGE_COMPRESSION(flags);
+  ulint type;
   static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096, "compatibility");
-  if (const auto ssize= FSP_FLAGS_GET_ZIP_SSIZE(flags))
-    if (ssize < 3)
-      o_direct_possible= false;
+  switch (FSP_FLAGS_GET_ZIP_SSIZE(node->space->flags)) {
+  case 1:
+  case 2:
+    type= OS_DATA_FILE_NO_O_DIRECT;
+    break;
+  default:
+    type= OS_DATA_FILE;
+  }
 
   for (;;)
   {
@@ -369,8 +373,7 @@ static bool fil_node_open_file_low(fil_node_t *node)
                                  node->is_raw_disk
                                  ? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
                                  : OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
-                                 OS_FILE_AIO, o_direct_possible
-                                 ? OS_DATA_FILE : OS_DATA_FILE_NO_O_DIRECT,
+                                 OS_FILE_AIO, type,
                                  srv_read_only_mode, &success);
     if (success)
       break;
@@ -2224,10 +2227,22 @@ fil_ibd_create(
 		return NULL;
 	}
 
+	ulint type;
+	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
+		      "compatibility");
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
+	}
+
 	file = os_file_create(
 		innodb_data_file_key, path,
 		OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
-		OS_FILE_AIO, OS_DATA_FILE, srv_read_only_mode, &success);
+		OS_FILE_AIO, type, srv_read_only_mode, &success);
 
 	if (!success) {
 		/* The following call will print an error message */

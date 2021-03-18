@@ -193,6 +193,12 @@ SET DEBUG_SYNC='RESET';
 CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 SET a=0;
 ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2, ADD COLUMN c INT;
+BEGIN NOT ATOMIC
+DECLARE c TEXT DEFAULT(SELECT CONCAT('ALTER TABLE t1 ADD (c',
+GROUP_CONCAT(seq SEPARATOR ' INT, c'), ' INT), ALGORITHM=INSTANT;') FROM seq_1_to_130);
+EXECUTE IMMEDIATE c;
+END;
+$$
 connection stop_purge;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
@@ -211,7 +217,7 @@ SET DEBUG_SYNC = 'now SIGNAL logged';
 connection ddl;
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c FROM t1;
 a	b	c
 1	2	NULL
 2	3	4
@@ -234,7 +240,7 @@ connection ddl;
 UPDATE t1 SET b = b + 1 WHERE a = 2;
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c FROM t1;
 a	b	c
 1	2	NULL
 2	3	4
@@ -258,7 +264,7 @@ ERROR 22004: Invalid use of NULL value
 disconnect ddl;
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c, d FROM t1;
 a	b	c	d
 1	2	NULL	1
 2	3	4	1
@@ -440,4 +446,4 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-32
+33
