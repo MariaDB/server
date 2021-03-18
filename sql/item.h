@@ -6181,6 +6181,14 @@ protected:
   */
   bool value_cached;
 public:
+  /*
+    This is set if at least one of the values of a sub query is NULL
+    Item_cache_row returns this with null_inside().
+    For not row items, it's set to the value of null_value
+    It is set after cache_value() is called.
+  */
+  bool null_value_inside;
+
   Item_cache(THD *thd):
     Item_basic_constant(thd),
     Type_handler_hybrid_field_type(&type_handler_string),
@@ -6190,6 +6198,7 @@ public:
     fixed= 1;
     maybe_null= 1;
     null_value= 1;
+    null_value_inside= true;
   }
 protected:
   Item_cache(THD *thd, const Type_handler *handler):
@@ -6201,6 +6210,7 @@ protected:
     fixed= 1;
     maybe_null= 1;
     null_value= 1;
+    null_value_inside= true;
   }
 
 public:

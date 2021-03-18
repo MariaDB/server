@@ -1,15 +1,36 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
-set @saved_binlog_format = @@global.binlog_format;
+include/master-slave.inc
+[connection master]
+connection slave;
+connection master;
 drop database if exists mysqltest1;
 create database mysqltest1;
 use mysqltest1;
+set @my_binlog_format= @@global.binlog_format;
+set session binlog_format=mixed;
+show session variables like "binlog_format%";
+Variable_name	Value
+binlog_format	MIXED
+set session binlog_format=statement;
+show session variables like "binlog_format%";
+Variable_name	Value
+binlog_format	STATEMENT
 set session binlog_format=row;
-set global binlog_format=row;
+show session variables like "binlog_format%";
+Variable_name	Value
+binlog_format	ROW
+set global binlog_format=DEFAULT;
+show global variables like "binlog_format%";
+Variable_name	Value
+binlog_format	MIXED
+set global binlog_format=MIXED;
+show global variables like "binlog_format%";
+Variable_name	Value
+binlog_format	MIXED
+set global binlog_format=STATEMENT;
+show global variables like "binlog_format%";
+Variable_name	Value
+binlog_format	STATEMENT
+set global binlog_format=ROW;
 show global variables like "binlog_format%";
 Variable_name	Value
 binlog_format	ROW
@@ -68,11 +89,11 @@ execute stmt1 using @string;
 deallocate prepare stmt1;
 insert into t1 values("for_10_");
 insert into t1 select "yesterday_11_";
-set binlog_format=default;
+set binlog_format=statement;
 select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
 STATEMENT	STATEMENT
-set global binlog_format=default;
+set global binlog_format=statement;
 select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
 STATEMENT	STATEMENT
@@ -87,11 +108,11 @@ execute stmt1 using @string;
 deallocate prepare stmt1;
 insert into t1 values("for_15_");
 insert into t1 select "yesterday_16_";
-set binlog_format=mixed;
+set global binlog_format=mixed;
 select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
-STATEMENT	MIXED
-set global binlog_format=mixed;
+MIXED	STATEMENT
+set binlog_format=default;
 select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
 MIXED	MIXED
@@ -112,11 +133,15 @@ execute stmt1 using @string;
 deallocate prepare stmt1;
 insert into t1 values(concat("for_23_",UUID()));
 insert into t1 select "yesterday_24_";
-create table t2 select rpad(UUID(),100,' ');
+create table t2 ENGINE=MyISAM select rpad(UUID(),100,' ');
 create table t3 select 1 union select UUID();
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t4 select * from t1 where 3 in (select 1 union select 2 union select UUID() union select 3);
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t5 select * from t1 where 3 in (select 1 union select 2 union select curdate() union select 3);
-insert into t5 select UUID() from t1 where 3 in (select 1 union select 2 union select 3 union select * from t4);
+Warnings:
+Warning	1292	Incorrect datetime value: '3'
+insert ignore into t5 select UUID() from t1 where 3 in (select 1 union select 2 union select 3 union select * from t4);
 create procedure foo()
 begin
 insert into t1 values("work_25_");
@@ -228,6 +253,14 @@ begin
 set NEW.data = concat(NEW.data,UUID());
 end|
 insert into t11 values("try_560_");
+insert delayed into t2 values("delay_1_");
+insert delayed into t2 values(concat("delay_2_",UUID()));
+insert delayed into t2 values("delay_6_");
+insert delayed into t2 values(rand());
+set @a=2.345;
+insert delayed into t2 values(@a);
+connection slave;
+connection master;
 create table t20 select * from t1;
 create table t21 select * from t2;
 create table t22 select * from t3;
@@ -244,14 +277,18 @@ end|
 select f("try_41_");
 f("try_41_")
 1
+connection slave;
 use mysqltest1;
 insert into t2 values(2,null),(3,null),(4,null);
 delete from t2 where a>=2;
+connection master;
 select f("try_42_");
 f("try_42_")
 1
+connection slave;
 insert into t2 values(3,null),(4,null);
 delete from t2 where a>=3;
+connection master;
 prepare stmt1 from 'select f(?)';
 set @string="try_43_";
 insert into t1 values(null,"try_44_");
@@ -259,6 +296,8 @@ execute stmt1 using @string;
 f(?)
 1
 deallocate prepare stmt1;
+connection slave;
+connection master;
 create table t12 select * from t1;
 drop table t1;
 create table t1 (a int, b varchar(100), key(a));
@@ -284,12 +323,16 @@ end|
 select f1("try_46_"),f2("try_47_");
 f1("try_46_")	f2("try_47_")
 1	1
+connection slave;
 insert into t2 values(2,null),(3,null),(4,null);
 delete from t2 where a>=2;
+connection master;
 select f1("try_48_"),f2("try_49_");
 f1("try_48_")	f2("try_49_")
 1	1
 insert into t3 values(concat("try_50_",f1("try_51_"),f2("try_52_")));
+connection slave;
+connection master;
 drop function f2;
 create function f2 (x varchar(100)) returns int deterministic
 begin
@@ -301,6 +344,8 @@ end|
 select f1("try_53_"),f2("try_54_");
 f1("try_53_")	f2("try_54_")
 1	3
+connection slave;
+connection master;
 drop function f2;
 create trigger t1_bi before insert on t1 for each row
 begin
@@ -309,12 +354,16 @@ end|
 insert into t1 values(null,"try_56_");
 alter table t1 modify a int, drop primary key;
 insert into t1 values(null,"try_57_");
+connection slave;
+connection master;
 CREATE TEMPORARY TABLE t15 SELECT UUID();
 create table t16 like t15;
 INSERT INTO t16 SELECT * FROM t15;
 insert into t16 values("try_65_");
 drop table t15;
 insert into t16 values("try_66_");
+connection slave;
+connection master;
 select count(*) from t1;
 count(*)
 7
@@ -338,7 +387,7 @@ count(*)
 66
 select count(*) from t21;
 count(*)
-14
+19
 select count(*) from t22;
 count(*)
 2
@@ -354,6 +403,8 @@ count(*)
 select count(*) from t16;
 count(*)
 3
+connection slave;
+connection master;
 DROP TABLE IF EXISTS t11;
 SET SESSION BINLOG_FORMAT=STATEMENT;
 CREATE TABLE t11 (song VARCHAR(255));
@@ -366,17 +417,44 @@ UNLOCK TABLES;
 SELECT * FROM t11;
 song	Several Species of Small Furry Animals Gathered Together in a Cave and Grooving With a Pict
 song	Careful With That Axe, Eugene
+connection slave;
 USE mysqltest1;
 SELECT * FROM t11;
 song	Several Species of Small Furry Animals Gathered Together in a Cave and Grooving With a Pict
 song	Careful With That Axe, Eugene
+connection master;
 DROP TABLE IF EXISTS t12;
 SET SESSION BINLOG_FORMAT=MIXED;
 CREATE TABLE t12 (data LONG);
 LOCK TABLES t12 WRITE;
 INSERT INTO t12 VALUES(UUID());
 UNLOCK TABLES;
-show binlog events;
-show binlog events;
+connection slave;
+connection master;
+CREATE FUNCTION my_user()
+RETURNS CHAR(64)
+BEGIN
+DECLARE user CHAR(64);
+SELECT USER() INTO user;
+RETURN user;
+END $$
+CREATE FUNCTION my_current_user()
+RETURNS CHAR(64)
+BEGIN
+DECLARE user CHAR(64);
+SELECT CURRENT_USER() INTO user;
+RETURN user;
+END $$
+DROP TABLE IF EXISTS t13;
+CREATE TABLE t13 (data CHAR(64));
+INSERT INTO t13 VALUES (USER());
+INSERT INTO t13 VALUES (my_user());
+INSERT INTO t13 VALUES (CURRENT_USER());
+INSERT INTO t13 VALUES (my_current_user());
+connection slave;
+connection master;
 drop database mysqltest1;
-set global binlog_format= @saved_binlog_format;
+connection slave;
+connection master;
+set global binlog_format =@my_binlog_format;
+include/rpl_end.inc

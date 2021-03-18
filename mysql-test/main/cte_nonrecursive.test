@@ -1230,6 +1230,37 @@ drop database db1;
 create database test;
 use test;
 
+--echo #
+--echo # MDEV-24597: CTE with union used multiple times in query
+--echo #
+
+with cte(a) as
+(select 1 as d union select 2 as d)
+select a from cte as r1
+union
+select a from cte as r2;
+
+create table t1 (a int, b int) engine=myisam;
+insert into t1 values
+(3,30), (7,70), (1,10), (7,71), (2,20), (7,72), (3,33), (4,44),
+(5,50), (4,40), (3,33), (4,42), (4,43), (5,51);
+
+with cte(c) as
+(select a from t1 where b < 30 union select a from t1 where b > 40)
+select * from cte as r1, cte as r2 where r1.c = r2.c;
+
+with cte(a,c) as
+(
+  select a, count(*) from t1 group by a having count(*) = 1
+  union
+  select a, count(*) from t1 group by a having count(*) = 3
+)
+select a, c from cte as r1 where a < 3
+union
+select a, c from cte as r2 where a > 4;
+
+drop table t1;
+
 --echo # End of 10.2 tests
 
 --echo #

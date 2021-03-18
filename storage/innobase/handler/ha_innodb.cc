@@ -2491,6 +2491,72 @@ innobase_raw_format(
 	return(ut_str_sql_format(buf_tmp, buf_tmp_used, buf, buf_size));
 }
 
+/*
+The helper function nlz(x) calculates the number of leading zeros
+in the binary representation of the number "x", either using a
+built-in compiler function or a substitute trick based on the use
+of the multiplication operation and a table indexed by the prefix
+of the multiplication result:
+*/
+#ifdef __GNUC__
+#define nlz(x) __builtin_clzll(x)
+#elif defined(_MSC_VER) && !defined(_M_CEE_PURE) && \
+  (defined(_M_IX86) || defined(_M_X64) || defined(_M_ARM64))
+#ifndef __INTRIN_H_
+#pragma warning(push, 4)
+#pragma warning(disable: 4255 4668)
+#include <intrin.h>
+#pragma warning(pop)
+#endif
+__forceinline unsigned int nlz (ulonglong x)
+{
+#if defined(_M_IX86) || defined(_M_X64)
+  unsigned long n;
+#ifdef _M_X64
+  _BitScanReverse64(&n, x);
+  return (unsigned int) n ^ 63;
+#else
+  unsigned long y = (unsigned long) (x >> 32);
+  unsigned int m = 31;
+  if (y == 0)
+  {
+    y = (unsigned long) x;
+    m = 63;
+  }
+  _BitScanReverse(&n, y);
+  return (unsigned int) n ^ m;
+#endif
+#elif defined(_M_ARM64)
+  return _CountLeadingZeros(x);
+#endif
+}
+#else
+inline unsigned int nlz (ulonglong x)
+{
+  static unsigned char table [48] = {
+    32,  6,  5,  0,  4, 12,  0, 20,
+    15,  3, 11,  0,  0, 18, 25, 31,
+     8, 14,  2,  0, 10,  0,  0,  0,
+     0,  0,  0, 21,  0,  0, 19, 26,
+     7,  0, 13,  0, 16,  1, 22, 27,
+     9,  0, 17, 23, 28, 24, 29, 30
+  };
+  unsigned int y= (unsigned int) (x >> 32);
+  unsigned int n= 0;
+  if (y == 0) {
+    y= (unsigned int) x;
+    n= 32;
+  }
+  y = y | (y >> 1); // Propagate leftmost 1-bit to the right.
+  y = y | (y >> 2);
+  y = y | (y >> 4);
+  y = y | (y >> 8);
+  y = y & ~(y >> 16);
+  y = y * 0x3EF5D037;
+  return n + table[y >> 26];
+}
+#endif
+
 /*********************************************************************//**
 Compute the next autoinc value.
 
@@ -2519,85 +2585,93 @@ innobase_next_autoinc(
 	ulonglong	max_value)	/*!< in: max value for type */
 {
 	ulonglong	next_value;
-	ulonglong	block = need * step;
+	ulonglong	block;
 
 	/* Should never be 0. */
 	ut_a(need > 0);
-	ut_a(block > 0);
+	ut_a(step > 0);
 	ut_a(max_value > 0);
 
-        /*
-          Allow auto_increment to go over max_value up to max ulonglong.
-          This allows us to detect that all values are exhausted.
-          If we don't do this, we will return max_value several times
-          and get duplicate key errors instead of auto increment value
-          out of range.
-        */
-        max_value= (~(ulonglong) 0);
+	/*
+	  We need to calculate the "block" value equal to the product
+	  "step * need". However, when calculating this product, an integer
+	  overflow can occur, so we cannot simply use the usual multiplication
+	  operation. The snippet below calculates the product of two numbers
+	  and detects an unsigned integer overflow:
+	*/
+	unsigned int	m= nlz(need);
+	unsigned int	n= nlz(step);
+	if (m + n <= 8 * sizeof(ulonglong) - 2) {
+		// The bit width of the original values is too large,
+		// therefore we are guaranteed to get an overflow.
+		goto overflow;
+	}
+	block = need * (step >> 1);
+	if ((longlong) block < 0) {
+		goto overflow;
+	}
+	block += block;
+	if (step & 1) {
+		block += need;
+		if (block < need) {
+			goto overflow;
+		}
+	}
+
+	/* Check for overflow. Current can be > max_value if the value
+	is in reality a negative value. Also, the visual studio compiler
+	converts large double values (which hypothetically can then be
+	passed here as the values of the "current" parameter) automatically
+	into unsigned long long datatype maximum value: */
+	if (current > max_value) {
+		goto overflow;
+	}
 
 	/* According to MySQL documentation, if the offset is greater than
 	the step then the offset is ignored. */
-	if (offset > block) {
+	if (offset > step) {
 		offset = 0;
 	}
 
-	/* Check for overflow. Current can be > max_value if the value is
-	in reality a negative value.The visual studio compilers converts
-	large double values automatically into unsigned long long datatype
-	maximum value */
-
-	if (block >= max_value
-	    || offset > max_value
-	    || current >= max_value
-	    || max_value - offset <= offset) {
-
-		next_value = max_value;
+	/*
+	  Let's round the current value to within a step-size block:
+	*/
+	if (current > offset) {
+		next_value = current - offset;
 	} else {
-		ut_a(max_value > current);
+		next_value = offset - current;
+	}
+	next_value -= next_value % step;
 
-		ulonglong	free = max_value - current;
-
-		if (free < offset || free - offset <= block) {
-			next_value = max_value;
-		} else {
-			next_value = 0;
-		}
+	/*
+	  Add an offset to the next value and check that the addition
+	  does not cause an integer overflow:
+	*/
+	next_value += offset;
+	if (next_value < offset) {
+		goto overflow;
 	}
 
-	if (next_value == 0) {
-		ulonglong	next;
-
-		if (current > offset) {
-			next = (current - offset) / step;
-		} else {
-			next = (offset - current) / step;
-		}
-
-		ut_a(max_value > next);
-		next_value = next * step;
-		/* Check for multiplication overflow. */
-		ut_a(next_value >= next);
-		ut_a(max_value > next_value);
-
-		/* Check for overflow */
-		if (max_value - next_value >= block) {
-
-			next_value += block;
-
-			if (max_value - next_value >= offset) {
-				next_value += offset;
-			} else {
-				next_value = max_value;
-			}
-		} else {
-			next_value = max_value;
-		}
+	/*
+	  Add a block to the next value and check that the addition
+	  does not cause an integer overflow:
+	*/
+	next_value += block;
+	if (next_value < block) {
+		goto overflow;
 	}
-
-	ut_a(next_value != 0);
-	ut_a(next_value <= max_value);
 
 	return(next_value);
+
+overflow:
+	/*
+	  Allow auto_increment to go over max_value up to max ulonglong.
+	  This allows us to detect that all values are exhausted.
+	  If we don't do this, we will return max_value several times
+	  and get duplicate key errors instead of auto increment value
+	  out of range:
+	*/
+	return(~(ulonglong) 0);
 }
 
 /********************************************************************//**
@@ -6537,8 +6611,8 @@ wsrep_innobase_mysql_sort(
 	case MYSQL_TYPE_LONG_BLOB:
 	case MYSQL_TYPE_VARCHAR:
 	{
-		uchar tmp_str[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
-		uint tmp_length = REC_VERSION_56_MAX_INDEX_COL_LEN;
+		uchar *tmp_str;
+		uint tmp_length;
 
 		/* Use the charset number to pick the right charset struct for
 		the comparison. Since the MySQL function get_charset may be
@@ -6561,7 +6635,11 @@ wsrep_innobase_mysql_sort(
 			}
 		}
 
-		ut_a(str_length <= tmp_length);
+		// Note that strnxfrm may change length of string
+		tmp_length= charset->coll->strnxfrmlen(charset, str_length);
+		tmp_length= ut_max(str_length, tmp_length) + 1;
+		tmp_str= static_cast<uchar *>(ut_malloc_nokey(tmp_length));
+		ut_ad(str_length <= tmp_length);
 		memcpy(tmp_str, str, str_length);
 
 		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
@@ -6585,6 +6663,7 @@ wsrep_innobase_mysql_sort(
 			ret_length = tmp_length;
 		}
 
+		ut_free(tmp_str);
 		break;
 	}
 	case MYSQL_TYPE_DECIMAL :
@@ -6936,7 +7015,7 @@ wsrep_store_key_val_for_row(
 	THD* 		thd,
 	TABLE*		table,
 	uint		keynr,	/*!< in: key number */
-	char*		buff,	/*!< in/out: buffer for the key value (in MySQL
+	uchar*		buff,	/*!< in/out: buffer for the key value (in MySQL
 				format) */
 	uint		buff_len,/*!< in: buffer length */
 	const uchar*	record,
@@ -6945,7 +7024,7 @@ wsrep_store_key_val_for_row(
 	KEY*		key_info	= table->key_info + keynr;
 	KEY_PART_INFO*	key_part	= key_info->key_part;
 	KEY_PART_INFO*	end		= key_part + key_info->user_defined_key_parts;
-	char*		buff_start	= buff;
+	uchar*		buff_start	= buff;
 	enum_field_types mysql_type;
 	Field*		field;
 	uint buff_space = buff_len;
@@ -6957,7 +7036,8 @@ wsrep_store_key_val_for_row(
 
 	for (; key_part != end; key_part++) {
 
-		uchar sorted[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
+		uchar *sorted=NULL;
+		uint  max_len=0;
 		ibool part_is_null = FALSE;
 
 		if (key_part->null_bit) {
@@ -7036,10 +7116,14 @@ wsrep_store_key_val_for_row(
 				true_len = key_len;
 			}
 
+			max_len= true_len;
+			sorted= static_cast<uchar *>(ut_malloc_nokey(max_len+1));
 			memcpy(sorted, data, true_len);
 			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len,
-				REC_VERSION_56_MAX_INDEX_COL_LEN);
+				max_len);
+			ut_ad(true_len <= max_len);
+
 			if (wsrep_protocol_version > 1) {
 				/* Note that we always reserve the maximum possible
 				length of the true VARCHAR in the key value, though
@@ -7124,11 +7208,13 @@ wsrep_store_key_val_for_row(
 				true_len = key_len;
 			}
 
+			max_len= true_len;
+			sorted= static_cast<uchar *>(ut_malloc_nokey(max_len+1));
 			memcpy(sorted, blob_data, true_len);
 			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len,
-				REC_VERSION_56_MAX_INDEX_COL_LEN);
-
+				max_len);
+			ut_ad(true_len <= max_len);
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
@@ -7204,10 +7290,14 @@ wsrep_store_key_val_for_row(
 								cs->mbmaxlen),
 							&error);
 				}
+
+				max_len= true_len;
+				sorted= static_cast<uchar *>(ut_malloc_nokey(max_len+1));
 				memcpy(sorted, src_start, true_len);
 				true_len = wsrep_innobase_mysql_sort(
 					mysql_type, cs->number, sorted, true_len,
-					REC_VERSION_56_MAX_INDEX_COL_LEN);
+					max_len);
+				ut_ad(true_len <= max_len);
 
 				if (true_len > buff_space) {
 					fprintf (stderr,
@@ -7221,6 +7311,11 @@ wsrep_store_key_val_for_row(
 			}
 			buff       += true_len;
 			buff_space -= true_len;
+		}
+
+		if (sorted) {
+			ut_free(sorted);
+			sorted= NULL;
 		}
 	}
 
@@ -8046,7 +8141,6 @@ ha_innobase::write_row(
 	/* Handling of errors related to auto-increment. */
 	if (auto_inc_used) {
 		ulonglong	auto_inc;
-		ulonglong	col_max_value;
 
 		/* Note the number of rows processed for this statement, used
 		by get_auto_increment() to determine the number of AUTO-INC
@@ -8055,11 +8149,6 @@ ha_innobase::write_row(
 		if (trx->n_autoinc_rows > 0) {
 			--trx->n_autoinc_rows;
 		}
-
-		/* We need the upper limit of the col type to check for
-		whether we update the table autoinc counter or not. */
-		col_max_value =
-			table->next_number_field->get_max_int_value();
 
 		/* Get the value that MySQL attempted to store in the table.*/
 		auto_inc = table->next_number_field->val_uint();
@@ -8127,38 +8216,25 @@ ha_innobase::write_row(
 
 			if (auto_inc >= m_prebuilt->autoinc_last_value) {
 set_max_autoinc:
+				/* We need the upper limit of the col type to check for
+				whether we update the table autoinc counter or not. */
+				ulonglong	col_max_value =
+					table->next_number_field->get_max_int_value();
+
 				/* This should filter out the negative
 				values set explicitly by the user. */
 				if (auto_inc <= col_max_value) {
+					ut_ad(m_prebuilt->autoinc_increment > 0);
 
 					ulonglong	offset;
 					ulonglong	increment;
 					dberr_t		err;
-#ifdef WITH_WSREP
-					/* Applier threads which are processing
-					ROW events and don't go through server
-					level autoinc processing, therefore
-					m_prebuilt autoinc values don't get
-					properly assigned. Fetch values from
-					server side. */
-					if (trx->is_wsrep() &&
-					    wsrep_thd_exec_mode(m_user_thd) == REPL_RECV)
-					{
-					    wsrep_thd_auto_increment_variables(
-						m_user_thd, &offset, &increment);
-					}
-					else
-					{
-#endif /* WITH_WSREP */
-					    ut_a(m_prebuilt->autoinc_increment > 0);
-					    offset = m_prebuilt->autoinc_offset;
-					    increment = m_prebuilt->autoinc_increment;
-#ifdef WITH_WSREP
-					}
-#endif /* WITH_WSREP */
+
+					offset = m_prebuilt->autoinc_offset;
+					increment = m_prebuilt->autoinc_increment;
+
 					auto_inc = innobase_next_autoinc(
-						auto_inc,
-						1, increment, offset,
+						auto_inc, 1, increment, offset,
 						col_max_value);
 
 					err = innobase_set_max_autoinc(
@@ -8856,46 +8932,37 @@ ha_innobase::update_row(
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
 
-		ulonglong	offset;
-		ulonglong	increment;
-#ifdef WITH_WSREP
-		/* Applier threads which are processing
-		ROW events and don't go through server
-		level autoinc processing, therefore
-		m_prebuilt autoinc values don't get
-		properly assigned. Fetch values from
-		server side. */
-		if (trx->is_wsrep() && 
-		    wsrep_thd_exec_mode(m_user_thd) == REPL_RECV)
-		{
-		    wsrep_thd_auto_increment_variables(
-			m_user_thd, &offset, &increment);
-		}
-		else
-		{
-#endif /* WITH_WSREP */
-		    offset = m_prebuilt->autoinc_offset;
-		    increment = m_prebuilt->autoinc_increment;
-#ifdef WITH_WSREP
-		}
-#endif /* WITH_WSREP */
+		/* We need the upper limit of the col type to check for
+		whether we update the table autoinc counter or not. */
+		ulonglong	col_max_value =
+			table->found_next_number_field->get_max_int_value();
 
-		autoinc = innobase_next_autoinc(
-			autoinc, 1, increment, offset,
-			table->found_next_number_field->get_max_int_value());
+		/* This should filter out the negative
+		values set explicitly by the user. */
+		if (autoinc <= col_max_value) {
+			ulonglong	offset;
+			ulonglong	increment;
 
-		error = innobase_set_max_autoinc(autoinc);
+			offset = m_prebuilt->autoinc_offset;
+			increment = m_prebuilt->autoinc_increment;
 
-		if (m_prebuilt->table->persistent_autoinc) {
-			/* Update the PAGE_ROOT_AUTO_INC. Yes, we do
-			this even if dict_table_t::autoinc already was
-			greater than autoinc, because we cannot know
-			if any INSERT actually used (and wrote to
-			PAGE_ROOT_AUTO_INC) a value bigger than our
-			autoinc. */
-			btr_write_autoinc(dict_table_get_first_index(
-						  m_prebuilt->table),
-					  autoinc);
+			autoinc = innobase_next_autoinc(
+				autoinc, 1, increment, offset,
+				col_max_value);
+
+			error = innobase_set_max_autoinc(autoinc);
+
+			if (m_prebuilt->table->persistent_autoinc) {
+				/* Update the PAGE_ROOT_AUTO_INC. Yes, we do
+				this even if dict_table_t::autoinc already was
+				greater than autoinc, because we cannot know
+				if any INSERT actually used (and wrote to
+				PAGE_ROOT_AUTO_INC) a value bigger than our
+				autoinc. */
+				btr_write_autoinc(dict_table_get_first_index(
+							  m_prebuilt->table),
+						  autoinc);
+			}
 		}
 	}
 
@@ -10350,7 +10417,7 @@ wsrep_append_key(
 	THD		*thd,
 	trx_t 		*trx,
 	TABLE_SHARE 	*table_share,
-	const char*	key,
+	const uchar*	key,
 	uint16_t        key_len,
 	wsrep_key_type	key_type	/*!< in: access type of this key
 					(shared, exclusive, semi...) */
@@ -10454,8 +10521,8 @@ ha_innobase::wsrep_append_keys(
 
 	if (wsrep_protocol_version == 0) {
 		uint	len;
-		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-		char 	*key 		= &keyval[0];
+		uchar 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+		uchar 	*key 		= &keyval[0];
 		ibool    is_null;
 
 		len = wsrep_store_key_val_for_row(
@@ -10486,18 +10553,18 @@ ha_innobase::wsrep_append_keys(
 
 		for (i=0; i<table->s->keys; ++i) {
 			uint  len;
-			char  keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-			char  keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-			char* key0 		= &keyval0[1];
-			char* key1 		= &keyval1[1];
+			uchar  keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+			uchar  keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+			uchar* key0 		= &keyval0[1];
+			uchar* key1 		= &keyval1[1];
 			KEY*  key_info	= table->key_info + i;
 			ibool is_null;
 
 			dict_index_t* idx  = innobase_get_index(i);
 			dict_table_t* tab  = (idx) ? idx->table : NULL;
 
-			keyval0[0] = (char)i;
-			keyval1[0] = (char)i;
+			keyval0[0] = (uchar)i;
+			keyval1[0] = (uchar)i;
 
 			if (!tab) {
 				WSREP_WARN("MariaDB-InnoDB key mismatch %s %s",
@@ -10550,22 +10617,20 @@ ha_innobase::wsrep_append_keys(
 	/* if no PK, calculate hash of full row, to be the key value */
 	if (!key_appended && wsrep_certify_nonPK) {
 		uchar digest[16];
-		int rcode;
 
 		wsrep_calc_row_hash(digest, record0, table, m_prebuilt);
 
-		if ((rcode = wsrep_append_key(thd, trx, table_share,
-					      (const char*) digest, 16,
-					      key_type))) {
+		if (int rcode = wsrep_append_key(thd, trx, table_share,
+						 digest, 16, key_type)) {
 			DBUG_RETURN(rcode);
 		}
 
 		if (record1) {
 			wsrep_calc_row_hash(
 				digest, record1, table, m_prebuilt);
-			if ((rcode = wsrep_append_key(thd, trx, table_share,
-						      (const char*) digest,
-						      16, key_type))) {
+			if (int rcode = wsrep_append_key(thd, trx, table_share,
+							 digest, 16,
+							 key_type)) {
 				DBUG_RETURN(rcode);
 			}
 		}
@@ -14172,6 +14237,13 @@ ha_innobase::info_low(
 			if (dict_stats_is_persistent_enabled(ib_table)) {
 
 				if (is_analyze) {
+					row_mysql_lock_data_dictionary(
+						m_prebuilt->trx);
+					dict_stats_recalc_pool_del(ib_table);
+					dict_stats_wait_bg_to_stop_using_table(
+						ib_table, m_prebuilt->trx);
+					row_mysql_unlock_data_dictionary(
+						m_prebuilt->trx);
 					opt = DICT_STATS_RECALC_PERSISTENT;
 				} else {
 					/* This is e.g. 'SHOW INDEXES', fetch
@@ -14183,6 +14255,13 @@ ha_innobase::info_low(
 			}
 
 			ret = dict_stats_update(ib_table, opt);
+
+			if (opt == DICT_STATS_RECALC_PERSISTENT) {
+				mutex_enter(&dict_sys->mutex);
+				ib_table->stats_bg_flag
+					&= byte(~BG_STAT_SHOULD_QUIT);
+				mutex_exit(&dict_sys->mutex);
+			}
 
 			if (ret != DB_SUCCESS) {
 				m_prebuilt->trx->op_info = "";
