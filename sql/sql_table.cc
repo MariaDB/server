@@ -547,8 +547,13 @@ uint build_table_filename(char *buff, size_t bufflen, const char *db,
 
   (void) tablename_to_filename(db, dbbuff, sizeof(dbbuff));
 
-  /* Check if this is a temporary table name. Allow it if a corresponding .frm file exists */
-  if (is_prefix(table_name, tmp_file_prefix) && strlen(table_name) < NAME_CHAR_LEN &&
+  /*
+    Check if this is a temporary table name. Allow it if a corresponding .frm
+    file exists.
+  */
+  if (!(flags & FN_IS_TMP) &&
+      is_prefix(table_name, tmp_file_prefix) &&
+      strlen(table_name) < NAME_CHAR_LEN &&
       check_if_frm_exists(tbbuff, dbbuff, table_name))
     flags|= FN_IS_TMP;
 
@@ -3980,13 +3985,17 @@ err:
                              the extension).
   @param create_info         Create information (like MAX_ROWS)
   @param alter_info          Description of fields and keys for new table
-  @param create_table_mode   C_ORDINARY_CREATE, C_ALTER_TABLE, C_ASSISTED_DISCOVERY
+  @param create_table_mode   C_ORDINARY_CREATE, C_ALTER_TABLE,
+                             C_ASSISTED_DISCOVERY or C_ALTER_TABLE_FRM_ONLY.
                              or any positive number (for C_CREATE_SELECT).
+                             If set to C_ALTER_TABLE_FRM_ONY then no frm or
+                             table is created, only the frm image in memory.
   @param[out] is_trans       Identifies the type of engine where the table
                              was created: either trans or non-trans.
   @param[out] key_info       Array of KEY objects describing keys in table
                              which was created.
   @param[out] key_count      Number of keys in table which was created.
+  @param[out] frm            The frm image.
 
   If one creates a temporary table, its is automatically opened and its
   TABLE_SHARE is added to THD::all_temp_tables list.
@@ -7057,18 +7066,14 @@ static bool mysql_inplace_alter_table(THD *thd,
           goto rollback;
         }
         if (trt.update(trx_start_id, trx_end_id))
-        {
           goto rollback;
-        }
       }
     }
 
     if (table->file->ha_commit_inplace_alter_table(altered_table,
                                                   ha_alter_info,
                                                   true))
-    {
       goto rollback;
-    }
   }
 
   /* Notify the engine that the table definition has changed */
@@ -7170,7 +7175,6 @@ static bool mysql_inplace_alter_table(THD *thd,
                               NULL);
     if (thd->locked_tables_list.reopen_tables(thd, false))
       thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-    /* QQ; do something about metadata locks ? */
   }
   DBUG_RETURN(true);
 }
@@ -8671,6 +8675,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
   {
     THD_STAGE_INFO(thd, stage_rename);
     handlerton *old_db_type= table->s->db_type();
+
     /*
       Then do a 'simple' rename of the table. First we need to close all
       instances of 'source' table.
@@ -9583,6 +9588,11 @@ do_continue:;
     if (create_table_for_inplace_alter(thd, alter_ctx, &frm, &altered_share,
                                        &altered_table))
       goto err_new_table_cleanup;
+    /*
+      Avoid creating frm again in ha_create_table() if inline alter will not
+      be used.
+    */
+    create_info->frm_is_created= 1;
 
     /* Set markers for fields in TABLE object for altered table. */
     update_altered_table(ha_alter_info, &altered_table);
@@ -9817,7 +9827,7 @@ do_continue:;
 
   if (table->s->tmp_table != NO_TMP_TABLE)
   {
-    /* Close lock if this is a transactional table */
+    /* Unlock lock if this is a transactional temporary table */
     if (thd->lock)
     {
       if (thd->locked_tables_mode != LTM_LOCK_TABLES &&
@@ -9838,6 +9848,7 @@ do_continue:;
           goto err_new_table_cleanup;
       }
     }
+
     new_table->s->table_creation_was_logged=
       table->s->table_creation_was_logged;
     /* Remove link to old table and rename the new one */

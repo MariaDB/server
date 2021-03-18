@@ -5536,8 +5536,9 @@ int ha_create_table(THD *thd, const char *path,
 
   if (frm)
   {
-    bool write_frm_now= !create_info->db_type->discover_table &&
-                        !create_info->tmp_table();
+    bool write_frm_now= (!create_info->db_type->discover_table &&
+                         !create_info->tmp_table() &&
+                         !create_info->frm_is_created);
 
     share.frm_image= frm;
 

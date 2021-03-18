@@ -2215,6 +2215,7 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
   enum_stats_auto_recalc stats_auto_recalc;
   bool varchar;                         ///< 1 if table has a VARCHAR
   bool sequence;                        // If SEQUENCE=1 was used
+  bool frm_is_created;                  // Set if frm file is already created
 
   List<Virtual_column_info> *check_constraint_list;
 
