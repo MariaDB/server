@@ -125,6 +125,8 @@ my_bool insert_dynamic(DYNAMIC_ARRAY *array, const void * element)
 void *alloc_dynamic(DYNAMIC_ARRAY *array)
 {
   DBUG_ENTER("alloc_dynamic");
+
+  DBUG_ASSERT(array->size_of_element);          /* Ensure init() is called */
   if (array->elements == array->max_element)
   {
     char *new_ptr;

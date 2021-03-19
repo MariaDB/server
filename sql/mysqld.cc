@@ -1348,7 +1348,8 @@ static Buffered_logs buffered_logs;
 struct my_rnd_struct sql_rand; ///< used by sql_class.cc:THD::THD()
 
 #ifndef EMBEDDED_LIBRARY
-std::vector<MYSQL_SOCKET> listen_sockets;
+
+Dynamic_array<MYSQL_SOCKET> listen_sockets(PSI_INSTRUMENT_MEM, 0);
 bool unix_sock_is_online= false;
 /**
   Error reporter that buffer log messages.
@@ -1690,14 +1691,14 @@ static void close_connections(void)
 
   /* Abort listening to new connections */
   DBUG_PRINT("quit",("Closing sockets"));
-  for (std::vector<MYSQL_SOCKET>::iterator sock = listen_sockets.begin();
-       sock != listen_sockets.end(); ++sock)
+  for (uint i= 0 ; i < listen_sockets.elements() ; i++)
   {
+    MYSQL_SOCKET *sock= listen_sockets.get_pos(i);
     (void) mysql_socket_close(*sock);
     if (sock->is_unix_domain_socket)
       (void) unlink(mysqld_unix_port);
   }
-  listen_sockets.clear();
+  listen_sockets.free_memory();
 
   end_thr_alarm(0);			 // Abort old alarms.
 
@@ -1787,9 +1788,9 @@ static void close_server_sock()
 #ifdef HAVE_CLOSE_SERVER_SOCK
   DBUG_ENTER("close_server_sock");
 
-  for (std::vector<MYSQL_SOCKET>::iterator sock= listen_sockets.begin();
-       sock != listen_sockets.end(); ++sock)
+  for (uint i= 0 ; i < listen_sockets.elements() ; i++)
   {
+    MYSQL_SOCKET *sock= listen_sockets.get_pos(i);
     if (sock->is_unix_domain_socket)
     {
       close_socket(*sock, "unix/IP");
@@ -1800,7 +1801,7 @@ static void close_server_sock()
       close_socket(*sock, "TCP/IP");
     }
   }
-  listen_sockets.clear();
+  listen_sockets.free_memory();
 
   DBUG_VOID_RETURN;
 #endif
@@ -2236,7 +2237,7 @@ static void set_root(const char *path)
 */
 
 static void activate_tcp_port(uint port,
-                              std::vector<MYSQL_SOCKET> *listen_sockets,
+                              Dynamic_array<MYSQL_SOCKET> *sockets,
                               bool is_extra_port= false)
 {
   struct addrinfo *ai, *a;
@@ -2377,7 +2378,7 @@ static void activate_tcp_port(uint port,
       (void) fcntl(mysql_socket_getfd(ip_sock), F_SETFD, FD_CLOEXEC);
 #endif
       ip_sock.is_extra_port= is_extra_port;
-      listen_sockets->push_back(ip_sock);
+      sockets->push(ip_sock);
     }
   }
 
@@ -2443,7 +2444,7 @@ static void network_init(void)
     }
 
     unix_sock.is_unix_domain_socket= true;
-    listen_sockets.push_back(unix_sock);
+    listen_sockets.push(unix_sock);
     unix_sock_is_online= true;
     mysql_socket_set_thread_owner(unix_sock);
 
@@ -5932,7 +5933,8 @@ void handle_connections_sockets()
   struct sockaddr_storage cAddr;
   int retval;
 #ifdef HAVE_POLL
-  std::vector<struct pollfd> fds; // for ip_sock, unix_sock and extra_ip_sock
+  // for ip_sock, unix_sock and extra_ip_sock
+  Dynamic_array<struct pollfd> fds(PSI_INSTRUMENT_MEM);
 #else
   fd_set readFDs,clientFDs;
 #endif
@@ -5940,21 +5942,22 @@ void handle_connections_sockets()
   DBUG_ENTER("handle_connections_sockets");
 
 #ifdef HAVE_POLL
-  fds.resize(listen_sockets.size());
   for (size_t i= 0; i < listen_sockets.size(); i++)
   {
-    mysql_socket_set_thread_owner(listen_sockets[i]);
-    fds[i].fd= mysql_socket_getfd(listen_sockets[i]);
-    fds[i].events= POLLIN;
-    set_non_blocking_if_supported(listen_sockets[i]);
+    struct pollfd local_fds;
+    mysql_socket_set_thread_owner(listen_sockets.at(i));
+    local_fds.fd= mysql_socket_getfd(listen_sockets.at(i));
+    local_fds.events= POLLIN;
+    fds.push(local_fds);
+    set_non_blocking_if_supported(listen_sockets.at(i));
   }
 #else
   FD_ZERO(&clientFDs);
   for (size_t i= 0; i < listen_sockets.size(); i++)
   {
-    int fd= mysql_socket_getfd(listen_sockets[i]);
+    int fd= mysql_socket_getfd(listen_sockets.at(i));
     FD_SET(fd, &clientFDs);
-    set_non_blocking_if_supported(listen_sockets[i]);
+    set_non_blocking_if_supported(listen_sockets.at(i));
   }
 #endif
 
@@ -5965,7 +5968,7 @@ void handle_connections_sockets()
   while (!abort_loop)
   {
 #ifdef HAVE_POLL
-    retval= poll(fds.data(), fds.size(), -1);
+    retval= poll(fds.get_pos(0), fds.size(), -1);
 #else
     readFDs=clientFDs;
     retval= select(FD_SETSIZE, &readFDs, NULL, NULL, NULL);
@@ -5994,18 +5997,18 @@ void handle_connections_sockets()
 #ifdef HAVE_POLL
     for (size_t i= 0; i < fds.size(); ++i)
     {
-      if (fds[i].revents & POLLIN)
+      if (fds.at(i).revents & POLLIN)
       {
-        sock= listen_sockets[i];
+        sock= listen_sockets.at(i);
         break;
       }
     }
 #else  // HAVE_POLL
     for (size_t i=0; i < listen_sockets.size(); i++)
     {
-      if (FD_ISSET(mysql_socket_getfd(listen_sockets[i]), &readFDs))
+      if (FD_ISSET(mysql_socket_getfd(listen_sockets.at(i)), &readFDs))
       {
-        sock= listen_sockets[i];
+        sock= listen_sockets.at(i);
         break;
       }
     }

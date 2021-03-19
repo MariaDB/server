@@ -23,12 +23,11 @@
 #include <mysql/psi/mysql_socket.h>
 #include <sddl.h>
 #include <vector>
-
 #include <handle_connections_win.h>
 
 /* From mysqld.cc */
 extern HANDLE hEventShutdown;
-extern std::vector<MYSQL_SOCKET> listen_sockets;
+extern Dynamic_array<MYSQL_SOCKET> listen_sockets;
 #ifdef HAVE_POOL_OF_THREADS
 extern PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ();
 extern void tp_win_callback_prolog();
@@ -292,7 +291,7 @@ retry :
       return;
     }
 
-    SOCKET s= mysql_socket_getfd(listen_sockets[0]);
+    SOCKET s= mysql_socket_getfd(listen_sockets.at(0));
     GUID guid_AcceptEx= WSAID_ACCEPTEX;
     GUID guid_GetAcceptExSockaddrs= WSAID_GETACCEPTEXSOCKADDRS;
 
@@ -557,11 +556,11 @@ void network_init_win()
   Socket_Listener::init_winsock_extensions();
 
   /* Listen for TCP connections on "extra-port" (no threadpool).*/
-  for (std::vector<MYSQL_SOCKET>::iterator it= listen_sockets.begin();
-       it != listen_sockets.end(); ++it)
+  for (uint i= 0 ; i < listen_sockets.elements() ; i++)
   {
-    if (it->is_extra_port)
-      all_listeners.push_back(new Socket_Listener(*it, 0));
+    MYSQL_SOCKET *sock= listen_sockets.get_pos(i);
+    if (sock->is_extra_port)
+      all_listeners.push_back(new Socket_Listener(*sock, 0));
   }
 
   /* Listen for named pipe connections */
@@ -574,16 +573,16 @@ void network_init_win()
       all_listeners.push_back(new Pipe_Listener());
   }
 
-  for (std::vector<MYSQL_SOCKET>::iterator it= listen_sockets.begin();
-       it != listen_sockets.end(); ++it)
+  for (uint i= 0 ; i < listen_sockets.elements() ; i++)
   {
-    if (it->is_extra_port)
+    MYSQL_SOCKET *sock= listen_sockets.get_pos(i);
+    if (sock->is_extra_port)
       continue;
     /* Wait for TCP connections.*/
-    SetFileCompletionNotificationModes((HANDLE)it->fd,
+    SetFileCompletionNotificationModes((HANDLE) sock->fd,
                                        FILE_SKIP_SET_EVENT_ON_HANDLE);
     all_listeners.push_back(
-      new Socket_Listener(*it, get_threadpool_win_callback_environ()));
+      new Socket_Listener(*sock, get_threadpool_win_callback_environ()));
   }
 
   if (all_listeners.size() == 0 && !opt_bootstrap)
