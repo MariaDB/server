@@ -1691,6 +1691,8 @@ static void close_connections(void)
 
   /* Abort listening to new connections */
   DBUG_PRINT("quit",("Closing sockets"));
+  /* Protect against pthread_kill() calling close_server_sock(*) */
+  mysql_mutex_lock(&LOCK_start_thread);
   for (uint i= 0 ; i < listen_sockets.elements() ; i++)
   {
     MYSQL_SOCKET *sock= listen_sockets.get_pos(i);
@@ -1699,6 +1701,7 @@ static void close_connections(void)
       (void) unlink(mysqld_unix_port);
   }
   listen_sockets.free_memory();
+  mysql_mutex_unlock(&LOCK_start_thread);
 
   end_thr_alarm(0);			 // Abort old alarms.
 
@@ -1773,11 +1776,8 @@ static void close_socket(MYSQL_SOCKET sock, const char *info)
 {
   DBUG_ENTER("close_socket");
 
-  if (mysql_socket_getfd(sock) != INVALID_SOCKET)
-  {
-    DBUG_PRINT("info", ("calling shutdown on %s socket", info));
-    (void) mysql_socket_shutdown(sock, SHUT_RDWR);
-  }
+  DBUG_PRINT("info", ("calling shutdown on %s socket", info));
+  (void) mysql_socket_shutdown(sock, SHUT_RDWR);
   DBUG_VOID_RETURN;
 }
 #endif
@@ -1788,6 +1788,7 @@ static void close_server_sock()
 #ifdef HAVE_CLOSE_SERVER_SOCK
   DBUG_ENTER("close_server_sock");
 
+  mysql_mutex_assert_owner(&LOCK_start_thread);
   for (uint i= 0 ; i < listen_sockets.elements() ; i++)
   {
     MYSQL_SOCKET *sock= listen_sockets.get_pos(i);
@@ -1797,9 +1798,7 @@ static void close_server_sock()
       (void) unlink(mysqld_unix_port);
     }
     else
-    {
       close_socket(*sock, "TCP/IP");
-    }
   }
   listen_sockets.free_memory();
 
