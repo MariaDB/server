@@ -388,5 +388,13 @@ select hex(a), b from json_table('["foo","bar"]','$[*]' columns (a char(3) path 
 SET @@character_set_connection= @old_character_set_connection;
 
 --echo #
+--echo # MDEV-25183 JSON_TABLE: CREATE VIEW involving NESTED PATH ends up with invalid frm
+--echo #
+CREATE VIEW v AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(NESTED PATH '$**.*' COLUMNS(a FOR ORDINALITY), b VARCHAR(8) PATH '$')) AS jt;
+SHOW CREATE VIEW v;
+SELECT * FROM v;
+DROP VIEW v;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

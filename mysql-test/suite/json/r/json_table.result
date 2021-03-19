@@ -505,5 +505,16 @@ hex(a)	b
 626172	2
 SET @@character_set_connection= @old_character_set_connection;
 #
+# MDEV-25183 JSON_TABLE: CREATE VIEW involving NESTED PATH ends up with invalid frm
+#
+CREATE VIEW v AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(NESTED PATH '$**.*' COLUMNS(a FOR ORDINALITY), b VARCHAR(8) PATH '$')) AS jt;
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `jt`.`a` AS `a`,`jt`.`b` AS `b` from JSON_TABLE('{}', '$' COLUMNS (NESTED PATH '$**.*' COLUMNS (`a` FOR ORDINALITY), `b` varchar(8) PATH '$')) `jt`	latin1	latin1_swedish_ci
+SELECT * FROM v;
+a	b
+NULL	NULL
+DROP VIEW v;
+#
 # End of 10.6 tests
 #

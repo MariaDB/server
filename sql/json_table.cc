@@ -1220,7 +1220,8 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
   if (str->append("COLUMNS ("))
     return 1;
 
-  do
+  /* loop while jc belongs to the current or nested paths. */
+  while(jc && (jc->m_nest == c_path || jc->m_nest == c_nested))
   {
     if (first_column)
       first_column= FALSE;
@@ -1231,23 +1232,21 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
     {
       if (jc->print(thd, *f, str))
         return 1;
-      if (!(jc= it++))
-        goto exit_ok;
-      ++(*f);
+      if ((jc= it++))
+        ++(*f);
     }
-    else if (jc->m_nest == c_nested)
+    else
     {
+      DBUG_ASSERT(jc->m_nest == c_nested);
       if (str->append("NESTED PATH ") ||
           print_path(str, &jc->m_nest->m_path) ||
+          str->append(' ') ||
           c_nested->print(thd, f, str, it, &jc))
         return 1;
       c_nested= c_nested->m_next_nested;
     }
-    else
-      break;
-  } while(jc);
+  }
 
-exit_ok:
   if (str->append(")"))
     return 1;
 
