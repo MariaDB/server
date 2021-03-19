@@ -727,4 +727,57 @@ select
 
 drop table t1,t2,t3;
 
+--echo #
+--echo # MDEV-23645: Optimizer trace: print conditions after substitute_for_best_equal_field
+--echo #
+create table t1 (a int, b int, c int);
+insert into t1 values (1,1,1),(2,2,2);
+
+create table t2 as select * from t1;
+insert into t2 select * from t2;
+
+create table t3 as select * from t2;
+insert into t3 select * from t3;
+
+--echo # Check how HAVING is printed
+explain 
+select 
+  a,b, count(*)
+from t1
+where a=3
+group by b,b
+having a+b < 10;
+
+select
+  json_detailed(json_extract(trace, '$**.substitute_best_equal'))
+from
+  information_schema.optimizer_trace;
+
+--echo # Check ON expression
+explain 
+select 
+ *
+from t1 left join t2 on t2.a=t1.a and t2.a<3 
+where 
+  t1.b > 5555;
+
+select
+  json_detailed(json_extract(trace, '$**.substitute_best_equal'))
+from
+  information_schema.optimizer_trace;
+
+--echo # Check nested ON expression
+explain 
+select 
+ *
+from t1 left join (t2,t3) on t2.a=t1.a and t3.a=t2.a and t3.a + t2.a <1000
+where 
+  t1.b > 5555;
+select
+  json_detailed(json_extract(trace, '$**.substitute_best_equal'))
+from
+  information_schema.optimizer_trace;
+
+drop table t1,t2,t3;
+
 set optimizer_trace='enabled=off';

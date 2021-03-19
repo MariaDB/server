@@ -595,6 +595,18 @@ void Json_writer::add_table_name(const TABLE *table)
 }
 
 
+void trace_condition(THD * thd, const char *name, const char *transform_type,
+                    Item *item, const char *table_name)
+{
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_object trace_cond(thd, transform_type);
+  trace_cond.add("condition", name);
+  if (table_name)
+    trace_cond.add("attached_to", table_name);
+  trace_cond.add("resulting_condition", item);
+}
+
+
 void add_table_scan_values_to_trace(THD *thd, JOIN_TAB *tab)
 {
   DBUG_ASSERT(thd->trace_started());

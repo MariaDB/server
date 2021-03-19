@@ -235,8 +235,13 @@ explain select * from t1 where pk1 != 0  and key1 = 1	{
             "best_join_order": ["t1"]
           },
           {
+            "substitute_best_equal": {
+              "condition": "WHERE",
+              "resulting_condition": "t1.key1 = 1 and t1.pk1 <> 0"
+            }
+          },
+          {
             "attaching_conditions_to_tables": {
-              "original_condition": "t1.key1 = 1 and t1.pk1 <> 0",
               "attached_conditions_computation": [],
               "attached_conditions_summary": [
                 {

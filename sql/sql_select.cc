@@ -2408,6 +2408,10 @@ int JOIN::optimize_stage2()
       DBUG_RETURN(1);
     }
     conds->update_used_tables();
+
+    if (unlikely(thd->trace_started()))
+      trace_condition(thd, "WHERE", "substitute_best_equal", conds);
+
     DBUG_EXECUTE("where",
                  print_where(conds,
                              "after substitute_best_equal",
@@ -2424,7 +2428,12 @@ int JOIN::optimize_stage2()
       DBUG_RETURN(1);
     }
     if (having)
+    {
       having->update_used_tables();
+      if (unlikely(thd->trace_started()))
+        trace_condition(thd, "HAVING", "substitute_best_equal", having);
+    }
+
     DBUG_EXECUTE("having",
                  print_where(having,
                              "after substitute_best_equal",
@@ -2451,6 +2460,11 @@ int JOIN::optimize_stage2()
         DBUG_RETURN(1);
       }
       (*tab->on_expr_ref)->update_used_tables();
+      if (unlikely(thd->trace_started()))
+      {
+        trace_condition(thd, "ON expr", "substitute_best_equal",
+                        (*tab->on_expr_ref), tab->table->alias.c_ptr());
+      }
     }
   }
 
@@ -11479,7 +11493,6 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
     */
     Json_writer_object trace_wrapper(thd);
     Json_writer_object trace_conditions(thd, "attaching_conditions_to_tables");
-    trace_conditions.add("original_condition", cond);
     Json_writer_array trace_attached_comp(thd,
                                         "attached_conditions_computation");
     uint i;
