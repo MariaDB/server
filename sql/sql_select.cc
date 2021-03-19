@@ -15488,6 +15488,16 @@ static COND *build_equal_items(JOIN *join, COND *cond,
         table->on_expr= build_equal_items(join, table->on_expr, inherited,
                                           nested_join_list, ignore_on_conds,
                                           &table->cond_equal);
+        if (unlikely(join->thd->trace_started()))
+        {
+          const char *table_name;
+          if (table->nested_join)
+            table_name= table->nested_join->join_list.head()->alias.str;
+          else
+            table_name= table->alias.str;
+          trace_condition(join->thd, "ON expr", "build_equal_items",
+                          table->on_expr, table_name);
+        }
       }
     }
   }

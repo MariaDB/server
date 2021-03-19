@@ -2320,6 +2320,13 @@ select t1.a from t1 left join t2 on t1.a=t2.a	{
         "select_id": 1,
         "steps": [
           {
+            "build_equal_items": {
+              "condition": "ON expr",
+              "attached_to": "t2",
+              "resulting_condition": "multiple equal(t1.a, t2.a)"
+            }
+          },
+          {
             "table_dependencies": [
               {
                 "table": "t1",
@@ -2449,6 +2456,13 @@ explain select * from t1 left join t2 on t2.a=t1.a	{
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "build_equal_items": {
+              "condition": "ON expr",
+              "attached_to": "t2",
+              "resulting_condition": "multiple equal(t2.a, t1.a)"
+            }
+          },
           {
             "table_dependencies": [
               {
@@ -2621,6 +2635,13 @@ explain select t1.a from t1 left join (t2 join t3 on t2.b=t3.b) on t2.a=t1.a and
       "join_optimization": {
         "select_id": 1,
         "steps": [
+          {
+            "build_equal_items": {
+              "condition": "ON expr",
+              "attached_to": "t3",
+              "resulting_condition": "multiple equal(t2.a, t1.a, t3.a) and multiple equal(t2.b, t3.b)"
+            }
+          },
           {
             "table_dependencies": [
               {
@@ -9005,6 +9026,47 @@ json_detailed(json_extract(trace, '$**.substitute_best_equal'))
         "condition": "ON expr",
         "attached_to": "t2",
         "resulting_condition": "t2.a = t1.a and t3.a = t1.a and t1.a + t1.a < 1000"
+    }
+]
+# The next query is test for:
+# MDEV-23646: Optimizer trace: optimize_cond() should show ON expression processing
+select
+json_detailed(json_extract(trace, '$**.condition_processing'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.condition_processing'))
+[
+    
+    {
+        "condition": "WHERE",
+        "original_condition": "t1.b > 5555",
+        "steps": 
+        [
+            
+            {
+                "build_equal_items": 
+                {
+                    "condition": "ON expr",
+                    "attached_to": "t3",
+                    "resulting_condition": "t3.a + t2.a < 1000 and multiple equal(t2.a, t1.a, t3.a)"
+                }
+            },
+            
+            {
+                "transformation": "equality_propagation",
+                "resulting_condition": "t1.b > 5555"
+            },
+            
+            {
+                "transformation": "constant_propagation",
+                "resulting_condition": "t1.b > 5555"
+            },
+            
+            {
+                "transformation": "trivial_condition_removal",
+                "resulting_condition": "t1.b > 5555"
+            }
+        ]
     }
 ]
 drop table t1,t2,t3;
