@@ -194,6 +194,7 @@ int trnman_init(TrID initial_trid)
   DBUG_RETURN(0);
 }
 
+
 /*
   NOTE
     this could only be called in the "idle" state - no transaction can be
@@ -228,6 +229,7 @@ void trnman_destroy()
 
   DBUG_VOID_RETURN;
 }
+
 
 /*
   NOTE
@@ -267,7 +269,7 @@ static uint get_short_trid(TRN *trn)
 }
 
 /**
-  Allocates and initialzies a new TRN object
+  Allocates and initializes a new TRN object
 
   @note the 'wt' parameter can only be 0 in a single-threaded code (or,
   generally, where threads cannot block each other), otherwise the
@@ -383,6 +385,26 @@ TRN *trnman_new_trn(WT_THD *wt)
 
   DBUG_RETURN(trn);
 }
+
+
+/*
+  Initialize a temporary TRN object for logging a new transaction id (trid)
+  to it. Used by create table to associate a create trid to the table.
+
+  Out: trn->trid is updated with next available trid
+*/
+
+void trnman_init_tmp_trn_for_logging_trid(TRN *trn)
+{
+  *trn= dummy_transaction_object;
+  /* Avoid logging short_id */
+  trn->short_id= 1;
+  /* Trid gets logged in translog_write_record */
+  trn->first_undo_lsn= 0;
+  /* Get next free trid */
+  trn->trid= trnman_get_min_safe_trid();
+}
+
 
 /*
   remove a trn from the active list.

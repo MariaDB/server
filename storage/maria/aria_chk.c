@@ -1588,6 +1588,12 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     buff[MY_UUID_STRING_LENGTH]= 0;
     my_uuid2str(share->base.uuid, buff);
     printf("UUID:                %s\n", buff);
+    if (ma_control_file_inited() &&
+        memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE))
+      printf("Warning: File UUID not match control file UUID! "
+             "File is probably moved\n"
+             "It will be updated to new system on first usage if zerofill is "
+             "not done\n");
     pos=buff;
     if (share->state.changed & STATE_CRASHED)
       strmov(buff, share->state.changed & STATE_CRASHED_ON_REPAIR ?

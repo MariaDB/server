@@ -20,6 +20,7 @@
 #include <my_bit.h>
 #include "ma_blockrec.h"
 #include "trnman_public.h"
+#include "trnman.h"
 #include "ma_crypt.h"
 
 #if defined(MSDOS) || defined(__WIN__)
@@ -82,6 +83,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   enum en_fieldtype type;
   enum data_file_type org_datafile_type= datafile_type;
   MARIA_SHARE share;
+  TRN tmp_transaction_object;
   MARIA_KEYDEF *keydef,tmp_keydef;
   MARIA_UNIQUEDEF *uniquedef;
   HA_KEYSEG *keyseg,tmp_keyseg;
@@ -1084,7 +1086,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   {
     /*
       we log the first bytes and then the size to which we extend; this is
-      not log 1 KB of mostly zeroes if this is a small table.
+      a log of about 1 KB of mostly zeroes if this is a small table.
     */
     char empty_string[]= "";
     LEX_CUSTRING log_array[TRANSLOG_INTERNAL_PARTS + 4];
@@ -1149,9 +1151,10 @@ int maria_create(const char *name, enum data_file_type datafile_type,
        called external_lock(), so have no TRN. It does not matter, as all
        these operations are non-transactional and sync their files.
     */
+    trnman_init_tmp_trn_for_logging_trid(&tmp_transaction_object);
     if (unlikely(translog_write_record(&lsn,
                                        LOGREC_REDO_CREATE_TABLE,
-                                       &dummy_transaction_object, NULL,
+                                       &tmp_transaction_object, NULL,
                                        total_rec_length,
                                        sizeof(log_array)/sizeof(log_array[0]),
                                        log_array, NULL, NULL) ||
@@ -1172,7 +1175,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
       store LSN into file, needed for Recovery to not be confused if a
       DROP+CREATE happened (applying REDOs to the wrong table).
     */
-    if (_ma_update_state_lsns_sub(&share, lsn, trnman_get_min_safe_trid(),
+    if (_ma_update_state_lsns_sub(&share, lsn, tmp_transaction_object.trid,
                                   FALSE, TRUE))
       goto err;
     my_free(log_data);

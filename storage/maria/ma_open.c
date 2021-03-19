@@ -568,8 +568,8 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
             memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE))))))
     {
       DBUG_PRINT("warning", ("table is moved from another system.  uuid_diff: %d  create_trid: %lu  max_trid: %lu",
-                            memcmp(share->base.uuid, maria_uuid,
-                                   MY_UUID_SIZE) != 0,
+                             memcmp(share->base.uuid, maria_uuid,
+                                    MY_UUID_SIZE) != 0,
                              (ulong) share->state.create_trid,
                              (ulong) trnman_get_max_trid()));
       if (open_flags & HA_OPEN_FOR_REPAIR)

@@ -138,6 +138,7 @@ scripts/maria_add_gis_sp_bootstrap.sql
 scripts/galera_new_cluster
 scripts/galera_recovery
 scripts/mysql_convert_table_format.pl
+scripts/mysql_sys_schema.sql
 scripts/mysqld_multi.pl
 scripts/mysqldumpslow.pl
 scripts/mysqlhotcopy.pl
