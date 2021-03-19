@@ -44,6 +44,10 @@ Created 10/25/1995 Heikki Tuuri
 
 struct unflushed_spaces_tag_t;
 struct rotation_list_tag_t;
+struct space_list_tag_t;
+struct named_spaces_tag_t;
+
+using space_list_t= ilist<fil_space_t, space_list_tag_t>;
 
 // Forward declaration
 extern my_bool srv_use_doublewrite_buf;
@@ -331,8 +335,10 @@ enum fil_encryption_t
   FIL_ENCRYPTION_OFF
 };
 
-struct fil_space_t final :
-  ilist_node<unflushed_spaces_tag_t>, ilist_node<rotation_list_tag_t>
+struct fil_space_t final : ilist_node<unflushed_spaces_tag_t>,
+                           ilist_node<rotation_list_tag_t>,
+                           ilist_node<space_list_tag_t>,
+                           ilist_node<named_spaces_tag_t>
 #else
 struct fil_space_t final
 #endif
@@ -377,6 +383,14 @@ struct fil_space_t final
 				/*!< number of reserved free extents for
 				ongoing operations like B-tree page split */
 private:
+#ifdef UNIV_DEBUG
+  fil_space_t *next_in_space_list();
+  fil_space_t *prev_in_space_list();
+
+  fil_space_t *next_in_unflushed_spaces();
+  fil_space_t *prev_in_unflushed_spaces();
+#endif
+
   /** the committed size of the tablespace in pages */
   Atomic_relaxed<uint32_t> committed_size;
   /** Number of pending operations on the file.
@@ -399,12 +413,6 @@ private:
   os_thread_id_t latch_owner;
   ut_d(Atomic_relaxed<uint32_t> latch_count;)
 public:
-	UT_LIST_NODE_T(fil_space_t) named_spaces;
-				/*!< list of spaces for which FILE_MODIFY
-				records have been issued */
-	UT_LIST_NODE_T(fil_space_t) space_list;
-				/*!< list of all spaces */
-
 	/** MariaDB encryption data */
 	fil_space_crypt_t* crypt_data;
 
@@ -989,8 +997,8 @@ public:
   @param encrypt  expected state of innodb_encrypt_tables
   @return the next tablespace
   @retval nullptr upon reaching the end of the iteration */
-  static inline fil_space_t *next(fil_space_t *space, bool recheck,
-                                  bool encrypt);
+  static space_list_t::iterator next(space_list_t::iterator space,
+                                     bool recheck, bool encrypt);
 
 #ifdef UNIV_DEBUG
   bool is_latched() const { return latch_count != 0; }
@@ -1371,11 +1379,7 @@ struct fil_system_t {
     Some members may require late initialisation, thus we just mark object as
     uninitialised. Real initialisation happens in create().
   */
-  fil_system_t(): m_initialised(false)
-  {
-    UT_LIST_INIT(space_list, &fil_space_t::space_list);
-    UT_LIST_INIT(named_spaces, &fil_space_t::named_spaces);
-  }
+  fil_system_t() : m_initialised(false) {}
 
   bool is_initialised() const { return m_initialised; }
 
@@ -1434,9 +1438,9 @@ public:
   /** nonzero if fil_node_open_file_low() should avoid moving the tablespace
   to the end of space_list, for FIFO policy of try_to_close() */
   ulint freeze_space_list;
-	UT_LIST_BASE_NODE_T(fil_space_t) space_list;
+  ilist<fil_space_t, space_list_tag_t> space_list;
 					/*!< list of all file spaces */
-	UT_LIST_BASE_NODE_T(fil_space_t) named_spaces;
+  ilist<fil_space_t, named_spaces_tag_t> named_spaces;
 					/*!< list of all file spaces
 					for which a FILE_MODIFY
 					record has been written since
@@ -1458,11 +1462,10 @@ public:
   @param encrypt expected state of innodb_encrypt_tables
   @return the next tablespace to process (n_pending_ops incremented)
   @retval NULL if this was the last */
-  inline fil_space_t* keyrotate_next(fil_space_t *space, bool recheck,
-                                     bool encrypt);
+  fil_space_t* keyrotate_next(fil_space_t* space, bool recheck, bool encrypt);
 
-  /** Extend all open data files to the recovered size */
-  ATTRIBUTE_COLD void extend_to_recv_size();
+        /** Extend all open data files to the recovered size */
+        ATTRIBUTE_COLD void extend_to_recv_size();
 };
 
 /** The tablespace memory cache. */

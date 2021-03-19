@@ -114,7 +114,6 @@ void fil_space_crypt_init()
 {
   pthread_cond_init(&fil_crypt_throttle_sleep_cond, nullptr);
   mysql_mutex_init(0, &crypt_stat_mutex, nullptr);
-  memset(&crypt_stat, 0, sizeof crypt_stat);
 }
 
 /*********************************************************************
@@ -1121,25 +1120,21 @@ abort:
 
 /** State of a rotation thread */
 struct rotate_thread_t {
-	explicit rotate_thread_t(uint no) {
-		memset(this, 0, sizeof(* this));
-		thread_no = no;
-		first = true;
-		estimated_max_iops = 20;
-	}
+  explicit rotate_thread_t(uint no) : thread_no(no) {}
 
-	uint thread_no;
-	bool first;		    /*!< is position before first space */
-	fil_space_t* space;	    /*!< current space or NULL */
-	uint32_t offset;	    /*!< current page number */
-	ulint batch;		    /*!< #pages to rotate */
-	uint  min_key_version_found;/*!< min key version found but not rotated */
-	lsn_t end_lsn;		    /*!< max lsn when rotating this space */
+  uint thread_no;
+  bool first = true;              /*!< is position before first space */
+  space_list_t::iterator space
+    = fil_system.space_list.end();/*!< current space or .end() */
+  uint32_t offset = 0;            /*!< current page number */
+  ulint batch = 0;                /*!< #pages to rotate */
+  uint min_key_version_found = 0; /*!< min key version found but not rotated */
+  lsn_t end_lsn = 0;              /*!< max lsn when rotating this space */
 
-	uint estimated_max_iops;   /*!< estimation of max iops */
-	uint allocated_iops;	   /*!< allocated iops */
-	ulint cnt_waited;	   /*!< #times waited during this slot */
-	uintmax_t sum_waited_us;   /*!< wait time during this slot */
+  uint estimated_max_iops = 20;/*!< estimation of max iops */
+  uint allocated_iops = 0;     /*!< allocated iops */
+  ulint cnt_waited = 0;	       /*!< #times waited during this slot */
+  uintmax_t sum_waited_us = 0; /*!< wait time during this slot */
 
 	fil_crypt_stat_t crypt_stat; // statistics
 
@@ -1177,7 +1172,7 @@ fil_crypt_space_needs_rotation(
 {
 	mysql_mutex_assert_not_owner(&fil_crypt_threads_mutex);
 
-	fil_space_t* space = state->space;
+	fil_space_t* space = &*state->space;
 
 	ut_ad(space->referenced());
 	ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
@@ -1268,7 +1263,10 @@ fil_crypt_update_total_stat(
 	mysql_mutex_unlock(&crypt_stat_mutex);
 
 	// make new estimate "current" estimate
-	memset(&state->crypt_stat, 0, sizeof(state->crypt_stat));
+	state->crypt_stat.pages_read_from_cache = 0;
+	state->crypt_stat.pages_read_from_disk = 0;
+	state->crypt_stat.pages_modified = 0;
+	state->crypt_stat.pages_flushed = 0;
 	// record our old (current) estimate
 	state->crypt_stat.estimated_iops = state->estimated_max_iops;
 }
@@ -1432,10 +1430,10 @@ inline fil_space_t *fil_system_t::keyrotate_next(fil_space_t *space,
 {
   mysql_mutex_assert_owner(&mutex);
 
-  sized_ilist<fil_space_t, rotation_list_tag_t>::iterator it=
-    space && space->is_in_rotation_list ? space : rotation_list.begin();
-  const sized_ilist<fil_space_t, rotation_list_tag_t>::iterator end=
-    rotation_list.end();
+  auto it= space && space->is_in_rotation_list
+               ? sized_ilist<fil_space_t, rotation_list_tag_t>::iterator(space)
+               : rotation_list.begin();
+  const auto end= rotation_list.end();
 
   if (space)
   {
@@ -1485,25 +1483,29 @@ encryption parameters were changed
 @return the next tablespace
 @retval fil_system.temp_space if there is no work to do
 @retval nullptr upon reaching the end of the iteration */
-inline fil_space_t *fil_space_t::next(fil_space_t *space, bool recheck,
-                                      bool encrypt)
+space_list_t::iterator fil_space_t::next(space_list_t::iterator space,
+                                         bool recheck, bool encrypt)
 {
   mysql_mutex_lock(&fil_system.mutex);
 
   if (!srv_fil_crypt_rotate_key_age)
-    space= fil_system.keyrotate_next(space, recheck, encrypt);
+  {
+    space= space_list_t::iterator(fil_system.keyrotate_next(
+        space != fil_system.space_list.end() ? &*space : nullptr, recheck,
+        encrypt));
+  }
   else
   {
-    if (!space)
-      space= UT_LIST_GET_FIRST(fil_system.space_list);
+    if (space == fil_system.space_list.end())
+      space= fil_system.space_list.begin();
     else
     {
       /* Move on to the next fil_space_t */
       space->release();
-      space= UT_LIST_GET_NEXT(space_list, space);
+      ++space;
     }
 
-    for (; space; space= UT_LIST_GET_NEXT(space_list, space))
+    for (; space != fil_system.space_list.end(); ++space)
     {
       if (space->purpose != FIL_TYPE_TABLESPACE)
         continue;
@@ -1533,9 +1535,9 @@ static bool fil_crypt_find_space_to_rotate(
 	/* we need iops to start rotating */
 	do {
 		if (state->should_shutdown()) {
-			if (state->space) {
+			if (state->space != fil_system.space_list.end()) {
 				state->space->release();
-				state->space = NULL;
+				state->space = fil_system.space_list.end();
 			}
 			return false;
 		}
@@ -1543,18 +1545,19 @@ static bool fil_crypt_find_space_to_rotate(
 
 	if (state->first) {
 		state->first = false;
-		if (state->space) {
+		if (state->space != fil_system.space_list.end()) {
 			state->space->release();
 		}
-		state->space = NULL;
+		state->space = fil_system.space_list.end();
 	}
 
 	state->space = fil_space_t::next(state->space, *recheck,
 					 key_state->key_version != 0);
 
 	bool wake = true;
-	while (state->space) {
-		if (state->space == fil_system.temp_space) {
+	while (state->space != fil_system.space_list.end()) {
+		if (state->space
+			== space_list_t::iterator(fil_system.temp_space)) {
 			wake = false;
 			goto done;
 		}
@@ -1562,7 +1565,7 @@ static bool fil_crypt_find_space_to_rotate(
 		if (state->should_shutdown()) {
 			state->space->release();
 done:
-			state->space = nullptr;
+			state->space = fil_system.space_list.end();
 			break;
 		}
 
@@ -1571,7 +1574,7 @@ done:
 		page 0 for this tablespace, we need to read it before
 		we can continue. */
 		if (!state->space->crypt_data) {
-			fil_crypt_read_crypt_data(state->space);
+			fil_crypt_read_crypt_data(&*state->space);
 		}
 
 		if (fil_crypt_space_needs_rotation(state, key_state, recheck)) {
@@ -1654,16 +1657,17 @@ fil_crypt_find_page_to_rotate(
 	rotate_thread_t*	state)
 {
 	ulint batch = srv_alloc_time * state->allocated_iops;
-	fil_space_t* space = state->space;
 
-	ut_ad(!space || space->referenced());
+	ut_ad(state->space == fil_system.space_list.end()
+		|| state->space->referenced());
 
 	/* If space is marked to be dropped stop rotation. */
-	if (!space || space->is_stopping()) {
+	if (state->space == fil_system.space_list.end()
+		|| state->space->is_stopping()) {
 		return false;
 	}
 
-	fil_space_crypt_t *crypt_data = space->crypt_data;
+	fil_space_crypt_t *crypt_data = state->space->crypt_data;
 
 	mysql_mutex_lock(&crypt_data->mutex);
 	ut_ad(key_state->key_id == crypt_data->key_id);
@@ -1703,7 +1707,7 @@ fil_crypt_get_page_throttle(
 	mtr_t*			mtr,
 	ulint*			sleeptime_ms)
 {
-	fil_space_t* space = state->space;
+	fil_space_t* space = &*state->space;
 	const ulint zip_size = space->zip_size();
 	const page_id_t page_id(space->id, offset);
 	ut_ad(space->referenced());
@@ -1773,7 +1777,7 @@ fil_crypt_rotate_page(
 	const key_state_t*	key_state,
 	rotate_thread_t*	state)
 {
-	fil_space_t*space = state->space;
+	fil_space_t *space = &*state->space;
 	ulint space_id = space->id;
 	uint32_t offset = state->offset;
 	ulint sleeptime_ms = 0;
@@ -1944,7 +1948,7 @@ void
 fil_crypt_flush_space(
 	rotate_thread_t*	state)
 {
-	fil_space_t* space = state->space;
+	fil_space_t* space = &*state->space;
 	fil_space_crypt_t *crypt_data = space->crypt_data;
 
 	ut_ad(space->referenced());
@@ -2092,7 +2096,7 @@ wait_for_work:
 		/* iterate all spaces searching for those needing rotation */
 		while (fil_crypt_find_space_to_rotate(&new_state, &thr,
 						      &recheck)) {
-			if (!thr.space) {
+			if (thr.space == fil_system.space_list.end()) {
 				goto wait_for_work;
 			}
 
@@ -2108,7 +2112,7 @@ wait_for_work:
 				if (thr.space->is_stopping()) {
 					fil_crypt_complete_rotate_space(&thr);
 					thr.space->release();
-					thr.space = nullptr;
+					thr.space = fil_system.space_list.end();
 					break;
 				}
 
@@ -2120,7 +2124,7 @@ wait_for_work:
 			}
 
 			/* complete rotation */
-			if (thr.space) {
+			if (thr.space != fil_system.space_list.end()) {
 				fil_crypt_complete_rotate_space(&thr);
 			}
 
@@ -2132,9 +2136,9 @@ wait_for_work:
 			fil_crypt_return_iops(&thr);
 		}
 
-		if (thr.space) {
+		if (thr.space != fil_system.space_list.end()) {
 			thr.space->release();
-			thr.space = nullptr;
+			thr.space = fil_system.space_list.end();
 		}
 	}
 
@@ -2196,45 +2200,43 @@ static void fil_crypt_rotation_list_fill()
 {
 	mysql_mutex_assert_owner(&fil_system.mutex);
 
-	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
-	     space != NULL;
-	     space = UT_LIST_GET_NEXT(space_list, space)) {
-		if (space->purpose != FIL_TYPE_TABLESPACE
-		    || space->is_in_rotation_list
-		    || UT_LIST_GET_LEN(space->chain) == 0
-		    || !space->acquire_if_not_stopped()) {
+	for (fil_space_t& space : fil_system.space_list) {
+		if (space.purpose != FIL_TYPE_TABLESPACE
+		    || space.is_in_rotation_list
+		    || UT_LIST_GET_LEN(space.chain) == 0
+		    || !space.acquire_if_not_stopped()) {
 			continue;
 		}
 
 		/* Ensure that crypt_data has been initialized. */
-		ut_ad(space->size);
+		ut_ad(space.size);
 
 		/* Skip ENCRYPTION!=DEFAULT tablespaces. */
-		if (space->crypt_data
-		    && !space->crypt_data->is_default_encryption()) {
+		if (space.crypt_data
+		    && !space.crypt_data->is_default_encryption()) {
 			goto next;
 		}
 
 		if (srv_encrypt_tables) {
 			/* Skip encrypted tablespaces if
 			innodb_encrypt_tables!=OFF */
-			if (space->crypt_data
-			    && space->crypt_data->min_key_version) {
+			if (space.crypt_data
+			    && space.crypt_data->min_key_version) {
 				goto next;
 			}
 		} else {
 			/* Skip unencrypted tablespaces if
 			innodb_encrypt_tables=OFF */
-			if (!space->crypt_data
-			    || !space->crypt_data->min_key_version) {
+			if (!space.crypt_data
+			    || !space.crypt_data->min_key_version) {
 				goto next;
 			}
 		}
 
-		fil_system.rotation_list.push_back(*space);
-		space->is_in_rotation_list = true;
+		fil_system.rotation_list.push_back(space);
+		space.is_in_rotation_list = true;
 next:
-		space->release();
+		space.release();
 	}
 }
 

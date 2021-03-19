@@ -75,8 +75,10 @@ public:
     typedef T *pointer;
     typedef T &reference;
 
-    Iterator(ListNode *node) noexcept : node_(node)
-    { DBUG_ASSERT(node_ != nullptr); }
+    explicit Iterator(ListNode *node) noexcept : node_(node)
+    {
+      DBUG_ASSERT(node_ != nullptr);
+    }
 
     Iterator &operator++() noexcept
     {
@@ -193,7 +195,7 @@ public:
     curr->next= nullptr;
 #endif
 
-    return next;
+    return Iterator(next);
   }
 
   void push_back(reference value) noexcept { insert(end(), value); }

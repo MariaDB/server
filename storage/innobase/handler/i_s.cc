@@ -6552,17 +6552,16 @@ static int i_s_sys_tablespaces_fill_table(THD *thd, TABLE_LIST *tables, Item*)
   mysql_mutex_lock(&fil_system.mutex);
   fil_system.freeze_space_list++;
 
-  for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list);
-       space; space= UT_LIST_GET_NEXT(space_list, space))
+  for (fil_space_t &space : fil_system.space_list)
   {
-    if (space->purpose == FIL_TYPE_TABLESPACE && !space->is_stopping() &&
-        space->chain.start)
+    if (space.purpose == FIL_TYPE_TABLESPACE && !space.is_stopping() &&
+        space.chain.start)
     {
-      space->reacquire();
+      space.reacquire();
       mysql_mutex_unlock(&fil_system.mutex);
-      err= i_s_sys_tablespaces_fill(thd, *space, tables->table);
+      err= i_s_sys_tablespaces_fill(thd, space, tables->table);
       mysql_mutex_lock(&fil_system.mutex);
-      space->release();
+      space.release();
       if (err)
         break;
     }
@@ -6772,16 +6771,15 @@ i_s_tablespaces_encryption_fill_table(
 	mysql_mutex_lock(&fil_system.mutex);
 	fil_system.freeze_space_list++;
 
-	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
-	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
-		if (space->purpose == FIL_TYPE_TABLESPACE
-		    && !space->is_stopping()) {
-			space->reacquire();
+	for (fil_space_t& space : fil_system.space_list) {
+		if (space.purpose == FIL_TYPE_TABLESPACE
+		    && !space.is_stopping()) {
+			space.reacquire();
 			mysql_mutex_unlock(&fil_system.mutex);
 			err = i_s_dict_fill_tablespaces_encryption(
-				thd, space, tables->table);
+				thd, &space, tables->table);
 			mysql_mutex_lock(&fil_system.mutex);
-			space->release();
+			space.release();
 			if (err) {
 				break;
 			}

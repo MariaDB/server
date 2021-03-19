@@ -68,16 +68,15 @@ inline bool fil_is_user_tablespace_id(ulint space_id)
 bool fil_space_t::try_to_close(bool print_info)
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list); space;
-       space= UT_LIST_GET_NEXT(space_list, space))
+  for (fil_space_t &space : fil_system.space_list)
   {
-    switch (space->purpose) {
+    switch (space.purpose) {
     case FIL_TYPE_TEMPORARY:
       continue;
     case FIL_TYPE_IMPORT:
       break;
     case FIL_TYPE_TABLESPACE:
-      if (!fil_is_user_tablespace_id(space->id))
+      if (!fil_is_user_tablespace_id(space.id))
         continue;
     }
 
@@ -85,14 +84,14 @@ bool fil_space_t::try_to_close(bool print_info)
     fil_node_open_file_low(), newly opened files are moved to the end
     of fil_system.space_list, so that they would be less likely to be
     closed here. */
-    fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
+    fil_node_t *node= UT_LIST_GET_FIRST(space.chain);
     ut_ad(node);
     ut_ad(!UT_LIST_GET_NEXT(chain, node));
 
     if (!node->is_open())
       continue;
 
-    if (const auto n= space->set_closing())
+    if (const auto n= space.set_closing())
     {
       if (print_info)
         ib::info() << "Cannot close file " << node->name
@@ -399,8 +398,8 @@ static bool fil_node_open_file_low(fil_node_t *node)
   {
     /* Move the file last in fil_system.space_list, so that
     fil_space_t::try_to_close() should close it as a last resort. */
-    UT_LIST_REMOVE(fil_system.space_list, node->space);
-    UT_LIST_ADD_LAST(fil_system.space_list, node->space);
+    fil_system.space_list.erase(space_list_t::iterator(node->space));
+    fil_system.space_list.push_back(*node->space);
   }
 
   fil_system.n_open++;
@@ -779,7 +778,7 @@ std::vector<pfs_os_file_t> fil_system_t::detach(fil_space_t *space,
     space->is_in_rotation_list= false;
     rotation_list.remove(*space);
   }
-  UT_LIST_REMOVE(space_list, space);
+  space_list.erase(space_list_t::iterator(space));
   if (space == sys_space)
     sys_space= nullptr;
   else if (space == temp_space)
@@ -882,7 +881,7 @@ fil_space_free(
 
 		if (space->max_lsn != 0) {
 			ut_d(space->max_lsn = 0);
-			UT_LIST_REMOVE(fil_system.named_spaces, space);
+			fil_system.named_spaces.remove(*space);
 		}
 
 		if (!recv_recovery_is_on()) {
@@ -972,7 +971,7 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 
 	HASH_INSERT(fil_space_t, hash, &fil_system.spaces, id, space);
 
-	UT_LIST_ADD_LAST(fil_system.space_list, space);
+	fil_system.space_list.push_back(*space);
 
 	switch (id) {
 	case 0:
@@ -1272,7 +1271,7 @@ void fil_system_t::close()
 {
   ut_ad(this == &fil_system);
   ut_a(unflushed_spaces.empty());
-  ut_a(!UT_LIST_GET_LEN(space_list));
+  ut_a(space_list.empty());
   ut_ad(!sys_space);
   ut_ad(!temp_space);
 
@@ -1297,23 +1296,22 @@ ATTRIBUTE_COLD void fil_system_t::extend_to_recv_size()
 {
   ut_ad(is_initialised());
   mysql_mutex_lock(&mutex);
-  for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list); space;
-       space= UT_LIST_GET_NEXT(space_list, space))
+  for (fil_space_t &space : fil_system.space_list)
   {
-    const uint32_t size= space->recv_size;
+    const uint32_t size= space.recv_size;
 
-    if (size > space->size)
+    if (size > space.size)
     {
-      if (space->is_closing())
+      if (space.is_closing())
         continue;
-      space->reacquire();
+      space.reacquire();
       bool success;
-      while (fil_space_extend_must_retry(space, UT_LIST_GET_LAST(space->chain),
+      while (fil_space_extend_must_retry(&space, UT_LIST_GET_LAST(space.chain),
                                          size, &success))
         mysql_mutex_lock(&mutex);
       /* Crash recovery requires the file extension to succeed. */
       ut_a(success);
-      space->release();
+      space.release();
     }
   }
   mysql_mutex_unlock(&mutex);
@@ -1322,64 +1320,58 @@ ATTRIBUTE_COLD void fil_system_t::extend_to_recv_size()
 /** Close all tablespace files at shutdown */
 void fil_space_t::close_all()
 {
-	if (!fil_system.is_initialised()) {
-		return;
-	}
+  if (!fil_system.is_initialised())
+    return;
 
-	fil_space_t*	space;
+  /* At shutdown, we should not have any files in this list. */
+  ut_ad(srv_fast_shutdown == 2 || !srv_was_started ||
+        fil_system.named_spaces.empty());
+  fil_flush_file_spaces();
 
-	/* At shutdown, we should not have any files in this list. */
-	ut_ad(srv_fast_shutdown == 2
-	      || !srv_was_started
-	      || UT_LIST_GET_LEN(fil_system.named_spaces) == 0);
-	fil_flush_file_spaces();
+  mysql_mutex_lock(&fil_system.mutex);
 
-	mysql_mutex_lock(&fil_system.mutex);
+  while (!fil_system.space_list.empty())
+  {
+    fil_space_t &space= fil_system.space_list.front();
 
-	for (space = UT_LIST_GET_FIRST(fil_system.space_list); space; ) {
-		fil_node_t*	node;
-		fil_space_t*	prev_space = space;
+    for (fil_node_t *node= UT_LIST_GET_FIRST(space.chain); node != NULL;
+         node= UT_LIST_GET_NEXT(chain, node))
+    {
 
-		for (node = UT_LIST_GET_FIRST(space->chain);
-		     node != NULL;
-		     node = UT_LIST_GET_NEXT(chain, node)) {
+      if (!node->is_open())
+      {
+      next:
+        continue;
+      }
 
-			if (!node->is_open()) {
-next:
-				continue;
-			}
+      for (ulint count= 10000; count--;)
+      {
+        if (!space.set_closing())
+        {
+          node->close();
+          goto next;
+        }
+        mysql_mutex_unlock(&fil_system.mutex);
+        std::this_thread::sleep_for(std::chrono::microseconds(100));
+        mysql_mutex_lock(&fil_system.mutex);
+        if (!node->is_open())
+          goto next;
+      }
 
-			for (ulint count = 10000; count--; ) {
-				if (!space->set_closing()) {
-					node->close();
-					goto next;
-				}
-				mysql_mutex_unlock(&fil_system.mutex);
-				std::this_thread::sleep_for(
-					std::chrono::microseconds(100));
-				mysql_mutex_lock(&fil_system.mutex);
-				if (!node->is_open()) {
-					goto next;
-				}
-			}
+      ib::error() << "File '" << node->name << "' has " << space.referenced()
+                  << " operations";
+    }
 
-			ib::error() << "File '" << node->name
-				    << "' has " << space->referenced()
-				    << " operations";
-		}
+    fil_system.detach(&space);
+    mysql_mutex_unlock(&fil_system.mutex);
+    fil_space_free_low(&space);
+    mysql_mutex_lock(&fil_system.mutex);
+  }
 
-		space = UT_LIST_GET_NEXT(space_list, space);
-		fil_system.detach(prev_space);
-		mysql_mutex_unlock(&fil_system.mutex);
-		fil_space_free_low(prev_space);
-		mysql_mutex_lock(&fil_system.mutex);
-	}
+  mysql_mutex_unlock(&fil_system.mutex);
 
-	mysql_mutex_unlock(&fil_system.mutex);
-
-	ut_ad(srv_fast_shutdown == 2
-	      || !srv_was_started
-	      || UT_LIST_GET_LEN(fil_system.named_spaces) == 0);
+  ut_ad(srv_fast_shutdown == 2 || !srv_was_started ||
+        fil_system.named_spaces.empty());
 }
 
 /*******************************************************************//**
@@ -1858,7 +1850,7 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 
 		if (space->max_lsn != 0) {
 			ut_d(space->max_lsn = 0);
-			UT_LIST_REMOVE(fil_system.named_spaces, space);
+			fil_system.named_spaces.remove(*space);
 		}
 
 		mysql_mutex_unlock(&log_sys.mutex);
@@ -2041,13 +2033,12 @@ fil_rename_tablespace_check(
 	new tablespace file. */
 retry:
 	mysql_mutex_lock(&fil_system.mutex);
-	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
-	     space; space = UT_LIST_GET_NEXT(space_list, space)) {
-		ulint id = space->id;
+	for (fil_space_t& space : fil_system.space_list) {
+		ulint id = space.id;
 		if (id
-		    && space->purpose == FIL_TYPE_TABLESPACE
+		    && space.purpose == FIL_TYPE_TABLESPACE
 		    && !strcmp(new_path,
-			       UT_LIST_GET_FIRST(space->chain)->name)) {
+			       UT_LIST_GET_FIRST(space.chain)->name)) {
 			ib::info() << "TRUNCATE rollback: " << id
 				<< "," << new_path;
 			mysql_mutex_unlock(&fil_system.mutex);
@@ -3403,10 +3394,8 @@ bool fil_validate()
 
 	mysql_mutex_lock(&fil_system.mutex);
 
-	for (fil_space_t *space = UT_LIST_GET_FIRST(fil_system.space_list);
-	     space != NULL;
-	     space = UT_LIST_GET_NEXT(space_list, space)) {
-		n_open += Check::validate(space);
+	for (fil_space_t &space : fil_system.space_list) {
+		n_open += Check::validate(&space);
 	}
 
 	ut_a(fil_system.n_open == n_open);
@@ -3501,7 +3490,7 @@ fil_names_dirty(
 	ut_ad(space->max_lsn == 0);
 	ut_d(fil_space_validate_for_mtr_commit(space));
 
-	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
+	fil_system.named_spaces.push_back(*space);
 	space->max_lsn = log_sys.get_lsn();
 }
 
@@ -3515,7 +3504,7 @@ void fil_names_dirty_and_write(fil_space_t* space)
 	ut_d(fil_space_validate_for_mtr_commit(space));
 	ut_ad(space->max_lsn == log_sys.get_lsn());
 
-	UT_LIST_ADD_LAST(fil_system.named_spaces, space);
+	fil_system.named_spaces.push_back(*space);
 	mtr_t mtr;
 	mtr.start();
 	fil_names_write(space, &mtr);
@@ -3557,27 +3546,27 @@ fil_names_clear(
 
 	mtr.start();
 
-	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.named_spaces);
-	     space != NULL; ) {
+	for (auto it = fil_system.named_spaces.begin();
+	     it != fil_system.named_spaces.end(); ) {
 		if (mtr.get_log()->size()
-		    + (3 + 5 + 1) + strlen(space->chain.start->name)
+		    + (3 + 5 + 1) + strlen(it->chain.start->name)
 		    >= mtr_checkpoint_size) {
 			/* Prevent log parse buffer overflow */
 			mtr.commit_files();
 			mtr.start();
 		}
 
-		fil_space_t*	next = UT_LIST_GET_NEXT(named_spaces, space);
+		auto next = std::next(it);
 
-		ut_ad(space->max_lsn > 0);
-		if (space->max_lsn < lsn) {
+		ut_ad(it->max_lsn > 0);
+		if (it->max_lsn < lsn) {
 			/* The tablespace was last dirtied before the
 			checkpoint LSN. Remove it from the list, so
 			that if the tablespace is not going to be
 			modified any more, subsequent checkpoints will
 			avoid calling fil_names_write() on it. */
-			space->max_lsn = 0;
-			UT_LIST_REMOVE(fil_system.named_spaces, space);
+			it->max_lsn = 0;
+			fil_system.named_spaces.erase(it);
 		}
 
 		/* max_lsn is the last LSN where fil_names_dirty_and_write()
@@ -3585,10 +3574,10 @@ fil_names_clear(
 		where max_lsn turned nonzero), we could avoid the
 		fil_names_write() call if min_lsn > lsn. */
 
-		fil_names_write(space, &mtr);
+		fil_names_write(&*it, &mtr);
 		do_write = true;
 
-		space = next;
+		it = next;
 	}
 
 	if (do_write) {
@@ -3676,3 +3665,45 @@ fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 
 	return block_size;
 }
+
+#ifdef UNIV_DEBUG
+
+fil_space_t *fil_space_t::next_in_space_list()
+{
+  space_list_t::iterator it(this);
+  auto end= fil_system.space_list.end();
+  if (it == end)
+    return nullptr;
+  ++it;
+  return it == end ? nullptr : &*it;
+}
+
+fil_space_t *fil_space_t::prev_in_space_list()
+{
+  space_list_t::iterator it(this);
+  if (it == fil_system.space_list.begin())
+    return nullptr;
+  --it;
+  return &*it;
+}
+
+fil_space_t *fil_space_t::next_in_unflushed_spaces()
+{
+  sized_ilist<fil_space_t, unflushed_spaces_tag_t>::iterator it(this);
+  auto end= fil_system.unflushed_spaces.end();
+  if (it == end)
+    return nullptr;
+  ++it;
+  return it == end ? nullptr : &*it;
+}
+
+fil_space_t *fil_space_t::prev_in_unflushed_spaces()
+{
+  sized_ilist<fil_space_t, unflushed_spaces_tag_t>::iterator it(this);
+  if (it == fil_system.unflushed_spaces.begin())
+    return nullptr;
+  --it;
+  return &*it;
+}
+
+#endif

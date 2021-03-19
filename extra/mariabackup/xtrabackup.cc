@@ -588,36 +588,20 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback);
 
 /* ======== Datafiles iterator ======== */
 struct datafiles_iter_t {
-	fil_space_t	*space;
-	fil_node_t	*node;
-	ibool		started;
-	pthread_mutex_t	mutex;
+	space_list_t::iterator space = fil_system.space_list.end();
+	fil_node_t	*node = nullptr;
+	bool		started = false;
+	std::mutex	mutex;
 };
 
 /* ======== Datafiles iterator ======== */
-static
-datafiles_iter_t *
-datafiles_iter_new()
-{
-	datafiles_iter_t *it;
-
-	it = static_cast<datafiles_iter_t *>(malloc(sizeof(datafiles_iter_t)));
-	pthread_mutex_init(&it->mutex, NULL);
-
-	it->space = NULL;
-	it->node = NULL;
-	it->started = FALSE;
-
-	return it;
-}
-
 static
 fil_node_t *
 datafiles_iter_next(datafiles_iter_t *it)
 {
 	fil_node_t *new_node;
 
-	pthread_mutex_lock(&it->mutex);
+	std::lock_guard<std::mutex> _(it->mutex);
 
 	if (it->node == NULL) {
 		if (it->started)
@@ -629,32 +613,23 @@ datafiles_iter_next(datafiles_iter_t *it)
 			goto end;
 	}
 
-	it->space = (it->space == NULL) ?
-		UT_LIST_GET_FIRST(fil_system.space_list) :
-		UT_LIST_GET_NEXT(space_list, it->space);
+	it->space = (it->space == fil_system.space_list.end()) ?
+		fil_system.space_list.begin() :
+		std::next(it->space);
 
-	while (it->space != NULL &&
+	while (it->space != fil_system.space_list.end() &&
 	       (it->space->purpose != FIL_TYPE_TABLESPACE ||
 		UT_LIST_GET_LEN(it->space->chain) == 0))
-		it->space = UT_LIST_GET_NEXT(space_list, it->space);
-	if (it->space == NULL)
+		++it->space;
+	if (it->space == fil_system.space_list.end())
 		goto end;
 
 	it->node = UT_LIST_GET_FIRST(it->space->chain);
 
 end:
 	new_node = it->node;
-	pthread_mutex_unlock(&it->mutex);
 
 	return new_node;
-}
-
-static
-void
-datafiles_iter_free(datafiles_iter_t *it)
-{
-	pthread_mutex_destroy(&it->mutex);
-	free(it);
 }
 
 #ifndef DBUG_OFF
@@ -750,18 +725,15 @@ end:
 void mdl_lock_all()
 {
 	mdl_lock_init();
-	datafiles_iter_t *it = datafiles_iter_new();
-	if (!it)
-		return;
+	datafiles_iter_t it;
 
-	while (fil_node_t *node = datafiles_iter_next(it)){
+	while (fil_node_t *node = datafiles_iter_next(&it)) {
 		if (fil_is_user_tablespace_id(node->space->id)
 			&& check_if_skip_table(node->space->name))
 			continue;
 
 		mdl_lock_table(node->space->id);
 	}
-	datafiles_iter_free(it);
 }
 
 
@@ -4441,11 +4413,7 @@ fail_before_log_copying_thread_start:
 				"Waiting for table metadata lock", 0, 0););
 	}
 
-	datafiles_iter_t *it = datafiles_iter_new();
-	if (it == NULL) {
-		msg("mariabackup: Error: datafiles_iter_new() failed.");
-		goto fail;
-	}
+	datafiles_iter_t it;
 
 	/* Create data copying threads */
 	data_threads = (data_thread_ctxt_t *)
@@ -4454,7 +4422,7 @@ fail_before_log_copying_thread_start:
 	pthread_mutex_init(&count_mutex, NULL);
 
 	for (i = 0; i < (uint) xtrabackup_parallel; i++) {
-		data_threads[i].it = it;
+		data_threads[i].it = &it;
 		data_threads[i].num = i+1;
 		data_threads[i].count = &count;
 		data_threads[i].count_mutex = &count_mutex;
@@ -4475,7 +4443,6 @@ fail_before_log_copying_thread_start:
 
 	pthread_mutex_destroy(&count_mutex);
 	free(data_threads);
-	datafiles_iter_free(it);
 	}
 
 	bool ok = backup_start(corrupted_pages);
@@ -4629,10 +4596,8 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 	//  Load and copy new tables.
 	//  Close all datanodes first, reload only new tables.
 	std::vector<fil_node_t *> all_nodes;
-	datafiles_iter_t *it = datafiles_iter_new();
-	if (!it)
-		return;
-	while (fil_node_t *node = datafiles_iter_next(it)) {
+	datafiles_iter_t it;
+	while (fil_node_t *node = datafiles_iter_next(&it)) {
 		all_nodes.push_back(node);
 	}
 	for (size_t i = 0; i < all_nodes.size(); i++) {
@@ -4646,7 +4611,6 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 		}
 		fil_space_free(n->space->id, false);
 	}
-	datafiles_iter_free(it);
 
 	DBUG_EXECUTE_IF("check_mdl_lock_works", DBUG_ASSERT(new_tables.size() == 0););
 	for (std::set<std::string>::iterator iter = new_tables.begin();
@@ -4657,11 +4621,9 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 		xb_load_single_table_tablespace(*iter, false);
 	}
 
-	it = datafiles_iter_new();
-	if (!it)
-		return;
+	datafiles_iter_t it2;
 
-	while (fil_node_t *node = datafiles_iter_next(it)) {
+	while (fil_node_t *node = datafiles_iter_next(&it2)) {
 		fil_space_t * space = node->space;
 		if (!fil_is_user_tablespace_id(space->id))
 			continue;
@@ -4670,8 +4632,6 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 		xtrabackup_copy_datafile(node, 0, dest_name.c_str(), wf_write_through,
 			corrupted_pages);
 	}
-
-	datafiles_iter_free(it);
 }
 
 /* ================= prepare ================= */
@@ -4787,10 +4747,8 @@ xb_space_create_file(
 static fil_space_t* fil_space_get_by_name(const char* name)
 {
 	mysql_mutex_assert_owner(&fil_system.mutex);
-	for (fil_space_t* space = UT_LIST_GET_FIRST(fil_system.space_list);
-	     space != NULL;
-	     space = UT_LIST_GET_NEXT(space_list, space))
-		if (!strcmp(space->name, name)) return space;
+	for (fil_space_t& space :fil_system.space_list)
+		if (!strcmp(space.name, name)) return &space;
 	return NULL;
 }
 

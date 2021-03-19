@@ -5735,15 +5735,13 @@ static void fil_get_fts_spaces(fts_space_set_t& fts_space_set)
 {
   mysql_mutex_lock(&fil_system.mutex);
 
-  for (fil_space_t *space= UT_LIST_GET_FIRST(fil_system.space_list);
-       space;
-       space= UT_LIST_GET_NEXT(space_list, space))
+  for (fil_space_t &space : fil_system.space_list)
   {
     index_id_t index_id= 0;
     table_id_t table_id= 0;
 
-    if (space->purpose == FIL_TYPE_TABLESPACE
-        && fts_check_aux_table(space->name, &table_id, &index_id))
+    if (space.purpose == FIL_TYPE_TABLESPACE
+        && fts_check_aux_table(space.name, &table_id, &index_id))
       fts_space_set.insert(std::make_pair(table_id, index_id));
   }
 

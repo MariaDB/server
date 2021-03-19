@@ -213,12 +213,13 @@ struct fil_space_crypt_status_t {
 };
 
 /** Statistics about encryption key rotation */
-struct fil_crypt_stat_t {
-	ulint pages_read_from_cache;
-	ulint pages_read_from_disk;
-	ulint pages_modified;
-	ulint pages_flushed;
-	ulint estimated_iops;
+struct fil_crypt_stat_t
+{
+  ulint pages_read_from_cache= 0;
+  ulint pages_read_from_disk= 0;
+  ulint pages_modified= 0;
+  ulint pages_flushed= 0;
+  ulint estimated_iops= 0;
 };
 
 /*********************************************************************
