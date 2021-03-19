@@ -2890,7 +2890,6 @@ os_file_create_func(
 
 	ut_a(type == OS_LOG_FILE
 	     || type == OS_DATA_FILE
-	     || type == OS_DATA_TEMP_FILE
 	     || type == OS_DATA_FILE_NO_O_DIRECT);
 
 	ut_a(purpose == OS_FILE_AIO || purpose == OS_FILE_NORMAL);
@@ -2938,7 +2937,7 @@ os_file_create_func(
 	/* We disable OS caching (O_DIRECT) only on data files */
 	if (!read_only
 	    && *success
-	    && (type != OS_LOG_FILE && type != OS_DATA_TEMP_FILE
+	    && (type != OS_LOG_FILE
 		&& type != OS_DATA_FILE_NO_O_DIRECT)
 	    && (srv_file_flush_method == SRV_O_DIRECT
 		|| srv_file_flush_method == SRV_O_DIRECT_NO_FSYNC)) {

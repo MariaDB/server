@@ -368,25 +368,6 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
   return ret;
 }
 
-/*
-  Get auto increment variables for THD. Use global settings for
-  applier threads.
- */
-void wsrep_thd_auto_increment_variables(THD* thd,
-                                        unsigned long long* offset,
-                                        unsigned long long* increment)
-{
-  if (wsrep_thd_is_applying(thd) &&
-      thd->wsrep_trx().state() != wsrep::transaction::s_replaying)
-  {
-    *offset= global_system_variables.auto_increment_offset;
-    *increment= global_system_variables.auto_increment_increment;
-    return;
-  }
-  *offset= thd->variables.auto_increment_offset;
-  *increment= thd->variables.auto_increment_increment;
-}
-
 int wsrep_create_threadvars()
 {
   int ret= 0;

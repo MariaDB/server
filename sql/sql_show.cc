@@ -3833,15 +3833,8 @@ static bool show_status_array(THD *thd, const char *wild,
 
         if (show_type == SHOW_SYS)
           mysql_mutex_lock(&LOCK_global_system_variables);
-        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL &&
-                 !status_var->local_memory_used)
-        {
-          mysql_mutex_lock(&LOCK_status);
-          *status_var= global_status_var;
-          mysql_mutex_unlock(&LOCK_status);
-          calc_sum_of_all_status(status_var);
-          DBUG_ASSERT(status_var->local_memory_used);
-        }
+        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL)
+          calc_sum_of_all_status_if_needed(status_var);
 
         pos= get_one_variable(thd, var, scope, show_type, status_var,
                               &charset, buff, &length);

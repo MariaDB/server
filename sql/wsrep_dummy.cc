@@ -1,4 +1,4 @@
-/* Copyright (C) 2014, 2020, MariaDB
+/* Copyright (C) 2014, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -106,14 +106,6 @@ const char* wsrep_thd_client_state_str(const THD*)
 
 const char* wsrep_thd_client_mode_str(const THD*)
 { return 0; }
-
-void wsrep_thd_auto_increment_variables(THD *thd,
-                                        unsigned long long *offset,
-                                        unsigned long long *increment)
-{
-  *offset= thd->variables.auto_increment_offset;
-  *increment= thd->variables.auto_increment_increment;
-}
 
 const char* wsrep_thd_transaction_state_str(const THD*)
 { return 0; }

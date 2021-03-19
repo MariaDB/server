@@ -1192,7 +1192,6 @@ static ulint btr_node_ptr_max_size(const dict_index_t* index)
 				       TABLE_STATS_NAME)
 			       || !strcmp(index->table->name.m_name,
 					  INDEX_STATS_NAME))) {
-			ut_ad(!strcmp(field->name, "table_name"));
 			/* Interpret "table_name" as VARCHAR(199) even
 			if it was incorrectly defined as VARCHAR(64).
 			While the caller of ha_innobase enforces the

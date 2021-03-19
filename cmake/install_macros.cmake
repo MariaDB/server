@@ -181,7 +181,7 @@ IF(WIN32)
   MARK_AS_ADVANCED(SIGNCODE)
   IF(SIGNCODE)
    SET(SIGNTOOL_PARAMETERS 
-     /a /t http://timestamp.globalsign.com/scripts/timstamp.dll
+     /a /t http://timestamp.globalsign.com/?signature=sha2
      CACHE STRING "parameters for signtool (list)")
     FIND_PROGRAM(SIGNTOOL_EXECUTABLE signtool 
       PATHS "$ENV{ProgramFiles}/Microsoft SDKs/Windows/v7.0A/bin"

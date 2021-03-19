@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -9829,7 +9829,7 @@ bool  Item_cache_int::cache_value()
     return FALSE;
   value_cached= TRUE;
   value= example->val_int_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   unsigned_flag= example->unsigned_flag;
   return TRUE;
 }
@@ -9906,7 +9906,7 @@ bool Item_cache_temporal::cache_value()
     return false;
   value_cached= true;
   value= example->val_datetime_packed_result(current_thd);
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return true;
 }
 
@@ -9917,7 +9917,7 @@ bool Item_cache_time::cache_value()
     return false;
   value_cached= true;
   value= example->val_time_packed_result(current_thd);
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return true;
 }
 
@@ -10059,7 +10059,7 @@ bool Item_cache_real::cache_value()
     return FALSE;
   value_cached= TRUE;
   value= example->val_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return TRUE;
 }
 
@@ -10126,7 +10126,8 @@ bool Item_cache_decimal::cache_value()
     return FALSE;
   value_cached= TRUE;
   my_decimal *val= example->val_decimal_result(&decimal_value);
-  if (!(null_value= example->null_value) && val != &decimal_value)
+  if (!(null_value_inside= null_value= example->null_value) &&
+        val != &decimal_value)
     my_decimal2decimal(val, &decimal_value);
   return TRUE;
 }
@@ -10175,11 +10176,14 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 bool Item_cache_str::cache_value()
 {
   if (!example)
+  {
+    DBUG_ASSERT(value_cached == FALSE);
     return FALSE;
+  }
   value_cached= TRUE;
   value_buff.set(buffer, sizeof(buffer), example->collation.collation);
   value= example->str_result(&value_buff);
-  if ((null_value= example->null_value))
+  if ((null_value= null_value_inside= example->null_value))
     value= 0;
   else if (value != &value_buff)
   {
@@ -10274,6 +10278,8 @@ Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
 bool Item_cache_row::setup(THD *thd, Item *item)
 {
   example= item;
+  null_value= true;
+
   if (!values && allocate(thd, item->cols()))
     return 1;
   for (uint i= 0; i < item_count; i++)
@@ -10306,12 +10312,19 @@ bool Item_cache_row::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
-  null_value= 0;
+  null_value= TRUE;
+  null_value_inside= false;
   example->bring_value();
+
+  /*
+    For Item_cache_row null_value is set to TRUE only when ALL the values
+    inside the cache are NULL
+  */
   for (uint i= 0; i < item_count; i++)
   {
     values[i]->cache_value();
-    null_value|= values[i]->null_value;
+    null_value&= values[i]->null_value;
+    null_value_inside|= values[i]->null_value;
   }
   return TRUE;
 }

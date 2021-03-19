@@ -62,7 +62,6 @@ extern struct wsrep_service_st {
   int                         (*wsrep_thd_retry_counter_func)(const MYSQL_THD thd);
   bool                        (*wsrep_thd_ignore_table_func)(MYSQL_THD thd);
   long long                   (*wsrep_thd_trx_seqno_func)(const MYSQL_THD thd);
-  void                        (*wsrep_thd_auto_increment_variables_func)(THD *thd, unsigned long long *offset, unsigned long long *increment);
   my_bool                     (*wsrep_thd_is_aborting_func)(const MYSQL_THD thd);
   void                        (*wsrep_set_data_home_dir_func)(const char *data_dir);
   my_bool                     (*wsrep_thd_is_BF_func)(const MYSQL_THD thd, my_bool sync);
@@ -112,7 +111,6 @@ extern struct wsrep_service_st {
 #define wsrep_thd_retry_counter(T) wsrep_service->wsrep_thd_retry_counter_func(T)
 #define wsrep_thd_ignore_table(T) wsrep_service->wsrep_thd_ignore_table_func(T)
 #define wsrep_thd_trx_seqno(T) wsrep_service->wsrep_thd_trx_seqno_func(T)
-#define wsrep_thd_auto_increment_variables(T,O,I) wsrep_service->wsrep_thd_auto_increment_variables_func(T,O,I)
 #define wsrep_set_data_home_dir(A) wsrep_service->wsrep_set_data_home_dir_func(A)
 #define wsrep_thd_is_BF(T,S) wsrep_service->wsrep_thd_is_BF_func(T,S)
 #define wsrep_thd_is_aborting(T) wsrep_service->wsrep_thd_is_aborting_func(T)
@@ -152,7 +150,6 @@ extern "C" long long wsrep_xid_seqno(const struct xid_t* xid);
 const unsigned char* wsrep_xid_uuid(const struct xid_t* xid);
 extern "C" long long wsrep_thd_trx_seqno(const MYSQL_THD thd);
 my_bool get_wsrep_recovery();
-void wsrep_thd_auto_increment_variables(THD *thd, unsigned long long *offset, unsigned long long *increment);
 bool wsrep_thd_ignore_table(MYSQL_THD thd);
 void wsrep_set_data_home_dir(const char *data_dir);
 

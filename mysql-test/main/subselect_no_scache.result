@@ -7350,6 +7350,44 @@ WHERE (t2.i, t2.pk) NOT IN ( SELECT t3.i, t3.i FROM t t3, t t4 ) AND t1.c = 'foo
 pk	i	c	pk	i	c
 1	10	foo	1	10	foo
 DROP TABLE t;
+#
+# MDEV-25002: Outer reference in ON clause of subselect
+#
+create table t1 (
+pk int primary key,
+a int
+) engine=myisam;
+insert into t1 values (1,1), (2,2);
+create table t2 (
+pk int primary key,
+b int
+) engine=myisam;
+insert into t2 values (1,1), (2,3);
+create table t3 (a int);
+insert into t3 values (1),(2);
+select a,
+(select count(*) from t1, t2
+where t2.pk=t3.a and t1.pk=1) as sq
+from t3;
+a	sq
+1	1
+2	1
+select a,
+(select count(*) from t1 join t2 on t2.pk=t3.a
+where t1.pk=1) as sq
+from t3;
+a	sq
+1	1
+2	1
+select a from t3
+where a in (select t2.b from t1,t2 where t2.pk=t3.a and t1.pk=1);
+a
+1
+select a from t3
+where a in (select t2.b from t1 join t2 on t2.pk=t3.a where t1.pk=1);
+a
+1
+drop table t1,t2,t3;
 # End of 10.2 tests
 #
 # Start of 10.4 tests
