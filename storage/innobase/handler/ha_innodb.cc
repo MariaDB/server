@@ -21079,9 +21079,9 @@ dberr_t
 fk_cleanup_legacy_storage(bool lock_dict_mutex, trx_t* trx)
 {
 	ut_ad(DB_SUCCESS == fk_legacy_storage_exists(lock_dict_mutex));
-	bool sys_foreign_nempty = false;
-	bool sys_forcols_nempty = false;
-	dberr_t err;
+	bool sys_foreign_empty;
+	bool sys_forcols_empty;
+	dberr_t err = DB_SUCCESS;
 	if (lock_dict_mutex) {
 		dict_sys.mutex_lock();
 	}
@@ -21090,39 +21090,26 @@ fk_cleanup_legacy_storage(bool lock_dict_mutex, trx_t* trx)
 	if (lock_dict_mutex) {
 		dict_sys.mutex_unlock();
 	}
-	sys_foreign_nempty = !innobase_table_is_empty(sys_foreign);
-	sys_forcols_nempty = !innobase_table_is_empty(sys_forcols);
-	if (sys_foreign_nempty != sys_forcols_nempty) {
-		ut_ad(0);
-		return DB_CORRUPTION;
-	}
-	if (sys_foreign_nempty) {
-		ut_ad(sys_forcols_nempty);
-		return DB_SUCCESS;
-	}
-
-#if 0
-	if (lock_table_has_locks(sys_foreign)) {
-		fk_release_locks(sys_foreign);
-	}
-	if (lock_table_has_locks(sys_forcols)) {
-		fk_release_locks(sys_forcols);
-	}
-	ut_ad(!lock_table_has_locks(sys_foreign));
-	ut_ad(!lock_table_has_locks(sys_forcols));
-#endif
+	sys_foreign_empty = innobase_table_is_empty(sys_foreign);
+	sys_forcols_empty = innobase_table_is_empty(sys_forcols);
 
 	bool check_foreigns = trx->check_foreigns;
-	trx->check_foreigns = false;
-	err = row_drop_table_for_mysql("SYS_FOREIGN", trx, SQLCOM_DROP_DB,
-				       false, true, true);
-	if (err != DB_SUCCESS) {
-		trx->check_foreigns = check_foreigns;
-		return err;
+	if (sys_foreign_empty)
+	{
+		trx->check_foreigns = false;
+		err = row_drop_table_for_mysql("SYS_FOREIGN", trx,
+					       SQLCOM_DROP_DB, false, true, true);
+		if (err != DB_SUCCESS) {
+			trx->check_foreigns = check_foreigns;
+			return err;
+		}
 	}
-	trx->check_foreigns = false;
-	err = row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx, SQLCOM_DROP_DB,
-				       false, true, true);
+	if (sys_forcols_empty)
+	{
+		trx->check_foreigns = false;
+		err = row_drop_table_for_mysql("SYS_FOREIGN_COLS", trx,
+					       SQLCOM_DROP_DB, false, true, true);
+	}
 	trx->check_foreigns = check_foreigns;
 	return err;
 }
