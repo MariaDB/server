@@ -58,11 +58,15 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 #ifdef __linux__
 # include <sys/prctl.h>
-#include <sys/resource.h>
+# include <sys/resource.h>
 #endif
 
 #ifdef __APPLE__
 # include "libproc.h"
+#endif
+
+#ifdef __FreeBSD__
+# include <sys/sysctl.h>
 #endif
 
 
@@ -6716,6 +6720,11 @@ static int get_exepath(char *buf, size_t size, const char *argv0)
   size_t ret = proc_pidpath(getpid(), buf, static_cast<uint32_t>(size));
   if (ret > 0) {
     buf[ret] = 0;
+    return 0;
+  }
+#elif defined(__FreeBSD__)
+  int mib[4] = {CTL_KERN, KERN_PROC, KERN_PROC_PATHNAME, -1};
+  if (sysctl(mib, 4, buf, &size, NULL, 0) == 0) {
     return 0;
   }
 #endif
