@@ -1710,7 +1710,8 @@ scan_all_gtid_slave_pos_table(THD *thd, int (*cb)(THD *, LEX_CSTRING *, void *),
   else
   {
     size_t i;
-    Dynamic_array<LEX_CSTRING*> files(dirp->number_of_files);
+    Dynamic_array<LEX_CSTRING*> files(PSI_INSTRUMENT_MEM,
+                                      dirp->number_of_files);
     Discovered_table_list tl(thd, &files);
     int err;
 

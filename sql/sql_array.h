@@ -112,7 +112,7 @@ private:
 
 template <class Elem> class Dynamic_array
 {
-  DYNAMIC_ARRAY  array;
+  DYNAMIC_ARRAY array;
 public:
   Dynamic_array(PSI_memory_key psi_key, uint prealloc=16, uint increment=16)
   {
@@ -169,6 +169,8 @@ public:
   {
     return ((const Elem*)array.buffer) + array.elements - 1;
   }
+
+  size_t size() const { return array.elements; }
 
   const Elem *end() const
   {

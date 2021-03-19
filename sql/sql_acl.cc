@@ -655,7 +655,7 @@ bool ROLE_GRANT_PAIR::init(MEM_ROOT *mem, const char *username,
 #define ROLE_OPENED             (1L << 3)
 
 static DYNAMIC_ARRAY acl_hosts, acl_users, acl_proxy_users;
-static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0U, 50U);
+static Dynamic_array<ACL_DB> acl_dbs(PSI_INSTRUMENT_MEM, 0, 50);
 typedef Dynamic_array<ACL_DB>::CMP_FUNC acl_dbs_cmp;
 static HASH acl_roles;
 /*
@@ -2786,7 +2786,7 @@ void acl_free(bool end)
 bool acl_reload(THD *thd)
 {
   DYNAMIC_ARRAY old_acl_hosts, old_acl_users, old_acl_proxy_users;
-  Dynamic_array<ACL_DB> old_acl_dbs(0U,0U);
+  Dynamic_array<ACL_DB> old_acl_dbs(PSI_INSTRUMENT_MEM, 0, 0);
   HASH old_acl_roles, old_acl_roles_mappings;
   MEM_ROOT old_mem;
   int result;
@@ -6170,8 +6170,8 @@ static int traverse_role_graph_impl(ACL_USER_BASE *user, void *context,
      It uses a Dynamic_array to reduce the number of
      malloc calls to a minimum
   */
-  Dynamic_array<NODE_STATE> stack(20,50);
-  Dynamic_array<ACL_USER_BASE *> to_clear(20,50);
+  Dynamic_array<NODE_STATE> stack(PSI_INSTRUMENT_MEM, 20,50);
+  Dynamic_array<ACL_USER_BASE *> to_clear(PSI_INSTRUMENT_MEM, 20, 50);
   NODE_STATE state;     /* variable used to insert elements in the stack */
   int result= 0;
 

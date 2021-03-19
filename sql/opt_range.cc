@@ -8027,7 +8027,7 @@ SEL_TREE *Item_func_in::get_func_row_mm_tree(RANGE_OPT_PARAM *param,
   table_map param_comp= ~(param->prev_tables | param->read_tables |
                           param->current_table);
   uint row_cols= key_row->cols();
-  Dynamic_array <Key_col_info> key_cols_info(row_cols);
+  Dynamic_array <Key_col_info> key_cols_info(PSI_INSTRUMENT_MEM,row_cols);
   cmp_item_row *row_cmp_item;
 
   if (array)

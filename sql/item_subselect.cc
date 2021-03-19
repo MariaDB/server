@@ -3022,7 +3022,7 @@ bool Item_exists_subselect::exists2in_processor(void *opt_arg)
   Query_arena *arena= NULL, backup;
   int res= FALSE;
   List<Item> outer;
-  Dynamic_array<EQ_FIELD_OUTER> eqs(5, 5);
+  Dynamic_array<EQ_FIELD_OUTER> eqs(PSI_INSTRUMENT_MEM, 5, 5);
   bool will_be_correlated;
   DBUG_ENTER("Item_exists_subselect::exists2in_processor");
 

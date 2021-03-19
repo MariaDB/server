@@ -311,7 +311,8 @@ public:
 
   bool alloc()
   {
-    array= new Dynamic_array<char> (elem_size * max_elements,
+    array= new Dynamic_array<char> (PSI_INSTRUMENT_MEM,
+                                    elem_size * max_elements,
                                     elem_size * max_elements/sizeof(char) + 1);
     return array == NULL;
   }
