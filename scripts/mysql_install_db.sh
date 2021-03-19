@@ -549,7 +549,7 @@ cat_sql()
       ;;
   esac
 
-  cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp"
+  cat "$create_system_tables" "$create_system_tables2" "$fill_system_tables" "$fill_help_tables" "$maria_add_gis_sp" "$mysql_sys_schema"
   if test "$skip_test_db" -eq 0
   then
     cat "$mysql_test_db"
