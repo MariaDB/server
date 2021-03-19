@@ -97,6 +97,21 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
   SSL *ssl= vio->ssl_arg;
   my_bool should_retry= TRUE;
 
+#if defined(ERR_LIB_X509) && defined(X509_R_CERT_ALREADY_IN_HASH_TABLE)
+  /*
+    Ignore error X509_R_CERT_ALREADY_IN_HASH_TABLE.
+    This is a workaround for an OpenSSL bug in an older (< 1.1.1)
+    OpenSSL version.
+  */
+  unsigned long err = ERR_peek_error();
+  if (ERR_GET_LIB(err) == ERR_LIB_X509 &&
+      ERR_GET_REASON(err) == X509_R_CERT_ALREADY_IN_HASH_TABLE)
+  {
+    ERR_clear_error();
+    return TRUE;
+  }
+#endif
+
   /* Retrieve the result for the SSL I/O operation. */
   ssl_error= SSL_get_error(ssl, ret);
 

@@ -2753,8 +2753,7 @@ wsrep_rec_get_foreign_key(
 					(int)
 					(col_f->prtype & DATA_MYSQL_TYPE_MASK),
 					dtype_get_charset_coll(col_f->prtype),
-					buf, static_cast<uint>(len),
-					static_cast<uint>(*buf_len));
+					buf, len, *buf_len);
 				break;
 			case DATA_BLOB:
 			case DATA_BINARY:

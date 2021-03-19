@@ -9,8 +9,8 @@
 
 connection master;
 create table t1 (a int not null auto_increment primary key, b int, key(b));
-sync_slave_with_master;
-stop slave;
+--sync_slave_with_master
+--source include/stop_slave.inc
 connection master;
 INSERT INTO t1 (a) VALUES (1),(2),(3),(4),(5),(6),(7),(8),(9),(10);
 INSERT INTO t1 (a) SELECT null FROM t1;
@@ -28,13 +28,13 @@ INSERT INTO t1 (a) SELECT null FROM t1;
 INSERT INTO t1 (a) SELECT null FROM t1;
 
 connection slave;
-start slave;
+--source include/start_slave.inc
 
 # hope one second is not enough for slave to reach the last
 # Rows_log_event, so that test actually tests something.
 
 real_sleep 1;
-stop slave;
+--source include/stop_slave.inc
 
 # see if slave hangs on DROP TABLE
 

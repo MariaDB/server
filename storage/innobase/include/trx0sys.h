@@ -834,6 +834,14 @@ public:
     mutex_exit(&mutex);
   }
 
+  template <typename Callable> void for_each(Callable &&callback)
+  {
+    mutex_enter(&mutex);
+    for (auto &trx : trx_list)
+      callback(trx);
+    mutex_exit(&mutex);
+  }
+
   void freeze() const { mutex_enter(&mutex); }
   void unfreeze() const { mutex_exit(&mutex); }
 

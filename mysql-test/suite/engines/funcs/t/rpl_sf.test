@@ -1,5 +1,5 @@
 # Bug#16456 RBR: rpl_sp.test expects query to fail, but passes in RBR
-source include/master-slave.inc;
+--source include/master-slave.inc
 # save status
 
 let $oblf=`select @@SESSION.BINLOG_FORMAT`;
@@ -66,3 +66,4 @@ drop function fn16456;
 eval set binlog_format=$oblf;
 eval set global log_bin_trust_function_creators=$otfc;
 --enable_query_log
+--source include/rpl_end.inc

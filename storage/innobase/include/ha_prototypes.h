@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -221,7 +221,7 @@ innobase_casedn_str(
 void wsrep_innobase_kill_one_trx(THD *bf_thd, trx_t *victim_trx, bool signal);
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
                              unsigned char* str, ulint str_length,
-                             unsigned int buf_length);
+                             ulint buf_length);
 #endif /* WITH_WSREP */
 
 extern "C" struct charset_info_st *thd_charset(THD *thd);
