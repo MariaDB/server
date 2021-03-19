@@ -212,6 +212,9 @@ case "$1" in
                  "$option" != "--port" && \
                  "$option" != "--socket" ]]; then
               value=${1#*=}
+              if [ "$value" == "$1" ]; then
+                 value=""
+              fi
               case "$option" in
                   '--innodb-data-home-dir')
                       if [ -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
