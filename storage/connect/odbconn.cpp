@@ -125,17 +125,20 @@ int TranslateSQLType(int stp, int prec, int& len, char& v, bool& w)
   switch (stp) {
     case SQL_WVARCHAR:                      //  (-9)
       w = true;
+      /* fall through */
     case SQL_VARCHAR:                       //   12
       v = 'V';
       type = TYPE_STRING;
       break;
     case SQL_WCHAR:                         //  (-8)
       w = true;
+      /* fall through */
     case SQL_CHAR:                          //    1
       type = TYPE_STRING;
       break;
     case SQL_WLONGVARCHAR:                  // (-10)
       w = true;
+      /* fall through */
     case SQL_LONGVARCHAR:                   //  (-1)
 			if (GetTypeConv() == TPC_YES || GetTypeConv() == TPC_FORCE) {
 				v = 'V';
@@ -2344,6 +2347,7 @@ int ODBConn::GetCatInfo(CATPARM *cap)
         break;
       case CAT_SPC:
         ThrowDBX("SQLSpecialColumns not available yet");
+        break;
       default:
         ThrowDBX("Invalid SQL function id");
       } // endswitch infotype

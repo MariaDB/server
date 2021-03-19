@@ -824,7 +824,7 @@ PBVAL BCUTIL::MakeBson(PGLOBAL g, PBVAL jsp, int n)
 /***********************************************************************/
 PBVAL BCUTIL::GetRowValue(PGLOBAL g, PBVAL row, int i)
 {
-  int    nod = Cp->Nod, n = nod - 1;
+  int    nod = Cp->Nod;
   JNODE *nodes = Cp->Nodes;
   PBVAL  arp;
   PBVAL  bvp = NULL;
@@ -1956,6 +1956,7 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
       return NULL;
 
     for (p1 = p2 = mgopath; *p1; p1++)
+    {
       if (i) {                 // Inside []
         if (isdigit(*p1)) {
           if (!proj)
@@ -1993,14 +1994,14 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
           p2--;              // Suppress last :*
           break;
         } // endif p2
-
+        /* fall through */
       default:
         *p2++ = *p1;
         break;
       } // endswitch p1;
-
-      *p2 = 0;
-      return mgopath;
+    }
+    *p2 = 0;
+    return mgopath;
   } else
     return NULL;
 

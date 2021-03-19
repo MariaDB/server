@@ -508,7 +508,7 @@ PTABDEF MYCAT::MakeTableDesc(PGLOBAL g, PTABLE tablep, LPCSTR am)
         tdp = new(g) MGODEF;
         break;
       } // endif enabled
-      // fall through
+      /* fall through */
 #endif   // JAVA_SUPPORT || CMGO_SUPPORT
     default:
       sprintf(g->Message, MSG(BAD_TABLE_TYPE), am, name);
