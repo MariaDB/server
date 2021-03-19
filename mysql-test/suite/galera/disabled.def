@@ -20,6 +20,7 @@ galera_FK_duplicate_client_insert : MDEV-24473: galera.galera_FK_duplicate_clien
 galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid_log_event::do_apply_event()
 galera_bf_abort_at_after_statement : MDEV-21557: galera_bf_abort_at_after_statement MTR failed: query 'reap' succeeded - should have failed with errno 1213
 galera_bf_abort_group_commit : MDEV-18282 Galera test failure on galera.galera_bf_abort_group_commit
+galera_bf_kill_debug : MDEV-24485 wsrep::client_state::do_acquire_ownership(): Assertion `state_ == s_idle || mode_ != m_local' failed
 galera_bf_lock_wait : MDEV-21597 wsrep::transaction::start_transaction(): Assertion `active() == false' failed
 galera_binlog_stmt_autoinc : MDEV-19959 Galera test failure on galera_binlog_stmt_autoinc	
 galera_encrypt_tmp_files : Get error failed to enable encryption of temporary files
