@@ -105,7 +105,7 @@ DROP TABLE t1;
 # Test case 10: Check that the statements 'HELP'
 # is supported by prepared statements
 HELP `ALTER SERVER`;
-source_category_name	name	is_it_category
+name	description	example
 ALTER SERVER	Syntax
 ------ 
 ALTER SERVER server_name
