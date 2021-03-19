@@ -6,7 +6,7 @@
 # of their server id).
 # It also will test BUG#13861.
 
-source include/master-slave.inc;
+--source include/master-slave.inc
 
 
 # set up "dual head"
@@ -18,7 +18,7 @@ connection master;
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 eval change master to master_host="127.0.0.1",master_port=$SLAVE_MYPORT,master_user="root";
 
-start slave;
+--source include/start_slave.inc
 
 # now we test it
 
@@ -68,7 +68,7 @@ sync_with_master;
 
 # show tables;
 
-# start slave;
+# --source include/start_slave.inc
 
 # BUG#13023 is that Exec_master_log_pos may stay too low "forever":
 
@@ -78,9 +78,7 @@ create table t4 (n int); # create 3 ignored events
 create table t5 (n int);
 create table t6 (n int);
 
-save_master_pos;
-connection slave;
-sync_with_master;
+--sync_slave_with_master
 
 connection slave;
 
@@ -97,12 +95,11 @@ show tables;
 
 # cleanup
 
-stop slave;
+--source include/stop_slave.inc
 reset slave;
 drop table t1,t4,t5,t6; # add t2 and t3 later
 
-save_master_pos;
-connection slave;
-sync_with_master;
+--sync_slave_with_master
 
 # End of 4.1 tests
+--source include/rpl_end.inc

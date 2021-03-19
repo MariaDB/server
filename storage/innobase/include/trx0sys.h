@@ -832,6 +832,14 @@ public:
     mysql_mutex_unlock(&mutex);
   }
 
+  template <typename Callable> void for_each(Callable &&callback)
+  {
+    mysql_mutex_lock(&mutex);
+    for (auto &trx : trx_list)
+      callback(trx);
+    mysql_mutex_unlock(&mutex);
+  }
+
   void freeze() const { mysql_mutex_lock(&mutex); }
   void unfreeze() const { mysql_mutex_unlock(&mutex); }
 

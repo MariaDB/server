@@ -1193,11 +1193,14 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
   trx_i_s_cache_clear(cache);
 
   /* Capture the state of transactions */
-  trx_sys.trx_list.for_each([cache](const trx_t &trx) {
-    if (!cache->is_truncated && trx_is_started(&trx) &&
+  trx_sys.trx_list.for_each([cache](trx_t &trx) {
+    if (!cache->is_truncated && trx.state != TRX_STATE_NOT_STARTED &&
         &trx != purge_sys.query->trx)
     {
-      fetch_data_into_cache_low(cache, &trx);
+      trx.mutex_lock();
+      if (trx.state != TRX_STATE_NOT_STARTED)
+        fetch_data_into_cache_low(cache, &trx);
+      trx.mutex_unlock();
     }
   });
   cache->is_truncated= false;
