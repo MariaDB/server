@@ -139,7 +139,11 @@ override_dh_auto_install:
 ifneq (,$(filter linux,$(DEB_HOST_ARCH_OS)))
 	# Copy systemd files to a location available for dh_installinit
 	cp $(BUILDDIR)/support-files/mariadb.service debian/mariadb-server-10.6.mariadb.service
+	cp $(BUILDDIR)/support-files/mariadb.socket debian/mariadb-server-10.6.mariadb.socket
+	cp $(BUILDDIR)/support-files/mariadb-extra.socket debian/mariadb-server-10.6.mariadb-extra.socket
 	cp $(BUILDDIR)/support-files/mariadb@.service debian/mariadb-server-10.6.mariadb@.service
+	cp $(BUILDDIR)/support-files/mariadb@.socket debian/mariadb-server-10.6.mariadb@.socket
+	cp $(BUILDDIR)/support-files/mariadb-extra@.socket debian/mariadb-server-10.6.mariadb-extra@.socket
 endif
 
 	# Run 'make install' without output since it is uninteresting and
@@ -187,8 +191,12 @@ override_dh_installlogrotate-arch:
 	dh_installlogrotate --name mysql-server
 
 override_dh_systemd_enable:
-	dh_systemd_enable --name=mariadb
-	dh_systemd_enable --no-enable --name=mariadb@
+	dh_systemd_enable --name=mariadb mariadb.socket
+	dh_systemd_enable --name=mariadb-extra mariadb-extra.socket
+	dh_systemd_enable --no-enable --name=mariadb@ mariadb.socket
+	dh_systemd_enable --no-enable --name=mariadb-extra@ mariadb-extra.socket
+	dh_systemd_enable --no-enable --name=mariadb  mariadb.service
+	dh_systemd_enable --no-enable --name=mariadb@ mariadb@.service
 
 # Start MariaDB at sequence number 19 before 20 where apache, proftpd etc gets
 # started which might depend on a running database server.

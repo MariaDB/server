@@ -1,6 +1,10 @@
 etc/columnstore/storagemanager.cnf.example # Copy of etc/columnstore/storagemanager.cnf that is installed
 lib/systemd/system/mariadb.service # Installed by rules file
+lib/systemd/system/mariadb.socket # Installed by rules file
+lib/systemd/system/mariadb-extra.socket # Installed by rules file
 lib/systemd/system/mariadb@.service # Installed by rules file
+lib/systemd/system/mariadb@.socket # Installed by rules file
+lib/systemd/system/mariadb-extra@.socket # Installed by rules file
 usr/bin/mysql_config # We already have the MariaDB variant
 usr/bin/mytop # Mytop is distributed from a separate source package
 usr/bin/sst_dump # Use the one from rocksdb-tools package
