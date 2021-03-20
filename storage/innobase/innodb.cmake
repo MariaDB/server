@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2016, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2017, 2020, MariaDB Corporation.
+# Copyright (c) 2017, 2021, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -56,12 +56,12 @@ IF(UNIX)
 
     ADD_DEFINITIONS("-DUNIV_LINUX -D_GNU_SOURCE=1")
 
-    IF (NOT LIBURING)
+    IF (NOT URING_FOUND)
       CHECK_INCLUDE_FILES (libaio.h HAVE_LIBAIO_H)
       CHECK_LIBRARY_EXISTS(aio io_queue_init "" HAVE_LIBAIO)
 
       IF(HAVE_LIBAIO_H AND HAVE_LIBAIO)
-        ADD_DEFINITIONS(-DLINUX_NATIVE_AIO=1)
+        ADD_DEFINITIONS(-DLINUX_NATIVE_AIO)
         LINK_LIBRARIES(aio)
       ENDIF()
     ENDIF()
