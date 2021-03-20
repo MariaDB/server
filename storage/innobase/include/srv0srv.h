@@ -105,10 +105,6 @@ struct srv_stats_t
 	space in the log buffer and have to flush it */
 	ulint_ctr_1_t		log_waits;
 
-#if defined(LINUX_NATIVE_AIO)
-	ulint_ctr_1_t buffered_aio_submitted;
-#endif
-
 	/** Store the number of write requests issued */
 	ulint_ctr_1_t		buf_pool_write_requests;
 

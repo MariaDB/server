@@ -842,7 +842,10 @@ static bool matching_cond(bool max_fl, TABLE_REF *ref, KEY *keyinfo,
     if (is_field_part)
     {
       if (between || eq_type)
+      {
         *range_fl&= ~(NO_MAX_RANGE | NO_MIN_RANGE);
+        *range_fl&= ~(max_fl ? NEAR_MAX : NEAR_MIN);
+      }
       else
       {
         *range_fl&= ~(max_fl ? NO_MAX_RANGE : NO_MIN_RANGE);

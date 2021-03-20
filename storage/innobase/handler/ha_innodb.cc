@@ -909,9 +909,6 @@ static SHOW_VAR innodb_status_variables[]= {
   {"adaptive_hash_non_hash_searches", &btr_cur_n_non_sea, SHOW_SIZE_T},
 #endif
   {"background_log_sync", &srv_log_writes_and_flush, SHOW_SIZE_T},
-#if defined(LINUX_NATIVE_AIO)
-  {"buffered_aio_submitted", &srv_stats.buffered_aio_submitted, SHOW_SIZE_T},
-#endif
   {"buffer_pool_dump_status",
   (char*) &export_vars.innodb_buffer_pool_dump_status,	  SHOW_CHAR},
   {"buffer_pool_load_status",
