@@ -3963,7 +3963,6 @@ static bool is_linux_native_aio_supported()
 	}
 
 	int	err = io_submit(io_ctx, 1, &p_iocb);
-	srv_stats.buffered_aio_submitted.inc();
 
 	if (err >= 1) {
 		/* Now collect the submitted IO request. */
