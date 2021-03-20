@@ -12,9 +12,8 @@ reset master;
 --source include/stop_slave.inc
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 eval change master to master_port=$SLAVE_MYPORT;
---replace_result $SLAVE_MYPORT SLAVE_PORT
---replace_column 16 # 18 #
-show slave status;
+--let $status_items= Slave_IO_Running, Slave_SQL_Running, Last_SQL_Errno, Last_SQL_Error, Exec_Master_Log_Pos
+--source include/show_slave_status.inc
 start slave;
 insert into t1 values (1);
 
