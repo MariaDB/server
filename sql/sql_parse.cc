@@ -3381,7 +3381,10 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
               first_table->for_insert_data);
 
   if (thd->security_ctx->password_expired &&
-      lex->sql_command != SQLCOM_SET_OPTION)
+      lex->sql_command != SQLCOM_SET_OPTION &&
+      lex->sql_command != SQLCOM_PREPARE &&
+      lex->sql_command != SQLCOM_EXECUTE &&
+      lex->sql_command != SQLCOM_DEALLOCATE_PREPARE)
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     DBUG_RETURN(1);
