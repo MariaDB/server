@@ -3655,7 +3655,8 @@ without_overlaps_err:
   }
 
   /* Check foreign keys */
-  fk_prepare_create_table(thd, *alter_info, foreign_keys);
+  if (fk_prepare_create_table(thd, *alter_info, foreign_keys))
+    DBUG_RETURN(true);
 
   /* Give warnings for not supported table options */
   extern handlerton *maria_hton;
@@ -8563,17 +8564,10 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       TABLE_LIST tl;
       tl.init_one_table(&t.table.db, &t.table.name, NULL, TL_IGNORE);
       Share_acquire sa(thd, tl);
-      if (!sa.share)
-      {
-        if (!(t.fail && thd->variables.check_foreign()) && thd->is_error() &&
-            thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
-        {
-          // skip non-existing referenced shares, allow ALTER
-          thd->clear_error();
-          continue;
-        }
+      if (sa.fk_error(thd, t.fail))
         goto err;
-      }
+      if (!sa.share)
+        continue; // skip non-existing referenced shares, allow ALTER
       if (!alter_ctx->fk_shares.insert(t.table, std::move(sa)))
         goto err;
       DBUG_ASSERT(!sa.share);
@@ -11701,18 +11695,11 @@ bool TABLE_SHARE::fk_handle_create(THD *thd, FK_backup_storage &shares, FK_list 
     TABLE_LIST tl;
     tl.init_one_table(&ref.db, &ref.name, NULL, TL_IGNORE);
     Share_acquire ref_sa(thd, tl);
-    if (!ref_sa.share)
-    {
-      if (!thd->variables.check_foreign() && thd->is_error() &&
-          thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
-      {
-        // skip non-existing referenced shares, allow CREATE
-        thd->clear_error();
-        continue;
-      }
+    if (ref_sa.fk_error(thd))
       return true;
-    }
-    else if (ref_sa.share->partitioned())
+    if (!ref_sa.share)
+      continue; // skip non-existing referenced shares, allow CREATE
+    if (ref_sa.share->partitioned())
     {
       my_error(ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING, MYF(0), "FOREIGN KEY");
       return true;
@@ -11805,18 +11792,16 @@ bool fk_prepare_create_table(THD *thd, Alter_info &alter_info, FK_list &foreign_
     TABLE_LIST tl;
     tl.init_one_table(&ref.db, &ref.name, NULL, TL_IGNORE);
     Share_acquire sa(thd, tl);
-    if (!sa.share)
+    if (sa.fk_error(thd))
     {
-      if (!check_foreign && thd->is_error() &&
-          thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
-      {
-        // skip non-existing referenced shares, allow CREATE
-        thd->clear_error();
-        continue;
-      }
       my_error(ER_WRONG_FK_DEF, MYF(0), ref.name.str,
                "referenced table not found");
       return true;
+    }
+    if (!sa.share)
+    {
+      DBUG_ASSERT(!check_foreign);
+      continue; // skip non-existing referenced shares, allow CREATE
     }
     if (!ref_shares.insert(ref, std::move(sa)))
     {
@@ -12496,8 +12481,6 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
   /* NB: we have to acquire share before rename because it must read referenced
      keys from foreign table by its old name. */
   Share_acquire sa(thd, *old_table);
-  if (sa.is_error(thd))
-    return thd->is_error();
   sa.flush_unused= true;
   TABLE_SHARE *share= sa.share;
   if (share->foreign_keys.is_empty() && share->referenced_keys.is_empty())
@@ -12600,17 +12583,10 @@ bool fk_handle_rename(THD *thd, TABLE_LIST *old_table, const LEX_CSTRING *new_db
     TABLE_LIST tl;
     tl.init_one_table(&ref.db, &ref.name, &ref.name, TL_IGNORE);
     Share_acquire ref_sa(thd, tl);
-    if (!ref_sa.share)
-    {
-      if (!thd->variables.check_foreign() && thd->is_error() &&
-          thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
-      {
-        // skip non-existing referenced shares, allow RENAME
-        thd->clear_error();
-        continue;
-      }
+    if (ref_sa.fk_error(thd))
       return true;
-    }
+    if (!ref_sa.share)
+      continue; // skip non-existing referenced shares, allow RENAME
     FK_ddl_backup *bak= fk_rename_backup.emplace(NULL, ref_sa.share, std::move(ref_sa));
     if (!bak)
       return true;
