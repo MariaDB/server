@@ -11,8 +11,8 @@ PRIMARY KEY t (t(32))
 Warnings:
 Warning	1280	Name 't' ignored for PRIMARY key.
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	t	A	1000	32	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	t	A	1000	32	NULL		LSMTREE			NO
 INSERT INTO t1 (t,tt,m,l) VALUES
 ('','','',''),
 ('a','b','c','d'),
@@ -60,9 +60,9 @@ INDEX (m(128))
 Warnings:
 Warning	1280	Name 'mt' ignored for PRIMARY key.
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1000	1	NULL		LSMTREE		
-t1	1	m	1	m	A	500	128	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1000	1	NULL		LSMTREE			NO
+t1	1	m	1	m	A	500	128	NULL	YES	LSMTREE			NO
 INSERT INTO t1 (t,tt,m,l,pk) VALUES
 ('','','','','0'),
 ('a','b','c','d','1'),

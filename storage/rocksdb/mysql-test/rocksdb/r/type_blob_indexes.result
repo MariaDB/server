@@ -11,8 +11,8 @@ PRIMARY KEY b (b(32))
 Warnings:
 Warning	1280	Name 'b' ignored for PRIMARY key.
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	b	A	1000	32	NULL		LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	b	A	1000	32	NULL		LSMTREE			NO
 INSERT INTO t1 (b,t,m,l) VALUES
 ('','','',''),
 ('a','b','c','d'),
@@ -49,10 +49,10 @@ pk INT AUTO_INCREMENT PRIMARY KEY,
 UNIQUE INDEX l_t (l(256),t(64))
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	#	#	NULL	NULL	#	#		
-t1	0	l_t	1	l	#	#	256	NULL	#	#		
-t1	0	l_t	2	t	#	#	64	NULL	#	#		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	#	#	NULL	NULL	#	#			NO
+t1	0	l_t	1	l	#	#	256	NULL	#	#			NO
+t1	0	l_t	2	t	#	#	64	NULL	#	#			NO
 INSERT INTO t1 (b,t,m,l) VALUES
 ('','','',''),
 ('a','b','c','d'),
@@ -105,9 +105,9 @@ pk INT AUTO_INCREMENT PRIMARY KEY,
 INDEX (m(128))
 ) ENGINE=rocksdb;
 SHOW INDEX IN t1;
-Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
-t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE		
-t1	1	m	1	m	A	500	128	NULL	YES	LSMTREE		
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
+t1	0	PRIMARY	1	pk	A	1000	NULL	NULL		LSMTREE			NO
+t1	1	m	1	m	A	500	128	NULL	YES	LSMTREE			NO
 INSERT INTO t1 (b,t,m,l) VALUES
 ('','','',''),
 ('a','b','c','d'),
