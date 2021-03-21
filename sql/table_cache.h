@@ -141,7 +141,7 @@ public:
     return *this;
   }
   ~Share_acquire();
-  bool is_error(THD *thd);
+  bool fk_error(THD *thd, bool use_check_foreign= true) const;
   void acquire(THD *thd, TABLE_LIST &tl, uint flags= 0);
   void release()
   {

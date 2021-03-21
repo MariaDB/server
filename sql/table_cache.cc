@@ -1316,13 +1316,17 @@ void Share_acquire::acquire(THD *thd, TABLE_LIST &tl, uint flags)
 }
 
 
-bool Share_acquire::is_error(THD *thd)
+bool Share_acquire::fk_error(THD *thd, bool use_check_foreign) const
 {
   if (share)
     return false;
-  if (thd->is_error() && thd->get_stmt_da()->sql_errno() == ER_WRONG_OBJECT)
+
+  if (!(use_check_foreign && thd->variables.check_foreign()) &&
+      thd->is_error() &&
+      thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
   {
     thd->clear_error();
+    return false;
   }
   return true;
 }
