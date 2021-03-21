@@ -1851,6 +1851,17 @@ enum enum_fk_option { FK_OPTION_UNDEF= 0, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
 class Foreign_key;
 class Table_name;
 
+class THD_or_mem_root
+{
+  THD *m_thd;
+  MEM_ROOT *m_mem_root;
+
+public:
+  THD_or_mem_root(THD *_thd) : m_thd(_thd), m_mem_root(NULL) {}
+  THD_or_mem_root(MEM_ROOT *_mem_root) : m_thd(NULL), m_mem_root(_mem_root) {}
+  operator MEM_ROOT *() const;
+};
+
 class FK_info : public Sql_alloc
 {
 public:
@@ -1919,8 +1930,8 @@ public:
   }
   bool assign(Foreign_key &fk, Table_name table);
   FK_info * clone(MEM_ROOT *mem_root) const;
-  Table_name for_table(MEM_ROOT *mem_root, bool copy= false) const;
-  Table_name ref_table(MEM_ROOT *mem_root, bool copy= false) const;
+  Table_name for_table(THD_or_mem_root mem_root, bool copy= false) const;
+  Table_name ref_table(THD_or_mem_root mem_root, bool copy= false) const;
   void print(String &out);
 };
 

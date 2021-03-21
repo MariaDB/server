@@ -831,23 +831,3 @@ t2	CREATE TABLE `t2` (
   CONSTRAINT `fk_t2_2` FOREIGN KEY (`AA`) REFERENCES `t1` (`A`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop tables t2, t1;
-# Foreign keys and partitioning
-create table t1 (x int primary key) partition by hash(x) partitions 3;
-create table t2 (y int references t1(x));
-ERROR HY000: Partitioned tables do not support FOREIGN KEY
-create table t2 (y int);
-alter table t2 add foreign key (y) references t1 (x);
-ERROR HY000: Partitioned tables do not support FOREIGN KEY
-drop tables t2, t1;
-create table t1 (x int primary key);
-create table t2 (y int references t1(x)) partition by hash(x) partitions 3;
-ERROR HY000: Partitioned tables do not support FOREIGN KEY
-create table t2 (y int) partition by hash(y) partitions 3;
-alter table t2 add foreign key (y) references t1 (x);
-ERROR HY000: Partitioned tables do not support FOREIGN KEY
-create or replace table t2 (y int references t1(x));
-alter table t1 partition by hash(x) partitions 3;
-ERROR HY000: Partitioned tables do not support FOREIGN KEY
-alter table t2 partition by hash(y) partitions 3;
-ERROR HY000: Partitioned tables do not support FOREIGN KEY
-drop tables t2, t1;

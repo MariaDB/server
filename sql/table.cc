@@ -9475,6 +9475,12 @@ public:
 };
 
 
+THD_or_mem_root::operator MEM_ROOT*() const
+{
+  return m_mem_root ? m_mem_root : m_thd->mem_root;
+}
+
+
 bool FK_info::assign(Foreign_key &src, Table_name table)
 {
   DBUG_ASSERT(src.foreign);
@@ -9548,7 +9554,7 @@ FK_info * FK_info::clone(MEM_ROOT *mem_root) const
 }
 
 
-Table_name FK_info::for_table(MEM_ROOT *mem_root, bool copy) const
+Table_name FK_info::for_table(THD_or_mem_root mem_root, bool copy) const
 {
   Table_name result(foreign_db, foreign_table);
   if (lower_case_table_names)
@@ -9561,7 +9567,7 @@ Table_name FK_info::for_table(MEM_ROOT *mem_root, bool copy) const
 }
 
 
-Table_name FK_info::ref_table(MEM_ROOT *mem_root, bool copy) const
+Table_name FK_info::ref_table(THD_or_mem_root mem_root, bool copy) const
 {
   Table_name result(ref_db(), referenced_table);
   if (lower_case_table_names)

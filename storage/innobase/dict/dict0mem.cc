@@ -816,6 +816,7 @@ dict_mem_foreign_create(void)
 	foreign->heap = heap;
 
 	foreign->v_cols = NULL;
+	foreign->ref_info.resize(1); // FIXME: free
 
 	DBUG_PRINT("dict_mem_foreign_create", ("heap: %p", heap));
 

@@ -479,24 +479,3 @@ alter table t2 add foreign key(aa) references t1(a);
 
 show create table t2;
 drop tables t2, t1;
-
---echo # Foreign keys and partitioning
-create table t1 (x int primary key) partition by hash(x) partitions 3;
---error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
-create table t2 (y int references t1(x));
-create table t2 (y int);
---error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
-alter table t2 add foreign key (y) references t1 (x);
-drop tables t2, t1;
-create table t1 (x int primary key);
---error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
-create table t2 (y int references t1(x)) partition by hash(x) partitions 3;
-create table t2 (y int) partition by hash(y) partitions 3;
---error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
-alter table t2 add foreign key (y) references t1 (x);
-create or replace table t2 (y int references t1(x));
---error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
-alter table t1 partition by hash(x) partitions 3;
---error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
-alter table t2 partition by hash(y) partitions 3;
-drop tables t2, t1;

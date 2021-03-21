@@ -11877,19 +11877,19 @@ create_table_info_t::create_foreign_keys()
 			old_fkeys--;
 			continue;
 		}
+#ifdef WITH_PARTITION_STORAGE_ENGINE
 		Share_acquire sa;
 		TABLE_SHARE *ref_share;
 		if (!fk->self_ref()) {
-			sa.acquire(m_thd, fk->ref_db(), fk->referenced_table);
-			if (!sa.share) {
+			sa.acquire(m_thd, fk->ref_table(m_thd));
+			if (sa.fk_error(m_thd)) {
 				return DB_CANNOT_ADD_CONSTRAINT;
 			}
 			ref_share = sa.share;
 		} else {
 			ref_share = m_form->s;
 		}
-#ifdef WITH_PARTITION_STORAGE_ENGINE
-		if (ref_share->part_info) {
+		if (ref_share && ref_share->part_info) {
 			for (auto els: *ref_share->part_info) {
 				err = create_foreign_key(
 					fk, table, number, local_fk_set,

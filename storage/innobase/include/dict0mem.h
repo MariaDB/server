@@ -1492,6 +1492,11 @@ struct dict_foreign_t{
 	/** Check whether the fulltext index gets affected by
 	foreign key constraint */
 	bool affects_fulltext() const;
+
+	dict_foreign_t() // used in i_s_sys_foreign_fill_table()
+	{
+		ref_info.resize(1);
+	}
 };
 
 std::ostream&

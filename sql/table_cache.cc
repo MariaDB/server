@@ -1316,11 +1316,10 @@ void Share_acquire::acquire(THD *thd, TABLE_LIST &tl, uint flags)
 }
 
 
-void Share_acquire::acquire(THD *thd, LEX_CSTRING db, LEX_CSTRING table_name,
-                            uint flags)
+void Share_acquire::acquire(THD *thd, Table_name table, uint flags)
 {
   TABLE_LIST tl;
-  tl.init_one_table(&db, &table_name, &table_name, TL_IGNORE);
+  tl.init_one_table(&table.db, &table.name, &table.name, TL_IGNORE);
   acquire(thd, tl, flags);
 }
 

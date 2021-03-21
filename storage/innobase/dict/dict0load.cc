@@ -577,7 +577,6 @@ err_len:
 	if (len == 0 || len == UNIV_SQL_NULL) {
 		goto err_len;
 	}
-	foreign->ref_info.resize(1);
 	if (!(foreign->ref_info[0].referenced_table_name = mem_heap_strdupl(
 		heap, (const char*) field, len))) {
 		return "memory allocation error!";
