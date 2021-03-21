@@ -5422,8 +5422,9 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
   /* Currently derived tables cannot be correlated */
-  if (current_sel->master_unit()->first_select()->get_linkage() !=
-      DERIVED_TABLE_TYPE)
+  if ((current_sel->master_unit()->first_select()->get_linkage() !=
+       DERIVED_TABLE_TYPE) &&
+      current_sel->master_unit()->outer_select())
     outer_context= context->outer_context;
 
   /*
