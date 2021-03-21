@@ -39,6 +39,12 @@
 
 /*************************************************************************/
 
+static bool add_table_for_trigger_internal(THD *thd,
+                                           const sp_name *trg_name,
+                                           bool if_exists,
+                                           TABLE_LIST **table,
+                                           char *trn_path_buff);
+
 /**
   Trigger_creation_ctx -- creation context of triggers.
 */
@@ -395,11 +401,13 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   */
   TABLE *table;
   bool result= TRUE;
+  bool add_if_exists_to_binlog= 0;
   String stmt_query;
   bool lock_upgrade_done= FALSE;
   MDL_ticket *mdl_ticket= NULL;
   Query_tables_list backup;
   DDL_LOG_STATE ddl_log_state, ddl_log_state_tmp_file;
+  char trn_path_buff[FN_REFLEN];
   DBUG_ENTER("mysql_create_or_drop_trigger");
 
   /* Charset of the buffer for statement must be system one. */
@@ -475,7 +483,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
       goto end;
     }
 
-    if (add_table_for_trigger(thd, thd->lex->spname, if_exists, & tables))
+    if (add_table_for_trigger_internal(thd, thd->lex->spname, if_exists, &tables,
+                                       trn_path_buff))
       goto end;
 
     if (!tables)
@@ -548,7 +557,15 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     tables->table= open_n_lock_single_table(thd, tables,
                                             TL_READ_NO_INSERT, 0);
     if (! tables->table)
+    {
+      if (!create && thd->get_stmt_da()->sql_errno() == ER_NO_SUCH_TABLE)
+      {
+        /* TRN file exists but table does not. Drop the orphan trigger */
+        thd->clear_error();                     // Remove error from open
+        goto drop_orphan_trn;
+      }
       goto end;
+    }
     tables->table->use_all_columns();
   }
   table= tables->table;
@@ -574,11 +591,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   if (!table->triggers)
   {
     if (!create)
-    {
-      my_error(ER_TRG_DOES_NOT_EXIST, MYF(0));
-      goto end;
-    }
-
+      goto drop_orphan_trn;
     if (!(table->triggers= new (&table->mem_root) Table_triggers_list(table)))
       goto end;
   }
@@ -604,6 +617,11 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
                                           &thd->lex->spname->m_name,
                                           &stmt_query,
                                           &ddl_log_state);
+    if (result)
+    {
+      thd->clear_error();                     // Remove error from drop trigger
+      goto drop_orphan_trn;
+    }
   }
 
   close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
@@ -625,11 +643,17 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 end:
   if (!result)
   {
+    ulonglong save_option_bits= thd->variables.option_bits;
+
     debug_crash_here("ddl_log_drop_before_binlog");
+    if (add_if_exists_to_binlog)
+      thd->variables.option_bits|= OPTION_IF_EXISTS;
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
-    result= write_bin_log(thd, TRUE, stmt_query.ptr(), stmt_query.length());
+    result= write_bin_log(thd, TRUE, stmt_query.ptr(),
+                          stmt_query.length());
     thd->binlog_xid= 0;
+    thd->variables.option_bits= save_option_bits;
     debug_crash_here("ddl_log_drop_after_binlog");
   }
   ddl_log_complete(&ddl_log_state);
@@ -662,6 +686,14 @@ end:
 wsrep_error_label:
   DBUG_RETURN(true);
 #endif
+
+drop_orphan_trn:
+  my_error(ER_REMOVED_ORPHAN_TRIGGER, MYF(ME_WARNING),
+           thd->lex->spname->m_name.str, tables->table_name.str);
+  mysql_file_delete(key_file_trg, trn_path_buff, MYF(0));
+  result= thd->is_error();
+  add_if_exists_to_binlog= 1;
+  goto end;
 }
 
 
@@ -1845,17 +1877,16 @@ void Trigger::get_trigger_info(LEX_CSTRING *trigger_stmt,
     @retval TRUE  Otherwise.
 */
 
-bool add_table_for_trigger(THD *thd,
-                           const sp_name *trg_name,
-                           bool if_exists,
-                           TABLE_LIST **table)
+static bool add_table_for_trigger_internal(THD *thd,
+                                           const sp_name *trg_name,
+                                           bool if_exists,
+                                           TABLE_LIST **table,
+                                           char *trn_path_buff)
 {
   LEX *lex= thd->lex;
-  char trn_path_buff[FN_REFLEN];
   LEX_CSTRING trn_path= { trn_path_buff, 0 };
   LEX_CSTRING tbl_name= null_clex_str;
-
-  DBUG_ENTER("add_table_for_trigger");
+  DBUG_ENTER("add_table_for_trigger_internal");
 
   build_trn_path(thd, trg_name, (LEX_STRING*) &trn_path);
 
@@ -1885,6 +1916,23 @@ bool add_table_for_trigger(THD *thd,
                                  MDL_SHARED_NO_WRITE);
 
   DBUG_RETURN(*table ? FALSE : TRUE);
+}
+
+
+/*
+  Same as above, but with an allocated buffer.
+  This is called by mysql_excute_command() in is here to keep stack
+  space down in the caller.
+*/
+
+bool add_table_for_trigger(THD *thd,
+                           const sp_name *trg_name,
+                           bool if_exists,
+                           TABLE_LIST **table)
+{
+  char trn_path_buff[FN_REFLEN];
+  return add_table_for_trigger_internal(thd, trg_name, if_exists,
+                                        table, trn_path_buff);
 }
 
 

@@ -2450,3 +2450,41 @@ DROP TABLE t1;
 #
 # End of 10.3 tests
 #
+#
+# Test dropping orphan .trn file
+#
+create table t1 (a int);
+create trigger t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end|
+insert into t1 values (null);
+select * from t1;
+a
+1000
+drop table t1;
+drop trigger t1_trg;
+Warnings:
+Error	1146	Table 'test.t1' doesn't exist
+Warning	4177	Dropped orphan trigger 't1_trg', originally created for table: 't1'
+create table t1 (a int);
+drop trigger t1_trg;
+Warnings:
+Warning	4177	Dropped orphan trigger 't1_trg', originally created for table: 't1'
+create trigger t1_trg_2 before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end|
+drop trigger t1_trg;
+Warnings:
+Error	1360	Trigger does not exist
+Warning	4177	Dropped orphan trigger 't1_trg', originally created for table: 't1'
+drop trigger t1_trg_2;
+drop table t1;
+#
+# End of 10.6 tests
+#

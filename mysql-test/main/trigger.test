@@ -2782,3 +2782,48 @@ DROP TABLE t1;
 --echo #
 --echo # End of 10.3 tests
 --echo #
+
+--echo #
+--echo # Test dropping orphan .trn file
+--echo #
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+create table t1 (a int);
+delimiter |;
+create trigger t1_trg before insert on t1 for each row
+begin
+  if isnull(new.a) then
+    set new.a:= 1000;
+  end if;
+end|
+delimiter ;|
+insert into t1 values (null);
+select * from t1;
+
+--copy_file $MYSQLD_DATADIR/test/t1_trg.TRN $MYSQLD_DATADIR/test/t1_trg.TMP
+drop table t1;
+--copy_file $MYSQLD_DATADIR/test/t1_trg.TMP $MYSQLD_DATADIR/test/t1_trg.TRN
+drop trigger t1_trg;
+create table t1 (a int);
+--copy_file $MYSQLD_DATADIR/test/t1_trg.TMP $MYSQLD_DATADIR/test/t1_trg.TRN
+drop trigger t1_trg;
+
+# Test creating an additonal trigger for t1, but with different names
+delimiter |;
+create trigger t1_trg_2 before insert on t1 for each row
+begin
+  if isnull(new.a) then
+    set new.a:= 1000;
+  end if;
+end|
+delimiter ;|
+--copy_file $MYSQLD_DATADIR/test/t1_trg.TMP $MYSQLD_DATADIR/test/t1_trg.TRN
+drop trigger t1_trg;
+drop trigger t1_trg_2;
+drop table t1;
+--remove_file $MYSQLD_DATADIR/test/t1_trg.TMP
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
