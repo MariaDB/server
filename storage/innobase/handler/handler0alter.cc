@@ -30,6 +30,7 @@ Smart ALTER TABLE
 #include <sql_class.h>
 #include <sql_table.h>
 #include <mysql/plugin.h>
+#include "string_view.h"
 
 /* Include necessary InnoDB headers */
 #include "btr0sea.h"
@@ -7367,26 +7368,25 @@ Rename a given index in the InnoDB data dictionary cache.
 @param[in,out] index index to rename
 @param new_name new index name
 */
-static
-void
-innobase_rename_index_cache(dict_index_t* index, const char* new_name)
+static void innobase_rename_index_cache(dict_index_t *index,
+                                        string_view new_name)
 {
-	DBUG_ENTER("innobase_rename_index_cache");
-	ut_d(dict_sys.assert_locked());
+  DBUG_ENTER("innobase_rename_index_cache");
+  ut_d(dict_sys.assert_locked());
 
-	size_t	old_name_len = strlen(index->name);
-	size_t	new_name_len = strlen(new_name);
+  size_t old_name_len= strlen(index->name);
 
-	if (old_name_len < new_name_len) {
-		index->name = static_cast<char*>(
-		    mem_heap_alloc(index->heap, new_name_len + 1));
-	}
+  if (old_name_len < new_name.size())
+  {
+    index->name=
+        static_cast<char *>(mem_heap_alloc(index->heap, new_name.size() + 1));
+  }
 
-	memcpy(const_cast<char*>(index->name()), new_name, new_name_len + 1);
+  memcpy(const_cast<char *>(index->name()), new_name.data(),
+         new_name.size() + 1);
 
-	DBUG_VOID_RETURN;
+  DBUG_VOID_RETURN;
 }
-
 
 /** Rename the index name in cache.
 @param[in]	ctx		alter context

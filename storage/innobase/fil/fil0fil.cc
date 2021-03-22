@@ -2692,53 +2692,6 @@ fil_space_read_name_and_filepath(
 	return(success);
 }
 
-/** Convert a file name to a tablespace name.
-@param[in]	filename	directory/databasename/tablename.ibd
-@return database/tablename string, to be freed with ut_free() */
-char*
-fil_path_to_space_name(
-	const char*	filename)
-{
-	/* Strip the file name prefix and suffix, leaving
-	only databasename/tablename. */
-	ulint		filename_len	= strlen(filename);
-	const char*	end		= filename + filename_len;
-#ifdef HAVE_MEMRCHR
-	const char*	tablename	= 1 + static_cast<const char*>(
-		memrchr(filename, OS_PATH_SEPARATOR,
-			filename_len));
-	const char*	dbname		= 1 + static_cast<const char*>(
-		memrchr(filename, OS_PATH_SEPARATOR,
-			tablename - filename - 1));
-#else /* HAVE_MEMRCHR */
-	const char*	tablename	= filename;
-	const char*	dbname		= NULL;
-
-	while (const char* t = static_cast<const char*>(
-		       memchr(tablename, OS_PATH_SEPARATOR,
-			      ulint(end - tablename)))) {
-		dbname = tablename;
-		tablename = t + 1;
-	}
-#endif /* HAVE_MEMRCHR */
-
-	ut_ad(dbname != NULL);
-	ut_ad(tablename > dbname);
-	ut_ad(tablename < end);
-	ut_ad(end - tablename > 4);
-	ut_ad(memcmp(end - 4, DOT_IBD, 4) == 0);
-
-	char*	name = mem_strdupl(dbname, ulint(end - dbname) - 4);
-
-	ut_ad(name[tablename - dbname - 1] == OS_PATH_SEPARATOR);
-#if OS_PATH_SEPARATOR != '/'
-	/* space->name uses '/', not OS_PATH_SEPARATOR. */
-	name[tablename - dbname - 1] = '/';
-#endif
-
-	return(name);
-}
-
 /** Discover the correct IBD file to open given a remote or missing
 filepath from the REDO log. Administrators can move a crashed
 database to another location on the same machine and try to recover it.

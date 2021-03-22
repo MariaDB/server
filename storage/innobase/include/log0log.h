@@ -525,7 +525,7 @@ public:
     /** writes header */
     void write_header_durable(lsn_t lsn);
     /** opens log file which must be closed prior this call */
-    dberr_t rename(std::string path) { return fd.rename(path); }
+    dberr_t rename(std::string path) { return fd.rename(std::move(path)); }
     /** reads buffer from log file
     @param[in]	offset		offset in log file
     @param[in]	buf		buffer where to read */

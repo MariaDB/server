@@ -1765,13 +1765,6 @@ fil_space_read_name_and_filepath(
 	char**	name,
 	char**	filepath);
 
-/** Convert a file name to a tablespace name.
-@param[in]	filename	directory/databasename/tablename.ibd
-@return database/tablename string, to be freed with ut_free() */
-char*
-fil_path_to_space_name(
-	const char*	filename);
-
 /*******************************************************************//**
 Returns the table space by a given id, NULL if not found. */
 fil_space_t*

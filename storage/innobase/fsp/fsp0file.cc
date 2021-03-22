@@ -30,6 +30,8 @@ Created 2013-7-26 by Kevin Lewis
 #include "page0page.h"
 #include "srv0start.h"
 
+#include "string_view.h"
+
 /** Initialize the name, size and order of this datafile
 @param[in]	name	tablespace name, will be copied
 @param[in]	flags	tablespace flags */
@@ -258,6 +260,28 @@ Datafile::same_as(
 #endif /* WIN32 */
 }
 
+/** Convert a file name to a tablespace name.
+@param[in]	filename	directory/databasename/tablename.ibd
+@return database/tablename string, to be freed with ut_free() */
+static char *fsp_path_to_space_name(string_view filename)
+{
+  auto last_slash= filename.rfind(OS_PATH_SEPARATOR);
+  auto prev_last_slash=
+      filename.substr(0, last_slash).rfind(OS_PATH_SEPARATOR);
+  filename.remove_prefix(prev_last_slash + 1);
+  ut_ad(filename.ends_with(DOT_IBD));
+  filename.remove_suffix(strlen(DOT_IBD));
+
+  char *name= mem_strdupl(filename.data(), filename.size());
+
+#if OS_PATH_SEPARATOR != '/'
+  /* space->name uses '/', not OS_PATH_SEPARATOR. */
+  name[last_slash - prev_last_slash - 1]= '/';
+#endif
+
+  return name;
+}
+
 /** Allocate and set the datafile or tablespace name in m_name.
 If a name is provided, use it; else extract a file-per-table
 tablespace name from m_filepath. The value of m_name
@@ -271,7 +295,7 @@ Datafile::set_name(const char*	name)
 	if (name != NULL) {
 		m_name = mem_strdup(name);
 	} else {
-		m_name = fil_path_to_space_name(m_filepath);
+		m_name = fsp_path_to_space_name(m_filepath);
 	}
 }
 

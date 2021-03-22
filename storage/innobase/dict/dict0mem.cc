@@ -37,40 +37,37 @@ Created 1/8/1996 Heikki Tuuri
 #include "lock0lock.h"
 #include "row0row.h"
 #include "sql_string.h"
+#include "string_view.h"
 #include <iostream>
 
 #define	DICT_HEAP_SIZE		100	/*!< initial memory heap size when
 					creating a table or index object */
 
 /** System databases */
-static const char* innobase_system_databases[] = {
-	"mysql/",
-	"information_schema/",
-	"performance_schema/",
-	NullS
+static const string_view innobase_system_databases[]= {
+    "mysql/",
+    "information_schema/",
+    "performance_schema/",
 };
 
 /** Determine if a table belongs to innobase_system_databases[]
 @param[in]	name	database_name/table_name
 @return	whether the database_name is in innobase_system_databases[] */
-static bool dict_mem_table_is_system(const char *name)
+static bool dict_mem_table_is_system(string_view name)
 {
-	/* table has the following format: database/table
-	and some system table are of the form SYS_* */
-	if (!strchr(name, '/')) {
-		return true;
-	}
-	size_t table_len = strlen(name);
-	const char *system_db;
-	int i = 0;
-	while ((system_db = innobase_system_databases[i++])
-	       && (system_db != NullS)) {
-		size_t len = strlen(system_db);
-		if (table_len > len && !strncmp(name, system_db, len)) {
-			return true;
-		}
-	}
-	return false;
+  /* table has the following format: database/table
+  and some system table are of the form SYS_* */
+  if (!name.contains('/'))
+    return true;
+  for (auto system_db : innobase_system_databases)
+  {
+    if (name.size() > system_db.size() &&
+        system_db == name.substr(0, system_db.size()))
+    {
+      return true;
+    }
+  }
+  return false;
 }
 
 /** The start of the table basename suffix for partitioned tables */

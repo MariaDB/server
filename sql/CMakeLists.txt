@@ -165,6 +165,7 @@ SET (SQL_SOURCE
                opt_trace.cc
                table_cache.cc encryption.cc temporary_tables.cc
                proxy_protocol.cc backup.cc xa.cc
+               string_view.cc
                ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
                ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
                ${GEN_SOURCES}
