@@ -7058,6 +7058,7 @@ static bool mysql_inplace_alter_table(THD *thd,
                                       TABLE *altered_table,
                                       Alter_inplace_info *ha_alter_info,
                                       MDL_request *target_mdl_request,
+                                      TRIGGER_RENAME_PARAM *trigger_param,
                                       Alter_table_ctx *alter_ctx)
 {
   Open_table_context ot_ctx(thd, MYSQL_OPEN_REOPEN | MYSQL_OPEN_IGNORE_KILLED);
@@ -7330,7 +7331,7 @@ static bool mysql_inplace_alter_table(THD *thd,
       */
       DBUG_RETURN(true);
     }
-    if (Table_triggers_list::change_table_name(thd,
+    if (Table_triggers_list::change_table_name(thd, trigger_param,
                                                &alter_ctx->db,
                                                &alter_ctx->alias,
                                                &alter_ctx->table_name,
@@ -7343,7 +7344,8 @@ static bool mysql_inplace_alter_table(THD *thd,
       */
       (void) mysql_rename_table(db_type,
                                 &alter_ctx->new_db, &alter_ctx->new_alias,
-                                &alter_ctx->db, &alter_ctx->alias, NO_FK_CHECKS);
+                                &alter_ctx->db, &alter_ctx->alias,
+                                NO_FK_CHECKS);
       DBUG_RETURN(true);
     }
     rename_table_in_stat_tables(thd, &alter_ctx->db, &alter_ctx->alias,
@@ -8849,6 +8851,7 @@ simple_tmp_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
 static bool
 simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
                               Alter_info::enum_enable_or_disable keys_onoff,
+                              TRIGGER_RENAME_PARAM *trigger_param,
                               Alter_table_ctx *alter_ctx)
 {
   TABLE *table= table_list->table;
@@ -8895,7 +8898,7 @@ simple_rename_or_index_change(THD *thd, TABLE_LIST *table_list,
     if (mysql_rename_table(old_db_type, &alter_ctx->db, &alter_ctx->table_name,
                            &alter_ctx->new_db, &alter_ctx->new_alias, 0))
       error= -1;
-    else if (Table_triggers_list::change_table_name(thd,
+    else if (Table_triggers_list::change_table_name(thd, trigger_param,
                                                  &alter_ctx->db,
                                                  &alter_ctx->alias,
                                                  &alter_ctx->table_name,
@@ -9080,6 +9083,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
   MDL_request target_mdl_request;
   MDL_ticket *mdl_ticket= 0;
   Alter_table_prelocking_strategy alter_prelocking_strategy;
+  TRIGGER_RENAME_PARAM trigger_param;
   DBUG_ENTER("mysql_alter_table");
 
   /*
@@ -9504,6 +9508,16 @@ do_continue:;
                             create_info))
     DBUG_RETURN(true);
 
+  /* Check if rename of triggers are supported */
+  if (alter_ctx.is_table_renamed() &&
+      Table_triggers_list::prepare_for_rename(thd, &trigger_param,
+                                              &alter_ctx.db,
+                                              &alter_ctx.alias,
+                                              &alter_ctx.table_name,
+                                              &alter_ctx.new_db,
+                                              &alter_ctx.new_alias))
+    DBUG_RETURN(true);
+
   /*
     Look if we have to do anything at all.
     ALTER can become NOOP after handling
@@ -9549,6 +9563,7 @@ do_continue:;
       }
       res= simple_rename_or_index_change(thd, table_list,
                                          alter_info->keys_onoff,
+                                         &trigger_param,
                                          &alter_ctx);
     }
     else
@@ -9805,7 +9820,7 @@ do_continue:;
                                        &altered_table))
       goto err_new_table_cleanup;
     /*
-      Avoid creating frm again in ha_create_table() if inline alter will not
+      Avoid creating frm again in ha_create_table() if inplace alter will not
       be used.
     */
     frm_is_created= 1;
@@ -9879,9 +9894,12 @@ do_continue:;
       */
       enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
       thd->count_cuted_fields= CHECK_FIELD_WARN;
-      int res= mysql_inplace_alter_table(thd, table_list, table, &altered_table,
+      int res= mysql_inplace_alter_table(thd,
+                                         table_list, table, &altered_table,
                                          &ha_alter_info,
-                                         &target_mdl_request, &alter_ctx);
+                                         &target_mdl_request,
+                                         &trigger_param,
+                                         &alter_ctx);
       thd->count_cuted_fields= org_count_cuted_fields;
       my_free(const_cast<uchar*>(frm.str));
 
@@ -10216,7 +10234,7 @@ do_continue:;
   // Check if we renamed the table and if so update trigger files.
   if (alter_ctx.is_table_renamed())
   {
-    if (Table_triggers_list::change_table_name(thd,
+    if (Table_triggers_list::change_table_name(thd, &trigger_param,
                                                &alter_ctx.db,
                                                &alter_ctx.alias,
                                                &alter_ctx.table_name,

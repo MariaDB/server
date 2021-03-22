@@ -45,6 +45,18 @@ static bool add_table_for_trigger_internal(THD *thd,
                                            TABLE_LIST **table,
                                            char *trn_path_buff);
 
+/*
+  Functions for TRIGGER_RENAME_PARAM
+*/
+
+void TRIGGER_RENAME_PARAM::reset()
+{
+  delete table.triggers;
+  table.triggers= 0;
+  free_root(&table.mem_root, MYF(0));
+}
+
+
 /**
   Trigger_creation_ctx -- creation context of triggers.
 */
@@ -2206,6 +2218,80 @@ bool Trigger::change_on_table_name(void* param_arg)
 }
 
 
+/*
+  Check if we can rename triggers in change_table_name()
+  The idea is to ensure that it is close to impossible that
+  change_table_name() should fail.
+
+  @return 0 ok
+  @return 1 Error: rename of triggers would fail
+*/
+
+bool
+Table_triggers_list::prepare_for_rename(THD *thd,
+                                        TRIGGER_RENAME_PARAM *param,
+                                        const LEX_CSTRING *db,
+                                        const LEX_CSTRING *old_alias,
+                                        const LEX_CSTRING *old_table,
+                                        const LEX_CSTRING *new_db,
+                                        const LEX_CSTRING *new_table)
+{
+  TABLE *table= &param->table;
+  bool result= 0;
+  DBUG_ENTER("Table_triggers_lists::prepare_change_table_name");
+
+  init_sql_alloc(key_memory_Table_trigger_dispatcher,
+                 &table->mem_root, 8192, 0, MYF(0));
+
+  DBUG_ASSERT(my_strcasecmp(table_alias_charset, db->str, new_db->str) ||
+              my_strcasecmp(table_alias_charset, old_alias->str,
+                            new_table->str));
+
+  if (Table_triggers_list::check_n_load(thd, db, old_table, table, TRUE))
+  {
+    result= 1;
+    goto end;
+  }
+  if (table->triggers)
+  {
+    if (table->triggers->check_for_broken_triggers())
+    {
+      result= 1;
+      goto end;
+    }
+    /*
+      Since triggers should be in the same schema as their subject tables
+      moving table with them between two schemas raises too many questions.
+      (E.g. what should happen if in new schema we already have trigger
+       with same name ?).
+
+      In case of "ALTER DATABASE `#mysql50#db1` UPGRADE DATA DIRECTORY NAME"
+      we will be given table name with "#mysql50#" prefix
+      To remove this prefix we use check_n_cut_mysql50_prefix().
+    */
+    if (my_strcasecmp(table_alias_charset, db->str, new_db->str))
+    {
+      char dbname[SAFE_NAME_LEN + 1];
+      if (check_n_cut_mysql50_prefix(db->str, dbname, sizeof(dbname)) &&
+          !my_strcasecmp(table_alias_charset, dbname, new_db->str))
+      {
+        param->upgrading50to51= TRUE;
+      }
+      else
+      {
+        my_error(ER_TRG_IN_WRONG_SCHEMA, MYF(0));
+        result= 1;
+        goto end;
+      }
+    }
+  }
+
+end:
+  param->got_error= result;
+  DBUG_RETURN(result);
+}
+
+
 /**
   Update .TRG and .TRN files after renaming triggers' subject table.
 
@@ -2229,22 +2315,21 @@ bool Trigger::change_on_table_name(void* param_arg)
   @retval TRUE  Error
 */
 
-bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
+bool Table_triggers_list::change_table_name(THD *thd,
+                                            TRIGGER_RENAME_PARAM *param,
+                                            const LEX_CSTRING *db,
                                             const LEX_CSTRING *old_alias,
                                             const LEX_CSTRING *old_table,
                                             const LEX_CSTRING *new_db,
                                             const LEX_CSTRING *new_table)
 {
-  TABLE table;
+  TABLE *table= &param->table;
   bool result= 0;
   bool upgrading50to51= FALSE;
   Trigger *err_trigger;
-  DBUG_ENTER("Triggers::change_table_name");
+  DBUG_ENTER("Table_triggers_list::change_table_name");
 
-  table.reset();
-  init_sql_alloc(key_memory_Table_trigger_dispatcher,
-                 &table.mem_root, 8192, 0, MYF(0));
-
+  DBUG_ASSERT(!param->got_error);
   /*
     This method interfaces the mysql server code protected by
     an exclusive metadata lock.
@@ -2253,54 +2338,16 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
                                              old_table->str,
                                              MDL_EXCLUSIVE));
 
-  DBUG_ASSERT(my_strcasecmp(table_alias_charset, db->str, new_db->str) ||
-              my_strcasecmp(table_alias_charset, old_alias->str, new_table->str));
-
-  if (Table_triggers_list::check_n_load(thd, db, old_table, &table, TRUE))
+  if (table->triggers)
   {
-    result= 1;
-    goto end;
-  }
-  if (table.triggers)
-  {
-    if (table.triggers->check_for_broken_triggers())
-    {
-      result= 1;
-      goto end;
-    }
-    /*
-      Since triggers should be in the same schema as their subject tables
-      moving table with them between two schemas raises too many questions.
-      (E.g. what should happen if in new schema we already have trigger
-       with same name ?).
-
-      In case of "ALTER DATABASE `#mysql50#db1` UPGRADE DATA DIRECTORY NAME"
-      we will be given table name with "#mysql50#" prefix
-      To remove this prefix we use check_n_cut_mysql50_prefix().
-    */
-    if (my_strcasecmp(table_alias_charset, db->str, new_db->str))
-    {
-      char dbname[SAFE_NAME_LEN + 1];
-      if (check_n_cut_mysql50_prefix(db->str, dbname, sizeof(dbname)) &&
-          !my_strcasecmp(table_alias_charset, dbname, new_db->str))
-      {
-        upgrading50to51= TRUE;
-      }
-      else
-      {
-        my_error(ER_TRG_IN_WRONG_SCHEMA, MYF(0));
-        result= 1;
-        goto end;
-      }
-    }
-    if (unlikely(table.triggers->change_table_name_in_triggers(thd, db, new_db,
+    if (unlikely(table->triggers->change_table_name_in_triggers(thd, db, new_db,
                                                                old_alias,
                                                                new_table)))
     {
       result= 1;
       goto end;
     }
-    if ((err_trigger= table.triggers->
+    if ((err_trigger= table->triggers->
          change_table_name_in_trignames( upgrading50to51 ? db : NULL,
                                          new_db, new_table, 0)))
     {
@@ -2310,10 +2357,10 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
         We assume that we will be able to undo our changes without errors
         (we can't do much if there will be an error anyway).
       */
-      (void) table.triggers->change_table_name_in_trignames(
+      (void) table->triggers->change_table_name_in_trignames(
                                upgrading50to51 ? new_db : NULL, db,
                                old_alias, err_trigger);
-      (void) table.triggers->change_table_name_in_triggers(
+      (void) table->triggers->change_table_name_in_triggers(
                                thd, db, new_db,
                                new_table, old_alias);
       result= 1;
@@ -2322,8 +2369,6 @@ bool Table_triggers_list::change_table_name(THD *thd, const LEX_CSTRING *db,
   }
 
 end:
-  delete table.triggers;
-  free_root(&table.mem_root, MYF(0));
   DBUG_RETURN(result);
 }
 

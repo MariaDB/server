@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab.
+   Copyright (c) 2011, 2021, Monty Program Ab.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -339,6 +339,7 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
   int rc= 1;
   handlerton *hton;
   LEX_CSTRING *old_alias, *new_alias;
+  TRIGGER_RENAME_PARAM rename_param;
   DBUG_ENTER("do_rename");
   DBUG_PRINT("enter", ("skip_error: %d", (int) skip_error));
 
@@ -361,6 +362,15 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
     if (hton->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
       *force_if_exists= 1;
 
+    /* Check if we can rename triggers */
+    if (Table_triggers_list::prepare_for_rename(thd, &rename_param,
+                                                &ren_table->db,
+                                                old_alias,
+                                                &ren_table->table_name,
+                                                new_db,
+                                                new_alias))
+      DBUG_RETURN(!skip_error);
+
     thd->replication_flags= 0;
 
     if (ddl_log_rename_table(thd, ddl_log_state, hton,
@@ -379,7 +389,9 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
 
       debug_crash_here("ddl_log_rename_before_rename_trigger");
 
-      if (!(rc= Table_triggers_list::change_table_name(thd, &ren_table->db,
+      if (!(rc= Table_triggers_list::change_table_name(thd,
+                                                       &rename_param,
+                                                       &ren_table->db,
                                                        old_alias,
                                                        &ren_table->table_name,
                                                        new_db,

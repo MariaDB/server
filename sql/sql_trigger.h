@@ -79,6 +79,30 @@ struct st_trg_execution_order
 };
 
 
+/*
+  Parameter to change_table_name_in_triggers()
+*/
+
+class TRIGGER_RENAME_PARAM
+{
+public:
+  TABLE table;
+  bool upgrading50to51;
+  bool got_error;
+
+  TRIGGER_RENAME_PARAM()
+  {
+    upgrading50to51= got_error= 0;
+    table.reset();
+  }
+  ~TRIGGER_RENAME_PARAM()
+  {
+    reset();
+  }
+  void reset();
+};
+
+
 class Table_triggers_list;
 
 /**
@@ -237,7 +261,14 @@ public:
                            TABLE *table, bool names_only);
   static bool drop_all_triggers(THD *thd, const LEX_CSTRING *db,
                                 const LEX_CSTRING *table_name, myf MyFlags);
-  static bool change_table_name(THD *thd, const LEX_CSTRING *db,
+  static bool prepare_for_rename(THD *thd, TRIGGER_RENAME_PARAM *param,
+                                 const LEX_CSTRING *db,
+                                 const LEX_CSTRING *old_alias,
+                                 const LEX_CSTRING *old_table,
+                                 const LEX_CSTRING *new_db,
+                                 const LEX_CSTRING *new_table);
+  static bool change_table_name(THD *thd, TRIGGER_RENAME_PARAM *param,
+                                const LEX_CSTRING *db,
                                 const LEX_CSTRING *old_alias,
                                 const LEX_CSTRING *old_table,
                                 const LEX_CSTRING *new_db,
@@ -314,6 +345,7 @@ private:
     return false;
   }
 };
+
 
 bool add_table_for_trigger(THD *thd,
                            const sp_name *trg_name,

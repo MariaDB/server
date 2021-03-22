@@ -1160,6 +1160,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     case DDL_RENAME_PHASE_TRIGGER:
     {
       MDL_request mdl_request;
+      TRIGGER_RENAME_PARAM trigger_param;
 
       build_filename_and_delete_tmp_file(to_path, sizeof(to_path),
                                          &ddl_log_entry->db,
@@ -1195,14 +1196,20 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
         error= thd->mdl_context.acquire_lock(&mdl_request, 1);
         /* acquire_locks() should never fail during recovery */
         DBUG_ASSERT(error == 0);
-
+        (void) Table_triggers_list::prepare_for_rename(thd,
+                                                       &trigger_param,
+                                                       &ddl_log_entry->db,
+                                                       &to_table,
+                                                       &to_converted_name,
+                                                       &ddl_log_entry->from_db,
+                                                       &from_table);
         (void) Table_triggers_list::change_table_name(thd,
+                                                      &trigger_param,
                                                       &ddl_log_entry->db,
                                                       &to_table,
                                                       &to_converted_name,
                                                       &ddl_log_entry->from_db,
                                                       &from_table);
-
         thd->mdl_context.release_lock(mdl_request.ticket);
       }
       if (ddl_log_increment_phase_no_lock(entry_pos))
@@ -1725,7 +1732,6 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     }
     }
     break;
-  }
   }
   default:
     DBUG_ASSERT(0);
