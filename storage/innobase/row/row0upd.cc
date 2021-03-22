@@ -385,12 +385,12 @@ wsrep_row_upd_check_foreign_constraints(
 				entry, index, node->update,
 				foreign->n_fields))) {
 
-			if (foreign->referenced_table == NULL) {
-				foreign->referenced_table =
+			if (foreign->referenced_table() == NULL) {
+				foreign->ref_info[0].referenced_table =
 					dict_table_open_on_name(
-					  foreign->referenced_table_name_lookup,
+					  foreign->referenced_table_name_lookup(),
 					  FALSE, FALSE, DICT_ERR_IGNORE_NONE);
-				opened = (foreign->referenced_table) ? TRUE : FALSE;
+				opened = (foreign->referenced_table()) ? TRUE : FALSE;
 			}
 
 			/* NOTE that if the thread ends up waiting for a lock
@@ -401,9 +401,9 @@ wsrep_row_upd_check_foreign_constraints(
 			err = row_ins_check_foreign_constraint(
 				TRUE, foreign, table, entry, thr);
 
-			if (foreign->referenced_table) {
+			if (foreign->referenced_table()) {
 				if (opened == TRUE) {
-					dict_table_close(foreign->referenced_table, FALSE, FALSE);
+					dict_table_close(foreign->referenced_table(), FALSE, FALSE);
 					opened = FALSE;
 				}
 			}

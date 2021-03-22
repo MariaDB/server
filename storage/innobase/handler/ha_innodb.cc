@@ -9481,10 +9481,10 @@ wsrep_append_foreign_key(
 	THD* thd = trx->mysql_thd;
 
 	if (!foreign ||
-	    (!foreign->referenced_table && !foreign->foreign_table)) {
+	    (!foreign->referenced_table() && !foreign->foreign_table)) {
 		WSREP_INFO("FK: %s missing in: %s",
 			   (!foreign ? "constraint" :
-			    (!foreign->referenced_table ?
+			    (!foreign->referenced_table() ?
 			     "referenced table" : "foreign table")),
 			   wsrep_thd_query(thd));
 		return DB_ERROR;
@@ -9495,19 +9495,19 @@ wsrep_append_foreign_key(
 	size_t cache_key_len = 0;
 
 	if ( !((referenced) ?
-		foreign->referenced_table : foreign->foreign_table)) {
+		foreign->referenced_table() : foreign->foreign_table)) {
 		WSREP_DEBUG("pulling %s table into cache",
 			    (referenced) ? "referenced" : "foreign");
 		dict_sys.mutex_lock();
 
 		if (referenced) {
-			foreign->referenced_table =
+			foreign->ref_info[0].referenced_table =
 				dict_table_get_low(
-					foreign->referenced_table_name_lookup);
-			if (foreign->referenced_table) {
-				foreign->referenced_index =
+					foreign->referenced_table_name_lookup());
+			if (foreign->referenced_table()) {
+				foreign->ref_info[0].referenced_index =
 					dict_foreign_find_index(
-						foreign->referenced_table, NULL,
+						foreign->referenced_table(), NULL,
 						foreign->referenced_col_names,
 						foreign->n_fields,
 						foreign->foreign_index,
@@ -9524,7 +9524,7 @@ wsrep_append_foreign_key(
 						foreign->foreign_table, NULL,
 						foreign->foreign_col_names,
 						foreign->n_fields,
-						foreign->referenced_index,
+						foreign->referenced_index(),
 						TRUE, FALSE);
 			}
 		}
@@ -9532,9 +9532,9 @@ wsrep_append_foreign_key(
 	}
 
 	if ( !((referenced) ?
-		foreign->referenced_table : foreign->foreign_table)) {
+		foreign->referenced_table() : foreign->foreign_table)) {
 		WSREP_WARN("FK: %s missing in query: %s",
-			   (!foreign->referenced_table) ?
+			   (!foreign->referenced_table()) ?
 			   "referenced table" : "foreign table",
 			   (wsrep_thd_query(thd)) ?
 			   wsrep_thd_query(thd) : "void");
@@ -9545,9 +9545,9 @@ wsrep_append_foreign_key(
 	ulint len = WSREP_MAX_SUPPORTED_KEY_LENGTH;
 
 	dict_index_t *idx_target = (referenced) ?
-		foreign->referenced_index : index;
+		foreign->referenced_index() : index;
 	dict_index_t *idx = (referenced) ?
-		UT_LIST_GET_FIRST(foreign->referenced_table->indexes) :
+		UT_LIST_GET_FIRST(foreign->referenced_table()->indexes) :
 		UT_LIST_GET_FIRST(foreign->foreign_table->indexes);
 	int i = 0;
 
@@ -9580,7 +9580,7 @@ wsrep_append_foreign_key(
 	strncpy(cache_key,
 		(wsrep_protocol_version > 1) ?
 		((referenced) ?
-			foreign->referenced_table->name.m_name :
+			foreign->referenced_table()->name.m_name :
 			foreign->foreign_table->name.m_name) :
 		foreign->foreign_table->name.m_name, sizeof(cache_key) - 1);
 	cache_key_len = strlen(cache_key);
@@ -9600,7 +9600,7 @@ wsrep_append_foreign_key(
 		*p = '\0';
 	} else {
 		WSREP_WARN("unexpected foreign key table %s %s",
-			   foreign->referenced_table->name.m_name,
+			   foreign->referenced_table()->name.m_name,
 			   foreign->foreign_table->name.m_name);
 	}
 
@@ -9702,10 +9702,10 @@ referenced_by_foreign_key2(
              ++it) {
                 dict_foreign_t* foreign = *it;
 
-                if (foreign->referenced_index != index) {
+                if (foreign->referenced_index() != index) {
                         continue;
                 }
-                ut_ad(table == foreign->referenced_table);
+                ut_ad(table == foreign->referenced_table());
                 return true;
         }
         return false;
@@ -11890,6 +11890,8 @@ create_table_info_t::create_foreign_keys()
 			ref_share = m_form->s;
 		}
 		if (ref_share && ref_share->part_info) {
+			// Iterator over combinations of (partiton, subpartition)
+			// FIXME: make iterations in other places
 			for (auto els: *ref_share->part_info) {
 				err = create_foreign_key(
 					fk, table, number, local_fk_set,
