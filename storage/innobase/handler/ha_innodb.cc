@@ -21457,7 +21457,6 @@ dict_load_foreigns(THD* thd, dict_table_t* table, TABLE_SHARE* share,
 	DEBUG_SYNC(thd, "fk_before_dict_load_foreigns");
 
 	for (FK_info& fk : share->foreign_keys) {
-		ut_ad(!table->name.part());
 		foreign = dict_mem_foreign_create();
 		if (!innobase_set_foreign_key_option(foreign, &fk)) {
 			return DB_CANNOT_ADD_CONSTRAINT;

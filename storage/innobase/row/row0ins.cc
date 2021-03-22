@@ -1951,16 +1951,11 @@ row_ins_check_foreign_constraints(
 
 			}
 
-			dict_table_t*	ref_table = NULL;
 			dict_table_t*	referenced_table
 						= foreign->referenced_table();
 
-			if (referenced_table == NULL) {
-
-				ref_table = dict_table_open_on_name(
-					foreign->referenced_table_name_lookup(),
-					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
-			}
+			/* NOTE: referenced_table can be NULL if it doesn't
+			   exist (because it was force-dropped f.ex.). */
 
 			if (0 == trx->dict_operation_lock_mode) {
 				got_s_lock = TRUE;
@@ -1986,10 +1981,6 @@ row_ins_check_foreign_constraints(
 
 			if (got_s_lock) {
 				row_mysql_unfreeze_data_dictionary(trx);
-			}
-
-			if (ref_table != NULL) {
-				dict_table_close(ref_table, FALSE, FALSE);
 			}
 		}
 	}
