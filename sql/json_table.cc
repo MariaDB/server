@@ -811,7 +811,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
     */
     sql_f->length= sql_f->char_length;
     if (!(jc->m_explicit_cs= sql_f->charset))
-      sql_f->charset= thd->variables.collation_server;
+      sql_f->charset= &my_charset_utf8mb4_bin;
 
     if (sql_f->prepare_stage1(thd, thd->mem_root, table->file,
                               table->file->ha_table_flags()))
@@ -1148,12 +1148,12 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
       Json_table_column *jc= jc_i++;
       uint32 old_pack_length= f->pack_length();
 
-      f->change_charset(
-           jc->m_explicit_cs ? jc->m_explicit_cs : m_json->collation);
-
-      if (field_offset)
+      if (f->change_charset(
+                jc->m_explicit_cs ? jc->m_explicit_cs : m_json->collation) ||
+          field_offset)
       {
-        f->move_field(f->ptr + field_offset, f->null_ptr, f->null_bit);
+        if (field_offset)
+          f->move_field(f->ptr + field_offset, f->null_ptr, f->null_bit);
         f->reset();
       }
 

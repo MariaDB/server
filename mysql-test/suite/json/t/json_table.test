@@ -396,5 +396,10 @@ SELECT * FROM v;
 DROP VIEW v;
 
 --echo #
+--echo # MDEV-25178 JSON_TABLE: ASAN use-after-poison in my_fill_8bit / Json_table_column::On_response::respond
+--echo #
+SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(100) PATH '$' DEFAULT "0" ON ERROR)) AS jt;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

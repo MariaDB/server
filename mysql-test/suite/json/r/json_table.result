@@ -516,5 +516,11 @@ a	b
 NULL	NULL
 DROP VIEW v;
 #
+# MDEV-25178 JSON_TABLE: ASAN use-after-poison in my_fill_8bit / Json_table_column::On_response::respond
+#
+SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(100) PATH '$' DEFAULT "0" ON ERROR)) AS jt;
+a
+0
+#
 # End of 10.6 tests
 #
