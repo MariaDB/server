@@ -169,9 +169,6 @@ before_first:
 			ut_ad(!page_has_prev(block->frame));
 			rec = page_rec_get_next(rec);
 			if (page_rec_is_supremum(rec)) {
-				ut_ad(page_has_next(block->frame)
-				      || block->page.id.page_no()
-				      != index->page);
 				goto before_first;
 			}
 		}
