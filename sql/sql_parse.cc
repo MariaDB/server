@@ -1608,7 +1608,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   if (unlikely(thd->security_ctx->password_expired &&
                command != COM_QUERY &&
                command != COM_PING &&
-               command != COM_QUIT))
+               command != COM_QUIT &&
+               command != COM_STMT_PREPARE &&
+               command != COM_STMT_EXECUTE))
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     goto dispatch_end;
