@@ -236,7 +236,6 @@ static char*	innobase_server_stopword_table;
 values */
 
 static my_bool	innobase_file_format_check;
-static my_bool	innobase_use_atomic_writes;
 static my_bool	innobase_use_fallocate;
 static my_bool	innobase_use_doublewrite;
 static my_bool	innobase_use_checksums;
@@ -4314,29 +4313,20 @@ innobase_change_buffering_inited_ok:
 		ib::warn() << deprecated_idle_flush_pct;
 	}
 
-	srv_use_atomic_writes
-		= innobase_use_atomic_writes && my_may_have_atomic_write;
-        if (srv_use_atomic_writes && !srv_file_per_table)
-        {
-          fprintf(stderr, "InnoDB: Disabling atomic_writes as file_per_table is not used.\n");
-          srv_use_atomic_writes= 0;
-        }
-
-	if (srv_use_atomic_writes) {
-		fprintf(stderr, "InnoDB: using atomic writes.\n");
+#ifndef _WIN32
+	if (srv_use_atomic_writes && my_may_have_atomic_write) {
 		/*
                   Force O_DIRECT on Unixes (on Windows writes are always
                   unbuffered)
                 */
-#ifndef _WIN32
 		if (!innobase_file_flush_method ||
 			!strstr(innobase_file_flush_method, "O_DIRECT")) {
 			innobase_file_flush_method =
 				srv_file_flush_method_str = (char*)"O_DIRECT";
 			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
 		}
-#endif
 	}
+#endif
 
 #ifdef HAVE_PSI_INTERFACE
 	/* Register keys with MySQL performance schema */
@@ -20016,12 +20006,10 @@ static MYSQL_SYSVAR_BOOL(doublewrite, innobase_use_doublewrite,
   " Disable with --skip-innodb-doublewrite.",
   NULL, NULL, TRUE);
 
-static MYSQL_SYSVAR_BOOL(use_atomic_writes, innobase_use_atomic_writes,
+static MYSQL_SYSVAR_BOOL(use_atomic_writes, srv_use_atomic_writes,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Enable atomic writes, instead of using the doublewrite buffer, for files "
   "on devices that supports atomic writes. "
-  "To use this option one must use "
-  "file_per_table=1, flush_method=O_DIRECT and use_fallocate=1. "
   "This option only works on Linux with either FusionIO cards using "
   "the directFS filesystem or with Shannon cards using any file system.",
   NULL, NULL, TRUE);
