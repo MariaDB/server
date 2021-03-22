@@ -10,7 +10,7 @@
 --connection node_2
 
 #--connection node_2
-#--source suite/galera/include/galera_unload_provider.inc
+#--source suite/galera/include/galera_stop_replication.inc
 
 --echo Shutting down server ...
 --source include/shutdown_mysqld.inc
