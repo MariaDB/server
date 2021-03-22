@@ -2951,6 +2951,10 @@ dict_foreign_find_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	bool			check_period,
+					/*!< in: check if index contains
+					an application-time period
+					without overlaps*/
 	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
@@ -2974,7 +2978,7 @@ dict_foreign_find_index(
 		    && dict_foreign_qualify_index(
 			    table, col_names, columns, n_cols,
 			    index, types_idx,
-			    check_charsets, check_null,
+			    check_charsets, check_null, check_period,
 			    error, err_col_no, err_index)) {
 			if (error) {
 				*error = FK_SUCCESS;
@@ -3093,7 +3097,7 @@ dict_foreign_add_to_cache(
 			ref_table, NULL,
 			for_in_cache->referenced_col_names,
 			for_in_cache->n_fields, for_in_cache->foreign_index,
-			check_charsets, false);
+			check_charsets, false, for_in_cache->has_period);
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -3132,7 +3136,8 @@ dict_foreign_add_to_cache(
 			for_in_cache->referenced_index, check_charsets,
 			for_in_cache->type
 			& (DICT_FOREIGN_ON_DELETE_SET_NULL
-			   | DICT_FOREIGN_ON_UPDATE_SET_NULL));
+			   | DICT_FOREIGN_ON_UPDATE_SET_NULL),
+                        for_in_cache->has_period);
 
 		if (index == NULL
 		    && !(ignore_err & DICT_ERR_IGNORE_FK_NOKEY)) {
@@ -4065,13 +4070,16 @@ dict_index_calc_min_rec_len(
 	return(sum);
 }
 
+TABLE *thd_get_open_tables(const MYSQL_THD thd);
+TABLE *find_locked_table(TABLE *list, const char *db, const char *table_name);
+
 /**********************************************************************//**
 Outputs info on a foreign key of a table in a format suitable for
 CREATE TABLE. */
 std::string
 dict_print_info_on_foreign_key_in_create_format(
 /*============================================*/
-	trx_t*		trx,		/*!< in: transaction */
+	trx_t*		trx,		/*!< in: transaction, can be NULL */
 	dict_foreign_t*	foreign,	/*!< in: foreign key constraint */
 	ibool		add_newline)	/*!< in: whether to add a newline */
 {
@@ -4101,14 +4109,61 @@ dict_print_info_on_foreign_key_in_create_format(
 	str.append(innobase_quote_identifier(trx, stripped_id));
 	str.append(" FOREIGN KEY (");
 
+	const char *period_name = NULL, *ref_period_name = NULL;
+	ulint n_fields = foreign->n_fields;
+
+	if (foreign->has_period)
+	{
+		n_fields -= 2;
+		if (foreign->foreign_table->versioned())
+			n_fields--;
+
+		if (!trx)
+		{
+			return "ERROR (period)";
+		}
+
+		char	db_buf[NAME_LEN + 1];
+		char	tbl_buf[NAME_LEN + 1];
+		ulint	db_buf_len, tbl_buf_len;
+
+		if (!foreign->foreign_table->parse_name<true>(
+		        db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+			ut_ad(false);
+			return "ERROR (period)";
+		}
+		THD * thd = trx->mysql_thd;
+		TABLE *mysql_table = find_locked_table(
+						thd_get_open_tables(thd),
+						db_buf, tbl_buf);
+		DBUG_ASSERT(mysql_table);
+		period_name = mysql_table->s->period.name.str;
+
+		if (!foreign->referenced_table->parse_name<true>(
+		        db_buf, tbl_buf, &db_buf_len, &tbl_buf_len)) {
+			ut_ad(false);
+			return "ERROR (period)";
+		}
+		mysql_table = find_locked_table(thd_get_open_tables(thd),
+						db_buf, tbl_buf);
+		DBUG_ASSERT(mysql_table);
+		ref_period_name = mysql_table->s->period.name.str;
+	}
+
 	for (i = 0;;) {
 		str.append(innobase_quote_identifier(trx, foreign->foreign_col_names[i]));
 
-		if (++i < foreign->n_fields) {
+		if (++i < n_fields) {
 			str.append(", ");
 		} else {
 			break;
 		}
+	}
+
+	if (foreign->has_period)
+	{
+		str.append(", period ");
+		str.append(innobase_quote_identifier(trx, period_name));
 	}
 
 	str.append(") REFERENCES ");
@@ -4130,11 +4185,17 @@ dict_print_info_on_foreign_key_in_create_format(
 		str.append(innobase_quote_identifier(trx,
 				foreign->referenced_col_names[i]));
 
-		if (++i < foreign->n_fields) {
+		if (++i < n_fields) {
 			str.append(", ");
 		} else {
 			break;
 		}
+	}
+
+	if (foreign->has_period)
+	{
+		str.append(", period ");
+		str.append(innobase_quote_identifier(trx, ref_period_name));
 	}
 
 	str.append(")");
@@ -4610,7 +4671,7 @@ dict_foreign_replace_index(
 				foreign->foreign_col_names,
 				foreign->n_fields, index,
 				/*check_charsets=*/TRUE, /*check_null=*/FALSE,
-				NULL, NULL, NULL);
+				foreign->has_period, NULL, NULL, NULL);
 			if (new_index) {
 				ut_ad(new_index->table == index->table);
 				ut_ad(!new_index->to_be_dropped);
@@ -4635,7 +4696,7 @@ dict_foreign_replace_index(
 				foreign->referenced_col_names,
 				foreign->n_fields, index,
 				/*check_charsets=*/TRUE, /*check_null=*/FALSE,
-				NULL, NULL, NULL);
+				foreign->has_period, NULL, NULL, NULL);
 			/* There must exist an alternative index,
 			since this must have been checked earlier. */
 			if (new_index) {
@@ -5132,6 +5193,10 @@ dict_foreign_qualify_index(
 					/*!< in: nonzero if none of
 					the columns must be declared
 					NOT NULL */
+	bool			check_period,
+					/*!< in: check if index contains
+					an application-time period
+					without overlaps*/
 	fkerr_t*		error,	/*!< out: error code */
 	ulint*			err_col_no,
 					/*!< out: column number where
@@ -5142,6 +5207,26 @@ dict_foreign_qualify_index(
 {
 	if (dict_index_get_n_fields(index) < n_cols) {
 		return(false);
+	}
+
+	if (check_period) {
+		if ((index->type & DICT_PERIOD) == 0) {
+			return(false);
+		}
+
+		/* Despite it is theoretically possible to construct such
+		   an index with period not at the last positions,
+		   it is not supported at least for now.
+		*/
+		if (dict_index_get_n_ordering_defined_by_user(index) != n_cols){
+			return(false);
+		}
+		auto pstart = dict_index_get_nth_field(index, n_cols - 1);
+		auto pend = dict_index_get_nth_field(index, n_cols - 2);
+		if ((pstart->col->prtype & DATA_PERIOD_START) == 0
+		    || (pend->col->prtype & DATA_PERIOD_END) == 0) {
+			return false;
+		}
 	}
 
 	if (index->type & (DICT_SPATIAL | DICT_FTS | DICT_CORRUPT)) {

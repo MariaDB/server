@@ -347,6 +347,13 @@ dict_mem_table_add_col(
 		ut_ad(!table->vers_end);
 		table->vers_end = i & dict_index_t::MAX_N_FIELDS;
 	}
+	if (prtype & DATA_PERIOD_START) {
+		table->period_start = i;
+		table->has_period = true;
+	} else if (prtype & DATA_PERIOD_END) {
+		table->period_end = i;
+		table->has_period = true;
+	}
 }
 
 /** Adds a virtual column definition to a table.
@@ -611,7 +618,7 @@ dict_mem_table_col_rename_low(
 				foreign->foreign_table, NULL,
 				foreign->foreign_col_names,
 				foreign->n_fields, NULL, true, false,
-				NULL, NULL, NULL);
+				foreign->has_period, NULL, NULL, NULL);
 
 		} else {
 

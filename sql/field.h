@@ -776,8 +776,13 @@ public:
    */
   virtual void set_max()
   { DBUG_ASSERT(0); }
-  virtual bool is_max()
+  virtual bool is_max_in_ptr(const uchar *ptr_arg) const
   { DBUG_ASSERT(0); return false; }
+  bool is_max(const uchar *record) const
+  {
+    return is_max_in_ptr(ptr_in_record(record));
+  }
+  bool is_max() const { return is_max_in_ptr(ptr); }
 
   uchar		*ptr;			// Position to field in record
 
@@ -1118,7 +1123,7 @@ public:
   */
   virtual uint32 sort_suffix_length() const { return 0; }
 
-  /* 
+  /*
     Get the number bytes occupied by the value in the field.
     CHAR values are stripped of trailing spaces.
     Flexible values are stripped of their length.
@@ -1548,7 +1553,8 @@ public:
 
   uint get_key_image(uchar *buff, uint length, imagetype type_arg) const
   { return get_key_image(buff, length, ptr, type_arg); }
-  virtual uint get_key_image(uchar *buff, uint length, const uchar *ptr_arg, imagetype type_arg) const
+  virtual uint get_key_image(uchar *buff, uint length,
+                             const uchar *ptr_arg, imagetype type_arg) const
   {
     get_image(buff, length, ptr_arg, &my_charset_bin);
     return length;
@@ -2770,7 +2776,7 @@ public:
     return unpack_int64(to, from, from_end);
   }
   void set_max() override;
-  bool is_max() override;
+  bool is_max_in_ptr(const uchar *ptr_arg) const override;
   ulonglong get_max_int_value() const override
   {
     return unsigned_flag ? 0xFFFFFFFFFFFFFFFFULL : 0x7FFFFFFFFFFFFFFFULL;
@@ -3355,7 +3361,7 @@ public:
     return memcmp(a_ptr, b_ptr, pack_length());
   }
   void set_max() override;
-  bool is_max() override;
+  bool is_max_in_ptr(const uchar *ptr_arg) const override;
   my_time_t get_timestamp(const uchar *pos, ulong *sec_part) const override;
   bool val_native(Native *to) override;
   uint size_of() const override { return sizeof *this; }

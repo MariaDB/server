@@ -1804,7 +1804,7 @@ ER_WRONG_AUTO_KEY 42000 S1009
 ER_BINLOG_CANT_DELETE_GTID_DOMAIN
 	eng "Could not delete gtid domain. Reason: %s."
         ukr "Не можу видалити домен gtid. Причина: %s."
-ER_NORMAL_SHUTDOWN  
+ER_NORMAL_SHUTDOWN
         cze "%s (%s): normální ukončení"
         dan "%s (%s): Normal nedlukning"
         nla "%s (%s): Normaal afgesloten "
@@ -2205,7 +2205,7 @@ ER_UPDATE_TABLE_USED
         eng "Table '%-.192s' is specified twice, both as a target for '%s' and as a separate source for data"
         swe "Table '%-.192s' är använd två gånger. Både för '%s' och för att hämta data"
         ukr "Таблиця '%-.192s' вказується двічі, як цільова для '%s', так і як окреме джерело даних"
-ER_NO_SUCH_THREAD  
+ER_NO_SUCH_THREAD
         cze "Neznámá identifikace threadu: %lu"
         dan "Ukendt tråd id: %lu"
         nla "Onbekend thread id: %lu"
@@ -2827,7 +2827,7 @@ ER_NULL_COLUMN_IN_INDEX 42000
         eng "Table handler doesn't support NULL in given index. Please change column '%-.192s' to be NOT NULL or use another handler"
         swe "Tabell hanteraren kan inte indexera NULL kolumner för den givna index typen. Ändra '%-.192s' till NOT NULL eller använd en annan hanterare"
         ukr "Вказівник таблиці не підтримує NULL у зазначенному індексі. Будь ласка, зменіть стовпчик '%-.192s' на NOT NULL або використайте інший вказівник таблиці."
-ER_CANT_FIND_UDF  
+ER_CANT_FIND_UDF
         cze "Nemohu načíst funkci '%-.192s'"
         dan "Kan ikke læse funktionen '%-.192s'"
         nla "Kan functie '%-.192s' niet laden"
@@ -4483,7 +4483,7 @@ ER_UNION_TABLES_IN_DIFFERENT_DIR
         spa "Incorrecta definición de la tabla; Todas las tablas MERGE deben estar en el mismo banco de datos"
         swe "Felaktig tabelldefinition; alla tabeller i en MERGE-tabell måste vara i samma databas"
         ukr "Хибне визначення таблиці; всі MERGE-таблиці повинні належити до однієї бази ланних."
-ER_LOCK_DEADLOCK 40001 
+ER_LOCK_DEADLOCK 40001
         nla "Deadlock gevonden tijdens lock-aanvraag poging; Probeer herstart van de transactie"
         eng "Deadlock found when trying to get lock; try restarting transaction"
         est "Lukustamisel tekkis tupik (deadlock); alusta transaktsiooni otsast"
@@ -4497,7 +4497,7 @@ ER_LOCK_DEADLOCK 40001
         spa "Encontrado deadlock cuando tentando obtener el bloqueo; Tente recomenzar la transición"
         swe "Fick 'DEADLOCK' vid låsförsök av block/rad. Försök att starta om transaktionen"
         ukr "Взаємне блокування знайдено під час спроби отримати блокування; спробуйте перезапустити транзакцію."
-ER_TABLE_CANT_HANDLE_FT  
+ER_TABLE_CANT_HANDLE_FT
         nla "Het gebruikte tabel type (%s) ondersteund geen FULLTEXT indexen"
         eng "The storage engine %s doesn't support FULLTEXT indexes"
         est "Antud tabelitüüp (%s) ei toeta FULLTEXT indekseid"
@@ -4524,7 +4524,7 @@ ER_CANNOT_ADD_FOREIGN
         spa "No puede adicionar clave extranjera constraint para `%s`"
         swe "Kan inte lägga till 'FOREIGN KEY constraint' för `%s`'"
         ukr "Не можу додати обмеження зовнішнього ключа Ha `%s`"
-ER_NO_REFERENCED_ROW 23000 
+ER_NO_REFERENCED_ROW 23000
         nla "Kan onderliggende rij niet toevoegen: foreign key beperking gefaald"
         eng "Cannot add or update a child row: a foreign key constraint fails"
         fre "Impossible d'ajouter un enregistrement fils : une constrainte externe l'empèche"
@@ -4539,7 +4539,7 @@ ER_NO_REFERENCED_ROW 23000
         spa "No puede adicionar una línea hijo: falla de clave extranjera constraint"
         swe "FOREIGN KEY-konflikt:  Kan inte skriva barn"
         ukr "Не вдається додати або оновити дочірній рядок: невдала перевірка обмеження зовнішнього ключа"
-ER_ROW_IS_REFERENCED 23000 
+ER_ROW_IS_REFERENCED 23000
         eng "Cannot delete or update a parent row: a foreign key constraint fails"
         fre "Impossible de supprimer un enregistrement père : une constrainte externe l'empèche"
         ger "Löschen oder Aktualisieren eines Eltern-Datensatzes schlug aufgrund einer Fremdschlüssel-Beschränkung fehl"
@@ -7969,3 +7969,7 @@ ER_FUNCTION_CANNOT_BE_USED_IN_CLAUSE
         eng "Function '%s' cannot be used in the %s clause"
 ER_ORACLE_COMPAT_FUNCTION_ERROR
         eng "Oracle compatibility function error: %s"
+ER_PERIOD_FK_TYPES_MISMATCH
+        eng "Fields of %`s and %`s.%`s.%`s have different types"
+ER_PERIOD_FK_NOT_FOUND
+        eng "Period %`s is not found in referenced table %`s.%`s"

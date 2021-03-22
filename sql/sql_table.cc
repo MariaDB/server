@@ -2860,6 +2860,38 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       bool self_ref;
       if (!fk_key->ignore && fk_key->validate(db, table_name, alter_info->create_list, self_ref))
         DBUG_RETURN(TRUE);
+
+      if (fk_key->ref_period)
+      {
+        auto *ref_table= fk_key->ref_table_list->table->s;
+        if (!fk_key->ref_period.streq(ref_table->period.name))
+        {
+          my_error(ER_PERIOD_FK_NOT_FOUND, MYF(0), fk_key->ref_period.str,
+                   ref_table->db.str, ref_table->table_name.str);
+        }
+
+        Create_field *period_start= NULL;
+        List_iterator_fast<Create_field> fit(alter_info->create_list);
+        while(auto *f= fit++)
+        {
+          if (create_info->period_info.period.start.streq(f->field_name))
+          {
+            period_start= f;
+            break;
+          }
+        }
+        DBUG_ASSERT(period_start);
+
+        auto *ref_period_start= ref_table->period.start_field(ref_table);
+
+        if (ref_period_start->type_handler() != period_start->type_handler()
+            || ref_period_start->pack_length() != period_start->pack_length)
+        {
+          my_error(ER_PERIOD_FK_TYPES_MISMATCH, MYF(0), fk_key->period.str,
+                   ref_table->db.str, ref_table->table_name.str,
+                   ref_table->period.name.str);
+        }
+      }
     }
     (*key_count)++;
     tmp=file->max_key_parts();
@@ -3867,10 +3899,29 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
   const Lex_ident &row_end_field= create_info->vers_info.as_row.end;
   DBUG_ASSERT(!create_info->versioned() || (row_start_field && row_end_field));
 
-  int result = 0;
+  int old_columns = key->columns.elements;
+
   if (create_info->versioned() && (key->type == Key::PRIMARY
                                    || key->type == Key::UNIQUE))
   {
+    if (!key->period && key->type != Key::PRIMARY && key->type != Key::UNIQUE)
+      return 0;
+
+    Foreign_key *fk = nullptr;
+    if (key->foreign)
+    {
+      fk= static_cast<Foreign_key *>(key);
+
+      if (fk->ref_table_list->table &&
+          fk->ref_table_list->table->versioned() != create_info->versioned())
+      {
+        my_error(ER_WRONG_FK_DEF, MYF(0), create_info->alias.str,
+                 create_info->versioned() ? "ADD SYSTEM VERSIONING"
+                                          : "DROP SYSTEM VERSIONING");
+        return -1;
+      }
+    }
+
     Key_part_spec *key_part=NULL;
     List_iterator<Key_part_spec> part_it(key->columns);
     while ((key_part=part_it++))
@@ -3879,18 +3930,26 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
           row_end_field.streq(key_part->field_name))
         break;
     }
-    if (!key_part)
+    if (!key_part || key->foreign)
     {
-      key->columns.push_back(new (thd->mem_root)
-                               Key_part_spec(&row_end_field, 0, true));
-      result++;
+      key->columns.push_back(new Key_part_spec(&row_end_field, 0));
     }
 
+    if (key->foreign)
+    {
+      const LEX_CSTRING *ref_vers_end= &row_end_field;
+      if (fk->ref_table_list->table)
+        ref_vers_end= &fk->ref_table_list->table->vers_end_field()->field_name;
+
+      fk->ref_columns.push_back(new Key_part_spec(ref_vers_end, 0));
+    }
   }
 
-  if (key->without_overlaps)
+  if (key->period)
   {
-    DBUG_ASSERT(key->type == Key::PRIMARY || key->type == Key::UNIQUE);
+    DBUG_ASSERT(key->without_overlaps || key->foreign);
+    DBUG_ASSERT(key->type == Key::PRIMARY || key->type == Key::UNIQUE
+                || key->foreign);
     if (!create_info->period_info.is_set()
         || !key->period.streq(create_info->period_info.name))
     {
@@ -3911,15 +3970,23 @@ static int append_system_key_parts(THD *thd, HA_CREATE_INFO *create_info,
         return -1;
       }
     }
-    const auto &period= create_info->period_info.period;
-    key->columns.push_back(new (thd->mem_root)
-                           Key_part_spec(&period.end, 0, true));
-    key->columns.push_back(new (thd->mem_root)
-                           Key_part_spec(&period.start, 0, true));
-    result += 2;
+
+    key->columns.push_back(new Key_part_spec(&period_end, 0));
+    key->columns.push_back(new Key_part_spec(&period_start, 0));
+
+    if (key->foreign)
+    {
+      auto *fk= static_cast<Foreign_key*>(key);
+      const auto &ref_period= fk->ref_table_list->table->s->period;
+      const auto *field= fk->ref_table_list->table->field;
+      const auto &ref_period_start= field[ref_period.start_fieldno]->field_name;
+      const auto &ref_period_end= field[ref_period.end_fieldno]->field_name;
+      fk->ref_columns.push_back(new Key_part_spec(&ref_period_end, 0));
+      fk->ref_columns.push_back(new Key_part_spec(&ref_period_start, 0));
+    }
   }
 
-  return result;
+  return key->columns.elements - old_columns;
 }
 
 handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
@@ -8337,8 +8404,8 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key= new (thd->mem_root) Key(key_type, &tmp_name, &key_create_info,
                    MY_TEST(key_info->flags & HA_GENERATED_KEY),
                    &key_parts, key_info->option_list, DDL_options());
-      key->without_overlaps= key_info->without_overlaps;
       key->period= table->s->period.name;
+      key->without_overlaps= key_info->without_overlaps;
       new_key_list.push_back(key, thd->mem_root);
     }
     if (long_hash_key)
@@ -10088,6 +10155,11 @@ do_continue:;
           break;
         }
       }
+    }
+    for (uint i= 0; i < table->s->keys; i++)
+    {
+      if (table->key_info[i].without_overlaps)
+        ha_alter_info.inplace_supported= HA_ALTER_INPLACE_NOT_SUPPORTED;
     }
 
     if (alter_info->supports_algorithm(thd, &ha_alter_info) ||

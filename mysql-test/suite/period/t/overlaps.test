@@ -5,6 +5,25 @@
 
 let $default_engine= `select @@default_storage_engine`;
 
+
+create or replace table t(id int, s date, e date,
+                          period for p(s,e));
+
+insert into t values (1, '2003-01-01', '2003-03-01'),
+                     (1, '2003-05-01', '2003-07-01'),
+                     (1, '2003-02-01', '2003-04-01');
+
+--replace_regex /#sql-\w+/#sql-temp/
+--error ER_DUP_ENTRY
+alter table t add primary key(id, p without overlaps);
+
+--echo # Historical rows are not checked against constraints
+set @@system_versioning_alter_history= keep;
+alter table t add system versioning;
+delete from t;
+alter table t add primary key(id, p without overlaps);
+
+
 create or replace table t(id int, s date, e date,
                           period for p(s,e),
                           primary key(id, p without overlaps)

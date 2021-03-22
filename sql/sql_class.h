@@ -675,7 +675,7 @@ public:
      type(type_par), foreign(false), generated(generated_arg),
      invisible(false), without_overlaps(false), ignore(false),
      key_create_info(default_key_create_info),
-     name(*name_arg), option_list(NULL)
+     name(*name_arg), option_list(NULL), period{}
   {
     key_create_info.algorithm= algorithm_arg;
   }
@@ -687,7 +687,7 @@ public:
      type(type_par), foreign(false), generated(generated_arg),
      invisible(false), without_overlaps(false), ignore(false),
      key_create_info(*key_info_arg), columns(*cols),
-     name(*name_arg), option_list(create_opt)
+     name(*name_arg), option_list(create_opt), period{}
   {}
   Key(const Key &rhs, MEM_ROOT *mem_root);
   virtual ~Key() {}
@@ -709,6 +709,7 @@ public:
   LEX_CSTRING ref_table;
   TABLE_LIST *ref_table_list;
   List<Key_part_spec> ref_columns;
+  Lex_ident ref_period;
   st_fk_options fk_options;
   Foreign_key(const LEX_CSTRING *name_arg,
               const LEX_CSTRING *constraint_name_arg,
@@ -739,6 +740,9 @@ public:
       if (!kp || ref_columns.push_back(kp, mem_root))
         return;
     }
+
+    period= src.period;
+    ref_period= src.ref_period;
 
     foreign= true; // false means failed initialization
   }

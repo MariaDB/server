@@ -1248,6 +1248,9 @@ ulonglong Foreign_key_io::fk_size(FK_info &fk)
     store_size+= string_size(fk.foreign_fields[i]);
     store_size+= string_size(fk.referenced_fields[i]);
   }
+  if (fk.period.defined())
+    store_size+= string_size(fk.period) + string_size(fk.ref_period);
+
   return store_size;
 }
 
@@ -1279,6 +1282,9 @@ void Foreign_key_io::store_fk(FK_info &fk, uchar *&pos)
     pos= store_string(pos, fk.referenced_db, true);
     pos= store_string(pos, fk.referenced_table);
   }
+  static_assert(PERIOD_MASK > FK_OPTION_LAST,
+                "period bit is stored as bit 4 in the format");
+  int period_flag = fk.period.defined() << PERIOD_BIT;
   pos= store_length(pos, fk.update_method);
   pos= store_length(pos, fk.delete_method);
   pos= store_length(pos, fk.foreign_fields.size());
@@ -1287,6 +1293,11 @@ void Foreign_key_io::store_fk(FK_info &fk, uchar *&pos)
   {
     pos= store_string(pos, fk.foreign_fields[i]);
     pos= store_string(pos, fk.referenced_fields[i]);
+  }
+  if (fk.period.defined())
+  {
+    pos= store_string(pos, fk.period);
+    pos= store_string(pos, fk.ref_period);
   }
   DBUG_ASSERT(pos - old_pos == (long int)fk_size(fk));
 }
@@ -1410,7 +1421,8 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
       return true;
     if (update_method > FK_OPTION_SET_DEFAULT || delete_method > FK_OPTION_SET_DEFAULT)
       return true;
-    dst->update_method= (enum_fk_option) update_method;
+    bool has_period= update_method & PERIOD_MASK;
+    dst->update_method= (enum_fk_option) (update_method & ~PERIOD_MASK);
     dst->delete_method= (enum_fk_option) delete_method;
     size_t col_count;
     if (read_length(col_count, p))
@@ -1425,6 +1437,13 @@ bool Foreign_key_io::parse(THD *thd, TABLE_SHARE *s, LEX_CUSTRING& image)
       if (read_string(dst->foreign_fields[j], &s->mem_root, p))
         return true;
       if (read_string(dst->referenced_fields[j], &s->mem_root, p))
+        return true;
+    }
+    if (has_period)
+    {
+      if (read_string(dst->period, &s->mem_root, p))
+        return true;
+      if (read_string(dst->ref_period, &s->mem_root, p))
         return true;
     }
     /* If it is self-reference we also push to referenced_keys: */
@@ -1587,6 +1606,16 @@ bool TABLE_SHARE::fk_resolve_referenced_keys(THD *thd, TABLE_SHARE *from)
         push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_CANNOT_ADD_FOREIGN,
                             "Missing field `%s` hint table `%s.%s` refers to",
                             fld.str, from->db.str, from->table_name.str);
+        return true;
+      }
+      if (fk.ref_period.defined() && fk.ref_period.cmp(period.name) != 0)
+      {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_CANNOT_ADD_FOREIGN,
+                            "Period `%s` hint table `%s.%s` refers to"
+                            " does not exist",
+                            fk.ref_period.str, from->db.str,
+                            from->table_name.str);
         return true;
       }
     }

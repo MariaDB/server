@@ -2122,7 +2122,8 @@ dict_load_indexes(
 		subsequent checks are relevant for the supported types. */
 		if (index->type & ~(DICT_CLUSTERED | DICT_UNIQUE
 				    | DICT_CORRUPT | DICT_FTS
-				    | DICT_SPATIAL | DICT_VIRTUAL)) {
+				    | DICT_SPATIAL | DICT_VIRTUAL
+				    | DICT_PERIOD)) {
 
 			ib::error() << "Unknown type " << index->type
 				<< " of index " << index->name

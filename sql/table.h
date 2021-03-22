@@ -1257,6 +1257,7 @@ struct st_cond_statistic;
 class SplM_opt_info;
 
 struct vers_select_conds_t;
+struct FOREIGN_KEY;
 
 struct TABLE
 {
@@ -1317,6 +1318,9 @@ public:
   Field *next_number_field;		/* Set if next_number is activated */
   Field *found_next_number_field;	/* Set on open */
   Virtual_column_info **check_constraints;
+
+  st_::span<FOREIGN_KEY> foreign;
+  st_::span<FOREIGN_KEY> referenced;
 
   /* Table's triggers, 0 if there are no of them */
   Table_triggers_list *triggers;
@@ -1845,7 +1849,8 @@ enum enum_schema_table_state
 };
 
 enum enum_fk_option { FK_OPTION_UNDEF= 0, FK_OPTION_RESTRICT, FK_OPTION_CASCADE,
-               FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_SET_DEFAULT};
+               FK_OPTION_SET_NULL, FK_OPTION_NO_ACTION, FK_OPTION_SET_DEFAULT,
+               FK_OPTION_LAST= FK_OPTION_SET_DEFAULT};
 
 enum fk_match_opt { FK_MATCH_UNDEF, FK_MATCH_FULL,
   FK_MATCH_PARTIAL, FK_MATCH_SIMPLE};
@@ -1876,6 +1881,8 @@ public:
   Lex_cstring referenced_table;
   st_::span<Lex_cstring> foreign_fields;
   st_::span<Lex_cstring> referenced_fields;
+  Lex_cstring period;
+  Lex_cstring ref_period;
   enum_fk_option update_method;
   enum_fk_option delete_method;
 
@@ -1932,6 +1939,18 @@ typedef class FK_info FOREIGN_KEY_INFO;
 
 LEX_CSTRING *fk_option_name(enum_fk_option opt);
 bool fk_modifies_child(enum_fk_option opt);
+
+struct FOREIGN_KEY
+{
+  uint foreign_key_nr;
+  uint referenced_key_nr;
+  KEY *foreign_key;
+  KEY *referenced_key;
+  uint fields_num;
+  bool has_period;
+  enum_fk_option update_method;
+  enum_fk_option delete_method;
+};
 
 class IS_table_read_plan;
 
@@ -2697,7 +2716,7 @@ struct TABLE_LIST
   }
   void print(THD *thd, table_map eliminated_tables, String *str, 
              enum_query_type query_type);
-  bool check_single_table(TABLE_LIST **table, table_map map,
+  bool check_single_table(TABLE_LIST **table, table_map map_arg,
                           TABLE_LIST *view);
   bool set_insert_values(MEM_ROOT *mem_root);
   void hide_view_error(THD *thd);

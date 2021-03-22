@@ -182,6 +182,8 @@ class Foreign_key_io: public BinaryStringBuffer<512>
 {
 public:
   static const ulonglong fk_io_version= 0;
+  static constexpr uint PERIOD_BIT = 4;
+  static constexpr uint PERIOD_MASK = 1 << PERIOD_BIT;
   struct Pos
   {
     uchar *pos;
