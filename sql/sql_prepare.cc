@@ -4386,6 +4386,7 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     thd->restore_backup_statement(this, &stmt_backup);
     thd->restore_active_arena(this, &stmt_backup);
     thd->stmt_arena= old_stmt_arena;
+    thd->cur_stmt = save_cur_stmt;
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     DBUG_RETURN(true);
   }
