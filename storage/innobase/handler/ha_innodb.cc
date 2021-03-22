@@ -21044,11 +21044,6 @@ static MYSQL_SYSVAR_BOOL(master_thread_disabled_debug,
   PLUGIN_VAR_OPCMDARG,
   "Disable master thread",
   NULL, srv_master_thread_disabled_debug_update, FALSE);
-
-static MYSQL_SYSVAR_UINT(simulate_comp_failures, srv_simulate_comp_failures,
-  PLUGIN_VAR_NOCMDARG,
-  "Simulate compression failures.",
-  NULL, NULL, 0, 0, 99, 0);
 #endif /* UNIV_DEBUG */
 
 static MYSQL_SYSVAR_BOOL(force_primary_key,
@@ -21392,7 +21387,6 @@ static struct st_mysql_sys_var* innobase_system_variables[]= {
   MYSQL_SYSVAR(compression_pad_pct_max),
   MYSQL_SYSVAR(default_row_format),
 #ifdef UNIV_DEBUG
-  MYSQL_SYSVAR(simulate_comp_failures),
   MYSQL_SYSVAR(trx_rseg_n_slots_debug),
   MYSQL_SYSVAR(limit_optimistic_insert_debug),
   MYSQL_SYSVAR(trx_purge_view_update_only_debug),
