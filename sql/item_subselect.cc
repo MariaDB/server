@@ -1586,10 +1586,10 @@ bool Item_exists_subselect::fix_length_and_dec()
 {
   DBUG_ENTER("Item_exists_subselect::fix_length_and_dec");
   init_length_and_dec();
+  Item *select_limit= unit->global_parameters()->limit_params.select_limit;
   // If limit is not set or it is constant more than 1
-  if (!unit->global_parameters()->limit_params.select_limit ||
-      (unit->global_parameters()->limit_params.select_limit->basic_const_item() &&
-       unit->global_parameters()->limit_params.select_limit->val_int() > 1))
+  if (!select_limit ||
+      (select_limit->basic_const_item() && select_limit->val_int() > 1))
   {
     /*
        We need only 1 row to determine existence (i.e. any EXISTS that is not
@@ -2779,9 +2779,9 @@ bool Item_in_subselect::inject_in_to_exists_cond(JOIN *join_arg)
     select_lex->having->top_level_item();
     join_arg->having= select_lex->having;
   }
-  join_arg->thd->change_item_tree(
-      &unit->global_parameters()->limit_params.select_limit,
-      new (thd->mem_root) Item_int(thd, (int32) 1));
+  DBUG_ASSERT(thd == join_arg->thd);
+  join_arg->thd->change_item_tree(&unit->global_parameters()-> limit_params.select_limit,
+                                  new (thd->mem_root) Item_int(thd, (int32) 1));
   unit->lim.set_single_row();
 
   DBUG_RETURN(false);
