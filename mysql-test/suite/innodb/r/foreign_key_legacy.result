@@ -555,21 +555,18 @@ INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t2_ibfk_1', 0, 'y', 'x');";
 set session debug_dbug= @saved_debug_dbug;
 check table t2;
 connect  con2,localhost,root,,test;
-set session debug_dbug= "+d,fk_create_legacy_storage";
 set global innodb_eval_sql="BEGIN
 INSERT INTO SYS_FOREIGN VALUES ('test/t3_ibfk_1', 'test/t3', 'test/t1', 1);
 INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t3_ibfk_1', 0, 'y', 'x');";
 set session debug_dbug= @saved_debug_dbug;
 check table t3;
 connect  con3,localhost,root,,test;
-set session debug_dbug= "+d,fk_create_legacy_storage";
 set global innodb_eval_sql="BEGIN
 INSERT INTO SYS_FOREIGN VALUES ('test/t4_ibfk_1', 'test/t4', 'test/t1', 1);
 INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t4_ibfk_1', 0, 'y', 'x');";
 set session debug_dbug= @saved_debug_dbug;
 check table t4;
 connection default;
-set session debug_dbug= "+d,fk_create_legacy_storage";
 set global innodb_eval_sql="BEGIN
 INSERT INTO SYS_FOREIGN VALUES ('test/t5_ibfk_1', 'test/t5', 'test/t1', 1);
 INSERT INTO SYS_FOREIGN_COLS VALUES ('test/t5_ibfk_1', 0, 'y', 'x');";
