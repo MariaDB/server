@@ -642,12 +642,26 @@ public:
 
 	/** Create InnoDB foreign keys from MySQL alter_info. */
 	dberr_t create_foreign_keys();
-	dberr_t create_foreign_key(
-		FK_info* fk, dict_table_t* table, ulint &number,
-		dict_foreign_set &local_fk_set, const char** column_names,
-		const char** ref_column_names, char* create_name,
-		const char* operation, const char* part_name,
-		const char* subpart_name);
+	struct create_foreign_key_t
+	{
+		// in/out:
+		FK_info* fk; dict_table_t* table;
+		dict_foreign_set &local_fk_set; const char** column_names;
+		const char** ref_column_names; char* create_name;
+		const char* operation; TABLE_SHARE *ref_share;
+		// out:
+		dict_foreign_t *foreign = NULL;
+		create_foreign_key_t(
+			FK_info* _fk, dict_table_t* _table,
+			dict_foreign_set &_local_fk_set, const char** _column_names,
+			const char** _ref_column_names, char* _create_name,
+			const char* _operation, TABLE_SHARE *_ref_share) :
+			fk{_fk}, table{_table},
+			local_fk_set{_local_fk_set}, column_names{_column_names},
+			ref_column_names{_ref_column_names}, create_name{_create_name},
+			operation{_operation}, ref_share{_ref_share} {}
+	};
+	dberr_t create_foreign_key(create_foreign_key_t args);
 
 	/** Create the internal innodb table.
 	@param create_fk	whether to add FOREIGN KEY constraints */
@@ -794,6 +808,11 @@ private:
 
 	/** Table flags2 */
 	ulint		m_flags2;
+
+	dberr_t get_referenced_table(foreign_ref_info &ref_info,
+				     create_foreign_key_t args,
+				     const char* part_name,
+				     const char* subpart_name);
 };
 
 /**

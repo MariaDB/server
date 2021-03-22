@@ -57,6 +57,7 @@ Created 1/8/1996 Heikki Tuuri
 
 /* Forward declaration. */
 struct ib_rbt_t;
+struct foreign_ref_info;
 
 /** Type flags of an index: OR'ing of the flags is allowed to define a
 combination of types */
@@ -430,7 +431,7 @@ dict_mem_index_free(
 Creates and initializes a foreign constraint memory object.
 @return own: foreign constraint struct */
 dict_foreign_t*
-dict_mem_foreign_create(void);
+dict_mem_foreign_create(bool add_refinfo= true); // FIXME: remove add_refinfo
 /*=========================*/
 
 /**********************************************************************//**
@@ -450,10 +451,8 @@ lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
 will point to referenced_table_name.  If 2, then another string is
 allocated from the heap and set to lower case. */
 void
-dict_mem_referenced_table_name_lookup_set(
-/*======================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc);	/*!< in: is an alloc needed */
+dict_mem_referenced_table_name_lookup_set(foreign_ref_info& ref_info,
+					  mem_heap_t* heap);
 
 /** Fills the dependent virtual columns in a set.
 Reason for being dependent are
@@ -1405,7 +1404,7 @@ typedef std::set<dict_v_col_t*, std::less<dict_v_col_t*>,
 		ut_allocator<dict_v_col_t*> >		dict_vcol_set;
 
 
-struct dict_foreign_ref_info {
+struct foreign_ref_info {
 	char*		referenced_table_name;/*!< referenced table name */
 	char*		referenced_table_name_lookup;
 				/*!< referenced table name for dict lookup*/
@@ -1417,7 +1416,7 @@ struct dict_foreign_ref_info {
 	{
 		const dict_index_t* m_index;
 		check_index(const dict_index_t* index) : m_index(index) {}
-		bool operator()(const dict_foreign_ref_info& i) const
+		bool operator()(const foreign_ref_info& i) const
 		{
 			return i.referenced_index == m_index;
 		}
@@ -1427,14 +1426,15 @@ struct dict_foreign_ref_info {
 	{
 		const dict_table_t* m_table;
 		check_table(const dict_table_t* table) : m_table(table) {}
-		bool operator()(const dict_foreign_ref_info& i) const
+		bool operator()(const foreign_ref_info& i) const
 		{
 			return i.referenced_table == m_table;
 		}
 	};
 };
 
-typedef std::vector<dict_foreign_ref_info> ref_info_seq;
+typedef std::vector<foreign_ref_info> ref_info_seq;
+class FK_info;
 
 /** Data structure for a foreign key constraint; an example:
 FOREIGN KEY (A, B) REFERENCES TABLE2 (C, D).  Most fields will be
@@ -1463,15 +1463,15 @@ struct dict_foreign_t{
 		ut_ad(ref_info.size() > 0);
 		return ref_info[0].referenced_table_name;
 	}
-	char*		referenced_table_name_lookup()
+	char*	referenced_table_name_lookup()
 	{
 		ut_ad(ref_info.size() > 0);
 		return ref_info[0].referenced_table_name_lookup;
 	}
-	dict_table_t*	referenced_table() const
+	dict_table_t*	referenced_table(uint i = 0) const // FIXME: remove default value
 	{
-		ut_ad(ref_info.size() > 0);
-		return ref_info[0].referenced_table;
+		ut_ad(ref_info.size() > i);
+		return ref_info[i].referenced_table;
 	}
 	dict_index_t*	referenced_index() const
 	{
@@ -1495,6 +1495,7 @@ struct dict_foreign_t{
 
 	dict_foreign_t() // used in i_s_sys_foreign_fill_table()
 	{
+		// FIXME: do something with it?
 		ref_info.resize(1);
 	}
 };
@@ -1540,7 +1541,7 @@ struct dict_foreign_with_index {
 	bool operator()(const dict_foreign_t* f) const
 	{
 		return(std::any_of(f->ref_info.begin(), f->ref_info.end(),
-				   dict_foreign_ref_info::check_index(m_index)));
+				   foreign_ref_info::check_index(m_index)));
 	}
 
 	const dict_index_t*	m_index;
@@ -1572,7 +1573,7 @@ struct dict_foreign_different_tables {
 	bool operator()(const dict_foreign_t* f) const
 	{
 		return(std::none_of(f->ref_info.begin(), f->ref_info.end(),
-				    dict_foreign_ref_info
+				    foreign_ref_info
 					::check_table(f->foreign_table)));
 	}
 };

@@ -801,7 +801,7 @@ dict_mem_index_create(
 Creates and initializes a foreign constraint memory object.
 @return own: foreign constraint struct */
 dict_foreign_t*
-dict_mem_foreign_create(void)
+dict_mem_foreign_create(bool add_refinfo)
 /*=========================*/
 {
 	dict_foreign_t*	foreign;
@@ -816,7 +816,8 @@ dict_mem_foreign_create(void)
 	foreign->heap = heap;
 
 	foreign->v_cols = NULL;
-	foreign->ref_info.resize(1); // FIXME: free
+	if (add_refinfo)
+		foreign->ref_info.resize(1); // FIXME: free
 
 	DBUG_PRINT("dict_mem_foreign_create", ("heap: %p", heap));
 
@@ -859,27 +860,25 @@ lower_case_table_names.  If that is 0 or 1, referenced_table_name_lookup
 will point to referenced_table_name.  If 2, then another string is
 allocated from foreign->heap and set to lower case. */
 void
-dict_mem_referenced_table_name_lookup_set(
-/*======================================*/
-	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
-	ibool		do_alloc)	/*!< in: is an alloc needed */
+dict_mem_referenced_table_name_lookup_set(foreign_ref_info& ref_info,
+					  mem_heap_t* heap)
 {
 	if (innobase_get_lower_case_table_names() == 2) {
-		if (do_alloc) {
+		if (heap) {
 			ulint	len;
 
-			len = strlen(foreign->referenced_table_name()) + 1;
+			len = strlen(ref_info.referenced_table_name) + 1;
 
-			foreign->ref_info[0].referenced_table_name_lookup =
+			ref_info.referenced_table_name_lookup =
 				static_cast<char*>(
-					mem_heap_alloc(foreign->heap, len));
+					mem_heap_alloc(heap, len));
 		}
-		strcpy(foreign->referenced_table_name_lookup(),
-		       foreign->referenced_table_name());
-		innobase_casedn_str(foreign->referenced_table_name_lookup());
+		strcpy(ref_info.referenced_table_name_lookup,
+		       ref_info.referenced_table_name);
+		innobase_casedn_str(ref_info.referenced_table_name_lookup);
 	} else {
-		foreign->ref_info[0].referenced_table_name_lookup
-			= foreign->referenced_table_name();
+		ref_info.referenced_table_name_lookup
+			= ref_info.referenced_table_name;
 	}
 }
 

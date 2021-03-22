@@ -1908,23 +1908,26 @@ dict_table_rename_in_cache(
 
 		foreign = *it;
 
-		if (strlen(foreign->referenced_table_name())
-		    < strlen(table->name.m_name)) {
-			/* Allocate a longer name buffer;
-			TODO: store buf len to save memory */
+		for (foreign_ref_info& ref_info: foreign->ref_info) {
+			if (strlen(ref_info.referenced_table_name)
+				< strlen(table->name.m_name)) {
+				/* Allocate a longer name buffer;
+				TODO: store buf len to save memory */
 
-			foreign->ref_info[0].referenced_table_name = mem_heap_strdup(
-				foreign->heap, table->name.m_name);
+				// FIXME: test
+				ref_info.referenced_table_name = mem_heap_strdup(
+					foreign->heap, table->name.m_name);
 
-			dict_mem_referenced_table_name_lookup_set(
-				foreign, TRUE);
-		} else {
-			/* Use the same buffer */
-			strcpy(foreign->referenced_table_name(),
-			       table->name.m_name);
+				dict_mem_referenced_table_name_lookup_set(
+					ref_info, foreign->heap);
+			} else {
+				/* Use the same buffer */
+				strcpy(ref_info.referenced_table_name,
+					table->name.m_name);
 
-			dict_mem_referenced_table_name_lookup_set(
-				foreign, FALSE);
+				dict_mem_referenced_table_name_lookup_set(
+					ref_info, NULL);
+			}
 		}
 	}
 

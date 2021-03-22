@@ -11890,31 +11890,19 @@ create_table_info_t::create_foreign_keys()
 			ref_share = m_form->s;
 		}
 		if (ref_share && ref_share->part_info) {
-			// Iterator over combinations of (partiton, subpartition)
-			// FIXME: make iterations in other places
-			for (auto els: *ref_share->part_info) {
-				err = create_foreign_key(
-					fk, table, number, local_fk_set,
-					column_names, ref_column_names,
-					create_name, operation,
-					els.first->partition_name,
-					els.second
-						? els.second->partition_name
-						: NULL);
-				if (err != DB_SUCCESS) {
-					return err;
-				}
-			}
+			err = create_foreign_key(create_foreign_key_t(
+				fk, table, local_fk_set, column_names,
+				ref_column_names, create_name, operation,
+				ref_share));
 		} else
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 		{
-			err = create_foreign_key(
-				fk, table, number, local_fk_set, column_names,
-				ref_column_names, create_name, operation, NULL,
-				NULL);
-			if (err != DB_SUCCESS) {
-				return err;
-			}
+			err = create_foreign_key(create_foreign_key_t(
+				fk, table, local_fk_set, column_names,
+				ref_column_names, create_name, operation, NULL));
+		}
+		if (err != DB_SUCCESS) {
+			return err;
 		}
 	}
 
@@ -11944,12 +11932,54 @@ create_table_info_t::create_foreign_keys()
 }
 
 dberr_t
-create_table_info_t::create_foreign_key(
-	FK_info* fk, dict_table_t* table, ulint &number,
-	dict_foreign_set &local_fk_set, const char** column_names,
-	const char** ref_column_names, char* create_name, const char* operation,
-	const char* part_name, const char* subpart_name)
+create_table_info_t::get_referenced_table(foreign_ref_info &ref_info,
+					  create_foreign_key_t args,
+					  const char* part_name,
+					  const char* subpart_name)
 {
+	FK_info *fk = args.fk;
+	ref_info.referenced_table_name = dict_get_referenced_table(
+		m_table_name, LEX_STRING_WITH_LEN(fk->ref_db()),
+		LEX_STRING_WITH_LEN(fk->referenced_table),
+		part_name, subpart_name,
+		&ref_info.referenced_table, args.foreign->heap);
+
+	if (!ref_info.referenced_table_name) {
+		return (DB_OUT_OF_MEMORY);
+	}
+
+	if (!ref_info.referenced_table_name && m_trx->check_foreigns) {
+		char  buf[MAX_TABLE_NAME_LEN + 1] = "";
+		char* bufend;
+
+		bufend = innobase_convert_name(
+			buf, MAX_TABLE_NAME_LEN,
+			ref_info.referenced_table_name,
+			strlen(ref_info.referenced_table_name), m_thd);
+		buf[bufend - buf] = '\0';
+		key_text k(fk);
+		ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT,
+				args.create_name,
+				"%s table %s with foreign key %s "
+				"constraint failed. Referenced table "
+				"%s not found in the data dictionary.",
+				args.operation, args.create_name, k.str(), buf);
+		return (DB_CANNOT_ADD_CONSTRAINT);
+	}
+	return DB_SUCCESS;
+}
+
+dberr_t
+create_table_info_t::create_foreign_key(create_foreign_key_t args)
+{
+	FK_info* fk = args.fk;
+	dict_table_t* table = args.table;
+	dict_foreign_set &local_fk_set = args.local_fk_set;
+	const char** column_names = args.column_names;
+	const char** ref_column_names = args.ref_column_names;
+	char* create_name = args.create_name;
+	const char* operation = args.operation;
+	TABLE_SHARE *ref_share = args.ref_share;
 	dict_index_t*	      index	  = NULL;
 	fkerr_t		      index_error = FK_SUCCESS;
 	dict_index_t*	      err_index	  = NULL;
@@ -11959,40 +11989,24 @@ create_table_info_t::create_foreign_key(
 		LEX_CSTRING*   col;
 		bool	       success;
 
-		dict_foreign_t* foreign = dict_mem_foreign_create();
+		dict_foreign_t* foreign = dict_mem_foreign_create(false);
 		if (!foreign) {
 			return (DB_OUT_OF_MEMORY);
 		}
 
+		args.foreign = foreign;
+
 		ut_ad(fk->foreign_id.str);
 		{
 			ulint db_len;
+			// FIXME: concatenate foreign_id and part suffix
 			char id[FN_REFLEN + 1];
 			const char *foreign_id;
 			size_t id_len;
 
-			if (subpart_name) {
-				ut_ad(part_name);
-				if (create_subpartition_name(
-					id, sizeof(id), fk->foreign_id.str,
-					part_name, subpart_name,
-					NORMAL_PART_NAME)) {
-					return (DB_CANNOT_ADD_CONSTRAINT);
-				}
-				id_len = strlen(id);
-				foreign_id = id;
-			} else if (part_name) {
-				if (create_partition_name(
-					id, sizeof(id), fk->foreign_id.str,
-					part_name, NORMAL_PART_NAME, true)) {
-					return (DB_CANNOT_ADD_CONSTRAINT);
-				}
-				id_len = strlen(id);
-				foreign_id = id;
-			} else {
-				id_len = fk->foreign_id.length;
-				foreign_id = fk->foreign_id.str;
-			}
+
+			id_len = fk->foreign_id.length;
+			foreign_id = fk->foreign_id.str;
 
 			/* Catenate 'databasename/' to the constraint name
 			specified by the user: we conceive the constraint as
@@ -12088,41 +12102,44 @@ create_table_info_t::create_foreign_key(
 		memcpy(foreign->foreign_col_names, column_names,
 		       i * sizeof(void*));
 
-		foreign->ref_info[0].referenced_table_name = dict_get_referenced_table(
-			m_table_name, LEX_STRING_WITH_LEN(fk->ref_db()),
-			LEX_STRING_WITH_LEN(fk->referenced_table),
-			part_name, subpart_name,
-			&foreign->ref_info[0].referenced_table, foreign->heap);
-
-		if (!foreign->referenced_table_name()) {
-			return (DB_OUT_OF_MEMORY);
-		}
-
-		if (!foreign->referenced_table() && m_trx->check_foreigns) {
-			char  buf[MAX_TABLE_NAME_LEN + 1] = "";
-			char* bufend;
-
-			bufend = innobase_convert_name(
-				buf, MAX_TABLE_NAME_LEN,
-				foreign->referenced_table_name(),
-				strlen(foreign->referenced_table_name()), m_thd);
-			buf[bufend - buf] = '\0';
-			key_text k(fk);
-			ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT,
-					create_name,
-					"%s table %s with foreign key %s "
-					"constraint failed. Referenced table "
-					"%s not found in the data dictionary.",
-					operation, create_name, k.str(), buf);
-			return (DB_CANNOT_ADD_CONSTRAINT);
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+		if (ref_share) {
+			ut_ad(ref_share->part_info);
+			uint parts = ref_share->part_info->get_tot_partitions();
+			foreign->ref_info.resize(parts);
+			auto ref_info_it = foreign->ref_info.begin();
+			// Iterator over combinations of (partiton, subpartition)
+			for (auto els: *ref_share->part_info) {
+				const char *part_name = els.first->partition_name;
+				const char *subpart_name = els.second
+					? els.second->partition_name
+					: NULL;
+				dberr_t err = get_referenced_table(
+					*ref_info_it, args, part_name, subpart_name);
+				if (err != DB_SUCCESS) {
+					return err;
+				}
+				++ref_info_it;
+				ut_ad(ref_info_it != foreign->ref_info.end());
+			}
+		} else
+#endif
+		{
+			foreign->ref_info.resize(1);
+			auto ref_info_it = foreign->ref_info.begin();
+			dberr_t err = get_referenced_table(
+				*ref_info_it, args, NULL, NULL);
+			if (err != DB_SUCCESS) {
+				return err;
+			}
 		}
 
 		col_it.init(fk->referenced_fields);
 		while ((col = col_it++)) {
 			ref_column_names[j] = mem_heap_strdupl(
 				foreign->heap, col->str, col->length);
-			if (foreign->referenced_table()) {
-				success = find_col(foreign->referenced_table(),
+			if (foreign->referenced_table(0)) {
+				success = find_col(foreign->referenced_table(0),
 						   ref_column_names + j);
 				if (!success) {
 					key_text k(fk);
@@ -12148,29 +12165,31 @@ create_table_info_t::create_foreign_key(
 		fields and in the right order, and the types are the same as in
 		foreign->foreign_index */
 
-		if (foreign->referenced_table()) {
-			index = dict_foreign_find_index(
-				foreign->referenced_table(), NULL,
-				ref_column_names, i, foreign->foreign_index,
-				TRUE, FALSE, &index_error, &err_col,
-				&err_index);
+		for (foreign_ref_info& ref_info: foreign->ref_info) {
+			if (ref_info.referenced_table) {
+				index = dict_foreign_find_index(
+					ref_info.referenced_table, NULL,
+					ref_column_names, i, foreign->foreign_index,
+					TRUE, FALSE, &index_error, &err_col,
+					&err_index);
 
-			if (!index) {
-				key_text k(fk);
-				foreign_push_index_error(
-					m_trx, operation, create_name, k.str(),
-					column_names, index_error, err_col,
-					err_index, foreign->referenced_table());
+				if (!index) {
+					key_text k(fk);
+					foreign_push_index_error(
+						m_trx, operation, create_name, k.str(),
+						column_names, index_error, err_col,
+						err_index, ref_info.referenced_table);
 
-				return (DB_CANNOT_ADD_CONSTRAINT);
+					return (DB_CANNOT_ADD_CONSTRAINT);
+				}
+			} else {
+				ut_a(m_trx->check_foreigns == FALSE);
+				index = NULL;
 			}
-		} else {
-			ut_a(m_trx->check_foreigns == FALSE);
-			index = NULL;
-		}
 
-		foreign->ref_info[0].referenced_index = index;
-		dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
+			ref_info.referenced_index = index;
+			dict_mem_referenced_table_name_lookup_set(ref_info, foreign->heap);
+		}
 
 		foreign->referenced_col_names = static_cast<const char**>(
 			mem_heap_alloc(foreign->heap, i * sizeof(void*)));
@@ -21505,12 +21524,14 @@ dict_load_foreigns(THD* thd, dict_table_t* table, TABLE_SHARE* share,
 			return DB_CANNOT_ADD_CONSTRAINT;
 		}
 
-		foreign->ref_info[0].referenced_table_name
-			= mem_heap_strdupl(foreign->heap, buf, len);
-		if (!foreign->referenced_table_name())
-			return DB_OUT_OF_MEMORY;
 		dict_mem_foreign_table_name_lookup_set(foreign, true);
-		dict_mem_referenced_table_name_lookup_set(foreign, true);
+		for (foreign_ref_info& ref_info: foreign->ref_info) {
+			ref_info.referenced_table_name
+				= mem_heap_strdupl(foreign->heap, buf, len);
+			if (!ref_info.referenced_table_name)
+				return DB_OUT_OF_MEMORY;
+			dict_mem_referenced_table_name_lookup_set(ref_info, foreign->heap);
+		}
 		foreign->foreign_col_names = static_cast<const char**>(
 			mem_heap_alloc(foreign->heap,
 				       foreign->n_fields * sizeof(void*)));

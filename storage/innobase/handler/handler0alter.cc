@@ -2637,12 +2637,14 @@ innobase_init_foreign(
                         foreign->heap, column_names[i]);
         }
 
-	foreign->ref_info[0].referenced_index = referenced_index;
-	foreign->ref_info[0].referenced_table = referenced_table;
+        for (foreign_ref_info& ref_info: foreign->ref_info) {
+		ref_info.referenced_index = referenced_index;
+		ref_info.referenced_table = referenced_table;
 
-	foreign->ref_info[0].referenced_table_name = mem_heap_strdup(
-		foreign->heap, referenced_table_name);
-        dict_mem_referenced_table_name_lookup_set(foreign, TRUE);
+		ref_info.referenced_table_name = mem_heap_strdup(
+			foreign->heap, referenced_table_name);
+		dict_mem_referenced_table_name_lookup_set(ref_info, foreign->heap);
+	}
 
         foreign->referenced_col_names = static_cast<const char**>(
                 mem_heap_alloc(foreign->heap,
