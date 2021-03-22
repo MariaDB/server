@@ -3388,9 +3388,10 @@ Query_cache::register_tables_from_list(THD *thd, TABLE_LIST *tables_used,
        tables_used;
        tables_used= tables_used->next_global, n++, (*block_table)++)
   {
-    if (tables_used->is_anonymous_derived_table())
+    if (tables_used->is_anonymous_derived_table() ||
+        tables_used->table_function)
     {
-      DBUG_PRINT("qcache", ("derived table skipped"));
+      DBUG_PRINT("qcache", ("derived table or table function skipped"));
       n--;
       (*block_table)--;
       continue;
