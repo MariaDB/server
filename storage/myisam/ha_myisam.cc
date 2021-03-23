@@ -945,7 +945,8 @@ void ha_myisam::setup_vcols_for_repair(HA_CHECK *param)
       return;
     file->s->vreclength= new_vreclength;
   }
-  DBUG_ASSERT(file->s->base.reclength < file->s->vreclength);
+  DBUG_ASSERT(file->s->base.reclength < file->s->vreclength ||
+              !table->s->stored_fields);
   param->fix_record= compute_vcols;
   table->use_all_columns();
   table->vcol_set= &table->s->all_set;
