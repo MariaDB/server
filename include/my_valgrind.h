@@ -27,6 +27,7 @@
 #if __has_feature(memory_sanitizer)
 # include <sanitizer/msan_interface.h>
 # define HAVE_valgrind
+# define HAVE_MEM_CHECK
 # define MEM_UNDEFINED(a,len) __msan_allocated_memory(a,len)
 # define MEM_MAKE_ADDRESSABLE(a,len) MEM_UNDEFINED(a,len)
 # define MEM_MAKE_DEFINED(a,len) __msan_unpoison(a,len)
@@ -38,6 +39,7 @@
 # define REDZONE_SIZE 8
 #elif defined(HAVE_VALGRIND_MEMCHECK_H) && defined(HAVE_valgrind)
 # include <valgrind/memcheck.h>
+# define HAVE_MEM_CHECK
 # define MEM_UNDEFINED(a,len) VALGRIND_MAKE_MEM_UNDEFINED(a,len)
 # define MEM_MAKE_ADDRESSABLE(a,len) MEM_UNDEFINED(a,len)
 # define MEM_MAKE_DEFINED(a,len) VALGRIND_MAKE_MEM_DEFINED(a,len)
