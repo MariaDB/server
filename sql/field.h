@@ -1612,7 +1612,7 @@ public:
   virtual const TYPELIB *get_typelib() const { return NULL; }
   virtual CHARSET_INFO *charset() const= 0;
   /* returns TRUE if the new charset differs. */
-  virtual bool change_charset(const DTCollation &new_cs) { return FALSE; }
+  virtual void change_charset(const DTCollation &new_cs) {}
   virtual const DTCollation &dtcollation() const= 0;
   virtual CHARSET_INFO *charset_for_protocol(void) const
   { return binary() ? &my_charset_bin : charset(); }
@@ -2111,16 +2111,11 @@ public:
   {
     return m_collation;
   }
-  bool change_charset(const DTCollation &new_cs) override
+  void change_charset(const DTCollation &new_cs) override
   {
-    if (m_collation.collation != new_cs.collation)
-    {
-      field_length= (field_length * new_cs.collation->mbmaxlen) /
-        m_collation.collation->mbmaxlen;
-      m_collation= new_cs;
-      return TRUE;
-    }
-    return FALSE;
+    field_length= (field_length * new_cs.collation->mbmaxlen) /
+      m_collation.collation->mbmaxlen;
+    m_collation= new_cs;
   }
   bool binary() const override { return field_charset() == &my_charset_bin; }
   uint32 max_display_length() const override { return field_length; }

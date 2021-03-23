@@ -522,5 +522,19 @@ SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(100) PATH '$' DEFAULT "0" ON E
 a
 0
 #
+# MDEV-25188 JSON_TABLE: ASAN use-after-poison in Field_long::reset / Table_function_json_table::setup or malloc(): invalid size.
+#
+SELECT * FROM JSON_TABLE(CONVERT('{"x":1}' USING utf8mb4), '$' COLUMNS(a INT PATH '$', b CHAR(64) PATH '$.*', c INT EXISTS PATH '$**.*')) AS jt;
+a	b	c
+NULL	1	1
+#
+# 25192 JSON_TABLE: ASAN use-after-poison in field_conv_memcpy / Create_tmp_table::finalize upon query with derived table.
+#
+SET NAMES utf8;
+SELECT * FROM ( SELECT * FROM JSON_TABLE('{}', '$' COLUMNS( a BINARY(12) PATH '$.*', b VARCHAR(40) PATH '$[*]', c VARCHAR(8) PATH '$**.*')) AS jt ) AS sq;
+a	b	c
+NULL	NULL	NULL
+SET NAMES default;
+#
 # End of 10.6 tests
 #

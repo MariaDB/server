@@ -718,7 +718,10 @@ bool Create_json_table::finalize(THD *thd, TABLE *table,
                                         m_null_count & 7);
       m_null_count+= (field->field_length & 7);
     }
-    field->reset();
+    /*
+      Here we'd call the field->reset(), but we're doing it later
+      in Table_function_json_table::setup as we define charsets there.
+    */
 
     /*
       Test if there is a default field value. The test for ->ptr is to skip
@@ -811,7 +814,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
     */
     sql_f->length= sql_f->char_length;
     if (!(jc->m_explicit_cs= sql_f->charset))
-      sql_f->charset= &my_charset_utf8mb4_bin;
+      sql_f->charset= &my_charset_utf8mb4_general_ci;
 
     if (sql_f->prepare_stage1(thd, thd->mem_root, table->file,
                               table->file->ha_table_flags()))
@@ -1148,14 +1151,13 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
       Json_table_column *jc= jc_i++;
       uint32 old_pack_length= f->pack_length();
 
-      if (f->change_charset(
-                jc->m_explicit_cs ? jc->m_explicit_cs : m_json->collation) ||
-          field_offset)
-      {
-        if (field_offset)
-          f->move_field(f->ptr + field_offset, f->null_ptr, f->null_bit);
-        f->reset();
-      }
+      f->change_charset(
+                jc->m_explicit_cs ? jc->m_explicit_cs : m_json->collation);
+
+      if (field_offset)
+        f->move_field(f->ptr + field_offset, f->null_ptr, f->null_bit);
+
+      f->reset();
 
       field_offset= (field_offset + f->pack_length()) - old_pack_length;
 
