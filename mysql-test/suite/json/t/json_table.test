@@ -413,5 +413,14 @@ SELECT * FROM ( SELECT * FROM JSON_TABLE('{}', '$' COLUMNS( a BINARY(12) PATH '$
 SET NAMES default;
 
 --echo #
+--echo # MDEV-25189 JSON_TABLE: Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0' failed upon CREATE .. SELECT.
+--echo #
+SET NAMES utf8;
+CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(16) PATH '$.*', b TIMESTAMP PATH '$**.*')) AS jt;
+DROP TABLE t1;
+SET NAMES default;
+
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

@@ -536,5 +536,12 @@ a	b	c
 NULL	NULL	NULL
 SET NAMES default;
 #
+# MDEV-25189 JSON_TABLE: Assertion `l_offset >= 0 && table->s->rec_buff_length - l_offset > 0' failed upon CREATE .. SELECT.
+#
+SET NAMES utf8;
+CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(16) PATH '$.*', b TIMESTAMP PATH '$**.*')) AS jt;
+DROP TABLE t1;
+SET NAMES default;
+#
 # End of 10.6 tests
 #
