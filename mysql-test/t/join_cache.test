@@ -4050,5 +4050,29 @@ DROP TABLE t1,t2,t3,t4;
 
 set join_cache_level=@save_join_cache_level;
 
+--echo #
+--echo # MDEV-24767: forced BNLH used for equi-join supported by compound index
+--echo #
+
+create table t1 (a int, b int, c int ) engine=myisam ;
+create table t2 (a int, b int, c int, primary key (c,a,b)) engine=myisam ;
+insert into t1 values (3,4,2), (5,6,4);
+insert into t2 values (3,4,2), (5,6,4);
+
+let $q=
+select t1.a, t1.b, t1.c from t1,t2
+  where t2.a = t1.a and t2.b = t1.b and t2.c=t1.c;
+
+eval $q;
+eval explain $q;
+
+set join_cache_level=3;
+eval $q;
+eval explain $q;
+
+drop table t1,t2;
+
+set join_cache_level=@save_join_cache_level;
+
 # The following command must be the last one in the file 
 set @@optimizer_switch=@save_optimizer_switch;
