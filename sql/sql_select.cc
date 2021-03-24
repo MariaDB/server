@@ -292,6 +292,8 @@ void set_postjoin_aggr_write_func(JOIN_TAB *tab);
 
 static Item **get_sargable_cond(JOIN *join, TABLE *table);
 
+bool is_eq_cond_injected_for_split_opt(Item_func_eq *eq_item);
+
 #ifndef DBUG_OFF
 
 /*
@@ -21785,6 +21787,21 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
 	test_if_ref(root_cond, (Item_field*) right_item,left_item))
     {
       cond->marker=3;			// Checked when read
+      return (COND*) 0;
+    }
+    /*
+      If cond is an equality injected for split optimization then
+      a. when retain_ref_cond == false : cond is removed unconditionally
+         (cond that supports ref access is removed by the preceding code)
+      b. when retain_ref_cond == true : cond is removed if it does not
+         support ref access
+    */
+    if (left_item->type() == Item::FIELD_ITEM &&
+        is_eq_cond_injected_for_split_opt((Item_func_eq *) cond) &&
+        (!retain_ref_cond ||
+         !test_if_ref(root_cond, (Item_field*) left_item,right_item)))
+    {
+      cond->marker=3;
       return (COND*) 0;
     }
   }
