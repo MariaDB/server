@@ -34,7 +34,7 @@
 int maria_rename(const char *old_name, const char *new_name)
 {
   char from[FN_REFLEN],to[FN_REFLEN];
-  int data_file_rename_error;
+  int data_file_rename_error= 0, index_file_rename_error= 0;
 #ifdef USE_RAID
   uint raid_type=0,raid_chunks=0;
 #endif
@@ -106,28 +106,37 @@ int maria_rename(const char *old_name, const char *new_name)
   _ma_reset_state(info);
   maria_close(info);
 
+  /*
+    This code is written so that it should be possible to re-run a
+    failed rename (even if there is a server crash in between the
+    renames) and complete it.
+  */
   fn_format(from,old_name,"",MARIA_NAME_IEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
   fn_format(to,new_name,"",MARIA_NAME_IEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
   if (mysql_file_rename_with_symlink(key_file_kfile, from, to,
                                      MYF(MY_WME | sync_dir)))
-    DBUG_RETURN(my_errno);
+    index_file_rename_error= my_errno;
   fn_format(from,old_name,"",MARIA_NAME_DEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
   fn_format(to,new_name,"",MARIA_NAME_DEXT,MY_UNPACK_FILENAME|MY_APPEND_EXT);
-  data_file_rename_error=
-      mysql_file_rename_with_symlink(key_file_dfile, from, to,
-                                     MYF(MY_WME | sync_dir));
-  if (data_file_rename_error)
+  if (mysql_file_rename_with_symlink(key_file_dfile, from, to,
+                                     MYF(MY_WME | sync_dir)))
+    data_file_rename_error= my_errno;
+  if (data_file_rename_error && data_file_rename_error != ENOENT)
   {
     /*
-      now we have a renamed index file and a non-renamed data file, try to
-      undo the rename of the index file.
+      Now we have a renamed index file and a non-renamed data file, try to
+      undo a successful rename of the index file.
     */
-    data_file_rename_error= my_errno;
-    fn_format(from, old_name, "", MARIA_NAME_IEXT, MYF(MY_UNPACK_FILENAME|MY_APPEND_EXT));
-    fn_format(to, new_name, "", MARIA_NAME_IEXT, MYF(MY_UNPACK_FILENAME|MY_APPEND_EXT));
-    mysql_file_rename_with_symlink(key_file_kfile, to, from,
+    if (!index_file_rename_error)
+    {
+      fn_format(from, old_name, "", MARIA_NAME_IEXT,
+                MYF(MY_UNPACK_FILENAME|MY_APPEND_EXT));
+      fn_format(to, new_name, "", MARIA_NAME_IEXT,
+                MYF(MY_UNPACK_FILENAME|MY_APPEND_EXT));
+      mysql_file_rename_with_symlink(key_file_kfile, to, from,
                                    MYF(MY_WME | sync_dir));
+    }
   }
-  DBUG_RETURN(data_file_rename_error);
-
+  DBUG_RETURN(data_file_rename_error ? data_file_rename_error:
+              index_file_rename_error);
 }

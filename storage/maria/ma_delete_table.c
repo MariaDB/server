@@ -48,7 +48,7 @@ int maria_delete_table(const char *name)
     sync_dir= 0;
     /* Ignore not found errors and wrong symlink errors */
     if (my_errno != ENOENT && my_errno != HA_WRONG_CREATE_OPTION)
-      got_error= my_errno;;
+      got_error= my_errno;
   }
   else
   {
