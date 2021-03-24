@@ -187,7 +187,7 @@ mutex before switching to blocking wait on the mutex */
 /** Check whether the number of failed nonblocking mutex
 acquisition attempts exceeds maximum allowed value. If so,
 srv_printf_innodb_monitor() will request mutex acquisition
-with mutex_enter(), which will wait until it gets the mutex. */
+with mysql_mutex_lock(), which will wait until it gets the mutex. */
 #define MUTEX_NOWAIT(mutex_skipped)	((mutex_skipped) < MAX_MUTEX_NOWAIT)
 
 /** copy of innodb_buffer_pool_size */
