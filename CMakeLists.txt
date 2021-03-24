@@ -202,7 +202,13 @@ IF (WITH_ASAN)
   SET(HAVE_C_FSANITIZE ${have_C__fsanitize_address__fPIC})
   SET(HAVE_CXX_FSANITIZE ${have_CXX__fsanitize_address__fPIC})
   IF(HAVE_C_FSANITIZE AND HAVE_CXX_FSANITIZE)
+    OPTION(WITH_ASAN_SCOPE "Enable -fsanitize-address-use-after-scope" OFF)
     SET(WITH_ASAN_OK 1)
+    IF(WITH_ASAN_SCOPE)
+      MY_CHECK_AND_SET_COMPILER_FLAG(
+        "-fsanitize=address -fsanitize-address-use-after-scope"
+	DEBUG RELWITHDEBINFO)
+    ENDIF()
   ELSE()
     # older versions of clang
     MY_CHECK_AND_SET_COMPILER_FLAG("-faddress-sanitizer -fPIC"
