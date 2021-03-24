@@ -431,5 +431,12 @@ SHOW CREATE VIEW v;
 DROP VIEW v;
 
 --echo #
+--echo # MDEV-25229 JSON_TABLE: Server crashes in hton_name upon MATCH .. AGAINST.
+--echo #
+
+--error ER_TABLE_CANT_HANDLE_FT
+SELECT val, MATCH(val) AGAINST( 'MariaDB') FROM JSON_TABLE('{"db":"xx"}', '$' COLUMNS(val VARCHAR(32) PATH '$**.*')) AS jt;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

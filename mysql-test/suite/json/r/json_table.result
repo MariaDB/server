@@ -554,5 +554,10 @@ View	Create View	character_set_client	collation_connection
 v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `jt`.`o` AS `o` from JSON_TABLE('{}', '$' COLUMNS (NESTED PATH '$.*' COLUMNS (NESTED PATH '$.*' COLUMNS (`o` FOR ORDINALITY)))) `jt`	latin1	latin1_swedish_ci
 DROP VIEW v;
 #
+# MDEV-25229 JSON_TABLE: Server crashes in hton_name upon MATCH .. AGAINST.
+#
+SELECT val, MATCH(val) AGAINST( 'MariaDB') FROM JSON_TABLE('{"db":"xx"}', '$' COLUMNS(val VARCHAR(32) PATH '$**.*')) AS jt;
+ERROR HY000: The storage engine JSON_TABLE function doesn't support FULLTEXT indexes
+#
 # End of 10.6 tests
 #

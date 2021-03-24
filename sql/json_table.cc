@@ -73,6 +73,10 @@ public:
   handler *clone(const char *name, MEM_ROOT *mem_root) override { return NULL; }
   /* Rows also use a fixed-size format */
   enum row_type get_row_type() const override { return ROW_TYPE_FIXED; }
+  const char *table_type() const override
+  {
+    return "JSON_TABLE function";
+  }
   ulonglong table_flags() const override
   {
     return (HA_FAST_KEY_READ | /*HA_NO_BLOBS |*/ HA_NULL_IN_KEY |
