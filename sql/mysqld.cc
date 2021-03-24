@@ -1131,14 +1131,6 @@ PSI_file_key key_file_binlog_state;
 PSI_statement_info stmt_info_new_packet;
 #endif
 
-#ifdef WITH_WSREP
-/** Whether the Galera write-set replication is enabled. A cached copy of
-global_system_variables.wsrep_on && wsrep_provider &&
-  strcmp(wsrep_provider, WSREP_NONE)
-*/
-bool WSREP_ON_;
-#endif /* WITH_WSREP */
-
 #ifndef EMBEDDED_LIBRARY
 void net_before_header_psi(struct st_net *net, void *thd, size_t /* unused: count */)
 {
@@ -5710,10 +5702,7 @@ int mysqld_main(int argc, char **argv)
   }
 
 #ifdef WITH_WSREP
-  WSREP_ON_= (global_system_variables.wsrep_on &&
-          wsrep_provider &&
-          strcmp(wsrep_provider, WSREP_NONE));
-
+  wsrep_set_wsrep_on();
   if (WSREP_ON && wsrep_check_opts()) unireg_abort(1);
 #endif
 
