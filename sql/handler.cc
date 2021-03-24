@@ -7340,6 +7340,11 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     {
       if (f->flags & VERS_SYSTEM_FIELD)
       {
+        if (!table->versioned())
+        {
+          my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->s->table_name.str);
+          return true;
+        }
         my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
                  f->flags & VERS_SYS_START_FLAG ? "START" : "END", f->field_name.str);
         return true;

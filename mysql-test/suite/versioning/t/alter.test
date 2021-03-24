@@ -68,7 +68,7 @@ select row_start from t;
 alter table t drop system versioning;
 show create table t;
 
---error ER_VERS_DUPLICATE_ROW_START_END
+--error ER_VERS_NOT_VERSIONED
 alter table t add column trx_start timestamp(6) as row start;
 
 alter table t add system versioning;
@@ -619,5 +619,14 @@ show create table t1;
 --error ER_KEY_COLUMN_DOES_NOT_EXITS
 alter table t1 drop column b;
 
+# cleanup
+drop table t1;
+
+--echo #
+--echo # MDEV-25172 Wrong error message for ADD COLUMN .. AS ROW START
+--echo #
+create or replace table t1 (x int);
+--error ER_VERS_NOT_VERSIONED
+alter table t1 add column y timestamp(6) as row start;
 # cleanup
 drop table t1;

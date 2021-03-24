@@ -80,7 +80,7 @@ t	CREATE TABLE `t` (
   `a` int(11) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 alter table t add column trx_start timestamp(6) as row start;
-ERROR HY000: Duplicate ROW START column `trx_start`
+ERROR HY000: Table `t` is not system-versioned
 alter table t add system versioning;
 show create table t;
 Table	Create Table
@@ -734,4 +734,11 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
 alter table t1 drop column b;
 ERROR 42000: Key column 'b' doesn't exist in table
+drop table t1;
+#
+# MDEV-25172 Wrong error message for ADD COLUMN .. AS ROW START
+#
+create or replace table t1 (x int);
+alter table t1 add column y timestamp(6) as row start;
+ERROR HY000: Table `t1` is not system-versioned
 drop table t1;
