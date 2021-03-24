@@ -196,7 +196,6 @@ OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 IF (WITH_ASAN)
   # this flag might be set by default on some OS
   MY_CHECK_AND_SET_COMPILER_FLAG("-U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
-  # gcc 4.8.1 and new versions of clang
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -fPIC"
     DEBUG RELWITHDEBINFO)
   SET(HAVE_C_FSANITIZE ${have_C__fsanitize_address__fPIC})
@@ -208,15 +207,6 @@ IF (WITH_ASAN)
       MY_CHECK_AND_SET_COMPILER_FLAG(
         "-fsanitize=address -fsanitize-address-use-after-scope"
 	DEBUG RELWITHDEBINFO)
-    ENDIF()
-  ELSE()
-    # older versions of clang
-    MY_CHECK_AND_SET_COMPILER_FLAG("-faddress-sanitizer -fPIC"
-      DEBUG RELWITHDEBINFO)
-    SET(HAVE_C_FADDRESS ${have_C__faddress_sanitizer__fPIC})
-    SET(HAVE_CXX_FADDRESS ${have_CXX__faddress_sanitizer__fPIC})
-    IF(HAVE_C_FADDRESS AND HAVE_CXX_FADDRESS)
-      SET(WITH_ASAN_OK 1)
     ENDIF()
   ENDIF()
 
