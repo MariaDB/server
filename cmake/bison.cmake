@@ -41,10 +41,10 @@ ELSEIF(BISON_EXECUTABLE AND NOT BISON_USABLE)
    # get version information
    STRING(REGEX REPLACE ".* ([0-9]+)\\.([0-9]+)" "\\1" BISON_VERSION_MAJOR "${FIRST_LINE}")
    STRING(REGEX REPLACE ".* ([0-9]+)\\.([0-9]+)" "\\2" BISON_VERSION_MINOR "${FIRST_LINE}")
-   IF (BISON_VERSION_MAJOR LESS 2)
-     MESSAGE("Warning: bison version is old. please update to version 2")
+   IF (BISON_VERSION_MAJOR LESS 3)
+     MESSAGE("Warning: bison version is old. please update to version 3")
    ELSE()
-     SET(BISON_USABLE 1 CACHE INTERNAL "Bison version 2 or higher")
+     SET(BISON_USABLE 1 CACHE INTERNAL "Bison version 3 or higher")
    ENDIF()
 ENDIF()
 
