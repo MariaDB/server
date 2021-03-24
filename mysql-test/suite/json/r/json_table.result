@@ -543,5 +543,16 @@ CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(a CHAR(16) PATH '$
 DROP TABLE t1;
 SET NAMES default;
 #
+# MDEV-25230 SON_TABLE: CREATE VIEW with 2nd level NESTED PATH ends up with invalid frm, Assertion `m_status == DA_ERROR || m_status == DA_OK || m_status == DA_OK_BULK' failed.
+#
+CREATE VIEW v AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(NESTED PATH '$' COLUMNS(NESTED PATH '$.*' COLUMNS(o FOR ORDINALITY)))) AS jt;
+SELECT * FROM v;
+o
+NULL
+SHOW CREATE VIEW v;
+View	Create View	character_set_client	collation_connection
+v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v` AS select `jt`.`o` AS `o` from JSON_TABLE('{}', '$' COLUMNS (NESTED PATH '$.*' COLUMNS (NESTED PATH '$.*' COLUMNS (`o` FOR ORDINALITY)))) `jt`	latin1	latin1_swedish_ci
+DROP VIEW v;
+#
 # End of 10.6 tests
 #

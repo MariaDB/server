@@ -422,5 +422,14 @@ SET NAMES default;
 
 
 --echo #
+--echo # MDEV-25230 SON_TABLE: CREATE VIEW with 2nd level NESTED PATH ends up with invalid frm, Assertion `m_status == DA_ERROR || m_status == DA_OK || m_status == DA_OK_BULK' failed.
+--echo #
+
+CREATE VIEW v AS SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(NESTED PATH '$' COLUMNS(NESTED PATH '$.*' COLUMNS(o FOR ORDINALITY)))) AS jt;
+SELECT * FROM v;
+SHOW CREATE VIEW v;
+DROP VIEW v;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

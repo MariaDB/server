@@ -1197,6 +1197,26 @@ void Table_function_json_table::get_estimates(ha_rows *out_rows,
 
 
 /*
+  Check if a column belongs to the nested path
+  or a path that nested into it.
+  It only supposed to be used in the Json_table_nested_path::print, and
+  since the nested path should have at least one field we
+  don't have to loop through the m_next_nested.
+*/
+bool Json_table_nested_path::column_in_this_or_nested(
+    const Json_table_column *jc) const
+{
+  const Json_table_nested_path *p;
+  for (p= this; p; p= p->m_nested)
+  {
+    if (jc->m_nest == p)
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
+/*
   Print the string representation of the Json_nested_path object.
   Which is the COLUMNS(...) part of the JSON_TABLE definition.
  
@@ -1223,7 +1243,8 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
     return 1;
 
   /* loop while jc belongs to the current or nested paths. */
-  while(jc && (jc->m_nest == c_path || jc->m_nest == c_nested))
+  while(jc && (jc->m_nest == c_path ||
+        c_nested->column_in_this_or_nested(jc)))
   {
     if (first_column)
       first_column= FALSE;
@@ -1239,7 +1260,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
     }
     else
     {
-      DBUG_ASSERT(jc->m_nest == c_nested);
+      DBUG_ASSERT(c_nested->column_in_this_or_nested(jc));
       if (str->append("NESTED PATH ") ||
           print_path(str, &jc->m_nest->m_path) ||
           str->append(' ') ||
