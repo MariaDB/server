@@ -97,13 +97,14 @@ static void ssl_set_sys_error(int ssl_error)
   @param vio  VIO object representing a SSL connection.
   @param ret  Value returned by a SSL I/O function.
   @param event[out] The type of I/O event to wait/retry.
+  @param should_wait[out] whether to wait for 'event'
 
   @return Whether a SSL I/O operation should be deferred.
   @retval TRUE    Temporary failure, retry operation.
   @retval FALSE   Indeterminate failure.
 */
 
-static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event)
+static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event, my_bool *should_wait)
 {
   int ssl_error;
   SSL *ssl= vio->ssl_arg;
@@ -120,6 +121,7 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
       ERR_GET_REASON(err) == X509_R_CERT_ALREADY_IN_HASH_TABLE)
   {
     ERR_clear_error();
+    *should_wait= FALSE;
     return TRUE;
   }
 #endif
@@ -132,12 +134,15 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
   {
   case SSL_ERROR_WANT_READ:
     *event= VIO_IO_EVENT_READ;
+    *should_wait= TRUE;
     break;
   case SSL_ERROR_WANT_WRITE:
     *event= VIO_IO_EVENT_WRITE;
+    *should_wait= TRUE;
     break;
   default:
     should_retry= FALSE;
+    *should_wait= FALSE;
     ssl_set_sys_error(ssl_error);
 #ifndef HAVE_YASSL
     ERR_clear_error();
@@ -165,12 +170,13 @@ size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
     while ((ret= SSL_read(ssl, buf, (int)size)) < 0)
     {
       enum enum_vio_io_event event;
+      my_bool should_wait;
       
       /* Process the SSL I/O error. */
-      if (!ssl_should_retry(vio, ret, &event))
+      if (!ssl_should_retry(vio, ret, &event, &should_wait))
         break;
       /* Attempt to wait for an I/O event. */
-      if (vio_socket_io_wait(vio, event))
+      if (should_wait && vio_socket_io_wait(vio, event))
         break;
     }
   }
@@ -198,13 +204,12 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
     while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
     {
       enum enum_vio_io_event event;
-
+      my_bool should_wait;
       /* Process the SSL I/O error. */
-      if (!ssl_should_retry(vio, ret, &event))
+      if (!ssl_should_retry(vio, ret, &event, &should_wait))
         break;
-
       /* Attempt to wait for an I/O event. */
-      if (vio_socket_io_wait(vio, event))
+      if (should_wait && vio_socket_io_wait(vio, event))
         break;
     }
   }
@@ -312,13 +317,13 @@ static int ssl_handshake_loop(Vio *vio, SSL *ssl, ssl_handshake_func_t func)
   while ((ret= func(ssl)) < 1)
   {
     enum enum_vio_io_event event;
+    my_bool should_wait;
 
     /* Process the SSL I/O error. */
-    if (!ssl_should_retry(vio, ret, &event))
+    if (!ssl_should_retry(vio, ret, &event, &should_wait))
       break;
-
     /* Wait for I/O so that the handshake can proceed. */
-    if (vio_socket_io_wait(vio, event))
+    if (should_wait && vio_socket_io_wait(vio, event))
       break;
   }
 
