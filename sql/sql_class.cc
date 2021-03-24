@@ -6237,7 +6237,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         */
         lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_TABLE);
 
-        if (tbl->lock_type >= TL_WRITE_ALLOW_WRITE)
+        if (tbl->lock_type >= TL_FIRST_WRITE)
         {
           non_replicated_tables_count++;
           continue;
@@ -6250,10 +6250,10 @@ int THD::decide_logging_format(TABLE_LIST *tables)
 
       if (tbl->prelocking_placeholder != TABLE_LIST::PRELOCK_FK)
       {
-        if (tbl->lock_type <= TL_READ_NO_INSERT)
+        if (tbl->lock_type < TL_FIRST_WRITE)
           has_read_tables= true;
         else if (table->found_next_number_field &&
-                 (tbl->lock_type >= TL_WRITE_ALLOW_WRITE))
+                 (tbl->lock_type >= TL_FIRST_WRITE))
         {
           has_auto_increment_write_tables= true;
           has_auto_increment_write_tables_not_first= found_first_not_own_table;
@@ -6262,7 +6262,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         }
       }
 
-      if (tbl->lock_type >= TL_WRITE_ALLOW_WRITE)
+      if (tbl->lock_type >= TL_FIRST_WRITE)
       {
         bool trans;
         if (prev_write_table && prev_write_table->file->ht !=
@@ -6532,7 +6532,7 @@ int THD::decide_logging_format(TABLE_LIST *tables)
         if (table->placeholder())
           continue;
         if (table->table->file->ht->db_type == DB_TYPE_BLACKHOLE_DB &&
-            table->lock_type >= TL_WRITE_ALLOW_WRITE)
+            table->lock_type >= TL_FIRST_WRITE)
         {
           table_names.append(&table->table_name);
           table_names.append(",");

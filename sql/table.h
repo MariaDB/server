@@ -2135,7 +2135,7 @@ struct TABLE_LIST
                              enum thr_lock_type lock_type_arg)
   {
     enum enum_mdl_type mdl_type;
-    if (lock_type_arg >= TL_WRITE_ALLOW_WRITE)
+    if (lock_type_arg >= TL_FIRST_WRITE)
       mdl_type= MDL_SHARED_WRITE;
     else if (lock_type_arg == TL_READ_NO_INSERT)
       mdl_type= MDL_SHARED_NO_WRITE;
@@ -2150,7 +2150,7 @@ struct TABLE_LIST
     table_name= *table_name_arg;
     alias= (alias_arg ? *alias_arg : *table_name_arg);
     lock_type= lock_type_arg;
-    updating= lock_type >= TL_WRITE_ALLOW_WRITE;
+    updating= lock_type >= TL_FIRST_WRITE;
     MDL_REQUEST_INIT(&mdl_request, MDL_key::TABLE, db.str, table_name.str,
                      mdl_type, MDL_TRANSACTION);
   }
@@ -2184,7 +2184,7 @@ struct TABLE_LIST
     belong_to_view= belong_to_view_arg;
     trg_event_map= trg_event_map_arg;
     /* MDL is enough for read-only FK checks, we don't need the table */
-    if (prelocking_type == PRELOCK_FK && lock_type < TL_WRITE_ALLOW_WRITE)
+    if (prelocking_type == PRELOCK_FK && lock_type < TL_FIRST_WRITE)
       open_strategy= OPEN_STUB;
 
     **last_ptr= this;

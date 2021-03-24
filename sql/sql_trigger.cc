@@ -2270,7 +2270,7 @@ add_tables_and_routines_for_triggers(THD *thd,
                                      TABLE_LIST *table_list)
 {
   DBUG_ASSERT(static_cast<int>(table_list->lock_type) >=
-              static_cast<int>(TL_WRITE_ALLOW_WRITE));
+              static_cast<int>(TL_FIRST_WRITE));
 
   for (int i= 0; i < (int)TRG_EVENT_MAX; i++)
   {

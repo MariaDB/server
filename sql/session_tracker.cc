@@ -996,7 +996,7 @@ enum_tx_state Transaction_state_tracker::calc_trx_state(THD *thd,
                                                         bool has_trx)
 {
   enum_tx_state      s;
-  bool               read= (l <= TL_READ_NO_INSERT);
+  bool               read= (l < TL_FIRST_WRITE);
 
   if (read)
     s= has_trx ? TX_READ_TRX  : TX_READ_UNSAFE;

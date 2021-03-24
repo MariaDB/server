@@ -3648,7 +3648,7 @@ mysql_execute_command(THD *thd)
     {
       for (TABLE_LIST *table= all_tables; table; table= table->next_global)
       {
-	if (table->lock_type >= TL_WRITE_ALLOW_WRITE)
+	if (table->lock_type >= TL_FIRST_WRITE)
         {
 	  lex->sql_command= SQLCOM_BEGIN;
 	  thd->wsrep_converted_lock_session= true;
@@ -7096,7 +7096,7 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
       /* We want to have either SELECT or INSERT rights to sequences depending
          on how they are accessed
       */
-      want_access= ((table_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
+      want_access= ((table_ref->lock_type >= TL_FIRST_WRITE) ?
                     INSERT_ACL : SELECT_ACL);
     }
 
@@ -8894,7 +8894,7 @@ void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update
   {
     tables->lock_type= lock_type;
     tables->updating=  for_update;
-    tables->mdl_request.set_type((lock_type >= TL_WRITE_ALLOW_WRITE) ?
+    tables->mdl_request.set_type((lock_type >= TL_FIRST_WRITE) ?
                                  MDL_SHARED_WRITE : MDL_SHARED_READ);
   }
   DBUG_VOID_RETURN;
@@ -9687,7 +9687,7 @@ bool multi_delete_set_locks_and_link_aux_tables(LEX *lex)
     walk->updating= target_tbl->updating;
     walk->lock_type= target_tbl->lock_type;
     /* We can assume that tables to be deleted from are locked for write. */
-    DBUG_ASSERT(walk->lock_type >= TL_WRITE_ALLOW_WRITE);
+    DBUG_ASSERT(walk->lock_type >= TL_FIRST_WRITE);
     walk->mdl_request.set_type(MDL_SHARED_WRITE);
     target_tbl->correspondent_table= walk;	// Remember corresponding table
   }

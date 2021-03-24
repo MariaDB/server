@@ -72,6 +72,15 @@ enum thr_lock_type { TL_IGNORE=-1,
 		     /* Abort new lock request with an error */
 		     TL_WRITE_ONLY};
 
+/*
+  TL_FIRST_WRITE is here to impose some consistency in the sql
+  layer on determining read/write transactions and to
+  provide some API compatibility if additional transactions
+  are added. Above or equal to TL_FIRST_WRITE is a write transaction
+  while < TL_FIRST_WRITE is a read transaction.
+*/
+#define TL_FIRST_WRITE TL_WRITE_ALLOW_WRITE
+
 enum enum_thr_lock_result { THR_LOCK_SUCCESS= 0, THR_LOCK_ABORTED= 1,
                             THR_LOCK_WAIT_TIMEOUT= 2, THR_LOCK_DEADLOCK= 3 };
 

@@ -3616,7 +3616,7 @@ bool fix_session_vcol_expr_for_read(THD *thd, Field *field,
 {
   DBUG_ENTER("fix_session_vcol_expr_for_read");
   TABLE_LIST *tl= field->table->pos_in_table_list;
-  if (!tl || tl->lock_type >= TL_WRITE_ALLOW_WRITE)
+  if (!tl || tl->lock_type >= TL_FIRST_WRITE)
     DBUG_RETURN(0);
   Security_context *save_security_ctx= thd->security_ctx;
   if (tl->security_ctx)
@@ -8494,7 +8494,7 @@ void init_mdl_requests(TABLE_LIST *table_list)
   for ( ; table_list ; table_list= table_list->next_global)
     MDL_REQUEST_INIT(&table_list->mdl_request, MDL_key::TABLE,
                      table_list->db.str, table_list->table_name.str,
-                     table_list->lock_type >= TL_WRITE_ALLOW_WRITE
+                     table_list->lock_type >= TL_FIRST_WRITE
                      ? MDL_SHARED_WRITE : MDL_SHARED_READ, MDL_TRANSACTION);
 }
 

@@ -255,7 +255,7 @@ bool init_read_record(READ_RECORD *info,THD *thd, TABLE *table,
 	thd->variables.read_rnd_buff_size &&
 	!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
 	(table->db_stat & HA_READ_ONLY ||
-	 table->reginfo.lock_type <= TL_READ_NO_INSERT) &&
+	 table->reginfo.lock_type < TL_FIRST_WRITE) &&
 	(ulonglong) table->s->reclength* (table->file->stats.records+
                                           table->file->stats.deleted) >
 	(ulonglong) MIN_FILE_LENGTH_TO_USE_ROW_CACHE &&

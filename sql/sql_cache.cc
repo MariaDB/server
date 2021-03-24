@@ -2291,7 +2291,7 @@ void Query_cache::invalidate_locked_for_write(THD *thd,
   for (; tables_used; tables_used= tables_used->next_local)
   {
     THD_STAGE_INFO(thd, stage_invalidating_query_cache_entries_table);
-    if (tables_used->lock_type >= TL_WRITE_ALLOW_WRITE &&
+    if (tables_used->lock_type >= TL_FIRST_WRITE &&
         tables_used->table)
     {
       invalidate_table(thd, tables_used->table);

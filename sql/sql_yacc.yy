@@ -16704,7 +16704,7 @@ table_lock:
           table_ident opt_table_alias_clause lock_option
           {
             thr_lock_type lock_type= (thr_lock_type) $3;
-            bool lock_for_write= (lock_type >= TL_WRITE_ALLOW_WRITE);
+            bool lock_for_write= (lock_type >= TL_FIRST_WRITE);
             ulong table_options= lock_for_write ? TL_OPTION_UPDATING : 0;
             enum_mdl_type mdl_type= !lock_for_write
                                     ? MDL_SHARED_READ

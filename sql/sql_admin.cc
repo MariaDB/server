@@ -570,7 +570,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     */
     table->mdl_request.set_type(lex->sql_command == SQLCOM_REPAIR
                                 ? MDL_SHARED_NO_READ_WRITE
-                                : lock_type >= TL_WRITE_ALLOW_WRITE
+                                : lock_type >= TL_FIRST_WRITE
                                 ? MDL_SHARED_WRITE : MDL_SHARED_READ);
 
     /* open only one table from local list of command */

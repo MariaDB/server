@@ -2724,7 +2724,7 @@ bool Locked_tables_list::restore_lock(THD *thd, TABLE_LIST *dst_table_list,
   add_back_last_deleted_lock(dst_table_list);
 
   table->mdl_ticket->downgrade_lock(table->reginfo.lock_type >=
-                                    TL_WRITE_ALLOW_WRITE ? 
+                                    TL_FIRST_WRITE ?
                                     MDL_SHARED_NO_READ_WRITE :
                                     MDL_SHARED_READ);
 
@@ -3518,7 +3518,7 @@ bool extend_table_list(THD *thd, TABLE_LIST *tables,
   bool error= false;
   LEX *lex= thd->lex;
   bool maybe_need_prelocking=
-    (tables->updating && tables->lock_type >= TL_WRITE_ALLOW_WRITE)
+    (tables->updating && tables->lock_type >= TL_FIRST_WRITE)
     || thd->lex->default_used;
 
   if (thd->locked_tables_mode <= LTM_LOCK_TABLES &&
@@ -4709,7 +4709,7 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
   DBUG_ENTER("handle_table");
   TABLE *table= table_list->table;
   /* We rely on a caller to check that table is going to be changed. */
-  DBUG_ASSERT(table_list->lock_type >= TL_WRITE_ALLOW_WRITE ||
+  DBUG_ASSERT(table_list->lock_type >= TL_FIRST_WRITE ||
               thd->lex->default_used);
 
   if (table_list->trg_event_map)
@@ -4891,7 +4891,7 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
     tl->open_strategy= TABLE_LIST::OPEN_NORMAL;
 
   /* We rely on a caller to check that table is going to be changed. */
-  DBUG_ASSERT(table_list->lock_type >= TL_WRITE_ALLOW_WRITE);
+  DBUG_ASSERT(table_list->lock_type >= TL_FIRST_WRITE);
 
   return FALSE;
 }
@@ -4998,8 +4998,8 @@ static bool check_lock_and_start_stmt(THD *thd,
   else
     lock_type= table_list->lock_type;
 
-  if ((int) lock_type >= (int) TL_WRITE_ALLOW_WRITE &&
-      (int) table_list->table->reginfo.lock_type < (int) TL_WRITE_ALLOW_WRITE)
+  if ((int) lock_type >= (int) TL_FIRST_WRITE &&
+      (int) table_list->table->reginfo.lock_type < (int) TL_FIRST_WRITE)
   {
     my_error(ER_TABLE_NOT_LOCKED_FOR_WRITE, MYF(0),
              table_list->table->alias.c_ptr());
@@ -5436,7 +5436,7 @@ static bool fix_all_session_vcol_exprs(THD *thd, TABLE_LIST *tables)
   {
     TABLE *t= table->table;
     if (!table->placeholder() && t->s->vcols_need_refixing &&
-         table->lock_type >= TL_WRITE_ALLOW_WRITE)
+         table->lock_type >= TL_FIRST_WRITE)
     {
       Query_arena *stmt_backup= thd->stmt_arena;
       if (thd->stmt_arena->is_conventional())
@@ -5594,7 +5594,7 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
         a table that is already used by the calling statement.
       */
       if (thd->locked_tables_mode >= LTM_PRELOCKED &&
-          table->lock_type >= TL_WRITE_ALLOW_WRITE)
+          table->lock_type >= TL_FIRST_WRITE)
       {
         for (TABLE* opentab= thd->open_tables; opentab; opentab= opentab->next)
         {
@@ -9043,7 +9043,7 @@ open_system_tables_for_read(THD *thd, TABLE_LIST *table_list)
   if (open_and_lock_tables(thd, table_list, FALSE,
                            (MYSQL_OPEN_IGNORE_FLUSH |
                             MYSQL_OPEN_IGNORE_LOGGING_FORMAT |
-                            (table_list->lock_type < TL_WRITE_ALLOW_WRITE ?
+                            (table_list->lock_type < TL_FIRST_WRITE ?
                              MYSQL_LOCK_IGNORE_TIMEOUT : 0))))
   {
     lex->restore_backup_query_tables_list(&query_tables_list_backup);

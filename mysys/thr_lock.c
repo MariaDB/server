@@ -216,8 +216,8 @@ static int check_lock(struct st_lock_list *list, const char* lock_type,
                 lock_type, where);
         return 1;
       }
-      if ((read_lock && data->type > TL_READ_NO_INSERT) ||
-          (!read_lock && data->type <= TL_READ_NO_INSERT))
+      if ((read_lock && data->type >= TL_FIRST_WRITE) ||
+          (!read_lock && data->type < TL_FIRST_WRITE))
       {
 	fprintf(stderr,
 		"Warning: Found %s lock in %s queue at %s: %s\n",
@@ -765,9 +765,9 @@ thr_lock(THR_LOCK_DATA *data, THR_LOCK_INFO *owner, ulong lock_wait_timeout)
   DBUG_PRINT("lock",("data:%p  thread:%lu  lock:%p  type: %d",
                      data, (ulong) data->owner->thread_id,
                      lock, (int) lock_type));
-  check_locks(lock,(uint) lock_type <= (uint) TL_READ_NO_INSERT ?
+  check_locks(lock,(uint) lock_type < (uint) TL_FIRST_WRITE ?
 	      "enter read_lock" : "enter write_lock", lock_type, 0);
-  if ((int) lock_type <= (int) TL_READ_NO_INSERT)
+  if ((int) lock_type < (int) TL_FIRST_WRITE)
   {
     /* Request for READ lock */
     if (lock->write.data)

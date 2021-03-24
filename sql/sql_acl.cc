@@ -1942,7 +1942,7 @@ class Grant_tables
        We can read privilege tables even when !initialized.
        This can be acl_load() - server startup or FLUSH PRIVILEGES
        */
-    if (lock_type >= TL_WRITE_ALLOW_WRITE && !initialized)
+    if (lock_type >= TL_FIRST_WRITE && !initialized)
     {
       my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
       DBUG_RETURN(-1);
@@ -1957,7 +1957,7 @@ class Grant_tables
                            NULL, lock_type);
         tl->open_type= OT_BASE_ONLY;
         tl->i_s_requested_object= OPEN_TABLE_ONLY;
-        tl->updating= lock_type >= TL_WRITE_ALLOW_WRITE;
+        tl->updating= lock_type >= TL_FIRST_WRITE;
         if (i >= FIRST_OPTIONAL_TABLE)
           tl->open_strategy= TABLE_LIST::OPEN_IF_EXISTS;
         tl->next_global= tl->next_local= first;
@@ -1982,7 +1982,7 @@ class Grant_tables
                          NULL, lock_type);
       tl->open_type= OT_BASE_ONLY;
       tl->i_s_requested_object= OPEN_TABLE_ONLY;
-      tl->updating= lock_type >= TL_WRITE_ALLOW_WRITE;
+      tl->updating= lock_type >= TL_FIRST_WRITE;
       p_user_table= &m_user_table_tabular;
       counter++;
       res= really_open(thd, tl, &unused);
@@ -2049,7 +2049,7 @@ class Grant_tables
   {
     DBUG_ENTER("Grant_tables::really_open:");
 #ifdef HAVE_REPLICATION
-    if (tables->lock_type >= TL_WRITE_ALLOW_WRITE &&
+    if (tables->lock_type >= TL_FIRST_WRITE &&
         thd->slave_thread && !thd->spcont)
     {
       /*
@@ -8116,7 +8116,7 @@ bool check_grant(THD *thd, privilege_t want_access, TABLE_LIST *tables,
         We want to have either SELECT or INSERT rights to sequences depending
         on how they are accessed
       */
-      orig_want_access= ((t_ref->lock_type == TL_WRITE_ALLOW_WRITE) ?
+      orig_want_access= ((t_ref->lock_type >= TL_FIRST_WRITE) ?
                          INSERT_ACL : SELECT_ACL);
     }
 

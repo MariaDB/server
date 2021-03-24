@@ -4369,7 +4369,7 @@ void LEX::set_trg_event_type_for_tables()
       parsing.
     */
     if (static_cast<int>(tables->lock_type) >=
-        static_cast<int>(TL_WRITE_ALLOW_WRITE))
+        static_cast<int>(TL_FIRST_WRITE))
       tables->trg_event_map= new_trg_event_map;
     tables= tables->next_local;
   }
