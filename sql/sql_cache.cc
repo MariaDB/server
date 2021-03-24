@@ -4094,11 +4094,13 @@ Query_cache::process_and_count_tables(THD *thd, TABLE_LIST *tables_used,
       *tables_type|= HA_CACHE_TBL_NONTRANSACT;
       continue;
     }
-    if (tables_used->derived)
+    if (tables_used->derived || tables_used->table_function)
     {
       DBUG_PRINT("qcache", ("table: %s", tables_used->alias.str));
       table_count--;
-      DBUG_PRINT("qcache", ("derived table skipped"));
+      DBUG_PRINT("qcache", (tables_used->table_function ?
+                              "table function skipped" :
+                              "derived table skipped"));
       continue;
     }
 

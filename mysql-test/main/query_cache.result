@@ -2227,6 +2227,13 @@ SHOW STATUS LIKE 'Qcache_inserts';
 Variable_name	Value
 Qcache_inserts	0
 drop table t1;
+#
+# MDEV-25228 JSON_TABLE: Server crashes in Query_cache::unlink_table.
+#
+CREATE TABLE t (a INT);
+SELECT * FROM t JOIN JSON_TABLE('{}' , '$' COLUMNS(b FOR ORDINALITY)) AS jt;
+a	b
+DROP TABLE t;
 restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;

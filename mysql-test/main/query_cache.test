@@ -1818,6 +1818,13 @@ select * from t1, json_table(t1.a, '$' columns (f varchar(20) path '$.a')) as jt
 SHOW STATUS LIKE 'Qcache_inserts';
 drop table t1;
 
+--echo #
+--echo # MDEV-25228 JSON_TABLE: Server crashes in Query_cache::unlink_table.
+--echo #
+CREATE TABLE t (a INT);
+SELECT * FROM t JOIN JSON_TABLE('{}' , '$' COLUMNS(b FOR ORDINALITY)) AS jt;
+DROP TABLE t;
+
 --echo restore defaults
 SET GLOBAL query_cache_type= default;
 SET GLOBAL query_cache_size=@save_query_cache_size;
