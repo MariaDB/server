@@ -2388,6 +2388,8 @@ static int add_column_list_values(String *str, partition_info *part_info,
         */
         if (create_info)
         {
+          const Column_derived_attributes
+            derived_attr(create_info->default_table_charset);
           Create_field *sql_field;
 
           if (!(sql_field= get_sql_field(field_name,
@@ -2402,7 +2404,7 @@ static int add_column_list_values(String *str, partition_info *part_info,
                                &need_cs_check))
             return 1;
           if (need_cs_check)
-            field_cs= get_sql_field_charset(sql_field, create_info);
+            field_cs= sql_field->explicit_or_derived_charset(&derived_attr);
           else
             field_cs= NULL;
         }

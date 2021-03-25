@@ -4631,6 +4631,11 @@ public:
   void frm_pack_charset(uchar *buff) const;
   void frm_unpack_basic(const uchar *buff);
   bool frm_unpack_charset(TABLE_SHARE *share, const uchar *buff);
+  CHARSET_INFO *explicit_or_derived_charset(const Column_derived_attributes
+                                                  *derived_attr) const
+  {
+    return charset ? charset : derived_attr->charset();
+  }
 };
 
 
@@ -4765,6 +4770,15 @@ public:
   void create_length_to_internal_length_bit();
   void create_length_to_internal_length_newdecimal();
 
+  /*
+    Prepare the "charset" member for string data types,
+    such as CHAR, VARCHAR, TEXT, ENUM, SET:
+    - derive the charset if not specified explicitly
+    - find a _bin collation if the BINARY comparison style was specified, e.g.:
+       CREATE TABLE t1 (a VARCHAR(10) BINARY) CHARSET utf8;
+  */
+  bool prepare_charset_for_string(const Column_derived_attributes *dattr);
+
   /**
     Prepare a SET/ENUM field.
     Create "interval" from "interval_list" if needed, and adjust "length".
@@ -4800,7 +4814,13 @@ public:
   bool sp_prepare_create_field(THD *thd, MEM_ROOT *mem_root);
 
   bool prepare_stage1(THD *thd, MEM_ROOT *mem_root,
-                      handler *file, ulonglong table_flags);
+                      handler *file, ulonglong table_flags,
+                      const Column_derived_attributes *derived_attr);
+  void prepare_stage1_simple(CHARSET_INFO *cs)
+  {
+    charset= cs;
+    create_length_to_internal_length_simple();
+  }
   bool prepare_stage1_typelib(THD *thd, MEM_ROOT *mem_root,
                               handler *file, ulonglong table_flags);
   bool prepare_stage1_string(THD *thd, MEM_ROOT *mem_root,
@@ -4808,15 +4828,19 @@ public:
   bool prepare_stage1_bit(THD *thd, MEM_ROOT *mem_root,
                           handler *file, ulonglong table_flags);
 
+  bool bulk_alter(const Column_derived_attributes *derived_attr,
+                  const Column_bulk_alter_attributes *bulk_attr)
+  {
+    return type_handler()->Column_definition_bulk_alter(this,
+                                                        derived_attr,
+                                                        bulk_attr);
+  }
   void redefine_stage1_common(const Column_definition *dup_field,
-                              const handler *file,
-                              const Schema_specification_st *schema);
-  bool redefine_stage1(const Column_definition *dup_field, const handler *file,
-                       const Schema_specification_st *schema)
+                              const handler *file);
+  bool redefine_stage1(const Column_definition *dup_field, const handler *file)
   {
     const Type_handler *handler= dup_field->type_handler();
-    return handler->Column_definition_redefine_stage1(this, dup_field,
-                                                      file, schema);
+    return handler->Column_definition_redefine_stage1(this, dup_field, file);
   }
   bool prepare_stage2(handler *handler, ulonglong table_flags);
   bool prepare_stage2_blob(handler *handler,

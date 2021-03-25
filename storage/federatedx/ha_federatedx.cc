@@ -3419,7 +3419,9 @@ int ha_federatedx::create(const char *name, TABLE *table_arg,
   {
     FEDERATEDX_SERVER server;
 
-    fill_server(thd->mem_root, &server, &tmp_share, create_info->table_charset);
+    // It's possibly wrong to use alter_table_convert_to_charset here.
+    fill_server(thd->mem_root, &server, &tmp_share,
+                create_info->alter_table_convert_to_charset);
 
 #ifndef DBUG_OFF
     mysql_mutex_init(fe_key_mutex_FEDERATEDX_SERVER_mutex,

@@ -2671,9 +2671,12 @@ bool Type_handler::
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
 {
-  def->create_length_to_internal_length_simple();
+  def->prepare_stage1_simple(&my_charset_bin);
   return false;
 }
 
@@ -2682,8 +2685,12 @@ bool Type_handler_null::
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
 {
+  def->prepare_charset_for_string(derived_attr);
   def->create_length_to_internal_length_null();
   return false;
 }
@@ -2693,9 +2700,42 @@ bool Type_handler_row::
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
 {
+  def->charset= &my_charset_bin;
   def->create_length_to_internal_length_null();
+  return false;
+}
+
+bool Type_handler_temporal_result::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
+{
+  def->prepare_stage1_simple(&my_charset_numeric);
+  return false;
+}
+
+
+bool Type_handler_numeric::
+       Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *def,
+                                        handler *file,
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
+{
+  def->prepare_stage1_simple(&my_charset_numeric);
   return false;
 }
 
@@ -2704,8 +2744,12 @@ bool Type_handler_newdecimal::
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
 {
+  def->charset= &my_charset_numeric;
   def->create_length_to_internal_length_newdecimal();
   return false;
 }
@@ -2715,8 +2759,12 @@ bool Type_handler_bit::
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
 {
+  def->charset= &my_charset_numeric;
   return def->prepare_stage1_bit(thd, mem_root, file, table_flags);
 }
 
@@ -2725,9 +2773,13 @@ bool Type_handler_typelib::
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
 {
-  return def->prepare_stage1_typelib(thd, mem_root, file, table_flags);
+  return def->prepare_charset_for_string(derived_attr) ||
+         def->prepare_stage1_typelib(thd, mem_root, file, table_flags);
 }
 
 
@@ -2736,20 +2788,31 @@ bool Type_handler_string_result::
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
 {
-  return def->prepare_stage1_string(thd, mem_root, file, table_flags);
+  return def->prepare_charset_for_string(derived_attr) ||
+         def->prepare_stage1_string(thd, mem_root, file, table_flags);
 }
 
 
 #ifdef HAVE_SPATIAL
+#if MYSQL_VERSION_ID > 100500
+#error The below method is in sql/sql_type_geom.cc starting from 10.5
+#endif
 bool Type_handler_geometry::
        Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const
 {
+  def->charset= &my_charset_bin;
   def->create_length_to_internal_length_string();
   return def->prepare_blob_field(thd);
 }
@@ -2758,14 +2821,38 @@ bool Type_handler_geometry::
 
 /*************************************************************************/
 
+bool Type_handler_general_purpose_string::
+       Column_definition_bulk_alter(Column_definition *def,
+                                    const Column_derived_attributes
+                                          *derived_attr,
+                                    const Column_bulk_alter_attributes
+                                          *bulk_alter_attr)
+                                    const
+{
+  if (!bulk_alter_attr->alter_table_convert_to_charset())
+    return false; // No "CONVERT TO" clause.
+  CHARSET_INFO *defcs= def->explicit_or_derived_charset(derived_attr);
+  DBUG_ASSERT(defcs);
+  /*
+    Handle 'ALTER TABLE t1 CONVERT TO CHARACTER SET csname'.
+    Change character sets for all varchar/char/text columns,
+    but do not touch varbinary/binary/blob columns.
+  */
+  if (defcs != &my_charset_bin)
+    def->charset= bulk_alter_attr->alter_table_convert_to_charset();
+  return false;
+};
+
+
+/*************************************************************************/
+
 bool Type_handler::
        Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const
 {
-  def->redefine_stage1_common(dup, file, schema);
+  def->redefine_stage1_common(dup, file);
   def->create_length_to_internal_length_simple();
   return false;
 }
@@ -2774,11 +2861,10 @@ bool Type_handler::
 bool Type_handler_null::
        Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const
 {
-  def->redefine_stage1_common(dup, file, schema);
+  def->redefine_stage1_common(dup, file);
   def->create_length_to_internal_length_null();
   return false;
 }
@@ -2787,11 +2873,10 @@ bool Type_handler_null::
 bool Type_handler_newdecimal::
        Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const
 {
-  def->redefine_stage1_common(dup, file, schema);
+  def->redefine_stage1_common(dup, file);
   def->create_length_to_internal_length_newdecimal();
   return false;
 }
@@ -2800,11 +2885,10 @@ bool Type_handler_newdecimal::
 bool Type_handler_string_result::
        Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const
 {
-  def->redefine_stage1_common(dup, file, schema);
+  def->redefine_stage1_common(dup, file);
   def->set_compression_method(dup->compression_method());
   def->create_length_to_internal_length_string();
   return false;
@@ -2814,11 +2898,10 @@ bool Type_handler_string_result::
 bool Type_handler_typelib::
        Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const
 {
-  def->redefine_stage1_common(dup, file, schema);
+  def->redefine_stage1_common(dup, file);
   def->create_length_to_internal_length_typelib();
   return false;
 }
@@ -2827,11 +2910,10 @@ bool Type_handler_typelib::
 bool Type_handler_bit::
        Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const
 {
-  def->redefine_stage1_common(dup, file, schema);
+  def->redefine_stage1_common(dup, file);
   /*
     If we are replacing a field with a BIT field, we need
     to initialize pack_flag.

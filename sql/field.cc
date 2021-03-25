@@ -11076,16 +11076,26 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     CREATE TABLE t1 (a INT) AS SELECT a FROM t2;
   See Type_handler::Column_definition_redefine_stage1()
   for data type specific code.
+
+  @param this         - The field definition corresponding to the expression
+                        in the "AS SELECT.." part.
+
+  @param dup_field    - The field definition from the "CREATE TABLE (...)" part.
+                        It has already underwent prepare_stage1(), so
+                        must be fully initialized:
+                        -- dup_field->charset is set and BINARY
+                           sorting style is applied, see find_bin_collation().
+
+  @param file         - The table handler
 */
 void
 Column_definition::redefine_stage1_common(const Column_definition *dup_field,
-                                          const handler *file,
-                                          const Schema_specification_st *schema)
+                                          const handler *file)
 {
   set_handler(dup_field->type_handler());
   default_value= dup_field->default_value;
-  charset=       dup_field->charset ? dup_field->charset :
-                                      schema->default_table_charset;
+  DBUG_ASSERT(dup_field->charset); // Set by prepare_stage1()
+  charset=      dup_field->charset;
   length=       dup_field->char_length;
   pack_length=  dup_field->pack_length;
   key_length=   dup_field->key_length;
