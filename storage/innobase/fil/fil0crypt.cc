@@ -1482,7 +1482,7 @@ encryption parameters were changed
 @param encrypt  expected state of innodb_encrypt_tables
 @return the next tablespace
 @retval fil_system.temp_space if there is no work to do
-@retval nullptr upon reaching the end of the iteration */
+@retval end() upon reaching the end of the iteration */
 space_list_t::iterator fil_space_t::next(space_list_t::iterator space,
                                          bool recheck, bool encrypt)
 {
@@ -1490,9 +1490,12 @@ space_list_t::iterator fil_space_t::next(space_list_t::iterator space,
 
   if (!srv_fil_crypt_rotate_key_age)
   {
-    space= space_list_t::iterator(fil_system.keyrotate_next(
+    fil_space_t *next_space= fil_system.keyrotate_next(
         space != fil_system.space_list.end() ? &*space : nullptr, recheck,
-        encrypt));
+        encrypt);
+    space= next_space
+      ? space_list_t::iterator(next_space)
+      : fil_system.space_list.end();
   }
   else
   {
