@@ -214,6 +214,7 @@ alter user user@localhost password expire;
 show create user user@localhost;
 CREATE USER for user@localhost
 CREATE USER `user`@`localhost` PASSWORD EXPIRE
+ALTER USER `user`@`localhost` PASSWORD EXPIRE INTERVAL 123 DAY
 set password for user@localhost= password('');
 show create user user@localhost;
 CREATE USER for user@localhost

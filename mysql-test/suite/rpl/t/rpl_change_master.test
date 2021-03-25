@@ -101,4 +101,11 @@ connection master;
 drop table t1;
 }
 
+--connection master
+# MDEV-22741: *SAN: ERROR: AddressSanitizer: use-after-poison on address in
+# instrings/strmake.c:36 from change_master (on optimized builds)
+CHANGE MASTER TO MASTER_USER='root', MASTER_SSL=0, MASTER_SSL_CA='', MASTER_SSL_CERT='',
+  MASTER_SSL_KEY='', MASTER_SSL_CRL='', MASTER_SSL_CRLPATH='';
+CHANGE MASTER TO MASTER_USER='root', MASTER_PASSWORD='', MASTER_SSL=0;
+
 --source include/rpl_end.inc

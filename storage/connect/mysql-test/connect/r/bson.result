@@ -1,0 +1,517 @@
+#
+# Testing doc samples
+#
+CREATE TABLE t1
+(
+ISBN CHAR(15),
+LANG CHAR(2),
+SUBJECT CHAR(32),
+AUTHOR CHAR(64),
+TITLE CHAR(32),
+TRANSLATION CHAR(32),
+TRANSLATOR CHAR(80),
+PUBLISHER CHAR(32),
+DATEPUB int(4)
+) ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='biblio.json';
+SELECT * FROM t1;
+ISBN	LANG	SUBJECT	AUTHOR	TITLE	TRANSLATION	TRANSLATOR	PUBLISHER	DATEPUB
+9782212090819	fr	applications	 Jean-Christophe Bernadac, François Knab	Construire une application XML	NULL	NULL	Eyrolles Paris	1999
+9782840825685	fr	applications	William J. Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press Paris	1999
+DROP TABLE t1;
+#
+# Testing Jpath. Get the number of authors
+#
+CREATE TABLE t1
+(
+ISBN CHAR(15),
+Language CHAR(2) JPATH='$.LANG',
+Subject CHAR(32) JPATH='$.SUBJECT',
+Authors INT(2) JPATH='$.AUTHOR[#]',
+Title CHAR(32) JPATH='$.TITLE',
+Translation CHAR(32) JPATH='$.TRANSLATION',
+Translator CHAR(80) JPATH='$.TRANSLATOR',
+Publisher CHAR(20) JPATH='$.PUBLISHER.NAME',
+Location CHAR(16) JPATH='$.PUBLISHER.PLACE',
+Year int(4) JPATH='$.DATEPUB'
+)
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='biblio.json';
+SELECT * FROM t1;
+ISBN	Language	Subject	Authors	Title	Translation	Translator	Publisher	Location	Year
+9782212090819	fr	applications	2	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782840825685	fr	applications	1	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
+DROP TABLE t1;
+#
+# Concatenates the authors
+#
+CREATE TABLE t1
+(
+ISBN CHAR(15),
+Language CHAR(2) JPATH='$.LANG',
+Subject CHAR(32) JPATH='$.SUBJECT',
+AuthorFN CHAR(128) JPATH='$.AUTHOR[" and "].FIRSTNAME',
+AuthorLN CHAR(128) JPATH='$.AUTHOR[" and "].LASTNAME',
+Title CHAR(32) JPATH='$.TITLE',
+Translation CHAR(32) JPATH='$.TRANSLATION',
+Translator CHAR(80) JPATH='$.TRANSLATOR',
+Publisher CHAR(20) JPATH='$.PUBLISHER.NAME',
+Location CHAR(16) JPATH='$.PUBLISHER.PLACE',
+Year int(4) JPATH='$.DATEPUB'
+)
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='biblio.json';
+SELECT * FROM t1;
+ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
+9782212090819	fr	applications	Jean-Christophe and François	Bernadac and Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
+DROP TABLE t1;
+#
+# Testing expanding authors
+#
+CREATE TABLE t1
+(
+ISBN CHAR(15),
+Language CHAR(2) JPATH='$.LANG',
+Subject CHAR(32) JPATH='$.SUBJECT',
+AuthorFN CHAR(128) JPATH='$.AUTHOR[*].FIRSTNAME',
+AuthorLN CHAR(128) JPATH='$.AUTHOR[*].LASTNAME',
+Title CHAR(32) JPATH='$.TITLE',
+Translation CHAR(32) JPATH='$.TRANSLATION',
+Translator CHAR(80) JPATH='$.TRANSLATOR',
+Publisher CHAR(20) JPATH='$.PUBLISHER.NAME',
+Location CHAR(16) JPATH='$.PUBLISHER.PLACE',
+Year int(4) JPATH='$.DATEPUB'
+)
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='biblio.json';
+SELECT * FROM t1;
+ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
+9782212090819	fr	applications	Jean-Christophe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	François	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
+UPDATE t1 SET AuthorFN = 'Philippe' WHERE AuthorLN = 'Knab';
+SELECT * FROM t1 WHERE ISBN = '9782212090819';
+ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
+9782212090819	fr	applications	Jean-Christophe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	Philippe	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+#
+# To add an author a new table must be created
+#
+CREATE TABLE t2 (
+FIRSTNAME CHAR(32),
+LASTNAME CHAR(32))
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='biblio.json' OPTION_LIST='Object=$[1].AUTHOR';
+SELECT * FROM t2;
+FIRSTNAME	LASTNAME
+William J.	Pardi
+INSERT INTO t2 VALUES('Charles','Dickens');
+SELECT * FROM t1;
+ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	Translator	Publisher	Location	Year
+9782212090819	fr	applications	Jean-Christophe	Bernadac	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	Philippe	Knab	Construire une application XML	NULL	NULL	Eyrolles	Paris	1999
+9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
+9782840825685	fr	applications	Charles	Dickens	XML en Action	adapté de l'anglais par	James Guerin	Microsoft Press	Paris	1999
+DROP TABLE t1;
+DROP TABLE t2;
+#
+# Check the biblio file has the good format
+#
+CREATE TABLE t1
+(
+line char(255)
+)
+ENGINE=CONNECT TABLE_TYPE=DOS FILE_NAME='biblio.json';
+SELECT * FROM t1;
+line
+[
+	{
+		"ISBN": "9782212090819",
+		"LANG": "fr",
+		"SUBJECT": "applications",
+		"AUTHOR": [
+			{
+				"FIRSTNAME": "Jean-Christophe",
+				"LASTNAME": "Bernadac"
+			},
+			{
+				"FIRSTNAME": "Philippe",
+				"LASTNAME": "Knab"
+			}
+		],
+		"TITLE": "Construire une application XML",
+		"PUBLISHER": {
+			"NAME": "Eyrolles",
+			"PLACE": "Paris"
+		},
+		"DATEPUB": 1999
+	},
+	{
+		"ISBN": "9782840825685",
+		"LANG": "fr",
+		"SUBJECT": "applications",
+		"AUTHOR": [
+			{
+				"FIRSTNAME": "William J.",
+				"LASTNAME": "Pardi"
+			},
+			{
+				"FIRSTNAME": "Charles",
+				"LASTNAME": "Dickens"
+			}
+		],
+		"TITLE": "XML en Action",
+		"TRANSLATION": "adapté de l'anglais par",
+		"TRANSLATOR": {
+			"FIRSTNAME": "James",
+			"LASTNAME": "Guerin"
+		},
+		"PUBLISHER": {
+			"NAME": "Microsoft Press",
+			"PLACE": "Paris"
+		},
+		"DATEPUB": 1999
+	}
+]
+DROP TABLE t1;
+#
+# Testing a pretty=0 file
+#
+CREATE TABLE t1
+(
+ISBN CHAR(15) NOT NULL,
+Language CHAR(2) JPATH='$.LANG',
+Subject CHAR(32) JPATH='$.SUBJECT',
+AuthorFN CHAR(128) JPATH='$.AUTHOR[*].FIRSTNAME',
+AuthorLN CHAR(128) JPATH='$.AUTHOR[*].LASTNAME',
+Title CHAR(32) JPATH='$.TITLE',
+Translation CHAR(32) JPATH='$.TRANSLATED.PREFIX',
+TranslatorFN CHAR(80) JPATH='$.TRANSLATED.TRANSLATOR.FIRSTNAME',
+TranslatorLN CHAR(80) JPATH='$.TRANSLATED.TRANSLATOR.LASTNAME',
+Publisher CHAR(20) JPATH='$.PUBLISHER.NAME',
+Location CHAR(16) JPATH='$.PUBLISHER.PLACE',
+Year int(4) JPATH='$.DATEPUB',
+INDEX IX(ISBN)
+)
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='bib0.json' LRECL=320 OPTION_LIST='Pretty=0';
+SHOW INDEX FROM t1;
+Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment
+t1	1	IX	1	ISBN	A	NULL	NULL	NULL		XINDEX		
+SELECT * FROM t1;
+ISBN	Language	Subject	AuthorFN	AuthorLN	Title	Translation	TranslatorFN	TranslatorLN	Publisher	Location	Year
+9782212090819	fr	applications	Jean-Michel	Bernadac	Construire une application XML	NULL	NULL	NULL	Eyrolles	Paris	1999
+9782212090819	fr	applications	François	Knab	Construire une application XML	NULL	NULL	NULL	Eyrolles	Paris	1999
+9782840825685	fr	applications	William J.	Pardi	XML en Action	adapté de l'anglais par	James	Guerin	Microsoft Press	Paris	2001
+DESCRIBE SELECT * FROM t1 WHERE ISBN = '9782212090819';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	IX	IX	15	const	1	Using where
+UPDATE t1 SET AuthorFN = 'Philippe' WHERE ISBN = '9782212090819';
+ERROR HY000: Got error 122 'Cannot write expanded column when Pretty is not 2' from CONNECT
+DROP TABLE t1;
+#
+# A file with 2 arrays
+#
+CREATE TABLE t1 (
+WHO CHAR(12),
+WEEK INT(2) JPATH='$.WEEK[*].NUMBER',
+WHAT CHAR(32) JPATH='$.WEEK[].EXPENSE["+"].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.WEEK[].EXPENSE[+].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='expense.json';
+SELECT * FROM t1;
+WHO	WEEK	WHAT	AMOUNT
+Joe	3	Beer+Food+Food+Car	69.00
+Joe	4	Beer+Beer+Food+Food+Beer	83.00
+Joe	5	Beer+Food	26.00
+Beth	3	Beer	16.00
+Beth	4	Food+Beer	32.00
+Beth	5	Food+Beer	32.00
+Janet	3	Car+Food+Beer	55.00
+Janet	4	Car	17.00
+Janet	5	Beer+Car+Beer+Food	57.00
+DROP TABLE t1;
+#
+# Now it can be fully expanded
+#
+CREATE TABLE t1 (
+WHO CHAR(12),
+WEEK INT(2) JPATH='$.WEEK[*].NUMBER',
+WHAT CHAR(32) JPATH='$.WEEK[*].EXPENSE[*].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.WEEK[*].EXPENSE[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='expense.json';
+SELECT * FROM t1;
+WHO	WEEK	WHAT	AMOUNT
+Joe	3	Beer	18.00
+Joe	3	Food	12.00
+Joe	3	Food	19.00
+Joe	3	Car	20.00
+Joe	4	Beer	19.00
+Joe	4	Beer	16.00
+Joe	4	Food	17.00
+Joe	4	Food	17.00
+Joe	4	Beer	14.00
+Joe	5	Beer	14.00
+Joe	5	Food	12.00
+Beth	3	Beer	16.00
+Beth	4	Food	17.00
+Beth	4	Beer	15.00
+Beth	5	Food	12.00
+Beth	5	Beer	20.00
+Janet	3	Car	19.00
+Janet	3	Food	18.00
+Janet	3	Beer	18.00
+Janet	4	Car	17.00
+Janet	5	Beer	14.00
+Janet	5	Car	12.00
+Janet	5	Beer	19.00
+Janet	5	Food	12.00
+DROP TABLE t1;
+#
+# A table showing many calculated results
+#
+CREATE TABLE t1 (
+WHO CHAR(12) NOT NULL,
+WEEKS CHAR(12) NOT NULL JPATH='$.WEEK[", "].NUMBER',
+SUMS CHAR(64) NOT NULL JPATH='$.WEEK["+"].EXPENSE[+].AMOUNT',
+SUM DOUBLE(8,2) NOT NULL JPATH='$.WEEK[+].EXPENSE[+].AMOUNT',
+AVGS CHAR(64) NOT NULL JPATH='$.WEEK["+"].EXPENSE[!].AMOUNT',
+SUMAVG DOUBLE(8,2) NOT NULL JPATH='$.WEEK[+].EXPENSE[!].AMOUNT',
+AVGSUM DOUBLE(8,2) NOT NULL JPATH='$.WEEK[!].EXPENSE[+].AMOUNT',
+AVGAVG DOUBLE(8,2) NOT NULL JPATH='$.WEEK[!].EXPENSE[!].AMOUNT',
+AVERAGE DOUBLE(8,2) NOT NULL JPATH='$.WEEK[!].EXPENSE[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='expense.json';
+SELECT * FROM t1;
+WHO	WEEKS	SUMS	SUM	AVGS	SUMAVG	AVGSUM	AVGAVG	AVERAGE
+Joe	3, 4, 5	69.00+83.00+26.00	178.00	17.25+16.60+13.00	46.85	59.33	15.62	16.18
+Beth	3, 4, 5	16.00+32.00+32.00	80.00	16.00+16.00+16.00	48.00	26.67	16.00	16.00
+Janet	3, 4, 5	55.00+17.00+57.00	129.00	18.33+17.00+14.25	49.58	43.00	16.53	16.12
+DROP TABLE t1;
+#
+# Expand expense in 3 one week tables
+#
+CREATE TABLE t2 (
+WHO CHAR(12),
+WEEK INT(2) JPATH='$.WEEK[0].NUMBER',
+WHAT CHAR(32) JPATH='$.WEEK[0].EXPENSE[*].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.WEEK[0].EXPENSE[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='expense.json';
+SELECT * FROM t2;
+WHO	WEEK	WHAT	AMOUNT
+Joe	3	Beer	18.00
+Joe	3	Food	12.00
+Joe	3	Food	19.00
+Joe	3	Car	20.00
+Beth	3	Beer	16.00
+Janet	3	Car	19.00
+Janet	3	Food	18.00
+Janet	3	Beer	18.00
+CREATE TABLE t3 (
+WHO CHAR(12),
+WEEK INT(2) JPATH='$.WEEK[1].NUMBER',
+WHAT CHAR(32) JPATH='$.WEEK[1].EXPENSE[*].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.WEEK[1].EXPENSE[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='expense.json';
+SELECT * FROM t3;
+WHO	WEEK	WHAT	AMOUNT
+Joe	4	Beer	19.00
+Joe	4	Beer	16.00
+Joe	4	Food	17.00
+Joe	4	Food	17.00
+Joe	4	Beer	14.00
+Beth	4	Food	17.00
+Beth	4	Beer	15.00
+Janet	4	Car	17.00
+CREATE TABLE t4 (
+WHO CHAR(12),
+WEEK INT(2) JPATH='$.WEEK[2].NUMBER',
+WHAT CHAR(32) JPATH='$.WEEK[2].EXPENSE[*].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.WEEK[2].EXPENSE[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='expense.json';
+SELECT * FROM t4;
+WHO	WEEK	WHAT	AMOUNT
+Joe	5	Beer	14.00
+Joe	5	Food	12.00
+Beth	5	Food	12.00
+Beth	5	Beer	20.00
+Janet	5	Beer	14.00
+Janet	5	Car	12.00
+Janet	5	Beer	19.00
+Janet	5	Food	12.00
+#
+# The expanded table is made as a TBL table
+#
+CREATE TABLE t1 (
+WHO CHAR(12),
+WEEK INT(2),
+WHAT CHAR(32),
+AMOUNT DOUBLE(8,2))
+ENGINE=CONNECT TABLE_TYPE=TBL TABLE_LIST='t2,t3,t4';
+SELECT * FROM t1;
+WHO	WEEK	WHAT	AMOUNT
+Joe	3	Beer	18.00
+Joe	3	Food	12.00
+Joe	3	Food	19.00
+Joe	3	Car	20.00
+Beth	3	Beer	16.00
+Janet	3	Car	19.00
+Janet	3	Food	18.00
+Janet	3	Beer	18.00
+Joe	4	Beer	19.00
+Joe	4	Beer	16.00
+Joe	4	Food	17.00
+Joe	4	Food	17.00
+Joe	4	Beer	14.00
+Beth	4	Food	17.00
+Beth	4	Beer	15.00
+Janet	4	Car	17.00
+Joe	5	Beer	14.00
+Joe	5	Food	12.00
+Beth	5	Food	12.00
+Beth	5	Beer	20.00
+Janet	5	Beer	14.00
+Janet	5	Car	12.00
+Janet	5	Beer	19.00
+Janet	5	Food	12.00
+DROP TABLE t1, t2, t3, t4;
+#
+# Three partial JSON tables
+#
+CREATE TABLE t2 (
+WHO CHAR(12),
+WEEK INT(2),
+WHAT CHAR(32) JPATH='$.EXPENSE[*].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.EXPENSE.[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='mulexp3.json';
+SELECT * FROM t2;
+WHO	WEEK	WHAT	AMOUNT
+Joe	3	Beer	18.00
+Joe	3	Food	12.00
+Joe	3	Food	19.00
+Joe	3	Car	20.00
+Beth	3	Beer	16.00
+Janet	3	Car	19.00
+Janet	3	Food	18.00
+Janet	3	Beer	18.00
+CREATE TABLE t3 (
+WHO CHAR(12),
+WEEK INT(2),
+WHAT CHAR(32) JPATH='$.EXPENSE[*].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.EXPENSE.[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='mulexp4.json';
+SELECT * FROM t3;
+WHO	WEEK	WHAT	AMOUNT
+Joe	4	Beer	19.00
+Joe	4	Beer	16.00
+Joe	4	Food	17.00
+Joe	4	Food	17.00
+Joe	4	Beer	14.00
+Beth	4	Food	17.00
+Beth	4	Beer	15.00
+Janet	4	Car	17.00
+CREATE TABLE t4 (
+WHO CHAR(12),
+WEEK INT(2),
+WHAT CHAR(32) JPATH='$.EXPENSE[*].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.EXPENSE.[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='mulexp5.json';
+SELECT * FROM t4;
+WHO	WEEK	WHAT	AMOUNT
+Joe	5	Beer	14.00
+Joe	5	Food	12.00
+Beth	5	Food	12.00
+Beth	5	Beer	20.00
+Janet	5	Beer	14.00
+Janet	5	Car	12.00
+Janet	5	Beer	19.00
+Janet	5	Food	12.00
+#
+# The complete table can be a multiple JSON table
+#
+CREATE TABLE t1 (
+WHO CHAR(12),
+WEEK INT(2),
+WHAT CHAR(32) JPATH='$.EXPENSE[*].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.EXPENSE.[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='mulexp*.json' MULTIPLE=1;
+SELECT * FROM t1 ORDER BY WHO, WEEK, WHAT, AMOUNT;
+WHO	WEEK	WHAT	AMOUNT
+Beth	3	Beer	16.00
+Beth	4	Beer	15.00
+Beth	4	Food	17.00
+Beth	5	Beer	20.00
+Beth	5	Food	12.00
+Janet	3	Beer	18.00
+Janet	3	Car	19.00
+Janet	3	Food	18.00
+Janet	4	Car	17.00
+Janet	5	Beer	14.00
+Janet	5	Beer	19.00
+Janet	5	Car	12.00
+Janet	5	Food	12.00
+Joe	3	Beer	18.00
+Joe	3	Car	20.00
+Joe	3	Food	12.00
+Joe	3	Food	19.00
+Joe	4	Beer	14.00
+Joe	4	Beer	16.00
+Joe	4	Beer	19.00
+Joe	4	Food	17.00
+Joe	4	Food	17.00
+Joe	5	Beer	14.00
+Joe	5	Food	12.00
+DROP TABLE t1;
+#
+# Or also a partition JSON table
+#
+CREATE TABLE t1 (
+WHO CHAR(12),
+WEEK INT(2),
+WHAT CHAR(32) JPATH='$.EXPENSE[*].WHAT',
+AMOUNT DOUBLE(8,2) JPATH='$.EXPENSE.[*].AMOUNT')
+ENGINE=CONNECT TABLE_TYPE=BSON FILE_NAME='mulexp%s.json';
+ALTER TABLE t1
+PARTITION BY LIST COLUMNS(WEEK) (
+PARTITION `3` VALUES IN(3),
+PARTITION `4` VALUES IN(4),
+PARTITION `5` VALUES IN(5));
+Warnings:
+Warning	1105	Data repartition in 3 is unchecked
+Warning	1105	Data repartition in 4 is unchecked
+Warning	1105	Data repartition in 5 is unchecked
+SHOW WARNINGS;
+Level	Code	Message
+Warning	1105	Data repartition in 3 is unchecked
+Warning	1105	Data repartition in 4 is unchecked
+Warning	1105	Data repartition in 5 is unchecked
+SELECT * FROM t1;
+WHO	WEEK	WHAT	AMOUNT
+Joe	3	Beer	18.00
+Joe	3	Food	12.00
+Joe	3	Food	19.00
+Joe	3	Car	20.00
+Beth	3	Beer	16.00
+Janet	3	Car	19.00
+Janet	3	Food	18.00
+Janet	3	Beer	18.00
+Joe	4	Beer	19.00
+Joe	4	Beer	16.00
+Joe	4	Food	17.00
+Joe	4	Food	17.00
+Joe	4	Beer	14.00
+Beth	4	Food	17.00
+Beth	4	Beer	15.00
+Janet	4	Car	17.00
+Joe	5	Beer	14.00
+Joe	5	Food	12.00
+Beth	5	Food	12.00
+Beth	5	Beer	20.00
+Janet	5	Beer	14.00
+Janet	5	Car	12.00
+Janet	5	Beer	19.00
+Janet	5	Food	12.00
+SELECT * FROM t1 WHERE WEEK = 4;
+WHO	WEEK	WHAT	AMOUNT
+Joe	4	Beer	19.00
+Joe	4	Beer	16.00
+Joe	4	Food	17.00
+Joe	4	Food	17.00
+Joe	4	Beer	14.00
+Beth	4	Food	17.00
+Beth	4	Beer	15.00
+Janet	4	Car	17.00
+DROP TABLE t1, t2, t3, t4;

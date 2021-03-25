@@ -110,15 +110,12 @@ Warnings:
 Warning	1264	Out of range value for column 'c1' at row 1
 Warning	1264	Out of range value for column 'c2' at row 1
 Warning	1264	Out of range value for column 'c3' at row 1
-Warning	1366	Incorrect decimal value: '1e+18446744073709551616' for column `test`.`t2`.`c1` at row 2
-Warning	1366	Incorrect decimal value: '1e+18446744073709551616' for column `test`.`t2`.`c2` at row 2
-Warning	1366	Incorrect decimal value: '1e+18446744073709551616' for column `test`.`t2`.`c3` at row 2
+Warning	1264	Out of range value for column 'c1' at row 2
+Warning	1264	Out of range value for column 'c2' at row 2
+Warning	1264	Out of range value for column 'c3' at row 2
 Note	1265	Data truncated for column 'c1' at row 3
 Note	1265	Data truncated for column 'c2' at row 3
 Note	1265	Data truncated for column 'c3' at row 3
-Warning	1366	Incorrect decimal value: '1e-9223372036854775809' for column `test`.`t2`.`c1` at row 4
-Warning	1366	Incorrect decimal value: '1e-9223372036854775809' for column `test`.`t2`.`c2` at row 4
-Warning	1366	Incorrect decimal value: '1e-9223372036854775809' for column `test`.`t2`.`c3` at row 4
 SELECT * FROM t1;
 c1	c2	c3	c4
 0.00000	-0.10000	0	13
@@ -142,7 +139,6 @@ c1	c2	c3	c4
 0	0	0	15
 0	0	0	26
 0	0	0	29
-0	0	0	31
 0	0	0	32
 0	0	0	33
 0	0	0	7
@@ -160,6 +156,7 @@ c1	c2	c3	c4
 9999999999	9999999999	9999999999	25
 9999999999	9999999999	9999999999	28
 9999999999	9999999999	9999999999	30
+9999999999	9999999999	9999999999	31
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) as max_value, sum(c1) as sum, avg(c1) as avg FROM t1;
 total_rows	min_value	max_value	sum	avg
 7	0.00000	99999.99999	212446.04999	30349.435712857
@@ -171,13 +168,13 @@ total_rows	min_value	max_value	sum	avg
 7	0	111111111	111211212	18535202.0000
 SELECT count(*) as total_rows, min(c1) as min_value, max(c1) as max_value, sum(c1) as sum, avg(c1) as avg FROM t2;
 total_rows	min_value	max_value	sum	avg
-30	-9999999999	9999999999	21322222222	710740740.7333
+30	-9999999999	9999999999	31322222221	1044074074.0333
 SELECT count(*) as total_rows, min(c2) as min_value, max(c2) as max_value, sum(c2) as sum, avg(c2) as avg FROM t2;
 total_rows	min_value	max_value	sum	avg
-30	0	9999999999	33444444445	1114814814.8333
+30	0	9999999999	43444444444	1448148148.1333
 SELECT count(*) as total_rows, min(c3) as min_value, max(c3) as max_value, sum(c3) as sum, avg(c3) as avg FROM t2;
 total_rows	min_value	max_value	sum	avg
-30	-9999999999	9999999999	43322222220	1444074074.0000
+30	-9999999999	9999999999	53322222219	1777407407.3000
 SELECT * FROM t1;
 c1	c2	c3	c4
 0.00000	-0.10000	0	13

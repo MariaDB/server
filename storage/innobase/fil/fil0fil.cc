@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -488,12 +488,16 @@ static bool fil_node_open_file(fil_node_t* node)
 
 	const bool first_time_open = node->size == 0;
 
-	bool o_direct_possible = !FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
-	if (const ulint ssize = FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
-		compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
-		if (ssize < 3) {
-			o_direct_possible = false;
-		}
+	ulint type;
+	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
+		      "compatibility");
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
 	}
 
 	if (first_time_open
@@ -514,9 +518,7 @@ retry:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 
@@ -556,9 +558,7 @@ fail:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 	}
@@ -887,15 +887,14 @@ fil_space_extend_must_retry(
 	}
 }
 
-/*******************************************************************//**
-Reserves the fil_system.mutex and tries to make sure we can open at least one
+/** Reserves the fil_system.mutex and tries to make sure we can open at least one
 file while holding it. This should be called before calling
-fil_node_prepare_for_io(), because that function may need to open a file. */
+fil_node_prepare_for_io(), because that function may need to open a file.
+@param[in]	space_id	tablespace id
+@return whether the tablespace is usable for io */
 static
-void
-fil_mutex_enter_and_prepare_for_io(
-/*===============================*/
-	ulint	space_id)	/*!< in: space id */
+bool
+fil_mutex_enter_and_prepare_for_io(ulint space_id)
 {
 	for (ulint count = 0;;) {
 		mutex_enter(&fil_system.mutex);
@@ -908,7 +907,7 @@ fil_mutex_enter_and_prepare_for_io(
 		fil_space_t*	space = fil_space_get_by_id(space_id);
 
 		if (space == NULL) {
-			break;
+			return false;
 		}
 
 		fil_node_t*	node = UT_LIST_GET_LAST(space->chain);
@@ -923,6 +922,10 @@ fil_mutex_enter_and_prepare_for_io(
 			the insert buffer. The insert buffer is in
 			tablespace 0, and we cannot end up waiting in
 			this function. */
+		} else if (space->is_stopping() && !space->is_being_truncated) {
+			/* If the tablespace is being deleted then InnoDB
+			shouldn't prepare the tablespace for i/o */
+			return false;
 		} else if (!node || node->is_open()) {
 			/* If the file is already open, no need to do
 			anything; if the space does not exist, we handle the
@@ -994,6 +997,8 @@ fil_mutex_enter_and_prepare_for_io(
 
 		break;
 	}
+
+	return true;
 }
 
 /** Try to extend a tablespace if it is smaller than the specified size.
@@ -1010,7 +1015,10 @@ fil_space_extend(
 	bool	success;
 
 	do {
-		fil_mutex_enter_and_prepare_for_io(space->id);
+		if (!fil_mutex_enter_and_prepare_for_io(space->id)) {
+			success = false;
+			break;
+		}
 	} while (fil_space_extend_must_retry(
 			 space, UT_LIST_GET_LAST(space->chain), size,
 			 &success));
@@ -1365,7 +1373,9 @@ fil_space_t* fil_system_t::read_page0(ulint id)
 
 	/* It is possible that the tablespace is dropped while we are
 	not holding the mutex. */
-	fil_mutex_enter_and_prepare_for_io(id);
+	if (!fil_mutex_enter_and_prepare_for_io(id)) {
+		return NULL;
+	}
 
 	fil_space_t* space = fil_space_get_by_id(id);
 
@@ -2802,7 +2812,6 @@ fil_rename_tablespace(
 	ut_ad(strchr(new_file_name, OS_PATH_SEPARATOR) != NULL);
 
 	if (!recv_recovery_is_on()) {
-		fil_name_write_rename(id, old_file_name, new_file_name);
 		log_mutex_enter();
 	}
 
@@ -2895,13 +2904,22 @@ fil_ibd_create(
 		return NULL;
 	}
 
+	ulint type;
+	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
+		      "compatibility");
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
+	}
+
 	file = os_file_create(
 		innodb_data_file_key, path,
 		OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
-		OS_FILE_NORMAL,
-		OS_DATA_FILE,
-		srv_read_only_mode,
-		&success);
+		OS_FILE_NORMAL, type, srv_read_only_mode, &success);
 
 	if (!success) {
 		/* The following call will print an error message */

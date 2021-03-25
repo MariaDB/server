@@ -637,7 +637,7 @@ struct fil_node_t {
 	/** Determine some file metadata when creating or reading the file.
 	@param	file	the file that is being created, or OS_FILE_CLOSED */
 	void find_metadata(os_file_t file = OS_FILE_CLOSED
-#ifdef UNIV_LINUX
+#ifndef _WIN32
 			   , struct stat* statbuf = NULL
 #endif
 			   );

@@ -3474,8 +3474,8 @@ static my_bool kill_callback(THD *thd, kill_callback_arg *arg)
       thd->variables.server_id == arg->slave_server_id)
   {
     arg->thd= thd;
-    if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     return 1;
   }
   return 0;
@@ -3496,7 +3496,7 @@ void kill_zombie_dump_threads(uint32 slave_server_id)
     */
     arg.thd->awake_no_mutex(KILL_SLAVE_SAME_ID);
     mysql_mutex_unlock(&arg.thd->LOCK_thd_kill);
-    if (WSREP(arg.thd)) mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
+    mysql_mutex_unlock(&arg.thd->LOCK_thd_data);
   }
 }
 
@@ -4685,5 +4685,22 @@ rpl_gtid_pos_update(THD *thd, char *str, size_t len)
     return false;
 }
 
+int compare_log_name(const char *log_1, const char *log_2) {
+  int res= 1;
+  const char *ext1_str= strrchr(log_1, '.');
+  const char *ext2_str= strrchr(log_2, '.');
+  char file_name_1[255], file_name_2[255];
+  strmake(file_name_1, log_1, (ext1_str - log_1));
+  strmake(file_name_2, log_2, (ext2_str - log_2));
+  char *endptr = NULL;
+  res= strcmp(file_name_1, file_name_2);
+  if (!res)
+  {
+    ulong ext1= strtoul(++ext1_str, &endptr, 10);
+    ulong ext2= strtoul(++ext2_str, &endptr, 10);
+    res= (ext1 > ext2 ? 1 : ((ext1 == ext2) ? 0 : -1));
+  }
+  return res;
+}
 
 #endif /* HAVE_REPLICATION */

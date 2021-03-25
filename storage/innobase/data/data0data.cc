@@ -686,7 +686,7 @@ dtuple_convert_big_rec(
 				goto skip_field;
 			}
 
-			longest_i = i;
+			longest_i = i + mblob;
 			longest = savings;
 
 skip_field:

@@ -1,12 +1,11 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
+include/master-slave.inc
+[connection master]
+connection master;
 drop database if exists d1;
 drop database if exists d2;
+connection slave;
 drop database if exists d2;
+connection master;
 create database d1;
 create table d1.t0 (id int);
 create database d2;
@@ -17,9 +16,13 @@ insert into t1 values (1), (2), (3), (4), (5);
 insert into t2 select id + 3 from t1;
 update t1 join t2 using (id) set t1.id = 0;
 insert into d1.t0 values (0);
+connection slave;
 use d1;
 select * from t0 where id=0;
 id
 0
+connection master;
 drop database d1;
 drop database d2;
+connection slave;
+include/rpl_end.inc

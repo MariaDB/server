@@ -61,6 +61,10 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <sys/resource.h>
 #endif
 
+#ifdef __APPLE__
+# include "libproc.h"
+#endif
+
 
 #include <btr0sea.h>
 #include <dict0priv.h>
@@ -4672,13 +4676,12 @@ fail_before_log_copying_thread_start:
 	log_file_op = NULL;
 	pthread_mutex_destroy(&backup_mutex);
 	pthread_cond_destroy(&scanned_lsn_cond);
-	if (opt_log_innodb_page_corruption && !corrupted_pages.empty()) {
+	if (!corrupted_pages.empty()) {
+		ut_ad(opt_log_innodb_page_corruption);
 		msg("Error: corrupted innodb pages are found and logged to "
 			MB_CORRUPTED_PAGES_FILE " file");
-		return false;
 	}
-	else
-		return(true);
+	return(true);
 }
 
 
@@ -6448,8 +6451,9 @@ void handle_options(int argc, char **argv, char ***argv_server,
 			}
 	}
 
+        mariabackup_args.push_back(nullptr);
         *argv_client= *argv_server= *argv_backup= &mariabackup_args[0];
-        int argc_backup= static_cast<int>(mariabackup_args.size());
+        int argc_backup= static_cast<int>(mariabackup_args.size() - 1);
         int argc_client= argc_backup;
         int argc_server= argc_backup;
 
@@ -6914,6 +6918,12 @@ static int get_exepath(char *buf, size_t size, const char *argv0)
   ssize_t ret = readlink("/proc/self/exe", buf, size-1);
   if(ret > 0)
     return 0;
+#elif defined(__APPLE__)
+  size_t ret = proc_pidpath(getpid(), buf, static_cast<uint32_t>(size));
+  if (ret > 0) {
+    buf[ret] = 0;
+    return 0;
+  }
 #endif
 
   return my_realpath(buf, argv0, 0);

@@ -783,7 +783,17 @@ buf_flush_init_for_writing(
 	      || &block->page.zip == page_zip_);
 	ut_ad(!block || newest_lsn);
 	ut_ad(page);
-	ut_ad(!newest_lsn || fil_page_get_type(page));
+	/* Encryption key rotation procedure can write dummy log records to
+	update page's space id, what causes page LSN update, and we need some
+	additional check during recovery to be sure the page is freshly
+	allocated, see buf_page_create() to find such patterns */
+	ut_ad(fil_page_get_type(page)
+	      || (!newest_lsn
+		  || (mach_read_from_4(page + FIL_PAGE_SPACE_ID)
+			      == block->page.id.space()
+		      && mach_read_from_4(page + FIL_PAGE_PREV) == 0xffffffff
+		      && mach_read_from_4(page + FIL_PAGE_NEXT) == 0xffffffff
+		      && !mach_read_from_4(page + FIL_PAGE_SPACE_OR_CHKSUM))));
 
 	if (page_zip_) {
 		page_zip_des_t*	page_zip;

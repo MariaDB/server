@@ -501,7 +501,7 @@ struct LEX_MASTER_INFO
     }
 
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
-      ssl_capath= ssl_cipher= relay_log_name= 0;
+      ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
     pos= relay_log_pos= server_id= port= connect_retry= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
@@ -764,7 +764,7 @@ public:
     link_next= NULL;
     link_prev= NULL;
   }
-
+  void substitute_in_tree(st_select_lex_node *subst);
 
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
   void move_node(st_select_lex_node *where_to_move)
@@ -1287,6 +1287,8 @@ public:
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;
   
+  List<List_item> save_many_values;
+  List<Item> *save_insert_list;
   table_value_constr *tvc;
   bool in_tvc;
 
@@ -4409,13 +4411,6 @@ public:
     return false;
   }
 
-  void tvc_start()
-  {
-    field_list.empty();
-    many_values.empty();
-    insert_list= 0;
-  }
-
   SELECT_LEX_UNIT *alloc_unit();
   SELECT_LEX *alloc_select(bool is_select);
   SELECT_LEX_UNIT *create_unit(SELECT_LEX*);
@@ -4470,6 +4465,8 @@ public:
                                        bool distinct);
   SELECT_LEX *parsed_subselect(SELECT_LEX_UNIT *unit);
   bool parsed_insert_select(SELECT_LEX *firs_select);
+  void save_values_list_state();
+  void restore_values_list_state();
   bool parsed_TVC_start();
   SELECT_LEX *parsed_TVC_end();
   TABLE_LIST *parsed_derived_table(SELECT_LEX_UNIT *unit,

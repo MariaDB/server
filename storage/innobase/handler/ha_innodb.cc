@@ -62,6 +62,7 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #include <my_service_manager.h>
 #include <key.h>
+#include <sql_manager.h>
 
 /* Include necessary InnoDB headers */
 #include "btr0btr.h"
@@ -1849,9 +1850,7 @@ thd_to_trx_id(
 	return(thd_to_trx(thd)->id);
 }
 
-static int
-wsrep_abort_transaction(handlerton* hton, THD *bf_thd, THD *victim_thd,
-			my_bool signal);
+static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
@@ -2478,6 +2477,72 @@ innobase_raw_format(
 	return(ut_str_sql_format(buf_tmp, buf_tmp_used, buf, buf_size));
 }
 
+/*
+The helper function nlz(x) calculates the number of leading zeros
+in the binary representation of the number "x", either using a
+built-in compiler function or a substitute trick based on the use
+of the multiplication operation and a table indexed by the prefix
+of the multiplication result:
+*/
+#ifdef __GNUC__
+#define nlz(x) __builtin_clzll(x)
+#elif defined(_MSC_VER) && !defined(_M_CEE_PURE) && \
+  (defined(_M_IX86) || defined(_M_X64) || defined(_M_ARM64))
+#ifndef __INTRIN_H_
+#pragma warning(push, 4)
+#pragma warning(disable: 4255 4668)
+#include <intrin.h>
+#pragma warning(pop)
+#endif
+__forceinline unsigned int nlz (ulonglong x)
+{
+#if defined(_M_IX86) || defined(_M_X64)
+  unsigned long n;
+#ifdef _M_X64
+  _BitScanReverse64(&n, x);
+  return (unsigned int) n ^ 63;
+#else
+  unsigned long y = (unsigned long) (x >> 32);
+  unsigned int m = 31;
+  if (y == 0)
+  {
+    y = (unsigned long) x;
+    m = 63;
+  }
+  _BitScanReverse(&n, y);
+  return (unsigned int) n ^ m;
+#endif
+#elif defined(_M_ARM64)
+  return _CountLeadingZeros(x);
+#endif
+}
+#else
+inline unsigned int nlz (ulonglong x)
+{
+  static unsigned char table [48] = {
+    32,  6,  5,  0,  4, 12,  0, 20,
+    15,  3, 11,  0,  0, 18, 25, 31,
+     8, 14,  2,  0, 10,  0,  0,  0,
+     0,  0,  0, 21,  0,  0, 19, 26,
+     7,  0, 13,  0, 16,  1, 22, 27,
+     9,  0, 17, 23, 28, 24, 29, 30
+  };
+  unsigned int y= (unsigned int) (x >> 32);
+  unsigned int n= 0;
+  if (y == 0) {
+    y= (unsigned int) x;
+    n= 32;
+  }
+  y = y | (y >> 1); // Propagate leftmost 1-bit to the right.
+  y = y | (y >> 2);
+  y = y | (y >> 4);
+  y = y | (y >> 8);
+  y = y & ~(y >> 16);
+  y = y * 0x3EF5D037;
+  return n + table[y >> 26];
+}
+#endif
+
 /*********************************************************************//**
 Compute the next autoinc value.
 
@@ -2506,85 +2571,93 @@ innobase_next_autoinc(
 	ulonglong	max_value)	/*!< in: max value for type */
 {
 	ulonglong	next_value;
-	ulonglong	block = need * step;
+	ulonglong	block;
 
 	/* Should never be 0. */
 	ut_a(need > 0);
-	ut_a(block > 0);
+	ut_a(step > 0);
 	ut_a(max_value > 0);
 
-        /*
-          Allow auto_increment to go over max_value up to max ulonglong.
-          This allows us to detect that all values are exhausted.
-          If we don't do this, we will return max_value several times
-          and get duplicate key errors instead of auto increment value
-          out of range.
-        */
-        max_value= (~(ulonglong) 0);
+	/*
+	  We need to calculate the "block" value equal to the product
+	  "step * need". However, when calculating this product, an integer
+	  overflow can occur, so we cannot simply use the usual multiplication
+	  operation. The snippet below calculates the product of two numbers
+	  and detects an unsigned integer overflow:
+	*/
+	unsigned int	m= nlz(need);
+	unsigned int	n= nlz(step);
+	if (m + n <= 8 * sizeof(ulonglong) - 2) {
+		// The bit width of the original values is too large,
+		// therefore we are guaranteed to get an overflow.
+		goto overflow;
+	}
+	block = need * (step >> 1);
+	if ((longlong) block < 0) {
+		goto overflow;
+	}
+	block += block;
+	if (step & 1) {
+		block += need;
+		if (block < need) {
+			goto overflow;
+		}
+	}
+
+	/* Check for overflow. Current can be > max_value if the value
+	is in reality a negative value. Also, the visual studio compiler
+	converts large double values (which hypothetically can then be
+	passed here as the values of the "current" parameter) automatically
+	into unsigned long long datatype maximum value: */
+	if (current > max_value) {
+		goto overflow;
+	}
 
 	/* According to MySQL documentation, if the offset is greater than
 	the step then the offset is ignored. */
-	if (offset > block) {
+	if (offset > step) {
 		offset = 0;
 	}
 
-	/* Check for overflow. Current can be > max_value if the value is
-	in reality a negative value.The visual studio compilers converts
-	large double values automatically into unsigned long long datatype
-	maximum value */
-
-	if (block >= max_value
-	    || offset > max_value
-	    || current >= max_value
-	    || max_value - offset <= offset) {
-
-		next_value = max_value;
+	/*
+	  Let's round the current value to within a step-size block:
+	*/
+	if (current > offset) {
+		next_value = current - offset;
 	} else {
-		ut_a(max_value > current);
+		next_value = offset - current;
+	}
+	next_value -= next_value % step;
 
-		ulonglong	free = max_value - current;
-
-		if (free < offset || free - offset <= block) {
-			next_value = max_value;
-		} else {
-			next_value = 0;
-		}
+	/*
+	  Add an offset to the next value and check that the addition
+	  does not cause an integer overflow:
+	*/
+	next_value += offset;
+	if (next_value < offset) {
+		goto overflow;
 	}
 
-	if (next_value == 0) {
-		ulonglong	next;
-
-		if (current > offset) {
-			next = (current - offset) / step;
-		} else {
-			next = (offset - current) / step;
-		}
-
-		ut_a(max_value > next);
-		next_value = next * step;
-		/* Check for multiplication overflow. */
-		ut_a(next_value >= next);
-		ut_a(max_value > next_value);
-
-		/* Check for overflow */
-		if (max_value - next_value >= block) {
-
-			next_value += block;
-
-			if (max_value - next_value >= offset) {
-				next_value += offset;
-			} else {
-				next_value = max_value;
-			}
-		} else {
-			next_value = max_value;
-		}
+	/*
+	  Add a block to the next value and check that the addition
+	  does not cause an integer overflow:
+	*/
+	next_value += block;
+	if (next_value < block) {
+		goto overflow;
 	}
-
-	ut_a(next_value != 0);
-	ut_a(next_value <= max_value);
 
 	return(next_value);
+
+overflow:
+	/*
+	  Allow auto_increment to go over max_value up to max ulonglong.
+	  This allows us to detect that all values are exhausted.
+	  If we don't do this, we will return max_value several times
+	  and get duplicate key errors instead of auto increment value
+	  out of range:
+	*/
+	return(~(ulonglong) 0);
 }
 
 /********************************************************************//**
@@ -3496,6 +3569,18 @@ static int innodb_init_abort()
 	DBUG_RETURN(1);
 }
 
+/** Deprecation message about innodb_idle_flush_pct */
+static const char*	deprecated_idle_flush_pct
+	= "innodb_idle_flush_pct is DEPRECATED and has no effect.";
+
+static const char*	deprecated_innodb_checksum_algorithm
+	= "Setting innodb_checksum_algorithm to values other than"
+	" crc32, full_crc32, strict_crc32 or strict_full_crc32"
+	" is UNSAFE and DEPRECATED."
+	" These deprecated values will be disallowed in MariaDB 10.6.";
+
+static ulong innodb_idle_flush_pct;
+
 /** If applicable, emit a message that log checksums cannot be disabled.
 @param[in,out]	thd	client session, or NULL if at startup
 @param[in]	check	whether redo log block checksums are enabled
@@ -3520,6 +3605,23 @@ innodb_log_checksums_func_update(THD* thd, bool check)
 	}
 
 	return(check);
+}
+
+static void innodb_checksum_algorithm_update(THD *thd, st_mysql_sys_var*,
+                                             void *, const void *save)
+{
+  srv_checksum_algorithm= *static_cast<const ulong*>(save);
+  switch (srv_checksum_algorithm) {
+  case SRV_CHECKSUM_ALGORITHM_CRC32:
+  case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+  case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+  case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+    break;
+  default:
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        HA_ERR_UNSUPPORTED,
+                        deprecated_innodb_checksum_algorithm);
+  }
 }
 
 /****************************************************************//**
@@ -3946,9 +4048,18 @@ static int innodb_init_params()
 
 	if (!innobase_use_checksums) {
 		ib::warn() << "Setting innodb_checksums to OFF is DEPRECATED."
-			" This option may be removed in future releases. You"
-			" should set innodb_checksum_algorithm=NONE instead.";
+			" This option was removed in MariaDB 10.5.";
 		srv_checksum_algorithm = SRV_CHECKSUM_ALGORITHM_NONE;
+	} else {
+		switch (srv_checksum_algorithm) {
+		case SRV_CHECKSUM_ALGORITHM_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_STRICT_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
+		case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
+			break;
+		default:
+			ib::warn() << deprecated_innodb_checksum_algorithm;
+		}
 	}
 
 	innodb_log_checksums = innodb_log_checksums_func_update(
@@ -4114,8 +4225,10 @@ static int innodb_init(void* p)
 	innobase_hton->flush_logs = innobase_flush_logs;
 	innobase_hton->show_status = innobase_show_status;
 	innobase_hton->flags =
-		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS
-		| HTON_NATIVE_SYS_VERSIONING | HTON_WSREP_REPLICATION;
+		HTON_SUPPORTS_EXTENDED_KEYS | HTON_SUPPORTS_FOREIGN_KEYS |
+		HTON_NATIVE_SYS_VERSIONING |
+		HTON_WSREP_REPLICATION |
+		HTON_REQUIRES_CLOSE_AFTER_TRUNCATE;
 
 #ifdef WITH_WSREP
 	innobase_hton->abort_transaction=wsrep_abort_transaction;
@@ -5028,6 +5141,7 @@ innobase_close_connection(
 
 	if (trx) {
 
+		thd_set_ha_data(thd, hton, NULL);
 		if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 
 			sql_print_error("Transaction not registered for MariaDB 2PC, "
@@ -5088,6 +5202,8 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
     if (lock_t *lock= trx->lock.wait_lock)
     {
       trx_mutex_enter(trx);
+      if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
+        trx->lock.was_chosen_as_deadlock_victim= TRUE;
       lock_cancel_waiting_and_release(lock);
       trx_mutex_exit(trx);
     }
@@ -6497,8 +6613,8 @@ wsrep_innobase_mysql_sort(
 	case MYSQL_TYPE_LONG_BLOB:
 	case MYSQL_TYPE_VARCHAR:
 	{
-		uchar tmp_str[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
-		uint tmp_length = REC_VERSION_56_MAX_INDEX_COL_LEN;
+		uchar *tmp_str;
+		uint tmp_length;
 
 		/* Use the charset number to pick the right charset struct for
 		the comparison. Since the MySQL function get_charset may be
@@ -6521,7 +6637,11 @@ wsrep_innobase_mysql_sort(
 			}
 		}
 
-		ut_a(str_length <= tmp_length);
+		// Note that strnxfrm may change length of string
+		tmp_length= charset->coll->strnxfrmlen(charset, str_length);
+		tmp_length= ut_max(str_length, tmp_length) + 1;
+		tmp_str= static_cast<uchar *>(ut_malloc_nokey(tmp_length));
+		ut_ad(str_length <= tmp_length);
 		memcpy(tmp_str, str, str_length);
 
 		tmp_length = charset->coll->strnxfrm(charset, str, str_length,
@@ -6545,6 +6665,7 @@ wsrep_innobase_mysql_sort(
 			ret_length = tmp_length;
 		}
 
+		ut_free(tmp_str);
 		break;
 	}
 	case MYSQL_TYPE_DECIMAL :
@@ -6896,7 +7017,7 @@ wsrep_store_key_val_for_row(
 	THD* 		thd,
 	TABLE*		table,
 	uint		keynr,	/*!< in: key number */
-	char*		buff,	/*!< in/out: buffer for the key value (in MySQL
+	uchar*		buff,	/*!< in/out: buffer for the key value (in MySQL
 				format) */
 	uint		buff_len,/*!< in: buffer length */
 	const uchar*	record,
@@ -6905,7 +7026,7 @@ wsrep_store_key_val_for_row(
 	KEY*		key_info	= table->key_info + keynr;
 	KEY_PART_INFO*	key_part	= key_info->key_part;
 	KEY_PART_INFO*	end		= key_part + key_info->user_defined_key_parts;
-	char*		buff_start	= buff;
+	uchar*		buff_start	= buff;
 	enum_field_types mysql_type;
 	Field*		field;
 	uint buff_space = buff_len;
@@ -6917,7 +7038,8 @@ wsrep_store_key_val_for_row(
 
 	for (; key_part != end; key_part++) {
 
-		uchar sorted[REC_VERSION_56_MAX_INDEX_COL_LEN] = {'\0'};
+		uchar *sorted=NULL;
+		uint  max_len=0;
 		ibool part_is_null = FALSE;
 
 		if (key_part->null_bit) {
@@ -6996,10 +7118,14 @@ wsrep_store_key_val_for_row(
 				true_len = key_len;
 			}
 
+			max_len= true_len;
+			sorted= static_cast<uchar *>(ut_malloc_nokey(max_len+1));
 			memcpy(sorted, data, true_len);
 			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len,
-				REC_VERSION_56_MAX_INDEX_COL_LEN);
+				max_len);
+			ut_ad(true_len <= max_len);
+
 			if (wsrep_protocol_version > 1) {
 				/* Note that we always reserve the maximum possible
 				length of the true VARCHAR in the key value, though
@@ -7084,11 +7210,13 @@ wsrep_store_key_val_for_row(
 				true_len = key_len;
 			}
 
+			max_len= true_len;
+			sorted= static_cast<uchar *>(ut_malloc_nokey(max_len+1));
 			memcpy(sorted, blob_data, true_len);
 			true_len = wsrep_innobase_mysql_sort(
 				mysql_type, cs->number, sorted, true_len,
-				REC_VERSION_56_MAX_INDEX_COL_LEN);
-
+				max_len);
+			ut_ad(true_len <= max_len);
 
 			/* Note that we always reserve the maximum possible
 			length of the BLOB prefix in the key value. */
@@ -7164,10 +7292,14 @@ wsrep_store_key_val_for_row(
 								cs->mbmaxlen),
 							&error);
 				}
+
+				max_len= true_len;
+				sorted= static_cast<uchar *>(ut_malloc_nokey(max_len+1));
 				memcpy(sorted, src_start, true_len);
 				true_len = wsrep_innobase_mysql_sort(
 					mysql_type, cs->number, sorted, true_len,
-					REC_VERSION_56_MAX_INDEX_COL_LEN);
+					max_len);
+				ut_ad(true_len <= max_len);
 
 				if (true_len > buff_space) {
 					fprintf (stderr,
@@ -7181,6 +7313,11 @@ wsrep_store_key_val_for_row(
 			}
 			buff       += true_len;
 			buff_space -= true_len;
+		}
+
+		if (sorted) {
+			ut_free(sorted);
+			sorted= NULL;
 		}
 	}
 
@@ -7991,7 +8128,6 @@ ha_innobase::write_row(
 	/* Handling of errors related to auto-increment. */
 	if (auto_inc_used) {
 		ulonglong	auto_inc;
-		ulonglong	col_max_value;
 
 		/* Note the number of rows processed for this statement, used
 		by get_auto_increment() to determine the number of AUTO-INC
@@ -8000,11 +8136,6 @@ ha_innobase::write_row(
 		if (trx->n_autoinc_rows > 0) {
 			--trx->n_autoinc_rows;
 		}
-
-		/* We need the upper limit of the col type to check for
-		whether we update the table autoinc counter or not. */
-		col_max_value =
-			table->next_number_field->get_max_int_value();
 
 		/* Get the value that MySQL attempted to store in the table.*/
 		auto_inc = table->next_number_field->val_uint();
@@ -8072,36 +8203,25 @@ ha_innobase::write_row(
 
 			if (auto_inc >= m_prebuilt->autoinc_last_value) {
 set_max_autoinc:
+				/* We need the upper limit of the col type to check for
+				whether we update the table autoinc counter or not. */
+				ulonglong	col_max_value =
+					table->next_number_field->get_max_int_value();
+
 				/* This should filter out the negative
 				values set explicitly by the user. */
 				if (auto_inc <= col_max_value) {
+					ut_ad(m_prebuilt->autoinc_increment > 0);
 
 					ulonglong	offset;
 					ulonglong	increment;
 					dberr_t		err;
-#ifdef WITH_WSREP
-					/* Applier threads which are processing
-					ROW events and don't go through server
-					level autoinc processing, therefore
-					m_prebuilt autoinc values don't get
-					properly assigned. Fetch values from
-					server side. */
-					if (trx->is_wsrep() &&
-					    wsrep_thd_is_applying(m_user_thd))
-					{
-					    wsrep_thd_auto_increment_variables(
-						m_user_thd, &offset, &increment);
-					}
-					else
-#endif /* WITH_WSREP */
-					{
-					    ut_a(m_prebuilt->autoinc_increment > 0);
-					    offset = m_prebuilt->autoinc_offset;
-					    increment = m_prebuilt->autoinc_increment;
-					}
+
+					offset = m_prebuilt->autoinc_offset;
+					increment = m_prebuilt->autoinc_increment;
+
 					auto_inc = innobase_next_autoinc(
-						auto_inc,
-						1, increment, offset,
+						auto_inc, 1, increment, offset,
 						col_max_value);
 
 					err = innobase_set_max_autoinc(
@@ -8803,39 +8923,37 @@ ha_innobase::update_row(
 		/* A value for an AUTO_INCREMENT column
 		was specified in the UPDATE statement. */
 
-		ulonglong	offset;
-		ulonglong	increment;
-#ifdef WITH_WSREP
-		/* Applier threads which are processing
-		ROW events and don't go through server
-		level autoinc processing, therefore
-		m_prebuilt autoinc values don't get
-		properly assigned. Fetch values from
-		server side. */
-		if (trx->is_wsrep() && wsrep_thd_is_applying(m_user_thd))
-			wsrep_thd_auto_increment_variables(
-				m_user_thd, &offset, &increment);
-		else
-#endif /* WITH_WSREP */
-			offset = m_prebuilt->autoinc_offset,
-				increment = m_prebuilt->autoinc_increment;
+		/* We need the upper limit of the col type to check for
+		whether we update the table autoinc counter or not. */
+		ulonglong	col_max_value =
+			table->found_next_number_field->get_max_int_value();
 
-		autoinc = innobase_next_autoinc(
-			autoinc, 1, increment, offset,
-			table->found_next_number_field->get_max_int_value());
+		/* This should filter out the negative
+		values set explicitly by the user. */
+		if (autoinc <= col_max_value) {
+			ulonglong	offset;
+			ulonglong	increment;
 
-		error = innobase_set_max_autoinc(autoinc);
+			offset = m_prebuilt->autoinc_offset;
+			increment = m_prebuilt->autoinc_increment;
 
-		if (m_prebuilt->table->persistent_autoinc) {
-			/* Update the PAGE_ROOT_AUTO_INC. Yes, we do
-			this even if dict_table_t::autoinc already was
-			greater than autoinc, because we cannot know
-			if any INSERT actually used (and wrote to
-			PAGE_ROOT_AUTO_INC) a value bigger than our
-			autoinc. */
-			btr_write_autoinc(dict_table_get_first_index(
-						  m_prebuilt->table),
-					  autoinc);
+			autoinc = innobase_next_autoinc(
+				autoinc, 1, increment, offset,
+				col_max_value);
+
+			error = innobase_set_max_autoinc(autoinc);
+
+			if (m_prebuilt->table->persistent_autoinc) {
+				/* Update the PAGE_ROOT_AUTO_INC. Yes, we do
+				this even if dict_table_t::autoinc already was
+				greater than autoinc, because we cannot know
+				if any INSERT actually used (and wrote to
+				PAGE_ROOT_AUTO_INC) a value bigger than our
+				autoinc. */
+				btr_write_autoinc(dict_table_get_first_index(
+							  m_prebuilt->table),
+						  autoinc);
+			}
 		}
 	}
 
@@ -10286,7 +10404,7 @@ wsrep_append_key(
 	THD		*thd,
 	trx_t 		*trx,
 	TABLE_SHARE 	*table_share,
-	const char*	key,
+	const uchar*	key,
 	uint16_t        key_len,
 	Wsrep_service_key_type	key_type	/*!< in: access type of this key
 					(shared, exclusive, semi...) */
@@ -10398,8 +10516,8 @@ ha_innobase::wsrep_append_keys(
 
 	if (wsrep_protocol_version == 0) {
 		uint	len;
-		char 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-		char 	*key 		= &keyval[0];
+		uchar 	keyval[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
+		uchar 	*key 		= &keyval[0];
 		ibool    is_null;
 
 		len = wsrep_store_key_val_for_row(
@@ -10440,12 +10558,12 @@ ha_innobase::wsrep_append_keys(
 			/* keyval[] shall contain an ordinal number at byte 0
 			   and the actual key data shall be written at byte 1.
 			   Hence the total data length is the key length + 1 */
-			char keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-			char keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1] = {'\0'};
-			keyval0[0] = (char)i;
-			keyval1[0] = (char)i;
-			char* key0 = &keyval0[1];
-			char* key1 = &keyval1[1];
+			uchar keyval0[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
+			uchar keyval1[WSREP_MAX_SUPPORTED_KEY_LENGTH+1]= {'\0'};
+			keyval0[0] = (uchar)i;
+			keyval1[0] = (uchar)i;
+			uchar* key0 = &keyval0[1];
+			uchar* key1 = &keyval1[1];
 
 			if (!tab) {
 				WSREP_WARN("MariaDB-InnoDB key mismatch %s %s",
@@ -10519,22 +10637,20 @@ ha_innobase::wsrep_append_keys(
 	/* if no PK, calculate hash of full row, to be the key value */
 	if (!key_appended && wsrep_certify_nonPK) {
 		uchar digest[16];
-		int rcode;
 
 		wsrep_calc_row_hash(digest, record0, table, m_prebuilt);
 
-		if ((rcode = wsrep_append_key(thd, trx, table_share,
-					      (const char*) digest, 16,
-					      key_type))) {
+		if (int rcode = wsrep_append_key(thd, trx, table_share,
+						 digest, 16, key_type)) {
 			DBUG_RETURN(rcode);
 		}
 
 		if (record1) {
 			wsrep_calc_row_hash(
 				digest, record1, table, m_prebuilt);
-			if ((rcode = wsrep_append_key(thd, trx, table_share,
-						      (const char*) digest,
-						      16, key_type))) {
+			if (int rcode = wsrep_append_key(thd, trx, table_share,
+							 digest, 16,
+							 key_type)) {
 				DBUG_RETURN(rcode);
 			}
 		}
@@ -13324,17 +13440,10 @@ innobase_drop_database(
 @param[in,out]	trx	InnoDB data dictionary transaction
 @param[in]	from	old table name
 @param[in]	to	new table name
-@param[in]	commit	whether to commit trx
-@param[in]	use_fk	whether to parse and enforce FOREIGN KEY constraints
+@param[in]	commit	whether to commit trx (and to enforce FOREIGN KEY)
 @return DB_SUCCESS or error code */
-inline
-dberr_t
-innobase_rename_table(
-	trx_t*		trx,
-	const char*	from,
-	const char*	to,
-	bool		commit,
-	bool		use_fk)
+inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
+                                     const char *to, bool commit)
 {
 	dberr_t	error;
 	char	norm_to[FN_REFLEN];
@@ -13367,6 +13476,9 @@ innobase_rename_table(
 	Convert lock_wait_timeout unit from second to 250 milliseconds */
 	long int lock_wait_timeout = thd_lock_wait_timeout(trx->mysql_thd) * 4;
 	if (table != NULL) {
+		if (commit) {
+			dict_stats_wait_bg_to_stop_using_table(table, trx);
+		}
 		for (dict_index_t* index = dict_table_get_first_index(table);
 		     index != NULL;
 		     index = dict_table_get_next_index(index)) {
@@ -13380,7 +13492,9 @@ innobase_rename_table(
 				}
 			}
 		}
-		dict_table_close(table, TRUE, FALSE);
+		if (!commit) {
+			dict_table_close(table, TRUE, FALSE);
+		}
 	}
 
 	/* FTS sync is in progress. We shall timeout this operation */
@@ -13390,7 +13504,7 @@ innobase_rename_table(
 	}
 
 	error = row_rename_table_for_mysql(norm_from, norm_to, trx, commit,
-					   use_fk);
+					   commit);
 
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
@@ -13442,6 +13556,10 @@ innobase_rename_table(
 
 func_exit:
 	if (commit) {
+		if (table) {
+			table->stats_bg_flag &= ~BG_STAT_SHOULD_QUIT;
+			dict_table_close(table, TRUE, FALSE);
+		}
 		row_mysql_unlock_data_dictionary(trx);
 	}
 
@@ -13496,9 +13614,11 @@ int ha_innobase::truncate()
 	++trx->will_lock;
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 	row_mysql_lock_data_dictionary(trx);
+	dict_stats_wait_bg_to_stop_using_table(ib_table, trx);
+
 	int err = convert_error_code_to_mysql(
 		innobase_rename_table(trx, ib_table->name.m_name, temp_name,
-				      false, false),
+				      false),
 		ib_table->flags, m_user_thd);
 	if (err) {
 		trx_rollback_for_mysql(trx);
@@ -13581,7 +13701,7 @@ ha_innobase::rename_table(
 	++trx->will_lock;
 	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
 
-	dberr_t	error = innobase_rename_table(trx, from, to, true, true);
+	dberr_t	error = innobase_rename_table(trx, from, to, true);
 
 	DEBUG_SYNC(thd, "after_innobase_rename_table");
 
@@ -14139,6 +14259,13 @@ ha_innobase::info_low(
 			if (dict_stats_is_persistent_enabled(ib_table)) {
 
 				if (is_analyze) {
+					row_mysql_lock_data_dictionary(
+						m_prebuilt->trx);
+					dict_stats_recalc_pool_del(ib_table);
+					dict_stats_wait_bg_to_stop_using_table(
+						ib_table, m_prebuilt->trx);
+					row_mysql_unlock_data_dictionary(
+						m_prebuilt->trx);
 					opt = DICT_STATS_RECALC_PERSISTENT;
 				} else {
 					/* This is e.g. 'SHOW INDEXES', fetch
@@ -14150,6 +14277,13 @@ ha_innobase::info_low(
 			}
 
 			ret = dict_stats_update(ib_table, opt);
+
+			if (opt == DICT_STATS_RECALC_PERSISTENT) {
+				mutex_enter(&dict_sys.mutex);
+				ib_table->stats_bg_flag
+					&= byte(~BG_STAT_SHOULD_QUIT);
+				mutex_exit(&dict_sys.mutex);
+			}
 
 			if (ret != DB_SUCCESS) {
 				m_prebuilt->trx->op_info = "";
@@ -15307,10 +15441,6 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 0;
-		break;
-	case HA_EXTRA_FAKE_START_STMT:
-		trx_register_for_2pc(m_prebuilt->trx);
-		m_prebuilt->sql_stat_start = true;
 		break;
 	default:/* Do nothing */
 		;
@@ -17111,7 +17241,8 @@ innodb_io_capacity_update(
 				    " higher than innodb_io_capacity_max %lu",
 				    in_val, srv_max_io_capacity);
 
-		srv_max_io_capacity = in_val * 2;
+		srv_max_io_capacity = (in_val & ~(~0UL >> 1))
+			? in_val : in_val * 2;
 
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 				    ER_WRONG_ARGUMENTS,
@@ -18550,54 +18681,56 @@ static struct st_mysql_storage_engine innobase_storage_engine=
 
 #ifdef WITH_WSREP
 
-/** This function is used to kill one transaction.
+struct bg_wsrep_kill_trx_arg {
+       my_thread_id    thd_id, bf_thd_id;
+       trx_id_t        trx_id, bf_trx_id;
+       bool            signal;
+};
 
-This transaction was open on this node (not-yet-committed), and a
-conflicting writeset from some other node that was being applied
-caused a locking conflict.  First committed (from other node)
-wins, thus open transaction is rolled back.  BF stands for
-brute-force: any transaction can get aborted by galera any time
-it is necessary.
+/** Kill one transaction from a background manager thread
 
-This conflict can happen only when the replicated writeset (from
-other node) is being applied, not when it’s waiting in the queue.
-If our local transaction reached its COMMIT and this conflicting
-writeset was in the queue, then it should fail the local
-certification test instead.
+wsrep_innobase_kill_one_trx() is invoked when lock_sys.mutex and trx mutex
+are taken, wsrep_thd_bf_abort() cannot be used there as it takes THD mutexes
+that must be taken before lock_sys.mutex and trx mutex. That's why
+wsrep_innobase_kill_one_trx only posts the killing task to the manager thread
+and the actual killing happens asynchronously here.
 
-A brute force abort is only triggered by a locking conflict
-between a writeset being applied by an applier thread (slave thread)
-and an open transaction on the node, not by a Galera writeset
-comparison as in the local certification failure.
-
-@param[in]	bf_thd		Brute force (BF) thread
-@param[in,out]	victim_trx	Vimtim trx to be killed
-@param[in]	signal		Should victim be signaled */
-UNIV_INTERN
-int
-wsrep_innobase_kill_one_trx(
-	THD* bf_thd,
-	trx_t *victim_trx,
-	bool signal)
+As no mutexes were held we don't know whether THD or trx pointers are still
+valid, so we need to pass thread/trx ids and perform a lookup.
+*/
+static void bg_wsrep_kill_trx(void *void_arg)
 {
-	ut_ad(bf_thd);
-	ut_ad(victim_trx);
-	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(victim_trx));
+	bg_wsrep_kill_trx_arg *arg= (bg_wsrep_kill_trx_arg *)void_arg;
+	THD *thd, *bf_thd;
+	trx_t *victim_trx;
+	bool aborting= false;
 
-	DBUG_ENTER("wsrep_innobase_kill_one_trx");
+	if ((bf_thd= find_thread_by_id(arg->bf_thd_id)))
+		wsrep_thd_LOCK(bf_thd);
+	if ((thd= find_thread_by_id(arg->thd_id)))
+		wsrep_thd_LOCK(thd);
 
-	THD *thd= (THD *) victim_trx->mysql_thd;
-	ut_ad(thd);
-	/* Note that bf_trx might not exist here e.g. on MDL conflict
-	case (test: galera_concurrent_ctas). Similarly, BF thread
-	could be also acquiring MDL-lock causing victim to be
-	aborted. However, we have not yet called innobase_trx_init()
-	for BF transaction (test: galera_many_columns)*/
-	trx_t* bf_trx= thd_to_trx(bf_thd);
+	if (!thd || !bf_thd || !(victim_trx= thd_to_trx(thd)))
+		goto ret0;
+
+	lock_mutex_enter();
+	trx_mutex_enter(victim_trx);
+	if (victim_trx->id != arg->trx_id)
+	{
+		/* apparently victim trx was meanwhile rolled back.
+		tell bf thd not to wait, in case it already started to */
+		trx_t *trx= thd_to_trx(bf_thd);
+		/* note that bf_thd might not have trx e.g. in case of
+		MDL-conflict. */
+		if (lock_t *lock= (trx ? trx->lock.wait_lock : NULL)) {
+			trx_mutex_enter(trx);
+			lock_cancel_waiting_and_release(lock);
+			trx_mutex_exit(trx);
+		}
+		goto ret1;
+	}
+
 	DBUG_ASSERT(wsrep_on(bf_thd));
-
-	wsrep_thd_LOCK(thd);
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
@@ -18605,7 +18738,7 @@ wsrep_innobase_kill_one_trx(
 		"seqno: %lld client_state: %s client_mode: %s transaction_mode: %s "
 		"query: %s",
 		wsrep_thd_is_BF(bf_thd, false) ? "BF" : "normal",
-		bf_trx ? bf_trx->id : TRX_ID_MAX,
+		arg->bf_trx_id,
 		thd_get_thread_id(bf_thd),
 		wsrep_thd_trx_seqno(bf_thd),
 		wsrep_thd_client_state_str(bf_thd),
@@ -18630,30 +18763,86 @@ wsrep_innobase_kill_one_trx(
 	if (wsrep_thd_set_wsrep_aborter(bf_thd, thd))
 	{
 	  WSREP_DEBUG("innodb kill transaction skipped due to wsrep_aborter set");
-	  wsrep_thd_UNLOCK(thd);
-	  DBUG_RETURN(0);
+	  goto ret1;
 	}
 
-	/* Note that we need to release this as it will be acquired
-	below in wsrep-lib */
-	wsrep_thd_UNLOCK(thd);
-	DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
+	aborting= true;
 
-	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
-	{
-		lock_t*  wait_lock = victim_trx->lock.wait_lock;
-		if (wait_lock) {
-			DBUG_ASSERT(victim_trx->is_wsrep());
-			WSREP_DEBUG("victim has wait flag: %lu",
-				    thd_get_thread_id(thd));
-
-			WSREP_DEBUG("canceling wait lock");
-			victim_trx->lock.was_chosen_as_deadlock_victim= TRUE;
-			lock_cancel_waiting_and_release(wait_lock);
+ret1:
+	trx_mutex_exit(victim_trx);
+	lock_mutex_exit();
+ret0:
+	if (thd) {
+		wsrep_thd_UNLOCK(thd);
+		if (aborting) {
+			DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
+			wsrep_thd_bf_abort(bf_thd, thd, arg->signal);
 		}
+		wsrep_thd_kill_UNLOCK(thd);
 	}
+	if (bf_thd) {
+		wsrep_thd_UNLOCK(bf_thd);
+		wsrep_thd_kill_UNLOCK(bf_thd);
+	}
+	free(arg);
+}
 
-	DBUG_RETURN(0);
+/** This function is used to kill one transaction.
+
+This transaction was open on this node (not-yet-committed), and a
+conflicting writeset from some other node that was being applied
+caused a locking conflict.  First committed (from other node)
+wins, thus open transaction is rolled back.  BF stands for
+brute-force: any transaction can get aborted by galera any time
+it is necessary.
+
+This conflict can happen only when the replicated writeset (from
+other node) is being applied, not when it’s waiting in the queue.
+If our local transaction reached its COMMIT and this conflicting
+writeset was in the queue, then it should fail the local
+certification test instead.
+
+A brute force abort is only triggered by a locking conflict
+between a writeset being applied by an applier thread (slave thread)
+and an open transaction on the node, not by a Galera writeset
+comparison as in the local certification failure.
+
+@param[in]	bf_thd		Brute force (BF) thread
+@param[in,out]	victim_trx	Vimtim trx to be killed
+@param[in]	signal		Should victim be signaled */
+void
+wsrep_innobase_kill_one_trx(
+	THD* bf_thd,
+	trx_t *victim_trx,
+	bool signal)
+{
+	ut_ad(bf_thd);
+	ut_ad(victim_trx);
+	ut_ad(lock_mutex_own());
+	ut_ad(trx_mutex_own(victim_trx));
+
+	DBUG_ENTER("wsrep_innobase_kill_one_trx");
+
+	DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
+			 {
+			   const char act[]=
+			     "now "
+			     "SIGNAL sync.before_wsrep_thd_abort_reached "
+			     "WAIT_FOR signal.before_wsrep_thd_abort";
+			   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+							      STRING_WITH_LEN(act)));
+			 };);
+
+	trx_t* bf_trx= thd_to_trx(bf_thd);
+	bg_wsrep_kill_trx_arg *arg = (bg_wsrep_kill_trx_arg*)malloc(sizeof(*arg));
+	arg->thd_id     = thd_get_thread_id(victim_trx->mysql_thd);
+	arg->trx_id     = victim_trx->id;
+	arg->bf_thd_id  = thd_get_thread_id(bf_thd);
+	arg->bf_trx_id  = bf_trx ? bf_trx->id : TRX_ID_MAX;
+	arg->signal     = signal;
+	mysql_manager_submit(bg_wsrep_kill_trx, arg);
+
+	DBUG_VOID_RETURN;
 }
 
 /** This function forces the victim transaction to abort. Aborting the
@@ -18666,14 +18855,14 @@ wsrep_innobase_kill_one_trx(
   @return -1 victim thread was aborted (no transaction)
 */
 static
-int
+void
 wsrep_abort_transaction(
 	handlerton*,
 	THD *bf_thd,
 	THD *victim_thd,
 	my_bool signal)
 {
-	DBUG_ENTER("wsrep_innobase_abort_thd");
+	DBUG_ENTER("wsrep_abort_transaction");
 	ut_ad(bf_thd);
 	ut_ad(victim_thd);
 
@@ -18687,17 +18876,47 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
-		int rcode= wsrep_innobase_kill_one_trx(bf_thd,
-						       victim_trx, signal);
+		victim_trx->lock.was_chosen_as_wsrep_victim= true;
 		trx_mutex_exit(victim_trx);
 		lock_mutex_exit();
+
+		wsrep_thd_kill_LOCK(victim_thd);
+		wsrep_thd_LOCK(victim_thd);
+		bool aborting= !wsrep_thd_set_wsrep_aborter(bf_thd, victim_thd);
+		wsrep_thd_UNLOCK(victim_thd);
+		if (aborting) {
+			DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
+			DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
+					 {
+					   const char act[]=
+					     "now "
+					     "SIGNAL sync.before_wsrep_thd_abort_reached "
+					     "WAIT_FOR signal.before_wsrep_thd_abort";
+					   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+									      STRING_WITH_LEN(act)));
+					 };);
+			wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
+		}
+		wsrep_thd_kill_UNLOCK(victim_thd);
+
 		wsrep_srv_conc_cancel_wait(victim_trx);
-		DBUG_RETURN(rcode);
+		DBUG_VOID_RETURN;
 	} else {
+		DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
+				 {
+				   const char act[]=
+				     "now "
+				     "SIGNAL sync.before_wsrep_thd_abort_reached "
+				     "WAIT_FOR signal.before_wsrep_thd_abort";
+				   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+								      STRING_WITH_LEN(act)));
+				 };);
+		wsrep_thd_kill_LOCK(victim_thd);
 		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
+		wsrep_thd_kill_UNLOCK(victim_thd);
 	}
 
-	DBUG_RETURN(-1);
+	DBUG_VOID_RETURN;
 }
 
 static
@@ -18732,6 +18951,14 @@ innobase_wsrep_get_checkpoint(
 }
 #endif /* WITH_WSREP */
 
+static void innodb_idle_flush_pct_update(THD *thd, st_mysql_sys_var *var,
+                                         void*, const void *save)
+{
+  innodb_idle_flush_pct = *static_cast<const ulong*>(save);
+  push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
+               HA_ERR_WRONG_COMMAND, deprecated_idle_flush_pct);
+}
+
 /* plugin options */
 
 static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
@@ -18760,7 +18987,7 @@ static MYSQL_SYSVAR_ENUM(checksum_algorithm, srv_checksum_algorithm,
   " Files updated when this option is set to crc32 or strict_crc32 will"
   " not be readable by MariaDB versions older than 10.0.4;"
   " new files created with full_crc32 are readable by MariaDB 10.4.3+",
-  NULL, NULL, SRV_CHECKSUM_ALGORITHM_CRC32,
+  NULL, innodb_checksum_algorithm_update, SRV_CHECKSUM_ALGORITHM_CRC32,
   &innodb_checksum_algorithm_typelib);
 
 static MYSQL_SYSVAR_BOOL(log_checksums, innodb_log_checksums,
@@ -18821,12 +19048,10 @@ static MYSQL_SYSVAR_ULONG(io_capacity_max, srv_max_io_capacity,
   SRV_MAX_IO_CAPACITY_DUMMY_DEFAULT, 100,
   SRV_MAX_IO_CAPACITY_LIMIT, 0);
 
-static MYSQL_SYSVAR_ULONG(idle_flush_pct,
-  srv_idle_flush_pct,
+static MYSQL_SYSVAR_ULONG(idle_flush_pct, innodb_idle_flush_pct,
   PLUGIN_VAR_RQCMDARG,
-  "Up to what percentage of dirty pages should be flushed when innodb "
-  "finds it has spare resources to do so.",
-  NULL, NULL, 100, 0, 100, 0);
+  "DEPRECATED. This setting has no effect.",
+  NULL, innodb_idle_flush_pct_update, 100, 0, 100, 0);
 
 #ifdef UNIV_DEBUG
 static MYSQL_SYSVAR_BOOL(background_drop_list_empty,
@@ -20359,7 +20584,7 @@ static bool table_name_parse(
 	memcpy(tbl_buf, tbl_name.m_name + dbnamelen + 1, tblnamelen);
 	tbl_buf[tblnamelen] = 0;
 
-	filename_to_tablename(db_buf, dbname, MAX_DATABASE_NAME_LEN + 1, true);
+	dbnamelen = filename_to_tablename(db_buf, dbname, MAX_DATABASE_NAME_LEN + 1, true);
 
 	if (tblnamelen > TEMP_FILE_PREFIX_LENGTH
 	    && !strncmp(tbl_buf, TEMP_FILE_PREFIX, TEMP_FILE_PREFIX_LENGTH)) {
@@ -20371,7 +20596,7 @@ static bool table_name_parse(
 		tblnamelen = is_part - tbl_buf;
 	}
 
-	filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
+	tblnamelen = filename_to_tablename(tbl_buf, tblname, MAX_TABLE_NAME_LEN + 1, true);
 	return true;
 }
 
@@ -20803,11 +21028,11 @@ innobase_get_computed_value(
 
 	field = dtuple_get_nth_v_field(row, col->v_pos);
 
-	my_bitmap_map*	old_write_set = dbug_tmp_use_all_columns(mysql_table, mysql_table->write_set);
-	my_bitmap_map*	old_read_set = dbug_tmp_use_all_columns(mysql_table, mysql_table->read_set);
+	MY_BITMAP *old_write_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->write_set);
+	MY_BITMAP *old_read_set = dbug_tmp_use_all_columns(mysql_table, &mysql_table->read_set);
 	ret = mysql_table->update_virtual_field(mysql_table->field[col->m_col.ind]);
-	dbug_tmp_restore_column_map(mysql_table->read_set, old_read_set);
-	dbug_tmp_restore_column_map(mysql_table->write_set, old_write_set);
+	dbug_tmp_restore_column_map(&mysql_table->read_set, old_read_set);
+	dbug_tmp_restore_column_map(&mysql_table->write_set, old_write_set);
 
 	if (ret != 0) {
 		DBUG_RETURN(NULL);

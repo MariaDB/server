@@ -2303,8 +2303,6 @@ void recv_apply_hashed_log_recs(bool last_batch)
 	recv_no_ibuf_operations
 		= !last_batch || is_mariabackup_restore_or_export();
 
-	ut_d(recv_no_log_write = recv_no_ibuf_operations);
-
 	if (ulint n = recv_sys.n_addrs) {
 		if (!log_sys.log.subformat && !srv_force_recovery
 		    && srv_undo_tablespaces_open) {
@@ -3871,6 +3869,8 @@ recv_recovery_from_checkpoint_start(lsn_t flush_lsn)
 	mutex_enter(&recv_sys.mutex);
 
 	recv_sys.apply_log_recs = true;
+	recv_no_ibuf_operations = is_mariabackup_restore_or_export();
+	ut_d(recv_no_log_write = recv_no_ibuf_operations);
 
 	mutex_exit(&recv_sys.mutex);
 

@@ -2487,6 +2487,8 @@ void st_select_lex::init_select()
   with_dep= 0;
   join= 0;
   lock_type= TL_READ_DEFAULT;
+  save_many_values.empty();
+  save_insert_list= 0;
   tvc= 0;
   in_funcs.empty();
   curr_tvc_name= 0;
@@ -2530,6 +2532,8 @@ void st_select_lex_node::add_slave(st_select_lex_node *slave_arg)
   {
     slave= slave_arg;
     slave_arg->master= this;
+    slave->prev= &master->slave;
+    slave->next= 0;
   }
 }
 
@@ -2549,6 +2553,27 @@ void st_select_lex_node::link_chain_down(st_select_lex_node *first)
   }
   first->prev= &slave;
   slave= first;
+}
+
+/*
+  @brief
+    Substitute this node in select tree for a newly creates node
+
+  @param  subst the node to substitute for
+
+  @details
+    The function substitute this node in the select tree for a newly
+    created node subst. This node is just removed from the tree but all
+    its link fields and the attached sub-tree remain untouched.
+*/
+
+void st_select_lex_node::substitute_in_tree(st_select_lex_node *subst)
+{
+  if ((subst->next= next))
+    next->prev= &subst->next;
+  subst->prev= prev;
+  (*prev)= subst;
+  subst->master= master;
 }
 
 /*
@@ -4983,6 +5008,9 @@ bool LEX::save_prep_leaf_tables()
 
 bool st_select_lex::save_prep_leaf_tables(THD *thd)
 {
+  if (prep_leaf_list_state == SAVED)
+    return FALSE;
+
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
 
@@ -8871,7 +8899,6 @@ bool LEX::last_field_generated_always_as_row_end()
                                                          VERS_SYS_END_FLAG);
 }
 
-
 void st_select_lex_unit::reset_distinct()
 {
   union_distinct= NULL;
@@ -8884,6 +8911,20 @@ void st_select_lex_unit::reset_distinct()
       union_distinct= sl;
     }
   }
+}
+
+
+void LEX::save_values_list_state()
+{
+  current_select->save_many_values= many_values;
+  current_select->save_insert_list= insert_list;
+}
+
+
+void LEX::restore_values_list_state()
+{
+  many_values= current_select->save_many_values;
+  insert_list= current_select->save_insert_list;
 }
 
 
@@ -9383,6 +9424,7 @@ bool LEX::parsed_insert_select(SELECT_LEX *first_select)
 bool LEX::parsed_TVC_start()
 {
   SELECT_LEX *sel;
+  save_values_list_state();
   many_values.empty();
   insert_list= 0;
   if (!(sel= alloc_select(TRUE)) ||
@@ -9396,14 +9438,13 @@ bool LEX::parsed_TVC_start()
 
 SELECT_LEX *LEX::parsed_TVC_end()
 {
-
   SELECT_LEX *res= pop_select(); // above TVC select
   if (!(res->tvc=
         new (thd->mem_root) table_value_constr(many_values,
           res,
           res->options)))
     return NULL;
-  many_values.empty();
+  restore_values_list_state();
   return res;
 }
 

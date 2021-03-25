@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, 2009 Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -247,9 +247,6 @@ ulong srv_buf_pool_load_pages_abort = LONG_MAX;
 #endif
 /** Lock table size in bytes */
 ulint	srv_lock_table_size	= ULINT_MAX;
-
-/** innodb_idle_flush_pct */
-ulong	srv_idle_flush_pct;
 
 /** innodb_read_io_threads */
 ulong	srv_n_read_io_threads;

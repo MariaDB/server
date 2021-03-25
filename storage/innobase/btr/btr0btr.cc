@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4666,6 +4666,16 @@ n_field_mismatch:
 		} else {
 			fixed_size = dict_col_get_fixed_size(
 				field->col, page_is_comp(page));
+			if (rec_offs_nth_extern(offsets, i)) {
+				const byte* data = rec_get_nth_field(
+					rec, offsets, i, &len);
+				len -= BTR_EXTERN_FIELD_REF_SIZE;
+				ulint extern_len = mach_read_from_4(
+					data + len + BTR_EXTERN_LEN + 4);
+				if (fixed_size == extern_len) {
+					goto next_field;
+				}
+			}
 		}
 
 		/* Note that if fixed_size != 0, it equals the
@@ -4698,7 +4708,7 @@ len_mismatch:
 			}
 			return(FALSE);
 		}
-
+next_field:
 		field++;
 	}
 

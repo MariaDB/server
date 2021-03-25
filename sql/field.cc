@@ -8098,11 +8098,10 @@ uint Field_varstring::get_key_image(uchar *buff, uint length,
 {
   String val;
   uint local_char_length;
-  my_bitmap_map *old_map;
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   val_str(&val, &val);
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   local_char_length= val.charpos(length / field_charset->mbmaxlen);
   if (local_char_length < val.length())
@@ -11396,7 +11395,7 @@ key_map Field::get_possible_keys()
 
 bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
 {
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   bool rc;
   if ((rc= validate_value_in_record(thd, record)))
   {
@@ -11408,7 +11407,7 @@ bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
                         ER_THD(thd, ER_INVALID_DEFAULT_VALUE_FOR_FIELD),
                         ErrConvString(&tmp).ptr(), field_name.str);
   }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   return rc;
 }
 

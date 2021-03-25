@@ -98,14 +98,13 @@ static bool report_unknown_option(THD *thd, engine_option_value *val,
 {
   DBUG_ENTER("report_unknown_option");
 
-  if (val->parsed || suppress_warning)
+  if (val->parsed || suppress_warning || thd->slave_thread)
   {
     DBUG_PRINT("info", ("parsed => exiting"));
     DBUG_RETURN(FALSE);
   }
 
-  if (!(thd->variables.sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
-      !thd->slave_thread)
+  if (!(thd->variables.sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS))
   {
     my_error(ER_UNKNOWN_OPTION, MYF(0), val->name.str);
     DBUG_RETURN(TRUE);

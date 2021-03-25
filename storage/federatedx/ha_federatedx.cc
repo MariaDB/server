@@ -871,7 +871,7 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
   ulong *lengths;
   Field **field;
   int column= 0;
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   Time_zone *saved_time_zone= table->in_use->variables.time_zone;
   DBUG_ENTER("ha_federatedx::convert_row_to_internal_format");
 
@@ -900,7 +900,7 @@ uint ha_federatedx::convert_row_to_internal_format(uchar *record,
     (*field)->move_field_offset(-old_ptr);
   }
   table->in_use->variables.time_zone= saved_time_zone;
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   DBUG_RETURN(0);
 }
 
@@ -1229,7 +1229,6 @@ bool ha_federatedx::create_where_from_key(String *to,
   String tmp(tmpbuff, sizeof(tmpbuff), system_charset_info);
   const key_range *ranges[2]= { start_key, end_key };
   Time_zone *saved_time_zone= table->in_use->variables.time_zone;
-  my_bitmap_map *old_map;
   DBUG_ENTER("ha_federatedx::create_where_from_key");
 
   tmp.length(0); 
@@ -1237,7 +1236,7 @@ bool ha_federatedx::create_where_from_key(String *to,
     DBUG_RETURN(1);
 
   table->in_use->variables.time_zone= UTC;
-  old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   for (uint i= 0; i <= 1; i++)
   {
     bool needs_quotes;
@@ -1413,7 +1412,7 @@ prepare_for_next_key_part:
                   tmp.c_ptr_quick()));
     }
   }
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   table->in_use->variables.time_zone= saved_time_zone;
 
   if (both_not_null)
@@ -1429,7 +1428,7 @@ prepare_for_next_key_part:
   DBUG_RETURN(0);
 
 err:
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   table->in_use->variables.time_zone= saved_time_zone;
   DBUG_RETURN(1);
 }
@@ -2004,7 +2003,7 @@ int ha_federatedx::write_row(const uchar *buf)
                                    sizeof(insert_field_value_buffer),
                                    &my_charset_bin);
   Time_zone *saved_time_zone= table->in_use->variables.time_zone;
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   DBUG_ENTER("ha_federatedx::write_row");
 
   table->in_use->variables.time_zone= UTC;
@@ -2059,7 +2058,7 @@ int ha_federatedx::write_row(const uchar *buf)
       values_string.append(STRING_WITH_LEN(", "));
     }
   }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   table->in_use->variables.time_zone= saved_time_zone;
 
   /*
@@ -2384,7 +2383,7 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
       else
       {
         /* otherwise = */
-        my_bitmap_map *old_map= tmp_use_all_columns(table, table->read_set);
+        MY_BITMAP *old_map= tmp_use_all_columns(table, &table->read_set);
         bool needs_quote= (*field)->str_needs_quotes();
 	(*field)->val_str(&field_value);
         if (needs_quote)
@@ -2393,7 +2392,7 @@ int ha_federatedx::update_row(const uchar *old_data, const uchar *new_data)
         if (needs_quote)
           update_string.append(value_quote_char);
         field_value.length(0);
-        tmp_restore_column_map(table->read_set, old_map);
+        tmp_restore_column_map(&table->read_set, old_map);
       }
       update_string.append(STRING_WITH_LEN(", "));
     }

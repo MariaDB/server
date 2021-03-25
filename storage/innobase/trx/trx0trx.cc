@@ -161,6 +161,11 @@ trx_init(
 	trx->lock.rec_cached = 0;
 
 	trx->lock.table_cached = 0;
+#ifdef WITH_WSREP
+	ut_ad(!trx->wsrep);
+	ut_ad(!trx->wsrep_event);
+	ut_ad(!trx->wsrep_UK_scan);
+#endif /* WITH_WSREP */
 
 	ut_ad(trx->get_flush_observer() == NULL);
 }
@@ -369,6 +374,7 @@ trx_t *trx_create()
 
 #ifdef WITH_WSREP
 	trx->wsrep_event= NULL;
+	ut_ad(!trx->wsrep_UK_scan);
 #endif /* WITH_WSREP */
 
 	trx_sys.register_trx(trx);
@@ -475,6 +481,8 @@ void trx_t::free()
   MEM_NOACCESS(&flush_observer, sizeof flush_observer);
 #ifdef WITH_WSREP
   MEM_NOACCESS(&wsrep_event, sizeof wsrep_event);
+  ut_ad(!wsrep_UK_scan);
+  MEM_NOACCESS(&wsrep_UK_scan, sizeof wsrep_UK_scan);
 #endif /* WITH_WSREP */
   MEM_NOACCESS(&magic_n, sizeof magic_n);
   trx_pools->mem_free(this);
@@ -1264,16 +1272,6 @@ trx_update_mod_tables_timestamp(
 	const time_t now = time(NULL);
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
-#ifdef UNIV_DEBUG
-	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
-		|| trx->is_recovered /* avoid trouble with XA recovery */
-# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| mutex_own(&dict_sys.mutex)
-# else /* this would be more proper way to do it */
-		|| trx->dict_operation_lock_mode || trx->dict_operation
-# endif
-		;
-#endif
 
 	for (trx_mod_tables_t::const_iterator it = trx->mod_tables.begin();
 	     it != end;
@@ -1289,26 +1287,6 @@ trx_update_mod_tables_timestamp(
 		intrusive. */
 		dict_table_t* table = it->first;
 		table->update_time = now;
-#ifdef UNIV_DEBUG
-		if (preserve_tables || table->get_ref_count()
-		    || UT_LIST_GET_LEN(table->locks)) {
-			/* do not evict when committing DDL operations
-			or if some other transaction is holding the
-			table handle */
-			continue;
-		}
-		/* recheck while holding the mutex that blocks
-		table->acquire() */
-		mutex_enter(&dict_sys.mutex);
-		mutex_enter(&lock_sys.mutex);
-		const bool do_evict = !table->get_ref_count()
-			&& !UT_LIST_GET_LEN(table->locks);
-		mutex_exit(&lock_sys.mutex);
-		if (do_evict) {
-			dict_sys.remove(table, true);
-		}
-		mutex_exit(&dict_sys.mutex);
-#endif
 	}
 
 	trx->mod_tables.clear();
@@ -1394,16 +1372,9 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       so that there will be no race condition in lock_release(). */
       while (UNIV_UNLIKELY(is_referenced()))
         ut_delay(srv_spin_wait_delay);
-      release_locks();
-      id= 0;
     }
     else
-    {
       ut_ad(read_only || !rsegs.m_redo.rseg);
-      release_locks();
-    }
-
-    DEBUG_SYNC_C("after_trx_committed_in_memory");
 
     if (read_only || !rsegs.m_redo.rseg)
     {
@@ -1415,6 +1386,10 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       MONITOR_INC(MONITOR_TRX_RW_COMMIT);
       is_recovered= false;
     }
+
+    release_locks();
+    id= 0;
+    DEBUG_SYNC_C("after_trx_committed_in_memory");
 
     while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
     {

@@ -1,0 +1,479 @@
+--- /home/alice/git/10.3/mysql-test/suite/engines/funcs/r/rpl_sp,myisam,mix.result~	2021-03-19 17:27:12.935559866 +0100
++++ /home/alice/git/10.3/mysql-test/suite/engines/funcs/r/rpl_sp,myisam,mix.reject	2021-03-19 17:27:14.071534938 +0100
+@@ -126,12 +126,15 @@
+ show warnings;
+ Level	Code	Message
+ Error	1062	Duplicate entry '20' for key 'a'
++Warning	1196	Some non-transactional changed tables couldn't be rolled back
+ Note	4094	At line 4 in mysqltest1.foo4
+ select * from t2;
+ a
++20
+ connection slave;
+ select * from t2;
+ a
++20
+ select * from mysql.proc where name="foo4" and db='mysqltest1';
+ db	name	type	specific_name	language	sql_data_access	is_deterministic	security_type	param_list	returns	body	definer	created	modified	sql_mode	comment	character_set_client	collation_connection	db_collation	body_utf8	aggregate
+ mysqltest1	foo4	PROCEDURE	foo4	SQL	CONTAINS_SQL	YES	DEFINER			begin
+@@ -171,20 +174,16 @@
+ insert into t2 values(fn1(21));
+ select * from t1;
+ a
+-15
+ 20
+ 21
+-5
+ select * from t2;
+ a
+ 23
+ connection slave;
+ select * from t1;
+ a
+-15
+ 20
+ 21
+-5
+ select * from t2;
+ a
+ 23
+@@ -292,13 +291,18 @@
+ Warnings:
+ Error	1062	Duplicate entry '100' for key 'a'
+ Note	4094	At line 3 in mysqltest1.fn1
++Warning	1196	Some non-transactional changed tables couldn't be rolled back
+ select fn1(20);
+ ERROR 23000: Duplicate entry '20' for key 'a'
+ select * from t2;
+ a
++20
++100
+ connection slave;
+ select * from t2;
+ a
++20
++100
+ connection con1;
+ create trigger trg before insert on t1 for each row set new.a= 10;
+ ERROR 42000: TRIGGER command denied to user 'zedjzlcsjhd'@'localhost' for table 't1'
+@@ -472,13 +476,13 @@
+ end
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t1 values ( NAME_CONST('b',8))
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t1 values (unix_timestamp())
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; delete from t1
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; CREATE DEFINER=`root`@`localhost` PROCEDURE `foo2`()
+ select * from mysqltest1.t1
+@@ -509,24 +513,24 @@
+ end
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t2 values(3)
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t1 values (15)
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t2 values(3)
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; alter procedure foo4 sql security invoker
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t2 values(3)
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t1 values (5)
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; delete from t2
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; alter table t2 add unique (a)
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+@@ -537,6 +541,9 @@
+ begin
+ insert into t2 values(20),(20);
+ end
++master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
++master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t2 values(20),(20)
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; drop procedure foo4
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+@@ -557,10 +564,10 @@
+ master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; SELECT `mysqltest1`.`fn1`(20)
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t2 values(fn1(21))
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; drop function fn1
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+@@ -571,10 +578,10 @@
+ end
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; delete from t1
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t1 values(fn1())
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; CREATE DEFINER=`zedjzlcsjhd`@`127.0.0.1` FUNCTION `fn2`() RETURNS int(11)
+     NO SQL
+@@ -589,7 +596,7 @@
+ end
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; delete from t2
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; alter table t2 add unique (a)
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+@@ -601,21 +608,27 @@
+ return 10;
+ end
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
++master-bin.000001	#	Query	#	#	use `mysqltest1`; SELECT `mysqltest1`.`fn1`(100)
++master-bin.000001	#	Query	#	#	COMMIT
++master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
++master-bin.000001	#	Query	#	#	use `mysqltest1`; SELECT `mysqltest1`.`fn1`(20)
++master-bin.000001	#	Query	#	#	COMMIT
++master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; delete from t1
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; CREATE DEFINER=`root`@`localhost` trigger trg before insert on t1 for each row set new.a= 10
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t1 values (1)
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; delete from t1
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; drop trigger trg
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; insert into t1 values (1)
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest1`; CREATE DEFINER=`root`@`localhost` PROCEDURE `foo`()
+     READS SQL DATA
+@@ -647,7 +660,7 @@
+ master-bin.000001	#	Query	#	#	use `test`; create table t1 (a int)
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `test`; insert into t1 (a) values (f1())
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `test`; drop view v1
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+@@ -663,7 +676,7 @@
+ INSERT INTO t1 VALUES(arg)
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `test`; INSERT INTO t1 VALUES( NAME_CONST('arg',_latin1'test' COLLATE 'latin1_swedish_ci'))
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `test`; DROP PROCEDURE p1
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+@@ -697,7 +710,7 @@
+ begin end
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest2`; insert into t values ( 1 )
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ master-bin.000001	#	Gtid	#	#	GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest2`; CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+ begin
+@@ -706,7 +719,7 @@
+ end
+ master-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+ master-bin.000001	#	Query	#	#	use `mysqltest`; SELECT `mysqltest2`.`f1`()
+-master-bin.000001	#	Xid	#	#	COMMIT /* XID */
++master-bin.000001	#	Query	#	#	COMMIT
+ connection slave;
+ set @@global.log_bin_trust_function_creators= @old_log_bin_trust_function_creators;
+ connection master;
+@@ -801,19 +814,25 @@
+ SET TIMESTAMP=t/*!*/;
+ insert into t1 values ( NAME_CONST('b',8))
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
+ insert into t1 values (unix_timestamp())
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
+ delete from t1
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ CREATE DEFINER=`root`@`localhost` PROCEDURE `foo2`()
+ select * from mysqltest1.t1
+@@ -858,21 +877,27 @@
+ SET TIMESTAMP=t/*!*/;
+ insert into t2 values(3)
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
+ SET @@session.sql_mode=0/*!*/;
+ insert into t1 values (15)
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
+ SET @@session.sql_mode=1411383296/*!*/;
+ insert into t2 values(3)
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ SET @@session.sql_mode=0/*!*/;
+ alter procedure foo4 sql security invoker
+@@ -883,20 +908,26 @@
+ SET @@session.sql_mode=1411383296/*!*/;
+ insert into t2 values(3)
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
+ insert into t1 values (5)
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
+ SET @@session.sql_mode=0/*!*/;
+ delete from t2
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ alter table t2 add unique (a)
+ /*!*/;
+@@ -910,6 +941,14 @@
+ insert into t2 values(20),(20);
+ end
+ /*!*/;
++START TRANSACTION
++/*!*/;
++SET TIMESTAMP=t/*!*/;
++insert into t2 values(20),(20)
++/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ drop procedure foo4
+ /*!*/;
+@@ -943,13 +982,17 @@
+ SET TIMESTAMP=t/*!*/;
+ SELECT `mysqltest1`.`fn1`(20)
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
+ insert into t2 values(fn1(21))
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ drop function fn1
+ /*!*/;
+@@ -965,13 +1008,17 @@
+ SET TIMESTAMP=t/*!*/;
+ delete from t1
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
+ insert into t1 values(fn1())
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ SET @@session.sql_mode=1411383296/*!*/;
+ CREATE DEFINER=`zedjzlcsjhd`@`127.0.0.1` FUNCTION `fn2`() RETURNS int(11)
+@@ -993,7 +1040,9 @@
+ SET TIMESTAMP=t/*!*/;
+ delete from t2
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ alter table t2 add unique (a)
+ /*!*/;
+@@ -1010,9 +1059,27 @@
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
++SELECT `mysqltest1`.`fn1`(100)
++/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
++START TRANSACTION
++/*!*/;
++SET TIMESTAMP=t/*!*/;
++SELECT `mysqltest1`.`fn1`(20)
++/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
++START TRANSACTION
++/*!*/;
++SET TIMESTAMP=t/*!*/;
+ delete from t1
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ CREATE DEFINER=`root`@`localhost` trigger trg before insert on t1 for each row set new.a= 10
+ /*!*/;
+@@ -1021,13 +1088,17 @@
+ SET TIMESTAMP=t/*!*/;
+ insert into t1 values (1)
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ START TRANSACTION
+ /*!*/;
+ SET TIMESTAMP=t/*!*/;
+ delete from t1
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ drop trigger trg
+ /*!*/;
+@@ -1036,7 +1107,9 @@
+ SET TIMESTAMP=t/*!*/;
+ insert into t1 values (1)
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ CREATE DEFINER=`root`@`localhost` PROCEDURE `foo`()
+     READS SQL DATA
+@@ -1081,7 +1154,9 @@
+ SET TIMESTAMP=t/*!*/;
+ insert into t1 (a) values (f1())
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ drop view v1
+ /*!*/;
+@@ -1106,7 +1181,9 @@
+ SET TIMESTAMP=t/*!*/;
+ INSERT INTO t1 VALUES( NAME_CONST('arg',_latin1'test' COLLATE 'latin1_swedish_ci'))
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ DROP PROCEDURE p1
+ /*!*/;
+@@ -1158,7 +1235,9 @@
+ SET TIMESTAMP=t/*!*/;
+ insert into t values ( 1 )
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ CREATE DEFINER=`root`@`localhost` FUNCTION `f1`() RETURNS int(11)
+ begin
+@@ -1172,7 +1251,9 @@
+ SET TIMESTAMP=t/*!*/;
+ SELECT `mysqltest2`.`f1`()
+ /*!*/;
+-COMMIT/*!*/;
++SET TIMESTAMP=t/*!*/;
++COMMIT
++/*!*/;
+ SET TIMESTAMP=t/*!*/;
+ drop database mysqltest
+ /*!*/;

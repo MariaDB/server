@@ -1995,7 +1995,7 @@ int TDBDOS::Cardinality(PGLOBAL g)
       if (Mode == MODE_ANY && ExactInfo()) {
         // Using index impossible or failed, do it the hard way
         Mode = MODE_READ;
-        To_Line = (char*)PlugSubAlloc(g, NULL, Lrecl + 1);
+        To_Line = (char*)PlugSubAlloc(g, NULL, (size_t)Lrecl + 1);
     
         if (Txfp->OpenTableFile(g))
           return (Cardinal = Txfp->Cardinality(g));
@@ -2145,6 +2145,9 @@ bool TDBDOS::OpenDB(PGLOBAL g)
     } // endif use
 
   if (Mode == MODE_DELETE && !Next && Txfp->GetAmType() != TYPE_AM_DOS
+#if defined(BSON_SUPPORT)
+                                   && Txfp->GetAmType() != TYPE_AM_BIN
+#endif   // BSON_SUPPORT
 		                               && Txfp->GetAmType() != TYPE_AM_MGO) {
     // Delete all lines. Not handled in MAP or block mode
     Txfp = new(g) DOSFAM((PDOSDEF)To_Def);
@@ -2229,7 +2232,7 @@ int TDBDOS::ReadDB(PGLOBAL g)
         return RC_EF;
       case -2:           // No match for join
         return RC_NF;
-      case -3:           // Same record as last non null one
+      case -3:           // Same record as non null last one
         num_there++;
         return RC_OK;
       default:

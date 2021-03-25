@@ -1,4 +1,5 @@
 --source include/have_stat_tables.inc
+--source include/have_partition.inc
 
 select @@global.use_stat_tables;
 select @@session.use_stat_tables;
@@ -572,6 +573,17 @@ select length(a) from t1 where a=REPEAT('ӥ',255);
 set names latin1;
 set @@use_stat_tables=@save_use_stat_tables;
 drop table t1;
+
+--echo #
+--echo # MDEV-23753: SIGSEGV in Column_stat::store_stat_fields
+--echo #
+
+CREATE TABLE t1 (a INT, b INT) PARTITION BY HASH (b) PARTITIONS 2;
+LOCK TABLES t1 WRITE;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (a) INDEXES ();
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (nonexisting) INDEXES (nonexisting);
+DROP TABLE t1;
+
 
 --echo # please keep this at the last
 set @@global.histogram_size=@save_histogram_size;

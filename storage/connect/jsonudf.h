@@ -1,10 +1,11 @@
 /******************** tabjson H Declares Source Code File (.H) *******************/
-/*  Name: jsonudf.h   Version 1.3                                                */
+/*  Name: jsonudf.h   Version 1.4                                                */
 /*                                                                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2015-2017              */
+/*  (C) Copyright to the author Olivier BERTRAND          2015-2020              */
 /*                                                                               */
 /*  This file contains the JSON UDF function and class declares.                 */
 /*********************************************************************************/
+#pragma once
 #include "global.h"
 #include "plgdbsem.h"
 #include "block.h"
@@ -14,6 +15,27 @@
 
 #define UDF_EXEC_ARGS \
   UDF_INIT*, UDF_ARGS*, char*, unsigned long*, char*, char*
+
+// BSON size should be equal on Linux and Windows
+#define BMX 255
+typedef struct BSON* PBSON;
+
+/***********************************************************************/
+/*  Structure used to return binary json to Json UDF functions.        */
+/***********************************************************************/
+struct BSON {
+	char    Msg[BMX + 1];
+	char   *Filename;
+	PGLOBAL G;
+	int     Pretty;
+	ulong   Reslen;
+	my_bool Changed;
+	PJSON   Top;
+	PJSON   Jsp;
+	PBSON   Bsp;
+}; // end of struct BSON
+
+PBSON JbinAlloc(PGLOBAL g, UDF_ARGS* args, ulong len, PJSON jsp);
 
 /*********************************************************************************/
 /*  The JSON tree node. Can be an Object or an Array.                     	  	 */
@@ -29,9 +51,29 @@ typedef struct _jnode {
 } JNODE, *PJNODE;
 
 typedef class JSNX     *PJSNX;
-typedef class JOUTPATH *PJTP;
-typedef class JOUTALL  *PJTA;
 
+/*********************************************************************************/
+/*  The JSON utility functions.                     	  	                       */
+/*********************************************************************************/
+bool    IsNum(PSZ s);
+char   *NextChr(PSZ s, char sep);
+char   *GetJsonNull(void);
+uint    GetJsonGrpSize(void);
+my_bool JsonSubSet(PGLOBAL g, my_bool b = false);
+my_bool CalcLen(UDF_ARGS* args, my_bool obj, unsigned long& reslen,
+	              unsigned long& memlen, my_bool mod = false);
+my_bool JsonInit(UDF_INIT* initid, UDF_ARGS* args, char* message, my_bool mbn,
+								 unsigned long reslen, unsigned long memlen,
+								 unsigned long more = 0);
+my_bool CheckMemory(PGLOBAL g, UDF_INIT* initid, UDF_ARGS* args, uint n,
+	                  my_bool m, my_bool obj = false, my_bool mod = false);
+PSZ     MakePSZ(PGLOBAL g, UDF_ARGS* args, int i);
+int     IsJson(UDF_ARGS* args, uint i, bool b = false);
+char   *GetJsonFile(PGLOBAL g, char* fn);
+
+/*********************************************************************************/
+/*  The JSON UDF functions.                                               	  	 */
+/*********************************************************************************/
 extern "C" {
 	DllExport my_bool jsonvalue_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *jsonvalue(UDF_EXEC_ARGS);
@@ -132,7 +174,7 @@ extern "C" {
 	DllExport void jsonget_real_deinit(UDF_INIT*);
 
 	DllExport my_bool jsoncontains_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsoncontains(UDF_EXEC_ARGS);
+	DllExport long long jsoncontains(UDF_INIT*, UDF_ARGS*, char*, char*);
 	DllExport void jsoncontains_deinit(UDF_INIT*);
 
 	DllExport my_bool jsonlocate_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -144,7 +186,7 @@ extern "C" {
 	DllExport void json_locate_all_deinit(UDF_INIT*);
 
 	DllExport my_bool jsoncontains_path_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long jsoncontains_path(UDF_EXEC_ARGS);
+	DllExport long long jsoncontains_path(UDF_INIT*, UDF_ARGS*, char*, char*);
 	DllExport void jsoncontains_path_deinit(UDF_INIT*);
 
 	DllExport my_bool json_set_item_init(UDF_INIT*, UDF_ARGS*, char*);
@@ -239,6 +281,10 @@ extern "C" {
 	DllExport char* jfile_convert(UDF_EXEC_ARGS);
 	DllExport void jfile_convert_deinit(UDF_INIT*);
 
+	DllExport my_bool jfile_bjson_init(UDF_INIT*, UDF_ARGS*, char*);
+	DllExport char* jfile_bjson(UDF_EXEC_ARGS);
+	DllExport void jfile_bjson_deinit(UDF_INIT*);
+
 	DllExport my_bool envar_init(UDF_INIT*, UDF_ARGS*, char*);
 	DllExport char *envar(UDF_EXEC_ARGS);
 
@@ -248,17 +294,17 @@ extern "C" {
 #endif   // DEVELOPMENT
 
 	DllExport my_bool countin_init(UDF_INIT*, UDF_ARGS*, char*);
-	DllExport long long countin(UDF_EXEC_ARGS);
-} // extern "C"
+	DllExport long long countin(UDF_INIT*, UDF_ARGS*, char*, char*);
+} // extern "C"																											  
 
 
 /*********************************************************************************/
 /*  Structure JPN. Used to make the locate path.                                 */
 /*********************************************************************************/
 typedef struct _jpn {
-	enum JTYP Type;
-	PCSZ      Key;
-	int       N;
+	int  Type;
+	PCSZ Key;
+	int  N;
 } JPN, *PJPN;
 
 /*********************************************************************************/
@@ -290,15 +336,16 @@ protected:
 	PVAL    ExpandArray(PGLOBAL g, PJAR arp, int n);
 	PVAL    CalculateArray(PGLOBAL g, PJAR arp, int n);
 	PVAL    MakeJson(PGLOBAL g, PJSON jsp);
-	void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
+	void    SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val);
 	PJSON   GetRow(PGLOBAL g);
-	my_bool LocateArray(PJAR jarp);
-	my_bool LocateObject(PJOB jobp);
-	my_bool LocateValue(PJVAL jvp);
-	my_bool LocateArrayAll(PJAR jarp);
-	my_bool LocateObjectAll(PJOB jobp);
-	my_bool LocateValueAll(PJVAL jvp);
-	my_bool CompareTree(PJSON jp1, PJSON jp2);
+	my_bool CompareValues(PJVAL v1, PJVAL v2);
+	my_bool LocateArray(PGLOBAL g, PJAR jarp);
+	my_bool LocateObject(PGLOBAL g, PJOB jobp);
+	my_bool LocateValue(PGLOBAL g, PJVAL jvp);
+	my_bool LocateArrayAll(PGLOBAL g, PJAR jarp);
+	my_bool LocateObjectAll(PGLOBAL g, PJOB jobp);
+	my_bool LocateValueAll(PGLOBAL g, PJVAL jvp);
+	my_bool CompareTree(PGLOBAL g, PJSON jp1, PJSON jp2);
 	my_bool AddPath(void);
 
 	// Default constructor not to be used
@@ -355,11 +402,10 @@ public:
 	void  CopyNumeric(PGLOBAL g);
 
 	// Members
-	FILE* fs;
-	char* s;
-	char* buff;
-	int len;
-	int recl;
-	int i, k;
+	FILE  *fs;
+	char  *s;
+	char  *buff;
+	size_t len;
+	uint   i;
+	int    k, recl;
 }; // end of class JUP
-

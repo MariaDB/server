@@ -10112,12 +10112,12 @@ int ha_spider::write_row(
       if (!table->auto_increment_field_not_null)
       {
 #ifndef DBUG_OFF
-        my_bitmap_map *tmp_map =
-          dbug_tmp_use_all_columns(table, table->write_set);
+        MY_BITMAP *tmp_map =
+          dbug_tmp_use_all_columns(table, &table->write_set);
 #endif
         table->next_number_field->store((longlong) 0, TRUE);
 #ifndef DBUG_OFF
-        dbug_tmp_restore_column_map(table->write_set, tmp_map);
+        dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
         force_auto_increment = FALSE;
         table->file->insert_id_for_cur_row = 0;
@@ -10125,13 +10125,13 @@ int ha_spider::write_row(
     } else if (auto_increment_mode == 2)
     {
 #ifndef DBUG_OFF
-      my_bitmap_map *tmp_map =
-        dbug_tmp_use_all_columns(table, table->write_set);
+      MY_BITMAP *tmp_map =
+        dbug_tmp_use_all_columns(table, &table->write_set);
 #endif
       table->next_number_field->store((longlong) 0, TRUE);
       table->auto_increment_field_not_null = FALSE;
 #ifndef DBUG_OFF
-      dbug_tmp_restore_column_map(table->write_set, tmp_map);
+      dbug_tmp_restore_column_map(&table->write_set, tmp_map);
 #endif
       force_auto_increment = FALSE;
       table->file->insert_id_for_cur_row = 0;

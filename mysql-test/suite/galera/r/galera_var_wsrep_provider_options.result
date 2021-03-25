@@ -1,0 +1,10 @@
+connection node_2;
+connection node_1;
+call mtr.add_suppression("WSREP: Unknown parameter 'a'");
+call mtr.add_suppression("WSREP: Set options returned 7");
+SET GLOBAL wsrep_provider_options=NULL;
+ERROR HY000: Incorrect arguments to SET
+SET GLOBAL wsrep_provider_options='';
+SET GLOBAL wsrep_provider_options=' ';
+SET GLOBAL wsrep_provider_options='a=1';
+ERROR HY000: Incorrect arguments to SET

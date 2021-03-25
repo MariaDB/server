@@ -3159,6 +3159,12 @@ end:
 
 int acl_check_setrole(THD *thd, const char *rolename, ulonglong *access)
 {
+  if (!initialized)
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
+    return 1;
+  }
+
   return check_user_can_set_role(thd, thd->security_ctx->priv_user,
            thd->security_ctx->host, thd->security_ctx->ip, rolename, access);
 }
@@ -3788,7 +3794,7 @@ bool change_password(THD *thd, LEX_USER *user)
   char buff[512];
   ulong query_length= 0;
   enum_binlog_format save_binlog_format;
-  int result=0;
+  bool result= false, acl_cache_is_locked= false;
   ACL_USER *acl_user;
   ACL_USER::AUTH auth;
   const char *password_plugin= 0;
@@ -3813,7 +3819,7 @@ bool change_password(THD *thd, LEX_USER *user)
   if ((result= tables.open_and_lock(thd, Table_user, TL_WRITE)))
     DBUG_RETURN(result != 1);
 
-  result= 1;
+  acl_cache_is_locked= 1;
   mysql_mutex_lock(&acl_cache->lock);
 
   if (!(acl_user= find_user_exact(user->host.str, user->user.str)))
@@ -3866,7 +3872,7 @@ bool change_password(THD *thd, LEX_USER *user)
 
   acl_cache->clear(1);                          // Clear locked hostname cache
   mysql_mutex_unlock(&acl_cache->lock);
-  result= 0;
+  result= acl_cache_is_locked= 0;
   if (mysql_bin_log.is_open())
   {
     query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
@@ -3877,7 +3883,7 @@ bool change_password(THD *thd, LEX_USER *user)
                               FALSE, FALSE, FALSE, 0) > 0;
   }
 end:
-  if (result)
+  if (acl_cache_is_locked)
     mysql_mutex_unlock(&acl_cache->lock);
   close_mysql_tables(thd);
 
@@ -8896,6 +8902,16 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
 
 }
 
+static void append_auto_expiration_policy(ACL_USER *acl_user, String *r) {
+    if (!acl_user->password_lifetime)
+      r->append(STRING_WITH_LEN(" PASSWORD EXPIRE NEVER"));
+    else if (acl_user->password_lifetime > 0)
+    {
+      r->append(STRING_WITH_LEN(" PASSWORD EXPIRE INTERVAL "));
+      r->append_longlong(acl_user->password_lifetime);
+      r->append(STRING_WITH_LEN(" DAY"));
+    }
+}
 
 bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 {
@@ -8955,14 +8971,8 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 
   if (acl_user->password_expired)
     result.append(STRING_WITH_LEN(" PASSWORD EXPIRE"));
-  else if (!acl_user->password_lifetime)
-    result.append(STRING_WITH_LEN(" PASSWORD EXPIRE NEVER"));
-  else if (acl_user->password_lifetime > 0)
-  {
-    result.append(STRING_WITH_LEN(" PASSWORD EXPIRE INTERVAL "));
-    result.append_longlong(acl_user->password_lifetime);
-    result.append(STRING_WITH_LEN(" DAY"));
-  }
+  else
+    append_auto_expiration_policy(acl_user, &result);
 
   protocol->prepare_for_resend();
   protocol->store(result.ptr(), result.length(), result.charset());
@@ -8970,6 +8980,28 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   {
     error= true;
   }
+
+  /* MDEV-24114 - PASSWORD EXPIRE and PASSWORD EXPIRE [NEVER | INTERVAL X DAY]
+   are two different mechanisms. To make sure a tool can restore the state
+   of a user account, including both the manual expiration state of the
+   account and the automatic expiration policy attached to it, we should
+   print two statements here, a CREATE USER (printed above) and an ALTER USER */
+  if (acl_user->password_expired && acl_user->password_lifetime > -1) {
+    result.length(0);
+    result.append("ALTER USER ");
+    append_identifier(thd, &result, username, strlen(username));
+    result.append('@');
+    append_identifier(thd, &result, acl_user->host.hostname,
+                      acl_user->hostname_length);
+    append_auto_expiration_policy(acl_user, &result);
+    protocol->prepare_for_resend();
+    protocol->store(result.ptr(), result.length(), result.charset());
+    if (protocol->write())
+    {
+      error= true;
+    }
+  }
+
   my_eof(thd);
 
 end:

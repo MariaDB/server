@@ -27,10 +27,12 @@ void wsrep_notify_status(enum wsrep::server_state::state status,
     return;
   }
 
-  char  cmd_buf[1 << 16]; // this can be long
-  long  cmd_len= sizeof(cmd_buf) - 1;
-  char* cmd_ptr= cmd_buf;
-  long  cmd_off= 0;
+  const long  cmd_len = (1 << 16) - 1;
+  char* cmd_ptr = (char*) my_malloc(cmd_len + 1, MYF(MY_WME));
+  long  cmd_off = 0;
+
+  if (!cmd_ptr)
+    return; // the warning is in the log
 
   cmd_off += snprintf (cmd_ptr + cmd_off, cmd_len - cmd_off, "%s",
                        wsrep_notify_cmd);
@@ -73,6 +75,7 @@ void wsrep_notify_status(enum wsrep::server_state::state status,
   {
     WSREP_ERROR("Notification buffer too short (%ld). Aborting notification.",
                cmd_len);
+    my_free(cmd_ptr);
     return;
   }
 
@@ -86,5 +89,6 @@ void wsrep_notify_status(enum wsrep::server_state::state status,
     WSREP_ERROR("Notification command failed: %d (%s): \"%s\"",
                 err, strerror(err), cmd_ptr);
   }
+  my_free(cmd_ptr);
 }
 

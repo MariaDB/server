@@ -933,11 +933,24 @@ void add_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var);
 void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
                         STATUS_VAR *dec_var);
 
+uint calc_sum_of_all_status(STATUS_VAR *to);
+static inline void calc_sum_of_all_status_if_needed(STATUS_VAR *to)
+{
+  if (to->local_memory_used == 0)
+  {
+    mysql_mutex_lock(&LOCK_status);
+    *to= global_status_var;
+    mysql_mutex_unlock(&LOCK_status);
+    calc_sum_of_all_status(to);
+    DBUG_ASSERT(to->local_memory_used);
+  }
+}
+
 /*
   Update global_memory_used. We have to do this with atomic_add as the
   global value can change outside of LOCK_status.
 */
-inline void update_global_memory_status(int64 size)
+static inline void update_global_memory_status(int64 size)
 {
   DBUG_PRINT("info", ("global memory_used: %lld  size: %lld",
                       (longlong) global_status_var.global_memory_used,
@@ -955,7 +968,7 @@ inline void update_global_memory_status(int64 size)
   @retval         NULL on error
   @retval         Pointter to CHARSET_INFO with the given name on success
 */
-inline CHARSET_INFO *
+static inline CHARSET_INFO *
 mysqld_collation_get_by_name(const char *name,
                              CHARSET_INFO *name_cs= system_charset_info)
 {
@@ -974,7 +987,7 @@ mysqld_collation_get_by_name(const char *name,
   return cs;
 }
 
-inline bool is_supported_parser_charset(CHARSET_INFO *cs)
+static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
   return MY_TEST(cs->mbminlen == 1);
 }
@@ -2268,7 +2281,7 @@ public:
     - mysys_var (used by KILL statement and shutdown).
     - Also ensures that THD is not deleted while mutex is hold
   */
-  mysql_mutex_t LOCK_thd_kill;
+  mutable mysql_mutex_t LOCK_thd_kill;
 
   /* all prepared statements and cursors of this connection */
   Statement_map stmt_map;
@@ -3281,7 +3294,7 @@ public:
   void update_all_stats();
   void update_stats(void);
   void change_user(void);
-  void cleanup(bool have_mutex=false);
+  void cleanup(void);
   void cleanup_after_query();
   void free_connection();
   void reset_for_reuse();
@@ -3309,19 +3322,13 @@ public:
   void awake_no_mutex(killed_state state_to_set);
   void awake(killed_state state_to_set)
   {
-    bool wsrep_on_local= variables.wsrep_on;
-    /*
-      mutex locking order (LOCK_thd_data - LOCK_thd_kill)) requires
-      to grab LOCK_thd_data here
-    */
-    if (wsrep_on_local)
-      mysql_mutex_lock(&LOCK_thd_data);
     mysql_mutex_lock(&LOCK_thd_kill);
+    mysql_mutex_lock(&LOCK_thd_data);
     awake_no_mutex(state_to_set);
+    mysql_mutex_unlock(&LOCK_thd_data);
     mysql_mutex_unlock(&LOCK_thd_kill);
-    if (wsrep_on_local)
-      mysql_mutex_unlock(&LOCK_thd_data);
   }
+  void abort_current_cond_wait(bool force);
  
   /** Disconnect the associated communication endpoint. */
   void disconnect();
@@ -4061,8 +4068,7 @@ public:
     mysql_mutex_lock(&LOCK_thd_kill);
     int err= killed_errno();
     if (err)
-      my_message(err, killed_err ? killed_err->msg : ER_THD(this, err),
-                 MYF(0));
+      my_message(err, killed_err ? killed_err->msg : ER_THD(this, err), MYF(0));
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
   /* return TRUE if we will abort query if we make a warning now */
@@ -6738,6 +6744,22 @@ class Sql_mode_save
  private:
   THD *thd;
   sql_mode_t old_mode; // SQL mode saved at construction time.
+};
+
+class Abort_on_warning_instant_set
+{
+  THD *m_thd;
+  bool m_save_abort_on_warning;
+public:
+  Abort_on_warning_instant_set(THD *thd, bool temporary_value)
+   :m_thd(thd), m_save_abort_on_warning(thd->abort_on_warning)
+  {
+    thd->abort_on_warning= temporary_value;
+  }
+  ~Abort_on_warning_instant_set()
+  {
+    m_thd->abort_on_warning= m_save_abort_on_warning;
+  }
 };
 
 class Switch_to_definer_security_ctx

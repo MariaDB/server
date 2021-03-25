@@ -230,6 +230,7 @@ static int open_table(THD* thd,
   tables.init_one_table(schema_name,
                         table_name,
                         NULL, lock_type);
+  thd->lex->query_tables_own_last= 0;
 
   if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
     if (thd->is_error()) {
@@ -565,14 +566,24 @@ static int end_index_scan(TABLE* table) {
   return 0;
 }
 
-static void make_key(TABLE* table, uchar* key, key_part_map* map, int parts) {
+static void make_key(TABLE* table, uchar** key, key_part_map* map, int parts) {
   uint prefix_length= 0;
   KEY_PART_INFO* key_part= table->key_info->key_part;
+
   for (int i=0; i < parts; i++)
     prefix_length += key_part[i].store_length;
+
   *map= make_prev_keypart_map(parts);
-  key_copy(key, table->record[0], table->key_info, prefix_length);
+
+  if (!(*key= (uchar *) my_malloc(prefix_length + 1, MYF(MY_WME))))
+  {
+    WSREP_ERROR("Failed to allocate memory for key prefix_length %u", prefix_length);
+    assert(0);
+  }
+
+  key_copy(*key, table->record[0], table->key_info, prefix_length);
 }
+
 } /* namespace Wsrep_schema_impl */
 
 
@@ -957,7 +968,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
 
   Wsrep_schema_impl::binlog_off binlog_off(thd);
   int error;
-  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
+  uchar *key=NULL;
   key_part_map key_map= 0;
   TABLE* frag_table= 0;
 
@@ -972,7 +983,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
   Wsrep_schema_impl::store(frag_table, 0, ws_meta.server_id());
   Wsrep_schema_impl::store(frag_table, 1, ws_meta.transaction_id().get());
   Wsrep_schema_impl::store(frag_table, 2, -1);
-  Wsrep_schema_impl::make_key(frag_table, key, &key_map, 3);
+  Wsrep_schema_impl::make_key(frag_table, &key, &key_map, 3);
 
   if ((error= Wsrep_schema_impl::init_for_index_scan(frag_table,
                                                      key, key_map)))
@@ -986,9 +997,11 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
     }
     Wsrep_schema_impl::finish_stmt(thd);
     thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
+    my_free(key);
     DBUG_RETURN(1);
   }
 
+  my_free(key);
   /* Copy the original record to frag_table->record[1] */
   store_record(frag_table, record[1]);
 
@@ -1023,7 +1036,7 @@ static int remove_fragment(THD*                  thd,
               seqno.get());
   int ret= 0;
   int error;
-  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
+  uchar *key= NULL;
   key_part_map key_map= 0;
 
   DBUG_ASSERT(server_id.is_undefined() == false);
@@ -1037,7 +1050,7 @@ static int remove_fragment(THD*                  thd,
   Wsrep_schema_impl::store(frag_table, 0, server_id);
   Wsrep_schema_impl::store(frag_table, 1, transaction_id.get());
   Wsrep_schema_impl::store(frag_table, 2, seqno.get());
-  Wsrep_schema_impl::make_key(frag_table, key, &key_map, 3);
+  Wsrep_schema_impl::make_key(frag_table, &key, &key_map, 3);
 
   if ((error= Wsrep_schema_impl::init_for_index_scan(frag_table,
                                                      key,
@@ -1059,6 +1072,8 @@ static int remove_fragment(THD*                  thd,
     ret= 1;
   }
 
+  if (key)
+    my_free(key);
   Wsrep_schema_impl::end_index_scan(frag_table);
   return ret;
 }
@@ -1146,7 +1161,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
   int ret= 1;
   int error;
   TABLE* frag_table= 0;
-  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
+  uchar *key=NULL;
   key_part_map key_map= 0;
 
   for (std::vector<wsrep::seqno>::const_iterator i= fragments.begin();
@@ -1163,7 +1178,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     Wsrep_schema_impl::store(frag_table, 0, ws_meta.server_id());
     Wsrep_schema_impl::store(frag_table, 1, ws_meta.transaction_id().get());
     Wsrep_schema_impl::store(frag_table, 2, i->get());
-    Wsrep_schema_impl::make_key(frag_table, key, &key_map, 3);
+    Wsrep_schema_impl::make_key(frag_table, &key, &key_map, 3);
 
     int error= Wsrep_schema_impl::init_for_index_scan(frag_table,
                                                       key,
@@ -1210,6 +1225,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
       Wsrep_schema_impl::finish_stmt(&thd);
       DBUG_RETURN(1);
     }
+
     error= Wsrep_schema_impl::init_for_index_scan(frag_table,
                                                   key,
                                                   key_map);
@@ -1223,6 +1239,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     }
 
     error= Wsrep_schema_impl::delete_row(frag_table);
+
     if (error)
     {
       WSREP_WARN("Could not delete row from streaming log table: %d", error);
@@ -1232,8 +1249,12 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     }
     Wsrep_schema_impl::end_index_scan(frag_table);
     Wsrep_schema_impl::finish_stmt(&thd);
+    my_free(key);
+    key= NULL;
   }
 
+  if (key)
+    my_free(key);
   DBUG_RETURN(ret);
 }
 

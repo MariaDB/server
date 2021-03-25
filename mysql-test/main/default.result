@@ -3388,3 +3388,18 @@ ALTER TABLE t1 ADD b CHAR(255) DEFAULT `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa
 ERROR 42S22: Unknown column 'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa' in 'DEFAULT'
 DROP TABLE t1;
 # end of 10.2 test
+#
+# MDEV-22703 DEFAULT() on a BLOB column can overwrite the default
+# record, which can cause crashes when accessing already released
+# memory.
+#
+CREATE TEMPORARY TABLE t1 (h POINT DEFAULT ST_GEOMFROMTEXT('Point(1 1)')) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES (),();
+ALTER TABLE t1 FORCE;
+SELECT DEFAULT(h) FROM t1;
+SELECT length(DEFAULT(h)) FROM t1;
+length(DEFAULT(h))
+25
+25
+INSERT INTO t1 () VALUES ();
+drop table t1;

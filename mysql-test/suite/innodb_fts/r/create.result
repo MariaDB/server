@@ -178,3 +178,13 @@ Table	Op	Msg_type	Msg_text
 test.t1	optimize	status	OK
 DROP TABLE t1;
 SET GLOBAL innodb_optimize_fulltext_only= @optimize_fulltext.save;
+#
+# MDEV-24403 Segfault on CREATE TABLE with explicit FTS_DOC_ID_INDEX by multiple fields
+#
+create table t1 (
+f1 int, f2 text,
+FTS_DOC_ID bigint unsigned not null,
+unique key FTS_DOC_ID_INDEX(FTS_DOC_ID, f1),
+fulltext (f2))
+engine=innodb;
+ERROR 42000: Incorrect index name 'FTS_DOC_ID_INDEX'

@@ -1,7 +1,7 @@
 /************** MongoFam H Declares Source Code File (.H) **************/
-/*  Name: jmgfam.h    Version 1.0                                      */
+/*  Name: jmgfam.h    Version 1.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2020  */
 /*                                                                     */
 /*  This file contains the JAVA MongoDB access method classes declares */
 /***********************************************************************/
@@ -25,6 +25,9 @@ class DllExport JMGFAM : public DOSFAM {
 public:
 	// Constructor
 	JMGFAM(PJDEF tdp);
+#if defined(BSON_SUPPORT)
+	JMGFAM(PBDEF tdp);
+#endif   // BSON_SUPPORT
 	JMGFAM(PJMGFAM txfp);
 
 	// Implementation

@@ -393,7 +393,7 @@ PRIMARY KEY (pk),
 KEY col_varchar_1024_latin1_key (col_varchar_1024_latin1_key)
 ) ENGINE=Aria;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 INSERT INTO t1 VALUES
 (1,'z'), (2,'abcdefjhjkl'), (3,'in'), (4,'abcdefjhjkl'), (6,'abcdefjhjkl'),
 (11,'zx'), (12,'abcdefjhjm'), (13,'jn'), (14,'abcdefjhjp'), (16,'abcdefjhjr');
@@ -430,7 +430,7 @@ f5 varchar(1024) COLLATE latin1_bin,
 KEY (f5)
 ) ENGINE=Aria TRANSACTIONAL=0 ;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 1000 bytes
+Note	1071	Specified key was too long; max key length is 1000 bytes
 # Fill the table with some data
 SELECT alias2.* , alias1.f2 
 FROM 

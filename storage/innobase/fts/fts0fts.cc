@@ -1708,7 +1708,7 @@ fts_drop_tables(
 
 	error = fts_drop_common_tables(trx, &fts_table);
 
-	if (error == DB_SUCCESS) {
+	if (error == DB_SUCCESS && table->fts) {
 		error = fts_drop_all_index_tables(trx, table->fts);
 	}
 
@@ -1730,7 +1730,7 @@ fts_create_in_mem_aux_table(
 	dict_table_t*	new_table = dict_mem_table_create(
 		aux_table_name, NULL, n_cols, 0, table->flags,
 		table->space_id == TRX_SYS_SPACE
-		? 0 : table->space->purpose == FIL_TYPE_TEMPORARY
+		? 0 : table->space_id == SRV_TMP_SPACE_ID
 		? DICT_TF2_TEMPORARY : DICT_TF2_USE_FILE_PER_TABLE);
 
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {

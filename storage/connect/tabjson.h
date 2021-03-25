@@ -5,6 +5,7 @@
 /*                                                                     */
 /*  This file contains the JSON classes declares.                      */
 /***********************************************************************/
+#pragma once
 //#include "osutil.h"				// Unuseful and bad for OEM
 #include "block.h"
 #include "colblk.h"
@@ -35,7 +36,7 @@ typedef struct _jncol {
 	struct _jncol *Next;
 	char *Name;
 	char *Fmt;
-	int   Type;
+	JTYP  Type;
 	int   Len;
 	int   Scale;
 	bool  Cbn;
@@ -58,7 +59,7 @@ public:
 	// Members
 	JCOL    jcol;
 	PJCL    jcp, fjcp, pjcp;
-	PVAL    valp;
+//PVL     vlp;
 	PJDEF   tdp;
 	TDBJSN *tjnp;
 	PJTDB   tjsp;
@@ -68,7 +69,7 @@ public:
 	PCSZ    sep;
 	char    colname[65], fmt[129], buf[16];
 	uint   *length;
-	int     i, n, bf, ncol, lvl, sz;
+	int     i, n, bf, ncol, lvl, sz, limit;
 	bool    all, strfy;
 }; // end of JSONDISC
 
@@ -126,6 +127,7 @@ public:
 class DllExport TDBJSN : public TDBDOS {
   friend class JSONCOL;
 	friend class JSONDEF;
+	friend class JSONDISC;
 #if defined(CMGO_SUPPORT)
 	friend class CMGFAM;
 #endif   // CMGO_SUPPORT
@@ -154,14 +156,18 @@ public:
 	              {return Txfp->GetAmType() == TYPE_AM_MGO || !Xcol;}
 
   // Database routines
-  virtual int   Cardinality(PGLOBAL g);
-  virtual int   GetMaxSize(PGLOBAL g);
+  //virtual int   Cardinality(PGLOBAL g);
+  //virtual int   GetMaxSize(PGLOBAL g);
   virtual bool  OpenDB(PGLOBAL g);
   virtual int   ReadDB(PGLOBAL g);
 	virtual bool  PrepareWriting(PGLOBAL g);
 	virtual int   WriteDB(PGLOBAL g);
+  virtual void  CloseDB(PGLOBAL g);
 
- protected:
+	// Specific routine
+	virtual int   EstimatedLength(void);
+
+protected:
           PJSON FindRow(PGLOBAL g);
           int   MakeTopTree(PGLOBAL g, PJSON jsp);
 
@@ -169,7 +175,7 @@ public:
 	PGLOBAL G;											 // Support of parse memory
 	PJSON   Top;                     // The top JSON tree
 	PJSON   Row;                     // The current row
-	PJSON   Val;                     // The value of the current row
+	PJVAL   Val;                     // The value of the current row
 	PJCOL   Colp;                    // The multiple column
 	JMODE   Jmode;                   // MODE_OBJECT by default
 	PCSZ    Objname;                 // The table object name
@@ -186,7 +192,8 @@ public:
 	char    Sep;                     // The Jpath separator
 	bool    Strict;                  // Strict syntax checking
 	bool    Comma;                   // Row has final comma
-  }; // end of class TDBJSN
+  bool    Xpdable;                 // False: expandable columns are NULL
+}; // end of class TDBJSN
 
 /* -------------------------- JSONCOL class -------------------------- */
 
@@ -224,8 +231,8 @@ public:
   PVAL  ExpandArray(PGLOBAL g, PJAR arp, int n);
   PVAL  CalculateArray(PGLOBAL g, PJAR arp, int n);
   PVAL  MakeJson(PGLOBAL g, PJSON jsp);
-  void  SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val, int n);
-  PJSON GetRow(PGLOBAL g);
+	void  SetJsonValue(PGLOBAL g, PVAL vp, PJVAL val);
+	PJSON GetRow(PGLOBAL g);
 
   // Default constructor not to be used
   JSONCOL(void) {}
@@ -241,7 +248,8 @@ public:
 	char    Sep;                  // The Jpath separator
 	bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
-  }; // end of class JSONCOL
+  bool    Warned;               // True when warning issued
+}; // end of class JSONCOL
 
 /* -------------------------- TDBJSON class -------------------------- */
 

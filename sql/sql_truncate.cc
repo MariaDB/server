@@ -416,20 +416,23 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
     bool hton_can_recreate;
 
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) && wsrep_thd_is_local(thd))
     {
       wsrep::key_array keys;
-      wsrep_append_fk_parent_table(thd, table_ref, &keys);
-      if (keys.empty())
+      /* Do not start TOI if table is not found */
+      if (!wsrep_append_fk_parent_table(thd, table_ref, &keys))
       {
-        WSREP_TO_ISOLATION_BEGIN_IF(table_ref->db.str, table_ref->table_name.str, NULL)
+        if (keys.empty())
         {
-          DBUG_RETURN(TRUE);
-        }
-      } else {
-        WSREP_TO_ISOLATION_BEGIN_FK_TABLES(NULL, NULL, table_ref, &keys)
-        {
-          DBUG_RETURN(TRUE);
+          WSREP_TO_ISOLATION_BEGIN_IF(table_ref->db.str, table_ref->table_name.str, NULL)
+          {
+            DBUG_RETURN(TRUE);
+          }
+        } else {
+          WSREP_TO_ISOLATION_BEGIN_FK_TABLES(NULL, NULL, table_ref, &keys)
+          {
+            DBUG_RETURN(TRUE);
+          }
         }
       }
     }
@@ -461,6 +464,15 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
         Attempt to use the handler truncate method.
       */
       error= handler_truncate(thd, table_ref, FALSE);
+
+      if (error == TRUNCATE_OK && thd->locked_tables_mode &&
+          (table_ref->table->file->ht->flags &
+           HTON_REQUIRES_CLOSE_AFTER_TRUNCATE))
+      {
+        thd->locked_tables_list.mark_table_for_reopen(thd, table_ref->table);
+        if (unlikely(thd->locked_tables_list.reopen_tables(thd, true)))
+          thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+      }
 
       /*
         All effects of a TRUNCATE TABLE operation are committed even if

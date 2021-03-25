@@ -156,6 +156,7 @@ alter user user1@localhost  PASSWORD EXPIRE NEVER ACCOUNT UNLOCK ;
 show create user user1@localhost;
 CREATE USER for user1@localhost
 CREATE USER `user1`@`localhost` PASSWORD EXPIRE
+ALTER USER `user1`@`localhost` PASSWORD EXPIRE NEVER
 alter user user1@localhost  ACCOUNT LOCK PASSWORD EXPIRE DEFAULT;
 show create user user1@localhost;
 CREATE USER for user1@localhost
@@ -167,5 +168,6 @@ localhost	user1	{"access":0,"plugin":"mysql_native_password","authentication_str
 show create user user1@localhost;
 CREATE USER for user1@localhost
 CREATE USER `user1`@`localhost` PASSWORD EXPIRE
+ALTER USER `user1`@`localhost` PASSWORD EXPIRE INTERVAL 60 DAY
 drop user user1@localhost;
 drop user user2@localhost;

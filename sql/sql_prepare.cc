@@ -122,6 +122,7 @@ When one supplies long data for a placeholder:
 static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #endif
 #include "lock.h"                               // MYSQL_OPEN_FORCE_SHARED_MDL
+#include "log_event.h"                          // class Log_event
 #include "sql_handler.h"
 #include "transaction.h"                        // trans_rollback_implicit
 #ifdef WITH_WSREP
@@ -2487,6 +2488,16 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       DBUG_RETURN(FALSE);
     }
     break;
+  case SQLCOM_SHOW_BINLOG_EVENTS:
+  case SQLCOM_SHOW_RELAYLOG_EVENTS:
+    {
+      List<Item> field_list;
+      Log_event::init_show_field_list(thd, &field_list);
+
+      if ((res= send_stmt_metadata(thd, stmt, &field_list)) == 2)
+        DBUG_RETURN(FALSE);
+    }
+  break;
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE_PROC:
     if ((res= mysql_test_show_create_routine(stmt, &sp_handler_procedure)) == 2)
@@ -4230,6 +4241,16 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
+  /*
+    Set variables specified by
+      SET STATEMENT var1=value1 [, var2=value2, ...] FOR <statement>
+    clause for duration of prepare phase. Original values of variable
+    listed in the SET STATEMENT clause is restored right after return
+    from the function check_prepared_statement()
+  */
+  if (likely(error == 0))
+    error= run_set_statement_if_requested(thd, lex);
+
   /* 
    The only case where we should have items in the thd->free_list is
    after stmt->set_params_from_vars(), which may in some cases create
@@ -4247,6 +4268,12 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     */
     lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_PREPARE;
   }
+
+  /*
+    Restore original values of variables modified on handling
+    SET STATEMENT clause.
+  */
+  thd->lex->restore_set_statement_var();
 
   /* The order is important */
   lex->unit.cleanup();

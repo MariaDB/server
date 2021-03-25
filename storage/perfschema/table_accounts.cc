@@ -43,8 +43,8 @@ table_accounts::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE accounts("
-                      "USER CHAR(16) collate utf8_bin default null,"
-                      "HOST CHAR(60) collate utf8_bin default null,"
+                      "USER CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default null,"
+                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null,"
                       "CURRENT_CONNECTIONS bigint not null,"
                       "TOTAL_CONNECTIONS bigint not null)") }
 };

@@ -1641,18 +1641,18 @@ int ha_cassandra::index_read_map(uchar *buf, const uchar *key,
 
   char *cass_key;
   int cass_key_len;
-  my_bitmap_map *old_map;
+  MY_BITMAP *old_map;
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  old_map= dbug_tmp_use_all_columns(table, &table->read_set);
 
   if (rowkey_converter->mariadb_to_cassandra(&cass_key, &cass_key_len))
   {
     /* We get here when making lookups like uuid_column='not-an-uuid' */
-    dbug_tmp_restore_column_map(table->read_set, old_map);
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
     DBUG_RETURN(HA_ERR_KEY_NOT_FOUND);
   }
 
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   bool found;
   if (se->get_slice(cass_key, cass_key_len, &found))
@@ -1726,8 +1726,8 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
     cassandra_to_mariadb() calls will use field->store(...) methods, which
     require that the column is in the table->write_set
   */
-  my_bitmap_map *old_map;
-  old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map;
+  old_map= dbug_tmp_use_all_columns(table, &table->write_set);
 
   /* Start with all fields being NULL */
   for (field= table->field + 1; *field; field++)
@@ -1848,7 +1848,7 @@ int ha_cassandra::read_cassandra_columns(bool unpack_pk)
   }
 
 err:
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   return res;
 }
 
@@ -1933,7 +1933,7 @@ void ha_cassandra::free_dynamic_row(DYNAMIC_COLUMN_VALUE **vals,
 
 int ha_cassandra::write_row(const uchar *buf)
 {
-  my_bitmap_map *old_map;
+  MY_BITMAP *old_map;
   int ires;
   DBUG_ENTER("ha_cassandra::write_row");
 
@@ -1943,7 +1943,7 @@ int ha_cassandra::write_row(const uchar *buf)
   if (!doing_insert_batch)
     se->clear_insert_buffer();
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  old_map= dbug_tmp_use_all_columns(table, &table->read_set);
 
   insert_lineno++;
 
@@ -1954,7 +1954,7 @@ int ha_cassandra::write_row(const uchar *buf)
   {
     my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
              rowkey_converter->field->field_name.str, insert_lineno);
-    dbug_tmp_restore_column_map(table->read_set, old_map);
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   }
   se->start_row_insert(cass_key, cass_key_len);
@@ -1977,7 +1977,7 @@ int ha_cassandra::write_row(const uchar *buf)
       free_dynamic_row(&vals, &names);
       if (rc)
       {
-        dbug_tmp_restore_column_map(table->read_set, old_map);
+        dbug_tmp_restore_column_map(&table->read_set, old_map);
         DBUG_RETURN(rc);
       }
     }
@@ -1988,7 +1988,7 @@ int ha_cassandra::write_row(const uchar *buf)
       {
         my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
                  field_converters[i]->field->field_name.str, insert_lineno);
-        dbug_tmp_restore_column_map(table->read_set, old_map);
+        dbug_tmp_restore_column_map(&table->read_set, old_map);
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       }
       se->add_insert_column(field_converters[i]->field->field_name.str, 0,
@@ -1996,7 +1996,7 @@ int ha_cassandra::write_row(const uchar *buf)
     }
   }
 
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   bool res;
 
@@ -2263,8 +2263,8 @@ bool ha_cassandra::mrr_start_read()
 {
   uint key_len;
 
-  my_bitmap_map *old_map;
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map;
+  old_map= dbug_tmp_use_all_columns(table, &table->read_set);
 
   se->new_lookup_keys();
 
@@ -2288,7 +2288,7 @@ bool ha_cassandra::mrr_start_read()
       break;
   }
 
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   return se->multiget_slice();
 }
@@ -2366,7 +2366,7 @@ int ha_cassandra::update_row(const uchar *old_data, const uchar *new_data)
   LEX_STRING *oldnames, *names;
   uint oldcount, count;
   String oldvalcol, valcol;
-  my_bitmap_map *old_map;
+  MY_BITMAP *old_map;
   int res;
   DBUG_ENTER("ha_cassandra::update_row");
   /* Currently, it is guaranteed that new_data == table->record[0] */
@@ -2374,7 +2374,7 @@ int ha_cassandra::update_row(const uchar *old_data, const uchar *new_data)
   /* For now, just rewrite the full record */
   se->clear_insert_buffer();
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  old_map= dbug_tmp_use_all_columns(table, &table->read_set);
 
   char *old_key;
   int old_key_len;
@@ -2387,7 +2387,7 @@ int ha_cassandra::update_row(const uchar *old_data, const uchar *new_data)
   {
     my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
              rowkey_converter->field->field_name.str, insert_lineno);
-    dbug_tmp_restore_column_map(table->read_set, old_map);
+    dbug_tmp_restore_column_map(&table->read_set, old_map);
     DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
   }
 
@@ -2450,7 +2450,7 @@ int ha_cassandra::update_row(const uchar *old_data, const uchar *new_data)
       {
         my_error(ER_WARN_DATA_OUT_OF_RANGE, MYF(0),
                  field_converters[i]->field->field_name.str, insert_lineno);
-        dbug_tmp_restore_column_map(table->read_set, old_map);
+        dbug_tmp_restore_column_map(&table->read_set, old_map);
         DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       }
       se->add_insert_column(field_converters[i]->field->field_name.str, 0,
@@ -2477,7 +2477,7 @@ int ha_cassandra::update_row(const uchar *old_data, const uchar *new_data)
     }
   }
 
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   res= se->do_insert();
 

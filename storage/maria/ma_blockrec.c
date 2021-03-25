@@ -485,10 +485,11 @@ my_bool _ma_init_block_record(MARIA_HA *info)
 {
   MARIA_ROW *row= &info->cur_row, *new_row= &info->new_row;
   MARIA_SHARE *share= info->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   uint default_extents;
   DBUG_ENTER("_ma_init_block_record");
 
-  if (!my_multi_malloc(MY_WME,
+  if (!my_multi_malloc(flag,
                        &row->empty_bits, share->base.pack_bytes,
                        &row->field_lengths,
                        share->base.max_field_lengths + 2,
@@ -527,13 +528,12 @@ my_bool _ma_init_block_record(MARIA_HA *info)
                      FULL_PAGE_SIZE(share) /
                      BLOB_SEGMENT_MIN_SIZE));
 
-  if (my_init_dynamic_array(&info->bitmap_blocks,
-                            sizeof(MARIA_BITMAP_BLOCK), default_extents,
-                            64, MYF(0)))
+  if (my_init_dynamic_array(&info->bitmap_blocks, sizeof(MARIA_BITMAP_BLOCK),
+                            default_extents, 64, flag))
     goto err;
   info->cur_row.extents_buffer_length= default_extents * ROW_EXTENT_SIZE;
   if (!(info->cur_row.extents= my_malloc(info->cur_row.extents_buffer_length,
-                                         MYF(MY_WME))))
+                                         flag)))
     goto err;
 
   info->row_base_length= share->base_length;
@@ -2642,6 +2642,7 @@ static my_bool write_block_record(MARIA_HA *info,
   LSN lsn;
   my_off_t position;
   uint save_my_errno;
+  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("write_block_record");
 
   head_block= bitmap_blocks->block;
@@ -2708,7 +2709,7 @@ static my_bool write_block_record(MARIA_HA *info,
     for every data segment we want to store.
   */
   if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
-                       row->head_length))
+                       row->head_length, myflag))
     DBUG_RETURN(1);
 
   tmp_data_used= 0;                 /* Either 0 or last used uchar in 'data' */
@@ -4718,6 +4719,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
   MARIA_EXTENT_CURSOR extent;
   MARIA_COLUMNDEF *column, *end_column;
   MARIA_ROW *cur_row= &info->cur_row;
+  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("_ma_read_block_record2");
 
   start_of_data= data;
@@ -4763,7 +4765,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     if (cur_row->extents_buffer_length < row_extent_size &&
         _ma_alloc_buffer(&cur_row->extents,
                          &cur_row->extents_buffer_length,
-                         row_extent_size))
+                         row_extent_size, myflag))
       DBUG_RETURN(my_errno);
     memcpy(cur_row->extents, data, ROW_EXTENT_SIZE);
     data+= ROW_EXTENT_SIZE;
@@ -4944,7 +4946,7 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
         cur_row->blob_length= blob_lengths;
         DBUG_PRINT("info", ("Total blob length: %lu", blob_lengths));
         if (_ma_alloc_buffer(&info->blob_buff, &info->blob_buff_size,
-                             blob_lengths))
+                             blob_lengths, myflag))
           DBUG_RETURN(my_errno);
         blob_buffer= info->blob_buff;
       }
@@ -5050,6 +5052,7 @@ static my_bool read_row_extent_info(MARIA_HA *info, uchar *buff,
   uint flag, row_extents, row_extents_size;
   uint field_lengths __attribute__ ((unused));
   uchar *extents, *end;
+  myf myflag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("read_row_extent_info");
 
   if (!(data= get_record_position(share, buff,
@@ -5073,7 +5076,7 @@ static my_bool read_row_extent_info(MARIA_HA *info, uchar *buff,
     if (info->cur_row.extents_buffer_length < row_extents_size &&
         _ma_alloc_buffer(&info->cur_row.extents,
                          &info->cur_row.extents_buffer_length,
-                         row_extents_size))
+                         row_extents_size, myflag))
       DBUG_RETURN(1);
     memcpy(info->cur_row.extents, data, ROW_EXTENT_SIZE);
     data+= ROW_EXTENT_SIZE;
@@ -5244,6 +5247,7 @@ my_bool _ma_cmp_block_unique(MARIA_HA *info, MARIA_UNIQUEDEF *def,
 my_bool _ma_scan_init_block_record(MARIA_HA *info)
 {
   MARIA_SHARE *share= info->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("_ma_scan_init_block_record");
   DBUG_ASSERT(info->dfile.file == share->bitmap.file.file);
 
@@ -5253,7 +5257,7 @@ my_bool _ma_scan_init_block_record(MARIA_HA *info)
   */
   if (!(info->scan.bitmap_buff ||
         ((info->scan.bitmap_buff=
-          (uchar *) my_malloc(share->block_size * 2, MYF(MY_WME))))))
+          (uchar *) my_malloc(share->block_size * 2, flag)))))
     DBUG_RETURN(1);
   info->scan.page_buff= info->scan.bitmap_buff + share->block_size;
   info->scan.bitmap_end= info->scan.bitmap_buff + share->bitmap.max_total_size;

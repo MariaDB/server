@@ -92,7 +92,6 @@ int get_or_create_user_conn(THD *thd, const char *user,
     uc->host= uc->user + user_len +  1;
     uc->len= (uint)temp_len;
     uc->connections= uc->questions= uc->updates= uc->conn_per_hour= 0;
-    uc->user_resources= *mqh;
     uc->reset_utime= thd->thr_create_utime;
     if (my_hash_insert(&hash_user_connections, (uchar*) uc))
     {
@@ -102,6 +101,7 @@ int get_or_create_user_conn(THD *thd, const char *user,
       goto end;
     }
   }
+  uc->user_resources= *mqh;
   thd->user_connect=uc;
   uc->connections++;
 end:

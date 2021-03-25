@@ -1,3 +1,5 @@
+--source include/have_innodb.inc
+
 #
 # test of already fixed bugs
 #
@@ -2107,5 +2109,20 @@ CREATE OR REPLACE TABLE t1(i int);
 ALTER TABLE t1 ADD b CHAR(255) DEFAULT `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`;
 DROP TABLE t1;
 
-
 --echo # end of 10.2 test
+
+--echo #
+--echo # MDEV-22703 DEFAULT() on a BLOB column can overwrite the default
+--echo # record, which can cause crashes when accessing already released
+--echo # memory.
+--echo #
+
+CREATE TEMPORARY TABLE t1 (h POINT DEFAULT ST_GEOMFROMTEXT('Point(1 1)')) ENGINE=InnoDB;
+INSERT INTO t1 () VALUES (),();
+ALTER TABLE t1 FORCE;
+--disable_result_log
+SELECT DEFAULT(h) FROM t1;
+--enable_result_log
+SELECT length(DEFAULT(h)) FROM t1;
+INSERT INTO t1 () VALUES ();
+drop table t1;

@@ -1705,7 +1705,33 @@ select count(*)+sleep(0) from t1;
 drop table t1;
 
 --echo #
---echo # Start of 10.3 tests
+--echo # MDEV-25112: MIN/MAX optimization for query containing BETWEEN in WHERE
+--echo #
+
+create table t1 (a int) engine=myisam;
+insert into t1 values (267), (273),  (287), (303), (308);
+
+let $q1=
+select max(a) from t1 where a < 303 and (a between 267 AND 287);
+let $q2=
+select min(a) from t1 where a > 267 and (a between 273 AND 303);
+
+eval $q1;
+eval explain $q1;
+eval $q2;
+eval explain $q2;
+
+create index idx on t1(a);
+
+eval $q1;
+eval explain $q1;
+eval $q2;
+eval explain $q2;
+
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
 --echo #
 
 --echo #
@@ -1730,3 +1756,7 @@ DROP TABLE t2;
 
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

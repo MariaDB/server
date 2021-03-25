@@ -29,6 +29,7 @@ Created 5/30/1994 Heikki Tuuri
 #include "mtr0log.h"
 #include "fts0fts.h"
 #include "trx0sys.h"
+#include "row0log.h"
 
 /*			PHYSICAL RECORD (OLD STYLE)
 			===========================
@@ -1094,7 +1095,8 @@ rec_get_nth_field_offs_old(
 }
 
 /** Determine the size of a data tuple prefix in ROW_FORMAT=COMPACT.
-@tparam	mblob	whether the record includes a metadata BLOB
+@tparam	mblob	        whether the record includes a metadata BLOB
+@tparam redundant_temp  whether to use the ROW_FORMAT=REDUNDANT format
 @param[in]	index		record descriptor; dict_table_is_comp()
 				is assumed to hold, even if it doesn't
 @param[in]	dfield		array of data fields
@@ -1103,7 +1105,7 @@ rec_get_nth_field_offs_old(
 @param[in]	status		status flags
 @param[in]	temp		whether this is a temporary file record
 @return total size */
-template<bool mblob = false>
+template<bool mblob = false, bool redundant_temp = false>
 static inline
 ulint
 rec_get_converted_size_comp_prefix_low(
@@ -1120,25 +1122,27 @@ rec_get_converted_size_comp_prefix_low(
 	ut_d(ulint n_null = index->n_nullable);
 	ut_ad(status == REC_STATUS_ORDINARY || status == REC_STATUS_NODE_PTR
 	      || status == REC_STATUS_INSTANT);
+	unsigned n_core_fields = redundant_temp
+		? row_log_get_n_core_fields(index)
+		: index->n_core_fields;
 
 	if (mblob) {
-		ut_ad(!temp);
 		ut_ad(index->table->instant);
-		ut_ad(index->is_instant());
+		ut_ad(!redundant_temp && index->is_instant());
 		ut_ad(status == REC_STATUS_INSTANT);
 		ut_ad(n_fields == ulint(index->n_fields) + 1);
 		extra_size += UT_BITS_IN_BYTES(index->n_nullable)
 			+ rec_get_n_add_field_len(n_fields - 1
-						  - index->n_core_fields);
+						  - n_core_fields);
 	} else if (status == REC_STATUS_INSTANT
-		   && (!temp || n_fields > index->n_core_fields)) {
-		ut_ad(index->is_instant());
+		   && (!temp || n_fields > n_core_fields)) {
+		if (!redundant_temp) { ut_ad(index->is_instant()); }
 		ut_ad(UT_BITS_IN_BYTES(n_null) >= index->n_core_null_bytes);
 		extra_size += UT_BITS_IN_BYTES(index->get_n_nullable(n_fields))
 			+ rec_get_n_add_field_len(n_fields - 1
-						  - index->n_core_fields);
+						  - n_core_fields);
 	} else {
-		ut_ad(n_fields <= index->n_core_fields);
+		ut_ad(n_fields <= n_core_fields);
 		extra_size += index->n_core_null_bytes;
 	}
 
@@ -1489,7 +1493,8 @@ rec_convert_dtuple_to_rec_old(
 }
 
 /** Convert a data tuple into a ROW_FORMAT=COMPACT record.
-@tparam	mblob	whether the record includes a metadata BLOB
+@tparam	mblob	        whether the record includes a metadata BLOB
+@tparam redundant_temp  whether to use the ROW_FORMAT=REDUNDANT format
 @param[out]	rec		converted record
 @param[in]	index		index
 @param[in]	field		data fields to convert
@@ -1497,7 +1502,7 @@ rec_convert_dtuple_to_rec_old(
 @param[in]	status		rec_get_status(rec)
 @param[in]	temp		whether to use the format for temporary files
 				in index creation */
-template<bool mblob = false>
+template<bool mblob = false, bool redundant_temp = false>
 static inline
 void
 rec_convert_dtuple_to_rec_comp(
@@ -1514,7 +1519,9 @@ rec_convert_dtuple_to_rec_comp(
 	byte*		UNINIT_VAR(lens);
 	ulint		UNINIT_VAR(n_node_ptr_field);
 	ulint		null_mask	= 1;
-
+	const ulint	n_core_fields = redundant_temp
+			? row_log_get_n_core_fields(index)
+			: index->n_core_fields;
 	ut_ad(n_fields > 0);
 	ut_ad(temp || dict_table_is_comp(index->table));
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
@@ -1524,11 +1531,10 @@ rec_convert_dtuple_to_rec_comp(
 	if (mblob) {
 		ut_ad(!temp);
 		ut_ad(index->table->instant);
-		ut_ad(index->is_instant());
+		ut_ad(!redundant_temp && index->is_instant());
 		ut_ad(status == REC_STATUS_INSTANT);
 		ut_ad(n_fields == ulint(index->n_fields) + 1);
-		rec_set_n_add_field(nulls, n_fields - 1
-				    - index->n_core_fields);
+		rec_set_n_add_field(nulls, n_fields - 1 - n_core_fields);
 		rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
 		rec_set_status(rec, REC_STATUS_INSTANT);
 		n_node_ptr_field = ULINT_UNDEFINED;
@@ -1537,20 +1543,17 @@ rec_convert_dtuple_to_rec_comp(
 	}
 	switch (status) {
 	case REC_STATUS_INSTANT:
-		ut_ad(index->is_instant());
-		ut_ad(n_fields > index->n_core_fields);
-		rec_set_n_add_field(nulls, n_fields - 1
-				    - index->n_core_fields);
+		if (!redundant_temp) { ut_ad(index->is_instant()); }
+		ut_ad(n_fields > n_core_fields);
+		rec_set_n_add_field(nulls, n_fields - 1 - n_core_fields);
 		/* fall through */
 	case REC_STATUS_ORDINARY:
 		ut_ad(n_fields <= dict_index_get_n_fields(index));
 		if (!temp) {
 			rec_set_heap_no_new(rec, PAGE_HEAP_NO_USER_LOW);
-
-			rec_set_status(
-				rec, n_fields == index->n_core_fields
-				     ? REC_STATUS_ORDINARY
-				     : REC_STATUS_INSTANT);
+			rec_set_status(rec, n_fields == n_core_fields
+				       ? REC_STATUS_ORDINARY
+				       : REC_STATUS_INSTANT);
 		}
 
 		if (dict_table_is_comp(index->table)) {
@@ -1768,12 +1771,14 @@ rec_convert_dtuple_to_rec(
 }
 
 /** Determine the size of a data tuple prefix in a temporary file.
+@tparam redundant_temp whether to use the ROW_FORMAT=REDUNDANT format
 @param[in]	index		clustered or secondary index
 @param[in]	fields		data fields
 @param[in]	n_fields	number of data fields
 @param[out]	extra		record header size
 @param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT
 @return	total size, in bytes */
+template<bool redundant_temp>
 ulint
 rec_get_converted_size_temp(
 	const dict_index_t*	index,
@@ -1782,9 +1787,17 @@ rec_get_converted_size_temp(
 	ulint*			extra,
 	rec_comp_status_t	status)
 {
-	return rec_get_converted_size_comp_prefix_low(
+	return rec_get_converted_size_comp_prefix_low<false,redundant_temp>(
 		index, fields, n_fields, extra, status, true);
 }
+
+template ulint rec_get_converted_size_temp<false>(
+	const dict_index_t*, const dfield_t*, ulint, ulint*,
+	rec_comp_status_t);
+
+template ulint rec_get_converted_size_temp<true>(
+	const dict_index_t*, const dfield_t*, ulint, ulint*,
+	rec_comp_status_t);
 
 /** Determine the offset to each field in temporary file.
 @param[in]	rec	temporary file record
@@ -1838,6 +1851,7 @@ rec_init_offsets_temp(
 @param[in]	n_fields	number of data fields
 @param[in]	status		REC_STATUS_ORDINARY or REC_STATUS_INSTANT
 */
+template<bool redundant_temp>
 void
 rec_convert_dtuple_to_temp(
 	rec_t*			rec,
@@ -1846,9 +1860,17 @@ rec_convert_dtuple_to_temp(
 	ulint			n_fields,
 	rec_comp_status_t	status)
 {
-	rec_convert_dtuple_to_rec_comp(rec, index, fields, n_fields,
-				       status, true);
+	rec_convert_dtuple_to_rec_comp<false,redundant_temp>(
+		rec, index, fields, n_fields, status, true);
 }
+
+template void rec_convert_dtuple_to_temp<false>(
+	rec_t*, const dict_index_t*, const dfield_t*,
+	ulint, rec_comp_status_t);
+
+template void rec_convert_dtuple_to_temp<true>(
+	rec_t*, const dict_index_t*, const dfield_t*,
+	ulint, rec_comp_status_t);
 
 /** Copy the first n fields of a (copy of a) physical record to a data tuple.
 The fields are copied into the memory heap.

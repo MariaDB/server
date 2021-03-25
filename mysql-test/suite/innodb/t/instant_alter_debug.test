@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc
+--source include/have_sequence.inc
 
 SET @save_frequency= @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
@@ -216,6 +217,15 @@ CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t1 SET a=0;
 ALTER TABLE t1 ADD COLUMN b INT NOT NULL DEFAULT 2, ADD COLUMN c INT;
 
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT(SELECT CONCAT('ALTER TABLE t1 ADD (c',
+                                       GROUP_CONCAT(seq SEPARATOR ' INT, c'), ' INT), ALGORITHM=INSTANT;') FROM seq_1_to_130);
+  EXECUTE IMMEDIATE c;
+END;
+$$
+DELIMITER ;$$
+
 connection stop_purge;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 
@@ -243,7 +253,7 @@ reap;
 
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c FROM t1;
 ALTER TABLE t1 DROP b, ALGORITHM=INSTANT;
 connection stop_purge;
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
@@ -272,7 +282,7 @@ UPDATE t1 SET b = b + 1 WHERE a = 2;
 
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c FROM t1;
 
 --echo #
 --echo # MDEV-15872 Crash in online ALTER TABLE...ADD PRIMARY KEY
@@ -299,7 +309,7 @@ disconnect ddl;
 
 connection default;
 SET DEBUG_SYNC = RESET;
-SELECT * FROM t1;
+SELECT a, b, c, d FROM t1;
 DROP TABLE t1;
 
 --echo #

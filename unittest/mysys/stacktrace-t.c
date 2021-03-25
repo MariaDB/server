@@ -29,6 +29,7 @@ void test_my_safe_print_str()
   memcpy(b_stack, "LEGAL", 6);
   memcpy(b_bss, "LEGAL", 6);
 
+#ifdef HAVE_STACKTRACE
 #ifndef __SANITIZE_ADDRESS__
   fprintf(stderr, "\n===== stack =====\n");
   my_safe_print_str(b_stack, 65535);
@@ -48,6 +49,7 @@ void test_my_safe_print_str()
   fprintf(stderr, "\n===== (const char*) 1 =====\n");
   my_safe_print_str((const char*)1, 5);
 #endif /*__SANITIZE_ADDRESS__*/
+#endif /*HAVE_STACKTRACE*/
 
   free(b_heap);
 

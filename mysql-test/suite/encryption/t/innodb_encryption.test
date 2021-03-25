@@ -14,7 +14,7 @@ SHOW VARIABLES LIKE 'innodb_encrypt%';
 
 SET GLOBAL innodb_encrypt_tables = ON;
 
---let $tables_count= `select count(*) + 1 from information_schema.tables where engine = 'InnoDB'`
+--let $tables_count= `select count(*) + @@global.innodb_undo_tablespaces + 1 from information_schema.tables where engine = 'InnoDB'`
 
 --echo # Wait max 10 min for key encryption threads to encrypt all spaces
 --let $wait_timeout= 600

@@ -1,0 +1,11 @@
+--source include/galera_cluster.inc
+
+call mtr.add_suppression("WSREP: Unknown parameter 'a'");
+call mtr.add_suppression("WSREP: Set options returned 7");
+
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_provider_options=NULL;
+SET GLOBAL wsrep_provider_options='';
+SET GLOBAL wsrep_provider_options=' ';
+--error ER_WRONG_ARGUMENTS
+SET GLOBAL wsrep_provider_options='a=1';

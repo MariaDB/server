@@ -60,3 +60,26 @@ SELECT COUNT(f1) = 1000 FROM t1 WHERE MATCH(f1) AGAINST ('abcdefjhk');
 
 DROP TABLE t1;
 DROP TABLE ten;
+#
+# MDEV-24978 : SIGABRT in __libc_message
+#
+--connection node_1
+SET @value=REPEAT (1,5001);
+CREATE TABLE t (a VARCHAR(5000),FULLTEXT (a)) engine=innodb;
+INSERT IGNORE INTO t VALUES(@value);
+SELECT COUNT(*) FROM t;
+
+--connection node_2
+SELECT COUNT(*) FROM t;
+
+--connection node_1
+DROP TABLE t;
+CREATE TABLE t (a VARCHAR(5000)) engine=innodb;
+INSERT IGNORE INTO t VALUES(@value);
+SELECT COUNT(*) FROM t;
+
+--connection node_2
+SELECT COUNT(*) FROM t;
+
+--connection node_1
+DROP TABLE t;
