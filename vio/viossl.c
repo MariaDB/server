@@ -154,6 +154,32 @@ static my_bool ssl_should_retry(Vio *vio, int ret, enum enum_vio_io_event *event
 }
 
 
+/**
+  Handle SSL io error.
+
+  @param[in] vio Vio
+  @param[in] ret return from the failed IO operation
+
+  @return  0 - should retry last read/write operation
+           1 - some error has occured
+*/
+static int handle_ssl_io_error(Vio *vio, int ret)
+{
+  enum enum_vio_io_event event;
+  my_bool should_wait;
+
+  /* Process the SSL I/O error. */
+  if (!ssl_should_retry(vio, ret, &event, &should_wait))
+    return 1;
+
+  if (!should_wait)
+    return 1;
+
+  /* Attempt to wait for an I/O event. */
+  return vio_socket_io_wait(vio, event);
+}
+
+
 size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
 {
   int ret;
@@ -169,14 +195,7 @@ size_t vio_ssl_read(Vio *vio, uchar *buf, size_t size)
   {
     while ((ret= SSL_read(ssl, buf, (int)size)) < 0)
     {
-      enum enum_vio_io_event event;
-      my_bool should_wait;
-      
-      /* Process the SSL I/O error. */
-      if (!ssl_should_retry(vio, ret, &event, &should_wait))
-        break;
-      /* Attempt to wait for an I/O event. */
-      if (should_wait && vio_socket_io_wait(vio, event))
+      if (handle_ssl_io_error(vio,ret))
         break;
     }
   }
@@ -203,13 +222,7 @@ size_t vio_ssl_write(Vio *vio, const uchar *buf, size_t size)
   {
     while ((ret= SSL_write(ssl, buf, (int)size)) < 0)
     {
-      enum enum_vio_io_event event;
-      my_bool should_wait;
-      /* Process the SSL I/O error. */
-      if (!ssl_should_retry(vio, ret, &event, &should_wait))
-        break;
-      /* Attempt to wait for an I/O event. */
-      if (should_wait && vio_socket_io_wait(vio, event))
+      if (handle_ssl_io_error(vio,ret))
         break;
     }
   }
@@ -316,14 +329,7 @@ static int ssl_handshake_loop(Vio *vio, SSL *ssl, ssl_handshake_func_t func)
   /* Initiate the SSL handshake. */
   while ((ret= func(ssl)) < 1)
   {
-    enum enum_vio_io_event event;
-    my_bool should_wait;
-
-    /* Process the SSL I/O error. */
-    if (!ssl_should_retry(vio, ret, &event, &should_wait))
-      break;
-    /* Wait for I/O so that the handshake can proceed. */
-    if (should_wait && vio_socket_io_wait(vio, event))
+    if (handle_ssl_io_error(vio,ret))
       break;
   }
 
