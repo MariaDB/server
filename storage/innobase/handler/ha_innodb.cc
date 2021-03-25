@@ -22600,8 +22600,8 @@ ib_push_warning(
 
 		va_start(args, format);
 		buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
-		vsprintf(buf,format, args);
-
+		buf[MAX_BUF_SIZE - 1] = 0;
+		vsnprintf(buf, MAX_BUF_SIZE - 1, format, args);
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			convert_error_code_to_mysql((dberr_t)error, 0, thd),
 			buf);
@@ -22632,7 +22632,8 @@ ib_push_warning(
 	if (thd) {
 		va_start(args, format);
 		buf = (char *)my_malloc(MAX_BUF_SIZE, MYF(MY_WME));
-		vsprintf(buf,format, args);
+		buf[MAX_BUF_SIZE - 1] = 0;
+		vsnprintf(buf, MAX_BUF_SIZE - 1, format, args);
 
 		push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 			convert_error_code_to_mysql((dberr_t)error, 0, thd),
