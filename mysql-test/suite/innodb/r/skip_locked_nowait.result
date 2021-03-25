@@ -156,10 +156,6 @@ SET @g = ST_GeomFromText('POLYGON((0 0,0 4,4 4,0 4,0 0))');
 SELECT seat_id, state, ST_AsText(pos) FROM t1 FORCE INDEX (pos)
 WHERE state = 0 AND MBRWithin(pos, @g) FOR UPDATE NOWAIT;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
-SELECT seat_id, state, ST_AsText(pos) FROM t1 FORCE INDEX (pos)
-WHERE state = 0 AND MBRWithin(pos, @g)  FOR UPDATE SKIP LOCKED;
-seat_id	state	ST_AsText(pos)
-6	0	POINT(3 1)
 SELECT seat_id, state, ST_AsText(pos) FROM t1
 WHERE state = 0 FOR UPDATE NOWAIT;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
