@@ -97,7 +97,8 @@ private:
   /* The child NESTED PATH we're currently scanning */
   Json_table_nested_path *m_cur_nested;
 
-  bool column_in_this_or_nested(const Json_table_column *jc) const;
+  static bool column_in_this_or_nested(const Json_table_nested_path *p,
+                                       const Json_table_column *jc);
   friend class Table_function_json_table;
 };
 

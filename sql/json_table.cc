@@ -1208,10 +1208,9 @@ void Table_function_json_table::get_estimates(ha_rows *out_rows,
   don't have to loop through the m_next_nested.
 */
 bool Json_table_nested_path::column_in_this_or_nested(
-    const Json_table_column *jc) const
+    const Json_table_nested_path *p, const Json_table_column *jc)
 {
-  const Json_table_nested_path *p;
-  for (p= this; p; p= p->m_nested)
+  for (; p; p= p->m_nested)
   {
     if (jc->m_nest == p)
       return TRUE;
@@ -1247,8 +1246,8 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
     return 1;
 
   /* loop while jc belongs to the current or nested paths. */
-  while(jc && (jc->m_nest == c_path ||
-        c_nested->column_in_this_or_nested(jc)))
+  while(jc &&
+        (jc->m_nest == c_path || column_in_this_or_nested(c_nested, jc)))
   {
     if (first_column)
       first_column= FALSE;
@@ -1264,7 +1263,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
     }
     else
     {
-      DBUG_ASSERT(c_nested->column_in_this_or_nested(jc));
+      DBUG_ASSERT(column_in_this_or_nested(c_nested, jc));
       if (str->append("NESTED PATH ") ||
           print_path(str, &jc->m_nest->m_path) ||
           str->append(' ') ||
