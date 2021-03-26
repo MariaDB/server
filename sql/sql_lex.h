@@ -3207,6 +3207,23 @@ public:
     }
     return false;
   }
+
+  bool create_like() const
+  {
+    DBUG_ASSERT(!create_info.like() || !select_lex.item_list.elements);
+    return create_info.like();
+  }
+
+  bool create_select() const
+  {
+    DBUG_ASSERT(!create_info.like() || !select_lex.item_list.elements);
+    return select_lex.item_list.elements;
+  }
+
+  bool create_simple() const
+  {
+    return !create_like() && !create_select();
+  }
 };
 
 

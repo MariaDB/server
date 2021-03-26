@@ -1719,6 +1719,15 @@ public:
     return 0;
   }
 
+  /**
+    Check db/table_name if they defined in item and match arg values
+
+    @param arg Pointer to Check_table_name_prm structure
+
+    @retval true Match failed
+    @retval false Match succeeded
+  */
+  virtual bool check_table_name_processor(void *arg) { return false; }
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
     or can be converted to such an exression using equalities.
@@ -1848,6 +1857,15 @@ public:
     uint count;
     int nest_level;
     bool collect;
+  };
+
+  struct Check_table_name_prm
+  {
+    LEX_CSTRING db;
+    LEX_CSTRING table_name;
+    String field;
+    Check_table_name_prm(LEX_CSTRING _db, LEX_CSTRING _table_name) :
+      db(_db), table_name(_table_name) {}
   };
 
   /*
@@ -2819,6 +2837,24 @@ public:
       return mark_unsupported_function(field_name, arg, VCOL_FIELD_REF | VCOL_AUTO_INC);
     }
     return mark_unsupported_function(field_name, arg, VCOL_FIELD_REF);
+  }
+  bool check_table_name_processor(void *arg)
+  {
+    Check_table_name_prm &p= *(Check_table_name_prm *) arg;
+    if (p.table_name.length && table_name)
+    {
+      DBUG_ASSERT(p.db.length);
+      if ((db_name &&
+          my_strcasecmp(table_alias_charset, p.db.str, db_name)) ||
+          my_strcasecmp(table_alias_charset, p.table_name.str, table_name))
+      {
+        print(&p.field, (enum_query_type) (QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                          QT_NO_DATA_EXPANSION |
+                                          QT_TO_SYSTEM_CHARSET));
+        return true;
+      }
+    }
+    return false;
   }
   void cleanup();
   Item_equal *get_item_equal() { return item_equal; }
