@@ -910,7 +910,7 @@ void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 	byte*	ptr;
 	ulint	len;
 
-	dict_sys.assert_locked();
+	ut_d(if (trx) dict_sys.assert_locked());
 	ut_a(!dict_table_is_comp(dict_sys.sys_indexes));
 
 	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
@@ -936,7 +936,7 @@ void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 
 	const uint32_t space_id = mach_read_from_4(ptr);
 	ut_ad(space_id < SRV_TMP_SPACE_ID);
-	if (space_id != TRX_SYS_SPACE
+	if (space_id != TRX_SYS_SPACE && trx
 	    && trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE) {
 		/* We are about to delete the entire .ibd file;
 		do not bother to free pages inside it. */

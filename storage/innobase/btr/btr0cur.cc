@@ -2140,7 +2140,7 @@ need_opposite_intention:
 
 		/* If the first or the last record of the page
 		or the same key value to the first record or last record,
-		the another page might be choosen when BTR_CONT_MODIFY_TREE.
+		the another page might be chosen when BTR_CONT_MODIFY_TREE.
 		So, the parent page should not released to avoiding deadlock
 		with blocking the another search with the same key value. */
 		if (!detected_same_key_root

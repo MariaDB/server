@@ -1054,7 +1054,7 @@ drop table t1;
 #
 # Bug #17754 Change to explicit removal of partitioning scheme
 # Also added a number of tests to ensure that proper engine is
-# choosen in all kinds of scenarios.
+# chosen in all kinds of scenarios.
 #
 
 create table t1 (a int)

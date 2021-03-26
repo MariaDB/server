@@ -1591,7 +1591,7 @@ void fil_close_tablespace(ulint id);
 /*******************************************************************//**
 Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
-@param[in] path NULL or the direcory path or the full path and filename.
+@param[in] path NULL or the directory path or the full path and filename.
 @param[in] name NULL if path is full, or Table/Tablespace name
 @param[in] suffix NULL or the file extention to use.
 @return own: file name */

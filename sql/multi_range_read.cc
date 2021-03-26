@@ -1679,15 +1679,15 @@ ha_rows DsMrr_impl::dsmrr_info(uint keyno, uint n_ranges, uint rows,
   if ((*flags & HA_MRR_USE_DEFAULT_IMPL) || 
       choose_mrr_impl(keyno, rows, flags, bufsz, cost))
   {
-    /* Default implementation is choosen */
-    DBUG_PRINT("info", ("Default MRR implementation choosen"));
+    /* Default implementation is chosen */
+    DBUG_PRINT("info", ("Default MRR implementation chosen"));
     *flags= def_flags;
     *bufsz= def_bufsz;
   }
   else
   {
     /* *flags and *bufsz were set by choose_mrr_impl */
-    DBUG_PRINT("info", ("DS-MRR implementation choosen"));
+    DBUG_PRINT("info", ("DS-MRR implementation chosen"));
   }
   return 0;
 }
@@ -1724,14 +1724,14 @@ ha_rows DsMrr_impl::dsmrr_info_const(uint keyno, RANGE_SEQ_IF *seq,
   if ((*flags & HA_MRR_USE_DEFAULT_IMPL) ||
       choose_mrr_impl(keyno, rows, flags, bufsz, cost))
   {
-    DBUG_PRINT("info", ("Default MRR implementation choosen"));
+    DBUG_PRINT("info", ("Default MRR implementation chosen"));
     *flags= def_flags;
     *bufsz= def_bufsz;
   }
   else
   {
     /* *flags and *bufsz were set by choose_mrr_impl */
-    DBUG_PRINT("info", ("DS-MRR implementation choosen"));
+    DBUG_PRINT("info", ("DS-MRR implementation chosen"));
   }
   return rows;
 }
@@ -1799,12 +1799,12 @@ bool DsMrr_impl::check_cpk_scan(THD *thd, TABLE_SHARE *share, uint keyno,
   @param keyno       Index number
   @param rows        E(full rows to be retrieved)
   @param flags  IN   MRR flags provided by the MRR user
-                OUT  If DS-MRR is choosen, flags of DS-MRR implementation
+                OUT  If DS-MRR is chosen, flags of DS-MRR implementation
                      else the value is not modified
-  @param bufsz  IN   If DS-MRR is choosen, buffer use of DS-MRR implementation
+  @param bufsz  IN   If DS-MRR is chosen, buffer use of DS-MRR implementation
                      else the value is not modified
   @param cost   IN   Cost of default MRR implementation
-                OUT  If DS-MRR is choosen, cost of DS-MRR scan
+                OUT  If DS-MRR is chosen, cost of DS-MRR scan
                      else the value is not modified
 
   @retval TRUE   Default MRR implementation should be used

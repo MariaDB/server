@@ -2764,7 +2764,6 @@ row_upd_clust_step(
 {
 	dict_index_t*	index;
 	btr_pcur_t*	pcur;
-	ibool		success;
 	dberr_t		err;
 	mtr_t		mtr;
 	rec_t*		rec;
@@ -2826,41 +2825,12 @@ row_upd_clust_step(
 		mode = BTR_MODIFY_LEAF;
 	}
 
-	success = btr_pcur_restore_position(mode, pcur, &mtr);
-
-	if (!success) {
+	if (!btr_pcur_restore_position(mode, pcur, &mtr)) {
 		err = DB_RECORD_NOT_FOUND;
 
 		mtr_commit(&mtr);
 
 		return(err);
-	}
-
-	/* If this is a row in SYS_INDEXES table of the data dictionary,
-	then we have to free the file segments of the index tree associated
-	with the index */
-
-	if (node->is_delete == PLAIN_DELETE
-	    && node->table->id == DICT_INDEXES_ID) {
-
-		ut_ad(!dict_index_is_online_ddl(index));
-
-		dict_drop_index_tree(pcur, trx, &mtr);
-
-		mtr.commit();
-
-		mtr.start();
-		index->set_modified(mtr);
-
-		success = btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur,
-						    &mtr);
-		if (!success) {
-			err = DB_ERROR;
-
-			mtr.commit();
-
-			return(err);
-		}
 	}
 
 	rec = btr_pcur_get_rec(pcur);

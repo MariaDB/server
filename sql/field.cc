@@ -7854,7 +7854,7 @@ bool Field_varstring::send(Protocol *protocol)
 }
 
 
-#ifdef HAVE_valgrind
+#ifdef HAVE_MEM_CHECK
 void Field_varstring::mark_unused_memory_as_defined()
 {
   uint used_length= get_length();

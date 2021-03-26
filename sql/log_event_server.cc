@@ -5463,7 +5463,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     */
 
     {
-      DBUG_PRINT("debug", ("Checking compability of tables to lock - tables_to_lock: %p",
+      DBUG_PRINT("debug", ("Checking compatibility of tables to lock - tables_to_lock: %p",
                            rgi->tables_to_lock));
 
       /**

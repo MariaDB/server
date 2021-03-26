@@ -794,7 +794,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	OFF
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Do not allow to create table without primary key (off by default)
+VARIABLE_COMMENT	Do not allow creating a table without primary key (off by default)
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

@@ -101,7 +101,7 @@ dict_create_index_tree(
 @param[in,out]	trx	dictionary transaction
 @param[in,out]	mtr	mini-transaction */
 void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull));
+	MY_ATTRIBUTE((nonnull(1,3)));
 
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.

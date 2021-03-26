@@ -2761,7 +2761,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
                       VIO_LOCALHOST | VIO_BUFFERED_READ);
     if (!net->vio)
     {
-      DBUG_PRINT("error",("Unknow protocol %d ", mysql->options.protocol));
+      DBUG_PRINT("error",("Unknown protocol %d ", mysql->options.protocol));
       set_mysql_error(mysql, CR_CONN_UNKNOW_PROTOCOL, unknown_sqlstate);
       closesocket(sock);
       goto error;
@@ -2936,7 +2936,7 @@ CLI_MYSQL_REAL_CONNECT(MYSQL *mysql,const char *host, const char *user,
   DBUG_PRINT("info", ("net->vio: %p", net->vio));
   if (!net->vio)
   {
-    DBUG_PRINT("error",("Unknow protocol %d ",mysql->options.protocol));
+    DBUG_PRINT("error",("Unknown protocol %d ",mysql->options.protocol));
     set_mysql_error(mysql, CR_CONN_UNKNOW_PROTOCOL, unknown_sqlstate);
     goto error;
   }

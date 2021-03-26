@@ -7,7 +7,7 @@
 #   This routine is only useful for the partition_<feature>_<engine> tests.    #
 #                                                                              #
 # Note: There were some problems in history.                                   #
-#    It looks like a table holds informations about the storage engine         #
+#    It looks like a table holds information about the storage engine         #
 #    for                                                                       #
 #      "the whole table" -> in statement after column list before partitioning #
 #      a partition       -> in statement after definition of partition         #

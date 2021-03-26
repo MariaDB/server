@@ -2564,7 +2564,7 @@ scan_tz_dir(char * name_end, uint symlink_recursion_level, uint verbose)
 
           /*
             This is a normal case and not critical. only print warning if
-            verbose mode is choosen.
+            verbose mode is chosen.
           */
           if (verbose > 0)
           {

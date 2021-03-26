@@ -1880,37 +1880,32 @@ dberr_t
 PageConverter::update_index_page(
 	buf_block_t*	block) UNIV_NOTHROW
 {
-	index_id_t	id;
-	buf_frame_t*	page = block->frame;
 	const page_id_t page_id(block->page.id());
 
 	if (is_free(page_id.page_no())) {
 		return(DB_SUCCESS);
-	} else if ((id = btr_page_get_index_id(page)) != m_index->m_id) {
+	}
 
-		row_index_t*	index = find_index(id);
+	buf_frame_t* page = block->frame;
+	const index_id_t id = btr_page_get_index_id(page);
+
+	if (id != m_index->m_id) {
+		row_index_t* index = find_index(id);
 
 		if (UNIV_UNLIKELY(!index)) {
-			ib::error() << "Page for tablespace " << m_space
-				<< " is index page with id " << id
-				<< " but that index is not found from"
-				<< " configuration file. Current index name "
-				<< m_index->m_name << " and id " <<  m_index->m_id;
-			m_index = 0;
-			return(DB_CORRUPTION);
+			ib::warn() << "Unknown index id " << id
+				   << " on page " << page_id.page_no();
+			return DB_SUCCESS;
 		}
 
-		/* Update current index */
 		m_index = index;
 	}
 
 	/* If the .cfg file is missing and there is an index mismatch
 	then ignore the error. */
-	if (m_cfg->m_missing && (m_index == 0 || m_index->m_srv_index == 0)) {
+	if (m_cfg->m_missing && !m_index->m_srv_index) {
 		return(DB_SUCCESS);
 	}
-
-
 
 	if (m_index && page_id.page_no() == m_index->m_page_no) {
 		byte *b = FIL_PAGE_DATA + PAGE_BTR_SEG_LEAF + FSEG_HDR_SPACE

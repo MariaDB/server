@@ -180,7 +180,7 @@ MI_INFO *mi_open(const char *name, int mode, uint open_flags)
     if ((share->options & HA_OPTION_RELIES_ON_SQL_LAYER) &&
         ! (open_flags & HA_OPEN_FROM_SQL_LAYER))
     {
-      DBUG_PRINT("error", ("table cannot be openned from non-sql layer"));
+      DBUG_PRINT("error", ("table cannot be opened from non-sql layer"));
       my_errno= HA_ERR_UNSUPPORTED;
       goto err;
     }

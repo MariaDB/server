@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3303,82 +3303,4 @@ load_next_index:
 	}
 
 	DBUG_RETURN(DB_SUCCESS);
-}
-
-/***********************************************************************//**
-Loads a table id based on the index id.
-@return	true if found */
-static
-bool
-dict_load_table_id_on_index_id(
-/*===========================*/
-	index_id_t		index_id,  /*!< in: index id */
-	table_id_t*		table_id) /*!< out: table id */
-{
-	/* check hard coded indexes */
-	switch(index_id) {
-	case DICT_TABLES_ID:
-	case DICT_COLUMNS_ID:
-	case DICT_INDEXES_ID:
-	case DICT_FIELDS_ID:
-		*table_id = index_id;
-		return true;
-	case DICT_TABLE_IDS_ID:
-		/* The following is a secondary index on SYS_TABLES */
-		*table_id = DICT_TABLES_ID;
-		return true;
-	}
-
-	bool		found = false;
-	mtr_t		mtr;
-
-	dict_sys.assert_locked();
-
-	/* NOTE that the operation of this function is protected by
-	the dictionary mutex, and therefore no deadlocks can occur
-	with other dictionary operations. */
-
-	mtr_start(&mtr);
-
-	btr_pcur_t pcur;
-	const rec_t* rec = dict_startscan_system(&pcur, &mtr, SYS_INDEXES);
-
-	while (rec) {
-		ulint len;
-		const byte* field = rec_get_nth_field_old(
-			rec, DICT_FLD__SYS_INDEXES__ID, &len);
-		ut_ad(len == 8);
-
-		/* Check if the index id is the one searched for */
-		if (index_id == mach_read_from_8(field)) {
-			found = true;
-			/* Now we get the table id */
-			const byte* field = rec_get_nth_field_old(
-				rec,
-				DICT_FLD__SYS_INDEXES__TABLE_ID,
-				&len);
-			*table_id = mach_read_from_8(field);
-			break;
-		}
-		mtr_commit(&mtr);
-		mtr_start(&mtr);
-		rec = dict_getnext_system(&pcur, &mtr);
-	}
-
-	btr_pcur_close(&pcur);
-	mtr_commit(&mtr);
-
-	return(found);
-}
-
-dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
-{
-	table_id_t table_id;
-	dict_table_t * table = NULL;
-	if (dict_load_table_id_on_index_id(index_id, &table_id)) {
-		table = dict_table_open_on_id(table_id, true,
-					      DICT_TABLE_OP_LOAD_TABLESPACE);
-	}
-
-	return table;
 }

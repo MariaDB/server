@@ -429,7 +429,7 @@ static void usage(void)
   -q, --quick         Faster repair by not modifying the data file.\n\
                       One can give a second '-q' to force myisamchk to\n\
 		      modify the original datafile in case of duplicate keys.\n\
-		      NOTE: Tables where the data file is currupted can't be\n\
+		      NOTE: Tables where the data file is corrupted can't be\n\
 		      fixed with this option.\n\
   -u, --unpack        Unpack file packed with myisampack.\n\
 ");

@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -152,12 +152,6 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd= nullptr,
                       MDL_ticket **mdl= nullptr)
   MY_ATTRIBUTE((warn_unused_result));
-
-/**********************************************************************//**
-Returns a table object based on table id.
-@return	table, NULL if does not exist */
-dict_table_t* dict_table_open_on_index_id(index_id_t index_id)
-	__attribute__((warn_unused_result));
 
 /** Decrements the count of open handles of a table.
 @param[in,out]	table		table

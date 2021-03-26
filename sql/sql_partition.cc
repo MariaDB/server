@@ -41,7 +41,7 @@
   which is often referred to as column lists in the code variables. This
   enables a user to specify a set of columns and their concatenated value
   as the partition value. By comparing the concatenation of these values
-  the proper partition can be choosen.
+  the proper partition can be chosen.
 */
 
 /* Some general useful functions */

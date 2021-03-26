@@ -28,6 +28,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "btr0cur.h"
 #include "fsp0fsp.h"
 #include "mach0data.h"
+#include "dict0crea.h"
 #include "dict0stats.h"
 #include "trx0rseg.h"
 #include "trx0trx.h"
@@ -115,6 +116,21 @@ row_purge_remove_clust_if_poss_low(
 		/* The record was already removed. */
 		mtr.commit();
 		return true;
+	}
+
+	if (node->table->id == DICT_INDEXES_ID) {
+		/* If this is a record of the SYS_INDEXES table, then
+		we have to free the file segments of the index tree
+		associated with the index */
+		dict_drop_index_tree(&node->pcur, nullptr, &mtr);
+		mtr.commit();
+		mtr.start();
+		index->set_modified(mtr);
+
+		if (!row_purge_reposition_pcur(mode, node, &mtr)) {
+			mtr.commit();
+			return true;
+		}
 	}
 
 	rec_t* rec = btr_pcur_get_rec(&node->pcur);

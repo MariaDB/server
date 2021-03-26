@@ -586,7 +586,7 @@ Recover (repair)/ options (When using '--recover' or '--safe-recover'):\n\
   -q, --quick         Faster repair by not modifying the data file.\n\
                       One can give a second '-q' to force aria_chk to\n\
 		      modify the original datafile in case of duplicate keys.\n\
-		      NOTE: Tables where the data file is currupted can't be\n\
+		      NOTE: Tables where the data file is corrupted can't be\n\
 		      fixed with this option.\n\
   -u, --unpack        Unpack file packed with ariapack.\n\
 ");
@@ -1359,7 +1359,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
       error= maria_zerofill(param, info, filename);
     if (!error)
     {
-      DBUG_PRINT("info", ("Reseting crashed state"));
+      DBUG_PRINT("info", ("Resetting crashed state"));
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED_FLAGS |
                                STATE_IN_REPAIR);
     }
@@ -1423,7 +1423,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
            share->state.open_count != 0)
           && (param->testflag & T_UPDATE_STATE))
         info->update|=HA_STATE_CHANGED | HA_STATE_ROW_CHANGED;
-      DBUG_PRINT("info", ("Reseting crashed state"));
+      DBUG_PRINT("info", ("Resetting crashed state"));
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED_FLAGS |
                                STATE_IN_REPAIR);
     }

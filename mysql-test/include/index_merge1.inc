@@ -374,7 +374,7 @@ drop table t1;
 if ($merge_table_support)
 {
 #
-# BUG#17314: Index_merge/intersection not choosen by the optimizer for MERGE tables
+# BUG#17314: Index_merge/intersection not chosen by the optimizer for MERGE tables
 #
 create table t1 (
   a int, b int,

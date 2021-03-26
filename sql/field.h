@@ -998,7 +998,7 @@ public:
   */
   virtual int store_from_statistical_minmax_field(Field *field, String *str);
 
-#ifdef HAVE_valgrind
+#ifdef HAVE_MEM_CHECK
   /**
     Mark unused memory in the field as defined. Mainly used to ensure
     that if we write full field to disk (for example in
@@ -4161,7 +4161,7 @@ public:
   }
   int  store(const char *to,size_t length,CHARSET_INFO *charset) override;
   using Field_str::store;
-#ifdef HAVE_valgrind
+#ifdef HAVE_MEM_CHECK
   void mark_unused_memory_as_defined() override;
 #endif
   double val_real() override;

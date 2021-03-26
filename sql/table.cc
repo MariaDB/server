@@ -2338,7 +2338,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
   }
   else
   {
-    DBUG_PRINT("info", ("Setting system versioning informations"));
+    DBUG_PRINT("info", ("Setting system versioning information"));
     if (init_period_from_extra2(&vers, extra2.system_period.str,
                   extra2.system_period.str + extra2.system_period.length))
       goto err;

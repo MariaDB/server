@@ -2901,7 +2901,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
         {
           DBUG_ASSERT(pos->sj_strategy != sj_strategy);
           /*
-            If the strategy choosen first time or
+            If the strategy chosen first time or
             the strategy replace strategy which was used to exectly the same
             tables
           */

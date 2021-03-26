@@ -3162,7 +3162,7 @@ END|
 CALL p9()|
 
 --echo
---echo # -- Check that handlers are choosen properly in case of deep stack and
+--echo # -- Check that handlers are chosen properly in case of deep stack and
 --echo # -- nested SQL-blocks.
 --echo
 

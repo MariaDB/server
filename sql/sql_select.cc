@@ -7727,7 +7727,7 @@ best_access_path(JOIN      *join,
               Try re-using E(#rows) from "range" optimizer:
               We can do so if "range" optimizer used the same intervals as
               in (**). The intervals used by range optimizer may be not 
-              available at this point (as "range" access might have choosen to
+              available at this point (as "range" access might have chosen to
               create quick select over another index), so we can't compare
               them to (**). We'll make indirect judgements instead.
               The sufficient conditions for re-use are:
@@ -11035,7 +11035,7 @@ inline void add_cond_and_fix(THD *thd, Item **e1, Item *e2)
 
     Description of the optimization:
     
-      We look through equalities choosen to perform ref/eq_ref access,
+      We look through equalities chosen to perform ref/eq_ref access,
       pick equalities that have form "tbl.part_of_key = othertbl.field"
       (where othertbl is a non-const table and othertbl.field may be NULL)
       and add them to conditions on correspoding tables (othertbl in this
@@ -17966,7 +17966,7 @@ Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
     new_field= tmp_table_field_from_field_type(root, table);
     break;
   case ROW_RESULT:
-    // This case should never be choosen
+    // This case should never be chosen
     DBUG_ASSERT(0);
     new_field= 0;
     break;
@@ -25139,7 +25139,7 @@ void calc_group_buffer(TMP_TABLE_PARAM *param, ORDER *group)
         break;
       }
       default:
-        /* This case should never be choosen */
+        /* This case should never be chosen */
         DBUG_ASSERT(0);
         my_error(ER_OUT_OF_RESOURCES, MYF(ME_FATAL));
       }

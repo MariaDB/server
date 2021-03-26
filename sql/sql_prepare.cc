@@ -3423,7 +3423,7 @@ static void mysql_stmt_execute_common(THD *thd,
       Set thd->query_string with the stmt_id so the
       audit plugin gets the meaningful notification.
     */
-    if (alloc_query(thd, llbuf, strlen(llbuf)))
+    if (alloc_query(thd, llbuf, sizeof(llbuf)))
       thd->set_query(0, 0);
     my_error(ER_UNKNOWN_STMT_HANDLER, MYF(0), static_cast<int>(sizeof(llbuf)),
              llstr(stmt_id, llbuf), "mysqld_stmt_execute");
