@@ -436,6 +436,8 @@ SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME
 SHOW STATUS LIKE 'Feature_json';
 select json_valid('123');
 SHOW STATUS LIKE 'Feature_json';
+select * from json_table ('{}', '$' COLUMNS(x FOR ORDINALITY)) a;
+SHOW STATUS LIKE 'Feature_json';
 
 # Restore global concurrent_insert value. Keep in the end of the test file.
 --connection default

@@ -539,7 +539,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %token  <kwd> GROUP_CONCAT_SYM
 %token  <rwd> JSON_ARRAYAGG_SYM
 %token  <rwd> JSON_OBJECTAGG_SYM
-%token  <rwd> JSON_TABLE_SYM
+%token  <kwd> JSON_TABLE_SYM
 %token  <kwd> GROUP_SYM                     /* SQL-2003-R */
 %token  <kwd> HAVING                        /* SQL-2003-R */
 %token  <kwd> HOUR_MICROSECOND_SYM
@@ -11714,6 +11714,7 @@ table_function:
                            0,0,0, Lex->json_table)))
               MYSQL_YYABORT;
             Lex->json_table= 0;
+            status_var_increment(thd->status_var.feature_json);
           }
         ;
 
