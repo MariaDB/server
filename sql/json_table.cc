@@ -722,10 +722,7 @@ bool Create_json_table::finalize(THD *thd, TABLE *table,
                                         m_null_count & 7);
       m_null_count+= (field->field_length & 7);
     }
-    /*
-      Here we'd call the field->reset(), but we're doing it later
-      in Table_function_json_table::setup as we define charsets there.
-    */
+    field->reset();
 
     /*
       Test if there is a default field value. The test for ->ptr is to skip
