@@ -15914,6 +15914,7 @@ keyword_sp_var_and_label:
         | ISSUER_SYM
         | INSERT_METHOD
         | INVISIBLE_SYM
+        | JSON_TABLE_SYM
         | KEY_BLOCK_SIZE
         | LAST_VALUE
         | LAST_SYM

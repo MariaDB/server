@@ -846,11 +846,11 @@ SET jt1.a=1;
 ERROR HY000: The target table jt1 of the UPDATE is not updatable
 DELETE JSON_TABLE(t1.c1,'$[*]' COLUMNS (a INT PATH '$.a')) AS jt1
 FROM t1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'JSON_TABLE(t1.c1,'$[*]' COLUMNS (a INT PATH '$.a')) AS jt1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(t1.c1,'$[*]' COLUMNS (a INT PATH '$.a')) AS jt1
 FROM t1' at line 1
 DELETE t1, JSON_TABLE(t1.c1,'$[*]' COLUMNS (a INT PATH '$.a')) AS jt1
 USING t1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'JSON_TABLE(t1.c1,'$[*]' COLUMNS (a INT PATH '$.a')) AS jt1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '(t1.c1,'$[*]' COLUMNS (a INT PATH '$.a')) AS jt1
 USING t1' at line 1
 DROP TABLE t1;
 #

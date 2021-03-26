@@ -438,5 +438,14 @@ DROP VIEW v;
 SELECT val, MATCH(val) AGAINST( 'MariaDB') FROM JSON_TABLE('{"db":"xx"}', '$' COLUMNS(val VARCHAR(32) PATH '$**.*')) AS jt;
 
 --echo #
+--echo # MDEV-25138 JSON_TABLE: A space between JSON_TABLE and opening bracket causes syntax error
+--echo #
+select * from json_table ('{}', '$' COLUMNS(x FOR ORDINALITY)) a;
+create table json_table(id int);
+insert into json_table values (1), (2), (3);
+select * from json_table;
+drop table json_table;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
