@@ -41,7 +41,7 @@ select * from JSON_TABLE( '[ {"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222
 --error ER_JSON_SYNTAX
 select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3} xx YY]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
 
---error ER_JSON_TABLE_ERROR_ON_FIELD
+--error ER_JSON_TABLE_SCALAR_EXPECTED
 select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' error on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
 
 #
@@ -445,6 +445,13 @@ create table json_table(id int);
 insert into json_table values (1), (2), (3);
 select * from json_table;
 drop table json_table;
+
+--echo #
+--echo # MDEV-25146 JSON_TABLE: Non-descriptive + wrong error messages upon trying to store array or object.
+--echo #
+--error ER_JSON_TABLE_SCALAR_EXPECTED
+select a from json_table('[[]]', '$' columns(a char(8) path '$' error on error)) t;
+show warnings;
 
 --echo #
 --echo # End of 10.6 tests

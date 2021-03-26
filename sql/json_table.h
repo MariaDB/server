@@ -141,7 +141,7 @@ public:
   public:
     Json_table_column::enum_on_response m_response;
     LEX_CSTRING m_default;
-    int respond(Json_table_column *jc, Field *f);
+    int respond(Json_table_column *jc, Field *f, uint error_num);
     int print(const char *name, String *str) const;
     bool specified() const { return m_response != RESPONSE_NOT_SPECIFIED; }
   };

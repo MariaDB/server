@@ -115,7 +115,7 @@ json_table(
 jpath varchar(100) path '$.a' error on error,
 jexst int exists path '$.b')
 ) as tt;
-ERROR HY000: Field 'jpath' can't be set for JSON_TABLE 'tt'.
+ERROR HY000: Can't store an array or an object in the scalar column 'jpath' of JSON_TABLE 'tt'.
 select * from
 json_table(
 '!#@$!@#$',
@@ -396,18 +396,18 @@ v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIE
 DROP VIEW v;
 SELECT * FROM JSON_TABLE('"asdf"',
 '$' COLUMNS (a INT PATH '$' ERROR ON ERROR)) AS jt;
-ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+ERROR HY000: Can't store an array or an object in the scalar column 'a' of JSON_TABLE 'jt'.
 SELECT * FROM
 JSON_TABLE('[{"a":1},{"a":2}]',
 '$' COLUMNS (a INT PATH '$[*].a' ERROR ON ERROR)) AS jt;
-ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+ERROR HY000: Can't store multiple matches of the path in the column 'a' of JSON_TABLE 'jt'.
 SELECT * FROM
 JSON_TABLE('[{"a":1},{"a":2}]',
 '$' COLUMNS (a JSON PATH '$[*].a' ERROR ON ERROR)) AS jt;
-ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+ERROR HY000: Can't store multiple matches of the path in the column 'a' of JSON_TABLE 'jt'.
 SELECT * FROM
 JSON_TABLE('123.456', '$' COLUMNS (a DECIMAL(2,1) PATH '$' ERROR ON ERROR)) AS jt;
-ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+ERROR HY000: Can't store an array or an object in the scalar column 'a' of JSON_TABLE 'jt'.
 SELECT * FROM
 JSON_TABLE('123.456', '$' COLUMNS (a DECIMAL(2,1) PATH '$')) AS jt;
 a
@@ -811,7 +811,7 @@ SELECT * FROM
 JSON_TABLE('[3.14159]',
 '$[*]' COLUMNS (col18 DECIMAL(3,3) PATH '$' ERROR ON ERROR)
 ) AS alias2;
-ERROR HY000: Field 'col18' can't be set for JSON_TABLE 'alias2'.
+ERROR HY000: Can't store an array or an object in the scalar column 'col18' of JSON_TABLE 'alias2'.
 SELECT * FROM
 JSON_TABLE('[0.9]',
 '$[*]' COLUMNS (col18 DECIMAL(3,3) PATH '$')

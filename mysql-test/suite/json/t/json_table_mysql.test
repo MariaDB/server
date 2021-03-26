@@ -91,7 +91,7 @@ select * from
              jexst int exists path '$.b')
   ) as tt;
 
---error ER_JSON_TABLE_ERROR_ON_FIELD
+--error ER_JSON_TABLE_SCALAR_EXPECTED
 select * from
   json_table(
     '[{"a":"3"},{"a":2},{"a":1},{"a":[0,1]}]',
@@ -327,20 +327,19 @@ SELECT * FROM v;
 SHOW CREATE VIEW v;
 DROP VIEW v;
 
---error ER_JSON_TABLE_ERROR_ON_FIELD
+--error ER_JSON_TABLE_SCALAR_EXPECTED
 SELECT * FROM JSON_TABLE('"asdf"',
                          '$' COLUMNS (a INT PATH '$' ERROR ON ERROR)) AS jt;
-#--error ER_WRONG_JSON_TABLE_VALUE
---error ER_JSON_TABLE_ERROR_ON_FIELD
+--error ER_JSON_TABLE_MULTIPLE_MATCHES
 SELECT * FROM
   JSON_TABLE('[{"a":1},{"a":2}]',
              '$' COLUMNS (a INT PATH '$[*].a' ERROR ON ERROR)) AS jt;
 # psergey-added:
---error ER_JSON_TABLE_ERROR_ON_FIELD
+--error ER_JSON_TABLE_MULTIPLE_MATCHES
 SELECT * FROM
   JSON_TABLE('[{"a":1},{"a":2}]',
              '$' COLUMNS (a JSON PATH '$[*].a' ERROR ON ERROR)) AS jt;
---error ER_JSON_TABLE_ERROR_ON_FIELD
+--error ER_JSON_TABLE_SCALAR_EXPECTED
 SELECT * FROM
   JSON_TABLE('123.456', '$' COLUMNS (a DECIMAL(2,1) PATH '$' ERROR ON ERROR)) AS jt;
 SELECT * FROM
@@ -722,7 +721,7 @@ SELECT * FROM
                 ) AS alias2;
 
 #--error ER_JT_VALUE_OUT_OF_RANGE
---error ER_JSON_TABLE_ERROR_ON_FIELD
+--error ER_JSON_TABLE_SCALAR_EXPECTED
 SELECT * FROM
   JSON_TABLE('[3.14159]',
               '$[*]' COLUMNS (col18 DECIMAL(3,3) PATH '$' ERROR ON ERROR)

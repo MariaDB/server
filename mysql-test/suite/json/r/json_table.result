@@ -88,7 +88,7 @@ a	b
 select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3} xx YY]', '$[*]' COLUMNS( a INT PATH '$.a' default '202' on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
 ERROR HY000: Syntax error in JSON text in argument 1 to function 'JSON_TABLE' at position 65
 select * from JSON_TABLE( '[{"a": [1, 2], "b": [11,111]}, {"a": 2, "b": [22,222]}, {"a":3}]', '$[*]' COLUMNS( a INT PATH '$.a' error on error default '101' on empty, NESTED PATH '$.b[*]' COLUMNS (b INT PATH '$'))) as jt;
-ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+ERROR HY000: Can't store an array or an object in the scalar column 'a' of JSON_TABLE 'jt'.
 select * from json_table('{"a":0}',"$" columns(a decimal(1,1) path '$.a')) foo;
 a
 0.0
@@ -572,6 +572,14 @@ id
 2
 3
 drop table json_table;
+#
+# MDEV-25146 JSON_TABLE: Non-descriptive + wrong error messages upon trying to store array or object.
+#
+select a from json_table('[[]]', '$' columns(a char(8) path '$' error on error)) t;
+ERROR HY000: Can't store an array or an object in the scalar column 'a' of JSON_TABLE 't'.
+show warnings;
+Level	Code	Message
+Error	4177	Can't store an array or an object in the scalar column 'a' of JSON_TABLE 't'.
 #
 # End of 10.6 tests
 #

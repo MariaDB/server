@@ -4225,7 +4225,11 @@ void handler::print_error(int error, myf errflag)
         }
       }
       else
-        my_error(ER_GET_ERRNO, errflag, error, table_type());
+      {
+        if (!temporary)
+          my_error(ER_GET_ERRNO, errflag, error, table_type());
+        /* else no error message. */
+      }
       DBUG_VOID_RETURN;
     }
   }

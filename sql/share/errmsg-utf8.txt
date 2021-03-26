@@ -7979,3 +7979,7 @@ ER_JSON_TABLE_ERROR_ON_FIELD
         eng "Field '%s' can't be set for JSON_TABLE '%s'."
 ER_JSON_TABLE_ALIAS_REQUIRED
         eng "Every table function must have an alias."
+ER_JSON_TABLE_SCALAR_EXPECTED
+        eng "Can't store an array or an object in the scalar column '%s' of JSON_TABLE '%s'."
+ER_JSON_TABLE_MULTIPLE_MATCHES
+        eng "Can't store multiple matches of the path in the column '%s' of JSON_TABLE '%s'."

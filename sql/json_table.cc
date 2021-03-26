@@ -23,6 +23,7 @@
 #include "json_table.h"
 #include "sql_show.h"
 
+#define HA_ERR_JSON_TABLE (HA_ERR_LAST+1)
 
 class table_function_handlerton
 {
@@ -104,6 +105,12 @@ public:
     { return NULL; }
   int create(const char *name, TABLE *form, HA_CREATE_INFO *create_info)
     override { return 1; }
+  /* Give no message. */
+  bool get_error_message(int error, String *buf) override
+  {
+    buf->length(0);
+    return TRUE;
+  }
 };
 
 
@@ -284,7 +291,7 @@ int ha_json_table::rnd_next(uchar *buf)
         error code that just doesn't produce extra
         messages.
       */
-      return HA_ERR_TABLE_IN_FK_CHECK;
+      return HA_ERR_JSON_TABLE;
     }
     return HA_ERR_END_OF_FILE;
   }
@@ -297,7 +304,7 @@ int ha_json_table::rnd_next(uchar *buf)
   table->in_use->count_cuted_fields= CHECK_FIELD_EXPRESSION;
   res= fill_column_values(buf, NULL);
   table->in_use->count_cuted_fields= cf_orig;
-  return res ? HA_ERR_TABLE_IN_FK_CHECK : 0;
+  return res ? HA_ERR_JSON_TABLE : 0;
 }
 
 
@@ -401,7 +408,7 @@ int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
         {
           if (not_found)
           {
-            if (jc->m_on_empty.respond(jc, *f))
+            if (jc->m_on_empty.respond(jc, *f, ER_JSON_TABLE_ERROR_ON_FIELD))
               goto error_return;
           }
           else
@@ -409,7 +416,7 @@ int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
             if (!json_value_scalar(&je) ||
                 store_json_in_field(*f, &je))
             {
-              if (jc->m_on_error.respond(jc, *f))
+              if (jc->m_on_error.respond(jc, *f, ER_JSON_TABLE_SCALAR_EXPECTED))
                 goto error_return;
             }
             else
@@ -424,7 +431,7 @@ int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
                    !json_find_path(&je, &jc->m_path, &cur_step,
                                    array_counters)))
               {
-                if (jc->m_on_error.respond(jc, *f))
+                if (jc->m_on_error.respond(jc, *f, ER_JSON_TABLE_MULTIPLE_MATCHES))
                   goto error_return;
               }
             }
@@ -449,7 +456,7 @@ error_return:
 
 int ha_json_table::rnd_pos(uchar * buf, uchar *pos)
 {
-  return fill_column_values(buf, pos) ? HA_ERR_TABLE_IN_FK_CHECK : 0;
+  return fill_column_values(buf, pos) ? HA_ERR_JSON_TABLE : 0;
 }
 
 
@@ -1024,9 +1031,12 @@ int Json_table_nested_path::set_path(THD *thd, const LEX_CSTRING &path)
   @brief 
     Perform the action of this response on field @f (emit an error, or set @f
     to NULL, or set it to default value).
+    error_num supposed to have the error message with field_name and table_name
+    arguments.
 */
 
-int Json_table_column::On_response::respond(Json_table_column *jc, Field *f)
+int Json_table_column::On_response::respond(Json_table_column *jc, Field *f,
+                                            uint error_num)
 {
   switch (m_response)
   {
@@ -1036,8 +1046,7 @@ int Json_table_column::On_response::respond(Json_table_column *jc, Field *f)
       break;
     case Json_table_column::RESPONSE_ERROR:
       f->set_null();
-      my_error(ER_JSON_TABLE_ERROR_ON_FIELD, MYF(0),
-          f->field_name.str, f->table->alias.ptr());
+      my_error(error_num, MYF(0), f->field_name.str, f->table->alias.ptr());
       return 1;
     case Json_table_column::RESPONSE_DEFAULT:
       f->set_notnull();
