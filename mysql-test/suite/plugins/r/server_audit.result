@@ -140,6 +140,10 @@ select 2;
 2
 2
 drop table t1;
+create procedure pr1() insert into test.t1 values ("foo", 42);
+create function fn1(i int) returns int deterministic return i+1;
+drop procedure pr1;
+drop function fn1;
 set global server_audit_events='query_ddl,query_dml';
 create table t1(id int);
 insert into t1 values (1), (2);
@@ -211,6 +215,10 @@ select 2;
 2
 2
 drop table t1;
+create procedure pr1() insert into test.t1 values ("foo", 42);
+create function fn1(i int) returns int deterministic return i+1;
+drop procedure pr1;
+drop function fn1;
 set global server_audit_events='table';
 set global server_audit_incl_users='user1';
 create user user1@localhost;
@@ -394,6 +402,10 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop user u1, u2, u3',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create table t1(id int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop table t1',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create procedure pr1() insert into test.t1 values ("foo", 42)',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create function fn1(i int) returns int deterministic return i+1',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop procedure pr1',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop function fn1',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create table t1(id int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'insert into t1 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select * from t1',0
