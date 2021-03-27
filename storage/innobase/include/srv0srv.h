@@ -592,9 +592,6 @@ extern struct export_var_t export_vars;
 /** Global counters */
 extern srv_stats_t	srv_stats;
 
-/** Simulate compression failures. */
-extern uint srv_simulate_comp_failures;
-
 /** Fatal semaphore wait threshold = maximum number of seconds
 that semaphore times out in InnoDB */
 #define DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT 600

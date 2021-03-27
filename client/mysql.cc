@@ -4704,7 +4704,11 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     return -1;					// Retryable
   }
 
-  charset_info= get_charset_by_name(mysql.charset->name, MYF(0));
+  if (!(charset_info= get_charset_by_name(mysql.charset->name, MYF(0))))
+  {
+    put_info("Unknown default character set", INFO_ERROR);
+    return 1;
+  }
 
   
   connected=1;

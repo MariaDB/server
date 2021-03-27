@@ -37,7 +37,7 @@ SET GLOBAL wsrep_sst_method = 'mysqldump';
 #
 
 #--connection node_2
-#--source suite/galera/include/galera_unload_provider.inc
+#--source suite/galera/include/galera_stop_replication.inc
 
 --echo Shutting down server ...
 --source include/shutdown_mysqld.inc
@@ -63,7 +63,7 @@ INSERT INTO t1 VALUES (1);
 let $restart_noprint=2;
 --source include/start_mysqld.inc
 
-#--source suite/galera/include/galera_load_provider.inc
+#--source suite/galera/include/galera_start_replication.inc
 
 --let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
 --source include/wait_condition.inc

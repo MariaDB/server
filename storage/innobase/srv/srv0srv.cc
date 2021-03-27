@@ -481,9 +481,6 @@ current_time % 5 != 0. */
 #endif /* MEM_PERIODIC_CHECK */
 # define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
 
-/** Simulate compression failures. */
-UNIV_INTERN uint srv_simulate_comp_failures;
-
 /** Buffer pool dump status frequence in percentages */
 UNIV_INTERN ulong srv_buf_dump_status_frequency;
 

@@ -1349,33 +1349,6 @@ page_zip_compress(
 
 	MONITOR_INC(MONITOR_PAGE_COMPRESS);
 
-	/* Simulate a compression failure with a probability determined by
-	innodb_simulate_comp_failures, only if the page has 2 or more
-	records. */
-
-	if (srv_simulate_comp_failures
-	    && !dict_index_is_ibuf(index)
-	    && page_get_n_recs(page) >= 2
-	    && ((ulint)(rand() % 100) < srv_simulate_comp_failures)
-	    && strcmp(index->table->name.m_name, "IBUF_DUMMY")) {
-
-#ifdef UNIV_DEBUG
-		ib::error()
-			<< "Simulating a compression failure"
-			<< " for table " << index->table->name
-			<< " index "
-			<< index->name()
-			<< " page "
-			<< page_get_page_no(page)
-			<< "("
-			<< (page_is_leaf(page) ? "leaf" : "non-leaf")
-			<< ")";
-
-#endif
-
-		goto err_exit;
-	}
-
 	heap = mem_heap_create(page_zip_get_size(page_zip)
 			       + n_fields * (2 + sizeof(ulint))
 			       + REC_OFFS_HEADER_SIZE

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2000, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,7 +45,7 @@ struct ha_table_option_struct
 	uint		atomic_writes;		/*!< Use atomic writes for this
 						table if this options is ON or
 						in DEFAULT if
-						srv_use_atomic_writes=1.
+						innodb_use_atomic_writes.
 						Atomic writes are not used if
 						value OFF.*/
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */

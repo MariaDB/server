@@ -354,6 +354,20 @@ SELECT * FROM t1;
 a	b	c
 DROP TABLE t1;
 SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+#
+# MDEV-24796 Assertion page_has_next... failed
+# in btr_pcur_store_position()
+#
+CREATE TABLE t1 (c INT KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1),(2);
+SET GLOBAL innodb_limit_optimistic_insert_debug=2;
+ALTER TABLE t1 ADD COLUMN d INT;
+DELETE FROM t1;
+InnoDB		0 transactions not purged
+SELECT * FROM t1 WHERE c<>1 ORDER BY c DESC;
+c	d
+DROP TABLE t1;
+SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
 # End of 10.3 tests
 #
 # MDEV-17899 Assertion failures on rollback of instant ADD/DROP
@@ -407,4 +421,4 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-30
+31

@@ -236,6 +236,8 @@ public:
   SplM_field_info *spl_fields;
   /* The number of elements in the above list */
   uint spl_field_cnt;
+  /* The list of equalities injected into WHERE for split optimization */
+  List<Item> inj_cond_list;
   /* Contains the structures to generate all KEYUSEs for pushable equalities */
   List<KEY_FIELD> added_key_fields;
   /* The cache of evaluated execution plans for 'join' with pushed equalities */
@@ -1047,22 +1049,22 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
 bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
 {
   Item *inj_cond= 0;
-  List<Item> inj_cond_list;
+  List<Item> *inj_cond_list= &spl_opt_info->inj_cond_list;
   List_iterator<KEY_FIELD> li(spl_opt_info->added_key_fields);
   KEY_FIELD *added_key_field;
   while ((added_key_field= li++))
   {
     if (remaining_tables & added_key_field->val->used_tables())
       continue;
-    if (inj_cond_list.push_back(added_key_field->cond, thd->mem_root))
+    if (inj_cond_list->push_back(added_key_field->cond, thd->mem_root))
       return true;
   }
-  DBUG_ASSERT(inj_cond_list.elements);
-  switch (inj_cond_list.elements) {
+  DBUG_ASSERT(inj_cond_list->elements);
+  switch (inj_cond_list->elements) {
   case 1:
-    inj_cond= inj_cond_list.head(); break;
+    inj_cond= inj_cond_list->head(); break;
   default:
-    inj_cond= new (thd->mem_root) Item_cond_and(thd, inj_cond_list);
+    inj_cond= new (thd->mem_root) Item_cond_and(thd, *inj_cond_list);
     if (!inj_cond)
       return true;
   }
@@ -1076,6 +1078,40 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
   st_select_lex_unit *unit= select_lex->master_unit();
   unit->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
 
+  return false;
+}
+
+
+/**
+  @brief
+    Test if equality is injected for split optimization
+
+  @param
+    eq_item   equality to to test
+
+  @retval
+    true    eq_item is equality injected for split optimization
+    false   otherwise
+*/
+
+bool is_eq_cond_injected_for_split_opt(Item_func_eq *eq_item)
+{
+  Item *left_item= eq_item->arguments()[0]->real_item();
+  if (left_item->type() != Item::FIELD_ITEM)
+    return false;
+  Field *field= ((Item_field *) left_item)->field;
+  if (!field->table->reginfo.join_tab)
+    return false;
+  JOIN *join= field->table->reginfo.join_tab->join;
+  if (!join->spl_opt_info)
+    return false;
+  List_iterator_fast<Item> li(join->spl_opt_info->inj_cond_list);
+  Item *item;
+  while ((item= li++))
+  {
+    if (item == eq_item)
+        return true;
+  }
   return false;
 }
 
