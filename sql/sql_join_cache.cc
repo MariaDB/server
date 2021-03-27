@@ -1201,7 +1201,7 @@ bool JOIN_CACHE::check_emb_key_usage()
     Item *item= ref->items[i]->real_item();
     Field *fld= ((Item_field *) item)->field;
     CACHE_FIELD *init_copy= field_descr+flag_fields+i; 
-    for (j= i, copy= init_copy; i < local_key_arg_fields;  i++, copy++)
+    for (j= i, copy= init_copy; j < local_key_arg_fields;  j++, copy++)
     {
       if (fld->eq(copy->field))
       {

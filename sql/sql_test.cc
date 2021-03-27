@@ -617,8 +617,12 @@ Next alarm time: %lu\n",
 	(ulong)alarm_info.next_alarm_time);
 #endif
   display_table_locks();
-#ifdef HAVE_MALLINFO
-  struct mallinfo info= mallinfo();
+#if defined(HAVE_MALLINFO2)
+  struct mallinfo2 info = mallinfo2();
+#elif defined(HAVE_MALLINFO)
+    struct mallinfo info= mallinfo();
+#endif
+#if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
   char llbuff[10][22];
   printf("\nMemory status:\n\
 Non-mmapped space allocated from system: %s\n\

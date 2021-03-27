@@ -171,13 +171,8 @@ before_first:
 
 		if (rec_is_metadata(rec, *index)) {
 			ut_ad(!page_has_prev(block->frame));
-			ut_d(const rec_t* p = rec);
 			rec = page_rec_get_next(rec);
 			if (page_rec_is_supremum(rec)) {
-				ut_ad(page_has_next(block->frame)
-				      || rec_is_alter_metadata(p, *index)
-				      || block->page.id().page_no()
-				      != index->page);
 				goto before_first;
 			}
 		}

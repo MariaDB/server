@@ -61,7 +61,7 @@ my %debuggers = (
   lldb => {
     term => 1,
     options => '-s {script} {exe}',
-    script => 'process launch --stop-at-entry {args}',
+    script => 'process launch --stop-at-entry -- {args}',
   },
   valgrind => {
     options => '--tool=memcheck --show-reachable=yes --leak-check=yes --num-callers=16 --quiet --suppressions='.cwd().'/valgrind.supp {exe} {args} --loose-wait-for-pos-timeout=1500',
