@@ -1773,18 +1773,6 @@ NUMERIC_BLOCK_SIZE	0
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
 COMMAND_LINE_ARGUMENT	OPTIONAL
-VARIABLE_NAME	INNODB_SIMULATE_COMP_FAILURES
-SESSION_VALUE	NULL
-DEFAULT_VALUE	0
-VARIABLE_SCOPE	GLOBAL
-VARIABLE_TYPE	INT UNSIGNED
-VARIABLE_COMMENT	Simulate compression failures.
-NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	99
-NUMERIC_BLOCK_SIZE	0
-ENUM_VALUE_LIST	NULL
-READ_ONLY	NO
-COMMAND_LINE_ARGUMENT	NONE
 VARIABLE_NAME	INNODB_SORT_BUFFER_SIZE
 SESSION_VALUE	NULL
 DEFAULT_VALUE	1048576
@@ -2138,7 +2126,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes. To use this option one must use innodb_file_per_table=1, innodb_flush_method=O_DIRECT. This option only works on Linux with either FusionIO cards using the directFS filesystem or with Shannon cards using any file system.
+VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes. This option only works on Linux with either FusionIO cards using the directFS filesystem or with Shannon cards using any file system.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL
