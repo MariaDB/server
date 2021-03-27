@@ -191,11 +191,11 @@ override_dh_installlogrotate-arch:
 	dh_installlogrotate --name mysql-server
 
 override_dh_systemd_enable:
-	dh_systemd_enable --name=mariadb mariadb.socket
-	dh_systemd_enable --name=mariadb-extra mariadb-extra.socket
+	dh_systemd_enable --name=mariadb
+	dh_systemd_enable --no-enable --name=mariadb mariadb.socket
+	dh_systemd_enable --no-enable --name=mariadb-extra mariadb-extra.socket
 	dh_systemd_enable --no-enable --name=mariadb@ mariadb.socket
 	dh_systemd_enable --no-enable --name=mariadb-extra@ mariadb-extra.socket
-	dh_systemd_enable --no-enable --name=mariadb  mariadb.service
 	dh_systemd_enable --no-enable --name=mariadb@ mariadb@.service
 
 # Start MariaDB at sequence number 19 before 20 where apache, proftpd etc gets
