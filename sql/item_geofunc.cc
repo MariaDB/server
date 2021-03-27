@@ -145,7 +145,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
     {
       String *sv= args[1]->val_str(&tmp_js);
       my_error(ER_WRONG_VALUE_FOR_TYPE, MYF(0),
-               "option", sv->c_ptr_safe(), "ST_GeometryFromJSON");
+               "option", sv->c_ptr_safe(), "ST_GeomFromGeoJSON");
       null_value= 1;
       return 0;
     }
@@ -182,7 +182,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
       code= ER_GEOJSON_NOT_CLOSED;
       break;
     case Geometry::GEOJ_DIMENSION_NOT_SUPPORTED:
-      my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeometryFromJSON");
+      my_error(ER_GIS_INVALID_DATA, MYF(0), "ST_GeomFromGeoJSON");
       break;
     default:
       report_json_error_ex(js, &je, func_name(), 0, Sql_condition::WARN_LEVEL_WARN);
