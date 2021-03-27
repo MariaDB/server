@@ -2549,7 +2549,7 @@ double Item_func_sphere_distance::val_real()
   null_value= (args[0]->null_value || args[1]->null_value);
   if (null_value)
   {
-    goto handle_errors;
+    return 0;
   }
 
   if (arg_count == 3)
@@ -2559,7 +2559,7 @@ double Item_func_sphere_distance::val_real()
     if (args[2]->null_value)
     {
       null_value= true;
-      goto handle_errors;
+      return 0;
     }
     if (sphere_radius <= 0)
     {
