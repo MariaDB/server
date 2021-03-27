@@ -4630,10 +4630,6 @@ row_merge_build_indexes(
 						      buf, i + 1, n_indexes);
 			}
 
-			DBUG_EXECUTE_IF("ib_merge_wait_after_sort",
-					std::this_thread::sleep_for(
-						std::chrono::seconds(20)););
-
 			if (error == DB_SUCCESS) {
 				BtrBulk	btr_bulk(sort_idx, trx);
 

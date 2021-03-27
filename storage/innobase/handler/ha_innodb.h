@@ -45,7 +45,7 @@ struct ha_table_option_struct
 	uint		atomic_writes;		/*!< Use atomic writes for this
 						table if this options is ON or
 						in DEFAULT if
-						srv_use_atomic_writes=1.
+						innodb_use_atomic_writes.
 						Atomic writes are not used if
 						value OFF.*/
 	uint		encryption;		/*!<  DEFAULT, ON, OFF */

@@ -1,3 +1,0 @@
---innodb-file-per-table
---skip-innodb-doublewrite
---skip-innodb-read-only-compressed

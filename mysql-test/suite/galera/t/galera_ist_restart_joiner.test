@@ -21,7 +21,8 @@ INSERT INTO t1 VALUES (1, 'a'), (2, 'a'), (3, 'a'), (4, 'a'), (5, 'a'),(6, 'a');
 
 # Disconnect node #2
 --connection node_2
---source suite/galera/include/galera_unload_provider.inc
+SET SESSION wsrep_sync_wait=0;
+--source suite/galera/include/galera_stop_replication.inc
 
 --connection node_1
 UPDATE t1 SET f2 = 'b' WHERE f1 > 1;
@@ -43,7 +44,6 @@ UPDATE t1 SET f2 = 'c' WHERE f1 > 2;
 # ... and restart provider to force IST
 --echo Loading wsrep_provider ...
 --disable_query_log
---eval SET GLOBAL wsrep_provider = '$wsrep_provider_orig';
 # Make sure IST will block ...
 --let $galera_sync_point = recv_IST_after_apply_trx
 --source include/galera_set_sync_point.inc
