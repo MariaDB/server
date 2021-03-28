@@ -325,6 +325,7 @@ int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
   Json_table_column *jc;
   List_iterator_fast<Json_table_column> jc_i(m_jt->m_columns);
   my_ptrdiff_t ptrdiff= buf - table->record[0];
+  Abort_on_warning_instant_set ao_set(table->in_use, FALSE);
 
   while ((jc= jc_i++))
   {

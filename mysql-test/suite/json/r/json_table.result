@@ -581,5 +581,13 @@ show warnings;
 Level	Code	Message
 Error	4177	Can't store an array or an object in the scalar column 'a' of JSON_TABLE 't'.
 #
+# MDEV-JSON_TABLE: CREATE TABLE ignores NULL ON ERROR (implicit or explicit) and fails.
+#
+CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{"x":1}', '$' COLUMNS(f DATE PATH '$.*')) AS jt;
+SELECT * FROM t1;
+f
+NULL
+DROP TABLE t1;
+#
 # End of 10.6 tests
 #

@@ -454,5 +454,13 @@ select a from json_table('[[]]', '$' columns(a char(8) path '$' error on error))
 show warnings;
 
 --echo #
+--echo # MDEV-JSON_TABLE: CREATE TABLE ignores NULL ON ERROR (implicit or explicit) and fails.
+--echo #
+CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{"x":1}', '$' COLUMNS(f DATE PATH '$.*')) AS jt;
+SELECT * FROM t1;
+DROP TABLE t1;
+
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
