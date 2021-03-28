@@ -788,4 +788,53 @@ from
 
 drop table t1,t2,t3;
 
+
+--echo #
+--echo # MDEV-24325: Optimizer trace doesn't cover LATERAL DERIVED
+--echo #
+create table t1 (a int, b int, index idx_b(b)) engine=myisam;
+insert into t1 values
+(8,3), (5,7), (1,2), (2,1), (9,7), (7,5), (2,2), (7,3),
+(9,3), (8,1), (4,5), (2,3);
+
+create table t2 (a int, b int, c char(127), index idx_a(a)) engine=myisam;
+insert into t2 values
+  (7,10,'x'), (1,20,'a'), (2,23,'b'), (7,18,'z'), (1,30,'c'),
+  (4,71,'d'), (3,15,'x'), (7,82,'y'), (8,12,'t'), (4,15,'b'),
+  (11,33,'a'), (10,42,'u'), (4,53,'p'), (10,17,'r'), (2,90,'x'),
+  (17,10,'s'), (11,20,'v'), (12,23,'y'), (17,18,'a'), (11,30,'d'),
+  (24,71,'h'), (23,15,'i'), (27,82,'k'), (28,12,'p'), (24,15,'q'),
+  (31,33,'f'), (30,42,'h'), (40,53,'m'), (30,17,'o'), (21,90,'b'),
+  (37,10,'e'), (31,20,'g'), (32,23,'f'), (37,18,'n'), (41,30,'l'),
+  (54,71,'j'), (53,15,'w'), (57,82,'z'), (58,12,'k'), (54,15,'p'),
+  (61,33,'c'), (60,42,'a'), (62,53,'x'), (67,17,'g'), (64,90,'v');
+
+insert into t2 select a+10, b+10, concat(c,'f') from t2;
+
+analyze table t1,t2;
+
+explain
+select t1.a,t.s,t.m
+from t1 join
+     (select a, sum(t2.b) as s, min(t2.c) as m from t2 group by t2.a) t
+     on t1.a=t.a
+where t1.b < 3;
+
+#
+# Just show that choose_best_splitting function has coverage in the 
+# optimizer trace and re-optmization of child select inside it is distinct 
+# from the rest of join optimization.
+select
+  json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
+from
+  information_schema.optimizer_trace;
+
+# Same as above. just to show that splitting plan has some coverage in the
+# trace.
+select
+  json_detailed(json_extract(trace, '$**.lateral_derived')) 
+from
+  information_schema.optimizer_trace;
+
+drop table t1,t2;
 set optimizer_trace='enabled=off';
