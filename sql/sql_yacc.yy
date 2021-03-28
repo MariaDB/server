@@ -333,7 +333,7 @@ static_assert(sizeof(YYSTYPE) == sizeof(void*)*2+8, "%union size check");
 bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
-%pure-parser                                    /* We have threads */
+%define api.pure                                    /* We have threads */
 %parse-param { THD *thd }
 %lex-param { THD *thd }
 /*
@@ -1602,6 +1602,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
         opt_lock_wait_timeout_new
 
 %type <select_limit> opt_limit_clause limit_clause limit_options
+                     fetch_first_clause
 
 %type <order_limit_lock>
         query_expression_tail
@@ -1705,6 +1706,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 
 %type <num> view_algorithm view_check_option
 %type <view_suid> view_suid opt_view_suid
+%type <num> only_or_with_ties
 
 %type <plsql_cursor_attr> plsql_cursor_attr
 %type <sp_suid> sp_suid
@@ -12254,7 +12256,76 @@ limit_clause:
             $$.clear();
             Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
           }
+        | fetch_first_clause
+          {
+            $$= $1;
+            if (!$$.select_limit ||
+                !$$.select_limit->basic_const_item() ||
+                 $$.select_limit->val_int() > 0)
+              Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_LIMIT);
+          }
         ;
+
+fetch_first_clause:
+          FETCH_SYM first_or_next row_or_rows only_or_with_ties
+          {
+            Item *one= new (thd->mem_root) Item_int(thd, (int32) 1);
+            if (unlikely(one == NULL))
+              MYSQL_YYABORT;
+            $$.select_limit= one;
+            $$.offset_limit= 0;
+            $$.explicit_limit= true;
+            $$.with_ties= $4;
+          }
+        | OFFSET_SYM limit_option
+          FETCH_SYM first_or_next row_or_rows only_or_with_ties
+          {
+            Item *one= new (thd->mem_root) Item_int(thd, (int32) 1);
+            if (unlikely(one == NULL))
+              MYSQL_YYABORT;
+            $$.select_limit= one;
+            $$.offset_limit= $2;
+            $$.explicit_limit= true;
+            $$.with_ties= $6;
+          }
+        | FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
+          {
+            $$.select_limit= $3;
+            $$.offset_limit= 0;
+            $$.explicit_limit= true;
+            $$.with_ties= $5;
+          }
+        | OFFSET_SYM limit_option
+          FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
+          {
+            $$.select_limit= $5;
+            $$.offset_limit= $2;
+            $$.explicit_limit= true;
+            $$.with_ties= $7;
+          }
+        | OFFSET_SYM limit_option
+          {
+            $$.select_limit= 0;
+            $$.offset_limit= $2;
+            $$.explicit_limit= true;
+            $$.with_ties= false;
+          }
+        ;
+
+first_or_next:
+          FIRST_SYM
+        | NEXT_SYM
+        ;
+row_or_rows:
+          ROW_SYM
+        | ROWS_SYM
+        ;
+
+only_or_with_ties:
+          ONLY_SYM      { $$= 0; }
+        | WITH TIES_SYM { $$= 1; }
+        ;
+
 
 opt_global_limit_clause:
           opt_limit_clause
@@ -12267,20 +12338,23 @@ limit_options:
           limit_option
           {
             $$.select_limit= $1;
-            $$.offset_limit= 0;
-            $$.explicit_limit= 1;
+            $$.offset_limit= NULL;
+            $$.explicit_limit= true;
+            $$.with_ties= false;
           }
         | limit_option ',' limit_option
           {
             $$.select_limit= $3;
             $$.offset_limit= $1;
-            $$.explicit_limit= 1;
+            $$.explicit_limit= true;
+            $$.with_ties= false;
           }
         | limit_option OFFSET_SYM limit_option
           {
             $$.select_limit= $1;
             $$.offset_limit= $3;
-            $$.explicit_limit= 1;
+            $$.explicit_limit= true;
+            $$.with_ties= false;
           }
         ;
 
@@ -12402,6 +12476,7 @@ opt_procedure_or_into:
             $$= $2;
           }
         ;
+
 
 order_or_limit:
           order_clause opt_limit_clause
@@ -15324,6 +15399,7 @@ keyword_sysvar_name:
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
+        | OFFSET_SYM
         ;
 
 keyword_set_usual_case:
@@ -15339,6 +15415,7 @@ keyword_set_usual_case:
         | WINDOW_SYM
         | EXCEPTION_ORACLE_SYM
         | IGNORED_SYM
+        | OFFSET_SYM
         ;
 
 non_reserved_keyword_udt:
@@ -15349,6 +15426,7 @@ non_reserved_keyword_udt:
         | keyword_sp_block_section
         | keyword_sysvar_type
         | keyword_sp_var_and_label
+        | OFFSET_SYM
         ;
 
 /*
@@ -15732,7 +15810,6 @@ keyword_sp_var_and_label:
         | NONE_SYM
         | NOTFOUND_SYM
         | OF_SYM
-        | OFFSET_SYM
         | OLD_PASSWORD_SYM
         | ONE_SYM
         | ONLINE_SYM

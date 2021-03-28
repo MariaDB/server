@@ -7975,3 +7975,5 @@ ER_PK_INDEX_CANT_BE_IGNORED
         eng "A primary key cannot be marked as IGNORE"
 ER_BINLOG_UNSAFE_SKIP_LOCKED
 	eng "SKIP LOCKED makes this statement unsafe"
+ER_WITH_TIES_NEEDS_ORDER
+        eng "FETCH ... WITH TIES requires ORDER BY clause to be present"

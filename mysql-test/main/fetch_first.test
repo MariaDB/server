@@ -1,0 +1,1008 @@
+--echo #
+--echo # The following entries are meant for testing the parser, ensuring
+--echo # the right values are passed down to the executor, for all possible
+--echo # syntax combinations.
+--echo #
+--echo # Test basic syntax.
+--echo #
+
+create table t1 (a int);
+create table t_keyword (`offset` int);
+
+insert into t1 values (1), (1), (2), (3), (2);
+insert into t_keyword values (1), (1), (2), (3), (2);
+
+--echo #
+--echo # Make sure the FETCH clause addition didn't introduce problems with
+--echo # the offset keyword.
+--echo #
+select * from t1
+order by a
+offset 2;
+
+--sorted_result
+select * from t1
+offset 2;
+
+
+--echo #
+--echo # Offset is now a reserved keyword. Column names can not have that name
+--echo # without escaping the identifier.
+--echo #
+--error 1064
+select * from t_keyword
+order by offset;
+
+select * from t_keyword
+order by `offset`;
+
+
+--echo #
+--echo # Test syntax without a specific limit. (implicit one row)
+--echo # Test the alias between row / rows and first / next.
+--echo # Test ONLY vs WITH TIES.
+--echo #
+select * from t1
+fetch first row only;
+
+select * from t1
+fetch first rows only;
+
+select * from t1
+fetch next row only;
+
+select * from t1
+fetch next rows only;
+
+--echo #
+--echo # Include offset before fetch clause.
+--echo #
+select * from t1
+order by a
+offset 2
+fetch first row only;
+
+select * from t1
+order by a
+offset 2
+fetch first rows only;
+
+select * from t1
+offset 2
+fetch next row only;
+
+select * from t1
+offset 2
+fetch next rows only;
+
+
+--echo #
+--echo # Repeat the tests, but now with WITH TIES.
+--echo # WITH TIES requires order by.
+--echo #
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch first row with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch first rows with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch next row with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch next rows with ties;
+
+select * from t1
+order by a
+fetch first row with ties;
+
+select * from t1
+order by a
+fetch first rows with ties;
+
+select * from t1
+order by a
+fetch next row with ties;
+
+select * from t1
+order by a
+fetch next rows with ties;
+
+--echo #
+--echo # Include offset before fetch clause.
+--echo #
+
+select * from t1
+order by a
+offset 2
+fetch first row with ties;
+
+select * from t1
+order by a
+offset 2
+fetch first rows with ties;
+
+select * from t1
+order by a
+offset 2
+fetch next row with ties;
+
+select * from t1
+order by a
+offset 2
+fetch next rows with ties;
+
+
+--echo #
+--echo # Test syntax with a specific limit
+--echo #
+select * from t1
+fetch first 3 row only;
+
+select * from t1
+fetch first 3 rows only;
+
+select * from t1
+fetch next 3 row only;
+
+select * from t1
+fetch next 3 rows only;
+
+--echo #
+--echo # Include offset before fetch clause.
+--echo #
+select * from t1
+order by a
+offset 2
+fetch first 3 row only;
+
+select * from t1
+order by a
+offset 2
+fetch first 3 rows only;
+
+select * from t1
+offset 2
+fetch next 3 row only;
+
+select * from t1
+offset 2
+fetch next 3 rows only;
+
+
+--echo #
+--echo # Repeat the tests, but now with WITH TIES.
+--echo # WITH TIES requires order by.
+--echo #
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch first 3 row with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch first 3 rows with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch next 3 row with ties;
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+fetch next 3 rows with ties;
+
+select * from t1
+order by a
+fetch first 3 row with ties;
+
+select * from t1
+order by a
+fetch first 3 rows with ties;
+
+select * from t1
+order by a
+fetch next 3 row with ties;
+
+select * from t1
+order by a
+fetch next 3 rows with ties;
+
+--echo #
+--echo # Include offset before fetch clause.
+--echo #
+
+--error ER_WITH_TIES_NEEDS_ORDER
+select * from t1
+offset 2
+fetch first row with ties;
+
+select * from t1
+order by a
+offset 2
+fetch first 3 row with ties;
+
+select * from t1
+order by a
+offset 2
+fetch first 3 rows with ties;
+
+select * from t1
+order by a
+offset 2
+fetch next 3 row with ties;
+
+select * from t1
+order by a
+offset 2
+fetch next 3 rows with ties;
+
+
+drop table t1;
+drop table t_keyword;
+
+--echo #
+--echo # Test behaviour with a simple select.
+--echo #
+
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+insert into t1 values
+  (1, 'Alice', 'Fowler', 5),
+  (2, 'John', 'Doe', 6),
+  (3, 'John', 'Smith', 6),
+  (4, 'John', 'Smith', 6),
+  (5, 'John', 'Smith', 7),
+  (6, 'John', 'Elton', 8.1),
+  (7, 'Bob',  'Trasc', 9),
+  (8, 'Silvia', 'Ganush', 10);
+
+create table t2
+  (id int,
+   location varchar(100),
+   fk int,
+   constraint `fk_t1`
+     FOREIGN KEY (fk) REFERENCES t1 (id)
+     ON DELETE CASCADE
+     ON UPDATE RESTRICT);
+insert into t2 values
+  (1, 'L1', 1),
+  (2, 'L2', 2),
+  (3, 'L3', 3),
+  (4, 'L3', 4),
+  (5, 'L4', 5),
+  (6, 'L4', 6),
+  (7, 'L4', 7),
+  (7, null, 8);
+
+
+select * from t1
+order by id
+fetch first 3 rows only;
+
+select * from t1
+order by id
+fetch first 3 rows with ties;
+
+select * from t1
+order by first_name
+fetch first 3 rows only;
+
+select * from t1
+order by first_name
+fetch first 3 rows with ties;
+
+--echo #
+--echo # Test multi-part order by.
+--echo #
+select * from t1
+order by first_name, last_name
+fetch first 3 rows with ties;
+
+select * from t1
+order by first_name, last_name
+fetch first 4 rows with ties;
+
+
+select * from t1
+order by first_name, last_name
+offset 1
+fetch first 3 rows with ties;
+
+select * from t1
+order by first_name, last_name
+offset 1
+fetch first 3 rows only;
+
+select * from t1
+order by first_name, last_name
+offset 1
+fetch first 3 rows with ties;
+
+select * from t1
+order by first_name, last_name
+offset 2
+fetch first 3 rows only;
+
+select * from t1
+order by first_name, last_name
+offset 2
+fetch first 3 rows with ties;
+
+select * from t1
+order by first_name, last_name
+offset 3
+fetch first 3 rows only;
+
+select * from t1
+order by first_name, last_name
+offset 3
+fetch first 3 rows with ties;
+
+select * from t1
+order by first_name, last_name
+offset 4
+fetch first 3 rows only;
+
+select * from t1
+order by first_name, last_name
+offset 4
+fetch first 3 rows with ties;
+
+--echo #
+--echo # Test offset crossing into a new peer-group.
+--echo #
+select * from t1
+order by first_name, last_name
+offset 5
+fetch first 3 rows with ties;
+
+select * from t1
+order by first_name, last_name
+offset 5
+fetch first 3 rows only;
+
+--echo #
+--echo # Simple join with 2 tables, order by without columns in the
+--echo # second table and also with columns in the second table.
+--echo #
+--echo # Cover both only and with ties.
+--echo #
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t1.first_name, t1.last_name
+fetch first 3 rows only;
+
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t2.location, t1.first_name, t1.last_name
+fetch first 3 rows only;
+
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t1.first_name, t1.last_name
+fetch first 3 rows with ties;
+
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t2.location, t1.first_name, t1.last_name
+fetch first 3 rows with ties;
+
+--echo #
+--echo # Test descending order by.
+--echo #
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t2.location desc, t1.first_name, t1.last_name
+fetch first 3 rows only;
+
+--sorted_result
+select * from t2
+order by t2.location desc
+fetch first 2 rows with ties;
+
+--sorted_result
+select * from t2
+order by t2.location desc
+offset 1
+fetch first 2 rows with ties;
+
+--sorted_result
+select * from t2
+order by t2.location desc
+offset 2
+fetch first 2 rows with ties;
+
+--echo #
+--echo # Test a join with descending order by.
+--echo #
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t2.location desc, t1.first_name, t1.last_name
+fetch first 3 rows with ties;
+
+--echo #
+--echo # Test subqueries.
+--echo #
+select * from (
+  select * from t2
+  order by t2.location desc
+  offset 2
+  fetch first 2 rows with ties
+) temp;
+
+
+select * from t2
+order by t2.location desc
+offset 0
+fetch first 2 rows with ties;
+
+create view v1 as (
+  select * from t2
+  order by t2.location desc
+  offset 0
+  fetch first 2 rows with ties
+);
+
+create view v2 as (
+  select * from t2
+  order by t2.location desc
+  offset 1
+  fetch first 2 rows with ties
+);
+
+create view v3 as (
+  select * from t2
+  order by t2.location desc
+  offset 2
+  fetch first row with ties
+);
+
+
+
+select * from v1;
+select * from v2;
+select * from v3;
+
+show create view v1;
+show create view v2;
+show create view v3;
+
+--echo #
+--echo # Test joins with views and order by referenced from the view.
+--echo #
+
+--sorted_result
+select *
+from t1 inner join v1 on t1.id = v1.fk
+order by v1.location desc, t1.first_name
+offset 1
+fetch first 1 rows with ties;
+
+select first_name, last_name, sum(score)
+from t1
+group by first_name, last_name
+order by first_name;
+
+--echo #
+--echo # Test with ties with group by. Make sure that if order by is a less
+--echo # specific sort of group by, that WITH TIES still gets executed.
+--echo #
+
+explain
+select first_name, last_name, sum(score)
+from t1
+group by first_name, last_name
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+
+--sorted_result
+select first_name, last_name, sum(score)
+from t1
+group by first_name, last_name
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+
+
+
+drop table t1;
+drop table t2;
+drop view v1;
+drop view v2;
+drop view v3;
+
+--echo #
+--echo # Test with ties when an index is used to provide the order by.
+--echo #
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+
+create index t1_name on t1 (first_name, last_name);
+
+insert into t1 values
+  (1, 'Alice', 'Fowler', 5),
+  (2, 'John', 'Doe', 6),
+  (3, 'John', 'Smith', 6),
+  (4, 'John', 'Smith', 6),
+  (5, 'John', 'Smith', 7),
+  (6, 'John', 'Elton', 8.1),
+  (7, 'Bob',  'Trasc', 9),
+  (8, 'Silvia', 'Ganush', 10);
+
+explain select first_name, last_name
+from t1
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+
+explain select first_name, last_name
+from t1
+order by first_name desc
+fetch first 2 rows with ties;
+
+
+select first_name, last_name
+from t1
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+
+select first_name, last_name
+from t1
+order by first_name desc
+fetch first 2 rows with ties;
+
+
+select first_name, last_name
+from t1
+order by first_name desc
+offset 1
+fetch first 2 rows with ties;
+
+select first_name, last_name
+from t1
+order by first_name desc
+offset 4
+fetch first 2 rows with ties;
+
+select first_name, last_name
+from t1
+order by first_name desc
+offset 4
+fetch first 3 rows with ties;
+
+explain select first_name, last_name
+from t1
+where first_name != 'John'
+order by first_name
+fetch first 2 rows with ties;
+
+select first_name, last_name
+from t1
+where first_name != 'John'
+order by first_name
+fetch first 2 rows with ties;
+
+
+
+select first_name, last_name
+from t1
+where first_name != 'John'
+group by first_name, last_name
+order by first_name
+fetch first 2 rows with ties;
+
+
+--echo #
+--echo # Test CTE support.
+--echo #
+explain with temp_table as (
+  select first_name, last_name
+  from t1
+  where first_name != 'John'
+  group by first_name, last_name
+  order by first_name
+  fetch first 2 rows with ties
+)
+select * from temp_table
+order by first_name, last_name;
+
+with temp_table as (
+  select first_name, last_name
+  from t1
+  group by first_name, last_name
+  order by first_name
+  fetch first 3 rows with ties
+)
+select * from temp_table
+order by first_name, last_name;
+
+with temp_table as (
+  select first_name, last_name
+  from t1
+  group by first_name, last_name
+  order by first_name
+  fetch first 3 rows with ties
+)
+select * from temp_table
+order by last_name
+fetch first 3 rows with ties;
+
+--sorted_result
+with temp_table as (
+  select first_name, last_name
+  from t1
+  group by first_name, last_name
+  order by first_name
+  fetch first 3 rows with ties
+)
+select * from temp_table
+order by first_name
+fetch first 3 rows with ties;
+
+--sorted_result
+with temp_table as (
+  select first_name, last_name
+  from t1
+  group by first_name, last_name
+  order by first_name
+  fetch first 3 rows with ties
+)
+select * from temp_table
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+
+
+select first_name, row_number() over () rn
+from t1
+order by rn
+offset 1
+fetch first 2 rows with ties;
+
+select first_name, row_number() over () rn
+from t1
+order by rn desc
+offset 1
+fetch first 2 rows with ties;
+
+select first_name, score, rank() over (ORDER BY score)
+from t1
+order by rank() over (ORDER BY score)
+fetch first 3 rows with ties;
+
+select first_name, score, rank() over (ORDER BY score)
+from t1
+order by rank() over (ORDER BY score)
+offset 1
+fetch first 2 rows with ties;
+
+select first_name, score, rank() over (ORDER BY score)
+from t1
+order by rank() over (ORDER BY score)
+fetch first 6 rows with ties;
+
+
+--echo #
+--echo # Test nulls.
+--echo #
+create table t2 (id int, location varchar(100), time datetime, value int, fk int);
+
+insert into t2 values (1, 'home', '2020-01-01 10:00', 10, 1);
+insert into t2 values (2, 'home', '2020-01-01 11:00', 11, 2);
+insert into t2 values (3, 'home', '2020-01-01 12:00', 12, 3);
+insert into t2 values (4, 'home', '2020-01-01 13:00', 13, 3);
+insert into t2 values (5, 'home', '2020-01-01 14:00', 13, 3);
+insert into t2 values (6, 'home', '2020-01-01 15:00', 13, 2);
+insert into t2 values (7, 'home', '2020-01-01 16:00', 13, 6);
+insert into t2 values (8, 'outside', '2020-01-01 17:00', 17, 6);
+insert into t2 values (9, 'outside', '2020-01-01 18:00', 17, 6);
+insert into t2 values (10, 'outside', '2020-01-01 19:00', 17, 8);
+insert into t2 values (11, 'outside', '2020-01-01 20:00', 16, 7);
+insert into t2 values (12, 'outside', '2020-01-01 21:00', 16, 7);
+
+--sorted_result
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location;
+
+--sorted_result
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location
+fetch first 1 row with ties;
+
+--sorted_result
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location
+fetch first 2 row with ties;
+
+--sorted_result
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location
+fetch first 3 row with ties;
+
+--sorted_result
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location
+offset 2
+fetch first 1 row with ties;
+
+
+--echo #
+--echo # Test union-like operator with multiple fetch first clauses.
+--echo #
+select * from t1 order by 1 fetch first 3 rows with ties;
+select * from t1 order by first_name desc fetch first 3 rows with ties;
+
+--sorted_result
+(select * from t1 order by 1 fetch first 3 rows with ties)
+intersect
+(select * from t1 order by first_name desc fetch first 3 rows with ties)
+order by first_name
+fetch first 1 row with ties;
+
+--sorted_result
+(select * from t1 order by 1 fetch first 3 rows with ties)
+except
+(select * from t1 order by first_name desc fetch first 3 rows with ties)
+order by first_name
+fetch first 1 row with ties;
+
+--sorted_result
+(select * from t1 order by 1 fetch first 3 rows with ties)
+except
+(select * from t1 order by first_name desc fetch first 3 rows with ties)
+order by first_name
+offset 1
+fetch first 1 row with ties;
+
+--sorted_result
+select sum(score)
+from t1
+order by 1
+fetch first 2 rows with ties;
+
+--sorted_result
+select sum(score)
+from t1
+group by id
+order by 1
+fetch first 2 rows with ties;
+
+drop table t1;
+drop table t2;
+
+--echo #
+--echo # Test SQL_CALC_FOUND_ROWS
+--echo #
+create table t1 (a int, b int, index (a,b));
+insert into t1 values (1,1), (1,2), (1,3), (2,1), (2,2), (3,1);
+
+select SQL_CALC_FOUND_ROWS a, b, count(*)
+from t1
+group by a, b
+order by a
+fetch first 1 rows with ties;
+SELECT FOUND_ROWS();
+
+--sorted_result
+select SQL_CALC_FOUND_ROWS a, b
+from t1
+order by a
+fetch first 1 rows with ties;
+SELECT FOUND_ROWS();
+
+--echo #
+--echo # Test index read optimization with ORDER BY as sub part of GROUP BY
+--echo #
+explain select a, b, count(*)
+from t1
+group by a, b
+order by a;
+
+explain select a, b, count(*)
+from t1
+group by a, b
+order by a
+fetch first 1 rows with ties;
+
+--echo #
+--echo # Test FETCH ... WITH TIES / ONLY with prepared statements
+--echo #
+
+prepare s from "select a, b from t1 order by a fetch first ? rows with ties";
+
+set @a='qwe';
+execute s using @a;
+
+set @a=-1;
+--error ER_WRONG_ARGUMENTS
+execute s using @a;
+
+prepare s2 from "select a, b from t1 order by a offset ? fetch first ? rows with ties";
+set @offset=1;
+set @limit_count= 2;
+execute s2 using @offset, @limit_count;
+
+execute s2 using @offset, 3;
+
+--error ER_WRONG_ARGUMENTS
+execute s2 using -1, 3;
+
+--echo #
+--echo # Test with ties with a constant order by.
+--echo #
+select a, b
+from t1
+order by 'x'
+fetch first 2 rows with ties;
+
+select b, sum(a)
+from t1
+group by b
+order by 'x', 'y', 'z'
+fetch first 2 rows with ties;
+
+--echo #
+--echo # Test with ties when group by is used and order by gets eliminated.
+--echo #
+--sorted_result
+select b, sum(a)
+from t1
+group by b
+order by 'x', 'y', 'z'
+fetch first 2 rows with ties;
+
+--echo #
+--echo # Test an ill formed SELECT using MySQL/MariaDBs group by extension
+--echo # of not requiring all non-aggregate fields to be part of group
+--echo # by.
+--echo #
+--sorted_result
+select b, a, sum(a)
+from t1
+group by a
+order by b, 'x', 'y', 'z'
+fetch first 2 rows with ties;
+
+delete from t1;
+insert into t1 values (1,1), (1,2), (1,3), (2,1), (2,2), (3,2), (3, 3);
+
+--sorted_result
+select b, a, sum(a)
+from t1
+group by a
+order by b, 'x', 'y', 'z'
+fetch first 1 rows with ties;
+
+--sorted_result
+select b, a, sum(a)
+from t1
+group by a
+order by 'x', b, 'x', 'y', 'z'
+fetch first 1 rows with ties;
+
+--sorted_result
+select b, a, sum(a)
+from t1
+group by a
+order by 'x', 'y', b
+fetch first 1 rows with ties;
+
+
+--echo #
+--echo # Test with ties when order by a const column is used.
+--echo #
+select a, b
+from t1
+order by a, 'a'
+fetch first 2 rows with ties;
+
+--echo #
+--echo # Order by aggregates.
+--echo #
+--sorted_result
+select a, b, sum(a)
+from t1
+group by a, b
+order by sum(a)
+fetch first 1 rows with ties;
+
+--echo # Test different sum function in order by, not present in select list.
+--sorted_result
+select a, b, sum(a)
+from t1
+group by a, b
+order by sum(b)
+fetch first 1 rows with ties;
+
+--echo # Test aggregates with constant columns in order by.
+--sorted_result
+select a, b, sum(a)
+from t1
+group by a, b
+order by a
+fetch first 1 rows with ties;
+
+select a, b, sum(a)
+from t1
+group by a, b
+order by a, 'x'
+fetch first 1 rows with ties;
+
+select a, b, sum(a)
+from t1
+group by a, b
+order by a, b
+fetch first 1 rows with ties;
+
+select a, b, sum(a)
+from t1
+group by a, b
+order by a, b
+fetch first 2 rows with ties;
+
+select a, b, sum(a)
+from t1
+group by a, b
+order by a, b, 'x'
+fetch first 1 rows with ties;
+
+select a, b, sum(a)
+from t1
+group by a, 'x', b
+order by a, b, 'x'
+fetch first 1 rows with ties;
+
+select a, b, sum(a)
+from t1
+group by 'x', a, b
+order by a, b, 'x'
+fetch first 1 rows with ties;
+
+
+select a, b, sum(a)
+from t1
+group by a, b
+order by 'x', a, 'x', b, 't', b
+fetch first 1 rows with ties;
+
+--sorted_result
+select a, b, sum(a)
+from t1
+group by a, b
+order by b, 't', b
+fetch first 1 rows with ties;
+
+--echo #
+--echo # Test with subqueries in order by
+--echo #
+select a, b, sum(a)
+from t1
+group by a, b
+order by (select 1)
+fetch first 1 rows with ties;
+
+select a, b, sum(a)
+from t1
+group by a, b
+order by (select 1), a
+fetch first 1 rows with ties;
+
+select a, b, sum(a)
+from t1
+group by a, b
+order by (select 1), a
+fetch first 1 rows with ties;
+
+
+
+drop table t1;
