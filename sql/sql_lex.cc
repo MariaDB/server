@@ -2910,7 +2910,7 @@ void st_select_lex_unit::init_query()
 {
   init_query_common();
   set_linkage(GLOBAL_OPTIONS_TYPE);
-  lim.set_unlimited();
+  lim.clear();
   union_distinct= 0;
   prepared= optimized= optimized_2= executed= 0;
   bag_set_op_optimized= 0;
