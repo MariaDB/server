@@ -666,7 +666,8 @@ bool THD::drop_temporary_table(TABLE *table, bool *is_trans, bool delete_table)
   temporary_tables->remove(share);
 
   /* Free the TABLE_SHARE and/or delete the files. */
-  free_tmp_table_share(share, delete_table);
+  if (free_tmp_table_share(share, delete_table))
+    result= true;
 
 end:
   if (locked)
@@ -1451,18 +1452,20 @@ bool THD::log_events_and_free_tmp_shares()
 
   @return void
 */
-void THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
+bool THD::free_tmp_table_share(TMP_TABLE_SHARE *share, bool delete_table)
 {
   DBUG_ENTER("THD::free_tmp_table_share");
 
+  bool error= false;
+  
   if (delete_table)
   {
-    rm_temporary_table(share->db_type(), share->path.str);
+    error= rm_temporary_table(share->db_type(), share->path.str);
   }
   free_table_share(share);
   my_free(share);
 
-  DBUG_VOID_RETURN;
+  DBUG_RETURN(error);
 }
 
 
