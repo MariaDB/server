@@ -1,0 +1,1312 @@
+#
+# The following entries are meant for testing the parser, ensuring
+# the right values are passed down to the executor, for all possible
+# syntax combinations.
+#
+# Test basic syntax.
+#
+create table t1 (a int);
+create table t_keyword (`offset` int);
+insert into t1 values (1), (1), (2), (3), (2);
+insert into t_keyword values (1), (1), (2), (3), (2);
+#
+# Make sure the FETCH clause addition didn't introduce problems with
+# the offset keyword.
+#
+select * from t1
+order by a
+offset 2;
+a
+2
+2
+3
+select * from t1
+offset 2;
+a
+2
+2
+3
+#
+# Offset is now a reserved keyword. Column names can not have that name
+# without escaping the identifier.
+#
+select * from t_keyword
+order by offset;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'offset' at line 2
+select * from t_keyword
+order by `offset`;
+offset
+1
+1
+2
+2
+3
+#
+# Test syntax without a specific limit. (implicit one row)
+# Test the alias between row / rows and first / next.
+# Test ONLY vs WITH TIES.
+#
+select * from t1
+fetch first row only;
+a
+1
+select * from t1
+fetch first rows only;
+a
+1
+select * from t1
+fetch next row only;
+a
+1
+select * from t1
+fetch next rows only;
+a
+1
+#
+# Include offset before fetch clause.
+#
+select * from t1
+order by a
+offset 2
+fetch first row only;
+a
+2
+select * from t1
+order by a
+offset 2
+fetch first rows only;
+a
+2
+select * from t1
+offset 2
+fetch next row only;
+a
+2
+select * from t1
+offset 2
+fetch next rows only;
+a
+2
+#
+# Repeat the tests, but now with WITH TIES.
+# WITH TIES requires order by.
+#
+select * from t1
+fetch first row with ties;
+ERROR HY000: FETCH ... WITH TIES requires ORDER BY clause to be present
+select * from t1
+fetch first rows with ties;
+ERROR HY000: FETCH ... WITH TIES requires ORDER BY clause to be present
+select * from t1
+fetch next row with ties;
+ERROR HY000: FETCH ... WITH TIES requires ORDER BY clause to be present
+select * from t1
+fetch next rows with ties;
+ERROR HY000: FETCH ... WITH TIES requires ORDER BY clause to be present
+select * from t1
+order by a
+fetch first row with ties;
+a
+1
+1
+select * from t1
+order by a
+fetch first rows with ties;
+a
+1
+1
+select * from t1
+order by a
+fetch next row with ties;
+a
+1
+1
+select * from t1
+order by a
+fetch next rows with ties;
+a
+1
+1
+#
+# Include offset before fetch clause.
+#
+select * from t1
+order by a
+offset 2
+fetch first row with ties;
+a
+2
+2
+select * from t1
+order by a
+offset 2
+fetch first rows with ties;
+a
+2
+2
+select * from t1
+order by a
+offset 2
+fetch next row with ties;
+a
+2
+2
+select * from t1
+order by a
+offset 2
+fetch next rows with ties;
+a
+2
+2
+#
+# Test syntax with a specific limit
+#
+select * from t1
+fetch first 3 row only;
+a
+1
+1
+2
+select * from t1
+fetch first 3 rows only;
+a
+1
+1
+2
+select * from t1
+fetch next 3 row only;
+a
+1
+1
+2
+select * from t1
+fetch next 3 rows only;
+a
+1
+1
+2
+#
+# Include offset before fetch clause.
+#
+select * from t1
+order by a
+offset 2
+fetch first 3 row only;
+a
+2
+2
+3
+select * from t1
+order by a
+offset 2
+fetch first 3 rows only;
+a
+2
+2
+3
+select * from t1
+offset 2
+fetch next 3 row only;
+a
+2
+3
+2
+select * from t1
+offset 2
+fetch next 3 rows only;
+a
+2
+3
+2
+#
+# Repeat the tests, but now with WITH TIES.
+# WITH TIES requires order by.
+#
+select * from t1
+fetch first 3 row with ties;
+ERROR HY000: FETCH ... WITH TIES requires ORDER BY clause to be present
+select * from t1
+fetch first 3 rows with ties;
+ERROR HY000: FETCH ... WITH TIES requires ORDER BY clause to be present
+select * from t1
+fetch next 3 row with ties;
+ERROR HY000: FETCH ... WITH TIES requires ORDER BY clause to be present
+select * from t1
+fetch next 3 rows with ties;
+ERROR HY000: FETCH ... WITH TIES requires ORDER BY clause to be present
+select * from t1
+order by a
+fetch first 3 row with ties;
+a
+1
+1
+2
+2
+select * from t1
+order by a
+fetch first 3 rows with ties;
+a
+1
+1
+2
+2
+select * from t1
+order by a
+fetch next 3 row with ties;
+a
+1
+1
+2
+2
+select * from t1
+order by a
+fetch next 3 rows with ties;
+a
+1
+1
+2
+2
+#
+# Include offset before fetch clause.
+#
+select * from t1
+offset 2
+fetch first row with ties;
+ERROR HY000: FETCH ... WITH TIES requires ORDER BY clause to be present
+select * from t1
+order by a
+offset 2
+fetch first 3 row with ties;
+a
+2
+2
+3
+select * from t1
+order by a
+offset 2
+fetch first 3 rows with ties;
+a
+2
+2
+3
+select * from t1
+order by a
+offset 2
+fetch next 3 row with ties;
+a
+2
+2
+3
+select * from t1
+order by a
+offset 2
+fetch next 3 rows with ties;
+a
+2
+2
+3
+drop table t1;
+drop table t_keyword;
+#
+# Test behaviour with a simple select.
+#
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+insert into t1 values
+(1, 'Alice', 'Fowler', 5),
+(2, 'John', 'Doe', 6),
+(3, 'John', 'Smith', 6),
+(4, 'John', 'Smith', 6),
+(5, 'John', 'Smith', 7),
+(6, 'John', 'Elton', 8.1),
+(7, 'Bob',  'Trasc', 9),
+(8, 'Silvia', 'Ganush', 10);
+create table t2
+(id int,
+location varchar(100),
+fk int,
+constraint `fk_t1`
+     FOREIGN KEY (fk) REFERENCES t1 (id)
+ON DELETE CASCADE
+ON UPDATE RESTRICT);
+insert into t2 values
+(1, 'L1', 1),
+(2, 'L2', 2),
+(3, 'L3', 3),
+(4, 'L3', 4),
+(5, 'L4', 5),
+(6, 'L4', 6),
+(7, 'L4', 7),
+(7, null, 8);
+select * from t1
+order by id
+fetch first 3 rows only;
+id	first_name	last_name	score
+1	Alice	Fowler	5
+2	John	Doe	6
+3	John	Smith	6
+select * from t1
+order by id
+fetch first 3 rows with ties;
+id	first_name	last_name	score
+1	Alice	Fowler	5
+2	John	Doe	6
+3	John	Smith	6
+select * from t1
+order by first_name
+fetch first 3 rows only;
+id	first_name	last_name	score
+1	Alice	Fowler	5
+7	Bob	Trasc	9
+3	John	Smith	6
+select * from t1
+order by first_name
+fetch first 3 rows with ties;
+id	first_name	last_name	score
+1	Alice	Fowler	5
+7	Bob	Trasc	9
+2	John	Doe	6
+3	John	Smith	6
+4	John	Smith	6
+5	John	Smith	7
+6	John	Elton	8.1
+#
+# Test multi-part order by.
+#
+select * from t1
+order by first_name, last_name
+fetch first 3 rows with ties;
+id	first_name	last_name	score
+1	Alice	Fowler	5
+7	Bob	Trasc	9
+2	John	Doe	6
+select * from t1
+order by first_name, last_name
+fetch first 4 rows with ties;
+id	first_name	last_name	score
+1	Alice	Fowler	5
+7	Bob	Trasc	9
+2	John	Doe	6
+6	John	Elton	8.1
+select * from t1
+order by first_name, last_name
+offset 1
+fetch first 3 rows with ties;
+id	first_name	last_name	score
+7	Bob	Trasc	9
+2	John	Doe	6
+6	John	Elton	8.1
+select * from t1
+order by first_name, last_name
+offset 1
+fetch first 3 rows only;
+id	first_name	last_name	score
+7	Bob	Trasc	9
+2	John	Doe	6
+6	John	Elton	8.1
+select * from t1
+order by first_name, last_name
+offset 1
+fetch first 3 rows with ties;
+id	first_name	last_name	score
+7	Bob	Trasc	9
+2	John	Doe	6
+6	John	Elton	8.1
+select * from t1
+order by first_name, last_name
+offset 2
+fetch first 3 rows only;
+id	first_name	last_name	score
+2	John	Doe	6
+6	John	Elton	8.1
+5	John	Smith	7
+select * from t1
+order by first_name, last_name
+offset 2
+fetch first 3 rows with ties;
+id	first_name	last_name	score
+2	John	Doe	6
+6	John	Elton	8.1
+3	John	Smith	6
+4	John	Smith	6
+5	John	Smith	7
+select * from t1
+order by first_name, last_name
+offset 3
+fetch first 3 rows only;
+id	first_name	last_name	score
+6	John	Elton	8.1
+3	John	Smith	6
+4	John	Smith	6
+select * from t1
+order by first_name, last_name
+offset 3
+fetch first 3 rows with ties;
+id	first_name	last_name	score
+6	John	Elton	8.1
+3	John	Smith	6
+4	John	Smith	6
+5	John	Smith	7
+select * from t1
+order by first_name, last_name
+offset 4
+fetch first 3 rows only;
+id	first_name	last_name	score
+3	John	Smith	6
+4	John	Smith	6
+5	John	Smith	7
+select * from t1
+order by first_name, last_name
+offset 4
+fetch first 3 rows with ties;
+id	first_name	last_name	score
+3	John	Smith	6
+4	John	Smith	6
+5	John	Smith	7
+#
+# Test offset crossing into a new peer-group.
+#
+select * from t1
+order by first_name, last_name
+offset 5
+fetch first 3 rows with ties;
+id	first_name	last_name	score
+4	John	Smith	6
+5	John	Smith	7
+8	Silvia	Ganush	10
+select * from t1
+order by first_name, last_name
+offset 5
+fetch first 3 rows only;
+id	first_name	last_name	score
+4	John	Smith	6
+5	John	Smith	7
+8	Silvia	Ganush	10
+#
+# Simple join with 2 tables, order by without columns in the
+# second table and also with columns in the second table.
+#
+# Cover both only and with ties.
+#
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t1.first_name, t1.last_name
+fetch first 3 rows only;
+id	first_name	last_name	score	location
+1	Alice	Fowler	5	L1
+7	Bob	Trasc	9	L4
+2	John	Doe	6	L2
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t2.location, t1.first_name, t1.last_name
+fetch first 3 rows only;
+id	first_name	last_name	score	location
+8	Silvia	Ganush	10	NULL
+1	Alice	Fowler	5	L1
+2	John	Doe	6	L2
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t1.first_name, t1.last_name
+fetch first 3 rows with ties;
+id	first_name	last_name	score	location
+1	Alice	Fowler	5	L1
+7	Bob	Trasc	9	L4
+2	John	Doe	6	L2
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t2.location, t1.first_name, t1.last_name
+fetch first 3 rows with ties;
+id	first_name	last_name	score	location
+8	Silvia	Ganush	10	NULL
+1	Alice	Fowler	5	L1
+2	John	Doe	6	L2
+#
+# Test descending order by.
+#
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t2.location desc, t1.first_name, t1.last_name
+fetch first 3 rows only;
+id	first_name	last_name	score	location
+7	Bob	Trasc	9	L4
+6	John	Elton	8.1	L4
+5	John	Smith	7	L4
+select * from t2
+order by t2.location desc
+fetch first 2 rows with ties;
+id	location	fk
+5	L4	5
+6	L4	6
+7	L4	7
+select * from t2
+order by t2.location desc
+offset 1
+fetch first 2 rows with ties;
+id	location	fk
+6	L4	6
+7	L4	7
+select * from t2
+order by t2.location desc
+offset 2
+fetch first 2 rows with ties;
+id	location	fk
+3	L3	3
+4	L3	4
+7	L4	7
+#
+# Test a join with descending order by.
+#
+select t1.id, t1.first_name, t1.last_name, t1.score, t2.location
+from t1 inner join t2 on t1.id = t2.fk
+order by t2.location desc, t1.first_name, t1.last_name
+fetch first 3 rows with ties;
+id	first_name	last_name	score	location
+7	Bob	Trasc	9	L4
+6	John	Elton	8.1	L4
+5	John	Smith	7	L4
+#
+# Test subqueries.
+#
+select * from (
+select * from t2
+order by t2.location desc
+offset 2
+fetch first 2 rows with ties
+) temp;
+id	location	fk
+7	L4	7
+3	L3	3
+4	L3	4
+select * from t2
+order by t2.location desc
+offset 0
+fetch first 2 rows with ties;
+id	location	fk
+5	L4	5
+6	L4	6
+7	L4	7
+create view v1 as (
+select * from t2
+order by t2.location desc
+offset 0
+fetch first 2 rows with ties
+);
+create view v2 as (
+select * from t2
+order by t2.location desc
+offset 1
+fetch first 2 rows with ties
+);
+create view v3 as (
+select * from t2
+order by t2.location desc
+offset 2
+fetch first row with ties
+);
+select * from v1;
+id	location	fk
+5	L4	5
+6	L4	6
+7	L4	7
+select * from v2;
+id	location	fk
+6	L4	6
+7	L4	7
+select * from v3;
+id	location	fk
+7	L4	7
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS (select `t2`.`id` AS `id`,`t2`.`location` AS `location`,`t2`.`fk` AS `fk` from `t2` order by `t2`.`location` desc offset 0 fetch first 2 rows with ties)	latin1	latin1_swedish_ci
+show create view v2;
+View	Create View	character_set_client	collation_connection
+v2	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS (select `t2`.`id` AS `id`,`t2`.`location` AS `location`,`t2`.`fk` AS `fk` from `t2` order by `t2`.`location` desc offset 1 fetch first 2 rows with ties)	latin1	latin1_swedish_ci
+show create view v3;
+View	Create View	character_set_client	collation_connection
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS (select `t2`.`id` AS `id`,`t2`.`location` AS `location`,`t2`.`fk` AS `fk` from `t2` order by `t2`.`location` desc offset 2 fetch first 1 rows with ties)	latin1	latin1_swedish_ci
+#
+# Test joins with views and order by referenced from the view.
+#
+select *
+from t1 inner join v1 on t1.id = v1.fk
+order by v1.location desc, t1.first_name
+offset 1
+fetch first 1 rows with ties;
+id	first_name	last_name	score	id	location	fk
+5	John	Smith	7	5	L4	5
+6	John	Elton	8.1	6	L4	6
+select first_name, last_name, sum(score)
+from t1
+group by first_name, last_name
+order by first_name;
+first_name	last_name	sum(score)
+Alice	Fowler	5
+Bob	Trasc	9
+John	Doe	6
+John	Elton	8.1
+John	Smith	19
+Silvia	Ganush	10
+#
+# Test with ties with group by. Make sure that if order by is a less
+# specific sort of group by, that WITH TIES still gets executed.
+#
+explain
+select first_name, last_name, sum(score)
+from t1
+group by first_name, last_name
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	8	Using temporary; Using filesort
+select first_name, last_name, sum(score)
+from t1
+group by first_name, last_name
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+first_name	last_name	sum(score)
+Bob	Trasc	9
+John	Doe	6
+John	Elton	8.1
+John	Smith	19
+drop table t1;
+drop table t2;
+drop view v1;
+drop view v2;
+drop view v3;
+#
+# Test with ties when an index is used to provide the order by.
+#
+create table t1 (id int, first_name varchar(100), last_name varchar(100), score double);
+create index t1_name on t1 (first_name, last_name);
+insert into t1 values
+(1, 'Alice', 'Fowler', 5),
+(2, 'John', 'Doe', 6),
+(3, 'John', 'Smith', 6),
+(4, 'John', 'Smith', 6),
+(5, 'John', 'Smith', 7),
+(6, 'John', 'Elton', 8.1),
+(7, 'Bob',  'Trasc', 9),
+(8, 'Silvia', 'Ganush', 10);
+explain select first_name, last_name
+from t1
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	t1_name	206	NULL	3	Using index
+explain select first_name, last_name
+from t1
+order by first_name desc
+fetch first 2 rows with ties;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	t1_name	206	NULL	2	Using index
+select first_name, last_name
+from t1
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+first_name	last_name
+Bob	Trasc
+John	Doe
+John	Elton
+John	Smith
+John	Smith
+John	Smith
+select first_name, last_name
+from t1
+order by first_name desc
+fetch first 2 rows with ties;
+first_name	last_name
+Silvia	Ganush
+John	Smith
+John	Smith
+John	Smith
+John	Elton
+John	Doe
+select first_name, last_name
+from t1
+order by first_name desc
+offset 1
+fetch first 2 rows with ties;
+first_name	last_name
+John	Smith
+John	Smith
+John	Smith
+John	Elton
+John	Doe
+select first_name, last_name
+from t1
+order by first_name desc
+offset 4
+fetch first 2 rows with ties;
+first_name	last_name
+John	Elton
+John	Doe
+select first_name, last_name
+from t1
+order by first_name desc
+offset 4
+fetch first 3 rows with ties;
+first_name	last_name
+John	Elton
+John	Doe
+Bob	Trasc
+explain select first_name, last_name
+from t1
+where first_name != 'John'
+order by first_name
+fetch first 2 rows with ties;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	t1_name	t1_name	103	NULL	3	Using where; Using index
+select first_name, last_name
+from t1
+where first_name != 'John'
+order by first_name
+fetch first 2 rows with ties;
+first_name	last_name
+Alice	Fowler
+Bob	Trasc
+select first_name, last_name
+from t1
+where first_name != 'John'
+group by first_name, last_name
+order by first_name
+fetch first 2 rows with ties;
+first_name	last_name
+Alice	Fowler
+Bob	Trasc
+#
+# Test CTE support.
+#
+explain with temp_table as (
+select first_name, last_name
+from t1
+where first_name != 'John'
+  group by first_name, last_name
+order by first_name
+fetch first 2 rows with ties
+)
+select * from temp_table
+order by first_name, last_name;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	Using filesort
+2	DERIVED	t1	range	t1_name	t1_name	103	NULL	3	Using where; Using index
+with temp_table as (
+select first_name, last_name
+from t1
+group by first_name, last_name
+order by first_name
+fetch first 3 rows with ties
+)
+select * from temp_table
+order by first_name, last_name;
+first_name	last_name
+Alice	Fowler
+Bob	Trasc
+John	Doe
+John	Elton
+John	Smith
+with temp_table as (
+select first_name, last_name
+from t1
+group by first_name, last_name
+order by first_name
+fetch first 3 rows with ties
+)
+select * from temp_table
+order by last_name
+fetch first 3 rows with ties;
+first_name	last_name
+John	Doe
+John	Elton
+Alice	Fowler
+with temp_table as (
+select first_name, last_name
+from t1
+group by first_name, last_name
+order by first_name
+fetch first 3 rows with ties
+)
+select * from temp_table
+order by first_name
+fetch first 3 rows with ties;
+first_name	last_name
+Alice	Fowler
+Bob	Trasc
+John	Doe
+John	Elton
+John	Smith
+with temp_table as (
+select first_name, last_name
+from t1
+group by first_name, last_name
+order by first_name
+fetch first 3 rows with ties
+)
+select * from temp_table
+order by first_name
+offset 1
+fetch first 2 rows with ties;
+first_name	last_name
+Bob	Trasc
+John	Doe
+John	Elton
+John	Smith
+select first_name, row_number() over () rn
+from t1
+order by rn
+offset 1
+fetch first 2 rows with ties;
+first_name	rn
+Bob	2
+John	3
+select first_name, row_number() over () rn
+from t1
+order by rn desc
+offset 1
+fetch first 2 rows with ties;
+first_name	rn
+John	7
+John	6
+select first_name, score, rank() over (ORDER BY score)
+from t1
+order by rank() over (ORDER BY score)
+fetch first 3 rows with ties;
+first_name	score	rank() over (ORDER BY score)
+Alice	5	1
+John	6	2
+John	6	2
+John	6	2
+select first_name, score, rank() over (ORDER BY score)
+from t1
+order by rank() over (ORDER BY score)
+offset 1
+fetch first 2 rows with ties;
+first_name	score	rank() over (ORDER BY score)
+John	6	2
+John	6	2
+John	6	2
+select first_name, score, rank() over (ORDER BY score)
+from t1
+order by rank() over (ORDER BY score)
+fetch first 6 rows with ties;
+first_name	score	rank() over (ORDER BY score)
+Alice	5	1
+John	6	2
+John	6	2
+John	6	2
+John	7	5
+John	8.1	6
+#
+# Test nulls.
+#
+create table t2 (id int, location varchar(100), time datetime, value int, fk int);
+insert into t2 values (1, 'home', '2020-01-01 10:00', 10, 1);
+insert into t2 values (2, 'home', '2020-01-01 11:00', 11, 2);
+insert into t2 values (3, 'home', '2020-01-01 12:00', 12, 3);
+insert into t2 values (4, 'home', '2020-01-01 13:00', 13, 3);
+insert into t2 values (5, 'home', '2020-01-01 14:00', 13, 3);
+insert into t2 values (6, 'home', '2020-01-01 15:00', 13, 2);
+insert into t2 values (7, 'home', '2020-01-01 16:00', 13, 6);
+insert into t2 values (8, 'outside', '2020-01-01 17:00', 17, 6);
+insert into t2 values (9, 'outside', '2020-01-01 18:00', 17, 6);
+insert into t2 values (10, 'outside', '2020-01-01 19:00', 17, 8);
+insert into t2 values (11, 'outside', '2020-01-01 20:00', 16, 7);
+insert into t2 values (12, 'outside', '2020-01-01 21:00', 16, 7);
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location;
+id	first_name	last_name	score	id	location	time	value	fk
+1	Alice	Fowler	5	1	home	2020-01-01 10:00:00	10	1
+2	John	Doe	6	2	home	2020-01-01 11:00:00	11	2
+2	John	Doe	6	6	home	2020-01-01 15:00:00	13	2
+3	John	Smith	6	3	home	2020-01-01 12:00:00	12	3
+3	John	Smith	6	4	home	2020-01-01 13:00:00	13	3
+3	John	Smith	6	5	home	2020-01-01 14:00:00	13	3
+4	John	Smith	6	NULL	NULL	NULL	NULL	NULL
+5	John	Smith	7	NULL	NULL	NULL	NULL	NULL
+6	John	Elton	8.1	7	home	2020-01-01 16:00:00	13	6
+6	John	Elton	8.1	8	outside	2020-01-01 17:00:00	17	6
+6	John	Elton	8.1	9	outside	2020-01-01 18:00:00	17	6
+7	Bob	Trasc	9	11	outside	2020-01-01 20:00:00	16	7
+7	Bob	Trasc	9	12	outside	2020-01-01 21:00:00	16	7
+8	Silvia	Ganush	10	10	outside	2020-01-01 19:00:00	17	8
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location
+fetch first 1 row with ties;
+id	first_name	last_name	score	id	location	time	value	fk
+4	John	Smith	6	NULL	NULL	NULL	NULL	NULL
+5	John	Smith	7	NULL	NULL	NULL	NULL	NULL
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location
+fetch first 2 row with ties;
+id	first_name	last_name	score	id	location	time	value	fk
+4	John	Smith	6	NULL	NULL	NULL	NULL	NULL
+5	John	Smith	7	NULL	NULL	NULL	NULL	NULL
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location
+fetch first 3 row with ties;
+id	first_name	last_name	score	id	location	time	value	fk
+1	Alice	Fowler	5	1	home	2020-01-01 10:00:00	10	1
+2	John	Doe	6	2	home	2020-01-01 11:00:00	11	2
+2	John	Doe	6	6	home	2020-01-01 15:00:00	13	2
+3	John	Smith	6	3	home	2020-01-01 12:00:00	12	3
+3	John	Smith	6	4	home	2020-01-01 13:00:00	13	3
+3	John	Smith	6	5	home	2020-01-01 14:00:00	13	3
+4	John	Smith	6	NULL	NULL	NULL	NULL	NULL
+5	John	Smith	7	NULL	NULL	NULL	NULL	NULL
+6	John	Elton	8.1	7	home	2020-01-01 16:00:00	13	6
+select *
+from t1 left join t2 on t1.id = t2.fk
+order by t2.location
+offset 2
+fetch first 1 row with ties;
+id	first_name	last_name	score	id	location	time	value	fk
+1	Alice	Fowler	5	1	home	2020-01-01 10:00:00	10	1
+2	John	Doe	6	2	home	2020-01-01 11:00:00	11	2
+2	John	Doe	6	6	home	2020-01-01 15:00:00	13	2
+3	John	Smith	6	3	home	2020-01-01 12:00:00	12	3
+3	John	Smith	6	4	home	2020-01-01 13:00:00	13	3
+3	John	Smith	6	5	home	2020-01-01 14:00:00	13	3
+6	John	Elton	8.1	7	home	2020-01-01 16:00:00	13	6
+#
+# Test union-like operator with multiple fetch first clauses.
+#
+select * from t1 order by 1 fetch first 3 rows with ties;
+id	first_name	last_name	score
+1	Alice	Fowler	5
+2	John	Doe	6
+3	John	Smith	6
+select * from t1 order by first_name desc fetch first 3 rows with ties;
+id	first_name	last_name	score
+8	Silvia	Ganush	10
+2	John	Doe	6
+3	John	Smith	6
+4	John	Smith	6
+5	John	Smith	7
+6	John	Elton	8.1
+(select * from t1 order by 1 fetch first 3 rows with ties)
+intersect
+(select * from t1 order by first_name desc fetch first 3 rows with ties)
+order by first_name
+fetch first 1 row with ties;
+id	first_name	last_name	score
+2	John	Doe	6
+3	John	Smith	6
+(select * from t1 order by 1 fetch first 3 rows with ties)
+except
+(select * from t1 order by first_name desc fetch first 3 rows with ties)
+order by first_name
+fetch first 1 row with ties;
+id	first_name	last_name	score
+1	Alice	Fowler	5
+(select * from t1 order by 1 fetch first 3 rows with ties)
+except
+(select * from t1 order by first_name desc fetch first 3 rows with ties)
+order by first_name
+offset 1
+fetch first 1 row with ties;
+id	first_name	last_name	score
+select sum(score)
+from t1
+order by 1
+fetch first 2 rows with ties;
+sum(score)
+57.1
+select sum(score)
+from t1
+group by id
+order by 1
+fetch first 2 rows with ties;
+sum(score)
+5
+6
+6
+6
+drop table t1;
+drop table t2;
+#
+# Test SQL_CALC_FOUND_ROWS
+#
+create table t1 (a int, b int, index (a,b));
+insert into t1 values (1,1), (1,2), (1,3), (2,1), (2,2), (3,1);
+select SQL_CALC_FOUND_ROWS a, b, count(*)
+from t1
+group by a, b
+order by a
+fetch first 1 rows with ties;
+a	b	count(*)
+1	1	1
+1	2	1
+1	3	1
+SELECT FOUND_ROWS();
+FOUND_ROWS()
+6
+select SQL_CALC_FOUND_ROWS a, b
+from t1
+order by a
+fetch first 1 rows with ties;
+a	b
+1	1
+1	2
+1	3
+SELECT FOUND_ROWS();
+FOUND_ROWS()
+6
+#
+# Test index read optimization with ORDER BY as sub part of GROUP BY
+#
+explain select a, b, count(*)
+from t1
+group by a, b
+order by a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	10	NULL	6	Using index
+explain select a, b, count(*)
+from t1
+group by a, b
+order by a
+fetch first 1 rows with ties;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	a	10	NULL	1	Using index
+#
+# Test FETCH ... WITH TIES / ONLY with prepared statements
+#
+prepare s from "select a, b from t1 order by a fetch first ? rows with ties";
+set @a='qwe';
+execute s using @a;
+a	b
+set @a=-1;
+execute s using @a;
+ERROR HY000: Incorrect arguments to EXECUTE
+prepare s2 from "select a, b from t1 order by a offset ? fetch first ? rows with ties";
+set @offset=1;
+set @limit_count= 2;
+execute s2 using @offset, @limit_count;
+a	b
+1	2
+1	3
+execute s2 using @offset, 3;
+a	b
+1	2
+1	3
+2	1
+2	2
+execute s2 using -1, 3;
+ERROR HY000: Incorrect arguments to EXECUTE
+#
+# Test with ties with a constant order by.
+#
+select a, b
+from t1
+order by 'x'
+fetch first 2 rows with ties;
+a	b
+1	1
+1	2
+1	3
+2	1
+2	2
+3	1
+select b, sum(a)
+from t1
+group by b
+order by 'x', 'y', 'z'
+fetch first 2 rows with ties;
+b	sum(a)
+1	6
+2	3
+3	1
+#
+# Test with ties when group by is used and order by gets eliminated.
+#
+select b, sum(a)
+from t1
+group by b
+order by 'x', 'y', 'z'
+fetch first 2 rows with ties;
+b	sum(a)
+1	6
+2	3
+3	1
+#
+# Test an ill formed SELECT using MySQL/MariaDBs group by extension
+# of not requiring all non-aggregate fields to be part of group
+# by.
+#
+select b, a, sum(a)
+from t1
+group by a
+order by b, 'x', 'y', 'z'
+fetch first 2 rows with ties;
+b	a	sum(a)
+1	1	3
+1	2	4
+1	3	3
+delete from t1;
+insert into t1 values (1,1), (1,2), (1,3), (2,1), (2,2), (3,2), (3, 3);
+select b, a, sum(a)
+from t1
+group by a
+order by b, 'x', 'y', 'z'
+fetch first 1 rows with ties;
+b	a	sum(a)
+1	1	3
+1	2	4
+select b, a, sum(a)
+from t1
+group by a
+order by 'x', b, 'x', 'y', 'z'
+fetch first 1 rows with ties;
+b	a	sum(a)
+1	1	3
+1	2	4
+select b, a, sum(a)
+from t1
+group by a
+order by 'x', 'y', b
+fetch first 1 rows with ties;
+b	a	sum(a)
+1	1	3
+1	2	4
+#
+# Test with ties when order by a const column is used.
+#
+select a, b
+from t1
+order by a, 'a'
+fetch first 2 rows with ties;
+a	b
+1	1
+1	2
+1	3
+#
+# Order by aggregates.
+#
+select a, b, sum(a)
+from t1
+group by a, b
+order by sum(a)
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+1	2	1
+1	3	1
+# Test different sum function in order by, not present in select list.
+select a, b, sum(a)
+from t1
+group by a, b
+order by sum(b)
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+2	1	2
+# Test aggregates with constant columns in order by.
+select a, b, sum(a)
+from t1
+group by a, b
+order by a
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+1	2	1
+1	3	1
+select a, b, sum(a)
+from t1
+group by a, b
+order by a, 'x'
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+1	2	1
+1	3	1
+select a, b, sum(a)
+from t1
+group by a, b
+order by a, b
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+select a, b, sum(a)
+from t1
+group by a, b
+order by a, b
+fetch first 2 rows with ties;
+a	b	sum(a)
+1	1	1
+1	2	1
+select a, b, sum(a)
+from t1
+group by a, b
+order by a, b, 'x'
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+select a, b, sum(a)
+from t1
+group by a, 'x', b
+order by a, b, 'x'
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+select a, b, sum(a)
+from t1
+group by 'x', a, b
+order by a, b, 'x'
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+select a, b, sum(a)
+from t1
+group by a, b
+order by 'x', a, 'x', b, 't', b
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+select a, b, sum(a)
+from t1
+group by a, b
+order by b, 't', b
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+2	1	2
+#
+# Test with subqueries in order by
+#
+select a, b, sum(a)
+from t1
+group by a, b
+order by (select 1)
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+1	2	1
+1	3	1
+2	1	2
+2	2	2
+3	2	3
+3	3	3
+select a, b, sum(a)
+from t1
+group by a, b
+order by (select 1), a
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+1	2	1
+1	3	1
+select a, b, sum(a)
+from t1
+group by a, b
+order by (select 1), a
+fetch first 1 rows with ties;
+a	b	sum(a)
+1	1	1
+1	2	1
+1	3	1
+drop table t1;

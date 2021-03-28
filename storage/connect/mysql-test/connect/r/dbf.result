@@ -34,7 +34,7 @@ END//
 CREATE PROCEDURE test.dbf_header(in fname VARCHAR(1024)) DETERMINISTIC
 BEGIN
 DECLARE content BLOB;
-DECLARE offset INT;
+DECLARE `offset` INT;
 DECLARE fieldno INT;
 SELECT '--------';
 SELECT LOAD_FILE(fname) INTO content;
@@ -45,11 +45,11 @@ SELECT CONV(HEX(REVERSE(SUBSTRING(content,9,2))),16,10) AS FirstRecPos;
 SELECT CONV(HEX(REVERSE(SUBSTRING(content,11,2))),16,10) AS RecLength;
 SELECT HEX(REVERSE(SUBSTRING(content,29,2))) AS TableFlags;
 SELECT HEX(REVERSE(SUBSTRING(content,30,1))) AS CodePageMark;
-SET offset=33;
+SET `offset`=33;
 SET fieldno=0;
-WHILE SUBSTR(content, offset, 1) <> 0x0D AND offset + 32 < LENGTH(content) DO
-CALL dbf_field(fieldno, SUBSTRING(content, offset, 32));
-SET offset=offset + 32;
+WHILE SUBSTR(content, `offset`, 1) <> 0x0D AND `offset` + 32 < LENGTH(content) DO
+CALL dbf_field(fieldno, SUBSTRING(content, `offset`, 32));
+SET `offset`=`offset` + 32;
 SET fieldno=fieldno + 1;
 END WHILE;
 SELECT '--------';
