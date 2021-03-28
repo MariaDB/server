@@ -256,6 +256,7 @@ SET(mariadb-hotcopy_COMPONENT COMPONENT Client)
 SET(mariadb-convert-table-format_COMPONENT COMPONENT Client)
 SET(mariadb-setpermission_COMPONENT COMPONENT Client)
 SET(mariadb-secure-installation_COMPONENT COMPONENT Client)
+SET(mariadb-dumpslow_COMPONENT COMPONENT Client)
 
 IF(WIN32)
   # On Windows, some .sh and some .pl.in files are configured
@@ -314,7 +315,6 @@ ELSE()
       mariadb-fix-extensions
       mariadbd-multi
       mariadbd-safe
-      mariadb-dumpslow
       ${SYSTEMD_SCRIPTS}
     )
   ENDIF()

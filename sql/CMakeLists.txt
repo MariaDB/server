@@ -367,7 +367,7 @@ ADD_CUSTOM_COMMAND(
   DEPENDS gen_lex_hash
 )
 
-MYSQL_ADD_EXECUTABLE(mariadb-tzinfo-to-sql tztime.cc COMPONENT Server)
+MYSQL_ADD_EXECUTABLE(mariadb-tzinfo-to-sql tztime.cc)
 SET_TARGET_PROPERTIES(mariadb-tzinfo-to-sql PROPERTIES COMPILE_FLAGS "-DTZINFO2SQL")
 TARGET_LINK_LIBRARIES(mariadb-tzinfo-to-sql mysys mysys_ssl)
 
