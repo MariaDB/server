@@ -7761,8 +7761,8 @@ void mysql_init_multi_delete(LEX *lex)
 {
   lex->sql_command=  SQLCOM_DELETE_MULTI;
   mysql_init_select(lex);
-  lex->first_select_lex()->limit_params.select_limit= 0;
-  lex->unit.lim.set_unlimited();
+  lex->first_select_lex()->limit_params.clear();
+  lex->unit.lim.clear();
   lex->first_select_lex()->table_list.
     save_and_clear(&lex->auxiliary_table_list);
   lex->query_tables= 0;

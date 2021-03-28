@@ -37,8 +37,13 @@ class Select_limit_counters
    {
       offset_limit_cnt= offset;
       select_limit_cnt= limit;
-      if (select_limit_cnt + offset_limit_cnt >=
-          select_limit_cnt)
+      /*
+        Guard against an overflow condition, where limit + offset exceede
+        ha_rows value range. This case covers unreasonably large parameter
+        values that do not have any practical use so assuming in this case
+        that the query does not have a limit is fine.
+      */
+      if (select_limit_cnt + offset_limit_cnt >= select_limit_cnt)
         select_limit_cnt+= offset_limit_cnt;
       else
         select_limit_cnt= HA_POS_ERROR;
@@ -52,7 +57,16 @@ class Select_limit_counters
 
    bool is_unlimited() const
    { return select_limit_cnt == HA_POS_ERROR; }
+   /*
+      Set the limit to allow returning an unlimited number of rows. Useful
+      for cases when we want to continue execution indefinitely after the limit
+      is reached (for example for SQL_CALC_ROWS extension).
+   */
    void set_unlimited()
+   { select_limit_cnt= HA_POS_ERROR; }
+
+   /* Reset the limit entirely. */
+   void clear()
    { select_limit_cnt= HA_POS_ERROR; offset_limit_cnt= 0; }
 
    bool check_offset(ha_rows sent) const
