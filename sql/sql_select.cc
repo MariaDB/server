@@ -7449,7 +7449,6 @@ best_access_path(JOIN      *join,
   DBUG_ENTER("best_access_path");
 
   Json_writer_object trace_wrapper(thd, "best_access_path");
-  Json_writer_array trace_paths(thd, "considered_access_paths");
   
   bitmap_clear_all(eq_join_set);
 
@@ -7457,6 +7456,7 @@ best_access_path(JOIN      *join,
 
   if (s->table->is_splittable())
     spl_plan= s->choose_best_splitting(record_count, remaining_tables);
+  Json_writer_array trace_paths(thd, "considered_access_paths");
 
   if (s->keyuse)
   {                                            /* Use key if possible */
