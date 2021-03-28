@@ -39,6 +39,7 @@ extern PSI_memory_key key_memory_String_value;
 
 typedef struct st_io_cache IO_CACHE;
 typedef struct st_mem_root MEM_ROOT;
+#define ASSERT_LENGTH(A) DBUG_ASSERT(str_length + (uint32) (A) <= Alloced_length)
 
 #include "pack.h"
 int sortcmp(const String *a,const String *b, CHARSET_INFO *cs);
@@ -200,185 +201,21 @@ public:
 };
 
 
-/*
-  A storage for String.
-  Should be eventually derived from LEX_STRING.
+/**
+   Storage for strings with both length and allocated length.
+   Automatically grows on demand.
 */
-class Static_binary_string : public Sql_alloc
+
+class Binary_string: public Sql_alloc
 {
 protected:
   char *Ptr;
-  uint32 str_length;
-public:
-  Static_binary_string()
-   :Ptr(NULL),
-    str_length(0)
-  { }
-  Static_binary_string(char *str, size_t length_arg)
-   :Ptr(str),
-    str_length((uint32) length_arg)
-  {
-    DBUG_ASSERT(length_arg < UINT_MAX32);
-  }
-  inline uint32 length() const { return str_length;}
-  inline char& operator [] (size_t i) const { return Ptr[i]; }
-  inline void length(size_t len) { str_length=(uint32)len ; }
-  inline bool is_empty() const { return (str_length == 0); }
-  inline const char *ptr() const { return Ptr; }
-  inline const char *end() const { return Ptr + str_length; }
-  bool has_8bit_bytes() const
-  {
-    for (const char *c= ptr(), *c_end= end(); c < c_end; c++)
-    {
-      if (!my_isascii(*c))
-        return true;
-    }
-    return false;
-  }
-
-  bool bin_eq(const Static_binary_string *other) const
-  {
-    return length() == other->length() &&
-           !memcmp(ptr(), other->ptr(), length());
-  }
-
-  void set(char *str, size_t len)
-  {
-    Ptr= str;
-    str_length= (uint32) len;
-  }
-
-  void swap(Static_binary_string &s)
-  {
-    swap_variables(char *, Ptr, s.Ptr);
-    swap_variables(uint32, str_length, s.str_length);
-  }
-
-  /*
-    PMG 2004.11.12
-    This is a method that works the same as perl's "chop". It simply
-    drops the last character of a string. This is useful in the case
-    of the federated storage handler where I'm building a unknown
-    number, list of values and fields to be used in a sql insert
-    statement to be run on the remote server, and have a comma after each.
-    When the list is complete, I "chop" off the trailing comma
-
-    ex.
-      String stringobj;
-      stringobj.append("VALUES ('foo', 'fi', 'fo',");
-      stringobj.chop();
-      stringobj.append(")");
-
-    In this case, the value of string was:
-
-    VALUES ('foo', 'fi', 'fo',
-    VALUES ('foo', 'fi', 'fo'
-    VALUES ('foo', 'fi', 'fo')
-  */
-  inline void chop()
-  {
-    str_length--;
-    Ptr[str_length]= '\0';
-    DBUG_ASSERT(strlen(Ptr) == str_length);
-  }
-
-  // Returns offset to substring or -1
-  int strstr(const Static_binary_string &search, uint32 offset=0);
-  // Returns offset to substring or -1
-  int strrstr(const Static_binary_string &search, uint32 offset=0);
-
-  /*
-    The following append operations do NOT check alloced memory
-    q_*** methods writes values of parameters itself
-    qs_*** methods writes string representation of value
-  */
-  void q_append(const char c)
-  {
-    Ptr[str_length++] = c;
-  }
-  void q_append2b(const uint32 n)
-  {
-    int2store(Ptr + str_length, n);
-    str_length += 2;
-  }
-  void q_append(const uint32 n)
-  {
-    int4store(Ptr + str_length, n);
-    str_length += 4;
-  }
-  void q_append(double d)
-  {
-    float8store(Ptr + str_length, d);
-    str_length += 8;
-  }
-  void q_append(double *d)
-  {
-    float8store(Ptr + str_length, *d);
-    str_length += 8;
-  }
-  void q_append(const char *data, size_t data_len)
-  {
-    if (data_len)
-      memcpy(Ptr + str_length, data, data_len);
-    DBUG_ASSERT(str_length <= UINT_MAX32 - data_len);
-    str_length += (uint)data_len;
-  }
-  void q_append(const LEX_CSTRING *ls)
-  {
-    DBUG_ASSERT(ls->length < UINT_MAX32 &&
-                ((ls->length == 0 && !ls->str) ||
-                 ls->length == strlen(ls->str)));
-    q_append(ls->str, (uint32) ls->length);
-  }
-
-  void write_at_position(int position, uint32 value)
-  {
-    int4store(Ptr + position,value);
-  }
-
-  void qs_append(const LEX_CSTRING *ls)
-  {
-    DBUG_ASSERT(ls->length < UINT_MAX32 &&
-                ((ls->length == 0 && !ls->str) ||
-                 ls->length == strlen(ls->str)));
-    qs_append(ls->str, (uint32)ls->length);
-  }
-  void qs_append(const char *str, size_t len);
-  void qs_append_hex(const char *str, uint32 len);
-  void qs_append(double d);
-  void qs_append(const double *d);
-  inline void qs_append(const char c)
-  {
-     Ptr[str_length]= c;
-     str_length++;
-  }
-  void qs_append(int i);
-  void qs_append(uint i)
-  {
-    qs_append((ulonglong)i);
-  }
-  void qs_append(ulong i)
-  {
-    qs_append((ulonglong)i);
-  }
-  void qs_append(ulonglong i);
-  void qs_append(longlong i, int radix)
-  {
-    char *buff= Ptr + str_length;
-    char *end= ll2str(i, buff, radix, 0);
-    str_length+= uint32(end-buff);
-  }
-};
-
-
-class Binary_string: public Static_binary_string
-{
-protected:
-  uint32 Alloced_length, extra_alloc;
+  uint32 str_length, Alloced_length, extra_alloc;
   bool alloced, thread_specific;
   void init_private_data()
   {
-    Alloced_length= extra_alloc= 0;
+    Ptr= 0;
+    Alloced_length= extra_alloc= str_length= 0;
     alloced= thread_specific= false;
   }
   inline void free_buffer()
@@ -405,20 +242,24 @@ public:
     room for zero termination).
   */
   Binary_string(const char *str, size_t len)
-   :Static_binary_string((char *) str, len)
   {
-    init_private_data();
+    Ptr= (char*) str;
+    str_length= (uint32) len;
+    Alloced_length= 0;                          /* Memory cannot be written to */
+    extra_alloc= 0;
+    alloced= thread_specific= 0;
   }
   Binary_string(char *str, size_t len)
-   :Static_binary_string(str, len)
   {
-    Alloced_length= (uint32) len;
+    Ptr= str;
+    str_length= Alloced_length= (uint32) len;
     extra_alloc= 0;
     alloced= thread_specific= 0;
   }
   explicit Binary_string(const Binary_string &str)
-   :Static_binary_string(str)
   {
+    Ptr= str.Ptr;
+    str_length= str.str_length;
     Alloced_length= str.Alloced_length;
     extra_alloc= 0;
     alloced= thread_specific= 0;
@@ -427,6 +268,156 @@ public:
   ~Binary_string()
   {
     free();
+  }
+
+  inline uint32 length() const { return str_length;}
+  inline char& operator [] (size_t i) const { return Ptr[i]; }
+  inline void length(size_t len) { str_length=(uint32)len ; }
+  inline bool is_empty() const { return (str_length == 0); }
+  inline const char *ptr() const { return Ptr; }
+  inline const char *end() const { return Ptr + str_length; }
+  bool has_8bit_bytes() const
+  {
+    for (const char *c= ptr(), *c_end= end(); c < c_end; c++)
+    {
+      if (!my_isascii(*c))
+        return true;
+    }
+    return false;
+  }
+
+  bool bin_eq(const Binary_string *other) const
+  {
+    return length() == other->length() &&
+           !memcmp(ptr(), other->ptr(), length());
+  }
+
+  /*
+    PMG 2004.11.12
+    This is a method that works the same as perl's "chop". It simply
+    drops the last character of a string. This is useful in the case
+    of the federated storage handler where I'm building a unknown
+    number, list of values and fields to be used in a sql insert
+    statement to be run on the remote server, and have a comma after each.
+    When the list is complete, I "chop" off the trailing comma
+
+    ex.
+      String stringobj;
+      stringobj.append("VALUES ('foo', 'fi', 'fo',");
+      stringobj.chop();
+      stringobj.append(")");
+
+    In this case, the value of string was:
+
+    VALUES ('foo', 'fi', 'fo',
+    VALUES ('foo', 'fi', 'fo'
+    VALUES ('foo', 'fi', 'fo')
+  */
+  inline void chop()
+  {
+    if (str_length)
+    {
+      str_length--;
+      Ptr[str_length]= '\0';
+      DBUG_ASSERT(strlen(Ptr) == str_length);
+    }
+  }
+
+  // Returns offset to substring or -1
+  int strstr(const Binary_string &search, uint32 offset=0);
+  // Returns offset to substring or -1
+  int strrstr(const Binary_string &search, uint32 offset=0);
+
+  /*
+    The following append operations do not extend the strings and in production
+    mode do NOT check that alloced memory!
+    q_*** methods writes values of parameters itself
+    qs_*** methods writes string representation of value
+  */
+  void q_append(const char c)
+  {
+    ASSERT_LENGTH(1);
+    Ptr[str_length++] = c;
+  }
+  void q_append2b(const uint32 n)
+  {
+    ASSERT_LENGTH(2);
+    int2store(Ptr + str_length, n);
+    str_length += 2;
+  }
+  void q_append(const uint32 n)
+  {
+    ASSERT_LENGTH(4);
+    int4store(Ptr + str_length, n);
+    str_length += 4;
+  }
+  void q_append(double d)
+  {
+    ASSERT_LENGTH(8);
+    float8store(Ptr + str_length, d);
+    str_length += 8;
+  }
+  void q_append(double *d)
+  {
+    ASSERT_LENGTH(8);
+    float8store(Ptr + str_length, *d);
+    str_length += 8;
+  }
+  void q_append(const char *data, size_t data_len)
+  {
+    ASSERT_LENGTH(data_len);
+    if (data_len)
+      memcpy(Ptr + str_length, data, data_len);
+    DBUG_ASSERT(str_length <= UINT_MAX32 - data_len);
+    str_length += (uint)data_len;
+  }
+  void q_append(const LEX_CSTRING *ls)
+  {
+    DBUG_ASSERT(ls->length < UINT_MAX32 &&
+                ((ls->length == 0 && !ls->str) ||
+                 ls->length == strlen(ls->str)));
+    q_append(ls->str, (uint32) ls->length);
+  }
+
+  void write_at_position(uint32 position, uint32 value)
+  {
+    DBUG_ASSERT(str_length >= position + 4);
+    int4store(Ptr + position,value);
+  }
+
+  void qs_append(const LEX_CSTRING *ls)
+  {
+    DBUG_ASSERT(ls->length < UINT_MAX32 &&
+                ((ls->length == 0 && !ls->str) ||
+                 ls->length == strlen(ls->str)));
+    qs_append(ls->str, (uint32)ls->length);
+  }
+  void qs_append(const char *str, size_t len);
+  void qs_append_hex(const char *str, uint32 len);
+  void qs_append(double d);
+  void qs_append(const double *d);
+  inline void qs_append(const char c)
+  {
+    ASSERT_LENGTH(1);
+    Ptr[str_length]= c;
+    str_length++;
+  }
+  void qs_append(int i);
+  void qs_append(uint i)
+  {
+    qs_append((ulonglong)i);
+  }
+  void qs_append(ulong i)
+  {
+    qs_append((ulonglong)i);
+  }
+  void qs_append(ulonglong i);
+  void qs_append(longlong i, int radix)
+  {
+    ASSERT_LENGTH(22);
+    char *buff= Ptr + str_length;
+    char *end= ll2str(i, buff, radix, 0);
+    str_length+= (uint32) (end-buff);
   }
 
   /* Mark variable thread specific it it's not allocated already */
@@ -449,7 +440,8 @@ public:
   /* Swap two string objects. Efficient way to exchange data without memcpy. */
   void swap(Binary_string &s)
   {
-    Static_binary_string::swap(s);
+    swap_variables(char *, Ptr, s.Ptr);
+    swap_variables(uint32, str_length, s.str_length);
     swap_variables(uint32, Alloced_length, s.Alloced_length);
     swap_variables(bool, alloced, s.alloced);
   }
@@ -461,29 +453,32 @@ public:
             null character.
      @note The new buffer will not be null terminated.
   */
-  void set_alloced(char *str, size_t length_arg, size_t alloced_length_arg)
+  void set_alloced(char *str, size_t length, size_t alloced_length)
   {
     free_buffer();
-    Static_binary_string::set(str, length_arg);
-    DBUG_ASSERT(alloced_length_arg < UINT_MAX32);
-    Alloced_length= (uint32) alloced_length_arg;
+    Ptr= str;
+    str_length= (uint32) length;
+    DBUG_ASSERT(alloced_length < UINT_MAX32);
+    Alloced_length= (uint32) alloced_length;
   }
   inline void set(char *str, size_t arg_length)
   {
     set_alloced(str, arg_length, arg_length);
   }
-  inline void set(const char *str, size_t arg_length)
+  inline void set(const char *str, size_t length)
   {
     free_buffer();
-    Static_binary_string::set((char *) str, arg_length);
+    Ptr= (char*) str;
+    str_length= (uint32) length;
     Alloced_length= 0;
   }
 
-  void set(Binary_string &str, size_t offset, size_t arg_length)
+  void set(Binary_string &str, size_t offset, size_t length)
   {
     DBUG_ASSERT(&str != this);
     free_buffer();
-    Static_binary_string::set((char*) str.ptr() + offset, arg_length);
+    Ptr= str.Ptr + offset;
+    str_length= (uint32) length;
     Alloced_length= 0;
     if (str.Alloced_length)
       Alloced_length= (uint32) (str.Alloced_length - offset);
@@ -506,7 +501,6 @@ public:
   char *release()
   {
     char *old= Ptr;
-    Static_binary_string::set(NULL, 0);
     init_private_data();
     return old;
   }
@@ -525,8 +519,8 @@ public:
         Following should really set str_length= 0, but some code may
         depend on that the String length is same as buffer length.
       */
-      Static_binary_string::set(str, arg_length);
-      Alloced_length= (uint32) arg_length;
+      Ptr= str;
+      str_length= Alloced_length= (uint32) arg_length;
     }
     /* One should set str_length before using it */
     MEM_UNDEFINED(&str_length, sizeof(str_length));
@@ -746,7 +740,7 @@ public:
     If wrong parameter or not enough memory, do nothing
   */
   bool replace(uint32 offset,uint32 arg_length, const char *to, uint32 length);
-  bool replace(uint32 offset,uint32 arg_length, const Static_binary_string &to)
+  bool replace(uint32 offset,uint32 arg_length, const Binary_string &to)
   {
     return replace(offset,arg_length,to.ptr(),to.length());
   }
