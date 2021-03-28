@@ -187,6 +187,7 @@
 
 #include "mariadb.h"
 #include "sql_select.h"
+#include "opt_trace.h"
 
 /* Info on a splitting field */
 struct SplM_field_info
@@ -957,6 +958,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       The key for splitting was chosen, look for the plan for this key
       in the cache
     */
+    Json_writer_array spl_trace(thd, "choose_best_splitting");
     spl_plan= spl_opt_info->find_plan(best_table, best_key, best_key_parts);
     if (!spl_plan &&
 	(spl_plan= (SplM_plan_info *) thd->alloc(sizeof(SplM_plan_info))) &&
@@ -988,6 +990,16 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       spl_plan->cost= join->best_positions[join->table_count-1].read_time +
                       + oper_cost;
 
+      if (unlikely(thd->trace_started()))
+      {
+        Json_writer_object wrapper(thd);
+        Json_writer_object find_trace(thd, "best_splitting");
+        find_trace.add("table", best_table->alias.c_ptr());
+        find_trace.add("key", best_table->key_info[best_key].name);
+        find_trace.add("record_count", record_count);
+        find_trace.add("cost", spl_plan->cost);
+        find_trace.add("unsplit_cost", spl_opt_info->unsplit_cost);
+      }
       memcpy((char *) spl_plan->best_positions,
              (char *) join->best_positions,
              sizeof(POSITION) * join->table_count);
@@ -1014,6 +1026,11 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
   {
     startup_cost= record_count * spl_plan->cost;
     records= (ha_rows) (records * spl_plan->split_sel);
+
+    Json_writer_object trace(thd, "lateral_derived");
+    trace.add("startup_cost", startup_cost);
+    trace.add("splitting_cost", spl_plan->cost);
+    trace.add("records", records);
   }
   else
     startup_cost= spl_opt_info->unsplit_cost;
