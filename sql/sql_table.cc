@@ -1068,7 +1068,7 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
   @retval  >0 the lenght of the comment found
 
 */
-static uint32 comment_length(THD *thd, uint32 comment_pos,
+static uint32 get_comment(THD *thd, uint32 comment_pos,
                              const char **comment_start)
 {
   /* We use uchar * here to make array indexing portable */
@@ -1099,7 +1099,7 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
 }
 
 /**
-  Execute the drop of a normal or temporary table.
+  Execute the drop of sequence, view or table (normal or temporary).
 
   @param  thd             Thread handler
   @param  tables          Tables to drop
@@ -1174,7 +1174,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
   }
 
   unknown_tables.length(0);
-  comment_len= comment_length(thd, if_exists ? 17:9,
+  comment_len= get_comment(thd, if_exists ? 17:9,
                               &comment_start);
 
   /*
