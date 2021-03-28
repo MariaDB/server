@@ -2447,28 +2447,35 @@ static void use_systemd_activated_sockets()
       goto err;
     }
 
-    getnameinfo_err= getnameinfo(&addr.sa, addrlen, hbuf, sizeof(hbuf), sbuf,
-                                 sizeof(sbuf), NI_NUMERICHOST | NI_NUMERICSERV);
-    if (getnameinfo_err)
-      sql_print_warning("getnameinfo() on systemd socket activation socket %d"
-                        " failed with error %d", fd, getnameinfo_err);
-    else
-    {
-      /*
-        Handle abstract sockets and present them in @ form.
-        We don't just use sbuf because of https://sourceware.org/bugzilla/show_bug.cgi?id=27634.
-      */
-      if (sbuf[0] == '\0')
-        addr.un.sun_path[0] = '@';
-      sql_print_information("Using systemd activated socket %s port %s", hbuf,
-                            sbuf[0] == '\0' ? addr.un.sun_path : sbuf);
-    }
-
     /*
       We check names!=NULL here because sd_listen_fds_with_names maybe
       just sd_listen_fds on older pre v227 systemd
     */
     sock.is_extra_port= names && strcmp(names[sd_sockets], "extra") == 0;
+
+    if (addr.sa.sa_family == AF_UNIX)
+    {
+      /*
+        Handle abstract sockets and present them in @ form.
+      */
+      if (addr.un.sun_path[0] == '\0')
+        addr.un.sun_path[0] = '@';
+      sql_print_information("Using systemd activated unix socket %s%s",
+                            addr.un.sun_path, sock.is_extra_port ? " (extra)" : "");
+    }
+    else
+    {
+      getnameinfo_err= getnameinfo(&addr.sa, addrlen, hbuf, sizeof(hbuf), sbuf,
+                                   sizeof(sbuf), NI_NUMERICHOST | NI_NUMERICSERV);
+      if (getnameinfo_err)
+        sql_print_warning("getnameinfo() on systemd socket activation socket %d"
+                          " failed with error %s(%d)", fd,
+                          gai_strerror(getnameinfo_err), getnameinfo_err);
+      else
+        sql_print_information("Using systemd activated socket host %s port %s%s", hbuf, sbuf,
+                              sock.is_extra_port ? " (extra)" : "");
+    }
+
     mysql_socket_set_thread_owner(sock);
     listen_sockets.push(sock);
   }
