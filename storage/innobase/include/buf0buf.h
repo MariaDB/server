@@ -1223,7 +1223,7 @@ struct buf_pool_stat_t{
 	/** Initialize the counters */
 	void init() { memset((void*) this, 0, sizeof *this); }
 
-	ib_counter_t<ulint>	n_page_gets;
+	ib_counter_t<ulint, ib_counter_element_t>	n_page_gets;
 				/*!< number of page gets performed;
 				also successful searches through
 				the adaptive hash index are
