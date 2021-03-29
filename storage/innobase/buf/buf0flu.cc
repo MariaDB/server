@@ -1898,6 +1898,20 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
   }
 }
 
+/** Check if the adpative flushing threshold is recommended based on
+redo log capacity filled threshold.
+@param oldest_lsn     buf_pool.get_oldest_modification()
+@return true if adaptive flushing is recommended. */
+static bool af_needed_for_redo(lsn_t oldest_lsn)
+{
+  lsn_t age= (log_sys.get_lsn() - oldest_lsn);
+  lsn_t af_lwm= static_cast<lsn_t>(srv_adaptive_flushing_lwm *
+   static_cast<double>(log_sys.log_capacity) / 100);
+
+  /* if age > af_lwm adaptive flushing is recommended */
+  return (age > af_lwm);
+}
+
 /*********************************************************************//**
 Calculates if flushing is required based on redo generation rate.
 @return percent of io_capacity to flush to manage redo space */
@@ -2148,9 +2162,14 @@ unemployed:
     const double dirty_pct= double(dirty_blocks) * 100.0 /
       double(UT_LIST_GET_LEN(buf_pool.LRU) + UT_LIST_GET_LEN(buf_pool.free));
 
+    const lsn_t oldest_lsn= buf_pool.get_oldest_modified()
+      ->oldest_modification();
+    ut_ad(oldest_lsn);
+
     bool idle_flush= false;
 
     if (lsn_limit);
+    else if (af_needed_for_redo(oldest_lsn));
     else if (srv_max_dirty_pages_pct_lwm != 0.0)
     {
       const ulint activity_count= srv_get_activity_count();
@@ -2172,10 +2191,6 @@ unemployed:
     }
     else if (dirty_pct < srv_max_buf_pool_modified_pct)
       goto unemployed;
-
-    const lsn_t oldest_lsn= buf_pool.get_oldest_modified()
-      ->oldest_modification();
-    ut_ad(oldest_lsn);
 
     if (UNIV_UNLIKELY(lsn_limit != 0) && oldest_lsn >= lsn_limit)
       buf_flush_sync_lsn= 0;
