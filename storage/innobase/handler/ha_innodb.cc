@@ -158,9 +158,6 @@ void close_thread_tables(THD* thd);
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
 
-/** to force correct commit order in binlog */
-static mysql_mutex_t pending_checkpoint_mutex;
-
 #define INSIDE_HA_INNOBASE_CC
 
 #define EQ_CURRENT_THD(thd) ((thd) == current_thd)
@@ -513,15 +510,12 @@ const struct _ft_vft_ext ft_vft_ext_result = {innobase_fts_get_version,
 performance schema */
 static mysql_pfs_key_t	pending_checkpoint_mutex_key;
 
-static PSI_mutex_info	all_pthread_mutexes[] = {
-	PSI_KEY(pending_checkpoint_mutex),
-};
-
 # ifdef UNIV_PFS_MUTEX
 /* all_innodb_mutexes array contains mutexes that are
 performance schema instrumented if "UNIV_PFS_MUTEX"
 is defined */
 static PSI_mutex_info all_innodb_mutexes[] = {
+	PSI_KEY(pending_checkpoint_mutex),
 	PSI_KEY(buf_pool_mutex),
 	PSI_KEY(dict_foreign_err_mutex),
 	PSI_KEY(dict_sys_mutex),
@@ -1169,7 +1163,32 @@ innobase_release_savepoint(
 					savepoint should be released */
 	void*		savepoint);	/*!< in: savepoint data */
 
-static void innobase_checkpoint_request(handlerton *hton, void *cookie);
+/** Request notification of log writes */
+static void innodb_log_flush_request(void *cookie);
+
+/** Requests for log flushes */
+struct log_flush_request
+{
+  /** earlier request (for a smaller LSN) */
+  log_flush_request *next;
+  /** parameter provided to innodb_log_flush_request() */
+  void *cookie;
+  /** log sequence number that is being waited for */
+  lsn_t lsn;
+};
+
+/** Buffer of pending innodb_log_flush_request() */
+MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) static
+struct
+{
+  /** first request */
+  Atomic_relaxed<log_flush_request*> start;
+  /** last request */
+  log_flush_request *end;
+  /** mutex protecting this object */
+  mysql_mutex_t mutex;
+}
+log_requests;
 
 /** @brief Adjust some InnoDB startup parameters based on file contents
 or innodb_page_size. */
@@ -3902,7 +3921,7 @@ static int innodb_init(void* p)
 	innobase_hton->recover = innobase_xa_recover;
 	innobase_hton->commit_by_xid = innobase_commit_by_xid;
 	innobase_hton->rollback_by_xid = innobase_rollback_by_xid;
-	innobase_hton->commit_checkpoint_request=innobase_checkpoint_request;
+	innobase_hton->commit_checkpoint_request = innodb_log_flush_request;
 	innobase_hton->create = innobase_create_handler;
 
 	innobase_hton->drop_database = innobase_drop_database;
@@ -3971,9 +3990,6 @@ static int innodb_init(void* p)
 	/* Register keys with MySQL performance schema */
 	int	count;
 
-	count = array_elements(all_pthread_mutexes);
-	mysql_mutex_register("innodb", all_pthread_mutexes, count);
-
 # ifdef UNIV_PFS_MUTEX
 	count = array_elements(all_innodb_mutexes);
 	mysql_mutex_register("innodb", all_innodb_mutexes, count);
@@ -4020,7 +4036,7 @@ static int innodb_init(void* p)
 	ibuf_max_size_update(srv_change_buffer_max_size);
 
 	mysql_mutex_init(pending_checkpoint_mutex_key,
-			 &pending_checkpoint_mutex,
+			 &log_requests.mutex,
 			 MY_MUTEX_INIT_FAST);
 #ifdef MYSQL_DYNAMIC_PLUGIN
 	if (innobase_hton != p) {
@@ -4083,7 +4099,7 @@ innobase_end(handlerton*, ha_panic_function)
 
 		innodb_shutdown();
 
-		mysql_mutex_destroy(&pending_checkpoint_mutex);
+		mysql_mutex_destroy(&log_requests.mutex);
 	}
 
 	DBUG_RETURN(0);
@@ -4442,144 +4458,118 @@ innobase_rollback_trx(
 						0, trx->mysql_thd));
 }
 
+/** Invoke commit_checkpoint_notify_ha() on completed log flush requests.
+@param pending  log_requests.start
+@param lsn      log_sys.get_flushed_lsn()
+@return whether something was notified (and log_requests.mutex released)  */
+static bool log_flush_notify_and_unlock(log_flush_request *pending, lsn_t lsn)
+{
+  mysql_mutex_assert_owner(&log_requests.mutex);
+  ut_ad(pending == log_requests.start);
 
-struct pending_checkpoint {
-	struct pending_checkpoint *next;
-	handlerton *hton;
-	void *cookie;
-	ib_uint64_t lsn;
-};
-static struct pending_checkpoint *pending_checkpoint_list;
-static struct pending_checkpoint *pending_checkpoint_list_end;
+  log_flush_request *entry= pending, *last= nullptr;
+  /* Process the first requests that have been completed. Since
+  the list is not necessarily in ascending order of LSN, we may
+  miss to notify some requests that have already been completed.
+  But there is no harm in delaying notifications for those a bit.
+  And in practise, the list is unlikely to have more than one
+  element anyway, because the redo log would be flushed every
+  srv_flush_log_at_timeout seconds (1 by default). */
+  for (; entry && entry->lsn <= lsn; last= entry, entry= entry->next);
 
-/*****************************************************************//**
-Handle a commit checkpoint request from server layer.
+  if (!last)
+    return false;
+
+  /* Detach the head of the list that corresponds to persisted log writes. */
+  log_requests.start= entry;
+  if (!entry)
+    log_requests.end= nullptr;
+  mysql_mutex_unlock(&log_requests.mutex);
+
+  /* Now that we have released the mutex, notify the submitters
+  and free the head of the list. */
+  do
+  {
+    entry= pending;
+    pending= pending->next;
+    commit_checkpoint_notify_ha(entry->cookie);
+    my_free(entry);
+  }
+  while (entry != last);
+
+  return true;
+}
+
+/** Invoke commit_checkpoint_notify_ha() to notify that outstanding
+log writes have been completed. */
+void log_flush_notify(lsn_t flush_lsn)
+{
+  if (log_requests.start)
+  {
+    mysql_mutex_lock(&log_requests.mutex);
+    if (log_flush_request *pending= log_requests.start)
+      if (log_flush_notify_and_unlock(pending, flush_lsn))
+        return;
+    mysql_mutex_unlock(&log_requests.mutex);
+  }
+}
+
+/** Handle a commit checkpoint request from server layer.
 We put the request in a queue, so that we can notify upper layer about
 checkpoint complete when we have flushed the redo log.
 If we have already flushed all relevant redo log, we notify immediately.*/
-static
-void
-innobase_checkpoint_request(
-	handlerton *hton,
-	void *cookie)
+static void innodb_log_flush_request(void *cookie)
 {
-	ib_uint64_t			lsn;
-	ib_uint64_t			flush_lsn;
-	struct pending_checkpoint *	entry;
+  const lsn_t lsn= log_sys.get_lsn();
+  lsn_t flush_lsn= log_sys.get_flushed_lsn();
 
-	/* Do the allocation outside of lock to reduce contention. The normal
-	case is that not everything is flushed, so we will need to enqueue. */
-	entry = static_cast<struct pending_checkpoint *>
-		(my_malloc(PSI_INSTRUMENT_ME, sizeof(*entry), MYF(MY_WME)));
-	if (!entry) {
-		sql_print_error("Failed to allocate %u bytes."
-				" Commit checkpoint will be skipped.",
-				static_cast<unsigned>(sizeof(*entry)));
-		return;
-	}
+  if (flush_lsn >= lsn)
+    /* All log is already persistent. */;
+  else if (UNIV_UNLIKELY(srv_force_recovery >= SRV_FORCE_NO_BACKGROUND))
+    /* Normally, srv_master_callback() should periodically invoke
+    srv_sync_log_buffer_in_background(), which should initiate a log
+    flush about once every srv_flush_log_at_timeout seconds.  But,
+    starting with the innodb_force_recovery=2 level, that background
+    task will not run. */
+    log_write_up_to(flush_lsn= lsn, true);
+  else if (log_flush_request *req= static_cast<log_flush_request*>
+           (my_malloc(PSI_INSTRUMENT_ME, sizeof *req, MYF(MY_WME))))
+  {
+    req->next= nullptr;
+    req->cookie= cookie;
+    req->lsn= lsn;
 
-	entry->next = NULL;
-	entry->hton = hton;
-	entry->cookie = cookie;
+    mysql_mutex_lock(&log_requests.mutex);
+    auto old_end= log_requests.end;
+    log_requests.end= req;
+    if (old_end)
+    {
+      /* Append the entry to the list. Because we determined req->lsn before
+      acquiring the mutex, this list may not be ordered by req->lsn,
+      even though log_flush_notify_and_unlock() assumes so. */
+      old_end->next= req;
+      /* This hopefully addresses the hang that was reported in MDEV-24302.
+      Upon receiving a new request, we will notify old requests of
+      completion. */
+      if (log_flush_notify_and_unlock(log_requests.start, flush_lsn))
+        return;
+    }
+    else
+      log_requests.start= req;
+    mysql_mutex_unlock(&log_requests.mutex);
+    return;
+  }
+  else
+    sql_print_error("Failed to allocate %zu bytes."
+                    " Commit checkpoint will be skipped.", sizeof *req);
 
-	mysql_mutex_lock(&pending_checkpoint_mutex);
-	lsn = log_get_lsn();
-	flush_lsn = log_get_flush_lsn();
-	if (lsn > flush_lsn) {
-		/* Put the request in queue.
-		When the log gets flushed past the lsn, we will remove the
-		entry from the queue and notify the upper layer. */
-		entry->lsn = lsn;
-		if (pending_checkpoint_list_end) {
-			pending_checkpoint_list_end->next = entry;
-			/* There is no need to order the entries in the list
-			by lsn. The upper layer can accept notifications in
-			any order, and short delays in notifications do not
-			significantly impact performance. */
-		} else {
-			pending_checkpoint_list = entry;
-		}
-		pending_checkpoint_list_end = entry;
-		entry = NULL;
-	}
-	mysql_mutex_unlock(&pending_checkpoint_mutex);
-
-	if (entry) {
-		/* We are already flushed. Notify the checkpoint immediately. */
-		commit_checkpoint_notify_ha(entry->hton, entry->cookie);
-		my_free(entry);
-	}
-}
-
-/*****************************************************************//**
-Log code calls this whenever log has been written and/or flushed up
-to a new position. We use this to notify upper layer of a new commit
-checkpoint when necessary.*/
-UNIV_INTERN
-void
-innobase_mysql_log_notify(
-/*======================*/
-	ib_uint64_t	flush_lsn)	/*!< in: LSN flushed to disk */
-{
-	struct pending_checkpoint *	pending;
-	struct pending_checkpoint *	entry;
-	struct pending_checkpoint *	last_ready;
-
-	/* It is safe to do a quick check for NULL first without lock.
-	Even if we should race, we will at most skip one checkpoint and
-	take the next one, which is harmless. */
-	if (!pending_checkpoint_list)
-		return;
-
-	mysql_mutex_lock(&pending_checkpoint_mutex);
-	pending = pending_checkpoint_list;
-	if (!pending)
-	{
-		mysql_mutex_unlock(&pending_checkpoint_mutex);
-		return;
-	}
-
-	last_ready = NULL;
-	for (entry = pending; entry != NULL; entry = entry -> next)
-	{
-		/* Notify checkpoints up until the first entry that has not
-		been fully flushed to the redo log. Since we do not maintain
-		the list ordered, in principle there could be more entries
-		later than were also flushed. But there is no harm in
-		delaying notifications for those a bit. And in practise, the
-		list is unlikely to have more than one element anyway, as we
-		flush the redo log at least once every second. */
-		if (entry->lsn > flush_lsn)
-			break;
-		last_ready = entry;
-	}
-
-	if (last_ready)
-	{
-		/* We found some pending checkpoints that are now flushed to
-		disk. So remove them from the list. */
-		pending_checkpoint_list = entry;
-		if (!entry)
-			pending_checkpoint_list_end = NULL;
-	}
-
-	mysql_mutex_unlock(&pending_checkpoint_mutex);
-
-	if (!last_ready)
-		return;
-
-	/* Now that we have released the lock, notify upper layer about all
-	commit checkpoints that have now completed. */
-	for (;;) {
-		entry = pending;
-		pending = pending->next;
-
-		commit_checkpoint_notify_ha(entry->hton, entry->cookie);
-
-		my_free(entry);
-		if (entry == last_ready)
-			break;
-	}
+  /* This hopefully addresses the hang that was reported in MDEV-24302.
+  Upon receiving a new request to notify of log writes becoming
+  persistent, we will notify old requests of completion. Note:
+  log_flush_notify() may skip some notifications because it is
+  basically assuming that the list is in ascending order of LSN. */
+  log_flush_notify(flush_lsn);
+  commit_checkpoint_notify_ha(cookie);
 }
 
 /*****************************************************************//**

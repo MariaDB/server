@@ -145,16 +145,6 @@ innobase_mysql_print_thd(
 	uint	max_query_len);	/*!< in: max query length to print, or 0 to
 				   use the default max length */
 
-/*****************************************************************//**
-Log code calls this whenever log has been written and/or flushed up
-to a new position. We use this to notify upper layer of a new commit
-checkpoint when necessary.*/
-UNIV_INTERN
-void
-innobase_mysql_log_notify(
-/*======================*/
-	ib_uint64_t	flush_lsn);	/*!< in: LSN flushed to disk */
-
 /** Converts a MySQL type to an InnoDB type. Note that this function returns
 the 'mtype' of InnoDB. InnoDB differentiates between MySQL's old <= 4.1
 VARCHAR and the new true VARCHAR in >= 5.0.3 by the 'prtype'.

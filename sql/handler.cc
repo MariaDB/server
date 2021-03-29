@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -861,7 +861,7 @@ static my_bool commit_checkpoint_request_handlerton(THD *unused1, plugin_ref plu
     void *cookie= st->cookie;
     if (st->pre_hook)
       (*st->pre_hook)(cookie);
-    (*hton->commit_checkpoint_request)(hton, cookie);
+    (*hton->commit_checkpoint_request)(cookie);
   }
   return FALSE;
 }
@@ -2437,8 +2437,7 @@ int ha_recover(HASH *commit_list)
   Called by engine to notify TC that a new commit checkpoint has been reached.
   See comments on handlerton method commit_checkpoint_request() for details.
 */
-void
-commit_checkpoint_notify_ha(handlerton *hton, void *cookie)
+void commit_checkpoint_notify_ha(void *cookie)
 {
   tc_log->commit_checkpoint_notify(cookie);
 }
