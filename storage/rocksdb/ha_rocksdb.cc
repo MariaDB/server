@@ -4111,15 +4111,14 @@ static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len)
   MariaRocks just flushes everything right away ATM
 */
 
-static void rocksdb_checkpoint_request(handlerton *hton,
-                                       void *cookie)
+static void rocksdb_checkpoint_request(void *cookie)
 {
   const rocksdb::Status s= rdb->SyncWAL();
   //TODO: what to do on error?
   if (s.ok())
   {
     rocksdb_wal_group_syncs++;
-    commit_checkpoint_notify_ha(hton, cookie);
+    commit_checkpoint_notify_ha(cookie);
   }
 }
 

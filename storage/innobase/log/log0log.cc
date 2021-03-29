@@ -654,6 +654,10 @@ log_buffer_switch()
 	log_sys.buf_next_to_write = log_sys.buf_free;
 }
 
+/** Invoke commit_checkpoint_notify_ha() to notify that outstanding
+log writes have been completed. */
+void log_flush_notify(lsn_t flush_lsn);
+
 /**
 Writes log buffer to disk
 which is the "write" part of log_write_up_to().
@@ -756,8 +760,10 @@ static void log_write(bool rotate_key)
 		start_offset - area_start);
 	srv_stats.log_padded.add(pad_size);
 	log_sys.write_lsn = write_lsn;
-	if (log_sys.log.writes_are_durable())
+	if (log_sys.log.writes_are_durable()) {
 		log_sys.set_flushed_lsn(write_lsn);
+		log_flush_notify(write_lsn);
+	}
 	return;
 }
 
@@ -824,7 +830,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
   log_write_flush_to_disk_low(flush_lsn);
   flush_lock.release(flush_lsn);
 
-  innobase_mysql_log_notify(flush_lsn);
+  log_flush_notify(flush_lsn);
 }
 
 /** write to the log file up to the last log entry.

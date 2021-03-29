@@ -1477,7 +1477,7 @@ struct handlerton
      recovery. It uses that to reduce the work needed for any subsequent XA
      recovery process.
    */
-   void (*commit_checkpoint_request)(handlerton *hton, void *cookie);
+   void (*commit_checkpoint_request)(void *cookie);
   /*
     "Disable or enable checkpointing internal to the storage engine. This is
     used for FLUSH TABLES WITH READ LOCK AND DISABLE CHECKPOINT to ensure that
@@ -5255,7 +5255,7 @@ void trans_register_ha(THD *thd, bool all, handlerton *ht,
 
 const char *get_canonical_filename(handler *file, const char *path,
                                    char *tmp_path);
-void commit_checkpoint_notify_ha(handlerton *hton, void *cookie);
+void commit_checkpoint_notify_ha(void *cookie);
 
 inline const LEX_CSTRING *table_case_name(HA_CREATE_INFO *info, const LEX_CSTRING *name)
 {
