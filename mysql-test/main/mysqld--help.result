@@ -1605,7 +1605,7 @@ max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-password-errors 18446744073709551615
 max-prepared-stmt-count 16382
-max-recursive-iterations 18446744073709551615
+max-recursive-iterations 1000
 max-relay-log-size 1073741824
 max-rowid-filter-size 131072
 max-seeks-for-key 18446744073709551615

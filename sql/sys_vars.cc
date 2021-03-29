@@ -2457,7 +2457,7 @@ static Sys_var_ulong Sys_max_recursive_iterations(
        "max_recursive_iterations",
        "Maximum number of iterations when executing recursive queries",
        SESSION_VAR(max_recursive_iterations), CMD_LINE(OPT_ARG),
-       VALID_RANGE(0, UINT_MAX), DEFAULT(UINT_MAX), BLOCK_SIZE(1));
+       VALID_RANGE(0, UINT_MAX), DEFAULT(1000), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_max_sort_length(
        "max_sort_length",

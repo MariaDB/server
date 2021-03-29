@@ -1,3 +1,4 @@
+set max_recursive_iterations=200000;
 create table test_table (id int, random_data varchar(36), static_int int, static_varchar varchar(10));
 
 insert into test_table(id, random_data, static_int, static_varchar)
@@ -48,3 +49,4 @@ from information_schema.session_status
 where variable_name like 'Sort_merge_passes';
 
 drop table test_table;
+set max_recursive_iterations=default;

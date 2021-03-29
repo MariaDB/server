@@ -1,3 +1,4 @@
+set max_recursive_iterations=200000;
 create table test_table (id int, random_data varchar(36), static_int int, static_varchar varchar(10));
 insert into test_table(id, random_data, static_int, static_varchar)
 select id, random_data, 42, 'Hello'
@@ -71,3 +72,4 @@ where variable_name like 'Sort_merge_passes';
 variable_name	case when variable_value > 0 then 'WITH PASSES' else 'NO PASSES' end
 SORT_MERGE_PASSES	WITH PASSES
 drop table test_table;
+set max_recursive_iterations=default;
