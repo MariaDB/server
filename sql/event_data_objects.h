@@ -35,7 +35,9 @@ void init_scheduler_psi_keys(void);
 class Event_queue_element_for_exec
 {
 public:
-  Event_queue_element_for_exec(){};
+  Event_queue_element_for_exec()
+   :dbname_str_freed(false)
+  { }
   ~Event_queue_element_for_exec();
 
   bool
@@ -43,6 +45,7 @@ public:
 
   LEX_CSTRING dbname;
   LEX_CSTRING name;
+  bool dbname_str_freed;
   bool dropped;
   THD *thd;
 
