@@ -2,7 +2,7 @@
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2009, Google Inc.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -86,12 +86,6 @@ log_free_check(void);
 /** Extends the log buffer.
 @param[in]	len	requested minimum size in bytes */
 void log_buffer_extend(ulong len);
-
-/** Read the current LSN. */
-#define log_get_lsn() log_sys.get_lsn()
-
-/** Read the durable LSN */
-#define log_get_flush_lsn() log_sys.get_flushed_lsn()
 
 /** Calculate the recommended highest values for lsn - last_checkpoint_lsn
 and lsn - buf_pool.get_oldest_modification().
@@ -646,13 +640,14 @@ public:
 
   bool is_initialised() const { return m_initialised; }
 
-  lsn_t get_lsn() const { return lsn.load(std::memory_order_relaxed); }
-  void set_lsn(lsn_t lsn) { this->lsn.store(lsn, std::memory_order_relaxed); }
+  lsn_t get_lsn(std::memory_order order= std::memory_order_relaxed) const
+  { return lsn.load(order); }
+  void set_lsn(lsn_t lsn) { this->lsn.store(lsn, std::memory_order_release); }
 
   lsn_t get_flushed_lsn() const
-  { return flushed_to_disk_lsn.load(std::memory_order_relaxed); }
+  { return flushed_to_disk_lsn.load(std::memory_order_acquire); }
   void set_flushed_lsn(lsn_t lsn)
-  { flushed_to_disk_lsn.store(lsn, std::memory_order_relaxed); }
+  { flushed_to_disk_lsn.store(lsn, std::memory_order_release); }
 
   bool check_flush_or_checkpoint() const
   {

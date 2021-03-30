@@ -956,7 +956,7 @@ static lsn_t srv_prepare_to_delete_redo_log_file(bool old_exists)
 			log_sys.log.flush();
 		}
 
-		ut_ad(flushed_lsn == log_get_lsn());
+		ut_ad(flushed_lsn == log_sys.get_lsn());
 
 		/* Check if the buffer pools are clean.  If not
 		retry till it is clean. */
@@ -1346,7 +1346,7 @@ dberr_t srv_start(bool create_new_db)
 
 			/* Suppress the message about
 			crash recovery. */
-			flushed_lsn = log_get_lsn();
+			flushed_lsn = log_sys.get_lsn();
 			goto file_checked;
 		}
 
@@ -1424,7 +1424,7 @@ file_checked:
 
 		buf_flush_sync();
 
-		flushed_lsn = log_get_lsn();
+		flushed_lsn = log_sys.get_lsn();
 
 		err = fil_write_flushed_lsn(flushed_lsn);
 
@@ -1600,7 +1600,7 @@ file_checked:
 			InnoDB files is needed. */
 			ut_ad(!srv_force_recovery);
 			ut_ad(recv_no_log_write);
-			err = fil_write_flushed_lsn(log_get_lsn());
+			err = fil_write_flushed_lsn(log_sys.get_lsn());
 			DBUG_ASSERT(!buf_pool.any_io_pending());
 			log_sys.log.close_file();
 			if (err == DB_SUCCESS) {
