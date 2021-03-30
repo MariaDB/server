@@ -82,6 +82,14 @@ ADD_CUSTOM_TARGET(GenFixPrivs
   DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/mysql_fix_privilege_tables_sql.c
 )
 
+IF(UNIX AND NOT WITHOUT_SERVER)
+ FILE(WRITE ${CMAKE_CURRENT_BINARY_DIR}/make_binary_distribution
+   "cd ${CMAKE_BINARY_DIR} && '${CMAKE_CPACK_COMMAND}' -G TGZ --config CPackConfig.cmake\n" )
+ EXECUTE_PROCESS(
+  COMMAND chmod +x ${CMAKE_CURRENT_BINARY_DIR}/make_binary_distribution
+)
+ENDIF()
+
 # Configure two scripts from one 'in' file.
 # The maria_add_gis_sp.sql - to be sent to 'mysql' tool
 # and the maria_add_gis_sp_bootstrap.sql, that can be sent to
