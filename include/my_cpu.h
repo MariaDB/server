@@ -84,7 +84,7 @@ static inline void MY_RELAX_CPU(void)
   __ppc_get_timebase();
 #elif defined __GNUC__ && (defined __arm__ || defined __aarch64__)
   /* Mainly, prevent the compiler from optimizing away delay loops */
-  __asm__ __volatile__ ("":::"memory");
+  __asm__ __volatile__ ("isb":::"memory");
 #else
   int32 var, oldval = 0;
   my_atomic_cas32_strong_explicit(&var, &oldval, 1, MY_MEMORY_ORDER_RELAXED,
