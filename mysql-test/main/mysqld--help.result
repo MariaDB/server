@@ -576,6 +576,10 @@ The following specify which files/extra groups are read (specified before remain
  --max-error-count=# Max number of errors/warnings to store for a statement
  --max-heap-table-size=# 
  Don't allow creation of heap tables bigger than this
+ --max-idle-execution=# 
+ If no new connections or running queries within this time
+ (in seconds) shutdown the server (Automatically
+ configured unless set explicitly)
  --max-join-size=#   Joins that are probably going to read more than
  max_join_size records return an error
  --max-length-for-sort-data=# 
@@ -1615,6 +1619,7 @@ max-delayed-threads 20
 max-digest-length 1024
 max-error-count 64
 max-heap-table-size 16777216
+max-idle-execution 18446744073709551615
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-password-errors 18446744073709551615

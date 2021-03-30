@@ -1724,6 +1724,14 @@ Sys_max_connect_errors(
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
        BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_max_idle_execution(
+       "max_idle_execution",
+       "If no new connections or running queries within this time (in seconds) "
+       "shutdown the server",
+       AUTO_SET GLOBAL_VAR(max_idle_execution), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(10, UINT_MAX), DEFAULT(UINT_MAX),
+       BLOCK_SIZE(1));
+
 static Sys_var_on_access_global<Sys_var_uint,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_MAX_PASSWORD_ERRORS>
 Sys_max_password_errors(

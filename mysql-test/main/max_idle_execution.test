@@ -1,0 +1,38 @@
+--source include/not_embedded.inc
+
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--exec echo "wait" > $_expect_file_name
+disable_reconnect;
+disconnect default;
+
+--echo 'allow server to time out in 10 seconds'
+
+--sleep 10
+
+--echo 'should have timed out'
+# mtr weirdness
+--replace_regex /[\/0-9]+.*//
+--error 0,ER_SERVER_SHUTDOWN,ER_CONNECTION_KILLED,2002,2006,201
+--connect fail_me,localhost,root
+
+--exec echo "restart" > $_expect_file_name
+--sleep 5
+--connect con0,localhost,root,,test
+
+--source include/wait_until_connected_again.inc
+SELECT VARIABLE_VALUE AS THREAD_CONNECTED FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='THREADS_CONNECTED';
+SELECT 'we are back';
+SELECT VARIABLE_VALUE < 10 AS UPTIME_LESS_THAN_10_SECONDS FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='UPTIME';
+
+--sleep 13
+SELECT 'still here because the connection is open, but disconnecting now';
+disconnect con0;
+--sleep 5
+
+--connect con2,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,
+SELECT "extra connection just created: still here, only 5 seconds since last query";
+
+--sleep 13 
+connect  default,localhost,root,,test,,;
+SELECT 'active extra connection kept the server up';

@@ -195,6 +195,7 @@ enum enum_binlog_row_image {
 extern char internal_table_name[2];
 extern char empty_c_string[1];
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;
+extern ulonglong server_last_activity;
 
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
 extern "C" unsigned long long thd_query_id(const MYSQL_THD thd);
@@ -3949,6 +3950,9 @@ public:
     set_time_for_next_stage();
     if (utime_after_query >= utime_after_lock + variables.long_query_time)
       server_status|= SERVER_QUERY_WAS_SLOW;
+    /* If we're tracking idle execution, and we're down to the last connection */
+    if (max_idle_execution <  UINT_MAX && *scheduler->connection_count <= 1)
+      server_last_activity= utime_after_query;
   }
   inline ulonglong found_rows(void)
   {

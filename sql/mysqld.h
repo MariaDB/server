@@ -225,7 +225,7 @@ extern ulong query_cache_min_res_unit;
 extern ulong slow_launch_threads, slow_launch_time;
 extern MYSQL_PLUGIN_IMPORT ulong max_connections;
 extern uint max_digest_length;
-extern ulong max_connect_errors, connect_timeout;
+extern ulong max_connect_errors, connect_timeout, max_idle_execution;
 extern uint max_password_errors;
 extern my_bool slave_allow_batching;
 extern my_bool allow_slave_start;

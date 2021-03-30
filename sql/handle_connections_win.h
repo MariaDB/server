@@ -17,5 +17,5 @@
   Handles incoming socket and pipe connections, on Windows.
   Creates new (THD) connections..
 */
-extern void handle_connections_win();
+extern void handle_connections_win(Atomic_counter<uint> *connection_count);
 extern void network_init_win();

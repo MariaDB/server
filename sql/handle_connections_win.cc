@@ -593,7 +593,7 @@ void network_init_win()
   }
 }
 
-void handle_connections_win()
+void handle_connections_win(Atomic_counter<uint> *connection_count)
 {
   int n_waits;
 
@@ -631,11 +631,25 @@ void handle_connections_win()
   {
     DBUG_ASSERT(wait_events.size() <= MAXIMUM_WAIT_OBJECTS);
     DWORD idx = WaitForMultipleObjects((DWORD)wait_events.size(),
-                                       wait_events.data(), FALSE, INFINITE);
-    DBUG_ASSERT((int)idx >= 0 && (int)idx < (int)wait_events.size());
+                                       wait_events.data(), FALSE,
+                                       max_idle_execution < UINT_MAX ?
+                                         max_idle_execution * 1000 : INFINITE);
+    DBUG_ASSERT(idx == WAIT_TIMEOUT ||
+                  ((int)idx >= 0 && (int)idx < (int)wait_events.size()));
 
     if (idx == SHUTDOWN_IDX)
       break;
+
+    if (idx == WAIT_TIMEOUT)
+    {
+      if (*connection_count == 0 &&
+          microsecond_interval_timer() > (server_last_activity + max_idle_execution * 1000000))
+      {
+        sql_print_information("max_idle_execution time reached starting shutdown");
+        break;
+      }
+      continue;
+    }
 
     all_listeners[idx - LISTENER_START_IDX]->completion_callback();
   }
