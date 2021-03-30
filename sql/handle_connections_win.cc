@@ -28,6 +28,7 @@
 /* From mysqld.cc */
 extern HANDLE hEventShutdown;
 extern Dynamic_array<MYSQL_SOCKET> listen_sockets;
+extern Atomic_counter<uint> connection_count;
 #ifdef HAVE_POOL_OF_THREADS
 extern PTP_CALLBACK_ENVIRON get_threadpool_win_callback_environ();
 extern void tp_win_callback_prolog();
@@ -631,11 +632,33 @@ void handle_connections_win()
   {
     DBUG_ASSERT(wait_events.size() <= MAXIMUM_WAIT_OBJECTS);
     DWORD idx = WaitForMultipleObjects((DWORD)wait_events.size(),
-                                       wait_events.data(), FALSE, INFINITE);
-    DBUG_ASSERT((int)idx >= 0 && (int)idx < (int)wait_events.size());
+                                       wait_events.data(), FALSE,
+                                       max_idle_execution ?
+                                         max_idle_execution * 1000 : INFINITE);
+    DBUG_ASSERT(idx == WAIT_TIMEOUT ||
+                  ((int)idx >= 0 && (int)idx < (int)wait_events.size()));
 
     if (idx == SHUTDOWN_IDX)
       break;
+
+    if (max_idle_execution)
+    {
+      if (idx == WAIT_TIMEOUT)
+      {
+        if (connection_count == 0 &&
+            microsecond_interval_timer() >
+            (my_atomic_loadlonglong(&server_last_activity)
+            + max_idle_execution * 1000000ULL))
+        {
+          sql_print_information("max_idle_execution time reached starting shutdown");
+          break;
+        }
+        continue;
+      }
+      else
+        my_atomic_storelonglong(&server_last_activity,
+                                microsecond_interval_timer());
+    }
 
     all_listeners[idx - LISTENER_START_IDX]->completion_callback();
   }

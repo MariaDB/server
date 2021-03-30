@@ -195,6 +195,7 @@ enum enum_binlog_row_image {
 extern char internal_table_name[2];
 extern char empty_c_string[1];
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;
+extern ulonglong server_last_activity;
 
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
 extern "C" unsigned long long thd_query_id(const MYSQL_THD thd);

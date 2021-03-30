@@ -131,6 +131,9 @@
 #define my_atomic_caslong(A,B,C) my_atomic_cas64((int64*) (A), (int64*) (B), (C))
 #endif
 
+#define my_atomic_loadlonglong(A) my_atomic_load64((int64*) (A))
+#define my_atomic_storelonglong(A,B) my_atomic_store64((int64*) (A), (B))
+
 #ifndef MY_MEMORY_ORDER_SEQ_CST
 #define MY_MEMORY_ORDER_RELAXED
 #define MY_MEMORY_ORDER_CONSUME

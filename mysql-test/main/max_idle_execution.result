@@ -1,0 +1,33 @@
+disconnect default;
+'allow server to time out'
+'should have timed out'
+connect con0,localhost,root,,test;
+SELECT VARIABLE_VALUE AS THREAD_CONNECTED FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='THREADS_CONNECTED';
+THREAD_CONNECTED
+1
+SELECT 'we are back';
+we are back
+we are back
+SELECT VARIABLE_VALUE < 5 AS UPTIME_LESS_THAN_5_SECONDS FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='UPTIME';
+UPTIME_LESS_THAN_5_SECONDS
+1
+SELECT 'still here because the connection is open, but disconnecting now';
+still here because the connection is open, but disconnecting now
+still here because the connection is open, but disconnecting now
+disconnect con0;
+connect con2,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,;
+SELECT "extra connection just created: still here, only 3 seconds since last query";
+extra connection just created: still here, only 3 seconds since last query
+extra connection just created: still here, only 3 seconds since last query
+SELECT VARIABLE_VALUE > 5 AS UPTIME_GREATER_THAN_5_SECONDS FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='UPTIME';
+UPTIME_GREATER_THAN_5_SECONDS
+1
+SELECT 'active extra connection kept the server up';
+active extra connection kept the server up
+active extra connection kept the server up
+SELECT @@interactive_timeout, @@wait_timeout;
+@@interactive_timeout	@@wait_timeout
+5	5
+disconnect con2;
+'allow server to time out'
+'should have timed out'
