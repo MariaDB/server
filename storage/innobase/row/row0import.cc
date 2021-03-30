@@ -3390,7 +3390,7 @@ punch hole is enabled
 static
 dberr_t fil_import_compress_fwrite(const fil_iterator_t &iter,
                                    const IORequest &write_request,
-                                   ulint offset,
+                                   os_offset_t offset,
                                    const byte *writeptr,
                                    ulint n_bytes,
                                    bool try_punch_only=false)
