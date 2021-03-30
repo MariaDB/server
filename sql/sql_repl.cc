@@ -3966,6 +3966,8 @@ int reset_master(THD* thd, rpl_gtid *init_state, uint32 init_state_len,
   ret= mysql_bin_log.reset_logs(thd, 1, init_state, init_state_len,
                                 next_log_number);
   repl_semisync_master.after_reset_master();
+  DBUG_EXECUTE_IF("crash_after_reset_master", DBUG_SUICIDE(););
+
   return ret;
 }
 

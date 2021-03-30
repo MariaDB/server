@@ -4113,7 +4113,7 @@ static int rocksdb_recover(handlerton* hton, XID* xid_list, uint len)
 
 static void rocksdb_checkpoint_request(void *cookie)
 {
-  const rocksdb::Status s= rdb->SyncWAL();
+  const rocksdb::Status s= rdb->FlushWAL(true);
   //TODO: what to do on error?
   if (s.ok())
   {
