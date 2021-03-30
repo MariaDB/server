@@ -1039,8 +1039,8 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
   @retval  >0 the lenght of the comment found
 
 */
-static uint32 comment_length(THD *thd, uint32 comment_pos,
-                             const char **comment_start)
+static uint32 get_comment(THD *thd, uint32 comment_pos,
+                          const char **comment_start)
 {
   /* We use uchar * here to make array indexing portable */
   const uchar *query= (uchar*) thd->query();
@@ -1069,7 +1069,7 @@ static uint32 comment_length(THD *thd, uint32 comment_pos,
 }
 
 /**
-  Execute the drop of a normal or temporary table.
+  Execute the drop of a sequence, view or table (normal or temporary).
 
   @param  thd             Thread handler
   @param  tables          Tables to drop
@@ -1631,8 +1631,8 @@ err:
           built_query.append(STRING_WITH_LEN("IF EXISTS "));
 
         /* Preserve comment in original query */
-        if ((comment_len= comment_length(thd, if_exists ? 17:9,
-                                         &comment_start)))
+        if ((comment_len= get_comment(thd, if_exists ? 17:9,
+                                      &comment_start)))
         {
           built_query.append(comment_start, comment_len);
           built_query.append(' ');
