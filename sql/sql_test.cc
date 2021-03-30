@@ -619,7 +619,7 @@ Next alarm time: %lu\n",
 #if defined(HAVE_MALLINFO2)
   struct mallinfo2 info = mallinfo2();
 #elif defined(HAVE_MALLINFO)
-    struct mallinfo info= mallinfo();
+  struct mallinfo info= mallinfo();
 #endif
 #if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
   char llbuff[10][22];
