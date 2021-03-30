@@ -1864,6 +1864,10 @@ buf_pool_init_instance(
 				ut_free(buf_pool->chunks);
 				buf_pool_mutex_exit(buf_pool);
 
+				/* InnoDB should free the mutex which was
+				created so far before freeing the instance */
+				mutex_free(&buf_pool->mutex);
+				mutex_free(&buf_pool->zip_mutex);
 				return(DB_ERROR);
 			}
 
