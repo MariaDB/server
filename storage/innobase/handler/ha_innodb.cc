@@ -1182,7 +1182,7 @@ MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) static
 struct
 {
   /** first request */
-  Atomic_relaxed<log_flush_request*> start;
+  std::atomic<log_flush_request*> start;
   /** last request */
   log_flush_request *end;
   /** mutex protecting this object */
@@ -4460,13 +4460,11 @@ innobase_rollback_trx(
 
 /** Invoke commit_checkpoint_notify_ha() on completed log flush requests.
 @param pending  log_requests.start
-@param lsn      log_sys.get_flushed_lsn()
-@return whether something was notified (and log_requests.mutex released)  */
-static bool log_flush_notify_and_unlock(log_flush_request *pending, lsn_t lsn)
+@param lsn      log_sys.get_flushed_lsn() */
+static void log_flush_notify_and_unlock(log_flush_request *pending, lsn_t lsn)
 {
   mysql_mutex_assert_owner(&log_requests.mutex);
-  ut_ad(pending == log_requests.start);
-
+  ut_ad(pending == log_requests.start.load(std::memory_order_relaxed));
   log_flush_request *entry= pending, *last= nullptr;
   /* Process the first requests that have been completed. Since
   the list is not necessarily in ascending order of LSN, we may
@@ -4478,12 +4476,15 @@ static bool log_flush_notify_and_unlock(log_flush_request *pending, lsn_t lsn)
   for (; entry && entry->lsn <= lsn; last= entry, entry= entry->next);
 
   if (!last)
-    return false;
+  {
+    mysql_mutex_unlock(&log_requests.mutex);
+    return;
+  }
 
   /* Detach the head of the list that corresponds to persisted log writes. */
-  log_requests.start= entry;
   if (!entry)
-    log_requests.end= nullptr;
+    log_requests.end= entry;
+  log_requests.start.store(entry, std::memory_order_relaxed);
   mysql_mutex_unlock(&log_requests.mutex);
 
   /* Now that we have released the mutex, notify the submitters
@@ -4496,21 +4497,16 @@ static bool log_flush_notify_and_unlock(log_flush_request *pending, lsn_t lsn)
     my_free(entry);
   }
   while (entry != last);
-
-  return true;
 }
 
 /** Invoke commit_checkpoint_notify_ha() to notify that outstanding
 log writes have been completed. */
 void log_flush_notify(lsn_t flush_lsn)
 {
-  if (log_requests.start)
+  if (auto pending= log_requests.start.load(std::memory_order_acquire))
   {
     mysql_mutex_lock(&log_requests.mutex);
-    if (log_flush_request *pending= log_requests.start)
-      if (log_flush_notify_and_unlock(pending, flush_lsn))
-        return;
-    mysql_mutex_unlock(&log_requests.mutex);
+    log_flush_notify_and_unlock(pending, flush_lsn);
   }
 }
 
@@ -4520,8 +4516,9 @@ checkpoint complete when we have flushed the redo log.
 If we have already flushed all relevant redo log, we notify immediately.*/
 static void innodb_log_flush_request(void *cookie)
 {
-  const lsn_t lsn= log_sys.get_lsn();
   lsn_t flush_lsn= log_sys.get_flushed_lsn();
+  /* Load lsn relaxed after flush_lsn was loaded from the same cache line */
+  const lsn_t lsn= log_sys.get_lsn();
 
   if (flush_lsn >= lsn)
     /* All log is already persistent. */;
@@ -4539,24 +4536,38 @@ static void innodb_log_flush_request(void *cookie)
     req->cookie= cookie;
     req->lsn= lsn;
 
+    log_flush_request *start= nullptr;
+
     mysql_mutex_lock(&log_requests.mutex);
-    auto old_end= log_requests.end;
-    log_requests.end= req;
-    if (old_end)
+    /* In order to prevent a race condition where log_flush_notify()
+    would skip a notification due to, we must update log_requests.start from
+    nullptr (empty) to the first req using std::memory_order_release. */
+    if (log_requests.start.compare_exchange_strong(start, req,
+                                                   std::memory_order_release,
+                                                   std::memory_order_relaxed))
+    {
+      ut_ad(!log_requests.end);
+      start= req;
+      /* In case log_flush_notify() executed
+      log_requests.start.load(std::memory_order_acquire) right before
+      our successful compare_exchange, we must re-read flush_lsn to
+      ensure that our request will be notified immediately if applicable. */
+      flush_lsn= log_sys.get_flushed_lsn();
+    }
+    else
     {
       /* Append the entry to the list. Because we determined req->lsn before
       acquiring the mutex, this list may not be ordered by req->lsn,
       even though log_flush_notify_and_unlock() assumes so. */
-      old_end->next= req;
-      /* This hopefully addresses the hang that was reported in MDEV-24302.
-      Upon receiving a new request, we will notify old requests of
-      completion. */
-      if (log_flush_notify_and_unlock(log_requests.start, flush_lsn))
-        return;
+      log_requests.end->next= req;
     }
-    else
-      log_requests.start= req;
-    mysql_mutex_unlock(&log_requests.mutex);
+
+    log_requests.end= req;
+
+    /* This hopefully addresses the hang that was reported in MDEV-24302.
+    Upon receiving a new request, we will notify old requests of
+    completion. */
+    log_flush_notify_and_unlock(start, flush_lsn);
     return;
   }
   else
@@ -18345,16 +18356,17 @@ checkpoint_now_set(THD*, st_mysql_sys_var*, void*, const void* save)
 	if (*(my_bool*) save) {
 		mysql_mutex_unlock(&LOCK_global_system_variables);
 
-		while (log_sys.last_checkpoint_lsn
+		lsn_t lsn;
+
+		while (log_sys.last_checkpoint_lsn.load(
+			       std::memory_order_acquire)
 		       + SIZE_OF_FILE_CHECKPOINT
-		       < log_sys.get_lsn()) {
+		       < (lsn= log_sys.get_lsn(std::memory_order_acquire))) {
 			log_make_checkpoint();
 			log_sys.log.flush();
 		}
 
-		dberr_t err = fil_write_flushed_lsn(log_sys.get_lsn());
-
-		if (err != DB_SUCCESS) {
+		if (dberr_t err = fil_write_flushed_lsn(lsn)) {
 			ib::warn() << "Checkpoint set failed " << err;
 		}
 

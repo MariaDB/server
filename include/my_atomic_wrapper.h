@@ -1,4 +1,4 @@
-/* Copyright (c) 2020, MariaDB
+/* Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -41,7 +41,9 @@ public:
   Atomic_relaxed(Type val) : m(val) {}
   Atomic_relaxed() {}
 
-  operator Type() const { return m.load(std::memory_order_relaxed); }
+  Type load(std::memory_order o= std::memory_order_relaxed) const
+  { return m.load(o); }
+  operator Type() const { return m.load(); }
   Type operator=(const Type val)
   { m.store(val, std::memory_order_relaxed); return val; }
   Type operator=(const Atomic_relaxed<Type> &rhs) { return *this= Type{rhs}; }

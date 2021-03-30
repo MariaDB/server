@@ -1559,7 +1559,7 @@ static void log_flush(void *)
   fil_flush_file_spaces();
 
   /* Guarantee progress for buf_flush_lists(). */
-  log_write_up_to(log_sys.get_lsn(), true);
+  log_buffer_flush_to_disk(true);
   log_flush_pending.clear();
 }
 
@@ -1577,15 +1577,17 @@ ulint buf_flush_lists(ulint max_n, lsn_t lsn)
   if (n_flush)
     return 0;
 
-  if (log_sys.get_lsn() > log_sys.get_flushed_lsn())
+  lsn_t flushed_lsn= log_sys.get_flushed_lsn();
+  if (log_sys.get_lsn() > flushed_lsn)
   {
     log_flush_task.wait();
-    if (log_sys.get_lsn() > log_sys.get_flushed_lsn() &&
+    flushed_lsn= log_sys.get_flushed_lsn();
+    if (log_sys.get_lsn() > flushed_lsn &&
         !log_flush_pending.test_and_set())
       srv_thread_pool->submit_task(&log_flush_task);
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
     if (UNIV_UNLIKELY(ibuf_debug))
-      log_write_up_to(log_sys.get_lsn(), true);
+      log_buffer_flush_to_disk(true);
 #endif
   }
 
@@ -1730,7 +1732,7 @@ static bool log_checkpoint()
 /** Make a checkpoint. */
 ATTRIBUTE_COLD void log_make_checkpoint()
 {
-  buf_flush_wait_flushed(log_sys.get_lsn());
+  buf_flush_wait_flushed(log_sys.get_lsn(std::memory_order_acquire));
   while (!log_checkpoint());
 }
 

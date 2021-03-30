@@ -1340,14 +1340,7 @@ void srv_monitor_task(void*)
 	where the lsn seems to decrease at times */
 
 	lsn_t new_lsn = log_sys.get_lsn();
-	if (new_lsn < old_lsn) {
-		ib::error() << "Old log sequence number " << old_lsn << " was"
-			<< " greater than the new log sequence number "
-			<< new_lsn << ". Please submit a bug report to"
-			" https://jira.mariadb.org/";
-			ut_ad(0);
-	}
-
+	ut_a(new_lsn >= old_lsn);
 	old_lsn = new_lsn;
 
 	/* Update the statistics collected for deciding LRU
