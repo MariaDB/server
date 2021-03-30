@@ -396,7 +396,7 @@ extern PSI_file_key key_file_binlog, key_file_binlog_cache,
   key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
   key_file_pid, key_file_relay_log_info, key_file_send_file, key_file_tclog,
-  key_file_trg, key_file_trn, key_file_init;
+  key_file_trg, key_file_trn, key_file_init, key_file_log_ddl;
 extern PSI_file_key key_file_query_log, key_file_slow_log;
 extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
                     key_file_relaylog_cache, key_file_relaylog_index_cache;
@@ -744,7 +744,7 @@ extern mysql_mutex_t
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_active_mi, LOCK_manager, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages;
+       LOCK_prepared_stmt_count, LOCK_error_messages,  LOCK_backup_log;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;

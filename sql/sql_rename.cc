@@ -234,6 +234,7 @@ do_rename_temporary(THD *thd, TABLE_LIST *ren_table, TABLE_LIST *new_table)
 struct rename_param
 {
   LEX_CSTRING old_alias, new_alias;
+  LEX_CUSTRING old_version;
   handlerton *from_table_hton;
 };
 
@@ -281,6 +282,7 @@ check_rename(THD *thd, rename_param *param,
   DBUG_ASSERT(param->new_alias.str);
 
   if (!ha_table_exists(thd, &ren_table->db, &param->old_alias,
+                       &param->old_version, NULL,
                        &param->from_table_hton) ||
       !param->from_table_hton)
   {
@@ -301,7 +303,7 @@ check_rename(THD *thd, rename_param *param,
     DBUG_RETURN(-1);
   }
 
-  if (ha_table_exists(thd, new_db, &param->new_alias, 0))
+  if (ha_table_exists(thd, new_db, &param->new_alias, NULL, NULL, 0))
   {
     my_error(ER_TABLE_EXISTS_ERROR, MYF(0), param->new_alias.str);
     DBUG_RETURN(1);                     // This can't be skipped
@@ -379,7 +381,7 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
 
     debug_crash_here("ddl_log_rename_before_rename_table");
     if (!(rc= mysql_rename_table(hton, &ren_table->db, old_alias,
-                                 new_db, new_alias, 0)))
+                                 new_db, new_alias, &param->old_version, 0)))
     {
       /* Table rename succeded.
          It's safe to start recovery at rename trigger phase
@@ -413,7 +415,8 @@ do_rename(THD *thd, rename_param *param, DDL_LOG_STATE *ddl_log_state,
         */
         debug_crash_here("ddl_log_rename_after_failed_rename_trigger");
         (void) mysql_rename_table(hton, new_db, new_alias,
-                                  &ren_table->db, old_alias, NO_FK_CHECKS);
+                                  &ren_table->db, old_alias, &param->old_version,
+                                  NO_FK_CHECKS);
         debug_crash_here("ddl_log_rename_after_revert_rename_table");
         ddl_log_disable_entry(ddl_log_state);
         debug_crash_here("ddl_log_rename_after_disable_entry");

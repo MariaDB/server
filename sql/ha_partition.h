@@ -98,12 +98,14 @@ public:
   */
   bool partition_name_hash_initialized;
   HASH partition_name_hash;
+  const char *partition_engine_name;
   /** Storage for each partitions Handler_share */
   Parts_share_refs partitions_share_refs;
   Partition_share()
     : auto_inc_initialized(false),
     next_auto_inc_val(0),
     partition_name_hash_initialized(false),
+    partition_engine_name(NULL),
     partition_names(NULL)
   {
     mysql_mutex_init(key_partition_auto_inc_mutex,
@@ -269,7 +271,7 @@ typedef struct st_partition_part_key_multi_range_hld
 extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
 extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
 
-class ha_partition :public handler
+class ha_partition final :public handler
 {
 private:
   enum partition_index_scan_type
@@ -1071,6 +1073,8 @@ public:
   */
   const char *index_type(uint inx) override;
 
+  /* The name of the table type that will be used for display purposes */
+  const char *real_table_type() const override;
   /* The name of the row type used for the underlying tables. */
   enum row_type get_row_type() const override;
 
@@ -1596,6 +1600,7 @@ public:
     return h;
   }
 
+  bool partition_engine() override { return 1;}
   ha_rows part_records(partition_element *part_elem)
   {
     DBUG_ASSERT(m_part_info);

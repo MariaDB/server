@@ -59,6 +59,7 @@ typedef struct st_lock_param_type
   KEY *key_info_buffer;
   LEX_CSTRING db;
   LEX_CSTRING table_name;
+  LEX_CUSTRING org_tabledef_version;
   uchar *pack_frm_data;
   uint key_count;
   uint db_options;

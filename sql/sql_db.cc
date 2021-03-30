@@ -789,7 +789,6 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
     DBUG_RETURN(-1);
   }
 
-
   if (my_mkdir(path, 0777, MYF(0)) < 0)
   {
     my_error(ER_CANT_CREATE_DB, MYF(0), db->str, my_errno);
@@ -814,6 +813,14 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
     */
     thd->clear_error();
   }
+
+  /* Log command to ddl log */
+  backup_log_info ddl_log;
+  bzero(&ddl_log, sizeof(ddl_log));
+  ddl_log.query=                   { C_STRING_WITH_LEN("CREATE") };
+  ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("DATABASE") };
+  ddl_log.org_database=     *db;
+  backup_log_ddl(&ddl_log);
 
 not_silent:
   if (!silent)
@@ -897,6 +904,14 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
 		     thd->variables.collation_server;
     thd->variables.collation_database= thd->db_charset;
   }
+
+  /* Log command to ddl log */
+  backup_log_info ddl_log;
+  bzero(&ddl_log, sizeof(ddl_log));
+  ddl_log.query=                   { C_STRING_WITH_LEN("ALTER") };
+  ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("DATABASE") };
+  ddl_log.org_database=     *db;
+  backup_log_ddl(&ddl_log);
 
   if (mysql_bin_log.is_open())
   {
@@ -1148,6 +1163,17 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
   thd->pop_internal_handler();
 
 update_binlog:
+  if (likely(!error))
+  {
+    /* Log command to ddl log */
+    backup_log_info ddl_log;
+    bzero(&ddl_log, sizeof(ddl_log));
+    ddl_log.query=                   { C_STRING_WITH_LEN("DROP") };
+    ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("DATABASE") };
+    ddl_log.org_database=     *db;
+    backup_log_ddl(&ddl_log);
+  }
+
   if (!silent && likely(!error))
   {
     const char *query;

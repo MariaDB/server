@@ -459,6 +459,11 @@ void ha_partition::init_handler_variables()
 #endif
 }
 
+const char *ha_partition::real_table_type() const
+{
+  // we can do this since we only support a single engine type
+  return m_file[0]->table_type();
+}
 
 /*
   Destructor method
@@ -3771,6 +3776,15 @@ int ha_partition::open(const char *name, int mode, uint test_if_locked)
     being opened once.
   */
   clear_handler_file();
+
+  DBUG_ASSERT(part_share);
+  lock_shared_ha_data();
+  /* Protect against cloned file, for which we don't need engine name */
+  if (m_file[0])
+    part_share->partition_engine_name= real_table_type();
+  else
+    part_share->partition_engine_name= 0;       // Checked in ha_table_exists()
+  unlock_shared_ha_data();
 
   /*
     Some handlers update statistics as part of the open call. This will in

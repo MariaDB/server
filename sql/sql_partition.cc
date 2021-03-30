@@ -7035,6 +7035,30 @@ static void downgrade_mdl_if_lock_tables_mode(THD *thd, MDL_ticket *ticket,
 }
 
 
+bool log_partition_alter_to_ddl_log(ALTER_PARTITION_PARAM_TYPE *lpt)
+{
+  backup_log_info ddl_log;
+  bzero(&ddl_log, sizeof(ddl_log));
+  LEX_CSTRING old_engine_lex;
+  lex_string_set(&old_engine_lex, lpt->table->file->real_table_type());
+
+  ddl_log.query=                   { C_STRING_WITH_LEN("ALTER") };
+  ddl_log.org_storage_engine_name= old_engine_lex;
+  ddl_log.org_partitioned=         true;
+  ddl_log.org_database=            lpt->db;
+  ddl_log.org_table=               lpt->table_name;
+  ddl_log.org_table_id=            lpt->org_tabledef_version;
+  ddl_log.new_storage_engine_name= old_engine_lex;
+  ddl_log.new_partitioned=         true;
+  ddl_log.new_database=            lpt->db;
+  ddl_log.new_table=               lpt->table_name;
+  ddl_log.new_table_id=            lpt->create_info->tabledef_version;
+  backup_log_ddl(&ddl_log);        // This sets backup_log_error on failure
+  return 0;
+}
+
+
+
 /**
   Actually perform the change requested by ALTER TABLE of partitions
   previously prepared.
@@ -7087,6 +7111,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   lpt->key_count= 0;
   lpt->db= *db;
   lpt->table_name= *table_name;
+  lpt->org_tabledef_version= table->s->tabledef_version;
   lpt->copied= 0;
   lpt->deleted= 0;
   lpt->pack_frm_data= NULL;
@@ -7224,6 +7249,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_ERROR("fail_drop_partition_6") ||
         (frm_install= TRUE, FALSE) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
+        log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT_CRASH("crash_drop_partition_7") ||
         ERROR_INJECT_ERROR("fail_drop_partition_7") ||
@@ -7303,6 +7329,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_ERROR("fail_add_partition_8") ||
         (frm_install= TRUE, FALSE) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
+        log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT_CRASH("crash_add_partition_9") ||
         ERROR_INJECT_ERROR("fail_add_partition_9") ||
@@ -7401,6 +7428,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT_ERROR("fail_change_partition_8") ||
         ((frm_install= TRUE), FALSE) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
+        log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= FALSE, FALSE) ||
         ERROR_INJECT_CRASH("crash_change_partition_9") ||
         ERROR_INJECT_ERROR("fail_change_partition_9") ||

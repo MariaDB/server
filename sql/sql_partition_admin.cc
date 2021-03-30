@@ -507,6 +507,16 @@ bool Sql_cmd_alter_table_exchange_partition::
   char part_file_name[2*FN_REFLEN+1];
   char swap_file_name[FN_REFLEN+1];
   char temp_file_name[FN_REFLEN+1];
+  char part_table_name[NAME_LEN + 1];
+  char part_db[NAME_LEN + 1];
+  char swap_table_name[NAME_LEN + 1];
+  char swap_db[NAME_LEN + 1];
+  uchar part_tabledef_version[MY_UUID_SIZE];
+  uchar swap_tabledef_version[MY_UUID_SIZE];
+
+  backup_log_info ddl_log;
+  bzero(&ddl_log, sizeof(ddl_log));
+
   uint swap_part_id;
   uint part_file_name_len;
   Alter_table_prelocking_strategy alter_prelocking_strategy;
@@ -576,6 +586,35 @@ bool Sql_cmd_alter_table_exchange_partition::
       HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
     force_if_exists= 1;
 
+  ddl_log.org_table.str= part_table_name;
+  DBUG_ASSERT(part_table->s->table_name.length <= NAME_LEN);
+  ddl_log.org_table.length= part_table->s->table_name.length;
+  strmake(part_table_name, part_table->s->table_name.str, NAME_LEN);
+
+  ddl_log.org_database.str= part_db;
+  DBUG_ASSERT(part_table->s->db.length <= NAME_LEN);
+  ddl_log.org_database.length= part_table->s->db.length;
+  strmake(part_db, part_table->s->db.str, NAME_LEN);
+
+  ddl_log.new_table.str= swap_table_name;
+  DBUG_ASSERT(swap_table->s->table_name.length <= NAME_LEN);
+  ddl_log.new_table.length= swap_table->s->table_name.length;
+  strmake(swap_table_name, swap_table->s->table_name.str, NAME_LEN);
+
+  ddl_log.new_database.str= swap_db;
+  DBUG_ASSERT(swap_table->s->db.length <= NAME_LEN);
+  ddl_log.new_database.length= swap_table->s->db.length;
+  strmake(swap_db, swap_table->s->db.str, NAME_LEN);
+
+  memcpy(part_tabledef_version, part_table->s->tabledef_version.str,
+         MY_UUID_SIZE);
+  ddl_log.org_table_id.str= part_tabledef_version;
+  ddl_log.org_table_id.length= MY_UUID_SIZE;
+  memcpy(swap_tabledef_version, swap_table->s->tabledef_version.str,
+         MY_UUID_SIZE);
+  ddl_log.new_table_id.str= swap_tabledef_version;
+  ddl_log.new_table_id.length= MY_UUID_SIZE;
+
   /* set lock pruning on first table */
   partition_name= alter_info->partition_names.head();
   if (unlikely(table_list->table->part_info->
@@ -585,7 +624,6 @@ bool Sql_cmd_alter_table_exchange_partition::
 
   if (unlikely(lock_tables(thd, table_list, table_counter, 0)))
     DBUG_RETURN(true);
-
 
   table_hton= swap_table->file->ht;
 
@@ -689,6 +727,15 @@ bool Sql_cmd_alter_table_exchange_partition::
     */
     (void) exchange_name_with_ddl_log(thd, part_file_name, swap_file_name,
                                       temp_file_name, table_hton);
+  }
+  else
+  {
+    ddl_log.query= { C_STRING_WITH_LEN("EXCHANGE_PARTITION") };
+    ddl_log.org_partitioned= true;
+    ddl_log.new_partitioned= false;
+    ddl_log.org_storage_engine_name= *hton_name(table_hton);
+    ddl_log.new_storage_engine_name= *hton_name(table_hton);
+    backup_log_ddl(&ddl_log);
   }
   thd->variables.option_bits= save_option_bits;
 

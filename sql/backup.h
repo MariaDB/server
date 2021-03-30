@@ -23,6 +23,18 @@ enum backup_stages
 
 extern TYPELIB backup_stage_names;
 
+struct backup_log_info {
+  LEX_CSTRING  query;
+  LEX_CUSTRING org_table_id;                         /* Unique id from frm */
+  LEX_CSTRING  org_database, org_table;
+  LEX_CSTRING  org_storage_engine_name;
+  LEX_CSTRING  new_database, new_table;
+  LEX_CSTRING  new_storage_engine_name;
+  LEX_CUSTRING new_table_id;                         /* Unique id from frm */
+  bool org_partitioned;
+  bool new_partitioned;
+};
+
 void backup_init();
 bool run_backup_stage(THD *thd, backup_stages stage);
 bool backup_end(THD *thd);
@@ -31,4 +43,5 @@ bool backup_reset_alter_copy_lock(THD *thd);
 
 bool backup_lock(THD *thd, TABLE_LIST *table);
 void backup_unlock(THD *thd);
+void backup_log_ddl(const backup_log_info *info);
 #endif /* BACKUP_INCLUDED */

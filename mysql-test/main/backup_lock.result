@@ -30,12 +30,14 @@ connection default;
 # testing if BACKUP STAGE FLUSH causes deadlocks with ALTER TABLE
 #
 create table t1 (a int) engine=innodb;
+connection con2;
+backup stage start;
+connection default;
 start transaction;
 insert into t1 values (1);
 connection con1;
 alter table t1 add column (j int), algorithm copy;
 connection con2;
-backup stage start;
 backup stage flush;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
@@ -175,6 +177,23 @@ select * from t1;
 a
 1
 drop table t1;
+#
+# Check if BACKUP STAGE BLOCK_DDL blocks create view
+#
+create table t1 (a int) engine=innodb;
+connection con1;
+backup stage start;
+backup stage block_ddl;
+connection default;
+create view v1 as select * from t1;;
+connection con1;
+select count(*) = 1 from information_schema.processlist;
+count(*) = 1
+0
+backup stage end;
+connection default;
+drop table t1;
+drop view v1;
 disconnect con1;
 disconnect con2;
 #

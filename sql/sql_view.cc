@@ -733,6 +733,16 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
     thd->binlog_xid= 0;
     debug_crash_here("ddl_log_create_after_binlog");
   }
+  if (!res)
+  {
+    backup_log_info ddl_log;
+    bzero(&ddl_log, sizeof(ddl_log));
+    ddl_log.query= { C_STRING_WITH_LEN("CREATE") };
+    ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("VIEW") };
+    ddl_log.org_database=     view->db;
+    ddl_log.org_table=        view->table_name;
+    backup_log_ddl(&ddl_log);
+  }
 
   if (mode != VIEW_CREATE_NEW)
     query_cache_invalidate3(thd, view, 0);
@@ -1943,6 +1953,14 @@ bool mysql_drop_view(THD *thd, TABLE_LIST *views, enum_drop_mode drop_mode)
     tdc_remove_table(thd, view->db.str, view->table_name.str);
     query_cache_invalidate3(thd, view, 0);
     sp_cache_invalidate();
+
+    backup_log_info ddl_log;
+    bzero(&ddl_log, sizeof(ddl_log));
+    ddl_log.query= { C_STRING_WITH_LEN("DROP") };
+    ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("VIEW") };
+    ddl_log.org_database=     view->db;
+    ddl_log.org_table=        view->table_name;
+    backup_log_ddl(&ddl_log);
   }
 
   something_wrong= (delete_error ||

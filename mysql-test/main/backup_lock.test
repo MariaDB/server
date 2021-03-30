@@ -36,6 +36,10 @@ connection default;
 
 create table t1 (a int) engine=innodb;
 
+connection con2;
+backup stage start;
+connection default;
+
 start transaction;
 # Acquires MDL lock
 insert into t1 values (1);
@@ -49,7 +53,6 @@ let $wait_condition=
     select count(*) = 1 from information_schema.processlist
     where state = "Waiting for table metadata lock";
 --source include/wait_condition.inc
-backup stage start;
 backup stage flush;
 SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 #
@@ -226,6 +229,28 @@ connection default;
 --reap # commit
 select * from t1;
 drop table t1;
+
+--echo #
+--echo # Check if BACKUP STAGE BLOCK_DDL blocks create view
+--echo #
+
+create table t1 (a int) engine=innodb;
+connection con1;
+backup stage start;
+backup stage block_ddl;
+connection default;
+--send create view v1 as select * from t1;
+connection con1;
+--sleep 2
+select count(*) = 1 from information_schema.processlist;
+let $wait_condition=
+    select count(*) = 1 from information_schema.processlist
+    where state = "Waiting for backup lock";
+backup stage end;
+connection default;
+--reap # create
+drop table t1;
+drop view v1;
 
 #
 # End of tests using con1 and con2

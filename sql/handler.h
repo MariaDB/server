@@ -1083,6 +1083,8 @@ typedef bool (stat_print_fn)(THD *thd, const char *type, size_t type_len,
 enum ha_stat_type { HA_ENGINE_STATUS, HA_ENGINE_LOGS, HA_ENGINE_MUTEX };
 extern MYSQL_PLUGIN_IMPORT st_plugin_int *hton2plugin[MAX_HA];
 
+#define view_pseudo_hton ((handlerton *)1)
+
 /* Transaction log maintains type definitions */
 enum log_status
 {
@@ -2227,9 +2229,11 @@ struct Table_scope_and_contents_source_pod_st // For trivial members
 {
   CHARSET_INFO *alter_table_convert_to_charset;
   LEX_CUSTRING tabledef_version;
+  LEX_CUSTRING org_tabledef_version;            /* version of dropped table */
   LEX_CSTRING connect_string;
   LEX_CSTRING comment;
   LEX_CSTRING alias;
+  LEX_CSTRING org_storage_engine_name, new_storage_engine_name;
   const char *password, *tablespace;
   const char *data_file_name, *index_file_name;
   ulonglong max_rows,min_rows;
@@ -4222,6 +4226,8 @@ public:
   virtual void free_foreign_key_create_info(char* str) {}
   /** The following can be called without an open handler */
   virtual const char *table_type() const { return hton_name(ht)->str; }
+  /* The following is same as table_table(), except for partition engine */
+  virtual const char *real_table_type() const { return hton_name(ht)->str; }
   const char **bas_ext() const { return ht->tablefile_extensions; }
 
   virtual int get_default_no_partitions(HA_CREATE_INFO *create_info)
@@ -5099,6 +5105,7 @@ public:
   /* XXX to be removed, see ha_partition::partition_ht() */
   virtual handlerton *partition_ht() const
   { return ht; }
+  virtual bool partition_engine() { return 0;}
   inline int ha_write_tmp_row(uchar *buf);
   inline int ha_delete_tmp_row(uchar *buf);
   inline int ha_update_tmp_row(const uchar * old_data, uchar * new_data);
@@ -5168,6 +5175,7 @@ public:
     return (lower_case_table_names == 2 && !(ha_table_flags() & HA_FILE_BASED));
   }
 
+  void log_not_redoable_operation(const char *operation);
 protected:
   Handler_share *get_ha_share_ptr();
   void set_ha_share_ptr(Handler_share *arg_ha_share);
@@ -5210,7 +5218,8 @@ static inline enum legacy_db_type ha_legacy_type(const handlerton *db_type)
 
 static inline const char *ha_resolve_storage_engine_name(const handlerton *db_type)
 {
-  return db_type == NULL ? "UNKNOWN" : hton_name(db_type)->str;
+  return (db_type == NULL ? "UNKNOWN" :
+          db_type == view_pseudo_hton ? "VIEW" : hton_name(db_type)->str);
 }
 
 static inline bool ha_check_storage_engine_flag(const handlerton *db_type, uint32 flag)
@@ -5222,8 +5231,6 @@ static inline bool ha_storage_engine_is_enabled(const handlerton *db_type)
 {
   return db_type && db_type->create;
 }
-
-#define view_pseudo_hton ((handlerton *)1)
 
 /* basic stuff */
 int ha_init_errors(void);
@@ -5292,6 +5299,8 @@ int ha_discover_table_names(THD *thd, LEX_CSTRING *db, MY_DIR *dirp,
                             Discovered_table_list *result, bool reusable);
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
                      const LEX_CSTRING *table_name,
+                     LEX_CUSTRING *table_version= 0,
+                     LEX_CSTRING *partition_engine_name= 0,
                      handlerton **hton= 0, bool *is_sequence= 0);
 bool ha_check_if_updates_are_ignored(THD *thd, handlerton *hton,
                                      const char *op);

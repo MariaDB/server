@@ -673,6 +673,7 @@ end:
   if (!result && action_executed)
   {
     ulonglong save_option_bits= thd->variables.option_bits;
+    backup_log_info ddl_log;
 
     debug_crash_here("ddl_log_drop_before_binlog");
     if (add_if_exists_to_binlog)
@@ -684,6 +685,16 @@ end:
     thd->binlog_xid= 0;
     thd->variables.option_bits= save_option_bits;
     debug_crash_here("ddl_log_drop_after_binlog");
+
+    bzero(&ddl_log, sizeof(ddl_log));
+    if (create)
+      ddl_log.query= { C_STRING_WITH_LEN("CREATE") };
+    else
+      ddl_log.query= { C_STRING_WITH_LEN("DROP") };
+    ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("TRIGGER") };
+    ddl_log.org_database=     thd->lex->spname->m_db;
+    ddl_log.org_table=        thd->lex->spname->m_name;
+    backup_log_ddl(&ddl_log);
   }
   ddl_log_complete(&ddl_log_state);
   debug_crash_here("ddl_log_drop_before_delete_tmp");

@@ -17,12 +17,12 @@ FROM information_schema.processlist WHERE id = @con1_id;
 ID	USER	COMMAND	STATE	INFO	STAGE	MAX_STAGE	INFO_BINARY
 <con1_id>	root	Query	Waiting for backup lock	BACKUP STAGE START	0	0	BACKUP STAGE START
 BACKUP STAGE END;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
-LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
-MDL_BACKUP_START	Backup lock		
 connection con1;
 # The connection default has removed the backup lock.
 # And so the current connection con1 can reap for its BACKUP STAGE START
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
+LOCK_MODE	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+MDL_BACKUP_START	Backup lock		
 connect con2,localhost,root,,;
 # The connection con2 cannot continue the work of con1 by setting the
 # next BACKUP STAGE FLUSH.

@@ -192,6 +192,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 {
   int error= 0;
   uint flags= 0;
+  TABLE *table;
   DBUG_ENTER("Sql_cmd_truncate_table::handler_truncate");
 
   /*
@@ -235,10 +236,26 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
     if (fk_truncate_illegal_if_parent(thd, table_ref->table))
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
 
-  error= table_ref->table->file->ha_truncate();
+  table= table_ref->table;
+  error= table->file->ha_truncate();
+
+  if (!is_tmp_table && !error)
+  {
+    backup_log_info ddl_log;
+    bzero(&ddl_log, sizeof(ddl_log));
+    ddl_log.query= { C_STRING_WITH_LEN("TRUNCATE") };
+    ddl_log.org_partitioned=  table->file->partition_engine();
+    lex_string_set(&ddl_log.org_storage_engine_name,
+                   table->file->real_table_type());
+    ddl_log.org_database=     table->s->db;
+    ddl_log.org_table=        table->s->table_name;
+    ddl_log.org_table_id=     table->s->tabledef_version;
+    backup_log_ddl(&ddl_log);
+  }
+
   if (unlikely(error))
   {
-    table_ref->table->file->print_error(error, MYF(0));
+    table->file->print_error(error, MYF(0));
     /*
       If truncate method is not implemented then we don't binlog the
       statement. If truncation has failed in a transactional engine then also
@@ -246,7 +263,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       inspite of errors.
      */
     if (error == HA_ERR_WRONG_COMMAND ||
-        table_ref->table->file->has_transactions_and_rollback())
+        table->file->has_transactions_and_rollback())
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
     else
       DBUG_RETURN(TRUNCATE_FAILED_BUT_BINLOG);

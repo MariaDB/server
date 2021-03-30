@@ -997,6 +997,27 @@ void ha_end_backup()
                            PLUGIN_IS_DELETED|PLUGIN_IS_READY, 0);
 }
 
+void handler::log_not_redoable_operation(const char *operation)
+{
+  DBUG_ENTER("log_not_redoable_operation");
+  if (table->s->tmp_table == NO_TMP_TABLE)
+  {
+    backup_log_info ddl_log;
+    bzero(&ddl_log, sizeof(ddl_log));
+    lex_string_set(&ddl_log.query, operation);
+    /*
+      We can't use partition_engine() here as this function is called
+      directly by the handler for the underlaying partition table
+    */
+    ddl_log.org_partitioned= table->s->partition_info_str != 0;
+    lex_string_set(&ddl_log.org_storage_engine_name, table_type());
+    ddl_log.org_database=     table->s->db;
+    ddl_log.org_table=        table->s->table_name;
+    ddl_log.org_table_id=     table->s->tabledef_version;
+    backup_log_ddl(&ddl_log);
+  }
+  DBUG_VOID_RETURN;
+}
 
 /*
   Inform plugin of the server shutdown.
@@ -5856,7 +5877,8 @@ static my_bool discover_existence(THD *thd, plugin_ref plugin,
 */
 
 bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
-                     const LEX_CSTRING *table_name,
+                     const LEX_CSTRING *table_name, LEX_CUSTRING *table_id,
+                     LEX_CSTRING *partition_engine_name,
                      handlerton **hton, bool *is_sequence)
 {
   handlerton *dummy;
@@ -5870,17 +5892,42 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
   if (!is_sequence)
     is_sequence= &dummy2;
   *is_sequence= 0;
+  if (table_id)
+  {
+    table_id->str= 0;
+    table_id->length= 0;
+  }
 
   TDC_element *element= tdc_lock_share(thd, db->str, table_name->str);
   if (element && element != MY_ERRPTR)
   {
-    if (hton)
-      *hton= element->share->db_type();
+    if (!hton)
+      hton= &dummy;
+    *hton= element->share->db_type();
+    if (partition_engine_name && element->share->db_type() == partition_hton)
+    {
+      if (!static_cast<Partition_share *>(element->share->ha_share)->
+          partition_engine_name)
+      {
+        /* Partition engine found, but table has never been opened */
+        tdc_unlock_share(element);
+        goto retry_from_frm;
+      }
+      lex_string_set(partition_engine_name,
+        static_cast<Partition_share *>(element->share->ha_share)->
+          partition_engine_name);
+    }
     *is_sequence= element->share->table_type == TABLE_TYPE_SEQUENCE;
+    if (*hton != view_pseudo_hton && element->share->tabledef_version.length &&
+        table_id &&
+        (table_id->str= (uchar*)
+         thd->memdup(element->share->tabledef_version.str, MY_UUID_SIZE)))
+      table_id->length= MY_UUID_SIZE;
     tdc_unlock_share(element);
     DBUG_RETURN(TRUE);
   }
 
+retry_from_frm:
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
                                          db->str, table_name->str, "", 0);
@@ -5893,7 +5940,9 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     {
       char engine_buf[NAME_CHAR_LEN + 1];
       LEX_CSTRING engine= { engine_buf, 0 };
-      Table_type type= dd_frm_type(thd, path, &engine);
+      Table_type type= dd_frm_type(thd, path, &engine,
+                                   partition_engine_name,
+                                   table_id);
 
       switch (type) {
       case TABLE_TYPE_UNKNOWN:
@@ -5948,6 +5997,10 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     if (hton && share)
     {
       *hton= share->db_type();
+      if (table_id && share->tabledef_version.length &&
+          (table_id->str=
+           (uchar*) thd->memdup(share->tabledef_version.str, MY_UUID_SIZE)))
+        table_id->length= MY_UUID_SIZE;
       tdc_release_share(share);
     }
 

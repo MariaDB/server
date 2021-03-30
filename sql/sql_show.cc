@@ -4515,7 +4515,7 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
     char path[FN_REFLEN];
     build_table_filename(path, sizeof(path) - 1,
                          db->str, table->str, reg_ext, 0);
-    if (dd_frm_type(thd, path, &engine_name) == TABLE_TYPE_NORMAL)
+    if (dd_frm_type(thd, path, &engine_name, NULL, NULL) == TABLE_TYPE_NORMAL)
       tl->option= engine_name.str;
   }
 }
@@ -4735,7 +4735,9 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     CHARSET_INFO *cs= system_charset_info;
     handlerton *hton;
     bool is_sequence;
-    if (ha_table_exists(thd, db_name, table_name, &hton, &is_sequence))
+
+    if (ha_table_exists(thd, db_name, table_name, NULL, NULL,
+                        &hton, &is_sequence))
     {
       if (hton == view_pseudo_hton)
         table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);

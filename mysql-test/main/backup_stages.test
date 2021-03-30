@@ -50,12 +50,13 @@ FROM information_schema.processlist WHERE id = @con1_id;
 # con1 uses @@global.lock_wait_timeout
 
 BACKUP STAGE END;
-SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 
 --connection con1
 --echo # The connection default has removed the backup lock.
 --echo # And so the current connection con1 can reap for its BACKUP STAGE START
 --reap
+
+SELECT LOCK_MODE, LOCK_TYPE, TABLE_SCHEMA, TABLE_NAME FROM information_schema.metadata_lock_info;
 
 # con2, root high privileged user
 --connect(con2,localhost,root,,)

@@ -1724,7 +1724,8 @@ int plugin_init(int *argc, char **argv, int flags)
   {
     char path[FN_REFLEN + 1];
     build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
-    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name);
+    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name,
+                                  NULL, NULL);
     if (ttype != TABLE_TYPE_NORMAL)
       plugin_table_engine_name=empty_clex_str;
   }
