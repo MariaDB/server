@@ -1,0 +1,9 @@
+!include include/default_my.cnf
+
+[mysqld.1]
+extra-port=        @ENV.MASTER_EXTRA_PORT
+extra-max-connections=1
+max-idle-execution=5
+
+[ENV]
+MASTER_EXTRA_PORT= @OPT.port

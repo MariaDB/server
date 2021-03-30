@@ -481,6 +481,8 @@ ulong specialflag=0;
 ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
 ulong binlog_stmt_cache_use= 0, binlog_stmt_cache_disk_use= 0;
 ulong max_connections, max_connect_errors;
+uint max_idle_execution;
+Atomic_relaxed<ulonglong> server_last_activity;
 uint max_password_errors;
 ulong extra_max_connections;
 uint max_digest_length= 0;
@@ -4246,6 +4248,23 @@ static int init_common_variables()
     SYSVAR_AUTOSIZE(back_log, MY_MIN(900, (50 + max_connections / 5)));
   }
 
+  /*
+    max_idle_execution, defaults to 10mins under systemd socket activation,
+    otherwise 0 representing disabled.
+  */
+  if (IS_SYSVAR_AUTOSIZE(&max_idle_execution))
+    SYSVAR_AUTOSIZE(max_idle_execution, sd_listen_fds(0) ? 600 : 0);
+
+  if (IS_SYSVAR_AUTOSIZE(&global_system_variables.net_wait_timeout) &&
+      max_idle_execution &&
+      global_system_variables.net_wait_timeout > max_idle_execution)
+    SYSVAR_AUTOSIZE(global_system_variables.net_wait_timeout, max_idle_execution);
+
+  if (IS_SYSVAR_AUTOSIZE(&global_system_variables.net_interactive_timeout) &&
+      max_idle_execution &&
+      global_system_variables.net_interactive_timeout > max_idle_execution)
+    SYSVAR_AUTOSIZE(global_system_variables.net_interactive_timeout, max_idle_execution);
+
   unireg_init(opt_specialflag); /* Set up extern variabels */
   if (!(my_default_lc_messages=
         my_locale_by_name(lc_messages)))
@@ -6275,18 +6294,75 @@ static void set_non_blocking_if_supported(MYSQL_SOCKET sock)
 #endif
 }
 
+/*
+  Terminate the server if the server_last_activity exceeds the
+  max_idle_exection time
+  Returns true if a termination is progressing, false otherwise
+*/
+
+bool handle_max_idle_execution_timeout()
+{
+  /*
+    The server_last_activity is set when one of the connection counts
+    is greater than 0, and just before it decrements. So the race condition
+    of getting all conditions here set because of memory re(ordering) effects
+    isn't possible.
+  */
+  if (connection_count == 0 && extra_connection_count == 0 &&
+      microsecond_interval_timer() > (server_last_activity
+        + max_idle_execution * 1000000UL))
+  {
+    sql_print_information("max_idle_execution time reached starting shutdown");
+    break_connect_loop();
+    return true;
+  }
+  return false;
+}
+
+
+static void handle_new_socket_connection(MYSQL_SOCKET sock)
+{
+  struct sockaddr_storage cAddr;
+  uint error_count= 0;
+
+  for (uint retry=0; retry < MAX_ACCEPT_RETRY && !abort_loop; retry++)
+  {
+    size_socket length= sizeof(struct sockaddr_storage);
+    MYSQL_SOCKET new_sock;
+
+    new_sock= mysql_socket_accept(key_socket_client_connection, sock,
+                                  (struct sockaddr *)(&cAddr),
+                                  &length);
+    if (mysql_socket_getfd(new_sock) != INVALID_SOCKET)
+      handle_accepted_socket(new_sock, sock);
+    else if (socket_errno != SOCKET_EINTR && socket_errno != SOCKET_EAGAIN)
+    {
+      /*
+        accept(2) failed on the listening port.
+        There is not much details to report about the client,
+        increment the server global status variable.
+      */
+      statistic_increment(connection_errors_accept, &LOCK_status);
+      if ((error_count++ & 255) == 0) // This can happen often
+        sql_perror("Error in accept");
+      if (socket_errno == SOCKET_ENFILE || socket_errno == SOCKET_EMFILE)
+        sleep(1); // Give other threads some time
+      break;
+    }
+  }
+}
+
 
 void handle_connections_sockets()
 {
-  MYSQL_SOCKET sock= mysql_socket_invalid();
-  uint error_count=0;
-  struct sockaddr_storage cAddr;
+  MYSQL_SOCKET sock;
   int retval;
 #ifdef HAVE_POLL
   // for ip_sock, unix_sock and extra_ip_sock
   Dynamic_array<struct pollfd> fds(PSI_INSTRUMENT_MEM);
 #else
   fd_set readFDs,clientFDs;
+  struct timespec timeout;
 #endif
 
   DBUG_ENTER("handle_connections_sockets");
@@ -6311,6 +6387,7 @@ void handle_connections_sockets()
   }
 #endif
 
+  server_last_activity= microsecond_interval_timer();
   sd_notify(0, "READY=1\n"
             "STATUS=Taking your SQL requests now...\n");
 
@@ -6318,10 +6395,14 @@ void handle_connections_sockets()
   while (!abort_loop)
   {
 #ifdef HAVE_POLL
-    retval= poll(fds.get_pos(0), fds.size(), -1);
+    /* poll timeout in milliseconds */
+    retval= poll(fds.get_pos(0), fds.size(),
+                 max_idle_execution ? max_idle_execution * 1000 : -1);
 #else
+    timeout= { max_idle_execution, 0};
     readFDs=clientFDs;
-    retval= select(FD_SETSIZE, &readFDs, NULL, NULL, NULL);
+    retval= select(FD_SETSIZE, &readFDs, NULL, NULL,
+                   max_idle_execution ? &timeout : NULL);
 #endif
 
     if (retval < 0)
@@ -6344,50 +6425,26 @@ void handle_connections_sockets()
       break;
 
     /* Is this a new connection request ? */
+    sock= mysql_socket_invalid();
+    for (size_t i= 0; i < listen_sockets.size(); i++)
+    {
 #ifdef HAVE_POLL
-    for (size_t i= 0; i < fds.size(); ++i)
-    {
       if (fds.at(i).revents & POLLIN)
-      {
-        sock= listen_sockets.at(i);
-        break;
-      }
-    }
 #else  // HAVE_POLL
-    for (size_t i=0; i < listen_sockets.size(); i++)
-    {
       if (FD_ISSET(mysql_socket_getfd(listen_sockets.at(i)), &readFDs))
+#endif // HAVE_POLL
       {
         sock= listen_sockets.at(i);
-        break;
+        handle_new_socket_connection(sock);
       }
     }
-#endif // HAVE_POLL
-
-    for (uint retry=0; retry < MAX_ACCEPT_RETRY && !abort_loop; retry++)
+    /* timeout */
+    if (max_idle_execution)
     {
-      size_socket length= sizeof(struct sockaddr_storage);
-      MYSQL_SOCKET new_sock;
-
-      new_sock= mysql_socket_accept(key_socket_client_connection, sock,
-                                    (struct sockaddr *)(&cAddr),
-                                    &length);
-      if (mysql_socket_getfd(new_sock) != INVALID_SOCKET)
-        handle_accepted_socket(new_sock, sock);
-      else if (socket_errno != SOCKET_EINTR && socket_errno != SOCKET_EAGAIN)
-      {
-        /*
-          accept(2) failed on the listening port.
-          There is not much details to report about the client,
-          increment the server global status variable.
-        */
-        statistic_increment(connection_errors_accept, &LOCK_status);
-        if ((error_count++ & 255) == 0) // This can happen often
-          sql_perror("Error in accept");
-        if (socket_errno == SOCKET_ENFILE || socket_errno == SOCKET_EMFILE)
-          sleep(1); // Give other threads some time
-        break;
-      }
+      if (mysql_socket_getfd(sock) == INVALID_SOCKET)
+        handle_max_idle_execution_timeout();
+      else
+        server_last_activity= microsecond_interval_timer();
     }
   }
   sd_notify(0, "STOPPING=1\n"

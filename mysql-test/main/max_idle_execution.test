@@ -1,0 +1,42 @@
+--source include/not_embedded.inc
+
+--let $_server_id= `SELECT @@server_id`
+--let $_expect_file_name= $MYSQLTEST_VARDIR/tmp/mysqld.$_server_id.expect
+--append_file $_expect_file_name
+wait
+EOF
+disable_reconnect;
+disconnect default;
+
+--echo 'allow server to time out'
+--sleep 7
+--echo 'should have timed out'
+--source include/wait_until_disconnected.inc
+
+--append_file $_expect_file_name
+restart
+EOF
+--sleep 1
+--connect con0,localhost,root,,test
+
+--source include/wait_until_connected_again.inc
+SELECT VARIABLE_VALUE AS THREAD_CONNECTED FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='THREADS_CONNECTED';
+SELECT 'we are back';
+SELECT VARIABLE_VALUE < 5 AS UPTIME_LESS_THAN_5_SECONDS FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='UPTIME';
+SELECT 'still here because the connection is open, but disconnecting now';
+disconnect con0;
+--sleep 3
+
+--connect con2,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,
+SELECT "extra connection just created: still here, only 3 seconds since last query";
+
+--sleep 3
+SELECT VARIABLE_VALUE > 5 AS UPTIME_GREATER_THAN_5_SECONDS FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME='UPTIME';
+SELECT 'active extra connection kept the server up';
+SELECT @@interactive_timeout, @@wait_timeout;
+disconnect con2;
+
+--echo 'allow server to time out'
+--sleep 7
+--echo 'should haved timed out'
+--source include/wait_until_disconnected.inc

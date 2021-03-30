@@ -1365,7 +1365,7 @@ static Sys_var_ulong Sys_interactive_timeout(
        "interactive_timeout",
        "The number of seconds the server waits for activity on an interactive "
        "connection before closing it",
-       NO_SET_STMT SESSION_VAR(net_interactive_timeout),
+       NO_SET_STMT AUTO_SET SESSION_VAR(net_interactive_timeout),
        CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, LONG_TIMEOUT), DEFAULT(NET_WAIT_TIMEOUT), BLOCK_SIZE(1));
 
@@ -1769,6 +1769,15 @@ Sys_max_connect_errors(
        "a host this host will be blocked from further connections",
        GLOBAL_VAR(max_connect_errors), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, UINT_MAX), DEFAULT(MAX_CONNECT_ERRORS),
+       BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_max_idle_execution(
+       "max_idle_execution",
+       "If no new connections or running queries within this time (in seconds) "
+       "shutdown the server. Defaults to 10 minutes when started as a systemd "
+       "socket activated service. 0 represents disabled.",
+       AUTO_SET GLOBAL_VAR(max_idle_execution), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, INT_MAX32 / 1000), DEFAULT(0),
        BLOCK_SIZE(1));
 
 static Sys_var_on_access_global<Sys_var_uint,
@@ -4347,7 +4356,7 @@ static Sys_var_ulong Sys_net_wait_timeout(
        "wait_timeout",
        "The number of seconds the server waits for activity on a "
        "connection before closing it",
-       NO_SET_STMT SESSION_VAR(net_wait_timeout), CMD_LINE(REQUIRED_ARG),
+       NO_SET_STMT AUTO_SET SESSION_VAR(net_wait_timeout), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, IF_WIN(INT_MAX32/1000, LONG_TIMEOUT)),
        DEFAULT(NET_WAIT_TIMEOUT), BLOCK_SIZE(1));
 

@@ -33,11 +33,12 @@
   sd_notifyf(0, "STATUS=" FMTSTR "\nEXTEND_TIMEOUT_USEC=%u\n", ##__VA_ARGS__, INTERVAL * 1000000)
 /* sd_listen_fds_with_names added v227 however RHEL/Centos7 has v219, fallback to sd_listen_fds */
 #ifndef HAVE_SYSTEMD_SD_LISTEN_FDS_WITH_NAMES
-#define sd_listen_fds_with_names(FD, NAMES) sd_listen_fds(FD)
+#define sd_listen_fds_with_names(UNSET, NAMES) sd_listen_fds(UNSET)
 #endif
 
 #else
-#define sd_listen_fds_with_names(FD, NAMES) (0)
+#define sd_listen_fds(UNSET) (0)
+#define sd_listen_fds_with_names(UNSET, NAMES) (0)
 #define sd_is_socket_unix(FD, TYPE, LISTENING, PATH, SIZE) (0)
 #define sd_is_socket_inet(FD, FAMILY, TYPE, LISTENING, PORT) (0)
 #define SD_LISTEN_FDS_START (0)

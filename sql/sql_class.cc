@@ -2003,6 +2003,14 @@ void THD::disconnect()
     vio_close(net.vio);
   net.thd= 0;                                   // Don't collect statistics
 
+#ifndef EMBEDDED_LIBRARY
+  /* If we're tracking idle execution, and we're down to the last connection */
+  if (max_idle_execution && *scheduler->connection_count <= 1)
+  {
+    server_last_activity= utime_after_query;
+    handle_max_idle_execution_timeout();
+  }
+#endif
   mysql_mutex_unlock(&LOCK_thd_data);
 }
 

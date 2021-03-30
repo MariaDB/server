@@ -408,7 +408,8 @@ The following specify which files/extra groups are read (specified before remain
  the SQL thread starts
  --interactive-timeout=# 
  The number of seconds the server waits for activity on an
- interactive connection before closing it
+ interactive connection before closing it (Automatically
+ configured unless set explicitly)
  --join-buffer-size=# 
  The size of the buffer that is used for joins
  --join-buffer-space-limit=# 
@@ -602,6 +603,12 @@ The following specify which files/extra groups are read (specified before remain
  --max-error-count=# Max number of errors/warnings to store for a statement
  --max-heap-table-size=# 
  Don't allow creation of heap tables bigger than this
+ --max-idle-execution=# 
+ If no new connections or running queries within this time
+ (in seconds) shutdown the server. Defaults to 10 minutes
+ when started as a systemd socket activated service. 0
+ represents disabled. (Automatically configured unless set
+ explicitly)
  --max-join-size=#   Joins that are probably going to read more than
  max_join_size records return an error
  --max-length-for-sort-data=# 
@@ -1543,7 +1550,8 @@ The following specify which files/extra groups are read (specified before remain
  -V, --version[=name] 
  Output version information and exit.
  --wait-timeout=#    The number of seconds the server waits for activity on a
- connection before closing it
+ connection before closing it (Automatically configured
+ unless set explicitly)
 
 Variables (--variable-name=value)
 allow-suspicious-udfs FALSE
@@ -1700,6 +1708,7 @@ max-delayed-threads 20
 max-digest-length 1024
 max-error-count 64
 max-heap-table-size 16777216
+max-idle-execution 0
 max-join-size 18446744073709551615
 max-length-for-sort-data 1024
 max-password-errors 18446744073709551615

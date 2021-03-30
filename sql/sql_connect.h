@@ -22,7 +22,10 @@
 #include <mysql/psi/mysql_socket.h>
 #include <hash.h>
 #include "violite.h"
+#include "my_atomic_wrapper.h"
 
+
+extern Atomic_relaxed<ulonglong> server_last_activity;
 /*
   Object to hold connect information to be given to the newly created thread
 */
