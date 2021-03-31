@@ -26,3 +26,29 @@ SET DEBUG_DBUG="+d,fts_instrument_sync";
 INSERT INTO t1 VALUES(1, "mariadb");
 ALTER TABLE t1 FORCE;
 DROP TABLE t2, t1;
+#
+# MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
+#
+CREATE TABLE t1(a INT, b TEXT, c TEXT, FULLTEXT INDEX(b)) ENGINE=InnoDB;
+connect con1,localhost,root,,test;
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL s1 WAIT_FOR g1';
+SET DEBUG_SYNC='innodb_commit_inplace_alter_table_enter SIGNAL s2 WAIT_FOR g2';
+ALTER TABLE t1 ADD FULLTEXT(c);
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s1';
+KILL QUERY @id;
+SET DEBUG_SYNC='now SIGNAL g1 WAIT_FOR s2';
+START TRANSACTION;
+SELECT * FROM t1;
+a	b	c
+SET DEBUG_SYNC='now SIGNAL s2';
+connection con1;
+ERROR 70100: Query execution was interrupted
+disconnect con1;
+connection default;
+SET DEBUG_SYNC=RESET;
+ALTER TABLE t1 ADD bl INT AS (LENGTH(b)) VIRTUAL;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+DROP TABLE t1;

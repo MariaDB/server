@@ -152,6 +152,10 @@ insert into t1 values (1), (2);
 select * from t1;
 select 2;
 drop table t1;
+create procedure pr1() insert into test.t1 values ("foo", 42);
+create function fn1(i int) returns int deterministic return i+1;
+drop procedure pr1;
+drop function fn1;
 
 create procedure pr1() insert into test.t1 values ("foo", 42);
 create function fn1(i int) returns int deterministic return i+1;

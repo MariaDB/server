@@ -18873,23 +18873,28 @@ static void bg_wsrep_kill_trx(
 
 	if (thd) {
 		wsrep_thd_LOCK(thd);
-		victim_trx = thd_to_trx(thd);
-		lock_mutex_enter();
-		trx_mutex_enter(victim_trx);
-		wsrep_thd_UNLOCK(thd);
-		if (victim_trx->id != arg->trx_id)
-		{
-			trx_mutex_exit(victim_trx);
-			lock_mutex_exit();
-			victim_trx = NULL;
+		victim_trx= thd_to_trx(thd);
+		/* Victim trx might not exist e.g. on MDL-conflict. */
+		if (victim_trx) {
+			lock_mutex_enter();
+			trx_mutex_enter(victim_trx);
+			if (victim_trx->id != arg->trx_id ||
+			    victim_trx->state == TRX_STATE_COMMITTED_IN_MEMORY)
+			{
+				/* Victim was meanwhile rolled back or
+				committed */
+				lock_mutex_exit();
+				trx_mutex_exit(victim_trx);
+				goto no_victim;
+			}
+		} else {
+no_victim:
+			wsrep_thd_UNLOCK(thd);
+			/* find_thread_by_id() acquired THD::LOCK_kill_data */
 			wsrep_thd_kill_UNLOCK(thd);
+			goto ret;
 		}
-	}
-
-	if (!victim_trx) {
-		/* it can happen that trx_id was meanwhile rolled back */
-		DBUG_PRINT("wsrep", ("no thd for conflicting lock"));
-		goto ret;
+		wsrep_thd_UNLOCK(thd);
 	}
 
 	WSREP_DEBUG("BF kill (" ULINTPF ", seqno: " INT64PF
@@ -19044,7 +19049,7 @@ static void bg_wsrep_kill_trx(
 	}
 
 ret_awake:
-	awake = true;
+	awake= true;
 
 ret_unlock:
 	trx_mutex_exit(victim_trx);
