@@ -8735,6 +8735,8 @@ wsrep_calc_row_hash(
 	row_prebuilt_t*	prebuilt)	/*!< in: InnoDB prebuilt struct */
 {
 	ulint		len;
+	ulint		col_type;
+	ulint		is_unsigned;
 	const byte*	ptr;
 
 	void *ctx = alloca(my_md5_context_size());
@@ -8751,8 +8753,9 @@ wsrep_calc_row_hash(
 
 		ptr = (const byte*) row + get_field_offset(table, field);
 		len = field->pack_length();
+		col_type = get_innobase_type_from_mysql_type(&is_unsigned, field);
 
-		switch (prebuilt->table->cols[i].mtype) {
+		switch (col_type) {
 
 		case DATA_BLOB:
 			ptr = row_mysql_read_blob_ref(&len, ptr, len);

@@ -40,3 +40,16 @@ SELECT * FROM c;
 --connection node_1
 DROP TABLE c;
 DROP TABLE p;
+
+#
+# MDEV-25047: SIGSEGV in mach_read_from_n_little_endian
+#
+CREATE TABLE t (a INT,b INT,c INT,d INT,e INT,f INT GENERATED ALWAYS AS (a+b)VIRTUAL,g INT,h BLOB,i INT,UNIQUE KEY(d,h));
+INSERT INTO t (a,b)VALUES(0,0), (0,0), (0,0), (0,0), (0,0);
+SELECT * FROM t;
+
+--connection node_2
+SELECT * FROM t;
+
+--connection node_1
+DROP TABLE t;
