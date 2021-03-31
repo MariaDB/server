@@ -1033,7 +1033,7 @@ sub print_global_resfile {
   resfile_global("compress", $opt_compress ? 1 : 0);
   resfile_global("parallel", $opt_parallel);
   resfile_global("check-testcases", $opt_check_testcases ? 1 : 0);
-  resfile_global("mysqld", \@opt_extra_mysqld_opt);
+  resfile_global("mariadbd", \@opt_extra_mysqld_opt);
   resfile_global("debug", $opt_debug ? 1 : 0);
   resfile_global("gcov", $opt_gcov ? 1 : 0);
   resfile_global("gprof", $opt_gprof ? 1 : 0);
@@ -1051,7 +1051,7 @@ sub print_global_resfile {
   resfile_global("shutdown-timeout", $opt_shutdown_timeout ? 1 : 0);
   resfile_global("warnings", $opt_warnings ? 1 : 0);
   resfile_global("max-connections", $opt_max_connections);
-  resfile_global("product", "MySQL");
+  resfile_global("product", "MariaDB");
   resfile_global("xml-report", $opt_xml_report);
   # Somewhat hacky code to convert numeric version back to dot notation
   my $v1= int($mysql_version_id / 10000);
@@ -1115,7 +1115,10 @@ sub command_line_setup {
              'check-testcases!'         => \$opt_check_testcases,
              'mark-progress'            => \$opt_mark_progress,
 
-             # Extra options used when starting mysqld
+             # Extra options used when starting mariadbd
+             'mariadbd=s'               => \@opt_extra_mysqld_opt,
+             'mariadbd-env=s'           => \@opt_mysqld_envs,
+             # mysqld is an alias for mariadbd
              'mysqld=s'                 => \@opt_extra_mysqld_opt,
              'mysqld-env=s'             => \@opt_mysqld_envs,
 
@@ -5798,8 +5801,10 @@ Options for test case authoring
 
 Options that pass on options (these may be repeated)
 
-  mysqld=ARGS           Specify additional arguments to "mysqld"
-  mysqld-env=VAR=VAL    Specify additional environment settings for "mysqld"
+  mariadbd=ARGS         Specify additional arguments to "mariadbd"
+  mysqld                Alias for mariadbd.
+  mariadbd-env=VAR=VAL  Specify additional environment settings for "mariadbd"
+  mysqld-env            Alias for mariadbd-env.
 
 Options to run test on running server
 
@@ -5846,8 +5851,8 @@ Misc options
   start-dirty           Only start the servers (without initialization) for
                         the first specified test case
   user-args             In combination with start* and no test name, drops
-                        arguments to mysqld except those specified with
-                        --mysqld (if any)
+                        arguments to mariadbd except those specified with
+                        --mariadbd (if any)
   wait-all              If --start or --start-dirty option is used, wait for all
                         servers to exit before finishing the process
   fast                  Run as fast as possible, don't wait for servers
