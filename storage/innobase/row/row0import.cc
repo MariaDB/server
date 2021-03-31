@@ -3355,25 +3355,29 @@ struct fil_iterator_t {
 /** InnoDB writes page by page when there is page compressed
 tablespace involved. It does help to save the disk space when
 punch hole is enabled
-@param iter 	Tablespace iterator
+@param iter     Tablespace iterator
+@param full_crc32    whether the file is in the full_crc32 format
 @param write_request Request to write into the file
-@param offset	offset of the file to be written
-@param writeptr	buffer to be written
-@param n_bytes	number of bytes to be written
-@param try_punch_only	Try the range punch only because the
-			current range is full of empty pages
+@param offset   offset of the file to be written
+@param writeptr buffer to be written
+@param n_bytes  number of bytes to be written
+@param try_punch_only   Try the range punch only because the
+                        current range is full of empty pages
 @return DB_SUCCESS */
 static
 dberr_t fil_import_compress_fwrite(const fil_iterator_t &iter,
+                                   bool full_crc32,
                                    const IORequest &write_request,
                                    os_offset_t offset,
                                    const byte *writeptr,
                                    ulint n_bytes,
                                    bool try_punch_only= false)
 {
-  dberr_t err= os_file_punch_hole(iter.file, offset, n_bytes);
-  if (err != DB_SUCCESS || try_punch_only)
+  if (dberr_t err= os_file_punch_hole(iter.file, offset, n_bytes))
     return err;
+
+  if (try_punch_only)
+    return DB_SUCCESS;
 
   for (ulint j= 0; j < n_bytes; j+= srv_page_size)
   {
@@ -3384,20 +3388,27 @@ dberr_t fil_import_compress_fwrite(const fil_iterator_t &iter,
     if (j || offset)
     {
       n_write_bytes= mach_read_from_2(writeptr + j + FIL_PAGE_DATA);
-      const unsigned  ptype= mach_read_from_2(writeptr + j + FIL_PAGE_TYPE);
+      const unsigned ptype= mach_read_from_2(writeptr + j + FIL_PAGE_TYPE);
       /* Ignore the empty page */
       if (ptype == 0 && n_write_bytes == 0)
         continue;
-      n_write_bytes+= FIL_PAGE_DATA + FIL_PAGE_ENCRYPT_COMP_METADATA_LEN;
+      if (full_crc32)
+        n_write_bytes= buf_page_full_crc32_size(writeptr + j,
+                                                nullptr, nullptr);
+      else
+      {
+        n_write_bytes+= ptype == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+          ? FIL_PAGE_DATA + FIL_PAGE_ENCRYPT_COMP_METADATA_LEN
+          : FIL_PAGE_DATA + FIL_PAGE_COMP_METADATA_LEN;
+      }
     }
 
-    err= os_file_write(write_request, iter.filepath, iter.file,
-                       writeptr + j, offset + j, n_write_bytes);
-    if (err != DB_SUCCESS)
-      break;
+    if (dberr_t err= os_file_write(write_request, iter.filepath, iter.file,
+                                   writeptr + j, offset + j, n_write_bytes))
+      return err;
   }
 
-  return err;
+  return DB_SUCCESS;
 }
 
 /********************************************************************//**
@@ -3721,8 +3732,8 @@ not_encrypted:
 
 		if (page_compressed && punch_hole) {
 			err = fil_import_compress_fwrite(
-				iter, write_request, offset, writeptr, n_bytes,
-				!updated);
+				iter, full_crc32, write_request, offset,
+				writeptr, n_bytes, !updated);
 
 			if (err != DB_SUCCESS) {
 				punch_hole = false;
