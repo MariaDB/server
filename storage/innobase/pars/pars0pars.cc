@@ -1219,6 +1219,7 @@ pars_update_statement(
 		sel_node->row_lock_mode = LOCK_X;
 	} else {
 		node->has_clust_rec_x_lock = sel_node->set_x_locks;
+		ut_ad(node->has_clust_rec_x_lock);
 	}
 
 	ut_a(sel_node->n_tables == 1);
