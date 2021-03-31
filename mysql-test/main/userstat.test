@@ -5,6 +5,7 @@
 
 -- source include/have_innodb.inc
 -- source include/have_log_bin.inc
+-- source include/have_perfschema.inc
 
 select variable_value from information_schema.global_status where variable_name="handler_read_key" into @global_read_key;
 show columns from information_schema.client_statistics;

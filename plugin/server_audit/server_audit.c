@@ -16,7 +16,7 @@
 
 
 #define PLUGIN_VERSION 0x104
-#define PLUGIN_STR_VERSION "1.4.11"
+#define PLUGIN_STR_VERSION "1.4.13"
 
 #define _my_thread_var loc_thread_var
 
@@ -859,12 +859,8 @@ struct sa_keyword keywords_to_skip[]=
 
 struct sa_keyword not_ddl_keywords[]=
 {
-  {4, "DROP", &function_word, SQLCOM_QUERY_ADMIN},
-  {4, "DROP", &procedure_word, SQLCOM_QUERY_ADMIN},
   {4, "DROP", &user_word, SQLCOM_DCL},
   {6, "CREATE", &user_word, SQLCOM_DCL},
-  {6, "CREATE", &function_word, SQLCOM_QUERY_ADMIN},
-  {6, "CREATE", &procedure_word, SQLCOM_QUERY_ADMIN},
   {6, "RENAME", &user_word, SQLCOM_DCL},
   {0, NULL, 0, SQLCOM_DDL}
 };

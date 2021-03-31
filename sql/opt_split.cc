@@ -1008,7 +1008,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
     }
     if (spl_plan)
     {
-      if(record_count * spl_plan->cost < spl_opt_info->unsplit_cost)
+      if(record_count * spl_plan->cost < spl_opt_info->unsplit_cost - 0.01)
       {
         /*
           The best plan that employs splitting is cheaper than

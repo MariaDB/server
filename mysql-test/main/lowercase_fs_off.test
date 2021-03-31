@@ -4,6 +4,7 @@
 #
 -- source include/have_case_sensitive_file_system.inc
 -- source include/not_embedded.inc
+-- source include/have_perfschema.inc
 
 set GLOBAL sql_mode="";
 set LOCAL sql_mode="";

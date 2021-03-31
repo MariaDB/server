@@ -3330,6 +3330,64 @@ struct fil_iterator_t {
 	byte*           crypt_io_buffer;        /*!< IO buffer when encrypted */
 };
 
+
+/** InnoDB writes page by page when there is page compressed
+tablespace involved. It does help to save the disk space when
+punch hole is enabled
+@param iter     Tablespace iterator
+@param full_crc32    whether the file is in the full_crc32 format
+@param offset   offset of the file to be written
+@param writeptr buffer to be written
+@param n_bytes  number of bytes to be written
+@param try_punch_only   Try the range punch only because the
+                        current range is full of empty pages
+@return DB_SUCCESS */
+static
+dberr_t fil_import_compress_fwrite(const fil_iterator_t &iter,
+                                   bool full_crc32,
+                                   os_offset_t offset,
+                                   const byte *writeptr,
+                                   ulint n_bytes,
+                                   bool try_punch_only= false)
+{
+  if (dberr_t err= os_file_punch_hole(iter.file, offset, n_bytes))
+    return err;
+
+  if (try_punch_only)
+    return DB_SUCCESS;
+
+  for (ulint j= 0; j < n_bytes; j+= srv_page_size)
+  {
+    /* Read the original data length from block and
+    safer to read FIL_PAGE_COMPRESSED_SIZE because it
+    is not encrypted*/
+    ulint n_write_bytes= srv_page_size;
+    if (j || offset)
+    {
+      n_write_bytes= mach_read_from_2(writeptr + j + FIL_PAGE_DATA);
+      const unsigned ptype= mach_read_from_2(writeptr + j + FIL_PAGE_TYPE);
+      /* Ignore the empty page */
+      if (ptype == 0 && n_write_bytes == 0)
+        continue;
+      if (full_crc32)
+        n_write_bytes= buf_page_full_crc32_size(writeptr + j,
+                                                nullptr, nullptr);
+      else
+      {
+        n_write_bytes+= ptype == FIL_PAGE_PAGE_COMPRESSED_ENCRYPTED
+          ? FIL_PAGE_DATA + FIL_PAGE_ENCRYPT_COMP_METADATA_LEN
+          : FIL_PAGE_DATA + FIL_PAGE_COMP_METADATA_LEN;
+      }
+    }
+
+    if (dberr_t err= os_file_write(IORequestWrite, iter.filepath, iter.file,
+                                   writeptr + j, offset + j, n_write_bytes))
+      return err;
+  }
+
+  return DB_SUCCESS;
+}
+
 /********************************************************************//**
 TODO: This can be made parallel trivially by chunking up the file and creating
 a callback per thread. . Main benefit will be to use multiple CPUs for
@@ -3375,7 +3433,9 @@ fil_iterate(
 	/* TODO: For ROW_FORMAT=COMPRESSED tables we do a lot of useless
 	copying for non-index pages. Unfortunately, it is
 	required by buf_zip_decompress() */
-	dberr_t err = DB_SUCCESS;
+	dberr_t		err = DB_SUCCESS;
+	bool		page_compressed = false;
+	bool		punch_hole = true;
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 		if (callback.is_interrupted()) {
@@ -3453,7 +3513,7 @@ page_corrupted:
 			}
 
 			const uint16_t type = fil_page_get_type(src);
-			const bool page_compressed =
+			page_compressed =
 				(full_crc32
 				 && fil_space_t::is_compressed(
 					callback.get_space_flags())
@@ -3645,8 +3705,20 @@ not_encrypted:
 			}
 		}
 
-		/* A page was updated in the set, write back to disk. */
-		if (updated) {
+		if (page_compressed && punch_hole) {
+			err = fil_import_compress_fwrite(
+				iter, full_crc32, offset, writeptr, n_bytes,
+				!updated);
+
+			if (err != DB_SUCCESS) {
+				punch_hole = false;
+				if (updated) {
+					goto normal_write;
+				}
+			}
+		} else if (updated) {
+normal_write:
+			/* A page was updated in the set, write it back. */
 			err = os_file_write(IORequestWrite,
 					    iter.filepath, iter.file,
 					    writeptr, offset, n_bytes);

@@ -1,4 +1,5 @@
 -- source include/have_log_bin.inc
+-- source include/have_perfschema.inc
 
 set sql_log_bin=0;
 --disable_warnings
