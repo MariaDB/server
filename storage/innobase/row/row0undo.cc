@@ -194,7 +194,7 @@ row_undo_search_clust_to_pcur(
 
 	if (found) {
 		ut_ad(row_get_rec_trx_id(rec, clust_index, offsets)
-		      == node->trx->id);
+		      == node->trx->id || node->table->is_temporary());
 
 		if (dict_table_get_format(node->table) >= UNIV_FORMAT_B) {
 			/* In DYNAMIC or COMPRESSED format, there is

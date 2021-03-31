@@ -3250,7 +3250,7 @@ row_ins_index_entry(
 	dtuple_t*	entry,	/*!< in/out: index entry to insert */
 	que_thr_t*	thr)	/*!< in: query thread */
 {
-	ut_ad(thr_get_trx(thr)->id != 0);
+	ut_ad(thr_get_trx(thr)->id != 0 || index->table->is_temporary());
 
 	DBUG_EXECUTE_IF("row_ins_index_entry_timeout", {
 			DBUG_SET("-d,row_ins_index_entry_timeout");
@@ -3613,11 +3613,15 @@ row_ins_step(
 	table during the search operation, and there is no need to set
 	it again here. But we must write trx->id to node->sys_buf. */
 
-	trx_write_trx_id(&node->sys_buf[DATA_ROW_ID_LEN], trx->id);
+	trx_write_trx_id(&node->sys_buf[DATA_TRX_ID_LEN], trx->id);
 
 	if (node->state == INS_NODE_SET_IX_LOCK) {
 
 		node->state = INS_NODE_ALLOC_ROW_ID;
+
+		if (node->table->is_temporary()) {
+			node->trx_id = trx->id;
+		}
 
 		/* It may be that the current session has not yet started
 		its transaction, or it has been committed: */

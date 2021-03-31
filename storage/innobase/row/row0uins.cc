@@ -106,7 +106,7 @@ row_undo_ins_remove_clust_rec(
 	btr_cur = btr_pcur_get_btr_cur(&node->pcur);
 
 	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur), btr_cur->index)
-	      == node->trx->id);
+	      == node->trx->id || node->table->is_temporary());
 	ut_ad(!rec_get_deleted_flag(
 		      btr_cur_get_rec(btr_cur),
 		      dict_table_is_comp(btr_cur->index->table)));
