@@ -18709,14 +18709,17 @@ static void bg_wsrep_kill_trx(void *void_arg)
 
 	lock_mutex_enter();
 	trx_mutex_enter(victim_trx);
-	if (victim_trx->id != arg->trx_id)
+	if (victim_trx->id != arg->trx_id
+	    || victim_trx->state == TRX_STATE_COMMITTED_IN_MEMORY)
 	{
-		/* apparently victim trx was meanwhile rolled back.
-		tell bf thd not to wait, in case it already started to */
+		/* Apparently victim trx was meanwhile rolled back or
+		committed. Tell bf thd not to wait, in case it already
+		started to. */
 		trx_t *trx= thd_to_trx(bf_thd);
-		/* note that bf_thd might not have trx e.g. in case of
-		MDL-conflict. */
-		if (lock_t *lock= (trx ? trx->lock.wait_lock : NULL)) {
+		if (!trx) {
+			/* bf_thd might not be associated with a
+			transaction, in case of MDL conflict */
+		} else if (lock_t *lock = trx->lock.wait_lock) {
 			trx_mutex_enter(trx);
 			lock_cancel_waiting_and_release(lock);
 			trx_mutex_exit(trx);
@@ -18802,7 +18805,7 @@ and an open transaction on the node, not by a Galera writeset
 comparison as in the local certification failure.
 
 @param[in]	bf_thd		Brute force (BF) thread
-@param[in,out]	victim_trx	Vimtim trx to be killed
+@param[in,out]	victim_trx	Transaction to be killed
 @param[in]	signal		Should victim be signaled */
 void
 wsrep_innobase_kill_one_trx(
