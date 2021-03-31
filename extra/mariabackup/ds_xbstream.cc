@@ -50,6 +50,7 @@ datasink_t datasink_xbstream = {
 	&xbstream_open,
 	&xbstream_write,
 	&xbstream_close,
+	&dummy_remove,
 	&xbstream_deinit
 };
 
