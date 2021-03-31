@@ -464,8 +464,8 @@ void lock_sys_t::close()
   m_initialised= false;
 }
 
-#ifdef UNIV_DEBUG
 #ifdef WITH_WSREP
+# ifdef UNIV_DEBUG
 /** Check if both conflicting lock transaction and other transaction
 requesting record lock are brute force (BF). If they are check is
 this BF-BF wait correct and if not report BF wait and assert.
@@ -533,40 +533,33 @@ static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx)
 	/* BF-BF wait is a bug */
 	ut_error;
 }
+# endif /* UNIV_DEBUG */
 
-/*********************************************************************//**
-check if lock timeout was for priority thread,
+/** check if lock timeout was for priority thread,
 as a side effect trigger lock monitor
-@param[in]    trx    transaction owning the lock
-@param[in]    locked true if trx and lock_sys.latch is held
-@return	false for regular lock timeout */
-static
-bool
-wsrep_is_BF_lock_timeout(
-	const trx_t*	trx,
-	bool		locked = true)
+@param trx    transaction owning the lock
+@return false for regular lock timeout */
+ATTRIBUTE_NOINLINE static bool wsrep_is_BF_lock_timeout(const trx_t &trx)
 {
-	if (trx->error_state != DB_DEADLOCK && trx->is_wsrep() &&
-	    srv_monitor_timer && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) {
-		ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
-			   << " query: " << wsrep_thd_query(trx->mysql_thd);
-		if (!locked) {
-			LockMutexGuard g{SRW_LOCK_CALL};
-			trx_print_latched(stderr, trx, 3000);
-		} else {
-			lock_sys.assert_locked();
-			trx_print_latched(stderr, trx, 3000);
-		}
+  ut_ad(trx.is_wsrep());
 
-		srv_print_innodb_monitor 	= TRUE;
-		srv_print_innodb_lock_monitor 	= TRUE;
-		srv_monitor_timer_schedule_now();
-		return true;
-	}
-	return false;
+  if (trx.error_state == DB_DEADLOCK || !srv_monitor_timer ||
+      !wsrep_thd_is_BF(trx.mysql_thd, false))
+    return false;
+
+  ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx.id)
+             << " query: " << wsrep_thd_query(trx.mysql_thd);
+  {
+    LockMutexGuard g{SRW_LOCK_CALL};
+    trx_print_latched(stderr, &trx, 3000);
+  }
+
+  srv_print_innodb_monitor= true;
+  srv_print_innodb_lock_monitor= true;
+  srv_monitor_timer_schedule_now();
+  return true;
 }
 #endif /* WITH_WSREP */
-#endif /* UNIV_DEBUG */
 
 /*********************************************************************//**
 Checks if a lock request for a new lock has to wait for request lock2.
@@ -1807,7 +1800,7 @@ dberr_t lock_wait(que_thr_t *thr)
       else if (!err)
         continue;
 #ifdef WITH_WSREP
-      else if (trx->is_wsrep() && wsrep_is_BF_lock_timeout(trx, false));
+      else if (wsrep_is_BF_lock_timeout(*trx));
 #endif
       else
       {
