@@ -2971,7 +2971,8 @@ re_evict:
 		buf_flush_lists(ULINT_UNDEFINED, LSN_MAX);
 		buf_flush_wait_batch_end_acquiring_mutex(false);
 
-		if (!fix_block->page.oldest_modification()) {
+		if (fix_block->page.buf_fix_count() == 1
+		    && !fix_block->page.oldest_modification()) {
 			goto re_evict;
 		}
 
