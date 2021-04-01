@@ -1800,7 +1800,7 @@ dberr_t lock_wait(que_thr_t *thr)
       else if (!err)
         continue;
 #ifdef WITH_WSREP
-      else if (wsrep_is_BF_lock_timeout(*trx));
+      else if (trx->is_wsrep() && wsrep_is_BF_lock_timeout(*trx));
 #endif
       else
       {
