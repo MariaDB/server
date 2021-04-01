@@ -1,7 +1,7 @@
 !include ../galera_2nodes.cnf
 
 [mysqld.1]
-wsrep_sst_auth=root:
+auto_increment_offset=1
 
 [mysqld.2]
-wsrep_sst_auth=root:
+auto_increment_offset=2
