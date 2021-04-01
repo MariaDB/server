@@ -41,6 +41,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 #include <my_global.h>
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <mysql.h>
 #include <my_dir.h>
@@ -904,6 +905,12 @@ ibx_init()
 
 	opt_user = opt_ibx_user;
 	opt_password = opt_ibx_password;
+#if !defined(DONT_USE_MYSQL_PWD)
+	if (!opt_password)
+	{
+		opt_password=getenv("MYSQL_PWD");
+	}
+#endif
 	opt_host = opt_ibx_host;
 	opt_defaults_group = opt_ibx_defaults_group;
 	opt_socket = opt_ibx_socket;
