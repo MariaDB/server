@@ -3,7 +3,8 @@
 #
 --source include/have_debug.inc
 --source include/have_innodb.inc
-
+# Using valgrind can cause 'reap' to fail. See comment below
+--source include/not_valgrind.inc
 
 --disable_warnings
 drop table if exists t0, t1, t2, t3, t4;
@@ -885,6 +886,7 @@ let $wait_condition= select State='show explain' from information_schema.process
 evalp kill query $thr_default;
 
 connection default;
+# This may fail when using valgrind
 --error ER_QUERY_INTERRUPTED
 reap;
 
