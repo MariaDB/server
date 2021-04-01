@@ -4506,6 +4506,7 @@ void log_flush_notify(lsn_t flush_lsn)
   if (auto pending= log_requests.start.load(std::memory_order_acquire))
   {
     mysql_mutex_lock(&log_requests.mutex);
+    pending= log_requests.start.load(std::memory_order_relaxed);
     log_flush_notify_and_unlock(pending, flush_lsn);
   }
 }
