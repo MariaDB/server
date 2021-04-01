@@ -1050,7 +1050,7 @@ double Gis_point::calculate_haversine(const Geometry *g,
                                       int *error)
 {
   DBUG_ASSERT(sphere_radius > 0);
-  double x1r, x2r, y1r, y2r, dlong, dlat, res;
+  double x1r= 0.0, x2r= 0.0, y1r= 0.0, y2r= 0.0, dlong, dlat, res;
 
   // This check is done only for optimization purposes where we know it will
   // be one and only one point in Multipoint
