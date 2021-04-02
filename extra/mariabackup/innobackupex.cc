@@ -208,10 +208,13 @@ enum innobackupex_options
 	OPT_TABLES_FILE,
 	OPT_THROTTLE,
 	OPT_USE_MEMORY,
-	OPT_INNODB_FORCE_RECOVERY,
+	OPT_INNODB,
+	OPT_INNODB_FORCE_RECOVERY
 };
 
 ibx_mode_t ibx_mode = IBX_MODE_BACKUP;
+
+static char* innobase_ignored_opt;
 
 static struct my_option ibx_long_options[] =
 {
@@ -625,6 +628,10 @@ static struct my_option ibx_long_options[] =
 	 (uchar*) &ibx_xtrabackup_use_memory,
 	 0, GET_LL, REQUIRED_ARG, 100*1024*1024L, 1024*1024L, LONGLONG_MAX, 0,
 	 1024*1024L, 0},
+
+	{"innodb", OPT_INNODB, "Ignored option for MySQL option compatibility",
+	 (uchar*) &innobase_ignored_opt, (uchar*) &innobase_ignored_opt, 0,
+	 GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
 
 	{"innodb-force-recovery", OPT_INNODB_FORCE_RECOVERY,
 	 "This option starts up the embedded InnoDB instance in crash "
