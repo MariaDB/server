@@ -268,7 +268,7 @@ static my_bool ma_crypt_data_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     return 1;
   }
 
-  if (!share->now_transactional)
+  if (!share->base.born_transactional)
   {
     /* store a random number instead of LSN (for counter block) */
     store_rand_lsn(args->page);
@@ -392,7 +392,7 @@ static my_bool ma_crypt_index_pre_write_hook(PAGECACHE_IO_HOOK_ARGS *args)
     return 1;
   }
 
-  if (!share->now_transactional)
+  if (!share->base.born_transactional)
   {
     /* store a random number instead of LSN (for counter block) */
     store_rand_lsn(args->page);
