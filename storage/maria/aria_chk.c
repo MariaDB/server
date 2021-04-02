@@ -37,6 +37,7 @@ static MY_TMPDIR maria_chk_tmpdir;
 static my_bool opt_transaction_logging, opt_debug;
 static my_bool opt_ignore_control_file, opt_require_control_file;
 static my_bool opt_warning_for_wrong_transid, opt_update_state;
+static my_bool have_control_file= 0;
 
 static const char *type_names[]=
 {
@@ -144,15 +145,19 @@ int main(int argc, char **argv)
   {
     if ((ma_control_file_open(FALSE, opt_require_control_file ||
                               !(check_param.testflag & T_SILENT),
-                              TRUE) &&
-         (opt_require_control_file ||
-          (opt_transaction_logging && (check_param.testflag & T_REP_ANY)))))
+                              TRUE)))
     {
-      error= 1;
-      goto end;
+      if (opt_require_control_file ||
+          (opt_transaction_logging && (check_param.testflag & T_REP_ANY)))
+      {
+        error= 1;
+        goto end;
+      }
     }
+    else
+      have_control_file= 1;
   }
-  else
+  if (!have_control_file)
     opt_warning_for_wrong_transid= 0;
 
   /*
@@ -456,7 +461,7 @@ static struct my_option my_long_options[] =
     (char**) &maria_stats_method_str, (char**) &maria_stats_method_str, 0,
     GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   { "zerofill", 'z',
-    "Fill empty space in data and index files with zeroes. This makes the data file movable between different servers.",
+    "Fill empty space in data and index files with zeroes. This makes the data file movable between different servers. It also fixes any wrong transaction or LSN numbers in the table after a crash or if someone removed the Aria log files.",
     0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   { "zerofill-keep-lsn", OPT_ZEROFILL_KEEP_LSN,
     "Like --zerofill but does not zero out LSN of data/index pages;"
@@ -468,7 +473,7 @@ static struct my_option my_long_options[] =
 
 static void print_version(void)
 {
-  printf("%s  Ver 1.2 for %s on %s\n", my_progname, SYSTEM_TYPE,
+  printf("%s  Ver 1.3 for %s on %s\n", my_progname, SYSTEM_TYPE,
 	 MACHINE_TYPE);
 }
 
@@ -614,7 +619,9 @@ Recover (repair)/ options (When using '--recover' or '--safe-recover'):\n\
                       Find a record, a block at given offset belongs to.\n\
   -z,  --zerofill     Fill empty space in data and index files with zeroes.\n\
                       This makes the data file movable between different \n\
-                      servers.\n\
+                      servers.  It also fixes any wrong transaction or LSN\n\
+                      numbers in the table after a crash or if someone\n\
+                      removed the Aria log files.\n\
   --zerofill-keep-lsn Like --zerofill but does not zero out LSN of\n\
                       data/index pages.");
 
@@ -1034,7 +1041,7 @@ static int maria_chk(HA_CHECK *param, char *filename)
                         0)))
   {
     /* Avoid twice printing of isam file name */
-    param->error_printed=1;
+    param->error_printed++;
     switch (my_errno) {
     case HA_ERR_CRASHED:
       _ma_check_print_error(param,"'%s' doesn't have a correct index definition. You need to recreate it before you can do a repair",filename);
@@ -1506,8 +1513,7 @@ end2:
                 "the --force (-f) option or by not using the --quick (-q) "
                 "flag\n");
     }
-    else if (!(param->error_printed & 2) &&
-	     !(param->testflag & T_FORCE_CREATE))
+    else if (!(param->testflag & T_FORCE_CREATE))
       fprintf(stderr, "Aria table '%s' is corrupted\nFix it using switch "
               "\"-r\" or \"-o\"\n", filename);
   }
@@ -1592,6 +1598,10 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
     if (share->state.changed & STATE_CRASHED)
       strmov(buff, share->state.changed & STATE_CRASHED_ON_REPAIR ?
              "crashed on repair" : "crashed");
+    else if (have_control_file &&
+             (share->state.changed & (STATE_MOVED | STATE_NOT_ZEROFILLED)) ==
+             (STATE_MOVED | STATE_NOT_ZEROFILLED))
+      strmov(buff, "moved from another system. Use --zerofill to fix it");
     else
     {
       if (share->state.open_count)
@@ -1610,6 +1620,8 @@ static void descript(HA_CHECK *param, register MARIA_HA *info, char *name)
 	pos=strmov(pos,"zerofilled,");
       if (!(share->state.changed & STATE_NOT_MOVABLE))
 	pos=strmov(pos,"movable,");
+      if (have_control_file && (share->state.changed & STATE_MOVED))
+	pos=strmov(pos,"moved,");
       pos[-1]=0;				/* Remove extra ',' */
     }
     printf("Status:              %s\n",buff);

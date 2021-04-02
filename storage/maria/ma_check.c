@@ -124,6 +124,7 @@ void maria_chk_init(HA_CHECK *param)
   param->stats_method= MI_STATS_METHOD_NULLS_NOT_EQUAL;
   param->max_stage= 1;
   param->stack_end_ptr= &my_thread_var->stack_ends_here;
+  param->max_allowed_lsn= (LSN) ~0ULL;
 }
 
 
@@ -903,15 +904,33 @@ static int chk_index(HA_CHECK *param, MARIA_HA *info, MARIA_KEYDEF *keyinfo,
     _ma_check_print_error(param, "Page at %s is not marked for index %u",
                           llstr(anc_page->pos, llbuff),
                           (uint) keyinfo->key_nr);
-  if ((page_flag & KEYPAGE_FLAG_HAS_TRANSID) &&
-      !share->base.born_transactional)
+  if (page_flag & KEYPAGE_FLAG_HAS_TRANSID)
   {
-    _ma_check_print_error(param,
-                          "Page at %s is marked with HAS_TRANSID even if "
-                          "table is not transactional",
-                          llstr(anc_page->pos, llbuff));
+    if (!share->base.born_transactional)
+    {
+      _ma_check_print_error(param,
+                            "Page at %s is marked with HAS_TRANSID even if "
+                            "table is not transactional",
+                            llstr(anc_page->pos, llbuff));
+    }
   }
-
+  if (share->base.born_transactional)
+  {
+    LSN lsn= lsn_korr(anc_page->buff);
+    if ((ulonglong) lsn > param->max_allowed_lsn)
+    {
+      /* Avoid flooding of errors */
+      if (param->skip_lsn_error_count++ < MAX_LSN_ERRORS)
+      {
+        _ma_check_print_error(param,
+                              "Page at %s as wrong LSN " LSN_FMT ". Current "
+                              "LSN is " LSN_FMT,
+                              llstr(anc_page->pos, llbuff),
+                              LSN_IN_PARTS(lsn),
+                              LSN_IN_PARTS(param->max_allowed_lsn));
+      }
+    }
+  }
   if (anc_page->size > share->max_index_block_size)
   {
     _ma_check_print_error(param,
@@ -1850,6 +1869,7 @@ static int check_block_record(HA_CHECK *param, MARIA_HA *info, int extend,
   ha_rows full_page_count, tail_count;
   my_bool UNINIT_VAR(full_dir), now_transactional;
   uint offset_page, offset, free_count;
+  LSN lsn;
 
   if (_ma_scan_init_block_record(info))
   {
@@ -1993,6 +2013,23 @@ static int check_block_record(HA_CHECK *param, MARIA_HA *info, int extend,
                               bits_to_txt[bitmap_for_page]);
       if (param->err_count++ > MAXERR || !(param->testflag & T_VERBOSE))
         goto err;
+    }
+    if (share->base.born_transactional)
+    {
+      lsn= lsn_korr(page_buff);
+      if ((ulonglong) lsn > param->max_allowed_lsn)
+      {
+        /* Avoid flooding of errors */
+        if (param->skip_lsn_error_count++ < MAX_LSN_ERRORS)
+        {
+          _ma_check_print_error(param,
+                                "Page %9s:  Wrong LSN " LSN_FMT ". Current "
+                                "LSN is " LSN_FMT,
+                                llstr(page, llbuff),
+                                LSN_IN_PARTS(lsn),
+                                LSN_IN_PARTS(param->max_allowed_lsn));
+        }
+      }
     }
     if ((enum en_page_type) page_type == BLOB_PAGE)
       continue;
@@ -2778,7 +2815,7 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
       if ((param->testflag & (T_FORCE_UNIQUENESS|T_QUICK)) == T_QUICK)
       {
         param->testflag|=T_RETRY_WITHOUT_QUICK;
-	param->error_printed=1;
+	param->error_printed++;
 	goto err;
       }
       /* purecov: begin tested */
@@ -5053,7 +5090,7 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
 	}
 	if (searching && ! sort_param->fix_datafile)
 	{
-	  param->error_printed=1;
+	  param->error_printed++;
           param->retry_repair=1;
           param->testflag|=T_RETRY_WITHOUT_QUICK;
           my_errno= HA_ERR_WRONG_IN_RECORD;
@@ -5327,7 +5364,7 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
 	DBUG_RETURN(-1);
       if (searching && ! sort_param->fix_datafile)
       {
-	param->error_printed=1;
+	param->error_printed++;
         param->retry_repair=1;
         param->testflag|=T_RETRY_WITHOUT_QUICK;
         my_errno= HA_ERR_WRONG_IN_RECORD;

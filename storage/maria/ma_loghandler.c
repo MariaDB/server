@@ -7926,7 +7926,8 @@ void check_skipped_lsn(MARIA_HA *info, LSN lsn, my_bool index_file,
   else
   {
     /* Give error, but don't flood the log */
-    if (skipped_lsn_err_count++ < 10 && ! info->s->redo_error_given++)
+    if (skipped_lsn_err_count++ < MAX_LSN_ERRORS &&
+        ! info->s->redo_error_given++)
     {
       eprint(tracef, "Table %s has wrong LSN: " LSN_FMT " on page: %llu",
              (index_file ? info->s->data_file_name.str :
