@@ -24,6 +24,7 @@
 #else		 // !__WIN__
 #define __stdcall
 #include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
+#include <libexplain/execlp.h>
 #endif   // !__WIN__
 #endif	 // !REST_SOURCE
 #define _OS_H_INCLUDED     // Prevent os.h to be called
@@ -148,7 +149,6 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	}	// endif CreateProcess
 #else   // !__WIN__
 	char  fn[600];
-	int   rcd;
 	pid_t pID = vfork();
 
 	sprintf(fn, "-o%s", filename);
