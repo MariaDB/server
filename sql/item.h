@@ -233,6 +233,12 @@ struct Name_resolution_context: Sql_alloc
   bool resolve_in_select_list;
 
   /*
+    Bitmap of tables that should be ignored when doing name resolution.
+    Normally it is {0}. Non-zero values are used by table functions.
+  */
+  table_map ignored_tables;
+
+  /*
     Security context of this name resolution context. It's used for views
     and is non-zero only if the view is defined with SQL SECURITY DEFINER.
   */
@@ -241,6 +247,7 @@ struct Name_resolution_context: Sql_alloc
   Name_resolution_context()
     :outer_context(0), table_list(0), select_lex(0),
     error_processor_data(0),
+    ignored_tables(0),
     security_ctx(0)
     {}
 

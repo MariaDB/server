@@ -224,6 +224,10 @@ public:
   void start_nested_path(Json_table_nested_path *np);
   void end_nested_path();
   Json_table_nested_path *get_cur_nested_path() { return cur_parent; }
+  void set_name_resolution_context(Name_resolution_context *arg)
+  {
+    m_context= arg;
+  }
 
   /* SQL Parser: current column in JSON_TABLE (...) syntax */
   Json_table_column *m_cur_json_table_column;
@@ -232,6 +236,8 @@ public:
   CHARSET_INFO *m_text_literal_cs;
 
 private:
+  /* Context to be used for resolving the first argument. */
+  Name_resolution_context *m_context;
 
   /*
     the JSON argument can be taken from other tables.
@@ -251,6 +257,7 @@ private:
   Json_table_nested_path **last_sibling_hook;
 };
 
+bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc);
 
 TABLE *create_table_for_function(THD *thd, TABLE_LIST *sql_table);
 

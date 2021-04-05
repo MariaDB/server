@@ -11683,29 +11683,38 @@ json_on_empty_response:
         ;
 
 table_function:
-          JSON_TABLE_SYM '(' expr ','
+          JSON_TABLE_SYM '('
+          {
+            push_table_function_arg_context(Lex, thd->mem_root);
+            //TODO: introduce IN_TABLE_FUNC_ARGUMENT?
+            Select->parsing_place= IN_ON;
+          }
+          expr ','
           {
             Table_function_json_table *jt=
-              new (thd->mem_root) Table_function_json_table($3);
+              new (thd->mem_root) Table_function_json_table($4);
             if (unlikely(!jt))
               MYSQL_YYABORT;
             Lex->json_table= jt;
+
+            Select->parsing_place= NO_MATTER;
+            jt->set_name_resolution_context(Lex->pop_context());
           }
           json_text_literal json_table_columns_clause ')' opt_table_alias_clause
           {
             SELECT_LEX *sel= Select;
-            if (unlikely($9 == NULL))
+            if (unlikely($10 == NULL))
             {
               /* Alias is not optional. */
               my_error(ER_JSON_TABLE_ALIAS_REQUIRED, MYF(0));
               MYSQL_YYABORT;
             }
-            if (unlikely(Lex->json_table->m_nested_path.set_path(thd, $6)))
+            if (unlikely(Lex->json_table->m_nested_path.set_path(thd, $7)))
               MYSQL_YYABORT;
             sel->table_join_options= 0;
             if (!($$= Select->add_table_to_list(thd,
                            new (thd->mem_root) Table_ident(thd, &empty_clex_str,
-                                                           $9, TRUE),
+                                                           $10, TRUE),
                            NULL,
                            Select->get_table_join_options() |
                              TL_OPTION_TABLE_FUNCTION,

@@ -99,6 +99,7 @@ static bool init_fields(THD *thd, TABLE_LIST *tables,
                                    Lex_cstring_strlen(find_fields->table_name),
                                    Lex_cstring_strlen(find_fields->field_name)));
     if (!(find_fields->field= find_field_in_tables(thd, field, tables, NULL,
+                                                   table_map(0),
 						   0, REPORT_ALL_ERRORS, 1,
                                                    TRUE)))
       DBUG_RETURN(1);

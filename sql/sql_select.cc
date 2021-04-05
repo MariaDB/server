@@ -24564,8 +24564,8 @@ find_order_in_list(THD *thd, Ref_ptr_array ref_pointer_array,
         order_item_type == Item::REF_ITEM)
     {
       from_field= find_field_in_tables(thd, (Item_ident*) order_item, tables,
-                                       NULL, &view_ref, IGNORE_ERRORS, FALSE,
-                                       FALSE);
+                                       NULL, table_map(0), &view_ref,
+                                       IGNORE_ERRORS, FALSE, FALSE);
       if (!from_field)
         from_field= (Field*) not_found_field;
     }

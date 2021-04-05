@@ -1184,8 +1184,6 @@ public:
   enum leaf_list_state {UNINIT, READY, SAVED};
   enum leaf_list_state prep_leaf_list_state;
   uint insert_tables;
-  // Last table for LATERAL join, used by table functions
-  TABLE_LIST *end_lateral_table;
   st_select_lex *merged_into; /* select which this select is merged into */
                               /* (not 0 only for views/derived tables)   */
 
@@ -1449,7 +1447,7 @@ public:
   ha_rows get_limit();
 
   friend struct LEX;
-  st_select_lex() : group_list_ptrs(NULL), end_lateral_table(NULL), braces(0),
+  st_select_lex() : group_list_ptrs(NULL), braces(0),
                     automatic_brackets(0), n_sum_items(0), n_child_sum_items(0)
   {}
   void make_empty_select()

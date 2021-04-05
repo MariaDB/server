@@ -10115,7 +10115,7 @@ SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit)
               (curr_sel == NULL && current_select == &builtin_select));
   if (curr_sel)
   {
-    curr_sel->register_unit(unit, &curr_sel->context);
+    curr_sel->register_unit(unit, context_stack.head());
     curr_sel->add_statistics(unit);
   }
 

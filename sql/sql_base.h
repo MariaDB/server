@@ -195,6 +195,7 @@ bool fill_record(THD *thd, TABLE *table, Field **field, List<Item> &values,
 Field *
 find_field_in_tables(THD *thd, Item_ident *item,
                      TABLE_LIST *first_table, TABLE_LIST *last_table,
+                     table_map ignored_tables,
                      Item **ref, find_item_error_report_type report_error,
                      bool check_privileges, bool register_tree_change);
 Field *

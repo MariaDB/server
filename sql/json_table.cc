@@ -22,6 +22,7 @@
 #include "item_jsonfunc.h"
 #include "json_table.h"
 #include "sql_show.h"
+#include "sql_select.h"
 
 #define HA_ERR_JSON_TABLE (HA_ERR_LAST+1)
 
@@ -39,6 +40,111 @@ public:
 
 
 static table_function_handlerton table_function_hton;
+
+/*
+  @brief
+    Collect a bitmap of tables that a given table function cannot have
+    references to.
+
+  @detail
+    According to the SQL standard, a table function can refer to any table
+    that's "preceding" it in the FROM clause.
+
+    The other limitation we would like to enforce is that the inner side of
+    an outer join cannot refer to the outer side. An example:
+
+      SELECT * from JSON_TABLE(t1.col, ...) left join t1 on ...
+
+    This function implements both of the above restrictions.
+
+    Basic idea: the "join_list" contains the tables in the order that's a
+    reverse of the order they were specified in the query.
+    If we walk the join_list, we will encounter:
+    1. First, the tables that table function cannot refer to (collect them in a
+       bitmap)
+    2. Then, the table function itself (put it in the bitmap, too, as self-
+       references are not allowed, and stop the walk)
+    3. Tables that the table function CAN refer to (we don't walk these as
+       we've stopped on step #2).
+
+    The above can be applied recursively for nested joins (this covers NATURAL
+    JOIN, and JOIN ... USING constructs).
+
+    Enforcing the "refer to only preceding tables" rule means that outer side
+    of LEFT JOIN cannot refer to the inner side.
+
+    Handing RIGHT JOINs: There are no RIGHT JOINs in the join_list data
+    structures. They were converted to LEFT JOINs (see calls to st_select_lex::
+    convert_right_join).  This conversion changes the order of tables, but
+    we are ok with operating on the tables "in the left join order".
+
+  @return
+    TRUE  - enumeration has found the Table Function instance. The bitmap is
+            ready.
+    FALSE - Otherwise
+
+*/
+
+static
+bool get_disallowed_table_deps_for_list(table_map table_func_bit,
+                                        List<TABLE_LIST> *join_list,
+                                        table_map *disallowed_tables)
+{
+  TABLE_LIST *table;
+  NESTED_JOIN *nested_join;
+  List_iterator<TABLE_LIST> li(*join_list);
+
+  while ((table= li++))
+  {
+    if ((nested_join= table->nested_join))
+    {
+      if (get_disallowed_table_deps_for_list(table_func_bit,
+                                             &nested_join->join_list,
+                                             disallowed_tables))
+        return true;
+    }
+    else
+    {
+      *disallowed_tables |= table->table->map;
+      if (table_func_bit == table->table->map)
+      {
+        // This is the JSON_TABLE(...) that are we're computing dependencies
+        // for.
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+/*
+  @brief
+    Given a join and a table function in it (specified by its table_func_bit),
+    produce a bitmap of tables that the table function can NOT have references
+    to.
+
+  @detail
+    See get_disallowed_table_deps_for_list
+
+  @return
+    Bitmap of tables that table function can NOT have references to.
+*/
+
+static
+table_map get_disallowed_table_deps(JOIN *join, table_map table_func_bit)
+{
+  table_map disallowed_tables= 0;
+  if (get_disallowed_table_deps_for_list(table_func_bit, join->join_list,
+                                         &disallowed_tables))
+    return disallowed_tables;
+  else
+  {
+    DBUG_ASSERT(0);
+    return disallowed_tables;
+  }
+}
+
 
 
 /*
@@ -1114,6 +1220,34 @@ void Table_function_json_table::end_nested_path()
 
 
 /*
+  @brief  Create a name resolution context for doing name resolution in table
+          function argument.
+
+  @seealso
+    push_new_name_resolution_context
+*/
+
+bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc)
+{
+  // Walk the context stack until we find a context that is select-level
+  // context.
+  List_iterator<Name_resolution_context> it(lex->context_stack);
+  Name_resolution_context *ctx= NULL;
+  while ((ctx= it++))
+  {
+    if (ctx->select_lex && ctx == &ctx->select_lex->context)
+      break;
+  }
+  DBUG_ASSERT(ctx);
+
+  // Then, create a copy of it and return it.
+  Name_resolution_context *new_ctx= new (alloc) Name_resolution_context;
+  *new_ctx= *ctx;
+  return lex->push_context(new_ctx);
+}
+
+
+/*
   @brief
     Perform name-resolution phase tasks
 
@@ -1139,9 +1273,17 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
     bool res;
     save_is_item_list_lookup= thd->lex->current_select->is_item_list_lookup;
     thd->lex->current_select->is_item_list_lookup= 0;
-    s_lex->end_lateral_table= sql_table;
+
+    // Prepare the name resolution context. First, copy the context that
+    // is using for name resolution of the WHERE clause
+    *m_context= thd->lex->current_select->context;
+
+    // Then, restrict it to only allow to refer to tables that come before the
+    // table function reference
+    m_context->ignored_tables= get_disallowed_table_deps(s_lex->join, t->map);
+
     res= m_json->fix_fields_if_needed(thd, &m_json);
-    s_lex->end_lateral_table= NULL;
+
     thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
     if (res)
       return TRUE;

@@ -9007,6 +9007,10 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
   @param left_op   left  operand of the JOIN
   @param right_op  rigth operand of the JOIN
 
+  @seealso
+    push_table_function_arg_context() serves similar purpose for table
+    functions
+
   @retval
     FALSE  if all is OK
   @retval

@@ -6319,6 +6319,8 @@ Field *find_field_in_table_sef(TABLE *table, const char *name)
     first_table           list of tables to be searched for item
     last_table            end of the list of tables to search for item. If NULL
                           then search to the end of the list 'first_table'.
+    ignored_tables        Bitmap of tables that should be ignored. Do not try
+                          to find the field in those.
     ref			  if 'item' is resolved to a view field, ref is set to
                           point to the found view field
     report_error	  Degree of error reporting:
@@ -6346,6 +6348,7 @@ Field *find_field_in_table_sef(TABLE *table, const char *name)
 Field *
 find_field_in_tables(THD *thd, Item_ident *item,
                      TABLE_LIST *first_table, TABLE_LIST *last_table,
+                     table_map ignored_tables,
 		     Item **ref, find_item_error_report_type report_error,
                      bool check_privileges, bool register_tree_change)
 {
@@ -6462,15 +6465,15 @@ find_field_in_tables(THD *thd, Item_ident *item,
     db= name_buff;
   }
 
-  if (first_table && first_table->select_lex &&
-      first_table->select_lex->end_lateral_table)
-    last_table= first_table->select_lex->end_lateral_table;
-  else if (last_table)
+  if (last_table)
     last_table= last_table->next_name_resolution_table;
 
   for (; cur_table != last_table ;
        cur_table= cur_table->next_name_resolution_table)
   {
+    if (cur_table->table && (cur_table->table->map & ignored_tables))
+      continue;
+
     Field *cur_field= find_field_in_table_ref(thd, cur_table, name, length,
                                               item->name.str, db, table_name, ref,
                                               (thd->lex->sql_command ==
