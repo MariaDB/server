@@ -1,16 +1,5 @@
 include/master-slave.inc
 [connection master]
-# MDEV-16252: MINIMAL binlog_row_image does not work for versioned tables
-set @old_row_image= @@binlog_row_image;
-set binlog_row_image= minimal;
-create or replace table t1 (pk int, i int, primary key(pk))
-with system versioning;
-insert into t1 values (1,10),(2,20);
-update t1 set i = 0;
-connection slave;
-connection master;
-drop table t1;
-set binlog_row_image= @old_row_image;
 #
 # MDEV-25347 DML events for auto-partitioned tables are written into binary log twice
 #
@@ -37,21 +26,13 @@ master-bin.000002	#	Gtid	#	#	GTID #-#-#
 master-bin.000002	#	Query	#	#	use `test`; create table t1 (a int) with system versioning
 partition by system_time limit 1 auto
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Annotate_rows	#	#	insert into t1 values (1)
-master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	use `test`; insert into t1 values (1)
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Annotate_rows	#	#	update t1 set a= a + 1
-master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000002	#	Update_rows_v1	#	#	table_id: #
-master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	use `test`; update t1 set a= a + 1
 master-bin.000002	#	Query	#	#	COMMIT
 master-bin.000002	#	Gtid	#	#	BEGIN GTID #-#-#
-master-bin.000002	#	Annotate_rows	#	#	update t1 set a= a + 2
-master-bin.000002	#	Table_map	#	#	table_id: # (test.t1)
-master-bin.000002	#	Update_rows_v1	#	#	table_id: #
-master-bin.000002	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+master-bin.000002	#	Query	#	#	use `test`; update t1 set a= a + 2
 master-bin.000002	#	Query	#	#	COMMIT
 connection slave;
 show create table t1;

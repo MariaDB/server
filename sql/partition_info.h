@@ -74,22 +74,6 @@ struct Vers_part_info : public Sql_alloc
     INTERVAL step;
     enum interval_type type;
     bool is_set() const { return type < INTERVAL_LAST; }
-    size_t seconds() const
-    {
-      if (step.second)
-        return step.second;
-      if (step.minute)
-        return step.minute * 60;
-      if (step.hour)
-        return step.hour * 3600;
-      if (step.day)
-        return step.day * 3600 * 24;
-      // comparison is used in rough estimates, it doesn't need to be calendar-correct
-      if (step.month)
-        return step.month * 3600 * 24 * 30;
-      DBUG_ASSERT(step.year);
-      return step.year * 86400 * 30 * 365;
-    }
   } interval;
   ulonglong limit;
   bool auto_hist;
@@ -417,7 +401,7 @@ public:
                          interval_type int_type, Item *starts,
                          bool auto_part, const char *table_name);
   bool vers_set_limit(ulonglong limit, bool auto_part, const char *table_name);
-  unsigned int vers_set_hist_part(THD* thd, bool auto_part);
+  bool vers_set_hist_part(THD* thd, uint *create_count);
   bool vers_fix_field_list(THD *thd);
   void vers_update_el_ids();
   partition_element *get_partition(uint part_id)
@@ -436,7 +420,7 @@ public:
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
 bool check_partition_dirs(partition_info *part_info);
-bool vers_add_auto_hist_parts(THD* thd, TABLE_LIST* tl, uint num_parts);
+bool vers_create_partitions(THD* thd, TABLE_LIST* tl, uint num_parts);
 
 /* Initialize the iterator to return a single partition with given part_id */
 

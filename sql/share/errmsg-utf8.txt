@@ -7986,4 +7986,4 @@ ER_JSON_TABLE_MULTIPLE_MATCHES
 ER_WITH_TIES_NEEDS_ORDER
         eng "FETCH ... WITH TIES requires ORDER BY clause to be present"
 ER_VERS_HIST_PART_FAILED
-        eng "Versioned table %`s.%`s: adding HISTORY partition failed"
+        eng "Versioned table %`s.%`s: adding HISTORY partition(s) failed"

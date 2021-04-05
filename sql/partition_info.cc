@@ -816,13 +816,11 @@ bool partition_info::has_unique_name(partition_element *element)
     vers_info->interval   Limit by fixed time interval
     vers_info->hist_part  (out) Working history partition
 */
-uint partition_info::vers_set_hist_part(THD *thd, bool auto_hist)
+bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
 {
   DBUG_ASSERT(!thd->lex->last_table() ||
               !thd->lex->last_table()->vers_conditions.delete_history);
-
-  uint create_count= 0;
-  auto_hist= auto_hist && vers_info->auto_hist;
+  const bool auto_hist= create_count && vers_info->auto_hist;
 
   if (vers_info->limit)
   {
@@ -846,7 +844,7 @@ uint partition_info::vers_set_hist_part(THD *thd, bool auto_hist)
       if (next == vers_info->now_part)
       {
         if (auto_hist)
-          create_count= 1;
+          *create_count= 1;
         else
           my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
                   table->s->db.str, table->s->table_name.str,
@@ -878,20 +876,33 @@ uint partition_info::vers_set_hist_part(THD *thd, bool auto_hist)
     {
       if (auto_hist)
       {
-        DBUG_ASSERT(thd->query_start() >= vers_info->hist_part->range_value);
-        my_time_t diff= thd->query_start() - (my_time_t) vers_info->hist_part->range_value;
-        if (diff > 0)
+        *create_count= 0;
+        const my_time_t hist_end= (my_time_t) vers_info->hist_part->range_value;
+        DBUG_ASSERT(thd->query_start() >= hist_end);
+        MYSQL_TIME h0, q0;
+        my_tz_OFFSET0->gmt_sec_to_TIME(&h0, hist_end);
+        my_tz_OFFSET0->gmt_sec_to_TIME(&q0, thd->query_start());
+        longlong q= pack_time(&q0);
+        longlong h= pack_time(&h0);
+        while (h <= q)
         {
-          size_t delta= vers_info->interval.seconds();
-          create_count= (uint) (diff / delta + 1);
-          if (diff % delta)
-            create_count++;
+          if (date_add_interval(thd, &h0, vers_info->interval.type,
+                                vers_info->interval.step))
+            return true;
+          h= pack_time(&h0);
+          ++*create_count;
+          if (*create_count == MAX_PARTITIONS - 2)
+          {
+            my_error(ER_TOO_MANY_PARTITIONS_ERROR, MYF(ME_WARNING));
+            my_error(ER_VERS_HIST_PART_FAILED, MYF(0),
+                     table->s->db.str, table->s->table_name.str);
+            return true;
+          }
         }
-        else
-          create_count= 1;
       }
       else
       {
+        DBUG_ASSERT(!vers_info->auto_hist);
         my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
                 table->s->db.str, table->s->table_name.str,
                 vers_info->hist_part->partition_name, "INTERVAL");
@@ -900,15 +911,15 @@ uint partition_info::vers_set_hist_part(THD *thd, bool auto_hist)
   }
 
   /*
-     When hist_part is almost full LOCK TABLES my overflow the partition as we
-     can't add new partitions under LOCK TABLES. Reserve one for this case.
+     When hist_part is almost full LOCK TABLES may overflow the partition as we
+     can't add new partitions under LOCK TABLES. Reserve one more for this case.
   */
-  if (auto_hist && create_count == 0 &&
+  if (auto_hist && *create_count == 0 &&
       thd->lex->sql_command == SQLCOM_LOCK_TABLES &&
       vers_info->hist_part->id + 1 == vers_info->now_part->id)
-    create_count= 1;
+    ++*create_count;
 
-  return create_count;
+  return false;
 }
 
 
@@ -916,7 +927,7 @@ uint partition_info::vers_set_hist_part(THD *thd, bool auto_hist)
   @brief Run fast_alter_partition_table() to add new history partitions
          for tables requiring them.
 */
-bool vers_add_auto_hist_parts(THD *thd, TABLE_LIST* tl, uint num_parts)
+bool vers_create_partitions(THD *thd, TABLE_LIST* tl, uint num_parts)
 {
   bool result= true;
   HA_CREATE_INFO create_info;
@@ -927,7 +938,6 @@ bool vers_add_auto_hist_parts(THD *thd, TABLE_LIST* tl, uint num_parts)
   bool save_no_write_to_binlog= thd->lex->no_write_to_binlog;
   thd->m_reprepare_observer= NULL;
   thd->lex->reset_n_backup_query_tables_list(&save_query_tables);
-  thd->in_sub_stmt|= SUB_STMT_AUTO_HIST;
   thd->lex->no_write_to_binlog= true;
   TABLE *table= tl->table;
 
@@ -975,17 +985,10 @@ bool vers_add_auto_hist_parts(THD *thd, TABLE_LIST* tl, uint num_parts)
       goto exit;
     }
 
-    // NB: set_ok_status() requires DA_EMPTY
-    thd->get_stmt_da()->reset_diagnostics_area();
-
     thd->work_part_info= part_info;
     if (part_info->set_up_defaults_for_partitioning(thd, table->file, NULL,
                                     table->part_info->next_part_no(num_parts)))
     {
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-                   ER_VERS_HIST_PART_FAILED,
-                   "Auto-increment history partition: "
-                   "setting up defaults failed");
       my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
                tl->db.str, tl->table_name.str);
       goto exit;
@@ -995,18 +998,12 @@ bool vers_add_auto_hist_parts(THD *thd, TABLE_LIST* tl, uint num_parts)
     if (prep_alter_part_table(thd, table, &alter_info, &create_info,
                               &partition_changed, &fast_alter_partition))
     {
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_VERS_HIST_PART_FAILED,
-                   "Auto-increment history partition: "
-                   "alter partitition prepare failed");
       my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
                tl->db.str, tl->table_name.str);
       goto exit;
     }
     if (!fast_alter_partition)
     {
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_VERS_HIST_PART_FAILED,
-                   "Auto-increment history partition: "
-                   "fast alter partitition is not possible");
       my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
                tl->db.str, tl->table_name.str);
       goto exit;
@@ -1015,9 +1012,6 @@ bool vers_add_auto_hist_parts(THD *thd, TABLE_LIST* tl, uint num_parts)
     if (mysql_prepare_alter_table(thd, table, &create_info, &alter_info,
                                   &alter_ctx))
     {
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_VERS_HIST_PART_FAILED,
-                   "Auto-increment history partition: "
-                   "alter prepare failed");
       my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
                tl->db.str, tl->table_name.str);
       goto exit;
@@ -1026,9 +1020,6 @@ bool vers_add_auto_hist_parts(THD *thd, TABLE_LIST* tl, uint num_parts)
     if (fast_alter_partition_table(thd, table, &alter_info, &create_info,
                                    tl, &table->s->db, &table->s->table_name))
     {
-      push_warning(thd, Sql_condition::WARN_LEVEL_WARN, ER_VERS_HIST_PART_FAILED,
-                   "Auto-increment history partition: "
-                   "alter partition table failed");
       my_error(ER_VERS_HIST_PART_FAILED, MYF(ME_WARNING),
                tl->db.str, tl->table_name.str);
       goto exit;
@@ -1036,14 +1027,14 @@ bool vers_add_auto_hist_parts(THD *thd, TABLE_LIST* tl, uint num_parts)
   }
 
   result= false;
-  // NB: we have to return DA_EMPTY for new command
+  // NOTE: we have to return DA_EMPTY for new command
+  DBUG_ASSERT(thd->get_stmt_da()->is_ok());
   thd->get_stmt_da()->reset_diagnostics_area();
 
 exit:
   thd->work_part_info= save_part_info;
   thd->m_reprepare_observer= save_reprepare_observer;
   thd->lex->restore_backup_query_tables_list(&save_query_tables);
-  thd->in_sub_stmt&= ~SUB_STMT_AUTO_HIST;
   thd->lex->no_write_to_binlog= save_no_write_to_binlog;
   return result;
 }
