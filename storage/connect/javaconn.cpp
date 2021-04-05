@@ -1,7 +1,7 @@
 /************ Javaconn C++ Functions Source Code File (.CPP) ***********/
-/*  Name: JAVAConn.CPP  Version 1.0                                    */
+/*  Name: JAVAConn.CPP  Version 1.1                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2021  */
 /*                                                                     */
 /*  This file contains the JAVA connection classes functions.          */
 /***********************************************************************/
@@ -400,15 +400,26 @@ bool JAVAConn::Open(PGLOBAL g)
 			jpop->Append(ClassPath);
 		}	// endif ClassPath
 
-			// Java source will be compiled as a jar file installed in the plugin dir
+#if 0
+		// Java source will be compiled as a jar file installed in the plugin dir
 		jpop->Append(sep);
 		jpop->Append(GetPluginDir());
 		jpop->Append("JdbcInterface.jar");
+#endif // 0
 
 		// All wrappers are pre-compiled in JavaWrappers.jar in the plugin dir
 		jpop->Append(sep);
 		jpop->Append(GetPluginDir());
 		jpop->Append("JavaWrappers.jar");
+
+#if defined(MONGO_SUPPORT)
+		jpop->Append(sep);
+		jpop->Append(GetPluginDir());
+		jpop->Append("Mongo3.jar");
+		jpop->Append(sep);
+		jpop->Append(GetPluginDir());
+		jpop->Append("Mongo2.jar");
+#endif   // MONGO_SUPPORT
 
 		if ((cp = getenv("CLASSPATH"))) {
 			jpop->Append(sep);
@@ -416,8 +427,8 @@ bool JAVAConn::Open(PGLOBAL g)
 		} // endif cp
 
 		if (trace(1)) {
-			htrc("ClassPath=%s\n", ClassPath);
-			htrc("CLASSPATH=%s\n", cp);
+			htrc("ClassPath=%s\n", ClassPath ? ClassPath : "null");
+			htrc("CLASSPATH=%s\n", cp ? cp : "null");
 			htrc("%s\n", jpop->GetStr());
 		} // endif trace
 

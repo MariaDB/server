@@ -9,6 +9,8 @@
 /*  Include relevant sections of the MariaDB header file.              */
 /***********************************************************************/
 #include <my_global.h>
+#include <mysqld.h>
+#include <sql_error.h>
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -168,6 +170,7 @@ JSONDISC::JSONDISC(PGLOBAL g, uint *lg)
 int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 {
   char    filename[_MAX_PATH];
+  size_t  reclg = 0;
   bool    mgo = (GetTypeID(topt->type) == TAB_MONGO);
   PGLOBAL G = NULL;
 
@@ -252,11 +255,11 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     jsp = (tjsp->GetDoc()) ? tjsp->GetDoc()->GetArrayValue(0) : NULL;
   } else {
 		if (!((tdp->Lrecl = GetIntegerTableOption(g, topt, "Lrecl", 0)))) {
-			if (!mgo) {
+			if (!mgo && !tdp->Uri) {
 				sprintf(g->Message, "LRECL must be specified for pretty=%d", tdp->Pretty);
 				return 0;
-			} else
-				tdp->Lrecl = 8192;       // Should be enough
+      } else
+        tdp->Lrecl = 8192;       // Should be enough
 
 		} // endif Lrecl
 
@@ -315,7 +318,9 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
     case RC_FX:
       goto err;
     default:
-//    jsp = tjnp->FindRow(g);    // FindRow was done in ReadDB
+      if (tdp->Pretty != 2)
+        reclg = strlen(tjnp->To_Line);
+
       jsp = tjnp->Row;
     } // endswitch ReadDB
 
@@ -366,7 +371,9 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
       case RC_FX:
         goto err;
       default:
-//      jsp = tjnp->FindRow(g);
+        if (tdp->Pretty != 2 && reclg < strlen(tjnp->To_Line))
+          reclg = strlen(tjnp->To_Line);
+
         jsp = tjnp->Row;
       } // endswitch ReadDB
 
@@ -378,8 +385,12 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 
   } // endfor i
 
-  if (tdp->Pretty != 2)
+  if (tdp->Pretty != 2) {
+    if (!topt->lrecl)
+      topt->lrecl = reclg + 10;
+
     tjnp->CloseDB(g);
+  } // endif Pretty
 
   return n;
 

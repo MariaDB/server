@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0002 January 27, 2021";
+       char version[]= "Version 1.07.0002 March 22, 2021";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -276,6 +276,10 @@ static PGLOBAL  GetPlug(THD *thd, PCONNECT& lxp);
 static handler *connect_create_handler(handlerton *hton,
                                        TABLE_SHARE *table,
                                        MEM_ROOT *mem_root);
+
+static bool checkPrivileges(THD* thd, TABTYPE type, PTOS options,
+                            const char* db, TABLE* table = NULL,
+                            bool quick = false);
 
 static int connect_assisted_discovery(handlerton *hton, THD* thd,
                                       TABLE_SHARE *table_s,
@@ -757,10 +761,10 @@ DllExport LPCSTR PlugSetPath(LPSTR to, LPCSTR name, LPCSTR dir)
   used by the default rename_table and delete_table method in
   handler.cc.
 
-  For engines that have two file name extentions (separate meta/index file
+  For engines that have two file name extensions (separate meta/index file
   and data file), the order of elements is relevant. First element of engine
-  file name extentions array should be meta/index file extention. Second
-  element - data file extention. This order is assumed by
+  file name extensions array should be meta/index file extension. Second
+  element - data file extension. This order is assumed by
   prepare_for_repair() when REPAIR TABLE ... USE_FRM is issued.
 
   @see
@@ -1296,9 +1300,9 @@ PCSZ GetStringTableOption(PGLOBAL g, PTOS options, PCSZ opname, PCSZ sdef)
 	else if (!stricmp(opname, "Data_charset"))
     opval= options->data_charset;
 	else if (!stricmp(opname, "Http") || !stricmp(opname, "URL"))
-		opval = options->http;
+		opval= options->http;
 	else if (!stricmp(opname, "Uri"))
-		opval = options->uri;
+		opval= options->uri;
 
   if (!opval && options->oplist)
     opval= GetListOption(g, opname, options->oplist);
@@ -1612,7 +1616,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
   pcf->Opt= (fop) ? (int)fop->opt : 0;
 
 	if (fp->field_length >= 0) {
-		pcf->Length = fp->field_length;
+		pcf->Length= fp->field_length;
 
 		// length is bytes for Connect, not characters
 		if (!strnicmp(chset, "utf8", 4))
@@ -1627,7 +1631,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
     pcf->Offset= (int)fop->offset;
     pcf->Freq= (int)fop->freq;
     pcf->Datefmt= (char*)fop->dateformat;
-		pcf->Fieldfmt = fop->fieldformat ? (char*)fop->fieldformat
+		pcf->Fieldfmt= fop->fieldformat ? (char*)fop->fieldformat
 			: fop->jsonpath ? (char*)fop->jsonpath : (char*)fop->xmlpath;
 	} else {
     pcf->Offset= -1;
@@ -4511,11 +4515,9 @@ int ha_connect::delete_all_rows()
 } // end of delete_all_rows
 
 
-bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
+static bool checkPrivileges(THD *thd, TABTYPE type, PTOS options, 
+                            const char *db, TABLE *table, bool quick)
 {
-  const char *db= (dbn && *dbn) ? dbn : NULL;
-  TABTYPE     type=GetRealType(options);
-
   switch (type) {
     case TAB_UNDEF:
 //  case TAB_CATLG:
@@ -4598,6 +4600,15 @@ bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
 
   my_printf_error(ER_UNKNOWN_ERROR, "check_privileges failed", MYF(0));
   return true;
+} // end of checkPrivileges
+
+// Check whether the user has required (file) privileges
+bool ha_connect::check_privileges(THD *thd, PTOS options, char *dbn, bool quick)
+{
+  const char *db= (dbn && *dbn) ? dbn : NULL;
+  TABTYPE     type=GetRealType(options);
+
+  return checkPrivileges(thd, type, options, db, table, quick);
 } // end of check_privileges
 
 // Check that two indexes are equivalent
@@ -5726,6 +5737,29 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			}	// endswitch type
 #endif   // REST_SUPPORT
 		} // endif ttp
+
+    if (fn && *fn)
+      switch (ttp) {
+        case TAB_FMT:
+        case TAB_DBF:
+        case TAB_XML:
+        case TAB_INI:
+        case TAB_VEC:
+        case TAB_REST:
+        case TAB_JSON:
+#if defined(BSON_SUPPORT)
+        case TAB_BSON:
+#endif   // BSON_SUPPORT
+          if (checkPrivileges(thd, ttp, topt, db)) {
+            strcpy(g->Message, "This operation requires the FILE privilege");
+            rc= HA_ERR_INTERNAL_ERROR;
+            goto err;
+          } // endif check_privileges
+
+          break;
+        default:
+          break;
+      } // endswitch ttp
 
 		if (!tab) {
 			if (ttp == TAB_TBL) {

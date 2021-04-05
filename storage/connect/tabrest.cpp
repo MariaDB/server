@@ -1,6 +1,6 @@
 /************** tabrest C++ Program Source Code File (.CPP) ************/
-/* PROGRAM NAME: tabrest   Version 1.8                                 */
-/*  (C) Copyright to the author Olivier BERTRAND          2018 - 2020  */
+/* PROGRAM NAME: tabrest   Version 1.9                                 */
+/*  (C) Copyright to the author Olivier BERTRAND          2018 - 2021  */
 /*  This program is the REST Web API support for MariaDB.              */
 /*  When compiled without MARIADB defined, it is the EOM module code.  */
 /*  The way Connect handles NOSQL data returned by REST queries is     */
@@ -53,10 +53,10 @@
 #define PUSH_WARNING(M) htrc(M)
 #endif
 
-#if defined(__WIN__) || defined(_WINDOWS)
+#if 0
 #define popen  _popen
 #define pclose _pclose
-#endif
+#endif // 0
 
 static XGETREST getRestFnc = NULL;
 static int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename);
@@ -93,34 +93,87 @@ PTABDEF __stdcall GetREST(PGLOBAL g, void *memp)
 /***********************************************************************/
 int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 {
-	char  buf[1024];
-	int   rc;
+	char  buf[512];
+	int   rc = 0;
 	FILE *pipe;
 
-	if (Uri) {
-		if (*Uri == '/' || Http[strlen(Http) - 1] == '/')
-			sprintf(buf, "curl \"%s%s\" -o %s", Http, Uri, filename);
-		else
-			sprintf(buf, "curl \"%s/%s\" -o %s", Http, Uri, filename);
-
-	} else
-		sprintf(buf, "curl \"%s\" -o %s", Http, filename);
-
-	if ((pipe = popen(buf, "rt"))) {
+	if ((pipe = popen("curl --version", "r"))) {
 		if (trace(515))
 			while (fgets(buf, sizeof(buf), pipe)) {
 				htrc("%s", buf);
 			}	// endwhile
 
 		pclose(pipe);
-		rc = 0;
 	} else {
-		sprintf(g->Message, "curl failed, errno =%d", errno);
-		rc = 1;
+		sprintf(g->Message, "curl not available, errno=%d", errno);
+		return 1;
 	} // endif pipe
 
+	if (strchr(filename, '"')) {
+		strcpy(g->Message, "Invalid file name");
+		return 1;
+	} // endif filename
+
+	if (Uri) {
+		if (*Uri == '/' || Http[strlen(Http) - 1] == '/')
+			sprintf(buf, "%s%s", Http, Uri);
+		else
+			sprintf(buf, "%s/%s", Http, Uri);
+
+	} else
+		strcpy(buf, Http);
+
+#if defined(__WIN__)
+	char cmd[1024];
+	STARTUPINFO si;
+	PROCESS_INFORMATION pi;
+
+	sprintf(cmd, "curl \"%s\" -o \"%s\"", buf, filename);
+
+	ZeroMemory(&si, sizeof(si));
+	si.cb = sizeof(si);
+	ZeroMemory(&pi, sizeof(pi));
+
+	// Start the child process. 
+	if (CreateProcess(NULL, cmd, NULL, NULL, FALSE, 0, NULL, NULL, &si, &pi)) {
+		// Wait until child process exits.
+		WaitForSingleObject(pi.hProcess, INFINITE);
+
+		// Close process and thread handles. 
+		CloseHandle(pi.hProcess);
+		CloseHandle(pi.hThread);
+	} else {
+		sprintf(g->Message, "CreateProcess curl failed (%d)", GetLastError());
+		rc = 1;
+	}	// endif CreateProcess
+#else   // !__WIN__
+	char  fn[600];
+	int   rcd;
+	pid_t pID = vfork();
+
+	sprintf(fn, "-o%s", filename);
+
+	if (pID == 0) {
+		// Code executed by child process
+		execlp("curl", "curl", buf, fn, (char*)NULL);
+		// If execlp() is successful, we should not reach this next line.
+			strcpy(g->Message, explain_execlp());
+			rc = 1;
+			exit(rc);
+		}	// endif execlp
+
+	} else if (pID < 0) {
+		// failed to fork
+		strcpy(g->Message, "Failed to fork");
+		rc = 1;
+	} else {
+		// Parent process
+		wait(0);  // Wait for the child to terminate
+	}	// endif pID
+#endif  // !__WIN__
+
 	return rc;
-} // end od Xcurl
+} // end of Xcurl
 
 /***********************************************************************/
 /*  GetREST: load the Rest lib and get the Rest function.              */
@@ -319,7 +372,7 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	} // endelse
 
 	if (rc) {
-		strcpy(g->Message, "Cannot access to curl nor casablanca");
+		// strcpy(g->Message, "Cannot access to curl nor casablanca");
 		return true;
 	} else switch (n) {
     case 1: Tdp = new (g) JSONDEF; break;
