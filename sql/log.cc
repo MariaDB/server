@@ -8001,7 +8001,7 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
       result= -3;
   }
   else
-    DBUG_ASSERT(result != -2 && result != -3);
+    DBUG_ASSERT(result == 0);
 #endif /* WITH_WSREP */
 
   if (opt_binlog_commit_wait_count > 0 && orig_queue != NULL)
