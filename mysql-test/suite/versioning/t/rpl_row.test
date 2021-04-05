@@ -15,4 +15,4 @@ update t1 set i = 0;
 drop table t1;
 set binlog_row_image= @old_row_image;
 
---source include/rpl_end.inc
+--source rpl_common.inc

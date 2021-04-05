@@ -7246,6 +7246,10 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
     if (alter_partition_lock_handling(lpt))
       goto err;
   }
+  /*
+    TODO: would be good it adding new empty VERSIONING partitions would always
+    go this way, auto or not.
+  */
   else if ((alter_info->partition_flags & ALTER_PARTITION_ADD) &&
            (part_info->part_type == RANGE_PARTITION ||
             part_info->part_type == LIST_PARTITION ||

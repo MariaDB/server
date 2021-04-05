@@ -909,6 +909,11 @@ struct TABLE_SHARE
   vers_kind_t versioned;
   period_info_t vers;
   period_info_t period;
+  /*
+      Protect multiple threads from repeating partition auto-create over
+      single share.
+  */
+  bool          vers_skip_auto_create;
 
   bool init_period_from_extra2(period_info_t *period, const uchar *data,
                                const uchar *end);
@@ -2517,6 +2522,11 @@ struct TABLE_LIST
   bool          merged;
   bool          merged_for_insert;
   bool          sequence;  /* Part of NEXTVAL/CURVAL/LASTVAL */
+  /*
+      Protect single thread from repeating partition auto-create over
+      multiple share instances (as the share is closed on backoff action).
+  */
+  bool          vers_skip_auto_create;
 
   /*
     Items created by create_view_field and collected to change them in case
