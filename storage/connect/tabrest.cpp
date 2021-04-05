@@ -24,6 +24,10 @@
 #else		 // !__WIN__
 #define __stdcall
 #include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
+#include <sys/types.h>
+#include <unistd.h>
+#include "stdio.h"
+#include <sys/wait.h>
 #include <libexplain/execlp.h>
 #endif   // !__WIN__
 #endif	 // !REST_SOURCE
@@ -98,18 +102,6 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	int   rc = 0;
 	FILE *pipe;
 
-	if ((pipe = popen("curl --version", "r"))) {
-		if (trace(515))
-			while (fgets(buf, sizeof(buf), pipe)) {
-				htrc("%s", buf);
-			}	// endwhile
-
-		pclose(pipe);
-	} else {
-		sprintf(g->Message, "curl not available, errno=%d", errno);
-		return 1;
-	} // endif pipe
-
 	if (strchr(filename, '"')) {
 		strcpy(g->Message, "Invalid file name");
 		return 1;
@@ -149,15 +141,25 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	}	// endif CreateProcess
 #else   // !__WIN__
 	char  fn[600];
-	pid_t pID = vfork();
+	pid_t pID;
 
+	// Check if curl package is availabe by executing subprocess
+	FILE *f= popen("command -v curl", "r");
+
+	if (!f) {
+		strcpy(g->Message, "curl CLI not installed");
+		return 1;
+	} else
+		close(f);
+	
+	pID = vfork();
 	sprintf(fn, "-o%s", filename);
 
 	if (pID == 0) {
 		// Code executed by child process
 		execlp("curl", "curl", buf, fn, (char*)NULL);
 		// If execlp() is successful, we should not reach this next line.
-			strcpy(g->Message, explain_execlp());
+			strcpy(g->Message, explain_execlp("curl", "curl", buf, fn, (char*)NULL)));
 			rc = 1;
 			exit(rc);
 		}	// endif execlp
