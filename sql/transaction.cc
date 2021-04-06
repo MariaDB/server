@@ -212,7 +212,7 @@ bool trans_begin(THD *thd, uint flags)
     Release transactional metadata locks only after the
     transaction has been committed.
   */
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 
   // The RO/RW options are mutually exclusive.
   DBUG_ASSERT(!((flags & MYSQL_START_TRANS_OPT_READ_ONLY) &&
@@ -889,11 +889,13 @@ bool trans_xa_prepare(THD *thd)
 
 /**
   Commit and terminate the a XA transaction.
+  Transactional locks are released if transaction ended
 
   @param thd    Current thread
 
   @retval FALSE  Success
   @retval TRUE   Failure
+
 */
 
 bool trans_xa_commit(THD *thd)
@@ -984,6 +986,7 @@ bool trans_xa_commit(THD *thd)
   thd->transaction.xid_state.xa_state= XA_NOTR;
 
   trans_track_end_trx(thd);
+  thd->mdl_context.release_transactional_locks();
 
   DBUG_RETURN(res);
 }
@@ -991,6 +994,7 @@ bool trans_xa_commit(THD *thd)
 
 /**
   Roll back and terminate a XA transaction.
+  Transactional locks are released if transaction ended
 
   @param thd    Current thread
 
@@ -1041,6 +1045,7 @@ bool trans_xa_rollback(THD *thd)
   thd->transaction.xid_state.xa_state= XA_NOTR;
 
   trans_track_end_trx(thd);
+  thd->mdl_context.release_transactional_locks();
 
   DBUG_RETURN(res);
 }

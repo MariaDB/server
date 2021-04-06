@@ -34,6 +34,8 @@ static char *bin_handle_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 static PJSON JsonNew(PGLOBAL g, JTYP type);
 static PJVAL JvalNew(PGLOBAL g, JTYP type, void *vp = NULL);
 static PJSNX JsnxNew(PGLOBAL g, PJSON jsp, int type, int len = 64);
+uint GetJsonGroupSize(void);
+static void SetChanged(PBSON bsp);
 
 uint JsonGrpSize = 10;
 
@@ -1237,7 +1239,7 @@ PBSON JbinAlloc(PGLOBAL g, UDF_ARGS *args, ulong len, PJSON jsp)
 /*********************************************************************************/
 /*  Set the BSON chain as changed.                                               */
 /*********************************************************************************/
-void SetChanged(PBSON bsp)
+static void SetChanged(PBSON bsp)
 {
 	if (bsp->Bsp)
 		SetChanged(bsp->Bsp);

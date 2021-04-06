@@ -2302,7 +2302,7 @@ Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
 create table t1 (v varchar(65530), key(v));
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 SET GLOBAL innodb_large_prefix=default;
 Warnings:
 Warning	131	Using innodb_large_prefix is deprecated and the parameter may be removed in future releases. See https://mariadb.com/kb/en/library/xtradbinnodb-file-format/
@@ -2477,11 +2477,11 @@ Warning	131	Using innodb_large_prefix is deprecated and the parameter may be rem
 create table t1 (col1 varchar(768), index(col1))
 character set = latin1 engine = innodb;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 create table t2 (col1 varbinary(768), index(col1))
 character set = latin1 engine = innodb;
 Warnings:
-Warning	1071	Specified key was too long; max key length is 767 bytes
+Note	1071	Specified key was too long; max key length is 767 bytes
 create table t3 (col1 text, index(col1(768)))
 character set = latin1 engine = innodb;
 Warnings:
@@ -3373,3 +3373,20 @@ c1	c2
 9	3
 DROP TABLE t1;
 DROP TABLE t2;
+#
+# MDEV-24748 Extern field check missing
+#	in btr_index_rec_validate()
+#
+CREATE TABLE t1 (pk INT, c1 char(255),
+c2 char(255), c3 char(255), c4 char(255),
+c5 char(255), c6 char(255), c7 char(255),
+c8 char(255), primary key (pk)
+) CHARACTER SET utf32 ENGINE=InnoDB;
+INSERT INTO t1 VALUES
+(1, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'),
+(2, 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p');
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+ALTER TABLE t1 FORCE;
+DROP TABLE t1;

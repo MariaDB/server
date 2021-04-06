@@ -4341,6 +4341,70 @@ bool table_already_fk_prelocked(TABLE_LIST *tl, LEX_STRING *db,
   return false;
 }
 
+/**
+  Extend the table_list to include foreign tables for prelocking.
+
+  @param[in]  thd              Thread context.
+  @param[in]  prelocking_ctx   Prelocking context of the statement.
+  @param[in]  table_list       Table list element for table.
+  @param[in]  sp               Routine body.
+  @param[out] need_prelocking  Set to TRUE if method detects that prelocking
+                               required, not changed otherwise.
+
+  @retval FALSE  Success.
+  @retval TRUE   Failure (OOM).
+*/
+inline bool
+prepare_fk_prelocking_list(THD *thd, Query_tables_list *prelocking_ctx,
+                           TABLE_LIST *table_list, bool *need_prelocking,
+                           uint8 op)
+{
+  List <FOREIGN_KEY_INFO> fk_list;
+  List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
+  FOREIGN_KEY_INFO *fk;
+  Query_arena *arena, backup;
+
+  arena= thd->activate_stmt_arena_if_needed(&backup);
+
+  table_list->table->file->get_parent_foreign_key_list(thd, &fk_list);
+  if (thd->is_error())
+  {
+    if (arena)
+      thd->restore_active_arena(arena, &backup);
+    return TRUE;
+  }
+
+  *need_prelocking= TRUE;
+
+  while ((fk= fk_list_it++))
+  {
+    // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
+    static bool can_write[]= { true, false, true, true, false, true };
+    thr_lock_type lock_type;
+
+    if ((op & (1 << TRG_EVENT_DELETE) && can_write[fk->delete_method])
+        || (op & (1 << TRG_EVENT_UPDATE) && can_write[fk->update_method]))
+      lock_type= TL_WRITE_ALLOW_WRITE;
+    else
+      lock_type= TL_READ;
+
+    if (table_already_fk_prelocked(prelocking_ctx->query_tables,
+          fk->foreign_db, fk->foreign_table,
+          lock_type))
+      continue;
+
+    TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
+    tl->init_one_table_for_prelocking(fk->foreign_db->str, fk->foreign_db->length,
+        fk->foreign_table->str, fk->foreign_table->length,
+        NULL, lock_type, false, table_list->belong_to_view,
+        op, &prelocking_ctx->query_tables_last);
+  }
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
+
+  return FALSE;
+}
+
 
 /**
   Defines how prelocking algorithm for DML statements should handle table list
@@ -4381,55 +4445,21 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
           add_tables_and_routines_for_triggers(thd, prelocking_ctx, table_list))
         return TRUE;
     }
-
     if (table_list->table->file->referenced_by_foreign_key())
     {
-      List <FOREIGN_KEY_INFO> fk_list;
-      List_iterator<FOREIGN_KEY_INFO> fk_list_it(fk_list);
-      FOREIGN_KEY_INFO *fk;
-      Query_arena *arena, backup;
-
-      arena= thd->activate_stmt_arena_if_needed(&backup);
-
-      table_list->table->file->get_parent_foreign_key_list(thd, &fk_list);
-      if (thd->is_error())
-      {
-        if (arena)
-          thd->restore_active_arena(arena, &backup);
-        return TRUE;
-      }
-
-      *need_prelocking= TRUE;
-
-      while ((fk= fk_list_it++))
-      {
-        // FK_OPTION_RESTRICT and FK_OPTION_NO_ACTION only need read access
-        static bool can_write[]= { true, false, true, true, false, true };
-        uint8 op= table_list->trg_event_map;
-        thr_lock_type lock_type;
-
-        if ((op & (1 << TRG_EVENT_DELETE) && can_write[fk->delete_method])
-         || (op & (1 << TRG_EVENT_UPDATE) && can_write[fk->update_method]))
-          lock_type= TL_WRITE_ALLOW_WRITE;
-        else
-          lock_type= TL_READ;
-
-        if (table_already_fk_prelocked(prelocking_ctx->query_tables,
-                                       fk->foreign_db, fk->foreign_table,
-                                       lock_type))
-          continue;
-
-        TABLE_LIST *tl= (TABLE_LIST *) thd->alloc(sizeof(TABLE_LIST));
-        tl->init_one_table_for_prelocking(fk->foreign_db->str, fk->foreign_db->length,
-                           fk->foreign_table->str, fk->foreign_table->length,
-                           NULL, lock_type, false, table_list->belong_to_view,
-                           op, &prelocking_ctx->query_tables_last);
-      }
-      if (arena)
-        thd->restore_active_arena(arena, &backup);
+      return (prepare_fk_prelocking_list(thd, prelocking_ctx, table_list,
+                                         need_prelocking,
+                                         table_list->trg_event_map));
     }
   }
+  else if (table_list->slave_fk_event_map &&
+           table_list->table->file->referenced_by_foreign_key())
+  {
+      return (prepare_fk_prelocking_list(thd, prelocking_ctx,
+                                         table_list, need_prelocking,
+                                         table_list->slave_fk_event_map));
 
+  }
   return FALSE;
 }
 
@@ -5795,6 +5825,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* Check if there are sufficient access rights to the found field. */
     if (check_privileges &&
+        !table_list->is_derived() &&
         check_column_grant_in_table_ref(thd, *actual_table, name, length))
       fld= WRONG_GRANT;
     else
@@ -7647,36 +7678,23 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
 
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
     /* 
-       Ensure that we have access rights to all fields to be inserted. Under
-       some circumstances, this check may be skipped.
+       Ensure that we have access rights to all fields to be inserted
+       the table 'tables'. Under some circumstances, this check may be skipped.
 
-       - If any_privileges is true, skip the check.
+       The check is skipped in the following cases:
 
-       - If the SELECT privilege has been found as fulfilled already for both
-         the TABLE and TABLE_LIST objects (and both of these exist, of
-         course), the check is skipped.
+       - any_privileges is true
 
-       - If the SELECT privilege has been found fulfilled for the TABLE object
-         and the TABLE_LIST represents a derived table other than a view (see
-         below), the check is skipped.
+       - the table is a derived table
 
-       - If the TABLE_LIST object represents a view, we may skip checking if
-         the SELECT privilege has been found fulfilled for it, regardless of
-         the TABLE object.
+       - the table is a view with SELECT privilege
 
-       - If there is no TABLE object, the test is skipped if either 
-         * the TABLE_LIST does not represent a view, or
-         * the SELECT privilege has been found fulfilled.         
-
-       A TABLE_LIST that is not a view may be a subquery, an
-       information_schema table, or a nested table reference. See the comment
-       for TABLE_LIST.
+       - the table is a base table with SELECT privilege
     */
-    if (!((table && tables->is_non_derived() &&
-          (table->grant.privilege & SELECT_ACL)) ||
-	  ((!tables->is_non_derived() && 
-	    (tables->grant.privilege & SELECT_ACL)))) &&
-        !any_privileges)
+    if (!any_privileges &&
+        !tables->is_derived() &&
+        !(tables->is_view() && (tables->grant.privilege & SELECT_ACL)) &&
+        !(table && (table->grant.privilege & SELECT_ACL)))
     {
       field_iterator.set(tables);
       if (check_grant_all_columns(thd, SELECT_ACL, &field_iterator))
@@ -8652,7 +8670,7 @@ close_mysql_tables(THD *thd)
   if (! thd->in_sub_stmt)
     trans_commit_stmt(thd);
   close_thread_tables(thd);
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 }
 
 /*

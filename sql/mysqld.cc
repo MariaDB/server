@@ -385,7 +385,6 @@ static bool binlog_format_used= false;
 LEX_STRING opt_init_connect, opt_init_slave;
 mysql_cond_t COND_thread_cache;
 static mysql_cond_t COND_flush_thread_cache;
-mysql_cond_t COND_slave_background;
 static DYNAMIC_ARRAY all_options;
 
 /* Global variables */
@@ -758,7 +757,7 @@ mysql_mutex_t
   LOCK_crypt,
   LOCK_global_system_variables,
   LOCK_user_conn, LOCK_slave_list,
-  LOCK_connection_count, LOCK_error_messages, LOCK_slave_background;
+  LOCK_connection_count, LOCK_error_messages;
 
 mysql_mutex_t LOCK_stats, LOCK_global_user_client_stats,
               LOCK_global_table_stats, LOCK_global_index_stats;
@@ -947,8 +946,7 @@ PSI_mutex_key key_LOCK_stats,
 PSI_mutex_key key_LOCK_gtid_waiting;
 
 PSI_mutex_key key_LOCK_after_binlog_sync;
-PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered,
-  key_LOCK_slave_background;
+PSI_mutex_key key_LOCK_prepare_ordered, key_LOCK_commit_ordered;
 PSI_mutex_key key_TABLE_SHARE_LOCK_share;
 
 static PSI_mutex_info all_server_mutexes[]=
@@ -1017,7 +1015,6 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_prepare_ordered, "LOCK_prepare_ordered", PSI_FLAG_GLOBAL},
   { &key_LOCK_after_binlog_sync, "LOCK_after_binlog_sync", PSI_FLAG_GLOBAL},
   { &key_LOCK_commit_ordered, "LOCK_commit_ordered", PSI_FLAG_GLOBAL},
-  { &key_LOCK_slave_background, "LOCK_slave_background", PSI_FLAG_GLOBAL},
   { &key_LOG_INFO_lock, "LOG_INFO::lock", 0},
   { &key_LOCK_thread_count, "LOCK_thread_count", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_cache, "LOCK_thread_cache", PSI_FLAG_GLOBAL},
@@ -1074,7 +1071,7 @@ PSI_cond_key key_TC_LOG_MMAP_COND_queue_busy;
 PSI_cond_key key_COND_rpl_thread_queue, key_COND_rpl_thread,
   key_COND_rpl_thread_stop, key_COND_rpl_thread_pool,
   key_COND_parallel_entry, key_COND_group_commit_orderer,
-  key_COND_prepare_ordered, key_COND_slave_background;
+  key_COND_prepare_ordered;
 PSI_cond_key key_COND_wait_gtid, key_COND_gtid_ignore_duplicates;
 
 static PSI_cond_info all_server_conds[]=
@@ -1124,7 +1121,6 @@ static PSI_cond_info all_server_conds[]=
   { &key_COND_parallel_entry, "COND_parallel_entry", 0},
   { &key_COND_group_commit_orderer, "COND_group_commit_orderer", 0},
   { &key_COND_prepare_ordered, "COND_prepare_ordered", 0},
-  { &key_COND_slave_background, "COND_slave_background", 0},
   { &key_COND_start_thread, "COND_start_thread", PSI_FLAG_GLOBAL},
   { &key_COND_wait_gtid, "COND_wait_gtid", 0},
   { &key_COND_gtid_ignore_duplicates, "COND_gtid_ignore_duplicates", 0}
@@ -2015,8 +2011,11 @@ static void __cdecl kill_server(int sig_ptr)
 
   close_connections();
 
+#ifdef WITH_WSREP
   if (wsrep_inited == 1)
     wsrep_deinit(true);
+  wsrep_sst_auth_free();
+#endif /* WITH_WSREP */
 
   if (sig != MYSQL_KILL_SIGNAL &&
       sig != 0)
@@ -2136,6 +2135,7 @@ extern "C" void unireg_abort(int exit_code)
     /* In bootstrap mode we deinitialize wsrep here. */
     if (opt_bootstrap && wsrep_inited)
       wsrep_deinit(true);
+    wsrep_sst_auth_free();
   }
 #endif // WITH_WSREP
 
@@ -2379,8 +2379,6 @@ static void clean_up_mutexes()
   mysql_cond_destroy(&COND_prepare_ordered);
   mysql_mutex_destroy(&LOCK_after_binlog_sync);
   mysql_mutex_destroy(&LOCK_commit_ordered);
-  mysql_mutex_destroy(&LOCK_slave_background);
-  mysql_cond_destroy(&COND_slave_background);
   DBUG_VOID_RETURN;
 }
 
@@ -4838,9 +4836,6 @@ static int init_thread_environment()
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
-  mysql_mutex_init(key_LOCK_slave_background, &LOCK_slave_background,
-                   MY_MUTEX_INIT_SLOW);
-  mysql_cond_init(key_COND_slave_background, &COND_slave_background, NULL);
 
 #ifdef HAVE_OPENSSL
   mysql_mutex_init(key_LOCK_des_key_file,
@@ -5422,6 +5417,10 @@ static int init_server_components()
       that there are unprocessed options.
     */
     my_getopt_skip_unknown= 0;
+#ifdef WITH_WSREP
+    if (wsrep_recovery)
+      my_getopt_skip_unknown= TRUE;
+#endif
 
     if ((ho_error= handle_options(&remaining_argc, &remaining_argv, no_opts,
                                   mysqld_get_one_option)))
@@ -5431,19 +5430,26 @@ static int init_server_components()
     remaining_argv--;
     my_getopt_skip_unknown= TRUE;
 
-    if (remaining_argc > 1)
+#ifdef WITH_WSREP
+    if (!wsrep_recovery)
     {
-      fprintf(stderr, "%s: Too many arguments (first extra is '%s').\n",
-              my_progname, remaining_argv[1]);
-      unireg_abort(1);
+#endif
+      if (remaining_argc > 1)
+      {
+        fprintf(stderr, "%s: Too many arguments (first extra is '%s').\n",
+                my_progname, remaining_argv[1]);
+        unireg_abort(1);
+      }
+#ifdef WITH_WSREP
     }
+#endif
   }
-
-  if (init_io_cache_encryption())
-    unireg_abort(1);
 
   if (opt_abort)
     unireg_abort(0);
+
+  if (init_io_cache_encryption())
+    unireg_abort(1);
 
   /* if the errmsg.sys is not loaded, terminate to maintain behaviour */
   if (!DEFAULT_ERRMSGS[0][0])
@@ -8435,8 +8441,11 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
   var->type= SHOW_LONGLONG;
   var->value= buff;
   if (scope == OPT_GLOBAL)
+  {
+    calc_sum_of_all_status_if_needed(status_var);
     *(longlong*) buff= (status_var->global_memory_used +
                         status_var->local_memory_used);
+  }
   else
     *(longlong*) buff= status_var->local_memory_used;
   return 0;

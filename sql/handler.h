@@ -584,8 +584,10 @@ struct xid_t {
   void set(long f, const char *g, long gl, const char *b, long bl)
   {
     formatID= f;
-    memcpy(data, g, gtrid_length= gl);
-    memcpy(data+gl, b, bqual_length= bl);
+    if ((gtrid_length= gl))
+      memcpy(data, g, gl);
+    if ((bqual_length= bl))
+      memcpy(data+gl, b, bl);
   }
   void set(ulonglong xid)
   {
@@ -1235,7 +1237,7 @@ struct handlerton
    enum handler_create_iterator_result
      (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
                         struct handler_iterator *fill_this_in);
-   int (*abort_transaction)(handlerton *hton, THD *bf_thd,
+   void (*abort_transaction)(handlerton *hton, THD *bf_thd,
 			    THD *victim_thd, my_bool signal);
    int (*set_checkpoint)(handlerton *hton, const XID* xid);
    int (*get_checkpoint)(handlerton *hton, XID* xid);
@@ -1416,6 +1418,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 
 // MySQL compatibility. Unused.
 #define HTON_SUPPORTS_FOREIGN_KEYS   (1 << 0) //Foreign key constraint supported.
+
+/*
+  Table requires and close and reopen after truncate
+  If the handler has HTON_CAN_RECREATE, this flag is not used
+*/
+#define HTON_REQUIRES_CLOSE_AFTER_TRUNCATE (1 << 18)
 
 class Ha_trx_info;
 

@@ -49,9 +49,9 @@ table_setup_actors::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_actors("
-                      "HOST CHAR(60) collate utf8_bin default '%' not null,"
-                      "USER CHAR(16) collate utf8_bin default '%' not null,"
-                      "ROLE CHAR(16) collate utf8_bin default '%' not null)") }
+                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default '%' not null,"
+                      "USER CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default '%' not null,"
+                      "ROLE CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default '%' not null)") }
 };
 
 PFS_engine_table* table_setup_actors::create()

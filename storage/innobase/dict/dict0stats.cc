@@ -178,8 +178,8 @@ dict_stats_persistent_storage_check(
 		{"table_name", DATA_VARMYSQL,
 			DATA_NOT_NULL, 597},
 
-		{"last_update", DATA_FIXBINARY,
-			DATA_NOT_NULL, 4},
+		{"last_update", DATA_INT,
+			DATA_NOT_NULL | DATA_UNSIGNED, 4},
 
 		{"n_rows", DATA_INT,
 			DATA_NOT_NULL | DATA_UNSIGNED, 8},
@@ -209,8 +209,8 @@ dict_stats_persistent_storage_check(
 		{"index_name", DATA_VARMYSQL,
 			DATA_NOT_NULL, 192},
 
-		{"last_update", DATA_FIXBINARY,
-			DATA_NOT_NULL, 4},
+		{"last_update", DATA_INT,
+			DATA_NOT_NULL | DATA_UNSIGNED, 4},
 
 		{"stat_name", DATA_VARMYSQL,
 			DATA_NOT_NULL, 64*3},
@@ -1985,7 +1985,7 @@ static index_stats_t dict_stats_analyze_index(dict_index_t* index)
 	since it will be faster and will give better results. */
 
 	if (root_level == 0
-	    || N_SAMPLE_PAGES(index) * n_uniq > index->stat_n_leaf_pages) {
+	    || N_SAMPLE_PAGES(index) * n_uniq > result.n_leaf_pages) {
 
 		if (root_level == 0) {
 			DEBUG_PRINTF("  %s(): just one page,"

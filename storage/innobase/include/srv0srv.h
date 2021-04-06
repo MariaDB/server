@@ -3,7 +3,7 @@
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, 2009, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -435,8 +435,6 @@ extern double	srv_defragment_fill_factor;
 extern uint	srv_defragment_frequency;
 extern ulonglong	srv_defragment_interval;
 
-extern ulong	srv_idle_flush_pct;
-
 extern uint	srv_change_buffer_max_size;
 
 /* Number of IO operations per second the server can do */
@@ -620,9 +618,6 @@ extern struct export_var_t export_vars;
 
 /** Global counters */
 extern srv_stats_t	srv_stats;
-
-/** Simulate compression failures. */
-extern uint srv_simulate_comp_failures;
 
 /** Fatal semaphore wait threshold = maximum number of seconds
 that semaphore times out in InnoDB */

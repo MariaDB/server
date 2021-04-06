@@ -2770,6 +2770,12 @@ end:
 
 int acl_check_setrole(THD *thd, char *rolename, ulonglong *access)
 {
+  if (!initialized)
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
+    return 1;
+  }
+
   return check_user_can_set_role(thd, thd->security_ctx->priv_user,
            thd->security_ctx->host, thd->security_ctx->ip, rolename, access);
 }
@@ -8945,7 +8951,8 @@ static bool show_global_privileges(THD *thd, ACL_USER_BASE *acl_entry,
 
   if (!handle_as_role)
     add_user_parameters(&global, (ACL_USER *)acl_entry, (want_access & GRANT_ACL));
-
+  else if (want_access & GRANT_ACL)
+    global.append(STRING_WITH_LEN(" WITH GRANT OPTION"));
   protocol->prepare_for_resend();
   protocol->store(global.ptr(),global.length(),global.charset());
   if (protocol->write())

@@ -4450,9 +4450,11 @@ void st_select_lex::set_explain_type(bool on_the_fly)
             /*
               pos_in_table_list=NULL for e.g. post-join aggregation JOIN_TABs.
             */
-            if (tab->table && tab->table->pos_in_table_list &&
-                tab->table->pos_in_table_list->with &&
-                tab->table->pos_in_table_list->with->is_recursive)
+            if (!(tab->table && tab->table->pos_in_table_list))
+	      continue;
+            TABLE_LIST *tbl= tab->table->pos_in_table_list;
+            if (tbl->with && tbl->with->is_recursive &&
+                tbl->is_with_table_recursive_reference())
             {
               uses_cte= true;
               break;
@@ -4583,6 +4585,9 @@ bool LEX::save_prep_leaf_tables()
 
 bool st_select_lex::save_prep_leaf_tables(THD *thd)
 {
+  if (prep_leaf_list_state == SAVED)
+    return FALSE;
+
   List_iterator_fast<TABLE_LIST> li(leaf_tables);
   TABLE_LIST *table;
 

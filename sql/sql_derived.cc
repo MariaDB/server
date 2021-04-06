@@ -677,7 +677,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       if (derived->is_with_table_recursive_reference())
       {
         /* Here 'derived" is a secondary recursive table reference */
-        unit->with_element->rec_result->rec_tables.push_back(derived->table);
+         unit->with_element->rec_result->rec_table_refs.push_back(derived);
       }
     }
     DBUG_ASSERT(derived->table || res);
@@ -733,17 +733,17 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   derived->fill_me= FALSE;
 
-  if (!(derived->derived_result= new (thd->mem_root) select_union(thd)))
+  if ((!derived->is_with_table_recursive_reference() ||
+       !derived->derived_result) &&
+      !(derived->derived_result= new (thd->mem_root) select_union(thd)))
     DBUG_RETURN(TRUE); // out of memory
 
-  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   // st_select_lex_unit::prepare correctly work for single select
   if ((res= unit->prepare(thd, derived->derived_result, 0)))
     goto exit;
   if (derived->with &&
       (res= derived->with->rename_columns_of_derived_unit(thd, unit)))
     goto exit; 
-  lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
   if ((res= check_duplicate_names(thd, unit->types, 0)))
     goto exit;
 
@@ -752,7 +752,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     Depending on the result field translation will or will not
     be created.
   */
-  if (derived->init_derived(thd, FALSE))
+  if (!derived->is_with_table_recursive_reference() &&
+      derived->init_derived(thd, FALSE))
     goto exit;
 
   /*
@@ -1199,7 +1200,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
     DBUG_RETURN(false);
 
   st_select_lex_unit *unit= derived->get_unit();
-  st_select_lex *sl= unit->first_select();
+  st_select_lex *first_sl= unit->first_select();
+  st_select_lex *sl= first_sl;
 
   if (derived->prohibit_cond_pushdown)
     DBUG_RETURN(false);
@@ -1311,7 +1313,24 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
       if (!extracted_cond_copy)
         continue;
     }
-    
+
+    /*
+      Rename the columns of all non-first selects of a union to be compatible
+      by names with the columns of the first select. It will allow to use copies
+      of the same expression pushed into having clauses of different selects.
+    */
+    if (sl != first_sl)
+    {
+      DBUG_ASSERT(sl->item_list.elements == first_sl->item_list.elements);
+      List_iterator_fast<Item> it(sl->item_list);
+      List_iterator_fast<Item> nm_it(unit->types);
+      Item * item;
+      while((item= it++))
+      {
+        item->share_name_with(nm_it++);
+      }
+    }
+
     /*
       Transform the references to the 'derived' columns from the condition
       pushed into the having clause of sl to make them usable in the new context

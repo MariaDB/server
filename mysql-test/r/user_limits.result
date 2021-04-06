@@ -186,3 +186,30 @@ connection default;
 drop user mysqltest_1@localhost;
 drop table t1;
 set global max_user_connections= @my_max_user_connections;
+#
+# End of 10.1 tests
+#
+#
+# MDEV-17852 Altered connection limits for user have no effect
+#
+create user foo@'%' with max_user_connections 1;
+connect con1,localhost,foo;
+select current_user();
+current_user()
+foo@%
+connect(localhost,foo,,test,MYSQL_PORT,MYSQL_SOCK);
+connect con2,localhost,foo;
+ERROR 42000: User 'foo' has exceeded the 'max_user_connections' resource (current value: 1)
+connection default;
+alter user foo with max_user_connections 2;
+connect con3,localhost,foo;
+select current_user();
+current_user()
+foo@%
+disconnect con3;
+disconnect con1;
+connection default;
+drop user foo@'%';
+#
+# End of 10.2 tests
+#

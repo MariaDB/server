@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -875,6 +875,9 @@ public:
 	/** whether wsrep_on(mysql_thd) held at the start of transaction */
 	bool		wsrep;
 	bool is_wsrep() const { return UNIV_UNLIKELY(wsrep); }
+	/** true, if BF thread is performing unique secondary index scanning */
+	bool wsrep_UK_scan;
+	bool is_wsrep_UK_scan() const { return UNIV_UNLIKELY(wsrep_UK_scan); }
 #else /* WITH_WSREP */
 	bool is_wsrep() const { return false; }
 #endif /* WITH_WSREP */
@@ -1113,20 +1116,6 @@ private:
 	during bulk create index */
 	FlushObserver*	flush_observer;
 public:
-	/* Lock wait statistics */
-	ulint		n_rec_lock_waits;
-					/*!< Number of record lock waits,
-					might not be exactly correct. */
-	ulint		n_table_lock_waits;
-					/*!< Number of table lock waits,
-					might not be exactly correct. */
-	ulint		total_rec_lock_wait_time;
-					/*!< Total rec lock wait time up
-					to this moment. */
-	ulint		total_table_lock_wait_time;
-					/*!< Total table lock wait time
-					up to this moment. */
-
 #ifdef WITH_WSREP
 	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
 #endif /* WITH_WSREP */

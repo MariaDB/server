@@ -2184,4 +2184,32 @@ SELECT * FROM v1 WHERE IF( a REGEXP 'def', 'foo', a ) IN ('abc', 'foobar');
 DROP VIEW v1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-19179: pushdown into UNION of aggregation selects whose
+--echo #             corresponding columns have different names
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+let $q=
+select *
+from (select min(a) as x from t1 union all select max(a) as y from t1) t
+where x>0;
+
+eval $q;
+eval explain extended $q;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+create view v1(m) as
+select min(a) as x from t1 union all select max(a) as y from t1;
+select * from v1 where m > 0;
+
+drop view v1;
+drop table t1;
+
 --echo # End of 10.2 tests

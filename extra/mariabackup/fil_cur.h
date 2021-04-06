@@ -28,6 +28,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include <my_dir.h>
 #include "read_filt.h"
 #include "srv0start.h"
+#include "xtrabackup.h"
 
 struct xb_fil_cur_t {
 	pfs_os_file_t	file;		/*!< source file handle */
@@ -89,17 +90,15 @@ xb_fil_cur_open(
 	uint		thread_n,	/*!< thread number for diagnostics */
 	ulonglong max_file_size = ULLONG_MAX);
 
-/************************************************************************
-Reads and verifies the next block of pages from the source
+/** Reads and verifies the next block of pages from the source
 file. Positions the cursor after the last read non-corrupted page.
-
+@param[in,out] cursor source file cursor
+@param[out] corrupted_pages adds corrupted pages if
+opt_log_innodb_page_corruption is set
 @return XB_FIL_CUR_SUCCESS if some have been read successfully, XB_FIL_CUR_EOF
 if there are no more pages to read and XB_FIL_CUR_ERROR on error. */
-xb_fil_cur_result_t
-xb_fil_cur_read(
-/*============*/
-	xb_fil_cur_t*	cursor);	/*!< in/out: source file cursor */
-
+xb_fil_cur_result_t xb_fil_cur_read(xb_fil_cur_t *cursor,
+                                    CorruptedPages &corrupted_pages);
 /************************************************************************
 Close the source file cursor opened with xb_fil_cur_open() and its
 associated read filter. */

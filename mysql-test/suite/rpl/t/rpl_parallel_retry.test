@@ -436,6 +436,9 @@ SET @@DEBUG_SYNC='now SIGNAL proceed_by_1000';
 --connection spoiler_21
 ROLLBACK;
 
+--let $wait_condition= SELECT count(*)=1 FROM information_schema.processlist WHERE state LIKE '%debug sync point%';
+--source include/wait_condition.inc
+
 --echo # Release the 2nd worker to proceed
 --connection spoiler_22
 ROLLBACK;

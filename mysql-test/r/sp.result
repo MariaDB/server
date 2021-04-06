@@ -8467,3 +8467,23 @@ $$
 ERROR 22007: Incorrect integer value: 'y' for column ``.``.`a` at row 1
 DROP TABLE t1;
 SET sql_mode=DEFAULT;
+#
+# MDEV-24220: error when opening a table for the second call of SP
+#
+CREATE TABLE t1 (a INT, b INT);
+INSERT INTO t1 VALUES (1,1),(2,2);
+CREATE VIEW v1 AS SELECT MAX(a) as f FROM t1;
+CREATE PROCEDURE p1()
+BEGIN
+SELECT * FROM v1;
+END $
+CALL p1;
+f
+2
+ALTER TABLE t1 DROP a;
+CALL p1;
+ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function(s) or definer/invoker of view lack rights to use them
+DROP PROCEDURE p1;
+DROP VIEW v1;
+DROP TABLE t1;
+#End of 10.2 tests

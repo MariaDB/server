@@ -90,7 +90,8 @@ public:
   virtual void free_result(FEDERATEDX_IO_RESULT *io_result);
   virtual unsigned int get_num_fields(FEDERATEDX_IO_RESULT *io_result);
   virtual my_ulonglong get_num_rows(FEDERATEDX_IO_RESULT *io_result);
-  virtual FEDERATEDX_IO_ROW *fetch_row(FEDERATEDX_IO_RESULT *io_result);
+  virtual FEDERATEDX_IO_ROW *fetch_row(FEDERATEDX_IO_RESULT *io_result,
+                                       FEDERATEDX_IO_ROWS **current= NULL);
   virtual ulong *fetch_lengths(FEDERATEDX_IO_RESULT *io_result);
   virtual const char *get_column_data(FEDERATEDX_IO_ROW *row,
                                       unsigned int column);
@@ -98,7 +99,7 @@ public:
                               unsigned int column) const;
   virtual size_t get_ref_length() const;
   virtual void mark_position(FEDERATEDX_IO_RESULT *io_result,
-                             void *ref);
+                             void *ref, FEDERATEDX_IO_ROWS *current);
   virtual int seek_position(FEDERATEDX_IO_RESULT **io_result,
                             const void *ref);
 };
@@ -242,7 +243,8 @@ my_ulonglong federatedx_io_null::get_num_rows(FEDERATEDX_IO_RESULT *)
 }
 
 
-FEDERATEDX_IO_ROW *federatedx_io_null::fetch_row(FEDERATEDX_IO_RESULT *)
+FEDERATEDX_IO_ROW *federatedx_io_null::fetch_row(FEDERATEDX_IO_RESULT *,
+                                                 FEDERATEDX_IO_ROWS **current)
 {
   return NULL;
 }
@@ -288,7 +290,7 @@ size_t federatedx_io_null::get_ref_length() const
 
 
 void federatedx_io_null::mark_position(FEDERATEDX_IO_RESULT *io_result,
-                                       void *ref)
+                                       void *ref, FEDERATEDX_IO_ROWS *current)
 {
 }
 

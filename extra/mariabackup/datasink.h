@@ -50,8 +50,14 @@ struct datasink_struct {
 	ds_file_t *(*open)(ds_ctxt_t *ctxt, const char *path, MY_STAT *stat);
 	int (*write)(ds_file_t *file, const unsigned char *buf, size_t len);
 	int (*close)(ds_file_t *file);
+	int (*remove)(const char *path);
 	void (*deinit)(ds_ctxt_t *ctxt);
 };
+
+
+static inline int dummy_remove(const char *) {
+	return 0;
+}
 
 /* Supported datasink types */
 typedef enum {

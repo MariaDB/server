@@ -4601,7 +4601,7 @@ evict_from_pool:
 
 		if (!access_time && !recv_no_ibuf_operations) {
 			ibuf_merge_or_delete_for_page(
-				block, page_id, &page_size, TRUE);
+				block, page_id, page_size);
 		}
 
 		buf_pool_mutex_enter(buf_pool);
@@ -5511,6 +5511,7 @@ loop:
 	    && !buf_pool_watch_is_sentinel(buf_pool, &block->page)) {
 		ut_d(block->page.file_page_was_freed = FALSE);
 		buf_page_state page_state = buf_block_get_state(block);
+		bool have_x_latch = false;
 #ifdef BTR_CUR_HASH_ADAPT
 		const dict_index_t *drop_hash_entry= NULL;
 #endif
@@ -5563,26 +5564,26 @@ loop:
 			free_block = NULL;
 			break;
 		case BUF_BLOCK_FILE_PAGE:
-			buf_block_fix(block);
-			const int32_t num_fix_count =
-				mtr->get_fix_count(block) + 1;
-			buf_page_mutex_enter(block);
-			while (buf_block_get_io_fix(block) != BUF_IO_NONE
-			       || (num_fix_count
-				   != block->page.buf_fix_count)) {
-				buf_page_mutex_exit(block);
-				buf_pool_mutex_exit(buf_pool);
-				rw_lock_x_unlock(hash_lock);
-
-				os_thread_yield();
-
-				buf_pool_mutex_enter(buf_pool);
-				rw_lock_x_lock(hash_lock);
+			have_x_latch = mtr->have_x_latch(*block);
+			if (!have_x_latch) {
+				buf_block_fix(block);
 				buf_page_mutex_enter(block);
-			}
+				while (buf_block_get_io_fix(block)
+				       != BUF_IO_NONE
+				       || block->page.buf_fix_count != 1) {
+					buf_page_mutex_exit(block);
+					buf_pool_mutex_exit(buf_pool);
+					rw_lock_x_unlock(hash_lock);
 
-			rw_lock_x_lock(&block->lock);
-			buf_page_mutex_exit(block);
+					os_thread_sleep(1000);
+
+					buf_pool_mutex_enter(buf_pool);
+					rw_lock_x_lock(hash_lock);
+					buf_page_mutex_enter(block);
+				}
+				rw_lock_x_lock(&block->lock);
+				buf_page_mutex_exit(block);
+			}
 #ifdef BTR_CUR_HASH_ADAPT
 			drop_hash_entry = block->index;
 #endif
@@ -5601,16 +5602,17 @@ loop:
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 
+		if (!have_x_latch) {
 #ifdef UNIV_DEBUG
-		if (!fsp_is_system_temporary(page_id.space())) {
-			rw_lock_s_lock_nowait(
-				&block->debug_latch,
-				__FILE__, __LINE__);
-		}
+			if (!fsp_is_system_temporary(page_id.space())) {
+				rw_lock_s_lock_nowait(
+					&block->debug_latch,
+					__FILE__, __LINE__);
+			}
 #endif /* UNIV_DEBUG */
 
-		mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
-
+			mtr_memo_push(mtr, block, MTR_MEMO_PAGE_X_FIX);
+		}
 		return block;
 	}
 
@@ -5678,7 +5680,7 @@ loop:
 	/* Delete possible entries for the page from the insert buffer:
 	such can exist if the page belonged to an index which was dropped */
 	if (!recv_recovery_is_on()) {
-		ibuf_merge_or_delete_for_page(NULL, page_id, &page_size, TRUE);
+		ibuf_merge_or_delete_for_page(NULL, page_id, page_size);
 	}
 
 	frame = block->frame;
@@ -6133,7 +6135,7 @@ database_corrupted:
 
 			ibuf_merge_or_delete_for_page(
 				(buf_block_t*) bpage, bpage->id,
-				&bpage->size, TRUE);
+				bpage->size);
 		}
 
 		fil_space_release_for_io(space);

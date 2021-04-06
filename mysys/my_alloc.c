@@ -461,7 +461,7 @@ char *strmake_root(MEM_ROOT *root, const char *str, size_t len)
 void *memdup_root(MEM_ROOT *root, const void *str, size_t len)
 {
   char *pos;
-  if ((pos=alloc_root(root,len)))
+  if ((pos=alloc_root(root,len)) && len)
     memcpy(pos,str,len);
   return pos;
 }

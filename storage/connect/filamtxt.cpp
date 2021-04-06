@@ -1734,7 +1734,7 @@ bool BINFAM::OpenTableFile(PGLOBAL g) {
 	/*********************************************************************/
 	return AllocateBuffer(g);
 } // end of OpenTableFile
-#endif 0
+#endif // 0
 
 /***********************************************************************/
 /*  Allocate the line buffer. For mode Delete a bigger buffer has to   */

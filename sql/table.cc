@@ -2273,6 +2273,12 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           key_part->null_bit= field->null_bit;
           key_part->store_length+=HA_KEY_NULL_LENGTH;
           keyinfo->flags|=HA_NULL_PART_KEY;
+
+          /*
+            This branch is executed only for user defined key parts of the
+            secondary indexes.
+          */
+          DBUG_ASSERT(i < keyinfo->user_defined_key_parts);
           keyinfo->key_length+= HA_KEY_NULL_LENGTH;
         }
         if (field->type() == MYSQL_TYPE_BLOB ||
@@ -2285,7 +2291,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           else
             key_part->key_part_flag|= HA_VAR_LENGTH_PART;
           key_part->store_length+=HA_KEY_BLOB_LENGTH;
-          keyinfo->key_length+= HA_KEY_BLOB_LENGTH;
+          if (i < keyinfo->user_defined_key_parts)
+            keyinfo->key_length+= HA_KEY_BLOB_LENGTH;
         }
         if (field->type() == MYSQL_TYPE_BIT)
           key_part->key_part_flag|= HA_BIT_PART;
@@ -2378,7 +2385,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       set_if_bigger(share->max_key_length,keyinfo->key_length+
                     keyinfo->user_defined_key_parts);
-      share->total_key_length+= keyinfo->key_length;
       /*
         MERGE tables do not have unique indexes. But every key could be
         an unique index on the underlying MyISAM table. (Bug #10400)

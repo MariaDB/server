@@ -47,7 +47,7 @@ static int table_to_string(TABLE *table, String *result)
 
   res= table->file->ha_rnd_init(1);
 
-  dbug_tmp_use_all_columns(table, table->read_set);
+  dbug_tmp_use_all_columns(table, &table->read_set);
 
   while(!res && !table->file->ha_rnd_next(table->record[0]))
   {

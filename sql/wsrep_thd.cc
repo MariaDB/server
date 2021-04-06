@@ -22,6 +22,7 @@
 //#include "global_threads.h" // LOCK_thread_count, etc.
 #include "sql_base.h" // close_thread_tables()
 #include "mysqld.h"   // start_wsrep_THD();
+#include "debug_sync.h"
 
 #include "slave.h"    // opt_log_slave_updates
 #include "rpl_filter.h"
@@ -75,7 +76,7 @@ void wsrep_client_rollback(THD *thd)
   }
 
   /* Release transactional metadata locks. */
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 
   /* release explicit MDL locks */
   thd->mdl_context.release_explicit_locks();
@@ -146,11 +147,12 @@ static void wsrep_prepare_bf_thd(THD *thd, struct wsrep_thd_shadow* shadow)
 
   // Disable general logging on applier threads
   thd->variables.option_bits |= OPTION_LOG_OFF;
-  // Enable binlogging if opt_log_slave_updates is set
-  if (opt_log_slave_updates)
-    thd->variables.option_bits|= OPTION_BIN_LOG;
-  else
-    thd->variables.option_bits&= ~(OPTION_BIN_LOG);
+
+  /* enable binlogging regardless of log_slave_updates setting
+     this is for ensuring that both local and applier transaction go through
+     same commit ordering algorithm in group commit control
+   */
+  thd->variables.option_bits|= OPTION_BIN_LOG;
 
   if (!thd->wsrep_rgi) thd->wsrep_rgi= wsrep_relay_group_init(thd, "wsrep_relay");
 
@@ -211,7 +213,7 @@ void wsrep_replay_sp_transaction(THD* thd)
     thd->locked_tables_list.unlock_locked_tables(thd);
     thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
   }
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
 
   mysql_mutex_unlock(&thd->LOCK_thd_data);
   THD *replay_thd= new THD(true);
@@ -350,7 +352,7 @@ void wsrep_replay_transaction(THD *thd)
         thd->locked_tables_list.unlock_locked_tables(thd);
         thd->variables.option_bits&= ~(OPTION_TABLE_LOCK);
       }
-      thd->mdl_context.release_transactional_locks();
+      thd->release_transactional_locks();
       /*
         Replaying will call MYSQL_START_STATEMENT when handling
         BEGIN Query_log_event so end statement must be called before
@@ -369,6 +371,19 @@ void wsrep_replay_transaction(THD *thd)
       /* From trans_begin() */
       thd->variables.option_bits|= OPTION_BEGIN;
       thd->server_status|= SERVER_STATUS_IN_TRANS;
+
+      /* Allow tests to block the replayer thread using the DBUG facilities */
+#ifdef ENABLED_DEBUG_SYNC
+      DBUG_EXECUTE_IF("sync.wsrep_replay_cb",
+      {
+        const char act[]=
+          "now "
+          "SIGNAL sync.wsrep_replay_cb_reached "
+          "WAIT_FOR signal.wsrep_replay_cb";
+        DBUG_ASSERT(!debug_sync_set_action(thd,
+                                           STRING_WITH_LEN(act)));
+       };);
+#endif /* ENABLED_DEBUG_SYNC */
 
       int rcode = wsrep->replay_trx(wsrep,
                                     &thd->wsrep_ws_handle,
@@ -834,27 +849,6 @@ bool wsrep_thd_has_explicit_locks(THD *thd)
 {
   assert(thd);
   return thd->mdl_context.has_explicit_locks();
-}
-
-/*
-  Get auto increment variables for THD. Use global settings for
-  applier threads.
- */
-void wsrep_thd_auto_increment_variables(THD* thd,
-                                        unsigned long long* offset,
-                                        unsigned long long* increment)
-{
-  if (thd->wsrep_exec_mode == REPL_RECV &&
-      thd->wsrep_conflict_state != REPLAYING)
-  {
-    *offset= global_system_variables.auto_increment_offset;
-    *increment= global_system_variables.auto_increment_increment;
-  }
-  else
-  {
-    *offset= thd->variables.auto_increment_offset;
-    *increment= thd->variables.auto_increment_increment;
-  }
 }
 
 my_bool wsrep_thd_is_applier(MYSQL_THD thd)

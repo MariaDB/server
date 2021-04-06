@@ -1,6 +1,6 @@
 /* Copyright (c) 2002-2007 MySQL AB & tommy@valley.ne.jp
    Copyright (c) 2002, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2014, SkySQL Ab.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
    
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -399,7 +399,7 @@ my_strnxfrm_8bit_bin(CHARSET_INFO *cs,
 {
   set_if_smaller(srclen, dstlen);
   set_if_smaller(srclen, nweights);
-  if (dst != src)
+  if (srclen && dst != src)
     memcpy(dst, src, srclen);
   return my_strxfrm_pad_desc_and_reverse(cs, dst, dst + srclen, dst + dstlen,
                                          (uint)(nweights - srclen), flags, 0);

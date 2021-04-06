@@ -2183,6 +2183,54 @@ eval $q4;
 
 drop table t1;
 
+#
+# MDEV-21958: Query having many NOT-IN clauses running forever (testcase 2)
+#
+create table t1(a int);
+insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t2 (
+  pk int primary key,
+  key1 int,
+  col1 varchar(255),
+  key (key1, pk)
+);
+
+insert into t2 (pk, key1)
+select A.a+10 *B.a + 100*C.a, A.a+10 *B.a +100*C.a from t1 A, t1 B, t1 C;
+
+--echo # This must use ALL, not range:
+explain select * from t2 force index (primary) where pk not in (1,2,3);
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-24444: ASAN use-after-poison in Item_func_in::get_func_mm_tree with NOT IN
+--echo #
+CREATE TABLE t1 (id INT, a CHAR(3), b INT, PRIMARY KEY(id), KEY(b), KEY(a));
+INSERT INTO t1 VALUES (1,'foo',10),(2,'bar',20);
+
+CREATE TABLE t2 (code CHAR(8), num INT, PRIMARY KEY (code));
+INSERT INTO t2 VALUES ('100',1),('111',2);
+
+SELECT * FROM t1 JOIN t2 ON (t2.code = t1.b) WHERE t1.a NOT IN ('baz', 'qux') OR t2.num != 3;
+
+DROP TABLE t1, t2;
+
+
+--echo #
+--echo # MDEV-22251: get_key_scans_params: Conditional jump or move depends on uninitialised value
+--echo #
+
+create table t1 (pk int, i int, v int, primary key (pk), key(v));
+insert into t1 (pk,i,v) values (1,1,2),(2,2,4),(3,3,6),(4,4,8),(5,5,10),(6,6,12),(7,7,14),(8,8,16);
+create table t2 (a int, b int);
+insert into t2 values (1,2),(2,4);
+EXPLAIN
+select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk);
+select * from t1 inner join t2 on ( t2.b = t1.v or t2.a = t1.pk);
+drop table t1, t2;
+
 --echo #
 --echo # End of 10.2 tests
 --echo #

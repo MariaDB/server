@@ -48,7 +48,11 @@ class Cached_item;
 class Item_subselect :public Item_result_field,
                       protected Used_tables_and_const_cache
 {
-  bool value_assigned;   /* value already assigned to subselect */
+  /*
+    Set to TRUE if the value is assigned for the subselect
+    FALSE: subquery not executed or the subquery returns an empty result
+  */
+  bool value_assigned;
   bool own_engine;  /* the engine was not taken from other Item_subselect */
 protected:
   /* thread handler, will be assigned in fix_fields only */
@@ -249,6 +253,7 @@ public:
     @retval FALSE otherwise
   */
   bool is_expensive_processor(void *arg) { return is_expensive(); }
+  bool update_table_bitmaps_processor(void *arg);
 
   /**
     Get the SELECT_LEX structure associated with this Item.

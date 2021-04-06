@@ -39,7 +39,8 @@
 ** 10 Jun 2003: SET NAMES and --no-set-names by Alexander Barkov
 */
 
-#define DUMP_VERSION "10.16"
+/* on merge conflict, bump to a higher version again */
+#define DUMP_VERSION "10.19"
 
 #include <my_global.h>
 #include <my_sys.h>
@@ -116,6 +117,21 @@ static my_bool  verbose= 0, opt_no_create_info= 0, opt_no_data= 0, opt_no_data_m
                 opt_events= 0, opt_comments_used= 0,
                 opt_alltspcs=0, opt_notspcs= 0, opt_logging,
                 opt_drop_trigger= 0 ;
+#define OPT_SYSTEM_ALL 1
+#define OPT_SYSTEM_USERS 2
+#define OPT_SYSTEM_PLUGINS 4
+#define OPT_SYSTEM_UDFS 8
+#define OPT_SYSTEM_SERVERS 16
+#define OPT_SYSTEM_STATS 32
+#define OPT_SYSTEM_TIMEZONES 64
+static const char *opt_system_type_values[]=
+  {"all", "users", "plugins",  "udfs", "servers", "stats", "timezones"};
+static TYPELIB opt_system_types=
+{
+  array_elements(opt_system_type_values), "system dump options",
+  opt_system_type_values, NULL
+};
+static ulonglong opt_system= 0ULL;
 static my_bool insert_pat_inited= 0, debug_info_flag= 0, debug_check_flag= 0;
 static ulong opt_max_allowed_packet, opt_net_buffer_length;
 static MYSQL mysql_connection,*mysql=0;
@@ -525,6 +541,8 @@ static struct my_option my_long_options[] =
    &opt_mysql_unix_port, &opt_mysql_unix_port, 0, 
    GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
 #include <sslopt-longopts.h>
+  {"system", 256, "Dump system tables as portable SQL",
+   &opt_system, &opt_system, &opt_system_types, GET_SET, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tab",'T',
    "Create tab-separated textfile for each table to given path. (Create .sql "
    "and .txt files.) NOTE: This only works if mysqldump is run on the same "
@@ -567,7 +585,7 @@ static const char *load_default_groups[]=
 static void maybe_exit(int error);
 static void die(int error, const char* reason, ...);
 static void maybe_die(int error, const char* reason, ...);
-static void write_header(FILE *sql_file, char *db_name);
+static void write_header(FILE *sql_file, const char *db_name);
 static void print_value(FILE *file, MYSQL_RES  *result, MYSQL_ROW row,
                         const char *prefix,const char *name,
                         int string_value);
@@ -578,6 +596,12 @@ static int init_dumping_tables(char *);
 static int init_dumping(char *, int init_func(char*));
 static int dump_databases(char **);
 static int dump_all_databases();
+static int dump_all_users_roles_and_grants();
+static int dump_all_plugins();
+static int dump_all_udfs();
+static int dump_all_servers();
+static int dump_all_stats();
+static int dump_all_timezones();
 static char *quote_name(const char *name, char *buff, my_bool force);
 char check_if_ignore_table(const char *table_name, char *table_type);
 static char *primary_key_fields(const char *table_name);
@@ -639,9 +663,10 @@ static void print_version(void)
 static void short_usage_sub(FILE *f)
 {
   fprintf(f, "Usage: %s [OPTIONS] database [tables]\n", my_progname_short);
-  fprintf(f, "OR     %s [OPTIONS] --databases [OPTIONS] DB1 [DB2 DB3...]\n",
+  fprintf(f, "OR     %s [OPTIONS] --databases DB1 [DB2 DB3...]\n",
           my_progname_short);
-  fprintf(f, "OR     %s [OPTIONS] --all-databases [OPTIONS]\n", my_progname_short);
+  fprintf(f, "OR     %s [OPTIONS] --all-databases\n", my_progname_short);
+  fprintf(f, "OR     %s [OPTIONS] --system=[SYSTEMOPTIONS]]\n", my_progname_short);
 }
 
 
@@ -689,7 +714,7 @@ static const char *fix_for_comment(const char *ident)
 }
 
 
-static void write_header(FILE *sql_file, char *db_name)
+static void write_header(FILE *sql_file, const char *db_name)
 {
   if (opt_xml)
   {
@@ -1027,6 +1052,90 @@ static int get_options(int *argc, char ***argv)
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
     return(ho_error);
 
+  /*
+    Dumping under --system=stats with --replace or --inser-ignore is safe and will not
+    retult into race condition. Otherwise dump only structure and ignore data by default
+    while dumping.
+  */
+  if (!(opt_system & OPT_SYSTEM_STATS) && !(opt_ignore || opt_replace_into))
+  {
+    if (my_hash_insert(&ignore_data,
+                       (uchar*) my_strdup("mysql.innodb_index_stats", MYF(MY_WME))) ||
+        my_hash_insert(&ignore_data,
+                       (uchar*) my_strdup("mysql.innodb_table_stats", MYF(MY_WME))))
+      return(EX_EOM);
+  }
+
+  if (opt_system & OPT_SYSTEM_ALL)
+      opt_system|= ~0;
+
+  if (opt_system & OPT_SYSTEM_USERS &&
+      (my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.db", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.global_priv", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.tables_priv", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.columns_priv", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.procs_priv", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.user", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.host", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.proxies_priv", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.roles_mapping", MYF(MY_WME))) ||
+      /* and MySQL-8.0 role tables (role_edges and default_roles) as well */
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.role_edges", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.default_roles", MYF(MY_WME)))))
+    return(EX_EOM);
+
+  if (opt_system & OPT_SYSTEM_PLUGINS &&
+     my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.plugin", MYF(MY_WME))))
+    return(EX_EOM);
+
+  if (opt_system & OPT_SYSTEM_UDFS &&
+     my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.func", MYF(MY_WME))))
+    return(EX_EOM);
+
+  if (opt_system & OPT_SYSTEM_SERVERS &&
+     my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.servers", MYF(MY_WME))))
+    return(EX_EOM);
+
+  if (opt_system & OPT_SYSTEM_STATS &&
+     (my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.column_stats", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.index_stats", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.table_stats", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.innodb_table_stats", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.innodb_index_stats", MYF(MY_WME)))))
+    return(EX_EOM);
+
+  if (opt_system & OPT_SYSTEM_TIMEZONES &&
+     (my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.time_zone", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.time_zone_leap_second", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.time_zone_name", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.time_zone_transition", MYF(MY_WME))) ||
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.time_zone_transition_type", MYF(MY_WME)))))
+    return(EX_EOM);
+
   *mysql_params->p_max_allowed_packet= opt_max_allowed_packet;
   *mysql_params->p_net_buffer_length= opt_net_buffer_length;
   if (debug_info_flag)
@@ -1084,7 +1193,7 @@ static int get_options(int *argc, char ***argv)
       !(charset_info= get_charset_by_csname(default_charset,
                                             MY_CS_PRIMARY, MYF(MY_WME))))
     exit(1);
-  if ((*argc < 1 && !opt_alldbs) || (*argc > 0 && opt_alldbs))
+  if ((*argc < 1 && (!opt_alldbs && !opt_system)) || (*argc > 0 && opt_alldbs))
   {
     short_usage(stderr);
     return EX_USAGE;
@@ -1208,7 +1317,6 @@ static int fetch_db_collation(const char *db_name,
   my_bool err_status= FALSE;
   MYSQL_RES *db_cl_res;
   MYSQL_ROW db_cl_row;
-
   if (mysql_select_db(mysql, db_name))
   {
     DB_error(mysql, "when selecting the database");
@@ -2721,7 +2829,7 @@ static inline my_bool general_log_or_slow_log_tables(const char *db,
     number of fields in table, 0 if error
 */
 
-static uint get_table_structure(char *table, char *db, char *table_type,
+static uint get_table_structure(const char *table, const char *db, char *table_type,
                                 char *ignore_flag)
 {
   my_bool    init=0, delayed, write_data, complete_insert;
@@ -3647,7 +3755,7 @@ static char *alloc_query_str(ulong size)
 */
 
 
-static void dump_table(char *table, char *db, const uchar *hash_key, size_t len)
+static void dump_table(const char *table, const char *db, const uchar *hash_key, size_t len)
 {
   char ignore_flag;
   char buf[200], table_buff[NAME_LEN+3];
@@ -4163,6 +4271,448 @@ static char *getTableName(int reset)
   }
   return(NULL);
 } /* getTableName */
+
+
+/*
+  dump user/role grants
+  ARGS
+  user_role: is either a user, or a role
+*/
+
+static int dump_grants(const char *user_role)
+{
+  DYNAMIC_STRING sqlbuf;
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+
+  init_dynamic_string_checked(&sqlbuf, "SHOW GRANTS FOR ", 256, 1024);
+  dynstr_append_checked(&sqlbuf, user_role);
+
+  if (mysql_query_with_error_report(mysql, &tableres, sqlbuf.str))
+  {
+    dynstr_free(&sqlbuf);
+    return 1;
+  }
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    if (strncmp(row[0], "SET DEFAULT ROLE", sizeof("SET DEFAULT ROLE") - 1) == 0)
+      continue;
+    fprintf(md_result_file, "%s;\n", row[0]);
+  }
+  mysql_free_result(tableres);
+  dynstr_free(&sqlbuf);
+  return 0;
+}
+
+
+/*
+  dump create user
+*/
+
+static int dump_create_user(const char *user)
+{
+  DYNAMIC_STRING sqlbuf;
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+
+  init_dynamic_string_checked(&sqlbuf, "SHOW CREATE USER ", 256, 1024);
+  dynstr_append_checked(&sqlbuf, user);
+
+  if (mysql_query_with_error_report(mysql, &tableres, sqlbuf.str))
+  {
+    dynstr_free(&sqlbuf);
+    return 1;
+  }
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    fprintf(md_result_file, "CREATE %sUSER %s%s;\n", opt_replace_into ? "/*M!100103 OR REPLACE */ ": "",
+            opt_ignore ? "IF NOT EXISTS " : "",
+            row[0] + sizeof("CREATE USER"));
+  }
+  mysql_free_result(tableres);
+  dynstr_free(&sqlbuf);
+  return 0;
+}
+
+
+/*
+  dump all users, roles and their grants
+*/
+
+static int dump_all_users_roles_and_grants()
+{
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+  int result= 0;
+  /* Roles added in MariaDB-10.0.5 or MySQL-8.0 */
+  my_bool maria_roles_exist= (mysql_get_server_version(mysql) >= 100005);
+  my_bool mysql_roles_exist= (mysql_get_server_version(mysql) >= 80001) && !maria_roles_exist;
+
+  if (mysql_query_with_error_report(mysql, &tableres,
+                                    "SELECT CONCAT(QUOTE(u.user), '@', QUOTE(u.Host)) AS u "
+                                    "FROM mysql.user u "
+                                    " /*!80001 LEFT JOIN mysql.role_edges e "
+                                    "            ON u.user=e.from_user "
+                                    "              AND u.host=e.from_host "
+                                    "         WHERE e.from_user IS NULL */"
+                                    " /*M!100005 WHERE is_role='N' */"))
+    return 1;
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    if (opt_replace_into)
+      /* Protection against removing the current import user */
+      /* MySQL-8.0 export capability */
+      fprintf(md_result_file,
+        "DELIMITER |\n"
+        "/*M!100101 IF current_user()=\"%s\" THEN\n"
+        "  SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001,"
+        " MESSAGE_TEXT=\"Don't remove current user %s'\";\n"
+        "END IF */|\n"
+        "DELIMITER ;\n"
+        "/*!50701 DROP USER IF EXISTS %s */;\n", row[0], row[0], row[0]);
+    if (dump_create_user(row[0]))
+      result= 1;
+    /* if roles exist, defer dumping grants until after roles created */
+    if (maria_roles_exist || mysql_roles_exist)
+      continue;
+    if (dump_grants(row[0]))
+      result= 1;
+  }
+  mysql_free_result(tableres);
+
+  if (!(maria_roles_exist || mysql_roles_exist))
+    goto exit;
+
+  /*
+     Preserve current role active role, in case this dump is imported
+     in the same connection that assumes the active role at the beginning
+     is the same as at the end of the connection. This is so:
+
+     #!/bin/sh
+     (
+      echo "set role special_role; ";
+      cat mysqldump.sql;
+      echo "$dosomethingspecial"
+     ) | mysql -h $host
+
+     doesn't end up with a suprise that the $dosomethingspecial cannot
+     be done because `special_role` isn't active.
+
+     We create a new role for importing that becomes the default admin for new
+     roles. This is because without being a admin on new roles we don't
+     have the necessary privileges to grant users to a created role or to
+     create new admins for the created role.
+
+     At the end of the import the mariadb_dump_import_role is be dropped,
+     which implictly drops all its admin aspects of the dropped role.
+     This is significiantly easlier than revoking the ADMIN of each role
+     from the current user.
+  */
+  fputs("SELECT COALESCE(CURRENT_ROLE(),'NONE') into @current_role;\n"
+        "CREATE ROLE IF NOT EXISTS mariadb_dump_import_role;\n"
+	"GRANT mariadb_dump_import_role TO CURRENT_USER();\n"
+        "SET ROLE mariadb_dump_import_role;\n"
+        , md_result_file);
+  /* No show create role yet, MDEV-22311 */
+  /* Roles, with user admins first, then roles they administer, and recurse on that */
+  if (maria_roles_exist && mysql_query_with_error_report(mysql, &tableres,
+      "WITH RECURSIVE create_role_order AS"
+      "  (SELECT 1 as n, roles_mapping.*"
+      "   FROM mysql.roles_mapping"
+      "   JOIN mysql.user USING (user,host)"
+      "   WHERE is_role='N'"
+      "     AND Admin_option='Y'"
+      "   UNION SELECT c.n+1, r.*"
+      "   FROM create_role_order c"
+      "   JOIN mysql.roles_mapping r ON c.role=r.user"
+      "   AND r.host=''"
+      "   AND r.Admin_option='Y') "
+      "SELECT QUOTE(ROLE) AS r,"
+      "       CONCAT(QUOTE(user),"
+      "	      IF(HOST='', '', CONCAT('@', QUOTE(HOST)))) AS c,"
+      "       Admin_option "
+      "FROM create_role_order ORDER BY n, r, user"))
+    return 1;
+  /*
+     TODO Mysql - misses roles that have no admin or role members.
+     MySQL roles don't require an admin.
+  */
+  if (mysql_roles_exist && mysql_query_with_error_report(mysql, &tableres,
+      "WITH RECURSIVE create_role_order AS"
+      "  (SELECT 1 AS n,"
+      "          re.*"
+      "   FROM mysql.role_edges re"
+      "   JOIN mysql.user u ON re.TO_HOST=u.HOST"
+      "   AND re.TO_USER = u.USER"
+      "   LEFT JOIN mysql.role_edges re2 ON re.TO_USER=re2.FROM_USER"
+      "   AND re2.TO_HOST=re2.FROM_HOST"
+      "   WHERE re2.FROM_USER IS NULL"
+      "   UNION SELECT c.n+1,"
+      "                re.*"
+      "   FROM create_role_order c"
+      "   JOIN mysql.role_edges re ON c.FROM_USER=re.TO_USER"
+      "   AND c.FROM_HOST=re.TO_HOST) "
+      "SELECT CONCAT(QUOTE(FROM_USER), '/*!80001 @', QUOTE(FROM_HOST), '*/') AS r,"
+      "       CONCAT(QUOTE(TO_USER), IF(n=1, CONCAT('@', QUOTE(TO_HOST)),"
+      "                                 CONCAT('/*!80001 @', QUOTE(TO_HOST), ' */'))) AS u,"
+      "       WITH_ADMIN_OPTION "
+      "FROM create_role_order "
+      "ORDER BY n,"
+      "         FROM_USER,"
+      "         FROM_HOST,"
+      "         TO_USER,"
+      "         TO_HOST,"
+      "         WITH_ADMIN_OPTION"))
+    return 1;
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    /* MySQL-8.0 export capability */
+    if (opt_replace_into)
+      fprintf(md_result_file,
+        "/*!80001 DROP ROLE IF EXISTS %s */;\n", row[0]);
+    fprintf(md_result_file,
+      "/*!80001 CREATE ROLE %s%s */;\n", opt_ignore ? "IF NOT EXISTS " : "", row[0]);
+    /* By default created with current role */
+    fprintf(md_result_file,
+      "%sROLE %s%s WITH ADMIN mariadb_dump_import_role */;\n",
+      opt_replace_into ? "/*M!100103 CREATE OR REPLACE ": "/*M!100005 CREATE ",
+      opt_ignore ? "IF NOT EXISTS " : "", row[0]);
+    fprintf(md_result_file, "/*M!100005 GRANT %s TO %s%s*/;\n",
+            row[0], row[1], (row[2][0] == 'Y') ? " WITH ADMIN OPTION " : "");
+  }
+  mysql_free_result(tableres);
+
+  /* users and their default role */
+  if (maria_roles_exist && mysql_query_with_error_report(mysql, &tableres,
+      "select IF(default_role='', 'NONE', QUOTE(default_role)) as r,"
+      "concat(QUOTE(User), '@', QUOTE(Host)) as u FROM mysql.user  "
+      "/*M!100005 WHERE is_role='N' */"))
+    return 1;
+  if (mysql_roles_exist && mysql_query_with_error_report(mysql, &tableres,
+      "SELECT IF(DEFAULT_ROLE_HOST IS NULL, 'NONE', CONCAT(QUOTE(DEFAULT_ROLE_USER),"
+      "                                                    '@', QUOTE(DEFAULT_ROLE_HOST))) as r,"
+      "  CONCAT(QUOTE(mu.USER),'@',QUOTE(mu.HOST)) as u "
+      "FROM mysql.user mu LEFT JOIN mysql.default_roles using (USER, HOST)"))
+    return 1;
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    if (dump_grants(row[1]))
+      result= 1;
+    fprintf(md_result_file, "/*M!100005 SET DEFAULT ROLE %s FOR %s */;\n", row[0], row[1]);
+    fprintf(md_result_file, "/*!80001 ALTER USER %s DEFAULT ROLE %s */;\n", row[1], row[0]);
+  }
+  mysql_free_result(tableres);
+
+  if (maria_roles_exist && mysql_query_with_error_report(mysql, &tableres,
+      "SELECT DISTINCT QUOTE(m.role) AS r "
+      "   FROM mysql.roles_mapping m"
+      "   JOIN mysql.user u ON u.user = m.role"
+      "   WHERE is_role='Y'"
+      "     AND Admin_option='Y'"
+      "   ORDER BY m.role"))
+    return 1;
+  if (mysql_roles_exist && mysql_query_with_error_report(mysql, &tableres,
+      "SELECT DISTINCT CONCAT(QUOTE(FROM_USER),'@', QUOTE(FROM_HOST)) AS r "
+      "FROM mysql.role_edges"))
+    return 1;
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    if (dump_grants(row[0]))
+      result= 1;
+  }
+  mysql_free_result(tableres);
+  /* switch back */
+  fputs("SET ROLE NONE;\n"
+        "DROP ROLE mariadb_dump_import_role;\n"
+        "/*M!100203 EXECUTE IMMEDIATE CONCAT('SET ROLE ', @current_role) */;\n",
+        md_result_file);
+exit:
+
+  return result;
+}
+
+
+/*
+  dump all plugins
+*/
+
+static int dump_all_plugins()
+{
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+
+  if (mysql_query_with_error_report(mysql, &tableres, "SHOW PLUGINS"))
+    return 1;
+  /* Name, Status, Type, Library, License */
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    if (strcmp("ACTIVE", row[1]) != 0)
+      continue;
+    /* Should we be skipping builtins? */
+    if (row[3] == NULL)
+      continue;
+    if (opt_replace_into)
+    {
+      fprintf(md_result_file, "/*M!100401 UNINSTALL PLUGIN IF EXIST %s */;\n",
+              row[0]);
+    }
+    fprintf(md_result_file,
+       "INSTALL PLUGIN %s %s SONAME '%s';\n", row[0],
+       opt_ignore ? "/*M!100401 IF NOT EXISTS */" : "", row[3]);
+  }
+  mysql_free_result(tableres);
+
+  return 0;
+}
+
+
+/*
+  dump all udfs
+*/
+
+static int dump_all_udfs()
+{
+  /* we don't support all these types yet, but get prepared if we do */
+  static const char *udf_types[] = {"STRING", "REAL", "INT", "ROW", "DECIMAL", "TIME" };
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+  int retresult, result= 0;
+
+  if (mysql_query_with_error_report(mysql, &tableres, "SELECT * FROM mysql.func"))
+    return 1;
+  /* Name, ret, dl, type*/
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    retresult= atoi(row[1]);
+    if (retresult < 0 || array_elements(udf_types) <= (size_t) retresult)
+    {
+      fprintf(stderr, "%s: Error: invalid return type on udf function '%s'\n",
+              my_progname_short, row[0]);
+      result= 1;
+      continue;
+    }
+    if (opt_replace_into)
+    {
+      fprintf(md_result_file, "/*!50701 DROP FUNCTION IF EXISTS %s */;\n",
+              row[0]);
+    }
+    fprintf(md_result_file,
+            "CREATE %s%sFUNCTION %s%s RETURNS %s SONAME '%s';\n",
+            opt_replace_into ? "/*M!100103 OR REPLACE */ ": "",
+            (strcmp("AGGREGATE", row[2])==0 ? "AGGREGATE " : ""),
+            opt_ignore ? "IF NOT EXISTS " : "", row[0], udf_types[retresult], row[2]);
+  }
+  mysql_free_result(tableres);
+
+  return result;
+}
+
+
+/*
+  dump all servers
+*/
+
+static int dump_all_servers()
+{
+  /* No create server yet - MDEV-15696 */
+  MYSQL_ROW row;
+  MYSQL_RES *tableres;
+  MYSQL_FIELD *f;
+  unsigned int num_fields, i;
+  my_bool comma_prepend= 0;
+  const char *qstring;
+
+  if (mysql_query_with_error_report(mysql, &tableres, "SELECT * FROM mysql.servers"))
+    return 1;
+  num_fields= mysql_num_fields(tableres);
+  while ((row= mysql_fetch_row(tableres)))
+  {
+    fprintf(md_result_file,"CREATE %sSERVER %s%s FOREIGN DATA WRAPPER %s OPTIONS (",
+            opt_replace_into ? "/*M!100103 OR REPLACE */ ": "",
+            opt_ignore ? "/*M!100103 IF NOT EXISTS */ " : "", row[0], row[7]);
+    for (i= 1; i < num_fields; i++)
+    {
+      if (i == 7 || row[i][0] == '\0') /* Wrapper or empty string */
+        continue;
+      f= &tableres->fields[i];
+      qstring= (f->type == MYSQL_TYPE_STRING || f->type == MYSQL_TYPE_VAR_STRING) ? "'" : "";
+      fprintf(md_result_file, "%s%s %s%s%s",
+              (comma_prepend ? ", " : ""), f->name, qstring, row[i], qstring);
+      comma_prepend= 1;
+    }
+    fputs(");\n", md_result_file);
+  }
+  mysql_free_result(tableres);
+
+  return 0;
+}
+
+
+/*
+  dump all system statistical tables
+*/
+
+static int dump_all_stats()
+{
+  my_bool prev_no_create_info, prev_opt_replace_into;
+
+  if (mysql_select_db(mysql, "mysql"))
+  {
+    DB_error(mysql, "when selecting the database");
+    return 1;                   /* If --force */
+  }
+  fprintf(md_result_file,"\nUSE mysql;\n");
+  prev_opt_replace_into= opt_replace_into;
+  opt_replace_into|= !opt_ignore;
+  prev_no_create_info= opt_no_create_info;
+  opt_no_create_info= 1; /* don't overwrite recreate tables */
+  /* EITS added in 10.0.1 */
+  if (mysql_get_server_version(mysql) >= 100001)
+  {
+    dump_table("column_stats", "mysql", NULL, 0);
+    dump_table("index_stats", "mysql", NULL, 0);
+    dump_table("table_stats", "mysql", NULL, 0);
+  }
+  /* Innodb may be disabled */
+  if (!mysql_query(mysql, "show fields from innodb_index_stats"))
+  {
+    MYSQL_RES *tableres= mysql_store_result(mysql);
+    mysql_free_result(tableres);
+    dump_table("innodb_index_stats", "mysql", NULL, 0);
+    dump_table("innodb_table_stats", "mysql", NULL, 0);
+  }
+  opt_no_create_info= prev_no_create_info;
+  opt_replace_into= prev_opt_replace_into;
+  return 0;
+}
+
+
+/*
+  dump all system timezones
+*/
+
+static int dump_all_timezones()
+{
+  my_bool opt_prev_no_create_info, opt_prev_replace_into;
+  if (mysql_select_db(mysql, "mysql"))
+  {
+    DB_error(mysql, "when selecting the database");
+    return 1;                   /* If --force */
+  }
+  opt_prev_replace_into= opt_replace_into;
+  opt_replace_into|= !opt_ignore;
+  opt_prev_no_create_info= opt_no_create_info;
+  opt_no_create_info= 1;
+  fprintf(md_result_file,"\nUSE mysql;\n");
+  dump_table("time_zone", "mysql", NULL, 0);
+  dump_table("time_zone_name", "mysql", NULL, 0);
+  dump_table("time_zone_leap_second", "mysql", NULL, 0);
+  dump_table("time_zone_transition", "mysql", NULL, 0);
+  dump_table("time_zone_transition_type", "mysql", NULL, 0);
+  opt_no_create_info= opt_prev_no_create_info;
+  opt_replace_into= opt_prev_replace_into;
+  return 0;
+}
 
 
 /*
@@ -6175,7 +6725,7 @@ int main(int argc, char **argv)
         dump_tablespaces_for_tables(*argv, (argv + 1), (argc - 1));
       dump_selected_tables(*argv, (argv + 1), (argc - 1));
     }
-    else
+    else if (argc > 0)
     {
       /* One or more databases, all tables */
       if (!opt_alltspcs && !opt_notspcs)
@@ -6183,6 +6733,25 @@ int main(int argc, char **argv)
       dump_databases(argv);
     }
   }
+
+  if (opt_system & OPT_SYSTEM_PLUGINS)
+    dump_all_plugins();
+
+  if (opt_system & OPT_SYSTEM_USERS)
+    dump_all_users_roles_and_grants();
+
+  if (opt_system & OPT_SYSTEM_UDFS)
+    dump_all_udfs();
+
+  if (opt_system & OPT_SYSTEM_SERVERS)
+    dump_all_servers();
+
+  /* These must be last as they explictly change the current database to mysql */
+  if (opt_system & OPT_SYSTEM_STATS)
+    dump_all_stats();
+
+  if (opt_system & OPT_SYSTEM_TIMEZONES)
+    dump_all_timezones();
 
   /* add 'START SLAVE' to end of dump */
   if (opt_slave_apply && add_slave_statements())

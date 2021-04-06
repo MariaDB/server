@@ -6528,8 +6528,7 @@ int spider_mysql_handler::append_update_set(
         mysql_share->append_column_name(str, (*fields)->field_index);
         str->q_append(SPIDER_SQL_EQUAL_STR, SPIDER_SQL_EQUAL_LEN);
 #ifndef DBUG_OFF
-        my_bitmap_map *tmp_map = dbug_tmp_use_all_columns(table,
-          table->read_set);
+        MY_BITMAP *tmp_map = dbug_tmp_use_all_columns(table, &table->read_set);
 #endif
         if (
           spider_db_mysql_utility.
@@ -6538,12 +6537,12 @@ int spider_mysql_handler::append_update_set(
           str->reserve(SPIDER_SQL_COMMA_LEN)
         ) {
 #ifndef DBUG_OFF
-          dbug_tmp_restore_column_map(table->read_set, tmp_map);
+          dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
         }
 #ifndef DBUG_OFF
-        dbug_tmp_restore_column_map(table->read_set, tmp_map);
+        dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
       }
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
@@ -9172,8 +9171,8 @@ int spider_mysql_handler::append_insert_values(
       bitmap_is_set(table->read_set, (*field)->field_index)
     ) {
 #ifndef DBUG_OFF
-      my_bitmap_map *tmp_map =
-        dbug_tmp_use_all_columns(table, table->read_set);
+      MY_BITMAP *tmp_map =
+        dbug_tmp_use_all_columns(table, &table->read_set);
 #endif
       add_value = TRUE;
       DBUG_PRINT("info",("spider is_null()=%s",
@@ -9195,7 +9194,7 @@ int spider_mysql_handler::append_insert_values(
         if (str->reserve(SPIDER_SQL_NULL_LEN + SPIDER_SQL_COMMA_LEN))
         {
 #ifndef DBUG_OFF
-          dbug_tmp_restore_column_map(table->read_set, tmp_map);
+          dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
           str->length(0);
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -9209,7 +9208,7 @@ int spider_mysql_handler::append_insert_values(
           str->reserve(SPIDER_SQL_COMMA_LEN)
         ) {
 #ifndef DBUG_OFF
-          dbug_tmp_restore_column_map(table->read_set, tmp_map);
+          dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
           str->length(0);
           DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -9217,7 +9216,7 @@ int spider_mysql_handler::append_insert_values(
       }
       str->q_append(SPIDER_SQL_COMMA_STR, SPIDER_SQL_COMMA_LEN);
 #ifndef DBUG_OFF
-      dbug_tmp_restore_column_map(table->read_set, tmp_map);
+      dbug_tmp_restore_column_map(&table->read_set, tmp_map);
 #endif
     }
   }

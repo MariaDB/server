@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -126,25 +126,23 @@ NOTE that since we do not hold dict_operation_lock when leaving the
 function, it may be that the referencing table has been dropped when
 we leave this function: this function is only for heuristic use!
 
-@return TRUE if referenced */
+@return true if referenced */
 static
-ibool
+bool
 row_upd_index_is_referenced(
 /*========================*/
 	dict_index_t*	index,	/*!< in: index */
 	trx_t*		trx)	/*!< in: transaction */
 {
 	dict_table_t*	table		= index->table;
-	ibool		froze_data_dict	= FALSE;
-	ibool		is_referenced	= FALSE;
 
 	if (table->referenced_set.empty()) {
-		return(FALSE);
+		return false;
 	}
 
-	if (trx->dict_operation_lock_mode == 0) {
+	const bool froze_data_dict = !trx->dict_operation_lock_mode;
+	if (froze_data_dict) {
 		row_mysql_freeze_data_dictionary(trx);
-		froze_data_dict = TRUE;
 	}
 
 	dict_foreign_set::iterator	it
@@ -152,13 +150,13 @@ row_upd_index_is_referenced(
 			       table->referenced_set.end(),
 			       dict_foreign_with_index(index));
 
-	is_referenced = (it != table->referenced_set.end());
+	const bool is_referenced = (it != table->referenced_set.end());
 
 	if (froze_data_dict) {
 		row_mysql_unfreeze_data_dictionary(trx);
 	}
 
-	return(is_referenced);
+	return is_referenced;
 }
 
 #ifdef WITH_WSREP
@@ -2278,7 +2276,6 @@ row_upd_sec_index_entry(
 	dtuple_t*		entry;
 	dict_index_t*		index;
 	btr_cur_t*		btr_cur;
-	ibool			referenced;
 	dberr_t			err	= DB_SUCCESS;
 	trx_t*			trx	= thr_get_trx(thr);
 	ulint			mode;
@@ -2289,7 +2286,7 @@ row_upd_sec_index_entry(
 
 	index = node->index;
 
-	referenced = row_upd_index_is_referenced(index, trx);
+	const bool referenced = row_upd_index_is_referenced(index, trx);
 #ifdef WITH_WSREP
 	bool foreign = wsrep_row_upd_index_is_foreign(index, trx);
 #endif /* WITH_WSREP */
@@ -2320,7 +2317,9 @@ row_upd_sec_index_entry(
 		break;
 	}
 
-	if (!index->is_committed()) {
+	bool uncommitted = !index->is_committed();
+
+	if (uncommitted) {
 		/* The index->online_status may change if the index is
 		or was being created online, but not committed yet. It
 		is protected by index->lock. */
@@ -2517,10 +2516,37 @@ row_upd_sec_index_entry(
 
 	mem_heap_empty(heap);
 
+	DEBUG_SYNC_C_IF_THD(trx->mysql_thd,
+			    "before_row_upd_sec_new_index_entry");
+
+	uncommitted = !index->is_committed();
+	if (uncommitted) {
+		mtr.start();
+		/* The index->online_status may change if the index is
+		being rollbacked. It is protected by index->lock. */
+
+		mtr_s_lock(dict_index_get_lock(index), &mtr);
+
+		switch (dict_index_get_online_status(index)) {
+		case ONLINE_INDEX_COMPLETE:
+		case ONLINE_INDEX_CREATION:
+		       break;
+		case ONLINE_INDEX_ABORTED:
+		case ONLINE_INDEX_ABORTED_DROPPED:
+		       mtr_commit(&mtr);
+		       goto func_exit;
+		}
+
+	}
+
 	/* Build a new index entry */
 	entry = row_build_index_entry(node->upd_row, node->upd_ext,
 				      index, heap);
 	ut_a(entry);
+
+	if (uncommitted) {
+		mtr_commit(&mtr);
+	}
 
 	/* Insert new index entry */
 	err = row_ins_sec_index_entry(index, entry, thr);
@@ -2661,12 +2687,13 @@ row_upd_clust_rec_by_insert(
 	upd_node_t*	node,	/*!< in/out: row update node */
 	dict_index_t*	index,	/*!< in: clustered index of the record */
 	que_thr_t*	thr,	/*!< in: query thread */
-	ibool		referenced,/*!< in: TRUE if index may be referenced in
+	bool		referenced,/*!< in: whether index may be referenced in
 				a foreign key constraint */
 #ifdef WITH_WSREP
 	bool		foreign,/*!< in: whether this is a foreign key */
 #endif
-	mtr_t*		mtr)	/*!< in/out: mtr; gets committed here */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction,
+				may be committed and restarted */
 {
 	mem_heap_t*	heap;
 	btr_pcur_t*	pcur;
@@ -2731,10 +2758,7 @@ row_upd_clust_rec_by_insert(
 			btr_cur_get_block(btr_cur), rec, index, offsets,
 			thr, node->row, mtr);
 		if (err != DB_SUCCESS) {
-err_exit:
-			mtr_commit(mtr);
-			mem_heap_free(heap);
-			return(err);
+			goto err_exit;
 		}
 
 		/* If the the new row inherits externally stored
@@ -2793,14 +2817,14 @@ check_fk:
 		}
 	}
 
-	mtr_commit(mtr);
+	mtr->commit();
+	mtr->start();
 
+	node->state = UPD_NODE_INSERT_CLUSTERED;
 	err = row_ins_clust_index_entry(
 		index, entry, thr, dtuple_get_n_ext(entry));
-	node->state = UPD_NODE_INSERT_CLUSTERED;
-
+err_exit:
 	mem_heap_free(heap);
-
 	return(err);
 }
 
@@ -2820,7 +2844,8 @@ row_upd_clust_rec(
 	mem_heap_t**	offsets_heap,
 				/*!< in/out: memory heap, can be emptied */
 	que_thr_t*	thr,	/*!< in: query thread */
-	mtr_t*		mtr)	/*!< in: mtr; gets committed here */
+	mtr_t*		mtr)	/*!< in,out: mini-transaction; may be
+				committed and restarted here */
 {
 	mem_heap_t*	heap		= NULL;
 	big_rec_t*	big_rec		= NULL;
@@ -2866,16 +2891,15 @@ row_upd_clust_rec(
 		goto success;
 	}
 
-	mtr_commit(mtr);
-
 	if (buf_LRU_buf_pool_running_out()) {
-
 		err = DB_LOCK_TABLE_FULL;
 		goto func_exit;
 	}
+
 	/* We may have to modify the tree structure: do a pessimistic descent
 	down the index tree */
 
+	mtr->commit();
 	mtr->start();
 
 	if (index->table->is_temporary()) {
@@ -2925,7 +2949,6 @@ success:
 		}
 	}
 
-	mtr_commit(mtr);
 func_exit:
 	if (heap) {
 		mem_heap_free(heap);
@@ -2950,17 +2973,17 @@ row_upd_del_mark_clust_rec(
 	rec_offs*	offsets,/*!< in/out: rec_get_offsets() for the
 				record under the cursor */
 	que_thr_t*	thr,	/*!< in: query thread */
-	ibool		referenced,
-				/*!< in: TRUE if index may be referenced in
+	bool		referenced,
+				/*!< in: whether index may be referenced in
 				a foreign key constraint */
 #ifdef WITH_WSREP
 	bool		foreign,/*!< in: whether this is a foreign key */
 #endif
-	mtr_t*		mtr)	/*!< in: mtr; gets committed here */
+	mtr_t*		mtr)	/*!< in,out: mini-transaction;
+				will be committed and restarted */
 {
 	btr_pcur_t*	pcur;
 	btr_cur_t*	btr_cur;
-	dberr_t		err;
 	rec_t*		rec;
 	trx_t*		trx = thr_get_trx(thr);
 
@@ -2976,8 +2999,7 @@ row_upd_del_mark_clust_rec(
 	if (!row_upd_store_row(node, trx->mysql_thd,
 			  thr->prebuilt  && thr->prebuilt->table == node->table
 			  ? thr->prebuilt->m_mysql_table : NULL)) {
-		err = DB_COMPUTE_VALUE_FAILED;
-		return err;
+		return DB_COMPUTE_VALUE_FAILED;
 	}
 
 	/* Mark the clustered index record deleted; we do not have to check
@@ -2985,7 +3007,7 @@ row_upd_del_mark_clust_rec(
 
 	rec = btr_cur_get_rec(btr_cur);
 
-	err = btr_cur_del_mark_set_clust_rec(
+	dberr_t err = btr_cur_del_mark_set_clust_rec(
 		btr_cur_get_block(btr_cur), rec,
 		index, offsets, thr, node->row, mtr);
 
@@ -3022,8 +3044,6 @@ row_upd_del_mark_clust_rec(
 #endif /* WITH_WSREP */
 	}
 
-	mtr_commit(mtr);
-
 	return(err);
 }
 
@@ -3040,22 +3060,19 @@ row_upd_clust_step(
 {
 	dict_index_t*	index;
 	btr_pcur_t*	pcur;
-	ibool		success;
 	dberr_t		err;
 	mtr_t		mtr;
 	rec_t*		rec;
 	mem_heap_t*	heap	= NULL;
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets;
-	ibool		referenced;
 	trx_t*		trx = thr_get_trx(thr);
 
 	rec_offs_init(offsets_);
 
 	index = dict_table_get_first_index(node->table);
 
-	referenced = row_upd_index_is_referenced(index, trx);
-
+	const bool referenced = row_upd_index_is_referenced(index, trx);
 #ifdef WITH_WSREP
 	const bool foreign = wsrep_row_upd_index_is_foreign(index, trx);
 #endif
@@ -3096,14 +3113,9 @@ row_upd_clust_step(
 		mode = BTR_MODIFY_LEAF;
 	}
 
-	success = btr_pcur_restore_position(mode, pcur, &mtr);
-
-	if (!success) {
+	if (!btr_pcur_restore_position(mode, pcur, &mtr)) {
 		err = DB_RECORD_NOT_FOUND;
-
-		mtr_commit(&mtr);
-
-		return(err);
+		goto exit_func;
 	}
 
 	/* If this is a row in SYS_INDEXES table of the data dictionary,
@@ -3122,14 +3134,9 @@ row_upd_clust_step(
 		mtr.start();
 		mtr.set_named_space(index->space);
 
-		success = btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur,
-						    &mtr);
-		if (!success) {
+		if (!btr_pcur_restore_position(BTR_MODIFY_LEAF, pcur, &mtr)) {
 			err = DB_ERROR;
-
-			mtr.commit();
-
-			return(err);
+			goto exit_func;
 		}
 	}
 
@@ -3142,7 +3149,6 @@ row_upd_clust_step(
 			0, btr_pcur_get_block(pcur),
 			rec, index, offsets, thr);
 		if (err != DB_SUCCESS) {
-			mtr.commit();
 			goto exit_func;
 		}
 	}
@@ -3151,8 +3157,6 @@ row_upd_clust_step(
 				      btr_pcur_get_block(pcur),
 				      page_rec_get_heap_no(rec)));
 
-	/* NOTE: the following function calls will also commit mtr */
-
 	if (node->is_delete) {
 		err = row_upd_del_mark_clust_rec(
 			node, index, offsets, thr, referenced,
@@ -3160,13 +3164,7 @@ row_upd_clust_step(
 			foreign,
 #endif
 			&mtr);
-
-		if (err == DB_SUCCESS) {
-			node->state = UPD_NODE_UPDATE_ALL_SEC;
-			node->index = dict_table_get_next_index(index);
-		}
-
-		goto exit_func;
+		goto all_done;
 	}
 
 	/* If the update is made for MySQL, we already have the update vector
@@ -3181,14 +3179,13 @@ row_upd_clust_step(
 	}
 
 	if (node->cmpl_info & UPD_NODE_NO_ORD_CHANGE) {
-
 		err = row_upd_clust_rec(
 			flags, node, index, offsets, &heap, thr, &mtr);
 		goto exit_func;
 	}
 
-	if(!row_upd_store_row(node, trx->mysql_thd,
-			thr->prebuilt ? thr->prebuilt->m_mysql_table : NULL)) {
+	if (!row_upd_store_row(node, trx->mysql_thd, thr->prebuilt
+			       ? thr->prebuilt->m_mysql_table : NULL)) {
 		err = DB_COMPUTE_VALUE_FAILED;
 		goto exit_func;
 	}
@@ -3213,31 +3210,29 @@ row_upd_clust_step(
 			foreign,
 #endif
 			&mtr);
-		if (err != DB_SUCCESS) {
-
-			goto exit_func;
+all_done:
+		if (err == DB_SUCCESS) {
+			node->state = UPD_NODE_UPDATE_ALL_SEC;
+success:
+			node->index = dict_table_get_next_index(index);
 		}
-
-		node->state = UPD_NODE_UPDATE_ALL_SEC;
 	} else {
 		err = row_upd_clust_rec(
 			flags, node, index, offsets, &heap, thr, &mtr);
 
-		if (err != DB_SUCCESS) {
-
-			goto exit_func;
+		if (err == DB_SUCCESS) {
+			ut_ad(!node->is_delete);
+			node->state = UPD_NODE_UPDATE_SOME_SEC;
+			goto success;
 		}
-
-		node->state = UPD_NODE_UPDATE_SOME_SEC;
 	}
-
-	node->index = dict_table_get_next_index(index);
 
 exit_func:
-	if (heap) {
+	mtr.commit();
+	if (UNIV_LIKELY_NULL(heap)) {
 		mem_heap_free(heap);
 	}
-	return(err);
+	return err;
 }
 
 /***********************************************************//**

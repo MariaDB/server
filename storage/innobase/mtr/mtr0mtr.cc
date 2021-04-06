@@ -308,24 +308,6 @@ struct DebugCheck {
 };
 #endif
 
-/** Find buffer fix count of the given block acquired by the
-mini-transaction */
-struct FindBlock
-{
-  int32_t num_fix;
-  const buf_block_t *const block;
-
-  FindBlock(const buf_block_t *block_buf): num_fix(0), block(block_buf) {}
-
-  bool operator()(const mtr_memo_slot_t* slot)
-  {
-    if (slot->object == block)
-      ut_d(if (slot->type != MTR_MEMO_MODIFY))
-      num_fix++;
-    return true;
-  }
-};
-
 /** Release a resource acquired by the mini-transaction. */
 struct ReleaseBlocks {
 	/** Release specific object */
@@ -822,12 +804,48 @@ mtr_t::release_free_extents(ulint n_reserved)
   space->release_free_extents(n_reserved);
 }
 
-int32_t mtr_t::get_fix_count(buf_block_t *block)
+/** Find out whether a block was not X-latched by the mini-transaction */
+struct FindBlockX
 {
-  Iterate<FindBlock> iteration((FindBlock(block)));
-  if (m_memo.for_each_block(iteration))
-    return iteration.functor.num_fix;
-  return 0;
+  const buf_block_t &block;
+
+  FindBlockX(const buf_block_t &block): block(block) {}
+
+  /** @return whether the block was not found x-latched */
+  bool operator()(const mtr_memo_slot_t *slot) const
+  {
+    return slot->object != &block || slot->type != MTR_MEMO_PAGE_X_FIX;
+  }
+};
+
+#ifdef UNIV_DEBUG
+/** Assert that the block is not present in the mini-transaction */
+struct FindNoBlock
+{
+  const buf_block_t &block;
+
+  FindNoBlock(const buf_block_t &block): block(block) {}
+
+  /** @return whether the block was not found */
+  bool operator()(const mtr_memo_slot_t *slot) const
+  {
+    return slot->object != &block;
+  }
+};
+#endif /* UNIV_DEBUG */
+
+bool mtr_t::have_x_latch(const buf_block_t &block) const
+{
+  if (m_memo.for_each_block(CIterate<FindBlockX>(FindBlockX(block))))
+  {
+    ut_ad(m_memo.for_each_block(CIterate<FindNoBlock>(FindNoBlock(block))));
+    ut_ad(!memo_contains_flagged(&block,
+                                 MTR_MEMO_PAGE_S_FIX | MTR_MEMO_PAGE_SX_FIX |
+                                 MTR_MEMO_BUF_FIX | MTR_MEMO_MODIFY));
+    return false;
+  }
+  ut_ad(rw_lock_own(&block.lock, RW_LOCK_X));
+  return true;
 }
 
 #ifdef UNIV_DEBUG
@@ -844,15 +862,17 @@ mtr_t::memo_contains(
 		return(false);
 	}
 
+	const rw_lock_t *lock = static_cast<const rw_lock_t*>(object);
+
 	switch (type) {
 	case MTR_MEMO_X_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_X));
+		ut_ad(rw_lock_own(lock, RW_LOCK_X));
 		break;
 	case MTR_MEMO_SX_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_SX));
+		ut_ad(rw_lock_own(lock, RW_LOCK_SX));
 		break;
 	case MTR_MEMO_S_LOCK:
-		ut_ad(rw_lock_own((rw_lock_t*) object, RW_LOCK_S));
+		ut_ad(rw_lock_own(lock, RW_LOCK_S));
 		break;
 	}
 

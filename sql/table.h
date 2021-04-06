@@ -773,7 +773,7 @@ struct TABLE_SHARE
   uint rec_buff_length;                 /* Size of table->record[] buffer */
   uint keys, key_parts;
   uint ext_key_parts;       /* Total number of key parts in extended keys */
-  uint max_key_length, max_unique_length, total_key_length;
+  uint max_key_length, max_unique_length;
   uint uniques;                         /* Number of UNIQUE index */
   uint db_create_options;		/* Create options from database */
   uint db_options_in_use;		/* Options in use */
@@ -2277,8 +2277,12 @@ struct TABLE_LIST
     Indicates what triggers we need to pre-load for this TABLE_LIST
     when opening an associated TABLE. This is filled after
     the parsed tree is created.
+
+    slave_fk_event_map is filled on the slave side with bitmaps value
+    representing row-based event operation to help find and prelock
+    possible FK constrain-related child tables.
   */
-  uint8 trg_event_map;
+  uint8 trg_event_map, slave_fk_event_map;
   /* TRUE <=> this table is a const one and was optimized away. */
   bool optimized_away;
 
@@ -2766,25 +2770,25 @@ typedef struct st_open_table_list{
 } OPEN_TABLE_LIST;
 
 
-static inline my_bitmap_map *tmp_use_all_columns(TABLE *table,
-                                                 MY_BITMAP *bitmap)
+static inline MY_BITMAP *tmp_use_all_columns(TABLE *table,
+                                             MY_BITMAP **bitmap)
 {
-  my_bitmap_map *old= bitmap->bitmap;
-  bitmap->bitmap= table->s->all_set.bitmap;
+  MY_BITMAP *old= *bitmap;
+  *bitmap= &table->s->all_set;
   return old;
 }
 
 
-static inline void tmp_restore_column_map(MY_BITMAP *bitmap,
-                                          my_bitmap_map *old)
+static inline void tmp_restore_column_map(MY_BITMAP **bitmap,
+                                          MY_BITMAP *old)
 {
-  bitmap->bitmap= old;
+  *bitmap= old;
 }
 
 /* The following is only needed for debugging */
 
-static inline my_bitmap_map *dbug_tmp_use_all_columns(TABLE *table,
-                                                      MY_BITMAP *bitmap)
+static inline MY_BITMAP *dbug_tmp_use_all_columns(TABLE *table,
+                                                      MY_BITMAP **bitmap)
 {
 #ifndef DBUG_OFF
   return tmp_use_all_columns(table, bitmap);
@@ -2793,8 +2797,8 @@ static inline my_bitmap_map *dbug_tmp_use_all_columns(TABLE *table,
 #endif
 }
 
-static inline void dbug_tmp_restore_column_map(MY_BITMAP *bitmap,
-                                               my_bitmap_map *old)
+static inline void dbug_tmp_restore_column_map(MY_BITMAP **bitmap,
+                                               MY_BITMAP *old)
 {
 #ifndef DBUG_OFF
   tmp_restore_column_map(bitmap, old);
@@ -2807,22 +2811,22 @@ static inline void dbug_tmp_restore_column_map(MY_BITMAP *bitmap,
   Provide for the possiblity of the read set being the same as the write set
 */
 static inline void dbug_tmp_use_all_columns(TABLE *table,
-                                            my_bitmap_map **save,
-                                            MY_BITMAP *read_set,
-                                            MY_BITMAP *write_set)
+                                            MY_BITMAP **save,
+                                            MY_BITMAP **read_set,
+                                            MY_BITMAP **write_set)
 {
 #ifndef DBUG_OFF
-  save[0]= read_set->bitmap;
-  save[1]= write_set->bitmap;
+  save[0]= *read_set;
+  save[1]= *write_set;
   (void) tmp_use_all_columns(table, read_set);
   (void) tmp_use_all_columns(table, write_set);
 #endif
 }
 
 
-static inline void dbug_tmp_restore_column_maps(MY_BITMAP *read_set,
-                                                MY_BITMAP *write_set,
-                                                my_bitmap_map **old)
+static inline void dbug_tmp_restore_column_maps(MY_BITMAP **read_set,
+                                                MY_BITMAP **write_set,
+                                                MY_BITMAP **old)
 {
 #ifndef DBUG_OFF
   tmp_restore_column_map(read_set, old[0]);
@@ -2924,7 +2928,8 @@ inline void mark_as_null_row(TABLE *table)
 {
   table->null_row=1;
   table->status|=STATUS_NULL_ROW;
-  bfill(table->null_flags,table->s->null_bytes,255);
+  if (table->s->null_bytes)
+    bfill(table->null_flags,table->s->null_bytes,255);
 }
 
 bool is_simple_order(ORDER *order);

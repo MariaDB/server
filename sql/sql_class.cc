@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation.
+   Copyright (c) 2008, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -444,6 +444,7 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
                      const void *ha_data)
 {
   plugin_ref *lock= &thd->ha_data[hton->slot].lock;
+  DBUG_ASSERT(thd == current_thd);
   if (ha_data && !*lock)
     *lock= ha_lock_engine(NULL, (handlerton*) hton);
   else if (!ha_data && *lock)
@@ -451,7 +452,9 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
     plugin_unlock(NULL, *lock);
     *lock= NULL;
   }
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   *thd_ha_data(thd, hton)= (void*) ha_data;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 
@@ -2859,12 +2862,12 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
   }
   /* Create the file world readable */
   if ((file= mysql_file_create(key_select_to_file,
-                               path, 0666, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
+                               path, 0644, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
     return file;
 #ifdef HAVE_FCHMOD
-  (void) fchmod(file, 0666);			// Because of umask()
+  (void) fchmod(file, 0644);			// Because of umask()
 #else
-  (void) chmod(path, 0666);
+  (void) chmod(path, 0644);
 #endif
   if (init_io_cache(cache, file, 0L, WRITE_CACHE, 0L, 1, MYF(MY_WME)))
   {
@@ -4485,7 +4488,7 @@ void destroy_thd(MYSQL_THD thd)
 void reset_thd(MYSQL_THD thd)
 {
   close_thread_tables(thd);
-  thd->mdl_context.release_transactional_locks();
+  thd->release_transactional_locks();
   thd->free_items();
   free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
 }
@@ -4548,7 +4551,8 @@ extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen)
   if (!mysql_mutex_trylock(&thd->LOCK_thd_data))
   {
     len= MY_MIN(buflen - 1, thd->query_length());
-    memcpy(buf, thd->query(), len);
+    if (len)
+      memcpy(buf, thd->query(), len);
     mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   buf[len]= '\0';
@@ -4726,6 +4730,18 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   DBUG_EXECUTE_IF("disable_thd_need_ordering_with", return 1;);
   if (!thd || !other_thd)
     return 1;
+#ifdef WITH_WSREP
+  /* wsrep applier, replayer and TOI processing threads are ordered
+     by replication provider, relaxed GAP locking protocol can be used
+     between high priority wsrep threads. Note that this function
+     is called while holding lock_sys mutex, therefore we can't
+     use THD::LOCK_thd_data mutex below to follow mutex ordering rules.
+  */
+  if (WSREP_ON &&
+      wsrep_thd_is_BF(const_cast<THD *>(thd), false) &&
+      wsrep_thd_is_BF(const_cast<THD *>(other_thd), false))
+    return 0;
+#endif /* WITH_WSREP */
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)

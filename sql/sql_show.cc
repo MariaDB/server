@@ -1925,7 +1925,6 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
   bool check_options= !(sql_mode & MODE_IGNORE_BAD_TABLE_OPTIONS) &&
                       !create_info_arg;
   handlerton *hton;
-  my_bitmap_map *old_map;
   int error= 0;
   DBUG_ENTER("show_create_table");
   DBUG_PRINT("enter",("table: %s", table->s->table_name.str));
@@ -1987,7 +1986,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     We have to restore the read_set if we are called from insert in case
     of row based replication.
   */
-  old_map= tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= tmp_use_all_columns(table, &table->read_set);
 
   for (ptr=table->field ; (field= *ptr); ptr++)
   {
@@ -2014,8 +2013,13 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
       /*
 	For string types dump collation name only if
 	collation is not primary for the given charset
+
+        For generated fields don't print the COLLATE clause if
+        the collation matches the expression's collation.
       */
-      if (!(field->charset()->state & MY_CS_PRIMARY) && !field->vcol_info)
+      if (!(field->charset()->state & MY_CS_PRIMARY) &&
+          (!field->vcol_info ||
+           field->charset() != field->vcol_info->expr->collation.collation))
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
 	packet->append(field->charset()->name);
@@ -2352,7 +2356,7 @@ int show_create_table(THD *thd, TABLE_LIST *table_list, String *packet,
     }
   }
 #endif
-  tmp_restore_column_map(table->read_set, old_map);
+  tmp_restore_column_map(&table->read_set, old_map);
   DBUG_RETURN(error);
 }
 
@@ -3576,6 +3580,9 @@ static bool show_status_array(THD *thd, const char *wild,
 
         if (show_type == SHOW_SYS)
           mysql_mutex_lock(&LOCK_global_system_variables);
+        else if (show_type >= SHOW_LONG_STATUS && scope == OPT_GLOBAL)
+          calc_sum_of_all_status_if_needed(status_var);
+
         pos= get_one_variable(thd, var, scope, show_type, status_var,
                               &charset, buff, &length);
 
@@ -3616,8 +3623,6 @@ uint calc_sum_of_all_status(STATUS_VAR *to)
   I_List_iterator<THD> it(threads);
   THD *tmp;
 
-  /* Get global values as base */
-  *to= global_status_var;
   to->local_memory_used= 0;
 
   /* Add to this status from existing threads */
@@ -5044,6 +5049,12 @@ int get_all_tables(THD *thd, TABLE_LIST *tables, COND *cond)
                                               &open_tables_state_backup,
                                               can_deadlock))
                 continue;
+            }
+
+            if (thd->killed == ABORT_QUERY)
+            {
+              error= 0;
+              goto err;
             }
 
             DEBUG_SYNC(thd, "before_open_in_get_all_tables");
@@ -7582,13 +7593,7 @@ int fill_status(THD *thd, TABLE_LIST *tables, COND *cond)
   if (partial_cond)
     partial_cond->val_int();
 
-  if (scope == OPT_GLOBAL)
-  {
-    /* We only hold LOCK_status for summary status vars */
-    mysql_mutex_lock(&LOCK_status);
-    calc_sum_of_all_status(&tmp);
-    mysql_mutex_unlock(&LOCK_status);
-  }
+  tmp.local_memory_used= 0; // meaning tmp was not populated yet
 
   mysql_mutex_lock(&LOCK_show_status);
   res= show_status_array(thd, wild,
@@ -9410,7 +9415,7 @@ ST_FIELD_INFO check_constraints_fields_info[]=
   {"TABLE_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0, OPEN_FULL_TABLE},
   {"CONSTRAINT_NAME", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
    OPEN_FULL_TABLE},
-  {"CHECK_CLAUSE", NAME_CHAR_LEN, MYSQL_TYPE_STRING, 0, 0, 0,
+  {"CHECK_CLAUSE", MAX_FIELD_VARCHARLENGTH , MYSQL_TYPE_STRING, 0, 0, 0,
    OPEN_FULL_TABLE},
   {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, SKIP_OPEN_TABLE}
 };

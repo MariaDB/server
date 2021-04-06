@@ -564,6 +564,7 @@ void mysql_print_status()
   STATUS_VAR tmp;
   uint count;
 
+  tmp= global_status_var;
   count= calc_sum_of_all_status(&tmp);
   printf("\nStatus information:\n\n");
   (void) my_getwd(current_dir, sizeof(current_dir),MYF(0));
@@ -615,8 +616,12 @@ Next alarm time: %lu\n",
 	(ulong)alarm_info.next_alarm_time);
 #endif
   display_table_locks();
-#ifdef HAVE_MALLINFO
+#if defined(HAVE_MALLINFO2)
+  struct mallinfo2 info = mallinfo2();
+#elif defined(HAVE_MALLINFO)
   struct mallinfo info= mallinfo();
+#endif
+#if defined(HAVE_MALLINFO) || defined(HAVE_MALLINFO2)
   char llbuff[10][22];
   printf("\nMemory status:\n\
 Non-mmapped space allocated from system: %s\n\

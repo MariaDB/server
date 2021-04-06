@@ -5410,8 +5410,9 @@ proc
 one
 DROP DATABASE bug25717383;
 Usage: mysqldump [OPTIONS] database [tables]
-OR     mysqldump [OPTIONS] --databases [OPTIONS] DB1 [DB2 DB3...]
-OR     mysqldump [OPTIONS] --all-databases [OPTIONS]
+OR     mysqldump [OPTIONS] --databases DB1 [DB2 DB3...]
+OR     mysqldump [OPTIONS] --all-databases
+OR     mysqldump [OPTIONS] --system=[SYSTEMOPTIONS]]
 For more options, use mysqldump --help
 #
 # MDEV-9001 - [PATCH] Fix DB name quoting in mysqldump --routine
@@ -5713,4 +5714,271 @@ DELIMITER ;
 /*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
 
 DROP TABLE t1;
+#
+# MDEV-20939: Race condition between mysqldump import and InnoDB
+#             persistent statistics calculation
+#
+#
+# Without --replace and --insert-ignore
+#
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS `innodb_index_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_index_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `stat_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `stat_value` bigint(20) unsigned NOT NULL,
+  `sample_size` bigint(20) unsigned DEFAULT NULL,
+  `stat_description` varchar(1024) COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+DROP TABLE IF EXISTS `innodb_table_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `general_log` (
+  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `command_type` varchar(64) NOT NULL,
+  `argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+#
+# With --replace
+#
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS `innodb_index_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_index_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `stat_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `stat_value` bigint(20) unsigned NOT NULL,
+  `sample_size` bigint(20) unsigned DEFAULT NULL,
+  `stat_description` varchar(1024) COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `innodb_index_stats` WRITE;
+/*!40000 ALTER TABLE `innodb_index_stats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `innodb_index_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS `innodb_table_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `innodb_table_stats` WRITE;
+/*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `general_log` (
+  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `command_type` varchar(64) NOT NULL,
+  `argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
+#
+# With --insert-ignore
+#
+
+/*!40101 SET @OLD_CHARACTER_SET_CLIENT=@@CHARACTER_SET_CLIENT */;
+/*!40101 SET @OLD_CHARACTER_SET_RESULTS=@@CHARACTER_SET_RESULTS */;
+/*!40101 SET @OLD_COLLATION_CONNECTION=@@COLLATION_CONNECTION */;
+/*!40101 SET NAMES utf8 */;
+/*!40103 SET @OLD_TIME_ZONE=@@TIME_ZONE */;
+/*!40103 SET TIME_ZONE='+00:00' */;
+/*!40014 SET @OLD_UNIQUE_CHECKS=@@UNIQUE_CHECKS, UNIQUE_CHECKS=0 */;
+/*!40014 SET @OLD_FOREIGN_KEY_CHECKS=@@FOREIGN_KEY_CHECKS, FOREIGN_KEY_CHECKS=0 */;
+/*!40101 SET @OLD_SQL_MODE=@@SQL_MODE, SQL_MODE='NO_AUTO_VALUE_ON_ZERO' */;
+/*!40111 SET @OLD_SQL_NOTES=@@SQL_NOTES, SQL_NOTES=0 */;
+DROP TABLE IF EXISTS `innodb_index_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_index_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `stat_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `stat_value` bigint(20) unsigned NOT NULL,
+  `sample_size` bigint(20) unsigned DEFAULT NULL,
+  `stat_description` varchar(1024) COLLATE utf8_bin NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `innodb_index_stats` WRITE;
+/*!40000 ALTER TABLE `innodb_index_stats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `innodb_index_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+DROP TABLE IF EXISTS `innodb_table_stats`;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE `innodb_table_stats` (
+  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `n_rows` bigint(20) unsigned NOT NULL,
+  `clustered_index_size` bigint(20) unsigned NOT NULL,
+  `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
+  PRIMARY KEY (`database_name`,`table_name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+/*!40101 SET character_set_client = @saved_cs_client */;
+
+LOCK TABLES `innodb_table_stats` WRITE;
+/*!40000 ALTER TABLE `innodb_table_stats` DISABLE KEYS */;
+/*!40000 ALTER TABLE `innodb_table_stats` ENABLE KEYS */;
+UNLOCK TABLES;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `general_log` (
+  `event_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `command_type` varchar(64) NOT NULL,
+  `argument` mediumtext NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40101 SET @saved_cs_client     = @@character_set_client */;
+/*!40101 SET character_set_client = utf8 */;
+CREATE TABLE IF NOT EXISTS `slow_log` (
+  `start_time` timestamp(6) NOT NULL DEFAULT current_timestamp(6) ON UPDATE current_timestamp(6),
+  `user_host` mediumtext NOT NULL,
+  `query_time` time(6) NOT NULL,
+  `lock_time` time(6) NOT NULL,
+  `rows_sent` int(11) NOT NULL,
+  `rows_examined` int(11) NOT NULL,
+  `db` varchar(512) NOT NULL,
+  `last_insert_id` int(11) NOT NULL,
+  `insert_id` int(11) NOT NULL,
+  `server_id` int(10) unsigned NOT NULL,
+  `sql_text` mediumtext NOT NULL,
+  `thread_id` bigint(21) unsigned NOT NULL,
+  `rows_affected` int(11) NOT NULL
+) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+/*!40101 SET character_set_client = @saved_cs_client */;
+/*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
+
+/*!40101 SET SQL_MODE=@OLD_SQL_MODE */;
+/*!40014 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS */;
+/*!40014 SET UNIQUE_CHECKS=@OLD_UNIQUE_CHECKS */;
+/*!40101 SET CHARACTER_SET_CLIENT=@OLD_CHARACTER_SET_CLIENT */;
+/*!40101 SET CHARACTER_SET_RESULTS=@OLD_CHARACTER_SET_RESULTS */;
+/*!40101 SET COLLATION_CONNECTION=@OLD_COLLATION_CONNECTION */;
+/*!40111 SET SQL_NOTES=@OLD_SQL_NOTES */;
+
 # End of 10.2 tests

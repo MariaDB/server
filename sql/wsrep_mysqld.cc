@@ -2762,9 +2762,7 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
 {
   if (signal)
   {
-    mysql_mutex_lock(&thd->LOCK_thd_data);
     thd->awake(KILL_QUERY);
-    mysql_mutex_unlock(&thd->LOCK_thd_data);
   }
   else
   {
@@ -2790,16 +2788,18 @@ extern "C" bool wsrep_thd_ignore_table(THD *thd)
 extern int
 wsrep_trx_order_before(THD *thd1, THD *thd2)
 {
-    if (wsrep_thd_trx_seqno(thd1) < wsrep_thd_trx_seqno(thd2)) {
-        WSREP_DEBUG("BF conflict, order: %lld %lld\n",
-                    (long long)wsrep_thd_trx_seqno(thd1),
-                    (long long)wsrep_thd_trx_seqno(thd2));
-        return 1;
-    }
-    WSREP_DEBUG("waiting for BF, trx order: %lld %lld\n",
-                (long long)wsrep_thd_trx_seqno(thd1),
-                (long long)wsrep_thd_trx_seqno(thd2));
-    return 0;
+  const longlong trx1_seqno= wsrep_thd_trx_seqno(thd1);
+  const longlong trx2_seqno= wsrep_thd_trx_seqno(thd2);
+  WSREP_DEBUG("BF conflict, order: %lld %lld\n",
+              trx1_seqno, trx2_seqno);
+
+  if (trx1_seqno == WSREP_SEQNO_UNDEFINED ||
+      trx2_seqno == WSREP_SEQNO_UNDEFINED)
+    return 1; /* trx is not yet replicated */
+  else if (trx1_seqno < trx2_seqno)
+    return 1;
+
+  return 0;
 }
 
 

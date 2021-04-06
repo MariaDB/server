@@ -2322,7 +2322,7 @@ files_checked:
 			to the data files and truncate or delete the log.
 			Unless --export is specified, no further change to
 			InnoDB files is needed. */
-			ut_ad(!srv_force_recovery);
+			ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
 			ut_ad(srv_n_log_files_found <= 1);
 			ut_ad(recv_no_log_write);
 			buf_flush_sync_all_buf_pools();
@@ -2912,6 +2912,17 @@ innodb_shutdown()
 	if (dict_foreign_err_file) {
 		fclose(dict_foreign_err_file);
 	}
+
+	srv_sys_space.shutdown();
+	if (srv_tmp_space.get_sanity_check_status()) {
+		fil_space_close(srv_tmp_space.name());
+		srv_tmp_space.delete_files();
+	}
+	srv_tmp_space.shutdown();
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	os_event_destroy(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "

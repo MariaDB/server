@@ -115,13 +115,13 @@ THR_LOCK_DATA **ha_seq::store_lock(THD *thd, THR_LOCK_DATA **to,
 
 void ha_seq::set(unsigned char *buf)
 {
-  my_bitmap_map *old_map = dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map = dbug_tmp_use_all_columns(table, &table->write_set);
   my_ptrdiff_t offset = (my_ptrdiff_t) (buf - table->record[0]);
   Field *field = table->field[0];
   field->move_field_offset(offset);
   field->store(cur, true);
   field->move_field_offset(-offset);
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
 }
 
 int ha_seq::rnd_init(bool scan)

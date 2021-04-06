@@ -428,13 +428,13 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
     TABLE *table= field->table;
     sql_mode_t orig_sql_mode= thd->variables.sql_mode;
     enum_check_fields orig_count_cuted_fields= thd->count_cuted_fields;
-    my_bitmap_map *old_maps[2] = { NULL, NULL };
+    MY_BITMAP *old_maps[2] = { NULL, NULL };
     ulonglong UNINIT_VAR(orig_field_val); /* original field value if valid */
 
     /* table->read_set may not be set if we come here from a CREATE TABLE */
     if (table && table->read_set)
       dbug_tmp_use_all_columns(table, old_maps, 
-                               table->read_set, table->write_set);
+                               &table->read_set, &table->write_set);
     /* For comparison purposes allow invalid dates like 2000-01-32 */
     thd->variables.sql_mode= (orig_sql_mode & ~MODE_NO_ZERO_DATE) | 
                              MODE_INVALID_DATES;
@@ -478,7 +478,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
     thd->variables.sql_mode= orig_sql_mode;
     thd->count_cuted_fields= orig_count_cuted_fields;
     if (table && table->read_set)
-      dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_maps);
+      dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_maps);
   }
   return result;
 }
@@ -1234,7 +1234,9 @@ longlong Item_func_truth::val_int()
 
 bool Item_in_optimizer::is_top_level_item()
 {
-  return ((Item_in_subselect *)args[1])->is_top_level_item();
+  if (!invisible_mode())
+    return ((Item_in_subselect *)args[1])->is_top_level_item();
+  return false;
 }
 
 
@@ -1596,7 +1598,7 @@ longlong Item_in_optimizer::val_int()
     DBUG_RETURN(res);
   }
 
-  if (cache->null_value)
+  if (cache->null_value_inside)
   {
      DBUG_PRINT("info", ("Left NULL..."));
     /*
@@ -5261,6 +5263,7 @@ void Item_func_like::print(String *str, enum_query_type query_type)
 longlong Item_func_like::val_int()
 {
   DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(escape != -1);
   String* res= args[0]->val_str(&cmp_value1);
   if (args[0]->null_value)
   {
@@ -5347,15 +5350,29 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
                      bool escape_used_in_parsing, CHARSET_INFO *cmp_cs,
                      int *escape)
 {
-  if (!escape_item->const_during_execution())
+  /*
+    ESCAPE clause accepts only constant arguments and Item_param.
+
+    Subqueries during context_analysis_only might decide they're
+    const_during_execution, but not quite const yet, not evaluate-able.
+    This is fine, as most of context_analysis_only modes will never
+    reach val_int(), so we won't need the value.
+    CONTEXT_ANALYSIS_ONLY_DERIVED being a notable exception here.
+  */
+  if (!escape_item->const_during_execution() ||
+     (!escape_item->const_item() &&
+      !(thd->lex->context_analysis_only & ~CONTEXT_ANALYSIS_ONLY_DERIVED)))
   {
     my_error(ER_WRONG_ARGUMENTS,MYF(0),"ESCAPE");
     return TRUE;
   }
-  
+
+  IF_DBUG(*escape= -1,);
+
   if (escape_item->const_item())
   {
     /* If we are on execution stage */
+    /* XXX is it safe to evaluate is_expensive() items here? */
     String *escape_str= escape_item->val_str(tmp_str);
     if (escape_str)
     {
@@ -5413,7 +5430,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed == 0);
   if (Item_bool_func2::fix_fields(thd, ref) ||
-      escape_item->fix_fields(thd, &escape_item) ||
+      (!escape_item->fixed && escape_item->fix_fields(thd, &escape_item)) ||
       fix_escape_item(thd, escape_item, &cmp_value1, escape_used_in_parsing,
                       cmp_collation.collation, &escape))
     return TRUE;

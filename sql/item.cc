@@ -1486,7 +1486,7 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
   TABLE *table= field->table;
   THD *thd= table->in_use;
   enum_check_fields tmp= thd->count_cuted_fields;
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
   sql_mode_t sql_mode= thd->variables.sql_mode;
   thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
   thd->variables.sql_mode|= MODE_INVALID_DATES;
@@ -1495,7 +1495,7 @@ int Item::save_in_field_no_warnings(Field *field, bool no_conversions)
   res= save_in_field(field, no_conversions);
 
   thd->count_cuted_fields= tmp;
-  dbug_tmp_restore_column_map(table->write_set, old_map);
+  dbug_tmp_restore_column_map(&table->write_set, old_map);
   thd->variables.sql_mode= sql_mode;
   return res;
 }
@@ -8160,6 +8160,22 @@ bool Item_direct_ref::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 }
 
 
+longlong Item_direct_ref::val_time_packed()
+{
+  longlong tmp = (*ref)->val_time_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
+longlong Item_direct_ref::val_datetime_packed()
+{
+  longlong tmp = (*ref)->val_datetime_packed();
+  null_value= (*ref)->null_value;
+  return tmp;
+}
+
+
 Item_cache_wrapper::~Item_cache_wrapper()
 {
   DBUG_ASSERT(expr_cache == 0);
@@ -9674,7 +9690,7 @@ bool  Item_cache_int::cache_value()
     return FALSE;
   value_cached= TRUE;
   value= example->val_int_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   unsigned_flag= example->unsigned_flag;
   return TRUE;
 }
@@ -9844,7 +9860,7 @@ bool Item_cache_temporal::cache_value()
       return true;
     value= pack_time(&ltime);
   }
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return true;
 }
 
@@ -9939,7 +9955,7 @@ bool Item_cache_real::cache_value()
     return FALSE;
   value_cached= TRUE;
   value= example->val_result();
-  null_value= example->null_value;
+  null_value_inside= null_value= example->null_value;
   return TRUE;
 }
 
@@ -10001,7 +10017,8 @@ bool Item_cache_decimal::cache_value()
     return FALSE;
   value_cached= TRUE;
   my_decimal *val= example->val_decimal_result(&decimal_value);
-  if (!(null_value= example->null_value) && val != &decimal_value)
+  if (!(null_value_inside= null_value= example->null_value) &&
+        val != &decimal_value)
     my_decimal2decimal(val, &decimal_value);
   return TRUE;
 }
@@ -10067,11 +10084,14 @@ Item *Item_cache_decimal::convert_to_basic_const_item(THD *thd)
 bool Item_cache_str::cache_value()
 {
   if (!example)
+  {
+    DBUG_ASSERT(value_cached == FALSE);
     return FALSE;
+  }
   value_cached= TRUE;
   value_buff.set(buffer, sizeof(buffer), example->collation.collation);
   value= example->str_result(&value_buff);
-  if ((null_value= example->null_value))
+  if ((null_value= null_value_inside= example->null_value))
     value= 0;
   else if (value != &value_buff)
   {
@@ -10170,6 +10190,8 @@ Item *Item_cache_str::convert_to_basic_const_item(THD *thd)
 bool Item_cache_row::setup(THD *thd, Item *item)
 {
   example= item;
+  null_value= true;
+
   if (!values && allocate(thd, item->cols()))
     return 1;
   for (uint i= 0; i < item_count; i++)
@@ -10202,12 +10224,19 @@ bool Item_cache_row::cache_value()
   if (!example)
     return FALSE;
   value_cached= TRUE;
-  null_value= 0;
+  null_value= TRUE;
+  null_value_inside= false;
   example->bring_value();
+
+  /*
+    For Item_cache_row null_value is set to TRUE only when ALL the values
+    inside the cache are NULL
+  */
   for (uint i= 0; i < item_count; i++)
   {
     values[i]->cache_value();
-    null_value|= values[i]->null_value;
+    null_value&= values[i]->null_value;
+    null_value_inside|= values[i]->null_value;
   }
   return TRUE;
 }

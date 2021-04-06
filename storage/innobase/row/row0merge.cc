@@ -3768,6 +3768,8 @@ row_merge_drop_indexes(
 					ut_ad(prev);
 					ut_a(table->fts);
 					fts_drop_index(table, index, trx);
+					row_merge_drop_index_dict(
+						trx, index->id);
 					/* We can remove a DICT_FTS
 					index from the cache, because
 					we do not allow ADD FULLTEXT INDEX
@@ -4832,10 +4834,6 @@ wait_again:
 						      " / " ULINTPF ")",
 						      buf, i + 1, n_indexes);
 			}
-
-			DBUG_EXECUTE_IF(
-				"ib_merge_wait_after_sort",
-				os_thread_sleep(20000000););  /* 20 sec */
 
 			if (error == DB_SUCCESS) {
 				BtrBulk	btr_bulk(sort_idx, trx,

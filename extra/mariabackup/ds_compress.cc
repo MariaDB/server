@@ -74,6 +74,7 @@ datasink_t datasink_compress = {
 	&compress_open,
 	&compress_write,
 	&compress_close,
+	&dummy_remove,
 	&compress_deinit
 };
 

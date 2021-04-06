@@ -342,7 +342,7 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#12352846 - TRANS_XA_START(THD*):
 --echo #                ASSERTION THD->TRANSACTION.XID_STATE.XID.IS_NULL()
---echo #                FAILED 
+--echo #                FAILED
 --echo #
 
 --disable_warnings
@@ -401,7 +401,7 @@ CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1),(2);
 CREATE TABLE t3 (i INT) ENGINE=InnoDB;
- 
+
 XA BEGIN 'xid1';
 REPLACE INTO t1 SELECT * FROM t2;
 
@@ -430,5 +430,43 @@ XA END 'xid1';
 XA ROLLBACK 'xid1';
 DROP TABLE t1, t2, t3;
 
---source include/wait_until_count_sessions.inc
+--echo #
+--echo # MDEV 15532 XA: Assertion `!log->same_pk' failed in
+--echo # row_log_table_apply_delete
+--echo #
 
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+
+--connect (con1,localhost,root,,test)
+
+XA START 'xid';
+UPDATE t1 SET a = 5;
+
+--connection default
+SET innodb_lock_wait_timeout= 2, lock_wait_timeout= 2;
+
+--error ER_NO_SUCH_TABLE
+ALTER TABLE non_existing_table1;
+
+--send ALTER TABLE t1 FORCE;
+
+--connection con1
+--error ER_XAER_RMFAIL
+
+ALTER TABLE non_existing_table2;
+DELETE FROM t1 LIMIT 1;
+
+--connection default
+--error ER_LOCK_WAIT_TIMEOUT
+--reap
+
+# Cleanup
+--connection con1
+XA END 'xid';
+XA ROLLBACK 'xid';
+DROP TABLE t1;
+--disconnect con1
+connection default;
+
+--source include/wait_until_count_sessions.inc

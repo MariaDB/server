@@ -553,9 +553,11 @@ int my_strnncollsp_tis620(CHARSET_INFO * cs __attribute__((unused)),
     alloced= a= (uchar*) my_malloc(a_length+b_length+2, MYF(MY_FAE));
   
   b= a + a_length+1;
-  memcpy((char*) a, (char*) a0, a_length);
+  if (a_length)
+    memcpy((char*) a, (char*) a0, a_length);
   a[a_length]= 0;	/* if length(a0)> len1, need to put 'end of string' */
-  memcpy((char *)b, (char *)b0, b_length);
+  if (b_length)
+    memcpy((char *)b, (char *)b0, b_length);
   b[b_length]= 0;	/* put end of string */
   a_length= thai2sortable(a, a_length);
   b_length= thai2sortable(b, b_length);

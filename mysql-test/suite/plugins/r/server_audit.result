@@ -118,6 +118,7 @@ CREATE USER u1 IDENTIFIED BY 'pwd-123';
 GRANT ALL ON sa_db TO u2 IDENTIFIED BY "pwd-321";
 SET PASSWORD FOR u1 = PASSWORD('pwd 098');
 CREATE USER u3 IDENTIFIED BY '';
+ALTER USER u3 IDENTIFIED BY 'pwd-456';
 drop user u1, u2, u3;
 set global server_audit_events='query_ddl';
 create table t1(id int);
@@ -139,6 +140,10 @@ select 2;
 2
 2
 drop table t1;
+create procedure pr1() insert into test.t1 values ("foo", 42);
+create function fn1(i int) returns int deterministic return i+1;
+drop procedure pr1;
+drop function fn1;
 set global server_audit_events='query_ddl,query_dml';
 create table t1(id int);
 insert into t1 values (1), (2);
@@ -210,6 +215,10 @@ select 2;
 2
 2
 drop table t1;
+create procedure pr1() insert into test.t1 values ("foo", 42);
+create function fn1(i int) returns int deterministic return i+1;
+drop procedure pr1;
+drop function fn1;
 set global server_audit_events='table';
 set global server_audit_incl_users='user1';
 create user user1@localhost;
@@ -227,6 +236,7 @@ set global server_audit_logging= on;
 disconnect cn1;
 drop user user1@localhost;
 set global server_audit_events='';
+set global server_audit_incl_users='root, plug_dest';
 CREATE USER plug IDENTIFIED WITH 'test_plugin_server' AS 'plug_dest';
 CREATE USER plug_dest IDENTIFIED BY 'plug_dest_passwd';
 connect(localhost,plug,plug_dest,test,MYSQL_PORT,MYSQL_SOCK);
@@ -277,7 +287,7 @@ server_audit_file_path
 server_audit_file_rotate_now	OFF
 server_audit_file_rotate_size	1000000
 server_audit_file_rotations	9
-server_audit_incl_users	root
+server_audit_incl_users	root, plug_dest
 server_audit_logging	ON
 server_audit_mode	1
 server_audit_output_type	file
@@ -381,6 +391,8 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'CREATE USER u3 IDENTIFIED BY *****',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'ALTER USER u3 IDENTIFIED BY \'pwd-456\'',0
+TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,columns_priv,
@@ -390,6 +402,10 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop user u1, u2, u3',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create table t1(id int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop table t1',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create procedure pr1() insert into test.t1 values ("foo", 42)',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create function fn1(i int) returns int deterministic return i+1',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop procedure pr1',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'drop function fn1',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'create table t1(id int)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'insert into t1 values (1), (2)',0
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'select * from t1',0
@@ -419,6 +435,7 @@ TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,procs_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,roles_mapping,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_events=\'\'',0
+TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'set global server_audit_incl_users=\'root, plug_dest\'',0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,tables_priv,
@@ -440,8 +457,9 @@ TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,,,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,proxies_priv,
 TIME,HOSTNAME,root,localhost,ID,ID,QUERY,sa_db,'GRANT PROXY ON plug_dest TO plug',0
-TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,test,`plug_dest`@`%`,0
 TIME,HOSTNAME,plug,localhost,ID,0,CONNECT,test,,0
+TIME,HOSTNAME,plug,localhost,ID,0,PROXY_CONNECT,test,`plug_dest`@`%`,0
+TIME,HOSTNAME,plug,localhost,ID,ID,QUERY,test,'select USER(),CURRENT_USER()',0
 TIME,HOSTNAME,plug,localhost,ID,0,DISCONNECT,test,,0
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,user,
 TIME,HOSTNAME,root,localhost,ID,ID,WRITE,mysql,db,

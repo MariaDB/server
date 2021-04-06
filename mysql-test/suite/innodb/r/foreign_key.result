@@ -413,6 +413,7 @@ CREATE TABLE x AS SELECT * FROM t1;
 ERROR XAE07: XAER_RMFAIL: The command cannot be executed when global transaction is in the  ACTIVE state
 connect  con1,localhost,root,,test;
 SET foreign_key_checks= OFF, innodb_lock_wait_timeout= 1;
+SET lock_wait_timeout=5;
 ALTER TABLE t1 ADD FOREIGN KEY f (a) REFERENCES t1 (pk), LOCK=EXCLUSIVE;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 disconnect con1;

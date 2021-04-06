@@ -990,7 +990,7 @@ the pass value == 0.
 ibool
 rw_lock_own(
 /*========*/
-	rw_lock_t*	lock,		/*!< in: rw-lock */
+	const rw_lock_t*lock,		/*!< in: rw-lock */
 	ulint		lock_type)	/*!< in: lock type: RW_LOCK_S,
 					RW_LOCK_X */
 {

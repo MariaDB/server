@@ -44,6 +44,8 @@ SELECT st_astext(st_geomfromgeojson('{"type": "MultiLineString","coordinates": [
 SELECT st_astext(st_geomfromgeojson('{"type": "Polygon","coordinates": []}')) as a;
 SELECT st_astext(st_geomfromgeojson('{"type": "MultiPolygon","coordinates": []}')) as a;
 
+SELECT ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }");
+
 --echo #
 --echo # End of 10.2 tests
 --echo #
