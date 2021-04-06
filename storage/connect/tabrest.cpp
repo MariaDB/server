@@ -100,7 +100,6 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 {
 	char  buf[512];
 	int   rc = 0;
-	FILE *pipe;
 
 	if (strchr(filename, '"')) {
 		strcpy(g->Message, "Invalid file name");
@@ -150,7 +149,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		strcpy(g->Message, "curl CLI not installed");
 		return 1;
 	} else
-		close(f);
+		pclose(f);
 	
 	pID = vfork();
 	sprintf(fn, "-o%s", filename);
