@@ -2537,6 +2537,8 @@ public:
   {
     option.var_type|= GET_STR;
   }
+  int light_check(THD *thd);
+
   bool do_check(THD *thd, set_var *var);
   bool session_update(THD *thd, set_var *var)
   {

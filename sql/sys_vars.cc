@@ -1888,6 +1888,10 @@ Sys_var_gtid_current_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
   return (uchar *)p;
 }
 
+int Sys_var_gtid_slave_pos::light_check(THD *thd)
+{
+  return rpl_global_gtid_slave_state->prepare(thd);
+}
 
 bool
 Sys_var_gtid_slave_pos::do_check(THD *thd, set_var *var)

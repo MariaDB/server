@@ -843,7 +843,8 @@ int set_var::light_check(THD *thd)
 
   if (value && value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
-  return 0;
+
+  return var->light_check(thd);
 }
 
 /**
