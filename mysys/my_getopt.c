@@ -915,11 +915,14 @@ static int findopt(char *optpat, uint length,
   }
 
   if (count == 1)
-    my_getopt_error_reporter(INFORMATION_LEVEL,
+  {
+    my_getopt_error_reporter(ERROR_LEVEL,
                              "Using unique option prefix '%.*s' is error-prone "
                              "and can break in the future. "
                              "Please use the full name '%s' instead.",
                              length, optpat, *ffname);
+    DBUG_RETURN(EXIT_AMBIGUOUS_OPTION);
+  }
 
   DBUG_RETURN(count);
 }

@@ -216,6 +216,8 @@ case "$1" in
                  value=""
               fi
               case "$option" in
+                  '--innodb')
+                      ;;
                   '--innodb-data-home-dir')
                       if [ -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
                           readonly INNODB_DATA_HOME_DIR_ARG="$value"
