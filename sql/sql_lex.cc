@@ -1352,7 +1352,9 @@ void lex_end_stage1(LEX *lex)
                  lex->sql_command == SQLCOM_CREATE_PROCEDURE ||
                  lex->sql_command == SQLCOM_CREATE_TRIGGER ||
                  lex->sql_command == SQLCOM_CREATE_EVENT ||
-                 lex->sql_command == SQLCOM_ALTER_EVENT));
+                 lex->sql_command == SQLCOM_ALTER_EVENT ||
+                 lex->sql_command == SQLCOM_CREATE_PACKAGE ||
+                 lex->sql_command == SQLCOM_CREATE_PACKAGE_BODY));
   }
   else
   {
