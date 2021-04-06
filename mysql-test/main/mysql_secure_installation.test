@@ -1,0 +1,43 @@
+--source include/not_windows.inc
+
+CREATE USER foobar@localhost IDENTIFIED BY "bar";
+GRANT ALL PRIVILEGES ON *.* TO foobar@localhost;
+SELECT user FROM mysql.global_priv ORDER BY user;
+SHOW DATABASES;
+
+# Creating a temporary text file.
+--write_file $MYSQLTEST_VARDIR/tmp/mariadb_secure_installation.txt
+foobar
+bar
+Y
+secret
+secret
+Y
+
+
+EOF
+
+
+--replace_result $USER USERNAME
+--exec $MYSQL_SECURE_INSTALLATION -S $MASTER_MYSOCK< $MYSQLTEST_VARDIR/tmp/mariadb_secure_installation.txt
+
+SELECT user FROM mysql.global_priv ORDER BY user;
+
+--remove_file $MYSQLTEST_VARDIR/tmp/mariadb_secure_installation.txt
+--let MYSQLD_DATADIR= `select @@datadir`
+--source include/kill_mysqld.inc
+# No need to clean anything since the datadir will be removed
+--rmdir $MYSQLD_DATADIR
+
+perl;
+use lib "lib";
+use My::Handles { suppress_init_messages => 1 };
+use My::File::Path;
+my $install_db_dir = ($ENV{MTR_PARALLEL} == 1) ?
+  "$ENV{'MYSQLTEST_VARDIR'}/install.db" :
+  "$ENV{'MYSQLTEST_VARDIR'}/../install.db";
+copytree($install_db_dir, $ENV{'MYSQLD_DATADIR'});
+EOF
+
+--let $restart_parameters= $old_restart_parameters
+--source include/start_mysqld.inc

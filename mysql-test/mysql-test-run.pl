@@ -2166,6 +2166,17 @@ sub environment_setup {
   }
 
   # ----------------------------------------------------
+  # mysql_secure_installation
+  # ----------------------------------------------------
+  my $mysql_secure_installation=
+    mtr_pl_maybe_exists("$bindir/scripts/mysql_secure_installation") ||
+    mtr_pl_maybe_exists("$path_client_bindir/mysql_secure_installation");
+  if ($mysql_secure_installation)
+  {
+    $ENV{'MYSQL_SECURE_INSTALLATION'}= $mysql_secure_installation;
+  }
+
+  # ----------------------------------------------------
   # perror
   # ----------------------------------------------------
   my $exe_perror= mtr_exe_exists("$bindir/extra$opt_vs_config/perror",
