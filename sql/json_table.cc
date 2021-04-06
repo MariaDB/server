@@ -135,16 +135,14 @@ static
 table_map get_disallowed_table_deps(JOIN *join, table_map table_func_bit)
 {
   table_map disallowed_tables= 0;
-  if (get_disallowed_table_deps_for_list(table_func_bit, join->join_list,
-                                         &disallowed_tables))
-    return disallowed_tables;
-  else
+  if (!get_disallowed_table_deps_for_list(table_func_bit, join->join_list,
+                                          &disallowed_tables))
   {
+    // We haven't found the table with table_func_bit in all tables?
     DBUG_ASSERT(0);
-    return disallowed_tables;
   }
+  return disallowed_tables;
 }
-
 
 
 /*
@@ -1229,10 +1227,10 @@ void Table_function_json_table::end_nested_path()
 
 bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc)
 {
-  // Walk the context stack until we find a context that is select-level
-  // context.
+  // Walk the context stack until we find a context that is used for resolving
+  // the SELECT's WHERE clause.
   List_iterator<Name_resolution_context> it(lex->context_stack);
-  Name_resolution_context *ctx= NULL;
+  Name_resolution_context *ctx;
   while ((ctx= it++))
   {
     if (ctx->select_lex && ctx == &ctx->select_lex->context)
@@ -1242,6 +1240,10 @@ bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc)
 
   // Then, create a copy of it and return it.
   Name_resolution_context *new_ctx= new (alloc) Name_resolution_context;
+
+  // Note: not all fields of *ctx are initialized yet at this point.
+  // We will get all of the fields filled in Table_function_json_table::setup
+  // (search for the "Prepare the name resolution context" comment).
   *new_ctx= *ctx;
   return lex->push_context(new_ctx);
 }
@@ -1274,8 +1276,8 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
     save_is_item_list_lookup= thd->lex->current_select->is_item_list_lookup;
     thd->lex->current_select->is_item_list_lookup= 0;
 
-    // Prepare the name resolution context. First, copy the context that
-    // is using for name resolution of the WHERE clause
+    // Prepare the name resolution context. First, copy the context that is
+    // used for name resolution of the WHERE clause
     *m_context= thd->lex->current_select->context;
 
     // Then, restrict it to only allow to refer to tables that come before the
