@@ -668,6 +668,24 @@ RIGHT JOIN JSON_TABLE('[]', '$' COLUMNS(o3 FOR ORDINALITY)) AS jt3
 ON(1)
 WHERE 0;
 ERROR 42S22: Unknown column 'jt1.a' in 'JSON_TABLE argument'
+create table t1 (item_name varchar(32), item_props varchar(1024));
+insert into t1 values ('Jeans',  '{"color": ["green", "brown"], "price": 50}');
+insert into t1 values ('Shirt',  '{"color": ["blue", "white"], "price": 20}');
+insert into t1 values ('Jeans',  '{"color": ["black"], "price": 60}');
+insert into t1 values ('Jeans',  '{"color": ["gray"], "price": 60}');
+insert into t1 values ('Laptop', '{"color": ["black"], "price": 1000}');
+insert into t1 values ('Shirt',  '{"color": ["black"], "price": 20}');
+select t.item_name, jt.* from (select t1.item_name, concat(concat(concat("{\"color\": ",concat(concat("[\"",group_concat(jt.color separator "\", \"")),"\"]")),','),concat(concat("\"price\": ",jt.price),'}')) as item_props from t1, json_table(t1.item_props, '$' columns (nested path '$.color[*]' columns (color varchar(32) path '$'), price int path '$.price')) as jt group by t1.item_name, jt.price) as t, json_table(t.item_props, '$' columns (nested path '$.color[*]' columns (color varchar(32) path '$'), price int path '$.price')) as jt order by t.item_name, jt.price, jt.color;
+item_name	color	price
+Jeans	brown	50
+Jeans	green	50
+Jeans	black	60
+Jeans	gray	60
+Laptop	black	1000
+Shirt	black	20
+Shirt	blue	20
+Shirt	white	20
+drop table t1;
 #
 # End of 10.6 tests
 #

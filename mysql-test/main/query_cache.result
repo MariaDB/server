@@ -2210,7 +2210,9 @@ drop table t1;
 #
 # MDEV-24858 SIGABRT in DbugExit from my_malloc in Query_cache::init_cache Regression
 #
+SET @qc= @@query_cache_size;
 set global Query_cache_size=18446744073709547520;
+SET GLOBAL query_cache_size= @qc;
 #
 # MDEV-22301 JSON_TABLE: Queries are not inserted into query cache.
 #
@@ -2225,7 +2227,7 @@ a	f
 {"a":"foo"}	foo
 SHOW STATUS LIKE 'Qcache_inserts';
 Variable_name	Value
-Qcache_inserts	0
+Qcache_inserts	1
 drop table t1;
 #
 # MDEV-25228 JSON_TABLE: Server crashes in Query_cache::unlink_table.
