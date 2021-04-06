@@ -322,7 +322,6 @@ drop table t1;
 
 --source include/wait_until_count_sessions.inc
 set debug_sync=reset;
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 
 --echo #
 --echo # MDEV-18546 ASAN heap-use-after-free
@@ -386,3 +385,52 @@ SELECT * FROM t1;
 DROP TABLE t1;
 SET debug_sync= reset;
 set global debug_dbug= @old_dbug;
+
+
+--echo # MDEV-16962 Assertion '!error || !ot_ctx.can_recover_from_failed_open()'
+--echo # failed in open_purge_table upon concurrent ALTER and FLUSH
+
+CREATE TABLE t1 (
+  pk SERIAL,
+  c VARCHAR(128),
+  d DATE,
+  vd DATE AS (d) VIRTUAL,
+  PRIMARY KEY(pk),
+  KEY(vd,c)
+) ENGINE=InnoDB;
+INSERT IGNORE INTO t1 (pk,c) VALUES (1,'foo');
+
+--send
+set debug_sync="now WAIT_FOR purge";
+--connect (con1,localhost,root,,test)
+# Will break innodb purge thread inside open_purge_table after mdl
+# acquired, but before tdc->flushed check
+SET GLOBAL innodb_debug_sync="after_open_table_mdl_shared SIGNAL purge WAIT_FOR flush";
+
+# Workaround to pass trx_undo_roll_ptr_is_insert() in 10.2
+SET global debug_dbug="d,ib_purge_virtual_index_callback";
+
+REPLACE INTO t1 (pk,c) VALUES (1,'bar');
+
+--connection default
+# wait for MDL acquired by purge
+--reap
+# MDL_SHARED will be acquired, but will hang before MDL upgrade started.
+SET debug_sync="alter_table_before_rename_result_table WAIT_FOR flush";
+--send
+ALTER TABLE t1 ADD FULLTEXT KEY(c), ALGORITHM=COPY;
+--connection con1
+# Will hang after tdc->flushed is set, but before emptying tdc cache.
+SET debug_sync="after_flush_unlock SIGNAL flush ";
+FLUSH TABLES;
+
+# Cleanup
+--disconnect con1
+--connection default
+--reap
+--source ../../innodb/include/wait_all_purged.inc
+DROP TABLE t1;
+SET debug_sync= reset;
+SET global debug_dbug=@old_dbug;
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

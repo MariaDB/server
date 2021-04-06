@@ -4424,7 +4424,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_ASSERT(thd->open_tables == NULL);
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
-  Open_table_context ot_ctx(thd, 0);
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_IGNORE_FLUSH);
   TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
 
   tl->init_one_table(db, dblen, tb, tblen, tb, TL_READ);
