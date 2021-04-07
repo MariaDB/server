@@ -1,8 +1,7 @@
 /************** tabrest C++ Program Source Code File (.CPP) ************/
-/* PROGRAM NAME: tabrest   Version 1.9                                 */
+/* PROGRAM NAME: tabrest   Version 2.0                                 */
 /*  (C) Copyright to the author Olivier BERTRAND          2018 - 2021  */
 /*  This program is the REST Web API support for MariaDB.              */
-/*  When compiled without MARIADB defined, it is the EOM module code.  */
 /*  The way Connect handles NOSQL data returned by REST queries is     */
 /*  just by retrieving it as a file and then leave the existing data   */
 /*  type tables (JSON, XML or CSV) process it as usual.                */
@@ -11,23 +10,13 @@
 /***********************************************************************/
 /*  Definitions needed by the included files.                          */
 /***********************************************************************/
-#if defined(MARIADB)
 #include <my_global.h>    // All MariaDB stuff
 #include <mysqld.h>
 #include <sql_error.h>
-#else   // !MARIADB       OEM module
-#include "mini-global.h"
-#define _MAX_PATH 260
-#if !defined(REST_SOURCE)
-#if defined(__WIN__) || defined(_WINDOWS)
-#include <windows.h>
-#else		 // !__WIN__
-#define __stdcall
-#include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
-#endif   // !__WIN__
-#endif	 // !REST_SOURCE
-#define _OS_H_INCLUDED     // Prevent os.h to be called
-#endif  // !MARIADB
+#if !defined(__WIN__) && !defined(_WINDOWS)
+#include <sys/types.h>
+#include <sys/wait.h>
+#endif	 // !__WIN__ && !_WINDOWS
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -55,33 +44,6 @@
 
 static XGETREST getRestFnc = NULL;
 static int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename);
-
-#if !defined(MARIADB)
-/***********************************************************************/
-/*  DB static variables.                                               */
-/***********************************************************************/
-int    TDB::Tnum;
-int    DTVAL::Shift;
-int    CSORT::Limit = 0;
-double CSORT::Lg2 = log(2.0);
-size_t CSORT::Cpn[1000] = { 0 };
-
-/***********************************************************************/
-/*  These functions are exported from the REST library.                */
-/***********************************************************************/
-extern "C" {
-  PTABDEF __stdcall GetREST(PGLOBAL, void*);
-  PQRYRES __stdcall ColREST(PGLOBAL, PTOS, char*, char*, bool);
-} // extern "C"
-
-/***********************************************************************/
-/*  This function returns a table definition class.                    */
-/***********************************************************************/
-PTABDEF __stdcall GetREST(PGLOBAL g, void *memp)
-{
-  return new(g, memp) RESTDEF;
-} // end of GetREST
-#endif   // !MARIADB
 
 /***********************************************************************/
 /*  Xcurl: retrieve the REST answer by executing cURL.                 */
@@ -129,9 +91,6 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		rc = 1;
 	}	// endif CreateProcess
 #else   // !__WIN__
-#include <sys/types.h>
-#include <sys/wait.h>
-
 	char  fn[600];
 	pid_t pID;
 
@@ -184,7 +143,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 	if (getRestFnc)
 		return getRestFnc;
 	
-#if !defined(MARIADB) || !defined(REST_SOURCE)
+#if !defined(REST_SOURCE)
 	if (trace(515))
 		htrc("Looking for GetRest library\n");
 
@@ -237,9 +196,9 @@ XGETREST GetRestFunction(PGLOBAL g)
 		return NULL;
 	} // endif getdef
 #endif  // !__WIN__
-#else
+#else   // REST_SOURCE
 	getRestFnc = restGetFile;
-#endif
+#endif	// REST_SOURCE
 
 	return getRestFnc;
 } // end of GetRestFunction
@@ -247,11 +206,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 /***********************************************************************/
 /*  Return the columns definition to MariaDB.                          */
 /***********************************************************************/
-#if defined(MARIADB)
 PQRYRES RESTColumns(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
-#else   // !MARIADB
-PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
-#endif  // !MARIADB
 {
   PQRYRES  qrp= NULL;
   char     filename[_MAX_PATH + 1];  // MAX PATH ???
@@ -265,12 +220,7 @@ PQRYRES __stdcall ColREST(PGLOBAL g, PTOS tp, char *tab, char *db, bool info)
 
   http = GetStringTableOption(g, tp, "Http", NULL);
   uri = GetStringTableOption(g, tp, "Uri", NULL);
-#if defined(MARIADB)
   ftype = GetStringTableOption(g, tp, "Type", "JSON");
-#else   // !MARIADB
-  // OEM tables must specify the file type
-  ftype = GetStringTableOption(g, tp, "Ftype", "JSON");
-#endif  // !MARIADB
 	fn = GetStringTableOption(g, tp, "Filename", NULL);
 
 	if (!fn) {
@@ -333,12 +283,7 @@ bool RESTDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 	if (!curl && !(grf = GetRestFunction(g)))
 		curl = true;
 
-#if defined(MARIADB)
   ftype = GetStringCatInfo(g, "Type", "JSON");
-#else   // !MARIADB
-  // OEM tables must specify the file type
-  ftype = GetStringCatInfo(g, "Ftype", "JSON");
-#endif  // !MARIADB
 
   if (xt)
     htrc("ftype = %s am = %s\n", ftype, SVP(am));
