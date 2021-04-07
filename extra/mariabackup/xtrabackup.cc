@@ -6622,6 +6622,8 @@ int main(int argc, char **argv)
 {
 	char **client_defaults, **server_defaults;
 
+	my_getopt_prefix_matching= 0;
+
 	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
     strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
 
