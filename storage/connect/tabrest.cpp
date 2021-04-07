@@ -24,11 +24,6 @@
 #else		 // !__WIN__
 #define __stdcall
 #include <dlfcn.h>         // dlopen(), dlclose(), dlsym() ...
-#include <sys/types.h>
-#include <unistd.h>
-#include "stdio.h"
-#include <sys/wait.h>
-#include <libexplain/execlp.h>
 #endif   // !__WIN__
 #endif	 // !REST_SOURCE
 #define _OS_H_INCLUDED     // Prevent os.h to be called
@@ -57,11 +52,6 @@
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
-
-#if 0
-#define popen  _popen
-#define pclose _pclose
-#endif // 0
 
 static XGETREST getRestFnc = NULL;
 static int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename);
@@ -146,10 +136,19 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	FILE *f= popen("command -v curl", "r");
 
 	if (!f) {
-		strcpy(g->Message, "curl CLI not installed");
-		return 1;
-	} else
-		pclose(f);
+			strcpy(g->Message, "Problem in allocating memory.");
+			return 1;
+	} else {
+		char   temp_buff[50];
+		size_t len = fread(temp_buff,1, 50, f);
+
+		if(!len) {
+			strcpy(g->Message, "Curl not installed.");
+			return 1;
+		}	else
+			pclose(f);
+
+	} // endif f
 	
 	pID = vfork();
 	sprintf(fn, "-o%s", filename);
@@ -157,19 +156,17 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 	if (pID == 0) {
 		// Code executed by child process
 		execlp("curl", "curl", buf, fn, (char*)NULL);
-		// If execlp() is successful, we should not reach this next line.
-			strcpy(g->Message, explain_execlp("curl", "curl", buf, fn, (char*)NULL)));
-			rc = 1;
-			exit(rc);
-		}	// endif execlp
 
+		// If execlp() is successful, we should not reach this next line.
+		strcpy(g->Message, "I shouldn't be called after execlp from vfork()");
+		exit(1);
 	} else if (pID < 0) {
 		// failed to fork
 		strcpy(g->Message, "Failed to fork");
 		rc = 1;
 	} else {
 		// Parent process
-		wait(0);  // Wait for the child to terminate
+		wait(NULL);  // Wait for the child to terminate
 	}	// endif pID
 #endif  // !__WIN__
 
