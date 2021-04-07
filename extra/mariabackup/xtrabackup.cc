@@ -1815,33 +1815,33 @@ static int prepare_export()
 
   // Process defaults-file , it can have some --lc-language stuff,
   // which is* unfortunately* still necessary to get mysqld up
-  if (strncmp(orig_argv1,"--defaults-file=",16) == 0)
+  if (strncmp(orig_argv1,"--defaults-file=", 16) == 0)
   {
     snprintf(cmdline, sizeof cmdline,
-     IF_WIN("\"","") "\"%s\" --mysqld \"%s\" "
+      IF_WIN("\"","") "\"%s\" --mysqld \"%s\""
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --skip-log-error --skip-log-bin --bootstrap %s < "
+      " --console --skip-log-error --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
       orig_argv1, (my_defaults_group_suffix?my_defaults_group_suffix:""),
       xtrabackup_use_memory,
-      (srv_force_recovery ? "--innodb-force-recovery=1" : ""));
+      (srv_force_recovery ? "--innodb-force-recovery=1 " : ""));
   }
   else
   {
     snprintf(cmdline, sizeof cmdline,
-     IF_WIN("\"","") "\"%s\" --mysqld"
+      IF_WIN("\"","") "\"%s\" --mysqld"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --log-error= --skip-log-bin --bootstrap %s < "
+      " --console --log-error= --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
       (my_defaults_group_suffix?my_defaults_group_suffix:""),
       xtrabackup_use_memory,
-      (srv_force_recovery ? "--innodb-force-recovery=1" : ""));
+      (srv_force_recovery ? "--innodb-force-recovery=1 " : ""));
   }
 
   msg("Prepare export : executing %s\n", cmdline);
