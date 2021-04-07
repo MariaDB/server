@@ -14,7 +14,7 @@ call mtr.add_suppression("InnoDB: The error means the system cannot find the pat
 call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself");
 call mtr.add_suppression("InnoDB: File .path.to.non-existent.ib_logfile101: 'create' returned OS error \d+");
 call mtr.add_suppression("InnoDB: Cannot create .path.to.non-existent.ib_logfile101");
-call mtr.add_suppression("InnoDB: The innodb_system data file 'ibdata1' was not found but one of the other data files 'ibdata2' exists");
+call mtr.add_suppression("InnoDB: The data file '.*ibdata1' was not found but one of the other data files '.*ibdata2' exists");
 call mtr.add_suppression("InnoDB: Tablespace size stored in header is \d+ pages, but the sum of data file sizes is \d+ pages");
 call mtr.add_suppression("InnoDB: Cannot start InnoDB. The tail of the system tablespace is missing");
 call mtr.add_suppression("InnoDB: undo tablespace '.*undo001' exists\. Creating system tablespace with existing undo tablespaces is not supported\. Please delete all undo tablespaces before creating new system tablespace\.");
@@ -90,7 +90,7 @@ eval $check_yes_innodb;
 --source include/start_mysqld.inc
 eval $check_no_innodb;
 --source include/shutdown_mysqld.inc
-let SEARCH_PATTERN=The innodb_system data file 'ibdata1' was not found but one of the other data files 'ibdata2' exists;
+let SEARCH_PATTERN=The data file '.*ibdata1' was not found but one of the other data files '.*ibdata2' exists;
 --source include/search_pattern_in_file.inc
 
 # clean up & Restore

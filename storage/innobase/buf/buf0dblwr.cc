@@ -374,7 +374,7 @@ void buf_dblwr_t::recover()
       if (!srv_is_undo_tablespace(space_id))
         ib::warn() << "A copy of page " << page_no
                    << " in the doublewrite buffer slot " << page_no_dblwr
-                   << " is beyond the end of tablespace " << space->name
+                   << " is beyond the end of " << space->chain.start->name
                    << " (" << space->size << " pages)";
 next_page:
       space->release();
@@ -395,7 +395,7 @@ next_page:
 
     if (UNIV_UNLIKELY(fio.err != DB_SUCCESS))
        ib::warn() << "Double write buffer recovery: " << page_id
-                  << " (tablespace '" << space->name
+                  << " ('" << space->chain.start->name
                   << "') read failed with error: " << fio.err;
 
     if (buf_is_zeroes(span<const byte>(read_buf, physical_size)))

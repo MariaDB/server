@@ -1603,16 +1603,12 @@ dict_table_rename_in_cache(
 		/* Make sure the data_dir_path is set. */
 		dict_get_and_save_data_dir_path(table, true);
 
-		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-			ut_a(table->data_dir_path);
+		const char* data_dir = DICT_TF_HAS_DATA_DIR(table->flags)
+			? table->data_dir_path : nullptr;
+		ut_ad(data_dir || !DICT_TF_HAS_DATA_DIR(table->flags));
 
-			filepath = fil_make_filepath(
-				table->data_dir_path, table->name.m_name,
-				IBD, true);
-		} else {
-			filepath = fil_make_filepath(
-				NULL, table->name.m_name, IBD, false);
-		}
+		filepath = fil_make_filepath(data_dir, table->name, IBD,
+					     data_dir != nullptr);
 
 		if (filepath == NULL) {
 			return(DB_OUT_OF_MEMORY);
@@ -1637,11 +1633,14 @@ dict_table_rename_in_cache(
 
 		ut_ad(!table->is_temporary());
 
+		const fil_space_t::name_type new_space_name{
+			new_name, strlen(new_name)};
+
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			new_path = os_file_make_new_pathname(
 				old_path, new_name);
 			err = RemoteDatafile::create_link_file(
-				new_name, new_path);
+				new_space_name, new_path);
 
 			if (err != DB_SUCCESS) {
 				ut_free(new_path);
@@ -1649,24 +1648,30 @@ dict_table_rename_in_cache(
 			}
 		} else {
 			new_path = fil_make_filepath(
-				NULL, new_name, IBD, false);
+				NULL, new_space_name, IBD, false);
 		}
 
 		/* New filepath must not exist. */
-		err = table->space->rename(new_name, new_path, true,
-					   replace_new_file);
+		err = table->space->rename(new_path, true, replace_new_file);
 		ut_free(new_path);
 
 		/* If the tablespace is remote, a new .isl file was created
 		If success, delete the old one. If not, delete the new one. */
-		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-			RemoteDatafile::delete_link_file(
-				err == DB_SUCCESS ? old_name : new_name);
-		}
 
 		if (err != DB_SUCCESS) {
+			if (DICT_TF_HAS_DATA_DIR(table->flags)) {
+				RemoteDatafile::delete_link_file(
+					new_space_name);
+			}
+
 			return err;
 		}
+
+		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
+			RemoteDatafile::delete_link_file(
+				{old_name, strlen(old_name)});
+		}
+
 	}
 
 	/* Remove table from the hash tables of tables */

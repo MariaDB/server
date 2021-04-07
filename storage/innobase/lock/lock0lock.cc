@@ -4581,7 +4581,7 @@ static void lock_rec_block_validate(const page_id_t page_id)
 
 		if (err != DB_SUCCESS) {
 			ib::error() << "Lock rec block validate failed for tablespace "
-				   << space->name
+				   << space->chain.start->name
 				   << page_id << " err " << err;
 		}
 

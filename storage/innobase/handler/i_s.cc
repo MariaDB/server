@@ -6495,7 +6495,19 @@ static int i_s_sys_tablespaces_fill(THD *thd, const fil_space_t &s, TABLE *t)
   Field **fields= t->field;
 
   OK(fields[SYS_TABLESPACES_SPACE]->store(s.id, true));
-  OK(field_store_string(fields[SYS_TABLESPACES_NAME], s.name));
+  {
+    Field *f= fields[SYS_TABLESPACES_NAME];
+    const auto name= s.name();
+    if (name.data())
+    {
+      OK(f->store(name.data(), name.size(), system_charset_info));
+      f->set_notnull();
+    }
+    else
+      f->set_notnull();
+  }
+
+  fields[SYS_TABLESPACES_NAME]->set_null();
   OK(fields[SYS_TABLESPACES_FLAGS]->store(s.flags, true));
   OK(field_store_string(fields[SYS_TABLESPACES_ROW_FORMAT], row_format));
   const char *filepath= s.chain.start->name;
@@ -6711,8 +6723,17 @@ i_s_dict_fill_tablespaces_encryption(
 
 	OK(fields[TABLESPACES_ENCRYPTION_SPACE]->store(space->id, true));
 
-	OK(field_store_string(fields[TABLESPACES_ENCRYPTION_NAME],
-			      space->name));
+	{
+		const auto name = space->name();
+		if (name.data()) {
+			OK(fields[TABLESPACES_ENCRYPTION_NAME]->store(
+				   name.data(), name.size(),
+				   system_charset_info));
+			fields[TABLESPACES_ENCRYPTION_NAME]->set_notnull();
+		} else {
+			fields[TABLESPACES_ENCRYPTION_NAME]->set_null();
+		}
+	}
 
 	OK(fields[TABLESPACES_ENCRYPTION_ENCRYPTION_SCHEME]->store(
 		   status.scheme, true));

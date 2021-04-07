@@ -2362,7 +2362,7 @@ fil_space_crypt_close_tablespace(
 			ib::warn() << "Waited "
 				   << now - start
 				   << " seconds to drop space: "
-				   << space->name << " ("
+				   << space->chain.start->name << " ("
 				   << space->id << ") active threads "
 				   << crypt_data->rotate_state.active_threads
 				   << "flushing="

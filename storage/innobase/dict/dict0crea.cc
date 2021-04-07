@@ -407,11 +407,11 @@ dict_build_table_def_step(
 		bool	has_data_dir = DICT_TF_HAS_DATA_DIR(table->flags);
 		ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
 		ut_ad(!has_data_dir || table->data_dir_path);
-		char*	filepath = has_data_dir
-			? fil_make_filepath(table->data_dir_path,
-					    table->name.m_name, IBD, true)
-			: fil_make_filepath(NULL,
-					    table->name.m_name, IBD, false);
+		char*	filepath = fil_make_filepath(has_data_dir
+						     ? table->data_dir_path
+						     : nullptr,
+						     table->name, IBD,
+						     has_data_dir);
 
 		/* We create a new single-table tablespace for the table.
 		We initially let it be 4 pages:
@@ -423,7 +423,7 @@ dict_build_table_def_step(
 
 		dberr_t err;
 		table->space = fil_ibd_create(
-			space_id, table->name.m_name, filepath, fsp_flags,
+			space_id, table->name, filepath, fsp_flags,
 			FIL_IBD_FILE_INITIAL_SIZE,
 			node->mode, node->key_id, &err);
 

@@ -1306,11 +1306,15 @@ std::string get_log_file_path(const char *filename)
   path.reserve(size);
   path.assign(srv_log_group_home_dir);
 
-  std::replace(path.begin(), path.end(), OS_PATH_SEPARATOR_ALT,
-	       OS_PATH_SEPARATOR);
-
-  if (path.back() != OS_PATH_SEPARATOR)
-    path.push_back(OS_PATH_SEPARATOR);
+  switch (path.back()) {
+#ifdef _WIN32
+  case '\\':
+#endif
+  case '/':
+    break;
+  default:
+    path.push_back('/');
+  }
   path.append(filename);
 
   return path;

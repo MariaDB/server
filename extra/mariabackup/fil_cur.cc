@@ -65,17 +65,21 @@ xb_get_relative_path(
 	prev = NULL;
 	cur = path;
 
-	while ((next = strchr(cur, OS_PATH_SEPARATOR)) != NULL) {
+#ifdef _WIN32
+	while ((next = strchr(cur, '\\')) != NULL) {
+		prev = cur;
+		cur = next + 1;
+	}
+#endif
 
+	while ((next = strchr(cur, '/')) != NULL) {
 		prev = cur;
 		cur = next + 1;
 	}
 
 	if (is_system) {
-
 		return(cur);
 	} else {
-
 		return((prev == NULL) ? cur : prev);
 	}
 
@@ -462,7 +466,8 @@ read_retry:
 				goto read_retry;
 			}
 		}
-		DBUG_EXECUTE_FOR_KEY("add_corrupted_page_for", cursor->node->space->name,
+		DBUG_EXECUTE_FOR_KEY("add_corrupted_page_for",
+				     cursor->node->space->name(),
 			{
 				unsigned corrupted_page_no =
 					static_cast<unsigned>(strtoul(dbug_val, NULL, 10));

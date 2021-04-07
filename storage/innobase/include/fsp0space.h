@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -50,7 +50,6 @@ public:
 	Tablespace()
 		:
 		m_files(),
-		m_name(),
 		m_space_id(ULINT_UNDEFINED),
 		m_path(),
 		m_flags(),
@@ -79,9 +78,6 @@ public:
 	/** Data file iterator */
 	iterator end() { return m_files.end(); }
 
-	void set_name(const char* name) { m_name = name; }
-	const char* name() const { return m_name; }
-
 	/** Set tablespace path and filename members.
 	@param[in]	path	where tablespace file(s) resides
 	@param[in]	len	length of the file path */
@@ -90,8 +86,6 @@ public:
 		ut_ad(m_path == NULL);
 		m_path = mem_strdupl(path, len);
 		ut_ad(m_path != NULL);
-
-		os_normalize_path(m_path);
 	}
 
 	/** Set tablespace path and filename members.
@@ -217,9 +211,6 @@ private:
 	void file_found(Datafile& file);
 
 	/* DATA MEMBERS */
-
-	/** Name of the tablespace. */
-	const char*	m_name;
 
 	/** Tablespace ID */
 	ulint		m_space_id;

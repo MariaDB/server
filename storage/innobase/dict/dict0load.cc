@@ -1050,15 +1050,12 @@ next:
 		newly created or rebuilt tables or partitions, but
 		will otherwise ignore the flag. */
 
-		/* Now that we have the proper name for this tablespace,
-		look to see if it is already in the tablespace cache. */
-		if (fil_space_for_table_exists_in_mem(
-			    space_id, table_name.m_name, flags)) {
+		if (fil_space_for_table_exists_in_mem(space_id, flags)) {
 			goto next;
 		}
 
-		char*	filepath = fil_make_filepath(
-			NULL, table_name.m_name, IBD, false);
+		char*	filepath = fil_make_filepath(nullptr, table_name,
+						     IBD, false);
 
 		/* Check that the .ibd file exists. */
 		if (!fil_ibd_open(
@@ -2278,9 +2275,8 @@ dict_save_data_dir_path(
 	ut_a(filepath);
 
 	/* Be sure this filepath is not the default filepath. */
-	char*	default_filepath = fil_make_filepath(
-			NULL, table->name.m_name, IBD, false);
-	if (default_filepath) {
+	if (char* default_filepath = fil_make_filepath(nullptr, table->name,
+						       IBD, false)) {
 		if (0 != strcmp(filepath, default_filepath)) {
 			ulint pathlen = strlen(filepath);
 			ut_a(pathlen < OS_FILE_MAX_PATH);
@@ -2397,8 +2393,8 @@ dict_load_tablespace(
 	}
 
 	/* The tablespace may already be open. */
-	table->space = fil_space_for_table_exists_in_mem(
-		table->space_id, table->name.m_name, table->flags);
+	table->space = fil_space_for_table_exists_in_mem(table->space_id,
+							 table->flags);
 	if (table->space) {
 		return;
 	}
@@ -2425,8 +2421,7 @@ dict_load_tablespace(
 
 		if (table->data_dir_path) {
 			filepath = fil_make_filepath(
-				table->data_dir_path,
-				table->name.m_name, IBD, true);
+				table->data_dir_path, table->name, IBD, true);
 		}
 	}
 

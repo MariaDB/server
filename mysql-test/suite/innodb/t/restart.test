@@ -48,6 +48,15 @@ close OUT or die;
 die unless open OUT, ">", "$ENV{MYSQL_TMP_DIR}/test/td.ibd";
 print OUT "xyz " x $ENV{page_size};
 close OUT or die;
+die unless open ISL, "+<", "$ENV{datadir}/test/td.isl";
+$_=<ISL>;
+if (m|^[a-zA-Z]:|)
+{
+  tr|/|\\|;
+  seek(ISL, 0, SEEK_SET) or die;
+  print ISL or die;
+}
+close ISL or die;
 EOF
 
 --let $restart_parameters= --skip-innodb-buffer-pool-load-at-startup

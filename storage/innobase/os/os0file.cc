@@ -425,36 +425,32 @@ responsibility to free the return value after it is no longer needed.
 @param[in]	old_path		Pathname
 @param[in]	tablename		Contains new base name
 @return own: new full pathname */
-char*
-os_file_make_new_pathname(
-	const char*	old_path,
-	const char*	tablename)
+char *os_file_make_new_pathname(const char *old_path, const char *tablename)
 {
-	ulint		dir_len;
-	char*		last_slash;
-	char*		base_name;
-	char*		new_path;
-	ulint		new_path_len;
+  /* Split the tablename into its database and table name components.
+  They are separated by a '/'. */
+  const char *last_slash= strrchr(tablename, '/');
+  const char *base_name= last_slash ? last_slash + 1 : tablename;
 
-	/* Split the tablename into its database and table name components.
-	They are separated by a '/'. */
-	last_slash = strrchr((char*) tablename, '/');
-	base_name = last_slash ? last_slash + 1 : (char*) tablename;
+  /* Find the offset of the last slash. We will strip off the
+  old basename.ibd which starts after that slash. */
+  last_slash = strrchr(old_path, '/');
+#ifdef _WIN32
+  if (const char *last= strrchr(old_path, '\\'))
+    if (last > last_slash)
+      last_slash= last;
+#endif
 
-	/* Find the offset of the last slash. We will strip off the
-	old basename.ibd which starts after that slash. */
-	last_slash = strrchr((char*) old_path, OS_PATH_SEPARATOR);
-	dir_len = last_slash ? ulint(last_slash - old_path) : strlen(old_path);
+  size_t dir_len= last_slash
+    ? size_t(last_slash - old_path)
+    : strlen(old_path);
 
-	/* allocate a new path and move the old directory path to it. */
-	new_path_len = dir_len + strlen(base_name) + sizeof "/.ibd";
-	new_path = static_cast<char*>(ut_malloc_nokey(new_path_len));
-	memcpy(new_path, old_path, dir_len);
-
-	snprintf(new_path + dir_len, new_path_len - dir_len,
-		 "%c%s.ibd", OS_PATH_SEPARATOR, base_name);
-
-	return(new_path);
+  /* allocate a new path and move the old directory path to it. */
+  size_t new_path_len= dir_len + strlen(base_name) + sizeof "/.ibd";
+  char *new_path= static_cast<char*>(ut_malloc_nokey(new_path_len));
+  memcpy(new_path, old_path, dir_len);
+  snprintf(new_path + dir_len, new_path_len - dir_len, "/%s.ibd", base_name);
+  return new_path;
 }
 
 /** This function reduces a null-terminated full remote path name into
@@ -474,7 +470,7 @@ os_file_make_data_dir_path(
 	char*	data_dir_path)
 {
 	/* Replace the period before the extension with a null byte. */
-	char*	ptr = strrchr((char*) data_dir_path, '.');
+	char*	ptr = strrchr(data_dir_path, '.');
 
 	if (ptr == NULL) {
 		return;
@@ -483,7 +479,8 @@ os_file_make_data_dir_path(
 	ptr[0] = '\0';
 
 	/* The tablename starts after the last slash. */
-	ptr = strrchr((char*) data_dir_path, OS_PATH_SEPARATOR);
+	ptr = strrchr(data_dir_path, '/');
+
 
 	if (ptr == NULL) {
 		return;
@@ -494,7 +491,14 @@ os_file_make_data_dir_path(
 	char*	tablename = ptr + 1;
 
 	/* The databasename starts after the next to last slash. */
-	ptr = strrchr((char*) data_dir_path, OS_PATH_SEPARATOR);
+	ptr = strrchr(data_dir_path, '/');
+#ifdef _WIN32
+	if (char *aptr = strrchr(data_dir_path, '\\')) {
+		if (aptr > ptr) {
+			ptr = aptr;
+		}
+	}
+#endif
 
 	if (ptr == NULL) {
 		return;
@@ -541,10 +545,16 @@ char*
 os_file_get_parent_dir(
 	const char*	path)
 {
-	bool	has_trailing_slash = false;
-
 	/* Find the offset of the last slash */
-	const char* last_slash = strrchr(path, OS_PATH_SEPARATOR);
+	const char* last_slash = strrchr(path, '/');
+
+#ifdef _WIN32
+	if (const char *last = strrchr(path, '\\')) {
+		if (last > last_slash) {
+			last_slash = last;
+		}
+	}
+#endif
 
 	if (!last_slash) {
 		/* No slash in the path, return NULL */
@@ -552,13 +562,11 @@ os_file_get_parent_dir(
 	}
 
 	/* Ok, there is a slash. Is there anything after it? */
-	if (static_cast<size_t>(last_slash - path + 1) == strlen(path)) {
-		has_trailing_slash = true;
-	}
+	const bool has_trailing_slash = last_slash[1] == '\0';
 
-	/* Reduce repetative slashes. */
+	/* Reduce repetitive slashes. */
 	while (last_slash > path
-		&& last_slash[-1] == OS_PATH_SEPARATOR) {
+	       && (IF_WIN(last_slash[-1] == '\\' ||,) last_slash[-1] == '/')) {
 		last_slash--;
 	}
 
@@ -573,13 +581,15 @@ os_file_get_parent_dir(
 		/* Back up to the previous slash. */
 		last_slash--;
 		while (last_slash > path
-		       && last_slash[0] != OS_PATH_SEPARATOR) {
+		       && (IF_WIN(last_slash[0] != '\\' &&,)
+			   last_slash[0] != '/')) {
 			last_slash--;
 		}
 
-		/* Reduce repetative slashes. */
+		/* Reduce repetitive slashes. */
 		while (last_slash > path
-			&& last_slash[-1] == OS_PATH_SEPARATOR) {
+		       && (IF_WIN(last_slash[-1] == '\\' ||,)
+			   last_slash[-1] == '/')) {
 			last_slash--;
 		}
 	}
@@ -610,11 +620,6 @@ test_os_file_get_parent_dir(
 	char* child = mem_strdup(child_dir);
 	char* expected = expected_dir == NULL ? NULL
 			 : mem_strdup(expected_dir);
-
-	/* os_file_get_parent_dir() assumes that separators are
-	converted to OS_PATH_SEPARATOR. */
-	os_normalize_path(child);
-	os_normalize_path(expected);
 
 	char* parent = os_file_get_parent_dir(child);
 
@@ -4583,23 +4588,4 @@ invalid:
 	space->free_len = free_len;
 	return true;
 }
-
-#else
-#include "univ.i"
 #endif /* !UNIV_INNOCHECKSUM */
-
-/** Normalizes a directory path for the current OS:
-On Windows, we convert '/' to '\', else we convert '\' to '/'.
-@param[in,out] str A null-terminated directory and file path */
-void
-os_normalize_path(
-	char*	str)
-{
-	if (str != NULL) {
-		for (; *str; str++) {
-			if (*str == OS_PATH_SEPARATOR_ALT) {
-				*str = OS_PATH_SEPARATOR;
-			}
-		}
-	}
-}

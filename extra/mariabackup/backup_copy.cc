@@ -273,7 +273,6 @@ datadir_iter_next_database(datadir_iter_t *it)
 		}
 		snprintf(it->dbpath, it->dbpath_len, "%s/%s",
 			 it->datadir_path, it->dbinfo.name);
-		os_normalize_path(it->dbpath);
 
 		if (it->dbinfo.type == OS_FILE_TYPE_FILE) {
 			it->is_file = true;
@@ -1133,13 +1132,12 @@ read_link_file(const char *ibd_filepath, const char *link_filepath)
 		os_file_read_string(file, filepath, OS_FILE_MAX_PATH);
 		fclose(file);
 
-		if (strlen(filepath)) {
+		if (size_t len = strlen(filepath)) {
 			/* Trim whitespace from end of filepath */
-			ulint lastch = strlen(filepath) - 1;
+			ulint lastch = len - 1;
 			while (lastch > 4 && filepath[lastch] <= 0x20) {
 				filepath[lastch--] = 0x00;
 			}
-			os_normalize_path(filepath);
 		}
 
 		tablespace_locations[ibd_filepath] = filepath;
@@ -1852,9 +1850,8 @@ copy_back()
 	     end(srv_sys_space.end());
 	     iter != end;
 	     ++iter) {
-		const char *filename = base_name(iter->name());
-
-		if (!(ret = copy_or_move_file(filename, iter->name(),
+		const char *filepath = iter->filepath();
+		if (!(ret = copy_or_move_file(base_name(filepath), filepath,
 					      dst_dir, 1))) {
 			goto cleanup;
 		}
@@ -1877,7 +1874,6 @@ copy_back()
 		const char *filename;
 		char c_tmp;
 		int i_tmp;
-		bool is_ibdata_file;
 
 		if (strstr(node.filepath,"/" ROCKSDB_BACKUP_DIR "/")
 #ifdef _WIN32
@@ -1932,23 +1928,19 @@ copy_back()
 		}
 
 		/* skip innodb data files */
-		is_ibdata_file = false;
 		for (Tablespace::const_iterator iter(srv_sys_space.begin()),
 		       end(srv_sys_space.end()); iter != end; ++iter) {
-			const char *ibfile = base_name(iter->name());
-			if (strcmp(ibfile, filename) == 0) {
-				is_ibdata_file = true;
-				break;
+			if (!strcmp(base_name(iter->filepath()), filename)) {
+				goto next_file;
 			}
-		}
-		if (is_ibdata_file) {
-			continue;
 		}
 
 		if (!(ret = copy_or_move_file(node.filepath, node.filepath_rel,
 					      mysql_data_home, 1))) {
 			goto cleanup;
 		}
+	next_file:
+		continue;
 	}
 
 	/* copy buffer pool dump */
@@ -2123,7 +2115,14 @@ static bool backup_files_from_datadir(const char *dir_path)
 		if (info.type != OS_FILE_TYPE_FILE)
 			continue;
 
-		const char *pname = strrchr(info.name, OS_PATH_SEPARATOR);
+		const char *pname = strrchr(info.name, '/');
+#ifdef _WIN32
+		if (const char *last = strrchr(info.name, '\\')) {
+			if (!pname || last >pname) {
+				pname = last;
+			}
+		}
+#endif
 		if (!pname)
 			pname = info.name;
 
@@ -2140,7 +2139,7 @@ static bool backup_files_from_datadir(const char *dir_path)
 			unlink(info.name);
 
 		std::string full_path(dir_path);
-		full_path.append(1, OS_PATH_SEPARATOR).append(info.name);
+		full_path.append(1, '/').append(info.name);
 		if (!(ret = copy_file(ds_data, full_path.c_str() , info.name, 1)))
 			break;
 	}

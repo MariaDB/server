@@ -1240,31 +1240,34 @@ os_file_punch_hole(
 	os_offset_t	len)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** Normalizes a directory path for the current OS:
-On Windows, we convert '/' to '\', else we convert '\' to '/'.
-@param[in,out] str A null-terminated directory and file path */
-void os_normalize_path(char*	str);
-
 /* Determine if a path is an absolute path or not.
 @param[in]	OS directory or file path to evaluate
 @retval true if an absolute path
 @retval false if a relative path */
-UNIV_INLINE
-bool
-is_absolute_path(
-	const char*	path)
+inline bool is_absolute_path(const char *path)
 {
-	if (path[0] == OS_PATH_SEPARATOR) {
-		return(true);
-	}
+  switch (path[0]) {
+#ifdef _WIN32
+  case '\0':
+    return false;
+  case '\\':
+#endif
+  case '/':
+    return true;
+  }
 
 #ifdef _WIN32
-	if (path[1] == ':' && path[2] == OS_PATH_SEPARATOR) {
-		return(true);
-	}
+  if (path[1] == ':')
+  {
+    switch (path[2]) {
+    case '/':
+    case '\\':
+      return true;
+    }
+  }
 #endif /* _WIN32 */
 
-	return(false);
+  return false;
 }
 
 #include "os0file.ic"

@@ -479,15 +479,12 @@ static ulint trx_rseg_get_n_undo_tablespaces()
 static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
 {
   bool success;
-  char undo_name[sizeof "innodb_undo000"];
   ulint space_id= 0;
   ulint fsp_flags= 0;
 
   if (create)
   {
     space_id= srv_undo_space_id_start + i;
-    snprintf(undo_name, sizeof(undo_name),
-             "innodb_undo%03u", static_cast<unsigned>(space_id));
     switch (srv_checksum_algorithm) {
     case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
     case SRV_CHECKSUM_ALGORITHM_STRICT_FULL_CRC32:
@@ -542,7 +539,6 @@ err_exit:
     }
 
     space_id= id;
-    snprintf(undo_name, sizeof undo_name, "innodb_undo%03u", id);
     aligned_free(page);
   }
 
@@ -554,7 +550,7 @@ err_exit:
 
   fil_set_max_space_id_if_bigger(space_id);
 
-  fil_space_t *space= fil_space_t::create(undo_name, space_id, fsp_flags,
+  fil_space_t *space= fil_space_t::create(space_id, fsp_flags,
 					  FIL_TYPE_TABLESPACE, NULL);
   ut_a(fil_validate());
   ut_a(space);
@@ -594,11 +590,7 @@ srv_check_undo_redo_logs_exists()
 	/* Check if any undo tablespaces exist */
 	for (ulint i = 1; i <= srv_undo_tablespaces; ++i) {
 
-		snprintf(
-			name, sizeof(name),
-			"%s%cundo%03zu",
-			srv_undo_dir, OS_PATH_SEPARATOR,
-			i);
+		snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i);
 
 		fh = os_file_create(
 			innodb_data_file_key, name,
@@ -656,8 +648,7 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_db, ulint n_undo)
   for (ulint i= 0; i < n_undo; ++i)
   {
     char name[OS_FILE_MAX_PATH];
-    snprintf(name, sizeof name, "%s%cundo%03zu", srv_undo_dir,
-             OS_PATH_SEPARATOR, i + 1);
+    snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i + 1);
     ulint space_id= srv_undo_tablespace_open(create_new_db, name, i);
     if (!space_id)
     {
@@ -687,8 +678,7 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_db, ulint n_undo)
        ++i)
   {
      char name[OS_FILE_MAX_PATH];
-     snprintf(name, sizeof(name),
-              "%s%cundo%03zu", srv_undo_dir, OS_PATH_SEPARATOR, i);
+     snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i);
      if (!srv_undo_tablespace_open(create_new_db, name, i))
        break;
      ++srv_undo_tablespaces_open;
@@ -722,8 +712,7 @@ srv_undo_tablespaces_init(bool create_new_db)
     for (ulint i= 0; i < srv_undo_tablespaces; ++i)
     {
       char name[OS_FILE_MAX_PATH];
-      snprintf(name, sizeof name, "%s%cundo%03zu",
-               srv_undo_dir, OS_PATH_SEPARATOR, i + 1);
+      snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i + 1);
       if (dberr_t err= srv_undo_tablespace_create(name))
       {
         ib::error() << "Could not create undo tablespace '" << name << "'.";
@@ -2106,15 +2095,12 @@ srv_get_meta_data_filename(
 	/* Make sure the data_dir_path is set. */
 	dict_get_and_save_data_dir_path(table, false);
 
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		ut_a(table->data_dir_path);
+	const char* data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
+		? table->data_dir_path : nullptr;
+	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || data_dir_path);
 
-		path = fil_make_filepath(
-			table->data_dir_path, table->name.m_name, CFG, true);
-	} else {
-		path = fil_make_filepath(NULL, table->name.m_name, CFG, false);
-	}
-
+	path = fil_make_filepath(data_dir_path, table->name, CFG,
+				 data_dir_path != nullptr);
 	ut_a(path);
 	len = strlen(path);
 	ut_a(max_len >= len);

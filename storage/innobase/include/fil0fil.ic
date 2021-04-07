@@ -129,7 +129,8 @@ fil_page_type_validate(
 
 		/* Dump out the page info */
 		ib::fatal() << "Page " << space_id << ":" << offset
-			<< " name " << (space ? space->name : "???")
+			<< " name " << (space && space->chain.start
+					? space->chain.start->name : "???")
 			<< " page_type " << page_type
 			<< " key_version " << key_version
 			<< " lsn " << mach_read_from_8(page + FIL_PAGE_LSN)

@@ -1,7 +1,7 @@
 #pragma once
 #include "my_dbug.h"
 #ifndef DBUG_OFF
-extern char *dbug_mariabackup_get_val(const char *event, const char *key);
+char *dbug_mariabackup_get_val(const char *event, fil_space_t::name_type key);
 /*
 In debug mode,  execute SQL statement that was passed via environment.
 To use this facility, you need to
@@ -14,19 +14,11 @@ To use this facility, you need to
    for the variable)
 3. start mariabackup with --dbug=+d,debug_mariabackup_events
 */
-extern void dbug_mariabackup_event(
-	const char *event,const char *key);
-#define DBUG_MARIABACKUP_EVENT(A, B) \
-	DBUG_EXECUTE_IF("mariabackup_events", \
-		dbug_mariabackup_event(A,B););
-#define DBUG_EXECUTE_FOR_KEY(EVENT, KEY, CODE) \
-	DBUG_EXECUTE_IF("mariabackup_inject_code", {\
-		char *dbug_val = dbug_mariabackup_get_val(EVENT, KEY); \
-		if (dbug_val && *dbug_val) CODE \
-	})
+#define DBUG_EXECUTE_FOR_KEY(EVENT, KEY, CODE)			\
+	DBUG_EXECUTE_IF("mariabackup_inject_code",		\
+	{ char *dbug_val= dbug_mariabackup_get_val(EVENT, KEY);	\
+	  if (dbug_val) CODE })
 #else
-#define DBUG_MARIABACKUP_EVENT(A,B)
-#define DBUG_MARIABACKUP_EVENT_LOCK(A,B)
 #define DBUG_EXECUTE_FOR_KEY(EVENT, KEY, CODE)
 #endif
 

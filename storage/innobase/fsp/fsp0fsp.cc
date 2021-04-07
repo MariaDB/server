@@ -1142,10 +1142,11 @@ fsp_alloc_free_page(
 
 		ut_a(!is_system_tablespace(space_id));
 		if (page_no >= FSP_EXTENT_SIZE) {
-			ib::error() << "Trying to extend a single-table"
-				" tablespace " << space->name << " , by single"
-				" page(s) though the space size " << space_size
-				<< ". Page no " << page_no << ".";
+			ib::error() << "Trying to extend "
+				    << space->chain.start->name
+				    << " by single page(s) though the size is "
+				    << space_size
+				    << ". Page no " << page_no << ".";
 			return(NULL);
 		}
 

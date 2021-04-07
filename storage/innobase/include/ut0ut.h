@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, 2020, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -275,25 +275,6 @@ ut_strerr(
 	dberr_t	num);	/*!< in: error number */
 
 #endif /* !UNIV_INNOCHECKSUM */
-
-#ifdef UNIV_PFS_MEMORY
-
-/** Extract the basename of a file without its extension.
-For example, extract "foo0bar" out of "/path/to/foo0bar.cc".
-@param[in]	file		file path, e.g. "/path/to/foo0bar.cc"
-@param[out]	base		result, e.g. "foo0bar"
-@param[in]	base_size	size of the output buffer 'base', if there
-is not enough space, then the result will be truncated, but always
-'\0'-terminated
-@return number of characters that would have been printed if the size
-were unlimited (not including the final ‘\0’) */
-size_t
-ut_basename_noext(
-	const char*	file,
-	char*		base,
-	size_t		base_size);
-
-#endif /* UNIV_PFS_MEMORY */
 
 namespace ib {
 

@@ -3359,7 +3359,9 @@ row_drop_table_for_mysql(
 		if (table->space != fil_system.sys_space) {
 			/* Delete the link file if used. */
 			if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-				RemoteDatafile::delete_link_file(name);
+				RemoteDatafile::delete_link_file(
+					{table->name.m_name,
+					 strlen(table->name.m_name)});
 			}
 		}
 
@@ -3648,14 +3650,13 @@ do_drop:
 		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
 			dict_get_and_save_data_dir_path(table, true);
 			ut_ad(table->data_dir_path || !space);
-			filepath = space ? NULL : fil_make_filepath(
-				table->data_dir_path,
-				table->name.m_name, IBD,
-				table->data_dir_path != NULL);
-		} else {
-			filepath = space ? NULL : fil_make_filepath(
-				NULL, table->name.m_name, IBD, false);
 		}
+
+		filepath = space
+			? nullptr
+			: fil_make_filepath(table->data_dir_path, table->name,
+					    IBD,
+					    table->data_dir_path != nullptr);
 
 		/* Free the dict_table_t object. */
 		err = row_drop_table_from_cache(tablename, table, trx);

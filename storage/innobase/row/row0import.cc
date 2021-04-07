@@ -3761,16 +3761,15 @@ fil_tablespace_iterate(
 	/* Make sure the data_dir_path is set. */
 	dict_get_and_save_data_dir_path(table, false);
 
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		ut_a(table->data_dir_path);
+	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
 
-		filepath = fil_make_filepath(
-			table->data_dir_path, table->name.m_name, IBD, true);
-	} else {
-		filepath = fil_make_filepath(
-			NULL, table->name.m_name, IBD, false);
-	}
+	const char *data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
+		? table->data_dir_path : nullptr;
 
+	filepath = fil_make_filepath(data_dir_path,
+				     {table->name.m_name,
+				      strlen(table->name.m_name)},
+				     IBD, data_dir_path != nullptr);
 	if (!filepath) {
 		return(DB_OUT_OF_MEMORY);
 	} else {
@@ -4095,16 +4094,10 @@ row_import_for_mysql(
 	dict_get_and_save_data_dir_path(table, true);
 
 	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
-
-	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-		ut_a(table->data_dir_path);
-
-		filepath = fil_make_filepath(
-			table->data_dir_path, table->name.m_name, IBD, true);
-	} else {
-		filepath = fil_make_filepath(
-			NULL, table->name.m_name, IBD, false);
-	}
+	const char *data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
+		? table->data_dir_path : nullptr;
+	filepath = fil_make_filepath(data_dir_path, table->name, IBD,
+				     data_dir_path != nullptr);
 
 	DBUG_EXECUTE_IF(
 		"ib_import_OOM_15",

@@ -31,7 +31,7 @@ SELECT * FROM INFORMATION_SCHEMA.ENGINES
 WHERE engine = 'innodb'
 AND support IN ('YES', 'DEFAULT', 'ENABLED');
 ENGINE	SUPPORT	COMMENT	TRANSACTIONS	XA	SAVEPOINTS
-FOUND 1 /The innodb_system data file 'ibdata1' was not found but one of the other data files 'ibdata2' exists/ in mysqld.1.err
+FOUND 1 /The data file '.*ibdata1' was not found but one of the other data files '.*ibdata2' exists/ in mysqld.1.err
 bak_ib_logfile0
 bak_ibdata1
 bak_ibdata2

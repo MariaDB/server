@@ -135,7 +135,7 @@ InnoDB:
 
 #include "mysql/psi/psi_memory.h" /* PSI_memory_key, PSI_memory_info */
 
-#include "ut0ut.h" /* ut_strcmp_functor, ut_basename_noext() */
+#include "ut0ut.h" /* ut_strcmp_functor */
 
 #define	OUT_OF_MEMORY_MSG \
 	"Check if you should increase the swap file or ulimits of your" \

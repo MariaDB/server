@@ -362,7 +362,7 @@ struct ddl_tracker_t {
 static ddl_tracker_t ddl_tracker;
 
 // Convert non-null terminated filename to space name
-std::string filename_to_spacename(const byte *filename, size_t len);
+static std::string filename_to_spacename(const void *filename, size_t len);
 
 CorruptedPages::CorruptedPages() { ut_a(!pthread_mutex_init(&m_mutex, NULL)); }
 
@@ -374,11 +374,9 @@ void CorruptedPages::add_page_no_lock(const char *space_name, ulint space_id,
 {
   space_info_t  &space_info = m_spaces[space_id];
   if (space_info.space_name.empty())
-    space_info.space_name=
-        convert_space_name
-            ? filename_to_spacename(reinterpret_cast<const byte *>(space_name),
-                                    strlen(space_name))
-            : space_name;
+    space_info.space_name= convert_space_name
+      ? filename_to_spacename(space_name, strlen(space_name))
+      : space_name;
   (void)space_info.pages.insert(page_no);
 }
 
@@ -724,21 +722,25 @@ end:
 
 void mdl_lock_all()
 {
-	mdl_lock_init();
-	datafiles_iter_t it;
+  mdl_lock_init();
+  datafiles_iter_t it;
 
-	while (fil_node_t *node = datafiles_iter_next(&it)) {
-		if (fil_is_user_tablespace_id(node->space->id)
-			&& check_if_skip_table(node->space->name))
-			continue;
-
-		mdl_lock_table(node->space->id);
-	}
+  while (fil_node_t *node= datafiles_iter_next(&it))
+  {
+    const auto id= node->space->id;
+    if (const char *name= (fil_is_user_tablespace_id(id) &&
+                           node->space->chain.start)
+        ? node->space->chain.start->name : nullptr)
+      if (check_if_skip_table(filename_to_spacename(name,
+                                                    strlen(name)).c_str()))
+        continue;
+    mdl_lock_table(id);
+  }
 }
 
 
 // Convert non-null terminated filename to space name
-std::string filename_to_spacename(const byte *filename, size_t len)
+static std::string filename_to_spacename(const void *filename, size_t len)
 {
 	// null- terminate filename
 	char *f = (char *)malloc(len + 1);
@@ -2045,7 +2047,6 @@ static bool innodb_init_param()
 	    innobase_data_file_path);
 
 	srv_sys_space.set_space_id(TRX_SYS_SPACE);
-	srv_sys_space.set_name("innodb_system");
 	srv_sys_space.set_path(srv_data_home);
 	switch (srv_checksum_algorithm) {
 	case SRV_CHECKSUM_ALGORITHM_FULL_CRC32:
@@ -2076,8 +2077,6 @@ static bool innodb_init_param()
 	}
 	msg("innodb_log_group_home_dir = %s",
 	    srv_log_group_home_dir);
-
-	os_normalize_path(srv_log_group_home_dir);
 
 	if (strchr(srv_log_group_home_dir, ';')) {
 		msg("syntax error in innodb_log_group_home_dir, ");
@@ -2531,7 +2530,15 @@ check_if_skip_database_by_path(
 		return(FALSE);
 	}
 
-	const char* db_name = strrchr(path, OS_PATH_SEPARATOR);
+	const char* db_name = strrchr(path, '/');
+#ifdef _WIN32
+	if (const char* last = strrchr(path, '\\')) {
+		if (!db_name || last > db_name) {
+			db_name = last;
+		}
+	}
+#endif
+
 	if (db_name == NULL) {
 		db_name = path;
 	} else {
@@ -2690,21 +2697,11 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 	xb_read_filt_t		*read_filter;
 	my_bool			rc = FALSE;
 
-	/* Get the name and the path for the tablespace. node->name always
-	contains the path (which may be absolute for remote tablespaces in
-	5.6+). space->name contains the tablespace name in the form
-	"./database/table.ibd" (in 5.5-) or "database/table" (in 5.6+). For a
-	multi-node shared tablespace, space->name contains the name of the first
-	node, but that's irrelevant, since we only need node_name to match them
-	against filters, and the shared tablespace is always copied regardless
-	of the filters value. */
-
-	const char* const node_name = node->space->name;
-	const char* const node_path = node->name;
-
 	if (fil_is_user_tablespace_id(node->space->id)
-	    && check_if_skip_table(node_name)) {
-		msg(thread_n, "Skipping %s.", node_name);
+	    && check_if_skip_table(filename_to_spacename(node->name,
+							 strlen(node->name)).
+				   c_str())) {
+		msg(thread_n, "Skipping %s.", node->name);
 		return(FALSE);
 	}
 
@@ -2759,9 +2756,10 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 	action = xb_get_copy_action();
 
 	if (xtrabackup_stream) {
-		msg(thread_n, "%s %s", action, node_path);
+		msg(thread_n, "%s %s", action, node->name);
 	} else {
-		msg(thread_n, "%s %s to %s", action, node_path, dstfile->path);
+		msg(thread_n, "%s %s to %s", action, node->name,
+		    dstfile->path);
 	}
 
 	/* The main copy loop */
@@ -2779,11 +2777,15 @@ static my_bool xtrabackup_copy_datafile(fil_node_t *node, uint thread_n,
 	if (write_filter.finalize
 	    && !write_filter.finalize(&write_filt_ctxt, dstfile)) {
 		goto error;
-	}
+	} else {
+		const fil_space_t::name_type name = node->space->name();
 
-	pthread_mutex_lock(&backup_mutex);
-	ddl_tracker.tables_in_backup[node->space->id] = node_name;
-	pthread_mutex_unlock(&backup_mutex);
+		pthread_mutex_lock(&backup_mutex);
+		ddl_tracker.tables_in_backup.emplace(node->space->id,
+						     std::string(name.data(),
+								 name.size()));
+		pthread_mutex_unlock(&backup_mutex);
+	}
 
 	/* close */
 	msg(thread_n,"        ...done");
@@ -2815,7 +2817,7 @@ skip:
 	if (write_filter.deinit) {
 		write_filter.deinit(&write_filt_ctxt);
 	}
-	msg(thread_n,"Warning: We assume the  table was dropped during xtrabackup execution and ignore the tablespace %s", node_name);
+	msg(thread_n,"Warning: We assume the  table was dropped during xtrabackup execution and ignore the tablespace %s", node->name);
 	return(FALSE);
 }
 
@@ -3032,19 +3034,23 @@ static void *io_watching_thread(void*)
 }
 
 #ifndef DBUG_OFF
-char *dbug_mariabackup_get_val(const char *event, const char *key)
+char *dbug_mariabackup_get_val(const char *event,
+                               const fil_space_t::name_type key)
 {
-	char envvar[FN_REFLEN];
-	if (key) {
-		snprintf(envvar, sizeof(envvar), "%s_%s", event, key);
-		char *slash = strchr(envvar, '/');
-		if (slash)
-			*slash = '_';
-	} else {
-		strncpy(envvar, event, sizeof envvar - 1);
-		envvar[sizeof envvar - 1] = '\0';
-	}
-	return getenv(envvar);
+  char envvar[FN_REFLEN];
+  strncpy(envvar, event, sizeof envvar - 1);
+  envvar[(sizeof envvar) - 1] = '\0';
+
+  if (key.size() && key.size() + strlen(envvar) < (sizeof envvar) - 2)
+  {
+    strcat(envvar, "_");
+    strncat(envvar, key.data(), key.size());
+    if (char *slash= strchr(envvar, '/'))
+      *slash= '_';
+  }
+
+  char *val = getenv(envvar);
+  return val && *val ? val : nullptr;
 }
 
 /*
@@ -3059,7 +3065,8 @@ To use this facility, you need to
    for the variable)
 3. start mariabackup with --dbug=+d,debug_mariabackup_events
 */
-void dbug_mariabackup_event(const char *event,const char *key)
+static void dbug_mariabackup_event(const char *event,
+                                   const fil_space_t::name_type key)
 {
 	char *sql = dbug_mariabackup_get_val(event, key);
 	if (sql && *sql) {
@@ -3067,6 +3074,10 @@ void dbug_mariabackup_event(const char *event,const char *key)
 		xb_mysql_query(mysql_connection, sql, false, true);
 	}
 }
+# define DBUG_MARIABACKUP_EVENT(A, B)					\
+  DBUG_EXECUTE_IF("mariabackup_events", dbug_mariabackup_event(A,B);)
+#else
+# define DBUG_MARIABACKUP_EVENT(A, B) /* empty */
 #endif // DBUG_OFF
 
 /** Datafiles copying thread.*/
@@ -3085,8 +3096,9 @@ static void data_copy_thread_func(data_thread_ctxt_t *ctxt) /* thread context */
 	debug_sync_point("data_copy_thread_func");
 
 	while ((node = datafiles_iter_next(ctxt->it)) != NULL) {
-		DBUG_MARIABACKUP_EVENT("before_copy", node->space->name);
-		DBUG_EXECUTE_FOR_KEY("wait_innodb_redo_before_copy", node->space->name,
+		DBUG_MARIABACKUP_EVENT("before_copy", node->space->name());
+		DBUG_EXECUTE_FOR_KEY("wait_innodb_redo_before_copy",
+				     node->space->name(),
 			backup_wait_for_lsn(get_current_lsn(mysql_connection)););
 		/* copy the datafile */
 		if (xtrabackup_copy_datafile(node, num, NULL,
@@ -3094,8 +3106,7 @@ static void data_copy_thread_func(data_thread_ctxt_t *ctxt) /* thread context */
 			*ctxt->corrupted_pages))
 			die("failed to copy datafile.");
 
-		DBUG_MARIABACKUP_EVENT("after_copy", node->space->name);
-
+		DBUG_MARIABACKUP_EVENT("after_copy", node->space->name());
 	}
 
 	pthread_mutex_lock(ctxt->count_mutex);
@@ -3209,23 +3220,6 @@ xb_fil_io_init()
 	fil_system.space_id_reuse_warned = true;
 }
 
-static
-Datafile*
-xb_new_datafile(const char *name, bool is_remote)
-{
-	if (is_remote) {
-		RemoteDatafile *remote_file = new RemoteDatafile();
-		remote_file->set_name(name);
-		return(remote_file);
-	} else {
-		Datafile *file = new Datafile();
-		file->set_name(name);
-		file->make_filepath(".", name, IBD);
-		return(file);
-	}
-}
-
-
 /** Load tablespace.
 
 @param[in] dirname directory name of the tablespace to open
@@ -3273,7 +3267,20 @@ static void xb_load_single_table_tablespace(const char *dirname,
 		name[pathlen - 5] = 0;
 	}
 
-	Datafile *file = xb_new_datafile(name, is_remote);
+	Datafile *file;
+
+	if (is_remote) {
+		RemoteDatafile* rf = new RemoteDatafile();
+		if (!rf->open_link_file(name)) {
+			die("Can't open datafile %s", name);
+		}
+		file = rf;
+	} else {
+		file = new Datafile();
+		file->make_filepath(".",
+				    fil_space_t::name_type{name, strlen(name)},
+				    IBD);
+	}
 
 	if (file->open_read_only(true) != DB_SUCCESS) {
 		die("Can't open datafile %s", name);
@@ -3292,7 +3299,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 	if (err == DB_SUCCESS && file->space_id() != SRV_TMP_SPACE_ID) {
 		space = fil_space_t::create(
-			name, file->space_id(), file->flags(),
+			file->space_id(), file->flags(),
 			FIL_TYPE_TABLESPACE, NULL/* TODO: crypt_data */);
 
 		ut_a(space != NULL);
@@ -3407,7 +3414,6 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 		}
 		snprintf(dbpath, dbpath_len,
 			 "%s/%s", fil_path_to_mysql_datadir, dbinfo.name);
-		os_normalize_path(dbpath);
 
 		if (check_if_skip_database_by_path(dbpath)) {
 			fprintf(stderr, "Skipping db: %s\n", dbpath);
@@ -3622,7 +3628,7 @@ xb_load_tablespaces()
 	}
 
 	debug_sync_point("xtrabackup_load_tablespaces_pause");
-	DBUG_MARIABACKUP_EVENT("after_load_tablespaces", 0);
+	DBUG_MARIABACKUP_EVENT("after_load_tablespaces", {});
 	return(DB_SUCCESS);
 }
 
@@ -4386,7 +4392,7 @@ fail_before_log_copying_thread_start:
 	if (log_copy_failed)
 		goto fail_before_log_copying_thread_start;
 
-	DBUG_MARIABACKUP_EVENT("before_innodb_log_copy_thread_started",0);
+	DBUG_MARIABACKUP_EVENT("before_innodb_log_copy_thread_started", {});
 
 	mysql_cond_init(0, &log_copying_stop, nullptr);
 	std::thread(log_copying_thread).detach();
@@ -4528,7 +4534,7 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 	log_file_op = backup_file_op_fail;
 	pthread_mutex_unlock(&backup_mutex);
 
-	DBUG_MARIABACKUP_EVENT("backup_fix_ddl",0);
+	DBUG_MARIABACKUP_EVENT("backup_fix_ddl", {});
 
 	for (space_id_to_name_t::iterator iter = ddl_tracker.tables_in_backup.begin();
 		iter != ddl_tracker.tables_in_backup.end();
@@ -4624,10 +4630,10 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 	datafiles_iter_t it2;
 
 	while (fil_node_t *node = datafiles_iter_next(&it2)) {
-		fil_space_t * space = node->space;
-		if (!fil_is_user_tablespace_id(space->id))
+		if (!fil_is_user_tablespace_id(node->space->id))
 			continue;
-		std::string dest_name(node->space->name);
+		std::string dest_name= filename_to_spacename(
+			node->name, strlen(node->name));
 		dest_name.append(".new");
 		xtrabackup_copy_datafile(node, 0, dest_name.c_str(), wf_write_through,
 			corrupted_pages);
@@ -4746,10 +4752,15 @@ xb_space_create_file(
 
 static fil_space_t* fil_space_get_by_name(const char* name)
 {
-	mysql_mutex_assert_owner(&fil_system.mutex);
-	for (fil_space_t& space :fil_system.space_list)
-		if (!strcmp(space.name, name)) return &space;
-	return NULL;
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  for (fil_space_t &space : fil_system.space_list)
+    if (space.chain.start)
+      if (const char *str= strstr(space.chain.start->name, name))
+        if (!strcmp(str + strlen(name), ".ibd") &&
+            (str == space.chain.start->name ||
+             IF_WIN(str[-1] == '\\' ||,) str[-1] == '/'))
+          return &space;
+  return nullptr;
 }
 
 /***********************************************************************
@@ -4784,20 +4795,15 @@ xb_delta_open_matching_space(
 	if (dbname) {
 		snprintf(dest_dir, FN_REFLEN, "%s/%s",
 			xtrabackup_target_dir, dbname);
-		os_normalize_path(dest_dir);
-
 		snprintf(dest_space_name, FN_REFLEN, "%s/%s", dbname, name);
 	} else {
 		snprintf(dest_dir, FN_REFLEN, "%s", xtrabackup_target_dir);
-		os_normalize_path(dest_dir);
-
 		snprintf(dest_space_name, FN_REFLEN, "%s", name);
 	}
 
 	snprintf(real_name, real_name_len,
 		 "%s/%s",
 		 xtrabackup_target_dir, dest_space_name);
-	os_normalize_path(real_name);
 	/* Truncate ".ibd" */
 	dest_space_name[strlen(dest_space_name) - 4] = '\0';
 
@@ -4867,12 +4873,12 @@ exit:
 				 dbname, fil_space->id);
 
 			msg("mariabackup: Renaming %s to %s.ibd",
-				fil_space->name, tmpname);
+				fil_space->chain.start->name, tmpname);
 
 			if (fil_space->rename(tmpname, NULL, false)
 			    != DB_SUCCESS) {
 				msg("mariabackup: Cannot rename %s to %s",
-					fil_space->name, tmpname);
+					fil_space->chain.start->name, tmpname);
 				goto exit;
 			}
 		}
@@ -4889,15 +4895,14 @@ exit:
 	if (fil_space != NULL) {
 		char	tmpname[FN_REFLEN];
 
-		strncpy(tmpname, dest_space_name, FN_REFLEN);
+		snprintf(tmpname, sizeof tmpname, "%s.ibd", dest_space_name);
 
 		msg("mariabackup: Renaming %s to %s",
-		    fil_space->name, dest_space_name);
+		    fil_space->chain.start->name, tmpname);
 
-		if (fil_space->rename(tmpname, NULL, false) != DB_SUCCESS)
-		{
+		if (fil_space->rename(tmpname, false) != DB_SUCCESS) {
 			msg("mariabackup: Cannot rename %s to %s",
-				fil_space->name, dest_space_name);
+			    fil_space->chain.start->name, tmpname);
 			goto exit;
 		}
 
@@ -4920,7 +4925,7 @@ exit:
 	ut_ad(fil_space_t::zip_size(flags) == info.zip_size);
 	ut_ad(fil_space_t::physical_size(flags) == info.page_size);
 
-	if (fil_space_t::create(dest_space_name, info.space_id, flags,
+	if (fil_space_t::create(info.space_id, flags,
 				FIL_TYPE_TABLESPACE, 0)) {
 		*success = xb_space_create_file(real_name, info.space_id,
 						flags, &file);
@@ -4984,10 +4989,6 @@ xtrabackup_apply_delta(
 	if (!get_meta_path(src_path, meta_path)) {
 		goto error;
 	}
-
-	os_normalize_path(dst_path);
-	os_normalize_path(src_path);
-	os_normalize_path(meta_path);
 
 	if (!xb_read_delta_metadata(meta_path, &info)) {
 		goto error;
@@ -5380,8 +5381,6 @@ next_file_item_1:
                          OS_FILE_MAX_PATH/2-1,
                          dbinfo.name);
 
-		os_normalize_path(dbpath);
-
 		dbdir = os_file_opendir(dbpath, FALSE);
 
 		if (dbdir != NULL) {
@@ -5502,8 +5501,7 @@ static void rename_table_in_prepare(const std::string &datadir, const std::strin
 	if (file_exists(dest)) {
 		ren2= std::string(datadir) + "/" + to + ".ren";
 		if (!file_exists(ren2)) {
-			msg("ERROR : File %s was not found, but expected during rename processing\n", ren2.c_str());
-			ut_a(0);
+			die("ERROR : File %s was not found, but expected during rename processing\n", ren2.c_str());
 		}
 		tmp = to + "#";
 		rename_table_in_prepare(datadir, to, tmp);

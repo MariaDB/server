@@ -758,7 +758,6 @@ innodb_tmpdir_validate(
 		return(1);
 	}
 
-	os_normalize_path(alter_tmp_dir);
 	my_realpath(tmp_abs_path, alter_tmp_dir, 0);
 	size_t	tmp_abs_len = strlen(tmp_abs_path);
 
@@ -3292,8 +3291,6 @@ static int innodb_init_params()
 {
 	DBUG_ENTER("innodb_init_params");
 
-	static char	current_dir[3];
-	char		*default_path;
 	ulong		num_pll_degree;
 
 	/* Check that values don't overflow on 32-bit systems. */
@@ -3385,19 +3382,11 @@ static int innodb_init_params()
 	Note that when using the embedded server, the datadirectory is not
 	necessarily the current directory of this program. */
 
-	if (mysqld_embedded) {
-		default_path = mysql_real_data_home;
-	} else {
-		/* It's better to use current lib, to keep paths short */
-		current_dir[0] = FN_CURLIB;
-		current_dir[1] = FN_LIBCHAR;
-		current_dir[2] = 0;
-		default_path = current_dir;
-	}
-
-	ut_a(default_path);
-
-	fil_path_to_mysql_datadir = default_path;
+	fil_path_to_mysql_datadir =
+#ifndef HAVE_REPLICATION
+		mysqld_embedded ? mysql_real_data_home :
+#endif
+		"./";
 
 	/* Set InnoDB initialization parameters according to the values
 	read from MySQL .cnf file */
@@ -3405,7 +3394,8 @@ static int innodb_init_params()
 	/* The default dir for data files is the datadir of MySQL */
 
 	srv_data_home = innobase_data_home_dir
-		? innobase_data_home_dir : default_path;
+		? innobase_data_home_dir
+		: const_cast<char*>(fil_path_to_mysql_datadir);
 #ifdef WITH_WSREP
 	/* If we use the wsrep API, then we need to tell the server
 	the path to the data files (for passing it to the SST scripts): */
@@ -3437,7 +3427,6 @@ static int innodb_init_params()
 		srv_sys_space.set_flags(FSP_FLAGS_PAGE_SSIZE());
 	}
 
-	srv_sys_space.set_name("innodb_system");
 	srv_sys_space.set_path(srv_data_home);
 
 	/* Supports raw devices */
@@ -3447,7 +3436,6 @@ static int innodb_init_params()
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
-	srv_tmp_space.set_name("innodb_temporary");
 	srv_tmp_space.set_path(srv_data_home);
 
 	/* Temporary tablespace is in full crc32 format. */
@@ -3462,8 +3450,8 @@ static int innodb_init_params()
 
 	/* Perform all sanity check before we take action of deleting files*/
 	if (srv_sys_space.intersection(&srv_tmp_space)) {
-		sql_print_error("%s and %s file names seem to be the same.",
-			srv_tmp_space.name(), srv_sys_space.name());
+		sql_print_error("innodb_temporary and innodb_system"
+				" file names seem to be the same.");
 		DBUG_RETURN(HA_ERR_INITIALIZATION);
 	}
 
@@ -3472,10 +3460,8 @@ static int innodb_init_params()
 
 	/* ------------ UNDO tablespaces files ---------------------*/
 	if (!srv_undo_dir) {
-		srv_undo_dir = default_path;
+		srv_undo_dir = const_cast<char*>(fil_path_to_mysql_datadir);
 	}
-
-	os_normalize_path(srv_undo_dir);
 
 	if (strchr(srv_undo_dir, ';')) {
 		sql_print_error("syntax error in innodb_undo_directory");
@@ -3487,10 +3473,9 @@ static int innodb_init_params()
 	/* The default dir for log files is the datadir of MySQL */
 
 	if (!srv_log_group_home_dir) {
-		srv_log_group_home_dir = default_path;
+		srv_log_group_home_dir
+			= const_cast<char*>(fil_path_to_mysql_datadir);
 	}
-
-	os_normalize_path(srv_log_group_home_dir);
 
 	if (strchr(srv_log_group_home_dir, ';')) {
 		sql_print_error("syntax error in innodb_log_group_home_dir");

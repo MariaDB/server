@@ -1583,7 +1583,7 @@ fts_drop_common_tables(
 
 		if (drop_orphan && err == DB_FAIL) {
 			char* path = fil_make_filepath(
-					NULL, table_name, IBD, false);
+				NULL, table_name_t{table_name}, IBD, false);
 			if (path != NULL) {
 				os_file_delete_if_exists(
 					innodb_data_file_key, path, NULL);
@@ -5652,17 +5652,18 @@ bool fts_check_aux_table(const char *name,
 
   ut_ad(len <= MAX_FULL_NAME_LEN);
   ptr= static_cast<const char*>(memchr(name, '/', len));
+  IF_WIN(if (!ptr) ptr= static_cast<const char*>(memchr(name, '\\', len)), );
 
-  if (ptr != NULL)
-  {
-    /* We will start the match after the '/' */
-    ++ptr;
-    len = end - ptr;
-  }
+  if (!ptr)
+    return false;
+
+  /* We will start the match after the '/' */
+  ++ptr;
+  len= end - ptr;
 
   /* All auxiliary tables are prefixed with "FTS_" and the name
   length will be at the very least greater than 20 bytes. */
-  if (ptr && len > 20 && !memcmp(ptr, "FTS_", 4))
+  if (len > 24 && !memcmp(ptr, "FTS_", 4))
   {
     /* Skip the prefix. */
     ptr+= 4;
@@ -5706,6 +5707,11 @@ bool fts_check_aux_table(const char *name,
     ut_a(end > ptr);
     len= end - ptr;
 
+    if (len <= 4)
+      return false;
+
+    len-= 4; /* .ibd suffix */
+
     if (len > 7)
       return false;
 
@@ -5740,8 +5746,9 @@ static void fil_get_fts_spaces(fts_space_set_t& fts_space_set)
     index_id_t index_id= 0;
     table_id_t table_id= 0;
 
-    if (space.purpose == FIL_TYPE_TABLESPACE
-        && fts_check_aux_table(space.name, &table_id, &index_id))
+    if (space.purpose == FIL_TYPE_TABLESPACE && space.id &&
+        space.chain.start &&
+        fts_check_aux_table(space.chain.start->name, &table_id, &index_id))
       fts_space_set.insert(std::make_pair(table_id, index_id));
   }
 
@@ -5823,17 +5830,14 @@ static void fts_drop_all_aux_tables(trx_t *trx, fts_table_t *fts_table)
     fts_get_table_name(fts_table, fts_table_name, true);
 
     /* Drop all fts aux and common table */
-    dberr_t err= fts_drop_table(trx, fts_table_name);
+    if (fts_drop_table(trx, fts_table_name) != DB_FAIL)
+      continue;
 
-    if (err == DB_FAIL)
+    if (char *path= fil_make_filepath(nullptr, table_name_t{fts_table_name},
+                                      IBD, false))
     {
-      char *path= fil_make_filepath(NULL, fts_table_name, IBD, false);
-
-      if (path != NULL)
-      {
-        os_file_delete_if_exists(innodb_data_file_key, path , NULL);
-        ut_free(path);
-      }
+      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
+      ut_free(path);
     }
   }
 }

@@ -114,8 +114,6 @@ bool fil_space_t::try_to_close(bool print_info)
 The tablespace must exist in the memory cache.
 @param[in]	id		tablespace identifier
 @param[in]	old_path	old file name
-@param[in]	new_name	new table name in the
-databasename/tablename format
 @param[in]	new_path_in	new file name,
 or NULL if it is located in the normal data directory
 @return true if success */
@@ -123,7 +121,6 @@ static bool
 fil_rename_tablespace(
 	ulint		id,
 	const char*	old_path,
-	const char*	new_name,
 	const char*	new_path_in);
 
 /*
@@ -842,7 +839,6 @@ fil_space_free_low(
 	fil_space_destroy_crypt_data(&space->crypt_data);
 
 	space->~fil_space_t();
-	ut_free(space->name);
 	ut_free(space);
 }
 
@@ -903,7 +899,7 @@ fil_space_free(
 @param mode       encryption mode
 @return pointer to created tablespace, to be filled in with add()
 @retval nullptr on failure (such as when the same tablespace exists) */
-fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
+fil_space_t *fil_space_t::create(ulint id, ulint flags,
                                  fil_type_t purpose,
 				 fil_space_crypt_t *crypt_data,
 				 fil_encryption_t mode)
@@ -921,7 +917,6 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 	space= new (ut_zalloc_nokey(sizeof(*space))) fil_space_t;
 
 	space->id = id;
-	space->name = mem_strdup(name);
 
 	UT_LIST_INIT(space->chain, &fil_node_t::chain);
 
@@ -932,11 +927,10 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 	space->crypt_data = crypt_data;
 	space->n_pending.store(CLOSING, std::memory_order_relaxed);
 
-	DBUG_LOG("tablespace",
-		 "Created metadata for " << id << " name " << name);
+	DBUG_LOG("tablespace", "Created metadata for " << id);
 	if (crypt_data) {
 		DBUG_LOG("crypt",
-			 "Tablespace " << id << " name " << name
+			 "Tablespace " << id
 			 << " encryption " << crypt_data->encryption
 			 << " key id " << crypt_data->key_id
 			 << ":" << fil_crypt_get_mode(crypt_data)
@@ -958,13 +952,14 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 	mysql_mutex_lock(&fil_system.mutex);
 
 	if (const fil_space_t *old_space = fil_space_get_by_id(id)) {
-		ib::error() << "Trying to add tablespace '" << name
-			<< "' with id " << id
-			<< " to the tablespace memory cache, but tablespace '"
-			<< old_space->name << "' already exists in the cache!";
+		ib::error() << "Trying to add tablespace with id " << id
+			    << " to the cache, but tablespace '"
+			    << (old_space->chain.start
+				? old_space->chain.start->name
+				: "")
+			    << "' already exists in the cache!";
 		mysql_mutex_unlock(&fil_system.mutex);
 		space->~fil_space_t();
-		ut_free(space->name);
 		ut_free(space);
 		return(NULL);
 	}
@@ -989,7 +984,7 @@ fil_space_t *fil_space_t::create(const char *name, ulint id, ulint flags,
 		}
 		if (!fil_system.space_id_reuse_warned) {
 			ib::warn() << "Allocated tablespace ID " << id
-				<< " for " << name << ", old maximum was "
+				<< ", old maximum was "
 				<< fil_system.max_assigned_id;
 		}
 
@@ -1471,7 +1466,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
 
   /* fil_name_parse() requires that there be at least one path
   separator and that the file path end with ".ibd". */
-  ut_ad(strchr(path, OS_PATH_SEPARATOR) != NULL);
+  ut_ad(strchr(path, '/'));
   ut_ad(!strcmp(&path[strlen(path) - strlen(DOT_IBD)], DOT_IBD));
 
   flag_modified();
@@ -1509,7 +1504,7 @@ inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
 
   if (type == FILE_RENAME)
   {
-    ut_ad(strchr(new_path, OS_PATH_SEPARATOR));
+    ut_ad(strchr(new_path, '/'));
     m_log.push(reinterpret_cast<const byte*>(path), uint32_t(len + 1));
     m_log.push(reinterpret_cast<const byte*>(new_path), uint32_t(new_len));
   }
@@ -1583,7 +1578,7 @@ static ulint fil_check_pending_ops(const fil_space_t* space, ulint count)
 		/* Give a warning every 10 second, starting after 1 second */
 		if ((count % 500) == 50) {
 			ib::warn() << "Trying to delete"
-				" tablespace '" << space->name
+				" tablespace '" << space->chain.start->name
 				<< "' but there are " << n_pending_ops
 				<< " pending operations on it.";
 		}
@@ -1619,7 +1614,7 @@ fil_check_pending_io(
                 /* Give a warning every 10 second, starting after 1 second */
 		if ((count % 500) == 50) {
 			ib::info() << "Trying to delete"
-				" tablespace '" << space->name
+				" tablespace '" << space->chain.start->name
 				<< "' but there are " << p
 				<< " pending i/o's on it.";
 		}
@@ -1745,7 +1740,8 @@ void fil_close_tablespace(ulint id)
 	/* If it is a delete then also delete any generated files, otherwise
 	when we drop the database the remove directory will fail. */
 
-	if (char* cfg_name = fil_make_filepath(path, NULL, CFG, false)) {
+	if (char* cfg_name = fil_make_filepath(path, fil_space_t::name_type{},
+					       CFG, false)) {
 		os_file_delete_if_exists(innodb_data_file_key, cfg_name, NULL);
 		ut_free(cfg_name);
 	}
@@ -1819,16 +1815,17 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 		written to the redo log. */
 		log_write_up_to(mtr.commit_lsn(), true);
 
-		char*	cfg_name = fil_make_filepath(path, NULL, CFG, false);
-		if (cfg_name != NULL) {
-			os_file_delete_if_exists(innodb_data_file_key, cfg_name, NULL);
+		if (char* cfg_name = fil_make_filepath(
+			    path, fil_space_t::name_type{}, CFG, false)) {
+			os_file_delete_if_exists(innodb_data_file_key,
+						 cfg_name, nullptr);
 			ut_free(cfg_name);
 		}
 	}
 
 	/* Delete the link file pointing to the ibd file we are deleting. */
 	if (FSP_FLAGS_HAS_DATA_DIR(space->flags)) {
-		RemoteDatafile::delete_link_file(space->name);
+		RemoteDatafile::delete_link_file(space->name());
 	}
 
 	mysql_mutex_lock(&fil_system.mutex);
@@ -1889,25 +1886,21 @@ fil_space_t *fil_truncate_prepare(ulint space_id)
 Allocates and builds a file name from a path, a table or tablespace name
 and a suffix. The string must be freed by caller with ut_free().
 @param[in] path NULL or the directory path or the full path and filename.
-@param[in] name NULL if path is full, or Table/Tablespace name
-@param[in] suffix NULL or the file extention to use.
+@param[in] name {} if path is full, or Table/Tablespace name
+@param[in] ext the file extension to use
 @param[in] trim_name true if the last name on the path should be trimmed.
 @return own: file name */
-char*
-fil_make_filepath(
-	const char*	path,
-	const char*	name,
-	ib_extention	ext,
-	bool		trim_name)
+char* fil_make_filepath(const char *path, const fil_space_t::name_type &name,
+                        ib_extention ext, bool trim_name)
 {
 	/* The path may contain the basename of the file, if so we do not
 	need the name.  If the path is NULL, we can use the default path,
 	but there needs to be a name. */
-	ut_ad(path != NULL || name != NULL);
+	ut_ad(path || name.data());
 
 	/* If we are going to strip a name off the path, there better be a
 	path and a new name to put back on. */
-	ut_ad(!trim_name || (path != NULL && name != NULL));
+	ut_ad(!trim_name || (path && name.data()));
 
 	if (path == NULL) {
 		path = fil_path_to_mysql_datadir;
@@ -1915,20 +1908,20 @@ fil_make_filepath(
 
 	ulint	len		= 0;	/* current length */
 	ulint	path_len	= strlen(path);
-	ulint	name_len	= (name ? strlen(name) : 0);
 	const char* suffix	= dot_ext[ext];
 	ulint	suffix_len	= strlen(suffix);
-	ulint	full_len	= path_len + 1 + name_len + suffix_len + 1;
+	ulint	full_len	= path_len + 1 + name.size() + suffix_len + 1;
 
 	char*	full_name = static_cast<char*>(ut_malloc_nokey(full_len));
 	if (full_name == NULL) {
 		return NULL;
 	}
 
-	/* If the name is a relative path, do not prepend "./". */
+	/* If the name is a relative or absolute path, do not prepend "./". */
 	if (path[0] == '.'
-	    && (path[1] == '\0' || path[1] == OS_PATH_SEPARATOR)
-	    && name != NULL && name[0] == '.') {
+	    && (path[1] == '\0' || path[1] == '/' IF_WIN(|| path[1] == '\\',))
+	    && name.size() && (name.data()[0] == '.'
+			       || is_absolute_path(name.data()))) {
 		path = NULL;
 		path_len = 0;
 	}
@@ -1937,31 +1930,36 @@ fil_make_filepath(
 		memcpy(full_name, path, path_len);
 		len = path_len;
 		full_name[len] = '\0';
-		os_normalize_path(full_name);
 	}
 
 	if (trim_name) {
 		/* Find the offset of the last DIR separator and set it to
 		null in order to strip off the old basename from this path. */
-		char* last_dir_sep = strrchr(full_name, OS_PATH_SEPARATOR);
+		char* last_dir_sep = strrchr(full_name, '/');
+#ifdef _WIN32
+		if (char *last = strrchr(full_name, '\\')) {
+			if (last > last_dir_sep) {
+				last_dir_sep = last;
+			}
+		}
+#endif
 		if (last_dir_sep) {
 			last_dir_sep[0] = '\0';
 			len = strlen(full_name);
 		}
 	}
 
-	if (name != NULL) {
-		if (len && full_name[len - 1] != OS_PATH_SEPARATOR) {
+	if (name.size()) {
+		if (len && full_name[len - 1] != '/') {
 			/* Add a DIR separator */
-			full_name[len] = OS_PATH_SEPARATOR;
+			full_name[len] = '/';
 			full_name[++len] = '\0';
 		}
 
 		char*	ptr = &full_name[len];
-		memcpy(ptr, name, name_len);
-		len += name_len;
+		memcpy(ptr, name.data(), name.size());
+		len += name.size();
 		full_name[len] = '\0';
-		os_normalize_path(ptr);
 	}
 
 	/* Make sure that the specified suffix is at the end of the filepath
@@ -1987,6 +1985,13 @@ fil_make_filepath(
 	}
 
 	return(full_name);
+}
+
+char *fil_make_filepath(const char* path, const table_name_t name,
+                        ib_extention suffix, bool strip_name)
+{
+  return fil_make_filepath(path, {name.m_name, strlen(name.m_name)},
+                           suffix, strip_name);
 }
 
 /** Test if a tablespace file can be renamed to a new filepath by checking
@@ -2055,8 +2060,7 @@ retry:
 	return(DB_SUCCESS);
 }
 
-dberr_t fil_space_t::rename(const char* name, const char* path, bool log,
-			    bool replace)
+dberr_t fil_space_t::rename(const char* path, bool log, bool replace)
 {
 	ut_ad(UT_LIST_GET_LEN(chain) == 1);
 	ut_ad(!is_system_tablespace(id));
@@ -2070,7 +2074,7 @@ dberr_t fil_space_t::rename(const char* name, const char* path, bool log,
 		fil_name_write_rename(id, chain.start->name, path);
 	}
 
-	return fil_rename_tablespace(id, chain.start->name, name, path)
+	return fil_rename_tablespace(id, chain.start->name, path)
 		? DB_SUCCESS : DB_ERROR;
 }
 
@@ -2078,8 +2082,6 @@ dberr_t fil_space_t::rename(const char* name, const char* path, bool log,
 The tablespace must exist in the memory cache.
 @param[in]	id		tablespace identifier
 @param[in]	old_path	old file name
-@param[in]	new_name	new table name in the
-databasename/tablename format
 @param[in]	new_path_in	new file name,
 or NULL if it is located in the normal data directory
 @return true if success */
@@ -2087,14 +2089,11 @@ static bool
 fil_rename_tablespace(
 	ulint		id,
 	const char*	old_path,
-	const char*	new_name,
 	const char*	new_path_in)
 {
 	fil_space_t*	space;
 	fil_node_t*	node;
 	ut_a(id != 0);
-
-	ut_ad(strchr(new_name, '/') != NULL);
 
 	mysql_mutex_lock(&fil_system.mutex);
 
@@ -2117,15 +2116,11 @@ fil_rename_tablespace(
 
 	mysql_mutex_unlock(&fil_system.mutex);
 
-	char*	new_file_name = new_path_in == NULL
-		? fil_make_filepath(NULL, new_name, IBD, false)
-		: mem_strdup(new_path_in);
+	char*	new_file_name = mem_strdup(new_path_in);
 	char*	old_file_name = node->name;
-	char*	new_space_name = mem_strdup(new_name);
-	char*	old_space_name = space->name;
 
-	ut_ad(strchr(old_file_name, OS_PATH_SEPARATOR) != NULL);
-	ut_ad(strchr(new_file_name, OS_PATH_SEPARATOR) != NULL);
+	ut_ad(strchr(old_file_name, '/'));
+	ut_ad(strchr(new_file_name, '/'));
 
 	if (!recv_recovery_is_on()) {
 		mysql_mutex_lock(&log_sys.mutex);
@@ -2135,7 +2130,6 @@ fil_rename_tablespace(
 	mysql_mutex_assert_owner(&log_sys.mutex);
 	mysql_mutex_lock(&fil_system.mutex);
 	space->release();
-	ut_ad(space->name == old_space_name);
 	ut_ad(node->name == old_file_name);
 	bool success;
 	DBUG_EXECUTE_IF("fil_rename_tablespace_failure_2",
@@ -2151,26 +2145,17 @@ skip_second_rename:
 
 	if (success) {
 		node->name = new_file_name;
+	} else {
+		old_file_name = new_file_name;
 	}
 
 	if (!recv_recovery_is_on()) {
 		mysql_mutex_unlock(&log_sys.mutex);
 	}
 
-	ut_ad(space->name == old_space_name);
-	if (success) {
-		space->name = new_space_name;
-	} else {
-		/* Because nothing was renamed, we must free the new
-		names, not the old ones. */
-		old_file_name = new_file_name;
-		old_space_name = new_space_name;
-	}
-
 	mysql_mutex_unlock(&fil_system.mutex);
 
 	ut_free(old_file_name);
-	ut_free(old_space_name);
 
 	return(success);
 }
@@ -2193,7 +2178,7 @@ must be >= FIL_IBD_FILE_INITIAL_SIZE
 fil_space_t*
 fil_ibd_create(
 	ulint		space_id,
-	const char*	name,
+	const table_name_t name,
 	const char*	path,
 	ulint		flags,
 	uint32_t	size,
@@ -2341,6 +2326,7 @@ err_exit:
 	}
 
 	aligned_free(page);
+	fil_space_t::name_type space_name;
 
 	if (*err != DB_SUCCESS) {
 		ib::error()
@@ -2359,13 +2345,14 @@ err_exit:
 	if (has_data_dir) {
 		/* Make the ISL file if the IBD file is not
 		in the default location. */
-		*err = RemoteDatafile::create_link_file(name, path);
+		space_name = {name.m_name, strlen(name.m_name)};
+		*err = RemoteDatafile::create_link_file(space_name, path);
 		if (*err != DB_SUCCESS) {
 			goto err_exit;
 		}
 	}
 
-	if (fil_space_t* space = fil_space_t::create(name, space_id, flags,
+	if (fil_space_t* space = fil_space_t::create(space_id, flags,
 						     FIL_TYPE_TABLESPACE,
 						     crypt_data, mode)) {
 		space->punch_hole = punch_hole;
@@ -2380,8 +2367,8 @@ err_exit:
 		return space;
 	}
 
-	if (has_data_dir) {
-		RemoteDatafile::delete_link_file(name);
+	if (space_name.data()) {
+		RemoteDatafile::delete_link_file(space_name);
 	}
 
 	*err = DB_ERROR;
@@ -2424,23 +2411,12 @@ fil_ibd_open(
 	fil_type_t		purpose,
 	ulint			id,
 	ulint			flags,
-	const table_name_t&	tablename,
+	const table_name_t	tablename,
 	const char*		path_in,
 	dberr_t*		err)
 {
 	mysql_mutex_lock(&fil_system.mutex);
 	if (fil_space_t* space = fil_space_get_by_id(id)) {
-		if (strcmp(space->name, tablename.m_name)) {
-			table_name_t space_name;
-			space_name.m_name = space->name;
-			ib::error()
-				<< "Trying to open table " << tablename
-				<< " with id " << id
-				<< ", conflicting with " << space_name;
-			space = NULL;
-			if (err) *err = DB_TABLESPACE_EXISTS;
-		} else if (err) *err = DB_SUCCESS;
-
 		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (space && validate && !srv_read_only_mode) {
@@ -2466,27 +2442,32 @@ corrupted:
 	}
 
 	ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
-	df_default.init(tablename.m_name, flags);
-	df_remote.init(tablename.m_name, flags);
+	df_default.init(flags);
+	df_remote.init(flags);
 
 	/* Discover the correct file by looking in three possible locations
 	while avoiding unecessary effort. */
 
 	/* We will always look for an ibd in the default location. */
-	df_default.make_filepath(NULL, tablename.m_name, IBD);
+	df_default.make_filepath(nullptr, {tablename.m_name,
+					   strlen(tablename.m_name)}, IBD);
 
 	/* Look for a filepath embedded in an ISL where the default file
 	would be. */
-	if (df_remote.open_read_only(true) == DB_SUCCESS) {
-		ut_ad(df_remote.is_open());
-
-		/* Always validate a file opened from an ISL pointer */
+	if (df_remote.open_link_file(tablename)) {
 		validate = true;
-		++tablespaces_found;
-	} else if (df_remote.filepath() != NULL) {
-		/* An ISL file was found but contained a bad filepath in it.
-		Better validate anything we do find. */
-		validate = true;
+		if (df_remote.open_read_only(true) == DB_SUCCESS) {
+			ut_ad(df_remote.is_open());
+			++tablespaces_found;
+		} else {
+			/* The following call prints an error message */
+			os_file_get_last_error(true);
+			ib::error() << "A link file was found named '"
+				    << df_remote.link_filepath()
+				    << "' but the linked tablespace '"
+				    << df_remote.filepath()
+				    << "' could not be opened read-only.";
+		}
 	}
 
 	/* Attempt to open the tablespace at the dictionary filepath. */
@@ -2619,7 +2600,7 @@ skip_validate:
 		: NULL;
 
 	fil_space_t* space = fil_space_t::create(
-		tablename.m_name, id, flags, purpose, crypt_data);
+		id, flags, purpose, crypt_data);
 	if (!space) {
 		goto error;
 	}
@@ -2645,89 +2626,6 @@ skip_validate:
 
 	if (err) *err = DB_SUCCESS;
 	return space;
-}
-
-/** Looks for a pre-existing fil_space_t with the given tablespace ID
-and, if found, returns the name and filepath in newly allocated buffers
-that the caller must free.
-@param[in]	space_id	The tablespace ID to search for.
-@param[out]	name		Name of the tablespace found.
-@param[out]	filepath	The filepath of the first datafile for the
-tablespace.
-@return true if tablespace is found, false if not. */
-bool
-fil_space_read_name_and_filepath(
-	ulint	space_id,
-	char**	name,
-	char**	filepath)
-{
-	bool	success = false;
-	*name = NULL;
-	*filepath = NULL;
-
-	mysql_mutex_lock(&fil_system.mutex);
-
-	fil_space_t*	space = fil_space_get_by_id(space_id);
-
-	if (space != NULL) {
-		*name = mem_strdup(space->name);
-
-		fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
-		*filepath = mem_strdup(node->name);
-
-		success = true;
-	}
-
-	mysql_mutex_unlock(&fil_system.mutex);
-
-	return(success);
-}
-
-/** Convert a file name to a tablespace name.
-@param[in]	filename	directory/databasename/tablename.ibd
-@return database/tablename string, to be freed with ut_free() */
-char*
-fil_path_to_space_name(
-	const char*	filename)
-{
-	/* Strip the file name prefix and suffix, leaving
-	only databasename/tablename. */
-	ulint		filename_len	= strlen(filename);
-	const char*	end		= filename + filename_len;
-#ifdef HAVE_MEMRCHR
-	const char*	tablename	= 1 + static_cast<const char*>(
-		memrchr(filename, OS_PATH_SEPARATOR,
-			filename_len));
-	const char*	dbname		= 1 + static_cast<const char*>(
-		memrchr(filename, OS_PATH_SEPARATOR,
-			tablename - filename - 1));
-#else /* HAVE_MEMRCHR */
-	const char*	tablename	= filename;
-	const char*	dbname		= NULL;
-
-	while (const char* t = static_cast<const char*>(
-		       memchr(tablename, OS_PATH_SEPARATOR,
-			      ulint(end - tablename)))) {
-		dbname = tablename;
-		tablename = t + 1;
-	}
-#endif /* HAVE_MEMRCHR */
-
-	ut_ad(dbname != NULL);
-	ut_ad(tablename > dbname);
-	ut_ad(tablename < end);
-	ut_ad(end - tablename > 4);
-	ut_ad(memcmp(end - 4, DOT_IBD, 4) == 0);
-
-	char*	name = mem_strdupl(dbname, ulint(end - dbname) - 4);
-
-	ut_ad(name[tablename - dbname - 1] == OS_PATH_SEPARATOR);
-#if OS_PATH_SEPARATOR != '/'
-	/* space->name uses '/', not OS_PATH_SEPARATOR. */
-	name[tablename - dbname - 1] = '/';
-#endif
-
-	return(name);
 }
 
 /** Discover the correct IBD file to open given a remote or missing
@@ -2760,14 +2658,18 @@ fil_ibd_discover(
 	ulint		sep_found = 0;
 	const char*	db = basename;
 	for (; db > filename && sep_found < 2; db--) {
-		if (db[0] == OS_PATH_SEPARATOR) {
+		switch (db[0]) {
+#ifdef _WIN32
+		case '\\':
+#endif
+		case '/':
 			sep_found++;
 		}
 	}
 	if (sep_found == 2) {
 		db += 2;
-		df_def_per.init(db, 0);
-		df_def_per.make_filepath(NULL, db, IBD);
+		df_def_per.init(0);
+		df_def_per.set_filepath(db);
 		if (df_def_per.open_read_only(false) == DB_SUCCESS
 		    && df_def_per.validate_for_recovery() == DB_SUCCESS
 		    && df_def_per.space_id() == space_id) {
@@ -2787,8 +2689,16 @@ fil_ibd_discover(
 		case SRV_OPERATION_RESTORE:
 			break;
 		case SRV_OPERATION_NORMAL:
-			df_rem_per.set_name(db);
-			if (df_rem_per.open_link_file() != DB_SUCCESS) {
+			char* name = const_cast<char*>(db);
+			size_t len= strlen(name);
+			if (len <= 4 || strcmp(name + len - 4, dot_ext[IBD])) {
+				break;
+			}
+			name[len - 4] = '\0';
+			df_rem_per.open_link_file(table_name_t{name});
+			name[len - 4] = *dot_ext[IBD];
+
+			if (!df_rem_per.filepath()) {
 				break;
 			}
 
@@ -2811,7 +2721,7 @@ fil_ibd_discover(
 			}
 
 			/* Use this file if it has the space_id from the
-			MLOG record. */
+			FILE_ record. */
 			if (df_rem_per.space_id() == space_id) {
 				df.set_filepath(df_rem_per.filepath());
 				df.open_read_only(false);
@@ -2883,9 +2793,20 @@ fil_ibd_load(
 	if (srv_operation == SRV_OPERATION_RESTORE) {
 		/* Replace absolute DATA DIRECTORY file paths with
 		short names relative to the backup directory. */
-		if (const char* name = strrchr(filename, OS_PATH_SEPARATOR)) {
+		const char* name = strrchr(filename, '/');
+#ifdef _WIN32
+		if (const char *last = strrchr(filename, '\\')) {
+			if (last > name) {
+				name = last;
+			}
+		}
+#endif
+		if (name) {
 			while (--name > filename
-			       && *name != OS_PATH_SEPARATOR);
+#ifdef _WIN32
+			       && *name != '\\'
+#endif
+			       && *name != '/');
 			if (name > filename) {
 				filename = name + 1;
 			}
@@ -2971,7 +2892,7 @@ fil_ibd_load(
 					    first_page)
 		: NULL;
 	space = fil_space_t::create(
-		file.name(), space_id, flags, FIL_TYPE_TABLESPACE, crypt_data);
+		space_id, flags, FIL_TYPE_TABLESPACE, crypt_data);
 
 	if (space == NULL) {
 		return(FIL_LOAD_INVALID);
@@ -3075,15 +2996,10 @@ func_exit:
 memory cache. Note that if we have not done a crash recovery at the database
 startup, there may be many tablespaces which are not yet in the memory cache.
 @param[in]	id		Tablespace ID
-@param[in]	name		Tablespace name used in fil_space_t::create().
 @param[in]	table_flags	table flags
 @return the tablespace
 @retval	NULL	if no matching tablespace exists in the memory cache */
-fil_space_t*
-fil_space_for_table_exists_in_mem(
-	ulint		id,
-	const char*	name,
-	ulint		table_flags)
+fil_space_t *fil_space_for_table_exists_in_mem(ulint id, ulint table_flags)
 {
 	const ulint	expected_flags = dict_tf_to_fsp_flags(table_flags);
 
@@ -3094,17 +3010,6 @@ fil_space_for_table_exists_in_mem(
 
 		if (!fil_space_t::is_flags_equal(tf, sf)
 		    && !fil_space_t::is_flags_equal(sf, tf)) {
-			goto func_exit;
-		}
-
-		if (strcmp(space->name, name)) {
-			ib::error() << "Table " << name
-				<< " in InnoDB data dictionary"
-				" has tablespace id " << id
-				<< ", but the tablespace"
-				" with that id has name " << space->name << "."
-				" Have you deleted or moved .ibd files?";
-			ib::info() << TROUBLESHOOT_DATADICT_MSG;
 			goto func_exit;
 		}
 
@@ -3206,8 +3111,8 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 					release();
 					return {DB_ERROR, nullptr};
 				}
-				fil_report_invalid_page_access(name, offset,
-							       len,
+				fil_report_invalid_page_access(node->name,
+							       offset, len,
 							       type.is_read());
 			}
 		}
@@ -3422,23 +3327,18 @@ fil_page_set_type(
 Delete the tablespace file and any related files like .cfg.
 This should not be called for temporary tables.
 @param[in] ibd_filepath File path of the IBD tablespace */
-void
-fil_delete_file(
-/*============*/
-	const char*	ibd_filepath)
+void fil_delete_file(const char *ibd_filepath)
 {
-	/* Force a delete of any stale .ibd files that are lying around. */
+  ib::info() << "Deleting " << ibd_filepath;
+  os_file_delete_if_exists(innodb_data_file_key, ibd_filepath, nullptr);
 
-	ib::info() << "Deleting " << ibd_filepath;
-	os_file_delete_if_exists(innodb_data_file_key, ibd_filepath, NULL);
-
-	char*	cfg_filepath = fil_make_filepath(
-		ibd_filepath, NULL, CFG, false);
-	if (cfg_filepath != NULL) {
-		os_file_delete_if_exists(
-			innodb_data_file_key, cfg_filepath, NULL);
-		ut_free(cfg_filepath);
-	}
+  if (char *cfg_filepath= fil_make_filepath(ibd_filepath,
+					    fil_space_t::name_type{}, CFG,
+					    false))
+  {
+    os_file_delete_if_exists(innodb_data_file_key, cfg_filepath, nullptr);
+    ut_free(cfg_filepath);
+  }
 }
 
 #ifdef UNIV_DEBUG
@@ -3512,7 +3412,6 @@ void fil_names_dirty_and_write(fil_space_t* space)
 	DBUG_EXECUTE_IF("fil_names_write_bogus",
 			{
 				char bogus_name[] = "./test/bogus file.ibd";
-				os_normalize_path(bogus_name);
 				fil_name_write(
 					SRV_SPACE_ID_UPPER_BOUND,
 					bogus_name, &mtr);
@@ -3664,6 +3563,43 @@ fil_space_get_block_size(const fil_space_t* space, unsigned offset)
 	}
 
 	return block_size;
+}
+
+/** @return the tablespace name (databasename/tablename) */
+fil_space_t::name_type fil_space_t::name() const
+{
+  switch (id) {
+  case 0:
+    return name_type{"innodb_system", 13};
+  case SRV_TMP_SPACE_ID:
+    return name_type{"innodb_temporary", 16};
+  }
+
+  if (!UT_LIST_GET_FIRST(chain) || srv_is_undo_tablespace(id))
+    return name_type{};
+
+  ut_ad(purpose != FIL_TYPE_TEMPORARY);
+  ut_ad(UT_LIST_GET_LEN(chain) == 1);
+
+  const char *path= UT_LIST_GET_FIRST(chain)->name;
+  const char *sep= strchr(path, '/');
+  ut_ad(sep);
+
+  while (const char *next_sep= strchr(sep + 1, '/'))
+    path= sep + 1, sep= next_sep;
+
+#ifdef _WIN32
+  if (const char *last_sep= strchr(path, '\\'))
+    if (last_sep < sep)
+      path= last_sep;
+#endif
+
+  size_t len= strlen(path);
+  ut_ad(len > 4);
+  len-= 4;
+  ut_ad(!strcmp(&path[len], DOT_IBD));
+
+  return name_type{path, len};
 }
 
 #ifdef UNIV_DEBUG

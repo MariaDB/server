@@ -181,8 +181,8 @@ static void buf_dump_generate_path(char *path, size_t path_size)
 	char	buf[FN_REFLEN];
 
 	mysql_mutex_lock(&LOCK_global_system_variables);
-	snprintf(buf, sizeof(buf), "%s%c%s", get_buf_dump_dir(),
-		 OS_PATH_SEPARATOR, srv_buf_dump_filename);
+	snprintf(buf, sizeof buf, "%s/%s", get_buf_dump_dir(),
+		 srv_buf_dump_filename);
 	mysql_mutex_unlock(&LOCK_global_system_variables);
 
 	os_file_type_t	type;
@@ -205,19 +205,21 @@ static void buf_dump_generate_path(char *path, size_t path_size)
 		char	srv_data_home_full[FN_REFLEN];
 
 		my_realpath(srv_data_home_full, get_buf_dump_dir(), 0);
+		const char *format;
 
-		if (srv_data_home_full[strlen(srv_data_home_full) - 1]
-		    == OS_PATH_SEPARATOR) {
-
-			snprintf(path, path_size, "%s%s",
-				 srv_data_home_full,
-				 srv_buf_dump_filename);
-		} else {
-			snprintf(path, path_size, "%s%c%s",
-				 srv_data_home_full,
-				 OS_PATH_SEPARATOR,
-				 srv_buf_dump_filename);
+		switch (srv_data_home_full[strlen(srv_data_home_full) - 1]) {
+#ifdef _WIN32
+		case '\\':
+#endif
+		case '/':
+			format = "%s%s";
+			break;
+		default:
+			format = "%s/%s";
 		}
+
+		snprintf(path, path_size, format,
+			 srv_data_home_full, srv_buf_dump_filename);
 	}
 }
 

@@ -807,7 +807,6 @@ fil_name_process(char* name, ulint len, ulint space_id, bool deleted)
 	further checks can ensure that a FILE_MODIFY record was
 	scanned before applying any page records for the space_id. */
 
-	os_normalize_path(name);
 	const file_name_t fname(std::string(name, len), deleted);
 	std::pair<recv_spaces_t::iterator,bool> p = recv_spaces.emplace(
 		space_id, fname);
@@ -2853,22 +2852,8 @@ next_page:
         }
         else
         {
-          size_t base= r.second.rfind(OS_PATH_SEPARATOR);
-          ut_ad(base != std::string::npos);
-          size_t start= r.second.rfind(OS_PATH_SEPARATOR, base - 1);
-          if (start == std::string::npos)
-            start= 0;
-          else
-            ++start;
-          /* Keep only databasename/tablename without .ibd suffix */
-          std::string space_name(r.second, start, r.second.size() - start - 4);
-          ut_ad(space_name[base - start] == OS_PATH_SEPARATOR);
-#if OS_PATH_SEPARATOR != '/'
-          space_name[base - start]= '/';
-#endif
           mysql_mutex_lock(&log_sys.mutex);
-          if (dberr_t err= space->rename(space_name.c_str(), r.second.c_str(),
-                                         false))
+          if (dberr_t err= space->rename(r.second.c_str(), false))
           {
             ib::error() << "Cannot replay rename of tablespace " << id
                         << " to '" << r.second << "': " << err;
