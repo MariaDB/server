@@ -166,7 +166,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		rc = 1;
 	} else {
 		// Parent process
-		wait(NULL);  // Wait for the child to terminate
+		wait(0);  // Wait for the child to terminate
 	}	// endif pID
 #endif  // !__WIN__
 
