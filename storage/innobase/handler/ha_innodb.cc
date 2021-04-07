@@ -18092,37 +18092,45 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
       vtrx->mutex_lock();
       /* victim transaction is either active or prepared, if it has already
 	 proceeded to replication phase */
-      if (vtrx->id == trx_id && (vtrx->state == TRX_STATE_ACTIVE ||
-         (wsrep_is_wsrep_xid(vtrx->xid) && vtrx->state == TRX_STATE_PREPARED)))
+      if (vtrx->id == trx_id)
       {
-        WSREP_LOG_CONFLICT(bf_thd, vthd, TRUE);
-        WSREP_DEBUG("Aborter BF trx_id: " TRX_ID_FMT " thread: %ld "
-                    "seqno: %lld client_state: %s "
-                    "client_mode: %s transaction_mode: %s query: %s",
-                    bf_trx->id,
-                    thd_get_thread_id(bf_thd),
-                    wsrep_thd_trx_seqno(bf_thd),
-                    wsrep_thd_client_state_str(bf_thd),
-                    wsrep_thd_client_mode_str(bf_thd),
-                    wsrep_thd_transaction_state_str(bf_thd),
-                    wsrep_thd_query(bf_thd));
-        WSREP_DEBUG("Victim %s trx_id: " TRX_ID_FMT " thread: %ld "
-                    "seqno: %lld client_state: %s "
-                    "client_mode: %s transaction_mode: %s query: %s",
-                    wsrep_thd_is_BF(vthd, false) ? "BF" : "normal",
-                    vtrx->id,
-                    thd_get_thread_id(vthd),
-                    wsrep_thd_trx_seqno(vthd),
-                    wsrep_thd_client_state_str(vthd),
-                    wsrep_thd_client_mode_str(vthd),
-                    wsrep_thd_transaction_state_str(vthd),
-                    wsrep_thd_query(vthd));
-        /* Mark transaction as a victim for Galera abort */
-        vtrx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
-        if (!wsrep_thd_set_wsrep_aborter(bf_thd, vthd))
-          aborting= true;
-        else
-          WSREP_DEBUG("kill transaction skipped due to wsrep_aborter set");
+        switch (vtrx->state) {
+        default:
+          break;
+        case TRX_STATE_PREPARED:
+          if (!wsrep_is_wsrep_xid(vtrx->xid))
+            break;
+          /* fall through */
+        case TRX_STATE_ACTIVE:
+          WSREP_LOG_CONFLICT(bf_thd, vthd, TRUE);
+          WSREP_DEBUG("Aborter BF trx_id: " TRX_ID_FMT " thread: %ld "
+                      "seqno: %lld client_state: %s "
+                      "client_mode: %s transaction_mode: %s query: %s",
+                      bf_trx->id,
+                      thd_get_thread_id(bf_thd),
+                      wsrep_thd_trx_seqno(bf_thd),
+                      wsrep_thd_client_state_str(bf_thd),
+                      wsrep_thd_client_mode_str(bf_thd),
+                      wsrep_thd_transaction_state_str(bf_thd),
+                      wsrep_thd_query(bf_thd));
+          WSREP_DEBUG("Victim %s trx_id: " TRX_ID_FMT " thread: %ld "
+                      "seqno: %lld client_state: %s "
+                      "client_mode: %s transaction_mode: %s query: %s",
+                      wsrep_thd_is_BF(vthd, false) ? "BF" : "normal",
+                      vtrx->id,
+                      thd_get_thread_id(vthd),
+                      wsrep_thd_trx_seqno(vthd),
+                      wsrep_thd_client_state_str(vthd),
+                      wsrep_thd_client_mode_str(vthd),
+                      wsrep_thd_transaction_state_str(vthd),
+                      wsrep_thd_query(vthd));
+          /* Mark transaction as a victim for Galera abort */
+          vtrx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
+          if (!wsrep_thd_set_wsrep_aborter(bf_thd, vthd))
+            aborting= true;
+          else
+            WSREP_DEBUG("kill transaction skipped due to wsrep_aborter set");
+        }
       }
       lock_sys.wr_unlock();
       mysql_mutex_unlock(&lock_sys.wait_mutex);

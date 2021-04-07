@@ -5346,7 +5346,7 @@ static void lock_release_autoinc_locks(trx_t *trx)
 }
 
 /** Cancel a waiting lock request and release possibly waiting transactions */
-void lock_cancel_waiting_and_release(lock_t *lock)
+static void lock_cancel_waiting_and_release(lock_t *lock)
 {
   lock_sys.assert_locked(*lock);
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
@@ -5387,8 +5387,8 @@ void lock_sys_t::cancel_lock_wait_for_trx(trx_t *trx)
     if (lock->is_waiting())
       lock_cancel_waiting_and_release(lock);
   }
-  mysql_mutex_unlock(&lock_sys.wait_mutex);
   lock_sys.wr_unlock();
+  mysql_mutex_unlock(&lock_sys.wait_mutex);
 }
 #endif /* WITH_WSREP */
 
