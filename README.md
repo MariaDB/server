@@ -1,4 +1,4 @@
-Code status:
+Code status: A little bit of status
 ------------
 
 * [![Travis CI status](https://secure.travis-ci.org/MariaDB/server.png?branch=10.2)](https://travis-ci.org/MariaDB/server) travis-ci.org (10.2 branch)
