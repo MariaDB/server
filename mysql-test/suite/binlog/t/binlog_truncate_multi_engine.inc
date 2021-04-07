@@ -16,7 +16,6 @@ FLUSH LOGS;
 SET GLOBAL max_binlog_size= 4096;
 
 connect(con1,localhost,root,,);
-#--connection con1
 --echo List of binary logs before rotation
 --source include/show_binary_logs.inc
 INSERT INTO t1 VALUES (1, REPEAT("x", 1));
@@ -34,17 +33,8 @@ SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
 --source include/show_binary_logs.inc
 
 --echo # restart the server with $restart_parameters
-if ($kill_server)
-{
-  --echo # the server is crashed
-  --source include/kill_mysqld.inc
-  --source include/start_mysqld.inc
-}
-if (!$kill_server)
-{
-  --echo # the server is restarted
-  --source include/restart_mysqld.inc
-}
+--echo # the server is restarted
+--source include/restart_mysqld.inc
 
 --connection default
 --echo #

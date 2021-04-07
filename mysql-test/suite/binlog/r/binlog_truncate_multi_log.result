@@ -31,13 +31,15 @@ master-bin.000003	#
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
 0-1-6
-# Kill the server
 connection default;
+# Kill the server
+disconnect master1;
+disconnect master2;
 FOUND # /truncated binlog file:.*master.*000002/ in mysqld.1.err
 "One record should be present in table"
-SELECT count(*) FROM ti;
-count(*)
-1
+SELECT * FROM ti;
+a	b
+1	I am gonna survive
 # The truncated gtid binlog state
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
@@ -46,6 +48,5 @@ SELECT @@global.gtid_binlog_pos;
 @@global.gtid_binlog_pos
 0-1-4
 # Cleanup
-SET @@global.max_binlog_size = VALUE_AT_START;
 DROP TABLE ti;
 # End of the tests

@@ -21,16 +21,14 @@
 #        commits the transaction in doubt.
 #
 # ==== References ====
+#
 # MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
-
+#
 
 --source include/have_innodb.inc
---source include/have_log_bin.inc
---source include/have_debug.inc
 --source include/have_debug_sync.inc
 --source include/have_binlog_format_row.inc
 
---let $old_max_binlog_size= `select @@global.max_binlog_size`
 SET @@global.max_binlog_size= 4096;
 
 call mtr.add_suppression("Table '.*tm' is marked as crashed and should be repaired");
@@ -51,12 +49,12 @@ CREATE TABLE ti (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 CREATE TABLE tm (f INT) ENGINE=MYISAM;
 
 --let $row_count = 5
---let $i = 3
+--let $i = `select $row_count-2`
 --disable_query_log
 while ($i)
 {
   --eval INSERT INTO ti VALUES ($i, REPEAT("x", 1))
---dec $i
+  --dec $i
 }
 --enable_query_log
 INSERT INTO tm VALUES(1);
@@ -84,15 +82,9 @@ SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master3_ready";
 
 --connection default
 SET DEBUG_SYNC= "now WAIT_FOR master3_ready";
---echo # The gtid binlog state prior the crash must be restored at the end of the testSELECT @@global.gtid_binlog_state;
-
---write_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-wait
-EOF
-
+--echo # The gtid binlog state prior the crash must be restored at the end of the test;
 SELECT @@global.gtid_binlog_state;
 --source include/kill_mysqld.inc
---source include/wait_until_disconnected.inc
 
 #
 # Server restarts
@@ -102,24 +94,12 @@ SELECT @@global.gtid_binlog_state;
 --exec $MYSQLD_LAST_CMD  --rpl-semi-sync-slave-enabled=1 >> $MYSQLTEST_VARDIR/log/mysqld.1.err 2>&1
 
 --echo # Normal restart
---append_file $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
-restart:
-EOF
-
-connection default;
---enable_reconnect
---source include/wait_until_connected_again.inc
+--source include/start_mysqld.inc
 
 # Check error log for correct messages.
-let $log_error_= `SELECT @@GLOBAL.log_error`;
-if(!$log_error_)
-{
-    # MySQL Server on windows is started with --console and thus
-    # does not know the location of its .err log, use default location
-    let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err;
-}
+let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+
 --let SEARCH_FILE=$log_error_
---let SEARCH_RANGE=-50000
 --let SEARCH_PATTERN=Cannot trim the binary log to file
 --replace_regex /FOUND [0-9]+/FOUND #/
 --source include/search_pattern_in_file.inc
@@ -136,7 +116,5 @@ SELECT @@GLOBAL.gtid_binlog_state;
 SELECT @@GLOBAL.gtid_binlog_pos;
 
 --echo # Cleanup
---replace_result $old_max_binlog_size VALUE_AT_START
---eval SET @@global.max_binlog_size = $old_max_binlog_size
 DROP TABLE ti, tm;
 --echo End of test

@@ -2,24 +2,15 @@
 #
 # Test verifies the truncation of single binary log file.
 #
-# ==== Implementation ====
-#
-# Steps:
-#    0 - Create table t1 and insert/commit a row.
-#    1 - Insert an another row such that it gets written to binlog but commit
-#        in engine fails as server crashed at this point.
-#    2 - Restart server with --rpl-semi-sync-slave-enabled=1
-#    3 - Upon server start 'master-bin.000001' will be truncated to contain
-#        only the first insert
-#
 # ==== References ====
 #
 # MDEV-21117: recovery for --rpl-semi-sync-slave-enabled server
 
 --source include/have_innodb.inc
 --source include/have_aria.inc
---source include/have_log_bin.inc
---source include/have_debug.inc
+# File: binlog_truncate_active_log.inc included in test makes use of
+#       'debug_sync' facility.
+--source include/have_debug_sync.inc
 --source include/have_binlog_format_statement.inc
 
 call mtr.add_suppression("Can.t init tc log");
@@ -30,22 +21,29 @@ call mtr.add_suppression("Aborting");
 # B. 2pc transaction follows the blank one
 # C. Similarly to A, with the XA blank transaction
 
---connection default
 RESET MASTER;
-CREATE TABLE t  ( f INT )  ENGINE=INNODB;
-CREATE TABLE t2  ( f INT ) ENGINE=INNODB;
-CREATE TABLE tm ( f INT ) ENGINE=Aria;
+CREATE TABLE t (f INT) ENGINE=INNODB;
+CREATE TABLE t2 (f INT) ENGINE=INNODB;
+CREATE TABLE tm (f INT) ENGINE=Aria;
 
 --echo # Case A.
-# Both are doomed into truncation.
---let $this_search_pattern = Successfully truncated.*to remove transactions starting from GTID 0-1-6
+# Using 'debug_sync' hold 'query1' execution after 'query1' is flushed and
+# synced to binary log but not yet committed. In an another connection hold
+# 'query2' execution after 'query2' is flushed and synced to binlog.
+# Crash and restart server with --rpl-semi-sync-slave-enabled=1
+#
+# During recovery of binary log 'query1' status is checked with InnoDB engine,
+# it will be in prepared but not yet commited. All transactions starting from
+# 'query1' onwards will be removed from the binary log.
+
+--let $truncate_gtid_pos = 0-1-6
 --let $query1 = INSERT INTO t VALUES (20)
---let $query2 = DELETE FROM t2 WHERE f = 666 /* no such record */
+--let $query2 = DELETE FROM t2 WHERE f = 0 /* no such record */
 --source binlog_truncate_active_log.inc
 
 --echo # Case B.
 # The inverted sequence ends up to truncate only $query2
---let $this_search_pattern = Successfully truncated.*to remove transactions starting from GTID 0-1-10
+--let $truncate_gtid_pos = 0-1-10
 --let $query1 = DELETE FROM t2 WHERE f = 0
 --let $query2 = INSERT INTO t VALUES (20)
 --source binlog_truncate_active_log.inc
@@ -55,7 +53,7 @@ delimiter |;
 CREATE PROCEDURE sp_blank_xa()
 BEGIN
  XA START   'blank';
- DELETE FROM t2 WHERE f = 666 /* no such record */;
+ DELETE FROM t2 WHERE f = 0 /* no such record */;
  XA END     'blank';
  XA PREPARE 'blank';
 END|
@@ -63,7 +61,7 @@ delimiter ;|
 
 
 --echo # Case C.
---let $this_search_pattern = Successfully truncated.*to remove transactions starting from GTID 0-1-13
+--let $truncate_gtid_pos = 0-1-14
 --let $query1 = INSERT INTO t VALUES (20)
 --let $pre_q2 = CALL sp_blank_xa
 --let $query2 =  XA COMMIT  'blank'

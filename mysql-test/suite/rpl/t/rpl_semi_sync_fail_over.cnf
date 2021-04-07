@@ -5,9 +5,7 @@
 [mysqld.1]
 log-slave-updates
 gtid-strict-mode=1
-max_binlog_size= 4096
 
 [mysqld.2]
 log-slave-updates
 gtid-strict-mode=1
-max_binlog_size= 4096
