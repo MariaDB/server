@@ -129,6 +129,9 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		rc = 1;
 	}	// endif CreateProcess
 #else   // !__WIN__
+#include <sys/types.h>
+#include <sys/wait.h>
+
 	char  fn[600];
 	pid_t pID;
 
@@ -166,7 +169,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		rc = 1;
 	} else {
 		// Parent process
-		wait();  // Wait for the child to terminate
+		wait(NULL);  // Wait for the child to terminate
 	}	// endif pID
 #endif  // !__WIN__
 
