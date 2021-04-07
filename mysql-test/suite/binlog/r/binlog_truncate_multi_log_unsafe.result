@@ -30,14 +30,13 @@ SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master3_ready";
 INSERT INTO tm VALUES (2);
 connection default;
 SET DEBUG_SYNC= "now WAIT_FOR master3_ready";
-# The gtid binlog state prior the crash must be restored at the end of the testSELECT @@global.gtid_binlog_state;
+# The gtid binlog state prior the crash must be restored at the end of the test;
 SELECT @@global.gtid_binlog_state;
 @@global.gtid_binlog_state
 0-1-9
 # Kill the server
 # Failed restart as the semisync slave
 # Normal restart
-connection default;
 FOUND # /Cannot trim the binary log to file/ in mysqld.1.err
 # Proof that the in-doubt transactions are recovered by the 2nd normal server restart
 SELECT COUNT(*) = 5 as 'True' FROM ti;
@@ -54,6 +53,5 @@ SELECT @@GLOBAL.gtid_binlog_pos;
 @@GLOBAL.gtid_binlog_pos
 0-1-9
 # Cleanup
-SET @@global.max_binlog_size = VALUE_AT_START;
 DROP TABLE ti, tm;
 End of test
