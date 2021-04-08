@@ -1948,6 +1948,28 @@ dberr_t trx_undo_report_rename(trx_t* trx, const dict_table_t* table)
 	return err;
 }
 
+ATTRIBUTE_COLD ATTRIBUTE_NOINLINE
+/** @return whether the transaction holds an exclusive lock on a table */
+static bool trx_has_lock_x(const trx_t &trx, dict_table_t& table)
+{
+  if (table.is_temporary())
+    return true;
+
+  table.lock_mutex_lock();
+  const auto n= table.n_lock_x_or_s;
+  table.lock_mutex_unlock();
+
+  /* This thread is executing trx. No other thread can modify our table locks
+  (only record locks might be created, in an implicit-to-explicit conversion).
+  Hence, no mutex is needed here. */
+  if (n == 1)
+    for (const lock_t *lock : trx.lock.table_locks)
+      if (lock && lock->type_mode == (LOCK_X | LOCK_TABLE))
+        return true;
+
+  return false;
+}
+
 /***********************************************************************//**
 Writes information to an undo log about an insert, update, or a delete marking
 of a clustered index record. This information is used in a rollback of the
@@ -2014,7 +2036,8 @@ trx_undo_report_row_operation(
 		ut_ad(que_node_get_type(thr->run_node) == QUE_NODE_INSERT);
 		ut_ad(trx->bulk_insert);
 		return DB_SUCCESS;
-	} else if (m.second && trx->bulk_insert) {
+	} else if (m.second && trx->bulk_insert
+		   && trx_has_lock_x(*trx, *index->table)) {
 		m.first->second.start_bulk_insert();
 	} else {
 		bulk = false;

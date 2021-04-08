@@ -2340,7 +2340,7 @@ public:
 	/* @} */
 
   /** Number of granted or pending LOCK_S or LOCK_X on the table.
-  Protected by lock_mutex. */
+  Protected by lock_sys.assert_locked(*this). */
   uint32_t n_lock_x_or_s;
 
 	/** FTS specific state variables. */
