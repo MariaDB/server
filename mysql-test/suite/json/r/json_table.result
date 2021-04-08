@@ -675,6 +675,25 @@ json_table(JT.d, '$' COLUMNS (d for ordinality)) as JT2
 ERROR 42S22: Unknown column 'JT2.d' in 'JSON_TABLE argument'
 drop table t1, t2;
 #
+# MDEV-25352: JSON_TABLE: Inconsistent name resolution and ER_VIEW_INVALID ...
+# (Just the testcase)
+#
+CREATE TABLE t1 (a INT, b VARCHAR(8));
+INSERT INTO t1 VALUES (1,'{}'),(2,'[]');
+CREATE TABLE t2 (a INT);
+INSERT INTO t2 VALUES (2),(3);
+SELECT t1.*
+FROM
+t1 NATURAL JOIN t2
+RIGHT JOIN
+JSON_TABLE (t1.b, '$' COLUMNS(o FOR ORDINALITY)) AS jt ON (t1.a = jt.o)
+WHERE t1.a = 1;
+ERROR 42S22: Unknown column 't1.b' in 'JSON_TABLE argument'
+CREATE OR REPLACE VIEW v AS
+SELECT t1.* FROM t1 NATURAL JOIN t2 RIGHT JOIN JSON_TABLE (t1.b, '$' COLUMNS(o FOR ORDINALITY)) AS jt ON (t1.a = jt.o) WHERE t1.a = 1;
+ERROR 42S22: Unknown column 't1.b' in 'JSON_TABLE argument'
+drop table t1,t2;
+#
 # MDEV-25256: JSON_TABLE: Error ER_VIEW_INVALID upon running query via view
 #
 SELECT * FROM
