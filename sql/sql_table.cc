@@ -10084,7 +10084,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         If such table exists, there must be a corresponding TABLE_SHARE in
         THD::all_temp_tables list.
       */
-      if (thd->find_tmp_table_share(alter_ctx.new_db.str, alter_ctx.new_name.str))
+      if (thd->find_tmp_table_share(alter_ctx.new_db.str,
+                                    alter_ctx.new_name.str))
       {
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias.str);
         DBUG_RETURN(true);
@@ -10225,6 +10226,17 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
 
   if (table->s->tmp_table == NO_TMP_TABLE)
     mysql_audit_alter_table(thd, table_list);
+  else if (table_creation_was_logged && mysql_bin_log.is_open())
+  {
+    /* Protect against MDL error in binary logging */
+    MDL_request mdl_request;
+    DBUG_ASSERT(!mdl_ticket);
+    MDL_REQUEST_INIT(&mdl_request, MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT,
+                     MDL_TRANSACTION);
+    if (thd->mdl_context.acquire_lock(&mdl_request,
+                                      thd->variables.lock_wait_timeout))
+      DBUG_RETURN(true);
+  }
 
   THD_STAGE_INFO(thd, stage_setup);
 
