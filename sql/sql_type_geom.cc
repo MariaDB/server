@@ -279,8 +279,11 @@ bool Type_handler_geometry::
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr) const
 {
+  def->charset= &my_charset_bin;
   def->create_length_to_internal_length_string();
   return def->prepare_blob_field(thd);
 }

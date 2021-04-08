@@ -84,7 +84,6 @@ class Spvar_definition;
 struct st_value;
 class Protocol;
 class handler;
-struct Schema_specification_st;
 struct TABLE;
 struct SORT_FIELD_ATTR;
 struct SORT_FIELD;
@@ -247,6 +246,53 @@ public:
   TypelibBuffer(const LEX_CSTRING *values)
    :TypelibBuffer(sz, values)
   { }
+};
+
+
+/*
+  A helper class to store column attributes that are inherited
+  by columns (from the table level) when not specified explicitly.
+*/
+class Column_derived_attributes
+{
+  /*
+    Table level CHARACTER SET and COLLATE value:
+
+      CREATE TABLE t1 (a VARCHAR(1), b CHAR(2)) CHARACTER SET latin1;
+
+    All character string columns (CHAR, VARCHAR, TEXT)
+    inherit CHARACTER SET from the table level.
+  */
+  CHARSET_INFO *m_charset;
+public:
+  explicit Column_derived_attributes(CHARSET_INFO *cs)
+   :m_charset(cs)
+  { }
+  CHARSET_INFO *charset() const { return m_charset; }
+};
+
+
+/*
+  A helper class to store requests for changes
+  in multiple column data types during ALTER.
+*/
+class Column_bulk_alter_attributes
+{
+  /*
+    Target CHARACTER SET specification in ALTER .. CONVERT, e.g.
+
+      ALTER TABLE t1 CONVERT TO CHARACTER SET utf8;
+
+    All character string columns (CHAR, VARCHAR, TEXT)
+    get converted to the "CONVERT TO CHARACTER SET".
+  */
+  CHARSET_INFO *m_alter_table_convert_to_charset;
+public:
+  explicit Column_bulk_alter_attributes(CHARSET_INFO *convert)
+   :m_alter_table_convert_to_charset(convert)
+  { }
+  CHARSET_INFO *alter_table_convert_to_charset() const
+  { return m_alter_table_convert_to_charset; }
 };
 
 
@@ -3883,7 +3929,17 @@ public:
                                                 MEM_ROOT *mem_root,
                                                 Column_definition *c,
                                                 handler *file,
-                                                ulonglong table_flags) const;
+                                                ulonglong table_flags,
+                                                const Column_derived_attributes
+                                                      *derived_attr)
+                                                const;
+  virtual bool Column_definition_bulk_alter(Column_definition *c,
+                                            const Column_derived_attributes
+                                                  *derived_attr,
+                                            const Column_bulk_alter_attributes
+                                                  *bulk_alter_attr)
+                                            const
+  { return false; }
   /*
     This method is called on queries like:
       CREATE TABLE t2 (a INT) AS SELECT a FROM t1;
@@ -3902,9 +3958,7 @@ public:
   */
   virtual bool Column_definition_redefine_stage1(Column_definition *def,
                                                  const Column_definition *dup,
-                                                 const handler *file,
-                                                 const Schema_specification_st *
-                                                       schema)
+                                                 const handler *file)
                                                  const;
   virtual bool Column_definition_prepare_stage2(Column_definition *c,
                                                 handler *file,
@@ -4357,11 +4411,13 @@ public:
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
                                         handler *file,
-                                        ulonglong table_flags) const override;
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
   bool Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const override
   {
     DBUG_ASSERT(0);
@@ -4675,6 +4731,14 @@ public:
   String *print_item_value(THD *thd, Item *item, String *str) const override;
   double Item_func_min_max_val_real(Item_func_min_max *) const override;
   longlong Item_func_min_max_val_int(Item_func_min_max *) const override;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
   my_decimal *Item_func_min_max_val_decimal(Item_func_min_max *,
                                             my_decimal *) const override;
   bool Item_func_min_max_get_date(THD *thd, Item_func_min_max*,
@@ -5217,6 +5281,14 @@ public:
   void sort_length(THD *thd,
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
+  bool Column_definition_prepare_stage1(THD *thd,
+                                        MEM_ROOT *mem_root,
+                                        Column_definition *c,
+                                        handler *file,
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                      bool binary_cmp) const override;
   bool Item_param_set_from_value(THD *thd,
@@ -5317,11 +5389,13 @@ public:
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
                                         handler *file,
-                                        ulonglong table_flags) const override;
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
   bool Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const override;
   void
   Column_definition_attributes_frm_pack(const Column_definition_attributes *at,
@@ -5450,6 +5524,12 @@ class Type_handler_general_purpose_string: public Type_handler_string_result
 {
 public:
   bool is_general_purpose_string_type() const override { return true; }
+  bool Column_definition_bulk_alter(Column_definition *c,
+                                    const Column_derived_attributes
+                                          *derived_attr,
+                                    const Column_bulk_alter_attributes
+                                          *bulk_alter_attr)
+                                    const override;
 };
 
 
@@ -5842,11 +5922,13 @@ public:
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
                                         handler *file,
-                                        ulonglong table_flags) const override;
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
   bool Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
@@ -6690,11 +6772,13 @@ public:
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
                                         handler *file,
-                                        ulonglong table_flags) const override;
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
   bool Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
@@ -6745,11 +6829,13 @@ public:
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
                                         handler *file,
-                                        ulonglong table_flags) const override;
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
   bool Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
@@ -7179,12 +7265,13 @@ public:
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
                                         handler *file,
-                                        ulonglong table_flags)
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
                                         const override;
   bool Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const override;
   void Item_param_set_param_func(Item_param *param,
                                  uchar **pos, ulong len) const override;

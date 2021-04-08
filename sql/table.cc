@@ -4719,7 +4719,7 @@ void update_create_info_from_table(HA_CREATE_INFO *create_info, TABLE *table)
   create_info->row_type= share->row_type;
   create_info->key_block_size= share->key_block_size;
   create_info->default_table_charset= share->table_charset;
-  create_info->table_charset= 0;
+  create_info->alter_table_convert_to_charset= 0;
   create_info->comment= share->comment;
   create_info->transactional= share->transactional;
   create_info->page_checksum= share->page_checksum;
