@@ -353,14 +353,15 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
     case wsrep::transaction::s_aborting: /* fall through */
     case wsrep::transaction::s_aborted:
       WSREP_DEBUG("victim is aborting or has aborted");
-      return false;
+      break;
     default: break;
     }
-    /* the need to start wsrep transaction for BF aborting should be obsolete now
-       using debug assert to confirm this by testing
+    /* victim may not have started transaction yet in wsrep context, but it may
+       have acquired MDL locks (due to DDL execution), and this has caused BF conflict.
+       such case does not require aborting in wsrep or replication provider state.
     */
-    DBUG_ASSERT(0);
-    wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
+    DBUG_ASSERT(victim_thd->mdl_context.has_locks());
+    return false;
   }
 
   bool ret;
@@ -370,6 +371,7 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
   }
   else
   {
+    DBUG_ASSERT(victim_thd->wsrep_trx().active());
     ret= victim_thd->wsrep_cs().bf_abort(bf_seqno);
   }
   if (ret)
