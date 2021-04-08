@@ -484,11 +484,11 @@ CREATE TABLE t1 (
 
 INSERT INTO t1 VALUES (1,9),(2,7),(3,6),(4,3),(5,1);
 
-EXPLAIN SELECT pk, c1 FROM t1 WHERE pk <> 3;
+EXPLAIN SELECT pk, c1 FROM t1 WHERE (pk<3 or pk>3);
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 
-SELECT pk, c1 FROM t1 WHERE pk <> 3;
+SELECT pk, c1 FROM t1 WHERE (pk<3 or pk>3);
 
 DROP TABLE t1;
 
@@ -727,16 +727,16 @@ INSERT INTO t2 VALUES
 
 SET SESSION optimizer_switch='index_condition_pushdown=off';
 EXPLAIN
-SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0 
+SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
-SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
+SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
 
 SET SESSION optimizer_switch='index_condition_pushdown=on';
 EXPLAIN
-SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
+SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
-SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND t1.b != 0
+SELECT t1.b, t1.c FROM t1, t2 WHERE t1.a = t2.a AND (t1.b<0 OR t1.b>0)
   HAVING t1.c != 5 ORDER BY t1.c;
 
 DROP TABLE t1,t2;

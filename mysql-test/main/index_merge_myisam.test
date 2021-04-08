@@ -236,9 +236,11 @@ INSERT INTO t1 VALUES
 
 ALTER TABLE t1 ENABLE KEYS;
 
+# note: (pk is not null and (pk <1 or pk>1)) below is a sargable form of pk!=1
 EXPLAIN
 SELECT  * FROM t1 FORCE KEY (PRIMARY , i , c1 , c2) 
-WHERE pk = 255 OR i = 22 OR (pk  IN (1 , 136) AND c2  IN ('c' , 'w') AND (c1 NOT BETWEEN 'e' AND 'i' OR  c2 > 'g'))  OR pk != 1  ;
+WHERE pk = 255 OR i = 22 OR (pk  IN (1 , 136) AND c2  IN ('c' , 'w') AND (c1
+NOT BETWEEN 'e' AND 'i' OR  c2 > 'g'))  OR (pk is not null and (pk <1 or pk>1))  ;
 
 DROP TABLE t1;
 

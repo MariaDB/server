@@ -449,6 +449,7 @@ void print_range_for_non_indexed_field(String *out, Field *field,
 static void print_min_range_operator(String *out, const ha_rkey_function flag);
 static void print_max_range_operator(String *out, const ha_rkey_function flag);
 
+static bool is_field_an_unique_index(RANGE_OPT_PARAM *param, Field *field);
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -7689,6 +7690,21 @@ SEL_TREE *Item_bool_func::get_ne_mm_tree(RANGE_OPT_PARAM *param,
 }
 
 
+SEL_TREE *Item_func_ne::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                         Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_ne::get_func_mm_tree");
+  /*
+    If this condition is a "col1<>...", where there is a UNIQUE KEY(col1),
+    do not construct a SEL_TREE from it. A condition that excludes just one
+    row in the table is not selective (unless there are only a few rows)
+  */
+  if (is_field_an_unique_index(param, field))
+    DBUG_RETURN(NULL);
+  DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
+}
+
+
 SEL_TREE *Item_func_between::get_func_mm_tree(RANGE_OPT_PARAM *param,
                                               Field *field, Item *value)
 {
@@ -7787,28 +7803,16 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
         DBUG_RETURN(0);
 
       /*
-        If this is "unique_key NOT IN (...)", do not consider it sargable (for
-        any index, not just the unique one). The logic is as follows:
+        if this is a "col1 NOT IN (...)", and there is a UNIQUE KEY(col1), do
+        not constuct a SEL_TREE from it. The rationale is as follows:
          - if there are only a few constants, this condition is not selective
            (unless the table is also very small in which case we won't gain
            anything)
-         - If there are a lot of constants, the overhead of building and
+         - if there are a lot of constants, the overhead of building and
            processing enormous range list is not worth it.
       */
-      if (param->using_real_indexes)
-      {
-        key_map::Iterator it(field->key_start);
-        uint key_no;
-        while ((key_no= it++) != key_map::Iterator::BITMAP_END)
-        {
-          KEY *key_info= &field->table->key_info[key_no];
-          if (key_info->user_defined_key_parts == 1 &&
-              (key_info->flags & HA_NOSAME))
-          {
-            DBUG_RETURN(0);
-          }
-        }
-      }
+      if (is_field_an_unique_index(param, field))
+        DBUG_RETURN(0);
 
       /* Get a SEL_TREE for "(-inf|NULL) < X < c_0" interval.  */
       uint i=0;
@@ -8523,6 +8527,38 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   }
 
   DBUG_RETURN(ftree);
+}
+
+
+/*
+  @brief
+    Check if there is an one-segment unique key that matches the field exactly
+
+  @detail
+    In the future we could also add "almost unique" indexes where any value is
+    present only in a few rows (but necessarily exactly one row)
+*/
+static bool is_field_an_unique_index(RANGE_OPT_PARAM *param, Field *field)
+{
+  DBUG_ENTER("is_field_an_unique_index");
+
+  // The check for using_real_indexes is there because of the heuristics
+  // this function is used for.
+  if (param->using_real_indexes)
+  {
+    key_map::Iterator it(field->key_start);
+    uint key_no;
+    while ((key_no= it++) != key_map::Iterator::BITMAP_END)
+    {
+      KEY *key_info= &field->table->key_info[key_no];
+      if (key_info->user_defined_key_parts == 1 &&
+          (key_info->flags & HA_NOSAME))
+      {
+        DBUG_RETURN(true);
+      }
+    }
+  }
+  DBUG_RETURN(false);
 }
 
 
