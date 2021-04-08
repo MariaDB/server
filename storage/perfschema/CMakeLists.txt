@@ -276,7 +276,7 @@ table_replication_connection_configuration.cc
 table_replication_applier_configuration.cc
 table_replication_applier_status.cc
 table_replication_applier_status_by_coordinator.cc
-#table_replication_applier_status_by_worker.cc
+table_replication_applier_status_by_worker.cc
 #table_replication_group_member_stats.cc
 )
 

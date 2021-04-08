@@ -51,6 +51,7 @@ Slave_reporting_capability::report(loglevel level, int err_code,
     pbuff= m_last_error.message;
     pbuffsize= sizeof(m_last_error.message);
     m_last_error.number = err_code;
+    m_last_error.update_timestamp();
     report_function= sql_print_error;
     break;
   case WARNING_LEVEL:
@@ -69,6 +70,7 @@ Slave_reporting_capability::report(loglevel level, int err_code,
 
   mysql_mutex_unlock(&err_lock);
   va_end(args);
+  err_thread_id= current_thd->thread_id;
 
   /* If the msg string ends with '.', do not add a ',' it would be ugly */
   report_function("%s %s: %s%s %s%sInternal MariaDB error code: %d",

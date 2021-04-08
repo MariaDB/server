@@ -1,0 +1,150 @@
+# ==== Purpose ====
+#
+# This test script serves as the functionality testing for the table
+# performance_schema.replication_applier_status_by_worker. Test
+# for ddl and dml operations is a part of the perfschema suite.
+# The ddl/dml tests are named:
+# 1) ddl_replication_applier_status_by_worker.test and
+# 2) dml_replication_applier_status_by_worker.test.
+#
+# This test script does the following:
+
+#  - Verify that SELECT works for every field in the table.
+#  - The SELECT per field produces an output similar to the corresponding field
+#    in SHOW SLAVE STATUS(SSS), if there is one.
+#  - If there is no matching field in SSS, we resort to other method of testing
+#    those fields.
+#  - We perform all the testing on connection "slave". On master, the table
+#    returns an empty set.
+#
+# The follwing scenarios are tested in this test script:
+#
+#  - Test each field on a fresh replication setup.
+#  - Introduce error in worker thread and check for the correctness of error
+#    error number, message and timestamp.
+#  - Verify that, the change in values are correctly shown by the table.
+#  - Verify that the values are preserved after STOP SLAVE.
+#  - Set up replication in gtid-mode=on and test 'Last_Seen_Transaction' field.
+#  - Verify that the value in 'Last_Seen_Transaction' field is preserved after
+#    STOP SLAVE.
+#
+#  ==== Related Bugs and Worklogs ====
+# 
+#  MDEV-20220: Merge 5.7 P_S replication table 'replication_applier_status_by_worker
+#
+--source include/have_binlog_format_mixed.inc
+--source include/master-slave.inc
+
+
+let $assert_text= On master, the table should return an empty set.;
+let $assert_cond= count(*) = 0 from performance_schema.replication_applier_status_by_worker;
+source include/assert.inc;
+
+--echo
+--echo # Setup MTS and perform testing on a fresh slave.
+--echo
+--connection slave
+call mtr.add_suppression("Error 'Table 'test.t' doesn't exist' on query.");
+source include/stop_slave.inc;
+set @save_slave_parallel_workers= @@global.slave_parallel_workers;
+# to avoid warnings
+set @save_slave_transaction_retries= @@global.slave_transaction_retries;
+RESET SLAVE ALL;
+evalp CHANGE MASTER 'slave1' TO MASTER_USER='root',MASTER_PORT=$MASTER_MYPORT, MASTER_HOST='127.0.0.1', MASTER_USE_GTID=slave_pos;
+SET default_master_connection='slave1';
+SET @@global.slave_parallel_workers=1;
+START SLAVE 'slave1';
+--source include/wait_for_slave_to_start.inc
+
+let $ps_value= query_get_value(select channel_name from performance_schema.replication_applier_status_by_worker, channel_name, 1);
+let $assert_text= Channel_name will be empty for a worker when it has not processed any transaction;
+let $assert_cond= "$ps_value"= "";
+source include/assert.inc;
+
+# To verify the correctness of thread_id field, we check for the name of
+# the thread.
+let $thread_name= `select name from performance_schema.threads where thread_id= (select Thread_Id from performance_schema.replication_applier_status_by_worker)`;
+let $assert_text= thread_name should should indicate worker thread.;
+let $assert_cond= "$thread_name" = "thread/sql/rpl_parallel_thread";
+source include/assert.inc;
+
+let $ps_value= query_get_value(select Service_State from performance_schema.replication_applier_status_by_worker, Service_State, 1);
+let $assert_text= Service_State should be "ON" on a fresh slave server.;
+let $assert_cond= "$ps_value"= "ON";
+source include/assert.inc;
+
+let $ps_value= query_get_value(select Last_Seen_Transaction from performance_schema.replication_applier_status_by_worker, Last_Seen_Transaction, 1);
+let $assert_text= Last_Seen_Transaction should show "" if no transaction applierd;
+let $assert_cond= "$ps_value" = "";
+source include/assert.inc;
+
+--connection master
+CREATE TABLE t1 (a INT);
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'slave1'
+
+let $ps_value= query_get_value(select channel_name from performance_schema.replication_applier_status_by_worker, channel_name, 1);
+let $assert_text= Channel_name must be slave1;
+let $assert_cond= "$ps_value"= "slave1";
+source include/assert.inc;
+
+let $ps_value= query_get_value(select Last_Seen_Transaction from performance_schema.replication_applier_status_by_worker, Last_Seen_Transaction, 1);
+let $slave_gtid_pos= `SELECT @@gtid_slave_pos`;
+let $assert_text= Last_Seen_Transaction should show $slave_gtid_pos.;
+let $assert_cond= "$ps_value" = "$slave_gtid_pos";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1);
+let $ps_value= query_get_value(select Last_Error_Number from performance_schema.replication_applier_status_by_worker, Last_Error_Number, 1);
+let $assert_text= Value returned by SSS and PS table for Last_Error_Number should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Last_SQL_Error, 1);
+let $ps_value= query_get_value(select Last_Error_Message from performance_schema.replication_applier_status_by_worker, Last_Error_Message, 1);
+let $assert_text= Value returned by SSS and PS table for Last_Error_Message should both be empty.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $ps_value= query_get_value(select Last_Error_Timestamp from performance_schema.replication_applier_status_by_worker, Last_Error_Timestamp, 1);
+let $assert_text= Value returned by PS table for Last_Error_Timestamp should be 0000-00-00 00:00:00.;
+let $assert_cond= "$ps_value" = "0000-00-00 00:00:00";
+source include/assert.inc;
+
+--connection master
+DROP TABLE t1;
+--save_master_pos
+
+--connection slave
+--sync_with_master 0,'slave1'
+
+STOP SLAVE 'slave1';
+--source include/wait_for_slave_to_stop.inc
+RESET SLAVE ALL;
+SET default_master_connection='';
+evalp CHANGE MASTER TO MASTER_USER='root', MASTER_HOST='127.0.0.1',MASTER_PORT=$MASTER_MYPORT;
+
+--echo
+--echo # Verify that number of rows in 'replication_applier_status_by_worker' table match with
+--echo # number of slave_parallel_workers.
+--echo
+
+--connection slave
+SET @@global.slave_parallel_workers=4;
+--source include/start_slave.inc
+--let $assert_text= On slave, the table should return 4 rows.
+--let $assert_cond= count(*) = 4 from performance_schema.replication_applier_status_by_worker
+--source include/assert.inc
+--source include/stop_slave.inc
+
+--echo
+--echo # Cleanup.
+--echo
+
+set @@global.slave_parallel_workers= @save_slave_parallel_workers;
+set @@global.slave_transaction_retries= @save_slave_transaction_retries;
+source include/start_slave.inc;
+
+source include/rpl_end.inc;

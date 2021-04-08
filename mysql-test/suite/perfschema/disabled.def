@@ -29,9 +29,7 @@ threads_mysql_freebsd:
 
 transaction_gtid: needs to be updated for MariaDB gtids
 
-ddl_replication_applier_status_by_worker: todo
 ddl_replication_connection_status: todo
-dml_replication_applier_status_by_worker: todo
 dml_replication_connection_status: todo
 
 dml_replication_group_member_stats: todo?

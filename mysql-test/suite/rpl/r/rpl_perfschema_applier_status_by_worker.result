@@ -1,0 +1,53 @@
+include/master-slave.inc
+[connection master]
+include/assert.inc [On master, the table should return an empty set.]
+
+# Setup MTS and perform testing on a fresh slave.
+
+connection slave;
+call mtr.add_suppression("Error 'Table 'test.t' doesn't exist' on query.");
+include/stop_slave.inc
+set @save_slave_parallel_workers= @@global.slave_parallel_workers;
+set @save_slave_transaction_retries= @@global.slave_transaction_retries;
+RESET SLAVE ALL;
+CHANGE MASTER 'slave1' TO MASTER_USER='root',MASTER_PORT=$MASTER_MYPORT, MASTER_HOST='127.0.0.1', MASTER_USE_GTID=slave_pos;
+SET default_master_connection='slave1';
+SET @@global.slave_parallel_workers=1;
+START SLAVE 'slave1';
+include/wait_for_slave_to_start.inc
+include/assert.inc [Channel_name will be empty for a worker when it has not processed any transaction]
+include/assert.inc [thread_name should should indicate worker thread.]
+include/assert.inc [Service_State should be "ON" on a fresh slave server.]
+include/assert.inc [Last_Seen_Transaction should show "" if no transaction applierd]
+connection master;
+CREATE TABLE t1 (a INT);
+connection slave;
+include/assert.inc [Channel_name must be slave1]
+include/assert.inc [Last_Seen_Transaction should show 0-1-1.]
+include/assert.inc [Value returned by SSS and PS table for Last_Error_Number should be same.]
+include/assert.inc [Value returned by SSS and PS table for Last_Error_Message should both be empty.]
+include/assert.inc [Value returned by PS table for Last_Error_Timestamp should be 0000-00-00 00:00:00.]
+connection master;
+DROP TABLE t1;
+connection slave;
+STOP SLAVE 'slave1';
+include/wait_for_slave_to_stop.inc
+RESET SLAVE ALL;
+SET default_master_connection='';
+CHANGE MASTER TO MASTER_USER='root', MASTER_HOST='127.0.0.1',MASTER_PORT=$MASTER_MYPORT;
+
+# Verify that number of rows in 'replication_applier_status_by_worker' table match with
+# number of slave_parallel_workers.
+
+connection slave;
+SET @@global.slave_parallel_workers=4;
+include/start_slave.inc
+include/assert.inc [On slave, the table should return 4 rows.]
+include/stop_slave.inc
+
+# Cleanup.
+
+set @@global.slave_parallel_workers= @save_slave_parallel_workers;
+set @@global.slave_transaction_retries= @save_slave_transaction_retries;
+include/start_slave.inc
+include/rpl_end.inc

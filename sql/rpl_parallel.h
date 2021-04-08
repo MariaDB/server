@@ -161,6 +161,12 @@ struct rpl_parallel_thread {
   inuse_relaylog *accumulated_ir_last;
   uint64 accumulated_ir_count;
 
+  char channel_name[MAX_CONNECTION_NAME];
+  uint channel_name_length;
+  rpl_gtid last_seen_gtid;
+  int last_error_number;
+  char last_error_message[MAX_SLAVE_ERRMSG];
+  ulonglong last_error_timestamp;
   void enqueue(queued_event *qev)
   {
     if (last_in_queue)
@@ -224,6 +230,7 @@ struct rpl_parallel_thread {
   void batch_free();
   /* Update inuse_relaylog refcounts with what we have accumulated so far. */
   void inuse_relaylog_refcount_update();
+  rpl_parallel_thread();
 };
 
 

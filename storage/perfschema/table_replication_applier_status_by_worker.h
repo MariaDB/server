@@ -34,13 +34,8 @@
 #include "pfs_engine_table.h"
 #include "rpl_mi.h"
 #include "mysql_com.h"
-//#include "rpl_rli_pdb.h"
-//#include "rpl_msr.h"
-//#include "rpl_info.h" /*CHANNEL_NAME_LENGTH*/
 #include "my_thread.h"
-
-class Slave_worker;
-class Master_info;
+#include "rpl_parallel.h"
 
 /**
   @addtogroup Performance_schema_tables
@@ -64,12 +59,6 @@ struct st_row_worker {
 
   char channel_name[CHANNEL_NAME_LENGTH];
   uint channel_name_length;
-  /*
-    worker_id is added to the table because thread is killed at STOP SLAVE
-    but the status needs to show up, so worker_id is used as a permanent
-    identifier.
-  */
-  ulonglong worker_id;
   ulonglong thread_id;
   uint thread_id_is_null;
   enum_rpl_yes_no service_state;
@@ -83,42 +72,25 @@ struct st_row_worker {
 
 /**
   Position in table replication_applier_status_by_worker.
-  Index 1 for replication channel.
-  Index 2 for worker:
-  - position [0] is for Single Thread Slave (Master_info)
-  - position [1] .. [N] is for Multi Thread Slave (Slave_worker)
+  We have global replication thread pool.
 */
-struct pos_replication_applier_status_by_worker : public PFS_double_index
+struct pos_replication_applier_status_by_worker : public PFS_simple_index
 {
 
-  pos_replication_applier_status_by_worker() : PFS_double_index(0, 0)
+  pos_replication_applier_status_by_worker() : PFS_simple_index(0)
   {}
 
   inline void reset(void)
   {
-    m_index_1= 0;
-    m_index_2= 0;
+    m_index= 0;
   }
 
-  inline bool has_more_channels(uint num)
-  { return (m_index_1 < num); }
+  inline bool has_more_workers(uint num)
+  { return (m_index < num); }
 
-  inline void next_channel(void)
+  inline void next_worker(void)
   {
-    m_index_1++;
-    m_index_2= 0;
-  }
-
-  inline void next_worker()
-  {
-    m_index_2++;
-  }
-
-  inline void
-  set_channel_after(const pos_replication_applier_status_by_worker *other)
-  {
-    m_index_1 = other->m_index_1 + 1;
-    m_index_2 = 0;
+    m_index++;
   }
 };
 
@@ -129,13 +101,11 @@ class table_replication_applier_status_by_worker: public PFS_engine_table
   typedef pos_replication_applier_status_by_worker pos_t;
 
 private:
-  void make_row(Slave_worker *);
   /*
     Master_info to construct a row to display SQL Thread's status
     information in STS mode
   */
-  void make_row(Master_info *);
-
+  void make_row(rpl_parallel_thread *);
   /** Table share lock. */
   static THR_LOCK m_table_lock;
   /** Fields definition. */

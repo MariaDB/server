@@ -1099,6 +1099,11 @@ handle_rpl_parallel_thread(void *arg)
 
   mysql_mutex_lock(&rpt->LOCK_rpl_thread);
   rpt->thd= thd;
+  PSI_thread *psi= PSI_CALL_get_thread();
+  PSI_CALL_set_thread_os_id(psi);
+  PSI_CALL_set_thread_THD(psi, thd);
+  PSI_CALL_set_thread_id(psi, thd->thread_id);
+  rpt->thd->set_psi(psi);
 
   while (rpt->delay_start)
     mysql_cond_wait(&rpt->COND_rpl_thread, &rpt->LOCK_rpl_thread);
@@ -1188,6 +1193,12 @@ handle_rpl_parallel_thread(void *arg)
       /* Handle a new event group, which will be initiated by a GTID event. */
       if ((event_type= qev->ev->get_type_code()) == GTID_EVENT)
       {
+        rpt->last_seen_gtid= rgi->current_gtid;
+        rpt->channel_name_length= (uint)rgi->rli->mi->connection_name.length;
+        if (rpt->channel_name_length)
+          memcpy(rpt->channel_name, rgi->rli->mi->connection_name.str,
+                 rgi->rli->mi->connection_name.length);
+
         bool did_enter_cond= false;
         PSI_stage_info old_stage;
 
@@ -2000,6 +2011,12 @@ rpl_parallel_thread::loc_free_gco(group_commit_orderer *gco)
   else
     gco->next_gco= loc_gco_list;
   loc_gco_list= gco;
+}
+
+
+rpl_parallel_thread::rpl_parallel_thread()
+  : channel_name_length(0), last_error_number(0), last_error_timestamp(0)
+{
 }
 
 
