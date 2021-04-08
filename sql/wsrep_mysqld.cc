@@ -133,6 +133,18 @@ uint  wsrep_ignore_apply_errors= 0;
  */
 
 /*
+ * Cached variables
+ */
+
+// Whether the Galera write-set replication provider is set
+// wsrep_provider && strcmp(wsrep_provider, WSREP_NONE)
+bool WSREP_PROVIDER_EXISTS_;
+
+// Whether the Galera write-set replication is enabled
+// global_system_variables.wsrep_on && WSREP_PROVIDER_EXISTS_
+bool WSREP_ON_;
+
+/*
  * Other wsrep global variables.
  */
 
