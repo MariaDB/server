@@ -61,8 +61,7 @@ C_MODE_END
 ulong pagecache_division_limit, pagecache_age_threshold, pagecache_file_hash_size;
 ulonglong pagecache_buffer_size;
 const char *zerofill_error_msg=
-  "Table is from another system and must be zerofilled or repaired to be "
-  "usable on this system";
+  "Table is probably from another system and must be zerofilled or repaired ('REPAIR TABLE table_name') to be usable on this system";
 
 /**
    As the auto-repair is initiated when opened from the SQL layer
@@ -906,7 +905,7 @@ void _ma_check_print_error(HA_CHECK *param, const char *fmt, ...)
 {
   va_list args;
   DBUG_ENTER("_ma_check_print_error");
-  param->error_printed |= 1;
+  param->error_printed++;
   param->out_flag |= O_DATA_LOST;
   if (param->testflag & T_SUPPRESS_ERR_HANDLING)
     DBUG_VOID_RETURN;
@@ -932,7 +931,7 @@ void _ma_check_print_warning(HA_CHECK *param, const char *fmt, ...)
 {
   va_list args;
   DBUG_ENTER("_ma_check_print_warning");
-  param->warning_printed= 1;
+  param->warning_printed++;
   param->out_flag |= O_DATA_LOST;
   va_start(args, fmt);
   _ma_check_print_msg(param, MA_CHECK_WARNING, fmt, args);
@@ -1262,7 +1261,7 @@ int ha_maria::write_row(const uchar * buf)
 
 int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
 {
-  int error;
+  int error, fatal_error;
   HA_CHECK *param= (HA_CHECK*) thd->alloc(sizeof *param);
   MARIA_SHARE *share= file->s;
   const char *old_proc_info;
@@ -1294,6 +1293,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
     return HA_ADMIN_ALREADY_DONE;
 
   maria_chk_init_for_check(param, file);
+  param->max_allowed_lsn= translog_get_horizon();
 
   if ((file->s->state.changed & (STATE_CRASHED_FLAGS | STATE_MOVED)) ==
       STATE_MOVED)
@@ -1336,9 +1336,21 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
       param->testflag= old_testflag;
     }
   }
-  if (!error)
+  fatal_error= error;
+  if (param->error_printed &&
+      param->error_printed == (param->skip_lsn_error_count +
+                               param->not_visible_rows_found) &&
+      !(share->state.changed & (STATE_CRASHED_FLAGS | STATE_IN_REPAIR)))
   {
-    if ((share->state.changed & (STATE_CHANGED |
+    _ma_check_print_error(param, "%s", zerofill_error_msg);
+    /* This ensures that a future REPAIR TABLE will only do a zerofill */
+    file->update|= STATE_MOVED;
+    share->state.changed|= STATE_MOVED;
+    fatal_error= 0;
+  }
+  if (!fatal_error)
+  {
+    if ((share->state.changed & (STATE_CHANGED | STATE_MOVED |
                                  STATE_CRASHED_FLAGS |
                                  STATE_IN_REPAIR | STATE_NOT_ANALYZED)) ||
         (param->testflag & T_STATISTICS) || maria_is_crashed(file))
@@ -1349,9 +1361,13 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
       share->state.changed&= ~(STATE_CHANGED | STATE_CRASHED_FLAGS |
                                STATE_IN_REPAIR);
       if (!(table->db_stat & HA_READ_ONLY))
-        error= maria_update_state_info(param, file,
-                                       UPDATE_TIME | UPDATE_OPEN_COUNT |
-                                       UPDATE_STAT);
+      {
+        int tmp;
+        if ((tmp= maria_update_state_info(param, file,
+                                          UPDATE_TIME | UPDATE_OPEN_COUNT |
+                                          UPDATE_STAT)))
+          error= tmp;
+      }
       mysql_mutex_unlock(&share->intern_lock);
       info(HA_STATUS_NO_LOCK | HA_STATUS_TIME | HA_STATUS_VARIABLE |
            HA_STATUS_CONST);
@@ -1443,6 +1459,20 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
   maria_chk_init(param);
   param->thd= thd;
   param->op_name= "repair";
+
+  /*
+    The following can only be true if the table was marked as STATE_MOVED
+    during a CHECK TABLE and the table has not been used since then
+  */
+  if ((file->s->state.changed & STATE_MOVED) &&
+      !(file->s->state.changed & STATE_CRASHED_FLAGS))
+  {
+    param->db_name= table->s->db.str;
+    param->table_name= table->alias.c_ptr();
+    _ma_check_print_info(param, "Running zerofill on moved table");
+    return zerofill(thd, check_opt);
+  }
+
   param->testflag= ((check_opt->flags & ~(T_EXTEND)) |
                    T_SILENT | T_FORCE_CREATE | T_CALC_CHECKSUM |
                    (check_opt->flags & T_EXTEND ? T_REP : T_REP_BY_SORT));
@@ -1518,6 +1548,9 @@ int ha_maria::zerofill(THD * thd, HA_CHECK_OPT *check_opt)
   param->op_name= "zerofill";
   param->testflag= check_opt->flags | T_SILENT | T_ZEROFILL;
   param->sort_buffer_length= THDVAR(thd, sort_buffer_size);
+  param->db_name= table->s->db.str;
+  param->table_name= table->alias.c_ptr();
+
   error=maria_zerofill(param, file, share->open_file_name.str);
 
   /* Reset trn, that may have been set by repair */

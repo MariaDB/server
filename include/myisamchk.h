@@ -70,7 +70,7 @@ typedef struct st_handler_check_param
   */
   ulonglong unique_count[HA_MAX_KEY_SEG + 1];
   ulonglong notnull_count[HA_MAX_KEY_SEG + 1];
-
+  ulonglong max_allowed_lsn;
   my_off_t search_after_block;
   my_off_t new_file_pos, key_file_blocks;
   my_off_t keydata, totaldata, key_blocks, start_check_pos;
@@ -96,6 +96,7 @@ typedef struct st_handler_check_param
   uint out_flag, error_printed, verbose;
   uint opt_sort_key, total_files, max_level;
   uint key_cache_block_size, pagecache_block_size;
+  uint skip_lsn_error_count;
   int tmpfile_createflag, err_count;
   myf myf_rw;
   uint16 language;

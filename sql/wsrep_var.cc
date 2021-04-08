@@ -91,12 +91,13 @@ static bool refresh_provider_options()
   }
 }
 
-static void wsrep_set_wsrep_on(THD* thd)
+void wsrep_set_wsrep_on(THD* thd)
 {
   if (thd)
     thd->wsrep_was_on= WSREP_ON_;
-  WSREP_ON_= global_system_variables.wsrep_on && wsrep_provider &&
-    strcmp(wsrep_provider, WSREP_NONE);
+  WSREP_PROVIDER_EXISTS_= wsrep_provider &&
+    strncasecmp(wsrep_provider, WSREP_NONE, FN_REFLEN);
+  WSREP_ON_= global_system_variables.wsrep_on && WSREP_PROVIDER_EXISTS_;
 }
 
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
@@ -134,7 +135,16 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 
 bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
 {
-  return check_has_super(self, thd, var);
+  if (check_has_super(self, thd, var))
+    return true;
+
+  if (thd->in_active_multi_stmt_transaction())
+  {
+    my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
+    return true;
+  }
+
+  return false;
 }
 
 bool wsrep_causal_reads_update (sys_var *self, THD* thd, enum_var_type var_type)

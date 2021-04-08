@@ -178,6 +178,24 @@ private:
   THD *m_cur_thd;
 };
 
+class sql_safe_updates
+{
+public:
+  sql_safe_updates(THD* thd)
+    : m_thd(thd)
+    , m_option_bits(thd->variables.option_bits)
+  {
+    thd->variables.option_bits&= ~OPTION_SAFE_UPDATES;
+  }
+  ~sql_safe_updates()
+  {
+    m_thd->variables.option_bits= m_option_bits;
+  }
+private:
+  THD* m_thd;
+  ulonglong m_option_bits;
+};
+
 static int execute_SQL(THD* thd, const char* sql, uint length) {
   DBUG_ENTER("Wsrep_schema::execute_SQL()");
   int err= 0;
@@ -621,13 +639,15 @@ static void wsrep_init_thd_for_schema(THD *thd)
 
   thd->prior_thr_create_utime= thd->start_utime= thd->thr_create_utime;
 
-  /* */
-  thd->variables.wsrep_on    = 0;
+  /* No Galera replication */
+  thd->variables.wsrep_on= 0;
   /* No binlogging */
-  thd->variables.sql_log_bin = 0;
-  thd->variables.option_bits &= ~OPTION_BIN_LOG;
+  thd->variables.sql_log_bin= 0;
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
+  /* No safe updates */
+  thd->variables.option_bits&= ~OPTION_SAFE_UPDATES;
   /* No general log */
-  thd->variables.option_bits |= OPTION_LOG_OFF;
+  thd->variables.option_bits|= OPTION_LOG_OFF;
   /* Read committed isolation to avoid gap locking */
   thd->variables.tx_isolation= ISO_READ_COMMITTED;
   wsrep_assign_from_threadvars(thd);
@@ -682,6 +702,7 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
 
   Wsrep_schema_impl::wsrep_off wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
 
   /*
     Clean up cluster table and members table.
@@ -936,6 +957,7 @@ int Wsrep_schema::append_fragment(THD* thd,
   thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
 
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
   Wsrep_schema_impl::init_stmt(thd);
 
   TABLE* frag_table= 0;
@@ -985,6 +1007,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
   thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
 
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
   int error;
   uchar *key=NULL;
   key_part_map key_map= 0;
@@ -1107,6 +1130,7 @@ int Wsrep_schema::remove_fragments(THD* thd,
   WSREP_DEBUG("Removing %zu fragments", fragments.size());
   Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
 
   Query_tables_list query_tables_list_backup;
   Open_tables_backup open_tables_backup;
@@ -1177,6 +1201,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
 
   Wsrep_schema_impl::wsrep_off  wsrep_off(&thd);
   Wsrep_schema_impl::binlog_off binlog_off(&thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(&thd);
   Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd, &thd);
 
   int ret= 1;
@@ -1291,6 +1316,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
   Wsrep_storage_service storage_service(&storage_thd);
   Wsrep_schema_impl::binlog_off binlog_off(&storage_thd);
   Wsrep_schema_impl::wsrep_off wsrep_off(&storage_thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(&storage_thd);
   Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd,
                                                            &storage_thd);
   Wsrep_server_state& server_state(Wsrep_server_state::instance());

@@ -565,13 +565,16 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
          !maria_in_recovery) ||
          ((share->state.changed & STATE_NOT_MOVABLE) &&
           ((!(open_flags & HA_OPEN_IGNORE_MOVED_STATE) &&
-            memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE))))))
+            memcmp(share->base.uuid, maria_uuid, MY_UUID_SIZE)))) ||
+         ((share->state.changed & (STATE_MOVED | STATE_NOT_ZEROFILLED)) ==
+          (STATE_MOVED | STATE_NOT_ZEROFILLED))))
     {
-      DBUG_PRINT("warning", ("table is moved from another system.  uuid_diff: %d  create_trid: %lu  max_trid: %lu",
+      DBUG_PRINT("warning", ("table is moved from another system.  uuid_diff: %d  create_trid: %lu  max_trid: %lu  moved: %d",
                              memcmp(share->base.uuid, maria_uuid,
                                     MY_UUID_SIZE) != 0,
                              (ulong) share->state.create_trid,
-                             (ulong) trnman_get_max_trid()));
+                             (ulong) trnman_get_max_trid(),
+                             MY_TEST((share->state.changed & STATE_MOVED))));
       if (open_flags & HA_OPEN_FOR_REPAIR)
         share->state.changed|= STATE_MOVED;
       else

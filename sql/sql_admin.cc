@@ -440,8 +440,6 @@ dbug_err:
   */
 static bool wsrep_toi_replication(THD *thd, TABLE_LIST *tables)
 {
-  if (!WSREP(thd) || !WSREP_CLIENT(thd)) return false;
-
   LEX *lex= thd->lex;
   /* only handle OPTIMIZE and REPAIR here */
   switch (lex->sql_command)
@@ -542,10 +540,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   for (table= tables; table; table= table->next_local)
     table->table= NULL;
 #ifdef WITH_WSREP
-  if (wsrep_toi_replication(thd, tables))
+  if (WSREP(thd))
   {
-    WSREP_INFO("wsrep TOI replication of has failed, skipping OPTIMIZE");
-    goto err;
+    if(wsrep_toi_replication(thd, tables))
+    {
+      WSREP_INFO("wsrep TOI replication of has failed.");
+      goto err;
+    }
   }
 #endif /* WITH_WSREP */
 

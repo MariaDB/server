@@ -71,7 +71,7 @@ perl;
     my $fname= "$ENV{'MYSQLTEST_VARDIR'}/tmp/autozerofill.txt";
     open(FILE, "<", $fname) or die;
     my @content= <FILE>;
-    print grep(/Status:.*zerofilled/, @content);
+    print grep(/Status:.*/, @content);
     print "create_rename_lsn has magic value\n" if grep(/create_rename \(0,0x2\)/, @content);
     close FILE;
 EOF

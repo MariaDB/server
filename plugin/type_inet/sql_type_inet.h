@@ -458,19 +458,21 @@ public:
                                         MEM_ROOT *mem_root,
                                         Column_definition *def,
                                         handler *file,
-                                        ulonglong table_flags) const override
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override
   {
-    def->create_length_to_internal_length_simple();
+    def->prepare_stage1_simple(&my_charset_numeric);
     return false;
   }
 
   bool Column_definition_redefine_stage1(Column_definition *def,
                                          const Column_definition *dup,
-                                         const handler *file,
-                                         const Schema_specification_st *schema)
+                                         const handler *file)
                                          const override
   {
-    def->redefine_stage1_common(dup, file, schema);
+    def->redefine_stage1_common(dup, file);
     def->set_compression_method(dup->compression_method());
     def->create_length_to_internal_length_string();
     return false;

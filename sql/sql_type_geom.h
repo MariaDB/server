@@ -108,7 +108,10 @@ public:
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
                                         handler *file,
-                                        ulonglong table_flags) const override;
+                                        ulonglong table_flags,
+                                        const Column_derived_attributes
+                                              *derived_attr)
+                                        const override;
   bool Column_definition_prepare_stage2(Column_definition *c,
                                         handler *file,
                                         ulonglong table_flags) const override;
