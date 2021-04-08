@@ -127,6 +127,7 @@ include/wait_for_slave_sql_error.inc [errno=1213]
 SET GLOBAL debug_dbug=@old_dbug;
 retries
 10
+include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	3

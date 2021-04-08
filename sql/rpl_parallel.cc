@@ -1752,6 +1752,7 @@ int
 rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
 {
   int rc= 0;
+  struct pool_bkp_for_pfs* bkp= &pool->pfs_bkp;
 
   if ((rc= pool_mark_busy(pool, current_thd)))
     return rc;   // killed
@@ -1761,6 +1762,23 @@ rpl_parallel_activate_pool(rpl_parallel_thread_pool *pool)
     pool_mark_not_busy(pool);
     rc= rpl_parallel_change_thread_count(pool, opt_slave_parallel_threads,
                                          0);
+    if (!rc)
+    {
+      if (pool->count)
+      {
+        if (bkp->inited)
+        {
+          if (bkp->count != pool->count)
+          {
+            bkp->destroy();
+            bkp->init(pool->count);
+          }
+        }
+        else
+          bkp->init(pool->count);
+      }
+    }
+
   }
   else
   {
@@ -2026,7 +2044,8 @@ rpl_parallel_thread::rpl_parallel_thread()
 
 
 rpl_parallel_thread_pool::rpl_parallel_thread_pool()
-  : threads(0), free_list(0), count(0), inited(false), busy(false)
+  : threads(0), free_list(0), count(0), inited(false), busy(false),
+    pfs_bkp{0, false, NULL}
 {
 }
 
@@ -2057,6 +2076,7 @@ void
 rpl_parallel_thread_pool::destroy()
 {
   deactivate();
+  pfs_bkp.destroy();
   destroy_cond_mutex();
 }
 
@@ -2125,6 +2145,37 @@ rpl_parallel_thread_pool::release_thread(rpl_parallel_thread *rpt)
   mysql_mutex_unlock(&LOCK_rpl_thread_pool);
 }
 
+void
+rpl_parallel_thread_pool::copy_pool_for_pfs(Relay_log_info *rli)
+{
+  if (pfs_bkp.inited)
+  {
+    for(uint i=0; i<count;i++)
+    {
+      rpl_parallel_thread *rpt, *pfs_rpt;
+      rpt= threads[i];
+      pfs_rpt= pfs_bkp.rpl_thread_arr[i];
+      if (rpt->channel_name_length)
+      {
+        pfs_rpt->channel_name_length= rpt->channel_name_length;
+        strmake(pfs_rpt->channel_name, rpt->channel_name,
+                rpt->channel_name_length);
+      }
+      pfs_rpt->thd= rpt->thd;
+      pfs_rpt->last_seen_gtid= rpt->last_seen_gtid;
+      if (rli->err_thread_id && rpt->thd->thread_id == rli->err_thread_id)
+      {
+        pfs_rpt->last_error_number= rli->last_error().number;
+        strmake(pfs_rpt->last_error_message,
+            rli->last_error().message, sizeof(rli->last_error().message));
+        pfs_rpt->last_error_timestamp= rli->last_error().skr*1000000;
+      }
+      pfs_rpt->running= false;
+      pfs_rpt->worker_idle_time= rpt->get_worker_idle_time();
+      pfs_rpt->last_trans_retry_count= rpt->last_trans_retry_count;
+    }
+  }
+}
 
 /*
   Obtain a worker thread that we can queue an event to.
@@ -2393,6 +2444,7 @@ rpl_parallel::wait_for_done(THD *thd, Relay_log_info *rli)
                           STRING_WITH_LEN("now SIGNAL wait_for_done_waiting"));
   };);
 
+  global_rpl_thread_pool.copy_pool_for_pfs(rli);
   for (i= 0; i < domain_hash.records; ++i)
   {
     e= (struct rpl_parallel_entry *)my_hash_element(&domain_hash, i);

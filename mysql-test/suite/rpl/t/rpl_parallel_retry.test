@@ -149,6 +149,12 @@ let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --disable_query_log
 eval SELECT $new_retry - $old_retry AS retries;
 --enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 
 SELECT * FROM t1 ORDER BY a;
 STOP SLAVE IO_THREAD;

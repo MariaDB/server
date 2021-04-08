@@ -109,6 +109,22 @@ int table_replication_applier_status_by_worker::rnd_next(void)
     }
     mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
   }
+  else
+  {
+    struct pool_bkp_for_pfs *bkp_pool= &global_rpl_thread_pool.pfs_bkp;
+    if (bkp_pool->inited && bkp_pool->count)
+    {
+      for (m_pos.set_at(&m_next_pos);
+           m_pos.has_more_workers(bkp_pool->count);
+           m_pos.next_worker())
+      {
+        rpl_parallel_thread *rpt= bkp_pool->rpl_thread_arr[m_pos.m_index];
+        make_row(rpt);
+        m_next_pos.set_after(&m_pos);
+        return 0;
+      }
+    }
+  }
   return HA_ERR_END_OF_FILE;
 }
 
@@ -127,6 +143,16 @@ int table_replication_applier_status_by_worker::rnd_pos(const void *pos)
       rpl_parallel_thread *rpt= pool->threads[m_pos.m_index];
       make_row(rpt);
       mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
+      res= 0;
+    }
+  }
+  else
+  {
+    struct pool_bkp_for_pfs *bkp_pool= &global_rpl_thread_pool.pfs_bkp;
+    if (bkp_pool->inited && bkp_pool->count && m_pos.m_index < bkp_pool->count)
+    {
+      rpl_parallel_thread *rpt= bkp_pool->rpl_thread_arr[m_pos.m_index];
+      make_row(rpt);
       res= 0;
     }
   }

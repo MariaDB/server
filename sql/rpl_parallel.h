@@ -7,6 +7,7 @@
 struct rpl_parallel;
 struct rpl_parallel_entry;
 struct rpl_parallel_thread_pool;
+extern struct rpl_parallel_thread_pool pool_bkp_for_pfs;
 
 class Relay_log_info;
 struct inuse_relaylog;
@@ -257,6 +258,38 @@ struct rpl_parallel_thread {
 };
 
 
+struct pool_bkp_for_pfs{
+  uint32 count;
+  bool inited;
+  struct rpl_parallel_thread **rpl_thread_arr;
+  void init(uint32 thd_count)
+  {
+    DBUG_ASSERT(thd_count);
+    rpl_thread_arr= (rpl_parallel_thread **)
+                      my_malloc(PSI_INSTRUMENT_ME,
+                                thd_count * sizeof(rpl_parallel_thread*),
+                                MYF(MY_WME | MY_ZEROFILL));
+    for (uint i=0; i<thd_count; i++)
+      rpl_thread_arr[i]= (rpl_parallel_thread *)
+                          my_malloc(PSI_INSTRUMENT_ME, sizeof(rpl_parallel_thread),
+                                    MYF(MY_WME | MY_ZEROFILL));
+    count= thd_count;
+    inited= true;
+  }
+
+  void destroy()
+  {
+    if (inited)
+    {
+      for (uint i=0; i<count; i++)
+        my_free(rpl_thread_arr[i]);
+
+      my_free(rpl_thread_arr);
+      rpl_thread_arr= NULL;
+    }
+  }
+};
+
 struct rpl_parallel_thread_pool {
   struct rpl_parallel_thread **threads;
   struct rpl_parallel_thread *free_list;
@@ -270,8 +303,10 @@ struct rpl_parallel_thread_pool {
     is in progress.
   */
   bool busy;
+  struct pool_bkp_for_pfs pfs_bkp;
 
   rpl_parallel_thread_pool();
+  void copy_pool_for_pfs(Relay_log_info *rli);
   int init(uint32 size);
   void destroy();
   void deactivate();

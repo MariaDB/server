@@ -22,7 +22,7 @@
 #include "sql_class.h"
 
 Slave_reporting_capability::Slave_reporting_capability(char const *thread_name)
-  : m_thread_name(thread_name)
+  : err_thread_id(0), m_thread_name(thread_name)
 {
   mysql_mutex_init(key_mutex_slave_reporting_capability_err_lock,
                    &err_lock, MY_MUTEX_INIT_FAST);
