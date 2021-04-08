@@ -569,7 +569,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
          ((share->state.changed & (STATE_MOVED | STATE_NOT_ZEROFILLED)) ==
           (STATE_MOVED | STATE_NOT_ZEROFILLED))))
     {
-      DBUG_PRINT("warning", ("table is moved from another system.  uuid_diff: %d  create_trid: %lu  max_trid: %lu  moved: &d",
+      DBUG_PRINT("warning", ("table is moved from another system.  uuid_diff: %d  create_trid: %lu  max_trid: %lu  moved: %d",
                             memcmp(share->base.uuid, maria_uuid,
                                    MY_UUID_SIZE) != 0,
                              (ulong) share->state.create_trid,
