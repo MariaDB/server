@@ -120,7 +120,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		execlp("curl", "curl", buf, fn, (char*)NULL);
 
 		// If execlp() is successful, we should not reach this next line.
-		strcpy(g->Message, "I shouldn't be called after execlp from vfork()");
+		strcpy(g->Message, "Unsuccessful execlp from vfork()");
 		exit(1);
 	} else if (pID < 0) {
 		// failed to fork
