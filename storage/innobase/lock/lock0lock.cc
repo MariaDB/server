@@ -391,6 +391,7 @@ void lock_sys_t::create(ulint n_cells)
 /** Acquire exclusive lock_sys.latch */
 void lock_sys_t::wr_lock(const char *file, unsigned line)
 {
+  mysql_mutex_assert_not_owner(&wait_mutex);
   latch.wr_lock(file, line);
   ut_ad(!writer.exchange(os_thread_get_curr_id(), std::memory_order_relaxed));
 }
@@ -405,6 +406,7 @@ void lock_sys_t::wr_unlock()
 /** Acquire shared lock_sys.latch */
 void lock_sys_t::rd_lock(const char *file, unsigned line)
 {
+  mysql_mutex_assert_not_owner(&wait_mutex);
   latch.rd_lock(file, line);
   ut_ad(!writer.load(std::memory_order_relaxed));
   ut_d(readers.fetch_add(1, std::memory_order_relaxed));
@@ -549,10 +551,6 @@ ATTRIBUTE_NOINLINE static bool wsrep_is_BF_lock_timeout(const trx_t &trx)
 
   ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx.id)
              << " query: " << wsrep_thd_query(trx.mysql_thd);
-  {
-    LockMutexGuard g{SRW_LOCK_CALL};
-    trx_print_latched(stderr, &trx, 3000);
-  }
 
   srv_print_innodb_monitor= true;
   srv_print_innodb_lock_monitor= true;

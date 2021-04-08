@@ -703,6 +703,7 @@ public:
   /** Acquire exclusive lock_sys.latch */
   void wr_lock()
   {
+    mysql_mutex_assert_not_owner(&wait_mutex);
     ut_ad(!is_writer());
     latch.wr_lock();
     ut_ad(!writer.exchange(os_thread_get_curr_id(),
@@ -718,6 +719,7 @@ public:
   /** Acquire shared lock_sys.latch */
   void rd_lock()
   {
+    mysql_mutex_assert_not_owner(&wait_mutex);
     ut_ad(!is_writer());
     latch.rd_lock();
     ut_ad(!writer.load(std::memory_order_relaxed));
