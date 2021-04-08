@@ -152,6 +152,8 @@ SETA(CPACK_RPM_client_PACKAGE_OBSOLETES
 SETA(CPACK_RPM_client_PACKAGE_PROVIDES
   "MySQL-client"
   "mysql-client")
+SETA(CPACK_RPM_client_PACKAGE_CONFLICTS
+  "MariaDB-server < 10.6.0")
 
 SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
