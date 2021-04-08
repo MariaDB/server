@@ -479,6 +479,7 @@ class MYSQL_BIN_LOG: public TC_LOG, private MYSQL_LOG
     /* Flag used to optimise around wait_for_prior_commit. */
     bool queued_by_other;
     ulong binlog_id;
+    bool ro_1pc;  // passes the binlog_cache_mngr::ro_1pc value to Gtid ctor
   };
 
   /*
@@ -900,7 +901,8 @@ public:
   void set_status_variables(THD *thd);
   bool is_xidlist_idle();
   bool write_gtid_event(THD *thd, bool standalone, bool is_transactional,
-                        uint64 commit_id, bool has_xid= false);
+                        uint64 commit_id,
+                        bool has_xid= false, bool ro_1pc= false);
   int read_state_from_file();
   int write_state_to_file();
   int get_most_recent_gtid_list(rpl_gtid **list, uint32 *size);
@@ -1234,5 +1236,7 @@ static inline TC_LOG *get_tc_log_implementation()
 class Gtid_list_log_event;
 const char *
 get_gtid_list_event(IO_CACHE *cache, Gtid_list_log_event **out_gtid_list);
+
+int binlog_commit(THD *thd, bool all, bool is_ro_1pc);
 
 #endif /* LOG_H */

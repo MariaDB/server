@@ -88,7 +88,6 @@ static int binlog_savepoint_set(handlerton *hton, THD *thd, void *sv);
 static int binlog_savepoint_rollback(handlerton *hton, THD *thd, void *sv);
 static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
                                                       THD *thd);
-static int binlog_commit(handlerton *hton, THD *thd, bool all);
 static int binlog_rollback(handlerton *hton, THD *thd, bool all);
 static int binlog_prepare(handlerton *hton, THD *thd, bool all);
 static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
@@ -579,6 +578,11 @@ public:
   ulong binlog_id;
   /* Set if we get an error during commit that must be returned from unlog(). */
   bool delayed_error;
+  /*
+    The flag is eventually passed to Gtid event ctor.
+    Set true when being read-only one-phase commit transaction.
+  */
+  bool ro_1pc;
 
 private:
 
@@ -1669,10 +1673,6 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
   DBUG_VOID_RETURN;
 }
 
-/*
-  The function is a no-op to stay called as long as binlog_hton
-  is registered into transaction. The real work is done by binlog_commit.
-*/
 int binlog_commit_dummy(handlerton *hton, THD *thd, bool all)
 {
   return 0;
@@ -1696,7 +1696,7 @@ int binlog_init(void *p)
   binlog_hton->savepoint_rollback= binlog_savepoint_rollback;
   binlog_hton->savepoint_rollback_can_release_mdl=
                                      binlog_savepoint_rollback_can_release_mdl;
-  binlog_hton->commit= binlog_commit;
+  binlog_hton->commit= binlog_commit_dummy;
   binlog_hton->rollback= binlog_rollback;
   binlog_hton->prepare= binlog_prepare;
   binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
@@ -2002,20 +2002,17 @@ static bool trans_cannot_safely_rollback(THD *thd, bool all)
            thd->wsrep_binlog_format() == BINLOG_FORMAT_MIXED));
 }
 
-
 /**
   This function is called once after each statement.
 
   It has the responsibility to flush the caches to the binary log on commits.
 
-  @param hton  The binlog handlerton.
   @param thd   The client thread that executes the transaction.
   @param all   This is @c true if this is a real transaction commit, and
                @false otherwise.
-
-  @see handlerton::commit
+  @param ro_1pc  read-only one-phase commit transaction
 */
-static int binlog_commit(handlerton *hton, THD *thd, bool all)
+int binlog_commit(THD *thd, bool all, bool ro_1pc)
 {
   int error= 0;
   PSI_stage_info org_stage;
@@ -2036,7 +2033,6 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
               YESNO(thd->in_multi_stmt_transaction_mode()),
               YESNO(thd->transaction.all.modified_non_trans_table),
               YESNO(thd->transaction.stmt.modified_non_trans_table)));
-
 
   thd->backup_stage(&org_stage);
   THD_STAGE_INFO(thd, stage_binlog_write);
@@ -2062,14 +2058,17 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
     Otherwise, we accumulate the changes.
   */
   if (likely(!error) && ending_trans(thd, all))
+  {
+    cache_mngr->ro_1pc= ro_1pc;
     error= binlog_commit_flush_trx_cache(thd, all, cache_mngr);
+    cache_mngr->ro_1pc= false;
+  }
 
   /*
     This is part of the stmt rollback.
   */
   if (!all)
     cache_mngr->trx_cache.set_prev_position(MY_OFF_T_UNDEF);
-
   THD_STAGE_INFO(thd, org_stage);
   DBUG_RETURN(error);
 }
@@ -5962,7 +5961,7 @@ MYSQL_BIN_LOG::flush_and_set_pending_rows_event(THD *thd,
 bool
 MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
                                 bool is_transactional, uint64 commit_id,
-                                bool has_xid)
+                                bool has_xid, bool is_ro_1pc)
 {
   rpl_gtid gtid;
   uint32 domain_id;
@@ -6024,7 +6023,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
 
   Gtid_log_event gtid_event(thd, seq_no, domain_id, standalone,
                             LOG_EVENT_SUPPRESS_USE_F, is_transactional,
-                            commit_id, has_xid);
+                            commit_id, has_xid, is_ro_1pc);
 
   /* Write the event to the binary log. */
   DBUG_ASSERT(this == &mysql_bin_log);
@@ -7369,6 +7368,7 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.using_stmt_cache= using_stmt_cache;
   entry.using_trx_cache= using_trx_cache;
   entry.need_unlog= false;
+  entry.ro_1pc= cache_mngr->ro_1pc;
   ha_info= all ? thd->transaction.all.ha_list : thd->transaction.stmt.ha_list;
 
   for (; ha_info; ha_info= ha_info->next())
@@ -8182,7 +8182,8 @@ MYSQL_BIN_LOG::write_transaction_or_stmt(group_commit_entry *entry,
   DBUG_ENTER("MYSQL_BIN_LOG::write_transaction_or_stmt");
 
   if (write_gtid_event(entry->thd, false,
-                       entry->using_trx_cache, commit_id, has_xid))
+                       entry->using_trx_cache, commit_id,
+                       has_xid, entry->ro_1pc))
     DBUG_RETURN(ER_ERROR_ON_WRITE);
 
   if (entry->using_stmt_cache && !mngr->stmt_cache.empty() &&

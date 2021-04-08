@@ -7967,7 +7967,8 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
 Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
                                uint32 domain_id_arg, bool standalone,
                                uint16 flags_arg, bool is_transactional,
-                               uint64 commit_id_arg, bool has_xid)
+                               uint64 commit_id_arg, bool has_xid,
+                               bool ro_1pc)
   : Log_event(thd_arg, flags_arg, is_transactional),
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
     flags2((standalone ? FL_STANDALONE : 0) |
@@ -8003,7 +8004,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       extra_engines=
         ha_count_rw_2pc(thd_arg, thd_arg->in_multi_stmt_transaction_mode()) - 1;
     }
-    else if (unlikely(thd_arg->is_1pc_ro_trans))
+    else if (ro_1pc)
     {
       extra_engines= UCHAR_MAX;
     }

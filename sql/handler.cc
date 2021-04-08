@@ -1500,9 +1500,7 @@ int ha_commit_trans(THD *thd, bool all)
 
   if (trans->no_2pc || (rw_ha_count <= 1))
   {
-    thd->is_1pc_ro_trans= !rw_trans;
     error= ha_commit_one_phase(thd, all);
-    thd->is_1pc_ro_trans= false;
     goto done;
   }
 
@@ -1644,6 +1642,24 @@ int ha_commit_one_phase(THD *thd, bool all)
   DBUG_RETURN(res);
 }
 
+static bool is_ro_1pc_trans(THD *thd, Ha_trx_info *ha_info, bool all,
+                            bool is_real_trans)
+{
+  uint rw_ha_count= ha_check_and_coalesce_trx_read_only(thd, ha_info, all);
+  bool rw_trans= is_real_trans &&
+    (rw_ha_count > (thd->is_current_stmt_binlog_disabled()?0U:1U));
+
+  return !rw_trans;
+}
+
+static bool has_binlog_hton(Ha_trx_info *ha_info)
+{
+  bool rc;
+  for (rc= false; ha_info && !rc; ha_info= ha_info->next())
+    rc= ha_info->ht() == binlog_hton;
+
+  return rc;
+}
 
 static int
 commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
@@ -1656,9 +1672,17 @@ commit_one_phase_2(THD *thd, bool all, THD_TRANS *trans, bool is_real_trans)
     DEBUG_SYNC(thd, "commit_one_phase_2");
   if (ha_info)
   {
+    int err;
+
+    if (has_binlog_hton(ha_info) &&
+        (err= binlog_commit(thd, all,
+                            is_ro_1pc_trans(thd, ha_info, all, is_real_trans))))
+    {
+      my_error(ER_ERROR_DURING_COMMIT, MYF(0), err);
+      error= 1;
+    }
     for (; ha_info; ha_info= ha_info_next)
     {
-      int err;
       handlerton *ht= ha_info->ht();
       if ((err= ht->commit(ht, thd, all)))
       {
