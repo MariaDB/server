@@ -704,6 +704,17 @@ RIGHT JOIN JSON_TABLE('[]', '$' COLUMNS(o3 FOR ORDINALITY)) AS jt3
 ON(1)
 WHERE 0;
 ERROR 42S22: Unknown column 'jt1.a' in 'JSON_TABLE argument'
+#
+# MDEV-25346: JSON_TABLE: Server crashes in Item_field::fix_outer_field upon subquery with unknown column
+#
+CREATE TABLE t1 (a INT);
+CREATE TABLE t2 (b INT);
+SELECT * FROM ( SELECT * FROM t1 JOIN t2 ON (b IN(SELECT x FROM (SELECT 1 AS c) AS sq1))) AS sq2;
+ERROR 42S22: Unknown column 'x' in 'field list'
+DROP TABLE t1, t2;
+#
+# Another testcase
+#
 create table t1 (item_name varchar(32), item_props varchar(1024));
 insert into t1 values ('Jeans',  '{"color": ["green", "brown"], "price": 50}');
 insert into t1 values ('Shirt',  '{"color": ["blue", "white"], "price": 20}');
