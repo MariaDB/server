@@ -872,6 +872,8 @@ def	performance_schema	replication_applier_status_by_worker	LAST_SEEN_TRANSACTIO
 def	performance_schema	replication_applier_status_by_worker	LAST_ERROR_NUMBER	5	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL
 def	performance_schema	replication_applier_status_by_worker	LAST_ERROR_MESSAGE	6	NULL	NO	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)			select,insert,update,references		NEVER	NULL
 def	performance_schema	replication_applier_status_by_worker	LAST_ERROR_TIMESTAMP	7	current_timestamp()	NO	timestamp	NULL	NULL	NULL	NULL	0	NULL	NULL	timestamp		on update current_timestamp()	select,insert,update,references		NEVER	NULL
+def	performance_schema	replication_applier_status_by_worker	WORKER_IDLE_TIME	8	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references		NEVER	NULL
+def	performance_schema	replication_applier_status_by_worker	LAST_TRANS_RETRY_COUNT	9	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL
 def	performance_schema	replication_connection_configuration	CHANNEL_NAME	1	NULL	NO	char	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	char(64)			select,insert,update,references		NEVER	NULL
 def	performance_schema	replication_connection_configuration	HOST	2	NULL	NO	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60)			select,insert,update,references		NEVER	NULL
 def	performance_schema	replication_connection_configuration	PORT	3	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(11)			select,insert,update,references		NEVER	NULL

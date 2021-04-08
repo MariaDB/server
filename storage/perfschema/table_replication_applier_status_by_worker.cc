@@ -58,7 +58,9 @@ table_replication_applier_status_by_worker::m_share=
   "LAST_SEEN_TRANSACTION CHAR(57) not null,"
   "LAST_ERROR_NUMBER INTEGER not null,"
   "LAST_ERROR_MESSAGE VARCHAR(1024) not null,"
-  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null)") },
+  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null,"
+  "WORKER_IDLE_TIME BIGINT UNSIGNED not null,"
+  "LAST_TRANS_RETRY_COUNT INTEGER not null)") },
   false  /* perpetual */
 };
 
@@ -153,6 +155,7 @@ void table_replication_applier_status_by_worker::make_row(rpl_parallel_thread *r
   if (m_row.channel_name_length)
     memcpy(m_row.channel_name, rpt->channel_name, m_row.channel_name_length);
 
+  m_row.thread_id_is_null= true;
   if (rpt->running)
   {
     PSI_thread *psi= thd_get_psi(rpt->thd);
@@ -162,14 +165,10 @@ void table_replication_applier_status_by_worker::make_row(rpl_parallel_thread *r
       m_row.thread_id= pfs->m_thread_internal_id;
       m_row.thread_id_is_null= false;
     }
-    else
-      m_row.thread_id_is_null= true;
   }
-  else
-    m_row.thread_id_is_null= true;
 
   if ((gtid.seq_no > 0 &&
-        !rpl_slave_state_tostring_helper(&str, &gtid, &first)))
+       !rpl_slave_state_tostring_helper(&str, &gtid, &first)))
   {
     strmake(m_row.last_seen_transaction,str.ptr(), str.length());
     m_row.last_seen_transaction_length= str.length();
@@ -197,6 +196,8 @@ void table_replication_applier_status_by_worker::make_row(rpl_parallel_thread *r
     m_row.last_error_timestamp= rpt->last_error_timestamp;
   }
 
+  m_row.last_trans_retry_count= rpt->last_trans_retry_count;
+  m_row.worker_idle_time= rpt->get_worker_idle_time();
   m_row_exists= true;
 }
 
@@ -241,6 +242,12 @@ int table_replication_applier_status_by_worker
         break;
       case 6: /*last_error_timestamp*/
         set_field_timestamp(f, m_row.last_error_timestamp);
+        break;
+      case 7: /*worker_idle_time*/
+        set_field_ulonglong(f, m_row.worker_idle_time);
+        break;
+      case 8: /*last_trans_retry_count*/
+        set_field_ulong(f, m_row.last_trans_retry_count);
         break;
       default:
         DBUG_ASSERT(false);

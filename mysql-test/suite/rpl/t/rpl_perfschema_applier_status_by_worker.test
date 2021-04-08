@@ -114,6 +114,14 @@ let $assert_cond= "$ps_value" = "0000-00-00 00:00:00";
 source include/assert.inc;
 
 --connection master
+sleep 1;
+--connection slave
+let $ps_value= query_get_value(select worker_idle_time from performance_schema.replication_applier_status_by_worker, worker_idle_time, 1);
+let $assert_text= Value returned by PS table for worker_idle_time should be >= 1;
+let $assert_cond= "$ps_value" >= "1";
+source include/assert.inc;
+
+--connection master
 DROP TABLE t1;
 --save_master_pos
 

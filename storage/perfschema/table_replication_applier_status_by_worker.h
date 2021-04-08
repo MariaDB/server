@@ -68,6 +68,8 @@ struct st_row_worker {
   char last_error_message[MAX_SLAVE_ERRMSG];
   uint last_error_message_length;
   ulonglong last_error_timestamp;
+  ulonglong worker_idle_time;
+  ulong last_trans_retry_count;
 };
 
 /**

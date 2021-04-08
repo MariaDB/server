@@ -28,6 +28,9 @@ include/assert.inc [Value returned by SSS and PS table for Last_Error_Number sho
 include/assert.inc [Value returned by SSS and PS table for Last_Error_Message should both be empty.]
 include/assert.inc [Value returned by PS table for Last_Error_Timestamp should be 0000-00-00 00:00:00.]
 connection master;
+connection slave;
+include/assert.inc [Value returned by PS table for worker_idle_time should be >= 1]
+connection master;
 DROP TABLE t1;
 connection slave;
 STOP SLAVE 'slave1';

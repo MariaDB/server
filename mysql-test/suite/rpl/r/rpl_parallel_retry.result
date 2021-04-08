@@ -49,8 +49,7 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100";
 include/start_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
-retries
-1
+include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	2
@@ -82,8 +81,7 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100,rpl_parallel_simulate_double_temp_err_gtid_0_x_100";
 include/start_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
-retries
-2
+include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t1 ORDER BY a;
 a	b
 1	3
@@ -179,8 +177,7 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_gtid_0_x_100";
 include/start_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
-retries
-1
+include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 a	b
 10	4
@@ -224,8 +221,7 @@ SET @old_dbug= @@GLOBAL.debug_dbug;
 SET GLOBAL debug_dbug="+d,rpl_parallel_simulate_temp_err_xid";
 include/start_slave.inc
 SET GLOBAL debug_dbug=@old_dbug;
-retries
-1
+include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
 a	b
 100	0
@@ -323,8 +319,7 @@ SET debug_sync='now WAIT_FOR t3_waiting';
 SET debug_sync='now SIGNAL t1_start';
 SET GLOBAL debug_dbug=@old_dbug;
 SET debug_sync='RESET';
-retries
-1
+include/assert.inc [Performance Schema retries should match with actual retries]
 SELECT * FROM t3 ORDER BY a;
 a	b
 1	NULL

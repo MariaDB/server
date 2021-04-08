@@ -68,9 +68,13 @@ let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --sync_with_master
 SET GLOBAL debug_dbug=@old_dbug;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
+
 
 SELECT * FROM t1 ORDER BY a;
 
@@ -100,9 +104,12 @@ let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --sync_with_master
 SET GLOBAL debug_dbug=@old_dbug;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 
 SELECT * FROM t1 ORDER BY a;
 
@@ -187,9 +194,12 @@ let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --sync_with_master
 SET GLOBAL debug_dbug=@old_dbug;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 
 SELECT * FROM t1 WHERE a >= 10 ORDER BY a;
 SELECT a, LENGTH(b) FROM t2 ORDER BY a;
@@ -235,9 +245,12 @@ let $old_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', V
 --sync_with_master
 SET GLOBAL debug_dbug=@old_dbug;
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 
 SELECT * FROM t1 WHERE a >= 100 ORDER BY a;
 # Stop the SQL thread. When the bug was there to give the incorrect relay log
@@ -365,9 +378,12 @@ SET debug_sync='now SIGNAL t1_start';
 SET GLOBAL debug_dbug=@old_dbug;
 SET debug_sync='RESET';
 let $new_retry= query_get_value(SHOW STATUS LIKE 'Slave_retried_transactions', Value, 1);
---disable_query_log
-eval SELECT $new_retry - $old_retry >= 1 AS retries;
---enable_query_log
+let $ps_value= query_get_value(select last_trans_retry_count from
+    performance_schema.replication_applier_status_by_worker where
+    last_trans_retry_count > 0, last_trans_retry_count, 1);
+let $assert_text= Performance Schema retries should match with actual retries;
+let $assert_cond= "$ps_value" = $new_retry - $old_retry;
+source include/assert.inc;
 SELECT * FROM t3 ORDER BY a;
 
 
