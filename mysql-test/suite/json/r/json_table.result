@@ -658,6 +658,23 @@ json_table((select concat(a,js) from t2),
 ERROR 42S22: Unknown column 'js' in 'field list'
 drop table t1,t2;
 #
+# Now, a testcase with JSON_TABLEs inside NATURAL JOIN
+#
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+select * from
+t1,
+( t2
+natural join
+(
+json_table(JT2.d, '$' COLUMNS (d for ordinality)) as JT
+natural join
+json_table(JT.d, '$' COLUMNS (d for ordinality)) as JT2
+)
+);
+ERROR 42S22: Unknown column 'JT2.d' in 'JSON_TABLE argument'
+drop table t1, t2;
+#
 # MDEV-25256: JSON_TABLE: Error ER_VIEW_INVALID upon running query via view
 #
 SELECT * FROM

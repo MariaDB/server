@@ -6966,7 +6966,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
         Field *f=find_field_in_table_ref(thd, table_list, column->column.ptr(),
                                          column->column.length(),
                                          column->column.ptr(), NULL, NULL,
-                                         NULL, TRUE, FALSE,
+                                         table_map(0), NULL, TRUE, FALSE,
                                          &unused_field_idx, FALSE, &dummy);
         if (unlikely(f == (Field*)0))
         {

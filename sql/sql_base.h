@@ -202,8 +202,8 @@ Field *
 find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
                         const char *name, size_t length,
                         const char *item_name, const char *db_name,
-                        const char *table_name, Item **ref,
-                        bool check_privileges, bool allow_rowid,
+                        const char *table_name, table_map ignored_tables,
+                        Item **ref, bool check_privileges, bool allow_rowid,
                         uint *cached_field_index_ptr,
                         bool register_tree_change, TABLE_LIST **actual_table);
 Field *

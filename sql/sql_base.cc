@@ -6101,7 +6101,8 @@ Field *
 find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
                         const char *name, size_t length,
                         const char *item_name, const char *db_name,
-                        const char *table_name, Item **ref,
+                        const char *table_name, table_map ignored_tables,
+                        Item **ref,
                         bool check_privileges, bool allow_rowid,
                         uint *cached_field_index_ptr,
                         bool register_tree_change, TABLE_LIST **actual_table)
@@ -6193,9 +6194,11 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
       TABLE_LIST *table;
       while ((table= it++))
       {
+        if (table->table && (table->table->map & ignored_tables))
+          continue;
         if ((fld= find_field_in_table_ref(thd, table, name, length, item_name,
-                                          db_name, table_name, ref,
-                                          check_privileges, allow_rowid,
+                                          db_name, table_name, ignored_tables,
+                                          ref, check_privileges, allow_rowid,
                                           cached_field_index_ptr,
                                           register_tree_change, actual_table)))
           DBUG_RETURN(fld);
@@ -6404,8 +6407,9 @@ find_field_in_tables(THD *thd, Item_ident *item,
     }
     else
       found= find_field_in_table_ref(thd, table_ref, name, length, item->name.str,
-                                     NULL, NULL, ref, check_privileges,
-                                     TRUE, &(item->cached_field_index),
+                                     NULL, NULL, ignored_tables, ref,
+                                     check_privileges, TRUE,
+                                     &(item->cached_field_index),
                                      register_tree_change,
                                      &actual_table);
     if (found)
@@ -6475,7 +6479,8 @@ find_field_in_tables(THD *thd, Item_ident *item,
       continue;
 
     Field *cur_field= find_field_in_table_ref(thd, cur_table, name, length,
-                                              item->name.str, db, table_name, ref,
+                                              item->name.str, db, table_name,
+                                              ignored_tables, ref,
                                               (thd->lex->sql_command ==
                                                SQLCOM_SHOW_FIELDS)
                                               ? false : check_privileges,
@@ -6492,8 +6497,8 @@ find_field_in_tables(THD *thd, Item_ident *item,
 
         thd->clear_error();
         cur_field= find_field_in_table_ref(thd, cur_table, name, length,
-                                           item->name.str, db, table_name, ref,
-                                           false,
+                                           item->name.str, db, table_name,
+                                           ignored_tables, ref, false,
                                            allow_rowid,
                                            &(item->cached_field_index),
                                            register_tree_change,

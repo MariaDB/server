@@ -543,6 +543,27 @@ from
 drop table t1,t2;
 
 --echo #
+--echo # Now, a testcase with JSON_TABLEs inside NATURAL JOIN
+--echo #
+
+create table t1 (a int, b int);
+create table t2 (a int, c int);
+
+--error ER_BAD_FIELD_ERROR
+select * from
+  t1,
+  ( t2
+    natural join
+    (
+      json_table(JT2.d, '$' COLUMNS (d for ordinality)) as JT
+      natural join
+      json_table(JT.d, '$' COLUMNS (d for ordinality)) as JT2
+    )
+  );
+
+drop table t1, t2;
+
+--echo #
 --echo # MDEV-25256: JSON_TABLE: Error ER_VIEW_INVALID upon running query via view
 --echo #
 
