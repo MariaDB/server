@@ -7923,8 +7923,7 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
   buf+= 8;
   domain_id= uint4korr(buf);
   buf+= 4;
-  flags2= *buf;
-  ++buf;
+  flags2= *buf++;
   if (flags2 & FL_GROUP_COMMIT_ID)
   {
     if (event_len < (uint)header_size + GTID_HEADER_LEN + 2)
@@ -7938,13 +7937,16 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
   /* the extra flags check and actions */
   if (static_cast<uint>(buf - buf_0) < event_len)
   {
-    flags_extra= *buf;
-    ++buf;
-    /* extra flags presence is identifed by non-zero byte value at this point */
+    flags_extra= *buf++;
+    /*
+      extra engines flags presence is identifed by non-zero byte value
+      at this point
+    */
     if (flags_extra & FL_EXTRA_MULTI_ENGINE)
     {
-      extra_engines= uint4korr(buf);
-      buf += 4;
+      DBUG_ASSERT(buf - buf_0 < event_len);
+
+      extra_engines= *buf++;
 
       DBUG_ASSERT(extra_engines > 0);
     }
@@ -7995,13 +7997,15 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
   {
     if (has_xid)
     {
+      DBUG_ASSERT(ha_count_rw_2pc(thd_arg,
+                                  thd_arg->in_multi_stmt_transaction_mode()));
+
       extra_engines=
-        max<uint>(1, ha_count_rw(thd, thd_arg->in_multi_stmt_transaction_mode()))
-        - 1;
+        ha_count_rw_2pc(thd_arg, thd_arg->in_multi_stmt_transaction_mode()) - 1;
     }
     else if (unlikely(thd_arg->is_1pc_ro_trans))
     {
-      extra_engines= UINT_MAX; // neither extra nor base engine
+      extra_engines= UCHAR_MAX;
     }
     if (extra_engines > 0)
       flags_extra|= FL_EXTRA_MULTI_ENGINE;
@@ -8066,8 +8070,8 @@ Gtid_log_event::write()
   }
   if (flags_extra & FL_EXTRA_MULTI_ENGINE)
   {
-    int4store(buf + write_len, extra_engines);
-    write_len += 4;
+    buf[write_len]= extra_engines;
+    write_len++;
   }
 
   if (write_len < GTID_HEADER_LEN)

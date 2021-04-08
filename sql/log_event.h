@@ -485,10 +485,10 @@ class String;
 /**
    @def LOG_EVENT_ACCEPT_OWN_F
 
-   Flag sets by the gtid-mode connected semisync slave for
+   Flag sets by the semisync slave for accepting
    the same server_id ("own") events which the slave must not have
    in its state. Typically such events were never committed by
-   their originator (this server) and discared at its crash recovery
+   their originator (this server) and discared at its semisync-slave recovery.
 */
 #define LOG_EVENT_ACCEPT_OWN_F 0x4000
 
@@ -3372,7 +3372,7 @@ public:
     Extra to a "base" engine recoverable engines participating
     in the transaction. Zero, when the base engine only is present.
   */
-  uint extra_engines;
+  uint8 extra_engines;
 
   /* Flags2. */
 

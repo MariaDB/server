@@ -1669,6 +1669,14 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
   DBUG_VOID_RETURN;
 }
 
+/*
+  The function is a no-op to stay called as long as binlog_hton
+  is registered into transaction. The real work is done by binlog_commit.
+*/
+int binlog_commit_dummy(handlerton *hton, THD *thd, bool all)
+{
+  return 0;
+}
 
 /*
   this function is mostly a placeholder.
@@ -7982,7 +7990,6 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
 #endif
       }
 
-      DEBUG_SYNC(leader->thd, "commit_before_update_end_pos");
       /*
         update binlog_end_pos so it can be read by dump thread
         Note: must be _after_ the RUN_HOOK(after_flush) or else
@@ -9641,7 +9648,6 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
   THD *thd= current_thd;
   my_off_t index_file_offset= 0;
   File file= -1;
-  IO_CACHE cache;
   MY_STAT s;
 
   if ((error= find_log_pos(&log_info, file_name, 1)))
@@ -9752,42 +9758,11 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
                           "GTID %u-%u-%s", file_name, pos,
                           ptr_gtid->domain_id, ptr_gtid->server_id, buf);
   }
-  if (!(error= init_io_cache(&cache, file, IO_SIZE, WRITE_CACHE,
-                            (my_off_t) pos, 0, MYF(MY_WME|MY_NABP))))
-  {
-    /*
-      Write Stop_log_event to ensure clean end point for the binary log being
-      truncated.
-    */
-    Stop_log_event se;
-    se.checksum_alg= cs_alg;
-    if ((error= write_event(&se, NULL, &cache)))
-    {
-      sql_print_error("Failed to write stop event to "
-                      "binary log. Errno:%d",
-                      (cache.error == -1) ? my_errno : error);
-      goto end;
-    }
-    clear_inuse_flag_when_closing(cache.file);
-    if ((error= flush_io_cache(&cache)) ||
-        (error= mysql_file_sync(file, MYF(MY_WME|MY_SYNC_FILESIZE))))
-    {
-      sql_print_error("Faild to write stop event to "
-                      "binary log. Errno:%d",
-                      (cache.error == -1) ? my_errno : error);
-    }
-  }
-  else
-      sql_print_error("Failed to initialize binary log "
-                      "cache for writing stop event. Errno:%d",
-                      (cache.error == -1) ? my_errno : error);
 
 end:
   if (file >= 0)
-  {
-    end_io_cache(&cache);
     mysql_file_close(file, MYF(MY_WME));
-  }
+
   error= error || close_purge_index_file();
 #endif
   return error > 0;
@@ -10233,7 +10208,7 @@ public:
   bool last_gtid_valid;
   bool last_gtid_no2pc; // true when the group does not end with Xid event
   uint last_gtid_engines;
-  std::pair<uint, my_off_t> last_gtid_coord;
+  std::pair<uint, my_off_t> last_gtid_coord; // <binlog id, binlog offset>
   /*
     When true, it's semisync slave recovery mode
     rolls back transactions in doubt and wipes them off from binlog.
@@ -10275,36 +10250,107 @@ public:
     that is enumberated with UINT_MAX.
   */
   uint id_binlog;
-  enum_binlog_checksum_alg cs_alg; // for Stop_event with do_truncate
+  enum_binlog_checksum_alg checksum_alg;
   bool single_binlog;
   std::pair<uint, my_off_t> binlog_truncate_coord;
   std::pair<uint, my_off_t> binlog_unsafe_coord;
 
   Recovery_context();
+
+  /*
+    Completes the recovery procedure.
+    In the normal case prepared xids gets committed when they also found
+    in binlog, otherwise they are rolled back.
+    In the semisync slave case the xids that are located in binlog in
+    a truncated tail get rolled back, otherwise they are committed.
+    Both decisions are contingent on safety to truncate.
+  */
+  bool complete(MYSQL_BIN_LOG *log, HASH &xids);
+
+  /*
+
+   */
   bool decide_or_assess(xid_recovery_member *member, int round,
                         Format_description_log_event *fdle,
                         LOG_INFO *linfo, my_off_t pos);
+
+  /*
+    Assigns last_gtid and assesses the maximum (in the binlog offset term)
+    unsafe gtid (group of events).
+  */
   void process_gtid(int round, Gtid_log_event *gev, LOG_INFO *linfo);
-  int  next_binlog_or_round(int& round,
-                            const char *last_log_name,
-                            const char *binlog_checkpoint_name,
-                            LOG_INFO *linfo, MYSQL_BIN_LOG *log);
-  bool is_safe()
+
+  /*
+    At the end of processing of the current binlog compute next action.
+    When round increments in the semisync-slave recovery
+    truncate_validated, truncate_reset_done
+    gets reset/set for the next round,
+    as well as id_binlog gets reset either to zero or UINT_MAX
+    when recovery deals with the only binlog file.
+
+    Passed arguments:
+      round          the current round that *may* be increment here
+      last_log_name  the recovery starting binlog file
+      binlog_checkpoint_name
+                     binlog checkpoint file
+      linfo          binlog file list struct for next file
+      log            pointer to mysql_bin_log instance
+
+    Returns: 0  when rounds continue, maybe the current one remains
+             1  when all rounds are done
+            -1  on error
+  */
+  int next_binlog_or_round(int& round,
+                           const char *last_log_name,
+                           const char *binlog_checkpoint_name,
+                           LOG_INFO *linfo, MYSQL_BIN_LOG *log);
+  /*
+    Relates to the semisync recovery.
+    Returns true when truncated tail does not contain non-transactional
+    group of events.
+    Otherwise returns false.
+  */
+  bool is_safe_to_truncate()
   {
     return !do_truncate ? true :
       (truncate_gtid.seq_no == 0 ||                    // no truncate
        binlog_unsafe_coord < binlog_truncate_coord);   // or unsafe is earlier
   }
-  bool complete(MYSQL_BIN_LOG *log, HASH &xids);
+
+  /*
+    Relates to the semisync recovery.
+    Is invoked when a standalone or non-2pc group is detected.
+    Both are unsafe to truncate in the semisync-slave recovery so
+    the maximum unsafe coordinate may be updated.
+    In the non-2pc group case though, *exeptionally*,
+    the no-engine group is considered safe, to be invalidated
+    to not contribute to binlog state.
+  */
   void update_binlog_unsafe_coord_if_needed(LOG_INFO *linfo);
+
+  /*
+    Relates to the semisync recovery.
+    Is called when a committed or to-be-committed transaction is detected.
+    truncate_gtid is set to "nil" with its rpl_gtid::seq_no := 0.
+    truncate_reset_done remembers the fact of that has been done at least
+    once in the current round;
+    binlog_truncate_coord is "suggested" to a next group start to indicate
+    the actual settled value must be at most as the last suggested one.
+  */
   void reset_truncate_coord(my_off_t pos);
+
+  /*
+    Sets binlog_truncate_pos to the value of the current transaction's gtid.
+    In multi-engine case that might be just an assessment to be refined
+    in the current round and confirmed in a next one.
+  */
   void set_truncate_coord(LOG_INFO *linfo, int round,
-                          enum_binlog_checksum_alg fd_cs_alg);
+                          enum_binlog_checksum_alg fd_checksum_alg);
 };
 
 bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
 {
-  if (!do_truncate || is_safe())
+  if (!do_truncate || is_safe_to_truncate())
   {
     uint count_in_prepare= ha_recover_complete(&xids);
     if (count_in_prepare > 0 && global_system_variables.log_warnings > 2)
@@ -10318,12 +10364,12 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
   /* Truncation is not done when there's no transaction to roll back */
   if (do_truncate && truncate_gtid.seq_no > 0)
   {
-    if (is_safe())
+    if (is_safe_to_truncate())
     {
       if (log->truncate_and_remove_binlogs(binlog_truncate_file_name,
                                       binlog_truncate_coord.second,
                                       &truncate_gtid,
-                                      cs_alg))
+                                      checksum_alg))
       {
         sql_print_error("Failed to trim the binary log to "
                         "file:%s pos:%llu.", binlog_truncate_file_name,
@@ -10336,8 +10382,7 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
       sql_print_error("Cannot trim the binary log to file:%s "
                       "pos:%llu as unsafe statement "
                       "is found at file:%s pos:%llu which is "
-                      "beyond the truncation position "
-                      "(the farest in binlog order only is reported); "
+                      "beyond the truncation position;"
                       "all transactions in doubt are left intact. ",
                       binlog_truncate_file_name, binlog_truncate_coord.second,
                       binlog_unsafe_file_name, binlog_unsafe_coord.second);
@@ -10355,7 +10400,7 @@ Recovery_context::Recovery_context() :
   do_truncate(rpl_semi_sync_slave_enabled),
   truncate_validated(false), truncate_reset_done(false),
   truncate_set_in_1st(false), id_binlog(UINT_MAX),
-  cs_alg(BINLOG_CHECKSUM_ALG_UNDEF), single_binlog(false)
+  checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), single_binlog(false)
 {
   last_gtid_coord= std::pair<uint,my_off_t>(0,0);
   binlog_truncate_coord= std::pair<uint,my_off_t>(0,0);
@@ -10365,14 +10410,6 @@ Recovery_context::Recovery_context() :
   binlog_unsafe_gtid= truncate_gtid= rpl_gtid();
 }
 
-/**
-  Is called when a committed or to-be-committed transaction is detected.
-  @c truncate_gtid is set to "nil" with its @c rpl_gtid::seq_no := 0.
-  @c truncate_reset_done remembers the fact of that has been done at least
-     once in the current round;
-  @c binlog_truncate_coord is "suggested" to a next group start to indicate
-     the actual settled value must be at most as the last suggested one.
-*/
 void Recovery_context::reset_truncate_coord(my_off_t pos)
 {
   DBUG_ASSERT(binlog_truncate_coord.second == 0 ||
@@ -10384,20 +10421,14 @@ void Recovery_context::reset_truncate_coord(my_off_t pos)
   truncate_reset_done= true;
 }
 
-
-/*
-  Sets binlog_truncate_pos to the value of the current transaction's gtid.
-  In multi-engine case that might be just an assessment to be exacted
-  in the current round and confirmed in a next one.
-*/
 void Recovery_context::set_truncate_coord(LOG_INFO *linfo, int round,
-                                          enum_binlog_checksum_alg fd_cs_alg)
+                                          enum_binlog_checksum_alg fd_checksum)
 {
   binlog_truncate_coord= last_gtid_coord;
   strmake_buf(binlog_truncate_file_name, linfo->log_file_name);
 
   truncate_gtid= last_gtid;
-  cs_alg= fd_cs_alg;
+  checksum_alg= fd_checksum;
   truncate_set_in_1st= (round == 1);
 }
 
@@ -10522,14 +10553,6 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
   return false;
 }
 
-/*
-  Is invoked when a standalone or non-2pc group is detected.
-  Both are unsafe to truncate in the semisync-slave recovery so
-  the maximum unsafe coordinate may be updated.
-  In the non-2pc group case though, *exeptionally*,
-  the no-engine group is considered safe, to be invalidated
-  to not contribute to binlog state.
-*/
 void Recovery_context::update_binlog_unsafe_coord_if_needed(LOG_INFO *linfo)
 {
   if (!do_truncate)
@@ -10556,17 +10579,13 @@ void Recovery_context::update_binlog_unsafe_coord_if_needed(LOG_INFO *linfo)
   }
 }
 
-/*
-  Assigns last_gtid and assesses the maximum (in the binlog offset term)
-  unsafe gtid (group of events).
-*/
 void Recovery_context::process_gtid(int round, Gtid_log_event *gev,
                                     LOG_INFO *linfo)
 {
   last_gtid.domain_id= gev->domain_id;
   last_gtid.server_id= gev->server_id;
   last_gtid.seq_no= gev->seq_no;
-  last_gtid_engines= gev->extra_engines != UINT_MAX ?
+  last_gtid_engines= gev->extra_engines != UCHAR_MAX ?
     gev->extra_engines + 1 : 0;
   last_gtid_coord= std::pair<uint,my_off_t>(id_binlog, prev_event_pos);
   if (round == 1 || do_truncate)
@@ -10583,24 +10602,6 @@ void Recovery_context::process_gtid(int round, Gtid_log_event *gev,
   }
 }
 
-/*
-  At the end of processing of the current binlog compute next action.
-  When round increments in the semisync-slave recovery
-    truncate_validated, truncate_reset_done
-  gets reset/set for the next round,
-  as well as id_binlog gets reset either to zero or UINT_MAX
-  when recovery deals with the only binlog file.
-
-  @param[in,out] round          the current round that may increment here
-  @param         last_log_name  the recovery starting binlog file
-  @param         binlog_checkpoint_name
-                                binlog checkpoint file
-  @param         linfo          binlog file list struct for next file
-  @param         log            pointer to mysql_bin_log instance
-  @return 0  when rounds continue, maybe the current one remains
-          1  when all rounds are done
-         -1  on error
-*/
 int Recovery_context::next_binlog_or_round(int& round,
                                            const char *last_log_name,
                                            const char *binlog_checkpoint_name,
@@ -10614,15 +10615,19 @@ int Recovery_context::next_binlog_or_round(int& round,
 
     if ((round <= 2 && likely(!truncate_reset_done)) || round == 3)
     {
-      // Exit now as the 1st round ends up with the binlog-checkpoint file
-      // is the same as the initial binlog file, so already parsed; or
-      // the 2nd round has not made own truncate_reset_done; or
-      // at the end of the 3rd "truncate" round.
+      /*
+        Exit now as the 1st round ends up with the binlog-checkpoint file
+        is the same as the initial binlog file, so already parsed; or
+        the 2nd round has not made own truncate_reset_done; or
+        at the end of the 3rd "truncate" round.
+      */
       DBUG_ASSERT(do_truncate || round == 1);
-      // The 3rd round is done only when the 2nd trued truncate_reset_done
-      // and consequently truncate_validated.
-      // No instances of truncate_reset_done in first 2 rounds allows
-      // for exiting now.
+      /*
+        The 3rd round is done only when the 2nd trued truncate_reset_done
+        and consequently truncate_validated.
+        No instances of truncate_reset_done in first 2 rounds allows
+        for exiting now.
+      */
       DBUG_ASSERT(round < 3 || truncate_validated);
 
       return true;
@@ -10931,8 +10936,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     else if (rc == 1)
       break;                                     // all rounds done
 #else
-      if (!strcmp(linfo->log_file_name, last_log_name))
-        break;                                    // No more files to do
+    if (!strcmp(linfo->log_file_name, last_log_name))
+      break;                                    // No more files to do
 #endif
 
     if ((file= open_binlog(&log, linfo->log_file_name, &errmsg)) < 0)

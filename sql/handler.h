@@ -873,7 +873,7 @@ typedef struct xid_t XID;
 /* The 'buf' has to have space for at least SQL_XIDSIZE bytes. */
 uint get_sql_xid(XID *xid, char *buf);
 
-/* struct for heuristic binlog truncate recovery */
+/* struct for semisync slave binlog truncate recovery */
 struct xid_recovery_member
 {
   my_xid xid;
@@ -4901,7 +4901,7 @@ int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *t
 @note This does not need to be multi-byte safe or anything */
 char *xid_to_str(char *buf, const XID &xid);
 #endif // !DBUG_OFF
-uint ha_count_rw(THD *thd, bool all);
+uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all);
 

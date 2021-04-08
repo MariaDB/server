@@ -1251,7 +1251,7 @@ int ha_prepare(THD *thd)
   Returns counted number of
   read-write recoverable transaction participants.
 */
-uint ha_count_rw(THD *thd, bool all)
+uint ha_count_rw_2pc(THD *thd, bool all)
 {
   unsigned rw_ha_count= 0;
   THD_TRANS *trans=all ? &thd->transaction.all : &thd->transaction.stmt;
@@ -2050,6 +2050,7 @@ static my_bool xarecover_do_commit_or_rollback(void *member_arg,
 
   if (!rc)
   {
+    /* This block relies on Engine to report XAER_NOTA for unknown xid. */
     member->in_engine_prepare--;
     if (global_system_variables.log_warnings > 2)
       sql_print_warning("%s transaction with xid %llu",
@@ -2061,12 +2062,12 @@ static my_bool xarecover_do_commit_or_rollback(void *member_arg,
 }
 
 static my_bool xarecover_do_count_in_prepare(void *member_arg,
-                                          void *ptr_count)
+                                             void *ptr_count)
 {
   xid_recovery_member *member= (xid_recovery_member*) member_arg;
   if (member->in_engine_prepare)
   {
-    *(uint*) ptr_count += member->in_engine_prepare;
+    (*(uint*) ptr_count)++;
     if (global_system_variables.log_warnings > 2)
       sql_print_warning("Found prepared transaction with xid %llu",
                         (ulonglong) member->xid);
@@ -2075,9 +2076,9 @@ static my_bool xarecover_do_count_in_prepare(void *member_arg,
   return false;
 }
 
-static my_bool xarecover_binlog_truncate_handlerton(THD *unused,
-                                                    plugin_ref plugin,
-                                                    void *arg)
+static my_bool xarecover_binlog_handlerton(THD *unused,
+                                           plugin_ref plugin,
+                                           void *arg)
 {
     handlerton *hton= plugin_hton(plugin);
 
@@ -2093,7 +2094,7 @@ uint ha_recover_complete(HASH *commit_list)
 {
   uint count= 0;
 
-  plugin_foreach(NULL, xarecover_binlog_truncate_handlerton,
+  plugin_foreach(NULL, xarecover_binlog_handlerton,
                  MYSQL_STORAGE_ENGINE_PLUGIN, commit_list);
   my_hash_iterate(commit_list, xarecover_do_count_in_prepare, &count);
 
@@ -2106,9 +2107,6 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
   handlerton *hton= plugin_hton(plugin);
   struct xarecover_st *info= (struct xarecover_st *) arg;
   int got;
-
-  if (info->error)
-    return TRUE;
 
   if (hton->state == SHOW_OPTION_YES && hton->recover)
   {
@@ -2129,7 +2127,7 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
       }
 #endif /* WITH_WSREP */
 
-      for (int i=0; i < got && !info->error; i ++)
+      for (int i=0; i < got; i ++)
       {
         my_xid x= IF_WSREP(WSREP_ON && wsrep_is_wsrep_xid(&info->list[i]) ?
                            wsrep_xid_seqno(info->list[i]) :

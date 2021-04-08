@@ -6053,7 +6053,15 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   char new_buf_arr[4096];
   bool is_malloc = false;
   bool is_rows_event= false;
-  bool semisync_recovery= false;
+  /*
+    The flag has replicate_same_server_id semantics and is raised to accept
+    a same-server-id event on the semisync slave, for both the gtid and legacy
+    connection modes.
+    Such events can appear as result of this server recovery so the event
+    was created there and replicated elsewhere right before the crash. At recovery
+    it could be evicted from the server's binlog.
+  */
+  bool do_accept_own_server_id= false;
   /*
     FD_q must have been prepared for the first R_a event
     inside get_master_version_and_clock()
@@ -6812,9 +6820,8 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   }
   else
   if ((s_id == global_system_variables.server_id &&
-       (!mi->rli.replicate_same_server_id &&
-        !(semisync_recovery= (rpl_semi_sync_slave_enabled &&
-                              mi->using_gtid != Master_info::USE_GTID_NO)))) ||
+       !(mi->rli.replicate_same_server_id ||
+         (do_accept_own_server_id= rpl_semi_sync_slave_enabled))) ||
       event_that_should_be_ignored(buf) ||
       /*
         the following conjunction deals with IGNORE_SERVER_IDS, if set
@@ -6874,7 +6881,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
   }
   else
   {
-    if (semisync_recovery)
+    if (do_accept_own_server_id)
     {
       int2store(const_cast<char*>(buf + FLAGS_OFFSET),
                 uint2korr(buf + FLAGS_OFFSET) | LOG_EVENT_ACCEPT_OWN_F);
