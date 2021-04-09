@@ -1,0 +1,9 @@
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+# xtrabackup backup
+# xtrabackup prepare
+# restart server
+SELECT * FROM t;
+i
+1
+DROP TABLE t;

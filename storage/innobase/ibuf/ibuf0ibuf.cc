@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4898,6 +4898,13 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 		bitmap_page = ibuf_bitmap_get_map_page(
 			page_id_t(space->id, page_no), page_size, &mtr);
 
+		if (!bitmap_page) {
+			mutex_exit(&ibuf_mutex);
+			ibuf_exit(&mtr);
+			mtr_commit(&mtr);
+			return DB_CORRUPTION;
+		}
+
 		if (buf_is_zeroes(span<const byte>(bitmap_page,
 					     page_size.physical()))) {
 			/* This means we got all-zero page instead of
@@ -4918,11 +4925,6 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 			ibuf_exit(&mtr);
 			mtr_commit(&mtr);
 			continue;
-		}
-
-		if (!bitmap_page) {
-			mutex_exit(&ibuf_mutex);
-			return DB_CORRUPTION;
 		}
 
 		for (i = FSP_IBUF_BITMAP_OFFSET + 1;

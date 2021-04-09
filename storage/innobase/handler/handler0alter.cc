@@ -2756,9 +2756,11 @@ innobase_fts_check_doc_id_index(
 	for (index = dict_table_get_first_index(table);
 	     index; index = dict_table_get_next_index(index)) {
 
+
 		/* Check if there exists a unique index with the name of
-		FTS_DOC_ID_INDEX_NAME */
-		if (innobase_strcasecmp(index->name, FTS_DOC_ID_INDEX_NAME)) {
+		FTS_DOC_ID_INDEX_NAME and ignore the corrupted index */
+		if (index->type & DICT_CORRUPT
+		    || innobase_strcasecmp(index->name, FTS_DOC_ID_INDEX_NAME)) {
 			continue;
 		}
 

@@ -121,6 +121,8 @@ create function f() returns int return (select 1 from performance_schema.threads
 set global userstat= 1;
 --error ER_SUBQUERY_NO_1_ROW
 select f() from information_schema.table_statistics;
+--error ER_SUBQUERY_NO_1_ROW
+select f() from information_schema.index_statistics;
 set global userstat= 0;
 drop function f;
 
