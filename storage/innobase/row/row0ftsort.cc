@@ -1221,7 +1221,7 @@ row_merge_write_fts_word(
 		if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
 			ib::error() << "Failed to write word to FTS auxiliary"
 				" index table "
-				<< ins_ctx->btr_bulk->index()->table->name
+				<< ins_ctx->btr_bulk->table_name()
 				<< ", error " << error;
 			ret = error;
 		}

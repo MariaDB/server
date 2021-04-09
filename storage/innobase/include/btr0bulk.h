@@ -326,7 +326,7 @@ public:
 	/** Re-latch all latches */
 	void latch();
 
-	dict_index_t* index() { return m_index; }
+	table_name_t table_name() { return m_index->table->name; }
 
 private:
 	/** Insert a tuple to a page in a level
