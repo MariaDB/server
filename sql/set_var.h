@@ -111,7 +111,6 @@ public:
   */
   virtual sys_var_pluginvar *cast_pluginvar() { return 0; }
 
-  virtual int light_check(THD *) { return 0; }
   bool check(THD *thd, set_var *var);
   uchar *value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base);
 

@@ -245,8 +245,7 @@ rpl_slave_state_free_element(void *arg)
 
 
 rpl_slave_state::rpl_slave_state()
-  : pending_gtid_count(0), last_sub_id(0), gtid_pos_tables(0), loaded(false),
-    prepared(false)
+  : pending_gtid_count(0), last_sub_id(0), gtid_pos_tables(0), loaded(false)
 {
   mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state,
                    MY_MUTEX_INIT_SLOW);
@@ -418,69 +417,36 @@ end:
 }
 
 
-bool
-rpl_slave_state::prepare(THD *thd)
+int
+rpl_slave_state::truncate_state_table(THD *thd)
 {
-  if (prepared)
-  {
-    tlist.reinit_before_use(thd);
-    return false;
-  }
+  TABLE_LIST tlist;
+  int err= 0;
 
   tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name,
                        NULL, TL_WRITE);
   tlist.mdl_request.set_type(MDL_EXCLUSIVE);
-
-  unsigned int table_count= 0;
-  TABLE_LIST *tables= &tlist;
-  bool ret= open_tables(thd, &tables, &table_count, 0);
-  if (!ret)
-    prepared= true;
-
-  return ret;
-}
-
-
-int
-rpl_slave_state::truncate_state_table(THD *thd)
-{
-  int err;
-
-  if (prepared)
+  if (!(err= open_and_lock_tables(thd, &tlist, FALSE,
+                                  MYSQL_OPEN_IGNORE_LOGGING_FORMAT)))
   {
-    tlist.reinit_before_use(thd);
+    DBUG_ASSERT(!tlist.table->file->row_logging);
+    tlist.table->s->tdc->flush(thd, true);
+    err= tlist.table->file->ha_truncate();
+
+    if (err)
+    {
+      ha_rollback_trans(thd, FALSE);
+      close_thread_tables(thd);
+      ha_rollback_trans(thd, TRUE);
+    }
+    else
+    {
+      ha_commit_trans(thd, FALSE);
+      close_thread_tables(thd);
+      ha_commit_trans(thd, TRUE);
+    }
+    thd->release_transactional_locks();
   }
-  else
-  {
-    tlist.init_one_table(&MYSQL_SCHEMA_NAME, &rpl_gtid_slave_state_table_name,
-                         NULL, TL_WRITE);
-    tlist.mdl_request.set_type(MDL_EXCLUSIVE);
-  }
-
-  err= open_and_lock_tables(thd, &tlist, false,
-                            MYSQL_OPEN_IGNORE_LOGGING_FORMAT);
-
-  if (err)
-    return err;
-
-  DBUG_ASSERT(!tlist.table->file->row_logging);
-  tlist.table->s->tdc->flush(thd, false);
-  err= tlist.table->file->ha_truncate();
-
-  if (err)
-  {
-    ha_rollback_trans(thd, false);
-    close_thread_tables(thd);
-    ha_rollback_trans(thd, true);
-  }
-  else
-  {
-    ha_commit_trans(thd, false);
-    close_thread_tables(thd);
-    ha_commit_trans(thd, true);
-  }
-  thd->release_transactional_locks();
-
   return err;
 }
 

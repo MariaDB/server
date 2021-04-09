@@ -48,9 +48,6 @@ enum enum_gtid_skip_type {
   GTID_SKIP_NOT, GTID_SKIP_STANDALONE, GTID_SKIP_TRANSACTION
 };
 
-#ifdef MYSQL_SERVER
-
-#include "table.h"
 
 /*
   Structure to keep track of threads waiting in MASTER_GTID_WAIT().
@@ -226,13 +223,11 @@ struct rpl_slave_state
   std::atomic<gtid_pos_table*> gtid_pos_tables;
   /* The default entry in gtid_pos_tables, mysql.gtid_slave_pos. */
   std::atomic<gtid_pos_table*> default_gtid_pos_table;
-  bool loaded, prepared;
-  TABLE_LIST tlist;
+  bool loaded;
 
   rpl_slave_state();
   ~rpl_slave_state();
 
-  bool prepare(THD *thd);
   void truncate_hash();
   ulong count() const { return hash.records; }
   int update(uint32 domain_id, uint32 server_id, uint64 sub_id,
@@ -385,6 +380,5 @@ extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,
 extern int gtid_check_rpl_slave_state_table(TABLE *table);
 extern rpl_gtid *gtid_parse_string_to_list(const char *p, size_t len,
                                            uint32 *out_len);
-#endif  /* MYSQL_SERVER */
 
 #endif  /* RPL_GTID_H */
