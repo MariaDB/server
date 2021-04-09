@@ -863,8 +863,7 @@ public:
   int open_purge_index_file(bool destroy);
   bool truncate_and_remove_binlogs(const char *truncate_file,
                                    my_off_t truncate_pos,
-                                   rpl_gtid *gtid,
-                                   enum_binlog_checksum_alg cs_alg);
+                                   rpl_gtid *gtid);
   bool is_inited_purge_index_file();
   int close_purge_index_file();
   int clean_purge_index_file();

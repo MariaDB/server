@@ -7944,7 +7944,7 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
     */
     if (flags_extra & FL_EXTRA_MULTI_ENGINE)
     {
-      DBUG_ASSERT(buf - buf_0 < event_len);
+      DBUG_ASSERT(static_cast<uint>(buf - buf_0) < event_len);
 
       extra_engines= *buf++;
 

@@ -2055,26 +2055,59 @@ static bool xid_member_replace(HASH *hash_arg, my_xid xid_arg,
 }
 
 /*
-  Hash iterate function to complete with commit or rollback as decided
-  (typically at binlog recovery processing) in member->in_engine_prepare.
+  Decision to commit returns true, otherwise false for rollback.
+  Flagged to commit member is destined to commit. If it is in doubt in case
+  A. the caller does not specify coord_ptr (always so in the normal recovery), or
+  B. coord_ptr is not NULL (can only be so in the semisync slave case) and its
+     offset is greater than that of the member's the decision is rollback.
+  If both A,B do not hold - which is the semisync slave recovery case -
+  the decision is to rollback.
+*/
+static bool xarecover_decide(xid_recovery_member* member,
+                             xid_t x, std::pair<uint, my_off_t> *coord_ptr)
+{
+  return
+    member->decided_to_commit ? true :
+    !coord_ptr ? false :
+    (member->binlog_coord < *coord_ptr ?  // semisync slave recovery
+     true : false);
+}
+
+struct xarecover_iterate_arg
+{
+  handlerton *hton;
+  std::pair<uint, my_off_t> *binlog_coord;
+};
+
+/*
+  Hash iterate function to complete with commit or rollback as either
+  has been decided already or decide now (in the semisync recovery)
+  via comparison against passed offset.
+  Commit when the offset is greater than that of the member.
 */
 static my_bool xarecover_do_commit_or_rollback(void *member_arg,
-                                               void *hton_arg)
+                                               void *iter_arg)
 {
   xid_recovery_member *member= (xid_recovery_member*) member_arg;
-  handlerton *hton= (handlerton*) hton_arg;
+  handlerton *hton= ((xarecover_iterate_arg*) iter_arg)->hton;
+  std::pair<uint, my_off_t> *max_coord_ptr=
+    ((xarecover_iterate_arg*) iter_arg)->binlog_coord;
   xid_t x;
   my_bool rc;
 
   x.set(member->xid);
-  rc= member->decided_to_commit ?  hton->commit_by_xid(hton, &x) :
-    hton->rollback_by_xid(hton, &x);
+
+  rc= xarecover_decide(member, x, max_coord_ptr) ?
+    hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
 
   DBUG_ASSERT(rc || member->in_engine_prepare > 0);
 
   if (!rc)
   {
-    /* This block relies on Engine to report XAER_NOTA for unknown xid. */
+    /*
+      This block relies on Engine to report XAER_NOTA at
+      "complete"_by_xid for unknown xid.
+    */
     member->in_engine_prepare--;
     if (global_system_variables.log_warnings > 2)
       sql_print_warning("%s transaction with xid %llu",
@@ -2100,6 +2133,16 @@ static my_bool xarecover_do_count_in_prepare(void *member_arg,
   return false;
 }
 
+struct xarecover_complete_arg
+{
+  HASH *commit_list;
+  std::pair<uint, my_off_t> *binlog_coord;
+};
+
+/*
+  Completes binlog recovery to invoke a decider function for
+  each transaction in doubt.
+*/
 static my_bool xarecover_binlog_handlerton(THD *unused,
                                            plugin_ref plugin,
                                            void *arg)
@@ -2108,18 +2151,29 @@ static my_bool xarecover_binlog_handlerton(THD *unused,
 
     if (hton->state == SHOW_OPTION_YES && hton->recover)
     {
-      my_hash_iterate((HASH*) arg, xarecover_do_commit_or_rollback, hton);
+      xarecover_iterate_arg iter_arg=
+        {
+          hton,
+          ((xarecover_complete_arg*) arg)->binlog_coord
+        };
+      my_hash_iterate(((xarecover_complete_arg*) arg)->commit_list,
+                      xarecover_do_commit_or_rollback, &iter_arg);
     }
 
     return FALSE;
 }
 
-uint ha_recover_complete(HASH *commit_list)
+/*
+  Completes binlog recovery to invoke decider functions for
+  each handerton.
+  Returns the number of transactions remained doubtful.
+*/
+uint ha_recover_complete(HASH *commit_list, std::pair<uint, my_off_t> *coord)
 {
   uint count= 0;
-
+  xarecover_complete_arg complete_arg= { commit_list, coord };
   plugin_foreach(NULL, xarecover_binlog_handlerton,
-                 MYSQL_STORAGE_ENGINE_PLUGIN, commit_list);
+                 MYSQL_STORAGE_ENGINE_PLUGIN, &complete_arg);
   my_hash_iterate(commit_list, xarecover_do_count_in_prepare, &count);
 
   return count;
@@ -2134,6 +2188,9 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
 
   if (hton->state == SHOW_OPTION_YES && hton->recover)
   {
+#ifndef DBUG_OFF
+    my_xid dbug_xid_list[128] __attribute__((unused)) = {0};
+#endif
     while ((got= hton->recover(hton, info->list, info->len)) > 0 )
     {
       sql_print_information("Found %d prepared transaction(s) in %s",
