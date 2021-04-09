@@ -1295,13 +1295,13 @@ public:
   bool exclude_from_table_unique_test;
   /* the select is "service-select" and can not have tables*/
   bool is_service_select;
-  /* index in the select list of the expression currently being fixed */
-  int cur_pos_in_select_list;
-
   /* SELECT [FOR UPDATE/LOCK IN SHARE MODE] [SKIP LOCKED] */
+  bool skip_locked;
   enum select_lock_type {NONE, IN_SHARE_MODE, FOR_UPDATE};
   enum select_lock_type select_lock;
-  bool skip_locked;
+
+  /* index in the select list of the expression currently being fixed */
+  int cur_pos_in_select_list;
 
   List<udf_func>     udf_list;                  /* udf function calls stack */
 
