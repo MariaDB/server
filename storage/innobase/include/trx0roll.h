@@ -130,15 +130,7 @@ trx_release_savepoint_for_mysql(
 	trx_t*		trx,			/*!< in: transaction handle */
 	const char*	savepoint_name)		/*!< in: savepoint name */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*******************************************************************//**
-Frees savepoint structs starting from savep. */
-void
-trx_roll_savepoints_free(
-/*=====================*/
-	trx_t*			trx,	/*!< in: transaction handle */
-	trx_named_savept_t*	savep);	/*!< in: free all savepoints > this one;
-					if this is NULL, free all savepoints
-					of trx */
+
 /** Rollback node states */
 enum roll_node_state {
 	ROLL_NODE_NONE = 0,		/*!< Unknown state */

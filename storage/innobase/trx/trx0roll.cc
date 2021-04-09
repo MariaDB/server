@@ -359,24 +359,16 @@ trx_roll_savepoint_free(
 	ut_free(savep);
 }
 
-/*******************************************************************//**
-Frees savepoint structs starting from savep. */
-void
-trx_roll_savepoints_free(
-/*=====================*/
-	trx_t*			trx,	/*!< in: transaction handle */
-	trx_named_savept_t*	savep)	/*!< in: free all savepoints starting
-					with this savepoint i*/
+/** Discard all savepoints starting from a particular savepoint.
+@param savept    first savepoint to discard */
+void trx_t::savepoints_discard(trx_named_savept_t *savept)
 {
-	while (savep != NULL) {
-		trx_named_savept_t*	next_savep;
-
-		next_savep = UT_LIST_GET_NEXT(trx_savepoints, savep);
-
-		trx_roll_savepoint_free(trx, savep);
-
-		savep = next_savep;
-	}
+  while (savept)
+  {
+    auto next= UT_LIST_GET_NEXT(trx_savepoints, savept);
+    trx_roll_savepoint_free(this, savept);
+    savept= next;
+  }
 }
 
 /*******************************************************************//**
@@ -409,8 +401,7 @@ trx_rollback_to_savepoint_for_mysql_low(
 
 	/* Free all savepoints strictly later than savep. */
 
-	trx_roll_savepoints_free(
-		trx, UT_LIST_GET_NEXT(trx_savepoints, savep));
+	trx->savepoints_discard(UT_LIST_GET_NEXT(trx_savepoints, savep));
 
 	*mysql_binlog_cache_pos = savep->mysql_binlog_cache_pos;
 

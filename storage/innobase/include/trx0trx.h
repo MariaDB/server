@@ -628,7 +628,8 @@ struct trx_rsegs_t {
 	trx_temp_undo_t	m_noredo;
 };
 
-struct trx_t : ilist_node<> {
+struct trx_t : ilist_node<>
+{
 private:
   /**
     Count of references.
@@ -1014,6 +1015,16 @@ private:
 public:
   /** Commit the transaction. */
   void commit();
+
+
+  /** Discard all savepoints */
+  void savepoints_discard()
+  { savepoints_discard(UT_LIST_GET_FIRST(trx_savepoints)); }
+
+
+  /** Discard all savepoints starting from a particular savepoint.
+  @param savept    first savepoint to discard */
+  void savepoints_discard(trx_named_savept_t *savept);
 
 
   bool is_referenced() const { return n_ref > 0; }

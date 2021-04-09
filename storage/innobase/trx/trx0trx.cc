@@ -1416,10 +1416,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
 
   ut_ad(!rsegs.m_noredo.undo);
 
-  /* Free all savepoints, starting from the first. */
-  trx_named_savept_t *savep= UT_LIST_GET_FIRST(trx_savepoints);
-
-  trx_roll_savepoints_free(this, savep);
+  savepoints_discard();
 
   if (fts_trx)
     trx_finalize_for_fts(this, undo_no != 0);
