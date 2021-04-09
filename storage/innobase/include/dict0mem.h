@@ -671,6 +671,35 @@ struct dict_v_col_t{
 
 };
 
+/** Data structure for newly added virtual column in a index.
+It is used only during rollback_inplace_alter_table() of
+addition of index depending on newly added virtual columns
+and uses index heap. Should be freed when index is being
+removed from cache. */
+struct dict_add_v_col_info
+{
+  ulint n_v_col;
+  dict_v_col_t *v_col;
+
+  /** Add the newly added virtual column while rollbacking
+  the index which contains new virtual columns
+  @param col    virtual column to be duplicated
+  @param offset offset where to duplicate virtual column */
+  dict_v_col_t* add_drop_v_col(mem_heap_t *heap, dict_v_col_t *col,
+                               ulint offset)
+  {
+    ut_ad(n_v_col);
+    ut_ad(offset < n_v_col);
+    if (!v_col)
+      v_col= static_cast<dict_v_col_t*>
+        (mem_heap_alloc(heap, n_v_col * sizeof *v_col));
+    new (&v_col[offset]) dict_v_col_t();
+    v_col[offset].m_col= col->m_col;
+    v_col[offset].v_pos= col->v_pos;
+    return &v_col[offset];
+  }
+};
+
 /** Data structure for newly added virtual column in a table */
 struct dict_add_v_col_t{
 	/** number of new virtual column */
@@ -892,9 +921,13 @@ struct dict_index_t{
 	dict_field_t*	fields;	/*!< array of field descriptions */
 	st_mysql_ftparser*
 			parser;	/*!< fulltext parser plugin */
-	bool		has_new_v_col;
-				/*!< whether it has a newly added virtual
-				column in ALTER */
+
+	/** It just indicates whether newly added virtual column
+	during alter. It stores column in case of alter failure.
+	It should use heap from dict_index_t. It should be freed
+	while removing the index from table. */
+	dict_add_v_col_info* new_vcol_info;
+
 	bool            index_fts_syncing;/*!< Whether the fts index is
 					still syncing in the background;
 					FIXME: remove this and use MDL */
@@ -1028,9 +1061,8 @@ struct dict_index_t{
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
 
-  /** Detach the virtual columns from the index that is to be removed.
-  @param   whether to reset fields[].col */
-  void detach_columns(bool clear= false)
+  /** Detach the virtual columns from the index that is to be removed. */
+  void detach_columns()
   {
     if (!has_virtual())
       return;
@@ -1040,13 +1072,35 @@ struct dict_index_t{
       if (!col || !col->is_virtual())
         continue;
       col->detach(*this);
-      if (clear)
-        fields[i].col= NULL;
     }
   }
 
   /** @return whether this is the change buffer */
   bool is_ibuf() const { return UNIV_UNLIKELY(type & DICT_IBUF); }
+
+  /** Assign the number of new column to be added as a part
+  of the index
+  @param        n_vcol  number of virtual columns to be added */
+  void assign_new_v_col(ulint n_vcol)
+  {
+    new_vcol_info= static_cast<dict_add_v_col_info*>(
+      mem_heap_zalloc(heap, sizeof *new_vcol_info));
+    new_vcol_info->n_v_col= n_vcol;
+  }
+
+  /* @return whether index has new virtual column */
+  bool has_new_v_col() const
+  {
+    return new_vcol_info != NULL;
+  }
+
+  /* @return number of newly added virtual column */
+  ulint get_new_n_vcol() const
+  {
+    if (new_vcol_info)
+      return new_vcol_info->n_v_col;
+    return 0;
+  }
 
 #ifdef BTR_CUR_HASH_ADAPT
   /** @return a clone of this */
@@ -1870,6 +1924,17 @@ public:
 	/** mysql_row_templ_t for base columns used for compute the virtual
 	columns */
 	dict_vcol_templ_t*			vc_templ;
+
+  /* @return whether the table has any other transcation lock
+  other than the given transaction */
+  bool has_lock_other_than(const trx_t *trx) const
+  {
+    for (lock_t *lock= UT_LIST_GET_FIRST(locks); lock;
+         lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
+      if (lock->trx != trx)
+        return true;
+    return false;
+  }
 };
 
 inline bool table_name_t::is_temporary() const

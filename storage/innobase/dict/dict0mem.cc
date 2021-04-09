@@ -911,7 +911,7 @@ dict_mem_fill_vcol_from_v_indexes(
 		Later virtual column set will be
 		refreshed during loading of table. */
 		if (!dict_index_has_virtual(index)
-		    || index->has_new_v_col) {
+		    || index->has_new_v_col()) {
 			continue;
 		}
 
