@@ -24,14 +24,6 @@ then
   echo >> debian/control
   cat storage/columnstore/columnstore/debian/control >> debian/control
 
-  # From Debian Bullseye/Ubuntu Hirsute onwards libreadline is gone, so build with it
-  # only on older releases where it is still available. This can be removed once
-  # MCOL-4535 lands in MariaDB.
-  if apt-cache madison libreadline-gplv2-dev | grep 'libreadline-gplv2-dev' >/dev/null 2>&1
-  then
-    sed 's/libpcre2-dev,/libpcre2-dev, libreadline-gplv2-dev [amd64],/' -i debian/control
-  fi
-
   # ColumnStore is explcitly disabled in the native build, so allow it now
   # when build it when triggered by autobake-deb.sh
   sed '/-DPLUGIN_COLUMNSTORE=NO/d' -i debian/rules
