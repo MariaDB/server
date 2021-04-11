@@ -37,14 +37,6 @@ build:
     - apt-get update && eatmydata apt-get install --yes --no-install-recommends aptitude devscripts ccache equivs
     - cd ${WORKING_DIR}/${SOURCE_DIR}
     - eatmydata install-build-deps.sh .
-    - |
-      # From Debian Bullseye/Ubuntu Hirsute onwards libreadline is gone, so build with it
-      # only on older releases where it is still available. This can be removed once
-      # MCOL-4535 lands in MariaDB.
-      if apt-cache madison libreadline-gplv2-dev | grep 'libreadline-gplv2-dev' >/dev/null 2>&1
-      then
-       apt-get install --yes libreadline-gplv2-dev
-      fi
     - update-ccache-symlinks; ccache -z # Zero out ccache counters
     - while true; do sleep 600; echo "10 minutes passed" >&2; done & # Progress keeper since build is long and silent
     - debian/autobake-deb.sh |& tail -n 10000 # Keep Gitlab-CI output under 4 MB
@@ -141,12 +133,6 @@ blhc:
   echo 'debconf debconf/frontend select Noninteractive' | debconf-set-selections
   # Prime the apt cache so later apt commands can run
   apt-get update
-
-# Readline was removed from Debian Sid (and Bullseye) in Feb 2021. To be able to install older
-# versions of MariaDB that depend on it, fetch and install it from Buster.
-.test-install-readline-in-sid-for-backwards-compat: &test-install-readline-in-sid-for-backwards-compat |
-  curl -O http://ftp.de.debian.org/debian/pool/main/r/readline5/libreadline5_5.2+dfsg-3+b13_amd64.deb
-  apt install -y ./libreadline5_5.2+dfsg-3+b13_amd64.deb
 
 .test-verify-initial: &test-verify-initial |
   dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
@@ -602,7 +588,6 @@ mariadb.org-10.5 to mariadb-10.6 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.5/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    - *test-install-readline-in-sid-for-backwards-compat
     # The 10.5.9 relase is missing mariadb-plugin-columnstore, define all other packages but it to avoid hitting the error:
     #   The following packages have unmet dependencies:
     #   mariadb-plugin-columnstore : Depends: mariadb-server-10.5 (= 1:10.5.8+maria~sid) but 1:10.5.9+maria~sid is to be installed
@@ -642,7 +627,6 @@ mariadb.org-10.4 to mariadb-10.6 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.4/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.4
     # MariaDB.org version of 10.4 and early 10.5 do not install an init file, so
     # it must be installed here manually
@@ -676,7 +660,6 @@ mariadb.org-10.3 to mariadb-10.6 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.3/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.3
     # Verify initial state before upgrade
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
@@ -713,7 +696,6 @@ mariadb.org-10.2 to mariadb-10.6 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.2/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    - *test-install-readline-in-sid-for-backwards-compat
     - apt-get install -y mariadb-server-10.2
     # Verify initial state before upgrade
     - dpkg -l | grep -iE 'maria|mysql|galera' || true # List installed
