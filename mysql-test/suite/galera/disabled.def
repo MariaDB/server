@@ -20,7 +20,6 @@ galera_mdl_race : MDEV-21524: galera.galera_mdl_race MTR failed: query 'reap' su
 galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails	
 galera_partition : MDEV-21806: galera.galera_partition MTR failed: failed to recover from DONOR state
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
-galera_sst_mariabackup_encrypt_with_key : MDEV-21484 galera_sst_mariabackup_encrypt_with_key
 galera_var_node_address : MDEV-20485 Galera test failure
 galera_wan : MDEV-17259 Test failure on galera.galera_wan
 partition : MDEV-19958 Galera test failure on galera.partition
