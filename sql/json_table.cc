@@ -1324,20 +1324,6 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
       jc->m_field->charset= jc->m_explicit_cs;
     }
   }
-
-  m_dep_tables= m_json->used_tables();
-
-  if (m_dep_tables)
-  {
-    t->no_cache= TRUE;
-    if (unlikely(m_dep_tables & sql_table->get_map()))
-    {
-      /* Table itself is used in the argument. */
-      my_error(ER_WRONG_USAGE, MYF(0), "JSON_TABLE", "argument"); 
-      return TRUE;
-    }
-  }
-
   return FALSE;
 }
 
@@ -1475,12 +1461,8 @@ int Table_function_json_table::print(THD *thd, TABLE_LIST *sql_table,
 void Table_function_json_table::fix_after_pullout(TABLE_LIST *sql_table,
        st_select_lex *new_parent, bool merge)
 {
-  sql_table->dep_tables&= ~m_dep_tables;
-
   m_json->fix_after_pullout(new_parent, &m_json, merge);
-  m_dep_tables= m_json->used_tables();
-
-  sql_table->dep_tables|= m_dep_tables;
+  sql_table->dep_tables= used_tables();
 }
 
 

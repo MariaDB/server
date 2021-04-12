@@ -750,5 +750,48 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	jt	ALL	NULL	NULL	NULL	NULL	40	Table function: json_table; Using where; FirstMatch(t1)
 drop table t1;
 #
+# MDEV-25381: JSON_TABLE: ER_WRONG_OUTER_JOIN upon query with LEFT and RIGHT joins and view
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b INT, c TEXT);
+INSERT INTO t2 VALUES (1,'{}'),(2,'[]');
+CREATE VIEW v2 AS SELECT * FROM t2;
+SELECT *
+FROM
+t1 RIGHT JOIN
+t2 AS tt
+LEFT JOIN
+JSON_TABLE(tt.c, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+ON tt.b = jt.o
+ON t1.a = tt.b;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
+SELECT *
+FROM
+t1 RIGHT JOIN
+v2 AS tt
+LEFT JOIN
+JSON_TABLE(tt.c, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+ON tt.b = jt.o
+ON t1.a = tt.b;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
+SELECT *
+FROM
+t1 RIGHT JOIN
+v2 AS tt
+LEFT JOIN
+JSON_TABLE(CONCAT(tt.c,''), '$' COLUMNS(o FOR ORDINALITY)) AS jt
+ON tt.b = jt.o
+ON t1.a = tt.b;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
+DROP VIEW v2;
+DROP TABLE t1, t2;
+#
 # End of 10.6 tests
 #

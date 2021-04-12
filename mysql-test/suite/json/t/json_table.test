@@ -645,5 +645,46 @@ WHERE
 drop table t1;
 
 --echo #
+--echo # MDEV-25381: JSON_TABLE: ER_WRONG_OUTER_JOIN upon query with LEFT and RIGHT joins and view
+--echo #
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT, c TEXT);
+INSERT INTO t2 VALUES (1,'{}'),(2,'[]');
+CREATE VIEW v2 AS SELECT * FROM t2;
+
+SELECT *
+FROM
+  t1 RIGHT JOIN
+     t2 AS tt
+     LEFT JOIN
+     JSON_TABLE(tt.c, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+     ON tt.b = jt.o
+  ON t1.a = tt.b;
+
+SELECT *
+FROM
+  t1 RIGHT JOIN
+    v2 AS tt
+    LEFT JOIN
+    JSON_TABLE(tt.c, '$' COLUMNS(o FOR ORDINALITY)) AS jt
+    ON tt.b = jt.o
+  ON t1.a = tt.b;
+
+SELECT *
+FROM
+  t1 RIGHT JOIN
+    v2 AS tt
+    LEFT JOIN
+    JSON_TABLE(CONCAT(tt.c,''), '$' COLUMNS(o FOR ORDINALITY)) AS jt
+    ON tt.b = jt.o
+ ON t1.a = tt.b;
+
+DROP VIEW v2;
+DROP TABLE t1, t2;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #

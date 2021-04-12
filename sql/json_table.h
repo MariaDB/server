@@ -208,8 +208,16 @@ public:
                          st_select_lex *new_parent, bool merge);
   void update_used_tables() { m_json->update_used_tables(); }
 
-  table_map used_tables() const { return m_dep_tables; }
-  bool join_cache_allowed() const { return !m_dep_tables; }
+  table_map used_tables() const { return m_json->used_tables(); }
+  bool join_cache_allowed() const
+  {
+    /*
+      Can use join cache when we have an outside reference.
+      If there's dependency on any other table or randomness,
+      cannot use it.
+    */
+    return !(used_tables() & ~OUTER_REF_TABLE_BIT);
+  }
   void get_estimates(ha_rows *out_rows,
                      double *scan_time, double *startup_cost);
 
@@ -241,13 +249,6 @@ public:
 private:
   /* Context to be used for resolving the first argument. */
   Name_resolution_context *m_context;
-
-  /*
-    the JSON argument can be taken from other tables.
-    We have to mark these tables as dependent so the
-    mask of these dependent tables is calculated in ::setup().
-  */
-  table_map m_dep_tables;
 
   /* Current NESTED PATH level being parsed */
   Json_table_nested_path *cur_parent;
