@@ -12097,10 +12097,12 @@ ha_rows JOIN_TAB::get_examined_rows()
 bool JOIN_TAB::preread_init()
 {
   TABLE_LIST *derived= table->pos_in_table_list;
+  DBUG_ENTER("JOIN_TAB::preread_init");
+
   if (!derived || !derived->is_materialized_derived())
   {
     preread_init_done= TRUE;
-    return FALSE;
+    DBUG_RETURN(FALSE);
   }
 
   /* Materialize derived table/view. */
@@ -12108,7 +12110,7 @@ bool JOIN_TAB::preread_init()
        derived->is_recursive_with_table()) &&
       mysql_handle_single_derived(join->thd->lex,
                                     derived, DT_CREATE | DT_FILL))
-      return TRUE;
+      DBUG_RETURN(TRUE);
 
   preread_init_done= TRUE;
   if (select && select->quick)
@@ -12125,7 +12127,7 @@ bool JOIN_TAB::preread_init()
   if (table->fulltext_searched)
     init_ftfuncs(join->thd, join->select_lex, MY_TEST(join->order));
 
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 

@@ -1004,7 +1004,8 @@ public:
   }
   inline bool is_subquery_function() { return master_unit()->item != 0; }
 
-  bool mark_as_dependent(THD *thd, st_select_lex *last, Item *dependency);
+  bool mark_as_dependent(THD *thd, st_select_lex *last,
+                         Item_ident *dependency);
 
   void set_braces(bool value)
   {
