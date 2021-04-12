@@ -793,5 +793,15 @@ a	b	c	o
 DROP VIEW v2;
 DROP TABLE t1, t2;
 #
+# MDEV-25259 JSON_TABLE: Illegal mix of collations upon executing query with combination of charsets via view.
+#
+CREATE VIEW v AS
+SELECT * FROM JSON_TABLE(CONVERT('[]' USING dec8),
+'$' COLUMNS(b VARCHAR(8) CHARSET utf8 PATH '$')) AS jt2
+WHERE (CONVERT('[]' USING cp1256) = b);
+SELECT * FROM v;
+b
+DROP VIEW v;
+#
 # End of 10.6 tests
 #
