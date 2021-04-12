@@ -8441,8 +8441,11 @@ static int show_memory_used(THD *thd, SHOW_VAR *var, char *buff,
   var->type= SHOW_LONGLONG;
   var->value= buff;
   if (scope == OPT_GLOBAL)
+  {
+    calc_sum_of_all_status_if_needed(status_var);
     *(longlong*) buff= (status_var->global_memory_used +
                         status_var->local_memory_used);
+  }
   else
     *(longlong*) buff= status_var->local_memory_used;
   return 0;

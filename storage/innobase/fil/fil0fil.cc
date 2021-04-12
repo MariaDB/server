@@ -566,6 +566,10 @@ bool fil_node_t::read_page0(bool first)
 
 		this->size = ulint(size_bytes / psize);
 		space->committed_size = space->size += this->size;
+
+		if (block_size == 0) {
+			block_size = os_file_get_block_size(handle, name);
+		}
 	} else if (space->id != TRX_SYS_SPACE || space->size_in_header) {
 		/* If this is not the first-time open, do nothing.
 		For the system tablespace, we always get invoked as
@@ -605,12 +609,15 @@ static bool fil_node_open_file(fil_node_t* node)
 
 	const bool first_time_open = node->size == 0;
 
-	bool o_direct_possible = !FSP_FLAGS_HAS_PAGE_COMPRESSION(space->flags);
-	if (const ulint ssize = FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
-		compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
-		if (ssize < 3) {
-			o_direct_possible = false;
-		}
+	ulint type;
+	compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(space->flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
 	}
 
 	if (first_time_open
@@ -632,9 +639,7 @@ retry:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 
@@ -668,9 +673,7 @@ retry:
 			? OS_FILE_OPEN_RAW | OS_FILE_ON_ERROR_NO_EXIT
 			: OS_FILE_OPEN | OS_FILE_ON_ERROR_NO_EXIT,
 			OS_FILE_AIO,
-			o_direct_possible
-			? OS_DATA_FILE
-			: OS_DATA_FILE_NO_O_DIRECT,
+			type,
 			read_only_mode,
 			&success);
 	}
@@ -1038,15 +1041,14 @@ fil_space_extend_must_retry(
 
 }
 
-/*******************************************************************//**
-Reserves the fil_system mutex and tries to make sure we can open at least one
+/** Reserves the fil_system mutex and tries to make sure we can open at least one
 file while holding it. This should be called before calling
-fil_node_prepare_for_io(), because that function may need to open a file. */
+fil_node_prepare_for_io(), because that function may need to open a file.
+@param[in]	space_id	tablespace id
+@return whether the tablespace is usable for io */
 static
-void
-fil_mutex_enter_and_prepare_for_io(
-/*===============================*/
-	ulint	space_id)	/*!< in: space id */
+bool
+fil_mutex_enter_and_prepare_for_io(ulint space_id)
 {
 	for (ulint count = 0;;) {
 		mutex_enter(&fil_system->mutex);
@@ -1059,7 +1061,7 @@ fil_mutex_enter_and_prepare_for_io(
 		fil_space_t*	space = fil_space_get_by_id(space_id);
 
 		if (space == NULL) {
-			break;
+			return false;
 		}
 
 		fil_node_t*	node = UT_LIST_GET_LAST(space->chain);
@@ -1074,6 +1076,10 @@ fil_mutex_enter_and_prepare_for_io(
 			the insert buffer. The insert buffer is in
 			tablespace 0, and we cannot end up waiting in
 			this function. */
+		} else if (space->is_stopping() && !space->is_being_truncated) {
+			/* If the tablespace is being deleted then InnoDB
+			shouldn't prepare the tablespace for i/o */
+			return false;
 		} else if (!node || node->is_open()) {
 			/* If the file is already open, no need to do
 			anything; if the space does not exist, we handle the
@@ -1144,6 +1150,8 @@ fil_mutex_enter_and_prepare_for_io(
 
 		break;
 	}
+
+	return true;
 }
 
 /** Try to extend a tablespace if it is smaller than the specified size.
@@ -1160,7 +1168,10 @@ fil_space_extend(
 	bool	success;
 
 	do {
-		fil_mutex_enter_and_prepare_for_io(space->id);
+		if (!fil_mutex_enter_and_prepare_for_io(space->id)) {
+			success = false;
+			break;
+		}
 	} while (fil_space_extend_must_retry(
 			 space, UT_LIST_GET_LAST(space->chain), size,
 			 &success));
@@ -1537,7 +1548,9 @@ fil_space_t* fil_system_t::read_page0(ulint id)
 
 	/* It is possible that the tablespace is dropped while we are
 	not holding the mutex. */
-	fil_mutex_enter_and_prepare_for_io(id);
+	if (!fil_mutex_enter_and_prepare_for_io(id)) {
+		return NULL;
+	}
 
 	fil_space_t* space = fil_space_get_by_id(id);
 
@@ -1610,14 +1623,16 @@ fil_space_get_first_path(
 	ut_ad(fil_system);
 	ut_a(id);
 
-	fil_mutex_enter_and_prepare_for_io(id);
+	if (!fil_mutex_enter_and_prepare_for_io(id)) {
+fail_exit:
+		mutex_exit(&fil_system->mutex);
+		return(NULL);
+	}
 
 	space = fil_space_get_space(id);
 
 	if (space == NULL) {
-		mutex_exit(&fil_system->mutex);
-
-		return(NULL);
+		goto fail_exit;
 	}
 
 	ut_ad(mutex_own(&fil_system->mutex));
@@ -3589,11 +3604,22 @@ fil_ibd_create(
 		return(err);
 	}
 
+	ulint type;
+	compile_time_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096);
+	switch (FSP_FLAGS_GET_ZIP_SSIZE(flags)) {
+	case 1:
+	case 2:
+		type = OS_DATA_FILE_NO_O_DIRECT;
+		break;
+	default:
+		type = OS_DATA_FILE;
+	}
+
 	file = os_file_create(
 		innodb_data_file_key, path,
 		OS_FILE_CREATE | OS_FILE_ON_ERROR_NO_EXIT,
 		OS_FILE_NORMAL,
-		OS_DATA_FILE,
+		type,
 		srv_read_only_mode,
 		&success);
 

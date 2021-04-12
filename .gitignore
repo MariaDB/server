@@ -507,3 +507,13 @@ FakesAssemblies/
 
 # QtCreator && CodeBlocks
 *.cbp
+compile_commands.json
+.clang-format
+.kscope/
+.vimrc
+.editorconfig
+.kateconfig
+*.kdev4
+
+# Visual Studio Code workspace
+.vscode/

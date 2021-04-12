@@ -106,6 +106,15 @@ then
   sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
 fi
 
+# From Debian Stretch/Ubuntu Bionic onwards dh-systemd is just an empty
+# transitional metapackage and the functionality was merged into debhelper.
+# In Ubuntu Hirsute is was completely removed, so it can't be referenced anymore.
+# Keep using it only on Debian Jessie and Ubuntu Xenial.
+if apt-cache madison dh-systemd | grep 'dh-systemd' >/dev/null 2>&1
+then
+  sed 's/debhelper (>= 9.20160709~),/debhelper (>= 9), dh-systemd,/' -i debian/control
+fi
+
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
 

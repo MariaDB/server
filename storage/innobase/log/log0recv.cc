@@ -2416,8 +2416,6 @@ void recv_apply_hashed_log_recs(bool last_batch)
 	recv_no_ibuf_operations
 		= !last_batch || is_mariabackup_restore_or_export();
 
-	ut_d(recv_no_log_write = recv_no_ibuf_operations);
-
 	if (ulint n = recv_sys->n_addrs) {
 		const char* msg = last_batch
 			? "Starting final batch to recover "
@@ -4002,6 +4000,7 @@ skip_apply:
 
 	recv_sys->apply_log_recs = TRUE;
 	recv_no_ibuf_operations = is_mariabackup_restore_or_export();
+	ut_d(recv_no_log_write = recv_no_ibuf_operations);
 
 	mutex_exit(&recv_sys->mutex);
 

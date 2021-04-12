@@ -2995,6 +2995,146 @@ static bool do_execute_sp(THD *thd, sp_head *sp)
 
 
 /**
+  Check whether the SQL statement being processed is prepended by
+  SET STATEMENT clause and handle variables assignment if it is.
+
+  @param thd  thread handle
+  @param lex  current lex
+
+  @return false in case of success, true in case of error.
+*/
+
+bool run_set_statement_if_requested(THD *thd, LEX *lex)
+{
+  if (!lex->stmt_var_list.is_empty() && !thd->slave_thread)
+  {
+    Query_arena backup;
+    DBUG_PRINT("info", ("SET STATEMENT %d vars", lex->stmt_var_list.elements));
+
+    lex->old_var_list.empty();
+    List_iterator_fast<set_var_base> it(lex->stmt_var_list);
+    set_var_base *var;
+
+    if (lex->set_arena_for_set_stmt(&backup))
+      return true;
+
+    MEM_ROOT *mem_root= thd->mem_root;
+    while ((var= it++))
+    {
+      DBUG_ASSERT(var->is_system());
+      set_var *o= NULL, *v= (set_var*)var;
+      if (!v->var->is_set_stmt_ok())
+      {
+        my_error(ER_SET_STATEMENT_NOT_SUPPORTED, MYF(0), v->var->name.str);
+        lex->reset_arena_for_set_stmt(&backup);
+        lex->old_var_list.empty();
+        lex->free_arena_for_set_stmt();
+        return true;
+      }
+      if (v->var->session_is_default(thd))
+        o= new set_var(thd,v->type, v->var, &v->base, NULL);
+      else
+      {
+        switch (v->var->option.var_type & GET_TYPE_MASK)
+        {
+          case GET_BOOL:
+          case GET_INT:
+          case GET_LONG:
+          case GET_LL:
+          {
+            bool null_value;
+            longlong val= v->var->val_int(&null_value, thd, v->type, &v->base);
+            o= new set_var(thd, v->type, v->var, &v->base,
+                           (null_value ?
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_int(thd, val)));
+          }
+          break;
+          case GET_UINT:
+          case GET_ULONG:
+          case GET_ULL:
+          {
+            bool null_value;
+            ulonglong val= v->var->val_int(&null_value, thd, v->type, &v->base);
+            o= new set_var(thd, v->type, v->var, &v->base,
+                           (null_value ?
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_uint(thd, val)));
+          }
+          break;
+          case GET_DOUBLE:
+          {
+            bool null_value;
+            double val= v->var->val_real(&null_value, thd, v->type, &v->base);
+            o= new set_var(thd, v->type, v->var, &v->base,
+                           (null_value ?
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_float(thd, val, 1)));
+          }
+          break;
+          default:
+          case GET_NO_ARG:
+          case GET_DISABLED:
+            DBUG_ASSERT(0);
+            /* fall through */
+          case 0:
+          case GET_FLAGSET:
+          case GET_ENUM:
+          case GET_SET:
+          case GET_STR:
+          case GET_STR_ALLOC:
+          {
+            char buff[STRING_BUFFER_USUAL_SIZE];
+            String tmp(buff, sizeof(buff), v->var->charset(thd)),*val;
+            val= v->var->val_str(&tmp, thd, v->type, &v->base);
+            if (val)
+            {
+              Item_string *str=
+		new (mem_root) Item_string(thd, v->var->charset(thd),
+                                           val->ptr(), val->length());
+              o= new set_var(thd, v->type, v->var, &v->base, str);
+            }
+            else
+              o= new set_var(thd, v->type, v->var, &v->base,
+                             new (mem_root) Item_null(thd));
+          }
+          break;
+        }
+      }
+      DBUG_ASSERT(o);
+      lex->old_var_list.push_back(o, thd->mem_root);
+    }
+    lex->reset_arena_for_set_stmt(&backup);
+
+    if (lex->old_var_list.is_empty())
+      lex->free_arena_for_set_stmt();
+
+    if (thd->is_error() ||
+        sql_set_variables(thd, &lex->stmt_var_list, false))
+    {
+      if (!thd->is_error())
+        my_error(ER_WRONG_ARGUMENTS, MYF(0), "SET");
+      lex->restore_set_statement_var();
+      return true;
+    }
+    /*
+      The value of last_insert_id is remembered in THD to be written to binlog
+      when it's used *the first time* in the statement. But SET STATEMENT
+      must read the old value of last_insert_id to be able to restore it at
+      the end. This should not count at "reading of last_insert_id" and
+      should not remember last_insert_id for binlog. That is, it should clear
+      stmt_depends_on_first_successful_insert_id_in_prev_stmt flag.
+    */
+    if (!thd->in_sub_stmt)
+    {
+      thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
+    }
+  }
+  return false;
+}
+
+
+/**
   Execute command saved in thd and lex->sql_command.
 
   @param thd                       Thread handle
@@ -3196,6 +3336,11 @@ mysql_execute_command(THD *thd)
 #ifdef HAVE_REPLICATION
   } /* endif unlikely slave */
 #endif
+  /* store old value of binlog format */
+  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
+
+  thd->get_binlog_format(&orig_binlog_format,
+                         &orig_current_stmt_binlog_format);
 #ifdef WITH_WSREP
   if  (wsrep && WSREP(thd))
   {
@@ -3247,132 +3392,13 @@ mysql_execute_command(THD *thd)
 
   DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
 
-  /* store old value of binlog format */
-  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
-
-  thd->get_binlog_format(&orig_binlog_format,
-                         &orig_current_stmt_binlog_format);
-
-  if (!lex->stmt_var_list.is_empty() && !thd->slave_thread)
-  {
-    Query_arena backup;
-    DBUG_PRINT("info", ("SET STATEMENT %d vars", lex->stmt_var_list.elements));
-
-    lex->old_var_list.empty();
-    List_iterator_fast<set_var_base> it(lex->stmt_var_list);
-    set_var_base *var;
-
-    if (lex->set_arena_for_set_stmt(&backup))
-      goto error;
-
-    MEM_ROOT *mem_root= thd->mem_root;
-    while ((var= it++))
-    {
-      DBUG_ASSERT(var->is_system());
-      set_var *o= NULL, *v= (set_var*)var;
-      if (!v->var->is_set_stmt_ok())
-      {
-        my_error(ER_SET_STATEMENT_NOT_SUPPORTED, MYF(0), v->var->name.str);
-        lex->reset_arena_for_set_stmt(&backup);
-        lex->old_var_list.empty();
-        lex->free_arena_for_set_stmt();
-        goto error;
-      }
-      if (v->var->session_is_default(thd))
-          o= new set_var(thd,v->type, v->var, &v->base, NULL);
-      else
-      {
-        switch (v->var->option.var_type & GET_TYPE_MASK)
-        {
-        case GET_BOOL:
-        case GET_INT:
-        case GET_LONG:
-        case GET_LL:
-          {
-            bool null_value;
-            longlong val= v->var->val_int(&null_value, thd, v->type, &v->base);
-            o= new set_var(thd, v->type, v->var, &v->base,
-                           (null_value ?
-                            (Item *) new (mem_root) Item_null(thd) :
-                            (Item *) new (mem_root) Item_int(thd, val)));
-          }
-          break;
-        case GET_UINT:
-        case GET_ULONG:
-        case GET_ULL:
-          {
-            bool null_value;
-            ulonglong val= v->var->val_int(&null_value, thd, v->type, &v->base);
-            o= new set_var(thd, v->type, v->var, &v->base,
-                           (null_value ?
-                            (Item *) new (mem_root) Item_null(thd) :
-                            (Item *) new (mem_root) Item_uint(thd, val)));
-          }
-          break;
-        case GET_DOUBLE:
-          {
-            bool null_value;
-            double val= v->var->val_real(&null_value, thd, v->type, &v->base);
-            o= new set_var(thd, v->type, v->var, &v->base,
-                           (null_value ?
-                            (Item *) new (mem_root) Item_null(thd) :
-                            (Item *) new (mem_root) Item_float(thd, val, 1)));
-          }
-          break;
-        default:
-        case GET_NO_ARG:
-        case GET_DISABLED:
-          DBUG_ASSERT(0);
-        case 0:
-        case GET_FLAGSET:
-        case GET_ENUM:
-        case GET_SET:
-        case GET_STR:
-        case GET_STR_ALLOC:
-          {
-            char buff[STRING_BUFFER_USUAL_SIZE];
-            String tmp(buff, sizeof(buff), v->var->charset(thd)),*val;
-            val= v->var->val_str(&tmp, thd, v->type, &v->base);
-            if (val)
-            {
-              Item_string *str= new (mem_root) Item_string(thd, v->var->charset(thd),
-                                                val->ptr(), val->length());
-              o= new set_var(thd, v->type, v->var, &v->base, str);
-            }
-            else
-              o= new set_var(thd, v->type, v->var, &v->base,
-                             new (mem_root) Item_null(thd));
-          }
-          break;
-        }
-      }
-      DBUG_ASSERT(o);
-      lex->old_var_list.push_back(o, thd->mem_root);
-    }
-    lex->reset_arena_for_set_stmt(&backup);
-    if (lex->old_var_list.is_empty())
-      lex->free_arena_for_set_stmt();
-    if (thd->is_error() ||
-        (res= sql_set_variables(thd, &lex->stmt_var_list, false)))
-    {
-      if (!thd->is_error())
-        my_error(ER_WRONG_ARGUMENTS, MYF(0), "SET");
-      lex->restore_set_statement_var();
-      goto error;
-    }
-    /*
-      The value of last_insert_id is remembered in THD to be written to binlog
-      when it's used *the first time* in the statement. But SET STATEMENT
-      must read the old value of last_insert_id to be able to restore it at
-      the end. This should not count at "reading of last_insert_id" and
-      should not remember last_insert_id for binlog. That is, it should clear
-      stmt_depends_on_first_successful_insert_id_in_prev_stmt flag.
-    */
-    if (!thd->in_sub_stmt)
-    {
-      thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
-    }
-  }
+  /*
+    Assign system variables with values specified by the clause
+    SET STATEMENT var1=value1 [, var2=value2, ...] FOR <statement>
+    if they are any.
+  */
+  if (run_set_statement_if_requested(thd, lex))
+    goto error;
 
   if (thd->lex->mi.connection_name.str == NULL)
       thd->lex->mi.connection_name= thd->variables.default_master_connection;
@@ -7334,8 +7360,13 @@ void THD::reset_for_next_command(bool do_clear_error)
 
   thd->save_prep_leaf_list= false;
 
-  DBUG_PRINT("debug",
-             ("is_current_stmt_binlog_format_row(): %d",
+#ifdef WITH_WSREP
+#if !defined(DBUG_OFF)
+  if (mysql_bin_log.is_open())
+#endif
+#endif
+    DBUG_PRINT("debug",
+               ("is_current_stmt_binlog_format_row(): %d",
               thd->is_current_stmt_binlog_format_row()));
 
   DBUG_VOID_RETURN;
@@ -8747,6 +8778,8 @@ push_new_name_resolution_context(THD *thd,
     left_op->first_leaf_for_name_resolution();
   on_context->last_name_resolution_table=
     right_op->last_leaf_for_name_resolution();
+  on_context->select_lex = thd->lex->current_select;
+  on_context->outer_context = thd->lex->current_context()->outer_context;
   return thd->lex->push_context(on_context, thd->mem_root);
 }
 

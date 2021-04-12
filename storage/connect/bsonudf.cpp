@@ -27,12 +27,22 @@
 #endif
 #define M 6
 
+int  JsonDefPrec = -1;
+int  GetDefaultPrec(void);
 int  IsArgJson(UDF_ARGS* args, uint i);
 void SetChanged(PBSON bsp);
+int  GetJsonDefPrec(void);
 
 static PBSON BbinAlloc(PGLOBAL g, ulong len, PBVAL jsp);
 
 /* --------------------------------- JSON UDF ---------------------------------- */
+
+/*********************************************************************************/
+/*  Replaces GetJsonGrpSize not usable when CONNECT is not installed.            */
+/*********************************************************************************/
+int  GetJsonDefPrec(void)	{
+	return (JsonDefPrec < 0) ? GetDefaultPrec() : JsonDefPrec;
+}	/* end of GetJsonDefPrec */
 
 /*********************************************************************************/
 /*  Program for saving the status of the memory pools.                           */
@@ -109,7 +119,7 @@ BJNX::BJNX(PGLOBAL g) : BDOC(g)
 	Value = NULL;
 	MulVal = NULL;
 	Jpath = NULL;
-	Buf_Type = TYPE_NULL;
+	Buf_Type = TYPE_STRING;
 	Long = len;
 	Prec = 0;
 	Nod = 0;
@@ -164,10 +174,9 @@ BJNX::BJNX(PGLOBAL g, PBVAL row, int type, int len, int prec, my_bool wr) : BDOC
 my_bool BJNX::SetJpath(PGLOBAL g, char* path, my_bool jb)
 {
 	// Check Value was allocated
-	if (!Value)
-		return true;
+	if (Value)
+		Value->SetNullable(true);
 
-	Value->SetNullable(true);
 	Jpath = path;
 
 	// Parse the json path
@@ -264,6 +273,7 @@ my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
 		return true;
 	} // endif's
 
+#if 0
 	// For calculated arrays, a local Value must be used
 	switch (jnp->Op) {
 	case OP_NUM:
@@ -295,6 +305,7 @@ my_bool BJNX::SetArrayOptions(PGLOBAL g, char* p, int i, PSZ nm)
 
 	if (jnp->Valp)
 		MulVal = AllocateValue(g, jnp->Valp);
+#endif // 0
 
 	return false;
 } // end of SetArrayOptions
@@ -378,7 +389,7 @@ my_bool BJNX::ParseJpath(PGLOBAL g)
 	} // endfor i, p
 
 	Nod = i;
-	MulVal = AllocateValue(g, Value);
+//MulVal = AllocateValue(g, Value);
 
 	if (trace(1))
 		for (i = 0; i < Nod; i++)
@@ -435,20 +446,42 @@ PSZ BJNX::MakeKey(UDF_ARGS *args, int i)
 } // end of MakeKey
 
 /*********************************************************************************/
-/*  MakeJson: Serialize the json item and set value to it.                       */
+/*  MakeJson: Make the Json tree to serialize.                                   */
 /*********************************************************************************/
-PVAL BJNX::MakeJson(PGLOBAL g, PBVAL bvp)
+PBVAL BJNX::MakeJson(PGLOBAL g, PBVAL bvp, int n)
 {
-	if (Value->IsTypeNum()) {
-		strcpy(g->Message, "Cannot make Json for a numeric value");
-		Value->Reset();
-	} else if (bvp->Type != TYPE_JAR && bvp->Type != TYPE_JOB) {
-		strcpy(g->Message, "Target is not an array or object");
-		Value->Reset();
-	} else
-		Value->SetValue_psz(Serialize(g, bvp, NULL, 0));
+	PBVAL vlp, jvp = bvp;
 
-	return Value;
+	if (n < Nod -1) {
+		if (bvp->Type == TYPE_JAR) {
+			int    ars = GetArraySize(bvp);
+			PJNODE jnp = &Nodes[n];
+
+			jvp = NewVal(TYPE_JAR);
+			jnp->Op = OP_EQ;
+
+			for (int i = 0; i < ars; i++) {
+				jnp->Rank = i;
+				vlp = GetRowValue(g, bvp, n);
+				AddArrayValue(jvp, DupVal(vlp));
+			} // endfor i
+
+			jnp->Op = OP_XX;
+			jnp->Rank = 0;
+		} else if(bvp->Type == TYPE_JOB) {
+			jvp = NewVal(TYPE_JOB);
+
+			for (PBPR prp = GetObject(bvp); prp; prp = GetNext(prp)) {
+				vlp = GetRowValue(g, GetVlp(prp), n + 1);
+				SetKeyValue(jvp, vlp, MZP(prp->Key));
+			}	// endfor prp
+
+		} // endif Type
+
+	} // endif n
+
+	Jb = true;
+	return jvp;
 } // end of MakeJson
 
 /*********************************************************************************/
@@ -461,14 +494,17 @@ void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
 
 		if (Jb) {
 			vp->SetValue_psz(Serialize(g, vlp, NULL, 0));
+			Jb = false;
 		} else switch (vlp->Type) {
 		case TYPE_DTM:
 		case TYPE_STRG:
 			vp->SetValue_psz(GetString(vlp));
 			break;
 		case TYPE_INTG:
-		case TYPE_BINT:
 			vp->SetValue(GetInteger(vlp));
+			break;
+		case TYPE_BINT:
+			vp->SetValue(GetBigint(vlp));
 			break;
 		case TYPE_DBL:
 		case TYPE_FLOAT:
@@ -491,7 +527,7 @@ void BJNX::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL vlp)
 		case TYPE_JOB:
 			vp->SetValue_psz(GetObjectText(g, vlp, NULL));
 			break;
-		case (char)TYPE_NULL:
+		case TYPE_NULL:
 			vp->SetNull(true);
 		default:
 			vp->Reset();
@@ -534,7 +570,7 @@ PVAL BJNX::GetColumnValue(PGLOBAL g, PBVAL row, int i)
 /*********************************************************************************/
 /*  GetRowValue:                                                                 */
 /*********************************************************************************/
-PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b)
+PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i)
 {
 	my_bool expd = false;
 	PBVAL   bap;
@@ -546,9 +582,7 @@ PBVAL BJNX::GetRowValue(PGLOBAL g, PBVAL row, int i, my_bool b)
 			vlp = NewVal(Value);
 			return vlp;
 		} else if (Nodes[i].Op == OP_XX) {
-			Jb = b;
-			//		return DupVal(g, row);
-			return row;		 // or last line ???
+			return MakeJson(g, row, i);
 		} else if (Nodes[i].Op == OP_EXP) {
 			PUSH_WARNING("Expand not supported by this function");
 			return NULL;
@@ -613,93 +647,184 @@ PVAL BJNX::ExpandArray(PGLOBAL g, PBVAL arp, int n)
 } // end of ExpandArray
 
 /*********************************************************************************/
-/*  CalculateArray: NIY                                                          */
+/*  Get the value used for calculating the array.                                */
+/*********************************************************************************/
+PVAL BJNX::GetCalcValue(PGLOBAL g, PBVAL bap, int n)
+{
+	// For calculated arrays, a local Value must be used
+	int     lng = 0;
+	short   type, prec = 0;
+	bool    b = n < Nod - 1;
+	PVAL    valp;
+	PBVAL   vlp, vp;
+	OPVAL   op = Nodes[n].Op;
+
+	switch (op) {
+		case OP_NUM:
+			type = TYPE_INT;
+			break;
+		case OP_ADD:
+		case OP_MULT:
+			if (!IsTypeNum(Buf_Type)) {
+				type = TYPE_INT;
+				prec = 0;
+
+				for (vlp = GetArray(bap); vlp; vlp = GetNext(vlp)) {
+					vp = (b && IsJson(vlp)) ? GetRowValue(g, vlp, n + 1) : vlp;
+
+					switch (vp->Type) {
+						case TYPE_BINT:
+							if (type == TYPE_INT)
+								type = TYPE_BIGINT;
+
+							break;
+						case TYPE_DBL:
+						case TYPE_FLOAT:
+							type = TYPE_DOUBLE;
+							prec = MY_MAX(prec, vp->Nd);
+							break;
+						default:
+							break;
+					}	// endswitch Type
+
+				} // endfor vlp
+
+			} else {
+				type = Buf_Type;
+				prec = GetPrecision();
+			} // endif Buf_Type
+
+			break;
+		case OP_SEP:
+			if (IsTypeChar(Buf_Type)) {
+				type = TYPE_DOUBLE;
+				prec = 2;
+			} else {
+				type = Buf_Type;
+				prec = GetPrecision();
+			} // endif Buf_Type
+
+			break;
+		case OP_MIN:
+		case OP_MAX:
+			type = Buf_Type;
+			lng = Long;
+			prec = GetPrecision();
+			break;
+		case OP_CNC:
+			type = TYPE_STRING;
+
+			if (IsTypeChar(Buf_Type)) {
+				lng = (Long) ? Long : 512;
+				prec = GetPrecision();
+			} else
+				lng = 512;
+
+			break;
+		default:
+			break;
+	} // endswitch Op
+
+	return valp = AllocateValue(g, type, lng, prec);
+} // end of GetCalcValue
+
+/*********************************************************************************/
+/*  CalculateArray                                                               */
 /*********************************************************************************/
 PVAL BJNX::CalculateArray(PGLOBAL g, PBVAL bap, int n)
 {
 	int     i, ars = GetArraySize(bap), nv = 0;
 	bool    err;
 	OPVAL   op = Nodes[n].Op;
-	PVAL    val[2], vp = Nodes[n].Valp;
+	PVAL    val[2], vp = GetCalcValue(g, bap, n);
+	PVAL    mulval = AllocateValue(g, vp);
 	PBVAL   bvrp, bvp;
 	BVAL    bval;
 
 	vp->Reset();
 	xtrc(1, "CalculateArray size=%d op=%d\n", ars, op);
 
-	for (i = 0; i < ars; i++) {
-		bvrp = GetArrayValue(bap, i);
-		xtrc(1, "i=%d nv=%d\n", i, nv);
+	try {
+		for (i = 0; i < ars; i++) {
+			bvrp = GetArrayValue(bap, i);
+			xtrc(1, "i=%d nv=%d\n", i, nv);
 
-		if (!IsValueNull(bvrp) || (op == OP_CNC && GetJsonNull())) {
-			if (IsValueNull(bvrp)) {
-				SetString(bvrp, NewStr(GetJsonNull()), 0);
-				bvp = bvrp;
-			} else if (n < Nod - 1 && IsJson(bvrp)) {
-				SetValue(&bval, GetColumnValue(g, bvrp, n + 1));
-				bvp = &bval;
-			} else
-				bvp = bvrp;
+			if (!IsValueNull(bvrp) || (op == OP_CNC && GetJsonNull())) {
+				if (IsValueNull(bvrp)) {
+					SetString(bvrp, NewStr(GetJsonNull()), 0);
+					bvp = bvrp;
+				} else if (n < Nod - 1 && IsJson(bvrp)) {
+					SetValue(&bval, GetColumnValue(g, bvrp, n + 1));
+					bvp = &bval;
+				} else
+					bvp = bvrp;
 
-			if (trace(1))
-				htrc("bvp=%s null=%d\n",
-					GetString(bvp), IsValueNull(bvp) ? 1 : 0);
+				if (trace(1))
+					htrc("bvp=%s null=%d\n",
+						GetString(bvp), IsValueNull(bvp) ? 1 : 0);
 
-			if (!nv++) {
-				SetJsonValue(g, vp, bvp);
-				continue;
-			} else
-				SetJsonValue(g, MulVal, bvp);
+				if (!nv++) {
+					SetJsonValue(g, vp, bvp);
+					continue;
+				} else
+					SetJsonValue(g, mulval, bvp);
 
-			if (!MulVal->IsNull()) {
-				switch (op) {
-					case OP_CNC:
-						if (Nodes[n].CncVal) {
-							val[0] = Nodes[n].CncVal;
+				if (!mulval->IsNull()) {
+					switch (op) {
+						case OP_CNC:
+							if (Nodes[n].CncVal) {
+								val[0] = Nodes[n].CncVal;
+								err = vp->Compute(g, val, 1, op);
+							} // endif CncVal
+
+							val[0] = mulval;
 							err = vp->Compute(g, val, 1, op);
-						} // endif CncVal
+							break;
+							// case OP_NUM:
+						case OP_SEP:
+							val[0] = vp;
+							val[1] = mulval;
+							err = vp->Compute(g, val, 2, OP_ADD);
+							break;
+						default:
+							val[0] = vp;
+							val[1] = mulval;
+							err = vp->Compute(g, val, 2, op);
+					} // endswitch Op
 
-						val[0] = MulVal;
-						err = vp->Compute(g, val, 1, op);
-						break;
-			 // case OP_NUM:
-					case OP_SEP:
-						val[0] = Nodes[n].Valp;
-						val[1] = MulVal;
-						err = vp->Compute(g, val, 2, OP_ADD);
-						break;
-					default:
-						val[0] = Nodes[n].Valp;
-						val[1] = MulVal;
-						err = vp->Compute(g, val, 2, op);
-				} // endswitch Op
+					if (err)
+						vp->Reset();
 
-				if (err)
-					vp->Reset();
+					if (trace(1)) {
+						char buf(32);
 
-				if (trace(1)) {
-					char buf(32);
+						htrc("vp='%s' err=%d\n",
+							vp->GetCharString(&buf), err ? 1 : 0);
+					} // endif trace
 
-					htrc("vp='%s' err=%d\n",
-						vp->GetCharString(&buf), err ? 1 : 0);
-				} // endif trace
+				} // endif Zero
 
-			} // endif Zero
+			}	// endif jvrp
 
-		}	// endif jvrp
+		} // endfor i
 
-	} // endfor i
+		if (op == OP_SEP) {
+			// Calculate average
+			mulval->SetValue(nv);
+			val[0] = vp;
+			val[1] = mulval;
 
-	if (op == OP_SEP) {
-		// Calculate average
-		MulVal->SetValue(nv);
-		val[0] = vp;
-		val[1] = MulVal;
+			if (vp->Compute(g, val, 2, OP_DIV))
+				vp->Reset();
 
-		if (vp->Compute(g, val, 2, OP_DIV))
-			vp->Reset();
+		} // endif Op
 
-	} // endif Op
+	} catch (int n) {
+		xtrc(1, "Exception %d: %s\n", n, g->Message);
+		PUSH_WARNING(g->Message);
+	} catch (const char* msg) {
+		strcpy(g->Message, msg);
+	} // end catch
 
 	return vp;
 } // end of CalculateArray
@@ -1320,7 +1445,7 @@ my_bool BJNX::CompareValues(PGLOBAL g, PBVAL v1, PBVAL v2)
 				b = (v1->B == v2->B);
 
 			break;
-		case (char)TYPE_NULL:
+		case TYPE_NULL:
 			b = (v2->Type == TYPE_NULL);
 			break;
 		default:
@@ -1545,7 +1670,7 @@ PBVAL BJNX::ParseJsonFile(PGLOBAL g, char *fn, int& pty, size_t& len)
 	len = (size_t)mm.lenL;
 
 	if (mm.lenH)
-		len += ((size_t)mm.lenH * 0x000000001LL);
+		len += mm.lenH;
 
 	memory = (char *)mm.memory;
 
@@ -2703,6 +2828,45 @@ void bson_object_values_deinit(UDF_INIT* initid)
 /*********************************************************************************/
 /*  Set the value of JsonGrpSize.                                                */
 /*********************************************************************************/
+my_bool bsonset_def_prec_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	if (args->arg_count != 1 || args->arg_type[0] != INT_RESULT) {
+		strcpy(message, "This function must have 1 integer argument");
+		return true;
+	} else
+		return false;
+
+} // end of bsonset_def_prec_init
+
+long long bsonset_def_prec(UDF_INIT *initid, UDF_ARGS *args, char *, char *)
+{
+	long long n = *(long long*)args->args[0];
+
+	JsonDefPrec = (int)n;
+	return (long long)GetJsonDefPrec();
+} // end of bsonset_def_prec
+
+/*********************************************************************************/
+/*  Get the value of JsonGrpSize.                                                */
+/*********************************************************************************/
+my_bool bsonget_def_prec_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
+{
+	if (args->arg_count != 0) {
+		strcpy(message, "This function must have no arguments");
+		return true;
+	} else
+		return false;
+
+} // end of bsonget_def_prec_init
+
+long long bsonget_def_prec(UDF_INIT *initid, UDF_ARGS *args, char *, char *)
+{
+	return (long long)GetJsonDefPrec();
+} // end of bsonget_def_prec
+
+/*********************************************************************************/
+/*  Set the value of JsonGrpSize.                                                */
+/*********************************************************************************/
 my_bool bsonset_grp_size_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	if (args->arg_count != 1 || args->arg_type[0] != INT_RESULT) {
@@ -2858,7 +3022,7 @@ void bson_object_grp_add(UDF_INIT *initid, UDF_ARGS *args, char*, char*)
 	PBVAL   bop = (PBVAL)g->Activityp;
 
 	if (g->N-- > 0)
-		bxp->SetKeyValue(bop, bxp->MakeValue(args, 0), MakePSZ(g, args, 1));
+                bxp->SetKeyValue(bop, bxp->MakeValue(args, 1), MakePSZ(g, args, 0));
 
 } // end of bson_object_grp_add
 
@@ -3532,8 +3696,8 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 {
 	char   *path, *str = NULL;
 	PBVAL   jvp;
-	PBJNX   bxp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
+	BJNX    bnx(g, NULL, TYPE_STRING, initid->max_length);
 
 	if (g->N) {
 		str = (char*)g->Activityp;
@@ -3546,8 +3710,7 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			PUSH_WARNING("CheckMemory error");
 			goto fin;
 		} else {
-			BJNX bnx(g);
-
+                        bnx.Reset();
 			jvp = bnx.MakeValue(args, 0, true);
 
 			if (g->Mrr) {			 // First argument is a constant
@@ -3561,16 +3724,16 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		jvp = (PBVAL)g->Xchk;
 
 	path = MakePSZ(g, args, 1);
-	bxp = new(g) BJNX(g, jvp, TYPE_STRING, initid->max_length);
 
-	if (bxp->SetJpath(g, path, true)) {
-		PUSH_WARNING(g->Message);
+	if (bnx.SetJpath(g, path, true)) {
 		goto fin;
 	}	else
-		bxp->ReadValue(g);
+		jvp = bnx.GetRowValue(g, jvp, 0);
 
-	if (!bxp->GetValue()->IsNull())
-		str = bxp->GetValue()->GetCharValue();
+	if (!bnx.IsJson(jvp)) {
+		strcpy(g->Message, "Not a Json item");
+	}	else
+		str = bnx.Serialize(g, jvp, NULL, 0);
 
 	if (initid->const_item)
 		// Keep result of constant function
@@ -3578,6 +3741,7 @@ char *bson_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 fin:
 	if (!str) {
+		PUSH_WARNING(g->Message);
 		*is_null = 1;
 		*res_length = 0;
 	} else
@@ -3872,8 +4036,8 @@ double bsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 	char   *p, *path;
 	double  d;
 	PBVAL   jsp, jvp;
-	PBJNX   bxp = NULL;
 	PGLOBAL g = (PGLOBAL)initid->ptr;
+	BJNX    bnx(g);
 
 	if (g->N) {
 		if (!g->Activityp) {
@@ -3892,8 +4056,7 @@ double bsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 			*is_null = 1;
 			return 0.0;
 		} else {
-			BJNX bnx(g);
-
+                        bnx.Reset();
 			jvp = bnx.MakeValue(args, 0);
 
 			if ((p = bnx.GetString(jvp))) {
@@ -3916,21 +4079,22 @@ double bsonget_real(UDF_INIT *initid, UDF_ARGS *args,
 		jsp = (PBVAL)g->Xchk;
 
 	path = MakePSZ(g, args, 1);
-	bxp = new(g) BJNX(g, jsp, TYPE_DOUBLE);
+//bxp = new(g) BJNX(g, jsp, TYPE_DOUBLE, 32, jsp->Nd);
 
-	if (bxp->SetJpath(g, path)) {
+	if (bnx.SetJpath(g, path)) {
 		PUSH_WARNING(g->Message);
 		*is_null = 1;
 		return 0.0;
 	}	else
-		bxp->ReadValue(g);
+		jvp = bnx.GetRowValue(g, jsp, 0);
 
-	if (bxp->GetValue()->IsNull()) {
+	if (!jvp || bnx.IsValueNull(jvp)) {
 		*is_null = 1;
 		return 0.0;
-	}	// endif IsNull
-
-	d = bxp->GetValue()->GetFloatValue();
+	}	else if (args->arg_count == 2) {
+		d = atof(bnx.GetString(jvp));
+	} else
+		d = bnx.GetDouble(jvp);
 
 	if (initid->const_item) {
 		// Keep result of constant function
@@ -4716,7 +4880,8 @@ char *bson_serialize(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			BJNX  bnx(bsp->G);
 			PBVAL bvp = (args->arg_count == 1) ? (PBVAL)bsp->Jsp : (PBVAL)bsp->Top;
 
-			if (!(str = bnx.Serialize(g, bvp, bsp->Filename, bsp->Pretty)))
+//		if (!(str = bnx.Serialize(g, bvp, bsp->Filename, bsp->Pretty)))
+			if (!(str = bnx.Serialize(g, bvp, NULL, 0)))
 				str = strcpy(result, g->Message);
 
 			// Keep result of constant function
@@ -5515,7 +5680,7 @@ void bbin_object_values_deinit(UDF_INIT* initid)
 my_bool bbin_get_item_init(UDF_INIT *initid, UDF_ARGS *args, char *message)
 {
 	return bson_get_item_init(initid, args, message);
-} // end of bbin_get_item_init
+} // end of bbin_get_item_init																								           
 
 char *bbin_get_item(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	unsigned long *res_length, char *is_null, char *error)

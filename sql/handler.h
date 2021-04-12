@@ -1419,6 +1419,12 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 // MySQL compatibility. Unused.
 #define HTON_SUPPORTS_FOREIGN_KEYS   (1 << 0) //Foreign key constraint supported.
 
+/*
+  Table requires and close and reopen after truncate
+  If the handler has HTON_CAN_RECREATE, this flag is not used
+*/
+#define HTON_REQUIRES_CLOSE_AFTER_TRUNCATE (1 << 18)
+
 class Ha_trx_info;
 
 struct THD_TRANS

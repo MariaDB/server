@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -997,11 +997,6 @@ trx_sys_any_active_transactions(void)
 		/* This may count some ACTIVE transactions twice,
 		both in rw_trx_list and mysql_trx_list. */
 		total_trx += trx->state == TRX_STATE_ACTIVE;
-		/* Any PREPARED or COMMITTED transactions must be
-		in rw_trx_list, so it suffices to count them there. */
-		ut_ad(trx->in_rw_trx_list
-		      || trx->state == TRX_STATE_NOT_STARTED
-		      || trx->state == TRX_STATE_ACTIVE);
 		trx_mutex_exit(trx);
 	}
 

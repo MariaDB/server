@@ -4,12 +4,12 @@
 # ignored, which has caught our customers), unless
 # --replicate-same-server-id.
 
-source include/master-slave.inc;
+--source include/master-slave.inc
 connection slave;
 create table t1 (n int);
 reset master;
 # replicate ourselves
-stop slave;
+--source include/stop_slave.inc
 --replace_result $SLAVE_MYPORT SLAVE_PORT
 eval change master to master_port=$SLAVE_MYPORT;
 --replace_result $SLAVE_MYPORT SLAVE_PORT
@@ -17,10 +17,16 @@ eval change master to master_port=$SLAVE_MYPORT;
 show slave status;
 start slave;
 insert into t1 values (1);
-# can't MASTER_POS_WAIT(), it does not work in this weird setup
-# (when slave is its own master without --replicate-same-server-id)
-sleep 2; # enough time for the event to be replicated (it should not)
-show status like "slave_running";
-drop table t1;
 
-# End of 4.1 tests
+--let $slave_param=Last_IO_Errno
+--let $slave_param_value=1593
+--source include/wait_for_slave_param.inc
+
+--let $slave_field_result_replace= / at [0-9]*/ at XXX/
+--let $status_items= Last_IO_Errno, Last_IO_Error
+--source include/show_slave_status.inc
+
+--source include/stop_slave.inc
+reset slave;
+reset master;
+drop table t1;

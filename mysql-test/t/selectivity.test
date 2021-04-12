@@ -1302,6 +1302,33 @@ set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivi
 set histogram_size=@save_histogram_size;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-19474: Histogram statistics are used even with optimizer_use_condition_selectivity=3
+--echo #
+
+CREATE TABLE t1(a int);
+INSERT INTO t1 values (1),(2),(2),(3),(4);
+SET optimizer_use_condition_selectivity=4;
+SET histogram_size= 255;
+
+set use_stat_tables='preferably';
+
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+SET optimizer_use_condition_selectivity=3;
+
+--echo # filtered should show 25 %
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+FLUSH TABLES;
+
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=2;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set histogram_size=@save_histogram_size;
+set use_stat_tables= @save_use_stat_tables;
+
+DROP TABLE t1;
+
 --echo # End of 10.2 tests
 
 #

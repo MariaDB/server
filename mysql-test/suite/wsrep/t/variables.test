@@ -22,7 +22,7 @@ SET GLOBAL wsrep_replicate_myisam= ON;
 
 # Reset it back.
 SET GLOBAL wsrep_replicate_myisam= OFF;
-SET GLOBAL wsrep_provider=none;
+#SET GLOBAL wsrep_provider=none;
 
 --echo #
 --echo # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
@@ -31,13 +31,9 @@ SET GLOBAL wsrep_provider=none;
 
 CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
 
---disable_result_log
---disable_query_log
-eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
+#evalp SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 --let $galera_version=25.3.24
 source include/check_galera_version.inc;
---enable_result_log
---enable_query_log
 
 --replace_column 2 #
 SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
@@ -46,11 +42,9 @@ SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
 SHOW STATUS LIKE 'x';
 
 # Reset it back.
-SET GLOBAL wsrep_provider=none;
+#SET GLOBAL wsrep_provider=none;
 
---disable_query_log
-eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
---enable_query_log
+#evalp SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 
 # The following 2 variables are used by mariabackup
 # SST.
@@ -62,7 +56,7 @@ SHOW STATUS LIKE 'wsrep_local_state_uuid';
 SHOW STATUS LIKE 'wsrep_last_committed';
 
 # Reset it back.
-SET GLOBAL wsrep_provider=none;
+#SET GLOBAL wsrep_provider=none;
 
 --echo
 --echo #
@@ -70,9 +64,7 @@ SET GLOBAL wsrep_provider=none;
 --echo #
 call mtr.add_suppression("WSREP: Failed to get provider options");
 
---disable_query_log
-eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
---enable_query_log
+#evalp SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
@@ -83,9 +75,7 @@ SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
 --echo
 
---disable_query_log
-eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
---enable_query_log
+#evalp SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
 
 --replace_regex /.*libgalera_smm.*/libgalera_smm.so/
 SELECT @@global.wsrep_provider;
@@ -97,7 +87,7 @@ SHOW STATUS LIKE 'wsrep_thread_count';
 
 --echo # Setting wsrep_cluster_address triggers the creation of
 --echo # applier/rollbacker threads.
-SET GLOBAL wsrep_cluster_address= 'gcomm://';
+#SET GLOBAL wsrep_cluster_address= 'gcomm://';
 
 --echo # Wait for applier thread to get created 1.
 --let $wait_timeout=600
@@ -152,20 +142,9 @@ drop user test@localhost;
 --echo #
 SET @wsrep_sst_auth_saved= @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= 'user:pass';
-SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= '';
-SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= NULL;
-SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= @wsrep_sst_auth_saved;
-
-# Reset (for mtr internal checks)
---disable_query_log
-SET GLOBAL wsrep_slave_threads= @wsrep_slave_threads_saved;
-eval SET GLOBAL wsrep_provider= '$WSREP_PROVIDER';
-SET GLOBAL wsrep_cluster_address= @wsrep_cluster_address_saved;
-SET GLOBAL wsrep_provider_options= @wsrep_provider_options_saved;
---enable_query_log
 
 --source include/galera_wait_ready.inc
 

@@ -1598,7 +1598,7 @@ longlong Item_in_optimizer::val_int()
     DBUG_RETURN(res);
   }
 
-  if (cache->null_value)
+  if (cache->null_value_inside)
   {
      DBUG_PRINT("info", ("Left NULL..."));
     /*

@@ -5658,6 +5658,14 @@ protected:
   */
   bool value_cached;
 public:
+  /*
+    This is set if at least one of the values of a sub query is NULL
+    Item_cache_row returns this with null_inside().
+    For not row items, it's set to the value of null_value
+    It is set after cache_value() is called.
+  */
+  bool null_value_inside;
+
   Item_cache(THD *thd):
     Item_basic_constant(thd),
     Type_handler_hybrid_field_type(MYSQL_TYPE_STRING),
@@ -5667,6 +5675,7 @@ public:
     fixed= 1;
     maybe_null= 1;
     null_value= 1;
+    null_value_inside= true;
   }
 protected:
   Item_cache(THD *thd, enum_field_types field_type_arg):
@@ -5678,6 +5687,7 @@ protected:
     fixed= 1;
     maybe_null= 1;
     null_value= 1;
+    null_value_inside= true;
   }
 
 public:
@@ -6078,7 +6088,8 @@ void mark_select_range_as_dependent(THD *thd,
                                     st_select_lex *last_select,
                                     st_select_lex *current_sel,
                                     Field *found_field, Item *found_item,
-                                    Item_ident *resolved_item);
+                                    Item_ident *resolved_item,
+                                    bool suppress_warning_output);
 
 extern Cached_item *new_Cached_item(THD *thd, Item *item,
                                     bool pass_through_ref);

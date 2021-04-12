@@ -13,6 +13,8 @@ DROP FUNCTION bson_object_add;
 DROP FUNCTION bson_object_delete;
 DROP FUNCTION bson_object_list;
 DROP FUNCTION bson_object_values;
+DROP FUNCTION bsonset_def_prec;
+DROP FUNCTION bsonget_def_prec;
 DROP FUNCTION bsonset_grp_size;
 DROP FUNCTION bsonget_grp_size;
 DROP FUNCTION bson_array_grp;

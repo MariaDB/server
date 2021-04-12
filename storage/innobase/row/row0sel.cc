@@ -2,7 +2,7 @@
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -3168,8 +3168,7 @@ static bool row_sel_store_mysql_rec(
 			search or virtual key read is not requested. */
 			if (!rec_clust
 			    || !prebuilt->index->has_virtual()
-			    || (!prebuilt->read_just_key
-				&& !prebuilt->m_read_virtual_key)) {
+			    || !prebuilt->read_just_key) {
 				/* Initialize the NULL bit. */
 				mysql_rec[templ->mysql_null_byte_offset]
 					|= (byte) templ->mysql_null_bit_mask;
@@ -3185,23 +3184,8 @@ static bool row_sel_store_mysql_rec(
 			const dfield_t* dfield = dtuple_get_nth_v_field(
 				vrow, col->v_pos);
 
-			/* If this is a partitioned table, it might request
-			InnoDB to fill out virtual column data for serach
-			index key values while other non key columns are also
-			getting selected. The non-key virtual columns may
-			not be materialized and we should skip them. */
 			if (dfield_get_type(dfield)->mtype == DATA_MISSING) {
-#ifdef UNIV_DEBUG
-				ulint prefix;
-#endif /* UNIV_DEBUG */
-				ut_ad(prebuilt->m_read_virtual_key);
-
-				/* If it is part of index key the data should
-				have been materialized. */
-				ut_ad(dict_index_get_nth_col_or_prefix_pos(
-					prebuilt->index, col->v_pos, false,
-					true, &prefix) == ULINT_UNDEFINED);
-
+				ut_ad("no ha_innopart in MariaDB" == 0);
 				continue;
 			}
 
@@ -4377,8 +4361,7 @@ row_search_mvcc(
 	index key, if this is covered index scan or virtual key read is
 	requested. */
 	bool    need_vrow = dict_index_has_virtual(prebuilt->index)
-		&& (prebuilt->read_just_key
-		    || prebuilt->m_read_virtual_key);
+		&& prebuilt->read_just_key;
 
 	/* Reset the new record lock info if srv_locks_unsafe_for_binlog
 	is set or session is using a READ COMMITED isolation level. Then
@@ -5524,7 +5507,6 @@ use_covering_index:
 	if ((match_mode == ROW_SEL_EXACT
 	     || prebuilt->n_rows_fetched >= MYSQL_FETCH_CACHE_THRESHOLD)
 	    && prebuilt->select_lock_type == LOCK_NONE
-	    && !prebuilt->m_no_prefetch
 	    && !prebuilt->templ_contains_blob
 	    && !prebuilt->clust_index_was_generated
 	    && !prebuilt->used_in_HANDLER

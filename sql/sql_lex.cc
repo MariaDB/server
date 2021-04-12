@@ -2470,7 +2470,7 @@ void st_select_lex_unit::exclude_tree()
 */
 
 bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
-                                      Item *dependency)
+                                      Item_ident *dependency)
 {
 
   DBUG_ASSERT(this != last);
@@ -2478,10 +2478,14 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
   /*
     Mark all selects from resolved to 1 before select where was
     found table as depended (of select where was found table)
+
+    We move by name resolution context, bacause during merge can some select
+    be excleded from SELECT tree
   */
-  SELECT_LEX *s= this;
+  Name_resolution_context *c= &this->context;
   do
   {
+    SELECT_LEX *s= c->select_lex;
     if (!(s->uncacheable & UNCACHEABLE_DEPENDENT_GENERATED))
     {
       // Select is dependent of outer select
@@ -2503,7 +2507,7 @@ bool st_select_lex::mark_as_dependent(THD *thd, st_select_lex *last,
     if (subquery_expr && subquery_expr->mark_as_dependent(thd, last, 
                                                           dependency))
       return TRUE;
-  } while ((s= s->outer_select()) != last && s != 0);
+  } while ((c= c->outer_context) != NULL && (c->select_lex != last));
   is_correlated= TRUE;
   this->master_unit()->item->is_correlated= TRUE;
   return FALSE;

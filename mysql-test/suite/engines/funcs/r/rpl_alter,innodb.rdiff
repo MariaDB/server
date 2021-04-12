@@ -1,0 +1,72 @@
+@@ -29,7 +29,7 @@
+   `a` int(10) unsigned NOT NULL,
+   `b` int(11) DEFAULT NULL,
+   PRIMARY KEY (`a`)
+-) ENGINE=MyISAM DEFAULT CHARSET=latin1
++) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ insert into t1 (a) values (1),((1<<32)-1);
+ select * from t1;
+ a	b
+@@ -42,7 +42,7 @@
+   `a` bigint(20) NOT NULL,
+   `b` int(11) DEFAULT NULL,
+   PRIMARY KEY (`a`)
+-) ENGINE=MyISAM DEFAULT CHARSET=latin1
++) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ select * from t1;
+ a	b
+ 1	NULL
+@@ -54,7 +54,7 @@
+   `a` int(10) unsigned NOT NULL,
+   `b` int(11) DEFAULT NULL,
+   PRIMARY KEY (`a`)
+-) ENGINE=MyISAM DEFAULT CHARSET=latin1
++) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ select * from t1;
+ a	b
+ 1	NULL
+@@ -66,7 +66,7 @@
+   `a` bigint(20) unsigned NOT NULL,
+   `b` int(11) DEFAULT NULL,
+   PRIMARY KEY (`a`)
+-) ENGINE=MyISAM DEFAULT CHARSET=latin1
++) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ select * from t1;
+ a	b
+ 1	NULL
+@@ -83,7 +83,7 @@
+   `a` bigint(20) unsigned NOT NULL,
+   `b` int(11) DEFAULT NULL,
+   PRIMARY KEY (`a`)
+-) ENGINE=MyISAM DEFAULT CHARSET=latin1
++) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ connection master;
+ create table t2 (a int unsigned auto_increment primary key, b int);
+ show create table t2;
+@@ -92,7 +92,7 @@
+   `a` int(10) unsigned NOT NULL AUTO_INCREMENT,
+   `b` int(11) DEFAULT NULL,
+   PRIMARY KEY (`a`)
+-) ENGINE=MyISAM DEFAULT CHARSET=latin1
++) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ alter table t2 modify a bigint;
+ show create table t2;
+ Table	Create Table
+@@ -100,7 +100,7 @@
+   `a` bigint(20) NOT NULL,
+   `b` int(11) DEFAULT NULL,
+   PRIMARY KEY (`a`)
+-) ENGINE=MyISAM DEFAULT CHARSET=latin1
++) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ alter table t2 modify a bigint auto_increment;
+ show create table t2;
+ Table	Create Table
+@@ -108,7 +108,7 @@
+   `a` bigint(20) NOT NULL AUTO_INCREMENT,
+   `b` int(11) DEFAULT NULL,
+   PRIMARY KEY (`a`)
+-) ENGINE=MyISAM DEFAULT CHARSET=latin1
++) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ drop table t1,t2;
+ #
+ # MDEV-8432:  Slave cannot replicate signed integer-type values

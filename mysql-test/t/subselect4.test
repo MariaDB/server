@@ -2212,4 +2212,28 @@ INSERT INTO t1 VALUES (1,1), (2,2), (3,3), (4,4), (5,5);
 SELECT a, b FROM t1 WHERE a IN (SELECT A.a FROM t1 A GROUP BY s.id);
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-24519: Server crashes in Charset::set_charset upon SELECT
+--echo #
+
+CREATE TABLE t1 (a VARBINARY(8));
+INSERT INTO t1 VALUES ('foo'),('bar');
+CREATE TABLE t2 (b VARBINARY(8));
+
+EXPLAIN
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 'qux', 'qux') AND a = (SELECT MIN(b) FROM t2);
+
+DROP TABLE t1,t2;
+
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b VARBINARY(8));
+
+EXPLAIN
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
+SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
+
+DROP TABLE t1,t2;
+
 --echo # End of 10.2 tests

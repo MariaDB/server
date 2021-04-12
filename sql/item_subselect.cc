@@ -368,7 +368,7 @@ bool Item_subselect::mark_as_eliminated_processor(void *arg)
 bool Item_subselect::eliminate_subselect_processor(void *arg)
 {
   unit->item= NULL;
-  unit->exclude_from_tree();
+  unit->exclude();
   eliminated= TRUE;
   return FALSE;
 }
@@ -430,6 +430,26 @@ bool Item_subselect::mark_as_dependent(THD *thd, st_select_lex *select,
     upper->select= select;
     upper->item= item;
     if (upper_refs.push_back(upper, thd->stmt_arena->mem_root))
+      return TRUE;
+  }
+  return FALSE;
+}
+
+
+/*
+  @brief
+    Update the table bitmaps for the outer references used within a subquery
+*/
+
+bool Item_subselect::update_table_bitmaps_processor(void *arg)
+{
+  List_iterator<Ref_to_outside> it(upper_refs);
+  Ref_to_outside *upper;
+
+  while ((upper= it++))
+  {
+    if (upper->item &&
+        upper->item->walk(&Item::update_table_bitmaps_processor, FALSE, arg))
       return TRUE;
   }
   return FALSE;
@@ -831,7 +851,7 @@ bool Item_subselect::expr_cache_is_needed(THD *thd)
 
 inline bool Item_in_subselect::left_expr_has_null()
 {
-  return (*(optimizer->get_cache()))->null_value;
+  return (*(optimizer->get_cache()))->null_value_inside;
 }
 
 
@@ -1299,7 +1319,17 @@ bool Item_singlerow_subselect::null_inside()
 void Item_singlerow_subselect::bring_value()
 {
   if (!exec() && assigned())
-    null_value= 0;
+  {
+    null_value= true;
+    for (uint i= 0; i < max_columns ; i++)
+    {
+      if (!row[i]->null_value)
+      {
+        null_value= false;
+        return;
+      }
+    }
+  }
   else
     reset();
 }
@@ -1325,7 +1355,11 @@ longlong Item_singlerow_subselect::val_int()
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->val_int();
+  {
+    longlong val= value->val_int();
+    null_value= value->null_value;
+    return val;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1334,6 +1368,7 @@ longlong Item_singlerow_subselect::val_int()
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 0;
   }
 }
@@ -1342,7 +1377,11 @@ String *Item_singlerow_subselect::val_str(String *str)
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->val_str(str);
+  {
+    String *res= value->val_str(str);
+    null_value= value->null_value;
+    return res;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1351,6 +1390,7 @@ String *Item_singlerow_subselect::val_str(String *str)
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 0;
   }
 }
@@ -1360,7 +1400,11 @@ my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->val_decimal(decimal_value);
+  {
+    my_decimal *val= value->val_decimal(decimal_value);
+    null_value= value->null_value;
+    return val;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1369,6 +1413,7 @@ my_decimal *Item_singlerow_subselect::val_decimal(my_decimal *decimal_value)
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 0;
   }
 }
@@ -1378,7 +1423,11 @@ bool Item_singlerow_subselect::val_bool()
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->val_bool();
+  {
+    bool val= value->val_bool();
+    null_value= value->null_value;
+    return val;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1387,6 +1436,7 @@ bool Item_singlerow_subselect::val_bool()
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 0;
   }
 }
@@ -1396,7 +1446,11 @@ bool Item_singlerow_subselect::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
 {
   DBUG_ASSERT(fixed == 1);
   if (forced_const)
-    return value->get_date(ltime, fuzzydate);
+  {
+    bool val= value->get_date(ltime, fuzzydate);
+    null_value= value->null_value;
+    return val;
+  }
   if (!exec() && !value->null_value)
   {
     null_value= FALSE;
@@ -1405,6 +1459,7 @@ bool Item_singlerow_subselect::get_date(MYSQL_TIME *ltime,ulonglong fuzzydate)
   else
   {
     reset();
+    DBUG_ASSERT(null_value);
     return 1;
   }
 }

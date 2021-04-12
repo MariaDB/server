@@ -644,71 +644,81 @@ lock_rec_get_insert_intention(
 	return(lock->type_mode & LOCK_INSERT_INTENTION);
 }
 
+#ifdef UNIV_DEBUG
 #ifdef WITH_WSREP
-/** Check if both conflicting lock and other record lock are brute force
-(BF). This case is a bug so report lock information and wsrep state.
-@param[in]	lock_rec1	conflicting waiting record lock or NULL
-@param[in]	lock_rec2	other waiting record lock
-@param[in]	trx1		lock_rec1 can be NULL, trx
+/** Check if both conflicting lock transaction and other transaction
+requesting record lock are brute force (BF). If they are check is
+this BF-BF wait correct and if not report BF wait and assert.
+
+@param[in]	lock_rec	other waiting record lock
+@param[in]	trx		trx requesting conflicting record lock
 */
-static void wsrep_assert_no_bf_bf_wait(
-	const lock_t* lock_rec1,
-	const lock_t* lock_rec2,
-	const trx_t* trx1)
+static void wsrep_assert_no_bf_bf_wait(const lock_t *lock, const trx_t *trx)
 {
-	ut_ad(!lock_rec1 || lock_get_type_low(lock_rec1) == LOCK_REC);
-	ut_ad(lock_get_type_low(lock_rec2) == LOCK_REC);
+	ut_ad(lock_get_type_low(lock) == LOCK_REC);
 	ut_ad(lock_mutex_own());
+	trx_t* lock_trx= lock->trx;
 
 	/* Note that we are holding lock_sys->mutex, thus we should
 	not acquire THD::LOCK_thd_data mutex below to avoid mutexing
 	order violation. */
 
-	if (!trx1->is_wsrep() || !lock_rec2->trx->is_wsrep())
+	if (!trx->is_wsrep() || !lock_trx->is_wsrep())
 		return;
-	if (UNIV_LIKELY(!wsrep_thd_is_BF(trx1->mysql_thd, FALSE)))
-		return;
-	if (UNIV_LIKELY(!wsrep_thd_is_BF(lock_rec2->trx->mysql_thd, FALSE)))
-		return;
-
-	/* if BF - BF order is honored, we can keep trx1 waiting for the lock */
-	if (wsrep_trx_order_before(trx1->mysql_thd, lock_rec2->trx->mysql_thd))
+	if (UNIV_LIKELY(!wsrep_thd_is_BF(trx->mysql_thd, FALSE))
+	    || UNIV_LIKELY(!wsrep_thd_is_BF(lock_trx->mysql_thd, FALSE)))
 		return;
 
-	/* avoiding BF-BF conflict assert, if victim is already aborting
-	   or rolling back for replaying
-	*/
-	if (wsrep_trx_is_aborting(lock_rec2->trx->mysql_thd))
+	ut_ad(trx->state == TRX_STATE_ACTIVE);
+
+	trx_mutex_enter(lock_trx);
+	const trx_state_t trx2_state= lock_trx->state;
+	trx_mutex_exit(lock_trx);
+
+	/* If transaction is already committed in memory or
+	prepared we should wait. When transaction is committed in
+	memory we held trx mutex, but not lock_sys->mutex. Therefore,
+	we could end here before transaction has time to do
+	lock_release() that is protected with lock_sys->mutex. */
+	switch (trx2_state) {
+	case TRX_STATE_COMMITTED_IN_MEMORY:
+	case TRX_STATE_PREPARED:
+		return;
+	case TRX_STATE_ACTIVE:
+		break;
+	default:
+		ut_ad("invalid state" == 0);
+	}
+
+	/* If BF - BF order is honored, i.e. trx already holding
+	record lock should be ordered before this new lock request
+	we can keep trx waiting for the lock. If conflicting
+	transaction is already aborting or rolling back for replaying
+	we can also let new transaction waiting. */
+	if (wsrep_trx_order_before(lock_trx->mysql_thd, trx->mysql_thd)
+	    || wsrep_trx_is_aborting(lock_trx->mysql_thd))
 		return;
 
 	mtr_t mtr;
 
-	if (lock_rec1) {
-		ib::error() << "Waiting lock on table: "
-			    << lock_rec1->index->table->name
-			    << " index: "
-			    << lock_rec1->index->name()
-			    << " that has conflicting lock ";
-		lock_rec_print(stderr, lock_rec1, mtr);
-	}
-
 	ib::error() << "Conflicting lock on table: "
-		    << lock_rec2->index->table->name
+		    << lock->index->table->name
 		    << " index: "
-		    << lock_rec2->index->name()
+		    << lock->index->name()
 		    << " that has lock ";
-	lock_rec_print(stderr, lock_rec2, mtr);
+	lock_rec_print(stderr, lock, mtr);
 
 	ib::error() << "WSREP state: ";
 
-	wsrep_report_bf_lock_wait(trx1->mysql_thd,
-				  trx1->id);
-	wsrep_report_bf_lock_wait(lock_rec2->trx->mysql_thd,
-				  lock_rec2->trx->id);
+	wsrep_report_bf_lock_wait(trx->mysql_thd,
+				  trx->id);
+	wsrep_report_bf_lock_wait(lock_trx->mysql_thd,
+				  lock_trx->id);
 	/* BF-BF wait is a bug */
 	ut_error;
 }
 #endif /* WITH_WSREP */
+#endif /* UNIV_DEBUG */
 
 /*********************************************************************//**
 Checks if a lock request for a new lock has to wait for request lock2.
@@ -832,9 +842,11 @@ lock_rec_has_to_wait(
 			return (FALSE);
 		}
 
-		/* There should not be two conflicting locks that are
-		brute force. If there is it is a bug. */
-		wsrep_assert_no_bf_bf_wait(NULL, lock2, trx);
+		/* We very well can let bf to wait normally as other
+		BF will be replayed in case of conflict. For debug
+		builds we will do additional sanity checks to catch
+		unsupported bf wait if any. */
+		ut_d(wsrep_assert_no_bf_bf_wait(lock2, trx));
 #endif /* WITH_WSREP */
 
 		return(TRUE);
@@ -1111,66 +1123,35 @@ lock_rec_other_has_expl_req(
 #endif /* UNIV_DEBUG */
 
 #ifdef WITH_WSREP
-static
-void
-wsrep_kill_victim(
-/*==============*/
-	const trx_t * const trx,
-	const lock_t *lock)
+static void wsrep_kill_victim(const trx_t * const trx, const lock_t *lock)
 {
 	ut_ad(lock_mutex_own());
-	ut_ad(trx_mutex_own(lock->trx));
+	ut_ad(trx->is_wsrep());
+	trx_t* lock_trx = lock->trx;
+	ut_ad(trx_mutex_own(lock_trx));
+	ut_ad(lock_trx != trx);
 
-	/* quit for native mysql */
-	if (!trx->is_wsrep()) return;
+	if (!wsrep_thd_is_BF(trx->mysql_thd, FALSE))
+		return;
 
-	my_bool bf_this  = wsrep_thd_is_BF(trx->mysql_thd, FALSE);
-	my_bool bf_other = wsrep_thd_is_BF(lock->trx->mysql_thd, FALSE);
-	mtr_t mtr;
+	if (lock_trx->state == TRX_STATE_COMMITTED_IN_MEMORY
+	    || lock_trx->lock.was_chosen_as_deadlock_victim)
+              return;
 
-	if ((bf_this && !bf_other) ||
-		(bf_this && bf_other && wsrep_trx_order_before(
-			trx->mysql_thd, lock->trx->mysql_thd))) {
+	my_bool bf_other = wsrep_thd_is_BF(lock_trx->mysql_thd, FALSE);
 
-		if (lock->trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
-			if (UNIV_UNLIKELY(wsrep_debug)) {
-				ib::info() << "WSREP: BF victim waiting\n";
-			}
+	if (!bf_other
+	    || wsrep_trx_order_before(trx->mysql_thd,
+				      lock_trx->mysql_thd)) {
+
+		if (lock_trx->lock.que_state == TRX_QUE_LOCK_WAIT) {
+			if (UNIV_UNLIKELY(wsrep_debug))
+				WSREP_INFO("BF victim waiting");
 			/* cannot release lock, until our lock
 			is in the queue*/
-		} else if (lock->trx != trx) {
-			if (wsrep_log_conflicts) {
-				if (bf_this) {
-					ib::info() << "*** Priority TRANSACTION:";
-				} else {
-					ib::info() << "*** Victim TRANSACTION:";
-				}
-
-				wsrep_trx_print_locking(stderr, trx, 3000);
-
-				if (bf_other) {
-					ib::info() << "*** Priority TRANSACTION:";
-				} else {
-					ib::info() << "*** Victim TRANSACTION:";
-				}
-                                wsrep_trx_print_locking(stderr, lock->trx, 3000);
-
-				ib::info() << "*** WAITING FOR THIS LOCK TO BE GRANTED:";
-
-				if (lock_get_type(lock) == LOCK_REC) {
-					lock_rec_print(stderr, lock, mtr);
-				} else {
-					lock_table_print(stderr, lock);
-				}
-
-				ib::info() << " SQL1: "
-					   << wsrep_thd_query(trx->mysql_thd);
-				ib::info() << " SQL2: "
-					   << wsrep_thd_query(lock->trx->mysql_thd);
-			}
-
-			wsrep_innobase_kill_one_trx(trx->mysql_thd,
-						    trx, lock->trx, TRUE);
+		} else {
+			wsrep_innobase_kill_one_trx(trx->mysql_thd, trx,
+						    lock_trx, true);
 		}
 	}
 }
@@ -2410,10 +2391,6 @@ static void lock_rec_dequeue_from_page(lock_t* in_lock)
 				/* Grant the lock */
 				ut_ad(lock->trx != in_lock->trx);
 				lock_grant(lock);
-#ifdef WITH_WSREP
-			} else {
-				wsrep_assert_no_bf_bf_wait(c, lock, c->trx);
-#endif /* WITH_WSREP */
 			}
 		}
 	} else {
@@ -4342,10 +4319,6 @@ released:
 				/* Grant the lock */
 				ut_ad(trx != lock->trx);
 				lock_grant(lock);
-#ifdef WITH_WSREP
-			} else {
-				wsrep_assert_no_bf_bf_wait(c, lock, c->trx);
-#endif /* WITH_WSREP */
 			}
 		}
 	} else {

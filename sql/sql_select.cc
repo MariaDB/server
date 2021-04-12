@@ -3801,6 +3801,9 @@ mysql_select(THD *thd,
   }
   else
   {
+    if (thd->lex->describe)
+      select_options|= SELECT_DESCRIBE;
+
     /*
       When in EXPLAIN, delay deleting the joins so that they are still
       available when we're producing EXPLAIN EXTENDED warning text.
@@ -12094,10 +12097,12 @@ ha_rows JOIN_TAB::get_examined_rows()
 bool JOIN_TAB::preread_init()
 {
   TABLE_LIST *derived= table->pos_in_table_list;
+  DBUG_ENTER("JOIN_TAB::preread_init");
+
   if (!derived || !derived->is_materialized_derived())
   {
     preread_init_done= TRUE;
-    return FALSE;
+    DBUG_RETURN(FALSE);
   }
 
   /* Materialize derived table/view. */
@@ -12105,7 +12110,7 @@ bool JOIN_TAB::preread_init()
        derived->is_recursive_with_table()) &&
       mysql_handle_single_derived(join->thd->lex,
                                     derived, DT_CREATE | DT_FILL))
-      return TRUE;
+      DBUG_RETURN(TRUE);
 
   preread_init_done= TRUE;
   if (select && select->quick)
@@ -12122,7 +12127,7 @@ bool JOIN_TAB::preread_init()
   if (table->fulltext_searched)
     init_ftfuncs(join->thd, join->select_lex, MY_TEST(join->order));
 
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 
@@ -12668,6 +12673,7 @@ remove_const(JOIN *join,ORDER *first_order, COND *cond,
   {
     table_map order_tables=order->item[0]->used_tables();
     if (order->item[0]->with_sum_func ||
+        order->item[0]->with_window_func ||
         /*
           If the outer table of an outer join is const (either by itself or
           after applying WHERE condition), grouping on a field from such a

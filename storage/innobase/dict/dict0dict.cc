@@ -297,7 +297,7 @@ dict_table_try_drop_aborted(
 	    && !UT_LIST_GET_FIRST(table->locks)) {
 		/* Silence a debug assertion in row_merge_drop_indexes(). */
 		ut_d(table->acquire());
-		row_merge_drop_indexes(trx, table, TRUE);
+		row_merge_drop_indexes(trx, table, true);
 		ut_d(table->release());
 		ut_ad(table->get_ref_count() == ref_count);
 		trx_commit_for_mysql(trx);

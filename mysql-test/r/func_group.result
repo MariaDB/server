@@ -2458,3 +2458,37 @@ select count(*)+sleep(0) from t1;
 count(*)+sleep(0)
 2
 drop table t1;
+#
+# MDEV-25112: MIN/MAX optimization for query containing BETWEEN in WHERE
+#
+create table t1 (a int) engine=myisam;
+insert into t1 values (267), (273),  (287), (303), (308);
+select max(a) from t1 where a < 303 and (a between 267 AND 287);
+max(a)
+287
+explain select max(a) from t1 where a < 303 and (a between 267 AND 287);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+select min(a) from t1 where a > 267 and (a between 273 AND 303);
+min(a)
+273
+explain select min(a) from t1 where a > 267 and (a between 273 AND 303);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using where
+create index idx on t1(a);
+select max(a) from t1 where a < 303 and (a between 267 AND 287);
+max(a)
+287
+explain select max(a) from t1 where a < 303 and (a between 267 AND 287);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+select min(a) from t1 where a > 267 and (a between 273 AND 303);
+min(a)
+273
+explain select min(a) from t1 where a > 267 and (a between 273 AND 303);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Select tables optimized away
+drop table t1;
+#
+# End of 10.2 tests
+#

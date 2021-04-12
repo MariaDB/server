@@ -1,21 +1,14 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
-stop slave;
+include/master-slave.inc
+[connection master]
+connection slave;
+include/stop_slave.inc
 change master to master_host='127.0.0.1',master_user='root',
 master_password='',master_port=MASTER_PORT;
-start slave;
-stop slave;
+include/start_slave.inc
+connection master;
 change master to master_host='127.0.0.1',master_user='root',
 master_password='',master_port=SLAVE_PORT;
-start slave;
-
-let $result_pattern= '%127.0.0.1%root%slave-bin.000001%slave-bin.000001%Yes%Yes%0%0%None%' ;
-
---source include/wait_slave_status.inc
+include/start_slave.inc
 flush logs;
 SHOW SLAVE STATUS;
 Slave_IO_State	#
@@ -24,7 +17,7 @@ Master_User	root
 Master_Port	SLAVE_PORT
 Connect_Retry	60
 Master_Log_File	slave-bin.000001
-Read_Master_Log_Pos	107
+Read_Master_Log_Pos	328
 Relay_Log_File	#
 Relay_Log_Pos	#
 Relay_Master_Log_File	slave-bin.000001
@@ -39,7 +32,7 @@ Replicate_Wild_Ignore_Table
 Last_Errno	0
 Last_Error	
 Skip_Counter	0
-Exec_Master_Log_Pos	107
+Exec_Master_Log_Pos	328
 Relay_Log_Space	#
 Until_Condition	None
 Until_Log_File	
@@ -58,4 +51,15 @@ Last_SQL_Errno	0
 Last_SQL_Error	
 Replicate_Ignore_Server_Ids	
 Master_Server_Id	2
-STOP SLAVE;
+Master_SSL_Crl	
+Master_SSL_Crlpath	
+Using_Gtid	No
+Gtid_IO_Pos	
+Replicate_Do_Domain_Ids	
+Replicate_Ignore_Domain_Ids	
+Parallel_Mode	conservative
+SQL_Delay	0
+SQL_Remaining_Delay	NULL
+Slave_SQL_Running_State	Slave has read all relay log; waiting for the slave I/O thread to update it
+stop slave;
+include/rpl_end.inc

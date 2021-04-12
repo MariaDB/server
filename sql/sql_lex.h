@@ -280,7 +280,7 @@ struct LEX_MASTER_INFO
     }
 
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
-      ssl_capath= ssl_cipher= relay_log_name= 0;
+      ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
     pos= relay_log_pos= server_id= port= connect_retry= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
@@ -1004,7 +1004,8 @@ public:
   }
   inline bool is_subquery_function() { return master_unit()->item != 0; }
 
-  bool mark_as_dependent(THD *thd, st_select_lex *last, Item *dependency);
+  bool mark_as_dependent(THD *thd, st_select_lex *last,
+                         Item_ident *dependency);
 
   void set_braces(bool value)
   {

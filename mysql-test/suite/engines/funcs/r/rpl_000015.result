@@ -1,14 +1,11 @@
-stop slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-reset master;
-reset slave;
-drop table if exists t1,t2,t3,t4,t5,t6,t7,t8,t9;
-start slave;
+include/master-slave.inc
+[connection master]
 reset master;
 show master status;
 File	Position	Binlog_Do_DB	Binlog_Ignore_DB
-master-bin.000001	107		
-stop slave;
+master-bin.000001	329		
+connection slave;
+include/stop_slave.inc
 reset slave;
 show slave status;
 Slave_IO_State	#
@@ -51,6 +48,16 @@ Last_SQL_Errno	0
 Last_SQL_Error	
 Replicate_Ignore_Server_Ids	
 Master_Server_Id	1
+Master_SSL_Crl	
+Master_SSL_Crlpath	
+Using_Gtid	No
+Gtid_IO_Pos	
+Replicate_Do_Domain_Ids	
+Replicate_Ignore_Domain_Ids	
+Parallel_Mode	conservative
+SQL_Delay	0
+SQL_Remaining_Delay	NULL
+Slave_SQL_Running_State	
 change master to master_host='127.0.0.1';
 show slave status;
 Slave_IO_State	#
@@ -93,6 +100,16 @@ Last_SQL_Errno	0
 Last_SQL_Error	
 Replicate_Ignore_Server_Ids	
 Master_Server_Id	1
+Master_SSL_Crl	
+Master_SSL_Crlpath	
+Using_Gtid	No
+Gtid_IO_Pos	
+Replicate_Do_Domain_Ids	
+Replicate_Ignore_Domain_Ids	
+Parallel_Mode	conservative
+SQL_Delay	0
+SQL_Remaining_Delay	NULL
+Slave_SQL_Running_State	
 change master to master_host='127.0.0.1',master_user='root',
 master_password='',master_port=MASTER_PORT;
 show slave status;
@@ -136,7 +153,17 @@ Last_SQL_Errno	0
 Last_SQL_Error	
 Replicate_Ignore_Server_Ids	
 Master_Server_Id	1
-start slave;
+Master_SSL_Crl	
+Master_SSL_Crlpath	
+Using_Gtid	No
+Gtid_IO_Pos	
+Replicate_Do_Domain_Ids	
+Replicate_Ignore_Domain_Ids	
+Parallel_Mode	conservative
+SQL_Delay	0
+SQL_Remaining_Delay	NULL
+Slave_SQL_Running_State	
+include/start_slave.inc
 show slave status;
 Slave_IO_State	Waiting for master to send event
 Master_Host	127.0.0.1
@@ -144,9 +171,9 @@ Master_User	root
 Master_Port	MASTER_PORT
 Connect_Retry	1
 Master_Log_File	master-bin.000001
-Read_Master_Log_Pos	107
+Read_Master_Log_Pos	329
 Relay_Log_File	slave-relay-bin.000002
-Relay_Log_Pos	254
+Relay_Log_Pos	629
 Relay_Master_Log_File	master-bin.000001
 Slave_IO_Running	Yes
 Slave_SQL_Running	Yes
@@ -159,8 +186,8 @@ Replicate_Wild_Ignore_Table
 Last_Errno	0
 Last_Error	
 Skip_Counter	0
-Exec_Master_Log_Pos	107
-Relay_Log_Space	410
+Exec_Master_Log_Pos	329
+Relay_Log_Space	938
 Until_Condition	None
 Until_Log_File	
 Until_Log_Pos	0
@@ -178,15 +205,31 @@ Last_SQL_Errno	0
 Last_SQL_Error	
 Replicate_Ignore_Server_Ids	
 Master_Server_Id	1
+Master_SSL_Crl	
+Master_SSL_Crlpath	
+Using_Gtid	No
+Gtid_IO_Pos	
+Replicate_Do_Domain_Ids	
+Replicate_Ignore_Domain_Ids	
+Parallel_Mode	conservative
+SQL_Delay	0
+SQL_Remaining_Delay	NULL
+Slave_SQL_Running_State	Slave has read all relay log; waiting for the slave I/O thread to update it
+connection master;
 drop table if exists t1;
 create table t1 (n int, PRIMARY KEY(n));
 insert into t1 values (10),(45),(90);
+connection slave;
+connection slave;
 SELECT * FROM t1 ORDER BY n;
 n	10
 n	45
 n	90
+connection master;
 SELECT * FROM t1 ORDER BY n;
 n	10
 n	45
 n	90
 drop table t1;
+connection slave;
+include/rpl_end.inc
