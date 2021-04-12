@@ -132,7 +132,7 @@ static int  show_create_db(THD *thd, LEX *lex);
 static bool alter_routine(THD *thd, LEX *lex);
 static bool drop_routine(THD *thd, LEX *lex);
 
-const LEX_CSTRING any_db= {"*any*", 0};
+const LEX_CSTRING any_db= {STRING_WITH_LEN("*any*")};
 
 const LEX_CSTRING command_name[257]={
   { STRING_WITH_LEN("Sleep") },           //0
