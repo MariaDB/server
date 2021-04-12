@@ -11713,15 +11713,16 @@ table_function:
               MYSQL_YYABORT;
             sel->table_join_options= 0;
             if (!($$= Select->add_table_to_list(thd,
-                           new (thd->mem_root) Table_ident(thd, &empty_clex_str,
+                           new (thd->mem_root) Table_ident(thd, &any_db,
                                                            $10, TRUE),
                            NULL,
                            Select->get_table_join_options() |
                              TL_OPTION_TABLE_FUNCTION,
                            YYPS->m_lock_type,
                            YYPS->m_mdl_type,
-                           0,0,0, Lex->json_table)))
+                           0,0,0)))
               MYSQL_YYABORT;
+            $$->table_function= Lex->json_table;
             Lex->json_table= 0;
             status_var_increment(thd->status_var.feature_json);
           }
@@ -15376,7 +15377,7 @@ table_ident_opt_wild:
 table_ident_nodb:
           ident
           {
-            LEX_CSTRING db={(char*) any_db,3};
+            LEX_CSTRING db= any_db;
             $$= new (thd->mem_root) Table_ident(thd, &db, &$1, 0);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;

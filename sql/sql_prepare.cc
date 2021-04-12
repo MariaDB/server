@@ -1545,7 +1545,7 @@ static int mysql_test_select(Prepared_statement *stmt,
     if (check_table_access(thd, privilege, tables, FALSE, UINT_MAX, FALSE))
       goto error;
   }
-  else if (check_access(thd, privilege, any_db, NULL, NULL, 0, 0))
+  else if (check_access(thd, privilege, any_db.str, NULL, NULL, 0, 0))
     goto error;
 
   if (!lex->result && !(lex->result= new (stmt->mem_root) select_send(thd)))

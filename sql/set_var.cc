@@ -1089,7 +1089,7 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
   StringBuffer<STRING_BUFFER_USUAL_SIZE> strbuf(scs);
   const char *wild= thd->lex->wild ? thd->lex->wild->ptr() : 0;
   Field **fields=tables->table->field;
-  bool has_file_acl= !check_access(thd, FILE_ACL, any_db, NULL, NULL, 0, 1);
+  bool has_file_acl= !check_access(thd, FILE_ACL, any_db.str, NULL,NULL,0,1);
 
   DBUG_ASSERT(tables->table->in_use == thd);
 

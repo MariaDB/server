@@ -4948,7 +4948,7 @@ sp_head::merge_table_list(THD *thd, TABLE_LIST *table, LEX *lex_for_tmp_check)
   }
 
   for (; table ; table= table->next_global)
-    if (!table->derived && !table->schema_table)
+    if (!table->derived && !table->schema_table && !table->table_function)
     {
       /*
         Structure of key for the multi-set is "db\0table\0alias\0".

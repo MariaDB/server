@@ -122,7 +122,7 @@ int THD::register_slave(uchar *packet, size_t packet_length)
   uchar *p= packet, *p_end= packet + packet_length;
   const char *errmsg= "Wrong parameters to function register_slave";
 
-  if (check_access(this, PRIV_COM_REGISTER_SLAVE, any_db, NULL, NULL, 0, 0))
+  if (check_access(this, PRIV_COM_REGISTER_SLAVE, any_db.str, NULL,NULL,0,0))
     return 1;
   if (!(si= (Slave_info*)my_malloc(key_memory_SLAVE_INFO, sizeof(Slave_info),
                                    MYF(MY_WME))))

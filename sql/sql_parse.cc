@@ -132,7 +132,7 @@ static int  show_create_db(THD *thd, LEX *lex);
 static bool alter_routine(THD *thd, LEX *lex);
 static bool drop_routine(THD *thd, LEX *lex);
 
-const char *any_db="*any*";	// Special symbol for check_access
+const LEX_CSTRING any_db= {"*any*", 0};
 
 const LEX_CSTRING command_name[257]={
   { STRING_WITH_LEN("Sleep") },           //0
@@ -3934,7 +3934,7 @@ mysql_execute_command(THD *thd)
                               privileges_requested,
                               all_tables, FALSE, UINT_MAX, FALSE);
     else
-      res= check_access(thd, privileges_requested, any_db, NULL, NULL, 0, 0);
+      res= check_access(thd, privileges_requested, any_db.str, NULL,NULL,0,0);
 
     if (!res)
       res= execute_sqlcom_select(thd, all_tables);
@@ -4979,7 +4979,7 @@ mysql_execute_command(THD *thd)
     goto error;
 #else
     {
-      if (check_access(thd, FILE_ACL, any_db, NULL, NULL, 0, 0))
+      if (check_access(thd, FILE_ACL, any_db.str, NULL, NULL, 0, 0))
 	goto error;
       res= ha_show_status(thd, lex->create_info.db_type, HA_ENGINE_LOGS);
       break;
@@ -6694,7 +6694,7 @@ check_access(THD *thd, privilege_t want_access,
     DBUG_RETURN(FALSE); // CTE reference or an error later
   }
 
-  if (likely((db != NULL) && (db != any_db)))
+  if (likely((db != NULL) && (db != any_db.str)))
   {
     /*
       Check if this is reserved database, like information schema or
@@ -6781,7 +6781,7 @@ check_access(THD *thd, privilege_t want_access,
     DBUG_RETURN(TRUE);				/* purecov: tested */
   }
 
-  if (unlikely(db == any_db))
+  if (unlikely(db == any_db.str))
   {
     /*
       Access granted; Allow select on *any* db.
@@ -7114,8 +7114,7 @@ check_table_access(THD *thd, privilege_t requirements, TABLE_LIST *tables,
     }
 
     if (check_access(thd, want_access,
-                     table_ref->table_function ? any_db :
-                                                 table_ref->get_db_name(),
+                     table_ref->get_db_name(),
                      &table_ref->grant.privilege,
                      &table_ref->grant.m_internal,
                      0, no_errors))
@@ -8161,8 +8160,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
 					     enum_mdl_type mdl_type,
 					     List<Index_hint> *index_hints_arg,
                                              List<String> *partition_names,
-                                             LEX_STRING *option,
-                                             Table_function_json_table *tfunc)
+                                             LEX_STRING *option)
 {
   TABLE_LIST *ptr;
   TABLE_LIST *UNINIT_VAR(previous_table_ref); /* The table preceding the current one. */
@@ -8225,13 +8223,12 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     if (table->table.length)
       table->table.length= my_casedn_str(files_charset_info,
                                          (char*) table->table.str);
-    if (ptr->db.length && ptr->db.str != any_db)
+    if (ptr->db.length && ptr->db.str != any_db.str)
       ptr->db.length= my_casedn_str(files_charset_info, (char*) ptr->db.str);
   }
       
   ptr->table_name= table->table;
   ptr->lock_type=   lock_type;
-  ptr->table_function= tfunc;
   ptr->updating=    MY_TEST(table_options & TL_OPTION_UPDATING);
   /* TODO: remove TL_OPTION_FORCE_INDEX as it looks like it's not used */
   ptr->force_index= MY_TEST(table_options & TL_OPTION_FORCE_INDEX);
@@ -8276,7 +8273,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     {
       if (unlikely(!my_strcasecmp(table_alias_charset, alias_str.str,
                                   tables->alias.str) &&
-                   (tables->table_function || ptr->table_function ||
+                   (tables->db.str == any_db.str || ptr->db.str == any_db.str ||
                     !cmp(&ptr->db, &tables->db)) &&
                    !tables->sequence))
       {

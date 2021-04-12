@@ -4951,7 +4951,7 @@ bool check_db_name(LEX_STRING *org_name)
   if (!name_length || name_length > NAME_LEN)
     return 1;
 
-  if (lower_case_table_names == 1 && name != any_db)
+  if (lower_case_table_names == 1 && name != any_db.str)
   {
     org_name->length= name_length= my_casedn_str(files_charset_info, name);
     if (check_for_path_chars)

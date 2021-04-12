@@ -1407,8 +1407,7 @@ public:
                                 enum_mdl_type mdl_type= MDL_SHARED_READ,
                                 List<Index_hint> *hints= 0,
                                 List<String> *partition_names= 0,
-                                LEX_STRING *option= 0,
-                                Table_function_json_table *tfunc= 0);
+                                LEX_STRING *option= 0);
   TABLE_LIST* get_table_list();
   bool init_nested_join(THD *thd);
   TABLE_LIST *end_nested_join(THD *thd);

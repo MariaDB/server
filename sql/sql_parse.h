@@ -131,7 +131,7 @@ bool check_stack_overrun(THD *thd, long margin, uchar *dummy);
 
 /* Variables */
 
-extern const char* any_db;
+extern const LEX_CSTRING any_db;
 extern uint sql_command_flags[];
 extern uint server_command_flags[];
 extern const LEX_CSTRING command_name[];
