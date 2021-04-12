@@ -23,7 +23,6 @@
 
 
 #include "mariadb.h"                         /* NO_EMBEDDED_ACCESS_CHECKS */
-#include <functional>
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_derived.h"
@@ -598,6 +597,25 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
 
 
 /*
+  @brief
+    Reset the Name_resolution_context::outer_context for all ON expression
+    contexts in the given nested join. Do this recursively for all nested joins
+    it contains.
+*/
+
+static void reset_on_clauses_context(List<TABLE_LIST>& join_list)
+{
+  List_iterator<TABLE_LIST> li(join_list);
+  while (TABLE_LIST *table= li++)
+  {
+    if (table->on_context)
+      table->on_context->outer_context= NULL;
+    if (table->nested_join)
+      reset_on_clauses_context(table->nested_join->join_list);
+  }
+}
+
+/*
   Create temporary table structure (but do not fill it)
 
   @param thd	     Thread handle
@@ -765,19 +783,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     sl->context.outer_context= 0;
 
     // And for ON clauses, if there are any
-    std::function<void(List<TABLE_LIST>&)> reset_context=
-      [&](List<TABLE_LIST> &join_list)
-      {
-        List_iterator<TABLE_LIST> li(join_list);
-        while (TABLE_LIST *table= li++)
-        {
-          if (table->on_context)
-            table->on_context->outer_context= NULL;
-          if (table->nested_join)
-            reset_context(table->nested_join->join_list);
-        }
-      };
-    reset_context(*sl->join_list);
+    reset_on_clauses_context(*sl->join_list);
 
     if (!derived->is_with_table_recursive_reference() ||
         (!derived->with->with_anchor && 
