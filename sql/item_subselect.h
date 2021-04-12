@@ -283,7 +283,8 @@ public:
   friend bool Item_ref::fix_fields(THD *, Item **);
   friend void mark_select_range_as_dependent(THD*,
                                              st_select_lex*, st_select_lex*,
-                                             Field*, Item*, Item_ident*);
+                                             Field*, Item*, Item_ident*,
+                                             bool);
   friend bool convert_join_subqueries_to_semijoins(JOIN *join);
 };
 
