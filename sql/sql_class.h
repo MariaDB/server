@@ -6084,6 +6084,7 @@ public:
   List<Item> copy_funcs;
   Copy_field *copy_field, *copy_field_end;
   uchar	    *group_buff;
+  const char *tmp_name;
   Item	    **items_to_copy;			/* Fields in tmp table */
   TMP_ENGINE_COLUMNDEF *recinfo, *start_recinfo;
   KEY *keyinfo;
@@ -6157,7 +6158,9 @@ public:
      schema_table(0), materialized_subquery(0), force_not_null_cols(0),
      precomputed_group_by(0),
      force_copy_fields(0), bit_fields_as_long(0), skip_create_table(0)
-  {}
+  {
+    init();
+  }
   ~TMP_TABLE_PARAM()
   {
     cleanup();
@@ -7723,9 +7726,8 @@ public:
 
 extern THD_list server_threads;
 
-void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps);
-void
-setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count);
+void setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps,
+                                    uint field_count);
 
 #endif /* MYSQL_SERVER */
 #endif /* SQL_CLASS_INCLUDED */

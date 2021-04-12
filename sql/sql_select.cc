@@ -67,6 +67,7 @@
 #include "select_handler.h"
 #include "my_json_writer.h"
 #include "opt_trace.h"
+#include "create_tmp_table.h"
 
 /*
   A key part number that means we're using a fulltext scan.
@@ -18263,50 +18264,10 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
 }
 
 
-void
-setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps)
-{
-  setup_tmp_table_column_bitmaps(table, bitmaps, table->s->fields);
-}
-
-
-class Create_tmp_table: public Data_type_statistics
-{
-  // The following members are initialized only in start()
-  Field **m_from_field, **m_default_field;
-  KEY_PART_INFO *m_key_part_info;
-  uchar	*m_group_buff, *m_bitmaps;
-  // The following members are initialized in ctor
-  uint  m_alloced_field_count;
-  bool  m_using_unique_constraint;
-  uint m_temp_pool_slot;
-  ORDER *m_group;
-  bool m_distinct;
-  bool m_save_sum_fields;
-  bool m_with_cycle;
-  ulonglong m_select_options;
-  ha_rows m_rows_limit;
-  uint m_group_null_items;
-
-  // counter for distinct/other fields
-  uint m_field_count[2];
-  // counter for distinct/other fields which can be NULL
-  uint m_null_count[2];
-  // counter for distinct/other  blob fields
-  uint m_blobs_count[2];
-  // counter for "tails" of bit fields which do not fit in a byte
-  uint m_uneven_bit[2];
-
-public:
-  enum counter {distinct, other};
-  /*
-    shows which field we are processing: distinct/other (set in processing
-    cycles)
-  */
-  counter current_counter;
-  Create_tmp_table(const TMP_TABLE_PARAM *param,
-                   ORDER *group, bool distinct, bool save_sum_fields,
-                   ulonglong select_options, ha_rows rows_limit)
+Create_tmp_table::Create_tmp_table(ORDER *group, bool distinct,
+                                   bool save_sum_fields,
+                                   ulonglong select_options,
+                                   ha_rows rows_limit)
    :m_alloced_field_count(0),
     m_using_unique_constraint(false),
     m_temp_pool_slot(MY_BIT_NONE),
@@ -18318,39 +18279,23 @@ public:
     m_rows_limit(rows_limit),
     m_group_null_items(0),
     current_counter(other)
-  {
-    m_field_count[Create_tmp_table::distinct]= 0;
-    m_field_count[Create_tmp_table::other]= 0;
-    m_null_count[Create_tmp_table::distinct]= 0;
-    m_null_count[Create_tmp_table::other]= 0;
-    m_blobs_count[Create_tmp_table::distinct]= 0;
-    m_blobs_count[Create_tmp_table::other]= 0;
-    m_uneven_bit[Create_tmp_table::distinct]= 0;
-    m_uneven_bit[Create_tmp_table::other]= 0;
-  }
-
-  void add_field(TABLE *table, Field *field, uint fieldnr, bool force_not_null_cols);
-
-  TABLE *start(THD *thd,
-               TMP_TABLE_PARAM *param,
-               const LEX_CSTRING *table_alias);
-
-  bool add_fields(THD *thd, TABLE *table,
-                  TMP_TABLE_PARAM *param, List<Item> &fields);
-
-  bool add_schema_fields(THD *thd, TABLE *table,
-                         TMP_TABLE_PARAM *param,
-                         const ST_SCHEMA_TABLE &schema_table);
-
-  bool finalize(THD *thd, TABLE *table, TMP_TABLE_PARAM *param,
-                bool do_not_open, bool keep_row_order);
-  void cleanup_on_failure(THD *thd, TABLE *table);
-};
-
-
-void Create_tmp_table::add_field(TABLE *table, Field *field, uint fieldnr, bool force_not_null_cols)
 {
-  DBUG_ASSERT(!field->field_name.str || strlen(field->field_name.str) == field->field_name.length);
+  m_field_count[Create_tmp_table::distinct]= 0;
+  m_field_count[Create_tmp_table::other]= 0;
+  m_null_count[Create_tmp_table::distinct]= 0;
+  m_null_count[Create_tmp_table::other]= 0;
+  m_blobs_count[Create_tmp_table::distinct]= 0;
+  m_blobs_count[Create_tmp_table::other]= 0;
+  m_uneven_bit[Create_tmp_table::distinct]= 0;
+  m_uneven_bit[Create_tmp_table::other]= 0;
+}
+
+
+void Create_tmp_table::add_field(TABLE *table, Field *field, uint fieldnr,
+                                 bool force_not_null_cols)
+{
+  DBUG_ASSERT(!field->field_name.str ||
+              strlen(field->field_name.str) == field->field_name.length);
 
   if (force_not_null_cols)
   {
@@ -18436,13 +18381,13 @@ TABLE *Create_tmp_table::start(THD *thd,
     m_temp_pool_slot = bitmap_lock_set_next(&temp_pool);
 
   if (m_temp_pool_slot != MY_BIT_NONE) // we got a slot
-    sprintf(path, "%s-temptable-%lx-%i", tmp_file_prefix,
+    sprintf(path, "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
             current_pid, m_temp_pool_slot);
   else
   {
     /* if we run out of slots or we are not using tempool */
-    sprintf(path, "%s-temptable-%lx-%llx-%x", tmp_file_prefix,current_pid,
-            thd->thread_id, thd->tmp_table++);
+    sprintf(path, "%s-%s-%lx-%llx-%x", tmp_file_prefix, param->tmp_name,
+            current_pid, thd->thread_id, thd->tmp_table++);
   }
 
   /*
@@ -18785,6 +18730,40 @@ err:
 }
 
 
+bool Create_tmp_table::choose_engine(THD *thd, TABLE *table,
+                                     TMP_TABLE_PARAM *param)
+{
+  TABLE_SHARE *share= table->s;
+  DBUG_ENTER("Create_tmp_table::choose_engine");
+  /*
+    If result table is small; use a heap, otherwise TMP_TABLE_HTON (Aria)
+    In the future we should try making storage engine selection more dynamic
+  */
+
+  if (share->blob_fields || m_using_unique_constraint ||
+      (thd->variables.big_tables &&
+       !(m_select_options & SELECT_SMALL_RESULT)) ||
+      (m_select_options & TMP_TABLE_FORCE_MYISAM) ||
+      thd->variables.tmp_memory_table_size == 0)
+  {
+    share->db_plugin= ha_lock_engine(0, TMP_ENGINE_HTON);
+    table->file= get_new_handler(share, &table->mem_root,
+                                 share->db_type());
+    if (m_group &&
+	(param->group_parts > table->file->max_key_parts() ||
+	 param->group_length > table->file->max_key_length()))
+      m_using_unique_constraint= true;
+  }
+  else
+  {
+    share->db_plugin= ha_lock_engine(0, heap_hton);
+    table->file= get_new_handler(share, &table->mem_root,
+                                 share->db_type());
+  }
+  DBUG_RETURN(!table->file);
+}
+
+
 bool Create_tmp_table::finalize(THD *thd,
                                 TABLE *table,
                                 TMP_TABLE_PARAM *param,
@@ -18811,28 +18790,7 @@ bool Create_tmp_table::finalize(THD *thd,
   DBUG_ASSERT(m_alloced_field_count >= share->fields);
   DBUG_ASSERT(m_alloced_field_count >= share->blob_fields);
 
-  /* If result table is small; use a heap */
-  /* future: storage engine selection can be made dynamic? */
-  if (share->blob_fields || m_using_unique_constraint
-      || (thd->variables.big_tables && !(m_select_options & SELECT_SMALL_RESULT))
-      || (m_select_options & TMP_TABLE_FORCE_MYISAM)
-      || thd->variables.tmp_memory_table_size == 0)
-  {
-    share->db_plugin= ha_lock_engine(0, TMP_ENGINE_HTON);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-    if (m_group &&
-	(param->group_parts > table->file->max_key_parts() ||
-	 param->group_length > table->file->max_key_length()))
-      m_using_unique_constraint= true;
-  }
-  else
-  {
-    share->db_plugin= ha_lock_engine(0, heap_hton);
-    table->file= get_new_handler(share, &table->mem_root,
-                                 share->db_type());
-  }
-  if (!table->file)
+  if (choose_engine(thd, table, param))
     goto err;
 
   if (table->file->set_ha_share_ref(&share->ha_share))
@@ -18884,7 +18842,7 @@ bool Create_tmp_table::finalize(THD *thd,
     share->default_values= table->record[1]+alloc_length;
   }
 
-  setup_tmp_table_column_bitmaps(table, m_bitmaps);
+  setup_tmp_table_column_bitmaps(table, m_bitmaps, table->s->fields);
 
   recinfo=param->start_recinfo;
   null_flags=(uchar*) table->record[0];
@@ -19339,8 +19297,8 @@ TABLE *create_tmp_table(THD *thd, TMP_TABLE_PARAM *param, List<Item> &fields,
                         bool keep_row_order)
 {
   TABLE *table;
-  Create_tmp_table maker(param, group,
-                         distinct, save_sum_fields, select_options, rows_limit);
+  Create_tmp_table maker(group, distinct, save_sum_fields, select_options,
+                         rows_limit);
   if (!(table= maker.start(thd, param, table_alias)) ||
       maker.add_fields(thd, table, param, fields) ||
       maker.finalize(thd, table, param, do_not_open, keep_row_order))
@@ -19359,7 +19317,7 @@ TABLE *create_tmp_table_for_schema(THD *thd, TMP_TABLE_PARAM *param,
                                    bool do_not_open, bool keep_row_order)
 {
   TABLE *table;
-  Create_tmp_table maker(param, (ORDER *) NULL, false, false,
+  Create_tmp_table maker((ORDER *) NULL, false, false,
                          select_options, HA_POS_ERROR);
   if (!(table= maker.start(thd, param, &table_alias)) ||
       maker.add_schema_fields(thd, table, param, schema_table) ||

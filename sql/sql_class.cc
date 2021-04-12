@@ -4247,6 +4247,7 @@ void TMP_TABLE_PARAM::init()
   materialized_subquery= 0;
   force_not_null_cols= 0;
   skip_create_table= 0;
+  tmp_name= "temptable";                        // Name of temp table on disk
   DBUG_VOID_RETURN;
 }
 
