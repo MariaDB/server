@@ -5,7 +5,8 @@ include/stop_slave.inc
 connection master;
 call mtr.add_suppression("Error in Log_event::read_log_event()");
 include/rpl_stop_server.inc [server_number=1]
-include/rpl_start_server.inc [server_number=1]
+include/rpl_start_server.inc [server_number=1 parameters: --debug_dbug="d,accept_binlog_without_recovery"]
+set @@global.debug_dbug="";
 show binlog events;
 ERROR HY000: Error when executing command SHOW BINLOG EVENTS: Wrong offset or I/O error
 connection slave;

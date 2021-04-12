@@ -1,6 +1,16 @@
 set @@global.binlog_checksum = CRC32;
 call mtr.add_suppression("Replication event checksum verification failed");
 call mtr.add_suppression("Error in Log_event::read_log_event");
+call mtr.add_suppression("Error reading binlog event at file:.*pos:");
+call mtr.add_suppression("Crash recovery failed.");
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+# Kill the server
+# Failed restart with corrupted events and  --master_verify_checksum=ON
+NOT FOUND /mysqld got signal 11/ in mysqld.1.err
+FOUND 1 /\[ERROR\] Can\'t init tc log/ in mysqld.1.err
+FOUND 1 /\[ERROR\] Aborting/ in mysqld.1.err
+# Normal start
 set @@global.debug_dbug = VALUE;
 set @@global.master_verify_checksum = DO_CHECKSUM;
 set @@global.binlog_checksum = BINLOG_CHECKSUM;

@@ -17,7 +17,7 @@
 # Crash is not simulated. A binlog with partly written event in its end is installed
 # and replication is started from it.
 #
-
+--source include/have_debug.inc
 --source include/have_binlog_format_mixed.inc
 --source include/master-slave.inc
 
@@ -39,9 +39,11 @@ call mtr.add_suppression("Error in Log_event::read_log_event()");
 --copy_file $MYSQL_TEST_DIR/std_data/bug11747416_32228_binlog.000001 $datadir/master-bin.000001
 
 --let $rpl_server_number= 1
+--let $rpl_server_parameters=--debug_dbug="d,accept_binlog_without_recovery"
 --source include/rpl_start_server.inc
 
 --source include/wait_until_connected_again.inc
+set @@global.debug_dbug="";
 
 # evidence of the partial binlog
 --error ER_ERROR_WHEN_EXECUTING_COMMAND

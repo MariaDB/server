@@ -6784,6 +6784,11 @@ void MYSQL_BIN_LOG::purge()
 
 void MYSQL_BIN_LOG::checkpoint_and_purge(ulong binlog_id)
 {
+  DBUG_EXECUTE_IF("crash_before_write_second_checkpoint_event",
+                  flush_io_cache(&log_file);
+                  mysql_file_sync(log_file.file, MYF(MY_WME));
+                  DBUG_SUICIDE(););
+
   do_checkpoint_request(binlog_id);
   purge();
 }
@@ -10202,7 +10207,6 @@ start_binlog_background_thread()
 class Recovery_context
 {
 public:
-  my_off_t prev_event_pos;
   rpl_gtid last_gtid;
   bool last_gtid_standalone;
   bool last_gtid_valid;
@@ -10300,7 +10304,8 @@ public:
     Assigns last_gtid and assesses the maximum (in the binlog offset term)
     unsafe gtid (group of events).
   */
-  void process_gtid(int round, Gtid_log_event *gev, LOG_INFO *linfo);
+  void process_gtid(int round, Gtid_log_event *gev, LOG_INFO *linfo,
+                    my_off_t prev_event_pos);
 
   /*
     Compute next action at the end of processing of the current binlog file.
@@ -10429,7 +10434,6 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
 }
 
 Recovery_context::Recovery_context() :
-  prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
   last_gtid_engines(0),
   do_truncate(rpl_semi_sync_slave_enabled),
@@ -10635,7 +10639,7 @@ void Recovery_context::update_binlog_unsafe_coord_if_needed(LOG_INFO *linfo)
 }
 
 void Recovery_context::process_gtid(int round, Gtid_log_event *gev,
-                                    LOG_INFO *linfo)
+                                    LOG_INFO *linfo, my_off_t prev_event_pos)
 {
   last_gtid.domain_id= gev->domain_id;
   last_gtid.server_id= gev->server_id;
@@ -10724,16 +10728,18 @@ int Recovery_context::next_binlog_or_round(int& round,
 
 int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                            IO_CACHE *first_log,
-                           Format_description_log_event *fdle, bool do_xa)
+                           Format_description_log_event *fdle_arg, bool do_xa)
 {
   Log_event *ev= NULL;
+  my_off_t prev_event_pos= 0;
   HASH xids;
   MEM_ROOT mem_root;
   char binlog_checkpoint_name[FN_REFLEN];
   bool binlog_checkpoint_found;
-  IO_CACHE log;
+  IO_CACHE log, *curr_log= first_log;
   File file= -1;
   const char *errmsg;
+  Format_description_log_event *fdle= fdle_arg;
 #ifdef HAVE_REPLICATION
   Recovery_context ctx;
 #endif
@@ -10776,13 +10782,21 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   binlog_checkpoint_found= false;
   for (round= 1;;)
   {
-    while ((ev= Log_event::read_log_event(round == 1 ? first_log : &log,
-                                          fdle, opt_master_verify_checksum))
+    while ((ev= Log_event::read_log_event(curr_log, fdle,
+                                          opt_master_verify_checksum))
            && ev->is_valid())
     {
       enum Log_event_type typ= ev->get_type_code();
       switch (typ)
       {
+      case FORMAT_DESCRIPTION_EVENT:
+        if (round > 1)
+        {
+          if (fdle != fdle_arg)
+            delete fdle;
+          fdle= (Format_description_log_event*) ev;
+        }
+        break;
       case XID_EVENT:
       if (do_xa)
       {
@@ -10835,7 +10849,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         break;
 
       case GTID_EVENT:
-        ctx.process_gtid(round, (Gtid_log_event *)ev, linfo);
+        ctx.process_gtid(round, (Gtid_log_event *)ev, linfo, prev_event_pos);
         break;
 
       case QUERY_EVENT:
@@ -10877,12 +10891,19 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
           goto err2;
         ctx.last_gtid_valid= false;
       }
-      ctx.prev_event_pos= ev->log_pos;
 #endif
-      delete ev;
+      prev_event_pos= ev->log_pos;
+      if (typ != FORMAT_DESCRIPTION_EVENT)
+        delete ev;
       ev= NULL;
     } // end of while
 
+    if (curr_log->error != 0)
+    {
+      sql_print_error("Error reading binlog event at file:%s pos:%llu during "
+                      "recovery.", linfo->log_file_name, prev_event_pos);
+      goto err2;
+    }
     if (!do_xa)
       break;
     /*
@@ -10908,10 +10929,11 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                         "for recovery. Aborting.", binlog_checkpoint_name);
         goto err2;
       }
+      curr_log= &log;
     }
     else
     {
-      end_io_cache(&log);
+      end_io_cache(curr_log);
       mysql_file_close(file, MYF(MY_WME));
       file= -1;
       /*
@@ -10939,7 +10961,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     round++;
 #endif
 
-    if ((file= open_binlog(&log, linfo->log_file_name, &errmsg)) < 0)
+    if ((file= open_binlog(curr_log, linfo->log_file_name, &errmsg)) < 0)
     {
       sql_print_error("%s", errmsg);
       goto err2;
@@ -10961,6 +10983,9 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     free_root(&mem_root, MYF(0));
     my_hash_free(&xids);
   }
+  if (fdle != fdle_arg)
+    delete fdle;
+
   return 0;
 
 err2:
@@ -10980,9 +11005,11 @@ err1:
                   "(if it's, for example, out of memory error) and restart, "
                   "or delete (or rename) binary log and start mysqld with "
                   "--tc-heuristic-recover={commit|rollback}");
+  if (fdle != fdle_arg)
+    delete fdle;
+
   return 1;
 }
-
 
 
 int
@@ -11046,7 +11073,8 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
                                      opt_master_verify_checksum)) &&
       ev->get_type_code() == FORMAT_DESCRIPTION_EVENT)
   {
-    if (ev->flags & LOG_EVENT_BINLOG_IN_USE_F)
+    if (DBUG_EVALUATE_IF("accept_binlog_without_recovery", 0,
+                        (ev->flags & LOG_EVENT_BINLOG_IN_USE_F)))
     {
       sql_print_information("Recovering after a crash using %s", opt_name);
       error= recover(&log_info, log_name, &log,

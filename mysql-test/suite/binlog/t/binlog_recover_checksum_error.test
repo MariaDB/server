@@ -13,17 +13,36 @@ set @@global.binlog_checksum = CRC32;
 
 call mtr.add_suppression("Replication event checksum verification failed");
 call mtr.add_suppression("Error in Log_event::read_log_event");
+call mtr.add_suppression("Error reading binlog event at file:.*pos:");
+call mtr.add_suppression("Crash recovery failed.");
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
 
-# Proof of no crash follows.
 # There's no need for actual bin-loggable queries to the server
---let $restart_parameters=  --master_verify_checksum=ON --debug_dbug="+d,corrupt_read_log_event_char"
---let $shutdown_timeout=0
---source include/restart_mysqld.inc
---let $restart_parameters=
---let $shutdown_timeout=
+
+--source include/kill_mysqld.inc
+
+--echo # Failed restart with corrupted events and  --master_verify_checksum=ON
+--error 1
+--exec $MYSQLD_LAST_CMD  --master_verify_checksum=ON --debug_dbug="d,corrupt_read_log_event_char" >> $MYSQLTEST_VARDIR/log/mysqld.1.err 2>&1
+
+# Proof of no crash occured ...
+let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err;
+--let SEARCH_FILE=$log_error_
+--let SEARCH_PATTERN=mysqld got signal 11
+--source include/search_pattern_in_file.inc
+
+# ... and that the server stopped with expected errors
+--let SEARCH_PATTERN=\[ERROR\] Can\'t init tc log
+--source include/search_pattern_in_file.inc
+--let SEARCH_PATTERN=\[ERROR\] Aborting
+--source include/search_pattern_in_file.inc
 
 #
 # Cleanup
+
+--echo # Normal start
+--source include/start_mysqld.inc
 
 --replace_regex /= .*/= VALUE/
 --eval set @@global.debug_dbug = "$debug_dbug_saved"
