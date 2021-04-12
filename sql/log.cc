@@ -10724,7 +10724,7 @@ int Recovery_context::next_binlog_or_round(int& round,
 
 int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                            IO_CACHE *first_log,
-                           Format_description_log_event *fdle_arg, bool do_xa)
+                           Format_description_log_event *fdle, bool do_xa)
 {
   Log_event *ev= NULL;
   HASH xids;
@@ -10734,7 +10734,6 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   IO_CACHE log;
   File file= -1;
   const char *errmsg;
-  Format_description_log_event *fdle= fdle_arg;
 #ifdef HAVE_REPLICATION
   Recovery_context ctx;
 #endif
@@ -10784,14 +10783,6 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       enum Log_event_type typ= ev->get_type_code();
       switch (typ)
       {
-      case FORMAT_DESCRIPTION_EVENT:
-        if (round > 1)
-        {
-          if (fdle != fdle_arg)
-            delete fdle;
-          fdle= (Format_description_log_event*) ev;
-        }
-        break;
       case XID_EVENT:
       if (do_xa)
       {
@@ -10888,8 +10879,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
       }
       ctx.prev_event_pos= ev->log_pos;
 #endif
-      if (typ != FORMAT_DESCRIPTION_EVENT)
-        delete ev;
+      delete ev;
       ev= NULL;
     } // end of while
 
@@ -10971,9 +10961,6 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     free_root(&mem_root, MYF(0));
     my_hash_free(&xids);
   }
-  if (fdle != fdle_arg)
-    delete fdle;
-
   return 0;
 
 err2:
@@ -10993,11 +10980,9 @@ err1:
                   "(if it's, for example, out of memory error) and restart, "
                   "or delete (or rename) binary log and start mysqld with "
                   "--tc-heuristic-recover={commit|rollback}");
-  if (fdle != fdle_arg)
-    delete fdle;
-
   return 1;
 }
+
 
 
 int
