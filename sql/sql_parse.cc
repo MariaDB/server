@@ -3781,7 +3781,8 @@ mysql_execute_command(THD *thd)
     thd->transaction.stmt.mark_trans_did_ddl();
 #ifdef WITH_WSREP
     /* Clean up the previous transaction on implicit commit */
-    if (wsrep_thd_is_local(thd) && wsrep_after_statement(thd))
+    if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd) &&
+        wsrep_after_statement(thd))
     {
       goto error;
     }
@@ -3855,7 +3856,7 @@ mysql_execute_command(THD *thd)
     Do not start transaction for stored procedures, it will be handled
     internally in SP processing.
   */
-  if (WSREP(thd)                          &&
+  if (WSREP_NNULL(thd)                    &&
       wsrep_thd_is_local(thd)             &&
       lex->sql_command != SQLCOM_BEGIN    &&
       lex->sql_command != SQLCOM_CALL     &&

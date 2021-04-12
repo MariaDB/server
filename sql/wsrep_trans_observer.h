@@ -407,8 +407,10 @@ static inline void wsrep_after_apply(THD* thd)
 static inline void wsrep_open(THD* thd)
 {
   DBUG_ENTER("wsrep_open");
-  if (WSREP_PROVIDER_EXISTS)
+  if (WSREP_ON_)
   {
+    /* WSREP_PROVIDER_EXISTS_ cannot be set if WSREP_ON_ is not set */
+    DBUG_ASSERT(WSREP_PROVIDER_EXISTS_);
     thd->wsrep_cs().open(wsrep::client_id(thd->thread_id));
     thd->wsrep_cs().debug_log_level(wsrep_debug);
     if (!thd->wsrep_applier && thd->variables.wsrep_trx_fragment_size)
