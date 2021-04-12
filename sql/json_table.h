@@ -200,6 +200,9 @@ public:
   /*** Name resolution functions ***/
   int setup(THD *thd, TABLE_LIST *sql_table, SELECT_LEX *s_lex);
 
+  int walk_items(Item_processor processor, bool walk_subquery,
+                 void *argument);
+
   /*** Functions for interaction with the Query Optimizer ***/
   void fix_after_pullout(TABLE_LIST *sql_table,
                          st_select_lex *new_parent, bool merge);

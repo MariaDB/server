@@ -1341,6 +1341,12 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
   return FALSE;
 }
 
+int Table_function_json_table::walk_items(Item_processor processor,
+                                          bool walk_subquery, void *argument)
+{
+  return m_json->walk(processor, walk_subquery, argument);
+}
+
 void Table_function_json_table::get_estimates(ha_rows *out_rows,
                                               double *scan_time,
                                               double *startup_cost)

@@ -719,6 +719,34 @@ bool Item_subselect::unknown_splocal_processor(void *argument)
 }
 
 
+static
+int walk_table_functions_for_list(Item_processor processor,
+                                  bool walk_subquery, void *argument,
+                                  List<TABLE_LIST>& join_list)
+{
+  List_iterator<TABLE_LIST> li(join_list);
+  int res;
+  while (TABLE_LIST *table= li++)
+  {
+    if (Table_function_json_table *tf= table->table_function)
+    {
+      if ((res= tf->walk_items(processor, walk_subquery, argument)))
+      {
+        return res;
+      }
+    }
+    if (table->nested_join)
+    {
+      if ((res= walk_table_functions_for_list(processor, walk_subquery,
+                                              argument,
+                                              table->nested_join->join_list)))
+        return res;
+    }
+  }
+  return 0;
+}
+
+
 bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
                           void *argument)
 {
@@ -751,6 +779,11 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
                                              argument))
         return 1;
       /* TODO: why does this walk WHERE/HAVING but not ON expressions of outer joins? */
+      /*       Consider walking ON epxression in walk_table_functions_for_list */
+
+      if (walk_table_functions_for_list(processor, walk_subquery, argument,
+                                        *lex->join_list))
+        return 1;
 
       while ((item=li++))
       {
