@@ -3814,7 +3814,7 @@ mysql_execute_command(THD *thd)
 
 #ifdef WITH_WSREP
   /* Check wsrep_mode rules before command execution. */
-  if (WSREP(thd) &&
+  if (WSREP_NNULL(thd) &&
       wsrep_thd_is_local(thd) && !wsrep_check_mode_before_cmd_execute(thd))
     goto error;
 
