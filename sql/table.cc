@@ -6733,8 +6733,8 @@ const char *Natural_join_column::safe_db_name()
     ensure consistency. An exception are I_S schema tables, which
     are inconsistent in this respect.
   */
-  DBUG_ASSERT(!cmp(&table_ref->db,
-                   &table_ref->table->s->db) ||
+  DBUG_ASSERT(!cmp(&table_ref->db, &table_ref->table->s->db) ||
+              table_ref->table_function ||
               (table_ref->schema_table &&
                is_infoschema_db(&table_ref->table->s->db)) ||
               table_ref->is_materialized_derived());
