@@ -926,7 +926,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
        executing a prepared statement for the second time.
     */
     sql_f->length= sql_f->char_length;
-    if (!(jc->m_explicit_cs= sql_f->charset))
+    if (!sql_f->charset)
       sql_f->charset= &my_charset_utf8mb4_general_ci;
 
     if (sql_f->prepare_stage1(thd, thd->mem_root, table->file,
@@ -1098,7 +1098,7 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
     (*f)->sql_type(column_type);
 
     if (str->append(column_type) ||
-        (m_explicit_cs &&
+        ((*f)->has_charset() && m_explicit_cs &&
            (str->append(" CHARSET ") || str->append(m_explicit_cs->csname))) ||
         str->append(m_column_type == PATH ? " PATH " : " EXISTS PATH ") ||
         print_path(str, &m_path))

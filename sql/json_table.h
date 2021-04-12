@@ -161,7 +161,7 @@ public:
   }
   int set(THD *thd, enum_type ctype, const LEX_CSTRING &path);
   Json_table_column(Create_field *f, Json_table_nested_path *nest) :
-    m_field(f), m_nest(nest)
+    m_field(f), m_nest(nest), m_explicit_cs(NULL)
   {
     m_on_error.m_response= RESPONSE_NOT_SPECIFIED;
     m_on_empty.m_response= RESPONSE_NOT_SPECIFIED;

@@ -2331,6 +2331,17 @@ bool Field_str::can_be_substituted_to_equal_item(const Context &ctx,
 }
 
 
+void Field_str::change_charset(const DTCollation &new_cs)
+{
+  if (!has_charset())
+    return;
+
+  field_length= (field_length * new_cs.collation->mbmaxlen) /
+    m_collation.collation->mbmaxlen;
+  m_collation= new_cs;
+}
+
+
 void Field_num::make_send_field(Send_field *field)
 {
   Field::make_send_field(field);

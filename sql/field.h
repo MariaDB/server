@@ -2111,12 +2111,7 @@ public:
   {
     return m_collation;
   }
-  void change_charset(const DTCollation &new_cs) override
-  {
-    field_length= (field_length * new_cs.collation->mbmaxlen) /
-      m_collation.collation->mbmaxlen;
-    m_collation= new_cs;
-  }
+  void change_charset(const DTCollation &new_cs) override;
   bool binary() const override { return field_charset() == &my_charset_bin; }
   uint32 max_display_length() const override { return field_length; }
   uint32 character_octet_length() const override { return field_length; }

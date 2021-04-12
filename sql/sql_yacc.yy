@@ -11634,10 +11634,12 @@ json_table_field_type:
         | field_type_string opt_collate
           {
             set_collation($2);
+            Lex->json_table->m_cur_json_table_column->m_explicit_cs= Lex->charset;
           }
         | field_type_lob opt_collate
           {
             set_collation($2);
+            Lex->json_table->m_cur_json_table_column->m_explicit_cs= Lex->charset;
           }
         ;
 
