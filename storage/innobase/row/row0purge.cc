@@ -729,7 +729,7 @@ row_purge_skip_uncommitted_virtual_index(
 	not support LOCK=NONE when adding an index on newly
 	added virtual column.*/
 	while (index != NULL && dict_index_has_virtual(index)
-	       && !index->is_committed() && index->has_new_v_col) {
+	       && !index->is_committed() && index->has_new_v_col()) {
 		index = dict_table_get_next_index(index);
 	}
 }

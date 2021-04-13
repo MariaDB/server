@@ -4964,5 +4964,25 @@ DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-25108: Running of the EXPLAIN EXTENDED statement produces extra warning
+--echo #             in case it is executed in PS (prepared statement) mode
+--echo #
+CREATE TABLE t1 (c int);
+CREATE TABLE t2 (d int);
+
+--echo # EXPLAIN EXTENDED in regular way (not PS mode)
+EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
+SHOW WARNINGS;
+
+--echo # Now run the same EXPLAIN EXTENDED in PS mode. Number of warnings
+--echo # and their content must be the same as in case running the statement
+--echo # in regular way
+PREPARE stmt FROM "EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1";
+EXECUTE stmt;
+SHOW WARNINGS;
+
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+--echo #
 --echo # End of 10.2 tests
 --echo #
