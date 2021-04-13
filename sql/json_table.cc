@@ -419,22 +419,32 @@ int ha_json_table::rnd_next(uchar *buf)
 
 int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
 {
+  MY_BITMAP *orig_map= dbug_tmp_use_all_columns(table, &table->write_set);
+  int error= 0;
   Field **f= table->field;
   Json_table_column *jc;
   List_iterator_fast<Json_table_column> jc_i(m_jt->m_columns);
   my_ptrdiff_t ptrdiff= buf - table->record[0];
   Abort_on_warning_instant_set ao_set(table->in_use, FALSE);
 
-  while ((jc= jc_i++))
+  while (!error && (jc= jc_i++))
   {
     bool is_null_value;
     uint int_pos= 0; /* just to make compilers happy. */
 
     if (!bitmap_is_set(table->read_set, (*f)->field_index))
+    {
+      /* 
+        If the RESPONSE_ERROR is set for the column, we have
+        to unpack it even if it's not in the read_set - to check
+        for possible errors.
+      */
+      if (jc->m_on_empty.m_response != Json_table_column::RESPONSE_ERROR &&
+          jc->m_on_error.m_response != Json_table_column::RESPONSE_ERROR)
       goto cont_loop;
+    }
 
-    if (ptrdiff)
-      (*f)->move_field_offset(ptrdiff);
+    (*f)->move_field_offset(ptrdiff);
 
     /*
       Read the NULL flag:
@@ -507,16 +517,15 @@ int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
         {
           if (not_found)
           {
-            if (jc->m_on_empty.respond(jc, *f, ER_JSON_TABLE_ERROR_ON_FIELD))
-              goto error_return;
+            error= jc->m_on_empty.respond(jc, *f, ER_JSON_TABLE_ERROR_ON_FIELD);
           }
           else
           {
             if (!json_value_scalar(&je) ||
                 store_json_in_field(*f, &je))
             {
-              if (jc->m_on_error.respond(jc, *f, ER_JSON_TABLE_SCALAR_EXPECTED))
-                goto error_return;
+              error= jc->m_on_error.respond(jc, *f,
+                                            ER_JSON_TABLE_SCALAR_EXPECTED);
             }
             else
             {
@@ -530,8 +539,8 @@ int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
                    !json_find_path(&je, &jc->m_path, &cur_step,
                                    array_counters)))
               {
-                if (jc->m_on_error.respond(jc, *f, ER_JSON_TABLE_MULTIPLE_MATCHES))
-                  goto error_return;
+                error= jc->m_on_error.respond(jc, *f,
+                                              ER_JSON_TABLE_MULTIPLE_MATCHES);
               }
             }
           }
@@ -540,16 +549,16 @@ int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
       }
       };
     }
-    if (ptrdiff)
-      (*f)->move_field_offset(-ptrdiff);
+    (*f)->move_field_offset(-ptrdiff);
+
 cont_loop:
     f++;
     if (pos)
       pos+= 4;
   }
-  return 0;
-error_return:
-  return 1;
+
+  dbug_tmp_restore_column_map(&table->write_set, orig_map);
+  return error;
 }
 
 

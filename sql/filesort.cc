@@ -480,7 +480,8 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
                     thd->killed == ABORT_QUERY ? "" :
                     thd->get_stmt_da()->message());
 
-    if (global_system_variables.log_warnings > 1)
+    if ((thd->killed == ABORT_QUERY || kill_errno) &&
+        global_system_variables.log_warnings > 1)
     { 
       sql_print_warning("%s, host: %s, user: %s, thread: %lu, query: %-.4096s",
                         ER_THD(thd, ER_FILSORT_ABORT),

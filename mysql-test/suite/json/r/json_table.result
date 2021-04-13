@@ -813,6 +813,14 @@ SUM(o)
 NULL
 set sql_mode=@save_sql_mode;
 drop table t1;
+# MDEV-25379 JSON_TABLE: ERROR ON clauses are ignored if a column is not on select list.
+#
+SELECT * FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+SELECT o FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+SELECT COUNT(*) FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
 #
 # End of 10.6 tests
 #

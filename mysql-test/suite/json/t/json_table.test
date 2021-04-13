@@ -709,6 +709,15 @@ SELECT SUM(o) FROM t1 JOIN JSON_TABLE(t1.a, '$' COLUMNS(o FOR ORDINALITY)) jt;
 set sql_mode=@save_sql_mode;
 drop table t1;
 
+--echo # MDEV-25379 JSON_TABLE: ERROR ON clauses are ignored if a column is not on select list.
+--echo #
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT * FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT o FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+--error ER_JSON_TABLE_ERROR_ON_FIELD
+SELECT COUNT(*) FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+
 --echo #
 --echo # End of 10.6 tests
 --echo #
