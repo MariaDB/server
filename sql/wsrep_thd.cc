@@ -238,11 +238,14 @@ static void wsrep_rollback_process(THD *rollbacker,
     mysql_mutex_lock(&thd->LOCK_thd_data);
     wsrep::client_state& cs(thd->wsrep_cs());
     const wsrep::transaction& tx(cs.transaction());
-    if (tx.state() == wsrep::transaction::s_aborted)
+    enum wsrep::transaction::state state= tx.state();
+    if (state == wsrep::transaction::s_aborted ||
+        state == wsrep::transaction::s_aborting)
     {
-      WSREP_DEBUG("rollbacker thd already aborted: %llu state: %d",
+      WSREP_DEBUG("Rollbacker thd "
+                  "already aborted or aborting: %llu state: %s",
                   (long long)thd->real_id,
-                  tx.state());
+                  wsrep::to_c_string(state));
       mysql_mutex_unlock(&thd->LOCK_thd_data);
       continue;
     }
