@@ -1,4 +1,4 @@
-/* Copyright (c) 2020 MariaDB
+/* Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -55,36 +55,12 @@
 #include <stdint.h>
 #include <stddef.h>
 
-#if defined(__GNUC__)
+#ifdef __GNUC__
 #include <x86intrin.h>
-#include <cpuid.h>
 #elif defined(_MSC_VER)
 #include <intrin.h>
 #else
 #error "unknown compiler"
-#endif
-
-static int has_sse42_and_pclmul(uint32_t recx)
-{
-  /* 1 << 20 is SSE42, 1 << 1 is PCLMULQDQ */
-#define bits_SSE42_AND_PCLMUL (1 << 20 | 1 << 1)
-  return (recx & bits_SSE42_AND_PCLMUL) == bits_SSE42_AND_PCLMUL;
-}
-
-#ifdef __GNUC__
-int crc32_pclmul_enabled(void)
-{
-  uint32_t reax= 0, rebx= 0, recx= 0, redx= 0;
-  __cpuid(1, reax, rebx, recx, redx);
-  return has_sse42_and_pclmul(recx);
-}
-#elif defined(_MSC_VER)
-int crc32_pclmul_enabled(void)
-{
-  int regs[4];
-  __cpuid(regs, 1);
-  return has_sse42_and_pclmul(regs[2]);
-}
 #endif
 
 /**
