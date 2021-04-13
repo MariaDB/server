@@ -4217,6 +4217,15 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
           thd->is_error() ||
           init_param_array(this));
 
+  if (thd->security_ctx->password_expired &&
+      lex->sql_command != SQLCOM_SET_OPTION)
+  {
+    thd->restore_backup_statement(this, &stmt_backup);
+    thd->restore_active_arena(this, &stmt_backup);
+    thd->stmt_arena= old_stmt_arena;
+    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
+    DBUG_RETURN(true);
+  }
   lex->set_trg_event_type_for_tables();
 
   /*

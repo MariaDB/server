@@ -5536,5 +5536,37 @@ DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1;
 #
+# MDEV-25197: The statement set password=password('') executed in PS mode
+#             fails in case it is run by a user with expired password
+#
+CREATE USER user1@localhost PASSWORD EXPIRE;
+SET @disconnect_on_expired_password_save=@@global.disconnect_on_expired_password;
+SET GLOBAL disconnect_on_expired_password=OFF;
+connect con1,localhost,user1;
+connection con1;
+# Check that no regular statement like SELECT can be prepared
+# by a user with an expired password
+PREPARE stmt FROM "SELECT 1";
+ERROR HY000: You must SET PASSWORD before executing this statement
+# Check that the DEALLOCATE PREPARE statement can be run by a user
+# with an expired password
+PREPARE stmt FROM "SET password=password('')";
+DEALLOCATE PREPARE stmt;
+# Check that the SET PASSWORD statement can be executed in PS mode by
+# a user with an expired password
+PREPARE stmt FROM "SET password=password('')";
+EXECUTE stmt;
+PREPARE stmt FROM "SELECT 1";
+# Check that user's password is not expired anymore
+EXECUTE stmt;
+1
+1
+DEALLOCATE PREPARE stmt;
+# Clean up
+disconnect con1;
+connection default;
+SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
+DROP USER user1@localhost;
+#
 # End of 10.4 tests
 #
