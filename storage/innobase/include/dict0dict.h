@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1347,21 +1347,6 @@ dict_index_build_node_ptr(
 					created */
 	ulint			level)	/*!< in: level of rec in tree:
 					0 means leaf level */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/**********************************************************************//**
-Copies an initial segment of a physical record, long enough to specify an
-index entry uniquely.
-@return pointer to the prefix record */
-rec_t*
-dict_index_copy_rec_order_prefix(
-/*=============================*/
-	const dict_index_t*	index,	/*!< in: index */
-	const rec_t*		rec,	/*!< in: record for which to
-					copy prefix */
-	ulint*			n_fields,/*!< out: number of fields copied */
-	byte**			buf,	/*!< in/out: memory buffer for the
-					copied prefix, or NULL */
-	ulint*			buf_size)/*!< in/out: buffer size */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /** Convert a physical record into a search tuple.
 @param[in]	rec		index record (not necessarily in an index page)

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1258,7 +1258,8 @@ row_log_table_get_pk(
 
 				if (!offsets) {
 					offsets = rec_get_offsets(
-						rec, index, NULL, true,
+						rec, index, NULL,
+						index->n_core_fields,
 						pos + 1, heap);
 				}
 
@@ -1308,7 +1309,8 @@ row_log_table_get_pk(
 		}
 
 		if (!offsets) {
-			offsets = rec_get_offsets(rec, index, NULL, true,
+			offsets = rec_get_offsets(rec, index, NULL,
+						  index->n_core_fields,
 						  ULINT_UNDEFINED, heap);
 		}
 
@@ -1980,7 +1982,8 @@ all_done:
 		return(DB_SUCCESS);
 	}
 
-	offsets = rec_get_offsets(btr_pcur_get_rec(&pcur), index, NULL, true,
+	offsets = rec_get_offsets(btr_pcur_get_rec(&pcur), index, NULL,
+				  index->n_core_fields,
 				  ULINT_UNDEFINED, &offsets_heap);
 #if defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 	ut_a(!rec_offs_any_null_extern(btr_pcur_get_rec(&pcur), offsets));
@@ -2178,7 +2181,7 @@ func_exit_committed:
 
 	/* Prepare to update (or delete) the record. */
 	rec_offs*		cur_offsets	= rec_get_offsets(
-		btr_pcur_get_rec(&pcur), index, NULL, true,
+		btr_pcur_get_rec(&pcur), index, NULL, index->n_core_fields,
 		ULINT_UNDEFINED, &offsets_heap);
 
 	if (!log->same_pk) {

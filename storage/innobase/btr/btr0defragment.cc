@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2012, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2019, MariaDB Corporation.
+Copyright (C) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -340,12 +340,12 @@ btr_defragment_calc_n_recs_for_size(
 	ulint size = 0;
 	page_cur_t cur;
 
+	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
 	page_cur_set_before_first(block, &cur);
 	page_cur_move_to_next(&cur);
 	while (page_cur_get_rec(&cur) != page_get_supremum_rec(page)) {
 		rec_t* cur_rec = page_cur_get_rec(&cur);
-		offsets = rec_get_offsets(cur_rec, index, offsets,
-					  page_is_leaf(page),
+		offsets = rec_get_offsets(cur_rec, index, offsets, n_core,
 					  ULINT_UNDEFINED, &heap);
 		ulint rec_size = rec_offs_size(offsets);
 		size += rec_size;
@@ -357,6 +357,9 @@ btr_defragment_calc_n_recs_for_size(
 		page_cur_move_to_next(&cur);
 	}
 	*n_recs_size = size;
+	if (UNIV_LIKELY_NULL(heap)) {
+		mem_heap_free(heap);
+	}
 	return n_recs;
 }
 

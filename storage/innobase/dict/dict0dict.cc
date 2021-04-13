@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -5035,53 +5035,15 @@ dict_index_build_node_ptr(
 
 	dtype_set(dfield_get_type(field), DATA_SYS_CHILD, DATA_NOT_NULL, 4);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, !level, n_unique, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index,
+				  level ? 0 : index->n_core_fields,
+				  n_unique, heap);
 	dtuple_set_info_bits(tuple, dtuple_get_info_bits(tuple)
 			     | REC_STATUS_NODE_PTR);
 
 	ut_ad(dtuple_check_typed(tuple));
 
 	return(tuple);
-}
-
-/**********************************************************************//**
-Copies an initial segment of a physical record, long enough to specify an
-index entry uniquely.
-@return pointer to the prefix record */
-rec_t*
-dict_index_copy_rec_order_prefix(
-/*=============================*/
-	const dict_index_t*	index,	/*!< in: index */
-	const rec_t*		rec,	/*!< in: record for which to
-					copy prefix */
-	ulint*			n_fields,/*!< out: number of fields copied */
-	byte**			buf,	/*!< in/out: memory buffer for the
-					copied prefix, or NULL */
-	ulint*			buf_size)/*!< in/out: buffer size */
-{
-	ulint		n;
-
-	UNIV_PREFETCH_R(rec);
-
-	if (dict_index_is_ibuf(index)) {
-		ut_ad(!dict_table_is_comp(index->table));
-		n = rec_get_n_fields_old(rec);
-	} else {
-		if (page_rec_is_leaf(rec)) {
-			n = dict_index_get_n_unique_in_tree(index);
-		} else if (dict_index_is_spatial(index)) {
-			ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
-			      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
-			/* For R-tree, we have to compare
-			the child page numbers as well. */
-			n = DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
-		} else {
-			n = dict_index_get_n_unique_in_tree(index);
-		}
-	}
-
-	*n_fields = n;
-	return(rec_copy_prefix_to_buf(rec, index, n, buf, buf_size));
 }
 
 /** Convert a physical record into a search tuple.
@@ -5099,11 +5061,14 @@ dict_index_build_data_tuple(
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
+	ut_ad(!index->is_clust());
+
 	dtuple_t* tuple = dtuple_create(heap, n_fields);
 
 	dict_index_copy_types(tuple, index, n_fields);
 
-	rec_copy_prefix_to_dtuple(tuple, rec, index, leaf, n_fields, heap);
+	rec_copy_prefix_to_dtuple(tuple, rec, index,
+				  leaf ? n_fields : 0, n_fields, heap);
 
 	ut_ad(dtuple_check_typed(tuple));
 

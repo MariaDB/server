@@ -1811,7 +1811,8 @@ PageConverter::update_records(
 
 		if (deleted || clust_index) {
 			m_offsets = rec_get_offsets(
-				rec, m_index->m_srv_index, m_offsets, true,
+				rec, m_index->m_srv_index, m_offsets,
+				m_index->m_srv_index->n_core_fields,
 				ULINT_UNDEFINED, &m_heap);
 		}
 
@@ -2377,7 +2378,8 @@ row_import_set_sys_max_row_id(
 		rec_offs_init(offsets_);
 
 		offsets = rec_get_offsets(
-			rec, index, offsets_, true, ULINT_UNDEFINED, &heap);
+			rec, index, offsets_, index->n_core_fields,
+			ULINT_UNDEFINED, &heap);
 
 		field = rec_get_nth_field(
 			rec, offsets,

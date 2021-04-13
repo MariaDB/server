@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1069,6 +1069,15 @@ struct dict_index_t{
 	{
 		return DICT_CLUSTERED == (type & (DICT_CLUSTERED | DICT_IBUF));
 	}
+
+	/** @return whether this is a generated clustered index */
+	bool is_gen_clust() const { return type == DICT_CLUSTERED; }
+
+	/** @return whether this is a clustered index */
+	bool is_clust() const { return type & DICT_CLUSTERED; }
+
+	/** @return whether this is a unique index */
+	bool is_unique() const { return type & DICT_UNIQUE; }
 
 	/** @return whether this is a spatial index */
 	bool is_spatial() const { return UNIV_UNLIKELY(type & DICT_SPATIAL); }

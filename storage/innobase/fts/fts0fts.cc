@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3495,7 +3495,8 @@ fts_add_doc_by_id(
 
 		}
 
-		offsets = rec_get_offsets(clust_rec, clust_index, NULL, true,
+		offsets = rec_get_offsets(clust_rec, clust_index, NULL,
+					  clust_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
 		for (ulint i = 0; i < num_idx; ++i) {
@@ -3671,7 +3672,8 @@ fts_get_max_doc_id(
 
 		ut_ad(!rec_is_metadata(rec, index));
 		offsets = rec_get_offsets(
-			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
+			rec, index, offsets, index->n_core_fields,
+			ULINT_UNDEFINED, &heap);
 
 		data = rec_get_nth_field(rec, offsets, 0, &len);
 
@@ -5166,7 +5168,8 @@ fts_get_doc_id_from_rec(
 	rec_offs_init(offsets_);
 
 	offsets = rec_get_offsets(
-		rec, index, offsets, true, ULINT_UNDEFINED, &my_heap);
+		rec, index, offsets, index->n_core_fields,
+		ULINT_UNDEFINED, &my_heap);
 
 	col_no = dict_col_get_index_pos(
 		&table->cols[table->fts->doc_col], index);
