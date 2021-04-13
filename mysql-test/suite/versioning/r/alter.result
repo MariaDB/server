@@ -742,3 +742,20 @@ create or replace table t1 (x int);
 alter table t1 add column y timestamp(6) as row start;
 ERROR HY000: Table `t1` is not system-versioned
 drop table t1;
+#
+# MDEV-25327 Unexpected ER_DUP_ENTRY upon dropping PK column from system-versioned table
+#
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 1), (2, 2);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter table t1 drop pk;
+drop table t1;
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 2), (2, 8), (3, 4), (4, 4), (5, 0);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter ignore table t1 drop pk;
+drop table t1;

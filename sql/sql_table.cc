@@ -8451,7 +8451,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       key_parts.push_back(new (thd->mem_root) Key_part_spec(&cfield->field_name,
                                                             key_part_length, true),
                           thd->mem_root);
-      if (cfield->invisible < INVISIBLE_SYSTEM)
+      if (!(cfield->invisible == INVISIBLE_SYSTEM && cfield->vers_sys_field()))
         user_keyparts= true;
     }
     if (table->s->tmp_table == NO_TMP_TABLE)
@@ -8461,6 +8461,14 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
       else if (modified_primary_key &&
                key_info->user_defined_key_parts != key_info->ext_key_parts)
         (void) delete_statistics_for_index(thd, table, key_info, TRUE);
+    }
+
+    if (!user_keyparts && key_parts.elements)
+    {
+      /*
+        If we dropped all user key-parts we also drop implicit system fields.
+      */
+      key_parts.empty();
     }
 
     if (key_parts.elements)
@@ -8496,7 +8504,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           key_type= Key::PRIMARY;
         else
           key_type= Key::UNIQUE;
-        if (dropped_key_part && user_keyparts)
+        if (dropped_key_part)
         {
           my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), dropped_key_part);
           goto err;
