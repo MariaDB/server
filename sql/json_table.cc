@@ -1055,9 +1055,15 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
     // table function reference
     m_context->ignored_tables= get_disallowed_table_deps(s_lex->join, t->map);
 
+    // Do the same what setup_without_group() does: do not count the referred
+    // fields in non_agg_field_used:
+    const bool saved_non_agg_field_used= s_lex->non_agg_field_used();
+
     res= m_json->fix_fields_if_needed(thd, &m_json);
 
     thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
+    s_lex->set_non_agg_field_used(saved_non_agg_field_used);
+
     if (res)
       return TRUE;
   }

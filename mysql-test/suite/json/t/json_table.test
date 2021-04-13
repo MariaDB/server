@@ -699,5 +699,16 @@ SELECT * FROM v;
 DROP VIEW v;
 
 --echo #
+--echo # MDEV-25397: JSON_TABLE: Unexpected ER_MIX_OF_GROUP_FUNC_AND_FIELDS upon query with JOIN
+--echo #
+set @save_sql_mode= @@sql_mode;
+SET sql_mode='ONLY_FULL_GROUP_BY';
+CREATE TABLE t1 (a TEXT);
+SELECT SUM(o) FROM t1 JOIN JSON_TABLE(t1.a, '$' COLUMNS(o FOR ORDINALITY)) jt;
+
+set sql_mode=@save_sql_mode;
+drop table t1;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
