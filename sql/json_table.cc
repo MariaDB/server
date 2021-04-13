@@ -1044,12 +1044,12 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
   {
     bool save_is_item_list_lookup;
     bool res;
-    save_is_item_list_lookup= thd->lex->current_select->is_item_list_lookup;
-    thd->lex->current_select->is_item_list_lookup= 0;
+    save_is_item_list_lookup= s_lex->is_item_list_lookup;
+    s_lex->is_item_list_lookup= 0;
 
     // Prepare the name resolution context. First, copy the context that is
     // used for name resolution of the WHERE clause
-    *m_context= thd->lex->current_select->context;
+    *m_context= s_lex->context;
 
     // Then, restrict it to only allow to refer to tables that come before the
     // table function reference
@@ -1061,7 +1061,7 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
 
     res= m_json->fix_fields_if_needed(thd, &m_json);
 
-    thd->lex->current_select->is_item_list_lookup= save_is_item_list_lookup;
+    s_lex->is_item_list_lookup= save_is_item_list_lookup;
     s_lex->set_non_agg_field_used(saved_non_agg_field_used);
 
     if (res)
