@@ -1,4 +1,4 @@
-/* Copyright (c) 2000, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -39,25 +39,23 @@ typedef unsigned int (*my_crc32_t)(unsigned int, const void *, size_t);
 
 static my_crc32_t init_crc32()
 {
-  my_crc32_t func= my_crc32_zlib;
 #ifdef HAVE_PCLMUL
   if (crc32_pclmul_enabled())
-    func = crc32_pclmul;
+    return crc32_pclmul;
 #elif defined(__GNUC__) && defined(HAVE_ARMV8_CRC)
   if (crc32_aarch64_available())
-    func= crc32_aarch64;
+    return crc32_aarch64;
 #endif
-  return func;
+  return my_crc32_zlib;
 }
 
 static const my_crc32_t my_checksum_func= init_crc32();
 
-#ifndef __powerpc64__
-/* For powerpc, my_checksum is defined elsewhere.*/
-extern "C" unsigned int my_checksum(unsigned int crc, const void *data, size_t len)
+#ifdef __powerpc64__
+# error "my_checksum() is defined in mysys/crc32/crc32_ppc64.c"
+#endif
+extern "C"
+unsigned int my_checksum(unsigned int crc, const void *data, size_t len)
 {
   return my_checksum_func(crc, data, len);
 }
-#endif
-
-
