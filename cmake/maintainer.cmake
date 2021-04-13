@@ -1,5 +1,5 @@
 # Copyright (c) 2010, 2014, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2020, MariaDB
+# Copyright (c) 2011, 2021, MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -13,6 +13,10 @@
 # You should have received a copy of the GNU General Public License
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
+
+IF(MYSQL_MAINTAINER_MODE STREQUAL "NO")
+  RETURN()
+ENDIF()
 
 # Common warning flags for GCC, G++, Clang and Clang++
 SET(MY_WARNING_FLAGS
@@ -41,7 +45,7 @@ IF(CMAKE_COMPILER_IS_GNUCC AND CMAKE_C_COMPILER_VERSION VERSION_LESS "6.0.0")
   SET(MY_ERROR_FLAGS ${MY_ERROR_FLAGS} -Wno-error=maybe-uninitialized)
 ENDIF()
 
-IF(MYSQL_MAINTAINER_MODE MATCHES "OFF")
+IF(MYSQL_MAINTAINER_MODE MATCHES "OFF|WARN")
   RETURN()
 ELSEIF(MYSQL_MAINTAINER_MODE MATCHES "AUTO")
   SET(WHERE DEBUG)
