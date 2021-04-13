@@ -33,6 +33,8 @@
 #include <malloc.h>
 #elif defined(HAVE_MALLINFO) && defined(HAVE_SYS_MALLOC_H)
 #include <sys/malloc.h>
+#elif defined(HAVE_MALLOC_ZONE)
+#include <malloc/malloc.h>
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER
@@ -615,6 +617,7 @@ Next alarm time: %lu\n",
 	 alarm_info.active_alarms,
 	 alarm_info.max_used_alarms,
 	(ulong)alarm_info.next_alarm_time);
+
 #endif
   display_table_locks();
 #if defined(HAVE_MALLINFO2)
@@ -653,6 +656,20 @@ Memory allocated by threads:             %s\n",
          llstr(tmp.global_memory_used, llbuff[8]),
          llstr(tmp.local_memory_used, llbuff[9]));
 
+#elif defined(HAVE_MALLOC_ZONE)
+  malloc_statistics_t info;
+  char llbuff[4][22];
+
+  malloc_zone_statistics(nullptr, &info);
+  printf("\nMemory status:\n\
+Total allocated space:                   %s\n\
+Total free space:                        %s\n\
+Global memory allocated by server:       %s\n\
+Memory allocated by threads:             %s\n",
+         llstr(info.size_allocated, llbuff[0]),
+         llstr((info.size_allocated - info.size_in_use), llbuff[1]),
+         llstr(tmp.global_memory_used, llbuff[2]),
+         llstr(tmp.local_memory_used, llbuff[3]));
 #endif
 
 #ifdef HAVE_EVENT_SCHEDULER
