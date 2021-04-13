@@ -296,10 +296,9 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
           continue;
 
         dict_v_col_t *drop_vcol= index->new_vcol_info->
-          add_drop_v_col(index->heap, vcol, n_drop_new_vcol);
+          add_drop_v_col(index->heap, vcol, --n_drop_new_vcol);
         /* Re-assign the index field with newly stored virtual column */
         index->fields[i].col= reinterpret_cast<dict_col_t*>(drop_vcol);
-        n_drop_new_vcol--;
       }
     }
   }
