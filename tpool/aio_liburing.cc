@@ -37,17 +37,27 @@ public:
     {
       switch (const auto e= errno) {
       case ENOMEM:
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        "io_uring_queue_init() failed with ENOMEM:"
+                        " try larger memory locked limit, ulimit -l"
+                        ", or https://mariadb.com/kb/en/systemd/#configuring-limitmemlock"
+                        " under systemd"
+#ifdef HAVE_IO_URING_MLOCK_SIZE
+                        " (%zd bytes required)", ME_ERROR_LOG | ME_WARNING,
+                        io_uring_mlock_size(max_aio, 0));
+#else
+                        , ME_ERROR_LOG | ME_WARNING);
+#endif
+        break;
       case ENOSYS:
-        my_printf_error(ER_UNKNOWN_ERROR, e == ENOMEM
-                        ? "io_uring_queue_init() failed with ENOMEM:"
-                        " try larger ulimit -l\n"
-                        : "io_uring_queue_init() failed with ENOSYS:"
-                        " try uprading the kernel\n",
+        my_printf_error(ER_UNKNOWN_ERROR,
+                        "io_uring_queue_init() failed with ENOSYS:"
+                        " try uprading the kernel",
                         ME_ERROR_LOG | ME_WARNING);
         break;
       default:
         my_printf_error(ER_UNKNOWN_ERROR,
-                        "io_uring_queue_init() failed with errno %d\n",
+                        "io_uring_queue_init() failed with errno %d",
                         ME_ERROR_LOG | ME_WARNING, e);
       }
       throw std::runtime_error("aio_uring()");
