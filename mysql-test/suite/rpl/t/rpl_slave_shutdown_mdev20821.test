@@ -4,6 +4,10 @@
 # hang when the parallel workers were idle.
 # The bug reported scenario is extented to cover the multi-sources case as well as
 # checking is done for both the idle and busy workers cases.
+# 
+# MDEV-25336 Parallel replication causes failed assert while restarting
+#   Since this test case involves slave restart this will help in testing
+#   Mdev-25336 too.
 
 --source include/have_innodb.inc
 --source include/have_binlog_format_mixed.inc
@@ -26,7 +30,7 @@ select @@global.slave_parallel_workers as two;
 
 # At this point worker threads have no assignement.
 # Shutdown must not hang.
-
+# In 10.2/10.3 there should not be any assert failure `prev != 0 && next != 0'
 --connection server_3
 --write_file $MYSQLTEST_VARDIR/tmp/mysqld.3.expect
 wait
@@ -75,6 +79,7 @@ insert into t1 values (1);
 --connection server_3
 --sync_with_master 0,''
 
+# In 10.2/10.3 there should not be any assert failure `prev != 0 && next != 0'
 # At this point worker threads have no assignement.
 # Shutdown must not hang.
 
@@ -117,6 +122,7 @@ insert into t1 values (2);
 insert into t2 values (2);
 
 
+# In 10.2/10.3 there should not be any assert failure `prev != 0 && next != 0'
 # At this point there's a good chance the worker threads are busy.
 # SHUTDOWN must proceed without any delay as above.
 --connection server_3
