@@ -321,8 +321,8 @@ rec_init_offsets_comp_ordinary(
 ordinary:
 		lens = --nulls - n_core_null_bytes;
 
-		ut_d(n_null = std::min(n_core_null_bytes * 8U,
-				       index->n_nullable));
+		ut_d(n_null = std::min<uint>(n_core_null_bytes * 8U,
+					     index->n_nullable));
 		break;
 	case REC_LEAF_INSTANT:
 		nulls -= REC_N_NEW_EXTRA_BYTES;
