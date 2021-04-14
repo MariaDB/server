@@ -1585,7 +1585,7 @@ bool JOIN::build_explain()
   JOIN_TAB *curr_tab= join_tab + exec_join_tab_cnt();
   for (uint i= 0; i < aggr_tables; i++, curr_tab++)
   {
-    if (select_nr == INT_MAX)
+    if (select_nr == FAKE_SELECT_LEX_ID)
     {
       /* this is a fake_select_lex of a union */
       select_nr= select_lex->master_unit()->first_select()->select_number;
@@ -4208,14 +4208,12 @@ bool JOIN::save_explain_data(Explain_query *output, bool can_overwrite,
     If there is SELECT in this statement with the same number it must be the
     same SELECT
   */
-  DBUG_ASSERT(select_lex->select_number == UINT_MAX ||
-              select_lex->select_number == INT_MAX || !output ||
+  DBUG_ASSERT(select_lex->select_number == FAKE_SELECT_LEX_ID || !output ||
               !output->get_select(select_lex->select_number) ||
               output->get_select(select_lex->select_number)->select_lex ==
                 select_lex);
 
-  if (select_lex->select_number != UINT_MAX && 
-      select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ && 
+  if (select_lex->select_number != FAKE_SELECT_LEX_ID &&
       have_query_plan != JOIN::QEP_NOT_PRESENT_YET && 
       have_query_plan != JOIN::QEP_DELETED &&  // this happens when there was 
                                                // no QEP ever, but then
@@ -27780,8 +27778,7 @@ void st_select_lex::print(THD *thd, String *str, enum_query_type query_type)
   if ((query_type & QT_SHOW_SELECT_NUMBER) &&
       thd->lex->all_selects_list &&
       thd->lex->all_selects_list->link_next &&
-      select_number != UINT_MAX &&
-      select_number != INT_MAX)
+      select_number != FAKE_SELECT_LEX_ID)
   {
     str->append("/* select#");
     str->append_ulonglong(select_number);

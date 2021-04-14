@@ -8954,7 +8954,7 @@ bool st_select_lex_unit::add_fake_select_lex(THD *thd_arg)
       DBUG_RETURN(1);
   fake_select_lex->include_standalone(this, 
                                       (SELECT_LEX_NODE**)&fake_select_lex);
-  fake_select_lex->select_number= INT_MAX;
+  fake_select_lex->select_number= FAKE_SELECT_LEX_ID;
   fake_select_lex->parent_lex= thd_arg->lex; /* Used in init_query. */
   fake_select_lex->make_empty_select();
   fake_select_lex->set_linkage(GLOBAL_OPTIONS_TYPE);
