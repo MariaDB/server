@@ -14,7 +14,6 @@ SET SESSION wsrep_replicate_myisam= ON;
 ERROR HY000: Variable 'wsrep_replicate_myisam' is a GLOBAL variable and should be set with SET GLOBAL
 SET GLOBAL wsrep_replicate_myisam= ON;
 SET GLOBAL wsrep_replicate_myisam= OFF;
-SET GLOBAL wsrep_provider=none;
 #
 # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
 # variables when using "_"
@@ -66,7 +65,15 @@ wsrep_cert_interval	#
 wsrep_open_transactions	#
 wsrep_open_connections	#
 wsrep_incoming_addresses	#
+wsrep_cluster_weight	#
 wsrep_debug_sync_waiters	#
+wsrep_desync_count	#
+wsrep_evs_delayed	#
+wsrep_evs_evict_list	#
+wsrep_evs_repl_latency	#
+wsrep_evs_state	#
+wsrep_gcomm_uuid	#
+wsrep_gmcast_segment	#
 wsrep_applier_thread_count	#
 wsrep_cluster_capabilities	#
 wsrep_cluster_conf_id	#
@@ -130,7 +137,15 @@ wsrep_cert_interval	#
 wsrep_open_transactions	#
 wsrep_open_connections	#
 wsrep_incoming_addresses	#
+wsrep_cluster_weight	#
 wsrep_debug_sync_waiters	#
+wsrep_desync_count	#
+wsrep_evs_delayed	#
+wsrep_evs_evict_list	#
+wsrep_evs_repl_latency	#
+wsrep_evs_state	#
+wsrep_gcomm_uuid	#
+wsrep_gmcast_segment	#
 wsrep_applier_thread_count	#
 wsrep_cluster_capabilities	#
 wsrep_cluster_conf_id	#
@@ -153,7 +168,6 @@ wsrep_local_state_comment	#
 # Should show nothing.
 SHOW STATUS LIKE 'x';
 Variable_name	Value
-SET GLOBAL wsrep_provider=none;
 
 SHOW STATUS LIKE 'wsrep_local_state_uuid';
 Variable_name	Value
@@ -162,7 +176,6 @@ wsrep_local_state_uuid	#
 SHOW STATUS LIKE 'wsrep_last_committed';
 Variable_name	Value
 wsrep_last_committed	#
-SET GLOBAL wsrep_provider=none;
 
 #
 # MDEV#6206: wsrep_slave_threads subtracts from max_connections
@@ -176,7 +189,7 @@ SELECT @@global.wsrep_slave_threads;
 1
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
-
+gcomm://
 SELECT @@global.wsrep_on;
 @@global.wsrep_on
 1
@@ -185,14 +198,14 @@ Variable_name	Value
 Threads_connected	1
 SHOW STATUS LIKE 'wsrep_thread_count';
 Variable_name	Value
-wsrep_thread_count	0
+wsrep_thread_count	2
 
 SELECT @@global.wsrep_provider;
 @@global.wsrep_provider
 libgalera_smm.so
 SELECT @@global.wsrep_cluster_address;
 @@global.wsrep_cluster_address
-
+gcomm://
 SELECT @@global.wsrep_on;
 @@global.wsrep_on
 1
@@ -201,7 +214,7 @@ Variable_name	Value
 Threads_connected	1
 SHOW STATUS LIKE 'wsrep_thread_count';
 Variable_name	Value
-wsrep_thread_count	0
+wsrep_thread_count	2
 
 # Setting wsrep_cluster_address triggers the creation of
 # applier/rollbacker threads.
@@ -269,7 +282,7 @@ SELECT @@global.wsrep_sst_auth;
 SET @@global.wsrep_sst_auth= '';
 SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
-
+NULL
 SET @@global.wsrep_sst_auth= NULL;
 SELECT @@global.wsrep_sst_auth;
 @@global.wsrep_sst_auth
