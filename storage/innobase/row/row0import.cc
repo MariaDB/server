@@ -1839,7 +1839,8 @@ PageConverter::update_records(
 
 		if (deleted || clust_index) {
 			m_offsets = rec_get_offsets(
-				rec, m_index->m_srv_index, m_offsets, true,
+				rec, m_index->m_srv_index, m_offsets,
+				m_index->m_srv_index->n_core_fields,
 				ULINT_UNDEFINED, &m_heap);
 		}
 

@@ -203,9 +203,11 @@ row_sel_sec_rec_is_for_clust_rec(
 	ib_vcol_row vc(heap);
 
 	clust_offs = rec_get_offsets(clust_rec, clust_index, clust_offs,
-				     true, ULINT_UNDEFINED, &heap);
+				     clust_index->n_core_fields,
+				     ULINT_UNDEFINED, &heap);
 	sec_offs = rec_get_offsets(sec_rec, sec_index, sec_offs,
-				   true, ULINT_UNDEFINED, &heap);
+				   sec_index->n_fields,
+				   ULINT_UNDEFINED, &heap);
 
 	n = dict_index_get_n_ordering_defined_by_user(sec_index);
 
@@ -927,7 +929,9 @@ row_sel_get_clust_rec(
 
 	offsets = rec_get_offsets(rec,
 				  btr_pcur_get_btr_cur(&plan->pcur)->index,
-				  offsets, true, ULINT_UNDEFINED, &heap);
+				  offsets,
+				  btr_pcur_get_btr_cur(&plan->pcur)->index
+				  ->n_core_fields, ULINT_UNDEFINED, &heap);
 
 	row_build_row_ref_fast(plan->clust_ref, plan->clust_map, rec, offsets);
 
@@ -962,7 +966,8 @@ row_sel_get_clust_rec(
 		goto err_exit;
 	}
 
-	offsets = rec_get_offsets(clust_rec, index, offsets, true,
+	offsets = rec_get_offsets(clust_rec, index, offsets,
+				  index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	if (!node->read_view) {
@@ -1169,7 +1174,8 @@ re_scan:
 
 		rec = btr_pcur_get_rec(pcur);
 		my_offsets = offsets_;
-		my_offsets = rec_get_offsets(rec, index, my_offsets, true,
+		my_offsets = rec_get_offsets(rec, index, my_offsets,
+					     index->n_fields,
 					     ULINT_UNDEFINED, &heap);
 
 		/* No match record */
@@ -1192,7 +1198,7 @@ re_scan:
 		rtr_rec_t*	rtr_rec = &(*it);
 
 		my_offsets = rec_get_offsets(
-			rtr_rec->r_rec, index, my_offsets, true,
+			rtr_rec->r_rec, index, my_offsets, index->n_fields,
 			ULINT_UNDEFINED, &heap);
 
 		err = lock_sec_rec_read_check_and_lock(
@@ -1508,7 +1514,7 @@ exhausted:
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	if (dict_index_is_clust(index)) {
@@ -1721,7 +1727,7 @@ rec_loop:
 			unsigned lock_type;
 
 			offsets = rec_get_offsets(next_rec, index, offsets,
-						  true,
+						  index->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
 
 			/* At READ UNCOMMITTED or READ COMMITTED
@@ -1780,7 +1786,8 @@ skip_lock:
 		/* Try to place a lock on the index record */
 		unsigned lock_type;
 
-		offsets = rec_get_offsets(rec, index, offsets, true,
+		offsets = rec_get_offsets(rec, index, offsets,
+					  index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
 		/* At READ UNCOMMITTED or READ COMMITTED isolation level,
@@ -1863,7 +1870,7 @@ skip_lock:
 	/* PHASE 3: Get previous version in a consistent read */
 
 	cons_read_requires_clust_rec = FALSE;
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	if (node->read_view) {
@@ -1893,7 +1900,8 @@ skip_lock:
 					exhausted. */
 
 					offsets = rec_get_offsets(
-						rec, index, offsets, true,
+						rec, index, offsets,
+						index->n_core_fields,
 						ULINT_UNDEFINED, &heap);
 
 					/* Fetch the columns needed in
@@ -3193,7 +3201,8 @@ class Row_sel_get_clust_rec_for_mysql
 
     ut_ad(rec_offs_validate(cached_clust_rec, index, offsets));
     ut_ad(index->first_user_field() <= rec_offs_n_fields(offsets));
-    ut_ad(vers_offs == rec_get_offsets(cached_old_vers, index, vers_offs, true,
+    ut_ad(vers_offs == rec_get_offsets(cached_old_vers, index, vers_offs,
+                                       index->n_core_fields,
                                        index->db_trx_id(), &heap));
     ut_ad(!heap);
     for (auto n= index->db_trx_id(); n--; )
@@ -3379,7 +3388,8 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 		goto func_exit;
 	}
 
-	*offsets = rec_get_offsets(clust_rec, clust_index, *offsets, true,
+	*offsets = rec_get_offsets(clust_rec, clust_index, *offsets,
+				   clust_index->n_core_fields,
 				   ULINT_UNDEFINED, offset_heap);
 
 	if (prebuilt->select_lock_type != LOCK_NONE) {
@@ -3450,7 +3460,8 @@ Row_sel_get_clust_rec_for_mysql::operator()(
 					ut_d(check_eq(clust_index, *offsets));
 					*offsets = rec_get_offsets(
 						old_vers, clust_index, *offsets,
-						true, ULINT_UNDEFINED, offset_heap);
+						clust_index->n_core_fields,
+						ULINT_UNDEFINED, offset_heap);
 				}
 			}
 
@@ -3889,7 +3900,7 @@ exhausted:
 	/* This is a non-locking consistent read: if necessary, fetch
 	a previous version of the record */
 
-	*offsets = rec_get_offsets(rec, index, *offsets, true,
+	*offsets = rec_get_offsets(rec, index, *offsets, index->n_core_fields,
 				   ULINT_UNDEFINED, heap);
 
 	if (!row_sel_clust_sees(rec, *index, *offsets, trx->read_view)) {
@@ -4054,7 +4065,7 @@ row_sel_fill_vrow(
 	ut_ad(!index->is_instant());
 	ut_ad(page_rec_is_leaf(rec));
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	*vrow = dtuple_create_with_vcol(
@@ -4683,7 +4694,7 @@ wait_table_again:
 			const rec_t*	next_rec = page_rec_get_next_const(rec);
 
 			offsets = rec_get_offsets(next_rec, index, offsets,
-						  true,
+						  index->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
 			err = sel_set_rec_lock(pcur,
 					       next_rec, index, offsets,
@@ -4808,7 +4819,8 @@ rec_loop:
 			we do not lock gaps. Supremum record is really
 			a gap and therefore we do not set locks there. */
 
-			offsets = rec_get_offsets(rec, index, offsets, true,
+			offsets = rec_get_offsets(rec, index, offsets,
+						  index->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
 			err = sel_set_rec_lock(pcur,
 					       rec, index, offsets,
@@ -4910,7 +4922,7 @@ wrong_offs:
 	ut_ad(fil_page_index_page_check(btr_pcur_get_page(pcur)));
 	ut_ad(btr_page_get_index_id(btr_pcur_get_page(pcur)) == index->id);
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	if (UNIV_UNLIKELY(srv_force_recovery > 0)) {
@@ -5154,7 +5166,8 @@ no_gap_lock:
 				Do a normal locking read. */
 
 				offsets = rec_get_offsets(
-					rec, index, offsets, true,
+					rec, index, offsets,
+					index->n_core_fields,
 					ULINT_UNDEFINED, &heap);
 				goto locks_ok;
 			case DB_DEADLOCK:
@@ -5555,7 +5568,7 @@ use_covering_index:
 				/* We used 'offsets' for the clust
 				rec, recalculate them for 'rec' */
 				offsets = rec_get_offsets(rec, index, offsets,
-							  true,
+							  index->n_core_fields,
 							  ULINT_UNDEFINED,
 							  &heap);
 				result_rec = rec;
@@ -5995,7 +6008,7 @@ row_search_autoinc_read_column(
 	rec_offs_init(offsets_);
 	ut_ad(page_rec_is_leaf(rec));
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  col_no + 1, &heap);
 
 	if (rec_offs_nth_sql_null(offsets, col_no)) {

@@ -520,8 +520,7 @@ rtr_compare_cursor_rec(
 
 	rec = btr_cur_get_rec(cursor);
 
-	offsets = rec_get_offsets(
-		rec, index, NULL, false, ULINT_UNDEFINED, heap);
+	offsets = rec_get_offsets(rec, index, NULL, 0, ULINT_UNDEFINED, heap);
 
 	return(btr_node_ptr_get_child_page_no(rec, offsets) == page_no);
 }
@@ -801,7 +800,8 @@ rtr_page_get_father_node_ptr(
 	user_rec = btr_cur_get_rec(cursor);
 	ut_a(page_rec_is_user_rec(user_rec));
 
-	offsets = rec_get_offsets(user_rec, index, offsets, !level,
+	offsets = rec_get_offsets(user_rec, index, offsets,
+				  level ? 0 : index->n_fields,
 				  ULINT_UNDEFINED, &heap);
 	rtr_get_mbr_from_rec(user_rec, offsets, &mbr);
 
@@ -818,7 +818,7 @@ rtr_page_get_father_node_ptr(
 	node_ptr = btr_cur_get_rec(cursor);
 	ut_ad(!page_rec_is_comp(node_ptr)
 	      || rec_get_status(node_ptr) == REC_STATUS_NODE_PTR);
-	offsets = rec_get_offsets(node_ptr, index, offsets, false,
+	offsets = rec_get_offsets(node_ptr, index, offsets, 0,
 				  ULINT_UNDEFINED, &heap);
 
 	ulint	child_page = btr_node_ptr_get_child_page_no(node_ptr, offsets);
@@ -836,13 +836,14 @@ rtr_page_get_father_node_ptr(
 		print_rec = page_rec_get_next(
 			page_get_infimum_rec(page_align(user_rec)));
 		offsets = rec_get_offsets(print_rec, index, offsets,
-					  page_rec_is_leaf(user_rec),
+					  page_rec_is_leaf(user_rec)
+					  ? index->n_fields : 0,
 					  ULINT_UNDEFINED, &heap);
 		error << "; child ";
 		rec_print(error.m_oss, print_rec,
 			  rec_get_info_bits(print_rec, rec_offs_comp(offsets)),
 			  offsets);
-		offsets = rec_get_offsets(node_ptr, index, offsets, false,
+		offsets = rec_get_offsets(node_ptr, index, offsets, 0,
 					  ULINT_UNDEFINED, &heap);
 		error << "; parent ";
 		rec_print(error.m_oss, print_rec,
@@ -1266,10 +1267,12 @@ rtr_cur_restore_position(
 
 			heap = mem_heap_create(256);
 			offsets1 = rec_get_offsets(
-				r_cursor->old_rec, index, NULL, !level,
+				r_cursor->old_rec, index, NULL,
+				level ? 0 : r_cursor->old_n_fields,
 				r_cursor->old_n_fields, &heap);
 			offsets2 = rec_get_offsets(
-				rec, index, NULL, !level,
+				rec, index, NULL,
+				level ? 0 : r_cursor->old_n_fields,
 				r_cursor->old_n_fields, &heap);
 
 			comp = rec_offs_comp(offsets1);
@@ -1333,12 +1336,12 @@ search_again:
 
 		rec = btr_pcur_get_rec(r_cursor);
 
-		offsets1 = rec_get_offsets(
-			r_cursor->old_rec, index, NULL, !level,
-			r_cursor->old_n_fields, &heap);
-		offsets2 = rec_get_offsets(
-			rec, index, NULL, !level,
-			r_cursor->old_n_fields, &heap);
+		offsets1 = rec_get_offsets(r_cursor->old_rec, index, NULL,
+					   level ? 0 : r_cursor->old_n_fields,
+					   r_cursor->old_n_fields, &heap);
+		offsets2 = rec_get_offsets(rec, index, NULL,
+					   level ? 0 : r_cursor->old_n_fields,
+					   r_cursor->old_n_fields, &heap);
 
 		comp = rec_offs_comp(offsets1);
 
@@ -1674,7 +1677,7 @@ rtr_cur_search_with_match(
 	page = buf_block_get_frame(block);
 
 	const ulint level = btr_page_get_level(page);
-	const bool is_leaf = !level;
+	const ulint n_core = level ? 0 : index->n_fields;
 
 	if (mode == PAGE_CUR_RTREE_LOCATE) {
 		ut_ad(level != 0);
@@ -1696,7 +1699,7 @@ rtr_cur_search_with_match(
 
 		ulint	new_rec_size = rec_get_converted_size(index, tuple, 0);
 
-		offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+		offsets = rec_get_offsets(rec, index, offsets, n_core,
 					  dtuple_get_n_fields_cmp(tuple),
 					  &heap);
 
@@ -1717,7 +1720,7 @@ rtr_cur_search_with_match(
 	}
 
 	while (!page_rec_is_supremum(rec)) {
-		if (!is_leaf) {
+		if (!n_core) {
 			switch (mode) {
 			case PAGE_CUR_CONTAIN:
 			case PAGE_CUR_INTERSECT:
@@ -1798,7 +1801,7 @@ rtr_cur_search_with_match(
 			to rtr_info->path for non-leaf nodes, or
 			rtr_info->matches for leaf nodes */
 			if (rtr_info && mode != PAGE_CUR_RTREE_INSERT) {
-				if (!is_leaf) {
+				if (!n_core) {
 					uint32_t	page_no;
 					node_seq_t	new_seq;
 					bool		is_loc;
@@ -1809,7 +1812,7 @@ rtr_cur_search_with_match(
 						  == PAGE_CUR_RTREE_GET_FATHER);
 
 					offsets = rec_get_offsets(
-						rec, index, offsets, false,
+						rec, index, offsets, 0,
 						ULINT_UNDEFINED, &heap);
 
 					page_no = btr_node_ptr_get_child_page_no(
@@ -1862,7 +1865,8 @@ rtr_cur_search_with_match(
 
 					/* Collect matched records on page */
 					offsets = rec_get_offsets(
-						rec, index, offsets, true,
+						rec, index, offsets,
+						index->n_fields,
 						ULINT_UNDEFINED, &heap);
 					rtr_leaf_push_match_rec(
 						rec, rtr_info, offsets,
@@ -1885,7 +1889,7 @@ rtr_cur_search_with_match(
 
 	/* All records on page are searched */
 	if (page_rec_is_supremum(rec)) {
-		if (!is_leaf) {
+		if (!n_core) {
 			if (!found) {
 				/* No match case, if it is for insertion,
 				then we select the record that result in
@@ -1894,7 +1898,7 @@ rtr_cur_search_with_match(
 					ut_ad(least_inc < DBL_MAX);
 					offsets = rec_get_offsets(
 						best_rec, index, offsets,
-						false, ULINT_UNDEFINED, &heap);
+						0, ULINT_UNDEFINED, &heap);
 					uint32_t child_no =
 					btr_node_ptr_get_child_page_no(
 						best_rec, offsets);
@@ -1946,11 +1950,11 @@ rtr_cur_search_with_match(
 			/* Verify the record to be positioned is the same
 			as the last record in matched_rec vector */
 			offsets2 = rec_get_offsets(test_rec.r_rec, index,
-						   offsets2, true,
+						   offsets2, index->n_fields,
 						   ULINT_UNDEFINED, &heap);
 
 			offsets = rec_get_offsets(last_match_rec, index,
-						  offsets, true,
+						  offsets, index->n_fields,
 						  ULINT_UNDEFINED, &heap);
 
 			ut_ad(cmp_rec_rec(test_rec.r_rec, last_match_rec,
@@ -1970,7 +1974,7 @@ rtr_cur_search_with_match(
 				mach_read_from_4(rec + DATA_MBR_LEN),
 				block, rec, 0);
 
-		} else if (rtr_info && found && !is_leaf) {
+		} else if (rtr_info && found && !n_core) {
 			rec = last_match_rec;
 		}
 
@@ -1980,11 +1984,11 @@ rtr_cur_search_with_match(
 #ifdef UNIV_DEBUG
 	/* Verify that we are positioned at the same child page as pushed in
 	the path stack */
-	if (!is_leaf && (!page_rec_is_supremum(rec) || found)
+	if (!n_core && (!page_rec_is_supremum(rec) || found)
 	    && mode != PAGE_CUR_RTREE_INSERT) {
 		ulint		page_no;
 
-		offsets = rec_get_offsets(rec, index, offsets, false,
+		offsets = rec_get_offsets(rec, index, offsets, 0,
 					  ULINT_UNDEFINED, &heap);
 		page_no = btr_node_ptr_get_child_page_no(rec, offsets);
 

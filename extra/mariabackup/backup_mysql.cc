@@ -44,6 +44,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <mysql.h>
 #include <mysqld.h>
 #include <my_sys.h>
+#include <stdlib.h>
 #include <string.h>
 #include <limits>
 #include "common.h"
@@ -107,6 +108,13 @@ xb_mysql_connect()
 			mysql_error(connection));
 		return(NULL);
 	}
+
+#if !defined(DONT_USE_MYSQL_PWD)
+	if (!opt_password)
+	{
+		opt_password=getenv("MYSQL_PWD");
+	}
+#endif
 
 	if (!opt_secure_auth) {
 		mysql_options(connection, MYSQL_SECURE_AUTH,

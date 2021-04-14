@@ -1167,7 +1167,7 @@ dict_stats_analyze_index_level(
 
 				prev_rec_offsets = rec_get_offsets(
 					prev_rec, index, prev_rec_offsets,
-					true,
+					index->n_core_fields,
 					n_uniq, &heap);
 
 				prev_rec = rec_copy_prefix_to_buf(
@@ -1179,8 +1179,9 @@ dict_stats_analyze_index_level(
 
 			continue;
 		}
-		rec_offsets = rec_get_offsets(
-			rec, index, rec_offsets, !level, n_uniq, &heap);
+		rec_offsets = rec_get_offsets(rec, index, rec_offsets,
+					      level ? 0 : index->n_core_fields,
+					      n_uniq, &heap);
 
 		(*total_recs)++;
 
@@ -1188,7 +1189,8 @@ dict_stats_analyze_index_level(
 			ulint	matched_fields;
 
 			prev_rec_offsets = rec_get_offsets(
-				prev_rec, index, prev_rec_offsets, !level,
+				prev_rec, index, prev_rec_offsets,
+				level ? 0 : index->n_core_fields,
 				n_uniq, &heap);
 
 			cmp_rec_rec(prev_rec, rec,
@@ -1342,7 +1344,7 @@ be big enough)
 @param[in]	index			index of the page
 @param[in]	page			the page to scan
 @param[in]	n_prefix		look at the first n_prefix columns
-@param[in]	is_leaf			whether this is the leaf page
+@param[in]	n_core			0, or index->n_core_fields for leaf
 @param[out]	n_diff			number of distinct records encountered
 @param[out]	n_external_pages	if this is non-NULL then it will be set
 to the number of externally stored pages which were encountered
@@ -1357,7 +1359,7 @@ dict_stats_scan_page(
 	const dict_index_t*	index,
 	const page_t*		page,
 	ulint			n_prefix,
-	bool			is_leaf,
+	ulint		 	n_core,
 	ib_uint64_t*		n_diff,
 	ib_uint64_t*		n_external_pages)
 {
@@ -1369,9 +1371,9 @@ dict_stats_scan_page(
 	Because offsets1,offsets2 should be big enough,
 	this memory heap should never be used. */
 	mem_heap_t*	heap			= NULL;
-	ut_ad(is_leaf == page_is_leaf(page));
+	ut_ad(!!n_core == page_is_leaf(page));
 	const rec_t*	(*get_next)(const rec_t*)
-		= !is_leaf || srv_stats_include_delete_marked
+		= !n_core || srv_stats_include_delete_marked
 		? page_rec_get_next_const
 		: page_rec_get_next_non_del_marked;
 
@@ -1390,7 +1392,7 @@ dict_stats_scan_page(
 		return(NULL);
 	}
 
-	offsets_rec = rec_get_offsets(rec, index, offsets_rec, is_leaf,
+	offsets_rec = rec_get_offsets(rec, index, offsets_rec, n_core,
 				      ULINT_UNDEFINED, &heap);
 
 	if (should_count_external_pages) {
@@ -1407,7 +1409,7 @@ dict_stats_scan_page(
 		ulint	matched_fields;
 
 		offsets_next_rec = rec_get_offsets(next_rec, index,
-						   offsets_next_rec, is_leaf,
+						   offsets_next_rec, n_core,
 						   ULINT_UNDEFINED,
 						   &heap);
 
@@ -1421,7 +1423,7 @@ dict_stats_scan_page(
 
 			(*n_diff)++;
 
-			if (!is_leaf) {
+			if (!n_core) {
 				break;
 			}
 		}
@@ -1508,7 +1510,7 @@ dict_stats_analyze_index_below_cur(
 	page = page_align(rec);
 	ut_ad(!page_rec_is_leaf(rec));
 
-	offsets_rec = rec_get_offsets(rec, index, offsets1, false,
+	offsets_rec = rec_get_offsets(rec, index, offsets1, 0,
 				      ULINT_UNDEFINED, &heap);
 
 	page_id_t		page_id(index->table->space_id,
@@ -1544,7 +1546,7 @@ dict_stats_analyze_index_below_cur(
 		/* search for the first non-boring record on the page */
 		offsets_rec = dict_stats_scan_page(
 			&rec, offsets1, offsets2, index, page, n_prefix,
-			false, n_diff, NULL);
+			0, n_diff, NULL);
 
 		/* pages on level > 0 are not allowed to be empty */
 		ut_a(offsets_rec != NULL);
@@ -1589,7 +1591,7 @@ dict_stats_analyze_index_below_cur(
 
 	offsets_rec = dict_stats_scan_page(
 		&rec, offsets1, offsets2, index, page, n_prefix,
-		true, n_diff,
+		index->n_core_fields, n_diff,
 		n_external_pages);
 
 #if 0

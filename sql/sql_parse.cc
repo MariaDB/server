@@ -1670,7 +1670,9 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
   if (unlikely(thd->security_ctx->password_expired &&
                command != COM_QUERY &&
                command != COM_PING &&
-               command != COM_QUIT))
+               command != COM_QUIT &&
+               command != COM_STMT_PREPARE &&
+               command != COM_STMT_EXECUTE))
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     goto dispatch_end;
@@ -3456,7 +3458,10 @@ mysql_execute_command(THD *thd)
               first_table->for_insert_data);
 
   if (thd->security_ctx->password_expired &&
-      lex->sql_command != SQLCOM_SET_OPTION)
+      lex->sql_command != SQLCOM_SET_OPTION &&
+      lex->sql_command != SQLCOM_PREPARE &&
+      lex->sql_command != SQLCOM_EXECUTE &&
+      lex->sql_command != SQLCOM_DEALLOCATE_PREPARE)
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     DBUG_RETURN(1);
@@ -3748,7 +3753,8 @@ mysql_execute_command(THD *thd)
     thd->transaction->stmt.mark_trans_did_ddl();
 #ifdef WITH_WSREP
     /* Clean up the previous transaction on implicit commit */
-    if (wsrep_thd_is_local(thd) && wsrep_after_statement(thd))
+    if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd) &&
+        wsrep_after_statement(thd))
     {
       goto error;
     }
@@ -3827,7 +3833,7 @@ mysql_execute_command(THD *thd)
     Do not start transaction for stored procedures, it will be handled
     internally in SP processing.
   */
-  if (WSREP(thd)                          &&
+  if (WSREP_NNULL(thd)                    &&
       wsrep_thd_is_local(thd)             &&
       lex->sql_command != SQLCOM_BEGIN    &&
       lex->sql_command != SQLCOM_CALL     &&

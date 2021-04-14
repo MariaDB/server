@@ -13662,18 +13662,21 @@ ha_rows JOIN_TAB::get_examined_rows()
 bool JOIN_TAB::preread_init()
 {
   TABLE_LIST *derived= table->pos_in_table_list;
+  DBUG_ENTER("JOIN_TAB::preread_init");
+
   if (!derived || !derived->is_materialized_derived())
   {
     preread_init_done= TRUE;
-    return FALSE;
+    DBUG_RETURN(FALSE);
   }
 
   /* Materialize derived table/view. */
   if ((!derived->get_unit()->executed  ||
        derived->is_recursive_with_table() ||
        derived->get_unit()->uncacheable) &&
-      mysql_handle_single_derived(join->thd->lex, derived, DT_CREATE | DT_FILL))
-      return TRUE;
+      mysql_handle_single_derived(join->thd->lex,
+                                  derived, DT_CREATE | DT_FILL))
+    DBUG_RETURN(TRUE);
 
   if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT) ||
       derived->is_nonrecursive_derived_with_rec_ref())
@@ -13691,9 +13694,9 @@ bool JOIN_TAB::preread_init()
   /* init ftfuns for just initialized derived table */
   if (table->fulltext_searched)
     if (init_ftfuncs(join->thd, join->select_lex, MY_TEST(join->order)))
-      return TRUE;
+      DBUG_RETURN(TRUE);
 
-  return FALSE;
+  DBUG_RETURN(FALSE);
 }
 
 

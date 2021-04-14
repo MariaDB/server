@@ -5514,6 +5514,43 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1;
 #
+# MDEV-25108: Running of the EXPLAIN EXTENDED statement produces extra warning
+#             in case it is executed in PS (prepared statement) mode
+#
+CREATE TABLE t1 (c int);
+CREATE TABLE t2 (d int);
+# EXPLAIN EXTENDED in regular way (not PS mode)
+EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+# Now run the same EXPLAIN EXTENDED in PS mode. Number of warnings
+# and their content must be the same as in case running the statement
+# in regular way
+PREPARE stmt FROM "EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1";
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+EXECUTE stmt;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	t1	system	NULL	NULL	NULL	NULL	0	0.00	Const row not found
+2	SUBQUERY	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+SHOW WARNINGS;
+Level	Code	Message
+Note	1276	Field or reference 'test.t1.c' of SELECT #2 was resolved in SELECT #1
+Note	1003	/* select#1 */ select (/* select#2 */ select 1 from `test`.`t2` where 0) AS `(SELECT 1 FROM t2 WHERE d = c)` from `test`.`t1`
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+#
 # End of 10.2 tests
 #
 #
@@ -5531,6 +5568,4 @@ ERROR 42S02: Table 'test.x' doesn't exist
 DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1;
-#
-# End of 10.4 tests
-#
+# MDEV-25413 FIXME: enable the MDEV-25197 test

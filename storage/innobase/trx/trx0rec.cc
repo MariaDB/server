@@ -2533,7 +2533,8 @@ trx_undo_prev_version_build(
 	rec_offs offsets_dbg[REC_OFFS_NORMAL_SIZE];
 	rec_offs_init(offsets_dbg);
 	ut_a(!rec_offs_any_null_extern(
-		*old_vers, rec_get_offsets(*old_vers, index, offsets_dbg, true,
+		*old_vers, rec_get_offsets(*old_vers, index, offsets_dbg,
+					   index->n_core_fields,
 					   ULINT_UNDEFINED, &heap)));
 #endif // defined UNIV_DEBUG || defined UNIV_BLOB_LIGHT_DEBUG
 

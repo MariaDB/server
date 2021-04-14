@@ -3722,7 +3722,7 @@ dump:
 		row_ins_sec_index_entry_by_modify(BTR_MODIFY_LEAF). */
 		ut_ad(rec_get_deleted_flag(rec, page_is_comp(page)));
 
-		offsets = rec_get_offsets(rec, index, NULL, true,
+		offsets = rec_get_offsets(rec, index, NULL, index->n_fields,
 					  ULINT_UNDEFINED, &heap);
 		update = row_upd_build_sec_rec_difference_binary(
 			rec, index, offsets, entry, heap);
@@ -3882,7 +3882,8 @@ ibuf_delete(
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
-	ut_ad(!dict_index_is_spatial(index));
+	ut_ad(!index->is_spatial());
+	ut_ad(!index->is_clust());
 
 	low_match = page_cur_search(block, index, entry, &page_cur);
 
@@ -3901,8 +3902,8 @@ ibuf_delete(
 
 		rec_offs_init(offsets_);
 
-		offsets = rec_get_offsets(
-			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
+		offsets = rec_get_offsets(rec, index, offsets, index->n_fields,
+					  ULINT_UNDEFINED, &heap);
 
 		if (page_get_n_recs(page) <= 1
 		    || !(REC_INFO_DELETED_FLAG

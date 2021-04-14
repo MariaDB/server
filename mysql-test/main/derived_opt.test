@@ -406,5 +406,38 @@ set optimizer_switch= @save_optimizer_switch;
 
 DROP TABLE t1,t2;
 
+#
+# MDEV-25182: Complex query in Store procedure corrupts results
+#
+set @save_optimizer_switch= @@optimizer_switch;
+set optimizer_switch="derived_merge=on";
+
+CREATE TABLE t1 (id int, d2 datetime, id1 int) ;
+insert into t1 values (1,'2020-01-01 10:10:10',1),(2,'2020-01-01 10:10:10',2),(3,'2020-01-01 10:10:10',3);
+
+CREATE TABLE t2 (id int, d1 datetime, id1 int) ;
+insert into t2 values (1,'2020-01-01 10:10:10',1),(2,'2020-01-01 10:10:10',2),(3,'2020-01-01 10:10:10',2);
+
+prepare stmt from "
+SELECT * from
+  (SELECT min(d2) AS d2, min(d1) AS d1 FROM
+     (SELECT  t1.d2 AS d2, (SELECT t2.d1
+                              FROM t2 WHERE t1.id1 = t2.id1
+                              ORDER BY t2.id DESC LIMIT 1) AS d1
+        FROM t1
+     ) dt2
+  ) ca
+  ORDER BY ca.d2;";
+
+execute stmt;
+execute stmt;
+
+set optimizer_switch= @save_optimizer_switch;
+DROP TABLE t1, t2;
+
+--echo #
+--echo # End of 10.3 tests
+--echo #
+
 # The following command must be the last one the file 
 set optimizer_switch=@exit_optimizer_switch;

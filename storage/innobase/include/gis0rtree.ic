@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,7 +57,8 @@ rtr_page_cal_mbr(
 	page = buf_block_get_frame(block);
 
 	rec = page_rec_get_next(page_get_infimum_rec(page));
-	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page),
+	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page)
+				  ? index->n_fields : 0,
 				  ULINT_UNDEFINED, &heap);
 
 	do {

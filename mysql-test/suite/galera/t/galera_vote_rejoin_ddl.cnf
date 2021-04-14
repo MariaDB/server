@@ -2,3 +2,9 @@
 
 [mysqld]
 wsrep-ignore-apply-errors=0
+
+[mysqld.3]
+auto_increment_offset=3
+
+[mysqld.4]
+auto_increment_offset=4

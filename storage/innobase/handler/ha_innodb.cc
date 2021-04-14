@@ -8036,26 +8036,24 @@ wsrep_calc_row_hash(
 					dictionary */
 	row_prebuilt_t*	prebuilt)	/*!< in: InnoDB prebuilt struct */
 {
-	ulint		len;
-	const byte*	ptr;
-
 	void *ctx = alloca(my_md5_context_size());
 	my_md5_init(ctx);
 
 	for (uint i = 0; i < table->s->fields; i++) {
 		byte null_byte=0;
 		byte true_byte=1;
+		unsigned is_unsigned;
 
 		const Field* field = table->field[i];
 		if (!field->stored_in_db()) {
 			continue;
 		}
 
-		ptr = (const byte*) row + get_field_offset(table, field);
-		len = field->pack_length();
+		auto ptr = row + get_field_offset(table, field);
+		ulint len = field->pack_length();
 
-		switch (prebuilt->table->cols[i].mtype) {
-
+		switch (get_innobase_type_from_mysql_type(&is_unsigned,
+							  field)) {
 		case DATA_BLOB:
 			ptr = row_mysql_read_blob_ref(&len, ptr, len);
 

@@ -187,7 +187,8 @@ row_undo_search_clust_to_pcur(
 
 	rec = btr_pcur_get_rec(&node->pcur);
 
-	offsets = rec_get_offsets(rec, clust_index, offsets, true,
+	offsets = rec_get_offsets(rec, clust_index, offsets,
+				  clust_index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	found = row_get_rec_roll_ptr(rec, clust_index, offsets)

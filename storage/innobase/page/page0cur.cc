@@ -75,7 +75,7 @@ page_cur_try_search_shortcut(
 	ut_ad(page_is_leaf(page));
 
 	rec = page_header_get_ptr(page, PAGE_LAST_INSERT);
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  dtuple_get_n_fields(tuple), &heap);
 
 	ut_ad(rec);
@@ -90,7 +90,8 @@ page_cur_try_search_shortcut(
 
 	next_rec = page_rec_get_next_const(rec);
 	if (!page_rec_is_supremum(next_rec)) {
-		offsets = rec_get_offsets(next_rec, index, offsets, true,
+		offsets = rec_get_offsets(next_rec, index, offsets,
+					  index->n_core_fields,
 					  dtuple_get_n_fields(tuple), &heap);
 
 		if (cmp_dtuple_rec_with_match(tuple, next_rec, offsets,
@@ -159,7 +160,7 @@ page_cur_try_search_shortcut_bytes(
 	ut_ad(page_is_leaf(page));
 
 	rec = page_header_get_ptr(page, PAGE_LAST_INSERT);
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  dtuple_get_n_fields(tuple), &heap);
 
 	ut_ad(rec);
@@ -180,7 +181,8 @@ page_cur_try_search_shortcut_bytes(
 
 	next_rec = page_rec_get_next_const(rec);
 	if (!page_rec_is_supremum(next_rec)) {
-		offsets = rec_get_offsets(next_rec, index, offsets, true,
+		offsets = rec_get_offsets(next_rec, index, offsets,
+					  index->n_core_fields,
 					  dtuple_get_n_fields(tuple), &heap);
 
 		if (cmp_dtuple_rec_with_match_bytes(
@@ -321,14 +323,14 @@ page_cur_search_with_match(
 #endif /* UNIV_ZIP_DEBUG */
 
 	ut_d(page_check_dir(page));
-	const bool is_leaf = page_is_leaf(page);
+	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (is_leaf
+	if (n_core
 	    && page_get_direction(page) == PAGE_RIGHT
 	    && page_header_get_offs(page, PAGE_LAST_INSERT)
 	    && mode == PAGE_CUR_LE
-	    && !dict_index_is_spatial(index)
+	    && !index->is_spatial()
 	    && page_header_get_field(page, PAGE_N_DIRECTION) > 3
 	    && page_cur_try_search_shortcut(
 		    block, index, tuple,
@@ -344,10 +346,10 @@ page_cur_search_with_match(
 
 	/* If the mode is for R-tree indexes, use the special MBR
 	related compare functions */
-	if (dict_index_is_spatial(index) && mode > PAGE_CUR_LE) {
+	if (index->is_spatial() && mode > PAGE_CUR_LE) {
 		/* For leaf level insert, we still use the traditional
 		compare function for now */
-		if (mode == PAGE_CUR_RTREE_INSERT && is_leaf) {
+		if (mode == PAGE_CUR_RTREE_INSERT && n_core) {
 			mode = PAGE_CUR_LE;
 		} else {
 			rtr_cur_search_with_match(
@@ -392,7 +394,7 @@ page_cur_search_with_match(
 
 		offsets = offsets_;
 		offsets = rec_get_offsets(
-			mid_rec, index, offsets, is_leaf,
+			mid_rec, index, offsets, n_core,
 			dtuple_get_n_fields_cmp(tuple), &heap);
 
 		cmp = cmp_dtuple_rec_with_match(
@@ -446,7 +448,7 @@ up_slot_match:
 
 		offsets = offsets_;
 		offsets = rec_get_offsets(
-			mid_rec, index, offsets, is_leaf,
+			mid_rec, index, offsets, n_core,
 			dtuple_get_n_fields_cmp(tuple), &heap);
 
 		cmp = cmp_dtuple_rec_with_match(
@@ -627,7 +629,7 @@ page_cur_search_with_match_bytes(
 
 	/* Perform binary search until the lower and upper limit directory
 	slots come to the distance 1 of each other */
-	const bool is_leaf = page_is_leaf(page);
+	const ulint n_core = page_is_leaf(page) ? index->n_core_fields : 0;
 
 	while (up - low > 1) {
 		mid = (low + up) / 2;
@@ -639,7 +641,7 @@ page_cur_search_with_match_bytes(
 			    up_matched_fields, up_matched_bytes);
 
 		offsets = rec_get_offsets(
-			mid_rec, index, offsets_, is_leaf,
+			mid_rec, index, offsets_, n_core,
 			dtuple_get_n_fields_cmp(tuple), &heap);
 
 		cmp = cmp_dtuple_rec_with_match_bytes(
@@ -707,7 +709,7 @@ up_slot_match:
 		}
 
 		offsets = rec_get_offsets(
-			mid_rec, index, offsets_, is_leaf,
+			mid_rec, index, offsets_, n_core,
 			dtuple_get_n_fields_cmp(tuple), &heap);
 
 		cmp = cmp_dtuple_rec_with_match_bytes(
@@ -1343,7 +1345,8 @@ page_cur_insert_rec_low(
     rec_offs_init(foffsets_);
 
     rec_offs *foffsets= rec_get_offsets(free_rec, index, foffsets_,
-                                        page_is_leaf(block->frame),
+                                        page_is_leaf(block->frame)
+                                        ? index->n_core_fields : 0,
                                         ULINT_UNDEFINED, &heap);
     const ulint fextra_size= rec_offs_extra_size(foffsets);
     insert_buf= free_rec - fextra_size;
@@ -1838,7 +1841,8 @@ page_cur_insert_rec_zip(
 
     rec_offs *foffsets= rec_get_offsets(cursor->block->frame + free_rec, index,
                                         foffsets_,
-                                        page_is_leaf(cursor->block->frame),
+                                        page_is_leaf(cursor->block->frame)
+                                        ? index->n_core_fields : 0,
                                         ULINT_UNDEFINED, &heap);
     insert_buf= cursor->block->frame + free_rec -
       rec_offs_extra_size(foffsets);

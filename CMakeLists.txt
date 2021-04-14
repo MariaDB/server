@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2020, MariaDB Corporation.
+# Copyright (c) 2008, 2021, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -140,7 +140,7 @@ ENDIF()
 # NUMA
 SET(WITH_NUMA "AUTO" CACHE STRING "Build with non-uniform memory access, allowing --innodb-numa-interleave. Options are ON|OFF|AUTO. ON = enabled (requires NUMA library), OFF = disabled, AUTO = enabled if NUMA library found.")
 
-SET(MYSQL_MAINTAINER_MODE "AUTO" CACHE STRING "MySQL maintainer-specific development environment. Options are: ON OFF AUTO.")
+SET(MYSQL_MAINTAINER_MODE "AUTO" CACHE STRING "Enable MariaDB maintainer-specific warnings. One of: NO (warnings are disabled) WARN (warnings are enabled) ERR (warnings are errors) AUTO (warnings are errors in Debug only)")
 
 # Packaging
 IF (NOT CPACK_GENERATOR)

@@ -174,6 +174,8 @@ enum binlog_info_enum { BINLOG_INFO_OFF, BINLOG_INFO_ON,
 
 extern ulong opt_binlog_info;
 
+extern ulong xtrabackup_innodb_force_recovery;
+
 void xtrabackup_io_throttling(void);
 my_bool xb_write_delta_metadata(const char *filename,
 				const xb_delta_info_t *info);

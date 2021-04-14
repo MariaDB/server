@@ -937,7 +937,7 @@ dict_mem_fill_vcol_from_v_indexes(
 		Later virtual column set will be
 		refreshed during loading of table. */
 		if (!dict_index_has_virtual(index)
-		    || index->has_new_v_col) {
+		    || index->has_new_v_col()) {
 			continue;
 		}
 
@@ -1376,7 +1376,8 @@ dict_index_t::vers_history_row(
 	rec_t* clust_rec =
 	    row_get_clust_rec(BTR_SEARCH_LEAF, rec, this, &clust_index, &mtr);
 	if (clust_rec) {
-		offsets = rec_get_offsets(clust_rec, clust_index, offsets, true,
+		offsets = rec_get_offsets(clust_rec, clust_index, offsets,
+					  clust_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
 		history_row = clust_index->vers_history_row(clust_rec, offsets);

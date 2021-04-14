@@ -735,7 +735,8 @@ btr_search_update_hash_ref(
 
 		ulint fold = rec_fold(
 			rec,
-			rec_get_offsets(rec, index, offsets_, true,
+			rec_get_offsets(rec, index, offsets_,
+					index->n_core_fields,
 					ULINT_UNDEFINED, &heap),
 			block->curr_n_fields,
 			block->curr_n_bytes, index->id);
@@ -793,7 +794,8 @@ btr_search_check_guess(
 
 	match = 0;
 
-	offsets = rec_get_offsets(rec, cursor->index, offsets, true,
+	offsets = rec_get_offsets(rec, cursor->index, offsets,
+				  cursor->index->n_core_fields,
 				  n_unique, &heap);
 	cmp = cmp_dtuple_rec_with_match(tuple, rec, offsets, &match);
 
@@ -844,7 +846,8 @@ btr_search_check_guess(
 		}
 
 		offsets = rec_get_offsets(prev_rec, cursor->index, offsets,
-					  true, n_unique, &heap);
+					  cursor->index->n_core_fields,
+					  n_unique, &heap);
 		cmp = cmp_dtuple_rec_with_match(
 			tuple, prev_rec, offsets, &match);
 		if (mode == PAGE_CUR_GE) {
@@ -867,7 +870,8 @@ btr_search_check_guess(
 		}
 
 		offsets = rec_get_offsets(next_rec, cursor->index, offsets,
-					  true, n_unique, &heap);
+					  cursor->index->n_core_fields,
+					  n_unique, &heap);
 		cmp = cmp_dtuple_rec_with_match(
 			tuple, next_rec, offsets, &match);
 		if (mode == PAGE_CUR_LE) {
@@ -1330,7 +1334,7 @@ retry:
 
 	while (!page_rec_is_supremum(rec)) {
 		offsets = rec_get_offsets(
-			rec, index, offsets, true,
+			rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes),
 			&heap);
 		fold = rec_fold(rec, offsets, n_fields, n_bytes, index_id);
@@ -1549,7 +1553,7 @@ btr_search_build_page_hash_index(
 	ut_a(index->id == btr_page_get_index_id(page));
 
 	offsets = rec_get_offsets(
-		rec, index, offsets, true,
+		rec, index, offsets, index->n_core_fields,
 		btr_search_get_n_fields(n_fields, n_bytes),
 		&heap);
 	ut_ad(page_rec_is_supremum(rec)
@@ -1580,7 +1584,7 @@ btr_search_build_page_hash_index(
 		}
 
 		offsets = rec_get_offsets(
-			next_rec, index, offsets, true,
+			next_rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
 		next_fold = rec_fold(next_rec, offsets, n_fields,
 				     n_bytes, index->id);
@@ -1818,7 +1822,8 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 	rec = btr_cur_get_rec(cursor);
 
-	fold = rec_fold(rec, rec_get_offsets(rec, index, offsets_, true,
+	fold = rec_fold(rec, rec_get_offsets(rec, index, offsets_,
+					     index->n_core_fields,
 					     ULINT_UNDEFINED, &heap),
 			block->curr_n_fields, block->curr_n_bytes, index->id);
 	if (UNIV_LIKELY_NULL(heap)) {
@@ -1987,13 +1992,14 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 	ins_rec = page_rec_get_next_const(rec);
 	next_rec = page_rec_get_next_const(ins_rec);
 
-	offsets = rec_get_offsets(ins_rec, index, offsets, true,
+	offsets = rec_get_offsets(ins_rec, index, offsets,
+				  index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 	ins_fold = rec_fold(ins_rec, offsets, n_fields, n_bytes, index->id);
 
 	if (!page_rec_is_supremum(next_rec)) {
 		offsets = rec_get_offsets(
-			next_rec, index, offsets, true,
+			next_rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
 		next_fold = rec_fold(next_rec, offsets, n_fields,
 				     n_bytes, index->id);
@@ -2005,7 +2011,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 
 	if (!page_rec_is_infimum(rec) && !rec_is_metadata(rec, *index)) {
 		offsets = rec_get_offsets(
-			rec, index, offsets, true,
+			rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
 		fold = rec_fold(rec, offsets, n_fields, n_bytes, index->id);
 	} else {
@@ -2232,7 +2238,8 @@ state_ok:
 			page_index_id = btr_page_get_index_id(block->frame);
 
 			offsets = rec_get_offsets(
-				node->data, block->index, offsets, true,
+				node->data, block->index, offsets,
+				block->index->n_core_fields,
 				btr_search_get_n_fields(block->curr_n_fields,
 							block->curr_n_bytes),
 				&heap);
