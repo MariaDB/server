@@ -433,6 +433,16 @@ static inline void wsrep_close(THD* thd)
   DBUG_VOID_RETURN;
 }
 
+static inline void wsrep_cleanup(THD* thd)
+{
+  DBUG_ENTER("wsrep_cleanup");
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
+  {
+    thd->wsrep_cs().cleanup();
+  }
+  DBUG_VOID_RETURN;
+}
+
 static inline void
 wsrep_wait_rollback_complete_and_acquire_ownership(THD *thd)
 {

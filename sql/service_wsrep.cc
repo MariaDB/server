@@ -120,15 +120,23 @@ extern "C" my_bool wsrep_get_debug()
   return wsrep_debug;
 }
 
+/*
+  Test if this connection is a true local (user) connection and not
+  a replication or wsrep applier thread.
+
+  Note that this is only usable for galera (as there are other kinds
+  of system threads, and only if WSREP_NNULL() is tested by the caller.
+ */
 extern "C" my_bool wsrep_thd_is_local(const THD *thd)
 {
   /*
-    async replication IO and background threads have nothing to replicate in the cluster,
-    marking them as non-local here to prevent write set population and replication
+    async replication IO and background threads have nothing to
+    replicate in the cluster, marking them as non-local here to
+    prevent write set population and replication
 
-    async replication SQL thread, applies client transactions from mariadb master
-    and will be replicated into cluster
-   */
+    async replication SQL thread, applies client transactions from
+    mariadb master and will be replicated into cluster
+  */
   return (
           thd->system_thread != SYSTEM_THREAD_SLAVE_BACKGROUND &&
           thd->system_thread != SYSTEM_THREAD_SLAVE_IO &&
