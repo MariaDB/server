@@ -4999,9 +4999,6 @@ DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1;
 
---echo # MDEV-25413 FIXME: enable the MDEV-25197 test
---exit
-
 --echo #
 --echo # MDEV-25197: The statement set password=password('') executed in PS mode
 --echo #             fails in case it is run by a user with expired password
