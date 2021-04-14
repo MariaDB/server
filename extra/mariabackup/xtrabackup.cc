@@ -262,6 +262,12 @@ static char *xtrabackup_debug_sync = NULL;
 
 my_bool xtrabackup_incremental_force_scan = FALSE;
 
+/*
+ * Ignore corrupt pages (disabled by default; used
+ * by "innobackupex" as a command line argument).
+ */
+ulong xtrabackup_innodb_force_recovery = 0;
+
 /* The flushed lsn which is read from data files */
 lsn_t	flushed_lsn= 0;
 
@@ -1013,7 +1019,8 @@ enum options_xtrabackup
   OPT_BACKUP_ROCKSDB,
   OPT_XTRA_CHECK_PRIVILEGES,
   OPT_XTRA_MYSQLD_ARGS,
-  OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION
+  OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
+  OPT_INNODB_FORCE_RECOVERY
 };
 
 struct my_option xb_client_options[]= {
@@ -1633,6 +1640,13 @@ struct my_option xb_server_options[] =
    &opt_check_privileges, &opt_check_privileges,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
 
+  {"innodb_force_recovery", OPT_INNODB_FORCE_RECOVERY,
+   "(for --prepare): Crash recovery mode (ignores "
+   "page corruption; for emergencies only).",
+   (G_PTR*)&srv_force_recovery,
+   (G_PTR*)&srv_force_recovery,
+   0, GET_ULONG, OPT_ARG, 0, 0, SRV_FORCE_IGNORE_CORRUPT, 0, 0, 0},
+
     {"mysqld-args", OPT_XTRA_MYSQLD_ARGS,
      "All arguments that follow this argument are considered as server "
      "options, and if some of them are not supported by mariabackup, they "
@@ -1769,31 +1783,33 @@ static int prepare_export()
 
   // Process defaults-file , it can have some --lc-language stuff,
   // which is* unfortunately* still necessary to get mysqld up
-  if (strncmp(orig_argv1,"--defaults-file=",16) == 0)
+  if (strncmp(orig_argv1,"--defaults-file=", 16) == 0)
   {
     snprintf(cmdline, sizeof cmdline,
-     IF_WIN("\"","") "\"%s\" --mysqld \"%s\" "
+      IF_WIN("\"","") "\"%s\" --mysqld \"%s\""
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --skip-log-error --skip-log-bin --bootstrap  < "
+      " --console --skip-log-error --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
-      mariabackup_exe, 
+      mariabackup_exe,
       orig_argv1, (my_defaults_group_suffix?my_defaults_group_suffix:""),
-      xtrabackup_use_memory);
+      xtrabackup_use_memory,
+      (srv_force_recovery ? "--innodb-force-recovery=1 " : ""));
   }
   else
   {
-    sprintf(cmdline,
-     IF_WIN("\"","") "\"%s\" --mysqld"
+    snprintf(cmdline, sizeof cmdline,
+      IF_WIN("\"","") "\"%s\" --mysqld"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --log-error= --skip-log-bin --bootstrap  < "
+      " --console --log-error= --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
       (my_defaults_group_suffix?my_defaults_group_suffix:""),
-      xtrabackup_use_memory);
+      xtrabackup_use_memory,
+      (srv_force_recovery ? "--innodb-force-recovery=1 " : ""));
   }
 
   msg("Prepare export : executing %s\n", cmdline);
@@ -1938,6 +1954,13 @@ xb_get_one_option(const struct my_option *opt,
   case OPT_INNODB_BUFFER_POOL_FILENAME:
 
     ADD_PRINT_PARAM_OPT(innobase_buffer_pool_filename);
+    break;
+
+  case OPT_INNODB_FORCE_RECOVERY:
+
+    if (srv_force_recovery) {
+        ADD_PRINT_PARAM_OPT(srv_force_recovery);
+    }
     break;
 
   case OPT_XTRA_TARGET_DIR:
@@ -2176,6 +2199,29 @@ static bool innodb_init_param()
 
 	if (!srv_undo_dir || !xtrabackup_backup) {
 		srv_undo_dir = (char*) ".";
+	}
+
+	compile_time_assert(SRV_FORCE_IGNORE_CORRUPT == 1);
+
+	/*
+	 * This option can be read both from the command line, and the
+	 * defaults file. The assignment should account for both cases,
+	 * and for "--innobackupex". Since the command line argument is
+	 * parsed after the defaults file, it takes precedence.
+	 */
+	if (xtrabackup_innodb_force_recovery) {
+		srv_force_recovery = xtrabackup_innodb_force_recovery;
+	}
+
+	if (srv_force_recovery >= SRV_FORCE_IGNORE_CORRUPT) {
+		if (!xtrabackup_prepare) {
+			msg("mariabackup: The option \"innodb_force_recovery\""
+			    " should only be used with \"%s\".",
+			    (innobackupex_mode ? "--apply-log" : "--prepare"));
+			goto error;
+		} else {
+			msg("innodb_force_recovery = %lu", srv_force_recovery);
+		}
 	}
 
 #ifdef _WIN32
@@ -6416,6 +6462,8 @@ int main(int argc, char **argv)
   char **server_defaults;
   char **client_defaults;
   char **backup_defaults;
+
+	my_getopt_prefix_matching= 0;
 
 	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
     strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);

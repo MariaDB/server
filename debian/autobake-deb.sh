@@ -82,6 +82,15 @@ then
   sed "/Package: mariadb-plugin-rocksdb/,/^$/d" -i debian/control
 fi
 
+# From Debian Stretch/Ubuntu Bionic onwards dh-systemd is just an empty
+# transitional metapackage and the functionality was merged into debhelper.
+# In Ubuntu Hirsute is was completely removed, so it can't be referenced anymore.
+# Keep using it only on Debian Jessie and Ubuntu Xenial.
+if apt-cache madison dh-systemd | grep 'dh-systemd' >/dev/null 2>&1
+then
+  sed 's/debhelper (>= 9.20160709~),/debhelper (>= 9), dh-systemd,/' -i debian/control
+fi
+
 # If rocksdb-tools is not available (before Debian Buster and Ubuntu Disco)
 # remove the dependency from the RocksDB plugin so it can install properly
 # and instead ship the one built from MariaDB sources

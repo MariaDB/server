@@ -1598,7 +1598,7 @@ file_checked:
 			to the data files and truncate or delete the log.
 			Unless --export is specified, no further change to
 			InnoDB files is needed. */
-			ut_ad(!srv_force_recovery);
+			ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
 			ut_ad(recv_no_log_write);
 			err = fil_write_flushed_lsn(log_sys.get_lsn());
 			DBUG_ASSERT(!buf_pool.any_io_pending());

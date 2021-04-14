@@ -1231,9 +1231,9 @@ INSERT INTO t1 VALUES (167,9999), (168,10000);
 
 EXPLAIN
 SELECT * FROM t1
-  WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR a!=2;
+  WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR (a<2 or a>2);
 SELECT * FROM t1
-  WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR a!=2;
+  WHERE a BETWEEN 4 AND 5 AND b IN (255,4) OR a IN (2,14,25) OR (a<2 or a>2);
 
 DROP TABLE t1;
 
@@ -1266,10 +1266,10 @@ ANALYZE TABLE t1;
  
 EXPLAIN
 SELECT * FROM t1 FORCE KEY (state,capital) 
-WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND id != 9 
+WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND (id<9 or id>9) 
    OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
 SELECT * FROM t1 FORCE KEY (state,capital) 
-WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND id != 9 
+WHERE ( state = 'Alabama' OR state >= 'Colorado' ) AND (id<9 or id>9)
    OR ( capital >= 'Topeka' OR state = 'Kansas' ) AND state != 'Texas';
 
 DROP TABLE t1;

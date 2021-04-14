@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2005, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2022,7 +2022,8 @@ end_of_index:
 		rec = page_cur_get_rec(cur);
 
 		if (online) {
-			offsets = rec_get_offsets(rec, clust_index, NULL, true,
+			offsets = rec_get_offsets(rec, clust_index, NULL,
+						  clust_index->n_core_fields,
 						  ULINT_UNDEFINED, &row_heap);
 			rec_trx_id = row_get_rec_trx_id(rec, clust_index,
 							offsets);
@@ -2114,7 +2115,8 @@ end_of_index:
 			duplicate keys. */
 			continue;
 		} else {
-			offsets = rec_get_offsets(rec, clust_index, NULL, true,
+			offsets = rec_get_offsets(rec, clust_index, NULL,
+						  clust_index->n_core_fields,
 						  ULINT_UNDEFINED, &row_heap);
 			/* This is a locking ALTER TABLE.
 
@@ -3782,17 +3784,20 @@ row_merge_drop_indexes_dict(
 	trx->op_info = "";
 }
 
-/*********************************************************************//**
-Drop indexes that were created before an error occurred.
+/** Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
-because the transaction will not be committed. */
+because the transaction will not be committed.
+@param trx              dictionary transaction
+@param table            table containing the indexes
+@param locked           True if table is locked,
+                        false - may need to do lazy drop
+@param alter_trx        Alter table transaction */
 void
 row_merge_drop_indexes(
-/*===================*/
-	trx_t*		trx,	/*!< in/out: dictionary transaction */
-	dict_table_t*	table,	/*!< in/out: table containing the indexes */
-	ibool		locked)	/*!< in: TRUE=table locked,
-				FALSE=may need to do a lazy drop */
+        trx_t*          trx,
+        dict_table_t*   table,
+        bool            locked,
+        const trx_t*    alter_trx)
 {
 	dict_index_t*	index;
 	dict_index_t*	next_index;
@@ -3817,7 +3822,7 @@ row_merge_drop_indexes(
 	A concurrent purge will be prevented by dict_sys.latch. */
 
 	if (!locked && (table->get_ref_count() > 1
-			|| UT_LIST_GET_FIRST(table->locks))) {
+			|| table->has_lock_other_than(alter_trx))) {
 		/* We will have to drop the indexes later, when the
 		table is guaranteed to be no longer in use.  Mark the
 		indexes as incomplete and corrupted, so that other
@@ -4246,6 +4251,7 @@ row_merge_create_index(
 	dict_index_t*	index;
 	ulint		n_fields = index_def->n_fields;
 	ulint		i;
+	ulint		n_add_vcol = 0;
 
 	DBUG_ENTER("row_merge_create_index");
 
@@ -4270,7 +4276,7 @@ row_merge_create_index(
 				ut_ad(ifield->col_no >= table->n_v_def);
 				name = add_v->v_col_name[
 					ifield->col_no - table->n_v_def];
-				index->has_new_v_col = true;
+				n_add_vcol++;
 			} else {
 				name = dict_table_get_v_col_name(
 					table, ifield->col_no);
@@ -4280,6 +4286,10 @@ row_merge_create_index(
 		}
 
 		dict_mem_index_add_field(index, name, ifield->prefix_len);
+	}
+
+	if (n_add_vcol) {
+		index->assign_new_v_col(n_add_vcol);
 	}
 
 	DBUG_RETURN(index);

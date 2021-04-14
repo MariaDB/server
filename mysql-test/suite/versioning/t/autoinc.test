@@ -47,4 +47,17 @@ select t1.x = t2.x and t1.y = t2.y as A, t1.x, t1.y, t2.x, t2.y from t1 inner jo
 drop table t1;
 drop table t2;
 
+--echo #
+--echo # MDEV-22562 Assertion `next_insert_id == 0' upon UPDATE on system-versioned table
+--echo #
+create table t1 (pk integer auto_increment primary key) engine=myisam with system versioning;
+insert delayed into t1 (pk) values (1);
+lock tables t1 write;
+update t1 set pk= 0;
+update t1 set pk= 0;
+unlock tables;
+
+# cleanup
+drop table t1;
+
 -- source suite/versioning/common_finish.inc

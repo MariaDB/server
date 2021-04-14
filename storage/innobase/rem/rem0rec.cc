@@ -273,15 +273,20 @@ rec_init_offsets_comp_ordinary(
 	ulint		n_fields	= n_core;
 	ulint		null_mask	= 1;
 
-	ut_ad(index->n_core_fields >= n_core);
 	ut_ad(n_core > 0);
-	ut_ad(index->n_fields >= n_core);
+	ut_ad(index->n_core_fields >= n_core);
+	ut_ad(index->n_fields >= index->n_core_fields);
 	ut_ad(index->n_core_null_bytes <= UT_BITS_IN_BYTES(index->n_nullable));
 	ut_ad(format == REC_LEAF_TEMP || format == REC_LEAF_TEMP_INSTANT
 	      || dict_table_is_comp(index->table));
 	ut_ad(format != REC_LEAF_TEMP_INSTANT
 	      || index->n_fields == rec_offs_n_fields(offsets));
 	ut_d(ulint n_null= 0);
+
+	const unsigned n_core_null_bytes = UNIV_UNLIKELY(index->n_core_fields
+							 != n_core)
+		? UT_BITS_IN_BYTES(unsigned(index->get_n_nullable(n_core)))
+		: index->n_core_null_bytes;
 
 	if (mblob) {
 		ut_ad(index->table->instant);
@@ -297,7 +302,7 @@ rec_init_offsets_comp_ordinary(
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 		ut_d(n_null = n_nullable);
 		ut_ad(n_null <= index->n_nullable);
-		ut_ad(n_null_bytes >= index->n_core_null_bytes
+		ut_ad(n_null_bytes >= n_core_null_bytes
 		      || n_core < index->n_core_fields);
 		lens = --nulls - n_null_bytes;
 		goto start;
@@ -314,10 +319,10 @@ rec_init_offsets_comp_ordinary(
 	case REC_LEAF_ORDINARY:
 		nulls -= REC_N_NEW_EXTRA_BYTES;
 ordinary:
-		lens = --nulls - index->n_core_null_bytes;
+		lens = --nulls - n_core_null_bytes;
 
-		ut_d(n_null = std::min<uint>(index->n_core_null_bytes * 8U,
-					     index->n_nullable));
+		ut_d(n_null = std::min(n_core_null_bytes * 8U,
+				       index->n_nullable));
 		break;
 	case REC_LEAF_INSTANT:
 		nulls -= REC_N_NEW_EXTRA_BYTES;
@@ -330,7 +335,7 @@ ordinary:
 		const ulint n_null_bytes = UT_BITS_IN_BYTES(n_nullable);
 		ut_d(n_null = n_nullable);
 		ut_ad(n_null <= index->n_nullable);
-		ut_ad(n_null_bytes >= index->n_core_null_bytes
+		ut_ad(n_null_bytes >= n_core_null_bytes
 		      || n_core < index->n_core_fields);
 		lens = --nulls - n_null_bytes;
 	}
@@ -588,14 +593,14 @@ is (SQL_NULL), the field i is NULL. When the type of the offset at [i+1]
 is (STORED_OFFPAGE), the field i is stored externally.
 @param[in]	rec	record
 @param[in]	index	the index that the record belongs in
-@param[in]	leaf	whether the record resides in a leaf page
+@param[in]	n_core	0, or index->n_core_fields for leaf page
 @param[in,out]	offsets	array of offsets, with valid rec_offs_n_fields() */
 static
 void
 rec_init_offsets(
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	bool			leaf,
+	ulint			n_core,
 	rec_offs*		offsets)
 {
 	ulint	i	= 0;
@@ -610,6 +615,8 @@ rec_init_offsets(
 	      || index->in_instant_init);
 	ut_d(memcpy(&offsets[RECORD_OFFSET], &rec, sizeof(rec)));
 	ut_d(memcpy(&offsets[INDEX_OFFSET], &index, sizeof(index)));
+	ut_ad(index->n_fields >= n_core);
+	ut_ad(index->n_core_fields >= n_core);
 
 	if (dict_table_is_comp(index->table)) {
 		const byte*	nulls;
@@ -628,23 +635,21 @@ rec_init_offsets(
 			rec_offs_base(offsets)[1] = 8;
 			return;
 		case REC_STATUS_NODE_PTR:
-			ut_ad(!leaf);
+			ut_ad(!n_core);
 			n_node_ptr_field
 				= dict_index_get_n_unique_in_tree_nonleaf(
 					index);
 			break;
 		case REC_STATUS_INSTANT:
-			ut_ad(leaf);
 			ut_ad(index->is_instant());
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
-						       index->n_core_fields,
+						       n_core,
 						       NULL,
 						       REC_LEAF_INSTANT);
 			return;
 		case REC_STATUS_ORDINARY:
-			ut_ad(leaf);
 			rec_init_offsets_comp_ordinary(rec, index, offsets,
-						       index->n_core_fields,
+						       n_core,
 						       NULL,
 						       REC_LEAF_ORDINARY);
 			return;
@@ -806,7 +811,7 @@ resolved:
 @param[in]	index		the index that the record belongs to
 @param[in,out]	offsets		array comprising offsets[0] allocated elements,
 				or an array from rec_get_offsets(), or NULL
-@param[in]	leaf		whether this is a leaf-page record
+@param[in]	n_core		0, or index->n_core_fields for leaf page
 @param[in]	n_fields	maximum number of offsets to compute
 				(ULINT_UNDEFINED to compute all offsets)
 @param[in,out]	heap		memory heap
@@ -816,7 +821,7 @@ rec_get_offsets_func(
 	const rec_t*		rec,
 	const dict_index_t*	index,
 	rec_offs*		offsets,
-	bool			leaf,
+	ulint			n_core,
 	ulint			n_fields,
 #ifdef UNIV_DEBUG
 	const char*		file,	/*!< in: file name where called */
@@ -828,6 +833,15 @@ rec_get_offsets_func(
 	ulint	size;
 	bool	alter_metadata = false;
 
+	ut_ad(index->n_core_fields >= n_core);
+	/* This assertion was relaxed for the btr_cur_open_at_index_side()
+	call in btr_cur_instant_init_low(). We cannot invoke
+	index->is_instant(), because the same assertion would fail there
+	until btr_cur_instant_init_low() has invoked
+	dict_table_t::deserialise_columns(). */
+	ut_ad(index->n_fields >= index->n_core_fields
+	      || index->in_instant_init);
+
 	if (dict_table_is_comp(index->table)) {
 		switch (UNIV_EXPECT(rec_get_status(rec),
 				    REC_STATUS_ORDINARY)) {
@@ -835,14 +849,14 @@ rec_get_offsets_func(
 			alter_metadata = rec_is_alter_metadata(rec, true);
 			/* fall through */
 		case REC_STATUS_ORDINARY:
-			ut_ad(leaf);
+			ut_ad(n_core);
 			n = dict_index_get_n_fields(index) + alter_metadata;
 			break;
 		case REC_STATUS_NODE_PTR:
 			/* Node pointer records consist of the
 			uniquely identifying fields of the record
 			followed by a child page number field. */
-			ut_ad(!leaf);
+			ut_ad(!n_core);
 			n = dict_index_get_n_unique_in_tree_nonleaf(index) + 1;
 			break;
 		case REC_STATUS_INFIMUM:
@@ -871,19 +885,19 @@ rec_get_offsets_func(
 			>= PAGE_HEAP_NO_USER_LOW;
 		/* The infimum and supremum records carry 1 field. */
 		ut_ad(is_user_rec || n == 1);
-		ut_ad(!is_user_rec || leaf || index->is_dummy
+		ut_ad(!is_user_rec || n_core || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* dict_stats_analyze_index_level() */
 		      || n - 1
 		      == dict_index_get_n_unique_in_tree_nonleaf(index));
-		ut_ad(!is_user_rec || !leaf || index->is_dummy
+		ut_ad(!is_user_rec || !n_core || index->is_dummy
 		      || dict_index_is_ibuf(index)
 		      || n == n_fields /* btr_pcur_restore_position() */
 		      || (n + (index->id == DICT_INDEXES_ID)
-			  >= index->n_core_fields && n <= index->n_fields
+			  >= n_core && n <= index->n_fields
 			  + unsigned(rec_is_alter_metadata(rec, false))));
 
-		if (is_user_rec && leaf && n < index->n_fields) {
+		if (is_user_rec && n_core && n < index->n_fields) {
 			ut_ad(!index->is_dummy);
 			ut_ad(!dict_index_is_ibuf(index));
 			n = index->n_fields;
@@ -917,17 +931,17 @@ rec_get_offsets_func(
 		memcpy(&offsets[RECORD_OFFSET], &rec, sizeof rec);
 		memcpy(&offsets[INDEX_OFFSET], &index, sizeof index);
 #endif /* UNIV_DEBUG */
-		ut_ad(leaf);
+		ut_ad(n_core);
 		ut_ad(index->table->instant);
 		ut_ad(index->is_instant());
 		ut_ad(rec_offs_n_fields(offsets)
 		      <= ulint(index->n_fields) + 1);
 		rec_init_offsets_comp_ordinary<true>(rec, index, offsets,
 						     index->n_core_fields,
-						     NULL,
+						     nullptr,
 						     REC_LEAF_INSTANT);
 	} else {
-		rec_init_offsets(rec, index, leaf, offsets);
+		rec_init_offsets(rec, index, n_core, offsets);
 	}
 	return offsets;
 }
@@ -1850,7 +1864,9 @@ template void rec_convert_dtuple_to_temp<true>(
 The fields are copied into the memory heap.
 @param[out]	tuple		data tuple
 @param[in]	rec		index record, or a copy thereof
-@param[in]	is_leaf		whether rec is a leaf page record
+@param[in]	index		index of rec
+@param[in]	n_core		index->n_core_fields at the time rec was
+				copied, or 0 if non-leaf page record
 @param[in]	n_fields	number of fields to copy
 @param[in,out]	heap		memory heap */
 void
@@ -1858,7 +1874,7 @@ rec_copy_prefix_to_dtuple(
 	dtuple_t*		tuple,
 	const rec_t*		rec,
 	const dict_index_t*	index,
-	bool			is_leaf,
+	ulint			n_core,
 	ulint			n_fields,
 	mem_heap_t*		heap)
 {
@@ -1866,10 +1882,11 @@ rec_copy_prefix_to_dtuple(
 	rec_offs*	offsets	= offsets_;
 	rec_offs_init(offsets_);
 
-	ut_ad(is_leaf || n_fields - 1
+	ut_ad(n_core <= index->n_core_fields);
+	ut_ad(n_core || n_fields - 1
 	      <= dict_index_get_n_unique_in_tree_nonleaf(index));
 
-	offsets = rec_get_offsets(rec, index, offsets, is_leaf,
+	offsets = rec_get_offsets(rec, index, offsets, n_core,
 				  n_fields, &heap);
 
 	ut_ad(rec_validate(rec, offsets));
@@ -2509,7 +2526,8 @@ rec_print(
 
 		rec_print_new(file, rec,
 			      rec_get_offsets(rec, index, offsets_,
-					      page_rec_is_leaf(rec),
+					      page_rec_is_leaf(rec)
+					      ? index->n_core_fields : 0,
 					      ULINT_UNDEFINED, &heap));
 		if (UNIV_LIKELY_NULL(heap)) {
 			mem_heap_free(heap);
@@ -2585,7 +2603,8 @@ operator<<(std::ostream& o, const rec_index_print& r)
 {
 	mem_heap_t*	heap	= NULL;
 	rec_offs*	offsets	= rec_get_offsets(
-		r.m_rec, r.m_index, NULL, page_rec_is_leaf(r.m_rec),
+		r.m_rec, r.m_index, NULL, page_rec_is_leaf(r.m_rec)
+		? r.m_index->n_core_fields : 0,
 		ULINT_UNDEFINED, &heap);
 	rec_print(o, r.m_rec,
 		  rec_get_info_bits(r.m_rec, rec_offs_comp(offsets)),
@@ -2624,7 +2643,7 @@ rec_get_trx_id(
 	rec_offs_init(offsets_);
 	rec_offs* offsets = offsets_;
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  index->db_trx_id() + 1, &heap);
 
 	trx_id = rec_get_nth_field(rec, offsets, index->db_trx_id(), &len);
@@ -2675,7 +2694,8 @@ wsrep_rec_get_foreign_key(
 	ut_ad(index_ref);
 
         rec_offs_init(offsets_);
-	offsets = rec_get_offsets(rec, index_for, offsets_, true,
+	offsets = rec_get_offsets(rec, index_for, offsets_,
+				  index_for->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	ut_ad(rec_offs_validate(rec, NULL, offsets));

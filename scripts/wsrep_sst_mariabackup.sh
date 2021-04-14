@@ -1,6 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2013 Percona Inc
-# Copyright (C) 2017-2020 MariaDB
+# Copyright (C) 2017-2021 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -851,7 +851,7 @@ then
               -z $(parse_cnf --mysqld tmpdir "") && \
               -z $(parse_cnf xtrabackup tmpdir "") ]]; then
             xtmpdir=$(mktemp -d)
-            tmpopts=" --tmpdir=$xtmpdir"
+            tmpopts="--tmpdir=$xtmpdir"
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
         fi
 
