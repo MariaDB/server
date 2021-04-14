@@ -397,8 +397,7 @@ bool table_value_constr::optimize(THD *thd)
   create_explain_query_if_not_exists(thd->lex, thd->mem_root);
   have_query_plan= QEP_AVAILABLE;
 
-  if (select_lex->select_number != UINT_MAX &&
-      select_lex->select_number != INT_MAX /* this is not a UNION's "fake select */ &&
+  if (select_lex->select_number != FAKE_SELECT_LEX_ID &&
       have_query_plan != QEP_NOT_PRESENT_YET &&
       thd->lex->explain && // for "SET" command in SPs.
       (!thd->lex->explain->get_select(select_lex->select_number)))

@@ -491,7 +491,7 @@ public:
     if (my_writer)
     {
       add_member("select_id");
-      if (unlikely(select_number >= INT_MAX))
+      if (unlikely(select_number == FAKE_SELECT_LEX_ID))
         context.add_str("fake");
       else
         context.add_ll(static_cast<longlong>(select_number));
