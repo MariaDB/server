@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -12854,7 +12854,7 @@ bool JOIN_TAB::preread_init()
        derived->get_unit()->uncacheable) &&
       mysql_handle_single_derived(join->thd->lex,
                                     derived, DT_CREATE | DT_FILL))
-      DBUG_RETURN(TRUE);
+    DBUG_RETURN(TRUE);
 
   if (!(derived->get_unit()->uncacheable & UNCACHEABLE_DEPENDENT) ||
       derived->is_nonrecursive_derived_with_rec_ref())
@@ -12872,7 +12872,7 @@ bool JOIN_TAB::preread_init()
   /* init ftfuns for just initialized derived table */
   if (table->fulltext_searched)
     if (init_ftfuncs(join->thd, join->select_lex, MY_TEST(join->order)))
-      return TRUE;
+      DBUG_RETURN(TRUE);
 
   DBUG_RETURN(FALSE);
 }
