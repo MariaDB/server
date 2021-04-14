@@ -337,7 +337,7 @@ grn_io_create(grn_ctx *ctx, const char *path, uint32_t header_size,
         if ((io = GRN_MALLOCN(grn_io, 1))) {
           grn_io_mapinfo *maps = NULL;
           if ((maps = GRN_CALLOC(sizeof(grn_io_mapinfo) * max_segment))) {
-            grn_strncpy(io->path, PATH_MAX, path, PATH_MAX);
+            grn_strncpy(io->path, PATH_MAX-1, path, PATH_MAX-1);
             io->header = header;
             io->user_header = (((byte *) header) + IO_HEADER_SIZE);
             io->maps = maps;
@@ -656,7 +656,7 @@ grn_io_open(grn_ctx *ctx, const char *path, grn_io_mode mode)
       if ((io = GRN_MALLOC(sizeof(grn_io)))) {
         grn_io_mapinfo *maps = NULL;
         if ((maps = GRN_CALLOC(sizeof(grn_io_mapinfo) * max_segment))) {
-          grn_strncpy(io->path, PATH_MAX, path, PATH_MAX);
+          grn_strncpy(io->path, PATH_MAX-1, path, PATH_MAX-1);
           io->header = header;
           io->user_header = (((byte *) header) + IO_HEADER_SIZE);
           {

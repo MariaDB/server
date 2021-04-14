@@ -3179,7 +3179,8 @@ int ha_federated::real_connect()
     sql_query.append('\'');
     mysql_close(mysql);
     mysql= NULL;
-    my_error(ER_FOREIGN_DATA_SOURCE_DOESNT_EXIST, MYF(0), sql_query.ptr());
+    my_error(ER_FOREIGN_DATA_SOURCE_DOESNT_EXIST, MYF(0),
+             sql_query.c_ptr_safe());
     remote_error_number= -1;
     DBUG_RETURN(-1);
   }

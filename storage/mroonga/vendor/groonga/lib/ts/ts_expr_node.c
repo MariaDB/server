@@ -1787,7 +1787,7 @@ grn_ts_expr_key_node_filter(grn_ctx *ctx, grn_ts_expr_key_node *node,
                             grn_ts_record *out, size_t *n_out)
 {
   size_t i, count;
-  grn_ts_bool key;
+  grn_ts_bool key= 0;
   switch (node->table->header.type) {
     case GRN_TABLE_HASH_KEY: {
       grn_hash *hash = (grn_hash *)node->table;
@@ -1831,7 +1831,7 @@ grn_ts_expr_key_node_adjust(grn_ctx *ctx, grn_ts_expr_key_node *node,
                             grn_ts_record *io, size_t n_io)
 {
   size_t i;
-  grn_ts_float key;
+  grn_ts_float key= 0;
   switch (node->table->header.type) {
     case GRN_TABLE_HASH_KEY: {
       grn_hash *hash = (grn_hash *)node->table;

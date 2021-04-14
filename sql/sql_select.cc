@@ -366,7 +366,6 @@ bool dbug_user_var_equals_int(THD *thd, const char *name, int value)
 }
 #endif /* DBUG_OFF */
 
-
 /*
   Intialize POSITION structure.
 */
@@ -389,6 +388,100 @@ POSITION::POSITION()
   loosescan_picker.set_empty();
   sjmat_picker.set_empty();
 }
+
+
+void JOIN::init(THD *thd_arg, List<Item> &fields_arg,
+                ulonglong select_options_arg, select_result *result_arg)
+{
+  join_tab= 0;
+  table= 0;
+  table_count= 0;
+  top_join_tab_count= 0;
+  const_tables= 0;
+  const_table_map= found_const_table_map= 0;
+  aggr_tables= 0;
+  eliminated_tables= 0;
+  join_list= 0;
+  implicit_grouping= FALSE;
+  sort_and_group= 0;
+  first_record= 0;
+  do_send_rows= 1;
+  duplicate_rows= send_records= 0;
+  found_records= accepted_rows= 0;
+  fetch_limit= HA_POS_ERROR;
+  thd= thd_arg;
+  sum_funcs= sum_funcs2= 0;
+  procedure= 0;
+  having= tmp_having= having_history= 0;
+  having_is_correlated= false;
+  group_list_for_estimates= 0;
+  select_options= select_options_arg;
+  result= result_arg;
+  lock= thd_arg->lock;
+  select_lex= 0; //for safety
+  select_distinct= MY_TEST(select_options & SELECT_DISTINCT);
+  no_order= 0;
+  simple_order= 0;
+  simple_group= 0;
+  rand_table_in_field_list= 0;
+  ordered_index_usage= ordered_index_void;
+  need_distinct= 0;
+  skip_sort_order= 0;
+  with_two_phase_optimization= 0;
+  save_qep= 0;
+  spl_opt_info= 0;
+  ext_keyuses_for_splitting= 0;
+  spl_opt_info= 0;
+  need_tmp= 0;
+  hidden_group_fields= 0; /*safety*/
+  error= 0;
+  select= 0;
+  return_tab= 0;
+  ref_ptrs.reset();
+  items0.reset();
+  items1.reset();
+  items2.reset();
+  items3.reset();
+  zero_result_cause= 0;
+  optimization_state= JOIN::NOT_OPTIMIZED;
+  have_query_plan= QEP_NOT_PRESENT_YET;
+  initialized= 0;
+  cleaned= 0;
+  cond_equal= 0;
+  having_equal= 0;
+  exec_const_cond= 0;
+  group_optimized_away= 0;
+  no_rows_in_result_called= 0;
+  positions= best_positions= 0;
+  pushdown_query= 0;
+  original_join_tab= 0;
+  explain= NULL;
+  tmp_table_keep_current_rowid= 0;
+
+  all_fields= fields_arg;
+  if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
+    fields_list= fields_arg;
+  non_agg_fields.empty();
+  bzero((char*) &keyuse,sizeof(keyuse));
+  having_value= Item::COND_UNDEF;
+  tmp_table_param.init();
+  tmp_table_param.end_write_records= HA_POS_ERROR;
+  rollup.state= ROLLUP::STATE_NONE;
+
+  no_const_tables= FALSE;
+  first_select= sub_select;
+  set_group_rpa= false;
+  group_sent= 0;
+
+  outer_ref_cond= pseudo_bits_cond= NULL;
+  in_to_exists_where= NULL;
+  in_to_exists_having= NULL;
+  emb_sjm_nest= NULL;
+  sjm_lookup_tables= 0;
+  sjm_scan_tables= 0;
+  is_orig_degenerated= false;
+  with_ties_order_count= 0;
+};
 
 
 static void trace_table_dependencies(THD *thd,
@@ -29887,6 +29980,7 @@ bool JOIN::optimize_upper_rownum_func()
 
   return process_direct_rownum_comparison(thd, unit, outer_select->where);
 }
+
 
 /**
   Test if the predicate compares rownum() with a constant

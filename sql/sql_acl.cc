@@ -6955,7 +6955,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 		      bool revoke_grant)
 {
   privilege_t column_priv(NO_ACL);
-  int result;
+  int result, res;
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
   bool create_new_users=0;
@@ -7156,10 +7156,10 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
                                revoke_grant))
 	result= TRUE;
     }
-    if (int res= replace_table_table(thd, grant_table,
-                                     tables.tables_priv_table().table(),
-                                     *Str, db_name, table_name,
-                                     rights, column_priv, revoke_grant))
+    if ((res= replace_table_table(thd, grant_table,
+                                  tables.tables_priv_table().table(),
+                                  *Str, db_name, table_name,
+                                  rights, column_priv, revoke_grant)))
     {
       if (res > 0)
       {
@@ -11277,7 +11277,7 @@ mysql_revoke_sp_privs(THD *thd, Grant_tables *tables, const Sp_handler *sph,
 bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 {
   uint counter, revoked;
-  int result;
+  int result, res;
   ACL_DB *acl_db;
   DBUG_ENTER("mysql_revoke_all");
 
@@ -11361,30 +11361,33 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     {
       for (counter= 0, revoked= 0 ; counter < column_priv_hash.records ; )
       {
-        const char *user,*host;
-        GRANT_TABLE *grant_table=
-          (GRANT_TABLE*) my_hash_element(&column_priv_hash, counter);
+	const char *user,*host;
+        GRANT_TABLE *grant_table= ((GRANT_TABLE*)
+                                   my_hash_element(&column_priv_hash, counter));
+
         user= grant_table->user;
         host= safe_str(grant_table->host.hostname);
 
         if (!strcmp(lex_user->user.str,user) &&
             !strcmp(lex_user->host.str, host))
-        {
-          List<LEX_COLUMN> columns;
-          /* TODO(cvicentiu) refactor to use
+	{
+	    List<LEX_COLUMN> columns;
+            /* TODO(cvicentiu) refactor replace_db_table to use
+               Db_table instead of TABLE directly. */
+	    if (replace_column_table(grant_table,
+                                     tables.columns_priv_table().table(),
+                                     *lex_user, columns, grant_table->db,
+                                     grant_table->tname, ALL_KNOWN_ACL, 1))
+              result= -1;
+
+          /* TODO(cvicentiu) refactor replace_db_table to use
              Db_table instead of TABLE directly. */
-          if (replace_column_table(grant_table,
-                                   tables.columns_priv_table().table(),
-                                   *lex_user, columns,
-                                   grant_table->db, grant_table->tname,
-                                   ALL_KNOWN_ACL, 1))
-            result= -1;
-          if (int res= replace_table_table(thd, grant_table,
-                                           tables.tables_priv_table().table(),
-                                           *lex_user,
-                                           grant_table->db, grant_table->tname,
-                                           ALL_KNOWN_ACL, NO_ACL, 1))
-          {
+	  if ((res= replace_table_table(thd, grant_table,
+                                        tables.tables_priv_table().table(),
+                                        *lex_user, grant_table->db,
+                                        grant_table->tname, ALL_KNOWN_ACL,
+                                        NO_ACL, 1)))
+	  {
             if (res > 0)
               result= -1;
             else
@@ -11397,8 +11400,8 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
               continue;
             }
           }
-        }
-        counter++;
+	}
+	counter++;
       }
     } while (revoked);
 

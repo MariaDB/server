@@ -3867,6 +3867,7 @@ String *Item_load_file::val_str(String *str)
   File file;
   MY_STAT stat_info;
   char path[FN_REFLEN];
+  size_t file_size;
   DBUG_ENTER("load_file");
 
   if (!(file_name= args[0]->val_str(str))
@@ -3891,10 +3892,11 @@ String *Item_load_file::val_str(String *str)
     /* my_error(ER_TEXTFILE_NOT_READABLE, MYF(0), file_name->c_ptr()); */
     goto err;
   }
+  file_size= stat_info.st_size;
 
   {
     THD *thd= current_thd;
-    if (stat_info.st_size > (long) thd->variables.max_allowed_packet)
+    if (file_size >= (size_t) thd->variables.max_allowed_packet)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -3903,7 +3905,7 @@ String *Item_load_file::val_str(String *str)
       goto err;
     }
   }
-  if (tmp_value.alloc((size_t)stat_info.st_size))
+  if (tmp_value.alloc(file_size))
     goto err;
   if ((file= mysql_file_open(key_file_loadfile,
                              file_name->ptr(), O_RDONLY, MYF(0))) < 0)

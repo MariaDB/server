@@ -184,3 +184,12 @@ SET GLOBAL aria_max_sort_file_size= @max_size.save;
 #
 # End of 10.4 test
 #
+#
+# MDEV-25505 Assertion `old_flags == ((my_flags & 0x10000U) ? 1 : 0)'
+# failed in my_realloc
+#
+CREATE TABLE t1 (pk int, c text, primary key (pk), key(c(32))) ENGINE=Aria ROW_FORMAT=DYNAMIC;
+ALTER TABLE t1 DISABLE KEYS;
+INSERT INTO t1 VALUES (1, 'Nine chars or more');
+ALTER TABLE t1 ENABLE KEYS;
+DROP TABLE t1;
