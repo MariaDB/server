@@ -3343,24 +3343,26 @@ int handler::update_auto_increment()
     DBUG_RETURN(0);
   }
 
-  // ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT
-  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
+  if (table->versioned())
   {
-    if (table->versioned())
+    Field *end= table->vers_end_field();
+    DBUG_ASSERT(end);
+    bitmap_set_bit(table->read_set, end->field_index);
+    if (!end->is_max())
     {
-      Field *end= table->vers_end_field();
-      DBUG_ASSERT(end);
-      bitmap_set_bit(table->read_set, end->field_index);
-      if (!end->is_max())
+      if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
       {
         if (!table->next_number_field->real_maybe_null())
           DBUG_RETURN(HA_ERR_UNSUPPORTED);
         table->next_number_field->set_null();
-        DBUG_RETURN(0);
       }
+      DBUG_RETURN(0);
     }
-    table->next_number_field->set_notnull();
   }
+
+  // ALTER TABLE ... ADD COLUMN ... AUTO_INCREMENT
+  if (thd->lex->sql_command == SQLCOM_ALTER_TABLE)
+    table->next_number_field->set_notnull();
 
   if ((nr= next_insert_id) >= auto_inc_interval_for_cur_row.maximum())
   {
@@ -7614,6 +7616,11 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
     {
       if (f->flags & VERS_SYSTEM_FIELD)
       {
+        if (!table->versioned())
+        {
+          my_error(ER_VERS_NOT_VERSIONED, MYF(0), table->s->table_name.str);
+          return true;
+        }
         my_error(ER_VERS_DUPLICATE_ROW_START_END, MYF(0),
                  f->flags & VERS_SYS_START_FLAG ? "START" : "END", f->field_name.str);
         return true;

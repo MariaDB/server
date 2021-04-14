@@ -63,3 +63,13 @@ A	x	y	x	y
 1	7	17	7	17
 drop table t1;
 drop table t2;
+#
+# MDEV-22562 Assertion `next_insert_id == 0' upon UPDATE on system-versioned table
+#
+create table t1 (pk integer auto_increment primary key) engine=myisam with system versioning;
+insert delayed into t1 (pk) values (1);
+lock tables t1 write;
+update t1 set pk= 0;
+update t1 set pk= 0;
+unlock tables;
+drop table t1;

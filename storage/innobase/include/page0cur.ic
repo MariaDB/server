@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -273,7 +273,8 @@ page_cur_tuple_insert(
 					index, tuple, n_ext);
 
 	*offsets = rec_get_offsets(rec, index, *offsets,
-				   page_is_leaf(cursor->block->frame),
+				   page_is_leaf(cursor->block->frame)
+				   ? index->n_core_fields : 0,
 				   ULINT_UNDEFINED, heap);
 	ut_ad(size == rec_offs_size(*offsets));
 

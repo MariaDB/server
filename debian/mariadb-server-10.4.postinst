@@ -165,8 +165,8 @@ EOF
   ;;
 
   triggered)
-    if [ -x "$(command -v systemctl)" ]; then
-      systemctl daemon-reload
+    if [ -d /run/systemd/system ]; then
+      systemctl --system daemon-reload
     fi
     invoke restart
   ;;

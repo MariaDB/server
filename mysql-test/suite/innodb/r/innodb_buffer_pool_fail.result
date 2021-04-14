@@ -1,0 +1,8 @@
+call mtr.add_suppression("InnoDB: Cannot allocate memory for the buffer pool");
+call mtr.add_suppression("InnoDB: Plugin initialization aborted at srv0start.cc.*");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+#
+# MDEV-25019 memory allocation failures during startup cause server failure in different, confusing ways
+#
+# restart: --debug_dbug=+d,ib_buf_chunk_init_fails

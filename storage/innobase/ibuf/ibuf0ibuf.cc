@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -3870,7 +3870,7 @@ dump:
 		row_ins_sec_index_entry_by_modify(BTR_MODIFY_LEAF). */
 		ut_ad(rec_get_deleted_flag(rec, page_is_comp(page)));
 
-		offsets = rec_get_offsets(rec, index, NULL, true,
+		offsets = rec_get_offsets(rec, index, NULL, index->n_fields,
 					  ULINT_UNDEFINED, &heap);
 		update = row_upd_build_sec_rec_difference_binary(
 			rec, index, offsets, entry, heap);
@@ -4043,7 +4043,8 @@ ibuf_delete(
 
 	ut_ad(ibuf_inside(mtr));
 	ut_ad(dtuple_check_typed(entry));
-	ut_ad(!dict_index_is_spatial(index));
+	ut_ad(!index->is_spatial());
+	ut_ad(!index->is_clust());
 
 	low_match = page_cur_search(block, index, entry, &page_cur);
 
@@ -4062,8 +4063,8 @@ ibuf_delete(
 
 		rec_offs_init(offsets_);
 
-		offsets = rec_get_offsets(
-			rec, index, offsets, true, ULINT_UNDEFINED, &heap);
+		offsets = rec_get_offsets(rec, index, offsets, index->n_fields,
+					  ULINT_UNDEFINED, &heap);
 
 		if (page_get_n_recs(page) <= 1
 		    || !(REC_INFO_DELETED_FLAG
@@ -4858,6 +4859,13 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 		bitmap_page = ibuf_bitmap_get_map_page(
 			page_id_t(space->id, page_no), zip_size, &mtr);
 
+		if (!bitmap_page) {
+			mutex_exit(&ibuf_mutex);
+			ibuf_exit(&mtr);
+			mtr_commit(&mtr);
+			return DB_CORRUPTION;
+		}
+
 		if (buf_is_zeroes(span<const byte>(bitmap_page,
 						   physical_size))) {
 			/* This means we got all-zero page instead of
@@ -4879,11 +4887,6 @@ dberr_t ibuf_check_bitmap_on_import(const trx_t* trx, fil_space_t* space)
 			ibuf_exit(&mtr);
 			mtr_commit(&mtr);
 			continue;
-		}
-
-		if (!bitmap_page) {
-			mutex_exit(&ibuf_mutex);
-			return DB_CORRUPTION;
 		}
 
 		for (i = FSP_IBUF_BITMAP_OFFSET + 1; i < physical_size; i++) {

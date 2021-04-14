@@ -898,7 +898,7 @@ btr_page_get_father_node_ptr_func(
 
 	node_ptr = btr_cur_get_rec(cursor);
 
-	offsets = rec_get_offsets(node_ptr, index, offsets, false,
+	offsets = rec_get_offsets(node_ptr, index, offsets, 0,
 				  ULINT_UNDEFINED, &heap);
 
 	if (btr_node_ptr_get_child_page_no(node_ptr, offsets) != page_no) {
@@ -915,10 +915,11 @@ btr_page_get_father_node_ptr_func(
 		print_rec = page_rec_get_next(
 			page_get_infimum_rec(page_align(user_rec)));
 		offsets = rec_get_offsets(print_rec, index, offsets,
-					  page_rec_is_leaf(user_rec),
+					  page_rec_is_leaf(user_rec)
+					  ? index->n_core_fields : 0,
 					  ULINT_UNDEFINED, &heap);
 		page_rec_print(print_rec, offsets);
-		offsets = rec_get_offsets(node_ptr, index, offsets, false,
+		offsets = rec_get_offsets(node_ptr, index, offsets, 0,
 					  ULINT_UNDEFINED, &heap);
 		page_rec_print(node_ptr, offsets);
 
@@ -2284,7 +2285,9 @@ btr_page_get_split_rec(
 			incl_data += insert_size;
 		} else {
 			offsets = rec_get_offsets(rec, cursor->index, offsets,
-						  page_is_leaf(page),
+						  page_is_leaf(page)
+						  ? cursor->index->n_core_fields
+						  : 0,
 						  ULINT_UNDEFINED, &heap);
 			incl_data += rec_offs_size(offsets);
 		}
@@ -2393,7 +2396,9 @@ btr_page_insert_fits(
 		space after rec is removed from page. */
 
 		*offsets = rec_get_offsets(rec, cursor->index, *offsets,
-					   page_is_leaf(page),
+					   page_is_leaf(page)
+					   ? cursor->index->n_core_fields
+					   : 0,
 					   ULINT_UNDEFINED, heap);
 
 		total_data -= rec_offs_size(*offsets);
@@ -2680,7 +2685,8 @@ btr_page_tuple_smaller(
 	first_rec = page_cur_get_rec(&pcur);
 
 	*offsets = rec_get_offsets(
-		first_rec, cursor->index, *offsets, page_is_leaf(block->frame),
+		first_rec, cursor->index, *offsets,
+		page_is_leaf(block->frame) ? cursor->index->n_core_fields : 0,
 		n_uniq, heap);
 
 	return(cmp_dtuple_rec(tuple, first_rec, *offsets) < 0);
@@ -2964,7 +2970,9 @@ func_start:
 		first_rec = move_limit = split_rec;
 
 		*offsets = rec_get_offsets(split_rec, cursor->index, *offsets,
-					   page_is_leaf(page), n_uniq, heap);
+					   page_is_leaf(page)
+					   ? cursor->index->n_core_fields : 0,
+					   n_uniq, heap);
 
 		insert_left = !tuple
 			|| cmp_dtuple_rec(tuple, split_rec, *offsets) < 0;
@@ -3730,7 +3738,7 @@ retry:
 		rec_offs*	offsets2 = NULL;
 
 		/* For rtree, we need to update father's mbr. */
-		if (dict_index_is_spatial(index)) {
+		if (index->is_spatial()) {
 			/* We only support merge pages with the same parent
 			page */
 			if (!rtr_check_same_block(
@@ -3748,7 +3756,8 @@ retry:
 
 			offsets2 = rec_get_offsets(
 				btr_cur_get_rec(&cursor2), index, NULL,
-				page_is_leaf(cursor2.page_cur.block->frame),
+				page_is_leaf(cursor2.page_cur.block->frame)
+				? index->n_fields : 0,
 				ULINT_UNDEFINED, &heap);
 
 			/* Check if parent entry needs to be updated */
@@ -3922,13 +3931,14 @@ retry:
 #endif /* UNIV_DEBUG */
 
 		/* For rtree, we need to update father's mbr. */
-		if (dict_index_is_spatial(index)) {
+		if (index->is_spatial()) {
 			rec_offs* offsets2;
 			ulint	rec_info;
 
 			offsets2 = rec_get_offsets(
 				btr_cur_get_rec(&cursor2), index, NULL,
-				page_is_leaf(cursor2.page_cur.block->frame),
+				page_is_leaf(cursor2.page_cur.block->frame)
+				? index->n_fields : 0,
 				ULINT_UNDEFINED, &heap);
 
 			ut_ad(btr_node_ptr_get_child_page_no(
@@ -4151,13 +4161,14 @@ btr_discard_only_page_on_level(
 	}
 #endif /* UNIV_BTR_DEBUG */
 
-	mem_heap_t* heap = NULL;
-	const rec_t* rec = NULL;
-	rec_offs* offsets = NULL;
+	mem_heap_t* heap = nullptr;
+	const rec_t* rec = nullptr;
+	rec_offs* offsets = nullptr;
 	if (index->table->instant) {
 		if (rec_is_alter_metadata(r, *index)) {
 			heap = mem_heap_create(srv_page_size);
-			offsets = rec_get_offsets(r, index, NULL, true,
+			offsets = rec_get_offsets(r, index, nullptr,
+						  index->n_core_fields,
 						  ULINT_UNDEFINED, &heap);
 			rec = rec_copy(mem_heap_alloc(heap,
 						      rec_offs_size(offsets)),
@@ -4431,7 +4442,7 @@ btr_print_recursive(
 			node_ptr = page_cur_get_rec(&cursor);
 
 			*offsets = rec_get_offsets(
-				node_ptr, index, *offsets, false,
+				node_ptr, index, *offsets, 0,
 				ULINT_UNDEFINED, heap);
 			btr_print_recursive(index,
 					    btr_node_ptr_get_child(node_ptr,
@@ -4580,7 +4591,9 @@ btr_index_rec_validate(
 
 	page = page_align(rec);
 
-	if (dict_index_is_ibuf(index)) {
+	ut_ad(index->n_core_fields);
+
+	if (index->is_ibuf()) {
 		/* The insert buffer index tree can contain records from any
 		other index: we cannot check the number of fields or
 		their length */
@@ -4644,7 +4657,8 @@ n_field_mismatch:
 		}
 	}
 
-	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page),
+	offsets = rec_get_offsets(rec, index, offsets, page_is_leaf(page)
+				  ? index->n_core_fields : 0,
 				  ULINT_UNDEFINED, &heap);
 	const dict_field_t* field = index->fields;
 	ut_ad(rec_offs_n_fields(offsets)
@@ -4901,7 +4915,7 @@ btr_validate_level(
 		page_cur_move_to_next(&cursor);
 
 		node_ptr = page_cur_get_rec(&cursor);
-		offsets = rec_get_offsets(node_ptr, index, offsets, false,
+		offsets = rec_get_offsets(node_ptr, index, offsets, 0,
 					  ULINT_UNDEFINED, &heap);
 
 		savepoint2 = mtr_set_savepoint(&mtr);
@@ -5025,10 +5039,12 @@ loop:
 		right_rec = page_rec_get_next(page_get_infimum_rec(
 						      right_page));
 		offsets = rec_get_offsets(rec, index, offsets,
-					  page_is_leaf(page),
+					  page_is_leaf(page)
+					  ? index->n_core_fields : 0,
 					  ULINT_UNDEFINED, &heap);
 		offsets2 = rec_get_offsets(right_rec, index, offsets2,
-					   page_is_leaf(right_page),
+					   page_is_leaf(right_page)
+					   ? index->n_core_fields : 0,
 					   ULINT_UNDEFINED, &heap);
 
 		/* For spatial index, we cannot guarantee the key ordering

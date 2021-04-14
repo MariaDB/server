@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2013, Monty Program Ab.
+   Copyright (c) 2011, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1050,7 +1050,7 @@ double Gis_point::calculate_haversine(const Geometry *g,
                                       int *error)
 {
   DBUG_ASSERT(sphere_radius > 0);
-  double x1r, x2r, y1r, y2r, dlong, dlat, res;
+  double x1r, x2r, y1r, y2r;
 
   // This check is done only for optimization purposes where we know it will
   // be one and only one point in Multipoint
@@ -1067,31 +1067,39 @@ double Gis_point::calculate_haversine(const Geometry *g,
     Geometry *gg= Geometry::construct(&gbuff, point_temp, point_size-1);
     DBUG_ASSERT(gg);
     if (static_cast<Gis_point *>(gg)->get_xy_radian(&x2r, &y2r))
+    {
       DBUG_ASSERT(0);
+      return -1;
+    }
   }
   else
   {
     if (static_cast<const Gis_point *>(g)->get_xy_radian(&x2r, &y2r))
+    {
       DBUG_ASSERT(0);
+      return -1;
+    }
   }
   if (this->get_xy_radian(&x1r, &y1r))
+  {
     DBUG_ASSERT(0);
+    return -1;
+  }
   // Check boundary conditions: longitude[-180,180]
   if (!((x2r >= -M_PI && x2r <= M_PI) && (x1r >= -M_PI && x1r <= M_PI)))
   {
     *error=1;
     return -1;
   }
-  // Check boundary conditions: lattitude[-90,90]
+  // Check boundary conditions: latitude[-90,90]
   if (!((y2r >= -M_PI/2 && y2r <= M_PI/2) && (y1r >= -M_PI/2 && y1r <= M_PI/2)))
   {
     *error=-1;
     return -1;
   }
-  dlat= sin((y2r - y1r)/2)*sin((y2r - y1r)/2);
-  dlong=  sin((x2r - x1r)/2)*sin((x2r - x1r)/2);
-  res= 2*sphere_radius*asin((sqrt(dlat + cos(y1r)*cos(y2r)*dlong)));
-  return res;
+  double dlat= sin((y2r - y1r)/2)*sin((y2r - y1r)/2);
+  double dlong= sin((x2r - x1r)/2)*sin((x2r - x1r)/2);
+  return 2*sphere_radius*asin((sqrt(dlat + cos(y1r)*cos(y2r)*dlong)));
 }
 
 

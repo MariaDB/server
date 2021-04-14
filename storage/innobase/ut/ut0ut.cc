@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -665,7 +665,7 @@ const char * dbug_print_rec(const rec_t* rec, dict_index_t* index)
 	rec_offs*	offsets		= offsets_;
 	rec_offs_init(offsets_);
 	mem_heap_t*	tmp_heap	= NULL;
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, &tmp_heap);
 	rec_printer r(rec, offsets);
 	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);

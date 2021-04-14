@@ -1,0 +1,138 @@
+# This test checks if "innodb_force_recovery" is only allowed with "--prepare"
+# (for mariabackup) and "--apply-log" (for innobackupex), and is limited to
+# "SRV_FORCE_IGNORE_CORRUPT" only.
+
+# Setup.
+--source include/have_innodb.inc
+
+--let targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--let backuplog=$MYSQLTEST_VARDIR/tmp/backup.log
+
+CREATE TABLE t(i INT) ENGINE INNODB;
+INSERT INTO t VALUES(1);
+
+# Check for command line arguments.
+--echo # "innodb_force_recovery=1" should be allowed with "--prepare" only (mariabackup)
+--disable_result_log
+--error 1
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --innodb-force-recovery=1 --target-dir=$targetdir >$backuplog;
+--enable_result_log
+--let SEARCH_PATTERN=should only be used with "--prepare"
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+
+--echo # "innodb_force_recovery=1" should be allowed with "--apply-log" only (innobackupex)
+--disable_result_log
+--error 1
+exec $XTRABACKUP --innobackupex --defaults-file=$MYSQLTEST_VARDIR/my.cnf --no-timestamp --innodb-force-recovery=1 $targetdir >$backuplog;
+--enable_result_log
+--let SEARCH_PATTERN=should only be used with "--apply-log"
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+--echo # "innodb_force_recovery" should be limited to "SRV_FORCE_IGNORE_CORRUPT" (mariabackup)
+--disable_result_log
+exec $XTRABACKUP --prepare --innodb-force-recovery=2 --target-dir=$targetdir >$backuplog;
+--enable_result_log
+--let SEARCH_PATTERN=innodb_force_recovery = 1
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+rmdir $targetdir;
+
+--disable_result_log
+exec $XTRABACKUP --innobackupex --defaults-file=$MYSQLTEST_VARDIR/my.cnf --no-timestamp $targetdir;
+--enable_result_log
+--echo # "innodb_force_recovery" should be limited to "SRV_FORCE_IGNORE_CORRUPT" (innobackupex)
+--disable_result_log
+exec $XTRABACKUP --innobackupex --apply-log --innodb-force-recovery=2 $targetdir >$backuplog;
+--enable_result_log
+--let SEARCH_PATTERN=innodb_force_recovery = 1
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+rmdir $targetdir;
+
+# Check for default file ("backup-my.cnf").
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+perl;
+my $cfg_path="$ENV{'targetdir'}/backup-my.cnf";
+open(my $fd, '>>', "$cfg_path");
+print $fd "innodb_force_recovery=1\n";
+close $fd;
+EOF
+--echo # "innodb_force_recovery" should be read from "backup-my.cnf" (mariabackup)
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$targetdir/backup-my.cnf --prepare --export --target-dir=$targetdir >$backuplog;
+--enable_result_log
+--let SEARCH_PATTERN=innodb_force_recovery = 1
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+rmdir $targetdir;
+
+--disable_result_log
+exec $XTRABACKUP --innobackupex --defaults-file=$MYSQLTEST_VARDIR/my.cnf --no-timestamp $targetdir;
+--enable_result_log
+perl;
+my $cfg_path="$ENV{'targetdir'}/backup-my.cnf";
+open(my $fd, '>>', "$cfg_path");
+print $fd "innodb_force_recovery=2\n";
+close $fd;
+EOF
+--echo # "innodb_force_recovery=1" should be read from "backup-my.cnf" (innobackupex)
+--disable_result_log
+exec $XTRABACKUP --innobackupex --defaults-file=$targetdir/backup-my.cnf --apply-log --export $targetdir >$backuplog;
+--enable_result_log
+--let SEARCH_PATTERN=innodb_force_recovery = 1
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+rmdir $targetdir;
+
+# Check for command line argument precedence.
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf --backup --target-dir=$targetdir;
+--enable_result_log
+perl;
+my $cfg_path="$ENV{'targetdir'}/backup-my.cnf";
+open(my $fd, '>>', "$cfg_path");
+print $fd "innodb_force_recovery=1\n";
+close $fd;
+EOF
+--echo # "innodb_force_recovery" from the command line should override "backup-my.cnf" (mariabackup)
+--disable_result_log
+exec $XTRABACKUP --defaults-file=$targetdir/backup-my.cnf --prepare --innodb-force-recovery=0 --target-dir=$targetdir >$backuplog;
+--enable_result_log
+--let SEARCH_PATTERN=innodb_force_recovery = 1
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+rmdir $targetdir;
+
+--disable_result_log
+exec $XTRABACKUP --innobackupex --defaults-file=$MYSQLTEST_VARDIR/my.cnf --no-timestamp $targetdir;
+--enable_result_log
+perl;
+my $cfg_path="$ENV{'targetdir'}/backup-my.cnf";
+open(my $fd, '>>', "$cfg_path");
+print $fd "innodb_force_recovery=2\n";
+close $fd;
+EOF
+--echo # "innodb_force_recovery" from the command line should override "backup-my.cnf" (innobackupex)
+--disable_result_log
+exec $XTRABACKUP --innobackupex --defaults-file=$targetdir/backup-my.cnf --apply-log --innodb-force-recovery=0 --export $targetdir >$backuplog;
+--enable_result_log
+--let SEARCH_PATTERN=innodb_force_recovery = 1
+--let SEARCH_FILE=$backuplog
+--source include/search_pattern_in_file.inc
+
+--source include/restart_and_restore.inc
+
+# Check for restore.
+SELECT * FROM t;
+
+# Clean-up.
+DROP TABLE t;
+--rmdir $targetdir
+--remove_file $backuplog

@@ -243,6 +243,8 @@ create function f() returns int return (select 1 from performance_schema.threads
 set global userstat= 1;
 select f() from information_schema.table_statistics;
 ERROR 21000: Subquery returns more than 1 row
+select f() from information_schema.index_statistics;
+ERROR 21000: Subquery returns more than 1 row
 set global userstat= 0;
 drop function f;
 #

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -441,7 +441,8 @@ row_build_low(
 	ut_ad(!col_map || col_table);
 
 	if (!offsets) {
-		offsets = rec_get_offsets(rec, index, offsets_, true,
+		offsets = rec_get_offsets(rec, index, offsets_,
+					  index->n_core_fields,
 					  ULINT_UNDEFINED, &tmp_heap);
 	} else {
 		ut_ad(rec_offs_validate(rec, index, offsets));
@@ -1005,7 +1006,7 @@ row_build_row_ref(
 	ut_ad(heap != NULL);
 	ut_ad(!dict_index_is_clust(index));
 
-	offsets = rec_get_offsets(rec, index, offsets, true,
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
 				  ULINT_UNDEFINED, &tmp_heap);
 	/* Secondary indexes must not contain externally stored columns. */
 	ut_ad(!rec_offs_any_extern(offsets));
@@ -1114,7 +1115,8 @@ row_build_row_ref_in_tuple(
 	ut_ad(clust_index);
 
 	if (!offsets) {
-		offsets = rec_get_offsets(rec, index, offsets_, true,
+		offsets = rec_get_offsets(rec, index, offsets_,
+					  index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 	} else {
 		ut_ad(rec_offs_validate(rec, index, offsets));

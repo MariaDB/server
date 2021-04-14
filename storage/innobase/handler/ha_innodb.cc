@@ -8743,6 +8743,8 @@ wsrep_calc_row_hash(
 	for (uint i = 0; i < table->s->fields; i++) {
 		byte null_byte=0;
 		byte true_byte=1;
+		ulint col_type;
+		ulint is_unsigned;
 
 		const Field* field = table->field[i];
 		if (!field->stored_in_db()) {
@@ -8751,8 +8753,9 @@ wsrep_calc_row_hash(
 
 		ptr = (const byte*) row + get_field_offset(table, field);
 		len = field->pack_length();
+		col_type = get_innobase_type_from_mysql_type(&is_unsigned, field);
 
-		switch (prebuilt->table->cols[i].mtype) {
+		switch (col_type) {
 
 		case DATA_BLOB:
 			ptr = row_mysql_read_blob_ref(&len, ptr, len);

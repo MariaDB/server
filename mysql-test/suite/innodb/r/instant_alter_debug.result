@@ -368,6 +368,34 @@ SELECT * FROM t1 WHERE c<>1 ORDER BY c DESC;
 c	d
 DROP TABLE t1;
 SET GLOBAL innodb_limit_optimistic_insert_debug = @saved_limit;
+#
+# MDEV-24620 ASAN heap-buffer-overflow in btr_pcur_restore_position()
+#
+CREATE TABLE t1 (a VARCHAR(1) PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+connect  stop_purge,localhost,root,,;
+START TRANSACTION WITH CONSISTENT SNAPSHOT;
+connection default;
+ALTER TABLE t1 ADD c INT;
+BEGIN;
+DELETE FROM t1;
+connect  dml,localhost,root,,test;
+SET DEBUG_SYNC='row_mysql_handle_errors SIGNAL s1 WAIT_FOR s2';
+UPDATE t1 SET c=1;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR s1';
+COMMIT;
+connection stop_purge;
+COMMIT;
+disconnect stop_purge;
+connection default;
+InnoDB		0 transactions not purged
+SET DEBUG_SYNC='now SIGNAL s2';
+connection dml;
+disconnect dml;
+connection default;
+SET DEBUG_SYNC=RESET;
+DROP TABLE t1;
 # End of 10.3 tests
 #
 # MDEV-17899 Assertion failures on rollback of instant ADD/DROP
@@ -421,4 +449,4 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-31
+32

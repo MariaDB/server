@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -156,8 +156,23 @@ schedule new estimates for table and index statistics to be calculated.
 void dict_stats_update_if_needed_func(dict_table_t *table)
 #endif
 {
-	ut_ad(table->stat_initialized);
 	ut_ad(!mutex_own(&dict_sys.mutex));
+
+	if (UNIV_UNLIKELY(!table->stat_initialized)) {
+		/* The table may have been evicted from dict_sys
+		and reloaded internally by InnoDB for FOREIGN KEY
+		processing, but not reloaded by the SQL layer.
+
+		We can (re)compute the transient statistics when the
+		table is actually loaded by the SQL layer.
+
+		Note: If InnoDB persistent statistics are enabled,
+		we will skip the updates. We must do this, because
+		dict_table_get_n_rows() below assumes that the
+		statistics have been initialized. The DBA may have
+		to execute ANALYZE TABLE. */
+		return;
+	}
 
 	ulonglong	counter = table->stat_modified_counter++;
 	ulonglong	n_rows = dict_table_get_n_rows(table);
