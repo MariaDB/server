@@ -1206,8 +1206,14 @@ dispatch_command_return do_command(THD *thd, bool blocking)
   enum enum_server_command command;
   DBUG_ENTER("do_command");
 
+#ifdef WITH_WSREP
   DBUG_ASSERT(!thd->async_state.pending_ops() ||
-              (WSREP(thd) && thd->wsrep_trx().state() == wsrep::transaction::s_aborted));
+              (WSREP(thd) &&
+               thd->wsrep_trx().state() == wsrep::transaction::s_aborted));
+#else
+  DBUG_ASSERT(!thd->async_state.pending_ops());
+#endif
+
   if (thd->async_state.m_state == thd_async_state::enum_async_state::RESUMED)
   {
     /*
