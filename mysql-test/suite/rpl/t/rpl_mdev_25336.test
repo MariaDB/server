@@ -1,0 +1,20 @@
+#
+# MDEV-25336 Parallel replication causes failed assert while restarting
+#
+# This test will restart with parallel slave
+
+--source include/master-slave.inc
+
+--connection slave
+--source include/stop_slave.inc
+--let $old_parallel= `select @@GLOBAL.slave_parallel_threads`
+SET GLOBAL slave_parallel_threads=2;
+--source include/start_slave.inc
+
+--let $rpl_server_no= 2
+--source include/rpl_restart_server.inc
+
+--connection slave
+--eval SET GLOBAL slave_parallel_threads= $old_parallel
+--source include/start_slave.inc
+--source include/rpl_end.inc
