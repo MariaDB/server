@@ -373,11 +373,13 @@ EOF
         fi
 
     else # BYPASS
+
         wsrep_log_info "Bypassing state dump."
 
         # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
         # (separated by a space).
         STATE="$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID"
+
     fi
 
     echo "continue" # now server can resume updating data
@@ -532,7 +534,7 @@ EOF
             do
                 if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
                   echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
-		then
+                then
                   echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
                 fi
             done
