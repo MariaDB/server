@@ -29,7 +29,7 @@ if (!$failover_to_slave)
   --connect (conn_client_2,127.0.0.1,root,,test,$SERVER_MYPORT_2,)
   # use the same signal with $query_to_crash
   SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
-  SET DEBUG_SYNC= "commit_after_release_LOCK_lock SIGNAL con1_ready WAIT_FOR con2_go";
+  SET DEBUG_SYNC= "commit_after_release_LOCK_log SIGNAL con1_ready WAIT_FOR con2_go";
   --send_eval $query2_to_crash
 }
 
