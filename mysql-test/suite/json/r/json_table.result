@@ -813,6 +813,7 @@ SUM(o)
 NULL
 set sql_mode=@save_sql_mode;
 drop table t1;
+#
 # MDEV-25379 JSON_TABLE: ERROR ON clauses are ignored if a column is not on select list.
 #
 SELECT * FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
@@ -821,6 +822,15 @@ SELECT o FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o F
 ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
 SELECT COUNT(*) FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
 ERROR HY000: Field 'a' can't be set for JSON_TABLE 'jt'.
+#
+# MDEV-25408 JSON_TABLE: AddressSanitizer CHECK failed in Binary_string::realloc_raw.
+#
+SELECT x, COUNT(*) FROM JSON_TABLE( '{}', '$' COLUMNS(
+a BIT(14) PATH '$', b CHAR(16) PATH '$', c INT PATH '$[0]', d INT PATH '$[1]', e INT PATH '$[2]',
+f INT PATH '$[3]', g INT PATH '$[4]', h INT PATH '$[5]', i INT PATH '$[6]', j INT PATH '$[7]',
+x TEXT PATH '$[9]')) AS jt GROUP BY x;
+x	COUNT(*)
+NULL	1
 #
 # End of 10.6 tests
 #

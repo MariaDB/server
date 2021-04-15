@@ -1109,6 +1109,7 @@ int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
       */
       jc->m_field->charset= jc->m_explicit_cs;
     }
+    store_record(t, s->default_values);
   }
   return FALSE;
 }

@@ -709,6 +709,7 @@ SELECT SUM(o) FROM t1 JOIN JSON_TABLE(t1.a, '$' COLUMNS(o FOR ORDINALITY)) jt;
 set sql_mode=@save_sql_mode;
 drop table t1;
 
+--echo #
 --echo # MDEV-25379 JSON_TABLE: ERROR ON clauses are ignored if a column is not on select list.
 --echo #
 --error ER_JSON_TABLE_ERROR_ON_FIELD
@@ -717,6 +718,15 @@ SELECT * FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o F
 SELECT o FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
 --error ER_JSON_TABLE_ERROR_ON_FIELD
 SELECT COUNT(*) FROM JSON_TABLE ('{}', '$' COLUMNS(a INT PATH '$.*' ERROR ON EMPTY, o FOR ORDINALITY)) AS jt;
+
+
+--echo #
+--echo # MDEV-25408 JSON_TABLE: AddressSanitizer CHECK failed in Binary_string::realloc_raw.
+--echo #
+SELECT x, COUNT(*) FROM JSON_TABLE( '{}', '$' COLUMNS(
+      a BIT(14) PATH '$', b CHAR(16) PATH '$', c INT PATH '$[0]', d INT PATH '$[1]', e INT PATH '$[2]',
+      f INT PATH '$[3]', g INT PATH '$[4]', h INT PATH '$[5]', i INT PATH '$[6]', j INT PATH '$[7]',
+      x TEXT PATH '$[9]')) AS jt GROUP BY x;
 
 --echo #
 --echo # End of 10.6 tests
