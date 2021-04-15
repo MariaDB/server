@@ -100,12 +100,12 @@ SET_START_POSITION="SET GLOBAL wsrep_start_position='$WSREP_SST_OPT_GTID';"
 SET_WSREP_GTID_DOMAIN_ID=""
 if [ -n $WSREP_SST_OPT_GTID_DOMAIN_ID ]
 then
-  SET_WSREP_GTID_DOMAIN_ID="
-  SET @val = (SELECT GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME = 'WSREP_GTID_STRICT_MODE' AND GLOBAL_VALUE > 0);
-  SET @stmt = IF (@val IS NOT NULL, 'SET GLOBAL WSREP_GTID_DOMAIN_ID=$WSREP_SST_OPT_GTID_DOMAIN_ID', 'SET @dummy = 0');
-  PREPARE stmt FROM @stmt;
-  EXECUTE stmt;
-  DROP PREPARE stmt;"
+    SET_WSREP_GTID_DOMAIN_ID="
+    SET @val = (SELECT GLOBAL_VALUE FROM INFORMATION_SCHEMA.SYSTEM_VARIABLES WHERE VARIABLE_NAME = 'WSREP_GTID_STRICT_MODE' AND GLOBAL_VALUE > 0);
+    SET @stmt = IF (@val IS NOT NULL, 'SET GLOBAL WSREP_GTID_DOMAIN_ID=$WSREP_SST_OPT_GTID_DOMAIN_ID', 'SET @dummy = 0');
+    PREPARE stmt FROM @stmt;
+    EXECUTE stmt;
+    DROP PREPARE stmt;"
 fi
 
 MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF "\
@@ -132,16 +132,16 @@ SQL_LOG_BIN_OFF=""
 # Safety check
 if [ "${SERVER_VERSION%%.*}" != '5' ]
 then
-  # If binary logging is enabled on the joiner node, we need to copy donor's
-  # gtid_binlog_state to joiner. In order to do that, a RESET MASTER must be
-  # executed to erase binary logs (if any). Binary logging should also be
-  # turned off for the session so that gtid state does not get altered while
-  # the dump gets replayed on joiner.
-  if [[ "$LOG_BIN" == 'ON' ]]; then
-    RESET_MASTER="RESET MASTER;"
-    SET_GTID_BINLOG_STATE="SET @@global.gtid_binlog_state='$GTID_BINLOG_STATE';"
-    SQL_LOG_BIN_OFF="SET @@session.sql_log_bin=OFF;"
-  fi
+    # If binary logging is enabled on the joiner node, we need to copy donor's
+    # gtid_binlog_state to joiner. In order to do that, a RESET MASTER must be
+    # executed to erase binary logs (if any). Binary logging should also be
+    # turned off for the session so that gtid state does not get altered while
+    # the dump gets replayed on joiner.
+    if [[ "$LOG_BIN" == 'ON' ]]; then
+        RESET_MASTER="RESET MASTER;"
+        SET_GTID_BINLOG_STATE="SET @@global.gtid_binlog_state='$GTID_BINLOG_STATE';"
+        SQL_LOG_BIN_OFF="SET @@session.sql_log_bin=OFF;"
+    fi
 fi
 
 # NOTE: we don't use --routines here because we're dumping mysql.proc table

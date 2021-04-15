@@ -194,9 +194,9 @@ case "$1" in
         shift
         ;;
     '--binlog-index')
-	WSREP_SST_OPT_BINLOG_INDEX="$2"
-	shift
-	;;
+        WSREP_SST_OPT_BINLOG_INDEX="$2"
+        shift
+        ;;
     '--gtid-domain-id')
         readonly WSREP_SST_OPT_GTID_DOMAIN_ID="$2"
         shift
@@ -298,11 +298,11 @@ fi
 
 wsrep_defaults="$WSREP_SST_OPT_DEFAULT"
 if [ -n "$wsrep_defaults" ]; then
-   wsrep_defaults="$wsrep_defaults "
+    wsrep_defaults="$wsrep_defaults "
 fi
 wsrep_defaults="$wsrep_defaults$WSREP_SST_OPT_EXTRA_DEFAULT"
 if [ -n "$wsrep_defaults" ]; then
-   wsrep_defaults="$wsrep_defaults "
+    wsrep_defaults="$wsrep_defaults "
 fi
 readonly WSREP_SST_OPT_CONF="$wsrep_defaults$WSREP_SST_OPT_SUFFIX_DEFAULT"
 readonly MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"

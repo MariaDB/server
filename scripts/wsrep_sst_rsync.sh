@@ -74,8 +74,8 @@ check_pid_and_port()
         ;;
     *)
         if ! which lsof > /dev/null; then
-          wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
-          exit 2 # ENOENT
+            wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
+            exit 2 # ENOENT
         fi
 
         local port_info="$(lsof -i :$rsync_port -Pn 2>/dev/null | \
@@ -107,15 +107,15 @@ is_local_ip()
   local get_addr_bin=`which ifconfig`
   if [ -z "$get_addr_bin" ]
   then
-    get_addr_bin=`which ip`
-    get_addr_bin="$get_addr_bin address show"
-    # Add an slash at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
-    # ip output format is "X.X.X.X/mask"
-    address="${address}/"
+      get_addr_bin=`which ip`
+      get_addr_bin="$get_addr_bin address show"
+      # Add an slash at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
+      # ip output format is "X.X.X.X/mask"
+      address="${address}/"
   else
-    # Add an space at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
-    # ifconfig output format is "X.X.X.X "
-    address="$address "
+      # Add an space at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
+      # ifconfig output format is "X.X.X.X "
+      address="$address "
   fi
 
   $get_addr_bin | grep -F "$address" > /dev/null
@@ -373,11 +373,13 @@ EOF
         fi
 
     else # BYPASS
+
         wsrep_log_info "Bypassing state dump."
 
         # Store donor's wsrep GTID (state ID) and wsrep_gtid_domain_id
         # (separated by a space).
         STATE="$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID"
+
     fi
 
     echo "continue" # now server can resume updating data
@@ -461,22 +463,22 @@ EOF
     # If the IP is local listen only in it
     if is_local_ip "$RSYNC_ADDR"
     then
-      RSYNC_EXTRA_ARGS="--address $RSYNC_ADDR"
-      STUNNEL_ACCEPT="$RSYNC_ADDR:$RSYNC_PORT"
+        RSYNC_EXTRA_ARGS="--address $RSYNC_ADDR"
+        STUNNEL_ACCEPT="$RSYNC_ADDR:$RSYNC_PORT"
     else
-      # Not local, possibly a NAT, listen on all interfaces
-      RSYNC_EXTRA_ARGS=""
-      STUNNEL_ACCEPT="$RSYNC_PORT"
-      # Overwrite address with all
-      RSYNC_ADDR="*"
+        # Not local, possibly a NAT, listen on all interfaces
+        RSYNC_EXTRA_ARGS=""
+        STUNNEL_ACCEPT="$RSYNC_PORT"
+        # Overwrite address with all
+        RSYNC_ADDR="*"
     fi
 
     if [ -z "$STUNNEL" ]
     then
-      rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" ${RSYNC_EXTRA_ARGS} &
-      RSYNC_REAL_PID=$!
+        rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" ${RSYNC_EXTRA_ARGS} &
+        RSYNC_REAL_PID=$!
     else
-      cat << EOF > "$STUNNEL_CONF"
+        cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
 cert = $SSTCERT
 foreground = yes
@@ -488,9 +490,9 @@ accept = $STUNNEL_ACCEPT
 exec = $(which rsync)
 execargs = rsync --server --daemon --config=$RSYNC_CONF .
 EOF
-      stunnel "$STUNNEL_CONF" &
-      RSYNC_REAL_PID=$!
-      RSYNC_PID=$STUNNEL_PID
+        stunnel "$STUNNEL_CONF" &
+        RSYNC_REAL_PID=$!
+        RSYNC_PID=$STUNNEL_PID
     fi
 
     until check_pid_and_port "$RSYNC_PID" "$RSYNC_REAL_PID" "$RSYNC_ADDR" "$RSYNC_PORT"
@@ -518,7 +520,6 @@ EOF
 
     if ! [ -z $WSREP_SST_OPT_BINLOG ]
     then
-
         OLD_PWD="$(pwd)"
         cd $BINLOG_DIRNAME
 
@@ -532,14 +533,15 @@ EOF
             do
                 if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
                   echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
-		then
+                then
                   echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
                 fi
             done
         fi
-        cd "$OLD_PWD"
 
+        cd "$OLD_PWD"
     fi
+
     if [ -r "$MAGIC_FILE" ]
     then
         # UUID:seqno & wsrep_gtid_domain_id is received here.
@@ -548,6 +550,7 @@ EOF
         # this message should cause joiner to abort
         echo "rsync process ended without creating '$MAGIC_FILE'"
     fi
+
     wsrep_cleanup_progress_file
 #    cleanup_joiner
 else
