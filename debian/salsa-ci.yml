@@ -175,6 +175,40 @@ blhc:
   - pkg-config --cflags --libs libmariadb
   - pkg-config --cflags --libs mariadb
   - apt-get install -y --no-install-recommends g++
+  - |
+    # Build a test binary that depends on libmysqlclient
+    cat > b933063.cpp <<EOF
+    #include <iostream>
+    #include <mysql/mysql.h>
+    #include <stdexcept>
+    int main()
+    {
+      MYSQL h;
+      if (!mysql_init(&h)
+        || mysql_options(&h, MYSQL_READ_DEFAULT_GROUP, "")
+        // || mysql_options(&h, MYSQL_SET_CHARSET_NAME, "utf8mb4")
+        || !mysql_real_connect(&h, "", "", NULL, "", 0, NULL, 0))
+        throw std::runtime_error(mysql_error(&h));
+      std::string q = "show variables like '%char%'";
+      if (mysql_real_query(&h, q.data(), q.size()))
+        throw std::runtime_error(mysql_error(&h));
+      MYSQL_RES* result = mysql_store_result(&h);
+      if (!result && mysql_errno(&h))
+        throw std::runtime_error(mysql_error(&h));
+      while (MYSQL_ROW row = mysql_fetch_row(result))
+      {
+        std::cout << row[0] << ": " << row[1] << "\n";
+      }
+      return 0;
+    }
+    EOF
+    apt-get install -y ./*.deb # Server must be installed for client to connect
+    echo "Testing -l mysqlclient"
+    g++ b933063.cpp -l mysqlclient && ./a.out | tee result
+    if grep --quiet latin result; then echo "ERROR: Charset latin found!"; exit 1; fi
+    echo "Testing -l mariadbclient"
+    g++ b933063.cpp -l mariadbclient && ./a.out | tee result
+    if grep --quiet latin result; then echo "ERROR: Charset latin found!"; exit 1; fi
 
 .test-install-all-libs: &test-install-all-libs
   - apt-get install -y ./libmariadb3_*.deb ./libmariadb-dev_*.deb ./libmariadb-dev-compat_*.deb ./libmariadbd19_*.deb ./libmariadbd-dev_*.deb ./mariadb-common_*.deb
