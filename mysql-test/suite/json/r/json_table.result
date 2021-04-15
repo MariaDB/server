@@ -360,10 +360,12 @@ json_table( '[{"a":"asd"}, {"a":123}, {"a":[]}, {"a":{}} ]', '$[*]'
 intcol int path '$.a' default '1234' on empty default '5678' on error)
 ) as tt;
 id	intcol
-1	5678
+1	0
 2	123
 3	5678
 4	5678
+Warnings:
+Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`intcol` at row 1
 SELECT COUNT(*) FROM JSON_TABLE('[1, 2]', '$[*]' COLUMNS( I INT PATH '$')) tt;
 COUNT(*)
 2
@@ -588,9 +590,11 @@ Error	4177	Can't store an array or an object in the scalar column 'a' of JSON_TA
 # MDEV-JSON_TABLE: CREATE TABLE ignores NULL ON ERROR (implicit or explicit) and fails.
 #
 CREATE TABLE t1 AS SELECT * FROM JSON_TABLE('{"x":1}', '$' COLUMNS(f DATE PATH '$.*')) AS jt;
+Warnings:
+Warning	1265	Data truncated for column 'f' at row 1
 SELECT * FROM t1;
 f
-NULL
+0000-00-00
 DROP TABLE t1;
 #
 # MDEV-25254: JSON_TABLE: Inconsistent name resolution with right joins
@@ -906,6 +910,49 @@ EXECUTE stmt1;
 a
 2
 DEALLOCATE PREPARE stmt1;
+#
+# MDEV-25149 JSON_TABLE: Inconsistency in implicit data type conversion.
+#
+select * from json_table( '[{"a":"asd"}, {"a":123}, {"a":[]}, {"a":{}} ]', '$[*]' 
+columns ( id for ordinality,
+intcol int path '$.a' default '1234' on empty default '5678' on error)
+) as tt;
+id	intcol
+1	0
+2	123
+3	5678
+4	5678
+Warnings:
+Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`intcol` at row 1
+#
+# MDEV-25377 JSON_TABLE: Wrong value with implicit conversion.
+#
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt;
+converted	original
+0	foo
+1	1
+127	1000
+Warnings:
+Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 1
+Warning	1264	Out of range value for column 'converted' at row 3
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by converted;
+converted	original
+0	foo
+1	1
+127	1000
+Warnings:
+Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 1
+Warning	1264	Out of range value for column 'converted' at row 1
+Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 1
+Warning	1264	Out of range value for column 'converted' at row 3
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by original;
+converted	original
+1	1
+127	1000
+0	foo
+Warnings:
+Warning	1264	Out of range value for column 'converted' at row 2
+Warning	1366	Incorrect integer value: 'foo' for column ``.`(temporary)`.`converted` at row 3
 #
 # End of 10.6 tests
 #

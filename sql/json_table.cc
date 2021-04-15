@@ -176,7 +176,7 @@ class ha_json_table: public handler
   String *m_js; // The JSON document we're reading
   String m_tmps; // Buffer for the above
 
-  int fill_column_values(uchar * buf, uchar *pos);
+  int fill_column_values(THD *thd, uchar * buf, uchar *pos);
 
 public:
   ha_json_table(TABLE_SHARE *share_arg, Table_function_json_table *jt):
@@ -351,27 +351,29 @@ int ha_json_table::rnd_init(bool scan)
      for JSON's null, true, and false.
 */
 
-static int store_json_in_field(Field *f, const json_engine_t *je)
+static void store_json_in_field(Field *f, const json_engine_t *je)
 {
   switch (je->value_type)
   {
   case JSON_VALUE_NULL:
     f->set_null();
-    return 0;
+    return;
 
   case JSON_VALUE_TRUE:
   case JSON_VALUE_FALSE:
   {
     Item_result rt= f->result_type();
     if (rt == INT_RESULT || rt == DECIMAL_RESULT || rt == REAL_RESULT)
-      return f->store(je->value_type == JSON_VALUE_TRUE, false);
+    {
+      f->store(je->value_type == JSON_VALUE_TRUE, false);
+      return;
+    }
     break;
   }
   default:
     break;
   };
-
-  return f->store((const char *) je->value, (uint32) je->value_len, je->s.cs);
+  f->store((const char *) je->value, (uint32) je->value_len, je->s.cs);
 }
 
 
@@ -389,9 +391,6 @@ bool Json_table_nested_path::check_error(const char *str)
 
 int ha_json_table::rnd_next(uchar *buf)
 {
-  int res;
-  enum_check_fields cf_orig;
-
   if (!m_js)
     return HA_ERR_END_OF_FILE;
 
@@ -417,11 +416,7 @@ int ha_json_table::rnd_next(uchar *buf)
     Step 2: Read values for all columns (the columns refer to nested paths
     they are in).
   */
-  cf_orig= table->in_use->count_cuted_fields;
-  table->in_use->count_cuted_fields= CHECK_FIELD_EXPRESSION;
-  res= fill_column_values(buf, NULL);
-  table->in_use->count_cuted_fields= cf_orig;
-  return res ? HA_ERR_JSON_TABLE : 0;
+  return fill_column_values(table->in_use, buf, NULL) ? HA_ERR_JSON_TABLE : 0;
 }
 
 
@@ -436,15 +431,21 @@ int ha_json_table::rnd_next(uchar *buf)
                  ha_json_table::position() for description)
 */
 
-int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
+int ha_json_table::fill_column_values(THD *thd, uchar * buf, uchar *pos)
 {
   MY_BITMAP *orig_map= dbug_tmp_use_all_columns(table, &table->write_set);
   int error= 0;
+  Counting_error_handler er_handler;
   Field **f= table->field;
   Json_table_column *jc;
   List_iterator_fast<Json_table_column> jc_i(m_jt->m_columns);
   my_ptrdiff_t ptrdiff= buf - table->record[0];
   Abort_on_warning_instant_set ao_set(table->in_use, FALSE);
+  enum_check_fields cf_orig= table->in_use->count_cuted_fields;
+
+  table->in_use->count_cuted_fields= CHECK_FIELD_ERROR_FOR_NULL;
+
+  thd->push_internal_handler(&er_handler);
 
   while (!error && (jc= jc_i++))
   {
@@ -540,11 +541,17 @@ int ha_json_table::fill_column_values(uchar * buf, uchar *pos)
           }
           else
           {
-            if (!json_value_scalar(&je) ||
-                store_json_in_field(*f, &je))
+            if (!(error= !json_value_scalar(&je)))
+            {
+              store_json_in_field(*f, &je);
+              error= er_handler.errors;
+            }
+
+            if (error)
             {
               error= jc->m_on_error.respond(jc, *f,
                                             ER_JSON_TABLE_SCALAR_EXPECTED);
+              er_handler.errors= 0;
             }
             else
             {
@@ -577,13 +584,15 @@ cont_loop:
   }
 
   dbug_tmp_restore_column_map(&table->write_set, orig_map);
+  thd->pop_internal_handler();
+  thd->count_cuted_fields= cf_orig;
   return error;
 }
 
 
 int ha_json_table::rnd_pos(uchar * buf, uchar *pos)
 {
-  return fill_column_values(buf, pos) ? HA_ERR_JSON_TABLE : 0;
+  return fill_column_values(table->in_use, buf, pos) ? HA_ERR_JSON_TABLE : 0;
 }
 
 

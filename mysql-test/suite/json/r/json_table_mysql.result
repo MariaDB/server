@@ -59,7 +59,10 @@ id	jpath_i	jpath_r	jsn_path	jexst
 2	2	2	2	0
 3	33	33.3	{"x":33}	1
 4	0	0.33	0.33	0
-5	66	0	asd	0
+5	0	0	asd	0
+Warnings:
+Warning	1366	Incorrect integer value: 'asd' for column ``.`(temporary)`.`jpath_i` at row 5
+Warning	1366	Incorrect double value: 'asd' for column ``.`(temporary)`.`jpath_r` at row 5
 select * from
 json_table(
 '[{"x":"3"},{"a":2},{"b":1},{"a":0},{"a":[1,2]}]',
@@ -396,7 +399,10 @@ v	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIE
 DROP VIEW v;
 SELECT * FROM JSON_TABLE('"asdf"',
 '$' COLUMNS (a INT PATH '$' ERROR ON ERROR)) AS jt;
-ERROR HY000: Can't store an array or an object in the scalar column 'a' of JSON_TABLE 'jt'.
+a
+0
+Warnings:
+Warning	1366	Incorrect integer value: 'asdf' for column ``.`(temporary)`.`a` at row 1
 SELECT * FROM
 JSON_TABLE('[{"a":1},{"a":2}]',
 '$' COLUMNS (a INT PATH '$[*].a' ERROR ON ERROR)) AS jt;
@@ -407,11 +413,16 @@ JSON_TABLE('[{"a":1},{"a":2}]',
 ERROR HY000: Can't store multiple matches of the path in the column 'a' of JSON_TABLE 'jt'.
 SELECT * FROM
 JSON_TABLE('123.456', '$' COLUMNS (a DECIMAL(2,1) PATH '$' ERROR ON ERROR)) AS jt;
-ERROR HY000: Can't store an array or an object in the scalar column 'a' of JSON_TABLE 'jt'.
+a
+9.9
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
 SELECT * FROM
 JSON_TABLE('123.456', '$' COLUMNS (a DECIMAL(2,1) PATH '$')) AS jt;
 a
-NULL
+9.9
+Warnings:
+Warning	1264	Out of range value for column 'a' at row 1
 SELECT * FROM
 JSON_TABLE('{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{"a":1,"b":{}}}}}}}}}}}}}}}}}}}',
 '$' COLUMNS (i0 INT PATH '$.a',
@@ -525,7 +536,13 @@ i INT PATH '$',
 f FLOAT PATH '$',
 d DECIMAL PATH '$')) AS jt;
 tm	dt	i	f	d
-NULL	NULL	NULL	0	0
+00:00:00	0000-00-00	0	0	0
+Warnings:
+Warning	1265	Data truncated for column 'tm' at row 1
+Warning	1265	Data truncated for column 'dt' at row 1
+Warning	1366	Incorrect integer value: 'asdf' for column ``.`(temporary)`.`i` at row 1
+Warning	1366	Incorrect double value: 'asdf' for column ``.`(temporary)`.`f` at row 1
+Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`d` at row 1
 SELECT * FROM
 JSON_TABLE('{}', '$' COLUMNS (x INT PATH '$.x' DEFAULT NULL ON EMPTY)) jt;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'NULL ON EMPTY)) jt' at line 2
@@ -739,6 +756,8 @@ FROM JSON_TABLE('{"a":"1993-01-01"}',
 AS jt;
 jp
 0000-00-00
+Warnings:
+Warning	1265	Data truncated for column 'jp' at row 1
 #
 # Bug#25532429: INVALID JSON ERROR NOT THROWN WITH EMPTY TABLES JOIN
 #
@@ -763,6 +782,8 @@ JSON_TABLE('["3.14159"]',
 ) AS alias2;
 col18
 3.1415
+Warnings:
+Warning	1265	Data truncated for column 'col18' at row 1
 #Truncated space doesn't trigger ON ERROR
 SELECT * FROM
 JSON_TABLE('["3.14159 "]',
@@ -805,12 +826,17 @@ JSON_TABLE('[3.14159]',
 '$[*]' COLUMNS (col18 DECIMAL(3,3) PATH '$')
 ) AS alias2;
 col18
-NULL
+0.999
+Warnings:
+Warning	1264	Out of range value for column 'col18' at row 1
 SELECT * FROM
 JSON_TABLE('[3.14159]',
 '$[*]' COLUMNS (col18 DECIMAL(3,3) PATH '$' ERROR ON ERROR)
 ) AS alias2;
-ERROR HY000: Can't store an array or an object in the scalar column 'col18' of JSON_TABLE 'alias2'.
+col18
+0.999
+Warnings:
+Warning	1264	Out of range value for column 'col18' at row 1
 SELECT * FROM
 JSON_TABLE('[0.9]',
 '$[*]' COLUMNS (col18 DECIMAL(3,3) PATH '$')
@@ -825,6 +851,9 @@ DEFAULT "3.14159" ON ERROR)
 col18
 0.000
 0.000
+Warnings:
+Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`col18` at row 1
+Warning	1366	Incorrect decimal value: 'ghjk' for column ``.`(temporary)`.`col18` at row 2
 CREATE TABLE t1(jd JSON);
 INSERT INTO t1 VALUES('["asdf"]'),('["ghjk"]');
 SELECT * FROM t1,
@@ -835,6 +864,9 @@ DEFAULT "3.14159" ON ERROR)
 jd	col18
 ["asdf"]	0.000
 ["ghjk"]	0.000
+Warnings:
+Warning	1366	Incorrect decimal value: 'asdf' for column ``.`(temporary)`.`col18` at row 1
+Warning	1366	Incorrect decimal value: 'ghjk' for column ``.`(temporary)`.`col18` at row 1
 DROP TABLE t1;
 #
 # Bug#25540027: SIG 11 IN FIND_FIELD_IN_TABLE | SQL/SQL_BASE.CC
@@ -1316,13 +1348,17 @@ id
 SELECT id FROM JSON_TABLE('[{"id":"9223372036854775808"}]', '$[*]' COLUMNS
 (id BIGINT PATH '$.id')) AS json;
 id
-NULL
+9223372036854775807
+Warnings:
+Warning	1264	Out of range value for column 'id' at row 1
 # Here the JSON value is a NUMERIC value, and we thus know if the value
 # is signed or unsigned.
 SELECT id FROM JSON_TABLE('[{"id":9223372036854775808}]', '$[*]' COLUMNS
 (id BIGINT PATH '$.id')) AS json;
 id
-NULL
+9223372036854775807
+Warnings:
+Warning	1264	Out of range value for column 'id' at row 1
 # If we tell the JSON table column to be unsigned, we get to store the
 # full value correctly.
 SELECT id FROM JSON_TABLE('[{"id":"9223372036854775808"}]', '$[*]' COLUMNS
@@ -1524,11 +1560,15 @@ b VARCHAR(3) PATH '$.b' DEFAULT '"ERR"' ON ERROR,
 c DATE PATH '$.c' DEFAULT '"2001-01-01"' ON ERROR,
 d DECIMAL PATH '$.c' DEFAULT '999' ON ERROR)
 ) AS jt;
+Warnings:
+Warning	1265	Data truncated for column 'b' at row 2
+Warning	1264	Out of range value for column 'a' at row 3
+Warning	1265	Data truncated for column 'd' at row 4
 SELECT * FROM t ORDER BY id;
 id	a	b	c	d
 1	1	abc	NULL	NULL
 2	2	abc	NULL	NULL
-3	111	xyz	NULL	NULL
+3	127	xyz	NULL	NULL
 4	NULL	NULL	2012-00-00	12
 DROP TABLE t;
 #

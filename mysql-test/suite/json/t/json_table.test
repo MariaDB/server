@@ -798,5 +798,22 @@ EXECUTE stmt1;
 DEALLOCATE PREPARE stmt1;
 
 --echo #
+--echo # MDEV-25149 JSON_TABLE: Inconsistency in implicit data type conversion.
+--echo #
+select * from json_table( '[{"a":"asd"}, {"a":123}, {"a":[]}, {"a":{}} ]', '$[*]' 
+    columns ( id for ordinality,
+              intcol int path '$.a' default '1234' on empty default '5678' on error)
+    ) as tt;
+
+--echo #
+--echo # MDEV-25377 JSON_TABLE: Wrong value with implicit conversion.
+--echo #
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt;
+ 
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by converted;
+ 
+select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by original;
+
+--echo #
 --echo # End of 10.6 tests
 --echo #
