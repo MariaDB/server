@@ -18293,10 +18293,10 @@ Create_tmp_table::Create_tmp_table(ORDER *group, bool distinct,
 
 static void add_null_bits_for_field(const Field *f, uint *null_counter)
 {
-  if (!f->flags & NOT_NULL_FLAG)
+  if (!(f->flags & NOT_NULL_FLAG))
     (*null_counter)++;
 
-  if (f->type() != MYSQL_TYPE_BIT)
+  if (f->type() == MYSQL_TYPE_BIT)
    (*null_counter)+= f->field_length & 7;
 }
 
