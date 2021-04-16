@@ -228,7 +228,7 @@ mutex_instances	10	Dynamic
 objects_summary_global_by_type	10	Dynamic
 performance_timers	10	Fixed
 prepared_statements_instances	10	Dynamic
-replication_applier_configuration	10	Fixed
+replication_applier_configuration	10	Dynamic
 replication_applier_status	10	Fixed
 replication_applier_status_by_coordinator	10	Dynamic
 replication_applier_status_by_worker	10	Dynamic
