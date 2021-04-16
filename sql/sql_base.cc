@@ -6101,7 +6101,8 @@ Field *
 find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
                         const char *name, size_t length,
                         const char *item_name, const char *db_name,
-                        const char *table_name, table_map ignored_tables,
+                        const char *table_name,
+                        ignored_tables_list_t ignored_tables,
                         Item **ref,
                         bool check_privileges, bool allow_rowid,
                         uint *cached_field_index_ptr,
@@ -6194,8 +6195,13 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
       TABLE_LIST *table;
       while ((table= it++))
       {
-        if (table->table && (table->table->map & ignored_tables))
+        /*
+          Check if the table is in the ignore list. Only base tables can be in
+          the ignore list.
+        */
+        if (table->table && ignored_list_includes_table(ignored_tables, table))
           continue;
+
         if ((fld= find_field_in_table_ref(thd, table, name, length, item_name,
                                           db_name, table_name, ignored_tables,
                                           ref, check_privileges, allow_rowid,
@@ -6322,8 +6328,8 @@ Field *find_field_in_table_sef(TABLE *table, const char *name)
     first_table           list of tables to be searched for item
     last_table            end of the list of tables to search for item. If NULL
                           then search to the end of the list 'first_table'.
-    ignored_tables        Bitmap of tables that should be ignored. Do not try
-                          to find the field in those.
+    ignored_tables        Set of tables that should be ignored. Do not try to
+                          find the field in those.
     ref			  if 'item' is resolved to a view field, ref is set to
                           point to the found view field
     report_error	  Degree of error reporting:
@@ -6351,7 +6357,7 @@ Field *find_field_in_table_sef(TABLE *table, const char *name)
 Field *
 find_field_in_tables(THD *thd, Item_ident *item,
                      TABLE_LIST *first_table, TABLE_LIST *last_table,
-                     table_map ignored_tables,
+                     ignored_tables_list_t ignored_tables,
 		     Item **ref, find_item_error_report_type report_error,
                      bool check_privileges, bool register_tree_change)
 {
@@ -6475,7 +6481,8 @@ find_field_in_tables(THD *thd, Item_ident *item,
   for (; cur_table != last_table ;
        cur_table= cur_table->next_name_resolution_table)
   {
-    if (cur_table->table && (cur_table->table->map & ignored_tables))
+    if (cur_table->table &&
+        ignored_list_includes_table(ignored_tables, cur_table))
       continue;
 
     Field *cur_field= find_field_in_table_ref(thd, cur_table, name, length,

@@ -195,14 +195,15 @@ bool fill_record(THD *thd, TABLE *table, Field **field, List<Item> &values,
 Field *
 find_field_in_tables(THD *thd, Item_ident *item,
                      TABLE_LIST *first_table, TABLE_LIST *last_table,
-                     table_map ignored_tables,
+                     ignored_tables_list_t ignored_tables,
                      Item **ref, find_item_error_report_type report_error,
                      bool check_privileges, bool register_tree_change);
 Field *
 find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
                         const char *name, size_t length,
                         const char *item_name, const char *db_name,
-                        const char *table_name, table_map ignored_tables,
+                        const char *table_name,
+                        ignored_tables_list_t ignored_tables,
                         Item **ref, bool check_privileges, bool allow_rowid,
                         uint *cached_field_index_ptr,
                         bool register_tree_change, TABLE_LIST **actual_table);

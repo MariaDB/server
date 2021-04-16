@@ -10713,3 +10713,18 @@ bool Item::cleanup_excluding_immutables_processor (void *arg)
     return false;
   }
 }
+
+
+bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl)
+{
+  if (!list)
+    return false;
+  List_iterator<TABLE_LIST> it(*list);
+  TABLE_LIST *list_tbl;
+  while ((list_tbl = it++))
+  {
+    if (list_tbl == tbl)
+      return true;
+  }
+  return false;
+}

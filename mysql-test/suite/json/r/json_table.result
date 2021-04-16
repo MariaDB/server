@@ -790,6 +790,23 @@ ON t1.a = tt.b;
 a	b	c	o
 1	1	{}	1
 2	2	[]	NULL
+prepare s from
+"SELECT *
+FROM
+  t1 RIGHT JOIN
+    v2 AS tt
+    LEFT JOIN
+    JSON_TABLE(CONCAT(tt.c,''), '$' COLUMNS(o FOR ORDINALITY)) AS jt
+    ON tt.b = jt.o
+ ON t1.a = tt.b";
+execute s;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
+execute s;
+a	b	c	o
+1	1	{}	1
+2	2	[]	NULL
 DROP VIEW v2;
 DROP TABLE t1, t2;
 #

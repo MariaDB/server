@@ -198,7 +198,7 @@ public:
   List<Json_table_column> m_columns;
 
   /*** Name resolution functions ***/
-  int setup(THD *thd, TABLE_LIST *sql_table, SELECT_LEX *s_lex);
+  bool setup(THD *thd, TABLE_LIST *sql_table, SELECT_LEX *s_lex);
 
   int walk_items(Item_processor processor, bool walk_subquery,
                  void *argument);
@@ -226,7 +226,8 @@ public:
 
   /*** Construction interface to be used from the parser ***/
   Table_function_json_table(Item *json):
-    m_json(json)
+    m_json(json),
+    m_context_setup_done(false)
   {
     cur_parent= &m_nested_path;
     last_sibling_hook= &m_nested_path.m_nested;
@@ -249,6 +250,8 @@ public:
 private:
   /* Context to be used for resolving the first argument. */
   Name_resolution_context *m_context;
+
+  bool m_context_setup_done;
 
   /* Current NESTED PATH level being parsed */
   Json_table_nested_path *cur_parent;

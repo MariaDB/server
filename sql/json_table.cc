@@ -44,8 +44,13 @@ static table_function_handlerton table_function_hton;
 
 /*
   @brief
-    Collect a bitmap of tables that a given table function cannot have
+    Collect a set of tables that a given table function cannot have
     references to.
+
+  @param
+     table_func         The table function we are connecting info for
+     join_list          The nested join to be processed
+     disallowed_tables  Collect the tables here.
 
   @detail
     According to the SQL standard, a table function can refer to any table
@@ -80,16 +85,16 @@ static table_function_handlerton table_function_hton;
     we are ok with operating on the tables "in the left join order".
 
   @return
-    TRUE  - enumeration has found the Table Function instance. The bitmap is
-            ready.
-    FALSE - Otherwise
-
+     0 - Continue
+     1 - Finish the process, success
+    -1 - Finish the process, failure
 */
 
 static
-bool get_disallowed_table_deps_for_list(table_map table_func_bit,
-                                        List<TABLE_LIST> *join_list,
-                                        table_map *disallowed_tables)
+int get_disallowed_table_deps_for_list(MEM_ROOT *mem_root,
+                                       TABLE_LIST *table_func,
+                                       List<TABLE_LIST> *join_list,
+                                       List<TABLE_LIST> *disallowed_tables)
 {
   TABLE_LIST *table;
   NESTED_JOIN *nested_join;
@@ -99,23 +104,25 @@ bool get_disallowed_table_deps_for_list(table_map table_func_bit,
   {
     if ((nested_join= table->nested_join))
     {
-      if (get_disallowed_table_deps_for_list(table_func_bit,
-                                             &nested_join->join_list,
-                                             disallowed_tables))
-        return true;
+      int res;
+      if ((res= get_disallowed_table_deps_for_list(mem_root, table_func,
+                                                   &nested_join->join_list,
+                                                   disallowed_tables)))
+        return res;
     }
     else
     {
-      *disallowed_tables |= table->table->map;
-      if (table_func_bit == table->table->map)
+      if (disallowed_tables->push_back(table, mem_root))
+        return -1;
+      if (table == table_func)
       {
         // This is the JSON_TABLE(...) that are we're computing dependencies
         // for.
-        return true;
+        return 1; // Finish the processing
       }
     }
   }
-  return false;
+  return 0; // Continue
 }
 
 
@@ -129,19 +136,31 @@ bool get_disallowed_table_deps_for_list(table_map table_func_bit,
     See get_disallowed_table_deps_for_list
 
   @return
-    Bitmap of tables that table function can NOT have references to.
+     NULL  - Out of memory
+     Other - A list of tables that the function cannot have references to. May
+             be empty.
 */
 
 static
-table_map get_disallowed_table_deps(JOIN *join, table_map table_func_bit)
+List<TABLE_LIST>* get_disallowed_table_deps(MEM_ROOT *mem_root,
+                                            SELECT_LEX *select,
+                                            TABLE_LIST *table_func)
 {
-  table_map disallowed_tables= 0;
-  if (!get_disallowed_table_deps_for_list(table_func_bit, join->join_list,
-                                          &disallowed_tables))
-  {
-    // We haven't found the table with table_func_bit in all tables?
-    DBUG_ASSERT(0);
-  }
+  List<TABLE_LIST> *disallowed_tables;
+
+  if (!(disallowed_tables = new List<TABLE_LIST>))
+    return NULL;
+
+  int res= get_disallowed_table_deps_for_list(mem_root, table_func,
+                                              select->join_list,
+                                              disallowed_tables);
+
+  // The collection process must have finished
+  DBUG_ASSERT(res != 0);
+
+  if (res == -1)
+    return NULL; // Out of memory
+
   return disallowed_tables;
 }
 
@@ -1034,48 +1053,56 @@ bool push_table_function_arg_context(LEX *lex, MEM_ROOT *alloc)
     Perform name-resolution phase tasks
 
   @detail
-    - The only argument that needs resolution is the JSON text
-    - Then, we need to set dependencies: if JSON_TABLE refers to table's
-      column, e.g.
+    The only argument that needs name resolution is the first parameter which
+    has the JSON text:
 
-         JSON_TABLE (t1.col ... ) AS t2
+      JSON_TABLE(json_doc, ... )
 
-      then it can be computed only after table t1.
-    - The dependencies must not form a loop.
+    The argument may refer to other tables and uses special name resolution
+    rules (see get_disallowed_table_deps_for_list for details). This function
+    sets up Name_resolution_context object appropriately before calling
+    fix_fields for the argument.
+
+  @return
+    false  OK
+    true   Fatal error
 */
 
-int Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
+bool Table_function_json_table::setup(THD *thd, TABLE_LIST *sql_table,
                                      SELECT_LEX *s_lex)
 {
-  TABLE *t= sql_table->table;
-
   thd->where= "JSON_TABLE argument";
-  {
-    bool save_is_item_list_lookup;
-    bool res;
-    save_is_item_list_lookup= s_lex->is_item_list_lookup;
-    s_lex->is_item_list_lookup= 0;
 
+  if (!m_context_setup_done)
+  {
+    m_context_setup_done= true;
     // Prepare the name resolution context. First, copy the context that is
     // used for name resolution of the WHERE clause
     *m_context= s_lex->context;
 
     // Then, restrict it to only allow to refer to tables that come before the
     // table function reference
-    m_context->ignored_tables= get_disallowed_table_deps(s_lex->join, t->map);
-
-    // Do the same what setup_without_group() does: do not count the referred
-    // fields in non_agg_field_used:
-    const bool saved_non_agg_field_used= s_lex->non_agg_field_used();
-
-    res= m_json->fix_fields_if_needed(thd, &m_json);
-
-    s_lex->is_item_list_lookup= save_is_item_list_lookup;
-    s_lex->set_non_agg_field_used(saved_non_agg_field_used);
-
-    if (res)
-      return TRUE;
+    if (!(m_context->ignored_tables=
+            get_disallowed_table_deps(thd->stmt_arena->mem_root, s_lex,
+                                      sql_table)))
+      return TRUE; // Error
   }
+
+  bool save_is_item_list_lookup;
+  save_is_item_list_lookup= s_lex->is_item_list_lookup;
+  s_lex->is_item_list_lookup= 0;
+
+  // Do the same what setup_without_group() does: do not count the referred
+  // fields in non_agg_field_used:
+  const bool saved_non_agg_field_used= s_lex->non_agg_field_used();
+
+  bool res= m_json->fix_fields_if_needed(thd, &m_json);
+
+  s_lex->is_item_list_lookup= save_is_item_list_lookup;
+  s_lex->set_non_agg_field_used(saved_non_agg_field_used);
+
+  if (res)
+    return TRUE; // Error
 
   return FALSE;
 }

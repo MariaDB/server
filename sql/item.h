@@ -162,6 +162,9 @@ void dummy_error_processor(THD *thd, void *data);
 
 void view_error_processor(THD *thd, void *data);
 
+typedef List<TABLE_LIST>* ignored_tables_list_t;
+bool ignored_list_includes_table(ignored_tables_list_t list, TABLE_LIST *tbl);
+
 /*
   Instances of Name_resolution_context store the information necessary for
   name resolution of Items and other context analysis of a query made in
@@ -236,7 +239,7 @@ struct Name_resolution_context: Sql_alloc
     Bitmap of tables that should be ignored when doing name resolution.
     Normally it is {0}. Non-zero values are used by table functions.
   */
-  table_map ignored_tables;
+  ignored_tables_list_t ignored_tables;
 
   /*
     Security context of this name resolution context. It's used for views
@@ -247,7 +250,7 @@ struct Name_resolution_context: Sql_alloc
   Name_resolution_context()
     :outer_context(0), table_list(0), select_lex(0),
     error_processor_data(0),
-    ignored_tables(0),
+    ignored_tables(NULL),
     security_ctx(0)
     {}
 
