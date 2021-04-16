@@ -3788,6 +3788,7 @@ void st_select_lex::print_limit(THD *thd,
       {
         str->append(STRING_WITH_LEN(" offset "));
         limit_params.offset_limit->print(str, query_type);
+        str->append(STRING_WITH_LEN(" rows "));
       }
       str->append(STRING_WITH_LEN(" fetch first "));
       limit_params.select_limit->print(str, query_type);

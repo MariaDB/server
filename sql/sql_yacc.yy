@@ -12277,7 +12277,7 @@ fetch_first_clause:
             $$.explicit_limit= true;
             $$.with_ties= $4;
           }
-        | OFFSET_SYM limit_option
+        | OFFSET_SYM limit_option row_or_rows
           FETCH_SYM first_or_next row_or_rows only_or_with_ties
           {
             Item *one= new (thd->mem_root) Item_int(thd, (int32) 1);
@@ -12286,7 +12286,7 @@ fetch_first_clause:
             $$.select_limit= one;
             $$.offset_limit= $2;
             $$.explicit_limit= true;
-            $$.with_ties= $6;
+            $$.with_ties= $7;
           }
         | FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
           {
@@ -12295,15 +12295,15 @@ fetch_first_clause:
             $$.explicit_limit= true;
             $$.with_ties= $5;
           }
-        | OFFSET_SYM limit_option
+        | OFFSET_SYM limit_option row_or_rows
           FETCH_SYM first_or_next limit_option row_or_rows only_or_with_ties
           {
-            $$.select_limit= $5;
+            $$.select_limit= $6;
             $$.offset_limit= $2;
             $$.explicit_limit= true;
-            $$.with_ties= $7;
+            $$.with_ties= $8;
           }
-        | OFFSET_SYM limit_option
+        | OFFSET_SYM limit_option row_or_rows
           {
             $$.select_limit= 0;
             $$.offset_limit= $2;
@@ -12316,6 +12316,7 @@ first_or_next:
           FIRST_SYM
         | NEXT_SYM
         ;
+
 row_or_rows:
           ROW_SYM
         | ROWS_SYM
