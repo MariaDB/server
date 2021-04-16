@@ -4297,6 +4297,8 @@ static int exec_relay_log_event(THD* thd, Relay_log_info* rli,
         DBUG_RETURN(1);
       }
 
+      rli->last_seen_gtid= serial_rgi->current_gtid;
+      rli->last_trans_retry_count= serial_rgi->trans_retries;
       if (opt_gtid_ignore_duplicates &&
           rli->mi->using_gtid != Master_info::USE_GTID_NO)
       {
@@ -5305,6 +5307,7 @@ pthread_handler_t handle_slave_sql(void *arg)
 
   serial_rgi->gtid_sub_id= 0;
   serial_rgi->gtid_pending= false;
+  rli->last_seen_gtid= serial_rgi->current_gtid;
   if (mi->using_gtid != Master_info::USE_GTID_NO && mi->using_parallel() &&
       rli->restart_gtid_pos.count() > 0)
   {

@@ -179,6 +179,26 @@ Last_SQL_Errno = '0'
 Slave_heartbeat_period = '60.000'
 Slave_heartbeat_period = '60.000'
 #
+#
+# MDEV:16437: merge 5.7 P_S replication instrumentation and tables
+#
+SELECT * FROM performance_schema.replication_applier_status_by_coordinator;
+CHANNEL_NAME	master1
+THREAD_ID	#
+SERVICE_STATE	ON
+LAST_ERROR_NUMBER	0
+LAST_ERROR_MESSAGE	
+LAST_ERROR_TIMESTAMP	0000-00-00 00:00:00
+LAST_SEEN_TRANSACTION	0-1-7
+LAST_TRANS_RETRY_COUNT	0
+CHANNEL_NAME	
+THREAD_ID	#
+SERVICE_STATE	ON
+LAST_ERROR_NUMBER	0
+LAST_ERROR_MESSAGE	
+LAST_ERROR_TIMESTAMP	0000-00-00 00:00:00
+LAST_SEEN_TRANSACTION	0-2-4
+LAST_TRANS_RETRY_COUNT	0
 select * from db1.t1;
 i	f1
 1	one

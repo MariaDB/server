@@ -58,6 +58,12 @@ query_vertical select * from performance_schema.replication_connection_configura
 # Ensure that start all slaves doesn't do anything as all slaves are started
 start all slaves;
 
+--echo #
+--echo # MDEV:16437: merge 5.7 P_S replication instrumentation and tables
+--echo #
+--replace_column 2 #
+query_vertical select * from performance_schema.replication_applier_status_by_coordinator;
+
 stop slave 'slave1';
 
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>

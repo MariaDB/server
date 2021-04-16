@@ -17,6 +17,7 @@
 
 --source include/not_embedded.inc
 --source include/have_innodb.inc
+--source include/have_perfschema.inc
 --source include/binlog_start_pos.inc
 --let $rpl_server_count= 0
 
@@ -262,6 +263,12 @@ let $condition= = 'Waiting for master to send event';
 --source include/show_slave_status.inc
 --let $all_slaves_status=
 --echo #
+
+--echo #
+--echo # MDEV:16437: merge 5.7 P_S replication instrumentation and tables
+--echo #
+--replace_column 2 #
+query_vertical SELECT * FROM performance_schema.replication_applier_status_by_coordinator;
 
 --sorted_result
 select * from db1.t1;

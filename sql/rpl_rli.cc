@@ -61,7 +61,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
    gtid_skip_flag(GTID_SKIP_NOT), inited(0), abort_slave(0), stop_for_until(0),
    slave_running(MYSQL_SLAVE_NOT_RUN), until_condition(UNTIL_NONE),
    until_log_pos(0), retried_trans(0), executed_entries(0),
-   sql_delay(0), sql_delay_end(0),
+   last_trans_retry_count(0), sql_delay(0), sql_delay_end(0),
    until_relay_log_names_defer(false),
    m_flags(0)
 {
@@ -87,6 +87,7 @@ Relay_log_info::Relay_log_info(bool is_slave_recovery, const char* thread_name)
   max_relay_log_size= global_system_variables.max_relay_log_size;
   bzero((char*) &info_file, sizeof(info_file));
   bzero((char*) &cache_buf, sizeof(cache_buf));
+  bzero(&last_seen_gtid, sizeof(last_seen_gtid));
   mysql_mutex_init(key_relay_log_info_run_lock, &run_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_relay_log_info_data_lock,
                    &data_lock, MY_MUTEX_INIT_FAST);

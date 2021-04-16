@@ -34,8 +34,6 @@
 #include "pfs_engine_table.h"
 #include "rpl_mi.h"
 #include "mysql_com.h"
-//#include "rpl_msr.h"
-//#include "rpl_info.h" /*CHANNEL_NAME_LENGTH*/
 #include "my_thread.h"
 
 class Master_info;
@@ -68,6 +66,9 @@ struct st_row_coordinator {
   char last_error_message[MAX_SLAVE_ERRMSG];
   uint last_error_message_length;
   ulonglong last_error_timestamp;
+  char last_seen_transaction[GTID_MAX_STR_LENGTH + 1];
+  uint last_seen_transaction_length;
+  ulong last_trans_retry_count;
 };
 
 /** Table PERFORMANCE_SCHEMA.replication_applier_status_by_coordinator */
