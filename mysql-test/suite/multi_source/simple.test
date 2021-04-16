@@ -4,6 +4,7 @@
 
 --source include/not_embedded.inc
 --source include/binlog_start_pos.inc
+--source include/have_perfschema.inc
 --let $rpl_server_count= 0
 
 --connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
@@ -46,7 +47,13 @@ let relay_log_pos=`select 2*$binlog_start_pos + 117`;
 let relay_log_space1=`select 3*$binlog_start_pos + 178`;
 let relay_log_space2=`select 3*$binlog_start_pos + 178`;
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
-show all slaves status;
+query_vertical show all slaves status;
+
+--echo #
+--echo # MDEV:16437: merge 5.7 P_S replication instrumentation and tables
+--echo #
+--replace_column 3 #
+query_vertical select * from performance_schema.replication_connection_configuration;
 
 # Ensure that start all slaves doesn't do anything as all slaves are started
 start all slaves;
@@ -58,15 +65,15 @@ query_vertical show slave 'slave1' status;
 
 reset slave 'slave1';
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
-show all slaves status;
+query_vertical show all slaves status;
 
 reset slave 'slave1' all;
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
-show all slaves status;
+query_vertical show all slaves status;
 
 stop all slaves;
 --replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
-show all slaves status;
+query_vertical show all slaves status;
 
 # Ensure that start all slaves doesn't do anything as all slaves are stopped
 stop all slaves;

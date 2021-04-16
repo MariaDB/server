@@ -1590,7 +1590,7 @@ long-query-time 10
 low-priority-updates FALSE
 lower-case-table-names 1
 master-info-file master.info
-master-retry-count 86400
+master-retry-count 100000
 master-verify-checksum FALSE
 max-allowed-packet 16777216
 max-binlog-cache-size 18446744073709547520

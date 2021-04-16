@@ -35,8 +35,6 @@
 #include "rpl_mi.h"
 #include "mysql_com.h"
 #include "my_thread.h"
-//#include "rpl_msr.h"
-//#include "rpl_info.h"  /* CHANNEL_NAME_LENGTH*/
 
 class Master_info;
 
@@ -59,6 +57,12 @@ enum enum_ssl_allowed {
     PS_SSL_ALLOWED_NO,
     PS_SSL_ALLOWED_IGNORED
 };
+enum enum_using_gtid {
+    PS_USE_GTID_NO= 1,
+    PS_USE_GTID_CURRENT_POS,
+    PS_USE_GTID_SLAVE_POS
+};
+
 
 /**
   A row in the table. The fields with string values have an additional
@@ -72,9 +76,7 @@ struct st_row_connect_config {
   uint port;
   char user[USERNAME_LENGTH];
   uint user_length;
-  char network_interface[HOSTNAME_LENGTH];
-  uint network_interface_length;
-  enum_rpl_yes_no auto_position;
+  enum_using_gtid using_gtid;
   enum_ssl_allowed ssl_allowed;
   char ssl_ca_file[FN_REFLEN];
   uint ssl_ca_file_length;
@@ -94,8 +96,31 @@ struct st_row_connect_config {
   uint connection_retry_interval;
   ulong connection_retry_count;
   double heartbeat_interval;
-  char tls_version[FN_REFLEN];
-  uint tls_version_length;
+  char *ignore_server_ids;
+  uint ignore_server_ids_length;
+  char *do_domain_ids_str;
+  uint do_domain_ids_str_length;
+  char *ignore_domain_ids_str;
+  uint ignore_domain_ids_str_length;
+  void cleanup()
+  {
+    if (ignore_server_ids != NULL)
+    {
+      my_free(ignore_server_ids);
+      ignore_server_ids= NULL;
+    }
+    if (do_domain_ids_str != NULL)
+    {
+      my_free(do_domain_ids_str);
+      do_domain_ids_str= NULL;
+    }
+    if (ignore_domain_ids_str != NULL)
+    {
+      my_free(ignore_domain_ids_str);
+      ignore_domain_ids_str= NULL;
+    }
+  }
+
 };
 
 /** Table PERFORMANCE_SCHEMA.TABLE_REPLICATION_CONNECTION_CONFIGURATION. */

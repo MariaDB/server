@@ -1,0 +1,331 @@
+# ==== Purpose ====
+#
+# This test script serves as the functionality testing for the table
+# performance_schema.replication_connection_configuration. Test for ddl and dml
+# operations is a part of the perfschema suite. The ddl/dml tests are named:
+# 1) ddl_replication_connection_configuration.test and
+# 2) dml_replication_connection_configuration.test.
+#
+# This test script does the following:
+
+#  - On master, the table returns an empty set.
+#  - We perform all other testing on connection "slave". So, the below points
+#    are checked on slave only.
+#  - Verify that SELECT works for every field in the table.
+#  - The SELECT per field produces an output similar to the corresponding field
+#    in SHOW SLAVE STATUS(SSS), if there is one.
+#  - If there is no matching field in SSS, we resort to other method of testing
+#    those fields.
+#
+# The follwing scenarios are tested:
+#
+#  - Test each field on a fresh replication setup.
+#  - Change configuration parameters using CHANGE MASTER TO and verify that
+#    these changes are seen in SELECTs from PS table.
+#  - Verify that, the change in values are correctly shown by the table.
+#  - Verify different values for MASTER_USE_GTID are present in table.
+#  - Verify IGNORE_SERVER_IDS, DO_DOMAIN_IDS and IGNORE_DOMAIN_IDS
+#
+#  ==== Related Worklog ====
+#
+# MDEV-16437: merge 5.7 P_S replication instrumentation and tables
+#
+
+source include/have_ssl_communication.inc;
+source include/have_binlog_format_mixed.inc;
+source include/have_perfschema.inc;
+source include/master-slave.inc;
+
+--let $assert_text= On master, the table should return an empty set.
+--let $assert_cond= count(*) = 0 from performance_schema.replication_connection_configuration
+--source include/rpl_assert.inc
+
+--connection slave
+
+--echo
+--echo # Verify that SELECT works for every field and produces an output
+--echo # similar to the corresponding field in SHOW SLAVE STATUS(SSS).
+--echo
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_Host, 1);
+let $ps_value= query_get_value(select Host from performance_schema.replication_connection_configuration, Host, 1);
+let $assert_text= Value returned by SSS and PS table for Host should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_Port, 1);
+let $ps_value= query_get_value(select Port from performance_schema.replication_connection_configuration, Port, 1);
+let $assert_text= Value returned by SSS and PS table for Port should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_User, 1);
+let $ps_value= query_get_value(select User from performance_schema.replication_connection_configuration, User, 1);
+let $assert_text= Value returned by SSS and PS table for User should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1);
+let $ps_value= query_get_value(select Using_Gtid from performance_schema.replication_connection_configuration, Using_Gtid, 1);
+let $assert_text= Value returned by SSS and PS table for Using_Gtid should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Allowed, 1);
+let $ps_value= query_get_value(select SSL_Allowed from performance_schema.replication_connection_configuration, SSL_Allowed, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Allowed should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_CA_File, 1);
+let $ps_value= query_get_value(select SSL_CA_File from performance_schema.replication_connection_configuration, SSL_CA_File, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_CA_File should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_CA_Path, 1);
+let $ps_value= query_get_value(select SSL_CA_Path from performance_schema.replication_connection_configuration, SSL_CA_Path, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_CA_Path should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Cert, 1);
+let $ps_value= query_get_value(select SSL_Certificate from performance_schema.replication_connection_configuration, SSL_Certificate, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Certificate should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Cipher, 1);
+let $ps_value= query_get_value(select SSL_Cipher from performance_schema.replication_connection_configuration, SSL_Cipher, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Cipher should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Key, 1);
+let $ps_value= query_get_value(select SSL_Key from performance_schema.replication_connection_configuration, SSL_Key, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Key should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Verify_Server_Cert, 1);
+let $ps_value= query_get_value(select SSL_Verify_Server_Certificate from performance_schema.replication_connection_configuration, SSL_Verify_Server_Certificate, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Verify_Server_Certificate should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Crl, 1);
+let $ps_value= query_get_value(select SSL_Crl_File from performance_schema.replication_connection_configuration, SSL_Crl_File, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Crl_File should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Crlpath, 1);
+let $ps_value= query_get_value(select SSL_Crl_Path from performance_schema.replication_connection_configuration, SSL_Crl_Path, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Crl_Path should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Connect_Retry, 1);
+let $ps_value= query_get_value(select Connection_Retry_Interval from performance_schema.replication_connection_configuration, Connection_Retry_Interval, 1);
+let $assert_text= Value returned by SSS and PS table for Connection_Retry_Interval should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $ps_value= query_get_value(select Connection_Retry_Count from performance_schema.replication_connection_configuration, Connection_Retry_Count, 1);
+let $assert_text= Value returned by PS table for Connection_Retry_Count should be 10.; # master-retry-count=10, as part of default my.cnf used by MTR
+let $assert_cond= "$ps_value" = 10;
+source include/assert.inc;
+
+--echo
+--echo # Heartbeat_Interval is part of I_S and P_S. We will compare the
+--echo # two to make sure both match.
+--echo
+
+let $is_value= query_get_value(select Variable_Value from information_schema.GLOBAL_STATUS where variable_name= 'Slave_heartbeat_period', Variable_Value, 1);
+let $ps_value= query_get_value(select Heartbeat_Interval from performance_schema.replication_connection_configuration, Heartbeat_Interval, 1);
+let $assert_text= Value returned by IS and PS table for Heartbeat_Interval should be same.;
+let $assert_cond= $is_value = $ps_value;
+source include/assert.inc;
+
+--echo
+--echo # Change configuration parameters and verify that these changes
+--echo # are shown correctly by SELECTs from PS table.
+--echo
+
+# create a user for replication that requires ssl encryption
+--connection master
+create user replssl@localhost;
+grant replication slave on *.* to replssl@localhost require ssl;
+--source include/sync_slave_sql_with_master.inc
+
+# Setup slave to use SSL for connection to master
+--source include/stop_slave.inc
+replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR;
+replace_column 2 ####;
+eval change master to
+  master_user= 'replssl',
+  master_password= '',
+  master_ssl= 1,
+  master_ssl_ca= '$MYSQL_TEST_DIR/std_data/cacert.pem',
+  master_ssl_cert= '$MYSQL_TEST_DIR/std_data/client-cert.pem',
+  master_ssl_key= '$MYSQL_TEST_DIR/std_data/client-key.pem';
+--source include/start_slave.inc
+
+--connection slave
+--echo
+--echo # Checking SSL parameters, they were empty in tests done in the
+--echo # previous section.
+--echo
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Allowed, 1);
+let $ps_value= query_get_value(select SSL_Allowed from performance_schema.replication_connection_configuration, SSL_Allowed, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Allowed should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_CA_File, 1);
+let $ps_value= query_get_value(select SSL_CA_File from performance_schema.replication_connection_configuration, SSL_CA_File, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_CA_File should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_CA_Path, 1);
+let $ps_value= query_get_value(select SSL_CA_Path from performance_schema.replication_connection_configuration, SSL_CA_Path, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_CA_Path should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Cert, 1);
+let $ps_value= query_get_value(select SSL_Certificate from performance_schema.replication_connection_configuration, SSL_Certificate, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Certificate should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Cipher, 1);
+let $ps_value= query_get_value(select SSL_Cipher from performance_schema.replication_connection_configuration, SSL_Cipher, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Cipher should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Key, 1);
+let $ps_value= query_get_value(select SSL_Key from performance_schema.replication_connection_configuration, SSL_Key, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Key should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Master_SSL_Verify_Server_Cert, 1);
+let $ps_value= query_get_value(select SSL_Verify_Server_Certificate from performance_schema.replication_connection_configuration, SSL_Verify_Server_Certificate, 1);
+let $assert_text= Value returned by SSS and PS table for SSL_Verify_Server_Certificate should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+--connection master
+drop user replssl@localhost;
+--sync_slave_with_master
+--source include/stop_slave.inc
+
+CHANGE MASTER TO
+ master_host= '127.0.0.1',
+ master_user= 'root',
+ master_password= '',
+ master_ssl_ca= '',
+ master_ssl_cert= '',
+ master_ssl_key= '',
+ master_ssl_verify_server_cert=0,
+ master_ssl=0,
+ master_use_gtid=no;
+--source include/start_slave.inc
+
+--echo
+--echo # Test with different MASTER_USE_GTID values
+--echo
+
+--echo
+--echo # 1) Test for MASTER_USE_GTID=NO
+--echo
+--source include/stop_slave.inc
+replace_column 2 ####;
+change master to
+ master_user = 'root',
+ master_use_gtid = NO;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1);
+let $ps_value= query_get_value(select Using_Gtid from performance_schema.replication_connection_configuration, Using_Gtid, 1);
+let $assert_text= Value returned by SSS and PS table for Using_Gtid should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+--echo
+--echo # 2) Test for Auto_position= CURRENT_POS.
+--echo
+replace_column 2 ####;
+change master to
+ master_user = 'root',
+ master_use_gtid= CURRENT_POS;
+
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1);
+let $ps_value= query_get_value(select Using_Gtid from performance_schema.replication_connection_configuration, Using_Gtid, 1);
+let $assert_text= Value returned by SSS and PS table for Using_Gtid should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+--echo
+--echo # 3) Test for Auto_position= SLAVE_POS
+--echo
+replace_column 2 ####;
+change master to
+ master_user = 'root',
+ master_use_gtid= SLAVE_POS;
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Using_Gtid, 1);
+let $ps_value= query_get_value(select Using_Gtid from performance_schema.replication_connection_configuration, Using_Gtid, 1);
+let $assert_text= Value returned by SSS and PS table for Using_Gtid should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+
+--echo
+--echo # Test INOGRE_SERVER_IDS
+--echo
+
+--echo
+--echo # 1) Test for IGNORE_SERVER_IDS= (10, 100);
+--echo
+
+--connection slave
+change master to IGNORE_SERVER_IDS= (10, 100);
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Server_Ids, 1);
+let $ps_value= query_get_value(select Ignore_Server_Ids from performance_schema.replication_connection_configuration, Ignore_Server_Ids, 1);
+let $assert_text= Value returned by SSS and PS table for Ignore_server_ids should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+CHANGE MASTER TO IGNORE_SERVER_IDS=();
+
+--echo
+--echo # 2) Test for IGNORE_DOMAIN_IDS(2)
+--echo
+
+CHANGE MASTER TO IGNORE_DOMAIN_IDS=(2), MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Replicate_Ignore_Domain_Ids, 1);
+let $ps_value= query_get_value(select Repl_Ignore_Domain_Ids from performance_schema.replication_connection_configuration, Repl_Ignore_Domain_Ids, 1);
+let $assert_text= Value returned by SSS and PS table for Replicate_Ignore_Domain_Ids should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+--source include/stop_slave.inc
+
+--echo
+--echo # 3) Test for DO_DOMAIN_IDS(1)
+--echo
+
+CHANGE MASTER TO DO_DOMAIN_IDS=(1), IGNORE_DOMAIN_IDS=(), MASTER_USE_GTID=slave_pos;
+--source include/start_slave.inc
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Replicate_Do_Domain_Ids, 1);
+let $ps_value= query_get_value(select Repl_Do_Domain_Ids from performance_schema.replication_connection_configuration, Repl_Do_Domain_Ids, 1);
+let $assert_text= Value returned by SSS and PS table for Replicate_Do_Domain_Ids should be same.;
+let $assert_cond= "$sss_value" = "$ps_value";
+source include/assert.inc;
+--source include/stop_slave.inc
+
+CHANGE MASTER TO DO_DOMAIN_IDS=(), IGNORE_DOMAIN_IDS=();
+--source include/start_slave.inc
+
+source include/rpl_end.inc;

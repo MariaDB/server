@@ -6457,7 +6457,7 @@ struct my_option my_long_options[]=
   {"master-retry-count", 0,
    "The number of tries the slave will make to connect to the master before giving up.",
    &master_retry_count, &master_retry_count, 0, GET_ULONG,
-   REQUIRED_ARG, 3600*24, 0, 0, 0, 0, 0},
+   REQUIRED_ARG, 100000, 0, 0, 0, 0, 0},
 #ifdef HAVE_REPLICATION
   {"init-rpl-role", 0, "Set the replication role",
    &rpl_status, &rpl_status, &rpl_role_typelib,

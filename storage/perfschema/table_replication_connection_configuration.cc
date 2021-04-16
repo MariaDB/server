@@ -54,12 +54,11 @@ table_replication_connection_configuration::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_connection_configuration("
-  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null,"
+  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null,"
   "HOST CHAR(60) collate utf8_bin not null,"
   "PORT INTEGER not null,"
   "USER CHAR(32) collate utf8_bin not null,"
-  "NETWORK_INTERFACE CHAR(60) collate utf8_bin not null,"
-  "AUTO_POSITION ENUM('1','0') not null,"
+  "USING_GTID ENUM('NO','CURRENT_POS','SLAVE_POS') not null,"
   "SSL_ALLOWED ENUM('YES','NO','IGNORED') not null,"
   "SSL_CA_FILE VARCHAR(512) not null,"
   "SSL_CA_PATH VARCHAR(512) not null,"
@@ -72,10 +71,32 @@ table_replication_connection_configuration::m_share=
   "CONNECTION_RETRY_INTERVAL INTEGER not null,"
   "CONNECTION_RETRY_COUNT BIGINT unsigned not null,"
   "HEARTBEAT_INTERVAL DOUBLE(10,3) unsigned not null COMMENT 'Number of seconds after which a heartbeat will be sent .',"
-  "TLS_VERSION VARCHAR(255) not null)") },
+  "IGNORE_SERVER_IDS LONGTEXT not null,"
+  "REPL_DO_DOMAIN_IDS LONGTEXT not null,"
+  "REPL_IGNORE_DOMAIN_IDS LONGTEXT not null)") },
   false  /* perpetual */
 };
 
+static char *convert_array_to_str(DYNAMIC_ARRAY *ids)
+{
+  char *buf;
+  size_t sz, cur_len= 0;
+
+  sz= (sizeof(ulong) * 3 + 1) * (1 + ids->elements);
+
+  if (!(buf= (char *) my_malloc(PSI_INSTRUMENT_ME, sz, MYF(MY_WME))))
+    return NULL;
+  buf[0]= 0;
+
+  for (uint i= 0; i < ids->elements; i++)
+  {
+    ulong domain_id;
+    get_dynamic(ids, (void *) &domain_id, i);
+    cur_len+= my_snprintf(buf + cur_len, sz, (i == 0 ? "%lu" : ", %lu"), domain_id);
+    sz-= cur_len;
+  }
+  return buf;
+}
 
 PFS_engine_table* table_replication_connection_configuration::create(void)
 {
@@ -154,7 +175,9 @@ int table_replication_connection_configuration::rnd_pos(const void *pos)
 
 void table_replication_connection_configuration::make_row(Master_info *mi)
 {
+  DBUG_ENTER("table_replication_connection_configuration::make_row");
   char * temp_store;
+  bool error= false;
 
   m_row_exists= false;
 
@@ -177,14 +200,12 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
   m_row.user_length= static_cast<uint>(strlen(temp_store));
   memcpy(m_row.user, temp_store, m_row.user_length);
 
-  temp_store= const_cast<char*>(""); //(char*)mi->bind_addr;
-  m_row.network_interface_length= static_cast<uint>(strlen(temp_store));
-  memcpy(m_row.network_interface, temp_store, m_row.network_interface_length);
-
-  if (mi->using_gtid)
-    m_row.auto_position= PS_RPL_YES;
+  if (mi->using_gtid == Master_info::USE_GTID_NO)
+    m_row.using_gtid= PS_USE_GTID_NO;
+  else if (mi->using_gtid == Master_info::USE_GTID_CURRENT_POS)
+    m_row.using_gtid= PS_USE_GTID_CURRENT_POS;
   else
-    m_row.auto_position= PS_RPL_NO;
+    m_row.using_gtid= PS_USE_GTID_SLAVE_POS;
 
 #ifdef HAVE_OPENSSL
   m_row.ssl_allowed= mi->ssl? PS_SSL_ALLOWED_YES:PS_SSL_ALLOWED_NO;
@@ -227,18 +248,43 @@ void table_replication_connection_configuration::make_row(Master_info *mi)
 
   m_row.connection_retry_interval= (unsigned int) mi->connect_retry;
 
-  m_row.connection_retry_count= 0; //(ulong) mi->retry_count;
+  m_row.connection_retry_count= master_retry_count; //(ulong) mi->retry_count;
 
   m_row.heartbeat_interval= (double)mi->heartbeat_period;
 
-  temp_store= (char*)""; //mi->tls_version;
-  m_row.tls_version_length= static_cast<uint>(strlen(temp_store));
-  memcpy(m_row.tls_version, temp_store, m_row.tls_version_length);
+  m_row.ignore_server_ids= convert_array_to_str(&mi->ignore_server_ids);
+  if (m_row.ignore_server_ids == NULL)
+  {
+    error= true;
+    goto end;
+  }
+  m_row.ignore_server_ids_length= static_cast<uint>(strlen(m_row.ignore_server_ids));
 
+  m_row.do_domain_ids_str=
+    convert_array_to_str(&mi->domain_id_filter.m_domain_ids[Domain_id_filter::DO_DOMAIN_IDS]);
+  if (m_row.do_domain_ids_str == NULL)
+  {
+    error= true;
+    goto end;
+  }
+  m_row.do_domain_ids_str_length= static_cast<uint>(strlen(m_row.do_domain_ids_str));
+
+  m_row.ignore_domain_ids_str=
+    convert_array_to_str(&mi->domain_id_filter.m_domain_ids[Domain_id_filter::IGNORE_DOMAIN_IDS]);
+  if (m_row.ignore_domain_ids_str == NULL)
+  {
+    error= true;
+    goto end;
+  }
+  m_row.ignore_domain_ids_str_length=
+    static_cast<uint>(strlen(m_row.ignore_domain_ids_str));
+
+end:
   mysql_mutex_unlock(&mi->rli.data_lock);
   mysql_mutex_unlock(&mi->data_lock);
-
-  m_row_exists= true;
+  if (!error)
+    m_row_exists= true;
+   DBUG_VOID_RETURN;
 }
 
 int table_replication_connection_configuration::read_row_values(TABLE *table,
@@ -259,8 +305,8 @@ int table_replication_connection_configuration::read_row_values(TABLE *table,
     {
       switch(f->field_index)
       {
-      case 0: /** channel_name */
-        set_field_char_utf8(f, m_row.channel_name, m_row.channel_name_length);
+      case 0: /** connection_name */
+        set_field_varchar_utf8(f, m_row.channel_name, m_row.channel_name_length);
         break;
       case 1: /** host */
         set_field_char_utf8(f, m_row.host, m_row.host_length);
@@ -271,63 +317,69 @@ int table_replication_connection_configuration::read_row_values(TABLE *table,
       case 3: /** user */
         set_field_char_utf8(f, m_row.user, m_row.user_length);
         break;
-      case 4: /** network_interface */
-        set_field_char_utf8(f, m_row.network_interface,
-                               m_row.network_interface_length);
+      case 4: /** use_gtid */
+        set_field_enum(f, m_row.using_gtid);
         break;
-      case 5: /** auto_position */
-        set_field_enum(f, m_row.auto_position);
-        break;
-      case 6: /** ssl_allowed */
+      case 5: /** ssl_allowed */
         set_field_enum(f, m_row. ssl_allowed);
         break;
-      case 7: /**ssl_ca_file */
+      case 6: /**ssl_ca_file */
         set_field_varchar_utf8(f, m_row.ssl_ca_file,
                                m_row.ssl_ca_file_length);
         break;
-      case 8: /** ssl_ca_path */
+      case 7: /** ssl_ca_path */
         set_field_varchar_utf8(f, m_row.ssl_ca_path,
                                m_row.ssl_ca_path_length);
         break;
-      case 9: /** ssl_certificate */
+      case 8: /** ssl_certificate */
         set_field_varchar_utf8(f, m_row.ssl_certificate,
                                m_row.ssl_certificate_length);
         break;
-      case 10: /** ssl_cipher */
+      case 9: /** ssl_cipher */
         set_field_varchar_utf8(f, m_row.ssl_cipher, m_row.ssl_cipher_length);
         break;
-      case 11: /** ssl_key */
+      case 10: /** ssl_key */
         set_field_varchar_utf8(f, m_row.ssl_key, m_row.ssl_key_length);
         break;
-      case 12: /** ssl_verify_server_certificate */
+      case 11: /** ssl_verify_server_certificate */
         set_field_enum(f, m_row.ssl_verify_server_certificate);
         break;
-      case 13: /** ssl_crl_file */
+      case 12: /** ssl_crl_file */
         set_field_varchar_utf8(f, m_row.ssl_crl_file,
                                m_row.ssl_crl_file_length);
         break;
-      case 14: /** ssl_crl_path */
+      case 13: /** ssl_crl_path */
         set_field_varchar_utf8(f, m_row.ssl_crl_path,
                                m_row.ssl_crl_path_length);
         break;
-      case 15: /** connection_retry_interval */
+      case 14: /** connection_retry_interval */
         set_field_ulong(f, m_row.connection_retry_interval);
         break;
-      case 16: /** connect_retry_count */
+      case 15: /** connect_retry_count */
         set_field_ulonglong(f, m_row.connection_retry_count);
         break;
-      case 17:/** number of seconds after which heartbeat will be sent */
+      case 16:/** number of seconds after which heartbeat will be sent */
         set_field_double(f, m_row.heartbeat_interval);
         break;
-      case 18: /** tls_version */
-        set_field_varchar_utf8(f, m_row.tls_version,
-                               m_row.tls_version_length);
+      case 17: /** ignore_server_ids */
+        set_field_longtext_utf8(f, m_row.ignore_server_ids,
+                               m_row.ignore_server_ids_length);
         break;
+      case 18: /** do_domain_ids */
+        set_field_longtext_utf8(f, m_row.do_domain_ids_str,
+            m_row.do_domain_ids_str_length);
+        break;
+      case 19: /** ignore_domain_ids */
+        set_field_longtext_utf8(f, m_row.ignore_domain_ids_str,
+            m_row.ignore_domain_ids_str_length);
+        break;
+
       default:
         DBUG_ASSERT(false);
       }
     }
   }
+  m_row.cleanup();
   return 0;
 }
 #endif
