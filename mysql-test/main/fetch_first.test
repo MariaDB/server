@@ -18,11 +18,12 @@ insert into t_keyword values (1), (1), (2), (3), (2);
 --echo #
 select * from t1
 order by a
-offset 2;
+offset 2 rows;
+
 
 --sorted_result
 select * from t1
-offset 2;
+offset 2 rows;
 
 
 --echo #
@@ -55,24 +56,48 @@ select * from t1
 fetch next rows only;
 
 --echo #
---echo # Include offset before fetch clause.
+--echo # Row / rows are mandatory after offset <n>
 --echo #
+--error 1064
 select * from t1
 order by a
 offset 2
 fetch first row only;
 
+--error 1064
 select * from t1
 order by a
-offset 2
+offset 2;
+
+select * from t1
+order by a
+offset 2 row
+fetch first row only;
+
+select * from t1
+order by a
+offset 2 rows
+fetch first row only;
+
+--echo #
+--echo # Include offset before fetch clause.
+--echo #
+select * from t1
+order by a
+offset 2 rows
+fetch first row only;
+
+select * from t1
+order by a
+offset 2 rows
 fetch first rows only;
 
 select * from t1
-offset 2
+offset 2 rows
 fetch next row only;
 
 select * from t1
-offset 2
+offset 2 rows
 fetch next rows only;
 
 
@@ -119,22 +144,22 @@ fetch next rows with ties;
 
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch first row with ties;
 
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch first rows with ties;
 
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch next row with ties;
 
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch next rows with ties;
 
 
@@ -158,20 +183,20 @@ fetch next 3 rows only;
 --echo #
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch first 3 row only;
 
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch first 3 rows only;
 
 select * from t1
-offset 2
+offset 2 rows
 fetch next 3 row only;
 
 select * from t1
-offset 2
+offset 2 rows
 fetch next 3 rows only;
 
 
@@ -218,27 +243,27 @@ fetch next 3 rows with ties;
 
 --error ER_WITH_TIES_NEEDS_ORDER
 select * from t1
-offset 2
+offset 2 rows
 fetch first row with ties;
 
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch first 3 row with ties;
 
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch first 3 rows with ties;
 
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch next 3 row with ties;
 
 select * from t1
 order by a
-offset 2
+offset 2 rows
 fetch next 3 rows with ties;
 
 
@@ -309,47 +334,47 @@ fetch first 4 rows with ties;
 
 select * from t1
 order by first_name, last_name
-offset 1
+offset 1 rows
 fetch first 3 rows with ties;
 
 select * from t1
 order by first_name, last_name
-offset 1
+offset 1 rows
 fetch first 3 rows only;
 
 select * from t1
 order by first_name, last_name
-offset 1
+offset 1 rows
 fetch first 3 rows with ties;
 
 select * from t1
 order by first_name, last_name
-offset 2
+offset 2 rows
 fetch first 3 rows only;
 
 select * from t1
 order by first_name, last_name
-offset 2
+offset 2 rows
 fetch first 3 rows with ties;
 
 select * from t1
 order by first_name, last_name
-offset 3
+offset 3 rows
 fetch first 3 rows only;
 
 select * from t1
 order by first_name, last_name
-offset 3
+offset 3 rows
 fetch first 3 rows with ties;
 
 select * from t1
 order by first_name, last_name
-offset 4
+offset 4 rows
 fetch first 3 rows only;
 
 select * from t1
 order by first_name, last_name
-offset 4
+offset 4 rows
 fetch first 3 rows with ties;
 
 --echo #
@@ -357,12 +382,12 @@ fetch first 3 rows with ties;
 --echo #
 select * from t1
 order by first_name, last_name
-offset 5
+offset 5 rows
 fetch first 3 rows with ties;
 
 select * from t1
 order by first_name, last_name
-offset 5
+offset 5 rows
 fetch first 3 rows only;
 
 --echo #
@@ -407,13 +432,13 @@ fetch first 2 rows with ties;
 --sorted_result
 select * from t2
 order by t2.location desc
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 --sorted_result
 select * from t2
 order by t2.location desc
-offset 2
+offset 2 rows
 fetch first 2 rows with ties;
 
 --echo #
@@ -430,34 +455,34 @@ fetch first 3 rows with ties;
 select * from (
   select * from t2
   order by t2.location desc
-  offset 2
+  offset 2 rows
   fetch first 2 rows with ties
 ) temp;
 
 
 select * from t2
 order by t2.location desc
-offset 0
+offset 0 rows
 fetch first 2 rows with ties;
 
 create view v1 as (
   select * from t2
   order by t2.location desc
-  offset 0
+  offset 0 rows
   fetch first 2 rows with ties
 );
 
 create view v2 as (
   select * from t2
   order by t2.location desc
-  offset 1
+  offset 1 rows
   fetch first 2 rows with ties
 );
 
 create view v3 as (
   select * from t2
   order by t2.location desc
-  offset 2
+  offset 2 rows
   fetch first row with ties
 );
 
@@ -479,7 +504,7 @@ show create view v3;
 select *
 from t1 inner join v1 on t1.id = v1.fk
 order by v1.location desc, t1.first_name
-offset 1
+offset 1 rows
 fetch first 1 rows with ties;
 
 select first_name, last_name, sum(score)
@@ -497,7 +522,7 @@ select first_name, last_name, sum(score)
 from t1
 group by first_name, last_name
 order by first_name
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 --sorted_result
@@ -505,7 +530,7 @@ select first_name, last_name, sum(score)
 from t1
 group by first_name, last_name
 order by first_name
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 
@@ -536,7 +561,7 @@ insert into t1 values
 explain select first_name, last_name
 from t1
 order by first_name
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 explain select first_name, last_name
@@ -548,7 +573,7 @@ fetch first 2 rows with ties;
 select first_name, last_name
 from t1
 order by first_name
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 select first_name, last_name
@@ -560,19 +585,19 @@ fetch first 2 rows with ties;
 select first_name, last_name
 from t1
 order by first_name desc
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 select first_name, last_name
 from t1
 order by first_name desc
-offset 4
+offset 4 rows
 fetch first 2 rows with ties;
 
 select first_name, last_name
 from t1
 order by first_name desc
-offset 4
+offset 4 rows
 fetch first 3 rows with ties;
 
 explain select first_name, last_name
@@ -654,20 +679,20 @@ with temp_table as (
 )
 select * from temp_table
 order by first_name
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 
 select first_name, row_number() over () rn
 from t1
 order by rn
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 select first_name, row_number() over () rn
 from t1
 order by rn desc
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 select first_name, score, rank() over (ORDER BY score)
@@ -678,7 +703,7 @@ fetch first 3 rows with ties;
 select first_name, score, rank() over (ORDER BY score)
 from t1
 order by rank() over (ORDER BY score)
-offset 1
+offset 1 rows
 fetch first 2 rows with ties;
 
 select first_name, score, rank() over (ORDER BY score)
@@ -732,7 +757,7 @@ fetch first 3 row with ties;
 select *
 from t1 left join t2 on t1.id = t2.fk
 order by t2.location
-offset 2
+offset 2 rows
 fetch first 1 row with ties;
 
 
@@ -761,7 +786,7 @@ fetch first 1 row with ties;
 except
 (select * from t1 order by first_name desc fetch first 3 rows with ties)
 order by first_name
-offset 1
+offset 1 rows
 fetch first 1 row with ties;
 
 --sorted_result
@@ -827,7 +852,7 @@ set @a=-1;
 --error ER_WRONG_ARGUMENTS
 execute s using @a;
 
-prepare s2 from "select a, b from t1 order by a offset ? fetch first ? rows with ties";
+prepare s2 from "select a, b from t1 order by a offset ? rows fetch first ? rows with ties";
 set @offset=1;
 set @limit_count= 2;
 execute s2 using @offset, @limit_count;
