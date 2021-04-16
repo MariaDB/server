@@ -1,7 +1,4 @@
 set names binary;
-#
-# Start of 5.5 tests
-#
 SET TIME_ZONE = _latin1 '+03:00';
 #
 # Start of WL#2649 Number-to-string conversions
@@ -809,12 +806,12 @@ create table t1 as select concat(uuid()) as c1;
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(36) CHARACTER SET utf8 DEFAULT NULL
+  `c1` varbinary(36) DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 select coercibility(uuid()), coercibility(cast('a' as char character set latin1));
 coercibility(uuid())	coercibility(cast('a' as char character set latin1))
-4	2
+5	2
 select charset(concat(uuid(), cast('a' as char character set latin1)));
 charset(concat(uuid(), cast('a' as char character set latin1)))
 latin1
@@ -2927,9 +2924,6 @@ SET sql_mode=default;
 #
 # End of 5.5 tests
 #
-#
-# Start of 10.0 tests
-#
 SET NAMES binary;
 #
 # MDEV-7149 Constant condition propagation erroneously applied for LIKE
@@ -3075,9 +3069,6 @@ DROP TABLE t1;
 SET optimizer_switch=@save_optimizer_switch;
 #
 # End of 10.0 tests
-#
-#
-# Start of 10.1 tests
 #
 #
 # MDEV-8695 Wrong result for SELECT..WHERE varchar_column='a' AND CRC32(varchar_column)=3904355907
@@ -3270,9 +3261,6 @@ ERROR HY000: Incorrect information in file: 'DIR/t1.frm'
 # End of 10.1 tests
 #
 #
-# Start of 10.2 tests
-#
-#
 # MDEV-22111 ERROR 1064 & 1033 and SIGSEGV on CREATE TABLE w/ various charsets on 10.4/5 optimized builds | Assertion `(uint) (table_check_constraints - share->check_constraints) == (uint) (share->table_check_constraints - share->field_check_constraints)' failed
 # 10.2 tests
 #
@@ -3317,4 +3305,30 @@ HEX(c)
 DROP TABLE t1;
 #
 # End of 10.2 tests
+#
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-8844 Unreadable control characters printed as is in warnings
+#
+SET NAMES binary;
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET latin1, UNIQUE(a));
+INSERT INTO t1 VALUES (0x61000162FF);
+INSERT INTO t1 VALUES (0x61000162FF);
+ERROR 23000: Duplicate entry 'a\0000\0001bÿ' for key 'a'
+INSERT IGNORE INTO t1 VALUES (0x61000162FF);
+Warnings:
+Warning	1062	Duplicate entry 'a\0000\0001bÿ' for key 'a'
+DROP TABLE t1;
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET utf8, UNIQUE(a));
+INSERT INTO t1 VALUES (_latin1 0x61000162FF);
+INSERT INTO t1 VALUES (_latin1 0x61000162FF);
+ERROR 23000: Duplicate entry 'a\0000\0001bÿ' for key 'a'
+INSERT IGNORE INTO t1 VALUES (_latin1 0x61000162FF);
+Warnings:
+Warning	1062	Duplicate entry 'a\0000\0001bÿ' for key 'a'
+DROP TABLE t1;
+#
+# End of 10.5 tests
 #

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2005, 2016, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2014, 2019, MariaDB Corporation.
+   Copyright (c) 2014, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,7 +49,6 @@ The parts not included are excluded by #ifndef UNIV_INNOCHECKSUM. */
 #include "page0zip.h"            /* page_zip_*() */
 #include "trx0undo.h"            /* TRX_* */
 #include "ut0crc32.h"            /* ut_crc32_init() */
-#include "fsp0pagecompress.h"    /* fil_get_compression_alg_name */
 #include "fil0crypt.h"           /* fil_space_verify_crypt_checksum */
 
 #include <string.h>
@@ -468,7 +467,7 @@ is_page_corrupted(
 	/* use to store LSN values. */
 	ulint logseq;
 	ulint logseqfield;
-	ulint page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+	const uint16_t page_type = fil_page_get_type(buf);
 	uint key_version = buf_page_get_key_version(buf, flags);
 	ulint space_id = mach_read_from_4(
 		buf + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID);
@@ -836,7 +835,7 @@ parse_page(
 		strcpy(str, "-");
 	}
 
-	switch (mach_read_from_2(page + FIL_PAGE_TYPE)) {
+	switch (fil_page_get_type(page)) {
 
 	case FIL_PAGE_INDEX: {
 		uint key_version = mach_read_from_4(page + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION);
@@ -895,8 +894,8 @@ parse_page(
 				const byte* des = xdes + XDES_ARR_OFFSET
 					+ XDES_SIZE * ((page_no & (physical_page_size - 1))
 						/ FSP_EXTENT_SIZE);
-				if (xdes_get_bit(des, XDES_FREE_BIT,
-						page_no % FSP_EXTENT_SIZE)) {
+				if (xdes_is_free(des,
+						 page_no % FSP_EXTENT_SIZE)) {
 					index.free_pages++;
 					return;
 				}
@@ -1332,11 +1331,11 @@ static void usage(void)
 
 extern "C" my_bool
 innochecksum_get_one_option(
-	int			optid,
-	const struct my_option	*opt MY_ATTRIBUTE((unused)),
-	char			*argument MY_ATTRIBUTE((unused)))
+	const struct my_option	*opt,
+	const char		*argument MY_ATTRIBUTE((unused)),
+        const char *)
 {
-	switch (optid) {
+	switch (opt->id) {
 #ifndef DBUG_OFF
 	case '#':
 		dbug_setting = argument
@@ -1551,8 +1550,6 @@ int main(
 	/* our input filename. */
 	char*		filename;
 	/* Buffer to store pages read. */
-	byte*		buf_ptr = NULL;
-	byte*		xdes_ptr = NULL;
 	byte*		buf = NULL;
 	byte*		xdes = NULL;
 	/* bytes read count */
@@ -1586,7 +1583,6 @@ int main(
 	/* enable when space_id of given file is zero. */
 	bool		is_system_tablespace = false;
 
-	ut_crc32_init();
 	MY_INIT(argv[0]);
 	DBUG_ENTER("main");
 	DBUG_PROCESS(argv[0]);
@@ -1632,10 +1628,10 @@ int main(
 	}
 
 
-	buf_ptr = (byte*) malloc(UNIV_PAGE_SIZE_MAX * 2);
-	xdes_ptr = (byte*)malloc(UNIV_PAGE_SIZE_MAX * 2);
-	buf = (byte *) ut_align(buf_ptr, UNIV_PAGE_SIZE_MAX);
-	xdes = (byte *) ut_align(xdes_ptr, UNIV_PAGE_SIZE_MAX);
+	buf = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE_MAX,
+						UNIV_PAGE_SIZE_MAX));
+	xdes = static_cast<byte*>(aligned_malloc(UNIV_PAGE_SIZE_MAX,
+						 UNIV_PAGE_SIZE_MAX));
 
 	/* The file name is not optional. */
 	for (int i = 0; i < argc; ++i) {
@@ -1936,7 +1932,7 @@ first_non_zero:
 				skip_page = false;
 			}
 
-			ulint cur_page_type = mach_read_from_2(buf+FIL_PAGE_TYPE);
+			const uint16_t cur_page_type = fil_page_get_type(buf);
 
 			/* FIXME: Page compressed or Page compressed and encrypted
 			pages do not contain checksum. */
@@ -2014,21 +2010,9 @@ first_non_zero:
 		fclose(log_file);
 	}
 
-	free(buf_ptr);
-	free(xdes_ptr);
-
-	my_end(exit_status);
-	DBUG_RETURN(exit_status);
+	goto common_exit;
 
 my_exit:
-	if (buf_ptr) {
-		free(buf_ptr);
-	}
-
-	if (xdes_ptr) {
-		free(xdes_ptr);
-	}
-
 	if (!read_from_stdin && fil_in) {
 		fclose(fil_in);
 	}
@@ -2037,6 +2021,9 @@ my_exit:
 		fclose(log_file);
 	}
 
+common_exit:
+	aligned_free(buf);
+	aligned_free(xdes);
 	my_end(exit_status);
 	DBUG_RETURN(exit_status);
 }

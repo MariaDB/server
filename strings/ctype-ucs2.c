@@ -1,5 +1,5 @@
 /* Copyright (c) 2003, 2013, Oracle and/or its affiliates
-   Copyright (c) 2009, 2016, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This library is free software; you can redistribute it and/or
    modify it under the terms of the GNU Library General Public
@@ -34,7 +34,6 @@
 #if defined(HAVE_CHARSET_mb2) || defined(HAVE_CHARSET_utf32)
 #define HAVE_CHARSET_mb2_or_mb4
 #endif
-
 
 #ifndef EILSEQ
 #define EILSEQ ENOENT
@@ -143,12 +142,12 @@ my_copy_incomplete_char(CHARSET_INFO *cs,
     
     Make sure we didn't pad to an incorrect character.
   */
-  if (cs->cset->charlen(cs, (uchar *) dst, (uchar *) dst + cs->mbminlen) ==
+  if (my_ci_charlen(cs, (uchar *) dst, (uchar *) dst + cs->mbminlen) ==
       (int) cs->mbminlen)
     return MY_CHAR_COPY_OK;
 
   if (fix &&
-      cs->cset->wc_mb(cs, '?', (uchar *) dst, (uchar *) dst + cs->mbminlen) ==
+      my_ci_wc_mb(cs, '?', (uchar *) dst, (uchar *) dst + cs->mbminlen) ==
       (int) cs->mbminlen)
     return MY_CHAR_COPY_FIXED;
 
@@ -733,7 +732,7 @@ my_l10tostr_mb2_or_mb4(CHARSET_INFO *cs,
   
   for ( db= dst, de= dst + len ; (dst < de) && *p ; p++)
   {
-    int cnvres= cs->cset->wc_mb(cs,(my_wc_t)p[0],(uchar*) dst, (uchar*) de);
+    int cnvres= my_ci_wc_mb(cs, (my_wc_t) p[0], (uchar*) dst, (uchar*) de);
     if (cnvres > 0)
       dst+= cnvres;
     else
@@ -796,7 +795,7 @@ cnv:
   
   for ( db= dst, de= dst + len ; (dst < de) && *p ; p++)
   {
-    int cnvres= cs->cset->wc_mb(cs, (my_wc_t) p[0], (uchar*) dst, (uchar*) de);
+    int cnvres= my_ci_wc_mb(cs, (my_wc_t) p[0], (uchar*) dst, (uchar*) de);
     if (cnvres > 0)
       dst+= cnvres;
     else
@@ -1057,7 +1056,7 @@ my_fill_mb2(CHARSET_INFO *cs, char *s, size_t slen, int fill)
 
   DBUG_ASSERT((slen % 2) == 0);
 
-  buflen= cs->cset->wc_mb(cs, (my_wc_t) fill, (uchar*) buf,
+  buflen= my_ci_wc_mb(cs, (my_wc_t) fill, (uchar*) buf,
                           (uchar*) buf + sizeof(buf));
 
   DBUG_ASSERT(buflen > 0);
@@ -1281,6 +1280,7 @@ my_uni_utf16(CHARSET_INFO *cs __attribute__((unused)),
 
 #ifdef HAVE_CHARSET_utf16
 
+const char charset_name_utf16le[]= "utf16le";
 
 static inline void
 my_tolower_utf16(MY_UNICASE_INFO *uni_plane, my_wc_t *wc)
@@ -1370,7 +1370,7 @@ static void
 my_hash_sort_utf16(CHARSET_INFO *cs, const uchar *s, size_t slen,
                    ulong *nr1, ulong *nr2)
 {
-  size_t lengthsp= cs->cset->lengthsp(cs, (const char *) s, slen);
+  size_t lengthsp= my_ci_lengthsp(cs, (const char *) s, slen);
   my_hash_sort_utf16_nopad(cs, s, lengthsp, nr1, nr2);
 }
 
@@ -1405,7 +1405,7 @@ static int
 my_charlen_utf16(CHARSET_INFO *cs, const uchar *str, const uchar *end)
 {
   my_wc_t wc;
-  return cs->cset->mb_wc(cs, &wc, str, end);
+  return my_ci_mb_wc(cs, &wc, str, end);
 }
 
 
@@ -1495,7 +1495,7 @@ static void
 my_hash_sort_utf16_bin(CHARSET_INFO *cs,
                        const uchar *pos, size_t len, ulong *nr1, ulong *nr2)
 {
-  size_t lengthsp= cs->cset->lengthsp(cs, (const char *) pos, len);
+  size_t lengthsp= my_ci_lengthsp(cs, (const char *) pos, len);
   my_hash_sort_utf16_nopad_bin(cs, pos, lengthsp, nr1, nr2);
 }
 
@@ -1594,6 +1594,7 @@ MY_CHARSET_HANDLER my_charset_utf16_handler=
   my_well_formed_char_length_utf16,
   my_copy_fix_mb2_or_mb4,
   my_uni_utf16,
+  my_wc_to_printable_generic
 };
 
 
@@ -1601,7 +1602,7 @@ struct charset_info_st my_charset_utf16_general_ci=
 {
   54,0,0,              /* number       */
   MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII,
-  "utf16",             /* cs name    */
+  charset_name_utf16,             /* cs name    */
   "utf16_general_ci",  /* name         */
   "UTF-16 Unicode",    /* comment      */
   NULL,                /* tailoring    */
@@ -1634,7 +1635,7 @@ struct charset_info_st my_charset_utf16_bin=
 {
   55,0,0,              /* number       */
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII,
-  "utf16",             /* cs name      */
+  charset_name_utf16,             /* cs name      */
   "utf16_bin",         /* name         */
   "UTF-16 Unicode",    /* comment      */
   NULL,                /* tailoring    */
@@ -1667,7 +1668,7 @@ struct charset_info_st my_charset_utf16_general_nopad_ci=
 {
   MY_NOPAD_ID(54),0,0, /* number           */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII|MY_CS_NOPAD,
-  "utf16",             /* cs name          */
+  charset_name_utf16,             /* cs name          */
   "utf16_general_nopad_ci", /* name        */
   "UTF-16 Unicode",    /* comment          */
   NULL,                /* tailoring        */
@@ -1701,7 +1702,7 @@ struct charset_info_st my_charset_utf16_nopad_bin=
   MY_NOPAD_ID(55),0,0, /* number           */
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII|
   MY_CS_NOPAD,
-  "utf16",             /* cs name          */
+  charset_name_utf16,             /* cs name          */
   "utf16_nopad_bin",   /* name             */
   "UTF-16 Unicode",    /* comment          */
   NULL,                /* tailoring        */
@@ -1736,7 +1737,7 @@ struct charset_info_st my_charset_utf16_nopad_bin=
 #define MY_FUNCTION_NAME(x)      my_ ## x ## _utf16le_general_ci
 #define DEFINE_STRNXFRM_UNICODE
 #define DEFINE_STRNXFRM_UNICODE_NOPAD
-#define MY_MB_WC(cs, pwc, s, e)  (cs->cset->mb_wc(cs, pwc, s, e))
+#define MY_MB_WC(cs, pwc, s, e)  (my_ci_mb_wc(cs, pwc, s, e))
 #define OPTIMIZE_ASCII           0
 #define UNICASE_MAXCHAR          MY_UNICASE_INFO_DEFAULT_MAXCHAR
 #define UNICASE_PAGE0            my_unicase_default_page00
@@ -1934,6 +1935,7 @@ static MY_CHARSET_HANDLER my_charset_utf16le_handler=
   my_well_formed_char_length_utf16,
   my_copy_fix_mb2_or_mb4,
   my_uni_utf16le,
+  my_wc_to_printable_generic
 };
 
 
@@ -1941,7 +1943,7 @@ struct charset_info_st my_charset_utf16le_general_ci=
 {
   56,0,0,              /* number       */
   MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII,
-  "utf16le",           /* cs name    */
+  charset_name_utf16le,           /* cs name    */
   "utf16le_general_ci",/* name         */
   "UTF-16LE Unicode",  /* comment      */
   NULL,                /* tailoring    */
@@ -1974,7 +1976,7 @@ struct charset_info_st my_charset_utf16le_bin=
 {
   62,0,0,              /* number       */
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII,
-  "utf16le",           /* cs name      */
+  charset_name_utf16le,           /* cs name      */
   "utf16le_bin",       /* name         */
   "UTF-16LE Unicode",  /* comment      */
   NULL,                /* tailoring    */
@@ -2007,7 +2009,7 @@ struct charset_info_st my_charset_utf16le_general_nopad_ci=
 {
   MY_NOPAD_ID(56),0,0, /* number           */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII|MY_CS_NOPAD,
-  "utf16le",           /* cs name          */
+  charset_name_utf16le,           /* cs name          */
   "utf16le_general_nopad_ci",/* name       */
   "UTF-16LE Unicode",  /* comment          */
   NULL,                /* tailoring        */
@@ -2041,7 +2043,7 @@ struct charset_info_st my_charset_utf16le_nopad_bin=
   MY_NOPAD_ID(62),0,0, /* number           */
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII|
   MY_CS_NOPAD,
-  "utf16le",           /* cs name          */
+  charset_name_utf16le,           /* cs name          */
   "utf16le_nopad_bin", /* name             */
   "UTF-16LE Unicode",  /* comment          */
   NULL,                /* tailoring        */
@@ -2605,8 +2607,7 @@ void my_fill_utf32(CHARSET_INFO *cs,
 #ifdef DBUG_ASSERT_EXISTS
   buflen=
 #endif
-    cs->cset->wc_mb(cs, (my_wc_t) fill, (uchar*) buf,
-                    (uchar*) buf + sizeof(buf));
+    my_ci_wc_mb(cs, (my_wc_t) fill, (uchar*) buf, (uchar*) buf + sizeof(buf));
   DBUG_ASSERT(buflen == 4);
   while (s < e)
   {
@@ -2760,6 +2761,7 @@ MY_CHARSET_HANDLER my_charset_utf32_handler=
   my_well_formed_char_length_utf32,
   my_copy_fix_mb2_or_mb4,
   my_uni_utf32,
+  my_wc_to_printable_generic
 };
 
 
@@ -2767,7 +2769,7 @@ struct charset_info_st my_charset_utf32_general_ci=
 {
   60,0,0,              /* number       */
   MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII,
-  "utf32",             /* cs name    */
+  charset_name_utf32,             /* cs name    */
   "utf32_general_ci",  /* name         */
   "UTF-32 Unicode",    /* comment      */
   NULL,                /* tailoring    */
@@ -2800,7 +2802,7 @@ struct charset_info_st my_charset_utf32_bin=
 {
   61,0,0,              /* number       */
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII,
-  "utf32",             /* cs name    */
+  charset_name_utf32,             /* cs name    */
   "utf32_bin",         /* name         */
   "UTF-32 Unicode",    /* comment      */
   NULL,                /* tailoring    */
@@ -2833,7 +2835,7 @@ struct charset_info_st my_charset_utf32_general_nopad_ci=
 {
   MY_NOPAD_ID(60),0,0, /* number           */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII|MY_CS_NOPAD,
-  "utf32",             /* cs name          */
+  charset_name_utf32,             /* cs name          */
   "utf32_general_nopad_ci", /* name        */
   "UTF-32 Unicode",    /* comment          */
   NULL,                /* tailoring        */
@@ -2867,7 +2869,7 @@ struct charset_info_st my_charset_utf32_nopad_bin=
   MY_NOPAD_ID(61),0,0, /* number           */
   MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII|
   MY_CS_NOPAD,
-  "utf32",             /* cs name          */
+  charset_name_utf32,             /* cs name          */
   "utf32_nopad_bin",   /* name             */
   "UTF-32 Unicode",    /* comment          */
   NULL,                /* tailoring        */
@@ -3350,6 +3352,7 @@ MY_CHARSET_HANDLER my_charset_ucs2_handler=
     my_well_formed_char_length_ucs2,
     my_copy_fix_mb2_or_mb4,
     my_uni_ucs2,
+    my_wc_to_printable_generic
 };
 
 
@@ -3357,7 +3360,7 @@ struct charset_info_st my_charset_ucs2_general_ci=
 {
     35,0,0,		/* number       */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII,
-    "ucs2",		/* cs name    */
+    charset_name_ucs2,		/* cs name    */
     "ucs2_general_ci",	/* name         */
     "",			/* comment      */
     NULL,		/* tailoring    */
@@ -3390,7 +3393,7 @@ struct charset_info_st my_charset_ucs2_general_mysql500_ci=
 {
   159, 0, 0,                                       /* number           */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII, /* state */
-  "ucs2",                                          /* cs name          */
+  charset_name_ucs2,                                          /* cs name          */
   "ucs2_general_mysql500_ci",                      /* name             */
   "",                                              /* comment          */
   NULL,                                            /* tailoring        */
@@ -3423,7 +3426,7 @@ struct charset_info_st my_charset_ucs2_bin=
 {
     90,0,0,		/* number       */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_UNICODE|MY_CS_NONASCII,
-    "ucs2",		/* cs name    */
+    charset_name_ucs2,		/* cs name    */
     "ucs2_bin",		/* name         */
     "",			/* comment      */
     NULL,		/* tailoring    */
@@ -3456,7 +3459,7 @@ struct charset_info_st my_charset_ucs2_general_nopad_ci=
 {
     MY_NOPAD_ID(35),0,0,     /* number           */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NONASCII|MY_CS_NOPAD,
-    "ucs2",                  /* cs name          */
+    charset_name_ucs2,                  /* cs name          */
     "ucs2_general_nopad_ci", /* name             */
     "",                      /* comment          */
     NULL,                    /* tailoring        */
@@ -3489,7 +3492,7 @@ struct charset_info_st my_charset_ucs2_nopad_bin=
 {
     MY_NOPAD_ID(90),0,0,     /* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_UNICODE|MY_CS_NONASCII|MY_CS_NOPAD,
-    "ucs2",                  /* cs name          */
+    charset_name_ucs2,                  /* cs name          */
     "ucs2_nopad_bin",        /* name             */
     "",                      /* comment          */
     NULL,                    /* tailoring        */

@@ -16,8 +16,8 @@ call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE faile
 FLUSH TABLES;
 --enable_query_log
 
---let $n_logs=`SELECT if(@@innodb_log_files_in_group = 1, 2, 1)`
---let $resize= --innodb-log-files-in-group=$n_logs --innodb-log-file-size=4M
+--let $change=`SELECT if(@@innodb_log_file_size = 4194304, 8388608, 4194304)`
+--let $resize= --innodb-log-file-size=$change
 
 --source include/no_checkpoint_start.inc
 
@@ -39,7 +39,7 @@ SELECT * FROM t1;
 --source include/restart_mysqld.inc
 --error ER_UNKNOWN_STORAGE_ENGINE
 SELECT * FROM t1;
---let SEARCH_PATTERN= ib_log: MLOG_CHECKPOINT.* written
+--let SEARCH_PATTERN= ib_log: FILE_CHECKPOINT.* written
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters=

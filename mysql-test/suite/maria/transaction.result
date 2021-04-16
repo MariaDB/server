@@ -1,0 +1,19 @@
+connect con1, localhost, root,,;
+connection default;
+CREATE TABLE t1 (c1 INT NOT NULL AUTO_INCREMENT, PRIMARY KEY (c1))
+ENGINE = aria;
+START TRANSACTION;
+INSERT INTO t1 (c1) VALUES (2);
+INSERT INTO t1 (c1) VALUES (4);
+connection con1;
+START TRANSACTION;
+select * from t1;
+c1
+2
+4
+select * from t1 where c1=2;
+c1
+2
+disconnect con1;
+connection default;
+drop table t1;

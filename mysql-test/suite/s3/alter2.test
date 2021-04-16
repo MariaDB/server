@@ -1,0 +1,64 @@
+--source include/have_s3.inc
+--source include/have_partition.inc
+--source create_database.inc
+
+--echo #
+--echo # MDEV-19575 Assertion `page_st == 1' failed upon SELECT from S3
+--echo # table which is being converted into Aria
+--echo #
+
+CREATE TABLE t1 (f INT);
+insert into t1 values (1),(2);
+
+ALTER TABLE t1 ENGINE=S3;
+select * from t1;
+--connect (con1,localhost,root,,$database)
+--send
+  ALTER TABLE t1 ENGINE=Aria;
+
+--connection default
+SELECT * FROM t1;
+
+# Cleanup
+
+--connection con1
+--reap
+--disconnect con1
+--connection default
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-20302 Server hangs upon concurrent SELECT from partitioned S3
+--echo # table
+--echo #
+
+CREATE TABLE t1 (
+    pk INT AUTO_INCREMENT,
+    c CHAR(12),
+    PRIMARY KEY(pk),
+    KEY(c)
+) ENGINE=Aria
+  PARTITION BY KEY(pk) PARTITIONS 2;
+
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 VALUES (NULL,'ill'),(NULL,'loop');
+ALTER TABLE t1 ENGINE=S3;
+--connect (con1,localhost,root,,$database)
+--send
+    SELECT * FROM t1 WHERE c BETWEEN 'bar' AND 'foo';
+
+--connection default
+SELECT pk FROM v1;
+
+--connection con1
+--reap
+
+--disconnect con1
+--connection default
+DROP VIEW v1;
+DROP TABLE t1;
+
+#
+# clean up
+#
+--source drop_database.inc

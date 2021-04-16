@@ -1,0 +1,15 @@
+--source include/have_sequence.inc
+
+#
+#
+# MDEV-24750 Various corruptions caused by Aria subsystem asking system call
+#            to overwrite memory that it does not own (InnoDB stacks)
+
+SET SESSION aria_repair_threads=128;
+SET SESSION aria_sort_buffer_size=CAST(-1 AS UNSIGNED INT);
+
+SET SESSION tmp_table_size=65535;
+CREATE TABLE t1 (a VARCHAR(255));
+insert into t1 (a) select seq from seq_1_to_1000;
+UPDATE t1 SET a=( (SELECT MAX(a) FROM t1));
+DROP TABLE t1;

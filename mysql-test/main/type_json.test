@@ -64,3 +64,30 @@ drop table t1;
 select cast('{a:1}' as text);
 --error ER_PARSE_ERROR
 select cast('{a:1}' as json);
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-17832 Protocol: extensions for Pluggable types and JSON, GEOMETRY
+--echo #
+
+SET NAMES utf8;
+CREATE TABLE t1 (
+  js0 JSON,
+  js1 TEXT CHECK (JSON_VALID(js1)),
+  js2 TEXT CHECK (LENGTH(js2) > 0 AND JSON_VALID(js2)),
+  js3 TEXT CHECK (LENGTH(js2) > 0 OR JSON_VALID(js2))
+) CHARACTER SET utf8;
+--disable_ps_protocol
+--enable_metadata
+SELECT * FROM t1;
+SELECT js0, JSON_COMPACT(js0), JSON_COMPACT('{}') FROM t1;
+--disable_metadata
+--enable_ps_protocol
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

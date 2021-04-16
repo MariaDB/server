@@ -127,7 +127,8 @@ ENDMACRO()
 
 # Merge static libraries into a big static lib. The resulting library 
 # should not not have dependencies on other static libraries.
-# We use it in MySQL to merge mysys,dbug,vio etc into mysqlclient
+# We use it in MariaDB to merge mysys,dbug,vio etc into the embedded server
+# mariadbd.
 
 MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
   # To produce a library we need at least one source file.
@@ -164,8 +165,18 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
       ENDIF()
     ENDIF()
   ENDFOREACH()
+  # With static libraries the order matter to some linkers.
+  # REMOVE_DUPLICATES will keep the first entry and because
+  # the linker requirement we want to keep the last.
+  IF(STATIC_LIBS)
+    LIST(REVERSE STATIC_LIBS)
+    LIST(REMOVE_DUPLICATES STATIC_LIBS)
+    LIST(REVERSE STATIC_LIBS)
+  ENDIF()
   IF(OSLIBS)
+    LIST(REVERSE OSLIBS)
     LIST(REMOVE_DUPLICATES OSLIBS)
+    LIST(REVERSE OSLIBS)
     TARGET_LINK_LIBRARIES(${TARGET} ${OSLIBS})
   ENDIF()
 
@@ -196,18 +207,34 @@ MACRO(MERGE_STATIC_LIBS TARGET OUTPUT_NAME LIBS_TO_MERGE)
       )  
     ELSE()
       # Generic Unix, Cygwin or MinGW. In post-build step, call
-      # script, that extracts objects from archives with "ar x" 
-      # and repacks them with "ar r"
+      # script, that uses a MRI script to append static archives.
+      IF(CMAKE_VERSION VERSION_LESS "3.0")
+        SET(MRI_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}.mri")
+      ELSE()
+        SET(MRI_SCRIPT "${CMAKE_CURRENT_BINARY_DIR}/${TARGET}-$<CONFIG>.mri")
+      ENDIF()
+      SET(MRI_SCRIPT_TPL "${MRI_SCRIPT}.tpl")
+
+      SET(SCRIPT_CONTENTS "CREATE $<TARGET_FILE:${TARGET}>\n")
+      FOREACH(LIB ${STATIC_LIBS})
+        SET(SCRIPT_CONTENTS "${SCRIPT_CONTENTS}ADDLIB ${LIB}\n")
+      ENDFOREACH()
+      FILE(WRITE ${MRI_SCRIPT_TPL} "${SCRIPT_CONTENTS}\nSAVE\nEND\n")
+      FILE(GENERATE OUTPUT ${MRI_SCRIPT} INPUT ${MRI_SCRIPT_TPL})
+
       ADD_CUSTOM_COMMAND(TARGET ${TARGET} POST_BUILD
+        DEPENDS ${MRI_SCRIPT}
         COMMAND ${CMAKE_COMMAND}
-          -DTARGET_LOCATION="$<TARGET_FILE:${TARGET}>"
-          -DTARGET="${TARGET}"
-          -DSTATIC_LIBS="${STATIC_LIBS}"
-          -DCMAKE_CURRENT_BINARY_DIR="${CMAKE_CURRENT_BINARY_DIR}"
+        ARGS
+          -DTARGET_SCRIPT="${MRI_SCRIPT}"
+          -DTOP_DIR="${CMAKE_BINARY_DIR}"
           -DCMAKE_AR="${CMAKE_AR}"
-          -DCMAKE_RANLIB="${CMAKE_RANLIB}"
           -P "${MYSQL_CMAKE_SCRIPT_DIR}/merge_archives_unix.cmake"
+        COMMAND ${CMAKE_RANLIB}
+        ARGS $<TARGET_FILE:${TARGET}>
       )
+      SET_DIRECTORY_PROPERTIES(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES ${MRI_SCRIPT_TPL})
+      SET_DIRECTORY_PROPERTIES(PROPERTIES ADDITIONAL_MAKE_CLEAN_FILES ${MRI_SCRIPT}.mri)
     ENDIF()
   ENDIF()
 ENDMACRO()
@@ -296,11 +323,14 @@ MACRO(MERGE_LIBRARIES)
 ENDMACRO()
 
 FUNCTION(GET_DEPENDEND_OS_LIBS target result)
-  FOREACH(lib ${${target}_LIB_DEPENDS})
-    IF(NOT TARGET ${lib})
-      SET(ret ${ret} ${lib})
-    ENDIF()
-  ENDFOREACH()
+  GET_TARGET_PROPERTY(DEPS ${target} LINK_LIBRARIES)
+  IF(DEPS)
+    FOREACH(lib ${DEPS})
+      IF(NOT TARGET ${lib})
+        SET(ret ${ret} ${lib})
+      ENDIF()
+    ENDFOREACH()
+  ENDIF()
   SET(${result} ${ret} PARENT_SCOPE)
 ENDFUNCTION()
 
@@ -328,5 +358,17 @@ FUNCTION(RESTRICT_SYMBOL_EXPORTS target)
     ENDIF()
     SET_TARGET_PROPERTIES(${target} PROPERTIES 
       COMPILE_FLAGS "${COMPILE_FLAGS} ${VISIBILITY_HIDDEN_FLAG}")
+  ENDIF()
+ENDFUNCTION()
+
+# The MSVC /GL flag, used for link-time code generation
+# creates objects files with a format not readable by tools
+# i.e exporting all symbols is not possible with IPO
+# To workaround this, we disable INTERPROCEDURAL_OPTIMIZATION
+# for some static libraries.
+
+FUNCTION (MAYBE_DISABLE_IPO target)
+  IF(MSVC AND NOT CLANG_CL)
+    SET_TARGET_PROPERTIES(${target} PROPERTIES INTERPROCEDURAL_OPTIMIZATION OFF)
   ENDIF()
 ENDFUNCTION()

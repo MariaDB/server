@@ -49,12 +49,10 @@ struct st_spider_ft_info
   String *key;
 };
 
-class ha_spider: public handler
+class ha_spider final : public handler
 {
 public:
-  THR_LOCK_DATA      lock;
   SPIDER_SHARE       *share;
-  SPIDER_TRX         *trx;
   ulonglong          spider_thread_id;
   ulonglong          trx_conn_adjustment;
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -90,18 +88,16 @@ public:
   int                search_link_idx;
   int                result_link_idx;
   SPIDER_RESULT_LIST result_list;
-  SPIDER_CONDITION   *condition;
   spider_string      *blob_buff;
-  uchar              *searched_bitmap;
-  uchar              *ft_discard_bitmap;
-  bool               position_bitmap_init;
-  uchar              *position_bitmap;
   SPIDER_POSITION    *pushed_pos;
   SPIDER_POSITION    pushed_pos_buf;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
+  bool               pt_handler_share_owner = FALSE;
   SPIDER_PARTITION_HANDLER_SHARE *partition_handler_share;
-  ha_spider          *pt_handler_share_creator;
 #endif
+  bool                wide_handler_owner = FALSE;
+  SPIDER_WIDE_HANDLER *wide_handler = NULL;
+
 #ifdef HA_CAN_BULK_ACCESS
   int                pre_direct_init_result;
   bool               is_bulk_access_clone;
@@ -116,10 +112,8 @@ public:
   bool               init_ha_mem_root;
   MEM_ROOT           ha_mem_root;
 */
-  ulonglong          external_lock_cnt;
 #endif
   bool               is_clone;
-  bool               clone_bitmap_init;
   ha_spider          *pt_clone_source_handler;
   ha_spider          *pt_clone_last_searcher;
   bool               use_index_merge;
@@ -161,22 +155,11 @@ public:
 
   ha_spider          *next;
 
+  bool               dml_inited;
   bool               rnd_scan_and_first;
-  bool               quick_mode;
-  bool               keyread;
-  bool               ignore_dup_key;
-  bool               write_can_replace;
-  bool               insert_with_update;
-  bool               low_priority;
-  bool               high_priority;
-  bool               insert_delayed;
   bool               use_pre_call;
   bool               use_pre_action;
   bool               pre_bitmap_checked;
-  enum thr_lock_type lock_type;
-  int                lock_mode;
-  uint               sql_command;
-  int                selupd_lock_mode;
   bool               bulk_insert;
 #ifdef HANDLER_HAS_NEED_INFO_FOR_AUTO_INC
   bool               info_auto_called;
@@ -189,12 +172,9 @@ public:
   int                store_error_num;
   uint               dup_key_idx;
   int                select_column_mode;
-  bool               update_request;
   bool               pk_update;
   bool               force_auto_increment;
   int                bka_mode;
-  bool               cond_check;
-  int                cond_check_error;
   int                error_mode;
   ulonglong          store_last_insert_id;
 
@@ -216,14 +196,7 @@ public:
   uint32             **hs_w_ret_fields;
   size_t             *hs_r_ret_fields_num;
   size_t             *hs_w_ret_fields_num;
-  uint32             *hs_pushed_ret_fields;
-  size_t             hs_pushed_ret_fields_num;
-  size_t             hs_pushed_ret_fields_size;
-  size_t             hs_pushed_lcl_fields_num;
   uchar              *tmp_column_bitmap;
-  bool               hs_increment;
-  bool               hs_decrement;
-  uint32             hs_pushed_strref_num;
 #endif
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
@@ -232,11 +205,6 @@ public:
   bool               maybe_do_hs_direct_update;
 #endif
   uint               direct_update_kinds;
-  List<Item>         *direct_update_fields;
-  List<Item>         *direct_update_values;
-#endif
-#ifdef INFO_KIND_FORCE_LIMIT_BEGIN
-  longlong           info_limit;
 #endif
   spider_index_rnd_init prev_index_rnd_init;
 #ifdef HANDLER_HAS_DIRECT_AGGREGATE
@@ -283,9 +251,12 @@ public:
     uint test_if_locked
   );
   int close();
-  int check_access_kind(
+  int check_access_kind_for_connection(
     THD *thd,
     bool write_request
+  );
+  void check_access_kind(
+    THD *thd
   );
 #ifdef HA_CAN_BULK_ACCESS
   int additional_lock(
@@ -301,6 +272,10 @@ public:
   int external_lock(
     THD *thd,
     int lock_type
+  );
+  int start_stmt(
+    THD *thd,
+    thr_lock_type lock_type
   );
   int reset();
   int extra(
@@ -514,8 +489,9 @@ public:
   );
   ha_rows records_in_range(
     uint inx,
-    key_range *start_key,
-    key_range *end_key
+    const key_range *start_key,
+    const key_range *end_key,
+    page_range *pages
   );
   int check_crd();
   int pre_records();
@@ -526,6 +502,7 @@ public:
 #endif
   const char *table_type() const;
   ulonglong table_flags() const;
+  ulong table_flags_for_partition();
   const char *index_type(
     uint key_number
   );
@@ -610,6 +587,11 @@ public:
   );
 #endif
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  bool check_direct_update_sql_part(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
+  );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
 #ifdef SPIDER_MDEV_16246
   inline int direct_update_rows_init(
@@ -734,6 +716,11 @@ public:
     const uchar *buf
   );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  bool check_direct_delete_sql_part(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
+  );
 #ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS_WITH_HS
   inline int direct_delete_rows_init()
   {
@@ -870,9 +857,6 @@ public:
     int error_num,
     uint flags
   );
-  Field *get_top_table_field(
-    uint16 field_index
-  );
   Field *field_exchange(
     Field *field
   );
@@ -888,7 +872,6 @@ public:
   void return_record_by_parent();
 #endif
   TABLE *get_table();
-  TABLE *get_top_table();
   void set_ft_discard_bitmap();
   void set_searched_bitmap();
   void set_clone_searched_bitmap();
@@ -1256,4 +1239,16 @@ public:
 #endif
   int init_union_table_name_pos_sql();
   int set_union_table_name_pos_sql();
+  int append_lock_tables_list();
+  int lock_tables();
+  int dml_init();
+#ifdef HA_CAN_BULK_ACCESS
+  int bulk_access_begin(
+    void *info
+  );
+  int bulk_access_current(
+    void *info
+  );
+  void bulk_access_end();
+#endif
 };

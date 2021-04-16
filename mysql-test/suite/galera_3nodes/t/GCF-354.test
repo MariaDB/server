@@ -1,0 +1,104 @@
+--source include/galera_cluster.inc
+--source include/force_restart.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_3
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+#
+# 1. Create different inconsistencies on nodes 2 and 3
+#
+--connection node_2
+SET SESSION wsrep_on=OFF;
+DROP SCHEMA test;
+
+--connection node_3
+SET SESSION wsrep_on=OFF;
+CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
+#
+# 2. The following should generate different errors on nodes 2 and 3 and 
+#    trigger voting with 3 different votes. node_1 should remain alone
+#    in the cluster.
+#
+--connection node_1
+CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO test.t1 values (1);
+
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status'
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'wsrep_cluster_status';
+
+# Test cleanup
+DROP TABLE test.t1;
+#
+# 3. Wait for nodes 2 and 3 to drop out of the cluster and restart them to
+#    recover the initial configuration.
+#
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'OFF' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'wsrep_cluster_status';
+
+# need to reinitialize connection due to a "Bad handshake" bug
+--disconnect node_2
+--connect node_2, 127.0.0.1, root, , mysql, $NODE_MYPORT_2
+
+--source include/kill_galera.inc
+
+--connection node_2
+--source include/wait_until_disconnected.inc
+--echo Starting node_2
+--source include/start_mysqld.inc
+
+--connection node_3
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'OFF' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+SHOW STATUS LIKE 'wsrep_cluster_status';
+
+# need to reinitialize connection due to a "Bad handshake" bug
+--disconnect node_3
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+--source include/kill_galera.inc
+
+--connection node_3
+--source include/wait_until_disconnected.inc
+--echo Starting node_3
+--source include/start_mysqld.inc
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+--echo Nodes 2 and 3 started
+
+--connection node_2
+# fix the default schema
+USE test;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+--echo Node 2 synced
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown database 'test'' on query. Default database: 'test'. Query: 'CREATE TABLE test.t1 \\\(f1 INTEGER\\\)', Error_code: 1049");
+CALL mtr.add_suppression("Query apply failed");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on .*");
+CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+
+--connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+--echo Node 3 synced
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query. Default database: 'test'. Query: 'CREATE TABLE test.t1 \\\(f1 INTEGER\\\)', Error_code: 1050");
+CALL mtr.add_suppression("Query apply failed");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on .*");
+CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+
+--source ../galera/include/auto_increment_offset_restore.inc
+

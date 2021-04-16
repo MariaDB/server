@@ -1,0 +1,36 @@
+--echo #
+--echo # MDEV-24093: Detect during mysql_upgrade if type_mysql_json.so 
+--echo # is needed and load it
+--echo #
+
+-- source include/have_utf8.inc
+-- source include/mysql_upgrade_preparation.inc
+
+if (!$TYPE_MYSQL_JSON_SO) {
+  skip Need MYSQL_JSON plugin;
+}
+
+SET NAMES utf8;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+
+--copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/mysql_json_test.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/mysql_json_test.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/test/mysql_json_test.MYD
+
+--copy_file std_data/mysql_json/mysql_json_test_big.frm $MYSQLD_DATADIR/test/mysql_json_test_big.frm
+--copy_file std_data/mysql_json/mysql_json_test_big.MYI $MYSQLD_DATADIR/test/mysql_json_test_big.MYI
+--copy_file std_data/mysql_json/mysql_json_test_big.MYD $MYSQLD_DATADIR/test/mysql_json_test_big.MYD
+
+--error ER_UNKNOWN_DATA_TYPE
+show create table mysql_json_test;
+
+--exec $MYSQL_UPGRADE --force 2>&1
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info
+
+show create table mysql_json_test;
+select * from mysql_json_test;
+show create table mysql_json_test_big;
+select * from mysql.plugin;
+drop table mysql_json_test;
+drop table mysql_json_test_big;

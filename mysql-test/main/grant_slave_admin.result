@@ -1,0 +1,64 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-21743 Split up SUPER privilege to smaller privileges 
+#
+#
+# Test that slave admin statements are not allowed without REPLICATION SLAVE ADMIN or SUPER
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE REPLICATION SLAVE ADMIN, SUPER ON *.* FROM user1@localhost;
+connect  con1,localhost,user1,,;
+connection con1;
+START SLAVE;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
+CHANGE MASTER TO MASTER_HOST='127.0.0.1';
+ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
+STOP SLAVE;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# Test that slave admin statements are allowed with REPLICATION SLAVE ADMIN
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT REPLICATION SLAVE ADMIN ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT REPLICATION SLAVE ADMIN ON *.* TO `user1`@`localhost`
+connect  con1,localhost,user1,,;
+connection con1;
+START SLAVE;
+ERROR HY000: Misconfigured slave: MASTER_HOST was not set; Fix in config file or with CHANGE MASTER TO
+CHANGE MASTER TO MASTER_USER='root';
+STOP SLAVE;
+Warnings:
+Note	1255	Slave already has been stopped
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# Test that slave admin statements are allowed with SUPER
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT SUPER ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT SUPER ON *.* TO `user1`@`localhost`
+connect  con1,localhost,user1,,;
+connection con1;
+START SLAVE;
+ERROR HY000: Misconfigured slave: MASTER_HOST was not set; Fix in config file or with CHANGE MASTER TO
+CHANGE MASTER TO MASTER_USER='root';
+STOP SLAVE;
+Warnings:
+Note	1255	Slave already has been stopped
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# End of 10.5 tests
+#

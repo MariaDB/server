@@ -1,5 +1,6 @@
 # Needed for mysqldump
 --source include/have_utf8mb4.inc
+--source include/not_asan.inc
 
 # Tests for SSL connections, only run if mysqld is compiled
 # with support for SSL.

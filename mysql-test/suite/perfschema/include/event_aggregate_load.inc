@@ -21,19 +21,21 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
 
 # Notes about this test
 #
-# Each connect causes 2 wait/synch/mutex/sql/LOCK_connection_count events:
-# - 1 in mysqld.cc, create_new_thread(), for the main thread
-# - 1 in sql_connect.cc, check_user(), for the connected thread
 # The main thread does not count for BY_ACCOUNT / BY_HOST.
 # The user thread does count for BY_ACCOUNT, BY_HOST
 #
-# Each get_lock() causes 1 wait/synch/mutex/sql/LOCK_user_locks
+# Each uuid_short() causes 1 wait/synch/mutex/sql/LOCK_uuid_generator
 #
 # To avoid noise from main, the background threads are disabled.
 
@@ -64,15 +66,23 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
 
 --connection con1
 
-select get_lock("marker", 10);
-select release_lock("marker");
+select uuid_short() <> 1;
+select uuid_short() <> 1;
+start transaction;
 insert into test.t1 values ("marker");
+commit;
+select test.f(10,20);
 
 --connection default
 
@@ -99,6 +109,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -134,15 +149,23 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
 
 --connection con2
 
-select get_lock("marker", 10);
-select release_lock("marker");
+select uuid_short() <> 1;
+select uuid_short() <> 1;
+start transaction;
 insert into test.t1 values ("marker");
+commit;
+select test.f(10,20);
 
 --connection default
 
@@ -169,6 +192,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -200,15 +228,23 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
 
 --connection con3
 
-select get_lock("marker", 10);
-select release_lock("marker");
+select uuid_short() <> 1;
+select uuid_short() <> 1;
+start transaction;
 insert into test.t1 values ("marker");
+commit;
+select test.f(10,20);
 
 --connection default
 
@@ -235,6 +271,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -266,15 +307,23 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
 
 --connection con4
 
-select get_lock("marker", 10);
-select release_lock("marker");
+select uuid_short() <> 1;
+select uuid_short() <> 1;
+start transaction;
 insert into test.t1 values ("marker");
+commit;
+select test.f(10,20);
 
 --connection default
 
@@ -301,6 +350,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -332,6 +386,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -363,6 +422,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -394,6 +458,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -425,6 +494,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -452,6 +526,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -477,6 +556,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -502,6 +586,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -527,6 +616,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -552,6 +646,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -577,6 +676,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -602,6 +706,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -627,6 +736,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -652,6 +766,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -677,6 +796,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -702,6 +826,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -727,6 +856,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -752,6 +886,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -777,6 +916,11 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
@@ -802,13 +946,18 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
 
-truncate performance_schema.accounts;
+truncate performance_schema.events_transactions_summary_by_thread_by_event_name;
 
-echo "================== ACCOUNTS truncated ==================";
+echo "================== TRANSACTIONS_BY_THREAD truncated ==================";
 
 echo "================== Step 29 ==================";
 call dump_thread();
@@ -827,13 +976,18 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
 
-truncate performance_schema.users;
+truncate performance_schema.events_transactions_summary_by_account_by_event_name;
 
-echo "================== USERS truncated ==================";
+echo "================== TRANSACTIONS_BY_ACCOUNT truncated ==================";
 
 echo "================== Step 30 ==================";
 call dump_thread();
@@ -852,13 +1006,18 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;
 
-truncate performance_schema.hosts;
+truncate performance_schema.events_transactions_summary_by_user_by_event_name;
 
-echo "================== HOSTS truncated ==================";
+echo "================== TRANSACTIONS_BY_USER truncated ==================";
 
 echo "================== Step 31 ==================";
 call dump_thread();
@@ -877,6 +1036,161 @@ execute dump_statements_user;
 execute dump_statements_host;
 execute dump_statements_global;
 execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
+execute dump_accounts;
+execute dump_users;
+execute dump_hosts;
+
+truncate performance_schema.events_transactions_summary_by_host_by_event_name;
+
+echo "================== TRANSACTIONS_BY_HOST truncated ==================";
+
+echo "================== Step 32 ==================";
+call dump_thread();
+execute dump_waits_account;
+execute dump_waits_user;
+execute dump_waits_host;
+execute dump_waits_global;
+execute dump_waits_history;
+execute dump_stages_account;
+execute dump_stages_user;
+execute dump_stages_host;
+execute dump_stages_global;
+execute dump_stages_history;
+execute dump_statements_account;
+execute dump_statements_user;
+execute dump_statements_host;
+execute dump_statements_global;
+execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
+execute dump_accounts;
+execute dump_users;
+execute dump_hosts;
+
+truncate performance_schema.events_transactions_summary_global_by_event_name;
+
+echo "================== TRANSACTIONS_GLOBAL truncated ==================";
+
+echo "================== Step 33 ==================";
+call dump_thread();
+execute dump_waits_account;
+execute dump_waits_user;
+execute dump_waits_host;
+execute dump_waits_global;
+execute dump_waits_history;
+execute dump_stages_account;
+execute dump_stages_user;
+execute dump_stages_host;
+execute dump_stages_global;
+execute dump_stages_history;
+execute dump_statements_account;
+execute dump_statements_user;
+execute dump_statements_host;
+execute dump_statements_global;
+execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
+execute dump_accounts;
+execute dump_users;
+execute dump_hosts;
+
+truncate performance_schema.accounts;
+
+echo "================== ACCOUNTS truncated ==================";
+
+echo "================== Step 34 ==================";
+call dump_thread();
+execute dump_waits_account;
+execute dump_waits_user;
+execute dump_waits_host;
+execute dump_waits_global;
+execute dump_waits_history;
+execute dump_stages_account;
+execute dump_stages_user;
+execute dump_stages_host;
+execute dump_stages_global;
+execute dump_stages_history;
+execute dump_statements_account;
+execute dump_statements_user;
+execute dump_statements_host;
+execute dump_statements_global;
+execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
+execute dump_accounts;
+execute dump_users;
+execute dump_hosts;
+
+truncate performance_schema.users;
+
+echo "================== USERS truncated ==================";
+
+echo "================== Step 35 ==================";
+call dump_thread();
+execute dump_waits_account;
+execute dump_waits_user;
+execute dump_waits_host;
+execute dump_waits_global;
+execute dump_waits_history;
+execute dump_stages_account;
+execute dump_stages_user;
+execute dump_stages_host;
+execute dump_stages_global;
+execute dump_stages_history;
+execute dump_statements_account;
+execute dump_statements_user;
+execute dump_statements_host;
+execute dump_statements_global;
+execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
+execute dump_accounts;
+execute dump_users;
+execute dump_hosts;
+
+truncate performance_schema.hosts;
+
+echo "================== HOSTS truncated ==================";
+
+echo "================== Step 36 ==================";
+call dump_thread();
+execute dump_waits_account;
+execute dump_waits_user;
+execute dump_waits_host;
+execute dump_waits_global;
+execute dump_waits_history;
+execute dump_stages_account;
+execute dump_stages_user;
+execute dump_stages_host;
+execute dump_stages_global;
+execute dump_stages_history;
+execute dump_statements_account;
+execute dump_statements_user;
+execute dump_statements_host;
+execute dump_statements_global;
+execute dump_statements_history;
+execute dump_transactions_account;
+execute dump_transactions_user;
+execute dump_transactions_host;
+execute dump_transactions_global;
+execute dump_transactions_history;
 execute dump_accounts;
 execute dump_users;
 execute dump_hosts;

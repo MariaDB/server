@@ -1,0 +1,22 @@
+-- source include/have_working_dns.inc
+-- source include/not_embedded.inc
+
+--echo #
+--echo # MDEV-17832 Protocol: extensions for Pluggable types and JSON, GEOMETRY
+--echo #
+
+SET NAMES utf8;
+CREATE TABLE t1 (
+  js0 JSON,
+  js1 TEXT CHECK (JSON_VALID(js1)),
+  js2 TEXT CHECK (LENGTH(js2) > 0 AND JSON_VALID(js2)),
+  js3 TEXT CHECK (LENGTH(js2) > 0 OR JSON_VALID(js2))
+) CHARACTER SET utf8;
+
+--replace_regex /0 rows in set [(].*[)]/0 rows in set (TIME)/
+--exec $MYSQL -vvv --column-type-info --database=test -e "SELECT * FROM t1;"
+
+--replace_regex /0 rows in set [(].*[)]/0 rows in set (TIME)/
+--exec $MYSQL -vvv --column-type-info --database=test -e "SELECT JSON_COMPACT(js0) FROM t1;"
+
+DROP TABLE t1;

@@ -103,7 +103,8 @@ row_merge_create_fts_sort_index(
 		? DATA_VARCHAR : DATA_VARMYSQL;
 	field->col->mbminlen = idx_field->col->mbminlen;
 	field->col->mbmaxlen = idx_field->col->mbmaxlen;
-	field->col->len = HA_FT_MAXCHARLEN * unsigned(field->col->mbmaxlen);
+	field->col->len = static_cast<uint16_t>(
+		HA_FT_MAXCHARLEN * field->col->mbmaxlen);
 
 	field->fixed_len = 0;
 
@@ -216,7 +217,6 @@ row_fts_psort_info_init(
 	common_info->trx = trx;
 	common_info->all_info = psort_info;
 	common_info->sort_event = os_event_create(0);
-	common_info->merge_event = os_event_create(0);
 	common_info->opt_doc_id_size = opt_doc_id_size;
 
 	if (log_tmp_is_encrypted()) {
@@ -253,14 +253,9 @@ row_fts_psort_info_init(
 			}
 
 			/* Need to align memory for O_DIRECT write */
-			psort_info[j].block_alloc[i] =
-				static_cast<row_merge_block_t*>(ut_malloc_nokey(
-					block_size + 1024));
-
 			psort_info[j].merge_block[i] =
 				static_cast<row_merge_block_t*>(
-					ut_align(
-					psort_info[j].block_alloc[i], 1024));
+					aligned_malloc(block_size, 1024));
 
 			if (!psort_info[j].merge_block[i]) {
 				ret = FALSE;
@@ -270,23 +265,17 @@ row_fts_psort_info_init(
 			/* If tablespace is encrypted, allocate additional buffer for
 			encryption/decryption. */
 			if (encrypted) {
-
 				/* Need to align memory for O_DIRECT write */
-				psort_info[j].crypt_alloc[i] =
-					static_cast<row_merge_block_t*>(ut_malloc_nokey(
-							block_size + 1024));
-
 				psort_info[j].crypt_block[i] =
 					static_cast<row_merge_block_t*>(
-						ut_align(
-							psort_info[j].crypt_alloc[i], 1024));
+						aligned_malloc(block_size,
+							       1024));
 
 				if (!psort_info[j].crypt_block[i]) {
 					ret = FALSE;
 					goto func_exit;
 				}
 			} else {
-				psort_info[j].crypt_alloc[i] = NULL;
 				psort_info[j].crypt_block[i] = NULL;
 			}
 		}
@@ -338,19 +327,15 @@ row_fts_psort_info_destroy(
 						psort_info[j].merge_file[i]);
 				}
 
-				ut_free(psort_info[j].block_alloc[i]);
+				aligned_free(psort_info[j].merge_block[i]);
 				ut_free(psort_info[j].merge_file[i]);
-
-				if (psort_info[j].crypt_alloc[i]) {
-					ut_free(psort_info[j].crypt_alloc[i]);
-				}
+				aligned_free(psort_info[j].crypt_block[i]);
 			}
 
 			mutex_free(&psort_info[j].mutex);
 		}
 
 		os_event_destroy(merge_info[0].psort_common->sort_event);
-		os_event_destroy(merge_info[0].psort_common->merge_event);
 		ut_free(merge_info[0].psort_common->dup);
 		ut_free(merge_info[0].psort_common);
 		ut_free(psort_info);
@@ -651,7 +636,7 @@ row_merge_fts_doc_tokenize(
 
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL | DATA_BINARY_TYPE;
-		field->type.len = len;
+		field->type.len = static_cast<uint16_t>(field->len);
 		field->type.mbminlen = 0;
 		field->type.mbmaxlen = 0;
 
@@ -675,7 +660,7 @@ row_merge_fts_doc_tokenize(
 
 		field->type.mtype = DATA_INT;
 		field->type.prtype = DATA_NOT_NULL;
-		field->type.len = len;
+		field->type.len = 4;
 		field->type.mbminlen = 0;
 		field->type.mbmaxlen = 0;
 		cur_len += len;
@@ -754,10 +739,9 @@ row_merge_fts_get_next_doc_item(
 /*********************************************************************//**
 Function performs parallel tokenization of the incoming doc strings.
 It also performs the initial in memory sort of the parsed records.
-@return OS_THREAD_DUMMY_RETURN */
+*/
 static
-os_thread_ret_t
-DECLARE_THREAD(fts_parallel_tokenization)(
+void fts_parallel_tokenization(
 /*======================*/
 	void*		arg)	/*!< in: psort_info for the thread */
 {
@@ -1035,12 +1019,12 @@ exit:
 				       crypt_block[i], table->space_id);
 
 		if (error != DB_SUCCESS) {
-			os_file_close(tmpfd[i]);
+			row_merge_file_destroy_low(tmpfd[i]);
 			goto func_exit;
 		}
 
 		total_rec += merge_file[i]->n_rec;
-		os_file_close(tmpfd[i]);
+		row_merge_file_destroy_low(tmpfd[i]);
 	}
 
 func_exit:
@@ -1068,10 +1052,6 @@ func_exit:
 	psort_info->child_status = FTS_CHILD_COMPLETE;
 	os_event_set(psort_info->psort_common->sort_event);
 	psort_info->child_status = FTS_CHILD_EXITING;
-
-	os_thread_exit();
-
-	OS_THREAD_DUMMY_RETURN;
 }
 
 /*********************************************************************//**
@@ -1082,23 +1062,20 @@ row_fts_start_psort(
 	fts_psort_t*	psort_info)	/*!< parallel sort structure */
 {
 	ulint		i = 0;
-	os_thread_id_t	thd_id;
 
 	for (i = 0; i < fts_sort_pll_degree; i++) {
 		psort_info[i].psort_id = i;
-		psort_info[i].thread_hdl =
-			os_thread_create(fts_parallel_tokenization,
-				(void*) &psort_info[i],
-				 &thd_id);
+		psort_info[i].task =
+			new tpool::waitable_task(fts_parallel_tokenization,&psort_info[i]);
+		srv_thread_pool->submit_task(psort_info[i].task);
 	}
 }
 
 /*********************************************************************//**
-Function performs the merge and insertion of the sorted records.
-@return OS_THREAD_DUMMY_RETURN */
+Function performs the merge and insertion of the sorted records. */
 static
-os_thread_ret_t
-DECLARE_THREAD(fts_parallel_merge)(
+void
+fts_parallel_merge(
 /*===============*/
 	void*		arg)		/*!< in: parallel merge info */
 {
@@ -1112,14 +1089,6 @@ DECLARE_THREAD(fts_parallel_merge)(
 	row_fts_merge_insert(psort_info->psort_common->dup->index,
 			     psort_info->psort_common->new_table,
 			     psort_info->psort_common->all_info, id);
-
-	psort_info->child_status = FTS_CHILD_COMPLETE;
-	os_event_set(psort_info->psort_common->merge_event);
-	psort_info->child_status = FTS_CHILD_EXITING;
-
-	os_thread_exit(false);
-
-	OS_THREAD_DUMMY_RETURN;
 }
 
 /*********************************************************************//**
@@ -1131,15 +1100,15 @@ row_fts_start_parallel_merge(
 {
 	ulint		i = 0;
 
-	/* Kick off merge/insert threads */
+	/* Kick off merge/insert tasks */
 	for (i = 0; i <  FTS_NUM_AUX_INDEX; i++) {
 		merge_info[i].psort_id = i;
 		merge_info[i].child_status = 0;
 
-		merge_info[i].thread_hdl = os_thread_create(
+		merge_info[i].task = new tpool::waitable_task(
 			fts_parallel_merge,
-			(void*) &merge_info[i],
-			&merge_info[i].thread_hdl);
+			(void*) &merge_info[i]);
+		srv_thread_pool->submit_task(merge_info[i].task);
 	}
 }
 
@@ -1655,7 +1624,8 @@ row_fts_merge_insert(
 	in order to get the correct aux table names. */
 	index->table->flags2 |= DICT_TF2_FTS_AUX_HEX_NAME;
 	DBUG_EXECUTE_IF("innodb_test_wrong_fts_aux_table_name",
-			index->table->flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME;);
+			index->table->flags2 &= ~DICT_TF2_FTS_AUX_HEX_NAME
+			& ((1U << DICT_TF2_BITS) - 1););
 	fts_table.type = FTS_INDEX_TABLE;
 	fts_table.index_id = index->id;
 	fts_table.table_id = table->id;
@@ -1676,9 +1646,7 @@ row_fts_merge_insert(
 	      == UT_BITS_IN_BYTES(aux_index->n_nullable));
 
 	/* Create bulk load instance */
-	ins_ctx.btr_bulk = UT_NEW_NOKEY(
-		BtrBulk(aux_index, trx, psort_info[0].psort_common->trx
-			->get_flush_observer()));
+	ins_ctx.btr_bulk = UT_NEW_NOKEY(BtrBulk(aux_index, trx));
 
 	/* Create tuple for insert */
 	ins_ctx.tuple = dtuple_create(heap, dict_index_get_n_fields(aux_index));
@@ -1809,10 +1777,6 @@ exit:
 
 	if (UNIV_UNLIKELY(fts_enable_diag_print)) {
 		ib::info() << "InnoDB_FTS: inserted " << count << " records";
-	}
-
-	if (psort_info[0].psort_common->trx->get_flush_observer()) {
-		row_merge_write_redo(aux_index);
 	}
 
 	return(error);

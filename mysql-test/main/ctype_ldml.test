@@ -3,6 +3,10 @@
 --source include/have_utf16.inc
 --source include/have_utf32.inc
 
+--disable_query_log
+call mtr.add_suppression("Charset id.*trying to replace");
+--enable_query_log
+
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -602,3 +606,12 @@ SELECT 'chž'< 'i';
 
 --error ER_UNKNOWN_COLLATION
 SELECT 'a' COLLATE utf8_czech_test_bad_w2;
+
+
+--echo #
+--echo # MDEV-7947 my_charset_same: strcmp() takes 0.37% in OLTP RO
+--echo #
+
+SHOW COLLATION LIKE 'latin1_test_replace';
+--error ER_UNKNOWN_COLLATION
+SELECT 'foo' = 'foo ' COLLATE latin1_test_replace;

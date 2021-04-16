@@ -1,0 +1,22 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+--echo # Tests for delete with INNODB
+
+--echo #
+--echo # MDEV-22187: SIGSEGV in ha_innobase::cmp_ref on DELETE
+--echo #
+
+SET @save_sort_buffer_size= @@sort_buffer_size;
+SET sort_buffer_size=1024;
+CREATE TABLE t1(c1 CHAR(255) PRIMARY KEY) ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES (0), ('a'), ('b');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SELECT * FROM t1;
+EXPLAIN DELETE b FROM t1 AS a JOIN t1 AS b;
+DELETE b FROM t1 AS a JOIN t1 AS b;
+SELECT * FROM t1;
+
+SET sort_buffer_size=@save_sort_buffer_size;
+DROP TABLE t1;

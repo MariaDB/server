@@ -62,20 +62,26 @@
 extern "C" unsigned char *mysql_net_store_length(unsigned char *packet, size_t length);
 #define net_store_length mysql_net_store_length
 
+#define key_memory_TABLE_RULE_ENT 0
+#define key_memory_rpl_filter 0
+
 Rpl_filter *binlog_filter= 0;
 
 #define BIN_LOG_HEADER_SIZE	4
 #define PROBE_HEADER_LEN	(EVENT_LEN_OFFSET+4)
 
 /* Needed for Rpl_filter */
-CHARSET_INFO* system_charset_info= &my_charset_utf8_general_ci;
+CHARSET_INFO* system_charset_info= &my_charset_utf8mb3_general_ci;
 
 /* Needed for Flashback */
 DYNAMIC_ARRAY binlog_events; // Storing the events output string
 DYNAMIC_ARRAY events_in_stmt; // Storing the events that in one statement
 String stop_event_string; // Storing the STOP_EVENT output string
 
+extern "C" {
 char server_version[SERVER_VERSION_LENGTH];
+}
+
 ulong server_id = 0;
 
 // needed by net_serv.c
@@ -89,9 +95,11 @@ static uint opt_protocol= 0;
 static FILE *result_file;
 static char *result_file_name= 0;
 static const char *output_prefix= "";
+static char **defaults_argv= 0;
+static MEM_ROOT glob_root;
 
 #ifndef DBUG_OFF
-static const char *default_dbug_option = "d:t:o,/tmp/mysqlbinlog.trace";
+static const char *default_dbug_option = "d:t:o,/tmp/mariadb-binlog.trace";
 const char *current_dbug_option= default_dbug_option;
 #endif
 static const char *load_groups[]=
@@ -145,6 +153,7 @@ static const char* dirname_for_local_load= 0;
 static bool opt_skip_annotate_row_events= 0;
 
 static my_bool opt_flashback;
+static bool opt_print_table_metadata;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
 static my_bool opt_flashback_review;
 static char *flashback_review_dbname, *flashback_review_tablename;
@@ -196,7 +205,7 @@ Log_event* read_remote_annotate_event(uchar* net_buf, ulong event_len,
   uchar *event_buf;
   Log_event* event;
 
-  if (!(event_buf= (uchar*) my_malloc(event_len + 1, MYF(MY_WME))))
+  if (!(event_buf= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED, event_len + 1, MYF(MY_WME))))
   {
     error("Out of memory");
     return 0;
@@ -308,7 +317,7 @@ public:
 
   int init()
   {
-    return my_init_dynamic_array(&file_names, sizeof(File_name_record),
+    return my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &file_names, sizeof(File_name_record),
                                  100, 100, MYF(0));
   }
 
@@ -543,7 +552,7 @@ Exit_status Load_log_processor::process_first_event(const char *bname,
   File_name_record rec;
   DBUG_ENTER("Load_log_processor::process_first_event");
 
-  if (!(fname= (char*) my_malloc(full_len,MYF(MY_WME))))
+  if (!(fname= (char*) my_malloc(PSI_NOT_INSTRUMENTED, full_len,MYF(MY_WME))))
   {
     error("Out of memory.");
     delete ce;
@@ -1100,6 +1109,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
       print_event_info->hexdump_from= pos;
 
     print_event_info->base64_output_mode= opt_base64_output_mode;
+    print_event_info->print_table_metadata= opt_print_table_metadata;
 
     DBUG_PRINT("debug", ("event_type: %s", ev->get_type_str()));
 
@@ -1793,6 +1803,10 @@ Example: rewrite-db='from->to'.",
    (uchar**) &opt_skip_annotate_row_events,
    (uchar**) &opt_skip_annotate_row_events,
    0, GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
+  {"print-table-metadata", OPT_PRINT_TABLE_METADATA,
+   "Print metadata stored in Table_map_log_event",
+   &opt_print_table_metadata, &opt_print_table_metadata, 0,
+   GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -1876,18 +1890,32 @@ static void cleanup()
   my_free(const_cast<char*>(dirname_for_local_load));
   my_free(start_datetime_str);
   my_free(stop_datetime_str);
+  free_root(&glob_root, MYF(0));
 
   delete binlog_filter;
   delete glob_description_event;
   if (mysql)
     mysql_close(mysql);
+  free_defaults(defaults_argv);
+  free_annotate_event();
+  my_free_open_file_info();
+  load_processor.destroy();
+  mysql_server_end();
   DBUG_VOID_RETURN;
+}
+
+
+static void die()
+{
+  cleanup();
+  my_end(MY_DONT_FREE_DBUG);
+  exit(1);
 }
 
 
 static void print_version()
 {
-  printf("%s Ver 3.4 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
+  printf("%s Ver 3.5 for %s at %s\n", my_progname, SYSTEM_TYPE, MACHINE_TYPE);
 }
 
 
@@ -1918,7 +1946,7 @@ static my_time_t convert_str_to_timestamp(const char* str)
       l_time.time_type != MYSQL_TIMESTAMP_DATETIME || status.warnings)
   {
     error("Incorrect date and time argument: %s", str);
-    exit(1);
+    die();
   }
   /*
     Note that Feb 30th, Apr 31st cause no error messages and are mapped to
@@ -1931,11 +1959,10 @@ static my_time_t convert_str_to_timestamp(const char* str)
 
 
 extern "C" my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt, const char *argument, const char *)
 {
   bool tty_password=0;
-  switch (optid) {
+  switch (opt->id) {
 #ifndef DBUG_OFF
   case '#':
     if (!argument)
@@ -1956,10 +1983,15 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       argument= (char*) "";                     // Don't require password
     if (argument)
     {
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
       my_free(pass);
-      char *start=argument;
-      pass= my_strdup(argument,MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		/* Destroy argument */
+      char *start= (char*) argument;
+      pass= my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
+      while (*argument)
+        *(char*)argument++= 'x';		/* Destroy argument */
       if (*start)
         start[1]=0;				/* Cut length of argument */
     }
@@ -1977,7 +2009,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
                                               opt->name)) <= 0)
     {
       sf_leaking_memory= 1; /* no memory leak reports here */
-      exit(1);
+      die();
     }
     break;
 #ifdef WHEN_FLASHBACK_REVIEW_READY
@@ -2002,7 +2034,7 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
                                        opt->name)) <= 0)
       {
         sf_leaking_memory= 1; /* no memory leak reports here */
-        exit(1);
+        die();
       }
       opt_base64_output_mode= (enum_base64_output_mode) (val - 1);
     }
@@ -2010,46 +2042,46 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
   case OPT_REWRITE_DB:    // db_from->db_to
   {
     /* See also handling of OPT_REPLICATE_REWRITE_DB in sql/mysqld.cc */
-    char* ptr;
-    char* key= argument;  // db-from
-    char* val;            // db-to
+    const char* ptr;
+    const char* key= argument;  // db-from
+    const char* val;            // db-to
 
-    // Where key begins
+    // Skipp pre-space in key
     while (*key && my_isspace(&my_charset_latin1, *key))
       key++;
 
     // Where val begins
-    if (!(ptr= strstr(argument, "->")))
+    if (!(ptr= strstr(key, "->")))
     {
-      sql_print_error("Bad syntax in rewrite-db: missing '->'!\n");
+      sql_print_error("Bad syntax in rewrite-db: missing '->'\n");
       return 1;
     }
     val= ptr + 2;
+
+    // Skip blanks at the end of key
+    while (ptr > key && my_isspace(&my_charset_latin1, ptr[-1]))
+      ptr--;
+
+    if (ptr == key)
+    {
+      sql_print_error("Bad syntax in rewrite-db: empty FROM db\n");
+      return 1;
+    }
+    key= strmake_root(&glob_root, key, (size_t) (ptr-key));
+
+    /* Skipp pre space in value */
     while (*val && my_isspace(&my_charset_latin1, *val))
       val++;
 
-    // Write \0 and skip blanks at the end of key
-    *ptr-- = 0;
-    while (my_isspace(&my_charset_latin1, *ptr) && ptr > argument)
-      *ptr-- = 0;
-
-    if (!*key)
+    // Value ends with \0 or space
+    for (ptr= val; *ptr && !my_isspace(&my_charset_latin1, *ptr) ; ptr++)
+    {}
+    if (ptr == val)
     {
-      sql_print_error("Bad syntax in rewrite-db: empty db-from!\n");
+      sql_print_error("Bad syntax in rewrite-db: empty TO db\n");
       return 1;
     }
-
-    // Skip blanks at the end of val
-    ptr= val;
-    while (*ptr && !my_isspace(&my_charset_latin1, *ptr))
-      ptr++;
-    *ptr= 0;
-
-    if (!*val)
-    {
-      sql_print_error("Bad syntax in rewrite-db: empty db-to!\n");
-      return 1;
-    }
+    val= strmake_root(&glob_root, val, (size_t) (ptr-val));
 
     binlog_filter->add_db_rewrite(key, val);
     break;
@@ -2087,7 +2119,9 @@ static int parse_args(int *argc, char*** argv)
   int ho_error;
 
   if ((ho_error=handle_options(argc, argv, my_options, get_one_option)))
-    exit(ho_error);
+  {
+    die();
+  }
   if (debug_info_flag)
     my_end_arg= MY_CHECK_ERROR | MY_GIVE_INFO;
   else if (debug_check_flag)
@@ -3006,7 +3040,6 @@ end:
 
 int main(int argc, char** argv)
 {
-  char **defaults_argv;
   Exit_status retval= OK_CONTINUE;
   ulonglong save_stop_position;
   MY_INIT(argv[0]);
@@ -3018,6 +3051,8 @@ int main(int argc, char** argv)
 
   load_defaults_or_exit("my", load_groups, &argc, &argv);
   defaults_argv= argv;
+
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &glob_root, 1024, 0, MYF(0));
 
   if (!(binlog_filter= new Rpl_filter))
   {
@@ -3044,10 +3079,10 @@ int main(int argc, char** argv)
 
   if (opt_flashback)
   {
-    my_init_dynamic_array(&binlog_events, sizeof(LEX_STRING), 1024, 1024,
-                          MYF(0));
-    my_init_dynamic_array(&events_in_stmt, sizeof(Rows_log_event*), 1024, 1024,
-                          MYF(0));
+    my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &binlog_events,
+                          sizeof(LEX_STRING), 1024, 1024, MYF(0));
+    my_init_dynamic_array(PSI_NOT_INSTRUMENTED, &events_in_stmt,
+                          sizeof(Rows_log_event*), 1024, 1024, MYF(0));
   }
   if (opt_stop_never)
     to_last_remote_log= TRUE;
@@ -3057,7 +3092,7 @@ int main(int argc, char** argv)
     if (!remote_opt)
     {
       error("The --raw mode only works with --read-from-remote-server");
-      exit(1);
+      die();
     }
     if (one_database)
       warning("The --database option is ignored in raw mode");
@@ -3079,7 +3114,7 @@ int main(int argc, char** argv)
                                   O_WRONLY | O_BINARY, MYF(MY_WME))))
       {
         error("Could not create log file '%s'", result_file_name);
-        exit(1);
+        die();
       }
     }
     else
@@ -3095,7 +3130,7 @@ int main(int argc, char** argv)
       retval= ERROR_STOP;
       goto err;
     }
-    dirname_for_local_load= my_strdup(my_tmpdir(&tmpdir), MY_WME);
+    dirname_for_local_load= my_strdup(PSI_NOT_INSTRUMENTED, my_tmpdir(&tmpdir), MY_WME);
   }
 
   if (load_processor.init())
@@ -3200,11 +3235,6 @@ int main(int argc, char** argv)
   if (result_file && result_file != stdout)
     my_fclose(result_file, MYF(0));
   cleanup();
-  free_annotate_event();
-  free_defaults(defaults_argv);
-  my_free_open_file_info();
-  load_processor.destroy();
-  mysql_server_end();
   /* We cannot free DBUG, it is used in global destructors after exit(). */
   my_end(my_end_arg | MY_DONT_FREE_DBUG);
 
@@ -3214,7 +3244,6 @@ int main(int argc, char** argv)
 
 err:
   cleanup();
-  free_defaults(defaults_argv);
   my_end(my_end_arg);
   exit(retval == ERROR_STOP ? 1 : 0);
   DBUG_RETURN(retval == ERROR_STOP ? 1 : 0);
@@ -3253,6 +3282,7 @@ struct encryption_service_st encryption_handler=
 #include "../sql-common/my_time.c"
 #include "password.c"
 #include "log_event.cc"
+#include "log_event_client.cc"
 #include "log_event_old.cc"
 #include "rpl_utility.cc"
 #include "sql_string.cc"

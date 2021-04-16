@@ -1412,9 +1412,9 @@ drop table tmp;
 
 # big table done
 
-SET BIG_TABLES=1;
+set tmp_memory_table_size=0;
 select distinct concat(fld3," ",fld3) as namn from t2,t3 where t2.fld1=t3.t2nr order by namn limit 10;
-SET BIG_TABLES=0;
+set tmp_memory_table_size=default;
 select distinct concat(fld3," ",fld3) from t2,t3 where t2.fld1=t3.t2nr order by fld3 limit 10;
 select distinct fld5 from t2 limit 10;
 
@@ -1423,9 +1423,9 @@ select distinct fld5 from t2 limit 10;
 #
 
 select distinct fld3,count(*) from t2 group by companynr,fld3 limit 10;
-SET BIG_TABLES=1; # Force use of MyISAM
+set tmp_memory_table_size=0;
 select distinct fld3,count(*) from t2 group by companynr,fld3 limit 10;
-SET BIG_TABLES=0;
+set tmp_memory_table_size=default;
 select distinct fld3,repeat("a",length(fld3)),count(*) from t2 group by companynr,fld3 limit 100,10;
 
 #

@@ -1,0 +1,46 @@
+SET @global=@@global.init_connect;
+#
+# MDEV-21961 Bind CONNECTION ADMIN to a number of global system variables
+#
+# Test that "SET init_connect" is not allowed without CONNECTION ADMIN or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE CONNECTION ADMIN, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL init_connect="SET @xxx=1";
+ERROR 42000: Access denied; you need (at least one of) the SUPER, CONNECTION ADMIN privilege(s) for this operation
+SET init_connect="SET @xxx=1";
+ERROR HY000: Variable 'init_connect' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION init_connect="SET @xxx=1";
+ERROR HY000: Variable 'init_connect' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET init_connect" is allowed with CONNECTION ADMIN
+CREATE USER user1@localhost;
+GRANT CONNECTION ADMIN ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL init_connect="SET @xxx=1";
+SET init_connect="SET @xxx=1";
+ERROR HY000: Variable 'init_connect' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION init_connect="SET @xxx=1";
+ERROR HY000: Variable 'init_connect' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET init_connect" is allowed with SUPER
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL init_connect="SET @xxx=1";
+SET init_connect="SET @xxx=1";
+ERROR HY000: Variable 'init_connect' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION init_connect="SET @xxx=1";
+ERROR HY000: Variable 'init_connect' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+SET @@global.init_connect=@global;

@@ -19,6 +19,7 @@
 class THD;
 struct TABLE_LIST;
 
-bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent);
+bool mysql_rename_tables(THD *thd, TABLE_LIST *table_list, bool silent,
+                         bool if_exists);
 
 #endif /* SQL_RENAME_INCLUDED */

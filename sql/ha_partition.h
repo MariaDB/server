@@ -3,7 +3,7 @@
 
 /*
    Copyright (c) 2005, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -22,7 +22,7 @@
 #include "queues.h"             /* QUEUE */
 
 #define PARTITION_BYTES_IN_POS 2
-
+#define PAR_EXT ".par"
 
 /** Struct used for partition_name_hash */
 typedef struct st_part_name_def
@@ -361,7 +361,6 @@ private:
   uint m_rec_length;                     // Local copy of record length
 
   bool m_ordered;                        // Ordered/Unordered index scan
-  bool m_pkey_is_clustered;              // Is primary key clustered
   bool m_create_handler;                 // Handler used to create table
   bool m_is_sub_partitioned;             // Is subpartitioned
   bool m_ordered_scan_ongoing;
@@ -454,6 +453,10 @@ public:
   {
     return m_file;
   }
+  ha_partition *get_clone_source()
+  {
+    return m_is_clone_of;
+  }
   virtual part_id_range *get_part_spec()
   {
     return &m_part_spec;
@@ -536,8 +539,10 @@ public:
   int create(const char *name, TABLE *form,
              HA_CREATE_INFO *create_info) override;
   int create_partitioning_metadata(const char *name,
-                                   const char *old_name, int action_flag)
+                                   const char *old_name,
+                                   chf_create_flags action_flag)
     override;
+  bool check_if_updates_are_ignored(const char *op) const override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
   char *update_table_comment(const char *comment) override;
   int change_partitions(HA_CREATE_INFO *create_info, const char *path,
@@ -665,8 +670,9 @@ public:
     Bind the table/handler thread to track table i/o.
   */
   virtual void unbind_psi();
-  virtual void rebind_psi();
+  virtual int rebind();
 #endif
+  int discover_check_version() override;
   /*
     -------------------------------------------------------------------------
     MODULE change record
@@ -1029,8 +1035,10 @@ public:
     For the given range how many records are estimated to be in this range.
     Used by optimiser to calculate cost of using a particular index.
   */
-  ha_rows records_in_range(uint inx, key_range * min_key, key_range * max_key)
-    override;
+  ha_rows records_in_range(uint inx,
+                           const key_range * min_key,
+                           const key_range * max_key,
+                           page_range *pages) override;
 
   /*
     Upper bound of number records returned in scan is sum of all
@@ -1315,12 +1323,6 @@ public:
   uint min_record_length(uint options) const override;
 
   /*
-    Primary key is clustered can only be true if all underlying handlers have
-    this feature.
-  */
-  bool primary_key_is_clustered() override { return m_pkey_is_clustered; }
-
-  /*
     -------------------------------------------------------------------------
     MODULE compare records
     -------------------------------------------------------------------------
@@ -1488,12 +1490,10 @@ public:
                                      Alter_inplace_info *ha_alter_info)
       override;
     bool inplace_alter_table(TABLE *altered_table,
-                             Alter_inplace_info *ha_alter_info) override;
+                            Alter_inplace_info *ha_alter_info) override;
     bool commit_inplace_alter_table(TABLE *altered_table,
                                     Alter_inplace_info *ha_alter_info,
                                     bool commit) override;
-    void notify_table_changed() override;
-
   /*
     -------------------------------------------------------------------------
     MODULE tablespace support
@@ -1532,7 +1532,6 @@ public:
   */
     const COND *cond_push(const COND *cond) override;
     void cond_pop() override;
-    void clear_top_table_fields() override;
     int info_push(uint info_type, void *info) override;
 
     private:
@@ -1617,6 +1616,9 @@ public:
     }
     return part_recs;
   }
+
+  int notify_tabledef_changed(LEX_CSTRING *db, LEX_CSTRING *table,
+                              LEX_CUSTRING *frm, LEX_CUSTRING *version);
 
   friend int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
   friend int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);

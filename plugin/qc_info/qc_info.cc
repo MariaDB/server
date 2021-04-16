@@ -37,7 +37,7 @@
 #include <sql_acl.h>            // PROCESS_ACL
 #include <sql_class.h>          // THD
 #include <sql_cache.h>
-#include <table.h>              // ST_SCHEMA_TABLE
+#include <sql_i_s.h>            // ST_SCHEMA_TABLE
 #include <set_var.h>            // sql_mode_string_representation
 #include <tztime.h>
 #include <mysql/plugin.h>
@@ -79,35 +79,40 @@ bool schema_table_store_record(THD *thd, TABLE *table);
 #define COLUMN_PKT_NR 22
 #define COLUMN_HITS 23
 
+
+namespace Show {
+
 /* ST_FIELD_INFO is defined in table.h */
 static ST_FIELD_INFO qc_info_fields[]=
 {
-  {"STATEMENT_SCHEMA", NAME_LEN, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"STATEMENT_TEXT", MAX_STATEMENT_TEXT_LENGTH, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"RESULT_BLOCKS_COUNT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"RESULT_BLOCKS_SIZE", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
-  {"RESULT_BLOCKS_SIZE_USED", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
-  {"LIMIT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
-  {"MAX_SORT_LENGTH", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
-  {"GROUP_CONCAT_MAX_LENGTH", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, 0, 0, 0},
-  {"CHARACTER_SET_CLIENT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"CHARACTER_SET_RESULT", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"COLLATION", MY_CS_NAME_SIZE, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"TIMEZONE", 50, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"DEFAULT_WEEK_FORMAT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"DIV_PRECISION_INCREMENT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONG, 0, 0, 0, 0},
-  {"SQL_MODE", 250, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"LC_TIME_NAMES", 100, MYSQL_TYPE_STRING, 0, 0, 0, 0},
-  {"CLIENT_LONG_FLAG", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
-  {"CLIENT_PROTOCOL_41", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
-  {"PROTOCOL_TYPE", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
-  {"MORE_RESULTS_EXISTS", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
-  {"IN_TRANS", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
-  {"AUTOCOMMIT", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
-  {"PACKET_NUMBER", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_TINY, 0, 0, 0, 0},
-  {"HITS", MY_INT32_NUM_DECIMAL_DIGITS, MYSQL_TYPE_LONGLONG, 0, MY_I_S_UNSIGNED, 0, 0},
-  {0, 0, MYSQL_TYPE_STRING, 0, 0, 0, 0}
+  Column("STATEMENT_SCHEMA",      Varchar(NAME_LEN),                  NOT_NULL),
+  Column("STATEMENT_TEXT",        Longtext(MAX_STATEMENT_TEXT_LENGTH),NOT_NULL),
+  Column("RESULT_BLOCKS_COUNT",   SLong(),                            NOT_NULL),
+  Column("RESULT_BLOCKS_SIZE",    SLonglong(MY_INT32_NUM_DECIMAL_DIGITS),NOT_NULL),
+  Column("RESULT_BLOCKS_SIZE_USED",SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("LIMIT",                 SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("MAX_SORT_LENGTH",       SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("GROUP_CONCAT_MAX_LENGTH",SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("CHARACTER_SET_CLIENT",  CSName(),                           NOT_NULL),
+  Column("CHARACTER_SET_RESULT",  CSName(),                           NOT_NULL),
+  Column("COLLATION",             CSName(),                           NOT_NULL),
+  Column("TIMEZONE",              Varchar(50),                        NOT_NULL),
+  Column("DEFAULT_WEEK_FORMAT",   SLong(),                            NOT_NULL),
+  Column("DIV_PRECISION_INCREMENT",SLong(),                           NOT_NULL),
+  Column("SQL_MODE",              Varchar(250),                       NOT_NULL),
+  Column("LC_TIME_NAMES",         Varchar(100),                       NOT_NULL),
+  Column("CLIENT_LONG_FLAG",      STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("CLIENT_PROTOCOL_41",    STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("PROTOCOL_TYPE",         STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("MORE_RESULTS_EXISTS",   STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("IN_TRANS",              STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("AUTOCOMMIT",            STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("PACKET_NUMBER",         STiny(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  Column("HITS",              SLonglong(MY_INT32_NUM_DECIMAL_DIGITS), NOT_NULL),
+  CEnd()
 };
+
+} // namespace Show
 
 
 static const char unknown[]= "#UNKNOWN#";
@@ -276,15 +281,9 @@ static int qc_info_plugin_init(void *p)
 {
   ST_SCHEMA_TABLE *schema= (ST_SCHEMA_TABLE *)p;
 
-  schema->fields_info= qc_info_fields;
+  schema->fields_info= Show::qc_info_fields;
   schema->fill_table= qc_info_fill_table;
-
-#ifdef _WIN32
-  qc = (Accessible_Query_Cache *)
-    GetProcAddress(GetModuleHandle(NULL), "?query_cache@@3VQuery_cache@@A");
-#else
   qc = (Accessible_Query_Cache *)&query_cache;
-#endif
 
   return qc == 0;
 }

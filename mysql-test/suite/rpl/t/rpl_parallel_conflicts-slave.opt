@@ -1,1 +1,0 @@
---slave_parallel_threads=40 --slave_parallel_mode=conservative --slave_transaction_retries=5

@@ -35,13 +35,13 @@ Created 3/26/1996 Heikki Tuuri
 #include "ut0vec.h"
 #include "fts0fts.h"
 #include "read0types.h"
+#include "ilist.h"
 
 #include <vector>
 #include <set>
 
 // Forward declaration
 struct mtr_t;
-class FlushObserver;
 struct rw_trx_hash_element_t;
 
 /******************************************************************//**
@@ -233,8 +233,7 @@ trx_commit_step(
 	que_thr_t*	thr);	/*!< in: query thread */
 
 /**********************************************************************//**
-Prints info about a transaction.
-Caller must hold trx_sys.mutex. */
+Prints info about a transaction. */
 void
 trx_print_low(
 /*==========*/
@@ -254,7 +253,6 @@ trx_print_low(
 
 /**********************************************************************//**
 Prints info about a transaction.
-The caller must hold lock_sys.mutex and trx_sys.mutex.
 When possible, use trx_print() instead. */
 void
 trx_print_latched(
@@ -296,7 +294,7 @@ trx_set_dict_operation(
 
 /**********************************************************************//**
 Determines if a transaction is in the given state.
-The caller must hold trx_sys.mutex, or it must be the thread
+The caller must hold trx->mutex, or it must be the thread
 that is serving a running transaction.
 A running RW transaction must be in trx_sys.rw_trx_hash.
 @return TRUE if trx->state == state */
@@ -478,8 +476,11 @@ code and no mutex is required when the query thread is no longer waiting. */
 /** The locks and state of an active transaction. Protected by
 lock_sys.mutex, trx->mutex or both. */
 struct trx_lock_t {
-	ulint		n_active_thrs;	/*!< number of active query threads */
-
+#ifdef UNIV_DEBUG
+	/** number of active query threads; at most 1, except for the
+	dummy transaction in trx_purge() */
+	ulint n_active_thrs;
+#endif
 	trx_que_t	que_state;	/*!< valid when trx->state
 					== TRX_STATE_ACTIVE: TRX_QUE_RUNNING,
 					TRX_QUE_LOCK_WAIT, ... */
@@ -704,7 +705,7 @@ struct trx_rsegs_t {
 	trx_temp_undo_t	m_noredo;
 };
 
-struct trx_t {
+struct trx_t : ilist_node<> {
 private:
   /**
     Count of references.
@@ -724,14 +725,6 @@ public:
 					lock_sys.mutex) */
 
 	trx_id_t	id;		/*!< transaction id */
-
-	trx_id_t	no;		/*!< transaction serialization number:
-					max trx id shortly before the
-					transaction is moved to
-					COMMITTED_IN_MEMORY state.
-					Protected by trx_sys_t::mutex
-					when trx is in rw_trx_hash. Initially
-					set to TRX_ID_MAX. */
 
 	/** State of the trx from the point of view of concurrency control
 	and the valid state transitions.
@@ -772,7 +765,7 @@ public:
 	XA (2PC) transactions are always treated as non-autocommit.
 
 	Transitions to ACTIVE or NOT_STARTED occur when transaction
-	is not in rw_trx_hash (no trx_sys.mutex needed).
+	is not in rw_trx_hash.
 
 	Autocommit non-locking read-only transactions move between states
 	without holding any mutex. They are not in rw_trx_hash.
@@ -788,7 +781,7 @@ public:
 	in rw_trx_hash.
 
 	ACTIVE->PREPARED->COMMITTED is only possible when trx is in rw_trx_hash.
-	The transition ACTIVE->PREPARED is protected by trx_sys.mutex.
+	The transition ACTIVE->PREPARED is protected by trx->mutex.
 
 	ACTIVE->COMMITTED is possible when the transaction is in
 	rw_trx_hash.
@@ -826,7 +819,7 @@ public:
 	const char*	op_info;	/*!< English text describing the
 					current operation, or an empty
 					string */
-	ulint		isolation_level;/*!< TRX_ISO_REPEATABLE_READ, ... */
+	uint		isolation_level;/*!< TRX_ISO_REPEATABLE_READ, ... */
 	bool		check_foreigns;	/*!< normally TRUE, but if the user
 					wants to suppress foreign key checks,
 					(in table imports, for example) we
@@ -866,17 +859,6 @@ public:
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
 	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
 
-	/* Fields protected by the srv_conc_mutex. */
-	bool		declared_to_be_inside_innodb;
-					/*!< this is TRUE if we have declared
-					this transaction in
-					srv_conc_enter_innodb to be inside the
-					InnoDB engine */
-	ib_uint32_t	n_tickets_to_enter_innodb;
-					/*!< this can be > 0 only when
-					declared_to_... is TRUE; when we come
-					to srv_conc_innodb_enter, if the value
-					here is > 0, we decrement this by 1 */
 	ib_uint32_t	dict_operation_lock_mode;
 					/*!< 0, RW_S_LATCH, or RW_X_LATCH:
 					the latch mode trx currently holds
@@ -912,10 +894,6 @@ public:
 					/*!< how many tables the current SQL
 					statement uses, except those
 					in consistent read */
-	/*------------------------------*/
-	UT_LIST_NODE_T(trx_t) trx_list;	/*!< list of all transactions;
-					protected by trx_sys.mutex */
-	/*------------------------------*/
 	dberr_t		error_state;	/*!< 0 if no error, otherwise error
 					number; NOTE That ONLY the thread
 					doing the transaction is allowed to
@@ -1010,15 +988,6 @@ public:
 	/*------------------------------*/
 	char*		detailed_error;	/*!< detailed error message for last
 					error, or empty. */
-private:
-	/** flush observer used to track flushing of non-redo logged pages
-	during bulk create index */
-	FlushObserver*	flush_observer;
-public:
-#ifdef WITH_WSREP
-	os_event_t	wsrep_event;	/* event waited for in srv_conc_slot */
-#endif /* WITH_WSREP */
-
 	rw_trx_hash_element_t *rw_trx_hash_element;
 	LF_PINS *rw_trx_hash_pins;
 	ulint		magic_n;
@@ -1053,20 +1022,6 @@ public:
 		return(assign_temp_rseg());
 	}
 
-	/** Set the innodb_log_optimize_ddl page flush observer
-	@param[in,out]	space	tablespace
-	@param[in,out]	stage	performance_schema accounting */
-	void set_flush_observer(fil_space_t* space, ut_stage_alter_t* stage);
-
-	/** Remove the flush observer */
-	void remove_flush_observer();
-
-	/** @return the flush observer */
-	FlushObserver* get_flush_observer() const
-	{
-		return flush_observer;
-	}
-
   /** Transition to committed state, to release implicit locks. */
   inline void commit_state();
 
@@ -1077,17 +1032,26 @@ public:
   @param[in]	table_id	table identifier */
   void evict_table(table_id_t table_id);
 
+  /** Initiate rollback.
+  @param savept     savepoint to which to roll back
+  @return error code or DB_SUCCESS */
+  dberr_t rollback(trx_savept_t *savept= nullptr);
+  /** Roll back an active transaction.
+  @param savept     savepoint to which to roll back */
+  inline void rollback_low(trx_savept_t *savept= nullptr);
+  /** Finish rollback.
+  @return whether the rollback was completed normally
+  @retval false if the rollback was aborted by shutdown */
+  inline bool rollback_finish();
 private:
   /** Mark a transaction committed in the main memory data structures. */
   inline void commit_in_memory(const mtr_t *mtr);
-public:
-  /** Commit the transaction. */
-  void commit();
-
   /** Commit the transaction in a mini-transaction.
   @param mtr  mini-transaction (if there are any persistent modifications) */
   void commit_low(mtr_t *mtr= nullptr);
-
+public:
+  /** Commit the transaction. */
+  void commit();
 
 
   bool is_referenced() const { return n_ref > 0; }

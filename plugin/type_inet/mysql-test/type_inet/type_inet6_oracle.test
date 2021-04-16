@@ -1,0 +1,35 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20913 sql_mode=ORACLE: INET6 does not work as a routine parameter type and return type
+--echo #
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1() RETURN INET6 AS
+BEGIN
+  RETURN 'ffff::ffff';
+END;
+$$
+DELIMITER ;$$
+SELECT f1();
+DROP FUNCTION f1;
+
+
+SET sql_mode=ORACLE;
+DELIMITER $$;
+CREATE OR REPLACE FUNCTION f1(a INET6) RETURN INT AS
+BEGIN
+  RETURN LENGTH(a);
+END;
+$$
+DELIMITER ;$$
+SELECT f1('0::0');
+DROP FUNCTION f1;
+
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

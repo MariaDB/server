@@ -162,6 +162,7 @@ typedef struct st_simple_key_cache_cb
   my_bool resize_in_flush;       /* true during flush of resize operation    */
   my_bool can_be_used;           /* usage of cache for read/write is allowed */
   size_t key_cache_mem_size;     /* specified size of the cache memory       */
+  size_t allocated_mem_size;     /* size of the memory actually allocated    */
   uint key_cache_block_size;     /* size of the page buffer of a cache block */
   ulong min_warm_blocks;         /* min number of warm blocks;               */
   ulong age_threshold;           /* age threshold for hot blocks             */
@@ -545,16 +546,15 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
                        sizeof(BLOCK_LINK*)* (changed_blocks_hash_size*2))) +
              ((size_t) blocks * keycache->key_cache_block_size) > use_mem && blocks > 8)
         blocks--;
-      /* Allocate memory for cache page buffers */
-      if ((keycache->block_mem=
-	   my_large_malloc((size_t) blocks * keycache->key_cache_block_size,
-			  MYF(0))))
+      keycache->allocated_mem_size= blocks * keycache->key_cache_block_size;
+      if ((keycache->block_mem= my_large_malloc(&keycache->allocated_mem_size,
+                                                MYF(0))))
       {
         /*
 	  Allocate memory for blocks, hash_links and hash entries;
 	  For each block 2 hash links are allocated
         */
-        if (my_multi_malloc_large(MYF(MY_ZEROFILL),
+        if (my_multi_malloc_large(key_memory_KEY_CACHE, MYF(MY_ZEROFILL),
                                   &keycache->block_root,
                                   (ulonglong) (blocks * sizeof(BLOCK_LINK)),
                                   &keycache->hash_root,
@@ -570,7 +570,7 @@ int init_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache,
                                                changed_blocks_hash_size),
                                   NullS))
           break;
-        my_large_free(keycache->block_mem);
+        my_large_free(keycache->block_mem, keycache->allocated_mem_size);
         keycache->block_mem= 0;
       }
       if (blocks < 8)
@@ -631,7 +631,7 @@ err:
   keycache->blocks=  0;
   if (keycache->block_mem)
   {
-    my_large_free((uchar*) keycache->block_mem);
+    my_large_free((uchar*) keycache->block_mem, keycache->allocated_mem_size);
     keycache->block_mem= NULL;
   }
   if (keycache->block_root)
@@ -965,7 +965,7 @@ void end_simple_key_cache(SIMPLE_KEY_CACHE_CB *keycache, my_bool cleanup)
   {
     if (keycache->block_mem)
     {
-      my_large_free((uchar*) keycache->block_mem);
+      my_large_free((uchar*) keycache->block_mem, keycache->allocated_mem_size);
       keycache->block_mem= NULL;
       my_free(keycache->block_root);
       keycache->block_root= NULL;
@@ -3949,8 +3949,8 @@ static int flush_key_blocks_int(SIMPLE_KEY_CACHE_CB *keycache,
         changed blocks appear while we need to wait for something.
       */
       if ((count > FLUSH_CACHE) &&
-          !(cache= (BLOCK_LINK**) my_malloc(sizeof(BLOCK_LINK*)*count,
-                                            MYF(0))))
+          !(cache= (BLOCK_LINK**) my_malloc(key_memory_KEY_CACHE,
+                                            sizeof(BLOCK_LINK*)*count, MYF(0))))
         cache= cache_buff;
       /*
         After a restart there could be more changed blocks than now.
@@ -5113,7 +5113,8 @@ int init_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
   else
   {
     if(!(partition_ptr=
-       (SIMPLE_KEY_CACHE_CB **) my_malloc(sizeof(SIMPLE_KEY_CACHE_CB *) *
+       (SIMPLE_KEY_CACHE_CB **) my_malloc(key_memory_KEY_CACHE,
+                                          sizeof(SIMPLE_KEY_CACHE_CB *) *
                                           partitions, MYF(MY_WME))))
       DBUG_RETURN(-1);
     bzero(partition_ptr, sizeof(SIMPLE_KEY_CACHE_CB *) * partitions);
@@ -5131,7 +5132,8 @@ int init_partitioned_key_cache(PARTITIONED_KEY_CACHE_CB *keycache,
     else
     {
       if (!(partition=
-              (SIMPLE_KEY_CACHE_CB *)  my_malloc(sizeof(SIMPLE_KEY_CACHE_CB),
+              (SIMPLE_KEY_CACHE_CB *)  my_malloc(key_memory_KEY_CACHE,
+                                                 sizeof(SIMPLE_KEY_CACHE_CB),
 						 MYF(MY_WME))))
         continue;
       partition->key_cache_inited= 0;
@@ -5909,7 +5911,8 @@ int init_key_cache_internal(KEY_CACHE *keycache, uint key_cache_block_size,
   {
     if (partitions == 0)
     {
-      if (!(keycache_cb= (void *)  my_malloc(sizeof(SIMPLE_KEY_CACHE_CB),
+      if (!(keycache_cb= (void *)  my_malloc(key_memory_KEY_CACHE,
+                                             sizeof(SIMPLE_KEY_CACHE_CB),
                                              MYF(0)))) 
         return 0;
       ((SIMPLE_KEY_CACHE_CB *) keycache_cb)->key_cache_inited= 0;
@@ -5918,7 +5921,8 @@ int init_key_cache_internal(KEY_CACHE *keycache, uint key_cache_block_size,
     }
     else
     {
-      if (!(keycache_cb= (void *)  my_malloc(sizeof(PARTITIONED_KEY_CACHE_CB),
+      if (!(keycache_cb= (void *)  my_malloc(key_memory_KEY_CACHE,
+                                             sizeof(PARTITIONED_KEY_CACHE_CB),
                                              MYF(0)))) 
         return 0;
       ((PARTITIONED_KEY_CACHE_CB *) keycache_cb)->key_cache_inited= 0;

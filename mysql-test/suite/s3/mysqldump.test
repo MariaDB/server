@@ -1,0 +1,33 @@
+--source include/have_s3.inc
+--source create_database.inc
+
+create table t1 (pk int primary key, a int);
+insert into t1 values (1,1),(2,2),(3,3),(4,4);
+alter table t1 engine=S3;
+
+--echo #####
+--echo # mysqldump with --copy-s3-tables=0 (by default)
+--echo ###
+--exec $MYSQL_DUMP --compact $database
+--echo #####
+--echo # mysqldump with --copy-s3-tables=0 (by default) XML
+--echo ###
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}(.[0-9]{2})*/--TIME--/
+--replace_result $database database
+--exec $MYSQL_DUMP --compact -X $database
+--echo #####
+--echo # mysqldump with --copy-s3-tables=1
+--echo ###
+--exec $MYSQL_DUMP --compact --copy-s3-tables=1 $database
+--echo #####
+--echo # mysqldump with --copy-s3-tables=1 XML
+--echo ###
+--replace_regex /[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}(.[0-9]{2})*/--TIME--/
+--replace_result $database database
+--exec $MYSQL_DUMP --compact --copy-s3-tables=1 -X $database
+
+drop table t1;
+#
+# clean up
+#
+--source drop_database.inc

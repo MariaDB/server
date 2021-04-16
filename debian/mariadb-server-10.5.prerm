@@ -1,0 +1,12 @@
+#!/bin/sh
+set -e
+
+#DEBHELPER#
+
+# Modified dh_systemd_start snippet that's not added automatically
+if [ -d /run/systemd/system ]; then
+	deb-systemd-invoke stop mariadb.service >/dev/null
+# Modified dh_installinit snippet to only run with sysvinit
+elif [ -x "/etc/init.d/mariadb" ]; then
+	invoke-rc.d mariadb stop || exit $?
+fi

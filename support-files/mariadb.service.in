@@ -20,14 +20,12 @@
 
 [Unit]
 Description=MariaDB @VERSION@ database server
-Documentation=man:mysqld(8)
+Documentation=man:mariadbd(8)
 Documentation=https://mariadb.com/kb/en/library/systemd/
 After=network.target
 
 [Install]
 WantedBy=multi-user.target
-Alias=mysql.service
-Alias=mysqld.service
 
 
 [Service]
@@ -39,7 +37,7 @@ Alias=mysqld.service
 Type=notify
 
 # Setting this to true can break replication and the Type=notify settings
-# See also bind-address mysqld option.
+# See also bind-address mariadbd option.
 PrivateNetwork=false
 
 ##############################################################################
@@ -91,7 +89,7 @@ ExecStartPre=/bin/sh -c "[ ! -e @bindir@/galera_recovery ] && VAR= || \
 # Use the [Service] section and Environment="MYSQLD_OPTS=...".
 # This isn't a replacement for my.cnf.
 # _WSREP_NEW_CLUSTER is for the exclusive use of the script galera_new_cluster
-ExecStart=@sbindir@/mysqld $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
+ExecStart=@sbindir@/mariadbd $MYSQLD_OPTS $_WSREP_NEW_CLUSTER $_WSREP_START_POSITION
 
 # Unset _WSREP_START_POSITION environment variable.
 ExecStartPost=/bin/sh -c "systemctl unset-environment _WSREP_START_POSITION"
@@ -120,7 +118,7 @@ UMask=007
 
 # Useful options not previously available in [mysqld_safe]
 
-# Kernels like killing mysqld when out of memory because its big.
+# Kernels like killing mariadbd when out of memory because its big.
 # Lets temper that preference a little.
 # OOMScoreAdjust=-600
 
@@ -165,7 +163,7 @@ LimitNOFILE=16384
 # ExecStartPre=sysctl -q -w vm.drop_caches=3
 
 # numa-interleave=1 equalivant
-# Change ExecStart=numactl --interleave=all @sbindir@/mysqld......
+# Change ExecStart=numactl --interleave=all @sbindir@/mariadbd......
 
 # crash-script equalivent
 # FailureAction=

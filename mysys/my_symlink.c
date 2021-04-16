@@ -154,7 +154,8 @@ int my_realpath(char *to, const char *filename, myf MyFlags)
       original name but will at least be able to resolve paths that starts
       with '.'.
     */
-    DBUG_PRINT("error",("realpath failed with errno: %d", errno));
+    if (MyFlags)
+      DBUG_PRINT("error",("realpath failed with errno: %d", errno));
     my_errno=errno;
     if (MyFlags & MY_WME)
       my_error(EE_REALPATH, MYF(0), filename, my_errno);

@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,13 +26,15 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_ews_by_account_by_event_name.h"
 #include "pfs_global.h"
 #include "pfs_visitor.h"
+#include "pfs_buffer_container.h"
+#include "field.h"
 
 THR_LOCK table_ews_by_account_by_event_name::m_table_lock;
 
@@ -44,19 +46,19 @@ table_ews_by_account_by_event_name::m_share=
   table_ews_by_account_by_event_name::create,
   NULL, /* write_row */
   table_ews_by_account_by_event_name::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_ews_by_account_by_event_name::get_row_count,
   sizeof(pos_ews_by_account_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_summary_by_account_by_event_name("
-                      "USER CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default null,"
-                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null,"
+                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default null,"
+                      "HOST CHAR(" HOSTNAME_LENGTH_STR ") collate utf8_bin default null,"
                       "EVENT_NAME VARCHAR(128) not null,"
                       "COUNT_STAR BIGINT unsigned not null,"
                       "SUM_TIMER_WAIT BIGINT unsigned not null,"
                       "MIN_TIMER_WAIT BIGINT unsigned not null,"
                       "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null)") }
+                      "MAX_TIMER_WAIT BIGINT unsigned not null)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table*
@@ -71,6 +73,12 @@ table_ews_by_account_by_event_name::delete_all_rows(void)
   reset_events_waits_by_thread();
   reset_events_waits_by_account();
   return 0;
+}
+
+ha_rows
+table_ews_by_account_by_event_name::get_row_count(void)
+{
+  return global_account_container.get_row_count() * wait_class_max;
 }
 
 table_ews_by_account_by_event_name::table_ews_by_account_by_event_name()
@@ -88,13 +96,14 @@ int table_ews_by_account_by_event_name::rnd_next(void)
 {
   PFS_account *account;
   PFS_instr_class *instr_class;
+  bool has_more_account= true;
 
   for (m_pos.set_at(&m_next_pos);
-       m_pos.has_more_account();
+       has_more_account;
        m_pos.next_account())
   {
-    account= &account_array[m_pos.m_index_1];
-    if (account->m_lock.is_populated())
+    account= global_account_container.get(m_pos.m_index_1, & has_more_account);
+    if (account != NULL)
     {
       for ( ;
            m_pos.has_more_view();
@@ -123,6 +132,9 @@ int table_ews_by_account_by_event_name::rnd_next(void)
         case pos_ews_by_account_by_event_name::VIEW_IDLE:
           instr_class= find_idle_class(m_pos.m_index_3);
           break;
+        case pos_ews_by_account_by_event_name::VIEW_METADATA:
+          instr_class= find_metadata_class(m_pos.m_index_3);
+          break;
         default:
           instr_class= NULL;
           DBUG_ASSERT(false);
@@ -149,10 +161,9 @@ table_ews_by_account_by_event_name::rnd_pos(const void *pos)
   PFS_instr_class *instr_class;
 
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index_1 < account_max);
 
-  account= &account_array[m_pos.m_index_1];
-  if (! account->m_lock.is_populated())
+  account= global_account_container.get(m_pos.m_index_1);
+  if (account == NULL)
     return HA_ERR_RECORD_DELETED;
 
   switch (m_pos.m_index_2)
@@ -178,6 +189,9 @@ table_ews_by_account_by_event_name::rnd_pos(const void *pos)
   case pos_ews_by_account_by_event_name::VIEW_IDLE:
     instr_class= find_idle_class(m_pos.m_index_3);
     break;
+  case pos_ews_by_account_by_event_name::VIEW_METADATA:
+    instr_class= find_metadata_class(m_pos.m_index_3);
+    break;
   default:
     instr_class= NULL;
     DBUG_ASSERT(false);
@@ -194,7 +208,7 @@ table_ews_by_account_by_event_name::rnd_pos(const void *pos)
 void table_ews_by_account_by_event_name
 ::make_row(PFS_account *account, PFS_instr_class *klass)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
   m_row_exists= false;
 
   account->m_lock.begin_optimistic_lock(&lock);
@@ -205,7 +219,10 @@ void table_ews_by_account_by_event_name
   m_row.m_event_name.make_row(klass);
 
   PFS_connection_wait_visitor visitor(klass);
-  PFS_connection_iterator::visit_account(account, true, & visitor);
+  PFS_connection_iterator::visit_account(account,
+                                         true,  /* threads */
+                                         false, /* THDs */
+                                         & visitor);
 
   if (! account->m_lock.end_optimistic_lock(&lock))
     return;

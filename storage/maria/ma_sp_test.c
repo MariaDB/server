@@ -17,7 +17,7 @@
 /* Written by Alex Barkov, who has a shared copyright to this code */
 
 #include <my_global.h>
-#include "maria.h"
+#include "maria_def.h"
 
 #ifdef HAVE_SPATIAL
 #include "ma_sp_defs.h"
@@ -71,6 +71,7 @@ int run_test(const char *filename)
   uchar read_record[MAX_REC_LENGTH];
   int upd=10;
   ha_rows hrows;
+  page_range pages;
 
   /* Define a column for NULLs and DEL markers*/
 
@@ -119,7 +120,7 @@ int run_test(const char *filename)
   if (!silent)
     printf("- Open isam-file\n");
 
-  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED)))
+  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED, 0)))
     goto err;
 
   if (!silent)
@@ -258,7 +259,7 @@ int run_test(const char *filename)
   max_range.key= record+1;
   max_range.length= 1000;                       /* Big enough */
   max_range.flag= HA_READ_KEY_EXACT;
-  hrows= maria_records_in_range(file,0, &min_range, &max_range);
+  hrows= maria_records_in_range(file,0, &min_range, &max_range, &pages);
   printf("     %ld rows\n", (long) hrows);
 
   if (maria_close(file)) goto err;

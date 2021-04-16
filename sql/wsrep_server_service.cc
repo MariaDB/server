@@ -158,7 +158,7 @@ void Wsrep_server_service::bootstrap()
   wsrep::log_info()
     << "Bootstrapping a new cluster, setting initial position to "
     << wsrep::gtid::undefined();
-  wsrep_set_SE_checkpoint(wsrep::gtid::undefined());
+  wsrep_set_SE_checkpoint(wsrep::gtid::undefined(), wsrep_gtid_server.undefined());
 }
 
 void Wsrep_server_service::log_message(enum wsrep::log::level level,
@@ -221,7 +221,7 @@ void Wsrep_server_service::log_view(
       if (prev_view.state_id().id() != view.state_id().id())
       {
         WSREP_DEBUG("New cluster UUID was generated, resetting position info");
-        wsrep_set_SE_checkpoint(wsrep::gtid::undefined());
+        wsrep_set_SE_checkpoint(wsrep::gtid::undefined(), wsrep_gtid_server.undefined());
         checkpoint_was_reset= true;
       }
 
@@ -272,9 +272,9 @@ void Wsrep_server_service::log_view(
           Wsrep_server_state::instance().provider().last_committed_gtid().seqno();
       if (checkpoint_was_reset || last_committed != view.state_id().seqno())
       {
-          wsrep_set_SE_checkpoint(view.state_id());
+        wsrep_set_SE_checkpoint(view.state_id(), wsrep_gtid_server.gtid());
       }
-      DBUG_ASSERT(wsrep_get_SE_checkpoint().id() == view.state_id().id());
+      DBUG_ASSERT(wsrep_get_SE_checkpoint<wsrep::gtid>().id() == view.state_id().id());
     }
     else
     {
@@ -308,7 +308,7 @@ wsrep::view Wsrep_server_service::get_view(wsrep::client_service& c,
 
 wsrep::gtid Wsrep_server_service::get_position(wsrep::client_service&)
 {
-  return wsrep_get_SE_checkpoint();
+  return wsrep_get_SE_checkpoint<wsrep::gtid>();
 }
 
 void Wsrep_server_service::set_position(wsrep::client_service& c WSREP_UNUSED,
@@ -326,7 +326,7 @@ void Wsrep_server_service::set_position(wsrep::client_service& c WSREP_UNUSED,
     WSREP_WARN("Wait for gtid returned error %d while waiting for "
                "prior transactions to commit before setting position", err);
   }
-  wsrep_set_SE_checkpoint(gtid);
+  wsrep_set_SE_checkpoint(gtid, wsrep_gtid_server.gtid());
 }
 
 void Wsrep_server_service::log_state_change(

@@ -3,9 +3,6 @@
 # when running tests - not to depend on the current machine localization.
 #
 
-[client]
-plugin-dir=@mysqld.1.plugin-dir
-
 [mysql]
 default-character-set=latin1
 

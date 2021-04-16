@@ -1,0 +1,67 @@
+#
+# This test tests that TOI failure on 2 nodes (master and slave) for the
+# same reason, wins over success on a third slave.
+# In particular this tests that master and slave TOI cast the same vote for
+# the same error
+#
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--let $galera_connection_name = node_3
+--let $galera_server_number = 3
+--source include/galera_connect.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+# create inconsistency on node 3
+--connection node_3
+SET SESSION wsrep_on=OFF;
+DROP SCHEMA test;
+
+# This should fail on nodes 1 and 2 and succeed on node 3
+--connection node_1
+--error ER_DB_CREATE_EXISTS
+CREATE SCHEMA test;
+
+--connection node_1
+SET SESSION wsrep_sync_wait=0;
+# wait for node 3 to drop from the cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_2
+SET SESSION wsrep_sync_wait=0;
+# wait for node 3 to drop from the cluster
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+--connection node_3
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Disconnected' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+
+# need to reinitialize connection due to a "Bad handshake" bug
+--disconnect node_3
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+# reconnect node 3, since it failed
+--source include/kill_galera.inc
+--source include/wait_until_disconnected.inc
+--source include/start_mysqld.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Primary' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_status';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 'ON' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_ready'
+--source include/wait_condition.inc
+
+CALL mtr.add_suppression("WSREP: Vote 0 \\\(success\\\) on (.*) is inconsistent with group. Leaving cluster.");
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

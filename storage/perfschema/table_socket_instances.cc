@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,12 +26,14 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_socket_instances.h"
 #include "pfs_global.h"
+#include "pfs_buffer_container.h"
+#include "field.h"
 
 THR_LOCK table_socket_instances::m_table_lock;
 
@@ -40,11 +42,10 @@ table_socket_instances::m_share=
 {
   { C_STRING_WITH_LEN("socket_instances") },
   &pfs_readonly_acl,
-  &table_socket_instances::create,
+  table_socket_instances::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_socket_instances::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE socket_instances("
@@ -54,12 +55,19 @@ table_socket_instances::m_share=
                       "SOCKET_ID INTEGER not null,"
                       "IP VARCHAR(64) not null,"
                       "PORT INTEGER not null,"
-                      "STATE ENUM('IDLE','ACTIVE') not null)") }
+                      "STATE ENUM('IDLE','ACTIVE') not null)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_socket_instances::create(void)
 {
   return new table_socket_instances();
+}
+
+ha_rows
+table_socket_instances::get_row_count(void)
+{
+  return global_socket_container.get_row_count();
 }
 
 table_socket_instances::table_socket_instances()
@@ -77,17 +85,14 @@ int table_socket_instances::rnd_next(void)
 {
   PFS_socket *pfs;
 
-  for (m_pos.set_at(&m_next_pos);
-       m_pos.m_index < socket_max;
-       m_pos.next())
+  m_pos.set_at(&m_next_pos);
+  PFS_socket_iterator it= global_socket_container.iterate(m_pos.m_index);
+  pfs= it.scan_next(& m_pos.m_index);
+  if (pfs != NULL)
   {
-    pfs= &socket_array[m_pos.m_index];
-    if (pfs->m_lock.is_populated())
-    {
-      make_row(pfs);
-      m_next_pos.set_after(&m_pos);
-      return 0;
-    }
+    make_row(pfs);
+    m_next_pos.set_after(&m_pos);
+    return 0;
   }
 
   return HA_ERR_END_OF_FILE;
@@ -98,19 +103,20 @@ int table_socket_instances::rnd_pos(const void *pos)
   PFS_socket *pfs;
 
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index < socket_max);
-  pfs= &socket_array[m_pos.m_index];
 
-  if (! pfs->m_lock.is_populated())
-    return HA_ERR_RECORD_DELETED;
+  pfs= global_socket_container.get(m_pos.m_index);
+  if (pfs != NULL)
+  {
+    make_row(pfs);
+    return 0;
+  }
 
-  make_row(pfs);
-  return 0;
+  return HA_ERR_RECORD_DELETED;
 }
 
 void table_socket_instances::make_row(PFS_socket *pfs)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
   PFS_socket_class *safe_class;
 
   m_row_exists= false;

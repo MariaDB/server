@@ -1,0 +1,118 @@
+#
+# MDEV-21704 Add a new JSON field "version_id" into mysql.global_priv.priv
+#
+SET @super_acl_100500= 1 << 15;
+SELECT HEX(@super_acl_100500);
+HEX(@super_acl_100500)
+8000
+SET @all_known_privileges_100500= (1 << 30) - 1;
+SELECT HEX(@all_known_privileges_100500);
+HEX(@all_known_privileges_100500)
+3FFFFFFF
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost WITH GRANT OPTION;
+SET @all_known_privileges_current=(SELECT CAST(json_value(Priv, '$.access') AS UNSIGNED) FROM mysql.global_priv WHERE host='localhost' and user='user1');
+DROP USER user1@localhost;
+SELECT HEX(@all_known_privileges_current);
+HEX(@all_known_privileges_current)
+7FFFFFFFFF
+CREATE USER bad_access1@localhost;
+UPDATE
+mysql.global_priv
+SET
+Priv=json_set(Priv, '$.access',@all_known_privileges_current+1)
+WHERE
+host='localhost' and user='bad_access1';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR bad_access1@localhost;
+Grants for bad_access1@localhost
+GRANT USAGE ON *.* TO `bad_access1`@`localhost`
+DROP USER bad_access1@localhost;
+CREATE USER bad_version_id_1000000@localhost;
+GRANT ALL PRIVILEGES ON *.* to bad_version_id_1000000@localhost;
+SHOW GRANTS FOR bad_version_id_1000000@localhost;
+Grants for bad_version_id_1000000@localhost
+GRANT ALL PRIVILEGES ON *.* TO `bad_version_id_1000000`@`localhost`
+UPDATE
+mysql.global_priv
+SET
+Priv=json_set(Priv, '$.version_id',1000000)
+WHERE
+host='localhost' and user='bad_version_id_1000000';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR bad_version_id_1000000@localhost;
+Grants for bad_version_id_1000000@localhost
+GRANT USAGE ON *.* TO `bad_version_id_1000000`@`localhost`
+DROP USER bad_version_id_1000000@localhost;
+CREATE USER bad_version_id_minus_3@localhost;
+GRANT ALL PRIVILEGES ON *.* to bad_version_id_minus_3@localhost;
+SHOW GRANTS FOR bad_version_id_minus_3@localhost;
+Grants for bad_version_id_minus_3@localhost
+GRANT ALL PRIVILEGES ON *.* TO `bad_version_id_minus_3`@`localhost`
+UPDATE
+mysql.global_priv
+SET
+Priv=json_set(Priv, '$.version_id',-3)
+WHERE
+host='localhost' and user='bad_version_id_minus_3';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR bad_version_id_minus_3@localhost;
+Grants for bad_version_id_minus_3@localhost
+GRANT USAGE ON *.* TO `bad_version_id_minus_3`@`localhost`
+DROP USER bad_version_id_minus_3@localhost;
+CREATE USER bad_version_id_100300@localhost;
+GRANT ALL PRIVILEGES ON *.* to bad_version_id_100300@localhost;
+SHOW GRANTS FOR bad_version_id_100300@localhost;
+Grants for bad_version_id_100300@localhost
+GRANT ALL PRIVILEGES ON *.* TO `bad_version_id_100300`@`localhost`
+UPDATE
+mysql.global_priv
+SET
+Priv=json_set(Priv, '$.version_id',100300)
+WHERE
+host='localhost' and user='bad_version_id_100300';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR bad_version_id_100300@localhost;
+Grants for bad_version_id_100300@localhost
+GRANT USAGE ON *.* TO `bad_version_id_100300`@`localhost`
+DROP USER bad_version_id_100300@localhost;
+CREATE USER good_version_id_100400@localhost;
+GRANT ALL PRIVILEGES ON *.* to good_version_id_100400@localhost;
+SHOW GRANTS FOR good_version_id_100400@localhost;
+Grants for good_version_id_100400@localhost
+GRANT ALL PRIVILEGES ON *.* TO `good_version_id_100400`@`localhost`
+UPDATE
+mysql.global_priv
+SET
+Priv=json_set(Priv, '$.version_id',100400, '$.access', @all_known_privileges_100500)
+WHERE
+host='localhost' and user='good_version_id_100400';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR good_version_id_100400@localhost;
+Grants for good_version_id_100400@localhost
+GRANT ALL PRIVILEGES ON *.* TO `good_version_id_100400`@`localhost` WITH GRANT OPTION
+GRANT REPLICATION MASTER ADMIN ON *.* TO good_version_id_100400@localhost;
+SHOW GRANTS FOR good_version_id_100400@localhost;
+Grants for good_version_id_100400@localhost
+GRANT ALL PRIVILEGES ON *.* TO `good_version_id_100400`@`localhost` WITH GRANT OPTION
+DROP USER good_version_id_100400@localhost;
+CREATE USER good_version_id_100500@localhost;
+GRANT SUPER  ON *.* to good_version_id_100500@localhost;
+SHOW GRANTS FOR good_version_id_100500@localhost;
+Grants for good_version_id_100500@localhost
+GRANT SUPER ON *.* TO `good_version_id_100500`@`localhost`
+UPDATE
+mysql.global_priv
+SET
+Priv=json_set(Priv, '$.version_id',100500)
+WHERE
+host='localhost' and user='good_version_id_100500';
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR good_version_id_100500@localhost;
+Grants for good_version_id_100500@localhost
+GRANT SUPER, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, BINLOG ADMIN, BINLOG REPLAY ON *.* TO `good_version_id_100500`@`localhost`
+DROP USER good_version_id_100500@localhost;
+FOUND 1 /Warning.*'user' entry 'bad_access1@localhost' has a wrong 'access' value.*version_id=/ in system_mysql_db_error_log.err
+FOUND 1 /Warning.*'user' entry 'bad_version_id_1000000@localhost' has a wrong 'version_id' value 1000000/ in system_mysql_db_error_log.err
+FOUND 1 /Warning.*'user' entry 'bad_version_id_minus_3@localhost' has a wrong 'version_id' value -3/ in system_mysql_db_error_log.err
+FOUND 1 /Warning.*'user' entry 'bad_version_id_100300@localhost' has a wrong 'version_id' value 100300/ in system_mysql_db_error_log.err

@@ -1,3 +1,4 @@
+extern "C" {
 typedef char my_bool;
 typedef int my_socket;
 enum enum_server_command
@@ -26,6 +27,11 @@ enum enum_indicator_type
   STMT_INDICATOR_NULL,
   STMT_INDICATOR_DEFAULT,
   STMT_INDICATOR_IGNORE
+};
+enum mariadb_field_attr_t
+{
+  MARIADB_FIELD_ATTR_DATA_TYPE_NAME= 0,
+  MARIADB_FIELD_ATTR_FORMAT_NAME= 1
 };
 struct st_vio;
 typedef struct st_vio Vio;
@@ -109,6 +115,7 @@ enum enum_session_state_type
   SESSION_TRACK_TRANSACTION_STATE,
   SESSION_TRACK_always_at_the_end
 };
+extern "C" {
 my_bool my_net_init(NET *net, Vio* vio, void *thd, unsigned int my_flags);
 void my_net_local_init(NET *net);
 void net_end(NET *net);
@@ -127,6 +134,7 @@ struct sockaddr;
 int my_connect(my_socket s, const struct sockaddr *name, unsigned int namelen,
         unsigned int timeout);
 struct my_rnd_struct;
+}
 enum Item_result
 {
   STRING_RESULT=0, REAL_RESULT, INT_RESULT, ROW_RESULT, DECIMAL_RESULT,
@@ -152,6 +160,7 @@ typedef struct st_udf_init
   my_bool const_item;
   void *extension;
 } UDF_INIT;
+extern "C" {
 void create_random_string(char *to, unsigned int length,
                           struct my_rnd_struct *rand_st);
 void hash_password(unsigned long *to, const char *password, unsigned int password_len);
@@ -171,6 +180,7 @@ void get_tty_password_buff(const char *opt_message, char *to, size_t length);
 const char *mysql_errno_to_sqlstate(unsigned int mysql_errno);
 my_bool my_thread_init(void);
 void my_thread_end(void);
+}
 typedef long my_time_t;
 enum enum_mysql_timestamp_type
 {
@@ -184,6 +194,7 @@ typedef struct st_mysql_time
   my_bool neg;
   enum enum_mysql_timestamp_type time_type;
 } MYSQL_TIME;
+extern "C" {
 typedef struct st_list {
   struct st_list *prev,*next;
   void *data;
@@ -196,9 +207,11 @@ extern LIST *list_reverse(LIST *root);
 extern void list_free(LIST *root,unsigned int free_data);
 extern unsigned int list_length(LIST *);
 extern int list_walk(LIST *,list_walk_action action,unsigned char * argument);
+}
 extern unsigned int mariadb_deinitialize_ssl;
 extern unsigned int mysql_port;
 extern char *mysql_unix_port;
+typedef struct st_mysql_const_lex_string MARIADB_CONST_STRING;
 typedef struct st_mysql_field {
   char *name;
   char *org_name;
@@ -225,6 +238,13 @@ typedef struct st_mysql_field {
 typedef char **MYSQL_ROW;
 typedef unsigned int MYSQL_FIELD_OFFSET;
 typedef unsigned long long my_ulonglong;
+extern "C" {
+}
+extern "C" {
+struct PSI_thread;
+typedef unsigned int PSI_memory_key;
+}
+extern "C" {
 typedef struct st_used_mem
 {
   struct st_used_mem *next;
@@ -238,25 +258,26 @@ typedef struct st_mem_root
   USED_MEM *pre_alloc;
   size_t min_malloc;
   size_t block_size;
-  size_t total_alloc;
   unsigned int block_num;
   unsigned int first_block_usage;
   void (*error_handler)(void);
-  const char *name;
+  PSI_memory_key m_psi_key;
 } MEM_ROOT;
+}
 typedef struct st_typelib {
   unsigned int count;
   const char *name;
   const char **type_names;
   unsigned int *type_lengths;
 } TYPELIB;
-extern my_ulonglong find_typeset(char *x, TYPELIB *typelib,int *error_position);
+extern my_ulonglong find_typeset(const char *x, TYPELIB *typelib,
+                                 int *error_position);
 extern int find_type_with_warning(const char *x, TYPELIB *typelib,
                                   const char *option);
 extern int find_type(const char *x, const TYPELIB *typelib, unsigned int flags);
 extern void make_type(char *to,unsigned int nr,TYPELIB *typelib);
 extern const char *get_type(TYPELIB *typelib,unsigned int nr);
-extern TYPELIB *copy_typelib(MEM_ROOT *root, TYPELIB *from);
+extern TYPELIB *copy_typelib(MEM_ROOT *root, const TYPELIB *from);
 extern TYPELIB sql_protocol_typelib;
 my_ulonglong find_set_from_flags(const TYPELIB *lib, unsigned int default_name,
                               my_ulonglong cur_set, my_ulonglong default_set,
@@ -426,6 +447,9 @@ MYSQL_FIELD * mysql_fetch_field_direct(MYSQL_RES *res,
 MYSQL_FIELD * mysql_fetch_fields(MYSQL_RES *res);
 MYSQL_ROW_OFFSET mysql_row_tell(MYSQL_RES *res);
 MYSQL_FIELD_OFFSET mysql_field_tell(MYSQL_RES *res);
+int mariadb_field_attr(MARIADB_CONST_STRING *attr,
+                               const MYSQL_FIELD *field,
+                               enum mariadb_field_attr_t type);
 unsigned int mysql_field_count(MYSQL *mysql);
 my_ulonglong mysql_affected_rows(MYSQL *mysql);
 my_ulonglong mysql_insert_id(MYSQL *mysql);
@@ -770,3 +794,4 @@ unsigned int mysql_get_timeout_value(const MYSQL *mysql);
 unsigned int mysql_get_timeout_value_ms(const MYSQL *mysql);
 unsigned long mysql_net_read_packet(MYSQL *mysql);
 unsigned long mysql_net_field_length(unsigned char **packet);
+}

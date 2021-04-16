@@ -1,0 +1,300 @@
+include/master-slave.inc
+[connection master]
+set binlog_format=statement;
+RESET MASTER;
+connection slave;
+set binlog_format=statement;
+RESET MASTER;
+connection master;
+connection slave;
+connection master;
+#
+# Test ALTER TABLE ENGINE S3
+#
+create table t1 (a int, b int) engine=aria;
+insert into t1 select seq,seq+10 from seq_1_to_10;
+connection slave;
+connection master;
+alter table t1 engine=s3;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=S3 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+connection slave;
+use database;
+select * from t1 limit 2;
+a	b
+1	11
+2	12
+connection master;
+alter table t1 add column c int;
+connection slave;
+select * from t1,t1 as t1_tmp limit 2;
+a	b	c	a	b	c
+1	11	NULL	1	11	NULL
+2	12	NULL	1	11	NULL
+# Now test when the .frm table is out of date on the slave
+stop slave;
+connection master;
+alter table t1 add column d int, engine=s3;
+connection slave;
+select * from t1 limit 2;
+a	b	c	d
+1	11	NULL	NULL
+2	12	NULL	NULL
+start slave;
+connection master;
+connection slave;
+select * from t1 limit 2;
+a	b	c	d
+1	11	NULL	NULL
+2	12	NULL	NULL
+# Same without tables in the table cache;
+stop slave;
+flush tables;
+connection master;
+alter table t1 add column e int, engine=s3;
+connection slave;
+select * from t1 limit 2;
+a	b	c	d	e
+1	11	NULL	NULL	NULL
+2	12	NULL	NULL	NULL
+start slave;
+connection master;
+connection slave;
+select * from t1 limit 2;
+a	b	c	d	e
+1	11	NULL	NULL	NULL
+2	12	NULL	NULL	NULL
+connection master;
+# Convert S3 table to Aria. Rows should be binary logged
+alter table t1 engine=aria;
+connection slave;
+select * from t1 limit 2;
+a	b	c	d	e
+1	11	NULL	NULL	NULL
+2	12	NULL	NULL	NULL
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  `d` int(11) DEFAULT NULL,
+  `e` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+# Convert S3 table to Aria with rename. Rows should be binary logged
+connection master;
+alter table t1 engine=s3;
+alter table t1 rename t2, engine=aria;
+connection slave;
+select * from t2 limit 2;
+a	b	c	d	e
+1	11	NULL	NULL	NULL
+2	12	NULL	NULL	NULL
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  `d` int(11) DEFAULT NULL,
+  `e` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+connection master;
+drop table t2;
+connection slave;
+connection master;
+#
+# Test RENAME
+#
+create table t1 (a int, b int) engine=aria;
+insert into t1 select seq,seq+10 from seq_1_to_10;
+alter table t1 engine=s3;
+rename table t1 to t2;
+connection slave;
+select * from t1 limit 2;
+ERROR 42S02: Table 'database.t1' doesn't exist
+select * from t2 limit 2;
+a	b
+1	11
+2	12
+connection master;
+alter table t2 add column f int, rename t1;
+select * from t1 limit 2;
+a	b	f
+1	11	NULL
+2	12	NULL
+connection slave;
+select * from t1 limit 2;
+a	b	f
+1	11	NULL
+2	12	NULL
+select * from t2 limit 2;
+ERROR 42S02: Table 'database.t2' doesn't exist
+connection slave;
+stop slave;
+connection master;
+rename table t1 to t2;
+create table t1 (a int) engine=aria;
+drop table t1;
+create table if not exists t1 (a int, b int) engine=aria;
+drop table t1;
+create or replace table t1 (a int, b int, c int) engine=aria;
+alter table t1 engine=s3;
+connection slave;
+start slave;
+connection master;
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=S3 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+select * from t1 limit 2;
+a	b	c
+select * from t2 limit 2;
+a	b	f
+1	11	NULL
+2	12	NULL
+connection master;
+#
+# Test DROP
+#
+drop table t1,t2;
+connection slave;
+select * from t1 limit 2;
+ERROR 42S02: Table 'database.t1' doesn't exist
+select * from t2 limit 2;
+ERROR 42S02: Table 'database.t2' doesn't exist
+connection master;
+#
+# Test LIKE
+#
+create table t1 (a int,b int);
+alter table t1 engine=s3;
+create table t2 like t1;
+ERROR HY000: Can't create table `database`.`t2` (errno: 131 "Command not supported by the engine")
+connection slave;
+show create table t2;
+ERROR 42S02: Table 'database.t2' doesn't exist
+connection master;
+drop table if exists t1,t2;
+Warnings:
+Note	1051	Unknown table 'database.t2'
+#
+# Check slave binary log
+#
+connection slave;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	create database database
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; create table t1 (a int, b int) engine=aria
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; insert into t1 select seq,seq+10 from seq_1_to_10
+slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t1 engine=s3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; alter table t1 add column c int
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; alter table t1 add column d int, engine=s3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; flush tables
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; alter table t1 add column e int, engine=s3
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1` /* generated by server */
+slave-bin.000001	#	Query	#	#	use `database`; CREATE OR REPLACE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  `d` int(11) DEFAULT NULL,
+  `e` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+slave-bin.000001	#	Annotate_rows	#	#	alter table t1 engine=aria
+slave-bin.000001	#	Table_map	#	#	table_id: # (database.t1)
+slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t1 engine=s3
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1` /* generated by server */
+slave-bin.000001	#	Query	#	#	use `database`; CREATE OR REPLACE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  `d` int(11) DEFAULT NULL,
+  `e` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+slave-bin.000001	#	Annotate_rows	#	#	alter table t1 rename t2, engine=aria
+slave-bin.000001	#	Table_map	#	#	table_id: # (database.t2)
+slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t2` /* generated by server */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; create table t1 (a int, b int) engine=aria
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; insert into t1 select seq,seq+10 from seq_1_to_10
+slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t1 engine=s3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; rename table t1 to t2
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; alter table t2 add column f int, rename t1
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; rename table t1 to t2
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; create table t1 (a int) engine=aria
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1` /* generated by server */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; create table if not exists t1 (a int, b int) engine=aria
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1` /* generated by server */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; create or replace table t1 (a int, b int, c int) engine=aria
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t1 engine=s3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1`,`t2` /* generated by server */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; create table t1 (a int,b int)
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t1 engine=s3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1`,`t2` /* generated by server */
+connection master;
+#
+# MDEV-24351: S3, same-backend replication: Dropping a table on master
+#             causes error on slave
+#
+show variables like 's3_replicate_alter_as_create_select';
+Variable_name	Value
+s3_replicate_alter_as_create_select	ON
+connection slave;
+create table t3 (a int, b int) engine=aria;
+insert into t3 values (1,1),(2,2),(3,3);
+alter table t3 engine=s3;
+connection master;
+drop table t3;
+# Must show "DROP TABLE IF EXISTS t3", not just "DROP TABLE t3"
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000001	#	Gtid	#	#	GTID #-#-#
+master-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t3` /* generated by server */
+connection slave;
+connection master;
+#
+# clean up
+#
+connection slave;
+include/rpl_end.inc

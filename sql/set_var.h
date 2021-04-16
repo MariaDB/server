@@ -66,7 +66,7 @@ public:
                    READONLY=1024, ALLOCATED=2048, PARSE_EARLY=4096,
                    NO_SET_STATEMENT=8192, AUTO_SET=16384};
   enum { NO_GETOPT=-1, GETOPT_ONLY_HELP=-2 };
-  enum where { CONFIG, AUTO, SQL, COMPILE_TIME, ENV };
+  enum where { CONFIG, COMMAND_LINE, AUTO, SQL, COMPILE_TIME, ENV };
 
   /**
     Enumeration type to indicate for a system variable whether
@@ -77,6 +77,7 @@ public:
 
   my_option option;     ///< min, max, default values are stored here
   enum where value_origin;
+  const char *origin_filename;
 
 protected:
   typedef bool (*on_check_function)(sys_var *self, THD *thd, set_var *var);
@@ -89,7 +90,6 @@ protected:
   on_check_function on_check;
   on_update_function on_update;
   const char *const deprecation_substitute;
-  bool is_os_charset; ///< true if the value is in character_set_filesystem
 
 public:
   sys_var(sys_var_chain *chain, const char *name_arg, const char *comment,
@@ -129,7 +129,10 @@ public:
 
   SHOW_TYPE show_type() { return show_val_type; }
   int scope() const { return flags & SCOPE_MASK; }
-  CHARSET_INFO *charset(THD *thd);
+  virtual CHARSET_INFO *charset(THD *thd) const
+  {
+    return system_charset_info;
+  }
   bool is_readonly() const { return flags & READONLY; }
   /**
     the following is only true for keycache variables,
@@ -210,6 +213,12 @@ public:
 
   virtual uchar *default_value_ptr(THD *thd)
   { return (uchar*)&option.def_value; }
+
+  virtual bool on_check_access_global(THD *thd) const;
+  virtual bool on_check_access_session(THD *thd) const
+  {
+    return false;
+  }
 
 private:
   virtual bool do_check(THD *thd, set_var *var) = 0;
@@ -348,9 +357,9 @@ public:
 class set_var_role: public set_var_base
 {
   LEX_CSTRING role;
-  ulonglong access;
+  privilege_t access;
 public:
-  set_var_role(LEX_CSTRING role_arg) : role(role_arg) {}
+  set_var_role(LEX_CSTRING role_arg) : role(role_arg), access(NO_ACL) {}
   int check(THD *thd);
   int update(THD *thd);
 };
@@ -404,6 +413,8 @@ extern SHOW_COMP_OPTION have_openssl;
 /*
   Prototypes for helper functions
 */
+ulong get_system_variable_hash_records(void);
+ulonglong get_system_variable_hash_version(void);
 
 SHOW_VAR* enumerate_sys_vars(THD *thd, bool sorted, enum enum_var_type type);
 int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond);
@@ -443,7 +454,7 @@ sql_mode_t expand_sql_mode(sql_mode_t sql_mode);
 const char *sql_mode_string_representation(uint bit_number);
 bool sql_mode_string_representation(THD *thd, sql_mode_t sql_mode,
                                     LEX_CSTRING *ls);
-int default_regex_flags_pcre(const THD *thd);
+int default_regex_flags_pcre(THD *thd);
 
 extern sys_var *Sys_autocommit_ptr, *Sys_last_gtid_ptr,
   *Sys_character_set_client_ptr, *Sys_character_set_connection_ptr,

@@ -28,19 +28,18 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 namespace buf {
 class Block_hint {
- public:
-  Block_hint():m_block(NULL),m_page_id(0,0) {}
+public:
   /** Stores the pointer to the block, which is currently buffer-fixed.
   @param  block   a pointer to a buffer-fixed block to be stored */
   inline void store(buf_block_t *block)
   {
-    ut_ad(block->page.buf_fix_count);
+    ut_ad(block->page.buf_fix_count());
     m_block= block;
-    m_page_id= block->page.id;
+    m_page_id= block->page.id();
   }
 
   /** Clears currently stored pointer. */
-  inline void clear() { m_block= NULL; }
+  inline void clear() { m_block= nullptr; }
 
   /** Invoke f on m_block(which may be null)
   @param  f   The function to be executed. It will be passed the pointer.
@@ -65,9 +64,9 @@ class Block_hint {
 
  private:
   /** The block pointer stored by store(). */
-  buf_block_t *m_block;
+  buf_block_t *m_block= nullptr;
   /** If m_block is non-null, the m_block->page.id at time it was stored. */
-  page_id_t m_page_id;
+  page_id_t m_page_id{0, 0};
 
   /** A helper function which checks if m_block is not a dangling pointer and
   still points to block with page with m_page_id and if so, buffer-fixes it,

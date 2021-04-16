@@ -189,11 +189,7 @@ else()
   set(MYSQL_VARIANT "MySQL")
 endif()
 
-if(EXISTS "${MYSQL_SOURCE_DIR}/pcre")
-  set(MYSQL_REGEX_INCLUDE_DIR "${MYSQL_SOURCE_DIR}/pcre")
-else()
-  set(MYSQL_REGEX_INCLUDE_DIR "${MYSQL_SOURCE_DIR}/regex")
-endif()
+set(MYSQL_REGEX_INCLUDE_DIR "${MYSQL_SOURCE_DIR}/regex")
 
 if(EXISTS "${MYSQL_SOURCE_DIR}/extra/rapidjson")
   set(MYSQL_RAPIDJSON_INCLUDE_DIR "${MYSQL_SOURCE_DIR}/extra/rapidjson/include")

@@ -1,0 +1,55 @@
+include/master-slave.inc
+[connection master]
+"Command: STOP SLAVE --> STOP REPLICA"
+connection slave;
+STOP REPLICA;
+include/wait_for_slave_io_to_stop.inc
+include/wait_for_slave_sql_to_stop.inc
+connection master;
+CREATE USER 'repl_user';
+"Privilege: SLAVE --> REPLICA"
+GRANT REPLICATION REPLICA on *.* TO repl_user;
+FLUSH PRIVILEGES;
+connection slave;
+"SHOW SLAVE STATUS --> SHOW REPLICA STATUS"
+CHANGE MASTER TO MASTER_USER= 'repl_user';
+"Command: START SLAVE --> START REPLICA"
+START REPLICA;
+include/wait_for_slave_io_to_start.inc
+include/wait_for_slave_sql_to_start.inc
+connection master;
+connection slave;
+connection master;
+"Command: SHOW SLAVE HOSTS --> SHOW REPLICA HOSTS"
+DROP USER 'repl_user';
+connection slave;
+"Command: SHOW SLAVE IO/SQL THREAD --> SHOW REPLICA IO/SQL THREAD"
+STOP REPLICA IO_THREAD;
+STOP REPLICA SQL_THREAD;
+include/wait_for_slave_io_to_stop.inc
+include/wait_for_slave_sql_to_stop.inc
+"Command: RESET SLAVE ALL --> RESET REPLICA ALL"
+RESET REPLICA ALL;
+connection master;
+RESET MASTER;
+CREATE TABLE t(f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+DROP TABLE t;
+connection slave;
+CHANGE MASTER TO MASTER_HOST='127.0.0.1',MASTER_PORT=MASTER_PORT,MASTER_USER='root';
+"Command: START SLAVE UNTIL --> START REPLICA UNTIL"
+START REPLICA UNTIL MASTER_LOG_FILE='MASTER_LOG_FILE', MASTER_LOG_POS=MASTER_POS;
+include/wait_for_slave_sql_to_stop.inc
+include/stop_slave_io.inc
+SELECT * FROM t;
+f
+10
+include/check_slave_param.inc [Exec_Master_Log_Pos]
+"MASTER_USE_GTID=SLAVE_POS --> MASTER_USE_GTID=REPLICA_POS"
+CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,  MASTER_USE_GTID=REPLICA_POS;
+include/start_slave.inc
+connection master;
+CREATE TABLE t2 (f INT PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t2 VALUES (10);
+DROP TABLE t2;
+include/rpl_end.inc

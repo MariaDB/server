@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2012, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,7 +26,7 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
@@ -34,6 +34,8 @@
 #include "pfs_global.h"
 #include "pfs_account.h"
 #include "pfs_visitor.h"
+#include "pfs_buffer_container.h"
+#include "field.h"
 
 THR_LOCK table_ews_by_host_by_event_name::m_table_lock;
 
@@ -45,8 +47,7 @@ table_ews_by_host_by_event_name::m_share=
   table_ews_by_host_by_event_name::create,
   NULL, /* write_row */
   table_ews_by_host_by_event_name::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_ews_by_host_by_event_name::get_row_count,
   sizeof(pos_ews_by_host_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_summary_by_host_by_event_name("
@@ -56,7 +57,8 @@ table_ews_by_host_by_event_name::m_share=
                       "SUM_TIMER_WAIT BIGINT unsigned not null,"
                       "MIN_TIMER_WAIT BIGINT unsigned not null,"
                       "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null)") }
+                      "MAX_TIMER_WAIT BIGINT unsigned not null)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table*
@@ -74,6 +76,12 @@ table_ews_by_host_by_event_name::delete_all_rows(void)
   return 0;
 }
 
+ha_rows
+table_ews_by_host_by_event_name::get_row_count(void)
+{
+  return global_host_container.get_row_count() * wait_class_max;
+}
+
 table_ews_by_host_by_event_name::table_ews_by_host_by_event_name()
   : PFS_engine_table(&m_share, &m_pos),
     m_row_exists(false), m_pos(), m_next_pos()
@@ -89,13 +97,14 @@ int table_ews_by_host_by_event_name::rnd_next(void)
 {
   PFS_host *host;
   PFS_instr_class *instr_class;
+  bool has_more_host= true;
 
   for (m_pos.set_at(&m_next_pos);
-       m_pos.has_more_host();
+       has_more_host;
        m_pos.next_host())
   {
-    host= &host_array[m_pos.m_index_1];
-    if (host->m_lock.is_populated())
+    host= global_host_container.get(m_pos.m_index_1, & has_more_host);
+    if (host != NULL)
     {
       for ( ;
            m_pos.has_more_view();
@@ -124,6 +133,9 @@ int table_ews_by_host_by_event_name::rnd_next(void)
         case pos_ews_by_host_by_event_name::VIEW_IDLE:
           instr_class= find_idle_class(m_pos.m_index_3);
           break;
+        case pos_ews_by_host_by_event_name::VIEW_METADATA:
+          instr_class= find_metadata_class(m_pos.m_index_3);
+          break;
         default:
           instr_class= NULL;
           DBUG_ASSERT(false);
@@ -150,10 +162,9 @@ table_ews_by_host_by_event_name::rnd_pos(const void *pos)
   PFS_instr_class *instr_class;
 
   set_position(pos);
-  DBUG_ASSERT(m_pos.m_index_1 < host_max);
 
-  host= &host_array[m_pos.m_index_1];
-  if (! host->m_lock.is_populated())
+  host= global_host_container.get(m_pos.m_index_1);
+  if (host == NULL)
     return HA_ERR_RECORD_DELETED;
 
   switch (m_pos.m_index_2)
@@ -179,6 +190,9 @@ table_ews_by_host_by_event_name::rnd_pos(const void *pos)
   case pos_ews_by_host_by_event_name::VIEW_IDLE:
     instr_class= find_idle_class(m_pos.m_index_3);
     break;
+  case pos_ews_by_host_by_event_name::VIEW_METADATA:
+    instr_class= find_metadata_class(m_pos.m_index_3);
+    break;
   default:
     instr_class= NULL;
     DBUG_ASSERT(false);
@@ -196,7 +210,7 @@ table_ews_by_host_by_event_name::rnd_pos(const void *pos)
 void table_ews_by_host_by_event_name
 ::make_row(PFS_host *host, PFS_instr_class *klass)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
   m_row_exists= false;
 
   host->m_lock.begin_optimistic_lock(&lock);
@@ -207,7 +221,11 @@ void table_ews_by_host_by_event_name
   m_row.m_event_name.make_row(klass);
 
   PFS_connection_wait_visitor visitor(klass);
-  PFS_connection_iterator::visit_host(host, true, true, & visitor);
+  PFS_connection_iterator::visit_host(host,
+                                      true,  /* accounts */
+                                      true,  /* threads */
+                                      false, /* THDs */
+                                      & visitor);
 
   if (! host->m_lock.end_optimistic_lock(&lock))
     return;

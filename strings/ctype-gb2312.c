@@ -29,6 +29,8 @@
 
 #ifdef HAVE_CHARSET_gb2312
 
+const char charset_name_gb2312[]= "gb2312";
+
 static const uchar ctype_gb2312[257] =
 {
   0,				/* For standard library */
@@ -6451,6 +6453,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_well_formed_char_length_gb2312,
   my_copy_fix_mb,
   my_native_to_mb_gb2312,
+  my_wc_to_printable_generic
 };
 
 
@@ -6458,7 +6461,7 @@ struct charset_info_st my_charset_gb2312_chinese_ci=
 {
     24,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_PRIMARY,	/* state      */
-    "gb2312",		/* cs name    */
+    charset_name_gb2312,		/* cs name    */
     "gb2312_chinese_ci",/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -6491,7 +6494,7 @@ struct charset_info_st my_charset_gb2312_bin=
 {
     86,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state      */
-    "gb2312",		/* cs name    */
+    charset_name_gb2312,		/* cs name    */
     "gb2312_bin",	/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -6524,7 +6527,7 @@ struct charset_info_st my_charset_gb2312_chinese_nopad_ci=
 {
     MY_NOPAD_ID(24),0,0,/* number           */
     MY_CS_COMPILED|MY_CS_NOPAD, /* state    */
-    "gb2312",           /* cs name          */
+    charset_name_gb2312,           /* cs name          */
     "gb2312_chinese_nopad_ci",/* name       */
     "",                 /* comment          */
     NULL,               /* tailoring        */
@@ -6557,7 +6560,7 @@ struct charset_info_st my_charset_gb2312_nopad_bin=
 {
     MY_NOPAD_ID(86),0,0,/* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    "gb2312",           /* cs name          */
+    charset_name_gb2312,           /* cs name          */
     "gb2312_nopad_bin", /* name             */
     "",                 /* comment          */
     NULL,               /* tailoring        */

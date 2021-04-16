@@ -1,0 +1,6 @@
+--source include/galera_cluster.inc
+ 
+CREATE OR REPLACE VIEW v AS WITH cte AS ( SELECT 1 ) SELECT * FROM cte;
+ 
+# Cleanup
+DROP VIEW v;

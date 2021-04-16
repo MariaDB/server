@@ -46,6 +46,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "gis0type.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
+#include "mysql_com.h"
 #include <sql_const.h>
 #include <set>
 #include <algorithm>
@@ -279,7 +280,7 @@ index tables) of a FTS table are in HEX format. */
 	(table->flags2 & (flag))
 
 #define DICT_TF2_FLAG_UNSET(table, flag)	\
-	(table->flags2 &= ~(flag))
+	(table->flags2 &= ~(flag) & ((1U << DICT_TF2_BITS) - 1))
 
 /** Tables could be chained together with Foreign key constraint. When
 first load the parent table, we would load all of its descedents.
@@ -305,17 +306,11 @@ before proceeds. */
 @param flags    table flags
 @param flags2   table flags2
 @return own: table object */
-dict_table_t*
-dict_mem_table_create(
-	const char*	name,
-	fil_space_t*	space,
-	ulint		n_cols,
-	ulint		n_v_cols,
-	ulint		flags,
-	ulint		flags2);
-
-/****************************************************************//**
-Free a table memory object. */
+dict_table_t *dict_mem_table_create(const char *name, fil_space_t *space,
+                                    ulint n_cols, ulint n_v_cols, ulint flags,
+                                    ulint flags2);
+/****************************************************************/ /**
+ Free a table memory object. */
 void
 dict_mem_table_free(
 /*================*/
@@ -644,7 +639,7 @@ public:
     if (fixed)
     {
       mtype= DATA_FIXBINARY;
-      len= fixed;
+      len= static_cast<uint16_t>(fixed);
     }
     else
     {
@@ -982,6 +977,9 @@ const char innobase_index_reserve_name[] = "GEN_CLUST_INDEX";
 /** Data structure for an index.  Most fields will be
 initialized to 0, NULL or FALSE in dict_mem_index_create(). */
 struct dict_index_t {
+  /** Maximum number of fields */
+  static constexpr unsigned MAX_N_FIELDS= (1U << 10) - 1;
+
 	index_id_t	id;	/*!< id of the index */
 	mem_heap_t*	heap;	/*!< memory heap */
 	id_name_t	name;	/*!< index name */
@@ -1074,10 +1072,6 @@ struct dict_index_t {
 	It should use heap from dict_index_t. It should be freed
 	while removing the index from table. */
 	dict_add_v_col_info* new_vcol_info;
-
-	bool            index_fts_syncing;/*!< Whether the fts index is
-					still syncing in the background;
-					FIXME: remove this and use MDL */
 	UT_LIST_NODE_T(dict_index_t)
 			indexes;/*!< list of indexes of the table */
 #ifdef BTR_CUR_ADAPT
@@ -1215,18 +1209,24 @@ public:
 	bool has_virtual() const { return type & DICT_VIRTUAL; }
 
 	/** @return the position of DB_TRX_ID */
-	unsigned db_trx_id() const {
+	uint16_t db_trx_id() const {
 		DBUG_ASSERT(is_primary());
 		DBUG_ASSERT(n_uniq);
 		DBUG_ASSERT(n_uniq <= MAX_REF_PARTS);
 		return n_uniq;
 	}
 	/** @return the position of DB_ROLL_PTR */
-	unsigned db_roll_ptr() const { return db_trx_id() + 1; }
+	uint16_t db_roll_ptr() const
+	{
+		return static_cast<uint16_t>(db_trx_id() + 1);
+	}
 
 	/** @return the offset of the metadata BLOB field,
 	or the first user field after the PRIMARY KEY,DB_TRX_ID,DB_ROLL_PTR */
-	unsigned first_user_field() const { return db_trx_id() + 2; }
+	uint16_t first_user_field() const
+	{
+		return static_cast<uint16_t>(db_trx_id() + 2);
+	}
 
 	/** @return whether the index is corrupted */
 	inline bool is_corrupted() const;
@@ -1344,6 +1344,16 @@ public:
   /** Note that the index is waiting for btr_search_lazy_free() */
   void set_freed() { ut_ad(!freed()); page= 1; }
 #endif /* BTR_CUR_HASH_ADAPT */
+
+  /** @return whether it is forbidden to invoke clear_instant_add() */
+  bool must_avoid_clear_instant_add() const
+  {
+    if (is_instant())
+      for (auto i= this; (i= UT_LIST_GET_NEXT(indexes, i)) != nullptr; )
+        if (i->to_be_dropped /* || i->online_log*/)
+          return true;
+    return false;
+  }
 
 	/** This ad-hoc class is used by record_size_info only.	*/
 	class record_size_info_t {
@@ -1509,7 +1519,7 @@ struct dict_foreign_compare {
 		const dict_foreign_t*	lhs,
 		const dict_foreign_t*	rhs) const
 	{
-		return(ut_strcmp(lhs->id, rhs->id) < 0);
+		return strcmp(lhs->id, rhs->id) < 0;
 	}
 };
 
@@ -1752,7 +1762,7 @@ class field_map_element_t
 	/** Field metadata */
 	uint16_t data;
 
-	void clear_not_null() { data &= ~NOT_NULL; }
+	void clear_not_null() { data &= uint16_t(~NOT_NULL); }
 public:
 	bool is_dropped() const { return data & DROPPED; }
 	void set_dropped() { data |= DROPPED; }
@@ -1838,6 +1848,13 @@ struct dict_table_t {
 	{
 		ut_ad(file_unreadable || space);
 		return(UNIV_LIKELY(!file_unreadable));
+	}
+
+	/** @return whether the table is accessible */
+	bool is_accessible() const
+	{
+		return UNIV_LIKELY(is_readable() && !corrupted && space)
+			&& !space->is_stopping();
 	}
 
 	/** Check if a table name contains the string "/#sql"
@@ -1966,6 +1983,18 @@ struct dict_table_t {
 
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
+
+	/** Parse the table file name into table name and database name.
+	@tparam		dict_locked	whether dict_sys.mutex is being held
+	@param[in,out]	db_name		database name buffer
+	@param[in,out]	tbl_name	table name buffer
+	@param[out]	db_name_len	database name length
+	@param[out]	tbl_name_len	table name length
+	@return whether the table name is visible to SQL */
+	template<bool dict_locked= false>
+	bool parse_name(char (&db_name)[NAME_LEN + 1],
+			char (&tbl_name)[NAME_LEN + 1],
+			size_t *db_name_len, size_t *tbl_name_len) const;
 
 private:
 	/** Initialize instant->field_map.
@@ -2381,14 +2410,14 @@ inline bool dict_index_t::is_corrupted() const
 
 inline void dict_index_t::clear_instant_add()
 {
-	DBUG_ASSERT(is_primary());
-	DBUG_ASSERT(is_instant());
-	DBUG_ASSERT(!table->instant);
-	for (unsigned i = n_core_fields; i < n_fields; i++) {
-		fields[i].col->clear_instant();
-	}
-	n_core_fields = n_fields;
-	n_core_null_bytes = UT_BITS_IN_BYTES(unsigned(n_nullable));
+  DBUG_ASSERT(is_primary());
+  DBUG_ASSERT(is_instant());
+  DBUG_ASSERT(!table->instant);
+  for (unsigned i= n_core_fields; i < n_fields; i++)
+    fields[i].col->clear_instant();
+  n_core_fields= n_fields;
+  n_core_null_bytes= static_cast<byte>
+    (UT_BITS_IN_BYTES(static_cast<unsigned>(n_nullable)));
 }
 
 inline void dict_index_t::clear_instant_alter()
@@ -2429,8 +2458,9 @@ inline void dict_index_t::clear_instant_alter()
 	}
 
 	DBUG_ASSERT(&fields[n_fields - table->n_dropped()] == end);
-	n_core_fields = n_fields = n_def = end - fields;
-	n_core_null_bytes = UT_BITS_IN_BYTES(n_nullable);
+	n_core_fields = n_fields = n_def
+		= static_cast<unsigned>(end - fields) & MAX_N_FIELDS;
+	n_core_null_bytes = static_cast<byte>(UT_BITS_IN_BYTES(n_nullable));
 	std::sort(begin, end, [](const dict_field_t& a, const dict_field_t& b)
 			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
@@ -2438,7 +2468,10 @@ inline void dict_index_t::clear_instant_alter()
 		auto a = std::find_if(begin, end,
 				      [ai_col](const dict_field_t& f)
 				      { return f.col == ai_col; });
-		table->persistent_autoinc = (a == end) ? 0 : 1 + (a - fields);
+		table->persistent_autoinc = (a == end)
+			? 0
+			: (1 + static_cast<unsigned>(a - fields))
+			& MAX_N_FIELDS;
 	}
 }
 

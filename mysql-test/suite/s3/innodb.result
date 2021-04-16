@@ -1,0 +1,31 @@
+drop table if exists t1,t2,t3;
+#
+# Test ALTER TABLE to and from s3
+#
+create table t1 (a int, b int) engine=innodb;
+insert into t1 select seq,seq+10 from seq_1_to_1000;
+alter table t1 engine=s3;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=S3 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+alter table t1 comment="hello";
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=S3 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='hello'
+alter table t1 engine=innodb;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='hello'
+select count(*), sum(a), sum(b) from t1;
+count(*)	sum(a)	sum(b)
+1000	500500	510500
+drop table t1;

@@ -80,7 +80,8 @@ SPIDER_TRX *spider_get_trx(
 
 int spider_free_trx(
   SPIDER_TRX *trx,
-  bool need_lock
+  bool need_lock,
+  bool reset_ha_data= true
 );
 
 int spider_check_and_set_trx_isolation(
@@ -125,6 +126,10 @@ int spider_start_internal_consistent_snapshot(
 );
 
 int spider_internal_start_trx(
+  ha_spider *spider
+);
+
+int spider_internal_start_trx_for_connection(
   ha_spider *spider,
   SPIDER_CONN *conn,
   int link_idx

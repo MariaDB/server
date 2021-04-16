@@ -18,7 +18,7 @@
 
 #include "hash.h"
 #include "queues.h"
-
+#include <atomic>
 
 /* Definitions for MariaDB global transaction ID (GTID). */
 
@@ -26,6 +26,8 @@
 extern const LEX_CSTRING rpl_gtid_slave_state_table_name;
 
 class String;
+
+#define GTID_MAX_STR_LENGTH (10+1+10+1+20)
 
 struct rpl_gtid
 {

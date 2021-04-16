@@ -1,0 +1,62 @@
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_3;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 1';
+connection node_1;
+connect node_4, 127.0.0.1, root, , test, $NODE_MYPORT_4;
+connection node_4;
+SET SESSION wsrep_on=OFF;
+CREATE TABLE t1 (f1 INTEGER);
+SET SESSION wsrep_on=ON;
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t2 (f1 INTEGER);
+connection node_3;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate = 0';
+connection node_1;
+connection node_3;
+SELECT COUNT(*) AS expect_0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+expect_0
+0
+SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+expect_1
+1
+connection node_4;
+SET SESSION wsrep_on=OFF;
+Killing server ...
+Starting mysqld
+connection node_1;
+SELECT COUNT(*) AS expect_0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+expect_0
+0
+SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+expect_1
+1
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+connection node_2;
+SELECT COUNT(*) AS expect_0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+expect_0
+0
+SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+expect_1
+1
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown table");
+connection node_3;
+SELECT COUNT(*) AS expect_0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+expect_0
+0
+SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+expect_1
+1
+connection node_4;
+SELECT COUNT(*) AS expect_0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+expect_0
+0
+SELECT COUNT(*) AS expect_1 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+expect_1
+1
+CALL mtr.add_suppression("WSREP: Vote 0 \\(success\\) on .* is inconsistent with group. Leaving cluster.");
+DROP TABLE t2;

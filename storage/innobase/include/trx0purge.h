@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2018, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,16 +36,6 @@ Created 3/26/1996 Heikki Tuuri
 which needs no purge */
 extern trx_undo_rec_t	trx_purge_dummy_rec;
 
-/********************************************************************//**
-Calculates the file address of an undo log header when we have the file
-address of its history list node.
-@return file address of the log */
-UNIV_INLINE
-fil_addr_t
-trx_purge_get_log_from_hist(
-/*========================*/
-	fil_addr_t	node_addr);	/*!< in: file address of the history
-					list node of the log */
 /** Prepend the history list with an undo log.
 Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in]	trx		transaction
@@ -53,20 +43,12 @@ Remove the undo log segment from the rseg slot if it is too big for reuse.
 @param[in,out]	mtr		mini-transaction */
 void
 trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr);
-/*******************************************************************//**
-This function runs a purge batch.
+/**
+Run a purge batch.
+@param n_tasks   number of purge tasks to submit to the queue
+@param truncate  whether to truncate the history at the end of the batch
 @return number of undo log pages handled in the batch */
-ulint
-trx_purge(
-/*======*/
-	ulint	n_purge_threads,	/*!< in: number of purge tasks to
-					submit to task queue. */
-	bool	truncate		/*!< in: truncate history if true */
-#ifdef UNIV_DEBUG
-	, srv_slot_t *slot		/*!< in/out: purge coordinator
-					thread slot */
-#endif
-);
+ulint trx_purge(ulint n_tasks, bool truncate);
 
 /** Rollback segements from a given transaction with trx-no
 scheduled for purge. */
@@ -144,14 +126,13 @@ private:
 class purge_sys_t
 {
 public:
-	/** signal state changes; os_event_reset() and os_event_set()
-	are protected by rw_lock_x_lock(latch) */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	os_event_t	event;
 	/** latch protecting view, m_enabled */
 	MY_ALIGNED(CACHE_LINE_SIZE)
-	rw_lock_t	latch;
+	mutable rw_lock_t		latch;
 private:
+	/** The purge will not remove undo logs which are >= this view */
+	MY_ALIGNED(CACHE_LINE_SIZE)
+	ReadViewBase	view;
 	/** whether purge is enabled; protected by latch and std::atomic */
 	std::atomic<bool>		m_enabled;
 	/** number of pending stop() calls without resume() */
@@ -159,12 +140,6 @@ private:
 public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	ReadView	view;		/*!< The purge will not remove undo logs
-					which are >= this view (purge view) */
-	/** Number of not completed tasks. Accessed by srv_purge_coordinator
-	and srv_worker_thread by std::atomic. */
-	std::atomic<ulint>	n_tasks;
 
 	/** Iterator to the undo log records of committed transactions */
 	struct iterator
@@ -198,15 +173,15 @@ public:
 					to purge */
 	trx_rseg_t*	rseg;		/*!< Rollback segment for the next undo
 					record to purge */
-	ulint		page_no;	/*!< Page number for the next undo
+	uint32_t	page_no;	/*!< Page number for the next undo
 					record to purge, page number of the
 					log header, if dummy record */
-	ulint		offset;		/*!< Page offset for the next undo
+	uint32_t	hdr_page_no;	/*!< Header page of the undo log where
+					the next record to purge belongs */
+	uint16_t	offset;		/*!< Page offset for the next undo
 					record to purge, 0 if the dummy
 					record */
-	ulint		hdr_page_no;	/*!< Header page of the undo log where
-					the next record to purge belongs */
-	ulint		hdr_offset;	/*!< Header byte offset on the page */
+	uint16_t	hdr_offset;	/*!< Header byte offset on the page */
 
 
 	TrxUndoRsegsIterator
@@ -227,6 +202,8 @@ public:
 		fil_space_t*	last;
 	} truncate;
 
+	/** Heap for reading the undo log records */
+	mem_heap_t*	heap;
   /**
     Constructor.
 
@@ -234,8 +211,7 @@ public:
     uninitialised. Real initialisation happens in create().
   */
 
-  purge_sys_t() : event(NULL), m_enabled(false), n_tasks(0) {}
-
+  purge_sys_t(): m_enabled(false), heap(nullptr) {}
 
   /** Create the instance */
   void create();
@@ -264,23 +240,36 @@ public:
     m_enabled.store(false, std::memory_order_relaxed);
   }
 
-  /** @return whether the purge coordinator thread is active */
-  bool running();
+  /** @return whether the purge tasks are active */
+  bool running() const;
   /** Stop purge during FLUSH TABLES FOR EXPORT */
   void stop();
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
+  /** A wrapper around ReadView::changes_visible(). */
+  bool changes_visible(trx_id_t id, const table_name_t &name) const
+  {
+    ut_ad(rw_lock_own(&latch, RW_LOCK_S));
+    return view.changes_visible(id, name);
+  }
+  /** A wrapper around ReadView::low_limit_no(). */
+  trx_id_t low_limit_no() const
+  {
+#if 0 /* Unfortunately we don't hold this assertion, see MDEV-22718. */
+    ut_ad(rw_lock_own(&latch, RW_LOCK_S));
+#endif
+    return view.low_limit_no();
+  }
+  /** A wrapper around trx_sys_t::clone_oldest_view(). */
+  void clone_oldest_view()
+  {
+    rw_lock_x_lock(&latch);
+    trx_sys.clone_oldest_view(&view);
+    rw_lock_x_unlock(&latch);
+  }
 };
 
 /** The global data structure coordinating a purge */
 extern purge_sys_t	purge_sys;
-
-/** Info required to purge a record */
-struct trx_purge_rec_t {
-	trx_undo_rec_t*	undo_rec;	/*!< Record to purge */
-	roll_ptr_t	roll_ptr;	/*!< File pointr to UNDO record */
-};
-
-#include "trx0purge.ic"
 
 #endif /* trx0purge_h */

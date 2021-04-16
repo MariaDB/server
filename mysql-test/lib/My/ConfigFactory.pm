@@ -216,6 +216,7 @@ my @mysqld_rules=
 my @client_rules=
 (
  { 'character-sets-dir' => \&fix_charset_dir },
+ { 'plugin-dir' => sub { $::client_plugindir } },
 );
 
 
@@ -346,7 +347,7 @@ sub resolve_at_variable {
     or croak "There is no group named '$group_name' that ",
       "can be used to resolve '$option_name' for test '$self->{testname}'";
 
-    my $value= $from_group->value($option_name);
+    my $value= $from_group->value($option_name) || '';
     $res .= $before.$value;
   }
   $res .= $after;

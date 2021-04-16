@@ -1175,6 +1175,7 @@ int chk_data_link(HA_CHECK *param, MI_INFO *info, my_bool extend)
       if (_mi_read_cache(&param->read_cache,(uchar*) info->rec_buff,
 			block_info.filepos, block_info.rec_len, READING_NEXT))
 	goto err;
+      info->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
       if (_mi_pack_rec_unpack(info, &info->bit_buff, record,
                               info->rec_buff, block_info.rec_len))
       {
@@ -2141,7 +2142,7 @@ int filecopy(HA_CHECK *param, File to,File from,my_off_t start,
   DBUG_ENTER("filecopy");
 
   buff_length=(ulong) MY_MIN(param->write_buffer_length,length);
-  if (!(buff=my_malloc(buff_length,MYF(0))))
+  if (!(buff=my_malloc(mi_key_memory_filecopy, buff_length, MYF(0))))
   {
     buff=tmp_buff; buff_length=IO_SIZE;
   }
@@ -2298,8 +2299,8 @@ int mi_repair_by_sort(HA_CHECK *param, register MI_INFO *info,
     info->state->data_file_length= sort_info.filelength;
 
   sort_param.wordlist=NULL;
-  init_alloc_root(&sort_param.wordroot, "sort", FTPARSER_MEMROOT_ALLOC_SIZE, 0,
-                  MYF(param->malloc_flags));
+  init_alloc_root(mi_key_memory_MI_SORT_PARAM_wordroot, &sort_param.wordroot,
+                  FTPARSER_MEMROOT_ALLOC_SIZE, 0, MYF(param->malloc_flags));
 
   if (share->data_file_type == DYNAMIC_RECORD)
     length=MY_MAX(share->base.min_pack_length+1,share->base.min_block_length);
@@ -2795,7 +2796,7 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
   if (share->options & HA_OPTION_COMPRESS_RECORD)
     set_if_bigger(max_pack_reclength, share->max_pack_length);
   if (!(sort_param=(MI_SORT_PARAM *)
-        my_malloc((uint) share->base.keys *
+        my_malloc(mi_key_memory_MI_SORT_PARAM, (uint) share->base.keys *
 		  (sizeof(MI_SORT_PARAM) + max_pack_reclength),
 		  MYF(MY_ZEROFILL))))
   {
@@ -2878,8 +2879,8 @@ int mi_repair_parallel(HA_CHECK *param, register MI_INFO *info,
       uint ft_max_word_len_for_sort=FT_MAX_WORD_LEN_FOR_SORT*
                                     sort_param[i].keyinfo->seg->charset->mbmaxlen;
       sort_param[i].key_length+=ft_max_word_len_for_sort-HA_FT_MAXBYTELEN;
-      init_alloc_root(&sort_param[i].wordroot, "sort",
-                      FTPARSER_MEMROOT_ALLOC_SIZE, 0,
+      init_alloc_root(mi_key_memory_MI_SORT_PARAM_wordroot,
+                      &sort_param[i].wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0,
                       MYF(param->malloc_flags));
     }
   }
@@ -3632,6 +3633,7 @@ static int sort_get_next_record(MI_SORT_PARAM *sort_param)
 			      llstr(sort_param->pos,llbuff));
 	continue;
       }
+      sort_param->rec_buff[block_info.rec_len]= 0;  /* Keep valgrind happy */
       if (_mi_pack_rec_unpack(info, &sort_param->bit_buff, sort_param->record,
                               sort_param->rec_buff, block_info.rec_len))
       {
@@ -3723,7 +3725,8 @@ int sort_write_record(MI_SORT_PARAM *sort_param)
 	  MI_DYN_DELETE_BLOCK_HEADER;
 	if (sort_info->buff_length < reclength)
 	{
-	  if (!(sort_info->buff=my_realloc(sort_info->buff, (uint) reclength,
+	  if (!(sort_info->buff=my_realloc(mi_key_memory_SORT_INFO_buffer,
+                                           sort_info->buff, (uint) reclength,
 					   MYF(MY_FREE_ON_ERROR | MY_WME |
 					       MY_ALLOW_ZERO_PTR))))
 	    DBUG_RETURN(1);
@@ -3940,7 +3943,8 @@ static int sort_ft_key_write(MI_SORT_PARAM *sort_param, const void *a)
          sort_info->info->s->rec_reflength) &&
         (sort_info->info->s->options &
           (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD)))
-      ft_buf=(SORT_FT_BUF *)my_malloc(sort_param->keyinfo->block_length +
+      ft_buf=(SORT_FT_BUF *)my_malloc(mi_key_memory_SORT_FT_BUF,
+                                      sort_param->keyinfo->block_length +
                                       sizeof(SORT_FT_BUF), MYF(MY_WME));
 
     if (!ft_buf)
@@ -4211,7 +4215,8 @@ static SORT_KEY_BLOCKS *alloc_key_blocks(HA_CHECK *param, uint blocks,
   SORT_KEY_BLOCKS *block;
   DBUG_ENTER("alloc_key_blocks");
 
-  if (!(block=(SORT_KEY_BLOCKS*) my_malloc((sizeof(SORT_KEY_BLOCKS)+
+  if (!(block=(SORT_KEY_BLOCKS*) my_malloc(mi_key_memory_SORT_KEY_BLOCKS,
+                                           (sizeof(SORT_KEY_BLOCKS)+
 					    buffer_length+IO_SIZE)*blocks,
 					   MYF(0))))
   {

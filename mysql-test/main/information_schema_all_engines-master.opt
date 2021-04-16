@@ -15,4 +15,3 @@
 --loose-innodb-sys-tablestats
 --loose-innodb-mutexes
 --loose-innodb-tablespaces-encryption
---loose-innodb-tablespaces-scrubbing

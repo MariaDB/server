@@ -1,0 +1,41 @@
+#!/bin/sh
+
+set -e
+
+case "$1" in
+  configure)
+    # New packaging paradigm for my.cnf handling among MySQL variants
+    # Used in Ubuntu since Dec-2014 and in Debian since Jul-2015
+    #
+    # If the new mysql-common package does not provide
+    # the update-alternatives facility, notify user about manual fall back
+    if [ -f /usr/share/mysql-common/configure-symlinks ]
+    then
+      /usr/share/mysql-common/configure-symlinks install mariadb "/etc/mysql/mariadb.cnf"
+    else
+      # As configure can be called many times, don't re-create the symlink
+      # if it is there already
+      if [ ! -L /etc/mysql/my.cnf ]
+      then
+        echo "Notice: configure-symlinks trigger could not be called."
+        echo "Please manually create symlinks by running: "
+        echo "  mv -f /etc/mysql/my.cnf /etc/mysql/my.cnf.old"
+        echo "  ln -sf mariadb.cnf /etc/mysql/my.cnf"
+      fi
+    fi
+
+    # Note that MySQL in Debian runs the configure-symlinks from the
+    # mysql-server-x.x.postinst and postrm files, while the MySQL.com (and
+    # Percona.com) packaging triggers update-alternatives directly form the
+    # mysql-common (and percona-x-common) package using priority 200.
+    #
+    # Thus, we need to ensure here that mariadb.cnf indeed became the primary
+    # alternative and override with priority 500 if needed.
+    if ! update-alternatives --query my.cnf | grep --quiet "Value: /etc/mysql/mariadb.cnf"
+    then
+      update-alternatives --install /etc/mysql/my.cnf my.cnf "/etc/mysql/mariadb.cnf" 500 || true
+    fi
+  ;;
+esac
+
+#DEBHELPER#

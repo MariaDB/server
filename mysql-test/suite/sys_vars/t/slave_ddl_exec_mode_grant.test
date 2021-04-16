@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-21966 Bind REPLICATION SLAVE ADMIN to a number of global system variables
+--echo #
+
+--let var = slave_ddl_exec_mode
+--let grant = REPLICATION SLAVE ADMIN
+--let value = STRICT
+
+--source suite/sys_vars/inc/sysvar_global_grant.inc

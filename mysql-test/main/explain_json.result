@@ -977,7 +977,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 101,
       "r_rows": 100,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "using_index_for_group_by": true
@@ -1036,7 +1037,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	range	NULL	idx_t1_1	147	NULL	17	Using where; Using index for group-by
 explain select count(distinct a1,a2,b,c) from t1 where (a2 >= 'b') and (b = 'a') and (c = 'i121');
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	65	Using where; Using index for group-by (scanning)
+1	SIMPLE	t1	range	NULL	idx_t1_1	163	NULL	65	Using where; Using index for group-by
 explain format=json select count(distinct a1,a2,b) from t1 where (a2 >= 'b') and (b = 'a');
 EXPLAIN
 {
@@ -1069,7 +1070,7 @@ EXPLAIN
       "rows": 65,
       "filtered": 100,
       "attached_condition": "t1.b = 'a' and t1.c = 'i121' and t1.a2 >= 'b'",
-      "using_index_for_group_by": "scanning"
+      "using_index_for_group_by": true
     }
   }
 }
@@ -1292,7 +1293,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 2,
       "r_rows": 2,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100
     }
@@ -1346,7 +1348,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 2,
       "r_rows": 2,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100
     },
@@ -1361,7 +1364,8 @@ ANALYZE
       "r_loops": 2,
       "rows": 1,
       "r_rows": 1,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "attached_condition": "trigcond(t2.pk is null) and trigcond(trigcond(t1.a is not null))",
@@ -1421,7 +1425,8 @@ ANALYZE
         "r_loops": 1,
         "rows": 2,
         "r_rows": 2,
-        "r_total_time_ms": "REPLACED",
+        "r_table_time_ms": "REPLACED",
+        "r_other_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": 100,
         "attached_condition": "t1.a is not null"
@@ -1437,7 +1442,8 @@ ANALYZE
         "r_loops": 2,
         "rows": 1,
         "r_rows": 1,
-        "r_total_time_ms": "REPLACED",
+        "r_table_time_ms": "REPLACED",
+        "r_other_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": 100,
         "using_index": true,
@@ -1512,7 +1518,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 10,
       "r_rows": 10,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "attached_condition": "t3.a is not null"
@@ -1529,7 +1536,8 @@ ANALYZE
         "r_loops": 1,
         "rows": 1,
         "r_rows": 10,
-        "r_total_time_ms": "REPLACED",
+        "r_table_time_ms": "REPLACED",
+        "r_other_time_ms": "REPLACED",
         "filtered": 100,
         "r_filtered": 100,
         "index_condition_bka": "t4.b + 1 <= t3.b + 1"

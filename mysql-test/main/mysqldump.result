@@ -2688,7 +2688,6 @@ DROP TABLE t1, t2;
 # (Problems with --defaults-extra-file option)
 #
 --port=1234
---port=1234
 #
 # Test of fix to Bug#12597 mysqldump dumps triggers wrongly
 #
@@ -3640,8 +3639,8 @@ reset master;
 mysqldump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
 mysqldump: Couldn't execute 'FLUSH /*!40101 LOCAL */ TABLES': Access denied; you need (at least one of) the RELOAD privilege(s) for this operation (1227)
 grant RELOAD on *.* to mysqltest_1@localhost;
-mysqldump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, REPLICATION CLIENT privilege(s) for this operation (1227)
-mysqldump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, REPLICATION CLIENT privilege(s) for this operation (1227)
+mysqldump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, BINLOG MONITOR privilege(s) for this operation (1227)
+mysqldump: Couldn't execute 'SHOW MASTER STATUS': Access denied; you need (at least one of) the SUPER, BINLOG MONITOR privilege(s) for this operation (1227)
 grant REPLICATION CLIENT on *.* to mysqltest_1@localhost;
 drop table t1;
 drop user mysqltest_1@localhost;

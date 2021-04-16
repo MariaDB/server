@@ -35,8 +35,10 @@ Type_handler_json_longtext::make_json_valid_expr(THD *thd,
   Lex_ident_sys_st str;
   Item *field, *expr;
   str.set_valid_utf8(field_name);
-  if (unlikely(!(field= thd->lex->create_item_ident_field(thd, NullS, NullS,
-                                                          &str))))
+  if (unlikely(!(field= thd->lex->create_item_ident_field(thd,
+                                                          Lex_ident_sys(),
+                                                          Lex_ident_sys(),
+                                                          str))))
     return 0;
   if (unlikely(!(expr= new (thd->mem_root) Item_func_json_valid(thd, field))))
     return 0;

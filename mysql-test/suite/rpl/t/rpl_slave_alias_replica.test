@@ -1,0 +1,102 @@
+# ==== Purpose ====
+#
+# Test verifies that SQL statements which use keyword 'REPLICA' a synonym for
+# 'SLAVE' work as expected.
+#
+# ==== Implementation ====
+#
+# List of commands being verified are
+# On Master: SHOW REPLICA HOSTS
+#          : Privilege "REPLICA"
+#
+# On Slave: START REPLICA
+#           START REPLICA UNTIL
+#           STOP REPLICA
+#           SHOW REPLICA STATUS
+#           RESET REPLICA ALL
+#           REPLICA_POS
+#
+# ==== References ====
+#
+# MDEV-20601: Make REPLICA a synonym for SLAVE in SQL statements
+#
+
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--echo "Command: STOP SLAVE --> STOP REPLICA"
+--connection slave
+STOP REPLICA;
+--source include/wait_for_slave_io_to_stop.inc
+--source include/wait_for_slave_sql_to_stop.inc
+
+--connection master
+CREATE USER 'repl_user';
+--echo "Privilege: SLAVE --> REPLICA"
+GRANT REPLICATION REPLICA on *.* TO repl_user;
+FLUSH PRIVILEGES;
+
+--connection slave
+--echo "SHOW SLAVE STATUS --> SHOW REPLICA STATUS"
+--let $master_user= query_get_value(SHOW REPLICA STATUS, Master_User, 1)
+CHANGE MASTER TO MASTER_USER= 'repl_user';
+--echo "Command: START SLAVE --> START REPLICA"
+START REPLICA;
+--source include/wait_for_slave_io_to_start.inc
+--source include/wait_for_slave_sql_to_start.inc
+
+--connection master
+--sync_slave_with_master
+
+--connection master
+--echo "Command: SHOW SLAVE HOSTS --> SHOW REPLICA HOSTS"
+let $show_statement= SHOW REPLICA HOSTS;
+let $field= Server_id;
+# Slave's server_id 2
+let $condition= ='2';
+source include/wait_show_condition.inc;
+DROP USER 'repl_user';
+--sync_slave_with_master
+
+--echo "Command: SHOW SLAVE IO/SQL THREAD --> SHOW REPLICA IO/SQL THREAD"
+STOP REPLICA IO_THREAD;
+STOP REPLICA SQL_THREAD;
+--source include/wait_for_slave_io_to_stop.inc
+--source include/wait_for_slave_sql_to_stop.inc
+--echo "Command: RESET SLAVE ALL --> RESET REPLICA ALL"
+RESET REPLICA ALL;
+
+--connection master
+RESET MASTER;
+CREATE TABLE t(f INT) ENGINE=INNODB;
+INSERT INTO t VALUES (10);
+let $master_log_file= query_get_value(SHOW MASTER STATUS, File, 1);
+let $master_pos= query_get_value(SHOW MASTER STATUS, Position, 1);
+DROP TABLE t;
+
+--connection slave
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CHANGE MASTER TO MASTER_HOST='127.0.0.1',MASTER_PORT=$MASTER_MYPORT,MASTER_USER='$master_user';
+--echo "Command: START SLAVE UNTIL --> START REPLICA UNTIL"
+--replace_result $master_log_file MASTER_LOG_FILE $master_pos MASTER_POS
+--eval START REPLICA UNTIL MASTER_LOG_FILE='$master_log_file', MASTER_LOG_POS=$master_pos
+--source include/wait_for_slave_sql_to_stop.inc
+--source include/stop_slave_io.inc
+
+SELECT * FROM t;
+--let $slave_param= Exec_Master_Log_Pos
+--let $slave_param_value= $master_pos
+--source include/check_slave_param.inc
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+--echo "MASTER_USE_GTID=SLAVE_POS --> MASTER_USE_GTID=REPLICA_POS"
+--replace_result $MASTER_MYPORT MASTER_PORT
+--eval CHANGE MASTER TO master_host = '127.0.0.1', master_port = $MASTER_MYPORT,  MASTER_USE_GTID=REPLICA_POS
+--source include/start_slave.inc
+
+--connection master
+CREATE TABLE t2 (f INT PRIMARY KEY) ENGINE=INNODB;
+INSERT INTO t2 VALUES (10);
+DROP TABLE t2;
+
+--source include/rpl_end.inc

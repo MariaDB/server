@@ -46,6 +46,10 @@ IF(CMAKE_C_COMPILER MATCHES "icl")
  SET(MSVC TRUE)
 ENDIF()
 
+IF(MSVC  AND CMAKE_CXX_COMPILER_ID MATCHES Clang)
+ SET(CLANG_CL TRUE)
+ENDIF()
+
 ADD_DEFINITIONS(-D_WINDOWS -D__WIN__ -D_CRT_SECURE_NO_DEPRECATE)
 ADD_DEFINITIONS(-D_WIN32_WINNT=0x0A00)
 # We do not want the windows.h macros min/max
@@ -59,48 +63,60 @@ IF(MINGW AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   ADD_DEFINITIONS(-march=i486)
 ENDIF()
 
-FUNCTION(ENABLE_ASAN)
-  IF(NOT (MSVC AND CMAKE_CXX_COMPILER_ID MATCHES Clang))
-    MESSAGE(FATAL_ERROR "clang-cl is necessary to enable asan")
+MACRO(ENABLE_SANITIZERS)
+  IF(NOT  MSVC)
+    MESSAGE(FATAL_ERROR "clang-cl or MSVC necessary to enable asan/ubsan")
   ENDIF()
   # currently, asan is broken with static CRT.
-  IF(NOT(MSVC_CRT_TYPE STREQUAL "/MD"))
-    MESSAGE(FATAL_ERROR "-DWITH_ASAN cmake parameter also requires -DMSVC_CRT_TYPE=/MD")
+  IF(CLANG_CL AND NOT(MSVC_CRT_TYPE STREQUAL "/MD"))
+    SET(MSVC_CRT_TYPE "/MD" CACHE  INTERNAL "" FORCE)
   ENDIF()
   IF(CMAKE_SIZEOF_VOID_P EQUAL 4)
-    MESSAGE(FATAL_ERROR "-DWITH_ASAN on Windows requires 64bit build")
+    SET(ASAN_ARCH i386)
+  ELSE()
+    SET(ASAN_ARCH x86_64)
   ENDIF()
-  # After installation, clang lib directory should be added to PATH
+
+   # After installation, clang lib directory should be added to PATH
   # (e.g C:/Program Files/LLVM/lib/clang/5.0.1/lib/windows)
-  FIND_LIBRARY(CLANG_RT_ASAN_DYNAMIC clang_rt.asan_dynamic-x86_64.lib)
-  IF(NOT CLANG_RT_ASAN_DYNAMIC)
-    MESSAGE(FATAL_ERROR "Can't enable ASAN : missing clang_rt.asan_dynamic-x86_64.lib")
+  SET(SANITIZER_LIBS)
+  SET(SANITIZER_LINK_LIBRARIES)
+  SET(SANITIZER_COMPILE_FLAGS)
+  IF(WITH_ASAN)
+    IF(CLANG_CL)
+      LIST(APPEND SANITIZER_LIBS
+        clang_rt.asan_dynamic-${ASAN_ARCH}.lib clang_rt.asan_dynamic_runtime_thunk-${ASAN_ARCH}.lib)
+    ENDIF()
+    STRING(APPEND SANITIZER_COMPILE_FLAGS " -fsanitize=address")
   ENDIF()
-
-  FIND_LIBRARY(CLANG_RT_ASAN_DYNAMIC_THUNK clang_rt.asan_dynamic_runtime_thunk-x86_64.lib)
-  IF(NOT CLANG_RT_ASAN_DYNAMIC_THUNK)
-     MESSAGE(FATAL_ERROR "Can't enable ASAN : missing clang_rt.asan_dynamic_runtime_thunk-x86_64.lib")
+  IF(WITH_UBSAN)
+    STRING(APPEND SANITIZER_COMPILE_FLAGS " -fsanitize=undefined -fno-sanitize=alignment")
   ENDIF()
-
-  STRING(APPEND CMAKE_C_FLAGS " -fsanitize=address")
-  STRING(APPEND CMAKE_CXX_FLAGS " -fsanitize=address")
-
-  LINK_LIBRARIES(${CLANG_RT_ASAN_DYNAMIC} ${CLANG_RT_ASAN_DYNAMIC_THUNK})
-ENDFUNCTION()
+  FOREACH(lib ${SANITIZER_LIBS})
+    FIND_LIBRARY(${lib}_fullpath ${lib})
+    IF(NOT ${lib}_fullpath)
+      MESSAGE(FATAL_ERROR "Can't enable sanitizer : missing ${lib}")
+    ENDIF()
+    LIST(APPEND CMAKE_REQUIRED_LIBRARIES ${${lib}_fullpath})
+    STRING(APPEND CMAKE_C_STANDARD_LIBRARIES " \"${${lib}_fullpath}\" ")
+    STRING(APPEND CMAKE_CXX_STANDARD_LIBRARIES " \"${${lib}_fullpath}\" ")
+  ENDFOREACH()
+  STRING(APPEND CMAKE_C_FLAGS ${SANITIZER_COMPILE_FLAGS})
+  STRING(APPEND CMAKE_CXX_FLAGS ${SANITIZER_COMPILE_FLAGS})
+ENDMACRO()
 
 
 IF(MSVC)
-  IF(WITH_ASAN)
-    ENABLE_ASAN()
+  IF(MSVC_VERSION LESS 1920)
+    MESSAGE(FATAL_ERROR "Visual Studio q2019 or later is required")
   ENDIF()
-
   # Disable mingw based pkg-config found in Strawberry perl
   SET(PKG_CONFIG_EXECUTABLE 0 CACHE INTERNAL "")
 
-  SET(MSVC_CRT_TYPE /MD CACHE STRING
+  SET(MSVC_CRT_TYPE /MT CACHE STRING
     "Runtime library - specify runtime library for linking (/MT,/MTd,/MD,/MDd)"
   )
-  SET(VALID_CRT_TYPES /MTd /MDd /MD  /MT)
+  SET(VALID_CRT_TYPES /MTd /MDd /MD /MT)
   IF (NOT ";${VALID_CRT_TYPES};" MATCHES ";${MSVC_CRT_TYPE};")
     MESSAGE(FATAL_ERROR "Invalid value ${MSVC_CRT_TYPE} for MSVC_CRT_TYPE, choose one of /MT,/MTd,/MD,/MDd ")
   ENDIF()
@@ -108,12 +124,21 @@ IF(MSVC)
   IF(MSVC_CRT_TYPE MATCHES "/MD")
    # Dynamic runtime (DLLs), need to install CRT libraries.
    SET(CMAKE_INSTALL_SYSTEM_RUNTIME_COMPONENT VCCRT)
-   SET(CMAKE_INSTALL_UCRT_LIBRARIES TRUE)
+   SET(CMAKE_INSTALL_SYSTEM_RUNTIME_LIBS_NO_WARNINGS TRUE)
    IF(MSVC_CRT_TYPE STREQUAL "/MDd")
      SET (CMAKE_INSTALL_DEBUG_LIBRARIES_ONLY TRUE)
    ENDIF()
    INCLUDE(InstallRequiredSystemLibraries)
   ENDIF()
+
+  IF(WITH_ASAN AND (NOT CLANG_CL))
+    SET(DYNAMIC_UCRT_LINK_DEFAULT OFF)
+  ELSE()
+    SET(DYNAMIC_UCRT_LINK_DEFAULT ON)
+  ENDIF()
+
+  OPTION(DYNAMIC_UCRT_LINK "Link Universal CRT dynamically, if MSVC_CRT_TYPE=/MT" ${DYNAMIC_UCRT_LINK_DEFAULT})
+  SET(DYNAMIC_UCRT_LINKER_OPTION " /NODEFAULTLIB:libucrt.lib /DEFAULTLIB:ucrt.lib")
 
   # Enable debug info also in Release build,
   # and create PDB to be able to analyze crashes.
@@ -124,21 +149,15 @@ IF(MSVC)
      "${CMAKE_${type}_LINKER_FLAGS_MINSIZEREL} /debug")
   ENDFOREACH()
   
-  # Force static runtime libraries
-  # - Choose debugging information:
-  #     /Z7
-  #     Produces an .obj file containing full symbolic debugging
-  #     information for use with the debugger. The symbolic debugging
-  #     information includes the names and types of variables, as well as
-  #     functions and line numbers. No .pdb file is produced by the compiler.
-  #
-  # - Remove preprocessor flag _DEBUG that older cmakes use with Config=Debug,
-  #   it is as defined by Debug runtimes itself (/MTd /MDd)
+  # Force runtime libraries
+  # Compile with /Zi to get debugging information
 
   FOREACH(lang C CXX)
-    SET(CMAKE_${lang}_FLAGS_RELEASE "${CMAKE_${lang}_FLAGS_RELEASE} /Z7")
+    SET(CMAKE_${lang}_FLAGS_RELEASE "${CMAKE_${lang}_FLAGS_RELEASE} /Zi")
   ENDFOREACH()
-  FOREACH(flag 
+  FOREACH(flag
+   CMAKE_C_FLAGS CMAKE_CXX_FLAGS
+   CMAKE_C_FLAGS_INIT CMAKE_CXX_FLAGS_INIT
    CMAKE_C_FLAGS_RELEASE    CMAKE_C_FLAGS_RELWITHDEBINFO 
    CMAKE_C_FLAGS_DEBUG      CMAKE_C_FLAGS_DEBUG_INIT 
    CMAKE_CXX_FLAGS_RELEASE  CMAKE_CXX_FLAGS_RELWITHDEBINFO
@@ -146,55 +165,81 @@ IF(MSVC)
    CMAKE_C_FLAGS_MINSIZEREL  CMAKE_CXX_FLAGS_MINSIZEREL
    )
    STRING(REGEX REPLACE "/M[TD][d]?"  "${MSVC_CRT_TYPE}" "${flag}"  "${${flag}}" )
-   STRING(REGEX REPLACE "/D[ ]?_DEBUG"  "" "${flag}" "${${flag}}")
-   STRING(REPLACE "/Zi"  "/Z7" "${flag}" "${${flag}}")
-   IF(NOT "${${flag}}" MATCHES "/Z7")
-    STRING(APPEND ${flag} " /Z7")
+   STRING(REPLACE "/ZI " "/Zi "  "${flag}"  "${${flag}}")
+   IF((NOT "${${flag}}" MATCHES "/Zi") AND (NOT "${${flag}}" MATCHES "/Z7"))
+    STRING(APPEND ${flag} " /Zi")
    ENDIF()
   ENDFOREACH()
 
-  IF(CMAKE_CXX_COMPILER_ID MATCHES Clang)
-     SET(CLANG_CL_FLAGS
-"-Wno-unused-parameter -Wno-unused-command-line-argument -Wno-pointer-sign -Wno-deprecated-register \
--Wno-missing-braces -Wno-unused-function -msse4.2 "
-    )
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CLANG_CL_FLAGS}")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CLANG_CL_FLAGS}")
+  IF(WITH_ASAN OR WITH_UBSAN)
+    # Workaround something Linux specific
+    SET(SECURITY_HARDENED 0 CACHE INTERNAL "" FORCE)
+    ENABLE_SANITIZERS()
   ENDIF()
 
-  # Fix CMake's predefined huge stack size
+  IF(CLANG_CL)
+     SET(CLANG_CL_FLAGS
+"-Wno-unknown-warning-option -Wno-unused-private-field \
+-Wno-unused-parameter -Wno-inconsistent-missing-override \
+-Wno-unused-command-line-argument -Wno-pointer-sign \
+-Wno-deprecated-register -Wno-missing-braces \
+-Wno-unused-function -Wno-unused-local-typedef -msse4.2 "
+    )
+    IF(CMAKE_SIZEOF_VOID_P MATCHES 8)
+      STRING(APPEND CLANG_CL_FLAGS "-mpclmul ")
+    ENDIF()
+    STRING(APPEND CMAKE_C_FLAGS " ${CLANG_CL_FLAGS} ${MSVC_CRT_TYPE}")
+    STRING(APPEND CMAKE_CXX_FLAGS " ${CLANG_CL_FLAGS}  ${MSVC_CRT_TYPE}")
+  ENDIF()
+
   FOREACH(type EXE SHARED MODULE)
    STRING(REGEX REPLACE "/STACK:([^ ]+)" "" CMAKE_${type}_LINKER_FLAGS "${CMAKE_${type}_LINKER_FLAGS}")
-   STRING(REGEX REPLACE "/INCREMENTAL:([^ ]+)" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO}")
-   STRING(REGEX REPLACE "/INCREMENTAL$" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO}")
-   STRING(REGEX REPLACE "/INCREMENTAL:([^ ]+)" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_DEBUG "${CMAKE_${type}_LINKER_FLAGS_DEBUG}")
-   STRING(REGEX REPLACE "/INCREMENTAL$" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_DEBUG "${CMAKE_${type}_LINKER_FLAGS_DEBUG}")
-   SET(CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO "${CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO} /OPT:REF /release")
+   IF(WITH_ASAN)
+     SET(build_types RELWITHDEBINFO DEBUG)
+   ELSE()
+     SET(build_types RELWITHDEBINFO)
+   ENDIF()
+   FOREACH(btype ${build_types})
+     STRING(REGEX REPLACE "/INCREMENTAL:([^ ]+)" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_${btype} "${CMAKE_${type}_LINKER_FLAGS_${btype}}")
+     STRING(REGEX REPLACE "/INCREMENTAL$" "/INCREMENTAL:NO" CMAKE_${type}_LINKER_FLAGS_${btype} "${CMAKE_${type}_LINKER_FLAGS_${btype}}")
+   ENDFOREACH()
+   IF(NOT CLANG_CL)
+     STRING(APPEND CMAKE_${type}_LINKER_FLAGS_RELWITHDEBINFO " /release /OPT:REF,ICF")
+   ENDIF()
+   IF(DYNAMIC_UCRT_LINK AND (MSVC_CRT_TYPE STREQUAL "/MT"))
+     FOREACH(config RELEASE RELWITHDEBINFO DEBUG MINSIZEREL)
+       STRING(APPEND CMAKE_${type}_LINKER_FLAGS_${config} ${DYNAMIC_UCRT_LINKER_OPTION})
+     ENDFOREACH()
+   ENDIF()
   ENDFOREACH()
 
   
   # Mark 32 bit executables large address aware so they can 
   # use > 2GB address space
   IF(CMAKE_SIZEOF_VOID_P MATCHES 4)
-    SET(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /LARGEADDRESSAWARE")
+   STRING(APPEND CMAKE_EXE_LINKER_FLAGS " /LARGEADDRESSAWARE")
   ENDIF()
   
   # Speed up multiprocessor build
-  IF (MSVC_VERSION GREATER 1400 AND (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang))
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /MP")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /MP")
+  IF (NOT CLANG_CL)
+    STRING(APPEND CMAKE_C_FLAGS " /MP")
+    STRING(APPEND CMAKE_CXX_FLAGS " /MP")
+    STRING(APPEND CMAKE_C_FLAGS_RELWITHDEBINFO " /Gw")
+    STRING(APPEND CMAKE_CXX_FLAGS_RELWITHDEBINFO " /Gw")
   ENDIF()
   
   #TODO: update the code and remove the disabled warnings
-  SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /we4700 /we4311 /we4477 /we4302 /we4090")
-  SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /we4099 /we4700 /we4311 /we4477 /we4302 /we4090")
-  IF(MSVC_VERSION GREATER 1910  AND (NOT CMAKE_CXX_COMPILER_ID MATCHES Clang))
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /permissive-")
+  STRING(APPEND CMAKE_C_FLAGS " /we4700 /we4311 /we4477 /we4302 /we4090")
+  STRING(APPEND CMAKE_CXX_FLAGS " /we4099 /we4700 /we4311 /we4477 /we4302 /we4090")
+  IF(MSVC_VERSION GREATER 1910  AND NOT CLANG_CL)
+    STRING(APPEND CMAKE_CXX_FLAGS " /permissive-")
+    STRING(APPEND CMAKE_C_FLAGS " /diagnostics:caret")
+    STRING(APPEND CMAKE_CXX_FLAGS " /diagnostics:caret")
   ENDIF()
   ADD_DEFINITIONS(-D_CRT_NONSTDC_NO_WARNINGS)
   IF(MYSQL_MAINTAINER_MODE MATCHES "ERR")
-    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /WX")
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /WX")
+    STRING(APPEND CMAKE_C_FLAGS " /WX")
+    STRING(APPEND CMAKE_CXX_FLAGS " /WX")
     FOREACH(type EXE SHARED MODULE)
       FOREACH(cfg RELEASE DEBUG RELWITHDEBINFO)
         SET(CMAKE_${type}_LINKER_FLAGS_${cfg} "${CMAKE_${type}_LINKER_FLAGS_${cfg}} /WX")
@@ -204,15 +249,15 @@ IF(MSVC)
   IF(MSVC_VERSION LESS 1910)
     # Noisy warning C4800: 'type': forcing value to bool 'true' or 'false' (performance warning),
     # removed in VS2017
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4800")
-  ELSEIF (NOT (CMAKE_CXX_COMPILER_ID MATCHES Clang))
-    SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /d2OptimizeHugeFunctions")
+    STRING(APPEND CMAKE_CXX_FLAGS " /wd4800")
+  ELSEIF (NOT CLANG_CL)
+    STRING(APPEND CMAKE_CXX_FLAGS " /d2OptimizeHugeFunctions")
   ENDIF()
 ENDIF()
 
-# Always link with socket library
-STRING(APPEND CMAKE_C_STANDARD_LIBRARIES " ws2_32.lib")
-STRING(APPEND CMAKE_CXX_STANDARD_LIBRARIES " ws2_32.lib")
+# Always link with socket/synchronization libraries
+STRING(APPEND CMAKE_C_STANDARD_LIBRARIES " ws2_32.lib synchronization.lib")
+STRING(APPEND CMAKE_CXX_STANDARD_LIBRARIES " ws2_32.lib synchronization.lib")
 
 # System checks
 SET(SIGNAL_WITH_VIO_CLOSE 1) # Something that runtime team needs
@@ -295,5 +340,6 @@ MACRO(FORCE_STATIC_CRT)
     CMAKE_C_FLAGS_MINSIZEREL CMAKE_CXX_FLAGS_MINSIZEREL
   )
     STRING(REGEX REPLACE "/MD[d]?"  "/MT" "${flag}"  "${${flag}}" )
+    STRING(REPLACE "${DYNAMIC_UCRT_LINKER_OPTION}" "" "${flag}" "${${flag}}")
   ENDFOREACH()
 ENDMACRO()

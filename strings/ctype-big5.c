@@ -32,6 +32,8 @@
 
 #ifdef HAVE_CHARSET_big5
 
+const char charset_name_big5[]= "big5";
+
 /* 
   Support for Chinese(BIG5) characters, by jou@nematic.ieo.nctu.edu.tw
   CP950 and HKSCS additional characters are also accepted.
@@ -6800,13 +6802,14 @@ static MY_CHARSET_HANDLER my_charset_big5_handler=
   my_well_formed_char_length_big5,
   my_copy_fix_mb,
   my_native_to_mb_big5,
+  my_wc_to_printable_generic
 };
 
 struct charset_info_st my_charset_big5_chinese_ci=
 {
     1,0,0, 		/* number     */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM,	/* state      */
-    "big5",		/* cs name    */
+    charset_name_big5, /* cs name    */
     "big5_chinese_ci",	/* name       */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -6839,7 +6842,7 @@ struct charset_info_st my_charset_big5_bin=
 {
     84,0,0, 		/* number     */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state      */
-    "big5",		/* cs name    */
+    charset_name_big5,	/* cs name    */
     "big5_bin",		/* name       */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -6872,7 +6875,7 @@ struct charset_info_st my_charset_big5_chinese_nopad_ci=
 {
     MY_NOPAD_ID(1),0,0,       /* number     */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NOPAD, /* state */
-    "big5",                   /* cs name    */
+    charset_name_big5,        /* cs name    */
     "big5_chinese_nopad_ci",  /* name       */
     "",                       /* comment    */
     NULL,                     /* tailoring */
@@ -6905,7 +6908,7 @@ struct charset_info_st my_charset_big5_nopad_bin=
 {
     MY_NOPAD_ID(84),0,0,      /* number     */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    "big5",                   /* cs name    */
+    charset_name_big5,        /* cs name    */
     "big5_nopad_bin",         /* name       */
     "",                       /* comment    */
     NULL,                     /* tailoring */

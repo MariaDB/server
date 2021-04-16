@@ -434,12 +434,12 @@ DROP TABLE t1;
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 
 --echo #
---echo # Testing cs->coll->instr()
+--echo # Testing instr()
 --echo #
 SELECT POSITION('bb' IN 'abba');
 
 --echo #
---echo # Testing cs->coll->hash_sort()
+--echo # Testing hash_sort()
 --echo #
 SET NAMES utf8, collation_connection=utf16le_bin;
 --source include/ctype_heap.inc
@@ -447,21 +447,21 @@ SET NAMES utf8, collation_connection=utf16le_general_ci;
 --source include/ctype_heap.inc
 
 --echo #
---echo # Testing cs->cset->numchars()
+--echo # Testing numchars()
 --echo #
 SELECT CHAR_LENGTH('abcd'), OCTET_LENGTH('abcd');
 SELECT CHAR_LENGTH(_utf16le 0x00D800DC), OCTET_LENGTH(_utf16le 0x00D800DC);
 SELECT CHAR_LENGTH(_utf16le 0x7DD8FFDF), OCTET_LENGTH(_utf16le 0x7FD8DDDF);
 
 --echo #
---echo # Testing cs->cset->charpos()
+--echo # Testing charpos()
 --echo #
 SELECT LEFT('abcd',2);
 SELECT HEX(LEFT(_utf16le 0x00D800DC7FD8FFDF, 1));
 SELECT HEX(RIGHT(_utf16le 0x00D800DC7FD8FFDF, 1));
 
 --echo #
---echo # Testing cs->cset->well_formed_length()
+--echo # Testing well_formed_length()
 --echo #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16le);
 --echo # Bad sequences
@@ -486,7 +486,7 @@ DROP TABLE t1;
 --echo #
 --echo # Bug#32393 Character sets: illegal characters in utf16le columns
 --echo #
---echo # Tests that cs->cset->wc_mb() doesn't accept surrogate parts
+--echo # Tests that my_ci_wc_mb() doesn't accept surrogate parts
 --echo #
 --echo # via ALTER
 --echo #
@@ -508,7 +508,7 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Testing cs->cset->lengthsp()
+--echo # Testing lengthsp()
 --echo #
 CREATE TABLE t1 (a CHAR(10)) CHARACTER SET utf16le;
 INSERT INTO t1 VALUES ('a   ');
@@ -517,7 +517,7 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Testing cs->cset->caseup() and cs->cset->casedn()
+--echo # Testing caseup() and casedn()
 --echo #
 SELECT UPPER('abcd'), LOWER('ABCD');
 
@@ -532,7 +532,7 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Testing cs->cset->ll10tostr
+--echo # Testing ll10tostr
 --echo #
 CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf16le);
 INSERT INTO t1 VALUES (123456);
@@ -540,14 +540,14 @@ SELECT a, HEX(a) FROM t1;
 DROP TABLE t1;
 
 --echo #
---echo # Testing cs->cset->fill
+--echo # Testing fill
 --echo # SOUNDEX fills strings with DIGIT ZERO up to four characters
 --echo #
 SELECT SOUNDEX('a'), HEX(SOUNDEX('a'));
 
 
 --echo #
---echo # Testing cs->cset->strntoul
+--echo # Testing strntoul
 --echo #
 CREATE TABLE t1 (a enum ('a','b','c')) CHARACTER SET utf16le;
 INSERT INTO t1 VALUES ('1');
@@ -556,7 +556,7 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Testing cs->cset->strntoll and cs->cset->strntoull
+--echo # Testing strntoll and strntoull
 --echo #
 SET NAMES latin1;
 SELECT HEX(CONV(CONVERT('123' USING utf16le), -10, 16));
@@ -565,7 +565,7 @@ SET NAMES utf8, collation_connection=utf16le_general_ci;
 
 
 --echo #
---echo # Testing cs->cset->strntod
+--echo # Testing strntod
 --echo #
 SET NAMES utf8, collation_connection=utf16le_general_ci;
 SELECT 1.1 + '1.2';
@@ -573,7 +573,7 @@ SELECT 1.1 + '1.2xxx';
 
 
 --echo #
---echo # Testing cs->cset->strtoll10
+--echo # Testing strtoll10
 --echo #
 SELECT LEFT('aaa','1');
 CREATE TABLE t1 AS SELECT REPEAT('abcd', 128) AS a;
@@ -600,7 +600,7 @@ DROP TABLE t1;
 --source include/ctype_strtoll10.inc
 
 --echo #
---echo # Testing cs->cset->strntoull10rnd
+--echo # Testing strntoull10rnd
 --echo #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES ('-1234.1e2');
@@ -626,7 +626,7 @@ DROP TABLE t1;
 
 
 --echo #
---echo # Testing cs->cset->scan
+--echo # Testing scan
 --echo #
 CREATE TABLE t1 (a int);
 INSERT INTO t1 VALUES ('1 ');

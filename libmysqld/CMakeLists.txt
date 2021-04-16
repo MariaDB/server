@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2011, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2018, MariaDB Corporation
+# Copyright (c) 2009, 2020, MariaDB Corporation
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -21,6 +21,7 @@ INCLUDE_DIRECTORIES(
 ${CMAKE_SOURCE_DIR}/include 
 ${CMAKE_SOURCE_DIR}/libmysqld
 ${CMAKE_SOURCE_DIR}/sql
+${CMAKE_SOURCE_DIR}/tpool
 ${CMAKE_BINARY_DIR}/sql 
 ${PCRE_INCLUDES}
 ${ZLIB_INCLUDE_DIR}
@@ -46,7 +47,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/password.c ../sql/discover.cc ../sql/derror.cc 
            ../sql/field.cc ../sql/field_conv.cc ../sql/field_comp.cc
            ../sql/filesort_utils.cc ../sql/sql_digest.cc
-           ../sql/filesort.cc ../sql/gstream.cc ../sql/slave.cc
+           ../sql/filesort.cc ../sql/grant.cc
+           ../sql/gstream.cc ../sql/slave.cc
            ../sql/signal_handler.cc
            ../sql/handler.cc ../sql/hash_filo.cc ../sql/hostname.cc 
            ../sql/init.cc ../sql/item_buff.cc ../sql/item_cmpfunc.cc 
@@ -55,7 +57,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/item_subselect.cc ../sql/item_sum.cc ../sql/item_timefunc.cc 
            ../sql/item_xmlfunc.cc ../sql/item_jsonfunc.cc
            ../sql/key.cc ../sql/lock.cc ../sql/log.cc 
-           ../sql/log_event.cc ../sql/mf_iocache.cc ../sql/my_decimal.cc 
+           ../sql/log_event.cc ../sql/log_event_server.cc 
+           ../sql/mf_iocache.cc ../sql/my_decimal.cc 
            ../sql/net_serv.cc ../sql/opt_range.cc ../sql/opt_sum.cc 
            ../sql/parse_file.cc ../sql/procedure.cc ../sql/protocol.cc 
            ../sql/records.cc ../sql/repl_failsafe.cc ../sql/rpl_filter.cc
@@ -100,7 +103,9 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/multi_range_read.cc
            ../sql/opt_index_cond_pushdown.cc
            ../sql/opt_subselect.cc
-           ../sql/create_options.cc ../sql/rpl_utility.cc
+           ../sql/create_options.cc
+           ../sql/rpl_utility.cc
+           ../sql/rpl_utility_server.cc
            ../sql/rpl_reporting.cc
            ../sql/sql_expression_cache.cc
            ../sql/my_apc.cc ../sql/my_apc.h
@@ -112,9 +117,10 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_schema.cc
            ../sql/sql_type.cc ../sql/sql_type.h
            ../sql/sql_mode.cc
+           ../sql/sql_type_string.cc
            ../sql/sql_type_json.cc
+           ../sql/sql_type_geom.cc
            ../sql/table_cache.cc ../sql/mf_iocache_encr.cc
-           ../sql/item_inetfunc.cc
            ../sql/wsrep_dummy.cc ../sql/encryption.cc
            ../sql/item_windowfunc.cc ../sql/sql_window.cc
            ../sql/sql_cte.cc
@@ -151,10 +157,10 @@ ENDIF()
 
 
 SET(LIBS 
-  dbug strings mysys mysys_ssl pcre vio 
+  dbug strings mysys mysys_ssl pcre2-8 vio
   ${ZLIB_LIBRARY} ${SSL_LIBRARIES} 
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS}
-  ${MYSQLD_STATIC_PLUGIN_LIBS}
+  ${EMBEDDED_PLUGIN_LIBS}
   sql_embedded
 )
 
@@ -296,7 +302,7 @@ mysql_stmt_next_result
 # Charsets
 my_charset_bin
 my_charset_latin1
-my_charset_utf8_general_ci
+my_charset_utf8mb3_general_ci
 # Client plugins
 mysql_client_find_plugin
 mysql_client_register_plugin
@@ -419,9 +425,15 @@ mysql_net_field_length
 mysql_options4
 )
 
+
+SET(CLIENT_API_FUNCTIONS_10_5
+mariadb_field_attr
+)
+
 SET(CLIENT_API_FUNCTIONS
   ${CLIENT_API_FUNCTIONS_5_1}
   ${CLIENT_API_FUNCTIONS_5_5}
+  ${CLIENT_API_FUNCTIONS_10_5}
 )
 
 
@@ -451,9 +463,8 @@ IF(NOT DISABLE_SHARED)
     # Clean direct output flags, as 2 targets have the same base name
     # libmysqld
     SET_TARGET_PROPERTIES(libmysqld PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-    TARGET_LINK_LIBRARIES(libmysqld ${CRC32_LIBRARY})
     SET_TARGET_PROPERTIES(mysqlserver PROPERTIES CLEAN_DIRECT_OUTPUT 1)
-    TARGET_LINK_LIBRARIES(mysqlserver ${CRC32_LIBRARY})
+    TARGET_LINK_LIBRARIES(mysqlserver tpool)
     IF(LIBMYSQLD_SO_EXTRA_LIBS)
        TARGET_LINK_LIBRARIES(libmysqld ${LIBMYSQLD_SO_EXTRA_LIBS})
     ENDIF()

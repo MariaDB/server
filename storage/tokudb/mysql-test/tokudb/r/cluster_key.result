@@ -53,7 +53,7 @@ a	b
 11	110
 explain select a,b from t1 where c > 350;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	c	c	4	NULL	NULL;	Using where; Using index
+1	SIMPLE	t1	range	c	c	4	NULL	NULL;	Using where; Using index
 select a,c from t1 where c > 350;
 a	c
 4	400
@@ -160,7 +160,7 @@ a	b
 11	110
 explain select a,b from t1 where c > 350;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	c	c	4	NULL	NULL;	Using where; Using index
+1	SIMPLE	t1	range	c	c	4	NULL	NULL;	Using where; Using index
 select a,c from t1 where c > 350;
 a	c
 4	400

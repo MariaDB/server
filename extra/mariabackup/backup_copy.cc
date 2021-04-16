@@ -466,14 +466,13 @@ struct datafile_cur_t {
 	char		abs_path[FN_REFLEN];
 	MY_STAT		statinfo;
 	uint		thread_n;
-	byte*		orig_buf;
 	byte*		buf;
 	size_t		buf_size;
 	size_t		buf_read;
 	size_t		buf_offset;
 
 	explicit datafile_cur_t(const char* filename = NULL) :
-		file(), thread_n(0), orig_buf(NULL), buf(NULL), buf_size(0),
+		file(), thread_n(0), buf(NULL), buf_size(0),
 		buf_read(0), buf_offset(0)
 	{
 		memset(rel_path, 0, sizeof rel_path);
@@ -961,7 +960,7 @@ run_data_threads(datadir_iter_t *it, os_thread_func_t func, uint n)
 		data_threads[i].n_thread = i + 1;
 		data_threads[i].count = &count;
 		data_threads[i].count_mutex = &count_mutex;
-		os_thread_create(func, data_threads + i, &data_threads[i].id);
+		data_threads[i].id = os_thread_create(func, data_threads + i);
 	}
 
 	/* Wait for threads to exit */
@@ -1032,16 +1031,16 @@ static int fix_win_file_permissions(const char *file)
 	ea.grfInheritance = CONTAINER_INHERIT_ACE | OBJECT_INHERIT_ACE;
 	ea.Trustee.TrusteeType = TRUSTEE_IS_UNKNOWN;
 	ACL* pNewDACL = 0;
-	SetEntriesInAcl(1, &ea, pOldDACL, &pNewDACL);
-	if (pNewDACL)
+	DWORD err = SetEntriesInAcl(1, &ea, pOldDACL, &pNewDACL);
+	if (!err)
 	{
+		DBUG_ASSERT(pNewDACL);
 		SetSecurityInfo(hFile, SE_FILE_OBJECT, DACL_SECURITY_INFORMATION, NULL, NULL,
 			pNewDACL, NULL);
+		LocalFree((HLOCAL)pNewDACL);
 	}
 	if (pSD != NULL)
 		LocalFree((HLOCAL)pSD);
-	if (pNewDACL != NULL)
-		LocalFree((HLOCAL)pNewDACL);
 	CloseHandle(hFile);
 	return 0;
 }
@@ -1842,7 +1841,6 @@ copy_back()
 
 	srv_max_n_threads = 1000;
 	sync_check_init();
-	ut_crc32_init();
 
 	/* copy undo tablespaces */
 
@@ -1872,24 +1870,25 @@ copy_back()
 	dst_dir = (srv_log_group_home_dir && *srv_log_group_home_dir)
 		? srv_log_group_home_dir : mysql_data_home;
 
-	/* --backup generates a single ib_logfile0, which we must copy
+	/* --backup generates a single LOG_FILE_NAME, which we must copy
 	if it exists. */
 
 	ds_data = ds_create(dst_dir, DS_TYPE_LOCAL);
 	MY_STAT stat_arg;
-	if (!my_stat("ib_logfile0", &stat_arg, MYF(0)) || !stat_arg.st_size) {
+	if (!my_stat(LOG_FILE_NAME, &stat_arg, MYF(0)) || !stat_arg.st_size) {
 		/* After completed --prepare, redo log files are redundant.
 		We must delete any redo logs at the destination, so that
 		the database will not jump to a different log sequence number
 		(LSN). */
 
-		for (uint i = 0; i <= SRV_N_LOG_FILES_MAX + 1; i++) {
-			char filename[FN_REFLEN];
-			snprintf(filename, sizeof filename, "%s/ib_logfile%u",
-				 dst_dir, i);
-			unlink(filename);
-		}
-	} else if (!(ret = copy_or_move_file("ib_logfile0", "ib_logfile0",
+		char filename[FN_REFLEN];
+		snprintf(filename, sizeof filename, "%s/%s0", dst_dir,
+			 LOG_FILE_NAME_PREFIX);
+		unlink(filename);
+		snprintf(filename, sizeof filename, "%s/%s101", dst_dir,
+			 LOG_FILE_NAME_PREFIX);
+		unlink(filename);
+	} else if (!(ret = copy_or_move_file(LOG_FILE_NAME, LOG_FILE_NAME,
 					     dst_dir, 1))) {
 		goto cleanup;
 	}
@@ -1981,7 +1980,7 @@ copy_back()
 		}
 
 		/* skip the redo log (it was already copied) */
-		if (!strcmp(filename, "ib_logfile0")) {
+		if (!strcmp(filename, LOG_FILE_NAME)) {
 			continue;
 		}
 

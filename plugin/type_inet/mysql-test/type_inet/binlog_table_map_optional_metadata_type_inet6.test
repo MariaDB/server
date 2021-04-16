@@ -1,0 +1,72 @@
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+
+--let $MYSQLD_DATADIR= `select @@datadir`
+--let $binlog_file= $MYSQLD_DATADIR/master-bin.000001
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20822 INET6 crashes in combination with RBR extended metadata
+--echo #
+
+--echo # Using DEFAULT_CHARSET format
+
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = NO_LOG;
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES('::');
+--source suite/binlog/include/print_optional_metadata.inc
+DROP TABLE t1;
+RESET MASTER;
+
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = MINIMAL;
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES('::');
+--source suite/binlog/include/print_optional_metadata.inc
+DROP TABLE t1;
+RESET MASTER;
+
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = FULL;
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES('::');
+--source suite/binlog/include/print_optional_metadata.inc
+DROP TABLE t1;
+RESET MASTER;
+
+--echo # Using COLUMN_CHARSET format
+
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = NO_LOG;
+CREATE TABLE t1 (a INET6, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER SET utf8);
+INSERT INTO t1 VALUES('::','','');
+--source suite/binlog/include/print_optional_metadata.inc
+DROP TABLE t1;
+RESET MASTER;
+
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = MINIMAL;
+CREATE TABLE t1 (a INET6, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER SET utf8);
+INSERT INTO t1 VALUES('::','','');
+--source suite/binlog/include/print_optional_metadata.inc
+DROP TABLE t1;
+RESET MASTER;
+
+RESET MASTER;
+SET GLOBAL binlog_row_metadata = FULL;
+CREATE TABLE t1 (a INET6, b CHAR(16) CHARACTER SET latin1, c CHAR(16) CHARACTER SET utf8);
+INSERT INTO t1 VALUES('::','','');
+--source suite/binlog/include/print_optional_metadata.inc
+DROP TABLE t1;
+RESET MASTER;
+
+SET GLOBAL binlog_row_metadata = DEFAULT;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

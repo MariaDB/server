@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2016, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -23,13 +23,24 @@
 #ifndef PFS_ENGINE_TABLE_H
 #define PFS_ENGINE_TABLE_H
 
-#include "sql_acl.h"                            /* struct ACL_* */
+#include "table.h"
+#include "sql_acl.h"
 /**
   @file storage/perfschema/pfs_engine_table.h
   Performance schema tables (declarations).
 */
 
 #include "pfs_instr_class.h"
+extern pthread_key_t THR_PFS_VG;   // global_variables
+extern pthread_key_t THR_PFS_SV;   // session_variables
+extern pthread_key_t THR_PFS_VBT;  // variables_by_thread
+extern pthread_key_t THR_PFS_SG;   // global_status
+extern pthread_key_t THR_PFS_SS;   // session_status
+extern pthread_key_t THR_PFS_SBT;  // status_by_thread
+extern pthread_key_t THR_PFS_SBU;  // status_by_user
+extern pthread_key_t THR_PFS_SBH;  // status_by_host
+extern pthread_key_t THR_PFS_SBA;  // status_by_account
+
 class Field;
 struct PFS_engine_table_share;
 struct time_normalizer;
@@ -38,6 +49,36 @@ struct time_normalizer;
   @addtogroup Performance_schema_engine
   @{
 */
+
+/**
+  Store and retrieve table state information during a query.
+*/
+class PFS_table_context
+{
+public:
+  PFS_table_context(ulonglong current_version, bool restore, pthread_key_t key);
+  PFS_table_context(ulonglong current_version, ulong map_size, bool restore, pthread_key_t key);
+~PFS_table_context(void);
+
+  bool initialize(void);
+  bool is_initialized(void) { return m_initialized; }
+  ulonglong current_version(void) { return m_current_version; }
+  ulonglong last_version(void) { return m_last_version; }
+  bool versions_match(void) { return m_last_version == m_current_version; }
+  void set_item(ulong n);
+  bool is_item_set(ulong n);
+  pthread_key_t m_thr_key;
+
+private:
+  ulonglong m_current_version;
+  ulonglong m_last_version;
+  ulong *m_map;
+  ulong m_map_size;
+  ulong m_word_size;
+  bool m_restore;
+  bool m_initialized;
+  ulong m_last_item;
+};
 
 /**
   An abstract PERFORMANCE_SCHEMA table.
@@ -88,11 +129,23 @@ public:
   {}
 
   /**
+    Helper, assign a value to a long field.
+    @param f the field to set
+    @param value the value to assign
+  */
+  static void set_field_long(Field *f, long value);
+  /**
     Helper, assign a value to a ulong field.
     @param f the field to set
     @param value the value to assign
   */
   static void set_field_ulong(Field *f, ulong value);
+  /**
+    Helper, assign a value to a longlong field.
+    @param f the field to set
+    @param value the value to assign
+  */
+  static void set_field_longlong(Field *f, longlong value);
   /**
     Helper, assign a value to a ulonglong field.
     @param f the field to set
@@ -109,6 +162,14 @@ public:
   /**
     Helper, assign a value to a varchar utf8 field.
     @param f the field to set
+    @param cs the string character set
+    @param str the string to assign
+    @param len the length of the string to assign
+  */
+  static void set_field_varchar(Field *f, const CHARSET_INFO *cs, const char *str, uint len);
+  /**
+    Helper, assign a value to a varchar utf8 field.
+    @param f the field to set
     @param str the string to assign
     @param len the length of the string to assign
   */
@@ -121,6 +182,13 @@ public:
   */
   static void set_field_longtext_utf8(Field *f, const char *str, uint len);
   /**
+    Helper, assign a value to a blob field.
+    @param f the field to set
+    @param val the value to assign
+    @param len the length of the string to assign
+  */
+  static void set_field_blob(Field *f, const char *val, uint len);
+  /**
     Helper, assign a value to an enum field.
     @param f the field to set
     @param value the value to assign
@@ -132,6 +200,12 @@ public:
     @param value the value to assign
   */
   static void set_field_timestamp(Field *f, ulonglong value);
+  /**
+    Helper, assign a value to a double field.
+    @param f the field to set
+    @param value the value to assign
+  */
+  static void set_field_double(Field *f, double value);
   /**
     Helper, read a value from an enum field.
     @param f the field to read
@@ -182,7 +256,6 @@ protected:
   */
   virtual int delete_row_values(TABLE *table, const unsigned char *buf,
                                 Field **fields);
-
   /**
     Constructor.
     @param share            table share
@@ -238,19 +311,14 @@ struct PFS_engine_table_share
   pfs_delete_all_rows_t m_delete_all_rows;
   /** Get rows count function. */
   pfs_get_row_count_t m_get_row_count;
-  /**
-    Number or records.
-    This number does not need to be precise,
-    it is used by the optimizer to decide if the table
-    has 0, 1, or many records.
-  */
-  ha_rows m_records;
   /** Length of the m_pos position structure. */
   uint m_ref_length;
   /** The lock, stored on behalf of the SQL layer. */
   THR_LOCK *m_thr_lock_ptr;
   /** Table definition. */
   LEX_STRING sql;
+  /** Table is available even if the Performance Schema is disabled. */
+  bool m_perpetual;
 };
 
 /**
@@ -266,7 +334,8 @@ public:
   ~PFS_readonly_acl()
   {}
 
-  virtual ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
+  virtual ACL_internal_access_result check(privilege_t want_access,
+                                           privilege_t *save_priv) const;
 };
 
 /** Singleton instance of PFS_readonly_acl. */
@@ -285,7 +354,8 @@ public:
   ~PFS_truncatable_acl()
   {}
 
-  ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
+  ACL_internal_access_result check(privilege_t want_access,
+                                   privilege_t *save_priv) const;
 };
 
 /** Singleton instance of PFS_truncatable_acl. */
@@ -304,7 +374,8 @@ public:
   ~PFS_updatable_acl()
   {}
 
-  ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
+  ACL_internal_access_result check(privilege_t want_access,
+                                   privilege_t *save_priv) const;
 };
 
 /** Singleton instance of PFS_updatable_acl. */
@@ -323,7 +394,8 @@ public:
   ~PFS_editable_acl()
   {}
 
-  ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
+  ACL_internal_access_result check(privilege_t want_access,
+                                   privilege_t *save_priv) const;
 };
 
 /** Singleton instance of PFS_editable_acl. */
@@ -341,11 +413,51 @@ public:
   ~PFS_unknown_acl()
   {}
 
-  ACL_internal_access_result check(ulong want_access, ulong *save_priv) const;
+  ACL_internal_access_result check(privilege_t want_access,
+                                   privilege_t *save_priv) const;
 };
 
 /** Singleton instance of PFS_unknown_acl. */
 extern PFS_unknown_acl pfs_unknown_acl;
+
+
+/**
+  Privileges for world readable tables.
+*/
+class PFS_readonly_world_acl : public PFS_readonly_acl
+{
+public:
+  PFS_readonly_world_acl()
+  {}
+
+  ~PFS_readonly_world_acl()
+  {}
+  virtual ACL_internal_access_result check(privilege_t want_access, privilege_t *save_priv) const;
+};
+
+
+/** Singleton instance of PFS_readonly_world_acl */
+extern PFS_readonly_world_acl pfs_readonly_world_acl;
+
+
+/**
+Privileges for world readable truncatable tables.
+*/
+class PFS_truncatable_world_acl : public PFS_truncatable_acl
+{
+public:
+  PFS_truncatable_world_acl()
+  {}
+
+  ~PFS_truncatable_world_acl()
+  {}
+  virtual ACL_internal_access_result check(privilege_t want_access, privilege_t *save_priv) const;
+};
+
+
+/** Singleton instance of PFS_readonly_world_acl */
+extern PFS_truncatable_world_acl pfs_truncatable_world_acl;
+
 
 /** Position of a cursor, for simple iterations. */
 struct PFS_simple_index
@@ -360,6 +472,13 @@ struct PFS_simple_index
   PFS_simple_index(uint index)
     : m_index(index)
   {}
+
+  /**
+    Set this index at a given position.
+    @param index an index
+  */
+  void set_at(uint index)
+  { m_index= index; }
 
   /**
     Set this index at a given position.
@@ -396,6 +515,15 @@ struct PFS_double_index
   PFS_double_index(uint index_1, uint index_2)
     : m_index_1(index_1), m_index_2(index_2)
   {}
+
+  /**
+    Set this index at a given position.
+  */
+  void set_at(uint index_1, uint index_2)
+  {
+    m_index_1= index_1;
+    m_index_2= index_2;
+  }
 
   /**
     Set this index at a given position.
@@ -437,6 +565,16 @@ struct PFS_triple_index
   PFS_triple_index(uint index_1, uint index_2, uint index_3)
     : m_index_1(index_1), m_index_2(index_2), m_index_3(index_3)
   {}
+
+  /**
+    Set this index at a given position.
+  */
+  void set_at(uint index_1, uint index_2, uint index_3)
+  {
+    m_index_1= index_1;
+    m_index_2= index_2;
+    m_index_3= index_3;
+  }
 
   /**
     Set this index at a given position.

@@ -1,0 +1,51 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-20175 Move Type_handler_row from Type_collection_std to Type_collection_row
+#
+SELECT LEAST(ROW(1,1), ROW(1,1));
+ERROR HY000: Illegal parameter data types row and row for operation 'least'
+SELECT GREATEST(ROW(1,1), ROW(1,1));
+ERROR HY000: Illegal parameter data types row and row for operation 'greatest'
+SELECT LEAST(ROW(1,1), 1);
+ERROR HY000: Illegal parameter data types row and int for operation 'least'
+SELECT GREATEST(ROW(1,1), 1);
+ERROR HY000: Illegal parameter data types row and int for operation 'greatest'
+SELECT LEAST(1, ROW(1,1));
+ERROR HY000: Illegal parameter data types int and row for operation 'least'
+SELECT GREATEST(1, ROW(1,1));
+ERROR HY000: Illegal parameter data types int and row for operation 'greatest'
+SELECT ROW(1,1) + ROW(1,1);
+ERROR HY000: Illegal parameter data types row and row for operation '+'
+SELECT 1 + ROW(1,1);
+ERROR HY000: Illegal parameter data types int and row for operation '+'
+SELECT ROW(1,1) + 1;
+ERROR HY000: Illegal parameter data types row and int for operation '+'
+SELECT ROW(1,1) - ROW(1,1);
+ERROR HY000: Illegal parameter data types row and row for operation '-'
+SELECT 1 - ROW(1,1);
+ERROR HY000: Illegal parameter data types int and row for operation '-'
+SELECT ROW(1,1) - 1;
+ERROR HY000: Illegal parameter data types row and int for operation '-'
+SELECT ROW(1,1) * ROW(1,1);
+ERROR HY000: Illegal parameter data types row and row for operation '*'
+SELECT 1 * ROW(1,1);
+ERROR HY000: Illegal parameter data types int and row for operation '*'
+SELECT ROW(1,1) * 1;
+ERROR HY000: Illegal parameter data types row and int for operation '*'
+SELECT ROW(1,1) / ROW(1,1);
+ERROR HY000: Illegal parameter data types row and row for operation '/'
+SELECT 1 / ROW(1,1);
+ERROR HY000: Illegal parameter data types int and row for operation '/'
+SELECT ROW(1,1) / 1;
+ERROR HY000: Illegal parameter data types row and int for operation '/'
+SELECT ROW(1,1) % ROW(1,1);
+ERROR HY000: Illegal parameter data types row and row for operation 'MOD'
+SELECT 1 % ROW(1,1);
+ERROR HY000: Illegal parameter data types int and row for operation 'MOD'
+SELECT ROW(1,1) % 1;
+ERROR HY000: Illegal parameter data types row and int for operation 'MOD'
+#
+# End of 10.5 tests
+#

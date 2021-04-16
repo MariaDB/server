@@ -1,0 +1,185 @@
+--source include/big_test.inc
+--source include/have_sequence.inc
+--source include/have_64bit.inc
+
+set @save_rand_seed1=  @@RAND_SEED1;
+set @save_rand_seed2=  @@RAND_SEED2;
+set @@RAND_SEED1=810763568, @@RAND_SEED2=600681772;
+
+create table t1(a int);
+insert into t1 select seq from seq_1_to_10000 order by rand(),seq;
+delimiter |;
+
+--echo #
+--echo # parameters:
+--echo # mean           mean for the column to be considered
+--echo # max_val        max_value for the column to be considered
+--echo #
+--echo # This function generate a sample of a normal distribution
+--echo # This function return a point
+--echo # of the normal distribution with a given mean.
+--echo #
+
+CREATE FUNCTION
+generate_normal_distribution_sample(mean DOUBLE, max_val DOUBLE)RETURNS DOUBLE
+BEGIN
+  DECLARE z DOUBLE DEFAULT 0;
+  SET z= (rand() + rand() + rand() + rand() + rand() + rand())/6;
+  SET z= 2*(max_val-mean)*z;
+  SET z= z + mean - (max_val-mean);
+  return z;
+END|
+
+--echo #
+--echo # parameters:
+--echo # len      length of the random string to be generated
+--echo #
+--echo # This function generates a random string for the length passed
+--echo # as an argument with characters in the range of [A,Z]
+--echo #
+
+CREATE FUNCTION generate_random_string(len INT) RETURNS varchar(128)
+BEGIN
+  DECLARE str VARCHAR(256) DEFAULT '';
+  DECLARE x INT DEFAULT 0;
+  WHILE (len > 0) DO
+    SET x =round(rand()*25);
+    SET str= CONCAT(str, CHAR(65 + x));
+    SET len= len-1;
+  END WHILE;
+RETURN str;
+END|
+
+--echo #
+--echo # parameters:
+--echo # mean      mean for the column to be considered
+--echo # min_val   min_value for the column to be considered
+--echo # max_val   max_value for the column to be considered
+--echo #
+--echo # This function generate a normal distribution sample in the range of
+--echo # [min_val, max_val]
+--echo #
+
+CREATE FUNCTION
+clipped_normal_distribution(mean DOUBLE, min_val DOUBLE, max_val DOUBLE)
+RETURNS INT
+BEGIN
+  DECLARE r DOUBLE DEFAULT 0;
+  WHILE 1=1 DO
+    set r= generate_normal_distribution_sample(mean, max_val);
+    IF (r >= min_val AND r <= max_val) THEN
+      RETURN round(r);
+    end if;
+  END WHILE;
+ RETURN 0;
+END|
+
+delimiter ;|
+
+create table t2 (id INT NOT NULL, a INT, b int);
+insert into t2
+select a, clipped_normal_distribution(12, 0, 64),
+       clipped_normal_distribution(32, 0, 128)
+from t1;
+
+CREATE TABLE t3(
+  id INT NOT NULL,
+  names VARCHAR(64),
+  address VARCHAR(128),
+  PRIMARY KEY (id)
+);
+
+--echo #
+--echo # table t3 stores random strings calculated from the length stored in
+--echo # table t2
+--echo #
+
+insert into t3
+select id, generate_random_string(a), generate_random_string(b) from t2;
+
+
+let $query= select id DIV 100 as x,
+            MD5(group_concat(substring(names,1,3), substring(address,1,3)
+                order by id))
+            FROM t3
+            GROUP BY x;
+
+--echo #
+--echo # All records fit in memory
+--echo #
+
+set sort_buffer_size=262144*10;
+--source include/analyze-format.inc
+eval analyze format=json $query;
+flush status;
+eval $query;
+show status like '%sort%';
+set sort_buffer_size=default;
+
+--echo #
+--echo # Test for merge_many_buff
+--echo #
+
+set sort_buffer_size=32768;
+--source include/analyze-format.inc
+eval analyze format=json $query;
+flush status;
+eval $query;
+show status like '%sort%';
+set sort_buffer_size=default;
+
+--echo #
+--echo # CASE #1 Packed sort keys with addon fields
+--echo #
+
+ALTER TABLE t3 ADD INDEX idx(names, address);
+
+let $file1 = `SELECT CONCAT(@@datadir, "t1.txt")`;
+let $file2 = `SELECT CONCAT(@@datadir, "t2.txt")`;
+
+set sort_buffer_size= 2097152;
+--source include/analyze-format.inc
+eval ANALYZE FORMAT=JSON  SELECT id, names, address FROM t3 ORDER BY names, address;
+flush status;
+evalp SELECT id, names, address INTO OUTFILE '$file1' FROM t3 ORDER BY names, address;
+
+--echo # Sort_merge_passes should be 0
+show status like '%sort%';
+
+evalp SELECT id, names, address INTO OUTFILE '$file2' FROM t3 FORCE INDEX(idx) ORDER BY names, address;
+
+diff_files $file1 $file2;
+
+--remove_file $file1
+
+--echo #
+--echo # CASE #2 Packed sort keys and ROW_ID
+--echo #
+
+set @save_max_length_for_sort_data=@@max_length_for_sort_data;
+set max_length_for_sort_data= 300;
+
+set sort_buffer_size= 1097152;
+--source include/analyze-format.inc
+eval ANALYZE FORMAT=JSON  SELECT id, names, address FROM t3 ORDER BY names, address;
+flush status;
+evalp SELECT id, names, address INTO OUTFILE '$file1' FROM t3 ORDER BY names, address;
+
+--echo # Sort_merge_passes should be 0
+show status like '%sort%';
+
+diff_files $file1 $file2;
+
+--remove_file $file1
+--remove_file $file2
+
+set @@max_length_for_sort_data=@save_max_length_for_sort_data;
+set @@sort_buffer_size=default;
+
+set @@RAND_SEED1= @save_rand_seed1;
+set @@RAND_SEED2= @save_rand_seed2;
+
+drop function generate_normal_distribution_sample;
+drop function generate_random_string;
+drop function clipped_normal_distribution;
+drop table t1, t2, t3;

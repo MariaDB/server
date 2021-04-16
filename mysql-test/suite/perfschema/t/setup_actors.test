@@ -9,26 +9,26 @@
 
 # The initial number of rows is 1. The initial row always looks like this:
 # mysql> select * from performance_schema.setup_actors;
-# +------+------+------+
-# | Host | User | ROLE |
-# +------+------+------+
-# | %    | %    | %    |
-# +------+------+------+
+# +------+------+------+---------+---------+
+# | HOST | USER | ROLE | ENABLED | HISTORY |
+# +------+------+------+---------+---------+
+# | %    | %    | %    | YES     | YES     |
+# +------+------+------+---------+---------+
 select * from performance_schema.setup_actors;
 
 truncate table performance_schema.setup_actors;
 
 insert into performance_schema.setup_actors
-values ('hosta', 'user1', '%');
+values ('hosta', 'user1', '%', 'YES', 'YES');
 
 insert into performance_schema.setup_actors
-values ('%', 'user2', '%');
+values ('%', 'user2', '%', 'YES', 'YES');
 
 insert into performance_schema.setup_actors
-values ('localhost', 'user3', '%');
+values ('localhost', 'user3', '%', 'YES', 'YES');
 
 insert into performance_schema.setup_actors
-values ('hostb', '%', '%');
+values ('hostb', '%', '%', 'YES', 'YES');
 
 select * from performance_schema.setup_actors
 order by USER, HOST, ROLE;
@@ -57,7 +57,7 @@ let $con1_thread_id= `select THREAD_ID from performance_schema.threads
 
 --connection default
 insert into performance_schema.setup_actors
-values ('%', 'user1', '%');
+values ('%', 'user1', '%', 'YES', 'YES');
 
 --connection con1
 # INSTRUMENTED must be NO because there was no match in performance_schema.setup_actors
@@ -165,7 +165,7 @@ where PROCESSLIST_ID = connection_id();
 --connection default
 
 insert into performance_schema.setup_actors
-values ('localhost', '%', '%');
+values ('localhost', '%', '%', 'YES', 'YES');
 
 select * from performance_schema.setup_actors
 order by USER, HOST, ROLE;
@@ -182,7 +182,7 @@ where PROCESSLIST_ID = connection_id();
 
 --connection default
 insert into performance_schema.setup_actors
-values ('%', 'user5', '%');
+values ('%', 'user5', '%', 'YES', 'YES');
 
 create sql security definer view test.v1 as select NAME, TYPE, INSTRUMENTED, PROCESSLIST_USER, PROCESSLIST_HOST
 from performance_schema.threads
@@ -224,7 +224,7 @@ flush privileges;
 truncate table performance_schema.setup_actors;
 
 insert into performance_schema.setup_actors
-values ('%', '%', '%');
+values ('%', '%', '%', 'YES', 'YES');
 
 select * from performance_schema.setup_actors;
 

@@ -16,6 +16,11 @@
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
 
+# Remove the following comment if you don't want to have striped binaries
+# in RPM's:
+
+#set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
+
 IF(POLICY CMP0022)
   CMAKE_POLICY(SET CMP0022 NEW)
 ENDIF()
@@ -27,6 +32,9 @@ IF(POLICY CMP0054)
 ENDIF()
 IF(POLICY CMP0075)
   CMAKE_POLICY(SET CMP0075 NEW)
+ENDIF()
+IF(POLICY CMP0069)
+ CMAKE_POLICY(SET CMP0069 NEW)
 ENDIF()
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
@@ -165,7 +173,7 @@ INCLUDE(systemd)
 INCLUDE(mysql_add_executable)
 INCLUDE(symlinks)
 INCLUDE(compile_flags)
-INCLUDE(crc32)
+INCLUDE(pmem)
 
 # Handle options
 OPTION(DISABLE_SHARED 
@@ -230,10 +238,18 @@ IF (WITH_MSAN)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=memory -fsanitize-memory-track-origins -U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
 ENDIF()
 
+OPTION(WITH_GPROF "Enable profilingg with gprof" OFF)
+IF (WITH_GPROF)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-pg -g -no-pie -fPIC")
+ENDIF()
+
+# Be nice to profilers etc
+MY_CHECK_AND_SET_COMPILER_FLAG("-fno-omit-frame-pointer" RELWITHDEBINFO)
+
 # enable security hardening features, like most distributions do
 # in our benchmarks that costs about ~1% of performance, depending on the load
 OPTION(SECURITY_HARDENED "Use security-enhancing compiler features (stack protector, relro, etc)" ON)
-IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN)
+IF(SECURITY_HARDENED AND NOT WITH_ASAN AND NOT WITH_UBSAN AND NOT WITH_TSAN AND NOT WITH_GPROF)
   # security-enhancing flags
   MY_CHECK_AND_SET_COMPILER_FLAG("-pie -fPIC")
   MY_CHECK_AND_SET_LINKER_FLAG("-Wl,-z,relro,-z,now")
@@ -255,6 +271,11 @@ SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
 IF (ENABLE_GCOV)
   MY_CHECK_AND_SET_COMPILER_FLAG("-fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+ENDIF()
+
+OPTION(WITHOUT_PACKED_SORT_KEYS "disable packed sort keys"  OFF)
+IF(WITHOUT_PACKED_SORT_KEYS)
+  ADD_DEFINITIONS(-DWITHOUT_PACKED_SORT_KEYS)
 ENDIF()
 
 MY_CHECK_AND_SET_COMPILER_FLAG(-ggdb3 DEBUG)
@@ -348,7 +369,7 @@ IF(NOT HAVE_CXX_NEW)
 ENDIF()
 
 # Find header files from the bundled libraries
-# (wolfssl, readline, pcre, etc)
+# (wolfssl, readline, pcre2, etc)
 # before the ones installed in the system
 SET(CMAKE_INCLUDE_DIRECTORIES_PROJECT_BEFORE ON)
 
@@ -372,7 +393,7 @@ CHECK_PCRE()
 
 CHECK_SYSTEMD()
 
-IF(CMAKE_CROSSCOMPILING)
+IF(CMAKE_CROSSCOMPILING AND NOT DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   SET(IMPORT_EXECUTABLES "IMPORTFILE-NOTFOUND" CACHE FILEPATH "Path to import_executables.cmake from a native build")
   INCLUDE(${IMPORT_EXECUTABLES})
 ENDIF()
@@ -399,14 +420,14 @@ IF(WITH_UNIT_TESTS)
  ENDIF()
 ENDIF()
 
-SET (MYSQLD_STATIC_PLUGIN_LIBS "" CACHE INTERNAL "")
+UNSET (MYSQLD_STATIC_PLUGIN_LIBS CACHE)
 
 INCLUDE(mariadb_connector_c) # this does ADD_SUBDIRECTORY(libmariadb)
 
 INCLUDE(cpack_rpm)
 INCLUDE(cpack_deb)
 
-SET(PYTHON_SHEBANG "/usr/bin/env python" CACHE STRING "python shebang")
+SET(PYTHON_SHEBANG "/usr/bin/env python3" CACHE STRING "python shebang")
 MARK_AS_ADVANCED(PYTHON_SHEBANG)
 
 # Add storage engines and plugins.
@@ -422,6 +443,7 @@ ADD_SUBDIRECTORY(client)
 ADD_SUBDIRECTORY(extra)
 ADD_SUBDIRECTORY(libservices)
 ADD_SUBDIRECTORY(sql/share)
+ADD_SUBDIRECTORY(tpool)
 
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
@@ -453,7 +475,7 @@ ADD_SUBDIRECTORY(scripts)
 ADD_SUBDIRECTORY(support-files)
 ADD_SUBDIRECTORY(extra/aws_sdk)
 
-IF(NOT CMAKE_CROSSCOMPILING)
+IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   SET(EXPORTED comp_err comp_sql factorial)
   IF(NOT WITHOUT_SERVER)
     SET(EXPORTED ${EXPORTED} gen_lex_hash gen_lex_token)

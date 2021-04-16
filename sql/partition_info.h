@@ -34,6 +34,9 @@ typedef bool (*check_constants_func)(THD *thd, partition_info *part_info);
  
 struct st_ddl_log_memory_entry;
 
+#define MAX_PART_NAME_SIZE 8
+
+
 struct Vers_part_info : public Sql_alloc
 {
   Vers_part_info() :
@@ -385,36 +388,16 @@ private:
                                        uint start_no);
   char *create_default_subpartition_name(THD *thd, uint subpart_no,
                                          const char *part_name);
-  // FIXME: prune_partition_bitmaps() is duplicate of set_read_partitions()
-  bool prune_partition_bitmaps(List<String> *partition_names);
+  bool prune_partition_bitmaps(List<String> *partition_names); // set_read_partitions() in 8.0
   bool add_named_partition(const char *part_name, size_t length);
 public:
-  bool set_read_partitions(List<char> *partition_names);
   bool has_unique_name(partition_element *element);
   bool field_in_partition_expr(Field *field) const;
 
   bool vers_init_info(THD *thd);
-  bool vers_set_interval(THD *thd, Item *item,
-                         interval_type int_type, my_time_t start)
-  {
-    DBUG_ASSERT(part_type == VERSIONING_PARTITION);
-    vers_info->interval.type= int_type;
-    vers_info->interval.start= start;
-    if (item->fix_fields_if_needed_for_scalar(thd, &item))
-      return true;
-    bool error= get_interval_value(thd, item, int_type, &vers_info->interval.step) ||
-           vers_info->interval.step.neg || vers_info->interval.step.second_part ||
-          !(vers_info->interval.step.year || vers_info->interval.step.month ||
-            vers_info->interval.step.day || vers_info->interval.step.hour ||
-            vers_info->interval.step.minute || vers_info->interval.step.second);
-    if (error)
-    {
-      my_error(ER_PART_WRONG_VALUE, MYF(0),
-               thd->lex->create_last_non_select_table->table_name.str,
-               "INTERVAL");
-    }
-    return error;
-  }
+  bool vers_set_interval(THD *thd, Item *interval,
+                         interval_type int_type, Item *starts,
+                         const char *table_name);
   bool vers_set_limit(ulonglong limit)
   {
     DBUG_ASSERT(part_type == VERSIONING_PARTITION);
@@ -422,7 +405,8 @@ public:
     return !limit;
   }
   void vers_set_hist_part(THD *thd);
-  bool vers_setup_expression(THD *thd, uint32 alter_add= 0); /* Stage 1. */
+  bool vers_fix_field_list(THD *thd);
+  void vers_update_el_ids();
   partition_element *get_partition(uint part_id)
   {
     List_iterator<partition_element> it(partitions);
@@ -434,6 +418,7 @@ public:
     }
     return NULL;
   }
+  uint next_part_no(uint new_parts) const;
 };
 
 uint32 get_next_partition_id_range(struct st_partition_iter* part_iter);
@@ -462,5 +447,105 @@ void init_all_partitions_iterator(partition_info *part_info,
   part_iter->ret_default_part= part_iter->ret_default_part_orig= FALSE;
   part_iter->get_next= get_next_partition_id_range;
 }
+
+
+/**
+  @brief Update part_field_list by row_end field name
+
+  @returns true on error; false on success
+*/
+inline
+bool partition_info::vers_fix_field_list(THD * thd)
+{
+  if (!table->versioned())
+  {
+    // frm must be corrupted, normally CREATE/ALTER TABLE checks for that
+    my_error(ER_FILE_CORRUPT, MYF(0), table->s->path.str);
+    return true;
+  }
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+
+  Field *row_end= table->vers_end_field();
+  // needed in handle_list_of_fields()
+  row_end->flags|= GET_FIXED_FIELDS_FLAG;
+  Name_resolution_context *context= &thd->lex->current_select->context;
+  Item *row_end_item= new (thd->mem_root) Item_field(thd, context, row_end);
+  Item *row_end_ts= new (thd->mem_root) Item_func_unix_timestamp(thd, row_end_item);
+  set_part_expr(thd, row_end_ts, false);
+
+  return false;
+}
+
+
+/**
+  @brief Update partition_element's id
+
+  @returns true on error; false on success
+*/
+inline
+void partition_info::vers_update_el_ids()
+{
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
+
+  List_iterator<partition_element> it(partitions);
+  partition_element *el;
+  for(uint32 id= 0; ((el= it++)); id++)
+  {
+    DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
+    /* Newly added element is inserted before AS_OF_NOW. */
+    if (el->id == UINT_MAX32 || el->type == partition_element::CURRENT)
+    {
+      el->id= id;
+      if (el->type == partition_element::CURRENT)
+        break;
+    }
+  }
+}
+
+
+inline
+bool make_partition_name(char *move_ptr, uint i)
+{
+  int res= snprintf(move_ptr, MAX_PART_NAME_SIZE + 1, "p%u", i);
+  return res < 0 || res > MAX_PART_NAME_SIZE;
+}
+
+
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+inline
+uint partition_info::next_part_no(uint new_parts) const
+{
+  if (part_type != VERSIONING_PARTITION)
+    return num_parts;
+  DBUG_ASSERT(new_parts > 0);
+  /* Choose first non-occupied name suffix */
+  uint32 suffix= num_parts - 1;
+  DBUG_ASSERT(suffix > 0);
+  char part_name[MAX_PART_NAME_SIZE + 1];
+  List_iterator_fast<partition_element> it(table->part_info->partitions);
+  for (uint cur_part= 0; cur_part < new_parts; ++cur_part, ++suffix)
+  {
+    uint32 cur_suffix= suffix;
+    if (make_partition_name(part_name, suffix))
+      return 0;
+    partition_element *el;
+    it.rewind();
+    while ((el= it++))
+    {
+      if (0 == my_strcasecmp(&my_charset_latin1, el->partition_name, part_name))
+      {
+        if (make_partition_name(part_name, ++suffix))
+          return 0;
+        it.rewind();
+      }
+    }
+    if (cur_part > 0 && suffix > cur_suffix)
+      cur_part= 0;
+  }
+  return suffix - new_parts;
+}
+#endif
 
 #endif /* PARTITION_INFO_INCLUDED */

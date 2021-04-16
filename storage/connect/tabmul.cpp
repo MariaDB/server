@@ -671,8 +671,8 @@ TDBDIR::TDBDIR(PSZ fpat) : TDBASE((PTABDEF)NULL)
 /***********************************************************************/
 char* TDBDIR::Path(PGLOBAL g)
   {
-  PCATLG cat __attribute__((unused))= PlgGetCatalog(g);
-  PTABDEF defp = (PTABDEF)To_Def;
+    (void) PlgGetCatalog(g);                    // XXX Should be removed?
+    PTABDEF defp = (PTABDEF)To_Def;
 
 #if defined(__WIN__)
   if (!*Drive) {
@@ -711,7 +711,6 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
     int n = -1;
 #if defined(__WIN__)
     int rc;
-
     // Start searching files in the target directory.
 		hSearch = FindFirstFile(Path(g), &FileData);
 
@@ -1047,8 +1046,8 @@ int TDBSDR::FindInDir(PGLOBAL g)
 
   // Start searching files in the target directory.
 #if defined(__WIN__)
-	HANDLE h;
 	int rc;
+	HANDLE h;
 
 #if defined(PATHMATCHSPEC)
 	if (!*Drive)
@@ -1176,7 +1175,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
       // Look in the name sub-directory
       strcat(strcat(Direc, Entry->d_name), "/");
 
-      if ((k = FindInDir(g)) < 0)
+      if ((k= FindInDir(g)) < 0)
         return k;
       else
         n += k;

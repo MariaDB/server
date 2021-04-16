@@ -2,7 +2,7 @@
 
 Copyright (c) 2010, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2018, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -381,55 +381,15 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_N_TO_FLUSH_BY_AGE},
 
-	{"buffer_flush_adaptive_avg_time_slot", "buffer",
-	 "Avg time (ms) spent for adaptive flushing recently per slot.",
+	{"buffer_flush_adaptive_avg_time", "buffer",
+	 "Avg time (ms) spent for adaptive flushing recently.",
 	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME_SLOT},
-
-	{"buffer_LRU_batch_flush_avg_time_slot", "buffer",
-	 "Avg time (ms) spent for LRU batch flushing recently per slot.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_FLUSH_AVG_TIME_SLOT},
-
-	{"buffer_flush_adaptive_avg_time_thread", "buffer",
-	 "Avg time (ms) spent for adaptive flushing recently per thread.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME_THREAD},
-
-	{"buffer_LRU_batch_flush_avg_time_thread", "buffer",
-	 "Avg time (ms) spent for LRU batch flushing recently per thread.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_FLUSH_AVG_TIME_THREAD},
-
-	{"buffer_flush_adaptive_avg_time_est", "buffer",
-	 "Estimated time (ms) spent for adaptive flushing recently.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME_EST},
-
-	{"buffer_LRU_batch_flush_avg_time_est", "buffer",
-	 "Estimated time (ms) spent for LRU batch flushing recently.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_FLUSH_AVG_TIME_EST},
-
-	{"buffer_flush_avg_time", "buffer",
-	 "Avg time (ms) spent for flushing recently.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_AVG_TIME},
+	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_TIME},
 
 	{"buffer_flush_adaptive_avg_pass", "buffer",
 	 "Number of adaptive flushes passed during the recent Avg period.",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_FLUSH_ADAPTIVE_AVG_PASS},
-
-	{"buffer_LRU_batch_flush_avg_pass", "buffer",
-	 "Number of LRU batch flushes passed during the recent Avg period.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_LRU_BATCH_FLUSH_AVG_PASS},
-
-	{"buffer_flush_avg_pass", "buffer",
-	 "Number of flushes passed during the recent Avg period.",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_FLUSH_AVG_PASS},
 
 	{"buffer_LRU_get_free_loops", "buffer",
 	 "Total loops in LRU get free.",
@@ -561,23 +521,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Pages queued as an LRU batch",
 	 MONITOR_SET_MEMBER, MONITOR_LRU_BATCH_EVICT_TOTAL_PAGE,
 	 MONITOR_LRU_BATCH_EVICT_PAGES},
-
-	/* Cumulative counter for single page LRU scans */
-	{"buffer_LRU_single_flush_scanned", "buffer",
-	 "Total pages scanned as part of single page LRU flush",
-	 MONITOR_SET_OWNER,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED_NUM_CALL,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED},
-
-	{"buffer_LRU_single_flush_num_scan", "buffer",
-	 "Number of times single page LRU flush is called",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_SINGLE_FLUSH_SCANNED,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED_NUM_CALL},
-
-	{"buffer_LRU_single_flush_scanned_per_call", "buffer",
-	 "Page scanned per single LRU flush",
-	 MONITOR_SET_MEMBER, MONITOR_LRU_SINGLE_FLUSH_SCANNED,
-	 MONITOR_LRU_SINGLE_FLUSH_SCANNED_PER_CALL},
 
 	{"buffer_LRU_single_flush_failure_count", "Buffer",
 	 "Number of times attempt to flush a single page from LRU failed",
@@ -889,7 +832,8 @@ static monitor_info_t	innodb_counter_info[] =
 
 	{"log_lsn_checkpoint_age", "recovery",
 	 "Current LSN value minus LSN at last checkpoint",
-	 MONITOR_NONE,
+	 static_cast<monitor_type_t>(
+	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_LSN_CHECKPOINT_AGE},
 
 	{"log_lsn_buf_pool_oldest", "recovery",
@@ -903,12 +847,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_MAX_AGE_ASYNC},
-
-	{"log_max_modified_age_sync", "recovery",
-	 "Maximum LSN difference; when exceeded, start synchronous preflush",
-	 static_cast<monitor_type_t>(
-	 MONITOR_EXISTING | MONITOR_DISPLAY_CURRENT),
-	 MONITOR_DEFAULT_START, MONITOR_OVLD_MAX_AGE_SYNC},
 
 	{"log_pending_log_flushes", "recovery", "Pending log flushes",
 	 static_cast<monitor_type_t>(
@@ -1188,25 +1126,10 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND},
 
-	{"innodb_ibuf_merge_usec", "server",
-	 "Time (in microseconds) spent to process change buffer merge",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_SRV_IBUF_MERGE_MICROSECOND},
-
 	{"innodb_log_flush_usec", "server",
 	 "Time (in microseconds) spent to flush log records",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_SRV_LOG_FLUSH_MICROSECOND},
-
-	{"innodb_mem_validate_usec", "server",
-	 "Time (in microseconds) spent to do memory validation",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_SRV_MEM_VALIDATE_MICROSECOND},
-
-	{"innodb_master_purge_usec", "server",
-	 "Time (in microseconds) spent by master thread to purge records",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_SRV_PURGE_MICROSECOND},
 
 	{"innodb_dict_lru_usec", "server",
 	 "Time (in microseconds) spent to process DICT LRU list",
@@ -1222,11 +1145,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of tables evicted from DICT LRU list in the idle loop",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_SRV_DICT_LRU_EVICT_COUNT_IDLE},
-
-	{"innodb_checkpoint_usec", "server",
-	 "Time (in microseconds) spent by master thread to do checkpoint",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_SRV_CHECKPOINT_MICROSECOND},
 
 	{"innodb_dblwr_writes", "server",
 	 "Number of doublewrite operations that have been performed"
@@ -1482,7 +1400,8 @@ srv_mon_set_module_control(
 	ibool	set_current_module = FALSE;
 
 	ut_a(module_id <= NUM_MONITOR);
-	ut_a(UT_ARR_SIZE(innodb_counter_info) == NUM_MONITOR);
+	compile_time_assert(array_elements(innodb_counter_info)
+			    == NUM_MONITOR);
 
 	/* The module_id must be an ID of MONITOR_MODULE type */
 	ut_a(innodb_counter_info[module_id].monitor_type & MONITOR_MODULE);
@@ -1618,11 +1537,6 @@ srv_mon_process_existing_counter(
 	mon_type_t		value;
 	monitor_info_t*		monitor_info;
 	ibool			update_min = FALSE;
-	buf_pool_stat_t		stat;
-	buf_pools_list_size_t	buf_pools_list_size;
-	ulint			LRU_len;
-	ulint			free_len;
-	ulint			flush_list_len;
 
 	monitor_info = srv_mon_get_info(monitor_id);
 
@@ -1640,8 +1554,7 @@ srv_mon_process_existing_counter(
 	/* innodb_buffer_pool_read_requests, the number of logical
 	read requests */
 	case MONITOR_OVLD_BUF_POOL_READ_REQUESTS:
-		buf_get_total_stat(&stat);
-		value = stat.n_page_gets;
+		value = buf_pool.stat.n_page_gets;
 		break;
 
 	/* innodb_buffer_pool_write_requests, the number of
@@ -1652,73 +1565,66 @@ srv_mon_process_existing_counter(
 
 	/* innodb_buffer_pool_wait_free */
 	case MONITOR_OVLD_BUF_POOL_WAIT_FREE:
-		value = srv_stats.buf_pool_wait_free;
+		value = buf_pool.stat.LRU_waits;
 		break;
 
 	/* innodb_buffer_pool_read_ahead */
 	case MONITOR_OVLD_BUF_POOL_READ_AHEAD:
-		buf_get_total_stat(&stat);
-		value = stat.n_ra_pages_read;
+		value = buf_pool.stat.n_ra_pages_read;
 		break;
 
 	/* innodb_buffer_pool_read_ahead_evicted */
 	case MONITOR_OVLD_BUF_POOL_READ_AHEAD_EVICTED:
-		buf_get_total_stat(&stat);
-		value = stat.n_ra_pages_evicted;
+		value = buf_pool.stat.n_ra_pages_evicted;
 		break;
 
 	/* innodb_buffer_pool_pages_total */
 	case MONITOR_OVLD_BUF_POOL_PAGE_TOTAL:
-		value = buf_pool_get_n_pages();
+		value = buf_pool.get_n_pages();
 		break;
 
 	/* innodb_buffer_pool_pages_misc */
 	case MONITOR_OVLD_BUF_POOL_PAGE_MISC:
-		buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
-		value = buf_pool_get_n_pages() - LRU_len - free_len;
+		value = buf_pool.get_n_pages()
+			- UT_LIST_GET_LEN(buf_pool.LRU)
+			- UT_LIST_GET_LEN(buf_pool.free);
 		break;
 
 	/* innodb_buffer_pool_pages_data */
 	case MONITOR_OVLD_BUF_POOL_PAGES_DATA:
-		buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
-		value = LRU_len;
+		value = UT_LIST_GET_LEN(buf_pool.LRU);
 		break;
 
 	/* innodb_buffer_pool_bytes_data */
 	case MONITOR_OVLD_BUF_POOL_BYTES_DATA:
-		buf_get_total_list_size_in_bytes(&buf_pools_list_size);
-		value = buf_pools_list_size.LRU_bytes
-			+ buf_pools_list_size.unzip_LRU_bytes;
+		value = buf_pool.stat.LRU_bytes
+			+ (UT_LIST_GET_LEN(buf_pool.unzip_LRU)
+			   << srv_page_size_shift);
 		break;
 
 	/* innodb_buffer_pool_pages_dirty */
 	case MONITOR_OVLD_BUF_POOL_PAGES_DIRTY:
-		buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
-		value = flush_list_len;
+		value = UT_LIST_GET_LEN(buf_pool.flush_list);
 		break;
 
 	/* innodb_buffer_pool_bytes_dirty */
 	case MONITOR_OVLD_BUF_POOL_BYTES_DIRTY:
-		buf_get_total_list_size_in_bytes(&buf_pools_list_size);
-		value = buf_pools_list_size.flush_list_bytes;
+		value = buf_pool.stat.flush_list_bytes;
 		break;
 
 	/* innodb_buffer_pool_pages_free */
 	case MONITOR_OVLD_BUF_POOL_PAGES_FREE:
-		buf_get_total_list_len(&LRU_len, &free_len, &flush_list_len);
-		value = free_len;
+		value = UT_LIST_GET_LEN(buf_pool.free);
 		break;
 
 	/* innodb_pages_created, the number of pages created */
 	case MONITOR_OVLD_PAGE_CREATED:
-		buf_get_total_stat(&stat);
-		value = stat.n_pages_created;
+		value = buf_pool.stat.n_pages_created;
 		break;
 
 	/* innodb_pages_written, the number of page written */
 	case MONITOR_OVLD_PAGES_WRITTEN:
-		buf_get_total_stat(&stat);
-		value = stat.n_pages_written;
+		value = buf_pool.stat.n_pages_written;
 		break;
 
 	/* innodb_index_pages_written, the number of index pages written */
@@ -1733,8 +1639,7 @@ srv_mon_process_existing_counter(
 
 	/* innodb_pages_read */
 	case MONITOR_OVLD_PAGES_READ:
-		buf_get_total_stat(&stat);
-		value = stat.n_pages_read;
+		value = buf_pool.stat.n_pages_read;
 		break;
 
 	/* Number of times secondary index lookup triggered cluster lookup */
@@ -1779,12 +1684,12 @@ srv_mon_process_existing_counter(
 
 	/* innodb_os_log_fsyncs */
 	case MONITOR_OVLD_OS_LOG_FSYNC:
-		value = fil_n_log_flushes;
+		value = log_sys.get_flushes();
 		break;
 
 	/* innodb_os_log_pending_fsyncs */
 	case MONITOR_OVLD_OS_LOG_PENDING_FSYNC:
-		value = fil_n_pending_log_flushes;
+		value = log_sys.get_pending_flushes();
 		update_min = TRUE;
 		break;
 
@@ -1815,12 +1720,16 @@ srv_mon_process_existing_counter(
 
 	/* innodb_dblwr_writes */
 	case MONITOR_OVLD_SRV_DBLWR_WRITES:
-		value = srv_stats.dblwr_writes;
+		buf_dblwr.lock();
+		value = buf_dblwr.batches();
+		buf_dblwr.unlock();
 		break;
 
 	/* innodb_dblwr_pages_written */
 	case MONITOR_OVLD_SRV_DBLWR_PAGES_WRITTEN:
-		value = srv_stats.dblwr_pages_written;
+		buf_dblwr.lock();
+		value = buf_dblwr.written();
+		buf_dblwr.unlock();
 		break;
 
 	/* innodb_page_size */
@@ -1951,35 +1860,35 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_INSERT:
-		value = ibuf->n_merged_ops[IBUF_OP_INSERT];
+		value = ibuf.n_merged_ops[IBUF_OP_INSERT];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_DELETE:
-		value = ibuf->n_merged_ops[IBUF_OP_DELETE_MARK];
+		value = ibuf.n_merged_ops[IBUF_OP_DELETE_MARK];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_PURGE:
-		value = ibuf->n_merged_ops[IBUF_OP_DELETE];
+		value = ibuf.n_merged_ops[IBUF_OP_DELETE];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_DISCARD_INSERT:
-		value = ibuf->n_discarded_ops[IBUF_OP_INSERT];
+		value = ibuf.n_discarded_ops[IBUF_OP_INSERT];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_DISCARD_DELETE:
-		value = ibuf->n_discarded_ops[IBUF_OP_DELETE_MARK];
+		value = ibuf.n_discarded_ops[IBUF_OP_DELETE_MARK];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGE_DISCARD_PURGE:
-		value = ibuf->n_discarded_ops[IBUF_OP_DELETE];
+		value = ibuf.n_discarded_ops[IBUF_OP_DELETE];
 		break;
 
 	case MONITOR_OVLD_IBUF_MERGES:
-		value = ibuf->n_merges;
+		value = ibuf.n_merges;
 		break;
 
 	case MONITOR_OVLD_IBUF_SIZE:
-		value = ibuf->size;
+		value = ibuf.size;
 		break;
 
 	case MONITOR_OVLD_SERVER_ACTIVITY:
@@ -1987,34 +1896,42 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_OVLD_LSN_FLUSHDISK:
-		value = (mon_type_t) log_sys.flushed_to_disk_lsn;
+		value = log_sys.get_flushed_lsn();
 		break;
 
 	case MONITOR_OVLD_LSN_CURRENT:
-		value = (mon_type_t) log_sys.lsn;
+		value = log_sys.get_lsn();
 		break;
 
 	case MONITOR_PENDING_LOG_FLUSH:
-		mutex_enter(&log_sys.mutex);
-		value = static_cast<mon_type_t>(log_sys.n_pending_flushes);
-		mutex_exit(&log_sys.mutex);
+		value = static_cast<mon_type_t>(log_sys.pending_flushes);
+
 		break;
 
 	case MONITOR_PENDING_CHECKPOINT_WRITE:
-		mutex_enter(&log_sys.mutex);
+		mysql_mutex_lock(&log_sys.mutex);
 		value = static_cast<mon_type_t>(
 		    log_sys.n_pending_checkpoint_writes);
-		mutex_exit(&log_sys.mutex);
+		mysql_mutex_unlock(&log_sys.mutex);
 		break;
 
 	case MONITOR_LOG_IO:
-		mutex_enter(&log_sys.mutex);
+		mysql_mutex_lock(&log_sys.mutex);
 		value = static_cast<mon_type_t>(log_sys.n_log_ios);
-		mutex_exit(&log_sys.mutex);
+		mysql_mutex_unlock(&log_sys.mutex);
+		break;
+
+	case MONITOR_LSN_CHECKPOINT_AGE:
+		mysql_mutex_lock(&log_sys.mutex);
+		value = static_cast<mon_type_t>(log_sys.get_lsn()
+						- log_sys.last_checkpoint_lsn);
+		mysql_mutex_unlock(&log_sys.mutex);
 		break;
 
 	case MONITOR_OVLD_BUF_OLDEST_LSN:
-		value = (mon_type_t) buf_pool_get_oldest_modification();
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		value = (mon_type_t) buf_pool.get_oldest_modification(0);
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		break;
 
 	case MONITOR_OVLD_LSN_CHECKPOINT:
@@ -2023,10 +1940,6 @@ srv_mon_process_existing_counter(
 
 	case MONITOR_OVLD_MAX_AGE_ASYNC:
 		value = log_sys.max_modified_age_async;
-		break;
-
-	case MONITOR_OVLD_MAX_AGE_SYNC:
-		value = log_sys.max_modified_age_sync;
 		break;
 
 #ifdef BTR_CUR_HASH_ADAPT

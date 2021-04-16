@@ -1,0 +1,8 @@
+FOUND 1 /\[ERROR\].*unknown variable 'performance-schema-enabled=maybe'/ in my_restart.err
+# Server start with invalid startup option value 'performance-schema-enabled=maybe' : pass
+FOUND 1 /\[ERROR\].*unknown variable 'performance-schema-max_=12'/ in my_restart.err
+# Server start with ambigous startup option 'performance-schema-max_=12' : pass
+FOUND 1 /\[ERROR\].*unknown option '--performance-schema-unknown_99'/ in my_restart.err
+# Server start with invalid startup option '--performance-schema-unknown_99' : pass
+FOUND 1 /Can.t change dir to .*bad_option_h_param/ in my_restart.err
+# Server start with invalid startup option value '--datadir=bad_option_h_param' : pass

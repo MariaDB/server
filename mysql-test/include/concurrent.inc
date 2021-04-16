@@ -31,34 +31,25 @@ SET SQL_MODE="";
 # Show prerequisites for this test.
 #
 SELECT @@global.tx_isolation;
-SELECT @@global.innodb_locks_unsafe_for_binlog;
 #
-# When innodb_locks_unsafe_for_binlog is not set (zero), which is the
-# default, InnoDB takes "next-key locks"/"gap locks". This means it
+# With the transaction isolation level REPEATABLE READ (the default)
+# or SERIALIZEBLE, InnoDB takes "next-key locks"/"gap locks". This means it
 # locks the gap before the keys that it accessed to find the rows to
 # use for a statement. In this case we have to expect some more lock
-# wait timeouts in the tests below as if innodb_locks_unsafe_for_binlog
-# is set (non-zero). In the latter case no "next-key locks"/"gap locks"
-# are taken and locks on keys that do not match the WHERE conditon are
-# released. Hence less lock collisions occur.
+# wait timeouts in the tests, compared to READ UNCOMMITTED or READ COMMITTED.
+# For READ UNCOMMITTED or READ COMMITTED, no "next-key locks"/"gap locks"
+# are taken and locks on keys that do not match the WHERE condition are
+# released. Hence fewer lock collisions occur.
 # We use the variable $keep_locks to set the expectations for
 # lock wait timeouts accordingly.
 #
-let $keep_locks= `SELECT NOT @@global.innodb_locks_unsafe_for_binlog`;
+let $keep_locks= `SELECT @@global.tx_isolation IN ('REPEATABLE-READ','SERIALIZABLE')`;
 --echo # keep_locks == $keep_locks
 
 #
 # Set up privileges and remove user level locks, if exist.
 #
 GRANT USAGE ON test.* TO mysqltest@localhost;
-
-#
-# Preparatory cleanup.
-#
---disable_warnings
-drop table if exists t1;
---enable_warnings
-
 
 --echo
 --echo **
@@ -67,7 +58,7 @@ drop table if exists t1;
   connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -99,7 +90,7 @@ drop table if exists t1;
   --echo ** Update on t1 will cause a table scan which will be blocked because
   --echo ** the previously initiated table scan applied exclusive key locks on 
   --echo ** all primary keys.
-  --echo ** Not so if innodb_locks_unsafe_for_binlog is set. The locks that
+  --echo ** Not so for READ UNCOMMITTED or READ COMMITTED. The locks that
   --echo ** do not match the WHERE condition are released.
   if ($keep_locks)
   {
@@ -157,7 +148,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -190,7 +181,7 @@ drop table t1;
   --echo ** Update on t1 will cause a table scan which will be blocked because
   --echo ** the previously initiated table scan applied exclusive key locks on 
   --echo ** all primary keys.
-  --echo ** Not so if innodb_locks_unsafe_for_binlog is set. The locks that
+  --echo ** Not so for READ UNCOMMITTED or READ COMMITTED. The locks that
   --echo ** do not match the WHERE condition are released.
   if ($keep_locks)
   {
@@ -246,7 +237,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1 (a int not null, b int not null);
   insert into t1 values (1,1),(2,1),(3,1),(4,1);
   --echo ** Create ULL 'hello2'
@@ -296,7 +287,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -358,7 +349,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -386,7 +377,7 @@ drop table t1;
   --echo ** Updating single row using a table scan. This will time out
   --echo ** because of ongoing transaction on thread 1 holding lock on
   --echo ** all primary keys in the scan.
-  --echo ** Not so if innodb_locks_unsafe_for_binlog is set. The locks that
+  --echo ** Not so for READ UNCOMMITTED or READ COMMITTED. The locks that
   --echo ** do not match the WHERE condition are released.
   if ($keep_locks)
   {
@@ -429,7 +420,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -487,7 +478,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -542,7 +533,7 @@ drop table t1;
   #connect (thread1, localhost, mysqltest,,);
   connection thread1;
   --echo ** Set up table
-  eval SET SESSION STORAGE_ENGINE = $engine_type;
+  eval SET SESSION DEFAULT_STORAGE_ENGINE = $engine_type;
   create table t1(eta int(11) not null, tipo int(11), c varchar(255));
   insert into t1 values (7,7, "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa");
   insert into t1 values (8,8, "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb");
@@ -570,7 +561,7 @@ drop table t1;
   --echo ** Update on t1 will cause a table scan which will be blocked because
   --echo ** the previously initiated table scan applied exclusive key locks on 
   --echo ** all primary keys.
-  --echo ** Not so if innodb_locks_unsafe_for_binlog is set. The locks that
+  --echo ** Not so for READ UNCOMMITTED or READ COMMITTED. The locks that
   --echo ** do not match the WHERE condition are released.
   if ($keep_locks)
   {
@@ -598,13 +589,8 @@ drop table t1;
   connection thread1;
   select * from t1;
 
---echo ** Cleanup
-connection thread1;
 disconnect thread1;
---source include/wait_until_disconnected.inc
-connection thread2;
 disconnect thread2;
---source include/wait_until_disconnected.inc
 connection default;
 drop table t1;
 drop user mysqltest@localhost;

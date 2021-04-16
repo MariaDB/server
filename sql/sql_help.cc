@@ -92,14 +92,12 @@ static bool init_fields(THD *thd, TABLE_LIST *tables,
   context->resolve_in_table_list_only(tables);
   for (; count-- ; find_fields++)
   {
-    LEX_CSTRING field_name= {find_fields->field_name,
-                             strlen(find_fields->field_name) };
     /* We have to use 'new' here as field will be re_linked on free */
     Item_field *field= (new (thd->mem_root)
                         Item_field(thd, context,
-                                   "mysql",
-                                   find_fields->table_name,
-                                   &field_name));
+                                   {STRING_WITH_LEN("mysql")},
+                                   Lex_cstring_strlen(find_fields->table_name),
+                                   Lex_cstring_strlen(find_fields->field_name)));
     if (!(find_fields->field= find_field_in_tables(thd, field, tables, NULL,
 						   0, REPORT_ALL_ERRORS, 1,
                                                    TRUE)))
@@ -673,7 +671,7 @@ SQL_SELECT *prepare_select_for_name(THD *thd, const char *mask, size_t mlen,
 
   RETURN VALUES
     FALSE Success
-    TRUE  Error and send_error already commited
+    TRUE  Error and send_error already committed
 */
 
 static bool mysqld_help_internal(THD *thd, const char *mask)
@@ -711,8 +709,9 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
     Reset and backup the current open tables state to
     make it possible.
   */
-  Open_tables_backup open_tables_state_backup;
-  if (open_system_tables_for_read(thd, tables, &open_tables_state_backup))
+  start_new_trans new_trans(thd);
+
+  if (open_system_tables_for_read(thd, tables))
     goto error2;
 
   /*
@@ -848,11 +847,13 @@ static bool mysqld_help_internal(THD *thd, const char *mask)
   }
   my_eof(thd);
 
-  close_system_tables(thd, &open_tables_state_backup);
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
   DBUG_RETURN(FALSE);
 
 error:
-  close_system_tables(thd, &open_tables_state_backup);
+  thd->commit_whole_transaction_and_close_tables();
+  new_trans.restore_old_transaction();
 
 error2:
   DBUG_RETURN(TRUE);
@@ -861,9 +862,7 @@ error2:
 
 bool mysqld_help(THD *thd, const char *mask)
 {
-  sql_mode_t sql_mode_backup= thd->variables.sql_mode;
-  thd->variables.sql_mode&= ~MODE_PAD_CHAR_TO_FULL_LENGTH;
+  Sql_mode_instant_remove sms(thd, MODE_PAD_CHAR_TO_FULL_LENGTH);
   bool rc= mysqld_help_internal(thd, mask);
-  thd->variables.sql_mode= sql_mode_backup;
   return rc;
 }

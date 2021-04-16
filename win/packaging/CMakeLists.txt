@@ -123,7 +123,7 @@ ELSE()
 ENDIF()
 SET(CPACK_WIX_CONFIG ${CMAKE_CURRENT_SOURCE_DIR}/CPackWixConfig.cmake)
 
-IF(NOT TARGET mysql_upgrade_wizard)
+IF(NOT TARGET mariadb-upgrade-wizard)
   SET(EXTRA_WIX_PREPROCESSOR_FLAGS "-dHaveUpgradeWizard=0")
 ENDIF()
 IF(WITH_INNOBASE_STORAGE_ENGINE)
@@ -176,43 +176,6 @@ IF(CMAKE_GENERATOR MATCHES "Visual Studio")
  SET(CONFIG_PARAM "-DCMAKE_INSTALL_CONFIG_NAME=${CMAKE_CFG_INTDIR}")
 ENDIF()
 
-IF(MSVC_CRT_TYPE MATCHES "/MD")
-  # Find out CRT merge module path, we're going to use it in installer
-  # The path  and name depends on VS version
-  IF(MSVC_VERSION LESS 1900)
-    # VS2015
-    SET(VCREDIST_MSM_FILENAME Microsoft_VC140_CRT_${WIX_ARCH_SUFFIX}.msm)
-    SET(ProgramFilesX86 "ProgramFiles(x86)")
-    FIND_FILE(${VCREDIST_MSM_FILENAME}
-      NO_DEFAULT_PATH
-      PATHS
-        "$ENV{${ProgramFilesX86}}/Common Files/Merge Modules"
-        "$ENV{ProgramFiles}/Common Files/Merge Modules"
-    )
-  ELSEIF(MSVC_VERSION LESS 1920)
-    # VS2017
-    SET(VCREDIST_MSM_FILENAME Microsoft_VC141_CRT_${WIX_ARCH_SUFFIX}.msm)
-    FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/2017/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
-    LIST(LENGTH MSM_LIST LEN)
-    IF(LEN GREATER 0)
-      LIST(GET MSM_LIST 0 VCRedist_MSM)
-    ENDIF()
-  ELSE()
-    # VS2019
-    SET(VCREDIST_MSM_FILENAME Microsoft_VC142_CRT_${WIX_ARCH_SUFFIX}.msm)
-    FILE(GLOB MSM_LIST "C:/Program Files*/Microsoft Visual Studio/2019/*/VC/Redist/MSVC/*/MergeModules/${VCREDIST_MSM_FILENAME}")
-    LIST(LENGTH MSM_LIST LEN)
-    IF(LEN GREATER 0)
-      LIST(GET MSM_LIST 0 VCRedist_MSM)
-    ENDIF()
-  ENDIF()
-  IF (NOT VCRedist_MSM)
-    MESSAGE(WARNING "Can't find merge module ${VCREDIST_MSM_FILENAME}")
-  ELSE()
-    FILE(TO_NATIVE_PATH  ${VCRedist_MSM} VCRedist_MSM)
-    # MESSAGE("VCRedist_MSM=${VCRedist_MSM}")
-  ENDIF()
-ENDIF()
 
 ADD_CUSTOM_TARGET(
   MSI
@@ -245,7 +208,7 @@ ADD_CUSTOM_TARGET(
     -DWITH_THIRD_PARTY="${WITH_THIRD_PARTY}"
     -DWIXCA_LOCATION="$<TARGET_FILE:wixca>"
     -DMSVC_CRT_TYPE="${MSVC_CRT_TYPE}"
-    -DVCRedist_MSM="${VCRedist_MSM}"
+    -DDYNAMIC_UCRT_LINK="${DYNAMIC_UCRT_LINK}"
     -P  ${CMAKE_CURRENT_SOURCE_DIR}/create_msi.cmake
 )
 ADD_DEPENDENCIES(MSI wixca)

@@ -37,8 +37,6 @@ ENDFOREACH()
 FILE(READ ${TOP_SRCDIR}/scripts/fill_help_tables.sql CONTENTS)
 FILE(APPEND bootstrap.sql "${CONTENTS}")
 
-FILE(REMOVE_RECURSE mysql performance_schema)
-FILE(REMOVE ibdata1 ib_logfile0 ib_logfile1)
 
 MAKE_DIRECTORY(mysql)
 
@@ -46,13 +44,8 @@ SET(BOOTSTRAP_COMMAND
   ${MYSQLD_EXECUTABLE} 
   --no-defaults 
   --console
-  --bootstrap 
-  --lc-messages-dir=${BINDIR}/share
-  --basedir=.
+  --bootstrap
   --datadir=.
-  --default-storage-engine=MyISAM
-  --max_allowed_packet=8M
-  --net_buffer_length=32K
 )
 
 GET_FILENAME_COMPONENT(CWD . ABSOLUTE)

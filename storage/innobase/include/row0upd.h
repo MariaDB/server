@@ -75,7 +75,7 @@ void
 upd_field_set_field_no(
 /*===================*/
 	upd_field_t*	upd_field,	/*!< in: update vector field */
-	ulint		field_no,	/*!< in: field number in a clustered
+	uint16_t	field_no,	/*!< in: field number in a clustered
 					index */
 	dict_index_t*	index);
 
@@ -87,7 +87,7 @@ UNIV_INLINE
 void
 upd_field_set_v_field_no(
 	upd_field_t*	upd_field,
-	ulint		field_no,
+	uint16_t	field_no,
 	dict_index_t*	index);
 /*********************************************************************//**
 Returns a field of an update vector by field_no.
@@ -97,23 +97,9 @@ const upd_field_t*
 upd_get_field_by_field_no(
 /*======================*/
 	const upd_t*	update,	/*!< in: update vector */
-	ulint		no,	/*!< in: field_no */
+	uint16_t	no,	/*!< in: field_no */
 	bool		is_virtual) /*!< in: if it is a virtual column */
 	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-Updates the trx id and roll ptr field in a clustered index record when
-a row is updated or marked deleted. */
-UNIV_INLINE
-void
-row_upd_rec_sys_fields(
-/*===================*/
-	rec_t*		rec,	/*!< in/out: record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page whose
-				uncompressed part will be updated, or NULL */
-	dict_index_t*	index,	/*!< in: clustered index */
-	const rec_offs*	offsets,/*!< in: rec_get_offsets(rec, index) */
-	const trx_t*	trx,	/*!< in: transaction */
-	roll_ptr_t	roll_ptr);/*!< in: DB_ROLL_PTR to the undo log */
 /*********************************************************************//**
 Creates an update node for a query graph.
 @return own: update node */
@@ -121,17 +107,6 @@ upd_node_t*
 upd_node_create(
 /*============*/
 	mem_heap_t*	heap);	/*!< in: mem heap where created */
-/***********************************************************//**
-Writes to the redo log the new values of the fields occurring in the index. */
-void
-row_upd_index_write_log(
-/*====================*/
-	const upd_t*	update,	/*!< in: update vector */
-	byte*		log_ptr,/*!< in: pointer to mlog buffer: must
-				contain at least MLOG_BUF_MARGIN bytes
-				of free space; the buffer is closed
-				within this function */
-	mtr_t*		mtr);	/*!< in: mtr into whose log to write */
 /***********************************************************//**
 Returns TRUE if row update changes size of some field in index or if some
 field to be updated is stored externally in rec or update.
@@ -151,21 +126,6 @@ row_upd_changes_disowned_external(
 /*==============================*/
 	const upd_t*	update)	/*!< in: update vector */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/***********************************************************//**
-Replaces the new column values stored in the update vector to the
-record given. No field size changes are allowed. This function is
-usually invoked on a clustered index. The only use case for a
-secondary index is row_ins_sec_index_entry_by_modify() or its
-counterpart in ibuf_insert_to_index_page(). */
-void
-row_upd_rec_in_place(
-/*=================*/
-	rec_t*		rec,	/*!< in/out: record where replaced */
-	dict_index_t*	index,	/*!< in: the index the record belongs to */
-	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
-	const upd_t*	update,	/*!< in: update vector */
-	page_zip_des_t*	page_zip);/*!< in: compressed page with enough space
-				available, or NULL */
 
 /***************************************************************//**
 Builds an update vector from those fields which in a secondary index entry
@@ -340,52 +300,17 @@ que_thr_t*
 row_upd_step(
 /*=========*/
 	que_thr_t*	thr);	/*!< in: query thread */
-/*********************************************************************//**
-Parses the log data of system field values.
-@return log data end or NULL */
-byte*
-row_upd_parse_sys_vals(
-/*===================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	ulint*		pos,	/*!< out: TRX_ID position in record */
-	trx_id_t*	trx_id,	/*!< out: trx id */
-	roll_ptr_t*	roll_ptr);/*!< out: roll ptr */
-/*********************************************************************//**
-Updates the trx id and roll ptr field in a clustered index record in database
-recovery. */
-void
-row_upd_rec_sys_fields_in_recovery(
-/*===============================*/
-	rec_t*		rec,	/*!< in/out: record */
-	page_zip_des_t*	page_zip,/*!< in/out: compressed page, or NULL */
-	const rec_offs*	offsets,/*!< in: array returned by rec_get_offsets() */
-	ulint		pos,	/*!< in: TRX_ID position in rec */
-	trx_id_t	trx_id,	/*!< in: transaction id */
-	roll_ptr_t	roll_ptr);/*!< in: roll ptr of the undo log record */
-/*********************************************************************//**
-Parses the log data written by row_upd_index_write_log.
-@return log data end or NULL */
-byte*
-row_upd_index_parse(
-/*================*/
-	const byte*	ptr,	/*!< in: buffer */
-	const byte*	end_ptr,/*!< in: buffer end */
-	mem_heap_t*	heap,	/*!< in: memory heap where update vector is
-				built */
-	upd_t**		update_out);/*!< out: update vector */
-
 
 /* Update vector field */
 struct upd_field_t{
-	unsigned	field_no:16;	/*!< field number in an index, usually
+	uint16_t	field_no;	/*!< field number in an index, usually
 					the clustered index, but in updating
 					a secondary index record in btr0cur.cc
 					this is the position in the secondary
 					index. If this field is a virtual
 					column, then field_no represents
 					the nth virtual	column in the table */
-	unsigned	orig_len:16;	/*!< original length of the locally
+	uint16_t	orig_len;	/*!< original length of the locally
 					stored part of an externally stored
 					column, or 0 */
 	que_node_t*	exp;		/*!< expression for calculating a new
@@ -408,7 +333,7 @@ struct upd_field_t{
 /* Update vector structure */
 struct upd_t{
 	mem_heap_t*	heap;		/*!< heap from which memory allocated */
-	ulint		info_bits;	/*!< new value of info bits to record;
+	byte		info_bits;	/*!< new value of info bits to record;
 					default is 0 */
 	dtuple_t*	old_vrow;	/*!< pointer to old row, used for
 					virtual column update now */
@@ -450,7 +375,7 @@ struct upd_t{
 
         /** Determine if the given field_no is modified.
 	@return true if modified, false otherwise.  */
-	bool is_modified(const ulint field_no) const
+	bool is_modified(uint16_t field_no) const
 	{
 		for (ulint i = 0; i < n_fields; ++i) {
 			if (field_no == fields[i].field_no) {

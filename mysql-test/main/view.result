@@ -198,7 +198,7 @@ c	d
 drop view v100;
 ERROR 42S02: Unknown VIEW: 'test.v100'
 drop view t1;
-ERROR HY000: 'test.t1' is not of type 'VIEW'
+ERROR 42S02: Unknown VIEW: 'test.t1'
 drop table v1;
 ERROR 42S02: 'test.v1' is a view
 drop view v1,v2;
@@ -2848,7 +2848,11 @@ Tables_in_test
 t1
 CREATE VIEW v1 AS SELECT id FROM t1;
 DROP VIEW t1,v1;
-ERROR HY000: 'test.t1' is not of type 'VIEW'
+ERROR 42S02: Unknown VIEW: 'test.t1'
+show warnings;
+Level	Code	Message
+Warning	1347	'test.t1' is not of type 'VIEW'
+Error	4092	Unknown VIEW: 'test.t1'
 SHOW TABLES;
 Tables_in_test
 t1
@@ -5738,8 +5742,7 @@ drop view v60;
 #
 # MDEV-15572: view.test, server crash with --big-tables=1
 #
-set @save_big_tables=@@big_tables;
-set big_tables=ON;
+set tmp_memory_table_size=0;
 CREATE TABLE t1 ( f1 int , f2 int , f3 int , f4 int);
 CREATE TABLE t2 ( f1 int , f2 int , f3 int , f4 int);
 CREATE VIEW v1 AS
@@ -5749,7 +5752,7 @@ SELECT f1, f2, f3, f4 FROM t1;
 ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
 drop view v1;
 drop table t1, t2;
-set big_tables=@save_big_tables;
+set tmp_memory_table_size=default;
 # -----------------------------------------------------------------
 # -- End of 5.5 tests.
 # -----------------------------------------------------------------

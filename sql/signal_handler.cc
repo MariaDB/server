@@ -48,9 +48,6 @@
 static volatile sig_atomic_t segfaulted= 0;
 extern ulong max_used_connections;
 extern volatile sig_atomic_t calling_initgroups;
-#ifdef HAVE_NPTL
-extern volatile sig_atomic_t ld_assume_kernel_is_set;
-#endif
 
 extern const char *optimizer_switch_names[];
 
@@ -61,12 +58,17 @@ static inline void output_core_info()
   char buff[PATH_MAX];
   ssize_t len;
   int fd;
-  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff))) >= 0)
+  if ((len= readlink("/proc/self/cwd", buff, sizeof(buff)-1)) >= 0)
   {
+    buff[len]= 0;
     my_safe_printf_stderr("Writing a core file...\nWorking directory at %.*s\n",
                           (int) len, buff);
   }
+#ifdef __FreeBSD__
+  if ((fd= my_open("/proc/curproc/rlimit", O_RDONLY, MYF(0))) >= 0)
+#else
   if ((fd= my_open("/proc/self/limits", O_RDONLY, MYF(0))) >= 0)
+#endif
   {
     my_safe_printf_stderr("Resource Limits:\n");
     while ((len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0))) > 0)
@@ -306,21 +308,6 @@ extern "C" sig_handler handle_fatal_signal(int sig)
       "have this problem (2.3.4 or later when used with nscd),\n"
       "disable LDAP in your nsswitch.conf, or use a "
       "mysqld that is not statically linked.\n");
-  }
-#endif
-
-#ifdef HAVE_NPTL
-  if (thd_lib_detected == THD_LIB_LT && !ld_assume_kernel_is_set)
-  {
-    my_safe_printf_stderr("%s",
-      "You are running a statically-linked LinuxThreads binary on an NPTL\n"
-      "system. This can result in crashes on some distributions due to "
-      "LT/NPTL conflicts.\n"
-      "You should either build a dynamically-linked binary, "
-      "or force LinuxThreads\n"
-      "to be used with the LD_ASSUME_KERNEL environment variable.\n"
-      "Please consult the documentation for your distribution "
-      "on how to do that.\n");
   }
 #endif
 

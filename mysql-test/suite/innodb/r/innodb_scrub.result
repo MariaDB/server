@@ -1,0 +1,12 @@
+CREATE TABLE t1(f1 int auto_increment primary key,
+f2 varchar(256),
+f3 text) engine = innodb;
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+FOUND 500500 /unicycle|repairman/ in t1.ibd
+DELETE FROM t1;
+InnoDB		0 transactions not purged
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+NOT FOUND /unicycle|repairman/ in t1.ibd
+DROP TABLE t1;

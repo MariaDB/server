@@ -34,6 +34,7 @@ Handler_read_rnd	0
 Handler_read_rnd_deleted	0
 Handler_read_rnd_next	0
 FLUSH STATUS;
+SET GLOBAL rocksdb_force_flush_memtable_and_lzero_now=1;
 SELECT * FROM t1 WHERE b=6;
 id	a	b
 6	NULL	6

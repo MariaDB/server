@@ -1,5 +1,5 @@
 /* Copyright (c) 2005, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -71,15 +71,6 @@ typedef struct my_xpath_lex_st
 } MY_XPATH_LEX;
 
 
-/* Structure to store nodesets */
-typedef struct my_xpath_flt_st
-{
-  uint num;     /* absolute position in MY_XML_NODE array */
-  uint pos;     /* relative position in context           */
-  uint size;    /* context size                           */
-} MY_XPATH_FLT;
-
-
 /* XPath function creator */
 typedef struct my_xpath_function_names_st
 {
@@ -105,48 +96,11 @@ typedef struct my_xpath_st
   Item *item;            /* current expression                        */
   Item *context;         /* last scanned context                      */
   Item *rootelement;     /* The root element                          */
-  String *context_cache; /* last context provider                     */
+  Native *context_cache; /* last context provider                     */
   String *pxml;          /* Parsed XML, an array of MY_XML_NODE       */
   CHARSET_INFO *cs;      /* character set/collation string comparison */
   int error;
 } MY_XPATH;
-
-
-/* Dynamic array of MY_XPATH_FLT */
-class XPathFilter :public String
-{
-public:
-  XPathFilter() :String() {}
-  inline bool append_element(MY_XPATH_FLT *flt)
-  {
-    String *str= this;
-    return str->append((const char*)flt, (uint32) sizeof(MY_XPATH_FLT));
-  }
-  inline bool append_element(uint32 num, uint32 pos)
-  {
-    MY_XPATH_FLT add;
-    add.num= num;
-    add.pos= pos;
-    add.size= 0;
-    return append_element(&add);
-  }
-  inline bool append_element(uint32 num, uint32 pos, uint32 size)
-  {
-    MY_XPATH_FLT add;
-    add.num= num;
-    add.pos= pos;
-    add.size= size;
-    return append_element(&add);
-  }
-  inline MY_XPATH_FLT *element(uint i)
-  { 
-    return (MY_XPATH_FLT*) (ptr() + i * sizeof(MY_XPATH_FLT));
-  }
-  inline uint32 numelements()
-  {
-    return length() / sizeof(MY_XPATH_FLT);
-  }
-};
 
 
 static Type_handler_long_blob type_handler_xpath_nodeset;
@@ -158,13 +112,13 @@ static Type_handler_long_blob type_handler_xpath_nodeset;
 class Item_nodeset_func :public Item_str_func
 {
 protected:
-  String tmp_value, tmp2_value;
+  NativeNodesetBuffer tmp_native_value, tmp2_native_value;
   MY_XPATH_FLT *fltbeg, *fltend;
   MY_XML_NODE *nodebeg, *nodeend;
   uint numnodes;
 public:
   String *pxml;
-  String context_cache;
+  NativeNodesetBuffer context_cache;
   Item_nodeset_func(THD *thd, String *pxml_arg):
     Item_str_func(thd), pxml(pxml_arg) {}
   Item_nodeset_func(THD *thd, Item *a, String *pxml_arg):
@@ -179,12 +133,12 @@ public:
     nodeend= (MY_XML_NODE*) (pxml->ptr() + pxml->length());
     numnodes= (uint)(nodeend - nodebeg);
   }
-  void prepare(String *nodeset)
+  void prepare(THD *thd, Native *nodeset)
   {
     prepare_nodes();
-    String *res= args[0]->val_raw(&tmp_value);
-    fltbeg= (MY_XPATH_FLT*) res->ptr();
-    fltend= (MY_XPATH_FLT*) (res->ptr() + res->length());
+    args[0]->val_native(thd, &tmp_native_value);
+    fltbeg= (MY_XPATH_FLT*) tmp_native_value.ptr();
+    fltend= (MY_XPATH_FLT*) tmp_native_value.end();
     nodeset->length(0);
   }
   const Type_handler *type_handler() const
@@ -195,7 +149,7 @@ public:
   {
     return &type_handler_xpath_nodeset;
   }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     DBUG_ASSERT(0);
@@ -204,9 +158,9 @@ public:
   String *val_str(String *str)
   {
     prepare_nodes();
-    String *res= val_raw(&tmp2_value);
-    fltbeg= (MY_XPATH_FLT*) res->ptr();
-    fltend= (MY_XPATH_FLT*) (res->ptr() + res->length());
+    val_native(current_thd, &tmp2_native_value);
+    fltbeg= (MY_XPATH_FLT*) tmp2_native_value.ptr();
+    fltend= (MY_XPATH_FLT*) tmp2_native_value.end();
     String active;
     active.alloc(numnodes);
     bzero((char*) active.ptr(), numnodes);
@@ -235,7 +189,6 @@ public:
     }
     return str;
   }
-  enum Item_result result_type () const { return STRING_RESULT; }
   bool fix_length_and_dec()
   {
     max_length= MAX_BLOB_WIDTH;
@@ -261,7 +214,7 @@ public:
   Item_nodeset_func_rootelement(THD *thd, String *pxml):
     Item_nodeset_func(thd, pxml) {}
   const char *func_name() const { return "xpath_rootelement"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_rootelement>(thd, this); }
 };
@@ -274,7 +227,7 @@ public:
   Item_nodeset_func_union(THD *thd, Item *a, Item *b, String *pxml):
     Item_nodeset_func(thd, a, b, pxml) {}
   const char *func_name() const { return "xpath_union"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_union>(thd, this); }
 };
@@ -308,7 +261,7 @@ public:
                                String *pxml):
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_selfbyname"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_selfbyname>(thd, this); }
 };
@@ -322,7 +275,7 @@ public:
                                 String *pxml): 
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_childbyname"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_childbyname>(thd, this); }
 };
@@ -338,7 +291,7 @@ public:
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml),
       need_self(need_self_arg) {}
   const char *func_name() const { return "xpath_descendantbyname"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_descendantbyname>(thd, this); }
 };
@@ -354,7 +307,7 @@ public:
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml),
       need_self(need_self_arg) {}
   const char *func_name() const { return "xpath_ancestorbyname"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_ancestorbyname>(thd, this); }
 };
@@ -368,7 +321,7 @@ public:
                                  String *pxml):
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_parentbyname"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_parentbyname>(thd, this); }
 };
@@ -382,7 +335,7 @@ public:
                                     uint l_arg, String *pxml):
     Item_nodeset_func_axisbyname(thd, a, n_arg, l_arg, pxml) {}
   const char *func_name() const { return "xpath_attributebyname"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_attributebyname>(thd, this); }
 };
@@ -399,7 +352,7 @@ public:
   Item_nodeset_func_predicate(THD *thd, Item *a, Item *b, String *pxml):
     Item_nodeset_func(thd, a, b, pxml) {}
   const char *func_name() const { return "xpath_predicate"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_predicate>(thd, this); }
 };
@@ -412,7 +365,7 @@ public:
   Item_nodeset_func_elementbyindex(THD *thd, Item *a, Item *b, String *pxml):
     Item_nodeset_func(thd, a, b, pxml) { }
   const char *func_name() const { return "xpath_elementbyindex"; }
-  String *val_raw(String *nodeset);
+  bool val_native(THD *thd, Native *nodeset);
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_func_elementbyindex>(thd, this); }
 };
@@ -427,7 +380,7 @@ public:
 class Item_xpath_cast_bool :public Item_bool_func
 {
   String *pxml;
-  String tmp_value;
+  NativeNodesetBuffer tmp_native_value;
 public:
   Item_xpath_cast_bool(THD *thd, Item *a, String *pxml_arg):
     Item_bool_func(thd, a), pxml(pxml_arg) {}
@@ -436,8 +389,8 @@ public:
   {
     if (args[0]->fixed_type_handler() == &type_handler_xpath_nodeset)
     {
-      String *flt= args[0]->val_raw(&tmp_value);
-      return flt->length() == sizeof(MY_XPATH_FLT) ? 1 : 0;
+      args[0]->val_native(current_thd, &tmp_native_value);
+      return tmp_native_value.elements() == 1 ? 1 : 0;
     }
     return args[0]->val_real() ? 1 : 0;
   }
@@ -466,11 +419,13 @@ public:
 class Item_nodeset_context_cache :public Item_nodeset_func
 {
 public:
-  String *string_cache;
-  Item_nodeset_context_cache(THD *thd, String *str_arg, String *pxml):
-    Item_nodeset_func(thd, pxml), string_cache(str_arg) { }
-  String *val_raw(String *res)
-  { return string_cache; }
+  Native *native_cache;
+  Item_nodeset_context_cache(THD *thd, Native *native_arg, String *pxml):
+    Item_nodeset_func(thd, pxml), native_cache(native_arg) { }
+  bool val_native(THD *thd, Native *nodeset)
+  {
+    return nodeset->copy(*native_cache);
+  }
   bool fix_length_and_dec() { max_length= MAX_BLOB_WIDTH;; return FALSE;  }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_nodeset_context_cache>(thd, this); }
@@ -480,7 +435,7 @@ public:
 class Item_func_xpath_position :public Item_long_func
 {
   String *pxml;
-  String tmp_value;
+  NativeNodesetBuffer tmp_native_value;
 public:
   Item_func_xpath_position(THD *thd, Item *a, String *p):
     Item_long_func(thd, a), pxml(p) {}
@@ -488,9 +443,9 @@ public:
   bool fix_length_and_dec() { max_length=10; return FALSE; }
   longlong val_int()
   {
-    String *flt= args[0]->val_raw(&tmp_value);
-    if (flt->length() == sizeof(MY_XPATH_FLT))
-      return ((MY_XPATH_FLT*)flt->ptr())->pos + 1;
+    args[0]->val_native(current_thd, &tmp_native_value);
+    if (tmp_native_value.elements() == 1)
+      return tmp_native_value.element(0).pos + 1;
     return 0;
   }
   Item *get_copy(THD *thd)
@@ -501,7 +456,7 @@ public:
 class Item_func_xpath_count :public Item_long_func
 {
   String *pxml;
-  String tmp_value;
+  NativeNodesetBuffer tmp_native_value;
 public:
   Item_func_xpath_count(THD *thd, Item *a, String *p):
     Item_long_func(thd, a), pxml(p) {}
@@ -510,11 +465,11 @@ public:
   longlong val_int()
   {
     uint predicate_supplied_context_size;
-    String *res= args[0]->val_raw(&tmp_value);
-    if (res->length() == sizeof(MY_XPATH_FLT) &&
-        (predicate_supplied_context_size= ((MY_XPATH_FLT*)res->ptr())->size))
+    args[0]->val_native(current_thd, &tmp_native_value);
+    if (tmp_native_value.elements() == 1 &&
+        (predicate_supplied_context_size= tmp_native_value.element(0).size))
       return predicate_supplied_context_size;
-    return res->length() / sizeof(MY_XPATH_FLT);
+    return tmp_native_value.elements();
   }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_func_xpath_count>(thd, this); }
@@ -524,7 +479,7 @@ public:
 class Item_func_xpath_sum :public Item_real_func
 {
   String *pxml;
-  String tmp_value;
+  NativeNodesetBuffer tmp_native_value;
 public:
   Item_func_xpath_sum(THD *thd, Item *a, String *p):
     Item_real_func(thd, a), pxml(p) {}
@@ -533,9 +488,9 @@ public:
   double val_real()
   {
     double sum= 0;
-    String *res= args[0]->val_raw(&tmp_value);
-    MY_XPATH_FLT *fltbeg= (MY_XPATH_FLT*) res->ptr();
-    MY_XPATH_FLT *fltend= (MY_XPATH_FLT*) (res->ptr() + res->length());
+    args[0]->val_native(current_thd, &tmp_native_value);
+    MY_XPATH_FLT *fltbeg= (MY_XPATH_FLT*) tmp_native_value.ptr();
+    MY_XPATH_FLT *fltend= (MY_XPATH_FLT*) tmp_native_value.end();
     uint numnodes= pxml->length() / sizeof(MY_XML_NODE);
     MY_XML_NODE *nodebeg= (MY_XML_NODE*) pxml->ptr();
   
@@ -552,8 +507,8 @@ public:
         {
           char *end;
           int err;
-          double add= my_strntod(collation.collation, (char*) node->beg,
-                                 node->end - node->beg, &end, &err);
+          double add= collation.collation->strntod((char*) node->beg,
+                                                   node->end - node->beg, &end, &err);
           if (!err)
             sum+= add;
         }
@@ -596,7 +551,7 @@ public:
 class Item_nodeset_to_const_comparator :public Item_bool_func
 {
   String *pxml;
-  String tmp_nodeset;
+  NativeNodesetBuffer tmp_nodeset;
 public:
   Item_nodeset_to_const_comparator(THD *thd, Item *nodeset, Item *cmpfunc,
                                    String *p):
@@ -606,7 +561,7 @@ public:
   {
     return mark_unsupported_function(func_name(), arg, VCOL_IMPOSSIBLE);
   }
-  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+  Field *create_tmp_field_ex(MEM_ROOT *root, TABLE *table, Tmp_field_src *src,
                              const Tmp_field_param *param)
   {
     DBUG_ASSERT(0);
@@ -617,9 +572,9 @@ public:
     Item_func *comp= (Item_func*)args[1];
     Item_string_xml_non_const *fake=
       (Item_string_xml_non_const*)(comp->arguments()[0]);
-    String *res= args[0]->val_raw(&tmp_nodeset);
-    MY_XPATH_FLT *fltbeg= (MY_XPATH_FLT*) res->ptr();
-    MY_XPATH_FLT *fltend= (MY_XPATH_FLT*) (res->ptr() + res->length());
+    args[0]->val_native(current_thd, &tmp_nodeset);
+    MY_XPATH_FLT *fltbeg= (MY_XPATH_FLT*) tmp_nodeset.ptr();
+    MY_XPATH_FLT *fltend= (MY_XPATH_FLT*) tmp_nodeset.end();
     MY_XML_NODE *nodebeg= (MY_XML_NODE*) pxml->ptr();
     uint numnodes= pxml->length() / sizeof(MY_XML_NODE);
 
@@ -648,32 +603,32 @@ public:
 };
 
 
-String *Item_nodeset_func_rootelement::val_raw(String *nodeset)
+bool Item_nodeset_func_rootelement::val_native(THD *thd, Native *nodeset)
 {
   nodeset->length(0);
-  ((XPathFilter*)nodeset)->append_element(0, 0);
-  return nodeset;
+  return MY_XPATH_FLT(0, 0).append_to(nodeset);
 }
 
 
-String * Item_nodeset_func_union::val_raw(String *nodeset)
+bool Item_nodeset_func_union::val_native(THD *thd, Native *nodeset)
 {
   uint num_nodes= pxml->length() / sizeof(MY_XML_NODE);
-  String set0, *s0= args[0]->val_raw(&set0);
-  String set1, *s1= args[1]->val_raw(&set1);
+  NativeNodesetBuffer set0, set1;
+  args[0]->val_native(thd, &set0);
+  args[1]->val_native(thd, &set1);
   String both_str;
   both_str.alloc(num_nodes);
   char *both= (char*) both_str.ptr();
   bzero((void*)both, num_nodes);
   MY_XPATH_FLT *flt;
 
-  fltbeg= (MY_XPATH_FLT*) s0->ptr();
-  fltend= (MY_XPATH_FLT*) (s0->ptr() + s0->length());
+  fltbeg= (MY_XPATH_FLT*) set0.ptr();
+  fltend= (MY_XPATH_FLT*) set0.end();
   for (flt= fltbeg; flt < fltend; flt++)
     both[flt->num]= 1;
 
-  fltbeg= (MY_XPATH_FLT*) s1->ptr();
-  fltend= (MY_XPATH_FLT*) (s1->ptr() + s1->length());
+  fltbeg= (MY_XPATH_FLT*) set1.ptr();
+  fltend= (MY_XPATH_FLT*) set1.end();
   for (flt= fltbeg; flt < fltend; flt++)
     both[flt->num]= 1;
 
@@ -681,29 +636,29 @@ String * Item_nodeset_func_union::val_raw(String *nodeset)
   for (uint i= 0, pos= 0; i < num_nodes; i++)
   {
     if (both[i])
-     ((XPathFilter*)nodeset)->append_element(i, pos++);
+     MY_XPATH_FLT(i, pos++).append_to(nodeset);
   }
-  return nodeset;
+  return false;
 }
 
 
-String *Item_nodeset_func_selfbyname::val_raw(String *nodeset)
+bool Item_nodeset_func_selfbyname::val_native(THD *thd, Native *nodeset)
 {
-  prepare(nodeset);
+  prepare(thd, nodeset);
   for (MY_XPATH_FLT *flt= fltbeg; flt < fltend; flt++)
   {
     uint pos= 0;
     MY_XML_NODE *self= &nodebeg[flt->num];
     if (validname(self))
-      ((XPathFilter*)nodeset)->append_element(flt->num,pos++);
+      MY_XPATH_FLT(flt->num, pos++).append_to(nodeset);
   }
-  return nodeset;
+  return false;
 }
 
 
-String *Item_nodeset_func_childbyname::val_raw(String *nodeset)
+bool Item_nodeset_func_childbyname::val_native(THD *thd, Native *nodeset)
 {
-  prepare(nodeset);
+  prepare(thd, nodeset);
   for (MY_XPATH_FLT *flt= fltbeg; flt < fltend; flt++)
   {
     MY_XML_NODE *self= &nodebeg[flt->num];
@@ -715,40 +670,40 @@ String *Item_nodeset_func_childbyname::val_raw(String *nodeset)
       if ((node->parent == flt->num) &&
           (node->type == MY_XML_NODE_TAG) &&
           validname(node))
-        ((XPathFilter*)nodeset)->append_element(j, pos++);
+        MY_XPATH_FLT(j, pos++).append_to(nodeset);
     }
   }
-  return nodeset;
+  return false;
 }
 
 
-String *Item_nodeset_func_descendantbyname::val_raw(String *nodeset)
+bool Item_nodeset_func_descendantbyname::val_native(THD *thd, Native *nodeset)
 {
-  prepare(nodeset);
+  prepare(thd, nodeset);
   for (MY_XPATH_FLT *flt= fltbeg; flt < fltend; flt++)
   {
     uint pos= 0;
     MY_XML_NODE *self= &nodebeg[flt->num];
     if (need_self && validname(self))
-      ((XPathFilter*)nodeset)->append_element(flt->num,pos++);
+      MY_XPATH_FLT(flt->num, pos++).append_to(nodeset);
     for (uint j= flt->num + 1 ; j < numnodes ; j++)
     {
       MY_XML_NODE *node= &nodebeg[j];
       if (node->level <= self->level)
         break;
       if ((node->type == MY_XML_NODE_TAG) && validname(node))
-        ((XPathFilter*)nodeset)->append_element(j,pos++);
+        MY_XPATH_FLT(j, pos++).append_to(nodeset);
     }
   }
-  return nodeset;
+  return false;
 }
 
 
-String *Item_nodeset_func_ancestorbyname::val_raw(String *nodeset)
+bool Item_nodeset_func_ancestorbyname::val_native(THD *thd, Native *nodeset)
 {
   char *active;
   String active_str;
-  prepare(nodeset);
+  prepare(thd, nodeset);
   active_str.alloc(numnodes);
   active= (char*) active_str.ptr();
   bzero((void*)active, numnodes);
@@ -780,17 +735,17 @@ String *Item_nodeset_func_ancestorbyname::val_raw(String *nodeset)
   for (uint j= 0; j < numnodes ; j++)
   {
     if (active[j])
-      ((XPathFilter*)nodeset)->append_element(j, --pos);
+      MY_XPATH_FLT(j, --pos).append_to(nodeset);
   }
-  return nodeset;
+  return false;
 }
 
 
-String *Item_nodeset_func_parentbyname::val_raw(String *nodeset)
+bool Item_nodeset_func_parentbyname::val_native(THD *thd, Native *nodeset)
 {
   char *active;
   String active_str;
-  prepare(nodeset);
+  prepare(thd, nodeset);
   active_str.alloc(numnodes);
   active= (char*) active_str.ptr();
   bzero((void*)active, numnodes);
@@ -803,15 +758,15 @@ String *Item_nodeset_func_parentbyname::val_raw(String *nodeset)
   for (uint j= 0, pos= 0; j < numnodes ; j++)
   {
     if (active[j])
-      ((XPathFilter*)nodeset)->append_element(j, pos++);
+      MY_XPATH_FLT(j, pos++).append_to(nodeset);
   }
-  return nodeset;
+  return false;
 }
 
 
-String *Item_nodeset_func_attributebyname::val_raw(String *nodeset)
+bool Item_nodeset_func_attributebyname::val_native(THD *thd, Native *nodeset)
 {
-  prepare(nodeset);
+  prepare(thd, nodeset);
   for (MY_XPATH_FLT *flt= fltbeg; flt < fltend; flt++)
   {
     MY_XML_NODE *self= &nodebeg[flt->num];
@@ -823,51 +778,49 @@ String *Item_nodeset_func_attributebyname::val_raw(String *nodeset)
       if ((node->parent == flt->num) &&
          (node->type == MY_XML_NODE_ATTR) &&
           validname(node))
-        ((XPathFilter*)nodeset)->append_element(j, pos++);
+        MY_XPATH_FLT(j, pos++).append_to(nodeset);
     }
   }
-  return nodeset;
+  return false;
 }
 
 
-String *Item_nodeset_func_predicate::val_raw(String *str)
+bool Item_nodeset_func_predicate::val_native(THD *thd, Native *str)
 {
   Item_nodeset_func *nodeset_func= (Item_nodeset_func*) args[0];
   uint pos= 0, size;
-  prepare(str);
+  prepare(thd, str);
   size= (uint)(fltend - fltbeg);
   for (MY_XPATH_FLT *flt= fltbeg; flt < fltend; flt++)
   {
     nodeset_func->context_cache.length(0);
-    ((XPathFilter*)(&nodeset_func->context_cache))->append_element(flt->num,
-                                                                   flt->pos,
-                                                                   size);
+    MY_XPATH_FLT(flt->num, flt->pos, size).
+      append_to(&nodeset_func->context_cache);
     if (args[1]->val_int())
-      ((XPathFilter*)str)->append_element(flt->num, pos++);
+      MY_XPATH_FLT(flt->num, pos++).append_to(str);
   }
-  return str;
+  return false;
 }
 
 
-String *Item_nodeset_func_elementbyindex::val_raw(String *nodeset)
+bool Item_nodeset_func_elementbyindex::val_native(THD *thd, Native *nodeset)
 {
   Item_nodeset_func *nodeset_func= (Item_nodeset_func*) args[0];
-  prepare(nodeset);
+  prepare(thd, nodeset);
   MY_XPATH_FLT *flt;
   uint pos, size= (uint)(fltend - fltbeg);
   for (pos= 0, flt= fltbeg; flt < fltend; flt++)
   {
     nodeset_func->context_cache.length(0);
-    ((XPathFilter*)(&nodeset_func->context_cache))->append_element(flt->num,
-                                                                   flt->pos,
-                                                                   size);
+    MY_XPATH_FLT(flt->num, flt->pos, size).
+      append_to(&nodeset_func->context_cache);
     int index= (int) (args[1]->val_int()) - 1;
     if (index >= 0 &&
         (flt->pos == (uint) index ||
          (args[1]->type_handler()->is_bool_type())))
-      ((XPathFilter*)nodeset)->append_element(flt->num, pos++);
+      MY_XPATH_FLT(flt->num, pos++).append_to(nodeset);
   }
-  return nodeset;
+  return false;
 }
 
 
@@ -1493,16 +1446,16 @@ my_xpath_lex_scan(MY_XPATH *xpath,
   }
 
   // Check ident, or a function call, or a keyword
-  if ((length= xpath->cs->cset->ctype(xpath->cs, &ctype,
-                                      (const uchar*) beg,
-                                      (const uchar*) end)) > 0 &&
+  if ((length= xpath->cs->ctype(&ctype,
+                                (const uchar*) beg,
+                                (const uchar*) end)) > 0 &&
       ((ctype & (_MY_L | _MY_U)) || *beg == '_'))
   {
     // scan until the end of the identifier
     for (beg+= length; 
-         (length= xpath->cs->cset->ctype(xpath->cs, &ctype,
-                                         (const uchar*) beg,
-                                         (const uchar*) end)) > 0 &&
+         (length= xpath->cs->ctype(&ctype,
+                                   (const uchar*) beg,
+                                   (const uchar*) end)) > 0 &&
          ((ctype & (_MY_L | _MY_U | _MY_NMR)) ||
           *beg == '_' || *beg == '-' || *beg == '.') ;
          beg+= length) /* no op */;
@@ -1797,7 +1750,7 @@ my_xpath_parse_AxisSpecifier_NodeTest_opt_Predicate_list(MY_XPATH *xpath)
   while (my_xpath_parse_term(xpath, MY_XPATH_LEX_LB))
   {
     Item *prev_context= xpath->context;
-    String *context_cache;
+    Native *context_cache;
     context_cache= &((Item_nodeset_func*)xpath->context)->context_cache;
     xpath->context= new (xpath->thd->mem_root)
       Item_nodeset_context_cache(xpath->thd, context_cache, xpath->pxml);
@@ -3081,19 +3034,20 @@ bool Item_func_xml_update::collect_result(String *str,
 
 String *Item_func_xml_update::val_str(String *str)
 {
-  String *nodeset, *rep;
+  String *rep;
 
   null_value= 0;
   if (!nodeset_func || get_xml(&xml) ||
       !(rep= args[2]->val_str(&tmp_value3)) ||
-      !(nodeset= nodeset_func->val_raw(&tmp_value2)))
+      nodeset_func->type_handler() != &type_handler_xpath_nodeset ||
+      nodeset_func->val_native(current_thd, &tmp_native_value2))
   {
     null_value= 1;
     return 0;
   }
 
-  MY_XPATH_FLT *fltbeg= (MY_XPATH_FLT*) nodeset->ptr();
-  MY_XPATH_FLT *fltend= (MY_XPATH_FLT*) (nodeset->ptr() + nodeset->length());
+  MY_XPATH_FLT *fltbeg= (MY_XPATH_FLT*) tmp_native_value2.ptr();
+  MY_XPATH_FLT *fltend= (MY_XPATH_FLT*) tmp_native_value2.end();
 
   /* Allow replacing of one tag only */
   if (fltend - fltbeg != 1)

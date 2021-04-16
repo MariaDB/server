@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -70,10 +70,18 @@ struct row_threads
   const char* m_processlist_info_ptr;
   /** Length in bytes of @c m_processlist_info_ptr. */
   uint m_processlist_info_length;
-  /** Column INSTRUMENTED. */
-  bool *m_enabled_ptr;
+  /** Column INSTRUMENTED (read). */
+  bool m_enabled;
+  /** Column HISTORY (read). */
+  bool m_history;
+  /** INSTRUMENTED and HISTORY (write). */
+  PFS_thread *m_psi;
   /** Column PARENT_THREAD_ID. */
   ulonglong m_parent_thread_internal_id;
+  /** Column CONNECTION_TYPE. */
+  enum_vio_type m_connection_type;
+  /** Column THREAD_OS_ID. */
+  my_thread_os_id_t m_thread_os_id;
 };
 
 /** Table PERFORMANCE_SCHEMA.THREADS. */

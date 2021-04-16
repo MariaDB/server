@@ -337,10 +337,8 @@ eval_notfound(
 	ut_ad(que_node_get_type(cursor) == QUE_NODE_SYMBOL);
 
 	if (cursor->token_type == SYM_LIT) {
-
-		ut_ad(ut_memcmp(dfield_get_data(que_node_get_val(cursor)),
-				"SQL", 3) == 0);
-
+		ut_ad(!memcmp(dfield_get_data(que_node_get_val(cursor)),
+			      "SQL", 3));
 		sel_node = cursor->sym_table->query_graph->last_sel_node;
 	} else {
 		sel_node = cursor->alias->cursor_def;
@@ -494,7 +492,7 @@ eval_concat(
 		dfield = que_node_get_val(arg);
 		len1 = dfield_get_len(dfield);
 
-		ut_memcpy(data + len, dfield_get_data(dfield), len1);
+		memcpy(data + len, dfield_get_data(dfield), len1);
 
 		len += len1;
 

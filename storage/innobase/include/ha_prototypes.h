@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -36,6 +36,7 @@ simple headers.
 
 /* Forward declarations */
 class THD;
+class Field;
 
 // JAN: TODO missing features:
 #undef MYSQL_FT_INIT_EXT
@@ -109,10 +110,7 @@ innobase_convert_name(
 
 /******************************************************************//**
 Returns true if the thread is the replication thread on the slave
-server. Used in srv_conc_enter_innodb() to determine if the thread
-should be allowed to enter InnoDB - the replication thread is treated
-differently than other threads. Also used in
-srv_conc_force_exit_innodb().
+server.
 @return true if thd is the replication thread */
 ibool
 thd_is_replication_slave_thread(
@@ -147,16 +145,6 @@ innobase_mysql_print_thd(
 	uint	max_query_len);	/*!< in: max query length to print, or 0 to
 				   use the default max length */
 
-/*****************************************************************//**
-Log code calls this whenever log has been written and/or flushed up
-to a new position. We use this to notify upper layer of a new commit
-checkpoint when necessary.*/
-UNIV_INTERN
-void
-innobase_mysql_log_notify(
-/*======================*/
-	ib_uint64_t	flush_lsn);	/*!< in: LSN flushed to disk */
-
 /** Converts a MySQL type to an InnoDB type. Note that this function returns
 the 'mtype' of InnoDB. InnoDB differentiates between MySQL's old <= 4.1
 VARCHAR and the new true VARCHAR in >= 5.0.3 by the 'prtype'.
@@ -164,10 +152,8 @@ VARCHAR and the new true VARCHAR in >= 5.0.3 by the 'prtype'.
 at least ENUM and SET, and unsigned integer types are 'unsigned types'
 @param[in]	f			MySQL Field
 @return DATA_BINARY, DATA_VARCHAR, ... */
-ulint
-get_innobase_type_from_mysql_type(
-	ulint*			unsigned_flag,
-	const void*		field);
+uint8_t
+get_innobase_type_from_mysql_type(unsigned *unsigned_flag, const Field *field);
 
 /******************************************************************//**
 Get the variable length bounds of the given character set. */
@@ -175,8 +161,8 @@ void
 innobase_get_cset_width(
 /*====================*/
 	ulint	cset,		/*!< in: MySQL charset-collation code */
-	ulint*	mbminlen,	/*!< out: minimum length of a char (in bytes) */
-	ulint*	mbmaxlen);	/*!< out: maximum length of a char (in bytes) */
+	unsigned*mbminlen,	/*!< out: minimum length of a char (in bytes) */
+	unsigned*mbmaxlen);	/*!< out: maximum length of a char (in bytes) */
 
 /******************************************************************//**
 Compares NUL-terminated UTF-8 strings case insensitively.
@@ -193,14 +179,6 @@ innobase_strcasecmp(
 const char*
 innobase_basename(
 	const char*	path_name);
-
-/******************************************************************//**
-Returns true if the thread is executing a SELECT statement.
-@return true if thd is executing SELECT */
-ibool
-thd_is_select(
-/*==========*/
-	const THD*	thd);	/*!< in: thread handle */
 
 /******************************************************************//**
 Converts an identifier to a table name. */
@@ -230,16 +208,10 @@ innobase_casedn_str(
 	char*	a);	/*!< in/out: string to put in lower case */
 
 #ifdef WITH_WSREP
-UNIV_INTERN
-void
-wsrep_innobase_kill_one_trx(
-	THD* bf_thd,
-	trx_t *victim_trx,
-	bool signal);
-
+void wsrep_innobase_kill_one_trx(THD *bf_thd, trx_t *victim_trx, bool signal);
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
-                             unsigned char* str, unsigned int str_length,
-                             unsigned int buf_length);
+                             unsigned char* str, ulint str_length,
+                             ulint buf_length);
 #endif /* WITH_WSREP */
 
 extern "C" struct charset_info_st *thd_charset(THD *thd);
@@ -497,6 +469,17 @@ void
 ib_push_warning(
 	void*		ithd,	/*!< in: thd */
 	dberr_t		error,	/*!< in: error code to push as warning */
+	const char	*format,/*!< in: warning message */
+	...);
+
+/********************************************************************//**
+Helper function to push warnings from InnoDB internals to SQL-layer. */
+UNIV_INTERN
+void
+ib_foreign_warn(
+	trx_t*		trx,	/*!< in: trx */
+	dberr_t		error,	/*!< in: error code to push as warning */
+	const char	*table_name,
 	const char	*format,/*!< in: warning message */
 	...);
 

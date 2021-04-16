@@ -1,0 +1,1 @@
+--source include/rpl_parallel_wrong_binlog_order.inc

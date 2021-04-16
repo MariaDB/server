@@ -1,0 +1,32 @@
+# This test is for MDEV-24612 fix
+--source include/have_innodb.inc
+--source include/not_embedded.inc
+
+call mtr.add_suppression("Creating system tablespace with existing redo log file is not recommended.");
+call mtr.add_suppression("InnoDB: Database creation was aborted");
+call mtr.add_suppression("Plugin 'InnoDB' init function returned error.");
+call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed.");
+
+--let $MYSQLD_DATADIR=`SELECT @@datadir`
+--let $DATA= $MYSQLD_DATADIR/ibdata1
+--let $DATACOPY=$MYSQLTEST_VARDIR/tmp/ibdata1
+CREATE TABLE t(a INT) ENGINE=InnoDB;
+--source include/kill_mysqld.inc
+# Move the file to cause srv_init_abort_low() call from srv_start()
+--move_file $DATA $DATACOPY
+
+# If the bug is not fixed, the server will hang here. Note that the test is
+# unstable because the condition
+# "srv_n_fil_crypt_threads_started != srv_n_fil_crypt_threads" can be true
+# in fil_crypt_set_thread_cnt() functions if encryption threads have not yet
+# been finished. To make the test stable we need to add debug code which would
+# check that all encryption threads were finished before the "while" loop
+# with the above condition. And in this test we can't detect if the  debug code
+# itself caused the hang or the code we are testing did it.
+--source include/start_mysqld.inc
+--error ER_UNKNOWN_STORAGE_ENGINE
+SELECT * FROM t;
+--source include/kill_mysqld.inc
+--move_file $DATACOPY $DATA
+--source include/start_mysqld.inc
+DROP TABLE t;

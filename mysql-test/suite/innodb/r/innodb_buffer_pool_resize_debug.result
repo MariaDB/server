@@ -1,5 +1,4 @@
 set global innodb_file_per_table=ON;
-set global innodb_thread_concurrency=20;
 connect  con1,localhost,root,,;
 connect  con2,localhost,root,,;
 connect  con3,localhost,root,,;
@@ -97,8 +96,6 @@ drop table t6;
 #
 # BUG#23590280 NO WARNING WHEN REDUCING INNODB_BUFFER_POOL_SIZE INSIZE THE FIRST CHUNK
 #
-SET @save_disable = @@GLOBAL.innodb_disable_background_merge;
-SET GLOBAL innodb_disable_background_merge = ON;
 set @old_innodb_disable_resize = @@innodb_disable_resize_buffer_pool_debug;
 set global innodb_disable_resize_buffer_pool_debug = OFF;
 set @before_innodb_buffer_pool_size = @@innodb_buffer_pool_size;
@@ -107,4 +104,3 @@ set global innodb_buffer_pool_size=@before_innodb_buffer_pool_size * 2;
 set global innodb_buffer_pool_size=@before_innodb_buffer_pool_size;
 set global innodb_buffer_pool_size=@before_innodb_buffer_pool_size;
 SET GLOBAL innodb_disable_resize_buffer_pool_debug = @old_innodb_disable_resize;
-SET GLOBAL innodb_disable_background_merge = @save_disable;

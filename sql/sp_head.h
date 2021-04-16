@@ -47,6 +47,14 @@ class sp_instr;
 class sp_instr_opt_meta;
 class sp_instr_jump_if_not;
 
+/**
+  Number of PSI_statement_info instruments
+  for internal stored programs statements.
+*/
+#ifdef HAVE_PSI_INTERFACE
+void init_sp_psi_keys(void);
+#endif
+
 /*************************************************************************/
 
 /**
@@ -173,6 +181,11 @@ public:
   sp_package *m_parent;
   const Sp_handler *m_handler;
   uint m_flags;                 // Boolean attributes of a stored routine
+
+  /**
+    Instrumentation interface for SP.
+  */
+  PSI_sp_share *m_sp_share;
 
   Column_definition m_return_field_def; /**< This is used for FUNCTIONs only. */
 
@@ -856,6 +869,8 @@ public:
     return NULL;
   }
 
+  virtual void init_psi_share();
+
 protected:
 
   MEM_ROOT *m_thd_root;		///< Temp. store for thd's mem_root
@@ -931,9 +946,9 @@ public:
   public:
     LexList() { elements= 0; }
     // Find a package routine by a non qualified name
-    LEX *find(const LEX_CSTRING &name, stored_procedure_type type);
+    LEX *find(const LEX_CSTRING &name, enum_sp_type type);
     // Find a package routine by a package-qualified name, e.g. 'pkg.proc'
-    LEX *find_qualified(const LEX_CSTRING &name, stored_procedure_type type);
+    LEX *find_qualified(const LEX_CSTRING &name, enum_sp_type type);
     // Check if a routine with the given qualified name already exists
     bool check_dup_qualified(const LEX_CSTRING &name, const Sp_handler *sph)
     {
@@ -990,6 +1005,7 @@ public:
            m_routine_implementations.push_back(lex, &main_mem_root);
   }
   sp_package *get_package() { return this; }
+  void init_psi_share();
   bool is_invoked() const
   {
     /*
@@ -1156,6 +1172,7 @@ public:
   {
     m_ip= dst;
   }
+  virtual PSI_statement_info* get_psi_info() = 0;
 
 }; // class sp_instr : public Sql_alloc
 
@@ -1282,6 +1299,10 @@ private:
 
   sp_lex_keeper m_lex_keeper;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
+
 }; // class sp_instr_stmt : public sp_instr
 
 
@@ -1316,6 +1337,10 @@ protected:
   uint m_offset;		///< Frame offset
   Item *m_value;
   sp_lex_keeper m_lex_keeper;
+
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_set : public sp_instr
 
 
@@ -1424,6 +1449,10 @@ private:
   Item_trigger_field *trigger_field;
   Item *value;
   sp_lex_keeper m_lex_keeper;
+
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_trigger_field : public sp_instr
 
 
@@ -1510,6 +1539,9 @@ public:
       m_dest= new_dest;
   }
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_jump : public sp_instr_opt_meta
 
 
@@ -1561,6 +1593,9 @@ private:
   Item *m_expr;			///< The condition
   sp_lex_keeper m_lex_keeper;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_jump_if_not : public sp_instr_jump
 
 
@@ -1578,17 +1613,9 @@ public:
   virtual ~sp_instr_preturn()
   {}
 
-  virtual int execute(THD *thd, uint *nextp)
-  {
-    DBUG_ENTER("sp_instr_preturn::execute");
-    *nextp= UINT_MAX;
-    DBUG_RETURN(0);
-  }
+  virtual int execute(THD *thd, uint *nextp);
 
-  virtual void print(String *str)
-  {
-    str->append(STRING_WITH_LEN("preturn"));
-  }
+  virtual void print(String *str);
 
   virtual uint opt_mark(sp_head *sp, List<sp_instr> *leads)
   {
@@ -1596,6 +1623,9 @@ public:
     return UINT_MAX;
   }
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_preturn : public sp_instr
 
 
@@ -1633,6 +1663,9 @@ protected:
   const Type_handler *m_type_handler;
   sp_lex_keeper m_lex_keeper;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_freturn : public sp_instr
 
 
@@ -1698,6 +1731,9 @@ private:
   // debug version only). It's used in print().
   uint m_frame;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_hpush_jump : public sp_instr_jump
 
 
@@ -1728,6 +1764,9 @@ private:
 
   uint m_count;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_hpop : public sp_instr
 
 
@@ -1762,12 +1801,14 @@ private:
 
   uint m_frame;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_hreturn : public sp_instr_jump
 
 
 /** This is DECLARE CURSOR */
-class sp_instr_cpush : public sp_instr,
-                       public sp_cursor
+class sp_instr_cpush : public sp_instr, public sp_cursor
 {
   sp_instr_cpush(const sp_instr_cpush &); /**< Prevent use of these */
   void operator=(sp_instr_cpush &);
@@ -1796,6 +1837,9 @@ private:
   sp_lex_keeper m_lex_keeper;
   uint m_cursor;                /**< Frame offset (for debugging) */
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_cpush : public sp_instr
 
 
@@ -1826,6 +1870,9 @@ private:
 
   uint m_count;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_cpop : public sp_instr
 
 
@@ -1853,6 +1900,9 @@ private:
 
   uint m_cursor;		///< Stack index
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_copen : public sp_instr_stmt
 
 
@@ -1880,6 +1930,10 @@ public:
   virtual int execute(THD *thd, uint *nextp);
   virtual int exec_core(THD *thd, uint *nextp);
   virtual void print(String *str);
+
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 };
 
 
@@ -1905,6 +1959,9 @@ private:
 
   uint m_cursor;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_cclose : public sp_instr
 
 
@@ -1939,6 +1996,9 @@ private:
   List<sp_variable> m_varlist;
   bool m_error_on_no_data;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_cfetch : public sp_instr
 
 /*
@@ -1963,6 +2023,10 @@ public:
   virtual int execute(THD *thd, uint *nextp);
 
   virtual void print(String *str);
+
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_agg_cfetch : public sp_instr
 
 
@@ -1996,6 +2060,9 @@ private:
 
   int m_errcode;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_error : public sp_instr
 
 
@@ -2035,6 +2102,9 @@ private:
   Item *m_case_expr;
   sp_lex_keeper m_lex_keeper;
 
+public:
+  virtual PSI_statement_info* get_psi_info() { return & psi_info; }
+  static PSI_statement_info psi_info;
 }; // class sp_instr_set_case_expr : public sp_instr_opt_meta
 
 bool check_show_routine_access(THD *thd, sp_head *sp, bool *full_access);

@@ -562,7 +562,7 @@ pthread_handler_t ma_checkpoint_background(void *arg)
   DBUG_PRINT("info",("Maria background checkpoint thread starts"));
   DBUG_ASSERT(interval > 0);
 
-  PSI_CALL_set_thread_user_host(0,0,0,0);
+  PSI_CALL_set_thread_account(0,0,0,0);
 
   /*
     Recovery ended with all tables closed and a checkpoint: no need to take
@@ -790,7 +790,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
     }
   }
   if (unlikely((distinct_shares=
-                (MARIA_SHARE **)my_malloc(nb * sizeof(MARIA_SHARE *),
+                (MARIA_SHARE **)my_malloc(PSI_INSTRUMENT_ME, nb * sizeof(MARIA_SHARE *),
                                           MYF(MY_WME))) == NULL))
     goto err;
   for (total_names_length= 0, i= 0, pos= maria_open_list; pos; pos= pos->next)
@@ -823,7 +823,7 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
      LSN_STORE_SIZE + /* first_log_write_at_lsn */
      1                /* end-of-name 0 */
      ) * nb + total_names_length;
-  if (unlikely((str->str= my_malloc(str->length, MYF(MY_WME))) == NULL))
+  if (unlikely((str->str= my_malloc(PSI_INSTRUMENT_ME, str->length, MYF(MY_WME))) == NULL))
     goto err;
 
   ptr= str->str;
@@ -853,12 +853,12 @@ static int collect_tables(LEX_STRING *str, LSN checkpoint_start_log_horizon)
   */
 #define STATE_COPIES 1024
   state_copies= (struct st_state_copy *)
-    my_malloc(STATE_COPIES * sizeof(struct st_state_copy), MYF(MY_WME));
-  dfiles= (PAGECACHE_FILE *)my_realloc((uchar *)dfiles,
+    my_malloc(PSI_INSTRUMENT_ME, STATE_COPIES * sizeof(struct st_state_copy), MYF(MY_WME));
+  dfiles= (PAGECACHE_FILE *)my_realloc(PSI_INSTRUMENT_ME, (uchar *)dfiles,
                                        /* avoid size of 0 for my_realloc */
                                        MY_MAX(1, nb) * sizeof(PAGECACHE_FILE),
                                        MYF(MY_WME | MY_ALLOW_ZERO_PTR));
-  kfiles= (PAGECACHE_FILE *)my_realloc((uchar *)kfiles,
+  kfiles= (PAGECACHE_FILE *)my_realloc(PSI_INSTRUMENT_ME, (uchar *)kfiles,
                                        /* avoid size of 0 for my_realloc */
                                        MY_MAX(1, nb) * sizeof(PAGECACHE_FILE),
                                        MYF(MY_WME | MY_ALLOW_ZERO_PTR));
@@ -1218,10 +1218,9 @@ err:
       MARIA_SHARE *share= distinct_shares[i];
       if (share->in_checkpoint & MARIA_CHECKPOINT_SHOULD_FREE_ME)
       {
+        share->in_checkpoint&= ~MARIA_CHECKPOINT_SHOULD_FREE_ME;
         /* maria_close() left us to free the share */
-        mysql_mutex_destroy(&share->intern_lock);
-        ma_crypt_free(share);
-        my_free(share);
+        free_maria_share(share);
       }
       else
       {

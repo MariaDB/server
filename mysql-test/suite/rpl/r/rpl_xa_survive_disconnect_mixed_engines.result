@@ -1,0 +1,373 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CALL mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
+SET @@session.binlog_direct_non_transactional_updates := if(floor(rand()*10)%2,'ON','OFF');
+CREATE TABLE t (a INT) ENGINE=innodb;
+CREATE TABLE tm (a INT) ENGINE=myisam;
+=== COMMIT ===
+XA START 'xa_trx';
+INSERT INTO tm VALUES (1);
+INSERT INTO t VALUES (1);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+XA COMMIT 'xa_trx' ;
+XA START 'xa_trx';
+INSERT INTO t VALUES (2);
+INSERT INTO tm VALUES (2);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+XA COMMIT 'xa_trx' ;
+XA START 'xa_trx';
+INSERT INTO tm VALUES (3);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+XA COMMIT 'xa_trx' ;
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+XA START 'xa_trx';
+INSERT INTO t VALUES (4);
+INSERT INTO tm VALUES (4);
+INSERT INTO tmp_i VALUES (4);
+INSERT INTO tmp_m VALUES (4);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+XA COMMIT 'xa_trx' ;
+XA START 'xa_trx';
+INSERT INTO tmp_i VALUES (5);
+INSERT INTO tmp_m VALUES (5);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+INSERT INTO t VALUES (5);
+INSERT INTO tm VALUES (5);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+XA COMMIT 'xa_trx' ;
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA START 'xa_trx';
+INSERT INTO t VALUES (6);
+INSERT INTO tm VALUES (6);
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+INSERT INTO tmp_i VALUES (6);
+INSERT INTO tmp_m VALUES (6);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+XA COMMIT 'xa_trx' ;
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA START 'xa_trx';
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+INSERT INTO tmp_i VALUES (7);
+INSERT INTO tmp_m VALUES (7);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+INSERT INTO t VALUES (7);
+INSERT INTO tm VALUES (7);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+XA COMMIT 'xa_trx' ;
+XA START 'xa_trx';
+INSERT INTO t VALUES (8);
+INSERT INTO tm VALUES (8);
+INSERT INTO tmp_i VALUES (8);
+INSERT INTO tmp_m VALUES (8);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+XA COMMIT 'xa_trx' ;
+XA START 'xa_trx';
+UPDATE t SET a = 99 where a = -1;
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+XA COMMIT 'xa_trx' ;
+include/sync_slave_sql_with_master.inc
+connection master;
+=== COMMIT ONE PHASE ===
+XA START 'xa_trx';
+INSERT INTO tm VALUES (1);
+INSERT INTO t VALUES (1);
+XA END 'xa_trx';
+XA COMMIT 'xa_trx' ONE PHASE;
+XA START 'xa_trx';
+INSERT INTO t VALUES (2);
+INSERT INTO tm VALUES (2);
+XA END 'xa_trx';
+XA COMMIT 'xa_trx' ONE PHASE;
+XA START 'xa_trx';
+INSERT INTO tm VALUES (3);
+XA END 'xa_trx';
+XA COMMIT 'xa_trx' ONE PHASE;
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+XA START 'xa_trx';
+INSERT INTO t VALUES (4);
+INSERT INTO tm VALUES (4);
+INSERT INTO tmp_i VALUES (4);
+INSERT INTO tmp_m VALUES (4);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+XA END 'xa_trx';
+XA COMMIT 'xa_trx' ONE PHASE;
+XA START 'xa_trx';
+INSERT INTO tmp_i VALUES (5);
+INSERT INTO tmp_m VALUES (5);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+INSERT INTO t VALUES (5);
+INSERT INTO tm VALUES (5);
+XA END 'xa_trx';
+XA COMMIT 'xa_trx' ONE PHASE;
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA START 'xa_trx';
+INSERT INTO t VALUES (6);
+INSERT INTO tm VALUES (6);
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+INSERT INTO tmp_i VALUES (6);
+INSERT INTO tmp_m VALUES (6);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+XA END 'xa_trx';
+XA COMMIT 'xa_trx' ONE PHASE;
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA START 'xa_trx';
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+INSERT INTO tmp_i VALUES (7);
+INSERT INTO tmp_m VALUES (7);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+INSERT INTO t VALUES (7);
+INSERT INTO tm VALUES (7);
+XA END 'xa_trx';
+XA COMMIT 'xa_trx' ONE PHASE;
+XA START 'xa_trx';
+INSERT INTO t VALUES (8);
+INSERT INTO tm VALUES (8);
+INSERT INTO tmp_i VALUES (8);
+INSERT INTO tmp_m VALUES (8);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA END 'xa_trx';
+XA COMMIT 'xa_trx' ONE PHASE;
+XA START 'xa_trx';
+UPDATE t SET a = 99 where a = -1;
+XA END 'xa_trx';
+XA COMMIT 'xa_trx' ONE PHASE;
+include/sync_slave_sql_with_master.inc
+connection master;
+=== ROLLBACK with PREPARE ===
+XA START 'xa_trx';
+INSERT INTO tm VALUES (1);
+INSERT INTO t VALUES (1);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+INSERT INTO t VALUES (2);
+INSERT INTO tm VALUES (2);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+INSERT INTO tm VALUES (3);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+XA START 'xa_trx';
+INSERT INTO t VALUES (4);
+INSERT INTO tm VALUES (4);
+INSERT INTO tmp_i VALUES (4);
+INSERT INTO tmp_m VALUES (4);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+INSERT INTO tmp_i VALUES (5);
+INSERT INTO tmp_m VALUES (5);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+INSERT INTO t VALUES (5);
+INSERT INTO tm VALUES (5);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA START 'xa_trx';
+INSERT INTO t VALUES (6);
+INSERT INTO tm VALUES (6);
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+INSERT INTO tmp_i VALUES (6);
+INSERT INTO tmp_m VALUES (6);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA START 'xa_trx';
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+INSERT INTO tmp_i VALUES (7);
+INSERT INTO tmp_m VALUES (7);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+INSERT INTO t VALUES (7);
+INSERT INTO tm VALUES (7);
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+INSERT INTO t VALUES (8);
+INSERT INTO tm VALUES (8);
+INSERT INTO tmp_i VALUES (8);
+INSERT INTO tmp_m VALUES (8);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+UPDATE t SET a = 99 where a = -1;
+XA END 'xa_trx';
+XA PREPARE 'xa_trx';
+xa rollback 'xa_trx' ;
+include/sync_slave_sql_with_master.inc
+connection master;
+=== ROLLBACK with no PREPARE ===
+XA START 'xa_trx';
+INSERT INTO tm VALUES (1);
+INSERT INTO t VALUES (1);
+XA END 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+INSERT INTO t VALUES (2);
+INSERT INTO tm VALUES (2);
+XA END 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+INSERT INTO tm VALUES (3);
+XA END 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+XA START 'xa_trx';
+INSERT INTO t VALUES (4);
+INSERT INTO tm VALUES (4);
+INSERT INTO tmp_i VALUES (4);
+INSERT INTO tmp_m VALUES (4);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+XA END 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+INSERT INTO tmp_i VALUES (5);
+INSERT INTO tmp_m VALUES (5);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+INSERT INTO t VALUES (5);
+INSERT INTO tm VALUES (5);
+XA END 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA START 'xa_trx';
+INSERT INTO t VALUES (6);
+INSERT INTO tm VALUES (6);
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+INSERT INTO tmp_i VALUES (6);
+INSERT INTO tmp_m VALUES (6);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+XA END 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA START 'xa_trx';
+CREATE TEMPORARY TABLE tmp_i LIKE t;
+CREATE TEMPORARY TABLE tmp_m LIKE tm;
+INSERT INTO tmp_i VALUES (7);
+INSERT INTO tmp_m VALUES (7);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+INSERT INTO t VALUES (7);
+INSERT INTO tm VALUES (7);
+XA END 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+INSERT INTO t VALUES (8);
+INSERT INTO tm VALUES (8);
+INSERT INTO tmp_i VALUES (8);
+INSERT INTO tmp_m VALUES (8);
+INSERT INTO t  SELECT * FROM tmp_i;
+INSERT INTO tm SELECT * FROM tmp_m;
+DROP TEMPORARY TABLE tmp_i;
+DROP TEMPORARY TABLE tmp_m;
+XA END 'xa_trx';
+xa rollback 'xa_trx' ;
+Warnings:
+Warning	1196	Some non-transactional changed tables couldn't be rolled back
+XA START 'xa_trx';
+UPDATE t SET a = 99 where a = -1;
+XA END 'xa_trx';
+xa rollback 'xa_trx' ;
+include/sync_slave_sql_with_master.inc
+include/diff_tables.inc [master:tm, slave:tm]
+connection master;
+DROP TABLE t, tm;
+include/sync_slave_sql_with_master.inc
+include/rpl_end.inc

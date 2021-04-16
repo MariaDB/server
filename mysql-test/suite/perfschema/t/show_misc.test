@@ -1,0 +1,64 @@
+--source include/have_perfschema.inc
+--source include/not_embedded.inc
+--source include/no_protocol.inc
+
+select 1;
+SHOW STATUS LIKE 'Last_query_partial_plans';
+select 2;
+SHOW STATUS LIKE 'Last_query_cost';
+
+flush status;
+SHOW STATUS LIKE 'Created_tmp_tables';
+
+--echo #
+--echo # ================================================================================
+--echo # Bug#21789221 SHOW STATUS FAILS WITH LOCK TABLES AND SHOW_COMPATIBILITY_56=OFF
+--echo # ================================================================================
+--echo # Verify that SHOW STATUS and SHOW VARIABLES works under LOCK TABLES mode
+--echo #
+CREATE TABLE test.t1 (s1 INT);
+LOCK TABLE test.t1 READ;
+--echo #
+SHOW GLOBAL STATUS WHERE VARIABLE_NAME LIKE "foo";
+--echo #
+SHOW SESSION STATUS WHERE VARIABLE_NAME LIKE "foo";
+--echo #
+SHOW GLOBAL VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+--echo #
+SHOW SESSION VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+--echo #
+UNLOCK TABLES;
+--echo #
+LOCK TABLE test.t1 WRITE;
+--echo #
+SHOW GLOBAL STATUS WHERE VARIABLE_NAME LIKE "foo";
+--echo #
+SHOW SESSION STATUS WHERE VARIABLE_NAME LIKE "foo";
+--echo #
+SHOW GLOBAL VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+--echo #
+SHOW SESSION VARIABLES WHERE VARIABLE_NAME LIKE "foo";
+--echo #
+UNLOCK TABLES;
+
+DROP TABLE test.t1;
+
+
+--echo #
+--echo # ================================================================================
+--echo # Bug#28515475 BOGUS DATA WHEN ORDERING RESULTS FROM VARIABLES_BY_THREAD 
+--echo # ================================================================================
+--echo # Verify the results from "WHERE variable_name IN(...)", particularly for those
+--echo # variables that are listed after the deprecated variable gtid_executed.
+--echo # The ORDER BY also forces an additional code path through rnd_pos().
+--echo #
+
+SELECT variable_name FROM performance_schema.variables_by_thread
+  WHERE variable_name IN ('interactive_timeout','net_read_timeout','net_write_timeout','wait_timeout')
+  ORDER BY variable_name; 
+
+
+--echo #
+--echo # ================================================================================
+--echo # CLEAN UP
+--echo # ================================================================================

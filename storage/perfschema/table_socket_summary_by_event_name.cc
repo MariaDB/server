@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,13 +26,14 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
 #include "table_socket_summary_by_event_name.h"
 #include "pfs_global.h"
 #include "pfs_visitor.h"
+#include "field.h"
 
 THR_LOCK table_socket_summary_by_event_name::m_table_lock;
 
@@ -41,11 +42,10 @@ table_socket_summary_by_event_name::m_share=
 {
   { C_STRING_WITH_LEN("socket_summary_by_event_name") },
   &pfs_readonly_acl,
-  &table_socket_summary_by_event_name::create,
+  table_socket_summary_by_event_name::create,
   NULL, /* write_row */
   table_socket_summary_by_event_name::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_socket_summary_by_event_name::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE socket_summary_by_event_name("
@@ -71,7 +71,8 @@ table_socket_summary_by_event_name::m_share=
                       "SUM_TIMER_MISC BIGINT unsigned not null,"
                       "MIN_TIMER_MISC BIGINT unsigned not null,"
                       "AVG_TIMER_MISC BIGINT unsigned not null,"
-                      "MAX_TIMER_MISC BIGINT unsigned not null)") }
+                      "MAX_TIMER_MISC BIGINT unsigned not null)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_socket_summary_by_event_name::create(void)
@@ -89,6 +90,12 @@ int table_socket_summary_by_event_name::delete_all_rows(void)
   reset_socket_instance_io();
   reset_socket_class_io();
   return 0;
+}
+
+ha_rows
+table_socket_summary_by_event_name::get_row_count(void)
+{
+  return socket_class_max;
 }
 
 void table_socket_summary_by_event_name::reset_position(void)
@@ -138,7 +145,7 @@ void table_socket_summary_by_event_name::make_row(PFS_socket_class *socket_class
   PFS_instance_iterator::visit_socket_instances(socket_class, &visitor);
 
   time_normalizer *normalizer= time_normalizer::get(wait_timer);
-  
+
   /* Collect timer and byte count stats */
   m_row.m_io_stat.set(normalizer, &visitor.m_socket_io_stat);
   m_row_exists= true;

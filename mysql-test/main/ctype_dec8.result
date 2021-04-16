@@ -1,0 +1,58 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-22625 SIGSEGV in intern_find_sys_var (optimized builds)
+#
+SET NAMES dec8;
+SET @seq=_dec8 0xD0;
+#
+# SET STATEMENT (bad|good.bad|bad.good)=1
+#
+EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '=1 SELECT 1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT('SET STATEMENT ',@seq, '.a=1 SELECT 1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT('SET STATEMENT a.',@seq, '=1 SELECT 1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+#
+# SET SESSION (bad|good.bad|bad.good)=1
+#
+EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '=1 SELECT 1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT('SET SESSION ',@seq, '.a=1 SELECT 1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT('SET SESSION a.',@seq, '=1 SELECT 1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+#
+# SET (bad|good.bad|bad.good)=1
+#
+EXECUTE IMMEDIATE CONCAT('SET ', @seq, '=1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT('SET ', @seq, '.a=1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT('SET a.', @seq, '=1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+#
+# Oracle SP call: BEGIN (bad|good.bad|bad.good)(params); END
+#
+SET sql_mode=ORACLE;
+EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '(1); END;');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT('BEGIN ',@seq, '.a(1); END;');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT('BEGIN a.',@seq, '(1); END;');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+#
+# Oracle assignment: (bad|good.bad|bad.good):= value
+#
+EXECUTE IMMEDIATE CONCAT(@seq, ':=1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT(@seq, '.a:=1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+EXECUTE IMMEDIATE CONCAT('a.', @seq, ':=1');
+ERROR HY000: Invalid dec8 character string: '\xD0'
+SET sql_mode=DEFAULT;
+#
+# End of 10.5 tests
+#

@@ -280,21 +280,28 @@ drop table t1;
 
 CREATE TABLE t1 (a char(1));
 INSERT INTO t1 VALUES ('A'),('B'),('A'),('B'),('A'),('B'),(NULL),('a'),('b'),(NULL),('A'),('B'),(NULL);
+flush status;
 SELECT a FROM t1 GROUP BY a;
 SELECT a,count(*) FROM t1 GROUP BY a;
 SELECT a FROM t1 GROUP BY binary a;
 SELECT a,count(*) FROM t1 GROUP BY binary a;
 SELECT binary a FROM t1 GROUP BY 1;
 SELECT binary a,count(*) FROM t1 GROUP BY 1;
-# Do the same tests with MyISAM temporary tables
-SET BIG_TABLES=1;
+--disable_ps_protocol
+show status like 'Created%tables';
+--enable_ps_protocol
+# Do the same tests with on-disk temporary tables
+set tmp_memory_table_size=0;
 SELECT a FROM t1 GROUP BY a;
 SELECT a,count(*) FROM t1 GROUP BY a;
 SELECT a FROM t1 GROUP BY binary a;
 SELECT a,count(*) FROM t1 GROUP BY binary a;
 SELECT binary a FROM t1 GROUP BY 1;
 SELECT binary a,count(*) FROM t1 GROUP BY 1;
-SET BIG_TABLES=0;
+--disable_ps_protocol
+show status like 'Created%tables';
+--enable_ps_protocol
+set tmp_memory_table_size=default;
 drop table t1;
 
 #
@@ -391,10 +398,10 @@ drop table t1,t2,t3;
 create table t1 (a blob null);
 insert into t1 values (NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(NULL),(""),(""),(""),("b");
 select a,count(*) from t1 group by a;
-set big_tables=1;
+set tmp_memory_table_size=0;
 select a,count(*) from t1 group by a;
 drop table t1;
-set big_tables=0;
+set tmp_memory_table_size=default;
 
 #
 # Test of GROUP BY ... ORDER BY NULL optimization
@@ -1344,7 +1351,7 @@ DROP TABLE t1;
 --echo # by functions
 --echo #
 
-SET BIG_TABLES=1;
+set tmp_memory_table_size=0;
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (0),(0);
 SELECT 1 FROM t1 GROUP BY IF(`a`,'','');
@@ -1352,7 +1359,7 @@ SELECT 1 FROM t1 GROUP BY TRIM(LEADING RAND() FROM '');
 SELECT 1 FROM t1 GROUP BY SUBSTRING('',SLEEP(0),'');
 SELECT 1 FROM t1 GROUP BY SUBSTRING(SYSDATE() FROM 'K' FOR 'jxW<');
 DROP TABLE t1;
-SET BIG_TABLES=0;
+set tmp_memory_table_size=default;
 
 --echo #
 --echo # MDEV-641 LP:1002108 - Wrong result (or crash) from a query with duplicated field in the group list and a limit clause
@@ -1708,6 +1715,18 @@ SELECT b, GROUP_CONCAT( a, b ORDER BY a, b )
 FROM t1 JOIN t2 ON c = b GROUP BY b WITH ROLLUP;
 
 DROP TABLE t1,t2;
+
+--echo #
+--echo # MDEV-24855 ER_CRASHED_ON_USAGE or Assertion `length <= column->length'
+--echo # failed in ma_blockrec.c
+--echo #
+
+CREATE TABLE t1 (a BIT(5), c BINARY(179));
+INSERT INTO t1 VALUES (b'1100','foo'),(b'0','bar');
+--disable_result_log
+SELECT c, GROUP_CONCAT(CASE NULL WHEN 0 THEN a END, CASE 'foo' WHEN c THEN 1 END) AS f FROM t1 GROUP BY ExtractValue('<a></a>', '/a'), UUID();
+--enable_result_log
+DROP TABLE t1;
 
 --echo #
 --echo # MDEV-6129: Server crashes during UNION with ORDER BY field IS NULL

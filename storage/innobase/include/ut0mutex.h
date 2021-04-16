@@ -24,11 +24,8 @@ Policy based mutexes.
 Created 2012-03-24 Sunny Bains.
 ***********************************************************************/
 
+#pragma once
 #ifndef UNIV_INNOCHECKSUM
-
-#ifndef ut0mutex_h
-#define ut0mutex_h
-
 #include "sync0policy.h"
 #include "ib0mutex.h"
 
@@ -38,32 +35,23 @@ Created 2012-03-24 Sunny Bains.
 @param[in]	T		The resulting typedef alias */
 #define UT_MUTEX_TYPE(M, P, T) typedef PolicyMutex<M<P> > T;
 
-# ifdef HAVE_IB_LINUX_FUTEX
+# ifdef __linux__
 UT_MUTEX_TYPE(TTASFutexMutex, GenericPolicy, FutexMutex);
-UT_MUTEX_TYPE(TTASFutexMutex, BlockMutexPolicy, BlockFutexMutex);
-# endif /* HAVE_IB_LINUX_FUTEX */
+# endif /* __linux__ */
 
 UT_MUTEX_TYPE(TTASMutex, GenericPolicy, SpinMutex);
-UT_MUTEX_TYPE(TTASMutex, BlockMutexPolicy, BlockSpinMutex);
-
 UT_MUTEX_TYPE(OSTrackMutex, GenericPolicy, SysMutex);
-UT_MUTEX_TYPE(OSTrackMutex, BlockMutexPolicy, BlockSysMutex);
-
 UT_MUTEX_TYPE(TTASEventMutex, GenericPolicy, SyncArrayMutex);
-UT_MUTEX_TYPE(TTASEventMutex, BlockMutexPolicy, BlockSyncArrayMutex);
 
 #ifdef MUTEX_FUTEX
 /** The default mutex type. */
 typedef FutexMutex ib_mutex_t;
-typedef BlockFutexMutex ib_bpmutex_t;
 #define MUTEX_TYPE	"Uses futexes"
 #elif defined(MUTEX_SYS)
 typedef SysMutex ib_mutex_t;
-typedef BlockSysMutex ib_bpmutex_t;
 #define MUTEX_TYPE	"Uses system mutexes"
 #elif defined(MUTEX_EVENT)
 typedef SyncArrayMutex ib_mutex_t;
-typedef BlockSyncArrayMutex ib_bpmutex_t;
 #define MUTEX_TYPE	"Uses event mutexes"
 #else
 #error "ib_mutex_t type is unknown"
@@ -186,7 +174,5 @@ void mutex_destroy(
 {
 	mutex->destroy();
 }
-
-#endif /* ut0mutex_h */
 
 #endif /* UNIV_INNOCHECKSUM */

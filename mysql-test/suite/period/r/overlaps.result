@@ -1,0 +1,353 @@
+create or replace table t(id int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps)
+) partition by key (id);
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+ PARTITION BY KEY (`id`)
+insert into t values (1, '2003-01-01', '2003-03-01'),
+(1, '2003-05-01', '2003-07-01');
+insert into t values (1, '2003-02-01', '2003-04-01');
+ERROR 23000: Duplicate entry '1-2003-04-01-2003-02-01' for key 'PRIMARY'
+insert into t values (1, '2003-04-01', '2003-06-01');
+ERROR 23000: Duplicate entry '1-2003-06-01-2003-04-01' for key 'PRIMARY'
+insert into t values (1, '2003-05-15', '2003-06-15');
+ERROR 23000: Duplicate entry '1-2003-06-15-2003-05-15' for key 'PRIMARY'
+insert into t values (1, '2003-04-01', '2003-08-01');
+ERROR 23000: Duplicate entry '1-2003-08-01-2003-04-01' for key 'PRIMARY'
+insert into t values (1, '2003-03-01', '2003-05-01');
+# expand/shrink period
+update t set s= '2002-12-01' where s = '2003-01-01';
+update t set s= '2003-01-01' where s = '2002-12-01';
+update t set e= '2003-08-01' where s = '2003-05-01';
+update t set e= '2003-07-01' where s = '2003-05-01';
+# move left/right
+update t set s= '2002-12-15', e= '2003-01-15' where s = '2003-01-01';
+update t set s= '2003-01-01', e= '2003-02-01' where s = '2002-12-15';
+# diminish/enlarge
+update t set s= '2003-01-10', e= '2003-01-20' where s = '2003-01-01';
+update t set s= '2003-01-01', e= '2003-02-01' where s = '2003-01-10';
+select * from t;
+id	s	e
+1	2003-01-01	2003-02-01
+1	2003-03-01	2003-05-01
+1	2003-05-01	2003-07-01
+# intersect left/right, strict inclusion/containment
+update t set e= '2003-04-01' where s = '2003-01-01';
+ERROR 23000: Duplicate entry '1-2003-04-01-2003-01-01' for key 'PRIMARY'
+update t set s= '2003-04-01' where s = '2003-05-01';
+ERROR 23000: Duplicate entry '1-2003-07-01-2003-04-01' for key 'PRIMARY'
+update t set s= '2003-03-10', e= '2003-03-20' where s = '2003-01-01';
+ERROR 23000: Duplicate entry '1-2003-03-20-2003-03-10' for key 'PRIMARY'
+update t set s= '2003-04-01', e= '2003-08-01' where s = '2003-03-01';
+ERROR 23000: Duplicate entry '1-2003-08-01-2003-04-01' for key 'PRIMARY'
+# inclusion/containment with partial match
+update t set s= '2003-03-01', e= '2003-04-01' where s = '2003-01-01';
+ERROR 23000: Duplicate entry '1-2003-04-01-2003-03-01' for key 'PRIMARY'
+update t set s= '2003-04-01', e= '2003-05-01' where s = '2003-01-01';
+ERROR 23000: Duplicate entry '1-2003-05-01-2003-04-01' for key 'PRIMARY'
+update t set s= '2003-03-01' where s = '2003-05-01';
+ERROR 23000: Duplicate entry '1-2003-07-01-2003-03-01' for key 'PRIMARY'
+update t set e= '2003-05-01' where s = '2003-01-01';
+ERROR 23000: Duplicate entry '1-2003-05-01-2003-01-01' for key 'PRIMARY'
+select * from t where year(s) = 2003;
+id	s	e
+1	2003-01-01	2003-02-01
+1	2003-03-01	2003-05-01
+1	2003-05-01	2003-07-01
+# UPDATE ... FOR PORTION test
+insert t values (2, '2003-04-15', '2003-05-01');
+update t for portion of p from '2003-01-01' to '2003-01-15'
+         set id= 2;
+select * from t;
+id	s	e
+1	2003-01-15	2003-02-01
+1	2003-03-01	2003-05-01
+1	2003-05-01	2003-07-01
+2	2003-01-01	2003-01-15
+2	2003-04-15	2003-05-01
+update t for portion of p from '2003-01-15' to '2003-02-01'
+         set id= 2;
+select * from t;
+id	s	e
+1	2003-03-01	2003-05-01
+1	2003-05-01	2003-07-01
+2	2003-01-01	2003-01-15
+2	2003-01-15	2003-02-01
+2	2003-04-15	2003-05-01
+# Next, test UPDATE ... FOR PORTION resulting with an error
+# Since MyISAM/Aria engines lack atomicity, the results would differ with
+# innodb. So a table is going to be copied to one with explicit engine.
+create table t_myisam (id int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps))
+engine=myisam
+select * from t;
+update t_myisam for portion of p from '2003-04-01' to '2003-06-01'
+         set id= 2 order by s desc;
+ERROR 23000: Duplicate entry '2-2003-05-01-2003-04-01' for key 'PRIMARY'
+select * from t_myisam;
+id	s	e
+1	2003-03-01	2003-05-01
+1	2003-06-01	2003-07-01
+2	2003-01-01	2003-01-15
+2	2003-01-15	2003-02-01
+2	2003-04-15	2003-05-01
+2	2003-05-01	2003-06-01
+create table t_innodb (id int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps))
+engine=innodb
+select * from t;
+update t_innodb for portion of p from '2003-04-01' to '2003-06-01'
+         set id= 2 order by s desc;
+ERROR 23000: Duplicate entry '2-2003-05-01-2003-04-01' for key 'PRIMARY'
+select * from t_innodb;
+id	s	e
+1	2003-03-01	2003-05-01
+1	2003-05-01	2003-07-01
+2	2003-01-01	2003-01-15
+2	2003-01-15	2003-02-01
+2	2003-04-15	2003-05-01
+drop table t_myisam, t_innodb;
+create or replace table t(id int, s date, e date,
+period for p(s,e),
+primary key(id, q without overlaps));
+ERROR HY000: Period `q` is not found in table
+create or replace table t(id int, s date, e date,
+primary key(id, p without overlaps));
+ERROR HY000: Period `p` is not found in table
+create or replace table t(id int, s date, e date,
+period for p(s,e),
+primary key(id, s, p without overlaps));
+ERROR HY000: Key `PRIMARY` cannot explicitly include column `s`
+create or replace table t(id int, s date, e date,
+period for p(s,e),
+primary key(id));
+insert into t values (1, '2003-03-01', '2003-05-01');
+insert into t values (1, '2003-04-01', '2003-05-01');
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+create or replace table t(id int, u int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps),
+unique(u));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `u` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS),
+  UNIQUE KEY `u` (`u`)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+insert into t values (1, 1, '2003-03-01', '2003-05-01');
+insert into t values (1, 2, '2003-05-01', '2003-07-01');
+insert into t values (1, 3, '2003-04-01', '2003-05-01');
+ERROR 23000: Duplicate entry '1-2003-05-01-2003-04-01' for key 'PRIMARY'
+create or replace table t(id int, u int, s date, e date,
+period for p(s,e),
+primary key(id, p without overlaps),
+unique(u, p without overlaps));
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `u` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS),
+  UNIQUE KEY `u` (`u`,`p` WITHOUT OVERLAPS)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+insert into t values (2, NULL, '2003-03-01', '2003-05-01');
+insert into t values (2, NULL, '2003-03-01', '2003-05-01');
+ERROR 23000: Duplicate entry '2-2003-05-01-2003-03-01' for key 'PRIMARY'
+insert into t values (3, NULL, '2003-03-01', '2003-05-01');
+insert into t values (1, 1, '2003-03-01', '2003-05-01');
+insert into t values (1, 2, '2003-05-01', '2003-07-01');
+insert into t values (4, NULL, '2003-03-01', '2003-05-01');
+create sequence seq start=5 engine=myisam;
+update t set id= nextval(seq), u= nextval(seq), s='2003-05-01', e='2003-07-01'
+         where u is NULL;
+select * from t;
+id	u	s	e
+1	1	2003-03-01	2003-05-01
+1	2	2003-05-01	2003-07-01
+5	6	2003-05-01	2003-07-01
+7	8	2003-05-01	2003-07-01
+9	10	2003-05-01	2003-07-01
+drop sequence seq;
+create or replace table t(id int, s date, e date,
+period for p(s,e));
+insert into t values (1, '2003-01-01', '2003-03-01'),
+(1, '2003-05-01', '2003-07-01'),
+(1, '2003-02-01', '2003-04-01');
+alter table t add primary key(id, p without overlaps);
+ERROR 23000: Duplicate entry '1-2003-04-01-2003-02-01' for key 'PRIMARY'
+# Historical rows are not checked against constraints
+set @@system_versioning_alter_history= keep;
+alter table t add system versioning;
+delete from t;
+alter table t add primary key(id, p without overlaps);
+insert into t values (1, '2003-01-01', '2003-03-01'),
+(1, '2003-03-01', '2003-05-01');
+# `without overlaps` is not lost on alter table
+alter table t add y int;
+show create table t;
+Table	Create Table
+t	CREATE TABLE `t` (
+  `id` int(11) NOT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  `y` int(11) DEFAULT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+alter table t drop y;
+create or replace table t1 like t;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  PRIMARY KEY (`id`,`p` WITHOUT OVERLAPS)
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+create or replace table t1 (x int, s date, e date,
+period for p(s,e),
+primary key(x, p without overlaps));
+alter table t1 partition by key (x);
+create or replace table t1 (x int, s date, e date, period for p (s, e))
+partition by hash (x);
+alter table t1 add primary key (x, p without overlaps);
+create or replace table t2 (x int, s date, e date,
+period for p (s, e),
+key(x, p without overlaps));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'without overlaps))' at line 3
+create or replace table t2 (x int, s date, e date,
+period for p (s, e),
+unique(x, p without overlaps, x, p without overlaps));
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' x, p without overlaps))' at line 3
+create or replace table t1 (x varchar(100), s date, e date,
+period for p(s,e),
+primary key(x, p without overlaps));
+create or replace table t1 (x varchar(100) compressed, s date, e date,
+period for p(s,e),
+primary key(x, p without overlaps));
+ERROR HY000: Compressed column 'x' can't be used in key specification
+create or replace table t (x int, s date, e date, period for apptime(s,e),
+unique(x, apptime without overlaps) using hash);
+ERROR HY000: Key `x` cannot have WITHOUT OVERLAPS
+create or replace table t (x int, s date, e date, period for apptime(s,e),
+b blob, unique(x, b, apptime without overlaps));
+ERROR HY000: Key `x` cannot have WITHOUT OVERLAPS
+create or replace table t (x int, s date, e date, b blob unique,
+period for apptime(s,e),
+unique(x, apptime without overlaps));
+insert into t values (1, '2020-03-01', '2020-03-05', 'test');
+insert into t values (1, '2020-03-05', '2020-03-10', 'test');
+ERROR 23000: Duplicate entry 'test' for key 'b'
+insert into t values (1, '2020-03-05', '2020-03-10', 'test2');
+insert into t values (1, '2020-03-03', '2020-03-10', 'test3');
+ERROR 23000: Duplicate entry '1-2020-03-10-2020-03-03' for key 'x'
+create or replace table t (x int, s date, e date, period for apptime(s,e),
+unique(x, apptime without overlaps));
+replace into t values (1, '2020-03-03', '2020-03-10');
+ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
+insert into t values (1, '2020-03-03', '2020-03-10')
+on duplicate key update x = 2;
+ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
+select * from t;
+x	s	e
+select * into outfile 'tmp_t.txt' from t;
+load data infile 'tmp_t.txt' into table t;
+load data infile 'tmp_t.txt' replace into table t;
+ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
+insert into t values (1, '2020-03-01', '2020-03-05');
+select * into outfile 'tmp_t.txt' from t;
+load data infile 'tmp_t.txt' into table t;
+ERROR 23000: Duplicate entry '1-2020-03-05-2020-03-01' for key 'x'
+load data infile 'tmp_t.txt' ignore into table t;
+Warnings:
+Warning	1062	Duplicate entry '1-2020-03-05-2020-03-01' for key 'x'
+load data infile 'tmp_t.txt' replace into table t;
+ERROR 42000: This version of MariaDB doesn't yet support 'WITHOUT OVERLAPS'
+# MDEV-22599 WITHOUT OVERLAPS does not work with prefix indexes
+create or replace table t1 (a varchar(6), s timestamp, e timestamp,
+period for p(s,e),
+unique(a(3), p without overlaps));
+insert into t1 values ('foo', '2012-01-01', '2015-12-31');
+insert into t1 values ('foobar', '2013-01-01', '2014-01-01');
+ERROR 23000: Duplicate entry 'foo-2014-01-01 00:00:00-2013-01-01 00:00:00' for key 'a'
+insert into t1 values ('bar', '2012-01-01', '2015-12-31'),
+('baz', '2013-01-01', '2014-01-01');
+select * from t1;
+a	s	e
+foo	2012-01-01 00:00:00	2015-12-31 00:00:00
+bar	2012-01-01 00:00:00	2015-12-31 00:00:00
+baz	2013-01-01 00:00:00	2014-01-01 00:00:00
+# MDEV-22753 Server crashes in handler::ha_check_overlaps or error 190
+# "Incompatible key or row definition" upon INSERT into versioned
+# partitioned table with WITHOUT OVERLAPS
+create or replace table t1 (f int, s date, e date, period for p(s,e),
+unique(f, p without overlaps)
+) engine=innodb with system versioning
+partition by system_time limit 1000
+(partition p1 history, partition pn current);
+alter table t1 add partition (partition p2 history);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f` int(11) DEFAULT NULL,
+  `s` date NOT NULL,
+  `e` date NOT NULL,
+  PERIOD FOR `p` (`s`, `e`),
+  UNIQUE KEY `f` (`f`,`p` WITHOUT OVERLAPS)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1000
+(PARTITION `p1` HISTORY ENGINE = InnoDB,
+ PARTITION `p2` HISTORY ENGINE = InnoDB,
+ PARTITION `pn` CURRENT ENGINE = InnoDB)
+insert into t1 values (1,'2013-01-12','2015-11-04'),
+(2,'2016-03-15','2024-11-09');
+# MDEV-22714 Assertion `index->table->is_instant()' failed upon
+# multi-update on table with WITHOUT OVERLAPS
+create or replace table t (a int);
+insert into t values (0),(null),(0);
+create or replace table t1 (f int, s date, e date, period for p(s,e),
+unique(f, p without overlaps));
+insert into t1 values (0,'2026-02-12','2036-09-16'),
+(null,'2025-03-09','2032-12-05');
+update ignore t join t1 set f = a;
+# MDEV-22639  Assertion `inited != NONE' failed in
+# handler::ha_check_overlaps upon multi-table update
+create or replace table t (f int, s date, e date, period for p(s,e),
+unique(f, p without overlaps)) engine=myisam;
+insert into t values (1,'1988-08-25','2024-03-06');
+create or replace table t1 (a int) engine=myisam;
+insert into t1 values (1),(2);
+update t join t1 set s = '2020-01-01';
+# MDEV-22608 ASAN use-after-poison in TABLE::check_period_overlaps
+create or replace table t1 (s date, e date, b bit, period for p(s,e),
+unique(b, p without overlaps)) engine=myisam;
+insert into t1 values ('2024-12-21','2034-06-29',0),
+('2024-12-21','2034-06-29',1);
+update t1 set b = 1;
+ERROR 23000: Duplicate entry '\x01-2034-06-29-2024-12-21' for key 'b'
+# MDEV-22677 Server crashes in ha_partition::open upon update on
+# partitioned HEAP table with WITHOUT OVERLAPS
+create or replace table t (id int, s date, e date, period for p(s,e),
+primary key(id, p without overlaps)
+) engine=heap partition by hash(id);
+update t set id = 1;
+drop table t, t1;

@@ -62,13 +62,14 @@ extern "C" const char* wsrep_thd_transaction_state_str(const THD *thd)
   return wsrep::to_c_string(thd->wsrep_cs().transaction().state());
 }
 
-
 extern "C" const char *wsrep_thd_query(const THD *thd)
 {
-  if (thd)
+  if (!thd)
+    return "NULL";
+
+  switch(thd->lex->sql_command)
   {
-    switch(thd->lex->sql_command)
-    {
+    // Mask away some security related details from error log
     case SQLCOM_CREATE_USER:
       return "CREATE USER";
     case SQLCOM_GRANT:
@@ -77,12 +78,10 @@ extern "C" const char *wsrep_thd_query(const THD *thd)
       return "REVOKE";
     case SQLCOM_SET_OPTION:
       if (thd->lex->definer)
-	return "SET PASSWORD";
+        return "SET PASSWORD";
       /* fallthrough */
     default:
-      if (thd->query())
-        return thd->query();
-    }
+      return (thd->query() ? thd->query() : "NULL");
   }
   return "NULL";
 }
@@ -310,18 +309,55 @@ extern "C" int wsrep_thd_append_key(THD *thd,
     }
     ret= client_state.append_key(wsrep_key);
   }
+  /*
+    In case of `wsrep_gtid_mode` when WS will be replicated, we need to set
+    `server_id` for events that are going to be written in IO, and in case of
+    manual SET gtid_seq_no=X we are ignoring value.
+   */
+  if (!ret && wsrep_gtid_mode && !thd->slave_thread && !wsrep_thd_is_applying(thd))
+  {
+    thd->variables.server_id= wsrep_gtid_server.server_id;
+    thd->variables.gtid_seq_no= 0;
+  }
   return ret;
 }
 
 extern "C" void wsrep_commit_ordered(THD *thd)
 {
   if (wsrep_is_active(thd) &&
-      thd->wsrep_trx().state() == wsrep::transaction::s_committing &&
-      !wsrep_commit_will_write_binlog(thd))
+      (thd->wsrep_trx().state() == wsrep::transaction::s_committing ||
+       thd->wsrep_trx().state() == wsrep::transaction::s_ordered_commit))
   {
-    DEBUG_SYNC(thd, "before_wsrep_ordered_commit");
-    thd->wsrep_cs().ordered_commit();
+    wsrep_gtid_server.signal_waiters(thd->wsrep_current_gtid_seqno, false);
+    if (wsrep_thd_is_local(thd))
+    {
+      thd->wsrep_last_written_gtid_seqno= thd->wsrep_current_gtid_seqno;
+    }
+    if (thd->wsrep_trx().state() != wsrep::transaction::s_ordered_commit &&
+        !wsrep_commit_will_write_binlog(thd))
+    {
+      DEBUG_SYNC(thd, "before_wsrep_ordered_commit");
+      thd->wsrep_cs().ordered_commit();
+    }
   }
+}
+
+extern "C" my_bool wsrep_thd_has_ignored_error(const THD *thd)
+{
+  return thd->wsrep_has_ignored_error;
+}
+
+extern "C" void wsrep_thd_set_ignored_error(THD *thd, my_bool val)
+{
+  thd->wsrep_has_ignored_error= val;
+}
+
+extern "C" ulong wsrep_OSU_method_get(const MYSQL_THD thd)
+{
+  if (thd)
+    return(thd->variables.wsrep_OSU_method);
+  else
+    return(global_system_variables.wsrep_OSU_method);
 }
 
 extern "C" bool wsrep_thd_set_wsrep_aborter(THD *bf_thd, THD *victim_thd)

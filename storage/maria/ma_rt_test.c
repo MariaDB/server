@@ -95,13 +95,13 @@ int main(int argc, char *argv[])
 {
   char buff[FN_REFLEN];  
   MY_INIT(argv[0]);
-  maria_data_root= (char *)".";
+  maria_data_root= ".";
   get_options(argc, argv);
   /* Maria requires that we always have a page cache */
   if (maria_init() ||
       (init_pagecache(maria_pagecache, maria_block_size * 16, 0, 0,
                       maria_block_size, 0, MY_WME) == 0) ||
-      ma_control_file_open(TRUE, TRUE) ||
+      ma_control_file_open(TRUE, TRUE, TRUE) ||
       (init_pagecache(maria_log_pagecache,
                       TRANSLOG_PAGECACHE_SIZE, 0, 0,
                       TRANSLOG_PAGE_SIZE, 0, MY_WME) == 0) ||
@@ -142,6 +142,7 @@ static int run_test(const char *filename)
   uchar read_record[MAX_REC_LENGTH];
   int upd= 10;
   ha_rows hrows;
+  page_range pages;
 
   bzero(&uniquedef, sizeof(uniquedef));
   bzero(&create_info, sizeof(create_info));
@@ -199,7 +200,7 @@ static int run_test(const char *filename)
   if (!silent)
     printf("- Open isam-file\n");
 
-  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED)))
+  if (!(file=maria_open(filename,2,HA_OPEN_ABORT_IF_LOCKED,0)))
     goto err;
   maria_begin(file);
   if (opt_versioning)
@@ -427,7 +428,7 @@ static int run_test(const char *filename)
   range.key= record+1;
   range.length= 1000;                           /* Big enough */
   range.flag= HA_READ_MBR_INTERSECT;
-  hrows= maria_records_in_range(file,0, &range, (key_range*) 0);
+  hrows= maria_records_in_range(file,0, &range, (key_range*) 0, &pages);
   if (!silent)
     printf("     %ld rows\n", (long) hrows);
 
@@ -615,8 +616,8 @@ static struct my_option my_long_options[] =
 #endif
   {"help", '?', "Display help and exit",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
-  {"datadir", 'h', "Path to the database root.", &maria_data_root,
-   &maria_data_root, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
+  {"datadir", 'h', "Path to the database root.", (char**) &maria_data_root,
+   (char**) &maria_data_root, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"row-fixed-size", 'S', "Fixed size records",
    0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0},
   {"rows-in-block", 'M', "Store rows in block format",
@@ -643,10 +644,11 @@ static struct my_option my_long_options[] =
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt,
+	       const char *argument __attribute__((unused)),
+               const char *filename __attribute__((unused)))
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'c':
     create_flag|= HA_CREATE_CHECKSUM | HA_CREATE_PAGE_CHECKSUM;
     break;

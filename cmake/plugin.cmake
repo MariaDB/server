@@ -19,19 +19,23 @@ INCLUDE(CMakeParseArguments)
 
 # MYSQL_ADD_PLUGIN(plugin_name source1...sourceN
 # [STORAGE_ENGINE]
-# [CLIENT]
+# [STATIC_ONLY|MODULE_ONLY]
 # [MANDATORY|DEFAULT]
-# [STATIC_ONLY|DYNAMIC_ONLY]
+# [DISABLED]
+# [NOT_EMBEDDED|RECOMPILE_FOR_EMBEDDED]
+# [CLIENT]
 # [MODULE_OUTPUT_NAME module_name]
 # [STATIC_OUTPUT_NAME static_name]
-# [RECOMPILE_FOR_EMBEDDED]
+# [COMPONENT component]
+# [CONFIG cnf_file_name]
+# [VERSION version_string]
 # [LINK_LIBRARIES lib1...libN]
 # [DEPENDENCIES target1...targetN]
 
 MACRO(MYSQL_ADD_PLUGIN)
   CMAKE_PARSE_ARGUMENTS(ARG
-    "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;RECOMPILE_FOR_EMBEDDED;CLIENT"
-    "MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG"
+    "STORAGE_ENGINE;STATIC_ONLY;MODULE_ONLY;MANDATORY;DEFAULT;DISABLED;NOT_EMBEDDED;RECOMPILE_FOR_EMBEDDED;CLIENT"
+    "MODULE_OUTPUT_NAME;STATIC_OUTPUT_NAME;COMPONENT;CONFIG;VERSION"
     "LINK_LIBRARIES;DEPENDENCIES"
     ${ARGN}
   )
@@ -114,6 +118,10 @@ MACRO(MYSQL_ADD_PLUGIN)
   IF(NOT ARG_DEPENDENCIES)
     SET(ARG_DEPENDENCIES)
   ENDIF()
+
+  IF(ARG_VERSION)
+    SET(version_string ";PLUGIN_${plugin}_VERSION=\"${ARG_VERSION}\"")
+  ENDIF()
   
   IF(NOT ARG_MODULE_OUTPUT_NAME)
     IF(ARG_STORAGE_ENGINE)
@@ -140,7 +148,7 @@ MACRO(MYSQL_ADD_PLUGIN)
     DTRACE_INSTRUMENT(${target})
     ADD_DEPENDENCIES(${target} GenError ${ARG_DEPENDENCIES})
     RESTRICT_SYMBOL_EXPORTS(${target})
-    IF(WITH_EMBEDDED_SERVER)
+    IF(WITH_EMBEDDED_SERVER AND (NOT ARG_NOT_EMBEDDED))
       # Embedded library should contain PIC code and be linkable
       # to shared libraries (on systems that need PIC)
       IF(ARG_RECOMPILE_FOR_EMBEDDED OR NOT _SKIP_PIC)
@@ -150,7 +158,7 @@ MACRO(MYSQL_ADD_PLUGIN)
         DTRACE_INSTRUMENT(${target}_embedded)   
         IF(ARG_RECOMPILE_FOR_EMBEDDED)
           SET_TARGET_PROPERTIES(${target}_embedded 
-            PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY")
+            PROPERTIES COMPILE_DEFINITIONS "EMBEDDED_LIBRARY${version_string}")
         ENDIF()
         ADD_DEPENDENCIES(${target}_embedded GenError)
       ENDIF()
@@ -165,19 +173,30 @@ MACRO(MYSQL_ADD_PLUGIN)
       TARGET_LINK_LIBRARIES (${target} ${ARG_LINK_LIBRARIES})
     ENDIF()
 
+    SET(${with_var} ON CACHE INTERNAL "Link ${plugin} statically to the server" FORCE)
+
     # Update mysqld dependencies
     SET (MYSQLD_STATIC_PLUGIN_LIBS ${MYSQLD_STATIC_PLUGIN_LIBS} 
       ${target} ${ARG_LINK_LIBRARIES} CACHE INTERNAL "" FORCE)
 
-    SET(${with_var} ON CACHE INTERNAL "Link ${plugin} statically to the server" FORCE)
+    IF(WITH_EMBEDDED_SERVER AND (NOT ARG_NOT_EMBEDDED))
+      SET (EMBEDDED_PLUGIN_LIBS ${EMBEDDED_PLUGIN_LIBS}
+      ${target} ${ARG_LINK_LIBRARIES} CACHE INTERNAL "" FORCE)
+    ENDIF()
+
+    IF(ARG_NOT_EMBEDDED)
+      SET(builtin_entry "#ifndef EMBEDDED_LIBRARY\n builtin_maria_${target}_plugin,\n#endif")
+    ELSE()
+      SET(builtin_entry " builtin_maria_${target}_plugin,")
+    ENDIF()
 
     IF(ARG_MANDATORY)
       SET (mysql_mandatory_plugins  
-        "${mysql_mandatory_plugins} builtin_maria_${target}_plugin,")
+        "${mysql_mandatory_plugins}${builtin_entry}\n")
       SET (mysql_mandatory_plugins ${mysql_mandatory_plugins} PARENT_SCOPE)
     ELSE()
       SET (mysql_optional_plugins  
-        "${mysql_optional_plugins} builtin_maria_${target}_plugin,")
+        "${mysql_optional_plugins}${builtin_entry}\n")
       SET (mysql_optional_plugins ${mysql_optional_plugins} PARENT_SCOPE)
     ENDIF()
   ELSEIF(PLUGIN_${plugin} MATCHES "(DYNAMIC|AUTO|YES)"
@@ -190,10 +209,14 @@ MACRO(MYSQL_ADD_PLUGIN)
     SET_TARGET_PROPERTIES (${target} PROPERTIES PREFIX "")
     IF (NOT ARG_CLIENT)
       SET_TARGET_PROPERTIES (${target} PROPERTIES
-        COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN")
+        COMPILE_DEFINITIONS "MYSQL_DYNAMIC_PLUGIN${version_string}")
     ENDIF()
 
     TARGET_LINK_LIBRARIES (${target} mysqlservices ${ARG_LINK_LIBRARIES})
+
+    IF(CMAKE_SYSTEM_NAME MATCHES AIX)
+      TARGET_LINK_OPTIONS(${target} PRIVATE "-Wl,-bE:${CMAKE_SOURCE_DIR}/libservices/mysqlservices_aix.def")
+    ENDIF()
 
     # Server plugins use symbols defined in mysqld executable.
     # Some operating systems like Windows and OSX and are pretty strict about 
@@ -203,11 +226,10 @@ MACRO(MYSQL_ADD_PLUGIN)
     # Thus we skip TARGET_LINK_LIBRARIES on Linux, as it would only generate
     # an additional dependency.
     IF(ARG_RECOMPILE_FOR_EMBEDDED OR ARG_STORAGE_ENGINE)
-      IF(MSVC)
-        ADD_DEPENDENCIES(${target} gen_mysqld_lib)
-        TARGET_LINK_LIBRARIES(${target} mysqld_import_lib)
+      IF(MSVC OR CMAKE_SYSTEM_NAME MATCHES AIX)
+        TARGET_LINK_LIBRARIES(${target} server)
       ELSEIF(NOT CMAKE_SYSTEM_NAME STREQUAL "Linux")
-        TARGET_LINK_LIBRARIES (${target} mysqld)
+        TARGET_LINK_LIBRARIES (${target} mariadbd)
       ENDIF()
     ELSEIF(CMAKE_SYSTEM_NAME STREQUAL "Linux" AND NOT WITH_ASAN AND NOT WITH_TSAN AND NOT WITH_UBSAN AND NOT WITH_MSAN)
       TARGET_LINK_LIBRARIES (${target} "-Wl,--no-undefined")
@@ -223,7 +245,8 @@ MACRO(MYSQL_ADD_PLUGIN)
          NOT CPACK_COMPONENTS_ALL MATCHES ${ARG_COMPONENT}
          AND INSTALL_SYSCONF2DIR)
         IF (ARG_STORAGE_ENGINE)
-          SET(ver " = %{version}-%{release}")
+          STRING(REPLACE "-" "_" ver ${SERVER_VERSION})
+          SET(ver " = ${ver}-%{release}")
         ELSE()
           SET(ver "")
         ENDIF()
@@ -234,12 +257,15 @@ MACRO(MYSQL_ADD_PLUGIN)
           SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_REQUIRES "MariaDB-server${ver}" PARENT_SCOPE)
         ENDIF()
         SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} PARENT_SCOPE)
+        IF (ARG_VERSION)
+          SET(CPACK_RPM_${ARG_COMPONENT}_PACKAGE_VERSION ${SERVER_VERSION}_${ARG_VERSION} PARENT_SCOPE)
+          SET_PLUGIN_DEB_VERSION(${target} ${SERVER_VERSION}-${ARG_VERSION})
+        ENDIF()
         IF(NOT ARG_CLIENT AND UNIX)
           IF (NOT ARG_CONFIG)
             SET(ARG_CONFIG "${CMAKE_CURRENT_BINARY_DIR}/CMakeFiles/${target}.cnf")
             FILE(WRITE ${ARG_CONFIG} "[mariadb]\nplugin-load-add=${ARG_MODULE_OUTPUT_NAME}.so\n")
           ENDIF()
-          INSTALL(FILES ${ARG_CONFIG} COMPONENT ${ARG_COMPONENT} DESTINATION ${INSTALL_SYSCONF2DIR})
           SET(CPACK_RPM_${ARG_COMPONENT}_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*" PARENT_SCOPE)
           SET(CPACK_RPM_${ARG_COMPONENT}_POST_INSTALL_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/plugin-postin.sh PARENT_SCOPE)
           SET(CPACK_RPM_${ARG_COMPONENT}_POST_TRANS_SCRIPT_FILE ${CMAKE_SOURCE_DIR}/support-files/rpm/server-posttrans.sh PARENT_SCOPE)
@@ -249,6 +275,9 @@ MACRO(MYSQL_ADD_PLUGIN)
       SET(ARG_COMPONENT Server)
     ENDIF()
     MYSQL_INSTALL_TARGETS(${target} DESTINATION ${INSTALL_PLUGINDIR} COMPONENT ${ARG_COMPONENT})
+    IF(ARG_CONFIG AND INSTALL_SYSCONF2DIR)
+      INSTALL(FILES ${ARG_CONFIG} COMPONENT ${ARG_COMPONENT} DESTINATION ${INSTALL_SYSCONF2DIR})
+    ENDIF()
   ENDIF()
 
   GET_FILENAME_COMPONENT(subpath ${CMAKE_CURRENT_SOURCE_DIR} NAME)

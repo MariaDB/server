@@ -60,13 +60,13 @@ public:
     grouping(grouping_par),
     errmsgs(errmsgs_par)
   {}
-  uint repertoire() const
+  my_repertoire_t repertoire() const
   { return is_ascii ? MY_REPERTOIRE_ASCII : MY_REPERTOIRE_EXTENDED; }
 };
 /* Exported variables */
 
 extern MY_LOCALE my_locale_en_US;
-extern MY_LOCALE *my_locales[];
+extern MYSQL_PLUGIN_IMPORT MY_LOCALE *my_locales[];
 extern MY_LOCALE *my_default_lc_messages;
 extern MY_LOCALE *my_default_lc_time_names;
 

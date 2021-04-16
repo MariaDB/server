@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2010, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,10 +26,11 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "table_performance_timers.h"
 #include "pfs_timer.h"
 #include "pfs_global.h"
+#include "field.h"
 
 THR_LOCK table_performance_timers::m_table_lock;
 
@@ -38,23 +39,29 @@ table_performance_timers::m_share=
 {
   { C_STRING_WITH_LEN("performance_timers") },
   &pfs_readonly_acl,
-  &table_performance_timers::create,
+  table_performance_timers::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  NULL, /* get_row_count */
-  COUNT_TIMER_NAME, /* records */
+  table_performance_timers::get_row_count,
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE performance_timers("
                       "TIMER_NAME ENUM ('CYCLE', 'NANOSECOND', 'MICROSECOND', 'MILLISECOND', 'TICK') not null,"
                       "TIMER_FREQUENCY BIGINT,"
                       "TIMER_RESOLUTION BIGINT,"
-                      "TIMER_OVERHEAD BIGINT)") }
+                      "TIMER_OVERHEAD BIGINT)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_performance_timers::create(void)
 {
   return new table_performance_timers();
+}
+
+ha_rows
+table_performance_timers::get_row_count(void)
+{
+  return COUNT_TIMER_NAME;
 }
 
 table_performance_timers::table_performance_timers()

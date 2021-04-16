@@ -438,7 +438,7 @@ static void emb_free_embedded_thd(MYSQL *mysql)
   thd->clear_data_list();
   thd->store_globals();
   delete thd;
-  my_pthread_setspecific_ptr(THR_THD,  0);
+  set_current_thd(nullptr);
   mysql->thd=0;
 }
 
@@ -492,8 +492,8 @@ char **copy_arguments(int argc, char **argv)
   for (from=argv ; from != end ; from++)
     length+= strlen(*from);
 
-  if ((res= (char**) my_malloc(sizeof(argv)*(argc+1)+length+argc,
-			       MYF(MY_WME))))
+  if ((res= (char**) my_malloc(PSI_NOT_INSTRUMENTED,
+                               sizeof(argv)*(argc+1)+length+argc, MYF(MY_WME))))
   {
     char **to= res, *to_str= (char*) (res+argc+1);
     for (from=argv ; from != end ;)
@@ -561,7 +561,7 @@ int init_embedded_server(int argc, char **argv, char **groups)
   remaining_argv= *argvp;
 
   /* Must be initialized early for comparison of options name */
-  system_charset_info= &my_charset_utf8_general_ci;
+  system_charset_info= &my_charset_utf8mb3_general_ci;
   sys_var_init();
 
   int ho_error= handle_early_options();
@@ -666,7 +666,7 @@ void init_embedded_mysql(MYSQL *mysql, int client_flag)
   thd->mysql= mysql;
   mysql->server_version= server_version;
   mysql->client_flag= client_flag;
-  init_alloc_root(&mysql->field_alloc, "fields", 8192, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &mysql->field_alloc, 8192, 0, MYF(0));
 }
 
 /**
@@ -685,11 +685,7 @@ void *create_embedded_thd(int client_flag)
   THD * thd= new THD(next_thread_id());
 
   thd->thread_stack= (char*) &thd;
-  if (thd->store_globals())
-  {
-    fprintf(stderr,"store_globals failed.\n");
-    goto err;
-  }
+  thd->store_globals();
   lex_start(thd);
 
   /* TODO - add init_connect command execution */
@@ -706,7 +702,7 @@ void *create_embedded_thd(int client_flag)
   thd->db= null_clex_str;
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   thd->security_ctx->db_access= DB_ACLS;
-  thd->security_ctx->master_access= ~NO_ACCESS;
+  thd->security_ctx->master_access= ALL_KNOWN_ACL;
 #endif
   thd->cur_data= 0;
   thd->first_data= 0;
@@ -716,9 +712,6 @@ void *create_embedded_thd(int client_flag)
   thd->mysys_var= 0;
   thd->reset_globals();
   return thd;
-err:
-  delete(thd);
-  return NULL;
 }
 
 
@@ -760,7 +753,7 @@ int check_embedded_connection(MYSQL *mysql, const char *db)
   sctx->host_or_ip= sctx->host= (char*) my_localhost;
   strmake_buf(sctx->priv_host, (char*) my_localhost);
   strmake_buf(sctx->priv_user, mysql->user);
-  sctx->user= my_strdup(mysql->user, MYF(0));
+  sctx->user= my_strdup(PSI_NOT_INSTRUMENTED, mysql->user, MYF(0));
   sctx->proxy_user[0]= 0;
   sctx->master_access= GLOBAL_ACLS;       // Full rights
   emb_transfer_connect_attrs(mysql);
@@ -894,13 +887,6 @@ static char *dup_str_aux(MEM_ROOT *root, const char *from, uint length,
 }
 
 
-static char *dup_str_aux(MEM_ROOT *root, const char *from,
-                         CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
-{
-  return dup_str_aux(root, from, (uint) strlen(from), fromcs, tocs);
-}
-
-
 static char *dup_str_aux(MEM_ROOT *root, const LEX_CSTRING &from,
                          CHARSET_INFO *fromcs, CHARSET_INFO *tocs)
 {
@@ -927,10 +913,8 @@ MYSQL_DATA *THD::alloc_new_dataset()
 {
   MYSQL_DATA *data;
   struct embedded_query_result *emb_data;
-  if (!my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
-                       &data, sizeof(*data),
-                       &emb_data, sizeof(*emb_data),
-                       NULL))
+  if (!my_multi_malloc(PSI_NOT_INSTRUMENTED, MYF(MY_WME | MY_ZEROFILL),
+                       &data, sizeof(*data), &emb_data, sizeof(*emb_data), NULL))
     return NULL;
 
   emb_data->prev_ptr= &data->data;
@@ -993,7 +977,7 @@ bool Protocol::begin_dataset()
     return 1;
   alloc= &data->alloc;
   /* Assume rowlength < 8192 */
-  init_alloc_root(alloc, "protocol", 8192, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, alloc, 8192, 0, MYF(0));
   alloc->min_malloc= sizeof(MYSQL_ROWS);
   return 0;
 }
@@ -1039,6 +1023,39 @@ void Protocol_text::remove_last_row()
 
   DBUG_VOID_RETURN;
 }
+
+
+
+static MARIADB_CONST_STRING ma_const_string_copy_root(MEM_ROOT *memroot,
+                                                      const char *str,
+                                                      size_t length)
+{
+  MARIADB_CONST_STRING res;
+  if (!str || !(res.str= strmake_root(memroot, str, length)))
+    return null_clex_str;
+  res.length= length;
+  return res;
+}
+
+
+class Client_field_extension: public Sql_alloc,
+                              public MARIADB_FIELD_EXTENSION
+{
+public:
+  Client_field_extension()
+  {
+    memset(this, 0, sizeof(*this));
+  }
+  void copy_extended_metadata(MEM_ROOT *memroot,
+                              const Send_field_extended_metadata &src)
+  {
+    for (uint i= 0; i <= MARIADB_FIELD_ATTR_LAST; i++)
+    {
+      LEX_CSTRING attr= src.attr(i);
+      metadata[i]= ma_const_string_copy_root(memroot, attr.str, attr.length);
+    }
+  }
+};
 
 
 bool Protocol_text::store_field_metadata(const THD * thd,
@@ -1089,6 +1106,17 @@ bool Protocol_text::store_field_metadata(const THD * thd,
   client_field->catalog= dup_str_aux(field_alloc, "def", 3, cs, thd_cs);
   client_field->catalog_length= 3;
 
+  if (server_field.has_extended_metadata())
+  {
+    Client_field_extension *ext= new (field_alloc) Client_field_extension();
+    if ((client_field->extension= static_cast<MARIADB_FIELD_EXTENSION*>(ext)))
+      ext->copy_extended_metadata(field_alloc, server_field);
+  }
+  else
+  {
+    client_field->extension= NULL;
+  }
+
   if (IS_NUM(client_field->type))
     client_field->flags|= NUM_FLAG;
 
@@ -1113,7 +1141,7 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 
   for (uint pos= 0 ; (item= it++); pos++)
   {
-    if (prot.store_field_metadata(thd, item, pos))
+    if (prot.store_item_metadata(thd, item, pos))
       goto err;
   }
 
@@ -1228,8 +1256,7 @@ bool Protocol_binary::write()
     @retval FALSE Success
 */
 
-bool
-net_send_ok(THD *thd,
+bool Protocol::net_send_ok(THD *thd,
             uint server_status, uint statement_warn_count,
             ulonglong affected_rows, ulonglong id, const char *message,
             bool, bool)
@@ -1264,7 +1291,7 @@ net_send_ok(THD *thd,
 */
 
 bool
-net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
+Protocol::net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
 {
   bool error= write_eof_packet(thd, server_status, statement_warn_count);
   thd->cur_data= 0;
@@ -1272,8 +1299,8 @@ net_send_eof(THD *thd, uint server_status, uint statement_warn_count)
 }
 
 
-bool net_send_error_packet(THD *thd, uint sql_errno, const char *err,
-                           const char *sqlstate)
+bool Protocol::net_send_error_packet(THD *thd, uint sql_errno, const char *err,
+                                     const char *sqlstate)
 {
   uint error;
   char converted_err[MYSQL_ERRMSG_SIZE];

@@ -1,0 +1,10 @@
+-- source include/have_working_dns.inc
+-- source include/not_embedded.inc
+
+CREATE TABLE t1 (a TEST_INT8, b TEST_DOUBLE);
+#
+# doesn't report the correct type name yet
+# to be fixed
+#
+--exec $MYSQL -t test --column-type-info -e "SELECT * FROM t1" 2>&1 
+DROP TABLE t1;

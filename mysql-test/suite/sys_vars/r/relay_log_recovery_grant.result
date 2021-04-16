@@ -1,0 +1,46 @@
+#
+# MDEV-21969 Bind REPLICATION SLAVE ADMIN to relay_log_*, sync_master_info, sync_relay_log, sync_relay_log_info
+#
+SET @global=@@global.relay_log_recovery;
+# Test that "SET relay_log_recovery" is not allowed without REPLICATION SLAVE ADMIN or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE REPLICATION SLAVE ADMIN, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL relay_log_recovery=1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, REPLICATION SLAVE ADMIN privilege(s) for this operation
+SET relay_log_recovery=1;
+ERROR HY000: Variable 'relay_log_recovery' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION relay_log_recovery=1;
+ERROR HY000: Variable 'relay_log_recovery' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET relay_log_recovery" is allowed with REPLICATION SLAVE ADMIN
+CREATE USER user1@localhost;
+GRANT REPLICATION SLAVE ADMIN ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL relay_log_recovery=1;
+SET relay_log_recovery=1;
+ERROR HY000: Variable 'relay_log_recovery' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION relay_log_recovery=1;
+ERROR HY000: Variable 'relay_log_recovery' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET relay_log_recovery" is allowed with SUPER
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL relay_log_recovery=1;
+SET relay_log_recovery=1;
+ERROR HY000: Variable 'relay_log_recovery' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION relay_log_recovery=1;
+ERROR HY000: Variable 'relay_log_recovery' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+SET @@global.relay_log_recovery=@global;

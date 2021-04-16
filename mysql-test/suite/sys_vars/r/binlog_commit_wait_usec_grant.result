@@ -1,0 +1,46 @@
+#
+# MDEV-21963 Bind BINLOG ADMIN to a number of global system variables
+#
+SET @global=@@global.binlog_commit_wait_usec;
+# Test that "SET binlog_commit_wait_usec" is not allowed without BINLOG ADMIN or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE BINLOG ADMIN, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL binlog_commit_wait_usec=65536;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG ADMIN privilege(s) for this operation
+SET binlog_commit_wait_usec=65536;
+ERROR HY000: Variable 'binlog_commit_wait_usec' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION binlog_commit_wait_usec=65536;
+ERROR HY000: Variable 'binlog_commit_wait_usec' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET binlog_commit_wait_usec" is allowed with BINLOG ADMIN
+CREATE USER user1@localhost;
+GRANT BINLOG ADMIN ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL binlog_commit_wait_usec=65536;
+SET binlog_commit_wait_usec=65536;
+ERROR HY000: Variable 'binlog_commit_wait_usec' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION binlog_commit_wait_usec=65536;
+ERROR HY000: Variable 'binlog_commit_wait_usec' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET binlog_commit_wait_usec" is allowed with SUPER
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL binlog_commit_wait_usec=65536;
+SET binlog_commit_wait_usec=65536;
+ERROR HY000: Variable 'binlog_commit_wait_usec' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION binlog_commit_wait_usec=65536;
+ERROR HY000: Variable 'binlog_commit_wait_usec' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+SET @@global.binlog_commit_wait_usec=@global;

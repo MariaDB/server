@@ -1,0 +1,35 @@
+#
+# MDEV-20016 Add MariaDB_DATA_TYPE_PLUGIN
+#
+# Testing that a user-defined handler is resolved by name
+# when opening a FRM file.
+SET @old_debug_dbug=@@debug_dbug;
+SET @@debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (a TEST_INT8);
+Warnings:
+Note	1105	build_frm_image: Field data type info length: 11
+Note	1105	DBUG: [0] name='a' type_info='test_int8'
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` test_int8(20) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+Warnings:
+Note	1105	DBUG: [0] name='a' type_info='test_int8'
+DROP TABLE t1;
+SET @@debug_dbug=@old_debug_dbug;
+# Testing what happens on failure to resolve a type handler by name
+SET @old_debug_dbug=@@debug_dbug;
+SET @@debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (a TEST_INT8);
+Warnings:
+Note	1105	build_frm_image: Field data type info length: 11
+Note	1105	DBUG: [0] name='a' type_info='test_int8'
+FLUSH TABLES;
+SET @@debug_dbug="+d,emulate_handler_by_name_or_error_failure";
+SHOW CREATE TABLE t1;
+ERROR HY000: Unknown data type: 'test_int8'
+SELECT * FROM t1;
+ERROR HY000: Unknown data type: 'test_int8'
+DROP TABLE t1;
+SET @@debug_dbug=@old_debug_dbug;

@@ -1,4 +1,5 @@
 /* Copyright (c) 2008, 2013, Oracle and/or its affiliates.
+  Copyright (c) 2020, MariaDB Corporation.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -62,6 +63,27 @@
 */
 
 #include "mysql/psi/psi.h"
+#ifdef MYSQL_SERVER
+#ifndef MYSQL_DYNAMIC_PLUGIN
+#include "pfs_thread_provider.h"
+#endif
+#endif
+
+#ifndef PSI_MUTEX_CALL
+#define PSI_MUTEX_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_RWLOCK_CALL
+#define PSI_RWLOCK_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_COND_CALL
+#define PSI_COND_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
+
+#ifndef PSI_THREAD_CALL
+#define PSI_THREAD_CALL(M) PSI_DYNAMIC_CALL(M)
+#endif
 
 /**
   @defgroup Thread_instrumentation Thread Instrumentation
@@ -75,26 +97,32 @@
 #define PSI_CALL_new_thread               PSI_THREAD_CALL(new_thread)
 #define PSI_CALL_register_thread          PSI_THREAD_CALL(register_thread)
 #define PSI_CALL_set_thread               PSI_THREAD_CALL(set_thread)
+#define PSI_CALL_set_thread_THD           PSI_THREAD_CALL(set_thread_THD)
 #define PSI_CALL_set_thread_connect_attrs PSI_THREAD_CALL(set_thread_connect_attrs)
 #define PSI_CALL_set_thread_db            PSI_THREAD_CALL(set_thread_db)
 #define PSI_CALL_set_thread_id            PSI_THREAD_CALL(set_thread_id)
+#define PSI_CALL_set_thread_os_id         PSI_THREAD_CALL(set_thread_os_id)
 #define PSI_CALL_set_thread_info          PSI_THREAD_CALL(set_thread_info)
 #define PSI_CALL_set_thread_start_time    PSI_THREAD_CALL(set_thread_start_time)
-#define PSI_CALL_set_thread_user_host     PSI_THREAD_CALL(set_thread_user_host)
+#define PSI_CALL_set_thread_account       PSI_THREAD_CALL(set_thread_account)
 #define PSI_CALL_spawn_thread             PSI_THREAD_CALL(spawn_thread)
+#define PSI_CALL_set_connection_type      PSI_THREAD_CALL(set_connection_type)
 #else
 #define PSI_CALL_delete_current_thread()                do { } while(0)
 #define PSI_CALL_get_thread()                           NULL
 #define PSI_CALL_new_thread(A1,A2,A3)                   NULL
 #define PSI_CALL_register_thread(A1,A2,A3)              do { } while(0)
 #define PSI_CALL_set_thread(A1)                         do { } while(0)
+#define PSI_CALL_set_thread_THD(A1,A2)                  do { } while(0)
 #define PSI_CALL_set_thread_connect_attrs(A1,A2,A3)     0
 #define PSI_CALL_set_thread_db(A1,A2)                   do { } while(0)
 #define PSI_CALL_set_thread_id(A1,A2)                   do { } while(0)
+#define PSI_CALL_set_thread_os_id(A1)                   do { } while(0)
 #define PSI_CALL_set_thread_info(A1, A2)                do { } while(0)
 #define PSI_CALL_set_thread_start_time(A1)              do { } while(0)
-#define PSI_CALL_set_thread_user_host(A1, A2, A3, A4)   do { } while(0)
+#define PSI_CALL_set_thread_account(A1, A2, A3, A4)     do { } while(0)
 #define PSI_CALL_spawn_thread(A1, A2, A3, A4, A5)       0
+#define PSI_CALL_set_connection_type(A)                 do { } while(0)
 #endif
 
 
@@ -235,6 +263,7 @@ typedef struct st_mysql_cond mysql_cond_t;
 */
 #ifndef DISABLE_MYSQL_THREAD_H
 
+#define mysql_mutex_is_owner(M) safe_mutex_is_owner(&(M)->m_mutex)
 /**
   @def mysql_mutex_assert_owner(M)
   Wrapper, to use safe_mutex_assert_owner with instrumented mutexes.
@@ -256,11 +285,19 @@ typedef struct st_mysql_cond mysql_cond_t;
 #define mysql_mutex_setflags(M, F) \
   safe_mutex_setflags(&(M)->m_mutex, (F))
 
-/** Wrappers for instrumented prlock objects.  */
-
+/**
+  @def mysql_prlock_assert_write_owner(M)
+  Drop-in replacement
+  for @c rw_pr_lock_assert_write_owner.
+*/
 #define mysql_prlock_assert_write_owner(M) \
   rw_pr_lock_assert_write_owner(&(M)->m_prlock)
 
+/**
+  @def mysql_prlock_assert_not_write_owner(M)
+  Drop-in replacement
+  for @c rw_pr_lock_assert_not_write_owner.
+*/
 #define mysql_prlock_assert_not_write_owner(M) \
   rw_pr_lock_assert_not_write_owner(&(M)->m_prlock)
 
@@ -538,7 +575,7 @@ typedef struct st_mysql_cond mysql_cond_t;
   Instrumented cond_wait.
   @c mysql_cond_wait is a drop-in replacement for @c pthread_cond_wait.
 */
-#ifdef HAVE_PSI_COND_INTERFACE
+#if defined(SAFE_MUTEX) || defined(HAVE_PSI_COND_INTERFACE)
   #define mysql_cond_wait(C, M) \
     inline_mysql_cond_wait(C, M, __FILE__, __LINE__)
 #else
@@ -552,7 +589,7 @@ typedef struct st_mysql_cond mysql_cond_t;
   @c mysql_cond_timedwait is a drop-in replacement
   for @c pthread_cond_timedwait.
 */
-#ifdef HAVE_PSI_COND_INTERFACE
+#if defined(SAFE_MUTEX) || defined(HAVE_PSI_COND_INTERFACE)
   #define mysql_cond_timedwait(C, M, W) \
     inline_mysql_cond_timedwait(C, M, W, __FILE__, __LINE__)
 #else
@@ -616,6 +653,17 @@ typedef struct st_mysql_cond mysql_cond_t;
   #define mysql_thread_set_psi_id(I) inline_mysql_thread_set_psi_id(I)
 #else
   #define mysql_thread_set_psi_id(I) do {} while (0)
+#endif
+
+/**
+  @def mysql_thread_set_psi_THD(T)
+  Set the thread sql session for the instrumentation.
+  @param I The thread identifier
+*/
+#ifdef HAVE_PSI_THREAD_INTERFACE
+  #define mysql_thread_set_psi_THD(T) inline_mysql_thread_set_psi_THD(T)
+#else
+  #define mysql_thread_set_psi_THD(T) do {} while (0)
 #endif
 
 static inline void inline_mysql_mutex_register(
@@ -1154,7 +1202,7 @@ static inline int inline_mysql_cond_destroy(
 static inline int inline_mysql_cond_wait(
   mysql_cond_t *that,
   mysql_mutex_t *mutex
-#ifdef HAVE_PSI_COND_INTERFACE
+#if defined(SAFE_MUTEX) || defined(HAVE_PSI_COND_INTERFACE)
   , const char *src_file, uint src_line
 #endif
   )
@@ -1191,7 +1239,7 @@ static inline int inline_mysql_cond_timedwait(
   mysql_cond_t *that,
   mysql_mutex_t *mutex,
   const struct timespec *abstime
-#ifdef HAVE_PSI_COND_INTERFACE
+#if defined(SAFE_MUTEX) || defined(HAVE_PSI_COND_INTERFACE)
   , const char *src_file, uint src_line
 #endif
   )
@@ -1281,6 +1329,16 @@ static inline void inline_mysql_thread_set_psi_id(my_thread_id id)
   struct PSI_thread *psi= PSI_THREAD_CALL(get_thread)();
   PSI_THREAD_CALL(set_thread_id)(psi, id);
 }
+
+#ifdef __cplusplus
+class THD;
+static inline void inline_mysql_thread_set_psi_THD(THD *thd)
+{
+  struct PSI_thread *psi= PSI_THREAD_CALL(get_thread)();
+  PSI_THREAD_CALL(set_thread_THD)(psi, thd);
+}
+#endif /* __cplusplus */
+
 #endif
 
 #endif /* DISABLE_MYSQL_THREAD_H */

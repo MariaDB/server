@@ -268,7 +268,7 @@ dict_process_sys_tablespaces(
 /*=========================*/
 	mem_heap_t*	heap,		/*!< in/out: heap memory */
 	const rec_t*	rec,		/*!< in: current SYS_TABLESPACES rec */
-	ulint*		space,		/*!< out: pace id */
+	uint32_t*	space,		/*!< out: tablespace identifier */
 	const char**	name,		/*!< out: tablespace name */
 	ulint*		flags);		/*!< out: tablespace flags */
 /********************************************************************//**
@@ -280,7 +280,7 @@ dict_process_sys_datafiles(
 /*=======================*/
 	mem_heap_t*	heap,		/*!< in/out: heap memory */
 	const rec_t*	rec,		/*!< in: current SYS_DATAFILES rec */
-	ulint*		space,		/*!< out: pace id */
+	uint32_t*	space,		/*!< out: tablespace identifier */
 	const char**	path);		/*!< out: datafile path */
 
 /** Update the record for space_id in SYS_TABLESPACES to this filepath.

@@ -1,0 +1,554 @@
+create table t1 (a int, b int) engine=MyISAM;
+create table t2 (c int, d int) engine=MyISAM;
+create table t3 (e int, f int) engine=MyISAM;
+create table t4 (g int, h int) engine=MyISAM;
+insert into t1 values (1,1),(2,2),(3,3),(2,2),(3,3);
+insert into t2 values (2,2),(3,3),(5,5),(2,2),(2,2),(3,3);
+insert into t3 values (4,4),(2,2),(2,2),(1,1),(3,3);
+insert into t4 values (2,2),(4,4),(1,1);
+create view v0(g, h) as select a,c from t1,t2;
+
+--echo # test optimization
+
+let $q=
+    select * from t1
+    INTERSECT ALL
+    select * from t2
+    INTERSECT ALL
+    select * from t3;
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+let $q=
+    select * from t1
+    INTERSECT ALL
+    select * from t2
+    INTERSECT ALL
+    select * from t3
+    INTERSECT
+    select * from t1;
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+let $q=
+    select * from t1
+    INTERSECT ALL
+    select * from t2
+    INTERSECT ALL
+    select * from t3
+    EXCEPT ALL
+    select * from t4;
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+let $q=
+    select * from t1
+    INTERSECT
+    select * from t2
+    EXCEPT ALL
+    select * from t4;
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+insert into t4 values (1,1),(9,9);
+let $q=
+    select * from t1
+    UNION ALL
+    select * from t2
+    UNION ALL
+    select * from t3
+    EXCEPT
+    select * from t4;
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+delete from t4;
+insert into t4 values (3,3),(3,3);
+let $q=
+    select * from t1
+    INTERSECT ALL
+    select * from t2
+    UNION ALL
+    select * from t3
+    EXCEPT ALL
+    select * from t1
+    UNION
+    select * from t4
+    EXCEPT
+    select * from t3
+    UNION ALL
+    select * from t1;
+
+eval $q;
+eval EXPLAIN EXTENDED $q;
+drop table t4;
+
+--echo # test optimization with brackets
+
+let $q=
+(
+    (select 1 except select 5 union all select 6)
+        union
+    (select 2 intersect all select 3 intersect all select 4)
+        except
+    (select 7 intersect all select 8)
+)
+    union all
+(select 9 union all select 10)
+    except all
+select 11;
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+let $q=
+(select 1 union all select 2)
+    union
+(select 3 union all select 4);
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+let $q=
+(select 1 intersect all select 2)
+    except
+select 3;
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+let $q=
+(select 1 intersect all select 2 intersect all select 3)
+    intersect
+(select 4 intersect all select 5);
+eval $q;
+eval EXPLAIN EXTENDED $q;
+
+
+--echo # test set operations with table value constructor
+
+(values (1,1),(1,1),(1,1),(2,2),(2,2),(3,3),(9,9))
+INTERSECT ALL
+(values (1,1),(2,2),(2,2),(3,3),(3,3),(3,3),(8,8))
+EXCEPT ALL
+(values (7,7),(1,1));
+
+delete from t1;
+insert into t1 values(1,1),(1,1),(2,2),(4,4),(9,9);
+
+select * from t1
+UNION ALL
+(values (11,12),(3,3),(2,2),(3,3),(4,4),(8,8))
+INTERSECT
+(values (13,14),(7,7),(2,2),(3,3),(1,1))
+INTERSECT ALL
+(values (15,16),(2,2),(1,1))
+EXCEPT
+(values (17,18),(1,1));
+
+--echo  # test set operations with derived table
+
+select * from (
+    select * from t1
+    UNION ALL
+    select * from t2
+)dt1
+INTERSECT ALL
+select * from (
+    select * from t2
+    EXCEPT ALL
+    select * from t3
+)dt2;
+
+select * from (
+    select * from t1
+    UNION ALL
+    select * from t3
+)dt1
+EXCEPT ALL
+select * from (
+    select * from t2
+    INTERSECT ALL
+    select * from t2
+)dt2;
+
+SELECT * from(
+    select * from (
+        select * from t1
+        UNION ALL
+        select * from t2
+    )dt1
+    INTERSECT ALL
+    select * from (
+        select * from t2
+        EXCEPT ALL
+        select * from t3
+    )dt2
+)dt3;
+
+--echo # integration test
+
+
+select * from t1
+UNION ALL
+select * from t2
+INTERSECT ALL
+(values (1,1), (2,2), (2,2), (5,5), (2,2))
+INTERSECT ALL
+select * from (select * from t1 union all select * from t1) sq
+EXCEPT ALL
+select * from t3
+UNION ALL
+select * from t2
+UNION
+select * from t3
+EXCEPT
+select a,c from t1,t2
+UNION ALL
+select * from v0 where g < 4
+UNION ALL
+select * from t3;
+
+--sorted_result
+select * from t1
+UNION ALL
+select * from t2
+INTERSECT ALL
+(values (1,1), (2,2), (2,2), (5,5), (2,2))
+INTERSECT ALL
+select * from (select * from t1 union all select * from t1) sq
+EXCEPT ALL
+select * from t3
+UNION ALL
+select * from t2
+UNION
+select * from t3
+EXCEPT
+select a,c from t1,t2
+UNION ALL
+select * from v0 where g < 4
+UNION ALL
+select * from t3
+ORDER BY a;
+
+
+select * from (
+    select * from t1
+    UNION ALL
+    select * from t2
+    INTERSECT ALL
+    (values (1,1), (2,2), (2,2), (5,5), (2,2) )
+    INTERSECT ALL
+    select * from (select * from t1 union all select * from t1) sq
+    EXCEPT ALL
+    select * from t3
+    UNION ALL
+    select * from t2
+    UNION
+    select * from t3
+    EXCEPT
+    select a,c from t1,t2
+    UNION ALL
+    select * from v0 where g < 4
+    UNION ALL
+    select * from t3
+) dt;
+
+EXPLAIN
+select * from t1
+UNION ALL
+select * from t2
+INTERSECT ALL
+(values (1,1), (2,2), (2,2), (5,5), (2,2) )
+INTERSECT ALL
+select * from (select * from t1 union all select * from t1) sq
+EXCEPT ALL
+select * from t3
+UNION ALL
+select * from t2
+UNION
+select * from t3
+EXCEPT
+select a,c from t1,t2
+UNION ALL
+select * from v0 where g < 4
+UNION ALL
+select * from t3;
+
+EXPLAIN format=json
+select * from t1
+UNION ALL
+select * from t2
+INTERSECT ALL
+(values (1,1), (2,2), (2,2), (5,5), (2,2) )
+INTERSECT ALL
+select * from (select * from t1 union all select * from t1) sq
+EXCEPT ALL
+select * from t3
+UNION ALL
+select * from t2
+UNION
+select * from t3
+EXCEPT
+select a,c from t1,t2
+UNION ALL
+select * from v0 where g < 4
+UNION ALL
+select * from t3;
+
+EXPLAIN EXTENDED
+select * from t1
+UNION ALL
+select * from t2
+INTERSECT ALL
+(values (1,1), (2,2), (2,2), (5,5), (2,2) )
+INTERSECT ALL
+select * from (select * from t1 union all select * from t1) sq
+EXCEPT ALL
+select * from t3
+UNION ALL
+select * from t2
+UNION
+select * from t3
+EXCEPT
+select a,c from t1,t2
+UNION ALL
+select * from v0 where g < 4
+UNION ALL
+select * from t3;
+
+PREPARE stmt from"
+    select * from t1
+    UNION ALL
+    select * from t2
+    INTERSECT ALL
+    (values (1,1), (2,2), (2,2), (5,5), (2,2) )
+    INTERSECT ALL
+    select * from (select * from t1 union all select * from t1) sq
+    EXCEPT ALL
+    select * from t3
+    UNION ALL
+    select * from t2
+    UNION
+    select * from t3
+    EXCEPT
+    select a,c from t1,t2
+    UNION ALL
+    select * from v0 where g < 4
+    UNION ALL
+    select * from t3
+";
+
+
+EXECUTE stmt;
+
+EXECUTE stmt;
+deallocate prepare stmt;
+
+create view v1(i1, i2) as
+    select * from t1
+    UNION ALL
+    select * from t2
+    INTERSECT ALL
+    (values (1,1), (2,2), (2,2), (5,5), (2,2) )
+    INTERSECT ALL
+    select * from (select * from t1 union all select * from t1) sq
+    EXCEPT ALL
+    select * from t3
+    UNION ALL
+    select * from t2
+    UNION
+    select * from t3
+    EXCEPT
+    select a,c from t1,t2
+    UNION ALL
+    select * from v0 where g < 4
+    UNION ALL
+    select * from t3;
+
+show create view v1;
+
+select * from v1 limit 14;
+--sorted_result
+select * from v1 order by i1 limit 14;
+
+drop table t1,t2,t3;
+drop view v0,v1;
+
+--echo # compare result
+
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+create table t3 (e int, f int);
+create table t4 (g int, h int);
+
+
+insert into t1 values (1,1),(1,1),(2,2);
+insert into t2 values (1,1),(1,1),(2,2),(3,3);
+insert into t3 values (1,1);
+insert into t4 values (4,4);
+
+select * from t1 intersect all select * from t2 except select * from t3 union select * from t4;
+select * from t1 intersect all select * from t2 except ALL select * from t3 union select * from t4;
+
+select * from t1 intersect DISTINCT select * from t2 except select * from t3 union select * from t4;
+select * from t1 intersect DISTINCT select * from t2 except ALL select * from t3 union select * from t4;
+
+delete from t1;
+delete from t2;
+delete from t3;
+delete from t4;
+
+
+insert into t1 values (1,1),(1,1),(1,1),(2,2),(2,2),(4,4),(5,5);
+insert into t2 values (1,1),(1,1),(1,1),(2,2),(2,2),(3,3);
+insert into t3 values (1,1),(2,2),(2,2);
+
+select * from t1 intersect all select * from t2 intersect all select * from t3;
+select * from t1 intersect all select * from t2 intersect select * from t3;
+select * from t1 intersect all select * from t1 intersect all select * from t2 intersect select * from t3;
+
+delete from t1;
+delete from t2;
+delete from t3;
+
+
+insert into t1 values (1,1),(1,1),(2,2);
+insert into t2 values (1,1),(1,1),(2,2),(3,3);
+insert into t3 values (1,1),(5,5);
+insert into t4 values (4,4),(4,4),(4,4);
+
+select * from t1 intersect all select * from t2 union all select * from t3 union select * from t4;
+select * from t1 intersect DISTINCT select * from t2 union DISTINCT select * from t3 union select * from t4;
+
+select * from t1 intersect all select * from t2 intersect all select * from t3 union select * from t4;
+select * from t1 intersect all select * from t2 intersect DISTINCT select * from t3 union select * from t4;
+select * from t1 intersect DISTINCT select * from t2 intersect DISTINCT select * from t3 union select * from t4;
+
+select * from t1 intersect all select * from t2 EXCEPT select * from t3 union select * from t4;
+select * from t1 intersect DISTINCT select * from t2 EXCEPT select * from t3 union select * from t4;
+select * from t1 intersect all select * from t2 EXCEPT ALL select * from t3 union select * from t4;
+
+select * from t1 EXCEPT select * from t2 union all select * from t3 union select * from t4;
+select * from t1 EXCEPT select * from t2 union DISTINCT select * from t3 union select * from t4;
+
+delete from t1;
+delete from t2;
+delete from t3;
+delete from t4;
+
+
+insert into t1 values (1,1),(2,2);
+insert into t2 values (1,1),(2,2);
+insert into t3 values (1,1),(3,3);
+
+select * from t1 union all select * from t2 except all select * from t3;
+select * from t1 union all select * from t2 except DISTINCT select * from t3;
+select * from t1 union DISTINCT select * from t2 except all select * from t3;
+select * from t1 union DISTINCT select * from t2 except DISTINCT select * from t3;
+
+drop table t1;
+drop table t2;
+drop table t3;
+drop table t4;
+
+
+select 1 intersect all select 2 intersect all select 3 intersect select 4 union select 5;
+select 1 intersect all select 2 intersect all select 3 union select 4 except select 5;
+select 1 union select 2 except all select 3 union select 4;
+select 1 union all select 2 union all select 3 union select 4;
+
+--echo # test with limited resource
+
+set @@max_heap_table_size= 1024;
+set @@tmp_table_size= 1024;
+
+create table t1 (a int, b int);
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(0,0);
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select * from t1;
+insert into t1 select a+100, b+100 from t1;
+create table t2 (a int, b int);
+insert into t2 values (10,10),(11,11),(12,12),(13,13),(14,14),(5,5),(6,6),(7,7),(8,8),(9,9);
+insert into t2 select * from t2;
+insert into t2 select * from t2;
+insert into t2 select * from t2;
+insert into t2 select a+100, b+100 from t2;
+
+
+select count(*) from
+(
+    select * from t1
+    INTERSECT ALL
+    select * from t2
+) c;
+
+select count(*) from
+(
+    select * from t1
+    EXCEPT ALL
+    select * from t2
+) c;
+
+select count(*) from
+(
+    select * from t1
+    INTERSECT ALL
+    select * from t2
+    UNION ALL
+    select * from t1
+    EXCEPT ALL
+    select * from t2
+) c;
+
+delete from t1;
+delete from t2;
+
+insert into t1 values (1,1),(2,2),(3,3),(4,4),(5,5),(6,6),(7,7),(8,8),(9,9),(0,0);
+insert into t1 select a+10, b+10 from t1;
+insert into t1 select a+20, b+20 from t1;
+insert into t1 select a+40, b+40 from t1;
+insert into t1 select a+80, b+80 from t1;
+insert into t2 values (1110,1110),(1111,1111),(1112,1112),(1113,1113),(1114,1114),(1105,1105),(1106,1106),(1107,1107),(1108,1108),(1109,1109);
+insert into t2 select a+10, b+10 from t2;
+insert into t2 select a+20, b+20 from t2;
+insert into t2 select a+40, b+40 from t2;
+insert into t2 select a+80, b+80 from t2;
+
+select count(*) from
+(
+    select * from t1
+    UNION ALL
+    select * from t2
+    EXCEPT ALL
+    values (1,1)
+) c;
+
+drop table t1;
+drop table t2;
+
+--echo #
+--echo # MDEV-24242: set expression with empty intermediate result
+--echo #             when tmp_memory_table_size is set to 0
+--echo #
+
+create table t1 (a int, b int) engine=MyISAM;
+insert into t1 values (1,1), (2,2);
+create table t2 (a int, b int) engine=MyISAM;
+insert into t2 values (11,11), (12,12), (13,13);
+
+let $q=
+select * from t1
+except all
+select * from t1
+except
+select * from t1
+union all
+select * from t2;
+
+eval $q;
+set tmp_memory_table_size=0;
+eval $q;
+set tmp_memory_table_size=default;
+
+drop table t1,t2;
+
+--echo # End of 10.4 tests

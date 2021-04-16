@@ -88,7 +88,7 @@ char *opt_ibx_incremental_history_name = NULL;
 char *opt_ibx_incremental_history_uuid = NULL;
 
 char *opt_ibx_user = NULL;
-char *opt_ibx_password = NULL;
+const char *opt_ibx_password = NULL;
 char *opt_ibx_host = NULL;
 char *opt_ibx_defaults_group = NULL;
 char *opt_ibx_socket = NULL;
@@ -742,11 +742,10 @@ indicates an error.\n");
 
 static
 my_bool
-ibx_get_one_option(int optid,
-		const struct my_option *opt __attribute__((unused)),
-		char *argument)
+ibx_get_one_option(const struct my_option *opt,
+                   const char *argument, const char *)
 {
-	switch(optid) {
+	switch(opt->id) {
 	case '?':
 		usage();
 		exit(0);

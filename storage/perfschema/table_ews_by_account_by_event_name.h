@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -57,7 +57,7 @@ struct row_ews_by_account_by_event_name
 /**
   Position of a cursor on
   PERFORMANCE_SCHEMA.EVENTS_WAITS_SUMMARY_BY_ACCOUNT_BY_EVENT_NAME.
-  Index 1 on user@host (0 based)
+  Index 1 on account (0 based)
   Index 2 on instrument view
   Index 3 on instrument class (1 based)
 */
@@ -74,9 +74,6 @@ struct pos_ews_by_account_by_event_name
     m_index_2= VIEW_MUTEX;
     m_index_3= 1;
   }
-
-  inline bool has_more_account(void)
-  { return (m_index_1 < account_max); }
 
   inline void next_account(void)
   {
@@ -103,6 +100,7 @@ public:
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
   static int delete_all_rows();
+  static ha_rows get_row_count();
 
   virtual int rnd_next();
   virtual int rnd_pos(const void *pos);

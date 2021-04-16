@@ -19,25 +19,28 @@
 #include <sys/types.h>
 #include <mntent.h>
 #include <sql_class.h>
-#include <table.h>
+#include <sql_i_s.h>
 #include <sql_acl.h>                            /* check_global_access() */
 
 bool schema_table_store_record(THD *thd, TABLE *table);
 
-namespace
-{
 
 struct st_mysql_information_schema disks_table_info = { MYSQL_INFORMATION_SCHEMA_INTERFACE_VERSION };
 
+
+namespace Show {
+
 ST_FIELD_INFO disks_table_fields[]=
 {
-    { "Disk",      PATH_MAX, MYSQL_TYPE_STRING, 0, 0 ,0, 0 },
-    { "Path",      PATH_MAX, MYSQL_TYPE_STRING, 0, 0 ,0, 0 },
-    { "Total",           32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Total amount available
-    { "Used",            32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Amount of space used
-    { "Available",       32, MYSQL_TYPE_LONGLONG,   0, 0 ,0 ,0 }, // Amount available to users other than root.
-    { 0, 0, MYSQL_TYPE_NULL, 0, 0, 0, 0 }
+  Column("Disk",      Varchar(PATH_MAX), NOT_NULL),
+  Column("Path",      Varchar(PATH_MAX), NOT_NULL),
+  Column("Total",     SLonglong(32),     NOT_NULL), // Total amount available
+  Column("Used",      SLonglong(32),     NOT_NULL), // Amount of space used
+  Column("Available", SLonglong(32),     NOT_NULL), // Amount available to users other than root.
+  CEnd()
 };
+
+
 
 int disks_table_add_row(THD* pThd,
                         TABLE* pTable,
@@ -135,7 +138,7 @@ int disks_table_init(void *ptr)
     return 0;
 }
 
-}
+} // namespace Show
 
 extern "C"
 {
@@ -148,7 +151,7 @@ maria_declare_plugin(disks)
     "Johan Wikman",                    /* author */
     "Disk space information",          /* description */
     PLUGIN_LICENSE_GPL,                /* license type */
-    disks_table_init,                  /* init function */
+    Show::disks_table_init,            /* init function */
     NULL,                              /* deinit function */
     0x0101,                            /* version = 1.1 */
     NULL,                              /* no status variables */

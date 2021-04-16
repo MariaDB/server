@@ -1,0 +1,159 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-274 The data type for IPv6/IPv4 addresses in MariaDB
+#
+SET default_storage_engine=MEMORY;
+#
+# Range optimizer
+#
+CREATE TABLE t1 (a INET6, INDEX(a));
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` inet6 DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MEMORY DEFAULT CHARSET=latin1
+FOR i IN 0..255
+DO
+INSERT INTO t1 VALUES (CONCAT('::', HEX(i)));
+END FOR
+$$
+SELECT * FROM t1 WHERE a='::ff';
+a
+::ff
+EXPLAIN SELECT * FROM t1 WHERE a='::ff';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	Using where
+SELECT * FROM t1 WHERE a='garbage';
+a
+Warnings:
+Warning	1292	Incorrect inet6 value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a='garbage';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE noticed after reading const tables
+Warnings:
+Warning	1292	Incorrect inet6 value: 'garbage'
+SELECT * FROM t1 WHERE a>='::fe';
+a
+::fe
+::ff
+EXPLAIN SELECT * FROM t1 WHERE a>='::fe';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	256	Using where
+SELECT * FROM t1 WHERE a>='garbage';
+a
+Warnings:
+Warning	1292	Incorrect inet6 value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a>='garbage';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	256	Using where
+SELECT * FROM t1 WHERE a IN ('::80','::a0','::f0');
+a
+::80
+::a0
+::f0
+EXPLAIN SELECT * FROM t1 WHERE a IN ('::80','::a0','::f0');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	6	Using where
+SELECT * FROM t1 WHERE a IN ('::80','::a0','garbage');
+a
+::80
+::a0
+Warnings:
+Warning	1292	Incorrect inet6 value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a IN ('::80','::a0','garbage');
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	range	a	a	17	NULL	4	Using where
+Warnings:
+Warning	1292	Incorrect inet6 value: 'garbage'
+SELECT * FROM t1 WHERE a BETWEEN '::80' AND '::81';
+a
+::80
+::81
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN '::80' AND '::81';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	256	Using where
+SELECT * FROM t1 WHERE a BETWEEN '::80' AND 'garbage';
+a
+Warnings:
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+Warning	1292	Incorrect inet6 value: 'garbage'
+EXPLAIN SELECT * FROM t1 WHERE a BETWEEN '::80' AND 'garbage';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	a	NULL	NULL	NULL	256	Using where
+SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
+a
+::ff
+EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=CAST('::ff' AS INET6);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ref	a	a	17	const	2	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = INET6'::ff'
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

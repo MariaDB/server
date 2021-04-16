@@ -1,0 +1,72 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+CREATE TABLE test.t1 (f1 INTEGER PRIMARY KEY, f2 CHAR(1)) ENGINE=InnoDB;
+connection node_2;
+SET GLOBAL wsrep_on=OFF;
+INSERT INTO t1 VALUES (1, 'a');
+SET GLOBAL wsrep_on=ON;
+LOCK TABLE t1 WRITE;
+connection node_1;
+INSERT INTO t1 VALUES (1, 'b');
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=1';
+SET SESSION wsrep_sync_wait=0;
+connection node_3;
+connection node_2;
+UNLOCK TABLES;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_1;
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	non-Primary
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Disconnected
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	0
+SET GLOBAL wsrep_on=OFF;
+SELECT * FROM t1;
+f1	f2
+1	a
+connection node_3;
+SET SESSION wsrep_sync_wait=0;
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Primary
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	1
+SELECT * FROM t1;
+f1	f2
+1	b
+connection node_1;
+SET GLOBAL wsrep_provider_options = 'gmcast.isolate=0';
+connection node_2;
+# restart
+connection node_1;
+SELECT * FROM t1;
+f1	f2
+1	b
+connection node_2;
+SELECT * FROM t1;
+f1	f2
+1	b
+connection node_3;
+SELECT * FROM t1;
+f1	f2
+1	b
+DROP TABLE t1;
+connection node_2;
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '1' for key 'PRIMARY', Error_code: 1062; handler error HA_ERR_FOUND_DUPP_KEY; the event's master log FIRST, end_log_pos (.*), Error_code: 1062");
+CALL mtr.add_suppression("WSREP: Event (.*) Write_rows_v1 apply failed: 121, seqno ");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on (.*)");
+CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+CALL mtr.add_suppression("WSREP: Failed to apply write set: ");

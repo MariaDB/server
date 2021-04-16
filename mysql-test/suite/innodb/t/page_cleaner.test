@@ -1,0 +1,30 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+SET @save_pct= @@GLOBAL.innodb_max_dirty_pages_pct;
+SET @save_pct_lwm= @@GLOBAL.innodb_max_dirty_pages_pct_lwm;
+
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+--source include/wait_condition.inc
+
+SET GLOBAL innodb_max_dirty_pages_pct=90.0;
+
+CREATE TABLE t ENGINE=InnoDB SELECT * FROM seq_1_to_10000;
+
+SELECT variable_value>0 FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
+
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+
+# Without the MDEV-24917 fix, we would time out here.
+--source include/wait_condition.inc
+DROP TABLE t;
+
+SET GLOBAL innodb_max_dirty_pages_pct = @save_pct;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm = @save_pct_lwm;

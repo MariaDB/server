@@ -1,0 +1,9 @@
+--echo #
+--echo # MDEV-21975 Add BINLOG REPLAY privilege and bind new privileges to gtid_seq_no, preudo_thread_id, server_id, gtid_domain_id
+--echo #
+
+--let var = gtid_seq_no
+--let grant = BINLOG REPLAY
+--let value = 1
+
+--source suite/sys_vars/inc/sysvar_session_grant.inc

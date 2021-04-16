@@ -1,16 +1,20 @@
 #!/bin/bash
 #
-# This script is executed by "/etc/init.d/mysql" on every (re)start.
+# This script is executed by both SysV init /etc/init.d/mariadb and
+# systemd mariadb.service on every (re)start.
 #
 # Changes to this file will be preserved when updating the Debian package.
-#
-# NOTE: This file is read only by the traditional SysV init script, not systemd.
 #
 
 source /usr/share/mysql/debian-start.inc.sh
 
+# Read default/mysql first and then default/mariadb just like the init.d file does
 if [ -f /etc/default/mysql ]; then
   . /etc/default/mysql
+fi
+
+if [ -f /etc/default/mariadb ]; then
+  . /etc/default/mariadb
 fi
 
 MYSQL="/usr/bin/mysql --defaults-file=/etc/mysql/debian.cnf"

@@ -975,6 +975,18 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 ALTER TABLE t1 MODIFY b INT FIRST;
 DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+INSERT INTO t1 SET pk=1;
+ALTER TABLE t1 ADD COLUMN b INT;
+BEGIN;
+UPDATE t1 SET pk=2;
+UPDATE t1 SET pk=1;
+connection analyze;
+SELECT * FROM t1;
+pk	b
+1	NULL
+connection default;
+DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
 c3 POINT NOT NULL DEFAULT ST_GeomFromText('POINT(3 4)'),
@@ -1892,6 +1904,18 @@ fubar	42	42
 DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=COMPACT;
 ALTER TABLE t1 MODIFY b INT FIRST;
+DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=COMPACT;
+INSERT INTO t1 SET pk=1;
+ALTER TABLE t1 ADD COLUMN b INT;
+BEGIN;
+UPDATE t1 SET pk=2;
+UPDATE t1 SET pk=1;
+connection analyze;
+SELECT * FROM t1;
+pk	b
+1	NULL
+connection default;
 DROP TABLE t1;
 CREATE TABLE t1
 (id INT PRIMARY KEY, c2 INT UNIQUE,
@@ -2811,6 +2835,18 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
 ALTER TABLE t1 MODIFY b INT FIRST;
 DROP TABLE t1;
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+INSERT INTO t1 SET pk=1;
+ALTER TABLE t1 ADD COLUMN b INT;
+BEGIN;
+UPDATE t1 SET pk=2;
+UPDATE t1 SET pk=1;
+connection analyze;
+SELECT * FROM t1;
+pk	b
+1	NULL
+connection default;
+DROP TABLE t1;
 disconnect analyze;
 #
 # MDEV-22465: DROP COLUMN is wrongly claimed to be ALGORITHM=INSTANT
@@ -2824,7 +2860,7 @@ SELECT variable_value-@old_instant instants
 FROM information_schema.global_status
 WHERE variable_name = 'innodb_instant_alter_column';
 instants
-206
+209
 SET GLOBAL innodb_purge_rseg_truncate_frequency= @saved_frequency;
 SET GLOBAL innodb_instant_alter_column_allowed = @saved_allowance;
 #

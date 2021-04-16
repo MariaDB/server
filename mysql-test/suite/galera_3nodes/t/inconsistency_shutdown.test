@@ -1,0 +1,183 @@
+#
+# Check that the node can cleanly shutdown in case of inconsistency
+# (no locked up threads)
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/galera_have_debug_sync.inc
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--connection node_2
+SELECT @@wsrep_slave_threads = 8;
+
+#
+# 1. Inconsistency on slave
+#
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INT);
+INSERT INTO t1 VALUES (1, 0),(2, 0),(3, 0),(4, 0),(5, 0),(6, 0),(7, 0),(8, 0);
+
+--connection node_2
+# Allow 1K slave queue woithout flow control
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=1K';
+# Introduce 2 inconsistencies
+SET wsrep_on=OFF;
+DELETE FROM t1 WHERE f1 = 2;
+DELETE FROM t1 WHERE f1 = 4;
+SET wsrep_on=ON;
+
+# Build up slave queue:
+# - first 8 events will be picked by slave threads
+# - one moreevent will be waiting in slave queue
+LOCK TABLES t1 WRITE;
+--connection node_1
+UPDATE t1 SET f2 = 1 WHERE f1 = 1;
+UPDATE t1 SET f2 = 1 WHERE f1 = 2;
+UPDATE t1 SET f2 = 1 WHERE f1 = 3;
+UPDATE t1 SET f2 = 1 WHERE f1 = 4;
+UPDATE t1 SET f2 = 2 WHERE f1 = 4; /* dependent applier */
+UPDATE t1 SET f2 = 3 WHERE f1 = 4; /* dependent applier */
+UPDATE t1 SET f2 = 1 WHERE f1 = 5;
+UPDATE t1 SET f2 = 1 WHERE f1 = 6;
+UPDATE t1 SET f2 = 1 WHERE f1 = 7;
+UPDATE t1 SET f2 = 1 WHERE f1 = 8;
+
+--connection node_2
+# make sure all events landed to slave queue
+SET wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_recv_queue';
+--source include/wait_condition.inc
+SET wsrep_on=ON;
+UNLOCK TABLES;
+--source include/wsrep_wait_disconnect.inc
+# Wait for the node to shutdown replication
+--let $members=0
+--source include/wsrep_wait_membership.inc
+
+--connection node_1
+--let $members=2
+--source include/wsrep_wait_membership.inc
+--source include/wait_until_ready.inc
+SHOW STATUS LIKE 'wsrep_cluster_size';
+SELECT * FROM t1;
+
+--connection node_2
+#Gracefully restart the node
+SET GLOBAL wsrep_on=OFF;
+--source include/shutdown_mysqld.inc
+--source include/start_mysqld.inc
+--source include/galera_wait_ready.inc
+
+DROP TABLE t1;
+
+#
+# 2. Inconsistency on master
+#
+--connection node_1
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INT);
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 0);
+INSERT INTO t1 VALUES (3, 0);
+INSERT INTO t1 VALUES (4, 0);
+INSERT INTO t1 VALUES (5, 0);
+INSERT INTO t1 VALUES (6, 0);
+INSERT INTO t1 VALUES (7, 0);
+INSERT INTO t1 VALUES (8, 0);
+COMMIT;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 INT);
+
+--connection node_2
+# Allow 1K slave queue without flow control
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=1K';
+# Introduce inconsistency
+SET wsrep_on=OFF;
+DROP TABLE t2;
+SET wsrep_on=ON;
+
+# set up sync point to ensure DROP TABLE replication order below
+--let galera_sync_point = after_replicate_sync
+--source include/galera_set_sync_point.inc
+
+# Build up slave queue:
+# - first 8 events will be picked by slave threads
+# - one more event will be waiting in slave queue
+LOCK TABLES t1 READ;
+
+--connection node_1
+UPDATE t1 SET f2 = 1 WHERE f1 = 1;
+UPDATE t1 SET f2 = 1 WHERE f1 = 2;
+UPDATE t1 SET f2 = 1 WHERE f1 = 3;
+UPDATE t1 SET f2 = 1 WHERE f1 = 4;
+UPDATE t1 SET f2 = 2 WHERE f1 = 4; /* dependent applier */;
+
+# interleave a failing statement
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+--send DROP TABLE t2;
+
+# make sure DROP TABLE from above has replicated
+--connection node_2
+SET wsrep_on=OFF;
+--echo "Wait for DROP TABLE to replicate"
+--source include/galera_wait_sync_point.inc
+--source include/galera_signal_sync_point.inc
+--source include/galera_clear_sync_point.inc
+--echo "DROP TABLE replicated"
+SET wsrep_on=ON;
+
+--connection node_1
+UPDATE t1 SET f2 = 3 WHERE f1 = 4; /* dependent applier */
+UPDATE t1 SET f2 = 1 WHERE f1 = 5;
+UPDATE t1 SET f2 = 1 WHERE f1 = 6;
+UPDATE t1 SET f2 = 1 WHERE f1 = 7;
+UPDATE t1 SET f2 = 1 WHERE f1 = 8;
+
+--connection node_2
+# make sure all events landed to slave queue
+SET wsrep_on=OFF;
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_recv_queue';
+--source include/wait_condition.inc
+SET wsrep_on=ON;
+UNLOCK TABLES;
+
+--connection node_2a
+--error ER_BAD_TABLE_ERROR
+--reap
+
+--connection node_1
+--let $members=2
+--source include/wsrep_wait_membership.inc
+--source include/wait_until_ready.inc
+SHOW STATUS LIKE 'wsrep_cluster_size';
+SELECT * FROM t1;
+
+--connection node_2
+--source include/wsrep_wait_disconnect.inc
+# Wait for the node to shutdown replication
+--let $members=0
+--source include/wsrep_wait_membership.inc
+# Gracefully restart the node
+SET GLOBAL wsrep_on=OFF;
+--source include/shutdown_mysqld.inc
+--source include/start_mysqld.inc
+--source include/galera_wait_ready.inc
+
+DROP TABLE t1;
+
+CALL mtr.add_suppression('Can\'t find record in \'t1\'');
+CALL mtr.add_suppression('Update_rows_v1 apply failed');
+CALL mtr.add_suppression('Inconsistency detected: Inconsistent by consensus on');
+CALL mtr.add_suppression('last left .* greater than drain seqno');
+CALL mtr.add_suppression('WSREP: Failed to apply write set:');
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

@@ -1,0 +1,44 @@
+*** MDEV-5788 Incorrect free of rgi->deferred_events in parallel replication  ***
+include/master-slave.inc
+[connection master]
+connection server_2;
+include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+include/start_slave.inc
+connection server_1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+CREATE TABLE t3 (a INT PRIMARY KEY, b INT) ENGINE=InnoDB;
+connection server_2;
+SET @old_parallel_threads=@@GLOBAL.slave_parallel_threads;
+include/stop_slave.inc
+SET GLOBAL replicate_ignore_table="test.t3";
+SET GLOBAL slave_parallel_threads=2;
+include/start_slave.inc
+connection server_1;
+INSERT INTO t3 VALUES (100, rand());
+INSERT INTO t3 VALUES (101, rand());
+connection server_2;
+connection server_1;
+INSERT INTO t3 VALUES (102, rand());
+INSERT INTO t3 VALUES (103, rand());
+INSERT INTO t3 VALUES (104, rand());
+INSERT INTO t3 VALUES (105, rand());
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL replicate_ignore_table="";
+include/start_slave.inc
+connection server_1;
+INSERT INTO t3 VALUES (106, rand());
+INSERT INTO t3 VALUES (107, rand());
+connection server_2;
+SELECT * FROM t3 WHERE a >= 100 ORDER BY a;
+a	b
+106	#
+107	#
+connection server_2;
+include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+include/start_slave.inc
+connection server_1;
+DROP TABLE t3;
+include/rpl_end.inc

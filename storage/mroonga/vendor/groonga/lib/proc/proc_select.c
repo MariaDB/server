@@ -297,7 +297,7 @@ grn_parse_table_group_calc_types(grn_ctx *ctx,
     }
 
 #define CHECK_TABLE_GROUP_CALC_TYPE(name)\
-  if (((calc_types_end - calc_types) >= (sizeof(#name) - 1)) &&\
+    if (((unsigned long) (calc_types_end - calc_types) >= (unsigned long) (sizeof(#name) - 1)) && \
       (!memcmp(calc_types, #name, sizeof(#name) - 1))) {\
     flags |= GRN_TABLE_GROUP_CALC_ ## name;\
     calc_types += sizeof(#name) - 1;\
@@ -577,7 +577,7 @@ grn_columns_collect(grn_ctx *ctx,
   while (grn_table_cursor_next(ctx, cursor)) {
     void *key;
     char *variable_name;
-    int variable_name_len;
+    unsigned int variable_name_len;
     char *column_name;
     size_t column_name_len;
     void *value_raw;
@@ -1057,7 +1057,7 @@ grn_proc_expr_query_flags_parse(grn_ctx *ctx,
     }
 
 #define CHECK_EXPR_FLAG(name)                                           \
-    if (((query_flags_end - query_flags) >= (sizeof(#name) - 1)) &&     \
+    if (((unsigned long) (query_flags_end - query_flags) >= (unsigned long) (sizeof(#name) - 1)) &&     \
         (memcmp(query_flags, #name, sizeof(#name) - 1) == 0) &&         \
         (((query_flags_end - query_flags) == (sizeof(#name) - 1)) ||    \
          (query_flags[sizeof(#name) - 1] == '|') ||                     \

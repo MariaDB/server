@@ -232,7 +232,7 @@ sequential_fuzzy_search(grn_ctx *ctx, grn_obj *table, grn_obj *column, grn_obj *
           key_length = grn_table_get_key(ctx, domain, rid, key_name, GRN_TABLE_MAX_KEY_SIZE);
 
           if (!prefix_match_size ||
-              (prefix_match_size > 0 && key_length >= prefix_match_size &&
+              (prefix_match_size > 0 && key_length >= (int) prefix_match_size &&
                !memcmp(sx, key_name, prefix_match_size))) {
             distance = calc_edit_distance(ctx, sx, ex,
                                           key_name, key_name + key_length, flags);
@@ -250,7 +250,7 @@ sequential_fuzzy_search(grn_ctx *ctx, grn_obj *table, grn_obj *column, grn_obj *
           rid = GRN_RECORD_VALUE(&value);
           key_length = grn_table_get_key(ctx, domain, rid, key_name, GRN_TABLE_MAX_KEY_SIZE);
           if (!prefix_match_size ||
-              (prefix_match_size > 0 && key_length >= prefix_match_size &&
+              (prefix_match_size > 0 && key_length >= (int) prefix_match_size &&
                !memcmp(sx, key_name, prefix_match_size))) {
             distance = calc_edit_distance(ctx, sx, ex,
                                           key_name, key_name + key_length, flags);
@@ -277,7 +277,7 @@ sequential_fuzzy_search(grn_ctx *ctx, grn_obj *table, grn_obj *column, grn_obj *
     grn_obj_unlink(ctx, &value);
 
     for (i = 0; i < heap->n_entries; i++) {
-      if (max_expansion > 0 && i >= max_expansion) {
+      if (max_expansion > 0 && (uint32_t) i >= max_expansion) {
         break;
       }
       {

@@ -59,7 +59,7 @@ lock_file_path="$lockdir/mysql"
 # The following variables are only set for letting mysql.server find things.
 
 # Set some defaults
-mysqld_pid_file_path=
+mariadbd_pid_file_path=
 if test -z "$basedir"
 then
   basedir=@prefix@
@@ -77,7 +77,7 @@ else
     datadir="$basedir/data"
   fi
   sbindir="$basedir/sbin"
-  if test -f "$basedir/bin/mysqld"
+  if test -f "$basedir/bin/mariadbd"
   then
     libexecdir="$basedir/bin"
   else
@@ -134,7 +134,7 @@ parse_server_arguments() {
 		      datadir="$basedir/data"
 		    fi
 		    sbindir="$basedir/sbin"
-                    if test -f "$basedir/bin/mysqld"
+                    if test -f "$basedir/bin/mariadbd"
                     then
                       libexecdir="$basedir/bin"
                     else
@@ -146,9 +146,9 @@ parse_server_arguments() {
 		    datadir_set=1
 	;;
       --log-basename=*|--hostname=*|--loose-log-basename=*)
-        mysqld_pid_file_path="$val.pid"
+        mariadbd_pid_file_path="$val.pid"
 	;;
-      --pid-file=*) mysqld_pid_file_path="$val" ;;
+      --pid-file=*) mariadbd_pid_file_path="$val" ;;
       --service-startup-timeout=*) service_startup_timeout="$val" ;;
       --user=*) user="$val"; ;;
     esac
@@ -280,13 +280,13 @@ wait_for_ready () {
 #
 # Set pid file if not given
 #
-if test -z "$mysqld_pid_file_path"
+if test -z "$mariadbd_pid_file_path"
 then
-  mysqld_pid_file_path=$datadir/`@HOSTNAME@`.pid
+  mariadbd_pid_file_path=$datadir/`@HOSTNAME@`.pid
 else
-  case "$mysqld_pid_file_path" in
+  case "$mariadbd_pid_file_path" in
     /* ) ;;
-    * )  mysqld_pid_file_path="$datadir/$mysqld_pid_file_path" ;;
+    * )  mariadbd_pid_file_path="$datadir/$mariadbd_pid_file_path" ;;
   esac
 fi
 
@@ -307,7 +307,7 @@ case "$mode" in
     then
       # Give extra arguments to mysqld with the my.cnf file. This script
       # may be overwritten at next upgrade.
-      $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mysqld_pid_file_path" "$@" &
+      $bindir/mysqld_safe --datadir="$datadir" --pid-file="$mariadbd_pid_file_path" "$@" &
       wait_for_ready; return_value=$?
 
       # Make lock for RedHat / SuSE
@@ -326,18 +326,18 @@ case "$mode" in
     # Stop daemon. We use a signal here to avoid having to know the
     # root password.
 
-    if test -s "$mysqld_pid_file_path"
+    if test -s "$mariadbd_pid_file_path"
     then
-      mysqld_pid=`cat "$mysqld_pid_file_path"`
+      mariadbd_pid=`cat "$mariadbd_pid_file_path"`
 
-      if su_kill -0 $mysqld_pid ; then
+      if su_kill -0 $mariadbd_pid ; then
         echo $echo_n "Shutting down MariaDB"
-        su_kill $mysqld_pid
+        su_kill $mariadbd_pid
         # mysqld should remove the pid file when it exits, so wait for it.
-        wait_for_gone $mysqld_pid "$mysqld_pid_file_path"; return_value=$?
+        wait_for_gone $mariadbd_pid "$mariadbd_pid_file_path"; return_value=$?
       else
-        log_failure_msg "MariaDB server process #$mysqld_pid is not running!"
-        rm "$mysqld_pid_file_path"
+        log_failure_msg "MariaDB server process #$mariadbd_pid is not running!"
+        rm "$mariadbd_pid_file_path"
       fi
 
       # Delete lock for RedHat / SuSE
@@ -366,10 +366,10 @@ case "$mode" in
     ;;
 
   'reload'|'force-reload')
-    if test -s "$mysqld_pid_file_path" ; then
-      read mysqld_pid <  "$mysqld_pid_file_path"
-      su_kill -HUP $mysqld_pid && log_success_msg "Reloading service MariaDB"
-      touch "$mysqld_pid_file_path"
+    if test -s "$mariadbd_pid_file_path" ; then
+      read mariadbd_pid <  "$mariadbd_pid_file_path"
+      su_kill -HUP $mariadbd_pid && log_success_msg "Reloading service MariaDB"
+      touch "$mariadbd_pid_file_path"
     else
       log_failure_msg "MariaDB PID file could not be found!"
       exit 1
@@ -377,25 +377,25 @@ case "$mode" in
     ;;
   'status')
     # First, check to see if pid file exists
-    if test -s "$mysqld_pid_file_path" ; then
-      read mysqld_pid < "$mysqld_pid_file_path"
-      if su_kill -0 $mysqld_pid ; then
-        log_success_msg "MariaDB running ($mysqld_pid)"
+    if test -s "$mariadbd_pid_file_path" ; then
+      read mariadbd_pid < "$mariadbd_pid_file_path"
+      if su_kill -0 $mariadbd_pid ; then
+        log_success_msg "MariaDB running ($mariadbd_pid)"
         exit 0
       else
         log_failure_msg "MariaDB is not running, but PID file exists"
         exit 1
       fi
     else
-      # Try to find appropriate mysqld process
-      mysqld_pid=`pgrep -f $libexecdir/mysqld`
+      # Try to find appropriate mariadbd process
+      mariadbd_pid=`pgrep -f $libexecdir/mariadbd`
 
       # test if multiple pids exist
-      pid_count=`echo $mysqld_pid | wc -w`
+      pid_count=`echo $mariadbd_pid | wc -w`
       if test $pid_count -gt 1 ; then
-        log_failure_msg "Multiple MariaDB running but PID file could not be found ($mysqld_pid)"
+        log_failure_msg "Multiple MariaDB running but PID file could not be found ($mariadbd_pid)"
         exit 5
-      elif test -z $mysqld_pid ; then
+      elif test -z $mariadbd_pid ; then
         if test -f "$lock_file_path" ; then
           log_failure_msg "MariaDB is not running, but lock file ($lock_file_path) exists"
           exit 2
@@ -412,18 +412,18 @@ case "$mode" in
     # Safeguard (relative paths, core dumps..)
     cd $basedir
     echo $echo_n "Testing MariaDB configuration syntax"
-    daemon=$bindir/mysqld
-    if test -x $libexecdir/mysqld
+    daemon=$bindir/mariadbd
+    if test -x $libexecdir/mariadbd
     then
-      daemon=$libexecdir/mysqld
-    elif test -x $sbindir/mysqld
+      daemon=$libexecdir/mariadbd
+    elif test -x $sbindir/mariadbd
     then
-      daemon=$sbindir/mysqld
-    elif test -x `which mysqld`
+      daemon=$sbindir/mariadbd
+    elif test -x `which mariadbd`
     then
-      daemon=`which mysqld`
+      daemon=`which mariadbd`
     else
-      log_failure_msg "Unable to locate the mysqld binary!"
+      log_failure_msg "Unable to locate the mariadbd binary!"
       exit 1
     fi
     help_out=`$daemon --help 2>&1`; r=$?

@@ -10,11 +10,11 @@ connection master;
 SHOW SLAVE HOSTS;
 Server_id	Host	Port	Master_id
 3	slave2	SLAVE_PORT	1
-2		SLAVE_PORT	1
+2	localhost	SLAVE_PORT	1
 connection slave2;
 include/stop_slave_io.inc
 connection master;
 SHOW SLAVE HOSTS;
 Server_id	Host	Port	Master_id
-2		SLAVE_PORT	1
+2	localhost	SLAVE_PORT	1
 include/rpl_end.inc

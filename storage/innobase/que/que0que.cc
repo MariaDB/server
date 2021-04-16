@@ -96,17 +96,6 @@ When the execution of the graph completes, it is like returning
 from a subprocedure: the query thread which requested the operation
 starts running again. */
 
-/**********************************************************************//**
-Moves a thread from another state to the QUE_THR_RUNNING state. Increments
-the n_active_thrs counters of the query graph and transaction.
-***NOTE***: This is the only function in which such a transition is allowed
-to happen! */
-static
-void
-que_thr_move_to_run_state(
-/*======================*/
-	que_thr_t*	thr);	/*!< in: an query thread */
-
 /***********************************************************************//**
 Creates a query graph fork node.
 @return own: fork node */
@@ -166,8 +155,6 @@ que_thr_create(
 
 	thr->common.parent = parent;
 
-	thr->magic_n = QUE_THR_MAGIC_N;
-
 	thr->common.type = QUE_NODE_THR;
 
 	thr->state = QUE_THR_COMMAND_WAIT;
@@ -194,7 +181,6 @@ que_thr_end_lock_wait(
 				QUE_THR_LOCK_WAIT */
 {
 	que_thr_t*	thr;
-	ibool		was_active;
 
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(trx));
@@ -207,9 +193,9 @@ que_thr_end_lock_wait(
 	/* In MySQL this is the only possible state here */
 	ut_a(thr->state == QUE_THR_LOCK_WAIT);
 
-	was_active = thr->is_active;
+	bool was_active = thr->is_active;
 
-	que_thr_move_to_run_state(thr);
+	thr->start_running();
 
 	trx->lock.que_state = TRX_QUE_RUNNING;
 
@@ -231,8 +217,7 @@ que_thr_init_command(
 {
 	thr->run_node = thr;
 	thr->prev_node = thr->common.parent;
-
-	que_thr_move_to_run_state(thr);
+	thr->start_running();
 }
 
 /**********************************************************************//**
@@ -354,12 +339,9 @@ que_fork_start_command(
 	}
 
 	if (suspended_thr) {
-
 		thr = suspended_thr;
-		que_thr_move_to_run_state(thr);
-
+		thr->start_running();
 	} else if (completed_thr) {
-
 		thr = completed_thr;
 		que_thr_init_command(thr);
 	} else {
@@ -428,15 +410,8 @@ que_graph_free_recursive(
 
 		break;
 	case QUE_NODE_THR:
-
 		thr = static_cast<que_thr_t*>(node);
-
-		ut_a(thr->magic_n == QUE_THR_MAGIC_N);
-
-		thr->magic_n = QUE_THR_MAGIC_FREED;
-
 		que_graph_free_recursive(thr->child);
-
 		break;
 	case QUE_NODE_UNDO:
 
@@ -472,6 +447,7 @@ que_graph_free_recursive(
 
 		mem_heap_free(purge->heap);
 
+		purge->~purge_node_t();
 		break;
 
 	case QUE_NODE_UPDATE:
@@ -632,35 +608,6 @@ que_thr_node_step(
 }
 
 /**********************************************************************//**
-Moves a thread from another state to the QUE_THR_RUNNING state. Increments
-the n_active_thrs counters of the query graph and transaction if thr was
-not active.
-***NOTE***: This and ..._mysql are  the only functions in which such a
-transition is allowed to happen! */
-static
-void
-que_thr_move_to_run_state(
-/*======================*/
-	que_thr_t*	thr)	/*!< in: an query thread */
-{
-	ut_ad(thr->state != QUE_THR_RUNNING);
-
-	if (!thr->is_active) {
-		trx_t*	trx;
-
-		trx = thr_get_trx(thr);
-
-		thr->graph->n_active_thrs++;
-
-		trx->lock.n_active_thrs++;
-
-		thr->is_active = TRUE;
-	}
-
-	thr->state = QUE_THR_RUNNING;
-}
-
-/**********************************************************************//**
 Stops a query thread if graph or trx is in a state requiring it. The
 conditions are tested in the order (1) graph, (2) trx.
 @return TRUE if stopped */
@@ -723,7 +670,6 @@ que_thr_dec_refer_count(
 					a new query thread */
 {
 	trx_t*		trx;
-	que_fork_t*	fork;
 
 	trx = thr_get_trx(thr);
 
@@ -760,13 +706,8 @@ que_thr_dec_refer_count(
 		}
 	}
 
-	fork = static_cast<que_fork_t*>(thr->common.parent);
-
-	--trx->lock.n_active_thrs;
-
-	--fork->n_active_thrs;
-
-	thr->is_active = FALSE;
+	ut_d(static_cast<que_fork_t*>(thr->common.parent)->set_active(false));
+	thr->is_active = false;
 }
 
 /**********************************************************************//**
@@ -803,64 +744,31 @@ que_thr_stop_for_mysql(
 		}
 	}
 
-	ut_ad(thr->is_active == TRUE);
-	ut_ad(trx->lock.n_active_thrs == 1);
-	ut_ad(thr->graph->n_active_thrs == 1);
-
-	thr->is_active = FALSE;
-	thr->graph->n_active_thrs--;
-
-	trx->lock.n_active_thrs--;
+	ut_ad(thr->is_active);
+	ut_d(thr->set_active(false));
+	thr->is_active= false;
 
 	trx_mutex_exit(trx);
 }
 
-/**********************************************************************//**
-Moves a thread from another state to the QUE_THR_RUNNING state. Increments
-the n_active_thrs counters of the query graph and transaction if thr was
-not active. */
-void
-que_thr_move_to_run_state_for_mysql(
-/*================================*/
-	que_thr_t*	thr,	/*!< in: an query thread */
-	trx_t*		trx)	/*!< in: transaction */
+#ifdef UNIV_DEBUG
+/** Change the 'active' status */
+void que_fork_t::set_active(bool active)
 {
-	ut_a(thr->magic_n == QUE_THR_MAGIC_N);
-
-	if (!thr->is_active) {
-
-		thr->graph->n_active_thrs++;
-
-		trx->lock.n_active_thrs++;
-
-		thr->is_active = TRUE;
-	}
-
-	thr->state = QUE_THR_RUNNING;
+  if (active)
+  {
+    n_active_thrs++;
+    trx->lock.n_active_thrs++;
+  }
+  else
+  {
+    ut_ad(n_active_thrs);
+    ut_ad(trx->lock.n_active_thrs);
+    n_active_thrs--;
+    trx->lock.n_active_thrs--;
+  }
 }
-
-/**********************************************************************//**
-A patch for MySQL used to 'stop' a dummy query thread used in MySQL
-select, when there is no error or lock wait. */
-void
-que_thr_stop_for_mysql_no_error(
-/*============================*/
-	que_thr_t*	thr,	/*!< in: query thread */
-	trx_t*		trx)	/*!< in: transaction */
-{
-	ut_ad(thr->state == QUE_THR_RUNNING);
-	ut_ad(thr->is_active == TRUE);
-	ut_ad(trx->lock.n_active_thrs == 1);
-	ut_ad(thr->graph->n_active_thrs == 1);
-	ut_a(thr->magic_n == QUE_THR_MAGIC_N);
-
-	thr->state = QUE_THR_COMPLETED;
-
-	thr->is_active = FALSE;
-	thr->graph->n_active_thrs--;
-
-	trx->lock.n_active_thrs--;
-}
+#endif
 
 /****************************************************************//**
 Get the first containing loop node (e.g. while_node_t or for_node_t) for the

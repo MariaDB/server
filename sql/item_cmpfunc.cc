@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2019, MariaDB
+   Copyright (c) 2009, 2020, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -33,6 +33,8 @@
 #include "sql_parse.h"                          // check_stack_overrun
 #include "sql_base.h"                  // dynamic_column_error_message
 
+#define PCRE2_STATIC 1             /* Important on Windows */
+#include "pcre2.h"                 /* pcre2 header file */
 
 /*
   Compare row signature of two expressions
@@ -1196,11 +1198,9 @@ longlong Item_func_truth::val_int()
 }
 
 
-bool Item_in_optimizer::is_top_level_item()
+bool Item_in_optimizer::is_top_level_item() const
 {
-  if (!invisible_mode())
-    return ((Item_in_subselect *)args[1])->is_top_level_item();
-  return false;
+  return args[1]->is_top_level_item();
 }
 
 
@@ -1231,6 +1231,15 @@ bool Item_in_optimizer::eval_not_null_tables(void *opt_arg)
 }
 
 
+bool Item_in_optimizer::find_not_null_fields(table_map allowed)
+{
+  if (!(~allowed & used_tables()) && is_top_level_item())
+  {
+    return args[0]->find_not_null_fields(allowed);
+  }
+  return false;
+}
+
 void Item_in_optimizer::print(String *str, enum_query_type query_type)
 {
   if (query_type & QT_PARSABLE)
@@ -1255,10 +1264,9 @@ void Item_in_optimizer::print(String *str, enum_query_type query_type)
 
 void Item_in_optimizer::restore_first_argument()
 {
-  if (!invisible_mode())
-  {
-    args[0]= ((Item_in_subselect *)args[1])->left_expr;
-  }
+  Item_in_subselect *in_subs= args[1]->get_IN_subquery();
+  if (in_subs)
+    args[0]= in_subs->left_exp();
 }
 
 
@@ -1282,8 +1290,8 @@ bool Item_in_optimizer::fix_left(THD *thd)
        the pointer to the post-transformation item. Because of that, on the
        next execution we need to copy args[1]->left_expr again.
     */
-    ref0= &(((Item_in_subselect *)args[1])->left_expr);
-    args[0]= ((Item_in_subselect *)args[1])->left_expr;
+    ref0= args[1]->get_IN_subquery()->left_exp_ptr();
+    args[0]= (*ref0);
   }
   if ((*ref0)->fix_fields_if_needed(thd, ref0) ||
       (!cache && !(cache= (*ref0)->get_cache(thd))))
@@ -1409,9 +1417,7 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
 bool Item_in_optimizer::invisible_mode()
 {
   /* MAX/MIN transformed or EXISTS->IN prepared => do nothing */
- return (args[1]->type() != Item::SUBSELECT_ITEM ||
-         ((Item_subselect *)args[1])->substype() ==
-         Item_subselect::EXISTS_SUBS);
+  return (args[1]->get_IN_subquery() == NULL);
 }
 
 
@@ -1573,7 +1579,7 @@ longlong Item_in_optimizer::val_int()
       "<outer_value_list> [NOT] IN (SELECT <inner_value_list>...)" 
       where one or more of the outer values is NULL. 
     */
-    if (((Item_in_subselect*)args[1])->is_top_level_item())
+    if (args[1]->is_top_level_item())
     {
       /*
         We're evaluating a top level item, e.g. 
@@ -1596,7 +1602,7 @@ longlong Item_in_optimizer::val_int()
         SELECT evaluated over the non-NULL values produces at least
         one row, FALSE otherwise
       */
-      Item_in_subselect *item_subs=(Item_in_subselect*)args[1]; 
+      Item_in_subselect *item_subs= args[1]->get_IN_subquery();
       bool all_left_cols_null= true;
       const uint ncols= cache->cols();
 
@@ -1742,8 +1748,7 @@ Item *Item_in_optimizer::transform(THD *thd, Item_transformer transformer,
                  ((Item_subselect*)(args[1]))->substype() ==
                  Item_subselect::ANY_SUBS));
 
-    Item_in_subselect *in_arg= (Item_in_subselect*)args[1];
-    thd->change_item_tree(&in_arg->left_expr, args[0]);
+    thd->change_item_tree(args[1]->get_IN_subquery()->left_exp_ptr(), args[0]);
   }
   return (this->*transformer)(thd, argument);
 }
@@ -2077,7 +2082,17 @@ bool Item_func_between::eval_not_null_tables(void *opt_arg)
                           (args[1]->not_null_tables() &
                            args[2]->not_null_tables()));
   return 0;
-}  
+}
+
+
+bool Item_func_between::find_not_null_fields(table_map allowed)
+{
+  if (negated || !is_top_level_item() || (~allowed & used_tables()))
+    return false;
+  return args[0]->find_not_null_fields(allowed) ||
+         args[1]->find_not_null_fields(allowed) ||
+         args[2]->find_not_null_fields(allowed);
+}
 
 
 bool Item_func_between::count_sargable_conds(void *arg)
@@ -2135,7 +2150,7 @@ bool Item_func_between::fix_length_and_dec_numeric(THD *thd)
       if (cvt_arg1 && cvt_arg2)
       {
         // Works for all types
-        m_comparator.set_handler(&type_handler_longlong);
+        m_comparator.set_handler(&type_handler_slonglong);
       }
     }
   }
@@ -4344,6 +4359,15 @@ Item_func_in::eval_not_null_tables(void *opt_arg)
 }
 
 
+bool
+Item_func_in::find_not_null_fields(table_map allowed)
+{
+  if (negated || !is_top_level_item() || (~allowed & used_tables()))
+    return 0;
+  return  args[0]->find_not_null_fields(allowed);
+}
+
+
 void Item_func_in::fix_after_pullout(st_select_lex *new_parent, Item **ref,
                                      bool merge)
 {
@@ -4478,7 +4502,7 @@ bool Item_func_in::value_list_convert_const_to_int(THD *thd)
            all_converted= false;
       }
       if (all_converted)
-        m_comparator.set_handler(&type_handler_longlong);
+        m_comparator.set_handler(&type_handler_slonglong);
     }
   }
   return thd->is_fatal_error; // Catch errrors in convert_const_to_int
@@ -4705,43 +4729,73 @@ void Item_func_in::mark_as_condition_AND_part(TABLE_LIST *embedding)
 }
 
 
-longlong Item_func_bit_or::val_int()
+class Func_handler_bit_or_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
 {
-  DBUG_ASSERT(fixed == 1);
-  ulonglong arg1= (ulonglong) args[0]->val_int();
-  if (args[0]->null_value)
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1; /* purecov: inspected */
-    return 0; /* purecov: inspected */
+    DBUG_ASSERT(item->is_fixed());
+    Longlong_null a= item->arguments()[0]->to_longlong_null();
+    return a.is_null() ? a : a | item->arguments()[1]->to_longlong_null();
   }
-  ulonglong arg2= (ulonglong) args[1]->val_int();
-  if (args[1]->null_value)
+};
+
+
+class Func_handler_bit_or_dec_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1;
-    return 0;
+    DBUG_ASSERT(item->is_fixed());
+    VDec a(item->arguments()[0]);
+    return a.is_null() ? Longlong_null() :
+      a.to_xlonglong_null() | VDec(item->arguments()[1]).to_xlonglong_null();
   }
-  null_value=0;
-  return (longlong) (arg1 | arg2);
+};
+
+
+bool Item_func_bit_or::fix_length_and_dec()
+{
+  static Func_handler_bit_or_int_to_ulonglong ha_int_to_ull;
+  static Func_handler_bit_or_dec_to_ulonglong ha_dec_to_ull;
+  return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
 
-longlong Item_func_bit_and::val_int()
+class Func_handler_bit_and_int_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
 {
-  DBUG_ASSERT(fixed == 1);
-  ulonglong arg1= (ulonglong) args[0]->val_int();
-  if (args[0]->null_value)
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1; /* purecov: inspected */
-    return 0; /* purecov: inspected */
+    DBUG_ASSERT(item->is_fixed());
+    Longlong_null a= item->arguments()[0]->to_longlong_null();
+    return a.is_null() ? a : a & item->arguments()[1]->to_longlong_null();
   }
-  ulonglong arg2= (ulonglong) args[1]->val_int();
-  if (args[1]->null_value)
+};
+
+
+class Func_handler_bit_and_dec_to_ulonglong:
+        public Item_handled_func::Handler_ulonglong
+{
+public:
+  Longlong_null to_longlong_null(Item_handled_func *item) const
   {
-    null_value=1; /* purecov: inspected */
-    return 0; /* purecov: inspected */
+    DBUG_ASSERT(item->is_fixed());
+    VDec a(item->arguments()[0]);
+    return a.is_null() ?  Longlong_null() :
+      a.to_xlonglong_null() & VDec(item->arguments()[1]).to_xlonglong_null();
   }
-  null_value=0;
-  return (longlong) (arg1 & arg2);
+};
+
+
+bool Item_func_bit_and::fix_length_and_dec()
+{
+  static Func_handler_bit_and_int_to_ulonglong ha_int_to_ull;
+  static Func_handler_bit_and_dec_to_ulonglong ha_dec_to_ull;
+  return fix_length_and_dec_op2_std(&ha_int_to_ull, &ha_dec_to_ull);
 }
 
 Item_cond::Item_cond(THD *thd, Item_cond *item)
@@ -4946,6 +5000,82 @@ Item_cond::eval_not_null_tables(void *opt_arg)
   return 0;
 }
 
+
+/**
+   @note
+     This implementation of the virtual function find_not_null_fields()
+     infers null-rejectedness if fields from tables marked in 'allowed' from
+     this condition.
+     Currently only top level AND conjuncts that  are not disjunctions are used
+     for the inference. Usage of any top level and-or formula with l OR levels
+     would require a stack of bitmaps for fields of the height h=2*l+1 So we
+     would have to allocate h-1 additional field bitmaps for each table marked
+     in 'allowed'.
+*/
+
+bool
+Item_cond::find_not_null_fields(table_map allowed)
+{
+  Item *item;
+  bool is_and_cond= functype() == Item_func::COND_AND_FUNC;
+  if (!is_and_cond)
+  {
+    /* Now only fields of top AND level conjuncts are taken into account */
+    return false;
+  }
+  uint isnull_func_cnt= 0;
+  List_iterator<Item> li(list);
+  while ((item=li++))
+  {
+    bool is_mult_eq= item->type() == Item::FUNC_ITEM &&
+         ((Item_func *) item)->functype() == Item_func::MULT_EQUAL_FUNC;
+    if (is_mult_eq)
+    {
+      if (!item->find_not_null_fields(allowed))
+        continue;
+    }
+
+    if (~allowed & item->used_tables())
+      continue;
+
+    /* It is assumed that all constant conjuncts are already eliminated */
+
+    /*
+      First infer null-rejectedness of fields from all conjuncts but
+      IS NULL predicates
+    */
+    bool isnull_func= item->type() == Item::FUNC_ITEM &&
+         ((Item_func *) item)->functype() == Item_func::ISNULL_FUNC;
+    if (isnull_func)
+    {
+      isnull_func_cnt++;
+      continue;
+    }
+    if (!item->find_not_null_fields(allowed))
+      continue;
+  }
+
+  /* Now try no get contradictions using IS NULL conjuncts */
+  if (isnull_func_cnt)
+  {
+    li.rewind();
+    while ((item=li++) && isnull_func_cnt)
+    {
+      if (~allowed & item->used_tables())
+        continue;
+
+      bool isnull_func= item->type() == Item::FUNC_ITEM &&
+           ((Item_func *) item)->functype() == Item_func::ISNULL_FUNC;
+      if (isnull_func)
+      {
+        if  (item->find_not_null_fields(allowed))
+          return true;
+        isnull_func_cnt--;
+      }
+    }
+  }
+  return false;
+}
 
 void Item_cond::fix_after_pullout(st_select_lex *new_parent, Item **ref,
                                   bool merge)
@@ -5392,6 +5522,19 @@ longlong Item_func_isnull::val_int()
 }
 
 
+bool Item_func_isnull::find_not_null_fields(table_map allowed)
+{
+  if (!(~allowed & used_tables()) &&
+      args[0]->real_item()->type() == Item::FIELD_ITEM)
+  {
+    Field *field= ((Item_field *)(args[0]->real_item()))->field;
+    if (bitmap_is_set(&field->table->tmp_set, field->field_index))
+      return true;
+  }
+  return false;
+}
+
+
 void Item_func_isnull::print(String *str, enum_query_type query_type)
 {
   if (const_item() && !args[0]->maybe_null &&
@@ -5489,7 +5632,7 @@ longlong Item_func_like::val_int()
   null_value=0;
   if (canDoTurboBM)
     return turboBM_matches(res->ptr(), res->length()) ? !negated : negated;
-  return my_wildcmp(cmp_collation.collation,
+  return cmp_collation.collation->wildcmp(
 		    res->ptr(),res->ptr()+res->length(),
 		    res2->ptr(),res2->ptr()+res2->length(),
 		    escape,wild_one,wild_many) ? negated : !negated;
@@ -5596,14 +5739,14 @@ bool fix_escape_item(THD *thd, Item *escape_item, String *tmp_str,
         return TRUE;
       }
 
-      if (use_mb(cmp_cs))
+      if (cmp_cs->use_mb())
       {
         CHARSET_INFO *cs= escape_str->charset();
         my_wc_t wc;
-        int rc= cs->cset->mb_wc(cs, &wc,
-                                (const uchar*) escape_str_ptr,
-                                (const uchar*) escape_str_ptr +
-                                escape_str->length());
+        int rc= cs->mb_wc(&wc,
+                          (const uchar*) escape_str_ptr,
+                          (const uchar*) escape_str_ptr +
+                          escape_str->length());
         *escape= (int) (rc > 0 ? wc : '\\');
       }
       else
@@ -5671,7 +5814,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
       {
         const char* tmp = first + 1;
         for (; *tmp != wild_many && *tmp != wild_one && *tmp != escape; tmp++) ;
-        canDoTurboBM = (tmp == last) && !use_mb(args[0]->collation.collation);
+        canDoTurboBM = (tmp == last) && !args[0]->collation.collation->use_mb();
       }
       if (canDoTurboBM)
       {
@@ -5729,15 +5872,28 @@ int Regexp_processor_pcre::default_regex_flags()
   return default_regex_flags_pcre(current_thd);
 }
 
-void Regexp_processor_pcre::set_recursion_limit(THD *thd)
+void Regexp_processor_pcre::cleanup()
 {
-  long stack_used;
-  DBUG_ASSERT(thd == current_thd);
-  stack_used= available_stack_size(thd->thread_stack, &stack_used);
-  m_pcre_extra.match_limit_recursion=
-    (ulong)((my_thread_stack_size - STACK_MIN_SIZE - stack_used)/my_pcre_frame_size);
+  pcre2_match_data_free(m_pcre_match_data);
+  pcre2_code_free(m_pcre);
+  reset();
 }
 
+void Regexp_processor_pcre::init(CHARSET_INFO *data_charset, int extra_flags)
+{
+  m_library_flags= default_regex_flags() | extra_flags |
+                  (data_charset != &my_charset_bin ?
+                   (PCRE2_UTF | PCRE2_UCP) : 0) |
+                  ((data_charset->state &
+                    (MY_CS_BINSORT | MY_CS_CSSORT)) ? 0 : PCRE2_CASELESS);
+
+  // Convert text data to utf-8.
+  m_library_charset= data_charset == &my_charset_bin ?
+                     &my_charset_bin : &my_charset_utf8mb3_general_ci;
+
+  m_conversion_is_needed= (data_charset != &my_charset_bin) &&
+                          !my_charset_same(data_charset, m_library_charset);
+}
 
 /**
   Convert string to lib_charset, if needed.
@@ -5771,8 +5927,8 @@ String *Regexp_processor_pcre::convert_if_needed(String *str, String *converter)
 
 bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
 {
-  const char *pcreErrorStr;
-  int pcreErrorOffset;
+  int pcreErrorNumber;
+  PCRE2_SIZE pcreErrorOffset;
 
   if (is_compiled())
   {
@@ -5785,17 +5941,37 @@ bool Regexp_processor_pcre::compile(String *pattern, bool send_error)
   if (!(pattern= convert_if_needed(pattern, &pattern_converter)))
     return true;
 
-  m_pcre= pcre_compile(pattern->c_ptr_safe(), m_library_flags,
-                       &pcreErrorStr, &pcreErrorOffset, NULL);
+  pcre2_compile_context *cctx= NULL;
+#ifndef pcre2_set_depth_limit
+  // old pcre2 uses stack - put a limit on that (new pcre2 prefers heap)
+  cctx= pcre2_compile_context_create(NULL);
+  pcre2_set_compile_recursion_guard(cctx, [](uint32_t cur, void *end) -> int
+    { return available_stack_size(&cur, end) < STACK_MIN_SIZE; },
+    current_thd->mysys_var->stack_ends_here);
+#endif
+  m_pcre= pcre2_compile((PCRE2_SPTR8) pattern->ptr(), pattern->length(),
+                        m_library_flags,
+                        &pcreErrorNumber, &pcreErrorOffset, cctx);
+  pcre2_compile_context_free(cctx); // NULL is ok here
 
   if (unlikely(m_pcre == NULL))
   {
     if (send_error)
     {
       char buff[MAX_FIELD_WIDTH];
-      my_snprintf(buff, sizeof(buff), "%s at offset %d", pcreErrorStr, pcreErrorOffset);
+      int lmsg= pcre2_get_error_message(pcreErrorNumber,
+                                        (PCRE2_UCHAR8 *)buff, sizeof(buff));
+      if (lmsg >= 0)
+        my_snprintf(buff+lmsg, sizeof(buff)-lmsg,
+                    " at offset %d", pcreErrorOffset);
       my_error(ER_REGEXP_ERROR, MYF(0), buff);
     }
+    return true;
+  }
+  m_pcre_match_data= pcre2_match_data_create_from_pattern(m_pcre, NULL);
+  if (m_pcre_match_data == NULL)
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
     return true;
   }
   return false;
@@ -5818,124 +5994,54 @@ bool Regexp_processor_pcre::compile(Item *item, bool send_error)
 */
 void Regexp_processor_pcre::pcre_exec_warn(int rc) const
 {
-  char buf[64];
-  const char *errmsg= NULL;
+  PCRE2_UCHAR8 buf[128];
   THD *thd= current_thd;
 
-  /*
-    Make a descriptive message only for those pcre_exec() error codes
-    that can actually happen in MariaDB.
-  */
-  switch (rc)
+  int errlen= pcre2_get_error_message(rc, buf, sizeof(buf));
+  if (errlen <= 0)
   {
-  case PCRE_ERROR_NULL:
-    errmsg= "pcre_exec: null argument passed";
-    break;
-  case PCRE_ERROR_BADOPTION:
-    errmsg= "pcre_exec: bad option";
-    break;
-  case PCRE_ERROR_BADMAGIC:
-    errmsg= "pcre_exec: bad magic - not a compiled regex";
-    break;
-  case PCRE_ERROR_UNKNOWN_OPCODE:
-    errmsg= "pcre_exec: error in compiled regex";
-    break;
-  case PCRE_ERROR_NOMEMORY:
-    errmsg= "pcre_exec: Out of memory";
-    break;
-  case PCRE_ERROR_NOSUBSTRING:
-    errmsg= "pcre_exec: no substring";
-    break;
-  case PCRE_ERROR_MATCHLIMIT:
-    errmsg= "pcre_exec: match limit exceeded";
-    break;
-  case PCRE_ERROR_CALLOUT:
-    errmsg= "pcre_exec: callout error";
-    break;
-  case PCRE_ERROR_BADUTF8:
-    errmsg= "pcre_exec: Invalid utf8 byte sequence in the subject string";
-    break;
-  case PCRE_ERROR_BADUTF8_OFFSET:
-    errmsg= "pcre_exec: Started at invalid location within utf8 byte sequence";
-    break;
-  case PCRE_ERROR_PARTIAL:
-    errmsg= "pcre_exec: partial match";
-    break;
-  case PCRE_ERROR_INTERNAL:
-    errmsg= "pcre_exec: internal error";
-    break;
-  case PCRE_ERROR_BADCOUNT:
-    errmsg= "pcre_exec: ovesize is negative";
-    break;
-  case PCRE_ERROR_RECURSIONLIMIT:
-    my_snprintf(buf, sizeof(buf), "pcre_exec: recursion limit of %ld exceeded",
-                m_pcre_extra.match_limit_recursion);
-    errmsg= buf;
-    break;
-  case PCRE_ERROR_BADNEWLINE:
-    errmsg= "pcre_exec: bad newline options";
-    break;
-  case PCRE_ERROR_BADOFFSET:
-    errmsg= "pcre_exec: start offset negative or greater than string length";
-    break;
-  case PCRE_ERROR_SHORTUTF8:
-    errmsg= "pcre_exec: ended in middle of utf8 sequence";
-    break;
-  case PCRE_ERROR_JIT_STACKLIMIT:
-    errmsg= "pcre_exec: insufficient stack memory for JIT compile";
-    break;
-  case PCRE_ERROR_RECURSELOOP:
-    errmsg= "pcre_exec: Recursion loop detected";
-    break;
-  case PCRE_ERROR_BADMODE:
-    errmsg= "pcre_exec: compiled pattern passed to wrong bit library function";
-    break;
-  case PCRE_ERROR_BADENDIANNESS:
-    errmsg= "pcre_exec: compiled pattern passed to wrong endianness processor";
-    break;
-  case PCRE_ERROR_JIT_BADOPTION:
-    errmsg= "pcre_exec: bad jit option";
-    break;
-  case PCRE_ERROR_BADLENGTH:
-    errmsg= "pcre_exec: negative length";
-    break;
-  default:
-    /*
-      As other error codes should normally not happen,
-      we just report the error code without textual description
-      of the code.
-    */
-    my_snprintf(buf, sizeof(buf), "pcre_exec: Internal error (%d)", rc);
-    errmsg= buf;
+    my_snprintf((char *)buf, sizeof(buf), "pcre_exec: Internal error (%d)", rc);
   }
   push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
-                      ER_REGEXP_ERROR, ER_THD(thd, ER_REGEXP_ERROR), errmsg);
+                      ER_REGEXP_ERROR, ER_THD(thd, ER_REGEXP_ERROR), buf);
 }
 
 
 /**
   Call pcre_exec() and send a warning if pcre_exec() returned with an error.
 */
-int Regexp_processor_pcre::pcre_exec_with_warn(const pcre *code,
-                                               const pcre_extra *extra,
+int Regexp_processor_pcre::pcre_exec_with_warn(const pcre2_code *code,
+                                               pcre2_match_data *data,
                                                const char *subject,
                                                int length, int startoffset,
-                                               int options, int *ovector,
-                                               int ovecsize)
+                                               int options)
 {
-  int rc= pcre_exec(code, extra, subject, length,
-                    startoffset, options, ovector, ovecsize);
+  pcre2_match_context *mctx= NULL;
+#ifndef pcre2_set_depth_limit
+  // old pcre2 uses stack - put a limit on that (new pcre2 prefers heap)
+  mctx= pcre2_match_context_create(NULL);
+  pcre2_set_recursion_limit(mctx,
+    available_stack_size(&mctx, current_thd->mysys_var->stack_ends_here)/544);
+#endif
+  int rc= pcre2_match(code, (PCRE2_SPTR8) subject, (PCRE2_SIZE) length,
+                      (PCRE2_SIZE) startoffset, options, data, mctx);
+  pcre2_match_context_free(mctx); // NULL is ok here
   DBUG_EXECUTE_IF("pcre_exec_error_123", rc= -123;);
-  if (unlikely(rc < PCRE_ERROR_NOMATCH))
+  if (unlikely(rc < PCRE2_ERROR_NOMATCH))
+  {
+    m_SubStrVec= NULL;
     pcre_exec_warn(rc);
+  }
+  else
+    m_SubStrVec= pcre2_get_ovector_pointer(data);
   return rc;
 }
 
 
 bool Regexp_processor_pcre::exec(const char *str, size_t length, size_t offset)
 {
-  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra, str, (int)length, (int)offset, 0,
-                                      m_SubStrVec, array_elements(m_SubStrVec));
+  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, m_pcre_match_data,
+                                      str, (int)length, (int)offset, 0);
   return false;
 }
 
@@ -5945,10 +6051,8 @@ bool Regexp_processor_pcre::exec(String *str, int offset,
 {
   if (!(str= convert_if_needed(str, &subject_converter)))
     return true;
-  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, &m_pcre_extra,
-                                      str->c_ptr_safe(), str->length(),
-                                      offset, 0,
-                                      m_SubStrVec, array_elements(m_SubStrVec));
+  m_pcre_exec_rc= pcre_exec_with_warn(m_pcre, m_pcre_match_data,
+                                      str->ptr(), str->length(), offset, 0);
   if (m_pcre_exec_rc > 0)
   {
     uint i;
@@ -5957,10 +6061,9 @@ bool Regexp_processor_pcre::exec(String *str, int offset,
       /*
         Convert byte offset into character offset.
       */
-      m_SubStrVec[i]= (int) str->charset()->cset->numchars(str->charset(),
-                                                           str->ptr(),
-                                                           str->ptr() +
-                                                           m_SubStrVec[i]);
+      m_SubStrVec[i]= (int) str->charset()->numchars(str->ptr(),
+                                                     str->ptr() +
+                                                     m_SubStrVec[i]);
     }
   }
   return false;
@@ -5998,12 +6101,6 @@ void Regexp_processor_pcre::fix_owner(Item_func *owner,
 }
 
 
-bool Item_func_regex::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_bool_func::fix_fields(thd, ref);
-}
-
 bool
 Item_func_regex::fix_length_and_dec()
 {
@@ -6030,13 +6127,6 @@ longlong Item_func_regex::val_int()
 }
 
 
-bool Item_func_regexp_instr::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_int_func::fix_fields(thd, ref);
-}
-
-
 bool
 Item_func_regexp_instr::fix_length_and_dec()
 {
@@ -6059,7 +6149,7 @@ longlong Item_func_regexp_instr::val_int()
   if ((null_value= re.exec(args[0], 0, 1)))
     return 0;
 
-  return re.match() ? re.subpattern_start(0) + 1 : 0;
+  return re.match() ? (longlong) (re.subpattern_start(0) + 1) : 0;
 }
 
 
@@ -6431,6 +6521,21 @@ Item *Item_cond_and::neg_transformer(THD *thd)	/* NOT(a AND b AND ...)  -> */
   neg_arguments(thd);
   Item *item= new (thd->mem_root) Item_cond_or(thd, list);
   return item;
+}
+
+
+bool
+Item_cond_and::set_format_by_check_constraint(
+                                      Send_field_extended_metadata *to) const
+{
+  List_iterator_fast<Item> li(const_cast<List<Item>&>(list));
+  Item *item;
+  while ((item= li++))
+  {
+    if (item->set_format_by_check_constraint(to))
+      return true;
+  }
+  return false;
 }
 
 
@@ -6993,6 +7098,48 @@ void Item_equal::update_used_tables()
     const_item_cache&= item->const_item() && !item->is_outer_field();
   }
 }
+
+
+/**
+  @note
+    This multiple equality can contains elements belonging not to tables {T}
+    marked in 'allowed' . So we can ascertain null-rejectedness of field f
+    belonging to table t from {T} only if one of the following equality
+    predicate can be  extracted from this multiple equality:
+    - f=const
+    - f=f' where f' is a field of some table from {T}
+*/
+
+bool Item_equal::find_not_null_fields(table_map allowed)
+{
+  if (!(allowed & used_tables()))
+    return false;
+  bool checked= false;
+  Item_equal_fields_iterator it(*this);
+  Item *item;
+  while ((item= it++))
+  {
+    if (~allowed & item->used_tables())
+      continue;
+    if ((with_const || checked) && !item->find_not_null_fields(allowed))
+      continue;
+    Item_equal_fields_iterator it1(*this);
+    Item *item1;
+    while ((item1= it1++) && item1 != item)
+    {
+      if (~allowed & item1->used_tables())
+        continue;
+      if (!item->find_not_null_fields(allowed) &&
+          !item1->find_not_null_fields(allowed))
+      {
+        checked= true;
+        break;
+      }
+    }
+  }
+  return false;
+}
+
 
 
 bool Item_equal::count_sargable_conds(void *arg)

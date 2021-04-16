@@ -1,0 +1,29 @@
+--source include/have_innodb.inc
+--source include/master-slave.inc
+
+--connection slave
+call mtr.add_suppression("The automatically created table.*name may not be entirely in lowercase");
+
+--source include/stop_slave.inc
+CHANGE MASTER TO master_use_gtid=slave_pos;
+
+SET @@global.gtid_pos_auto_engines="innodb";
+--source include/start_slave.inc
+--let $rpl_xa_check_lhs= @@global.gtid_slave_pos
+--let $rpl_xa_check_rhs= CONCAT(domain_id,"-",server_id,"-",seq_no) FROM mysql.gtid_slave_pos WHERE seq_no = (SELECT DISTINCT max(seq_no) FROM mysql.gtid_slave_pos)
+--let $rpl_xa_check=SELECT $rpl_xa_check_lhs = $rpl_xa_check_rhs
+--source rpl_xa.inc
+
+--connection slave
+--source include/stop_slave.inc
+SET @@global.gtid_pos_auto_engines="";
+SET @@session.sql_log_bin=0;
+DROP TABLE mysql.gtid_slave_pos_InnoDB;
+if (`SHOW COUNT(*) WARNINGS`)
+{
+  show tables in mysql like 'gtid_slave_pos%';
+}
+SET @@session.sql_log_bin=1;
+--source include/start_slave.inc
+
+--source include/rpl_end.inc

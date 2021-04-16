@@ -16,6 +16,8 @@
 #ifndef SQL_TYPE_INT_INCLUDED
 #define SQL_TYPE_INT_INCLUDED
 
+#include "my_bit.h" // my_count_bits()
+
 
 class Null_flag
 {
@@ -43,6 +45,58 @@ public:
   Longlong_null(longlong nr, bool is_null)
    :Longlong(nr), Null_flag(is_null)
   { }
+  explicit Longlong_null()
+   :Longlong(0), Null_flag(true)
+  { }
+  explicit Longlong_null(longlong nr)
+   :Longlong(nr), Null_flag(false)
+  { }
+  Longlong_null operator|(const Longlong_null &other) const
+  {
+    if (is_null() || other.is_null())
+      return Longlong_null();
+    return Longlong_null(value() | other.value());
+  }
+  Longlong_null operator&(const Longlong_null &other) const
+  {
+    if (is_null() || other.is_null())
+      return Longlong_null();
+    return Longlong_null(value() & other.value());
+  }
+  Longlong_null operator^(const Longlong_null &other) const
+  {
+    if (is_null() || other.is_null())
+      return Longlong_null();
+    return Longlong_null((longlong) (value() ^ other.value()));
+  }
+  Longlong_null operator~() const
+  {
+    if (is_null())
+      return *this;
+    return Longlong_null((longlong) ~ (ulonglong) value());
+  }
+  Longlong_null operator<<(const Longlong_null &llshift) const
+  {
+    if (is_null() || llshift.is_null())
+      return Longlong_null();
+    uint shift= (uint) llshift.value();
+    ulonglong res= ((ulonglong) value()) << shift;
+    return Longlong_null(shift < sizeof(longlong) * 8 ? (longlong) res : 0);
+  }
+  Longlong_null operator>>(const Longlong_null &llshift) const
+  {
+    if (is_null() || llshift.is_null())
+      return Longlong_null();
+    uint shift= (uint) llshift.value();
+    ulonglong res= ((ulonglong) value()) >> shift;
+    return Longlong_null(shift < sizeof(longlong) * 8 ? (longlong) res : 0);
+  }
+  Longlong_null bit_count() const
+  {
+    if (is_null())
+      return *this;
+    return Longlong_null((longlong) my_count_bits((ulonglong) value()));
+  }
 };
 
 

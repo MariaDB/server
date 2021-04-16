@@ -1,0 +1,22 @@
+--- ./mysql-test/main/alter_table.result	2020-02-27 19:35:41.279992329 +0300
++++ ./mysql-test/main/alter_table,aria.reject	2020-02-27 19:37:13.251994491 +0300
+@@ -2716,8 +2716,7 @@
+ t3	CREATE TABLE `t3` (
+   `a` int(11) DEFAULT NULL,
+   `b` int(11) DEFAULT NULL,
+-  KEY `b` (`b`),
+-  CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`bb`)
++  KEY `b` (`b`)
+ ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+ ALTER TABLE t1 RENAME COLUMN bb TO b;
+ SHOW CREATE TABLE t1;
+@@ -2733,8 +2732,7 @@
+ t3	CREATE TABLE `t3` (
+   `a` int(11) DEFAULT NULL,
+   `c` int(11) DEFAULT NULL,
+-  KEY `b` (`c`),
+-  CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`c`) REFERENCES `t1` (`b`)
++  KEY `b` (`c`)
+ ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+ CREATE TABLE t4(a int);
+ ALTER TABLE t4 RENAME COLUMN a TO aa, ALGORITHM = INPLACE;

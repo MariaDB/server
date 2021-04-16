@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -41,6 +41,10 @@ struct row_setup_instruments
 {
   /** Columns NAME, ENABLED, TIMED. */
   PFS_instr_class *m_instr_class;
+  /** True if column ENABLED can be updated. */
+  bool m_update_enabled;
+  /** True if column TIMED can be updated. */
+  bool m_update_timed;
 };
 
 /** Position of a cursor on PERFORMANCE_SCHEMA.SETUP_INSTRUMENTS. */
@@ -55,9 +59,13 @@ struct pos_setup_instruments : public PFS_double_index
   static const uint VIEW_TABLE= 6;
   static const uint VIEW_STAGE= 7;
   static const uint VIEW_STATEMENT= 8;
-  static const uint VIEW_SOCKET= 9;
-  static const uint VIEW_IDLE= 10;
-  static const uint LAST_VIEW= 10;
+  static const uint VIEW_TRANSACTION=9;
+  static const uint VIEW_SOCKET= 10;
+  static const uint VIEW_IDLE= 11;
+  static const uint VIEW_BUILTIN_MEMORY= 12;
+  static const uint VIEW_MEMORY= 13;
+  static const uint VIEW_METADATA= 14;
+  static const uint LAST_VIEW= 14;
 
   pos_setup_instruments()
     : PFS_double_index(FIRST_VIEW, 1)
@@ -86,6 +94,7 @@ public:
   /** Table share. */
   static PFS_engine_table_share m_share;
   static PFS_engine_table* create();
+  static ha_rows get_row_count();
 
   virtual int rnd_next();
   virtual int rnd_pos(const void *pos);
@@ -109,7 +118,7 @@ public:
   {}
 
 private:
-  void make_row(PFS_instr_class *klass);
+  void make_row(PFS_instr_class *klass, bool update_enabled, bool update_timed);
 
   /** Table share lock. */
   static THR_LOCK m_table_lock;

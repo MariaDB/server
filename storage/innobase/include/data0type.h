@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -181,7 +181,8 @@ be less than 256 */
 				BLOB columns.
 */
 #define DATA_GIS_MBR	2048U	/* Used as GIS MBR column */
-#define DATA_MBR_LEN	SPDIMS * 2 * sizeof(double) /* GIS MBR length*/
+/** the size of a GIS maximum bounding rectangle */
+constexpr uint8_t DATA_MBR_LEN= uint8_t(SPDIMS * 2 * sizeof(double));
 
 #define	DATA_LONG_TRUE_VARCHAR 4096U	/* this is ORed to the precise data
 				type when the column is true VARCHAR where
@@ -330,9 +331,9 @@ dtype_get_mblen(
 /*============*/
 	ulint	mtype,		/*!< in: main type */
 	ulint	prtype,		/*!< in: precise type (and collation) */
-	ulint*	mbminlen,	/*!< out: minimum length of a
+	unsigned* mbminlen,	/*!< out: minimum length of a
 				multi-byte character */
-	ulint*	mbmaxlen);	/*!< out: maximum length of a
+	unsigned* mbmaxlen);	/*!< out: maximum length of a
 				multi-byte character */
 /**
 Get the charset-collation code for string types.
@@ -399,7 +400,7 @@ dtype_get_mbmaxlen(
 Returns the size of a fixed size data type, 0 if not a fixed size type.
 @return fixed size, or 0 */
 UNIV_INLINE
-ulint
+unsigned
 dtype_get_fixed_size_low(
 /*=====================*/
 	ulint	mtype,		/*!< in: main type */
@@ -415,7 +416,7 @@ dtype_get_fixed_size_low(
 Returns the minimum size of a data type.
 @return minimum size */
 UNIV_INLINE
-ulint
+unsigned
 dtype_get_min_size_low(
 /*===================*/
 	ulint	mtype,		/*!< in: main type */

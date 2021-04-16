@@ -1,0 +1,197 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_1;
+connection node_2;
+connection node_3;
+Inconsistency on the first fragment
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 BLOB) ENGINE=InnoDB;
+connection node_2;
+SET SESSION wsrep_on=OFF;
+INSERT INTO t1 VALUES (1, 'X');
+SET SESSION wsrep_on=ON;
+DELETE FROM t1 WHERE f1 = 2;
+connection node_1;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 16384;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (2, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (3, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (4, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (5, REPEAT('A', 16384));
+COMMIT;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+START TRANSACTION;
+INSERT INTO t1 VALUES (11, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (12, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (13, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (14, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (15, REPEAT('A', 16384));
+connection node_2;
+SET SESSION wsrep_on=OFF;
+Starting mysqld
+# restart
+connection node_1;
+connection node_2;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) > 0
+1
+connection node_1;
+COMMIT;
+connection node_1;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+SELECT COUNT(*) AS expect_10 FROM t1;
+expect_10
+10
+connection node_2;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+SELECT COUNT(*) AS expect_10 FROM t1;
+expect_10
+10
+connection node_3;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+SELECT COUNT(*) AS expect_10 FROM t1;
+expect_10
+10
+connection node_1;
+DROP TABLE t1;
+Inconsistency on a middle fragment
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 BLOB) ENGINE=InnoDB;
+connection node_2;
+SET SESSION wsrep_on=OFF;
+INSERT INTO t1 VALUES (3, 'X');
+SET SESSION wsrep_on=ON;
+DELETE FROM t1 WHERE f1 = 2;
+connection node_1;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 16384;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (2, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (3, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (4, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (5, REPEAT('A', 16384));
+COMMIT;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+START TRANSACTION;
+INSERT INTO t1 VALUES (11, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (12, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (13, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (14, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (15, REPEAT('A', 16384));
+connection node_2;
+SET SESSION wsrep_on=OFF;
+Starting mysqld
+# restart
+connection node_1;
+connection node_2;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) > 0
+1
+connection node_1;
+COMMIT;
+connection node_1;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+SELECT COUNT(*) AS expect_10 FROM t1;
+expect_10
+10
+connection node_2;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+SELECT COUNT(*) AS expect_10 FROM t1;
+expect_10
+10
+connection node_3;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+SELECT COUNT(*) AS expect_10 FROM t1;
+expect_10
+10
+connection node_1;
+DROP TABLE t1;
+Inconsistency on the commit fragment
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 BLOB) ENGINE=InnoDB;
+connection node_2;
+SET SESSION wsrep_on=OFF;
+INSERT INTO t1 VALUES (5, 'X');
+SET SESSION wsrep_on=ON;
+DELETE FROM t1 WHERE f1 = 2;
+connection node_1;
+SET AUTOCOMMIT=OFF;
+SET SESSION wsrep_trx_fragment_size = 16384;
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (2, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (3, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (4, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (5, REPEAT('A', 16384));
+COMMIT;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+START TRANSACTION;
+INSERT INTO t1 VALUES (11, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (12, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (13, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (14, REPEAT('A', 16384));
+INSERT INTO t1 VALUES (15, REPEAT('A', 16384));
+connection node_2;
+SET SESSION wsrep_on=OFF;
+Starting mysqld
+# restart
+connection node_1;
+connection node_2;
+SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
+COUNT(*) > 0
+1
+connection node_1;
+COMMIT;
+connection node_1;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+SELECT COUNT(*) AS expect_10 FROM t1;
+expect_10
+10
+connection node_2;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+SELECT COUNT(*) AS expect_10 FROM t1;
+expect_10
+10
+connection node_3;
+SELECT COUNT(*) AS expect_0 FROM mysql.wsrep_streaming_log;
+expect_0
+0
+SELECT COUNT(*) AS expect_10 FROM t1;
+expect_10
+10
+connection node_1;
+DROP TABLE t1;
+connection node_2;
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '1' for key 'PRIMARY'");
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '3' for key 'PRIMARY'");
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '5' for key 'PRIMARY'");
+CALL mtr.add_suppression("Write_rows_v1 apply failed");
+CALL mtr.add_suppression("Inconsistent by consensus");
+CALL mtr.add_suppression("WSREP: Failed to apply write set: ");
+CALL mtr.add_suppression("WSREP: Failed to report last committed");

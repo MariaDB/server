@@ -1,0 +1,57 @@
+connection node_2;
+connection node_1;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+connection node_3;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_2;
+SET SESSION wsrep_on=OFF;
+DROP SCHEMA test;
+connection node_3;
+SET SESSION wsrep_on=OFF;
+CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
+connection node_1;
+CREATE TABLE test.t1 (f1 INTEGER NOT NULL PRIMARY KEY) engine=innodb;
+INSERT INTO test.t1 values (1);
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Primary
+DROP TABLE test.t1;
+connection node_2;
+SET SESSION wsrep_sync_wait=0;
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Disconnected
+disconnect node_2;
+connect node_2, 127.0.0.1, root, , mysql, $NODE_MYPORT_2;
+Killing server ...
+connection node_2;
+Starting node_2
+# restart
+connection node_3;
+SET SESSION wsrep_sync_wait=0;
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Disconnected
+disconnect node_3;
+connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3;
+Killing server ...
+connection node_3;
+Starting node_3
+# restart
+connection node_1;
+Nodes 2 and 3 started
+connection node_2;
+USE test;
+Node 2 synced
+CALL mtr.add_suppression("Slave SQL: Error 'Unknown database 'test'' on query. Default database: 'test'. Query: 'CREATE TABLE test.t1 \\\(f1 INTEGER\\\)', Error_code: 1049");
+CALL mtr.add_suppression("Query apply failed");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on .*");
+CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");
+connection node_3;
+Node 3 synced
+CALL mtr.add_suppression("Slave SQL: Error 'Table 't1' already exists' on query. Default database: 'test'. Query: 'CREATE TABLE test.t1 \\\(f1 INTEGER\\\)', Error_code: 1050");
+CALL mtr.add_suppression("Query apply failed");
+CALL mtr.add_suppression("WSREP: Inconsistency detected: Inconsistent by consensus on .*");
+CALL mtr.add_suppression("Plugin 'InnoDB' will be forced to shutdown");

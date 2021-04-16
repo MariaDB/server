@@ -1,0 +1,73 @@
+#
+# Start of 10.5 tests
+#
+#
+# Test that @@read_only is not ignored without READ_ONLY ADMIN or SUPER
+#
+CREATE TABLE t1 (a INT);
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE READ_ONLY ADMIN, SUPER ON *.* FROM user1@localhost;
+SET @@GLOBAL.read_only=1;
+connect  con1,localhost,user1,,;
+connection con1;
+UPDATE t1 SET a=11 WHERE a=10;
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+DELETE FROM t1 WHERE a=11;
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+INSERT INTO t1 VALUES (20);
+ERROR HY000: The MariaDB server is running with the --read-only option so it cannot execute this statement
+disconnect con1;
+connection default;
+SET @@GLOBAL.read_only=0;
+DROP USER user1@localhost;
+DROP TABLE t1;
+#
+# Test that @@read_only is ignored with READ_ONLY ADMIN
+#
+CREATE TABLE t1 (a INT);
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT INSERT, UPDATE, DELETE, READ_ONLY ADMIN ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT INSERT, UPDATE, DELETE, READ_ONLY ADMIN ON *.* TO `user1`@`localhost`
+SET @@GLOBAL.read_only=1;
+connect  con1,localhost,user1,,;
+connection con1;
+SELECT @@read_only;
+@@read_only
+1
+UPDATE t1 SET a=11 WHERE a=10;
+DELETE FROM t1 WHERE a=11;
+INSERT INTO t1 VALUES (20);
+disconnect con1;
+connection default;
+SET @@GLOBAL.read_only=0;
+DROP USER user1@localhost;
+DROP TABLE t1;
+#
+# Test that @@read_only is ignored with SUPER
+#
+CREATE TABLE t1 (a INT);
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT INSERT, UPDATE, DELETE, SUPER ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT INSERT, UPDATE, DELETE, SUPER ON *.* TO `user1`@`localhost`
+SET @@GLOBAL.read_only=1;
+connect  con1,localhost,user1,,;
+connection con1;
+SELECT @@read_only;
+@@read_only
+1
+UPDATE t1 SET a=11 WHERE a=10;
+DELETE FROM t1 WHERE a=11;
+INSERT INTO t1 VALUES (20);
+disconnect con1;
+connection default;
+SET @@GLOBAL.read_only=0;
+DROP USER user1@localhost;
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

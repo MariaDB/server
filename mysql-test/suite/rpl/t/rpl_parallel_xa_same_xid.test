@@ -1,0 +1,138 @@
+# The tests verify concurrent execution of replicated (MDEV-742)
+# XA transactions in the parallel optimistic mode.
+# Prove optimistic scheduler handles xid-namesake XA:s.
+# That is despite running in parallel there must be no conflicts
+# caused by multiple transactions' same xid.
+
+--source include/have_binlog_format_mixed_or_row.inc
+--source include/have_innodb.inc
+--source include/have_perfschema.inc
+--source include/master-slave.inc
+
+--let $xid_num = 19
+--let $repeat  = 17
+--let $workers = 7
+--connection slave
+call mtr.add_suppression("WSREP: handlerton rollback failed");
+
+--source include/stop_slave.inc
+# a measure against MDEV-20605
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
+
+SET @old_parallel_threads = @@GLOBAL.slave_parallel_threads;
+--disable_query_log
+--eval SET @@global.slave_parallel_threads  = $workers
+--enable_query_log
+SET @old_parallel_mode               = @@GLOBAL.slave_parallel_mode;
+SET @@global.slave_parallel_mode     ='optimistic';
+--source include/start_slave.inc
+
+--connection master
+CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+
+--let $i = $xid_num
+--let $t = t1
+--disable_query_log
+while ($i)
+{
+--let $k = $repeat
+while ($k)
+{
+--eval XA START 'xid_$i'
+--eval INSERT INTO $t SET a=$i, b=$k
+--eval XA END 'xid_$i'
+--let $one_phase = `SELECT IF(floor(rand()*10)%2, "ONE PHASE", 0)`
+  if (!$one_phase)
+  {
+  --eval XA PREPARE 'xid_$i'
+  --eval XA COMMIT 'xid_$i'
+  }
+  if ($one_phase)
+  {
+  --eval XA COMMIT 'xid_$i' ONE PHASE
+  }
+
+  if (!$one_phase)
+  {
+  --eval XA START 'xid_$i'
+  --eval INSERT INTO $t SET a=$i, b=$k
+  --eval XA END 'xid_$i'
+  --eval XA PREPARE 'xid_$i'
+  --eval XA ROLLBACK 'xid_$i'
+  }
+
+--dec $k
+}
+
+--dec $i
+}
+--enable_query_log
+
+
+
+# Above-like test complicates execution env to create
+# data conflicts as well. They will be resolved by the optmistic
+# scheduler as usual.
+
+CREATE TABLE t2 (a INT AUTO_INCREMENT PRIMARY KEY, b INT) ENGINE=InnoDB;
+
+--let $i = $xid_num
+--let $t = t2
+--disable_query_log
+while ($i)
+{
+--let $k = $repeat
+while ($k)
+{
+--eval XA START 'xid_$i'
+--eval INSERT INTO $t SET a=NULL, b=$k
+--eval UPDATE $t SET b=$k + 1 WHERE a=last_insert_id() % $workers
+--eval XA END 'xid_$i'
+--let $one_phase = `SELECT IF(floor(rand()*10)%2, "ONE PHASE", 0)`
+  if (!$one_phase)
+  {
+  --eval XA PREPARE 'xid_$i'
+  --eval XA COMMIT 'xid_$i'
+  }
+  if ($one_phase)
+  {
+  --eval XA COMMIT 'xid_$i' ONE PHASE
+  }
+
+--eval XA START 'xid_$i'
+--eval UPDATE $t SET b=$k + 1 WHERE a=last_insert_id() % $workers
+--eval DELETE FROM $t WHERE a=last_insert_id()
+--eval XA END 'xid_$i'
+--eval XA PREPARE 'xid_$i'
+--eval XA ROLLBACK 'xid_$i'
+
+--let $do_drop_create = `SELECT IF(floor(rand()*10)%100, 1, 0)`
+if ($do_drop_create)
+{
+  DROP TABLE t1;
+  CREATE TABLE t1 (a INT, b INT) ENGINE=InnoDB;
+}
+--dec $k
+}
+
+--dec $i
+}
+--enable_query_log
+
+--source include/sync_slave_sql_with_master.inc
+--let $diff_tables= master:t1, slave:t1
+--source include/diff_tables.inc
+
+#
+# Clean up.
+#
+--connection slave
+--source include/stop_slave.inc
+SET GLOBAL slave_parallel_threads=@old_parallel_threads;
+SET GLOBAL slave_parallel_mode=@old_parallel_mode;
+--source include/start_slave.inc
+
+--connection master
+DROP TABLE t1, t2;
+
+--source include/rpl_end.inc

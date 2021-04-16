@@ -307,16 +307,16 @@ protected:
   String m_cursor_name;
 
   Sql_condition_items()
-   :m_class_origin((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_constraint_schema((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_constraint_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_catalog_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_schema_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_table_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_column_name((const char*) NULL, 0, & my_charset_utf8_bin),
-    m_cursor_name((const char*) NULL, 0, & my_charset_utf8_bin)
+   :m_class_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_subclass_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_constraint_catalog((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_constraint_schema((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_constraint_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_catalog_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_schema_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_table_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_column_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_cursor_name((const char*) NULL, 0, & my_charset_utf8mb3_bin)
   { }
 
   void clear()
@@ -1260,6 +1260,7 @@ private:
 
 ///////////////////////////////////////////////////////////////////////////
 
+void convert_error_to_warning(THD *thd);
 
 void push_warning(THD *thd, Sql_condition::enum_warning_level level,
                   uint code, const char *msg);

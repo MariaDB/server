@@ -1,0 +1,17 @@
+source include/federated.inc;
+
+--echo #
+--echo # MDEV-20806 Federated does not work with INET6, returns NULL with warning ER_TRUNCATED_WRONG_VALUE
+--echo #
+
+connection master;
+
+CREATE TABLE t1 (a INET6);
+INSERT INTO t1 VALUES ('::'),('f::f');
+
+--replace_result $MASTER_MYPORT MASTER_PORT
+eval CREATE TABLE t2 (a INET6) ENGINE=Federated CONNECTION='mysql://root@127.0.0.1:$MASTER_MYPORT/test/t1';
+SELECT * FROM t2;
+DROP TABLE t1, t2;
+
+source include/federated_cleanup.inc;

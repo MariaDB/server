@@ -1,0 +1,17 @@
+# LSAN (Asan leaks) suppressions
+
+# Leaks found by main.tls_version1
+leak:gnutls_certificate_allocate_credentials
+leak:gnutls_x509_trust_list_init
+
+# Leaks found by openssl_1
+leak:libtasn1
+leak:libgnutls
+leak:gnutls_pubkey_init
+leak:gnutls_x509_privkey_init
+leak:gnutls_x509_crt_init
+leak:gnutls_privkey_init
+leak:gnutls_x509_trust_list_init
+leak:gnutls_subject_alt_names_init
+leak:__gmp_default_allocate
+leak:__gmp_default_reallocate

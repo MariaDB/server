@@ -1,3 +1,0 @@
-[mysqld_safe]
-skip_log_error
-syslog

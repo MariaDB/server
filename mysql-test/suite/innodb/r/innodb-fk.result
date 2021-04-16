@@ -52,8 +52,7 @@ CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
-Warning	150	Create  table `test`.`t2` with foreign key constraint failed. Referenced table `test`.`t3` not found in the data dictionary near ' FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE
-) ENGINE=InnoDB'.
+Warning	150	Create  table `test`.`t2` with foreign key `fk3` constraint failed. Referenced table `test`.`t3` not found in the data dictionary.
 Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t2`
 CREATE TABLE t2 (
@@ -67,7 +66,7 @@ ALTER TABLE t2 ADD CONSTRAINT fk3 FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE 
 ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 show warnings;
 Level	Code	Message
-Warning	150	Alter  table `test`.`t2` with foreign key constraint failed. Referenced table `test`.`t3` not found in the data dictionary near ' FOREIGN KEY (f3) REFERENCES t3 (id) ON DELETE CASCADE'.
+Warning	150	Alter  table `test`.`t2` with foreign key `fk3` constraint failed. Referenced table `test`.`t3` not found in the data dictionary.
 Error	1005	Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
 Warning	1215	Cannot add foreign key constraint for `t2`
 drop table t2;
@@ -191,3 +190,19 @@ bor#oda	CREATE TABLE `bor#oda` (
   CONSTRAINT `bor#oda_ibfk_2` FOREIGN KEY (`b`) REFERENCES `bor#oda` (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8
 DROP TABLE `bor#oda`;
+#
+# MDEV-21127 Assertion `(size_t)(ptr - buf) < MAX_TEXT - 4' failed in key_text::key_text
+#
+CREATE TABLE t1 (
+a012345678901234567890123456789012345678901 char(255),
+b char(255),
+FOREIGN KEY ( a012345678901234567890123456789012345678901, b ) REFERENCES tx (ax, bx)
+) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+CREATE TABLE t1 (
+a012345678901234567 int,
+b int,
+c0123456789012345678 int,
+FOREIGN KEY (a012345678901234567,c0123456789012345678,b) REFERENCES tx (x1,x2,x3)
+) ENGINE=InnoDB;
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")

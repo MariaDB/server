@@ -83,6 +83,9 @@ extern struct wsrep_service_st {
   my_bool                     (*wsrep_get_debug_func)();
   void                        (*wsrep_commit_ordered_func)(MYSQL_THD thd);
   my_bool                     (*wsrep_thd_is_applying_func)(const MYSQL_THD thd);
+  ulong                       (*wsrep_OSU_method_get_func)(const MYSQL_THD thd);
+  my_bool                     (*wsrep_thd_has_ignored_error_func)(const MYSQL_THD thd);
+  void                        (*wsrep_thd_set_ignored_error_func)(MYSQL_THD thd, my_bool val);
   bool                        (*wsrep_thd_set_wsrep_aborter_func)(MYSQL_THD bf_thd, MYSQL_THD thd);
   void                        (*wsrep_report_bf_lock_wait_func)(const MYSQL_THD thd,
                                                                 unsigned long long trx_id);
@@ -129,6 +132,9 @@ extern struct wsrep_service_st {
 #define wsrep_get_debug() wsrep_service->wsrep_get_debug_func()
 #define wsrep_commit_ordered(T) wsrep_service->wsrep_commit_ordered_func(T)
 #define wsrep_thd_is_applying(T) wsrep_service->wsrep_thd_is_applying_func(T)
+#define wsrep_OSU_method_get(T) wsrep_service->wsrep_OSU_method_get_func(T)
+#define wsrep_thd_has_ignored_error(T) wsrep_service->wsrep_thd_has_ignored_error_func(T)
+#define wsrep_thd_set_ignored_error(T,V) wsrep_service->wsrep_thd_set_ignored_error_func(T,V)
 #define wsrep_thd_set_wsrep_aborter(T) wsrep_service->wsrep_thd_set_wsrep_aborter_func(T1, T2)
 #define wsrep_report_bf_lock_wait(T,I) wsrep_service->wsrep_report_bf_lock_wait(T,I)
 #else
@@ -226,6 +232,9 @@ extern "C" my_bool wsrep_get_debug();
 
 extern "C" void wsrep_commit_ordered(MYSQL_THD thd);
 extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
+extern "C" ulong wsrep_OSU_method_get(const MYSQL_THD thd);
+extern "C" my_bool wsrep_thd_has_ignored_error(const MYSQL_THD thd);
+extern "C" void wsrep_thd_set_ignored_error(MYSQL_THD thd, my_bool val);
 extern "C" bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
 extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
                                           unsigned long long trx_id);

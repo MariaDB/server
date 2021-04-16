@@ -144,7 +144,7 @@ set collation_connection=utf32_unicode_ci;
 
 
 #
-# Test my_like_range and contractions
+# Test like_range and contractions
 #
 SET collation_connection=utf32_czech_ci;
 --source include/ctype_czech.inc

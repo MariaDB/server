@@ -48,6 +48,9 @@
 #include <debug_sync.h>
 #include "proxy_protocol.h"
 
+PSI_memory_key key_memory_NET_buff;
+PSI_memory_key key_memory_NET_compress_packet;
+
 #ifdef EMBEDDED_LIBRARY
 #undef MYSQL_SERVER
 #undef MYSQL_CLIENT
@@ -139,6 +142,8 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   DBUG_ENTER("my_net_init");
   DBUG_PRINT("enter", ("my_flags: %u", my_flags));
   net->vio = vio;
+  net->read_timeout= 0;
+  net->write_timeout= 0;
   my_net_local_init(net);			/* Set some limits */
 
   if (net_allocate_new_packet(net, thd, my_flags))
@@ -177,8 +182,9 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
 my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags)
 {
   DBUG_ENTER("net_allocate_new_packet");
-  if (!(net->buff=(uchar*) my_malloc((size_t) net->max_packet+
-				     NET_HEADER_SIZE + COMP_HEADER_SIZE +1,
+  if (!(net->buff=(uchar*) my_malloc(key_memory_NET_buff,
+                                     (size_t) net->max_packet +
+				     NET_HEADER_SIZE + COMP_HEADER_SIZE + 1,
 				     MYF(MY_WME | my_flags))))
     DBUG_RETURN(1);
   net->buff_end=net->buff+net->max_packet;
@@ -222,11 +228,11 @@ my_bool net_realloc(NET *net, size_t length)
     my_real_read() may actually read 4 bytes depending on build flags and
     platform.
   */
-  if (!(buff= (uchar*) my_realloc((char*) net->buff, pkt_length +
+  if (!(buff= (uchar*) my_realloc(key_memory_NET_buff,
+                                  (char*) net->buff, pkt_length +
                                   NET_HEADER_SIZE + COMP_HEADER_SIZE + 1,
-                                  MYF(MY_WME |
-                                      (net->thread_specific_malloc ?
-                                       MY_THREAD_SPECIFIC : 0)))))
+                                  MYF(MY_WME | (net->thread_specific_malloc
+                                                ?  MY_THREAD_SPECIFIC : 0)))))
   {
     /* @todo: 1 and 2 codes are identical. */
     net->error= 1;
@@ -408,7 +414,6 @@ my_bool net_flush(NET *net)
 my_bool my_net_write(NET *net, const uchar *packet, size_t len)
 {
   uchar buff[NET_HEADER_SIZE];
-  int rc;
 
   if (unlikely(!net->vio)) /* nowhere to write */
     return 0;
@@ -445,7 +450,7 @@ my_bool my_net_write(NET *net, const uchar *packet, size_t len)
 #ifndef DEBUG_DATA_PACKETS
   DBUG_DUMP("packet_header", buff, NET_HEADER_SIZE);
 #endif
-  rc= MY_TEST(net_write_buff(net, packet, len));
+  my_bool rc= MY_TEST(net_write_buff(net, packet, len));
   MYSQL_NET_WRITE_DONE(rc);
   return rc;
 }
@@ -486,7 +491,7 @@ net_write_command(NET *net,uchar command,
   size_t length=len+1+head_len;			/* 1 extra byte for command */
   uchar buff[NET_HEADER_SIZE+1];
   uint header_size=NET_HEADER_SIZE+1;
-  int rc;
+  my_bool rc;
   DBUG_ENTER("net_write_command");
   DBUG_PRINT("enter",("length: %lu", (ulong) len));
 
@@ -649,11 +654,10 @@ net_real_write(NET *net,const uchar *packet, size_t len)
     size_t complen;
     uchar *b;
     uint header_length=NET_HEADER_SIZE+COMP_HEADER_SIZE;
-    if (!(b= (uchar*) my_malloc(len + NET_HEADER_SIZE +
-                                COMP_HEADER_SIZE + 1,
-                                MYF(MY_WME |
-                                    (net->thread_specific_malloc ?
-                                     MY_THREAD_SPECIFIC : 0)))))
+    if (!(b= (uchar*) my_malloc(key_memory_NET_compress_packet,
+                                len + NET_HEADER_SIZE + COMP_HEADER_SIZE + 1,
+                                MYF(MY_WME | (net->thread_specific_malloc
+                                              ? MY_THREAD_SPECIFIC : 0)))))
     {
       net->error= 2;
       net->last_errno= ER_OUT_OF_RESOURCES;

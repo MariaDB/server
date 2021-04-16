@@ -26,13 +26,16 @@
 
 class THD;
 
+void wsrep_commit_empty(THD* thd, bool all);
+
 /*
    Return true if THD has active wsrep transaction.
  */
 static inline bool wsrep_is_active(THD* thd)
 {
   return (thd->wsrep_cs().state() != wsrep::client_state::s_none  &&
-          thd->wsrep_cs().transaction().active());
+          thd->wsrep_cs().transaction().active() &&
+          !thd->internal_transaction());
 }
 
 /*
@@ -80,7 +83,7 @@ static inline bool wsrep_not_committed(THD* thd)
  */
 static inline bool wsrep_is_real(THD* thd, bool all)
 {
-  return (all || thd->transaction.all.ha_list == 0);
+  return (all || thd->transaction->all.ha_list == 0);
 }
 
 /*
@@ -123,7 +126,7 @@ static inline bool wsrep_streaming_enabled(THD* thd)
 }
 
 /*
-  Return number of fragments succesfully certified for the
+  Return number of fragments successfully certified for the
   current statement.
  */
 static inline size_t wsrep_fragments_certified_for_stmt(THD* thd)
@@ -158,7 +161,7 @@ static inline int wsrep_start_trx_if_not_started(THD* thd)
 
   Return zero on succes, non-zero on failure.
  */
-static inline int wsrep_after_row(THD* thd, bool)
+static inline int wsrep_after_row_internal(THD* thd)
 {
   if (thd->wsrep_cs().state() != wsrep::client_state::s_none  &&
       wsrep_thd_is_local(thd))
@@ -233,7 +236,8 @@ static inline int wsrep_before_prepare(THD* thd, bool all)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
     wsrep_xid_init(&thd->wsrep_xid,
-                     thd->wsrep_trx().ws_meta().gtid());
+                   thd->wsrep_trx().ws_meta().gtid(),
+                   wsrep_gtid_server.gtid());
   }
   DBUG_RETURN(ret);
 }
@@ -273,8 +277,33 @@ static inline int wsrep_before_commit(THD* thd, bool all)
   if ((ret= thd->wsrep_cs().before_commit()) == 0)
   {
     DBUG_ASSERT(!thd->wsrep_trx().ws_meta().gtid().is_undefined());
+    if (!thd->variables.gtid_seq_no && 
+        (thd->wsrep_trx().ws_meta().flags() & wsrep::provider::flag::commit))
+    {
+        uint64 seqno= 0;
+        if (thd->variables.wsrep_gtid_seq_no &&
+            thd->variables.wsrep_gtid_seq_no > wsrep_gtid_server.seqno())
+        {
+          seqno= thd->variables.wsrep_gtid_seq_no;
+          wsrep_gtid_server.seqno(thd->variables.wsrep_gtid_seq_no);
+        }
+        else
+        {
+          seqno= wsrep_gtid_server.seqno_inc();
+        }
+        thd->variables.wsrep_gtid_seq_no= 0;
+        thd->wsrep_current_gtid_seqno= seqno;
+        if (mysql_bin_log.is_open() && wsrep_gtid_mode)
+        {
+          thd->variables.gtid_seq_no= seqno;
+          thd->variables.gtid_domain_id= wsrep_gtid_server.domain_id;
+          thd->variables.server_id= wsrep_gtid_server.server_id;
+        }
+    }
+
     wsrep_xid_init(&thd->wsrep_xid,
-                   thd->wsrep_trx().ws_meta().gtid());
+                   thd->wsrep_trx().ws_meta().gtid(),
+                   wsrep_gtid_server.gtid());
     wsrep_register_for_group_commit(thd);
   }
   DBUG_RETURN(ret);
@@ -292,9 +321,7 @@ static inline int wsrep_before_commit(THD* thd, bool all)
 
   Return zero on succes, non-zero on failure.
  */
-static inline int wsrep_ordered_commit(THD* thd,
-                                      bool all,
-                                      const wsrep_apply_error&)
+static inline int wsrep_ordered_commit(THD* thd, bool all)
 {
   DBUG_ENTER("wsrep_ordered_commit");
   WSREP_DEBUG("wsrep_ordered_commit: %d", wsrep_is_real(thd, all));
@@ -316,6 +343,8 @@ static inline int wsrep_after_commit(THD* thd, bool all)
               (long long)wsrep_thd_trx_seqno(thd),
               wsrep_has_changes(thd));
   DBUG_ASSERT(wsrep_run_commit_hook(thd, all));
+  if (thd->internal_transaction())
+    DBUG_RETURN(0);
   int ret= 0;
   if (thd->wsrep_trx().state() == wsrep::transaction::s_committing)
   {
@@ -385,7 +414,8 @@ static inline int wsrep_after_rollback(THD* thd, bool all)
 
 static inline int wsrep_before_statement(THD* thd)
 {
-  return (thd->wsrep_cs().state() != wsrep::client_state::s_none ?
+  return (thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+          !thd->internal_transaction() ?
 	  thd->wsrep_cs().before_statement() : 0);
 }
 
@@ -393,7 +423,8 @@ static inline
 int wsrep_after_statement(THD* thd)
 {
   DBUG_ENTER("wsrep_after_statement");
-  DBUG_RETURN(thd->wsrep_cs().state() != wsrep::client_state::s_none ?
+  DBUG_RETURN(thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+              !thd->internal_transaction() ?
               thd->wsrep_cs().after_statement() : 0);
 }
 
@@ -401,7 +432,8 @@ static inline void wsrep_after_apply(THD* thd)
 {
   DBUG_ASSERT(wsrep_thd_is_applying(thd));
   WSREP_DEBUG("wsrep_after_apply %lld", thd->thread_id);
-  thd->wsrep_cs().after_applying();
+  if (!thd->internal_transaction())
+    thd->wsrep_cs().after_applying();
 }
 
 static inline void wsrep_open(THD* thd)
@@ -426,7 +458,8 @@ static inline void wsrep_open(THD* thd)
 static inline void wsrep_close(THD* thd)
 {
   DBUG_ENTER("wsrep_close");
-  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+      !thd->internal_transaction())
   {
     thd->wsrep_cs().close();
   }
@@ -437,7 +470,8 @@ static inline void
 wsrep_wait_rollback_complete_and_acquire_ownership(THD *thd)
 {
   DBUG_ENTER("wsrep_wait_rollback_complete_and_acquire_ownership");
-  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+      !thd->internal_transaction())
   {
     thd->wsrep_cs().wait_rollback_complete_and_acquire_ownership();
   }
@@ -446,8 +480,9 @@ wsrep_wait_rollback_complete_and_acquire_ownership(THD *thd)
 
 static inline int wsrep_before_command(THD* thd, bool keep_command_error)
 {
-  return (thd->wsrep_cs().state() != wsrep::client_state::s_none ?
-	  thd->wsrep_cs().before_command(keep_command_error) : 0);
+  return (thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+          !thd->internal_transaction() ?
+          thd->wsrep_cs().before_command(keep_command_error) : 0);
 }
 
 static inline int wsrep_before_command(THD* thd)
@@ -462,7 +497,8 @@ static inline int wsrep_before_command(THD* thd)
 */
 static inline void wsrep_after_command_before_result(THD* thd)
 {
-  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+      !thd->internal_transaction())
   {
     thd->wsrep_cs().after_command_before_result();
   }
@@ -470,7 +506,8 @@ static inline void wsrep_after_command_before_result(THD* thd)
 
 static inline void wsrep_after_command_after_result(THD* thd)
 {
-  if (thd->wsrep_cs().state() != wsrep::client_state::s_none)
+  if (thd->wsrep_cs().state() != wsrep::client_state::s_none &&
+      !thd->internal_transaction())
   {
     thd->wsrep_cs().after_command_after_result();
   }
@@ -492,52 +529,6 @@ static inline enum wsrep::provider::status
 wsrep_current_error_status(THD* thd)
 {
   return thd->wsrep_cs().current_error_status();
-}
-
-
-/*
-  Commit an empty transaction.
-
-  If the transaction is real and the wsrep transaction is still active,
-  the transaction did not generate any rows or keys and is committed
-  as empty. Here the wsrep transaction is rolled back and after statement
-  step is performed to leave the wsrep transaction in the state as it
-  never existed.
-*/
-static inline void wsrep_commit_empty(THD* thd, bool all)
-{
-  DBUG_ENTER("wsrep_commit_empty");
-  WSREP_DEBUG("wsrep_commit_empty(%llu)", thd->thread_id);
-  if (wsrep_is_real(thd, all) &&
-      wsrep_thd_is_local(thd) &&
-      thd->wsrep_trx().active() &&
-      thd->wsrep_trx().state() != wsrep::transaction::s_committed)
-  {
-    /* @todo CTAS with STATEMENT binlog format and empty result set
-       seems to be committing empty. Figure out why and try to fix
-       elsewhere. */
-    DBUG_ASSERT(!wsrep_has_changes(thd) ||
-                (thd->lex->sql_command == SQLCOM_CREATE_TABLE &&
-                 !thd->is_current_stmt_binlog_format_row()));
-    bool have_error= wsrep_current_error(thd);
-    int ret= wsrep_before_rollback(thd, all) ||
-      wsrep_after_rollback(thd, all) ||
-      wsrep_after_statement(thd);
-    /* The committing transaction was empty but it held some locks and
-       got BF aborted. As there were no certified changes in the
-       data, we ignore the deadlock error and rely on error reporting
-       by storage engine/server. */
-    if (!ret && !have_error && wsrep_current_error(thd))
-    {
-      DBUG_ASSERT(wsrep_current_error(thd) == wsrep::e_deadlock_error);
-      thd->wsrep_cs().reset_error();
-    }
-    if (ret)
-    {
-      WSREP_DEBUG("wsrep_commit_empty failed: %d", wsrep_current_error(thd));
-    }
-  }
-  DBUG_VOID_RETURN;
 }
 
 #endif /* WSREP_TRANS_OBSERVER */

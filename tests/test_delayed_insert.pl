@@ -50,7 +50,7 @@ $secondtable = "bench_f2";
 $start_time=new Benchmark;
 if (!$opt_skip_create)
 {
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $Mysql::QUIET = 1;
   $dbh->do("drop table if exists $firsttable,$secondtable");
   $Mysql::QUIET = 0;
@@ -87,7 +87,7 @@ while (($pid=wait()) != -1)
 
 if (!$opt_skip_delete && !$errors)
 {
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $dbh->do("drop table $firsttable");
   $dbh->do("drop table $secondtable");
 }
@@ -107,7 +107,7 @@ sub test_1
 {
   my ($dbh,$tmpvar,$rows,$found,$i);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $tmpvar=1;
   $rows=$found=0;
   for ($i=0 ; $i < $opt_loop_count; $i++)
@@ -131,7 +131,7 @@ sub test_delayed_1
 {
   my ($dbh,$tmpvar,$rows,$found,$i,$id);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $tmpvar=1;
   $rows=$found=0;
   for ($i=0 ; $i < $opt_loop_count; $i++)
@@ -162,7 +162,7 @@ sub test_delayed_2
 {
   my ($dbh,$tmpvar,$rows,$found,$i,$id);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $tmpvar=1;
   $rows=$found=0;
   for ($i=0 ; $i < $opt_loop_count; $i++)
@@ -196,7 +196,7 @@ sub test_2
 {
   my ($dbh,$id,$tmpvar,$rows,$found,$i,$max_id,$tmp,$sth,$count);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $tmpvar=111111;
   $rows=$found=$max_id=$id=0;
   for ($i=0 ; $i < $opt_loop_count ; $i++)
@@ -245,7 +245,7 @@ sub test_2
 sub test_3
 {
   my ($dbh,$id,$tmpvar,$rows,$i,$count);
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $tmpvar=222222;
   $rows=0;
   for ($i=0 ; $i < $opt_loop_count ; $i++)
@@ -269,7 +269,7 @@ sub test_3
 sub test_4
 {
   my ($dbh,$id,$tmpvar,$rows,$i,$count);
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $tmpvar=333333;
   $rows=0;
   for ($i=0 ; $i < $opt_loop_count; $i++)
@@ -288,7 +288,7 @@ sub test_4
 sub test_5
 {
   my ($dbh,$id,$tmpvar,$rows,$i,$max_id,$count,$sth);
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $tmpvar=444444;
   $rows=$max_id=0;
   for ($i=0 ; $i < $opt_loop_count ; $i++)
@@ -328,7 +328,7 @@ sub test_5
 sub test_del
 {
   my ($dbh,$min_id,$i,$sth,$rows);
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host") || die $DBI::errstr;
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host") || die $DBI::errstr;
   $rows=0;
   for ($i=0 ; $i < $opt_loop_count/3; $i++)
   {
@@ -357,7 +357,7 @@ sub test_flush
   my ($dbh,$sth,$found1,$last_found1,$i,@row);
   $found1=0; $last_found1=-1;
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 

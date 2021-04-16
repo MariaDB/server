@@ -1,0 +1,28 @@
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1), (2), (3);
+connect con1,localhost,root;
+SET DEBUG_SYNC="handler_ha_index_next_end SIGNAL idx_scan_in_progress WAIT_FOR finish_scan";
+SELECT * FROM t1;
+connection default;
+SET DEBUG_SYNC="now WAIT_FOR idx_scan_in_progress";
+set @tmp=@@use_stat_tables;
+set use_stat_tables='preferably_for_queries';
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	OK
+set use_stat_tables=@tmp;
+SELECT * FROM t1;
+a
+1
+2
+3
+SET DEBUG_SYNC="now SIGNAL finish_scan";
+connection con1;
+a
+1
+2
+3
+disconnect con1;
+connection default;
+SET DEBUG_SYNC='reset';
+DROP TABLE t1;

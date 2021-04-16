@@ -1,5 +1,6 @@
 # Initialize
 --source include/default_optimizer_switch.inc
+--source include/have_sequence.inc
 
 --disable_warnings
 drop table if exists t1,t2,t3;
@@ -919,6 +920,9 @@ INSERT INTO t2 VALUES (NULL),(NULL);
 CREATE TABLE t3 (c VARCHAR(1024) CHARACTER SET utf8, d INT) ENGINE=MyISAM;
 CREATE OR REPLACE ALGORITHM=TEMPTABLE VIEW v3 AS SELECT * FROM t3;
 INSERT INTO t3 VALUES ('abc',NULL),('def',4);
+INSERT INTO t1 select seq from seq_1_to_1000;
+INSERT INTO t2 select seq+1000 from seq_1_to_1000;
+INSERT INTO t3 select 'qqq',seq+2000 from seq_1_to_1000;
 
 set @save_join_cache_level= @@join_cache_level;
 SET join_cache_level= 8;

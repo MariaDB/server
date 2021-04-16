@@ -1,0 +1,37 @@
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-20768 Turn INET functions into a function collection plugin
+--echo #
+
+--vertical_results
+SELECT
+  '----' AS `----`,
+  PLUGIN_NAME,
+  PLUGIN_VERSION,
+  PLUGIN_STATUS,
+  PLUGIN_TYPE,
+  PLUGIN_AUTHOR,
+  PLUGIN_DESCRIPTION,
+  PLUGIN_LICENSE,
+  PLUGIN_MATURITY,
+  PLUGIN_AUTH_VERSION
+FROM INFORMATION_SCHEMA.PLUGINS
+WHERE PLUGIN_TYPE='FUNCTION'
+  AND PLUGIN_NAME IN
+    ('inet_aton',
+     'inet_ntoa',
+     'inet6_aton',
+     'inet6_ntoa',
+     'is_ipv4',
+     'is_ipv6',
+     'is_ipv4_compat',
+     'is_ipv4_mapped')
+ORDER BY PLUGIN_NAME;
+--horizontal_results
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

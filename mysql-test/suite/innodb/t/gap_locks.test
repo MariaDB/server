@@ -1,0 +1,29 @@
+--source include/have_innodb.inc
+
+CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(40), c INT, INDEX(b,c))
+ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1,'1',1),(2,'2',1);
+
+SET @save_locks= @@GLOBAL.innodb_status_output_locks;
+SET GLOBAL INNODB_STATUS_OUTPUT_LOCKS = 'ON';
+
+let $isolation= 4;
+while ($isolation) {
+let $tx_isolation= `SELECT CASE $isolation
+WHEN 1 THEN 'READ UNCOMMITTED'
+WHEN 2 THEN 'READ COMMITTED'
+WHEN 3 THEN 'REPEATABLE READ'
+ELSE 'SERIALIZABLE' END`;
+
+eval SET TRANSACTION ISOLATION LEVEL $tx_isolation;
+BEGIN;
+DELETE FROM t1 WHERE b='2' AND c=2;
+--replace_regex /.*(\d+ lock struct...), heap size \d+(, \d+ row lock...).*/\1\2/
+SHOW ENGINE INNODB STATUS;
+ROLLBACK;
+
+dec $isolation;
+}
+
+SET GLOBAL INNODB_STATUS_OUTPUT_LOCKS = @save_locks;
+DROP TABLE t1;

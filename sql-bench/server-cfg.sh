@@ -116,8 +116,8 @@ sub new
   bless $self;
 
   $self->{'cmp_name'}		= "mysql";
-  $self->{'data_source'}	= "DBI:mysql:database=$database;host=$host";
-  $self->{'data_source'} .= ";mysql_socket=$socket" if($socket);
+  $self->{'data_source'}	= "DBI:MariaDB:database=$database;host=$host";
+  $self->{'data_source'} .= ";mariadb_socket=$socket" if($socket);
   $self->{'data_source'} .= ";$connect_options" if($connect_options);
   $self->{'limits'}		= \%limits;
   $self->{'blob'}		= "blob";

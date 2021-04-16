@@ -1,0 +1,88 @@
+-- source include/not_embedded.inc
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-21743 Split up SUPER privilege to smaller privileges 
+--echo #
+
+--let $count_sessions=1
+
+--echo #
+--echo # Test that KILL is not allowed without CONNECTION ADMIN or SUPER
+--echo #
+
+CREATE USER foo@localhost;
+GRANT SELECT ON *.* TO foo@localhost;
+CREATE USER bar@localhost;
+GRANT ALL PRIVILEGES ON *.* TO bar@localhost;
+REVOKE CONNECTION ADMIN, SUPER ON *.* FROM bar@localhost;
+--connect (foo,localhost,foo,,)
+let $id=`(SELECT id FROM INFORMATION_SCHEMA.PROCESSLIST WHERE user='foo')`;
+--connect (bar,localhost,bar,,)
+SELECT user FROM information_schema.processlist ORDER BY user;
+--replace_result $id ID
+--error ER_KILL_DENIED_ERROR
+--eval KILL $id
+--disconnect foo
+--disconnect bar
+--connection default
+--source include/wait_until_count_sessions.inc
+DROP USER foo@localhost;
+DROP USER bar@localhost;
+
+--echo #
+--echo # Test that KILL is allowed with CONNECTION ADMIN
+--echo #
+
+CREATE USER foo@localhost;
+GRANT SELECT ON *.* TO foo@localhost;
+CREATE USER bar@localhost;
+GRANT PROCESS, CONNECTION ADMIN ON *.* TO bar@localhost;
+--connect (foo,localhost,foo,,)
+let $id=`(SELECT id FROM INFORMATION_SCHEMA.PROCESSLIST WHERE user='foo')`;
+--connect (bar,localhost,bar,,)
+SELECT user FROM information_schema.processlist ORDER BY user;
+--replace_result $id ID
+--eval KILL $id
+--connection default
+let $wait_condition=
+    select count(*) = 0 from information_schema.processlist
+    where user = "foo";
+--source include/wait_condition.inc
+--disconnect foo
+--disconnect bar
+--source include/wait_until_count_sessions.inc
+DROP USER foo@localhost;
+DROP USER bar@localhost;
+
+--echo #
+--echo # Test that KILL is allowed with SUPER
+--echo #
+
+CREATE USER foo@localhost;
+GRANT SELECT ON *.* TO foo@localhost;
+CREATE USER bar@localhost;
+GRANT PROCESS, SUPER ON *.* TO bar@localhost;
+--connect (foo,localhost,foo,,)
+let $id=`(SELECT id FROM INFORMATION_SCHEMA.PROCESSLIST WHERE user='foo')`;
+--connect (bar,localhost,bar,,)
+SELECT user FROM information_schema.processlist ORDER BY user;
+--replace_result $id ID
+--eval KILL $id
+--connection default
+let $wait_condition=
+    select count(*) = 0 from information_schema.processlist
+    where user = "foo";
+--source include/wait_condition.inc
+--disconnect foo
+--disconnect bar
+--source include/wait_until_count_sessions.inc
+DROP USER foo@localhost;
+DROP USER bar@localhost;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #

@@ -43,51 +43,22 @@
 #include <winbase.h>
 #endif
 
-/**
-   arguments separator
-
-   load_defaults() loads arguments from config file and put them
-   before the arguments from command line, this separator is used to
-   separate the arguments loaded from config file and arguments user
-   provided on command line.
-
-   Options with value loaded from config file are always in the form
-   '--option=value', while for command line options, the value can be
-   given as the next argument. Thus we used a separator so that
-   handle_options() can distinguish them.
-
-   Note: any other places that does not need to distinguish them
-   should skip the separator.
-
-   The content of arguments separator does not matter, one should only
-   check the pointer, use "----args-separator----" here to ease debug
-   if someone misused it.
-
-   The args separator will only be added when
-   my_getopt_use_args_seprator is set to TRUE before calling
-   load_defaults();
-
-   See BUG#25192
+/*
+  Mark file names in argv[]. File marker is *always* followed by a file name
+  All options after it come from that file.
+  Empty file name ("") means command line.
 */
-static const char *args_separator= "----args-separator----";
-inline static void set_args_separator(char** arg)
+static char *file_marker= (char*)"----file-marker----";
+my_bool my_defaults_mark_files= FALSE;
+my_bool is_file_marker(const char* arg)
 {
-  DBUG_ASSERT(my_getopt_use_args_separator);
-  *arg= (char*)args_separator;
+  return arg == file_marker;
 }
-my_bool my_getopt_use_args_separator= FALSE;
-my_bool my_getopt_is_args_separator(const char* arg)
-{
-  return (arg == args_separator);
-}
+
+my_bool my_no_defaults=FALSE, my_print_defaults= FALSE;
 const char *my_defaults_file=0;
 const char *my_defaults_group_suffix=0;
 const char *my_defaults_extra_file=0;
-
-static char my_defaults_file_buffer[FN_REFLEN];
-static char my_defaults_extra_file_buffer[FN_REFLEN];
-
-static my_bool defaults_already_read= FALSE;
 
 /* Which directories are searched for options (and in which order) */
 
@@ -103,15 +74,6 @@ static const char *f_extensions[]= { ".cnf", 0 };
 #define NEWLINE "\n"
 #endif
 
-static int handle_default_option(void *, const char *, const char *);
-
-/*
-   This structure defines the context that we pass to callback
-   function 'handle_default_option' used in search_default_file
-   to process each option. This context is used if search_default_file
-   was called from load_defaults.
-*/
-
 struct handle_option_ctx
 {
    MEM_ROOT *alloc;
@@ -119,12 +81,11 @@ struct handle_option_ctx
    TYPELIB *group;
 };
 
-static int search_default_file(Process_option_func func, void *func_ctx,
-			       const char *dir, const char *config_file);
-static int search_default_file_with_ext(Process_option_func func,
-                                        void *func_ctx,
-					const char *dir, const char *ext,
-					const char *config_file, int recursion_level);
+static int search_default_file(struct handle_option_ctx *,
+			       const char *, const char *);
+static int search_default_file_with_ext(struct handle_option_ctx *,
+					const char *, const char *,
+					const char *, int);
 
 
 /**
@@ -159,33 +120,6 @@ static char *remove_end_comment(char *ptr);
 
 
 /*
-  Expand a file name so that the current working directory is added if
-  the name is relative.
-
-  RETURNS
-   0   All OK
-   2   Out of memory or path to long
-   3   Not able to get working directory
- */
-
-static int
-fn_expand(const char *filename, char *result_buf)
-{
-  char dir[FN_REFLEN];
-  const int flags= MY_UNPACK_FILENAME | MY_SAFE_PATH | MY_RELATIVE_PATH;
-  DBUG_ENTER("fn_expand");
-  DBUG_PRINT("enter", ("filename: %s, result_buf: %p",
-                       filename, result_buf));
-  if (my_getwd(dir, sizeof(dir), MYF(0)))
-    DBUG_RETURN(3);
-  DBUG_PRINT("debug", ("dir: %s", dir));
-  if (fn_format(result_buf, filename, dir, "", flags) == NULL)
-    DBUG_RETURN(2);
-  DBUG_PRINT("return", ("result: %s", result_buf));
-  DBUG_RETURN(0);
-}
-
-/*
   Process config files in default directories.
 
   SYNOPSIS
@@ -194,8 +128,6 @@ fn_expand(const char *filename, char *result_buf)
                               If this is a path, then only this file is read.
   argc                        Pointer to argc of original program
   argv                        Pointer to argv of original program
-  args_used                   Pointer to variable for storing the number of
-                              arguments used.
   func                        Pointer to the function to process options
   func_ctx                    It's context. Usually it is the structure to
                               store additional options.
@@ -219,53 +151,20 @@ fn_expand(const char *filename, char *result_buf)
     --defaults_group_suffix
 */
 
-int my_search_option_files(const char *conf_file, int *argc, char ***argv,
-                           uint *args_used, Process_option_func func,
-                           void *func_ctx, const char **default_directories)
+static int my_search_option_files(const char *conf_file,
+                                  struct handle_option_ctx *ctx,
+                                  const char **default_directories)
 {
-  const char **dirs, *forced_default_file, *forced_extra_defaults;
+  const char **dirs;
   int error= 0;
   DBUG_ENTER("my_search_option_files");
 
-  /* Check if we want to force the use a specific default file */
-  *args_used+= get_defaults_options(*argc - *args_used, *argv + *args_used,
-                                    (char **) &forced_default_file,
-                                    (char **) &forced_extra_defaults,
-                                    (char **) &my_defaults_group_suffix);
-
-  if (! my_defaults_group_suffix)
-    my_defaults_group_suffix= getenv("MYSQL_GROUP_SUFFIX");
-
-  if (forced_extra_defaults && !defaults_already_read)
-  {
-    int error= fn_expand(forced_extra_defaults, my_defaults_extra_file_buffer);
-    if (error)
-      DBUG_RETURN(error);
-    my_defaults_extra_file= my_defaults_extra_file_buffer;
-  }
-
-  if (forced_default_file && !defaults_already_read)
-  {
-    int error= fn_expand(forced_default_file, my_defaults_file_buffer);
-    if (error)
-      DBUG_RETURN(error);
-    my_defaults_file= my_defaults_file_buffer;
-  }
-
-  defaults_already_read= TRUE;
-
-  /*
-    We can only handle 'defaults-group-suffix' if we are called from
-    load_defaults() as otherwise we can't know the type of 'func_ctx'
-  */
-
-  if (my_defaults_group_suffix && func == handle_default_option)
+  if (my_defaults_group_suffix)
   {
     /* Handle --defaults-group-suffix= */
     uint i;
     const char **extra_groups;
     const size_t instance_len= strlen(my_defaults_group_suffix); 
-    struct handle_option_ctx *ctx= (struct handle_option_ctx*) func_ctx;
     char *ptr;
     TYPELIB *group= ctx->group;
     
@@ -297,7 +196,7 @@ int my_search_option_files(const char *conf_file, int *argc, char ***argv,
   
   if (my_defaults_file)
   {
-    if ((error= search_default_file_with_ext(func, func_ctx, "", "",
+    if ((error= search_default_file_with_ext(ctx, "", "",
                                              my_defaults_file, 0)) < 0)
       goto err;
     if (error > 0)
@@ -309,7 +208,7 @@ int my_search_option_files(const char *conf_file, int *argc, char ***argv,
   }
   else if (dirname_length(conf_file))
   {
-    if ((error= search_default_file(func, func_ctx, NullS, conf_file)) < 0)
+    if ((error= search_default_file(ctx, NullS, conf_file)) < 0)
       goto err;
   }
   else
@@ -318,12 +217,12 @@ int my_search_option_files(const char *conf_file, int *argc, char ***argv,
     {
       if (**dirs)
       {
-	if (search_default_file(func, func_ctx, *dirs, conf_file) < 0)
+	if (search_default_file(ctx, *dirs, conf_file) < 0)
 	  goto err;
       }
       else if (my_defaults_extra_file)
       {
-        if ((error= search_default_file_with_ext(func, func_ctx, "", "",
+        if ((error= search_default_file_with_ext(ctx, "", "",
                                                 my_defaults_extra_file, 0)) < 0)
 	  goto err;				/* Fatal error */
         if (error > 0)
@@ -345,47 +244,23 @@ err:
 
 
 /*
-  The option handler for load_defaults.
+  adds an option to the array of options
 
   SYNOPSIS
-    handle_deault_option()
-    in_ctx                  Handler context. In this case it is a
-                            handle_option_ctx structure.
-    group_name              The name of the group the option belongs to.
+    add_option()
+    in_ctx                  Handler context.
     option                  The very option to be processed. It is already
-                            prepared to be used in argv (has -- prefix). If it
-                            is NULL, we are handling a new group (section).
-
-  DESCRIPTION
-    This handler checks whether a group is one of the listed and adds an option
-    to the array if yes. Some other handler can record, for instance, all
-    groups and their options, not knowing in advance the names and amount of
-    groups.
+                            prepared to be used in argv (has -- prefix).
 
   RETURN
     0 - ok
     1 - error occurred
 */
 
-static int handle_default_option(void *in_ctx, const char *group_name,
-                                 const char *option)
+static int add_option(struct handle_option_ctx *ctx, const char *option)
 {
-  char *tmp;
-  struct handle_option_ctx *ctx= (struct handle_option_ctx *) in_ctx;
-
-  if (!option)
-    return 0;
-
-  if (find_type((char *)group_name, ctx->group, FIND_TYPE_NO_PREFIX))
-  {
-    if (!(tmp= alloc_root(ctx->alloc, strlen(option) + 1)))
-      return 1;
-    if (insert_dynamic(ctx->args, (uchar*) &tmp))
-      return 1;
-    strmov(tmp, option);
-  }
-
-  return 0;
+  char *tmp= strdup_root(ctx->alloc, option);
+  return !tmp || insert_dynamic(ctx->args, (uchar*) &tmp);
 }
 
 
@@ -394,50 +269,70 @@ static int handle_default_option(void *in_ctx, const char *group_name,
 
   SYNOPSIS
     get_defaults_options()
-    argc			Pointer to argc of original program
     argv			Pointer to argv of original program
-    defaults                    --defaults-file option
-    extra_defaults              --defaults-extra-file option
+
+  DESCRIPTION
+    Sets my_no_defaults, my_defaults_file, my_defaults_extra_file,
+    my_defaults_group_suffix, my_print_defaults
 
   RETURN
     # Number of arguments used from *argv
-      defaults and extra_defaults will be set to option of the appropriate
-      items of argv array, or to NULL if there are no such options
 */
 
-int get_defaults_options(int argc, char **argv,
-                         char **defaults,
-                         char **extra_defaults,
-                         char **group_suffix)
+int get_defaults_options(char **argv)
 {
-  int org_argc= argc;
-  *defaults= *extra_defaults= *group_suffix= 0;
+  static char file_buffer[FN_REFLEN];
+  static char extra_file_buffer[FN_REFLEN];
+  char **orig_argv= argv;
 
-  while (argc >= 2)
+  argv++; /* Skip program name */
+
+  my_defaults_file= my_defaults_group_suffix= my_defaults_extra_file= 0;
+  my_no_defaults= my_print_defaults= FALSE;
+
+  if (*argv && !strcmp(*argv, "--no-defaults"))
   {
-    /* Skip program name or previously handled argument */
+    my_no_defaults= 1;
     argv++;
-    if (!*defaults && is_prefix(*argv,"--defaults-file="))
-    {
-      *defaults= *argv + sizeof("--defaults-file=")-1;
-       argc--;
-       continue;
-    }
-    if (!*extra_defaults && is_prefix(*argv,"--defaults-extra-file="))
-    {
-      *extra_defaults= *argv + sizeof("--defaults-extra-file=")-1;
-      argc--;
-      continue;
-    }
-    if (!*group_suffix && is_prefix(*argv, "--defaults-group-suffix="))
-    {
-      *group_suffix= *argv + sizeof("--defaults-group-suffix=")-1;
-      argc--;
-      continue;
-    }
-    break;
   }
-  return org_argc - argc;
+  else
+    for(; *argv; argv++)
+    {
+      if (!my_defaults_file && is_prefix(*argv, "--defaults-file="))
+        my_defaults_file= *argv + sizeof("--defaults-file=")-1;
+      else
+      if (!my_defaults_extra_file && is_prefix(*argv, "--defaults-extra-file="))
+        my_defaults_extra_file= *argv + sizeof("--defaults-extra-file=")-1;
+      else
+      if (!my_defaults_group_suffix && is_prefix(*argv, "--defaults-group-suffix="))
+        my_defaults_group_suffix= *argv + sizeof("--defaults-group-suffix=")-1;
+      else
+        break;
+    }
+
+  if (*argv && !strcmp(*argv, "--print-defaults"))
+  {
+    my_print_defaults= 1;
+    my_defaults_mark_files= FALSE;
+    argv++;
+  }
+
+  if (! my_defaults_group_suffix)
+    my_defaults_group_suffix= getenv("MYSQL_GROUP_SUFFIX");
+
+  if (my_defaults_extra_file && my_defaults_extra_file != extra_file_buffer)
+  {
+    my_realpath(extra_file_buffer, my_defaults_extra_file, MYF(0));
+    my_defaults_extra_file= extra_file_buffer;
+  }
+
+  if (my_defaults_file && my_defaults_file != file_buffer)
+  {
+    my_realpath(file_buffer, my_defaults_file, MYF(0));
+    my_defaults_file= file_buffer;
+  }
+
+  return (int)(argv - orig_argv);
 }
 
 /*
@@ -504,132 +399,85 @@ int load_defaults(const char *conf_file, const char **groups,
 */
 
 
-int my_load_defaults(const char *conf_file, const char **groups,
-                  int *argc, char ***argv, const char ***default_directories)
+int my_load_defaults(const char *conf_file, const char **groups, int *argc,
+                     char ***argv, const char ***default_directories)
 {
   DYNAMIC_ARRAY args;
-  TYPELIB group;
-  my_bool found_print_defaults= 0;
-  uint args_used= 0;
+  int args_used= 0;
   int error= 0;
   MEM_ROOT alloc;
   char *ptr,**res;
-  struct handle_option_ctx ctx;
   const char **dirs;
-  uint args_sep= my_getopt_use_args_separator ? 1 : 0;
-  DBUG_ENTER("load_defaults");
+  DBUG_ENTER("my_load_defaults");
 
-  init_alloc_root(&alloc, "my_load_defaults", 512, 0, MYF(0));
+  init_alloc_root(key_memory_defaults, &alloc, 512, 0, MYF(0));
   if ((dirs= init_default_directories(&alloc)) == NULL)
     goto err;
-  /*
-    Check if the user doesn't want any default option processing
-    --no-defaults is always the first option
-  */
-  if (*argc >= 2 && !strcmp(argv[0][1],"--no-defaults"))
-  {
-    /* remove the --no-defaults argument and return only the other arguments */
-    uint i, j;
-    if (!(ptr=(char*) alloc_root(&alloc,sizeof(alloc)+
-				 (*argc + 1)*sizeof(char*))))
-      goto err;
-    res= (char**) (ptr+sizeof(alloc));
-    res[0]= **argv;				/* Copy program name */
-    j= 1;                 /* Start from 1 for the reset result args */
-    if (my_getopt_use_args_separator)
-    {
-      /* set arguments separator */
-      set_args_separator(&res[1]);
-      j++;
-    }
-    for (i=2 ; i < (uint) *argc ; i++, j++)
-      res[j]=argv[0][i];
-    res[j]=0;					/* End pointer */
-    /*
-      Update the argc, if have not added args separator, then we have
-      to decrease argc because we have removed the "--no-defaults".
-    */
-    if (!my_getopt_use_args_separator)
-      (*argc)--;
-    *argv=res;
-    *(MEM_ROOT*) ptr= alloc;			/* Save alloc root for free */
-    if (default_directories)
-      *default_directories= dirs;
-    DBUG_RETURN(0);
-  }
 
-  group.count=0;
-  group.name= "defaults";
-  group.type_names= groups;
+  args_used= get_defaults_options(*argv);
 
-  for (; *groups ; groups++)
-    group.count++;
-
-  if (my_init_dynamic_array(&args, sizeof(char*), 128, 64, MYF(0)))
+  if (my_init_dynamic_array(key_memory_defaults, &args, sizeof(char*), 128, 64,
+                            MYF(0)))
     goto err;
 
-  ctx.alloc= &alloc;
-  ctx.args= &args;
-  ctx.group= &group;
+  insert_dynamic(&args, *argv);/* Name MUST be set, even by embedded library */
 
-  if ((error= my_search_option_files(conf_file, argc, argv, &args_used,
-                                     handle_default_option, (void *) &ctx,
-                                     dirs)))
+  *argc-= args_used;
+  *argv+= args_used;
+
+  if (!my_no_defaults)
   {
-    delete_dynamic(&args);
-    free_root(&alloc,MYF(0));
-    DBUG_RETURN(error);
+    TYPELIB group; // XXX
+    struct handle_option_ctx ctx;
+
+    group.count=0;
+    group.name= "defaults";
+    group.type_names= groups;
+
+    for (; *groups ; groups++)
+      group.count++;
+
+    ctx.alloc= &alloc;
+    ctx.args= &args;
+    ctx.group= &group;
+
+    if ((error= my_search_option_files(conf_file, &ctx, dirs)))
+    {
+      delete_dynamic(&args);
+      free_root(&alloc,MYF(0));
+      DBUG_RETURN(error);
+    }
   }
-  /*
-    Here error contains <> 0 only if we have a fully specified conf_file
-    or a forced default file
-  */
-  if (!(ptr=(char*) alloc_root(&alloc,sizeof(alloc)+
-			       (args.elements + *argc + 1 + args_sep) *sizeof(char*))))
+
+  if (!(ptr=(char*) alloc_root(&alloc, sizeof(alloc) +
+			       (args.elements + *argc + 3) * sizeof(char*))))
     goto err;
   res= (char**) (ptr+sizeof(alloc));
 
-  /* copy name + found arguments + command line arguments to new array */
-  res[0]= argv[0][0];  /* Name MUST be set, even by embedded library */
-  memcpy((uchar*) (res+1), args.buffer, args.elements*sizeof(char*));
-  /* Skip --defaults-xxx options */
-  (*argc)-= args_used;
-  (*argv)+= args_used;
+  /* found arguments + command line arguments to new array */
+  memcpy(res, args.buffer, args.elements * sizeof(char*));
 
-  /*
-    Check if we want to see the new argument list
-    This options must always be the last of the default options
-  */
-  if (*argc >= 2 && !strcmp(argv[0][1],"--print-defaults"))
+  if (my_defaults_mark_files)
   {
-    found_print_defaults=1;
-    --*argc; ++*argv;				/* skip argument */
-  }
-
-  if (my_getopt_use_args_separator)
-  {
-    /* set arguments separator for arguments from config file and
-       command line */
-    set_args_separator(&res[args.elements+1]);
+    res[args.elements++]= file_marker;
+    res[args.elements++]= (char*)"";
   }
 
   if (*argc)
-    memcpy((uchar*) (res+1+args.elements+args_sep), (char*) ((*argv)+1),
-	   (*argc-1)*sizeof(char*));
-  res[args.elements+ *argc+args_sep]=0;                /* last null */
+    memcpy(res + args.elements, *argv, *argc * sizeof(char*));
 
-  (*argc)+=args.elements+args_sep;
-  *argv= (char**) res;
+  (*argc)+= args.elements;
+  *argv= res;
+  (*argv)[*argc]= 0;
   *(MEM_ROOT*) ptr= alloc;			/* Save alloc root for free */
   delete_dynamic(&args);
-  if (found_print_defaults)
+  if (my_print_defaults)
   {
     int i;
     printf("%s would have been started with the following arguments:\n",
 	   **argv);
     for (i=1 ; i < *argc ; i++)
-      if (!my_getopt_is_args_separator((*argv)[i])) /* skip arguments separator */
-        printf("%s ", (*argv)[i]);
+      printf("%s ", (*argv)[i]);
     puts("");
     DBUG_RETURN(4);
   }
@@ -653,9 +501,7 @@ void free_defaults(char **argv)
 }
 
 
-static int search_default_file(Process_option_func opt_handler,
-                               void *handler_ctx,
-			       const char *dir,
+static int search_default_file(struct handle_option_ctx *ctx, const char *dir,
 			       const char *config_file)
 {
   char **ext;
@@ -666,9 +512,7 @@ static int search_default_file(Process_option_func opt_handler,
   for (ext= (char**) exts_to_use; *ext; ext++)
   {
     int error;
-    if ((error= search_default_file_with_ext(opt_handler, handler_ctx,
-                                             dir, *ext,
-					     config_file, 0)) < 0)
+    if ((error= search_default_file_with_ext(ctx, dir, *ext, config_file, 0)) < 0)
       return error;
   }
   return 0;
@@ -730,9 +574,7 @@ static char *get_argument(const char *keyword, size_t kwlen,
 
   SYNOPSIS
     search_default_file_with_ext()
-    opt_handler                 Option handler function. It is used to process
-                                every separate option.
-    handler_ctx                 Pointer to the structure to store actual 
+    ctx                         Pointer to the structure to store actual 
                                 parameters of the function.
     dir				directory to read
     ext				Extension for configuration file
@@ -747,10 +589,8 @@ static char *get_argument(const char *keyword, size_t kwlen,
      1	File not found (Warning)
 */
 
-static int search_default_file_with_ext(Process_option_func opt_handler,
-                                        void *handler_ctx,
-                                        const char *dir,
-                                        const char *ext,
+static int search_default_file_with_ext(struct handle_option_ctx *ctx,
+                                        const char *dir, const char *ext,
                                         const char *config_file,
                                         int recursion_level)
 {
@@ -761,12 +601,12 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
   const int max_recursion_level= 10;
   MYSQL_FILE *fp;
   uint line=0;
-  my_bool found_group=0;
+  enum { NONE, PARSE, SKIP } found_group= NONE;
   uint i;
   MY_DIR *search_dir;
   FILEINFO *search_file;
 
-  if ((dir ? strlen(dir) : 0 )+strlen(config_file) >= FN_REFLEN-3)
+  if (safe_strlen(dir) + strlen(config_file) >= FN_REFLEN-3)
     return 0;					/* Ignore wrong paths */
   if (dir)
   {
@@ -801,6 +641,11 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
 #endif
   if (!(fp= mysql_file_fopen(key_file_cnf, name, O_RDONLY, MYF(0))))
     return 1;					/* Ignore wrong files */
+
+  if (my_defaults_mark_files)
+    if (insert_dynamic(ctx->args, (uchar*) &file_marker) ||
+        add_option(ctx, name))
+      goto err;
 
   while (mysql_file_fgets(buff, sizeof(buff) - 1, fp))
   {
@@ -862,8 +707,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
             fn_format(tmp, search_file->name, ptr, "",
                       MY_UNPACK_FILENAME | MY_SAFE_PATH);
 
-            search_default_file_with_ext(opt_handler, handler_ctx, "", "", tmp,
-                                         recursion_level + 1);
+            search_default_file_with_ext(ctx, "", "", tmp, recursion_level + 1);
           }
         }
 
@@ -877,8 +721,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
                                 name, line)))
 	  goto err;
 
-        search_default_file_with_ext(opt_handler, handler_ctx, "", "", ptr,
-                                     recursion_level + 1);
+        search_default_file_with_ext(ctx, "", "", ptr, recursion_level + 1);
       }
 
       continue;
@@ -886,7 +729,6 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
 
     if (*ptr == '[')				/* Group name */
     {
-      found_group=1;
       if (!(end=(char *) strchr(++ptr,']')))
       {
 	fprintf(stderr,
@@ -898,33 +740,30 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
       for ( ; my_isspace(&my_charset_latin1,end[-1]) ; end--) ;
       end[0]=0;
 
-      strmake(curr_gr, ptr, MY_MIN((size_t) (end-ptr)+1, sizeof(curr_gr)-1));
-
-      /* signal that a new group is found */
-      opt_handler(handler_ctx, curr_gr, NULL);
-
+      strmake(curr_gr, ptr, MY_MIN((size_t) (end-ptr), sizeof(curr_gr)-1));
+      found_group= find_type(curr_gr, ctx->group, FIND_TYPE_NO_PREFIX)
+                   ? PARSE : SKIP;
       continue;
     }
-    if (!found_group)
+    switch (found_group)
     {
+    case NONE:
       fprintf(stderr,
 	      "error: Found option without preceding group in config file: %s at line: %d\n",
 	      name,line);
       goto err;
+    case PARSE:
+      break;
+    case SKIP:
+      continue;
     }
-    
-   
+
     end= remove_end_comment(ptr);
     if ((value= strchr(ptr, '=')))
       end= value;
     for ( ; my_isspace(&my_charset_latin1,end[-1]) ; end--) ;
-    if (!value)
-    {
-      strmake(strmov(option,"--"),ptr, (size_t) (end-ptr));
-      if (opt_handler(handler_ctx, curr_gr, option))
-        goto err;
-    }
-    else
+    ptr= strmake(strmov(option,"--"), ptr, (size_t) (end-ptr));
+    if (value)
     {
       /* Remove pre- and end space */
       char *value_end;
@@ -946,9 +785,7 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
 	value++;
 	value_end--;
       }
-      ptr=strnmov(strmov(option,"--"),ptr,(size_t) (end-ptr));
       *ptr++= '=';
-
       for ( ; value != value_end; value++)
       {
 	if (*value == '\\' && value != value_end-1)
@@ -988,9 +825,10 @@ static int search_default_file_with_ext(Process_option_func opt_handler,
 	  *ptr++= *value;
       }
       *ptr=0;
-      if (opt_handler(handler_ctx, curr_gr, option))
-        goto err;
     }
+
+    if (add_option(ctx, option))
+      goto err;
   }
   mysql_file_fclose(fp, MYF(0));
   return(0);
@@ -1047,7 +885,7 @@ void my_print_default_files(const char *conf_file)
   {
     const char **dirs;
     MEM_ROOT alloc;
-    init_alloc_root(&alloc, "my_print_defaults", 512, 0, MYF(0));
+    init_alloc_root(key_memory_defaults, &alloc, 512, 0, MYF(0));
 
     if ((dirs= init_default_directories(&alloc)) == NULL)
     {

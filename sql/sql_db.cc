@@ -26,11 +26,12 @@
 #include "lock.h"                        // lock_schema_name
 #include "sql_table.h"                   // build_table_filename,
                                          // filename_to_tablename
+                                         // validate_comment_length
 #include "sql_rename.h"                  // mysql_rename_tables
 #include "sql_acl.h"                     // SELECT_ACL, DB_ACLS,
                                          // acl_get, check_grant_db
 #include "log_event.h"                   // Query_log_event
-#include "sql_base.h"                    // lock_table_names, tdc_remove_table
+#include "sql_base.h"                    // lock_table_names
 #include "sql_handler.h"                 // mysql_ha_rm_tables
 #include "sql_class.h"
 #include <mysys_err.h>
@@ -60,7 +61,7 @@ long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
 static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
 static void mysql_change_db_impl(THD *thd,
                                  LEX_CSTRING *new_db_name,
-                                 ulong new_db_access,
+                                 privilege_t new_db_access,
                                  CHARSET_INFO *new_db_charset);
 static bool mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db,
                                  bool if_exists, bool silent);
@@ -77,6 +78,7 @@ typedef struct my_dbopt_st
   char *name;			/* Database name                  */
   uint name_length;		/* Database length name           */
   CHARSET_INFO *charset;	/* Database default character set */
+  LEX_STRING comment;           /* Database comment               */
 } my_dbopt_t;
 
 
@@ -184,9 +186,9 @@ bool my_dboptions_cache_init(void)
   if (!dboptions_init)
   {
     dboptions_init= 1;
-    error= my_hash_init(&dboptions, table_alias_charset,
-                        32, 0, 0, (my_hash_get_key) dboptions_get_key,
-                        free_dbopt,0);
+    error= my_hash_init(key_memory_dboptions_hash, &dboptions,
+                        table_alias_charset, 32, 0, 0, (my_hash_get_key)
+                        dboptions_get_key, free_dbopt, 0);
   }
   return error;
 }
@@ -216,9 +218,8 @@ void my_dbopt_cleanup(void)
 {
   mysql_rwlock_wrlock(&LOCK_dboptions);
   my_hash_free(&dboptions);
-  my_hash_init(&dboptions, table_alias_charset,
-               32, 0, 0, (my_hash_get_key) dboptions_get_key,
-               free_dbopt,0);
+  my_hash_init(key_memory_dboptions_hash, &dboptions, table_alias_charset, 32,
+               0, 0, (my_hash_get_key) dboptions_get_key, free_dbopt, 0);
   mysql_rwlock_unlock(&LOCK_dboptions);
 }
 
@@ -235,7 +236,8 @@ void my_dbopt_cleanup(void)
     1 on error.
 */
 
-static my_bool get_dbopt(const char *dbname, Schema_specification_st *create)
+static my_bool get_dbopt(THD *thd, const char *dbname,
+                         Schema_specification_st *create)
 {
   my_dbopt_t *opt;
   uint length;
@@ -247,6 +249,11 @@ static my_bool get_dbopt(const char *dbname, Schema_specification_st *create)
   if ((opt= (my_dbopt_t*) my_hash_search(&dboptions, (uchar*) dbname, length)))
   {
     create->default_table_charset= opt->charset;
+    if (opt->comment.length)
+    {
+      create->schema_comment= thd->make_clex_string(opt->comment.str,
+                                                    opt->comment.length);
+    }
     error= 0;
   }
   mysql_rwlock_unlock(&LOCK_dboptions);
@@ -274,15 +281,17 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
   DBUG_ENTER("put_dbopt");
 
   length= (uint) strlen(dbname);
-  
+
   mysql_rwlock_wrlock(&LOCK_dboptions);
   if (!(opt= (my_dbopt_t*) my_hash_search(&dboptions, (uchar*) dbname,
                                           length)))
   { 
     /* Options are not in the hash, insert them */
     char *tmp_name;
-    if (!my_multi_malloc(MYF(MY_WME | MY_ZEROFILL),
+    char *tmp_comment= NULL;
+    if (!my_multi_malloc(key_memory_dboptions_hash, MYF(MY_WME | MY_ZEROFILL),
                          &opt, (uint) sizeof(*opt), &tmp_name, (uint) length+1,
+                         &tmp_comment, (uint) DATABASE_COMMENT_MAXLEN+1,
                          NullS))
     {
       error= 1;
@@ -292,7 +301,7 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
     opt->name= tmp_name;
     strmov(opt->name, dbname);
     opt->name_length= length;
-    
+    opt->comment.str= tmp_comment;
     if (unlikely((error= my_hash_insert(&dboptions, (uchar*) opt))))
     {
       my_free(opt);
@@ -302,6 +311,12 @@ static my_bool put_dbopt(const char *dbname, Schema_specification_st *create)
 
   /* Update / write options in hash */
   opt->charset= create->default_table_charset;
+
+  if (create->schema_comment)
+  {
+    strmov(opt->comment.str, create->schema_comment->str);
+    opt->comment.length= create->schema_comment->length;
+  }
 
 end:
   mysql_rwlock_unlock(&LOCK_dboptions);
@@ -328,7 +343,8 @@ static void del_dbopt(const char *path)
   Create database options file:
 
   DESCRIPTION
-    Currently database default charset is only stored there.
+    Currently database default charset, default collation
+    and comment are stored there.
 
   RETURN VALUES
   0	ok
@@ -339,8 +355,33 @@ static bool write_db_opt(THD *thd, const char *path,
                          Schema_specification_st *create)
 {
   File file;
-  char buf[256]; // Should be enough for one option
+  char buf[256+DATABASE_COMMENT_MAXLEN];
   bool error=1;
+
+  if (create->schema_comment)
+  {
+    if (validate_comment_length(thd, create->schema_comment,
+                                DATABASE_COMMENT_MAXLEN,
+                                ER_TOO_LONG_DATABASE_COMMENT,
+                                thd->lex->name.str))
+      return error;
+  }
+
+  if (thd->lex->sql_command == SQLCOM_ALTER_DB &&
+      (!create->schema_comment || !create->default_table_charset))
+  {
+    /* Use existing values of schema_comment and charset for
+       ALTER DATABASE queries */
+    Schema_specification_st tmp;
+    tmp.init();
+    load_db_opt(thd, path, &tmp);
+
+    if (!create->schema_comment)
+      create->schema_comment= tmp.schema_comment;
+
+    if (!create->default_table_charset)
+      create->default_table_charset= tmp.default_table_charset;
+  }
 
   if (!create->default_table_charset)
     create->default_table_charset= thd->variables.collation_server;
@@ -357,6 +398,11 @@ static bool write_db_opt(THD *thd, const char *path,
                               "\ndefault-collation=",
                               create->default_table_charset->name,
                               "\n", NullS) - buf);
+
+    if (create->schema_comment)
+      length= (ulong) (strxnmov(buf+length, sizeof(buf)-1-length,
+                                "comment=", create->schema_comment->str,
+                                "\n", NullS) - buf);
 
     /* Error is written by mysql_file_write */
     if (!mysql_file_write(file, (uchar*) buf, length, MYF(MY_NABP+MY_WME)))
@@ -385,7 +431,7 @@ static bool write_db_opt(THD *thd, const char *path,
 bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
 {
   File file;
-  char buf[256];
+  char buf[256+DATABASE_COMMENT_MAXLEN];
   DBUG_ENTER("load_db_opt");
   bool error=1;
   size_t nbytes;
@@ -394,7 +440,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
   create->default_table_charset= thd->variables.collation_server;
 
   /* Check if options for this database are already in the hash */
-  if (!get_dbopt(path, create))
+  if (!get_dbopt(thd, path, create))
     DBUG_RETURN(0);
 
   /* Otherwise, load options from the .opt file */
@@ -444,6 +490,8 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
           create->default_table_charset= default_charset_info;
         }
       }
+      else if (!strncmp(buf, "comment", (pos-buf)))
+        create->schema_comment= thd->make_clex_string(pos+1, strlen(pos+1));
     }
   }
   /*
@@ -544,7 +592,7 @@ CHARSET_INFO *get_default_db_collation(THD *thd, const char *db_name)
   Create a database
 
   SYNOPSIS
-  mysql_create_db_iternal()
+  mysql_create_db_internal()
   thd		Thread handler
   db		Name of database to create
 		Function assumes that this is already validated.
@@ -1039,8 +1087,8 @@ exit:
   */
   if (unlikely(thd->db.str && cmp_db_names(&thd->db, db) && !error))
   {
-    mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
-    SESSION_TRACKER_CHANGED(thd, CURRENT_SCHEMA_TRACKER, NULL);
+    mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
+    thd->session_tracker.current_schema.mark_as_changed(thd);
   }
   my_dirend(dirp);
   DBUG_RETURN(error);
@@ -1099,9 +1147,9 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
                                                    (char*) table_list->table_name.str);
 
     table_list->alias= table_list->table_name;	// If lower_case_table_names=2
-    table_list->mdl_request.init(MDL_key::TABLE, table_list->db.str,
-                                 table_list->table_name.str, MDL_EXCLUSIVE,
-                                 MDL_TRANSACTION);
+    MDL_REQUEST_INIT(&table_list->mdl_request, MDL_key::TABLE,
+                     table_list->db.str, table_list->table_name.str,
+                     MDL_EXCLUSIVE, MDL_TRANSACTION);
     /* Link into list */
     (*tot_list_next_local)= table_list;
     (*tot_list_next_global)= table_list;
@@ -1303,7 +1351,7 @@ err:
 
 static void mysql_change_db_impl(THD *thd,
                                  LEX_CSTRING *new_db_name,
-                                 ulong new_db_access,
+                                 privilege_t new_db_access,
                                  CHARSET_INFO *new_db_charset)
 {
   /* 1. Change current database in THD. */
@@ -1452,7 +1500,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   LEX_CSTRING new_db_file_name;
 
   Security_context *sctx= thd->security_ctx;
-  ulong db_access= sctx->db_access;
+  privilege_t db_access(sctx->db_access);
   CHARSET_INFO *db_default_cl;
   DBUG_ENTER("mysql_change_db");
 
@@ -1469,7 +1517,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
         new_db_name->length == 0.
       */
 
-      mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
 
       goto done;
     }
@@ -1498,8 +1546,8 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     TODO: fix check_db_name().
   */
 
-  new_db_file_name.str= my_strndup(new_db_name->str, new_db_name->length,
-                                   MYF(MY_WME));
+  new_db_file_name.str= my_strndup(key_memory_THD_db, new_db_name->str,
+                                   new_db_name->length, MYF(MY_WME));
   new_db_file_name.length= new_db_name->length;
 
   if (new_db_file_name.str == NULL)
@@ -1521,7 +1569,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
     my_free(const_cast<char*>(new_db_file_name.str));
 
     if (force_switch)
-      mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
 
     DBUG_RETURN(ER_WRONG_DB_NAME);
   }
@@ -1573,7 +1621,7 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
 
       /* Change db to NULL. */
 
-      mysql_change_db_impl(thd, NULL, 0, thd->variables.collation_server);
+      mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
 
       /* The operation succeed. */
       goto done;
@@ -1601,8 +1649,8 @@ uint mysql_change_db(THD *thd, const LEX_CSTRING *new_db_name,
   mysql_change_db_impl(thd, &new_db_file_name, db_access, db_default_cl);
 
 done:
-  SESSION_TRACKER_CHANGED(thd, CURRENT_SCHEMA_TRACKER, NULL);
-  SESSION_TRACKER_CHANGED(thd, SESSION_STATE_CHANGE_TRACKER, NULL);
+  thd->session_tracker.current_schema.mark_as_changed(thd);
+  thd->session_tracker.state_change.mark_as_changed(thd);
   DBUG_RETURN(0);
 }
 
@@ -1757,7 +1805,7 @@ bool mysql_upgrade_db(THD *thd, const LEX_CSTRING *old_db)
   }
 
   if ((table_list= thd->lex->query_tables) &&
-      (error= mysql_rename_tables(thd, table_list, 1)))
+      (error= mysql_rename_tables(thd, table_list, 1, 0)))
   {
     /*
       Failed to move all tables from the old database to the new one.

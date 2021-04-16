@@ -69,7 +69,7 @@ static uint ex_var_count, max_var_length, max_val_length;
 static void print_version(void);
 static void usage(void);
 extern "C" my_bool get_one_option(int optid, const struct my_option *opt,
-                                  char *argument);
+                                  const char *argument);
 static my_bool sql_connect(MYSQL *mysql, uint wait);
 static int execute_commands(MYSQL *mysql,int argc, char **argv);
 static char **mask_password(int argc, char ***argv);
@@ -241,10 +241,9 @@ static const char *load_default_groups[]=
   0 };
 
 my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument)
+get_one_option(const struct my_option *opt, const char *argument, const char *)
 {
-  switch(optid) {
+  switch(opt->id) {
   case 'c':
     opt_count_iterations= 1;
     break;
@@ -253,10 +252,15 @@ get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
       argument= (char*) "";			// Don't require password
     if (argument)
     {
-      char *start=argument;
+      /*
+        One should not really change the argument, but we make an
+        exception for passwords
+      */
+      char *start= (char*) argument;
       my_free(opt_password);
-      opt_password=my_strdup(argument,MYF(MY_FAE));
-      while (*argument) *argument++= 'x';		/* Destroy argument */
+      opt_password=my_strdup(PSI_NOT_INSTRUMENTED, argument,MYF(MY_FAE));
+      while (*argument)
+        *(char*) argument++= 'x';		/* Destroy argument */
       if (*start)
 	start[1]=0;				/* Cut length of argument */
       tty_password= 0;
@@ -1358,11 +1362,11 @@ static char **mask_password(int argc, char ***argv)
   if (!argc)
     return NULL;
 
-  temp_argv= (char **)(my_malloc(sizeof(char *) * argc, MYF(MY_WME)));
+  temp_argv= (char **)(my_malloc(PSI_NOT_INSTRUMENTED, sizeof(char *) * argc, MYF(MY_WME)));
   argc--;
   while (argc > 0)
   {
-    temp_argv[argc]= my_strdup((*argv)[argc], MYF(MY_FAE));
+    temp_argv[argc]= my_strdup(PSI_NOT_INSTRUMENTED, (*argv)[argc], MYF(MY_FAE));
     if (find_type((*argv)[argc - 1],&command_typelib, FIND_TYPE_BASIC) == ADMIN_PASSWORD ||
         find_type((*argv)[argc - 1],&command_typelib, FIND_TYPE_BASIC) == ADMIN_OLD_PASSWORD)
     {
@@ -1375,7 +1379,7 @@ static char **mask_password(int argc, char ***argv)
      }
     argc--;
   }
-  temp_argv[argc]= my_strdup((*argv)[argc], MYF(MY_FAE));
+  temp_argv[argc]= my_strdup(PSI_NOT_INSTRUMENTED, (*argv)[argc], MYF(MY_FAE));
   return(temp_argv);
 }
 

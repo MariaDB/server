@@ -52,6 +52,7 @@
 
 #ifdef HAVE_CHARSET_cp1250
 
+const char charset_name_cp1250[]= "cp1250";
 
 static const uint16 tab_cp1250_uni[256]={
      0,0x0001,0x0002,0x0003,0x0004,0x0005,0x0006,0x0007,
@@ -690,7 +691,7 @@ struct charset_info_st my_charset_cp1250_czech_ci =
   34,0,0,                                     /* number    */
   MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_CSSORT|
   MY_CS_STRNXFRM_BAD_NWEIGHTS|MY_CS_NON1TO1,  /* state     */
-  "cp1250",                                   /* cs name   */
+  charset_name_cp1250,                        /* cs name   */
   "cp1250_czech_cs",                          /* name      */
   "",                                         /* comment   */
   NULL,                                       /* tailoring */

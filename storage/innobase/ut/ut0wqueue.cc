@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2006, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -44,7 +44,6 @@ ib_wqueue_create(void)
 	mutex_create(LATCH_ID_WORK_QUEUE, &wq->mutex);
 
 	wq->items = ib_list_create();
-	wq->event = os_event_create(0);
 
 	return(wq);
 }
@@ -58,7 +57,6 @@ ib_wqueue_free(
 {
 	mutex_free(&wq->mutex);
 	ib_list_free(wq->items);
-	os_event_destroy(wq->event);
 
 	ut_free(wq);
 }
@@ -76,91 +74,10 @@ ib_wqueue_add(ib_wqueue_t* wq, void* item, mem_heap_t* heap, bool wq_locked)
 	}
 
 	ib_list_add_last(wq->items, item, heap);
-	os_event_set(wq->event);
 
 	if (!wq_locked) {
 		mutex_exit(&wq->mutex);
 	}
-}
-
-/****************************************************************//**
-Wait for a work item to appear in the queue.
-@return work item */
-void*
-ib_wqueue_wait(
-/*===========*/
-	ib_wqueue_t*	wq)	/*!< in: work queue */
-{
-	ib_list_node_t*	node;
-
-	for (;;) {
-		os_event_wait(wq->event);
-
-		mutex_enter(&wq->mutex);
-
-		node = ib_list_get_first(wq->items);
-
-		if (node) {
-			ib_list_remove(wq->items, node);
-
-			if (!ib_list_get_first(wq->items)) {
-				/* We must reset the event when the list
-				gets emptied. */
-				os_event_reset(wq->event);
-			}
-
-			break;
-		}
-
-		mutex_exit(&wq->mutex);
-	}
-
-	mutex_exit(&wq->mutex);
-
-	return(node->data);
-}
-
-
-/********************************************************************
-Wait for a work item to appear in the queue for specified time. */
-void*
-ib_wqueue_timedwait(
-/*================*/
-					/* out: work item or NULL on timeout*/
-	ib_wqueue_t*	wq,		/* in: work queue */
-	ulint		wait_in_usecs)	/* in: wait time in micro seconds */
-{
-	ib_list_node_t*	node = NULL;
-
-	for (;;) {
-		ulint		error;
-		int64_t		sig_count;
-
-		mutex_enter(&wq->mutex);
-
-		node = ib_list_get_first(wq->items);
-
-		if (node) {
-			ib_list_remove(wq->items, node);
-
-			mutex_exit(&wq->mutex);
-			break;
-		}
-
-		sig_count = os_event_reset(wq->event);
-
-		mutex_exit(&wq->mutex);
-
-		error = os_event_wait_time_low(wq->event,
-					       (ulint) wait_in_usecs,
-					       sig_count);
-
-		if (error == OS_SYNC_TIME_EXCEEDED) {
-			break;
-		}
-	}
-
-	return(node ? node->data : NULL);
 }
 
 /********************************************************************
@@ -180,14 +97,7 @@ ib_wqueue_nowait(
 
 		if (node) {
 			ib_list_remove(wq->items, node);
-
 		}
-	}
-
-	/* We must reset the event when the list
-	gets emptied. */
-	if(ib_list_is_empty(wq->items)) {
-		os_event_reset(wq->event);
 	}
 
 	mutex_exit(&wq->mutex);

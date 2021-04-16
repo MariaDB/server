@@ -1,0 +1,290 @@
+include/master-slave.inc
+[connection master]
+connection slave;
+use database;
+connection master;
+#
+# Check replication of parititioned S3 tables
+#
+CREATE TABLE t1 (
+c1 INT DEFAULT NULL
+) ENGINE=Aria
+PARTITION BY HASH (c1)
+PARTITIONS 3;
+INSERT INTO t1 VALUE (1), (2), (101), (102), (201), (202);
+ALTER TABLE t1 ENGINE=S3;
+connection slave;
+connection master;
+ALTER TABLE t1 ADD PARTITION PARTITIONS 6;
+select sum(c1) from t1;
+sum(c1)
+609
+connection slave;
+connection master;
+ALTER TABLE t1 ADD COLUMN c INT;
+select sum(c1) from t1;
+sum(c1)
+609
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL
+) ENGINE=S3 DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`c1`)
+PARTITIONS 9
+select sum(c1) from t1;
+sum(c1)
+609
+connection master;
+drop table t1;
+#
+# Checking that the slave is keeping in sync with changed partitions
+#
+CREATE TABLE t1 (
+c1 int primary key,
+c2 int DEFAULT NULL
+) ENGINE=InnoDB
+PARTITION BY RANGE (c1)
+(PARTITION p1 VALUES LESS THAN (200),
+PARTITION p2 VALUES LESS THAN (300),
+PARTITION p3 VALUES LESS THAN (400));
+insert into t1 select seq*100,seq*100 from seq_1_to_3;
+alter table t1 engine=S3;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`)
+) ENGINE=S3 DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`c1`)
+(PARTITION `p1` VALUES LESS THAN (200) ENGINE = S3,
+ PARTITION `p2` VALUES LESS THAN (300) ENGINE = S3,
+ PARTITION `p3` VALUES LESS THAN (400) ENGINE = S3)
+connection slave;
+select sum(c1) from t1;
+sum(c1)
+600
+stop slave;
+connection master;
+ALTER TABLE t1 ADD PARTITION (PARTITION p4 VALUES LESS THAN (500));
+connection slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`)
+) ENGINE=S3 DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`c1`)
+(PARTITION `p1` VALUES LESS THAN (200) ENGINE = S3,
+ PARTITION `p2` VALUES LESS THAN (300) ENGINE = S3,
+ PARTITION `p3` VALUES LESS THAN (400) ENGINE = S3,
+ PARTITION `p4` VALUES LESS THAN (500) ENGINE = S3)
+select sum(c1) from t1;
+sum(c1)
+600
+start slave;
+connection master;
+connection slave;
+select sum(c1)+0 from t1;
+sum(c1)+0
+600
+stop slave;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`)
+) ENGINE=S3 DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`c1`)
+(PARTITION `p1` VALUES LESS THAN (200) ENGINE = S3,
+ PARTITION `p2` VALUES LESS THAN (300) ENGINE = S3,
+ PARTITION `p3` VALUES LESS THAN (400) ENGINE = S3,
+ PARTITION `p4` VALUES LESS THAN (500) ENGINE = S3)
+connection master;
+drop table t1;
+connection slave;
+select sum(c1) from t1;
+ERROR 42S02: Table 'database.t1' doesn't exist
+start slave;
+connection master;
+connection slave;
+connection master;
+#
+# Check altering partitioned table to S3 and back
+# Checks also rename partitoned table and drop partition
+#
+CREATE TABLE t2 (
+c1 int primary key,
+c2 int DEFAULT NULL
+) ENGINE=InnoDB
+PARTITION BY RANGE (c1)
+(PARTITION p1 VALUES LESS THAN (200),
+PARTITION p2 VALUES LESS THAN (300),
+PARTITION p3 VALUES LESS THAN (400));
+insert into t2 select seq*100,seq*100 from seq_1_to_3;
+alter table t2 engine=S3;
+rename table t2 to t1;
+alter table t1 drop partition p1;
+connection slave;
+select sum(c1) from t1;
+sum(c1)
+500
+connection master;
+alter table t1 engine=innodb;
+connection slave;
+select sum(c1) from t1;
+sum(c1)
+500
+connection master;
+drop table t1;
+#
+# Check that slaves ignores changes to S3 tables.
+#
+connection master;
+CREATE TABLE t1 (
+c1 int primary key,
+c2 int DEFAULT NULL
+) ENGINE=InnoDB
+PARTITION BY RANGE (c1)
+(PARTITION p1 VALUES LESS THAN (200),
+PARTITION p2 VALUES LESS THAN (300),
+PARTITION p3 VALUES LESS THAN (400));
+insert into t1 select seq*100,seq*100 from seq_1_to_3;
+create table t2 like t1;
+alter table t2 remove partitioning;
+insert into t2 values (450,450);
+connection slave;
+stop slave;
+connection master;
+alter table t1 engine=s3;
+alter table t2 engine=s3;
+ALTER TABLE t1 ADD PARTITION (PARTITION p4 VALUES LESS THAN (500));
+alter table t1 exchange partition p4 with table t2;
+select count(*) from t1;
+count(*)
+4
+drop table t1,t2;
+connection slave;
+start slave;
+connection master;
+connection slave;
+select sum(c1) from t1;
+ERROR 42S02: Table 'database.t1' doesn't exist
+connection master;
+#
+# Check slave binary log
+#
+connection slave;
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	create database database
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; CREATE TABLE t1 (
+c1 INT DEFAULT NULL
+) ENGINE=Aria
+PARTITION BY HASH (c1)
+PARTITIONS 3
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; INSERT INTO t1 VALUE (1), (2), (101), (102), (201), (202)
+slave-bin.000001	#	Query	#	#	COMMIT
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; ALTER TABLE t1 ENGINE=S3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; ALTER TABLE t1 ADD PARTITION PARTITIONS 6
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; ALTER TABLE t1 ADD COLUMN c INT
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1` /* generated by server */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; CREATE TABLE t1 (
+c1 int primary key,
+c2 int DEFAULT NULL
+) ENGINE=InnoDB
+PARTITION BY RANGE (c1)
+(PARTITION p1 VALUES LESS THAN (200),
+PARTITION p2 VALUES LESS THAN (300),
+PARTITION p3 VALUES LESS THAN (400))
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; insert into t1 select seq*100,seq*100 from seq_1_to_3
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t1 engine=S3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; ALTER TABLE t1 ADD PARTITION (PARTITION p4 VALUES LESS THAN (500))
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1` /* generated by server */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; CREATE TABLE t2 (
+c1 int primary key,
+c2 int DEFAULT NULL
+) ENGINE=InnoDB
+PARTITION BY RANGE (c1)
+(PARTITION p1 VALUES LESS THAN (200),
+PARTITION p2 VALUES LESS THAN (300),
+PARTITION p3 VALUES LESS THAN (400))
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; insert into t2 select seq*100,seq*100 from seq_1_to_3
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t2 engine=S3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; rename table t2 to t1
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; alter table t1 drop partition p1
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1` /* generated by server */
+slave-bin.000001	#	Query	#	#	use `database`; CREATE OR REPLACE TABLE `t1` (
+  `c1` int(11) NOT NULL,
+  `c2` int(11) DEFAULT NULL,
+  PRIMARY KEY (`c1`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`c1`)
+(PARTITION `p2` VALUES LESS THAN (300) ENGINE = InnoDB,
+ PARTITION `p3` VALUES LESS THAN (400) ENGINE = InnoDB)
+slave-bin.000001	#	Annotate_rows	#	#	alter table t1 engine=innodb
+slave-bin.000001	#	Table_map	#	#	table_id: # (database.t1)
+slave-bin.000001	#	Write_rows_v1	#	#	table_id: # flags: STMT_END_F
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1` /* generated by server */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; CREATE TABLE t1 (
+c1 int primary key,
+c2 int DEFAULT NULL
+) ENGINE=InnoDB
+PARTITION BY RANGE (c1)
+(PARTITION p1 VALUES LESS THAN (200),
+PARTITION p2 VALUES LESS THAN (300),
+PARTITION p3 VALUES LESS THAN (400))
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; insert into t1 select seq*100,seq*100 from seq_1_to_3
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; create table t2 like t1
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t2 remove partitioning
+slave-bin.000001	#	Gtid	#	#	BEGIN GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; insert into t2 values (450,450)
+slave-bin.000001	#	Xid	#	#	COMMIT /* XID */
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t1 engine=s3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; alter table t2 engine=s3
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; ALTER TABLE t1 ADD PARTITION (PARTITION p4 VALUES LESS THAN (500))
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; set @@sql_if_exists=1; alter table t1 exchange partition p4 with table t2
+slave-bin.000001	#	Gtid	#	#	GTID #-#-#
+slave-bin.000001	#	Query	#	#	use `database`; DROP TABLE IF EXISTS `t1`,`t2` /* generated by server */
+connection master;
+#
+# clean up
+#
+connection slave;
+include/rpl_end.inc

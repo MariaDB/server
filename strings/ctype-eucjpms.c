@@ -33,6 +33,8 @@ ctype-ujis.c file.
 
 #ifdef HAVE_CHARSET_eucjpms
 
+const char charset_name_eucjpms[]= "eucjpms";
+
 
 static const uchar ctype_eucjpms[257] =
 {
@@ -67584,6 +67586,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
     my_well_formed_char_length_eucjpms,
     my_copy_fix_mb,
     my_native_to_mb_eucjpms,
+    my_wc_to_printable_generic
 };
 
 
@@ -67592,7 +67595,7 @@ struct charset_info_st my_charset_eucjpms_japanese_ci=
 {
     97,0,0,		/* number       */
     MY_CS_COMPILED|MY_CS_PRIMARY,	/* state        */
-    "eucjpms",		/* cs name    */
+    charset_name_eucjpms,		/* cs name    */
     "eucjpms_japanese_ci",	/* name         */
     "",			/* comment      */
     NULL,		/* tailoring    */
@@ -67625,7 +67628,7 @@ struct charset_info_st my_charset_eucjpms_bin=
 {
     98,0,0,		/* number       */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state        */
-    "eucjpms",		/* cs name    */
+    charset_name_eucjpms,		/* cs name    */
     "eucjpms_bin",		/* name         */
     "",			/* comment      */
     NULL,		/* tailoring    */
@@ -67658,7 +67661,7 @@ struct charset_info_st my_charset_eucjpms_japanese_nopad_ci=
 {
     MY_NOPAD_ID(97),0,0, /* number           */
     MY_CS_COMPILED|MY_CS_NOPAD,/* state      */
-    "eucjpms",           /* cs name          */
+    charset_name_eucjpms,           /* cs name          */
     "eucjpms_japanese_nopad_ci", /* name     */
     "",                  /* comment          */
     NULL,                /* tailoring        */
@@ -67691,7 +67694,7 @@ struct charset_info_st my_charset_eucjpms_nopad_bin=
 {
     MY_NOPAD_ID(98),0,0, /* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    "eucjpms",           /* cs name          */
+    charset_name_eucjpms,           /* cs name          */
     "eucjpms_nopad_bin", /* name             */
     "",                  /* comment          */
     NULL,                /* tailoring        */

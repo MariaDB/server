@@ -347,7 +347,8 @@ struct rpl_parallel_entry {
   group_commit_orderer *current_gco;
 
   rpl_parallel_thread * choose_thread(rpl_group_info *rgi, bool *did_enter_cond,
-                                      PSI_stage_info *old_stage, bool reuse);
+                                      PSI_stage_info *old_stage,
+                                      Gtid_log_event *gtid_ev);
   int queue_master_restart(rpl_group_info *rgi,
                            Format_description_log_event *fdev);
 };

@@ -1,0 +1,31 @@
+--source include/not_embedded.inc
+--source include/have_innodb.inc
+#--source include/have_metadata_lock_info.inc
+
+#
+# Testing of problems with ALTER TABLE and events on the same table(s)
+#
+
+#
+# MDEV-24452 ALTER TABLE event take infinite time which for example breaks
+#            mysql_upgrade
+#
+
+SET GLOBAL event_scheduler=1;
+
+CREATE TABLE t1 (a int primary key, b int) engine=innodb;
+insert into t1 values (1,1),(2,2),(3,3);
+CREATE TABLE t2 (a int primary key) engine=innodb;
+
+CREATE EVENT e_t1 ON SCHEDULE EVERY 1 SECOND DO insert ignore into test.t2 select a from test.t1;
+
+let $wait_condition=SELECT count(*) > 0 from t2;
+--source include/wait_condition.inc
+select * from t2;
+drop event e_t1;
+
+# select * from information_schema.metadata_lock_info;
+ALTER TABLE mysql.event DROP PRIMARY KEY, ADD PRIMARY KEY(db,name);
+drop table t1,t2;
+
+SET GLOBAL event_scheduler=default;

@@ -45,8 +45,7 @@ struct xb_fil_cur_t {
 	xb_read_filt_t*	read_filter;	/*!< read filter */
 	xb_read_filt_ctxt_t	read_filter_ctxt;
 					/*!< read filter context */
-	byte*		orig_buf;	/*!< read buffer */
-	byte*		buf;		/*!< aligned pointer for orig_buf */
+	byte*		buf;		/*!< read buffer */
 	size_t		buf_size;	/*!< buffer size in bytes */
 	size_t		buf_read;	/*!< number of read bytes in buffer
 					after the last cursor read */
@@ -54,7 +53,7 @@ struct xb_fil_cur_t {
 					last cursor read */
 	ib_int64_t	buf_offset;	/*!< file offset of the first page in
 					buffer */
-	ulint		buf_page_no;	/*!< number of the first page in
+	unsigned		buf_page_no;	/*!< number of the first page in
 					buffer */
 	uint		thread_n;	/*!< thread number for diagnostics */
 	ulint		space_id;	/*!< ID of tablespace */

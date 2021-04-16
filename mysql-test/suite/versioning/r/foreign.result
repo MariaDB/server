@@ -445,3 +445,41 @@ pk	f1	f2	left(f3, 4)	check_row_ts(row_start, row_end)
 1	8	8	SHOR	HISTORICAL ROW
 2	8	8	LONG	HISTORICAL ROW
 drop table t1;
+#
+# MDEV-20729 Fix REFERENCES constraint in column definition
+#
+create or replace table t1(
+id int
+);
+# system fields can't be foreign keys:
+create or replace table t2(
+x int,
+sys_start SYS_DATATYPE as row start references t1(id),
+sys_end SYS_DATATYPE as row end,
+period for system_time(sys_start, sys_end)
+) engine innodb with system versioning;
+Got one of the listed errors
+create or replace table t2(
+x int,
+sys_start SYS_DATATYPE as row start,
+sys_end SYS_DATATYPE as row end references t1(id),
+period for system_time(sys_start, sys_end)
+) engine innodb with system versioning;
+Got one of the listed errors
+create or replace table t2(
+x int,
+sys_start SYS_DATATYPE as row start,
+sys_end SYS_DATATYPE as row end,
+period for system_time(sys_start, sys_end),
+foreign key (sys_start) references t1(id)
+) engine innodb with system versioning;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+create or replace table t2(
+x int,
+sys_start SYS_DATATYPE as row start,
+sys_end SYS_DATATYPE as row end,
+period for system_time(sys_start, sys_end),
+foreign key (sys_end) references t1(id)
+) engine innodb with system versioning;
+ERROR HY000: Can't create table `test`.`t2` (errno: 150 "Foreign key constraint is incorrectly formed")
+drop table t1;

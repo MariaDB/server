@@ -1,0 +1,32 @@
+--source include/have_debug.inc
+
+--echo #
+--echo # MDEV-20016 Add MariaDB_DATA_TYPE_PLUGIN
+--echo #
+
+--echo # Testing that a user-defined handler is resolved by name
+--echo # when opening a FRM file.
+
+SET @old_debug_dbug=@@debug_dbug;
+SET @@debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (a TEST_DOUBLE);
+--enable_prepare_warnings
+SHOW CREATE TABLE t1;
+--disable_prepare_warnings
+DROP TABLE t1;
+SET @@debug_dbug=@old_debug_dbug;
+
+
+--echo # Testing what happens on failure to resolve a type handler by name
+
+SET @old_debug_dbug=@@debug_dbug;
+SET @@debug_dbug="+d,frm_data_type_info";
+CREATE TABLE t1 (a TEST_DOUBLE);
+FLUSH TABLES;
+SET @@debug_dbug="+d,emulate_handler_by_name_or_error_failure";
+--error ER_UNKNOWN_DATA_TYPE
+SHOW CREATE TABLE t1;
+--error ER_UNKNOWN_DATA_TYPE
+SELECT * FROM t1;
+DROP TABLE t1;
+SET @@debug_dbug=@old_debug_dbug;

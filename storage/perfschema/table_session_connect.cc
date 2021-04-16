@@ -22,13 +22,14 @@
 
 #include <my_global.h>
 #include "table_session_connect.h"
+#include "field.h"
 
 table_session_connect::table_session_connect(const PFS_engine_table_share *share)
  : cursor_by_thread_connect_attr(share)
 {
   if (session_connect_attrs_size_per_thread > 0)
   {
-    m_copy_session_connect_attrs= (char *) my_malloc(/* 5.7: PSI_INSTRUMENT_ME, */
+    m_copy_session_connect_attrs= (char *) my_malloc(PSI_INSTRUMENT_ME,
                                              session_connect_attrs_size_per_thread,
                                              MYF(0));
   }
@@ -80,7 +81,7 @@ bool parse_length_encoded_string(const char **ptr,
   if (*ptr - start_ptr + data_length > input_length)
     return true;
 
-  copy_length= copier.well_formed_copy(&my_charset_utf8_bin, dest, dest_size,
+  copy_length= copier.well_formed_copy(&my_charset_utf8mb3_bin, dest, dest_size,
                                        from_cs, *ptr, data_length, nchars_max);
   *copied_len= copy_length;
   (*ptr)+= data_length;
@@ -146,7 +147,7 @@ bool read_nth_attr(const char *connect_attrs,
 
     if (idx == ordinal)
       *attr_name_length= copy_length;
-      
+
     /* read the value */
     if (parse_length_encoded_string(&ptr,
                                     attr_value, max_attr_value, &copy_length,
@@ -168,8 +169,8 @@ bool read_nth_attr(const char *connect_attrs,
 
 void table_session_connect::make_row(PFS_thread *pfs, uint ordinal)
 {
-  pfs_lock lock;
-  pfs_lock session_lock;
+  pfs_optimistic_state lock;
+  pfs_optimistic_state session_lock;
   PFS_thread_class *safe_class;
   const CHARSET_INFO *cs;
 

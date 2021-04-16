@@ -1,4 +1,5 @@
-/* Copyright (C) 2008-2018 Kentoku Shiba
+/* Copyright (C) 2008-2020 Kentoku Shiba
+   Copyright (C) 2019-2020 MariaDB corp
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -19,6 +20,10 @@
 #endif
 
 #define SPIDER_DBTON_SIZE 15
+
+#ifndef SIZEOF_STORED_DOUBLE
+#define SIZEOF_STORED_DOUBLE 8
+#endif
 
 #define SPIDER_DB_WRAPPER_MYSQL "mysql"
 #define SPIDER_DB_WRAPPER_MARIADB "mariadb"
@@ -89,11 +94,15 @@ typedef st_spider_result SPIDER_RESULT;
 
 #define SPIDER_SQL_SEMICOLON_STR ";"
 #define SPIDER_SQL_SEMICOLON_LEN sizeof(SPIDER_SQL_SEMICOLON_STR) - 1
+#define SPIDER_SQL_COLON_STR ":"
+#define SPIDER_SQL_COLON_LEN sizeof(SPIDER_SQL_COLON_STR) - 1
 #define SPIDER_SQL_VALUE_QUOTE_STR "'"
 #define SPIDER_SQL_VALUE_QUOTE_LEN (sizeof(SPIDER_SQL_VALUE_QUOTE_STR) - 1)
 
 #define SPIDER_SQL_DOT_STR "."
 #define SPIDER_SQL_DOT_LEN (sizeof(SPIDER_SQL_DOT_STR) - 1)
+#define SPIDER_SQL_HYPHEN_STR "-"
+#define SPIDER_SQL_HYPHEN_LEN (sizeof(SPIDER_SQL_HYPHEN_STR) - 1)
 
 #define SPIDER_SQL_EQUAL_STR " = "
 #define SPIDER_SQL_EQUAL_LEN (sizeof(SPIDER_SQL_EQUAL_STR) - 1)
@@ -209,6 +218,11 @@ typedef st_spider_result SPIDER_RESULT;
 #define SPIDER_SQL_CONNECTION_LEN (sizeof(SPIDER_SQL_CONNECTION_STR) - 1)
 #define SPIDER_SQL_LCL_NAME_QUOTE_STR "`"
 #define SPIDER_SQL_LCL_NAME_QUOTE_LEN (sizeof(SPIDER_SQL_LCL_NAME_QUOTE_STR) - 1)
+#define SPIDER_SQL_MIN_STR "min"
+#define SPIDER_SQL_MIN_LEN (sizeof(SPIDER_SQL_MIN_STR) - 1)
+
+#define SPIDER_SQL_LOP_CHK_PRM_PRF_STR "spider_lc_"
+#define SPIDER_SQL_LOP_CHK_PRM_PRF_LEN (sizeof(SPIDER_SQL_LOP_CHK_PRM_PRF_STR) - 1)
 
 #define SPIDER_CONN_KIND_MYSQL (1 << 0)
 #if defined(HS_HAS_SQLCOM) && defined(HAVE_HANDLERSOCKET)
@@ -870,6 +884,10 @@ public:
     spider_string *str,
     Time_zone *time_zone
   ) = 0;
+  virtual int append_loop_check(
+    spider_string *str,
+    SPIDER_CONN *conn
+  );
   virtual int append_start_transaction(
     spider_string *str
   ) = 0;
@@ -940,6 +958,11 @@ public:
     spider_string *str
   ) = 0;
 #endif
+  virtual bool tables_on_different_db_are_joinable();
+  virtual bool socket_has_default_value();
+  virtual bool database_has_default_value();
+  virtual bool append_charset_name_before_string();
+  virtual uint limit_mode();
 };
 
 class spider_db_row
@@ -990,12 +1013,12 @@ public:
 
 class spider_db_result
 {
-protected:
-  SPIDER_DB_CONN *db_conn;
 public:
-  uint dbton_id;
+  SPIDER_DB_CONN *db_conn;
+  uint           dbton_id;
   spider_db_result(SPIDER_DB_CONN *in_db_conn);
   virtual ~spider_db_result() {}
+  virtual void set_limit(longlong value) {}
   virtual bool has_result() = 0;
   virtual void free_result() = 0;
   virtual SPIDER_DB_ROW *current_row() = 0;
@@ -1050,19 +1073,20 @@ public:
     CHARSET_INFO *access_charset
   ) = 0;
 #endif
+  virtual uint limit_mode();
 };
 
 class spider_db_conn
 {
-protected:
-  SPIDER_CONN    *conn;
 public:
-  uint dbton_id;
+  SPIDER_CONN    *conn;
+  uint           dbton_id;
   spider_db_conn(
     SPIDER_CONN *in_conn
   );
   virtual ~spider_db_conn() {}
   virtual int init() = 0;
+  virtual void set_limit(longlong value) {}
   virtual bool is_connected() = 0;
   virtual void bg_connect() = 0;
   virtual int connect(
@@ -1101,6 +1125,7 @@ public:
     int *error_num
   ) = 0;
   virtual spider_db_result *use_result(
+    ha_spider *spider,
     st_spider_db_request_key *request_key,
     int *error_num
   ) = 0;
@@ -1182,6 +1207,11 @@ public:
     Time_zone *time_zone,
     int *need_mon
   ) = 0;
+  virtual bool set_loop_check_in_bulk_sql();
+  virtual int set_loop_check(
+    int *need_mon
+  );
+  virtual int fin_loop_check();
   virtual int show_master_status(
     SPIDER_TRX *trx,
     SPIDER_SHARE *share,
@@ -1264,6 +1294,7 @@ public:
   virtual bool cmp_request_key_to_snd(
     st_spider_db_request_key *request_key
   ) = 0;
+  virtual uint limit_mode();
 };
 
 class spider_db_share
@@ -1323,6 +1354,7 @@ public:
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
   SPIDER_LINK_IDX_CHAIN *link_idx_chain;
 #endif
+  bool strict_group_by;
   bool no_where_cond;
   spider_db_handler(ha_spider *spider, spider_db_share *db_share) :
     dbton_id(db_share->dbton_id), spider(spider), db_share(db_share),
@@ -1567,8 +1599,8 @@ public:
     ulong sql_type
   ) = 0;
   virtual int append_explain_select_part(
-    key_range *start_key,
-    key_range *end_key,
+    const key_range *start_key,
+    const key_range *end_key,
     ulong sql_type,
     int link_idx
   ) = 0;
@@ -1685,8 +1717,8 @@ public:
     ulonglong &last_insert_id
   ) = 0;
   virtual ha_rows explain_select(
-    key_range *start_key,
-    key_range *end_key,
+    const key_range *start_key,
+    const key_range *end_key,
     int link_idx
   ) = 0;
   virtual int lock_tables(
@@ -1805,6 +1837,18 @@ public:
     ulong sql_type
   ) = 0;
 #endif
+#ifdef HANDLER_HAS_DIRECT_UPDATE_ROWS
+  virtual bool check_direct_update(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
+  );
+  virtual bool check_direct_delete(
+    st_select_lex *select_lex,
+    longlong select_limit,
+    longlong offset_limit
+  );
+#endif
 };
 
 class spider_db_copy_table
@@ -1880,6 +1924,23 @@ enum spider_db_access_type
   SPIDER_DB_ACCESS_TYPE_NOSQL
 };
 
+#define SPIDER_MATURITY_UNKNOWN      0
+#define SPIDER_MATURITY_EXPERIMENTAL 1
+#define SPIDER_MATURITY_ALPHA        2
+#define SPIDER_MATURITY_BETA         3
+#define SPIDER_MATURITY_GAMMA        4
+#define SPIDER_MATURITY_STABLE       5
+
+static const LEX_CSTRING maturity_name[] =
+{
+  { STRING_WITH_LEN("Unknown") },
+  { STRING_WITH_LEN("Experimental") },
+  { STRING_WITH_LEN("Alpha") },
+  { STRING_WITH_LEN("Beta") },
+  { STRING_WITH_LEN("Gamma") },
+  { STRING_WITH_LEN("Stable") }
+};
+
 typedef struct st_spider_dbton
 {
   uint dbton_id;
@@ -1895,6 +1956,9 @@ typedef struct st_spider_dbton
   SPIDER_DB_CONN *(*create_db_conn)(SPIDER_CONN *conn);
   bool (*support_direct_join)();
   spider_db_util *db_util;
+  const char *descr;
+  const char *version_info;
+  unsigned int maturity;
 } SPIDER_DBTON;
 
 typedef struct st_spider_position
@@ -2042,7 +2106,6 @@ typedef struct st_spider_result_list
 #endif
     int                   quick_phase;
   bool                    keyread;
-  int                     lock_type;
   TABLE                   *table;
 #ifndef WITHOUT_SPIDER_BG_SEARCH
   volatile int            bgs_error;

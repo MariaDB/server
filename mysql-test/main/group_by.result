@@ -321,6 +321,7 @@ a	c	count(distinct rand())
 drop table t1;
 CREATE TABLE t1 (a char(1));
 INSERT INTO t1 VALUES ('A'),('B'),('A'),('B'),('A'),('B'),(NULL),('a'),('b'),(NULL),('A'),('B'),(NULL);
+flush status;
 SELECT a FROM t1 GROUP BY a;
 a
 NULL
@@ -359,7 +360,11 @@ A	4
 B	4
 a	1
 b	1
-SET BIG_TABLES=1;
+show status like 'Created%tables';
+Variable_name	Value
+Created_tmp_disk_tables	0
+Created_tmp_tables	6
+set tmp_memory_table_size=0;
 SELECT a FROM t1 GROUP BY a;
 a
 NULL
@@ -398,7 +403,11 @@ A	4
 B	4
 a	1
 b	1
-SET BIG_TABLES=0;
+show status like 'Created%tables';
+Variable_name	Value
+Created_tmp_disk_tables	6
+Created_tmp_tables	12
+set tmp_memory_table_size=default;
 drop table t1;
 CREATE TABLE t1 (
 `a` char(193) default NULL,
@@ -515,14 +524,14 @@ a	count(*)
 NULL	9
 	3
 b	1
-set big_tables=1;
+set tmp_memory_table_size=0;
 select a,count(*) from t1 group by a;
 a	count(*)
 NULL	9
 	3
 b	1
 drop table t1;
-set big_tables=0;
+set tmp_memory_table_size=default;
 SET @save_optimizer_use_condition_selectivity=@@optimizer_use_condition_selectivity,@save_optimizer_switch=@@optimizer_switch;
 SET optimizer_switch='outer_join_with_cache=off',@@optimizer_use_condition_selectivity=4;
 create table t1 (a int not null, b int not null);
@@ -1569,7 +1578,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 EXPLAIN SELECT a FROM t1 FORCE INDEX FOR JOIN (i2) 
 FORCE INDEX FOR GROUP BY (i2) GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t1	index	NULL	i2	9	NULL	144	Using index
+1	SIMPLE	t1	range	NULL	i2	4	NULL	145	Using index for group-by
 EXPLAIN SELECT a FROM t1 USE INDEX () IGNORE INDEX (i2);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	144	
@@ -1692,7 +1701,7 @@ NULL	1
 1	2
 EXPLAIN SELECT a from t2 GROUP BY a;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	SIMPLE	t2	index	NULL	a	10	NULL	6	Using index
+1	SIMPLE	t2	range	NULL	a	5	NULL	7	Using index for group-by
 SELECT a from t2 GROUP BY a;
 a
 NULL
@@ -1964,7 +1973,7 @@ DROP TABLE t1;
 # Bug#11765254 (58200): Assertion failed: param.sort_length when grouping
 # by functions
 #
-SET BIG_TABLES=1;
+set tmp_memory_table_size=0;
 CREATE TABLE t1(a INT);
 INSERT INTO t1 VALUES (0),(0);
 SELECT 1 FROM t1 GROUP BY IF(`a`,'','');
@@ -1991,7 +2000,7 @@ Warning	1292	Truncated incorrect INTEGER value: 'jxW<'
 Warning	1292	Truncated incorrect INTEGER value: 'K'
 Warning	1292	Truncated incorrect INTEGER value: 'jxW<'
 DROP TABLE t1;
-SET BIG_TABLES=0;
+set tmp_memory_table_size=default;
 #
 # MDEV-641 LP:1002108 - Wrong result (or crash) from a query with duplicated field in the group list and a limit clause
 # Bug#11761078: 53534: INCORRECT 'SELECT SQL_BIG_RESULT...' 
@@ -2602,6 +2611,14 @@ c	1c
 v	2v,2v
 NULL	1c,2v,2v
 DROP TABLE t1,t2;
+#
+# MDEV-24855 ER_CRASHED_ON_USAGE or Assertion `length <= column->length'
+# failed in ma_blockrec.c
+#
+CREATE TABLE t1 (a BIT(5), c BINARY(179));
+INSERT INTO t1 VALUES (b'1100','foo'),(b'0','bar');
+SELECT c, GROUP_CONCAT(CASE NULL WHEN 0 THEN a END, CASE 'foo' WHEN c THEN 1 END) AS f FROM t1 GROUP BY ExtractValue('<a></a>', '/a'), UUID();
+DROP TABLE t1;
 #
 # MDEV-6129: Server crashes during UNION with ORDER BY field IS NULL
 #

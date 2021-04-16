@@ -24,9 +24,9 @@
 #include "rt_index.h"
 
 static double _mi_record_pos(MI_INFO *, const uchar *, key_part_map,
-                             enum ha_rkey_function);
+                             enum ha_rkey_function, ulonglong *);
 static double _mi_search_pos(MI_INFO *,MI_KEYDEF *,uchar *, uint,uint,
-                             my_off_t,my_bool);
+                             my_off_t,my_bool, ulonglong *);
 static uint _mi_keynr(MI_INFO *info,MI_KEYDEF *,uchar *, uchar *,uint *);
 
 /*
@@ -48,7 +48,8 @@ static uint _mi_keynr(MI_INFO *info,MI_KEYDEF *,uchar *, uchar *,uint *);
 */
   
 ha_rows mi_records_in_range(MI_INFO *info, int inx,
-                            key_range *min_key, key_range *max_key)
+                            const key_range *min_key, const key_range *max_key,
+                            page_range *pages)
 {
   ha_rows res;
   double start_pos,end_pos,diff;
@@ -98,10 +99,12 @@ ha_rows mi_records_in_range(MI_INFO *info, int inx,
   case HA_KEY_ALG_BTREE:
   default:
     start_pos= (min_key ?_mi_record_pos(info, min_key->key,
-                                        min_key->keypart_map, min_key->flag)
+                                        min_key->keypart_map, min_key->flag,
+                                        &pages->first_page)
                         : (double) 0);
     end_pos=   (max_key ?  _mi_record_pos(info, max_key->key,
-                                          max_key->keypart_map, max_key->flag)
+                                          max_key->keypart_map, max_key->flag,
+                                          &pages->last_page)
 		        : (double) info->state->records);
     res= (end_pos < start_pos ? (ha_rows) 0 :
           (end_pos == start_pos ? (ha_rows) 1 : (ha_rows) (end_pos-start_pos)));
@@ -147,7 +150,8 @@ ha_rows mi_records_in_range(MI_INFO *info, int inx,
 
 static double _mi_record_pos(MI_INFO *info, const uchar *key,
                              key_part_map keypart_map,
-                             enum ha_rkey_function search_flag)
+                             enum ha_rkey_function search_flag,
+                             ulonglong *final_page)
 {
   uint inx=(uint) info->lastinx, nextflag, key_len;
   MI_KEYDEF *keyinfo=info->s->keyinfo+inx;
@@ -203,7 +207,8 @@ static double _mi_record_pos(MI_INFO *info, const uchar *key,
   */
   pos=_mi_search_pos(info,keyinfo,key_buff,key_len,
 		     nextflag | SEARCH_SAVE_BUFF | SEARCH_UPDATE,
-		     info->s->state.key_root[inx], TRUE);
+		     info->s->state.key_root[inx], TRUE,
+                     final_page);
   if (pos >= 0.0)
   {
     DBUG_PRINT("exit",("pos: %g",(pos*info->state->records)));
@@ -219,7 +224,8 @@ static double _mi_record_pos(MI_INFO *info, const uchar *key,
 static double _mi_search_pos(register MI_INFO *info,
 			     register MI_KEYDEF *keyinfo,
 			     uchar *key, uint key_len, uint nextflag,
-			     register my_off_t pos, my_bool last_in_level)
+			     register my_off_t pos, my_bool last_in_level,
+                             ulonglong *final_page)
 {
   int flag;
   uint nod_flag,keynr,UNINIT_VAR(max_keynr);
@@ -233,6 +239,7 @@ static double _mi_search_pos(register MI_INFO *info,
 
   if (!(buff=_mi_fetch_keypage(info,keyinfo,pos,DFLT_INIT_HITS,info->buff,1)))
     goto err;
+  *final_page= pos;
   flag=(*keyinfo->bin_search)(info,keyinfo,buff,key,key_len,nextflag,
 			      &keypos,info->lastkey, &after_key);
   nod_flag=mi_test_if_nod(buff);
@@ -251,7 +258,8 @@ static double _mi_search_pos(register MI_INFO *info,
       offset= 1.0;
     else if ((offset=_mi_search_pos(info,keyinfo,key,key_len,nextflag,
 				    _mi_kpos(nod_flag,keypos),
-                                    last_in_level && after_key)) < 0)
+                                    last_in_level && after_key,
+                                    final_page)) < 0)
       DBUG_RETURN(offset);
   }
   else
@@ -271,7 +279,8 @@ static double _mi_search_pos(register MI_INFO *info,
       */
       if ((offset=_mi_search_pos(info,keyinfo,key,key_len,SEARCH_FIND,
 				 _mi_kpos(nod_flag,keypos),
-                                 last_in_level && after_key)) < 0)
+                                 last_in_level && after_key,
+                                 final_page)) < 0)
 	DBUG_RETURN(offset);			/* Read error */
     }
   }

@@ -76,7 +76,6 @@ bool have_multi_threaded_slave = false;
 bool have_gtid_slave = false;
 
 /* Kill long selects */
-os_thread_id_t	kill_query_thread_id;
 os_event_t	kill_query_thread_started;
 os_event_t	kill_query_thread_stopped;
 os_event_t	kill_query_thread_stop;
@@ -484,31 +483,21 @@ bool get_mysql_vars(MYSQL *connection)
   }
 
   if (innodb_data_file_path_var && *innodb_data_file_path_var)
-  {
-    innobase_data_file_path= my_strdup(innodb_data_file_path_var, MYF(MY_FAE));
-  }
+    innobase_data_file_path= my_strdup(PSI_NOT_INSTRUMENTED,
+                                       innodb_data_file_path_var, MYF(MY_FAE));
 
   if (innodb_data_home_dir_var)
-  {
-    innobase_data_home_dir= my_strdup(innodb_data_home_dir_var, MYF(MY_FAE));
-  }
+    innobase_data_home_dir= my_strdup(PSI_NOT_INSTRUMENTED,
+                                      innodb_data_home_dir_var, MYF(MY_FAE));
 
   if (innodb_log_group_home_dir_var && *innodb_log_group_home_dir_var)
-  {
-    srv_log_group_home_dir=
-        my_strdup(innodb_log_group_home_dir_var, MYF(MY_FAE));
-  }
+    srv_log_group_home_dir= my_strdup(PSI_NOT_INSTRUMENTED,
+                                      innodb_log_group_home_dir_var,
+                                      MYF(MY_FAE));
 
   if (innodb_undo_directory_var && *innodb_undo_directory_var)
-  {
-    srv_undo_dir= my_strdup(innodb_undo_directory_var, MYF(MY_FAE));
-  }
-
-  if (innodb_log_files_in_group_var)
-  {
-    srv_n_log_files= strtol(innodb_log_files_in_group_var, &endptr, 10);
-    ut_ad(*endptr == 0);
-  }
+    srv_undo_dir= my_strdup(PSI_NOT_INSTRUMENTED, innodb_undo_directory_var,
+                            MYF(MY_FAE));
 
   if (innodb_log_file_size_var)
   {
@@ -530,7 +519,8 @@ bool get_mysql_vars(MYSQL *connection)
 
   if (page_zip_level_var != NULL)
   {
-    page_zip_level= strtoul(page_zip_level_var, &endptr, 10);
+    page_zip_level= static_cast<uint>(strtoul(page_zip_level_var, &endptr,
+                                              10));
     ut_ad(*endptr == 0);
   }
 
@@ -873,7 +863,7 @@ start_query_killer()
 	kill_query_thread_started	= os_event_create(0);
 	kill_query_thread_stopped	= os_event_create(0);
 
-	os_thread_create(kill_query_thread, NULL, &kill_query_thread_id);
+	os_thread_create(kill_query_thread);
 
 	os_event_wait(kill_query_thread_started);
 }
@@ -1614,7 +1604,6 @@ bool write_backup_config_file()
 		"[mysqld]\n"
 		"innodb_checksum_algorithm=%s\n"
 		"innodb_data_file_path=%s\n"
-		"innodb_log_files_in_group=%lu\n"
 		"innodb_log_file_size=%llu\n"
 		"innodb_page_size=%lu\n"
 		"innodb_undo_directory=%s\n"
@@ -1624,7 +1613,6 @@ bool write_backup_config_file()
 		"%s\n",
 		innodb_checksum_algorithm_names[srv_checksum_algorithm],
 		make_local_paths(innobase_data_file_path).c_str(),
-		srv_n_log_files,
 		srv_log_file_size,
 		srv_page_size,
 		srv_undo_dir,

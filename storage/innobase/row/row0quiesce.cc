@@ -525,29 +525,30 @@ row_quiesce_table_start(
 	}
 
 	for (ulint count = 0;
-	     ibuf_merge_space(table->space_id) != 0
-	     && !trx_is_interrupted(trx);
+	     ibuf_merge_space(table->space_id);
 	     ++count) {
+		if (trx_is_interrupted(trx)) {
+			goto aborted;
+		}
 		if (!(count % 20)) {
 			ib::info() << "Merging change buffer entries for "
 				<< table->name;
 		}
 	}
 
-	if (!trx_is_interrupted(trx)) {
-		{
-			FlushObserver observer(table->space, trx, NULL);
-			buf_LRU_flush_or_remove_pages(table->space_id,
-						      &observer);
-		}
-
+	while (buf_flush_dirty_pages(table->space_id)) {
 		if (trx_is_interrupted(trx)) {
+			goto aborted;
+		}
+	}
 
-			ib::warn() << "Quiesce aborted!";
+	if (!trx_is_interrupted(trx)) {
+		/* Ensure that all asynchronous IO is completed. */
+		os_aio_wait_until_no_pending_writes();
+		table->space->flush<false>();
 
-		} else if (row_quiesce_write_cfg(table, trx->mysql_thd)
-			   != DB_SUCCESS) {
-
+		if (row_quiesce_write_cfg(table, trx->mysql_thd)
+		    != DB_SUCCESS) {
 			ib::warn() << "There was an error writing to the"
 				" meta data file";
 		} else {
@@ -555,6 +556,7 @@ row_quiesce_table_start(
 				<< " flushed to disk";
 		}
 	} else {
+aborted:
 		ib::warn() << "Quiesce aborted!";
 	}
 

@@ -1,0 +1,71 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-21743 Split up SUPER privilege to smaller privileges 
+#
+#
+# Test that KILL is not allowed without CONNECTION ADMIN or SUPER
+#
+CREATE USER foo@localhost;
+GRANT SELECT ON *.* TO foo@localhost;
+CREATE USER bar@localhost;
+GRANT ALL PRIVILEGES ON *.* TO bar@localhost;
+REVOKE CONNECTION ADMIN, SUPER ON *.* FROM bar@localhost;
+connect  foo,localhost,foo,,;
+connect  bar,localhost,bar,,;
+SELECT user FROM information_schema.processlist ORDER BY user;
+user
+bar
+foo
+root
+KILL ID;
+ERROR HY000: You are not owner of thread ID
+disconnect foo;
+disconnect bar;
+connection default;
+DROP USER foo@localhost;
+DROP USER bar@localhost;
+#
+# Test that KILL is allowed with CONNECTION ADMIN
+#
+CREATE USER foo@localhost;
+GRANT SELECT ON *.* TO foo@localhost;
+CREATE USER bar@localhost;
+GRANT PROCESS, CONNECTION ADMIN ON *.* TO bar@localhost;
+connect  foo,localhost,foo,,;
+connect  bar,localhost,bar,,;
+SELECT user FROM information_schema.processlist ORDER BY user;
+user
+bar
+foo
+root
+KILL ID;
+connection default;
+disconnect foo;
+disconnect bar;
+DROP USER foo@localhost;
+DROP USER bar@localhost;
+#
+# Test that KILL is allowed with SUPER
+#
+CREATE USER foo@localhost;
+GRANT SELECT ON *.* TO foo@localhost;
+CREATE USER bar@localhost;
+GRANT PROCESS, SUPER ON *.* TO bar@localhost;
+connect  foo,localhost,foo,,;
+connect  bar,localhost,bar,,;
+SELECT user FROM information_schema.processlist ORDER BY user;
+user
+bar
+foo
+root
+KILL ID;
+connection default;
+disconnect foo;
+disconnect bar;
+DROP USER foo@localhost;
+DROP USER bar@localhost;
+#
+# End of 10.5 tests
+#

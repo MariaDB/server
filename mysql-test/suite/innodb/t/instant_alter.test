@@ -874,6 +874,18 @@ eval CREATE TABLE t1 (a INT, b INT, PRIMARY KEY(a,b)) $engine;
 ALTER TABLE t1 MODIFY b INT FIRST;
 DROP TABLE t1;
 
+# MDEV-21744 Assertion `!rec_offs_nth_sql_null(offsets, n)' failed
+eval CREATE TABLE t1 (pk INT PRIMARY KEY) $engine;
+INSERT INTO t1 SET pk=1;
+ALTER TABLE t1 ADD COLUMN b INT;
+BEGIN;
+UPDATE t1 SET pk=2;
+UPDATE t1 SET pk=1;
+connection analyze;
+SELECT * FROM t1;
+connection default;
+DROP TABLE t1;
+
 dec $format;
 let $redundant_4k= 0;
 }

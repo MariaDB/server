@@ -1,0 +1,157 @@
+connect  slave,127.0.0.1,root,,,$SERVER_MYPORT_3;
+connect  master1,127.0.0.1,root,,,$SERVER_MYPORT_1;
+connect  master2,127.0.0.1,root,,,$SERVER_MYPORT_2;
+connection slave;
+CHANGE MASTER 'slave1' TO MASTER_PORT=MYPORT_1, MASTER_HOST='127.0.0.1', MASTER_USER='root';
+CHANGE MASTER 'slave2' TO MASTER_PORT=MYPORT_2, MASTER_HOST='127.0.0.1', MASTER_USER='root';
+START REPLICA 'slave1';
+SET default_master_connection = 'slave1';
+include/wait_for_slave_to_start.inc
+SET default_master_connection = 'slave2';
+"Command: START ALL SLAVES --> START ALL REPLICAS"
+START ALL REPLICAS;
+Warnings:
+Note	1937	SLAVE 'slave2' started
+include/wait_for_slave_to_start.inc
+SET default_master_connection = '';
+connection master1;
+connection slave;
+connection master2;
+connection slave;
+"Command: SHOW ALL STAVES STATUS --> SHOW ALL REPLICAS STATUS"
+SHOW ALL REPLICAS STATUS;
+Connection_name	slave1
+Slave_SQL_State	Slave has read all relay log; waiting for more updates
+Slave_IO_State	Waiting for master to send event
+Master_Host	127.0.0.1
+Master_User	root
+Master_Port	MYPORT_1
+Connect_Retry	60
+Master_Log_File	master-bin.000001
+Read_Master_Log_Pos	<read_master_log_pos>
+Relay_Log_File	mysqld-relay-bin-slave1.000002
+Relay_Log_Pos	<relay_log_pos>
+Relay_Master_Log_File	master-bin.000001
+Slave_IO_Running	Yes
+Slave_SQL_Running	Yes
+Replicate_Do_DB	
+Replicate_Ignore_DB	
+Replicate_Do_Table	
+Replicate_Ignore_Table	
+Replicate_Wild_Do_Table	
+Replicate_Wild_Ignore_Table	
+Last_Errno	0
+Last_Error	
+Skip_Counter	0
+Exec_Master_Log_Pos	<read_master_log_pos>
+Relay_Log_Space	<relay_log_space1>
+Until_Condition	None
+Until_Log_File	
+Until_Log_Pos	0
+Master_SSL_Allowed	No
+Master_SSL_CA_File	
+Master_SSL_CA_Path	
+Master_SSL_Cert	
+Master_SSL_Cipher	
+Master_SSL_Key	
+Seconds_Behind_Master	0
+Master_SSL_Verify_Server_Cert	No
+Last_IO_Errno	0
+Last_IO_Error	
+Last_SQL_Errno	0
+Last_SQL_Error	
+Replicate_Ignore_Server_Ids	
+Master_Server_Id	1
+Master_SSL_Crl	
+Master_SSL_Crlpath	
+Using_Gtid	No
+Gtid_IO_Pos	
+Replicate_Do_Domain_Ids	
+Replicate_Ignore_Domain_Ids	
+Parallel_Mode	optimistic
+SQL_Delay	0
+SQL_Remaining_Delay	NULL
+Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
+Slave_DDL_Groups	0
+Slave_Non_Transactional_Groups	0
+Slave_Transactional_Groups	0
+Retried_transactions	0
+Max_relay_log_size	1073741824
+Executed_log_entries	7
+Slave_received_heartbeats	0
+Slave_heartbeat_period	60.000
+Gtid_Slave_Pos	
+Connection_name	slave2
+Slave_SQL_State	Slave has read all relay log; waiting for more updates
+Slave_IO_State	Waiting for master to send event
+Master_Host	127.0.0.1
+Master_User	root
+Master_Port	MYPORT_2
+Connect_Retry	60
+Master_Log_File	master-bin.000001
+Read_Master_Log_Pos	<read_master_log_pos>
+Relay_Log_File	mysqld-relay-bin-slave2.000002
+Relay_Log_Pos	<relay_log_pos>
+Relay_Master_Log_File	master-bin.000001
+Slave_IO_Running	Yes
+Slave_SQL_Running	Yes
+Replicate_Do_DB	
+Replicate_Ignore_DB	
+Replicate_Do_Table	
+Replicate_Ignore_Table	
+Replicate_Wild_Do_Table	
+Replicate_Wild_Ignore_Table	
+Last_Errno	0
+Last_Error	
+Skip_Counter	0
+Exec_Master_Log_Pos	<read_master_log_pos>
+Relay_Log_Space	<relay_log_space1>
+Until_Condition	None
+Until_Log_File	
+Until_Log_Pos	0
+Master_SSL_Allowed	No
+Master_SSL_CA_File	
+Master_SSL_CA_Path	
+Master_SSL_Cert	
+Master_SSL_Cipher	
+Master_SSL_Key	
+Seconds_Behind_Master	0
+Master_SSL_Verify_Server_Cert	No
+Last_IO_Errno	0
+Last_IO_Error	
+Last_SQL_Errno	0
+Last_SQL_Error	
+Replicate_Ignore_Server_Ids	
+Master_Server_Id	2
+Master_SSL_Crl	
+Master_SSL_Crlpath	
+Using_Gtid	No
+Gtid_IO_Pos	
+Replicate_Do_Domain_Ids	
+Replicate_Ignore_Domain_Ids	
+Parallel_Mode	optimistic
+SQL_Delay	0
+SQL_Remaining_Delay	NULL
+Slave_SQL_Running_State	Slave has read all relay log; waiting for more updates
+Slave_DDL_Groups	0
+Slave_Non_Transactional_Groups	0
+Slave_Transactional_Groups	0
+Retried_transactions	0
+Max_relay_log_size	1073741824
+Executed_log_entries	7
+Slave_received_heartbeats	0
+Slave_heartbeat_period	60.000
+Gtid_Slave_Pos	
+"Command: STOP ALL SLAVES --> STOP ALL REPLICAS"
+STOP ALL REPLICAS;
+Warnings:
+Note	1938	SLAVE 'slave2' stopped
+Note	1938	SLAVE 'slave1' stopped
+include/reset_master_slave.inc
+disconnect slave;
+connection master1;
+include/reset_master_slave.inc
+disconnect master1;
+connection master2;
+include/reset_master_slave.inc
+disconnect master2;

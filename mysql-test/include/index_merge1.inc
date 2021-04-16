@@ -182,7 +182,7 @@ alter table t2 add index i321(key3, key2, key1);
 explain select key3 from t2 where key1 = 100 or key2 = 100;
 
 #   index_merge vs 'index', 'index' is better.
-explain select key3 from t2 where key1 < 500 or key2 < 500;
+explain select key3 from t2 where key1 < 600 or key2 < 600;
 
 #   index_merge vs 'all', index_merge is better.
 explain select key7 from t2 where key1 <100 or key2 < 100;
@@ -374,7 +374,7 @@ drop table t1;
 if ($merge_table_support)
 {
 #
-# BUG#17314: Index_merge/intersection not choosen by the optimizer for MERGE tables
+# BUG#17314: Index_merge/intersection not chosen by the optimizer for MERGE tables
 #
 create table t1 (
   a int, b int,

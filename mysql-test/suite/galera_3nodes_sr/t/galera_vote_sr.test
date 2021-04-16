@@ -1,0 +1,39 @@
+#
+# Test voting while an SR transaction is in progress
+#
+
+--source include/galera_cluster.inc
+--source include/big_test.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+--echo Inconsistency on the first fragment
+--let $inconsistent_fragment=1
+--source galera_vote_sr.inc
+
+--echo Inconsistency on a middle fragment
+--let $inconsistent_fragment=3
+--source galera_vote_sr.inc
+
+--echo Inconsistency on the commit fragment
+--let $inconsistent_fragment=5
+--source galera_vote_sr.inc
+
+--connection node_2
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '1' for key 'PRIMARY'");
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '3' for key 'PRIMARY'");
+CALL mtr.add_suppression("Slave SQL: Could not execute Write_rows event on table test.t1; Duplicate entry '5' for key 'PRIMARY'");
+CALL mtr.add_suppression("Write_rows_v1 apply failed");
+CALL mtr.add_suppression("Inconsistent by consensus");
+CALL mtr.add_suppression("WSREP: Failed to apply write set: ");
+#CALL mtr.add_suppression("no THD for trx");
+CALL mtr.add_suppression("WSREP: Failed to report last committed");
+
+# Restore original auto_increment_offset values.
+--source ../galera/include/auto_increment_offset_restore.inc

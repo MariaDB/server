@@ -146,7 +146,7 @@
 /** The following speeds up inserts to InnoDB tables by suppressing unique
    key checks in some cases */
 #define OPTION_RELAXED_UNIQUE_CHECKS    (1ULL << 27) // THD, user, binlog
-#define SELECT_NO_UNLOCK                (1ULL << 28) // SELECT, intern
+#define OPTION_IF_EXISTS                (1ULL << 28) // binlog
 #define OPTION_SCHEMA_TABLE             (1ULL << 29) // SELECT, intern
 /** Flag set if setup_tables already done */
 #define OPTION_SETUP_TABLES_DONE        (1ULL << 30) // intern
@@ -179,7 +179,11 @@
 #define OPTION_RPL_SKIP_PARALLEL        (1ULL << 38)
 #define OPTION_NO_QUERY_CACHE           (1ULL << 39) // SELECT, user
 #define OPTION_PROCEDURE_CLAUSE         (1ULL << 40) // Internal usage
-
+#define SELECT_NO_UNLOCK                (1ULL << 41) // SELECT, intern
+#define SELECT_NO_UNLOCK                (1ULL << 41) // SELECT, intern
+#define OPTION_BIN_TMP_LOG_OFF          (1ULL << 42) // disable binlog, intern
+/* Disable commit of binlog. Used to combine many DDL's and DML's as one */
+#define OPTION_BIN_COMMIT_OFF           (1ULL << 43)
 
 #define OPTION_LEX_FOUND_COMMENT        (1ULL << 0) //  intern, parser
 
@@ -229,6 +233,7 @@
 #define OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY (1ULL << 32)
 #define OPTIMIZER_SWITCH_USE_ROWID_FILTER          (1ULL << 33)
 #define OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING (1ULL << 34)
+#define OPTIMIZER_SWITCH_NOT_NULL_RANGE_SCAN       (1ULL << 35)
 
 #define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                     OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
@@ -389,7 +394,8 @@ enum enum_yes_no_unknown
 
 /* sql_yacc.cc */
 #ifndef DBUG_OFF
-extern void turn_parser_debug_on();
+extern void turn_parser_debug_on_MYSQLparse();
+extern void turn_parser_debug_on_ORAparse();
 
 #endif
 

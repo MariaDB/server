@@ -1,4 +1,4 @@
-/* Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2010, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -26,7 +26,7 @@
 */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "pfs_instr_class.h"
 #include "pfs_column_types.h"
 #include "pfs_column_values.h"
@@ -35,6 +35,7 @@
 #include "pfs_instr.h"
 #include "pfs_timer.h"
 #include "pfs_visitor.h"
+#include "field.h"
 
 THR_LOCK table_esgs_global_by_event_name::m_table_lock;
 
@@ -46,8 +47,7 @@ table_esgs_global_by_event_name::m_share=
   table_esgs_global_by_event_name::create,
   NULL, /* write_row */
   table_esgs_global_by_event_name::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  table_esgs_global_by_event_name::get_row_count,
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_stages_summary_global_by_event_name("
@@ -56,7 +56,8 @@ table_esgs_global_by_event_name::m_share=
                       "SUM_TIMER_WAIT BIGINT unsigned not null,"
                       "MIN_TIMER_WAIT BIGINT unsigned not null,"
                       "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null)") }
+                      "MAX_TIMER_WAIT BIGINT unsigned not null)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table*
@@ -74,6 +75,12 @@ table_esgs_global_by_event_name::delete_all_rows(void)
   reset_events_stages_by_host();
   reset_events_stages_global();
   return 0;
+}
+
+ha_rows
+table_esgs_global_by_event_name::get_row_count(void)
+{
+  return stage_class_max;
 }
 
 table_esgs_global_by_event_name::table_esgs_global_by_event_name()
@@ -140,9 +147,12 @@ void table_esgs_global_by_event_name
   m_row.m_event_name.make_row(klass);
 
   PFS_connection_stage_visitor visitor(klass);
-  PFS_connection_iterator::visit_global(true, /* hosts */
+  PFS_connection_iterator::visit_global(true,  /* hosts */
                                         false, /* users */
-                                        true, true, & visitor);
+                                        true,  /* accounts */
+                                        true,  /* threads */
+                                        false, /* THDs */
+                                        & visitor);
 
   m_row.m_stat.set(m_normalizer, & visitor.m_stat);
   m_row_exists= true;

@@ -1,0 +1,44 @@
+#
+# MDEV-21975 Add BINLOG REPLAY privilege and bind new privileges to gtid_seq_no, preudo_thread_id, server_id, gtid_domain_id
+#
+SET @session=@@session.gtid_seq_no;
+# Test that "SET gtid_seq_no" is not allowed without BINLOG REPLAY or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE BINLOG REPLAY, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL gtid_seq_no=1;
+ERROR HY000: Variable 'gtid_seq_no' is a SESSION variable and can't be used with SET GLOBAL
+SET gtid_seq_no=1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation
+SET SESSION gtid_seq_no=1;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET gtid_seq_no" is allowed with BINLOG REPLAY
+CREATE USER user1@localhost;
+GRANT BINLOG REPLAY ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL gtid_seq_no=1;
+ERROR HY000: Variable 'gtid_seq_no' is a SESSION variable and can't be used with SET GLOBAL
+SET gtid_seq_no=1;
+SET SESSION gtid_seq_no=1;
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET gtid_seq_no" is allowed with SUPER
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL gtid_seq_no=1;
+ERROR HY000: Variable 'gtid_seq_no' is a SESSION variable and can't be used with SET GLOBAL
+SET gtid_seq_no=1;
+SET SESSION gtid_seq_no=1;
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+SET @@session.gtid_seq_no=@session;

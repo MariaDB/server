@@ -15,9 +15,9 @@
 # limit the test to engines which support INSERT DELAYED
 disable_query_log;
 --require include/true.require
-select @@global.storage_engine in
+select @@global.default_storage_engine in
 ("memory","myisam","archive","blackhole") and
-@@session.storage_engine in
+@@session.default_storage_engine in
 ("memory","myisam","archive","blackhole") as `TRUE`;
 enable_query_log;
 

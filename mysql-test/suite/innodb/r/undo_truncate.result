@@ -1,8 +1,6 @@
-SET @save_undo_logs = @@GLOBAL.innodb_undo_logs;
 SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET @save_truncate = @@GLOBAL.innodb_undo_log_truncate;
 SET GLOBAL innodb_undo_log_truncate = 0;
-SET GLOBAL innodb_undo_logs = 4;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
 SET @trunc_start=
 (SELECT variable_value FROM information_schema.global_status
@@ -55,6 +53,5 @@ drop table t1, t2;
 drop PROCEDURE populate_t1;
 drop PROCEDURE populate_t2;
 InnoDB		0 transactions not purged
-SET GLOBAL innodb_undo_logs = @save_undo_logs;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 SET GLOBAL innodb_undo_log_truncate = @save_truncate;

@@ -26,7 +26,7 @@
         missingok
         compress
     postrotate
-	# just if mysqld is really running
+	# just if mariadbd is really running
 	if test -x @bindir@/mysqladmin && \
 	   @bindir@/mysqladmin ping &>/dev/null
 	then

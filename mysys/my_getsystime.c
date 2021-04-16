@@ -21,10 +21,8 @@
 #ifdef _WIN32
 #define OFFSET_TO_EPOC 116444736000000000LL
 static ulonglong query_performance_frequency;
-typedef void (WINAPI* get_system_time_as_filetime_t)(LPFILETIME);
-static get_system_time_as_filetime_t
-  my_GetSystemTimePreciseAsFileTime= GetSystemTimeAsFileTime;
 #endif
+
 #ifdef HAVE_LINUX_UNISTD_H
 #include <linux/unistd.h>
 #endif
@@ -57,20 +55,12 @@ ulonglong my_interval_timer()
 #elif defined(HAVE_GETHRTIME)
   return gethrtime();
 #elif defined(_WIN32)
+  DBUG_ASSERT(query_performance_frequency);
   LARGE_INTEGER t_cnt;
-  if (query_performance_frequency)
-  {
-    QueryPerformanceCounter(&t_cnt);
-    return (t_cnt.QuadPart / query_performance_frequency * 1000000000ULL) +
+  QueryPerformanceCounter(&t_cnt);
+  return (t_cnt.QuadPart / query_performance_frequency * 1000000000ULL) +
             ((t_cnt.QuadPart % query_performance_frequency) * 1000000000ULL /
              query_performance_frequency);
-  }
-  else
-  {
-    ulonglong newtime;
-    my_GetSystemTimePreciseAsFileTime((FILETIME*)&newtime);
-    return newtime*100ULL;
-  }
 #else
   /* TODO: check for other possibilities for hi-res timestamping */
   struct timeval tv;
@@ -87,7 +77,7 @@ my_hrtime_t my_hrtime()
   my_hrtime_t hrtime;
 #if defined(_WIN32)
   ulonglong newtime;
-  my_GetSystemTimePreciseAsFileTime((FILETIME*)&newtime);
+  GetSystemTimePreciseAsFileTime((FILETIME*)&newtime);
   hrtime.val= (newtime - OFFSET_TO_EPOC)/10;
 #elif defined(HAVE_CLOCK_GETTIME)
   struct timespec tp;
@@ -129,14 +119,8 @@ void my_time_init()
 #ifdef _WIN32
   compile_time_assert(sizeof(LARGE_INTEGER) ==
                       sizeof(query_performance_frequency));
-  if (QueryPerformanceFrequency((LARGE_INTEGER *)&query_performance_frequency) == 0)
-    query_performance_frequency= 0;
-
-  get_system_time_as_filetime_t f= (get_system_time_as_filetime_t)
-    GetProcAddress(GetModuleHandle("kernel32"),
-                   "GetSystemTimePreciseAsFileTime");
-  if (f)
-    my_GetSystemTimePreciseAsFileTime= f;
+  QueryPerformanceFrequency((LARGE_INTEGER *)&query_performance_frequency);
+  DBUG_ASSERT(query_performance_frequency);
 #endif
 }
 

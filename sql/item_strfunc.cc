@@ -43,7 +43,6 @@
 #include "set_var.h"
 #include "sql_base.h"
 #include "sql_time.h"
-#include "sql_acl.h"                            // SUPER_ACL
 #include "des_key_file.h"       // st_des_keyschedule, st_des_keyblock
 #include "password.h"           // my_make_scrambled_password,
                                 // my_make_scrambled_password_323
@@ -58,25 +57,21 @@ C_MODE_END
 
 size_t username_char_length= 80;
 
+/*
+  Calculate max length of string from length argument to LEFT and RIGHT
+*/
 
-class Repeat_count
+static uint32 max_length_for_string(Item *item)
 {
-  ulonglong m_count;
-public:
-  Repeat_count(Item *item)
-   :m_count(0)
+  ulonglong length= item->val_int();
+  /* Note that if value is NULL, val_int() returned 0 */
+  if (length > (ulonglong) INT_MAX32)
   {
-    Longlong_hybrid nr= item->to_longlong_hybrid();
-    if (!item->null_value && !nr.neg())
-    {
-      // Assume that the maximum length of a String is < INT_MAX32
-      m_count= (ulonglong) nr.value();
-      if (m_count > (ulonglong) INT_MAX32)
-        m_count= (ulonglong) INT_MAX32;
-    }
+    /* Limit string length to maxium string length in MariaDB (2G) */
+    length= item->unsigned_flag ? (ulonglong) INT_MAX32 : 0;
   }
-  ulonglong count() const { return m_count; }
-};
+  return (uint32) length;
+}
 
 
 /*
@@ -842,7 +837,7 @@ String *Item_func_des_decrypt::val_str(String *str)
   {
     uint key_number=(uint) (*res)[0] & 127;
     // Check if automatic key and that we have privilege to uncompress using it
-    if (!(current_thd->security_ctx->master_access & SUPER_ACL) ||
+    if (!(current_thd->security_ctx->master_access & PRIV_DES_DECRYPT_ONE_ARG) ||
         key_number > 9)
       goto error;
 
@@ -1103,7 +1098,7 @@ String *Item_func_reverse::val_str(String *str)
   end= res->end();
   tmp= (char *) str->end();
 #ifdef USE_MB
-  if (use_mb(res->charset()))
+  if (res->use_mb())
   {
     uint32 l;
     while (ptr < end)
@@ -1176,7 +1171,7 @@ String *Item_func_replace::val_str_internal(String *str,
   res->set_charset(collation.collation);
 
 #ifdef USE_MB
-  binary_cmp = ((res->charset()->state & MY_CS_BINSORT) || !use_mb(res->charset()));
+  binary_cmp = ((res->charset()->state & MY_CS_BINSORT) || !res->use_mb());
 #endif
 
   if (res2->length() == 0)
@@ -1291,10 +1286,10 @@ null:
 bool Item_func_replace::fix_length_and_dec()
 {
   ulonglong char_length= (ulonglong) args[0]->max_char_length();
-  int diff=(int) (args[2]->max_char_length() - args[1]->max_char_length());
-  if (diff > 0 && args[1]->max_char_length())
+  int diff=(int) (args[2]->max_char_length() - 1);
+  if (diff > 0)
   {						// Calculate of maxreplaces
-    ulonglong max_substrs= char_length / args[1]->max_char_length();
+    ulonglong max_substrs= char_length;
     char_length+= max_substrs * (uint) diff;
   }
 
@@ -1306,13 +1301,6 @@ bool Item_func_replace::fix_length_and_dec()
 
 
 /*********************************************************************/
-bool Item_func_regexp_replace::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_str_func::fix_fields(thd, ref);
-}
-
-
 bool Item_func_regexp_replace::fix_length_and_dec()
 {
   if (agg_arg_charsets_for_string_result_with_comparison(collation, args, 3))
@@ -1342,8 +1330,8 @@ bool Item_func_regexp_replace::append_replacement(String *str,
     my_wc_t wc;
     int cnv, n;
 
-    if ((cnv= cs->cset->mb_wc(cs, &wc, (const uchar *) beg,
-                                       (const uchar *) end)) < 1)
+    if ((cnv= cs->mb_wc(&wc, (const uchar *) beg,
+                             (const uchar *) end)) < 1)
       break; /* End of line */
     beg+= cnv;
 
@@ -1354,8 +1342,8 @@ bool Item_func_regexp_replace::append_replacement(String *str,
       continue;
     }
 
-    if ((cnv= cs->cset->mb_wc(cs, &wc, (const uchar *) beg,
-                                       (const uchar *) end)) < 1)
+    if ((cnv= cs->mb_wc(&wc, (const uchar *) beg,
+                             (const uchar *) end)) < 1)
       break; /* End of line */
     beg+= cnv;
 
@@ -1364,7 +1352,7 @@ bool Item_func_regexp_replace::append_replacement(String *str,
       if (n < re.nsubpatterns())
       {
         /* A valid sub-pattern reference found */
-        int pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
+        size_t pbeg= re.subpattern_start(n), plength= re.subpattern_end(n) - pbeg;
         if (str->append(source->str + pbeg, plength, cs))
           return true;
       }
@@ -1393,7 +1381,7 @@ String *Item_func_regexp_replace::val_str(String *str)
   String *source= args[0]->val_str(&tmp0);
   String *replace= args[2]->val_str(&tmp2);
   LEX_CSTRING src, rpl;
-  int startoffset= 0;
+  size_t startoffset= 0;
 
   if ((null_value= (args[0]->null_value || args[2]->null_value ||
                     re.recompile(args[1]))))
@@ -1403,8 +1391,8 @@ String *Item_func_regexp_replace::val_str(String *str)
       !(replace= re.convert_if_needed(replace, &re.replace_converter)))
     goto err;
 
-  src= source->lex_cstring();
-  rpl= replace->lex_cstring();
+  source->get_value(&src);
+  replace->get_value(&rpl);
 
   str->length(0);
   str->set_charset(collation.collation);
@@ -1422,7 +1410,8 @@ String *Item_func_regexp_replace::val_str(String *str)
         Append the rest of the source string
         starting from startoffset until the end of the source.
       */
-      if (str->append(src.str + startoffset, src.length - startoffset, re.library_charset()))
+      if (str->append(src.str + startoffset, src.length - startoffset,
+                      re.library_charset()))
         goto err;
       return str;
     }
@@ -1431,7 +1420,8 @@ String *Item_func_regexp_replace::val_str(String *str)
       Append prefix, the part before the matching pattern.
       starting from startoffset until the next match
     */
-    if (str->append(src.str + startoffset, re.subpattern_start(0) - startoffset, re.library_charset()))
+    if (str->append(src.str + startoffset,
+          re.subpattern_start(0) - startoffset, re.library_charset()))
       goto err;
 
     // Append replacement
@@ -1446,13 +1436,6 @@ String *Item_func_regexp_replace::val_str(String *str)
 err:
   null_value= true;
   return (String *) 0;
-}
-
-
-bool Item_func_regexp_substr::fix_fields(THD *thd, Item **ref)
-{
-  re.set_recursion_limit(thd);
-  return Item_str_func::fix_fields(thd, ref);
 }
 
 
@@ -1490,8 +1473,7 @@ String *Item_func_regexp_substr::val_str(String *str)
     return str;
 
   if (str->append(source->ptr() + re.subpattern_start(0),
-                  re.subpattern_end(0) - re.subpattern_start(0),
-                  re.library_charset()))
+                  re.subpattern_length(0), re.library_charset()))
     goto err;
 
   return str;
@@ -1656,8 +1638,8 @@ void Item_str_func::left_right_max_length()
   uint32 char_length= args[0]->max_char_length();
   if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    Repeat_count tmp(args[1]);
-    set_if_smaller(char_length, (uint) tmp.count());
+    uint32 length= max_length_for_string(args[1]);
+    set_if_smaller(char_length, length);
   }
   fix_char_length(char_length);
 }
@@ -1818,7 +1800,7 @@ String *Item_func_substr_index::val_str(String *str)
   res->set_charset(collation.collation);
 
 #ifdef USE_MB
-  if (use_mb(res->charset()))
+  if (res->use_mb())
   {
     const char *ptr= res->ptr();
     const char *strend= ptr+res->length();
@@ -2023,7 +2005,7 @@ String *Item_func_rtrim::val_str(String *str)
   {
     char chr=(*remove_str)[0];
 #ifdef USE_MB
-    if (use_mb(collation.collation))
+    if (collation.collation->use_mb())
     {
       while (ptr < end)
       {
@@ -2040,7 +2022,7 @@ String *Item_func_rtrim::val_str(String *str)
   {
     const char *r_ptr=remove_str->ptr();
 #ifdef USE_MB
-    if (use_mb(collation.collation))
+    if (collation.collation->use_mb())
     {
   loop:
       while (ptr + remove_length < end)
@@ -2099,7 +2081,7 @@ String *Item_func_trim::val_str(String *str)
   while (ptr+remove_length <= end && !memcmp(ptr,r_ptr,remove_length))
     ptr+=remove_length;
 #ifdef USE_MB
-  if (use_mb(collation.collation))
+  if (collation.collation->use_mb())
   {
     char *p=ptr;
     uint32 l;
@@ -2570,10 +2552,10 @@ String *Item_func_soundex::val_str(String *str)
   
   for ( ; ; ) /* Skip pre-space */
   {
-    if ((rc= cs->cset->mb_wc(cs, &wc, (uchar*) from, (uchar*) end)) <= 0)
+    if ((rc= cs->mb_wc(&wc, (uchar*) from, (uchar*) end)) <= 0)
       return make_empty_result(); /* EOL or invalid byte sequence */
     
-    if (rc == 1 && cs->ctype)
+    if (rc == 1 && cs->m_ctype)
     {
       /* Single byte letter found */
       if (my_isalpha(cs, *from))
@@ -2592,7 +2574,7 @@ String *Item_func_soundex::val_str(String *str)
         /* Multibyte letter found */
         wc= soundex_toupper(wc);
         last_ch= get_scode(wc);     // Code of the first letter
-        if ((rc= cs->cset->wc_mb(cs, wc, (uchar*) to, (uchar*) to_end)) <= 0)
+        if ((rc= cs->wc_mb(wc, (uchar*) to, (uchar*) to_end)) <= 0)
         {
           /* Extra safety - should not really happen */
           DBUG_ASSERT(false);
@@ -2610,10 +2592,10 @@ String *Item_func_soundex::val_str(String *str)
   */
   for (nchars= 1 ; ; )
   {
-    if ((rc= cs->cset->mb_wc(cs, &wc, (uchar*) from, (uchar*) end)) <= 0)
+    if ((rc= cs->mb_wc(&wc, (uchar*) from, (uchar*) end)) <= 0)
       break; /* EOL or invalid byte sequence */
 
-    if (rc == 1 && cs->ctype)
+    if (rc == 1 && cs->m_ctype)
     {
       if (!my_isalpha(cs, *from++))
         continue;
@@ -2629,8 +2611,7 @@ String *Item_func_soundex::val_str(String *str)
     if ((ch != '0') && (ch != last_ch)) // if not skipped or double
     {
       // letter, copy to output
-      if ((rc= cs->cset->wc_mb(cs, (my_wc_t) ch,
-                               (uchar*) to, (uchar*) to_end)) <= 0)
+      if ((rc= cs->wc_mb((my_wc_t) ch, (uchar*) to, (uchar*) to_end)) <= 0)
       {
         // Extra safety - should not really happen
         DBUG_ASSERT(false);
@@ -2646,7 +2627,7 @@ String *Item_func_soundex::val_str(String *str)
   if (nchars < 4) 
   {
     uint nbytes= (4 - nchars) * cs->mbminlen;
-    cs->cset->fill(cs, to, nbytes, '0');
+    cs->fill(to, nbytes, '0');
     to+= nbytes;
   }
 
@@ -3048,8 +3029,8 @@ bool Item_func_repeat::fix_length_and_dec()
   DBUG_ASSERT(collation.collation != NULL);
   if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    Repeat_count tmp(args[1]);
-    ulonglong char_length= (ulonglong) args[0]->max_char_length() * tmp.count();
+    uint32 length= max_length_for_string(args[1]);
+    ulonglong char_length= (ulonglong) args[0]->max_char_length() * length;
     fix_char_length_ulonglong(char_length);
     return false;
   }
@@ -3122,7 +3103,7 @@ bool Item_func_space::fix_length_and_dec()
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   if (args[0]->const_item() && !args[0]->is_expensive())
   {
-    fix_char_length_ulonglong(Repeat_count(args[0]).count());
+    fix_char_length_ulonglong(max_length_for_string(args[0]));
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
@@ -3168,7 +3149,7 @@ String *Item_func_space::val_str(String *str)
     goto err;
   str->length(tot_length);
   str->set_charset(cs);
-  cs->cset->fill(cs, (char*) str->ptr(), tot_length, ' ');
+  cs->fill((char*) str->ptr(), tot_length, ' ');
   return str;
 
 err:
@@ -3241,7 +3222,7 @@ bool Item_func_pad::fix_length_and_dec()
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
   if (args[1]->const_item() && !args[1]->is_expensive())
   {
-    fix_char_length_ulonglong(Repeat_count(args[1]).count());
+    fix_char_length_ulonglong(max_length_for_string(args[1]));
     return false;
   }
   max_length= MAX_BLOB_WIDTH;
@@ -3502,11 +3483,11 @@ String *Item_func_conv::val_str(String *str)
   else
   {
     if (from_base < 0)
-      dec= my_strntoll(res->charset(), res->ptr(), res->length(),
-                       -from_base, &endptr, &err);
+      dec= res->charset()->strntoll(res->ptr(), res->length(),
+                                    -from_base, &endptr, &err);
     else
-      dec= (longlong) my_strntoull(res->charset(), res->ptr(), res->length(),
-                                   from_base, &endptr, &err);
+      dec= (longlong) res->charset()->strntoull(res->ptr(), res->length(),
+                                                from_base, &endptr, &err);
   }
 
   if (!(ptr= longlong2str(dec, ans, to_base)) ||
@@ -3628,7 +3609,7 @@ bool Item_func_weight_string::fix_length_and_dec()
     size_t char_length;
     char_length= ((cs->state & MY_CS_STRNXFRM_BAD_NWEIGHTS) || !nweights) ?
                  args[0]->max_char_length() : nweights * cs->levels_for_order;
-    max_length= (uint32)cs->coll->strnxfrmlen(cs, char_length * cs->mbmaxlen);
+    max_length= (uint32) cs->strnxfrmlen(char_length * cs->mbmaxlen);
   }
   maybe_null= 1;
   return FALSE;
@@ -3679,7 +3660,7 @@ String *Item_func_weight_string::val_str(String *str)
         char_length= (flags & MY_STRXFRM_PAD_WITH_SPACE) ?
                       res->numchars() : (res->length() / cs->mbminlen);
     }
-    tmp_length= cs->coll->strnxfrmlen(cs, char_length * cs->mbmaxlen);
+    tmp_length= cs->strnxfrmlen(char_length * cs->mbmaxlen);
   }
 
   {
@@ -3698,11 +3679,10 @@ String *Item_func_weight_string::val_str(String *str)
   if (str->alloc(tmp_length))
     goto nl;
 
-  frm_length= cs->coll->strnxfrm(cs,
-                                 (uchar *) str->ptr(), tmp_length,
-                                 nweights ? nweights : (uint)tmp_length,
-                                 (const uchar *) res->ptr(), res->length(),
-                                 flags);
+  frm_length= cs->strnxfrm((char*) str->ptr(), tmp_length,
+                           nweights ? nweights : (uint) tmp_length,
+                           res->ptr(), res->length(),
+                           flags);
   DBUG_ASSERT(frm_length <= tmp_length);
 
   str->length(frm_length);
@@ -3822,10 +3802,10 @@ String *Item_func_like_range::val_str(String *str)
     goto err;
   null_value=0;
 
-  if (cs->coll->like_range(cs, res->ptr(), res->length(),
-                           '\\', '_', '%', (size_t)nbytes,
-                           (char*) min_str.ptr(), (char*) max_str.ptr(),
-                           &min_len, &max_len))
+  if (cs->like_range(res->ptr(), res->length(),
+                     '\\', '_', '%', (size_t)nbytes,
+                     (char*) min_str.ptr(), (char*) max_str.ptr(),
+                     &min_len, &max_len))
     goto err;
 
   min_str.set_charset(collation.collation);
@@ -4094,7 +4074,7 @@ String *Item_func_quote::val_str(String *str)
     to_end= (uchar*) to + new_length;
 
     /* Put leading quote */
-    if ((mblen= cs->cset->wc_mb(cs, '\'', (uchar *) to, to_end)) <= 0)
+    if ((mblen= cs->wc_mb('\'', (uchar *) to, to_end)) <= 0)
       goto toolong;
     to+= mblen;
 
@@ -4102,7 +4082,7 @@ String *Item_func_quote::val_str(String *str)
     {
       my_wc_t wc;
       bool escape;
-      if ((mblen= cs->cset->mb_wc(cs, &wc, (uchar*) start, (uchar*) end)) <= 0)
+      if ((mblen= cs->mb_wc(&wc, (uchar*) start, (uchar*) end)) <= 0)
         goto null;
       start+= mblen;
       switch (wc) {
@@ -4114,17 +4094,17 @@ String *Item_func_quote::val_str(String *str)
       }
       if (escape)
       {
-        if ((mblen= cs->cset->wc_mb(cs, '\\', (uchar*) to, to_end)) <= 0)
+        if ((mblen= cs->wc_mb('\\', (uchar*) to, to_end)) <= 0)
           goto toolong;
         to+= mblen;
       }
-      if ((mblen= cs->cset->wc_mb(cs, wc, (uchar*) to, to_end)) <= 0)
+      if ((mblen= cs->wc_mb(wc, (uchar*) to, to_end)) <= 0)
         goto toolong;
       to+= mblen;
     }
 
     /* Put trailing quote */
-    if ((mblen= cs->cset->wc_mb(cs, '\'', (uchar *) to, to_end)) <= 0)
+    if ((mblen= cs->wc_mb('\'', (uchar *) to, to_end)) <= 0)
       goto toolong;
     to+= mblen;
     new_length= (uint)(to - str->ptr());
@@ -4437,24 +4417,7 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
       uint valpos= i * 2 + 1;
       DYNAMIC_COLUMN_TYPE type= defs[i].type;
       if (type == DYN_COL_NULL)
-        switch (args[valpos]->field_type())
-        {
-        case MYSQL_TYPE_VARCHAR:
-        case MYSQL_TYPE_ENUM:
-        case MYSQL_TYPE_SET:
-        case MYSQL_TYPE_TINY_BLOB:
-        case MYSQL_TYPE_MEDIUM_BLOB:
-        case MYSQL_TYPE_LONG_BLOB:
-        case MYSQL_TYPE_BLOB:
-        case MYSQL_TYPE_VAR_STRING:
-        case MYSQL_TYPE_STRING:
-        case MYSQL_TYPE_GEOMETRY:
-          type= DYN_COL_STRING;
-          break;
-        default:
-          break;
-        }
-
+        type= args[valpos]->type_handler()->dyncol_type(args[valpos]);
       if (type == DYN_COL_STRING &&
           args[valpos]->type() == Item::FUNC_ITEM &&
           ((Item_func *)args[valpos])->functype() == DYNCOL_FUNC)
@@ -4471,63 +4434,7 @@ bool Item_func_dyncol_create::prepare_arguments(THD *thd, bool force_names_arg)
     uint valpos= i * 2 + 1;
     DYNAMIC_COLUMN_TYPE type= defs[i].type;
     if (type == DYN_COL_NULL) // auto detect
-    {
-      /*
-        We don't have a default here to ensure we get a warning if
-        one adds a new not handled MYSQL_TYPE_...
-      */
-      switch (args[valpos]->field_type()) {
-      case MYSQL_TYPE_DECIMAL:
-      case MYSQL_TYPE_NEWDECIMAL:
-        type= DYN_COL_DECIMAL;
-        break;
-      case MYSQL_TYPE_TINY:
-      case MYSQL_TYPE_SHORT:
-      case MYSQL_TYPE_LONG:
-      case MYSQL_TYPE_LONGLONG:
-      case MYSQL_TYPE_INT24:
-      case MYSQL_TYPE_YEAR:
-      case MYSQL_TYPE_BIT:
-        type= args[valpos]->unsigned_flag ? DYN_COL_UINT : DYN_COL_INT;
-        break;
-      case MYSQL_TYPE_FLOAT:
-      case MYSQL_TYPE_DOUBLE:
-        type= DYN_COL_DOUBLE;
-        break;
-      case MYSQL_TYPE_NULL:
-        type= DYN_COL_NULL;
-        break;
-      case MYSQL_TYPE_TIMESTAMP:
-      case MYSQL_TYPE_TIMESTAMP2:
-      case MYSQL_TYPE_DATETIME:
-      case MYSQL_TYPE_DATETIME2:
-        type= DYN_COL_DATETIME;
-	break;
-      case MYSQL_TYPE_DATE:
-      case MYSQL_TYPE_NEWDATE:
-        type= DYN_COL_DATE;
-        break;
-      case MYSQL_TYPE_TIME:
-      case MYSQL_TYPE_TIME2:
-        type= DYN_COL_TIME;
-        break;
-      case MYSQL_TYPE_VARCHAR:
-      case MYSQL_TYPE_ENUM:
-      case MYSQL_TYPE_SET:
-      case MYSQL_TYPE_TINY_BLOB:
-      case MYSQL_TYPE_MEDIUM_BLOB:
-      case MYSQL_TYPE_LONG_BLOB:
-      case MYSQL_TYPE_BLOB:
-      case MYSQL_TYPE_VAR_STRING:
-      case MYSQL_TYPE_STRING:
-      case MYSQL_TYPE_GEOMETRY:
-        type= DYN_COL_STRING;
-        break;
-      case MYSQL_TYPE_VARCHAR_COMPRESSED:
-      case MYSQL_TYPE_BLOB_COMPRESSED:
-        DBUG_ASSERT(0);
-      }
-    }
+      type= args[valpos]->type_handler()->dyncol_type(args[valpos]);
     if (type == DYN_COL_STRING &&
         args[valpos]->type() == Item::FUNC_ITEM &&
         ((Item_func *)args[valpos])->functype() == DYNCOL_FUNC)
@@ -5105,8 +5012,8 @@ double Item_dyncol_get::val_real()
   {
     int error;
     char *end;
-    double res= my_strntod(val.x.string.charset, (char*) val.x.string.value.str,
-                           val.x.string.value.length, &end, &error);
+    double res= val.x.string.charset->strntod((char*) val.x.string.value.str,
+                                              val.x.string.value.length, &end, &error);
 
     if (end != (char*) val.x.string.value.str + val.x.string.value.length ||
         error)
@@ -5350,28 +5257,33 @@ String *Item_temptable_rowid::val_str(String *str)
   str_value.set((char*)(table->file->ref), max_length, &my_charset_bin);
   return &str_value;
 }
+
 #ifdef WITH_WSREP
 
 #include "wsrep_mysqld.h"
+/* Format is %d-%d-%llu */
+#define WSREP_MAX_WSREP_SERVER_GTID_STR_LEN 10+1+10+1+20
 
 String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 {
-  wsrep::gtid gtid= current_thd->wsrep_cs().last_written_gtid();
-  if (gtid_str.alloc(wsrep::gtid_c_str_len()))
+  if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    my_error(ER_OUTOFMEMORY, wsrep::gtid_c_str_len());
-    null_value= true;
-    return NULL;
+    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    null_value= TRUE;
+    return 0;
   }
 
-  ssize_t gtid_len= gtid_print_to_c_str(gtid, (char*) gtid_str.ptr(),
-                                        wsrep::gtid_c_str_len());
+  ssize_t gtid_len= my_snprintf((char*)gtid_str.ptr(), 
+                                WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1,
+                                "%u-%u-%llu", wsrep_gtid_server.domain_id,
+                                wsrep_gtid_server.server_id,
+                                current_thd->wsrep_last_written_gtid_seqno);
   if (gtid_len < 0)
   {
     my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
-             "wsrep_gtid_print failed");
-    null_value= true;
-    return NULL;
+            "wsrep_gtid_print failed");
+    null_value= TRUE;
+    return 0;
   }
   gtid_str.length(gtid_len);
   return &gtid_str;
@@ -5379,27 +5291,23 @@ String *Item_func_wsrep_last_written_gtid::val_str_ascii(String *str)
 
 String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 {
-  wsrep::gtid gtid= wsrep::gtid::undefined();
-  if (Wsrep_server_state::instance().is_provider_loaded())
+  if (gtid_str.alloc(WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1))
   {
-    /* TODO: Should call Wsrep_server_state.instance().last_committed_gtid()
-       instead. */
-    gtid= Wsrep_server_state::instance().provider().last_committed_gtid();
+    my_error(ER_OUTOFMEMORY, WSREP_MAX_WSREP_SERVER_GTID_STR_LEN);
+    null_value= TRUE;
+    return 0;
   }
-  if (gtid_str.alloc(wsrep::gtid_c_str_len()))
-  {
-    my_error(ER_OUTOFMEMORY, wsrep::gtid_c_str_len());
-    null_value= true;
-    return NULL;
-  }
-  ssize_t gtid_len= wsrep::gtid_print_to_c_str(gtid, (char*) gtid_str.ptr(),
-                                               wsrep::gtid_c_str_len());
+  ssize_t gtid_len= my_snprintf((char*)gtid_str.ptr(), 
+                                WSREP_MAX_WSREP_SERVER_GTID_STR_LEN+1,
+                                "%u-%u-%llu", wsrep_gtid_server.domain_id,
+                                wsrep_gtid_server.server_id,
+                                wsrep_gtid_server.seqno());
   if (gtid_len < 0)
   {
     my_error(ER_ERROR_WHEN_EXECUTING_COMMAND, MYF(0), func_name(),
              "wsrep_gtid_print failed");
-    null_value= true;
-    return NULL;
+    null_value= TRUE;
+    return 0;
   }
   gtid_str.length(gtid_len);
   return &gtid_str;
@@ -5407,49 +5315,59 @@ String *Item_func_wsrep_last_seen_gtid::val_str_ascii(String *str)
 
 longlong Item_func_wsrep_sync_wait_upto::val_int()
 {
-  int timeout= -1;
-  String* gtid_str= args[0]->val_str(&value);
-  if (gtid_str == NULL)
+  String *gtid_str __attribute__((unused)) = args[0]->val_str(&value);
+  null_value=0;
+  uint timeout;
+  rpl_gtid *gtid_list;
+  uint32 count;
+  int wait_gtid_ret= 0;
+  int ret= 1;
+
+  if (args[0]->null_value)
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
-    return 0LL;
+    null_value= TRUE;
+    return 0;
   }
 
-  if (arg_count == 2)
+  if (arg_count==2 && !args[1]->null_value)
+    timeout= (uint)(args[1]->val_real());
+  else
+    timeout= (uint)-1;
+
+  if (!(gtid_list= gtid_parse_string_to_list(gtid_str->ptr(), gtid_str->length(),
+                                             &count)))
   {
-    timeout= args[1]->val_int();
+    my_error(ER_INCORRECT_GTID_STATE, MYF(0), func_name());
+    null_value= TRUE;
+    return 0;
   }
-
-  wsrep_gtid_t gtid;
-  int gtid_len= wsrep_gtid_scan(gtid_str->ptr(), gtid_str->length(), &gtid);
-  if (gtid_len < 0)
+  if (count == 1)
   {
-    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
-    return 0LL;
-  }
-
-  if (gtid.seqno == WSREP_SEQNO_UNDEFINED &&
-      wsrep_uuid_compare(&gtid.uuid, &WSREP_UUID_UNDEFINED) == 0)
-  {
-    return 1LL;
-  }
-
-  enum wsrep::provider::status status=
-      wsrep_sync_wait_upto(current_thd, &gtid, timeout);
-
-  if (status)
-  {
-    int err;
-    switch (status) {
-    case wsrep::provider::error_transaction_missing:
-      err= ER_WRONG_ARGUMENTS;
-      break;
-    default:
-      err= ER_LOCK_WAIT_TIMEOUT;
+    if (wsrep_check_gtid_seqno(gtid_list[0].domain_id, gtid_list[0].server_id,
+                               gtid_list[0].seq_no))
+    {
+      wait_gtid_ret= wsrep_gtid_server.wait_gtid_upto(gtid_list[0].seq_no, timeout);
+      if ((wait_gtid_ret == ETIMEDOUT) || (wait_gtid_ret == ETIME))
+      {
+        my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), func_name());
+        ret= 0;
+      }
+      else if (wait_gtid_ret == ENOMEM)
+      {
+        my_error(ER_OUTOFMEMORY, MYF(0), func_name());
+        ret= 0;
+      }
     }
-    my_error(err, MYF(0), func_name());
-    return 0LL;
   }
-  return 1LL;
+  else
+  { 
+    my_error(ER_WRONG_ARGUMENTS, MYF(0), func_name());
+    null_value= TRUE;
+    ret= 0;
+  }
+  my_free(gtid_list);
+  return ret;
 }
+
 #endif /* WITH_WSREP */

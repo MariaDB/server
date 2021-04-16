@@ -90,10 +90,10 @@ EXPLAIN
           "used_key_parts": ["l_quantity"]
         },
         "rows": 702,
-        "selectivity_pct": 11.69
+        "selectivity_pct": 11.69025812
       },
       "rows": 509,
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     }
@@ -126,17 +126,18 @@ ANALYZE
           "used_key_parts": ["l_quantity"]
         },
         "rows": 702,
-        "selectivity_pct": 11.69,
+        "selectivity_pct": 11.69025812,
         "r_rows": 605,
-        "r_selectivity_pct": 11.765,
+        "r_selectivity_pct": 11.76470588,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
       "r_loops": 1,
       "rows": 509,
       "r_rows": 60,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 11.69,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 11.69025803,
       "r_filtered": 100,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
@@ -227,7 +228,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_shipDATE"],
       "rows": 509,
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     }
@@ -257,9 +258,10 @@ ANALYZE
       "r_loops": 1,
       "rows": 509,
       "r_rows": 510,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 11.69,
-      "r_filtered": 11.765,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 11.69025803,
+      "r_filtered": 11.76470588,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     }
@@ -377,7 +379,7 @@ EXPLAIN
         "selectivity_pct": 4.6
       },
       "rows": 1,
-      "filtered": 4.6,
+      "filtered": 4.599999905,
       "attached_condition": "orders.o_totalprice between 200000 and 230000"
     }
   }
@@ -414,7 +416,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 98,
       "r_rows": 98,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'"
@@ -435,15 +438,16 @@ ANALYZE
         "rows": 69,
         "selectivity_pct": 4.6,
         "r_rows": 71,
-        "r_selectivity_pct": 10.417,
+        "r_selectivity_pct": 10.41666667,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
       "r_loops": 98,
       "rows": 1,
-      "r_rows": 0.1122,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 4.6,
+      "r_rows": 0.112244898,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 4.599999905,
       "r_filtered": 100,
       "attached_condition": "orders.o_totalprice between 200000 and 230000"
     }
@@ -505,7 +509,7 @@ EXPLAIN
       "used_key_parts": ["o_orderkey"],
       "ref": ["dbt3_s001.lineitem.l_orderkey"],
       "rows": 1,
-      "filtered": 4.6,
+      "filtered": 4.599999905,
       "attached_condition": "orders.o_totalprice between 200000 and 230000"
     }
   }
@@ -542,7 +546,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 98,
       "r_rows": 98,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-01-31'"
@@ -558,9 +563,10 @@ ANALYZE
       "r_loops": 98,
       "rows": 1,
       "r_rows": 1,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 4.6,
-      "r_filtered": 11.224,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 4.599999905,
+      "r_filtered": 11.2244898,
       "attached_condition": "orders.o_totalprice between 200000 and 230000"
     }
   }
@@ -617,10 +623,10 @@ EXPLAIN
           "used_key_parts": ["l_quantity"]
         },
         "rows": 702,
-        "selectivity_pct": 11.69
+        "selectivity_pct": 11.69025812
       },
       "rows": 509,
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     },
@@ -638,10 +644,10 @@ EXPLAIN
           "used_key_parts": ["o_totalprice"]
         },
         "rows": 139,
-        "selectivity_pct": 9.2667
+        "selectivity_pct": 9.266666667
       },
       "rows": 1,
-      "filtered": 9.2667,
+      "filtered": 9.266666412,
       "attached_condition": "orders.o_totalprice between 180000 and 230000"
     }
   }
@@ -684,17 +690,18 @@ ANALYZE
           "used_key_parts": ["l_quantity"]
         },
         "rows": 702,
-        "selectivity_pct": 11.69,
+        "selectivity_pct": 11.69025812,
         "r_rows": 605,
-        "r_selectivity_pct": 11.765,
+        "r_selectivity_pct": 11.76470588,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
       "r_loops": 1,
       "rows": 509,
       "r_rows": 60,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 11.69,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 11.69025803,
       "r_filtered": 100,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
@@ -713,17 +720,18 @@ ANALYZE
           "used_key_parts": ["o_totalprice"]
         },
         "rows": 139,
-        "selectivity_pct": 9.2667,
+        "selectivity_pct": 9.266666667,
         "r_rows": 144,
-        "r_selectivity_pct": 25.424,
+        "r_selectivity_pct": 25.42372881,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
       "r_loops": 60,
       "rows": 1,
-      "r_rows": 0.2667,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 9.2667,
+      "r_rows": 0.266666667,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 9.266666412,
       "r_filtered": 100,
       "attached_condition": "orders.o_totalprice between 180000 and 230000"
     }
@@ -782,7 +790,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_shipDATE"],
       "rows": 509,
-      "filtered": 11.69,
+      "filtered": 11.69025803,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     },
@@ -795,7 +803,7 @@ EXPLAIN
       "used_key_parts": ["o_orderkey"],
       "ref": ["dbt3_s001.lineitem.l_orderkey"],
       "rows": 1,
-      "filtered": 9.2667,
+      "filtered": 9.266666412,
       "attached_condition": "orders.o_totalprice between 180000 and 230000"
     }
   }
@@ -835,9 +843,10 @@ ANALYZE
       "r_loops": 1,
       "rows": 509,
       "r_rows": 510,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 11.69,
-      "r_filtered": 11.765,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 11.69025803,
+      "r_filtered": 11.76470588,
       "index_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'",
       "attached_condition": "lineitem.l_quantity > 45"
     },
@@ -852,9 +861,10 @@ ANALYZE
       "r_loops": 60,
       "rows": 1,
       "r_rows": 1,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 9.2667,
-      "r_filtered": 26.667,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 9.266666412,
+      "r_filtered": 26.66666667,
       "attached_condition": "orders.o_totalprice between 180000 and 230000"
     }
   }
@@ -887,7 +897,7 @@ WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 o_totalprice between 200000 and 230000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	69	Using index condition
-1	SIMPLE	lineitem	ref|filter	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY|i_l_shipdate	4|4	dbt3_s001.orders.o_orderkey	4 (8%)	Using where; Using rowid filter
+1	SIMPLE	lineitem	ref|filter	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey|i_l_shipdate	4|4	dbt3_s001.orders.o_orderkey	4 (8%)	Using where; Using rowid filter
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -916,7 +926,7 @@ EXPLAIN
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
@@ -926,10 +936,10 @@ EXPLAIN
           "used_key_parts": ["l_shipDATE"]
         },
         "rows": 509,
-        "selectivity_pct": 8.4763
+        "selectivity_pct": 8.476269775
       },
       "rows": 4,
-      "filtered": 8.4763,
+      "filtered": 8.476269722,
       "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
     }
   }
@@ -940,7 +950,7 @@ WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 o_totalprice between 200000 and 230000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	69	71.00	100.00	100.00	Using index condition
-1	SIMPLE	lineitem	ref|filter	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY|i_l_shipdate	4|4	dbt3_s001.orders.o_orderkey	4 (8%)	0.52 (7%)	8.48	100.00	Using where; Using rowid filter
+1	SIMPLE	lineitem	ref|filter	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey|i_l_shipdate	4|4	dbt3_s001.orders.o_orderkey	4 (8%)	0.52 (7%)	8.48	100.00	Using where; Using rowid filter
 set statement optimizer_switch='rowid_filter=on' for ANALYZE FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -961,7 +971,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 69,
       "r_rows": 71,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "index_condition": "orders.o_totalprice between 200000 and 230000"
@@ -975,7 +986,7 @@ ANALYZE
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
@@ -985,17 +996,18 @@ ANALYZE
           "used_key_parts": ["l_shipDATE"]
         },
         "rows": 509,
-        "selectivity_pct": 8.4763,
+        "selectivity_pct": 8.476269775,
         "r_rows": 510,
-        "r_selectivity_pct": 7.7731,
+        "r_selectivity_pct": 7.773109244,
         "r_buffer_size": "REPLACED",
         "r_filling_time_ms": "REPLACED"
       },
       "r_loops": 71,
       "rows": 4,
-      "r_rows": 0.5211,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 8.4763,
+      "r_rows": 0.521126761,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 8.476269722,
       "r_filtered": 100,
       "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
     }
@@ -1049,7 +1061,7 @@ WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 o_totalprice between 200000 and 230000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	69	Using index condition
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -1078,12 +1090,12 @@ EXPLAIN
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 8.4763,
+      "filtered": 8.476269722,
       "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
     }
   }
@@ -1094,7 +1106,7 @@ WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
 o_totalprice between 200000 and 230000;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_totalprice	i_o_totalprice	9	NULL	69	71.00	100.00	100.00	Using index condition
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	6.70	8.48	7.77	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	6.70	8.48	7.77	Using where
 set statement optimizer_switch='rowid_filter=off' for ANALYZE FORMAT=JSON SELECT o_orderkey, l_linenumber, l_shipdate, o_totalprice
 FROM orders JOIN lineitem ON o_orderkey=l_orderkey
 WHERE l_shipdate BETWEEN '1997-01-01' AND '1997-06-30' AND
@@ -1115,7 +1127,8 @@ ANALYZE
       "r_loops": 1,
       "rows": 69,
       "r_rows": 71,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": 100,
       "r_filtered": 100,
       "index_condition": "orders.o_totalprice between 200000 and 230000"
@@ -1129,16 +1142,17 @@ ANALYZE
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "r_loops": 71,
       "rows": 4,
-      "r_rows": 6.7042,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 8.4763,
-      "r_filtered": 7.7731,
+      "r_rows": 6.704225352,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 8.476269722,
+      "r_filtered": 7.773109244,
       "attached_condition": "lineitem.l_shipDATE between '1997-01-01' and '1997-06-30'"
     }
   }
@@ -1225,7 +1239,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_receiptDATE"],
       "rows": 18,
-      "filtered": 0.5662,
+      "filtered": 0.566194832,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1238,7 +1252,7 @@ EXPLAIN
       "used_key_parts": ["o_orderkey"],
       "ref": ["dbt3_s001.lineitem.l_orderkey"],
       "rows": 1,
-      "filtered": 7.4667,
+      "filtered": 7.466666698,
       "attached_condition": "orders.o_totalprice between 200000 and 250000"
     }
   }
@@ -1280,9 +1294,10 @@ ANALYZE
       "r_loops": 1,
       "rows": 18,
       "r_rows": 18,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 0.5662,
-      "r_filtered": 38.889,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 0.566194832,
+      "r_filtered": 38.88888889,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1297,9 +1312,10 @@ ANALYZE
       "r_loops": 7,
       "rows": 1,
       "r_rows": 1,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 7.4667,
-      "r_filtered": 14.286,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 7.466666698,
+      "r_filtered": 14.28571429,
       "attached_condition": "orders.o_totalprice between 200000 and 250000"
     }
   }
@@ -1345,7 +1361,7 @@ EXPLAIN
       "key_length": "4",
       "used_key_parts": ["l_receiptDATE"],
       "rows": 18,
-      "filtered": 0.5662,
+      "filtered": 0.566194832,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1358,7 +1374,7 @@ EXPLAIN
       "used_key_parts": ["o_orderkey"],
       "ref": ["dbt3_s001.lineitem.l_orderkey"],
       "rows": 1,
-      "filtered": 7.4667,
+      "filtered": 7.466666698,
       "attached_condition": "orders.o_totalprice between 200000 and 250000"
     }
   }
@@ -1400,9 +1416,10 @@ ANALYZE
       "r_loops": 1,
       "rows": 18,
       "r_rows": 18,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 0.5662,
-      "r_filtered": 38.889,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 0.566194832,
+      "r_filtered": 38.88888889,
       "index_condition": "lineitem.l_receiptDATE between '1996-10-05' and '1996-10-10'",
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-10-10'"
     },
@@ -1417,9 +1434,10 @@ ANALYZE
       "r_loops": 7,
       "rows": 1,
       "r_rows": 1,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 7.4667,
-      "r_filtered": 14.286,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 7.466666698,
+      "r_filtered": 14.28571429,
       "attached_condition": "orders.o_totalprice between 200000 and 250000"
     }
   }
@@ -1447,7 +1465,7 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM orders, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1466,7 +1484,7 @@ EXPLAIN
       "key_length": "9",
       "used_key_parts": ["o_totaldiscount"],
       "rows": 39,
-      "filtered": 3.2,
+      "filtered": 3.200000048,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000"
     },
@@ -1479,12 +1497,12 @@ EXPLAIN
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 3.0475,
+      "filtered": 3.047460556,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1497,7 +1515,7 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	41.00	3.20	2.44	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	6.00	3.05	66.67	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	6.00	3.05	66.67	Using where
 set statement optimizer_switch='rowid_filter=on' for ANALYZE FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM orders, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1520,9 +1538,10 @@ ANALYZE
       "r_loops": 1,
       "rows": 39,
       "r_rows": 41,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 3.2,
-      "r_filtered": 2.439,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 3.200000048,
+      "r_filtered": 2.43902439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000"
     },
@@ -1535,16 +1554,17 @@ ANALYZE
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "r_loops": 1,
       "rows": 4,
       "r_rows": 6,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 3.0475,
-      "r_filtered": 66.667,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 3.047460556,
+      "r_filtered": 66.66666667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1568,7 +1588,7 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM orders, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1587,7 +1607,7 @@ EXPLAIN
       "key_length": "9",
       "used_key_parts": ["o_totaldiscount"],
       "rows": 39,
-      "filtered": 3.2,
+      "filtered": 3.200000048,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000"
     },
@@ -1600,12 +1620,12 @@ EXPLAIN
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "rows": 4,
-      "filtered": 3.0475,
+      "filtered": 3.047460556,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1618,7 +1638,7 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	41.00	3.20	2.44	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	6.00	3.05	66.67	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	6.00	3.05	66.67	Using where
 set statement optimizer_switch='rowid_filter=off' for ANALYZE FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM orders, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1641,9 +1661,10 @@ ANALYZE
       "r_loops": 1,
       "rows": 39,
       "r_rows": 41,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 3.2,
-      "r_filtered": 2.439,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 3.200000048,
+      "r_filtered": 2.43902439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000"
     },
@@ -1656,16 +1677,17 @@ ANALYZE
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "r_loops": 1,
       "rows": 4,
       "r_rows": 6,
-      "r_total_time_ms": "REPLACED",
-      "filtered": 3.0475,
-      "r_filtered": 66.667,
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
+      "filtered": 3.047460556,
+      "r_filtered": 66.66666667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1692,7 +1714,7 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
 set statement optimizer_switch='rowid_filter=on' for EXPLAIN FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM v1, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1729,7 +1751,7 @@ EXPLAIN
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
@@ -1747,7 +1769,7 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	41.00	#	2.44	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	6.00	#	66.67	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	6.00	#	66.67	Using where
 set statement optimizer_switch='rowid_filter=on' for ANALYZE FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM v1, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1775,9 +1797,10 @@ ANALYZE
       "r_loops": 1,
       "rows": 39,
       "r_rows": 41,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": "REPLACED",
-      "r_filtered": 2.439,
+      "r_filtered": 2.43902439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
     },
@@ -1790,16 +1813,17 @@ ANALYZE
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "r_loops": 1,
       "rows": 4,
       "r_rows": 6,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": "REPLACED",
-      "r_filtered": 66.667,
+      "r_filtered": 66.66666667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }
@@ -1823,7 +1847,7 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	Using where
 set statement optimizer_switch='rowid_filter=off' for EXPLAIN FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM v1, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1860,7 +1884,7 @@ EXPLAIN
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
@@ -1878,7 +1902,7 @@ o_totalprice BETWEEN 200000 AND 220000 AND
 l_shipdate BETWEEN '1996-10-01' AND '1996-12-01';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	orders	range	PRIMARY,i_o_orderdate,i_o_totalprice,i_o_totaldiscount	i_o_totaldiscount	9	NULL	39	41.00	#	2.44	Using index condition; Using where
-1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	PRIMARY	4	dbt3_s001.orders.o_orderkey	4	6.00	#	66.67	Using where
+1	SIMPLE	lineitem	ref	PRIMARY,i_l_shipdate,i_l_orderkey,i_l_orderkey_quantity	i_l_orderkey	4	dbt3_s001.orders.o_orderkey	4	6.00	#	66.67	Using where
 set statement optimizer_switch='rowid_filter=off' for ANALYZE FORMAT=JSON SELECT o_totaldiscount, o_totalprice, l_shipdate
 FROM v1, lineitem
 WHERE o_orderkey=l_orderkey AND
@@ -1906,9 +1930,10 @@ ANALYZE
       "r_loops": 1,
       "rows": 39,
       "r_rows": 41,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": "REPLACED",
-      "r_filtered": 2.439,
+      "r_filtered": 2.43902439,
       "index_condition": "orders.o_totaldiscount between 18000 and 20000",
       "attached_condition": "orders.o_totalprice between 200000 and 220000 and orders.o_orderDATE between '1992-12-01' and '1997-01-01'"
     },
@@ -1921,16 +1946,17 @@ ANALYZE
         "i_l_orderkey",
         "i_l_orderkey_quantity"
       ],
-      "key": "PRIMARY",
+      "key": "i_l_orderkey",
       "key_length": "4",
       "used_key_parts": ["l_orderkey"],
       "ref": ["dbt3_s001.orders.o_orderkey"],
       "r_loops": 1,
       "rows": 4,
       "r_rows": 6,
-      "r_total_time_ms": "REPLACED",
+      "r_table_time_ms": "REPLACED",
+      "r_other_time_ms": "REPLACED",
       "filtered": "REPLACED",
-      "r_filtered": 66.667,
+      "r_filtered": 66.66666667,
       "attached_condition": "lineitem.l_shipDATE between '1996-10-01' and '1996-12-01'"
     }
   }

@@ -1207,7 +1207,6 @@ int UZDFAM::Cardinality(PGLOBAL g)
 		return 1;
 
 	int card = -1;
-	GetFileLength(g);
 
 	card = Records;
 

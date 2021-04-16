@@ -1,0 +1,27 @@
+--source include/have_s3.inc
+
+if (`SELECT @@s3_host_name <> "s3.amazonaws.com"`)
+{
+  skip Not connected to AWS;
+}
+
+--source create_database.inc
+
+#
+# Check options against amazon
+#
+
+set @save_s3_protocol_version=@@global.s3_protocol_version;
+set @@global.s3_protocol_version="Original";
+
+create table t1 (pk int primary key, a int);
+insert into t1 values (1,1),(2,2),(3,3),(4,4);
+--replace_result $database database
+alter table t1 engine=S3;
+drop table t1;
+
+#
+# clean up
+#
+set @@global.s3_protocol_version=@save_s3_protocol_version;
+--source drop_database.inc

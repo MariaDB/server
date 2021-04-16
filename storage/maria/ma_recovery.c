@@ -54,6 +54,7 @@ static my_bool skip_DDLs; /**< if REDO phase should skip DDL records */
 static my_bool checkpoint_useful;
 static my_bool in_redo_phase;
 static my_bool trns_created;
+static int aria_undo_aborted= 0;
 static ulong skipped_undo_phase;
 static ulonglong now; /**< for tracking execution time of phases */
 static void (*save_error_handler_hook)(uint, const char *,myf);
@@ -115,7 +116,7 @@ prototype_undo_exec_hook(UNDO_BULK_INSERT);
 static int run_redo_phase(LSN lsn, LSN end_lsn,
                           enum maria_apply_log_way apply);
 static uint end_of_redo_phase(my_bool prepare_for_undo_phase);
-static int run_undo_phase(uint uncommitted);
+static int run_undo_phase(LSN end_undo_lsn, uint uncommitted);
 static void display_record_position(const LOG_DESC *log_desc,
                                     const TRANSLOG_HEADER_BUFFER *rec,
                                     uint number);
@@ -152,7 +153,7 @@ static void enlarge_buffer(const TRANSLOG_HEADER_BUFFER *rec)
   if (log_record_buffer.length < rec->record_length)
   {
     log_record_buffer.length= rec->record_length;
-    log_record_buffer.str= my_realloc(log_record_buffer.str,
+    log_record_buffer.str= my_realloc(PSI_INSTRUMENT_ME, log_record_buffer.str,
                                       rec->record_length,
                                       MYF(MY_WME | MY_ALLOW_ZERO_PTR));
   }
@@ -236,8 +237,8 @@ int maria_recovery_from_log(void)
 #endif
   tprint(trace_file, "TRACE of the last Aria recovery from mysqld\n");
   DBUG_ASSERT(maria_pagecache->inited);
-  res= maria_apply_log(LSN_IMPOSSIBLE, LSN_IMPOSSIBLE, MARIA_LOG_APPLY,
-                       trace_file, TRUE, TRUE, TRUE, &warnings_count);
+  res= maria_apply_log(LSN_IMPOSSIBLE, LSN_IMPOSSIBLE, 0, MARIA_LOG_APPLY,
+                       trace_file, TRUE, TRUE, &warnings_count);
   if (!res)
   {
     if (warnings_count == 0 && recovery_found_crashed_tables == 0)
@@ -258,7 +259,9 @@ int maria_recovery_from_log(void)
 
    @param  from_lsn        LSN from which log reading/applying should start;
                            LSN_IMPOSSIBLE means "use last checkpoint"
-   @param  end_lsn         Apply until this. LSN_IMPOSSIBLE means until end.
+   @param  end_redo_lsn    Apply until this. LSN_IMPOSSIBLE means until end.
+   @param  end_und_lsn     Apply all undo >= end_undo_lsn. Set to LSN_MAX if
+                           no undo's should be applied.
    @param  apply           how log records should be applied or not
    @param  trace_file      trace file where progress/debug messages will go
    @param  skip_DDLs_arg   Should DDL records (CREATE/RENAME/DROP/REPAIR)
@@ -275,10 +278,10 @@ int maria_recovery_from_log(void)
      @retval !=0    Error
 */
 
-int maria_apply_log(LSN from_lsn, LSN end_lsn,
+int maria_apply_log(LSN from_lsn, LSN end_redo_lsn, LSN end_undo_lsn,
                     enum maria_apply_log_way apply,
                     FILE *trace_file,
-                    my_bool should_run_undo_phase, my_bool skip_DDLs_arg,
+                    my_bool skip_DDLs_arg,
                     my_bool take_checkpoints, uint *warnings_count)
 {
   int error= 0;
@@ -287,19 +290,18 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
   my_bool abort_message_printed= 0;
   DBUG_ENTER("maria_apply_log");
 
-  DBUG_ASSERT(apply == MARIA_LOG_APPLY || !should_run_undo_phase);
+  DBUG_ASSERT(apply == MARIA_LOG_APPLY || end_undo_lsn == LSN_MAX);
   DBUG_ASSERT(!maria_multi_threaded);
   recovery_warnings= recovery_found_crashed_tables= 0;
   skipped_lsn_err_count= 0;
   maria_recovery_changed_data= 0;
   /* checkpoints can happen only if TRNs have been built */
-  DBUG_ASSERT(should_run_undo_phase || !take_checkpoints);
-  DBUG_ASSERT(end_lsn == LSN_IMPOSSIBLE || should_run_undo_phase == 0);
+  DBUG_ASSERT(end_undo_lsn != LSN_MAX || !take_checkpoints);
   all_active_trans= (struct st_trn_for_recovery *)
-    my_malloc((SHORT_TRID_MAX + 1) * sizeof(struct st_trn_for_recovery),
+    my_malloc(PSI_INSTRUMENT_ME, (SHORT_TRID_MAX + 1) * sizeof(struct st_trn_for_recovery),
               MYF(MY_ZEROFILL));
   all_tables= (struct st_table_for_recovery *)
-    my_malloc((SHARE_ID_MAX + 1) * sizeof(struct st_table_for_recovery),
+    my_malloc(PSI_INSTRUMENT_ME, (SHARE_ID_MAX + 1) * sizeof(struct st_table_for_recovery),
               MYF(MY_ZEROFILL));
 
   save_error_handler_hook= error_handler_hook;
@@ -313,6 +315,7 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
 
   recovery_message_printed= REC_MSG_NONE;
   checkpoint_useful= trns_created= FALSE;
+  aria_undo_aborted= 0;
   tracef= trace_file;
 #ifdef INSTANT_FLUSH_OF_MESSAGES
   /* enable this for instant flush of messages to trace file */
@@ -347,7 +350,7 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
 
   now= microsecond_interval_timer();
   in_redo_phase= TRUE;
-  if (run_redo_phase(from_lsn, end_lsn, apply))
+  if (run_redo_phase(from_lsn, end_redo_lsn, apply))
   {
     ma_message_no_user(0, "Redo phase failed");
     trnman_destroy();
@@ -355,7 +358,8 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
   }
   trnman_destroy();
 
-  if (end_lsn != LSN_IMPOSSIBLE)
+  if (end_redo_lsn != LSN_IMPOSSIBLE &&
+      (end_undo_lsn == LSN_MAX || end_undo_lsn == LSN_IMPOSSIBLE))
   {
     abort_message_printed= 1;
     if (!trace_file)
@@ -367,7 +371,7 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
   }
 
   if ((uncommitted_trans=
-       end_of_redo_phase(should_run_undo_phase)) == (uint)-1)
+       end_of_redo_phase(end_undo_lsn != LSN_MAX)) == (uint)-1)
   {
     ma_message_no_user(0, "End of redo phase failed");
     goto err;
@@ -417,13 +421,19 @@ int maria_apply_log(LSN from_lsn, LSN end_lsn,
   }
 #endif
 
-  if (should_run_undo_phase)
+  if (end_undo_lsn != LSN_MAX)
   {
-    if (run_undo_phase(uncommitted_trans))
+    if (run_undo_phase(end_undo_lsn, uncommitted_trans))
     {
       ma_message_no_user(0, "Undo phase failed");
       goto err;
     }
+    if (aria_undo_aborted)
+      ma_message_no_user(0, "Undo phase aborted in the middle on user request");
+    else if (end_redo_lsn != LSN_IMPOSSIBLE)
+      my_message(HA_ERR_INITIALIZATION,
+                 "Maria recovery aborted as end_lsn followed by end_undo was "
+                 "reached", MYF(0));
   }
   else if (uncommitted_trans > 0)
   {
@@ -493,7 +503,8 @@ err:
 err2:
   if (trns_created)
     delete_all_transactions();
-  error= 1;
+  if (!abort_message_printed)
+    error= 1;
   if (close_all_tables())
   {
     ma_message_no_user(0, "closing of tables failed");
@@ -521,7 +532,7 @@ end:
       fprintf(stderr, "\n");
       fflush(stderr);
     }
-    if (!error)
+    if (!error && !abort_message_printed)
     {
       ma_message_no_user(ME_NOTE, "recovery done");
       maria_recovery_changed_data= 1;
@@ -540,7 +551,7 @@ end:
   {
     my_message(HA_ERR_INITIALIZATION,
                "Aria recovery failed. Please run aria_chk -r on all Aria "
-               "tables and delete all aria_log.######## files", MYF(0));
+               "tables (*.MAI) and delete all aria_log.######## files", MYF(0));
   }
   procent_printed= 0;
   /*
@@ -813,7 +824,7 @@ prototype_redo_exec_hook(REDO_CREATE_TABLE)
     goto end;
   }
   /* we try hard to get create_rename_lsn, to avoid mistakes if possible */
-  info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR);
+  info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR, 0);
   if (info)
   {
     MARIA_SHARE *share= info->s;
@@ -842,7 +853,7 @@ prototype_redo_exec_hook(REDO_CREATE_TABLE)
     if (cmp_translog_addr(share->state.create_rename_lsn, rec->lsn) >= 0)
     {
       tprint(tracef, "Table '%s' has create_rename_lsn " LSN_FMT " more "
-             "recent than record, ignoring creation",
+             "recent than record, ignoring creation\n",
              name, LSN_IN_PARTS(share->state.create_rename_lsn));
       error= 0;
       goto end;
@@ -934,7 +945,7 @@ prototype_redo_exec_hook(REDO_CREATE_TABLE)
       correctly filled. So we just open the table (fortunately, an empty
       data file does not preclude this).
     */
-    if (((info= maria_open(name, O_RDONLY, 0)) == NULL) ||
+    if (((info= maria_open(name, O_RDONLY, 0, 0)) == NULL) ||
         _ma_initialize_data_file(info->s, info->dfile.file))
     {
       eprint(tracef, "Failed to open new table or write to data file");
@@ -975,7 +986,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
   }
   old_name= (char *)log_record_buffer.str;
   new_name= old_name + strlen(old_name) + 1;
-  tprint(tracef, "Table '%s' to rename to '%s'; old-name table ", old_name,
+  tprint(tracef, "Table '%s' to be renamed to '%s'; old-name table ", old_name,
          new_name);
   /*
     Here is why we skip CREATE/DROP/RENAME when doing a recovery from
@@ -1005,20 +1016,20 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     log insertions of records into the temporary table, so replaying may
     fail (grep for INCOMPLETE_LOG in files).
   */
-  info= maria_open(old_name, O_RDONLY, HA_OPEN_FOR_REPAIR);
+  info= maria_open(old_name, O_RDONLY, HA_OPEN_FOR_REPAIR, 0);
   if (info)
   {
     MARIA_SHARE *share= info->s;
     if (!share->base.born_transactional)
     {
-      tprint(tracef, ", is not transactional, ignoring renaming\n");
+      tprint(tracef, "is not transactional, ignoring renaming");
       ALERT_USER();
       error= 0;
       goto end;
     }
     if (cmp_translog_addr(share->state.create_rename_lsn, rec->lsn) >= 0)
     {
-      tprint(tracef, ", has create_rename_lsn " LSN_FMT " more recent than"
+      tprint(tracef, "has create_rename_lsn " LSN_FMT " more recent than"
              " record, ignoring renaming",
              LSN_IN_PARTS(share->state.create_rename_lsn));
       error= 0;
@@ -1054,26 +1065,26 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     t, renames it to u (if not testing create_rename_lsn) thus overwriting
     old-named v, drops u, and we are stuck, we have lost data.
   */
-  info= maria_open(new_name, O_RDONLY, HA_OPEN_FOR_REPAIR);
+  info= maria_open(new_name, O_RDONLY, HA_OPEN_FOR_REPAIR, 0);
   if (info)
   {
     MARIA_SHARE *share= info->s;
     /* We should not have open instances on this table. */
     if (share->reopen != 1)
     {
-      tprint(tracef, ", is already open (reopen=%u)\n", share->reopen);
+      tprint(tracef, "is already open (reopen=%u)", share->reopen);
       ALERT_USER();
       goto end;
     }
     if (!share->base.born_transactional)
     {
-      tprint(tracef, ", is not transactional, ignoring renaming\n");
+      tprint(tracef, "is not transactional, ignoring renaming");
       ALERT_USER();
       goto drop;
     }
     if (cmp_translog_addr(share->state.create_rename_lsn, rec->lsn) >= 0)
     {
-      tprint(tracef, ", has create_rename_lsn " LSN_FMT " more recent than"
+      tprint(tracef, "has create_rename_lsn " LSN_FMT " more recent than"
              " record, ignoring renaming",
              LSN_IN_PARTS(share->state.create_rename_lsn));
       /*
@@ -1091,7 +1102,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     }
     if (maria_is_crashed(info))
     {
-      tprint(tracef, ", is crashed, can't rename it");
+      tprint(tracef, "is crashed, can't rename it");
       ALERT_USER();
       goto end;
     }
@@ -1118,7 +1129,7 @@ prototype_redo_exec_hook(REDO_RENAME_TABLE)
     eprint(tracef, "Failed to rename table");
     goto end;
   }
-  info= maria_open(new_name, O_RDONLY, 0);
+  info= maria_open(new_name, O_RDONLY, 0, 0);
   if (info == NULL)
   {
     eprint(tracef, "Failed to open renamed table");
@@ -1177,7 +1188,7 @@ prototype_redo_exec_hook(REDO_REPAIR_TABLE)
   if (!info)
   {
     /* no such table, don't need to warn */
-    return 0;
+    DBUG_RETURN(0);
   }
 
   if (maria_is_crashed(info))
@@ -1245,7 +1256,7 @@ prototype_redo_exec_hook(REDO_DROP_TABLE)
   }
   name= (char *)log_record_buffer.str;
   tprint(tracef, "Table '%s'", name);
-  info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR);
+  info= maria_open(name, O_RDONLY, HA_OPEN_FOR_REPAIR, 0);
   if (info)
   {
     MARIA_SHARE *share= info->s;
@@ -1387,7 +1398,7 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
     goto end;
   }
   tprint(tracef, "Table '%s', id %u", name, sid);
-  info= maria_open(name, O_RDWR, HA_OPEN_FOR_REPAIR);
+  info= maria_open(name, O_RDWR, HA_OPEN_FOR_REPAIR, 0);
   if (info == NULL)
   {
     tprint(tracef, ", is absent (must have been dropped later?)"
@@ -1917,7 +1928,7 @@ prototype_redo_exec_hook(UNDO_ROW_INSERT)
   if (cmp_translog_addr(rec->lsn, share->state.is_of_horizon) >= 0)
   {
     tprint(tracef, "   state has LSN " LSN_FMT " older than record, updating"
-           " rows' count\n", LSN_IN_PARTS(share->state.is_of_horizon));
+           " row count\n", LSN_IN_PARTS(share->state.is_of_horizon));
     share->state.state.records++;
     if (share->calc_checksum)
     {
@@ -1935,7 +1946,7 @@ prototype_redo_exec_hook(UNDO_ROW_INSERT)
     info->s->state.changed|= (STATE_CHANGED | STATE_NOT_ANALYZED |
                               STATE_NOT_ZEROFILLED | STATE_NOT_MOVABLE);
   }
-  tprint(tracef, "   rows' count %lu\n", (ulong)info->s->state.state.records);
+  tprint(tracef, "   row count: %lu\n", (ulong)info->s->state.state.records);
   /* Unpin all pages, stamp them with UNDO's LSN */
   _ma_unpin_all_pages(info, rec->lsn);
   return 0;
@@ -1973,7 +1984,7 @@ prototype_redo_exec_hook(UNDO_ROW_DELETE)
                             STATE_NOT_OPTIMIZED_ROWS | STATE_NOT_ZEROFILLED |
                             STATE_NOT_MOVABLE);
   }
-  tprint(tracef, "   rows' count %lu\n", (ulong)share->state.state.records);
+  tprint(tracef, "   row count: %lu\n", (ulong)share->state.state.records);
   _ma_unpin_all_pages(info, rec->lsn);
   return 0;
 }
@@ -2179,7 +2190,7 @@ prototype_redo_exec_hook(CLR_END)
   if (info == NULL)
     DBUG_RETURN(0);
   share= info->s;
-  tprint(tracef, "   CLR_END was about %s, undo_lsn now LSN " LSN_FMT "\n",
+  tprint(tracef, "   CLR_END was about %s, undo_lsn " LSN_FMT "\n",
          log_desc->name, LSN_IN_PARTS(previous_undo_lsn));
 
   enlarge_buffer(rec);
@@ -2236,7 +2247,7 @@ prototype_redo_exec_hook(CLR_END)
                             STATE_NOT_ZEROFILLED | STATE_NOT_MOVABLE);
   }
   if (row_entry)
-    tprint(tracef, "   rows' count %lu\n", (ulong)share->state.state.records);
+    tprint(tracef, "   row count: %lu\n", (ulong)share->state.state.records);
   _ma_unpin_all_pages(info, rec->lsn);
   DBUG_RETURN(0);
 }
@@ -2248,7 +2259,7 @@ prototype_redo_exec_hook(CLR_END)
 
 prototype_redo_exec_hook(DEBUG_INFO)
 {
-  uchar *data;
+  char *data;
   enum translog_debug_info_type debug_info;
 
   enlarge_buffer(rec);
@@ -2261,11 +2272,10 @@ prototype_redo_exec_hook(DEBUG_INFO)
     return 1;
   }
   debug_info= (enum translog_debug_info_type) log_record_buffer.str[0];
-  data= log_record_buffer.str + 1;
+  data= (char*) log_record_buffer.str + 1;
   switch (debug_info) {
   case LOGREC_DEBUG_INFO_QUERY:
-    tprint(tracef, "Query: %.*s\n", rec->record_length - 1,
-           (char*) data);
+    tprint(tracef, "Query: %.*s\n", (int) rec->record_length - 1, data);
     break;
   default:
     DBUG_ASSERT(0);
@@ -2338,7 +2348,7 @@ prototype_undo_exec_hook(UNDO_ROW_INSERT)
                                    FILEID_STORE_SIZE);
   info->trn= 0;
   /* trn->undo_lsn is updated in an inwrite_hook when writing the CLR_END */
-  tprint(tracef, "   rows' count %lu\n", (ulong)info->s->state.state.records);
+  tprint(tracef, "   row count: %lu\n", (ulong)info->s->state.state.records);
   tprint(tracef, "   undo_lsn now LSN " LSN_FMT "\n",
          LSN_IN_PARTS(trn->undo_lsn));
   return error;
@@ -2378,7 +2388,7 @@ prototype_undo_exec_hook(UNDO_ROW_DELETE)
                                    rec->record_length -
                                    (LSN_STORE_SIZE + FILEID_STORE_SIZE));
   info->trn= 0;
-  tprint(tracef, "   rows' count %lu\n   undo_lsn now LSN " LSN_FMT "\n",
+  tprint(tracef, "   row count: %lu\n   undo_lsn now LSN " LSN_FMT "\n",
          (ulong)share->state.state.records, LSN_IN_PARTS(trn->undo_lsn));
   return error;
 }
@@ -2706,8 +2716,8 @@ static int run_redo_phase(LSN lsn, LSN lsn_end, enum maria_apply_log_way apply)
           if (lsn_end != LSN_IMPOSSIBLE && rec2.lsn >= lsn_end)
           {
             tprint(tracef,
-                   "lsn_end reached at " LSN_FMT ". "
-                   "Skipping rest of redo entries",
+                   "lsn_redo_end reached at " LSN_FMT ". "
+                   "Skipping rest of redo entries\n",
                    LSN_IN_PARTS(rec2.lsn));
             translog_destroy_scanner(&scanner);
             translog_free_record_header(&rec);
@@ -2792,7 +2802,7 @@ static int run_redo_phase(LSN lsn, LSN lsn_end, enum maria_apply_log_way apply)
       switch (len)
       {
       case RECHEADER_READ_EOF:
-        tprint(tracef, "EOF on the log\n");
+        tprint(tracef, "*** End of log ***\n");
         break;
       case RECHEADER_READ_ERROR:
         tprint(tracef, "Error reading log\n");
@@ -2941,7 +2951,7 @@ static uint end_of_redo_phase(my_bool prepare_for_undo_phase)
 }
 
 
-static int run_undo_phase(uint uncommitted)
+static int run_undo_phase(LSN end_undo_lsn, uint uncommitted)
 {
   LSN last_undo __attribute__((unused));
   DBUG_ENTER("run_undo_phase");
@@ -2967,7 +2977,20 @@ static int run_undo_phase(uint uncommitted)
         fflush(stderr);
       }
       if ((uncommitted--) == 0)
+      {
+        if (aria_undo_aborted <= 0)
+        {
+          aria_undo_aborted= 0;
+          break;
+        }
+      }
+      if (aria_undo_aborted)
+      {
+        tprint(tracef,
+               "lsn_undo_end found. Skipping rest of undo entries\n");
         break;
+      }
+
       trn= trnman_get_any_trn();
       DBUG_ASSERT(trn != NULL);
       llstr(trn->trid, llbuf);
@@ -2995,6 +3018,12 @@ static int run_undo_phase(uint uncommitted)
           DBUG_RETURN(1);
         }
         translog_free_record_header(&rec);
+
+        if (last_undo == end_undo_lsn)
+        {
+          aria_undo_aborted= trn->undo_lsn ? 1 : -1;
+          break;
+        }
       }
 
       /* Force a crash to test recovery of recovery */
@@ -3003,6 +3032,7 @@ static int run_undo_phase(uint uncommitted)
         DBUG_ASSERT(--maria_recovery_force_crash_counter > 0);
       }
 
+      trn->undo_lsn= 0;            /* Avoid abort in trnman_rollbac_trn */
       if (trnman_rollback_trn(trn))
         DBUG_RETURN(1);
       /* We could want to span a few threads (4?) instead of 1 */
@@ -3233,7 +3263,10 @@ static MARIA_HA *get_MARIA_HA_from_UNDO_record(const
   }
   DBUG_ASSERT(share->last_version != 0);
   _ma_writeinfo(info, WRITEINFO_UPDATE_KEYFILE); /* to flush state on close */
-  tprint(tracef, ", applying record\n");
+  if (in_redo_phase)
+    tprint(tracef, ", remembering undo\n");
+  else
+    tprint(tracef, ", applying record\n");
   return info;
 }
 
@@ -3352,19 +3385,19 @@ static LSN parse_checkpoint_record(LSN lsn)
   /* dirty pages */
   nb_dirty_pages= uint8korr(ptr);
 
-  /* Ensure casts later will not loose significant bits. */
+  /* Ensure casts later will not lose significant bits. */
   DBUG_ASSERT((nb_dirty_pages <= SIZE_T_MAX/sizeof(struct st_dirty_page)) &&
               (nb_dirty_pages <= ULONG_MAX));
 
   ptr+= 8;
   tprint(tracef, "%lu dirty pages\n", (ulong) nb_dirty_pages);
-  if (my_hash_init(&all_dirty_pages, &my_charset_bin, (ulong)nb_dirty_pages,
-                   offsetof(struct st_dirty_page, file_and_page_id),
+  if (my_hash_init(PSI_INSTRUMENT_ME, &all_dirty_pages, &my_charset_bin,
+                   (ulong)nb_dirty_pages, offsetof(struct st_dirty_page, file_and_page_id),
                    sizeof(((struct st_dirty_page *)NULL)->file_and_page_id),
                    NULL, NULL, 0))
     return LSN_ERROR;
   dirty_pages_pool=
-    (struct st_dirty_page *)my_malloc((size_t)nb_dirty_pages *
+    (struct st_dirty_page *)my_malloc(PSI_INSTRUMENT_ME, (size_t)nb_dirty_pages *
                                       sizeof(struct st_dirty_page),
                                       MYF(MY_WME));
   if (unlikely(dirty_pages_pool == NULL))

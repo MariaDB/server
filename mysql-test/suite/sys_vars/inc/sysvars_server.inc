@@ -23,6 +23,7 @@ select VARIABLE_NAME,VARIABLE_SCOPE,VARIABLE_TYPE,VARIABLE_COMMENT,NUMERIC_MIN_V
           variable_name not like 'wsrep%' and
           variable_name not like 's3%' and
           variable_name not in (
+          'have_sanitizer',
           'log_tc_size'
         )
   order by variable_name;

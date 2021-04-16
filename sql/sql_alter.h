@@ -19,6 +19,7 @@
 
 class Alter_drop;
 class Alter_column;
+class Alter_rename_key;
 class Key;
 
 /**
@@ -90,13 +91,10 @@ public:
   List<Alter_column>            alter_list;
   // List of keys, used by both CREATE and ALTER TABLE.
   List<Key>                     key_list;
+  // List of keys to be renamed.
+  List<Alter_rename_key>        alter_rename_key_list;
   // List of columns, used by both CREATE and ALTER TABLE.
   List<Create_field>            create_list;
-
-  enum flags_bits
-  {
-    CHECK_CONSTRAINT_IF_NOT_EXISTS= 1
-  };
   List<Virtual_column_info>     check_constraint_list;
   // Type of ALTER TABLE operation.
   alter_table_operations        flags;
@@ -129,6 +127,7 @@ public:
     drop_list.empty();
     alter_list.empty();
     key_list.empty();
+    alter_rename_key_list.empty();
     create_list.empty();
     check_constraint_list.empty();
     flags= 0;
@@ -302,8 +301,9 @@ public:
     fk_error_table= fk->foreign_table->str;
   }
 
+  void report_implicit_default_value_error(THD *thd, const TABLE_SHARE *) const;
 public:
-  Create_field *datetime_field;
+  Create_field *implicit_default_value_error_field;
   bool         error_if_not_empty;
   uint         tables_opened;
   LEX_CSTRING  db;

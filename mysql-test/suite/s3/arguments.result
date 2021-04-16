@@ -1,0 +1,58 @@
+drop table if exists t1;
+#
+# Test options
+#
+create or replace table t1 (a int, b int, key(a)) engine=aria;
+insert into t1 select seq,seq+10 from seq_1_to_10;
+alter table t1 engine=s3, s3_block_size=819200, compression_algorithm="zlib";
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=S3 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 `s3_block_size`=819200 `compression_algorithm`='zlib'
+alter table t1 engine=s3, s3_block_size=8192;
+ERROR HY000: Incorrect value '8192' for option 's3_block_size'
+alter table t1 engine=s3, s3_block_size=65536;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=S3 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 `compression_algorithm`='zlib' `s3_block_size`=65536
+alter table t1 engine=s3, s3_block_size=100000;
+ERROR HY000: Incorrect value '100000' for option 's3_block_size'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=S3 DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 `compression_algorithm`='zlib' `s3_block_size`=65536
+alter table t1 engine=s3, compression_algorithm="wss";
+ERROR HY000: Incorrect value 'wss' for option 'compression_algorithm'
+drop table t1;
+# Check that key variables are not shown to the end user
+show variables like "s3%key";
+Variable_name	Value
+s3_access_key	*****
+s3_secret_key	*****
+# Show some "static" s3 variables
+set @tmp= @@global.s3_block_size;
+show variables like "s3_block_size";
+Variable_name	Value
+s3_block_size	4194304
+set @@global.s3_block_size=65536;
+show variables like "s3_block_size";
+Variable_name	Value
+s3_block_size	65536
+set @@global.s3_block_size= @tmp;
+set @@s3_block_size=65536;
+ERROR HY000: Variable 's3_block_size' is a GLOBAL variable and should be set with SET GLOBAL
+# Check s3 variables that can't be changed by end user
+set @@s3_access_key="abc";
+ERROR HY000: Variable 's3_access_key' is a read only variable
+set @@s3_secret_key="abc";
+ERROR HY000: Variable 's3_secret_key' is a read only variable

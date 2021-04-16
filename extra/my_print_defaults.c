@@ -104,10 +104,11 @@ static void usage()
 
 
 static my_bool
-get_one_option(int optid, const struct my_option *opt __attribute__((unused)),
-	       char *argument __attribute__((unused)))
+get_one_option(const struct my_option *opt __attribute__((unused)),
+	       const char *argument __attribute__((unused)),
+               const char *filename)
 {
-  switch (optid) {
+  switch (opt->id) {
     case 'c':
       opt_defaults_file_used= 1;
       break;
@@ -146,16 +147,14 @@ int main(int argc, char **argv)
   int count, error, args_used;
   char **load_default_groups= 0, *tmp_arguments[6];
   char **argument, **arguments, **org_argv;
-  char *defaults, *extra_defaults, *group_suffix;
   int nargs, i= 0;
   MY_INIT(argv[0]);
 
   org_argv= argv;
-  args_used= get_defaults_options(argc, argv, &defaults, &extra_defaults,
-                                  &group_suffix);
+  args_used= get_defaults_options(argv);
 
   /* Copy defaults-xxx arguments & program name */
-  count=args_used+1;
+  count=args_used;
   arguments= tmp_arguments;
   memcpy((char*) arguments, (char*) org_argv, count * sizeof(*org_argv));
   arguments[count]= 0;
@@ -171,7 +170,8 @@ int main(int argc, char **argv)
   if (nargs < 2)
     usage();
 
-  load_default_groups=(char**) my_malloc(nargs*sizeof(char*), MYF(MY_WME));
+  load_default_groups=(char**) my_malloc(PSI_NOT_INSTRUMENTED,
+                                         nargs*sizeof(char*), MYF(MY_WME));
   if (!load_default_groups)
     exit(1);
   if (opt_mysqld)
@@ -200,8 +200,7 @@ int main(int argc, char **argv)
   }
 
   for (argument= arguments+1 ; *argument ; argument++)
-    if (!my_getopt_is_args_separator(*argument))           /* skip arguments separator */
-      puts(*argument);
+    puts(*argument);
   my_free(load_default_groups);
   free_defaults(arguments);
   my_end(0);

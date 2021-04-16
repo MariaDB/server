@@ -648,8 +648,9 @@ int TDBDOS::MakeBlockValues(PGLOBAL g)
   PDOSDEF    defp = (PDOSDEF)To_Def;
   PDOSCOL    colp = NULL;
   PDBUSER    dup = PlgGetUser(g);
-  PCATLG     cat __attribute__((unused))= defp->GetCat();
 //void      *memp = cat->GetDescp();
+  (void) defp->GetCat();                        // XXX Should be removed?
+
 
   if ((nrec = defp->GetElemt()) < 2) {
     if (!To_Def->Partitioned()) {
@@ -1018,8 +1019,10 @@ bool TDBDOS::GetBlockValues(PGLOBAL g)
   FILE      *opfile;
   PCOLDEF    cdp;
   PDOSDEF    defp = (PDOSDEF)To_Def;
-  PCATLG     cat __attribute__((unused))= defp->GetCat();
-	PDBUSER    dup = PlgGetUser(g);
+  PDBUSER    dup = PlgGetUser(g);
+
+  (void) defp->GetCat();                        // XXX Should be removed?
+
 
 #if 0
   if (Mode == MODE_INSERT && Txfp->GetAmType() == TYPE_AM_DOS)

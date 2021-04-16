@@ -1,0 +1,237 @@
+#
+# MDEV-19906 Port show_old_temporals from MySQL 5.6
+#
+TRUNCATE TABLE mariadb5312_datetime;
+SHOW CREATE TABLE mariadb5312_datetime;
+Table	Create Table
+mariadb5312_datetime	CREATE TABLE `mariadb5312_datetime` (
+  `t0` datetime /* mariadb-5.3 */ DEFAULT NULL,
+  `t1` datetime(1) /* mariadb-5.3 */ DEFAULT NULL,
+  `t2` datetime(2) /* mariadb-5.3 */ DEFAULT NULL,
+  `t3` datetime(3) /* mariadb-5.3 */ DEFAULT NULL,
+  `t4` datetime(4) /* mariadb-5.3 */ DEFAULT NULL,
+  `t5` datetime(5) /* mariadb-5.3 */ DEFAULT NULL,
+  `t6` datetime(6) /* mariadb-5.3 */ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='mariadb5312_datetime';
+COLUMN_NAME	t0
+DATA_TYPE	datetime
+COLUMN_TYPE	datetime /* mariadb-5.3 */
+COLUMN_NAME	t1
+DATA_TYPE	datetime
+COLUMN_TYPE	datetime(1) /* mariadb-5.3 */
+COLUMN_NAME	t2
+DATA_TYPE	datetime
+COLUMN_TYPE	datetime(2) /* mariadb-5.3 */
+COLUMN_NAME	t3
+DATA_TYPE	datetime
+COLUMN_TYPE	datetime(3) /* mariadb-5.3 */
+COLUMN_NAME	t4
+DATA_TYPE	datetime
+COLUMN_TYPE	datetime(4) /* mariadb-5.3 */
+COLUMN_NAME	t5
+DATA_TYPE	datetime
+COLUMN_TYPE	datetime(5) /* mariadb-5.3 */
+COLUMN_NAME	t6
+DATA_TYPE	datetime
+COLUMN_TYPE	datetime(6) /* mariadb-5.3 */
+DESCRIBE mariadb5312_datetime;
+Field	t0
+Type	datetime /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t1
+Type	datetime(1) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t2
+Type	datetime(2) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t3
+Type	datetime(3) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t4
+Type	datetime(4) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t5
+Type	datetime(5) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t6
+Type	datetime(6) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+DROP TABLE mariadb5312_datetime;
+TRUNCATE TABLE mariadb5312_timestamp;
+SHOW CREATE TABLE mariadb5312_timestamp;
+Table	Create Table
+mariadb5312_timestamp	CREATE TABLE `mariadb5312_timestamp` (
+  `t0` timestamp /* mariadb-5.3 */ NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
+  `t1` timestamp(1) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0',
+  `t2` timestamp(2) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00',
+  `t3` timestamp(3) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000',
+  `t4` timestamp(4) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.0000',
+  `t5` timestamp(5) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.00000',
+  `t6` timestamp(6) /* mariadb-5.3 */ NOT NULL DEFAULT '0000-00-00 00:00:00.000000'
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='mariadb5312_timestamp';
+COLUMN_NAME	t0
+DATA_TYPE	timestamp
+COLUMN_TYPE	timestamp /* mariadb-5.3 */
+COLUMN_NAME	t1
+DATA_TYPE	timestamp
+COLUMN_TYPE	timestamp(1) /* mariadb-5.3 */
+COLUMN_NAME	t2
+DATA_TYPE	timestamp
+COLUMN_TYPE	timestamp(2) /* mariadb-5.3 */
+COLUMN_NAME	t3
+DATA_TYPE	timestamp
+COLUMN_TYPE	timestamp(3) /* mariadb-5.3 */
+COLUMN_NAME	t4
+DATA_TYPE	timestamp
+COLUMN_TYPE	timestamp(4) /* mariadb-5.3 */
+COLUMN_NAME	t5
+DATA_TYPE	timestamp
+COLUMN_TYPE	timestamp(5) /* mariadb-5.3 */
+COLUMN_NAME	t6
+DATA_TYPE	timestamp
+COLUMN_TYPE	timestamp(6) /* mariadb-5.3 */
+DESCRIBE mariadb5312_timestamp;
+Field	t0
+Type	timestamp /* mariadb-5.3 */
+Null	NO
+Key	
+Default	current_timestamp()
+Extra	on update current_timestamp()
+Field	t1
+Type	timestamp(1) /* mariadb-5.3 */
+Null	NO
+Key	
+Default	0000-00-00 00:00:00.0
+Extra	
+Field	t2
+Type	timestamp(2) /* mariadb-5.3 */
+Null	NO
+Key	
+Default	0000-00-00 00:00:00.00
+Extra	
+Field	t3
+Type	timestamp(3) /* mariadb-5.3 */
+Null	NO
+Key	
+Default	0000-00-00 00:00:00.000
+Extra	
+Field	t4
+Type	timestamp(4) /* mariadb-5.3 */
+Null	NO
+Key	
+Default	0000-00-00 00:00:00.0000
+Extra	
+Field	t5
+Type	timestamp(5) /* mariadb-5.3 */
+Null	NO
+Key	
+Default	0000-00-00 00:00:00.00000
+Extra	
+Field	t6
+Type	timestamp(6) /* mariadb-5.3 */
+Null	NO
+Key	
+Default	0000-00-00 00:00:00.000000
+Extra	
+DROP TABLE mariadb5312_timestamp;
+TRUNCATE TABLE mariadb5312_time;
+SHOW CREATE TABLE mariadb5312_time;
+Table	Create Table
+mariadb5312_time	CREATE TABLE `mariadb5312_time` (
+  `t0` time /* mariadb-5.3 */ DEFAULT NULL,
+  `t1` time(1) /* mariadb-5.3 */ DEFAULT NULL,
+  `t2` time(2) /* mariadb-5.3 */ DEFAULT NULL,
+  `t3` time(3) /* mariadb-5.3 */ DEFAULT NULL,
+  `t4` time(4) /* mariadb-5.3 */ DEFAULT NULL,
+  `t5` time(5) /* mariadb-5.3 */ DEFAULT NULL,
+  `t6` time(6) /* mariadb-5.3 */ DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT COLUMN_NAME, DATA_TYPE, COLUMN_TYPE FROM INFORMATION_SCHEMA.COLUMNS WHERE TABLE_NAME='mariadb5312_time';
+COLUMN_NAME	t0
+DATA_TYPE	time
+COLUMN_TYPE	time /* mariadb-5.3 */
+COLUMN_NAME	t1
+DATA_TYPE	time
+COLUMN_TYPE	time(1) /* mariadb-5.3 */
+COLUMN_NAME	t2
+DATA_TYPE	time
+COLUMN_TYPE	time(2) /* mariadb-5.3 */
+COLUMN_NAME	t3
+DATA_TYPE	time
+COLUMN_TYPE	time(3) /* mariadb-5.3 */
+COLUMN_NAME	t4
+DATA_TYPE	time
+COLUMN_TYPE	time(4) /* mariadb-5.3 */
+COLUMN_NAME	t5
+DATA_TYPE	time
+COLUMN_TYPE	time(5) /* mariadb-5.3 */
+COLUMN_NAME	t6
+DATA_TYPE	time
+COLUMN_TYPE	time(6) /* mariadb-5.3 */
+DESCRIBE mariadb5312_time;
+Field	t0
+Type	time /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t1
+Type	time(1) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t2
+Type	time(2) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t3
+Type	time(3) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t4
+Type	time(4) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t5
+Type	time(5) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+Field	t6
+Type	time(6) /* mariadb-5.3 */
+Null	YES
+Key	
+Default	NULL
+Extra	
+DROP TABLE mariadb5312_time;

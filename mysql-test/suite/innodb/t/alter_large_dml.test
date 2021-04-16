@@ -1,4 +1,6 @@
 --source include/big_test.inc
+# debug sync points times out when using valgrind
+--source include/not_valgrind.inc
 --source include/have_innodb.inc
 --source include/have_debug.inc
 --source include/have_debug_sync.inc

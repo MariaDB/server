@@ -623,9 +623,8 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
 		    my_bool insert_last)
 {
   int error,flag;
-  uchar *temp_buff,*keypos;
-  uchar keybuff[MARIA_MAX_KEY_BUFF];
-  my_bool was_last_key;
+  uchar *temp_buff,*keypos,*keybuff;
+  my_bool was_last_key, buff_alloced;
   my_off_t next_page, dup_key_pos;
   MARIA_SHARE *share= info->s;
   MARIA_KEYDEF *keyinfo= key->keyinfo;
@@ -633,9 +632,13 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
   DBUG_ENTER("w_search");
   DBUG_PRINT("enter", ("page: %lu", (ulong) (page_pos/keyinfo->block_length)));
 
-  if (!(temp_buff= (uchar*) my_alloca((uint) keyinfo->block_length+
-				      MARIA_MAX_KEY_BUFF*2)))
-    DBUG_RETURN(-1);
+  alloc_on_stack(*info->stack_end_ptr, temp_buff, buff_alloced,
+                 (keyinfo->block_length + keyinfo->max_store_length*3));
+  if (!temp_buff)
+    DBUG_RETURN(1);
+
+  keybuff= temp_buff + (keyinfo->block_length + keyinfo->max_store_length*2);
+
   if (_ma_fetch_keypage(&page, info, keyinfo, page_pos, PAGECACHE_LOCK_WRITE,
                         DFLT_INIT_HITS, temp_buff, 0))
     goto err;
@@ -695,7 +698,7 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
                                 DFLT_INIT_HITS))
             goto err;
         }
-        my_afree(temp_buff);
+        stack_alloc_free(temp_buff, buff_alloced);
         DBUG_RETURN(error);
       }
     }
@@ -745,10 +748,10 @@ static int w_search(register MARIA_HA *info, uint32 comp_flag, MARIA_KEY *key,
                           DFLT_INIT_HITS))
       goto err;
   }
-  my_afree(temp_buff);
+  stack_alloc_free(temp_buff, buff_alloced);
   DBUG_RETURN(error);
 err:
-  my_afree(temp_buff);
+  stack_alloc_free(temp_buff, buff_alloced);
   DBUG_PRINT("exit",("Error: %d",my_errno));
   DBUG_RETURN(-1);
 } /* w_search */
@@ -892,8 +895,9 @@ ChangeSet@1.2562, 2008-04-09 07:41:40+02:00, serg@janus.mylan +9 -0
       {
         /* Yup. converting */
         info->ft1_to_ft2=(DYNAMIC_ARRAY *)
-          my_malloc(sizeof(DYNAMIC_ARRAY), MYF(MY_WME));
-        my_init_dynamic_array(info->ft1_to_ft2, ft2len, 300, 50, MYF(0));
+          my_malloc(PSI_INSTRUMENT_ME, sizeof(DYNAMIC_ARRAY), MYF(MY_WME));
+        my_init_dynamic_array(PSI_INSTRUMENT_ME, info->ft1_to_ft2, ft2len, 300,
+                              50, MYF(0));
 
         /*
           Now, adding all keys from the page to dynarray
@@ -1246,14 +1250,19 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
 {
   MARIA_PINNED_PAGE tmp_page_link, *new_page_link= &tmp_page_link;
   MARIA_SHARE *share= info->s;
-  my_bool right;
+  my_bool right, buff_alloced;
   uint k_length,father_length,father_keylength,nod_flag,curr_keylength;
   uint right_length,left_length,new_right_length,new_left_length,extra_length;
   uint keys, tmp_length, extra_buff_length;
   uchar *pos, *extra_buff, *parting_key;
-  uchar tmp_part_key[MARIA_MAX_KEY_BUFF];
+  uchar *tmp_part_key;
   MARIA_PAGE next_page, extra_page, *left_page, *right_page;
   DBUG_ENTER("_ma_balance_page");
+
+  alloc_on_stack(*info->stack_end_ptr, tmp_part_key, buff_alloced,
+                 keyinfo->max_store_length);
+  if (!tmp_part_key)
+    DBUG_RETURN(-1);
 
   k_length= keyinfo->keylength;
   father_length= father_page->size;
@@ -1466,6 +1475,7 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
         _ma_write_keypage(father_page,
                           PAGECACHE_LOCK_LEFT_WRITELOCKED, DFLT_INIT_HITS))
       goto err;
+    stack_alloc_free(tmp_part_key, buff_alloced);
     DBUG_RETURN(0);
   }
 
@@ -1636,9 +1646,11 @@ static int _ma_balance_page(MARIA_HA *info, MARIA_KEYDEF *keyinfo,
                         DFLT_INIT_HITS))
     goto err;
 
+  stack_alloc_free(tmp_part_key, buff_alloced);
   DBUG_RETURN(1);				/* Middle key up */
 
 err:
+  stack_alloc_free(tmp_part_key, buff_alloced);
   DBUG_RETURN(-1);
 } /* _ma_balance_page */
 
@@ -1760,7 +1772,7 @@ int maria_init_bulk_insert(MARIA_HA *info, size_t cache_size, ha_rows rows)
     cache_size/=total_keylength*16;
 
   info->bulk_insert=(TREE *)
-    my_malloc((sizeof(TREE)*share->base.keys+
+    my_malloc(PSI_INSTRUMENT_ME, (sizeof(TREE)*share->base.keys+
                sizeof(bulk_insert_param)*num_keys),MYF(0));
 
   if (!info->bulk_insert)

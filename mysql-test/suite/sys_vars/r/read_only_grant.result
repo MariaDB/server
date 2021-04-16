@@ -1,0 +1,44 @@
+#
+# MDEV-21960 Bind READ_ONLY ADMIN to @@read_only
+#
+# Test that "SET read_only" is not allowed without READ_ONLY ADMIN or SUPER
+CREATE USER user1@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE READ_ONLY ADMIN, SUPER ON *.* FROM user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL read_only=0;
+ERROR 42000: Access denied; you need (at least one of) the SUPER, READ_ONLY ADMIN privilege(s) for this operation
+SET read_only=0;
+ERROR HY000: Variable 'read_only' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION read_only=0;
+ERROR HY000: Variable 'read_only' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET read_only" is allowed with READ_ONLY ADMIN
+CREATE USER user1@localhost;
+GRANT READ_ONLY ADMIN ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL read_only=0;
+SET read_only=0;
+ERROR HY000: Variable 'read_only' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION read_only=0;
+ERROR HY000: Variable 'read_only' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;
+# Test that "SET read_only" is allowed with SUPER
+CREATE USER user1@localhost;
+GRANT SUPER ON *.* TO user1@localhost;
+connect user1,localhost,user1,,;
+connection user1;
+SET GLOBAL read_only=0;
+SET read_only=0;
+ERROR HY000: Variable 'read_only' is a GLOBAL variable and should be set with SET GLOBAL
+SET SESSION read_only=0;
+ERROR HY000: Variable 'read_only' is a GLOBAL variable and should be set with SET GLOBAL
+disconnect user1;
+connection default;
+DROP USER user1@localhost;

@@ -1,0 +1,142 @@
+connection node_3;
+connection node_2;
+connection node_1;
+connection node_1;
+connection node_2;
+connection node_3;
+connection node_2;
+SELECT @@wsrep_slave_threads = 8;
+@@wsrep_slave_threads = 8
+1
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INT);
+INSERT INTO t1 VALUES (1, 0),(2, 0),(3, 0),(4, 0),(5, 0),(6, 0),(7, 0),(8, 0);
+connection node_2;
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=1K';
+SET wsrep_on=OFF;
+DELETE FROM t1 WHERE f1 = 2;
+DELETE FROM t1 WHERE f1 = 4;
+SET wsrep_on=ON;
+LOCK TABLES t1 WRITE;
+connection node_1;
+UPDATE t1 SET f2 = 1 WHERE f1 = 1;
+UPDATE t1 SET f2 = 1 WHERE f1 = 2;
+UPDATE t1 SET f2 = 1 WHERE f1 = 3;
+UPDATE t1 SET f2 = 1 WHERE f1 = 4;
+UPDATE t1 SET f2 = 2 WHERE f1 = 4;
+/* dependent applier */
+UPDATE t1 SET f2 = 3 WHERE f1 = 4;
+/* dependent applier */
+UPDATE t1 SET f2 = 1 WHERE f1 = 5;
+UPDATE t1 SET f2 = 1 WHERE f1 = 6;
+UPDATE t1 SET f2 = 1 WHERE f1 = 7;
+UPDATE t1 SET f2 = 1 WHERE f1 = 8;
+connection node_2;
+SET wsrep_on=OFF;
+SET wsrep_on=ON;
+UNLOCK TABLES;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	2
+SELECT * FROM t1;
+f1	f2
+1	1
+2	1
+3	1
+4	3
+5	1
+6	1
+7	1
+8	1
+connection node_2;
+SET GLOBAL wsrep_on=OFF;
+# restart
+DROP TABLE t1;
+connection node_1;
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY, f2 INT);
+START TRANSACTION;
+INSERT INTO t1 VALUES (1, 0);
+INSERT INTO t1 VALUES (2, 0);
+INSERT INTO t1 VALUES (3, 0);
+INSERT INTO t1 VALUES (4, 0);
+INSERT INTO t1 VALUES (5, 0);
+INSERT INTO t1 VALUES (6, 0);
+INSERT INTO t1 VALUES (7, 0);
+INSERT INTO t1 VALUES (8, 0);
+COMMIT;
+CREATE TABLE t2 (f1 INTEGER PRIMARY KEY, f2 INT);
+connection node_2;
+SET GLOBAL wsrep_provider_options='gcs.fc_limit=1K';
+SET wsrep_on=OFF;
+DROP TABLE t2;
+SET wsrep_on=ON;
+SET GLOBAL wsrep_provider_options = 'dbug=d,after_replicate_sync';
+LOCK TABLES t1 READ;
+connection node_1;
+UPDATE t1 SET f2 = 1 WHERE f1 = 1;
+UPDATE t1 SET f2 = 1 WHERE f1 = 2;
+UPDATE t1 SET f2 = 1 WHERE f1 = 3;
+UPDATE t1 SET f2 = 1 WHERE f1 = 4;
+UPDATE t1 SET f2 = 2 WHERE f1 = 4;
+/* dependent applier */;
+connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2;
+connection node_2a;
+DROP TABLE t2;;
+connection node_2;
+SET wsrep_on=OFF;
+"Wait for DROP TABLE to replicate"
+SET SESSION wsrep_on = 0;
+SET SESSION wsrep_on = 0;
+SET GLOBAL wsrep_provider_options = 'signal=after_replicate_sync';
+SET GLOBAL wsrep_provider_options = 'dbug=';
+"DROP TABLE replicated"
+SET wsrep_on=ON;
+connection node_1;
+UPDATE t1 SET f2 = 3 WHERE f1 = 4;
+/* dependent applier */
+UPDATE t1 SET f2 = 1 WHERE f1 = 5;
+UPDATE t1 SET f2 = 1 WHERE f1 = 6;
+UPDATE t1 SET f2 = 1 WHERE f1 = 7;
+UPDATE t1 SET f2 = 1 WHERE f1 = 8;
+connection node_2;
+SET wsrep_on=OFF;
+SET wsrep_on=ON;
+UNLOCK TABLES;
+connection node_2a;
+ERROR 42S02: Unknown table 'test.t2'
+connection node_1;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SHOW STATUS LIKE 'wsrep_cluster_size';
+Variable_name	Value
+wsrep_cluster_size	2
+SELECT * FROM t1;
+f1	f2
+1	1
+2	1
+3	1
+4	3
+5	1
+6	1
+7	1
+8	1
+connection node_2;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SET SESSION wsrep_on = ON;
+SET SESSION wsrep_sync_wait = 15;
+SET GLOBAL wsrep_on=OFF;
+# restart
+DROP TABLE t1;
+CALL mtr.add_suppression('Can\'t find record in \'t1\'');
+CALL mtr.add_suppression('Update_rows_v1 apply failed');
+CALL mtr.add_suppression('Inconsistency detected: Inconsistent by consensus on');
+CALL mtr.add_suppression('last left .* greater than drain seqno');
+CALL mtr.add_suppression('WSREP: Failed to apply write set:');

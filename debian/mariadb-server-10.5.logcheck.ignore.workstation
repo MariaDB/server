@@ -1,0 +1,30 @@
+/etc/init.d/mariadb\[[0-9]+\]: [0-9]+ processes alive and '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
+/etc/init.d/mariadb\[[0-9]+\]: Check that mariadbd is running and that the socket: '/run/mysqld/mysqld.sock' exists\!$
+/etc/init.d/mariadb\[[0-9]+\]: '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
+/etc/mysql/debian-start\[[0-9]+\]: Checking for crashed MySQL tables\.$
+mariadbd\[[0-9]+\]: ?$
+mariadbd\[[0-9]+\]: .*InnoDB: Shutdown completed
+mariadbd\[[0-9]+\]: .*InnoDB: Started;
+mariadbd\[[0-9]+\]: .*InnoDB: Starting shutdown\.\.\.$
+mariadbd\[[0-9]+\]: .*\[Note\] /usr/sbin/mariadbd: Normal shutdown$
+mariadbd\[[0-9]+\]: .*\[Note\] /usr/sbin/mariadbd: ready for connections\.$
+mariadbd\[[0-9]+\]: .*\[Note\] /usr/sbin/mariadbd: Shutdown complete$
+mariadbd\[[0-9]+\]: /usr/sbin/mariadbd: ready for connections\.$
+mariadbd\[[0-9]+\]: .*/usr/sbin/mariadbd: Shutdown Complete$
+mariadbd\[[0-9]+\]: Version: .* socket
+mariadbd\[[0-9]+\]: Warning: Ignoring user change to 'mysql' because the user was set to 'mysql' earlier on the command line$
+mysqld_safe\[[0-9]+\]: ?$
+mysqld_safe\[[0-9]+\]: able to use the new GRANT command!$
+mysqld_safe\[[0-9]+\]: ended$
+mysqld_safe\[[0-9]+\]: NOTE:  If you are upgrading from a MySQL <= 3.22.10 you should run$
+mysqld_safe\[[0-9]+\]: PLEASE REMEMBER TO SET A PASSWORD FOR THE MySQL root USER !$
+mysqld_safe\[[0-9]+\]: Please report any problems at https://mariadb.org/jira$
+mysqld_safe\[[0-9]+\]: See the manual for more instructions.$
+mysqld_safe\[[0-9]+\]: started$
+mysqld_safe\[[0-9]+\]: The latest information about MariaDB is available at$
+mysqld_safe\[[0-9]+\]: the /usr/bin/mysql_fix_privilege_tables. Otherwise you will not be$
+mysqld_safe\[[0-9]+\]: To do so, start the server, then issue the following commands:$
+mysqld_safe\[[0-9]+\]: /usr/bin/mysqladmin -u root -h app109 password 'new-password'$
+mysqld_safe\[[0-9]+\]: /usr/bin/mysqladmin -u root password 'new-password'$
+usermod\[[0-9]+\]: change user `mysql' GID from `([0-9]+)' to `\1'$
+usermod\[[0-9]+\]: change user `mysql' shell from `/bin/false' to `/bin/false'$

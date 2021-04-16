@@ -1,0 +1,52 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-21975 Add BINLOG REPLAY privilege and bind new privileges to gtid_seq_no, preudo_thread_id, server_id, gtid_domain_id
+#
+#
+# Test that binlog replay statements are not allowed without BINLOG REPLAY or SUPER
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT ALL PRIVILEGES ON *.* TO user1@localhost;
+REVOKE BINLOG REPLAY, SUPER ON *.* FROM user1@localhost;
+connect  con1,localhost,user1,,;
+connection con1;
+BINLOG '';
+ERROR 42000: Access denied; you need (at least one of) the SUPER, BINLOG REPLAY privilege(s) for this operation
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# Test that binlog replay statements are allowed with BINLOG REPLAY
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT BINLOG REPLAY ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT BINLOG REPLAY ON *.* TO `user1`@`localhost`
+connect  con1,localhost,user1,,;
+connection con1;
+BINLOG '';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# Test that binlog replay statements are allowed with SUPER
+#
+CREATE USER user1@localhost IDENTIFIED BY '';
+GRANT SUPER ON *.* TO user1@localhost;
+SHOW GRANTS FOR user1@localhost;
+Grants for user1@localhost
+GRANT SUPER ON *.* TO `user1`@`localhost`
+connect  con1,localhost,user1,,;
+connection con1;
+BINLOG '';
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use
+disconnect con1;
+connection default;
+DROP USER user1@localhost;
+#
+# End of 10.5 tests
+#

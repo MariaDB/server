@@ -1,3 +1,4 @@
+call mtr.add_suppression("need more HISTORY partitions");
 create table t (a int);
 delete history from t before system_time now();
 ERROR HY000: Table `t` is not system-versioned
@@ -56,16 +57,15 @@ select * from t for system_time all;
 a
 drop procedure truncate_sp;
 # Truncate partitioned
-create or replace table t (a int)
-with system versioning
-partition by system_time limit 1 (
-partition p0 history,
-partition p1 history,
-partition pn current);
+create or replace table t (a int) with system versioning
+partition by system_time limit 1 partitions 3;
 insert into t values (1);
 update t set a= 2;
 update t set a= 3;
 delete history from t;
+Warnings:
+Warning	4114	Versioned table `test`.`t`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+# The above warning is one command late (MDEV-20345) ^^^
 select * from t for system_time all;
 a
 3

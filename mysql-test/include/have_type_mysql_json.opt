@@ -1,0 +1,2 @@
+--loose-type_mysql_json
+--plugin-load-add=$TYPE_MYSQL_JSON_SO

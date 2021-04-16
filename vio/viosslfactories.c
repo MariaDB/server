@@ -246,7 +246,8 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
   vio_check_ssl_init();
 
   if (!(ssl_fd= ((struct st_VioSSLFd*)
-                 my_malloc(sizeof(struct st_VioSSLFd),MYF(0)))))
+                 my_malloc(key_memory_vio_ssl_fd,
+                           sizeof(struct st_VioSSLFd), MYF(0)))))
     goto err0;
   if (!(ssl_fd->ssl_context= SSL_CTX_new(is_client_method ? 
                                          SSLv23_client_method() :
@@ -436,7 +437,9 @@ new_VioSSLAcceptorFd(const char *key_file, const char *cert_file,
 
 void free_vio_ssl_acceptor_fd(struct st_VioSSLFd *fd)
 {
+  DBUG_ENTER("free_vio_ssl_acceptor_fd");
   SSL_CTX_free(fd->ssl_context);
   my_free(fd);
+  DBUG_VOID_RETURN;
 }
 #endif /* HAVE_OPENSSL */

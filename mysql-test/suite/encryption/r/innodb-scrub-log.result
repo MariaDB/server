@@ -1,3 +1,0 @@
-create table t1(a int not null primary key auto_increment,
-b varchar(200), c char(100), d varchar(150)) engine=innodb;
-DROP TABLE t1;

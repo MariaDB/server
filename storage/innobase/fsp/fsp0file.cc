@@ -157,7 +157,7 @@ void
 Datafile::init_file_info()
 {
 #ifdef _WIN32
-	GetFileInformationByHandle(m_handle, &m_file_info);
+	GetFileInformationByHandle((os_file_t)m_handle, &m_file_info);
 #else
 	fstat(m_handle, &m_file_info);
 #endif	/* WIN32 */
@@ -291,28 +291,23 @@ Datafile::read_first_page(bool read_only_mode)
 		}
 	}
 
-	m_first_page_buf = static_cast<byte*>(
-		ut_malloc_nokey(2 * UNIV_PAGE_SIZE_MAX));
-
 	/* Align the memory for a possible read from a raw device */
 
 	m_first_page = static_cast<byte*>(
-		ut_align(m_first_page_buf, srv_page_size));
+		aligned_malloc(UNIV_PAGE_SIZE_MAX, srv_page_size));
 
-	IORequest	request;
 	dberr_t		err = DB_ERROR;
 	size_t		page_size = UNIV_PAGE_SIZE_MAX;
 
 	/* Don't want unnecessary complaints about partial reads. */
-
-	request.disable_partial_io_warnings();
 
 	while (page_size >= UNIV_PAGE_SIZE_MIN) {
 
 		ulint	n_read = 0;
 
 		err = os_file_read_no_error_handling(
-			request, m_handle, m_first_page, 0, page_size, &n_read);
+			IORequestReadPartial, m_handle, m_first_page, 0,
+			page_size, &n_read);
 
 		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
 
@@ -341,7 +336,17 @@ Datafile::read_first_page(bool read_only_mode)
 	}
 
 	if (m_order == 0) {
-		m_space_id = fsp_header_get_space_id(m_first_page);
+		if (memcmp_aligned<2>(FIL_PAGE_SPACE_ID + m_first_page,
+				      FSP_HEADER_OFFSET + FSP_SPACE_ID
+				      + m_first_page, 4)) {
+			ib::error()
+				<< "Inconsistent tablespace ID in "
+				<< m_filepath;
+			return DB_CORRUPTION;
+		}
+
+		m_space_id = mach_read_from_4(FIL_PAGE_SPACE_ID
+					      + m_first_page);
 		m_flags = fsp_header_get_flags(m_first_page);
 		if (!fil_space_t::is_valid_flags(m_flags, m_space_id)) {
 			ulint cflags = fsp_flags_convert_from_101(m_flags);
@@ -369,14 +374,10 @@ Datafile::read_first_page(bool read_only_mode)
 }
 
 /** Free the first page from memory when it is no longer needed. */
-void
-Datafile::free_first_page()
+void Datafile::free_first_page()
 {
-	if (m_first_page_buf) {
-		ut_free(m_first_page_buf);
-		m_first_page_buf = NULL;
-		m_first_page = NULL;
-	}
+  aligned_free(m_first_page);
+  m_first_page= nullptr;
 }
 
 /** Validates the datafile and checks that it conforms with the expected
@@ -504,7 +505,6 @@ Datafile::validate_first_page(lsn_t* flush_lsn)
 
 		error_txt = "Cannot read first page";
 	} else {
-		ut_ad(m_first_page_buf);
 		ut_ad(m_first_page);
 
 		if (flush_lsn != NULL) {
@@ -565,7 +565,7 @@ err_exit:
 		goto err_exit;
 	}
 
-	if (m_space_id >= SRV_LOG_SPACE_FIRST_ID) {
+	if (m_space_id >= SRV_SPACE_ID_UPPER_BOUND) {
 		error_txt = "A bad Space ID was found";
 		goto err_exit;
 	}
@@ -653,11 +653,8 @@ Datafile::find_space_id()
 			<< "Page size:" << page_size
 			<< ". Pages to analyze:" << page_count;
 
-		byte*	buf = static_cast<byte*>(
-			ut_malloc_nokey(2 * UNIV_PAGE_SIZE_MAX));
-
 		byte*	page = static_cast<byte*>(
-			ut_align(buf, UNIV_SECTOR_SIZE));
+			aligned_malloc(page_size, page_size));
 
 		ulint fsp_flags;
 		/* provide dummy value if the first os_file_read() fails */
@@ -674,19 +671,10 @@ Datafile::find_space_id()
 		}
 
 		for (ulint j = 0; j < page_count; ++j) {
-
-			dberr_t		err;
-			ulint		n_bytes = j * page_size;
-			IORequest	request(IORequest::READ);
-
-			err = os_file_read(
-				request, m_handle, page, n_bytes, page_size);
-
-			if (err != DB_SUCCESS) {
-
+			if (os_file_read(IORequestRead, m_handle, page,
+					 j * page_size, page_size)) {
 				ib::info()
 					<< "READ FAIL: page_no:" << j;
-
 				continue;
 			}
 
@@ -732,7 +720,7 @@ Datafile::find_space_id()
 			}
 		}
 
-		ut_free(buf);
+		aligned_free(page);
 
 		ib::info()
 			<< "Page size: " << page_size
@@ -815,10 +803,8 @@ Datafile::restore_from_doublewrite()
 		<< physical_size << " bytes into file '"
 		<< m_filepath << "'";
 
-	IORequest	request(IORequest::WRITE);
-
 	return(os_file_write(
-			request,
+			IORequestWrite,
 			m_filepath, m_handle, page, 0, physical_size)
 	       != DB_SUCCESS);
 }

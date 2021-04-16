@@ -357,3 +357,32 @@ drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
 
 --echo # End of 10.4 tests
+
+#
+# MDEV-22249 Upgrade testing between major versions in MTR
+#
+--echo #
+--echo # Check that mysql_upgrade can be run on mysqldump
+--echo # of mysql schema from previous versions
+--echo #
+
+# The warning appears during mysql_upgrade, before the schema becomes consistent
+call mtr.add_suppression("innodb_table_stats has length mismatch in the column name table_name");
+
+--let $old_version= 5.5
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 10.0
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 10.1
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 10.2
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 10.3
+--source include/load_dump_and_upgrade.inc
+
+--let $old_version= 10.4
+--source include/load_dump_and_upgrade.inc

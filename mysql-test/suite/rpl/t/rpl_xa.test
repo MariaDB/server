@@ -1,0 +1,5 @@
+source include/have_innodb.inc;
+source include/master-slave.inc;
+
+source rpl_xa.inc;
+source include/rpl_end.inc;

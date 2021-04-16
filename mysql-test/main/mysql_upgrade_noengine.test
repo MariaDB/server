@@ -76,3 +76,6 @@ uninstall plugin archive;
 
 drop table mysql.global_priv;
 rename table mysql.global_priv_bak to mysql.global_priv;
+
+FLUSH PRIVILEGES;
+SHOW GRANTS FOR root@localhost;

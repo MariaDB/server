@@ -76,7 +76,7 @@ struct PFS_ALIGNED PFS_statements_digest_stat
 int init_digest(const PFS_global_param *param);
 void cleanup_digest();
 
-int init_digest_hash(void);
+int init_digest_hash(const PFS_global_param *param);
 void cleanup_digest_hash(void);
 PFS_statement_stat* find_or_create_digest(PFS_thread *thread,
                                           const sql_digest_storage *digest_storage,
@@ -91,3 +91,4 @@ extern PFS_statements_digest_stat *statements_digest_stat_array;
 extern LF_HASH digest_hash;
 
 #endif
+

@@ -1,5 +1,5 @@
 /* Copyright (c) 2006, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB Corporation.
+   Copyright (c) 2010, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -30,11 +30,11 @@
                                            // NOT_A_PARTITION_ID
 #include "partition_info.h"
 #include "sql_parse.h"
-#include "sql_acl.h"                          // *_ACL
 #include "sql_base.h"                         // fill_record
-#include "sql_statistics.h"                   // vers_stat_end
-#include "vers_utils.h"
 #include "lock.h"
+#include "table.h"
+#include "sql_class.h"
+#include "vers_string.h"
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
@@ -196,49 +196,6 @@ bool partition_info::set_named_partition_bitmap(const char *part_name, size_t le
 }
 
 
-
-/**
-  Prune away partitions not mentioned in the PARTITION () clause,
-  if used.
-
-    @param table_list  Table list pointing to table to prune.
-
-  @return Operation status
-    @retval false Success
-    @retval true  Failure
-*/
-bool partition_info::set_read_partitions(List<char> *partition_names)
-{
-  DBUG_ENTER("partition_info::set_read_partitions");
-  if (!partition_names || !partition_names->elements)
-  {
-    DBUG_RETURN(true);
-  }
-
-  uint num_names= partition_names->elements;
-  List_iterator<char> partition_names_it(*partition_names);
-  uint i= 0;
-  /*
-    TODO: When adding support for FK in partitioned tables, the referenced
-    table must probably lock all partitions for read, and also write depending
-    of ON DELETE/UPDATE.
-  */
-  bitmap_clear_all(&read_partitions);
-
-  /* No check for duplicate names or overlapping partitions/subpartitions. */
-
-  DBUG_PRINT("info", ("Searching through partition_name_hash"));
-  do
-  {
-    char *part_name= partition_names_it++;
-    if (add_named_partition(part_name, strlen(part_name)))
-      DBUG_RETURN(true);
-  } while (++i < num_names);
-  DBUG_RETURN(false);
-}
-
-
-
 /**
   Prune away partitions not mentioned in the PARTITION () clause,
   if used.
@@ -379,7 +336,8 @@ char *partition_info::create_default_partition_names(THD *thd, uint part_no,
   {
     do
     {
-      sprintf(move_ptr, "p%u", (start_no + i));
+      if (make_partition_name(move_ptr, (start_no + i)))
+        DBUG_RETURN(NULL);
       move_ptr+= MAX_PART_NAME_SIZE;
     } while (++i < num_parts_arg);
   }
@@ -446,7 +404,13 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
   bool result= TRUE;
   DBUG_ENTER("partition_info::set_up_default_partitions");
 
-  if (part_type != HASH_PARTITION)
+  if (part_type == VERSIONING_PARTITION)
+  {
+    if (start_no == 0 && use_default_num_partitions)
+      num_parts= 2;
+    use_default_num_partitions= false;
+  }
+  else if (part_type != HASH_PARTITION)
   {
     const char *error_string;
     if (part_type == RANGE_PARTITION)
@@ -484,7 +448,17 @@ bool partition_info::set_up_default_partitions(THD *thd, handler *file,
     {
       part_elem->engine_type= default_engine_type;
       part_elem->partition_name= default_name;
+      part_elem->id= i;
       default_name+=MAX_PART_NAME_SIZE;
+      if (part_type == VERSIONING_PARTITION)
+      {
+        if (start_no > 0 || i < num_parts - 1) {
+          part_elem->type= partition_element::HISTORY;
+        } else {
+          part_elem->type= partition_element::CURRENT;
+          part_elem->partition_name= "pn";
+        }
+      }
     }
     else
       goto end;
@@ -589,8 +563,9 @@ bool partition_info::set_up_defaults_for_partitioning(THD *thd, handler *file,
   if (!default_partitions_setup)
   {
     default_partitions_setup= TRUE;
-    if (use_default_partitions)
-      DBUG_RETURN(set_up_default_partitions(thd, file, info, start_no));
+    if (use_default_partitions &&
+        set_up_default_partitions(thd, file, info, start_no))
+      DBUG_RETURN(TRUE);
     if (is_sub_partitioned() && 
         use_default_subpartitions)
       DBUG_RETURN(set_up_default_subpartitions(thd, file, info));
@@ -758,7 +733,7 @@ char *partition_info::find_duplicate_name()
   max_names= num_parts;
   if (is_sub_partitioned())
     max_names+= num_parts * num_subparts;
-  if (my_hash_init(&partition_names, system_charset_info, max_names, 0, 0,
+  if (my_hash_init(PSI_INSTRUMENT_ME, &partition_names, system_charset_info, max_names, 0, 0,
                    (my_hash_get_key) get_part_name_from_elem, 0, HASH_UNIQUE))
   {
     DBUG_ASSERT(0);
@@ -832,6 +807,15 @@ bool partition_info::has_unique_name(partition_element *element)
   DBUG_RETURN(TRUE);
 }
 
+
+/**
+  @brief Switch history partition according limit or interval
+
+  @note
+    vers_info->limit      Limit by number of partition records
+    vers_info->interval   Limit by fixed time interval
+    vers_info->hist_part  (out) Working history partition
+*/
 void partition_info::vers_set_hist_part(THD *thd)
 {
   if (vers_info->limit)
@@ -850,11 +834,16 @@ void partition_info::vers_set_hist_part(THD *thd)
       vers_info->hist_part= next;
       records= next_records;
     }
-    if (records > vers_info->limit)
+    if (records >= vers_info->limit)
     {
       if (next == vers_info->now_part)
-        goto warn;
-      vers_info->hist_part= next;
+      {
+        my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
+                table->s->db.str, table->s->table_name.str,
+                vers_info->hist_part->partition_name, "LIMIT");
+      }
+      else
+        vers_info->hist_part= next;
     }
     return;
   }
@@ -876,54 +865,6 @@ void partition_info::vers_set_hist_part(THD *thd)
         return;
     }
   }
-  return;
-warn:
-  my_error(WARN_VERS_PART_FULL, MYF(ME_WARNING|ME_ERROR_LOG),
-           table->s->db.str, table->s->table_name.str,
-           vers_info->hist_part->partition_name);
-}
-
-
-bool partition_info::vers_setup_expression(THD * thd, uint32 alter_add)
-{
-  if (!table->versioned())
-  {
-    // frm must be corrupted, normally CREATE/ALTER TABLE checks for that
-    my_error(ER_FILE_CORRUPT, MYF(0), table->s->path.str);
-    return true;
-  }
-
-  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
-  DBUG_ASSERT(table->versioned(VERS_TIMESTAMP));
-
-  if (!alter_add)
-  {
-    Field *row_end= table->vers_end_field();
-    // needed in handle_list_of_fields()
-    row_end->flags|= GET_FIXED_FIELDS_FLAG;
-    Name_resolution_context *context= &thd->lex->current_select->context;
-    Item *row_end_item= new (thd->mem_root) Item_field(thd, context, row_end);
-    Item *row_end_ts= new (thd->mem_root) Item_func_unix_timestamp(thd, row_end_item);
-    set_part_expr(thd, row_end_ts, false);
-  }
-
-  if (alter_add)
-  {
-    List_iterator<partition_element> it(partitions);
-    partition_element *el;
-    for(uint32 id= 0; ((el= it++)); id++)
-    {
-      DBUG_ASSERT(el->type != partition_element::CONVENTIONAL);
-      /* Newly added element is inserted before AS_OF_NOW. */
-      if (el->id == UINT_MAX32 || el->type == partition_element::CURRENT)
-      {
-        el->id= id;
-        if (el->type == partition_element::CURRENT)
-          break;
-      }
-    }
-  }
-  return false;
 }
 
 
@@ -1190,7 +1131,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
                  part_type == LIST_PARTITION ||
                  part_type == VERSIONING_PARTITION))))
   {
-    /* Only RANGE and LIST partitioning can be subpartitioned */
+    /* Only RANGE, LIST and SYSTEM_TIME partitioning can be subpartitioned */
     my_error(ER_SUBPARTITION_ERROR, MYF(0));
     goto end;
   }
@@ -1254,7 +1195,7 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
   if (part_type == VERSIONING_PARTITION)
   {
     DBUG_ASSERT(vers_info);
-    if (num_parts < 2 || !vers_info->now_part)
+    if (num_parts < 2 || !(use_default_partitions || vers_info->now_part))
     {
       DBUG_ASSERT(info);
       DBUG_ASSERT(info->alias.str);
@@ -1404,9 +1345,8 @@ bool partition_info::check_partition_info(THD *thd, handlerton **eng_type,
 
   if (add_or_reorg_part)
   {
-    if (unlikely(part_type == VERSIONING_PARTITION &&
-                 vers_setup_expression(thd, add_or_reorg_part->partitions.elements)))
-      goto end;
+    if (part_type == VERSIONING_PARTITION && add_or_reorg_part->partitions.elements)
+      vers_update_el_ids();
     if (check_constants(thd, this))
       goto end;
   }
@@ -2141,7 +2081,6 @@ bool partition_info::fix_column_value_functions(THD *thd,
       {
         uchar *val_ptr;
         uint len= field->pack_length();
-        sql_mode_t save_sql_mode;
         bool save_got_warning;
 
         if (!(column_item= get_column_item(column_item, field)))
@@ -2149,20 +2088,17 @@ bool partition_info::fix_column_value_functions(THD *thd,
           result= TRUE;
           goto end;
         }
-        save_sql_mode= thd->variables.sql_mode;
-        thd->variables.sql_mode= 0;
+        Sql_mode_instant_set sms(thd, 0);
         save_got_warning= thd->got_warning;
         thd->got_warning= 0;
         if (column_item->save_in_field(field, TRUE) ||
             thd->got_warning)
         {
           my_error(ER_WRONG_TYPE_COLUMN_VALUE_ERROR, MYF(0));
-          thd->variables.sql_mode= save_sql_mode;
           result= TRUE;
           goto end;
         }
         thd->got_warning= save_got_warning;
-        thd->variables.sql_mode= save_sql_mode;
         if (!(val_ptr= (uchar*) thd->memdup(field->ptr, len)))
         {
           result= TRUE;
@@ -2696,6 +2632,102 @@ bool partition_info::vers_init_info(THD * thd)
     return true;
 
   return false;
+}
+
+
+/**
+  Assign INTERVAL and STARTS for SYSTEM_TIME partitions.
+
+  @return true on error
+*/
+
+bool partition_info::vers_set_interval(THD* thd, Item* interval,
+                                       interval_type int_type, Item* starts,
+                                       const char *table_name)
+{
+  DBUG_ASSERT(part_type == VERSIONING_PARTITION);
+
+  MYSQL_TIME ltime;
+  uint err;
+  vers_info->interval.type= int_type;
+
+  /* 1. assign INTERVAL to interval.step */
+  if (interval->fix_fields_if_needed_for_scalar(thd, &interval))
+    return true;
+  bool error= get_interval_value(thd, interval, int_type, &vers_info->interval.step) ||
+          vers_info->interval.step.neg || vers_info->interval.step.second_part ||
+        !(vers_info->interval.step.year || vers_info->interval.step.month ||
+          vers_info->interval.step.day || vers_info->interval.step.hour ||
+          vers_info->interval.step.minute || vers_info->interval.step.second);
+  if (error)
+  {
+    my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "INTERVAL");
+    return true;
+  }
+
+  /* 2. assign STARTS to interval.start */
+  if (starts)
+  {
+    if (starts->fix_fields_if_needed_for_scalar(thd, &starts))
+      return true;
+    switch (starts->result_type())
+    {
+      case INT_RESULT:
+      case DECIMAL_RESULT:
+      case REAL_RESULT:
+        /* When table member is defined, we are inside mysql_unpack_partition(). */
+        if (!table || starts->val_int() > TIMESTAMP_MAX_VALUE)
+          goto interval_starts_error;
+        vers_info->interval.start= (my_time_t) starts->val_int();
+        break;
+      case STRING_RESULT:
+      case TIME_RESULT:
+      {
+        Datetime::Options opt(TIME_NO_ZERO_DATE | TIME_NO_ZERO_IN_DATE, thd);
+        starts->get_date(thd, &ltime, opt);
+        vers_info->interval.start= TIME_to_timestamp(thd, &ltime, &err);
+        if (err)
+          goto interval_starts_error;
+        break;
+      }
+      case ROW_RESULT:
+      default:
+        goto interval_starts_error;
+    }
+    if (!table)
+    {
+      if (thd->query_start() < vers_info->interval.start) {
+        push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                            ER_PART_STARTS_BEYOND_INTERVAL,
+                            ER_THD(thd, ER_PART_STARTS_BEYOND_INTERVAL),
+                            table_name);
+      }
+    }
+  }
+  else // calculate default STARTS depending on INTERVAL
+  {
+    thd->variables.time_zone->gmt_sec_to_TIME(&ltime, thd->query_start());
+    if (vers_info->interval.step.second)
+      goto interval_set_starts;
+    ltime.second= 0;
+    if (vers_info->interval.step.minute)
+      goto interval_set_starts;
+    ltime.minute= 0;
+    if (vers_info->interval.step.hour)
+      goto interval_set_starts;
+    ltime.hour= 0;
+
+interval_set_starts:
+    vers_info->interval.start= TIME_to_timestamp(thd, &ltime, &err);
+    if (err)
+      goto interval_starts_error;
+  }
+
+  return false;
+
+interval_starts_error:
+  my_error(ER_PART_WRONG_VALUE, MYF(0), table_name, "STARTS");
+  return true;
 }
 
 

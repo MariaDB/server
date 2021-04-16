@@ -15,7 +15,6 @@
 
 #include "wsrep_client_service.h"
 #include "wsrep_high_priority_service.h"
-#include "wsrep_applier.h" /* wsrep_apply_events() */
 #include "wsrep_binlog.h"  /* wsrep_dump_rbr_buf() */
 #include "wsrep_schema.h"  /* remove_fragments() */
 #include "wsrep_thd.h"
@@ -331,7 +330,8 @@ int Wsrep_client_service::bf_rollback()
   int ret= (trans_rollback_stmt(m_thd) || trans_rollback(m_thd));
   if (m_thd->locked_tables_mode && m_thd->lock)
   {
-    m_thd->locked_tables_list.unlock_locked_tables(m_thd);
+    if (m_thd->locked_tables_list.unlock_locked_tables(m_thd))
+      ret= 1;
     m_thd->variables.option_bits&= ~OPTION_TABLE_LOCK;
   }
   if (m_thd->global_read_lock.is_acquired())

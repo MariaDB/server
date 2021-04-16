@@ -1,0 +1,80 @@
+# ==== Purpose ====
+#
+# Test verifies that SQL statements which use keyword 'REPLICA' a synonym for
+# 'SLAVE' work as expected.
+#
+# ==== Implementation ====
+#
+# List of commands being verified are
+#
+# START ALL REPLICAS
+# STOP ALL REPLICAS
+# SHOW ALL REPLICAS STATUS
+#
+# ==== References ====
+#
+# MDEV-20601: Make REPLICA a synonym for SLAVE in SQL statements
+#
+
+--source include/not_embedded.inc
+--source include/binlog_start_pos.inc
+--let $rpl_server_count= 0
+
+--connect (slave,127.0.0.1,root,,,$SERVER_MYPORT_3)
+--connect (master1,127.0.0.1,root,,,$SERVER_MYPORT_1)
+--connect (master2,127.0.0.1,root,,,$SERVER_MYPORT_2)
+
+--connection slave
+--replace_result $SERVER_MYPORT_1 MYPORT_1
+eval CHANGE MASTER 'slave1' TO MASTER_PORT=$SERVER_MYPORT_1, MASTER_HOST='127.0.0.1', MASTER_USER='root';
+--replace_result $SERVER_MYPORT_2 MYPORT_2
+eval CHANGE MASTER 'slave2' TO MASTER_PORT=$SERVER_MYPORT_2, MASTER_HOST='127.0.0.1', MASTER_USER='root';
+START REPLICA 'slave1';
+SET default_master_connection = 'slave1';
+--source include/wait_for_slave_to_start.inc
+SET default_master_connection = 'slave2';
+--echo "Command: START ALL SLAVES --> START ALL REPLICAS"
+START ALL REPLICAS;
+
+--source include/wait_for_slave_to_start.inc
+SET default_master_connection = '';
+
+# Ensure that all data is in the relay log
+--connection master1
+--save_master_pos
+--connection slave
+--sync_with_master 0,'slave1'
+--connection master2
+--save_master_pos
+--connection slave
+--sync_with_master 0,'slave2'
+
+--echo "Command: SHOW ALL STAVES STATUS --> SHOW ALL REPLICAS STATUS"
+let $show_statement = SHOW ALL REPLICAS STATUS;
+let $field = Executed_log_entries;
+let $condition = = 7;
+let $wait_for_all = 1;
+--source include/wait_show_condition.inc
+
+let read_master_log_pos=`select $binlog_start_pos + 73`;
+let relay_log_pos=`select 2*$binlog_start_pos + 117`;
+let relay_log_space1=`select 3*$binlog_start_pos + 178`;
+let relay_log_space2=`select 3*$binlog_start_pos + 178`;
+--replace_result $SERVER_MYPORT_1 MYPORT_1 $SERVER_MYPORT_2 MYPORT_2 $read_master_log_pos <read_master_log_pos> $relay_log_pos <relay_log_pos> $relay_log_space1 <relay_log_space1> $relay_log_space2 <relay_log_space2>
+--query_vertical SHOW ALL REPLICAS STATUS
+
+--echo "Command: STOP ALL SLAVES --> STOP ALL REPLICAS"
+STOP ALL REPLICAS;
+
+#
+# clean up
+#
+
+--source include/reset_master_slave.inc
+--disconnect slave
+--connection master1
+--source include/reset_master_slave.inc
+--disconnect master1
+--connection master2
+--source include/reset_master_slave.inc
+--disconnect master2

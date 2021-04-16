@@ -1,0 +1,100 @@
+connect  con1, localhost, root, , ;
+drop table if exists t1;
+create table t1(a int) engine = myisam;
+insert into t1 values (1), (2), (3), (4), (5);
+connection default;
+update performance_schema.threads
+set instrumented = 'NO'
+  where processlist_id = connection_id();
+truncate table performance_schema.events_statements_history_long;
+truncate table performance_schema.events_stages_history_long;
+connection con1;
+SET DEBUG_SYNC='RESET';
+SET DEBUG_SYNC='copy_data_between_tables_before SIGNAL found_row WAIT_FOR wait_row EXECUTE 5';
+ALTER TABLE t1 engine = innodb;;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR found_row';
+select event_id from performance_schema.events_statements_current
+where thread_id = @con1_thread_id into @con1_stmt_id;
+Warnings:
+Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED
+from performance_schema.events_stages_current
+where (thread_id = @con1_thread_id);
+EVENT_NAME	WORK_COMPLETED	WORK_ESTIMATED
+stage/sql/copy to tmp table	0	5
+SET DEBUG_SYNC='now SIGNAL wait_row';
+SET DEBUG_SYNC='now WAIT_FOR found_row';
+select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED
+from performance_schema.events_stages_current
+where (thread_id = @con1_thread_id);
+EVENT_NAME	WORK_COMPLETED	WORK_ESTIMATED
+stage/sql/copy to tmp table	1	5
+SET DEBUG_SYNC='now SIGNAL wait_row';
+SET DEBUG_SYNC='now WAIT_FOR found_row';
+select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED
+from performance_schema.events_stages_current
+where (thread_id = @con1_thread_id);
+EVENT_NAME	WORK_COMPLETED	WORK_ESTIMATED
+stage/sql/copy to tmp table	2	5
+SET DEBUG_SYNC='now SIGNAL wait_row';
+SET DEBUG_SYNC='now WAIT_FOR found_row';
+select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED
+from performance_schema.events_stages_current
+where (thread_id = @con1_thread_id);
+EVENT_NAME	WORK_COMPLETED	WORK_ESTIMATED
+stage/sql/copy to tmp table	3	5
+SET DEBUG_SYNC='now SIGNAL wait_row';
+SET DEBUG_SYNC='now WAIT_FOR found_row';
+select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED
+from performance_schema.events_stages_current
+where (thread_id = @con1_thread_id);
+EVENT_NAME	WORK_COMPLETED	WORK_ESTIMATED
+stage/sql/copy to tmp table	4	5
+SET DEBUG_SYNC='now SIGNAL wait_row';
+connection con1;
+select "After payload";
+After payload
+After payload
+connection default;
+# Dumping ALTER TABLE stages
+select EVENT_NAME, WORK_COMPLETED, WORK_ESTIMATED
+from performance_schema.events_stages_history_long
+where (thread_id = @con1_thread_id)
+and (nesting_event_id = @con1_stmt_id)
+order by thread_id, event_id;
+EVENT_NAME	WORK_COMPLETED	WORK_ESTIMATED
+stage/sql/starting	NULL	NULL
+stage/sql/checking permissions	NULL	NULL
+stage/sql/init for update	NULL	NULL
+stage/sql/Opening tables	NULL	NULL
+stage/sql/After opening tables	NULL	NULL
+stage/sql/setup	NULL	NULL
+stage/sql/creating table	NULL	NULL
+stage/sql/After create	NULL	NULL
+stage/sql/System lock	NULL	NULL
+stage/sql/table lock	NULL	NULL
+stage/sql/After create	NULL	NULL
+stage/sql/copy to tmp table	5	5
+stage/sql/Enabling keys	NULL	NULL
+stage/sql/Rename result table	NULL	NULL
+stage/sql/Unlocking tables	NULL	NULL
+stage/sql/Rename result table	NULL	NULL
+stage/sql/End of update loop	NULL	NULL
+stage/sql/Query end	NULL	NULL
+stage/sql/Commit	NULL	NULL
+stage/sql/closing tables	NULL	NULL
+stage/sql/Unlocking tables	NULL	NULL
+stage/sql/closing tables	NULL	NULL
+stage/sql/Commit implicit	NULL	NULL
+stage/sql/Starting cleanup	NULL	NULL
+stage/sql/Freeing items	NULL	NULL
+stage/sql/Reset for next command	NULL	NULL
+SET DEBUG_SYNC='RESET';
+connection con1;
+drop table t1;
+disconnect con1;
+connection default;
+update performance_schema.threads
+set instrumented = 'YES'
+  where processlist_id = connection_id();

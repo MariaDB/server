@@ -1,0 +1,43 @@
+--source include/have_s3.inc
+--source create_database.inc
+
+#
+# Test unsupported features in S3
+#
+#
+
+#
+# MDEV-19463 Altering sequence to S3 leaves unremovable garbage behind
+#
+
+create sequence s1;
+--replace_result $database database
+--error ER_CANT_CREATE_TABLE
+alter table s1 engine=s3;
+drop sequence s1;
+
+#
+#  MDEV-19461 Assertion failure upon altering temporary S3 table
+#
+
+create temporary table t1 (a int);
+--replace_result $database database
+--error ER_CANT_CREATE_TABLE
+alter table t1 engine=S3;
+drop temporary table t1;
+
+--echo #
+--echo # CREATE of S3 table
+--echo #
+
+--replace_result $database database
+--error ER_CANT_CREATE_TABLE
+create or replace table t1 (a int, b int, key (a)) engine=S3;
+--replace_result $database database
+--error ER_NO_SUCH_TABLE
+select * from t1;
+
+#
+# clean up
+#
+--source drop_database.inc

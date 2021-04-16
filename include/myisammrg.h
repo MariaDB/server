@@ -116,7 +116,9 @@ extern int myrg_extra(MYRG_INFO *file,enum ha_extra_function function,
 extern int myrg_reset(MYRG_INFO *info);
 extern void myrg_extrafunc(MYRG_INFO *info,invalidator_by_filename inv);
 extern ha_rows myrg_records_in_range(MYRG_INFO *info, int inx,
-                                     key_range *min_key, key_range *max_key);
+                                     const key_range *min_key,
+                                     const key_range *max_key,
+                                     page_range *pages);
 extern ha_rows myrg_records(MYRG_INFO *info);
 
 extern ulonglong myrg_position(MYRG_INFO *info);

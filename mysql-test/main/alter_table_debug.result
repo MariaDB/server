@@ -1,0 +1,26 @@
+#
+# Start of 10.5 tests
+#
+#
+# MDEV-19612 Split ALTER related data type specific code in sql_table.cc to Type_handler
+#
+SET sql_mode='STRICT_ALL_TABLES,STRICT_TRANS_TABLES,NO_ZERO_DATE';
+CREATE TABLE t1 (a INT);
+ALTER TABLE t1 ALGORITHM=COPY, ADD b INT NOT NULL;
+DROP TABLE t1;
+SET sql_mode='STRICT_ALL_TABLES,STRICT_TRANS_TABLES,NO_ZERO_DATE';
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0);
+ALTER TABLE t1 ALGORITHM=COPY, ADD b INT NOT NULL;
+DROP TABLE t1;
+SET sql_mode='STRICT_ALL_TABLES,STRICT_TRANS_TABLES,NO_ZERO_DATE';
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (0);
+SET debug_dbug='+d,validate_implicit_default_value_error';
+ALTER TABLE t1 ALGORITHM=COPY, ADD b INT NOT NULL;
+ERROR 22007: Incorrect int value: '0' for column `test`.`t1`.`b` at row 1
+SET debug_dbug='-d,validate_implicit_default_value_error';
+DROP TABLE t1;
+#
+# End of 10.5 tests
+#

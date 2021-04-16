@@ -78,12 +78,10 @@ static struct my_option my_long_options[]=
 
 
 static my_bool
-get_one_option(int optid, 
-   const struct my_option *opt __attribute__ ((unused)),
-   char *argument __attribute__ ((unused)))
+get_one_option(const struct my_option *opt, const char *, const char *)
 {
   DBUG_ENTER("get_one_option");
-  switch (optid) {
+  switch (opt->id) {
   case '?':
     printf("%s\n", USAGETEXT);
     my_print_help(my_long_options);

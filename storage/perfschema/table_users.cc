@@ -1,4 +1,4 @@
-/* Copyright (c) 2011, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2011, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -21,13 +21,16 @@
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "table_users.h"
 #include "pfs_instr_class.h"
 #include "pfs_instr.h"
 #include "pfs_account.h"
 #include "pfs_user.h"
 #include "pfs_visitor.h"
+#include "pfs_memory.h"
+#include "pfs_status.h"
+#include "field.h"
 
 THR_LOCK table_users::m_table_lock;
 
@@ -36,17 +39,17 @@ table_users::m_share=
 {
   { C_STRING_WITH_LEN("users") },
   &pfs_truncatable_acl,
-  &table_users::create,
+  table_users::create,
   NULL, /* write_row */
   table_users::delete_all_rows,
-  NULL, /* get_row_count */
-  1000, /* records */
+  cursor_by_user::get_row_count,
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE users("
-                      "USER CHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) ") collate utf8_bin default null,"
+                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default null,"
                       "CURRENT_CONNECTIONS bigint not null,"
-                      "TOTAL_CONNECTIONS bigint not null)") }
+                      "TOTAL_CONNECTIONS bigint not null)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_users::create()
@@ -66,6 +69,15 @@ table_users::delete_all_rows(void)
   reset_events_statements_by_thread();
   reset_events_statements_by_account();
   reset_events_statements_by_user();
+  reset_events_transactions_by_thread();
+  reset_events_transactions_by_account();
+  reset_events_transactions_by_user();
+  reset_memory_by_thread();
+  reset_memory_by_account();
+  reset_memory_by_user();
+  reset_status_by_thread();
+  reset_status_by_account();
+  reset_status_by_user();
   purge_all_account();
   purge_all_user();
   return 0;
@@ -78,7 +90,7 @@ table_users::table_users()
 
 void table_users::make_row(PFS_user *pfs)
 {
-  pfs_lock lock;
+  pfs_optimistic_state lock;
 
   m_row_exists= false;
   pfs->m_lock.begin_optimistic_lock(&lock);
@@ -87,7 +99,11 @@ void table_users::make_row(PFS_user *pfs)
     return;
 
   PFS_connection_stat_visitor visitor;
-  PFS_connection_iterator::visit_user(pfs, true, true, & visitor);
+  PFS_connection_iterator::visit_user(pfs,
+                                      true,  /* accounts */
+                                      true,  /* threads */
+                                      false, /* THDs */
+                                      & visitor);
 
   if (! pfs->m_lock.end_optimistic_lock(& lock))
     return;

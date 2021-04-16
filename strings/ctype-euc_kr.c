@@ -31,6 +31,7 @@
 
 #ifdef HAVE_CHARSET_euckr
 
+const char charset_name_euckr[]= "euckr";
 
 static const uchar ctype_euc_kr[257] =
 {
@@ -10046,6 +10047,7 @@ static MY_CHARSET_HANDLER my_charset_handler=
   my_well_formed_char_length_euckr,
   my_copy_fix_mb,
   my_native_to_mb_euckr,
+  my_wc_to_printable_generic
 };
 
 
@@ -10053,7 +10055,7 @@ struct charset_info_st my_charset_euckr_korean_ci=
 {
     19,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_PRIMARY,	/* state      */
-    "euckr",		/* cs name    */
+    charset_name_euckr,		/* cs name    */
     "euckr_korean_ci",	/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -10086,7 +10088,7 @@ struct charset_info_st my_charset_euckr_bin=
 {
     85,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state      */
-    "euckr",		/* cs name    */
+    charset_name_euckr,		/* cs name    */
     "euckr_bin",	/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
@@ -10119,7 +10121,7 @@ struct charset_info_st my_charset_euckr_korean_nopad_ci=
 {
     MY_NOPAD_ID(19),0,0,/* number     */
     MY_CS_COMPILED|MY_CS_NOPAD, /* state */
-    "euckr",            /* cs name    */
+    charset_name_euckr,            /* cs name    */
     "euckr_korean_nopad_ci",  /* name */
     "",                 /* comment    */
     NULL,               /* tailoring  */
@@ -10152,7 +10154,7 @@ struct charset_info_st my_charset_euckr_nopad_bin=
 {
     MY_NOPAD_ID(85),0,0,/* number        */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    "euckr",            /* cs name       */
+    charset_name_euckr,            /* cs name       */
     "euckr_nopad_bin",  /* name          */
     "",                 /* comment       */
     NULL,               /* tailoring     */

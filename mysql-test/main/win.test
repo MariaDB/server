@@ -1068,10 +1068,9 @@ drop table t1;
 --echo #
 create table t1(a int);
 insert into t1 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
-set @tmp=@@big_tables;
-set big_tables=1;
+set tmp_memory_table_size=0; # force on-disk tmp table
 select rank() over (order by a) from t1;
-set big_tables=@tmp;
+set tmp_memory_table_size=default;
 drop table t1;
 
 --echo #

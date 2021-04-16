@@ -1,0 +1,7 @@
+--source include/have_innodb.inc
+SELECT variable_name FROM information_schema.global_status
+WHERE variable_name LIKE 'INNODB_%'
+AND variable_name NOT IN
+('INNODB_ADAPTIVE_HASH_HASH_SEARCHES','INNODB_ADAPTIVE_HASH_NON_HASH_SEARCHES',
+ 'INNODB_MEM_ADAPTIVE_HASH',
+ 'INNODB_BUFFERED_AIO_SUBMITTED','INNODB_BUFFER_POOL_PAGES_LATCHED');

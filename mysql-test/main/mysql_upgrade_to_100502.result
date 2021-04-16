@@ -1,0 +1,119 @@
+#
+#  MDEV-22057 REPLICATION MASTER ADMIN is missing in root account after upgrade
+#
+# switching from mysql.global_priv to mysql.user
+DROP VIEW mysql.user_bak;
+FLUSH PRIVILEGES;
+CREATE USER user_all@localhost;
+GRANT ALL PRIVILEGES ON *.* TO user_all@localhost WITH GRANT OPTION;
+SHOW GRANTS FOR user_all@localhost;
+Grants for user_all@localhost
+GRANT ALL PRIVILEGES ON *.* TO `user_all`@`localhost` WITH GRANT OPTION
+CREATE USER user_super@localhost;
+GRANT SUPER ON *.* TO user_super@localhost;
+SHOW GRANTS FOR user_super@localhost;
+Grants for user_super@localhost
+GRANT SUPER, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, BINLOG ADMIN, BINLOG REPLAY ON *.* TO `user_super`@`localhost`
+CREATE USER user_super_replslave@localhost;
+GRANT SUPER, REPLICATION SLAVE ON *.* TO user_super_replslave@localhost;
+SHOW GRANTS FOR user_super_replslave@localhost;
+Grants for user_super_replslave@localhost
+GRANT SUPER, REPLICATION SLAVE, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `user_super_replslave`@`localhost`
+#
+# MDEV-23610: Slave user can't run "SHOW SLAVE STATUS" anymore after upgrade to 10.5, mysql_upgrade should take of that
+#
+#
+# Users with privilege SUPER prior to 10.5 should successfully execute
+# SHOW SLAVE STATUS command
+#
+CREATE USER user_replsuper@localhost;
+GRANT SUPER ON *.* TO user_replsuper@localhost;
+SHOW GRANTS FOR user_replsuper@localhost;
+Grants for user_replsuper@localhost
+GRANT SUPER, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, BINLOG ADMIN, BINLOG REPLAY ON *.* TO `user_replsuper`@`localhost`
+#
+# Users with privilege REPLICATION CLIENT prior to 10.5 should successfully execute
+# SHOW SLAVE STATUS command
+#
+CREATE USER user_replclient@localhost;
+GRANT REPLICATION CLIENT ON *.* TO user_replclient@localhost;
+SHOW GRANTS FOR user_replclient@localhost;
+Grants for user_replclient@localhost
+GRANT BINLOG MONITOR ON *.* TO `user_replclient`@`localhost`
+#
+# Users with privilege REPLICATION SLAVE prior to 10.5 should successfully execute
+# SHOW RELAYLOG EVENTS command
+#
+CREATE USER user_replslave@localhost;
+GRANT REPLICATION SLAVE ON *.* TO user_replslave@localhost;
+SHOW GRANTS FOR user_replslave@localhost;
+Grants for user_replslave@localhost
+GRANT REPLICATION SLAVE, REPLICATION MASTER ADMIN, SLAVE MONITOR ON *.* TO `user_replslave`@`localhost`
+# mysql_upgrade --force --silent 2>&1
+FLUSH PRIVILEGES;
+#
+# Should get ALL PRIVILEGES WITH GRANT OPTION
+#
+SHOW GRANTS FOR user_all@localhost;
+Grants for user_all@localhost
+GRANT ALL PRIVILEGES ON *.* TO `user_all`@`localhost` WITH GRANT OPTION
+#
+# Should automatically get all new 10.5.2 priveleges that were splitted from SUPER
+#
+SHOW GRANTS FOR user_super@localhost;
+Grants for user_super@localhost
+GRANT SUPER, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, BINLOG ADMIN, BINLOG REPLAY ON *.* TO `user_super`@`localhost`
+#
+# Should automatically get all new 10.5.2 priveleges that were splitted from SUPER, plus REPLICATION MASTER ADMIN
+#
+SHOW GRANTS FOR user_super_replslave@localhost;
+Grants for user_super_replslave@localhost
+GRANT SUPER, REPLICATION SLAVE, SET USER, FEDERATED ADMIN, CONNECTION ADMIN, READ_ONLY ADMIN, REPLICATION SLAVE ADMIN, REPLICATION MASTER ADMIN, BINLOG ADMIN, BINLOG REPLAY, SLAVE MONITOR ON *.* TO `user_super_replslave`@`localhost`
+#
+# MDEV-23610: Slave user can't run "SHOW SLAVE STATUS" anymore after upgrade to 10.5, mysql_upgrade should take of that
+#
+#
+# Should automatically get BINLOG MONITOR and REPLICA MONITOR
+#
+SHOW GRANTS FOR user_replclient@localhost;
+Grants for user_replclient@localhost
+GRANT BINLOG MONITOR, SLAVE MONITOR ON *.* TO `user_replclient`@`localhost`
+#
+# Should automatically get REPLICA MONITOR
+#
+SHOW GRANTS FOR user_replslave@localhost;
+Grants for user_replslave@localhost
+GRANT REPLICATION SLAVE, SLAVE MONITOR ON *.* TO `user_replslave`@`localhost`
+connect  con1,localhost,user_super_replslave,,test;
+connection con1;
+SHOW SLAVE STATUS;
+disconnect con1;
+connect  con1,localhost,user_replclient,,test;
+connection con1;
+SHOW SLAVE STATUS;
+disconnect con1;
+connect  con1,localhost,user_replslave,,test;
+connection con1;
+SHOW RELAYLOG EVENTS;
+disconnect con1;
+connection default;
+SELECT
+json_value(Priv, '$.version_id'),
+json_value(Priv, '$.access'),
+user
+FROM
+mysql.global_priv
+WHERE
+host='localhost'
+AND
+user LIKE 'user_%';
+json_value(Priv, '$.version_id')	json_value(Priv, '$.access')	user
+NULL	1073741823	user_all
+NULL	1048576	user_replclient
+NULL	524288	user_replslave
+NULL	32768	user_replsuper
+NULL	32768	user_super
+NULL	557056	user_super_replslave
+DROP TABLE mysql.global_priv;
+RENAME TABLE mysql.global_priv_bak TO mysql.global_priv;
+FLUSH PRIVILEGES;

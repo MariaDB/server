@@ -511,12 +511,12 @@ drop table t1;
 set names latin1;
 set collation_connection=utf16_general_ci;
 #
-# Testing cs->coll->instr()
+# Testing instr()
 #
 select position('bb' in 'abba');
 
 #
-# Testing cs->coll->hash_sort()
+# Testing hash_sort()
 #
 create table t1 (a varchar(10) character set utf16) engine=heap;
 insert into t1 values ('a'),('A'),('b'),('B');
@@ -525,21 +525,21 @@ select hex(min(binary a)),count(*) from t1 group by a;
 drop table t1;
 
 #
-# Testing cs->cset->numchars()
+# Testing numchars()
 #
 select char_length('abcd'), octet_length('abcd');
 select char_length(_utf16 0xD800DC00), octet_length(_utf16 0xD800DC00);
 select char_length(_utf16 0xD87FDFFF), octet_length(_utf16 0xD87FDFFF);
 
 #
-# Testing cs->cset->charpos()
+# Testing charpos()
 #
 select left('abcd',2);
 select hex(left(_utf16 0xD800DC00D87FDFFF, 1));
 select hex(right(_utf16 0xD800DC00D87FDFFF, 1));
 
 #
-# Testing cs->cset->well_formed_length()
+# Testing well_formed_length()
 #
 create table t1 (a varchar(10) character set utf16);
 # Bad sequences
@@ -564,7 +564,7 @@ drop table t1;
 #
 # Bug#32393 Character sets: illegal characters in utf16 columns
 #
-# Tests that cs->cset->wc_mb() doesn't accept surrogate parts
+# Tests that my_ci_wc_mb() doesn't accept surrogate parts
 #
 # via alter
 #
@@ -586,7 +586,7 @@ drop table t1;
 
 
 #
-# Testing cs->cset->lengthsp()
+# Testing lengthsp()
 #
 create table t1 (a char(10)) character set utf16;
 insert into t1 values ('a   ');
@@ -594,13 +594,13 @@ select hex(a) from t1;
 drop table t1;
 
 #
-# Testing cs->cset->caseup() and cs->cset->casedn()
+# Testing caseup() and casedn()
 #
 select upper('abcd'), lower('ABCD');
 
 #
 # TODO: str_to_datetime() is broken and doesn't work with ucs2 and utf16
-# Testing cs->cset->snprintf()
+# Testing snprintf()
 #
 #create table t1 (a date);
 #insert into t1 values ('2007-09-16');
@@ -608,11 +608,11 @@ select upper('abcd'), lower('ABCD');
 #drop table t1;
 
 #
-# Testing cs->cset->l10tostr
+# Testing l10tostr
 # !!! Not used in the code
 
 #
-# Testing cs->cset->ll10tostr
+# Testing ll10tostr
 #
 create table t1 (a varchar(10) character set utf16);
 insert into t1 values (123456);
@@ -620,16 +620,16 @@ select a, hex(a) from t1;
 drop table t1;
 
 
-# Testing cs->cset->fill
+# Testing fill
 # SOUNDEX fills strings with DIGIT ZERO up to four characters
 select hex(soundex('a'));
 
 #
-# Testing cs->cset->strntol
+# Testing strntol
 # !!! Not used in the code
 
 #
-# Testing cs->cset->strntoul
+# Testing strntoul
 #
 create table t1 (a enum ('a','b','c')) character set utf16;
 insert into t1 values ('1');
@@ -637,14 +637,14 @@ select * from t1;
 drop table t1;
 
 #
-# Testing cs->cset->strntoll and cs->cset->strntoull
+# Testing strntoll and strntoull
 #
 set names latin1;
 select hex(conv(convert('123' using utf16), -10, 16));
 select hex(conv(convert('123' using utf16), 10, 16));
 
 #
-# Testing cs->cset->strntod
+# Testing strntod
 #
 set names latin1;
 set character_set_connection=utf16;
@@ -652,12 +652,12 @@ select 1.1 + '1.2';
 select 1.1 + '1.2xxx';
 
 # Testing strntoll10_utf16
-# Testing cs->cset->strtoll10
+# Testing strtoll10
 select left('aaa','1');
 --source include/ctype_strtoll10.inc
 
 #
-# Testing cs->cset->strntoull10rnd
+# Testing strntoull10rnd
 #
 create table t1 (a int);
 insert into t1 values ('-1234.1e2');
@@ -667,7 +667,7 @@ select * from t1;
 drop table t1;
 
 #
-# Testing cs->cset->scan
+# Testing scan
 #
 create table t1 (a int);
 insert into t1 values ('1 ');
@@ -954,4 +954,24 @@ VALUES ('') UNION VALUES ( _utf16 0x0020 COLLATE utf16_bin);
 
 --echo #
 --echo # End of 10.3 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.5 tests
+--echo #
+
+--echo #
+--echo # MDEV-8844 Unreadable control characters printed as is in warnings
+--echo #
+
+SET NAMES utf8;
+# Make sure surrogate halfs (when a part of a full utf16 character)
+# are not escaped and the entire utf16 character consisting of two
+# surrogate pairs is replaced to a single question mark.
+SELECT CAST(_utf16 0x0061D83DDE0E0062 AS INT);
+
+
+--echo #
+--echo # End of 10.5 tests
 --echo #

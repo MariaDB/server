@@ -47,7 +47,7 @@ print "Testing truncate from $opt_threads multiple connections $opt_loop_count t
 ####
 
 $start_time=new Benchmark;
-$dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+$dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		    $opt_user, $opt_password,
 		  { PrintError => 0}) || die $DBI::errstr;
 if (!$opt_skip_create)
@@ -100,7 +100,7 @@ while (($pid=wait()) != -1)
 if (!$opt_skip_delete && !$errors)
 {
   my $table_def;
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 
@@ -127,7 +127,7 @@ sub test_truncate
 {
   my ($dbh,$i,$j,$count,$table_def,$table);
 
-  $dbh = DBI->connect("DBI:mysql:$opt_db:$opt_host",
+  $dbh = DBI->connect("DBI:MariaDB:$opt_db:$opt_host",
 		      $opt_user, $opt_password,
 		    { PrintError => 0}) || die $DBI::errstr;
 

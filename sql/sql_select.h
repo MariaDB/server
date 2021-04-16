@@ -247,13 +247,13 @@ class SplM_opt_info;
 typedef struct st_join_table {
   TABLE		*table;
   TABLE_LIST    *tab_list;
-  KEYUSE	*keyuse;			/**< pointer to first used key */
+  KEYUSE	*keyuse;       /**< pointer to first used key */
   KEY           *hj_key;       /**< descriptor of the used best hash join key
-				    not supported by any index                 */
+                                    not supported by any index               */
   SQL_SELECT	*select;
   COND		*select_cond;
   COND          *on_precond;    /**< part of on condition to check before
-				     accessing the first inner table           */  
+                                     accessing the first inner table         */
   QUICK_SELECT_I *quick;
   /* 
     The value of select_cond before we've attempted to do Index Condition
@@ -634,6 +634,8 @@ typedef struct st_join_table {
   double scan_time();
   ha_rows get_examined_rows();
   bool preread_init();
+
+  bool pfs_batch_update(JOIN *join);
 
   bool is_sjm_nest() { return MY_TEST(bush_children); }
   
@@ -1097,7 +1099,7 @@ protected:
       keyuse.buffer= NULL;
       keyuse.malloc_flags= 0;
       best_positions= 0;                        /* To detect errors */
-      error= my_multi_malloc(MYF(MY_WME),
+      error= my_multi_malloc(PSI_INSTRUMENT_ME, MYF(MY_WME),
                              &best_positions,
                              sizeof(*best_positions) * (tables + 1),
                              &join_tab_keyuse,
@@ -1622,10 +1624,9 @@ public:
     return exec_join_tab_cnt() + aggr_tables - 1;
   }
 
-  int prepare(TABLE_LIST *tables, uint wind_num,
-	      COND *conds, uint og_num, ORDER *order, bool skip_order_by,
-              ORDER *group, Item *having, ORDER *proc_param, SELECT_LEX *select,
-	      SELECT_LEX_UNIT *unit);
+  int prepare(TABLE_LIST *tables, COND *conds, uint og_num, ORDER *order,
+              bool skip_order_by, ORDER *group, Item *having,
+              ORDER *proc_param, SELECT_LEX *select, SELECT_LEX_UNIT *unit);
   bool prepare_stage2();
   int optimize();
   int optimize_inner();
@@ -1643,7 +1644,6 @@ public:
   bool flatten_subqueries();
   bool optimize_unflattened_subqueries();
   bool optimize_constant_subqueries();
-  int init_join_caches();
   bool make_range_rowid_filters();
   bool init_range_rowid_filters();
   bool make_sum_func_list(List<Item> &all_fields, List<Item> &send_fields,
@@ -1790,6 +1790,7 @@ public:
   void add_keyuses_for_splitting();
   bool inject_best_splitting_cond(table_map remaining_tables);
   bool fix_all_splittings_in_plan();
+  void make_notnull_conds_for_range_scans();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
 private:
@@ -1826,6 +1827,7 @@ private:
   bool add_having_as_table_cond(JOIN_TAB *tab);
   bool make_aggr_tables_info();
   bool add_fields_for_current_rowid(JOIN_TAB *cur, List<Item> *fields);
+  void init_join_cache_and_keyread();
 };
 
 enum enum_with_bush_roots { WITH_BUSH_ROOTS, WITHOUT_BUSH_ROOTS};
@@ -2096,8 +2098,7 @@ int join_read_key2(THD *thd, struct st_join_table *tab, TABLE *table,
 
 bool handle_select(THD *thd, LEX *lex, select_result *result,
                    ulong setup_tables_done_option);
-bool mysql_select(THD *thd,
-                  TABLE_LIST *tables, uint wild_num,  List<Item> &list,
+bool mysql_select(THD *thd, TABLE_LIST *tables, List<Item> &list,
                   COND *conds, uint og_num, ORDER *order, ORDER *group,
                   Item *having, ORDER *proc_param, ulonglong select_type, 
                   select_result *result, SELECT_LEX_UNIT *unit, 
@@ -2426,6 +2427,12 @@ TABLE *create_tmp_table(THD *thd,TMP_TABLE_PARAM *param,List<Item> &fields,
 			ulonglong select_options, ha_rows rows_limit,
                         const LEX_CSTRING *alias, bool do_not_open=FALSE,
                         bool keep_row_order= FALSE);
+TABLE *create_tmp_table_for_schema(THD *thd, TMP_TABLE_PARAM *param,
+                                   const ST_SCHEMA_TABLE &schema_table,
+                                   longlong select_options,
+                                   const LEX_CSTRING &alias,
+                                   bool do_not_open, bool keep_row_order);
+
 void free_tmp_table(THD *thd, TABLE *entry);
 bool create_internal_tmp_table_from_heap(THD *thd, TABLE *table,
                                          TMP_ENGINE_COLUMNDEF *start_recinfo,
@@ -2500,29 +2507,6 @@ public:
 
 
 class select_handler;
-
-
-class Pushdown_select: public Sql_alloc
-{
-private:
-  bool is_analyze;
-  List<Item> result_columns;
-  bool send_result_set_metadata();
-  bool send_data();
-  bool send_eof();
-
-public:
-  SELECT_LEX *select;
-  select_handler *handler;
-
-  Pushdown_select(SELECT_LEX *sel, select_handler *h);
-
-  ~Pushdown_select();
-
-  bool init();
-
-  int execute(); 
-};
 
 
 bool test_if_order_compatible(SQL_I_List<ORDER> &a, SQL_I_List<ORDER> &b);

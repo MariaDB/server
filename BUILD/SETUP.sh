@@ -141,7 +141,7 @@ elif [ "x$warning_mode" = "xmaintainer" ]; then
   debug_extra_cflags="-g3"
 else
 # Both C and C++ warnings
-  warnings="-Wall -Wextra -Wunused -Wwrite-strings -Wno-uninitialized -Wno-strict-aliasing -Wimplicit-fallthrough=2"
+  warnings="-Wall -Wextra -Wunused -Wwrite-strings -Wno-uninitialized -Wno-strict-aliasing"
 
 # For more warnings, uncomment the following line
 # warnings="$warnings -Wshadow"
@@ -197,7 +197,7 @@ base_configs="--prefix=$prefix --enable-assembler "
 base_configs="$base_configs --with-extra-charsets=complex "
 base_configs="$base_configs --enable-thread-safe-client "
 base_configs="$base_configs --with-big-tables $maintainer_mode"
-base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables"
+base_configs="$base_configs --with-plugin-aria --with-aria-tmp-tables --with-plugin-s3=STATIC"
 # Following is to get tokudb to work
 base_configs="$base_configs --with-jemalloc=NO"
 
@@ -209,10 +209,11 @@ then
     base_configs="$base_configs --with-libedit"
 fi
 
-max_no_embedded_configs="$SSL_LIBRARY --with-plugins=max"
-max_no_qc_configs="$SSL_LIBRARY --with-plugins=max --without-query-cache"
-max_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-libevent --without-plugin=plugin_file_key_management --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC"
-all_configs="$SSL_LIBRARY --with-plugins=max --with-embedded-server --with-innodb_plugin --with-libevent"
+max_plugins="--with-plugins=max"
+max_no_embedded_configs="$SSL_LIBRARY $max_plugins"
+max_no_qc_configs="$SSL_LIBRARY $max_plugins --without-query-cache"
+max_configs="$SSL_LIBRARY $max_plugins --with-embedded-server --with-libevent --with-plugin-rocksdb=dynamic --with-plugin-test_sql_discovery=DYNAMIC --with-plugin-file_key_management=DYNAMIC"
+all_configs="$SSL_LIBRARY $max_plugins --with-embedded-server --with-innodb_plugin --with-libevent"
 
 #
 # CPU and platform specific compilation flags.
@@ -314,10 +315,11 @@ gcov_configs="--with-gcov"
 
 # gprof
 
-gprof_compile_flags="-O2 -pg -g"
+gprof_compile_flags="-O2"
 
+# Rest of the flags are set in CmakeFile.txt
 gprof_link_flags="--disable-shared $static_link"
 
-disable_gprof_plugins="--with-zlib-dir=bundled --without-plugin-oqgraph --without-plugin-mroonga"
+disable_gprof_plugins="--with-zlib-dir=bundled --without-plugin-oqgraph --without-plugin-mroonga --with-gprof"
 
 disable_asan_plugins="--without-plugin-rocksdb"

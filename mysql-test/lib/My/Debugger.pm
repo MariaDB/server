@@ -120,10 +120,10 @@ for my $k (sort keys %debuggers) {
   $v->{script} = '' unless $v->{script};
   $v->{options} =~ s/(\{exe\}|$)/ {options} $&/ unless $v->{options} =~ /\{options\}/;
 
-  register_opt "$k" => "Start mysqld";
-  register_opt "client-$k" => "Start mysqltest client";
+  register_opt "$k" => "Start mariadbd";
+  register_opt "client-$k" => "Start mariadb-test client";
   register_opt "boot-$k" => "Start bootstrap server";
-  register_opt "manual-$k" => "Before running test(s) let user manually start mysqld";
+  register_opt "manual-$k" => "Before running test(s) let user manually start mariadbd";
 }
 
 sub subst($%) {

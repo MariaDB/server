@@ -1,4 +1,4 @@
-/* Copyright (c) 2008, 2014, Oracle and/or its affiliates. All rights reserved.
+/* Copyright (c) 2008, 2015, Oracle and/or its affiliates. All rights reserved.
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License, version 2.0,
@@ -21,7 +21,7 @@
   51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 #include "my_global.h"
-#include "my_pthread.h"
+#include "my_thread.h"
 #include "table_threads.h"
 #include "sql_parse.h"
 #include "pfs_instr_class.h"
@@ -34,11 +34,10 @@ table_threads::m_share=
 {
   { C_STRING_WITH_LEN("threads") },
   &pfs_updatable_acl,
-  &table_threads::create,
+  table_threads::create,
   NULL, /* write_row */
   NULL, /* delete_all_rows */
-  NULL, /* get_row_count */
-  1000, /* records */
+  cursor_by_thread::get_row_count,
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE threads("
@@ -46,8 +45,8 @@ table_threads::m_share=
                       "NAME VARCHAR(128) not null,"
                       "TYPE VARCHAR(10) not null,"
                       "PROCESSLIST_ID BIGINT unsigned,"
-                      "PROCESSLIST_USER VARCHAR(" STRINGIFY_ARG(USERNAME_CHAR_LENGTH) "),"
-                      "PROCESSLIST_HOST VARCHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) "),"
+                      "PROCESSLIST_USER VARCHAR(" USERNAME_CHAR_LENGTH_STR "),"
+                      "PROCESSLIST_HOST VARCHAR(" HOSTNAME_LENGTH_STR "),"
                       "PROCESSLIST_DB VARCHAR(64),"
                       "PROCESSLIST_COMMAND VARCHAR(16),"
                       "PROCESSLIST_TIME BIGINT,"
@@ -55,7 +54,11 @@ table_threads::m_share=
                       "PROCESSLIST_INFO LONGTEXT,"
                       "PARENT_THREAD_ID BIGINT unsigned,"
                       "ROLE VARCHAR(64),"
-                      "INSTRUMENTED ENUM ('YES', 'NO') not null)") }
+                      "INSTRUMENTED ENUM ('YES', 'NO') not null,"
+                      "HISTORY ENUM ('YES', 'NO') not null,"
+                      "CONNECTION_TYPE VARCHAR(16),"
+                      "THREAD_OS_ID BIGINT unsigned)") },
+  false  /* perpetual */
 };
 
 PFS_engine_table* table_threads::create()
@@ -70,9 +73,9 @@ table_threads::table_threads()
 
 void table_threads::make_row(PFS_thread *pfs)
 {
-  pfs_lock lock;
-  pfs_lock session_lock;
-  pfs_lock stmt_lock;
+  pfs_optimistic_state lock;
+  pfs_optimistic_state session_lock;
+  pfs_optimistic_state stmt_lock;
   PFS_stage_class *stage_class;
   PFS_thread_class *safe_class;
 
@@ -88,6 +91,7 @@ void table_threads::make_row(PFS_thread *pfs)
   m_row.m_thread_internal_id= pfs->m_thread_internal_id;
   m_row.m_parent_thread_internal_id= pfs->m_parent_thread_internal_id;
   m_row.m_processlist_id= pfs->m_processlist_id;
+  m_row.m_thread_os_id= pfs->m_thread_os_id;
   m_row.m_name= safe_class->m_name;
   m_row.m_name_length= safe_class->m_name_length;
 
@@ -165,8 +169,12 @@ void table_threads::make_row(PFS_thread *pfs)
   {
     m_row.m_processlist_state_length= 0;
   }
+  m_row.m_connection_type = pfs->m_connection_type;
 
-  m_row.m_enabled_ptr= &pfs->m_enabled;
+
+  m_row.m_enabled= pfs->m_enabled;
+  m_row.m_history= pfs->m_history;
+  m_row.m_psi= pfs;
 
   if (pfs->m_lock.end_optimistic_lock(& lock))
     m_row_exists= true;
@@ -178,6 +186,8 @@ int table_threads::read_row_values(TABLE *table,
                                    bool read_all)
 {
   Field *f;
+  const char *str= NULL;
+  size_t len= 0;
 
   if (unlikely(! m_row_exists))
     return HA_ERR_RECORD_DELETED;
@@ -250,23 +260,16 @@ int table_threads::read_row_values(TABLE *table,
           f->set_null();
         break;
       case 9: /* PROCESSLIST_STATE */
+        /* This column's datatype is declared as varchar(64). Thread's state
+           message cannot be more than 64 characters. Otherwise, we will end up
+           in 'data truncated' warning/error (depends sql_mode setting) when
+           server is updating this column for those threads. To prevent this
+           kind of issue, an assert is added.
+         */
+        DBUG_ASSERT(m_row.m_processlist_state_length <= f->char_length());
         if (m_row.m_processlist_state_length > 0)
-        {
-          /* This column's datatype is declared as varchar(64). But in current
-             code, there are few process state messages which are greater than
-             64 characters(Eg:stage_slave_has_read_all_relay_log).
-             In those cases, we will end up in 'data truncated'
-             warning/error (depends sql_mode setting) when server is updating
-             this column for those threads. Since 5.6 is GAed, neither the
-             metadata of this column can be changed, nor those state messages.
-             So server will silently truncate the state message to 64 characters
-             if it is longer. In Upper versions(5.7+), these state messages are
-             changed to less than or equal to 64 characters.
-           */
           set_field_varchar_utf8(f, m_row.m_processlist_state_ptr,
-                                 MY_MIN(m_row.m_processlist_state_length,
-                                        f->char_length()));
-        }
+                                 m_row.m_processlist_state_length);
         else
           f->set_null();
         break;
@@ -287,7 +290,23 @@ int table_threads::read_row_values(TABLE *table,
         f->set_null();
         break;
       case 13: /* INSTRUMENTED */
-        set_field_enum(f, (*m_row.m_enabled_ptr) ? ENUM_YES : ENUM_NO);
+        set_field_enum(f, m_row.m_enabled ? ENUM_YES : ENUM_NO);
+        break;
+      case 14: /* HISTORY */
+        set_field_enum(f, m_row.m_history ? ENUM_YES : ENUM_NO);
+        break;
+      case 15: /* CONNECTION_TYPE */
+        str= vio_type_name(m_row.m_connection_type, & len);
+        if (len > 0)
+          set_field_varchar_utf8(f, str, (uint)len);
+        else
+          f->set_null();
+        break;
+      case 16: /* THREAD_OS_ID */
+        if (m_row.m_thread_os_id > 0)
+          set_field_ulonglong(f, m_row.m_thread_os_id);
+        else
+          f->set_null();
         break;
       default:
         DBUG_ASSERT(false);
@@ -327,8 +346,15 @@ int table_threads::update_row_values(TABLE *table,
         return HA_ERR_WRONG_COMMAND;
       case 13: /* INSTRUMENTED */
         value= (enum_yes_no) get_field_enum(f);
-        *m_row.m_enabled_ptr= (value == ENUM_YES) ? true : false;
+        m_row.m_psi->set_enabled((value == ENUM_YES) ? true : false);
         break;
+      case 14: /* HISTORY */
+        value= (enum_yes_no) get_field_enum(f);
+        m_row.m_psi->set_history((value == ENUM_YES) ? true : false);
+        break;
+      case 15: /* CONNECTION_TYPE */
+      case 16: /* THREAD_OS_ID */
+        return HA_ERR_WRONG_COMMAND;
       default:
         DBUG_ASSERT(false);
       }

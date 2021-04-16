@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -62,7 +62,7 @@ enum ibuf_use_t {
 extern ulong		innodb_change_buffering;
 
 /** The insert buffer control structure */
-extern ibuf_t*		ibuf;
+extern ibuf_t		ibuf;
 
 /* The purpose of the insert buffer is to reduce random disk access.
 When we wish to insert a record into a non-unique secondary index and
@@ -317,13 +317,11 @@ ibuf_insert(
 	ulint			zip_size,
 	que_thr_t*		thr);
 
-/**
-Delete any buffered entries for a page.
-This prevents an infinite loop on slow shutdown
-in the case where the change buffer bitmap claims that no buffered
-changes exist, while entries exist in the change buffer tree.
-@param page_id  page number for which there should be no unbuffered changes */
-ATTRIBUTE_COLD void ibuf_delete_recs(const page_id_t page_id);
+/** Check whether buffered changes exist for a page.
+@param[in]	id		page identifier
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@return whether buffered changes exist */
+bool ibuf_page_exists(const page_id_t id, ulint zip_size);
 
 /** When an index page is read from a disk to the buffer pool, this function
 applies any buffered operations to the page and deletes the entries from the
@@ -343,15 +341,10 @@ in DISCARD TABLESPACE, IMPORT TABLESPACE, or crash recovery.
 void ibuf_delete_for_discarded_space(ulint space);
 
 /** Contract the change buffer by reading pages to the buffer pool.
-@param[in]	full		If true, do a full contraction based
-on PCT_IO(100). If false, the size of contract batch is determined
-based on the current size of the change buffer.
 @return a lower limit for the combined size in bytes of entries which
 will be merged from ibuf trees to the pages read, 0 if ibuf is
 empty */
-ulint
-ibuf_merge_in_background(
-	bool	full);
+ulint ibuf_merge_all();
 
 /** Contracts insert buffer trees by reading pages referring to space_id
 to the buffer pool.
@@ -360,9 +353,6 @@ ulint
 ibuf_merge_space(
 /*=============*/
 	ulint	space);	/*!< in: space id */
-
-/** Apply MLOG_IBUF_BITMAP_INIT when crash-upgrading */
-ATTRIBUTE_COLD void ibuf_bitmap_init_apply(buf_block_t* block);
 
 /******************************************************************//**
 Looks if the insert buffer is empty.

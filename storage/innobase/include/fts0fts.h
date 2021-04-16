@@ -24,8 +24,7 @@ Full text search header file
 Created 2011/09/02 Sunny Bains
 ***********************************************************************/
 
-#ifndef fts0fts_h
-#define fts0fts_h
+#pragma once
 
 #include "data0type.h"
 #include "data0types.h"
@@ -340,6 +339,10 @@ public:
 	/** Whether the table exists in fts_optimize_wq;
 	protected by fts_optimize_wq mutex */
 	bool		in_queue;
+
+	/** Whether the sync message exists in fts_optimize_wq;
+	protected by fts_optimize_wq mutex */
+	bool		sync_message;
 
 	/** Heap for fts_t allocation. */
 	mem_heap_t*	fts_heap;
@@ -978,4 +981,6 @@ bool fts_check_aux_table(const char *name,
                          table_id_t *table_id,
                          index_id_t *index_id);
 
-#endif /*!< fts0fts.h */
+/** Sync the table during commit phase
+@param[in]	table	table to be synced */
+void fts_sync_during_ddl(dict_table_t* table);

@@ -1,0 +1,59 @@
+--- ./mysql-test/main/alter_table.result	2020-02-27 19:35:41.279992329 +0300
++++ ./mysql-test/main/alter_table,heap.reject	2020-02-27 19:39:44.175998039 +0300
+@@ -2716,8 +2716,7 @@
+ t3	CREATE TABLE `t3` (
+   `a` int(11) DEFAULT NULL,
+   `b` int(11) DEFAULT NULL,
+-  KEY `b` (`b`),
+-  CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`b`) REFERENCES `t1` (`bb`)
++  KEY `b` (`b`)
+ ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+ ALTER TABLE t1 RENAME COLUMN bb TO b;
+ SHOW CREATE TABLE t1;
+@@ -2733,8 +2732,7 @@
+ t3	CREATE TABLE `t3` (
+   `a` int(11) DEFAULT NULL,
+   `c` int(11) DEFAULT NULL,
+-  KEY `b` (`c`),
+-  CONSTRAINT `t3_ibfk_1` FOREIGN KEY (`c`) REFERENCES `t1` (`b`)
++  KEY `b` (`c`)
+ ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+ CREATE TABLE t4(a int);
+ ALTER TABLE t4 RENAME COLUMN a TO aa, ALGORITHM = INPLACE;
+@@ -2774,36 +2772,6 @@
+ ERROR 42S22: Unknown column 'd' in 'field list'
+ DROP TRIGGER trg1;
+ DROP PROCEDURE sp1;
+-CREATE TABLE t_gen(a INT, b DOUBLE GENERATED ALWAYS AS (SQRT(a)));
+-INSERT INTO t_gen(a) VALUES(4);
+-SELECT * FROM t_gen;
+-a	b
+-4	2
+-SHOW CREATE TABLE t_gen;
+-Table	Create Table
+-t_gen	CREATE TABLE `t_gen` (
+-  `a` int(11) DEFAULT NULL,
+-  `b` double GENERATED ALWAYS AS (sqrt(`a`)) VIRTUAL
+-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+-ALTER TABLE t_gen RENAME COLUMN a TO c, CHANGE COLUMN b b DOUBLE GENERATED ALWAYS AS (SQRT(c));
+-SELECT * FROM t_gen;
+-c	b
+-4	2
+-SHOW CREATE TABLE t_gen;
+-Table	Create Table
+-t_gen	CREATE TABLE `t_gen` (
+-  `c` int(11) DEFAULT NULL,
+-  `b` double GENERATED ALWAYS AS (sqrt(`c`)) VIRTUAL
+-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+-ALTER TABLE t_gen CHANGE COLUMN c x INT;
+-show create table t_gen;
+-Table	Create Table
+-t_gen	CREATE TABLE `t_gen` (
+-  `x` int(11) DEFAULT NULL,
+-  `b` double GENERATED ALWAYS AS (sqrt(`x`)) VIRTUAL
+-) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1
+-ALTER TABLE t_gen RENAME COLUMN x TO a;
+-DROP TABLE t_gen;
+ SHOW CREATE TABLE t1;
+ Table	Create Table
+ t1	CREATE TABLE `t1` (

@@ -68,7 +68,7 @@ public:
 };
 
 
-class ha_myisammrg: public handler
+class ha_myisammrg final : public handler
 {
   MYRG_INFO *file;
   my_bool is_cloned;                    /* This instance has been cloned */
@@ -129,7 +129,8 @@ public:
   int rnd_next(uchar *buf);
   int rnd_pos(uchar * buf, uchar *pos);
   void position(const uchar *record);
-  ha_rows records_in_range(uint inx, key_range *min_key, key_range *max_key);
+  ha_rows records_in_range(uint inx, const key_range *start_key,
+                           const key_range *end_key, page_range *pages);
   int delete_all_rows();
   int info(uint);
   int reset(void);

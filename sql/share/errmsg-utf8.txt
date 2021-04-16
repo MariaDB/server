@@ -951,7 +951,7 @@ ER_CON_COUNT_ERROR 08004
 ER_OUT_OF_RESOURCES  
         cze "Málo prostoru/paměti pro thread"
         dan "Udgået for tråde/hukommelse"
-        nla "Geen thread geheugen meer; controleer of mysqld of andere processen al het beschikbare geheugen gebruikt. Zo niet, dan moet u wellicht 'ulimit' gebruiken om mysqld toe te laten meer geheugen te benutten, of u kunt extra swap ruimte toevoegen"
+        nla "Geen thread geheugen meer; controleer of mariadbd of andere processen al het beschikbare geheugen gebruikt. Zo niet, dan moet u wellicht 'ulimit' gebruiken om mariadbd toe te laten meer geheugen te benutten, of u kunt extra swap ruimte toevoegen"
         eng "Out of memory."
         est "Mälu sai otsa. Võimalik, et aitab swap-i lisamine või käsu 'ulimit' abil MariaDB-le rohkema mälu kasutamise lubamine"
         fre "Manque de 'threads'/mémoire"
@@ -959,7 +959,7 @@ ER_OUT_OF_RESOURCES
         greek "Πρόβλημα με τη διαθέσιμη μνήμη (Out of thread space/memory)"
         hun "Elfogyott a thread-memoria"
         ita "Fine dello spazio/memoria per i thread"
-        jpn "メモリが不足しています。mysqld やその他のプロセスがメモリーを使い切っていないか確認して下さい。メモリーを使い切っていない場合、'ulimit'の設定等で mysqld のメモリー使用最大量を多くするか、スワップ領域を増やす必要があるかもしれません。"
+        jpn "メモリが不足しています。mariadbd やその他のプロセスがメモリーを使い切っていないか確認して下さい。メモリーを使い切っていない場合、'ulimit'の設定等で mariadbd のメモリー使用最大量を多くするか、スワップ領域を増やす必要があるかもしれません。"
 # This message failed to convert from euc-kr, skipped
         nor "Tomt for tråd plass/minne"
         norwegian-ny "Tomt for tråd plass/minne"
@@ -2784,25 +2784,25 @@ ER_TOO_BIG_ROWSIZE 42000
         swe "För stor total radlängd. Den högst tillåtna radlängden, förutom BLOBs, är %ld. Ändra några av dina fält till BLOB"
         ukr "Задовга строка. Найбільшою довжиною строки, не рахуючи BLOB, є %ld. Вам потрібно привести деякі стовбці до типу BLOB"
 ER_STACK_OVERRUN  
-        cze "Přetečení zásobníku threadu: použito %ld z %ld. Použijte 'mysqld --thread_stack=#' k zadání většího zásobníku"
-        dan "Thread stack brugt:  Brugt: %ld af en %ld stak.  Brug 'mysqld --thread_stack=#' for at allokere en større stak om nødvendigt"
-        nla "Thread stapel overrun:  Gebruikte: %ld van een %ld stack. Gebruik 'mysqld --thread_stack=#' om een grotere stapel te definieren (indien noodzakelijk)"
-        eng "Thread stack overrun:  Used: %ld of a %ld stack.  Use 'mysqld --thread_stack=#' to specify a bigger stack if needed"
-        fre "Débordement de la pile des tâches (Thread stack). Utilisées: %ld pour une pile de %ld.  Essayez 'mysqld --thread_stack=#' pour indiquer une plus grande valeur"
-        ger "Thread-Stack-Überlauf. Benutzt: %ld von %ld Stack. 'mysqld --thread_stack=#' verwenden, um bei Bedarf einen größeren Stack anzulegen"
-        greek "Stack overrun στο thread:  Used: %ld of a %ld stack.  Παρακαλώ χρησιμοποιείστε 'mysqld --thread_stack=#' για να ορίσετε ένα μεγαλύτερο stack αν χρειάζεται"
-        hun "Thread verem tullepes:  Used: %ld of a %ld stack. Hasznalja a 'mysqld --thread_stack=#' nagyobb verem definialasahoz"
-        ita "Thread stack overrun:  Usati: %ld di uno stack di %ld.  Usa 'mysqld --thread_stack=#' per specificare uno stack piu` grande"
-        jpn "スレッドスタック不足です(使用: %ld ; サイズ: %ld)。必要に応じて、より大きい値で 'mysqld --thread_stack=#' の指定をしてください。"
-        kor "쓰레드 스택이 넘쳤습니다.  사용: %ld개 스택: %ld개.  만약 필요시 더큰 스택을 원할때에는 'mysqld --thread_stack=#' 를 정의하세요"
-        por "Estouro da pilha do 'thread'. Usados %ld de uma pilha de %ld. Use 'mysqld --thread_stack=#' para especificar uma pilha maior, se necessário"
-        rum "Stack-ul thread-ului a fost depasit (prea mic):  Folositi: %ld intr-un stack de %ld.  Folositi 'mysqld --thread_stack=#' ca sa specifici un stack mai mare"
-        rus "Стек потоков переполнен:  использовано: %ld из %ld стека.  Применяйте 'mysqld --thread_stack=#' для указания большего размера стека, если необходимо"
-        serbian "Prepisivanje thread stack-a:  Upotrebljeno: %ld od %ld stack memorije.  Upotrebite 'mysqld --thread_stack=#' da navedete veći stack ako je potrebno"
-        slo "Pretečenie zásobníku vlákna:  použité: %ld z %ld.  Použite 'mysqld --thread_stack=#' k zadaniu väčšieho zásobníka"
-        spa "Sobrecarga de la pila de thread:  Usada: %ld de una %ld pila.  Use 'mysqld --thread_stack=#' para especificar una mayor pila si necesario"
-        swe "Trådstacken tog slut:  Har använt %ld av %ld bytes.  Använd 'mysqld --thread_stack=#' ifall du behöver en större stack"
-        ukr "Стек гілок переповнено:  Використано: %ld з %ld. Використовуйте 'mysqld --thread_stack=#' аби зазначити більший стек, якщо необхідно"
+        cze "Přetečení zásobníku threadu: použito %ld z %ld. Použijte 'mariadbd --thread_stack=#' k zadání většího zásobníku"
+        dan "Thread stack brugt:  Brugt: %ld af en %ld stak.  Brug 'mariadbd --thread_stack=#' for at allokere en større stak om nødvendigt"
+        nla "Thread stapel overrun:  Gebruikte: %ld van een %ld stack. Gebruik 'mariadbd --thread_stack=#' om een grotere stapel te definieren (indien noodzakelijk)"
+        eng "Thread stack overrun:  Used: %ld of a %ld stack. Consider increasing the thread_stack system variable"
+        fre "Débordement de la pile des tâches (Thread stack). Utilisées: %ld pour une pile de %ld.  Essayez 'mariadbd --thread_stack=#' pour indiquer une plus grande valeur"
+        ger "Thread-Stack-Überlauf. Benutzt: %ld von %ld Stack. 'mariadbd --thread_stack=#' verwenden, um bei Bedarf einen größeren Stack anzulegen"
+        greek "Stack overrun στο thread:  Used: %ld of a %ld stack.  Παρακαλώ χρησιμοποιείστε 'mariadbd --thread_stack=#' για να ορίσετε ένα μεγαλύτερο stack αν χρειάζεται"
+        hun "Thread verem tullepes:  Used: %ld of a %ld stack. Hasznalja a 'mariadbd --thread_stack=#' nagyobb verem definialasahoz"
+        ita "Thread stack overrun:  Usati: %ld di uno stack di %ld.  Usa 'maridbd --thread_stack=#' per specificare uno stack piu` grande"
+        jpn "スレッドスタック不足です(使用: %ld ; サイズ: %ld)。必要に応じて、より大きい値で 'mariadbd --thread_stack=#' の指定をしてください。"
+        kor "쓰레드 스택이 넘쳤습니다.  사용: %ld개 스택: %ld개.  만약 필요시 더큰 스택을 원할때에는 'mariadbd --thread_stack=#' 를 정의하세요"
+        por "Estouro da pilha do 'thread'. Usados %ld de uma pilha de %ld. Use 'mariadbd --thread_stack=#' para especificar uma pilha maior, se necessário"
+        rum "Stack-ul thread-ului a fost depasit (prea mic):  Folositi: %ld intr-un stack de %ld.  Folositi 'mariadbd --thread_stack=#' ca sa specifici un stack mai mare"
+        rus "Стек потоков переполнен:  использовано: %ld из %ld стека.  Применяйте 'mariadbd --thread_stack=#' для указания большего размера стека, если необходимо"
+        serbian "Prepisivanje thread stack-a:  Upotrebljeno: %ld od %ld stack memorije.  Upotrebite 'mariadbd --thread_stack=#' da navedete veći stack ako je potrebno"
+        slo "Pretečenie zásobníku vlákna:  použité: %ld z %ld.  Použite 'mariadbd --thread_stack=#' k zadaniu väčšieho zásobníka"
+        spa "Sobrecarga de la pila de thread:  Usada: %ld de una %ld pila.  Use 'mariadbd --thread_stack=#' para especificar una mayor pila si necesario"
+        swe "Trådstacken tog slut:  Har använt %ld av %ld bytes.  Använd 'mariadbd --thread_stack=#' ifall du behöver en större stack"
+        ukr "Стек гілок переповнено:  Використано: %ld з %ld. Використовуйте 'mariadbd --thread_stack=#' аби зазначити більший стек, якщо необхідно"
 ER_WRONG_OUTER_JOIN 42000 
         cze "V OUTER JOIN byl nalezen křížový odkaz. Prověřte ON podmínky"
         dan "Krydsreferencer fundet i OUTER JOIN; check dine ON conditions"
@@ -2982,26 +2982,26 @@ ER_FUNCTION_NOT_DEFINED
         swe "Funktionen '%-.192s' är inte definierad"
         ukr "Функцію '%-.192s' не визначено"
 ER_HOST_IS_BLOCKED  
-        cze "Stroj '%-.64s' je zablokován kvůli mnoha chybám při připojování. Odblokujete použitím 'mysqladmin flush-hosts'"
-        dan "Værten '%-.64s' er blokeret på grund af mange fejlforespørgsler. Lås op med 'mysqladmin flush-hosts'"
-        nla "Host '%-.64s' is geblokkeeerd vanwege te veel verbindings fouten. Deblokkeer met 'mysqladmin flush-hosts'"
-        eng "Host '%-.64s' is blocked because of many connection errors; unblock with 'mysqladmin flush-hosts'"
-        est "Masin '%-.64s' on blokeeritud hulgaliste ühendusvigade tõttu. Blokeeringu saab tühistada 'mysqladmin flush-hosts' käsuga"
-        fre "L'hôte '%-.64s' est bloqué à cause d'un trop grand nombre d'erreur de connexion. Débloquer le par 'mysqladmin flush-hosts'"
-        ger "Host '%-.64s' blockiert wegen zu vieler Verbindungsfehler. Aufheben der Blockierung mit 'mysqladmin flush-hosts'"
-        greek "Ο υπολογιστής '%-.64s' έχει αποκλεισθεί λόγω πολλαπλών λαθών σύνδεσης. Προσπαθήστε να διορώσετε με 'mysqladmin flush-hosts'"
-        hindi "होस्ट '%-.64s' को कई कनेक्शन में त्रुटियों के कारण ब्लॉक कर दिया गया है; 'mysqladmin flush-hosts' का इस्तेमाल कर अनब्लॉक करें"
-        hun "A '%-.64s' host blokkolodott, tul sok kapcsolodasi hiba miatt. Hasznalja a 'mysqladmin flush-hosts' parancsot"
-        ita "Sistema '%-.64s' bloccato a causa di troppi errori di connessione. Per sbloccarlo: 'mysqladmin flush-hosts'"
-        jpn "接続エラーが多いため、ホスト '%-.64s' は拒否されました。'mysqladmin flush-hosts' で解除できます。"
-        kor "너무 많은 연결오류로 인하여 호스트 '%-.64s'는 블락되었습니다. 'mysqladmin flush-hosts'를 이용하여 블락을 해제하세요"
-        por "'Host' '%-.64s' está bloqueado devido a muitos erros de conexão. Desbloqueie com 'mysqladmin flush-hosts'"
-        rum "Host-ul '%-.64s' e blocat din cauza multelor erori de conectie. Poti deploca folosind 'mysqladmin flush-hosts'"
-        rus "Хост '%-.64s' заблокирован из-за слишком большого количества ошибок соединения. Разблокировать его можно с помощью 'mysqladmin flush-hosts'"
-        serbian "Host '%-.64s' je blokiran zbog previše grešaka u konekciji.  Možete ga odblokirati pomoću komande 'mysqladmin flush-hosts'"
-        spa "Servidor '%-.64s' está bloqueado por muchos errores de conexión.  Desbloquear con 'mysqladmin flush-hosts'"
-        swe "Denna dator, '%-.64s', är blockerad pga många felaktig paket. Gör 'mysqladmin flush-hosts' för att ta bort alla blockeringarna"
-        ukr "Хост '%-.64s' заблоковано з причини великої кількості помилок з'єднання. Для розблокування використовуйте 'mysqladmin flush-hosts'"
+        cze "Stroj '%-.64s' je zablokován kvůli mnoha chybám při připojování. Odblokujete použitím 'mariadb-admin flush-hosts'"
+        dan "Værten '%-.64s' er blokeret på grund af mange fejlforespørgsler. Lås op med 'mariadb-admin flush-hosts'"
+        nla "Host '%-.64s' is geblokkeeerd vanwege te veel verbindings fouten. Deblokkeer met 'mariadb-admin flush-hosts'"
+        eng "Host '%-.64s' is blocked because of many connection errors; unblock with 'mariadb-admin flush-hosts'"
+        est "Masin '%-.64s' on blokeeritud hulgaliste ühendusvigade tõttu. Blokeeringu saab tühistada 'mariadb-admin flush-hosts' käsuga"
+        fre "L'hôte '%-.64s' est bloqué à cause d'un trop grand nombre d'erreur de connexion. Débloquer le par 'mariadb-admin flush-hosts'"
+        ger "Host '%-.64s' blockiert wegen zu vieler Verbindungsfehler. Aufheben der Blockierung mit 'mariadb-admin flush-hosts'"
+        greek "Ο υπολογιστής '%-.64s' έχει αποκλεισθεί λόγω πολλαπλών λαθών σύνδεσης. Προσπαθήστε να διορώσετε με 'mariadb-admin flush-hosts'"
+        hindi "होस्ट '%-.64s' को कई कनेक्शन में त्रुटियों के कारण ब्लॉक कर दिया गया है; 'mariadb-admin flush-hosts' का इस्तेमाल कर अनब्लॉक करें"
+        hun "A '%-.64s' host blokkolodott, tul sok kapcsolodasi hiba miatt. Hasznalja a 'mariadb-admin flush-hosts' parancsot"
+        ita "Sistema '%-.64s' bloccato a causa di troppi errori di connessione. Per sbloccarlo: 'mariadb-admin flush-hosts'"
+        jpn "接続エラーが多いため、ホスト '%-.64s' は拒否されました。'mariadb-admin flush-hosts' で解除できます。"
+        kor "너무 많은 연결오류로 인하여 호스트 '%-.64s'는 블락되었습니다. 'mariadb-admin flush-hosts'를 이용하여 블락을 해제하세요"
+        por "'Host' '%-.64s' está bloqueado devido a muitos erros de conexão. Desbloqueie com 'mariadb-admin flush-hosts'"
+        rum "Host-ul '%-.64s' e blocat din cauza multelor erori de conectie. Poti deploca folosind 'mariadb-admin flush-hosts'"
+        rus "Хост '%-.64s' заблокирован из-за слишком большого количества ошибок соединения. Разблокировать его можно с помощью 'mariadb-admin flush-hosts'"
+        serbian "Host '%-.64s' je blokiran zbog previše grešaka u konekciji.  Možete ga odblokirati pomoću komande 'mariadb-admin flush-hosts'"
+        spa "Servidor '%-.64s' está bloqueado por muchos errores de conexión.  Desbloquear con 'mariadb-admin flush-hosts'"
+        swe "Denna dator, '%-.64s', är blockerad pga många felaktig paket. Gör 'mariadb-admin flush-hosts' för att ta bort alla blockeringarna"
+        ukr "Хост '%-.64s' заблоковано з причини великої кількості помилок з'єднання. Для розблокування використовуйте 'mariadb-admin flush-hosts'"
 ER_HOST_NOT_PRIVILEGED  
         cze "Stroj '%-.64s' nemá povoleno se k tomuto MariaDB serveru připojit"
         dan "Værten '%-.64s' kan ikke tilkoble denne MariaDB-server"
@@ -3046,7 +3046,7 @@ ER_PASSWORD_ANONYMOUS_USER 42000
         ukr "Ви використовуєте MariaDB як анонімний користувач, тому вам не дозволено змінювати паролі"
 ER_PASSWORD_NOT_ALLOWED 42000 
         cze "Na změnu hesel ostatním musíte mít právo provést update tabulek v databázi mysql"
-        dan "Du skal have tilladelse til at opdatere tabeller i MariaDB databasen for at ændre andres adgangskoder"
+        dan "Du skal have tilladelse til at opdatere tabeller i mysql databasen for at ændre andres adgangskoder"
         nla "U moet tabel update priveleges hebben in de mysql database om wachtwoorden voor anderen te mogen wijzigen"
         eng "You must have privileges to update tables in the mysql database to be able to change passwords for others"
         est "Teiste paroolide muutmiseks on nõutav tabelite muutmisõigus 'mysql' andmebaasis"
@@ -3189,13 +3189,13 @@ ER_INVALID_USE_OF_NULL 22004
         swe "Felaktig använding av NULL"
         ukr "Хибне використання значення NULL"
 ER_REGEXP_ERROR 42000 
-        cze "Regulární výraz vrátil chybu '%-.64s'"
+        cze "Regulární výraz vrátil chybu: %s"
         dan "Fik fejl '%-.64s' fra regexp"
         nla "Fout '%-.64s' ontvangen van regexp"
-        eng "Got error '%-.64s' from regexp"
-        est "regexp tagastas vea '%-.64s'"
+        eng "Regex error '%s'"
+        est "regexp tagastas vea: %s"
         fre "Erreur '%-.64s' provenant de regexp"
-        ger "regexp lieferte Fehler '%-.64s'"
+        ger "Regexp Fehler %s"
         hindi "regexp में '%-.64s' त्रुटि हुई"
         hun "'%-.64s' hiba a regularis kifejezes hasznalata soran (regexp)"
         ita "Errore '%-.64s' da regexp"
@@ -3203,11 +3203,11 @@ ER_REGEXP_ERROR 42000
         kor "regexp에서 '%-.64s'가 났습니다."
         por "Obteve erro '%-.64s' em regexp"
         rum "Eroarea '%-.64s' obtinuta din expresia regulara (regexp)"
-        rus "Получена ошибка '%-.64s' от регулярного выражения"
-        serbian "Funkcija regexp je vratila grešku '%-.64s'"
+        rus "Ошибка регулярного выражения: %s"
+        serbian "Funkcija regexp je vratila grešku: %s"
         spa "Obtenido error '%-.64s' de regexp"
         swe "Fick fel '%-.64s' från REGEXP"
-        ukr "Отримано помилку '%-.64s' від регулярного виразу"
+        ukr "Помилка регулярного виразу: %s"
 ER_MIX_OF_GROUP_FUNC_AND_FIELDS 42000 
         cze "Pokud není žádná GROUP BY klauzule, není dovoleno současné použití GROUP položek (MIN(),MAX(),COUNT()...) s ne GROUP položkami"
         dan "Sammenblanding af GROUP kolonner (MIN(),MAX(),COUNT()...) uden GROUP kolonner er ikke tilladt, hvis der ikke er noget GROUP BY prædikat"
@@ -3896,7 +3896,7 @@ ER_NO_RAID_COMPILED
         ger "Diese MariaDB-Version ist nicht mit RAID-Unterstützung kompiliert"
         hindi "MariaDB का यह संस्करण RAID सपोर्ट के साथ कॉम्पाईल्ड नहीं है"
         hun "Ezen leforditott MariaDB verzio nem tartalmaz RAID support-ot"
-        ita "Questa versione di MYSQL non e` compilata con il supporto RAID"
+        ita "Questa versione di MariaDB non e` compilata con il supporto RAID"
         jpn "このバージョンのMariaDBはRAIDサポートを含めてコンパイルされていません。"
         por "Esta versão do MariaDB não foi compilada com suporte a RAID"
         rum "Aceasta versiune de MariaDB, nu a fost compilata cu suport pentru RAID"
@@ -3922,7 +3922,7 @@ ER_UPDATE_WITHOUT_KEY_IN_SAFE_MODE
         spa "Tu estás usando modo de actualización segura y tentado actualizar una tabla sin un WHERE que usa una KEY columna"
         swe "Du använder 'säker uppdateringsmod' och försökte uppdatera en tabell utan en WHERE-sats som använder sig av en nyckel"
         ukr "Ви у режимі безпечного оновлення та намагаєтесь оновити таблицю без оператора WHERE, що використовує KEY стовбець"
-ER_KEY_DOES_NOT_EXITS 42000 S1009
+ER_KEY_DOES_NOT_EXISTS 42000 S1009
         cze "Klíč '%-.192s' v tabulce '%-.192s' neexistuje"
         dan "Nøglen '%-.192s' eksisterer ikke i tabellen '%-.192s'"
         nla "Zoeksleutel '%-.192s' bestaat niet in tabel '%-.192s'"
@@ -4257,18 +4257,18 @@ ER_WARNING_NOT_COMPLETE_ROLLBACK
         ukr "Застереження: Деякі нетранзакційні зміни таблиць не можна буде повернути"
 ER_TRANS_CACHE_FULL  
         dan "Fler-udtryks transaktion krævede mere plads en 'max_binlog_cache_size' bytes. Forhøj værdien af denne variabel og prøv igen"
-        nla "Multi-statement transactie vereist meer dan 'max_binlog_cache_size' bytes opslag. Verhoog deze mysqld variabele en probeer opnieuw"
-        eng "Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage; increase this mysqld variable and try again"
+        nla "Multi-statement transactie vereist meer dan 'max_binlog_cache_size' bytes opslag. Verhoog deze mariadbd variabele en probeer opnieuw"
+        eng "Multi-statement transaction required more than 'max_binlog_cache_size' bytes of storage"
         est "Mitme lausendiga transaktsioon nõudis rohkem ruumi kui lubatud 'max_binlog_cache_size' muutujaga. Suurenda muutuja väärtust ja proovi uuesti"
-        fre "Cette transaction à commandes multiples nécessite plus de 'max_binlog_cache_size' octets de stockage, augmentez cette variable de mysqld et réessayez"
+        fre "Cette transaction à commandes multiples nécessite plus de 'max_binlog_cache_size' octets de stockage, augmentez cette variable de mariadbd et réessayez"
         ger "Transaktionen, die aus mehreren Befehlen bestehen, benötigten mehr als 'max_binlog_cache_size' Bytes an Speicher. Btte vergrössern Sie diese Server-Variable versuchen Sie es noch einmal"
-        ita "La transazione a comandi multipli (multi-statement) ha richiesto piu` di 'max_binlog_cache_size' bytes di disco: aumentare questa variabile di mysqld e riprovare"
+        ita "La transazione a comandi multipli (multi-statement) ha richiesto piu` di 'max_binlog_cache_size' bytes di disco: aumentare questa variabile di mariadbd e riprovare"
         jpn "複数ステートメントから成るトランザクションが 'max_binlog_cache_size' 以上の容量を必要としました。このシステム変数を増加して、再試行してください。"
-        por "Transações multi-declaradas (multi-statement transactions) requeriram mais do que o valor limite (max_binlog_cache_size) de bytes para armazenagem. Aumente o valor desta variável do mysqld e tente novamente"
-        rus "Транзакции, включающей большое количество команд, потребовалось более чем 'max_binlog_cache_size' байт. Увеличьте эту переменную сервера mysqld и попробуйте еще раз"
-        spa "Multipla transición necesita mas que 'max_binlog_cache_size' bytes de almacenamiento. Aumente esta variable mysqld y tente de nuevo"
-        swe "Transaktionen krävde mera än 'max_binlog_cache_size' minne. Öka denna mysqld-variabel och försök på nytt"
-        ukr "Транзакція з багатьма виразами вимагає більше ніж 'max_binlog_cache_size' байтів для зберігання. Збільште цю змінну mysqld та спробуйте знову"
+        por "Transações multi-declaradas (multi-statement transactions) requeriram mais do que o valor limite (max_binlog_cache_size) de bytes para armazenagem. Aumente o valor desta variável do mariadbd e tente novamente"
+        rus "Транзакции, включающей большое количество команд, потребовалось более чем 'max_binlog_cache_size' байт. Увеличьте эту переменную сервера mariadbd и попробуйте еще раз"
+        spa "Multipla transición necesita mas que 'max_binlog_cache_size' bytes de almacenamiento. Aumente esta variable mariadbd y tente de nuevo"
+        swe "Transaktionen krävde mera än 'max_binlog_cache_size' minne. Öka denna mariadbd-variabel och försök på nytt"
+        ukr "Транзакція з багатьма виразами вимагає більше ніж 'max_binlog_cache_size' байтів для зберігання. Збільште цю змінну mariadbd та спробуйте знову"
 ER_SLAVE_MUST_STOP  
         dan "Denne handling kunne ikke udføres med kørende slave '%2$*1$s', brug først kommandoen STOP SLAVE '%2$*1$s'"
         nla "Deze operatie kan niet worden uitgevoerd met een actieve slave '%2$*1$s', doe eerst STOP SLAVE '%2$*1$s'"
@@ -4948,7 +4948,7 @@ ER_ZLIB_Z_DATA_ERROR
         por "ZLIB: Dados de entrada está corrupto"
         spa "ZLIB: Dato de entrada fué corrompido para zlib"
 ER_CUT_VALUE_GROUP_CONCAT  
-        eng "Row %u was cut by GROUP_CONCAT()"
+        eng "Row %u was cut by %s)"
 ER_WARN_TOO_FEW_RECORDS 01000 
         eng "Row %lu doesn't contain data for all columns"
         ger "Zeile %lu enthält nicht für alle Felder Daten"
@@ -5052,11 +5052,11 @@ ER_BAD_SLAVE_UNTIL_COND
         por "Parâmetro ou combinação de parâmetros errado para START SLAVE UNTIL"
         spa "Parametro equivocado o combinación de parametros para START SLAVE UNTIL"
 ER_MISSING_SKIP_SLAVE  
-        eng "It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mysqld restart"
+        eng "It is recommended to use --skip-slave-start when doing step-by-step replication with START SLAVE UNTIL; otherwise, you will get problems if you get an unexpected slave's mariadbd restart"
         ger "Es wird empfohlen, mit --skip-slave-start zu starten, wenn mit START SLAVE UNTIL eine Schritt-für-Schritt-Replikation ausgeführt wird. Ansonsten gibt es Probleme, wenn ein Slave-Server unerwartet neu startet"
-        jpn "START SLAVE UNTIL で段階的にレプリケーションを行う際には、--skip-slave-start オプションを使うことを推奨します。使わない場合、スレーブのmysqldが不慮の再起動をすると問題が発生します。"
-        por "É recomendado para rodar com --skip-slave-start quando fazendo replicação passo-por-passo com START SLAVE UNTIL, de outra forma você não está seguro em caso de inesperada reinicialição do mysqld escravo"
-        spa "Es recomendado rodar con --skip-slave-start cuando haciendo replicación step-by-step con START SLAVE UNTIL, a menos que usted no esté seguro en caso de inesperada reinicialización del mysqld slave"
+        jpn "START SLAVE UNTIL で段階的にレプリケーションを行う際には、--skip-slave-start オプションを使うことを推奨します。使わない場合、スレーブのmariadbdが不慮の再起動をすると問題が発生します。"
+        por "É recomendado para rodar com --skip-slave-start quando fazendo replicação passo-por-passo com START SLAVE UNTIL, de outra forma você não está seguro em caso de inesperada reinicialição do mariadbd escravo"
+        spa "Es recomendado rodar con --skip-slave-start cuando haciendo replicación step-by-step con START SLAVE UNTIL, a menos que usted no esté seguro en caso de inesperada reinicialización del mariadbd slave"
 ER_UNTIL_COND_IGNORED  
         eng "SQL thread is not to be started so UNTIL options are ignored"
         ger "SQL-Thread soll nicht gestartet werden. Daher werden UNTIL-Optionen ignoriert"
@@ -5659,9 +5659,9 @@ ER_TRG_IN_WRONG_SCHEMA
         eng "Trigger in wrong schema"
         ger "Trigger im falschen Schema"
 ER_STACK_OVERRUN_NEED_MORE
-        eng "Thread stack overrun:  %ld bytes used of a %ld byte stack, and %ld bytes needed.  Use 'mysqld --thread_stack=#' to specify a bigger stack"
-        ger "Thread-Stack-Überlauf: %ld Bytes eines %ld-Byte-Stacks in Verwendung, und %ld Bytes benötigt. Verwenden Sie 'mysqld --thread_stack=#', um einen größeren Stack anzugeben"
-        jpn "スレッドスタック不足です(使用: %ld ; サイズ: %ld ; 要求: %ld)。より大きい値で 'mysqld --thread_stack=#' の指定をしてください。"
+        eng "Thread stack overrun:  %ld bytes used of a %ld byte stack, and %ld bytes needed. Consider increasing the thread_stack system variable."
+        ger "Thread-Stack-Überlauf: %ld Bytes eines %ld-Byte-Stacks in Verwendung, und %ld Bytes benötigt. Verwenden Sie 'mariadbd --thread_stack=#', um einen größeren Stack anzugeben"
+        jpn "スレッドスタック不足です(使用: %ld ; サイズ: %ld ; 要求: %ld)。より大きい値で 'mariadbd --thread_stack=#' の指定をしてください。"
 ER_TOO_LONG_BODY 42000 S1009
         eng "Routine body for '%-.100s' is too long"
         ger "Routinen-Body für '%-.100s' ist zu lang"
@@ -5898,10 +5898,8 @@ ER_PARTITION_MGMT_ON_NONPARTITIONED
         eng "Partition management on a not partitioned table is not possible"
         ger "Partitionsverwaltung einer nicht partitionierten Tabelle ist nicht möglich"
         swe "Partitioneringskommando på en opartitionerad tabell är inte möjligt"
-ER_FOREIGN_KEY_ON_PARTITIONED
-        eng "Foreign key clause is not yet supported in conjunction with partitioning"
-        ger "Fremdschlüssel-Beschränkungen sind im Zusammenhang mit Partitionierung nicht zulässig"
-        swe "Foreign key klausul är inte ännu implementerad i kombination med partitionering"
+ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+        eng "Partitioned tables do not support %s"
 ER_DROP_PARTITION_NON_EXISTENT
         eng "Error in list of partitions to %-.64s"
         ger "Fehler in der Partitionsliste bei %-.64s"
@@ -6079,8 +6077,8 @@ ER_CANT_LOCK_LOG_TABLE
 ER_UNUSED_4
         eng "You should never see it"
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE
-        eng "Column count of mysql.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mysql_upgrade to fix this error"
-        ger "Spaltenanzahl von mysql.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mysql_upgrade, um den Fehler zu beheben"
+        eng "Column count of mysql.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mariadb-upgrade to fix this error"
+        ger "Spaltenanzahl von mysql.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mariadb-upgrade, um den Fehler zu beheben"
 ER_TEMP_TABLE_PREVENTS_SWITCH_OUT_OF_RBR
         eng "Cannot switch out of the row-based binary log format when the session has open temporary tables"
         ger "Kann nicht aus dem zeilenbasierten Binärlog-Format herauswechseln, wenn die Sitzung offene temporäre Tabellen hat"
@@ -6574,13 +6572,13 @@ ER_SLAVE_HEARTBEAT_VALUE_OUT_OF_RANGE_MAX
   eng "The requested value for the heartbeat period exceeds the value of `slave_net_timeout' seconds. A sensible value for the period should be less than the timeout"
 
 ER_STMT_CACHE_FULL  
-        eng "Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage; increase this mysqld variable and try again"
+        eng "Multi-row statements required more than 'max_binlog_stmt_cache_size' bytes of storage."
 
 ER_MULTI_UPDATE_KEY_CONFLICT
   eng "Primary key/partition key update is not allowed since the table is updated both as '%-.192s' and '%-.192s'"
 
 # When translating this error message make sure to include "ALTER TABLE" in the
-# message as mysqlcheck parses the error message looking for ALTER TABLE.
+# message as mariadb-check parses the error message looking for ALTER TABLE.
 ER_TABLE_NEEDS_REBUILD
         eng "Table rebuild required. Please do \"ALTER TABLE %`s FORCE\" or dump/reload to fix it!"
 
@@ -7388,8 +7386,8 @@ ER_FK_DEPTH_EXCEEDED
   eng "Foreign key cascade delete/update exceeds max depth of %d."
 
 ER_COL_COUNT_DOESNT_MATCH_PLEASE_UPDATE_V2
-        eng "Column count of %s.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mysql_upgrade to fix this error."
-        ger "Spaltenanzahl von %s.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mysql_upgrade, um den Fehler zu beheben"
+        eng "Column count of %s.%s is wrong. Expected %d, found %d. Created with MariaDB %d, now running %d. Please use mariadb-upgrade to fix this error."
+        ger "Spaltenanzahl von %s.%s falsch. %d erwartet, aber %d erhalten. Erzeugt mit MariaDB %d, jetzt unter %d. Bitte benutzen Sie mariadb-upgrade, um den Fehler zu beheben"
 
 ER_WARN_TRIGGER_DOESNT_HAVE_CREATED
   eng "Trigger %s.%s.%s does not have CREATED attribute."
@@ -7775,7 +7773,7 @@ ER_UNKNOWN_SEQUENCES 42S02
 ER_UNKNOWN_VIEW 42S02
         eng "Unknown VIEW: '%-.300s'"
 ER_WRONG_INSERT_INTO_SEQUENCE
-        eng "Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a sequence object (like with mysqldump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead."
+        eng "Wrong INSERT into a SEQUENCE. One can only do single table INSERT into a sequence object (like with mariadb-dump).  If you want to change the SEQUENCE, use ALTER SEQUENCE instead."
 ER_SP_STACK_TRACE
         eng "At line %u in %s"
 ER_PACKAGE_ROUTINE_IN_SPEC_NOT_DEFINED_IN_BODY
@@ -7826,7 +7824,7 @@ ER_PARTITION_WRONG_TYPE
         eng "Wrong partitioning type, expected type: %`s"
 
 WARN_VERS_PART_FULL
-        eng "Versioned table %`s.%`s: partition %`s is full, add more HISTORY partitions"
+        eng "Versioned table %`s.%`s: last HISTORY partition (%`s) is out of %s, need more HISTORY partitions"
 
 WARN_VERS_PARAMETERS
         eng "Maybe missing parameters: %s"
@@ -7942,3 +7940,37 @@ ER_PERIOD_CONSTRAINT_DROP
         eng "Can't DROP CONSTRAINT `%s`. Use DROP PERIOD `%s` for this"
 ER_TOO_LONG_KEYPART 42000 S1009
         eng "Specified key part was too long; max key part length is %u bytes"
+ER_TOO_LONG_DATABASE_COMMENT
+  eng "Comment for database '%-.64s' is too long (max = %u)"
+ER_UNKNOWN_DATA_TYPE
+        eng "Unknown data type: '%-.64s'"
+ER_UNKNOWN_OPERATOR
+        eng "Operator does not exists: '%-.128s'"
+ER_WARN_HISTORY_ROW_START_TIME
+        eng "Table `%s.%s` history row start '%s' is later than row end '%s'"
+ER_PART_STARTS_BEYOND_INTERVAL
+        eng "%`s: STARTS is later than query time, first history partition may exceed INTERVAL value"
+ER_GALERA_REPLICATION_NOT_SUPPORTED
+        eng "DDL-statement is forbidden as table storage engine does not support Galera replication"
+ER_LOAD_INFILE_CAPABILITY_DISABLED
+        eng "The used command is not allowed because the MariaDB server or client has disabled the local infile capability"
+        rum "Comanda folosită nu este permisă deoarece clientul sau serverul MariaDB a dezactivat această capabilitate"
+ER_NO_SECURE_TRANSPORTS_CONFIGURED
+        eng "No secure transports are configured, unable to set --require_secure_transport=ON"
+ER_SLAVE_IGNORED_SHARED_TABLE
+        eng "Slave SQL thread ignored the '%s' because table is shared"
+        ger "Slave-SQL-Thread hat die Abfrage '%s' ignoriert"
+        nla "Slave SQL thread negeerde de query '%s'"
+        por "Slave SQL thread ignorado a consulta devido '%s'"
+        spa "Slave SQL thread ignorado el query '%s'"
+        swe "Slav SQL tråden ignorerade '%s' pga tabellen är delad"
+ER_NO_AUTOINCREMENT_WITH_UNIQUE
+        eng  "AUTO_INCREMENT column %`s cannot be used in the UNIQUE index %`s"
+ER_KEY_CONTAINS_PERIOD_FIELDS
+        eng "Key %`s cannot explicitly include column %`s"
+ER_KEY_CANT_HAVE_WITHOUT_OVERLAPS
+        eng "Key %`s cannot have WITHOUT OVERLAPS"
+ER_NOT_ALLOWED_IN_THIS_CONTEXT
+        eng "'%-.128s' is not allowed in this context"
+ER_DATA_WAS_COMMITED_UNDER_ROLLBACK
+        eng "Engine %s does not support rollback. Changes were committed during rollback call"

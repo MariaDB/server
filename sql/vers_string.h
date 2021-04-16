@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2018, MariaDB Corporation.
+   Copyright (c) 2018, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -17,6 +17,8 @@
 #ifndef VERS_STRING_INCLUDED
 #define VERS_STRING_INCLUDED
 
+#include "lex_string.h"
+
 /*
   LEX_CSTRING with comparison semantics.
 */
@@ -28,9 +30,8 @@ struct Compare_table_names
   {
     DBUG_ASSERT(a.str[a.length] == 0);
     DBUG_ASSERT(b.str[b.length] == 0);
-    return my_strnncoll(table_alias_charset,
-                        (uchar*)a.str, a.length,
-                        (uchar*)b.str, b.length);
+    return table_alias_charset->strnncoll(a.str, a.length,
+                                          b.str, b.length);
   }
 };
 
@@ -45,31 +46,6 @@ struct Compare_identifiers
   }
 };
 
-class Lex_cstring : public LEX_CSTRING
-{
-  public:
-  Lex_cstring()
-  {
-    str= NULL;
-    length= 0;
-  }
-  Lex_cstring(const char *_str, size_t _len)
-  {
-    str= _str;
-    length= _len;
-  }
-  Lex_cstring(const char *start, const char *end)
-  {
-    DBUG_ASSERT(start <= end);
-    str= start;
-    length= end - start;
-  }
-  void set(const char *_str, size_t _len)
-  {
-    str= _str;
-    length= _len;
-  }
-};
 
 template <class Compare>
 struct Lex_cstring_with_compare : public Lex_cstring

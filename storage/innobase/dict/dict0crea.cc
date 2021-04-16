@@ -230,7 +230,7 @@ dict_create_sys_columns_tuple(
 		col_name = dict_table_get_col_name(table, i);
 	}
 
-	dfield_set_data(dfield, col_name, ut_strlen(col_name));
+	dfield_set_data(dfield, col_name, strlen(col_name));
 
 	/* 5: MTYPE --------------------------*/
 	dfield = dtuple_get_nth_field(entry, DICT_COL__SYS_COLUMNS__MTYPE);
@@ -375,16 +375,18 @@ dict_build_table_def_step(
 			mtr.start();
 			undo->table_id = trx->table_id;
 			undo->dict_operation = TRUE;
-			page_t* page = trx_undo_page_get(
+			buf_block_t* block = trx_undo_page_get(
 				page_id_t(trx->rsegs.m_redo.rseg->space->id,
 					  undo->hdr_page_no),
 				&mtr);
-			mlog_write_ulint(page + undo->hdr_offset
-					 + TRX_UNDO_DICT_TRANS,
-					 TRUE, MLOG_1BYTE, &mtr);
-			mlog_write_ull(page + undo->hdr_offset
-				       + TRX_UNDO_TABLE_ID,
-				       trx->table_id, &mtr);
+			mtr.write<1,mtr_t::MAYBE_NOP>(
+				*block,
+				block->frame + undo->hdr_offset
+				+ TRX_UNDO_DICT_TRANS, 1U);
+			mtr.write<8,mtr_t::MAYBE_NOP>(
+				*block,
+				block->frame + undo->hdr_offset
+				+ TRX_UNDO_TABLE_ID, trx->table_id);
 			mtr.commit();
 			log_write_up_to(mtr.commit_lsn(), true);
 		}
@@ -653,8 +655,7 @@ dict_create_sys_fields_tuple(
 	/* 4: COL_NAME -------------------------*/
 	dfield = dtuple_get_nth_field(entry, DICT_COL__SYS_FIELDS__COL_NAME);
 
-	dfield_set_data(dfield, field->name,
-			ut_strlen(field->name));
+	dfield_set_data(dfield, field->name, strlen(field->name));
 	/*---------------------------------*/
 
 	return(entry);
@@ -854,14 +855,13 @@ dict_create_index_tree_step(
 				err = DB_OUT_OF_FILE_SPACE; );
 	}
 
-	ulint   len;
-	byte*   data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
+	ulint	len;
+	byte*	data = rec_get_nth_field_old(btr_pcur_get_rec(&pcur),
 					     DICT_FLD__SYS_INDEXES__PAGE_NO,
 					     &len);
 	ut_ad(len == 4);
-	if (mach_read_from_4(data) != node->page_no) {
-		mlog_write_ulint(data, node->page_no, MLOG_4BYTES, &mtr);
-	}
+	mtr.write<4,mtr_t::MAYBE_NOP>(*btr_pcur_get_block(&pcur), data,
+				      node->page_no);
 
 	mtr.commit();
 
@@ -901,16 +901,16 @@ dict_create_index_tree_in_mem(
 }
 
 /** Drop the index tree associated with a row in SYS_INDEXES table.
-@param[in,out]	rec	SYS_INDEXES record
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
 @param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
+void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 {
+	rec_t*	rec = btr_pcur_get_rec(pcur);
 	byte*	ptr;
 	ulint	len;
 
-	ut_ad(mutex_own(&dict_sys.mutex));
+	ut_ad(!trx || mutex_own(&dict_sys.mutex));
 	ut_a(!dict_table_is_comp(dict_sys.sys_indexes));
 
 	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
@@ -927,7 +927,7 @@ void dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 	}
 
 	compile_time_assert(FIL_NULL == 0xffffffff);
-	mlog_memset(ptr, 4, 0xff, mtr);
+	mtr->memset(btr_pcur_get_block(pcur), page_offset(ptr), 4, 0xff);
 
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
@@ -936,7 +936,7 @@ void dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 
 	const uint32_t space_id = mach_read_from_4(ptr);
 	ut_ad(space_id < SRV_TMP_SPACE_ID);
-	if (space_id != TRX_SYS_SPACE
+	if (space_id != TRX_SYS_SPACE && trx
 	    && trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE) {
 		/* We are about to delete the entire .ibd file;
 		do not bother to free pages inside it. */
@@ -948,10 +948,10 @@ void dict_drop_index_tree(rec_t* rec, btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 
 	ut_ad(len == 8);
 
-	if (fil_space_t* s = fil_space_acquire_silent(space_id)) {
+	if (fil_space_t* s = fil_space_t::get(space_id)) {
 		/* Ensure that the tablespace file exists
 		in order to avoid a crash in buf_page_get_gen(). */
-		if (s->size || fil_space_get_size(space_id)) {
+		if (root_page_no < s->get_size()) {
 			btr_free_if_exists(page_id_t(space_id, root_page_no),
 					   s->zip_size(),
 					   mach_read_from_8(ptr), mtr);
@@ -1262,8 +1262,8 @@ dict_create_index_step(
 			  ? dict_index_t::NO_CORE_NULL_BYTES
 			  : UT_BITS_IN_BYTES(
 				  unsigned(node->index->n_nullable))));
-		node->index->n_core_null_bytes = UT_BITS_IN_BYTES(
-			unsigned(node->index->n_nullable));
+		node->index->n_core_null_bytes = static_cast<uint8_t>(
+			UT_BITS_IN_BYTES(unsigned(node->index->n_nullable)));
 		node->state = INDEX_CREATE_INDEX_TREE;
 	}
 
@@ -1358,7 +1358,7 @@ dict_check_if_system_table_exists(
 	dict_table_t*	sys_table;
 	dberr_t		error = DB_SUCCESS;
 
-	ut_a(srv_get_active_thread_type() == SRV_NONE);
+	ut_ad(!srv_any_background_activity());
 
 	mutex_enter(&dict_sys.mutex);
 
@@ -1398,7 +1398,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 	dberr_t		sys_foreign_err;
 	dberr_t		sys_foreign_cols_err;
 
-	ut_a(srv_get_active_thread_type() == SRV_NONE);
+	ut_ad(!srv_any_background_activity());
 
 	/* Note: The master thread has not been started at this point. */
 
@@ -1539,7 +1539,7 @@ dict_create_or_check_sys_virtual()
 	my_bool		srv_file_per_table_backup;
 	dberr_t		err;
 
-	ut_a(srv_get_active_thread_type() == SRV_NONE);
+	ut_ad(!srv_any_background_activity());
 
 	/* Note: The master thread has not been started at this point. */
 	err = dict_check_if_system_table_exists(
@@ -2065,7 +2065,7 @@ dict_create_or_check_sys_tablespace(void)
 	dberr_t		sys_tablespaces_err;
 	dberr_t		sys_datafiles_err;
 
-	ut_a(srv_get_active_thread_type() == SRV_NONE);
+	ut_ad(!srv_any_background_activity());
 
 	/* Note: The master thread has not been started at this point. */
 

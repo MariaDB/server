@@ -1,0 +1,10 @@
+--echo #
+--echo # MDEV-21764 CONNECT table with INET6 field produces warnings upon SELECT
+--echo #
+
+CREATE TABLE t1 (a INET6) ENGINE=CONNECT TABLE_TYPE=DOS;
+INSERT INTO t1 VALUES ('::');
+INSERT INTO t1 VALUES ('::ffff');
+INSERT INTO t1 VALUES ('ffff::ffff');
+SELECT * FROM t1;
+DROP TABLE t1;

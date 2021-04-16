@@ -1,0 +1,61 @@
+-- source include/mysql_upgrade_preparation.inc
+-- source include/have_working_dns.inc
+-- source include/have_innodb.inc
+-- source include/have_type_mysql_json.inc
+
+call mtr.add_suppression("Table rebuild required");
+call mtr.add_suppression("is marked as crashed");
+call mtr.add_suppression("Checking");
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+SET NAMES utf8;
+
+--copy_file std_data/mysql_json/tempty.frm $MYSQLD_DATADIR/test/tempty.frm
+--copy_file std_data/mysql_json/tempty.MYI $MYSQLD_DATADIR/test/tempty.MYI
+--copy_file std_data/mysql_json/tempty.MYD $MYSQLD_DATADIR/test/tempty.MYD
+
+--copy_file std_data/mysql_json/mysql_json_test.frm $MYSQLD_DATADIR/test/mysql_json_test.frm
+--copy_file std_data/mysql_json/mysql_json_test.MYI $MYSQLD_DATADIR/test/mysql_json_test.MYI
+--copy_file std_data/mysql_json/mysql_json_test.MYD $MYSQLD_DATADIR/test/mysql_json_test.MYD
+
+--copy_file std_data/mysql_json/mysql_json_test_big.frm $MYSQLD_DATADIR/test/mysql_json_test_big.frm
+--copy_file std_data/mysql_json/mysql_json_test_big.MYI $MYSQLD_DATADIR/test/mysql_json_test_big.MYI
+--copy_file std_data/mysql_json/mysql_json_test_big.MYD $MYSQLD_DATADIR/test/mysql_json_test_big.MYD
+
+
+set sql_mode="";
+
+--error ER_TABLE_NEEDS_REBUILD
+show create table tempty;
+--error ER_TABLE_NEEDS_REBUILD
+show create table mysql_json_test;
+--error ER_TABLE_NEEDS_REBUILD
+show create table mysql_json_test_big;
+
+--echo # Run mysql_upgrade to fix the tables containing JSON.
+--exec $MYSQL_UPGRADE --force 2>&1
+
+--echo #
+--echo # Now check if the table structure is correct and that the data
+--echo # is still present.
+--echo #
+
+show create table tempty;
+show create table mysql_json_test;
+show create table mysql_json_test_big;
+
+select count(*) as 'Total_Number_of_Tests',
+sum(expected = actual) as 'Succesful_Tests',
+sum(JSON_VALID(actual)) as 'String_is_valid_JSON'
+from mysql_json_test;
+
+select count(*) as 'Total_Number_of_Tests',
+sum(expected = actual) as 'Succesful_Tests',
+sum(JSON_VALID(actual)) as 'String_is_valid_JSON'
+from mysql_json_test_big;
+
+drop table tempty;
+drop table mysql_json_test;
+drop table mysql_json_test_big;
+
+--remove_file $MYSQLD_DATADIR/mysql_upgrade_info

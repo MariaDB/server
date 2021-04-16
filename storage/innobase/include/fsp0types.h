@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2019, MariaDB Corporation.
+Copyright (c) 2014, 2020, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,12 +24,12 @@ File space management types
 Created May 26, 2009 Vasil Dimov
 *******************************************************/
 
-#ifndef fsp0types_h
-#define fsp0types_h
+#pragma once
+#include <cstddef>
 
 /** The fil_space_t::id of the redo log. All persistent tablespaces
 have a smaller fil_space_t::id. */
-#define SRV_LOG_SPACE_FIRST_ID		0xFFFFFFF0U
+static constexpr size_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0;
 /** The fil_space_t::id of the innodb_temporary tablespace. */
 #define SRV_TMP_SPACE_ID		0xFFFFFFFEU
 
@@ -400,4 +400,6 @@ in full crc32 format. */
 
 /* @} */
 
-#endif /* fsp0types_h */
+struct fil_node_t;
+struct fil_space_t;
+class buf_page_t;

@@ -1,0 +1,28 @@
+-- source include/have_innodb.inc
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+CREATE TABLE t1(f1 int auto_increment primary key,
+                f2 varchar(256),
+                f3 text) engine = innodb;
+let $numinserts = 500;
+--disable_query_log
+begin;
+while ($numinserts)
+{
+  dec $numinserts;
+  eval INSERT INTO t1(f2,f3) VALUES ('repairman', repeat('unicycle', 1000));
+}
+commit;
+--enable_query_log
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+
+let SEARCH_PATTERN= unicycle|repairman;
+let SEARCH_FILE= $MYSQLD_DATADIR/test/t1.ibd;
+-- source include/search_pattern_in_file.inc
+DELETE FROM t1;
+-- source include/wait_all_purged.inc
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+-- source include/search_pattern_in_file.inc
+DROP TABLE t1;
