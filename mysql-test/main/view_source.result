@@ -1,0 +1,48 @@
+SET NAMES utf8;
+create table t1 (a int);
+insert into t1 values (1), (2), (11), (12);
+create view v1 as
+-- Some comment
+select a as 'ăș' from t1 where a > 10
+-- Another comment with ășîț
+order by a
+;
+SET NAMES latin1;
+show create view v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `??` from `t1` where `t1`.`a` > 10 order by `t1`.`a`	utf8	utf8_general_ci
+select * from information_schema.views where table_schema = 'test';
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	v1
+VIEW_DEFINITION	select `test`.`t1`.`a` AS `??` from `test`.`t1` where `test`.`t1`.`a` > 10 order by `test`.`t1`.`a`
+CHECK_OPTION	NONE
+IS_UPDATABLE	YES
+DEFINER	root@localhost
+SECURITY_TYPE	DEFINER
+CHARACTER_SET_CLIENT	utf8
+COLLATION_CONNECTION	utf8_general_ci
+ALGORITHM	UNDEFINED
+SOURCE	-- Some comment
+select a as '??' from t1 where a > 10
+-- Another comment with ??�?
+order by a
+SET NAMES utf8;
+select * from information_schema.views where table_schema = 'test';
+TABLE_CATALOG	def
+TABLE_SCHEMA	test
+TABLE_NAME	v1
+VIEW_DEFINITION	select `test`.`t1`.`a` AS `ăș` from `test`.`t1` where `test`.`t1`.`a` > 10 order by `test`.`t1`.`a`
+CHECK_OPTION	NONE
+IS_UPDATABLE	YES
+DEFINER	root@localhost
+SECURITY_TYPE	DEFINER
+CHARACTER_SET_CLIENT	utf8
+COLLATION_CONNECTION	utf8_general_ci
+ALGORITHM	UNDEFINED
+SOURCE	-- Some comment
+select a as 'ăș' from t1 where a > 10
+-- Another comment with ășîț
+order by a
+drop table t1;
+drop view v1;

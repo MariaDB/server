@@ -1,0 +1,24 @@
+SET NAMES utf8;
+create table t1 (a int);
+insert into t1 values (1), (2), (11), (12);
+
+create view v1 as
+   -- Some comment
+   select a as 'ăș' from t1 where a > 10
+   -- Another comment with ășîț
+   order by a
+;
+
+SET NAMES latin1;
+
+show create view v1;
+
+--vertical_results
+select * from information_schema.views where table_schema = 'test';
+
+SET NAMES utf8;
+--vertical_results
+select * from information_schema.views where table_schema = 'test';
+
+drop table t1;
+drop view v1;

@@ -6867,6 +6867,10 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
 
     table->field[10]->store(view_algorithm(tables), cs);
 
+    if (tables->allowed_show)
+      table->field[11]->store(tables->source.str, tables->source.length,
+                              tables->view_creation_ctx->get_client_cs());
+
     if (schema_table_store_record(thd, table))
       DBUG_RETURN(1);
     if (unlikely(res && thd->is_error()))
@@ -9125,6 +9129,7 @@ ST_FIELD_INFO view_fields_info[]=
   Column("CHARACTER_SET_CLIENT", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
   Column("COLLATION_CONNECTION", CSName(),   NOT_NULL, OPEN_FRM_ONLY),
   Column("ALGORITHM",            Varchar(10),NOT_NULL, OPEN_FRM_ONLY),
+  Column("SOURCE",          Longtext(65535), NOT_NULL, OPEN_FRM_ONLY),
   CEnd()
 };
 
