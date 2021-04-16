@@ -7418,6 +7418,7 @@ mysql_new_select(LEX *lex, bool move_down)
     DBUG_RETURN(1);
   select_lex->select_number= ++thd->lex->stmt_lex->current_select_number;
   select_lex->parent_lex= lex; /* Used in init_query. */
+  Name_resolution_context *curr_context= lex->context_stack.head();
   select_lex->init_query();
   select_lex->init_select();
   lex->nest_level++;
@@ -7448,7 +7449,8 @@ mysql_new_select(LEX *lex, bool move_down)
       By default we assume that it is usual subselect and we have outer name
       resolution context, if no we will assign it to 0 later
     */
-    select_lex->context.outer_context= &select_lex->outer_select()->context;
+
+    select_lex->context.outer_context= curr_context;
   }
   else
   {
