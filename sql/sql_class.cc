@@ -1364,9 +1364,6 @@ void THD::update_all_stats()
   end_utime=    microsecond_interval_timer();
   busy_time= (end_utime - start_utime) / 1000000.0;
   cpu_time=  (end_cpu_time - start_cpu_time) / 10000000.0;
-  /* In case there are bad values, 2629743 is the #seconds in a month. */
-  if (cpu_time > 2629743.0)
-    cpu_time= 0;
   status_var_add(status_var.cpu_time, cpu_time);
   status_var_add(status_var.busy_time, busy_time);
 
