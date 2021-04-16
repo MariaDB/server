@@ -55,7 +55,7 @@ table_replication_applier_status::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_status("
-  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null,"
+  "CHANNEL_NAME VARCHAR(256) collate utf8_general_ci not null,"
   "SERVICE_STATE ENUM('ON','OFF') not null,"
   "REMAINING_DELAY INTEGER unsigned,"
   "COUNT_TRANSACTIONS_RETRIES BIGINT unsigned not null)") },
@@ -143,13 +143,12 @@ void table_replication_applier_status::make_row(Master_info *mi)
   m_row.channel_name_length= static_cast<uint>(mi->connection_name.length);
   memcpy(m_row.channel_name, mi->connection_name.str, m_row.channel_name_length);
 
-  //mysql_mutex_lock(&mi->rli->info_thd_lock);
+  mysql_mutex_lock(&mi->rli.run_lock);
 
   slave_sql_running_state= const_cast<char *>
                            (mi->rli.sql_driver_thd ?
                             mi->rli.sql_driver_thd->get_proc_info() : "");
-  //mysql_mutex_unlock(&mi->rli->info_thd_lock);
-
+  mysql_mutex_unlock(&mi->rli.run_lock);
 
   mysql_mutex_lock(&mi->data_lock);
   mysql_mutex_lock(&mi->rli.data_lock);
@@ -160,9 +159,9 @@ void table_replication_applier_status::make_row(Master_info *mi)
     m_row.service_state= PS_RPL_NO;
 
   m_row.remaining_delay= 0;
-  if (slave_sql_running_state == stage_sql_thd_waiting_until_delay.m_name)
+  if (slave_sql_running_state == Relay_log_info::state_delaying_string)
   {
-    time_t t= my_time(0), sql_delay_end= 0; //mi->rli.>get_sql_delay_end();
+    time_t t= my_time(0), sql_delay_end= mi->rli.get_sql_delay_end();
     m_row.remaining_delay= (uint)(t < sql_delay_end ?
                                       sql_delay_end - t : 0);
     m_row.remaining_delay_is_set= true;
@@ -198,7 +197,7 @@ int table_replication_applier_status::read_row_values(TABLE *table,
       switch(f->field_index)
       {
       case 0: /**channel_name*/
-         set_field_char_utf8(f, m_row.channel_name, m_row.channel_name_length);
+         set_field_varchar_utf8(f, m_row.channel_name, m_row.channel_name_length);
          break;
       case 1: /* service_state */
         set_field_enum(f, m_row.service_state);

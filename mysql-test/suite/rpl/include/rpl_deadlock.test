@@ -8,6 +8,7 @@
 # error but not deadlock error; that is ok as code deals with the two
 # errors in exactly the same way.
 
+--source include/have_perfschema.inc
 --source include/master-slave.inc
 
 # 0) Prepare tables and data
@@ -59,6 +60,16 @@ let $status_var_comparsion= >;
 connection slave;
 SELECT COUNT(*) FROM t2;
 COMMIT;
+
+--echo
+--echo # Test that the performance schema coulumn shows > 0 values.
+--echo
+
+--let $assert_text= current number of retries should be more than the value saved before deadlock.
+--let $assert_cond= [SELECT COUNT_TRANSACTIONS_RETRIES FROM performance_schema.replication_applier_status, COUNT_TRANSACTIONS_RETRIES, 1] > "$slave_retried_transactions"
+--source include/assert.inc
+
+source include/check_slave_is_running.inc;
 sync_with_master;
 
 # Check the data

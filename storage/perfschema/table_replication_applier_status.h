@@ -34,8 +34,6 @@
 #include "pfs_engine_table.h"
 #include "rpl_mi.h"
 #include "mysql_com.h"
-//#include "rpl_msr.h"
-//#include "rpl_info.h" /*CHANNEL_NAME_LENGTH*/
 #include "my_thread.h"
 
 class Master_info;
