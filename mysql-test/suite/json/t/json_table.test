@@ -729,5 +729,12 @@ SELECT x, COUNT(*) FROM JSON_TABLE( '{}', '$' COLUMNS(
       x TEXT PATH '$[9]')) AS jt GROUP BY x;
 
 --echo #
+--echo # MDEV-25408 JSON_TABLE: AddressSanitizer CHECK failed in Binary_string::realloc_raw.
+--echo #
+SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(
+      a TEXT EXISTS PATH '$', b VARCHAR(40) PATH '$', c BIT(60) PATH '$', d VARCHAR(60) PATH '$', e BIT(62) PATH '$',
+      f FOR ORDINALITY, g INT PATH '$', h VARCHAR(36) PATH '$', i DATE PATH '$', j CHAR(4) PATH '$'
+      )) AS jt;
+--echo #
 --echo # End of 10.6 tests
 --echo #
