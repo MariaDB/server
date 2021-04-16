@@ -735,6 +735,18 @@ SELECT * FROM JSON_TABLE('{}', '$' COLUMNS(
       a TEXT EXISTS PATH '$', b VARCHAR(40) PATH '$', c BIT(60) PATH '$', d VARCHAR(60) PATH '$', e BIT(62) PATH '$',
       f FOR ORDINALITY, g INT PATH '$', h VARCHAR(36) PATH '$', i DATE PATH '$', j CHAR(4) PATH '$'
       )) AS jt;
+
+--echo #
+--echo # MDEV-25373 JSON_TABLE: Illegal mix of collations upon executing PS once, or SP/function twice.
+--echo #
+SELECT * FROM JSON_TABLE (CONVERT('[1,2]' USING koi8u), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt1 NATURAL JOIN JSON_TABLE (CONVERT('[2,3]' USING eucjpms), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt2;
+ 
+PREPARE stmt1 FROM "
+SELECT * FROM JSON_TABLE (CONVERT('[1,2]' USING koi8u), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt1 NATURAL JOIN JSON_TABLE (CONVERT('[2,3]' USING eucjpms), '$[*]' COLUMNS(a CHAR(8) PATH '$')) AS jt2;
+";
+EXECUTE stmt1;
+DEALLOCATE PREPARE stmt1;
+
 --echo #
 --echo # End of 10.6 tests
 --echo #
