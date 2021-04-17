@@ -18291,16 +18291,6 @@ Create_tmp_table::Create_tmp_table(ORDER *group, bool distinct,
 }
 
 
-static void add_null_bits_for_field(const Field *f, uint *null_counter)
-{
-  if (!(f->flags & NOT_NULL_FLAG))
-    (*null_counter)++;
-
-  if (f->type() == MYSQL_TYPE_BIT)
-   (*null_counter)+= f->field_length & 7;
-}
-
-
 void Create_tmp_table::add_field(TABLE *table, Field *field, uint fieldnr,
                                  bool force_not_null_cols)
 {
@@ -18313,7 +18303,8 @@ void Create_tmp_table::add_field(TABLE *table, Field *field, uint fieldnr,
     field->null_ptr= NULL;
   }
 
-  add_null_bits_for_field(field, m_null_count + current_counter);
+  if (!(field->flags & NOT_NULL_FLAG))
+    m_null_count[current_counter]++;
 
   table->s->reclength+= field->pack_length();
 
@@ -18894,6 +18885,7 @@ bool Create_tmp_table::finalize(THD *thd,
       recinfo->null_pos= (null_pack_base[current_counter] +
                           null_counter[current_counter]/8);
       field->move_field(pos, null_flags + recinfo->null_pos, recinfo->null_bit);
+      null_counter[current_counter]++;
     }
     else
       field->move_field(pos,(uchar*) 0,0);
@@ -18904,9 +18896,8 @@ bool Create_tmp_table::finalize(THD *thd,
                                         null_pack_base[current_counter] +
                                         null_counter[current_counter]/8,
                                         null_counter[current_counter] & 7);
+      null_counter[current_counter]+= (field->field_length & 7);
     }
-
-    add_null_bits_for_field(field, null_counter + current_counter);
     field->reset();
 
     /*

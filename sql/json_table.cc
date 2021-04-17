@@ -749,6 +749,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
     Create_field *sql_f= jc->m_field;
     Record_addr addr(!(sql_f->flags & NOT_NULL_FLAG));
     Bit_addr bit(addr.null());
+    uint uneven_delta;
 
     sql_f->prepare_stage2(table->file, table->file->ha_table_flags());
 
@@ -760,7 +761,9 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
     if (!f)
       goto err_exit;
     f->init(table);
+    uneven_delta= m_uneven_bit_length;
     add_field(table, f, fieldnr++, 0);
+    m_uneven_bit[current_counter]+= (m_uneven_bit_length - uneven_delta);
   }
 
   share->fields= fieldnr;
