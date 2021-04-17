@@ -60,6 +60,10 @@ SELECT * FROM t1 FOR SHARE WAIT NOWAIT;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SHARE WAIT NOWAIT' at line 1
 SELECT * FROM t1 FOR SHARE WAIT SKIP LOCKED;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SHARE WAIT SKIP LOCKED' at line 1
+SELECT * FROM t1 FOR SHARE WAIT 3 SKIP LOCKED;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SHARE WAIT 3 SKIP LOCKED' at line 1
+SELECT * FROM t1 FOR SHARE NOWAIT SKIP LOCKED;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'SHARE NOWAIT SKIP LOCKED' at line 1
 SELECT 1 FOR UPDATE UNION SELECT 2;
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'UNION SELECT 2' at line 1
 SELECT 1 LOCK IN SHARE MODE UNION SELECT 2;

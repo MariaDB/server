@@ -1380,7 +1380,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
         udf_type opt_local opt_no_write_to_binlog
         opt_temporary all_or_any opt_distinct opt_glimit_clause
         opt_ignore_leaves fulltext_options union_option
-        opt_not opt_skip_locked
+        opt_not
         transaction_access_mode_types
         opt_natural_language_mode opt_query_expansion
         opt_ev_status opt_ev_on_completion ev_on_completion opt_ev_comment
@@ -9132,33 +9132,22 @@ opt_select_lock_type:
         }
         ;
 
-opt_skip_locked:
-        /* empty */
-        {
-          $$= 0;
-        }
-        | SKIP_SYM LOCKED_SYM
-        {
-          Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SKIP_LOCKED);
-          $$= 1;
-        }
-
 opt_lock_wait_timeout_new:
         /* empty */
         {
           $$.empty();
         }
-        | WAIT_SYM ulong_num opt_skip_locked
+        | WAIT_SYM ulong_num
         {
+          $$.empty();
           $$.defined_timeout= TRUE;
           $$.timeout= $2;
-          $$.skip_locked= $3;
         }
-        | NOWAIT_SYM opt_skip_locked
+        | NOWAIT_SYM
         {
+          $$.empty();
           $$.defined_timeout= TRUE;
           $$.timeout= 0;
-          $$.skip_locked= $2;
         }
         | SKIP_SYM LOCKED_SYM
         {
