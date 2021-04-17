@@ -148,7 +148,7 @@ List<TABLE_LIST>* get_disallowed_table_deps(MEM_ROOT *mem_root,
 {
   List<TABLE_LIST> *disallowed_tables;
 
-  if (!(disallowed_tables = new List<TABLE_LIST>))
+  if (!(disallowed_tables = new (mem_root) List<TABLE_LIST>))
     return NULL;
 
   int res= get_disallowed_table_deps_for_list(mem_root, table_func,

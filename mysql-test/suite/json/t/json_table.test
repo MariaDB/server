@@ -623,7 +623,44 @@ insert into t1 values ('Jeans',  '{"color": ["gray"], "price": 60}');
 insert into t1 values ('Laptop', '{"color": ["black"], "price": 1000}');
 insert into t1 values ('Shirt',  '{"color": ["black"], "price": 20}');
 
-select t.item_name, jt.* from (select t1.item_name, concat(concat(concat("{\"color\": ",concat(concat("[\"",group_concat(jt.color separator "\", \"")),"\"]")),','),concat(concat("\"price\": ",jt.price),'}')) as item_props from t1, json_table(t1.item_props, '$' columns (nested path '$.color[*]' columns (color varchar(32) path '$'), price int path '$.price')) as jt group by t1.item_name, jt.price) as t, json_table(t.item_props, '$' columns (nested path '$.color[*]' columns (color varchar(32) path '$'), price int path '$.price')) as jt order by t.item_name, jt.price, jt.color;
+select
+  t.item_name,
+  jt.*
+from
+  (select
+     t1.item_name,
+     concat(
+        concat(
+          concat(
+            "{\"color\": ",
+            concat(
+               concat("[\"",
+                      group_concat( jt.color separator "\", \"")
+                     ),
+                "\"]")
+          ),','
+        ),
+      concat(concat("\"price\": ",jt.price),'}')
+     ) as item_props
+   from
+      t1,
+      json_table(
+         t1.item_props,
+         '$' columns (
+             nested path '$.color[*]' columns (color varchar(32) path '$'),
+             price int path '$.price')
+      ) as jt
+   group by
+     t1.item_name, jt.price
+  ) as t,
+
+  json_table(t.item_props,
+     '$' columns (
+       nested path '$.color[*]' columns (color varchar(32) path '$'),
+       price int path '$.price')
+  ) as jt
+order by
+  t.item_name, jt.price, jt.color;
 
 drop table t1;
 
