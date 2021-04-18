@@ -1093,7 +1093,7 @@ page_get_instant(const page_t* page)
 		break;
 	}
 #endif /* UNIV_DEBUG */
-	return(i >> 3);
+	return static_cast<uint16_t>(i >> 3);  /* i / 8 */
 }
 #endif /* !UNIV_INNOCHECKSUM */
 

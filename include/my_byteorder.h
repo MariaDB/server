@@ -31,10 +31,10 @@
   format (low byte first). There are 'korr' (assume 'corrector') variants
   for integer types, but 'get' (assume 'getter') for floating point types.
 */
-#if defined(__i386__) || defined(_WIN32)
+#if (defined(__i386__) || defined(_WIN32)) && !defined(WITH_UBSAN)
 #define MY_BYTE_ORDER_ARCH_OPTIMIZED
 #include "byte_order_generic_x86.h"
-#elif defined(__x86_64__)
+#elif defined(__x86_64__) && !defined(WITH_UBSAN)
 #include "byte_order_generic_x86_64.h"
 #else
 #include "byte_order_generic.h"

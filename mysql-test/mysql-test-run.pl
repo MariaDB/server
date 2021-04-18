@@ -1731,7 +1731,6 @@ sub collect_mysqld_features {
 }
 
 
-
 sub collect_mysqld_features_from_running_server ()
 {
   my $mysql= mtr_exe_exists("$path_client_bindir/mysql");
@@ -4376,7 +4375,13 @@ sub extract_warning_lines ($$) {
      qr/InnoDB: Table .*mysql.*innodb_table_stats.* not found./,
      qr/InnoDB: User stopword table .* does not exist./,
      qr/Dump thread [0-9]+ last sent to server [0-9]+ binlog file:pos .+/,
-     qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/
+     qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/,
+
+     # for UBSAN
+     qr/decimal\.c.*: runtime error: signed integer overflow/,
+     # Disable test for UBSAN on dynamically loaded objects
+     qr/runtime error: member call.*object.*'Handler_share'/,
+     qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
     );
 
   my $matched_lines= [];

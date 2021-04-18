@@ -1514,17 +1514,18 @@ String *Item_func_insert::val_str(String *str)
   null_value=0;
   res=args[0]->val_str(str);
   res2=args[3]->val_str(&tmp_value);
-  start= args[1]->val_int() - 1;
+  start= args[1]->val_int();
   length= args[2]->val_int();
 
   if (args[0]->null_value || args[1]->null_value || args[2]->null_value ||
       args[3]->null_value)
     goto null; /* purecov: inspected */
 
-  if ((start < 0) || (start > res->length()))
+  if ((start <= 0) || (start > res->length()))
     return res;                                 // Wrong param; skip insert
   if ((length < 0) || (length > res->length()))
     length= res->length();
+  start--;
 
   /*
     There is one exception not handled (intentionaly) by the character set
@@ -3795,13 +3796,12 @@ String *Item_func_unhex::val_str(String *str)
   }
   for (end=res->ptr()+res->length(); from < end ; from+=2, to++)
   {
-    int hex_char;
-    *to= (hex_char= hexchar_to_int(from[0])) << 4;
-    if ((null_value= (hex_char == -1)))
+    int hex_char1, hex_char2;
+    hex_char1= hexchar_to_int(from[0]);
+    hex_char2= hexchar_to_int(from[1]);
+    if ((null_value= (hex_char1 == -1 || hex_char2 == -1)))
       return 0;
-    *to|= hex_char= hexchar_to_int(from[1]);
-    if ((null_value= (hex_char == -1)))
-      return 0;
+    *to= (char) ((hex_char1 << 4) | hex_char2);
   }
   return str;
 }

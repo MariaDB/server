@@ -1,0 +1,29 @@
+#! /bin/sh
+# Copyright (c) 2018, MariaDB Corporation.
+#
+# This program is free software; you can redistribute it and/or modify
+# it under the terms of the GNU General Public License as published by
+# the Free Software Foundation; version 2 of the License.
+#
+# This program is distributed in the hope that it will be useful,
+# but WITHOUT ANY WARRANTY; without even the implied warranty of
+# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+# GNU General Public License for more details.
+#
+# You should have received a copy of the GNU General Public License
+# along with this program; if not, write to the Free Software
+# Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
+
+# Compilation with UBSAN, The Undefined Behavior Sanitizer
+# We have to use -Wno-uninitialized and -Wno-unitialized we get a lot of false
+# positive warnings for this when compiling with -fsanitize=undefined.
+# We also have to compile without Spider as linking with Spider library does
+# not work. (errno: 11, undefined symbol: _ZTI12ha_partition)
+
+path=`dirname $0`
+. "$path/SETUP.sh"
+
+extra_flags="$pentium64_cflags $debug_cflags -fsanitize=undefined -DWITH_UBSAN -Wno-conversion -Wno-uninitialized"
+extra_configs="$pentium_configs $debug_configs -DWITH_UBSAN=ON -DMYSQL_MAINTAINER_MODE=NO --without-spider --without-tokudb"
+
+. "$path/FINISH.sh"

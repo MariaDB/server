@@ -6461,6 +6461,7 @@ int ha_partition::multi_range_read_init(RANGE_SEQ_IF *seq,
   DBUG_ENTER("ha_partition::multi_range_read_init");
   DBUG_PRINT("enter", ("partition this: %p", this));
 
+  eq_range= 0;
   m_seq_if= seq;
   m_seq= seq->init(seq_init_param, n_ranges, mrr_mode);
   if (unlikely((error= multi_range_key_create_key(seq, m_seq))))

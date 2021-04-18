@@ -1795,9 +1795,10 @@ ret_sign:
   {
     if (negative)
     {
-      if (ull > (ulonglong) LONGLONG_MIN)
+      if (ull >= (ulonglong) LONGLONG_MIN)
       {
-        *error= MY_ERRNO_ERANGE;
+        if (ull != (ulonglong) LONGLONG_MIN)
+          *error= MY_ERRNO_ERANGE;
         return (ulonglong) LONGLONG_MIN;
       }
       *error= 0;

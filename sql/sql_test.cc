@@ -294,7 +294,6 @@ print_plan(JOIN* join, uint idx, double record_count, double read_time,
            double current_read_time, const char *info)
 {
   uint i;
-  POSITION pos;
   JOIN_TAB *join_table;
   JOIN_TAB **plan_nodes;
   TABLE*   table;
@@ -321,8 +320,8 @@ print_plan(JOIN* join, uint idx, double record_count, double read_time,
   fputs("     POSITIONS: ", DBUG_FILE);
   for (i= 0; i < idx ; i++)
   {
-    pos = join->positions[i];
-    table= pos.table->table;
+    POSITION *pos= join->positions + i;
+    table= pos->table->table;
     if (table)
       fputs(table->s->table_name.str, DBUG_FILE);
     fputc(' ', DBUG_FILE);
@@ -338,8 +337,8 @@ print_plan(JOIN* join, uint idx, double record_count, double read_time,
     fputs("BEST_POSITIONS: ", DBUG_FILE);
     for (i= 0; i < idx ; i++)
     {
-      pos= join->best_positions[i];
-      table= pos.table->table;
+      POSITION *pos= join->best_positions + i;
+      table= pos->table->table;
       if (table)
         fputs(table->s->table_name.str, DBUG_FILE);
       fputc(' ', DBUG_FILE);

@@ -658,8 +658,16 @@ Events::drop_schema_events(THD *thd, const char *db)
   */
   if (event_queue)
     event_queue->drop_schema_events(thd, &db_lex);
-  db_repository->drop_schema_events(thd, &db_lex);
-
+  if (db_repository)
+    db_repository->drop_schema_events(thd, &db_lex);
+  else
+  {
+    if ((db_repository= new Event_db_repository))
+    {
+      db_repository->drop_schema_events(thd, &db_lex);
+      delete db_repository;
+    }
+  }
   DBUG_VOID_RETURN;
 }
 

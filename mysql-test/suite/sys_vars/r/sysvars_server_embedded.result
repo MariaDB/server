@@ -9,7 +9,7 @@ where variable_name not like 'debug%' and
 variable_name not like 'wsrep%' and
 variable_name not like 's3%' and
 variable_name not in (
-'log_tc_size'
+'log_tc_size','have_sanitizer'
         )
 order by variable_name;
 VARIABLE_NAME	ALTER_ALGORITHM

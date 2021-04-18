@@ -1,3 +1,4 @@
+--source include/not_ubsan.inc
 #
 # MDEV-11340 Allow multiple alternative authentication methods for the same user
 #

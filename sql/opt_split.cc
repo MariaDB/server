@@ -204,7 +204,7 @@ struct SplM_field_info
 struct SplM_plan_info
 {
   /* The cached splitting execution plan P */
-  struct st_position *best_positions;
+  POSITION *best_positions;
   /* The cost of the above plan */
   double cost;
   /* Selectivity of splitting used in P */

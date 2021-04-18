@@ -730,8 +730,8 @@ longlong SEQUENCE::next_value(TABLE *table, bool second_round, int *error)
 
   if (real_increment > 0)
   {
-    if (reserved_until + add_to > max_value ||
-        reserved_until > max_value - add_to)
+    if (reserved_until > max_value - add_to ||
+        reserved_until + add_to > max_value)
     {
       reserved_until= max_value + 1;
       out_of_values= res_value >= reserved_until;

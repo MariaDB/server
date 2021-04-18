@@ -4834,6 +4834,24 @@ static Sys_var_have Sys_have_symlink(
        "--skip-symbolic-links option.",
        READ_ONLY GLOBAL_VAR(have_symlink), NO_CMD_LINE);
 
+#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+
+#ifdef __SANITIZE_ADDRESS__
+#define SANITIZER_MODE "ASAN"
+#else
+#define SANITIZER_MODE "UBSAN"
+#endif /* __SANITIZE_ADDRESS__ */
+
+static char *have_sanitizer;
+static Sys_var_charptr Sys_have_santitizer(
+       "have_sanitizer",
+       "If the server is compiled with sanitize (compiler option), this "
+       "variable is set to the sanitizer mode used. Possible values are "
+       "ASAN (Address sanitizer) or UBSAN (The Undefined Behavior Sanitizer).",
+        READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
+       IN_FS_CHARSET, DEFAULT(SANITIZER_MODE));
+#endif /* defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN) */
+
 static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type);
 
 static Sys_var_mybool Sys_general_log(
