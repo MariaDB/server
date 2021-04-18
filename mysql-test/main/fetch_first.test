@@ -1028,6 +1028,17 @@ group by a, b
 order by (select 1), a
 fetch first 1 rows with ties;
 
+drop table t1;
 
+--echo #
+--echo # MDEV-25441
+--echo # WITH TIES is not respected with SQL_BUFFER_RESULT and constant in ORDER BY
+--echo #
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 values (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
+
+explain SELECT SQL_BUFFER_RESULT 1 AS f FROM t1 ORDER BY f FETCH NEXT 2 ROW WITH TIES;
+SELECT SQL_BUFFER_RESULT 1 AS f FROM t1 ORDER BY f FETCH NEXT 2 ROW WITH TIES;
+SELECT 1 AS f FROM t1 ORDER BY f FETCH NEXT 2 ROW WITH TIES;
 
 drop table t1;
