@@ -3816,10 +3816,16 @@ JOIN::create_postjoin_aggr_table(JOIN_TAB *tab, List<Item> *table_fields,
     when there is ORDER BY or GROUP BY or there is no GROUP BY, but
     there are aggregate functions, because in all these cases we need
     all result rows.
+
+    We also can not push limit if the limit is WITH TIES, as we do not know
+    how many rows we will actually have. This can happen if ORDER BY was
+    a constant and removed (during remove_const), thus we have an "unlimited"
+    WITH TIES.
   */
   ha_rows table_rows_limit= ((order == NULL || skip_sort_order) &&
                               !table_group &&
-                              !select_lex->with_sum_func) ? select_limit
+                              !select_lex->with_sum_func &&
+                              !unit->lim.is_with_ties()) ? select_limit
                                                           : HA_POS_ERROR;
 
   if (!(tab->tmp_table_param= new TMP_TABLE_PARAM(tmp_table_param)))
