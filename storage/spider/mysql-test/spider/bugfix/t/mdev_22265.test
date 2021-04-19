@@ -1,0 +1,28 @@
+--source ../include/mdev_22265_init.inc
+--echo
+--echo this test is for MDEV-22265
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+--enable_warnings
+
+--echo
+--echo create table
+--connection master_1
+create table t2345678911234567892123456789312345678941234567895123(id int) ENGINE=SPIDER DEFAULT CHARSET=latin1 COMMENT='host "h114", user "spider", password "spider", port "3306", database "test32738"';
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--enable_warnings
+--source ../include/mdev_22265_deinit.inc
+--echo
+--echo end of test
