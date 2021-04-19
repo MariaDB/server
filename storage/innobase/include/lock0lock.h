@@ -548,7 +548,7 @@ class lock_sys_t
 
   /** Hash table latch */
   struct hash_latch
-#if defined SRW_LOCK_DUMMY && !defined _WIN32
+#ifdef SUX_LOCK_GENERIC
   : private rw_lock
   {
     /** Wait for an exclusive lock */
@@ -577,15 +577,18 @@ class lock_sys_t
     { return memcmp(this, field_ref_zero, sizeof *this); }
 #endif
   };
-  static_assert(sizeof(hash_latch) <= sizeof(void*), "compatibility");
 
 public:
   struct hash_table
   {
+    /** Number of consecutive array[] elements occupied by a hash_latch */
+    static constexpr size_t LATCH= sizeof(void*) >= sizeof(hash_latch) ? 1 : 2;
+    static_assert(sizeof(hash_latch) <= LATCH * sizeof(void*), "allocation");
+
     /** Number of array[] elements per hash_latch.
-    Must be one less than a power of 2. */
+    Must be LATCH less than a power of 2. */
     static constexpr size_t ELEMENTS_PER_LATCH= CPU_LEVEL1_DCACHE_LINESIZE /
-      sizeof(void*) - 1;
+      sizeof(void*) - LATCH;
 
     /** number of payload elements in array[]. Protected by lock_sys.latch. */
     ulint n_cells;
@@ -608,11 +611,13 @@ public:
     /** @return the index of an array element */
     inline ulint calc_hash(ulint fold) const;
     /** @return raw array index converted to padded index */
-    static ulint pad(ulint h) { return 1 + (h / ELEMENTS_PER_LATCH) + h; }
+    static ulint pad(ulint h)
+    { return LATCH + LATCH * (h / ELEMENTS_PER_LATCH) + h; }
     /** Get a latch. */
     static hash_latch *latch(hash_cell_t *cell)
     {
-      void *l= ut_align_down(cell, (ELEMENTS_PER_LATCH + 1) * sizeof *cell);
+      void *l= ut_align_down(cell, sizeof *cell *
+                             (ELEMENTS_PER_LATCH + LATCH));
       return static_cast<hash_latch*>(l);
     }
     /** Get a hash table cell. */
@@ -646,7 +651,7 @@ private:
   /** Number of shared latches */
   std::atomic<ulint> readers{0};
 #endif
-#if defined SRW_LOCK_DUMMY && !defined _WIN32
+#ifdef SUX_LOCK_GENERIC
 protected:
   /** mutex for hash_latch::wait() */
   pthread_mutex_t hash_mutex;
