@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,9 +25,9 @@ this program; if not, write to the Free Software Foundation, Inc.,
 # define SRW_LOCK_DUMMY /* Use dummy implementation for debugging purposes */
 #endif
 
-#if defined SRW_LOCK_DUMMY && !(defined _WIN32)
+#if defined SRW_LOCK_DUMMY
 /** An exclusive-only variant of srw_lock */
-class srw_mutex
+class srw_mutex final
 {
   pthread_mutex_t lock;
 public:
@@ -38,7 +38,51 @@ public:
   bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
 };
 #else
-# define srw_mutex srw_lock_low
+/** Futex-based mutex */
+class srw_mutex final
+{
+  /** The lock word, containing HOLDER and a count of waiters */
+  std::atomic<uint32_t> lock;
+  /** Identifies that the lock is being held */
+  static constexpr uint32_t HOLDER= 1U << 31;
+
+  /** Wait until the mutex has been acquired */
+  void wait_and_lock();
+  /** Wait for lock!=lk */
+  inline void wait(uint32_t lk);
+  /** Wake up one wait() thread */
+  void wake();
+public:
+  /** @return whether the mutex is being held or waited for */
+  bool is_locked_or_waiting() const
+  { return lock.load(std::memory_order_relaxed) != 0; }
+  /** @return whether the mutex is being held by any thread */
+  bool is_locked() const
+  { return (lock.load(std::memory_order_relaxed) & HOLDER) != 0; }
+
+  void init() { DBUG_ASSERT(!is_locked_or_waiting()); }
+  void destroy() { DBUG_ASSERT(!is_locked_or_waiting()); }
+
+  /** @return whether the mutex was acquired */
+  bool wr_lock_try()
+  {
+    uint32_t lk= 0;
+    return lock.compare_exchange_strong(lk, HOLDER,
+                                        std::memory_order_acquire,
+                                        std::memory_order_relaxed);
+  }
+
+  void wr_lock() { if (!wr_lock_try()) wait_and_lock(); }
+  void wr_unlock()
+  {
+    const uint32_t lk= lock.fetch_and(~HOLDER, std::memory_order_release);
+    if (lk != HOLDER)
+    {
+      DBUG_ASSERT(lk & HOLDER);
+      wake();
+    }
+  }
+};
 #endif
 
 #include "rw_lock.h"

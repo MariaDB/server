@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2020, MariaDB Corporation.
+Copyright (c) 2020, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -73,6 +73,10 @@ static_assert(4 == sizeof(rw_lock), "ABI");
 # ifdef _WIN32
 #  include <synchapi.h>
 
+inline void srw_mutex::wait(uint32_t lk)
+{ WaitOnAddress(&lock, &lk, 4, INFINITE); }
+void srw_mutex::wake() { WakeByAddressSingle(&lock); }
+
 inline void ssux_lock_low::writer_wait(uint32_t l)
 {
   WaitOnAddress(word(), &l, 4, INFINITE);
@@ -86,13 +90,16 @@ inline void ssux_lock_low::readers_wake() { WakeByAddressAll(word()); }
 #   define SRW_FUTEX(a,op,n) \
     syscall(SYS_futex, a, FUTEX_ ## op ## _PRIVATE, n, nullptr, nullptr, 0)
 #  elif defined __OpenBSD__
-#  include <sys/time.h>
-#  include <sys/futex.h>
+#   include <sys/time.h>
+#   include <sys/futex.h>
 #   define SRW_FUTEX(a,op,n) \
     futex((volatile uint32_t*) a, FUTEX_ ## op, n, nullptr, nullptr)
 #  else
 #   error "no futex support"
 #  endif
+
+inline void srw_mutex::wait(uint32_t lk) { SRW_FUTEX(&lock, WAIT, lk); }
+void srw_mutex::wake() { SRW_FUTEX(&lock, WAKE, 1); }
 
 inline void ssux_lock_low::writer_wait(uint32_t l)
 {
@@ -102,6 +109,41 @@ inline void ssux_lock_low::writer_wake() { SRW_FUTEX(word(), WAKE, 1); }
 inline void ssux_lock_low::readers_wake() { SRW_FUTEX(word(), WAKE, INT_MAX); }
 # endif
 # define readers_wait writer_wait
+
+
+void srw_mutex::wait_and_lock()
+{
+  uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);
+  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+  {
+    lk&= ~HOLDER;
+    DBUG_ASSERT(lk);
+    while (!lock.compare_exchange_weak(lk, HOLDER | (lk - 1),
+                                       std::memory_order_acquire,
+                                       std::memory_order_relaxed))
+      if (lk & HOLDER)
+        goto occupied;
+    return;
+occupied:
+    ut_delay(srv_spin_wait_delay);
+  }
+
+  for (;;)
+  {
+    lk= lock.load(std::memory_order_relaxed);
+    while (!(lk & HOLDER))
+    {
+      DBUG_ASSERT(lk);
+      if (lock.compare_exchange_weak(lk, HOLDER | (lk - 1),
+                                     std::memory_order_acquire,
+                                     std::memory_order_relaxed))
+        return;
+    }
+    DBUG_ASSERT(lk > HOLDER);
+    wait(lk);
+  }
+}
+
 #endif
 
 /** Wait for a read lock.
