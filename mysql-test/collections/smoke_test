@@ -42,7 +42,6 @@ innodb_gis.rtree
 innodb_zip.innodb-zip
 innodb_zip.page_size
 json.json_no_table
-main-test_sql_discovery.create
 main.blackhole
 main.bootstrap
 main.compress
