@@ -1,0 +1,23 @@
+#
+# MDEV-25302: Attempt to set some system variables in PS mode results in issuing the error "ERROR 1615 (HY000): Prepared statement needs to be re-prepared"
+#
+SET @old_event_scheduler=@@event_scheduler;
+PREPARE stmt FROM 'set global event_scheduler=1';
+EXECUTE stmt;
+SELECT @@event_scheduler;
+@@event_scheduler
+ON
+PREPARE stmt FROM 'set global event_scheduler=0';
+EXECUTE stmt;
+SELECT @@event_scheduler;
+@@event_scheduler
+OFF
+SET GLOBAL event_scheduler=@old_event_scheduler;
+SET @old_gtid_slave_pos=@@gtid_slave_pos;
+PREPARE stmt FROM 'SET GLOBAL gtid_slave_pos= ""';
+EXECUTE stmt;
+SELECT @@gtid_slave_pos;
+@@gtid_slave_pos
+
+SET GLOBAL gtid_slave_pos=@old_gtid_slave_pos;
+DEALLOCATE PREPARE stmt;

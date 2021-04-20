@@ -989,14 +989,69 @@ static bool event_scheduler_update(sys_var *self, THD *thd, enum_var_type type)
   return ret;
 }
 
-static Sys_var_enum Sys_event_scheduler(
-       "event_scheduler", "Enable the event scheduler. Possible values are "
+
+class Sys_var_event_scheduler : public Sys_var_enum
+{
+  Reprepare_observer *save_reprepare_observer;
+
+public:
+  Sys_var_event_scheduler(const char *name_arg,
+                          const char *comment, int flag_args, ptrdiff_t off,
+                          size_t size, CMD_LINE getopt)
+  : Sys_var_enum(name_arg, comment, flag_args, off, size, getopt,
+                 event_scheduler_names, DEFAULT(Events::EVENTS_OFF),
+                 NO_MUTEX_GUARD, VARIABLE_NOT_IN_BINLOG,
+                 NULL, NULL, NULL), save_reprepare_observer(NULL)
+  {
+  }
+
+  bool do_check(THD *thd, set_var *var)
+  {
+    bool st=
+      Sys_var_enum::do_check(thd, var) ||
+      event_scheduler_check(this, thd, var);
+
+    if (!st)
+    {
+      /*
+        Clear the member THD::m_reprepare_observer to avoid spurious
+        ER_NEED_REPREPARE errors that could happened on opening event-related
+        system tables (these tables are not subject to metadata version
+        tracking). The member THD::m_reprepare_observer is restored to its
+        original value on return from the method
+        Sys_var_event_scheduler::global_update().
+      */
+      save_reprepare_observer= thd->m_reprepare_observer;
+      thd->m_reprepare_observer= NULL;
+    }
+
+    return st;
+  }
+
+  bool session_update(THD *thd, set_var *var)
+  {
+    DBUG_ASSERT(false);
+    return true;
+  }
+
+  bool global_update(THD *thd, set_var *var)
+  {
+    bool ret=
+      Sys_var_enum::global_update(thd, var) ||
+      event_scheduler_update(this, thd, SHOW_OPT_GLOBAL);
+
+    thd->m_reprepare_observer= save_reprepare_observer;
+
+    return ret;
+  }
+};
+
+static Sys_var_event_scheduler Sys_event_scheduler("event_scheduler",
+       "Enable the event scheduler. Possible values are "
        "ON, OFF, and DISABLED (keep the event scheduler completely "
        "deactivated, it cannot be activated run-time)",
-       GLOBAL_VAR(Events::opt_event_scheduler), CMD_LINE(OPT_ARG),
-       event_scheduler_names, DEFAULT(Events::EVENTS_OFF),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(event_scheduler_check), ON_UPDATE(event_scheduler_update));
+       GLOBAL_VAR(Events::opt_event_scheduler), CMD_LINE(OPT_ARG));
+
 #endif
 
 static Sys_var_ulong Sys_expire_logs_days(
@@ -1705,6 +1760,15 @@ Sys_var_gtid_slave_pos::do_check(THD *thd, set_var *var)
     return true;
   }
   var->save_result.string_value.length= res->length();
+  /*
+    Clear the member THD::m_reprepare_observer to avoid spurious
+    ER_NEED_REPREPARE errors that could happened on opening rpl-related system
+    tables (these tables are not subject to metadata version tracking).
+    The member THD::m_reprepare_observer is restored to its original value
+    on return from the method Sys_var_gtid_slave_pos::global_update().
+  */
+  save_reprepare_observer= thd->m_reprepare_observer;
+  thd->m_reprepare_observer= NULL;
   return false;
 }
 
@@ -1719,6 +1783,7 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
   if (!var->value)
   {
     my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    thd->m_reprepare_observer= save_reprepare_observer;
     return true;
   }
 
@@ -1731,6 +1796,8 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
                              var->save_result.string_value.length);
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
+  thd->m_reprepare_observer= save_reprepare_observer;
+
   return err;
 }
 

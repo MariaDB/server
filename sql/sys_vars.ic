@@ -2378,13 +2378,15 @@ public:
 */
 class Sys_var_gtid_slave_pos: public sys_var
 {
+  Reprepare_observer *save_reprepare_observer;
+
 public:
   Sys_var_gtid_slave_pos(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
           CMD_LINE getopt)
     : sys_var(&all_sys_vars, name_arg, comment, flag_args, off, getopt.id,
               getopt.arg_type, SHOW_CHAR, 0, NULL, VARIABLE_NOT_IN_BINLOG,
-              NULL, NULL, NULL)
+              NULL, NULL, NULL), save_reprepare_observer(NULL)
   {
     option.var_type|= GET_STR;
   }

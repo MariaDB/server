@@ -94,7 +94,9 @@ DROP FUNCTION f3;
 --echo #
 --echo # Bug #26807 "set global event_scheduler=1" and --skip-grant-tables crashes server
 --echo #
+--disable_warnings
 set global event_scheduler=1;
+--enable_warnings
 set global event_scheduler=0;
 
 --echo #
