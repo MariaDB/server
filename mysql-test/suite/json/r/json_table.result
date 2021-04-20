@@ -585,7 +585,7 @@ select a from json_table('[[]]', '$' columns(a char(8) path '$' error on error))
 ERROR HY000: Can't store an array or an object in the scalar column 'a' of JSON_TABLE 't'.
 show warnings;
 Level	Code	Message
-Error	4177	Can't store an array or an object in the scalar column 'a' of JSON_TABLE 't'.
+Error	4178	Can't store an array or an object in the scalar column 'a' of JSON_TABLE 't'.
 #
 # MDEV-JSON_TABLE: CREATE TABLE ignores NULL ON ERROR (implicit or explicit) and fails.
 #

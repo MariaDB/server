@@ -716,6 +716,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
   uint fieldnr= 0;
   MEM_ROOT *mem_root_save= thd->mem_root;
   List_iterator_fast<Json_table_column> jc_i(jt->m_columns);
+  Column_derived_attributes da(NULL);
   DBUG_ENTER("add_json_table_fields");
 
   thd->mem_root= &table->mem_root;
@@ -736,7 +737,7 @@ bool Create_json_table::add_json_table_fields(THD *thd, TABLE *table,
       sql_f->charset= &my_charset_utf8mb4_general_ci;
 
     if (sql_f->prepare_stage1(thd, thd->mem_root, table->file,
-                              table->file->ha_table_flags()))
+                              table->file->ha_table_flags(), &da))
       goto err_exit;
 
     while ((jc2= it2++) != jc)
