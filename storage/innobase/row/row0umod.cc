@@ -109,7 +109,8 @@ row_undo_mod_clust_low(
 	ut_ad(success);
 	ut_ad(rec_get_trx_id(btr_cur_get_rec(btr_cur),
 			     btr_cur_get_index(btr_cur))
-	      == thr_get_trx(thr)->id || node->index->table->is_temporary());
+	      == thr_get_trx(thr)->id
+	      || btr_cur_get_index(btr_cur)->table->is_temporary());
 
 	if (mode != BTR_MODIFY_LEAF
 	    && dict_index_is_online_ddl(btr_cur_get_index(btr_cur))) {
