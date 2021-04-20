@@ -178,6 +178,7 @@ Event_queue_element_for_exec::init(LEX_STRING db, LEX_STRING n)
   if (!(name.str= my_strndup(n.str, name.length= n.length, MYF(MY_WME))))
   {
     my_free(dbname.str);
+    dbname.str= NULL;
     return TRUE;
   }
   return FALSE;
