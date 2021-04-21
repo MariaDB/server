@@ -11691,13 +11691,11 @@ table_function:
             }
             if (unlikely(Lex->json_table->m_nested_path.set_path(thd, $7)))
               MYSQL_YYABORT;
-            sel->table_join_options= 0;
-            if (!($$= Select->add_table_to_list(thd,
+            if (!($$= sel->add_table_to_list(thd,
                            new (thd->mem_root) Table_ident(thd, &any_db,
                                                            $10, TRUE),
                            NULL,
-                           Select->get_table_join_options() |
-                             TL_OPTION_TABLE_FUNCTION,
+                           TL_OPTION_TABLE_FUNCTION,
                            YYPS->m_lock_type,
                            YYPS->m_mdl_type,
                            0,0,0)))
