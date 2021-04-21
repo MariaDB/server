@@ -562,6 +562,32 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
 
 
 /*
+  @brief
+    Prevent name resolution out of context of ON expressions in derived tables
+
+  @param
+    join_list  list of tables used in from list of a derived
+
+  @details
+    The function sets the Name_resolution_context::outer_context to NULL
+    for all ON expressions contexts in the given join list. It does this
+    recursively for all nested joins the list contains.
+*/
+
+static void nullify_outer_context_for_on_clauses(List<TABLE_LIST>& join_list)
+{
+  List_iterator<TABLE_LIST> li(join_list);
+  while (TABLE_LIST *table= li++)
+  {
+    if (table->on_context)
+      table->on_context->outer_context= NULL;
+    if (table->nested_join)
+      nullify_outer_context_for_on_clauses(table->nested_join->join_list);
+  }
+}
+
+
+/*
   Create temporary table structure (but do not fill it)
 
   @param thd	     Thread handle
@@ -726,7 +752,12 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   /* prevent name resolving out of derived table */
   for (SELECT_LEX *sl= first_select; sl; sl= sl->next_select())
   {
+    // Prevent it for the WHERE clause
     sl->context.outer_context= 0;
+
+    // And for ON clauses, if there are any
+    nullify_outer_context_for_on_clauses(*sl->join_list);
+
     if (!derived->is_with_table_recursive_reference() ||
         (!derived->with->with_anchor && 
          !derived->with->is_with_prepared_anchor()))

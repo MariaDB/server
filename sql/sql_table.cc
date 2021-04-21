@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8247,7 +8247,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
          def->real_field_type() == MYSQL_TYPE_NEWDATE ||
          def->real_field_type() == MYSQL_TYPE_DATETIME ||
          def->real_field_type() == MYSQL_TYPE_DATETIME2) &&
-         !alter_ctx->datetime_field &&
+         !alter_ctx->datetime_field && !def->field &&
          !(~def->flags & (NO_DEFAULT_VALUE_FLAG | NOT_NULL_FLAG)) &&
          thd->variables.sql_mode & MODE_NO_ZERO_DATE)
     {

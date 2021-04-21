@@ -31,7 +31,7 @@
 #endif
 
 
-#ifdef __APPLE__
+#if defined(__APPLE__) || defined(__FreeBSD__)
 #include <sys/sysctl.h>
 #endif
 
@@ -56,7 +56,7 @@ extern const char *optimizer_switch_names[];
 static inline void output_core_info()
 {
   /* proc is optional on some BSDs so it can't hurt to look */
-#if defined(HAVE_READLINK) && !defined(__APPLE__)
+#if defined(HAVE_READLINK) && !defined(__APPLE__) && !defined(__FreeBSD__)
   char buff[PATH_MAX];
   ssize_t len;
   int fd;
@@ -82,7 +82,7 @@ static inline void output_core_info()
     my_close(fd, MYF(0));
   }
 #endif
-#elif defined(__APPLE__)
+#elif defined(__APPLE__) || defined(__FreeBSD__)
   char buff[PATH_MAX];
   size_t len = sizeof(buff);
   if (sysctlbyname("kern.corefile", buff, &len, NULL, 0) == 0)

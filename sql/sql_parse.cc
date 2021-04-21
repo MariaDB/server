@@ -7492,6 +7492,7 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
 {
   THD *thd= lex->thd;
   bool new_select= select_lex == NULL;
+  Name_resolution_context *curr_context= lex->context_stack.head();
   DBUG_ENTER("mysql_new_select");
 
   if (new_select)
@@ -7529,7 +7530,8 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
       By default we assume that it is usual subselect and we have outer name
       resolution context, if no we will assign it to 0 later
     */
-    select_lex->context.outer_context= &select_lex->outer_select()->context;
+
+    select_lex->context.outer_context= curr_context;
   }
   else
   {
