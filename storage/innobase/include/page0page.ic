@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2019, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -717,7 +717,7 @@ page_get_instant(const page_t* page)
 		break;
 	}
 #endif /* UNIV_DEBUG */
-	return i / 8;
+	return static_cast<uint16_t>(i >> 3);  /* i / 8 */
 }
 #endif /* !UNIV_INNOCHECKSUM */
 

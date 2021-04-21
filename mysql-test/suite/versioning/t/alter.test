@@ -632,6 +632,29 @@ alter table t1 add column y timestamp(6) as row start;
 # cleanup
 drop table t1;
 
+
+--echo #
+--echo # MDEV-25327 Unexpected ER_DUP_ENTRY upon dropping PK column from system-versioned table
+--echo #
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 1), (2, 2);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter table t1 drop pk;
+# cleanup
+drop table t1;
+
+create table t1 (pk int, a int, primary key (pk), key (a))
+with system versioning;
+insert into t1 values (1, 2), (2, 8), (3, 4), (4, 4), (5, 0);
+delete from t1;
+set system_versioning_alter_history= keep;
+alter ignore table t1 drop pk;
+# cleanup
+drop table t1;
+
+
 --echo #
 --echo # MDEV-21941 RENAME doesn't work for system time or period fields
 --echo #

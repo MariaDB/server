@@ -286,7 +286,12 @@ static char *strz(PGLOBAL g, LEX_CSTRING &ls)
 {
   char *str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
 
-  memcpy(str, ls.str, ls.length);
+  /*
+    ls.str can be NULL, for example when called with
+    create_info->connect_string
+  */
+  if (ls.str)
+    memcpy(str, ls.str, ls.length);
   str[ls.length]= 0;
   return str;
 } // end of strz
@@ -2829,7 +2834,6 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
       } else {
         char    buff[256];
         String *res, tmp(buff, sizeof(buff), &my_charset_bin);
-        Item_basic_constant *pval= (Item_basic_constant *)args[i];
         PPARM pp= (PPARM)PlugSubAlloc(g, NULL, sizeof(PARM));
 
         // IN and BETWEEN clauses should be col VOP list
@@ -2838,6 +2842,8 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
 
         switch (args[i]->real_type()) {
           case COND::CONST_ITEM:
+          {
+            Item *pval= (Item *)args[i];
           switch (args[i]->cmp_type()) {
             case STRING_RESULT:
               res= pval->val_str(&tmp);
@@ -2863,6 +2869,7 @@ PFIL ha_connect::CondFilter(PGLOBAL g, Item *cond)
             case ROW_RESULT:
               DBUG_ASSERT(0);
               return NULL;
+          }
           }
           break;
           case COND::CACHE_ITEM:    // Possible ???
@@ -3119,7 +3126,7 @@ PCFIL ha_connect::CheckCond(PGLOBAL g, PCFIL filp, const Item *cond)
       } else {
         char    buff[256];
         String *res, tmp(buff, sizeof(buff), &my_charset_bin);
-        Item_basic_constant *pval= (Item_basic_constant *)args[i];
+        Item *pval= (Item *)args[i];
         Item::Type type= args[i]->real_type();
 
         switch (type) {

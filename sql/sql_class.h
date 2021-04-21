@@ -6402,11 +6402,13 @@ public:
    - The sj-materialization temporary table
    - Members needed to make index lookup or a full scan of the temptable.
 */
+class POSITION;
+
 class SJ_MATERIALIZATION_INFO : public Sql_alloc
 {
 public:
   /* Optimal join sub-order */
-  struct st_position *positions;
+  POSITION *positions;
 
   uint tables; /* Number of tables in the sj-nest */
 

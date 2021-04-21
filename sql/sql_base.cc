@@ -7823,11 +7823,15 @@ bool setup_tables(THD *thd, Name_resolution_context *context,
           DBUG_RETURN(1);
       }
       tablenr++;
-    }
-    if (tablenr > MAX_TABLES)
-    {
-      my_error(ER_TOO_MANY_TABLES,MYF(0), static_cast<int>(MAX_TABLES));
-      DBUG_RETURN(1);
+      /*
+        We test the max tables here as we setup_table_map() should not be called
+        with tablenr >= 64
+      */
+      if (tablenr > MAX_TABLES)
+      {
+        my_error(ER_TOO_MANY_TABLES,MYF(0), static_cast<int>(MAX_TABLES));
+        DBUG_RETURN(1);
+      }
     }
   }
   else

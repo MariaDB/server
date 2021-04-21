@@ -2051,6 +2051,18 @@ ALTER TABLE t1 ALTER COLUMN k1 SET DEFAULT (SELECT 1 FROM t2 limit 1);
 DROP TABLE t1,t2;
 
 --echo #
+--echo # MDEV-25403 ALTER TABLE wrongly checks for field's default value if AFTER is used
+--echo #
+create table t1(t int, d date not null);
+insert into t1 values (1,'2001-1-1');
+set sql_mode = "no_zero_date";
+alter table t1 change d d date not null after t, add i int;
+show create table t1;
+--error ER_TRUNCATED_WRONG_VALUE
+alter table t1 add x date not null;
+drop table t1;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #
 

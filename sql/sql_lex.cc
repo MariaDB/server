@@ -2970,6 +2970,7 @@ void st_select_lex::init_query()
   is_service_select= 0;
   parsing_place= NO_MATTER;
   save_parsing_place= NO_MATTER;
+  context_analysis_place= NO_MATTER;
   exclude_from_table_unique_test= no_wrap_view_item= FALSE;
   nest_level= 0;
   link_next= 0;
@@ -10084,7 +10085,7 @@ SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit)
               (curr_sel == NULL && current_select == &builtin_select));
   if (curr_sel)
   {
-    curr_sel->register_unit(unit, &curr_sel->context);
+    curr_sel->register_unit(unit, context_stack.head());
     curr_sel->add_statistics(unit);
   }
 

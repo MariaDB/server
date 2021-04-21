@@ -5756,8 +5756,10 @@ ha_innobase::open(const char* name, int, uint)
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
 
-	/* No point to init any statistics if tablespace is still encrypted. */
-	if (ib_table->is_readable()) {
+	/* No point to init any statistics if tablespace is still encrypted
+	or if table is being opened by background thread */
+	if (THDVAR(thd, background_thread)) {
+	} else if (ib_table->is_readable()) {
 		dict_stats_init(ib_table);
 	} else {
 		ib_table->stat_initialized = 1;

@@ -1252,6 +1252,19 @@ static ssize_t sst_prepare_mysqldump (const char*  addr_in,
     *addr_out= addr_in;
   }
 
+  pthread_t monitor;
+  ret = mysql_thread_create (key_wsrep_sst_joiner_monitor, &monitor, NULL, wsrep_sst_joiner_monitor_thread, NULL);
+
+  if (ret)
+  {
+    WSREP_ERROR("sst_prepare_other(): mysql_thread_create() failed: %d (%s)",
+                ret, strerror(ret));
+    return -ret;
+  }
+
+  sst_joiner_completed= false;
+  pthread_detach (monitor);
+
   return ret;
 }
 

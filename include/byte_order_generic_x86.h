@@ -17,6 +17,7 @@
 /*
   Optimized function-like macros for the x86 architecture (_WIN32 included).
 */
+
 #define sint2korr(A)	(*((const int16 *) (A)))
 #define sint3korr(A)	((int32) ((((uchar) (A)[2]) & 128) ? \
 				  (((uint32) 255L << 24) | \

@@ -28,10 +28,10 @@
 				  (((uint32) (uchar) (A)[2]) << 16) |\
 				  (((uint32) (uchar) (A)[1]) << 8) | \
 				  ((uint32) (uchar) (A)[0])))
-#define sint4korr(A)	(int32) (((int32) ((uchar) (A)[0])) |\
-				(((int32) ((uchar) (A)[1]) << 8)) |\
-				(((int32) ((uchar) (A)[2]) << 16)) |\
-				(((int32) ((int16) (A)[3]) << 24)))
+#define sint4korr(A)	(int32) (((uint32) ((uchar) (A)[0])) |\
+				(((uint32) ((uchar) (A)[1]) << 8)) |\
+				(((uint32) ((uchar) (A)[2]) << 16)) |\
+				(((uint32) ((uchar) (A)[3]) << 24)))
 #define sint8korr(A)	(longlong) uint8korr(A)
 #define uint2korr(A)	(uint16) (((uint16) ((uchar) (A)[0])) |\
 				  ((uint16) ((uchar) (A)[1]) << 8))

@@ -2653,9 +2653,7 @@ Item_sp::Item_sp(THD *thd, Name_resolution_context *context_arg,
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE) + sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
   dummy_table->s= (TABLE_SHARE*) (dummy_table + 1);
-  /* TODO(cvicentiu) Move this sp_query_arena in the class as a direct member.
-     Currently it can not be done due to header include dependencies. */
-  sp_query_arena= (Query_arena *) (dummy_table->s + 1);
+  sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
 
@@ -2666,7 +2664,7 @@ Item_sp::Item_sp(THD *thd, Item_sp *item):
   dummy_table= (TABLE*) thd->calloc(sizeof(TABLE)+ sizeof(TABLE_SHARE) +
                                     sizeof(Query_arena));
   dummy_table->s= (TABLE_SHARE*) (dummy_table+1);
-  sp_query_arena= (Query_arena *) (dummy_table->s + 1);
+  sp_query_arena= new(dummy_table->s + 1) Query_arena();
   memset(&sp_mem_root, 0, sizeof(sp_mem_root));
 }
 
@@ -6281,12 +6279,14 @@ Item *Item_field::replace_equal_field(THD *thd, uchar *arg)
                   item_equal->compare_type_handler()->cmp_type());
       return const_item2;
     }
-    Item_field *subst= 
-      (Item_field *)(item_equal->get_first(param->context_tab, this));
+    Item_ident *subst=
+      (Item_ident *) (item_equal->get_first(param->context_tab, this));
     if (subst)
-      subst= (Item_field *) (subst->real_item());
-    if (subst && !field->eq(subst->field))
-      return subst;
+    {
+      Item_field *subst2= (Item_field *) (subst->real_item());
+      if (subst2 && !field->eq(subst2->field))
+      return subst2;
+    }
   }
   return this;
 }
