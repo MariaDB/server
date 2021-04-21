@@ -33,7 +33,11 @@ struct TABLE;
 class Event_queue_element_for_exec
 {
 public:
-  Event_queue_element_for_exec() : dbname{NULL, 0}, name{NULL, 0} {};
+  Event_queue_element_for_exec()
+  {
+    dbname.str= NULL; dbname.length= 0;
+    name.str= NULL; name.length= 0;
+  };
   ~Event_queue_element_for_exec();
 
   bool
