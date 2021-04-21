@@ -7606,8 +7606,8 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
   THD *thd= lex->thd;
   bool new_select= select_lex == NULL;
   int old_nest_level= lex->current_select->nest_level;
+  Name_resolution_context *curr_context= lex->context_stack.head();
   DBUG_ENTER("mysql_new_select");
-  Name_resolution_context *curr_context;
 
   if (new_select)
   {
@@ -7615,7 +7615,6 @@ mysql_new_select(LEX *lex, bool move_down, SELECT_LEX *select_lex)
       DBUG_RETURN(1);
     select_lex->select_number= ++thd->lex->stmt_lex->current_select_number;
     select_lex->parent_lex= lex; /* Used in init_query. */
-    curr_context= lex->context_stack.head();
     select_lex->init_query();
     select_lex->init_select();
   }
