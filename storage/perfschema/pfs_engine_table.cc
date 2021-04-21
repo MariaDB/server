@@ -220,7 +220,7 @@ void PFS_table_context::set_item(ulong n)
     return;
   ulong word= n / m_word_size;
   ulong bit= n % m_word_size;
-  m_map[word] |= (1 << bit);
+  m_map[word] |= (1UL << bit);
   m_last_item= n;
 }
 
