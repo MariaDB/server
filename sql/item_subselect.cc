@@ -685,6 +685,12 @@ bool Item_subselect::is_expensive()
 }
 
 
+/*
+  @brief
+    Apply item processor for all scalar (i.e. Item*) expressions that
+    occur in the nested join.
+*/
+
 static
 int walk_items_for_table_list(Item_processor processor,
                               bool walk_subquery, void *argument,
@@ -699,6 +705,14 @@ int walk_items_for_table_list(Item_processor processor,
       if ((res= table->on_expr->walk(processor, walk_subquery, argument)))
         return res;
     }
+    if (Table_function_json_table *tf= table->table_function)
+    {
+      if ((res= tf->walk_items(processor, walk_subquery, argument)))
+      {
+        return res;
+      }
+    }
+
     if (table->nested_join)
     {
       if ((res= walk_items_for_table_list(processor, walk_subquery, argument,
@@ -805,10 +819,6 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
 
       if (walk_items_for_table_list(processor, walk_subquery, argument,
                                     *lex->join_list))
-        return 1;
-
-      if (walk_table_functions_for_list(processor, walk_subquery, argument,
-                                        *lex->join_list))
         return 1;
 
       while (Item *item= li++)
