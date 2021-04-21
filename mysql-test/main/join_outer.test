@@ -2192,6 +2192,91 @@ DROP TABLE t1,t2,t3,t4;
 --echo # end of 10.1 tests
 
 --echo #
+--echo # MDEV-25362: name resolution for subqueries in ON expressions
+--echo #
+
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+create table t3 (e int, f int);
+create table t4 (g int, h int);
+
+--error ER_BAD_FIELD_ERROR
+explain
+select *
+from
+  t1 left join
+   (t2
+    join
+    t3 on
+    (t3.f=t1.a)
+   ) on (t2.c=t1.a );
+
+# This must produce an error:
+--error ER_BAD_FIELD_ERROR
+explain
+select *
+from
+  t1 left join
+   (t2
+    join
+    t3 on
+    (t3.f=(select max(g) from t4 where t4.h=t1.a))
+   ) on (t2.c=t1.a );
+
+drop table t1,t2,t3,t4;
+
+create table t1 (a int);
+insert into t1 values (1),(2);
+create table t2 (b int);
+insert into t2 values (1),(2);
+create table t3 (c int);
+insert into t3 values (1),(2);
+
+--error ER_BAD_FIELD_ERROR
+select * from ( select * from t1 left join t2
+                              on b in (select x from t3 as sq1)
+              ) as sq2;
+
+drop table t1,t2,t3;
+
+--echo # end of 10.2 tests
+
+--echo #
+--echo # MDEV-22866: Crash in join optimizer with constant outer join nest
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1),(2);
+
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (3),(4);
+
+CREATE TABLE t3 (c INT, KEY(c)) ENGINE=MyISAM;
+
+CREATE TABLE t4 (d INT, KEY(d)) ENGINE=MyISAM;
+INSERT INTO t4 VALUES (5),(6);
+
+CREATE TABLE t5 (e INT) ENGINE=MyISAM;
+INSERT INTO t5 VALUES (7),(8);
+
+CREATE TABLE t6 (f INT) ENGINE=MyISAM;
+INSERT INTO t6 VALUES (9),(10);
+
+SELECT *
+FROM
+  t1
+  LEFT JOIN (
+    t2 LEFT JOIN (
+       t3 JOIN
+       t4 ON t3.c = t4.d and t3.c >2 and t3.c<0
+    ) ON t2.b >= t4.d
+  ) ON t1.a <= t2.b
+  LEFT JOIN t5 ON t2.b = t5.e
+  LEFT JOIN t6 ON t3.c = t6.f;
+
+drop table t1,t2,t3,t4,t5,t6;
+
+--echo #
 --echo # MDEV-17518: Range optimization doesn't use ON expressions from nested outer joins
 --echo #
 create table t1(a int);
@@ -2251,39 +2336,6 @@ WHERE t3.pk IN (2);
 drop view v4;
 drop table t1,t2,t3,t4;
 
+--echo # end of 10.3 tests
+
 SET optimizer_switch=@org_optimizer_switch;
-
---echo #
---echo # MDEV-22866: Crash in join optimizer with constant outer join nest
---echo #
-
-CREATE TABLE t1 (a INT) ENGINE=MyISAM;
-INSERT INTO t1 VALUES (1),(2);
-
-CREATE TABLE t2 (b INT) ENGINE=MyISAM;
-INSERT INTO t2 VALUES (3),(4);
-
-CREATE TABLE t3 (c INT, KEY(c)) ENGINE=MyISAM;
-
-CREATE TABLE t4 (d INT, KEY(d)) ENGINE=MyISAM;
-INSERT INTO t4 VALUES (5),(6);
-
-CREATE TABLE t5 (e INT) ENGINE=MyISAM;
-INSERT INTO t5 VALUES (7),(8);
-
-CREATE TABLE t6 (f INT) ENGINE=MyISAM;
-INSERT INTO t6 VALUES (9),(10);
-
-SELECT *
-FROM
-  t1
-  LEFT JOIN (
-    t2 LEFT JOIN (
-       t3 JOIN
-       t4 ON t3.c = t4.d and t3.c >2 and t3.c<0
-    ) ON t2.b >= t4.d
-  ) ON t1.a <= t2.b
-  LEFT JOIN t5 ON t2.b = t5.e
-  LEFT JOIN t6 ON t3.c = t6.f;
-
-drop table t1,t2,t3,t4,t5,t6;

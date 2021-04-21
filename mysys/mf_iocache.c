@@ -1612,7 +1612,7 @@ int _my_b_async_read(IO_CACHE *info, uchar *Buffer, size_t Count)
     Buffer+=length;
     Count-=length;
     left_length+=length;
-    info->read_end=info->rc_pos+read_length;
+    info->read_end=info->read_pos+read_length;
     info->read_pos+=length;
   }
   else
