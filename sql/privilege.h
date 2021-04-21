@@ -121,6 +121,9 @@ constexpr privilege_t ALL_KNOWN_ACL_100502= ALL_KNOWN_BITS(LAST_100502_ACL);
 
 // A combination of all bits defined in 10.5.8
 constexpr privilege_t ALL_KNOWN_ACL_100508= ALL_KNOWN_BITS(LAST_100508_ACL);
+// unfortunately, SLAVE_MONITOR_ACL was added in 10.5.9, but also in 10.5.8-5
+// let's stay compatible with that branch too.
+constexpr privilege_t ALL_KNOWN_ACL_100509= ALL_KNOWN_ACL_100508;
 
 // A combination of all bits defined as of the current version
 constexpr privilege_t ALL_KNOWN_ACL= ALL_KNOWN_BITS(LAST_CURRENT_ACL);

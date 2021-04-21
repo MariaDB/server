@@ -99,3 +99,19 @@ SHOW RELAYLOG EVENTS;
 
 --connection default
 DROP USER user1@localhost;
+
+--echo #
+--echo # MDEV-25030 Upgrade to 10.5.9 breaks root's ability to grant
+--echo #
+insert mysql.global_priv values ('bar', 'foo7', '{"access":274877906943,"version_id":100507,"plugin":"mysql_native_password","authentication_string":""}'),
+                                ('bar', 'foo8', '{"access":274877906943,"version_id":100508,"plugin":"mysql_native_password","authentication_string":""}'),
+                                ('bar', 'foo9', '{"access":274877906943,"version_id":100509,"plugin":"mysql_native_password","authentication_string":""}');
+flush privileges;
+show grants for foo7@bar;
+show grants for foo8@bar;
+show grants for foo9@bar;
+drop user foo7@bar, foo8@bar, foo9@bar;
+
+--echo #
+--echo # End of 10.5 tests
+--echo #
