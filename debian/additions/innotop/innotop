@@ -4153,6 +4153,7 @@ my $nonfatal_errs = join('|',
    'Access denied',
    'AutoCommit',
    'Lost connection to MySQL server',
+   'Lost connection to server',
    'Too many connections',
 );
 

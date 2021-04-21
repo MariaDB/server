@@ -12,7 +12,7 @@ SET SESSION wsrep_trx_fragment_size=1;
 START TRANSACTION;
 INSERT INTO t1 VALUES ('primary'),('primary'),('primary'),('primary'),('primary');
 COMMIT;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # restart
 connection node_1;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;

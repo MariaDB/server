@@ -5800,13 +5800,17 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
       if (!res2)
         return FALSE;				// Null argument
       
-      const size_t len   = res2->length();
-      const char*  first = res2->ptr();
-      const char*  last  = first + len - 1;
+      const size_t len= res2->length();
+
       /*
         len must be > 2 ('%pattern%')
         heuristic: only do TurboBM for pattern_len > 2
       */
+      if (len <= 2)
+        return FALSE;
+
+      const char*  first= res2->ptr();
+      const char*  last=  first + len - 1;
       
       if (len > MIN_TURBOBM_PATTERN_LEN + 2 &&
           *first == wild_many &&

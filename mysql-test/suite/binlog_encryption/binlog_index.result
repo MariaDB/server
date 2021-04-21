@@ -50,7 +50,7 @@ reset master;
 flush logs;
 SET SESSION debug_dbug="+d,crash_purge_before_update_index";
 purge binary logs TO 'master-bin.000002';
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
 SELECT @index;
 @index
@@ -62,7 +62,7 @@ master-bin.000003
 flush logs;
 SET SESSION debug_dbug="+d,crash_purge_non_critical_after_update_index";
 purge binary logs TO 'master-bin.000004';
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
 SELECT @index;
 @index
@@ -73,7 +73,7 @@ master-bin.000005
 flush logs;
 SET SESSION debug_dbug="+d,crash_purge_critical_after_update_index";
 purge binary logs TO 'master-bin.000006';
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
 SELECT @index;
 @index
@@ -83,7 +83,7 @@ master-bin.000007
 # crash_create_non_critical_before_update_index
 SET SESSION debug_dbug="+d,crash_create_non_critical_before_update_index";
 flush logs;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
 SELECT @index;
 @index
@@ -94,7 +94,7 @@ master-bin.000008
 # crash_create_critical_before_update_index
 SET SESSION debug_dbug="+d,crash_create_critical_before_update_index";
 flush logs;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
 SELECT @index;
 @index
@@ -106,7 +106,7 @@ master-bin.000009
 # crash_create_after_update_index
 SET SESSION debug_dbug="+d,crash_create_after_update_index";
 flush logs;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 SET @index=LOAD_FILE('MYSQLTEST_VARDIR/mysqld.1/data//master-bin.index');
 SELECT @index;
 @index

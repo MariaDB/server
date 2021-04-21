@@ -26,7 +26,7 @@ SHOW STATUS LIKE 'Ssl_server_not_after';
 SELECT (VARIABLE_VALUE <> '') AS have_ssl FROM INFORMATION_SCHEMA.SESSION_STATUS WHERE VARIABLE_NAME='Ssl_cipher';
 
 #
-# MDEV-7697 Client reports ERROR 2006 (MySQL server has gone away) or ERROR 2013 (Lost connection to MySQL server during query) while executing AES* functions under SSL
+# MDEV-7697 Client reports ERROR 2006 (MySQL server has gone away) or ERROR 2013 (Lost connection to server during query) while executing AES* functions under SSL
 #
 select aes_decrypt('MySQL','adf');
 select 'still connected?';

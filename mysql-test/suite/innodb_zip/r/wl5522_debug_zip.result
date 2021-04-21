@@ -29,12 +29,12 @@ SET SESSION debug_dbug="+d,ib_import_before_commit_crash";
 SELECT * FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 SET SESSION debug_dbug="+d,ib_import_before_checkpoint_crash";
 SELECT COUNT(*) FROM t1;
 ERROR HY000: Tablespace has been discarded for table `t1`
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 unlink: t1.ibd
 unlink: t1.cfg
 # Restart and reconnect to the server

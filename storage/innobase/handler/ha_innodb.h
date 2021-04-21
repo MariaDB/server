@@ -63,7 +63,7 @@ public:
 	ROW_TYPE_NOT_USED, the information in HA_CREATE_INFO should be used. */
         enum row_type get_row_type() const override;
 
-        const char* table_type() const;
+        const char* table_type() const override;
 
 	const char* index_type(uint key_number) override;
 

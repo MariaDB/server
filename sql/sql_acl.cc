@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5486,7 +5486,7 @@ routine_hash_search(const char *host, const char *ip, const char *db,
                     const char *user, const char *tname, const Sp_handler *sph,
                     bool exact)
 {
-  return (GRANT_TABLE*)
+  return (GRANT_NAME*)
     name_hash_search(sph->get_priv_hash(),
 		     host, ip, db, user, tname, exact, TRUE);
 }
@@ -5500,6 +5500,10 @@ table_hash_search(const char *host, const char *ip, const char *db,
 					 user, tname, exact, FALSE);
 }
 
+static bool column_priv_insert(GRANT_TABLE *grant)
+{
+  return my_hash_insert(&column_priv_hash,(uchar*) grant);
+}
 
 static GRANT_COLUMN *
 column_hash_search(GRANT_TABLE *t, const char *cname, size_t length)
@@ -5729,6 +5733,15 @@ static inline void get_grantor(THD *thd, char *grantor)
   strxmov(grantor, user, "@", host, NullS);
 }
 
+
+/**
+   Revoke rights from a grant table entry.
+
+   @return 0  ok
+   @return 1  fatal error (error given)
+   @return -1 grant table was revoked
+*/
+
 static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
 			       TABLE *table, const LEX_USER &combo,
 			       const char *db, const char *table_name,
@@ -5753,7 +5766,7 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
     {
       my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
                  MYF(0)); /* purecov: deadcode */
-      DBUG_RETURN(-1);                            /* purecov: deadcode */
+      DBUG_RETURN(1);                            /* purecov: deadcode */
     }
   }
 
@@ -5784,7 +5797,7 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
       my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
                combo.user.str, combo.host.str,
                table_name);		        /* purecov: deadcode */
-      DBUG_RETURN(-1);				/* purecov: deadcode */
+      DBUG_RETURN(1);				/* purecov: deadcode */
     }
     old_row_exists = 0;
     restore_record(table,record[1]);			// Get saved record
@@ -5846,13 +5859,14 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
   else
   {
     my_hash_delete(&column_priv_hash,(uchar*) grant_table);
+    DBUG_RETURN(-1);                            // Entry revoked
   }
   DBUG_RETURN(0);
 
   /* This should never happen */
 table_error:
   table->file->print_error(error,MYF(0)); /* purecov: deadcode */
-  DBUG_RETURN(-1); /* purecov: deadcode */
+  DBUG_RETURN(1); /* purecov: deadcode */
 }
 
 
@@ -6613,7 +6627,7 @@ static int update_role_table_columns(GRANT_TABLE *merged,
                                      privs, cols);
     merged->init_privs= merged->init_cols= NO_ACL;
     update_role_columns(merged, first, last);
-    my_hash_insert(&column_priv_hash,(uchar*) merged);
+    column_priv_insert(merged);
     return 2;
   }
   else if ((privs | cols) == NO_ACL)
@@ -7078,12 +7092,12 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 	result= TRUE;
 	continue;
       }
-      grant_table = new GRANT_TABLE (Str->host.str, db_name,
-				     Str->user.str, table_name,
-				     rights,
-				     column_priv);
+      grant_table= new (&grant_memroot) GRANT_TABLE(Str->host.str, db_name,
+                                                    Str->user.str, table_name,
+                                                    rights,
+                                                    column_priv);
       if (!grant_table ||
-        my_hash_insert(&column_priv_hash,(uchar*) grant_table))
+          column_priv_insert(grant_table))
       {
 	result= TRUE;				/* purecov: deadcode */
 	continue;				/* purecov: deadcode */
@@ -7126,22 +7140,24 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 
     /* TODO(cvicentiu) refactor replace_table_table to use Tables_priv_table
        instead of TABLE directly. */
-    if (replace_table_table(thd, grant_table, tables.tables_priv_table().table(),
-                            *Str, db_name, table_name,
-			    rights, column_priv, revoke_grant))
-    {
-      /* Should only happen if table is crashed */
-      result= TRUE;			       /* purecov: deadcode */
-    }
-    else if (tables.columns_priv_table().table_exists())
+    if (tables.columns_priv_table().table_exists())
     {
       /* TODO(cvicentiu) refactor replace_column_table to use Columns_priv_table
          instead of TABLE directly. */
       if (replace_column_table(grant_table, tables.columns_priv_table().table(),
                                *Str, columns, db_name, table_name, rights,
                                revoke_grant))
-      {
 	result= TRUE;
+    }
+    if (int res= replace_table_table(thd, grant_table,
+                                     tables.tables_priv_table().table(),
+                                     *Str, db_name, table_name,
+                                     rights, column_priv, revoke_grant))
+    {
+      if (res > 0)
+      {
+        /* Should only happen if table is crashed */
+        result= TRUE;			       /* purecov: deadcode */
       }
     }
     if (Str->is_role())
@@ -7153,9 +7169,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (!result) /* success */
-  {
     result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-  }
 
   mysql_rwlock_unlock(&LOCK_grant);
 
@@ -7847,7 +7861,7 @@ static bool grant_load(THD *thd,
 
       if (! mem_check->ok())
 	delete mem_check;
-      else if (my_hash_insert(&column_priv_hash,(uchar*) mem_check))
+      else if (column_priv_insert(mem_check))
       {
 	delete mem_check;
 	goto end_unlock;
@@ -11339,46 +11353,44 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
     {
       for (counter= 0, revoked= 0 ; counter < column_priv_hash.records ; )
       {
-	const char *user,*host;
+        const char *user,*host;
         GRANT_TABLE *grant_table=
           (GRANT_TABLE*) my_hash_element(&column_priv_hash, counter);
         user= grant_table->user;
         host= safe_str(grant_table->host.hostname);
 
-	if (!strcmp(lex_user->user.str,user) &&
+        if (!strcmp(lex_user->user.str,user) &&
             !strcmp(lex_user->host.str, host))
-	{
-      /* TODO(cvicentiu) refactor replace_db_table to use
-         Db_table instead of TABLE directly. */
-	  if (replace_table_table(thd, grant_table,
-                              tables.tables_priv_table().table(),
-                              *lex_user, grant_table->db,
-				  grant_table->tname, ALL_KNOWN_ACL, NO_ACL, 1))
-	  {
-	    result= -1;
-	  }
-	  else
-	  {
-	    if (!grant_table->cols)
-	    {
-	      revoked= 1;
-	      continue;
-	    }
-	    List<LEX_COLUMN> columns;
-        /* TODO(cvicentiu) refactor replace_db_table to use
-           Db_table instead of TABLE directly. */
-	    if (!replace_column_table(grant_table,
-                                      tables.columns_priv_table().table(),
-                                      *lex_user, columns, grant_table->db,
-				      grant_table->tname, ALL_KNOWN_ACL, 1))
-	    {
-	      revoked= 1;
-	      continue;
-	    }
-	    result= -1;
-	  }
-	}
-	counter++;
+        {
+          List<LEX_COLUMN> columns;
+          /* TODO(cvicentiu) refactor to use
+             Db_table instead of TABLE directly. */
+          if (replace_column_table(grant_table,
+                                   tables.columns_priv_table().table(),
+                                   *lex_user, columns,
+                                   grant_table->db, grant_table->tname,
+                                   ALL_KNOWN_ACL, 1))
+            result= -1;
+          if (int res= replace_table_table(thd, grant_table,
+                                           tables.tables_priv_table().table(),
+                                           *lex_user,
+                                           grant_table->db, grant_table->tname,
+                                           ALL_KNOWN_ACL, NO_ACL, 1))
+          {
+            if (res > 0)
+              result= -1;
+            else
+            {
+              /*
+                Entry was deleted. We have to retry the loop as the
+                hash table has probably been reorganized.
+              */
+              revoked= 1;
+              continue;
+            }
+          }
+        }
+        counter++;
       }
     } while (revoked);
 

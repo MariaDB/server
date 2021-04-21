@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -596,14 +596,20 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
 }
 
 
-/*
+/**
   @brief
-    Reset the Name_resolution_context::outer_context for all ON expression
-    contexts in the given nested join. Do this recursively for all nested joins
-    it contains.
+    Prevent name resolution out of context of ON expressions in derived tables
+
+  @param
+    join_list  list of tables used in from list of a derived
+
+  @details
+    The function sets the Name_resolution_context::outer_context to NULL
+    for all ON expressions contexts in the given join list. It does this
+    recursively for all nested joins the list contains.
 */
 
-static void reset_on_clauses_context(List<TABLE_LIST>& join_list)
+static void nullify_outer_context_for_on_clauses(List<TABLE_LIST>& join_list)
 {
   List_iterator<TABLE_LIST> li(join_list);
   while (TABLE_LIST *table= li++)
@@ -611,9 +617,10 @@ static void reset_on_clauses_context(List<TABLE_LIST>& join_list)
     if (table->on_context)
       table->on_context->outer_context= NULL;
     if (table->nested_join)
-      reset_on_clauses_context(table->nested_join->join_list);
+      nullify_outer_context_for_on_clauses(table->nested_join->join_list);
   }
 }
+
 
 /*
   Create temporary table structure (but do not fill it)
@@ -783,7 +790,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     sl->context.outer_context= 0;
 
     // And for ON clauses, if there are any
-    reset_on_clauses_context(*sl->join_list);
+    nullify_outer_context_for_on_clauses(*sl->join_list);
 
     if (!derived->is_with_table_recursive_reference() ||
         (!derived->with->with_anchor && 

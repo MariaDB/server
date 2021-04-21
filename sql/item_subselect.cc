@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2016, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -685,6 +685,31 @@ bool Item_subselect::is_expensive()
 }
 
 
+static
+int walk_items_for_table_list(Item_processor processor,
+                              bool walk_subquery, void *argument,
+                              List<TABLE_LIST>& join_list)
+{
+  List_iterator<TABLE_LIST> li(join_list);
+  int res;
+  while (TABLE_LIST *table= li++)
+  {
+    if (table->on_expr)
+    {
+      if ((res= table->on_expr->walk(processor, walk_subquery, argument)))
+        return res;
+    }
+    if (table->nested_join)
+    {
+      if ((res= walk_items_for_table_list(processor, walk_subquery, argument,
+                                          table->nested_join->join_list)))
+        return res;
+    }
+  }
+  return 0;
+}
+
+
 bool Item_subselect::unknown_splocal_processor(void *argument)
 {
   SELECT_LEX *sl= unit->first_select();
@@ -770,7 +795,6 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
     for (SELECT_LEX *lex= unit->first_select(); lex; lex= lex->next_select())
     {
       List_iterator<Item> li(lex->item_list);
-      Item *item;
       ORDER *order;
 
       if (lex->where && (lex->where)->walk(processor, walk_subquery, argument))
@@ -778,14 +802,16 @@ bool Item_subselect::walk(Item_processor processor, bool walk_subquery,
       if (lex->having && (lex->having)->walk(processor, walk_subquery,
                                              argument))
         return 1;
-      /* TODO: why does this walk WHERE/HAVING but not ON expressions of outer joins? */
-      /*       Consider walking ON epxression in walk_table_functions_for_list */
+
+      if (walk_items_for_table_list(processor, walk_subquery, argument,
+                                    *lex->join_list))
+        return 1;
 
       if (walk_table_functions_for_list(processor, walk_subquery, argument,
                                         *lex->join_list))
         return 1;
 
-      while ((item=li++))
+      while (Item *item= li++)
       {
         if (item->walk(processor, walk_subquery, argument))
           return 1;

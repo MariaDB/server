@@ -25,6 +25,7 @@
 #include <my_dir.h>
 #include <cstdio>
 #include <cstdlib>
+#include "wsrep_trans_observer.h"
 
 ulong   wsrep_reject_queries;
 
@@ -102,7 +103,8 @@ void wsrep_set_wsrep_on(THD* thd)
 
 bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 {
-  if (var_type == OPT_GLOBAL) {
+  if (var_type == OPT_GLOBAL)
+  {
     my_bool saved_wsrep_on= global_system_variables.wsrep_on;
 
     thd->variables.wsrep_on= global_system_variables.wsrep_on;
@@ -110,15 +112,15 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
     // If wsrep has not been inited we need to do it now
     if (global_system_variables.wsrep_on && wsrep_provider && !wsrep_inited)
     {
-      char* tmp= strdup(wsrep_provider); // wsrep_init() rewrites provider
-                                         //when fails
-
+      // wsrep_init() rewrites provide if it fails
+      char* tmp= strdup(wsrep_provider);
       mysql_mutex_unlock(&LOCK_global_system_variables);
 
       if (wsrep_init())
       {
         my_error(ER_CANT_OPEN_LIBRARY, MYF(0), tmp, my_error, "wsrep_init failed");
         //rcode= true;
+        saved_wsrep_on= false;
       }
 
       free(tmp);
@@ -130,18 +132,67 @@ bool wsrep_on_update (sys_var *self, THD* thd, enum_var_type var_type)
 
   wsrep_set_wsrep_on(thd);
 
+  if (var_type == OPT_GLOBAL)
+  {
+    if (thd->variables.wsrep_on &&
+        thd->wsrep_cs().state() == wsrep::client_state::s_none)
+    {
+      wsrep_open(thd);
+      wsrep_before_command(thd);
+    }
+  }
+
   return false;
 }
 
 bool wsrep_on_check(sys_var *self, THD* thd, set_var* var)
 {
+  bool new_wsrep_on= (bool)var->save_result.ulonglong_value;
+
   if (check_has_super(self, thd, var))
     return true;
+
+  if (new_wsrep_on)
+  {
+    if (!WSREP_PROVIDER_EXISTS)
+    {
+      my_message(ER_WRONG_ARGUMENTS, "WSREP (galera) can't be enabled "
+                 "if the wsrep_provider is unset or set to 'none'", MYF(0));
+      return true;
+    }
+
+    if (var->type == OPT_SESSION &&
+        !global_system_variables.wsrep_on)
+    {
+      my_message(ER_WRONG_ARGUMENTS,
+                 "Can't enable @@session.wsrep_on, "
+                 "while @@global.wsrep_on is disabled", MYF(0));
+      return true;
+    }
+  }
 
   if (thd->in_active_multi_stmt_transaction())
   {
     my_error(ER_CANT_DO_THIS_DURING_AN_TRANSACTION, MYF(0));
     return true;
+  }
+
+  if (var->type == OPT_GLOBAL)
+  {
+    /*
+      The global value is about to change. Cleanup
+      the transaction state and close the client
+      state. wsrep_on_update() will take care of
+      reopening it should wsrep_on be re-enabled.
+     */
+    if (global_system_variables.wsrep_on && !new_wsrep_on)
+    {
+      wsrep_commit_empty(thd, true);
+      wsrep_after_statement(thd);
+      wsrep_after_command_ignore_result(thd);
+      wsrep_close(thd);
+      wsrep_cleanup(thd);
+    }
   }
 
   return false;

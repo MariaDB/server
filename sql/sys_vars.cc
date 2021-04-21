@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2012, 2020, MariaDB Corporation.
+   Copyright (c) 2012, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -5051,15 +5051,23 @@ static Sys_var_have Sys_have_symlink(
        "--skip-symbolic-links option.",
        READ_ONLY GLOBAL_VAR(have_symlink), NO_CMD_LINE);
 
+#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+
 #ifdef __SANITIZE_ADDRESS__
+#define SANITIZER_MODE "ASAN"
+#else
+#define SANITIZER_MODE "UBSAN"
+#endif /* __SANITIZE_ADDRESS__ */
+
 static char *have_sanitizer;
-static Sys_var_charptr_fscs Sys_have_santitizer(
+static Sys_var_charptr Sys_have_santitizer(
        "have_sanitizer",
-       "If the server is compiled with ASan (Address sanitizer) this will be "
-       "set to ASAN",
-       READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
-       DEFAULT("ASAN"));
-#endif
+       "If the server is compiled with sanitize (compiler option), this "
+       "variable is set to the sanitizer mode used. Possible values are "
+       "ASAN (Address sanitizer) or UBSAN (The Undefined Behavior Sanitizer).",
+        READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
+       DEFAULT(SANITIZER_MODE));
+#endif /* defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN) */
 
 static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type);
 

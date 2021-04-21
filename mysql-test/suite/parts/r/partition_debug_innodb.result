@@ -62,7 +62,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -170,7 +170,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -278,7 +278,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -386,7 +386,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-exchange.frm
 # State after crash recovery
@@ -488,7 +488,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-exchange.frm
 # State after crash recovery
@@ -590,7 +590,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-exchange.ibd
 # State after crash recovery
@@ -692,7 +692,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-exchange.ibd
 # State after crash recovery
@@ -794,7 +794,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -902,7 +902,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd

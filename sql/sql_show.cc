@@ -7061,8 +7061,7 @@ static bool store_trigger(THD *thd, Trigger *trigger,
                                               (my_time_t)(trigger->create_time/100));
     /* timestamp is with 6 digits */
     timestamp.second_part= (trigger->create_time % 100) * 10000;
-    ((Field_temporal_with_date*) table->field[16])->store_time_dec(&timestamp,
-                                                                   2);
+    table->field[16]->store_time_dec(&timestamp, 2);
   }
 
   sql_mode_string_representation(thd, trigger->sql_mode, &sql_mode_rep);

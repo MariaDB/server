@@ -196,7 +196,7 @@ row_undo_search_clust_to_pcur(
 
 	if (found) {
 		ut_ad(row_get_rec_trx_id(rec, clust_index, offsets)
-		      == node->trx->id);
+		      == node->trx->id || node->table->is_temporary());
 
 		if (dict_table_has_atomic_blobs(node->table)) {
 			/* There is no prefix of externally stored

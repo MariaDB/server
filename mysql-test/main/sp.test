@@ -3258,7 +3258,7 @@ call bug7013()|
 drop procedure bug7013|
 
 #
-# BUG#7743: 'Lost connection to MySQL server during query' on Stored Procedure
+# BUG#7743: 'Lost connection to server during query' on Stored Procedure
 #
 --disable_warnings
 drop table if exists t4|

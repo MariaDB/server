@@ -1,5 +1,5 @@
 /* Copyright (c) 2011, Oracle and/or its affiliates.
-   Copyright (c) 1991, 2020, MariaDB Corporation.
+   Copyright (c) 1991, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -95,7 +95,7 @@ static inline uchar get_rec_bits(const uchar *ptr, uchar ofs, uint len)
 {
   uint16 val= ptr[0];
   if (ofs + len > 8)
-    val|= (uint16)((uint16)(ptr[1]) << 8);
+    val|= (uint16)(((uint) ptr[1]) << 8);
   return (uchar) ((val >> ofs) & ((1 << len) - 1));
 }
 

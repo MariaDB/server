@@ -33,3 +33,50 @@ XA ROLLBACK '3';
 
 --echo # Proof of  correct logging incl empty XA-PREPARE
 --source include/show_binlog_events.inc
+
+# The test verifies execution and binary logging of user XA that produce empty
+# XA-PREPARE group of events.
+#
+# MDEV-22757 Assertion `!binlog || exist_hton_without_prepare'
+#            in MYSQL_BIN_LOG::unlog_xa_prepare
+
+RESET MASTER;
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+CREATE TABLE t2 (id INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1),(2);
+
+XA START '1';
+REPLACE INTO t1 SELECT * FROM t1;
+REPLACE INTO t2 SELECT * FROM t2;
+XA END '1';
+XA PREPARE '1';
+
+# Cleanup
+XA ROLLBACK '1';
+DROP TABLE t1, t2;
+
+--echo # Proof of  correct logging incl empty XA-PREPARE
+--source include/show_binlog_events.inc
+
+
+# MDEV-22430 Assertion ... in MYSQL_BIN_LOG::unlog_xa_prepare
+
+RESET MASTER;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+CREATE SEQUENCE s ENGINE=InnoDB;
+
+XA START '2';
+SELECT NEXT VALUE FOR s;
+REPLACE INTO t1 SELECT * FROM t1;
+XA END '2';
+XA PREPARE '2';
+
+# Cleanup
+XA ROLLBACK '2';
+DROP SEQUENCE s;
+DROP TABLE t1;
+
+--echo # Proof of  correct logging incl empty XA-PREPARE
+--source include/show_binlog_events.inc

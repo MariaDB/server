@@ -1653,6 +1653,32 @@ exit:
     return fail;
 }
 
+bool wsrep_reload_ssl()
+{
+  try
+  {
+    std::string opts= Wsrep_server_state::instance().provider().options();
+    if (opts.find("socket.ssl_reload") == std::string::npos)
+    {
+      WSREP_DEBUG("Option `socket.ssl_reload` not found in parameters.");
+      return false;
+    }
+    const std::string reload_ssl_param("socket.ssl_reload=1");
+    enum wsrep::provider::status ret= Wsrep_server_state::instance().provider().options(reload_ssl_param);
+    if (ret)
+    {
+      WSREP_ERROR("Set options returned %d", ret);
+      return true;
+    }
+    return false;
+  }
+  catch (...)
+  {
+    WSREP_ERROR("Failed to get provider options");
+    return true;
+  }
+}
+
 /*!
  * @param db      Database string
  * @param table   Table string

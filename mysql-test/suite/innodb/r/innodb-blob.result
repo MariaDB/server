@@ -47,7 +47,7 @@ INSERT INTO t2 VALUES (42);
 disconnect con1;
 disconnect con2;
 connection default;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -107,7 +107,7 @@ connection con2;
 # restart
 disconnect con2;
 connection default;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 CHECK TABLE t1,t2,t3;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
@@ -139,7 +139,7 @@ UPDATE t3 SET c=REPEAT('j',3000) WHERE a=2
 # restart
 disconnect con2;
 connection default;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 CHECK TABLE t1,t2,t3;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK

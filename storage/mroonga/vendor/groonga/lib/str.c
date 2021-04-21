@@ -46,7 +46,7 @@ grn_str_charlen_utf8(grn_ctx *ctx, const unsigned char *str, const unsigned char
   if (*str & 0x80) {
     int i;
     int len;
-    GRN_BIT_SCAN_REV(~(*str << 24), len);
+    GRN_BIT_SCAN_REV(~(((uint) *str) << 24), len);
     len = 31 - len;
     if ((unsigned int)(len - 2) >= 3) {  /* (len == 1 || len >= 5) */
       GRN_LOG(ctx, GRN_LOG_WARNING,
@@ -1963,7 +1963,8 @@ grn_bulk_write(grn_ctx *ctx, grn_obj *buf, const char *str, unsigned int len)
     if ((rc = grn_bulk_resize(ctx, buf, GRN_BULK_VSIZE(buf) + len))) { return rc; }
   }
   curr = GRN_BULK_CURR(buf);
-  grn_memcpy(curr, str, len);
+  if (str)
+    grn_memcpy(curr, str, len);
   GRN_BULK_INCR_LEN(buf, len);
   return rc;
 }

@@ -7,7 +7,7 @@
 CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
 SET debug_dbug='+d,innodb_alter_commit_crash_before_commit';
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # restart
 show create table t1;
 Table	Create Table

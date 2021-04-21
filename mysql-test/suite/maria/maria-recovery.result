@@ -22,7 +22,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * copied t1 back for feeding_recovery
 * recovery happens
 check table t1 extended;
@@ -49,7 +49,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * recovery happens
 check table t1 extended;
 Table	Op	Msg_type	Msg_text
@@ -74,7 +74,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_page_cache,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * recovery happens
 check table t1 extended;
 Table	Op	Msg_type	Msg_text
@@ -100,7 +100,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_flush_states,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * recovery happens
 check table t1 extended;
 Table	Op	Msg_type	Msg_text
@@ -127,7 +127,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * recovery happens
 check table t1 extended;
 Table	Op	Msg_type	Msg_text
@@ -171,7 +171,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * copied t1 back for feeding_recovery
 * recovery happens
 check table t1 extended;
@@ -210,7 +210,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * copied t1 back for feeding_recovery
 * recovery happens
 check table t1 extended;
@@ -242,7 +242,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * copied t1 back for feeding_recovery
 * recovery happens
 check table t1 extended;
@@ -272,7 +272,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * recovery happens
 check table t1 extended;
 Table	Op	Msg_type	Msg_text
@@ -316,7 +316,7 @@ connection admin;
 SET SESSION debug_dbug="+d,maria_flush_whole_log,maria_crash";
 * crashing mysqld intentionally
 set global aria_checkpoint_interval=1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 * recovery happens
 connection default;
 use mysqltest;

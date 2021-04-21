@@ -46,19 +46,7 @@ public:
   bool dirty;               /* Flag for if a flush should occur */
   bool crashed;             /* Meta file is crashed */
   Archive_share();
-  ~Archive_share()
-  {
-    DBUG_PRINT("ha_archive", ("~Archive_share: %p",
-                              this));
-    if (archive_write_open)
-    {
-      mysql_mutex_lock(&mutex);
-      (void) close_archive_writer();
-      mysql_mutex_unlock(&mutex);
-    }
-    thr_lock_delete(&lock);
-    mysql_mutex_destroy(&mutex);
-  }
+  virtual ~Archive_share();
   int init_archive_writer();
   void close_archive_writer();
   int write_v1_metafile();

@@ -27,7 +27,7 @@ SET GLOBAL wsrep_cluster_address = '';
 SET SESSION wsrep_sync_wait = DEFAULT;
 connection node_2;
 INSERT INTO t1 VALUES (6);
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 connection node_1;
 SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
 COUNT(*)

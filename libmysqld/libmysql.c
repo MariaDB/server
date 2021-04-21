@@ -512,7 +512,7 @@ my_bool handle_local_infile(MYSQL *mysql, const char *net_filename)
     if (my_net_write(net, (uchar*) buf, readcount))
     {
       DBUG_PRINT("error",
-		 ("Lost connection to MySQL server during LOAD DATA of local file"));
+		 ("Lost connection to server during LOAD DATA of local file"));
       set_mysql_error(mysql, CR_SERVER_LOST, unknown_sqlstate);
       goto err;
     }
