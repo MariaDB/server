@@ -8110,7 +8110,8 @@ void handle_error(struct st_command *command,
     */
     if (err_errno == CR_SERVER_LOST ||
         err_errno == CR_SERVER_GONE_ERROR)
-      die("require query '%s' failed: %d: %s", command->query,
+      die("require query '%s' failed: %s (%d): %s", command->query,
+          get_errname_from_code(err_errno),
           err_errno, err_error);
 
     /* Abort the run of this test, pass the failed query as reason */
@@ -8120,7 +8121,9 @@ void handle_error(struct st_command *command,
 
   if (command->abort_on_error)
   {
-    report_or_die("query '%s' failed: %d: %s", command->query, err_errno,
+    report_or_die("query '%s' failed: %s (%d): %s", command->query,
+                  get_errname_from_code(err_errno),
+                  err_errno,
                   err_error);
     DBUG_VOID_RETURN;
   }
@@ -8169,9 +8172,12 @@ void handle_error(struct st_command *command,
   if (command->expected_errors.count > 0)
   {
     if (command->expected_errors.err[0].type == ERR_ERRNO)
-      report_or_die("query '%s' failed with wrong errno %d: '%s', instead of "
-                    "%d...",
-                    command->query, err_errno, err_error,
+      report_or_die("query '%s' failed with wrong errno %s (%d): '%s', "
+                    "instead of %s (%d)...",
+                    command->query,
+                    get_errname_from_code(err_errno),
+                    err_errno, err_error,
+                    get_errname_from_code(command->expected_errors.err[0].code.errnum),
                     command->expected_errors.err[0].code.errnum);
     else
       report_or_die("query '%s' failed with wrong sqlstate %s: '%s', "
@@ -8204,8 +8210,11 @@ void handle_no_error(struct st_command *command)
       command->expected_errors.err[0].code.errnum != 0)
   {
     /* Error code we wanted was != 0, i.e. not an expected success */
-    report_or_die("query '%s' succeeded - should have failed with errno %d...",
-                  command->query, command->expected_errors.err[0].code.errnum);
+    report_or_die("query '%s' succeeded - should have failed with error "
+                  "%s (%d)...",
+                  command->query,
+                  get_errname_from_code(command->expected_errors.err[0].code.errnum),
+                  command->expected_errors.err[0].code.errnum);
   }
   else if (command->expected_errors.err[0].type == ERR_SQLSTATE &&
            strcmp(command->expected_errors.err[0].code.sqlstate,"00000") != 0)
