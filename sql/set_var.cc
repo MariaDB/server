@@ -826,6 +826,11 @@ int set_var::check(THD *thd)
 */
 int set_var::light_check(THD *thd)
 {
+  if (var->is_readonly())
+  {
+    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->name.str, "read only");
+    return -1;
+  }
   if (var->check_type(type))
   {
     int err= type == OPT_GLOBAL ? ER_LOCAL_VARIABLE : ER_GLOBAL_VARIABLE;

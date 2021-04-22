@@ -68,9 +68,8 @@ begin
   execute stmt;
   deallocate prepare stmt;
 end|
---error ER_UNSUPPORTED_PS
 call p1()|
---error ER_UNSUPPORTED_PS
+--error ER_SP_ALREADY_EXISTS
 call p1()|
 drop procedure p1|
 create procedure p1()
@@ -79,9 +78,8 @@ begin
   execute stmt;
   deallocate prepare stmt;
 end|
---error ER_UNSUPPORTED_PS
 call p1()|
---error ER_UNSUPPORTED_PS
+--error ER_SP_DOES_NOT_EXIST
 call p1()|
 drop procedure p1|
 #

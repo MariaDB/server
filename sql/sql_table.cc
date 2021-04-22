@@ -11757,12 +11757,35 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
 }
 
 
+/**
+  Collect field names of result set that will be sent to a client in result of
+  handling the CHECKSUM TABLE statement.
+
+  @param      thd     Thread data object
+  @param[out] fields  List of fields whose metadata should be collected for
+                      sending to client
+ */
+
+void fill_checksum_table_metadata_fields(THD *thd, List<Item> *fields)
+{
+  Item *item;
+
+  item= new (thd->mem_root) Item_empty_string(thd, "Table", NAME_LEN*2);
+  item->maybe_null= 1;
+  fields->push_back(item, thd->mem_root);
+
+  item= new (thd->mem_root) Item_int(thd, "Checksum", (longlong) 1,
+                                     MY_INT64_NUM_DECIMAL_DIGITS);
+  item->maybe_null= 1;
+  fields->push_back(item, thd->mem_root);
+}
+
+
 bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
                           HA_CHECK_OPT *check_opt)
 {
   TABLE_LIST *table;
   List<Item> field_list;
-  Item *item;
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("mysql_checksum_table");
 
@@ -11772,15 +11795,8 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
   */
   DBUG_ASSERT(! thd->in_sub_stmt);
 
-  field_list.push_back(item= new (thd->mem_root)
-                       Item_empty_string(thd, "Table", NAME_LEN*2),
-                       thd->mem_root);
-  item->maybe_null= 1;
-  field_list.push_back(item= new (thd->mem_root)
-                       Item_int(thd, "Checksum", (longlong) 1,
-                                MY_INT64_NUM_DECIMAL_DIGITS),
-                       thd->mem_root);
-  item->maybe_null= 1;
+  fill_checksum_table_metadata_fields(thd, &field_list);
+
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);

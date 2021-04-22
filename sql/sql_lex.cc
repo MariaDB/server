@@ -1345,10 +1345,17 @@ void lex_end_stage1(LEX *lex)
   {
     /*
       Don't delete lex->sphead, it'll be needed for EXECUTE.
-      Note that of all statements that populate lex->sphead
-      only SQLCOM_COMPOUND can be PREPAREd
     */
-    DBUG_ASSERT(lex->sphead == 0 || lex->sql_command == SQLCOM_COMPOUND);
+    DBUG_ASSERT(lex->sphead == 0 ||
+                (lex->sql_command == SQLCOM_COMPOUND ||
+                 lex->sql_command == SQLCOM_CREATE_SPFUNCTION ||
+                 lex->sql_command == SQLCOM_CREATE_FUNCTION ||
+                 lex->sql_command == SQLCOM_CREATE_PROCEDURE ||
+                 lex->sql_command == SQLCOM_CREATE_TRIGGER ||
+                 lex->sql_command == SQLCOM_CREATE_EVENT ||
+                 lex->sql_command == SQLCOM_ALTER_EVENT ||
+                 lex->sql_command == SQLCOM_CREATE_PACKAGE ||
+                 lex->sql_command == SQLCOM_CREATE_PACKAGE_BODY));
   }
   else
   {
