@@ -1392,19 +1392,22 @@ insert into t3_trans values (1);
 xa end 'test1';
 xa prepare 'test1';
 # Disconnect temporary connection
+set debug_sync='thread_end SIGNAL test1_prepare';
 disconnect con_tmp;
+connection con1;
+set debug_sync='now WAIT_FOR test1_prepare';
 # Create temporary connection for XA transaction.
-connect  con_tmp,localhost,root,,;
+connect  con_tmp1,localhost,root,,;
 xa start 'test2';
 insert into t3_trans values (2);
 xa end 'test2';
 xa prepare 'test2';
 # Disconnect temporary connection
-set debug_sync='thread_end SIGNAL detached';
-disconnect con_tmp;
+set debug_sync='thread_end SIGNAL test2_prepare';
+disconnect con_tmp1;
 # Switching to connection 'con1'.
 connection con1;
-set debug_sync='now WAIT_FOR detached';
+set debug_sync='now WAIT_FOR test2_prepare';
 flush tables with read lock;
 # Switching to connection 'default'.
 connection default;
