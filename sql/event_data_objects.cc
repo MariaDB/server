@@ -194,6 +194,7 @@ Event_queue_element_for_exec::init(const LEX_CSTRING &db, const LEX_CSTRING &n)
                              n.str, name.length= n.length, MYF(MY_WME))))
   {
     my_free(const_cast<char*>(dbname.str));
+    dbname.str= NULL;
     return TRUE;
   }
   return FALSE;
