@@ -1672,7 +1672,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
                command != COM_PING &&
                command != COM_QUIT &&
                command != COM_STMT_PREPARE &&
-               command != COM_STMT_EXECUTE))
+               command != COM_STMT_EXECUTE &&
+               command != COM_STMT_CLOSE))
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     goto dispatch_end;
