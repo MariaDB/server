@@ -3432,7 +3432,7 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
 */
 
 int
-mysql_execute_command(THD *thd)
+mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 {
   int res= 0;
   int  up_result= 0;
@@ -5259,7 +5259,7 @@ mysql_execute_command(THD *thd)
 
   } while (0);
   /* Don't do it, if we are inside a SP */
-  if (!thd->spcont)
+  if (!thd->spcont && !is_called_from_prepared_stmt)
   {
     sp_head::destroy(lex->sphead);
     lex->sphead= NULL;

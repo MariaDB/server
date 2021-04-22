@@ -1001,23 +1001,29 @@ static my_bool xa_recover_callback_verbose(XID_cache_element *xs,
 }
 
 
-bool mysql_xa_recover(THD *thd)
-{
-  List<Item> field_list;
-  Protocol *protocol= thd->protocol;
-  MEM_ROOT *mem_root= thd->mem_root;
-  my_hash_walk_action action;
-  DBUG_ENTER("mysql_xa_recover");
+/**
+  Collect field names of result set that will be sent to a client in result of
+  handling XA RECOVER statement.
 
-  field_list.push_back(new (mem_root)
-                       Item_int(thd, "formatID", 0,
-                                MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_int(thd, "gtrid_length", 0,
-                                MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
-  field_list.push_back(new (mem_root)
-                       Item_int(thd, "bqual_length", 0,
-                                MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
+  @param      thd     Thread data object
+  @param[out] fields  List of fields whose metadata should be collected for
+                      sending to client
+*/
+
+void xa_recover_get_fields(THD *thd, List<Item> *field_list,
+                           my_hash_walk_action *action)
+{
+  MEM_ROOT *mem_root= thd->mem_root;
+
+  field_list->push_back(new (mem_root)
+      Item_int(thd, "formatID", 0,
+	  MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
+  field_list->push_back(new (mem_root)
+      Item_int(thd, "gtrid_length", 0,
+	  MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
+  field_list->push_back(new (mem_root)
+      Item_int(thd, "bqual_length", 0,
+	  MY_INT32_NUM_DECIMAL_DIGITS), mem_root);
   {
     uint len;
     CHARSET_INFO *cs;
@@ -1026,18 +1032,30 @@ bool mysql_xa_recover(THD *thd)
     {
       len= SQL_XIDSIZE;
       cs= &my_charset_utf8mb3_general_ci;
-      action= (my_hash_walk_action) xa_recover_callback_verbose;
+      if (action)
+	*action= (my_hash_walk_action) xa_recover_callback_verbose;
     }
     else
     {
       len= XIDDATASIZE;
       cs= &my_charset_bin;
-      action= (my_hash_walk_action) xa_recover_callback_short;
+      if (action)
+	*action= (my_hash_walk_action) xa_recover_callback_short;
     }
 
-    field_list.push_back(new (mem_root)
-                         Item_empty_string(thd, "data", len, cs), mem_root);
+    field_list->push_back(new (mem_root)
+	Item_empty_string(thd, "data", len, cs), mem_root);
   }
+}
+
+bool mysql_xa_recover(THD *thd)
+{
+  List<Item> field_list;
+  Protocol *protocol= thd->protocol;
+  my_hash_walk_action action;
+  DBUG_ENTER("mysql_xa_recover");
+
+  xa_recover_get_fields(thd, &field_list, &action);
 
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))

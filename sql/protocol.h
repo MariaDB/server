@@ -188,10 +188,6 @@ public:
   bool net_send_error(THD *thd, uint sql_errno, const char *err,
                       const char* sqlstate);
   void end_statement();
-
-  friend int send_answer_1(Protocol *protocol, String *s1, String *s2,
-                           String *s3);
-  friend int send_header_2(Protocol *protocol, bool for_category);
 };
 
 

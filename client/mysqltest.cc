@@ -258,7 +258,6 @@ static const char *opt_suite_dir, *opt_overlay_dir;
 static size_t suite_dir_len, overlay_dir_len;
 
 /* Precompiled re's */
-static regex_t ps_re;     /* the query can be run using PS protocol */
 static regex_t sp_re;     /* the query can be run as a SP */
 static regex_t view_re;   /* the query can be run as a view*/
 
@@ -8324,116 +8323,119 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     goto end;
   }
 
-  /*
-    When running in cursor_protocol get the warnings from execute here
-    and keep them in a separate string for later.
-  */
-  if (cursor_protocol_enabled && !disable_warnings)
-    append_warnings(&ds_execute_warnings, mysql);
-
-  /*
-    We instruct that we want to update the "max_length" field in
-    mysql_stmt_store_result(), this is our only way to know how much
-    buffer to allocate for result data
-  */
-  {
-    my_bool one= 1;
-    if (mysql_stmt_attr_set(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (void*) &one))
-      die("mysql_stmt_attr_set(STMT_ATTR_UPDATE_MAX_LENGTH) failed': %d %s",
-          mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
-  }
-
-  /*
-    If we got here the statement succeeded and was expected to do so,
-    get data. Note that this can still give errors found during execution!
-    Store the result of the query if if will return any fields
-  */
-  if (mysql_stmt_field_count(stmt) && mysql_stmt_store_result(stmt))
-  {
-    handle_error(command, mysql_stmt_errno(stmt),
-                 mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
-    goto end;
-  }
-
-  /* If we got here the statement was both executed and read successfully */
-  handle_no_error(command);
-  if (!disable_result_log)
+  do
   {
     /*
-      Not all statements creates a result set. If there is one we can
-      now create another normal result set that contains the meta
-      data. This set can be handled almost like any other non prepared
-      statement result set.
+      When running in cursor_protocol get the warnings from execute here
+      and keep them in a separate string for later.
     */
-    if ((res= mysql_stmt_result_metadata(stmt)) != NULL)
+    if (cursor_protocol_enabled && !disable_warnings)
+      append_warnings(&ds_execute_warnings, mysql);
+
+    /*
+      We instruct that we want to update the "max_length" field in
+      mysql_stmt_store_result(), this is our only way to know how much
+      buffer to allocate for result data
+    */
     {
-      /* Take the column count from meta info */
-      MYSQL_FIELD *fields= mysql_fetch_fields(res);
-      uint num_fields= mysql_num_fields(res);
-
-      if (display_metadata)
-        append_metadata(ds, fields, num_fields);
-
-      if (!display_result_vertically)
-        append_table_headings(ds, fields, num_fields);
-
-      append_stmt_result(ds, stmt, fields, num_fields);
-
-      mysql_free_result(res);     /* Free normal result set with meta data */
-
-      /*
-        Normally, if there is a result set, we do not show warnings from the
-        prepare phase. This is because some warnings are generated both during
-        prepare and execute; this would generate different warning output
-        between normal and ps-protocol test runs.
-
-        The --enable_prepare_warnings command can be used to change this so
-        that warnings from both the prepare and execute phase are shown.
-      */
-      if (!disable_warnings && !prepare_warnings_enabled)
-        dynstr_set(&ds_prepare_warnings, NULL);
-    }
-    else
-    {
-      /*
-	This is a query without resultset
-      */
+      my_bool one= 1;
+      if (mysql_stmt_attr_set(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (void*) &one))
+        die("mysql_stmt_attr_set(STMT_ATTR_UPDATE_MAX_LENGTH) failed': %d %s",
+            mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
     }
 
     /*
-      Fetch info before fetching warnings, since it will be reset
-      otherwise.
+      If we got here the statement succeeded and was expected to do so,
+      get data. Note that this can still give errors found during execution!
+      Store the result of the query if if will return any fields
     */
-    if (!disable_info)
-      append_info(ds, mysql_stmt_affected_rows(stmt), mysql_info(mysql));
-
-    if (display_session_track_info)
-      append_session_track_info(ds, mysql);
-
-
-    if (!disable_warnings)
+    if (mysql_stmt_field_count(stmt) && mysql_stmt_store_result(stmt))
     {
-      /* Get the warnings from execute */
+      handle_error(command, mysql_stmt_errno(stmt),
+                   mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
+      goto end;
+    }
 
-      /* Append warnings to ds - if there are any */
-      if (append_warnings(&ds_execute_warnings, mysql) ||
-          ds_execute_warnings.length ||
-          ds_prepare_warnings.length ||
-          ds_warnings->length)
+    /* If we got here the statement was both executed and read successfully */
+    handle_no_error(command);
+    if (!disable_result_log)
+    {
+      /*
+        Not all statements creates a result set. If there is one we can
+        now create another normal result set that contains the meta
+        data. This set can be handled almost like any other non prepared
+        statement result set.
+      */
+      if ((res= mysql_stmt_result_metadata(stmt)) != NULL)
       {
-        dynstr_append_mem(ds, "Warnings:\n", 10);
-        if (ds_warnings->length)
-          dynstr_append_mem(ds, ds_warnings->str,
-                            ds_warnings->length);
-        if (ds_prepare_warnings.length)
-          dynstr_append_mem(ds, ds_prepare_warnings.str,
-                            ds_prepare_warnings.length);
-        if (ds_execute_warnings.length)
-          dynstr_append_mem(ds, ds_execute_warnings.str,
-                            ds_execute_warnings.length);
+        /* Take the column count from meta info */
+        MYSQL_FIELD *fields= mysql_fetch_fields(res);
+        uint num_fields= mysql_num_fields(res);
+
+        if (display_metadata)
+          append_metadata(ds, fields, num_fields);
+
+        if (!display_result_vertically)
+          append_table_headings(ds, fields, num_fields);
+
+        append_stmt_result(ds, stmt, fields, num_fields);
+
+        mysql_free_result(res);     /* Free normal result set with meta data */
+
+        /*
+          Normally, if there is a result set, we do not show warnings from the
+          prepare phase. This is because some warnings are generated both during
+          prepare and execute; this would generate different warning output
+          between normal and ps-protocol test runs.
+
+          The --enable_prepare_warnings command can be used to change this so
+          that warnings from both the prepare and execute phase are shown.
+        */
+        if (!disable_warnings && !prepare_warnings_enabled)
+          dynstr_set(&ds_prepare_warnings, NULL);
+      }
+      else
+      {
+        /*
+          This is a query without resultset
+        */
+      }
+
+      /*
+        Fetch info before fetching warnings, since it will be reset
+        otherwise.
+      */
+      if (!disable_info)
+        append_info(ds, mysql_stmt_affected_rows(stmt), mysql_info(mysql));
+
+      if (display_session_track_info)
+        append_session_track_info(ds, mysql);
+
+
+      if (!disable_warnings)
+      {
+        /* Get the warnings from execute */
+
+        /* Append warnings to ds - if there are any */
+        if (append_warnings(&ds_execute_warnings, mysql) ||
+            ds_execute_warnings.length ||
+            ds_prepare_warnings.length ||
+            ds_warnings->length)
+        {
+          dynstr_append_mem(ds, "Warnings:\n", 10);
+          if (ds_warnings->length)
+            dynstr_append_mem(ds, ds_warnings->str,
+                              ds_warnings->length);
+          if (ds_prepare_warnings.length)
+            dynstr_append_mem(ds, ds_prepare_warnings.str,
+                              ds_prepare_warnings.length);
+          if (ds_execute_warnings.length)
+            dynstr_append_mem(ds, ds_execute_warnings.str,
+                              ds_execute_warnings.length);
+        }
       }
     }
-  }
+  } while ( !mysql_stmt_next_result(stmt));
 
 end:
   if (!disable_warnings)
@@ -8719,8 +8721,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     statement already and we can't do it twice
   */
   if (ps_protocol_enabled &&
-      complete_query &&
-      match_re(&ps_re, query))
+      complete_query)
     run_query_stmt(cn, command, query, query_len, ds, &ds_warnings);
   else
     run_query_normal(cn, command, flags, query, query_len,
@@ -8795,9 +8796,9 @@ void init_re(void)
 {
   /*
     Filter for queries that can be run using the
-    MySQL Prepared Statements C API
+    Stored procedures
   */
-  const char *ps_re_str =
+  const char *sp_re_str =
     "^("
     "[[:space:]]*ALTER[[:space:]]+SEQUENCE[[:space:]]|"
     "[[:space:]]*ALTER[[:space:]]+TABLE[[:space:]]|"
@@ -8851,19 +8852,12 @@ void init_re(void)
     ")";
 
   /*
-    Filter for queries that can be run using the
-    Stored procedures
-  */
-  const char *sp_re_str =ps_re_str;
-
-  /*
     Filter for queries that can be run as views
   */
   const char *view_re_str =
     "^("
     "[[:space:]]*SELECT[[:space:]])";
 
-  init_re_comp(&ps_re, ps_re_str);
   init_re_comp(&sp_re, sp_re_str);
   init_re_comp(&view_re, view_re_str);
 }
@@ -8899,7 +8893,6 @@ int match_re(regex_t *re, char *str)
 
 void free_re(void)
 {
-  regfree(&ps_re);
   regfree(&sp_re);
   regfree(&view_re);
 }

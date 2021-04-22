@@ -869,7 +869,7 @@ public:
   // Ensures that at least all members used during cleanup() are initialized.
   st_select_lex_unit()
     : union_result(NULL), table(NULL),  result(NULL), fake_select_lex(NULL),
-      cleaned(false), bag_set_op_optimized(false),
+      last_procedure(NULL),cleaned(false), bag_set_op_optimized(false),
       have_except_all_or_intersect_all(false)
   {
   }
