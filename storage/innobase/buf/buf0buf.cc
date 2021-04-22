@@ -2073,7 +2073,7 @@ calc_buf_pool_size:
 static void buf_resize_callback(void *)
 {
   DBUG_ENTER("buf_resize_callback");
-  ut_a(srv_shutdown_state == SRV_SHUTDOWN_NONE);
+  ut_ad(srv_shutdown_state < SRV_SHUTDOWN_CLEANUP);
   mysql_mutex_lock(&buf_pool.mutex);
   const auto size= srv_buf_pool_size;
   const bool work= srv_buf_pool_old_size != size;
