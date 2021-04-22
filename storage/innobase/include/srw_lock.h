@@ -217,11 +217,9 @@ public:
   void u_wr_upgrade()
   {
     DBUG_ASSERT(writer.is_locked());
-    uint32_t lk= 1;
-    if (!readers.compare_exchange_strong(lk, WRITER,
-                                         std::memory_order_acquire,
-                                         std::memory_order_relaxed))
-      wr_wait(lk);
+    uint32_t lk= readers.fetch_add(WRITER - 1, std::memory_order_acquire);
+    if (lk != 1)
+      wr_wait(lk - 1);
   }
   void wr_u_downgrade()
   {
