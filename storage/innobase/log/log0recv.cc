@@ -967,7 +967,7 @@ fail:
 			DBUG_EXECUTE_IF("log_checksum_mismatch", { cksum = crc + 1; });
 
 			if (crc != cksum) {
-				ib::error_or_warn(srv_operation == SRV_OPERATION_BACKUP)
+				ib::error_or_warn(srv_operation != SRV_OPERATION_BACKUP)
 					    << "Invalid log block checksum."
 					    << " block: " << block_number
 					    << " checkpoint no: "
