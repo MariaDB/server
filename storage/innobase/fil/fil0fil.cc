@@ -1561,149 +1561,43 @@ fil_name_write(
   mtr->log_file_op(FILE_MODIFY, space_id, name);
 }
 
-/** Check for pending operations.
-@param[in]	space	tablespace
-@param[in]	count	number of attempts so far
-@return 0 if no operations else count + 1. */
-static ulint fil_check_pending_ops(const fil_space_t* space, ulint count)
+fil_space_t *fil_space_t::check_pending_operations(ulint id)
 {
-	mysql_mutex_assert_owner(&fil_system.mutex);
+  ut_a(!is_system_tablespace(id));
+  mysql_mutex_lock(&fil_system.mutex);
+  fil_space_t *space= fil_space_get_by_id(id);
 
-	if (!space) {
-		return 0;
-	}
+  if (space)
+  {
+    const uint32_t n= space->acquire_low();
+    ut_ad(!(n & STOPPING));
 
-	if (auto n_pending_ops = space->referenced()) {
+    if (space->crypt_data)
+    {
+      mysql_mutex_unlock(&fil_system.mutex);
+      fil_space_crypt_close_tablespace(space);
+      mysql_mutex_lock(&fil_system.mutex);
+    }
+    space->set_stopping(true);
+    space->release();
+  }
+  mysql_mutex_unlock(&fil_system.mutex);
 
-		/* Give a warning every 10 second, starting after 1 second */
-		if ((count % 500) == 50) {
-			ib::warn() << "Trying to delete"
-				" tablespace '" << space->chain.start->name
-				<< "' but there are " << n_pending_ops
-				<< " pending operations on it.";
-		}
+  if (!space)
+    return nullptr;
 
-		return(count + 1);
-	}
-
-	return(0);
-}
-
-/*******************************************************************//**
-Check for pending IO.
-@return 0 if no pending else count + 1. */
-static
-ulint
-fil_check_pending_io(
-/*=================*/
-	fil_space_t*	space,		/*!< in/out: Tablespace to check */
-	fil_node_t**	node,		/*!< out: Node in space list */
-	ulint		count)		/*!< in: number of attempts so far */
-{
-	mysql_mutex_assert_owner(&fil_system.mutex);
-
-	/* The following code must change when InnoDB supports
-	multiple datafiles per tablespace. */
-	ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
-
-	*node = UT_LIST_GET_FIRST(space->chain);
-
-	if (const uint32_t p = space->referenced()) {
-		ut_a(!(*node)->being_extended);
-
-                /* Give a warning every 10 second, starting after 1 second */
-		if ((count % 500) == 50) {
-			ib::info() << "Trying to delete"
-				" tablespace '" << space->chain.start->name
-				<< "' but there are " << p
-				<< " pending i/o's on it.";
-		}
-
-		return(count + 1);
-	}
-
-	return(0);
-}
-
-/*******************************************************************//**
-Check pending operations on a tablespace.
-@return tablespace */
-static
-fil_space_t*
-fil_check_pending_operations(
-/*=========================*/
-	ulint		id,		/*!< in: space id */
-	bool		truncate,	/*!< in: whether to truncate a file */
-	char**		path)		/*!< out/own: tablespace path */
-{
-	ulint		count = 0;
-
-	ut_a(!is_system_tablespace(id));
-	mysql_mutex_lock(&fil_system.mutex);
-	fil_space_t* sp = fil_space_get_by_id(id);
-
-	if (sp) {
-		sp->set_stopping(true);
-		if (sp->crypt_data) {
-			sp->reacquire();
-			mysql_mutex_unlock(&fil_system.mutex);
-			fil_space_crypt_close_tablespace(sp);
-			mysql_mutex_lock(&fil_system.mutex);
-			sp->release();
-		}
-	}
-
-	/* Check for pending operations. */
-
-	do {
-		count = fil_check_pending_ops(sp, count);
-
-		mysql_mutex_unlock(&fil_system.mutex);
-
-		if (count) {
-			std::this_thread::sleep_for(
-				std::chrono::milliseconds(20));
-		} else if (!sp) {
-			return nullptr;
-		}
-
-		mysql_mutex_lock(&fil_system.mutex);
-
-		sp = fil_space_get_by_id(id);
-	} while (count);
-
-	/* Check for pending IO. */
-
-	for (;;) {
-		if (truncate) {
-			sp->is_being_truncated = true;
-		}
-
-		fil_node_t*	node;
-
-		count = fil_check_pending_io(sp, &node, count);
-
-		if (count == 0 && path) {
-			*path = mem_strdup(node->name);
-		}
-
-		mysql_mutex_unlock(&fil_system.mutex);
-
-		if (count == 0) {
-			break;
-		}
-
-		std::this_thread::sleep_for(std::chrono::milliseconds(20));
-		mysql_mutex_lock(&fil_system.mutex);
-		sp = fil_space_get_by_id(id);
-
-		if (!sp) {
-			mysql_mutex_unlock(&fil_system.mutex);
-			break;
-		}
-	}
-
-	return sp;
+  for (ulint count= 0;; count++)
+  {
+    auto pending= space->referenced();
+    if (!pending)
+      return space;
+    /* Give a warning every 10 second, starting after 1 second */
+    if ((count % 500) == 50)
+      ib::warn() << "Trying to delete tablespace '"
+                 << space->chain.start->name << "' but there are "
+                 << pending << " pending operations on it.";
+    std::this_thread::sleep_for(std::chrono::milliseconds(20));
+  }
 }
 
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
@@ -1712,8 +1606,7 @@ Free all pages used by the tablespace. */
 void fil_close_tablespace(ulint id)
 {
 	ut_ad(!is_system_tablespace(id));
-	char* path = nullptr;
-	fil_space_t* space = fil_check_pending_operations(id, false, &path);
+	fil_space_t* space = fil_space_t::check_pending_operations(id);
 	if (!space) {
 		return;
 	}
@@ -1730,23 +1623,22 @@ void fil_close_tablespace(ulint id)
 	os_aio_wait_until_no_pending_writes();
 	ut_ad(space->is_stopping());
 
+	/* If it is a delete then also delete any generated files, otherwise
+	when we drop the database the remove directory will fail. */
+
+	if (char* cfg_name = fil_make_filepath(space->chain.start->name,
+					       fil_space_t::name_type{},
+					       CFG, false)) {
+		os_file_delete_if_exists(innodb_data_file_key, cfg_name, NULL);
+		ut_free(cfg_name);
+	}
+
 	/* If the free is successful, the wrlock will be released before
 	the space memory data structure is freed. */
 
 	if (!fil_space_free(id, true)) {
 		space->x_unlock();
 	}
-
-	/* If it is a delete then also delete any generated files, otherwise
-	when we drop the database the remove directory will fail. */
-
-	if (char* cfg_name = fil_make_filepath(path, fil_space_t::name_type{},
-					       CFG, false)) {
-		os_file_delete_if_exists(innodb_data_file_key, cfg_name, NULL);
-		ut_free(cfg_name);
-	}
-
-	ut_free(path);
 }
 
 /** Delete a tablespace and associated .ibd file.
@@ -1757,12 +1649,11 @@ void fil_close_tablespace(ulint id)
 dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 			      std::vector<pfs_os_file_t>* detached_handles)
 {
-	char* path = NULL;
 	ut_ad(!is_system_tablespace(id));
 	ut_ad(!detached_handles || detached_handles->empty());
 
 	dberr_t err;
-	fil_space_t *space = fil_check_pending_operations(id, false, &path);
+	fil_space_t *space = fil_space_t::check_pending_operations(id);
 
 	if (!space) {
 		err = DB_TABLESPACE_NOT_FOUND;
@@ -1771,8 +1662,9 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 				    << " because it is not found"
 				       " in the tablespace memory cache.";
 		}
-
-		goto func_exit;
+func_exit:
+		ibuf_delete_for_discarded_space(id);
+		return err;
 	}
 
 	/* IMPORTANT: Because we have set space::stop_new_ops there
@@ -1808,7 +1700,7 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 		mtr_t		mtr;
 
 		mtr.start();
-		mtr.log_file_op(FILE_DELETE, id, path);
+		mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
 		mtr.commit();
 		/* Even if we got killed shortly after deleting the
 		tablespace file, the record must have already been
@@ -1816,7 +1708,8 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 		log_write_up_to(mtr.commit_lsn(), true);
 
 		if (char* cfg_name = fil_make_filepath(
-			    path, fil_space_t::name_type{}, CFG, false)) {
+			    space->chain.start->name,
+			    fil_space_t::name_type{}, CFG, false)) {
 			os_file_delete_if_exists(innodb_data_file_key,
 						 cfg_name, nullptr);
 			ut_free(cfg_name);
@@ -1832,54 +1725,34 @@ dberr_t fil_delete_tablespace(ulint id, bool if_exists,
 
 	/* Double check the sanity of pending ops after reacquiring
 	the fil_system::mutex. */
-	if (const fil_space_t* s = fil_space_get_by_id(id)) {
-		ut_a(s == space);
-		ut_a(!space->referenced());
-		ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-		auto handles = fil_system.detach(space,
-						 detached_handles != nullptr);
-		if (detached_handles) {
-			*detached_handles = std::move(handles);
-		}
-		mysql_mutex_unlock(&fil_system.mutex);
+	ut_a(space == fil_space_get_by_id(id));
+	ut_a(!space->referenced());
+	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
+	auto handles = fil_system.detach(space, detached_handles != nullptr);
+	if (detached_handles) {
+		*detached_handles = std::move(handles);
+	}
+	mysql_mutex_unlock(&fil_system.mutex);
 
-		mysql_mutex_lock(&log_sys.mutex);
+	mysql_mutex_lock(&log_sys.mutex);
 
-		if (space->max_lsn != 0) {
-			ut_d(space->max_lsn = 0);
-			fil_system.named_spaces.remove(*space);
-		}
-
-		mysql_mutex_unlock(&log_sys.mutex);
-		fil_space_free_low(space);
-
-		if (!os_file_delete(innodb_data_file_key, path)
-		    && !os_file_delete_if_exists(
-			    innodb_data_file_key, path, NULL)) {
-
-			/* Note: This is because we have removed the
-			tablespace instance from the cache. */
-
-			err = DB_IO_ERROR;
-		}
-	} else {
-		mysql_mutex_unlock(&fil_system.mutex);
-		err = DB_TABLESPACE_NOT_FOUND;
+	if (space->max_lsn != 0) {
+		ut_d(space->max_lsn = 0);
+		fil_system.named_spaces.remove(*space);
 	}
 
-func_exit:
-	ut_free(path);
-	ibuf_delete_for_discarded_space(id);
-	return(err);
-}
+	mysql_mutex_unlock(&log_sys.mutex);
 
-/** Prepare to truncate an undo tablespace.
-@param[in]	space_id	undo tablespace id
-@return	the tablespace
-@retval	NULL if tablespace not found */
-fil_space_t *fil_truncate_prepare(ulint space_id)
-{
-  return fil_check_pending_operations(space_id, true, nullptr);
+	if (!os_file_delete(innodb_data_file_key, space->chain.start->name)
+	    && !os_file_delete_if_exists(innodb_data_file_key,
+					 space->chain.start->name, NULL)) {
+		/* Note: This is because we have removed the
+		tablespace instance from the cache. */
+		err = DB_IO_ERROR;
+	}
+
+	fil_space_free_low(space);
+	goto func_exit;
 }
 
 /*******************************************************************//**
@@ -3090,8 +2963,7 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 	fil_node_t* node= UT_LIST_GET_FIRST(chain);
 	ut_ad(node);
 
-	if (type.type == IORequest::READ_ASYNC && is_stopping()
-	    && !is_being_truncated) {
+	if (type.type == IORequest::READ_ASYNC && is_stopping()) {
 		release();
 		return {DB_TABLESPACE_DELETED, nullptr};
 	}

@@ -517,6 +517,12 @@ public:
   /** Note that operations on the tablespace must stop or can resume */
   inline void set_stopping(bool stopping);
 
+  /** Look up the tablespace and wait for pending operations to cease
+  @param id  tablespace identifier
+  @return tablespace
+  @retval nullptr if no tablespace was found */
+  static fil_space_t *check_pending_operations(ulint id);
+
 private:
   MY_ATTRIBUTE((warn_unused_result))
   /** Try to acquire a tablespace reference.
@@ -1579,12 +1585,6 @@ MY_ATTRIBUTE((warn_unused_result));
 dberr_t
 fil_delete_tablespace(ulint id, bool if_exists= false,
                       std::vector<pfs_os_file_t> *detached_handles= nullptr);
-
-/** Prepare to truncate an undo tablespace.
-@param[in]	space_id	undo tablespace id
-@return	the tablespace
-@retval	NULL if the tablespace does not exist */
-fil_space_t* fil_truncate_prepare(ulint space_id);
 
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
 The tablespace must be cached in the memory cache.
