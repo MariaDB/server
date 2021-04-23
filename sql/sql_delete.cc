@@ -1009,9 +1009,6 @@ int mysql_multi_delete_prepare(THD *thd)
                                     DELETE_ACL, SELECT_ACL, FALSE))
     DBUG_RETURN(TRUE);
 
-  if (lex->select_lex.handle_derived(thd->lex, DT_MERGE))  
-    DBUG_RETURN(TRUE);
-
   /*
     Multi-delete can't be constructed over-union => we always have
     single SELECT on top and have to check underlying SELECTs of it
@@ -1039,6 +1036,12 @@ int mysql_multi_delete_prepare(THD *thd)
                target_tbl->table_name.str, "DELETE");
       DBUG_RETURN(TRUE);
     }
+  }
+
+  for (target_tbl= (TABLE_LIST*) aux_tables;
+       target_tbl;
+       target_tbl= target_tbl->next_local)
+  {
     /*
       Check that table from which we delete is not used somewhere
       inside subqueries/view.
@@ -1083,12 +1086,6 @@ multi_delete::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   unit= u;
   do_delete= 1;
   THD_STAGE_INFO(thd, stage_deleting_from_main_table);
-  SELECT_LEX *select_lex= u->first_select();
-  if (select_lex->first_cond_optimization)
-  {
-    if (select_lex->handle_derived(thd->lex, DT_MERGE))
-      DBUG_RETURN(TRUE);
-  }
   DBUG_RETURN(0);
 }
 
