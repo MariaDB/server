@@ -2786,4 +2786,54 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 set names default;
 set @@in_predicate_conversion_threshold= @save_in_predicate_conversion_threshold;
 DROP TABLE t1,t2;
+#
+# MDEV-24925: Server crashes in Item_subselect::init_expr_cache_tracker
+#
+CREATE TABLE t1 (id INT PRIMARY KEY);
+INSERT INTO t1 VALUES (1),(2);
+SELECT
+1 IN (
+SELECT
+(SELECT COUNT(id)
+FROM t1
+WHERE t1_outer.id <> id
+) AS f
+FROM
+t1 AS t1_outer
+GROUP BY f
+);
+1 IN (
+SELECT
+(SELECT COUNT(id)
+FROM t1
+WHERE t1_outer.id <> id
+) AS f
+FROM
+t1 AS t1_outer
+GROUP BY f
+)
+1
+SELECT
+1 IN (
+SELECT
+(SELECT COUNT(id)
+FROM t1
+WHERE t1_outer.id <> id
+) AS f
+FROM
+t1 AS t1_outer
+GROUP BY 1
+);
+1 IN (
+SELECT
+(SELECT COUNT(id)
+FROM t1
+WHERE t1_outer.id <> id
+) AS f
+FROM
+t1 AS t1_outer
+GROUP BY 1
+)
+1
+DROP TABLE t1;
 # End of 10.3 tests
