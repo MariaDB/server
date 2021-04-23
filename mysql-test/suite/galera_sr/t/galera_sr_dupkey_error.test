@@ -22,12 +22,13 @@ INSERT INTO t1 VALUES (REPEAT('f', 512));
 --let $wait_condition = SELECT COUNT(*) > 0 FROM mysql.wsrep_streaming_log;
 
 --connection node_1
-# Deadlock error instead of dupkey since the transaction is SR and
-# statement rollback is not safe.
+# Deadlock error instead of dupkey since the transaction is SR,
+# and the statement has already replicated a fragment (which
+# makes statement rollback unsafe).
 --error ER_LOCK_DEADLOCK
-INSERT INTO t1 VALUES (REPEAT('c', 512));
+INSERT INTO t1 VALUES (REPEAT('g', 1024)),(REPEAT('c', 512));
 
-# Confirm that the wsrep_streaming_log table is now empty, as it was a full transaction rollback
+# Confirm that the wsrep_schema table is now empty, as it was a full transaction rollback
 
 --connection node_1
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
