@@ -3552,7 +3552,8 @@ int spider_set_connect_info_default(
     if (!share->tgt_table_names[roop_count] && table_share)
     {
       DBUG_PRINT("info",("spider create default tgt_table_names"));
-      share->tgt_table_names_lengths[roop_count] = share->table_name_length;
+      share->tgt_table_names_lengths[roop_count] =
+        table_share->table_name.length;
       if (
         !(share->tgt_table_names[roop_count] = spider_create_table_name_string(
           table_share->table_name.str,
