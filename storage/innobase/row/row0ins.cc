@@ -2669,6 +2669,7 @@ commit_exit:
 	    && !trx->ddl && !trx->internal
 	    && block->page.id().page_no() == index->page
 	    && !index->table->skip_alter_undo
+	    && !index->table->n_rec_locks
 	    && !trx->is_wsrep() /* FIXME: MDEV-24623 */
 	    && !thd_is_slave(trx->mysql_thd) /* FIXME: MDEV-24622 */) {
 		DEBUG_SYNC_C("empty_root_page_insert");
@@ -2679,6 +2680,10 @@ commit_exit:
 			if (err != DB_SUCCESS) {
 				trx->error_state = err;
 				goto commit_exit;
+			}
+
+			if (index->table->n_rec_locks) {
+				goto skip_bulk_insert;
 			}
 
 #ifdef BTR_CUR_HASH_ADAPT
@@ -2697,9 +2702,7 @@ commit_exit:
 		trx->bulk_insert = true;
 	}
 
-#ifndef DBUG_OFF
 skip_bulk_insert:
-#endif
 	if (UNIV_UNLIKELY(entry->info_bits != 0)) {
 		ut_ad(entry->is_metadata());
 		ut_ad(flags == BTR_NO_LOCKING_FLAG);
