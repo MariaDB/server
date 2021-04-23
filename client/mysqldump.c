@@ -1136,6 +1136,11 @@ static int get_options(int *argc, char ***argv)
                      (uchar*) my_strdup("mysql.time_zone_transition_type", MYF(MY_WME)))))
     return(EX_EOM);
 
+  if (opt_master_data && opt_use_gtid &&
+      my_hash_insert(&ignore_table,
+                     (uchar*) my_strdup("mysql.gtid_slave_pos", MYF(MY_WME))))
+    return(EX_EOM);
+
   *mysql_params->p_max_allowed_packet= opt_max_allowed_packet;
   *mysql_params->p_net_buffer_length= opt_net_buffer_length;
   if (debug_info_flag)

@@ -64,6 +64,7 @@ DROP TABLE t2;
 --exec $MYSQL_DUMP_SLAVE --compact --dump-slave=2 --gtid test
 
 
+INSERT INTO mysql.gtid_slave_pos VALUES(0,5,1,23);
 --echo *** Test mysqldump --master-data GTID functionality.
 --echo
 --echo 1. --master-data=1
@@ -83,6 +84,7 @@ DROP TABLE t2;
 --replace_regex /MASTER_LOG_POS=[0-9]+/MASTER_LOG_POS=BINLOG_START/
 --exec $MYSQL_DUMP_SLAVE --compact --master-data --single-transaction --gtid test
 
+DELETE FROM mysql.gtid_slave_pos WHERE domain_id=0 AND sub_id=5 AND server_id=1 AND seq_no=32;
 
 
 --source include/rpl_end.inc

@@ -46,23 +46,25 @@ CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 -- SET GLOBAL gtid_slave_pos='0-1-1001';
 -- CHANGE MASTER '' TO MASTER_USE_GTID=slave_pos;
 -- CHANGE MASTER '' TO MASTER_LOG_FILE='master-bin.000001', MASTER_LOG_POS=BINLOG_START;
+INSERT INTO mysql.gtid_slave_pos VALUES(0,5,1,23);
 *** Test mysqldump --master-data GTID functionality.
 
 1. --master-data=1
 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
-SET GLOBAL gtid_slave_pos='0-2-1003';
+SET GLOBAL gtid_slave_pos='0-2-1004';
 
 2. --master-data=2
 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 -- CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
--- SET GLOBAL gtid_slave_pos='0-2-1003';
+-- SET GLOBAL gtid_slave_pos='0-2-1004';
 
 3. --master-data --single-transaction
 
 -- CHANGE MASTER TO MASTER_LOG_FILE='slave-bin.000001', MASTER_LOG_POS=BINLOG_START;
 CHANGE MASTER TO MASTER_USE_GTID=slave_pos;
-SET GLOBAL gtid_slave_pos='0-2-1003';
+SET GLOBAL gtid_slave_pos='0-2-1004';
+DELETE FROM mysql.gtid_slave_pos WHERE domain_id=0 AND sub_id=5 AND server_id=1 AND seq_no=32;
 include/rpl_end.inc
