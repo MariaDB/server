@@ -3636,9 +3636,17 @@ public:
   {
     return server_status & SERVER_STATUS_IN_TRANS;
   }
-  inline bool fill_derived_tables()
+  inline bool fill_derived_table(TABLE_LIST *tl)
   {
-    return !stmt_arena->is_stmt_prepare() && !lex->only_view_structure();
+    /*
+      Do not fill derived table when
+      1. running a PREPARE command
+      2. this is a SHOW command and the table is a temp.table representing
+         the I_S table.
+    */
+    return !stmt_arena->is_stmt_prepare() &&  // (1)
+           !(lex->only_view_structure() && tl? tl->schema_table_reformed:false); // (2)
+
   }
   inline bool fill_information_schema_tables()
   {

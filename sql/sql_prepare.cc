@@ -1452,7 +1452,7 @@ static int mysql_test_update(Prepared_statement *stmt,
   }
 
   /*
-    thd->fill_derived_tables() is false here for sure (because it is
+    thd->fill_derived_table(table_list) is false here for sure (because it is
     preparation of PS, so we even do not check it).
   */
   if (table_list->handle_derived(thd->lex, DT_MERGE_FOR_INSERT))
