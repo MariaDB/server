@@ -605,7 +605,7 @@ static void trx_purge_truncate_history()
 			return;
 		}
 
-		const fil_space_t& space = *purge_sys.truncate.current;
+		fil_space_t& space = *purge_sys.truncate.current;
 		/* Undo tablespace always are a single file. */
 		ut_a(UT_LIST_GET_LEN(space.chain) == 1);
 		fil_node_t* file = UT_LIST_GET_FIRST(space.chain);
@@ -685,26 +685,47 @@ not_free:
 
 		log_free_check();
 
-		/* Adjust the tablespace metadata. */
-		if (!fil_truncate_prepare(space.id)) {
-			ib::error() << "Failed to find UNDO tablespace "
-				<< file->name;
-			return;
-		}
-
 		/* Re-initialize tablespace, in a single mini-transaction. */
 		mtr_t mtr;
 		const ulint size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 		mtr.start();
-		mtr.x_lock_space(purge_sys.truncate.current);
+		mtr.x_lock_space(&space);
+
+		/* Adjust the tablespace metadata. */
+		mysql_mutex_lock(&fil_system.mutex);
+		space.set_stopping(true);
+		space.is_being_truncated = true;
+		if (space.crypt_data) {
+			space.reacquire();
+			mysql_mutex_unlock(&fil_system.mutex);
+			fil_space_crypt_close_tablespace(&space);
+			space.release();
+		} else {
+			mysql_mutex_unlock(&fil_system.mutex);
+		}
+
+		uint i = 60;
+
+		while (space.referenced()) {
+			if (!--i) {
+				mtr.commit();
+				ib::error() << "Failed to freeze"
+					" UNDO tablespace "
+					    << file->name;
+				return;
+			}
+
+			std::this_thread::sleep_for(std::chrono::seconds(1));
+		}
+
 		/* Associate the undo tablespace with mtr.
 		During mtr::commit(), InnoDB can use the undo
 		tablespace object to clear all freed ranges */
-		mtr.set_named_space(purge_sys.truncate.current);
+		mtr.set_named_space(&space);
 		mtr.trim_pages(page_id_t(space.id, size));
-		fsp_header_init(purge_sys.truncate.current, size, &mtr);
+		fsp_header_init(&space, size, &mtr);
 		mysql_mutex_lock(&fil_system.mutex);
-		purge_sys.truncate.current->size = file->size = size;
+		space.size = file->size = size;
 		mysql_mutex_unlock(&fil_system.mutex);
 
 		buf_block_t* sys_header = trx_sysf_get(&mtr);
