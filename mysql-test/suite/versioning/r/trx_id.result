@@ -506,3 +506,9 @@ add period for system_time(`row_start`,`row_end`),
 modify x int after row_start,
 with system versioning;
 create or replace database test;
+#
+# MDEV-20842 Crash using versioning plugin functions after plugin was removed from server
+#
+uninstall plugin test_versioning;
+select trt_begin_ts(0);
+ERROR 42000: FUNCTION trt_begin_ts does not exist

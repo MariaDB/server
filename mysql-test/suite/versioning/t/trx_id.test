@@ -529,5 +529,11 @@ alter table t add `row_start` bigint unsigned as row start,
               modify x int after row_start,
               with system versioning;
 
-
 create or replace database test;
+
+--echo #
+--echo # MDEV-20842 Crash using versioning plugin functions after plugin was removed from server
+--echo #
+uninstall plugin test_versioning;
+--error ER_SP_DOES_NOT_EXIST
+select trt_begin_ts(0);

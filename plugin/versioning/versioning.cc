@@ -175,6 +175,7 @@ static int versioning_plugin_init(void *p __attribute__ ((unused)))
 static int versioning_plugin_deinit(void *p __attribute__ ((unused)))
 {
   DBUG_ENTER("versioning_plugin_deinit");
+  (void) item_create_remove(func_array);
   DBUG_RETURN(0);
 }
 
