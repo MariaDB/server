@@ -1013,7 +1013,7 @@ int mysql_multi_delete_prepare(THD *thd)
     Multi-delete can't be constructed over-union => we always have
     single SELECT on top and have to check underlying SELECTs of it
   */
-  lex->select_lex.exclude_from_table_unique_test= TRUE;
+  lex->select_lex.set_unique_exclude();
   /* Fix tables-to-be-deleted-from list to point at opened tables */
   for (target_tbl= (TABLE_LIST*) aux_tables;
        target_tbl;

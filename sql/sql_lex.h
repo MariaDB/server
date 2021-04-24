@@ -1354,6 +1354,8 @@ public:
   bool save_leaf_tables(THD *thd);
   bool save_prep_leaf_tables(THD *thd);
 
+  void set_unique_exclude();
+
   bool is_merged_child_of(st_select_lex *ancestor);
 
   /*
