@@ -6261,16 +6261,6 @@ no_such_table:
 
 	innobase_copy_frm_flags_from_table_share(ib_table, table->s);
 
-	const bool bk_thread = THDVAR(thd, background_thread);
-	/* No point to init any statistics if tablespace is still encrypted
-	or if table is being opened by background thread */
-	if (bk_thread) {
-	} else if (ib_table->is_readable()) {
-		dict_stats_init(ib_table);
-	} else {
-		ib_table->stat_initialized = 1;
-	}
-
 	MONITOR_INC(MONITOR_TABLE_OPEN);
 
 	bool	no_tablespace = false;
@@ -6516,7 +6506,7 @@ no_such_table:
 		}
 	}
 
-	if (!bk_thread) {
+	if (!THDVAR(thd, background_thread)) {
 		info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 	}
 
@@ -14399,6 +14389,10 @@ ha_innobase::info_low(
 	ib_table = m_prebuilt->table;
 	DBUG_ASSERT(ib_table->get_ref_count() > 0);
 
+	if (!ib_table->is_readable()) {
+		ib_table->stat_initialized = true;
+	}
+
 	if (flag & HA_STATUS_TIME) {
 		if (is_analyze || innobase_stats_on_metadata) {
 
@@ -14448,6 +14442,8 @@ ha_innobase::info_low(
 
 		stats.update_time = (ulong) ib_table->update_time;
 	}
+
+	dict_stats_init(ib_table);
 
 	if (flag & HA_STATUS_VARIABLE) {
 
