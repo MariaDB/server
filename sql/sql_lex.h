@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation
+   Copyright (c) 2010, 2021, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4009,6 +4009,23 @@ public:
         return true;
     }
     return false;
+  }
+
+  bool create_like() const
+  {
+    DBUG_ASSERT(!create_info.like() || !select_lex.item_list.elements);
+    return create_info.like();
+  }
+
+  bool create_select() const
+  {
+    DBUG_ASSERT(!create_info.like() || !select_lex.item_list.elements);
+    return select_lex.item_list.elements;
+  }
+
+  bool create_simple() const
+  {
+    return !create_like() && !create_select();
   }
 
   SELECT_LEX *exclude_last_select();
