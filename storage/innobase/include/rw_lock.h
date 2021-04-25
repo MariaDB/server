@@ -161,13 +161,14 @@ public:
   bool read_unlock()
   {
     auto l= lock.fetch_sub(1, std::memory_order_release);
+    DBUG_ASSERT(!(l & WRITER)); /* no write lock must have existed */
 #ifdef SUX_LOCK_GENERIC
     DBUG_ASSERT(~(WRITER_PENDING | UPDATER) & l); /* at least one read lock */
+    return (~(WRITER_PENDING | UPDATER) & l) == 1;
 #else /* SUX_LOCK_GENERIC */
     DBUG_ASSERT(~(WRITER_PENDING) & l); /* at least one read lock */
-#endif /* SUX_LOCK_GENERIC */
-    DBUG_ASSERT(!(l & WRITER)); /* no write lock must have existed */
     return (~WRITER_PENDING & l) == 1;
+#endif /* SUX_LOCK_GENERIC */
   }
 #ifdef SUX_LOCK_GENERIC
   /** Release an update lock */

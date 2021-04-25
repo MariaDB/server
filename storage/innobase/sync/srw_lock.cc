@@ -111,13 +111,13 @@ void ssux_lock_low::update_lock(uint32_t l)
 {
   do
   {
-    if (l == WRITER_WAITING)
+    if ((l | UPDATER) == (UPDATER | WRITER_WAITING))
     {
     wake_writer:
       pthread_mutex_lock(&mutex);
       for (;;)
       {
-        if (l == WRITER_WAITING)
+        if ((l | UPDATER) == (UPDATER | WRITER_WAITING))
           pthread_cond_signal(&cond_exclusive);
         l= value();
         if (!(l & WRITER_PENDING))
@@ -133,7 +133,7 @@ void ssux_lock_low::update_lock(uint32_t l)
         ut_delay(srv_spin_wait_delay);
         if (update_trylock(l))
           return;
-        else if (l == WRITER_WAITING)
+        else if ((l | UPDATER) == (UPDATER | WRITER_WAITING))
           goto wake_writer;
       }
 
