@@ -382,10 +382,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   }
 
-  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-      thd->lex->sql_command == SQLCOM_DELETE_MULTI)
-    thd->save_prep_leaf_list= TRUE;
-
   arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
 
   if (!derived->merged_for_insert || 
@@ -459,6 +455,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->on_expr= expr;
       derived->prep_on_expr= expr->copy_andor_structure(thd);
     }
+    thd->where= "on clause";
     if (derived->on_expr &&
         derived->on_expr->fix_fields_if_needed_for_bool(thd, &derived->on_expr))
     {
