@@ -121,6 +121,7 @@ is_local_ip()
   $get_addr_bin | grep -F "$address" > /dev/null
 }
 
+
 STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
 rm -f "$STUNNEL_CONF"
 
@@ -210,26 +211,105 @@ FILTER="-f '- /lost+found'
         -f '+ /*/'
         -f '- /*'"
 
+# old-style SSL config
 SSTKEY=$(parse_cnf sst tkey "")
 SSTCERT=$(parse_cnf sst tcert "")
-STUNNEL=""
-if [ -f "$SSTKEY" ] && [ -f "$SSTCERT" ] && wsrep_check_programs stunnel
+SSTCA=$(parse_cnf sst tca "")
+SSLMODE=$(parse_cnf sst ssl-mode "")
+
+# verify only if it was explicitly required in SST section or tca is set
+if [ -z "$SSLMODE" -a -n "$SSTCA" ]
 then
+    SSLMODE="VERIFY_CA"
+fi
+
+check_server_ssl_config()
+{
+    local section=$1
+    SSTKEY=$(parse_cnf $section ssl-key "")
+    SSTCERT=$(parse_cnf $section ssl-cert "")
+    SSTCA=$(parse_cnf $section ssl-ca "")
+}
+
+if [ -z "$SSTKEY" -a -z "$SSTCERT" ]
+then
+    # no old-style SSL config in [sst] check for new one
+    check_server_ssl_config "sst"
+    if [ -z "$SSLMODE" -a -n "$SSTCA" ]
+    then
+        SSLMODE="VERIFY_CA"
+    fi
+
+    if [ -z "$SSTKEY" -a -z "$SSTCERT" ]
+    then
+        check_server_ssl_config "mysqld.$WSREP_SST_OPT_SUFFIX_VALUE"
+        if [ -z "$SSTKEY" -a -z "$SSTCERT" ]
+        then
+            check_server_ssl_config "mysqld"
+        fi
+    fi
+fi
+
+# require SSL by default if SSL key and cert are present
+if [ -f "$SSTKEY" -a -f "$SSTCERT" -a -z "$SSLMODE" ]
+then
+    SSLMODE="REQUIRED"
+fi
+
+if [ -f "$SSTCA" ]
+then
+    CAFILE_OPT="CAfile = $SSTCA"
+else
+    CAFILE_OPT=""
+fi
+
+if [[ ${SSLMODE} = *VERIFY* ]]
+then
+    case $SSLMODE in
+    "VERIFY_IDENTITY") 
+        VERIFY_OPT="verifyPeer = yes"
+        ;;
+    "VERIFY_CA") 
+        VERIFY_OPT="verifyChain = yes"
+        ;;
+    *)
+        wsrep_log_error "Unrecognized ssl-mode option: '$SSLMODE'"
+        exit 22 # EINVAL
+    esac
+
+    if [ -z "$CAFILE_OPT" ]
+    then
+        wsrep_log_error "Can't have ssl-mode=$SSLMODE without CA file"
+        exit 22 # EINVAL
+    fi
+else
+    VERIFY_OPT=""
+fi
+
+
+STUNNEL=""
+if [ -n "$SSLMODE" -a "$SSLMODE" != "DISABLED" ] && wsrep_check_programs stunnel
+then
+    wsrep_log_info "Using stunnel for SSL encryption: CAfile: $SSTCA, SSLMODE: $SSLMODE"
     STUNNEL="stunnel ${STUNNEL_CONF}"
 fi
+
+readonly SECRET_TAG="secret"
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
 then
 
 cat << EOF > "$STUNNEL_CONF"
-CApath = ${SSTCERT%/*}
+key = $SSTKEY
+cert = $SSTCERT
+${CAFILE_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
 client = yes
 connect = ${WSREP_SST_OPT_ADDR%/*}
 TIMEOUTclose = 0
-verifyPeer = yes
+${VERIFY_OPT}
 EOF
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
@@ -301,7 +381,7 @@ EOF
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
-        eval rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+        eval rsync ${STUNNEL:+--rsh=\"$STUNNEL\"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT ${FILTER} "$WSREP_SST_OPT_DATA/" \
@@ -383,6 +463,12 @@ EOF
     echo "continue" # now server can resume updating data
 
     echo "$STATE" > "$MAGIC_FILE"
+
+    if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
+        # Let joiner know that we know its secret
+        echo "$SECRET_TAG ${WSREP_SST_OPT_REMOTE_PSWD}" >> ${MAGIC_FILE}
+    fi
+
     rsync ${STUNNEL:+--rsh="$STUNNEL"} \
           --archive --quiet --checksum "$MAGIC_FILE" rsync://$WSREP_SST_OPT_ADDR
 
@@ -479,6 +565,7 @@ EOF
       cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
 cert = $SSTCERT
+${CAFILE_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
@@ -498,7 +585,26 @@ EOF
         sleep 0.2
     done
 
-    echo "ready $WSREP_SST_OPT_HOST:$RSYNC_PORT/$MODULE"
+    if [[ "${SSLMODE}" = *"VERIFY"* ]]
+    then # backward-incompatible behavior
+        if [ -n "$SSTCERT" ]
+        then
+            # find out my Common Name
+            wsrep_check_programs openssl
+            CN=$(openssl x509 -noout -subject -in "$SSTCERT" | \
+                 tr "," "\n" | grep "CN =" | cut -d= -f2 | sed s/^\ // | \
+                 sed s/\ %//)
+        else
+            CN=""
+        fi
+        MY_SECRET=$(wsrep_gen_secret)
+        # Add authentication data to address
+        ADDR="$CN:$MY_SECRET@$WSREP_SST_OPT_HOST"
+    else
+        MY_SECRET="" # for check down in recv_joiner()
+        ADDR=$WSREP_SST_OPT_HOST
+    fi # tmode == *VERIFY*
+    echo "ready $ADDR:$RSYNC_PORT/$MODULE"
 
     # wait for SST to complete by monitoring magic file
     while [ ! -r "$MAGIC_FILE" ] && check_pid "$RSYNC_PID" && \
@@ -542,6 +648,18 @@ EOF
     fi
     if [ -r "$MAGIC_FILE" ]
     then
+        # check donor supplied secret
+        SECRET=$(grep "$SECRET_TAG " ${MAGIC_FILE} 2>/dev/null | cut -d ' ' -f 2)
+        if [[ $SECRET != $MY_SECRET ]]; then
+            wsrep_log_error "Donor does not know my secret!"
+            wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
+            exit 32
+        fi
+
+        # remove secret from magic file
+        grep -v "$SECRET_TAG " ${MAGIC_FILE} > ${MAGIC_FILE}.new
+        mv ${MAGIC_FILE}.new ${MAGIC_FILE}
+
         # UUID:seqno & wsrep_gtid_domain_id is received here.
         cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
     else
