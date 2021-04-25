@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1128,14 +1128,11 @@ int mysql_multi_delete_prepare(THD *thd)
                                     FALSE, DELETE_ACL, SELECT_ACL, FALSE))
     DBUG_RETURN(TRUE);
 
-  if (lex->first_select_lex()->handle_derived(thd->lex, DT_MERGE))
-    DBUG_RETURN(TRUE);
-
   /*
     Multi-delete can't be constructed over-union => we always have
     single SELECT on top and have to check underlying SELECTs of it
   */
-  lex->first_select_lex()->exclude_from_table_unique_test= TRUE;
+  lex->first_select_lex()->set_unique_exclude();
   /* Fix tables-to-be-deleted-from list to point at opened tables */
   for (target_tbl= (TABLE_LIST*) aux_tables;
        target_tbl;
@@ -1158,6 +1155,12 @@ int mysql_multi_delete_prepare(THD *thd)
                target_tbl->table_name.str, "DELETE");
       DBUG_RETURN(TRUE);
     }
+  }
+
+  for (target_tbl= (TABLE_LIST*) aux_tables;
+       target_tbl;
+       target_tbl= target_tbl->next_local)
+  {
     /*
       Check that table from which we delete is not used somewhere
       inside subqueries/view.
@@ -1202,12 +1205,6 @@ multi_delete::prepare(List<Item> &values, SELECT_LEX_UNIT *u)
   unit= u;
   do_delete= 1;
   THD_STAGE_INFO(thd, stage_deleting_from_main_table);
-  SELECT_LEX *select_lex= u->first_select();
-  if (select_lex->first_cond_optimization)
-  {
-    if (select_lex->handle_derived(thd->lex, DT_MERGE))
-      DBUG_RETURN(TRUE);
-  }
   DBUG_RETURN(0);
 }
 

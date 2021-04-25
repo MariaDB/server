@@ -1710,15 +1710,8 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
     call in setup_tables()).
   */
 
-  if (setup_tables_and_check_access(thd, &select_lex->context,
-        &select_lex->top_join_list, table_list, select_lex->leaf_tables,
-        FALSE, UPDATE_ACL, SELECT_ACL, FALSE))
-    DBUG_RETURN(1);
-
-  if (select_lex->handle_derived(thd->lex, DT_MERGE))
-    DBUG_RETURN(1);
-
-  if (thd->lex->save_prep_leaf_tables())
+  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
+                   table_list, select_lex->leaf_tables, FALSE, TRUE))
     DBUG_RETURN(1);
 
   List<Item> *fields= &lex->first_select_lex()->item_list;
@@ -1944,8 +1937,15 @@ bool mysql_multi_update(THD *thd, TABLE_LIST *table_list, List<Item> *fields,
     DBUG_RETURN(TRUE);
   }
 
+  if ((*result)->init(thd))
+    DBUG_RETURN(1);
+
   thd->abort_on_warning= !ignore && thd->is_strict_mode();
   List<Item> total_list;
+
+  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
+                   table_list, select_lex->leaf_tables, FALSE, FALSE))
+    DBUG_RETURN(1);
 
   if (select_lex->vers_setup_conds(thd, table_list))
     DBUG_RETURN(1);
@@ -1988,6 +1988,24 @@ multi_update::multi_update(THD *thd_arg, TABLE_LIST *table_list,
 }
 
 
+bool multi_update::init(THD *thd)
+{
+  table_map tables_to_update= get_table_map(fields);
+  List_iterator_fast<TABLE_LIST> li(*leaves);
+  TABLE_LIST *tbl;
+  while ((tbl =li++))
+  {
+    if (tbl->is_jtbm())
+      continue;
+    if (!(tbl->table->map & tables_to_update))
+      continue;
+    if (updated_leaves.push_back(tbl, thd->mem_root))
+      return true;
+  }
+  return false;
+}
+
+
 /*
   Connect fields with tables and create list of tables that are updated
 */
@@ -2004,7 +2022,7 @@ int multi_update::prepare(List<Item> &not_used_values,
   List_iterator_fast<Item> value_it(*values);
   uint i, max_fields;
   uint leaf_table_count= 0;
-  List_iterator<TABLE_LIST> ti(*leaves);
+  List_iterator<TABLE_LIST> ti(updated_leaves);
   DBUG_ENTER("multi_update::prepare");
 
   if (prepared)

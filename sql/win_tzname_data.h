@@ -12,6 +12,7 @@
 {L"US Mountain Standard Time","America/Phoenix"},
 {L"Mountain Standard Time (Mexico)","America/Chihuahua"},
 {L"Mountain Standard Time","America/Denver"},
+{L"Yukon Standard Time","America/Whitehorse"},
 {L"Central America Standard Time","America/Guatemala"},
 {L"Central Standard Time","America/Chicago"},
 {L"Easter Island Standard Time","Pacific/Easter"},

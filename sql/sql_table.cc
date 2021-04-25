@@ -74,7 +74,9 @@ static int copy_data_between_tables(THD *, TABLE *,TABLE *,
                                     Alter_info::enum_enable_or_disable,
                                     Alter_table_ctx *);
 static int mysql_prepare_create_table(THD *, HA_CREATE_INFO *, Alter_info *,
-                                      uint *, handler *, KEY **, uint *, int);
+                                      uint *, handler *, KEY **, uint *, int,
+                                      const LEX_CSTRING db,
+                                      const LEX_CSTRING table_name);
 static uint blob_length_by_type(enum_field_types type);
 static bool fix_constraints_names(THD *, List<Virtual_column_info> *,
                                   const HA_CREATE_INFO *);
@@ -1824,7 +1826,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
     if (mysql_prepare_create_table(lpt->thd, lpt->create_info, lpt->alter_info,
                                    &lpt->db_options, lpt->table->file,
                                    &lpt->key_info_buffer, &lpt->key_count,
-                                   C_ALTER_TABLE))
+                                   C_ALTER_TABLE, lpt->db, lpt->table_name))
     {
       DBUG_RETURN(TRUE);
     }
@@ -3392,7 +3394,8 @@ static int
 mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                            Alter_info *alter_info, uint *db_options,
                            handler *file, KEY **key_info_buffer,
-                           uint *key_count, int create_table_mode)
+                           uint *key_count, int create_table_mode,
+                           const LEX_CSTRING db, const LEX_CSTRING table_name)
 {
   const char	*key_name;
   Create_field	*sql_field,*dup_field;
@@ -3407,6 +3410,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   uint total_uneven_bit_length= 0;
   int select_field_count= C_CREATE_SELECT(create_table_mode);
   bool tmp_table= create_table_mode == C_ALTER_TABLE;
+  const bool create_simple= thd->lex->create_simple();
   bool is_hash_field_needed= false;
   const Column_derived_attributes dattr(create_info->default_table_charset);
   const Column_bulk_alter_attributes
@@ -4256,6 +4260,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
   create_info->null_bits= null_fields;
 
   /* Check fields. */
+  Item::Check_table_name_prm walk_prm(db, table_name);
   it.rewind();
   while ((sql_field=it++))
   {
@@ -4310,6 +4315,37 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
                           sql_field->field_name.str);
       DBUG_RETURN(TRUE);
     }
+
+    if (create_simple)
+    {
+      /*
+        NOTE: we cannot do this in check_vcol_func_processor() as there is already
+        no table name qualifier in expression.
+      */
+      if (sql_field->vcol_info && sql_field->vcol_info->expr &&
+          sql_field->vcol_info->expr->walk(&Item::check_table_name_processor,
+                                           false, (void *) &walk_prm))
+      {
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "GENERATED ALWAYS");
+        DBUG_RETURN(TRUE);
+      }
+
+      if (sql_field->default_value &&
+          sql_field->default_value->expr->walk(&Item::check_table_name_processor,
+                                              false, (void *) &walk_prm))
+      {
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "DEFAULT");
+        DBUG_RETURN(TRUE);
+      }
+
+      if (sql_field->check_constraint &&
+          sql_field->check_constraint->expr->walk(&Item::check_table_name_processor,
+                                                  false, (void *) &walk_prm))
+      {
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "CHECK");
+        DBUG_RETURN(TRUE);
+      }
+    }
   }
 
   /* Check table level constraints */
@@ -4319,6 +4355,12 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     Virtual_column_info *check;
     while ((check= c_it++))
     {
+      if (create_simple && check->expr->walk(&Item::check_table_name_processor, false,
+                            (void *) &walk_prm))
+      {
+        my_error(ER_BAD_FIELD_ERROR, MYF(0), walk_prm.field.c_ptr(), "CHECK");
+        DBUG_RETURN(TRUE);
+      }
       if (!check->name.length || check->automatic_name)
         continue;
 
@@ -4844,7 +4886,8 @@ handler *mysql_create_frm_image(THD *thd, const LEX_CSTRING &db,
   }
 
   if (mysql_prepare_create_table(thd, create_info, alter_info, &db_options,
-                                 file, key_info, key_count, create_table_mode))
+                                 file, key_info, key_count,
+                                 create_table_mode, db, table_name))
     goto err;
   create_info->table_options=db_options;
 
@@ -7320,13 +7363,15 @@ bool mysql_compare_tables(TABLE *table,
   Alter_info tmp_alter_info(*alter_info, thd->mem_root);
   uint db_options= 0; /* not used */
   KEY *key_info_buffer= NULL;
+  LEX_CSTRING db= { table->s->db.str, table->s->db.length };
+  LEX_CSTRING table_name= { table->s->db.str, table->s->table_name.length };
 
   /* Create the prepared information. */
   int create_table_mode= table->s->tmp_table == NO_TMP_TABLE ?
                            C_ORDINARY_CREATE : C_ALTER_TABLE;
   if (mysql_prepare_create_table(thd, create_info, &tmp_alter_info,
                                  &db_options, table->file, &key_info_buffer,
-                                 &key_count, create_table_mode))
+                                 &key_count, create_table_mode, db, table_name))
     DBUG_RETURN(1);
 
   /* Some very basic checks. */

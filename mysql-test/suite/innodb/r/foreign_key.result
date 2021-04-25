@@ -801,6 +801,17 @@ ERROR 23000: Duplicate entry '10' for key 'ind9'
 SET FOREIGN_KEY_CHECKS= 0;
 ALTER TABLE t1 ADD FOREIGN KEY (a) REFERENCES t1 (pk);
 DROP TABLE t1;
+SET FOREIGN_KEY_CHECKS= 1;
+#
+# MDEV-23455 Hangs + Sig11 in unknown location(s) due to single complex FK query
+#
+Parsing foreign keys 1...
+ERROR HY000: Can't create table `test`.`t0` (errno: 150 "Foreign key constraint is incorrectly formed")
+Parsing foreign keys 2...
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+Parsing foreign keys 3...
+ERROR HY000: Can't create table `test`.`t1` (errno: 150 "Foreign key constraint is incorrectly formed")
+Parsing foreign keys 4...
 # End of 10.2 tests
 CREATE TABLE t1 (a GEOMETRY, INDEX(a(8)),
 FOREIGN KEY (a) REFERENCES x (xx)) ENGINE=InnoDB;

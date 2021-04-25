@@ -81,9 +81,9 @@ is alphabetically the same as the corresponding BLOB column in the clustered
 index record.
 NOTE: the comparison is NOT done as a binary comparison, but character
 fields are compared with collation!
-@return TRUE if the columns are equal */
+@return whether the columns are equal */
 static
-ibool
+bool
 row_sel_sec_rec_is_for_blob(
 /*========================*/
 	ulint		mtype,		/*!< in: main type */
@@ -102,19 +102,18 @@ row_sel_sec_rec_is_for_blob(
 	const byte*	sec_field,	/*!< in: column in secondary index */
 	ulint		sec_len,	/*!< in: length of sec_field */
 	ulint		prefix_len,	/*!< in: index column prefix length
-					in bytes */
+					in bytes, or 0 for full column */
 	dict_table_t*	table)		/*!< in: table */
 {
 	ulint	len;
-	byte	buf[REC_VERSION_56_MAX_INDEX_COL_LEN];
+	byte	buf[REC_VERSION_56_MAX_INDEX_COL_LEN + 1];
 
 	/* This function should never be invoked on tables in
 	ROW_FORMAT=REDUNDANT or ROW_FORMAT=COMPACT, because they
 	should always contain enough prefix in the clustered index record. */
 	ut_ad(dict_table_has_atomic_blobs(table));
 	ut_a(clust_len >= BTR_EXTERN_FIELD_REF_SIZE);
-	ut_ad(prefix_len >= sec_len);
-	ut_ad(prefix_len > 0);
+	ut_ad(!prefix_len || prefix_len >= sec_len);
 	ut_a(prefix_len <= sizeof buf);
 
 	if (!memcmp(clust_field + clust_len - BTR_EXTERN_FIELD_REF_SIZE,
@@ -123,11 +122,12 @@ row_sel_sec_rec_is_for_blob(
 		This record should only be seen by
 		recv_recovery_rollback_active() or any
 		TRX_ISO_READ_UNCOMMITTED transactions. */
-		return(FALSE);
+		return false;
 	}
 
 	len = btr_copy_externally_stored_field_prefix(
-		buf, prefix_len, table->space->zip_size(),
+		buf, prefix_len ? prefix_len : sizeof buf,
+		table->space->zip_size(),
 		clust_field, clust_len);
 
 	if (len == 0) {
@@ -136,11 +136,18 @@ row_sel_sec_rec_is_for_blob(
 		referring to this clustered index record, because
 		btr_free_externally_stored_field() is called after all
 		secondary index entries of the row have been purged. */
-		return(FALSE);
+		return false;
 	}
 
-	len = dtype_get_at_most_n_mbchars(prtype, mbminlen, mbmaxlen,
-					  prefix_len, len, (const char*) buf);
+	if (prefix_len) {
+		len = dtype_get_at_most_n_mbchars(prtype, mbminlen, mbmaxlen,
+						  prefix_len, len,
+						  reinterpret_cast<const char*>
+						  (buf));
+	} else if (len >= sizeof buf) {
+		ut_ad("too long column" == 0);
+		return false;
+	}
 
 	return(!cmp_data_data(mtype, prtype, buf, len, sec_field, sec_len));
 }
@@ -217,12 +224,13 @@ row_sel_sec_rec_is_for_clust_rec(
 		ulint			clust_pos = 0;
 		ulint			clust_len = 0;
 		ulint			len;
-		bool			is_virtual;
 
 		ifield = dict_index_get_nth_field(sec_index, i);
 		col = dict_field_get_col(ifield);
 
-		is_virtual = col->is_virtual();
+		sec_field = rec_get_nth_field(sec_rec, sec_offs, i, &sec_len);
+
+		const bool is_virtual = col->is_virtual();
 
 		/* For virtual column, its value will need to be
 		reconstructed from base column in cluster index */
@@ -254,43 +262,55 @@ row_sel_sec_rec_is_for_clust_rec(
 				innobase_report_computed_value_failed(row);
 				return DB_COMPUTE_VALUE_FAILED;
 			}
-			clust_len = vfield->len;
+			len = clust_len = vfield->len;
 			clust_field = static_cast<byte*>(vfield->data);
 		} else {
 			clust_pos = dict_col_get_clust_pos(col, clust_index);
+
 			clust_field = rec_get_nth_cfield(
 				clust_rec, clust_index, clust_offs,
 				clust_pos, &clust_len);
-		}
+			if (clust_len == UNIV_SQL_NULL) {
+				if (sec_len == UNIV_SQL_NULL) {
+					continue;
+				}
+				return DB_SUCCESS;
+			}
+			if (sec_len == UNIV_SQL_NULL) {
+				return DB_SUCCESS;
+			}
 
-		sec_field = rec_get_nth_field(sec_rec, sec_offs, i, &sec_len);
-
-		len = clust_len;
-
-		if (ifield->prefix_len > 0 && len != UNIV_SQL_NULL
-		    && sec_len != UNIV_SQL_NULL && !is_virtual) {
-
+			len = clust_len;
 			if (rec_offs_nth_extern(clust_offs, clust_pos)) {
 				len -= BTR_EXTERN_FIELD_REF_SIZE;
 			}
 
-			len = dtype_get_at_most_n_mbchars(
-				col->prtype, col->mbminlen, col->mbmaxlen,
-				ifield->prefix_len, len, (char*) clust_field);
-
-			if (rec_offs_nth_extern(clust_offs, clust_pos)
-			    && len < sec_len) {
-				if (!row_sel_sec_rec_is_for_blob(
-					    col->mtype, col->prtype,
-					    col->mbminlen, col->mbmaxlen,
-					    clust_field, clust_len,
-					    sec_field, sec_len,
-					    ifield->prefix_len,
-					    clust_index->table)) {
-					return DB_SUCCESS;
+			if (ulint prefix_len = ifield->prefix_len) {
+				len = dtype_get_at_most_n_mbchars(
+					col->prtype, col->mbminlen,
+					col->mbmaxlen, prefix_len, len,
+					reinterpret_cast<const char*>(
+						clust_field));
+				if (len < sec_len) {
+					goto check_for_blob;
 				}
+			} else {
+check_for_blob:
+				if (rec_offs_nth_extern(clust_offs,
+							clust_pos)) {
+					if (!row_sel_sec_rec_is_for_blob(
+						    col->mtype, col->prtype,
+						    col->mbminlen,
+						    col->mbmaxlen,
+						    clust_field, clust_len,
+						    sec_field, sec_len,
+						    prefix_len,
+						    clust_index->table)) {
+						return DB_SUCCESS;
+					}
 
-				continue;
+					continue;
+				}
 			}
 		}
 
