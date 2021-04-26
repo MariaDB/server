@@ -765,15 +765,15 @@ void lex_end(LEX *lex)
   DBUG_ENTER("lex_end");
   DBUG_PRINT("enter", ("lex: %p", lex));
 
-  lex_end_stage1(lex);
-  lex_end_stage2(lex);
+  lex_unlock_plugins(lex);
+  lex_end_nops(lex);
 
   DBUG_VOID_RETURN;
 }
 
-void lex_end_stage1(LEX *lex)
+void lex_unlock_plugins(LEX *lex)
 {
-  DBUG_ENTER("lex_end_stage1");
+  DBUG_ENTER("lex_unlock_plugins");
 
   /* release used plugins */
   if (lex->plugins.elements) /* No function call and no mutex if no plugins. */
@@ -782,33 +782,23 @@ void lex_end_stage1(LEX *lex)
                        lex->plugins.elements);
   }
   reset_dynamic(&lex->plugins);
-
-  if (lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE)
-  {
-    /*
-      Don't delete lex->sphead, it'll be needed for EXECUTE.
-      Note that of all statements that populate lex->sphead
-      only SQLCOM_COMPOUND can be PREPAREd
-    */
-    DBUG_ASSERT(lex->sphead == 0 || lex->sql_command == SQLCOM_COMPOUND);
-  }
-  else
-  {
-    sp_head::destroy(lex->sphead);
-    lex->sphead= NULL;
-  }
-
   DBUG_VOID_RETURN;
 }
 
 /*
+  Don't delete lex->sphead, it'll be needed for EXECUTE.
+  Note that of all statements that populate lex->sphead
+  only SQLCOM_COMPOUND can be PREPAREd
+
   MASTER INFO parameters (or state) is normally cleared towards the end
   of a statement. But in case of PS, the state needs to be preserved during
   its lifetime and should only be cleared on PS close or deallocation.
 */
-void lex_end_stage2(LEX *lex)
+void lex_end_nops(LEX *lex)
 {
-  DBUG_ENTER("lex_end_stage2");
+  DBUG_ENTER("lex_end_nops");
+  sp_head::destroy(lex->sphead);
+  lex->sphead= NULL;
 
   /* Reset LEX_MASTER_INFO */
   lex->mi.reset(lex->sql_command == SQLCOM_CHANGE_MASTER);

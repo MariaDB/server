@@ -1,3 +1,10 @@
+if (!$QUERY_RESPONSE_TIME_SO) {
+  skip Needs query_response_time loadable plugin;
+}
+if (!$HA_ARCHIVE_SO) {
+  skip Needs Archive loadable plugin;
+}
+
 --echo #
 --echo # MDEV-5345 - Deadlock between mysql_change_user(), SHOW VARIABLES and
 --echo #             INSTALL PLUGIN
@@ -54,3 +61,31 @@ disconnect con2;
 USE test;
 DROP PROCEDURE p_install;
 DROP PROCEDURE p_show_vars;
+
+--echo #
+--echo # Bug#29363867: LOST CONNECTION TO MYSQL SERVER DURING QUERY
+--echo #
+
+--echo ## prepared SET with a plugin variable prevents uninstall
+install plugin query_response_time soname 'query_response_time';
+prepare s from 'set global query_response_time_range_base=16';
+select plugin_status from information_schema.plugins where plugin_name='query_response_time';
+uninstall plugin query_response_time;
+execute s;
+execute s;
+select plugin_status from information_schema.plugins where plugin_name='query_response_time';
+deallocate prepare s;
+select plugin_status from information_schema.plugins where plugin_name='query_response_time';
+
+--echo ## prepared SET mentioning a plugin otherwise does not prevent uninstall
+install plugin archive soname 'ha_archive';
+create table t1 (a int) engine=archive;
+insert t1 values (1),(2),(3);
+prepare s from 'set session auto_increment_increment=(select count(*) from t1)';
+flush tables;
+select plugin_status from information_schema.plugins where plugin_name='archive';
+uninstall plugin archive;
+select plugin_status from information_schema.plugins where plugin_name='archive';
+--error ER_UNKNOWN_STORAGE_ENGINE
+execute s;
+drop table t1;
