@@ -7537,6 +7537,7 @@ static bool mysql_inplace_alter_table(THD *thd,
     goto rollback;
   }
 
+  DEBUG_SYNC(thd, "alter_table_inplace_after_commit");
   close_all_tables_for_name(thd, table->s,
                             alter_ctx->is_table_renamed() ?
                             HA_EXTRA_PREPARE_FOR_RENAME :
