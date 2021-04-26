@@ -19,7 +19,7 @@ DELIMITER $$
 
 CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
         IN in_db VARCHAR(64), IN in_table VARCHAR(64),
-        OUT out_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY')
+        OUT out_exists ENUM('', 'BASE TABLE', 'VIEW', 'TEMPORARY', 'SEQUENCE')
     )
     COMMENT '
              Description
@@ -41,10 +41,11 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
 
              out_exists ENUM('''', ''BASE TABLE'', ''VIEW'', ''TEMPORARY''):
                The return value: whether the table exists. The value is one of:
-                 * ''''           - the table does not exist neither as a base table, view, nor temporary table.
+                 * ''''           - the table does not exist neither as a base table, view, sequence nor temporary table.
                  * ''BASE TABLE'' - the table name exists as a permanent base table table.
                  * ''VIEW''       - the table name exists as a view.
                  * ''TEMPORARY''  - the table name exists as a temporary table.
+                 * ''SEQUENCE''   - the table name exists as a sequence.
 
              Example
              --------
