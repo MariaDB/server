@@ -12,6 +12,7 @@ Note	1003	select master_pos_wait('master-bin.999999',0,2) AS `master_pos_wait('m
 select master_pos_wait('master-bin.999999',0);
 connection slave1;
 stop slave sql_thread;
+include/wait_for_slave_sql_to_stop.inc
 connection slave;
 master_pos_wait('master-bin.999999',0)
 NULL

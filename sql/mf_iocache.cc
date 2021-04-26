@@ -26,7 +26,7 @@
   Used instead of FILE when reading or writing whole files.
   This will make mf_rec_cache obsolete.
   One can change info->pos_in_file to a higher value to skip bytes in file if
-  also info->rc_pos is set to info->rc_end.
+  also info->read_pos is set to info->read_end.
   If called through open_cached_file(), then the temporary file will
   only be created if a write exeeds the file buffer or if one calls
   flush_io_cache().  

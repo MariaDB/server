@@ -4,6 +4,6 @@
 # Test of manual relay log rotation with FLUSH LOGS.
 
 # Requires statement logging
-source include/have_binlog_format_row.inc;
+--source include/have_binlog_format_row.inc
 
-source extra/rpl_tests/rpl_max_relay_size.test;
+--source extra/rpl_tests/rpl_max_relay_size.test

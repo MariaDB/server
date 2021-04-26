@@ -717,3 +717,17 @@ while ($N)
 }
 
 DROP TABLE t;
+
+--echo #
+--echo # MDEV-25295 Aborted FTS_DOC_ID_INDEX considered as
+--echo # 	existing FTS_DOC_ID_INDEX during DDL
+--echo #
+SET sql_mode='';
+CREATE TABLE t1 (FTS_DOC_ID BIGINT UNSIGNED NOT NULL,title CHAR(1),body TEXT)engine=innodb;
+INSERT INTO t1 (FTS_DOC_ID,title,body)VALUES(1,0,0), (1,0,0);
+--error ER_DUP_ENTRY
+CREATE FULLTEXT INDEX idx1 ON t1 (title,body);
+--error ER_DUP_ENTRY
+CREATE FULLTEXT INDEX idx1 ON t1 (title,body);
+DROP TABLE t1;
+SET sql_mode = DEFAULT;

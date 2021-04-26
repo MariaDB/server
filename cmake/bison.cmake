@@ -27,7 +27,7 @@ IF(WIN32)
     C:/cygwin64/bin
     C:/cygwin/bin)
 ENDIF()
-FIND_PROGRAM(BISON_EXECUTABLE bison
+FIND_PROGRAM(BISON_EXECUTABLE NAMES bison win_bison
   ${BISON_PATH_HINTS}
   DOC "path to the bison executable")
 MARK_AS_ADVANCED(BISON_EXECUTABLE "")

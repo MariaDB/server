@@ -326,6 +326,8 @@ public:
 	/** Re-latch all latches */
 	void latch();
 
+	table_name_t table_name() { return m_index->table->name; }
+
 private:
 	/** Insert a tuple to a page in a level
 	@param[in]	tuple	tuple to insert

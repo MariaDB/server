@@ -31,8 +31,7 @@ static int table_stats_fill(THD *thd, TABLE_LIST *tables, COND *cond)
     tmp_table.grant.privilege= 0;
     if (check_access(thd, SELECT_ACL, tmp_table.db,
                      &tmp_table.grant.privilege, NULL, 0, 1) ||
-        check_grant(thd, SELECT_ACL, &tmp_table, 1, UINT_MAX,
-                    1))
+        check_grant(thd, SELECT_ACL, &tmp_table, 1, 1, 1))
       continue;
 
     table->field[0]->store(table_stats->table, schema_length,

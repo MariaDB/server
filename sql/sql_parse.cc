@@ -3336,6 +3336,11 @@ mysql_execute_command(THD *thd)
 #ifdef HAVE_REPLICATION
   } /* endif unlikely slave */
 #endif
+  /* store old value of binlog format */
+  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
+
+  thd->get_binlog_format(&orig_binlog_format,
+                         &orig_current_stmt_binlog_format);
 #ifdef WITH_WSREP
   if  (wsrep && WSREP(thd))
   {
@@ -3386,12 +3391,6 @@ mysql_execute_command(THD *thd)
                                           CF_REPORT_PROGRESS);
 
   DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
-
-  /* store old value of binlog format */
-  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
-
-  thd->get_binlog_format(&orig_binlog_format,
-                         &orig_current_stmt_binlog_format);
 
   /*
     Assign system variables with values specified by the clause
@@ -7361,8 +7360,13 @@ void THD::reset_for_next_command(bool do_clear_error)
 
   thd->save_prep_leaf_list= false;
 
-  DBUG_PRINT("debug",
-             ("is_current_stmt_binlog_format_row(): %d",
+#ifdef WITH_WSREP
+#if !defined(DBUG_OFF)
+  if (mysql_bin_log.is_open())
+#endif
+#endif
+    DBUG_PRINT("debug",
+               ("is_current_stmt_binlog_format_row(): %d",
               thd->is_current_stmt_binlog_format_row()));
 
   DBUG_VOID_RETURN;
@@ -7414,6 +7418,7 @@ mysql_new_select(LEX *lex, bool move_down)
     DBUG_RETURN(1);
   select_lex->select_number= ++thd->lex->stmt_lex->current_select_number;
   select_lex->parent_lex= lex; /* Used in init_query. */
+  Name_resolution_context *curr_context= lex->context_stack.head();
   select_lex->init_query();
   select_lex->init_select();
   lex->nest_level++;
@@ -7444,7 +7449,8 @@ mysql_new_select(LEX *lex, bool move_down)
       By default we assume that it is usual subselect and we have outer name
       resolution context, if no we will assign it to 0 later
     */
-    select_lex->context.outer_context= &select_lex->outer_select()->context;
+
+    select_lex->context.outer_context= curr_context;
   }
   else
   {
@@ -8774,6 +8780,8 @@ push_new_name_resolution_context(THD *thd,
     left_op->first_leaf_for_name_resolution();
   on_context->last_name_resolution_table=
     right_op->last_leaf_for_name_resolution();
+  on_context->select_lex = thd->lex->current_select;
+  on_context->outer_context = thd->lex->current_context()->outer_context;
   return thd->lex->push_context(on_context, thd->mem_root);
 }
 

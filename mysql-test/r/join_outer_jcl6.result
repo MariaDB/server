@@ -2690,6 +2690,46 @@ id	timestamp	modifiedBy	id	REV	REVTYPE	profile_id	id	REV	person_id	id	REV
 12	1294650860266	u62C^Kzx3wH8	8	12	2	2	2	117548	300006	300006	97697
 DROP TABLE t1,t2,t3,t4;
 # end of 10.1 tests
+#
+# MDEV-25362: name resolution for subqueries in ON expressions
+#
+create table t1 (a int, b int);
+create table t2 (c int, d int);
+create table t3 (e int, f int);
+create table t4 (g int, h int);
+explain
+select *
+from
+t1 left join
+(t2
+join
+t3 on
+(t3.f=t1.a)
+) on (t2.c=t1.a );
+ERROR 42S22: Unknown column 't1.a' in 'on clause'
+explain
+select *
+from
+t1 left join
+(t2
+join
+t3 on
+(t3.f=(select max(g) from t4 where t4.h=t1.a))
+) on (t2.c=t1.a );
+ERROR 42S22: Unknown column 't1.a' in 'where clause'
+drop table t1,t2,t3,t4;
+create table t1 (a int);
+insert into t1 values (1),(2);
+create table t2 (b int);
+insert into t2 values (1),(2);
+create table t3 (c int);
+insert into t3 values (1),(2);
+select * from ( select * from t1 left join t2
+on b in (select x from t3 as sq1)
+) as sq2;
+ERROR 42S22: Unknown column 'x' in 'field list'
+drop table t1,t2,t3;
+# end of 10.2 tests
 SET optimizer_switch=@org_optimizer_switch;
 set join_cache_level=default;
 set @@optimizer_switch=@save_optimizer_switch_jcl6;

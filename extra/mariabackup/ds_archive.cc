@@ -56,6 +56,7 @@ datasink_t datasink_archive = {
 	&archive_open,
 	&archive_write,
 	&archive_close,
+	&dummy_remove,
 	&archive_deinit
 };
 

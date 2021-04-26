@@ -248,13 +248,6 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 	@return whether the table will be rebuilt */
 	bool need_rebuild () const { return(old_table != new_table); }
 
-  /** Clear uncommmitted added indexes after a failed operation. */
-  void clear_added_indexes()
-  {
-    for (ulint i= 0; i < num_to_add_index; i++)
-      add_index[i]->detach_columns(true);
-  }
-
 	/** Share context between partitions.
 	@param[in] ctx	context from another partition of the table */
 	void set_shared_data(const inplace_alter_handler_ctx& ctx)
@@ -271,6 +264,44 @@ struct ha_innobase_inplace_ctx : public inplace_alter_handler_ctx
 			sequence = ha_ctx.sequence;
 		}
 	}
+
+   /** @return whether the given column is being added */
+   bool is_new_vcol(const dict_v_col_t &v_col) const
+   {
+     for (ulint i= 0; i < num_to_add_vcol; i++)
+       if (&add_vcol[i] == &v_col)
+         return true;
+     return false;
+   }
+
+  /** During rollback, make newly added indexes point to
+  newly added virtual columns. */
+  void clean_new_vcol_index()
+  {
+    ut_ad(old_table == new_table);
+    const dict_index_t *index= dict_table_get_first_index(old_table);
+    while ((index= dict_table_get_next_index(index)) != NULL)
+    {
+      if (!index->has_virtual() || index->is_committed())
+        continue;
+      ulint n_drop_new_vcol= index->get_new_n_vcol();
+      for (ulint i= 0; n_drop_new_vcol && i < index->n_fields; i++)
+      {
+        dict_col_t *col= index->fields[i].col;
+        /* Skip the non-virtual and old virtual columns */
+        if (!col->is_virtual())
+          continue;
+        dict_v_col_t *vcol= reinterpret_cast<dict_v_col_t*>(col);
+        if (!is_new_vcol(*vcol))
+          continue;
+
+        dict_v_col_t *drop_vcol= index->new_vcol_info->
+          add_drop_v_col(index->heap, vcol, --n_drop_new_vcol);
+        /* Re-assign the index field with newly stored virtual column */
+        index->fields[i].col= reinterpret_cast<dict_col_t*>(drop_vcol);
+      }
+    }
+  }
 
 private:
 	// Disable copying
@@ -2404,9 +2435,11 @@ innobase_fts_check_doc_id_index(
 	for (index = dict_table_get_first_index(table);
 	     index; index = dict_table_get_next_index(index)) {
 
+
 		/* Check if there exists a unique index with the name of
-		FTS_DOC_ID_INDEX_NAME */
-		if (innobase_strcasecmp(index->name, FTS_DOC_ID_INDEX_NAME)) {
+		FTS_DOC_ID_INDEX_NAME and ignore the corrupted index */
+		if (index->type & DICT_CORRUPT
+		    || innobase_strcasecmp(index->name, FTS_DOC_ID_INDEX_NAME)) {
 			continue;
 		}
 
@@ -2720,7 +2753,7 @@ online_retry_drop_indexes_low(
 	ut_ad(table->get_ref_count() >= 1);
 
 	if (table->drop_aborted) {
-		row_merge_drop_indexes(trx, table, TRUE);
+		row_merge_drop_indexes(trx, table, true);
 	}
 }
 
@@ -5144,7 +5177,7 @@ error_handled:
 		online_retry_drop_indexes_with_trx(user_table, ctx->trx);
 	} else {
 		ut_ad(!ctx->need_rebuild());
-		row_merge_drop_indexes(ctx->trx, user_table, TRUE);
+		row_merge_drop_indexes(ctx->trx, user_table, true);
 		trx_commit_for_mysql(ctx->trx);
 	}
 
@@ -6386,7 +6419,6 @@ oom:
 	that we hold at most a shared lock on the table. */
 	m_prebuilt->trx->error_info = NULL;
 	ctx->trx->error_state = DB_SUCCESS;
-	ctx->clear_added_indexes();
 
 	DBUG_RETURN(true);
 }
@@ -6481,17 +6513,18 @@ temparary index prefix
 @param table the TABLE
 @param locked TRUE=table locked, FALSE=may need to do a lazy drop
 @param trx the transaction
-*/
-static MY_ATTRIBUTE((nonnull))
+@param alter_trx transaction which takes S-lock on the table
+                 while creating the index */
+static
 void
 innobase_rollback_sec_index(
-/*========================*/
-	dict_table_t*		user_table,
-	const TABLE*		table,
-	ibool			locked,
-	trx_t*			trx)
+        dict_table_t*   user_table,
+        const TABLE*    table,
+        bool            locked,
+        trx_t*          trx,
+        const trx_t*    alter_trx=NULL)
 {
-	row_merge_drop_indexes(trx, user_table, locked);
+	row_merge_drop_indexes(trx, user_table, locked, alter_trx);
 
 	/* Free the table->fts only if there is no FTS_DOC_ID
 	in the table */
@@ -6585,7 +6618,12 @@ rollback_inplace_alter_table(
 		DBUG_ASSERT(ctx->new_table == prebuilt->table);
 
 		innobase_rollback_sec_index(
-			prebuilt->table, table, FALSE, ctx->trx);
+			prebuilt->table, table,
+			(ha_alter_info->alter_info->requested_lock
+                         == Alter_info::ALTER_TABLE_LOCK_EXCLUSIVE),
+			ctx->trx, prebuilt->trx);
+
+		ctx->clean_new_vcol_index();
 	}
 
 	trx_commit_for_mysql(ctx->trx);

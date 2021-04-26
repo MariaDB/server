@@ -833,9 +833,9 @@ if [[ $ssyslog -eq 1 ]];then
             logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@" 
         }
 
-        INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-apply"
-        INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move"
-        INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
+        INNOAPPLY="${INNOBACKUPEX_BIN} --prepare $disver $iapts \$INNOEXTRA $rebuildcmd --target-dir=\${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-apply"
+        INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --move-back $disver $impts --force-non-empty-directories --target-dir=\${DATA} 2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move"
+        INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --backup $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt --target-dir=\$itmpdir 2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 
 else
@@ -897,9 +897,9 @@ then
 
 fi
  
-    INNOAPPLY="${INNOBACKUPEX_BIN} --innobackupex $disver $iapts \$INNOEXTRA --apply-log \$rebuildcmd \${DATA} &> ${INNOAPPLYLOG}"
-    INNOMOVE="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $impts  --move-back --force-non-empty-directories \${DATA} &> ${INNOMOVELOG}"
-    INNOBACKUP="${INNOBACKUPEX_BIN} --innobackupex ${WSREP_SST_OPT_CONF} $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt \$itmpdir 2> ${INNOBACKUPLOG}"
+    INNOAPPLY="${INNOBACKUPEX_BIN} --prepare $disver $iapts \$INNOEXTRA $rebuildcmd --target-dir=\${DATA} &> ${INNOAPPLYLOG}"
+    INNOMOVE="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --move-back $disver $impts --force-non-empty-directories --target-dir=\${DATA} &> ${INNOMOVELOG}"
+    INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --backup $disver $iopts \$tmpopts \$INNOEXTRA --galera-info --stream=\$sfmt --target-dir=\$itmpdir 2> ${INNOBACKUPLOG}"
 fi
 
 get_stream
@@ -922,7 +922,7 @@ then
               -z $(parse_cnf --mysqld tmpdir "") && \
               -z $(parse_cnf xtrabackup tmpdir "") ]]; then
             xtmpdir=$(mktemp -d)
-            tmpopts=" --tmpdir=$xtmpdir"
+            tmpopts="--tmpdir=$xtmpdir"
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
         fi
 
@@ -935,10 +935,10 @@ then
         fi
 
         if [ -n "${WSREP_SST_OPT_PSWD:-}" ]; then
-           INNOEXTRA+=" --password=$WSREP_SST_OPT_PSWD"
+            export MYSQL_PWD=$WSREP_SST_OPT_PSWD
         elif [[ $usrst -eq 1 ]];then
-           # Empty password, used for testing, debugging etc.
-           INNOEXTRA+=" --password="
+            # Empty password, used for testing, debugging etc.
+            unset MYSQL_PWD
         fi
 
         get_keys

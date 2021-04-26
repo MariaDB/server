@@ -95,6 +95,7 @@ CREATE USER u1 IDENTIFIED BY 'pwd-123';
 GRANT ALL ON sa_db TO u2 IDENTIFIED BY "pwd-321";
 SET PASSWORD FOR u1 = PASSWORD('pwd 098');
 CREATE USER u3 IDENTIFIED BY '';
+ALTER USER u3 IDENTIFIED BY 'pwd-456';
 drop user u1, u2, u3;
 
 set global server_audit_events='query_ddl';
@@ -106,6 +107,11 @@ select 2;
 /*! select 2*/;
 /*comment*/ select 2;
 drop table t1;
+create procedure pr1() insert into test.t1 values ("foo", 42);
+create function fn1(i int) returns int deterministic return i+1;
+drop procedure pr1;
+drop function fn1;
+
 set global server_audit_events='query_ddl,query_dml';
 create table t1(id int);
 insert into t1 values (1), (2);
@@ -145,6 +151,10 @@ insert into t1 values (1), (2);
 select * from t1;
 select 2;
 drop table t1;
+create procedure pr1() insert into test.t1 values ("foo", 42);
+create function fn1(i int) returns int deterministic return i+1;
+drop procedure pr1;
+drop function fn1;
 
 set global server_audit_events='table';
 set global server_audit_incl_users='user1';

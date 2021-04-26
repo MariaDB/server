@@ -20,7 +20,7 @@
 
 # first, cause a duplicate key problem on the slave
 create table t1(n int auto_increment primary key, s char(10));
-sync_slave_with_master;
+--sync_slave_with_master
 insert into t1 values (2,'old');
 connection master;
 insert into t1 values(NULL,'new');
@@ -31,13 +31,13 @@ connection slave;
 wait_for_slave_to_stop;
 select * from t1 order by n;
 delete from t1 where n = 2;
---disable_warnings
-start slave;
---enable_warnings
+
+--source include/start_slave.inc
+
 sync_with_master;
 #now the buggy slave would be confused on the offset but it can replicate
 #in order to make it break, we need to stop/start the slave one more time
-stop slave;
+--source include/stop_slave.inc
 connection master;
 # to be able to really confuse the slave, we need some non-auto-increment
 # events in the log
@@ -51,9 +51,9 @@ set sql_log_bin=1;
 delete from t1 where n=4;
 save_master_pos;
 connection slave;
---disable_warnings
-start slave;
---enable_warnings
+
+--source include/start_slave.inc
+
 #now the truth comes out - if the slave is buggy, it will never sync because
 #the slave thread is not able to read events
 sync_with_master;
@@ -61,6 +61,6 @@ select * from t1 order by n;
 #clean up
 connection master;
 drop table t1;
-sync_slave_with_master;
-
+--sync_slave_with_master
+--source include/rpl_end.inc
 # End of 4.1 tests

@@ -185,7 +185,6 @@ trx_write_trx_id(
 #if DATA_TRX_ID_LEN != 6
 # error "DATA_TRX_ID_LEN != 6"
 #endif
-	ut_ad(id > 0);
 	mach_write_to_6(ptr, id);
 }
 
