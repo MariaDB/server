@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2019, MariaDB Corporation.
+Copyright (c) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,7 +39,7 @@ Created 12/13/1995 Heikki Tuuri
 @param[in,out]	mtr		mini-transaction
 @return pointer to a byte in (*ptr_block)->frame; the *ptr_block is
 bufferfixed and latched */
-UNIV_INLINE
+inline
 byte*
 fut_get_ptr(
 	ulint			space,
@@ -57,10 +57,15 @@ fut_get_ptr(
 	      || (rw_latch == RW_X_LATCH)
 	      || (rw_latch == RW_SX_LATCH));
 
-	block = buf_page_get(page_id_t(space, addr.page), zip_size,
-			     rw_latch, mtr);
-
-	ptr = buf_block_get_frame(block) + addr.boffset;
+	block = buf_page_get_gen(page_id_t(space, addr.page), zip_size,
+				 rw_latch, nullptr, BUF_GET_POSSIBLY_FREED,
+				 mtr);
+	if (!block) {
+	} else if (block->page.status == buf_page_t::FREED) {
+		block = nullptr;
+	} else {
+		ptr = buf_block_get_frame(block) + addr.boffset;
+	}
 
 	if (ptr_block != NULL) {
 		*ptr_block = block;

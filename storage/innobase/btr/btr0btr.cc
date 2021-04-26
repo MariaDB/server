@@ -939,9 +939,11 @@ static void btr_free_root(buf_block_t *block, mtr_t *mtr)
 #endif /* UNIV_BTR_DEBUG */
 
   /* Free the entire segment in small steps. */
+  ut_d(mtr->freeing_tree());
   while (!fseg_free_step(PAGE_HEADER + PAGE_BTR_SEG_TOP + block->frame, mtr));
 }
 
+MY_ATTRIBUTE((warn_unused_result))
 /** Prepare to free a B-tree.
 @param[in]	page_id		page id
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
@@ -949,33 +951,29 @@ static void btr_free_root(buf_block_t *block, mtr_t *mtr)
 @param[in,out]	mtr		mini-transaction
 @return root block, to invoke btr_free_but_not_root() and btr_free_root()
 @retval NULL if the page is no longer a matching B-tree page */
-static MY_ATTRIBUTE((warn_unused_result))
-buf_block_t*
-btr_free_root_check(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	index_id_t		index_id,
-	mtr_t*			mtr)
+static
+buf_block_t *btr_free_root_check(const page_id_t page_id, ulint zip_size,
+				 index_id_t index_id, mtr_t *mtr)
 {
-	ut_ad(page_id.space() != SRV_TMP_SPACE_ID);
-	ut_ad(index_id != BTR_FREED_INDEX_ID);
+  ut_ad(page_id.space() != SRV_TMP_SPACE_ID);
+  ut_ad(index_id != BTR_FREED_INDEX_ID);
 
-	buf_block_t*	block = buf_page_get(
-		page_id, zip_size, RW_X_LATCH, mtr);
+  buf_block_t *block= buf_page_get_gen(page_id, zip_size, RW_X_LATCH,
+                                       nullptr, BUF_GET_POSSIBLY_FREED, mtr);
 
-	if (block) {
-		if (fil_page_index_page_check(block->frame)
-		    && index_id == btr_page_get_index_id(block->frame)) {
-			/* This should be a root page.
-			It should not be possible to reassign the same
-			index_id for some other index in the tablespace. */
-			ut_ad(!page_has_siblings(block->frame));
-		} else {
-			block = NULL;
-		}
-	}
+  if (!block);
+  else if (block->page.status == buf_page_t::FREED)
+    block= nullptr;
+  else if (fil_page_index_page_check(block->frame) &&
+           index_id == btr_page_get_index_id(block->frame))
+    /* This should be a root page. It should not be possible to
+    reassign the same index_id for some other index in the
+    tablespace. */
+    ut_ad(!page_has_siblings(block->frame));
+  else
+    block= nullptr;
 
-	return(block);
+  return block;
 }
 
 /** Initialize the root page of the b-tree
@@ -1131,6 +1129,7 @@ btr_free_but_not_root(
 	ut_ad(!page_has_siblings(block->frame));
 leaf_loop:
 	mtr_start(&mtr);
+	ut_d(mtr.freeing_tree());
 	mtr_set_log_mode(&mtr, log_mode);
 	mtr.set_named_space_id(block->page.id().space());
 
@@ -1230,23 +1229,20 @@ void dict_index_t::clear(que_thr_t *thr)
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
 @param[in]	index_id	PAGE_INDEX_ID contents
 @param[in,out]	mtr		mini-transaction */
-void
-btr_free_if_exists(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	index_id_t		index_id,
-	mtr_t*			mtr)
+void btr_free_if_exists(const page_id_t page_id, ulint zip_size,
+                        index_id_t index_id, mtr_t *mtr)
 {
-	buf_block_t* root = btr_free_root_check(
-		page_id, zip_size, index_id, mtr);
-
-	if (root == NULL) {
-		return;
-	}
-
-	btr_free_but_not_root(root, mtr->get_log_mode());
-	mtr->set_named_space_id(page_id.space());
-	btr_free_root(root, mtr);
+  if (fil_space_t *space= fil_space_t::get(page_id.space()))
+  {
+    if (buf_block_t *root= btr_free_root_check(page_id, zip_size, index_id,
+                                               mtr))
+    {
+      btr_free_but_not_root(root, mtr->get_log_mode());
+      mtr->set_named_space(space);
+      btr_free_root(root, mtr);
+    }
+    space->release();
+  }
 }
 
 /** Free an index tree in a temporary tablespace.

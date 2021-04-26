@@ -633,11 +633,17 @@ public:
   { ut_ad(!m_commit || m_start); return m_start && !m_commit; }
   /** @return whether the mini-transaction has been committed */
   bool has_committed() const { ut_ad(!m_commit || m_start); return m_commit; }
+  /** @return whether the mini-transaction is freeing an index tree */
+  bool is_freeing_tree() const { return m_freeing_tree; }
+  /** Notify that the mini-transaction is freeing an index tree */
+  void freeing_tree() { m_freeing_tree= true; }
 private:
   /** whether start() has been called */
   bool m_start= false;
   /** whether commit() has been called */
   bool m_commit= false;
+  /** whether freeing_tree() has been called */
+  bool m_freeing_tree= false;
 #endif
 
   /** The page of the most recent m_log record written, or NULL */
