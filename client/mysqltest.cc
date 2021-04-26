@@ -258,6 +258,7 @@ static const char *opt_suite_dir, *opt_overlay_dir;
 static size_t suite_dir_len, overlay_dir_len;
 
 /* Precompiled re's */
+static regex_t ps_re;     /* the query can be run using PS protocol */
 static regex_t sp_re;     /* the query can be run as a SP */
 static regex_t view_re;   /* the query can be run as a view*/
 
@@ -8721,7 +8722,14 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     statement already and we can't do it twice
   */
   if (ps_protocol_enabled &&
-      complete_query)
+      complete_query &&
+      /*
+        Check that a statement is not one of PREPARE FROM, EXECUTE,
+        DEALLOCATE PREPARE (possibly prefixed with the 'SET STATEMENT ... FOR'
+        clause. These statement shouldn't be run using prepared statement C API.
+        All other statements can be run using prepared statement C API.
+      */
+      !match_re(&ps_re, query))
     run_query_stmt(cn, command, query, query_len, ds, &ds_warnings);
   else
     run_query_normal(cn, command, flags, query, query_len,
@@ -8795,6 +8803,26 @@ void init_re_comp(regex_t *re, const char* str)
 void init_re(void)
 {
   /*
+   * Prior to the task MDEV-16708 a value of the string ps_re_str contained
+   * a regular expression to match statements that SHOULD BE run in PS mode.
+   * The task MDEV-16708 modifies interpretation of this regular expression
+   * and now it is used for matching statements that SHOULDN'T be run in
+   * PS mode. These statement are PREPARE FROM, EXECUTE, DEALLOCATE PREPARE
+   * possibly prefixed with the clause SET STATEMENT ... FOR
+   */
+  const char *ps_re_str =
+      "^("
+      "[[:space:]]*PREPARE[[:space:]]|"
+      "[[:space:]]*EXECUTE[[:space:]]|"
+      "[[:space:]]*DEALLOCATE[[:space:]]+PREPARE[[:space:]]|"
+      "[[:space:]]*DROP[[:space:]]+PREPARE[[:space:]]|"
+      "(SET[[:space:]]+STATEMENT[[:space:]]+.+[[:space:]]+FOR[[:space:]]+)?"
+      "EXECUTE[[:space:]]+|"
+      "(SET[[:space:]]+STATEMENT[[:space:]]+.+[[:space:]]+FOR[[:space:]]+)?"
+      "PREPARE[[:space:]]+"
+      ")";
+
+  /*
     Filter for queries that can be run using the
     Stored procedures
   */
@@ -8858,6 +8886,7 @@ void init_re(void)
     "^("
     "[[:space:]]*SELECT[[:space:]])";
 
+  init_re_comp(&ps_re, ps_re_str);
   init_re_comp(&sp_re, sp_re_str);
   init_re_comp(&view_re, view_re_str);
 }
@@ -8893,6 +8922,7 @@ int match_re(regex_t *re, char *str)
 
 void free_re(void)
 {
+  regfree(&ps_re);
   regfree(&sp_re);
   regfree(&view_re);
 }

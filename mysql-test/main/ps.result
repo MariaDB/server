@@ -28,9 +28,11 @@ ERROR HY000: Unknown prepared statement handler (no_such_statement) given to DEA
 execute stmt1;
 ERROR HY000: Incorrect arguments to EXECUTE
 prepare stmt2 from 'prepare nested_stmt from "select 1"';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt2 from 'execute stmt1';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt2 from 'deallocate prepare z';
-deallocate prepare stmt2;
+ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt3 from 'insert into t1 values (?,?)';
 set @arg1=5, @arg2='five';
 execute stmt3 using @arg1, @arg2;
@@ -4719,13 +4721,13 @@ ERROR HY000: Incorrect arguments to EXECUTE
 EXECUTE IMMEDIATE 'SELECT ?';
 ERROR HY000: Incorrect arguments to EXECUTE
 EXECUTE IMMEDIATE 'EXECUTE IMMEDIATE "SELECT 1"';
-1
-1
+ERROR HY000: This command is not supported in the prepared statement protocol yet
 EXECUTE IMMEDIATE 'PREPARE stmt FROM "SELECT 1"';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
 EXECUTE IMMEDIATE 'EXECUTE stmt';
-1
-1
+ERROR HY000: This command is not supported in the prepared statement protocol yet
 EXECUTE IMMEDIATE 'DEALLOCATE PREPARE stmt';
+ERROR HY000: This command is not supported in the prepared statement protocol yet
 EXECUTE IMMEDIATE 'SELECT ?' USING _latin1'a'=_latin2'a';
 ERROR HY000: Illegal mix of collations (latin1_swedish_ci,COERCIBLE) and (latin2_general_ci,COERCIBLE) for operation '='
 EXECUTE IMMEDIATE 'SELECT ?' USING ROW(1,2);

@@ -327,59 +327,7 @@ EXECUTE stmt_1;
 DEALLOCATE PREPARE stmt_1;
 DROP PROCEDURE p1;
 
---echo # Test case 15: Check that the 'PREPARE FROM' statement can be executed
---echo # as a prepared statement.
-PREPARE stmt_1 FROM 'PREPARE stmt_2 FROM "SELECT 1"';
-EXECUTE stmt_1;
---echo # Execute the same prepared statement the second time to check that
---echo # no internal structures used for handling the 'PREPARE' statement
---echo # were damaged.
-EXECUTE stmt_1;
---echo # Now execute the prepared statement with the name stmt_2
---echo # It is expected that output contains the single row '1'
-EXECUTE stmt_2;
---echo # Clean up
-DEALLOCATE PREPARE stmt_1;
-DEALLOCATE PREPARE stmt_2;
-
---echo # Test case 16: Check that the 'EXECUTE' statement can be executed
---echo # as a prepared statement.
-PREPARE stmt_1 FROM 'SELECT 1';
-PREPARE stmt_2 FROM 'EXECUTE stmt_1';
---echo # Execute the statement stmt_2. Expected result is output of one row '1'
-EXECUTE stmt_2;
---echo # Execute the same prepared statement the second time to check that
---echo # no internal structures used for handling the 'EXECUTE' statement
---echo # were damaged.
-EXECUTE stmt_2;
-
---echo # Clean up
-DEALLOCATE PREPARE stmt_1;
-DEALLOCATE PREPARE stmt_2;
-
---echo # Test case 17: Check that the statement 'DEALLOCATE PREPARE'
---echo # can be executed as a prepared statement.
-PREPARE stmt_1 FROM 'SELECT 1';
-PREPARE stmt_2 FROM 'DEALLOCATE PREPARE stmt_1';
---echo # After the prepared statement 'stmt_2' be executed
---echo # the prepared statement stmt_1 will be deallocated.
-EXECUTE stmt_2;
---echo # Execute the same prepared statement the second time to check that
---echo # no internal structures used for handling the 'DEALLOCATE PREPARE'
---echo # statement were damaged. This time invocation results in the error
---echo # ER_UNKNOWN_STMT_HANDLER since the prepared statement stmt_1
---echo # has just been released. So, just ignore this error.
---error ER_UNKNOWN_STMT_HANDLER
-EXECUTE stmt_2;
-
---echo # Check that the stmt_1 doesn't no longer exist
---error ER_UNKNOWN_STMT_HANDLER
-EXECUTE stmt_1;
-
---echo # Clean up
-DEALLOCATE PREPARE stmt_2;
-
---echo # Test case 18: Check that the 'CREATE VIEW' statement can be executed
+--echo # Test case 15: Check that the 'CREATE VIEW' statement can be executed
 --echo # as a prepared statement.
 --echo # Create environment for the test case
 CREATE TABLE t1 (a INT);
@@ -403,7 +351,7 @@ DEALLOCATE PREPARE stmt_1;
 DROP VIEW v1;
 DROP TABLE t1;
 
---echo # Test case 19: Check that the 'CREATE TRIGGER' statement can be executed
+--echo # Test case 16: Check that the 'CREATE TRIGGER' statement can be executed
 --echo # as a prepared statement.
 CREATE TABLE t1 (a INT);
 PREPARE stmt_1 FROM 'CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1';
@@ -416,10 +364,10 @@ EXECUTE stmt_1;
 --error ER_TRG_ALREADY_EXISTS
 EXECUTE stmt_1;
 
---echo # Test case 20: Check that the 'DROP TRIGGER' statement can be executed
+--echo # Test case 17: Check that the 'DROP TRIGGER' statement can be executed
 --echo # as a prepared statement.
 --echo # This test relies on presence of the trigger trg1 created by
---echo # the test case 19.
+--echo # the test case 16.
 PREPARE stmt_1 FROM 'DROP TRIGGER trg1';
 EXECUTE stmt_1;
 --echo # Execute the same prepared statement the second time to check that
@@ -433,7 +381,7 @@ EXECUTE stmt_1;
 DEALLOCATE PREPARE stmt_1;
 DROP TABLE t1;
 
---echo # Test case 21: Check that XA related SQL statements can be executed
+--echo # Test case 18: Check that XA related SQL statements can be executed
 --echo # as prepared statements.
 --echo # Create the table t1 used by XA transaction.
 CREATE TABLE t1 (a INT);
@@ -533,7 +481,7 @@ DEALLOCATE PREPARE stmt_4;
 DEALLOCATE PREPARE stmt_5;
 DEALLOCATE PREPARE stmt_6;
 
---echo # Test case 22: Check that the  CREATE SERVER/ALTER SERVER/DROP SERVER
+--echo # Test case 19: Check that the  CREATE SERVER/ALTER SERVER/DROP SERVER
 --echo # statements can be executed as prepared statements.
 
 PREPARE stmt_1 FROM "CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (USER 'u1', HOST '127.0.0.1')";
@@ -569,7 +517,7 @@ DEALLOCATE PREPARE stmt_1;
 DEALLOCATE PREPARE stmt_2;
 DEALLOCATE PREPARE stmt_3;
 
---echo # Test case 23: Check that the CREATE EVENT/ALTER EVENT/DROP EVENT
+--echo # Test case 20: Check that the CREATE EVENT/ALTER EVENT/DROP EVENT
 --echo # statements can be executed as a prepared statement
 
 PREPARE stmt_1 FROM "CREATE EVENT e1 ON SCHEDULE AT CURRENT_TIMESTAMP - INTERVAL 1 DAY ON COMPLETION PRESERVE DO SET @a=1";
@@ -618,7 +566,7 @@ DEALLOCATE PREPARE stmt_1;
 DEALLOCATE PREPARE stmt_2;
 DEALLOCATE PREPARE stmt_3;
 
---echo # Test case 24: Check that the SIGNAL and RESIGNAL statements
+--echo # Test case 21: Check that the SIGNAL and RESIGNAL statements
 --echo # can be executed as a prepared statement
 PREPARE stmt_1 FROM "SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT='Hello, world!'";
 --error 30001
@@ -641,7 +589,7 @@ EXECUTE stmt_1;
 --echo # Clean up
 DEALLOCATE PREPARE stmt_1;
 
---echo # Test case 25: Check that the 'SHOW RELAYLOG EVENTS' statement can be
+--echo # Test case 22: Check that the 'SHOW RELAYLOG EVENTS' statement can be
 --echo # executed as a prepared statement.
 PREPARE stmt_1 FROM 'SHOW RELAYLOG EVENTS';
 EXECUTE stmt_1;
@@ -652,7 +600,7 @@ EXECUTE stmt_1;
 --echo # Clean up
 DEALLOCATE PREPARE stmt_1;
 
---echo # Test case 26: Check the 'GET DIAGNOSTICS' statement
+--echo # Test case 23: Check the 'GET DIAGNOSTICS' statement
 --echo # can be executed as a prepared statement
 PREPARE stmt_1 FROM 'GET DIAGNOSTICS CONDITION 1 @sqlstate = RETURNED_SQLSTATE, @errno = MYSQL_ERRNO, @text = MESSAGE_TEXT';
 
@@ -674,19 +622,7 @@ EXECUTE stmt_1;
 --echo # Clean up
 DEALLOCATE PREPARE stmt_1;
 
---echo # Test case 27: Check the the statement 'EXECUTE IMMEDIATE'
---echo # can be executed as a prepared statement
-
-PREPARE stmt_1 FROM "EXECUTE IMMEDIATE 'SELECT 1'";
-EXECUTE stmt_1;
---echo # Execute the same prepared statement the second time to check that
---echo # no internal structures used for handling the 'EXECUTE IMMEDIATE'
---echo # statement were damaged.
-
---echo # Clean up
-DEALLOCATE PREPARE stmt_1;
-
---echo # Test Test case 28: Check the statements 'BACKUP'/'BACKUP UNLOCK'
+--echo # Test case 24: Check the statements 'BACKUP'/'BACKUP UNLOCK'
 --echo # can be executed as a prepared statement
 CREATE TABLE t1 (a INT);
 PREPARE stmt_1 FROM 'BACKUP LOCK t1';
@@ -709,7 +645,7 @@ DROP TABLE t1;
 DEALLOCATE PREPARE stmt_1;
 DEALLOCATE PREPARE stmt_2;
 
---echo # Test Test case 29: Check the statements 'CREATE/ALTER/DROP TABLEPSPACE'
+--echo # Test Test case 25: Check the statements 'CREATE/ALTER/DROP TABLEPSPACE'
 --echo # can be executed as a prepared statement
 
 PREPARE stmt_1 FROM "CREATE TABLESPACE ts1 ADD DATAFILE 'ts1.ibd' ENGINE=InnoDB";

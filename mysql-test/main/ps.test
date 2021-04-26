@@ -38,10 +38,12 @@ deallocate prepare no_such_statement;
 execute stmt1;
 
 # Nesting ps commands is now allowed:
+--error ER_UNSUPPORTED_PS
 prepare stmt2 from 'prepare nested_stmt from "select 1"';
+--error ER_UNSUPPORTED_PS
 prepare stmt2 from 'execute stmt1';
+--error ER_UNSUPPORTED_PS
 prepare stmt2 from 'deallocate prepare z';
-deallocate prepare stmt2;
 
 # PS insert 
 prepare stmt3 from 'insert into t1 values (?,?)';
@@ -4193,12 +4195,16 @@ EXECUTE IMMEDIATE 'SELECT 1' USING @a;
 --error ER_WRONG_ARGUMENTS
 EXECUTE IMMEDIATE 'SELECT ?';
 
+--error ER_UNSUPPORTED_PS
 EXECUTE IMMEDIATE 'EXECUTE IMMEDIATE "SELECT 1"';
 
+--error ER_UNSUPPORTED_PS
 EXECUTE IMMEDIATE 'PREPARE stmt FROM "SELECT 1"';
 
+--error ER_UNSUPPORTED_PS
 EXECUTE IMMEDIATE 'EXECUTE stmt';
 
+--error ER_UNSUPPORTED_PS
 EXECUTE IMMEDIATE 'DEALLOCATE PREPARE stmt';
 
 --error ER_CANT_AGGREGATE_2COLLATIONS
