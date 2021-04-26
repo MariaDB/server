@@ -1531,13 +1531,18 @@ class User_table_json: public User_table
   {
     privilege_t mask= ALL_KNOWN_ACL_100304;
     ulonglong orig_access= access;
-    if (version_id >= 100508)
+    if (version_id >= 100509)
     {
-      mask= ALL_KNOWN_ACL_100508;
+      mask= ALL_KNOWN_ACL_100509;
     }
-    else if (version_id >= 100502 && version_id < 100508)
+    else if (version_id >= 100502)
     {
-      mask= ALL_KNOWN_ACL_100502;
+      if (version_id >= 100508)
+        mask= ALL_KNOWN_ACL_100508;
+      else
+        mask= ALL_KNOWN_ACL_100502;
+      if (access & REPL_SLAVE_ADMIN_ACL)
+        access|= SLAVE_MONITOR_ACL;
     }
     else // 100501 or earlier
     {

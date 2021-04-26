@@ -1163,12 +1163,13 @@ fail:
 		DBUG_EXECUTE_IF("log_checksum_mismatch", { cksum = crc + 1; });
 
 		if (UNIV_UNLIKELY(crc != cksum)) {
-			ib::error() << "Invalid log block checksum."
-				    << " block: " << block_number
-				    << " checkpoint no: "
-				    << log_block_get_checkpoint_no(buf)
-				    << " expected: " << crc
-				    << " found: " << cksum;
+			ib::error_or_warn(srv_operation!=SRV_OPERATION_BACKUP)
+				<< "Invalid log block checksum. block: "
+				<< block_number
+				<< " checkpoint no: "
+				<< log_block_get_checkpoint_no(buf)
+				<< " expected: " << crc
+				<< " found: " << cksum;
 			goto fail;
 		}
 
