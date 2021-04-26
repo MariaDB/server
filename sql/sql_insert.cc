@@ -3813,7 +3813,8 @@ select_insert::select_insert(THD *thd_arg, TABLE_LIST *table_list_par,
   sel_result(result),
   table_list(table_list_par), table(table_par), fields(fields_par),
   autoinc_value_of_last_inserted_row(0),
-  insert_into_view(table_list_par && table_list_par->view != 0)
+  insert_into_view(table_list_par && table_list_par->view != 0),
+  binary_logged(false)
 {
   bzero((char*) &info,sizeof(info));
   info.handle_duplicates= duplic;
@@ -4145,7 +4146,6 @@ bool select_insert::prepare_eof()
   int error;
   bool const trans_table= table->file->has_transactions_and_rollback();
   bool changed;
-  bool binary_logged= 0;
   killed_state killed_status= thd->killed;
 
   DBUG_ENTER("select_insert::prepare_eof");
@@ -4555,8 +4555,11 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   {
     if (likely(!thd->is_error()))             // CREATE ... IF NOT EXISTS
       my_ok(thd);                             //   succeed, but did nothing
+    if (ddl_log_state_rm.is_active())
+      (void) ddl_log_revert(thd, &ddl_log_state_create);
+    else
+      ddl_log_complete(&ddl_log_state_create);
     ddl_log_complete(&ddl_log_state_rm);
-    ddl_log_complete(&ddl_log_state_create);
     DBUG_RETURN(NULL);
   }
 
@@ -4595,8 +4598,11 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       *lock= 0;
     }
     drop_open_table(thd, table, &create_table->db, &create_table->table_name);
+    if (ddl_log_state_rm.is_active())
+      (void) ddl_log_revert(thd, &ddl_log_state_create);
+    else
+      ddl_log_complete(&ddl_log_state_create);
     ddl_log_complete(&ddl_log_state_rm);
-    ddl_log_complete(&ddl_log_state_create);
     DBUG_RETURN(NULL);
     /* purecov: end */
   }
@@ -4656,6 +4662,12 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   private:
     virtual int do_postlock(TABLE **tables, uint count)
     {
+      /*
+         TODO: why row binlogging is done here at stage of
+         create_table_from_items() while statement binlogging is done at stage
+         of send_eof()? To avoid business-logic discrepancies both logging
+         types should be done at send_eof(), i.e. when select_insert succeeded.
+      */
       int error;
       THD *thd= const_cast<THD*>(ptr->get_thd());
       TABLE_LIST *save_next_global= create_table->next_global;
@@ -4672,7 +4684,19 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
       TABLE const *const table = *tables;
       if (thd->is_current_stmt_binlog_format_row() &&
           !table->s->tmp_table)
+      {
+        thd->binlog_xid= thd->query_id;
+        /*
+           Remember xid's for the case of row based logging. Note that binary
+           log is not flushed until the end of statement, so it is OK to write it
+           now and if crash happens until we closed ddl_log_state_rm we won't see
+           CREATE OR REPLACE event in the binary log.
+         */
+        ddl_log_update_xid(&ptr->ddl_log_state_create, thd->binlog_xid);
+        if (ptr->ddl_log_state_rm.is_active() && !ptr->ddl_log_state_rm.skip_binlog)
+          ddl_log_update_xid(&ptr->ddl_log_state_rm, thd->binlog_xid);
         return binlog_show_create_table(thd, *tables, ptr->create_info);
+      }
       return 0;
     }
     select_create *ptr;
@@ -4941,20 +4965,13 @@ bool select_create::send_eof()
 
   debug_crash_here("ddl_log_create_before_binlog");
 
-  /*
-    In case of crash, we have to add DROP TABLE to the binary log as
-    the CREATE TABLE will already be logged if we are not using row based
-    replication.
-  */
-  if (!thd->is_current_stmt_binlog_format_row())
+  if (!thd->binlog_xid && !table->s->tmp_table)
   {
-    if (ddl_log_state_create.is_active())       // Not temporary table
-      ddl_log_update_phase(&ddl_log_state_create, DDL_CREATE_TABLE_PHASE_LOG);
-    /*
-      We can ignore if we replaced an old table as ddl_log_state_create will
-      now handle the logging of the drop if needed.
-    */
-    ddl_log_complete(&ddl_log_state_rm);
+    thd->binlog_xid= thd->query_id;
+    /* Remember xid's for the case of row based logging */
+    ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
+    if (ddl_log_state_rm.is_active() && !ddl_log_state_rm.skip_binlog)
+      ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
   }
 
   if (prepare_eof())
@@ -4984,6 +5001,8 @@ bool select_create::send_eof()
       thd->restore_tmp_table_share(saved_tmp_table_share);
     }
   }
+
+  DBUG_ASSERT(!(table->s->tmp_table && ddl_log_state_rm.skip_binlog));
 
   /*
     Do an implicit commit at end of statement for non-temporary
@@ -5029,10 +5048,6 @@ bool select_create::send_eof()
       thd->get_stmt_da()->set_overwrite_status(true);
     }
 #endif /* WITH_WSREP */
-    thd->binlog_xid= thd->query_id;
-    /* Remember xid's for the case of row based logging */
-    ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-    ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
     trans_commit_stmt(thd);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
@@ -5076,8 +5091,14 @@ bool select_create::send_eof()
     (as the query was logged before commit!)
   */
   debug_crash_here("ddl_log_create_after_binlog");
-  ddl_log_complete(&ddl_log_state_rm);
   ddl_log_complete(&ddl_log_state_create);
+  debug_crash_here("ddl_log_replace_before_remove_backup");
+  if (ddl_log_revert(thd, &ddl_log_state_rm))
+  {
+    abort_result_set();
+    DBUG_RETURN(true);
+  }
+  debug_crash_here("ddl_log_replace_after_remove_backup");
   debug_crash_here("ddl_log_create_log_complete");
 
   /*
@@ -5164,8 +5185,6 @@ void select_create::abort_result_set()
   if (table)
   {
     bool tmp_table= table->s->tmp_table;
-    bool table_creation_was_logged= (!tmp_table ||
-                                     table->s->table_creation_was_logged);
     if (tmp_table)
     {
       DBUG_ASSERT(saved_tmp_table_share);
@@ -5195,21 +5214,6 @@ void select_create::abort_result_set()
       {
         /* Remove logging of drop, create + insert rows */
         binlog_reset_cache(thd);
-        /* Original table was deleted. We have to log it */
-        if (table_creation_was_logged)
-        {
-          thd->binlog_xid= thd->query_id;
-          ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
-          ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
-          debug_crash_here("ddl_log_create_before_binlog");
-          log_drop_table(thd, &create_table->db, &create_table->table_name,
-                         &create_info->org_storage_engine_name,
-                         create_info->db_type == partition_hton,
-                         &create_info->tabledef_version,
-                         tmp_table);
-          debug_crash_here("ddl_log_create_after_binlog");
-          thd->binlog_xid= 0;
-        }
       }
       else if (!tmp_table)
       {
@@ -5225,7 +5229,14 @@ void select_create::abort_result_set()
       }
     }
   }
-  ddl_log_complete(&ddl_log_state_rm);
-  ddl_log_complete(&ddl_log_state_create);
+  if (!binary_logged)
+  {
+    if (ddl_log_state_rm.is_active())
+      (void) ddl_log_revert(thd, &ddl_log_state_create);
+    else
+      ddl_log_complete(&ddl_log_state_create);
+    ddl_log_complete(&ddl_log_state_rm);
+  }
+  thd->binlog_xid= 0;
   DBUG_VOID_RETURN;
 }

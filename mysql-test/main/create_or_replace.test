@@ -227,8 +227,10 @@ create or replace table mysqltest2.t2;
 --replace_column 1 #
 --sorted_result
 select * from information_schema.metadata_lock_info;
+drop table t1;
 create table t1 (i int);
 drop table t1;
+drop table mysqltest2.t2;
 
 create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
@@ -247,8 +249,10 @@ create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 --replace_column 1 #
 --sorted_result
 select * from information_schema.metadata_lock_info;
+drop table t1;
 create table t1 (i int);
 drop table t1;
+drop table mysqltest2.t2;
 
 create table test.t1 (i int) engine=innodb;
 create table mysqltest2.t2 like test.t1;
@@ -486,3 +490,68 @@ CREATE OR REPLACE TEMPORARY TABLE t2(c INT DEFAULT '');
 SELECT * FROM t3;
 UNLOCK TABLES;
 DROP TABLE t3;
+
+
+--echo #
+--echo # MDEV-25292 Atomic CREATE OR REPLACE TABLE
+--echo #
+create table t1 (a int);
+insert t1 values (1), (1);
+create table t2 (c int);
+--error ER_DUP_KEYNAME
+create or replace table t2 (a int, b int, key k (a), key k (b));
+show create table t2;
+--error ER_DUP_KEYNAME
+create or replace table t2 (a int, b int, key k (a), key k (b)) as select a, a as b from t1;
+show create table t2;
+--error ER_DUP_ENTRY
+create or replace table t2 (a int primary key) as select * from t1;
+show create table t2;
+set @old_mode= @@sql_mode;
+set @@sql_mode='ALLOW_INVALID_DATES';
+create table t3 (dt datetime default '2008-02-31 00:00:00');
+set @@sql_mode= @old_mode;
+--error ER_INVALID_DEFAULT
+create or replace table t2 like t3;
+show create table t2;
+--echo # LOCK TABLES
+lock tables t2 write, t1 write;
+flush tables;
+show open tables like 't2';
+create or replace table t2 (y int);
+flush tables;
+show open tables like 't2';
+create or replace table t2 like t1;
+flush tables;
+show open tables like 't2';
+create or replace table t2 (y int) as select * from t1;
+flush tables;
+show open tables like 't2';
+unlock tables;
+--echo # SP
+--delimiter $
+create or replace procedure sp()
+begin
+  show open tables like 't2';
+  create or replace table t2 (y int);
+  select 't2 is removed from prelocked:' as '';
+  show open tables like 't2';
+  select 'but it is ok, it can be opened again:' as '';
+  insert into t2 values (2);
+  show open tables like 't2';
+  create or replace table t2 like t1;
+  show open tables like 't2';
+  create or replace table t2 (y int) as select * from t1;
+  show open tables like 't2';
+  select * from t2;
+  show open tables  like 't2';
+end $
+--delimiter ;
+flush tables;
+call sp; call sp;
+--echo # SP under LOCK TABLES
+lock tables t2 write, t1 write;
+call sp; call sp;
+unlock tables;
+drop procedure sp;
+drop tables t1, t2, t3;

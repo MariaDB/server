@@ -24,12 +24,6 @@ show create table t1;
 select * from t1;
 --error ER_ILLEGAL_HA_CREATE_OPTION
 create or replace sequence t1 engine=archive;
-#
-# The following error should be fixed. We shouldn't delete old table on errors
-#
---error ER_NO_SUCH_TABLE
-show create table t1;
-
 
 # Check start values
 create or replace sequence t1 start with 10;

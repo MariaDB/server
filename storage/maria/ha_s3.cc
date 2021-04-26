@@ -1030,7 +1030,8 @@ static int ha_s3_init(void *p)
   s3_hton->show_status= 0;
   s3_hton->prepare_for_backup= 0;
   s3_hton->end_backup= 0;
-  s3_hton->flags= ((s3_slave_ignore_updates ? HTON_IGNORE_UPDATES : 0) |
+  s3_hton->flags= HTON_EXPENSIVE_RENAME |
+                  ((s3_slave_ignore_updates ? HTON_IGNORE_UPDATES : 0) |
                    (s3_replicate_alter_as_create_select ?
                     HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE : 0));
   /* Copy global arguments to s3_access_key and s3_secret_key */

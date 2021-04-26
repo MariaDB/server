@@ -126,7 +126,6 @@ enum enum_ddl_log_drop_db_phase {
 
 enum enum_ddl_log_create_table_phase {
   DDL_CREATE_TABLE_PHASE_INIT=0,
-  DDL_CREATE_TABLE_PHASE_LOG,
   DDL_CREATE_TABLE_PHASE_END
 };
 
@@ -173,6 +172,7 @@ enum enum_ddl_log_alter_table_phase {
   engine is not changed
 */
 #define DDL_LOG_FLAG_ALTER_PARTITION      (1 << 4)
+#define DDL_LOG_FLAG_DROP_SKIP_BINLOG     (1 << 5)
 
 /*
   Setting ddl_log_entry.phase to this has the same effect as setting
@@ -248,6 +248,12 @@ typedef struct st_ddl_log_state
   */
   DDL_LOG_MEMORY_ENTRY *main_entry;
   uint16 flags;                                 /* Cache for flags */
+  /*
+    Don't log DROP to binlog and tell the upper level that it must skip
+    updating XID. HTON_EXPENSIVE_RENAME engines have this flag false.
+  */
+  bool skip_binlog;
+  ulonglong master_chain_pos;
   bool is_active() { return list != 0; }
 } DDL_LOG_STATE;
 
@@ -293,7 +299,8 @@ bool ddl_log_rename_view(THD *thd, DDL_LOG_STATE *ddl_state,
                          const LEX_CSTRING *new_alias);
 bool ddl_log_drop_table_init(THD *thd, DDL_LOG_STATE *ddl_state,
                              const LEX_CSTRING *db,
-                             const LEX_CSTRING *comment);
+                             const LEX_CSTRING *comment,
+                             bool skip_binlog);
 bool ddl_log_drop_view_init(THD *thd, DDL_LOG_STATE *ddl_state,
                             const LEX_CSTRING *db);
 bool ddl_log_drop_table(THD *thd, DDL_LOG_STATE *ddl_state,
@@ -348,5 +355,6 @@ bool ddl_log_alter_table(THD *thd, DDL_LOG_STATE *ddl_state,
                          bool is_renamed);
 bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_log_state,
                          const char *query, size_t length);
+void ddl_log_link_events(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */

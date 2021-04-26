@@ -271,6 +271,7 @@ create or replace table test.t1;
 ERROR 42000: A table must have at least 1 column
 show tables;
 Tables_in_test
+t1
 t2
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
@@ -283,8 +284,10 @@ create or replace table mysqltest2.t2;
 ERROR 42000: A table must have at least 1 column
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+drop table t1;
 create table t1 (i int);
 drop table t1;
+drop table mysqltest2.t2;
 create table test.t1 (i int);
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
@@ -300,6 +303,7 @@ create or replace table test.t1 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
 show tables;
 Tables_in_test
+t1
 t2
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
@@ -312,8 +316,10 @@ create or replace table mysqltest2.t2 (a int) select 1 as 'a', 2 as 'a';
 ERROR 42S21: Duplicate column name 'a'
 select * from information_schema.metadata_lock_info;
 THREAD_ID	LOCK_MODE	LOCK_DURATION	LOCK_TYPE	TABLE_SCHEMA	TABLE_NAME
+drop table t1;
 create table t1 (i int);
 drop table t1;
+drop table mysqltest2.t2;
 create table test.t1 (i int) engine=innodb;
 create table mysqltest2.t2 like test.t1;
 lock table test.t1 write, mysqltest2.t2 write;
@@ -545,3 +551,161 @@ SELECT * FROM t3;
 ERROR HY000: Table 't3' was not locked with LOCK TABLES
 UNLOCK TABLES;
 DROP TABLE t3;
+#
+# MDEV-25292 Atomic CREATE OR REPLACE TABLE
+#
+create table t1 (a int);
+insert t1 values (1), (1);
+create table t2 (c int);
+create or replace table t2 (a int, b int, key k (a), key k (b));
+ERROR 42000: Duplicate key name 'k'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t2 (a int, b int, key k (a), key k (b)) as select a, a as b from t1;
+ERROR 42000: Duplicate key name 'k'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+create or replace table t2 (a int primary key) as select * from t1;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+set @old_mode= @@sql_mode;
+set @@sql_mode='ALLOW_INVALID_DATES';
+create table t3 (dt datetime default '2008-02-31 00:00:00');
+set @@sql_mode= @old_mode;
+create or replace table t2 like t3;
+ERROR 42000: Invalid default value for 'dt'
+show create table t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+# LOCK TABLES
+lock tables t2 write, t1 write;
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+create or replace table t2 (y int);
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+create or replace table t2 like t1;
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+create or replace table t2 (y int) as select * from t1;
+flush tables;
+show open tables like 't2';
+Database	Table	In_use	Name_locked
+test	t2	1	0
+unlock tables;
+# SP
+create or replace procedure sp()
+begin
+show open tables like 't2';
+create or replace table t2 (y int);
+select 't2 is removed from prelocked:' as '';
+show open tables like 't2';
+select 'but it is ok, it can be opened again:' as '';
+insert into t2 values (2);
+show open tables like 't2';
+create or replace table t2 like t1;
+show open tables like 't2';
+create or replace table t2 (y int) as select * from t1;
+show open tables like 't2';
+select * from t2;
+show open tables  like 't2';
+end $
+flush tables;
+call sp;
+Database	Table	In_use	Name_locked
+
+t2 is removed from prelocked:
+Database	Table	In_use	Name_locked
+
+but it is ok, it can be opened again:
+Database	Table	In_use	Name_locked
+test	t2	0	0
+Database	Table	In_use	Name_locked
+Database	Table	In_use	Name_locked
+test	t2	0	0
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	0	0
+call sp;
+Database	Table	In_use	Name_locked
+test	t2	0	0
+
+t2 is removed from prelocked:
+Database	Table	In_use	Name_locked
+
+but it is ok, it can be opened again:
+Database	Table	In_use	Name_locked
+test	t2	0	0
+Database	Table	In_use	Name_locked
+Database	Table	In_use	Name_locked
+test	t2	0	0
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	0	0
+# SP under LOCK TABLES
+lock tables t2 write, t1 write;
+call sp;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+t2 is removed from prelocked:
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+but it is ok, it can be opened again:
+Database	Table	In_use	Name_locked
+test	t2	1	0
+Database	Table	In_use	Name_locked
+test	t2	1	0
+Database	Table	In_use	Name_locked
+test	t2	1	0
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	1	0
+call sp;
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+t2 is removed from prelocked:
+Database	Table	In_use	Name_locked
+test	t2	1	0
+
+but it is ok, it can be opened again:
+Database	Table	In_use	Name_locked
+test	t2	1	0
+Database	Table	In_use	Name_locked
+test	t2	1	0
+Database	Table	In_use	Name_locked
+test	t2	1	0
+y	a
+NULL	1
+NULL	1
+Database	Table	In_use	Name_locked
+test	t2	1	0
+unlock tables;
+drop procedure sp;
+drop tables t1, t2, t3;

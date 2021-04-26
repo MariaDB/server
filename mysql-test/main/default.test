@@ -314,15 +314,6 @@ select * from t1;
 drop table t1;
 
 --echo #
---echo # Create or replace can delete a table on error
---echo #
-create table t1 (a int);
---error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
-create or replace table t1 (a int default b, b int default a);
---error ER_NO_SUCH_TABLE
-show create table t1;
-
---echo #
 --echo # Refering to other columns
 --echo #
 
@@ -344,11 +335,11 @@ create or replace table t1 (a int default b, b int default (1+1));
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
 create or replace table t1 (a int default 1, b int as (c), c int as (a+1));
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
-CREATE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT (DEFAULT(a)));
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
-CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT(DEFAULT(b)), b INT DEFAULT(DEFAULT(a)));
 --error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
-CREATE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
+CREATE OR REPLACE TABLE t1 (a INT DEFAULT(DEFAULT(b)) NOT NULL, b INT DEFAULT(DEFAULT(a)) NOT NULL);
 
 --echo #
 --echo # Allow defaults to refer to not default fields

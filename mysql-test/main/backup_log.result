@@ -69,7 +69,7 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 create table t32 (a int) ;
 drop table if exists t30,t31,t32,tmp_t30;
 Warnings:
-Note	1051	Unknown table 'test.t31,test.tmp_t30'
+Note	1051	Unknown table 'test.tmp_t30'
 #
 # Testing create LIKE
 #
@@ -180,17 +180,18 @@ CREATE,MyISAM,0,test,t21,id: 7,,0,,,
 DROP,MyISAM,0,test,t21,id: 7,,0,,,
 CREATE,MyISAM,0,test,t30,id: 8,,0,,,
 CREATE,MyISAM,0,test,t31,id: 9,,0,,,
-DROP,MyISAM,0,test,t31,id: 9,,0,,,
+RENAME,MyISAM,0,test,t31,id: 9,MyISAM,0,test,#sql1,id: 9
 CREATE,MyISAM,0,test,t31,id: 10,,0,,,
-DROP,MyISAM,0,test,t31,id: 10,,0,,,
+RENAME,MyISAM,0,test,t31,id: 10,MyISAM,0,test,#sql1,id: 10
 DROP_AFTER_CREATE,MyISAM,0,test,t31,id: 11,,0,,,
 CREATE,MyISAM,0,test,t32,id: 12,,0,,,
 DROP,MyISAM,0,test,t30,id: 8,,0,,,
+DROP,MyISAM,0,test,t31,id: 10,,0,,,
 DROP,MyISAM,0,test,t32,id: 12,,0,,,
 CREATE,MyISAM,0,test,t40,id: 13,,0,,,
 CREATE,InnoDB,0,test,t41,id: 14,,0,,,
 CREATE,MyISAM,0,test,t42,id: 15,,0,,,
-DROP,MyISAM,0,test,t42,id: 15,,0,,,
+RENAME,MyISAM,0,test,t42,id: 15,MyISAM,0,test,#sql1,id: 15
 CREATE,InnoDB,0,test,t42,id: 16,,0,,,
 DROP,MyISAM,0,test,t40,id: 13,,0,,,
 DROP,InnoDB,0,test,t41,id: 14,,0,,,

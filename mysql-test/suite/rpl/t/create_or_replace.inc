@@ -53,6 +53,7 @@ create table t1 (a int);
 # This should as a delete as we will delete t1
 --error ER_DUP_ENTRY
 create or replace table t1 (a int primary key) select a from t2;
+drop table t1;
 
 # Same with temporary table
 create temporary table t9 (a int);

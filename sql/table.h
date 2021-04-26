@@ -75,6 +75,7 @@ typedef ulonglong nested_join_map;
 
 #define tmp_file_prefix "#sql"			/**< Prefix for tmp tables */
 #define tmp_file_prefix_length 4
+#define backup_file_prefix tmp_file_prefix "-backup-"
 #define TMP_TABLE_KEY_EXTRA 8
 
 /**

@@ -60,8 +60,6 @@ next_not_cached_value	minimum_value	maximum_value	start_value	increment	cache_si
 1	1	9223372036854775806	1	1	1000	0	0
 create or replace sequence t1 engine=archive;
 ERROR HY000: Table storage engine 'ARCHIVE' does not support the create option 'SEQUENCE'
-show create table t1;
-ERROR 42S02: Table 'test.t1' doesn't exist
 create or replace sequence t1 start with 10;
 show create sequence t1;
 Table	Create Table

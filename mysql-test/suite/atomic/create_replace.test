@@ -1,0 +1,182 @@
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/log_bin.inc
+--source include/not_valgrind.inc
+
+let $default_engine=InnoDB;
+let $extra_option=;
+let $save_debug=`select @@debug_dbug`;
+let $show_error=0;
+let $drop_error=0;
+
+if ($MTR_COMBINATION_MYISAM)
+{
+  let $default_engine=MyISAM;
+}
+if ($MTR_COMBINATION_ARIA)
+{
+  let $default_engine=Aria;
+  let $extra_option=transactional=1;
+}
+if ($MTR_COMBINATION_ARIA_NOTRANS)
+{
+  let $default_engine=Aria;
+  let $extra_option=transactional=0;
+}
+if ($MTR_COMBINATION_EXPENSIVE_RENAME)
+{
+  let $default_engine=Aria;
+  let $extra_option=transactional=0;
+  let $show_error=0, ER_NO_SUCH_TABLE;
+  let $drop_error=0, ER_BAD_TABLE_ERROR;
+  set @@debug_dbug="+d,ddl_log_expensive_rename";
+}
+
+if ($MTR_COMBINATION_STMT)
+{
+  let $binlog_format=include/set_binlog_format_statement.sql;
+}
+if ($MTR_COMBINATION_ROW)
+{
+  let $binlog_format=include/set_binlog_format_row.sql;
+}
+if ($MTR_COMBINATION_MIX)
+{
+  --skip same as stmt
+}
+
+--eval set @@default_storage_engine=$default_engine
+
+# Put entry_pos into higher position, so drop chain executes before create chain
+create table t1 (c int);
+--error ER_DUP_KEYNAME
+create or replace table t1 (a int, b int, key k (a), key k (b));
+--error ER_DUP_KEYNAME
+create or replace table t1 (a int, b int, key k (a), key k (b));
+--error $drop_error
+drop table t1;
+
+--echo # Crash recovery
+
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+let $crash_count=12;
+let $crash_points='ddl_log_replace_after_rename_table',
+                  'ddl_log_create_before_create_frm',
+                  'ddl_log_create_before_create_table',
+                  'ddl_log_create_after_create_table',
+                  'ddl_log_create_after_drop',
+                  'ddl_log_create_after_send_data',
+                  'ddl_log_create_before_binlog',
+                  'ddl_log_create_after_prepare_eof',
+                  'ddl_log_create_after_binlog',
+                  'ddl_log_create_log_complete',
+                  'ddl_log_replace_before_remove_backup',
+                  'ddl_log_replace_after_remove_backup';
+
+#let $crash_count=2;
+#let $crash_points='ddl_log_create_after_prepare_eof', 'ddl_log_create_after_binlog';
+
+let $statement_count=3;
+let $statements='CREATE OR REPLACE TABLE t1 (new int)',
+                'CREATE OR REPLACE TABLE t1 LIKE const_table',
+                'CREATE OR REPLACE TABLE t1 SELECT * from const_table';
+
+#let $statement_count=1;
+#let $statements='CREATE OR REPLACE TABLE t1 SELECT * from const_table';
+
+create table const_table (new int, b int) engine=myisam;
+insert into const_table values (1,1),(2,2);
+flush tables;
+
+let $old_debug=`select @@debug_dbug`;
+
+let $keep_include_silent=1;
+let $grep_script=CREATE|DROP;
+--disable_query_log
+
+let $r=0;
+while ($r < $statement_count)
+{
+  inc $r;
+  let $statement=`select ELT($r, $statements)`;
+  --echo # QUERY: $statement
+
+  let $c=0;
+  while ($c < $crash_count)
+  {
+    inc $c;
+    let $crash=`select ELT($c, $crash_points)`;
+
+    --eval set @@default_storage_engine=$default_engine
+    create or replace table t1 (old int);
+    create trigger a before insert on t1 for each row set @s= 1;
+    flush tables;
+    if (!$c)
+    {
+      lock tables t1 write;
+    }
+
+    --source $binlog_format
+
+    RESET MASTER;
+    --echo # CRASH POINT: $crash
+    --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+    --disable_reconnect
+    --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=1
+    let $errno=0;
+    --error 0,2013
+    --eval $statement;
+    let $error=$errno;
+    --enable_reconnect
+    --source include/wait_until_connected_again.inc
+    --disable_query_log
+    --eval set @@debug_dbug="$old_debug"
+
+    if ($error == 0)
+    {
+      --echo # No crash!
+    }
+    # Check which tables still exists
+    --list_files $MYSQLD_DATADIR/test t*
+    --list_files $MYSQLD_DATADIR/test *sql*
+
+    --let $binlog_file=master-bin.000001
+    --source include/show_binlog_events.inc
+    if ($error)
+    {
+      --let $binlog_file=master-bin.000002
+      --source include/show_binlog_events.inc
+    }
+
+    if ($c > 5)
+    {
+      if ($MTR_COMBINATION_MYISAM)
+      {
+        # MyISAM warns normally about table marked as crashed, but not for --ps-protocol
+        --disable_warnings
+      }
+    }
+    --replace_result $default_engine DEFAULT_ENGINE ' PAGE_CHECKSUM=1' ''
+    --error $show_error
+    show create table t1;
+    if (`select locate('SELECT', '$statement')`)
+    {
+      --error $show_error
+      select * from t1;
+    }
+    --enable_warnings
+    --replace_column 6 '' 7 '' 8 '' 9 '' 10 '' 11 ''
+    show triggers;
+    # Drop the tables. The warnings will show what was dropped
+    --disable_warnings
+    --error $drop_error
+    drop table t1;
+    --enable_warnings
+  }
+}
+drop table if exists t1,const_table;
+--eval set @@debug_dbug="$save_debug"
+
+--enable_query_log
