@@ -362,6 +362,7 @@ void mtr_t::start()
 
   ut_d(m_start= true);
   ut_d(m_commit= false);
+  ut_d(m_freeing_tree= false);
 
   m_last= nullptr;
   m_last_offset= 0;
