@@ -97,6 +97,16 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
              +---------+
              1 row in set (0.00 sec)
 
+             MariaDB [sys]> CALL sys.table_exists(''db1'', ''s'', @exists); SELECT @exists;
+             Query OK, 0 rows affected (0.006 sec)
+
+             +----------+
+             | @exists  |
+             +----------+
+             | SEQUENCE |
+             +----------+
+             1 row in set (0.000 sec)
+
              mysql> CALL sys.table_exists(''db1'', ''t3'', @exists); SELECT @exists;
              Query OK, 0 rows affected (0.01 sec)
 
@@ -112,6 +122,7 @@ CREATE DEFINER='mariadb.sys'@'localhost' PROCEDURE table_exists (
     CONTAINS SQL
 BEGIN
     DECLARE v_error BOOLEAN DEFAULT FALSE;
+    DECLARE v_table_type VARCHAR(16) DEFAULT '';
     DECLARE CONTINUE HANDLER FOR 1050 SET v_error = TRUE;
     DECLARE CONTINUE HANDLER FOR 1146 SET v_error = TRUE;
 
@@ -133,7 +144,14 @@ BEGIN
             PREPARE stmt_drop_table FROM @sys.tmp.table_exists.SQL;
             EXECUTE stmt_drop_table;
             DEALLOCATE PREPARE stmt_drop_table;
-            SET out_exists = (SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = in_db AND TABLE_NAME = in_table);
+            SET v_table_type = (SELECT TABLE_TYPE FROM information_schema.TABLES WHERE TABLE_SCHEMA = in_db AND TABLE_NAME = in_table);
+            -- Don't fail on table_type='SYSTEM VERSIONED'
+            -- but return 'BASE TABLE' for compatibility with existing tooling
+            IF v_table_type = 'SYSTEM VERSIONED' THEN
+                SET out_exists = 'BASE TABLE';
+            ELSE
+                SET out_exists = v_table_type;
+            END IF;
         END IF;
     ELSE
         -- Check whether a temporary table exists with the same name.
