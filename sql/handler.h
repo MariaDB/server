@@ -2347,6 +2347,9 @@ public:
   /** true for online operation (LOCK=NONE) */
   bool online;
 
+  /** which ALGORITHM and LOCK are supported by the storage engine */
+  enum_alter_inplace_result inplace_supported;
+
   /**
      Can be set by handler to describe why a given operation cannot be done
      in-place (HA_ALTER_INPLACE_NOT_SUPPORTED) or why it cannot be done

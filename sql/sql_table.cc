@@ -7549,7 +7549,6 @@ static bool is_inplace_alter_impossible(TABLE *table,
   @param ha_alter_info      Structure describing ALTER TABLE to be carried
                             out and serving as a storage place for data
                             used during different phases.
-  @param inplace_supported  Enum describing the locking requirements.
   @param target_mdl_request Metadata request/lock on the target table name.
   @param alter_ctx          ALTER TABLE runtime context.
 
@@ -7574,7 +7573,6 @@ static bool mysql_inplace_alter_table(THD *thd,
                                       TABLE *table,
                                       TABLE *altered_table,
                                       Alter_inplace_info *ha_alter_info,
-                                      enum_alter_inplace_result inplace_supported,
                                       MDL_request *target_mdl_request,
                                       Alter_table_ctx *alter_ctx)
 {
@@ -7585,6 +7583,8 @@ static bool mysql_inplace_alter_table(THD *thd,
   Alter_info *alter_info= ha_alter_info->alter_info;
   bool reopen_tables= false;
   bool res;
+  const enum_alter_inplace_result inplace_supported=
+    ha_alter_info->inplace_supported;
 
   DBUG_ENTER("mysql_inplace_alter_table");
 
@@ -10006,19 +10006,19 @@ do_continue:;
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
       ha_alter_info.online= true;
     // Ask storage engine whether to use copy or in-place
-    enum_alter_inplace_result inplace_supported=
+    ha_alter_info.inplace_supported=
       table->file->check_if_supported_inplace_alter(altered_table,
                                                     &ha_alter_info);
 
-    if (alter_info->supports_algorithm(thd, inplace_supported, &ha_alter_info) ||
-        alter_info->supports_lock(thd, inplace_supported, &ha_alter_info))
+    if (alter_info->supports_algorithm(thd, &ha_alter_info) ||
+        alter_info->supports_lock(thd, &ha_alter_info))
     {
       thd->drop_temporary_table(altered_table, NULL, false);
       goto err_new_table_cleanup;
     }
 
     // If SHARED lock and no particular algorithm was requested, use COPY.
-    if (inplace_supported == HA_ALTER_INPLACE_EXCLUSIVE_LOCK &&
+    if (ha_alter_info.inplace_supported == HA_ALTER_INPLACE_EXCLUSIVE_LOCK &&
         alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_SHARED &&
          alter_info->algorithm(thd) ==
                  Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT &&
@@ -10026,7 +10026,7 @@ do_continue:;
                  Alter_info::ALTER_TABLE_ALGORITHM_DEFAULT)
       use_inplace= false;
 
-    if (inplace_supported == HA_ALTER_INPLACE_NOT_SUPPORTED)
+    if (ha_alter_info.inplace_supported == HA_ALTER_INPLACE_NOT_SUPPORTED)
       use_inplace= false;
 
     if (use_inplace)
@@ -10038,7 +10038,7 @@ do_continue:;
       */
       Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
       int res= mysql_inplace_alter_table(thd, table_list, table, altered_table,
-                                         &ha_alter_info, inplace_supported,
+                                         &ha_alter_info,
                                          &target_mdl_request, &alter_ctx);
       my_free(const_cast<uchar*>(frm.str));
 

@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2014, Oracle and/or its affiliates.
-   Copyright (c) 2013, 2018, MariaDB Corporation.
+   Copyright (c) 2013, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -204,29 +204,26 @@ public:
      with the specified user alter algorithm.
 
      @param  thd            Thread handle
-     @param  result         Operation supported for inplace alter
      @param  ha_alter_info  Structure describing changes to be done
                             by ALTER TABLE and holding data during
                             in-place alter
      @retval false  Supported operation
      @retval true   Not supported value
   */
-  bool supports_algorithm(THD *thd, enum_alter_inplace_result result,
+  bool supports_algorithm(THD *thd,
                           const Alter_inplace_info *ha_alter_info);
 
   /**
      Check whether the given result can be supported
      with the specified user lock type.
 
-     @param  result         Operation supported for inplace alter
      @param  ha_alter_info  Structure describing changes to be done
                             by ALTER TABLE and holding data during
                             in-place alter
      @retval false  Supported lock type
      @retval true   Not supported value
   */
-  bool supports_lock(THD *thd, enum_alter_inplace_result result,
-                     const Alter_inplace_info *ha_alter_info);
+  bool supports_lock(THD *thd, const Alter_inplace_info *ha_alter_info);
 
   /**
     Return user requested algorithm. If user does not specify
