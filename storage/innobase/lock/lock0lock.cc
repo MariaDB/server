@@ -2019,6 +2019,31 @@ lock_rec_free_all_from_discard_page(page_id_t id, const hash_cell_t &cell,
   }
 }
 
+/** Discard locks for an index */
+void lock_discard_for_index(const dict_index_t &index)
+{
+  ut_ad(!index.is_committed());
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  const ulint n= lock_sys.rec_hash.pad(lock_sys.rec_hash.n_cells);
+  for (ulint i= 0; i < n; i++)
+  {
+    for (lock_t *lock= static_cast<lock_t*>(lock_sys.rec_hash.array[i].node);
+         lock; )
+    {
+      ut_ad(!lock->is_table());
+      if (lock->index == &index)
+      {
+        ut_ad(!lock->is_waiting());
+        lock_rec_discard(lock_sys.rec_hash, lock);
+        lock= static_cast<lock_t*>(lock_sys.rec_hash.array[i].node);
+      }
+      else
+        lock= lock->hash;
+    }
+  }
+  lock_sys.wr_unlock();
+}
+
 /*============= RECORD LOCK MOVING AND INHERITING ===================*/
 
 /*************************************************************//**

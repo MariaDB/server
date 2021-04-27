@@ -61,6 +61,10 @@ ulint
 lock_get_min_heap_no(
 /*=================*/
 	const buf_block_t*	block);	/*!< in: buffer block */
+
+/** Discard locks for an index */
+void lock_discard_for_index(const dict_index_t &index);
+
 /*************************************************************//**
 Updates the lock table when we have reorganized a page. NOTE: we copy
 also the locks set on the infimum of the page; the infimum may carry

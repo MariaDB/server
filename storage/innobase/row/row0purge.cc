@@ -105,9 +105,29 @@ row_purge_remove_clust_if_poss_low(
 	ulint		mode)	/*!< in: BTR_MODIFY_LEAF or BTR_MODIFY_TREE */
 {
 	dict_index_t* index = dict_table_get_first_index(node->table);
-
+	table_id_t table_id = 0;
+	index_id_t index_id = 0;
+retry:
+	if (table_id) {
+		MDL_ticket* mdl_ticket = nullptr;
+		if (dict_table_t *table = dict_table_open_on_id(
+			    table_id, false,
+			    DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+			    node->purge_thd, &mdl_ticket)) {
+			if (table->n_rec_locks) {
+				for (dict_index_t* ind = UT_LIST_GET_FIRST(
+					     table->indexes); ind;
+				     ind = UT_LIST_GET_NEXT(indexes, ind)) {
+					if (ind->id == index_id) {
+						lock_discard_for_index(*ind);
+					}
+				}
+			}
+			dict_table_close(table, false, false,
+					 node->purge_thd, mdl_ticket);
+		}
+	}
 	log_free_check();
-
 	mtr_t mtr;
 	mtr.start();
 	index->set_modified(mtr);
@@ -122,6 +142,17 @@ row_purge_remove_clust_if_poss_low(
 		/* If this is a record of the SYS_INDEXES table, then
 		we have to free the file segments of the index tree
 		associated with the index */
+		if (!table_id) {
+			const rec_t* rec = btr_pcur_get_rec(&node->pcur);
+
+			table_id = mach_read_from_8(rec);
+			index_id = mach_read_from_8(rec + 8);
+			if (table_id) {
+				mtr.commit();
+				goto retry;
+			}
+			ut_ad("corrupted SYS_INDEXES record" == 0);
+		}
 		dict_drop_index_tree(&node->pcur, nullptr, &mtr);
 		mtr.commit();
 		mtr.start();
