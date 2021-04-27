@@ -911,13 +911,28 @@ void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 	ulint	len;
 
 	ut_d(if (trx) dict_sys.assert_locked());
-	ut_a(!dict_table_is_comp(dict_sys.sys_indexes));
+	ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
+	btr_pcur_store_position(pcur, mtr);
+
+	static_assert(DICT_FLD__SYS_INDEXES__TABLE_ID == 0, "compatibility");
+	static_assert(DICT_FLD__SYS_INDEXES__ID == 1, "compatibility");
+
+	if (rec_get_1byte_offs_flag(rec)) {
+		if (rec_1_get_field_end_info(rec, 0) != 8
+		    || rec_1_get_field_end_info(rec, 1) != 8 + 8) {
+rec_corrupted:
+			ib::error() << "Corrupted SYS_INDEXES record";
+			return;
+		}
+	} else if (rec_2_get_field_end_info(rec, 0) != 8
+		   || rec_2_get_field_end_info(rec, 1) != 8 + 8) {
+		goto rec_corrupted;
+	}
 
 	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
-
-	ut_ad(len == 4);
-
-	btr_pcur_store_position(pcur, mtr);
+	if (len != 4) {
+		goto rec_corrupted;
+	}
 
 	const uint32_t root_page_no = mach_read_from_4(ptr);
 
@@ -932,7 +947,9 @@ void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 	ptr = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
 
-	ut_ad(len == 4);
+	if (len != 4) {
+		goto rec_corrupted;
+	}
 
 	const uint32_t space_id = mach_read_from_4(ptr);
 	ut_ad(space_id < SRV_TMP_SPACE_ID);
@@ -943,18 +960,13 @@ void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
 		return;
 	}
 
-	ptr = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_INDEXES__ID, &len);
-
-	ut_ad(len == 8);
-
 	if (fil_space_t* s = fil_space_t::get(space_id)) {
 		/* Ensure that the tablespace file exists
 		in order to avoid a crash in buf_page_get_gen(). */
 		if (root_page_no < s->get_size()) {
 			btr_free_if_exists(page_id_t(space_id, root_page_no),
 					   s->zip_size(),
-					   mach_read_from_8(ptr), mtr);
+					   mach_read_from_8(rec + 8), mtr);
 		}
 		s->release();
 	}
