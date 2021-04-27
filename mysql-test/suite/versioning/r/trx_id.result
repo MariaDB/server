@@ -1,4 +1,3 @@
-install plugin test_versioning soname 'test_versioning.so';
 set default_storage_engine= innodb;
 create or replace table t1 (
 x int,
