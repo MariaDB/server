@@ -126,3 +126,16 @@ drop table t1;
 --echo #
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-25109 Server crashes in sp_name::sp_name upon invalid data in mysql.proc
+--echo #
+call mtr.add_suppression("Stored routine ''.'': invalid value in column");
+insert ignore into mysql.proc () values ();
+--error ER_SP_WRONG_NAME
+show function status;
+delete from mysql.proc where name = '';
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

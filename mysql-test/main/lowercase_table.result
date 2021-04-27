@@ -148,3 +148,19 @@ drop table t1;
 #
 # End of 10.2 tests
 #
+#
+# MDEV-25109 Server crashes in sp_name::sp_name upon invalid data in mysql.proc
+#
+call mtr.add_suppression("Stored routine ''.'': invalid value in column");
+insert ignore into mysql.proc () values ();
+Warnings:
+Warning	1364	Field 'param_list' doesn't have a default value
+Warning	1364	Field 'returns' doesn't have a default value
+Warning	1364	Field 'body' doesn't have a default value
+Warning	1364	Field 'comment' doesn't have a default value
+show function status;
+ERROR 42000: Incorrect routine name ''
+delete from mysql.proc where name = '';
+#
+# End of 10.3 tests
+#
