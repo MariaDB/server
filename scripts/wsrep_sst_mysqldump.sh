@@ -1,5 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2009-2015 Codership Oy
+# Copyright (C) 2017-2021 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -25,6 +26,7 @@ EINVAL=22
 local_ip()
 {
     [ "$1" = "127.0.0.1" ]      && return 0
+    [ "$1" = "127.0.0.2" ]      && return 0
     [ "$1" = "localhost" ]      && return 0
     [ "$1" = "[::1]" ]          && return 0
     [ "$1" = "$(hostname -s)" ] && return 0
@@ -138,8 +140,8 @@ then
     # turned off for the session so that gtid state does not get altered while
     # the dump gets replayed on joiner.
     if [[ "$LOG_BIN" == 'ON' ]]; then
-        RESET_MASTER="RESET MASTER;"
-        SET_GTID_BINLOG_STATE="SET @@global.gtid_binlog_state='$GTID_BINLOG_STATE';"
+        RESET_MASTER="SET GLOBAL wsrep_on=OFF; RESET MASTER; SET GLOBAL wsrep_on=ON;"
+        SET_GTID_BINLOG_STATE="SET GLOBAL wsrep_on=OFF; SET @@global.gtid_binlog_state='$GTID_BINLOG_STATE'; SET GLOBAL wsrep_on=ON;"
         SQL_LOG_BIN_OFF="SET @@session.sql_log_bin=OFF;"
     fi
 fi

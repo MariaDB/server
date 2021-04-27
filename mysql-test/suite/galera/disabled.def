@@ -5,7 +5,7 @@
 #  Separate the test case name and the comment with ':'.
 #
 #    <testcasename> : MDEV-<xxxx> <comment>
-# 
+#
 #  Do not use any TAB characters for whitespace.
 #
 ##############################################################################
@@ -17,7 +17,7 @@ galera_as_slave_replication_bundle : MDEV-15785 OPTION_GTID_BEGIN is set in Gtid
 galera_concurrent_ctas : MDEV-24842 Galera test failure on galera_concurrent_ctas
 galera_gcache_recover_manytrx : MDEV-18834 Galera test failure
 galera_mdl_race : MDEV-21524: galera.galera_mdl_race MTR failed: query 'reap' succeeded - should have failed with errno 1213
-galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails	
+galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails
 galera_partition : MDEV-21806: galera.galera_partition MTR failed: failed to recover from DONOR state
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
 galera_var_node_address : MDEV-20485 Galera test failure
@@ -28,3 +28,6 @@ sql_log_bin : MDEV-21491 galera.sql_log_bin
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_wsrep_provider_unset_set: wsrep_provider is read-only for security reasons
 pxc-421: wsrep_provider is read-only for security reasons
+galera_sst_xtrabackup-v2: Test fails due to innodb issues
+galera_sst_xtrabackup-v2_encrypt_with_key: Test fails due to innodb issues
+galera_sst_xtrabackup-v2_data_dir: Test fails due to innodb issues

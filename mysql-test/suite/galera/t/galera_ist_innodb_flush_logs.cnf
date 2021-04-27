@@ -1,7 +1,7 @@
 !include ../galera_2nodes.cnf
 
 [mysqld]
-wsrep_sst_method=xtrabackup-v2
+wsrep_sst_method=mariabackup
 wsrep_sst_auth=root:
 innodb_safe_truncate=OFF
 

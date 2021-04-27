@@ -1,5 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2013 Percona Inc
+# Copyright (C) 2017-2021 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -19,6 +20,7 @@
 # Make sure to read that before proceeding!
 
 . $(dirname $0)/wsrep_sst_common
+wsrep_check_datadir
 
 ealgo=""
 ekey=""
@@ -131,7 +133,7 @@ get_keys()
 
 get_transfer()
 {
-    TSST_PORT=${WSREP_SST_OPT_PORT:-4444}
+    TSST_PORT=$WSREP_SST_OPT_PORT
 
     if [[ $tfmt == 'nc' ]];then
         if [[ ! -x `which nc` ]];then
@@ -406,7 +408,6 @@ read_cnf
 get_stream
 get_transfer
 
-INNOEXTRA=""
 INNOAPPLY="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} --apply-log \$rebuildcmd \${DATA} &>\${DATA}/innobackup.prepare.log"
 INNOBACKUP="${INNOBACKUPEX_BIN} ${WSREP_SST_OPT_CONF} \$INNOEXTRA --galera-info --stream=\$sfmt \${TMPDIR} 2>\${DATA}/innobackup.backup.log"
 
@@ -419,14 +420,14 @@ then
         usrst=0
         TMPDIR="${TMPDIR:-/tmp}"
 
-        if [[ -n "${WSREP_SST_OPT_USER:-}" && "$WSREP_SST_OPT_USER" != "(null)" ]]; then
+        if [ -n "$WSREP_SST_OPT_USER" ]; then
            INNOEXTRA+=" --user=$WSREP_SST_OPT_USER"
            usrst=1
         fi
 
-        if [ -n "${WSREP_SST_OPT_PSWD:-}" ]; then
+        if [ -n "$WSREP_SST_OPT_PSWD" ]; then
            INNOEXTRA+=" --password=$WSREP_SST_OPT_PSWD"
-        elif [[ $usrst -eq 1 ]];then
+        elif [ $usrst -eq 1 ]; then
            # Empty password, used for testing, debugging etc.
            INNOEXTRA+=" --password="
         fi
@@ -528,9 +529,9 @@ then
     # May need xtrabackup_checkpoints later on
     rm -f ${DATA}/xtrabackup_binary ${DATA}/xtrabackup_galera_info  ${DATA}/xtrabackup_logfile
 
-    ADDR="${WSREP_SST_OPT_HOST}:${WSREP_SST_OPT_PORT:-4444}"
+    ADDR="${WSREP_SST_OPT_HOST}:${WSREP_SST_OPT_PORT}"
 
-    wait_for_listen ${WSREP_SST_OPT_PORT:-4444} ${ADDR} ${MODULE} &
+    wait_for_listen ${WSREP_SST_OPT_PORT} ${ADDR} ${MODULE} &
 
     trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_joiner EXIT
