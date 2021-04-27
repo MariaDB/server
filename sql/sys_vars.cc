@@ -5023,7 +5023,7 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
        GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
        &PLock_wsrep_slave_threads, NOT_IN_BINLOG,
-       ON_CHECK(NULL),
+       ON_CHECK(wsrep_slave_threads_check),
        ON_UPDATE(wsrep_slave_threads_update));
 
 static Sys_var_charptr Sys_wsrep_dbug_option(

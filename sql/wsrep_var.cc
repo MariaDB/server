@@ -468,12 +468,13 @@ bool wsrep_cluster_address_check (sys_var *self, THD* thd, set_var* var)
 bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
 {
   bool wsrep_on_saved;
+  bool ret=false;
 
   /* Do not proceed if wsrep provider is not loaded. */
   if (!wsrep)
   {
     WSREP_INFO("wsrep provider is not loaded, can't re(start) replication.");
-    return false;
+    return ret;
   }
 
   wsrep_on_saved= thd->variables.wsrep_on;
@@ -501,19 +502,25 @@ bool wsrep_cluster_address_update (sys_var *self, THD* thd, enum_var_type type)
   {
     wsrep_create_rollbacker();
     WSREP_DEBUG("Cluster address update creating %ld applier threads running %lu",
-	    wsrep_slave_threads, wsrep_running_applier_threads);
+                wsrep_slave_threads, wsrep_running_applier_threads);
     wsrep_create_appliers(wsrep_slave_threads);
+  }
+  else
+  {
+    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), self->name.str,
+             wsrep_cluster_address);
+    ret= true; // error
   }
 
   thd->variables.wsrep_on= wsrep_on_saved;
 
-  return false;
+  return ret;
 }
 
 void wsrep_cluster_address_init (const char* value)
 {
-  WSREP_DEBUG("wsrep_cluster_address_init: %s -> %s", 
-              (wsrep_cluster_address) ? wsrep_cluster_address : "null", 
+  WSREP_DEBUG("wsrep_cluster_address_init: %s -> %s",
+              (wsrep_cluster_address) ? wsrep_cluster_address : "null",
               (value) ? value : "null");
 
   my_free((void*) wsrep_cluster_address);
@@ -618,6 +625,38 @@ bool wsrep_slave_threads_update (sys_var *self, THD* thd, enum_var_type type)
   mysql_mutex_unlock(&LOCK_thread_count);
 
   return res;
+}
+
+/** We need this function because SET GLOBAL wsrep_slave_threads=0
+actually will call ON_CHECK and ON_UPDATE functions if present
+with value 1 (min). Furthermore, we should avoid starting
+more than default amount of slave threads if we are not connected
+to Galera cluster (e.g. SET GLOBAL wsrep_cluster_address='a';)
+or wsrep is turned OFF (wsrep_on=OFF). */
+bool wsrep_slave_threads_check(sys_var *self, THD* thd, set_var* var)
+{
+  ulong slave_threads= (ulong)var->save_result.ulonglong_value;
+  bool not_wsrep= (!WSREP(thd) && slave_threads > 1);
+
+  if (!wsrep_connected)
+  {
+    my_message(ER_WRONG_ARGUMENTS,
+               "Node is not connected to Galera cluster. "
+               "Can't change value of wsrep_slave_threads.", MYF(0));
+
+    return true;
+  }
+
+  if (not_wsrep)
+  {
+    my_message(ER_WRONG_ARGUMENTS,
+               "Galera is not enabled. "
+               "Can't change value of wsrep_slave_threads", wsrep_slave_threads);
+
+    return true;
+  }
+
+  return false;
 }
 
 bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)

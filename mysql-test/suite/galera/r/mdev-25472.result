@@ -1,0 +1,42 @@
+connection node_1;
+connection node_2;
+connection node_2;
+call mtr.add_suppression("WSREP:.*Invalid backend URI: a");
+call mtr.add_suppression("WSREP: gcs connect failed: Invalid argument");
+# This will cause separation from cluster
+SET GLOBAL wsrep_cluster_address='a';
+ERROR 42000: Variable 'wsrep_cluster_address' can't be set to the value of 'a'
+SET GLOBAL wsrep_slave_threads=0;
+ERROR HY000: Node is not connected to Galera cluster. Can't change value of wsrep_slave_threads.
+SET SESSION wsrep_sync_wait=0;
+SHOW STATUS LIKE 'wsrep_ready';
+Variable_name	Value
+wsrep_ready	OFF
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	non-Primary
+SHOW STATUS LIKE 'wsrep_local_state';
+Variable_name	Value
+wsrep_local_state	0
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+Variable_name	Value
+wsrep_local_state_comment	Initialized
+# Join back to cluster
+SHOW STATUS LIKE 'wsrep_ready';
+Variable_name	Value
+wsrep_ready	ON
+SHOW STATUS LIKE 'wsrep_cluster_status';
+Variable_name	Value
+wsrep_cluster_status	Primary
+SHOW STATUS LIKE 'wsrep_local_state';
+Variable_name	Value
+wsrep_local_state	4
+SHOW STATUS LIKE 'wsrep_local_state_comment';
+Variable_name	Value
+wsrep_local_state_comment	Synced
+SET SESSION wsrep_on=OFF;
+SET GLOBAL wsrep_slave_threads=2;
+ERROR HY000: Galera is not enabled. Can't change value of wsrep_slave_threads
+SELECT @@wsrep_slave_threads;
+@@wsrep_slave_threads
+1

@@ -2,6 +2,7 @@ connection node_1;
 connection node_2;
 connection node_2;
 SET GLOBAL wsrep_cluster_address = 'foo://';
+ERROR 42000: Variable 'wsrep_cluster_address' can't be set to the value of 'foo://'
 SET SESSION wsrep_sync_wait=0;
 SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.GLOBAL_STATUS;
 COUNT(*) > 0

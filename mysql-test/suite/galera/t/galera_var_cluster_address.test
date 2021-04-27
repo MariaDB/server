@@ -16,6 +16,9 @@
 
 --connection node_2
 --let $wsrep_cluster_address_node2 = `SELECT @@wsrep_cluster_address`
+
+# foo:// is not correct Galera cluster address
+--error ER_WRONG_VALUE_FOR_VAR
 SET GLOBAL wsrep_cluster_address = 'foo://';
 
 # With wsrep_sync_wait, this returns an error
