@@ -988,7 +988,8 @@ prepare long_query from "select ? as long_query";
 execute long_query using @lparam;
 --enable_result_log
 set global general_log = off;
-select command_type, argument from mysql.general_log where thread_id = @thread_id;
+select argument from mysql.general_log where thread_id = @thread_id
+AND (command_type = 'Query' OR command_type= 'Execute');
 deallocate prepare long_query;
 set global general_log = @old_general_log;
 
