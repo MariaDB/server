@@ -5123,6 +5123,25 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
 
   /* Go! */
 
+  /*
+    Log COM_EXECUTE to the general log. Note, that in case of SQL
+    prepared statements this causes two records to be output:
+
+    Query       EXECUTE <statement name>
+    Execute     <statement SQL text>
+
+    This is considered user-friendly, since in the
+    second log entry we output values of parameter markers.
+
+    Do not print anything if this is an SQL prepared statement and
+    we're inside a stored procedure (also called Dynamic SQL) --
+    sub-statements inside stored procedures are not logged into
+    the general log.
+  */
+
+  if (thd->spcont == nullptr)
+    general_log_write(thd, COM_STMT_EXECUTE, thd->query(), thd->query_length());
+
   if (open_cursor)
     error= mysql_open_cursor(thd, &result, &cursor);
   else
@@ -5207,24 +5226,6 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     else
       thd->protocol->send_out_parameters(&this->lex->param_list);
   }
-
-  /*
-    Log COM_EXECUTE to the general log. Note, that in case of SQL
-    prepared statements this causes two records to be output:
-
-    Query       EXECUTE <statement name>
-    Execute     <statement SQL text>
-
-    This is considered user-friendly, since in the
-    second log entry we output values of parameter markers.
-
-    Do not print anything if this is an SQL prepared statement and
-    we're inside a stored procedure (also called Dynamic SQL) --
-    sub-statements inside stored procedures are not logged into
-    the general log.
-  */
-  if (likely(error == 0 && thd->spcont == NULL))
-    general_log_write(thd, COM_STMT_EXECUTE, thd->query(), thd->query_length());
 
 error:
   thd->lex->restore_set_statement_var();
