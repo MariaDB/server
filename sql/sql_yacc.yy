@@ -3104,17 +3104,22 @@ sp_decl:
             sp_pcontext *pctx= lex->spcont;
             uint num_vars= pctx->context_var_count();
             Item *dflt_value_item= $5;
+            const bool has_default_clause = (dflt_value_item != NULL);
             Lex->set_last_field_type($4);
 
-            if (!dflt_value_item)
+
+            if (!has_default_clause)
             {
               dflt_value_item= new (thd->mem_root) Item_null(thd);
               if (dflt_value_item == NULL)
                 MYSQL_YYABORT;
               /* QQ Set to the var_type with null_value? */
             }
-            
-            for (uint i = num_vars-$2 ; i < num_vars ; i++)
+
+            sp_variable *first_spvar = NULL;
+            const uint first_var_num = num_vars - $2;
+
+            for (uint i = first_var_num ; i < num_vars ; i++)
             {
               uint var_idx= pctx->var_context2runtime(i);
               sp_variable *spvar= pctx->find_variable(var_idx);
@@ -3126,9 +3131,24 @@ sp_decl:
               if (!last)
                 spvar->field_def= *lex->last_field;
 
+              if (i == first_var_num) {
+                first_spvar = spvar;
+              } else if (has_default_clause) {
+                Item_splocal *item =
+                  new (thd->mem_root)
+                    Item_splocal(thd, first_spvar->name, first_spvar->offset,
+                                       first_spvar->sql_type(), 0, 0);
+                if (item == NULL)
+                  MYSQL_YYABORT; // OOM
+#ifndef DBUG_OFF
+                item->m_sp = lex->sphead;
+#endif
+                dflt_value_item = item;
+              }
+
               spvar->default_value= dflt_value_item;
               spvar->field_def.field_name= spvar->name.str;
-            
+
               if (lex->sphead->fill_field_definition(thd, lex,
                                                      &spvar->field_def))
               {

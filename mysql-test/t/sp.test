@@ -10025,4 +10025,23 @@ DROP PROCEDURE p1;
 DROP VIEW v1;
 DROP TABLE t1;
 
+
+--echo #
+--echo # BUG#30366310: USING A FUNCTION TO ASSIGN DEFAULT VALUES TO
+--echo # 2 OR MORE VARIABLES CRASHES SERVER
+--echo #
+
+delimiter |;
+create function f1() returns bigint return now()-1|
+create procedure p1()
+begin
+  declare b, c bigint default f1();
+  select b-c;
+end|
+call p1()|
+drop procedure p1|
+drop function f1|
+delimiter ;|
+
+
 --echo #End of 10.2 tests
