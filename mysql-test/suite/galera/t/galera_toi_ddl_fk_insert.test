@@ -44,25 +44,24 @@ INSERT INTO parent VALUES (1, 0);
 
 --connection node_1a
 --reap
+COMMIT;
 
 --connection node_1b
 --reap
+COMMIT;
 
 --connection node_2
 --reap
+COMMIT;
 
 --connection node_2a
 --reap
+COMMIT;
 
 --connection node_1
-SET SESSION wsrep_sync_wait=15;
-SELECT COUNT(*) FROM parent;
-SELECT COUNT(*) FROM child;
-
---connection node_2
-SET SESSION wsrep_sync_wait=15;
-SELECT COUNT(*) FROM parent;
-SELECT COUNT(*) FROM child;
+--disconnect node_1a
+--disconnect node_1b
+--disconnect node_2a
 
 DROP TABLE child;
 DROP TABLE parent;

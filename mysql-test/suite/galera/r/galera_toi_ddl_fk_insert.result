@@ -18,25 +18,17 @@ INSERT INTO parent (f2) SELECT 2 FROM ten AS a1, ten AS a2, ten AS a3, ten AS a4
 connection node_1b;
 ALTER TABLE child ADD FOREIGN KEY (parent_id) REFERENCES parent(id);;
 connection node_1a;
+COMMIT;
 connection node_1b;
+COMMIT;
 connection node_2;
+COMMIT;
 connection node_2a;
+COMMIT;
 connection node_1;
-SET SESSION wsrep_sync_wait=15;
-SELECT COUNT(*) FROM parent;
-COUNT(*)
-20001
-SELECT COUNT(*) FROM child;
-COUNT(*)
-10000
-connection node_2;
-SET SESSION wsrep_sync_wait=15;
-SELECT COUNT(*) FROM parent;
-COUNT(*)
-20001
-SELECT COUNT(*) FROM child;
-COUNT(*)
-10000
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_2a;
 DROP TABLE child;
 DROP TABLE parent;
 DROP TABLE ten;
