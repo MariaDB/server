@@ -12,6 +12,8 @@
 
 --source include/innodb_page_size.inc
 
+--source include/have_debug_sync.inc
+
 call mtr.add_suppression("Cannot find index f2 in InnoDB index dictionary.");
 call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in .frm for table .*");
 call mtr.add_suppression("Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB  .*");
@@ -67,5 +69,25 @@ set DEBUG_SYNC="now WAIT_FOR default_signal";
 --source include/restart_mysqld.inc
 disconnect con1;
 SHOW KEYS FROM t1;
+DROP TABLE t1;
+remove_files_wildcard $datadir/test #sql-*.frm;
+
+--echo #
+--echo # MDEV-25503 InnoDB hangs on startup during recovery
+--echo #
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+connect (con1,localhost,root,,);
+BEGIN;
+DELETE FROM mysql.innodb_table_stats;
+
+connect (con2,localhost,root,,);
+SET DEBUG_SYNC='inplace_after_index_build SIGNAL blocked WAIT_FOR ever';
+send ALTER TABLE t1 FORCE;
+
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR blocked';
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+SELECT * FROM t1;
 DROP TABLE t1;
 remove_files_wildcard $datadir/test #sql-*.frm;

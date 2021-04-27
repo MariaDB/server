@@ -1935,6 +1935,11 @@ public:
         return true;
     return false;
   }
+
+  /** Check whether the table name is same as mysql/innodb_stats_table
+  or mysql/innodb_index_stats.
+  @return true if the table name is same as stats table */
+  bool is_stats_table() const;
 };
 
 inline bool table_name_t::is_temporary() const

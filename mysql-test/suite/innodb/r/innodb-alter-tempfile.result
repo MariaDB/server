@@ -50,3 +50,18 @@ Warnings:
 Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
 Warning	1082	InnoDB: Table test/t1 contains 1 indexes inside InnoDB, which is different from the number of indexes 2 defined in the MariaDB 
 DROP TABLE t1;
+#
+# MDEV-25503 InnoDB hangs on startup during recovery
+#
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=1;
+connect  con1,localhost,root,,;
+BEGIN;
+DELETE FROM mysql.innodb_table_stats;
+connect  con2,localhost,root,,;
+SET DEBUG_SYNC='inplace_after_index_build SIGNAL blocked WAIT_FOR ever';
+ALTER TABLE t1 FORCE;
+connection default;
+SET DEBUG_SYNC='now WAIT_FOR blocked';
+SELECT * FROM t1;
+a
+DROP TABLE t1;

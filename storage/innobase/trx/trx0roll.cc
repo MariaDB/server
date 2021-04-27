@@ -677,7 +677,8 @@ ibool
 trx_rollback_resurrected(
 /*=====================*/
 	trx_t*	trx,	/*!< in: transaction to rollback or clean */
-	ibool*	all)	/*!< in/out: FALSE=roll back dictionary transactions;
+	ibool*	all)	/*!< in/out: FALSE=roll back dictionary and
+			statistics table transactions;
 			TRUE=roll back all non-PREPARED transactions */
 {
 	ut_ad(trx_sys_mutex_own());
@@ -713,7 +714,8 @@ fake_prepared:
 		}
 		trx_mutex_exit(trx);
 
-		if (*all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE) {
+		if (*all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE
+		    || trx->has_stats_table_lock()) {
 			trx_sys_mutex_exit();
 			trx_rollback_active(trx);
 			if (trx->error_state != DB_SUCCESS) {

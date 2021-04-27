@@ -6719,3 +6719,9 @@ dict_table_t::get_overflow_field_local_len() const
 	/* new-format table: do not store any BLOB prefix locally */
 	return BTR_EXTERN_FIELD_REF_SIZE;
 }
+
+bool dict_table_t::is_stats_table() const
+{
+  return !strcmp(name.m_name, TABLE_STATS_NAME) ||
+         !strcmp(name.m_name, INDEX_STATS_NAME);
+}
