@@ -766,6 +766,13 @@ inline void dict_table_t::rollback_instant(
 	const ulint*	col_map)
 {
 	ut_d(dict_sys.assert_locked());
+
+	if (cols == old_cols) {
+		/* Alter fails before instant operation happens.
+		So there is no need to do rollback instant operation */
+		return;
+	}
+
 	dict_index_t* index = indexes.start;
 	mtr_t mtr;
 	mtr.start();
