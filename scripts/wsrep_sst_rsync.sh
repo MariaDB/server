@@ -29,6 +29,7 @@ OS=$(uname)
 export PATH="/usr/sbin:/sbin:$PATH"
 
 . $(dirname $0)/wsrep_sst_common
+wsrep_check_datadir
 
 wsrep_check_programs rsync
 
@@ -54,13 +55,13 @@ cleanup_joiner()
 # Check whether rsync process is still running.
 check_pid()
 {
-    local pid_file=$1
-    [ -r "$pid_file" ] && ps -p $(cat $pid_file) >/dev/null 2>&1
+    local pid_file="$1"
+    [ -r "$pid_file" ] && ps -p $(cat "$pid_file") >/dev/null 2>&1
 }
 
 check_pid_and_port()
 {
-    local pid_file=$1
+    local pid_file="$1"
     local rsync_pid=$2
     local rsync_addr=$3
     local rsync_port=$4
@@ -73,7 +74,7 @@ check_pid_and_port()
             grep -E '[[:space:]]+(rsync|stunnel)[[:space:]]+'"$rsync_pid" 2>/dev/null)"
         ;;
     *)
-        if ! which lsof > /dev/null; then
+        if ! [ -x $(command -v "lsof") ]; then
           wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
           exit 2 # ENOENT
         fi
@@ -96,22 +97,21 @@ check_pid_and_port()
             exit 16 # EBUSY
         fi
     fi
-    check_pid $pid_file && \
+    check_pid "$pid_file" && \
         [ -n "$port_info" ] && [ -n "$is_rsync" ] && \
-        [ $(cat $pid_file) -eq $rsync_pid ]
+        [ $(cat "$pid_file") -eq $rsync_pid ]
 }
 
 is_local_ip()
 {
   local address="$1"
-  local get_addr_bin=`which ifconfig`
+  local get_addr_bin="$(command -v ifconfig)"
   if [ -z "$get_addr_bin" ]
   then
-    get_addr_bin=`which ip`
-    get_addr_bin="$get_addr_bin address show"
+    get_addr_bin="$(command -v ip) address show"
     # Add an slash at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
     # ip output format is "X.X.X.X/mask"
-    address="${address}/"
+    address="$address/"
   else
     # Add an space at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
     # ifconfig output format is "X.X.X.X "
@@ -134,62 +134,46 @@ BINLOG_TAR_FILE="$WSREP_SST_OPT_DATA/wsrep_sst_binlog.tar"
 BINLOG_N_FILES=1
 rm -f "$BINLOG_TAR_FILE" || :
 
-if ! [ -z $WSREP_SST_OPT_BINLOG ]
-then
-    BINLOG_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
-    BINLOG_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
-    BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG)
-    BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG)
+get_binlog
+
+if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
+    BINLOG_DIRNAME=$(dirname "$WSREP_SST_OPT_BINLOG")
+    BINLOG_FILENAME=$(basename "$WSREP_SST_OPT_BINLOG")
 fi
 
-if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
-then
-    BINLOG_INDEX_DIRNAME=$(dirname $WSREP_SST_OPT_BINLOG_INDEX)
-    BINLOG_INDEX_FILENAME=$(basename $WSREP_SST_OPT_BINLOG_INDEX)
+if [ -n "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
+    BINLOG_INDEX_DIRNAME=$(dirname "$WSREP_SST_OPT_BINLOG_INDEX")
+    BINLOG_INDEX_FILENAME=$(basename "$WSREP_SST_OPT_BINLOG_INDEX")
 fi
 
-WSREP_LOG_DIR=${WSREP_LOG_DIR:-""}
-# Try to set WSREP_LOG_DIR from the command line:
-if [ ! -z "$INNODB_LOG_GROUP_HOME_ARG" ]; then
-    WSREP_LOG_DIR=$INNODB_LOG_GROUP_HOME_ARG
-fi
-# if no command line arg and WSREP_LOG_DIR is not set,
+# if no command line argument and INNODB_LOG_GROUP_HOME is not set,
 # try to get it from my.cnf:
-if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-log-group-home-dir '')
+if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
+    INNODB_LOG_GROUP_HOME=$(parse_cnf --mysqld innodb-log-group-home-dir)
 fi
-if [ -z "$WSREP_LOG_DIR" ]; then
-    WSREP_LOG_DIR=$(parse_cnf --mysqld innodb-log-group-home-dir '')
-fi
+
+WSREP_LOG_DIR="$INNODB_LOG_GROUP_HOME"
 
 if [ -n "$WSREP_LOG_DIR" ]; then
     # handle both relative and absolute paths
-    WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; mkdir -p "$WSREP_LOG_DIR"; cd $WSREP_LOG_DIR; pwd -P)
+    WSREP_LOG_DIR=$(cd "$WSREP_SST_OPT_DATA"; mkdir -p "$WSREP_LOG_DIR"; cd "$WSREP_LOG_DIR"; pwd -P)
 else
     # default to datadir
-    WSREP_LOG_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
+    WSREP_LOG_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
 fi
 
-INNODB_DATA_HOME_DIR=${INNODB_DATA_HOME_DIR:-""}
-# Try to set INNODB_DATA_HOME_DIR from the command line:
-if [ ! -z "$INNODB_DATA_HOME_DIR_ARG" ]; then
-    INNODB_DATA_HOME_DIR=$INNODB_DATA_HOME_DIR_ARG
-fi
 # if no command line arg and INNODB_DATA_HOME_DIR environment variable
 # is not set, try to get it from my.cnf:
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf mysqld$WSREP_SST_OPT_SUFFIX_VALUE innodb-data-home-dir '')
-fi
-if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir '')
+    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir)
 fi
 
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
     # handle both relative and absolute paths
-    INNODB_DATA_HOME_DIR=$(cd $WSREP_SST_OPT_DATA; mkdir -p "$INNODB_DATA_HOME_DIR"; cd $INNODB_DATA_HOME_DIR; pwd -P)
+    INNODB_DATA_HOME_DIR=$(cd "$WSREP_SST_OPT_DATA"; mkdir -p "$INNODB_DATA_HOME_DIR"; cd "$INNODB_DATA_HOME_DIR"; pwd -P)
 else
     # default to datadir
-    INNODB_DATA_HOME_DIR=$(cd $WSREP_SST_OPT_DATA; pwd -P)
+    INNODB_DATA_HOME_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
 fi
 
 # Old filter - include everything except selected
@@ -242,7 +226,7 @@ EOF
         rm -rf "$ERROR"
 
         # Use deltaxfer only for WAN
-        inv=$(basename $0)
+        inv=$(basename "$0")
         [ "$inv" = "wsrep_sst_rsync_wan" ] && WHOLE_FILE_OPT="" \
                                            || WHOLE_FILE_OPT="--whole-file"
 
@@ -266,35 +250,31 @@ EOF
             sleep 0.2
         done
 
-        STATE="$(cat $FLUSHED)"
+        STATE=$(cat "$FLUSHED")
         rm -rf "$FLUSHED"
 
         sync
 
-        if ! [ -z $WSREP_SST_OPT_BINLOG ]
+        if [ -n "$WSREP_SST_OPT_BINLOG" ]
         then
             # Prepare binlog files
             OLD_PWD="$(pwd)"
-            cd $BINLOG_DIRNAME
 
-            if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
-               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_FILENAME}.index)
-            then
-               cd $BINLOG_INDEX_DIRNAME
-               binlog_files_full=$(tail -n $BINLOG_N_FILES ${BINLOG_INDEX_FILENAME}.index)
-            fi
+            cd "$BINLOG_INDEX_DIRNAME"
+            binlog_files_full=$(tail -n $BINLOG_N_FILES "$BINLOG_INDEX_FILENAME")
 
-            cd $BINLOG_DIRNAME
             binlog_files=""
             for ii in $binlog_files_full
             do
-                binlog_files="$binlog_files $(basename $ii)"
+                binlog_file=$(basename "$ii")
+                binlog_files="$binlog_files $binlog_file"
             done
 
-            if ! [ -z "$binlog_files" ]
+            cd "$BINLOG_DIRNAME"
+            if [ -n "$binlog_files" ]
             then
                 wsrep_log_info "Preparing binlog files for transfer:"
-                tar -cvf $BINLOG_TAR_FILE $binlog_files >&2
+                tar -cvf "$BINLOG_TAR_FILE" $binlog_files >&2
             fi
             cd "$OLD_PWD"
         fi
@@ -307,7 +287,7 @@ EOF
               $WHOLE_FILE_OPT ${FILTER} "$WSREP_SST_OPT_DATA/" \
               rsync://$WSREP_SST_OPT_ADDR >&2 || RC=$?
 
-        if [ "$RC" -ne 0 ]; then
+        if [ $RC -ne 0 ]; then
             wsrep_log_error "rsync returned code $RC:"
 
             case $RC in
@@ -351,7 +331,7 @@ EOF
 
         # then, we parallelize the transfer of database directories, use . so that pathconcatenation works
         OLD_PWD="$(pwd)"
-        cd $WSREP_SST_OPT_DATA
+        cd "$WSREP_SST_OPT_DATA"
 
         count=1
         [ "$OS" = "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
@@ -394,41 +374,31 @@ elif [ "$WSREP_SST_OPT_ROLE" = "joiner" ]
 then
     wsrep_check_programs lsof
 
-    touch $SST_PROGRESS_FILE
-    MYSQLD_PID=$WSREP_SST_OPT_PARENT
+    touch "$SST_PROGRESS_FILE"
+    MYSQLD_PID="$WSREP_SST_OPT_PARENT"
 
     MODULE="rsync_sst"
 
     RSYNC_PID="$WSREP_SST_OPT_DATA/$MODULE.pid"
     # give some time for lingering rsync from previous SST to complete
     check_round=0
-    while check_pid $RSYNC_PID && [ $check_round -lt 10 ]
+    while check_pid "$RSYNC_PID" && [ $check_round -lt 10 ]
     do
         wsrep_log_info "lingering rsync daemon found at startup, waiting for it to exit"
         check_round=$(( check_round + 1 ))
         sleep 1
     done
 
-    if check_pid $RSYNC_PID
+    if check_pid "$RSYNC_PID"
     then
         wsrep_log_error "rsync daemon already running."
         exit 114 # EALREADY
     fi
     rm -rf "$RSYNC_PID"
 
-    ADDR=$WSREP_SST_OPT_ADDR
-    if [ "${ADDR#\[}" != "$ADDR" ]; then
-        RSYNC_PORT=$(echo $ADDR | awk -F '\\]:' '{ print $2 }')
-        RSYNC_ADDR=$(echo $ADDR | awk -F '\\]:' '{ print $1 }')"]"
-    else
-        RSYNC_PORT=$(echo $ADDR | awk -F ':' '{ print $2 }')
-        RSYNC_ADDR=$(echo $ADDR | awk -F ':' '{ print $1 }')
-    fi
-    if [ -z "$RSYNC_PORT" ]
-    then
-        RSYNC_PORT=4444
-        ADDR="$RSYNC_ADDR:$RSYNC_PORT"
-    fi
+    ADDR="$WSREP_SST_OPT_ADDR"
+    RSYNC_PORT="$WSREP_SST_OPT_PORT"
+    RSYNC_ADDR="$WSREP_SST_OPT_HOST"
 
     trap "exit 32" HUP PIPE
     trap "exit 3"  INT TERM ABRT
@@ -436,7 +406,7 @@ then
 
     RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
 
-    if [ -n "${MYSQL_TMP_DIR:-}" ] ; then
+    if [ -n "${MYSQL_TMP_DIR:-}" ]; then
         SILENT="log file = $MYSQL_TMP_DIR/rsyncd.log"
     else
         SILENT=""
@@ -459,7 +429,6 @@ EOF
 
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
 
-    readonly RSYNC_PORT=${WSREP_SST_OPT_PORT:-4444}
     # If the IP is local listen only in it
     if is_local_ip "$RSYNC_ADDR"
     then
@@ -487,12 +456,12 @@ debug = warning
 client = no
 [rsync]
 accept = $STUNNEL_ACCEPT
-exec = $(which rsync)
-execargs = rsync --server --daemon --config=$RSYNC_CONF .
+exec = $(command -v rsync)
+execargs = rsync --server --daemon --config='$RSYNC_CONF' .
 EOF
       stunnel "$STUNNEL_CONF" &
       RSYNC_REAL_PID=$!
-      RSYNC_PID=$STUNNEL_PID
+      RSYNC_PID="$STUNNEL_PID"
     fi
 
     until check_pid_and_port "$RSYNC_PID" "$RSYNC_REAL_PID" "$RSYNC_ADDR" "$RSYNC_PORT"
@@ -513,35 +482,31 @@ EOF
     then
         wsrep_log_error \
         "Parent mysqld process (PID:$MYSQLD_PID) terminated unexpectedly."
-        kill -- -"${MYSQLD_PID}"
+        kill -- -$MYSQLD_PID
         sleep 1
         exit 32
     fi
 
-    if ! [ -z $WSREP_SST_OPT_BINLOG ]
-    then
+    if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
 
         OLD_PWD="$(pwd)"
-        cd $BINLOG_DIRNAME
+        cd "$BINLOG_DIRNAME"
 
-        if [ -f $BINLOG_TAR_FILE ]
-        then
+        if [ -f "$BINLOG_TAR_FILE" ]; then
             # Clean up old binlog files first
-            rm -f ${BINLOG_FILENAME}.*
+            rm -f "$BINLOG_FILENAME".*
             wsrep_log_info "Extracting binlog files:"
-            tar -xvf $BINLOG_TAR_FILE >&2
-            for ii in $(ls -1 ${BINLOG_FILENAME}.*)
-            do
-                if ! [ -z $WSREP_SST_OPT_BINLOG_INDEX ]
-                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_FILENAME}.index
-                then
-                  echo ${BINLOG_DIRNAME}/${ii} >> ${BINLOG_INDEX_DIRNAME}/${BINLOG_INDEX_FILENAME}.index
-                fi
-            done
+            tar -xvf "$BINLOG_TAR_FILE" >> _binlog_tmp_files_$!
+            while read bin_file; do
+                echo "$BINLOG_DIRNAME/$bin_file" >> "$BINLOG_INDEX_DIRNAME/$BINLOG_INDEX_FILENAME"
+            done < _binlog_tmp_files_$!
+            rm -f _binlog_tmp_files_$!
         fi
+
         cd "$OLD_PWD"
 
     fi
+
     if [ -r "$MAGIC_FILE" ]
     then
         # UUID:seqno & wsrep_gtid_domain_id is received here.
@@ -557,6 +522,6 @@ else
     exit 22 # EINVAL
 fi
 
-rm -f $BINLOG_TAR_FILE || :
+rm -f "$BINLOG_TAR_FILE" || :
 
 exit 0

@@ -60,7 +60,7 @@ then
     exit $EINVAL
 fi
 
-[ -n "$WSREP_SST_OPT_USER" ] && AUTH="-u$WSREP_SST_OPT_USER" || AUTH=
+[ -n "$WSREP_SST_OPT_USER" -a "$WSREP_SST_OPT_USER" != '(null)' ] && AUTH="-u$WSREP_SST_OPT_USER" || AUTH=
 
 # Refs https://github.com/codership/mysql-wsrep/issues/141
 # Passing password in MYSQL_PWD environment variable is considered
