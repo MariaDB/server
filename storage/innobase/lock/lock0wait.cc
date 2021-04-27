@@ -192,28 +192,33 @@ wsrep_is_BF_lock_timeout(
 	const trx_t*	trx,
 	bool		locked = true)
 {
-	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, FALSE)
-	    && trx->error_state != DB_DEADLOCK) {
-		ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx->id)
+	bool long_wait= (trx->error_state != DB_DEADLOCK &&
+			 trx->is_wsrep() &&
+			 wsrep_thd_is_BF(trx->mysql_thd, false));
+	bool was_wait= true;
+
+	DBUG_EXECUTE_IF("wsrep_instrument_BF_lock_wait",
+			was_wait=false; long_wait=true;);
+
+	if (long_wait) {
+		ib::info() << "WSREP: BF lock wait long for trx:" << trx->id
 			   << " query: " << wsrep_thd_query(trx->mysql_thd);
-		if (!locked) {
+
+		if (!locked)
 			lock_mutex_enter();
-		}
 
 		ut_ad(lock_mutex_own());
 
 		wsrep_trx_print_locking(stderr, trx, 3000);
+		/* Note this will release lock_sys mutex */
+		lock_print_info_all_transactions(stderr);
 
-		if (!locked) {
-			lock_mutex_exit();
-		}
+		if (locked)
+			lock_mutex_enter();
 
-		srv_print_innodb_monitor 	= TRUE;
-		srv_print_innodb_lock_monitor 	= TRUE;
-		os_event_set(srv_monitor_event);
-		return true;
-	}
-	return false;
+		return was_wait;
+	} else
+		return false;
 }
 #endif /* WITH_WSREP */
 
