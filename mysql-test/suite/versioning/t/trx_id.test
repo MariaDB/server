@@ -5,6 +5,8 @@ if (!$TEST_VERSIONING_SO)
 --source include/have_innodb.inc
 --source include/default_charset.inc
 
+--eval install plugin test_versioning soname '$TEST_VERSIONING_SO'
+
 set default_storage_engine= innodb;
 
 create or replace table t1 (
@@ -528,8 +530,7 @@ alter table t add `row_start` bigint unsigned as row start,
               add period for system_time(`row_start`,`row_end`),
               modify x int after row_start,
               with system versioning;
-
-create or replace database test;
+drop table t;
 
 --echo #
 --echo # MDEV-20842 Crash using versioning plugin functions after plugin was removed from server
