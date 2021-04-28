@@ -475,8 +475,10 @@ CREATE TABLE t1 (a INT) ENGINE=MyISAM;
 INSERT INTO t1 VALUES (8);
 CREATE TABLE t2 (b INT) ENGINE=MyISAM;
 INSERT INTO t2 VALUES (1),(7);
+--enable_prepare_warnings
 EXPLAIN SELECT * FROM (SELECT * FROM t1) AS table1,
   (SELECT DISTINCT * FROM t2) AS table2 WHERE b = a AND a <> ANY (SELECT 9);
+--disable_prepare_warnings
 DROP TABLE t1, t2;
 set optimizer_switch=@save_derived_optimizer_switch_bug;
 

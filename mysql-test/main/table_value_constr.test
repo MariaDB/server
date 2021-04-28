@@ -1471,7 +1471,9 @@ insert into t2 values (1), (2);
 let $q1=
 select (values ((select 2))) from t2;
 eval $q1;
+--enable_prepare_warnings
 eval explain $q1;
+--disable_prepare_warnings
 eval prepare stmt from "$q1";
 execute stmt;
 execute stmt;
