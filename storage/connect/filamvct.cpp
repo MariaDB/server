@@ -4117,7 +4117,8 @@ bool BGVFAM::CleanUnusedSpace(PGLOBAL g)
   } else {
     int  req;
 
-    memset(To_Buf, 0, Buflen);
+    if (To_Buf)
+      memset(To_Buf, 0, Buflen);
 
     for (n = Fpos - Tpos; n > 0; n -= req) {
       /*****************************************************************/

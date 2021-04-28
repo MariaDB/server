@@ -2,7 +2,7 @@
 # -*- cperl -*-
 
 # Copyright (c) 2004, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2009, 2020, MariaDB Corporation
+# Copyright (c) 2009, 2021, MariaDB Corporation
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -1747,7 +1747,6 @@ sub collect_mysqld_features {
   }
   mtr_error("Could not find variabes list") unless %mysqld_variables;
 }
-
 
 
 sub collect_mysqld_features_from_running_server ()
@@ -4411,6 +4410,12 @@ sub extract_warning_lines ($$) {
      qr/Detected table cache mutex contention at instance .* waits. Additional table cache instance cannot be activated: consider raising table_open_cache_instances. Number of active instances/,
      qr/WSREP: Failed to guess base node address/,
      qr/WSREP: Guessing address for incoming client/,
+
+     # for UBSAN
+     qr/decimal\.c.*: runtime error: signed integer overflow/,
+     # Disable test for UBSAN on dynamically loaded objects
+     qr/runtime error: member call.*object.*'Handler_share'/,
+     qr/sql_type\.cc.* runtime error: member call.*object.* 'Type_collection'/,
     );
 
   my $matched_lines= [];

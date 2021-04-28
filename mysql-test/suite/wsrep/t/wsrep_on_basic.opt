@@ -1,0 +1,1 @@
+--wsrep-provider=$WSREP_PROVIDER --binlog_format=ROW --wsrep-cluster-address=gcomm://

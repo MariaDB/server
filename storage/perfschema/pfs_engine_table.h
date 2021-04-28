@@ -74,7 +74,7 @@ private:
   ulonglong m_last_version;
   ulong *m_map;
   ulong m_map_size;
-  ulong m_word_size;
+  static constexpr ulong m_word_size= 8 * sizeof(ulong);
   bool m_restore;
   bool m_initialized;
   ulong m_last_item;

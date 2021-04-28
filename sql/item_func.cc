@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1104,17 +1104,20 @@ double Item_func_plus::real_op()
   return check_float_overflow(value);
 }
 
+#if defined(__powerpc64__) && GCC_VERSION >= 6003 && GCC_VERSION <= 10002
+#pragma GCC push_options
+#pragma GCC optimize ("no-expensive-optimizations")
+#endif
 
 longlong Item_func_plus::int_op()
 {
   longlong val0= args[0]->val_int();
   longlong val1= args[1]->val_int();
-  longlong res= val0 + val1;
   bool     res_unsigned= FALSE;
+  longlong res;
 
   if ((null_value= args[0]->null_value || args[1]->null_value))
     return 0;
-
   /*
     First check whether the result can be represented as a
     (bool unsigned_flag, longlong value) pair, then check if it is compatible
@@ -1155,16 +1158,29 @@ longlong Item_func_plus::int_op()
     {
       if (val0 >=0 && val1 >= 0)
         res_unsigned= TRUE;
-      else if (val0 < 0 && val1 < 0 && res >= 0)
+      else if (val0 < 0 && val1 < 0 && val0 < (LONGLONG_MIN - val1))
         goto err;
     }
   }
+
+#ifndef WITH_UBSAN
+  res= val0 + val1;
+#else
+  if (res_unsigned)
+    res= (longlong) ((ulonglong) val0 + (ulonglong) val1);
+  else
+    res= val0+val1;
+#endif /* WITH_UBSAN */
+
   return check_integer_overflow(res, res_unsigned);
 
 err:
   return raise_integer_overflow();
 }
 
+#if defined(__powerpc64__) && GCC_VERSION >= 6003 && GCC_VERSION <= 10002
+#pragma GCC pop_options
+#endif
 
 /**
   Calculate plus of two decimals.
@@ -1259,12 +1275,17 @@ double Item_func_minus::real_op()
 }
 
 
+#if defined(__powerpc64__) && GCC_VERSION >= 6003 && GCC_VERSION <= 10002
+#pragma GCC push_options
+#pragma GCC optimize ("no-expensive-optimizations")
+#endif
+
 longlong Item_func_minus::int_op()
 {
   longlong val0= args[0]->val_int();
   longlong val1= args[1]->val_int();
-  longlong res= val0 - val1;
   bool     res_unsigned= FALSE;
+  longlong res;
 
   if ((null_value= args[0]->null_value || args[1]->null_value))
     return 0;
@@ -1279,12 +1300,8 @@ longlong Item_func_minus::int_op()
     if (args[1]->unsigned_flag)
     {
       if ((ulonglong) val0 < (ulonglong) val1)
-      {
-        if (res >= 0)
-          goto err;
-      }
-      else
-        res_unsigned= TRUE;
+        goto err;
+      res_unsigned= TRUE;
     }
     else
     {
@@ -1305,23 +1322,35 @@ longlong Item_func_minus::int_op()
   {
     if (args[1]->unsigned_flag)
     {
-      if ((ulonglong) (val0 - LONGLONG_MIN) < (ulonglong) val1)
+      if (((ulonglong) val0 - (ulonglong) LONGLONG_MIN) < (ulonglong) val1)
         goto err;
     }
     else
     {
       if (val0 > 0 && val1 < 0)
         res_unsigned= TRUE;
-      else if (val0 < 0 && val1 > 0 && res >= 0)
+      else if (val0 < 0 && val1 > 0 && val0 < (LONGLONG_MIN + val1))
         goto err;
     }
   }
+#ifndef WITH_UBSAN
+  res= val0 - val1;
+#else
+  if (res_unsigned)
+    res= (longlong) ((ulonglong) val0 - (ulonglong) val1);
+  else
+    res= val0 - val1;
+#endif /* WITH_UBSAN */
+
   return check_integer_overflow(res, res_unsigned);
 
 err:
   return raise_integer_overflow();
 }
 
+#if defined(__powerpc64__) && GCC_VERSION >= 6003 && GCC_VERSION <= 10002
+#pragma GCC pop_options
+#endif
 
 /**
   See Item_func_plus::decimal_op for comments.
@@ -3114,10 +3143,11 @@ longlong Item_func_locate::val_int()
 
   if (arg_count == 3)
   {
-    start0= start= args[2]->val_int() - 1;
+    start0= start= args[2]->val_int();
 
-    if ((start < 0) || (start > a->length()))
+    if ((start <= 0) || (start > a->length()))
       return 0;
+    start0--; start--;
 
     /* start is now sufficiently valid to pass to charpos function */
     start= a->charpos((int) start);
@@ -3281,7 +3311,7 @@ bool Item_func_find_in_set::fix_length_and_dec()
 			      find->length(), 0);
 	enum_bit=0;
 	if (enum_value)
-	  enum_bit=1LL << (enum_value-1);
+	  enum_bit= 1ULL << (enum_value-1);
       }
     }
   }

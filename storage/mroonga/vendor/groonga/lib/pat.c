@@ -899,7 +899,7 @@ chop(grn_ctx *ctx, grn_pat *pat, const char **key, const char *end, uint32_t *lk
   case GRN_OBJ_KEY_FLOAT :\
     if ((size) == sizeof(int64_t)) {\
       int64_t v = *(int64_t *)(key);\
-      v ^= ((v >> 63)|(1LL << 63));\
+      v ^= ((v >> 63)|(1ULL << 63));\
       grn_hton((keybuf), &v, (size));\
     }\
     break;\
@@ -924,7 +924,7 @@ chop(grn_ctx *ctx, grn_pat *pat, const char **key, const char *end, uint32_t *lk
     if ((size) == sizeof(int64_t)) {\
       int64_t v;\
       grn_hton(&v, (key), (size));\
-      *((int64_t *)(keybuf)) = v ^ (((v^(1LL<<63))>> 63)|(1LL<<63));  \
+      *((int64_t *)(keybuf)) = v ^ ((((int64_t)(v^(1ULL<<63)))>> 63)|(1ULL<<63)); \
     }\
     break;\
   }\

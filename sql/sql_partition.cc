@@ -1505,7 +1505,7 @@ static bool check_list_constants(THD *thd, partition_info *part_info)
       List_iterator<part_elem_value> list_val_it2(part_def->list_val_list);
       while ((list_value= list_val_it2++))
       {
-        calc_value= list_value->value - type_add;
+        calc_value= list_value->value ^ type_add;
         part_info->list_array[list_index].list_value= calc_value;
         part_info->list_array[list_index++].partition_id= i;
       }

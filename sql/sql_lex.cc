@@ -2970,6 +2970,7 @@ void st_select_lex::init_query()
   is_service_select= 0;
   parsing_place= NO_MATTER;
   save_parsing_place= NO_MATTER;
+  context_analysis_place= NO_MATTER;
   exclude_from_table_unique_test= no_wrap_view_item= FALSE;
   nest_level= 0;
   link_next= 0;
@@ -5679,6 +5680,27 @@ bool st_select_lex::save_prep_leaf_tables(THD *thd)
   }
 
   return FALSE;
+}
+
+
+/**
+  Set exclude_from_table_unique_test for selects of this select and all selects
+  belonging to the underlying units of derived tables or views
+*/
+
+void st_select_lex::set_unique_exclude()
+{
+  exclude_from_table_unique_test= TRUE;
+  for (SELECT_LEX_UNIT *unit= first_inner_unit();
+       unit;
+       unit= unit->next_unit())
+  {
+    if (unit->derived && unit->derived->is_view_or_derived())
+    {
+      for (SELECT_LEX *sl= unit->first_select(); sl; sl= sl->next_select())
+        sl->set_unique_exclude();
+    }
+  }
 }
 
 
@@ -10084,7 +10106,7 @@ SELECT_LEX *LEX::parsed_subselect(SELECT_LEX_UNIT *unit)
               (curr_sel == NULL && current_select == &builtin_select));
   if (curr_sel)
   {
-    curr_sel->register_unit(unit, &curr_sel->context);
+    curr_sel->register_unit(unit, context_stack.head());
     curr_sel->add_statistics(unit);
   }
 

@@ -33,3 +33,6 @@ ELSE()
   SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGE_FILES -maix64 -pthread -mcmodel=large")
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -D_GNU_SOURCE -D_FILE_OFFSET_BITS=64 -D_LARGE_FILES -maix64 -pthread -mcmodel=large")
 ENDIF()
+
+# make it WARN by default, not AUTO (that implies -Werror)
+SET(MYSQL_MAINTAINER_MODE "WARN" CACHE STRING "Enable MariaDB maintainer-specific warnings. One of: NO (warnings are disabled) WARN (warnings are enabled) ERR (warnings are errors) AUTO (warnings are errors in Debug only)")

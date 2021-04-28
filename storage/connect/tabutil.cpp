@@ -708,7 +708,7 @@ bool PRXCOL::Init(PGLOBAL g, PTDB tp)
     MODE mode = To_Tdb->GetMode();
 
     // Needed for MYSQL subtables
-    ((XCOLBLK*)Colp)->Name = Decode(g, Colp->GetName());
+    ((COLBLK*)Colp)->SetName(Decode(g, Colp->GetName()));
 
     // May not have been done elsewhere
     Colp->InitValue(g);        

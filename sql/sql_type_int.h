@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, MariaDB
+/* Copyright (c) 2018, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -80,16 +80,20 @@ public:
     if (is_null() || llshift.is_null())
       return Longlong_null();
     uint shift= (uint) llshift.value();
-    ulonglong res= ((ulonglong) value()) << shift;
-    return Longlong_null(shift < sizeof(longlong) * 8 ? (longlong) res : 0);
+    ulonglong res= (shift < sizeof(longlong) * 8)
+      ? ((ulonglong) value()) << shift
+      : 0;
+    return Longlong_null((longlong) res);
   }
   Longlong_null operator>>(const Longlong_null &llshift) const
   {
     if (is_null() || llshift.is_null())
       return Longlong_null();
     uint shift= (uint) llshift.value();
-    ulonglong res= ((ulonglong) value()) >> shift;
-    return Longlong_null(shift < sizeof(longlong) * 8 ? (longlong) res : 0);
+    ulonglong res= (shift < sizeof(longlong) * 8)
+      ? ((ulonglong) value()) >> shift
+      : 0;
+    return Longlong_null((longlong) res);
   }
   Longlong_null bit_count() const
   {

@@ -1,0 +1,79 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+--source include/have_binlog_format_row.inc
+
+# References:
+#
+# MDEV-24526 binlog rotate via FLUSH LOGS may obsolate binlog file too eary
+#
+# The test for MDEV-24526 proves the fixes correct observed race condition
+# between a commiting transaction and FLUSH-LOGS.
+# The plot.
+# Trx_1 (con1) transaction binlogs first
+# to yield its turn acquiring LOCK_commit_ordered to Trx_2 and stand
+# still waiting of a signal that will never arrive.
+# Trx_2 can't acquire it in the fixed version even though
+# Trx_3 makes sure Trx_2 has reached a post-rotation execution point
+# to signal it to proceed.
+# Then the server gets crashed and Trx_1 must recover unlike
+# in the OLD buggy version.
+#
+SET GLOBAL innodb_flush_log_at_trx_commit= 1;
+RESET MASTER;
+
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+
+--echo *** Test that FLUSH LOGS waits if a transaction ordered commit is in progress.
+
+connect(con1,localhost,root,,);  # Trx_1
+# hang before doing acquiring Commit Ordered mutex
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
+
+--send INSERT INTO t1 VALUES (1, REPEAT("x", 1))
+
+connection default;              # Trx_2
+
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+SET DEBUG_SYNC= "rotate_after_rotate SIGNAL con_flush_ready WAIT_FOR default_go";
+--send FLUSH LOGS
+
+connect(con2,localhost,root,,);  # Trx_3
+--echo Trx_1 is not yet committed:
+SELECT count(*) as 'ZERO' from t1;
+
+--echo Wait for Trx_2 has rotated binlog:
+SET DEBUG_SYNC= "now WAIT_FOR con_flush_ready";
+# Useless signal to prove Trx_2 cannot race Trx_1's commit
+# even though Trx_1 never received the being waited 'con1_go'.
+SET DEBUG_SYNC= "now SIGNAL default_go";
+
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+
+connection default;
+--enable_reconnect
+--error 0,2013
+--reap
+
+--echo Must be tree logs in the list:
+--source include/show_binary_logs.inc
+--let $binlog_file= master-bin.000001
+--let $binlog_start= 4
+--source include/show_binlog_events.inc
+
+--echo Only one Binlog checkpoint must exist and point to master-bin.000001
+--let $binlog_file= master-bin.000002
+--let $binlog_start= 4
+--source include/show_binlog_events.inc
+
+
+# In the buggy server version the following select may have
+# resulted with ZERO:
+SELECT count(*) as 'ONE' from t1;
+
+# Clean up.
+connection default;
+
+DROP TABLE t1;
+SET debug_sync = 'reset';
