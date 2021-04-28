@@ -30,11 +30,15 @@ SET optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
 SET optimizer_use_condition_selectivity=4;
 
 select (select 2);
+
+--enable_prepare_warnings
 explain extended select (select 2);
 SELECT (SELECT 1) UNION SELECT (SELECT 2);
 explain extended SELECT (SELECT 1) UNION SELECT (SELECT 2);
 SELECT (SELECT (SELECT 0 UNION SELECT 0));
 explain extended SELECT (SELECT (SELECT 0 UNION SELECT 0));
+--disable_prepare_warnings
+
 -- error ER_ILLEGAL_REFERENCE
 SELECT (SELECT 1 FROM (SELECT 1) as b HAVING a=1) as a;
 -- error ER_ILLEGAL_REFERENCE
@@ -441,11 +445,15 @@ SELECT * FROM (SELECT 1) b WHERE 1 IN (SELECT *);
 CREATE TABLE t2 (id int(11) default NULL, KEY id (id)) ENGINE=MyISAM CHARSET=latin1;
 INSERT INTO t2 VALUES (1),(2);
 SELECT * FROM t2 WHERE id IN (SELECT 1);
+--enable_prepare_warnings
 EXPLAIN EXTENDED SELECT * FROM t2 WHERE id IN (SELECT 1);
+--disable_prepare_warnings
 SELECT * FROM t2 WHERE id IN (SELECT 1 UNION SELECT 3);
 SELECT * FROM t2 WHERE id IN (SELECT 1+(select 1));
+--enable_prepare_warnings
 EXPLAIN EXTENDED SELECT * FROM t2 WHERE id IN (SELECT 1+(select 1));
 EXPLAIN EXTENDED SELECT * FROM t2 WHERE id IN (SELECT 1 UNION SELECT 3);
+--disable_prepare_warnings
 SELECT * FROM t2 WHERE id IN (SELECT 5 UNION SELECT 3);
 SELECT * FROM t2 WHERE id IN (SELECT 5 UNION SELECT 2);
 -- error ER_UPDATE_TABLE_USED
@@ -501,7 +509,9 @@ select 1.5 > ALL (SELECT * from t1);
 select 10.5 > ALL (SELECT * from t1);
 select 1.5 > ANY (SELECT * from t1);
 select 10.5 > ANY (SELECT * from t1);
+--enable_prepare_warnings
 explain extended select (select a+1) from t1;
+--disable_prepare_warnings
 select (select a+1) from t1;
 drop table t1;
 

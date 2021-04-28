@@ -73,14 +73,18 @@ GROUP BY t1.a
 HAVING (t1.a>1) OR (a IN (SELECT 3));
 eval $no_pushdown $query;
 eval $query;
+--enable_prepare_warnings
 eval explain $query;
 eval explain format=json $query;
+--disable_prepare_warnings
 let $query=
 SELECT t1.a,MAX(t1.b)
 FROM t1
 WHERE (t1.a>1) OR (a IN (SELECT 3))
 GROUP BY t1.a;
+--enable_prepare_warnings
 eval $no_pushdown explain format=json $query;
+--disable_prepare_warnings
 
 let $query=
 SELECT t1.a,MAX(t1.b),MIN(t1.c)
