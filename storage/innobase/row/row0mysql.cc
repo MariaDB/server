@@ -4093,7 +4093,6 @@ row_rename_table_for_mysql(
 	ibool		old_is_tmp, new_is_tmp;
 	pars_info_t*	info			= NULL;
 	int		retry;
-	bool		aux_fts_rename		= false;
 	char*		is_part 		= NULL;
 
 	ut_a(old_name != NULL);
@@ -4253,7 +4252,7 @@ row_rename_table_for_mysql(
 	if (err != DB_SUCCESS) {
 		// Assume the caller guarantees destination name doesn't exist.
 		ut_ad(err != DB_DUPLICATE_KEY);
-		goto err_exit;
+		goto rollback_and_exit;
 	}
 
 	if (!new_is_tmp) {
@@ -4392,54 +4391,28 @@ row_rename_table_for_mysql(
 	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID))
 	    && !dict_tables_have_same_db(old_name, new_name)) {
 		err = fts_rename_aux_tables(table, new_name, trx);
-		if (err != DB_TABLE_NOT_FOUND) {
-			aux_fts_rename = true;
-		}
 	}
 
-	if (err != DB_SUCCESS) {
-err_exit:
-		if (err == DB_DUPLICATE_KEY) {
-			ib::error() << "Possible reasons:";
-			ib::error() << "(1) Table rename would cause two"
-				" FOREIGN KEY constraints to have the same"
-				" internal name in case-insensitive"
-				" comparison.";
-			ib::error() << "(2) Table "
-				<< ut_get_name(trx, new_name)
-				<< " exists in the InnoDB internal data"
-				" dictionary though MySQL is trying to rename"
-				" table " << ut_get_name(trx, old_name)
-				<< " to it. Have you deleted the .frm file and"
-				" not used DROP TABLE?";
-			ib::info() << TROUBLESHOOTING_MSG;
-			ib::error() << "If table "
-				<< ut_get_name(trx, new_name)
-				<< " is a temporary table #sql..., then"
-				" it can be that there are still queries"
-				" running on the table, and it will be dropped"
-				" automatically when the queries end. You can"
-				" drop the orphaned table inside InnoDB by"
-				" creating an InnoDB table with the same name"
-				" in another database and copying the .frm file"
-				" to the current database. Then MySQL thinks"
-				" the table exists, and DROP TABLE will"
-				" succeed.";
-		}
+	switch (err) {
+	case DB_DUPLICATE_KEY:
+		ib::error() << "Table rename might cause two"
+			" FOREIGN KEY constraints to have the same"
+			" internal name in case-insensitive comparison.";
+		ib::info() << TROUBLESHOOTING_MSG;
+		/* fall through */
+	rollback_and_exit:
+	default:
 		trx->error_state = DB_SUCCESS;
 		trx->rollback();
 		trx->error_state = DB_SUCCESS;
-	} else {
-		/* The following call will also rename the .ibd data file if
-		the table is stored in a single-table tablespace */
-
+		break;
+	case DB_SUCCESS:
+		DEBUG_SYNC_C("innodb_rename_in_cache");
+		/* The following call will also rename the .ibd file */
 		err = dict_table_rename_in_cache(
 			table, new_name, !new_is_tmp);
 		if (err != DB_SUCCESS) {
-			trx->error_state = DB_SUCCESS;
-			trx->rollback();
-			trx->error_state = DB_SUCCESS;
-			goto funct_exit;
+			goto rollback_and_exit;
 		}
 
 		/* In case of copy alter, template db_name and
@@ -4462,7 +4435,6 @@ err_exit:
 			fk_tables);
 
 		if (err != DB_SUCCESS) {
-
 			if (old_is_tmp) {
 				/* In case of copy alter, ignore the
 				loading of foreign key constraint
@@ -4476,7 +4448,7 @@ err_exit:
 					" definition.";
 				if (!trx->check_foreigns) {
 					err = DB_SUCCESS;
-					goto funct_exit;
+					break;
 				}
 			} else {
 				ib::error() << "In RENAME TABLE table "
@@ -4486,22 +4458,14 @@ err_exit:
 					" with the new table definition.";
 			}
 
-			trx->error_state = DB_SUCCESS;
-			trx->rollback();
-			trx->error_state = DB_SUCCESS;
+			goto rollback_and_exit;
 		}
 
 		/* Check whether virtual column or stored column affects
 		the foreign key constraint of the table. */
-		if (dict_foreigns_has_s_base_col(
-				table->foreign_set, table)) {
+		if (dict_foreigns_has_s_base_col(table->foreign_set, table)) {
 			err = DB_NO_FK_ON_S_BASE_COL;
-			ut_a(DB_SUCCESS == dict_table_rename_in_cache(
-				table, old_name, FALSE));
-			trx->error_state = DB_SUCCESS;
-			trx->rollback();
-			trx->error_state = DB_SUCCESS;
-			goto funct_exit;
+			goto rollback_and_exit;
 		}
 
 		/* Fill the virtual column set in foreign when
@@ -4519,37 +4483,6 @@ err_exit:
 	}
 
 funct_exit:
-	if (aux_fts_rename && err != DB_SUCCESS
-	    && table != NULL && (table->space != 0)) {
-
-		char*	orig_name = table->name.m_name;
-		trx_t*	trx_bg = trx_create();
-
-		/* If the first fts_rename fails, the trx would
-		be rolled back and committed, we can't use it any more,
-		so we have to start a new background trx here. */
-		ut_a(trx_state_eq(trx_bg, TRX_STATE_NOT_STARTED));
-		trx_bg->op_info = "Revert the failing rename "
-				  "for fts aux tables";
-		trx_bg->dict_operation_lock_mode = RW_X_LATCH;
-		trx_start_for_ddl(trx_bg, TRX_DICT_OP_TABLE);
-
-		/* If rename fails and table has its own tablespace,
-		we need to call fts_rename_aux_tables again to
-		revert the ibd file rename, which is not under the
-		control of trx. Also notice the parent table name
-		in cache is not changed yet. If the reverting fails,
-		the ibd data may be left in the new database, which
-		can be fixed only manually. */
-		table->name.m_name = const_cast<char*>(new_name);
-		fts_rename_aux_tables(table, old_name, trx_bg);
-		table->name.m_name = orig_name;
-
-		trx_bg->dict_operation_lock_mode = 0;
-		trx_commit_for_mysql(trx_bg);
-		trx_bg->free();
-	}
-
 	if (table != NULL) {
 		if (commit && !table->is_temporary()) {
 			table->stats_bg_flag &= byte(~BG_STAT_SHOULD_QUIT);

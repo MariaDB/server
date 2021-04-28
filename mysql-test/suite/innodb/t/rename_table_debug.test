@@ -19,4 +19,23 @@ SET DEBUG_SYNC='now WAIT_FOR renamed';
 --source include/restart_mysqld.inc
 --disconnect con1
 SELECT * FROM t1;
-DROP TABLE t1;
+
+CREATE TABLE t2 (a INT PRIMARY KEY) ENGINE=InnoDB;
+BEGIN;
+INSERT INTO t2 VALUES(1);
+
+--connect (con1,localhost,root,,test)
+SET DEBUG_SYNC='innodb_rename_in_cache SIGNAL committed WAIT_FOR ever';
+--send
+RENAME TABLE t1 TO t3;
+--connection default
+SET DEBUG_SYNC='now WAIT_FOR committed';
+COMMIT;
+
+--let $shutdown_timeout=0
+--source include/restart_mysqld.inc
+--disconnect con1
+SELECT * FROM t1;
+SELECT * FROM t2;
+
+DROP TABLE t1,t2;

@@ -148,9 +148,7 @@ SET FOREIGN_KEY_CHECKS=1;
 --echo #
 
 --disable_query_log
-call mtr.add_suppression("InnoDB: Possible reasons:");
-call mtr.add_suppression("InnoDB: \\([12]\\) Table ");
-call mtr.add_suppression("InnoDB: If table `test`\\.`t2` is a temporary table");
+call mtr.add_suppression("InnoDB: Table rename might cause two FOREIGN KEY");
 call mtr.add_suppression("InnoDB: Cannot delete/update rows with cascading foreign key constraints that exceed max depth of 15\\.");
 --enable_query_log
 
