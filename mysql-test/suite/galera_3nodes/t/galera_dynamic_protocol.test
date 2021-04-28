@@ -1,0 +1,65 @@
+#
+# Test galera dynamic protocol support. By providing `socket.dynamic=true` in 
+# galera configuration it is possible to use same port for communication over ssl or tcp.
+#
+
+--source include/big_test.inc
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+# Save original auto_increment_offset values.
+--let $node_1 = node_1
+--let $node_2 = node_2
+--let $node_3 = node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY) Engine=InnoDB;
+INSERT INTO t1 VALUES (1);
+
+--connection node_2
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+--connection node_3
+--let $wait_condition = SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
+--source include/wait_condition.inc
+--let $wait_condition = SELECT VARIABLE_VALUE = 3 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+SELECT COUNT(*) = 1 FROM t1;
+
+# Setup galera ports
+--connection node_1
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
+
+--connection node_2
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
+
+--connection node_2
+# Restart node with SSL enabled
+--source include/shutdown_mysqld.inc
+--let $restart_noprint = 1
+--let $restart_parameters = --wsrep_cluster_address=gcomm://127.0.0.1:$NODE_GALERAPORT_1 --wsrep_provider_options=base_port=$NODE_GALERAPORT_2;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-key.pem
+--source include/start_mysqld.inc
+--source include/galera_wait_ready.inc
+
+INSERT INTO t1 VALUES (2);
+
+--connection node_3
+SELECT COUNT(*) = 2 FROM t1;
+
+DROP TABLE t1;
+
+--source ../galera/include/auto_increment_offset_restore.inc
