@@ -1,5 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2013 Percona Inc
+# Copyright (C) 2017-2021 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -681,10 +682,11 @@ wait_for_listen()
 check_extra()
 {
     local use_socket=1
-    if [[ $uextra -eq 1 ]];then
-        if [ $(parse_cnf --mysqld thread-handling) = 'pool-of-threads'];then
-            local eport=$(parse_cnf --mysqld extra-port)
-            if [[ -n "$eport" ]];then
+    if [ $uextra -eq 1 ]; then
+        local thread_handling=$(parse_cnf '--mysqld' 'thread-handling')
+        if [ "$thread_handling" = 'pool-of-threads' ]; then
+            local eport=$(parse_cnf '--mysqld' 'extra-port')
+            if [ -n "$eport" ]; then
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally.
                 wsrep_log_info "SST through extra_port $eport"
@@ -769,7 +771,7 @@ send_donor()
 
     for ecode in "${RC[@]}";do
         if [[ $ecode -ne 0 ]];then
-            wsrep_log_error "Error while getting data from donor node: " \
+            wsrep_log_error "Error while sending data to joiner node: " \
                             "exit codes: ${RC[@]}"
             exit 32
         fi
@@ -904,10 +906,10 @@ fi
 get_stream
 get_transfer
 
-# if no command line arg and INNODB_DATA_HOME_DIR environment variable
+# if no command line argument and INNODB_DATA_HOME_DIR environment variable
 # is not set, try to get it from my.cnf:
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir)
+    INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
 fi
 
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
@@ -1062,14 +1064,14 @@ then
     # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
     # try to get it from my.cnf:
     if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
-        INNODB_LOG_GROUP_HOME=$(parse_cnf --mysqld innodb-log-group-home-dir)
+        INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
     fi
 
     ib_log_dir="$INNODB_LOG_GROUP_HOME"
 
-    # if no command line arg then try to get it from my.cnf:
+    # if no command line argument then try to get it from my.cnf:
     if [ -z "$INNODB_UNDO_DIR" ]; then
-        INNODB_UNDO_DIR=$(parse_cnf --mysqld innodb-undo-directory)
+        INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
     fi
 
     ib_undo_dir="$INNODB_UNDO_DIR"
@@ -1142,7 +1144,7 @@ then
             binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
             wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
             rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            rm -fv "$WSREP_SST_OPT_BINLOG_INDEX"  1>&2 \+ || true
+            rm -fv "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index" 1>&2 \+ || true
         fi
 
         TDATA="${DATA}"
@@ -1222,7 +1224,7 @@ then
 
             pushd "$BINLOG_DIRNAME" &>/dev/null
             for bfile in $(ls -1 "$BINLOG_FILENAME".[0-9]*); do
-                echo "$BINLOG_DIRNAME/$bfile" >> "$WSREP_SST_OPT_BINLOG_INDEX"
+                echo "$BINLOG_DIRNAME/$bfile" >> "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
             done
             popd &> /dev/null
 

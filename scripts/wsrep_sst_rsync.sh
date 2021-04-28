@@ -1,6 +1,7 @@
 #!/bin/bash -ue
 
 # Copyright (C) 2010-2014 Codership Oy
+# Copyright (C) 2017-2021 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -141,15 +142,10 @@ if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     BINLOG_FILENAME=$(basename "$WSREP_SST_OPT_BINLOG")
 fi
 
-if [ -n "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
-    BINLOG_INDEX_DIRNAME=$(dirname "$WSREP_SST_OPT_BINLOG_INDEX")
-    BINLOG_INDEX_FILENAME=$(basename "$WSREP_SST_OPT_BINLOG_INDEX")
-fi
-
 # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
 # try to get it from my.cnf:
 if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
-    INNODB_LOG_GROUP_HOME=$(parse_cnf --mysqld innodb-log-group-home-dir)
+    INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
 fi
 
 WSREP_LOG_DIR="$INNODB_LOG_GROUP_HOME"
@@ -162,10 +158,10 @@ else
     WSREP_LOG_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
 fi
 
-# if no command line arg and INNODB_DATA_HOME_DIR environment variable
+# if no command line argument and INNODB_DATA_HOME_DIR environment variable
 # is not set, try to get it from my.cnf:
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir)
+    INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
 fi
 
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
@@ -174,6 +170,19 @@ if [ -n "$INNODB_DATA_HOME_DIR" ]; then
 else
     # default to datadir
     INNODB_DATA_HOME_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
+fi
+
+# if no command line argument then try to get it from my.cnf:
+if [ -z "$INNODB_UNDO_DIR" ]; then
+    INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
+fi
+
+if [ -n "$INNODB_UNDO_DIR" ]; then
+    # handle both relative and absolute paths
+    INNODB_UNDO_DIR=$(cd "$WSREP_SST_OPT_DATA"; mkdir -p "$INNODB_UNDO_DIR"; cd "$INNODB_UNDO_DIR"; pwd -P)
+else
+    # default to datadir
+    INNODB_UNDO_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
 fi
 
 # Old filter - include everything except selected
@@ -190,7 +199,7 @@ FILTER="-f '- /lost+found'
         -f '+ /wsrep_sst_binlog.tar'
         -f '- $INNODB_DATA_HOME_DIR/ib_lru_dump'
         -f '- $INNODB_DATA_HOME_DIR/ibdata*'
-        -f '+ /undo*'
+        -f '+ $INNODB_UNDO_DIR/undo*'
         -f '+ /*/'
         -f '- /*'"
 
@@ -259,9 +268,9 @@ EOF
         then
             # Prepare binlog files
             OLD_PWD="$(pwd)"
+            cd "$BINLOG_DIRNAME"
 
-            cd "$BINLOG_INDEX_DIRNAME"
-            binlog_files_full=$(tail -n $BINLOG_N_FILES "$BINLOG_INDEX_FILENAME")
+            binlog_files_full=$(tail -n $BINLOG_N_FILES "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index")
 
             binlog_files=""
             for ii in $binlog_files_full
@@ -270,12 +279,12 @@ EOF
                 binlog_files="$binlog_files $binlog_file"
             done
 
-            cd "$BINLOG_DIRNAME"
             if [ -n "$binlog_files" ]
             then
                 wsrep_log_info "Preparing binlog files for transfer:"
                 tar -cvf "$BINLOG_TAR_FILE" $binlog_files >&2
             fi
+
             cd "$OLD_PWD"
         fi
 
@@ -321,7 +330,7 @@ EOF
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '- **' "$WSREP_LOG_DIR/" \
+              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '+ /aria_log.*' -f '+ /aria_log_control' -f '- **' "$WSREP_LOG_DIR/" \
               rsync://$WSREP_SST_OPT_ADDR-log_dir >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
@@ -342,7 +351,7 @@ EOF
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
-             $WHOLE_FILE_OPT --exclude '*/ib_logfile*' "$WSREP_SST_OPT_DATA"/{}/ \
+             $WHOLE_FILE_OPT --exclude '*/ib_logfile*' --exclude "*/aria_log.*" --exclude "*/aria_log_control" "$WSREP_SST_OPT_DATA"/{}/ \
              rsync://$WSREP_SST_OPT_ADDR/{} >&2 || RC=$?
 
         cd "$OLD_PWD"
@@ -492,13 +501,17 @@ EOF
         OLD_PWD="$(pwd)"
         cd "$BINLOG_DIRNAME"
 
+        binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+
+        # Clean up old binlog files first
+        rm -f "$BINLOG_FILENAME".*
+        [ -f "$binlog_index" ] && rm "$binlog_index"
+
         if [ -f "$BINLOG_TAR_FILE" ]; then
-            # Clean up old binlog files first
-            rm -f "$BINLOG_FILENAME".*
             wsrep_log_info "Extracting binlog files:"
             tar -xvf "$BINLOG_TAR_FILE" >> _binlog_tmp_files_$!
             while read bin_file; do
-                echo "$BINLOG_DIRNAME/$bin_file" >> "$BINLOG_INDEX_DIRNAME/$BINLOG_INDEX_FILENAME"
+                echo "$BINLOG_DIRNAME/$bin_file" >> "$binlog_index"
             done < _binlog_tmp_files_$!
             rm -f _binlog_tmp_files_$!
         fi

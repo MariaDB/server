@@ -1,6 +1,6 @@
 #!/bin/bash -ue
 # Copyright (C) 2013 Percona Inc
-# Copyright (C) 2017-2020 MariaDB
+# Copyright (C) 2017-2021 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -38,6 +38,7 @@ REMOTEIP=""
 tcert=""
 tpem=""
 tkey=""
+tmode="DISABLED"
 sockopt=""
 progress=""
 ttime=0
@@ -70,6 +71,8 @@ xtmpdir=""
 
 scomp=""
 sdecomp=""
+
+readonly SECRET_TAG="secret"
 
 # Required for backup locks
 # For backup locks it is 1 sent by joiner
@@ -175,27 +178,27 @@ get_transfer()
 {
     TSST_PORT="$SST_PORT"
 
-    if [[ $tfmt == 'nc' ]];then
+    if [ $tfmt = 'nc' ]; then
         wsrep_check_programs nc
         wsrep_log_info "Using netcat as streamer"
 
-        if [[ "$WSREP_SST_OPT_ROLE" == "joiner" ]];then
-            if nc -h 2>&1 | grep -q ncat;then
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            if nc -h 2>&1 | grep -q ncat; then
                 # Ncat
-                tcmd="nc -l ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -qw -- '-d\>';then
+                tcmd="nc -l $TSST_PORT"
+            elif nc -h 2>&1 | grep -qw -- '-d\>'; then
                 # Debian netcat
-                if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ];then
+                if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ]; then
                     # When host is not explicitly specified (when only the port
                     # is specified) netcat can only bind to an IPv4 address if
                     # the "-6" option is not explicitly specified:
-                    tcmd="nc -dl -6 ${TSST_PORT}"
+                    tcmd="nc -dl -6 $TSST_PORT"
                 else
-                    tcmd="nc -dl ${TSST_PORT}"
+                    tcmd="nc -dl $TSST_PORT"
                 fi
             else
                 # traditional netcat
-                tcmd="nc -l -p ${TSST_PORT}"
+                tcmd="nc -l -p $TSST_PORT"
             fi
         else
             # Check to see if netcat supports the '-N' flag.
@@ -207,23 +210,23 @@ get_transfer()
             # return an error if the flag is used.
             #
             tcmd_extra=""
-            if nc -h 2>&1 | grep -qw -- -N;then
-                tcmd_extra+="-N"
+            if nc -h 2>&1 | grep -qw -- -N; then
+                tcmd_extra="-N"
                 wsrep_log_info "Using nc -N"
             fi
             # netcat doesn't understand [] around IPv6 address
-            if nc -h 2>&1 | grep -q ncat;then
+            if nc -h 2>&1 | grep -q ncat; then
                 # Ncat
                 wsrep_log_info "Using Ncat as streamer"
-                tcmd="nc ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -qw -- '-d\>';then
+                tcmd="nc $tcmd_extra $WSREP_SST_OPT_HOST_UNESCAPED $TSST_PORT"
+            elif nc -h 2>&1 | grep -qw -- '-d\>'; then
                 # Debian netcat
                 wsrep_log_info "Using Debian netcat as streamer"
-                tcmd="nc ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+                tcmd="nc $tcmd_extra $WSREP_SST_OPT_HOST_UNESCAPED $TSST_PORT"
             else
                 # traditional netcat
                 wsrep_log_info "Using traditional netcat as streamer"
-                tcmd="nc -q0 ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+                tcmd="nc -q0 $tcmd_extra $WSREP_SST_OPT_HOST_UNESCAPED $TSST_PORT"
             fi
         fi
     else
@@ -236,49 +239,55 @@ get_transfer()
             exit 2
         fi
 
-        if [[ $encrypt -eq 2 ]];then
+        if [ $encrypt -eq 2 ]; then
             wsrep_log_info "Using openssl based encryption with socat: with crt and pem"
-            if [[ -z "$tpem" || -z "$tcert" ]];then
+            if [ -z "$tpem" -o -z "$tcert" ]; then
                 wsrep_log_error "Both PEM and CRT files required"
                 exit 22
             fi
             stagemsg+="-OpenSSL-Encrypted-2"
-            if [[ "$WSREP_SST_OPT_ROLE" == "joiner" ]];then
+            if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
                 wsrep_log_info "Decrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert='${tpem}',cafile='${tcert}'${sockopt} stdio"
+                tcmd="socat -u openssl-listen:$TSST_PORT,reuseaddr,cert='$tpem',cafile='$tcert'$sockopt stdio"
             else
                 wsrep_log_info "Encrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert='${tpem}',cafile='${tcert}'${sockopt}"
+                tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',cafile='$tcert'$sockopt"
             fi
-        elif [[ $encrypt -eq 3 ]];then
+        elif [ $encrypt -eq 3 ]; then
             wsrep_log_info "Using openssl based encryption with socat: with key and crt"
-            if [[ -z "$tpem" || -z "$tkey" ]];then
+            if [ -z "$tpem" -o -z "$tkey" ]; then
                 wsrep_log_error "Both certificate and key files required"
                 exit 22
             fi
             stagemsg+="-OpenSSL-Encrypted-3"
-            if [[ "$WSREP_SST_OPT_ROLE" == "joiner" ]];then
-                if [[ -z "$tcert" ]];then
+            if [ -z "$tcert" ]; then
+                # no verification
+                if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
                     wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, verify=0"
-                    tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert='${tpem}',key='${tkey}',verify=0${sockopt} stdio"
+                    tcmd="socat -u openssl-listen:$TSST_PORT,reuseaddr,cert='$tpem',key='$tkey',verify=0$sockopt stdio"
                 else
-                    wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert='${tpem}',key='${tkey}',cafile='${tcert}'${sockopt} stdio"
+                    wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, verify=0"
+                    tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',key='$tkey',verify=0$sockopt"
                 fi
             else
-                if [[ -z "$tcert" ]];then
-                    wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, verify=0"
-                    tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert='${tpem}',key='${tkey}',verify=0${sockopt}"
+                # CA verification
+                if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+                    wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
+                    tcmd="socat -u openssl-listen:$TSST_PORT,reuseaddr,cert='$tpem',key='$tkey',cafile='$tcert'$sockopt stdio"
                 else
+                    CN_option=""
+                    if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+                        CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
+                    fi
                     wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u stdio openssl-connect:${REMOTEIP}:${TSST_PORT},cert='${tpem}',key='${tkey}',cafile='${tcert}'${sockopt}"
+                    tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',key='$tkey',cafile='$tcert'$CN_option$sockopt"
                 fi
             fi
         else
-            if [[ "$WSREP_SST_OPT_ROLE" == "joiner" ]];then
-                tcmd="socat -u TCP-LISTEN:${TSST_PORT},reuseaddr${sockopt} stdio"
+            if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+                tcmd="socat -u TCP-LISTEN:$TSST_PORT,reuseaddr$sockopt stdio"
             else
-                tcmd="socat -u stdio TCP:${REMOTEIP}:${TSST_PORT}${sockopt}"
+                tcmd="socat -u stdio TCP:$REMOTEIP:$TSST_PORT$sockopt"
             fi
         fi
     fi
@@ -326,19 +335,54 @@ adjust_progress()
     fi
 }
 
+check_server_ssl_config()
+{
+    local section="$1"
+    tcert=$(parse_cnf "$section" 'ssl-ca')
+    tpem=$(parse_cnf "$section" 'ssl-cert')
+    tkey=$(parse_cnf "$section" 'ssl-key')
+}
+
 read_cnf()
 {
     sfmt=$(parse_cnf sst streamfmt "xbstream")
     tfmt=$(parse_cnf sst transferfmt "socat")
 
-    encrypt=$(parse_cnf sst encrypt 0)
-    if [ $encrypt -ge 2 ]; then
-        tcert=$(parse_cnf sst tca "")
-        tpem=$(parse_cnf sst tcert "")
-        if [ $encrypt -ge 3 ]; then
-            tkey=$(parse_cnf sst tkey "")
+    encrypt=$(parse_cnf 'sst' 'encrypt' 0)
+    tmode=$(parse_cnf 'sst' 'ssl-mode' 'DISABLED' | tr [:lower:] [:upper:])
+
+    if [ $encrypt -eq 0 -o $encrypt -ge 2 ]
+    then
+        if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]
+        then
+            tcert=$(parse_cnf 'sst' 'tca')
+            tpem=$(parse_cnf 'sst' 'tcert')
+            tkey=$(parse_cnf 'sst' 'tkey')
         fi
-    elif [ $encrypt -ne -1 ]; then
+        if [ "$tmode" != 'DISABLED' ]
+        then # backward-incompatible behavior
+            if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]
+            then # no old-style SSL config in [sst]
+                check_server_ssl_config 'sst'
+                if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]
+                then # no new-stype SSL config in [sst], try server-wide SSL config
+                    check_server_ssl_config '--mysqld'
+                fi
+            fi
+            if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
+            then
+                encrypt=3 # enable cert/key SSL encyption
+
+                # avoid CA verification if not set explicitly:
+                # nodes may happen to have different CA if self-generated
+                # zeroing up tcert does the trick
+                local mode=$(parse_cnf 'sst' 'ssl-mode')
+                [[ $mode = *VERIFY* ]] || tcert=""
+            fi
+        fi
+    fi
+
+    if [ $encrypt -eq 1 ]; then
         # Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
         ealgo=$(parse_cnf xtrabackup encrypt "")
         if [ -z "$ealgo" ]; then
@@ -350,6 +394,9 @@ read_cnf()
             ekeyfile=$(parse_cnf xtrabackup encrypt-key-file "")
         fi
     fi
+
+    wsrep_log_info "SSL configuration: CA='"$tcert"', CERT='"$tpem"'," \
+                   "KEY='"$tkey"', MODE='"$tmode"', encrypt="$encrypt
 
     sockopt=$(parse_cnf sst sockopt "")
     progress=$(parse_cnf sst progress "")
@@ -555,9 +602,9 @@ check_extra()
 {
     local use_socket=1
     if [ $uextra -eq 1 ]; then
-        local thread_handling=$(parse_cnf --mysqld thread-handling "")
-        if [ $thread_handling -eq "pool-of-threads" ];then
-            local eport=$(parse_cnf --mysqld extra-port "")
+        local thread_handling=$(parse_cnf '--mysqld' 'thread-handling')
+        if [ "$thread_handling" = 'pool-of-threads' ]; then
+            local eport=$(parse_cnf '--mysqld' 'extra-port')
             if [ -n "$eport" ]; then
                 # Xtrabackup works only locally.
                 # Hence, setting host to 127.0.0.1 unconditionally.
@@ -608,7 +655,7 @@ recv_joiner()
     popd 1>/dev/null
 
     if [[ ${RC[0]} -eq 124 ]];then
-        wsrep_log_error "Possible timeout in receiving first data from "
+        wsrep_log_error "Possible timeout in receiving first data from " \
                         "donor in gtid stage: exit codes: ${RC[@]}"
         exit 32
     fi
@@ -621,12 +668,27 @@ recv_joiner()
         fi
     done
 
-    if [[ $checkf -eq 1 && ! -r "${MAGIC_FILE}" ]];then
-        # this message should cause joiner to abort
-        wsrep_log_error "xtrabackup process ended without creating '${MAGIC_FILE}'"
-        wsrep_log_info "Contents of datadir"
-        wsrep_log_info "$(ls -l ${dir}/*)"
-        exit 32
+    if [ $checkf -eq 1 ]; then
+        if [ ! -r "$MAGIC_FILE" ]; then
+            # this message should cause joiner to abort
+            wsrep_log_error "receiving process ended without creating " \
+                            "'${MAGIC_FILE}'"
+            wsrep_log_info "Contents of datadir"
+            wsrep_log_info "$(ls -l ${dir}/*)"
+            exit 32
+        fi
+
+        # check donor supplied secret
+        SECRET=$(grep "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+        if [ "$SECRET" != "$MY_SECRET" ]; then
+            wsrep_log_error "Donor does not know my secret!"
+            wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
+            exit 32
+        fi
+
+        # remove secret from magic file
+        grep -v "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
+        mv "$MAGIC_FILE.new" "$MAGIC_FILE"
     fi
 }
 
@@ -643,7 +705,7 @@ send_donor()
 
     for ecode in "${RC[@]}";do
         if [[ $ecode -ne 0 ]];then
-            wsrep_log_error "Error while getting data from donor node: " \
+            wsrep_log_error "Error while sending data to joiner node: " \
                             "exit codes: ${RC[@]}"
             exit 32
         fi
@@ -689,10 +751,10 @@ if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
     iopts+=' --no-backup-locks'
 fi
 
-# if no command line arg and INNODB_DATA_HOME_DIR environment variable
+# if no command line argument and INNODB_DATA_HOME_DIR environment variable
 # is not set, try to get it from my.cnf:
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
-    INNODB_DATA_HOME_DIR=$(parse_cnf --mysqld innodb-data-home-dir)
+    INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
 fi
 
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
@@ -845,6 +907,11 @@ then
         # (separated by a space).
         echo "$WSREP_SST_OPT_GTID $WSREP_SST_OPT_GTID_DOMAIN_ID" > "$MAGIC_FILE"
 
+        if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
+            # Let joiner know that we know its secret
+            echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
+        fi
+
         ttcmd="$tcmd"
 
         if [ -n "$scomp" ]; then
@@ -932,14 +999,14 @@ then
     # if no command line argument and INNODB_LOG_GROUP_HOME is not set,
     # try to get it from my.cnf:
     if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
-        INNODB_LOG_GROUP_HOME=$(parse_cnf --mysqld innodb-log-group-home-dir)
+        INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
     fi
 
     ib_log_dir="$INNODB_LOG_GROUP_HOME"
 
-    # if no command line arg then try to get it from my.cnf:
+    # if no command line argument then try to get it from my.cnf:
     if [ -z "$INNODB_UNDO_DIR" ]; then
-        INNODB_UNDO_DIR=$(parse_cnf --mysqld innodb-undo-directory)
+        INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
     fi
 
     ib_undo_dir="$INNODB_UNDO_DIR"
@@ -957,6 +1024,28 @@ then
     rm -f "$DATA/xtrabackup_binary" "$DATA/xtrabackup_galera_info" "$DATA/ib_logfile0"
 
     ADDR="$WSREP_SST_OPT_ADDR"
+
+    if [[ "$tmode" = *"VERIFY"* ]]
+    then # backward-incompatible behavior
+        CN=""
+        if [ -n "$tpem" ]
+        then
+            # find out my Common Name
+            get_openssl
+            if [ -z "$OPENSSL_BINARY" ]; then
+                wsrep_log_error 'openssl not found but it is required for authentication'
+                exit 42
+            fi
+            CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$tpem" | \
+                 tr "," "\n" | grep "CN =" | cut -d= -f2 | sed s/^\ // | \
+                 sed s/\ %//)
+        fi
+        MY_SECRET=$(wsrep_gen_secret)
+        # Add authentication data to address
+        ADDR="$CN:$MY_SECRET@$ADDR"
+    else
+        MY_SECRET="" # for check down in recv_joiner()
+    fi # tmode == *VERIFY*
 
     wait_for_listen "$SST_PORT" "$ADDR" "$MODULE" &
 
@@ -1020,7 +1109,7 @@ then
             binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
             wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
             rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            rm -fv "$WSREP_SST_OPT_BINLOG_INDEX"  1>&2 \+ || true
+            rm -fv "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index" 1>&2 \+ || true
         fi
 
         TDATA="$DATA"
@@ -1095,7 +1184,7 @@ then
 
             pushd "$BINLOG_DIRNAME" &>/dev/null
             for bfile in $(ls -1 "$BINLOG_FILENAME".[0-9]*); do
-                echo "$BINLOG_DIRNAME/$bfile" >> "$WSREP_SST_OPT_BINLOG_INDEX"
+                echo "$BINLOG_DIRNAME/$bfile" >> "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
             done
             popd &> /dev/null
 

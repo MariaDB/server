@@ -1,4 +1,5 @@
 # Copyright (C) 2012-2015 Codership Oy
+# Copyright (C) 2017-2021 MariaDB
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -26,6 +27,7 @@ WSREP_SST_OPT_DATA=""
 WSREP_SST_OPT_AUTH="${WSREP_SST_OPT_AUTH:-}"
 WSREP_SST_OPT_USER="${WSREP_SST_OPT_USER:-}"
 WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_PSWD:-}"
+WSREP_SST_OPT_REMOTE_AUTH="${WSREP_SST_OPT_REMOTE_AUTH:-}"
 WSREP_SST_OPT_DEFAULT=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
@@ -278,11 +280,7 @@ case "$1" in
                       if [ -z "$WSREP_SST_OPT_BINLOG" ]; then
                           MYSQLD_OPT_LOG_BIN="$value"
                       fi
-                      # If this option has no parameter, then it does not
-                      # need to be removed from the mysqld arguments list:
-                      if [ -n "$value" ]; then
-                          skip_mysqld_arg=1
-                      fi
+                      skip_mysqld_arg=1
                       ;;
                   '--log-bin-index')
                       if [ -z "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
@@ -352,7 +350,22 @@ if [ -n "${MYSQLD_OPT_DATADIR:-}" -a \
 fi
 if [ -n "${MYSQLD_OPT_LOG_BASENAME:-}" -a \
      -z "$WSREP_SST_OPT_LOG_BASENAME" ]; then
-    readonly WSREP_SST_OPT_LOG_BASENAME="$MYSQLD_OPT_DATADIR"
+    readonly WSREP_SST_OPT_LOG_BASENAME="$MYSQLD_OPT_LOG_BASENAME"
+fi
+
+# If the --log-bin option is present without a value, then
+# setting WSREP_SST_OPT_BINLOG by using other arguments:
+if [ -z "$WSREP_SST_OPT_BINLOG" -a -n "${MYSQLD_OPT_LOG_BIN+x}" ]; then
+    if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
+        # If the WSREP_SST_OPT_BINLOG variable is not set, but
+        # --log-basename is present among the arguments to mysqld,
+        # then set WSREP_SST_OPT_BINLOG equal to the base name with
+        # the "-bin" suffix:
+        readonly WSREP_SST_OPT_BINLOG="$WSREP_SST_OPT_LOG_BASENAME-bin"
+    else
+        # Take the default name:
+        readonly WSREP_SST_OPT_BINLOG='mysql-bin'
+    fi
 fi
 
 # Reconstructing the command line arguments that control the innodb
@@ -373,7 +386,8 @@ if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     fi
 fi
 
-get_binlog() {
+get_binlog()
+{
     # if no command line argument and WSREP_SST_OPT_BINLOG is not set,
     # try to get it from my.cnf:
     if [ -z "$WSREP_SST_OPT_BINLOG" ]; then
@@ -390,7 +404,12 @@ get_binlog() {
         WSREP_SST_OPT_LOG_BASENAME=$(parse_cnf '--mysqld' 'log-basename')
     fi
     if [ -z "$WSREP_SST_OPT_BINLOG" ]; then
-        if [ -n "${MYSQLD_OPT_LOG_BIN+x}" ]; then
+        # If the --log-bin option is specified without a parameter,
+        # then we need to build the name of the index file according
+        # to the rules described in the server documentation:
+        if [ -n "${MYSQLD_OPT_LOG_BIN+x}" -o \
+             $(in_config '--mysqld' 'log-bin') -eq 1 ]
+        then
             if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
                 # If the WSREP_SST_OPT_BINLOG variable is not set, but
                 # --log-basename is present among the arguments to mysqld,
@@ -400,7 +419,7 @@ get_binlog() {
             else
                 # If the --log-bin option is present without a value, then
                 # we take the default name:
-                readonly WSREP_SST_OPT_BINLOG='mysqld-bin'
+                readonly WSREP_SST_OPT_BINLOG='mysql-bin'
             fi
         fi
     fi
@@ -415,26 +434,11 @@ get_binlog() {
             else
                 # If the --log-bin option is present without a value, then
                 # we take the default name:
-                readonly WSREP_SST_OPT_BINLOG_INDEX='mysqld-bin.index'
+                readonly WSREP_SST_OPT_BINLOG_INDEX='mysql-bin.index'
             fi
         fi
     fi
 }
-
-# Setting WSREP_SST_OPT_BINLOG by using other arguments:
-if [ -z "$WSREP_SST_OPT_BINLOG" ]; then
-   if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
-      # If the WSREP_SST_OPT_BINLOG variable is not set, but
-      # --log-basename is present among the arguments to mysqld,
-      # then set WSREP_SST_OPT_BINLOG equal to the base name with
-      # the "-bin" suffix:
-      readonly WSREP_SST_OPT_BINLOG="$WSREP_SST_OPT_LOG_BASENAME-bin"
-   elif [ -n "${MYSQLD_OPT_LOG_BIN+x}" ]; then
-      # If the --log-bin option is present without a value, then
-      # we take the default name:
-      readonly WSREP_SST_OPT_BINLOG='mysql-bin'
-   fi
-fi
 
 # Let's transfer the port from the address to the WSREP_SST_OPT_PORT
 # variable, or vice versa, substitute the missing port value into the
@@ -512,13 +516,14 @@ readonly WSREP_SST_OPT_CONF="$wsrep_defaults$WSREP_SST_OPT_SUFFIX_DEFAULT"
 readonly MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
 
 #
-# user can specify mariabackup specific settings that will be used during sst
-# process like encryption, etc.....
-# parse such configuration option. (group for xb settings is [sst] in my.cnf
+# User can specify mariabackup specific settings that will be used during sst
+# process like encryption, etc. Parse such configuration option.
 #
-# 1st param: group (config file section like sst) or my_print_defaults argument (like --mysqld)
-# 2nd param: var : name of the variable in the section, e.g. server-id
-# 3rd param: - : default value for the param
+# 1st parameter: group (config file section like sst) or
+#                my_print_defaults argument (like --mysqld)
+# 2nd parameter: var : name of the variable in the section, e.g. server-id
+# 3rd parameter: default value for the parameter
+#
 parse_cnf()
 {
     local group="$1"
@@ -532,12 +537,12 @@ parse_cnf()
     if [ "$group" = '--mysqld' -o \
          "$group" = 'mysqld' ]; then
        if [ -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
-           reval=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk 'BEGIN {OFS=FS="="} {gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}')
+           reval=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk 'BEGIN {OFS=FS="="} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}')
        fi
     fi
 
     if [ -z "$reval" ]; then
-        reval=$($MY_PRINT_DEFAULTS "$group" | awk 'BEGIN {OFS=FS="="} {gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}')
+        reval=$($MY_PRINT_DEFAULTS "$group" | awk 'BEGIN {OFS=FS="="} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}')
     fi
 
     # use default if we haven't found a value
@@ -545,6 +550,29 @@ parse_cnf()
         [ -n "${3:-}" ] && reval="$3"
     fi
     echo $reval
+}
+
+#
+# This function simply checks for the presence of the parameter
+# in the config file, but does not return its value. It returns "1"
+# (true) even if the parameter is present in the configuration file
+# without a value:
+#
+in_config()
+{
+    local group="$1"
+    local var="$2"
+    local found=0
+    if [ "$group" = '--mysqld' -o \
+         "$group" = 'mysqld' ]; then
+       if [ -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
+           found=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk 'BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}')
+       fi
+    fi
+    if [ found -eq 0 ]; then
+        found=$($MY_PRINT_DEFAULTS "$group" | awk 'BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}')
+    fi
+    echo $found
 }
 
 wsrep_auth_not_set()
@@ -562,10 +590,22 @@ readonly WSREP_SST_OPT_AUTH
 if ! wsrep_auth_not_set
 then
     WSREP_SST_OPT_USER="${WSREP_SST_OPT_AUTH%%:*}"
-    WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_AUTH##*:}"
+    WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_AUTH#*:}"
 fi
 readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD
+
+readonly WSREP_SST_OPT_REMOTE_AUTH
+
+if [ -n "$WSREP_SST_OPT_REMOTE_AUTH" ]
+then
+    # Split auth string at the last ':'
+    readonly WSREP_SST_OPT_REMOTE_USER="${WSREP_SST_OPT_REMOTE_AUTH%%:*}"
+    readonly WSREP_SST_OPT_REMOTE_PSWD="${WSREP_SST_OPT_REMOTE_AUTH#*:}"
+else
+    readonly WSREP_SST_OPT_REMOTE_USER=
+    readonly WSREP_SST_OPT_REMOTE_PSWD=
+fi
 
 if [ -n "$WSREP_SST_OPT_DATA" ]
 then
@@ -631,5 +671,36 @@ wsrep_check_datadir()
     then
         wsrep_log_error "The '--datadir' parameter must be passed to the SST script"
         exit 2
+    fi
+}
+
+get_openssl()
+{
+    # If the OPENSSL_BINARY variable is already defined, just return:
+    if [ -n "${OPENSSL_BINARY+x}" ]; then
+        return
+    fi
+    # Let's look for openssl:
+    OPENSSL_BINARY="$(command -v openssl)"
+    if [ -z "$OPENSSL_BINARY" ]; then
+        OPENSSL_BINARY='/usr/bin/openssl'
+        if [ ! -x "$OPENSSL_BINARY" ]; then
+            OPENSSL_BINARY=""
+        fi
+    fi
+    readonly OPENSSL_BINARY
+}
+
+# Generate a string equivalent to 16 random bytes
+wsrep_gen_secret()
+{
+    get_openssl
+    if [ -n "$OPENSSL_BINARY" ]
+    then
+        echo $("$OPENSSL_BINARY" rand -hex 16)
+    else
+        printf "%04x%04x%04x%04x%04x%04x%04x%04x" \
+                $RANDOM $RANDOM $RANDOM $RANDOM   \
+                $RANDOM $RANDOM $RANDOM $RANDOM
     fi
 }
