@@ -4559,16 +4559,22 @@ aborted:
 	spatial_search = dict_index_is_spatial(index)
 			 && mode >= PAGE_CUR_CONTAIN;
 
+#ifdef UNIV_DEBUG
 	/* The state of a running trx can only be changed by the
 	thread that is currently serving the transaction. Because we
 	are that thread, we can read trx->state without holding any
 	mutex. */
-	ut_ad(prebuilt->sql_stat_start
-	      || trx->state == TRX_STATE_ACTIVE
-	      || (prebuilt->table->no_rollback()
-		  && trx->state == TRX_STATE_NOT_STARTED));
-
-	ut_ad(!trx_is_started(trx) || trx->state == TRX_STATE_ACTIVE);
+	switch (trx->state) {
+	case TRX_STATE_ACTIVE:
+		break;
+	case TRX_STATE_NOT_STARTED:
+		ut_ad(prebuilt->sql_stat_start
+		      || prebuilt->table->no_rollback());
+		break;
+	default:
+		ut_ad("invalid trx->state" == 0);
+	}
+#endif
 
 	ut_ad(prebuilt->sql_stat_start
 	      || prebuilt->select_lock_type != LOCK_NONE

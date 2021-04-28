@@ -15279,13 +15279,14 @@ ha_innobase::start_stmt(
 		/* fall through */
 	default:
 		trx->end_bulk_insert(*m_prebuilt->table);
-		m_prebuilt->sql_stat_start = TRUE;
 		if (!trx->bulk_insert) {
 			break;
 		}
 		trx->bulk_insert = false;
 		trx->last_sql_stat_start.least_undo_no = trx->undo_no;
 	}
+
+	m_prebuilt->sql_stat_start = TRUE;
 
 	if (m_prebuilt->table->is_temporary()
 	    && m_mysql_has_locked
