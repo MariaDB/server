@@ -2161,6 +2161,11 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
     yySkip();                  // next state does a unget
   }
 
+  yyUnget();                       // ptr points now after last token char
+  str->set_ident(m_tok_start, length, is_8bit);
+  m_cpp_text_start= m_cpp_tok_start;
+  m_cpp_text_end= m_cpp_text_start + length;
+
   /*
      Note: "SELECT _bla AS 'alias'"
      _bla should be considered as a IDENT if charset haven't been found.
@@ -2170,28 +2175,17 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
   DBUG_ASSERT(length > 0);
   if (resolve_introducer && m_tok_start[0] == '_')
   {
-
-    yyUnget();                       // ptr points now after last token char
-    str->set_ident(m_tok_start, length, false);
-
-    m_cpp_text_start= m_cpp_tok_start;
-    m_cpp_text_end= m_cpp_text_start + length;
-    body_utf8_append(m_cpp_text_start, m_cpp_tok_start + length);
     ErrConvString csname(str->str + 1, str->length - 1, &my_charset_bin);
     CHARSET_INFO *cs= get_charset_by_csname(csname.ptr(),
                                             MY_CS_PRIMARY, MYF(0));
     if (cs)
     {
+      body_utf8_append(m_cpp_text_start, m_cpp_tok_start + length);
       *introducer= cs;
       return UNDERSCORE_CHARSET;
     }
-    return IDENT;
   }
 
-  yyUnget();                       // ptr points now after last token char
-  str->set_ident(m_tok_start, length, is_8bit);
-  m_cpp_text_start= m_cpp_tok_start;
-  m_cpp_text_end= m_cpp_text_start + length;
   body_utf8_append(m_cpp_text_start);
   body_utf8_append_ident(thd, str, m_cpp_text_end);
   return is_8bit ? IDENT_QUOTED : IDENT;
