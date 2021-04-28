@@ -108,20 +108,24 @@ row_purge_remove_clust_if_poss_low(
 	table_id_t table_id = 0;
 	index_id_t index_id = 0;
 retry:
-	if (!table_id) {
-	} else if (dict_table_t *table = dict_table_open_on_id(
-			   table_id, false,
-			   DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)) {
-		if (table->n_rec_locks) {
-			for (dict_index_t* ind = UT_LIST_GET_FIRST(
-				     table->indexes); ind;
-			     ind = UT_LIST_GET_NEXT(indexes, ind)) {
-				if (ind->id == index_id) {
-					lock_discard_for_index(*ind);
+	if (table_id) {
+		MDL_ticket* mdl_ticket = nullptr;
+		if (dict_table_t *table = dict_table_open_on_id(
+			    table_id, false,
+			    DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+			    node->purge_thd, &mdl_ticket)) {
+			if (table->n_rec_locks) {
+				for (dict_index_t* ind = UT_LIST_GET_FIRST(
+					     table->indexes); ind;
+				     ind = UT_LIST_GET_NEXT(indexes, ind)) {
+					if (ind->id == index_id) {
+						lock_discard_for_index(*ind);
+					}
 				}
 			}
+			dict_table_close(table, false, false,
+					 node->purge_thd, mdl_ticket);
 		}
-		table->release();
 	}
 	log_free_check();
 	mtr_t mtr;
