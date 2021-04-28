@@ -51,6 +51,7 @@ datasink_t datasink_tmpfile = {
 	&tmpfile_open,
 	&tmpfile_write,
 	&tmpfile_close,
+	&dummy_remove,
 	&tmpfile_deinit
 };
 

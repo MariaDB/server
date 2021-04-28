@@ -17058,6 +17058,290 @@ id
 2
 3
 DROP TABLE t;
+#
+# MDEV-23804: Server crashes in st_select_lex::collect_grouping_fields_for_derived
+#
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (3),(4);
+CREATE VIEW v1 AS SELECT a FROM t1 UNION VALUES (3),(4);
+ANALYZE FORMAT=JSON SELECT * from v1 WHERE a=3;
+ANALYZE
+{
+  "query_block": {
+    "select_id": 1,
+    "r_loops": 1,
+    "r_total_time_ms": "REPLACED",
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ALL",
+      "r_loops": 1,
+      "rows": 4,
+      "r_rows": 2,
+      "r_total_time_ms": "REPLACED",
+      "filtered": 100,
+      "r_filtered": 50,
+      "attached_condition": "v1.a = 3",
+      "materialized": {
+        "query_block": {
+          "union_result": {
+            "table_name": "<union2,3>",
+            "access_type": "ALL",
+            "r_loops": 1,
+            "r_rows": 2,
+            "query_specifications": [
+              {
+                "query_block": {
+                  "select_id": 2,
+                  "r_loops": 1,
+                  "r_total_time_ms": "REPLACED",
+                  "table": {
+                    "table_name": "t1",
+                    "access_type": "ALL",
+                    "r_loops": 1,
+                    "rows": 2,
+                    "r_rows": 2,
+                    "r_total_time_ms": "REPLACED",
+                    "filtered": 100,
+                    "r_filtered": 50,
+                    "attached_condition": "t1.a = 3"
+                  }
+                }
+              },
+              {
+                "query_block": {
+                  "select_id": 3,
+                  "operation": "UNION",
+                  "table": {
+                    "message": "No tables used"
+                  }
+                }
+              }
+            ]
+          }
+        }
+      }
+    }
+  }
+}
+SELECT * from v1 WHERE a=3;
+a
+3
+DROP VIEW v1;
+DROP TABLE t1;
+#
+# MDEV-25128: Split optimization for join with materialized semi-join
+#
+create table t1 (id int, a int, index (a), index (id, a)) engine=myisam;
+insert into t1 values
+(17,1),(17,3010),(17,3013),(17,3053),(21,2446),(21,2467),(21,2);
+create table t2 (a int) engine=myisam;
+insert into t2 values (1),(2),(3);
+create  table t3 (id int) engine=myisam;
+insert into t3 values (1),(2);
+analyze table t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+set optimizer_switch="split_materialized=off";
+select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+id	a	a	id
+17	1	1	1
+21	2	2	2
+explain select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ref	a	a	5	test.t3.id	1	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
+2	DERIVED	cp2	index	NULL	a	5	NULL	7	Using index
+explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t3.`id` is not null and t3.`id` is not null"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.id"],
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "4",
+      "used_key_parts": ["a"],
+      "ref": ["func"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.id"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "query_block": {
+          "select_id": 2,
+          "table": {
+            "table_name": "cp2",
+            "access_type": "index",
+            "key": "a",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "rows": 7,
+            "filtered": 100,
+            "using_index": true
+          }
+        }
+      }
+    }
+  }
+}
+set optimizer_switch="split_materialized=default";
+select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+id	a	a	id
+17	1	1	1
+21	2	2	2
+explain select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t3	ALL	NULL	NULL	NULL	NULL	2	Using where
+1	PRIMARY	t1	ref	a	a	5	test.t3.id	1	
+1	PRIMARY	<subquery3>	eq_ref	distinct_key	distinct_key	4	func	1	
+1	PRIMARY	<derived2>	ref	key0	key0	5	test.t3.id	2	
+3	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	3	
+2	LATERAL DERIVED	cp2	ref	a	a	5	test.t1.a	1	Using index
+explain format=json select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2);
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t3",
+      "access_type": "ALL",
+      "rows": 2,
+      "filtered": 100,
+      "attached_condition": "t3.`id` is not null and t3.`id` is not null"
+    },
+    "table": {
+      "table_name": "t1",
+      "access_type": "ref",
+      "possible_keys": ["a"],
+      "key": "a",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.id"],
+      "rows": 1,
+      "filtered": 100
+    },
+    "table": {
+      "table_name": "<subquery3>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "4",
+      "used_key_parts": ["a"],
+      "ref": ["func"],
+      "rows": 1,
+      "filtered": 100,
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 3,
+          "table": {
+            "table_name": "t2",
+            "access_type": "ALL",
+            "rows": 3,
+            "filtered": 100
+          }
+        }
+      }
+    },
+    "table": {
+      "table_name": "<derived2>",
+      "access_type": "ref",
+      "possible_keys": ["key0"],
+      "key": "key0",
+      "key_length": "5",
+      "used_key_parts": ["a"],
+      "ref": ["test.t3.id"],
+      "rows": 2,
+      "filtered": 100,
+      "materialized": {
+        "lateral": 1,
+        "query_block": {
+          "select_id": 2,
+          "outer_ref_condition": "t1.a is not null",
+          "table": {
+            "table_name": "cp2",
+            "access_type": "ref",
+            "possible_keys": ["a"],
+            "key": "a",
+            "key_length": "5",
+            "used_key_parts": ["a"],
+            "ref": ["test.t1.a"],
+            "rows": 1,
+            "filtered": 100,
+            "using_index": true
+          }
+        }
+      }
+    }
+  }
+}
+prepare stmt from "select * from t1, (select a from t1 cp2 group by a) dt, t3
+where dt.a = t1.a and t1.a = t3.id and t1.a in (select a from t2)";
+execute stmt;
+id	a	a	id
+17	1	1	1
+21	2	2	2
+execute stmt;
+id	a	a	id
+17	1	1	1
+21	2	2	2
+deallocate prepare stmt;
+drop table t1,t2,t3;
 # End of 10.3 tests
 #
 # MDEV-18679: materialized view with SELECT S containing materialized

@@ -1687,7 +1687,8 @@ INSERT INTO t1 VALUES
 ALTER TABLE t1 ENABLE KEYS;
 EXPLAIN
 SELECT  * FROM t1 FORCE KEY (PRIMARY , i , c1 , c2) 
-WHERE pk = 255 OR i = 22 OR (pk  IN (1 , 136) AND c2  IN ('c' , 'w') AND (c1 NOT BETWEEN 'e' AND 'i' OR  c2 > 'g'))  OR pk != 1  ;
+WHERE pk = 255 OR i = 22 OR (pk  IN (1 , 136) AND c2  IN ('c' , 'w') AND (c1
+NOT BETWEEN 'e' AND 'i' OR  c2 > 'g'))  OR (pk is not null and (pk <1 or pk>1))  ;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	index_merge	PRIMARY,c1,i,c2	PRIMARY,i	0,5	NULL	69	Using sort_union(PRIMARY,i); Using where
 DROP TABLE t1;

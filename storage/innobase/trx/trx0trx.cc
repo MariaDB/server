@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -161,6 +161,11 @@ trx_init(
 	trx->lock.rec_cached = 0;
 
 	trx->lock.table_cached = 0;
+#ifdef WITH_WSREP
+	ut_ad(!trx->wsrep);
+	ut_ad(!trx->wsrep_event);
+	ut_ad(!trx->wsrep_UK_scan);
+#endif /* WITH_WSREP */
 
 	ut_ad(trx->get_flush_observer() == NULL);
 }
@@ -369,6 +374,7 @@ trx_t *trx_create()
 
 #ifdef WITH_WSREP
 	trx->wsrep_event= NULL;
+	ut_ad(!trx->wsrep_UK_scan);
 #endif /* WITH_WSREP */
 
 	trx_sys.register_trx(trx);
@@ -414,9 +420,11 @@ void trx_t::free()
   /* do not poison mutex */
   MEM_NOACCESS(&id, sizeof id);
   MEM_NOACCESS(&no, sizeof no);
-  /* state is accessed by innobase_kill_connection() */
+  MEM_NOACCESS(&state, sizeof state);
   MEM_NOACCESS(&is_recovered, sizeof is_recovered);
-  /* wsrep is accessed by innobase_kill_connection() */
+#ifdef WITH_WSREP
+  MEM_NOACCESS(&wsrep, sizeof wsrep);
+#endif
   MEM_NOACCESS(&read_view, sizeof read_view);
   MEM_NOACCESS(&trx_list, sizeof trx_list);
   MEM_NOACCESS(&lock, sizeof lock);
@@ -437,7 +445,7 @@ void trx_t::free()
   MEM_NOACCESS(&start_time_micro, sizeof start_time_micro);
   MEM_NOACCESS(&commit_lsn, sizeof commit_lsn);
   MEM_NOACCESS(&table_id, sizeof table_id);
-  /* mysql_thd is accessed by innobase_kill_connection() */
+  MEM_NOACCESS(&mysql_thd, sizeof mysql_thd);
   MEM_NOACCESS(&mysql_log_file_name, sizeof mysql_log_file_name);
   MEM_NOACCESS(&mysql_log_offset, sizeof mysql_log_offset);
   MEM_NOACCESS(&n_mysql_tables_in_use, sizeof n_mysql_tables_in_use);
@@ -473,6 +481,8 @@ void trx_t::free()
   MEM_NOACCESS(&flush_observer, sizeof flush_observer);
 #ifdef WITH_WSREP
   MEM_NOACCESS(&wsrep_event, sizeof wsrep_event);
+  ut_ad(!wsrep_UK_scan);
+  MEM_NOACCESS(&wsrep_UK_scan, sizeof wsrep_UK_scan);
 #endif /* WITH_WSREP */
   MEM_NOACCESS(&magic_n, sizeof magic_n);
   trx_pools->mem_free(this);
@@ -1262,16 +1272,6 @@ trx_update_mod_tables_timestamp(
 	const time_t now = time(NULL);
 
 	trx_mod_tables_t::const_iterator	end = trx->mod_tables.end();
-#ifdef UNIV_DEBUG
-	const bool preserve_tables = !innodb_evict_tables_on_commit_debug
-		|| trx->is_recovered /* avoid trouble with XA recovery */
-# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-		|| mutex_own(&dict_sys.mutex)
-# else /* this would be more proper way to do it */
-		|| trx->dict_operation_lock_mode || trx->dict_operation
-# endif
-		;
-#endif
 
 	for (trx_mod_tables_t::const_iterator it = trx->mod_tables.begin();
 	     it != end;
@@ -1287,26 +1287,6 @@ trx_update_mod_tables_timestamp(
 		intrusive. */
 		dict_table_t* table = it->first;
 		table->update_time = now;
-#ifdef UNIV_DEBUG
-		if (preserve_tables || table->get_ref_count()
-		    || UT_LIST_GET_LEN(table->locks)) {
-			/* do not evict when committing DDL operations
-			or if some other transaction is holding the
-			table handle */
-			continue;
-		}
-		/* recheck while holding the mutex that blocks
-		table->acquire() */
-		mutex_enter(&dict_sys.mutex);
-		mutex_enter(&lock_sys.mutex);
-		const bool do_evict = !table->get_ref_count()
-			&& !UT_LIST_GET_LEN(table->locks);
-		mutex_exit(&lock_sys.mutex);
-		if (do_evict) {
-			dict_sys.remove(table, true);
-		}
-		mutex_exit(&dict_sys.mutex);
-#endif
 	}
 
 	trx->mod_tables.clear();
@@ -1392,16 +1372,9 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       so that there will be no race condition in lock_release(). */
       while (UNIV_UNLIKELY(is_referenced()))
         ut_delay(srv_spin_wait_delay);
-      release_locks();
-      id= 0;
     }
     else
-    {
       ut_ad(read_only || !rsegs.m_redo.rseg);
-      release_locks();
-    }
-
-    DEBUG_SYNC_C("after_trx_committed_in_memory");
 
     if (read_only || !rsegs.m_redo.rseg)
     {
@@ -1413,6 +1386,10 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       MONITOR_INC(MONITOR_TRX_RW_COMMIT);
       is_recovered= false;
     }
+
+    release_locks();
+    id= 0;
+    DEBUG_SYNC_C("after_trx_committed_in_memory");
 
     while (dict_table_t *table= UT_LIST_GET_FIRST(lock.evicted_tables))
     {

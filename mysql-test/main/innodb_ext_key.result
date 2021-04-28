@@ -795,6 +795,21 @@ EXPLAIN
 }
 drop table t1;
 SET optimizer_use_condition_selectivity=@save_optimizer_use_condition_selectivity;
+#
+# MDEV-11172: EXPLAIN shows non-sensical value for key_len with type=index
+#
+CREATE TABLE t1(a INT);
+INSERT INTO t1 VALUES (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+CREATE TABLE t2 (
+pk VARCHAR(50),
+a VARCHAR(20),
+KEY k1(a),
+PRIMARY KEY(pk)
+)ENGINE=INNODB;
+INSERT INTO t2 SELECT a,a FROM t1;
+EXPLAIN SELECT pk FROM t2 FORCE INDEX(k1);
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	index	NULL	k1	23	NULL	#	Using index
+DROP TABLE t1,t2;
 set global innodb_stats_persistent= @innodb_stats_persistent_save;
-set global innodb_stats_persistent_sample_pages=
-@innodb_stats_persistent_sample_pages_save;
+set global innodb_stats_persistent_sample_pages= @innodb_stats_persistent_sample_pages_save;

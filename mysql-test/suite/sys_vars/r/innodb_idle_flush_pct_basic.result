@@ -24,6 +24,8 @@ select * from information_schema.session_variables where variable_name='innodb_i
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_IDLE_FLUSH_PCT	100
 set global innodb_idle_flush_pct=10;
+Warnings:
+Warning	131	innodb_idle_flush_pct is DEPRECATED and has no effect.
 select @@global.innodb_idle_flush_pct;
 @@global.innodb_idle_flush_pct
 10
@@ -44,6 +46,7 @@ ERROR 42000: Incorrect argument type to variable 'innodb_idle_flush_pct'
 set global innodb_idle_flush_pct=-7;
 Warnings:
 Warning	1292	Truncated incorrect innodb_idle_flush_pct value: '-7'
+Warning	131	innodb_idle_flush_pct is DEPRECATED and has no effect.
 select @@global.innodb_idle_flush_pct;
 @@global.innodb_idle_flush_pct
 0
@@ -53,6 +56,7 @@ INNODB_IDLE_FLUSH_PCT	0
 set global innodb_idle_flush_pct=106;
 Warnings:
 Warning	1292	Truncated incorrect innodb_idle_flush_pct value: '106'
+Warning	131	innodb_idle_flush_pct is DEPRECATED and has no effect.
 select @@global.innodb_idle_flush_pct;
 @@global.innodb_idle_flush_pct
 100
@@ -60,18 +64,26 @@ select * from information_schema.global_variables where variable_name='innodb_id
 VARIABLE_NAME	VARIABLE_VALUE
 INNODB_IDLE_FLUSH_PCT	100
 set global innodb_idle_flush_pct=0;
+Warnings:
+Warning	131	innodb_idle_flush_pct is DEPRECATED and has no effect.
 select @@global.innodb_idle_flush_pct;
 @@global.innodb_idle_flush_pct
 0
 set global innodb_idle_flush_pct=100;
+Warnings:
+Warning	131	innodb_idle_flush_pct is DEPRECATED and has no effect.
 select @@global.innodb_idle_flush_pct;
 @@global.innodb_idle_flush_pct
 100
 set global innodb_idle_flush_pct=DEFAULT;
+Warnings:
+Warning	131	innodb_idle_flush_pct is DEPRECATED and has no effect.
 select @@global.innodb_idle_flush_pct;
 @@global.innodb_idle_flush_pct
 100
 SET @@global.innodb_idle_flush_pct = @start_global_value;
+Warnings:
+Warning	131	innodb_idle_flush_pct is DEPRECATED and has no effect.
 SELECT @@global.innodb_idle_flush_pct;
 @@global.innodb_idle_flush_pct
 100

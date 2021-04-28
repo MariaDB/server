@@ -6390,8 +6390,9 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       DBUG_ASSERT(!thd->backup_commit_lock);
 
       mdl_request.init(MDL_key::BACKUP, "", "", MDL_BACKUP_COMMIT, MDL_EXPLICIT);
-      thd->mdl_context.acquire_lock(&mdl_request,
-                                    thd->variables.lock_wait_timeout);
+      if (thd->mdl_context.acquire_lock(&mdl_request,
+                                        thd->variables.lock_wait_timeout))
+        DBUG_RETURN(1);
       thd->backup_commit_lock= &mdl_request;
 
       if ((res= thd->wait_for_prior_commit()))
@@ -6983,6 +6984,9 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
   bool check_purge= false;
 
   mysql_mutex_lock(&LOCK_log);
+
+  DEBUG_SYNC(current_thd, "rotate_after_acquire_LOCK_log");
+
   prev_binlog_id= current_binlog_id;
 
   if ((err_gtid= do_delete_gtid_domain(domain_drop_lex)))
@@ -6993,11 +6997,22 @@ int MYSQL_BIN_LOG::rotate_and_purge(bool force_rotate,
   }
   else if (unlikely((error= rotate(force_rotate, &check_purge))))
     check_purge= false;
+
+  DEBUG_SYNC(current_thd, "rotate_after_rotate");
+
   /*
     NOTE: Run purge_logs wo/ holding LOCK_log because it does not need
           the mutex. Otherwise causes various deadlocks.
+          Explicit binlog rotation must be synchronized with a concurrent
+          binlog ordered commit, in particular not let binlog
+          checkpoint notification request until early binlogged
+          concurrent commits have has been completed.
   */
+  mysql_mutex_lock(&LOCK_after_binlog_sync);
   mysql_mutex_unlock(&LOCK_log);
+  mysql_mutex_lock(&LOCK_commit_ordered);
+  mysql_mutex_unlock(&LOCK_after_binlog_sync);
+  mysql_mutex_unlock(&LOCK_commit_ordered);
 
   if (check_purge)
     checkpoint_and_purge(prev_binlog_id);
@@ -7470,6 +7485,8 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   new transaction directly to participate in the group commit.
 
   @retval < 0   Error
+  @retval  -2   WSREP error with commit ordering
+  @retval  -3   WSREP return code to mark the leader
   @retval > 0   If queued as the first entry in the queue (meaning this
                 is the leader)
   @retval   0   Otherwise (queued as participant, leader handles the commit)
@@ -7767,6 +7784,22 @@ MYSQL_BIN_LOG::queue_for_group_commit(group_commit_entry *orig_entry)
     cur= entry->thd->wait_for_commit_ptr;
   }
 
+#ifdef WITH_WSREP
+  if (wsrep_is_active(entry->thd) &&
+      wsrep_run_commit_hook(entry->thd, entry->all))
+  {
+    /*  Release commit order here */
+    if (wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
+      result= -2;
+
+    /* return -3, if this is leader */
+    if (orig_queue == NULL)
+      result= -3;
+  }
+  else
+    DBUG_ASSERT(result != -2 && result != -3);
+#endif /* WITH_WSREP */
+
   if (opt_binlog_commit_wait_count > 0 && orig_queue != NULL)
     mysql_cond_signal(&COND_prepare_ordered);
   mysql_mutex_unlock(&LOCK_prepare_ordered);
@@ -7788,25 +7821,32 @@ MYSQL_BIN_LOG::write_transaction_to_binlog_events(group_commit_entry *entry)
 {
   int is_leader= queue_for_group_commit(entry);
 #ifdef WITH_WSREP
-  if (wsrep_is_active(entry->thd) &&
-      wsrep_run_commit_hook(entry->thd, entry->all))
+  /* commit order was released in queue_for_group_commit() call,
+     here we check if wsrep_commit_ordered() failed or if we are leader */
+  switch (is_leader)
   {
-    /*
-      Release commit order and if leader, wait for prior commit to
-      complete. This establishes total order for group leaders.
-    */
-    if (wsrep_ordered_commit(entry->thd, entry->all, wsrep_apply_error()))
-    {
-      entry->thd->wakeup_subsequent_commits(1);
-      return 1;
-    }
-    if (is_leader)
-    {
-      if (entry->thd->wait_for_prior_commit())
-        return 1;
-    }
+  case -2: /* wsrep_ordered_commit() has failed */
+    DBUG_ASSERT(wsrep_is_active(entry->thd));
+    DBUG_ASSERT(wsrep_run_commit_hook(entry->thd, entry->all));
+    entry->thd->wakeup_subsequent_commits(1);
+    return true;
+  case -3: /* this is leader, wait for prior commit to
+              complete. This establishes total order for group leaders
+           */
+    DBUG_ASSERT(wsrep_is_active(entry->thd));
+    DBUG_ASSERT(wsrep_run_commit_hook(entry->thd, entry->all));
+    if (entry->thd->wait_for_prior_commit())
+      return true;
+
+    /* retain the correct is_leader value */
+    is_leader= 1;
+    break;
+
+  default: /* native MariaDB cases */
+    break;
   }
 #endif /* WITH_WSREP */
+
   /*
     The first in the queue handles group commit for all; the others just wait
     to be signalled when group commit is done.
@@ -8173,7 +8213,12 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
   }
 
   DEBUG_SYNC(leader->thd, "commit_before_get_LOCK_commit_ordered");
+
   mysql_mutex_lock(&LOCK_commit_ordered);
+  DBUG_EXECUTE_IF("crash_before_engine_commit",
+      {
+        DBUG_SUICIDE();
+      });
   last_commit_pos_offset= commit_offset;
 
   /*

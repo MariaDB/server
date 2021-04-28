@@ -159,6 +159,24 @@ private:
   THD *m_cur_thd;
 };
 
+class sql_safe_updates
+{
+public:
+  sql_safe_updates(THD* thd)
+    : m_thd(thd)
+    , m_option_bits(thd->variables.option_bits)
+  {
+    thd->variables.option_bits&= ~OPTION_SAFE_UPDATES;
+  }
+  ~sql_safe_updates()
+  {
+    m_thd->variables.option_bits= m_option_bits;
+  }
+private:
+  THD* m_thd;
+  ulonglong m_option_bits;
+};
+
 static int execute_SQL(THD* thd, const char* sql, uint length) {
   DBUG_ENTER("Wsrep_schema::execute_SQL()");
   int err= 0;
@@ -230,6 +248,7 @@ static int open_table(THD* thd,
   tables.init_one_table(schema_name,
                         table_name,
                         NULL, lock_type);
+  thd->lex->query_tables_own_last= 0;
 
   if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
     if (thd->is_error()) {
@@ -565,14 +584,24 @@ static int end_index_scan(TABLE* table) {
   return 0;
 }
 
-static void make_key(TABLE* table, uchar* key, key_part_map* map, int parts) {
+static void make_key(TABLE* table, uchar** key, key_part_map* map, int parts) {
   uint prefix_length= 0;
   KEY_PART_INFO* key_part= table->key_info->key_part;
+
   for (int i=0; i < parts; i++)
     prefix_length += key_part[i].store_length;
+
   *map= make_prev_keypart_map(parts);
-  key_copy(key, table->record[0], table->key_info, prefix_length);
+
+  if (!(*key= (uchar *) my_malloc(prefix_length + 1, MYF(MY_WME))))
+  {
+    WSREP_ERROR("Failed to allocate memory for key prefix_length %u", prefix_length);
+    assert(0);
+  }
+
+  key_copy(*key, table->record[0], table->key_info, prefix_length);
 }
+
 } /* namespace Wsrep_schema_impl */
 
 
@@ -592,13 +621,15 @@ static void wsrep_init_thd_for_schema(THD *thd)
 
   thd->prior_thr_create_utime= thd->start_utime= thd->thr_create_utime;
 
-  /* */
-  thd->variables.wsrep_on    = 0;
+  /* No Galera replication */
+  thd->variables.wsrep_on= 0;
   /* No binlogging */
-  thd->variables.sql_log_bin = 0;
-  thd->variables.option_bits &= ~OPTION_BIN_LOG;
+  thd->variables.sql_log_bin= 0;
+  thd->variables.option_bits&= ~OPTION_BIN_LOG;
+  /* No safe updates */
+  thd->variables.option_bits&= ~OPTION_SAFE_UPDATES;
   /* No general log */
-  thd->variables.option_bits |= OPTION_LOG_OFF;
+  thd->variables.option_bits|= OPTION_LOG_OFF;
   /* Read committed isolation to avoid gap locking */
   thd->variables.tx_isolation= ISO_READ_COMMITTED;
   wsrep_assign_from_threadvars(thd);
@@ -653,6 +684,7 @@ int Wsrep_schema::store_view(THD* thd, const Wsrep_view& view)
 
   Wsrep_schema_impl::wsrep_off wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
 
   /*
     Clean up cluster table and members table.
@@ -899,13 +931,22 @@ int Wsrep_schema::append_fragment(THD* thd,
               thd->thread_id,
               os.str().c_str(),
               transaction_id.get());
+  /* use private query table list for the duration of fragment storing,
+     populated query table list from "parent DML" may cause problems .e.g
+     for virtual column handling
+ */
+  Query_tables_list query_tables_list_backup;
+  thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
+
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
   Wsrep_schema_impl::init_stmt(thd);
 
   TABLE* frag_table= 0;
   if (Wsrep_schema_impl::open_for_write(thd, sr_table_str.c_str(), &frag_table))
   {
     trans_rollback_stmt(thd);
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
 
@@ -919,9 +960,11 @@ int Wsrep_schema::append_fragment(THD* thd,
   if ((error= Wsrep_schema_impl::insert(frag_table))) {
     WSREP_ERROR("Failed to write to frag table: %d", error);
     trans_rollback_stmt(thd);
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
   Wsrep_schema_impl::finish_stmt(thd);
+  thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
   DBUG_RETURN(0);
 }
 
@@ -938,15 +981,24 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
               ws_meta.seqno().get());
   DBUG_ASSERT(ws_meta.seqno().is_undefined() == false);
 
+  /* use private query table list for the duration of fragment storing,
+     populated query table list from "parent DML" may cause problems .e.g
+     for virtual column handling
+ */
+  Query_tables_list query_tables_list_backup;
+  thd->lex->reset_n_backup_query_tables_list(&query_tables_list_backup);
+
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
   int error;
-  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
+  uchar *key=NULL;
   key_part_map key_map= 0;
   TABLE* frag_table= 0;
 
   Wsrep_schema_impl::init_stmt(thd);
   if (Wsrep_schema_impl::open_for_write(thd, sr_table_str.c_str(), &frag_table))
   {
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
 
@@ -954,7 +1006,7 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
   Wsrep_schema_impl::store(frag_table, 0, ws_meta.server_id());
   Wsrep_schema_impl::store(frag_table, 1, ws_meta.transaction_id().get());
   Wsrep_schema_impl::store(frag_table, 2, -1);
-  Wsrep_schema_impl::make_key(frag_table, key, &key_map, 3);
+  Wsrep_schema_impl::make_key(frag_table, &key, &key_map, 3);
 
   if ((error= Wsrep_schema_impl::init_for_index_scan(frag_table,
                                                      key, key_map)))
@@ -967,9 +1019,12 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
                  error);
     }
     Wsrep_schema_impl::finish_stmt(thd);
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
+    my_free(key);
     DBUG_RETURN(1);
   }
 
+  my_free(key);
   /* Copy the original record to frag_table->record[1] */
   store_record(frag_table, record[1]);
 
@@ -982,11 +1037,13 @@ int Wsrep_schema::update_fragment_meta(THD* thd,
                 frag_table->s->table_name.str,
                 error);
     Wsrep_schema_impl::finish_stmt(thd);
+    thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
     DBUG_RETURN(1);
   }
 
   int ret= Wsrep_schema_impl::end_index_scan(frag_table);
   Wsrep_schema_impl::finish_stmt(thd);
+  thd->lex->restore_backup_query_tables_list(&query_tables_list_backup);
   DBUG_RETURN(ret);
 }
 
@@ -1002,7 +1059,7 @@ static int remove_fragment(THD*                  thd,
               seqno.get());
   int ret= 0;
   int error;
-  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
+  uchar *key= NULL;
   key_part_map key_map= 0;
 
   DBUG_ASSERT(server_id.is_undefined() == false);
@@ -1016,7 +1073,7 @@ static int remove_fragment(THD*                  thd,
   Wsrep_schema_impl::store(frag_table, 0, server_id);
   Wsrep_schema_impl::store(frag_table, 1, transaction_id.get());
   Wsrep_schema_impl::store(frag_table, 2, seqno.get());
-  Wsrep_schema_impl::make_key(frag_table, key, &key_map, 3);
+  Wsrep_schema_impl::make_key(frag_table, &key, &key_map, 3);
 
   if ((error= Wsrep_schema_impl::init_for_index_scan(frag_table,
                                                      key,
@@ -1038,6 +1095,8 @@ static int remove_fragment(THD*                  thd,
     ret= 1;
   }
 
+  if (key)
+    my_free(key);
   Wsrep_schema_impl::end_index_scan(frag_table);
   return ret;
 }
@@ -1053,6 +1112,7 @@ int Wsrep_schema::remove_fragments(THD* thd,
   WSREP_DEBUG("Removing %zu fragments", fragments.size());
   Wsrep_schema_impl::wsrep_off  wsrep_off(thd);
   Wsrep_schema_impl::binlog_off binlog_off(thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(thd);
 
   Query_tables_list query_tables_list_backup;
   Open_tables_backup open_tables_backup;
@@ -1120,12 +1180,13 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
 
   Wsrep_schema_impl::wsrep_off  wsrep_off(&thd);
   Wsrep_schema_impl::binlog_off binlog_off(&thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(&thd);
   Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd, &thd);
 
   int ret= 1;
   int error;
   TABLE* frag_table= 0;
-  uchar key[MAX_KEY_LENGTH+MAX_FIELD_WIDTH];
+  uchar *key=NULL;
   key_part_map key_map= 0;
 
   for (std::vector<wsrep::seqno>::const_iterator i= fragments.begin();
@@ -1142,7 +1203,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     Wsrep_schema_impl::store(frag_table, 0, ws_meta.server_id());
     Wsrep_schema_impl::store(frag_table, 1, ws_meta.transaction_id().get());
     Wsrep_schema_impl::store(frag_table, 2, i->get());
-    Wsrep_schema_impl::make_key(frag_table, key, &key_map, 3);
+    Wsrep_schema_impl::make_key(frag_table, &key, &key_map, 3);
 
     int error= Wsrep_schema_impl::init_for_index_scan(frag_table,
                                                       key,
@@ -1189,6 +1250,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
       Wsrep_schema_impl::finish_stmt(&thd);
       DBUG_RETURN(1);
     }
+
     error= Wsrep_schema_impl::init_for_index_scan(frag_table,
                                                   key,
                                                   key_map);
@@ -1202,6 +1264,7 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     }
 
     error= Wsrep_schema_impl::delete_row(frag_table);
+
     if (error)
     {
       WSREP_WARN("Could not delete row from streaming log table: %d", error);
@@ -1211,8 +1274,12 @@ int Wsrep_schema::replay_transaction(THD* orig_thd,
     }
     Wsrep_schema_impl::end_index_scan(frag_table);
     Wsrep_schema_impl::finish_stmt(&thd);
+    my_free(key);
+    key= NULL;
   }
 
+  if (key)
+    my_free(key);
   DBUG_RETURN(ret);
 }
 
@@ -1228,6 +1295,7 @@ int Wsrep_schema::recover_sr_transactions(THD *orig_thd)
   Wsrep_storage_service storage_service(&storage_thd);
   Wsrep_schema_impl::binlog_off binlog_off(&storage_thd);
   Wsrep_schema_impl::wsrep_off wsrep_off(&storage_thd);
+  Wsrep_schema_impl::sql_safe_updates sql_safe_updates(&storage_thd);
   Wsrep_schema_impl::thd_context_switch thd_context_switch(orig_thd,
                                                            &storage_thd);
   Wsrep_server_state& server_state(Wsrep_server_state::instance());

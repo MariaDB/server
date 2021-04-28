@@ -447,8 +447,6 @@ dbug_err:
   */
 static bool wsrep_toi_replication(THD *thd, TABLE_LIST *tables)
 {
-  if (!WSREP(thd) || !WSREP_CLIENT(thd)) return false;
-
   LEX *lex= thd->lex;
   /* only handle OPTIMIZE and REPAIR here */
   switch (lex->sql_command)
@@ -549,10 +547,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   for (table= tables; table; table= table->next_local)
     table->table= NULL;
 #ifdef WITH_WSREP
-  if (wsrep_toi_replication(thd, tables))
+  if (WSREP(thd))
   {
-    WSREP_INFO("wsrep TOI replication of has failed, skipping OPTIMIZE");
-    goto err;
+    if(wsrep_toi_replication(thd, tables))
+    {
+      WSREP_INFO("wsrep TOI replication of has failed.");
+      goto err;
+    }
   }
 #endif /* WITH_WSREP */
 
@@ -1396,7 +1397,9 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
     /*
       Presumably, ANALYZE and binlog writing doesn't require synchronization
     */
+    thd->get_stmt_da()->set_overwrite_status(true);
     res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+    thd->get_stmt_da()->set_overwrite_status(false);
   }
   m_lex->first_select_lex()->table_list.first= first_table;
   m_lex->query_tables= first_table;
@@ -1455,7 +1458,9 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
     /*
       Presumably, OPTIMIZE and binlog writing doesn't require synchronization
     */
+    thd->get_stmt_da()->set_overwrite_status(true);
     res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+    thd->get_stmt_da()->set_overwrite_status(false);
   }
   m_lex->first_select_lex()->table_list.first= first_table;
   m_lex->query_tables= first_table;
@@ -1487,7 +1492,9 @@ bool Sql_cmd_repair_table::execute(THD *thd)
     /*
       Presumably, REPAIR and binlog writing doesn't require synchronization
     */
+    thd->get_stmt_da()->set_overwrite_status(true);
     res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
+    thd->get_stmt_da()->set_overwrite_status(false);
   }
   m_lex->first_select_lex()->table_list.first= first_table;
   m_lex->query_tables= first_table;

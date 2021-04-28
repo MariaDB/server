@@ -2990,7 +2990,7 @@ void advance_sj_state(JOIN *join, table_map remaining_tables, uint idx,
 }
 
 
-void Sj_materialization_picker::set_from_prev(struct st_position *prev)
+void Sj_materialization_picker::set_from_prev(POSITION *prev)
 {
   if (prev->sjmat_picker.is_used)
     set_empty();
@@ -3176,7 +3176,7 @@ bool Sj_materialization_picker::check_qep(JOIN *join,
 }
 
 
-void LooseScan_picker::set_from_prev(struct st_position *prev)
+void LooseScan_picker::set_from_prev(POSITION *prev)
 {
   if (prev->loosescan_picker.is_used)
     set_empty();
@@ -3197,7 +3197,7 @@ bool LooseScan_picker::check_qep(JOIN *join,
                                  double *read_time,
                                  table_map *handled_fanout,
                                  sj_strategy_enum *strategy,
-                                 struct st_position *loose_scan_pos)
+                                 POSITION *loose_scan_pos)
 {
   POSITION *first= join->positions + first_loosescan_table; 
   /* 
@@ -3275,7 +3275,7 @@ bool LooseScan_picker::check_qep(JOIN *join,
   return FALSE;
 }
 
-void Firstmatch_picker::set_from_prev(struct st_position *prev)
+void Firstmatch_picker::set_from_prev(POSITION *prev)
 {
   if (prev->firstmatch_picker.is_used)
     invalidate_firstmatch_prefix();
@@ -5789,8 +5789,8 @@ Item *and_new_conditions_to_optimized_cond(THD *thd, Item *cond,
         ((Item_func *) item)->functype() == Item_func::EQ_FUNC &&
         check_simple_equality(thd,
                              Item::Context(Item::ANY_SUBST,
-                             ((Item_func_equal *)item)->compare_type_handler(),
-                             ((Item_func_equal *)item)->compare_collation()),
+                             ((Item_func_eq *)item)->compare_type_handler(),
+                             ((Item_func_eq *)item)->compare_collation()),
                              ((Item_func *)item)->arguments()[0],
                              ((Item_func *)item)->arguments()[1],
                              &new_cond_equal))

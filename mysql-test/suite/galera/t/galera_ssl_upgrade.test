@@ -6,15 +6,33 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_ssl_communication.inc
+
+call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown");
 
 SELECT VARIABLE_VALUE = 'Synced' FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_local_state_comment';
 SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+
+--connection node_1
+call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+--connection node_2
+call mtr.add_suppression("WSREP: write_handler(): protocol is shutdown.*");
+
+# Setup galera ports
+--connection node_1
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_1 = $_NODE_GALERAPORT
+
+--connection node_2
+--source suite/galera/include/galera_base_port.inc
+--let $NODE_GALERAPORT_2 = $_NODE_GALERAPORT
 
 # 2. Restart node #1 with a socket.ssl_ca that includes both the new and the old certificate
 
 --connection node_1
 --source include/shutdown_mysqld.inc
---let $start_mysqld_params = --wsrep-cluster-address=gcomm://127.0.0.1:$NODE_GALERAPORT_2 --wsrep_provider_options=base_port=$NODE_GALERAPORT_1;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-upgrade-ca-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/cacert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/cakey.pem
+--let $restart_noprint = 1
+--let $start_mysqld_params = --wsrep-cluster-address=gcomm://127.0.0.1:$NODE_GALERAPORT_2 --wsrep_provider_options=base_port=$NODE_GALERAPORT_1;socket.ssl=yes;socket.ssl_ca=$MYSQL_TEST_DIR/std_data/galera-upgrade-ca-cert.pem;socket.ssl_cert=$MYSQL_TEST_DIR/std_data/galera-cert.pem;socket.ssl_key=$MYSQL_TEST_DIR/std_data/galera-key.pem
 --source include/start_mysqld.inc
 --source include/wait_until_connected_again.inc
 

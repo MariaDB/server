@@ -1,1 +1,1 @@
---source suite/binlog/include/binlog_xa_recover.inc
+--source suite/binlog/t/binlog_xa_recover.test

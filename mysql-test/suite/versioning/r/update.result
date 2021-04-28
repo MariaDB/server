@@ -241,6 +241,26 @@ B2	salary
 1	2500
 drop table t1;
 drop table t2;
+# Ensure FTS retains correct history
+create table t1 (
+x int, y text, fulltext (y),
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end))
+with system versioning engine innodb;
+insert into t1 values (1, repeat('LONG', 2048));
+update t1 set x= x + 1;
+select x, left(y, 4), length(y), check_row(row_start, row_end) from t1 for system_time all order by x, y;
+x	left(y, 4)	length(y)	check_row(row_start, row_end)
+1	LONG	8192	HISTORICAL ROW
+2	LONG	8192	CURRENT ROW
+update t1 set y= 'SHORT';
+select x, left(y, 4), length(y), check_row(row_start, row_end) from t1 for system_time all order by x, y;
+x	left(y, 4)	length(y)	check_row(row_start, row_end)
+1	LONG	8192	HISTORICAL ROW
+2	LONG	8192	HISTORICAL ROW
+2	SHOR	5	CURRENT ROW
+drop tables t1;
 ### Issue tempesta-tech/mariadb#365, bug 7 (duplicate of historical row)
 create or replace table t1 (a int primary key, b int)
 with system versioning engine myisam;
@@ -350,3 +370,48 @@ insert into t1 (a) values (1), (2);
 update ignore t1 set a= 3;
 delete history from t1;
 drop table t1;
+#
+# MDEV-23446 UPDATE does not insert history row if the row is not changed
+#
+create table t1 (
+a int,
+row_start SYS_DATATYPE as row start invisible,
+row_end SYS_DATATYPE as row end invisible,
+period for system_time (row_start, row_end)) with system versioning;
+insert into t1 values (1);
+update t1 set a= 1;
+select *, check_row(row_start, row_end) from t1 for system_time all order by row_end;
+a	check_row(row_start, row_end)
+1	HISTORICAL ROW
+1	CURRENT ROW
+# multi-update
+create or replace table t2 like t1;
+create or replace table t3 like t1;
+insert into t2 values (1);
+insert into t3 values (1);
+update t2, t3 set t2.a= 1, t3.a= 1 where t2.a = t3.a;
+select *, check_row(row_start, row_end) from t2 for system_time all order by row_end;
+a	check_row(row_start, row_end)
+1	HISTORICAL ROW
+1	CURRENT ROW
+select *, check_row(row_start, row_end) from t2 for system_time all order by row_end;
+a	check_row(row_start, row_end)
+1	HISTORICAL ROW
+1	CURRENT ROW
+drop tables t1, t2, t3;
+#
+# MDEV-24522 Assertion `inited==NONE' fails upon UPDATE on versioned table with unique blob
+
+create table t1 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
+insert into t1 values (1, 1, 'foo'), (2, 11, 'bar');
+update t1 set a = 3 where b <= 9;
+update t1 set a = 3 where b <= 10;
+drop table t1;
+create table t1 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
+create table t2 (a int, b int, c text, unique(c), key (b)) engine=myisam with system versioning;
+insert into t1 values (1, 1, 'foo'), (2, 11, 'bar');
+insert into t2 values (1, 1, 'foo'), (2, 11, 'bar');
+update t1 set a = 3 where b <= 9;
+update t2 set a = 3 where b <= 9;
+update t1, t2 set t1.a = 3, t2.a = 3 where t1.b <= 10 and t2.b <= 10 and t1.b = t2.b;
+drop tables t1, t2;

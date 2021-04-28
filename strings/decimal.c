@@ -921,20 +921,75 @@ internal_str2dec(const char *from, decimal_t *to, char **end, my_bool fixed)
   if (endp+1 < end_of_string && (*endp == 'e' || *endp == 'E'))
   {
     int str_error;
-    longlong exponent= my_strtoll10(endp+1, (char**) &end_of_string,
+    const char *end_of_exponent= end_of_string;
+    longlong exponent= my_strtoll10(endp+1, (char**) &end_of_exponent,
                                     &str_error);
 
-    if (end_of_string != endp +1)               /* If at least one digit */
+    if (end_of_exponent != endp +1)               /* If at least one digit */
     {
-      *end= (char*) end_of_string;
+      *end= (char*) end_of_exponent;
       if (str_error > 0)
       {
+        if (str_error == MY_ERRNO_ERANGE)
+        {
+          /*
+            Exponent is:
+            - a huge positive number that does not fit into ulonglong
+            - a huge negative number that does not fit into longlong
+            Skip all remaining digits.
+          */
+          for ( ; end_of_exponent < end_of_string &&
+                  my_isdigit(&my_charset_latin1, *end_of_exponent)
+                ; end_of_exponent++)
+          { }
+          *end= (char*) end_of_exponent;
+          if (exponent == ~0)
+          {
+            if (!decimal_is_zero(to))
+            {
+              /*
+                Non-zero mantissa and a huge positive exponent that
+                does not fit into ulonglong, e.g.:
+                  1e111111111111111111111
+              */
+              error= E_DEC_OVERFLOW;
+            }
+            else
+            {
+              /*
+                Zero mantissa and a huge positive exponent that
+                does not fit into ulonglong, e.g.:
+                  0e111111111111111111111
+                Return zero without warnings.
+              */
+            }
+          }
+          else
+          {
+            /*
+              Huge negative exponent that does not fit into longlong, e.g.
+                1e-111111111111111111111
+                0e-111111111111111111111
+              Return zero without warnings.
+            */
+          }
+          goto fatal_error;
+        }
+
+        /*
+          Some other error, e.g. MY_ERRNO_EDOM
+        */
         error= E_DEC_BAD_NUM;
         goto fatal_error;
       }
       if (exponent > INT_MAX/2 || (str_error == 0 && exponent < 0))
       {
-        error= E_DEC_OVERFLOW;
+        /*
+          The exponent fits into ulonglong, but it's still huge, e.g.
+            1e1111111111
+        */
+        if (!decimal_is_zero(to))
+          error= E_DEC_OVERFLOW;
         goto fatal_error;
       }
       if (exponent < INT_MIN/2 && error != E_DEC_OVERFLOW)

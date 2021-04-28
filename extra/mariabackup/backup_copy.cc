@@ -1062,6 +1062,7 @@ copy_file(ds_ctxt_t *datasink,
 	ds_file_t		*dstfile = NULL;
 	datafile_cur_t		 cursor;
 	xb_fil_cur_result_t	 res;
+	DBUG_ASSERT(datasink->datasink->remove);
 	const char	*dst_path =
 		(xtrabackup_copy_back || xtrabackup_move_back)?
 		dst_file_path : trim_dotslash(dst_file_path);
@@ -1087,6 +1088,7 @@ copy_file(ds_ctxt_t *datasink,
 		if (ds_write(dstfile, cursor.buf, cursor.buf_read)) {
 			goto error;
 		}
+		DBUG_EXECUTE_IF("copy_file_error", errno=ENOSPC;goto error;);
 	}
 
 	if (res == XB_FIL_CUR_ERROR) {
@@ -1108,6 +1110,7 @@ copy_file(ds_ctxt_t *datasink,
 error:
 	datafile_close(&cursor);
 	if (dstfile != NULL) {
+		datasink->datasink->remove(dstfile->path);
 		ds_close(dstfile);
 	}
 
@@ -1152,17 +1155,18 @@ move_file(ds_ctxt_t *datasink,
 
 	if (my_rename(src_file_path, dst_file_path_abs, MYF(0)) != 0) {
 		if (my_errno == EXDEV) {
-			bool ret;
-			ret = copy_file(datasink, src_file_path,
-					dst_file_path, thread_n);
+			/* Fallback to copy/unlink */
+			if(!copy_file(datasink, src_file_path,
+					dst_file_path, thread_n))
+					return false;
 			msg(thread_n,"Removing %s", src_file_path);
 			if (unlink(src_file_path) != 0) {
 				my_strerror(errbuf, sizeof(errbuf), errno);
-				msg("Error: unlink %s failed: %s",
+				msg("Warning: unlink %s failed: %s",
 					src_file_path,
 					errbuf);
 			}
-			return(ret);
+			return true;
 		}
 		my_strerror(errbuf, sizeof(errbuf), my_errno);
 		msg("Can not move file %s to %s: %s",

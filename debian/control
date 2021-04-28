@@ -5,7 +5,7 @@ Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
 Build-Depends: bison,
                chrpath,
                cmake (>= 2.7),
-               debhelper (>= 9),
+               debhelper (>= 9.20160709~),
                dh-apparmor,
                dh-exec,
                dh-systemd,

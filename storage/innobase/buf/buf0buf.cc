@@ -1911,6 +1911,10 @@ buf_pool_init_instance(
 				ut_free(buf_pool->chunks);
 				buf_pool_mutex_exit(buf_pool);
 
+				/* InnoDB should free the mutex which was
+				created so far before freeing the instance */
+				mutex_free(&buf_pool->mutex);
+				mutex_free(&buf_pool->zip_mutex);
 				return(DB_ERROR);
 			}
 
@@ -5713,6 +5717,9 @@ loop:
 
 	memset(frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION, 0, 8);
 	memset(frame + FIL_PAGE_LSN, 0, 8);
+	/* mark page as just allocated for check in
+	buf_flush_init_for_writing() */
+	ut_d(memset(frame + FIL_PAGE_SPACE_OR_CHKSUM, 0, 4));
 
 #if defined UNIV_DEBUG || defined UNIV_BUF_DEBUG
 	ut_a(++buf_dbg_counter % 5771 || buf_validate());

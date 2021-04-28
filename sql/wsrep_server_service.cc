@@ -40,6 +40,7 @@ static void init_service_thd(THD* thd, char* thread_stack)
   thd->prior_thr_create_utime= thd->start_utime= microsecond_interval_timer();
   thd->set_command(COM_SLEEP);
   thd->reset_for_next_command(true);
+  server_threads.insert(thd); // as wsrep_innobase_kill_one_trx() uses find_thread_by_id()
 }
 
 Wsrep_storage_service*
@@ -79,6 +80,7 @@ void Wsrep_server_service::release_storage_service(
     static_cast<Wsrep_storage_service*>(storage_service);
   THD* thd= ss->m_thd;
   wsrep_reset_threadvars(thd);
+  server_threads.erase(thd);
   delete ss;
   delete thd;
 }
@@ -92,7 +94,8 @@ wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
      streaming transaction is BF aborted and streaming applier
      is created from BF aborter context. */
   Wsrep_threadvars saved_threadvars(wsrep_save_threadvars());
-  wsrep_reset_threadvars(saved_threadvars.cur_thd);
+  if (saved_threadvars.cur_thd)
+    wsrep_reset_threadvars(saved_threadvars.cur_thd);
   THD *thd= 0;
   Wsrep_applier_service *ret= 0;
   if (!wsrep_create_threadvars() &&
@@ -109,7 +112,8 @@ wsrep_create_streaming_applier(THD *orig_thd, const char *ctx)
   }
   /* Restore original thread local storage state before returning. */
   wsrep_restore_threadvars(saved_threadvars);
-  wsrep_store_threadvars(saved_threadvars.cur_thd);
+  if (saved_threadvars.cur_thd)
+    wsrep_store_threadvars(saved_threadvars.cur_thd);
   return ret;
 }
 
@@ -138,6 +142,7 @@ void Wsrep_server_service::release_high_priority_service(wsrep::high_priority_se
   THD* thd= hps->m_thd;
   delete hps;
   wsrep_store_threadvars(thd);
+  server_threads.erase(thd);
   delete thd;
   wsrep_delete_threadvars();
 }
@@ -162,16 +167,19 @@ void Wsrep_server_service::log_message(enum wsrep::log::level level,
   switch (level)
   {
   case wsrep::log::debug:
-    sql_print_information("debug: %s", message);
+    WSREP_DEBUG("%s", message);
     break;
   case wsrep::log::info:
-    sql_print_information("%s", message);
+    WSREP_INFO("%s", message);
     break;
   case wsrep::log::warning:
-    sql_print_warning("%s", message);
+    WSREP_WARN("%s", message);
     break;
   case wsrep::log::error:
-    sql_print_error("%s", message);
+    WSREP_ERROR("%s", message);
+    break;
+  case wsrep::log::unknown:
+    WSREP_UNKNOWN("%s", message);
     break;
   }
 }

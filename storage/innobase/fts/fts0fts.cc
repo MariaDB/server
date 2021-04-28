@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1708,7 +1708,7 @@ fts_drop_tables(
 
 	error = fts_drop_common_tables(trx, &fts_table);
 
-	if (error == DB_SUCCESS) {
+	if (error == DB_SUCCESS && table->fts) {
 		error = fts_drop_all_index_tables(trx, table->fts);
 	}
 
@@ -1730,7 +1730,7 @@ fts_create_in_mem_aux_table(
 	dict_table_t*	new_table = dict_mem_table_create(
 		aux_table_name, NULL, n_cols, 0, table->flags,
 		table->space_id == TRX_SYS_SPACE
-		? 0 : table->space->purpose == FIL_TYPE_TEMPORARY
+		? 0 : table->space_id == SRV_TMP_SPACE_ID
 		? DICT_TF2_TEMPORARY : DICT_TF2_USE_FILE_PER_TABLE);
 
 	if (DICT_TF_HAS_DATA_DIR(table->flags)) {
@@ -2518,7 +2518,8 @@ fts_get_max_cache_size(
 		}
 	} else {
 		ib::error() << "(" << error << ") reading max"
-			" cache config value from config table";
+			" cache config value from config table "
+			<< fts_table->table->name;
 	}
 
 	ut_free(value.f_str);
@@ -2691,7 +2692,8 @@ func_exit:
 	} else {
 		*doc_id = 0;
 
-		ib::error() << "(" << error << ") while getting next doc id.";
+		ib::error() << "(" << error << ") while getting next doc id "
+			"for table " << table->name;
 		fts_sql_rollback(trx);
 
 		if (error == DB_DEADLOCK) {
@@ -2771,7 +2773,8 @@ fts_update_sync_doc_id(
 			cache->synced_doc_id = doc_id;
 		} else {
 			ib::error() << "(" << error << ") while"
-				" updating last doc id.";
+				" updating last doc id for table"
+				<< table->name;
 
 			fts_sql_rollback(trx);
 		}
@@ -3482,7 +3485,8 @@ fts_add_doc_by_id(
 
 		}
 
-		offsets = rec_get_offsets(clust_rec, clust_index, NULL, true,
+		offsets = rec_get_offsets(clust_rec, clust_index, NULL,
+					  clust_index->n_core_fields,
 					  ULINT_UNDEFINED, &heap);
 
 		for (ulint i = 0; i < num_idx; ++i) {
@@ -3996,7 +4000,8 @@ fts_sync_write_words(
 
 		if (UNIV_UNLIKELY(error != DB_SUCCESS) && !print_error) {
 			ib::error() << "(" << error << ") writing"
-				" word node to FTS auxiliary index table.";
+				" word node to FTS auxiliary index table "
+				<< table->name;
 			print_error = TRUE;
 		}
 	}
@@ -4151,7 +4156,8 @@ fts_sync_commit(
 		fts_sql_commit(trx);
 	} else {
 		fts_sql_rollback(trx);
-		ib::error() << "(" << error << ") during SYNC.";
+		ib::error() << "(" << error << ") during SYNC of "
+			"table " << sync->table->name;
 	}
 
 	if (UNIV_UNLIKELY(fts_enable_diag_print) && elapsed_time) {
@@ -4922,7 +4928,8 @@ fts_get_rows_count(
 				trx->error_state = DB_SUCCESS;
 			} else {
 				ib::error() << "(" << error
-					<< ") while reading FTS table.";
+					<< ") while reading FTS table "
+					<< table_name;
 
 				break;			/* Exit the loop. */
 			}

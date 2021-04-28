@@ -10905,7 +10905,7 @@ int get_next_bit(REP_SET *set,uint lastpos)
 
   start=set->bits+ ((lastpos+1) / WORD_BIT);
   end=set->bits + set->size_of_bits;
-  bits=start[0] & ~((1 << ((lastpos+1) % WORD_BIT)) -1);
+  bits=start[0] & ~((1U << ((lastpos+1) % WORD_BIT)) -1);
 
   while (! bits && ++start < end)
     bits=start[0];

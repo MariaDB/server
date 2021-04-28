@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -61,6 +61,7 @@ btr_pcur_reset(
 	cursor->btr_cur.index = NULL;
 	cursor->btr_cur.page_cur.rec = NULL;
 	cursor->old_rec = NULL;
+	cursor->old_n_core_fields = 0;
 	cursor->old_n_fields = 0;
 	cursor->old_stored = false;
 
@@ -151,7 +152,8 @@ before_first:
 
 		ut_ad(!page_rec_is_infimum(rec));
 		if (UNIV_UNLIKELY(rec_is_metadata(rec, *index))) {
-			ut_ad(index->table->instant);
+			ut_ad(index->table->instant
+			      || block->page.id.page_no() != index->page);
 			ut_ad(page_get_n_recs(block->frame) == 1);
 			ut_ad(page_is_leaf(block->frame));
 			ut_ad(!page_has_prev(block->frame));
@@ -165,11 +167,8 @@ before_first:
 
 		if (rec_is_metadata(rec, *index)) {
 			ut_ad(!page_has_prev(block->frame));
-			ut_d(const rec_t* p = rec);
 			rec = page_rec_get_next(rec);
 			if (page_rec_is_supremum(rec)) {
-				ut_ad(page_has_next(block->frame)
-				      || rec_is_alter_metadata(p, *index));
 				goto before_first;
 			}
 		}
@@ -181,19 +180,21 @@ before_first:
 
 	if (index->is_ibuf()) {
 		ut_ad(!index->table->not_redundant());
-		cursor->old_n_fields = rec_get_n_fields_old(rec);
-	} else if (page_rec_is_leaf(rec)) {
-		cursor->old_n_fields = dict_index_get_n_unique_in_tree(index);
-	} else if (index->is_spatial()) {
-		ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
-		      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
-		/* For R-tree, we have to compare
-		the child page numbers as well. */
-		cursor->old_n_fields = DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
+		cursor->old_n_fields = uint16_t(rec_get_n_fields_old(rec));
 	} else {
-		cursor->old_n_fields = dict_index_get_n_unique_in_tree(index);
+		cursor->old_n_fields = static_cast<uint16>(
+			dict_index_get_n_unique_in_tree(index));
+		if (index->is_spatial() && !page_rec_is_leaf(rec)) {
+			ut_ad(dict_index_get_n_unique_in_tree_nonleaf(index)
+			      == DICT_INDEX_SPATIAL_NODEPTR_SIZE);
+			/* For R-tree, we have to compare
+			the child page numbers as well. */
+			cursor->old_n_fields
+				= DICT_INDEX_SPATIAL_NODEPTR_SIZE + 1;
+		}
 	}
 
+	cursor->old_n_core_fields = index->n_core_fields;
 	cursor->old_rec = rec_copy_prefix_to_buf(rec, index,
 						 cursor->old_n_fields,
 						 &cursor->old_rec_buf,
@@ -228,6 +229,7 @@ btr_pcur_copy_stored_position(
 			+ (pcur_donate->old_rec - pcur_donate->old_rec_buf);
 	}
 
+	pcur_receive->old_n_core_fields = pcur_donate->old_n_core_fields;
 	pcur_receive->old_n_fields = pcur_donate->old_n_fields;
 }
 
@@ -319,6 +321,8 @@ btr_pcur_restore_position_func(
 	}
 
 	ut_a(cursor->old_rec);
+	ut_a(cursor->old_n_core_fields);
+	ut_a(cursor->old_n_core_fields <= index->n_core_fields);
 	ut_a(cursor->old_n_fields);
 
 	switch (latch_mode) {
@@ -352,11 +356,16 @@ btr_pcur_restore_position_func(
 				rec_offs_init(offsets2_);
 
 				heap = mem_heap_create(256);
+				ut_ad(cursor->old_n_core_fields
+				      == index->n_core_fields);
+
 				offsets1 = rec_get_offsets(
-					cursor->old_rec, index, offsets1, true,
+					cursor->old_rec, index, offsets1,
+					cursor->old_n_core_fields,
 					cursor->old_n_fields, &heap);
 				offsets2 = rec_get_offsets(
-					rec, index, offsets2, true,
+					rec, index, offsets2,
+					index->n_core_fields,
 					cursor->old_n_fields, &heap);
 
 				ut_ad(!cmp_rec_rec(cursor->old_rec,
@@ -381,8 +390,14 @@ btr_pcur_restore_position_func(
 
 	heap = mem_heap_create(256);
 
-	tuple = dict_index_build_data_tuple(cursor->old_rec, index, true,
-					    cursor->old_n_fields, heap);
+	tuple = dtuple_create(heap, cursor->old_n_fields);
+
+	dict_index_copy_types(tuple, index, cursor->old_n_fields);
+
+	rec_copy_prefix_to_dtuple(tuple, cursor->old_rec, index,
+				  cursor->old_n_core_fields,
+				  cursor->old_n_fields, heap);
+	ut_ad(dtuple_check_typed(tuple));
 
 	/* Save the old search mode of the cursor */
 	old_mode = cursor->search_mode;
@@ -421,7 +436,8 @@ btr_pcur_restore_position_func(
 	    && btr_pcur_is_on_user_rec(cursor)
 	    && !cmp_dtuple_rec(tuple, btr_pcur_get_rec(cursor),
 			       rec_get_offsets(btr_pcur_get_rec(cursor),
-					       index, offsets, true,
+					       index, offsets,
+					       index->n_core_fields,
 					       ULINT_UNDEFINED, &heap))) {
 
 		/* We have to store the NEW value for the modify clock,

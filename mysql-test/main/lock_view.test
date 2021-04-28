@@ -75,3 +75,20 @@ drop user definer@localhost;
 drop database mysqltest1;
 drop database mysqltest2;
 drop database mysqltest3;
+
+--echo #
+--echo # MDEV-24331 mysqldump fails with "Got error: 1356" if the database contains a view with a subquery
+--echo #
+create user u1@localhost;
+grant all privileges on test.* to u1@localhost;
+connect con1,localhost,u1;
+use test;
+create table t1 (id int not null);
+create view v1 as select * from (select * from t1) dt;
+lock table v1 read;
+disconnect con1;
+connection default;
+exec $MYSQL_DUMP test v1 -uu1 --compact;
+drop view v1;
+drop table t1;
+drop user u1@localhost;

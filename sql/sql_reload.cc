@@ -416,6 +416,14 @@ bool reload_acl_and_cache(THD *thd, unsigned long long options,
  {
    if (reinit_ssl())
      result= 1;
+#ifdef WITH_WSREP
+   if (!result &&
+       WSREP_ON && wsrep_reload_ssl())
+   {
+     my_message(ER_UNKNOWN_ERROR, "Failed to refresh WSREP SSL.", MYF(0));
+     result= 1;
+   }
+#endif
  }
  if (options & REFRESH_GENERIC)
  {

@@ -64,10 +64,10 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                  uint uniques, MARIA_UNIQUEDEF *uniquedefs,
                  MARIA_CREATE_INFO *ci,uint flags)
 {
-  register uint i,j;
+  uint i,j;
   File UNINIT_VAR(dfile), UNINIT_VAR(file);
   int errpos,save_errno, create_mode= O_RDWR | O_TRUNC, res;
-  myf create_flag;
+  myf create_flag, common_flag= MY_WME, sync_dir= 0;
   uint length,max_key_length,packed,pack_bytes,pointer,real_length_diff,
        key_length,info_length,key_segs,options,min_key_length,
        base_pos,long_varchar_count,
@@ -93,7 +93,6 @@ int maria_create(const char *name, enum data_file_type datafile_type,
   MARIA_CREATE_INFO tmp_create_info;
   my_bool tmp_table= FALSE; /* cache for presence of HA_OPTION_TMP_TABLE */
   my_bool forced_packed;
-  myf     sync_dir=  0;
   uchar   *log_data= NULL;
   my_bool encrypted= maria_encrypt_tables && datafile_type == BLOCK_RECORD;
   my_bool insert_order= MY_TEST(flags & HA_PRESERVE_INSERT_ORDER);
@@ -103,6 +102,9 @@ int maria_create(const char *name, enum data_file_type datafile_type,
                       keys, columns, uniques, flags));
 
   DBUG_ASSERT(maria_inited);
+
+  if (flags & HA_CREATE_TMP_TABLE)
+    common_flag|= MY_THREAD_SPECIFIC;
 
   if (!ci)
   {
@@ -148,7 +150,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 	(double*) my_malloc((keys + uniques)*HA_MAX_KEY_SEG*sizeof(double) +
                             (keys + uniques)*HA_MAX_KEY_SEG*sizeof(ulong) +
                             sizeof(uint16) * columns,
-                            MYF(MY_WME | MY_ZEROFILL))))
+                            MYF(common_flag | MY_ZEROFILL))))
     DBUG_RETURN(my_errno);
   nulls_per_key_part= (ulong*) (rec_per_key_part +
                                 (keys + uniques) * HA_MAX_KEY_SEG);
@@ -924,7 +926,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
 
   if ((file= mysql_file_create_with_symlink(key_file_kfile, klinkname_ptr,
                                             kfilename, 0, create_mode,
-                                            MYF(MY_WME|create_flag))) < 0)
+                                            MYF(common_flag|create_flag))) < 0)
     goto err;
   errpos=1;
 
@@ -1027,7 +1029,7 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     MARIA_COLUMNDEF **col_order, **pos;
     if (!(col_order= (MARIA_COLUMNDEF**) my_malloc(share.base.fields *
                                                    sizeof(MARIA_COLUMNDEF*),
-                                                   MYF(MY_WME))))
+                                                   common_flag)))
       goto err;
     for (column= columndef, pos= col_order ;
          column != end_column ;
@@ -1206,8 +1208,8 @@ int maria_create(const char *name, enum data_file_type datafile_type,
     }
     if ((dfile=
          mysql_file_create_with_symlink(key_file_dfile, dlinkname_ptr,
-                                        dfilename, 0, create_mode,
-                                        MYF(MY_WME | create_flag | sync_dir))) < 0)
+                              dfilename, 0, create_mode,
+                              MYF(common_flag | create_flag | sync_dir))) < 0)
       goto err;
     errpos=3;
 

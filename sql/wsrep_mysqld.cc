@@ -46,6 +46,7 @@
 #include <cstdlib>
 #include <string>
 #include "log_event.h"
+#include "sql_connect.h"
 
 #include <sstream>
 
@@ -129,6 +130,18 @@ uint  wsrep_ignore_apply_errors= 0;
 /*
  * End configuration options
  */
+
+/*
+ * Cached variables
+ */
+
+// Whether the Galera write-set replication provider is set
+// wsrep_provider && strcmp(wsrep_provider, WSREP_NONE)
+bool WSREP_PROVIDER_EXISTS_;
+
+// Whether the Galera write-set replication is enabled
+// global_system_variables.wsrep_on && WSREP_PROVIDER_EXISTS_
+bool WSREP_ON_;
 
 /*
  * Other wsrep global variables.
@@ -315,29 +328,31 @@ wsp::node_status           local_status;
  */
 Wsrep_schema *wsrep_schema= 0;
 
-static void wsrep_log_cb(wsrep::log::level level, const char *msg)
+static void wsrep_log_cb(wsrep::log::level level,
+                         const char*, const char *msg)
 {
   /*
     Silence all wsrep related logging from lib and provider if
     wsrep is not enabled.
   */
-  if (WSREP_ON)
-  {
-    switch (level) {
-    case wsrep::log::info:
-      sql_print_information("WSREP: %s", msg);
-      break;
-    case wsrep::log::warning:
-      sql_print_warning("WSREP: %s", msg);
-      break;
-    case wsrep::log::error:
-    sql_print_error("WSREP: %s", msg);
+  if (!WSREP_ON) return;
+
+  switch (level) {
+  case wsrep::log::info:
+    WSREP_INFO("%s", msg);
     break;
-    case wsrep::log::debug:
-      if (wsrep_debug) sql_print_information ("[Debug] WSREP: %s", msg);
-    default:
-      break;
-    }
+  case wsrep::log::warning:
+    WSREP_WARN("%s", msg);
+    break;
+  case wsrep::log::error:
+    WSREP_ERROR("%s", msg);
+    break;
+  case wsrep::log::debug:
+    WSREP_DEBUG("%s", msg);
+    break;
+  case wsrep::log::unknown:
+    WSREP_UNKNOWN("%s", msg);
+    break;
   }
 }
 
@@ -875,13 +890,13 @@ void wsrep_init_startup (bool sst_first)
   if (!strcmp(wsrep_provider, WSREP_NONE)) return;
 
   /* Skip replication start if no cluster address */
-  if (!wsrep_cluster_address || wsrep_cluster_address[0] == 0) return;
+  if (!wsrep_cluster_address_exists()) return;
 
   /*
     Read value of wsrep_new_cluster before wsrep_start_replication(),
     the value is reset to FALSE inside wsrep_start_replication.
   */
-  if (!wsrep_start_replication()) unireg_abort(1);
+  if (!wsrep_start_replication(wsrep_cluster_address)) unireg_abort(1);
 
   wsrep_create_rollbacker();
   wsrep_create_appliers(1);
@@ -1031,7 +1046,7 @@ void wsrep_shutdown_replication()
   my_pthread_setspecific_ptr(THR_THD, NULL);
 }
 
-bool wsrep_start_replication()
+bool wsrep_start_replication(const char *wsrep_cluster_address)
 {
   int rcode;
   WSREP_DEBUG("wsrep_start_replication");
@@ -1046,12 +1061,7 @@ bool wsrep_start_replication()
     return true;
   }
 
-  if (!wsrep_cluster_address || wsrep_cluster_address[0]== 0)
-  {
-    // if provider is non-trivial, but no address is specified, wait for address
-    WSREP_DEBUG("wsrep_start_replication exit due to empty address");
-    return true;
-  }
+  DBUG_ASSERT(wsrep_cluster_address[0]);
 
   bool const bootstrap(TRUE == wsrep_new_cluster);
   wsrep_new_cluster= FALSE;
@@ -1181,10 +1191,17 @@ void wsrep_keys_free(wsrep_key_arr_t* key_arr)
     key_arr->keys_len= 0;
 }
 
-void
+/*!
+ * @param thd    thread
+ * @param tables list of tables
+ * @param keys   prepared keys
+
+ * @return true if parent table append was successfull, otherwise false.
+*/
+bool
 wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* keys)
 {
-  if (!WSREP(thd) || !WSREP_CLIENT(thd)) return;
+    bool fail= false;
     TABLE_LIST *table;
 
     thd->release_transactional_locks();
@@ -1195,6 +1212,8 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
          open_tables(thd, &tables, &counter, MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL))
     {
       WSREP_DEBUG("unable to open table for FK checks for %s", thd->query());
+      fail= true;
+      goto exit;
     }
 
     for (table= tables; table; table= table->next_local)
@@ -1216,14 +1235,44 @@ wsrep_append_fk_parent_table(THD* thd, TABLE_LIST* tables, wsrep::key_array* key
       }
     }
 
+exit:
     /* close the table and release MDL locks */
     close_thread_tables(thd);
     thd->mdl_context.rollback_to_savepoint(mdl_savepoint);
     for (table= tables; table; table= table->next_local)
     {
       table->table= NULL;
+      table->next_global= NULL;
       table->mdl_request.ticket= NULL;
     }
+
+    return fail;
+}
+
+bool wsrep_reload_ssl()
+{
+  try
+  {
+    std::string opts= Wsrep_server_state::instance().provider().options();
+    if (opts.find("socket.ssl_reload") == std::string::npos)
+    {
+      WSREP_DEBUG("Option `socket.ssl_reload` not found in parameters.");
+      return false;
+    }
+    const std::string reload_ssl_param("socket.ssl_reload=1");
+    enum wsrep::provider::status ret= Wsrep_server_state::instance().provider().options(reload_ssl_param);
+    if (ret)
+    {
+      WSREP_ERROR("Set options returned %d", ret);
+      return true;
+    }
+    return false;
+  }
+  catch (...)
+  {
+    WSREP_ERROR("Failed to get provider options");
+    return true;
+  }
 }
 
 /*!
@@ -1962,7 +2011,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
 {
   DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI);
 
-  WSREP_DEBUG("TOI Begin");
+  WSREP_DEBUG("TOI Begin for %s", WSREP_QUERY(thd));
   if (wsrep_can_run_in_toi(thd, db, table, table_list) == false)
   {
     WSREP_DEBUG("No TOI for %s", WSREP_QUERY(thd));
@@ -2052,22 +2101,20 @@ static void wsrep_TOI_end(THD *thd) {
   wsrep_to_isolation--;
   wsrep::client_state& client_state(thd->wsrep_cs());
   DBUG_ASSERT(wsrep_thd_is_local_toi(thd));
-  WSREP_DEBUG("TO END: %lld: %s", client_state.toi_meta().seqno().get(),
-              WSREP_QUERY(thd));
 
-  if (wsrep_thd_is_local_toi(thd))
+  wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
+
+  int ret= client_state.leave_toi_local(wsrep::mutable_buffer());
+
+  if (!ret)
   {
-    wsrep_set_SE_checkpoint(client_state.toi_meta().gtid());
-    int ret= client_state.leave_toi_local(wsrep::mutable_buffer());
-    if (!ret)
-    {
-      WSREP_DEBUG("TO END: %lld", client_state.toi_meta().seqno().get());
-    }
-    else
-    {
-      WSREP_WARN("TO isolation end failed for: %d, schema: %s, sql: %s",
-                 ret, (thd->db.str ? thd->db.str : "(null)"), WSREP_QUERY(thd));
-    }
+    WSREP_DEBUG("TO END: %lld: %s",
+                client_state.toi_meta().seqno().get(), WSREP_QUERY(thd));
+  }
+  else
+  {
+    WSREP_WARN("TO isolation end failed for: %d, sql: %s",
+                ret, WSREP_QUERY(thd));
   }
 }
 
@@ -2381,18 +2428,7 @@ static void wsrep_close_thread(THD *thd)
   thd->set_killed(KILL_CONNECTION);
   MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
   mysql_mutex_lock(&thd->LOCK_thd_kill);
-  if (thd->mysys_var)
-  {
-    thd->mysys_var->abort=1;
-    mysql_mutex_lock(&thd->mysys_var->mutex);
-    if (thd->mysys_var->current_cond)
-    {
-      mysql_mutex_lock(thd->mysys_var->current_mutex);
-      mysql_cond_broadcast(thd->mysys_var->current_cond);
-      mysql_mutex_unlock(thd->mysys_var->current_mutex);
-    }
-    mysql_mutex_unlock(&thd->mysys_var->mutex);
-  }
+  thd->abort_current_cond_wait(true);
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
@@ -2441,10 +2477,12 @@ static my_bool kill_remaining_threads(THD *thd, THD *caller_thd)
   if (is_client_connection(thd) &&
       !abort_replicated(thd)    &&
       !is_replaying_connection(thd) &&
+      thd_is_connection_alive(thd) &&
       thd != caller_thd)
   {
+
     WSREP_INFO("killing local connection: %lld", (longlong) thd->thread_id);
-    close_connection(thd, 0);
+    close_connection(thd);
   }
 #endif
   return 0;

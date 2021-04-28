@@ -449,6 +449,7 @@ void print_range_for_non_indexed_field(String *out, Field *field,
 static void print_min_range_operator(String *out, const ha_rkey_function flag);
 static void print_max_range_operator(String *out, const ha_rkey_function flag);
 
+static bool is_field_an_unique_index(RANGE_OPT_PARAM *param, Field *field);
 
 /*
   SEL_IMERGE is a list of possible ways to do index merge, i.e. it is
@@ -3636,8 +3637,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
 
 void store_key_image_to_rec(Field *field, uchar *ptr, uint len)
 {
-  /* Do the same as print_key() does */ 
-  my_bitmap_map *old_map;
+  /* Do the same as print_key() does */
 
   if (field->real_maybe_null())
   {
@@ -3649,10 +3649,10 @@ void store_key_image_to_rec(Field *field, uchar *ptr, uint len)
     field->set_notnull();
     ptr++;
   }    
-  old_map= dbug_tmp_use_all_columns(field->table,
-                                    field->table->write_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table,
+                                    &field->table->write_set);
   field->set_key_image(ptr, len); 
-  dbug_tmp_restore_column_map(field->table->write_set, old_map);
+  dbug_tmp_restore_column_map(&field->table->write_set, old_map);
 }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -3867,7 +3867,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   PART_PRUNE_PARAM prune_param;
   MEM_ROOT alloc;
   RANGE_OPT_PARAM  *range_par= &prune_param.range_param;
-  my_bitmap_map *old_sets[2];
+  MY_BITMAP *old_sets[2];
 
   prune_param.part_info= part_info;
   init_sql_alloc(&alloc, "prune_partitions",
@@ -3884,7 +3884,7 @@ bool prune_partitions(THD *thd, TABLE *table, Item *pprune_cond)
   }
 
   dbug_tmp_use_all_columns(table, old_sets, 
-                           table->read_set, table->write_set);
+                           &table->read_set, &table->write_set);
   range_par->thd= thd;
   range_par->table= table;
   /* range_par->cond doesn't need initialization */
@@ -3981,7 +3981,7 @@ all_used:
   retval= FALSE; // some partitions are used
   mark_all_partitions_as_used(prune_param.part_info);
 end:
-  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
   thd->no_errors=0;
   thd->mem_root= range_par->old_root;
   free_root(&alloc,MYF(0));			// Return memory & allocator
@@ -7690,6 +7690,21 @@ SEL_TREE *Item_bool_func::get_ne_mm_tree(RANGE_OPT_PARAM *param,
 }
 
 
+SEL_TREE *Item_func_ne::get_func_mm_tree(RANGE_OPT_PARAM *param,
+                                         Field *field, Item *value)
+{
+  DBUG_ENTER("Item_func_ne::get_func_mm_tree");
+  /*
+    If this condition is a "col1<>...", where there is a UNIQUE KEY(col1),
+    do not construct a SEL_TREE from it. A condition that excludes just one
+    row in the table is not selective (unless there are only a few rows)
+  */
+  if (is_field_an_unique_index(param, field))
+    DBUG_RETURN(NULL);
+  DBUG_RETURN(get_ne_mm_tree(param, field, value, value));
+}
+
+
 SEL_TREE *Item_func_between::get_func_mm_tree(RANGE_OPT_PARAM *param,
                                               Field *field, Item *value)
 {
@@ -7788,28 +7803,16 @@ SEL_TREE *Item_func_in::get_func_mm_tree(RANGE_OPT_PARAM *param,
         DBUG_RETURN(0);
 
       /*
-        If this is "unique_key NOT IN (...)", do not consider it sargable (for
-        any index, not just the unique one). The logic is as follows:
+        if this is a "col1 NOT IN (...)", and there is a UNIQUE KEY(col1), do
+        not constuct a SEL_TREE from it. The rationale is as follows:
          - if there are only a few constants, this condition is not selective
            (unless the table is also very small in which case we won't gain
            anything)
-         - If there are a lot of constants, the overhead of building and
+         - if there are a lot of constants, the overhead of building and
            processing enormous range list is not worth it.
       */
-      if (param->using_real_indexes)
-      {
-        key_map::Iterator it(field->key_start);
-        uint key_no;
-        while ((key_no= it.next_bit()) != key_map::Iterator::BITMAP_END)
-        {
-          KEY *key_info= &param->table->key_info[key_no];
-          if (key_info->user_defined_key_parts == 1 &&
-              (key_info->flags & HA_NOSAME))
-          {
-            DBUG_RETURN(0);
-          }
-        }
-      }
+      if (is_field_an_unique_index(param, field))
+        DBUG_RETURN(0);
 
       /* Get a SEL_TREE for "(-inf|NULL) < X < c_0" interval.  */
       uint i=0;
@@ -8524,6 +8527,38 @@ SEL_TREE *Item_equal::get_mm_tree(RANGE_OPT_PARAM *param, Item **cond_ptr)
   }
 
   DBUG_RETURN(ftree);
+}
+
+
+/*
+  @brief
+    Check if there is an one-segment unique key that matches the field exactly
+
+  @detail
+    In the future we could also add "almost unique" indexes where any value is
+    present only in a few rows (but necessarily exactly one row)
+*/
+static bool is_field_an_unique_index(RANGE_OPT_PARAM *param, Field *field)
+{
+  DBUG_ENTER("is_field_an_unique_index");
+
+  // The check for using_real_indexes is there because of the heuristics
+  // this function is used for.
+  if (param->using_real_indexes)
+  {
+    key_map::Iterator it(field->key_start);
+    uint key_no;
+    while ((key_no= it++) != key_map::Iterator::BITMAP_END)
+    {
+      KEY *key_info= &field->table->key_info[key_no];
+      if (key_info->user_defined_key_parts == 1 &&
+          (key_info->flags & HA_NOSAME))
+      {
+        DBUG_RETURN(true);
+      }
+    }
+  }
+  DBUG_RETURN(false);
 }
 
 
@@ -15658,8 +15693,8 @@ static void
 print_sel_arg_key(Field *field, const uchar *key, String *out)
 {
   TABLE *table= field->table;
-  my_bitmap_map *old_sets[2];
-  dbug_tmp_use_all_columns(table, old_sets, table->read_set, table->write_set);
+  MY_BITMAP *old_sets[2];
+  dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
 
   if (field->real_maybe_null())
   {
@@ -15679,7 +15714,7 @@ print_sel_arg_key(Field *field, const uchar *key, String *out)
     field->val_str(out);
 
 end:
-  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
 }
 
 
@@ -15774,9 +15809,9 @@ print_key(KEY_PART *key_part, const uchar *key, uint used_length)
   const uchar *key_end= key+used_length;
   uint store_length;
   TABLE *table= key_part->field->table;
-  my_bitmap_map *old_sets[2];
+  MY_BITMAP *old_sets[2];
 
-  dbug_tmp_use_all_columns(table, old_sets, table->read_set, table->write_set);
+  dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
 
   for (; key < key_end; key+=store_length, key_part++)
   {
@@ -15803,7 +15838,7 @@ print_key(KEY_PART *key_part, const uchar *key, uint used_length)
     if (key+store_length < key_end)
       fputc('/',DBUG_FILE);
   }
-  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
 }
 
 
@@ -15811,16 +15846,16 @@ static void print_quick(QUICK_SELECT_I *quick, const key_map *needed_reg)
 {
   char buf[MAX_KEY/8+1];
   TABLE *table;
-  my_bitmap_map *old_sets[2];
+  MY_BITMAP *old_sets[2];
   DBUG_ENTER("print_quick");
   if (!quick)
     DBUG_VOID_RETURN;
   DBUG_LOCK_FILE;
 
   table= quick->head;
-  dbug_tmp_use_all_columns(table, old_sets, table->read_set, table->write_set);
+  dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
   quick->dbug_dump(0, TRUE);
-  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
 
   fprintf(DBUG_FILE,"other_keys: 0x%s:\n", needed_reg->print(buf));
 
@@ -16043,8 +16078,8 @@ void print_range_for_non_indexed_field(String *out, Field *field,
                                        KEY_MULTI_RANGE *range)
 {
   TABLE *table= field->table;
-  my_bitmap_map *old_sets[2];
-  dbug_tmp_use_all_columns(table, old_sets, table->read_set, table->write_set);
+  MY_BITMAP *old_sets[2];
+  dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
 
   if (range->start_key.length)
   {
@@ -16059,7 +16094,7 @@ void print_range_for_non_indexed_field(String *out, Field *field,
     print_max_range_operator(out, range->end_key.flag);
     field->print_key_part_value(out, range->end_key.key, field->key_length());
   }
-  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
 }
 
 
@@ -16126,8 +16161,8 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
   StringBuffer<128> tmp(system_charset_info);
   TABLE *table= field->table;
   uint store_length;
-  my_bitmap_map *old_sets[2];
-  dbug_tmp_use_all_columns(table, old_sets, table->read_set, table->write_set);
+  MY_BITMAP *old_sets[2];
+  dbug_tmp_use_all_columns(table, old_sets, &table->read_set, &table->write_set);
   const uchar *key_end= key+used_length;
 
   for (; key < key_end; key+=store_length, key_part++)
@@ -16140,7 +16175,7 @@ static void print_key_value(String *out, const KEY_PART_INFO *key_part,
     if (key + store_length < key_end)
       out->append(STRING_WITH_LEN(","));
   }
-  dbug_tmp_restore_column_maps(table->read_set, table->write_set, old_sets);
+  dbug_tmp_restore_column_maps(&table->read_set, &table->write_set, old_sets);
   out->append(STRING_WITH_LEN(")"));
 }
 

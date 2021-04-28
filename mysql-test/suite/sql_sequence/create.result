@@ -666,7 +666,7 @@ create temporary sequence s;
 drop temporary table s;
 create temporary table s (i int);
 drop temporary sequence s;
-ERROR 42S02: Unknown SEQUENCE: 'test.s'
+ERROR 42S02: 'test.s' is not a SEQUENCE
 drop table s;
 #
 # MDEV-15115 Assertion failure in CREATE SEQUENCE...ROW_FORMAT=REDUNDANT

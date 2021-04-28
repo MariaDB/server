@@ -3,7 +3,7 @@
 Copyright (c) 1996, 2017, Oracle and/or its affiliates. All rights reserved.
 Copyright (c) 2008, Google Inc.
 Copyright (c) 2009, Percona Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -2005,7 +2005,7 @@ files_checked:
 			to the data files and truncate or delete the log.
 			Unless --export is specified, no further change to
 			InnoDB files is needed. */
-			ut_ad(!srv_force_recovery);
+			ut_ad(srv_force_recovery <= SRV_FORCE_IGNORE_CORRUPT);
 			ut_ad(srv_n_log_files_found <= 1);
 			ut_ad(recv_no_log_write);
 			buf_flush_sync_all_buf_pools();
@@ -2545,6 +2545,19 @@ void innodb_shutdown()
 	}
 
 	sync_check_close();
+
+	srv_sys_space.shutdown();
+	if (srv_tmp_space.get_sanity_check_status()) {
+		if (fil_system.temp_space) {
+			fil_system.temp_space->close();
+		}
+		srv_tmp_space.delete_files();
+	}
+	srv_tmp_space.shutdown();
+
+#ifdef WITH_INNODB_DISALLOW_WRITES
+	os_event_destroy(srv_allow_writes_event);
+#endif /* WITH_INNODB_DISALLOW_WRITES */
 
 	if (srv_was_started && srv_print_verbose_log) {
 		ib::info() << "Shutdown completed; log sequence number "

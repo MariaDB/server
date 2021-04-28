@@ -1952,7 +1952,7 @@ static void make_traverse_code_tree(HUFF_TREE *huff_tree,
   {
     chr=element->a.leaf.element_nr;
     huff_tree->code_len[chr]= (uchar) (8 * sizeof(ulonglong) - size);
-    huff_tree->code[chr]= (code >> size);
+    huff_tree->code[chr]= (size == 8 * sizeof(ulonglong)) ? 0 : (code >> size);
     if (huff_tree->height < 8 * sizeof(ulonglong) - size)
         huff_tree->height= 8 * sizeof(ulonglong) - size;
   }
@@ -2943,12 +2943,15 @@ static void flush_bits(void)
   ulonglong bit_buffer;
 
   bits= file_buffer.bits & ~7;
-  bit_buffer= file_buffer.bitbucket >> bits;
-  bits= BITS_SAVED - bits;
-  while (bits > 0)
+  if (bits != BITS_SAVED)
   {
-    bits-= 8;
-    *file_buffer.pos++= (uchar) (bit_buffer >> bits);
+    bit_buffer= file_buffer.bitbucket >> bits;
+    bits= BITS_SAVED - bits;
+    while (bits > 0)
+    {
+      bits-= 8;
+      *file_buffer.pos++= (uchar) (bit_buffer >> bits);
+    }
   }
   if (file_buffer.pos >= file_buffer.end)
     (void) flush_buffer(~ (ulong) 0);

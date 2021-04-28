@@ -1,0 +1,58 @@
+#
+# This test performs basic checks on the contents of the wsrep_schema
+#
+# wsrep_members_history checks are temporarily disabled until it
+# can be made configurable.
+#
+
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+--connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
+--connection node_1
+# Save original auto_increment_offset values.
+--let $node_1=node_1
+--let $node_2=node_2
+--let $node_3=node_3
+--source ../galera/include/auto_increment_offset_save.inc
+
+# Make the test fail if table structure has changed
+
+SHOW CREATE TABLE mysql.wsrep_cluster;
+SHOW CREATE TABLE mysql.wsrep_cluster_members;
+#disabled SHOW CREATE TABLE mysql.wsrep_member_history;
+SELECT @@sql_safe_updates;
+
+# Checks for the wsrep_cluster table
+
+SELECT COUNT(*) = 1 FROM mysql.wsrep_cluster;
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster;
+
+# Checks for the wsrep_cluster_members table
+
+SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
+SELECT COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size') FROM mysql.wsrep_cluster_members;
+SELECT COUNT(*) = 1 FROM mysql.wsrep_cluster_members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
+
+SELECT node_incoming_address LIKE '127.0.0.1:%' from mysql.wsrep_cluster_members;
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster_members;
+
+--connection node_2
+
+SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
+SELECT COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size') FROM mysql.wsrep_cluster_members;
+SELECT COUNT(*) = 1 FROM mysql.wsrep_cluster_members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
+
+SELECT node_incoming_address LIKE '127.0.0.1:%' from mysql.wsrep_cluster_members;
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster_members;
+
+--connection node_3
+SELECT COUNT(*) = 3 FROM mysql.wsrep_cluster_members;
+SELECT COUNT(*) = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size') FROM mysql.wsrep_cluster_members;
+SELECT COUNT(*) = 1 FROM mysql.wsrep_cluster_members WHERE node_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_gcomm_uuid');
+
+SELECT node_incoming_address LIKE '127.0.0.1:%' from mysql.wsrep_cluster_members;
+SELECT cluster_uuid = (SELECT VARIABLE_VALUE FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_state_uuid') FROM mysql.wsrep_cluster_members;
+
+--source ../galera/include/auto_increment_offset_restore.inc
+

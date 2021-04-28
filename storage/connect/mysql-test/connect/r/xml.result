@@ -374,8 +374,7 @@ INSERT INTO t1 VALUES (_cp1251 0xC0C1C2C3);
 Warnings:
 Level	Warning
 Code	1105
-Message	Com error: Unable to save character to 'iso-8859-1' encoding.
-
+Message	warning about characters outside of iso-8859-1
 INSERT INTO t1 VALUES ('&<>"\'');
 SELECT node, hex(node) FROM t1;
 node	&<>"'

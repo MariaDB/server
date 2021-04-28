@@ -3866,6 +3866,32 @@ NULL
 DROP VIEW v1;
 DROP TABLE t1,t2;
 #
+# MDEV-25032 Window functions without column references get removed from ORDER BY
+#
+create table t1 (id int, score double);
+insert into t1 values
+(1, 5),
+(1, 6),
+(1, 6),
+(1, 6),
+(1, 7),
+(1, 8.1),
+(1, 9),
+(1, 10);
+select id, row_number() over () rn
+from t1
+order by rn desc;
+id	rn
+1	8
+1	7
+1	6
+1	5
+1	4
+1	3
+1	2
+1	1
+drop table t1;
+#
 # End of 10.2 tests
 #
 #

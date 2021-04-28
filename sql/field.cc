@@ -8098,11 +8098,10 @@ uint Field_varstring::get_key_image(uchar *buff, uint length,
 {
   String val;
   uint local_char_length;
-  my_bitmap_map *old_map;
 
-  old_map= dbug_tmp_use_all_columns(table, table->read_set);
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   val_str(&val, &val);
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
 
   local_char_length= val.charpos(length / field_charset->mbmaxlen);
   if (local_char_length < val.length())
@@ -8494,7 +8493,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
     DBUG_ASSERT(length <= max_data_length());
     
     new_length= length;
-    copy_length= (size_t)MY_MIN(UINT_MAX,table->in_use->variables.group_concat_max_len);
+    copy_length= table->in_use->variables.group_concat_max_len;
     if (new_length > copy_length)
     {
       new_length= Well_formed_prefix(cs,
@@ -11077,16 +11076,26 @@ Column_definition::Column_definition(THD *thd, Field *old_field,
     CREATE TABLE t1 (a INT) AS SELECT a FROM t2;
   See Type_handler::Column_definition_redefine_stage1()
   for data type specific code.
+
+  @param this         - The field definition corresponding to the expression
+                        in the "AS SELECT.." part.
+
+  @param dup_field    - The field definition from the "CREATE TABLE (...)" part.
+                        It has already underwent prepare_stage1(), so
+                        must be fully initialized:
+                        -- dup_field->charset is set and BINARY
+                           sorting style is applied, see find_bin_collation().
+
+  @param file         - The table handler
 */
 void
 Column_definition::redefine_stage1_common(const Column_definition *dup_field,
-                                          const handler *file,
-                                          const Schema_specification_st *schema)
+                                          const handler *file)
 {
   set_handler(dup_field->type_handler());
   default_value= dup_field->default_value;
-  charset=       dup_field->charset ? dup_field->charset :
-                                      schema->default_table_charset;
+  DBUG_ASSERT(dup_field->charset); // Set by prepare_stage1()
+  charset=      dup_field->charset;
   length=       dup_field->char_length;
   pack_length=  dup_field->pack_length;
   key_length=   dup_field->key_length;
@@ -11396,7 +11405,7 @@ key_map Field::get_possible_keys()
 
 bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
 {
-  my_bitmap_map *old_map= dbug_tmp_use_all_columns(table, table->read_set);
+    MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->read_set);
   bool rc;
   if ((rc= validate_value_in_record(thd, record)))
   {
@@ -11408,7 +11417,7 @@ bool Field::validate_value_in_record_with_warn(THD *thd, const uchar *record)
                         ER_THD(thd, ER_INVALID_DEFAULT_VALUE_FOR_FIELD),
                         ErrConvString(&tmp).ptr(), field_name.str);
   }
-  dbug_tmp_restore_column_map(table->read_set, old_map);
+  dbug_tmp_restore_column_map(&table->read_set, old_map);
   return rc;
 }
 

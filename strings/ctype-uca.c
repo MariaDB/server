@@ -31467,9 +31467,11 @@ static inline uint16 *
 my_uca_contraction_weight(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
 {
   MY_CONTRACTION *c, *last;
+  DBUG_ASSERT(len <= MY_UCA_MAX_CONTRACTION);
+
   for (c= list->item, last= c + list->nitems; c < last; c++)
   {
-    if ((len == MY_UCA_MAX_CONTRACTION || c->ch[len] == 0) &&
+    if ((len >= MY_UCA_MAX_CONTRACTION || c->ch[len] == 0) &&
         !c->with_context &&
         !my_wmemcmp(c->ch, wc, len))
       return c->weight;
@@ -33212,7 +33214,8 @@ my_char_weight_put(MY_UCA_WEIGHT_LEVEL *dst,
 
     for (chlen= len; chlen > 1; chlen--)
     {
-      if ((from= my_uca_contraction_weight(&dst->contractions, str, chlen)))
+      if (chlen <= MY_UCA_MAX_CONTRACTION &&
+          (from= my_uca_contraction_weight(&dst->contractions, str, chlen)))
       {
         str+= chlen;
         len-= chlen;

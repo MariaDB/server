@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2017, Oracle and/or its affiliates.
-# Copyright (c) 2008, 2020, MariaDB Corporation.
+# Copyright (c) 2008, 2021, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -132,7 +132,7 @@ ENDIF()
 # NUMA
 SET(WITH_NUMA "AUTO" CACHE STRING "Build with non-uniform memory access, allowing --innodb-numa-interleave. Options are ON|OFF|AUTO. ON = enabled (requires NUMA library), OFF = disabled, AUTO = enabled if NUMA library found.")
 
-SET(MYSQL_MAINTAINER_MODE "AUTO" CACHE STRING "MySQL maintainer-specific development environment. Options are: ON OFF AUTO.")
+SET(MYSQL_MAINTAINER_MODE "AUTO" CACHE STRING "Enable MariaDB maintainer-specific warnings. One of: NO (warnings are disabled) WARN (warnings are enabled) ERR (warnings are errors) AUTO (warnings are errors in Debug only)")
 
 # Packaging
 IF (NOT CPACK_GENERATOR)
@@ -196,21 +196,17 @@ OPTION(WITH_ASAN "Enable address sanitizer" OFF)
 IF (WITH_ASAN AND NOT MSVC)
   # this flag might be set by default on some OS
   MY_CHECK_AND_SET_COMPILER_FLAG("-U_FORTIFY_SOURCE" DEBUG RELWITHDEBINFO)
-  # gcc 4.8.1 and new versions of clang
   MY_CHECK_AND_SET_COMPILER_FLAG("-fsanitize=address -fPIC"
     DEBUG RELWITHDEBINFO)
   SET(HAVE_C_FSANITIZE ${have_C__fsanitize_address__fPIC})
   SET(HAVE_CXX_FSANITIZE ${have_CXX__fsanitize_address__fPIC})
   IF(HAVE_C_FSANITIZE AND HAVE_CXX_FSANITIZE)
+    OPTION(WITH_ASAN_SCOPE "Enable -fsanitize-address-use-after-scope" OFF)
     SET(WITH_ASAN_OK 1)
-  ELSE()
-    # older versions of clang
-    MY_CHECK_AND_SET_COMPILER_FLAG("-faddress-sanitizer -fPIC"
-      DEBUG RELWITHDEBINFO)
-    SET(HAVE_C_FADDRESS ${have_C__faddress_sanitizer__fPIC})
-    SET(HAVE_CXX_FADDRESS ${have_CXX__faddress_sanitizer__fPIC})
-    IF(HAVE_C_FADDRESS AND HAVE_CXX_FADDRESS)
-      SET(WITH_ASAN_OK 1)
+    IF(WITH_ASAN_SCOPE)
+      MY_CHECK_AND_SET_COMPILER_FLAG(
+        "-fsanitize=address -fsanitize-address-use-after-scope"
+	DEBUG RELWITHDEBINFO)
     ENDIF()
   ENDIF()
 
@@ -509,8 +505,7 @@ ADD_CUSTOM_TARGET(INFO_BIN ALL
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 
-INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY
-                      EXCEPTIONS-CLIENT COMPONENT Readme)
+INSTALL_DOCUMENTATION(README.md CREDITS COPYING THIRDPARTY COMPONENT Readme)
 
 # MDEV-6526 these files are not installed anymore
 #INSTALL_DOCUMENTATION(${CMAKE_BINARY_DIR}/Docs/INFO_SRC

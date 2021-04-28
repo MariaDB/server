@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2002, 2011, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -382,10 +382,6 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
     DBUG_RETURN(FALSE);
   }
 
-  if (thd->lex->sql_command == SQLCOM_UPDATE_MULTI ||
-      thd->lex->sql_command == SQLCOM_DELETE_MULTI)
-    thd->save_prep_leaf_list= TRUE;
-
   arena= thd->activate_stmt_arena_if_needed(&backup);  // For easier test
 
   if (!derived->merged_for_insert || 
@@ -459,6 +455,7 @@ bool mysql_derived_merge(THD *thd, LEX *lex, TABLE_LIST *derived)
       derived->on_expr= expr;
       derived->prep_on_expr= expr->copy_andor_structure(thd);
     }
+    thd->where= "on clause";
     if (derived->on_expr &&
         derived->on_expr->fix_fields_if_needed_for_bool(thd, &derived->on_expr))
     {
@@ -596,6 +593,32 @@ bool mysql_derived_init(THD *thd, LEX *lex, TABLE_LIST *derived)
 }
 
 
+/**
+  @brief
+    Prevent name resolution out of context of ON expressions in derived tables
+
+  @param
+    join_list  list of tables used in from list of a derived
+
+  @details
+    The function sets the Name_resolution_context::outer_context to NULL
+    for all ON expressions contexts in the given join list. It does this
+    recursively for all nested joins the list contains.
+*/
+
+static void nullify_outer_context_for_on_clauses(List<TABLE_LIST>& join_list)
+{
+  List_iterator<TABLE_LIST> li(join_list);
+  while (TABLE_LIST *table= li++)
+  {
+    if (table->on_context)
+      table->on_context->outer_context= NULL;
+    if (table->nested_join)
+      nullify_outer_context_for_on_clauses(table->nested_join->join_list);
+  }
+}
+
+
 /*
   Create temporary table structure (but do not fill it)
 
@@ -710,7 +733,7 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
       if (derived->is_with_table_recursive_reference())
       {
         /* Here 'derived" is a secondary recursive table reference */
-        unit->with_element->rec_result->rec_tables.push_back(derived->table);
+         unit->with_element->rec_result->rec_table_refs.push_back(derived);
       }
     }
     DBUG_ASSERT(derived->table || res);
@@ -760,7 +783,12 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
   /* prevent name resolving out of derived table */
   for (SELECT_LEX *sl= first_select; sl; sl= sl->next_select())
   {
+    // Prevent it for the WHERE clause
     sl->context.outer_context= 0;
+
+    // And for ON clauses, if there are any
+    nullify_outer_context_for_on_clauses(*sl->join_list);
+
     if (!derived->is_with_table_recursive_reference() ||
         (!derived->with->with_anchor && 
          !derived->with->is_with_prepared_anchor()))
@@ -808,17 +836,17 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
 
   derived->fill_me= FALSE;
 
-  if (!(derived->derived_result= new (thd->mem_root) select_unit(thd)))
+  if ((!derived->is_with_table_recursive_reference() ||
+       !derived->derived_result) &&
+      !(derived->derived_result= new (thd->mem_root) select_unit(thd)))
     DBUG_RETURN(TRUE); // out of memory
 
-  lex->context_analysis_only|= CONTEXT_ANALYSIS_ONLY_DERIVED;
   // st_select_lex_unit::prepare correctly work for single select
   if ((res= unit->prepare(derived, derived->derived_result, 0)))
     goto exit;
   if (derived->with &&
       (res= derived->with->rename_columns_of_derived_unit(thd, unit)))
     goto exit; 
-  lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_DERIVED;
   if ((res= check_duplicate_names(thd, unit->types, 0)))
     goto exit;
 
@@ -827,7 +855,8 @@ bool mysql_derived_prepare(THD *thd, LEX *lex, TABLE_LIST *derived)
     Depending on the result field translation will or will not
     be created.
   */
-  if (derived->init_derived(thd, FALSE))
+  if (!derived->is_with_table_recursive_reference() &&
+      derived->init_derived(thd, FALSE))
     goto exit;
 
   /*
@@ -1452,6 +1481,8 @@ bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived)
   for (; sl; sl= sl->next_select())
   {
     Item *extracted_cond_copy;
+    if (!sl->cond_pushdown_is_allowed())
+      continue;
     /*
       For each select of the unit except the last one
       create a clone of extracted_cond

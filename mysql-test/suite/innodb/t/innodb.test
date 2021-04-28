@@ -2592,3 +2592,21 @@ SELECT * FROM t2;
 
 DROP TABLE t1;
 DROP TABLE t2;
+
+--echo #
+--echo # MDEV-24748 Extern field check missing
+--echo #	in btr_index_rec_validate()
+--echo #
+CREATE TABLE t1 (pk INT, c1 char(255),
+c2 char(255), c3 char(255), c4 char(255),
+c5 char(255), c6 char(255), c7 char(255),
+c8 char(255), primary key (pk)
+) CHARACTER SET utf32 ENGINE=InnoDB;
+
+INSERT INTO t1 VALUES
+  (1, 'a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'),
+  (2, 'i', 'j', 'k', 'l', 'm', 'n', 'o', 'p');
+CHECK TABLE t1;
+ALTER TABLE t1 FORCE;
+# Cleanup
+DROP TABLE t1;

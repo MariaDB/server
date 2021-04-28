@@ -3,9 +3,9 @@ SET NAMES utf8;
 # Testing HTML like XML file
 #
 CREATE TABLE beers (
-`Name` CHAR(16) FIELD_FORMAT='brandName',
-`Origin` CHAR(16) FIELD_FORMAT='origin',
-`Description` CHAR(32) FIELD_FORMAT='details')
+`Name` CHAR(16) XPATH='brandName',
+`Origin` CHAR(16) XPATH='origin',
+`Description` CHAR(32) XPATH='details')
 ENGINE=CONNECT TABLE_TYPE=XML FILE_NAME='beers.xml'
 TABNAME='table' OPTION_LIST='xmlsup=domdoc,rownode=tr,colnode=td';
 SELECT * FROM beers;

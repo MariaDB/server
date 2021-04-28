@@ -42,8 +42,13 @@ protected:
       we don't want to free and potentially have to reallocate the buffer
       for each call.
     */
-    str_value.length(0);
-    str_value.set_charset(collation.collation);
+    if (!str_value.is_alloced())
+      str_value.set("", 0, collation.collation); /* Avoid null ptrs */
+    else
+    {
+      str_value.length(0);                      /* Reuse allocated area */
+      str_value.set_charset(collation.collation);
+    }
     return &str_value; 
   }
 public:

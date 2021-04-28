@@ -158,7 +158,9 @@ typedef struct st_mysql_ftparser_boolean_info
   the word to MySQL full-text index.  When parsing a search query,
   this function will add the new word to the list of words to search
   for.  The boolean_info argument can be NULL for all cases except
-  when mode is MYSQL_FTPARSER_FULL_BOOLEAN_INFO.
+  when mode is MYSQL_FTPARSER_FULL_BOOLEAN_INFO. A plugin can replace this
+  callback to post-process every parsed word before passing it to the original
+  mysql_add_word function.
 
   ftparser_state: A generic pointer. The plugin can set it to point
   to information to be used internally for its own purposes.

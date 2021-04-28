@@ -4,10 +4,11 @@ INCLUDE (CheckFunctionExists)
 CHECK_INCLUDE_FILES (security/pam_ext.h  HAVE_PAM_EXT_H)
 CHECK_INCLUDE_FILES (security/pam_appl.h HAVE_PAM_APPL_H)
 CHECK_FUNCTION_EXISTS (strndup HAVE_STRNDUP)
+CHECK_FUNCTION_EXISTS (getgrouplist HAVE_GETGROUPLIST)
 
 INCLUDE_DIRECTORIES(${CMAKE_CURRENT_BINARY_DIR})
 
-# Check whether getgrouplist uses git_t for second and third arguments.
+# Check whether getgrouplist uses gtid_t for second and third arguments.
 SET(CMAKE_REQUIRED_FLAGS -Werror)
 CHECK_C_SOURCE_COMPILES(
 "
@@ -29,7 +30,7 @@ SET(CMAKE_REQUIRED_LIBRARIES pam)
 CHECK_FUNCTION_EXISTS(pam_syslog HAVE_PAM_SYSLOG)
 SET(CMAKE_REQUIRED_LIBRARIES)
 
-IF(HAVE_PAM_APPL_H)
+IF(HAVE_PAM_APPL_H AND HAVE_GETGROUPLIST)
   FIND_LIBRARY(PAM_LIBRARY pam) # for srpm build-depends detection
   ADD_DEFINITIONS(-D_GNU_SOURCE)
   MYSQL_ADD_PLUGIN(auth_pam_v1 auth_pam_v1.c LINK_LIBRARIES pam MODULE_ONLY)
@@ -54,7 +55,7 @@ IF(HAVE_PAM_APPL_H)
       SET(CPACK_RPM_server_USER_FILELIST ${CPACK_RPM_server_USER_FILELIST} "%config(noreplace) ${INSTALL_PAMDATADIR}/*" PARENT_SCOPE)
     ENDIF()
   ENDIF()
-ENDIF(HAVE_PAM_APPL_H)
+ENDIF()
 
 CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/config.h.cmake
                ${CMAKE_CURRENT_BINARY_DIR}/config_auth_pam.h)

@@ -991,7 +991,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
   if (rgi->is_parallel_exec)
   {
     /* In case of parallel replication, do not update the position backwards. */
-    int cmp= strcmp(group_relay_log_name, rgi->event_relay_log_name);
+    int cmp= compare_log_name(group_relay_log_name, rgi->event_relay_log_name);
     if (cmp < 0)
     {
       group_relay_log_pos= rgi->future_event_relay_log_pos;
@@ -1003,7 +1003,7 @@ void Relay_log_info::inc_group_relay_log_pos(ulonglong log_pos,
       In the parallel case we need to update the master_log_name here, rather
       than in Rotate_log_event::do_update_pos().
     */
-    cmp= strcmp(group_master_log_name, rgi->future_event_master_log_name);
+    cmp= compare_log_name(group_master_log_name, rgi->future_event_master_log_name);
     if (cmp <= 0)
     {
       if (cmp < 0)

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation.
+   Copyright (c) 2008, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -49,9 +49,6 @@
 #include <m_ctype.h>
 #include <sys/stat.h>
 #include <thr_alarm.h>
-#ifdef	__WIN__0
-#include <io.h>
-#endif
 #include <mysys_err.h>
 #include <limits.h>
 
@@ -70,6 +67,8 @@
 #ifdef WITH_WSREP
 #include "wsrep_thd.h"
 #include "wsrep_trans_observer.h"
+#else
+static inline bool wsrep_is_bf_aborted(THD* thd) { return false; }
 #endif /* WITH_WSREP */
 #include "opt_trace.h"
 
@@ -450,6 +449,7 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
                      const void *ha_data)
 {
   plugin_ref *lock= &thd->ha_data[hton->slot].lock;
+  DBUG_ASSERT(thd == current_thd);
   if (ha_data && !*lock)
     *lock= ha_lock_engine(NULL, (handlerton*) hton);
   else if (!ha_data && *lock)
@@ -457,7 +457,9 @@ void thd_set_ha_data(THD *thd, const struct handlerton *hton,
     plugin_unlock(NULL, *lock);
     *lock= NULL;
   }
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   *thd_ha_data(thd, hton)= (void*) ha_data;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
 
@@ -782,7 +784,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   net.reading_or_writing= 0;
   client_capabilities= 0;                       // minimalistic client
   system_thread= NON_SYSTEM_THREAD;
-  cleanup_done= free_connection_done= abort_on_warning= 0;
+  cleanup_done= free_connection_done= abort_on_warning= got_warning= 0;
   peer_port= 0;					// For SHOW PROCESSLIST
   transaction.m_pending_rows_event= 0;
   transaction.on= 1;
@@ -797,6 +799,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thd_kill, &LOCK_thd_kill, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wakeup_ready, &COND_wakeup_ready, 0);
+  mysql_mutex_record_order(&LOCK_thd_kill, &LOCK_thd_data);
 
   /* Variables with default values */
   proc_info="login";
@@ -1520,9 +1523,7 @@ void THD::cleanup(void)
   set_killed(KILL_CONNECTION);
 #ifdef WITH_WSREP
   if (wsrep_cs().state() != wsrep::client_state::s_none)
-  {
     wsrep_cs().cleanup();
-  }
   wsrep_client_thread= false;
 #endif /* WITH_WSREP */
 
@@ -1598,12 +1599,12 @@ void THD::cleanup(void)
 void THD::free_connection()
 {
   DBUG_ASSERT(free_connection_done == 0);
-  my_free((char*) db.str);
+  my_free(const_cast<char*>(db.str));
   db= null_clex_str;
 #ifndef EMBEDDED_LIBRARY
   if (net.vio)
     vio_delete(net.vio);
-  net.vio= 0;
+  net.vio= nullptr;
   net_end(&net);
 #endif
  if (!cleanup_done)
@@ -1676,19 +1677,16 @@ THD::~THD()
     THD is not deleted while they access it. The following mutex_lock
     ensures that no one else is using this THD and it's now safe to delete
   */
-  if (WSREP_NNULL(this)) mysql_mutex_lock(&LOCK_thd_data);
   mysql_mutex_lock(&LOCK_thd_kill);
   mysql_mutex_unlock(&LOCK_thd_kill);
-  if (WSREP_NNULL(this)) mysql_mutex_unlock(&LOCK_thd_data);
 
+#ifdef WITH_WSREP
+  delete wsrep_rgi;
+#endif
   if (!free_connection_done)
     free_connection();
 
 #ifdef WITH_WSREP
-  if (wsrep_rgi != NULL) {
-    delete wsrep_rgi;
-    wsrep_rgi = NULL;
-  }
   mysql_cond_destroy(&COND_wsrep_thd);
 #endif
   mdl_context.destroy();
@@ -1871,7 +1869,7 @@ void THD::awake_no_mutex(killed_state state_to_set)
   DBUG_PRINT("enter", ("this: %p current_thd: %p  state: %d",
                        this, current_thd, (int) state_to_set));
   THD_CHECK_SENTRY(this);
-  if (WSREP_NNULL(this)) mysql_mutex_assert_owner(&LOCK_thd_data);
+  mysql_mutex_assert_owner(&LOCK_thd_data);
   mysql_mutex_assert_owner(&LOCK_thd_kill);
 
   print_aborted_warning(3, "KILLED");
@@ -1904,15 +1902,21 @@ void THD::awake_no_mutex(killed_state state_to_set)
   }
 
   /* Interrupt target waiting inside a storage engine. */
-  if (IF_WSREP(state_to_set != NOT_KILLED  && !wsrep_is_bf_aborted(this),
-               state_to_set != NOT_KILLED))
+  if (state_to_set != NOT_KILLED  && !wsrep_is_bf_aborted(this))
     ha_kill_query(this, thd_kill_level(this));
 
-  /* Broadcast a condition to kick the target if it is waiting on it. */
+  abort_current_cond_wait(false);
+  DBUG_VOID_RETURN;
+}
+
+/* Broadcast a condition to kick the target if it is waiting on it. */
+void THD::abort_current_cond_wait(bool force)
+{
+  mysql_mutex_assert_owner(&LOCK_thd_kill);
   if (mysys_var)
   {
     mysql_mutex_lock(&mysys_var->mutex);
-    if (!system_thread)		// Don't abort locks
+    if (!system_thread || force)                 // Don't abort locks
       mysys_var->abort=1;
 
     /*
@@ -1970,7 +1974,6 @@ void THD::awake_no_mutex(killed_state state_to_set)
     }
     mysql_mutex_unlock(&mysys_var->mutex);
   }
-  DBUG_VOID_RETURN;
 }
 
 
@@ -2024,16 +2027,7 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
     mysql_mutex_lock(&in_use->LOCK_thd_kill);
     if (in_use->killed < KILL_CONNECTION)
       in_use->set_killed_no_mutex(KILL_CONNECTION);
-    if (in_use->mysys_var)
-    {
-      mysql_mutex_lock(&in_use->mysys_var->mutex);
-      if (in_use->mysys_var->current_cond)
-        mysql_cond_broadcast(in_use->mysys_var->current_cond);
-
-      /* Abort if about to wait in thr_upgrade_write_delay_lock */
-      in_use->mysys_var->abort= 1;
-      mysql_mutex_unlock(&in_use->mysys_var->mutex);
-    }
+    in_use->abort_current_cond_wait(true);
     mysql_mutex_unlock(&in_use->LOCK_thd_kill);
     signalled= TRUE;
   }
@@ -3142,12 +3136,12 @@ static File create_file(THD *thd, char *path, sql_exchange *exchange,
   }
   /* Create the file world readable */
   if ((file= mysql_file_create(key_select_to_file,
-                               path, 0666, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
+                               path, 0644, O_WRONLY|O_EXCL, MYF(MY_WME))) < 0)
     return file;
 #ifdef HAVE_FCHMOD
-  (void) fchmod(file, 0666);			// Because of umask()
+  (void) fchmod(file, 0644);			// Because of umask()
 #else
-  (void) chmod(path, 0666);
+  (void) chmod(path, 0644);
 #endif
   if (init_io_cache(cache, file, 0L, WRITE_CACHE, 0L, 1, MYF(MY_WME)))
   {
@@ -5062,6 +5056,18 @@ thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd)
   DBUG_EXECUTE_IF("disable_thd_need_ordering_with", return 1;);
   if (!thd || !other_thd)
     return 1;
+#ifdef WITH_WSREP
+  /* wsrep applier, replayer and TOI processing threads are ordered
+     by replication provider, relaxed GAP locking protocol can be used
+     between high priority wsrep threads.
+     Note that wsrep_thd_is_BF() doesn't take LOCK_thd_data for either thd,
+     the caller should guarantee that the BF state won't change.
+     (e.g. InnoDB does it by keeping lock_sys.mutex locked)
+  */
+  if (WSREP_ON && wsrep_thd_is_BF(thd, false) &&
+      wsrep_thd_is_BF(other_thd, false))
+    return 0;
+#endif /* WITH_WSREP */
   rgi= thd->rgi_slave;
   other_rgi= other_thd->rgi_slave;
   if (!rgi || !other_rgi)

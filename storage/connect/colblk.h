@@ -62,7 +62,7 @@ class DllExport COLBLK : public XOBJECT {
           bool    IsVirtual(void) {return Cdp->IsVirtual();}
           bool    IsNullable(void) {return Nullable;}
           void    SetNullable(bool b) {Nullable = b;}
-
+          void    SetName(PSZ name_var) { Name= name_var; }
   // Methods
   virtual void    Reset(void);
   virtual bool    Compare(PXOB xp);

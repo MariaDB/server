@@ -1981,6 +1981,8 @@ int write_record(THD *thd, TABLE *table,COPY_INFO *info)
           if (likely(!error))
           {
             info->deleted++;
+            if (!table->file->has_transactions())
+              thd->transaction.stmt.modified_non_trans_table= TRUE;
             if (table->versioned(VERS_TIMESTAMP))
             {
               store_record(table, record[2]);
@@ -2701,7 +2703,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
   delayed_row *row= 0;
   Delayed_insert *di=thd->di;
   const Discrete_interval *forced_auto_inc;
-  size_t user_len, host_len, ip_len;
+  size_t user_len, host_len, ip_length;
   DBUG_ENTER("write_delayed");
   DBUG_PRINT("enter", ("query = '%s' length %lu", query.str,
                        (ulong) query.length));
@@ -2735,7 +2737,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     goto err;
   }
 
-  user_len= host_len= ip_len= 0;
+  user_len= host_len= ip_length= 0;
   row->user= row->host= row->ip= NULL;
   if (thd->security_ctx)
   {
@@ -2744,11 +2746,11 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     if (thd->security_ctx->host)
       host_len= strlen(thd->security_ctx->host) + 1;
     if (thd->security_ctx->ip)
-      ip_len= strlen(thd->security_ctx->ip) + 1;
+      ip_length= strlen(thd->security_ctx->ip) + 1;
   }
   /* This can't be THREAD_SPECIFIC as it's freed in delayed thread */
   if (!(row->record= (char*) my_malloc(table->s->reclength +
-                                       user_len + host_len + ip_len,
+                                       user_len + host_len + ip_length,
                                        MYF(MY_WME))))
     goto err;
   memcpy(row->record, table->record[0], table->s->reclength);
@@ -2768,7 +2770,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     if (thd->security_ctx->ip)
     {
       row->ip= row->record + table->s->reclength + user_len + host_len;
-      memcpy(row->ip, thd->security_ctx->ip, ip_len);
+      memcpy(row->ip, thd->security_ctx->ip, ip_length);
     }
   }
   row->query_id= thd->query_id;
@@ -2867,23 +2869,7 @@ void kill_delayed_threads(void)
     mysql_mutex_lock(&di->thd.LOCK_thd_kill);
     if (di->thd.killed < KILL_CONNECTION)
       di->thd.set_killed_no_mutex(KILL_CONNECTION);
-    if (di->thd.mysys_var)
-    {
-      mysql_mutex_lock(&di->thd.mysys_var->mutex);
-      if (di->thd.mysys_var->current_cond)
-      {
-	/*
-	  We need the following test because the main mutex may be locked
-	  in handle_delayed_insert()
-	*/
-	if (&di->mutex != di->thd.mysys_var->current_mutex)
-          mysql_mutex_lock(di->thd.mysys_var->current_mutex);
-        mysql_cond_broadcast(di->thd.mysys_var->current_cond);
-	if (&di->mutex != di->thd.mysys_var->current_mutex)
-          mysql_mutex_unlock(di->thd.mysys_var->current_mutex);
-      }
-      mysql_mutex_unlock(&di->thd.mysys_var->mutex);
-    }
+    di->thd.abort_current_cond_wait(false);
     mysql_mutex_unlock(&di->thd.LOCK_thd_kill);
   }
   mysql_mutex_unlock(&LOCK_delayed_insert); // For unlink from list
@@ -4738,7 +4724,8 @@ bool select_create::send_eof()
   if (!table->s->tmp_table)
   {
 #ifdef WITH_WSREP
-    if (WSREP(thd))
+    if (WSREP(thd) &&
+        table->file->ht->db_type == DB_TYPE_INNODB)
     {
       if (thd->wsrep_trx_id() == WSREP_UNDEFINED_TRX_ID)
       {

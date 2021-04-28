@@ -6757,9 +6757,11 @@ DFFFDFFF9CFF9DFF9EFF
 # Checking strnxfrm() with odd length
 #
 set max_sort_length=9;
+Warnings:
+Warning	1292	Truncated incorrect max_sort_length value: '9'
 select @@max_sort_length;
 @@max_sort_length
-9
+64
 create table t1 (a varchar(128) character set utf8 collate utf8_general_ci);
 insert into t1 values ('a'),('b'),('c');
 select * from t1 order by a;

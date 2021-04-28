@@ -243,6 +243,20 @@ Archive_share::Archive_share()
 }
 
 
+Archive_share::~Archive_share()
+{
+  DBUG_PRINT("ha_archive", ("~Archive_share: %p", this));
+  if (archive_write_open)
+  {
+    mysql_mutex_lock(&mutex);
+    (void) close_archive_writer();              // Will reset archive_write_open
+    mysql_mutex_unlock(&mutex);
+  }
+  thr_lock_delete(&lock);
+  mysql_mutex_destroy(&mutex);
+}
+
+
 ha_archive::ha_archive(handlerton *hton, TABLE_SHARE *table_arg)
   :handler(hton, table_arg), delayed_insert(0), bulk_insert(0)
 {
@@ -676,7 +690,6 @@ int ha_archive::close(void)
     if (azclose(&archive))
       rc= 1;
   }
-
   DBUG_RETURN(rc);
 }
 
@@ -1547,7 +1560,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
       share->rows_recorded= 0;
       stats.auto_increment_value= 1;
       share->archive_write.auto_increment= 0;
-      my_bitmap_map *org_bitmap= tmp_use_all_columns(table, table->read_set);
+      MY_BITMAP *org_bitmap= tmp_use_all_columns(table, &table->read_set);
 
       while (!(rc= get_row(&archive, table->record[0])))
       {
@@ -1568,7 +1581,7 @@ int ha_archive::optimize(THD* thd, HA_CHECK_OPT* check_opt)
         }
       }
 
-      tmp_restore_column_map(table->read_set, org_bitmap);
+      tmp_restore_column_map(&table->read_set, org_bitmap);
       share->rows_recorded= (ha_rows)writer.rows;
     }
 

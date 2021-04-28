@@ -925,7 +925,7 @@ loop:
 				<< " records, the sort queue has "
 				<< UT_LIST_GET_LEN(psort_info->fts_doc_list)
 				<< " records. But sort cannot get the next"
-				" records";
+				" records during alter table " << table->name;
 			goto exit;
 		}
 	} else if (psort_info->state == FTS_PARENT_EXITING) {
@@ -1221,7 +1221,9 @@ row_merge_write_fts_word(
 
 		if (UNIV_UNLIKELY(error != DB_SUCCESS)) {
 			ib::error() << "Failed to write word to FTS auxiliary"
-				" index table, error " << error;
+				" index table "
+				<< ins_ctx->btr_bulk->table_name()
+				<< ", error " << error;
 			ret = error;
 		}
 

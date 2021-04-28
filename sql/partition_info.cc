@@ -1449,13 +1449,13 @@ void partition_info::print_no_partition_found(TABLE *table_arg, myf errflag)
       buf_ptr= (char*)"from column_list";
     else
     {
-      my_bitmap_map *old_map= dbug_tmp_use_all_columns(table_arg, table_arg->read_set);
+      MY_BITMAP *old_map= dbug_tmp_use_all_columns(table_arg, &table_arg->read_set);
       if (part_expr->null_value)
         buf_ptr= (char*)"NULL";
       else
         longlong10_to_str(err_value, buf,
                      part_expr->unsigned_flag ? 10 : -10);
-      dbug_tmp_restore_column_map(table_arg->read_set, old_map);
+      dbug_tmp_restore_column_map(&table_arg->read_set, old_map);
     }
     my_error(ER_NO_PARTITION_FOR_GIVEN_VALUE, errflag, buf_ptr);
   }

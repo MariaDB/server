@@ -2352,7 +2352,7 @@ static Sys_var_ulong Sys_max_sort_length(
        "the first max_sort_length bytes of each value are used; the rest "
        "are ignored)",
        SESSION_VAR(max_sort_length), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(8, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
+       VALID_RANGE(64, 8192*1024L), DEFAULT(1024), BLOCK_SIZE(1));
 
 static Sys_var_ulong Sys_max_sp_recursion_depth(
        "max_sp_recursion_depth",
@@ -4570,11 +4570,11 @@ static Sys_var_ulong Sys_default_week_format(
        SESSION_VAR(default_week_format), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(0, 7), DEFAULT(0), BLOCK_SIZE(1));
 
-static Sys_var_ulonglong Sys_group_concat_max_len(
+static Sys_var_uint Sys_group_concat_max_len(
        "group_concat_max_len",
        "The maximum length of the result of function GROUP_CONCAT()",
        SESSION_VAR(group_concat_max_len), CMD_LINE(REQUIRED_ARG),
-       VALID_RANGE(4, SIZE_T_MAX), DEFAULT(1024*1024), BLOCK_SIZE(1));
+       VALID_RANGE(4, UINT_MAX32), DEFAULT(1024*1024), BLOCK_SIZE(1));
 
 static char *glob_hostname_ptr;
 static Sys_var_charptr Sys_hostname(
@@ -4833,6 +4833,24 @@ static Sys_var_have Sys_have_symlink(
        "Will be set to DISABLED if the server is started with the "
        "--skip-symbolic-links option.",
        READ_ONLY GLOBAL_VAR(have_symlink), NO_CMD_LINE);
+
+#if defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN)
+
+#ifdef __SANITIZE_ADDRESS__
+#define SANITIZER_MODE "ASAN"
+#else
+#define SANITIZER_MODE "UBSAN"
+#endif /* __SANITIZE_ADDRESS__ */
+
+static char *have_sanitizer;
+static Sys_var_charptr Sys_have_santitizer(
+       "have_sanitizer",
+       "If the server is compiled with sanitize (compiler option), this "
+       "variable is set to the sanitizer mode used. Possible values are "
+       "ASAN (Address sanitizer) or UBSAN (The Undefined Behavior Sanitizer).",
+        READ_ONLY GLOBAL_VAR(have_sanitizer), NO_CMD_LINE,
+       IN_FS_CHARSET, DEFAULT(SANITIZER_MODE));
+#endif /* defined(__SANITIZE_ADDRESS__) || defined(WITH_UBSAN) */
 
 static bool fix_log_state(sys_var *self, THD *thd, enum_var_type type);
 
@@ -5418,7 +5436,7 @@ static Sys_var_tz Sys_time_zone(
 
 static Sys_var_charptr Sys_wsrep_provider(
        "wsrep_provider", "Path to replication provider library",
-       PREALLOCATED GLOBAL_VAR(wsrep_provider), CMD_LINE(REQUIRED_ARG),
+       PREALLOCATED READ_ONLY GLOBAL_VAR(wsrep_provider), CMD_LINE(REQUIRED_ARG),
        IN_FS_CHARSET, DEFAULT(WSREP_NONE),
        NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_provider_check), ON_UPDATE(wsrep_provider_update));
@@ -5445,13 +5463,12 @@ static Sys_var_charptr Sys_wsrep_cluster_name(
        ON_CHECK(wsrep_cluster_name_check),
        ON_UPDATE(wsrep_cluster_name_update));
 
-static PolyLock_mutex PLock_wsrep_cluster_config(&LOCK_wsrep_cluster_config);
 static Sys_var_charptr Sys_wsrep_cluster_address (
        "wsrep_cluster_address", "Address to initially connect to cluster",
        PREALLOCATED GLOBAL_VAR(wsrep_cluster_address), 
        CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(""),
-       &PLock_wsrep_cluster_config, NOT_IN_BINLOG,
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(wsrep_cluster_address_check), 
        ON_UPDATE(wsrep_cluster_address_update));
 
@@ -5482,7 +5499,7 @@ static Sys_var_ulong Sys_wsrep_slave_threads(
        "wsrep_slave_threads", "Number of slave appliers to launch",
        GLOBAL_VAR(wsrep_slave_threads), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 512), DEFAULT(1), BLOCK_SIZE(1),
-       &PLock_wsrep_cluster_config, NOT_IN_BINLOG,
+       NO_MUTEX_GUARD, NOT_IN_BINLOG,
        ON_CHECK(0),
        ON_UPDATE(wsrep_slave_threads_update));
 
@@ -5635,7 +5652,7 @@ static Sys_var_ulong Sys_wsrep_max_ws_rows (
 
 static Sys_var_charptr Sys_wsrep_notify_cmd(
        "wsrep_notify_cmd", "",
-       GLOBAL_VAR(wsrep_notify_cmd),CMD_LINE(REQUIRED_ARG),
+       READ_ONLY GLOBAL_VAR(wsrep_notify_cmd), CMD_LINE(REQUIRED_ARG),
        IN_SYSTEM_CHARSET, DEFAULT(""));
 
 static Sys_var_mybool Sys_wsrep_certify_nonPK(

@@ -1477,6 +1477,8 @@ int _ma_read_dynamic_record(MARIA_HA *info, uchar *buf,
   File file;
   uchar *UNINIT_VAR(to);
   uint UNINIT_VAR(left_length);
+  MARIA_SHARE *share= info->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("_ma_read_dynamic_record");
 
   if (filepos == HA_OFFSET_ERROR)
@@ -1507,13 +1509,13 @@ int _ma_read_dynamic_record(MARIA_HA *info, uchar *buf,
     if (block_of_record++ == 0)			/* First block */
     {
       info->cur_row.total_length= block_info.rec_len;
-      if (block_info.rec_len > (uint) info->s->base.max_pack_length)
+      if (block_info.rec_len > (uint) share->base.max_pack_length)
         goto panic;
-      if (info->s->base.blobs)
+      if (share->base.blobs)
       {
         if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
                              block_info.rec_len +
-                             info->s->base.extra_rec_buff_size))
+                             share->base.extra_rec_buff_size, flag))
           goto err;
       }
       to= info->rec_buff;
@@ -1549,7 +1551,7 @@ int _ma_read_dynamic_record(MARIA_HA *info, uchar *buf,
         there is no equivalent without seeking. We are at the right
         position already. :(
       */
-      if (info->s->file_read(info, to, block_info.data_len,
+      if (share->file_read(info, to, block_info.data_len,
                              filepos, MYF(MY_NABP)))
         goto panic;
       left_length-=block_info.data_len;
@@ -1769,6 +1771,7 @@ int _ma_read_rnd_dynamic_record(MARIA_HA *info,
   uchar *UNINIT_VAR(to);
   MARIA_BLOCK_INFO block_info;
   MARIA_SHARE *share= info->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("_ma_read_rnd_dynamic_record");
 
 #ifdef MARIA_EXTERNAL_LOCKING
@@ -1859,7 +1862,7 @@ int _ma_read_rnd_dynamic_record(MARIA_HA *info,
       {
 	if (_ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
                              block_info.rec_len +
-                             info->s->base.extra_rec_buff_size))
+                             share->base.extra_rec_buff_size, flag))
 	  goto err;
       }
       to= info->rec_buff;

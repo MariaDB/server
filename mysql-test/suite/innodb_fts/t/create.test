@@ -106,3 +106,14 @@ SET GLOBAL innodb_optimize_fulltext_only= 1;
 OPTIMIZE TABLE t1;
 DROP TABLE t1;
 SET GLOBAL innodb_optimize_fulltext_only= @optimize_fulltext.save;
+
+--echo #
+--echo # MDEV-24403 Segfault on CREATE TABLE with explicit FTS_DOC_ID_INDEX by multiple fields
+--echo #
+--error ER_WRONG_NAME_FOR_INDEX
+create table t1 (
+  f1 int, f2 text,
+  FTS_DOC_ID bigint unsigned not null,
+  unique key FTS_DOC_ID_INDEX(FTS_DOC_ID, f1),
+  fulltext (f2))
+engine=innodb;

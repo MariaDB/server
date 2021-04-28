@@ -6723,6 +6723,72 @@ DROP PROCEDURE sp;
 DROP VIEW v1;
 DROP TABLE t1;
 #
+# MDEV-24314: create view with derived table without default database
+#
+drop database test;
+create database db1;
+create table db1.t1 (a int);
+insert into db1.t1 values (3),(7),(1);
+create view db1.v1 as select * from (select * from db1.t1) t;
+show create view db1.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `db1`.`v1` AS select `t`.`a` AS `a` from (select `db1`.`t1`.`a` AS `a` from `db1`.`t1`) `t`	latin1	latin1_swedish_ci
+select * from db1.v1;
+a
+3
+7
+1
+drop view db1.v1;
+prepare stmt from "
+create view db1.v1 as select * from (select * from db1.t1) t;
+";
+execute stmt;
+deallocate prepare stmt;
+show create view db1.v1;
+View	Create View	character_set_client	collation_connection
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `db1`.`v1` AS select `t`.`a` AS `a` from (select `db1`.`t1`.`a` AS `a` from `db1`.`t1`) `t`	latin1	latin1_swedish_ci
+select * from db1.v1;
+a
+3
+7
+1
+drop view db1.v1;
+drop table db1.t1;
+drop database db1;
+create database test;
+use test;
+#
+# MDEV-16940: update of multi-table view returning error used in SP
+#
+CREATE TABLE t1 (a INT) ENGINE=MyISAM;
+INSERT INTO t1 VALUES (1), (2);
+CREATE TABLE t2 (b INT) ENGINE=MyISAM;
+INSERT INTO t2 VALUES (2), (3);
+CREATE VIEW v1 AS SELECT a, b FROM t1,t2;
+CREATE PROCEDURE sp1() UPDATE v1 SET a = 8, b = 9;
+CALL sp1;
+ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
+CALL sp1;
+ERROR HY000: Can not modify more than one base table through a join view 'test.v1'
+DROP PROCEDURE sp1;
+DROP VIEW v1;
+DROP TABLE t1, t2;
+#
+# MDEV-23291: SUM column from a derived table returns invalid values
+#
+CREATE TABLE t1(a INT, b INT);
+INSERT INTO t1 VALUES (1,1), (2,2);
+CREATE view v1 AS
+SELECT a as x, (select x) as y, (select y) as z FROM t1;
+SELECT sum(z) FROM (SELECT a as x, (select x) as y, (select y) as z FROM t1) q;
+sum(z)
+3
+SELECT sum(z) FROM v1;
+sum(z)
+3
+DROP TABLE t1;
+DROP VIEW v1;
+#
 # End of 10.2 tests
 #
 #
@@ -6758,3 +6824,19 @@ Drop table t1;
 #
 # End of 10.3 tests
 #
+#
+# MDEV-25206: view specification contains unknown column reference
+#
+CREATE TABLE t1 (a int);
+INSERT INTO t1 VALUES (1),(2);
+CREATE TABLE t2 (b int);
+INSERT INTO t2 VALUES (2),(3);
+CREATE TABLE t3 (c int);
+CREATE VIEW v1 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+ERROR 42S22: Unknown column 't1.x' in 'on clause'
+INSERT INTO t3 SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+ERROR 42S22: Unknown column 't1.x' in 'on clause'
+CREATE TABLE t4 AS SELECT * FROM t1 JOIN t2 ON t1.x > t2.b;
+ERROR 42S22: Unknown column 't1.x' in 'on clause'
+DROP TABLE t1,t2,t3;
+# End of 10.4 tests

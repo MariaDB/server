@@ -533,6 +533,7 @@ int maria_reset(MARIA_HA *info)
 {
   int error= 0;
   MARIA_SHARE *share= info->s;
+  myf flag= MY_WME | (share->temporary ? MY_THREAD_SPECIFIC : 0);
   DBUG_ENTER("maria_reset");
   /*
     Free buffers and reset the following flags:
@@ -553,13 +554,13 @@ int maria_reset(MARIA_HA *info)
     {
       info->rec_buff_size= 1;                 /* Force realloc */
       _ma_alloc_buffer(&info->rec_buff, &info->rec_buff_size,
-                       share->base.default_rec_buff_size);
+                       share->base.default_rec_buff_size, flag);
     }
     if (info->blob_buff_size > MARIA_SMALL_BLOB_BUFFER)
     {
       info->blob_buff_size= 1;                 /* Force realloc */
       _ma_alloc_buffer(&info->blob_buff, &info->blob_buff_size,
-                       MARIA_SMALL_BLOB_BUFFER);
+                       MARIA_SMALL_BLOB_BUFFER, flag);
     }
   }
 #if defined(HAVE_MMAP) && defined(HAVE_MADVISE)

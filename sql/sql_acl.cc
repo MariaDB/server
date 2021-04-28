@@ -3159,6 +3159,12 @@ end:
 
 int acl_check_setrole(THD *thd, const char *rolename, ulonglong *access)
 {
+  if (!initialized)
+  {
+    my_error(ER_OPTION_PREVENTS_STATEMENT, MYF(0), "--skip-grant-tables");
+    return 1;
+  }
+
   return check_user_can_set_role(thd, thd->security_ctx->priv_user,
            thd->security_ctx->host, thd->security_ctx->ip, rolename, access);
 }
@@ -3788,7 +3794,7 @@ bool change_password(THD *thd, LEX_USER *user)
   char buff[512];
   ulong query_length= 0;
   enum_binlog_format save_binlog_format;
-  int result=0;
+  bool result= false, acl_cache_is_locked= false;
   ACL_USER *acl_user;
   ACL_USER::AUTH auth;
   const char *password_plugin= 0;
@@ -3813,7 +3819,7 @@ bool change_password(THD *thd, LEX_USER *user)
   if ((result= tables.open_and_lock(thd, Table_user, TL_WRITE)))
     DBUG_RETURN(result != 1);
 
-  result= 1;
+  acl_cache_is_locked= 1;
   mysql_mutex_lock(&acl_cache->lock);
 
   if (!(acl_user= find_user_exact(user->host.str, user->user.str)))
@@ -3866,7 +3872,7 @@ bool change_password(THD *thd, LEX_USER *user)
 
   acl_cache->clear(1);                          // Clear locked hostname cache
   mysql_mutex_unlock(&acl_cache->lock);
-  result= 0;
+  result= acl_cache_is_locked= 0;
   if (mysql_bin_log.is_open())
   {
     query_length= sprintf(buff, "SET PASSWORD FOR '%-.120s'@'%-.120s'='%-.120s'",
@@ -3877,7 +3883,7 @@ bool change_password(THD *thd, LEX_USER *user)
                               FALSE, FALSE, FALSE, 0) > 0;
   }
 end:
-  if (result)
+  if (acl_cache_is_locked)
     mysql_mutex_unlock(&acl_cache->lock);
   close_mysql_tables(thd);
 
@@ -5342,7 +5348,7 @@ routine_hash_search(const char *host, const char *ip, const char *db,
                     const char *user, const char *tname, const Sp_handler *sph,
                     bool exact)
 {
-  return (GRANT_TABLE*)
+  return (GRANT_NAME*)
     name_hash_search(sph->get_priv_hash(),
 		     host, ip, db, user, tname, exact, TRUE);
 }
@@ -5356,6 +5362,10 @@ table_hash_search(const char *host, const char *ip, const char *db,
 					 user, tname, exact, FALSE);
 }
 
+static bool column_priv_insert(GRANT_TABLE *grant)
+{
+  return my_hash_insert(&column_priv_hash,(uchar*) grant);
+}
 
 static GRANT_COLUMN *
 column_hash_search(GRANT_TABLE *t, const char *cname, size_t length)
@@ -5585,6 +5595,15 @@ static inline void get_grantor(THD *thd, char *grantor)
   strxmov(grantor, user, "@", host, NullS);
 }
 
+
+/**
+   Revoke rights from a grant table entry.
+
+   @return 0  ok
+   @return 1  fatal error (error given)
+   @return -1 grant table was revoked
+*/
+
 static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
 			       TABLE *table, const LEX_USER &combo,
 			       const char *db, const char *table_name,
@@ -5609,7 +5628,7 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
     {
       my_message(ER_PASSWORD_NO_MATCH, ER_THD(thd, ER_PASSWORD_NO_MATCH),
                  MYF(0)); /* purecov: deadcode */
-      DBUG_RETURN(-1);                            /* purecov: deadcode */
+      DBUG_RETURN(1);                            /* purecov: deadcode */
     }
   }
 
@@ -5640,7 +5659,7 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
       my_error(ER_NONEXISTING_TABLE_GRANT, MYF(0),
                combo.user.str, combo.host.str,
                table_name);		        /* purecov: deadcode */
-      DBUG_RETURN(-1);				/* purecov: deadcode */
+      DBUG_RETURN(1);				/* purecov: deadcode */
     }
     old_row_exists = 0;
     restore_record(table,record[1]);			// Get saved record
@@ -5703,13 +5722,14 @@ static int replace_table_table(THD *thd, GRANT_TABLE *grant_table,
   else
   {
     my_hash_delete(&column_priv_hash,(uchar*) grant_table);
+    DBUG_RETURN(-1);                            // Entry revoked
   }
   DBUG_RETURN(0);
 
   /* This should never happen */
 table_error:
   table->file->print_error(error,MYF(0)); /* purecov: deadcode */
-  DBUG_RETURN(-1); /* purecov: deadcode */
+  DBUG_RETURN(1); /* purecov: deadcode */
 }
 
 
@@ -6470,7 +6490,7 @@ static int update_role_table_columns(GRANT_TABLE *merged,
                                      privs, cols);
     merged->init_privs= merged->init_cols= 0;
     update_role_columns(merged, first, last);
-    my_hash_insert(&column_priv_hash,(uchar*) merged);
+    column_priv_insert(merged);
     return 2;
   }
   else if ((privs | cols) == 0)
@@ -6790,7 +6810,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 		      bool revoke_grant)
 {
   ulong column_priv= 0;
-  int result;
+  int result, res;
   List_iterator <LEX_USER> str_list (user_list);
   LEX_USER *Str, *tmp_Str;
   bool create_new_users=0;
@@ -6933,12 +6953,12 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 	result= TRUE;
 	continue;
       }
-      grant_table = new GRANT_TABLE (Str->host.str, db_name,
-				     Str->user.str, table_name,
-				     rights,
-				     column_priv);
+      grant_table= new (&grant_memroot) GRANT_TABLE(Str->host.str, db_name,
+                                                    Str->user.str, table_name,
+                                                    rights,
+                                                    column_priv);
       if (!grant_table ||
-        my_hash_insert(&column_priv_hash,(uchar*) grant_table))
+          column_priv_insert(grant_table))
       {
 	result= TRUE;				/* purecov: deadcode */
 	continue;				/* purecov: deadcode */
@@ -6981,22 +7001,24 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
 
     /* TODO(cvicentiu) refactor replace_table_table to use Tables_priv_table
        instead of TABLE directly. */
-    if (replace_table_table(thd, grant_table, tables.tables_priv_table().table(),
-                            *Str, db_name, table_name,
-			    rights, column_priv, revoke_grant))
-    {
-      /* Should only happen if table is crashed */
-      result= TRUE;			       /* purecov: deadcode */
-    }
-    else if (tables.columns_priv_table().table_exists())
+    if (tables.columns_priv_table().table_exists())
     {
       /* TODO(cvicentiu) refactor replace_column_table to use Columns_priv_table
          instead of TABLE directly. */
       if (replace_column_table(grant_table, tables.columns_priv_table().table(),
                                *Str, columns, db_name, table_name, rights,
                                revoke_grant))
-      {
 	result= TRUE;
+    }
+    if ((res= replace_table_table(thd, grant_table,
+                                  tables.tables_priv_table().table(),
+                                  *Str, db_name, table_name,
+                                  rights, column_priv, revoke_grant)))
+    {
+      if (res > 0)
+      {
+        /* Should only happen if table is crashed */
+        result= TRUE;			       /* purecov: deadcode */
       }
     }
     if (Str->is_role())
@@ -7008,9 +7030,7 @@ int mysql_table_grant(THD *thd, TABLE_LIST *table_list,
   mysql_mutex_unlock(&acl_cache->lock);
 
   if (!result) /* success */
-  {
     result= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-  }
 
   mysql_rwlock_unlock(&LOCK_grant);
 
@@ -7698,7 +7718,7 @@ static bool grant_load(THD *thd,
 
       if (! mem_check->ok())
 	delete mem_check;
-      else if (my_hash_insert(&column_priv_hash,(uchar*) mem_check))
+      else if (column_priv_insert(mem_check))
       {
 	delete mem_check;
 	goto end_unlock;
@@ -8896,6 +8916,16 @@ static bool print_grants_for_role(THD *thd, ACL_ROLE * role)
 
 }
 
+static void append_auto_expiration_policy(ACL_USER *acl_user, String *r) {
+    if (!acl_user->password_lifetime)
+      r->append(STRING_WITH_LEN(" PASSWORD EXPIRE NEVER"));
+    else if (acl_user->password_lifetime > 0)
+    {
+      r->append(STRING_WITH_LEN(" PASSWORD EXPIRE INTERVAL "));
+      r->append_longlong(acl_user->password_lifetime);
+      r->append(STRING_WITH_LEN(" DAY"));
+    }
+}
 
 bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 {
@@ -8955,14 +8985,8 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
 
   if (acl_user->password_expired)
     result.append(STRING_WITH_LEN(" PASSWORD EXPIRE"));
-  else if (!acl_user->password_lifetime)
-    result.append(STRING_WITH_LEN(" PASSWORD EXPIRE NEVER"));
-  else if (acl_user->password_lifetime > 0)
-  {
-    result.append(STRING_WITH_LEN(" PASSWORD EXPIRE INTERVAL "));
-    result.append_longlong(acl_user->password_lifetime);
-    result.append(STRING_WITH_LEN(" DAY"));
-  }
+  else
+    append_auto_expiration_policy(acl_user, &result);
 
   protocol->prepare_for_resend();
   protocol->store(result.ptr(), result.length(), result.charset());
@@ -8970,6 +8994,28 @@ bool mysql_show_create_user(THD *thd, LEX_USER *lex_user)
   {
     error= true;
   }
+
+  /* MDEV-24114 - PASSWORD EXPIRE and PASSWORD EXPIRE [NEVER | INTERVAL X DAY]
+   are two different mechanisms. To make sure a tool can restore the state
+   of a user account, including both the manual expiration state of the
+   account and the automatic expiration policy attached to it, we should
+   print two statements here, a CREATE USER (printed above) and an ALTER USER */
+  if (acl_user->password_expired && acl_user->password_lifetime > -1) {
+    result.length(0);
+    result.append("ALTER USER ");
+    append_identifier(thd, &result, username, strlen(username));
+    result.append('@');
+    append_identifier(thd, &result, acl_user->host.hostname,
+                      acl_user->hostname_length);
+    append_auto_expiration_policy(acl_user, &result);
+    protocol->prepare_for_resend();
+    protocol->store(result.ptr(), result.length(), result.charset());
+    if (protocol->write())
+    {
+      error= true;
+    }
+  }
+
   my_eof(thd);
 
 end:
@@ -11068,7 +11114,7 @@ mysql_revoke_sp_privs(THD *thd, Grant_tables *tables, const Sp_handler *sph,
 bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 {
   uint counter, revoked;
-  int result;
+  int result, res;
   ACL_DB *acl_db;
   DBUG_ENTER("mysql_revoke_all");
 
@@ -11161,36 +11207,35 @@ bool mysql_revoke_all(THD *thd,  List <LEX_USER> &list)
 	if (!strcmp(lex_user->user.str,user) &&
             !strcmp(lex_user->host.str, host))
 	{
-      /* TODO(cvicentiu) refactor replace_db_table to use
-         Db_table instead of TABLE directly. */
-	  if (replace_table_table(thd, grant_table,
-                              tables.tables_priv_table().table(),
-                              *lex_user, grant_table->db,
-				  grant_table->tname, ~(ulong)0, 0, 1))
-	  {
+          List<LEX_COLUMN> columns;
+          /* TODO(cvicentiu) refactor replace_db_table to use
+             Db_table instead of TABLE directly. */
+          if (replace_column_table(grant_table,
+                                   tables.columns_priv_table().table(),
+                                   *lex_user, columns, grant_table->db,
+                                   grant_table->tname, ~(ulong)0, 1))
 	    result= -1;
-	  }
-	  else
+
+          /* TODO(cvicentiu) refactor replace_db_table to use
+             Db_table instead of TABLE directly. */
+	  if ((res= replace_table_table(thd, grant_table,
+                                        tables.tables_priv_table().table(),
+                                        *lex_user, grant_table->db,
+                                        grant_table->tname, ~(ulong)0, 0, 1)))
 	  {
-	    if (!grant_table->cols)
-	    {
-	      revoked= 1;
-	      continue;
-	    }
-	    List<LEX_COLUMN> columns;
-        /* TODO(cvicentiu) refactor replace_db_table to use
-           Db_table instead of TABLE directly. */
-	    if (!replace_column_table(grant_table,
-                                      tables.columns_priv_table().table(),
-                                      *lex_user, columns, grant_table->db,
-				      grant_table->tname, ~(ulong)0, 1))
-	    {
-	      revoked= 1;
-	      continue;
-	    }
-	    result= -1;
-	  }
-	}
+            if (res > 0)
+              result= -1;
+            else
+            {
+              /*
+                Entry was deleted. We have to retry the loop as the
+                hash table has probably been reorganized.
+              */
+              revoked= 1;
+              continue;
+            }
+          }
+        }
 	counter++;
       }
     } while (revoked);

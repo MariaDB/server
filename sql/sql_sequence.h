@@ -111,8 +111,8 @@ public:
   {
     if (real_increment > 0)
     {
-      if (value + real_increment > max_value ||
-          value > max_value - real_increment)
+      if (value > max_value - real_increment ||
+          value + real_increment > max_value)
         value= max_value + 1;
       else
         value+= real_increment;

@@ -363,9 +363,6 @@ int ha_heap::info(uint flag)
 {
   HEAPINFO hp_info;
 
-  if (!table)
-    return 0;
-
   (void) heap_info(file,&hp_info,flag);
 
   errkey=                     hp_info.errkey;

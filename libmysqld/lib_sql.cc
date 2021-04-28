@@ -625,7 +625,8 @@ int init_embedded_server(int argc, char **argv, char **groups)
 
   (void) thr_setconcurrency(concurrency);	// 10 by default
 
-  start_handle_manager();
+  if (flush_time && flush_time != ~(ulong) 0L)
+    start_handle_manager();
 
   // FIXME initialize binlog_filter and rpl_filter if not already done
   //       corresponding delete is in clean_up()

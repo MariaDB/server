@@ -208,7 +208,8 @@ enum innobackupex_options
 	OPT_STREAM,
 	OPT_TABLES_FILE,
 	OPT_THROTTLE,
-	OPT_USE_MEMORY
+	OPT_USE_MEMORY,
+	OPT_INNODB_FORCE_RECOVERY,
 };
 
 ibx_mode_t ibx_mode = IBX_MODE_BACKUP;
@@ -626,6 +627,16 @@ static struct my_option ibx_long_options[] =
 	 0, GET_LL, REQUIRED_ARG, 100*1024*1024L, 1024*1024L, LONGLONG_MAX, 0,
 	 1024*1024L, 0},
 
+	{"innodb-force-recovery", OPT_INNODB_FORCE_RECOVERY,
+	 "This option starts up the embedded InnoDB instance in crash "
+	 "recovery mode to ignore page corruption; should be used "
+	 "with the \"--apply-log\" option, in emergencies only. The "
+	 "default value is 0. Refer to \"innodb_force_recovery\" server "
+	 "system variable documentation for more details.",
+	 (uchar*)&xtrabackup_innodb_force_recovery,
+	 (uchar*)&xtrabackup_innodb_force_recovery,
+	 0, GET_ULONG, OPT_ARG, 0, 0, SRV_FORCE_IGNORE_CORRUPT, 0, 0, 0},
+
 	{ 0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 
@@ -671,6 +682,7 @@ innobackupex [--compress] [--compress-threads=NUMBER-OF-THREADS] [--compress-chu
 innobackupex --apply-log [--use-memory=B]\n\
              [--defaults-file=MY.CNF]\n\
              [--export] [--ibbackup=IBBACKUP-BINARY]\n\
+             [--innodb-force-recovery=1]\n\
              BACKUP-DIR\n\
 \n\
 innobackupex --copy-back [--defaults-file=MY.CNF] [--defaults-group=GROUP-NAME] BACKUP-DIR\n\

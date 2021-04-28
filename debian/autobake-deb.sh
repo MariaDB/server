@@ -96,6 +96,12 @@ then
   sed '/Package: mariadb-plugin-rocksdb/,/^$/d' -i debian/control
 fi
 
+## Skip TokuDB if arch is not amd64
+if [[ ! $(dpkg-architecture -q DEB_BUILD_ARCH) =~ amd64 ]]
+then
+  sed '/Package: mariadb-plugin-tokudb/,/^$/d' -i debian/control
+fi
+
 # Always remove aws plugin, see -DNOT_FOR_DISTRIBUTION in CMakeLists.txt
 sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
 
@@ -103,6 +109,15 @@ sed '/Package: mariadb-plugin-aws-key-management-10.2/,/^$/d' -i debian/control
 if [[ ! -f /usr/local/include/thrift/Thrift.h && ! -f /usr/include/thrift/Thrift.h ]]
 then
   sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
+fi
+
+# From Debian Stretch/Ubuntu Bionic onwards dh-systemd is just an empty
+# transitional metapackage and the functionality was merged into debhelper.
+# In Ubuntu Hirsute is was completely removed, so it can't be referenced anymore.
+# Keep using it only on Debian Jessie and Ubuntu Xenial.
+if apt-cache madison dh-systemd | grep 'dh-systemd' >/dev/null 2>&1
+then
+  sed 's/debhelper (>= 9.20160709~),/debhelper (>= 9), dh-systemd,/' -i debian/control
 fi
 
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above

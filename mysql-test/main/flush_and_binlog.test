@@ -1,0 +1,43 @@
+--source include/have_log_bin.inc
+
+--echo #
+--echo # MDEV-23843 Assertions in Diagnostics_area upon table operations under
+--echo # FTWRL
+--echo #
+
+CREATE TABLE t1 (a INT);
+FLUSH TABLES WITH READ LOCK;
+--connect (con1,localhost,root,,)
+SET lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+OPTIMIZE TABLE t1;
+# Cleanup
+--disconnect con1
+--connection default
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# Second test case from MDEV_23843
+#
+FLUSH TABLES WITH READ LOCK;
+--connect (con1,localhost,root,,test)
+SET lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+FLUSH TABLES;
+--connection default
+--disconnect con1
+unlock tables;
+
+--echo # Second test from MDEV-23843
+
+CREATE TABLE t (a INT);
+FLUSH TABLES WITH READ LOCK;
+--connect (con1,localhost,root,,)
+SET lock_wait_timeout= 1;
+--error ER_LOCK_WAIT_TIMEOUT
+ANALYZE TABLE t;
+# Cleanup
+--disconnect con1
+--connection default
+UNLOCK TABLES;
+DROP TABLE t;

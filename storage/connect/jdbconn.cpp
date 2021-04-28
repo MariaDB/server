@@ -766,6 +766,7 @@ void JDBConn::AddJars(PSTRG jpop, char sep)
 /***********************************************************************/
 bool JDBConn::Connect(PJPARM sop)
 {
+	int      irc = RC_FX;
 	bool		 err = false;
 	jint     rc;
 	jboolean jt = (trace(1));

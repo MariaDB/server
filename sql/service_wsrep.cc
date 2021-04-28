@@ -37,6 +37,16 @@ extern "C" void wsrep_thd_UNLOCK(const THD *thd)
   mysql_mutex_unlock(&thd->LOCK_thd_data);
 }
 
+extern "C" void wsrep_thd_kill_LOCK(const THD *thd)
+{
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+}
+
+extern "C" void wsrep_thd_kill_UNLOCK(const THD *thd)
+{
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+}
+
 extern "C" const char* wsrep_thd_client_state_str(const THD *thd)
 {
   return wsrep::to_c_string(thd->wsrep_cs().state());
@@ -110,15 +120,23 @@ extern "C" my_bool wsrep_get_debug()
   return wsrep_debug;
 }
 
+/*
+  Test if this connection is a true local (user) connection and not
+  a replication or wsrep applier thread.
+
+  Note that this is only usable for galera (as there are other kinds
+  of system threads, and only if WSREP_NNULL() is tested by the caller.
+ */
 extern "C" my_bool wsrep_thd_is_local(const THD *thd)
 {
   /*
-    async replication IO and background threads have nothing to replicate in the cluster,
-    marking them as non-local here to prevent write set population and replication
+    async replication IO and background threads have nothing to
+    replicate in the cluster, marking them as non-local here to
+    prevent write set population and replication
 
-    async replication SQL thread, applies client transactions from mariadb master
-    and will be replicated into cluster
-   */
+    async replication SQL thread, applies client transactions from
+    mariadb master and will be replicated into cluster
+  */
   return (
           thd->system_thread != SYSTEM_THREAD_SLAVE_BACKGROUND &&
           thd->system_thread != SYSTEM_THREAD_SLAVE_IO &&
@@ -200,16 +218,8 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
 extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
                                       my_bool signal)
 {
-  DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-                 {
-                   const char act[]=
-                     "now "
-                     "SIGNAL sync.before_wsrep_thd_abort_reached "
-                     "WAIT_FOR signal.before_wsrep_thd_abort";
-                   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-                                                      STRING_WITH_LEN(act)));
-                 };);
-
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
   /*
     Send awake signal if victim was BF aborted or does not
@@ -218,8 +228,6 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
    */
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
-    mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
-    mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_kill);
     mysql_mutex_lock(&victim_thd->LOCK_thd_data);
 
     if (victim_thd->wsrep_aborter && victim_thd->wsrep_aborter != bf_thd->thread_id)
@@ -230,10 +238,8 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
       return false;
     }
 
-    mysql_mutex_lock(&victim_thd->LOCK_thd_kill);
     victim_thd->wsrep_aborter= bf_thd->thread_id;
     victim_thd->awake_no_mutex(KILL_QUERY);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   } else {
     WSREP_DEBUG("wsrep_thd_bf_abort skipped awake");

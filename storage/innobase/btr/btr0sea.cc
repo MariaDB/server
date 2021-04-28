@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2008, Google Inc.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 Portions of this file contain modifications contributed and copyrighted by
 Google, Inc. Those modifications are gratefully acknowledged and are described
@@ -666,6 +666,12 @@ btr_search_update_hash_ref(
 		return;
 	}
 
+	if (cursor->index != index) {
+		ut_ad(cursor->index->id == index->id);
+		btr_search_drop_page_hash_index(block);
+		return;
+	}
+
 	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_ad(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
@@ -690,7 +696,8 @@ btr_search_update_hash_ref(
 
 		ulint fold = rec_fold(
 			rec,
-			rec_get_offsets(rec, index, offsets_, true,
+			rec_get_offsets(rec, index, offsets_,
+					index->n_core_fields,
 					ULINT_UNDEFINED, &heap),
 			block->curr_n_fields,
 			block->curr_n_bytes, index->id);
@@ -749,7 +756,8 @@ btr_search_check_guess(
 
 	match = 0;
 
-	offsets = rec_get_offsets(rec, cursor->index, offsets, true,
+	offsets = rec_get_offsets(rec, cursor->index, offsets,
+				  cursor->index->n_core_fields,
 				  n_unique, &heap);
 	cmp = cmp_dtuple_rec_with_match(tuple, rec, offsets, &match);
 
@@ -800,7 +808,8 @@ btr_search_check_guess(
 		}
 
 		offsets = rec_get_offsets(prev_rec, cursor->index, offsets,
-					  true, n_unique, &heap);
+					  cursor->index->n_core_fields,
+					  n_unique, &heap);
 		cmp = cmp_dtuple_rec_with_match(
 			tuple, prev_rec, offsets, &match);
 		if (mode == PAGE_CUR_GE) {
@@ -823,7 +832,8 @@ btr_search_check_guess(
 		}
 
 		offsets = rec_get_offsets(next_rec, cursor->index, offsets,
-					  true, n_unique, &heap);
+					  cursor->index->n_core_fields,
+					  n_unique, &heap);
 		cmp = cmp_dtuple_rec_with_match(
 			tuple, next_rec, offsets, &match);
 		if (mode == PAGE_CUR_LE) {
@@ -1125,15 +1135,26 @@ retry:
 		% btr_ahi_parts;
 	latch = btr_search_latches[ahi_slot];
 
-	rw_lock_s_lock(latch);
+	dict_index_t* index = block->index;
+
+	bool is_freed = index && index->freed();
+	if (is_freed) {
+		rw_lock_x_lock(latch);
+	} else {
+		rw_lock_s_lock(latch);
+	}
+
 	assert_block_ahi_valid(block);
 
-	if (!block->index || !btr_search_enabled) {
-		rw_lock_s_unlock(latch);
+	if (!index || !btr_search_enabled) {
+		if (is_freed) {
+			rw_lock_x_unlock(latch);
+		} else {
+			rw_lock_s_unlock(latch);
+		}
 		return;
 	}
 
-	dict_index_t* index = block->index;
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	ut_ad(!index->disable_ahi);
 #endif
@@ -1149,7 +1170,9 @@ retry:
 	/* NOTE: The AHI fields of block must not be accessed after
 	releasing search latch, as the index page might only be s-latched! */
 
-	rw_lock_s_unlock(latch);
+	if (!is_freed) {
+		rw_lock_s_unlock(latch);
+	}
 
 	ut_a(n_fields > 0 || n_bytes > 0);
 
@@ -1176,7 +1199,7 @@ retry:
 
 	while (!page_rec_is_supremum(rec)) {
 		offsets = rec_get_offsets(
-			rec, index, offsets, true,
+			rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes),
 			&heap);
 		fold = rec_fold(rec, offsets, n_fields, n_bytes, index_id);
@@ -1200,15 +1223,17 @@ next_rec:
 		mem_heap_free(heap);
 	}
 
-	rw_lock_x_lock(latch);
+	if (!is_freed) {
+		rw_lock_x_lock(latch);
 
-	if (UNIV_UNLIKELY(!block->index)) {
-		/* Someone else has meanwhile dropped the hash index */
+		if (UNIV_UNLIKELY(!block->index)) {
+			/* Someone else has meanwhile dropped the
+			hash index */
+			goto cleanup;
+		}
 
-		goto cleanup;
+		ut_a(block->index == index);
 	}
-
-	ut_a(block->index == index);
 
 	if (block->curr_n_fields != n_fields
 	    || block->curr_n_bytes != n_bytes) {
@@ -1400,7 +1425,7 @@ btr_search_build_page_hash_index(
 	ut_a(index->id == btr_page_get_index_id(page));
 
 	offsets = rec_get_offsets(
-		rec, index, offsets, true,
+		rec, index, offsets, index->n_core_fields,
 		btr_search_get_n_fields(n_fields, n_bytes),
 		&heap);
 	ut_ad(page_rec_is_supremum(rec)
@@ -1431,7 +1456,7 @@ btr_search_build_page_hash_index(
 		}
 
 		offsets = rec_get_offsets(
-			next_rec, index, offsets, true,
+			next_rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
 		next_fold = rec_fold(next_rec, offsets, n_fields,
 				     n_bytes, index->id);
@@ -1583,6 +1608,7 @@ btr_search_move_or_delete_hash_entries(
 	rw_lock_t* ahi_latch = index ? btr_get_search_latch(index) : NULL;
 
 	if (new_block->index) {
+drop_exit:
 		btr_search_drop_page_hash_index(block);
 		return;
 	}
@@ -1594,6 +1620,12 @@ btr_search_move_or_delete_hash_entries(
 	rw_lock_s_lock(ahi_latch);
 
 	if (block->index) {
+
+		if (block->index != index) {
+			rw_lock_s_unlock(ahi_latch);
+			goto drop_exit;
+		}
+
 		ulint	n_fields = block->curr_n_fields;
 		ulint	n_bytes = block->curr_n_bytes;
 		ibool	left_side = block->curr_left_side;
@@ -1614,7 +1646,6 @@ btr_search_move_or_delete_hash_entries(
 		ut_ad(left_side == block->curr_left_side);
 		return;
 	}
-
 	rw_lock_s_unlock(ahi_latch);
 }
 
@@ -1652,6 +1683,12 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 		return;
 	}
 
+	if (index != cursor->index) {
+		ut_ad(index->id == cursor->index->id);
+		btr_search_drop_page_hash_index(block);
+		return;
+	}
+
 	ut_ad(block->page.id.space() == index->table->space_id);
 	ut_a(index == cursor->index);
 	ut_a(block->curr_n_fields > 0 || block->curr_n_bytes > 0);
@@ -1659,7 +1696,8 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 	rec = btr_cur_get_rec(cursor);
 
-	fold = rec_fold(rec, rec_get_offsets(rec, index, offsets_, true,
+	fold = rec_fold(rec, rec_get_offsets(rec, index, offsets_,
+					     index->n_core_fields,
 					     ULINT_UNDEFINED, &heap),
 			block->curr_n_fields, block->curr_n_bytes, index->id);
 	if (UNIV_LIKELY_NULL(heap)) {
@@ -1722,6 +1760,12 @@ btr_search_update_hash_node_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 
 	if (!index) {
 
+		return;
+	}
+
+	if (cursor->index != index) {
+		ut_ad(cursor->index->id == index->id);
+		btr_search_drop_page_hash_index(block);
 		return;
 	}
 
@@ -1814,6 +1858,12 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 #ifdef MYSQL_INDEX_DISABLE_AHI
 	ut_a(!index->disable_ahi);
 #endif
+	if (index != cursor->index) {
+		ut_ad(index->id == cursor->index->id);
+		btr_search_drop_page_hash_index(block);
+		return;
+	}
+
 	ut_a(index == cursor->index);
 	ut_ad(!dict_index_is_ibuf(index));
 
@@ -1824,13 +1874,14 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 	ins_rec = page_rec_get_next_const(rec);
 	next_rec = page_rec_get_next_const(ins_rec);
 
-	offsets = rec_get_offsets(ins_rec, index, offsets, true,
+	offsets = rec_get_offsets(ins_rec, index, offsets,
+				  index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 	ins_fold = rec_fold(ins_rec, offsets, n_fields, n_bytes, index->id);
 
 	if (!page_rec_is_supremum(next_rec)) {
 		offsets = rec_get_offsets(
-			next_rec, index, offsets, true,
+			next_rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
 		next_fold = rec_fold(next_rec, offsets, n_fields,
 				     n_bytes, index->id);
@@ -1842,7 +1893,7 @@ btr_search_update_hash_on_insert(btr_cur_t* cursor, rw_lock_t* ahi_latch)
 
 	if (!page_rec_is_infimum(rec) && !rec_is_metadata(rec, *index)) {
 		offsets = rec_get_offsets(
-			rec, index, offsets, true,
+			rec, index, offsets, index->n_core_fields,
 			btr_search_get_n_fields(n_fields, n_bytes), &heap);
 		fold = rec_fold(rec, offsets, n_fields, n_bytes, index->id);
 	} else {
@@ -2048,7 +2099,8 @@ btr_search_hash_table_validate(ulint hash_table_id)
 			page_index_id = btr_page_get_index_id(block->frame);
 
 			offsets = rec_get_offsets(
-				node->data, block->index, offsets, true,
+				node->data, block->index, offsets,
+				block->index->n_core_fields,
 				btr_search_get_n_fields(block->curr_n_fields,
 							block->curr_n_bytes),
 				&heap);

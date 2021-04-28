@@ -1,5 +1,5 @@
 /* Copyright (c) 2002, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2019, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -118,17 +118,17 @@ When one supplies long data for a placeholder:
 #include <mysql.h>
 #else
 #include <mysql_com.h>
+/* Constants defining bits in parameter type flags. Flags are read from high byte of short value */
+static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #endif
 #include "lock.h"                               // MYSQL_OPEN_FORCE_SHARED_MDL
+#include "log_event.h"                          // class Log_event
 #include "sql_handler.h"
 #include "transaction.h"                        // trans_rollback_implicit
 #ifdef WITH_WSREP
 #include "wsrep_mysqld.h"
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
-
-/* Constants defining bits in parameter type flags. Flags are read from high byte of short value */
-static const uint PARAMETER_FLAG_UNSIGNED = 128U << 8;
 
 /**
   A result class used to send cursor rows using the binary protocol.
@@ -2488,6 +2488,16 @@ static bool check_prepared_statement(Prepared_statement *stmt)
       DBUG_RETURN(FALSE);
     }
     break;
+  case SQLCOM_SHOW_BINLOG_EVENTS:
+  case SQLCOM_SHOW_RELAYLOG_EVENTS:
+    {
+      List<Item> field_list;
+      Log_event::init_show_field_list(thd, &field_list);
+
+      if ((res= send_stmt_metadata(thd, stmt, &field_list)) == 2)
+        DBUG_RETURN(FALSE);
+    }
+  break;
 #endif /* EMBEDDED_LIBRARY */
   case SQLCOM_SHOW_CREATE_PROC:
     if ((res= mysql_test_show_create_routine(stmt, &sp_handler_procedure)) == 2)
@@ -4207,6 +4217,15 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
           thd->is_error() ||
           init_param_array(this));
 
+  if (thd->security_ctx->password_expired &&
+      lex->sql_command != SQLCOM_SET_OPTION)
+  {
+    thd->restore_backup_statement(this, &stmt_backup);
+    thd->restore_active_arena(this, &stmt_backup);
+    thd->stmt_arena= old_stmt_arena;
+    my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
+    DBUG_RETURN(true);
+  }
   lex->set_trg_event_type_for_tables();
 
   /*
@@ -4231,6 +4250,16 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   */
   MDL_savepoint mdl_savepoint= thd->mdl_context.mdl_savepoint();
 
+  /*
+    Set variables specified by
+      SET STATEMENT var1=value1 [, var2=value2, ...] FOR <statement>
+    clause for duration of prepare phase. Original values of variable
+    listed in the SET STATEMENT clause is restored right after return
+    from the function check_prepared_statement()
+  */
+  if (likely(error == 0))
+    error= run_set_statement_if_requested(thd, lex);
+
   /* 
    The only case where we should have items in the thd->free_list is
    after stmt->set_params_from_vars(), which may in some cases create
@@ -4248,6 +4277,12 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     */
     lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_PREPARE;
   }
+
+  /*
+    Restore original values of variables modified on handling
+    SET STATEMENT clause.
+  */
+  thd->lex->restore_set_statement_var();
 
   /* The order is important */
   lex->unit.cleanup();

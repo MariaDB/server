@@ -1217,6 +1217,31 @@ set @rnd=1;
 select @rnd;
 @rnd
 0
+#
+# MDEV-24860: Incorrect behaviour of SET STATEMENT in case
+#             it is executed as a prepared statement
+#
+PREPARE stmt FROM "SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR CREATE TABLE t1 AS SELECT CONCAT('abc') AS c1";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+# Show definition of the table t1 created using Prepared Statement
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(3) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
+# Create the table t1 with the same definition as it used before
+# using regular statement execution mode.
+SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR CREATE TABLE t1 AS SELECT CONCAT('abc') AS c1;
+# Show that the table has the same definition as it is in case the table
+# created in prepared statement mode.
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c1` varchar(3) NOT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1;
 create table t (a int);
 SET sql_mode=ORACLE;
 SET STATEMENT myisam_sort_buffer_size=800000 FOR OPTIMIZE TABLE t;
@@ -1234,3 +1259,4 @@ SET sql_mode=ORACLE;
 SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';
 SET sql_mode=default;
 SET STATEMENT max_statement_time=30 FOR DELETE FROM mysql.user where user = 'unknown';
+# End of 10.4 tests

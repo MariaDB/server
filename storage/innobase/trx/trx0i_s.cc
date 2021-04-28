@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -710,7 +710,8 @@ fill_lock_data(
 	ut_a(n_fields > 0);
 
 	heap = NULL;
-	offsets = rec_get_offsets(rec, index, offsets, true, n_fields, &heap);
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
+				  n_fields, &heap);
 
 	/* format and store the data */
 
@@ -1258,13 +1259,16 @@ static void fetch_data_into_cache(trx_i_s_cache_t *cache)
 
   /* Capture the state of transactions */
   mutex_enter(&trx_sys.mutex);
-  for (const trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
+  for (trx_t *trx= UT_LIST_GET_FIRST(trx_sys.trx_list);
        trx != NULL;
        trx= UT_LIST_GET_NEXT(trx_list, trx))
   {
-    if (trx_is_started(trx) && trx != purge_sys.query->trx)
+    if (trx->state != TRX_STATE_NOT_STARTED && trx != purge_sys.query->trx)
     {
-      fetch_data_into_cache_low(cache, trx);
+      mutex_enter(&trx->mutex);
+      if (trx->state != TRX_STATE_NOT_STARTED)
+        fetch_data_into_cache_low(cache, trx);
+      mutex_exit(&trx->mutex);
       if (cache->is_truncated)
         break;
      }

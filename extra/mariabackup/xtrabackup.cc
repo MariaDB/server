@@ -4,7 +4,7 @@ MariaBackup: hot backup tool for InnoDB
 Originally Created 3/3/2009 Yasufumi Kinoshita
 Written by Alexey Kopytov, Aleksandr Kuzminsky, Stewart Smith, Vadim Tkachenko,
 Yasufumi Kinoshita, Ignacio Nin and Baron Schwartz.
-(c) 2017, 2020, MariaDB Corporation.
+(c) 2017, 2021, MariaDB Corporation.
 Portions written by Marko Mäkelä.
 
 This program is free software; you can redistribute it and/or modify
@@ -59,6 +59,10 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #ifdef __linux__
 # include <sys/prctl.h>
 #include <sys/resource.h>
+#endif
+
+#ifdef __APPLE__
+# include "libproc.h"
 #endif
 
 
@@ -269,6 +273,12 @@ static char *xtrabackup_debug_sync = NULL;
 #endif
 
 my_bool xtrabackup_incremental_force_scan = FALSE;
+
+/*
+ * Ignore corrupt pages (disabled by default; used
+ * by "innobackupex" as a command line argument).
+ */
+ulong xtrabackup_innodb_force_recovery = 0;
 
 /* The flushed lsn which is read from data files */
 lsn_t	flushed_lsn= 0;
@@ -1046,7 +1056,8 @@ enum options_xtrabackup
   OPT_BACKUP_ROCKSDB,
   OPT_XTRA_CHECK_PRIVILEGES,
   OPT_XTRA_MYSQLD_ARGS,
-  OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION
+  OPT_XB_IGNORE_INNODB_PAGE_CORRUPTION,
+  OPT_INNODB_FORCE_RECOVERY
 };
 
 struct my_option xb_client_options[]= {
@@ -1673,6 +1684,13 @@ struct my_option xb_server_options[] =
    &opt_check_privileges, &opt_check_privileges,
    0, GET_BOOL, NO_ARG, 1, 0, 0, 0, 0, 0 },
 
+  {"innodb_force_recovery", OPT_INNODB_FORCE_RECOVERY,
+   "(for --prepare): Crash recovery mode (ignores "
+   "page corruption; for emergencies only).",
+   (G_PTR*)&srv_force_recovery,
+   (G_PTR*)&srv_force_recovery,
+   0, GET_ULONG, OPT_ARG, 0, 0, SRV_FORCE_IGNORE_CORRUPT, 0, 0, 0},
+
     {"mysqld-args", OPT_XTRA_MYSQLD_ARGS,
      "All arguments that follow this argument are considered as server "
      "options, and if some of them are not supported by mariabackup, they "
@@ -1809,31 +1827,33 @@ static int prepare_export()
 
   // Process defaults-file , it can have some --lc-language stuff,
   // which is* unfortunately* still necessary to get mysqld up
-  if (strncmp(orig_argv1,"--defaults-file=",16) == 0)
+  if (strncmp(orig_argv1,"--defaults-file=", 16) == 0)
   {
     snprintf(cmdline, sizeof cmdline,
-     IF_WIN("\"","") "\"%s\" --mysqld \"%s\" "
+      IF_WIN("\"","") "\"%s\" --mysqld \"%s\""
       " --defaults-extra-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --skip-log-error --skip-log-bin --bootstrap  < "
+      " --console --skip-log-error --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
-      mariabackup_exe, 
+      mariabackup_exe,
       orig_argv1, (my_defaults_group_suffix?my_defaults_group_suffix:""),
-      xtrabackup_use_memory);
+      xtrabackup_use_memory,
+      (srv_force_recovery ? "--innodb-force-recovery=1 " : ""));
   }
   else
   {
-    sprintf(cmdline,
-     IF_WIN("\"","") "\"%s\" --mysqld"
+    snprintf(cmdline, sizeof cmdline,
+      IF_WIN("\"","") "\"%s\" --mysqld"
       " --defaults-file=./backup-my.cnf --defaults-group-suffix=%s --datadir=."
       " --innodb --innodb-fast-shutdown=0 --loose-partition"
       " --innodb_purge_rseg_truncate_frequency=1 --innodb-buffer-pool-size=%llu"
-      " --console  --log-error= --skip-log-bin --bootstrap  < "
+      " --console --log-error= --skip-log-bin --bootstrap %s< "
       BOOTSTRAP_FILENAME IF_WIN("\"",""),
       mariabackup_exe,
       (my_defaults_group_suffix?my_defaults_group_suffix:""),
-      xtrabackup_use_memory);
+      xtrabackup_use_memory,
+      (srv_force_recovery ? "--innodb-force-recovery=1 " : ""));
   }
 
   msg("Prepare export : executing %s\n", cmdline);
@@ -1979,6 +1999,13 @@ xb_get_one_option(int optid,
   case OPT_INNODB_BUFFER_POOL_FILENAME:
 
     ADD_PRINT_PARAM_OPT(innobase_buffer_pool_filename);
+    break;
+
+  case OPT_INNODB_FORCE_RECOVERY:
+
+    if (srv_force_recovery) {
+        ADD_PRINT_PARAM_OPT(srv_force_recovery);
+    }
     break;
 
   case OPT_XTRA_TARGET_DIR:
@@ -2228,6 +2255,29 @@ static bool innodb_init_param()
 
 	if (!srv_undo_dir || !xtrabackup_backup) {
 		srv_undo_dir = (char*) ".";
+	}
+
+	compile_time_assert(SRV_FORCE_IGNORE_CORRUPT == 1);
+
+	/*
+	 * This option can be read both from the command line, and the
+	 * defaults file. The assignment should account for both cases,
+	 * and for "--innobackupex". Since the command line argument is
+	 * parsed after the defaults file, it takes precedence.
+	 */
+	if (xtrabackup_innodb_force_recovery) {
+		srv_force_recovery = xtrabackup_innodb_force_recovery;
+	}
+
+	if (srv_force_recovery >= SRV_FORCE_IGNORE_CORRUPT) {
+		if (!xtrabackup_prepare) {
+			msg("mariabackup: The option \"innodb_force_recovery\""
+			    " should only be used with \"%s\".",
+			    (innobackupex_mode ? "--apply-log" : "--prepare"));
+			goto error;
+		} else {
+			msg("innodb_force_recovery = %lu", srv_force_recovery);
+		}
 	}
 
 #ifdef _WIN32
@@ -4672,13 +4722,12 @@ fail_before_log_copying_thread_start:
 	log_file_op = NULL;
 	pthread_mutex_destroy(&backup_mutex);
 	pthread_cond_destroy(&scanned_lsn_cond);
-	if (opt_log_innodb_page_corruption && !corrupted_pages.empty()) {
+	if (!corrupted_pages.empty()) {
+		ut_ad(opt_log_innodb_page_corruption);
 		msg("Error: corrupted innodb pages are found and logged to "
 			MB_CORRUPTED_PAGES_FILE " file");
-		return false;
 	}
-	else
-		return(true);
+	return(true);
 }
 
 
@@ -5776,6 +5825,10 @@ static bool xtrabackup_prepare_func(char** argv)
 		ut_ad(inc_dir_tables_hash);
 	}
 
+	msg("open files limit requested %u, set to %u",
+	    (uint) xb_open_files_limit,
+	    xb_set_max_open_files(xb_open_files_limit));
+
 	/* Fix DDL for prepare. Process .del,.ren, and .new files.
 	The order in which files are processed, is important
 	(see MDEV-18185, MDEV-18201)
@@ -6020,12 +6073,9 @@ static bool xtrabackup_prepare_func(char** argv)
           srv_shutdown_bg_undo_sources();
           srv_purge_shutdown();
           buf_flush_sync_all_buf_pools();
-          innodb_shutdown();
-          innobase_space_shutdown();
         }
-        else
-          innodb_shutdown();
 
+        innodb_shutdown();
         innodb_free_param();
 
 	/* output to metadata file */
@@ -6447,8 +6497,9 @@ void handle_options(int argc, char **argv, char ***argv_server,
 			}
 	}
 
+        mariabackup_args.push_back(nullptr);
         *argv_client= *argv_server= *argv_backup= &mariabackup_args[0];
-        int argc_backup= static_cast<int>(mariabackup_args.size());
+        int argc_backup= static_cast<int>(mariabackup_args.size() - 1);
         int argc_client= argc_backup;
         int argc_server= argc_backup;
 
@@ -6610,6 +6661,8 @@ int main(int argc, char **argv)
   char **server_defaults;
   char **client_defaults;
   char **backup_defaults;
+
+	my_getopt_prefix_matching= 0;
 
 	if (get_exepath(mariabackup_exe,FN_REFLEN, argv[0]))
     strncpy(mariabackup_exe,argv[0], FN_REFLEN-1);
@@ -6913,6 +6966,12 @@ static int get_exepath(char *buf, size_t size, const char *argv0)
   ssize_t ret = readlink("/proc/self/exe", buf, size-1);
   if(ret > 0)
     return 0;
+#elif defined(__APPLE__)
+  size_t ret = proc_pidpath(getpid(), buf, static_cast<uint32_t>(size));
+  if (ret > 0) {
+    buf[ret] = 0;
+    return 0;
+  }
 #endif
 
   return my_realpath(buf, argv0, 0);

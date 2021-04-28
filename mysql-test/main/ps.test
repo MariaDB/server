@@ -4932,6 +4932,50 @@ EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING DEFAULT;
 EXECUTE IMMEDIATE 'SHOW DATABASES WHERE ?' USING 0;
 
 --echo #
+--echo # MDEV-24779: main.subselect fails in buildbot with --ps-protocol
+--echo #
+
+CREATE TABLE t1(a INT);
+PREPARE stmt FROM "SELECT EXISTS(SELECT 1 FROM t1 GROUP BY a IN (select a from t1))";
+EXECUTE stmt;
+EXECUTE stmt;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25006: Failed assertion on executing EXPLAIN DELETE statement as a prepared statement
+--echo #
+
+CREATE TABLE t1(c1 CHAR(255) PRIMARY KEY);
+PREPARE stmt FROM 'EXPLAIN DELETE b FROM t1 AS a JOIN t1 AS b';
+EXECUTE stmt;
+DROP TABLE t1;
+CREATE TABLE t1(a INT);
+PREPARE stmt FROM 'EXPLAIN DELETE FROM t1.* USING t1';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25108: Running of the EXPLAIN EXTENDED statement produces extra warning
+--echo #             in case it is executed in PS (prepared statement) mode
+--echo #
+CREATE TABLE t1 (c int);
+CREATE TABLE t2 (d int);
+
+--echo # EXPLAIN EXTENDED in regular way (not PS mode)
+EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1;
+SHOW WARNINGS;
+
+--echo # Now run the same EXPLAIN EXTENDED in PS mode. Number of warnings
+--echo # and their content must be the same as in case running the statement
+--echo # in regular way
+PREPARE stmt FROM "EXPLAIN EXTENDED SELECT (SELECT 1 FROM t2 WHERE d = c) FROM t1";
+EXECUTE stmt;
+SHOW WARNINGS;
+
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2;
+--echo #
 --echo # End of 10.2 tests
 --echo #
 
@@ -4954,6 +4998,43 @@ EXECUTE stmt;
 DEALLOCATE PREPARE stmt;
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25197: The statement set password=password('') executed in PS mode
+--echo #             fails in case it is run by a user with expired password
+--echo #
+CREATE USER user1@localhost PASSWORD EXPIRE;
+
+SET @disconnect_on_expired_password_save=@@global.disconnect_on_expired_password;
+SET GLOBAL disconnect_on_expired_password=OFF;
+
+connect(con1,localhost,user1);
+connection con1;
+--echo # Check that no regular statement like SELECT can be prepared
+--echo # by a user with an expired password
+--error ER_MUST_CHANGE_PASSWORD
+PREPARE stmt FROM "SELECT 1";
+
+--echo # Check that the DEALLOCATE PREPARE statement can be run by a user
+--echo # with an expired password
+PREPARE stmt FROM "SET password=password('')";
+DEALLOCATE PREPARE stmt;
+
+--echo # Check that the SET PASSWORD statement can be executed in PS mode by
+--echo # a user with an expired password
+PREPARE stmt FROM "SET password=password('')";
+EXECUTE stmt;
+PREPARE stmt FROM "SELECT 1";
+--echo # Check that user's password is not expired anymore
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+--echo # Clean up
+disconnect con1;
+connection default;
+
+SET GLOBAL disconnect_on_expired_password=@disconnect_on_expired_password_save;
+DROP USER user1@localhost;
 
 --echo #
 --echo # End of 10.4 tests

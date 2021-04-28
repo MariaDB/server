@@ -1127,7 +1127,7 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
   thd->stmt_arena= table->expr_arena;
   thd->update_charset(&my_charset_utf8mb4_general_ci, table->s->table_charset);
   expr_str.append(&parse_vcol_keyword);
-  thd->variables.sql_mode &= ~MODE_NO_BACKSLASH_ESCAPES;
+  thd->variables.sql_mode &= ~(MODE_NO_BACKSLASH_ESCAPES | MODE_EMPTY_STRING_IS_NULL);
 
   while (pos < end)
   {
@@ -2730,7 +2730,8 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
           else
             key_part->key_part_flag|= HA_VAR_LENGTH_PART;
           key_part->store_length+=HA_KEY_BLOB_LENGTH;
-          keyinfo->key_length+= HA_KEY_BLOB_LENGTH;
+          if (i < keyinfo->user_defined_key_parts)
+            keyinfo->key_length+= HA_KEY_BLOB_LENGTH;
         }
         if (field->type() == MYSQL_TYPE_BIT)
           key_part->key_part_flag|= HA_BIT_PART;
@@ -2827,7 +2828,6 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
 
       set_if_bigger(share->max_key_length,keyinfo->key_length+
                     keyinfo->user_defined_key_parts);
-      share->total_key_length+= keyinfo->key_length;
       /*
         MERGE tables do not have unique indexes. But every key could be
         an unique index on the underlying MyISAM table. (Bug #10400)
@@ -3210,9 +3210,8 @@ ret:
   if (unlikely(thd->is_error() || error))
   {
     thd->clear_error();
-    my_error(ER_SQL_DISCOVER_ERROR, MYF(0),
-             plugin_name(db_plugin)->str, db.str, table_name.str,
-             sql_copy);
+    my_error(ER_SQL_DISCOVER_ERROR, MYF(0), hton_name(hton)->str,
+             db.str, table_name.str, sql_copy);
     DBUG_RETURN(HA_ERR_GENERIC);
   }
   /* Treat the table as normal table from binary logging point of view */
@@ -4480,7 +4479,7 @@ void update_create_info_from_table(HA_CREATE_INFO *create_info, TABLE *table)
   create_info->row_type= share->row_type;
   create_info->key_block_size= share->key_block_size;
   create_info->default_table_charset= share->table_charset;
-  create_info->table_charset= 0;
+  create_info->alter_table_convert_to_charset= 0;
   create_info->comment= share->comment;
   create_info->transactional= share->transactional;
   create_info->page_checksum= share->page_checksum;

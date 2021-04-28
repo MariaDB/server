@@ -2329,10 +2329,10 @@ drop table t1;
 #
 # Check strnxfrm() with odd length
 #
-set max_sort_length=9;
+set max_sort_length=65;
 select @@max_sort_length;
 @@max_sort_length
-9
+65
 create table t1 (a varchar(128) character set utf8mb4 collate utf8mb4_general_ci) engine InnoDB;
 insert into t1 values ('a'),('b'),('c');
 select * from t1 order by a;

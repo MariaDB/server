@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -89,7 +89,6 @@ void
 trx_write_trx_id(byte* db_trx_id, trx_id_t id)
 {
 	compile_time_assert(DATA_TRX_ID_LEN == 6);
-	ut_ad(id);
 	mach_write_to_6(db_trx_id, id);
 }
 
@@ -847,8 +846,10 @@ public:
 #endif
   /** Latest recovered binlog offset */
   uint64_t recovered_binlog_offset;
-  /** Latest recovred binlog file name */
+  /** Latest recovered binlog file name */
   char recovered_binlog_filename[TRX_SYS_MYSQL_LOG_NAME_LEN];
+  /** FIL_PAGE_LSN of the page with the latest recovered binlog metadata */
+  lsn_t recovered_binlog_lsn;
 
 
   /**

@@ -558,11 +558,11 @@ struct Query_cache_query_flags
   uint character_set_client_num;
   uint character_set_results_num;
   uint collation_connection_num;
+  uint group_concat_max_len;
   ha_rows limit;
   Time_zone *time_zone;
   sql_mode_t sql_mode;
   ulonglong max_sort_length;
-  ulonglong group_concat_max_len;
   size_t default_week_format;
   size_t div_precision_increment;
   MY_LOCALE *lc_time_names;

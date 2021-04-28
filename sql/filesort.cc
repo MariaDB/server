@@ -1978,14 +1978,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
     if (sortorder->field)
     {
       CHARSET_INFO *cs= sortorder->field->sort_charset();
-      sortorder->type= sortorder->field->is_packable() ?
-                       SORT_FIELD_ATTR::VARIABLE_SIZE :
-                       SORT_FIELD_ATTR::FIXED_SIZE;
-
       sortorder->length= sortorder->field->sort_length();
-      if (sortorder->is_variable_sized())
-        set_if_smaller(sortorder->length, thd->variables.max_sort_length);
-
       if (use_strnxfrm((cs=sortorder->field->sort_charset())))
       {
         *multi_byte_charset= true;
@@ -1996,10 +1989,6 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
     }
     else
     {
-      sortorder->type= sortorder->item->type_handler()->is_packable() ?
-                       SORT_FIELD_ATTR::VARIABLE_SIZE :
-                       SORT_FIELD_ATTR::FIXED_SIZE;
-
       sortorder->item->type_handler()->sortlength(thd, sortorder->item,
                                                   sortorder);
       if (use_strnxfrm(sortorder->item->collation.collation))
@@ -2009,8 +1998,7 @@ sortlength(THD *thd, SORT_FIELD *sortorder, uint s_length,
       if (sortorder->item->maybe_null)
 	length++;				// Place for NULL marker
     }
-    if (sortorder->is_variable_sized())
-      set_if_smaller(sortorder->length, thd->variables.max_sort_length);
+    set_if_smaller(sortorder->length, thd->variables.max_sort_length);
     length+=sortorder->length;
   }
   sortorder->field= (Field*) 0;			// end marker

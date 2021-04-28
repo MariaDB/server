@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2019, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -501,7 +501,7 @@ struct LEX_MASTER_INFO
     }
 
     host= user= password= log_file_name= ssl_key= ssl_cert= ssl_ca=
-      ssl_capath= ssl_cipher= relay_log_name= 0;
+      ssl_capath= ssl_cipher= ssl_crl= ssl_crlpath= relay_log_name= NULL;
     pos= relay_log_pos= server_id= port= connect_retry= 0;
     heartbeat_period= 0;
     ssl= ssl_verify_server_cert= heartbeat_opt=
@@ -764,7 +764,7 @@ public:
     link_next= NULL;
     link_prev= NULL;
   }
-
+  void substitute_in_tree(st_select_lex_node *subst);
 
   void set_slave(st_select_lex_node *slave_arg) { slave= slave_arg; }
   void move_node(st_select_lex_node *where_to_move)
@@ -938,6 +938,10 @@ public:
 
   void init_query();
   st_select_lex* outer_select();
+  const st_select_lex* first_select() const
+  {
+    return reinterpret_cast<const st_select_lex*>(slave);
+  }
   st_select_lex* first_select()
   {
     return reinterpret_cast<st_select_lex*>(slave);
@@ -1287,6 +1291,8 @@ public:
   /* it is for correct printing SELECT options */
   thr_lock_type lock_type;
   
+  List<List_item> save_many_values;
+  List<Item> *save_insert_list;
   table_value_constr *tvc;
   bool in_tvc;
 
@@ -1334,7 +1340,8 @@ public:
   }
   inline bool is_subquery_function() { return master_unit()->item != 0; }
 
-  bool mark_as_dependent(THD *thd, st_select_lex *last, Item *dependency);
+  bool mark_as_dependent(THD *thd, st_select_lex *last,
+                         Item_ident *dependency);
 
   void set_braces(bool value)
   {
@@ -1469,6 +1476,8 @@ public:
 
   bool save_leaf_tables(THD *thd);
   bool save_prep_leaf_tables(THD *thd);
+
+  void set_unique_exclude();
 
   bool is_merged_child_of(st_select_lex *ancestor);
 
@@ -3078,7 +3087,8 @@ public:
 struct LEX: public Query_tables_list
 {
   SELECT_LEX_UNIT unit;                         /* most upper unit */
-  inline SELECT_LEX *first_select_lex() {return unit.first_select();}
+  SELECT_LEX *first_select_lex() { return unit.first_select(); }
+  const SELECT_LEX *first_select_lex() const { return unit.first_select(); }
 
 private:
   SELECT_LEX builtin_select;
@@ -4342,6 +4352,25 @@ public:
     return false;
   }
 
+  bool create_like() const
+  {
+    DBUG_ASSERT(!create_info.like() ||
+                !first_select_lex()->item_list.elements);
+    return create_info.like();
+  }
+
+  bool create_select() const
+  {
+    DBUG_ASSERT(!create_info.like() ||
+                !first_select_lex()->item_list.elements);
+    return first_select_lex()->item_list.elements;
+  }
+
+  bool create_simple() const
+  {
+    return !create_like() && !create_select();
+  }
+
   SELECT_LEX *exclude_last_select();
   SELECT_LEX *exclude_not_first_select(SELECT_LEX *exclude);
   void check_automatic_up(enum sub_select_type type);
@@ -4409,13 +4438,6 @@ public:
     return false;
   }
 
-  void tvc_start()
-  {
-    field_list.empty();
-    many_values.empty();
-    insert_list= 0;
-  }
-
   SELECT_LEX_UNIT *alloc_unit();
   SELECT_LEX *alloc_select(bool is_select);
   SELECT_LEX_UNIT *create_unit(SELECT_LEX*);
@@ -4470,6 +4492,8 @@ public:
                                        bool distinct);
   SELECT_LEX *parsed_subselect(SELECT_LEX_UNIT *unit);
   bool parsed_insert_select(SELECT_LEX *firs_select);
+  void save_values_list_state();
+  void restore_values_list_state();
   bool parsed_TVC_start();
   SELECT_LEX *parsed_TVC_end();
   TABLE_LIST *parsed_derived_table(SELECT_LEX_UNIT *unit,

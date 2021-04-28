@@ -2841,3 +2841,43 @@ t1	CREATE TABLE `t1` (
   KEY `i1` (`a`) COMMENT 'comment2'
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-25057 Assertion `n_fields < dtuple_get_n_fields(entry)'
+#		failed in dtuple_convert_big_rec
+#
+CREATE TABLE t1 (pk INT PRIMARY KEY AUTO_INCREMENT,
+a CHAR(255) NOT NULL,
+b CHAR(255) NOT NULL, c INT) ENGINE=InnoDB CHARSET utf32;
+ALTER TABLE t1 DROP c;
+INSERT INTO t1(a, b) SELECT '', '' FROM seq_1_to_16;
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+16
+DROP TABLE t1;
+#
+# MDEV-25630 Rollback of instant operation adds wrong
+# 	column to secondary index
+#
+CREATE TABLE t1 (f1 INT, f2 INT, f3 INT, f4 INT,
+PRIMARY KEY(f1, f4),
+KEY(f2))ENGINE=InnoDB;
+CREATE TABLE t2 (f1 INT, f2 INT, PRIMARY KEY(f1),
+FOREIGN KEY fk (f2) REFERENCES t2(f1)
+)ENGINE=InnoDB;
+ALTER TABLE t1 ADD f5 INT;
+SET FOREIGN_KEY_CHECKS=0;
+ALTER TABLE t1 DROP COLUMN f3, ADD FOREIGN KEY fk (f1)
+REFERENCES x(x);
+ERROR HY000: Failed to add the foreign key constraint 'test/fk' to system tables
+ALTER TABLE t1 DROP COLUMN f5;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `f1` int(11) NOT NULL,
+  `f2` int(11) DEFAULT NULL,
+  `f3` int(11) DEFAULT NULL,
+  `f4` int(11) NOT NULL,
+  PRIMARY KEY (`f1`,`f4`),
+  KEY `f2` (`f2`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+DROP TABLE t1, t2;

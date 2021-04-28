@@ -5,16 +5,7 @@
 --source include/have_binlog_format_mixed_or_statement.inc 
 --source include/master-slave.inc
 
-disable_query_log;
 call mtr.add_suppression("Unsafe statement written to the binary log using statement format since BINLOG_FORMAT = STATEMENT");
-enable_query_log;
-
---disable_warnings
-DROP TABLE IF EXISTS t1;
-DROP TABLE IF EXISTS t2;
-DROP TABLE IF EXISTS t3;
-
---enable_warnings
 
 #
 # #12482: Triggers has side effects with auto_increment values
@@ -45,19 +36,16 @@ SET @@RAND_SEED1=658490765, @@RAND_SEED2=635893186;
 --disable_warnings
 insert into t1 values(1,1,rand()),(NULL,2,rand());
 insert into t2 (b) values(last_insert_id());
-insert into t2 values(3,0),(NULL,0);
-insert into t2 values(NULL,0),(500,0);
+insert into t2 values(3,0);
+insert into t2 values(NULL,0);
+insert into t2 values(NULL,0);
+insert into t2 values(500,0);
 --enable_warnings
 
 select a,b, truncate(rand_value,4) from t1;
 select * from t2;
 select a,name, old_a, old_b, truncate(rand_value,4) from t3;
-save_master_pos;
-connection slave;
-sync_with_master;
---disable_query_log
-select "--- On slave --" as "";
---enable_query_log
+--sync_slave_with_master
 select a,b, truncate(rand_value,4) from t1;
 select * from t2;
 select a,name, old_a, old_b, truncate(rand_value,4) from t3;
@@ -109,17 +97,14 @@ let $time=`select a from t1`;
 #   - dump definers on the slave;
 
 SELECT routine_name, definer
-FROM information_schema.routines;
+FROM information_schema.routines
+WHERE routine_name = 'bug12480';
 
 SELECT trigger_name, definer
-FROM information_schema.triggers;
+FROM information_schema.triggers
+WHERE trigger_name = 't1_first';
 
-save_master_pos;
-connection slave;
-sync_with_master;
---disable_query_log
-select "--- On slave --" as "";
---enable_query_log
+--sync_slave_with_master
 
 # XXX: Definers of stored procedures and functions are not replicated. WL#2897
 # (Complete definer support in the stored routines) addresses this issue. So,
@@ -127,10 +112,12 @@ select "--- On slave --" as "";
 # item.
 
 SELECT routine_name, definer
-FROM information_schema.routines;
+FROM information_schema.routines
+WHERE routine_name = 'bug12480';
 
 SELECT trigger_name, definer
-FROM information_schema.triggers;
+FROM information_schema.triggers
+WHERE trigger_name = 't1_first';
 
 select a=b && a=c from t1;
 --disable_query_log
@@ -170,9 +157,7 @@ create database other;
 use other;
 insert into test.t1 values (1);
 
-save_master_pos;
-connection slave;
-sync_with_master;
+--sync_slave_with_master
 
 connection master;
 use test;
@@ -219,7 +204,7 @@ while ($rnd)
     dec $i;
   }
 
-  sync_slave_with_master;
+  --sync_slave_with_master
 #connection slave;
   eval select * from t1$rnd;
   delimiter |;
@@ -258,7 +243,7 @@ while ($rnd)
     dec $i;
   }
   
-  sync_slave_with_master;
+  --sync_slave_with_master
 #connection slave;
   eval SELECT * from t1$rnd /* must be f1 $max_rows ... 1 */;
   eval SELECT * from t3$rnd /* must be f3 $max_rows * 100 ...  100 */;
@@ -270,6 +255,8 @@ while ($rnd)
   
   connection master;
   eval drop table t1$rnd;
+  --sync_slave_with_master
+  connection master;
   
   dec $rnd;
 }
@@ -300,26 +287,42 @@ while ($rnd)
 # Stop the slave.
 
 connection slave;
-STOP SLAVE;
+--source include/stop_slave.inc
 
 # Replace master's binlog.
 
 connection master;
+let $MYSQLD_DATADIR= `select @@datadir`;
 FLUSH LOGS;
-let $DATADIR = `select @@datadir`;
-remove_file $DATADIR/master-bin.000001;
-copy_file $MYSQL_TEST_DIR/std_data/bug16266.000001 $DATADIR/master-bin.000001;
+
+# Stop master server
+--let $rpl_server_number= 1
+--source include/rpl_stop_server.inc
+
+# Replace binlog
+remove_file $MYSQLD_DATADIR/master-bin.000001;
+copy_file $MYSQL_TEST_DIR/std_data/bug16266.000001 $MYSQLD_DATADIR/master-bin.000001;
+
+--let $rpl_server_number= 1
+--source include/rpl_start_server.inc
+
+let $binlog_version= query_get_value(SHOW BINLOG EVENTS, Info, 1);
+
+
+# Make the slave to replay the new binlog.
+--echo --> Master binlog: $binlog_version
 
 # Make the slave to replay the new binlog.
 
 connection slave;
 RESET SLAVE;
-START SLAVE;
+--source include/start_slave.inc
 
 SELECT MASTER_POS_WAIT('master-bin.000001', 513) >= 0;
 
 # Check that the replication succeeded.
 SHOW TABLES LIKE 't_';
+--replace_column 6 #
 SHOW TRIGGERS;
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -338,7 +341,7 @@ DROP TRIGGER trg1;
 DROP TABLE t1;
 DROP TABLE t2;
 
-STOP SLAVE;
+--source include/stop_slave.inc
 RESET SLAVE;
 
 # The master should be clean.
@@ -352,7 +355,7 @@ RESET MASTER;
 # Restart slave.
 
 connection slave;
-START SLAVE;
+--source include/start_slave.inc
 
 
 #
@@ -367,7 +370,6 @@ START SLAVE;
 
 --echo
 --echo ---> Preparing environment...
---echo ---> connection: master
 --connection master
 
 --disable_warnings
@@ -378,12 +380,9 @@ DROP TABLE IF EXISTS t2;
 --echo
 --echo ---> Synchronizing slave with master...
 
---save_master_pos
---connection slave
---sync_with_master
+--sync_slave_with_master
 
 --echo
---echo ---> connection: master
 --connection master
 
 # Test.
@@ -412,11 +411,7 @@ SELECT * FROM t2;
 --echo
 --echo ---> Synchronizing slave with master...
 
---save_master_pos
---connection slave
---sync_with_master
-
---echo ---> connection: master
+--sync_slave_with_master
 
 --echo
 --echo ---> Checking on slave...
@@ -427,7 +422,6 @@ SELECT * FROM t2;
 # Cleanup.
 
 --echo
---echo ---> connection: master
 --connection master
 
 --echo
@@ -436,9 +430,7 @@ SELECT * FROM t2;
 DROP TABLE t1;
 DROP TABLE t2;
 
---save_master_pos
---connection slave
---sync_with_master
+--sync_slave_with_master
 --connection master
 
 #
@@ -469,9 +461,7 @@ insert into t1 values (3, "c");
 
 select * from t1;
 
-save_master_pos;
-connection slave;
-sync_with_master;
+--sync_slave_with_master
 
 select * from t1;
 
@@ -481,6 +471,5 @@ drop table if exists t1,t11;
 #
 # End of tests
 #
-save_master_pos;
-connection slave;
-sync_with_master;
+--sync_slave_with_master
+--source include/rpl_end.inc

@@ -8,6 +8,8 @@ SET GLOBAL innodb_encrypt_tables = ON;
 SET GLOBAL innodb_encryption_threads = 4;
 call mtr.add_suppression("InnoDB: innodb_checksum_algorithm is set to \"strict_(crc32|none|innodb)\" but the page \\[page id: space=[0-9]+, page number=[0-9]+\\] contains a valid checksum \"(innodb|none|crc32)\"");
 SET GLOBAL innodb_checksum_algorithm = innodb;
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
 SET GLOBAL innodb_default_encryption_key_id=4;
 SET GLOBAL innodb_checksum_algorithm=crc32;
 create table tce_crc32(a serial, b blob, index(b(10))) engine=innodb
@@ -90,6 +92,8 @@ update tpe_crc32 set b=substr(b,1);
 ALTER TABLE tp_crc32 IMPORT TABLESPACE;
 update tp_crc32 set b=substr(b,1);
 SET GLOBAL innodb_checksum_algorithm=innodb;
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
 ALTER TABLE tce_crc32 DISCARD TABLESPACE;
 ALTER TABLE tc_crc32 DISCARD TABLESPACE;
 ALTER TABLE te_crc32 DISCARD TABLESPACE;
@@ -115,6 +119,8 @@ update tpe_crc32 set b=substr(b,1);
 ALTER TABLE tp_crc32 IMPORT TABLESPACE;
 update tp_crc32 set b=substr(b,1);
 SET GLOBAL innodb_checksum_algorithm=none;
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
 ALTER TABLE tce_crc32 DISCARD TABLESPACE;
 ALTER TABLE tc_crc32 DISCARD TABLESPACE;
 ALTER TABLE te_crc32 DISCARD TABLESPACE;
@@ -151,6 +157,8 @@ test.tp_crc32	check	status	OK
 DROP TABLE tce_crc32, tc_crc32, te_crc32,
 t_crc32, tpe_crc32, tp_crc32;
 SET GLOBAL innodb_checksum_algorithm=innodb;
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
 create table tce_innodb(a serial, b blob, index(b(10))) engine=innodb
 ROW_FORMAT=COMPRESSED encrypted=yes;
 create table tc_innodb(a serial, b blob, index(b(10))) engine=innodb
@@ -231,6 +239,8 @@ update tpe_innodb set b=substr(b,1);
 ALTER TABLE tp_innodb IMPORT TABLESPACE;
 update tp_innodb set b=substr(b,1);
 SET GLOBAL innodb_checksum_algorithm=innodb;
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
 ALTER TABLE tce_innodb DISCARD TABLESPACE;
 ALTER TABLE tc_innodb DISCARD TABLESPACE;
 ALTER TABLE te_innodb DISCARD TABLESPACE;
@@ -256,6 +266,8 @@ update tpe_innodb set b=substr(b,1);
 ALTER TABLE tp_innodb IMPORT TABLESPACE;
 update tp_innodb set b=substr(b,1);
 SET GLOBAL innodb_checksum_algorithm=none;
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
 ALTER TABLE tce_innodb DISCARD TABLESPACE;
 ALTER TABLE tc_innodb DISCARD TABLESPACE;
 ALTER TABLE te_innodb DISCARD TABLESPACE;
@@ -292,6 +304,8 @@ test.tp_innodb	check	status	OK
 DROP TABLE tce_innodb, tc_innodb, te_innodb,
 t_innodb, tpe_innodb, tp_innodb;
 SET GLOBAL innodb_checksum_algorithm=none;
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
 create table tce_none(a serial, b blob, index(b(10))) engine=innodb
 ROW_FORMAT=COMPRESSED encrypted=yes;
 create table tc_none(a serial, b blob, index(b(10))) engine=innodb
@@ -372,6 +386,8 @@ update tpe_none set b=substr(b,1);
 ALTER TABLE tp_none IMPORT TABLESPACE;
 update tp_none set b=substr(b,1);
 SET GLOBAL innodb_checksum_algorithm=innodb;
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
 ALTER TABLE tce_none DISCARD TABLESPACE;
 ALTER TABLE tc_none DISCARD TABLESPACE;
 ALTER TABLE te_none DISCARD TABLESPACE;
@@ -397,6 +413,8 @@ update tpe_none set b=substr(b,1);
 ALTER TABLE tp_none IMPORT TABLESPACE;
 update tp_none set b=substr(b,1);
 SET GLOBAL innodb_checksum_algorithm=none;
+Warnings:
+Warning	138	Setting innodb_checksum_algorithm to values other than crc32, full_crc32, strict_crc32 or strict_full_crc32 is UNSAFE and DEPRECATED. These deprecated values will be disallowed in MariaDB 10.6.
 ALTER TABLE tce_none DISCARD TABLESPACE;
 ALTER TABLE tc_none DISCARD TABLESPACE;
 ALTER TABLE te_none DISCARD TABLESPACE;

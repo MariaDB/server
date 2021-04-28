@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -187,7 +187,8 @@ row_undo_search_clust_to_pcur(
 
 	rec = btr_pcur_get_rec(&node->pcur);
 
-	offsets = rec_get_offsets(rec, clust_index, offsets, true,
+	offsets = rec_get_offsets(rec, clust_index, offsets,
+				  clust_index->n_core_fields,
 				  ULINT_UNDEFINED, &heap);
 
 	found = row_get_rec_roll_ptr(rec, clust_index, offsets)
@@ -195,7 +196,7 @@ row_undo_search_clust_to_pcur(
 
 	if (found) {
 		ut_ad(row_get_rec_trx_id(rec, clust_index, offsets)
-		      == node->trx->id);
+		      == node->trx->id || node->table->is_temporary());
 
 		if (dict_table_has_atomic_blobs(node->table)) {
 			/* There is no prefix of externally stored

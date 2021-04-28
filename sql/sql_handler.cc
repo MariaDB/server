@@ -687,7 +687,6 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
 
       for (keypart_map= key_len=0 ; (item=it_ke++) ; key_part++)
       {
-        my_bitmap_map *old_map;
 	/* note that 'item' can be changed by fix_fields() call */
         if (item->fix_fields_if_needed_for_scalar(thd, it_ke.ref()))
           return 1;
@@ -699,9 +698,9 @@ mysql_ha_fix_cond_and_key(SQL_HANDLER *handler,
         }
         if (!in_prepare)
         {
-          old_map= dbug_tmp_use_all_columns(table, table->write_set);
+          MY_BITMAP *old_map= dbug_tmp_use_all_columns(table, &table->write_set);
           (void) item->save_in_field(key_part->field, 1);
-          dbug_tmp_restore_column_map(table->write_set, old_map);
+          dbug_tmp_restore_column_map(&table->write_set, old_map);
         }
         key_len+= key_part->store_length;
         keypart_map= (keypart_map << 1) | 1;

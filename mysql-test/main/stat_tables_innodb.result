@@ -861,6 +861,20 @@ length(a)
 set names latin1;
 set @@use_stat_tables=@save_use_stat_tables;
 drop table t1;
+#
+# MDEV-23753: SIGSEGV in Column_stat::store_stat_fields
+#
+CREATE TABLE t1 (a INT, b INT) PARTITION BY HASH (b) PARTITIONS 2;
+LOCK TABLES t1 WRITE;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (a) INDEXES ();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS (nonexisting) INDEXES (nonexisting);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	error	Invalid argument
+DROP TABLE t1;
 # please keep this at the last
 set @@global.histogram_size=@save_histogram_size;
 # Start of 10.4 tests

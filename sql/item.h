@@ -2,7 +2,7 @@
 #define SQL_ITEM_INCLUDED
 
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1938,6 +1938,15 @@ public:
     return 0;
   }
 
+  /**
+    Check db/table_name if they defined in item and match arg values
+
+    @param arg Pointer to Check_table_name_prm structure
+
+    @retval true Match failed
+    @retval false Match succeeded
+  */
+  virtual bool check_table_name_processor(void *arg) { return false; }
   /* 
     TRUE if the expression depends only on the table indicated by tab_map
     or can be converted to such an exression using equalities.
@@ -2094,6 +2103,15 @@ public:
     uint count;
     int nest_level;
     bool collect;
+  };
+
+  struct Check_table_name_prm
+  {
+    LEX_CSTRING db;
+    LEX_CSTRING table_name;
+    String field;
+    Check_table_name_prm(LEX_CSTRING _db, LEX_CSTRING _table_name) :
+      db(_db), table_name(_table_name) {}
   };
 
   /*
@@ -3499,6 +3517,24 @@ public:
       item_equal= NULL;
     }
     return 0;
+  }
+  bool check_table_name_processor(void *arg)
+  {
+    Check_table_name_prm &p= *(Check_table_name_prm *) arg;
+    if (p.table_name.length && table_name)
+    {
+      DBUG_ASSERT(p.db.length);
+      if ((db_name &&
+          my_strcasecmp(table_alias_charset, p.db.str, db_name)) ||
+          my_strcasecmp(table_alias_charset, p.table_name.str, table_name))
+      {
+        print(&p.field, (enum_query_type) (QT_ITEM_ORIGINAL_FUNC_NULLIF |
+                                          QT_NO_DATA_EXPANSION |
+                                          QT_TO_SYSTEM_CHARSET));
+        return true;
+      }
+    }
+    return false;
   }
   void cleanup();
   Item_equal *get_item_equal() { return item_equal; }
@@ -5569,14 +5605,17 @@ public:
     return Item_ref::fix_fields(thd, it);
   }
   void save_val(Field *to);
+  /* Below we should have all val() methods as in Item_ref */
   double val_real();
   longlong val_int();
-  String *val_str(String* tmp);
-  bool val_native(THD *thd, Native *to);
   my_decimal *val_decimal(my_decimal *);
   bool val_bool();
+  String *val_str(String* tmp);
+  bool val_native(THD *thd, Native *to);
   bool is_null();
   bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+  longlong val_datetime_packed(THD *);
+  longlong val_time_packed(THD *);
   virtual Ref_Type ref_type() { return DIRECT_REF; }
   Item *get_copy(THD *thd)
   { return get_item_copy<Item_direct_ref>(thd, this); }
@@ -5904,6 +5943,20 @@ public:
       return 1;
     }
     return Item_direct_ref::get_date(thd, ltime, fuzzydate);
+  }
+  longlong val_time_packed(THD *thd)
+  {
+    if (check_null_ref())
+      return 0;
+    else
+      return Item_direct_ref::val_time_packed(thd);
+  }
+  longlong val_datetime_packed(THD *thd)
+  {
+    if (check_null_ref())
+      return 0;
+    else
+      return Item_direct_ref::val_datetime_packed(thd);
   }
   bool send(Protocol *protocol, st_value *buffer);
   void save_org_in_field(Field *field,
@@ -6405,6 +6458,17 @@ public:
   my_decimal *val_decimal(my_decimal *decimal_value);
   bool get_date(THD *thd, MYSQL_TIME *ltime,date_mode_t fuzzydate);
   bool val_native(THD *thd, Native *to);
+  bool val_native_result(THD *thd, Native *to);
+
+  /* Result variants */
+  double val_result();
+  longlong val_int_result();
+  String *str_result(String* tmp);
+  my_decimal *val_decimal_result(my_decimal *val);
+  bool val_bool_result();
+  bool is_null_result();
+  bool get_date_result(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
+
   bool send(Protocol *protocol, st_value *buffer);
   int save_in_field(Field *field_arg, bool no_conversions);
   bool save_in_param(THD *thd, Item_param *param)
@@ -6433,6 +6497,8 @@ public:
   }
 
   Item *transform(THD *thd, Item_transformer transformer, uchar *args);
+  Field *create_tmp_field_ex(TABLE *table, Tmp_field_src *src,
+                             const Tmp_field_param *param);
 };
 
 
@@ -6721,6 +6787,14 @@ protected:
 
   table_map used_table_map;
 public:
+  /*
+    This is set if at least one of the values of a sub query is NULL
+    Item_cache_row returns this with null_inside().
+    For not row items, it's set to the value of null_value
+    It is set after cache_value() is called.
+  */
+  bool null_value_inside;
+
   Item_cache(THD *thd):
     Item(thd),
     Type_handler_hybrid_field_type(&type_handler_string),
@@ -6730,6 +6804,7 @@ public:
   {
     maybe_null= 1;
     null_value= 1;
+    null_value_inside= true;
   }
 protected:
   Item_cache(THD *thd, const Type_handler *handler):
@@ -6741,6 +6816,7 @@ protected:
   {
     maybe_null= 1;
     null_value= 1;
+    null_value_inside= true;
   }
 
 public:
@@ -7360,7 +7436,8 @@ void mark_select_range_as_dependent(THD *thd,
                                     st_select_lex *last_select,
                                     st_select_lex *current_sel,
                                     Field *found_field, Item *found_item,
-                                    Item_ident *resolved_item);
+                                    Item_ident *resolved_item,
+                                    bool suppress_warning_output);
 
 extern Cached_item *new_Cached_item(THD *thd, Item *item,
                                     bool pass_through_ref);

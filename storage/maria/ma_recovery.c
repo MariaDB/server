@@ -1453,6 +1453,7 @@ static int new_table(uint16 sid, const char *name, LSN lsn_of_file_id)
   }
   if (maria_is_crashed(info))
   {
+    tprint(tracef, "\n");
     eprint(tracef, "Table '%s' is crashed, skipping it. Please repair it with"
            " aria_chk -r", share->open_file_name.str);
     recovery_found_crashed_tables++;

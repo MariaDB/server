@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -111,7 +111,8 @@ row_undo_ins_remove_clust_rec(
 
 	rec_t* rec = btr_pcur_get_rec(&node->pcur);
 
-	ut_ad(rec_get_trx_id(rec, index) == node->trx->id);
+	ut_ad(rec_get_trx_id(rec, index) == node->trx->id
+	      || node->table->is_temporary());
 	ut_ad(!rec_get_deleted_flag(rec, index->table->not_redundant())
 	      || rec_is_alter_metadata(rec, index->table->not_redundant()));
 	ut_ad(rec_is_metadata(rec, index->table->not_redundant())
@@ -120,7 +121,8 @@ row_undo_ins_remove_clust_rec(
 	if (online && dict_index_is_online_ddl(index)) {
 		mem_heap_t*	heap	= NULL;
 		const rec_offs*	offsets	= rec_get_offsets(
-			rec, index, NULL, true, ULINT_UNDEFINED, &heap);
+			rec, index, NULL, index->n_core_fields,
+			ULINT_UNDEFINED, &heap);
 		row_log_table_delete(rec, index, offsets, NULL);
 		mem_heap_free(heap);
 	} else {

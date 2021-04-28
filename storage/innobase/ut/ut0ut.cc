@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1994, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,6 +38,9 @@ Created 5/11/1994 Heikki Tuuri
 #include <string>
 #include "log.h"
 #include "my_cpu.h"
+#ifndef DBUG_OFF
+#include "rem0rec.h"
+#endif
 
 /**********************************************************//**
 Returns the number of milliseconds since some epoch.  The
@@ -624,5 +627,50 @@ fatal_or_error::~fatal_or_error()
 }
 
 } // namespace ib
+
+#ifndef DBUG_OFF
+static char dbug_print_buf[1024];
+
+const char * dbug_print_rec(const rec_t* rec, const rec_offs* offsets)
+{
+	rec_printer r(rec, offsets);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const rec_t* rec, ulint info, const rec_offs* offsets)
+{
+	rec_printer r(rec, info, offsets);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const dtuple_t* tuple)
+{
+	rec_printer r(tuple);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const dfield_t* field, ulint n)
+{
+	rec_printer r(field, n);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+
+const char * dbug_print_rec(const rec_t* rec, dict_index_t* index)
+{
+	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
+	rec_offs*	offsets		= offsets_;
+	rec_offs_init(offsets_);
+	mem_heap_t*	tmp_heap	= NULL;
+	offsets = rec_get_offsets(rec, index, offsets, index->n_core_fields,
+				  ULINT_UNDEFINED, &tmp_heap);
+	rec_printer r(rec, offsets);
+	strmake(dbug_print_buf, r.str().c_str(), sizeof(dbug_print_buf) - 1);
+	return dbug_print_buf;
+}
+#endif /* !DBUG_OFF */
 
 #endif /* !UNIV_INNOCHECKSUM */

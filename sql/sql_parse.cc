@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1164,6 +1164,14 @@ static bool wsrep_tables_accessible_when_detached(const TABLE_LIST *tables)
   }
   return true;
 }
+
+static bool wsrep_command_no_result(char command)
+{
+  return (command == COM_STMT_PREPARE          ||
+          command == COM_STMT_FETCH            ||
+          command == COM_STMT_SEND_LONG_DATA   ||
+          command == COM_STMT_CLOSE);
+}
 #endif /* WITH_WSREP */
 #ifndef EMBEDDED_LIBRARY
 
@@ -1287,12 +1295,20 @@ bool do_command(THD *thd)
 #ifdef WITH_WSREP
   DEBUG_SYNC(thd, "wsrep_before_before_command");
   /*
-    Aborted by background rollbacker thread.
-    Handle error here and jump straight to out
+    If this command does not return a result, then we
+    instruct wsrep_before_command() to skip result handling.
+    This causes BF aborted transaction to roll back but keep
+    the error state until next command which is able to return
+    a result to the client.
   */
-  if (wsrep_before_command(thd))
+  if (wsrep_before_command(thd, wsrep_command_no_result(command)))
   {
-    thd->store_globals();
+    /*
+      Aborted by background rollbacker thread.
+      Handle error here and jump straight to out.
+      Notice that thd->store_globals() is called
+      in wsrep_before_command().
+    */
     WSREP_LOG_THD(thd, "enter found BF aborted");
     DBUG_ASSERT(!thd->mdl_context.has_locks());
     DBUG_ASSERT(!thd->get_stmt_da()->is_set());
@@ -1625,7 +1641,9 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
   if (unlikely(thd->security_ctx->password_expired &&
                command != COM_QUERY &&
                command != COM_PING &&
-               command != COM_QUIT))
+               command != COM_QUIT &&
+               command != COM_STMT_PREPARE &&
+               command != COM_STMT_EXECUTE))
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     goto dispatch_end;
@@ -2204,6 +2222,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
       break;
     general_log_print(thd, command, NullS);
     status_var_increment(thd->status_var.com_stat[SQLCOM_SHOW_STATUS]);
+    *current_global_status_var= global_status_var;
     calc_sum_of_all_status(current_global_status_var);
     if (!(uptime= (ulong) (thd->start_time - server_start_time)))
       queries_per_second1000= 0;
@@ -2384,12 +2403,7 @@ dispatch_end:
     WSREP_DEBUG("THD is killed at dispatch_end");
   }
   wsrep_after_command_before_result(thd);
-  if (wsrep_current_error(thd) &&
-      !(command == COM_STMT_PREPARE          ||
-        command == COM_STMT_FETCH            ||
-        command == COM_STMT_SEND_LONG_DATA   ||
-        command == COM_STMT_CLOSE
-        ))
+  if (wsrep_current_error(thd) && !wsrep_command_no_result(command))
   {
     /* todo: Pass wsrep client state current error to override */
     wsrep_override_error(thd, wsrep_current_error(thd),
@@ -3294,6 +3308,146 @@ bool Sql_cmd_call::execute(THD *thd)
 
 
 /**
+  Check whether the SQL statement being processed is prepended by
+  SET STATEMENT clause and handle variables assignment if it is.
+
+  @param thd  thread handle
+  @param lex  current lex
+
+  @return false in case of success, true in case of error.
+*/
+
+bool run_set_statement_if_requested(THD *thd, LEX *lex)
+{
+  if (!lex->stmt_var_list.is_empty() && !thd->slave_thread)
+  {
+    Query_arena backup;
+    DBUG_PRINT("info", ("SET STATEMENT %d vars", lex->stmt_var_list.elements));
+
+    lex->old_var_list.empty();
+    List_iterator_fast<set_var_base> it(lex->stmt_var_list);
+    set_var_base *var;
+
+    if (lex->set_arena_for_set_stmt(&backup))
+      return true;
+
+    MEM_ROOT *mem_root= thd->mem_root;
+    while ((var= it++))
+    {
+      DBUG_ASSERT(var->is_system());
+      set_var *o= NULL, *v= (set_var*)var;
+      if (!v->var->is_set_stmt_ok())
+      {
+        my_error(ER_SET_STATEMENT_NOT_SUPPORTED, MYF(0), v->var->name.str);
+        lex->reset_arena_for_set_stmt(&backup);
+        lex->old_var_list.empty();
+        lex->free_arena_for_set_stmt();
+        return true;
+      }
+      if (v->var->session_is_default(thd))
+        o= new set_var(thd,v->type, v->var, &v->base, NULL);
+      else
+      {
+        switch (v->var->option.var_type & GET_TYPE_MASK)
+        {
+          case GET_BOOL:
+          case GET_INT:
+          case GET_LONG:
+          case GET_LL:
+          {
+            bool null_value;
+            longlong val= v->var->val_int(&null_value, thd, v->type, &v->base);
+            o= new set_var(thd, v->type, v->var, &v->base,
+                           (null_value ?
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_int(thd, val)));
+          }
+          break;
+          case GET_UINT:
+          case GET_ULONG:
+          case GET_ULL:
+          {
+            bool null_value;
+            ulonglong val= v->var->val_int(&null_value, thd, v->type, &v->base);
+            o= new set_var(thd, v->type, v->var, &v->base,
+                           (null_value ?
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_uint(thd, val)));
+          }
+          break;
+          case GET_DOUBLE:
+          {
+            bool null_value;
+            double val= v->var->val_real(&null_value, thd, v->type, &v->base);
+            o= new set_var(thd, v->type, v->var, &v->base,
+                           (null_value ?
+                            (Item *) new (mem_root) Item_null(thd) :
+                            (Item *) new (mem_root) Item_float(thd, val, 1)));
+          }
+          break;
+          default:
+          case GET_NO_ARG:
+          case GET_DISABLED:
+            DBUG_ASSERT(0);
+            /* fall through */
+          case 0:
+          case GET_FLAGSET:
+          case GET_ENUM:
+          case GET_SET:
+          case GET_STR:
+          case GET_STR_ALLOC:
+          {
+            char buff[STRING_BUFFER_USUAL_SIZE];
+            String tmp(buff, sizeof(buff), v->var->charset(thd)),*val;
+            val= v->var->val_str(&tmp, thd, v->type, &v->base);
+            if (val)
+            {
+              Item_string *str=
+		new (mem_root) Item_string(thd, v->var->charset(thd),
+                                           val->ptr(), val->length());
+              o= new set_var(thd, v->type, v->var, &v->base, str);
+            }
+            else
+              o= new set_var(thd, v->type, v->var, &v->base,
+                             new (mem_root) Item_null(thd));
+          }
+          break;
+        }
+      }
+      DBUG_ASSERT(o);
+      lex->old_var_list.push_back(o, thd->mem_root);
+    }
+    lex->reset_arena_for_set_stmt(&backup);
+
+    if (lex->old_var_list.is_empty())
+      lex->free_arena_for_set_stmt();
+
+    if (thd->is_error() ||
+        sql_set_variables(thd, &lex->stmt_var_list, false))
+    {
+      if (!thd->is_error())
+        my_error(ER_WRONG_ARGUMENTS, MYF(0), "SET");
+      lex->restore_set_statement_var();
+      return true;
+    }
+    /*
+      The value of last_insert_id is remembered in THD to be written to binlog
+      when it's used *the first time* in the statement. But SET STATEMENT
+      must read the old value of last_insert_id to be able to restore it at
+      the end. This should not count at "reading of last_insert_id" and
+      should not remember last_insert_id for binlog. That is, it should clear
+      stmt_depends_on_first_successful_insert_id_in_prev_stmt flag.
+    */
+    if (!thd->in_sub_stmt)
+    {
+      thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
+    }
+  }
+  return false;
+}
+
+
+/**
   Execute command saved in thd and lex->sql_command.
 
   @param thd                       Thread handle
@@ -3338,7 +3492,10 @@ mysql_execute_command(THD *thd)
               first_table->for_insert_data);
 
   if (thd->security_ctx->password_expired &&
-      lex->sql_command != SQLCOM_SET_OPTION)
+      lex->sql_command != SQLCOM_SET_OPTION &&
+      lex->sql_command != SQLCOM_PREPARE &&
+      lex->sql_command != SQLCOM_EXECUTE &&
+      lex->sql_command != SQLCOM_DEALLOCATE_PREPARE)
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     DBUG_RETURN(1);
@@ -3521,6 +3678,11 @@ mysql_execute_command(THD *thd)
   Json_writer_object trace_command(thd);
   Json_writer_array trace_command_steps(thd, "steps");
 
+  /* store old value of binlog format */
+  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
+
+  thd->get_binlog_format(&orig_binlog_format,
+                         &orig_current_stmt_binlog_format);
 #ifdef WITH_WSREP
   if (WSREP(thd))
   {
@@ -3572,133 +3734,13 @@ mysql_execute_command(THD *thd)
 
   DBUG_ASSERT(thd->transaction.stmt.modified_non_trans_table == FALSE);
 
-  /* store old value of binlog format */
-  enum_binlog_format orig_binlog_format,orig_current_stmt_binlog_format;
-
-  thd->get_binlog_format(&orig_binlog_format,
-                         &orig_current_stmt_binlog_format);
-
-  if (!lex->stmt_var_list.is_empty() && !thd->slave_thread)
-  {
-    Query_arena backup;
-    DBUG_PRINT("info", ("SET STATEMENT %d vars", lex->stmt_var_list.elements));
-
-    lex->old_var_list.empty();
-    List_iterator_fast<set_var_base> it(lex->stmt_var_list);
-    set_var_base *var;
-
-    if (lex->set_arena_for_set_stmt(&backup))
-      goto error;
-
-    MEM_ROOT *mem_root= thd->mem_root;
-    while ((var= it++))
-    {
-      DBUG_ASSERT(var->is_system());
-      set_var *o= NULL, *v= (set_var*)var;
-      if (!v->var->is_set_stmt_ok())
-      {
-        my_error(ER_SET_STATEMENT_NOT_SUPPORTED, MYF(0), v->var->name.str);
-        lex->reset_arena_for_set_stmt(&backup);
-        lex->old_var_list.empty();
-        lex->free_arena_for_set_stmt();
-        goto error;
-      }
-      if (v->var->session_is_default(thd))
-          o= new set_var(thd,v->type, v->var, &v->base, NULL);
-      else
-      {
-        switch (v->var->option.var_type & GET_TYPE_MASK)
-        {
-        case GET_BOOL:
-        case GET_INT:
-        case GET_LONG:
-        case GET_LL:
-          {
-            bool null_value;
-            longlong val= v->var->val_int(&null_value, thd, v->type, &v->base);
-            o= new set_var(thd, v->type, v->var, &v->base,
-                           (null_value ?
-                            (Item *) new (mem_root) Item_null(thd) :
-                            (Item *) new (mem_root) Item_int(thd, val)));
-          }
-          break;
-        case GET_UINT:
-        case GET_ULONG:
-        case GET_ULL:
-          {
-            bool null_value;
-            ulonglong val= v->var->val_int(&null_value, thd, v->type, &v->base);
-            o= new set_var(thd, v->type, v->var, &v->base,
-                           (null_value ?
-                            (Item *) new (mem_root) Item_null(thd) :
-                            (Item *) new (mem_root) Item_uint(thd, val)));
-          }
-          break;
-        case GET_DOUBLE:
-          {
-            bool null_value;
-            double val= v->var->val_real(&null_value, thd, v->type, &v->base);
-            o= new set_var(thd, v->type, v->var, &v->base,
-                           (null_value ?
-                            (Item *) new (mem_root) Item_null(thd) :
-                            (Item *) new (mem_root) Item_float(thd, val, 1)));
-          }
-          break;
-        default:
-        case GET_NO_ARG:
-        case GET_DISABLED:
-          DBUG_ASSERT(0);
-          /* fall through */
-        case 0:
-        case GET_FLAGSET:
-        case GET_ENUM:
-        case GET_SET:
-        case GET_STR:
-        case GET_STR_ALLOC:
-          {
-            char buff[STRING_BUFFER_USUAL_SIZE];
-            String tmp(buff, sizeof(buff), v->var->charset(thd)),*val;
-            val= v->var->val_str(&tmp, thd, v->type, &v->base);
-            if (val)
-            {
-              Item_string *str= new (mem_root) Item_string(thd, v->var->charset(thd),
-                                                val->ptr(), val->length());
-              o= new set_var(thd, v->type, v->var, &v->base, str);
-            }
-            else
-              o= new set_var(thd, v->type, v->var, &v->base,
-                             new (mem_root) Item_null(thd));
-          }
-          break;
-        }
-      }
-      DBUG_ASSERT(o);
-      lex->old_var_list.push_back(o, thd->mem_root);
-    }
-    lex->reset_arena_for_set_stmt(&backup);
-    if (lex->old_var_list.is_empty())
-      lex->free_arena_for_set_stmt();
-    if (thd->is_error() ||
-        (res= sql_set_variables(thd, &lex->stmt_var_list, false)))
-    {
-      if (!thd->is_error())
-        my_error(ER_WRONG_ARGUMENTS, MYF(0), "SET");
-      lex->restore_set_statement_var();
-      goto error;
-    }
-    /*
-      The value of last_insert_id is remembered in THD to be written to binlog
-      when it's used *the first time* in the statement. But SET STATEMENT
-      must read the old value of last_insert_id to be able to restore it at
-      the end. This should not count at "reading of last_insert_id" and
-      should not remember last_insert_id for binlog. That is, it should clear
-      stmt_depends_on_first_successful_insert_id_in_prev_stmt flag.
-    */
-    if (!thd->in_sub_stmt)
-    {
-      thd->stmt_depends_on_first_successful_insert_id_in_prev_stmt= 0;
-    }
-  }
+  /*
+    Assign system variables with values specified by the clause
+    SET STATEMENT var1=value1 [, var2=value2, ...] FOR <statement>
+    if they are any.
+  */
+  if (run_set_statement_if_requested(thd, lex))
+    goto error;
 
   if (thd->lex->mi.connection_name.str == NULL)
       thd->lex->mi.connection_name= thd->variables.default_master_connection;
@@ -3744,7 +3786,8 @@ mysql_execute_command(THD *thd)
     thd->transaction.stmt.mark_trans_did_ddl();
 #ifdef WITH_WSREP
     /* Clean up the previous transaction on implicit commit */
-    if (wsrep_thd_is_local(thd) && wsrep_after_statement(thd))
+    if (WSREP_NNULL(thd) && wsrep_thd_is_local(thd) &&
+        wsrep_after_statement(thd))
     {
       goto error;
     }
@@ -3818,7 +3861,7 @@ mysql_execute_command(THD *thd)
     Do not start transaction for stored procedures, it will be handled
     internally in SP processing.
   */
-  if (WSREP(thd)                          &&
+  if (WSREP_NNULL(thd)                    &&
       wsrep_thd_is_local(thd)             &&
       lex->sql_command != SQLCOM_BEGIN    &&
       lex->sql_command != SQLCOM_CALL     &&
@@ -5987,6 +6030,14 @@ mysql_execute_command(THD *thd)
     break;
   }
   case SQLCOM_XA_START:
+#ifdef WITH_WSREP
+    if (WSREP(thd))
+    {
+      my_error(ER_NOT_SUPPORTED_YET, MYF(0),
+               "XA transactions with Galera replication");
+      break;
+    }
+#endif /* WITH_WSREP */
     if (trans_xa_start(thd))
       goto error;
     my_ok(thd);
@@ -6797,6 +6848,9 @@ check_access(THD *thd, ulong want_access, const char *db, ulong *save_priv,
 bool check_single_table_access(THD *thd, ulong privilege, TABLE_LIST *tables,
                                bool no_errors)
 {
+  if (tables->derived)
+    return 0;
+
   Switch_to_definer_security_ctx backup_sctx(thd, tables);
 
   const char *db_name;
@@ -7503,9 +7557,14 @@ void THD::reset_for_next_command(bool do_clear_error)
 
   save_prep_leaf_list= false;
 
-  DBUG_PRINT("debug",
-             ("is_current_stmt_binlog_format_row(): %d",
-              is_current_stmt_binlog_format_row()));
+#ifdef WITH_WSREP
+#if !defined(DBUG_OFF)
+  if (mysql_bin_log.is_open())
+#endif
+#endif
+    DBUG_PRINT("debug",
+               ("is_current_stmt_binlog_format_row(): %d",
+                 is_current_stmt_binlog_format_row()));
 
   DBUG_VOID_RETURN;
 }
@@ -8934,7 +8993,13 @@ push_new_name_resolution_context(THD *thd,
     left_op->first_leaf_for_name_resolution();
   on_context->last_name_resolution_table=
     right_op->last_leaf_for_name_resolution();
-  return thd->lex->push_context(on_context);
+  LEX *lex= thd->lex;
+  on_context->select_lex = lex->current_select;
+  st_select_lex *curr_select= lex->pop_select();
+  st_select_lex *outer_sel= lex->select_stack_head();
+  lex->push_select(curr_select);
+  on_context->outer_context = outer_sel ? &outer_sel->context : 0;
+  return lex->push_context(on_context);
 }
 
 
@@ -9056,10 +9121,9 @@ struct find_thread_callback_arg
 };
 
 
-my_bool find_thread_callback(THD *thd, find_thread_callback_arg *arg)
+static my_bool find_thread_callback(THD *thd, find_thread_callback_arg *arg)
 {
-  if (thd->get_command() != COM_DAEMON &&
-      arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
+  if (arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
   {
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
     arg->thd= thd;
@@ -9075,27 +9139,6 @@ THD *find_thread_by_id(longlong id, bool query_id)
   server_threads.iterate(find_thread_callback, &arg);
   return arg.thd;
 }
-
-#ifdef WITH_WSREP
-my_bool find_thread_with_thd_data_lock_callback(THD *thd, find_thread_callback_arg *arg)
-{
-  if (thd->get_command() != COM_DAEMON &&
-      arg->id == (arg->query_id ? thd->query_id : (longlong) thd->thread_id))
-  {
-    if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
-    mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
-    arg->thd= thd;
-    return 1;
-  }
-  return 0;
-}
-THD *find_thread_by_id_with_thd_data_lock(longlong id, bool query_id)
-{
-  find_thread_callback_arg arg(id, query_id);
-  server_threads.iterate(find_thread_with_thd_data_lock_callback, &arg);
-  return arg.thd;
-}
-#endif
 
 /**
   kill one thread.
@@ -9113,11 +9156,11 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
-#ifdef WITH_WSREP
-  if (id && (tmp= find_thread_by_id_with_thd_data_lock(id, type == KILL_TYPE_QUERY)))
-#else
-  if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
-#endif
+  tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY);
+  if (!tmp)
+    DBUG_RETURN(error);
+
+  if (tmp->get_command() != COM_DAEMON)
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.
@@ -9140,6 +9183,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       faster and do a harder kill than KILL_SYSTEM_THREAD;
     */
 
+    mysql_mutex_lock(&tmp->LOCK_thd_data); // for various wsrep* checks below
 #ifdef WITH_WSREP
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
@@ -9161,8 +9205,8 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       else
 #endif /* WITH_WSREP */
       {
-      WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_aborter %llu by signal %d",
-                  thd->thread_id, id, tmp->wsrep_aborter, kill_signal);
+        WSREP_DEBUG("kill_one_thread %llu, victim: %llu wsrep_aborter %llu by signal %d",
+                    thd->thread_id, id, tmp->wsrep_aborter, kill_signal);
         tmp->awake_no_mutex(kill_signal);
         WSREP_DEBUG("victim: %llu taken care of", id);
         error= 0;
@@ -9171,11 +9215,9 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
-#ifdef WITH_WSREP
-    if (WSREP(tmp)) mysql_mutex_unlock(&tmp->LOCK_thd_data);
-#endif
-    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    mysql_mutex_unlock(&tmp->LOCK_thd_data);
   }
+  mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   DBUG_PRINT("exit", ("%d", error));
   DBUG_RETURN(error);
 }
@@ -9221,8 +9263,8 @@ static my_bool kill_threads_callback(THD *thd, kill_threads_callback_arg *arg)
         return 1;
       if (!arg->threads_to_kill.push_back(thd, arg->thd->mem_root))
       {
-        if (WSREP(thd)) mysql_mutex_lock(&thd->LOCK_thd_data);
         mysql_mutex_lock(&thd->LOCK_thd_kill); // Lock from delete
+        mysql_mutex_lock(&thd->LOCK_thd_data);
       }
     }
   }
@@ -9265,7 +9307,7 @@ static uint kill_threads_for_user(THD *thd, LEX_USER *user,
       */
       next_ptr= it2++;
       mysql_mutex_unlock(&ptr->LOCK_thd_kill);
-      if (WSREP(ptr)) mysql_mutex_unlock(&ptr->LOCK_thd_data);
+      mysql_mutex_unlock(&ptr->LOCK_thd_data);
       (*rows)++;
     } while ((ptr= next_ptr));
   }

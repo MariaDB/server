@@ -25,12 +25,12 @@
 namespace mrn {
   class DebugColumnAccess {
     TABLE *table_;
-    MY_BITMAP *bitmap_;
+    MY_BITMAP **bitmap_;
 #ifdef DBUG_ASSERT_EXISTS
-    my_bitmap_map *map_;
+    MY_BITMAP *map_;
 #endif
   public:
-    DebugColumnAccess(TABLE *table, MY_BITMAP *bitmap);
+    DebugColumnAccess(TABLE *table, MY_BITMAP **bitmap);
     ~DebugColumnAccess();
   };
 }
