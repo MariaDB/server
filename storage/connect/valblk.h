@@ -69,7 +69,7 @@ class VALBLK : public BLOCK {
           int    GetPrec(void) {return Prec;}
           void   SetCheck(bool b) {Check = b;}
           void   MoveNull(int i, int j)
-                  {if (To_Nulls) To_Nulls[j] = To_Nulls[j];}
+                  {if (To_Nulls) To_Nulls[j] = To_Nulls[i];}
   virtual void   SetNull(int n, bool b)
                   {if (To_Nulls) {To_Nulls[n] = (b) ? '*' : 0;}}
   virtual bool   IsNull(int n) {return To_Nulls && To_Nulls[n];}
