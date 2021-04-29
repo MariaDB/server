@@ -97,6 +97,19 @@ SHOW TABLE STATUS LIKE 't1';
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-24758 heap-use-after-poison in innobase_add_instant_try/rec_copy
+--echo #
+
+CREATE TABLE t1 (pk INT PRIMARY KEY) CHARACTER SET utf8 ENGINE=InnoDB;
+INSERT INTO t1 VALUES (1);
+SET GLOBAL innodb_default_row_format = REDUNDANT;
+ALTER TABLE t1 ADD a CHAR(8) DEFAULT '';
+DROP TABLE t1;
+SET GLOBAL innodb_default_row_format = @row_format;
+
+--echo # End of 10.3 tests
+
+--echo #
 --echo # MDEV-23295 Assertion fields[i].same(instant.fields[i]) failed
 --echo #
 SET GLOBAL innodb_default_row_format = @row_format;
@@ -115,5 +128,7 @@ SET GLOBAL innodb_default_row_format= COMPACT;
 ALTER TABLE t1 DROP b;
 SELECT ROW_FORMAT FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME='t1';
 DROP TABLE t1;
+
+--echo # End of 10.4 tests
 
 SET GLOBAL innodb_default_row_format = @row_format;

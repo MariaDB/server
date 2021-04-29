@@ -4315,7 +4315,7 @@ row_merge_is_index_usable(
 	}
 
 	return(!index->is_corrupted()
-	       && (index->table->is_temporary()
+	       && (index->table->is_temporary() || index->table->no_rollback()
 		   || index->trx_id == 0
 		   || !trx->read_view.is_open()
 		   || trx->read_view.changes_visible(

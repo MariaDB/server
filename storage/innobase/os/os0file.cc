@@ -4171,10 +4171,6 @@ os_aio_print(FILE*	file)
 	time_t		current_time;
 	double		time_elapsed;
 
-	fputs("Pending normal aio reads:", file);
-
-
-	putc('\n', file);
 	current_time = time(NULL);
 	time_elapsed = 0.001 + difftime(current_time, os_last_printout);
 
