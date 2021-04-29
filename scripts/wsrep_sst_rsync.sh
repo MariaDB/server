@@ -24,7 +24,7 @@ RSYNC_CONF=                                     # rsync configuration file
 RSYNC_REAL_PID=                                 # rsync process id
 
 OS=$(uname)
-[ "$OS" = "Darwin" ] && export -n LD_LIBRARY_PATH
+[ "$OS" = 'Darwin' ] && export -n LD_LIBRARY_PATH
 
 # Setting the path for lsof on CentOS
 export PATH="/usr/sbin:/sbin:$PATH"
@@ -75,7 +75,7 @@ check_pid_and_port()
             grep -E '[[:space:]]+(rsync|stunnel)[[:space:]]+'"$rsync_pid" 2>/dev/null)"
         ;;
     *)
-        if ! [ -x $(command -v "lsof") ]; then
+        if [ ! -x "$(command -v lsof)" ]; then
           wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
           exit 2 # ENOENT
         fi
@@ -203,26 +203,95 @@ FILTER="-f '- /lost+found'
         -f '+ /*/'
         -f '- /*'"
 
-SSTKEY=$(parse_cnf sst tkey "")
-SSTCERT=$(parse_cnf sst tcert "")
-STUNNEL=""
-if [ -f "$SSTKEY" ] && [ -f "$SSTCERT" ] && wsrep_check_programs stunnel
+# old-style SSL config
+SSTKEY=$(parse_cnf 'sst' 'tkey')
+SSTCERT=$(parse_cnf 'sst' 'tcert')
+SSTCA=$(parse_cnf 'sst' 'tca')
+
+check_server_ssl_config()
+{
+    local section="$1"
+    SSTKEY=$(parse_cnf "$section" 'ssl-key')
+    SSTCERT=$(parse_cnf "$section" 'ssl-cert')
+    SSTCA=$(parse_cnf "$section" 'ssl-ca')
+}
+
+SSLMODE=$(parse_cnf 'sst' 'ssl-mode' | tr [:lower:] [:upper:])
+
+if [ -z "$SSTKEY" -a -z "$SSTCERT" ]
 then
-    STUNNEL="stunnel ${STUNNEL_CONF}"
+    # no old-style SSL config in [sst], check for new one
+    check_server_ssl_config 'sst'
+    if [ -z "$SSTKEY" -a -z "$SSTCERT" ]; then
+        check_server_ssl_config '--mysqld'
+    fi
 fi
 
-if [ "$WSREP_SST_OPT_ROLE" = "donor" ]
+if [ -z "$SSLMODE" ]; then
+    # Implicit verification if CA is set and the SSL mode
+    # is not specified by user:
+    if [ -n "$SSTCA" ]; then
+        if [ -x "$(command -v stunnel)" ]; then
+            SSLMODE='VERIFY_CA'
+        fi
+    # Require SSL by default if SSL key and cert are present:
+    elif [ -n "$SSTKEY" -a -n "$SSTCERT" ]; then
+        SSLMODE='REQUIRED'
+    fi
+fi
+
+if [ -n "$SSTCA" ]
+then
+    CAFILE_OPT="CAfile = $SSTCA"
+else
+    CAFILE_OPT=""
+fi
+
+if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]
+then
+    case "$SSLMODE" in
+    'VERIFY_IDENTITY')
+        VERIFY_OPT='verifyPeer = yes'
+        ;;
+    'VERIFY_CA')
+        VERIFY_OPT='verifyChain = yes'
+        ;;
+    *)
+        wsrep_log_error "Unrecognized ssl-mode option: '$SSLMODE'"
+        exit 22 # EINVAL
+    esac
+    if [ -z "$CAFILE_OPT" ]
+    then
+        wsrep_log_error "Can't have ssl-mode=$SSLMODE without CA file"
+        exit 22 # EINVAL
+    fi
+else
+    VERIFY_OPT=""
+fi
+
+STUNNEL=""
+if [ -n "$SSLMODE" -a "$SSLMODE" != 'DISABLED' ] && wsrep_check_programs stunnel
+then
+    wsrep_log_info "Using stunnel for SSL encryption: CAfile: $SSTCA, SSLMODE: $SSLMODE"
+    STUNNEL="stunnel $STUNNEL_CONF"
+fi
+
+readonly SECRET_TAG="secret"
+
+if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]
 then
 
 cat << EOF > "$STUNNEL_CONF"
-CApath = ${SSTCERT%/*}
+key = $SSTKEY
+cert = $SSTCERT
+${CAFILE_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
 client = yes
 connect = ${WSREP_SST_OPT_ADDR%/*}
 TIMEOUTclose = 0
-verifyPeer = yes
+${VERIFY_OPT}
 EOF
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
@@ -290,7 +359,7 @@ EOF
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
-        eval rsync ${STUNNEL:+--rsh="$STUNNEL"} \
+        eval rsync ${STUNNEL:+--rsh=\"$STUNNEL\"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT ${FILTER} "$WSREP_SST_OPT_DATA/" \
@@ -374,12 +443,18 @@ EOF
     echo "continue" # now server can resume updating data
 
     echo "$STATE" > "$MAGIC_FILE"
+
+    if [ -n "$WSREP_SST_OPT_REMOTE_PSWD" ]; then
+        # Let joiner know that we know its secret
+        echo "$SECRET_TAG $WSREP_SST_OPT_REMOTE_PSWD" >> "$MAGIC_FILE"
+    fi
+
     rsync ${STUNNEL:+--rsh="$STUNNEL"} \
           --archive --quiet --checksum "$MAGIC_FILE" rsync://$WSREP_SST_OPT_ADDR
 
     echo "done $STATE"
 
-elif [ "$WSREP_SST_OPT_ROLE" = "joiner" ]
+elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
 then
     wsrep_check_programs lsof
 
@@ -459,6 +534,7 @@ EOF
       cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
 cert = $SSTCERT
+${CAFILE_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
@@ -478,7 +554,30 @@ EOF
         sleep 0.2
     done
 
-    echo "ready $WSREP_SST_OPT_HOST:$RSYNC_PORT/$MODULE"
+    if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]
+    then # backward-incompatible behavior
+        CN=""
+        if [ -n "$SSTCERT" ]
+        then
+            # find out my Common Name
+            get_openssl
+            if [ -z "$OPENSSL_BINARY" ]; then
+                wsrep_log_error 'openssl not found but it is required for authentication'
+                exit 42
+            fi
+            CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$SSTCERT" | \
+                 tr "," "\n" | grep "CN =" | cut -d= -f2 | sed s/^\ // | \
+                 sed s/\ %//)
+        fi
+        MY_SECRET=$(wsrep_gen_secret)
+        # Add authentication data to address
+        ADDR="$CN:$MY_SECRET@$WSREP_SST_OPT_HOST"
+    else
+        MY_SECRET="" # for check down in recv_joiner()
+        ADDR=$WSREP_SST_OPT_HOST
+    fi
+
+    echo "ready $ADDR:$RSYNC_PORT/$MODULE"
 
     # wait for SST to complete by monitoring magic file
     while [ ! -r "$MAGIC_FILE" ] && check_pid "$RSYNC_PID" && \
@@ -522,6 +621,18 @@ EOF
 
     if [ -r "$MAGIC_FILE" ]
     then
+        # check donor supplied secret
+        SECRET=$(grep "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+        if [ "$SECRET" != "$MY_SECRET" ]; then
+            wsrep_log_error "Donor does not know my secret!"
+            wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
+            exit 32
+        fi
+
+        # remove secret from magic file
+        grep -v "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
+
+        mv "$MAGIC_FILE.new" "$MAGIC_FILE"
         # UUID:seqno & wsrep_gtid_domain_id is received here.
         cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
     else

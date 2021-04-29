@@ -1144,7 +1144,8 @@ then
             binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
             wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
             rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            rm -fv "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index" 1>&2 \+ || true
+            binlog_index = "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+            [ -f "$binlog_index" ] && rm -fv "$binlog_index" 1>&2 \+ || true
         fi
 
         TDATA="${DATA}"

@@ -569,7 +569,7 @@ in_config()
            found=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk 'BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}')
        fi
     fi
-    if [ found -eq 0 ]; then
+    if [ $found -eq 0 ]; then
         found=$($MY_PRINT_DEFAULTS "$group" | awk 'BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}')
     fi
     echo $found
@@ -645,8 +645,8 @@ wsrep_cleanup_progress_file()
 wsrep_check_program()
 {
     local prog="$1"
-
-    if ! [ -x $(command -v "$prog") ]; then
+    local cmd=$(command -v "$prog")
+    if [ ! -x "$cmd" ]; then
         echo "'$prog' not found in PATH"
         return 2 # no such file or directory
     fi
@@ -682,7 +682,7 @@ get_openssl()
     fi
     # Let's look for openssl:
     OPENSSL_BINARY="$(command -v openssl)"
-    if [ -z "$OPENSSL_BINARY" ]; then
+    if [ ! -x "$OPENSSL_BINARY" ]; then
         OPENSSL_BINARY='/usr/bin/openssl'
         if [ ! -x "$OPENSSL_BINARY" ]; then
             OPENSSL_BINARY=""

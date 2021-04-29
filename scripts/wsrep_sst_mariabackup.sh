@@ -309,7 +309,7 @@ get_footprint()
 
 adjust_progress()
 {
-    if ! command -v pv >/dev/null;then
+    if [ ! -x "$(command -v pv)" ]; then
         wsrep_log_error "pv not found in path: $PATH"
         wsrep_log_error "Disabling all progress/rate-limiting"
         pcmd=""
@@ -377,7 +377,7 @@ read_cnf()
                 # nodes may happen to have different CA if self-generated
                 # zeroing up tcert does the trick
                 local mode=$(parse_cnf 'sst' 'ssl-mode')
-                [[ $mode = *VERIFY* ]] || tcert=""
+                [ "${tmode#VERIFY}" != "$tmode" ] || tcert=""
             fi
         fi
     fi
@@ -640,8 +640,8 @@ recv_joiner()
     pushd "$dir" 1>/dev/null
     set +e
 
-    if [[ $tmt -gt 0 ]] && command -v timeout >/dev/null;then
-        if timeout --help | grep -q -- '-k';then
+    if [ $tmt -gt 0 -a -x "$(command -v timeout)" ]; then
+        if timeout --help | grep -q -- '-k'; then
             ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
         else
             ltcmd="timeout -s9 $tmt $tcmd"
@@ -767,7 +767,7 @@ fi
 
 if [[ $ssyslog -eq 1 ]];then
 
-    if ! command -v logger >/dev/null;then
+    if [ ! -x "$(command -v logger)" ]; then
         wsrep_log_error "logger not in path: $PATH. Ignoring"
     else
         wsrep_log_info "Logging all stderr of SST/mariabackup to syslog"
@@ -950,12 +950,12 @@ then
         set -e
 
         if [ ${RC[0]} -ne 0 ]; then
-          wsrep_log_error "${MARIABACKUP_BIN} finished with error: ${RC[0]}. " \
-                          "Check syslog or ${INNOBACKUPLOG} for details"
-          exit 22
-        elif [[ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]];then
-          wsrep_log_error "$tcmd finished with error: ${RC[1]}"
-          exit 22
+            wsrep_log_error "${MARIABACKUP_BIN} finished with error: ${RC[0]}. " \
+                            "Check syslog or ${INNOBACKUPLOG} for details"
+            exit 22
+        elif [[ ${RC[$(( ${#RC[@]}-1 ))]} -eq 1 ]]; then
+            wsrep_log_error "$tcmd finished with error: ${RC[1]}"
+            exit 22
         fi
 
         # mariabackup implicitly writes PID to fixed location in $xtmpdir
@@ -1025,7 +1025,7 @@ then
 
     ADDR="$WSREP_SST_OPT_ADDR"
 
-    if [[ "$tmode" = *"VERIFY"* ]]
+    if [ "${tmode#VERIFY}" != "$tmode" ]
     then # backward-incompatible behavior
         CN=""
         if [ -n "$tpem" ]
@@ -1045,7 +1045,7 @@ then
         ADDR="$CN:$MY_SECRET@$ADDR"
     else
         MY_SECRET="" # for check down in recv_joiner()
-    fi # tmode == *VERIFY*
+    fi
 
     wait_for_listen "$SST_PORT" "$ADDR" "$MODULE" &
 
@@ -1109,7 +1109,8 @@ then
             binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
             wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
             rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            rm -fv "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index" 1>&2 \+ || true
+            binlog_index = "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+            [ -f "$binlog_index" ] && rm -fv "$binlog_index" 1>&2 \+ || true
         fi
 
         TDATA="$DATA"
@@ -1137,7 +1138,7 @@ then
         if [ -n "$qpfiles" ]; then
             wsrep_log_info "Compressed qpress files found"
 
-            if ! command -v qpress >/dev/null;then
+            if [ ! -x "$(command -v qpress)" ]; then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi
@@ -1223,7 +1224,7 @@ then
         exit 2
     fi
     wsrep_log_info "Galera co-ords from recovery: $(cat '${MAGIC_FILE}')"
-    cat "${MAGIC_FILE}" # Output : UUID:seqno wsrep_gtid_domain_id
+    cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
 
     wsrep_log_info "Total time on joiner: $totime seconds"
 fi
