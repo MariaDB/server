@@ -554,6 +554,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
   DBUG_ENTER("flush_tables");
 
   purge_tables();  /* Flush unused tables and shares */
+  DEBUG_SYNC(thd, "after_purge_tables");
 
   /*
     Loop over all shares and collect shares that have open tables
@@ -593,6 +594,7 @@ bool flush_tables(THD *thd, flush_tables_type flag)
     if (table)
     {
       (void) table->file->extra(HA_EXTRA_FLUSH);
+      DEBUG_SYNC(table->in_use, "before_tc_release_table");
       tc_release_table(table);
     }
     else

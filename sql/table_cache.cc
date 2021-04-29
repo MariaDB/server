@@ -1001,8 +1001,9 @@ void tdc_remove_referenced_share(THD *thd, TABLE_SHARE *share)
   DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, share->db.str,
                                              share->table_name.str,
                                              MDL_EXCLUSIVE));
-  share->tdc->flush_unused(false);
+  share->tdc->flush_unused(true);
   mysql_mutex_lock(&share->tdc->LOCK_table_share);
+  DEBUG_SYNC(thd, "before_wait_for_refs");
   share->tdc->wait_for_refs(1);
   DBUG_ASSERT(share->tdc->all_tables.is_empty());
   share->tdc->ref_count--;
