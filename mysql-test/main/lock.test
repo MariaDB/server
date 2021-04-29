@@ -651,3 +651,28 @@ DROP TABLE t;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+--echo #
+--echo # MDEV-19198 Assertion `(create_info->tmp_table()) || ....`
+--echo # failed in mysql_create_like_table
+--echo #
+
+CREATE TABLE t1 (c INT);
+CREATE TABLE t2 (c INT);
+
+LOCK TABLES t1 WRITE, t2 READ;
+CREATE TABLE IF NOT EXISTS t1 LIKE t2;
+UNLOCK TABLES;
+
+LOCK TABLES t1 READ , t2 READ;
+--error ER_TABLE_NOT_LOCKED_FOR_WRITE
+CREATE TABLE IF NOT EXISTS t1 LIKE t2;
+UNLOCK TABLES;
+
+CREATE TABLE IF NOT EXISTS t1 LIKE t2;
+
+DROP TABLES t1,t2;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

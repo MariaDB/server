@@ -535,3 +535,25 @@ DROP TABLE t;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-19198 Assertion `(create_info->tmp_table()) || ....`
+# failed in mysql_create_like_table
+#
+CREATE TABLE t1 (c INT);
+CREATE TABLE t2 (c INT);
+LOCK TABLES t1 WRITE, t2 READ;
+CREATE TABLE IF NOT EXISTS t1 LIKE t2;
+Warnings:
+Note	1050	Table 't1' already exists
+UNLOCK TABLES;
+LOCK TABLES t1 READ , t2 READ;
+CREATE TABLE IF NOT EXISTS t1 LIKE t2;
+ERROR HY000: Table 't1' was locked with a READ lock and can't be updated
+UNLOCK TABLES;
+CREATE TABLE IF NOT EXISTS t1 LIKE t2;
+Warnings:
+Note	1050	Table 't1' already exists
+DROP TABLES t1,t2;
+#
+# End of 10.6 tests
+#

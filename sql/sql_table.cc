@@ -4504,7 +4504,7 @@ warn:
   in various version of CREATE TABLE statement.
 
   @result
-    1 unspefied error
+    1 unspecifed error
     2 error; Don't log create statement
     0 ok
     -1 Table was used with IF NOT EXISTS and table existed (warning, not error)
@@ -5203,14 +5203,10 @@ bool mysql_create_like_table(THD* thd, TABLE_LIST* table,
   {
     /*
       Ensure that we have an exclusive lock on target table if we are creating
-      non-temporary table.
-      If we're creating non-temporary table, then either
-     - there is an exclusive lock on the table
-     or
-     - there was CREATE IF EXIST, and the table was not created
-      (it existed), and was previously locked
+      non-temporary table. We don't have or need the lock if the create failed
+      because of existing table when using "if exists".
     */
-    DBUG_ASSERT((create_info->tmp_table()) ||
+    DBUG_ASSERT((create_info->tmp_table()) || create_res < 0 ||
                 thd->mdl_context.is_lock_owner(MDL_key::TABLE, table->db.str,
                                                table->table_name.str,
                                                MDL_EXCLUSIVE) ||
