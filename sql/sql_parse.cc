@@ -9025,6 +9025,8 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
 
   if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
   {
+    bool wsrep_released_LOCK_thd_kill= false;
+
     /*
       If we're SUPER, we can KILL anything, including system-threads.
       No further checks.
@@ -9048,15 +9050,25 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
 
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
-	!wsrep_thd_is_BF(tmp, false))
+        !wsrep_thd_is_BF(tmp, false))
     {
-      tmp->awake_no_mutex(kill_signal);
+      /* killing a thread in a cluster node, must happen in controlled way to
+         avoid mutex locking ordering violation. Here we test that victim is 
+         not high priority, and use wsrep_abort_thd() for killing the victim */
+      if (WSREP(thd) && !wsrep_thd_is_BF(tmp, true))
+      {
+        mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+        wsrep_released_LOCK_thd_kill= true;
+        wsrep_abort_thd((void*)thd, (void*)tmp, true, kill_signal);
+      }
+      else
+        tmp->awake_no_mutex(kill_signal);
       error=0;
     }
     else
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
-    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
+    if (!wsrep_released_LOCK_thd_kill) mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
   DBUG_PRINT("exit", ("%d", error));
   DBUG_RETURN(error);

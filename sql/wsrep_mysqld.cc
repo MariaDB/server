@@ -836,13 +836,13 @@ void wsrep_thr_init()
 void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
-
+#ifdef OUT
   wsrep_thr_lock_init(
      (wsrep_thd_is_brute_force_fun)wsrep_thd_is_BF,
      (wsrep_abort_thd_fun)wsrep_abort_thd,
      wsrep_debug, wsrep_convert_LOCK_to_trx,
      (wsrep_on_fun)wsrep_on);
-
+#endif
   /*
     Pre-initialize global_system_variables.table_plugin with a dummy engine
     (placeholder) required during the initialization of wsrep threads (THDs).
@@ -2046,7 +2046,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
       }
 
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-      wsrep_abort_thd((void *) request_thd, (void *) granted_thd, 1);
+      wsrep_abort_thd((void *) request_thd, (void *) granted_thd, 1, KILL_QUERY);
       ret= false;
     }
   }
@@ -2743,11 +2743,11 @@ extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id)
 }
 
 
-extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
+extern "C" void wsrep_thd_awake(THD *thd, my_bool signal, int kill_signal)
 {
   if (signal)
   {
-    thd->awake_no_mutex(KILL_QUERY);
+    thd->awake((killed_state)kill_signal);
   }
   else
   {
@@ -2756,8 +2756,12 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
     mysql_mutex_unlock(&LOCK_wsrep_replaying);
   }
 }
-
-
+#ifdef OUT
+extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
+{
+  wsrep_thd_awake(thd, signal, KILL_QUERY);
+}
+#endif
 int wsrep_thd_retry_counter(THD *thd)
 {
   return(thd->wsrep_retry_counter);
