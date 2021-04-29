@@ -1390,8 +1390,9 @@ bool Multiupdate_prelocking_strategy::handle_end(THD *thd)
     call in setup_tables()).
   */
 
-  if (setup_tables(thd, &select_lex->context, &select_lex->top_join_list,
-                   table_list, select_lex->leaf_tables, FALSE, TRUE))
+  if (setup_tables_and_check_access(thd, &select_lex->context,
+      &select_lex->top_join_list, table_list, select_lex->leaf_tables,
+      FALSE, UPDATE_ACL, SELECT_ACL, TRUE))
     DBUG_RETURN(1);
 
   List<Item> *fields= &lex->select_lex.item_list;
