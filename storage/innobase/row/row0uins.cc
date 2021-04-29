@@ -398,8 +398,12 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		ptr[len] = 0;
 		const char* name = reinterpret_cast<char*>(ptr);
 		if (strcmp(table->name.m_name, name)) {
-			dict_table_rename_in_cache(table, name, false,
-						   table_id != 0);
+			dict_table_rename_in_cache(table, name, false, true);
+		} else if (table->space) {
+			const auto s = table->space->name();
+			if (len != s.size() || memcmp(name, s.data(), len)) {
+				table->rename_tablespace(name, true);
+			}
 		}
 		goto close_table;
 	}

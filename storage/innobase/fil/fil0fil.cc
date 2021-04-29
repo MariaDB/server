@@ -1867,88 +1867,41 @@ char *fil_make_filepath(const char* path, const table_name_t name,
                            suffix, strip_name);
 }
 
-/** Test if a tablespace file can be renamed to a new filepath by checking
-if that the old filepath exists and the new filepath does not exist.
-@param[in]	old_path	old filepath
-@param[in]	new_path	new filepath
-@param[in]	replace_new	whether to ignore the existence of new_path
-@return innodb error code */
-static dberr_t
-fil_rename_tablespace_check(
-	const char*	old_path,
-	const char*	new_path,
-	bool		replace_new)
+dberr_t fil_space_t::rename(const char *path, bool log, bool replace)
 {
-	bool	exists = false;
-	os_file_type_t	ftype;
+  ut_ad(UT_LIST_GET_LEN(chain) == 1);
+  ut_ad(!is_system_tablespace(id));
 
-	if (os_file_status(old_path, &exists, &ftype) && !exists) {
-		ib::error() << "Cannot rename '" << old_path
-			<< "' to '" << new_path
-			<< "' because the source file"
-			<< " does not exist.";
-		return(DB_TABLESPACE_NOT_FOUND);
-	}
+  const char *old_path= chain.start->name;
 
-	exists = false;
-	if (os_file_status(new_path, &exists, &ftype) && !exists) {
-		return DB_SUCCESS;
-	}
+  if (!strcmp(path, old_path))
+    return DB_SUCCESS;
 
-	if (!replace_new) {
-		ib::error() << "Cannot rename '" << old_path
-			<< "' to '" << new_path
-			<< "' because the target file exists."
-			" Remove the target file and try again.";
-		return(DB_TABLESPACE_EXISTS);
-	}
+  if (log)
+  {
+    bool exists= false;
+    os_file_type_t ftype;
 
-	/* This must be during the ROLLBACK of TRUNCATE TABLE.
-	Because InnoDB only allows at most one data dictionary
-	transaction at a time, and because this incomplete TRUNCATE
-	would have created a new tablespace file, we must remove
-	a possibly existing tablespace that is associated with the
-	new tablespace file. */
-retry:
-	mysql_mutex_lock(&fil_system.mutex);
-	for (fil_space_t& space : fil_system.space_list) {
-		ulint id = space.id;
-		if (id
-		    && space.purpose == FIL_TYPE_TABLESPACE
-		    && !strcmp(new_path,
-			       UT_LIST_GET_FIRST(space.chain)->name)) {
-			ib::info() << "TRUNCATE rollback: " << id
-				<< "," << new_path;
-			mysql_mutex_unlock(&fil_system.mutex);
-			dberr_t err = fil_delete_tablespace(id);
-			if (err != DB_SUCCESS) {
-				return err;
-			}
-			goto retry;
-		}
-	}
-	mysql_mutex_unlock(&fil_system.mutex);
-	fil_delete_file(new_path);
+    if (os_file_status(old_path, &exists, &ftype) && !exists)
+    {
+      ib::error() << "Cannot rename '" << old_path << "' to '" << path
+                  << "' because the source file does not exist.";
+      return DB_TABLESPACE_NOT_FOUND;
+    }
 
-	return(DB_SUCCESS);
-}
+    exists= false;
+    if (replace);
+    else if (!os_file_status(path, &exists, &ftype) || exists)
+    {
+      ib::error() << "Cannot rename '" << old_path << "' to '" << path
+                  << "' because the target file exists.";
+      return DB_TABLESPACE_EXISTS;
+    }
 
-dberr_t fil_space_t::rename(const char* path, bool log, bool replace)
-{
-	ut_ad(UT_LIST_GET_LEN(chain) == 1);
-	ut_ad(!is_system_tablespace(id));
+    fil_name_write_rename(id, old_path, path);
+  }
 
-	if (log) {
-		dberr_t err = fil_rename_tablespace_check(
-			chain.start->name, path, replace);
-		if (err != DB_SUCCESS) {
-			return(err);
-		}
-		fil_name_write_rename(id, chain.start->name, path);
-	}
-
-	return fil_rename_tablespace(id, chain.start->name, path)
-		? DB_SUCCESS : DB_ERROR;
+  return fil_rename_tablespace(id, old_path, path) ? DB_SUCCESS : DB_ERROR;
 }
 
 /** Rename a single-table tablespace.

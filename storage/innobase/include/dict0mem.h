@@ -2045,6 +2045,12 @@ struct dict_table_t {
   void stats_mutex_lock() { lock_mutex_lock(); }
   void stats_mutex_unlock() { lock_mutex_unlock(); }
 
+  /** Rename the data file.
+  @param new_name     name of the table
+  @param replace      whether to replace the file with the new name
+                      (as part of rolling back TRUNCATE) */
+  dberr_t rename_tablespace(const char *new_name, bool replace) const;
+
 private:
 	/** Initialize instant->field_map.
 	@param[in]	table	table definition to copy from */
