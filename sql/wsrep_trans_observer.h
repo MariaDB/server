@@ -345,11 +345,14 @@ static inline int wsrep_before_rollback(THD* thd, bool all)
       }
 
       if (thd->wsrep_trx().is_streaming() &&
-          !wsrep_stmt_rollback_is_safe(thd))
+          (wsrep_fragments_certified_for_stmt(thd) > 0))
       {
         /* Non-safe statement rollback during SR multi statement
-           transasction. Self abort the transaction, the actual rollback
-           and error handling will be done in after statement phase. */
+           transaction. A statement rollback is considered unsafe, if
+           the same statement has already replicated one or more fragments.
+           Self abort the transaction, the actual rollback and error
+           handling will be done in after statement phase. */
+        WSREP_DEBUG("statement rollback is not safe for streaming replication");
         wsrep_thd_self_abort(thd);
         ret= 0;
       }
