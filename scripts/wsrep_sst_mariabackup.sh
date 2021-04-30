@@ -92,7 +92,7 @@ if [ -z "$MARIABACKUP_BIN" ]; then
   exit 42
 fi
 set -e
-XBSTREAM_BIN=mbstream
+MBSTREAM_BIN=mbstream
 XBCRYPT_BIN=xbcrypt # Not available in MariaBackup
 
 DATA="${WSREP_SST_OPT_DATA}"
@@ -345,7 +345,7 @@ check_server_ssl_config()
 
 read_cnf()
 {
-    sfmt=$(parse_cnf sst streamfmt "xbstream")
+    sfmt=$(parse_cnf sst streamfmt "mbstream")
     tfmt=$(parse_cnf sst transferfmt "socat")
 
     encrypt=$(parse_cnf 'sst' 'encrypt' 0)
@@ -442,9 +442,9 @@ get_stream()
     if [ "$sfmt" = 'mbstream' -o "$sfmt" = 'xbstream' ]; then
         wsrep_log_info "Streaming with ${sfmt}"
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-            strmcmd="$XBSTREAM_BIN -x"
+            strmcmd="$MBSTREAM_BIN -x"
         else
-            strmcmd="$XBSTREAM_BIN -c '$INFO_FILE'"
+            strmcmd="$MBSTREAM_BIN -c '$INFO_FILE'"
         fi
     else
         sfmt="tar"
@@ -732,7 +732,7 @@ wsrep_check_programs "$MARIABACKUP_BIN"
 
 rm -f "${MAGIC_FILE}"
 
-if [ ! "$WSREP_SST_OPT_ROLE" = 'joiner' -a ! "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+if [ "$WSREP_SST_OPT_ROLE" != 'joiner' -a "$WSREP_SST_OPT_ROLE" != 'donor' ]; then
     wsrep_log_error "Invalid role ${WSREP_SST_OPT_ROLE}"
     exit 22
 fi
@@ -757,6 +757,8 @@ if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
 fi
 
+OLD_PWD="$(pwd)"
+
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
     # handle both relative and absolute paths
     INNODB_DATA_HOME_DIR=$(cd "$DATA"; mkdir -p "$INNODB_DATA_HOME_DIR"; cd "$INNODB_DATA_HOME_DIR"; pwd -P)
@@ -764,6 +766,8 @@ else
     # default to datadir
     INNODB_DATA_HOME_DIR=$(cd "$DATA"; pwd -P)
 fi
+
+cd "$OLD_PWD"
 
 if [[ $ssyslog -eq 1 ]];then
 
@@ -1107,10 +1111,12 @@ then
 
         if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
             binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
+            cd "$binlog_dir"
             wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
             rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            binlog_index = "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+            binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
             [ -f "$binlog_index" ] && rm -fv "$binlog_index" 1>&2 \+ || true
+            cd "$OLD_PWD"
         fi
 
         TDATA="$DATA"
@@ -1183,11 +1189,11 @@ then
             # To avoid comparing data directory and BINLOG_DIRNAME
             mv "$DATA/$BINLOG_FILENAME".* "$BINLOG_DIRNAME/" 2>/dev/null || true
 
-            pushd "$BINLOG_DIRNAME" &>/dev/null
+            cd "$BINLOG_DIRNAME"
             for bfile in $(ls -1 "$BINLOG_FILENAME".[0-9]*); do
                 echo "$BINLOG_DIRNAME/$bfile" >> "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
             done
-            popd &> /dev/null
+            cd "$OLD_PWD"
 
         fi
 

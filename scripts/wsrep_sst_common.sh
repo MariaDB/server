@@ -580,20 +580,33 @@ wsrep_auth_not_set()
     [ -z "$WSREP_SST_OPT_AUTH" -o "$WSREP_SST_OPT_AUTH" = '(null)' ]
 }
 
-# State Snapshot Transfer authentication password was displayed in the ps output. Bug fixed #1200727.
+# State Snapshot Transfer authentication password was displayed
+# in the ps output (bug fixed #1200727):
 if wsrep_auth_not_set; then
     WSREP_SST_OPT_AUTH=$(parse_cnf 'sst' 'wsrep-sst-auth')
 fi
-readonly WSREP_SST_OPT_AUTH
+
+WSREP_SST_OPT_AUTH_USER=""
 
 # Splitting AUTH into potential user:password pair
 if ! wsrep_auth_not_set
 then
-    WSREP_SST_OPT_USER="${WSREP_SST_OPT_AUTH%%:*}"
-    WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_AUTH#*:}"
+    WSREP_SST_OPT_AUTH_USER="${WSREP_SST_OPT_AUTH%%:*}"
+    if [ -z "$WSREP_SST_OPT_USER" ]; then
+        WSREP_SST_OPT_USER="$WSREP_SST_OPT_AUTH_USER"
+        WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_AUTH#*:}"
+    elif [ "$WSREP_SST_OPT_USER" = "$WSREP_SST_OPT_AUTH_USER" ]; then
+        if [ -z "$WSREP_SST_OPT_PSWD" ]; then
+            WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_AUTH#*:}"
+        fi
+    else
+        WSREP_SST_OPT_AUTH="$WSREP_SST_OPT_USER:$WSREP_SST_OPT_PSWD"
+    fi
 fi
+
 readonly WSREP_SST_OPT_USER
 readonly WSREP_SST_OPT_PSWD
+readonly WSREP_SST_OPT_AUTH
 
 readonly WSREP_SST_OPT_REMOTE_AUTH
 
@@ -636,6 +649,9 @@ wsrep_log_info()
 {
     wsrep_log "[INFO] $*"
 }
+
+wsrep_log_info "BYPASS=[$WSREP_SST_OPT_BYPASS]"
+wsrep_log_info "USER=[$WSREP_SST_OPT_USER], PSWD=[$WSREP_SST_OPT_PSWD], AUTH=[$WSREP_SST_OPT_AUTH], AUTH_USER=[$WSREP_SST_OPT_AUTH_USER]"
 
 wsrep_cleanup_progress_file()
 {

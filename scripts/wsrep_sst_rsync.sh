@@ -148,6 +148,8 @@ if [ -z "$INNODB_LOG_GROUP_HOME" ]; then
     INNODB_LOG_GROUP_HOME=$(parse_cnf '--mysqld' 'innodb-log-group-home-dir')
 fi
 
+OLD_PWD="$(pwd)"
+
 WSREP_LOG_DIR="$INNODB_LOG_GROUP_HOME"
 
 if [ -n "$WSREP_LOG_DIR" ]; then
@@ -157,6 +159,8 @@ else
     # default to datadir
     WSREP_LOG_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
 fi
+
+cd "$OLD_PWD"
 
 # if no command line argument and INNODB_DATA_HOME_DIR environment variable
 # is not set, try to get it from my.cnf:
@@ -172,6 +176,8 @@ else
     INNODB_DATA_HOME_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
 fi
 
+cd "$OLD_PWD"
+
 # if no command line argument then try to get it from my.cnf:
 if [ -z "$INNODB_UNDO_DIR" ]; then
     INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
@@ -184,6 +190,8 @@ else
     # default to datadir
     INNODB_UNDO_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
 fi
+
+cd "$OLD_PWD"
 
 # Old filter - include everything except selected
 # FILTER=(--exclude '*.err' --exclude '*.pid' --exclude '*.sock' \
@@ -336,7 +344,6 @@ EOF
         if [ -n "$WSREP_SST_OPT_BINLOG" ]
         then
             # Prepare binlog files
-            OLD_PWD="$(pwd)"
             cd "$BINLOG_DIRNAME"
 
             binlog_files_full=$(tail -n $BINLOG_N_FILES "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index")
@@ -408,7 +415,6 @@ EOF
         fi
 
         # then, we parallelize the transfer of database directories, use . so that pathconcatenation works
-        OLD_PWD="$(pwd)"
         cd "$WSREP_SST_OPT_DATA"
 
         count=1
@@ -597,25 +603,26 @@ EOF
 
     if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
 
-        OLD_PWD="$(pwd)"
-        cd "$BINLOG_DIRNAME"
-
-        binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
-
-        # Clean up old binlog files first
-        rm -f "$BINLOG_FILENAME".*
-        [ -f "$binlog_index" ] && rm "$binlog_index"
-
         if [ -f "$BINLOG_TAR_FILE" ]; then
+
+            cd "$BINLOG_DIRNAME"
+
+            binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+
+            # Clean up old binlog files first
+            rm -f "$BINLOG_FILENAME".[0-9]*
+            [ -f "$binlog_index" ] && rm "$binlog_index"
+
             wsrep_log_info "Extracting binlog files:"
             tar -xvf "$BINLOG_TAR_FILE" >> _binlog_tmp_files_$!
             while read bin_file; do
                 echo "$BINLOG_DIRNAME/$bin_file" >> "$binlog_index"
             done < _binlog_tmp_files_$!
             rm -f _binlog_tmp_files_$!
-        fi
 
-        cd "$OLD_PWD"
+            cd "$OLD_PWD"
+
+        fi
 
     fi
 

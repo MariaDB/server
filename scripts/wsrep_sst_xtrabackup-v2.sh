@@ -912,6 +912,8 @@ if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
 fi
 
+OLD_PWD="$(pwd)"
+
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
     # handle both relative and absolute paths
     INNODB_DATA_HOME_DIR=$(cd "$DATA"; mkdir -p "$INNODB_DATA_HOME_DIR"; cd "$INNODB_DATA_HOME_DIR"; pwd -P)
@@ -919,6 +921,8 @@ else
     # default to datadir
     INNODB_DATA_HOME_DIR=$(cd "$DATA"; pwd -P)
 fi
+
+cd "$OLD_PWD"
 
 setup_commands () {
     INNOAPPLY="$INNOBACKUPEX_BIN $disver $iapts $INNOEXTRA --apply-log $rebuildcmd '$DATA' $INNOAPPLY"
@@ -1142,10 +1146,12 @@ then
 
         if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
             binlog_dir=$(dirname "$WSREP_SST_OPT_BINLOG")
+            cd "$binlog_dir"
             wsrep_log_info "Cleaning the binlog directory $binlog_dir as well"
             rm -fv "$WSREP_SST_OPT_BINLOG".[0-9]* 1>&2 \+ || true
-            binlog_index = "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
+            binlog_index="${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
             [ -f "$binlog_index" ] && rm -fv "$binlog_index" 1>&2 \+ || true
+            cd "$OLD_PWD"
         fi
 
         TDATA="${DATA}"
@@ -1223,11 +1229,11 @@ then
             # To avoid comparing data directory and BINLOG_DIRNAME
             mv "$DATA/$BINLOG_FILENAME".* "$BINLOG_DIRNAME/" 2>/dev/null || true
 
-            pushd "$BINLOG_DIRNAME" &>/dev/null
+            cd "$BINLOG_DIRNAME"
             for bfile in $(ls -1 "$BINLOG_FILENAME".[0-9]*); do
                 echo "$BINLOG_DIRNAME/$bfile" >> "${WSREP_SST_OPT_BINLOG_INDEX%.index}.index"
             done
-            popd &> /dev/null
+            cd "$OLD_PWD"
 
         fi
 
