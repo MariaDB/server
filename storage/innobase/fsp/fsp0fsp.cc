@@ -348,18 +348,23 @@ xdes_get_descriptor_with_space_hdr(
 	buf_block_t* block = header;
 
 	if (descr_page_no) {
-		block = buf_page_get(
-			page_id_t(space->id, descr_page_no), zip_size,
-			RW_SX_LATCH, mtr);
+		block = buf_page_get_gen(page_id_t(space->id, descr_page_no),
+					zip_size, RW_SX_LATCH, nullptr,
+					BUF_GET_POSSIBLY_FREED, mtr);
+		if (block && block->page.status == buf_page_t::FREED) {
+			block = nullptr;
+		}
 	}
 
 	if (desc_block != NULL) {
 		*desc_block = block;
 	}
 
-	return XDES_ARR_OFFSET + XDES_SIZE
+	return block
+		? XDES_ARR_OFFSET + XDES_SIZE
 		* xdes_calc_descriptor_index(zip_size, offset)
-		+ block->frame;
+		+ block->frame
+		: nullptr;
 }
 
 /** Get the extent descriptor of a page.
@@ -440,7 +445,6 @@ MY_ATTRIBUTE((nonnull(3), warn_unused_result))
 extent descriptor resides is x-locked.
 @param space    tablespace
 @param lst_node file address of the list node contained in the descriptor
-@param mode     BUF_GET or BUF_GET_POSSIBLY_FREED
 @param mtr      mini-transaction
 @param block    extent descriptor block
 @return pointer to the extent descriptor */
@@ -1439,7 +1443,12 @@ fsp_alloc_seg_inode(fil_space_t *space, buf_block_t *header,
 		flst_get_first(FSP_HEADER_OFFSET + FSP_SEG_INODES_FREE
 			       + header->frame).page);
 
-	block = buf_page_get(page_id, space->zip_size(), RW_SX_LATCH, mtr);
+	block = buf_page_get_gen(page_id, space->zip_size(), RW_SX_LATCH,
+				 nullptr, BUF_GET_POSSIBLY_FREED, mtr);
+	if (!block || block->page.status == buf_page_t::FREED) {
+		return nullptr;
+	}
+
 	if (!space->full_crc32()) {
 		fil_block_check_type(*block, FIL_PAGE_INODE, mtr);
 	}
