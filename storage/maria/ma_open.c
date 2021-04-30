@@ -187,9 +187,9 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
       maria_delay_key_write)
     share->delay_key_write=1;
 
-  if (!share->base.born_transactional)   /* For transactional ones ... */
+  if (!share->now_transactional)       /* If not transctional table */
   {
-    /* ... force crash if no trn given */
+    /* Pagecache requires access to info->trn->rec_lsn */
     _ma_set_tmp_trn_for_table(&info, &dummy_transaction_object);
     info.state= &share->state.state;	/* Change global values by default */
   }
@@ -282,7 +282,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
   ulong  *nulls_per_key_part;
   my_off_t key_root[HA_MAX_POSSIBLE_KEY];
   ulonglong max_key_file_length, max_data_file_length;
-  my_bool versioning= 1;
+  my_bool versioning= 1, born_transactional;
   File data_file= -1, kfile= -1;
   struct ms3_st *s3_client= 0;
   S3_INFO *share_s3= 0;
@@ -526,6 +526,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     file_version= (share->state.header.not_used == 0);
     if (file_version == 0)
       share->base.language= share->state.header.not_used;
+    born_transactional= share->base.born_transactional;
 
     share->state.state_length=base_pos;
     /* For newly opened tables we reset the error-has-been-printed flag */
@@ -560,7 +561,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       We can ignore testing uuid if STATE_NOT_MOVABLE is not set, as in this
       case the uuid will be set in _ma_mark_file_changed().
     */
-    if (share->base.born_transactional &&
+    if (born_transactional &&
         ((share->state.create_trid > trnman_get_max_trid() &&
          !maria_in_recovery) ||
          ((share->state.changed & STATE_NOT_MOVABLE) &&
@@ -601,7 +602,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     }
 
     /* Ensure we have space in the key buffer for transaction id's */
-    if (share->base.born_transactional)
+    if (born_transactional)
       share->base.max_key_length= ALIGN_SIZE(share->base.max_key_length +
                                              MARIA_MAX_PACK_TRANSID_SIZE);
 
@@ -700,7 +701,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
 
     share->block_size= share->base.block_size;   /* Convenience */
     share->max_index_block_size= share->block_size - KEYPAGE_CHECKSUM_SIZE;
-    share->keypage_header= ((share->base.born_transactional ?
+    share->keypage_header= ((born_transactional ?
                              LSN_STORE_SIZE + TRANSID_SIZE :
                              0) + KEYPAGE_KEYID_SIZE + KEYPAGE_FLAG_SIZE +
                             KEYPAGE_USED_SIZE);
@@ -723,7 +724,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
         /* Calculate length to store a key + nod flag and transaction info */
         keyinfo->max_store_length= (keyinfo->maxlength +
                                     share->base.key_reflength);
-        if (share->base.born_transactional)
+        if (born_transactional)
           keyinfo->max_store_length+= MARIA_INDEX_OVERHEAD_SIZE;
 
         /* See ma_delete.cc::underflow() */
@@ -862,9 +863,9 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
         file for REPAIR. Don't do logging. This base information will not go
         to disk.
       */
-      share->base.born_transactional= FALSE;
+      born_transactional= FALSE;
     }
-    if (share->base.born_transactional)
+    if (born_transactional)
     {
       share->page_type= PAGECACHE_LSN_PAGE;
       if (share->state.create_rename_lsn == LSN_NEEDS_NEW_STATE_LSNS)
@@ -915,7 +916,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
     }
     else
       share->page_type= PAGECACHE_PLAIN_PAGE;
-    share->now_transactional= share->base.born_transactional;
+    share->now_transactional= born_transactional;
 
     /* Use pack_reclength as we don't want to modify base.pack_recklength */
     if (share->state.header.org_data_file_type == DYNAMIC_RECORD)
