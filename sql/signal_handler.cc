@@ -65,9 +65,9 @@ static inline void output_core_info()
                           (int) len, buff);
   }
 #ifdef __FreeBSD__
-  if ((fd= my_open("/proc/curproc/rlimit", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= my_open("/proc/curproc/rlimit", O_RDONLY, MYF(MY_NO_REGISTER))) >= 0)
 #else
-  if ((fd= my_open("/proc/self/limits", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= my_open("/proc/self/limits", O_RDONLY, MYF(MY_NO_REGISTER))) >= 0)
 #endif
   {
     my_safe_printf_stderr("Resource Limits:\n");
@@ -78,7 +78,8 @@ static inline void output_core_info()
     my_close(fd, MYF(0));
   }
 #ifdef __linux__
-  if ((fd= my_open("/proc/sys/kernel/core_pattern", O_RDONLY, MYF(0))) >= 0)
+  if ((fd= my_open("/proc/sys/kernel/core_pattern", O_RDONLY,
+                   MYF(MY_NO_REGISTER))) >= 0)
   {
     len= my_read(fd, (uchar*)buff, sizeof(buff),  MYF(0));
     my_safe_printf_stderr("Core pattern: %.*s\n", (int) len, buff);
