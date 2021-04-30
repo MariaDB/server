@@ -21,3 +21,32 @@ SET NAMES utf8;
 SELECT @a:=CONVERT('aя' USING filename) AS `@a`, BINARY @a, REVERSE(@a), HEX(@a), HEX(REVERSE(@a));
 @a	BINARY @a	REVERSE(@a)	HEX(@a)	HEX(REVERSE(@a))
 aя	a@r1	яa	61407231	40723161
+#
+# Beginning of 10.2 test.
+#
+# MDEV-25462: Assertion `m_status == DA_ERROR || m_status == DA_OK ||
+# m_status == DA_OK_BULK' failed in Diagnostics_area::message from
+# get_schema_tables_record
+#
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+utf8	utf8	utf8
+SET @old_character_set_client= @@character_set_client;
+SET @old_character_set_connection= @@character_set_connection;
+SET @old_character_set_results= @@character_set_results;
+SET NAMES 'filename';
+ERROR 42000: Variable 'character_set_client' can't be set to the value of 'filename'
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+utf8	utf8	utf8
+CREATE VIEW v2 AS SELECT 1;
+SHOW TABLE STATUS;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment
+v2	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW
+DROP VIEW v2;
+SET @@character_set_client= @old_character_set_client;
+SET @@character_set_connection= @old_character_set_connection;
+SET @@character_set_results= @old_character_set_results;
+#
+# End of 10.2 test
+#

@@ -921,7 +921,7 @@ mysqld_collation_get_by_name(const char *name,
 
 static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
-  return MY_TEST(cs->mbminlen == 1);
+  return MY_TEST(cs->mbminlen == 1 && cs->number != 17 /* filename */);
 }
 
 #ifdef MYSQL_SERVER

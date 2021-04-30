@@ -879,6 +879,13 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
   LEX *lex= thd->lex;
 
   /*
+    Ensure character set number != 17 (character set = filename) and mbminlen=1
+    because these character sets are not parser friendly, which can give weird
+    sequence in .frm file of view and later give parsing error.
+  */
+  DBUG_ASSERT(thd->charset()->mbminlen == 1 && thd->charset()->number != 17);
+
+  /*
     View definition query -- a SELECT statement that fully defines view. It
     is generated from the Item-tree built from the original (specified by
     the user) query. The idea is that generated query should eliminates all
