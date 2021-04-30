@@ -2839,7 +2839,7 @@ os_file_rename_func(
 	ut_ad(exists);
 #endif /* UNIV_DEBUG */
 
-	if (MoveFile((LPCTSTR) oldpath, (LPCTSTR) newpath)) {
+	if (MoveFileEx(oldpath, newpath, MOVEFILE_REPLACE_EXISTING)) {
 		return(true);
 	}
 
