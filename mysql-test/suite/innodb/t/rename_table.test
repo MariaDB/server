@@ -1,6 +1,8 @@
 --source include/have_innodb.inc
 --source include/not_embedded.inc
 
+call mtr.add_suppression("InnoDB: In RENAME TABLE table `test`.`t4` is referenced in foreign key constraints which are not compatible with the new table definition.");
+
 CREATE DATABASE test_jfg;
 CREATE DATABASE test_jfg2;
 CREATE TABLE test_jfg.test (a int unsigned PRIMARY KEY) ENGINE=InnoDB;
@@ -43,3 +45,17 @@ let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 # Cleanup
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25509 Atomic DDL: Assertion `err != DB_DUPLICATE_KEY'
+--echo #	fails after previous error upon multi-RENAME
+--echo #
+SET FOREIGN_KEY_CHECKS= OFF;
+CREATE TABLE t1 (pk INT PRIMARY KEY, f INT, FOREIGN KEY (f) REFERENCES t4 (x)) ENGINE=InnoDB;
+ALTER TABLE t1 DROP KEY f;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+--error ER_ERROR_ON_RENAME
+RENAME TABLE t1 TO t3, t3 TO t4;
+RENAME TABLE t2 TO t3;
+DROP TABLE t3, t1;
+SET FOREIGN_KEY_CHECKS=DEFAULT;
