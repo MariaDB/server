@@ -78,6 +78,24 @@ bool IsNum(PSZ s)
 } // end of IsNum
 
 /***********************************************************************/
+/* IsArray: check whether this is a Mongo array path.                  */
+/***********************************************************************/
+bool IsArray(PSZ s)
+{
+  char* p = s;
+
+  if (!p || !*p)
+    return false;
+  else for (; *p; p++)
+    if (*p == '.')
+      break;
+    else if (!isdigit(*p))
+      return false;
+
+  return true;
+} // end of IsArray
+
+/***********************************************************************/
 /* NextChr: return the first found '[' or Sep pointer.                 */
 /***********************************************************************/
 char* NextChr(PSZ s, char sep)
@@ -1326,9 +1344,9 @@ bool JARRAY::Merge(PGLOBAL g, PJSON jsp)
 } // end of Merge
 
 /***********************************************************************/
-/* Set the nth Value of the Array Value list.                          */
+/* Set the nth Value of the Array Value list or add it.                */
 /***********************************************************************/
-bool JARRAY::SetArrayValue(PGLOBAL g, PJVAL jvp, int n)
+void JARRAY::SetArrayValue(PGLOBAL g, PJVAL jvp, int n)
 {
   int   i = 0;
   PJVAL jp, *jpp = &First;
@@ -1339,7 +1357,6 @@ bool JARRAY::SetArrayValue(PGLOBAL g, PJVAL jvp, int n)
 
   *jpp = jvp;
   jvp->Next = (jp ? jp->Next : NULL);
-  return false;
 } // end of SetValue
 
 /***********************************************************************/
@@ -1417,7 +1434,7 @@ bool JARRAY::IsNull(void)
 /***********************************************************************/
 JVALUE::JVALUE(PJSON jsp) : JSON()
 {
-  if (jsp->GetType() == TYPE_JVAL) {
+  if (jsp && jsp->GetType() == TYPE_JVAL) {
     PJVAL jvp = (PJVAL)jsp;
 
 //  Val = ((PJVAL)jsp)->GetVal();
@@ -1434,7 +1451,7 @@ JVALUE::JVALUE(PJSON jsp) : JSON()
   } else {
     Jsp = jsp;
 //  Val = NULL;
-    DataType = TYPE_JSON;
+    DataType = Jsp ? TYPE_JSON : TYPE_NULL;
     Nd = 0;
   } // endif Type
 

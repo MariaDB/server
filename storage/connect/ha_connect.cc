@@ -5470,14 +5470,13 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 	} // endif rem
 
 	if (fmt && *fmt) {
-		switch (ttp) {
-		case TAB_JSON: error |= sql->append(" JPATH='"); break;
-#if defined(BSON_SUPPORT)
-    case TAB_BSON: error |= sql->append(" JPATH='"); break;
-#endif   // BSON_SUPPORT
-    case TAB_XML:  error |= sql->append(" XPATH='"); break;
-		default:	     error |= sql->append(" FIELD_FORMAT='");
-		} // endswitch ttp
+    switch (ttp) {
+      case TAB_MONGO:
+      case TAB_BSON:
+      case TAB_JSON: error |= sql->append(" JPATH='"); break;
+      case TAB_XML:  error |= sql->append(" XPATH='"); break;
+      default:	     error |= sql->append(" FIELD_FORMAT='");
+    } // endswitch ttp
 
 		error |= sql->append_for_single_quote(fmt, strlen(fmt));
 		error |= sql->append("'");

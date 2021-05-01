@@ -216,7 +216,8 @@ public:
   JSONCOL(JSONCOL *colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int  GetAmType(void) {return Tjp->GetAmType();}
+  virtual int   GetAmType(void) {return Tjp->GetAmType();}
+  virtual bool  Stringify(void) { return Sgfy; }
 
   // Methods
   virtual bool  SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -251,6 +252,7 @@ public:
 	bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
   bool    Warned;               // True when warning issued
+  bool    Sgfy;									// True if stringified
 }; // end of class JSONCOL
 
 /* -------------------------- TDBJSON class -------------------------- */

@@ -184,7 +184,7 @@ class JARRAY : public JSON {
 
 	// Specific
 	PJVAL AddArrayValue(PGLOBAL g, PJVAL jvp = NULL, int* x = NULL);
-	bool  SetArrayValue(PGLOBAL g, PJVAL jvp, int i);
+	void  SetArrayValue(PGLOBAL g, PJVAL jvp, int i);
 	void  InitArray(PGLOBAL g);
 
  protected:

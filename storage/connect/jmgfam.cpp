@@ -1,11 +1,11 @@
 /************ JMONGO FAM C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: jmgfam.cpp                                            */
 /* -------------                                                       */
-/*  Version 1.1                                                        */
+/*  Version 1.2                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          20017 - 2020 */
+/*  (C) Copyright to the author Olivier BERTRAND          20017 - 2021 */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -241,8 +241,8 @@ bool JMGFAM::OpenTableFile(PGLOBAL g)
 		return true;
 	}	// endif Mode
 
-	if (Mode == MODE_INSERT)
-		Jcp->MakeColumnGroups(g, Tdbp);
+//if (Mode == MODE_INSERT)
+//	Jcp->MakeColumnGroups(g, Tdbp);
 
 	if (Mode != MODE_UPDATE)
 		return Jcp->MakeCursor(g, Tdbp, Options, Filter, Pipe);
@@ -346,14 +346,14 @@ int JMGFAM::ReadBuffer(PGLOBAL g)
 } // end of ReadBuffer
 
 /***********************************************************************/
-/*  WriteBuffer: File write routine for MGO access method.             */
+/*  WriteBuffer: File write routine for JMG access method.             */
 /***********************************************************************/
 int JMGFAM::WriteBuffer(PGLOBAL g)
 {
 	int rc = RC_OK;
 
 	if (Mode == MODE_INSERT) {
-		rc = Jcp->DocWrite(g);
+		rc = Jcp->DocWrite(g, Tdbp->GetLine());
 	} else if (Mode == MODE_DELETE) {
 		rc = Jcp->DocDelete(g, false);
 	} else if (Mode == MODE_UPDATE) {

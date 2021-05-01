@@ -384,7 +384,7 @@ int TDBJMG::WriteDB(PGLOBAL g)
 	int rc = RC_OK;
 
 	if (Mode == MODE_INSERT) {
-		rc = Jcp->DocWrite(g);
+		rc = Jcp->DocWrite(g, NULL);
 	} else if (Mode == MODE_DELETE) {
 		rc = Jcp->DocDelete(g, false);
 	} else if (Mode == MODE_UPDATE) {
@@ -420,8 +420,21 @@ JMGCOL::JMGCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 	: EXTCOL(cdp, tdbp, cprec, i, "MGO")
 {
 	Tmgp = (PTDBJMG)(tdbp->GetOrig() ? tdbp->GetOrig() : tdbp);
-	Jpath = cdp->GetFmt() ? cdp->GetFmt() : cdp->GetName();
-//Mbuf = NULL;
+	Sgfy = false;
+
+	if ((Jpath = cdp->GetFmt())) {
+		int n = strlen(Jpath) - 1;
+
+		if (Jpath[n] == '*') {
+			Jpath = PlugDup(g, cdp->GetFmt());
+			if (Jpath[n - 1] == '.') n--;
+			Jpath[n] = 0;
+			Sgfy = true;
+		}	// endif Jpath
+
+	}	else
+		Jpath = cdp->GetName();
+
 } // end of JMGCOL constructor
 
 /***********************************************************************/
@@ -432,7 +445,7 @@ JMGCOL::JMGCOL(JMGCOL *col1, PTDB tdbp) : EXTCOL(col1, tdbp)
 {
 	Tmgp = col1->Tmgp;
 	Jpath = col1->Jpath;
-//Mbuf = col1->Mbuf;
+	Sgfy = col1->Sgfy;
 } // end of JMGCOL copy constructor
 
 /***********************************************************************/
@@ -442,7 +455,7 @@ PSZ JMGCOL::GetJpath(PGLOBAL g, bool proj)
 {
 	if (Jpath) {
 		if (proj) {
-			char *p1, *p2, *projpath = PlugDup(g, Jpath);
+			char* p1, * p2, * projpath = PlugDup(g, Jpath);
 			int   i = 0;
 
 			for (p1 = p2 = projpath; *p1; p1++)
@@ -459,6 +472,9 @@ PSZ JMGCOL::GetJpath(PGLOBAL g, bool proj)
 
 				} else
 					*p2++ = *p1;
+
+			if (*(p2 - 1) == '.')
+				p2--;
 
 			*p2 = 0;
 			return projpath;

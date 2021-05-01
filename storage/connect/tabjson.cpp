@@ -178,7 +178,7 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 	lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
 	sep = GetStringTableOption(g, topt, "Separator", ".");
   strfy = GetStringTableOption(g, topt, "Stringify", NULL);
-  sz = GetIntegerTableOption(g, topt, "Jsize", 250);
+  sz = GetIntegerTableOption(g, topt, "Jsize", 1024);
   limit = GetIntegerTableOption(g, topt, "Limit", 10);
 
   /*********************************************************************/
@@ -647,7 +647,7 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Collname = GetStringCatInfo(g, "Name",
       (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
     Collname = GetStringCatInfo(g, "Tabname", Collname);
-    Options = GetStringCatInfo(g, "Colist", NULL);
+    Options = GetStringCatInfo(g, "Colist", Xcol ? "all" : NULL);
     Filter = GetStringCatInfo(g, "Filter", NULL);
     Pipe = GetBoolCatInfo("Pipeline", false);
     Driver = GetStringCatInfo(g, "Driver", NULL);
@@ -716,6 +716,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
 #endif  // !MONGO_SUPPORT
       } // endif Driver
 
+      Pretty = 4;   // Not a file
     } else if (Zipped) {
 #if defined(ZIP_SUPPORT)
       if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
@@ -761,7 +762,7 @@ PTDB JSONDEF::GetTable(PGLOBAL g, MODE m)
       G->jump_level = 0;
       ((TDBJSN*)tdbp)->G = G;
 #endif // 0
-      ((TDBJSN*)tdbp)->G = PlugInit(NULL, (size_t)Lrecl * (Pretty >= 0 ? 10 : 2));
+      ((TDBJSN*)tdbp)->G = PlugInit(NULL, (size_t)Lrecl * (Pretty >= 0 ? 12 : 4));
     } else {
       strcpy(g->Message, "LRECL is not defined");
       return NULL;
@@ -1277,6 +1278,7 @@ JSONCOL::JSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
   Xpd = false;
   Parsed = false;
   Warned = false;
+  Sgfy = false;
 } // end of JSONCOL constructor
 
 /***********************************************************************/
@@ -1296,6 +1298,7 @@ JSONCOL::JSONCOL(JSONCOL *col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   Xpd = col1->Xpd;
   Parsed = col1->Parsed;
   Warned = col1->Warned;
+  Sgfy = col1->Sgfy;
 } // end of JSONCOL copy constructor
 
 /***********************************************************************/
@@ -1568,8 +1571,10 @@ PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
       if (*p1 == '$') p1++;
       if (*p1 == '.') p1++;
       mgopath = PlugDup(g, p1);
-    } else
+    } else {
+      Sgfy = true;
       return NULL;
+    } // endif
 
     for (p1 = p2 = mgopath; *p1; p1++)
       if (i) {                 // Inside []
@@ -1607,6 +1612,7 @@ PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
         case '*':
           if (*(p2 - 1) == '.' && !*(p1 + 1)) {
             p2--;              // Suppress last :*
+            Sgfy = true;
             break;
           } // endif p2
 
@@ -1614,6 +1620,9 @@ PSZ JSONCOL::GetJpath(PGLOBAL g, bool proj)
           *p2++ = *p1;
           break;
       } // endswitch p1;
+
+      if (*(p2 - 1) == '.')
+        p2--;
 
       *p2 = 0;
       return mgopath;
@@ -2127,10 +2136,14 @@ void JSONCOL::WriteColumn(PGLOBAL g)
       if (Nodes[Nod-1].Op == OP_XX) {
         s = Value->GetCharValue();
 
-        if (!(jsp = ParseJson(G, s, strlen(s)))) {
-          strcpy(g->Message, s);
-          throw 666;
-        } // endif jsp
+        if (s && *s) {
+          if (!(jsp = ParseJson(G, s, strlen(s)))) {
+            strcpy(g->Message, s);
+            throw 666;
+          } // endif jsp
+
+        } else
+          jsp = NULL;
 
         if (arp) {
           if (Nod > 1 && Nodes[Nod-2].Op == OP_EQ)
@@ -2560,8 +2573,8 @@ int TDBJSON::WriteDB(PGLOBAL g)
     if (Mode == MODE_INSERT) {
       Doc->AddArrayValue(g, vp);
       Row = new(g) JOBJECT;
-    } else if (Doc->SetArrayValue(g, vp, Fpos))
-      return RC_FX;
+    } else
+      Doc->SetArrayValue(g, vp, Fpos);
 
   } else if (Jmode == MODE_ARRAY) {
     PJVAL vp = new(g) JVALUE(Row);
@@ -2569,15 +2582,15 @@ int TDBJSON::WriteDB(PGLOBAL g)
     if (Mode == MODE_INSERT) {
       Doc->AddArrayValue(g, vp);
       Row = new(g) JARRAY;
-    } else if (Doc->SetArrayValue(g, vp, Fpos))
-      return RC_FX;
+    } else
+      Doc->SetArrayValue(g, vp, Fpos);
 
   } else { // if (Jmode == MODE_VALUE)
     if (Mode == MODE_INSERT) {
       Doc->AddArrayValue(g, (PJVAL)Row);
       Row = new(g) JVALUE;
-    } else if (Doc->SetArrayValue(g, (PJVAL)Row, Fpos))
-      return RC_FX;
+    } else
+      Doc->SetArrayValue(g, (PJVAL)Row, Fpos);
 
   } // endif Jmode
 

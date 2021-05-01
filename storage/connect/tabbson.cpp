@@ -1171,7 +1171,7 @@ bool BSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Collname = GetStringCatInfo(g, "Name",
       (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
     Collname = GetStringCatInfo(g, "Tabname", Collname);
-    Options = GetStringCatInfo(g, "Colist", NULL);
+    Options = GetStringCatInfo(g, "Colist", Xcol ? "all" : NULL);
     Filter = GetStringCatInfo(g, "Filter", NULL);
     Pipe = GetBoolCatInfo("Pipeline", false);
     Driver = GetStringCatInfo(g, "Driver", NULL);
@@ -1215,7 +1215,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
 
     if (Lrecl) {
       // Allocate the parse work memory
-      G = PlugInit(NULL, (size_t)Lrecl * (Pretty < 0 ? 2 : 4));
+      G = PlugInit(NULL, (size_t)Lrecl * (Pretty < 0 ? 3 : 5));
     } else {
       strcpy(g->Message, "LRECL is not defined");
       return NULL;
@@ -1249,6 +1249,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
 #endif  // !MONGO_SUPPORT
       } // endif Driver
 
+      Pretty = 4;   // Not a file
     } else if (Zipped) {
 #if defined(ZIP_SUPPORT)
       if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
@@ -1676,6 +1677,7 @@ BSONCOL::BSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
   Xpd = false;
   Parsed = false;
   Warned = false;
+  Sgfy = false;
 } // end of BSONCOL constructor
 
 /***********************************************************************/
@@ -1695,6 +1697,7 @@ BSONCOL::BSONCOL(BSONCOL* col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   Xpd = col1->Xpd;
   Parsed = col1->Parsed;
   Warned = col1->Warned;
+  Sgfy = col1->Sgfy;
 } // end of BSONCOL copy constructor
 
 /***********************************************************************/
@@ -1966,8 +1969,10 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
       if (*p1 == '$') p1++;
       if (*p1 == '.') p1++;
       mgopath = PlugDup(g, p1);
-    } else
+    } else {
+      Sgfy = true;
       return NULL;
+    } // endif
 
     for (p1 = p2 = mgopath; *p1; p1++)
       if (i) {                 // Inside []
@@ -2005,6 +2010,7 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
       case '*':
         if (*(p2 - 1) == '.' && !*(p1 + 1)) {
           p2--;              // Suppress last :*
+          Sgfy = true;
           break;
         } // endif p2
 
@@ -2012,6 +2018,9 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
         *p2++ = *p1;
         break;
       } // endswitch p1;
+
+      if (*(p2 - 1) == '.')
+        p2--;
 
       *p2 = 0;
       return mgopath;

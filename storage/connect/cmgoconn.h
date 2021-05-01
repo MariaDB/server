@@ -28,11 +28,8 @@ typedef struct mongo_parms {
 	PCSZ Coll_name;
 	PCSZ Options;
 	PCSZ Filter;
+	PCSZ Line;
 	bool Pipe;
-//PCSZ User;                 // User connect info
-//PCSZ Pwd;                  // Password connect info
-//int  Fsize;								 // Fetch size
-//bool Scrollable;					 // Scrollable cursor
 } CMGOPARM, *PCPARM;
 
 typedef struct KEYCOL {
@@ -40,7 +37,15 @@ typedef struct KEYCOL {
 	PINCOL  Incolp;
 	PCOL    Colp;
 	char   *Key;
+	bool    Array;
 } *PKC;
+
+typedef struct _path_list *PTHP;
+
+typedef struct _path_list {
+	PSZ  Path;
+	PTHP Next;
+} PTH;
 
 /***********************************************************************/
 /*  Used when inserting values in a MongoDB collection.                */
@@ -48,7 +53,7 @@ typedef struct KEYCOL {
 class INCOL : public BLOCK {
 public:
 	// Constructor
-	INCOL(bool ar) { Child = bson_new(); Klist = NULL; Array = ar; }
+	INCOL(void) { Child = bson_new(); Klist = NULL; }
 
 	// Methods
 	void AddCol(PGLOBAL g, PCOL colp, char *jp);
@@ -58,7 +63,6 @@ public:
 	//Members
 	bson_t *Child;
 	PKC     Klist;
-	bool    Array;
 }; // end of INCOL;
 
 /***********************************************************************/
@@ -80,6 +84,7 @@ public:
 	bool IsConnected(void) { return m_Connected; }
 	bool Connect(PGLOBAL g);
 	int  CollSize(PGLOBAL g);
+	void CMgoConn::Project(PGLOBAL g, PSTRG s);
 	bool MakeCursor(PGLOBAL g);
 	int  ReadNext(PGLOBAL g);
 	PSZ  GetDocument(PGLOBAL g);
@@ -108,8 +113,6 @@ protected:
 	bson_t               *Query;			// MongoDB cursor filter
 	bson_t               *Opts;			  // MongoDB cursor options
 	bson_error_t          Error;
-	bson_iter_t           Iter;				// Used to retrieve column value
-	bson_iter_t           Desc;				// Descendant iter
 	PINCOL                Fpc;				// To insert INCOL classes
 	PFBLOCK               fp;
 	bool                  m_Connected;

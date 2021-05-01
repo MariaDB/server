@@ -1,7 +1,7 @@
 /**************** tabcmg H Declares Source Code File (.H) **************/
-/*  Name: tabcmg.h   Version 1.2                                       */
+/*  Name: tabcmg.h   Version 1.3                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2021  */
 /*                                                                     */
 /*  This file contains the MongoDB classes declares.                   */
 /***********************************************************************/
@@ -96,6 +96,7 @@ public:
 
 	// Implementation
 	virtual int   GetAmType(void) { return Tmgp->GetAmType(); }
+	virtual bool  Stringify(void) { return Sgfy; }
 
 	// Methods
 	virtual PSZ   GetJpath(PGLOBAL g, bool proj);
@@ -109,6 +110,7 @@ protected:
 	// Members
 	TDBCMG *Tmgp;                 // To the MGO table block
 	char   *Jpath;                // The json path
+	bool    Sgfy;									// True if stringified
 }; // end of class MGOCOL
 
 /***********************************************************************/
