@@ -250,16 +250,16 @@ int CMgoConn::CollSize(PGLOBAL g)
 	} else
 		query = bson_new();
 
-#if defined(NDEBUG)
-	cnt = (int)mongoc_collection_count(Collection,
-		MONGOC_QUERY_NONE, query, 0, 0, NULL, &Error);
-#else
+#if defined(DEVELOPMENT)
 	if (jf)
 		cnt = (int)mongoc_collection_count_documents(Collection,
 			query, NULL, NULL, NULL, &Error);
 	else
 		cnt = (int)mongoc_collection_estimated_document_count(
-		Collection, NULL, NULL, NULL, &Error);
+			Collection, NULL, NULL, NULL, &Error);
+#else
+	cnt = (int)mongoc_collection_count(Collection,
+		MONGOC_QUERY_NONE, query, 0, 0, NULL, &Error);
 #endif
 
 	if (cnt < 0) {

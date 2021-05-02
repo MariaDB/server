@@ -66,6 +66,7 @@ const char* GetFmt(int type, bool un);
 PJSON ParseJson(PGLOBAL g, char* s, size_t n, int* prty = NULL, bool* b = NULL);
 PSZ   Serialize(PGLOBAL g, PJSON jsp, char *fn, int pretty);
 DllExport bool IsNum(PSZ s);
+bool  IsArray(PSZ s);
 
 /***********************************************************************/
 /* Class JDOC. The class for parsing and serializing json documents.   */
