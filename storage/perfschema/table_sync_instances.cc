@@ -354,8 +354,8 @@ table_cond_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE cond_instances("
-                      "NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null)") },
+                      "NAME VARCHAR(128) not null comment 'Client user name for the connection, or NULL if an internal thread.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented condition.')") },
   false  /* perpetual */
 };
 
