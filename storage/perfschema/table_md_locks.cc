@@ -49,16 +49,16 @@ table_metadata_locks::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE metadata_locks("
-  "OBJECT_TYPE VARCHAR(64) not null,"
-  "OBJECT_SCHEMA VARCHAR(64),"
-  "OBJECT_NAME VARCHAR(64),"
-  "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-  "LOCK_TYPE VARCHAR(32) not null,"
-  "LOCK_DURATION VARCHAR(32) not null,"
-  "LOCK_STATUS VARCHAR(32) not null,"
-  "SOURCE VARCHAR(64),"
-  "OWNER_THREAD_ID BIGINT unsigned,"
-  "OWNER_EVENT_ID BIGINT unsigned)")},
+  "OBJECT_TYPE VARCHAR(64) not null comment 'Object type. One of BACKUP, COMMIT, EVENT, FUNCTION, GLOBAL, LOCKING SERVICE, PROCEDURE, SCHEMA, TABLE, TABLESPACE, TRIGGER (unused) or USER LEVEL LOCK.',"
+  "OBJECT_SCHEMA VARCHAR(64) comment 'Object schema.',"
+  "OBJECT_NAME VARCHAR(64) comment 'Object name.',"
+  "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented object.',"
+  "LOCK_TYPE VARCHAR(32) not null comment 'Lock type. One of BACKUP_FTWRL1, BACKUP_START, BACKUP_TRANS_DML, EXCLUSIVE, INTENTION_EXCLUSIVE, SHARED, SHARED_HIGH_PRIO, SHARED_NO_READ_WRITE, SHARED_NO_WRITE, SHARED_READ, SHARED_UPGRADABLE or SHARED_WRITE.',"
+  "LOCK_DURATION VARCHAR(32) not null comment 'Lock duration. One of EXPLICIT (locks released by explicit action, for example a global lock acquired with FLUSH TABLES WITH READ LOCK) , STATEMENT (locks implicitly released at statement end) or TRANSACTION (locks implicitly released at transaction end).',"
+  "LOCK_STATUS VARCHAR(32) not null comment 'Lock status. One of GRANTED, KILLED, PENDING, POST_RELEASE_NOTIFY, PRE_ACQUIRE_NOTIFY, TIMEOUT or VICTIM.',"
+  "SOURCE VARCHAR(64) comment 'Source file containing the instrumented code that produced the event, as well as the line number where the instrumentation occurred. This allows one to examine the source code involved.',"
+  "OWNER_THREAD_ID BIGINT unsigned comment 'Thread that requested the lock.',"
+  "OWNER_EVENT_ID BIGINT unsigned comment 'Event that requested the lock.')")},
   false  /* perpetual */
 };
 

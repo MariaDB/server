@@ -849,96 +849,96 @@ events_waits_summary_global_by_event_name	CREATE TABLE `events_waits_summary_glo
 show create table memory_summary_by_host_by_event_name;
 Table	Create Table
 memory_summary_by_host_by_event_name	CREATE TABLE `memory_summary_by_host_by_event_name` (
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `EVENT_NAME` varchar(128) NOT NULL,
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL,
-  `COUNT_FREE` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL,
-  `LOW_COUNT_USED` bigint(20) NOT NULL,
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL,
-  `HIGH_COUNT_USED` bigint(20) NOT NULL,
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL
+  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'Host portion of the account.',
+  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
+  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
+  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
+  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
+  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
+  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
+  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
+  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
+  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
+  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
+  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8
 show create table memory_summary_by_thread_by_event_name;
 Table	Create Table
 memory_summary_by_thread_by_event_name	CREATE TABLE `memory_summary_by_thread_by_event_name` (
-  `THREAD_ID` bigint(20) unsigned NOT NULL,
-  `EVENT_NAME` varchar(128) NOT NULL,
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL,
-  `COUNT_FREE` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL,
-  `LOW_COUNT_USED` bigint(20) NOT NULL,
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL,
-  `HIGH_COUNT_USED` bigint(20) NOT NULL,
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL
+  `THREAD_ID` bigint(20) unsigned NOT NULL COMMENT 'Thread id.',
+  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
+  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
+  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
+  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
+  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
+  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
+  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
+  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
+  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
+  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
+  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8
 show create table memory_summary_by_user_by_event_name;
 Table	Create Table
 memory_summary_by_user_by_event_name	CREATE TABLE `memory_summary_by_user_by_event_name` (
-  `USER` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `EVENT_NAME` varchar(128) NOT NULL,
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL,
-  `COUNT_FREE` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL,
-  `LOW_COUNT_USED` bigint(20) NOT NULL,
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL,
-  `HIGH_COUNT_USED` bigint(20) NOT NULL,
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL
+  `USER` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'User portion of the account.',
+  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
+  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
+  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
+  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
+  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
+  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
+  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
+  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
+  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
+  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
+  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8
 show create table memory_summary_by_account_by_event_name;
 Table	Create Table
 memory_summary_by_account_by_event_name	CREATE TABLE `memory_summary_by_account_by_event_name` (
-  `USER` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL,
-  `EVENT_NAME` varchar(128) NOT NULL,
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL,
-  `COUNT_FREE` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL,
-  `LOW_COUNT_USED` bigint(20) NOT NULL,
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL,
-  `HIGH_COUNT_USED` bigint(20) NOT NULL,
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL
+  `USER` char(32) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'User portion of the account.',
+  `HOST` char(60) CHARACTER SET utf8 COLLATE utf8_bin DEFAULT NULL COMMENT 'Host portion of the account.',
+  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
+  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
+  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
+  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
+  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
+  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
+  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
+  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
+  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
+  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
+  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8
 show create table memory_summary_global_by_event_name;
 Table	Create Table
 memory_summary_global_by_event_name	CREATE TABLE `memory_summary_global_by_event_name` (
-  `EVENT_NAME` varchar(128) NOT NULL,
-  `COUNT_ALLOC` bigint(20) unsigned NOT NULL,
-  `COUNT_FREE` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL,
-  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL,
-  `LOW_COUNT_USED` bigint(20) NOT NULL,
-  `CURRENT_COUNT_USED` bigint(20) NOT NULL,
-  `HIGH_COUNT_USED` bigint(20) NOT NULL,
-  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL,
-  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL
+  `EVENT_NAME` varchar(128) NOT NULL COMMENT 'Event name.',
+  `COUNT_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of allocations to memory.',
+  `COUNT_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of attempts to free the allocated memory.',
+  `SUM_NUMBER_OF_BYTES_ALLOC` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes allocated.',
+  `SUM_NUMBER_OF_BYTES_FREE` bigint(20) unsigned NOT NULL COMMENT 'Total number of bytes freed',
+  `LOW_COUNT_USED` bigint(20) NOT NULL COMMENT 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',
+  `CURRENT_COUNT_USED` bigint(20) NOT NULL COMMENT 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',
+  `HIGH_COUNT_USED` bigint(20) NOT NULL COMMENT 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',
+  `LOW_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Lowest number of bytes used.',
+  `CURRENT_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Current number of bytes used (total allocated minus total freed).',
+  `HIGH_NUMBER_OF_BYTES_USED` bigint(20) NOT NULL COMMENT 'Highest number of bytes used.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8
 show create table metadata_locks;
 Table	Create Table
 metadata_locks	CREATE TABLE `metadata_locks` (
-  `OBJECT_TYPE` varchar(64) NOT NULL,
-  `OBJECT_SCHEMA` varchar(64) DEFAULT NULL,
-  `OBJECT_NAME` varchar(64) DEFAULT NULL,
-  `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned NOT NULL,
-  `LOCK_TYPE` varchar(32) NOT NULL,
-  `LOCK_DURATION` varchar(32) NOT NULL,
-  `LOCK_STATUS` varchar(32) NOT NULL,
-  `SOURCE` varchar(64) DEFAULT NULL,
-  `OWNER_THREAD_ID` bigint(20) unsigned DEFAULT NULL,
-  `OWNER_EVENT_ID` bigint(20) unsigned DEFAULT NULL
+  `OBJECT_TYPE` varchar(64) NOT NULL COMMENT 'Object type. One of BACKUP, COMMIT, EVENT, FUNCTION, GLOBAL, LOCKING SERVICE, PROCEDURE, SCHEMA, TABLE, TABLESPACE, TRIGGER (unused) or USER LEVEL LOCK.',
+  `OBJECT_SCHEMA` varchar(64) DEFAULT NULL COMMENT 'Object schema.',
+  `OBJECT_NAME` varchar(64) DEFAULT NULL COMMENT 'Object name.',
+  `OBJECT_INSTANCE_BEGIN` bigint(20) unsigned NOT NULL COMMENT 'Address in memory of the instrumented object.',
+  `LOCK_TYPE` varchar(32) NOT NULL COMMENT 'Lock type. One of BACKUP_FTWRL1, BACKUP_START, BACKUP_TRANS_DML, EXCLUSIVE, INTENTION_EXCLUSIVE, SHARED, SHARED_HIGH_PRIO, SHARED_NO_READ_WRITE, SHARED_NO_WRITE, SHARED_READ, SHARED_UPGRADABLE or SHARED_WRITE.',
+  `LOCK_DURATION` varchar(32) NOT NULL COMMENT 'Lock duration. One of EXPLICIT (locks released by explicit action, for example a global lock acquired with FLUSH TABLES WITH READ LOCK) , STATEMENT (locks implicitly released at statement end) or TRANSACTION (locks implicitly released at transaction end).',
+  `LOCK_STATUS` varchar(32) NOT NULL COMMENT 'Lock status. One of GRANTED, KILLED, PENDING, POST_RELEASE_NOTIFY, PRE_ACQUIRE_NOTIFY, TIMEOUT or VICTIM.',
+  `SOURCE` varchar(64) DEFAULT NULL COMMENT 'Source file containing the instrumented code that produced the event, as well as the line number where the instrumentation occurred. This allows one to examine the source code involved.',
+  `OWNER_THREAD_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Thread that requested the lock.',
+  `OWNER_EVENT_ID` bigint(20) unsigned DEFAULT NULL COMMENT 'Event that requested the lock.'
 ) ENGINE=PERFORMANCE_SCHEMA DEFAULT CHARSET=utf8
 show create table file_instances;
 Table	Create Table

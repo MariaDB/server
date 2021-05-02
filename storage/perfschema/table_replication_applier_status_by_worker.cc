@@ -54,14 +54,14 @@ table_replication_applier_status_by_worker::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_status_by_worker("
-  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null,"
-  "WORKER_ID BIGINT UNSIGNED not null,"
-  "THREAD_ID BIGINT UNSIGNED,"
-  "SERVICE_STATE ENUM('ON','OFF') not null,"
-  "LAST_SEEN_TRANSACTION CHAR(57) not null,"
-  "LAST_ERROR_NUMBER INTEGER not null,"
-  "LAST_ERROR_MESSAGE VARCHAR(1024) not null,"
-  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null)") },
+  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null comment 'Name of replication channel through which the transaction is received.',"
+  "WORKER_ID BIGINT UNSIGNED not null comment 'Worker identifier.,"
+  "THREAD_ID BIGINT UNSIGNED comment 'Thread_Id as displayed in the performance_schema.threads table for thread with name ''thread/sql/rpl_parallel_thread''. THREAD_ID will be NULL when worker threads are stopped due to error/force stop.',"
+  "SERVICE_STATE ENUM('ON','OFF') not null comment 'Whether or not the thread is running.',"
+  "LAST_SEEN_TRANSACTION CHAR(57) not null comment 'Last GTID executed by worker',"
+  "LAST_ERROR_NUMBER INTEGER not null comment 'Last Error that occurred on a particular worker.',"
+  "LAST_ERROR_MESSAGE VARCHAR(1024) not null comment 'Last error specific message.',"
+  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null comment 'Time stamp of last error.')") },
   false  /* perpetual */
 };
 
