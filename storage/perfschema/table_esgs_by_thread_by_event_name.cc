@@ -50,13 +50,13 @@ table_esgs_by_thread_by_event_name::m_share=
   sizeof(pos_esgs_by_thread_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_stages_summary_by_thread_by_event_name("
-                      "THREAD_ID BIGINT unsigned not null,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "COUNT_STAR BIGINT unsigned not null,"
-                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
-                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
-                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null)") },
+                      "THREAD_ID BIGINT unsigned not null comment 'Thread associated with the event. Together with EVENT_NAME uniquely identifies the row.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event name. Used together with THREAD_ID for grouping events.',"
+                      "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events, which includes all timed and untimed events.',"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the timed summarized events.',"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the timed summarized events.',"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the timed summarized events.',"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the timed summarized events.')") },
   false  /* perpetual */
 };
 

@@ -96,3 +96,11 @@ DROP TABLE t_db_26152751;
 SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
 
 DROP DATABASE db_26152751;
+
+
+--echo #
+--echo # MDEV-25325 column_comment for performance_shcema tables
+--echo #
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='file_instances';

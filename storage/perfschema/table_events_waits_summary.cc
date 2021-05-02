@@ -48,13 +48,13 @@ table_events_waits_summary_by_instance::m_share=
   sizeof(pos_all_instr),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_waits_summary_by_instance("
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "COUNT_STAR BIGINT unsigned not null,"
-                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
-                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
-                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null)") },
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event name. Used together with OBJECT_INSTANCE_BEGIN for grouping events.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'If an instrument creates multiple instances, each instance has a unique OBJECT_INSTANCE_BEGIN value to allow for grouping by instance.',"
+                      "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events',"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the summarized events that are timed.',"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the summarized events that are timed.',"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the summarized events that are timed.',"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.')") },
   false  /* perpetual */
 };
 

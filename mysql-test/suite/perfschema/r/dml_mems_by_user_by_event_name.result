@@ -24,3 +24,22 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.memory_summary_by_user_by_event_name WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'memory_summary_by_user_by_event_name'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_shcema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='memory_summary_by_user_by_event_name';
+column_name	column_comment
+USER	User portion of the account.
+EVENT_NAME	Event name.
+COUNT_ALLOC	Total number of allocations to memory.
+COUNT_FREE	Total number of attempts to free the allocated memory.
+SUM_NUMBER_OF_BYTES_ALLOC	Total number of bytes allocated.
+SUM_NUMBER_OF_BYTES_FREE	Total number of bytes freed
+LOW_COUNT_USED	Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).
+CURRENT_COUNT_USED	Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).
+HIGH_COUNT_USED	Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).
+LOW_NUMBER_OF_BYTES_USED	Lowest number of bytes used.
+CURRENT_NUMBER_OF_BYTES_USED	Current number of bytes used (total allocated minus total freed).
+HIGH_NUMBER_OF_BYTES_USED	Highest number of bytes used.

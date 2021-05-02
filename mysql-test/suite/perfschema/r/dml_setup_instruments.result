@@ -85,3 +85,13 @@ UPDATE performance_schema.setup_instruments SET timed='NO'
 ORDER BY RAND();
 update performance_schema.setup_instruments
 set enabled='YES', TIMED='YES';
+#
+# MDEV-25325 column_comment for performance_shcema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='setup_instruments';
+column_name	column_comment
+NAME	Instrument name
+ENABLED	Whether or not the instrument is enabled. It can be disabled, and the instrument will produce no events.
+TIMED	Whether or not the instrument is timed. It can be set, but if disabled, events produced by the instrument will have NULL values for the corresponding TIMER_START, TIMER_END, and TIMER_WAIT values.
