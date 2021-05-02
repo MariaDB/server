@@ -23,3 +23,14 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.session_account_connect_attrs WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'session_account_connect_attrs'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='session_account_connect_attrs';
+column_name	column_comment
+PROCESSLIST_ID	Session connection identifier.
+ATTR_NAME	Attribute name.
+ATTR_VALUE	Attribute value.
+ORDINAL_POSITION	Order in which attribute was added to the connection attributes.
