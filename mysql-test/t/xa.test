@@ -470,3 +470,21 @@ DROP TABLE t1;
 connection default;
 
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # XA states and SHOW commands
+--echo #
+create table t1 (pk int primary key) engine=innodb;
+xa start 'foo';
+insert t1 set pk=1;
+xa end 'foo';
+xa prepare 'foo';
+show status like 'foo';
+--query_vertical select table_name,table_comment from information_schema.tables where table_schema='test'
+--query_vertical select table_name,table_rows,table_comment from information_schema.tables where table_schema='test'
+xa commit 'foo';
+drop table t1;
+
+--echo #
+--echo # End of 10.2 tests
+--echo #
