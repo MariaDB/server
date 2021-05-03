@@ -389,8 +389,6 @@ int wsrep_to_buf_helper(
 int wsrep_create_trigger_query(THD *thd, uchar** buf, size_t* buf_len);
 int wsrep_create_event_query(THD *thd, uchar** buf, size_t* buf_len);
 
-bool wsrep_stmt_rollback_is_safe(THD* thd);
-
 void wsrep_init_sidno(const wsrep_uuid_t&);
 bool wsrep_node_is_donor();
 bool wsrep_node_is_synced();

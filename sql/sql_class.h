@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -664,6 +664,7 @@ typedef struct system_variables
     are based on the cluster size):
   */
   ulong saved_auto_increment_increment, saved_auto_increment_offset;
+  ulong saved_lock_wait_timeout;
   ulonglong wsrep_gtid_seq_no;
 #endif /* WITH_WSREP */
   uint eq_range_index_dive_limit;
