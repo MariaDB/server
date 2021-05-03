@@ -509,6 +509,12 @@ sub main {
   }
 
   if ( not @$completed ) {
+    my $test_name= mtr_grab_file($path_current_testlog);
+    $test_name =~ s/^CURRENT_TEST:\s//;
+    my $tinfo = My::Test->new(name => $test_name);
+    $tinfo->{result}= 'MTR_RES_FAILED';
+    $tinfo->{logfile}=$path_current_testlog;
+    mtr_report_test($tinfo);
     mtr_error("Test suite aborted");
   }
 
@@ -5080,6 +5086,15 @@ sub mysqld_start ($$) {
                       $opt_start_timeout, $mysqld->{'proc'}, $warn_seconds))
   {
     my $mname= $mysqld->name();
+    # Report failure about the last test case before exit
+    my $test_name= mtr_grab_file($path_current_testlog);
+    $test_name =~ s/^CURRENT_TEST:\s//;
+    my $tinfo = My::Test->new(name => $test_name);
+    $tinfo->{result}= 'MTR_RES_FAILED';
+    $tinfo->{failures}= 1;
+    $tinfo->{logfile}=get_log_from_proc($mysqld->{'proc'}, $tinfo->{name});
+    report_option('verbose', 1);
+    mtr_report_test($tinfo);
     mtr_error("Failed to start mysqld $mname with command $exe");
   }
 
