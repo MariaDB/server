@@ -2666,7 +2666,7 @@ commit_exit:
 	    && page_is_empty(block->frame)
 	    && !entry->is_metadata() && !trx->duplicates
 	    && !trx->check_unique_secondary && !trx->check_foreigns
-	    && !trx->ddl && !trx->internal
+	    && !trx->dict_operation && !trx->internal
 	    && block->page.id().page_no() == index->page
 	    && !index->table->skip_alter_undo
 	    && !index->table->n_rec_locks

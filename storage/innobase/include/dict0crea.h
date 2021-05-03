@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -99,9 +99,11 @@ dict_create_index_tree(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
+@param[in,out]	table	table that the record belongs to
 @param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
-	MY_ATTRIBUTE((nonnull(1,3)));
+void dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, dict_table_t *table,
+                          mtr_t *mtr)
+	MY_ATTRIBUTE((nonnull(1,4)));
 
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.

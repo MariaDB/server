@@ -1770,13 +1770,6 @@ file_checked:
 			/* Drop garbage tables. */
 			row_mysql_drop_garbage_tables();
 
-			/* Drop any auxiliary tables that were not
-			dropped when the parent table was
-			dropped. This can happen if the parent table
-			was dropped but the server crashed before the
-			auxiliary tables were dropped. */
-			fts_drop_orphaned_tables();
-
 			/* Rollback incomplete non-DDL transactions */
 			trx_rollback_is_active = true;
 			srv_thread_pool->submit_task(&rollback_all_recovered_task);

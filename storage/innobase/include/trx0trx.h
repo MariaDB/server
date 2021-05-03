@@ -151,25 +151,20 @@ trx_start_internal_read_only_low(
 	trx_start_if_not_started_xa_low((t), (rw))
 #endif /* UNIV_DEBUG */
 
-/*************************************************************//**
-Starts the transaction for a DDL operation. */
-void
-trx_start_for_ddl_low(
-/*==================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	trx_dict_op_t	op);	/*!< in: dictionary operation type */
+/** Start a transaction for a DDL operation.
+@param trx   transaction */
+void trx_start_for_ddl_low(trx_t *trx);
 
 #ifdef UNIV_DEBUG
-#define trx_start_for_ddl(t, o)					\
+# define trx_start_for_ddl(t)					\
 	do {							\
 	ut_ad((t)->start_file == 0);				\
 	(t)->start_line = __LINE__;				\
 	(t)->start_file = __FILE__;				\
-	trx_start_for_ddl_low((t), (o));			\
+	trx_start_for_ddl_low(t);				\
 	} while (0)
 #else
-#define trx_start_for_ddl(t, o)					\
-	trx_start_for_ddl_low((t), (o))
+# define trx_start_for_ddl(t) trx_start_for_ddl_low(t)
 #endif /* UNIV_DEBUG */
 
 /**********************************************************************//**
@@ -272,25 +267,6 @@ trx_print(
 	const trx_t*	trx,		/*!< in: transaction */
 	ulint		max_query_len);	/*!< in: max query length to print,
 					or 0 to use the default max length */
-
-/**********************************************************************//**
-Determine if a transaction is a dictionary operation.
-@return dictionary operation mode */
-UNIV_INLINE
-enum trx_dict_op_t
-trx_get_dict_operation(
-/*===================*/
-	const trx_t*	trx)	/*!< in: transaction */
-	MY_ATTRIBUTE((warn_unused_result));
-/**********************************************************************//**
-Flag a transaction a dictionary operation. */
-UNIV_INLINE
-void
-trx_set_dict_operation(
-/*===================*/
-	trx_t*			trx,	/*!< in/out: transaction */
-	enum trx_dict_op_t	op);	/*!< in: operation, not
-					TRX_DICT_OP_NONE */
 
 /**********************************************************************//**
 Determines if a transaction is in the given state.
@@ -818,8 +794,8 @@ public:
 					flush the log in
 					trx_commit_complete_for_mysql() */
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
-	trx_dict_op_t	dict_operation;	/**< @see enum trx_dict_op_t */
-
+	bool		dict_operation;	/**< whether this modifies InnoDB
+					data dictionary */
 	ib_uint32_t	dict_operation_lock_mode;
 					/*!< 0, RW_S_LATCH, or RW_X_LATCH:
 					the latch mode trx currently holds
@@ -832,8 +808,6 @@ public:
 	/** microsecond_interval_timer() of transaction start */
 	ulonglong	start_time_micro;
 	lsn_t		commit_lsn;	/*!< lsn at the time of the commit */
-	table_id_t	table_id;	/*!< Table to drop iff dict_operation
-					== TRX_DICT_OP_TABLE, or 0. */
 	/*------------------------------*/
 	THD*		mysql_thd;	/*!< MySQL thread handle corresponding
 					to this trx, or NULL */
@@ -928,8 +902,6 @@ public:
 					count of tables being flushed. */
 
 	/*------------------------------*/
-	bool		ddl;		/*!< true if it is an internal
-					transaction for DDL */
 	bool		internal;	/*!< true if it is a system/internal
 					transaction background task. This
 					includes DDL transactions too.  Such
@@ -1070,7 +1042,7 @@ public:
     ut_ad(lock.table_locks.empty());
     ut_ad(!autoinc_locks || ib_vector_is_empty(autoinc_locks));
     ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
-    ut_ad(dict_operation == TRX_DICT_OP_NONE);
+    ut_ad(!dict_operation);
   }
 
   /** This has to be invoked on SAVEPOINT or at the end of a statement.

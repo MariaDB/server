@@ -285,9 +285,22 @@ trx_undo_read_v_idx(
 compilation info multiplied by 16 is ORed to this value in an undo log
 record */
 
-#define	TRX_UNDO_RENAME_TABLE	9	/*!< RENAME TABLE */
-#define	TRX_UNDO_INSERT_METADATA 10	/*!< insert a metadata
-					pseudo-record for instant ALTER */
+/** Undo log records for DDL operations
+
+Note: special rollback and purge triggers exist for SYS_INDEXES records:
+@see dict_drop_index_tree() */
+enum trx_undo_ddl_type
+{
+  /** RENAME TABLE (logging the old table name).
+
+  Because SYS_TABLES has PRIMARY KEY(NAME), the row-level undo log records
+  for SYS_TABLES cannot be distinguished from DROP TABLE, CREATE TABLE. */
+  TRX_UNDO_RENAME_TABLE= 9,
+  /** insert a metadata pseudo-record for instant ALTER TABLE */
+  TRX_UNDO_INSERT_METADATA= 10
+};
+
+/* DML operations */
 #define	TRX_UNDO_INSERT_REC	11	/* fresh insert into clustered index */
 #define	TRX_UNDO_UPD_EXIST_REC	12	/* update of a non-delete-marked
 					record */

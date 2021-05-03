@@ -2653,7 +2653,7 @@ ha_innobase::update_thd(
 	trx_t*	trx = check_trx_exists(thd);
 
 	ut_ad(trx->dict_operation_lock_mode == 0);
-	ut_ad(trx->dict_operation == TRX_DICT_OP_NONE);
+	ut_ad(!trx->dict_operation);
 
 	if (m_prebuilt->trx != trx) {
 
@@ -4057,7 +4057,7 @@ innobase_commit(
 	trx_t*	trx = check_trx_exists(thd);
 
 	ut_ad(trx->dict_operation_lock_mode == 0);
-	ut_ad(trx->dict_operation == TRX_DICT_OP_NONE);
+	ut_ad(!trx->dict_operation);
 
 	/* Transaction is deregistered only in a commit or a rollback. If
 	it is deregistered we know there cannot be resources to be freed
@@ -4146,7 +4146,7 @@ innobase_rollback(
 	trx_t*	trx = check_trx_exists(thd);
 
 	ut_ad(trx->dict_operation_lock_mode == 0);
-	ut_ad(trx->dict_operation == TRX_DICT_OP_NONE);
+	ut_ad(!trx->dict_operation);
 
 	/* Reset the number AUTO-INC rows required */
 
@@ -10392,8 +10392,7 @@ err_col:
 					    "temporary table creation.");
 		}
 
-		m_trx->table_id = table->id
-			= dict_sys.get_temporary_table_id();
+		table->id = dict_sys.get_temporary_table_id();
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
 		table->space_id = SRV_TMP_SPACE_ID;
@@ -12185,7 +12184,7 @@ create_table_info_t::create_foreign_keys()
 
 	trx_start_if_not_started_xa(m_trx, true);
 
-	trx_set_dict_operation(m_trx, TRX_DICT_OP_TABLE);
+	m_trx->dict_operation = true;
 
 	error = dict_create_add_foreigns_to_dictionary(local_fk_set, table,
 						       m_trx);
@@ -12712,8 +12711,7 @@ create_table_info_t::allocate_trx()
 {
 	m_trx = innobase_trx_allocate(m_thd);
 
-	m_trx->will_lock++;
-	m_trx->ddl = true;
+	m_trx->will_lock = 1;
 }
 
 /** Create a new table to an InnoDB database.
@@ -13259,8 +13257,7 @@ inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
 	char	norm_from[FN_REFLEN];
 
 	DBUG_ENTER("innobase_rename_table");
-	DBUG_ASSERT(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX
-		    || trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE);
+	DBUG_ASSERT(trx->dict_operation);
 
 	ut_ad(!srv_read_only_mode);
 
@@ -13381,8 +13378,8 @@ int ha_innobase::truncate()
 	const char* name = mem_heap_strdup(heap, ib_table->name.m_name);
 	trx_t*	trx = innobase_trx_allocate(m_user_thd);
 
-	++trx->will_lock;
-	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+	trx->will_lock = 1;
+	trx->dict_operation = true;
 	row_mysql_lock_data_dictionary(trx);
 	dict_stats_wait_bg_to_stop_using_table(ib_table, trx);
 
@@ -13468,8 +13465,8 @@ ha_innobase::rename_table(
 	trx_t*	trx = innobase_trx_allocate(thd);
 
 	/* We are doing a DDL operation. */
-	++trx->will_lock;
-	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
+	trx->will_lock = 1;
+	trx->dict_operation = true;
 
 	dberr_t	error = innobase_rename_table(trx, from, to, true);
 
@@ -20755,10 +20752,7 @@ ib_push_frm_error(
 		sql_print_error("InnoDB: Table %s contains " ULINTPF " "
 			"indexes inside InnoDB, which "
 			"is different from the number of "
-			"indexes %u defined in the MariaDB "
-			" Have you mixed up "
-			".frm files from different "
-			"installations? See "
+			"indexes %u defined in the .frm file. See "
 			"https://mariadb.com/kb/en/innodb-troubleshooting/\n",
 			ib_table->name.m_name, n_keys,
 			table->s->keys);

@@ -876,7 +876,6 @@ trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no,
 	mysql_mutex_unlock(&rseg->mutex);
 
 	undo->dict_operation = undo_header[TRX_UNDO_DICT_TRANS];
-	undo->table_id = mach_read_from_8(undo_header + TRX_UNDO_TABLE_ID);
 	undo->size = flst_get_len(TRX_UNDO_SEG_HDR + TRX_UNDO_PAGE_LIST
 				  + block->frame);
 
@@ -1046,21 +1045,12 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		return block;
 	}
 
-	switch (trx_get_dict_operation(trx)) {
-	case TRX_DICT_OP_NONE:
-		break;
-	case TRX_DICT_OP_INDEX:
-		/* Do not discard the table on recovery. */
-		trx->table_id = 0;
-		/* fall through */
-	case TRX_DICT_OP_TABLE:
-		(*undo)->table_id = trx->table_id;
-		(*undo)->dict_operation = TRUE;
+	if (trx->dict_operation) {
+		(*undo)->dict_operation = true;
 		mtr->write<1,mtr_t::MAYBE_NOP>(*block, block->frame + offset
 					       + TRX_UNDO_DICT_TRANS, 1U);
 		mtr->write<8,mtr_t::MAYBE_NOP>(*block, block->frame + offset
-					       + TRX_UNDO_TABLE_ID,
-					       trx->table_id);
+					       + TRX_UNDO_TABLE_ID, 0U);
 	}
 
 	*err = DB_SUCCESS;
@@ -1111,21 +1101,12 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 		return block;
 	}
 
-	switch (trx_get_dict_operation(trx)) {
-	case TRX_DICT_OP_NONE:
-		return block;
-	case TRX_DICT_OP_INDEX:
-		/* Do not discard the table on recovery. */
-		trx->table_id = 0;
-		/* fall through */
-	case TRX_DICT_OP_TABLE:
-		undo->table_id = trx->table_id;
+	if (trx->dict_operation) {
 		undo->dict_operation = TRUE;
 		mtr->write<1,mtr_t::MAYBE_NOP>(*block, block->frame + offset
 					       + TRX_UNDO_DICT_TRANS, 1U);
 		mtr->write<8,mtr_t::MAYBE_NOP>(*block, block->frame + offset
-					       + TRX_UNDO_TABLE_ID,
-					       trx->table_id);
+					       + TRX_UNDO_TABLE_ID, 0U);
 	}
 
 	return block;

@@ -113,9 +113,7 @@ trx_init(
 
 	trx->lock.n_rec_locks = 0;
 
-	trx->dict_operation = TRX_DICT_OP_NONE;
-
-	trx->table_id = 0;
+	trx->dict_operation = false;
 
 	trx->error_state = DB_SUCCESS;
 
@@ -132,8 +130,6 @@ trx_init(
 	trx->auto_commit = false;
 
 	trx->will_lock = 0;
-
-	trx->ddl = false;
 
 	trx->internal = false;
 
@@ -383,7 +379,7 @@ void trx_t::free()
   ut_ad(!read_only);
   ut_ad(!lock.wait_lock);
 
-  dict_operation= TRX_DICT_OP_NONE;
+  dict_operation= false;
   trx_sys.deregister_trx(this);
   assert_freed();
   trx_sys.rw_trx_hash.put_pins(this);
@@ -423,7 +419,6 @@ void trx_t::free()
   MEM_NOACCESS(&start_time, sizeof start_time);
   MEM_NOACCESS(&start_time_micro, sizeof start_time_micro);
   MEM_NOACCESS(&commit_lsn, sizeof commit_lsn);
-  MEM_NOACCESS(&table_id, sizeof table_id);
   MEM_NOACCESS(&mysql_thd, sizeof mysql_thd);
   MEM_NOACCESS(&mysql_log_file_name, sizeof mysql_log_file_name);
   MEM_NOACCESS(&mysql_log_offset, sizeof mysql_log_offset);
@@ -448,7 +443,6 @@ void trx_t::free()
   MEM_NOACCESS(&fts_trx, sizeof fts_trx);
   MEM_NOACCESS(&fts_next_doc_id, sizeof fts_next_doc_id);
   MEM_NOACCESS(&flush_tables, sizeof flush_tables);
-  MEM_NOACCESS(&ddl, sizeof ddl);
   MEM_NOACCESS(&internal, sizeof internal);
 #ifdef UNIV_DEBUG
   MEM_NOACCESS(&start_line, sizeof start_line);
@@ -693,13 +687,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
   trx->is_recovered= true;
   trx->start_time= start_time;
   trx->start_time_micro= start_time_micro;
-
-  if (undo->dict_operation)
-  {
-    trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
-    if (!trx->table_id)
-      trx->table_id= undo->table_id;
-  }
+  trx->dict_operation= undo->dict_operation;
 
   trx_sys.rw_trx_hash.insert(trx);
   trx_sys.rw_trx_hash.put_pins(trx);
@@ -941,7 +929,7 @@ trx_start_low(
 	trx->auto_commit = thd_trx_is_auto_commit(trx->mysql_thd);
 
 	trx->read_only = srv_read_only_mode
-		|| (!trx->ddl && !trx->internal
+		|| (!trx->dict_operation && !trx->internal
 		    && thd_trx_is_read_only(trx->mysql_thd));
 
 	if (!trx->auto_commit) {
@@ -973,7 +961,7 @@ trx_start_low(
 	list too. */
 
 	if (!trx->read_only
-	    && (trx->mysql_thd == 0 || read_write || trx->ddl)) {
+	    && (!trx->mysql_thd || read_write || trx->dict_operation)) {
 
 		/* Temporary rseg is assigned only if the transaction
 		updates a temporary table */
@@ -1434,7 +1422,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   lock.was_chosen_as_deadlock_victim= false;
 #endif /* WITH_WSREP */
   mutex.wr_lock();
-  dict_operation= TRX_DICT_OP_NONE;
+  dict_operation= false;
 
   DBUG_LOG("trx", "Commit in memory: " << this);
   state= TRX_STATE_NOT_STARTED;
@@ -2192,38 +2180,17 @@ trx_start_internal_read_only_low(
 	trx_start_low(trx, false);
 }
 
-/*************************************************************//**
-Starts the transaction for a DDL operation. */
-void
-trx_start_for_ddl_low(
-/*==================*/
-	trx_t*		trx,	/*!< in/out: transaction */
-	trx_dict_op_t	op)	/*!< in: dictionary operation type */
+/** Start a transaction for a DDL operation.
+@param trx   transaction */
+void trx_start_for_ddl_low(trx_t *trx)
 {
-	switch (trx->state) {
-	case TRX_STATE_NOT_STARTED:
-		/* Flag this transaction as a dictionary operation, so that
-		the data dictionary will be locked in crash recovery. */
-
-		trx_set_dict_operation(trx, op);
-
-		/* Ensure it is not flagged as an auto-commit-non-locking
-		transation. */
-		trx->will_lock = 1;
-
-		trx->ddl= true;
-
-		trx_start_internal_low(trx);
-		return;
-
-	case TRX_STATE_ACTIVE:
-	case TRX_STATE_PREPARED:
-	case TRX_STATE_PREPARED_RECOVERED:
-	case TRX_STATE_COMMITTED_IN_MEMORY:
-		break;
-	}
-
-	ut_error;
+  ut_a(trx->state == TRX_STATE_NOT_STARTED);
+  /* Flag this transaction as a dictionary operation, so that
+  the data dictionary will be locked in crash recovery. */
+  trx->dict_operation= true;
+  /* Ensure it is not flagged as an auto-commit-non-locking transaction. */
+  trx->will_lock= 1;
+  trx_start_internal_low(trx);
 }
 
 /*************************************************************//**

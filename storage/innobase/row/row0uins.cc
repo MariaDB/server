@@ -71,6 +71,18 @@ row_undo_ins_remove_clust_rec(
 	mtr_t		mtr;
 	dict_index_t*	index	= node->pcur.btr_cur.index;
 	bool		online;
+	table_id_t table_id = 0;
+	const bool dict_locked = node->trx->dict_operation_lock_mode
+		== RW_X_LATCH;
+restart:
+	MDL_ticket* mdl_ticket = nullptr;
+	ut_ad(!table_id || dict_locked
+	      || node->trx->dict_operation_lock_mode == 0);
+	dict_table_t *table = table_id
+		? dict_table_open_on_id(table_id, dict_locked,
+					DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+					node->trx->mysql_thd, &mdl_ticket)
+		: nullptr;
 
 	ut_ad(index->is_primary());
 	ut_ad(node->trx->in_rollback);
@@ -132,8 +144,16 @@ row_undo_ins_remove_clust_rec(
 			ut_ad(node->trx->dict_operation_lock_mode
 			      == RW_X_LATCH);
 			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
-
-			dict_drop_index_tree(&node->pcur, node->trx, &mtr);
+			if (!table_id) {
+				table_id = mach_read_from_8(rec);
+				if (table_id) {
+					mtr.commit();
+					goto restart;
+				}
+				ut_ad("corrupted SYS_INDEXES record" == 0);
+			}
+			dict_drop_index_tree(&node->pcur, node->trx,
+					     table, &mtr);
 			mtr.commit();
 
 			mtr.start();
@@ -153,16 +173,14 @@ row_undo_ins_remove_clust_rec(
 			      == RW_X_LATCH);
 			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 			if (rec_get_n_fields_old(rec)
-			    != DICT_NUM_FIELDS__SYS_COLUMNS) {
+			    != DICT_NUM_FIELDS__SYS_COLUMNS
+			    || (rec_get_1byte_offs_flag(rec)
+				? rec_1_get_field_end_info(rec, 0) != 8
+				: rec_2_get_field_end_info(rec, 0) != 8)) {
 				break;
 			}
-			ulint len;
-			const byte* data = rec_get_nth_field_old(
-				rec, DICT_FLD__SYS_COLUMNS__TABLE_ID, &len);
-			if (len != 8) {
-				break;
-			}
-			node->trx->evict_table(mach_read_from_8(data));
+			static_assert(!DICT_FLD__SYS_COLUMNS__TABLE_ID, "");
+			node->trx->evict_table(mach_read_from_8(rec));
 		}
 	}
 
@@ -213,6 +231,12 @@ func_exit:
 	}
 
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
+
+	if (UNIV_LIKELY_NULL(table)) {
+		dict_table_close(table, dict_locked, false,
+				 node->trx->mysql_thd, mdl_ticket);
+	}
+
 	return(err);
 }
 

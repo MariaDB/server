@@ -247,7 +247,7 @@ dict_table_try_drop_aborted(
 	trx = trx_create();
 	trx->op_info = "try to drop any indexes after an aborted index creation";
 	row_mysql_lock_data_dictionary(trx);
-	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
+	trx->dict_operation = true;
 
 	if (table == NULL) {
 		table = dict_table_open_on_id_low(
@@ -364,42 +364,6 @@ dict_table_close(
 	} else if (MDL_context *mdl_context= static_cast<MDL_context*>(
 			   thd_mdl_context(thd))) {
 		mdl_context->release_lock(mdl);
-	}
-}
-
-/********************************************************************//**
-Closes the only open handle to a table and drops a table while assuring
-that dict_sys.mutex is held the whole time.  This assures that the table
-is not evicted after the close when the count of open handles goes to zero.
-Because dict_sys.mutex is held, we do not need to call
-dict_table_prevent_eviction().  */
-void
-dict_table_close_and_drop(
-/*======================*/
-	trx_t*		trx,		/*!< in: data dictionary transaction */
-	dict_table_t*	table)		/*!< in/out: table */
-{
-	dberr_t err = DB_SUCCESS;
-
-	ut_d(dict_sys.assert_locked());
-	ut_ad(trx->dict_operation != TRX_DICT_OP_NONE);
-	ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
-
-	dict_table_close(table, true, false);
-
-#if defined UNIV_DEBUG || defined UNIV_DDL_DEBUG
-	/* Nobody should have initialized the stats of the newly created
-	table when this is called. So we know that it has not been added
-	for background stats gathering. */
-	ut_a(!table->stat_initialized);
-#endif /* UNIV_DEBUG || UNIV_DDL_DEBUG */
-
-	err = row_merge_drop_table(trx, table);
-
-	if (err != DB_SUCCESS) {
-		ib::error() << "At " << __FILE__ << ":" << __LINE__
-			    << " row_merge_drop_table returned error: " << err
-			    << " table: " << table->name;
 	}
 }
 
@@ -943,8 +907,6 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       dict_table_op_t table_op, THD *thd,
                       MDL_ticket **mdl)
 {
-	ut_ad(!dict_locked || !thd);
-
 	if (!dict_locked) {
 		dict_sys.mutex_lock();
 	}
@@ -2013,7 +1975,7 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		/* Mimic row_mysql_lock_data_dictionary(). */
 		trx->dict_operation_lock_mode = RW_X_LATCH;
 
-		trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
+		trx->dict_operation = true;
 		row_merge_drop_indexes_dict(trx, table->id);
 		trx_commit_for_mysql(trx);
 		trx->dict_operation_lock_mode = 0;

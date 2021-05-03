@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -345,12 +345,10 @@ dict_build_table_def_step(
 {
 	dict_sys.assert_locked();
 	dict_table_t*	table = node->table;
-	trx_t* trx = thr_get_trx(thr);
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
 	ut_ad(table->space_id == ULINT_UNDEFINED);
 	dict_hdr_get_new_id(&table->id, NULL, NULL);
-	trx->table_id = table->id;
 
 	/* Always set this bit for all new created tables */
 	DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
@@ -363,33 +361,6 @@ dict_build_table_def_step(
 
 		ut_ad(DICT_TF_GET_ZIP_SSIZE(table->flags) == 0
 		      || dict_table_has_atomic_blobs(table));
-		mtr_t mtr;
-		trx_undo_t* undo = trx->rsegs.m_redo.undo;
-		if (undo && !undo->table_id
-		    && trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE) {
-			/* This must be a TRUNCATE operation where
-			the empty table is created after the old table
-			was renamed. Be sure to mark the transaction
-			associated with the new empty table, so that
-			we can remove it on recovery. */
-			mtr.start();
-			undo->table_id = trx->table_id;
-			undo->dict_operation = TRUE;
-			buf_block_t* block = trx_undo_page_get(
-				page_id_t(trx->rsegs.m_redo.rseg->space->id,
-					  undo->hdr_page_no),
-				&mtr);
-			mtr.write<1,mtr_t::MAYBE_NOP>(
-				*block,
-				block->frame + undo->hdr_offset
-				+ TRX_UNDO_DICT_TRANS, 1U);
-			mtr.write<8,mtr_t::MAYBE_NOP>(
-				*block,
-				block->frame + undo->hdr_offset
-				+ TRX_UNDO_TABLE_ID, trx->table_id);
-			mtr.commit();
-			log_write_up_to(mtr.commit_lsn(), true);
-		}
 		/* Get a new tablespace ID */
 		ulint space_id;
 		dict_hdr_get_new_id(NULL, NULL, &space_id);
@@ -435,6 +406,7 @@ dict_build_table_def_step(
 		}
 
 		table->space_id = space_id;
+		mtr_t mtr;
 		mtr.start();
 		mtr.set_named_space(table->space);
 		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
@@ -725,11 +697,6 @@ dict_build_index_def_step(
 		return(DB_TABLE_NOT_FOUND);
 	}
 
-	if (!trx->table_id) {
-		/* Record only the first table id. */
-		trx->table_id = table->id;
-	}
-
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
 
@@ -764,11 +731,6 @@ dict_build_index_def(
 	trx_t*			trx)	/*!< in/out: InnoDB transaction handle */
 {
 	dict_sys.assert_locked();
-
-	if (trx->table_id == 0) {
-		/* Record only the first table id. */
-		trx->table_id = table->id;
-	}
 
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
@@ -903,73 +865,80 @@ dict_create_index_tree_in_mem(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
+@param[in,out]	table	table that the record belongs to
 @param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(btr_pcur_t* pcur, trx_t* trx, mtr_t* mtr)
+void dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, dict_table_t *table,
+                          mtr_t *mtr)
 {
-	rec_t*	rec = btr_pcur_get_rec(pcur);
-	byte*	ptr;
-	ulint	len;
+  rec_t *rec= btr_pcur_get_rec(pcur);
 
-	ut_d(if (trx) dict_sys.assert_locked());
-	ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
-	btr_pcur_store_position(pcur, mtr);
+  ut_d(if (trx) dict_sys.assert_locked());
+  ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
+  btr_pcur_store_position(pcur, mtr);
 
-	static_assert(DICT_FLD__SYS_INDEXES__TABLE_ID == 0, "compatibility");
-	static_assert(DICT_FLD__SYS_INDEXES__ID == 1, "compatibility");
+  static_assert(DICT_FLD__SYS_INDEXES__TABLE_ID == 0, "compatibility");
+  static_assert(DICT_FLD__SYS_INDEXES__ID == 1, "compatibility");
 
-	if (rec_get_1byte_offs_flag(rec)) {
-		if (rec_1_get_field_end_info(rec, 0) != 8
-		    || rec_1_get_field_end_info(rec, 1) != 8 + 8) {
+  ulint len= rec_get_n_fields_old(rec);
+  if (len < DICT_FLD__SYS_INDEXES__MERGE_THRESHOLD ||
+      len > DICT_NUM_FIELDS__SYS_INDEXES)
+  {
 rec_corrupted:
-			ib::error() << "Corrupted SYS_INDEXES record";
-			return;
-		}
-	} else if (rec_2_get_field_end_info(rec, 0) != 8
-		   || rec_2_get_field_end_info(rec, 1) != 8 + 8) {
-		goto rec_corrupted;
-	}
+    ib::error() << "Corrupted SYS_INDEXES record";
+    return;
+  }
 
-	ptr = rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
-	if (len != 4) {
-		goto rec_corrupted;
-	}
+  if (rec_get_1byte_offs_flag(rec))
+  {
+    if (rec_1_get_field_end_info(rec, 0) != 8 ||
+        rec_1_get_field_end_info(rec, 1) != 8 + 8)
+      goto rec_corrupted;
+  }
+  else if (rec_2_get_field_end_info(rec, 0) != 8 ||
+           rec_2_get_field_end_info(rec, 1) != 8 + 8)
+    goto rec_corrupted;
 
-	const uint32_t root_page_no = mach_read_from_4(ptr);
+  const byte *p= rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__TYPE, &len);
+  if (len != 4)
+    goto rec_corrupted;
+  const uint32_t type= mach_read_from_4(p);
+  p= rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__PAGE_NO, &len);
+  if (len != 4)
+    goto rec_corrupted;
+  const uint32_t root_page_no= mach_read_from_4(p);
+  p= rec_get_nth_field_old(rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
+  if (len != 4)
+    goto rec_corrupted;
 
-	if (root_page_no == FIL_NULL) {
-		/* The tree has already been freed */
-		return;
-	}
+  if (root_page_no == FIL_NULL)
+    /* The tree has already been freed */
+    return;
 
-	compile_time_assert(FIL_NULL == 0xffffffff);
-	mtr->memset(btr_pcur_get_block(pcur), page_offset(ptr), 4, 0xff);
+  static_assert(FIL_NULL == 0xffffffff, "compatibility");
+  static_assert(DICT_FLD__SYS_INDEXES__PAGE_NO ==
+                DICT_FLD__SYS_INDEXES__SPACE + 1, "compatibility");
+  mtr->memset(btr_pcur_get_block(pcur), page_offset(p + 4), 4, 0xff);
 
-	ptr = rec_get_nth_field_old(
-		rec, DICT_FLD__SYS_INDEXES__SPACE, &len);
+  const uint32_t space_id= mach_read_from_4(p);
+  ut_ad(space_id < SRV_TMP_SPACE_ID);
 
-	if (len != 4) {
-		goto rec_corrupted;
-	}
-
-	const uint32_t space_id = mach_read_from_4(ptr);
-	ut_ad(space_id < SRV_TMP_SPACE_ID);
-	if (space_id != TRX_SYS_SPACE && trx
-	    && trx_get_dict_operation(trx) == TRX_DICT_OP_TABLE) {
-		/* We are about to delete the entire .ibd file;
-		do not bother to free pages inside it. */
-		return;
-	}
-
-	if (fil_space_t* s = fil_space_t::get(space_id)) {
-		/* Ensure that the tablespace file exists
-		in order to avoid a crash in buf_page_get_gen(). */
-		if (root_page_no < s->get_size()) {
-			btr_free_if_exists(page_id_t(space_id, root_page_no),
-					   s->zip_size(),
-					   mach_read_from_8(rec + 8), mtr);
-		}
-		s->release();
-	}
+  if (space_id && (type & DICT_CLUSTERED))
+  {
+    if (table && table->space_id == space_id)
+      table->space= nullptr;
+    else
+      ut_ad(!table);
+    fil_delete_tablespace(space_id, true);
+  }
+  else if (fil_space_t*s= fil_space_t::get(space_id))
+  {
+    /* Ensure that the tablespace file exists
+    in order to avoid a crash in buf_page_get_gen(). */
+    if (root_page_no < s->get_size())
+      btr_free_if_exists(page_id_t(space_id, root_page_no), s->zip_size(),
+                         mach_read_from_8(rec + 8), mtr);
+    s->release();
+  }
 }
 
 /*********************************************************************//**
@@ -1431,7 +1400,7 @@ dict_create_or_check_foreign_constraint_tables(void)
 
 	trx = trx_create();
 
-	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+	trx->dict_operation = true;
 
 	trx->op_info = "creating foreign key sys tables";
 
@@ -1570,7 +1539,7 @@ dict_create_or_check_sys_virtual()
 
 	trx = trx_create();
 
-	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
+	trx->dict_operation = true;
 
 	trx->op_info = "creating sys_virtual tables";
 

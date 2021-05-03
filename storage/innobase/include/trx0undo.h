@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -301,9 +301,7 @@ struct trx_undo_t {
 					log */
 	XID		xid;		/*!< X/Open XA transaction
 					identification */
-	ibool		dict_operation;	/*!< TRUE if a dict operation trx */
-	table_id_t	table_id;	/*!< if a dict operation, then the table
-					id */
+	bool		dict_operation;	/*!< TRUE if a dict operation trx */
 	trx_rseg_t*	rseg;		/*!< rseg where the undo log belongs */
 	/*-----------------------------*/
 	uint32_t	hdr_page_no;	/*!< page number of the header page in

@@ -3658,25 +3658,6 @@ err_exit:
 }
 
 /*********************************************************************//**
-Sets an exclusive lock on a table, for the duration of creating indexes.
-@return error code or DB_SUCCESS */
-dberr_t
-row_merge_lock_table(
-/*=================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	dict_table_t*	table,		/*!< in: table to lock */
-	enum lock_mode	mode)		/*!< in: LOCK_X or LOCK_S */
-{
-	ut_ad(!srv_read_only_mode);
-	ut_ad(mode == LOCK_X || mode == LOCK_S);
-
-	trx->op_info = "setting table lock for creating or dropping index";
-	trx->ddl = true;
-
-	return(lock_table_for_trx(table, trx, mode));
-}
-
-/*********************************************************************//**
 Drop an index that was created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
 because the transaction will not be committed. */
@@ -3698,7 +3679,7 @@ row_merge_drop_index_dict(
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
+	ut_ad(trx->dict_operation);
 	ut_d(dict_sys.assert_locked());
 
 	info = pars_info_create();
@@ -3760,7 +3741,7 @@ row_merge_drop_indexes_dict(
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
+	ut_ad(trx->dict_operation);
 	ut_d(dict_sys.assert_locked());
 
 	/* It is possible that table->n_ref_count > 1 when
@@ -3812,7 +3793,7 @@ row_merge_drop_indexes(
 
 	ut_ad(!srv_read_only_mode);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
+	ut_ad(trx->dict_operation);
 	ut_d(dict_sys.assert_locked());
 
 	index = dict_table_get_first_index(table);
@@ -3926,8 +3907,11 @@ row_merge_drop_indexes(
 	/* Invalidate all row_prebuilt_t::ins_graph that are referring
 	to this table. That is, force row_get_prebuilt_insert_row() to
 	rebuild prebuilt->ins_node->entry_list). */
-	ut_ad(table->def_trx_id <= trx->id);
-	table->def_trx_id = trx->id;
+	if (table->def_trx_id < trx->id) {
+		table->def_trx_id = trx->id;
+	} else {
+		ut_ad(table->def_trx_id == trx->id || table->name.part());
+	}
 
 	next_index = dict_table_get_next_index(index);
 
@@ -4017,7 +4001,7 @@ row_merge_drop_temp_indexes(void)
 	/* Ensure that this transaction will be rolled back and locks
 	will be released, if the server gets killed before the commit
 	gets written to the redo log. */
-	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
+	trx->dict_operation = true;
 
 	trx->op_info = "dropping indexes";
 	error = que_eval_sql(NULL, sql, FALSE, trx);
@@ -4164,7 +4148,7 @@ row_merge_rename_index_to_add(
 		"END;\n";
 
 	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
+	ut_ad(trx->dict_operation);
 
 	trx->op_info = "renaming index to add";
 
@@ -4180,59 +4164,6 @@ row_merge_rename_index_to_add(
 		trx->error_state = DB_SUCCESS;
 
 		ib::error() << "row_merge_rename_index_to_add failed with"
-			" error " << err;
-	}
-
-	trx->op_info = "";
-
-	return(err);
-}
-
-/*********************************************************************//**
-Rename an index in the dictionary that is to be dropped. The data
-dictionary must have been locked exclusively by the caller, because
-the transaction will not be committed.
-@return DB_SUCCESS if all OK */
-dberr_t
-row_merge_rename_index_to_drop(
-/*===========================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	table_id_t	table_id,	/*!< in: table identifier */
-	index_id_t	index_id)	/*!< in: index identifier */
-{
-	dberr_t		err;
-	pars_info_t*	info = pars_info_create();
-
-	ut_ad(!srv_read_only_mode);
-
-	/* We use the private SQL parser of Innobase to generate the
-	query graphs needed in renaming indexes. */
-
-	static const char rename_index[] =
-		"PROCEDURE RENAME_INDEX_PROC () IS\n"
-		"BEGIN\n"
-		"UPDATE SYS_INDEXES SET NAME=CONCAT('"
-		TEMP_INDEX_PREFIX_STR "',NAME)\n"
-		"WHERE TABLE_ID = :tableid AND ID = :indexid;\n"
-		"END;\n";
-
-	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_ad(trx_get_dict_operation(trx) == TRX_DICT_OP_INDEX);
-
-	trx->op_info = "renaming index to drop";
-
-	pars_info_add_ull_literal(info, "tableid", table_id);
-	pars_info_add_ull_literal(info, "indexid", index_id);
-
-	err = que_eval_sql(info, rename_index, FALSE, trx);
-
-	if (err != DB_SUCCESS) {
-		/* Even though we ensure that DDL transactions are WAIT
-		and DEADLOCK free, we could encounter other errors e.g.,
-		DB_TOO_MANY_CONCURRENT_TRXS. */
-		trx->error_state = DB_SUCCESS;
-
-		ib::error() << "row_merge_rename_index_to_drop failed with"
 			" error " << err;
 	}
 
@@ -4321,27 +4252,6 @@ row_merge_is_index_usable(
 		   || trx->read_view.changes_visible(
 			   index->trx_id,
 			   index->table->name)));
-}
-
-/*********************************************************************//**
-Drop a table. The caller must have ensured that the background stats
-thread is not processing the table. This can be done by calling
-dict_stats_wait_bg_to_stop_using_table() after locking the dictionary and
-before calling this function.
-@return DB_SUCCESS or error code */
-dberr_t
-row_merge_drop_table(
-/*=================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_table_t*	table)		/*!< in: table to drop */
-{
-	ut_ad(!srv_read_only_mode);
-
-	/* There must be no open transactions on the table. */
-	ut_a(table->get_ref_count() == 0);
-
-	return(row_drop_table_for_mysql(table->name.m_name,
-			trx, SQLCOM_DROP_TABLE, false, false));
 }
 
 /** Build indexes on a table by reading a clustered index, creating a temporary

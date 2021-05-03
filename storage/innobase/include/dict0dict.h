@@ -170,17 +170,6 @@ dict_table_close(
 	MDL_ticket*	mdl = NULL);
 
 /*********************************************************************//**
-Closes the only open handle to a table and drops a table while assuring
-that dict_sys.mutex is held the whole time.  This assures that the table
-is not evicted after the close when the count of open handles goes to zero.
-Because dict_sys.mutex is held, we do not need to call prevent_eviction(). */
-void
-dict_table_close_and_drop(
-/*======================*/
-	trx_t*		trx,		/*!< in: data dictionary transaction */
-	dict_table_t*	table);		/*!< in/out: table */
-
-/*********************************************************************//**
 Gets the minimum number of bytes per character.
 @return minimum multi-byte char size, in bytes */
 UNIV_INLINE

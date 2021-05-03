@@ -591,8 +591,7 @@ trx_rollback_active(
 
 	trx_roll_crash_recv_trx	= trx;
 
-	const bool dictionary_locked = trx_get_dict_operation(trx)
-		!= TRX_DICT_OP_NONE;
+	const bool dictionary_locked = trx->dict_operation;
 
 	if (dictionary_locked) {
 		row_mysql_lock_data_dictionary(trx);
@@ -608,24 +607,10 @@ trx_rollback_active(
 
 	if (UNIV_UNLIKELY(!trx->rollback_finish())) {
 		ut_ad(!dictionary_locked);
-		goto func_exit;
+	} else {
+		ib::info() << "Rolled back recovered transaction " << trx_id;
 	}
 
-	if (!dictionary_locked || !trx->table_id) {
-	} else if (dict_table_t* table = dict_table_open_on_id(
-			   trx->table_id, TRUE, DICT_TABLE_OP_NORMAL)) {
-		ib::info() << "Dropping table " << table->name
-			   << ", with id " << trx->table_id
-			   << " in recovery";
-
-		dict_table_close_and_drop(trx, table);
-
-		trx_commit_for_mysql(trx);
-	}
-
-	ib::info() << "Rolled back recovered transaction " << trx_id;
-
-func_exit:
 	if (dictionary_locked) {
 		row_mysql_unlock_data_dictionary(trx);
 	}
@@ -751,7 +736,7 @@ void trx_rollback_recovered(bool all)
         srv_fast_shutdown)
       goto discard;
 
-    if (all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE)
+    if (all || trx->dict_operation)
     {
       trx_rollback_active(trx);
       if (trx->error_state != DB_SUCCESS)

@@ -349,8 +349,7 @@ dict_boot(void)
 	dict_mem_table_add_col(table, heap, "NAME", DATA_BINARY, 0, 0);
 	dict_mem_table_add_col(table, heap, "N_FIELDS", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "TYPE", DATA_INT, 0, 4);
-	/* SYS_INDEXES.SPACE is redundant and not being read;
-	SYS_TABLES.SPACE is being used instead. */
+	/* SYS_INDEXES.SPACE is only read by in dict_drop_index_tree() */
 	dict_mem_table_add_col(table, heap, "SPACE", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "PAGE_NO", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "MERGE_THRESHOLD", DATA_INT, 0, 4);

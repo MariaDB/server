@@ -134,14 +134,6 @@ const char *fts_default_stopword[] =
 	NULL
 };
 
-/** For storing table info when checking for orphaned tables. */
-struct fts_aux_table_t {
-	table_id_t	id;		/*!< Table id */
-	table_id_t	parent_id;	/*!< Parent table id */
-	table_id_t	index_id;	/*!< Table FT index id */
-	char*		name;		/*!< Name of the table */
-};
-
 /** FTS auxiliary table suffixes that are common to all FT indexes. */
 const char* fts_common_tables[] = {
 	"BEING_DELETED",
@@ -1555,14 +1547,8 @@ on the given table. row_mysql_lock_data_dictionary must have been called
 before this.
 @param[in]	trx		transaction to drop fts common table
 @param[in]	fts_table	table with an FTS index
-@param[in]	drop_orphan	True if the function is used to drop
-				orphaned table
 @return DB_SUCCESS or error code */
-static dberr_t
-fts_drop_common_tables(
-	trx_t*		trx,
-	fts_table_t*	fts_table,
-	bool		drop_orphan=false)
+static dberr_t fts_drop_common_tables(trx_t *trx, fts_table_t *fts_table)
 {
 	ulint		i;
 	dberr_t		error = DB_SUCCESS;
@@ -1579,16 +1565,6 @@ fts_drop_common_tables(
 		/* We only return the status of the last error. */
 		if (err != DB_SUCCESS && err != DB_FAIL) {
 			error = err;
-		}
-
-		if (drop_orphan && err == DB_FAIL) {
-			char* path = fil_make_filepath(
-				NULL, table_name_t{table_name}, IBD, false);
-			if (path != NULL) {
-				os_file_delete_if_exists(
-					innodb_data_file_key, path, NULL);
-				ut_free(path);
-			}
 		}
 	}
 
@@ -1789,14 +1765,7 @@ fts_create_one_common_table(
 			dict_mem_index_add_field(index, "key", 0);
 		}
 
-		/* We save and restore trx->dict_operation because
-		row_create_index_for_mysql() changes the operation to
-		TRX_DICT_OP_TABLE. */
-		trx_dict_op_t op = trx_get_dict_operation(trx);
-
 		error =	row_create_index_for_mysql(index, trx, NULL);
-
-		trx->dict_operation = op;
 	}
 
 	if (error != DB_SUCCESS) {
@@ -1845,7 +1814,6 @@ fts_create_common_tables(
 				[MAX_FULL_NAME_LEN];
 
 	dict_index_t*					index = NULL;
-	trx_dict_op_t					op;
 	/* common_tables vector is used for dropping FTS common tables
 	on error condition. */
 	std::vector<dict_table_t*>			common_tables;
@@ -1910,11 +1878,7 @@ fts_create_common_tables(
 				      DICT_UNIQUE, 1);
 	dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
 
-	op = trx_get_dict_operation(trx);
-
 	error =	row_create_index_for_mysql(index, trx, NULL);
-
-	trx->dict_operation = op;
 
 func_exit:
 	if (error != DB_SUCCESS) {
@@ -2003,11 +1967,7 @@ fts_create_one_index_table(
 		dict_mem_index_add_field(index, "word", 0);
 		dict_mem_index_add_field(index, "first_doc_id", 0);
 
-		trx_dict_op_t op = trx_get_dict_operation(trx);
-
 		error =	row_create_index_for_mysql(index, trx, NULL);
-
-		trx->dict_operation = op;
 	}
 
 	if (error != DB_SUCCESS) {
@@ -5735,161 +5695,6 @@ bool fts_check_aux_table(const char *name,
   }
 
   return false;
-}
-
-typedef std::pair<table_id_t,index_id_t> fts_aux_id;
-typedef std::set<fts_aux_id> fts_space_set_t;
-
-/** Iterate over all the spaces in the space list and fetch the
-fts parent table id and index id.
-@param[in,out]	fts_space_set	store the list of tablespace id and
-				index id */
-static void fil_get_fts_spaces(fts_space_set_t& fts_space_set)
-{
-  mysql_mutex_lock(&fil_system.mutex);
-
-  for (fil_space_t &space : fil_system.space_list)
-  {
-    index_id_t index_id= 0;
-    table_id_t table_id= 0;
-
-    if (space.purpose == FIL_TYPE_TABLESPACE && space.id &&
-        space.chain.start &&
-        fts_check_aux_table(space.chain.start->name, &table_id, &index_id))
-      fts_space_set.insert(std::make_pair(table_id, index_id));
-  }
-
-  mysql_mutex_unlock(&fil_system.mutex);
-}
-
-/** Check whether the parent table id and index id of fts auxilary
-tables with SYS_INDEXES. If it exists then we can safely ignore the
-fts table from orphaned tables.
-@param[in,out]	fts_space_set	fts space set contains set of auxiliary
-				table ids */
-static void fts_check_orphaned_tables(fts_space_set_t& fts_space_set)
-{
-  btr_pcur_t pcur;
-  mtr_t	     mtr;
-  trx_t*     trx = trx_create();
-  trx->op_info = "checking fts orphaned tables";
-
-  row_mysql_lock_data_dictionary(trx);
-
-  mtr.start();
-  btr_pcur_open_at_index_side(
-    true, dict_table_get_first_index(dict_sys.sys_indexes),
-    BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
-
-  do
-  {
-    const rec_t *rec;
-    const byte *tbl_field;
-    const byte *index_field;
-    ulint len;
-
-    btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-    if (!btr_pcur_is_on_user_rec(&pcur))
-      break;
-
-    rec= btr_pcur_get_rec(&pcur);
-    if (rec_get_deleted_flag(rec, 0))
-      continue;
-
-    tbl_field= rec_get_nth_field_old(rec, 0, &len);
-    if (len != 8)
-      continue;
-
-    index_field= rec_get_nth_field_old(rec, 1, &len);
-    if (len != 8)
-      continue;
-
-    table_id_t table_id = mach_read_from_8(tbl_field);
-    index_id_t index_id = mach_read_from_8(index_field);
-
-    fts_space_set_t::iterator it = fts_space_set.find(
-	fts_aux_id(table_id, index_id));
-
-    if (it != fts_space_set.end())
-      fts_space_set.erase(*it);
-    else
-    {
-      it= fts_space_set.find(fts_aux_id(table_id, 0));
-      if (it != fts_space_set.end())
-        fts_space_set.erase(*it);
-    }
-  } while(!fts_space_set.empty());
-
-  btr_pcur_close(&pcur);
-  mtr.commit();
-  row_mysql_unlock_data_dictionary(trx);
-  trx->free();
-}
-
-/** Drop all fts auxilary table for the respective fts_id
-@param[in]	fts_id	fts auxilary table ids */
-static void fts_drop_all_aux_tables(trx_t *trx, fts_table_t *fts_table)
-{
-  char fts_table_name[MAX_FULL_NAME_LEN];
-  for (ulint i= 0;i < FTS_NUM_AUX_INDEX; i++)
-  {
-    fts_table->suffix= fts_get_suffix(i);
-    fts_get_table_name(fts_table, fts_table_name, true);
-
-    /* Drop all fts aux and common table */
-    if (fts_drop_table(trx, fts_table_name) != DB_FAIL)
-      continue;
-
-    if (char *path= fil_make_filepath(nullptr, table_name_t{fts_table_name},
-                                      IBD, false))
-    {
-      os_file_delete_if_exists(innodb_data_file_key, path, nullptr);
-      ut_free(path);
-    }
-  }
-}
-
-/** Drop all orphaned FTS auxiliary tables, those that don't have
-a parent table or FTS index defined on them. */
-void fts_drop_orphaned_tables()
-{
-  fts_space_set_t fts_space_set;
-  fil_get_fts_spaces(fts_space_set);
-
-  if (fts_space_set.empty())
-    return;
-
-  fts_check_orphaned_tables(fts_space_set);
-
-  if (fts_space_set.empty())
-    return;
-
-  trx_t* trx= trx_create();
-  trx->op_info= "Drop orphaned aux FTS tables";
-  row_mysql_lock_data_dictionary(trx);
-
-  for (fts_space_set_t::iterator it = fts_space_set.begin();
-       it != fts_space_set.end(); it++)
-  {
-    fts_table_t fts_table;
-    dict_table_t *table= dict_table_open_on_id(it->first, TRUE,
-                                               DICT_TABLE_OP_NORMAL);
-    if (!table)
-      continue;
-
-    FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, table);
-    fts_drop_common_tables(trx, &fts_table, true);
-
-    fts_table.type= FTS_INDEX_TABLE;
-    fts_table.index_id= it->second;
-    fts_drop_all_aux_tables(trx, &fts_table);
-
-    dict_table_close(table, true, false);
-  }
-  trx_commit_for_mysql(trx);
-  row_mysql_unlock_data_dictionary(trx);
-  trx->dict_operation_lock_mode= 0;
-  trx->free();
 }
 
 /**********************************************************************//**

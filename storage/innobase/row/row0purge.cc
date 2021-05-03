@@ -107,34 +107,36 @@ row_purge_remove_clust_if_poss_low(
 	dict_index_t* index = dict_table_get_first_index(node->table);
 	table_id_t table_id = 0;
 	index_id_t index_id = 0;
+	MDL_ticket* mdl_ticket = nullptr;
+	dict_table_t *table = nullptr;
 retry:
 	if (table_id) {
-		MDL_ticket* mdl_ticket = nullptr;
-		if (dict_table_t *table = dict_table_open_on_id(
-			    table_id, false,
-			    DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
-			    node->purge_thd, &mdl_ticket)) {
-			if (table->n_rec_locks) {
-				for (dict_index_t* ind = UT_LIST_GET_FIRST(
-					     table->indexes); ind;
-				     ind = UT_LIST_GET_NEXT(indexes, ind)) {
-					if (ind->id == index_id) {
-						lock_discard_for_index(*ind);
-					}
+		table = dict_table_open_on_id(
+			table_id, false, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+			node->purge_thd, &mdl_ticket);
+		if (table && table->n_rec_locks) {
+			for (dict_index_t* ind = UT_LIST_GET_FIRST(
+				     table->indexes); ind;
+			     ind = UT_LIST_GET_NEXT(indexes, ind)) {
+				if (ind->id == index_id) {
+					lock_discard_for_index(*ind);
 				}
 			}
-			dict_table_close(table, false, false,
-					 node->purge_thd, mdl_ticket);
 		}
 	}
-	log_free_check();
 	mtr_t mtr;
 	mtr.start();
 	index->set_modified(mtr);
+	log_free_check();
 
 	if (!row_purge_reposition_pcur(mode, node, &mtr)) {
 		/* The record was already removed. */
+removed:
 		mtr.commit();
+		if (table) {
+			dict_table_close(table, false, false,
+					 node->purge_thd, mdl_ticket);
+		}
 		return true;
 	}
 
@@ -153,14 +155,13 @@ retry:
 			}
 			ut_ad("corrupted SYS_INDEXES record" == 0);
 		}
-		dict_drop_index_tree(&node->pcur, nullptr, &mtr);
+		dict_drop_index_tree(&node->pcur, nullptr, table, &mtr);
 		mtr.commit();
 		mtr.start();
 		index->set_modified(mtr);
 
 		if (!row_purge_reposition_pcur(mode, node, &mtr)) {
-			mtr.commit();
-			return true;
+			goto removed;
 		}
 	}
 
@@ -214,6 +215,11 @@ func_exit:
 		btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
 	} else {
 		mtr_commit(&mtr);
+	}
+
+	if (UNIV_LIKELY_NULL(table)) {
+		dict_table_close(table, false, false, node->purge_thd,
+				 mdl_ticket);
 	}
 
 	return(success);
