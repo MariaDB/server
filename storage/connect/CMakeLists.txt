@@ -272,8 +272,14 @@ IF(CONNECT_WITH_JDBC)
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
     Mongo2Interface.java Mongo3Interface.java
-    JavaWrappers.jar)
+    mysql-test/connect/std_data/JavaWrappers.jar)
     add_definitions(-DJAVA_SUPPORT)
+    IF(CONNECT_WITH_MONGO)
+      SET(CONNECT_SOURCES ${CONNECT_SOURCES}
+        mysql-test/connect/std_data/Mongo2.jar
+        mysql-test/connect/std_data/Mongo3.jar)
+      add_definitions(-DMONGO_SUPPORT)
+    ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
   ENDIF()
@@ -404,8 +410,13 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
   SET (JAVA_SOURCES JdbcInterface.java)
   add_jar(JdbcInterface ${JAVA_SOURCES})
   INSTALL(FILES
-    ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar
+    ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/JavaWrappers.jar
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
     DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+  IF(CONNECT_WITH_MONGO)
+    INSTALL(FILES
+      ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/Mongo2.jar
+      ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/Mongo3.jar
+      DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+  ENDIF()
 ENDIF()
-
