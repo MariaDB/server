@@ -1106,9 +1106,4 @@ typedef int (*mdl_iterator_callback)(MDL_ticket *ticket, void *arg,
                                      bool granted);
 extern MYSQL_PLUGIN_IMPORT
 int mdl_iterate(mdl_iterator_callback callback, void *arg);
-#ifndef DBUG_OFF
-void mdl_dbug_print_locks();
-#else
-  static inline void mdl_dbug_print_locks() {}
-#endif /* DBUG_OFF */
 #endif /* MDL_H */
