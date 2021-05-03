@@ -158,7 +158,7 @@ sub do_args($$$$$) {
 
   my $script = join "\n", @params;
   if ($v->{script}) {
-    ::mtr_tofile($vars{script}, subst($v->{script}, %vars)."\n".$script);
+    ::mtr_tonewfile($vars{script}, subst($v->{script}, %vars)."\n".$script);
   } elsif ($script) {
     die "$k is not using a script file, nowhere to write the script \n---\n$script\n---\n";
   }
