@@ -1528,7 +1528,7 @@ mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
 
   if (open_normal_and_derived_tables(thd, table_list,
                                      MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     DBUG_VOID_RETURN;
   table= table_list->table;
 
@@ -4414,7 +4414,7 @@ fill_schema_table_by_open(THD *thd, bool is_show_fields_or_keys,
                                            MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL |
                                            (can_deadlock ?
                                             MYSQL_OPEN_FAIL_ON_MDL_CONFLICT : 0)),
-					  DT_INIT | DT_PREPARE | DT_CREATE));
+					  DT_INIT | DT_PREPARE));
 
   /*
     Restore old value of sql_command back as it is being looked at in
