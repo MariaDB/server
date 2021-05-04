@@ -13,6 +13,7 @@ RESET SLAVE ALL;
 CHANGE MASTER 'slave1' TO MASTER_USER='root',MASTER_PORT=$MASTER_MYPORT, MASTER_HOST='127.0.0.1', MASTER_USE_GTID=slave_pos;
 SET default_master_connection='slave1';
 SET @@global.slave_parallel_workers=1;
+ALTER TABLE mysql.gtid_slave_pos ENGINE=InnoDB;
 START SLAVE 'slave1';
 include/wait_for_slave_to_start.inc
 include/assert.inc [Channel_name will be empty for a worker when it has not processed any transaction]
@@ -20,7 +21,7 @@ include/assert.inc [thread_name should should indicate worker thread.]
 include/assert.inc [Service_State should be "ON" on a fresh slave server.]
 include/assert.inc [Last_Seen_Transaction should show "" if no transaction applierd]
 connection master;
-CREATE TABLE t1 (a INT);
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
 connection slave;
 include/assert.inc [Channel_name must be slave1]
 include/assert.inc [Last_Seen_Transaction should show 0-1-1.]
