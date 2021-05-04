@@ -2115,6 +2115,11 @@ public:
         return true;
     return false;
   }
+
+  /** Check whether the table name is same as mysql/innodb_stats_table
+  or mysql/innodb_index_stats.
+  @return true if the table name is same as stats table */
+  bool is_stats_table() const;
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const
