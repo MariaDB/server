@@ -1569,8 +1569,8 @@ fil_space_t *fil_space_t::check_pending_operations(ulint id)
 
   if (space)
   {
-    const uint32_t n= space->acquire_low();
-    ut_ad(!(n & STOPPING));
+    space->reacquire();
+    ut_ad(!(space->pending() & STOPPING));
 
     if (space->crypt_data)
     {
