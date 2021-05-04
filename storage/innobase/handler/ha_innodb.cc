@@ -12729,7 +12729,6 @@ ha_innobase::create(
 	bool		file_per_table,
 	trx_t*		trx)
 {
-	int		error;
 	char		norm_name[FN_REFLEN];	/* {database}/{tablename} */
 	char		remote_path[FN_REFLEN];	/* Absolute path of table */
 
@@ -12746,13 +12745,18 @@ ha_innobase::create(
 				     remote_path,
 				     file_per_table, trx);
 
-	if ((error = info.initialize())
-	    || (error = info.prepare_create_table(name, !trx))) {
-		if (trx) {
-			trx_rollback_for_mysql(trx);
-			row_mysql_unlock_data_dictionary(trx);
+	{
+		int error = info.initialize();
+		if (!error) {
+			error = info.prepare_create_table(name, !trx);
 		}
-		DBUG_RETURN(error);
+		if (error) {
+			if (trx) {
+				trx_rollback_for_mysql(trx);
+				row_mysql_unlock_data_dictionary(trx);
+			}
+			DBUG_RETURN(error);
+		}
 	}
 
 	const bool own_trx = !trx;
@@ -12767,7 +12771,7 @@ ha_innobase::create(
 		DBUG_ASSERT(trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 	}
 
-	if ((error = info.create_table(own_trx))) {
+	if (int error = info.create_table(own_trx)) {
 		/* Drop the being-created table before rollback,
 		so that rollback can possibly rename back a table
 		that could have been renamed before the failed creation. */
@@ -12792,16 +12796,9 @@ ha_innobase::create(
 		trx->free();
 	}
 
-	/* Flush the log to reduce probability that the .frm files and
-	the InnoDB data dictionary get out-of-sync if the user runs
-	with innodb_flush_log_at_trx_commit = 0 */
-	log_buffer_flush_to_disk();
-
 	ut_ad(!srv_read_only_mode);
 
-	error = info.create_table_update_dict();
-
-	DBUG_RETURN(error);
+	DBUG_RETURN(info.create_table_update_dict());
 }
 
 /** Create a new table to an InnoDB database.
@@ -13132,11 +13129,6 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 	}
 
 	ut_ad(!srv_read_only_mode);
-	/* Flush the log to reduce probability that the .frm files and
-	the InnoDB data dictionary get out-of-sync if the user runs
-	with innodb_flush_log_at_trx_commit = 0 */
-
-	log_buffer_flush_to_disk();
 
 	innobase_commit_low(trx);
 
@@ -13232,12 +13224,6 @@ innobase_drop_database(
 
 	my_free(namebuf);
 
-	/* Flush the log to reduce probability that the .frm files and
-	the InnoDB data dictionary get out-of-sync if the user runs
-	with innodb_flush_log_at_trx_commit = 0 */
-
-	log_buffer_flush_to_disk();
-
 	innobase_commit_low(trx);
 
 	trx->free();
@@ -13329,12 +13315,6 @@ inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
 	if (commit) {
 		row_mysql_unlock_data_dictionary(trx);
 	}
-
-	/* Flush the log to reduce probability that the .frm
-	files and the InnoDB data dictionary get out-of-sync
-	if the user runs with innodb_flush_log_at_trx_commit = 0 */
-
-	log_buffer_flush_to_disk();
 
 	DBUG_RETURN(error);
 }

@@ -1509,11 +1509,7 @@ file_checked:
 				fil_system.sys_space->size_in_header
 					= uint32_t(size);
 				mtr.commit();
-				/* Immediately write the log record about
-				increased tablespace size to disk, so that it
-				is durable even if mysqld would crash
-				quickly */
-				log_buffer_flush_to_disk();
+				log_write_up_to(mtr.commit_lsn(), true);
 			}
 		}
 

@@ -1133,10 +1133,8 @@ wait_suspend_loop:
 
 	if (srv_fast_shutdown == 2 || !srv_was_started) {
 		if (!srv_read_only_mode && srv_was_started) {
-			ib::info() << "MySQL has requested a very fast"
-				" shutdown without flushing the InnoDB buffer"
-				" pool to data files. At the next mysqld"
-				" startup InnoDB will do a crash recovery!";
+			ib::info() << "Executing innodb_fast_shutdown=2."
+				" Next startup will execute crash recovery!";
 
 			/* In this fastest shutdown we do not flush the
 			buffer pool:
@@ -1144,10 +1142,7 @@ wait_suspend_loop:
 			it is essentially a 'crash' of the InnoDB server.
 			Make sure that the log is all flushed to disk, so
 			that we can recover all committed transactions in
-			a crash recovery. We must not write the lsn stamps
-			to the data files, since at a startup InnoDB deduces
-			from the stamps if the previous shutdown was clean. */
-
+			a crash recovery. */
 			log_buffer_flush_to_disk();
 		}
 
