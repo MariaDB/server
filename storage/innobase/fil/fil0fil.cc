@@ -2015,6 +2015,7 @@ fil_ibd_create(
 	pfs_os_file_t	file;
 	byte*		page;
 	bool		success;
+	mtr_t		mtr;
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags) != 0;
 
 	ut_ad(!is_system_tablespace(space_id));
@@ -2029,6 +2030,11 @@ fil_ibd_create(
 	if (*err != DB_SUCCESS) {
 		return NULL;
 	}
+
+	mtr.start();
+	mtr.log_file_op(FILE_CREATE, space_id, path);
+	mtr.commit();
+	log_write_up_to(mtr.commit_lsn(), true);
 
 	ulint type;
 	static_assert(((UNIV_ZIP_SIZE_MIN >> 1) << 3) == 4096,
@@ -2183,12 +2189,11 @@ err_exit:
 						     crypt_data, mode)) {
 		space->punch_hole = punch_hole;
 		fil_node_t* node = space->add(path, file, size, false, true);
-		mtr_t mtr;
-		mtr.start();
-		mtr.log_file_op(FILE_CREATE, space_id, node->name);
-		mtr.commit();
-
 		node->find_metadata(file);
+		mtr.start();
+		mtr.set_named_space(space);
+		fsp_header_init(space, size, &mtr);
+		mtr.commit();
 		*err = DB_SUCCESS;
 		return space;
 	}

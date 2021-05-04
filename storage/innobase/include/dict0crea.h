@@ -41,14 +41,14 @@ tab_create_graph_create(
 /*====================*/
 	dict_table_t*	table,		/*!< in: table to create, built as
 					a memory data structure */
-	mem_heap_t*	heap,		/*!< in: heap where created */
-	fil_encryption_t mode,		/*!< in: encryption mode */
-	uint32_t	key_id);	/*!< in: encryption key_id */
+	mem_heap_t*	heap);		/*!< in: heap where created */
 
 /** Creates an index create graph.
 @param[in]	index	index to create, built as a memory data structure
 @param[in]	table	table name
 @param[in,out]	heap	heap where created
+@param[in]	mode	encryption mode (for creating a table)
+@param[in]	key_id	encryption key identifier (for creating a table)
 @param[in]	add_v	new virtual columns added in the same clause with
 			add index
 @return own: index create node */
@@ -57,6 +57,8 @@ ind_create_graph_create(
 	dict_index_t*		index,
 	const char*		table,
 	mem_heap_t*		heap,
+	fil_encryption_t	mode,
+	uint32_t		key_id,
 	const dict_add_v_col_t*	add_v = NULL);
 
 /***********************************************************//**
@@ -218,8 +220,6 @@ struct tab_node_t{
 	/* Local storage for this graph node */
 	ulint		state;		/*!< node execution state */
 	ulint		col_no;		/*!< next column definition to insert */
-	uint		key_id;	/*!< encryption key_id */
-	fil_encryption_t mode;	/*!< encryption mode */
 	ulint		base_col_no;	/*!< next base column to insert */
 	mem_heap_t*	heap;		/*!< memory heap used as auxiliary
 					storage */
@@ -251,11 +251,12 @@ struct ind_node_t{
 	/* Local storage for this graph node */
 	ulint		state;		/*!< node execution state */
 	uint32_t	page_no;	/* root page number of the index */
-	dict_table_t*	table;		/*!< table which owns the index */
 	dtuple_t*	ind_row;	/* index definition row built */
 	ulint		field_no;	/* next field definition to insert */
 	mem_heap_t*	heap;		/*!< memory heap used as auxiliary
 					storage */
+	uint		key_id;		/*!< encryption key_id */
+	fil_encryption_t mode;		/*!< encryption mode */
 	const dict_add_v_col_t*
 			add_v;		/*!< new virtual columns that being
 					added along with an add index call */

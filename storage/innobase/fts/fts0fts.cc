@@ -1750,8 +1750,7 @@ fts_create_one_common_table(
 	}
 
 	dict_table_add_system_columns(new_table, heap);
-	error = row_create_table_for_mysql(new_table, trx,
-		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+	error = row_create_table_for_mysql(new_table, trx);
 
 	if (error == DB_SUCCESS) {
 
@@ -1765,7 +1764,9 @@ fts_create_one_common_table(
 			dict_mem_index_add_field(index, "key", 0);
 		}
 
-		error =	row_create_index_for_mysql(index, trx, NULL);
+		error =	row_create_index_for_mysql(index, trx, NULL,
+						   FIL_ENCRYPTION_DEFAULT,
+						   FIL_DEFAULT_ENCRYPTION_KEY);
 	}
 
 	if (error != DB_SUCCESS) {
@@ -1878,7 +1879,9 @@ fts_create_common_tables(
 				      DICT_UNIQUE, 1);
 	dict_mem_index_add_field(index, FTS_DOC_ID_COL_NAME, 0);
 
-	error =	row_create_index_for_mysql(index, trx, NULL);
+	error =	row_create_index_for_mysql(index, trx, NULL,
+					   FIL_ENCRYPTION_DEFAULT,
+					   FIL_DEFAULT_ENCRYPTION_KEY);
 
 func_exit:
 	if (error != DB_SUCCESS) {
@@ -1957,8 +1960,7 @@ fts_create_one_index_table(
 		FTS_INDEX_ILIST_LEN);
 
 	dict_table_add_system_columns(new_table, heap);
-	error = row_create_table_for_mysql(new_table, trx,
-		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
+	error = row_create_table_for_mysql(new_table, trx);
 
 	if (error == DB_SUCCESS) {
 		dict_index_t*	index = dict_mem_index_create(
@@ -1967,7 +1969,9 @@ fts_create_one_index_table(
 		dict_mem_index_add_field(index, "word", 0);
 		dict_mem_index_add_field(index, "first_doc_id", 0);
 
-		error =	row_create_index_for_mysql(index, trx, NULL);
+		error =	row_create_index_for_mysql(index, trx, NULL,
+						   FIL_ENCRYPTION_DEFAULT,
+						   FIL_DEFAULT_ENCRYPTION_KEY);
 	}
 
 	if (error != DB_SUCCESS) {

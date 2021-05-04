@@ -362,55 +362,16 @@ dict_build_table_def_step(
 		ut_ad(DICT_TF_GET_ZIP_SSIZE(table->flags) == 0
 		      || dict_table_has_atomic_blobs(table));
 		/* Get a new tablespace ID */
-		ulint space_id;
-		dict_hdr_get_new_id(NULL, NULL, &space_id);
+		dict_hdr_get_new_id(NULL, NULL, &table->space_id);
 
 		DBUG_EXECUTE_IF(
 			"ib_create_table_fail_out_of_space_ids",
-			space_id = ULINT_UNDEFINED;
+			table->space_id = ULINT_UNDEFINED;
 		);
 
-		if (space_id == ULINT_UNDEFINED) {
+		if (table->space_id == ULINT_UNDEFINED) {
 			return DB_ERROR;
 		}
-
-		/* Determine the tablespace flags. */
-		bool	has_data_dir = DICT_TF_HAS_DATA_DIR(table->flags);
-		ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
-		ut_ad(!has_data_dir || table->data_dir_path);
-		char*	filepath = fil_make_filepath(has_data_dir
-						     ? table->data_dir_path
-						     : nullptr,
-						     table->name, IBD,
-						     has_data_dir);
-
-		/* We create a new single-table tablespace for the table.
-		We initially let it be 4 pages:
-		- page 0 is the fsp header and an extent descriptor page,
-		- page 1 is an ibuf bitmap page,
-		- page 2 is the first inode page,
-		- page 3 will contain the root of the clustered index of
-		the table we create here. */
-
-		dberr_t err;
-		table->space = fil_ibd_create(
-			space_id, table->name, filepath, fsp_flags,
-			FIL_IBD_FILE_INITIAL_SIZE,
-			node->mode, node->key_id, &err);
-
-		ut_free(filepath);
-
-		if (!table->space) {
-			ut_ad(err != DB_SUCCESS);
-			return err;
-		}
-
-		table->space_id = space_id;
-		mtr_t mtr;
-		mtr.start();
-		mtr.set_named_space(table->space);
-		fsp_header_init(table->space, FIL_IBD_FILE_INITIAL_SIZE, &mtr);
-		mtr.commit();
 	} else {
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
@@ -457,7 +418,8 @@ dict_create_sys_indexes_tuple(
 
 	dict_sys.assert_locked();
 	ut_ad(index);
-	ut_ad(index->table->space || index->table->file_unreadable);
+	ut_ad(index->table->space || !UT_LIST_GET_LEN(index->table->indexes)
+	      || index->table->file_unreadable);
 	ut_ad(!index->table->space
 	      || index->table->space->id == index->table->space_id);
 	ut_ad(heap);
@@ -690,20 +652,19 @@ dict_build_index_def_step(
 
 	index = node->index;
 
-	table = index->table = node->table = dict_table_open_on_name(
-		node->table_name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
+	table = dict_table_open_on_name(
+		node->table_name, TRUE, FALSE, DICT_ERR_IGNORE_DROP);
 
-	if (table == NULL) {
-		return(DB_TABLE_NOT_FOUND);
+	if (!table) {
+		return DB_TABLE_NOT_FOUND;
 	}
+
+	index->table = table;
 
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
 
 	dict_hdr_get_new_id(NULL, &index->id, NULL);
-
-	/* Inherit the space id from the table; we store all indexes of a
-	table in the same tablespace */
 
 	node->page_no = FIL_NULL;
 	row = dict_create_sys_indexes_tuple(index, node->heap);
@@ -715,7 +676,7 @@ dict_build_index_def_step(
 	index->trx_id = trx->id;
 	ut_ad(table->def_trx_id <= trx->id);
 	table->def_trx_id = trx->id;
-	dict_table_close(table, true, false);
+	table->release();
 
 	return(DB_SUCCESS);
 }
@@ -949,9 +910,7 @@ tab_create_graph_create(
 /*====================*/
 	dict_table_t*	table,	/*!< in: table to create, built as a memory data
 				structure */
-	mem_heap_t*	heap,	/*!< in: heap where created */
-	fil_encryption_t mode,	/*!< in: encryption mode */
-	uint32_t	key_id)	/*!< in: encryption key_id */
+	mem_heap_t*	heap)	/*!< in: heap where created */
 {
 	tab_node_t*	node;
 
@@ -964,8 +923,6 @@ tab_create_graph_create(
 
 	node->state = TABLE_BUILD_TABLE_DEF;
 	node->heap = mem_heap_create(256);
-	node->mode = mode;
-	node->key_id = key_id;
 
 	node->tab_def = ins_node_create(INS_DIRECT, dict_sys.sys_tables,
 					heap);
@@ -986,6 +943,8 @@ tab_create_graph_create(
 @param[in]	index	index to create, built as a memory data structure
 @param[in]	table	table name
 @param[in,out]	heap	heap where created
+@param[in]	mode	encryption mode (for creating a table)
+@param[in]	key_id	encryption key identifier (for creating a table)
 @param[in]	add_v	new virtual columns added in the same clause with
 			add index
 @return own: index create node */
@@ -994,6 +953,8 @@ ind_create_graph_create(
 	dict_index_t*		index,
 	const char*		table,
 	mem_heap_t*		heap,
+	fil_encryption_t	mode,
+	uint32_t		key_id,
 	const dict_add_v_col_t*	add_v)
 {
 	ind_node_t*	node;
@@ -1007,6 +968,8 @@ ind_create_graph_create(
 
 	node->table_name = table;
 
+	node->key_id = key_id;
+	node->mode = mode;
 	node->add_v = add_v;
 
 	node->state = INDEX_BUILD_INDEX_DEF;
@@ -1068,7 +1031,6 @@ dict_create_table_step(
 	}
 
 	if (node->state == TABLE_BUILD_COL_DEF) {
-
 		if (node->col_no + DATA_N_SYS_COLS
 		    < (static_cast<ulint>(node->table->n_def)
 		       + static_cast<ulint>(node->table->n_v_def))) {
@@ -1166,6 +1128,40 @@ function_exit:
 	return(thr);
 }
 
+static dberr_t dict_create_index_space(const ind_node_t &node)
+{
+  dict_table_t *table= node.index->table;
+  if (table->space || (table->flags2 & DICT_TF2_DISCARDED))
+    return DB_SUCCESS;
+  ut_ad(table->space_id);
+  ut_ad(table->space_id < SRV_TMP_SPACE_ID);
+  /* Determine the tablespace flags. */
+  const bool has_data_dir= DICT_TF_HAS_DATA_DIR(table->flags);
+  ut_ad(!has_data_dir || table->data_dir_path);
+  char* filepath= fil_make_filepath(has_data_dir
+                                    ? table->data_dir_path : nullptr,
+                                    table->name, IBD, has_data_dir);
+  if (!filepath)
+    return DB_OUT_OF_MEMORY;
+
+  /* We create a new single-table tablespace for the table.
+  We initially let it be 4 pages:
+  - page 0 is the fsp header and an extent descriptor page,
+  - page 1 is an ibuf bitmap page,
+  - page 2 is the first inode page,
+  - page 3 will contain the root of the clustered index of
+  the table we create here. */
+  dberr_t err;
+  table->space= fil_ibd_create(table->space_id, table->name, filepath,
+                               dict_tf_to_fsp_flags(table->flags),
+                               FIL_IBD_FILE_INITIAL_SIZE,
+                               node.mode, node.key_id, &err);
+  ut_ad((err != DB_SUCCESS) == !table->space);
+  ut_free(filepath);
+
+  return err;
+}
+
 /***********************************************************//**
 Creates an index. This is a high-level function used in SQL execution
 graphs.
@@ -1210,6 +1206,12 @@ dict_create_index_step(
 	}
 
 	if (node->state == INDEX_BUILD_FIELD_DEF) {
+		err = dict_create_index_space(*node);
+		if (err != DB_SUCCESS) {
+			dict_mem_index_free(node->index);
+			node->index = nullptr;
+			goto function_exit;
+		}
 
 		if (node->field_no < (node->index)->n_fields) {
 
@@ -1226,11 +1228,10 @@ dict_create_index_step(
 	}
 
 	if (node->state == INDEX_ADD_TO_CACHE) {
-		ut_ad(node->index->table == node->table);
 		err = dict_index_add_to_cache(node->index, FIL_NULL,
 					      node->add_v);
 
-		ut_ad((node->index == NULL) == (err != DB_SUCCESS));
+		ut_ad(!node->index == (err != DB_SUCCESS));
 
 		if (!node->index) {
 			goto function_exit;
@@ -1239,7 +1240,7 @@ dict_create_index_step(
 		ut_ad(!node->index->is_instant());
 		ut_ad(node->index->n_core_null_bytes
 		      == ((dict_index_is_clust(node->index)
-			   && node->table->supports_instant())
+			   && node->index->table->supports_instant())
 			  ? dict_index_t::NO_CORE_NULL_BYTES
 			  : UT_BITS_IN_BYTES(
 				  unsigned(node->index->n_nullable))));
@@ -1256,18 +1257,18 @@ dict_create_index_step(
 				err = DB_OUT_OF_MEMORY;);
 
 		if (err != DB_SUCCESS) {
+			dict_table_t* table = node->index->table;
 			/* If this is a FTS index, we will need to remove
 			it from fts->cache->indexes list as well */
-			if ((node->index->type & DICT_FTS)
-			    && node->table->fts) {
+			if (!(node->index->type & DICT_FTS)) {
+			} else if (auto fts = table->fts) {
 				fts_index_cache_t*	index_cache;
 
-				mysql_mutex_lock(
-					&node->table->fts->cache->init_lock);
+				mysql_mutex_lock(&fts->cache->init_lock);
 
 				index_cache = (fts_index_cache_t*)
 					 fts_find_index_cache(
-						node->table->fts->cache,
+						fts->cache,
 						node->index);
 
 				if (index_cache->words) {
@@ -1276,17 +1277,16 @@ dict_create_index_step(
 				}
 
 				ib_vector_remove(
-					node->table->fts->cache->indexes,
+					fts->cache->indexes,
 					*reinterpret_cast<void**>(index_cache));
 
-				mysql_mutex_unlock(
-					&node->table->fts->cache->init_lock);
+				mysql_mutex_unlock(&fts->cache->init_lock);
 			}
 
 #ifdef BTR_CUR_HASH_ADAPT
 			ut_ad(!node->index->search_info->ref_count);
 #endif /* BTR_CUR_HASH_ADAPT */
-			dict_index_remove_from_cache(node->table, node->index);
+			dict_index_remove_from_cache(table, node->index);
 			node->index = NULL;
 
 			goto function_exit;

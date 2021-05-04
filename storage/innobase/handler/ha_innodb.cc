@@ -10400,19 +10400,13 @@ err_col:
 		table->add_to_cache();
 	} else {
 		if (err == DB_SUCCESS) {
-			err = row_create_table_for_mysql(
-				table, m_trx,
-				fil_encryption_t(options->encryption),
-				uint32_t(options->encryption_key_id));
+			err = row_create_table_for_mysql(table, m_trx);
 			m_drop_before_rollback = (err == DB_SUCCESS);
 		}
 
 		DBUG_EXECUTE_IF("ib_crash_during_create_for_encryption",
 				DBUG_SUICIDE(););
 	}
-
-	DBUG_EXECUTE_IF("ib_create_err_tablespace_exist",
-			err = DB_TABLESPACE_EXISTS;);
 
 	switch (err) {
 	case DB_SUCCESS:
@@ -10422,7 +10416,6 @@ err_col:
 	default:
 		break;
 	case DB_DUPLICATE_KEY:
-	case DB_TABLESPACE_EXISTS:
 		char display_name[FN_REFLEN];
 		char* buf_end = innobase_convert_identifier(
 			display_name, sizeof(display_name) - 1,
@@ -10431,9 +10424,7 @@ err_col:
 
 		*buf_end = '\0';
 
-		my_error(err == DB_DUPLICATE_KEY
-			 ? ER_TABLE_EXISTS_ERROR
-			 : ER_TABLESPACE_EXISTS, MYF(0), display_name);
+		my_error(ER_TABLE_EXISTS_ERROR, MYF(0), display_name);
 	}
 
 	DBUG_RETURN(convert_error_code_to_mysql(err, m_flags, m_thd));
@@ -10462,6 +10453,7 @@ create_index(
 
 	/* Assert that "GEN_CLUST_INDEX" cannot be used as non-primary index */
 	ut_a(innobase_strcasecmp(key->name.str, innobase_index_reserve_name) != 0);
+	const ha_table_option_struct& o = *form->s->option_struct;
 
 	if (key->flags & (HA_SPATIAL | HA_FULLTEXT)) {
 		/* Only one of these can be specified at a time. */
@@ -10488,7 +10480,9 @@ create_index(
 
 		DBUG_RETURN(convert_error_code_to_mysql(
 				    row_create_index_for_mysql(
-					    index, trx, NULL),
+					    index, trx, NULL,
+					    fil_encryption_t(o.encryption),
+					    uint32_t(o.encryption_key_id)),
 				    table->flags, NULL));
 	}
 
@@ -10584,7 +10578,9 @@ create_index(
 	ulint flags = table->flags;
 
 	error = convert_error_code_to_mysql(
-		row_create_index_for_mysql(index, trx, field_lengths),
+		row_create_index_for_mysql(index, trx, field_lengths,
+					   fil_encryption_t(o.encryption),
+					   uint32_t(o.encryption_key_id)),
 		flags, NULL);
 
 	my_free(field_lengths);
@@ -12239,8 +12235,12 @@ int create_table_info_t::create_table(bool create_fk)
 		dict_index_t* index = dict_mem_index_create(
 			m_table, innobase_index_reserve_name,
 			DICT_CLUSTERED, 0);
+		const ha_table_option_struct& o = *m_form->s->option_struct;
 		error = convert_error_code_to_mysql(
-			row_create_index_for_mysql(index, m_trx, NULL),
+			row_create_index_for_mysql(
+				index, m_trx, NULL,
+				fil_encryption_t(o.encryption),
+				uint32_t(o.encryption_key_id)),
 			flags, m_thd);
 		if (error) {
 			DBUG_RETURN(error);

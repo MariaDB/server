@@ -355,9 +355,7 @@ row_create_table_for_mysql(
 	dict_table_t*	table,	/*!< in, own: table definition
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
-	trx_t*		trx,	/*!< in/out: transaction */
-	fil_encryption_t mode,	/*!< in: encryption mode */
-	uint32_t	key_id)	/*!< in: encryption key_id */
+	trx_t*		trx)	/*!< in/out: transaction */
 	MY_ATTRIBUTE((warn_unused_result));
 
 /*********************************************************************//**
@@ -370,12 +368,14 @@ row_create_index_for_mysql(
 	dict_index_t*	index,		/*!< in, own: index definition
 					(will be freed) */
 	trx_t*		trx,		/*!< in: transaction handle */
-	const ulint*	field_lengths)	/*!< in: if not NULL, must contain
+	const ulint*	field_lengths,	/*!< in: if not NULL, must contain
 					dict_index_get_n_fields(index)
 					actual field lengths for the
 					index columns, which are
 					then checked for not being too
 					large. */
+	fil_encryption_t mode,	/*!< in: encryption mode */
+	uint32_t	key_id)	/*!< in: encryption key_id */
 	MY_ATTRIBUTE((warn_unused_result));
 /*********************************************************************//**
 The master thread in srv0srv.cc calls this regularly to drop tables which

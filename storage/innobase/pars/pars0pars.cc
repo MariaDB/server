@@ -1802,9 +1802,7 @@ pars_create_table(
 	}
 
 	dict_table_add_system_columns(table, heap);
-	node = tab_create_graph_create(table, heap,
-				       FIL_ENCRYPTION_DEFAULT,
-				       FIL_DEFAULT_ENCRYPTION_KEY);
+	node = tab_create_graph_create(table, heap);
 
 	table_sym->resolved = TRUE;
 	table_sym->token_type = SYM_TABLE;
@@ -1858,7 +1856,9 @@ pars_create_index(
 	}
 
 	node = ind_create_graph_create(index, table_sym->name,
-				       pars_sym_tab_global->heap);
+				       pars_sym_tab_global->heap,
+				       FIL_ENCRYPTION_DEFAULT,
+				       FIL_DEFAULT_ENCRYPTION_KEY);
 
 	table_sym->resolved = TRUE;
 	table_sym->token_type = SYM_TABLE;

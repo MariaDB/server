@@ -6086,6 +6086,8 @@ innodb_v_adjust_idx_col(
 /** Create index metadata in the data dictionary.
 @param[in,out]	trx	dictionary transaction
 @param[in,out]	index	index being created
+@param[in]	mode	encryption mode (for creating a table)
+@param[in]	key_id	encryption key identifier (for creating a table)
 @param[in]	add_v	virtual columns that are being added, or NULL
 @return the created index */
 MY_ATTRIBUTE((nonnull(1,2), warn_unused_result))
@@ -6094,13 +6096,15 @@ dict_index_t*
 create_index_dict(
 	trx_t*			trx,
 	dict_index_t*		index,
+	fil_encryption_t	mode,
+	uint32_t		key_id,
 	const dict_add_v_col_t* add_v)
 {
 	DBUG_ENTER("create_index_dict");
 
 	mem_heap_t* heap = mem_heap_create(512);
 	ind_node_t* node = ind_create_graph_create(
-		index, index->table->name.m_name, heap, add_v);
+		index, index->table->name.m_name, heap, mode, key_id, add_v);
 	que_thr_t* thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
 
 	que_fork_start_command(
@@ -6800,18 +6804,13 @@ wrong_column_name:
 		/* Create the table. */
 		ctx->trx->dict_operation = true;
 
-		error = row_create_table_for_mysql(
-			ctx->new_table, ctx->trx, mode, key_id);
+		error = row_create_table_for_mysql(ctx->new_table, ctx->trx);
 
 		switch (error) {
 		case DB_SUCCESS:
 			DBUG_ASSERT(ctx->new_table->get_ref_count() == 0);
 			DBUG_ASSERT(ctx->new_table->id != 0);
 			break;
-		case DB_TABLESPACE_EXISTS:
-			my_error(ER_TABLESPACE_EXISTS, MYF(0),
-				 altered_table->s->table_name.str);
-			goto new_table_failed;
 		case DB_DUPLICATE_KEY:
 			my_error(HA_ERR_TABLE_EXIST, MYF(0),
 				 altered_table->s->table_name.str);
@@ -6831,7 +6830,8 @@ new_table_failed:
 		for (ulint a = 0; a < ctx->num_to_add_index; a++) {
 			dict_index_t* index = ctx->add_index[a];
 			const ulint n_v_col = index->get_new_n_vcol();
-			index = create_index_dict(ctx->trx, index, add_v);
+			index = create_index_dict(ctx->trx, index,
+						  mode, key_id, add_v);
 			error = ctx->trx->error_state;
 			if (error != DB_SUCCESS) {
 				if (index) {
@@ -6940,7 +6940,10 @@ error_handling_drop_uncached_1:
 						DB_OUT_OF_FILE_SPACE;
 					goto index_created;
 				});
-			index = create_index_dict(ctx->trx, index, add_v);
+			index = create_index_dict(ctx->trx, index,
+						  FIL_ENCRYPTION_DEFAULT,
+						  FIL_DEFAULT_ENCRYPTION_KEY,
+						  add_v);
 #ifndef DBUG_OFF
 index_created:
 #endif

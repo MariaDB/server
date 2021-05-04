@@ -2303,9 +2303,7 @@ row_create_table_for_mysql(
 	dict_table_t*	table,	/*!< in, own: table definition
 				(will be freed, or on DB_SUCCESS
 				added to the data dictionary cache) */
-	trx_t*		trx,	/*!< in/out: transaction */
-	fil_encryption_t mode,	/*!< in: encryption mode */
-	uint32_t	key_id)	/*!< in: encryption key_id */
+	trx_t*		trx)	/*!< in/out: transaction */
 {
 	tab_node_t*	node;
 	mem_heap_t*	heap;
@@ -2345,7 +2343,7 @@ err_exit:
 
 	trx->dict_operation = true;
 
-	node = tab_create_graph_create(table, heap, mode, key_id);
+	node = tab_create_graph_create(table, heap);
 
 	thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
 
@@ -2356,37 +2354,10 @@ err_exit:
 
 	err = trx->error_state;
 
-	switch (err) {
-	case DB_SUCCESS:
-		break;
-	case DB_OUT_OF_FILE_SPACE:
-		trx->error_state = DB_SUCCESS;
-		trx->rollback();
-
-		ib::warn() << "Cannot create table "
-			<< table->name
-			<< " because tablespace full";
-		dict_mem_table_free(table);
-		break;
-
-	case DB_UNSUPPORTED:
-	case DB_TOO_MANY_CONCURRENT_TRXS:
-		/* We already have .ibd file here. it should be deleted. */
-
-		if (dict_table_is_file_per_table(table)
-		    && fil_delete_tablespace(table->space_id) != DB_SUCCESS) {
-			ib::error() << "Cannot delete the file of table "
-				<< table->name;
-		}
-		/* fall through */
-
-	case DB_DUPLICATE_KEY:
-	case DB_TABLESPACE_EXISTS:
-	default:
+	if (err != DB_SUCCESS) {
 		trx->error_state = DB_SUCCESS;
 		trx->rollback();
 		dict_mem_table_free(table);
-		break;
 	}
 
 	que_graph_free((que_t*) que_node_get_parent(thr));
@@ -2406,12 +2377,14 @@ row_create_index_for_mysql(
 	dict_index_t*	index,		/*!< in, own: index definition
 					(will be freed) */
 	trx_t*		trx,		/*!< in: transaction handle */
-	const ulint*	field_lengths)	/*!< in: if not NULL, must contain
+	const ulint*	field_lengths,	/*!< in: if not NULL, must contain
 					dict_index_get_n_fields(index)
 					actual field lengths for the
 					index columns, which are
 					then checked for not being too
 					large. */
+	fil_encryption_t mode,		/*!< in: encryption mode */
+	uint32_t	key_id)		/*!< in: encryption key_id */
 {
 	ind_node_t*	node;
 	mem_heap_t*	heap;
@@ -2459,7 +2432,7 @@ row_create_index_for_mysql(
 
 		heap = mem_heap_create(512);
 		node = ind_create_graph_create(index, table->name.m_name,
-					       heap);
+					       heap, mode, key_id);
 
 		thr = pars_complete_graph_for_exec(node, trx, heap, NULL);
 
