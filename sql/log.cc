@@ -11078,34 +11078,6 @@ void wsrep_thd_binlog_stmt_rollback(THD * thd)
   DBUG_VOID_RETURN;
 }
 
-bool wsrep_stmt_rollback_is_safe(THD* thd)
-{
-  bool ret(true);
-
-  DBUG_ENTER("wsrep_binlog_stmt_rollback_is_safe");
-
-  binlog_cache_mngr *cache_mngr= 
-    (binlog_cache_mngr*) thd_get_ha_data(thd, binlog_hton);
-
-  if (binlog_hton && cache_mngr)
-  {
-    binlog_cache_data * trx_cache = &cache_mngr->trx_cache;
-    if (thd->wsrep_sr().fragments_certified() > 0 &&
-        (trx_cache->get_prev_position() == MY_OFF_T_UNDEF ||
-         trx_cache->get_prev_position() < thd->wsrep_sr().log_position()))
-    {
-      WSREP_DEBUG("statement rollback is not safe for streaming replication"
-                  " pre-stmt_pos: %llu, frag repl pos: %zu\n"
-                  "Thread: %llu, SQL: %s",
-                  trx_cache->get_prev_position(),
-                  thd->wsrep_sr().log_position(),
-                  thd->thread_id, thd->query());
-       ret = false;
-    }
-  }
-  DBUG_RETURN(ret);
-}
-
 void wsrep_register_binlog_handler(THD *thd, bool trx)
 {
   DBUG_ENTER("register_binlog_handler");

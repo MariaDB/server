@@ -13,7 +13,7 @@ INSERT INTO t1 VALUES (REPEAT('e', 512));
 INSERT INTO t1 VALUES (REPEAT('f', 512));
 connection node_2;
 connection node_1;
-INSERT INTO t1 VALUES (REPEAT('c', 512));
+INSERT INTO t1 VALUES (REPEAT('g', 1024)),(REPEAT('c', 512));
 ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 connection node_1;
 SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;

@@ -943,9 +943,6 @@ void wsrep_init_startup (bool sst_first)
 {
   if (wsrep_init()) unireg_abort(1);
 
-  wsrep_thr_lock_init(wsrep_thd_is_BF, wsrep_thd_bf_abort,
-                      wsrep_debug, wsrep_convert_LOCK_to_trx, wsrep_on);
-
   /*
     Pre-initialize global_system_variables.table_plugin with a dummy engine
     (placeholder) required during the initialization of wsrep threads (THDs).
@@ -2754,6 +2751,13 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
     thd->variables.auto_increment_increment= 1;
   }
 
+  /*
+    TOI operations will ignore provided lock_wait_timeout and restore it
+    after operation is done.
+   */
+  thd->variables.saved_lock_wait_timeout= thd->variables.lock_wait_timeout;
+  thd->variables.lock_wait_timeout= LONG_TIMEOUT;
+
   if (thd->variables.wsrep_on && wsrep_thd_is_local(thd))
   {
     switch (wsrep_OSU_method_get(thd)) {
@@ -2789,6 +2793,9 @@ void wsrep_to_isolation_end(THD *thd)
 {
   DBUG_ASSERT(wsrep_thd_is_local_toi(thd) ||
               wsrep_thd_is_in_rsu(thd));
+
+  thd->variables.lock_wait_timeout= thd->variables.saved_lock_wait_timeout;
+
   if (wsrep_thd_is_local_toi(thd))
   {
     DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_TOI);

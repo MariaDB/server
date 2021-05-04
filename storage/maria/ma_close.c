@@ -179,7 +179,8 @@ int maria_close(register MARIA_HA *info)
 	mysql_rwlock_destroy(&share->keyinfo[i].root_lock);
       }
     }
-    DBUG_ASSERT(share->now_transactional == share->base.born_transactional);
+    DBUG_ASSERT(share->now_transactional == share->base.born_transactional ||
+                share->internal_table);
     /*
       We assign -1 because checkpoint does not need to flush (in case we
       have concurrent checkpoint if no then we do not need it here also)
