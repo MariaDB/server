@@ -75,7 +75,7 @@ class JDOC: public BLOCK {
 	friend PJSON ParseJson(PGLOBAL, char*, size_t, int*, bool*);
 	friend PSZ Serialize(PGLOBAL, PJSON, char*, int);
 public:
-	JDOC(void) : js(NULL), s(NULL), len(0), pty(NULL) {}
+	JDOC(void) : js(NULL), s(NULL), len(0), dfp(0), pty(NULL) {}
 
 	void  SetJp(JOUT* jp) { js = jp; }
 
@@ -94,7 +94,7 @@ public:
  private:
 	JOUT* js;
 	char *s;
-	int   len;
+	int   len, dfp;
 	bool *pty;
 }; // end of class JDOC
 

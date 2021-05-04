@@ -26,6 +26,7 @@ bool CMgoConn::IsInit = false;
 
 bool IsArray(PSZ s);
 bool MakeSelector(PGLOBAL g, PFIL fp, PSTRG s);
+int  GetDefaultPrec(void);
 
 /* --------------------------- Class INCOL --------------------------- */
 
@@ -563,7 +564,7 @@ void CMgoConn::ShowDocument(bson_iter_t *iter, const bson_t *doc, const char *k)
 					htrc("%s.%s=%s\n", k, key, str);
 				} break;
 				case BSON_TYPE_DECIMAL128: {
-					char* str = NULL;
+					char str[BSON_DECIMAL128_STRING];
 					bson_decimal128_t dec;
 
 					bson_iter_decimal128(iter, &dec);
@@ -805,23 +806,51 @@ void CMgoConn::Close(void)
 /***********************************************************************/
 char *CMgoConn::Mini(PGLOBAL g, PCOL colp, const bson_t *bson, bool b)
 {
-	char *s, *str = NULL;
-	char *Mbuf = (char*)PlugSubAlloc(g, NULL, (size_t)colp->GetLength() + 1);
-	int   i, k = 0;
-	bool  ok = true;
+	char  *s, *str = NULL;
+	char  *Mbuf = (char*)PlugSubAlloc(g, NULL, (size_t)colp->GetLength() + 1);
+	int    i, j = 0, k = 0, n = 0, m = GetDefaultPrec();
+	bool   ok = true, dbl = false;
+	double d;
+	size_t len;
 
 	if (b)
-		s = str = bson_array_as_json(bson, NULL);
+		s = str = bson_array_as_json(bson, &len);
 	else
-		s = str = bson_as_json(bson, NULL);
+		s = str = bson_as_json(bson, &len);
+
+	if (len > (size_t)colp->GetLength()) {
+		sprintf(g->Message, "Value too long for column %s", colp->GetName());
+		bson_free(str);
+		throw (int)TYPE_AM_MGO;
+	}	// endif len
 
 	for (i = 0; i < colp->GetLength() && s[i]; i++) {
 		switch (s[i]) {
 			case ' ':
 				if (ok) continue;
+				break;
 			case '"':
 				ok = !ok;
+				break;
+			case '.':
+				if (j) dbl = true;
+				break;
 			default:
+				if (ok) {
+					if (isdigit(s[i])) {
+						if (!j) j = k;
+						if (dbl) n++;
+					} else if (dbl && n > m) {
+						Mbuf[k] = 0;
+						d = atof(Mbuf + j);
+						n = sprintf(Mbuf + j, "%.*f", m, d);
+						k = j + n;
+						j = n = 0;
+					} else if (j)
+						j = n = 0;
+
+				} // endif ok
+
 				break;
 		} // endswitch s[i]
 
@@ -829,11 +858,6 @@ char *CMgoConn::Mini(PGLOBAL g, PCOL colp, const bson_t *bson, bool b)
 	} // endfor i
 
 	bson_free(str);
-
-	if (i >= colp->GetLength()) {
-		sprintf(g->Message, "Value too long for column %s", colp->GetName());
-		throw (int)TYPE_AM_MGO;
-	}	// endif i
 
 	Mbuf[k] = 0;
 	return Mbuf;
@@ -926,13 +950,13 @@ void CMgoConn::GetColumnValue(PGLOBAL g, PCOL colp)
 				value->SetNull(true);
 				break;
 			case BSON_TYPE_DECIMAL128: {
-				char* str = NULL;
+				char str[BSON_DECIMAL128_STRING];
 				bson_decimal128_t dec;
 
 				bson_iter_decimal128(&Desc, &dec);
 				bson_decimal128_to_string(&dec, str);
 				value->SetValue_psz(str);
-				bson_free(str);
+//			bson_free(str);
 			} break;
 			default:
 				value->Reset();
@@ -956,10 +980,10 @@ bool CMgoConn::AddValue(PGLOBAL g, PCOL colp, bson_t *doc, char *key, bool upd)
 	PVAL value = colp->GetValue();
 
 	if (value->IsNull()) {
-		if (upd)
+//		if (upd)
 			rc = BSON_APPEND_NULL(doc, key);
-		else
-			return false;
+//		else
+//			return false;
 
 	} else switch (colp->GetResultType()) {
 		case TYPE_STRING:

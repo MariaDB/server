@@ -170,7 +170,7 @@
 #define JSONMAX      10             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0003 April 02, 2021";
+       char version[]= "Version 1.07.0003 May 02, 2021";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0003 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -5940,9 +5940,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				if (!fn && !zfn && !mul && !dsn)
 					sprintf(g->Message, "Missing %s file name", topt->type);
-				else
-					ok= true;
+				else if (dsn && !topt->tabname)
+          topt->tabname= tab;
 
+				ok= true;
 				break;
 #if defined(JAVA_SUPPORT)
 			case TAB_MONGO:

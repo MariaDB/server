@@ -218,8 +218,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 
   if (tdp->Uri) {
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
-    tdp->Collname = GetStringTableOption(g, topt, "Name", NULL);
-    tdp->Collname = GetStringTableOption(g, topt, "Tabname", tdp->Collname);
+    tdp->Collname = GetStringTableOption(g, topt, "Tabname", NULL);
     tdp->Schema = GetStringTableOption(g, topt, "Dbname", "test");
     tdp->Options = (PSZ)GetStringTableOption(g, topt, "Colist", "all");
     tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);

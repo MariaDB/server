@@ -245,6 +245,7 @@ PSZ Serialize(PGLOBAL g, PJSON jsp, char* fn, int pretty) {
 
   try {
     jdp = new(g) JDOC; // MUST BE ALLOCATED BEFORE jp !!!!!
+    jdp->dfp = GetDefaultPrec();
 
     if (!jsp) {
       strcpy(g->Message, "Null json tree");
@@ -1005,8 +1006,8 @@ bool JDOC::SerializeValue(PJVAL jvp)
     case TYPE_BINT:
       sprintf(buf, "%lld", jvp->LLn);
       return js->WriteStr(buf);
-    case TYPE_DBL:
-      sprintf(buf, "%.*lf", jvp->Nd, jvp->F);
+    case TYPE_DBL:  // dfp to limit to the default number of decimals
+      sprintf(buf, "%.*f", MY_MIN(jvp->Nd, dfp), jvp->F);
       return js->WriteStr(buf);
     case TYPE_NULL:
       return js->WriteStr("null");

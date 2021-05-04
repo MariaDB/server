@@ -505,6 +505,7 @@ char *JMGCOL::Mini(PGLOBAL g, const bson_t *bson, bool b)
 		switch (s[i]) {
 			case ' ':
 				if (ok) continue;
+				break;
 			case '"':
 				ok = !ok;
 			default:
