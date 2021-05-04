@@ -30,6 +30,9 @@ SELECT COUNT(*) = 1 FROM t1 WHERE f1 = 3;
 
 DROP TABLE t1;
 
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
 
 #
 # Test that variable wsrep_on cannot be changed while in
@@ -73,6 +76,10 @@ SELECT * FROM t1;
 SET GLOBAL wsrep_on = ON;
 DROP TABLE t1;
 
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
+
 
 #
 # New connections inherit @@session.wsrep_on from @@global.wsrep_on
@@ -92,6 +99,10 @@ SET GLOBAL wsrep_on = ON;
 SHOW SESSION VARIABLES LIKE 'wsrep_on';
 
 --disconnect node_1b
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't2';
+--source include/wait_condition.inc
 
 
 #
@@ -131,6 +142,9 @@ SELECT * FROM t1;
 
 DROP TABLE t1;
 
+--connection node_1
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc
 
 #
 # Test single statement, multi statement, and
@@ -165,3 +179,7 @@ SHOW TABLES;
 --connection node_1
 DROP TABLE t1;
 SET GLOBAL wsrep_on = ON;
+
+--connection node_2
+--let $wait_condition = SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.TABLES WHERE TABLE_NAME = 't1';
+--source include/wait_condition.inc

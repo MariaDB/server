@@ -6,36 +6,23 @@
 --source include/galera_have_debug_sync.inc
 
 --let $galera_version=26.4.8
-source ../../wsrep/include/check_galera_version.inc;
+source include/check_galera_version.inc;
 
---echo #
---echo # MDEV#5790: SHOW GLOBAL STATUS LIKE does not show the correct list of
---echo # variables when using "_"
---echo #
-
-CALL mtr.add_suppression("WSREP: Could not open saved state file for reading.*");
+source include/galera_variables_ok.inc;
 
 --replace_column 2 #
 SHOW GLOBAL STATUS LIKE 'wsrep%';
-
---echo
---replace_column 2 #
-SHOW GLOBAL STATUS LIKE 'wsrep_%';
-
---replace_column 2 #
-SHOW GLOBAL STATUS LIKE 'wsrep_local_state_comment';
 
 --echo # Should show nothing.
 SHOW STATUS LIKE 'x';
 
 SELECT @@global.wsrep_cluster_address;
 SELECT @@global.wsrep_on;
+
 SHOW STATUS LIKE 'threads_connected';
 SHOW STATUS LIKE 'wsrep_thread_count';
 
 --echo # variables
 
-SELECT COUNT(*) AS EXPECT_49 FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep%";
-SELECT COUNT(*) AS EXPECT_49 FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep%";
 SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.SESSION_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep%" ORDER BY VARIABLE_NAME;
-SELECT VARIABLE_NAME FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES WHERE VARIABLE_NAME LIKE "wsrep%" ORDER BY VARIABLE_NAME;
+
