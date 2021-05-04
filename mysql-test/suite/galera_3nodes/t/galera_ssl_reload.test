@@ -3,7 +3,11 @@
 #
 
 --source include/galera_cluster.inc
---source include/have_innodb.inc
+--source include/have_openssl.inc
+--source include/have_ssl_communication.inc
+
+--let $galera_version=26.4.8
+source ../../wsrep/include/check_galera_version.inc;
 
 --connect node_3, 127.0.0.1, root, , test, $NODE_MYPORT_3
 
