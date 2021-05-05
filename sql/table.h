@@ -2825,10 +2825,6 @@ struct TABLE_LIST
     }
   }
 
-  bool is_fresh_table() const
-  {
-    return m_table_ref_type == TABLE_REF_NULL;
-  }
 private:
   bool prep_check_option(THD *thd, uint8 check_opt_type);
   bool prep_where(THD *thd, Item **conds, bool no_where_clause);
