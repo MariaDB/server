@@ -747,7 +747,7 @@ wsrep_check_programs()
 
     while [ $# -gt 0 ]
     do
-        wsrep_check_program $1 || ret=$?
+        wsrep_check_program "$1" || ret=$?
         shift
     done
 

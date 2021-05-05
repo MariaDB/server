@@ -225,11 +225,11 @@ check_server_ssl_config()
 
 SSLMODE=$(parse_cnf 'sst' 'ssl-mode' | tr [:lower:] [:upper:])
 
-if [ -z "$SSTKEY" -a -z "$SSTCERT" ]
+if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" ]
 then
     # no old-style SSL config in [sst], check for new one
     check_server_ssl_config 'sst'
-    if [ -z "$SSTKEY" -a -z "$SSTCERT" ]; then
+    if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" ]; then
         check_server_ssl_config '--mysqld'
     fi
 fi
@@ -279,7 +279,7 @@ fi
 STUNNEL=""
 if [ -n "$SSLMODE" -a "$SSLMODE" != 'DISABLED' ] && wsrep_check_programs stunnel
 then
-    wsrep_log_info "Using stunnel for SSL encryption: CAfile: $SSTCA, SSLMODE: $SSLMODE"
+    wsrep_log_info "Using stunnel for SSL encryption: CAfile: '$SSTCA', SSLMODE: '$SSLMODE'"
     STUNNEL="stunnel $STUNNEL_CONF"
 fi
 
@@ -365,11 +365,11 @@ EOF
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
-        eval rsync ${STUNNEL:+--rsh=\"$STUNNEL\"} \
+        eval rsync "'${STUNNEL:+--rsh=$STUNNEL}'" \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT ${FILTER} "$WSREP_SST_OPT_DATA/" \
-              rsync://$WSREP_SST_OPT_ADDR >&2 || RC=$?
+              $WHOLE_FILE_OPT ${FILTER} "'$WSREP_SST_OPT_DATA/'" \
+              "'rsync://$WSREP_SST_OPT_ADDR'" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
             wsrep_log_error "rsync returned code $RC:"
@@ -394,7 +394,7 @@ EOF
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT -f '+ /ibdata*' -f '+ /ib_lru_dump' \
               -f '- **' "$INNODB_DATA_HOME_DIR/" \
-              rsync://$WSREP_SST_OPT_ADDR-data_dir >&2 || RC=$?
+              "rsync://$WSREP_SST_OPT_ADDR-data_dir" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
             wsrep_log_error "rsync innodb_data_home_dir returned code $RC:"
@@ -405,8 +405,9 @@ EOF
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '+ /aria_log.*' -f '+ /aria_log_control' -f '- **' "$WSREP_LOG_DIR/" \
-              rsync://$WSREP_SST_OPT_ADDR-log_dir >&2 || RC=$?
+              $WHOLE_FILE_OPT -f '+ /ib_logfile[0-9]*' -f '+ /aria_log.*' \
+              -f '+ /aria_log_control' -f '- **' "$WSREP_LOG_DIR/" \
+              "rsync://$WSREP_SST_OPT_ADDR-log_dir" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
             wsrep_log_error "rsync innodb_log_group_home_dir returned code $RC:"
@@ -425,8 +426,9 @@ EOF
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
-             $WHOLE_FILE_OPT --exclude '*/ib_logfile*' --exclude "*/aria_log.*" --exclude "*/aria_log_control" "$WSREP_SST_OPT_DATA"/{}/ \
-             rsync://$WSREP_SST_OPT_ADDR/{} >&2 || RC=$?
+             $WHOLE_FILE_OPT --exclude '*/ib_logfile*' --exclude '*/aria_log.*' \
+             --exclude '*/aria_log_control' "$WSREP_SST_OPT_DATA/"{}"/" \
+             "rsync://$WSREP_SST_OPT_ADDR/"{} >&2 || RC=$?
 
         cd "$OLD_PWD"
 
@@ -455,7 +457,7 @@ EOF
     fi
 
     rsync ${STUNNEL:+--rsh="$STUNNEL"} \
-          --archive --quiet --checksum "$MAGIC_FILE" rsync://$WSREP_SST_OPT_ADDR
+          --archive --quiet --checksum "$MAGIC_FILE" "rsync://$WSREP_SST_OPT_ADDR"
 
     echo "done $STATE"
 
@@ -547,7 +549,7 @@ client = no
 [rsync]
 accept = $STUNNEL_ACCEPT
 exec = $(command -v rsync)
-execargs = rsync --server --daemon --config='$RSYNC_CONF' .
+execargs = rsync --server --daemon --config=$RSYNC_CONF .
 EOF
         stunnel "$STUNNEL_CONF" &
         RSYNC_REAL_PID=$!
