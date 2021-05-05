@@ -141,3 +141,37 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 3	DERIVED	t2	index	NULL	PRIMARY	4	NULL	3	
 drop view v1;
 drop table t1,t2;
+#
+#  MDEV-23723: Crash when test_if_skip_sort_order() is checked for derived table subject to split
+#
+CREATE TABLE t1 (a INT, b INT, KEY (a), KEY (a,b)) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT, KEY (c)) ENGINE=InnoDB;
+SELECT * FROM t1 t1a JOIN t1 t1b;
+a	b	a	b
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t1 VALUES (1,2),(3,4),(5,6),(7,8),(9,10),(11,12);
+set statement optimizer_switch='split_materialized=off' for EXPLAIN
+SELECT *
+FROM
+t1 JOIN
+(SELECT t1.a, t1.b FROM t1, t2 WHERE t1.b = t2.c GROUP BY t1.a, t1.b) as dt
+WHERE
+t1.a = dt.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	a,a_2	a_2	10	NULL	6	Using where; Using index
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	2	
+3	DERIVED	t1	index	NULL	a_2	10	NULL	6	Using where; Using index
+3	DERIVED	t2	ref	c	c	5	test.t1.b	1	Using index
+set statement optimizer_switch='split_materialized=on' for  EXPLAIN
+SELECT *
+FROM
+t1 JOIN
+(SELECT t1.a, t1.b FROM t1, t2 WHERE t1.b = t2.c GROUP BY t1.a, t1.b) as dt
+WHERE
+t1.a = dt.a;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	PRIMARY	t1	index	a,a_2	a_2	10	NULL	6	Using where; Using index
+1	PRIMARY	<derived3>	ref	key0	key0	5	test.t1.a	2	
+3	LATERAL DERIVED	t1	ref	a,a_2	a	5	test.t1.a	1	Using where; Using temporary; Using filesort
+3	LATERAL DERIVED	t2	ref	c	c	5	test.t1.b	1	Using index
+DROP TABLE t1, t2;

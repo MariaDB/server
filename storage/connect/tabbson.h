@@ -44,10 +44,11 @@ public:
   PBPR    row;
   PBTUT   bp;
   PCSZ    sep;
+  PCSZ    strfy;
   char    colname[65], fmt[129], buf[16];
   uint   *length;
   int     i, n, bf, ncol, lvl, sz, limit;
-  bool    all, strfy;
+  bool    all;
 }; // end of BSONDISC
 
 /***********************************************************************/

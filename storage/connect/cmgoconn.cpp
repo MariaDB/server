@@ -150,6 +150,12 @@ void CMgoConn::mongo_init(bool init)
 /***********************************************************************/
 bool CMgoConn::Connect(PGLOBAL g)
 {
+	if (!Pcg->Db_name || !Pcg->Coll_name) {
+		// This would crash in mongoc_client_get_collection
+		strcpy(g->Message, "Missing DB or collection name");
+		return true;
+	}	// endif name
+
 	if (!IsInit)
 #if defined(__WIN__)
 		__try {

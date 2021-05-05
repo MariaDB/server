@@ -7584,6 +7584,21 @@ int item_create_append(Native_func_registry array[])
   DBUG_RETURN(0);
 }
 
+int item_create_remove(Native_func_registry array[])
+{
+  Native_func_registry *func;
+
+  DBUG_ENTER("item_create_remove");
+
+  for (func= array; func->builder != NULL; func++)
+  {
+    if (my_hash_delete(& native_functions_hash, (uchar*) func))
+      DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
 /*
   Empty the hash table for native functions.
   Note: this code is not thread safe, and is intended to be used at server

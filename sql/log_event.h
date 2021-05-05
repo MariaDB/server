@@ -570,6 +570,14 @@ class String;
 #define MARIA_SLAVE_CAPABILITY_MINE MARIA_SLAVE_CAPABILITY_GTID
 
 
+/*
+  When the size of 'log_pos' within Heartbeat_log_event exceeds UINT32_MAX it
+  cannot be accommodated in common_header, as 'log_pos' is of 4 bytes size. In
+  such cases, sub_header, of size 8 bytes will hold larger 'log_pos' value.
+*/
+#define HB_SUB_HEADER_LEN 8
+
+
 /**
   @enum Log_event_type
 
@@ -5214,12 +5222,13 @@ bool copy_cache_to_file_wrapped(IO_CACHE *body,
 class Heartbeat_log_event: public Log_event
 {
 public:
-  Heartbeat_log_event(const char* buf, uint event_len,
+  uint8 hb_flags;
+  Heartbeat_log_event(const char* buf, ulong event_len,
                       const Format_description_log_event* description_event);
   Log_event_type get_type_code() { return HEARTBEAT_LOG_EVENT; }
   bool is_valid() const
     {
-      return (log_ident != NULL &&
+      return (log_ident != NULL && ident_len <= FN_REFLEN-1 &&
               log_pos >= BIN_LOG_HEADER_SIZE);
     }
   const char * get_log_ident() { return log_ident; }

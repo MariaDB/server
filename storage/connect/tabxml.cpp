@@ -148,13 +148,20 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
   /*  Open the input file.                                             */
   /*********************************************************************/
   if (!(fn = GetStringTableOption(g, topt, "Filename", NULL))) {
-    strcpy(g->Message, MSG(MISSING_FNAME));
-    return NULL;
-  } else {
-    lvl = GetIntegerTableOption(g, topt, "Level", GetDefaultDepth());
-		lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
-		lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
+    if (topt->http) // REST table can have default filename
+      fn = GetStringTableOption(g, topt, "Subtype", NULL);
+    
+    if (!fn) {
+      strcpy(g->Message, MSG(MISSING_FNAME));
+      return NULL;
+    } else
+      topt->subtype = NULL;
+
   } // endif fn
+
+  lvl = GetIntegerTableOption(g, topt, "Level", GetDefaultDepth());
+  lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
+  lvl = (lvl < 0) ? 0 : (lvl > 16) ? 16 : lvl;
 
   if (trace(1))
     htrc("File %s lvl=%d\n", topt->filename, lvl);
