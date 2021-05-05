@@ -9275,6 +9275,25 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
   return rc;
 }
 
+
+/**
+  Turn on the SELECT_DESCRIBE flag for every SELECT_LEX involved into
+  the statement being processed in case the statement is EXPLAIN UPDATE/DELETE.
+
+  @param lex  current LEX
+*/
+
+void promote_select_describe_flag_if_needed(LEX *lex)
+{
+  if (lex->describe)
+  {
+    SELECT_LEX *sl= lex->first_select_lex();
+    for (; sl; sl= sl->next_select_in_list())
+      sl->options|= SELECT_DESCRIBE;
+  }
+}
+
+
 /**
   @} (end of group Data_Dictionary)
 */
