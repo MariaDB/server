@@ -2425,7 +2425,8 @@ i_s_fts_deleted_generic_fill(
 	if (!user_table) {
 		rw_lock_s_unlock(&dict_sys.latch);
 		DBUG_RETURN(0);
-	} else if (!dict_table_has_fts_index(user_table)) {
+	} else if (!dict_table_has_fts_index(user_table)
+		   || !user_table->is_readable()) {
 		dict_table_close(user_table, FALSE, FALSE);
 		rw_lock_s_unlock(&dict_sys.latch);
 		DBUG_RETURN(0);

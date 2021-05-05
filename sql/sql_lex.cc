@@ -1322,15 +1322,15 @@ void lex_end(LEX *lex)
   DBUG_ENTER("lex_end");
   DBUG_PRINT("enter", ("lex: %p", lex));
 
-  lex_end_stage1(lex);
-  lex_end_stage2(lex);
+  lex_unlock_plugins(lex);
+  lex_end_nops(lex);
 
   DBUG_VOID_RETURN;
 }
 
-void lex_end_stage1(LEX *lex)
+void lex_unlock_plugins(LEX *lex)
 {
-  DBUG_ENTER("lex_end_stage1");
+  DBUG_ENTER("lex_unlock_plugins");
 
   /* release used plugins */
   if (lex->plugins.elements) /* No function call and no mutex if no plugins. */
@@ -1339,33 +1339,23 @@ void lex_end_stage1(LEX *lex)
                        lex->plugins.elements);
   }
   reset_dynamic(&lex->plugins);
-
-  if (lex->context_analysis_only & CONTEXT_ANALYSIS_ONLY_PREPARE)
-  {
-    /*
-      Don't delete lex->sphead, it'll be needed for EXECUTE.
-      Note that of all statements that populate lex->sphead
-      only SQLCOM_COMPOUND can be PREPAREd
-    */
-    DBUG_ASSERT(lex->sphead == 0 || lex->sql_command == SQLCOM_COMPOUND);
-  }
-  else
-  {
-    sp_head::destroy(lex->sphead);
-    lex->sphead= NULL;
-  }
-
   DBUG_VOID_RETURN;
 }
 
 /*
+  Don't delete lex->sphead, it'll be needed for EXECUTE.
+  Note that of all statements that populate lex->sphead
+  only SQLCOM_COMPOUND can be PREPAREd
+
   MASTER INFO parameters (or state) is normally cleared towards the end
   of a statement. But in case of PS, the state needs to be preserved during
   its lifetime and should only be cleared on PS close or deallocation.
 */
-void lex_end_stage2(LEX *lex)
+void lex_end_nops(LEX *lex)
 {
-  DBUG_ENTER("lex_end_stage2");
+  DBUG_ENTER("lex_end_nops");
+  sp_head::destroy(lex->sphead);
+  lex->sphead= NULL;
 
   /* Reset LEX_MASTER_INFO */
   lex->mi.reset(lex->sql_command == SQLCOM_CHANGE_MASTER);
@@ -2771,6 +2761,11 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
     yySkip();                  // next state does a unget
   }
 
+  yyUnget();                       // ptr points now after last token char
+  str->set_ident(m_tok_start, length, is_8bit);
+  m_cpp_text_start= m_cpp_tok_start;
+  m_cpp_text_end= m_cpp_text_start + length;
+
   /*
      Note: "SELECT _bla AS 'alias'"
      _bla should be considered as a IDENT if charset haven't been found.
@@ -2780,28 +2775,17 @@ int Lex_input_stream::scan_ident_middle(THD *thd, Lex_ident_cli_st *str,
   DBUG_ASSERT(length > 0);
   if (resolve_introducer && m_tok_start[0] == '_')
   {
-
-    yyUnget();                       // ptr points now after last token char
-    str->set_ident(m_tok_start, length, false);
-
-    m_cpp_text_start= m_cpp_tok_start;
-    m_cpp_text_end= m_cpp_text_start + length;
-    body_utf8_append(m_cpp_text_start, m_cpp_tok_start + length);
     ErrConvString csname(str->str + 1, str->length - 1, &my_charset_bin);
     CHARSET_INFO *cs= get_charset_by_csname(csname.ptr(),
                                             MY_CS_PRIMARY, MYF(0));
     if (cs)
     {
+      body_utf8_append(m_cpp_text_start, m_cpp_tok_start + length);
       *introducer= cs;
       return UNDERSCORE_CHARSET;
     }
-    return IDENT;
   }
 
-  yyUnget();                       // ptr points now after last token char
-  str->set_ident(m_tok_start, length, is_8bit);
-  m_cpp_text_start= m_cpp_tok_start;
-  m_cpp_text_end= m_cpp_text_start + length;
   body_utf8_append(m_cpp_text_start);
   body_utf8_append_ident(thd, str, m_cpp_text_end);
   return is_8bit ? IDENT_QUOTED : IDENT;
@@ -6408,13 +6392,33 @@ void LEX::sp_variable_declarations_init(THD *thd, int nvars)
 bool LEX::sp_variable_declarations_set_default(THD *thd, int nvars,
                                                Item *dflt_value_item)
 {
-  if (!dflt_value_item &&
+  bool has_default_clause= dflt_value_item != NULL;
+  if (!has_default_clause &&
       unlikely(!(dflt_value_item= new (thd->mem_root) Item_null(thd))))
     return true;
+
+  sp_variable *first_spvar = NULL;
 
   for (uint i= 0 ; i < (uint) nvars ; i++)
   {
     sp_variable *spvar= spcont->get_last_context_variable((uint) nvars - 1 - i);
+
+    if (i == 0) {
+      first_spvar = spvar;
+    } else if (has_default_clause) {
+      Item_splocal *item =
+              new (thd->mem_root)
+                      Item_splocal(thd, &sp_rcontext_handler_local,
+                                   &first_spvar->name, first_spvar->offset,
+                                   first_spvar->type_handler(), 0, 0);
+      if (item == NULL)
+        return true; // OOM
+#ifndef DBUG_OFF
+      item->m_sp = sphead;
+#endif
+      dflt_value_item = item;
+    }
+
     bool last= i + 1 == (uint) nvars;
     spvar->default_value= dflt_value_item;
     /* The last instruction is responsible for freeing LEX. */

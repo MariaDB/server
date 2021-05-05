@@ -611,12 +611,8 @@ then
     echo
     echo
     echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-    echo "To do so, start the server, then issue the following commands:"
+    echo "To do so, start the server, then issue the following command:"
     echo
-    echo "'$bindir/mysqladmin' -u root password 'new-password'"
-    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-    echo
-    echo "Alternatively you can run:"
     echo "'$bindir/mysql_secure_installation'"
     echo
     echo "which will also give you the option of removing the test"

@@ -335,17 +335,6 @@ THD *thd_get_current_thd()
   return current_thd;
 }
 
-/**
-  Clear errors from the previous THD
-
-  @param thd              THD object
-*/
-void thd_clear_errors(THD *thd)
-{
-  my_errno= 0;
-  thd->mysys_var->abort= 0;
-}
-
 
 extern "C" unsigned long long thd_query_id(const MYSQL_THD thd)
 {
@@ -1438,7 +1427,10 @@ void THD::change_user(void)
     cleanup();
   cleanup_done= 0;
   reset_killed();
-  thd_clear_errors(this);
+  /* Clear errors from the previous THD */
+  my_errno= 0;
+  if (mysys_var)
+    mysys_var->abort= 0;
 
   /* Clear warnings. */
   if (!get_stmt_da()->is_warning_info_empty())

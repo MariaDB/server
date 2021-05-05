@@ -73,7 +73,6 @@ bool
 mysql_handle_derived(LEX *lex, uint phases)
 {
   bool res= FALSE;
-  THD *thd= lex->thd;
   DBUG_ENTER("mysql_handle_derived");
   DBUG_PRINT("enter", ("phases: 0x%x", phases));
   if (!lex->derived_tables)
@@ -88,8 +87,6 @@ mysql_handle_derived(LEX *lex, uint phases)
       break;
     if (!(phases & phase_flag))
       continue;
-    if (phase_flag >= DT_CREATE && !thd->fill_derived_tables())
-      break;
 
     for (SELECT_LEX *sl= lex->all_selects_list;
 	 sl && !res;
@@ -173,7 +170,6 @@ bool
 mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
 {
   bool res= FALSE;
-  THD *thd= lex->thd;
   uint8 allowed_phases= (derived->is_merged_derived() ? DT_PHASES_MERGE :
                          DT_PHASES_MATERIALIZE);
   DBUG_ENTER("mysql_handle_single_derived");
@@ -200,8 +196,6 @@ mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases)
     if (phase_flag != DT_PREPARE &&
         !(allowed_phases & phase_flag))
       continue;
-    if (phase_flag >= DT_CREATE && !thd->fill_derived_tables())
-      break;
 
     if ((res= (*processors[phase])(lex->thd, lex, derived)))
       break;
