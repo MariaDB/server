@@ -280,7 +280,8 @@ TABLE_CATEGORY get_table_category(const LEX_CSTRING *db,
   DBUG_ASSERT(name != NULL);
 
 #ifdef WITH_WSREP
-  if (my_strcasecmp(system_charset_info, db->str, "mysql") == 0 &&
+  if (db->str &&
+      my_strcasecmp(system_charset_info, db->str, "mysql") == 0 &&
       my_strcasecmp(system_charset_info, name->str, "wsrep_streaming_log") == 0)
   {
     return TABLE_CATEGORY_INFORMATION;
