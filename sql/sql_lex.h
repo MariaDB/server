@@ -4773,6 +4773,19 @@ public:
   bool resolve_references_to_cte(TABLE_LIST *tables,
                                  TABLE_LIST **tables_last);
 
+  /**
+    Turn on the SELECT_DESCRIBE flag for every SELECT_LEX involved into
+    the statement being processed in case the statement is EXPLAIN UPDATE/DELETE.
+
+    @param lex  current LEX
+  */
+
+  void promote_select_describe_flag_if_needed()
+  {
+    if (describe)
+      builtin_select.options |= SELECT_DESCRIBE;
+  }
+
 };
 
 
