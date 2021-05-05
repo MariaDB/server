@@ -349,7 +349,7 @@ case "$1" in
             fi
             shift
         done
-        readonly WSREP_SST_OPT_MYSQLD="$original_cmd"
+        WSREP_SST_OPT_MYSQLD="$original_cmd"
         break
         ;;
     *) # must be command
@@ -410,7 +410,11 @@ fi
 # Reconstructing the command line arguments that control the innodb
 # and binlog options:
 if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
-    INNOEXTRA="$INNOEXTRA --log-basename='$WSREP_SST_OPT_LOG_BASENAME'"
+    if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
+        WSREP_SST_OPT_MYSQLD="--log-basename='$WSREP_SST_OPT_LOG_BASENAME' $WSREP_SST_OPT_MYSQLD"
+    else
+        WSREP_SST_OPT_MYSQLD="--log-basename='$WSREP_SST_OPT_LOG_BASENAME'"
+    fi
 fi
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
     INNOEXTRA="$INNOEXTRA --innodb-data-home-dir='$INNODB_DATA_HOME_DIR'"
@@ -424,9 +428,15 @@ fi
 if [ -n "$WSREP_SST_OPT_BINLOG" ]; then
     INNOEXTRA="$INNOEXTRA --log-bin='$WSREP_SST_OPT_BINLOG'"
     if [ -n "$WSREP_SST_OPT_BINLOG_INDEX" ]; then
-        INNOEXTRA="$INNOEXTRA --log-bin-index='$WSREP_SST_OPT_BINLOG_INDEX'"
+        if [ -n "$WSREP_SST_OPT_MYSQLD" ]; then
+            WSREP_SST_OPT_MYSQLD="--log-bin-index='$WSREP_SST_OPT_BINLOG_INDEX' $WSREP_SST_OPT_MYSQLD"
+        else
+            WSREP_SST_OPT_MYSQLD="--log-bin-index='$WSREP_SST_OPT_BINLOG_INDEX'"
+        fi
     fi
 fi
+
+readonly WSREP_SST_OPT_MYSQLD
 
 get_binlog()
 {
