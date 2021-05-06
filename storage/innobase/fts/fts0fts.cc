@@ -797,9 +797,8 @@ fts_check_cached_index(
 
 /** Clear all fts resources when there is no internal DOC_ID
 and there are no new fts index to add.
-@param[in,out]	table	table  where fts is to be freed
-@param[in]	trx	transaction to drop all fts tables */
-void fts_clear_all(dict_table_t *table, trx_t *trx)
+@param[in,out]	table	table  where fts is to be freed */
+void fts_clear_all(dict_table_t *table)
 {
   if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID) ||
       !table->fts ||
@@ -813,7 +812,6 @@ void fts_clear_all(dict_table_t *table, trx_t *trx)
 
   fts_optimize_remove_table(table);
 
-  fts_drop_tables(trx, table);
   fts_free(table);
   DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
 }
@@ -1572,13 +1570,10 @@ static dberr_t fts_drop_common_tables(trx_t *trx, fts_table_t *fts_table)
 }
 
 /****************************************************************//**
-Since we do a horizontal split on the index table, we need to drop
-all the split tables.
+Drops FTS auxiliary tables for an FTS index
 @return DB_SUCCESS or error code */
-static
 dberr_t
-fts_drop_index_split_tables(
-/*========================*/
+fts_drop_index_tables(
 	trx_t*		trx,			/*!< in: transaction */
 	dict_index_t*	index)			/*!< in: fts instance */
 
@@ -1605,18 +1600,6 @@ fts_drop_index_split_tables(
 	}
 
 	return(error);
-}
-
-/****************************************************************//**
-Drops FTS auxiliary tables for an FTS index
-@return DB_SUCCESS or error code */
-dberr_t
-fts_drop_index_tables(
-/*==================*/
-	trx_t*		trx,		/*!< in: transaction */
-	dict_index_t*	index)		/*!< in: Index to drop */
-{
-	return(fts_drop_index_split_tables(trx, index));
 }
 
 /****************************************************************//**
@@ -1774,9 +1757,6 @@ fts_create_one_common_table(
 		new_table = NULL;
 		ib::warn() << "Failed to create FTS common table "
 			<< fts_table_name;
-		trx->error_state = DB_SUCCESS;
-		row_drop_table_for_mysql(fts_table_name, trx, SQLCOM_DROP_DB);
-		trx->error_state = error;
 	}
 	return(new_table);
 }
@@ -1884,14 +1864,6 @@ fts_create_common_tables(
 					   FIL_DEFAULT_ENCRYPTION_KEY);
 
 func_exit:
-	if (error != DB_SUCCESS) {
-		for (it = common_tables.begin(); it != common_tables.end();
-		     ++it) {
-			row_drop_table_for_mysql((*it)->name.m_name, trx,
-						 SQLCOM_DROP_DB);
-		}
-	}
-
 	common_tables.clear();
 	mem_heap_free(heap);
 
@@ -1979,9 +1951,6 @@ fts_create_one_index_table(
 		new_table = NULL;
 		ib::warn() << "Failed to create FTS index table "
 			<< table_name;
-		trx->error_state = DB_SUCCESS;
-		row_drop_table_for_mysql(table_name, trx, SQLCOM_DROP_DB);
-		trx->error_state = error;
 	}
 
 	return(new_table);
@@ -2016,11 +1985,6 @@ fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 	fts_table.table_id = id;
 	fts_table.table = index->table;
 
-	/* aux_idx_tables vector is used for dropping FTS AUX INDEX
-	tables on error condition. */
-	std::vector<dict_table_t*>			aux_idx_tables;
-	std::vector<dict_table_t*>::const_iterator	it;
-
 	for (i = 0; i < FTS_NUM_AUX_INDEX && error == DB_SUCCESS; ++i) {
 		dict_table_t*	new_table;
 
@@ -2035,32 +1999,11 @@ fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 		if (new_table == NULL) {
 			error = DB_FAIL;
 			break;
-		} else {
-			aux_idx_tables.push_back(new_table);
 		}
 
 		mem_heap_empty(heap);
-
-		DBUG_EXECUTE_IF("ib_fts_index_table_error",
-			/* Return error after creating FTS_INDEX_5
-			aux table. */
-			if (i == 4) {
-				error = DB_FAIL;
-				break;
-			}
-		);
 	}
 
-	if (error != DB_SUCCESS) {
-
-		for (it = aux_idx_tables.begin(); it != aux_idx_tables.end();
-		     ++it) {
-			row_drop_table_for_mysql((*it)->name.m_name, trx,
-						 SQLCOM_DROP_DB);
-		}
-	}
-
-	aux_idx_tables.clear();
 	mem_heap_free(heap);
 
 	return(error);

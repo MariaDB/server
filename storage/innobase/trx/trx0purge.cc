@@ -265,8 +265,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 
 	Before any transaction-generating background threads or the
 	purge have been started, we can
-	start transactions in row_merge_drop_temp_indexes() and
-	fts_drop_orphaned_tables(), and roll back recovered transactions.
+	start transactions in row_merge_drop_temp_indexes(),
+	and roll back recovered transactions.
 
 	Arbitrary user transactions may be executed when all the undo log
 	related background processes (including purge) are disabled due to

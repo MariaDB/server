@@ -3325,9 +3325,6 @@ row_drop_table_for_mysql(
 		dict_stats_recalc_pool_del(table);
 		dict_stats_defrag_pool_del(table, NULL);
 		if (btr_defragment_active) {
-			/* During fts_drop_orphaned_tables() the
-			btr_defragment_mutex has not yet been
-			initialized by btr_defragment_init(). */
 			btr_defragment_remove_table(table);
 		}
 

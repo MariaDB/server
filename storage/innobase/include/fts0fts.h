@@ -958,9 +958,8 @@ fts_trx_create(
 
 /** Clear all fts resources when there is no internal DOC_ID
 and there are no new fts index to add.
-@param[in,out]  table   table  where fts is to be freed
-@param[in]      trx     transaction to drop all fts tables */
-void fts_clear_all(dict_table_t *table, trx_t *trx);
+@param[in,out]  table   table  where fts is to be freed */
+void fts_clear_all(dict_table_t *table);
 
 /** Check whether the given name is fts auxiliary table
 and fetch the parent table id and index id

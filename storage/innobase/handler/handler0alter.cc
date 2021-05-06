@@ -9928,8 +9928,6 @@ commit_try_rebuild(
 		DBUG_RETURN(true);
 	}
 
-	dberr_t	error;
-
 	/* Clear the to_be_dropped flag in the data dictionary cache
 	of user_table. */
 	for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
@@ -9956,17 +9954,25 @@ commit_try_rebuild(
 		rebuilt_table->flags2 |= DICT_TF2_DISCARDED;
 	}
 
-	/* We can now rename the old table as a temporary table,
-	rename the new temporary table as the old table and drop the
-	old table. */
-	char* old_name= mem_heap_strdup(ctx->heap, user_table->name.m_name);
+	dberr_t error = (ctx->old_table->flags2 & DICT_TF2_FTS)
+		? fts_drop_tables(trx, ctx->old_table)
+		: DB_SUCCESS;
 
-	error = row_rename_table_for_mysql(user_table->name.m_name,
-					   ctx->tmp_name, trx, false, false);
 	if (error == DB_SUCCESS) {
-		error = row_rename_table_for_mysql(rebuilt_table->name.m_name,
-						   old_name, trx,
+		/* We can now rename the old table as a temporary table,
+		rename the new temporary table as the old table and drop the
+		old table. */
+		char* old_name= mem_heap_strdup(ctx->heap,
+						user_table->name.m_name);
+
+		error = row_rename_table_for_mysql(user_table->name.m_name,
+						   ctx->tmp_name, trx,
 						   false, false);
+		if (error == DB_SUCCESS) {
+			error = row_rename_table_for_mysql(
+				rebuilt_table->name.m_name, old_name, trx,
+				false, false);
+		}
 	}
 
 	/* We must be still holding a table handle. */
@@ -10244,33 +10250,29 @@ commit_try_norebuild(
 	dberr_t	error;
 	dict_index_t* index;
 	const char *op = "rename index to add";
-	ulint i;
+	ulint num_fts_index = 0;
 
 	/* We altered the table in place. Mark the indexes as committed. */
-	for (i = 0; i < ctx->num_to_add_index; i++) {
+	for (ulint i = 0; i < ctx->num_to_add_index; i++) {
 		index = ctx->add_index[i];
 		DBUG_ASSERT(dict_index_get_online_status(index)
 			    == ONLINE_INDEX_COMPLETE);
 		DBUG_ASSERT(!index->is_committed());
 		error = row_merge_rename_index_to_add(
 			trx, ctx->new_table->id, index->id);
-handle_error:
-		switch (error) {
-		case DB_SUCCESS:
-			break;
-		case DB_TOO_MANY_CONCURRENT_TRXS:
-			my_error(ER_TOO_MANY_CONCURRENT_TRXS, MYF(0));
-			DBUG_RETURN(true);
-		default:
-			sql_print_error("InnoDB: %s: %s\n", op,
-					ut_strerr(error));
-			DBUG_ASSERT(0);
-			my_error(ER_INTERNAL_ERROR, MYF(0), op);
-			DBUG_RETURN(true);
+		if (error) {
+			goto handle_error;
 		}
 	}
 
-	for (i = 0; i < ctx->num_to_drop_index; i++) {
+	for (dict_index_t *index = UT_LIST_GET_FIRST(ctx->old_table->indexes);
+	     index; index = UT_LIST_GET_NEXT(indexes, index)) {
+		if (index->type & DICT_FTS) {
+			num_fts_index++;
+		}
+	}
+
+	for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
 		index = ctx->drop_index[i];
 		DBUG_ASSERT(index->is_committed());
 		DBUG_ASSERT(index->table == ctx->new_table);
@@ -10287,8 +10289,36 @@ handle_error:
 		pars_info_t* info = pars_info_create();
 		pars_info_add_ull_literal(info, "indexid", index->id);
 		error = que_eval_sql(info, drop_index, FALSE, trx);
+
+		if (error == DB_SUCCESS && index->type & DICT_FTS) {
+			DBUG_ASSERT(index->table->fts);
+			DEBUG_SYNC_C("norebuild_fts_drop");
+			error = fts_drop_index(index->table, index, trx);
+			ut_ad(num_fts_index);
+			num_fts_index--;
+		}
+
 		if (error != DB_SUCCESS) {
 			goto handle_error;
+		}
+	}
+
+	if ((ctx->old_table->flags2 & DICT_TF2_FTS) && !num_fts_index) {
+		error = fts_drop_tables(trx, ctx->old_table);
+		if (error != DB_SUCCESS) {
+handle_error:
+			switch (error) {
+			case DB_TOO_MANY_CONCURRENT_TRXS:
+				my_error(ER_TOO_MANY_CONCURRENT_TRXS, MYF(0));
+				break;
+			default:
+				sql_print_error("InnoDB: %s: %s\n", op,
+						ut_strerr(error));
+				DBUG_ASSERT(0);
+				my_error(ER_INTERNAL_ERROR, MYF(0), op);
+			}
+
+			DBUG_RETURN(true);
 		}
 	}
 
@@ -10462,50 +10492,21 @@ commit_cache_norebuild(
 		index->set_committed(true);
 	}
 
-	if (ctx->num_to_drop_index) {
-		for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
-			dict_index_t*	index = ctx->drop_index[i];
-			DBUG_ASSERT(index->is_committed());
-			DBUG_ASSERT(index->table == ctx->new_table);
-			DBUG_ASSERT(index->to_be_dropped);
+	for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
+		dict_index_t*	index = ctx->drop_index[i];
+		DBUG_ASSERT(index->is_committed());
+		DBUG_ASSERT(index->table == ctx->new_table);
+		DBUG_ASSERT(index->to_be_dropped);
 
-			/* Replace the indexes in foreign key
-			constraints if needed. */
-
-			if (!dict_foreign_replace_index(
-				    index->table, ctx->col_names, index)) {
-				found = false;
-			}
-
-			/* Mark the index dropped
-			in the data dictionary cache. */
-			index->lock.u_lock(SRW_LOCK_CALL);
-			index->page = FIL_NULL;
-			index->lock.u_unlock();
+		if (!dict_foreign_replace_index(index->table, ctx->col_names,
+						index)) {
+			found = false;
 		}
 
-		trx_start_for_ddl(trx);
-
-		for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
-			dict_index_t*	index = ctx->drop_index[i];
-			DBUG_ASSERT(index->is_committed());
-			DBUG_ASSERT(index->table == ctx->new_table);
-
-			if (index->type & DICT_FTS) {
-				DBUG_ASSERT(index->type == DICT_FTS
-					    || (index->type
-						& DICT_CORRUPT));
-				DBUG_ASSERT(index->table->fts);
-				DEBUG_SYNC_C("norebuild_fts_drop");
-				fts_drop_index(index->table, index, trx);
-			}
-
-			dict_index_remove_from_cache(index->table, index);
-		}
-
-		fts_clear_all(ctx->old_table, trx);
-		trx_commit_for_mysql(trx);
+		dict_index_remove_from_cache(index->table, index);
 	}
+
+	fts_clear_all(ctx->old_table);
 
 	if (!ctx->is_instant()) {
 		innobase_rename_or_enlarge_columns_cache(

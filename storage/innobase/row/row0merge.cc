@@ -3773,6 +3773,27 @@ row_merge_drop_indexes_dict(
 	trx->op_info = "";
 }
 
+/** Drop common internal tables if all fulltext indexes are dropped
+@param trx   transaction
+@param table user table */
+static void row_merge_drop_fulltext_indexes(trx_t *trx, dict_table_t *table)
+{
+  if (DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID) ||
+      !table->fts ||
+      !ib_vector_is_empty(table->fts->indexes))
+    return;
+
+  for (const dict_index_t *index= dict_table_get_first_index(table);
+       index; index= dict_table_get_next_index(index))
+    if (index->type & DICT_FTS)
+      return;
+
+  fts_optimize_remove_table(table);
+  fts_drop_tables(trx, table);
+  fts_free(table);
+  DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
+}
+
 /** Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
 because the transaction will not be committed.
@@ -3898,7 +3919,7 @@ row_merge_drop_indexes(
 			ut_error;
 		}
 
-		fts_clear_all(table, trx);
+		row_merge_drop_fulltext_indexes(trx, table);
 		return;
 	}
 
@@ -3954,21 +3975,91 @@ row_merge_drop_indexes(
 		}
 	}
 
-	fts_clear_all(table, trx);
+	row_merge_drop_fulltext_indexes(trx, table);
 	table->drop_aborted = FALSE;
 	ut_d(dict_table_check_for_dup_indexes(table, CHECK_ALL_COMPLETE));
 }
 
-/*********************************************************************//**
-Drop all partially created indexes during crash recovery. */
-void
-row_merge_drop_temp_indexes(void)
-/*=============================*/
+/** Drop fulltext indexes */
+static ibool row_merge_drop_fts(void *node, void *trx)
 {
+   auto s= static_cast<sel_node_t*>(node);
+
+   const dfield_t *table_id= que_node_get_val(s->select_list);
+   ut_ad(table_id->type.mtype == DATA_BINARY);
+   node= que_node_get_next(s->select_list);
+   ut_ad(!que_node_get_next(node));
+   const dfield_t *index_id= que_node_get_val(node);
+   ut_ad(index_id->type.mtype == DATA_BINARY);
+
+   static const char sql[]=
+     "PROCEDURE DROP_TABLES_PROC () IS\n"
+     "tid CHAR;\n"
+     "iid CHAR;\n"
+
+     "DECLARE CURSOR cur_tab IS\n"
+     "SELECT ID FROM SYS_TABLES\n"
+     "WHERE INSTR(NAME,:name)+45=LENGTH(NAME)"
+     " AND INSTR('123456',SUBSTR(NAME,LENGTH(NAME)-1,1))>0"
+     " FOR UPDATE;\n"
+
+     "DECLARE CURSOR cur_idx IS\n"
+     "SELECT ID FROM SYS_INDEXES\n"
+     "WHERE TABLE_ID = tid FOR UPDATE;\n"
+
+     "BEGIN\n"
+     "OPEN cur_tab;\n"
+     "WHILE 1 = 1 LOOP\n"
+     "  FETCH cur_tab INTO tid;\n"
+     "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+     "  OPEN cur_idx;\n"
+     "  WHILE 1 = 1 LOOP\n"
+     "    FETCH cur_idx INTO iid;\n"
+     "    IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+     "    DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
+     "    DELETE FROM SYS_INDEXES WHERE CURRENT OF cur_idx;\n"
+     "  END LOOP;\n"
+     "  CLOSE cur_idx;\n"
+     "  DELETE FROM SYS_COLUMNS WHERE TABLE_ID=tid;\n"
+     "  DELETE FROM SYS_TABLES WHERE CURRENT OF cur_tab;\n"
+     "END LOOP;\n"
+     "CLOSE cur_tab;\n"
+     "END;\n";
+
+   if (table_id->len == 8 && index_id->len == 8)
+   {
+     char buf[sizeof "/FTS_0000000000000000_0000000000000000_INDEX_"];
+     snprintf(buf, sizeof buf, "/FTS_%016llx_%016llx_INDEX_",
+              static_cast<ulonglong>
+              (mach_read_from_8(static_cast<const byte*>(table_id->data))),
+              static_cast<ulonglong>
+              (mach_read_from_8(static_cast<const byte*>(index_id->data))));
+     auto pinfo= pars_info_create();
+     pars_info_add_str_literal(pinfo, "name", buf);
+     que_eval_sql(pinfo, sql, false, static_cast<trx_t*>(trx));
+   }
+
+   return true;
+}
+
+/** During recovery, drop recovered index stubs that were created in
+prepare_inplace_alter_table_dict(). */
+void row_merge_drop_temp_indexes()
+{
+	static_assert(DICT_FTS == 32, "compatibility");
+
 	static const char sql[] =
 		"PROCEDURE DROP_TEMP_INDEXES_PROC () IS\n"
 		"ixid CHAR;\n"
 		"found INT;\n"
+
+		"DECLARE FUNCTION drop_fts;\n"
+
+		"DECLARE CURSOR fts_cur IS\n"
+		" SELECT TABLE_ID,ID FROM SYS_INDEXES\n"
+		" WHERE TYPE=32"
+		" AND SUBSTR(NAME,0,1)='" TEMP_INDEX_PREFIX_STR "'\n"
+		" FOR UPDATE;\n"
 
 		"DECLARE CURSOR index_cur IS\n"
 		" SELECT ID FROM SYS_INDEXES\n"
@@ -3977,6 +4068,15 @@ row_merge_drop_temp_indexes(void)
 
 		"BEGIN\n"
 		"found := 1;\n"
+		"OPEN fts_cur;\n"
+		"WHILE found = 1 LOOP\n"
+		"  FETCH fts_cur INTO drop_fts();\n"
+		"  IF (SQL % NOTFOUND) THEN\n"
+		"    found := 0;\n"
+		"  END IF;\n"
+		"END LOOP;\n"
+		"CLOSE fts_cur;\n"
+
 		"OPEN index_cur;\n"
 		"WHILE found = 1 LOOP\n"
 		"  FETCH index_cur INTO ixid;\n"
@@ -3989,13 +4089,11 @@ row_merge_drop_temp_indexes(void)
 		"END LOOP;\n"
 		"CLOSE index_cur;\n"
 		"END;\n";
-	trx_t*	trx;
-	dberr_t	error;
 
 	/* Load the table definitions that contain partially defined
 	indexes, so that the data dictionary information can be checked
 	when accessing the tablename.ibd files. */
-	trx = trx_create();
+	trx_t* trx = trx_create();
 	trx->op_info = "dropping partially created indexes";
 	row_mysql_lock_data_dictionary(trx);
 	/* Ensure that this transaction will be rolled back and locks
@@ -4004,16 +4102,17 @@ row_merge_drop_temp_indexes(void)
 	trx->dict_operation = true;
 
 	trx->op_info = "dropping indexes";
-	error = que_eval_sql(NULL, sql, FALSE, trx);
 
-	if (error != DB_SUCCESS) {
+	pars_info_t* pinfo = pars_info_create();
+	pars_info_bind_function(pinfo, "drop_fts", row_merge_drop_fts, trx);
+
+	if (dberr_t error = que_eval_sql(pinfo, sql, FALSE, trx)) {
 		/* Even though we ensure that DDL transactions are WAIT
 		and DEADLOCK free, we could encounter other errors e.g.,
 		DB_TOO_MANY_CONCURRENT_TRXS. */
 		trx->error_state = DB_SUCCESS;
 
-		ib::error() << "row_merge_drop_temp_indexes failed with error"
-			<< error;
+		ib::error() << "row_merge_drop_temp_indexes(): " << error;
 	}
 
 	trx_commit_for_mysql(trx);

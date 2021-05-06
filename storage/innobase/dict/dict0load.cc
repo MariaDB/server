@@ -2079,6 +2079,9 @@ dict_load_indexes(
 			}
 			error = DB_CORRUPTION;
 			goto func_exit;
+		} else if (rec[8 + 8 + DATA_TRX_ID_LEN + DATA_ROLL_PTR_LEN]
+			   == static_cast<byte>(*TEMP_INDEX_PREFIX_STR)) {
+			goto next_rec;
 		}
 
 		ut_ad(index);

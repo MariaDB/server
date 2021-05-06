@@ -17,14 +17,28 @@ BEGIN;
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
 # Make durable the AUTO_INCREMENT in the above incomplete transaction.
-connect  flush_redo_log,localhost,root,,;
-SET GLOBAL innodb_flush_log_at_trx_commit=1;
-BEGIN;
-DELETE FROM articles LIMIT 1;
-ROLLBACK;
-disconnect flush_redo_log;
+connect ddl1, localhost, root,,;
+CREATE TABLE t1(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FULLTEXT INDEX(b);
 connection default;
-# restart
+connect ddl2, localhost, root,,;
+CREATE TABLE t2(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+ALTER TABLE t2 DROP INDEX a, ADD FULLTEXT INDEX(b), FORCE;
+connection default;
+connect ddl3, localhost, root,,;
+CREATE TABLE t3(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+ALTER TABLE t3 DROP INDEX a, ADD FULLTEXT INDEX(b), ALGORITHM=COPY;
+connection default;
+# restart: with restart_parameters
+disconnect ddl1;
+disconnect ddl2;
+disconnect ddl3;
+CHECK TABLE t1,t2,t3;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+test.t2	check	status	OK
+test.t3	check	status	OK
+DROP TABLE t1,t2,t3;
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
 CREATE FULLTEXT INDEX idx ON articles (title,body);
@@ -55,7 +69,7 @@ DELETE FROM articles LIMIT 1;
 ROLLBACK;
 disconnect flush_redo_log;
 connection default;
-# restart
+# restart: with restart_parameters
 disconnect dml;
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
@@ -115,7 +129,7 @@ id	title	body
 1	MySQL Tutorial	DBMS stands for Database...
 2	MariaDB Tutorial	DB means Database ...
 connection default;
-# restart
+# restart: with restart_parameters
 disconnect dml;
 disconnect dml2;
 INSERT INTO articles VALUES         (8, 12, 'MySQL Tutorial','DBMS stands for DataBase ...');
@@ -137,3 +151,6 @@ id	title	body
 1	MySQL Tutorial	DBMS stands for Database...
 2	MariaDB Tutorial	DB means Database ...
 DROP TABLE mdev19073, mdev19073_2;
+SELECT * FROM information_schema.innodb_sys_tables
+WHERE name LIKE 'test/%' AND name NOT LIKE 'test/#sql-ib%';
+TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE

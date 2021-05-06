@@ -7,6 +7,7 @@
 # The embedded server tests do not support restarting.
 --source include/not_embedded.inc
 --source include/maybe_debug.inc
+if ($have_debug) { source include/have_debug_sync.inc; }
 
 FLUSH TABLES;
 # Following are test for crash recovery on FTS index, the first scenario
@@ -36,21 +37,117 @@ INSERT INTO articles (title,body) VALUES
         ('MySQL Security','When configured properly, MySQL ...');
 
 BEGIN;
-
 INSERT INTO articles (title,body) VALUES
         ('MySQL Tutorial','DBMS stands for DataBase ...');
 
 --echo # Make durable the AUTO_INCREMENT in the above incomplete transaction.
---connect (flush_redo_log,localhost,root,,)
-SET GLOBAL innodb_flush_log_at_trx_commit=1;
-BEGIN;
-DELETE FROM articles LIMIT 1;
-ROLLBACK;
---disconnect flush_redo_log
+--connect(ddl1, localhost, root,,)
+CREATE TABLE t1(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL 1 WAIT_FOR ever';
+--enable_query_log
+}
+send ALTER TABLE t1 ADD FULLTEXT INDEX(b);
 --connection default
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='now WAIT_FOR 1';
+--enable_query_log
+}
 
+--connect(ddl2, localhost, root,,)
+CREATE TABLE t2(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL 2 WAIT_FOR ever';
+--enable_query_log
+}
+send ALTER TABLE t2 DROP INDEX a, ADD FULLTEXT INDEX(b), FORCE;
+--connection default
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='now WAIT_FOR 2';
+--enable_query_log
+}
+
+--connect(ddl3, localhost, root,,)
+CREATE TABLE t3(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='alter_table_before_rename_result_table SIGNAL 3 WAIT_FOR ever';
+--enable_query_log
+}
+send ALTER TABLE t3 DROP INDEX a, ADD FULLTEXT INDEX(b), ALGORITHM=COPY;
+
+--connection default
+if ($have_debug)
+{
+--disable_query_log
+SET DEBUG_SYNC='now WAIT_FOR 3';
+--enable_query_log
+}
+
+if (!$have_debug)
+{
+# Work around the lack of MDEV-24626
+let $restart_parameters=--innodb-force-recovery=1;
+}
+if ($have_debug)
+{
+let $restart_parameters=--innodb-force-recovery=0;
+}
+let $restart_noprint=1;
 let $shutdown_timeout=0;
 --source include/restart_mysqld.inc
+
+disconnect ddl1;
+disconnect ddl2;
+disconnect ddl3;
+
+if (!$have_debug)
+{
+# Work around the lack of MDEV-25180: We may have index name mismatches
+# because there is a race condition in the non-debug test.
+--disable_result_log
+}
+CHECK TABLE t1,t2,t3;
+if (!$have_debug)
+{
+--enable_result_log
+--echo Table	Op	Msg_type	Msg_text
+--echo test.t1	check	status	OK
+--echo test.t2	check	status	OK
+--echo test.t3	check	status	OK
+--disable_query_log
+--echo DROP TABLE t1,t2,t3;
+DROP TABLE t1,t2;
+--disable_warnings
+DROP TABLE IF EXISTS t3;
+--enable_warnings
+# The server may be killed at any time of executing ALTER TABLE on t1,t2,t3.
+# Remove possible #sql- tables left behind by ALTER TABLE t2 or ALTER TABLE t3.
+DELIMITER $$;
+BEGIN NOT ATOMIC
+  DECLARE c TEXT DEFAULT
+  (SELECT GROUP_CONCAT(CONCAT('DROP TABLE `#mysql50#',SUBSTR(name,6),'`;'))
+   FROM information_schema.innodb_sys_tables
+   WHERE name LIKE 'test/#sql-alter-%' OR name LIKE 'test/#sql-backup-%');
+  IF c IS NOT NULL THEN EXECUTE IMMEDIATE c; END IF;
+END;
+$$
+DELIMITER ;$$
+--enable_query_log
+}
+if ($have_debug)
+{
+DROP TABLE t1,t2,t3;
+}
 
 # This insert will re-initialize the Doc ID counter, it should not crash
 INSERT INTO articles (title,body) VALUES
@@ -193,3 +290,31 @@ AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
 AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 DROP TABLE mdev19073, mdev19073_2;
+
+# Work around the lack of MDEV-25180 (Atomic ALTER TABLE)
+let $datadir=`select @@datadir`;
+if (!$have_debug)
+{
+--disable_query_log
+call mtr.add_suppression("Cannot find index [ab] in InnoDB index dictionary\\.");
+call mtr.add_suppression("InnoDB indexes are inconsistent with what defined in \\.frm for table \\./test/t[123]");
+call mtr.add_suppression("InnoDB could not find key no [01] with name [ab] from dict cache for table test/t[123]");
+call mtr.add_suppression("InnoDB: Table test/t[123] contains .* indexes inside InnoDB");
+call mtr.add_suppression("InnoDB: Table `test`\\.`t3` does not exist");
+
+# Work around the lack of MDEV-24626 as well.
+--remove_files_wildcard $datadir/test #sql-alter-*.ibd
+--remove_files_wildcard $datadir/test #sql-backup-*.ibd
+call mtr.add_suppression("InnoDB: Cannot (read first page of|open datafile for read-only:) '\\./test/(FTS_|#sql-(alter|backup)-).*\\.ibd'");
+call mtr.add_suppression("InnoDB: Datafile '\\./test/(FTS_|#sql-(alter|backup)-).*\\.ibd' is corrupted");
+call mtr.add_suppression("InnoDB: (The error means|Operating system error)");
+call mtr.add_suppression("InnoDB: If you are installing InnoDB");
+call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`\\.`(FTS_|#sql-(backup|alter)-).*` because it could not be opened\\.");
+call mtr.add_suppression("InnoDB: Tablespace [1-9][0-9]* was not found at ./test/(FTS_|#sql-(alter|backup)-).*\\.ibd, and innodb_force_recovery was set");
+call mtr.add_suppression("InnoDB: Corrupted page \\[page id: space=[1-9][0-9]*, page number=0\\] of datafile './test/(FTS_|#sql-(alter|backup)-).*\\.ibd' could not be found in the doublewrite buffer\\.");
+--enable_query_log
+}
+--remove_files_wildcard $datadir/test #sql-*.frm
+
+SELECT * FROM information_schema.innodb_sys_tables
+WHERE name LIKE 'test/%' AND name NOT LIKE 'test/#sql-ib%';
