@@ -6,12 +6,12 @@
 # Always keep the actual packaging as up-to-date as possible following the latest
 # Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders or
-# specfic build environments.
+# specific build environments.
 
 # Exit immediately on any error
 set -e
 
-# This file is invocated from Buildbot and Travis-CI to build deb packages.
+# This file is invoked from Buildbot and Travis-CI to build deb packages.
 # As both of those CI systems have many parallel jobs that include different
 # parts of the test suite, we don't need to run the mysql-test-run at all when
 # building the deb packages here.
@@ -24,7 +24,7 @@ then
   echo >> debian/control
   cat storage/columnstore/columnstore/debian/control >> debian/control
 
-  # ColumnStore is explcitly disabled in the native build, so allow it now
+  # ColumnStore is explicitly disabled in the native build, so allow it now
   # when build it when triggered by autobake-deb.sh
   sed '/-DPLUGIN_COLUMNSTORE=NO/d' -i debian/rules
 fi
@@ -42,7 +42,7 @@ then
   sed "/Package: mariadb-plugin-columnstore/,/^$/d" -i debian/control
 fi
 
-# Don't build or try to put files in a package for selected plugins and compontents on Travis-CI
+# Don't build or try to put files in a package for selected plugins and components on Travis-CI
 # in order to keep build small (in both duration and disk space)
 if [[ $TRAVIS ]]
 then
@@ -62,27 +62,6 @@ then
   sed "/Package: libmariadbd-dev/,/^$/d" -i debian/control
 fi
 
-## Skip TokuDB if arch is not amd64
-if [[ ! $(dpkg-architecture -q DEB_BUILD_ARCH) =~ amd64 ]]
-then
-  sed '/Package: mariadb-plugin-tokudb/,/^$/d' -i debian/control
-fi
-
-
-if [[ $(arch) =~ i[346]86 ]]
-then
-  sed "/Package: mariadb-plugin-rocksdb/,/^$/d" -i debian/control
-fi
-
-# From Debian Stretch/Ubuntu Bionic onwards dh-systemd is just an empty
-# transitional metapackage and the functionality was merged into debhelper.
-# In Ubuntu Hirsute is was completely removed, so it can't be referenced anymore.
-# Keep using it only on Debian Jessie and Ubuntu Xenial.
-if apt-cache madison dh-systemd | grep 'dh-systemd' >/dev/null 2>&1
-then
-  sed 's/debhelper (>= 9.20160709~),/debhelper (>= 9), dh-systemd,/' -i debian/control
-fi
-
 # If rocksdb-tools is not available (before Debian Buster and Ubuntu Disco)
 # remove the dependency from the RocksDB plugin so it can install properly
 # and instead ship the one built from MariaDB sources
@@ -93,7 +72,8 @@ then
   echo "usr/bin/sst_dump" >> debian/mariadb-plugin-rocksdb.install
 fi
 
-# From Debian Buster/Ubuntu Bionic, libcurl4 replaces libcurl3
+# If libcurl4 is not available (before Debian Buster and Ubuntu Bionic)
+# use older libcurl3 instead
 if ! apt-cache madison libcurl4 | grep 'libcurl4' >/dev/null 2>&1
 then
   sed 's/libcurl4/libcurl3/g' -i debian/control
@@ -111,7 +91,7 @@ CODENAME="$(lsb_release -sc)"
 EPOCH="1:"
 VERSION="${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}"
 
-dch -b -D "${CODENAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}."
+dch -b -D "${CODENAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}." --controlmaint
 
 echo "Creating package version ${VERSION} ... "
 
