@@ -111,7 +111,7 @@ CODENAME="$(lsb_release -sc)"
 EPOCH="1:"
 VERSION="${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}"
 
-dch -b -D "${CODENAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}."
+dch -b -D "${CODENAME}" -v "${VERSION}" "Automatic build with ${LOGSTRING}." --controlmaint
 
 echo "Creating package version ${VERSION} ... "
 
