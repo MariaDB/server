@@ -115,6 +115,19 @@ then
   sed 's/debhelper (>= 9.20160709~),/debhelper (>= 9), dh-systemd,/' -i debian/control
 fi
 
+# From Debian Bullseye/Ubuntu Hirsute there is no longer any libreadline-gplv2-dev
+# available and it was replaced with libedit-dev in commit
+# https://github.com/MariaDB/server/commit/5cdf245d7e2ab339ad3dba0dbbb591ab80e0dad0
+# This commit was however only applied on 10.5 and newer branches. Since we still
+# release MariaDB 10.2, 10.3 and 10.4 on new Debian and Ubuntu releases, this change
+# was partially backported but at the same time using the code below we ensure that
+# binary releases of old MariaDB versions for old distro versions keep using the old
+# dependency, as adding a new dependency in a new release is otherwise forbidden by policy.
+if apt-cache madison libreadline-gplv2-dev | grep 'libreadline-gplv2-dev' >/dev/null 2>&1
+then
+  sed 's/libedit-dev,/libreadline-gplv2-dev,/' -i debian/control
+fi
+
 # Adjust changelog, add new version
 echo "Incrementing changelog and starting build scripts"
 
