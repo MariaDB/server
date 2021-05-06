@@ -793,3 +793,32 @@ wsrep_gen_secret()
                 $RANDOM $RANDOM $RANDOM $RANDOM
     fi
 }
+
+is_local_ip()
+{
+    [ "$1" = '127.0.0.1' ]      && return 0
+    [ "$1" = '127.0.0.2' ]      && return 0
+    [ "$1" = 'localhost' ]      && return 0
+    [ "$1" = '[::1]' ]          && return 0
+    [ "$1" = "$(hostname -s)" ] && return 0
+    [ "$1" = "$(hostname -f)" ] && return 0
+    [ "$1" = "$(hostname -d)" ] && return 0
+
+    local ip_util="$(command -v ip)"
+    if [ -x "$ip_util" ]; then
+        # ip address show ouput format is " inet[6] <address>/<mask>":
+        "$ip_util" address show \
+            | grep -E "^[[:space:]]*inet.? [^[:space:]]+/" -o \
+            | grep -F " $1/" >/dev/null && return 0
+    else
+        local ifconfig_util="$(command -v ifconfig)"
+        if [ -x "$ifconfig_util" ]; then
+            # ifconfig output format is " inet[6] <address> ...":
+            "$ifconfig_util" \
+                | grep -E "^[[:space:]]*inet.? [^[:space:]]+ " -o \
+                | grep -F " $1 " >/dev/null && return 0
+        fi
+    fi
+
+    return 1
+}

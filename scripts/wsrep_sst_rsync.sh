@@ -102,25 +102,6 @@ check_pid_and_port()
         [ $(cat "$pid_file") -eq $rsync_pid ]
 }
 
-is_local_ip()
-{
-  local address="$1"
-  local get_addr_bin="$(command -v ifconfig)"
-  if [ -z "$get_addr_bin" ]
-  then
-      get_addr_bin="$(command -v ip) address show"
-      # Add an slash at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
-      # ip output format is "X.X.X.X/mask"
-      address="$address/"
-  else
-      # Add an space at the end, so we don't get false positive : 172.18.0.4 matches 172.18.0.41
-      # ifconfig output format is "X.X.X.X "
-      address="$address "
-  fi
-
-  $get_addr_bin | grep -F "$address" > /dev/null
-}
-
 STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
 rm -f "$STUNNEL_CONF"
 
@@ -296,7 +277,7 @@ foreground = yes
 pid = $STUNNEL_PID
 debug = warning
 client = yes
-connect = ${WSREP_SST_OPT_ADDR%/*}
+connect = $WSREP_SST_OPT_HOST_UNESCAPED:$WSREP_SST_OPT_PORT
 TIMEOUTclose = 0
 ${VERIFY_OPT}
 EOF
@@ -427,8 +408,8 @@ EOF
              --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
              $WHOLE_FILE_OPT --exclude '*/ib_logfile*' --exclude '*/aria_log.*' \
-             --exclude '*/aria_log_control' "$WSREP_SST_OPT_DATA/"{}"/" \
-             "rsync://$WSREP_SST_OPT_ADDR/"{} >&2 || RC=$?
+             --exclude '*/aria_log_control' "$WSREP_SST_OPT_DATA/{}/" \
+             "rsync://$WSREP_SST_OPT_ADDR/{}" >&2 || RC=$?
 
         cd "$OLD_PWD"
 
@@ -490,6 +471,7 @@ then
     ADDR="$WSREP_SST_OPT_ADDR"
     RSYNC_PORT="$WSREP_SST_OPT_PORT"
     RSYNC_ADDR="$WSREP_SST_OPT_HOST"
+    RSYNC_ADDR_UNESCAPED="$WSREP_SST_OPT_HOST_UNESCAPED"
 
     trap "exit 32" HUP PIPE
     trap "exit 3"  INT TERM ABRT
@@ -521,10 +503,10 @@ EOF
 #    rm -rf "$DATA"/ib_logfile* # we don't want old logs around
 
     # If the IP is local listen only in it
-    if is_local_ip "$RSYNC_ADDR"
+    if is_local_ip "$RSYNC_ADDR_UNESCAPED"
     then
         RSYNC_EXTRA_ARGS="--address $RSYNC_ADDR"
-        STUNNEL_ACCEPT="$RSYNC_ADDR:$RSYNC_PORT"
+        STUNNEL_ACCEPT="$RSYNC_ADDR_UNESCAPED:$RSYNC_PORT"
     else
         # Not local, possibly a NAT, listen on all interfaces
         RSYNC_EXTRA_ARGS=""

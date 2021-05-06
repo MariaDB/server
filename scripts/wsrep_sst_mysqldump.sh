@@ -23,30 +23,13 @@ PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
 EINVAL=22
 
-local_ip()
-{
-    [ "$1" = "127.0.0.1" ]      && return 0
-    [ "$1" = "127.0.0.2" ]      && return 0
-    [ "$1" = "localhost" ]      && return 0
-    [ "$1" = "[::1]" ]          && return 0
-    [ "$1" = "$(hostname -s)" ] && return 0
-    [ "$1" = "$(hostname -f)" ] && return 0
-    [ "$1" = "$(hostname -d)" ] && return 0
-
-    # Now if ip program is not found in the path, we can't return 0 since
-    # it would block any address. Thankfully grep should fail in this case
-    ip route get "$1" | grep local >/dev/null && return 0
-
-    return 1
-}
-
 if test -z "$WSREP_SST_OPT_HOST";  then wsrep_log_error "HOST cannot be nil";  exit $EINVAL; fi
 if test -z "$WSREP_SST_OPT_PORT";  then wsrep_log_error "PORT cannot be nil";  exit $EINVAL; fi
 if test -z "$WSREP_SST_OPT_LPORT"; then wsrep_log_error "LPORT cannot be nil"; exit $EINVAL; fi
 if test -z "$WSREP_SST_OPT_SOCKET";then wsrep_log_error "SOCKET cannot be nil";exit $EINVAL; fi
 if test -z "$WSREP_SST_OPT_GTID";  then wsrep_log_error "GTID cannot be nil";  exit $EINVAL; fi
 
-if local_ip $WSREP_SST_OPT_HOST && \
+if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED" && \
    [ "$WSREP_SST_OPT_PORT" = "$WSREP_SST_OPT_LPORT" ]
 then
     wsrep_log_error \

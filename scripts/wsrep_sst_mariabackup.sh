@@ -278,6 +278,8 @@ get_transfer()
                     CN_option=""
                     if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
                         CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
+                    elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+                        CN_option=',commonname=localhost'
                     fi
                     wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
                     tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',key='$tkey',cafile='$tcert'$CN_option$sockopt"
