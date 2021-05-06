@@ -19633,35 +19633,35 @@ static void bg_wsrep_kill_trx(
 	bool awake 		   = false;
 	DBUG_ENTER("bg_wsrep_kill_trx");
 
-	if (thd) {
-		victim_trx= thd_to_trx(thd);
-		/* Victim trx might not exist e.g. on MDL-conflict. */
-		if (victim_trx) {
-			lock_mutex_enter();
-			trx_mutex_enter(victim_trx);
-			if (victim_trx->id != arg->trx_id ||
-			    victim_trx->state == TRX_STATE_COMMITTED_IN_MEMORY)
-			{
-				/* Victim was meanwhile rolled back or
-				committed */
-				trx_mutex_exit(victim_trx);
-				lock_mutex_exit();
-				wsrep_thd_UNLOCK(thd);
-				victim_trx= NULL;
-			}
-		} else {
-			/* find_thread_by_id locked
-			THD::LOCK_thd_data */
-			wsrep_thd_UNLOCK(thd);
-		}
-	}
+	if (!thd)
+		goto ret; // Victim was already killed or disconnected
 
-	if (!victim_trx) {
+	victim_trx= thd_to_trx(thd);
+
+	if (victim_trx) {
+		lock_mutex_enter();
+		trx_mutex_enter(victim_trx);
+		if (victim_trx->id != arg->trx_id ||
+		    victim_trx->state == TRX_STATE_COMMITTED_IN_MEMORY)
+		{
+			/* Victim was meanwhile rolled back or
+			committed */
+			trx_mutex_exit(victim_trx);
+			lock_mutex_exit();
+			wsrep_thd_UNLOCK(thd);
+			victim_trx= NULL;
+			goto ret;
+		}
+	} else {
 		/* Victim trx might not exist (MDL-conflict) or victim
 		was meanwhile rolled back or committed because of
 		a KILL statement or a disconnect. */
+		/* find_thread_by_id locked THD::LOCK_thd_data */
+		wsrep_thd_UNLOCK(thd);
 		goto ret;
 	}
+
+	ut_ad(thd && victim_trx);
 
 	WSREP_DEBUG("BF kill (" ULINTPF ", seqno: " INT64PF
 		    "), victim: (%lu) trx: " TRX_ID_FMT,
@@ -19683,7 +19683,7 @@ static void bg_wsrep_kill_trx(
 	if (wsrep_thd_exec_mode(thd) != LOCAL_STATE) {
 		WSREP_DEBUG("withdraw for BF trx: " TRX_ID_FMT ", state: %d",
 			    victim_trx->id,
-		wsrep_thd_get_conflict_state(thd));
+			    wsrep_thd_get_conflict_state(thd));
 	}
 
 	switch (wsrep_thd_get_conflict_state(thd)) {
