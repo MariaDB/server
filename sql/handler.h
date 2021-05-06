@@ -4206,6 +4206,8 @@ public:
   */
   virtual uint lock_count(void) const { return 1; }
   /**
+    Get the lock(s) for the table and perform conversion of locks if needed.
+
     Is not invoked for non-transactional temporary tables.
 
     @note store_lock() can return more than one lock if the table is MERGE

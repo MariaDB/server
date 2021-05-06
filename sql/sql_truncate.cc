@@ -481,7 +481,7 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
           (table_ref->table->file->ht->flags &
            HTON_REQUIRES_CLOSE_AFTER_TRUNCATE))
       {
-        thd->locked_tables_list.mark_table_for_reopen(thd, table_ref->table);
+        thd->locked_tables_list.mark_table_for_reopen(table_ref->table);
         if (unlikely(thd->locked_tables_list.reopen_tables(thd, true)))
           thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       }
