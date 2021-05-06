@@ -247,7 +247,7 @@ ELSEIF(RPM MATCHES "sles")
     "mariadb-server = %{version}-%{release}"
   )
 ENDIF()
-IF(RPM MATCHES "fedora31" OR RPM MATCHES "(rhel|centos)8")
+IF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)8")
   SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 ENDIF()
 
