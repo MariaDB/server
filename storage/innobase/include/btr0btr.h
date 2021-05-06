@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -330,16 +330,12 @@ btr_create(
 	mtr_t*			mtr);
 
 /** Free a persistent index tree if it exists.
-@param[in]	page_id		root page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out]	space		tablespce
+@param[in]	page		root page number
 @param[in]	index_id	PAGE_INDEX_ID contents
 @param[in,out]	mtr		mini-transaction */
-void
-btr_free_if_exists(
-	const page_id_t		page_id,
-	ulint			zip_size,
-	index_id_t		index_id,
-	mtr_t*			mtr);
+void btr_free_if_exists(fil_space_t *space, uint32_t page,
+                        index_id_t index_id, mtr_t *mtr);
 
 /** Free an index tree in a temporary tablespace.
 @param[in]	page_id		root page id */

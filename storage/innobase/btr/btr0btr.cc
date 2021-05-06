@@ -1225,23 +1225,20 @@ void dict_index_t::clear(que_thr_t *thr)
 }
 
 /** Free a persistent index tree if it exists.
-@param[in]	page_id		root page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
+@param[in,out]	space		tablespce
+@param[in]	page		root page number
 @param[in]	index_id	PAGE_INDEX_ID contents
 @param[in,out]	mtr		mini-transaction */
-void btr_free_if_exists(const page_id_t page_id, ulint zip_size,
+void btr_free_if_exists(fil_space_t *space, uint32_t page,
                         index_id_t index_id, mtr_t *mtr)
 {
-  if (fil_space_t *space= fil_space_t::get(page_id.space()))
+  if (buf_block_t *root= btr_free_root_check(page_id_t(space->id, page),
+					     space->zip_size(),
+					     index_id, mtr))
   {
-    if (buf_block_t *root= btr_free_root_check(page_id, zip_size, index_id,
-                                               mtr))
-    {
-      btr_free_but_not_root(root, mtr->get_log_mode());
-      mtr->set_named_space(space);
-      btr_free_root(root, mtr);
-    }
-    space->release();
+    btr_free_but_not_root(root, mtr->get_log_mode());
+    mtr->set_named_space(space);
+    btr_free_root(root, mtr);
   }
 }
 

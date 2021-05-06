@@ -871,17 +871,8 @@ rec_corrupted:
   if (len != 4)
     goto rec_corrupted;
 
-  if (root_page_no == FIL_NULL)
-    /* The tree has already been freed */
-    return;
-
-  static_assert(FIL_NULL == 0xffffffff, "compatibility");
-  static_assert(DICT_FLD__SYS_INDEXES__PAGE_NO ==
-                DICT_FLD__SYS_INDEXES__SPACE + 1, "compatibility");
-  mtr->memset(btr_pcur_get_block(pcur), page_offset(p + 4), 4, 0xff);
-
   const uint32_t space_id= mach_read_from_4(p);
-  ut_ad(space_id < SRV_TMP_SPACE_ID);
+  ut_ad(root_page_no == FIL_NULL || space_id <= SRV_SPACE_ID_UPPER_BOUND);
 
   if (space_id && (type & DICT_CLUSTERED))
   {
@@ -891,13 +882,20 @@ rec_corrupted:
       ut_ad(!table);
     fil_delete_tablespace(space_id, true);
   }
+  else if (root_page_no == FIL_NULL)
+    /* The tree has already been freed */;
   else if (fil_space_t*s= fil_space_t::get(space_id))
   {
     /* Ensure that the tablespace file exists
     in order to avoid a crash in buf_page_get_gen(). */
     if (root_page_no < s->get_size())
-      btr_free_if_exists(page_id_t(space_id, root_page_no), s->zip_size(),
-                         mach_read_from_8(rec + 8), mtr);
+    {
+      static_assert(FIL_NULL == 0xffffffff, "compatibility");
+      static_assert(DICT_FLD__SYS_INDEXES__PAGE_NO ==
+                    DICT_FLD__SYS_INDEXES__SPACE + 1, "compatibility");
+      mtr->memset(btr_pcur_get_block(pcur), page_offset(p + 4), 4, 0xff);
+      btr_free_if_exists(s, root_page_no, mach_read_from_8(rec + 8), mtr);
+    }
     s->release();
   }
 }
