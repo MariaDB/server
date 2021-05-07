@@ -833,7 +833,8 @@ monitor_process()
     done
 }
 
-if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then
+innobackup=$(command -v "$INNOBACKUPEX_BIN")
+if [ ! -x "$innobackup" ]; then
     wsrep_log_error "innobackupex not in path: $PATH"
     exit 2
 fi
@@ -1269,8 +1270,11 @@ then
         wsrep_log_error "SST magic file ${MAGIC_FILE} not found/readable"
         exit 2
     fi
-    wsrep_log_info "Galera co-ords from recovery: $(cat ${MAGIC_FILE})"
-    cat "${MAGIC_FILE}" # Output : UUID:seqno wsrep_gtid_domain_id
+
+    coords=$(cat "$MAGIC_FILE")
+    wsrep_log_info "Galera co-ords from recovery: $coords"
+    cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
+
     wsrep_log_info "Total time on joiner: $totime seconds"
 fi
 

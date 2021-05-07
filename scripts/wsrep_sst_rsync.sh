@@ -69,29 +69,29 @@ check_pid_and_port()
 
     case $OS in
     FreeBSD)
-        local port_info="$(sockstat -46lp ${rsync_port} 2>/dev/null | \
-            grep ":${rsync_port}")"
-        local is_rsync="$(echo $port_info | \
-            grep -E '[[:space:]]+(rsync|stunnel)[[:space:]]+'"$rsync_pid" 2>/dev/null)"
+        local port_info=$(sockstat -46lp "$rsync_port" 2>/dev/null | \
+            grep ":$rsync_port")
+        local is_rsync=$(echo "$port_info" | \
+            grep -E "[[:space:]]+(rsync|stunnel)[[:space:]]+$rsync_pid" 2>/dev/null)
         ;;
     *)
         if [ ! -x "$(command -v lsof)" ]; then
             wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
             exit 2 # ENOENT
         fi
-        local port_info="$(lsof -i :$rsync_port -Pn 2>/dev/null | \
-            grep "(LISTEN)")"
-        local is_rsync="$(echo $port_info | \
-            grep -E '^(rsync|stunnel)[[:space:]]+'"$rsync_pid" 2>/dev/null)"
+        local port_info=$(lsof -i ":$rsync_port" -Pn 2>/dev/null | \
+            grep '(LISTEN)')
+        local is_rsync=$(echo "$port_info" | \
+            grep -E "^(rsync|stunnel)[[:space:]]+$rsync_pid" 2>/dev/null)
         ;;
     esac
 
-    local is_listening_all="$(echo $port_info | \
-        grep "*:$rsync_port" 2>/dev/null)"
-    local is_listening_addr="$(echo $port_info | \
-        grep -F "$rsync_addr:$rsync_port" 2>/dev/null)"
+    local is_listening_all=$(echo "$port_info" | \
+        grep "*:$rsync_port" 2>/dev/null)
+    local is_listening_addr=$(echo "$port_info" | \
+        grep -F "$rsync_addr:$rsync_port" 2>/dev/null)
 
-    if [ ! -z "$is_listening_all" -o ! -z "$is_listening_addr" ]; then
+    if [ -n "$is_listening_all" -o -n "$is_listening_addr" ]; then
         if [ -z "$is_rsync" ]; then
             wsrep_log_error "rsync daemon port '$rsync_port' has been taken"
             exit 16 # EBUSY

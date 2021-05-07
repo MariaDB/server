@@ -87,7 +87,7 @@ declare -a RC
 
 set +e
 MARIABACKUP_BIN="$(command -v mariabackup)"
-if [ -z "$MARIABACKUP_BIN" ]; then
+if [ ! -x "$MARIABACKUP_BIN" ]; then
     wsrep_log_error 'mariabackup binary not found in $PATH'
     exit 42
 fi
@@ -397,8 +397,8 @@ read_cnf()
         fi
     fi
 
-    wsrep_log_info "SSL configuration: CA='"$tcert"', CERT='"$tpem"'," \
-                   "KEY='"$tkey"', MODE='"$tmode"', encrypt="$encrypt
+    wsrep_log_info "SSL configuration: CA='$tcert', CERT='$tpem'," \
+                   "KEY='$tkey', MODE='$tmode', encrypt='$encrypt'"
 
     sockopt=$(parse_cnf sst sockopt "")
     progress=$(parse_cnf sst progress "")
@@ -674,7 +674,7 @@ recv_joiner()
         if [ ! -r "$MAGIC_FILE" ]; then
             # this message should cause joiner to abort
             wsrep_log_error "receiving process ended without creating " \
-                            "'${MAGIC_FILE}'"
+                            "'$MAGIC_FILE'"
             wsrep_log_info "Contents of datadir"
             wsrep_log_info "$(ls -l ${dir}/*)"
             exit 32
@@ -800,7 +800,6 @@ else
 if [[ "$sstlogarchive" -eq 1 ]]
 then
     ARCHIVETIMESTAMP=$(date "+%Y.%m.%d-%H.%M.%S.%N")
-    newfile=""
 
     if [ -n "$sstlogarchivedir" ]
     then
@@ -814,11 +813,12 @@ then
     then
         if [ -n "$sstlogarchivedir" ]
         then
-            newfile="$sstlogarchivedir/$(basename '$INNOAPPLYLOG').$ARCHIVETIMESTAMP"
+            newfile=$(basename "$INNOAPPLYLOG")
+            newfile="$sstlogarchivedir/$newfile.$ARCHIVETIMESTAMP"
         else
             newfile="$INNOAPPLYLOG.$ARCHIVETIMESTAMP"
         fi
-        wsrep_log_info "Moving ${INNOAPPLYLOG} to ${newfile}"
+        wsrep_log_info "Moving '$INNOAPPLYLOG' to '$newfile'"
         mv "$INNOAPPLYLOG" "$newfile"
         gzip "$newfile"
     fi
@@ -827,11 +827,12 @@ then
     then
         if [ -n "$sstlogarchivedir" ]
         then
-            newfile="$sstlogarchivedir/$(basename '$INNOMOVELOG').$ARCHIVETIMESTAMP"
+            newfile=$(basename "$INNOMOVELOG")
+            newfile="$sstlogarchivedir/$newfile.$ARCHIVETIMESTAMP"
         else
             newfile="$INNOMOVELOG.$ARCHIVETIMESTAMP"
         fi
-        wsrep_log_info "Moving ${INNOMOVELOG} to ${newfile}"
+        wsrep_log_info "Moving '$INNOMOVELOG' to '$newfile'"
         mv "$INNOMOVELOG" "$newfile"
         gzip "$newfile"
     fi
@@ -840,11 +841,12 @@ then
     then
         if [ -n "$sstlogarchivedir" ]
         then
-            newfile="$sstlogarchivedir/$(basename '$INNOBACKUPLOG').$ARCHIVETIMESTAMP"
+            newfile=$(basename "$INNOBACKUPLOG")
+            newfile="$sstlogarchivedir/$newfile.$ARCHIVETIMESTAMP"
         else
             newfile="$INNOBACKUPLOG.$ARCHIVETIMESTAMP"
         fi
-        wsrep_log_info "Moving ${INNOBACKUPLOG} to ${newfile}"
+        wsrep_log_info "Moving '$INNOBACKUPLOG' to '$newfile'"
         mv "$INNOBACKUPLOG" "$newfile"
         gzip "$newfile"
     fi
@@ -988,7 +990,7 @@ then
 
         strmcmd+=" '$IST_FILE'"
 
-        send_donor "$DATA" "${stagemsg}-IST"
+        send_donor "$DATA" "$stagemsg-IST"
 
     fi
 
@@ -1151,7 +1153,7 @@ then
                 exit 22
             fi
 
-            if [[ -n "$progress" ]] && pv --help | grep -q 'line-mode';then
+            if [ -n "$progress" ] && pv --help | grep -q 'line-mode'; then
                 count=$(find "$DATA" -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
                 if pv --help | grep -q FORMAT;then
@@ -1171,10 +1173,10 @@ then
             timeit "Joiner-Decompression" "find '$DATA' -type f -name '*.qp' -printf '%p\n%h\n' | $dcmd"
             extcode=$?
 
-            if [[ $extcode -eq 0 ]];then
+            if [ $extcode -eq 0 ]; then
                 wsrep_log_info "Removing qpress files after decompression"
                 find "$DATA" -type f -name '*.qp' -delete
-                if [[ $? -ne 0 ]];then
+                if [ $? -ne 0 ]; then
                     wsrep_log_error "Something went wrong with deletion of qpress files. Investigate"
                 fi
             else
@@ -1231,7 +1233,9 @@ then
         wsrep_log_error "SST magic file ${MAGIC_FILE} not found/readable"
         exit 2
     fi
-    wsrep_log_info "Galera co-ords from recovery: $(cat '${MAGIC_FILE}')"
+
+    coords=$(cat "$MAGIC_FILE")
+    wsrep_log_info "Galera co-ords from recovery: $coords"
     cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
 
     wsrep_log_info "Total time on joiner: $totime seconds"
