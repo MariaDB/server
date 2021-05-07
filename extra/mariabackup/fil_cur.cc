@@ -108,9 +108,6 @@ xb_fil_node_close_file(
 
 	node->handle = OS_FILE_CLOSED;
 	mutex_exit(&fil_system.mutex);
-
-	ut_a(fil_system.n_open > 0);
-	fil_system.n_open--;
 }
 
 /************************************************************************
@@ -169,8 +166,6 @@ xb_fil_cur_open(
 
 			return(XB_FIL_CUR_SKIP);
 		}
-
-		fil_system.n_open++;
 	}
 
 	ut_ad(node->is_open());
