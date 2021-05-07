@@ -511,7 +511,9 @@ ulong current_pid;
 ulong slow_launch_threads = 0;
 uint sync_binlog_period= 0, sync_relaylog_period= 0,
      sync_relayloginfo_period= 0, sync_masterinfo_period= 0;
-ulong expire_logs_days = 0;
+double expire_logs_days = 0;
+ulong binlog_expire_logs_seconds = 0;
+
 /**
   Soft upper limit for number of sp_head objects that can be stored
   in the sp_cache for one connection.
@@ -724,6 +726,8 @@ char *relay_log_info_file, *report_user, *report_password, *report_host;
 char *opt_relay_logname = 0, *opt_relaylog_index_name=0;
 char *opt_logname, *opt_slow_logname, *opt_bin_logname;
 char *opt_binlog_index_name=0;
+
+
 
 /* Static variables */
 
@@ -5283,11 +5287,20 @@ static int init_server_components()
   }
 
 #ifdef HAVE_REPLICATION
-  if (opt_bin_log && expire_logs_days)
+  if (opt_bin_log)
   {
-    time_t purge_time= server_start_time - expire_logs_days*24*60*60;
-    if (purge_time >= 0)
-      mysql_bin_log.purge_logs_before_date(purge_time);
+    if (binlog_expire_logs_seconds)
+    {
+      time_t purge_time= server_start_time - binlog_expire_logs_seconds;
+      if (purge_time >= 0)
+        mysql_bin_log.purge_logs_before_date(purge_time);
+    }
+  }
+  else
+  {
+    if (binlog_expire_logs_seconds)
+      sql_print_warning("You need to use --log-bin to make --expire-logs-days "
+                        "or --binlog-expire-logs-seconds work.");
   }
 #endif
 
@@ -7911,6 +7924,17 @@ mysqld_get_one_option(const struct my_option *opt, const char *argument,
     }
     break;
   }
+  case (int)OPT_EXPIRE_LOGS_DAYS:
+  {
+    binlog_expire_logs_seconds= (ulong)(expire_logs_days*24*60*60);
+    break;
+  }
+  case (int)OPT_BINLOG_EXPIRE_LOGS_SECONDS:
+  {
+    expire_logs_days= (binlog_expire_logs_seconds/double (24*60*60));
+    break;
+  }
+
 #ifdef HAVE_REPLICATION
   case (int)OPT_REPLICATE_IGNORE_DB:
   {

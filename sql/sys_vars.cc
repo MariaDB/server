@@ -1156,14 +1156,46 @@ static Sys_var_enum Sys_event_scheduler(
        ON_CHECK(event_scheduler_check), ON_UPDATE(event_scheduler_update));
 #endif
 
-static Sys_var_on_access_global<Sys_var_ulong,
+static bool copy_to_expire_logs_days(sys_var *, THD *,
+                                     enum_var_type type)
+{
+  expire_logs_days= binlog_expire_logs_seconds / (double)(24 * 60 * 60);
+  return false;
+}
+
+static bool copy_to_binlog_expire_logs_seconds(sys_var *, THD *,
+                                               enum_var_type type)
+{
+  binlog_expire_logs_seconds= (ulong)(expire_logs_days * 24 * 60 * 60);
+  return false;
+}
+
+static Sys_var_on_access_global<Sys_var_double,
                                 PRIV_SET_SYSTEM_GLOBAL_VAR_EXPIRE_LOGS_DAYS>
 Sys_expire_logs_days(
        "expire_logs_days",
        "If non-zero, binary logs will be purged after expire_logs_days "
-       "days; possible purges happen at startup and at binary log rotation",
+       "days; It and binlog_expire_logs_seconds are aliases, such that "
+       "changes in one are converted into the other, presentable as a "
+       "decimal value with 1/1000000 of the day precision; possible "
+       "purges happen at startup and at binary log rotation",
        GLOBAL_VAR(expire_logs_days),
-       CMD_LINE(REQUIRED_ARG), VALID_RANGE(0, 99), DEFAULT(0), BLOCK_SIZE(1));
+       CMD_LINE(REQUIRED_ARG, OPT_EXPIRE_LOGS_DAYS), VALID_RANGE(0, 99),
+       DEFAULT(0), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(copy_to_binlog_expire_logs_seconds));
+
+static Sys_var_on_access_global<Sys_var_ulong,
+                                PRIV_SET_SYSTEM_GLOBAL_VAR_EXPIRE_LOGS_DAYS>
+Sys_binlog_expire_logs_seconds(
+       "binlog_expire_logs_seconds",
+       "If non-zero, binary logs will be purged after "
+       "binlog_expire_logs_seconds seconds; It and expire_logs_days are "
+       "aliases, such that changes in one are converted into the other. "
+       "Possible purges happen at startup and at binary log rotation.",
+       GLOBAL_VAR(binlog_expire_logs_seconds),
+       CMD_LINE(REQUIRED_ARG, OPT_BINLOG_EXPIRE_LOGS_SECONDS),
+       VALID_RANGE(0, 0xFFFFFFFF), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(copy_to_expire_logs_days));
 
 static Sys_var_mybool Sys_flush(
        "flush", "Flush MyISAM tables to disk between SQL commands",

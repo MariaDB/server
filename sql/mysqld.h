@@ -155,7 +155,8 @@ extern bool opt_endinfo, using_udf_functions;
 extern my_bool locked_in_memory;
 extern bool opt_using_transactions;
 extern ulong current_pid;
-extern ulong expire_logs_days;
+extern double expire_logs_days;
+extern ulong binlog_expire_logs_seconds;
 extern my_bool relay_log_recovery;
 extern uint sync_binlog_period, sync_relaylog_period, 
             sync_relayloginfo_period, sync_masterinfo_period;
@@ -777,6 +778,8 @@ enum options_mysqld
   OPT_BINLOG_IGNORE_DB,
   OPT_BIN_LOG,
   OPT_BOOTSTRAP,
+  OPT_EXPIRE_LOGS_DAYS,
+  OPT_BINLOG_EXPIRE_LOGS_SECONDS,
   OPT_CONSOLE,
   OPT_DEBUG_SYNC_TIMEOUT,
   OPT_REMOVED_OPTION,
