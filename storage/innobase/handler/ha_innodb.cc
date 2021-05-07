@@ -18907,6 +18907,8 @@ static void bg_wsrep_kill_trx(
 	THD *thd 		   = find_thread_by_id(arg->thd_id, false);
 	trx_t *victim_trx 	   = NULL;
 	bool awake 		   = false;
+	enum wsrep_status rcode= WSREP_OK;
+
 	DBUG_ENTER("bg_wsrep_kill_trx");
 
 	if (!thd)
@@ -18981,8 +18983,6 @@ no_victim:
 
 	switch (wsrep_thd_query_state(thd)) {
 	case QUERY_COMMITTING:
-		enum wsrep_status rcode;
-
 		WSREP_DEBUG("kill query for: %ld",
 			    thd_get_thread_id(thd));
 		WSREP_DEBUG("kill trx QUERY_COMMITTING for " TRX_ID_FMT,
@@ -18993,29 +18993,33 @@ no_victim:
 					      wsrep_thd_trx_seqno(thd));
 		} else {
 			wsrep_t *wsrep= get_wsrep();
-			rcode = wsrep->abort_pre_commit(
-				wsrep, arg->bf_seqno,
-				(wsrep_trx_id_t)wsrep_thd_ws_handle(thd)->trx_id
-			);
+			wsrep_ws_handle_t* wsrep_handle= wsrep_thd_ws_handle(thd);
 
-			switch (rcode) {
-			case WSREP_WARNING:
-				WSREP_DEBUG("cancel commit warning: "
-					    TRX_ID_FMT,
-					    victim_trx->id);
-				goto ret_awake;
-			case WSREP_OK:
-				break;
-			default:
-				WSREP_ERROR(
-					"cancel commit bad exit: %d "
-					TRX_ID_FMT,
-					rcode, victim_trx->id);
-				/* unable to interrupt, must abort */
-				/* note: kill_mysql() will block, if we cannot.
-				 * kill the lock holder first.
-				 */
-				abort();
+			if (wsrep_handle->trx_id != WSREP_UNDEFINED_TRX_ID)
+			{
+				rcode = wsrep->abort_pre_commit(
+						wsrep, arg->bf_seqno,
+						(wsrep_trx_id_t)wsrep_handle->trx_id);
+
+				switch (rcode) {
+				case WSREP_WARNING:
+					WSREP_DEBUG("cancel commit warning: "
+						    TRX_ID_FMT,
+						    victim_trx->id);
+					goto ret_awake;
+				case WSREP_OK:
+					break;
+				default:
+					WSREP_ERROR(
+						"cancel commit bad exit: %d "
+						TRX_ID_FMT,
+						rcode, victim_trx->id);
+					/* unable to interrupt, must abort */
+					/* note: kill_mysql() will block, if we cannot.
+					* kill the lock holder first.
+					*/
+					abort();
+				}
 			}
 		}
 		goto ret_awake;
