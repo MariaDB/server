@@ -117,7 +117,7 @@ public:
           bool use_explicit_name)
     : Database_qualified_name(db, name), m_explicit_name(use_explicit_name)
   {
-    if (lower_case_table_names && m_db.str)
+    if (lower_case_table_names && m_db.length)
       m_db.length= my_casedn_str(files_charset_info, (char*) m_db.str);
   }
 

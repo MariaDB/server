@@ -1,6 +1,6 @@
 /************* tabbson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabbson     Version 1.0                               */
-/*  (C) Copyright to the author Olivier BERTRAND          2020         */
+/* PROGRAM NAME: tabbson     Version 1.1                               */
+/*  (C) Copyright to the author Olivier BERTRAND          2020 - 2021  */
 /*  This program are the BSON class DB execution routines.             */
 /***********************************************************************/
 
@@ -158,8 +158,9 @@ BSONDISC::BSONDISC(PGLOBAL g, uint* lg)
   bp = NULL;
   row = NULL;
   sep = NULL;
+  strfy = NULL;
   i = n = bf = ncol = lvl = sz = limit = 0;
-  all = strfy = false;
+  all = false;
 } // end of BSONDISC constructor
 
 int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
@@ -173,7 +174,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   sep = GetStringTableOption(g, topt, "Separator", ".");
   sz = GetIntegerTableOption(g, topt, "Jsize", 1024);
   limit = GetIntegerTableOption(g, topt, "Limit", 10);
-  strfy = GetBooleanTableOption(g, topt, "Stringify", false);
+  strfy = GetStringTableOption(g, topt, "Stringify", NULL);
 
   /*********************************************************************/
   /*  Open the input file.                                             */
@@ -185,6 +186,9 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   tdp->Zipped = GetBooleanTableOption(g, topt, "Zipped", false);
 #endif   // ZIP_SUPPORT
   tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
+
+  if (!tdp->Fn && topt->http)
+    tdp->Fn = GetStringTableOption(g, topt, "Subtype", NULL);
 
   if (!(tdp->Database = SetPath(g, db)))
     return 0;
@@ -199,7 +203,8 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   if (!tdp->Fn && !tdp->Uri) {
     strcpy(g->Message, MSG(MISSING_FNAME));
     return 0;
-  } // endif Fn
+  } else
+    topt->subtype = NULL;
 
   if (tdp->Fn) {
     //  We used the file name relative to recorded datapath
@@ -428,7 +433,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
     jcol.Type = TYPE_UNKNOWN;
     jcol.Len = jcol.Scale = 0;
     jcol.Cbn = true;
-  } else  if (j < lvl) {
+  } else  if (j < lvl && !(strfy && !stricmp(strfy, colname))) {
     if (!fmt[bf])
       strcat(fmt, colname);
 
@@ -499,7 +504,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
     } // endswitch Type
 
   } else if (lvl >= 0) {
-    if (strfy) {
+    if (strfy && !stricmp(strfy, colname)) {
       if (!fmt[bf])
         strcat(fmt, colname);
 
@@ -731,7 +736,6 @@ void BCUTIL::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp)
     case TYPE_FLOAT:
       switch (vp->GetType()) {
         case TYPE_STRING:
-        case TYPE_DATE:
         case TYPE_DECIM:
           vp->SetValue_psz(GetString(jvp));
           break;
@@ -748,6 +752,16 @@ void BCUTIL::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp)
 
           if (jvp->Type == TYPE_DBL || jvp->Type == TYPE_FLOAT)
             vp->SetPrec(jvp->Nd);
+
+          break;
+        case TYPE_DATE:
+          if (jvp->Type == TYPE_STRG) {
+            if (!((DTVAL*)vp)->IsFormatted())
+              ((DTVAL*)vp)->SetFormat(g, "YYYY-MM-DDThh:mm:ssZ", 20, 0);
+
+            vp->SetValue_psz(GetString(jvp));
+          } else
+            vp->SetValue(GetInteger(jvp));
 
           break;
         default:
@@ -881,7 +895,7 @@ PBVAL BCUTIL::GetRowValue(PGLOBAL g, PBVAL row, int i)
   } // endfor i
 
   return bvp;
-} // end of GetColumnValue
+} // end of GetRowValue
 
 /***********************************************************************/
 /*  GetColumnValue:                                                    */

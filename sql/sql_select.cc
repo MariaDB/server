@@ -862,7 +862,8 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
       cond3= newx Item_func_le(thd, conds->start.item, conds->end.item);
       break;
     case SYSTEM_TIME_BEFORE:
-      cond1= newx Item_func_lt(thd, conds->field_end, conds->start.item);
+      cond1= newx Item_func_history(thd, conds->field_end);
+      cond2= newx Item_func_lt(thd, conds->field_end, conds->start.item);
       break;
     default:
       DBUG_ASSERT(0);
@@ -915,7 +916,8 @@ Item* period_get_condition(THD *thd, TABLE_LIST *table, SELECT_LEX *select,
       cond3= newx Item_func_le(thd, conds->start.item, conds->end.item);
       break;
     case SYSTEM_TIME_BEFORE:
-      cond1= newx Item_func_trt_trx_sees(thd, trx_id0, conds->field_end);
+      cond1= newx Item_func_history(thd, conds->field_end);
+      cond2= newx Item_func_trt_trx_sees(thd, trx_id0, conds->field_end);
       break;
     default:
       DBUG_ASSERT(0);
@@ -10946,6 +10948,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   j->ref.disable_cache= FALSE;
   j->ref.null_ref_part= NO_REF_PART;
   j->ref.const_ref_part_map= 0;
+  j->ref.uses_splitting= FALSE;
   keyuse=org_keyuse;
 
   store_key **ref_key= j->ref.key_copy;
@@ -10994,6 +10997,7 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
         j->ref.null_rejecting|= (key_part_map)1 << i;
 
       keyuse_uses_no_tables= keyuse_uses_no_tables && !keyuse->used_tables;
+      j->ref.uses_splitting |= (keyuse->validity_ref != NULL);
       /*
         We don't want to compute heavy expressions in EXPLAIN, an example would
         select * from t1 where t1.key=(select thats very heavy);
@@ -23625,7 +23629,8 @@ test_if_skip_sort_order(JOIN_TAB *tab,ORDER *order,ha_rows select_limit,
       todo: why does JT_REF_OR_NULL mean filesort? We could find another index
       that satisfies the ordering. I would just set ref_key=MAX_KEY here...
     */
-    if (tab->type == JT_REF_OR_NULL || tab->type == JT_FT)
+    if (tab->type == JT_REF_OR_NULL || tab->type == JT_FT ||
+        tab->ref.uses_splitting)
       goto use_filesort;
   }
   else if (select && select->quick)		// Range found by opt_range

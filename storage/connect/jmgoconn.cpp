@@ -121,20 +121,21 @@ JMgoConn::JMgoConn(PGLOBAL g, PCSZ collname, PCSZ wrapper)
 /***********************************************************************/
 void JMgoConn::AddJars(PSTRG jpop, char sep)
 {
-#if defined(BSON_SUPPORT)
+#if defined(DEVELOPMENT)
 	if (m_Version == 2) {
 		jpop->Append(sep);
 //	jpop->Append("C:/Eclipse/workspace/MongoWrap2/bin");
-		jpop->Append(sep);
+//	jpop->Append(sep);
 		jpop->Append("C:/mongo-java-driver/mongo-java-driver-2.13.3.jar");
 	} else {
 		jpop->Append(sep);
 //	jpop->Append("C:/Eclipse/workspace/MongoWrap3/bin");
+//	jpop->Append(sep);
 //	jpop->Append("C:/Program Files/MariaDB 10.1/lib/plugin/JavaWrappers.jar");
-		jpop->Append(sep);
+//	jpop->Append(sep);
 		jpop->Append("C:/mongo-java-driver/mongo-java-driver-3.4.2.jar");
 	} // endif m_Version
-#endif   // BSON_SUPPORT
+#endif   // DEVELOPMENT
 } // end of AddJars
 
 /***********************************************************************/

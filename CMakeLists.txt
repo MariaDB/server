@@ -14,7 +14,8 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
-CMAKE_MINIMUM_REQUIRED(VERSION 2.8.7)
+CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
+PROJECT(MySQL)
 
 # Remove the following comment if you don't want to have striped binaries
 # in RPM's:
@@ -49,8 +50,16 @@ IF(NOT DEFINED MANUFACTURER)
   MARK_AS_ADVANCED(MANUFACTURER)
 ENDIF()
 
-SET(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
-   "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel")
+IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  # Setting build type to RelWithDebInfo as none was specified.")
+  SET(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
+   "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel"
+   FORCE)
+  # Set the possible values of build type for cmake-gui
+  SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+   "None" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+ENDIF()
+
 
 # MAX_INDEXES - Set the maximum number of indexes per table, default 64
 SET(MAX_INDEXES 64 CACHE STRING "Max number of indexes")
@@ -76,18 +85,8 @@ IF(UNIX AND NOT APPLE)
   MARK_AS_ADVANCED(WITH_PIC)
 ENDIF()
 
-# Optionally set project name, e.g.
-# foo.xcodeproj (mac) or foo.sln (windows)
+# This is used by TokuDB only
 SET(MYSQL_PROJECT_NAME_DOCSTRING "MySQL project name")
-IF(DEFINED MYSQL_PROJECT_NAME)
-  SET(MYSQL_PROJECT_NAME ${MYSQL_PROJECT_NAME} CACHE STRING
-      ${MYSQL_PROJECT_NAME_DOCSTRING} FORCE)
-ELSE()
-  SET(MYSQL_PROJECT_NAME "MySQL" CACHE STRING
-      ${MYSQL_PROJECT_NAME_DOCSTRING} FORCE)
-  MARK_AS_ADVANCED(MYSQL_PROJECT_NAME)
-ENDIF()
-PROJECT(${MYSQL_PROJECT_NAME})
 
 IF(CMAKE_VERSION VERSION_LESS "3.1")
   IF(CMAKE_CXX_COMPILER_ID STREQUAL "GNU")

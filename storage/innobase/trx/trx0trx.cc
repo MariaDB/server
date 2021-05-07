@@ -2224,3 +2224,16 @@ trx_set_rw_mode(
 		trx->read_view.set_creator_trx_id(trx->id);
 	}
 }
+
+bool trx_t::has_stats_table_lock() const
+{
+  for (lock_list::const_iterator it= lock.table_locks.begin(),
+       end= lock.table_locks.end(); it != end; ++it)
+  {
+     const lock_t *lock= *it;
+     if (lock && lock->un_member.tab_lock.table->is_stats_table())
+       return true;
+  }
+
+  return false;
+}

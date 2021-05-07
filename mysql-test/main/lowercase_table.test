@@ -2,14 +2,6 @@
 # Test of --lower-case-table-names
 #
 
---disable_warnings
-drop table if exists t1,t2,t3,t4;
-# Clear up from other tests (to ensure that SHOW TABLES below is right)
-drop table if exists t0,t5,t6,t7,t8,t9;
-drop database if exists mysqltest;
-drop view if exists v0, v1, v2, v3, v4;
---enable_warnings
-
 create table T1 (id int primary key, Word varchar(40) not null, Index(Word));
 create table t4 (id int primary key, Word varchar(40) not null);
 INSERT INTO T1 VALUES (1, 'a'), (2, 'b'), (3, 'c');
@@ -68,32 +60,29 @@ drop table t1,t2;
 #
 create table t1 (a int);
 create table t2 (a int);
--- error 1066
+--error ER_NONUNIQ_TABLE
 select * from t1 c, t2 C;
--- error 1066
+--error ER_NONUNIQ_TABLE
 select C.a, c.a from t1 c, t2 C;
 drop table t1, t2;
 
-#
-# Bug #9761: CREATE TABLE ... LIKE ... not handled correctly when
-# lower_case_table_names is set
+--echo #
+--echo # Bug #9761: CREATE TABLE ... LIKE ... not handled correctly when lower_case_table_names is set
+--echo #
 
 create table t1 (a int);
 create table t2 like T1;
 drop table t1, t2;
 
 show tables;
+--echo #
+--echo # End of 4.1 tests
+--echo #
 
-# End of 4.1 tests
-
-
-#
-# Bug#20404: SHOW CREATE TABLE fails with Turkish I
-#
+--echo #
+--echo # Bug#20404: SHOW CREATE TABLE fails with Turkish I
+--echo #
 set names utf8;
---disable_warnings
-drop table if exists İ,İİ;
---enable_warnings
 create table İ (s1 int);
 show create table İ;
 show tables;
@@ -104,11 +93,13 @@ show tables;
 drop table İİ;
 set names latin1;
 
---echo End of 5.0 tests
+--echo #
+--echo # End of 5.0 tests
+--echo #
 
-#
-# Bug#21317: SHOW CREATE DATABASE does not obey to lower_case_table_names
-#
+--echo #
+--echo # Bug#21317: SHOW CREATE DATABASE does not obey to lower_case_table_names
+--echo #
 create database mysql_TEST character set latin2;
 create table mysql_TEST.T1 (a int);
 show create database mysql_TEST;
@@ -117,11 +108,13 @@ show databases like "mysql%";
 show databases like "mysql_TE%";
 drop database mysql_TEST;
 
---echo End of 10.0 tests
+--echo #
+--echo # End of 10.0 tests
+--echo #
 
-#
-# MDEV-17148 DROP DATABASE throw "Directory not empty" after changed lower_case_table_names.
-#
+--echo #
+--echo # MDEV-17148 DROP DATABASE throw "Directory not empty" after changed lower_case_table_names.
+--echo #
 
 let $datadir=`select @@datadir`;
 create database db1;
@@ -130,3 +123,19 @@ copy_file $datadir/test/t1.frm $datadir/db1/T1.frm;
 drop database db1;
 drop table t1;
 
+--echo #
+--echo # End of 10.2 tests
+--echo #
+
+--echo #
+--echo # MDEV-25109 Server crashes in sp_name::sp_name upon invalid data in mysql.proc
+--echo #
+call mtr.add_suppression("Stored routine ''.'': invalid value in column");
+insert ignore into mysql.proc () values ();
+--error ER_SP_WRONG_NAME
+show function status;
+delete from mysql.proc where name = '';
+
+--echo #
+--echo # End of 10.3 tests
+--echo #

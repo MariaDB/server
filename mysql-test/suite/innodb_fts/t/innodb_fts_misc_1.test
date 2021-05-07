@@ -939,3 +939,13 @@ UPDATE t1 SET f6='cascade';
 DROP TABLE t1;
 
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
+
+--echo #
+--echo # MDEV-25536 sym_node->table != NULL in pars_retrieve_table_def
+--echo #
+CREATE TABLE t1 (f1 TEXT,FULLTEXT (f1)) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SET GLOBAL innodb_ft_aux_table='test/t1';
+SELECT * FROM information_schema.innodb_ft_deleted;
+DROP TABLE t1;
+SET GLOBAL innodb_ft_aux_table=DEFAULT;

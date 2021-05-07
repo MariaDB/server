@@ -1138,6 +1138,9 @@ PBVAL BJSON::GetArrayValue(PBVAL bap, int n)
   CheckType(bap, TYPE_JAR);
   int i = 0;
 
+  if (n < 0)
+    n += GetArraySize(bap);
+
   for (PBVAL bvp = GetArray(bap); bvp; bvp = GetNext(bvp), i++)
     if (i == n)
       return bvp;
@@ -1348,12 +1351,17 @@ PBVAL BJSON::NewVal(PVAL valp)
 /***********************************************************************/
 /* Sub-allocate and initialize a BVAL from another BVAL.               */
 /***********************************************************************/
-PBVAL BJSON::DupVal(PBVAL bvlp) {
-  PBVAL bvp = NewVal();
+PBVAL BJSON::DupVal(PBVAL bvlp)
+{
+  if (bvlp) {
+    PBVAL bvp = NewVal();
 
-  *bvp = *bvlp;
-  bvp->Next = 0;
-  return bvp;
+    *bvp = *bvlp;
+    bvp->Next = 0;
+    return bvp;
+  } else
+    return NULL;
+
 } // end of DupVal
 
 /***********************************************************************/

@@ -4596,13 +4596,19 @@ ha_innobase::index_type(
 {
 	dict_index_t*	index = innobase_get_index(keynr);
 
-	if (index && index->type & DICT_FTS) {
-		return("FULLTEXT");
-	} else if (dict_index_is_spatial(index)) {
-		return("SPATIAL");
-	} else {
-		return("BTREE");
+	if (!index) {
+		return "Corrupted";
 	}
+
+	if (index->type & DICT_FTS) {
+		return("FULLTEXT");
+	}
+
+	if (dict_index_is_spatial(index)) {
+		return("SPATIAL");
+	}
+
+	return("BTREE");
 }
 
 /****************************************************************//**

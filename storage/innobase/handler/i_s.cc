@@ -2412,7 +2412,8 @@ i_s_fts_deleted_generic_fill(
 func_exit:
 		dict_sys.unfreeze();
 		DBUG_RETURN(0);
-	} else if (!dict_table_has_fts_index(user_table)) {
+	} else if (!dict_table_has_fts_index(user_table)
+		   || !user_table->is_readable()) {
 		dict_table_close(user_table, FALSE, FALSE);
 		goto func_exit;
 	}

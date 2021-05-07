@@ -7110,7 +7110,7 @@ CALL sp1();
 x	y	z
 000	000	000
 Warnings:
-Warning	1264	Out of range value for column 'z' at row 1
+Warning	1264	Out of range value for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7148,7 +7148,7 @@ CALL sp1();
 x	y	z
 00000	00000	00000
 Warnings:
-Warning	1264	Out of range value for column 'z' at row 1
+Warning	1264	Out of range value for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7186,7 +7186,7 @@ CALL sp1();
 x	y	z
 00000000	00000000	00000000
 Warnings:
-Warning	1264	Out of range value for column 'z' at row 1
+Warning	1264	Out of range value for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7224,7 +7224,7 @@ CALL sp1();
 x	y	z
 0000000000	0000000000	0000000000
 Warnings:
-Warning	1264	Out of range value for column 'z' at row 1
+Warning	1264	Out of range value for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7262,7 +7262,7 @@ CALL sp1();
 x	y	z
 00000000000000000000	00000000000000000000	00000000000000000000
 Warnings:
-Warning	1264	Out of range value for column 'z' at row 1
+Warning	1264	Out of range value for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7282,7 +7282,7 @@ CALL sp1();
 x	y	z
 -9999999999	-9999999999	-9999999999
 Warnings:
-Warning	1264	Out of range value for column 'z' at row 1
+Warning	1264	Out of range value for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7293,7 +7293,7 @@ CALL sp1();
 x	y	z
 0	0	0
 Warnings:
-Note	1265	Data truncated for column 'z' at row 1
+Note	1265	Data truncated for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7304,7 +7304,7 @@ CALL sp1();
 x	y	z
 0000000000	0000000000	0000000000
 Warnings:
-Warning	1264	Out of range value for column 'z' at row 1
+Warning	1264	Out of range value for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7315,7 +7315,7 @@ CALL sp1();
 x	y	z
 0000000000	0000000000	0000000000
 Warnings:
-Note	1265	Data truncated for column 'z' at row 1
+Note	1265	Data truncated for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7326,7 +7326,7 @@ CALL sp1();
 x	y	z
 0	0	0
 Warnings:
-Note	1265	Data truncated for column 'z' at row 1
+Note	1265	Data truncated for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7337,7 +7337,7 @@ CALL sp1();
 x	y	z
 0	0	0
 Warnings:
-Note	1265	Data truncated for column 'z' at row 1
+Note	1265	Data truncated for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7348,7 +7348,7 @@ CALL sp1();
 x	y	z
 0000000000	0000000000	0000000000
 Warnings:
-Note	1265	Data truncated for column 'z' at row 1
+Note	1265	Data truncated for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -7359,7 +7359,7 @@ CALL sp1();
 x	y	z
 0000000000	0000000000	0000000000
 Warnings:
-Note	1265	Data truncated for column 'z' at row 1
+Note	1265	Data truncated for column 'x' at row 1
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN

@@ -100,20 +100,12 @@ xb_fil_node_close_file(
 	ut_ad(node);
 	ut_a(!node->being_extended);
 
-	if (!node->is_open()) {
-
-		mysql_mutex_unlock(&fil_system.mutex);
-
-		return;
+	if (node->is_open()) {
+		ret = os_file_close(node->handle);
+		ut_a(ret);
+		node->handle = OS_FILE_CLOSED;
 	}
 
-	ret = os_file_close(node->handle);
-	ut_a(ret);
-
-	node->handle = OS_FILE_CLOSED;
-
-	ut_a(fil_system.n_open > 0);
-	fil_system.n_open--;
 	mysql_mutex_unlock(&fil_system.mutex);
 }
 
@@ -173,8 +165,6 @@ xb_fil_cur_open(
 
 			return(XB_FIL_CUR_SKIP);
 		}
-
-		fil_system.n_open++;
 	}
 
 	ut_ad(node->is_open());

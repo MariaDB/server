@@ -261,4 +261,5 @@ DROP TABLE t1, t2;
 
 --source include/wait_until_count_sessions.inc
 set debug_sync=reset;
+
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;

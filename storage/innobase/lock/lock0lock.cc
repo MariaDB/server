@@ -552,10 +552,6 @@ ATTRIBUTE_NOINLINE static bool wsrep_is_BF_lock_timeout(const trx_t &trx)
 
   ib::info() << "WSREP: BF lock wait long for trx:" << ib::hex(trx.id)
              << " query: " << wsrep_thd_query(trx.mysql_thd);
-
-  srv_print_innodb_monitor= true;
-  srv_print_innodb_lock_monitor= true;
-  srv_monitor_timer_schedule_now();
   return true;
 }
 #endif /* WITH_WSREP */
