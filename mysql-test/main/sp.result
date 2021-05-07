@@ -8466,6 +8466,21 @@ ERROR HY000: View 'test.v1' references invalid table(s) or column(s) or function
 DROP PROCEDURE p1;
 DROP VIEW v1;
 DROP TABLE t1;
+#
+# BUG#30366310: USING A FUNCTION TO ASSIGN DEFAULT VALUES TO
+# 2 OR MORE VARIABLES CRASHES SERVER
+#
+create function f1() returns bigint return now()-1|
+create procedure p1()
+begin
+declare b, c bigint default f1();
+select b-c;
+end|
+call p1()|
+b-c
+0
+drop procedure p1|
+drop function f1|
 #End of 10.2 tests
 #
 # MDEV-12007 Allow ROW variables as a cursor FETCH target

@@ -41,7 +41,6 @@ typedef struct _jnode {
 	PSZ   Key;                    // The key used for object
 	OPVAL Op;                     // Operator used for this node
 	PVAL  CncVal;                 // To cont value used for OP_CNC
-	PVAL  Valp;                   // The internal array VALUE
 	int   Rank;                   // The rank in array
 	int   Rx;                     // Read row number
 	int   Nx;                     // Next to read row number
@@ -153,7 +152,7 @@ protected:
 	JOUTSTR *Jp;
 	JNODE   *Nodes;               // The intermediate objects
 	PVAL     Value;
-	PVAL     MulVal;              // To value used by multiple column
+	//PVAL     MulVal;              // To value used by multiple column
 	char    *Jpath;               // The json path
 	int      Buf_Type;
 	int      Long;

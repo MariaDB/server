@@ -126,3 +126,29 @@ eval set statement optimizer_switch='split_materialized=off' for explain $q;
 drop view v1;
 
 drop table t1,t2;
+
+--echo #
+--echo #  MDEV-23723: Crash when test_if_skip_sort_order() is checked for derived table subject to split
+--echo #
+CREATE TABLE t1 (a INT, b INT, KEY (a), KEY (a,b)) ENGINE=InnoDB;
+CREATE TABLE t2 (c INT, KEY (c)) ENGINE=InnoDB;
+
+SELECT * FROM t1 t1a JOIN t1 t1b;
+
+INSERT INTO t2 VALUES (1),(2);
+INSERT INTO t1 VALUES (1,2),(3,4),(5,6),(7,8),(9,10),(11,12);
+
+let $query=
+EXPLAIN
+SELECT *
+FROM
+  t1 JOIN
+  (SELECT t1.a, t1.b FROM t1, t2 WHERE t1.b = t2.c GROUP BY t1.a, t1.b) as dt
+WHERE
+  t1.a = dt.a;
+
+eval set statement optimizer_switch='split_materialized=off' for $query;
+eval set statement optimizer_switch='split_materialized=on' for  $query;
+
+DROP TABLE t1, t2;
+

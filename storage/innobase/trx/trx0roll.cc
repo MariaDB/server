@@ -777,7 +777,8 @@ void trx_rollback_recovered(bool all)
         srv_fast_shutdown)
       goto discard;
 
-    if (all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE)
+    if (all || trx_get_dict_operation(trx) != TRX_DICT_OP_NONE
+        || trx->has_stats_table_lock())
     {
       trx_rollback_active(trx);
       if (trx->error_state != DB_SUCCESS)
