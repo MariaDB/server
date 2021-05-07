@@ -6313,3 +6313,9 @@ dict_sys_get_size()
 
 	return size;
 }
+
+bool dict_table_t::is_stats_table() const
+{
+  return !strcmp(name.m_name, TABLE_STATS_NAME) ||
+         !strcmp(name.m_name, INDEX_STATS_NAME);
+}

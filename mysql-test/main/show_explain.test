@@ -863,7 +863,14 @@ select * from t1 where pk between 10 and 20 for update;
 # run SHOW EXPLAIN on a frozen thread
 connection default;
 let $save_wait_condition= $wait_condition;
-let $wait_condition= select State='Sending data' from information_schema.processlist where id=$thr2;
+let $wait_condition=
+select 1
+from information_schema.INNODB_LOCK_WAITS
+where
+  requesting_trx_id=(select trx_id
+                     from information_schema.INNODB_TRX
+                     where trx_mysql_thread_id=$thr2);
+
 let $thr_default=`select connection_id()`;
 --source include/wait_condition.inc
 --echo # do: send_eval show explain for thr2;

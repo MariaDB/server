@@ -1571,7 +1571,7 @@ mysqld_list_fields(THD *thd, TABLE_LIST *table_list, const char *wild)
 
   if (open_normal_and_derived_tables(thd, table_list,
                                      MYSQL_OPEN_FORCE_SHARED_HIGH_PRIO_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     DBUG_VOID_RETURN;
   table= table_list->table;
 

@@ -299,17 +299,6 @@ THD *thd_get_current_thd()
   return current_thd;
 }
 
-/**
-  Clear errors from the previous THD
-
-  @param thd              THD object
-*/
-void thd_clear_errors(THD *thd)
-{
-  my_errno= 0;
-  thd->mysys_var->abort= 0;
-}
-
 
 /**
   Get thread attributes for connection threads
@@ -1422,7 +1411,10 @@ void THD::change_user(void)
     cleanup();
   cleanup_done= 0;
   reset_killed();
-  thd_clear_errors(this);
+  /* Clear errors from the previous THD */
+  my_errno= 0;
+  if (mysys_var)
+    mysys_var->abort= 0;
 
   /* Clear warnings. */
   if (!get_stmt_da()->is_warning_info_empty())
@@ -4753,7 +4745,7 @@ TABLE *open_purge_table(THD *thd, const char *db, size_t dblen,
   DBUG_ASSERT(thd->open_tables == NULL);
   DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
-  Open_table_context ot_ctx(thd, 0);
+  Open_table_context ot_ctx(thd, MYSQL_OPEN_IGNORE_FLUSH);
   TABLE_LIST *tl= (TABLE_LIST*)thd->alloc(sizeof(TABLE_LIST));
   LEX_CSTRING db_name= {db, dblen };
   LEX_CSTRING table_name= { tb, tblen };

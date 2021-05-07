@@ -197,7 +197,7 @@ void udf_init()
     DBUG_PRINT("info",("init udf record"));
     LEX_CSTRING name;
     name.str=get_field(&mem, table->field[0]);
-    name.length = (uint) strlen(name.str);
+    name.length = (uint) safe_strlen(name.str);
     char *dl_name= get_field(&mem, table->field[2]);
     bool new_dl=0;
     Item_udftype udftype=UDFTYPE_FUNCTION;
@@ -211,12 +211,12 @@ void udf_init()
 
       On windows we must check both FN_LIBCHAR and '/'.
     */
-    if (check_valid_path(dl_name, strlen(dl_name)) ||
+    if (!name.str || !dl_name || check_valid_path(dl_name, strlen(dl_name)) ||
         check_string_char_length(&name, 0, NAME_CHAR_LEN,
                                  system_charset_info, 1))
     {
       sql_print_error("Invalid row in mysql.func table for function '%.64s'",
-                      name.str);
+                      safe_str(name.str));
       continue;
     }
 

@@ -492,7 +492,16 @@ select * from mysql.plugin WHERE name='unexisting_udf';
 name	dl
 DROP FUNCTION unexisting_udf;
 ERROR 42000: FUNCTION test.unexisting_udf does not exist
+#
+# Bug #31674599: THE UDF_INIT() FUNCTION CAUSE SERVER CRASH
+#
+call mtr.add_suppression('Invalid row in mysql.func table');
+insert mysql.func () values ();
+# restart
+delete from mysql.func where name = '';
+#
 # End of 10.2 tests
+#
 #
 # MDEV-15073: Generic UDAF parser code in server for window functions
 #

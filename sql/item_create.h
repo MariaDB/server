@@ -199,6 +199,7 @@ struct Native_func_registry
 
 int item_create_init();
 int item_create_append(Native_func_registry array[]);
+int item_create_remove(Native_func_registry array[]);
 void item_create_cleanup();
 
 Item *create_func_dyncol_create(THD *thd, List<DYNCALL_CREATE_DEF> &list);
