@@ -958,3 +958,13 @@ UPDATE t1 SET f6='cascade';
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_3` FOREIGN KEY (`f5`) REFERENCES `t1` (`f6`) ON UPDATE SET NULL)
 DROP TABLE t1;
 SET FOREIGN_KEY_CHECKS=@OLD_FOREIGN_KEY_CHECKS;
+#
+# MDEV-25536 sym_node->table != NULL in pars_retrieve_table_def
+#
+CREATE TABLE t1 (f1 TEXT,FULLTEXT (f1)) ENGINE=InnoDB;
+ALTER TABLE t1 DISCARD TABLESPACE;
+SET GLOBAL innodb_ft_aux_table='test/t1';
+SELECT * FROM information_schema.innodb_ft_deleted;
+DOC_ID
+DROP TABLE t1;
+SET GLOBAL innodb_ft_aux_table=DEFAULT;

@@ -1604,7 +1604,7 @@ static int mysql_test_select(Prepared_statement *stmt,
   }
 
   if (open_normal_and_derived_tables(thd, tables,  MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     goto error;
 
   thd->lex->used_tables= 0;                        // Updated by setup_fields
@@ -1666,7 +1666,7 @@ static bool mysql_test_do_fields(Prepared_statement *stmt,
     DBUG_RETURN(TRUE);
 
   if (open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(setup_fields(thd, Ref_ptr_array(),
                            *values, COLUMNS_READ, 0, NULL, 0));
@@ -1698,7 +1698,7 @@ static bool mysql_test_set_fields(Prepared_statement *stmt,
   if ((tables &&
        check_table_access(thd, SELECT_ACL, tables, FALSE, UINT_MAX, FALSE)) ||
       open_normal_and_derived_tables(thd, tables, MYSQL_OPEN_FORCE_SHARED_MDL,
-                                     DT_INIT | DT_PREPARE | DT_CREATE))
+                                     DT_INIT | DT_PREPARE))
     goto error;
 
   while ((var= it++))
@@ -1862,7 +1862,7 @@ static bool mysql_test_create_table(Prepared_statement *stmt)
 
     if (open_normal_and_derived_tables(stmt->thd, lex->query_tables,
                                        MYSQL_OPEN_FORCE_SHARED_MDL,
-                                       DT_INIT | DT_PREPARE | DT_CREATE))
+                                       DT_INIT | DT_PREPARE))
       DBUG_RETURN(TRUE);
 
     select_lex->context.resolve_in_select_list= TRUE;
@@ -4276,8 +4276,10 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     thd->release_transactional_locks();
   }
 
-  /* Preserve CHANGE MASTER attributes */
-  lex_end_stage1(lex);
+  /* Preserve locked plugins for SET */
+  if (lex->sql_command != SQLCOM_SET_OPTION)
+    lex_unlock_plugins(lex);
+
   cleanup_stmt();
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= old_stmt_arena;
@@ -5159,7 +5161,7 @@ void Prepared_statement::deallocate_immediate()
   status_var_increment(thd->status_var.com_stmt_close);
 
   /* It should now be safe to reset CHANGE MASTER parameters */
-  lex_end_stage2(lex);
+  lex_end(lex);
 }
 
 

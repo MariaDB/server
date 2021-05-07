@@ -3636,10 +3636,6 @@ public:
   {
     return server_status & SERVER_STATUS_IN_TRANS;
   }
-  inline bool fill_derived_tables()
-  {
-    return !stmt_arena->is_stmt_prepare() && !lex->only_view_structure();
-  }
   inline bool fill_information_schema_tables()
   {
     return !stmt_arena->is_stmt_prepare();
