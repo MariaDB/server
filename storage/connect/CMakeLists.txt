@@ -274,10 +274,6 @@ IF(CONNECT_WITH_JDBC)
     Mongo2Interface.java Mongo3Interface.java
     JavaWrappers.jar)
     add_definitions(-DJAVA_SUPPORT)
-    IF(CONNECT_WITH_MONGO)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES} Mongo2.jar Mongo3.jar)
-      add_definitions(-DMONGO_SUPPORT)
-    ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
   ENDIF()
@@ -411,11 +407,5 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
     ${CMAKE_CURRENT_SOURCE_DIR}/JavaWrappers.jar
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
     DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
-  IF(CONNECT_WITH_MONGO)
-    INSTALL(FILES
-      ${CMAKE_CURRENT_SOURCE_DIR}/Mongo2.jar
-      ${CMAKE_CURRENT_SOURCE_DIR}/Mongo3.jar
-      DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
-  ENDIF()
 ENDIF()
 
