@@ -1795,10 +1795,6 @@ fts_create_common_tables(
 				[MAX_FULL_NAME_LEN];
 
 	dict_index_t*					index = NULL;
-	/* common_tables vector is used for dropping FTS common tables
-	on error condition. */
-	std::vector<dict_table_t*>			common_tables;
-	std::vector<dict_table_t*>::const_iterator	it;
 
 	FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, table);
 
@@ -1820,20 +1816,9 @@ fts_create_common_tables(
 		if (common_table == NULL) {
 			error = DB_ERROR;
 			goto func_exit;
-		} else {
-			common_tables.push_back(common_table);
 		}
 
 		mem_heap_empty(heap);
-
-		DBUG_EXECUTE_IF("ib_fts_aux_table_error",
-			/* Return error after creating FTS_AUX_CONFIG table. */
-			if (i == 4) {
-				error = DB_ERROR;
-				goto func_exit;
-			}
-		);
-
 	}
 
 	/* Write the default settings to the config table. */
@@ -1864,7 +1849,6 @@ fts_create_common_tables(
 					   FIL_DEFAULT_ENCRYPTION_KEY);
 
 func_exit:
-	common_tables.clear();
 	mem_heap_free(heap);
 
 	return(error);
