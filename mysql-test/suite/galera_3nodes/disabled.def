@@ -11,6 +11,7 @@
 ##############################################################################
 
 GAL-501 : MDEV-24645 galera_3nodes.GAL-501 MTR failed: failed to open gcomm backend connection: 110
+GCF-354 : MDEV-25614 Galera test failure on GCF-354
 galera_gtid_2_cluster : MDEV-23775 Galera test failure on galera_3nodes.galera_gtid_2_cluster
 galera_ipv6_mariabackup : MDEV-24440: galera_3nodes.galera_ipv6_mariabackup MTR fails sporadically: Failed to read from: wsrep_sst_mariabackup --role 'donor' --address '[::1]:16028/xtrabackup_sst//1'
 galera_ipv6_mariabackup_section : MDEV-22195: galera_3nodes.galera_ipv6_mariabackup_section MTR failed: assert_grep.inc failed
