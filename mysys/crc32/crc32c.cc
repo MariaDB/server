@@ -517,12 +517,12 @@ static int arch_ppc_probe(void) {
 
   return arch_ppc_crc32;
 }
-#elif _AIX
+#elif defined(_AIX) || defined(__OpenBSD__)
 static int arch_ppc_probe(void) {
   arch_ppc_crc32 = 0;
 
 #if defined(__powerpc64__)
-  // AIX 7.1+ has vector crypto features on all POWER 8+
+  // AIX 7.1+/OpenBSD has vector crypto features on all POWER 8+
   arch_ppc_crc32 = 1;
 #endif /* __powerpc64__ */
 
