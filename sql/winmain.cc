@@ -224,7 +224,7 @@ static const char *get_svc_name(const char *arg)
 
   Plus, the obsolete functionality to register/remove services.
 */
-int main(int argc, char **argv)
+__declspec(dllexport) int mysqld_win_main(int argc, char **argv)
 {
   orig_argv= argv;
   orig_argc= argc;
