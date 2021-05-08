@@ -128,6 +128,8 @@ IF(WIN32)
     # Sign executables with authenticode certificate
     SET(SIGNCODE 1 CACHE BOOL "")
   ENDIF()
+
+  SET(CMAKE_INTERPROCEDURAL_OPTIMIZATION_RELWITHDEBINFO ON CACHE BOOL "")
 ENDIF()
 
 IF(UNIX)
