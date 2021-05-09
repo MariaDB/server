@@ -360,7 +360,8 @@ static void init_pipe_security_descriptor()
     goto fail;
 
   snprintf(sddl_string, sizeof(sddl_string), SDDL_FMT,
-           EVERYONE_PIPE_ACCESS_MASK, current_user_string_sid);
+          (unsigned int)EVERYONE_PIPE_ACCESS_MASK,
+           current_user_string_sid);
   LocalFree(current_user_string_sid);
 
   if (ConvertStringSecurityDescriptorToSecurityDescriptor(sddl_string,
