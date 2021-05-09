@@ -20,7 +20,7 @@
 
 #ifdef _WIN32
 #define OFFSET_TO_EPOC 116444736000000000LL
-static ulonglong query_performance_frequency;
+static ulonglong query_performance_frequency=1;
 #endif
 
 #ifdef HAVE_LINUX_UNISTD_H
