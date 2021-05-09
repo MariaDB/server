@@ -18,7 +18,7 @@
 
 # This is a reference script for mysqldump-based state snapshot tansfer
 
-. $(dirname $0)/wsrep_sst_common
+. $(dirname "$0")/wsrep_sst_common
 PATH=$PATH:/usr/sbin:/usr/bin:/sbin:/bin
 
 EINVAL=22
@@ -94,7 +94,7 @@ then
 fi
 
 MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF "\
-"$AUTH -h${WSREP_SST_OPT_HOST_UNESCAPED} "\
+"$AUTH -h$WSREP_SST_OPT_HOST_UNESCAPED "\
 "-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
 
 # Check if binary logging is enabled on the joiner node.
@@ -122,7 +122,7 @@ then
     # executed to erase binary logs (if any). Binary logging should also be
     # turned off for the session so that gtid state does not get altered while
     # the dump gets replayed on joiner.
-    if [[ "$LOG_BIN" == 'ON' ]]; then
+    if [ "$LOG_BIN" = 'ON' ]; then
         RESET_MASTER="SET GLOBAL wsrep_on=OFF; RESET MASTER; SET GLOBAL wsrep_on=ON;"
         SET_GTID_BINLOG_STATE="SET GLOBAL wsrep_on=OFF; SET @@global.gtid_binlog_state='$GTID_BINLOG_STATE'; SET GLOBAL wsrep_on=ON;"
         SQL_LOG_BIN_OFF="SET @@session.sql_log_bin=OFF;"

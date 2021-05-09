@@ -23,13 +23,13 @@ RSYNC_PID=                                      # rsync pid file
 RSYNC_CONF=                                     # rsync configuration file
 RSYNC_REAL_PID=                                 # rsync process id
 
-OS=$(uname)
+OS="$(uname)"
 [ "$OS" = 'Darwin' ] && export -n LD_LIBRARY_PATH
 
 # Setting the path for lsof on CentOS
 export PATH="/usr/sbin:/sbin:$PATH"
 
-. $(dirname $0)/wsrep_sst_common
+. $(dirname "$0")/wsrep_sst_common
 wsrep_check_datadir
 
 wsrep_check_programs rsync
@@ -48,7 +48,7 @@ cleanup_joiner()
     rm -rf "$MAGIC_FILE"
     rm -rf "$RSYNC_PID"
     wsrep_log_info "Joiner cleanup done."
-    if [ "${WSREP_SST_OPT_ROLE}" = "joiner" ];then
+    if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         wsrep_cleanup_progress_file
     fi
 }
@@ -57,49 +57,68 @@ cleanup_joiner()
 check_pid()
 {
     local pid_file="$1"
-    [ -r "$pid_file" ] && ps -p $(cat "$pid_file") >/dev/null 2>&1
+    [ -r "$pid_file" ] && ps -p $(cat "$pid_file") 2>&1 >/dev/null
 }
 
 check_pid_and_port()
 {
     local pid_file="$1"
     local rsync_pid=$2
-    local rsync_addr=$3
-    local rsync_port=$4
+    local rsync_addr="$3"
+    local rsync_port="$4"
 
-    case $OS in
-    FreeBSD)
-        local port_info=$(sockstat -46lp "$rsync_port" 2>/dev/null | \
-            grep ":$rsync_port")
-        local is_rsync=$(echo "$port_info" | \
-            grep -E "[[:space:]]+(rsync|stunnel)[[:space:]]+$rsync_pid" 2>/dev/null)
-        ;;
-    *)
-        if [ ! -x "$(command -v lsof)" ]; then
-            wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
-            exit 2 # ENOENT
+    if [ -z "$rsync_port" -o -z "$rsync_addr" -o -z "$rsync_pid" ]; then
+        wsrep_log_error "check_pid_and_port(): bad arguments"
+        exit 2 # ENOENT
+    fi
+
+    local port_info is_rsync
+
+    if [ $lsof_available -ne 0 ]; then
+        port_info=$(lsof -i ":$rsync_port" -Pn 2>/dev/null | \
+            grep -F '(LISTEN)')
+        is_rsync=$(echo "$port_info" | \
+            grep -E "^(rsync|stunnel)[^[:space:]]*[[:space:]]+$rsync_pid[[:space:]]+")
+    elif [ $sockstat_available -ne 0 ]; then
+        port_info=$(sockstat -p "$rsync_port" 2>/dev/null | \
+            grep -F 'LISTEN')
+        is_rsync=$(echo "$port_info" | \
+            grep -E "[[:space:]]+(rsync|stunnel)[^[:space:]]*[[:space:]]+$rsync_pid[[:space:]]+")
+    elif [ $ss_available -ne 0 ]; then
+        port_info=$(ss -H -p -n -l '( sport = :$port_info )' 2>/dev/null)
+        is_rsync=$(echo "$port_info" | \
+            grep -E "users:\(.*\(\"(rsync|stunnel)[^[:space:]]*\".*\<pid=$rsync_pid\>.*\)")
+    else
+        wsrep_log_error "unknown sockets utility"
+        exit 2 # ENOENT
+    fi
+
+    if [ -z "$is_rsync" ]; then
+        local is_listening_all
+        if [ $lsof_available -ne 0 ]; then
+            is_listening_all=$(echo "$port_info" | \
+                grep -E "[[:space:]](\*|\[?::\]?):$rsync_port[[:space:]]")
+        else
+            port_info=$(echo "$port_info" | \
+                grep -E "[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+[[:space:]]+[^[:space:]]+" -o)
+            is_listening_all=$(echo "$port_info" | \
+                grep -E "[[:space:]](\*|\[?::\]?):$rsync_port$")
         fi
-        local port_info=$(lsof -i ":$rsync_port" -Pn 2>/dev/null | \
-            grep '(LISTEN)')
-        local is_rsync=$(echo "$port_info" | \
-            grep -E "^(rsync|stunnel)[[:space:]]+$rsync_pid" 2>/dev/null)
-        ;;
-    esac
-
-    local is_listening_all=$(echo "$port_info" | \
-        grep "*:$rsync_port" 2>/dev/null)
-    local is_listening_addr=$(echo "$port_info" | \
-        grep -F "$rsync_addr:$rsync_port" 2>/dev/null)
-
-    if [ -n "$is_listening_all" -o -n "$is_listening_addr" ]; then
-        if [ -z "$is_rsync" ]; then
-            wsrep_log_error "rsync daemon port '$rsync_port' has been taken"
+        local is_listening_addr=$(echo "$port_info" | \
+            grep -w -F "$rsync_addr:$rsync_port")
+        if [ -z "$is_listening_addr" ]; then
+            is_listening_addr=$(echo "$port_info" | \
+                grep -w -F "[$rsync_addr]:$rsync_port")
+        fi
+        if [ -n "$is_listening_all" -o -n "$is_listening_addr" ]; then
+            wsrep_log_error "rsync daemon port '$rsync_port' " \
+                            "has been taken by another program"
             exit 16 # EBUSY
         fi
+        return 1
     fi
-    check_pid "$pid_file" && \
-        [ -n "$port_info" ] && [ -n "$is_rsync" ] && \
-        [ $(cat "$pid_file") -eq $rsync_pid ]
+
+    check_pid "$pid_file" && [ $(cat "$pid_file") -eq $rsync_pid ]
 }
 
 STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
@@ -303,7 +322,7 @@ EOF
         # (b) Cluster state ID & wsrep_gtid_domain_id to be written to the file, OR
         # (c) ERROR file, in case flush tables operation failed.
 
-        while [ ! -r "$FLUSHED" ] && ! grep -q ':' "$FLUSHED" >/dev/null 2>&1
+        while [ ! -r "$FLUSHED" ] && ! grep -q -F ':' "$FLUSHED" >/dev/null 2>&1
         do
             # Check whether ERROR file exists.
             if [ -f "$ERROR" ]
@@ -349,12 +368,11 @@ EOF
         eval rsync "'${STUNNEL:+--rsh=$STUNNEL}'" \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
-              $WHOLE_FILE_OPT ${FILTER} "'$WSREP_SST_OPT_DATA/'" \
+              $WHOLE_FILE_OPT $FILTER "'$WSREP_SST_OPT_DATA/'" \
               "'rsync://$WSREP_SST_OPT_ADDR'" >&2 || RC=$?
 
         if [ $RC -ne 0 ]; then
             wsrep_log_error "rsync returned code $RC:"
-
             case $RC in
             12) RC=71  # EPROTO
                 wsrep_log_error \
@@ -395,15 +413,17 @@ EOF
             exit 255 # unknown error
         fi
 
-        # then, we parallelize the transfer of database directories, use . so that pathconcatenation works
+        # then, we parallelize the transfer of database directories,
+        # use . so that path concatenation works:
+
         cd "$WSREP_SST_OPT_DATA"
 
         count=1
-        [ "$OS" = "Linux" ] && count=$(grep -c processor /proc/cpuinfo)
-        [ "$OS" = "Darwin" -o "$OS" = "FreeBSD" ] && count=$(sysctl -n hw.ncpu)
+        [ "$OS" = 'Linux' ] && count=$(grep -c processor /proc/cpuinfo)
+        [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ] && count=$(sysctl -n hw.ncpu)
 
-        find . -maxdepth 1 -mindepth 1 -type d -not -name "lost+found" -not -name ".zfs" \
-             -print0 | xargs -I{} -0 -P $count \
+        find . -maxdepth 1 -mindepth 1 -type d -not -name 'lost+found' \
+             -not -name '.zfs' -print0 | xargs -I{} -0 -P $count \
              rsync ${STUNNEL:+--rsh="$STUNNEL"} \
              --owner --group --perms --links --specials \
              --ignore-times --inplace --recursive --delete --quiet \
@@ -444,7 +464,7 @@ EOF
 
 elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
 then
-    wsrep_check_programs lsof
+    check_sockets_utils
 
     touch "$SST_PROGRESS_FILE"
     MYSQLD_PID="$WSREP_SST_OPT_PARENT"
@@ -505,7 +525,7 @@ EOF
     # If the IP is local listen only in it
     if is_local_ip "$RSYNC_ADDR_UNESCAPED"
     then
-        RSYNC_EXTRA_ARGS="--address $RSYNC_ADDR"
+        RSYNC_EXTRA_ARGS="--address $RSYNC_ADDR_UNESCAPED"
         STUNNEL_ACCEPT="$RSYNC_ADDR_UNESCAPED:$RSYNC_PORT"
     else
         # Not local, possibly a NAT, listen on all interfaces
@@ -517,7 +537,7 @@ EOF
 
     if [ -z "$STUNNEL" ]
     then
-        rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" ${RSYNC_EXTRA_ARGS} &
+        rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" $RSYNC_EXTRA_ARGS &
         RSYNC_REAL_PID=$!
     else
         cat << EOF > "$STUNNEL_CONF"
@@ -527,6 +547,7 @@ ${CAFILE_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
+debug = 6
 client = no
 [rsync]
 accept = $STUNNEL_ACCEPT
@@ -538,7 +559,7 @@ EOF
         RSYNC_PID="$STUNNEL_PID"
     fi
 
-    until check_pid_and_port "$RSYNC_PID" "$RSYNC_REAL_PID" "$RSYNC_ADDR" "$RSYNC_PORT"
+    until check_pid_and_port "$RSYNC_PID" "$RSYNC_REAL_PID" "$RSYNC_ADDR_UNESCAPED" "$RSYNC_PORT"
     do
         sleep 0.2
     done
@@ -555,10 +576,10 @@ EOF
                 exit 42
             fi
             CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$SSTCERT" | \
-                 tr "," "\n" | grep "CN =" | cut -d= -f2 | sed s/^\ // | \
+                 tr "," "\n" | grep -F 'CN =' | cut -d= -f2 | sed s/^\ // | \
                  sed s/\ %//)
         fi
-        MY_SECRET=$(wsrep_gen_secret)
+        MY_SECRET="$(wsrep_gen_secret)"
         # Add authentication data to address
         ADDR="$CN:$MY_SECRET@$WSREP_SST_OPT_HOST"
     else
@@ -608,7 +629,7 @@ EOF
     if [ -r "$MAGIC_FILE" ]
     then
         # check donor supplied secret
-        SECRET=$(grep "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+        SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
         if [ "$SECRET" != "$MY_SECRET" ]; then
             wsrep_log_error "Donor does not know my secret!"
             wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
@@ -616,7 +637,7 @@ EOF
         fi
 
         # remove secret from magic file
-        grep -v "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
+        grep -v -F -- "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
 
         mv "$MAGIC_FILE.new" "$MAGIC_FILE"
         # UUID:seqno & wsrep_gtid_domain_id is received here.
@@ -627,7 +648,7 @@ EOF
     fi
 
     wsrep_cleanup_progress_file
-#    cleanup_joiner
+#   cleanup_joiner
 else
     wsrep_log_error "Unrecognized role: '$WSREP_SST_OPT_ROLE'"
     exit 22 # EINVAL

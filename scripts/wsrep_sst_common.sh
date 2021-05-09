@@ -51,7 +51,7 @@ case "$1" in
         #
         # Break address string into host:port/path parts
         #
-        case "${WSREP_SST_OPT_ADDR}" in
+        case "$WSREP_SST_OPT_ADDR" in
         \[*)
             # IPv6
             # Remove the starting and ending square brackets, if present:
@@ -81,7 +81,7 @@ case "$1" in
         # up to "/" (if present):
         WSREP_SST_OPT_ADDR_PORT="${remain%%/*}"
         # If the "/" character is present, then the path is not empty:
-        if [ "${remain#*/}" != "${remain}" ]; then
+        if [ "${remain#*/}" != "$remain" ]; then
             # This operation removes everything up to the "/" character,
             # effectively removing the port number from the string:
             readonly WSREP_SST_OPT_PATH="${remain#*/}"
@@ -89,10 +89,10 @@ case "$1" in
             readonly WSREP_SST_OPT_PATH=""
         fi
         # The rest of the string is the same as the path (for now):
-        remain="${WSREP_SST_OPT_PATH}"
+        remain="$WSREP_SST_OPT_PATH"
         # If there is one more "/" in the string, then everything before
         # it will be the module name, otherwise the module name is empty:
-        if [ "${remain%%/*}" != "${remain}" ]; then
+        if [ "${remain%%/*}" != "$remain" ]; then
             # This operation removes the tail after the very first
             # occurrence of the "/" character (inclusively):
             readonly WSREP_SST_OPT_MODULE="${remain%%/*}"
@@ -103,7 +103,7 @@ case "$1" in
         remain="${WSREP_SST_OPT_PATH#*/}"
         # If the rest of the string does not match the original, then there
         # was something else besides the module name:
-        if [ "$remain" != "${WSREP_SST_OPT_PATH}" ]; then
+        if [ "$remain" != "$WSREP_SST_OPT_PATH" ]; then
             # Extract the part that matches the LSN by removing all
             # characters starting from the very first "/":
             readonly WSREP_SST_OPT_LSN="${remain%%/*}"
@@ -113,7 +113,7 @@ case "$1" in
             # If the remainder does not match the original string,
             # then there is something else (the version number in
             # our case):
-            if [ "$remain" != "${WSREP_SST_OPT_LSN}" ]; then
+            if [ "$remain" != "$WSREP_SST_OPT_LSN" ]; then
                 # Let's extract the version number by removing the tail
                 # after the very first occurence of the "/" character
                 # (inclusively):
@@ -535,7 +535,8 @@ readonly WSREP_SST_OPT_ADDR_PORT
 
 # try to use my_print_defaults, mysql and mysqldump that come with the sources
 # (for MTR suite)
-SCRIPTS_DIR="$(cd $(dirname "$0"); pwd -P)"
+script_binary=$(dirname "$0")
+SCRIPTS_DIR=$(cd "$script_binary"; pwd -P)
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
 CLIENT_DIR="$SCRIPTS_DIR/../client"
 
@@ -589,15 +590,17 @@ parse_cnf()
     # then search for needed variable
     # finally get the variable value (if variables has been specified multiple time use the last value only)
 
+    local pattern='BEGIN {OFS=FS="="} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}'
+
     if [ "$group" = '--mysqld' -o \
          "$group" = 'mysqld' ]; then
        if [ -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
-           reval=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk 'BEGIN {OFS=FS="="} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}')
+           reval=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
        fi
     fi
 
     if [ -z "$reval" ]; then
-        reval=$($MY_PRINT_DEFAULTS "$group" | awk 'BEGIN {OFS=FS="="} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}')
+        reval=$($MY_PRINT_DEFAULTS "$group" | awk "$pattern")
     fi
 
     # use default if we haven't found a value
@@ -618,14 +621,15 @@ in_config()
     local group="$1"
     local var="$2"
     local found=0
+    local pattern='BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}'
     if [ "$group" = '--mysqld' -o \
          "$group" = 'mysqld' ]; then
        if [ -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
-           found=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk 'BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}')
+           found=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
        fi
     fi
     if [ $found -eq 0 ]; then
-        found=$($MY_PRINT_DEFAULTS "$group" | awk 'BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}')
+        found=$($MY_PRINT_DEFAULTS "$group" | awk "$pattern")
     fi
     echo $found
 }
@@ -808,17 +812,37 @@ is_local_ip()
     if [ -x "$ip_util" ]; then
         # ip address show ouput format is " inet[6] <address>/<mask>":
         "$ip_util" address show \
-            | grep -E "^[[:space:]]*inet.? [^[:space:]]+/" -o \
-            | grep -F " $1/" >/dev/null && return 0
+             | grep -E "^[[:space:]]*inet.? [^[:space:]]+/" -o \
+             | grep -F " $1/" >/dev/null && return 0
     else
         local ifconfig_util="$(command -v ifconfig)"
         if [ -x "$ifconfig_util" ]; then
             # ifconfig output format is " inet[6] <address> ...":
             "$ifconfig_util" \
-                | grep -E "^[[:space:]]*inet.? [^[:space:]]+ " -o \
-                | grep -F " $1 " >/dev/null && return 0
+                 | grep -E "^[[:space:]]*inet.? [^[:space:]]+ " -o \
+                 | grep -F " $1 " >/dev/null && return 0
         fi
     fi
 
     return 1
+}
+
+check_sockets_utils()
+{
+    lsof_available=0
+    sockstat_available=0
+    ss_available=0
+
+    [ -x "$(command -v lsof)" ] && lsof_available=1
+    [ -x "$(command -v sockstat)" ] && sockstat_available=1
+    [ -x "$(command -v ss)" ] && ss_available=1
+
+    if [ $lsof_available -eq 0 -a \
+         $sockstat_available -eq 0 -a \
+         $ss_available -eq 0 ]
+    then
+        wsrep_log_error "Neither lsof tool, nor ss or sockstat was found in " \
+                        "the PATH! Make sure you have it installed."
+        exit 2 # ENOENT
+    fi
 }
