@@ -17,10 +17,20 @@
 /* 
   main() for mysqld.
   Calls mysqld_main() entry point exported by sql library.
+  On Windows, might do some service handling.
 */
+#ifdef _WIN32
+/* Windows main function, service handling, calls mysqld_main */
+extern int mysqld_win_main(int argc, char **argv);
+#else
 extern int mysqld_main(int argc, char **argv);
+#endif
 
 int main(int argc, char **argv)
 {
+#ifdef _WIN32
+  return mysqld_win_main(argc, argv);
+#else
   return mysqld_main(argc, argv);
+#endif
 }

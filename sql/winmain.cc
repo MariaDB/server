@@ -60,8 +60,8 @@ static SERVICE_STATUS svc_status{SERVICE_WIN32_OWN_PROCESS};
 static SERVICE_STATUS_HANDLE svc_status_handle;
 static char *svc_name;
 
-static char **orig_argv;
-static int orig_argc;
+static char **save_argv;
+static int save_argc;
 
 static int install_service(int argc, char **argv, const char *name);
 static int remove_service(const char *name);
@@ -165,8 +165,8 @@ static void WINAPI svc_main(DWORD svc_argc, char **svc_argv)
    Do not pass the service name parameter (last on the command line)
    to mysqld_main(), it is unaware of it.
   */
-  orig_argv[orig_argc - 1]= 0;
-  mysqld_main(orig_argc - 1, orig_argv);
+  save_argv[save_argc - 1]= 0;
+  mysqld_main(save_argc - 1, save_argv);
 }
 
 /*
@@ -224,10 +224,10 @@ static const char *get_svc_name(const char *arg)
 
   Plus, the obsolete functionality to register/remove services.
 */
-int main(int argc, char **argv)
+__declspec(dllexport) int mysqld_win_main(int argc, char **argv)
 {
-  orig_argv= argv;
-  orig_argc= argc;
+  save_argv= argv;
+  save_argc= argc;
 
    /*
      If no special arguments are given, service name is nor present
