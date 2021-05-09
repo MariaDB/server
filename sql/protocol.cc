@@ -1168,9 +1168,6 @@ static bool should_send_column_info(THD* thd, List<Item>* list, uint flags)
 */
 bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 {
-  List_iterator_fast<Item> it(*list);
-  Item *item;
-  Protocol_text prot(thd, thd->variables.net_buffer_length);
   DBUG_ENTER("Protocol::send_result_set_metadata");
 
   bool send_column_info= should_send_column_info(thd, list, flags);
@@ -1195,6 +1192,9 @@ bool Protocol::send_result_set_metadata(List<Item> *list, uint flags)
 
   if (send_column_info)
   {
+    List_iterator_fast<Item> it(*list);
+    Item *item;
+    Protocol_text prot(thd, thd->variables.net_buffer_length);
 #ifndef DBUG_OFF
     field_handlers= (const Type_handler **) thd->alloc(
         sizeof(field_handlers[0]) * list->elements);
