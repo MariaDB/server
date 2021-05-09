@@ -1,7 +1,13 @@
 #!/bin/sh
 set -e
 
+echo "= Debian script trace ="
+echo "RUNNING $0 $*" 1>&2
+
 #DEBHELPER#
+
+# Shut down gracefully, if possible
+mariadb --defaults-file=/etc/mysql/debian.cnf -e 'SET GLOBAL innodb_max_purge_lag_wait=0' || true
 
 # Modified dh_systemd_start snippet that's not added automatically
 if [ -d /run/systemd/system ]; then
