@@ -170,10 +170,21 @@ get_keys()
                             "then you need to install openssl"
             exit 2
         fi
-        if [ -z "$ekey" ]; then
-            ecmd="openssl enc -$ealgo --pbkdf2 -kfile '$ekeyfile'"
+        ecmd="'$OPENSSL_BINARY' enc -$ealgo"
+        if "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -- '-pbkdf2'; then
+            ecmd="$ecmd -pbkdf2"
+        elif "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -- '-iter'; then
+            ecmd="$ecmd -iter 1"
+        elif "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -- '-md'; then
+            ecmd="$ecmd -md sha256"
         else
-            ecmd="openssl enc -$ealgo --pbkdf2 -k '$ekey'"
+            wsrep_log_error "Unsupported openssl version"
+            exit 2
+        fi
+        if [ -z "$ekey" ]; then
+            ecmd="$ecmd -kfile '$ekeyfile'"
+        else
+            ecmd="$ecmd -k '$ekey'"
         fi
     elif [ "$eformat" = 'xbcrypt' ]; then
         if [ ! -x "$(command -v xbcrypt)" ]; then
