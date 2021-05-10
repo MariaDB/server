@@ -19009,6 +19009,13 @@ no_victim:
 					goto ret_awake;
 				case WSREP_OK:
 					break;
+				case WSREP_TRX_MISSING:
+					WSREP_DEBUG("calcel commit trx missing: "
+						    "rcode %d wsrep_trx_id %ld trx: "
+						TRX_ID_FMT,
+						rcode, victim_trx->id,
+						wsrep_handle->trx_id);
+					break;
 				default:
 					WSREP_ERROR(
 						"cancel commit bad exit: %d "
