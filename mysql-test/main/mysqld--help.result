@@ -76,6 +76,12 @@ The following specify which files/extra groups are read (specified before remain
  --binlog-do-db=name Tells the master it should log updates for the specified
  database, and exclude all others not explicitly
  mentioned.
+ --binlog-expire-logs-seconds=# 
+ If non-zero, binary logs will be purged after
+ binlog_expire_logs_seconds seconds; It and
+ expire_logs_days are aliases, such that changes in one
+ are converted into the other. Possible purges happen at
+ startup and at binary log rotation.
  --binlog-file-cache-size=# 
  The size of file cache for the binary log
  --binlog-format=name 
@@ -268,7 +274,10 @@ The following specify which files/extra groups are read (specified before remain
  constant optimization
  --expire-logs-days=# 
  If non-zero, binary logs will be purged after
- expire_logs_days days; possible purges happen at startup
+ expire_logs_days days; It and binlog_expire_logs_seconds
+ are aliases, such that changes in one are converted into
+ the other, presentable as a decimal value with 1/1000000
+ of the day precision; possible purges happen at startup
  and at binary log rotation
  --explicit-defaults-for-timestamp 
  This option causes CREATE TABLE to create all TIMESTAMP
@@ -1469,6 +1478,7 @@ binlog-checksum CRC32
 binlog-commit-wait-count 0
 binlog-commit-wait-usec 100000
 binlog-direct-non-transactional-updates FALSE
+binlog-expire-logs-seconds 0
 binlog-file-cache-size 16384
 binlog-format MIXED
 binlog-optimize-thread-scheduling TRUE
