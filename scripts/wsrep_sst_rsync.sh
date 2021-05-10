@@ -108,7 +108,7 @@ check_pid_and_port()
                 grep -E "[[:space:]](\\*|\\[?::\\]?):$rsync_port\$")
         fi
         local is_listening_addr=$(echo "$port_info" | \
-            grep -w -F "$rsync_addr:$rsync_port")
+            grep -w -F -- "$rsync_addr:$rsync_port")
         if [ -z "$is_listening_addr" ]; then
             is_listening_addr=$(echo "$port_info" | \
                 grep -w -F "[$rsync_addr]:$rsync_port")

@@ -582,32 +582,45 @@ readonly MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
 #
 parse_cnf()
 {
-    local group="$1"
+    local groups="$1"
     local var="$2"
     local reval=""
 
-    # normalize the variable names specified in cnf file (user can use _ or - for example log-bin or log_bin)
-    # then search for needed variable
-    # finally get the variable value (if variables has been specified multiple time use the last value only)
+    # normalize the variable names specified in the .cnf file
+    # (user can use '_' or '-', for example, log-bin or log_bin),
+    # then search for the last instance of the desired variable
+    # and finally get the value of that variable (if the variable
+    # was specified several times - we use only its last instance):
 
     local pattern='BEGIN {OFS=FS="="} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}'
 
-    if [ "$group" = '--mysqld' -o \
-         "$group" = 'mysqld' ]; then
-       if [ -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
-           reval=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
-       fi
-    fi
-
-    if [ -z "$reval" ]; then
+    while [ -n "$groups" ]; do
+        # Remove the largest suffix starting with the '|' character:
+        local group="${groups%%\|*}"
+        # Remove the remainder (the group name) from the rest
+        # of the groups list (as if it were a prefix):
+        groups="${groups#$group}"
+        groups="${groups#\|}"
+        # if the group name is the same as the "[--]mysqld", then
+        # try to use it together with the group suffix:
+        if [ "${group#--}" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
+            reval=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
+            if [ -n "$reval" ]; then
+                break
+            fi
+        fi
+        # Let's try to use the group name as it is:
         reval=$($MY_PRINT_DEFAULTS "$group" | awk "$pattern")
-    fi
+        if [ -n "$reval" ]; then
+            break
+        fi
+    done
 
-    # use default if we haven't found a value
+    # use default if we haven't found a value:
     if [ -z "$reval" ]; then
         [ -n "${3:-}" ] && reval="$3"
     fi
-    echo $reval
+    echo "$reval"
 }
 
 #
@@ -618,19 +631,37 @@ parse_cnf()
 #
 in_config()
 {
-    local group="$1"
+    local groups="$1"
     local var="$2"
     local found=0
+
+    # normalize the variable names specified in the .cnf file
+    # (user can use '_' or '-', for example, log-bin or log_bin),
+    # then search for the last instance(s) of the desired variable:
+
     local pattern='BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}'
-    if [ "$group" = '--mysqld' -o \
-         "$group" = 'mysqld' ]; then
-       if [ -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
-           found=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
-       fi
-    fi
-    if [ $found -eq 0 ]; then
+
+    while [ -n "$groups" ]; do
+        # Remove the largest suffix starting with the '|' character:
+        local group="${groups%%\|*}"
+        # Remove the remainder (the group name) from the rest
+        # of the groups list (as if it were a prefix):
+        groups="${groups#$group}"
+        groups="${groups#\|}"
+        # if the group name is the same as the "[--]mysqld", then
+        # try to use it together with the group suffix:
+        if [ "${group#--}" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
+            found=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
+            if [ $found -ne 0 ]; then
+                break
+            fi
+        fi
+        # Let's try to use the group name as it is:
         found=$($MY_PRINT_DEFAULTS "$group" | awk "$pattern")
-    fi
+        if [ $found -ne 0 ]; then
+            break
+        fi
+    done
     echo $found
 }
 

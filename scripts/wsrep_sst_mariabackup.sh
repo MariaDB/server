@@ -1,6 +1,6 @@
 #!/bin/bash -ue
-# Copyright (C) 2013 Percona Inc
 # Copyright (C) 2017-2021 MariaDB
+# Copyright (C) 2013 Percona Inc
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -17,7 +17,7 @@
 # MA  02110-1335  USA.
 
 # Documentation:
-# http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
+# https://mariadb.com/kb/en/mariabackup-overview/
 # Make sure to read that before proceeding!
 
 . $(dirname "$0")/wsrep_sst_common
@@ -33,7 +33,7 @@ nproc=1
 ecode=0
 ssyslog=""
 ssystag=""
-XTRABACKUP_PID=""
+MARIABACKUP_PID=""
 SST_PORT=""
 REMOTEIP=""
 tcert=""
@@ -137,7 +137,7 @@ get_keys()
     fi
 
     if [ $encrypt -eq 0 ]; then
-        if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--encrypt"; then
+        if [ -n "$ealgo" -o -n "$ekey" -o -n "$ekeyfile" ]; then
             wsrep_log_error "Options for encryption are specified, " \
                             "but encryption itself is disabled. SST may fail."
         fi
@@ -177,9 +177,6 @@ get_keys()
             ecmd="$ecmd -iter 1"
         elif "$OPENSSL_BINARY" enc -help 2>&1 | grep -qw -- '-md'; then
             ecmd="$ecmd -md sha256"
-        else
-            wsrep_log_error "Unsupported openssl version"
-            exit 2
         fi
         if [ -z "$ekey" ]; then
             ecmd="$ecmd -kfile '$ekeyfile'"
@@ -369,12 +366,13 @@ adjust_progress()
     fi
 }
 
+encgroups='--mysqld|sst|xtrabackup'
+
 check_server_ssl_config()
 {
-    local section="$1"
-    tcert=$(parse_cnf "$section" 'ssl-ca')
-    tpem=$(parse_cnf "$section" 'ssl-cert')
-    tkey=$(parse_cnf "$section" 'ssl-key')
+    tcert=$(parse_cnf "$encgroups" 'ssl-ca')
+    tpem=$(parse_cnf "$encgroups" 'ssl-cert')
+    tkey=$(parse_cnf "$encgroups" 'ssl-key')
 }
 
 read_cnf()
@@ -382,8 +380,8 @@ read_cnf()
     sfmt=$(parse_cnf sst streamfmt 'mbstream')
     tfmt=$(parse_cnf sst transferfmt 'socat')
 
-    encrypt=$(parse_cnf 'sst' 'encrypt' 0)
-    tmode=$(parse_cnf 'sst' 'ssl-mode' 'DISABLED' | tr [:lower:] [:upper:])
+    encrypt=$(parse_cnf "$encgroups" 'encrypt' 0)
+    tmode=$(parse_cnf "$encgroups" 'ssl-mode' 'DISABLED' | tr [:lower:] [:upper:])
 
     if [ $encrypt -eq 0 -o $encrypt -ge 2 ]
     then
@@ -397,11 +395,7 @@ read_cnf()
         then # backward-incompatible behavior
             if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]
             then # no old-style SSL config in [sst]
-                check_server_ssl_config 'sst'
-                if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]
-                then # no new-stype SSL config in [sst], try server-wide SSL config
-                    check_server_ssl_config '--mysqld'
-                fi
+                check_server_ssl_config
             fi
             if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
             then
@@ -415,18 +409,10 @@ read_cnf()
             fi
         fi
     elif [ $encrypt -eq 1 ]; then
-        ealgo=$(parse_cnf 'sst' 'encrypt-algo')
-        if [ -n "$ealgo" ]; then
-            eformat=$(parse_cnf 'sst' 'encrypt-format' 'openssl')
-            ekey=$(parse_cnf 'sst' 'encrypt-key')
-            ekeyfile=$(parse_cnf 'sst' 'encrypt-key-file')
-        else
-            # Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
-            ealgo=$(parse_cnf 'xtrabackup' 'encrypt')
-            eformat=$(parse_cnf 'xtrabackup' 'encrypt-format' 'xbcrypt')
-            ekey=$(parse_cnf 'xtrabackup' 'encrypt-key')
-            ekeyfile=$(parse_cnf 'xtrabackup' 'encrypt-key-file')
-        fi
+        ealgo=$(parse_cnf "$encgroups" 'encrypt-algo')
+        eformat=$(parse_cnf "$encgroups" 'encrypt-format' 'openssl')
+        ekey=$(parse_cnf "$encgroups" 'encrypt-key')
+        ekeyfile=$(parse_cnf "$encgroups" 'encrypt-key-file')
     fi
 
     wsrep_log_info "SSL configuration: CA='$tcert', CERT='$tpem'," \
@@ -548,11 +534,11 @@ cleanup_donor()
         wsrep_log_error "Cleanup after exit with status:$estatus"
     fi
 
-    if [ -n "$XTRABACKUP_PID" ]; then
-        if check_pid $XTRABACKUP_PID
+    if [ -n "$MARIABACKUP_PID" ]; then
+        if check_pid $MARIABACKUP_PID
         then
-            wsrep_log_error "xtrabackup process is still running. Killing..."
-            kill_xtrabackup
+            wsrep_log_error "mariabackup process is still running. Killing..."
+            kill_mariabackup
         fi
     fi
 
@@ -589,12 +575,12 @@ cleanup_donor()
     exit $estatus
 }
 
-kill_xtrabackup()
+kill_mariabackup()
 {
-    local PID=$(cat "$XTRABACKUP_PID")
+    local PID=$(cat "$MARIABACKUP_PID")
     [ -n "$PID" -a "0" != "$PID" ] && kill $PID && (kill $PID && kill -9 $PID) || :
-    wsrep_log_info "Removing xtrabackup pid file $XTRABACKUP_PID"
-    rm -f "$XTRABACKUP_PID" || true
+    wsrep_log_info "Removing mariabackup pid file ($MARIABACKUP_PID)"
+    rm -f "$MARIABACKUP_PID" || true
 }
 
 setup_ports()
@@ -667,8 +653,8 @@ check_extra()
         if [ "$thread_handling" = 'pool-of-threads' ]; then
             local eport=$(parse_cnf '--mysqld' 'extra-port')
             if [ -n "$eport" ]; then
-                # Xtrabackup works only locally.
-                # Hence, setting host to 127.0.0.1 unconditionally.
+                # mariabackup works only locally, hence,
+                # setting host to 127.0.0.1 unconditionally:
                 wsrep_log_info "SST through extra_port $eport"
                 INNOEXTRA="$INNOEXTRA --host=127.0.0.1 --port=$eport"
                 use_socket=0
@@ -746,7 +732,7 @@ recv_joiner()
         fi
 
         # check donor supplied secret
-        SECRET=$(grep "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+        SECRET=$(grep -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
         if [ "$SECRET" != "$MY_SECRET" ]; then
             wsrep_log_error "Donor does not know my secret!"
             wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
@@ -754,7 +740,7 @@ recv_joiner()
         fi
 
         # remove secret from magic file
-        grep -v "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
+        grep -v -- "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
         mv "$MAGIC_FILE.new" "$MAGIC_FILE"
     fi
 }
@@ -950,11 +936,11 @@ then
             exit 93
         fi
 
-        if [ -z "$(parse_cnf --mysqld tmpdir)" -a \
-             -z "$(parse_cnf xtrabackup tmpdir)" ]; then
+        tmpdir=$(parse_cnf "$encgroups" 'tmpdir')
+        if [ -z "$tmpdir" ]; then
             xtmpdir="$(mktemp -d)"
             tmpopts="--tmpdir='$xtmpdir'"
-            wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
+            wsrep_log_info "Using $xtmpdir as mariabackup temporary directory"
         fi
 
         itmpdir="$(mktemp -d)"
@@ -1039,7 +1025,7 @@ then
         fi
 
         # mariabackup implicitly writes PID to fixed location in $xtmpdir
-        XTRABACKUP_PID="$xtmpdir/xtrabackup_pid"
+        MARIABACKUP_PID="$xtmpdir/xtrabackup_pid"
 
     else # BYPASS FOR IST
 
@@ -1117,7 +1103,7 @@ then
                 exit 42
             fi
             CN=$("$OPENSSL_BINARY" x509 -noout -subject -in "$tpem" | \
-                 tr "," "\n" | grep "CN =" | cut -d= -f2 | sed s/^\ // | \
+                 tr "," "\n" | grep -F 'CN =' | cut -d= -f2 | sed s/^\ // | \
                  sed s/\ %//)
         fi
         MY_SECRET="$(wsrep_gen_secret)"
@@ -1209,7 +1195,7 @@ then
         fi
 
         # Compact backups are not supported by mariabackup
-        if grep -q 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
+        if grep -q -F 'compact = 1' "$DATA/xtrabackup_checkpoints"; then
             wsrep_log_info "Index compaction detected"
             wsrel_log_error "Compact backups are not supported by mariabackup"
             exit 2
@@ -1273,7 +1259,7 @@ then
 
         wsrep_log_info "Preparing the backup at ${DATA}"
         setup_commands
-        timeit "Xtrabackup prepare stage" "$INNOAPPLY"
+        timeit "mariabackup prepare stage" "$INNOAPPLY"
 
         if [ $? -ne 0 ]; then
             wsrep_log_error "${MARIABACKUP_BIN} apply finished with errors. Check syslog or ${INNOAPPLYLOG} for details"
@@ -1282,7 +1268,7 @@ then
 
         MAGIC_FILE="$TDATA/$INFO_FILE"
         wsrep_log_info "Moving the backup to ${TDATA}"
-        timeit "Xtrabackup move stage" "$INNOMOVE"
+        timeit "mariabackup move stage" "$INNOMOVE"
         if [ $? -eq 0 ]; then
             wsrep_log_info "Move successful, removing ${DATA}"
             rm -rf "$DATA"
