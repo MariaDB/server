@@ -19,7 +19,7 @@
 # Optional dependencies and options documented here: http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
 # Make sure to read that before proceeding!
 
-. $(dirname $0)/wsrep_sst_common
+. $(dirname "$0")/wsrep_sst_common
 wsrep_check_datadir
 
 ealgo=""
@@ -51,13 +51,13 @@ pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
 pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE "
 uextra=0
 
-if which pv &>/dev/null && pv --help | grep -q FORMAT;then
+if [ -x "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
     pvopts+=$pvformat
 fi
 pcmd="pv $pvopts"
 declare -a RC
 
-INNOBACKUPEX_BIN=innobackupex
+INNOBACKUPEX_BIN='innobackupex'
 DATA="${WSREP_SST_OPT_DATA}"
 INFO_FILE="xtrabackup_galera_info"
 IST_FILE="xtrabackup_ist"
@@ -67,7 +67,7 @@ MAGIC_FILE="${DATA}/${INFO_FILE}"
 export PATH="/usr/sbin:/sbin:$PATH"
 
 timeit(){
-    local stage=$1
+    local stage="$1"
     shift
     local cmd="$@"
     local x1 x2 took extcode
@@ -102,7 +102,7 @@ get_keys()
         return
     fi
 
-    if [[ $sfmt == 'tar' ]];then
+    if [[ "$sfmt" == 'tar' ]];then
         wsrep_log_info "NOTE: Xtrabackup-based encryption - encrypt=1 - cannot be enabled with tar format"
         encrypt=0
         return
@@ -110,17 +110,17 @@ get_keys()
 
     wsrep_log_info "Xtrabackup based encryption enabled in my.cnf - Supported only from Xtrabackup 2.1.4"
 
-    if [[ -z $ealgo ]];then
+    if [[ -z "$ealgo" ]];then
         wsrep_log_error "FATAL: Encryption algorithm empty from my.cnf, bailing out"
         exit 3
     fi
 
-    if [[ -z $ekey && ! -r $ekeyfile ]];then
+    if [[ -z "$ekey" && ! -r "$ekeyfile" ]];then
         wsrep_log_error "FATAL: Either key or keyfile must be readable"
         exit 3
     fi
 
-    if [[ -z $ekey ]];then
+    if [[ -z "$ekey" ]];then
         ecmd="xbcrypt --encrypt-algo=$ealgo --encrypt-key-file=$ekeyfile"
     else
         ecmd="xbcrypt --encrypt-algo=$ealgo --encrypt-key=$ekey"
@@ -136,43 +136,56 @@ get_transfer()
     TSST_PORT=$WSREP_SST_OPT_PORT
 
     if [[ $tfmt == 'nc' ]];then
-        if [[ ! -x `which nc` ]];then
-            wsrep_log_error "nc(netcat) not found in path: $PATH"
-            exit 2
-        fi
         wsrep_log_info "Using netcat as streamer"
-        if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
-            if nc -h 2>&1 | grep -q ncat;then
-                # Ncat
-                tcmd="nc -l ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -q -- '-d\>';then
-                # Debian netcat
-                tcmd="nc -dl ${TSST_PORT}"
+        wsrep_check_programs nc
+        tcmd="nc"
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            if nc -h 2>&1 | grep -q 'ncat'; then
+                wsrep_log_info "Using Ncat as streamer"
+                tcmd="$tcmd -l"
+            elif nc -h 2>&1 | grep -qw -- '-d'; then
+                wsrep_log_info "Using Debian netcat as streamer"
+                tcmd="$tcmd -dl"
+                if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ]; then
+                    # When host is not explicitly specified (when only the port
+                    # is specified) netcat can only bind to an IPv4 address if
+                    # the "-6" option is not explicitly specified:
+                    tcmd="$tcmd -6"
+                fi
             else
-                # traditional netcat
-                tcmd="nc -l -p ${TSST_PORT}"
+                wsrep_log_info "Using traditional netcat as streamer"
+                tcmd="$tcmd -l -p"
             fi
+            tcmd="$tcmd $TSST_PORT"
         else
-            if nc -h 2>&1 | grep -q ncat;then
-                # Ncat
-                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -q -- '-d\>';then
-                # Debian netcat
-                tcmd="nc ${REMOTEIP} ${TSST_PORT}"
-            else
-                # traditional netcat
-                tcmd="nc -q0 ${REMOTEIP} ${TSST_PORT}"
+            # Check to see if netcat supports the '-N' flag.
+            # -N Shutdown the network socket after EOF on stdin
+            # If it supports the '-N' flag, then we need to use the '-N'
+            # flag, otherwise the transfer will stay open after the file
+            # transfer and cause the command to timeout.
+            # Older versions of netcat did not need this flag and will
+            # return an error if the flag is used.
+            if nc -h 2>&1 | grep -qw -- '-N'; then
+                tcmd="$tcmd -N"
+                wsrep_log_info "Using nc -N"
             fi
+            # netcat doesn't understand [] around IPv6 address
+            if nc -h 2>&1 | grep -q ncat; then
+                wsrep_log_info "Using Ncat as streamer"
+            elif nc -h 2>&1 | grep -qw -- '-d'; then
+                wsrep_log_info "Using Debian netcat as streamer"
+            else
+                wsrep_log_info "Using traditional netcat as streamer"
+                tcmd="$tcmd -q0"
+            fi
+            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $TSST_PORT"
         fi
     else
         tfmt='socat'
         wsrep_log_info "Using socat as streamer"
-        if [[ ! -x `which socat` ]];then
-            wsrep_log_error "socat not found in path: $PATH"
-            exit 2
-        fi
+        wsrep_check_programs socat
 
-        if [[ $encrypt -eq 2 ]] && ! socat -V | grep -q OPENSSL;then
+        if [ $encrypt -eq 2 ] && ! socat -V | grep -q -F 'OPENSSL';then
             wsrep_log_info "NOTE: socat is not openssl enabled, falling back to plain transfer"
             encrypt=0
         fi
@@ -202,7 +215,7 @@ get_transfer()
 
 get_footprint()
 {
-    pushd $WSREP_SST_OPT_DATA 1>/dev/null
+    pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
     if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then
         # QuickLZ has around 50% compression ratio
@@ -216,18 +229,18 @@ get_footprint()
 
 adjust_progress()
 {
-    if [[ -n $progress && $progress != '1' ]];then
-        if [[ -e $progress ]];then
+    if [[ -n "$progress" && "$progress" != '1' ]];then
+        if [[ -e "$progress" ]];then
             pcmd+=" 2>>$progress"
         else
             pcmd+=" 2>$progress"
         fi
-    elif [[ -z $progress && -n $rlimit  ]];then
+    elif [[ -z "$progress" && -n "$rlimit" ]];then
             # When rlimit is non-zero
             pcmd="pv -q"
     fi
 
-    if [[ -n $rlimit && "$WSREP_SST_OPT_ROLE"  == "donor" ]];then
+    if [[ -n "$rlimit" && "$WSREP_SST_OPT_ROLE" == "donor" ]];then
         wsrep_log_info "Rate-limiting SST to $rlimit"
         pcmd+=" -L \$rlimit"
     fi
@@ -304,7 +317,7 @@ cleanup_joiner()
         wsrep_log_info "Removing the sst_in_progress file"
         wsrep_cleanup_progress_file
     fi
-    if [[ -n $progress && -p $progress ]];then
+    if [[ -n "$progress" && -p "$progress" ]];then
         wsrep_log_info "Cleaning up fifo file $progress"
         rm $progress
     fi
@@ -324,18 +337,18 @@ cleanup_donor()
         wsrep_log_error "Cleanup after exit with status:$estatus"
     fi
 
-    if [[ -n $XTRABACKUP_PID ]];then
-        if check_pid $XTRABACKUP_PID
+    if [[ -n "$XTRABACKUP_PID" ]];then
+        if check_pid "$XTRABACKUP_PID"
         then
             wsrep_log_error "xtrabackup process is still running. Killing... "
             kill_xtrabackup
         fi
-        rm -f $XTRABACKUP_PID
+        rm -f "$XTRABACKUP_PID"
     fi
 
-    rm -f ${DATA}/${IST_FILE}
+    rm -f "${DATA}/${IST_FILE}"
 
-    if [[ -n $progress && -p $progress ]];then
+    if [[ -n "$progress" && -p "$progress" ]];then
         wsrep_log_info "Cleaning up fifo file $progress"
         rm $progress
     fi
@@ -343,8 +356,8 @@ cleanup_donor()
 
 kill_xtrabackup()
 {
-    local PID=$(cat $XTRABACKUP_PID)
-    [ -n "$PID" -a "0" != "$PID" ] && kill $PID && (kill $PID && kill -9 $PID) || :
+    local PID=$(cat "$XTRABACKUP_PID")
+    [ -n "$PID" -a $PID -ne 0 ] && kill $PID && (kill $PID && kill -9 $PID) || :
     rm -f "$XTRABACKUP_PID"
 }
 
@@ -392,7 +405,7 @@ check_extra()
     fi
 }
 
-if [[ ! -x `which innobackupex` ]];then
+if [ ! -x "$(command -v innobackupex)" ]; then
     wsrep_log_error "innobackupex not in path: $PATH"
     exit 2
 fi
@@ -507,10 +520,10 @@ then
 
 elif [ "${WSREP_SST_OPT_ROLE}" = "joiner" ]
 then
-    [[ -e $SST_PROGRESS_FILE ]] && wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
-    touch $SST_PROGRESS_FILE
+    [[ -e "$SST_PROGRESS_FILE" ]] && wsrep_log_info "Stale sst_in_progress file: $SST_PROGRESS_FILE"
+    touch "$SST_PROGRESS_FILE"
 
-    if [[ ! -e ${DATA}/ibdata1 ]];then
+    if [[ ! -e "${DATA}/ibdata1" ]];then
         incremental=0
     fi
 
@@ -527,11 +540,11 @@ then
     MODULE="xtrabackup_sst"
 
     # May need xtrabackup_checkpoints later on
-    rm -f ${DATA}/xtrabackup_binary ${DATA}/xtrabackup_galera_info  ${DATA}/xtrabackup_logfile
+    rm -f "${DATA}/xtrabackup_binary" "${DATA}/xtrabackup_galera_info" "${DATA}/xtrabackup_logfile"
 
     ADDR="${WSREP_SST_OPT_HOST}:${WSREP_SST_OPT_PORT}"
 
-    wait_for_listen ${WSREP_SST_OPT_PORT} ${ADDR} ${MODULE} &
+    wait_for_listen "${WSREP_SST_OPT_PORT}" "${ADDR}" "${MODULE}" &
 
     trap sig_joiner_cleanup HUP PIPE INT TERM
     trap cleanup_joiner EXIT
@@ -543,14 +556,14 @@ then
 
     if [[ $incremental -eq 1 ]];then
         BDATA=$DATA
-        DATA=$(mktemp -d)
+        DATA="$(mktemp -d)"
         MAGIC_FILE="${DATA}/${INFO_FILE}"
     fi
 
     get_keys
     set +e
     if [[ $encrypt -eq 1 && $sencrypted -eq 1 ]];then
-        strmcmd=" $ecmd | $strmcmd"
+        strmcmd="$ecmd | $strmcmd"
     fi
 
     pushd ${DATA} 1>/dev/null
@@ -584,7 +597,7 @@ then
         # this message should cause joiner to abort
         wsrep_log_error "xtrabackup process ended without creating '${MAGIC_FILE}'"
         wsrep_log_info "Contents of datadir"
-        wsrep_log_info "$(ls -l ${DATA}/**/*)"
+        wsrep_log_info $(ls -l "${DATA}"/**/*)
         exit 32
     fi
 
@@ -600,9 +613,9 @@ then
 
         wsrep_log_info "Removing existing ib_logfile files"
         if [[ $incremental -ne 1 ]];then
-            rm -f ${DATA}/ib_logfile*
+            rm -f "${DATA}/ib_logfile"*
         else
-            rm -f ${BDATA}/ib_logfile*
+            rm -f "${BDATA}/ib_logfile"*
         fi
 
         get_proc
@@ -619,19 +632,19 @@ then
             rebuildcmd="--rebuild-indexes --rebuild-threads=$nthreads"
         fi
 
-        if test -n "$(find ${DATA} -maxdepth 1 -type f -name '*.qp' -print -quit)";then
+        if test -n $(find "${DATA}" -maxdepth 1 -type f -name '*.qp' -print -quit); then
 
             wsrep_log_info "Compressed qpress files found"
 
-            if [[ ! -x `which qpress` ]];then
+            if [ ! -x "$(command -v qpress)" ]; then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi
 
-            if [[ -n $progress ]] && pv --help | grep -q 'line-mode';then
-                count=$(find ${DATA} -type f -name '*.qp' | wc -l)
+            if [[ -n $progress ]] && pv --help | grep -qw -- '--line-mode';then
+                count=$(find "${DATA}" -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
-                if pv --help | grep -q FORMAT;then
+                if pv --help | grep -qw -F '-F';then
                     pvopts="-f -s $count -l -N Decompression -F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
                 else
                     pvopts="-f -s $count -l -N Decompression"
@@ -644,11 +657,11 @@ then
             fi
 
             wsrep_log_info "Removing existing ibdata1 file"
-            rm -f ${DATA}/ibdata1
+            rm -f "${DATA}/ibdata1"
 
             # Decompress the qpress files
             wsrep_log_info "Decompression with $nproc threads"
-            timeit "Decompression" "find ${DATA} -type f -name '*.qp' -printf '%p\n%h\n' | $dcmd"
+            timeit "Decompression" "find '${DATA}' -type f -name '*.qp' -printf '%p\n%h\n' | $dcmd"
             extcode=$?
 
             if [[ $extcode -eq 0 ]];then
