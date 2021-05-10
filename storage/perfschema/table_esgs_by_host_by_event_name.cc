@@ -51,13 +51,13 @@ table_esgs_by_host_by_event_name::m_share=
   sizeof(pos_esgs_by_host_by_event_name),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE events_stages_summary_by_host_by_event_name("
-                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "COUNT_STAR BIGINT unsigned not null,"
-                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
-                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
-                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null)") },
+                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null comment 'Host. Used together with EVENT_NAME for grouping events.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Event name. Used together with HOST for grouping events.',"
+                      "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events, which includes all timed and untimed events.',"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the timed summarized events.',"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the timed summarized events.',"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the timed summarized events.',"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the timed summarized events.')") },
   false  /* perpetual */
 };
 
