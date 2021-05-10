@@ -471,7 +471,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   }
 
   /* Protect against concurrent create/drop */
-  MDL_REQUEST_INIT(&mdl_request_for_trn, MDL_key::TABLE,
+  MDL_REQUEST_INIT(&mdl_request_for_trn, MDL_key::TRIGGER,
                    create ? tables->db.str : thd->lex->spname->m_db.str,
                    thd->lex->spname->m_name.str,
                    MDL_EXCLUSIVE, MDL_EXPLICIT);
