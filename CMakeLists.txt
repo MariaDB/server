@@ -15,6 +15,18 @@
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
 CMAKE_MINIMUM_REQUIRED(VERSION 2.8.12)
+
+IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
+  # Setting build type to RelWithDebInfo as none was specified.
+  # Must occur before PROJECT
+  SET(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
+   "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel"
+   FORCE)
+  # Set the possible values of build type for cmake-gui
+  SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
+   "None" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
+ENDIF()
+
 PROJECT(MySQL)
 
 IF(POLICY CMP0022)
@@ -41,17 +53,6 @@ IF(NOT DEFINED MANUFACTURER)
      "Set the entity that appears as the manufacturer of packages that support a manufacturer field.")
   MARK_AS_ADVANCED(MANUFACTURER)
 ENDIF()
-
-IF(NOT CMAKE_BUILD_TYPE AND NOT CMAKE_CONFIGURATION_TYPES)
-  # Setting build type to RelWithDebInfo as none was specified.")
-  SET(CMAKE_BUILD_TYPE "RelWithDebInfo" CACHE STRING
-   "Choose the type of build, options are: None(CMAKE_CXX_FLAGS or CMAKE_C_FLAGS used) Debug Release RelWithDebInfo MinSizeRel"
-   FORCE)
-  # Set the possible values of build type for cmake-gui
-  SET_PROPERTY(CACHE CMAKE_BUILD_TYPE PROPERTY STRINGS
-   "None" "Debug" "Release" "MinSizeRel" "RelWithDebInfo")
-ENDIF()
-
 
 # MAX_INDEXES - Set the maximum number of indexes per table, default 64
 IF (NOT MAX_INDEXES)

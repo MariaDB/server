@@ -508,7 +508,7 @@ PVAL JSNX::GetCalcValue(PGLOBAL g, PJAR jap, int n)
 {
 	// For calculated arrays, a local Value must be used
 	int     lng = 0;
-	short   type, prec = 0;
+	short   type= 0, prec= 0;
 	bool    b = n < Nod - 1;
 	PVAL    valp;
 	PJVAL   vlp, vp;

@@ -4103,13 +4103,19 @@ bool open_tables(THD *thd, const DDL_options_st &options,
   bool has_prelocking_list;
   DBUG_ENTER("open_tables");
 
-  /* Accessing data in XA_IDLE or XA_PREPARED is not allowed. */
-  enum xa_states xa_state= thd->transaction.xid_state.xa_state;
-  if (*start && (xa_state == XA_IDLE || xa_state == XA_PREPARED))
-  {
-    my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
-    DBUG_RETURN(true);
-  }
+  /* Data access in XA transaction is only allowed when it is active. */
+  for (TABLE_LIST *table= *start; table; table= table->next_global)
+    if (!table->schema_table)
+    {
+      enum xa_states xa_state= thd->transaction.xid_state.xa_state;
+      if (xa_state == XA_IDLE || xa_state == XA_PREPARED)
+      {
+        my_error(ER_XAER_RMFAIL, MYF(0), xa_state_names[xa_state]);
+        DBUG_RETURN(true);
+      }
+      else
+        break;
+    }
 
   thd->current_tablenr= 0;
 restart:
