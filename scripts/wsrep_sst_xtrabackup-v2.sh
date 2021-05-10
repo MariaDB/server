@@ -16,10 +16,11 @@
 # Free Software Foundation, Inc., 51 Franklin St, Fifth Floor, Boston
 # MA  02110-1335  USA.
 
-# Documentation: http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
+# Documentation:
+# http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html
 # Make sure to read that before proceeding!
 
-. $(dirname $0)/wsrep_sst_common
+. $(dirname "$0")/wsrep_sst_common
 wsrep_check_datadir
 
 ealgo=""
@@ -72,13 +73,13 @@ ssl_cert=""
 ssl_ca=""
 ssl_key=""
 
-if which pv &>/dev/null && pv --help | grep -q FORMAT;then
+if [ -x "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
     pvopts+=$pvformat
 fi
 pcmd="pv $pvopts"
 declare -a RC
 
-INNOBACKUPEX_BIN=innobackupex
+INNOBACKUPEX_BIN='innobackupex'
 DATA="${WSREP_SST_OPT_DATA}"
 INFO_FILE="xtrabackup_galera_info"
 IST_FILE="xtrabackup_ist"
@@ -87,9 +88,9 @@ MAGIC_FILE="${DATA}/${INFO_FILE}"
 # Setting the path for ss and ip
 export PATH="/usr/sbin:/sbin:$PATH"
 
-OS=$(uname)
+OS="$(uname)"
 
-if ! which lsof > /dev/null; then
+if [ ! -x "$(command -v lsof)" ]; then
     wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
     exit 2 # ENOENT
 fi
@@ -131,7 +132,7 @@ get_keys()
         return
     fi
 
-    if [[ $sfmt == 'tar' ]];then
+    if [[ "$sfmt" == 'tar' ]];then
         wsrep_log_info "NOTE: Xtrabackup-based encryption - encrypt=1 - cannot be enabled with tar format"
         encrypt=-1
         return
@@ -251,10 +252,8 @@ get_transfer()
     TSST_PORT="$WSREP_SST_OPT_PORT"
 
     if [[ $tfmt == 'nc' ]];then
-        if [[ ! -x `which nc` ]];then
-            wsrep_log_error "nc(netcat) not found in path: $PATH"
-            exit 2
-        fi
+        wsrep_log_info "Using netcat as streamer"
+        wsrep_check_programs nc
 
         if [[ $encrypt -eq 2 || $encrypt -eq 3 || $encrypt -eq 4 ]]; then
             wsrep_log_error "******** FATAL ERROR *********************** "
@@ -264,25 +263,25 @@ get_transfer()
             exit 22
         fi
 
-        wsrep_log_info "Using netcat as streamer"
-        if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
-            if nc -h 2>&1 | grep -q ncat;then
-                # Ncat
-                tcmd="nc -l ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -qw -- '-d\>';then
-                # Debian netcat
-                if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ];then
+        tcmd="nc"
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            if nc -h 2>&1 | grep -q 'ncat'; then
+                wsrep_log_info "Using Ncat as streamer"
+                tcmd="$tcmd -l"
+            elif nc -h 2>&1 | grep -qw -- '-d'; then
+                wsrep_log_info "Using Debian netcat as streamer"
+                tcmd="$tcmd -dl"
+                if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ]; then
                     # When host is not explicitly specified (when only the port
                     # is specified) netcat can only bind to an IPv4 address if
                     # the "-6" option is not explicitly specified:
-                    tcmd="nc -dl -6 ${TSST_PORT}"
-                else
-                    tcmd="nc -dl ${TSST_PORT}"
+                    tcmd="$tcmd -6"
                 fi
             else
-                # traditional netcat
-                tcmd="nc -l -p ${TSST_PORT}"
+                wsrep_log_info "Using traditional netcat as streamer"
+                tcmd="$tcmd -l -p"
             fi
+            tcmd="$tcmd $TSST_PORT"
         else
             # Check to see if netcat supports the '-N' flag.
             # -N Shutdown the network socket after EOF on stdin
@@ -291,30 +290,25 @@ get_transfer()
             # transfer and cause the command to timeout.
             # Older versions of netcat did not need this flag and will
             # return an error if the flag is used.
-            #
-            tcmd_extra=""
-            if nc -h 2>&1 | grep -qw -- -N;then
-                tcmd_extra+="-N"
+            if nc -h 2>&1 | grep -qw -- '-N'; then
+                tcmd="$tcmd -N"
+                wsrep_log_info "Using nc -N"
             fi
             # netcat doesn't understand [] around IPv6 address
-            if nc -h 2>&1 | grep -q ncat;then
-                # Ncat
-                tcmd="nc ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
-            elif nc -h 2>&1 | grep -qw -- '-d\>';then
-                # Debian netcat
-                tcmd="nc ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+            if nc -h 2>&1 | grep -q ncat; then
+                wsrep_log_info "Using Ncat as streamer"
+            elif nc -h 2>&1 | grep -qw -- '-d'; then
+                wsrep_log_info "Using Debian netcat as streamer"
             else
-                # traditional netcat
-                tcmd="nc -q0 ${tcmd_extra} ${WSREP_SST_OPT_HOST_UNESCAPED} ${TSST_PORT}"
+                wsrep_log_info "Using traditional netcat as streamer"
+                tcmd="$tcmd -q0"
             fi
+            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $TSST_PORT"
         fi
     else
         tfmt='socat'
         wsrep_log_info "Using socat as streamer"
-        if [[ ! -x `which socat` ]];then
-            wsrep_log_error "socat not found in path: $PATH"
-            exit 2
-        fi
+        wsrep_check_programs socat
 
         donor_extra=""
         joiner_extra=""
@@ -438,7 +432,7 @@ get_footprint()
 
 adjust_progress()
 {
-    if [[ ! -x `which pv` ]];then
+    if [ ! -x "$(command -v pv)" ]; then
         wsrep_log_error "pv not found in path: $PATH"
         wsrep_log_error "Disabling all progress/rate-limiting"
         pcmd=""
@@ -529,7 +523,7 @@ get_stream()
 {
     if [[ $sfmt == 'xbstream' ]];then
         wsrep_log_info "Streaming with xbstream"
-        if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
+        if [[ "$WSREP_SST_OPT_ROLE" == "joiner" ]];then
             strmcmd="xbstream -x"
         else
             strmcmd="xbstream -c '${INFO_FILE}'"
@@ -537,7 +531,7 @@ get_stream()
     else
         sfmt="tar"
         wsrep_log_info "Streaming with tar"
-        if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
+        if [[ "$WSREP_SST_OPT_ROLE" == "joiner" ]];then
             strmcmd="tar xfi -"
         else
             strmcmd="tar cf - '${INFO_FILE}'"
@@ -720,8 +714,8 @@ recv_joiner()
     pushd "${dir}" 1>/dev/null
     set +e
 
-    if [[ $tmt -gt 0 && -x `which timeout` ]];then
-        if timeout --help | grep -q -- '-k';then
+    if [ $tmt -gt 0 -a -x "$(command -v timeout)" ]; then
+        if timeout --help | grep -qw -- '-k';then
             ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
         else
             ltcmd="timeout -s9 $tmt $tcmd"
@@ -751,7 +745,7 @@ recv_joiner()
         # this message should cause joiner to abort
         wsrep_log_error "xtrabackup process ended without creating '${MAGIC_FILE}'"
         wsrep_log_info "Contents of datadir"
-        wsrep_log_info "$(ls -l ${dir}/*)"
+        wsrep_log_info $(ls -l "$dir/"*)
         exit 32
     fi
 }
@@ -802,8 +796,8 @@ normalize_version()
 # Returns 1 (failure) if $1 >= $2, 0 (success) otherwise
 check_for_version()
 {
-    local local_version_str="$( normalize_version $1 )"
-    local required_version_str="$( normalize_version $2 )"
+    local local_version_str=$(normalize_version "$1")
+    local required_version_str=$(normalize_version "$2")
 
     if [[ "$local_version_str" < "$required_version_str" ]]; then
         return 1
@@ -833,7 +827,8 @@ monitor_process()
     done
 }
 
-if [[ ! -x `which $INNOBACKUPEX_BIN` ]];then
+innobackup=$(command -v "$INNOBACKUPEX_BIN")
+if [ ! -x "$innobackup" ]; then
     wsrep_log_error "innobackupex not in path: $PATH"
     exit 2
 fi
@@ -848,21 +843,21 @@ if [[ -z "$XB_VERSION" ]]; then
     exit 2
 fi
 
-if ! check_for_version $XB_VERSION $XB_REQUIRED_VERSION; then
+if ! check_for_version "$XB_VERSION" "$XB_REQUIRED_VERSION"; then
     wsrep_log_error "FATAL: The $INNOBACKUPEX_BIN version is $XB_VERSION. Needs xtrabackup-$XB_REQUIRED_VERSION or higher to perform SST"
     exit 2
 fi
 
 rm -f "${MAGIC_FILE}"
 
-if [[ ! ${WSREP_SST_OPT_ROLE} == 'joiner' && ! ${WSREP_SST_OPT_ROLE} == 'donor' ]];then
+if [[ ! "${WSREP_SST_OPT_ROLE}" == 'joiner' && ! "${WSREP_SST_OPT_ROLE}" == 'donor' ]];then
     wsrep_log_error "Invalid role ${WSREP_SST_OPT_ROLE}"
     exit 22
 fi
 
 read_cnf
 
-if ${INNOBACKUPEX_BIN} /tmp --help 2>/dev/null | grep -q -- '--version-check'; then
+if ${INNOBACKUPEX_BIN} /tmp --help 2>/dev/null | grep -qw -- '--version-check'; then
     disver='--no-version-check'
 fi
 
@@ -874,7 +869,7 @@ if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
 fi
 
 if [[ $ssyslog -eq 1 ]];then
-    if [[ ! -x `which logger` ]];then
+    if [ ! -x "$(command -v logger)" ]; then
         wsrep_log_error "logger not in path: $PATH. Ignoring"
     else
         wsrep_log_info "Logging all stderr of SST/Innobackupex to syslog"
@@ -891,8 +886,8 @@ if [[ $ssyslog -eq 1 ]];then
             logger  -p daemon.info -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE "$@"
         }
 
-        INNOAPPLY="2>&1  | logger -p daemon.err -t ${ssystag}innobackupex-apply "
-        INNOMOVE="2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move "
+        INNOAPPLY="2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-apply"
+        INNOMOVE="2>&1 | logger -p daemon.err -t ${ssystag}innobackupex-move"
         INNOBACKUP="2> >(logger -p daemon.err -t ${ssystag}innobackupex-backup)"
     fi
 else
@@ -1008,7 +1003,7 @@ then
 
         # Add encryption to the head of the stream (if specified)
         if [[ $encrypt -eq 1 ]]; then
-            tcmd=" \$ecmd | $tcmd "
+            tcmd="\$ecmd | $tcmd"
         fi
 
         setup_commands
@@ -1182,15 +1177,15 @@ then
         if [ -n "$qpfiles" ]; then
             wsrep_log_info "Compressed qpress files found"
 
-            if [[ ! -x `which qpress` ]];then
+            if [ ! -x "$(command -v qpress)" ]; then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi
 
-            if [[ -n "$progress" ]] && pv --help | grep -q 'line-mode';then
+            if [[ -n "$progress" ]] && pv --help | grep -qw '--line-mode';then
                 count=$(find "${DATA}" -type f -name '*.qp' | wc -l)
                 count=$(( count*2 ))
-                if pv --help | grep -q FORMAT;then
+                if pv --help | grep -qw -F '-F';then
                     pvopts="-f -s $count -l -N Decompression -F '%N => Rate:%r Elapsed:%t %e Progress: [%b/$count]'"
                 else
                     pvopts="-f -s $count -l -N Decompression"
@@ -1269,8 +1264,11 @@ then
         wsrep_log_error "SST magic file ${MAGIC_FILE} not found/readable"
         exit 2
     fi
-    wsrep_log_info "Galera co-ords from recovery: $(cat ${MAGIC_FILE})"
-    cat "${MAGIC_FILE}" # Output : UUID:seqno wsrep_gtid_domain_id
+
+    coords=$(cat "$MAGIC_FILE")
+    wsrep_log_info "Galera co-ords from recovery: $coords"
+    cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
+
     wsrep_log_info "Total time on joiner: $totime seconds"
 fi
 
