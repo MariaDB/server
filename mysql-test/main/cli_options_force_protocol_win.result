@@ -1,0 +1,24 @@
+#
+# MDEV-14974: --port ignored for --host=localhost
+#
+#
+# The following group of tests should produce no warnings
+#
+# exec MYSQL --host=localhost -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+Connection:		localhost via TCP/IP
+# exec MYSQL --host=localhost --port=MASTER_MYPORT -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+Connection:		localhost via TCP/IP
+# exec MYSQL --host=localhost --port=MASTER_MYPORT --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+Connection:		localhost via TCP/IP
+# exec MYSQL --host=localhost --protocol=pipe -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+Connection:		localhost via named pipe
+# exec MYSQL --host=localhost -W -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+Connection:		localhost via named pipe
+# exec MYSQL --host=localhost -W --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+Connection:		localhost via named pipe
+#
+# The remaining tests should produce warnings
+#
+# exec MYSQL --host=localhost --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+WARNING: Forcing protocol to  PIPE  due to option specification. Please explicitly state intended protocol.
+Connection:		localhost via named pipe

@@ -1105,6 +1105,7 @@ On Windows, connect to the server via a named pipe\&. This option applies only i
 .sp
 The TCP/IP port number to use for the connection or 0 for default to, 
 in order of preference, my.cnf, $MYSQL_TCP_PORT, /etc/services, built-in default (3306)\&.
+Forces --protocol=tcp when specified on the command line without other connection properties\&.
 .RE
 .sp
 .RS 4
@@ -1227,6 +1228,7 @@ executes commands indefinitely until interrupted\&.
 .sp
 For connections to
 localhost, the Unix socket file to use, or, on Windows, the name of the named pipe to use\&.
+Forces --protocol=socket when specified on the command line without other connection properties; on Windows, forces --protocol=pipe\&.
 .RE
 .sp
 .RS 4

@@ -1,0 +1,37 @@
+--echo #
+--echo # MDEV-14974: --port ignored for --host=localhost
+--echo #
+
+--source include/not_embedded.inc
+--source include/not_windows.inc
+
+
+--echo #
+--echo # The following group of tests should produce no warnings
+--echo #
+
+--echo # exec MYSQL --host=localhost -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--exec $MYSQL --host=localhost -e "status" 2>&1 | grep "Connection:\|WARNING:"
+
+--echo # exec MYSQL --port=MASTER_MYPORT --protocol=tcp -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--exec $MYSQL --port=$MASTER_MYPORT --protocol=tcp -e "status" 2>&1 | grep "Connection:\|WARNING:"
+
+--echo # exec MYSQL --host=localhost --port=MASTER_MYPORT --protocol=socket -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--exec $MYSQL --host=localhost --port=$MASTER_MYPORT --protocol=socket -e "status" 2>&1 | grep "Connection:\|WARNING:"
+
+--echo # exec MYSQL --host=127.0.0.1 --port=MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--exec $MYSQL --host=127.0.0.1 --port=$MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
+
+--echo # exec MYSQL --host=localhost --socket=MASTER_MYSOCK --port=MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--exec $MYSQL --host=localhost --socket=$MASTER_MYSOCK --port=$MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
+
+--echo # exec MYSQL --host=localhost --socket=MASTER_MYSOCK -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--exec $MYSQL --host=localhost --socket=$MASTER_MYSOCK -e "status" 2>&1 | grep "Connection:\|WARNING:"
+
+
+--echo #
+--echo # The remaining tests should produce warnings
+--echo #
+
+--echo # exec MYSQL --host=localhost --port=MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"
+--exec $MYSQL --host=localhost --port=$MASTER_MYPORT -e "status" 2>&1 | grep "Connection:\|WARNING:"

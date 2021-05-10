@@ -192,6 +192,8 @@ FILE *stderror_file=0;
 static uint opt_protocol= 0;
 static char *opt_plugin_dir= 0, *opt_default_auth= 0;
 
+static uint protocol_to_force= MYSQL_PROTOCOL_DEFAULT;
+
 /*
 Dynamic_string wrapper functions. In this file use these
 wrappers, they will terminate the process if there is
@@ -860,8 +862,12 @@ uchar* get_table_key(const char *entry, size_t *length,
 static my_bool
 get_one_option(const struct my_option *opt,
                const char *argument,
-               const char *filename __attribute__((unused)))
+               const char *filename)
 {
+
+  /* Track when protocol is set via CLI to not force overrides */
+  static my_bool ignore_protocol_override = FALSE;
+
   switch (opt->id) {
   case 'p':
     if (argument == disabled_my_option)
@@ -892,6 +898,13 @@ get_one_option(const struct my_option *opt,
   case 'W':
 #ifdef __WIN__
     opt_protocol= MYSQL_PROTOCOL_PIPE;
+
+    /* Prioritize pipe if explicit via command line */
+    if (filename[0] == '\0')
+    {
+      ignore_protocol_override = TRUE;
+      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
+    }
 #endif
     break;
   case 'N':
@@ -1042,10 +1055,50 @@ get_one_option(const struct my_option *opt,
       sf_leaking_memory= 1; /* no memory leak reports here */
       exit(1);
     }
+
+    /* Specification of protocol via CLI trumps implicit overrides */
+    if (filename[0] == '\0')
+    {
+      ignore_protocol_override = TRUE;
+      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
+    }
+
     break;
   case (int) OPT_DEFAULT_CHARSET:
     if (default_charset == disabled_my_option)
       default_charset= (char *)mysql_universal_client_charset;
+    break;
+  case 'P':
+    /* If port and socket are set, fall back to default behavior */
+    if (protocol_to_force == SOCKET_PROTOCOL_TO_FORCE)
+    {
+      ignore_protocol_override = TRUE;
+      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
+    }
+
+    /* If port is set via CLI, try to force protocol to TCP */
+    if (filename[0] == '\0' &&
+        !ignore_protocol_override &&
+        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
+    {
+      protocol_to_force = MYSQL_PROTOCOL_TCP;
+    }
+    break;
+  case 'S':
+    /* If port and socket are set, fall back to default behavior */
+    if (protocol_to_force == MYSQL_PROTOCOL_TCP)
+    {
+      ignore_protocol_override = TRUE;
+      protocol_to_force = MYSQL_PROTOCOL_DEFAULT;
+    }
+
+    /* Prioritize socket if set via command line */
+    if (filename[0] == '\0' &&
+        !ignore_protocol_override &&
+        protocol_to_force == MYSQL_PROTOCOL_DEFAULT)
+    {
+      protocol_to_force = SOCKET_PROTOCOL_TO_FORCE;
+    }
     break;
   }
   return 0;
@@ -1058,6 +1111,9 @@ static int get_options(int *argc, char ***argv)
 
   opt_max_allowed_packet= *mysql_params->p_max_allowed_packet;
   opt_net_buffer_length= *mysql_params->p_net_buffer_length;
+
+  /* We need to know if protocol-related options originate from CLI args */
+  my_defaults_mark_files = TRUE;
 
   md_result_file= stdout;
   load_defaults_or_exit("my", load_default_groups, argc, argv);
@@ -1088,6 +1144,16 @@ static int get_options(int *argc, char ***argv)
 
   if ((ho_error= handle_options(argc, argv, my_long_options, get_one_option)))
     return(ho_error);
+
+  /*
+     Command line options override configured protocol
+   */
+  if (protocol_to_force > MYSQL_PROTOCOL_DEFAULT
+      && protocol_to_force != opt_protocol)
+  {
+    warn_protocol_override(current_host, &opt_protocol, protocol_to_force);
+  }
+
 
   /*
     Dumping under --system=stats with --replace or --inser-ignore is safe and will not

@@ -791,6 +791,7 @@ Print the program argument list from all option files and exit\&.
 The TCP/IP port number to use for connecting to a remote server, 
 or \fB0\fR for default to, in order of preference, \fBmy.cnf\fR, 
 \fB$MYSQL_TCP_PORT\fR, \fB/etc/services\fR, \fRbuilt-in default (3306)\fR\&.
+Forces --protocol=tcp when specified on the command line without other connection properties\&.
 .RE
 .sp
 .RS 4
@@ -955,6 +956,7 @@ base64-output, consider using \fB--base64-output=never\fR instead\&.
 .sp
 For connections to
 localhost, the Unix socket file to use, or, on Windows, the name of the named pipe to use\&.
+Forces --protocol=socket when specified on the command line without other connection properties; on Windows, forces --protocol=pipe\&.
 .RE
 .sp
 .RS 4

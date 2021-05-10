@@ -1,0 +1,37 @@
+--echo #
+--echo # MDEV-14974: --port ignored for --host=localhost
+--echo #
+
+--source include/not_embedded.inc
+--source include/windows.inc
+
+
+--echo #
+--echo # The following group of tests should produce no warnings
+--echo #
+
+--echo # exec MYSQL --host=localhost -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+--exec $MYSQL --host=localhost -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+
+--echo # exec MYSQL --host=localhost --port=MASTER_MYPORT -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+--exec $MYSQL --host=localhost --port=$MASTER_MYPORT -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+
+--echo # exec MYSQL --host=localhost --port=MASTER_MYPORT --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+--exec $MYSQL --host=localhost --port=$MASTER_MYPORT --socket=$MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+
+--echo # exec MYSQL --host=localhost --protocol=pipe -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+--exec $MYSQL --host=localhost --protocol=pipe -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+
+--echo # exec MYSQL --host=localhost -W -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+--exec $MYSQL --host=localhost -W -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+
+--echo # exec MYSQL --host=localhost -W --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+--exec $MYSQL --host=localhost -W --socket=$MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+
+
+--echo #
+--echo # The remaining tests should produce warnings
+--echo #
+
+--echo # exec MYSQL --host=localhost --socket=MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
+--exec $MYSQL --host=localhost --socket=$MASTER_MYSOCK -e "status" 2>&1 | findstr /c:"Connection:" /c:"WARNING:"
