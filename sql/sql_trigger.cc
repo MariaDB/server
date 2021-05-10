@@ -397,6 +397,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   String stmt_query;
   bool lock_upgrade_done= FALSE;
   MDL_ticket *mdl_ticket= NULL;
+  MDL_request mdl_request_for_trn;
   Query_tables_list backup;
   DBUG_ENTER("mysql_create_or_drop_trigger");
 
@@ -445,6 +446,16 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     my_error(ER_BINLOG_CREATE_ROUTINE_NEED_SUPER, MYF(0));
     DBUG_RETURN(TRUE);
   }
+
+  /* Protect against concurrent create/drop */
+  MDL_REQUEST_INIT(&mdl_request_for_trn, MDL_key::TABLE,
+                   create ? tables->db.str : thd->lex->spname->m_db.str,
+                   thd->lex->spname->m_name.str,
+                   MDL_EXCLUSIVE, MDL_EXPLICIT);
+  if (thd->mdl_context.acquire_lock(&mdl_request_for_trn,
+                                    thd->variables.lock_wait_timeout))
+    goto end;
+
 
   if (!create)
   {
@@ -634,6 +645,9 @@ end:
                   thd->lex->spname->m_db.str, static_cast<uint>(thd->lex->spname->m_db.length),
                   thd->lex->spname->m_name.str, static_cast<uint>(thd->lex->spname->m_name.length));
   }
+
+  if (mdl_request_for_trn.ticket)
+    thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
 
   DBUG_RETURN(result);
 #ifdef WITH_WSREP
