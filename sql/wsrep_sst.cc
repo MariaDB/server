@@ -1356,7 +1356,7 @@ std::string wsrep_sst_prepare()
 
   const char* method_ptr(ret.data());
   const char* addr_ptr(ret.data() + strlen(method_ptr) + 1);
-  WSREP_INFO ("Prepared SST request: %s|%s", method_ptr, addr_ptr);
+  WSREP_DEBUG("Prepared SST request: %s|%s", method_ptr, addr_ptr);
 
   if (addr_out != addr_in) /* malloc'ed */ free ((char*)addr_out);
 

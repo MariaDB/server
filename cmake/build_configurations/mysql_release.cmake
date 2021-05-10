@@ -1,5 +1,5 @@
 # Copyright (c) 2010, 2011, Oracle and/or its affiliates. All rights reserved.
-# Copyright (c) 2011, 2019, MariaDB Corporation.
+# Copyright (c) 2011, 2021, MariaDB Corporation.
 # 
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -97,6 +97,7 @@ ELSEIF(RPM)
   SET(WITH_ZLIB system CACHE STRING "")
   SET(CHECKMODULE /usr/bin/checkmodule CACHE FILEPATH "")
   SET(SEMODULE_PACKAGE /usr/bin/semodule_package CACHE FILEPATH "")
+  SET(WITH_JEMALLOC "yes" CACHE STRING "")
   SET(PLUGIN_AUTH_SOCKET YES CACHE STRING "")
   SET(WITH_EMBEDDED_SERVER ON CACHE BOOL "")
   # not yet, SLES 12.3 doesn't provide pcre2
@@ -106,6 +107,7 @@ ELSEIF(DEB)
   SET(WITH_ZLIB system CACHE STRING "")
   SET(WITH_LIBWRAP ON)
   SET(HAVE_EMBEDDED_PRIVILEGE_CONTROL ON)
+  SET(WITH_JEMALLOC "yes" CACHE STRING "")
   SET(PLUGIN_AUTH_SOCKET YES CACHE STRING "")
   SET(WITH_EMBEDDED_SERVER ON CACHE BOOL "")
   SET(WITH_PCRE system CACHE STRING "")
