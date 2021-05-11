@@ -2417,7 +2417,7 @@ print_tz_as_sql(const char* tz_name, const TIME_ZONE_INFO *sp)
   }
 
   printf("INSERT INTO time_zone_transition_type \
-(Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES\n");
+(Time_zone_id, Transition_type_id, `Offset`, Is_DST, Abbreviation) VALUES\n");
 
   for (i= 0; i < sp->typecnt; i++)
     printf("%s(@time_zone_id, %u, %ld, %d, '%s')\n", (i == 0 ? " " : ","), i,
