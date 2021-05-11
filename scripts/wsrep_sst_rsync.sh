@@ -368,7 +368,7 @@ EOF
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
-        eval rsync "'${STUNNEL:+--rsh=$STUNNEL}'" \
+        eval rsync ${STUNNEL:+--rsh=\"$STUNNEL\"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT $FILTER "'$WSREP_SST_OPT_DATA/'" \
