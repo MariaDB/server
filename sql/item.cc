@@ -5496,7 +5496,7 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
   */
   Name_resolution_context *last_checked_context= context;
   Item **ref= (Item **) not_found_item;
-  SELECT_LEX *current_sel= thd->lex->current_select;
+  SELECT_LEX *current_sel= context->select_lex;
   Name_resolution_context *outer_context= 0;
   SELECT_LEX *select= 0;
 
@@ -5833,7 +5833,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
   DBUG_ASSERT(fixed == 0);
   Field *from_field= (Field *)not_found_field;
   bool outer_fixed= false;
-  SELECT_LEX *select= thd->lex->current_select;
+  SELECT_LEX *select= context->select_lex;
 
   if (select && select->in_tvc)
   {
