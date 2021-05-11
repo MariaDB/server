@@ -2497,10 +2497,9 @@ ATTRIBUTE_COLD void recv_sys_t::set_corrupt_log()
 
 ATTRIBUTE_COLD void recv_sys_t::set_corrupt_fs()
 {
-  mysql_mutex_lock(&mutex);
+  mysql_mutex_assert_owner(&mutex);
   found_corrupt_fs= true;
   pthread_cond_broadcast(&cond);
-  mysql_mutex_unlock(&mutex);
 }
 
 /** Apply any buffered redo log to a page that was just read from a data file.

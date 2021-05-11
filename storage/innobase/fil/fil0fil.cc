@@ -3028,7 +3028,11 @@ write_completed:
     if (dberr_t err= buf_page_read_complete(request.bpage, *request.node))
     {
       if (recv_recovery_is_on() && !srv_force_recovery)
+      {
+        mysql_mutex_lock(&recv_sys.mutex);
         recv_sys.set_corrupt_fs();
+        mysql_mutex_unlock(&recv_sys.mutex);
+      }
 
       ib::error() << "Failed to read page " << id.page_no()
                   << " from file '" << request.node->name << "': " << err;
