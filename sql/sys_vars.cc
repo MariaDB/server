@@ -1175,7 +1175,7 @@ static Sys_var_on_access_global<Sys_var_double,
 Sys_expire_logs_days(
        "expire_logs_days",
        "If non-zero, binary logs will be purged after expire_logs_days "
-       "days; It and binlog_expire_logs_seconds are aliases, such that "
+       "days; It and binlog_expire_logs_seconds are linked, such that "
        "changes in one are converted into the other, presentable as a "
        "decimal value with 1/1000000 of the day precision; possible "
        "purges happen at startup and at binary log rotation",
@@ -1190,11 +1190,11 @@ Sys_binlog_expire_logs_seconds(
        "binlog_expire_logs_seconds",
        "If non-zero, binary logs will be purged after "
        "binlog_expire_logs_seconds seconds; It and expire_logs_days are "
-       "aliases, such that changes in one are converted into the other. "
+       "linked, such that changes in one are converted into the other. "
        "Possible purges happen at startup and at binary log rotation.",
        GLOBAL_VAR(binlog_expire_logs_seconds),
        CMD_LINE(REQUIRED_ARG, OPT_BINLOG_EXPIRE_LOGS_SECONDS),
-       VALID_RANGE(0, 0xFFFFFFFF), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       VALID_RANGE(0, 8553600), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(copy_to_expire_logs_days));
 
 static Sys_var_mybool Sys_flush(

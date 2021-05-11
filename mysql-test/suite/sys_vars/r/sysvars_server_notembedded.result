@@ -385,9 +385,9 @@ COMMAND_LINE_ARGUMENT	OPTIONAL
 VARIABLE_NAME	BINLOG_EXPIRE_LOGS_SECONDS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BIGINT UNSIGNED
-VARIABLE_COMMENT	If non-zero, binary logs will be purged after binlog_expire_logs_seconds seconds; It and expire_logs_days are aliases, such that changes in one are converted into the other. Possible purges happen at startup and at binary log rotation.
+VARIABLE_COMMENT	If non-zero, binary logs will be purged after binlog_expire_logs_seconds seconds; It and expire_logs_days are linked, such that changes in one are converted into the other. Possible purges happen at startup and at binary log rotation.
 NUMERIC_MIN_VALUE	0
-NUMERIC_MAX_VALUE	4294967295
+NUMERIC_MAX_VALUE	8553600
 NUMERIC_BLOCK_SIZE	1
 ENUM_VALUE_LIST	NULL
 READ_ONLY	NO
@@ -935,7 +935,7 @@ COMMAND_LINE_ARGUMENT	REQUIRED
 VARIABLE_NAME	EXPIRE_LOGS_DAYS
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	DOUBLE
-VARIABLE_COMMENT	If non-zero, binary logs will be purged after expire_logs_days days; It and binlog_expire_logs_seconds are aliases, such that changes in one are converted into the other, presentable as a decimal value with 1/1000000 of the day precision; possible purges happen at startup and at binary log rotation
+VARIABLE_COMMENT	If non-zero, binary logs will be purged after expire_logs_days days; It and binlog_expire_logs_seconds are linked, such that changes in one are converted into the other, presentable as a decimal value with 1/1000000 of the day precision; possible purges happen at startup and at binary log rotation
 NUMERIC_MIN_VALUE	0
 NUMERIC_MAX_VALUE	99
 NUMERIC_BLOCK_SIZE	NULL

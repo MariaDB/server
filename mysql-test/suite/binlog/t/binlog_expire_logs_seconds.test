@@ -13,6 +13,7 @@
 #    2.2. binlog_expire_logs_seconds > 0 and expire_logs_days = 0
 #    2.3. binlog_expire_logs_seconds = 0 and expire_logs_days > 0
 #    2.4. binlog_expire_logs_seconds = 1, testing smallest value
+#    2.5. binlog_expire_logs_seconds = 8553600, testing max value 99days
 #
 # Additional tests for the boundaries of expire_logs_days already
 # exist on the sys_vars.expire_logs_days_basic test case.
@@ -108,6 +109,13 @@ SELECT @@binlog_expire_logs_seconds as Expected_86400;
 SET GLOBAL binlog_expire_logs_seconds= 1;
 SELECT @@expire_logs_days;
 SELECT @@binlog_expire_logs_seconds as Expected_1;
+
+--echo ####
+--echo #### 2.5. binlog_expire_logs_seconds = 8553600, testing max value 99days
+--echo ####
+SET GLOBAL binlog_expire_logs_seconds= 8553600;
+SELECT @@expire_logs_days;
+SELECT @@binlog_expire_logs_seconds as Expected_8553600;
 
 # reset the variables
 --eval SET GLOBAL binlog_expire_logs_seconds= $saved_binlog_expire_logs_seconds

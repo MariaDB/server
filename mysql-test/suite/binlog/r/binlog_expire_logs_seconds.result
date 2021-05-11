@@ -136,5 +136,15 @@ SELECT @@expire_logs_days;
 SELECT @@binlog_expire_logs_seconds as Expected_1;
 Expected_1
 1
+####
+#### 2.5. binlog_expire_logs_seconds = 8553600, testing max value 99days
+####
+SET GLOBAL binlog_expire_logs_seconds= 8553600;
+SELECT @@expire_logs_days;
+@@expire_logs_days
+99.000000
+SELECT @@binlog_expire_logs_seconds as Expected_8553600;
+Expected_8553600
+8553600
 SET GLOBAL binlog_expire_logs_seconds= 0;
 SET GLOBAL expire_logs_days= 0.000000;

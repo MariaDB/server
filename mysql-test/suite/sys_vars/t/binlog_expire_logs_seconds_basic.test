@@ -35,7 +35,6 @@ SELECT @start_value_sec;
 #      Display the DEFAULT value of binlog_expire_logs_seconds         #
 ########################################################################
 
-SET @@global.binlog_expire_logs_seconds = 8734635;
 SET @@global.binlog_expire_logs_seconds = DEFAULT;
 SELECT @@global.binlog_expire_logs_seconds;
 
@@ -71,6 +70,8 @@ SELECT @@global.binlog_expire_logs_seconds;
 SET @@global.binlog_expire_logs_seconds = -1024;
 SELECT @@global.binlog_expire_logs_seconds;
 SET @@global.binlog_expire_logs_seconds = 42949672950;
+SELECT @@global.binlog_expire_logs_seconds;
+SET @@global.binlog_expire_logs_seconds = 8734635;
 SELECT @@global.binlog_expire_logs_seconds;
 
 --Error ER_WRONG_TYPE_FOR_VAR

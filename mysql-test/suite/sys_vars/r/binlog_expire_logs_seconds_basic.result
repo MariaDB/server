@@ -2,7 +2,6 @@ SET @start_value_sec = @@global.binlog_expire_logs_seconds;
 SELECT @start_value_sec;
 @start_value_sec
 0
-SET @@global.binlog_expire_logs_seconds = 8734635;
 SET @@global.binlog_expire_logs_seconds = DEFAULT;
 SELECT @@global.binlog_expire_logs_seconds;
 @@global.binlog_expire_logs_seconds
@@ -49,22 +48,28 @@ Warnings:
 Warning	1292	Truncated incorrect binlog_expire_logs_seconds value: '42949672950'
 SELECT @@global.binlog_expire_logs_seconds;
 @@global.binlog_expire_logs_seconds
-4294967295
+8553600
+SET @@global.binlog_expire_logs_seconds = 8734635;
+Warnings:
+Warning	1292	Truncated incorrect binlog_expire_logs_seconds value: '8734635'
+SELECT @@global.binlog_expire_logs_seconds;
+@@global.binlog_expire_logs_seconds
+8553600
 SET @@global.binlog_expire_logs_seconds = ON;
 ERROR 42000: Incorrect argument type to variable 'binlog_expire_logs_seconds'
 SELECT @@global.binlog_expire_logs_seconds;
 @@global.binlog_expire_logs_seconds
-4294967295
+8553600
 SET @@global.binlog_expire_logs_seconds = 'test';
 ERROR 42000: Incorrect argument type to variable 'binlog_expire_logs_seconds'
 SELECT @@global.binlog_expire_logs_seconds;
 @@global.binlog_expire_logs_seconds
-4294967295
+8553600
 SET @@session.binlog_expire_logs_seconds = 0;
 ERROR HY000: Variable 'binlog_expire_logs_seconds' is a GLOBAL variable and should be set with SET GLOBAL
 SELECT @@binlog_expire_logs_seconds;
 @@binlog_expire_logs_seconds
-4294967295
+8553600
 SELECT @@global.binlog_expire_logs_seconds = VARIABLE_VALUE
 FROM information_schema.global_variables
 WHERE VARIABLE_NAME='binlog_expire_logs_seconds';
