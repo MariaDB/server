@@ -11047,6 +11047,7 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
   delete ev;
   end_io_cache(&log);
   mysql_file_close(file, MYF(MY_WME));
+  execute_xa_for_recovery();
 
   return error;
 }

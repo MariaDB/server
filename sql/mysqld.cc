@@ -5069,6 +5069,7 @@ static int init_server_components()
 
   tc_log= get_tc_log_implementation();
 
+  init_update_queries();
   if (tc_log->open(opt_bin_log ? opt_bin_logname : opt_tc_log_file))
   {
     sql_print_error("Can't init tc log");
@@ -5136,7 +5137,6 @@ static int init_server_components()
   ft_init_stopwords();
 
   init_max_user_conn();
-  init_update_queries();
   init_global_user_stats();
   init_global_client_stats();
   if (!opt_bootstrap)
@@ -5499,7 +5499,6 @@ int mysqld_main(int argc, char **argv)
   initialize_information_schema_acl();
 
   execute_ddl_log_recovery();
-  tc_log->execute_xa_for_recovery();
   /*
     Change EVENTS_ORIGINAL to EVENTS_OFF (the default value) as there is no
     point in using ORIGINAL during startup
