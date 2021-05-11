@@ -51,11 +51,11 @@ table_setup_objects::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_objects("
-                      "OBJECT_TYPE ENUM ('EVENT','FUNCTION','PROCEDURE','TABLE','TRIGGER') not null default 'TABLE',"
-                      "OBJECT_SCHEMA VARCHAR(64) default '%',"
-                      "OBJECT_NAME VARCHAR(64) not null default '%',"
-                      "ENABLED ENUM ('YES', 'NO') not null default 'YES',"
-                      "TIMED ENUM ('YES', 'NO') not null default 'YES')") },
+                      "OBJECT_TYPE ENUM ('EVENT','FUNCTION','PROCEDURE','TABLE','TRIGGER') not null default 'TABLE' comment 'Type of object to instrument. Currently, only TABLE, for base table.',"
+                      "OBJECT_SCHEMA VARCHAR(64) default '%' comment 'Schema containing the object, either the literal or % for any schema.',"
+                      "OBJECT_NAME VARCHAR(64) not null default '%' comment 'Name of the instrumented object, either the literal or % for any object.',"
+                      "ENABLED ENUM ('YES', 'NO') not null default 'YES' comment 'Whether the object''s events are instrumented or not. Can be disabled, in which case monitoring is not enabled for those objects.',"
+                      "TIMED ENUM ('YES', 'NO') not null default 'YES' comment 'Whether the object''s events are timed or not. Can be modified.')") },
   false  /* perpetual */
 };
 

@@ -74,7 +74,7 @@ table_host_cache::m_share=
                       "FIRST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Timestamp of the first connection attempt by the IP.',"
                       "LAST_SEEN TIMESTAMP(0) NOT NULL default 0 comment 'Timestamp of the most recent connection attempt by the IP.',"
                       "FIRST_ERROR_SEEN TIMESTAMP(0) null default 0 comment 'Timestamp of the first error seen from the IP.',"
-                      "LAST_ERROR_SEEN TIMESTAMP(0) null default 0) comment 'Timestamp of the most recent error seen from the IP.'") },
+                      "LAST_ERROR_SEEN TIMESTAMP(0) null default 0 comment 'Timestamp of the most recent error seen from the IP.')") },
   false  /* perpetual */
 };
 
