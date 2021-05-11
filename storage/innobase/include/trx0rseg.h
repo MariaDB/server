@@ -281,7 +281,7 @@ up to which replication has proceeded.
 @param[in,out]	mtr		mini-transaction */
 void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
                                    mtr_t *mtr);
-
+void trx_rseg_binlog_info(char *file_name, my_off_t *pos);
 #include "trx0rseg.ic"
 
 #endif

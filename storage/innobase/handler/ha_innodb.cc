@@ -3690,6 +3690,7 @@ static int innodb_init(void* p)
 	innobase_hton->prepare_commit_versioned
 		= innodb_prepare_commit_versioned;
 
+        innobase_hton->binlog_recovery_info= trx_rseg_binlog_info;
 	innodb_remember_check_sysvar_funcs();
 
 	compile_time_assert(DATA_MYSQL_TRUE_VARCHAR == MYSQL_TYPE_VARCHAR);

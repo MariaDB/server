@@ -1573,6 +1573,7 @@ struct handlerton
 			    THD *victim_thd, my_bool signal);
    int (*set_checkpoint)(handlerton *hton, const XID* xid);
    int (*get_checkpoint)(handlerton *hton, XID* xid);
+   void (*binlog_recovery_info)(char *fine_name, my_off_t *pos);
    /*
      Optional clauses in the CREATE/ALTER TABLE
    */
@@ -5401,5 +5402,9 @@ bool non_existing_table_error(int error);
 uint ha_count_rw_2pc(THD *thd, bool all);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all);
+xid_recovery_member*
+xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
+                  uint n_prepared= 1);
+
 
 #endif /* HANDLER_INCLUDED */

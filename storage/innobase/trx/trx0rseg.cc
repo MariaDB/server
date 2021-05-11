@@ -559,6 +559,13 @@ static void trx_rseg_init_binlog_info(const page_t* page)
 #endif
 }
 
+void trx_rseg_binlog_info(char *file_name, my_off_t *pos)
+{
+  memcpy(file_name,
+      trx_sys.recovered_binlog_filename,TRX_SYS_MYSQL_LOG_NAME_LEN);
+  *pos= (my_off_t)trx_sys.recovered_binlog_offset;
+}
+
 /** Initialize the rollback segments in memory at database startup. */
 void
 trx_rseg_array_init()

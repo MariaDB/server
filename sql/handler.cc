@@ -33,6 +33,7 @@
 #include "sql_base.h"           // TDC_element
 #include "discover.h"           // extension_based_table_discovery, etc
 #include "log_event.h"          // *_rows_log_event
+#include "sql_repl.h"           // compare_log_name
 #include "create_options.h"
 #include <myisampack.h>
 #include "transaction.h"
@@ -2344,8 +2345,9 @@ struct xarecover_st
            into hash @c hash_arg,
            or NULL.
 */
-static xid_recovery_member*
-xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root)
+xid_recovery_member*
+xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
+                  uint n_prepared)
 {
   xid_recovery_member *member= (xid_recovery_member*)
     alloc_root(ptr_mem_root, sizeof(xid_recovery_member));
@@ -2353,7 +2355,7 @@ xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root)
     return NULL;
 
   member->xid= xid_arg;
-  member->in_engine_prepare= 1;
+  member->in_engine_prepare= n_prepared;
   member->decided_to_commit= false;
 
   return my_hash_insert(hash_arg, (uchar*) member) ? NULL : member;

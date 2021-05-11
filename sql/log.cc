@@ -10602,7 +10602,57 @@ start_binlog_background_thread()
 
   return 0;
 }
+
 #ifdef HAVE_REPLICATION
+struct ha_binlog_offset_param
+{
+  LOG_INFO *linfo;
+  Binlog_offset* ha_offset;
+  Binlog_offset** ha_min;
+  Binlog_offset** ha_max;
+};
+
+static my_bool binlog_recovery_info_handlerton(THD *, plugin_ref plugin,
+                                               void *arg)
+{
+  ha_binlog_offset_param* ha_offset_param= (ha_binlog_offset_param*) arg;
+  char engine_file_name[FN_REFLEN] = { 0 };
+  Binlog_file_id id_binlog= 0;
+  my_off_t engine_pos = 0;
+  handlerton *hton= plugin_hton(plugin);
+  if (hton->binlog_recovery_info)
+  {
+    hton->binlog_recovery_info(engine_file_name, &engine_pos);
+    if (engine_file_name[0])
+    {
+      id_binlog= ha_offset_param->linfo->get_binlog_id(engine_file_name);
+    }
+  }
+  ha_offset_param->ha_offset[hton->slot]= Binlog_offset(id_binlog, engine_pos);
+
+  if (id_binlog > 0)
+  {
+    if (**ha_offset_param->ha_max == Binlog_offset(0,0) ||
+        **ha_offset_param->ha_max < ha_offset_param->ha_offset[hton->slot])
+      *ha_offset_param->ha_max= &ha_offset_param->ha_offset[hton->slot];
+    if (**ha_offset_param->ha_min == Binlog_offset(0,0) ||
+        ha_offset_param->ha_offset[hton->slot] < **ha_offset_param->ha_min)
+      *ha_offset_param->ha_min= &ha_offset_param->ha_offset[hton->slot];
+  }
+  return FALSE;
+}
+
+void ha_last_committed_binlog_pos(LOG_INFO *linfo, Binlog_offset* ha_offset,
+                                  Binlog_offset** ha_min, Binlog_offset** ha_max)
+{
+  struct ha_binlog_offset_param ha_offset_param=
+    { linfo, ha_offset, ha_min, ha_max };
+
+  plugin_foreach(NULL, binlog_recovery_info_handlerton,
+                 MYSQL_STORAGE_ENGINE_PLUGIN, &ha_offset_param);
+
+}
+
 class Recovery_context
 {
 public:
@@ -10677,13 +10727,20 @@ public:
     binlog_truncate_coord_1st_round;  // pair is similar to truncate_gtid
   Binlog_offset binlog_unsafe_coord;
   /*
+    Binlog coordinates of the last committed in engines.
+  */
+  Binlog_offset ha_offset[MAX_HA];
+  Binlog_offset *ha_offset_min, *ha_offset_max; // min,max of the above
+  /*
     Populated at decide_or_assess() with gtid-in-doubt whose
     binlog offset greater of equal by that of the current gtid truncate
     candidate.
     Gets empited by reset_truncate_coord into gtid binlog state.
   */
   Dynamic_array<rpl_gtid> *gtid_maybe_to_truncate;
-  Recovery_context(uint n_files);
+  MEM_ROOT *ptr_mem_root;
+  HASH     *ptr_xids;
+  Recovery_context(LOG_INFO *linfo, MEM_ROOT *mem_root, HASH *xids);
   ~Recovery_context() { delete gtid_maybe_to_truncate; }
   /*
     Completes the recovery procedure.
@@ -10693,7 +10750,7 @@ public:
     a truncated tail get rolled back, otherwise they are committed.
     Both decisions are contingent on safety to truncate.
   */
-  bool complete(MYSQL_BIN_LOG *log, HASH &xids);
+  bool complete(MYSQL_BIN_LOG *log);
 
   /*
     member info suggests a committed (to be committed) transaction in
@@ -10707,7 +10764,7 @@ public:
     Returns false on success
             true  otherwise.
   */
-  bool handle_committed(xid_recovery_member *member, int round, my_off_t pos);
+  bool handle_committed(xid_recovery_member *member, int round, Xid_log_event *ev);
 
   /*
     member does not contain any partially commmitted branch of the transaction.
@@ -10728,7 +10785,7 @@ public:
   */
   bool decide_or_assess(xid_recovery_member *member, int round,
                         Format_description_log_event *fdle,
-                        LOG_INFO *linfo, my_off_t pos);
+                        LOG_INFO *linfo, Xid_log_event *ev);
 
   /*
     Assigns last_gtid and assesses the maximum (in the binlog offset term)
@@ -10813,12 +10870,12 @@ public:
                           enum_binlog_checksum_alg fd_checksum_alg);
 };
 
-bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
+bool Recovery_context::complete(MYSQL_BIN_LOG *log)
 {
   if (!do_truncate || is_safe_to_truncate())
   {
     uint count_in_prepare=
-      ha_recover_complete(&xids,
+      ha_recover_complete(ptr_xids,
                           !do_truncate ? NULL :
                           (truncate_gtid.seq_no > 0 ?
                            &binlog_truncate_coord : &last_gtid_coord));
@@ -10862,14 +10919,17 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
   return false;
 }
 
-Recovery_context::Recovery_context(uint n_files) :
+Recovery_context::Recovery_context(LOG_INFO *linfo, MEM_ROOT *mem_root_arg,
+                                   HASH *xids_arg) :
   prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
   last_gtid_engines(0),
   do_truncate(rpl_semi_sync_slave_enabled),
   truncate_validated(false), truncate_reset_done(false),
-  truncate_set_in_1st(false), id_binlog(n_files), checkpoint_binlog_id(0),
-  checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), gtid_maybe_to_truncate(NULL)
+  truncate_set_in_1st(false), checkpoint_binlog_id(0),
+  checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
+  ha_offset({ Binlog_offset(0,0) }),
+  gtid_maybe_to_truncate(NULL), ptr_mem_root(mem_root_arg), ptr_xids(xids_arg)
 {
   last_gtid_coord= Binlog_offset(0,0);
   binlog_truncate_coord=  binlog_truncate_coord_1st_round= Binlog_offset(0,0);
@@ -10879,6 +10939,14 @@ Recovery_context::Recovery_context(uint n_files) :
   binlog_unsafe_gtid= truncate_gtid= truncate_gtid_1st_round= rpl_gtid();
   if (do_truncate)
     gtid_maybe_to_truncate= new Dynamic_array<rpl_gtid>(16, 16);
+  id_binlog= linfo->number_of_files();
+  ha_offset_min= &ha_offset[0];
+  ha_offset_max= ha_offset_min;
+  /*
+    Retrieve <id_binlog, offset> of the last committed transaction
+    in all engines.
+  */
+  ha_last_committed_binlog_pos(linfo, ha_offset, &ha_offset_min,&ha_offset_max);
 }
 
 bool Recovery_context::reset_truncate_coord(my_off_t pos)
@@ -10920,7 +10988,7 @@ bool Recovery_context::set_truncate_coord(LOG_INFO *linfo, int round,
 }
 
 bool Recovery_context::handle_committed(xid_recovery_member *member,
-                                        int round, my_off_t pos)
+                                        int round, Xid_log_event *ev)
 {
   if (!do_truncate)
   {
@@ -10945,7 +11013,7 @@ bool Recovery_context::handle_committed(xid_recovery_member *member,
                  (round == 2 && truncate_set_in_1st)));
 
     if ((!member || member->decided_to_commit) &&
-        !truncate_validated && reset_truncate_coord(pos))
+        !truncate_validated && reset_truncate_coord(ev->log_pos))
       return true;
   }
   return false;
@@ -11001,7 +11069,7 @@ bool Recovery_context::handle_prepared(xid_recovery_member *member, int round,
 
 bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
                                         Format_description_log_event *fdle,
-                                        LOG_INFO *linfo, my_off_t pos)
+                                        LOG_INFO *linfo, Xid_log_event *ev)
 {
   if (member)
   {
@@ -11038,7 +11106,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
         This is an "unlikely" branch of two or more engines in transaction
         that is partially committed, so to complete.
       */
-      if (handle_committed(member, round, pos))
+      if (handle_committed(member, round, ev))
         return true;
 
       DBUG_EXECUTE_IF("binlog_truncate_partial_commit",
@@ -11052,7 +11120,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
   }
   else  //  "0" < last_gtid_engines
   {
-    if (handle_committed(NULL, round, pos))
+    if (handle_committed(NULL, round, ev))
       return true;
   }
 
@@ -11192,7 +11260,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   File file= -1;
   const char *errmsg;
 #ifdef HAVE_REPLICATION
-  Recovery_context ctx(linfo->number_of_files());
+  Recovery_context ctx(linfo, &mem_root, &xids);
 #endif
   /*
     The for-loop variable is updated by the following rule set:
@@ -11217,7 +11285,6 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
                     TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, MYF(0));
 
   fdle->flags&= ~LOG_EVENT_BINLOG_IN_USE_F; // abort on the first error
-
   /* finds xids when root is not NULL */
   if (do_xa && ha_recover(&xids, &mem_root))
     goto err1;
@@ -11253,7 +11320,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
             member->decided_to_commit= true;
         }
 #else
-        if (ctx.decide_or_assess(member, round, fdle, linfo, ev->log_pos))
+        if (ctx.decide_or_assess(member, round, fdle, linfo,
+                                 static_cast<Xid_log_event*>(ev)))
           goto err2;
 #endif
       }
@@ -11418,7 +11486,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 #ifndef HAVE_REPLICATION
       if (ha_recover_complete(&xids))
 #else
-      if (ctx.complete(this, xids))
+      if (ctx.complete(this))
 #endif
         goto err2;
     }
