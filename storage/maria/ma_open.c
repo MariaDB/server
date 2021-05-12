@@ -562,7 +562,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       case the uuid will be set in _ma_mark_file_changed().
     */
     if (born_transactional &&
-        ((share->state.create_trid > trnman_get_max_trid() &&
+        ((share->state.create_trid > max_trid_in_system() &&
          !maria_in_recovery) ||
          ((share->state.changed & STATE_NOT_MOVABLE) &&
           ((!(open_flags & HA_OPEN_IGNORE_MOVED_STATE) &&

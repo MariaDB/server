@@ -9062,13 +9062,21 @@ static void dump_header_page(uchar *buff)
 {
   LOGHANDLER_FILE_INFO desc;
   char strbuff[21];
+  struct tm tmp_tm;
+  time_t header_time;
+
   translog_interpret_file_header(&desc, buff);
+  header_time= desc.timestamp/1000000ULL;
+  localtime_r(&header_time, &tmp_tm);
+
   printf("  This can be header page:\n"
-         "    Timestamp: %s\n"
+         "    Timestamp: %04d.%02d.%02d %02d.%02d.%02d  (%s)\n"
          "    Aria log version: %lu\n"
          "    Server version: %lu\n"
          "    Server id %lu\n"
          "    Page size %lu\n",
+         tmp_tm.tm_year+1900, tmp_tm.tm_mon+1, tmp_tm.tm_mday,
+         tmp_tm.tm_hour, tmp_tm.tm_min, tmp_tm.tm_sec,
          llstr(desc.timestamp, strbuff),
          desc.maria_version,
          desc.mysql_version,
@@ -9325,6 +9333,7 @@ void dump_page(uchar *buffer, File handler)
               sizeof(maria_trans_file_magic)) == 0)
   {
     dump_header_page(buffer);
+    return;
   }
   dump_datapage(buffer, handler);
 }
