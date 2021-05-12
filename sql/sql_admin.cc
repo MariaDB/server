@@ -446,6 +446,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   int compl_result_code;
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
+  bool is_table_modified= false;
 
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
@@ -496,6 +497,10 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     bool open_for_modify= org_open_for_modify;
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", table->db, table->table_name));
+    DEBUG_SYNC(thd, "admin_command_kill_before_modify");
+
+    if (thd->is_killed())
+      break;
     strxmov(table_name, db, ".", table->table_name, NullS);
     thd->open_options|= extra_open_options;
     table->lock_type= lock_type;
@@ -1192,6 +1197,8 @@ send_result_message:
     {
       if (trans_commit_stmt(thd))
         goto err;
+      if (!is_table_modified)
+        is_table_modified= true;
     }
     close_thread_tables(thd);
     thd->release_transactional_locks();
@@ -1214,8 +1221,9 @@ send_result_message:
 
     if (protocol->write())
       goto err;
+    DEBUG_SYNC(thd, "admin_command_kill_after_modify");
   }
-  if (is_cmd_replicated && !thd->lex->no_write_to_binlog)
+  if (is_table_modified && is_cmd_replicated && !thd->lex->no_write_to_binlog)
   {
     if (write_bin_log(thd, TRUE, thd->query(), thd->query_length()))
       goto err;
