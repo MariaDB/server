@@ -350,11 +350,6 @@ public:
     const char *str,
     uint32 arg_length
   );
-  void set_quick(
-    char *str,
-    uint32 arg_length,
-    CHARSET_INFO *cs
-  );
   bool set_int(
     longlong num,
     bool unsigned_flag,

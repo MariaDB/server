@@ -2730,7 +2730,7 @@ int spider_db_oracle_util::append_column_value(
       field->real_type() == MYSQL_TYPE_VARCHAR
     ) {
       length = uint2korr(new_ptr);
-      tmp_str.set_quick((char *) new_ptr + HA_KEY_BLOB_LENGTH, length,
+      tmp_str.set((char *) new_ptr + HA_KEY_BLOB_LENGTH, length,
         &my_charset_bin);
       ptr = tmp_str.get_str();
     } else if (field->type() == MYSQL_TYPE_GEOMETRY)
@@ -2794,7 +2794,7 @@ int spider_db_oracle_util::append_column_value(
         xmin, xmax, ymin, ymax));
 */
 /*
-      tmp_str.set_quick((char *) new_ptr, SIZEOF_STORED_DOUBLE * 4,
+      tmp_str.set((char *) new_ptr, SIZEOF_STORED_DOUBLE * 4,
         &my_charset_bin);
 */
       tmp_str.length(0);

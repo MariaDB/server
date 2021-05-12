@@ -541,21 +541,6 @@ bool spider_string::set_ascii(
   DBUG_RETURN(res);
 }
 
-void spider_string::set_quick(
-  char *str,
-  uint32 arg_length,
-  CHARSET_INFO *cs
-) {
-  DBUG_ENTER("spider_string::set_quick");
-  DBUG_PRINT("info",("spider this=%p", this));
-  DBUG_ASSERT(mem_calc_inited);
-  DBUG_ASSERT((!current_alloc_mem && !this->str.is_alloced()) ||
-    current_alloc_mem == this->str.alloced_length());
-  this->str.set_quick(str, arg_length, cs);
-  SPIDER_STRING_CALC_MEM;
-  DBUG_VOID_RETURN;
-}
-
 bool spider_string::set_int(
   longlong num,
   bool unsigned_flag,

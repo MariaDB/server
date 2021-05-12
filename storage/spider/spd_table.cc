@@ -8654,7 +8654,7 @@ bool spider_check_hs_pk_update(
           field->type() == MYSQL_TYPE_GEOMETRY
         ) {
           var_len = uint2korr(ptr);
-          tmp_str.set_quick((char *) ptr + HA_KEY_BLOB_LENGTH, var_len,
+          tmp_str.set((char *) ptr + HA_KEY_BLOB_LENGTH, var_len,
             &my_charset_bin);
           str = tmp_str.get_str();
         } else {
