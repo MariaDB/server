@@ -187,7 +187,7 @@ struct rpl_parallel_thread {
   ulonglong get_worker_idle_time()
   {
     if (start_time)
-      return compute_time_lapsed();
+      return (worker_idle_time + compute_time_lapsed());
     else
       return worker_idle_time;
   }

@@ -92,9 +92,9 @@ ha_rows table_replication_applier_status_by_worker::get_row_count()
 
 int table_replication_applier_status_by_worker::rnd_next(void)
 {
-  if (global_rpl_thread_pool.inited && global_rpl_thread_pool.count)
+  rpl_parallel_thread_pool *pool= &global_rpl_thread_pool;
+  if (pool->inited && pool->count)
   {
-    rpl_parallel_thread_pool *pool= &global_rpl_thread_pool;
     mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
     uint worker_count= pool->count;
     for (m_pos.set_at(&m_next_pos);
@@ -111,7 +111,8 @@ int table_replication_applier_status_by_worker::rnd_next(void)
   }
   else
   {
-    struct pool_bkp_for_pfs *bkp_pool= &global_rpl_thread_pool.pfs_bkp;
+    mysql_mutex_lock(&pool->LOCK_rpl_thread_pool);
+    struct pool_bkp_for_pfs *bkp_pool= &pool->pfs_bkp;
     if (bkp_pool->inited && bkp_pool->count)
     {
       for (m_pos.set_at(&m_next_pos);
@@ -121,9 +122,11 @@ int table_replication_applier_status_by_worker::rnd_next(void)
         rpl_parallel_thread *rpt= bkp_pool->rpl_thread_arr[m_pos.m_index];
         make_row(rpt);
         m_next_pos.set_after(&m_pos);
+        mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
         return 0;
       }
     }
+    mysql_mutex_unlock(&pool->LOCK_rpl_thread_pool);
   }
   return HA_ERR_END_OF_FILE;
 }

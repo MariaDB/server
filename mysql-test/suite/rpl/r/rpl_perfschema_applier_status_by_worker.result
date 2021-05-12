@@ -22,9 +22,11 @@ include/assert.inc [Service_State should be "ON" on a fresh slave server.]
 include/assert.inc [Last_Seen_Transaction should show "" if no transaction applierd]
 connection master;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+include/save_master_gtid.inc
 connection slave;
+include/sync_with_master_gtid.inc
 include/assert.inc [Channel_name must be slave1]
-include/assert.inc [Last_Seen_Transaction should show 0-1-1.]
+include/assert.inc [Last_Seen_Transaction should show 0-1-1]
 include/assert.inc [Value returned by SSS and PS table for Last_Error_Number should be same.]
 include/assert.inc [Value returned by SSS and PS table for Last_Error_Message should both be empty.]
 include/assert.inc [Value returned by PS table for Last_Error_Timestamp should be 0000-00-00 00:00:00.]

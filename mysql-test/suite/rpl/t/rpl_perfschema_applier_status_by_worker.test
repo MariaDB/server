@@ -29,7 +29,7 @@
 #    STOP SLAVE.
 #
 #  ==== Related Bugs and Worklogs ====
-# 
+#
 #  MDEV-20220: Merge 5.7 P_S replication table 'replication_applier_status_by_worker
 #
 --source include/have_perfschema.inc
@@ -83,10 +83,10 @@ source include/assert.inc;
 
 --connection master
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
---save_master_pos
+--source include/save_master_gtid.inc
 
---connection slave
---sync_with_master 0,'slave1'
+connection slave;
+--source include/sync_with_master_gtid.inc
 
 let $ps_value= query_get_value(select channel_name from performance_schema.replication_applier_status_by_worker, channel_name, 1);
 let $assert_text= Channel_name must be slave1;
@@ -94,9 +94,9 @@ let $assert_cond= "$ps_value"= "slave1";
 source include/assert.inc;
 
 let $ps_value= query_get_value(select Last_Seen_Transaction from performance_schema.replication_applier_status_by_worker, Last_Seen_Transaction, 1);
-let $slave_gtid_pos= `SELECT @@gtid_slave_pos`;
-let $assert_text= Last_Seen_Transaction should show $slave_gtid_pos.;
-let $assert_cond= "$ps_value" = "$slave_gtid_pos";
+let $sss_value= query_get_value(SHOW SLAVE STATUS, Gtid_IO_Pos, 1);
+let $assert_text= Last_Seen_Transaction should show $sss_value;
+let $assert_cond= "$ps_value" = "$sss_value";
 source include/assert.inc;
 
 let $sss_value= query_get_value(SHOW SLAVE STATUS, Last_SQL_Errno, 1);
