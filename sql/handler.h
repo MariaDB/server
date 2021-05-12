@@ -1481,7 +1481,17 @@ struct THD_TRANS
   static unsigned int const DROPPED_TEMP_TABLE= 0x04;
   static unsigned int const DID_WAIT= 0x08;
   static unsigned int const DID_DDL= 0x10;
+  static unsigned int const EXECUTED_TABLE_ADMIN_CMD= 0x20;
 
+  void mark_executed_table_admin_cmd()
+  {
+    DBUG_PRINT("debug", ("mark_executed_table_admin_cmd"));
+    m_unsafe_rollback_flags|= EXECUTED_TABLE_ADMIN_CMD;
+  }
+  bool trans_executed_admin_cmd()
+  {
+    return (m_unsafe_rollback_flags & EXECUTED_TABLE_ADMIN_CMD) != 0;
+  }
   void mark_created_temp_table()
   {
     DBUG_PRINT("debug", ("mark_created_temp_table"));
