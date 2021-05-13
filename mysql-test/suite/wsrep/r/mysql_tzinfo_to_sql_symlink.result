@@ -19,7 +19,7 @@ START TRANSACTION;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('GMT', @time_zone_id);
-INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset`, Is_DST, Abbreviation) VALUES
  (@time_zone_id, 0, 0, 0, 'GMT')
 ;
 Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/garbage' as time zone. Skipping it.
@@ -27,7 +27,7 @@ Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/ignored.tab' as time zone. Sk
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('posix/GMT', @time_zone_id);
-INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset`, Is_DST, Abbreviation) VALUES
  (@time_zone_id, 0, 0, 0, 'GMT')
 ;
 Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/garbage' as time zone. Skipping it.
@@ -63,14 +63,14 @@ START TRANSACTION;
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('GMT', @time_zone_id);
-INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset`, Is_DST, Abbreviation) VALUES
  (@time_zone_id, 0, 0, 0, 'GMT')
 ;
 Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/garbage' as time zone. Skipping it.
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('posix/GMT', @time_zone_id);
-INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset`, Is_DST, Abbreviation) VALUES
  (@time_zone_id, 0, 0, 0, 'GMT')
 ;
 Warning: Unable to load 'MYSQLTEST_VARDIR/zoneinfo/posix/garbage' as time zone. Skipping it.
@@ -101,7 +101,7 @@ END IF|
 INSERT INTO time_zone (Use_leap_seconds) VALUES ('N');
 SET @time_zone_id= LAST_INSERT_ID();
 INSERT INTO time_zone_name (Name, Time_zone_id) VALUES ('XXX', @time_zone_id);
-INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, Offset, Is_DST, Abbreviation) VALUES
+INSERT INTO time_zone_transition_type (Time_zone_id, Transition_type_id, `Offset`, Is_DST, Abbreviation) VALUES
  (@time_zone_id, 0, 0, 0, 'GMT')
 ;
 \d |
