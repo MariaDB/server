@@ -11675,6 +11675,8 @@ table_function:
               new (thd->mem_root) Table_function_json_table($4);
             if (unlikely(!jt))
               MYSQL_YYABORT;
+            /* See comment for class Table_function_json_table: */
+            Lex->set_stmt_unsafe(LEX::BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION);
             Lex->json_table= jt;
 
             Select->parsing_place= NO_MATTER;
