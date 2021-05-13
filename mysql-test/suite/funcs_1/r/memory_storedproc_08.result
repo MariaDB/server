@@ -118,7 +118,7 @@ NUMERIC_SCALE	NULL
 DATETIME_PRECISION	NULL
 CHARACTER_SET_NAME	NULL
 COLLATION_NAME	NULL
-DTD_IDENTIFIER	year(4)
+DTD_IDENTIFIER	year
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	BEGIN
 set @x=i1;
@@ -153,7 +153,7 @@ NUMERIC_SCALE	NULL
 DATETIME_PRECISION	NULL
 CHARACTER_SET_NAME	NULL
 COLLATION_NAME	NULL
-DTD_IDENTIFIER	year(4)
+DTD_IDENTIFIER	year
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	BEGIN
 set @x=i1;
@@ -244,7 +244,7 @@ DATABASE_COLLATION	latin1_swedish_ci
 SHOW CREATE FUNCTION  fn_1;
 Function	fn_1
 sql_mode	NO_ENGINE_SUBSTITUTION
-Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_1`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year(4)
+Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_1`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year
 BEGIN
 set @x=i1;
 set @y=@x;
@@ -256,7 +256,7 @@ Database Collation	latin1_swedish_ci
 SHOW CREATE FUNCTION  fn_2;
 Function	fn_2
 sql_mode	NO_ENGINE_SUBSTITUTION
-Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_2`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year(4)
+Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_2`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year
     SQL SECURITY INVOKER
     COMMENT 'created with INVOKER'
 BEGIN
@@ -368,7 +368,7 @@ NUMERIC_SCALE	NULL
 DATETIME_PRECISION	NULL
 CHARACTER_SET_NAME	NULL
 COLLATION_NAME	NULL
-DTD_IDENTIFIER	year(4)
+DTD_IDENTIFIER	year
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	BEGIN
 set @x=i1;
@@ -403,7 +403,7 @@ NUMERIC_SCALE	NULL
 DATETIME_PRECISION	NULL
 CHARACTER_SET_NAME	NULL
 COLLATION_NAME	NULL
-DTD_IDENTIFIER	year(4)
+DTD_IDENTIFIER	year
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	BEGIN
 set @x=i1;
@@ -494,7 +494,7 @@ DATABASE_COLLATION	latin1_swedish_ci
 SHOW CREATE FUNCTION  fn_1;
 Function	fn_1
 sql_mode	NO_ENGINE_SUBSTITUTION
-Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_1`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year(4)
+Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_1`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year
     NO SQL
     SQL SECURITY INVOKER
     COMMENT 'new comment, FN changed to INVOKER'
@@ -509,7 +509,7 @@ Database Collation	latin1_swedish_ci
 SHOW CREATE FUNCTION  fn_2;
 Function	fn_2
 sql_mode	NO_ENGINE_SUBSTITUTION
-Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_2`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year(4)
+Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_2`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year
     MODIFIES SQL DATA
     COMMENT 'FN changed to DEFINER'
 BEGIN
@@ -611,7 +611,7 @@ NUMERIC_SCALE	NULL
 DATETIME_PRECISION	NULL
 CHARACTER_SET_NAME	NULL
 COLLATION_NAME	NULL
-DTD_IDENTIFIER	year(4)
+DTD_IDENTIFIER	year
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	BEGIN
 set @x=i1;
@@ -646,7 +646,7 @@ NUMERIC_SCALE	NULL
 DATETIME_PRECISION	NULL
 CHARACTER_SET_NAME	NULL
 COLLATION_NAME	NULL
-DTD_IDENTIFIER	year(4)
+DTD_IDENTIFIER	year
 ROUTINE_BODY	SQL
 ROUTINE_DEFINITION	BEGIN
 set @x=i1;
@@ -737,7 +737,7 @@ DATABASE_COLLATION	latin1_swedish_ci
 SHOW CREATE FUNCTION  fn_1;
 Function	fn_1
 sql_mode	NO_ENGINE_SUBSTITUTION
-Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_1`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year(4)
+Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_1`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year
     NO SQL
     SQL SECURITY INVOKER
     COMMENT 'new comment, FN changed to INVOKER'
@@ -752,7 +752,7 @@ Database Collation	latin1_swedish_ci
 SHOW CREATE FUNCTION  fn_2;
 Function	fn_2
 sql_mode	NO_ENGINE_SUBSTITUTION
-Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_2`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year(4)
+Create Function	CREATE DEFINER=`root`@`localhost` FUNCTION `fn_2`(i1 longtext, i2 mediumint , i3 longblob, i4 year, i5 real) RETURNS year
     COMMENT 'FN changed to DEFINER'
 BEGIN
 set @x=i1;

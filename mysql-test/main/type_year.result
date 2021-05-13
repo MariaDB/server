@@ -4,28 +4,28 @@ Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Pleas
 insert into t1 values (0,0),(1999,1999),(2000,2000),(2001,2001),(70,70),(69,69);
 select * from t1;
 y	y2
-0000	00
-1999	99
-2000	00
-2001	01
-1970	70
-2069	69
+0000	0000
+1999	1999
+2000	2000
+2001	2001
+1970	1970
+2069	2069
 select * from t1 order by y;
 y	y2
-0000	00
-1970	70
-1999	99
-2000	00
-2001	01
-2069	69
+0000	0000
+1970	1970
+1999	1999
+2000	2000
+2001	2001
+2069	2069
 select * from t1 order by y2;
 y	y2
-1970	70
-1999	99
-0000	00
-2000	00
-2001	01
-2069	69
+0000	0000
+1970	1970
+1999	1999
+2000	2000
+2001	2001
+2069	2069
 drop table t1;
 #
 # Bug 2335
@@ -71,11 +71,11 @@ UPDATE t4 SET yyyy = c4;
 SELECT * FROM t2;
 yy	c2
 NULL	NULL
-70	1970
-99	1999
-00	2000
-01	2001
-69	2069
+1970	1970
+1999	1999
+2000	2000
+2001	2001
+2069	2069
 SELECT * FROM t4;
 yyyy	c4
 NULL	NULL
@@ -87,71 +87,71 @@ NULL	NULL
 # Comparison of YEAR(2) with YEAR(4)
 SELECT * FROM t2, t4 WHERE yy = yyyy;
 yy	c2	yyyy	c4
-70	1970	1970	1970
-99	1999	1999	1999
-00	2000	2000	2000
-01	2001	2001	2001
-69	2069	2069	2069
+1970	1970	1970	1970
+1999	1999	1999	1999
+2000	2000	2000	2000
+2001	2001	2001	2001
+2069	2069	2069	2069
 SELECT * FROM t2, t4 WHERE yy <=> yyyy;
 yy	c2	yyyy	c4
 NULL	NULL	NULL	NULL
-70	1970	1970	1970
-99	1999	1999	1999
-00	2000	2000	2000
-01	2001	2001	2001
-69	2069	2069	2069
+1970	1970	1970	1970
+1999	1999	1999	1999
+2000	2000	2000	2000
+2001	2001	2001	2001
+2069	2069	2069	2069
 SELECT * FROM t2, t4 WHERE yy < yyyy;
 yy	c2	yyyy	c4
-70	1970	1999	1999
-70	1970	2000	2000
-99	1999	2000	2000
-70	1970	2001	2001
-99	1999	2001	2001
-00	2000	2001	2001
-70	1970	2069	2069
-99	1999	2069	2069
-00	2000	2069	2069
-01	2001	2069	2069
+1970	1970	1999	1999
+1970	1970	2000	2000
+1999	1999	2000	2000
+1970	1970	2001	2001
+1999	1999	2001	2001
+2000	2000	2001	2001
+1970	1970	2069	2069
+1999	1999	2069	2069
+2000	2000	2069	2069
+2001	2001	2069	2069
 SELECT * FROM t2, t4 WHERE yy > yyyy;
 yy	c2	yyyy	c4
-99	1999	1970	1970
-00	2000	1970	1970
-01	2001	1970	1970
-69	2069	1970	1970
-00	2000	1999	1999
-01	2001	1999	1999
-69	2069	1999	1999
-01	2001	2000	2000
-69	2069	2000	2000
-69	2069	2001	2001
+1999	1999	1970	1970
+2000	2000	1970	1970
+2001	2001	1970	1970
+2069	2069	1970	1970
+2000	2000	1999	1999
+2001	2001	1999	1999
+2069	2069	1999	1999
+2001	2001	2000	2000
+2069	2069	2000	2000
+2069	2069	2001	2001
 # Comparison of YEAR(2) with YEAR(2)
 SELECT * FROM t2 a, t2 b WHERE a.yy = b.yy;
 yy	c2	yy	c2
-70	1970	70	1970
-99	1999	99	1999
-00	2000	00	2000
-01	2001	01	2001
-69	2069	69	2069
+1970	1970	1970	1970
+1999	1999	1999	1999
+2000	2000	2000	2000
+2001	2001	2001	2001
+2069	2069	2069	2069
 SELECT * FROM t2 a, t2 b WHERE a.yy <=> b.yy;
 yy	c2	yy	c2
 NULL	NULL	NULL	NULL
-70	1970	70	1970
-99	1999	99	1999
-00	2000	00	2000
-01	2001	01	2001
-69	2069	69	2069
+1970	1970	1970	1970
+1999	1999	1999	1999
+2000	2000	2000	2000
+2001	2001	2001	2001
+2069	2069	2069	2069
 SELECT * FROM t2 a, t2 b WHERE a.yy < b.yy;
 yy	c2	yy	c2
-70	1970	99	1999
-70	1970	00	2000
-99	1999	00	2000
-70	1970	01	2001
-99	1999	01	2001
-00	2000	01	2001
-70	1970	69	2069
-99	1999	69	2069
-00	2000	69	2069
-01	2001	69	2069
+1970	1970	1999	1999
+1970	1970	2000	2000
+1999	1999	2000	2000
+1970	1970	2001	2001
+1999	1999	2001	2001
+2000	2000	2001	2001
+1970	1970	2069	2069
+1999	1999	2069	2069
+2000	2000	2069	2069
+2001	2001	2069	2069
 # Comparison of YEAR(4) with YEAR(4)
 SELECT * FROM t4 a, t4 b WHERE a.yyyy = b.yyyy;
 yyyy	c4	yyyy	c4
@@ -201,16 +201,15 @@ SELECT * FROM t4 WHERE yyyy = NOW();
 yyyy	c4
 SELECT * FROM t2 WHERE yy = 99;
 yy	c2
-99	1999
+1999	1999
 SELECT * FROM t2 WHERE 99 = yy;
 yy	c2
-99	1999
+1999	1999
 SELECT * FROM t4 WHERE yyyy = 99;
 yyyy	c4
 1999	1999
 SELECT * FROM t2 WHERE yy = 'test';
 yy	c2
-00	2000
 Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'test'
 SELECT * FROM t4 WHERE yyyy = 'test';
@@ -219,44 +218,42 @@ Warnings:
 Warning	1292	Truncated incorrect DOUBLE value: 'test'
 SELECT * FROM t2 WHERE yy = '1999';
 yy	c2
-99	1999
+1999	1999
 SELECT * FROM t4 WHERE yyyy = '1999';
 yyyy	c4
 1999	1999
 SELECT * FROM t2 WHERE yy = 1999;
 yy	c2
-99	1999
+1999	1999
 SELECT * FROM t4 WHERE yyyy = 1999;
 yyyy	c4
 1999	1999
 SELECT * FROM t2 WHERE yy = 1999.1;
 yy	c2
-99	1999
+1999	1999
 SELECT * FROM t4 WHERE yyyy = 1999.1;
 yyyy	c4
 1999	1999
 SELECT * FROM t2 WHERE yy = 1998.9;
 yy	c2
-99	1999
+1999	1999
 SELECT * FROM t4 WHERE yyyy = 1998.9;
 yyyy	c4
 1999	1999
 # Coverage tests for YEAR with zero/2000 constants:
 SELECT * FROM t2 WHERE yy = 0;
 yy	c2
-00	2000
 SELECT * FROM t2 WHERE yy = '0';
 yy	c2
-00	2000
+2000	2000
 SELECT * FROM t2 WHERE yy = '0000';
 yy	c2
-00	2000
 SELECT * FROM t2 WHERE yy = '2000';
 yy	c2
-00	2000
+2000	2000
 SELECT * FROM t2 WHERE yy = 2000;
 yy	c2
-00	2000
+2000	2000
 SELECT * FROM t4 WHERE yyyy = 0;
 yyyy	c4
 SELECT * FROM t4 WHERE yyyy = '0';
@@ -304,13 +301,13 @@ COUNT(*)
 5
 SELECT * FROM t2 WHERE yy < 123;
 yy	c2
-70	1970
-99	1999
-00	2000
-01	2001
-69	2069
 SELECT * FROM t2 WHERE yy > 123;
 yy	c2
+1970	1970
+1999	1999
+2000	2000
+2001	2001
+2069	2069
 SELECT * FROM t4 WHERE yyyy < 123;
 yyyy	c4
 SELECT * FROM t4 WHERE yyyy > 123;
@@ -382,7 +379,6 @@ Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Pleas
 ALTER TABLE t1 MODIFY COLUMN c2 YEAR(2);
 Warnings:
 Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 DROP TABLE t1;
 #
 # End of 5.1 tests
@@ -394,16 +390,12 @@ Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Pleas
 insert t1 values (0,2000);
 select a from t1 where a=2000;
 a
-00
 select a from t1 where a=1000+1000;
 a
-00
 select a from t1 where a=(select 2000 from dual where 1);
 a
-00
 select a from t1 where a=y2k();
 a
-00
 select a from t1 where a=b;
 a
 drop table t1;
@@ -534,7 +526,7 @@ Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Pleas
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` year(2) DEFAULT NULL
+  `a` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a YEAR(3));
 Warnings:
@@ -601,16 +593,16 @@ Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Pleas
 INSERT INTO t1 VALUES (93),(94);
 SELECT * FROM t1;
 a
-93
-94
+1993
+1994
 SELECT * FROM t1 WHERE a=1993 and a=93;
 a
-93
+1993
 EXPLAIN EXTENDED SELECT * FROM t1 WHERE a=1993 and a=93;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 93
+Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1993
 DROP TABLE t1;
 #
 # MDEV-16926 CAST(COALESCE(year_field)) returns wrong value
@@ -633,13 +625,13 @@ Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Pleas
 INSERT INTO t1 VALUES (1970),(1978),(2000),(2069);
 SELECT a, CAST(a AS DATE), CAST(COALESCE(a) AS DATE) FROM t1;
 a	CAST(a AS DATE)	CAST(COALESCE(a) AS DATE)
-70	1970-00-00	1970-00-00
-78	1978-00-00	1978-00-00
-00	2000-00-00	2000-00-00
-69	2069-00-00	2069-00-00
+1970	1970-00-00	1970-00-00
+1978	1978-00-00	1978-00-00
+2000	2000-00-00	2000-00-00
+2069	2069-00-00	2069-00-00
 SELECT MIN(a), MAX(a) FROM t1;
 MIN(a)	MAX(a)
-70	69
+1970	2069
 DROP TABLE t1;
 #
 # MDEV-17015 Assertion `m_year <= 9999' failed in Year::Year upon bad argument to MAKEDATE
@@ -663,15 +655,13 @@ CREATE TABLE t1 (a YEAR(2));
 Warnings:
 Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
-Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 DESC t2;
 Field	Type	Null	Key	Default	Extra
-a	year(2)	YES		NULL	
-ROUND(a)	int(2) unsigned	YES		NULL	
-TRUNCATE(a,0)	int(2) unsigned	YES		NULL	
-FLOOR(a)	int(2) unsigned	YES		NULL	
-CEILING(a)	int(2) unsigned	YES		NULL	
+a	year	YES		NULL	
+ROUND(a)	int(4) unsigned	YES		NULL	
+TRUNCATE(a,0)	int(4) unsigned	YES		NULL	
+FLOOR(a)	int(4) unsigned	YES		NULL	
+CEILING(a)	int(4) unsigned	YES		NULL	
 DROP TABLE t2,t1;
 CREATE TABLE t1 (a YEAR(4));
 Warnings:

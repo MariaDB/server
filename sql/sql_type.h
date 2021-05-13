@@ -800,7 +800,7 @@ class Year
 protected:
   uint m_year;
   bool m_truncated;
-  uint year_precision(const Item *item) const;
+  uint year_precision(const Item *item) const { return 4; };
 public:
   Year(): m_year(0), m_truncated(false) { }
   Year(longlong value, bool unsigned_flag, uint length);
@@ -7521,7 +7521,6 @@ extern MYSQL_PLUGIN_IMPORT Named_type_handler<Type_handler_newdecimal>  type_han
 extern Named_type_handler<Type_handler_olddecimal>  type_handler_olddecimal;
 
 extern Named_type_handler<Type_handler_year>        type_handler_year;
-extern Named_type_handler<Type_handler_year>        type_handler_year2;
 extern Named_type_handler<Type_handler_newdate>     type_handler_newdate;
 extern Named_type_handler<Type_handler_date>        type_handler_date;
 extern Named_type_handler<Type_handler_time>        type_handler_time;

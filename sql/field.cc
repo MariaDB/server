@@ -6405,7 +6405,7 @@ bool Field_timef::val_native(Native *to)
 /****************************************************************************
 ** year type
 ** Save in a byte the year 0, 1901->2155
-** Can handle 2 byte or 4 byte years!
+** Can handle 4 byte years!
 ****************************************************************************/
 
 int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
@@ -6465,7 +6465,7 @@ int Field_year::store(longlong nr, bool unsigned_val)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (nr != 0 || field_length != 4)		// 0000 -> 0; 00 -> 2000
+  if (nr != 0)
   {
     if (nr < YY_PART_YEAR)
       nr+=100;					// 2000 - 2069
@@ -6508,11 +6508,8 @@ double Field_year::val_real(void)
 longlong Field_year::val_int(void)
 {
   DBUG_ASSERT(marked_for_read());
-  DBUG_ASSERT(field_length == 2 || field_length == 4);
   int tmp= (int) ptr[0];
-  if (field_length != 4)
-    tmp%=100;					// Return last 2 char
-  else if (tmp)
+  if (tmp)
     tmp+=1900;
   return (longlong) tmp;
 }
@@ -6525,7 +6522,7 @@ String *Field_year::val_str(String *val_buffer,
   val_buffer->alloc(5);
   val_buffer->length(field_length);
   char *to=(char*) val_buffer->ptr();
-  sprintf(to,field_length == 2 ? "%02d" : "%04d",(int) Field_year::val_int());
+  sprintf(to, "%04d", (int) Field_year::val_int());
   val_buffer->set_charset(&my_charset_numeric);
   return val_buffer;
 }
@@ -6534,7 +6531,7 @@ String *Field_year::val_str(String *val_buffer,
 bool Field_year::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
 {
   int tmp= (int) ptr[0];
-  if (tmp || field_length != 4)
+  if (tmp)
     tmp+= 1900;
   return int_to_datetime_with_warn(get_thd(),
                                    Longlong_hybrid(tmp * 10000, true),
@@ -6545,9 +6542,7 @@ bool Field_year::get_date(MYSQL_TIME *ltime,date_mode_t fuzzydate)
 void Field_year::sql_type(String &res) const
 {
   CHARSET_INFO *cs=res.charset();
-  res.length(cs->cset->snprintf(cs,(char*)res.ptr(),res.alloced_length(),
-                                (field_length == 4 ? "year" : "year(%d)"),
-                                (int) field_length));
+  res.length(cs->cset->snprintf(cs,(char*)res.ptr(),res.alloced_length(), "year"));
 }
 
 

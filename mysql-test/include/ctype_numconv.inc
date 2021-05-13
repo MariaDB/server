@@ -1145,13 +1145,6 @@ insert into t1 values (1.1), (10.1), (100.1), (1000.1), (10000.1);
 select hex(concat(a)), a from t1;
 drop table t1;
 
-create table t1 (a year(2));
-insert into t1 values (1);
-select hex(concat(a)) from t1;
-create table t2 as select concat(a) from t1;
-show create table t2;
-drop table t1, t2;
-
 create table t1 (a year);
 insert into t1 values (1);
 select hex(concat(a)) from t1;

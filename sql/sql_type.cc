@@ -57,7 +57,6 @@ Named_type_handler<Type_handler_olddecimal> type_handler_olddecimal("decimal");
 Named_type_handler<Type_handler_newdecimal> type_handler_newdecimal("decimal");
 
 Named_type_handler<Type_handler_year> type_handler_year("year");
-Named_type_handler<Type_handler_year> type_handler_year2("year");
 Named_type_handler<Type_handler_time> type_handler_time("time");
 Named_type_handler<Type_handler_date> type_handler_date("date");
 Named_type_handler<Type_handler_timestamp> type_handler_timestamp("timestamp");
@@ -600,12 +599,6 @@ Year::Year(longlong value, bool unsigned_flag, uint length)
   else
     m_year= (uint) value;
   DBUG_ASSERT(m_year <= 9999);
-}
-
-
-uint Year::year_precision(const Item *item) const
-{
-  return item->type_handler() == &type_handler_year2 ? 2 : 4;
 }
 
 

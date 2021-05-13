@@ -201,7 +201,7 @@ t1	CREATE TABLE `t1` (
   `b` datetime DEFAULT NULL,
   `c` time DEFAULT NULL,
   `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `e` year(4) DEFAULT NULL
+  `e` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT IGNORE INTO t1 VALUES('2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23','2003-05-27 10:45:23');
 Warnings:
@@ -221,7 +221,7 @@ t1	CREATE TABLE `t1` (
   `b` datetime DEFAULT NULL,
   `c` time DEFAULT NULL,
   `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `e` year(4) DEFAULT NULL
+  `e` year DEFAULT NULL
 ) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='mysql://root@127.0.0.1:SLAVE_PORT' `TABLE_TYPE`='MYSQL'
 SELECT * FROM t1;
 a	b	c	d	e

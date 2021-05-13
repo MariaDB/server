@@ -2479,6 +2479,17 @@ col173 tinytext,
 col174 decimal(10,0) DEFAULT NULL,
 col175 double DEFAULT NULL
 ) engine=aria;
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 insert ignore into t1 set 
 col10=abs(28449) % 2,
 col11='1973',

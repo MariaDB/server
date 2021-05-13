@@ -3371,10 +3371,10 @@ public:
 	     enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
     :Field_tiny(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
 		unireg_check_arg, field_name_arg, 1, 1)
-    {}
+    { field_length= 4; }
   const Type_handler *type_handler() const override
   {
-    return field_length == 2 ? &type_handler_year2 : &type_handler_year;
+    return &type_handler_year;
   }
   enum_conv_type rpl_conv_type_from(const Conv_source &source,
                                     const Relay_log_info *rli,

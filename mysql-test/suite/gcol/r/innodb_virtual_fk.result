@@ -713,11 +713,11 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `c2` year(4) DEFAULT NULL,
+  `c2` year DEFAULT NULL,
   `c3` time DEFAULT NULL,
   `c4` char(10) DEFAULT NULL,
   `v1` timestamp GENERATED ALWAYS AS (`c1`) VIRTUAL,
-  `v2` year(4) GENERATED ALWAYS AS (`c2`) VIRTUAL,
+  `v2` year GENERATED ALWAYS AS (`c2`) VIRTUAL,
   `v3` time GENERATED ALWAYS AS (`c3`) VIRTUAL,
   `v4` char(10) GENERATED ALWAYS AS (`c4`) VIRTUAL,
   KEY `v4` (`v4`),
@@ -730,11 +730,11 @@ SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `c1` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `c2` year(4) DEFAULT NULL,
+  `c2` year DEFAULT NULL,
   `c3` time DEFAULT NULL,
   `c4` char(10) DEFAULT NULL,
   `v1` timestamp GENERATED ALWAYS AS (`c1`) VIRTUAL,
-  `v2` year(4) GENERATED ALWAYS AS (`c2`) VIRTUAL,
+  `v2` year GENERATED ALWAYS AS (`c2`) VIRTUAL,
   `v3` time GENERATED ALWAYS AS (`c3`) VIRTUAL,
   `v4` char(10) GENERATED ALWAYS AS (`c4`) VIRTUAL,
   KEY `v4` (`v4`)

@@ -6375,7 +6375,7 @@ field_type_temporal:
                                     buff, "YEAR");
               }
             }
-            $$.set(&type_handler_year, $2);
+            $$.set(&type_handler_year);
           }
         | DATE_SYM { $$.set(&type_handler_newdate); }
         | TIME_SYM opt_field_length

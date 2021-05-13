@@ -7484,21 +7484,25 @@ declare x, y, z year(3) default 2005;
 SELECT x, y, z;
 END//
 Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR instead
 CALL sp1();
 x	y	z
 2005	2005	2005
 Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR instead
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
 declare x, y, z year(4) default 2005;
 SELECT x, y, z;
 END//
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 CALL sp1();
 x	y	z
 2005	2005	2005
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 DROP PROCEDURE IF EXISTS sp1;
 CREATE PROCEDURE sp1( )
 BEGIN
@@ -17174,9 +17178,14 @@ BEGIN
 set f1 = f1 + 51;
 return f1;
 END//
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 SELECT fn102(1982);
 fn102(1982)
 2033
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 DROP FUNCTION IF EXISTS fn103;
 CREATE FUNCTION fn103( f1 geometrycollection) returns geometrycollection
 BEGIN
@@ -18309,9 +18318,13 @@ BEGIN
 set f1 = f1 + 51;
 SELECT f1;
 END//
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 CALL sp102(1982);
 f1
 2033
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 DROP PROCEDURE IF EXISTS sp103;
 CREATE PROCEDURE sp103( f1 geometrycollection)
 BEGIN

@@ -8,7 +8,7 @@ INDEX(y)
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `i` smallint(6) DEFAULT NULL,
   `c` varchar(8) NOT NULL DEFAULT '',
   `vi` smallint(6) GENERATED ALWAYS AS (`i`) VIRTUAL,
@@ -29,7 +29,7 @@ INDEX(y)
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `i` smallint(6) DEFAULT NULL,
   `vi` smallint(6) GENERATED ALWAYS AS (`i`) VIRTUAL,
   KEY `y` (`y`)
@@ -50,7 +50,7 @@ INDEX(y)
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `i` smallint(6) DEFAULT NULL,
   `b` blob DEFAULT NULL,
   `vi` smallint(6) GENERATED ALWAYS AS (`i`) VIRTUAL,

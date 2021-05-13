@@ -414,10 +414,10 @@ Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Pleas
 INSERT INTO t1 VALUES (0);
 SELECT a,NULLIF(a,2000),NULLIF(2000,a) FROM t1;
 a	NULLIF(a,2000)	NULLIF(2000,a)
-00	NULL	NULL
+0000	0	2000
 SELECT a,NULLIF(a,2001),NULLIF(2001,a) FROM t1;
 a	NULLIF(a,2001)	NULLIF(2001,a)
-00	0	2001
+0000	0	2001
 DROP TABLE t1;
 #
 # MDEV-7005 NULLIF does not work as documented

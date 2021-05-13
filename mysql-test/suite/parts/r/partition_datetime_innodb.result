@@ -874,7 +874,7 @@ partition pa4 max_rows=40 min_rows=2);
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` year(4) NOT NULL,
+  `a` year NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
  PARTITION BY KEY (`a`)
@@ -904,7 +904,7 @@ partition by key (a) partitions 12;
 show create table t2;
 Table	Create Table
 t2	CREATE TABLE `t2` (
-  `a` year(4) NOT NULL,
+  `a` year NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
  PARTITION BY KEY (`a`)
