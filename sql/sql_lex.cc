@@ -704,6 +704,8 @@ void lex_start(THD *thd)
   lex->subqueries= FALSE;
   lex->context_analysis_only= 0;
   lex->derived_tables= 0;
+  lex->with_cte_resolution= false;
+  lex->only_cte_resolution= false;
   lex->safe_to_cache_query= 1;
   lex->parsing_options.reset();
   lex->empty_field_list_on_rset= 0;
@@ -2089,6 +2091,7 @@ void st_select_lex_unit::init_query()
   is_view= false;
   with_clause= 0;
   with_element= 0;
+  cloned_from= 0;
   columns_are_renamed= false;
 }
 

@@ -699,7 +699,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 NULL	UNION RESULT	<union3,4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 2	DERIVED	<derived3>	ALL	NULL	NULL	NULL	NULL	12	100.00	Using where
 Warnings:
-Note	1003	with recursive ancestor_couple_ids as (select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null), coupled_ancestors as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `test`.`p`.`id` = `fa`.`h_id` union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `test`.`p`.`id` = `ma`.`w_id`)select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
+Note	1003	with recursive ancestor_couple_ids(h_id,w_id) as (select `a`.`father` AS `h_id`,`a`.`mother` AS `w_id` from `coupled_ancestors` `a` where `a`.`father` is not null and `a`.`mother` is not null), coupled_ancestors(id,name,dob,father,mother) as (select `test`.`folks`.`id` AS `id`,`test`.`folks`.`name` AS `name`,`test`.`folks`.`dob` AS `dob`,`test`.`folks`.`father` AS `father`,`test`.`folks`.`mother` AS `mother` from `test`.`folks` where `test`.`folks`.`name` = 'Me' union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `fa` where `test`.`p`.`id` = `fa`.`h_id` union all select `test`.`p`.`id` AS `id`,`test`.`p`.`name` AS `name`,`test`.`p`.`dob` AS `dob`,`test`.`p`.`father` AS `father`,`test`.`p`.`mother` AS `mother` from `test`.`folks` `p` join `ancestor_couple_ids` `ma` where `test`.`p`.`id` = `ma`.`w_id`)select `h`.`name` AS `name`,`h`.`dob` AS `dob`,`w`.`name` AS `name`,`w`.`dob` AS `dob` from `ancestor_couple_ids` `c` join `coupled_ancestors` `h` join `coupled_ancestors` `w` where `h`.`id` = `c`.`h_id` and `w`.`id` = `c`.`w_id`
 # simple mutual recursion
 with recursive
 ancestor_couple_ids(h_id, w_id)
@@ -3047,7 +3047,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 4	DEPENDENT SUBQUERY	<derived2>	ALL	NULL	NULL	NULL	NULL	16	100.00	Using where
 NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	with recursive destinations as (select `test`.`a`.`arrival` AS `city`,1 AS `legs` from `test`.`flights` `a` where `test`.`a`.`departure` = 'Cairo' union select `test`.`b`.`arrival` AS `arrival`,`r`.`legs` + 1 AS `r.legs + 1` from `destinations` `r` join `test`.`flights` `b` where `r`.`city` = `test`.`b`.`departure` and !<in_optimizer>(`test`.`b`.`arrival`,<exists>(select `destinations`.`city` from `destinations` where trigcond(`test`.`b`.`arrival` = `destinations`.`city` or `destinations`.`city` is null) having trigcond(`destinations`.`city` is null))))select `destinations`.`city` AS `city`,`destinations`.`legs` AS `legs` from `destinations`
+Note	1003	with recursive destinations(city,legs) as (select `test`.`a`.`arrival` AS `city`,1 AS `legs` from `test`.`flights` `a` where `test`.`a`.`departure` = 'Cairo' union select `test`.`b`.`arrival` AS `arrival`,`r`.`legs` + 1 AS `r.legs + 1` from `destinations` `r` join `test`.`flights` `b` where `r`.`city` = `test`.`b`.`departure` and !<in_optimizer>(`test`.`b`.`arrival`,<exists>(select `destinations`.`city` from `destinations` where trigcond(`test`.`b`.`arrival` = `destinations`.`city` or `destinations`.`city` is null) having trigcond(`destinations`.`city` is null))))select `destinations`.`city` AS `city`,`destinations`.`legs` AS `legs` from `destinations`
 set standard_compliant_cte=default;
 drop table flights;
 #
@@ -3334,7 +3334,7 @@ NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 5	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 5	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	with recursive rcte as (select 1 AS `a` union select cast(`rcte`.`a` + 1 as unsigned) AS `cast(a+1 as unsigned)` from `rcte` where `rcte`.`a` < 10), cte1 as (select count(0) AS `c1` from `rcte` join `test`.`t1` where `rcte`.`a` between 3 and 5 and `test`.`t1`.`id` = `rcte`.`a` - 3), cte2 as (select count(0) AS `c2` from `rcte` join `test`.`t1` where `rcte`.`a` between 7 and 8 and `test`.`t1`.`id` = `rcte`.`a` - 7)select `cte1`.`c1` AS `c1`,`cte2`.`c2` AS `c2` from `cte1` join `cte2`
+Note	1003	with recursive rcte(a) as (select 1 AS `a` union select cast(`rcte`.`a` + 1 as unsigned) AS `cast(a+1 as unsigned)` from `rcte` where `rcte`.`a` < 10), cte1 as (select count(0) AS `c1` from `rcte` join `test`.`t1` where `rcte`.`a` between 3 and 5 and `test`.`t1`.`id` = `rcte`.`a` - 3), cte2 as (select count(0) AS `c2` from `rcte` join `test`.`t1` where `rcte`.`a` between 7 and 8 and `test`.`t1`.`id` = `rcte`.`a` - 7)select `cte1`.`c1` AS `c1`,`cte2`.`c2` AS `c2` from `cte1` join `cte2`
 prepare stmt from "with recursive
 rcte(a) as
 (select 1 union select cast(a+1 as unsigned) from rcte where a < 10),
@@ -3420,7 +3420,7 @@ NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 4	DERIVED	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
 4	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	3	100.00	Using where; Using join buffer (flat, BNL join)
 Warnings:
-Note	1003	with recursive rcte as (select 1 AS `a` union select cast(`rcte`.`a` + 1 as unsigned) AS `cast(a+1 as unsigned)` from `rcte` where `rcte`.`a` < 10), cte1 as (select count(0) AS `c1` from `rcte` join `test`.`t1` where `rcte`.`a` between 3 and 5 and `test`.`t1`.`id` = `rcte`.`a` - 3), cte2 as (select count(0) AS `c2` from `rcte` join `test`.`t1` where `rcte`.`a` between 7 and 8 and `test`.`t1`.`id` = `rcte`.`a` - 7)select `cte2`.`c2` AS `c2`,`cte1`.`c1` AS `c1` from `cte2` join `cte1`
+Note	1003	with recursive rcte(a) as (select 1 AS `a` union select cast(`rcte`.`a` + 1 as unsigned) AS `cast(a+1 as unsigned)` from `rcte` where `rcte`.`a` < 10), cte1 as (select count(0) AS `c1` from `rcte` join `test`.`t1` where `rcte`.`a` between 3 and 5 and `test`.`t1`.`id` = `rcte`.`a` - 3), cte2 as (select count(0) AS `c2` from `rcte` join `test`.`t1` where `rcte`.`a` between 7 and 8 and `test`.`t1`.`id` = `rcte`.`a` - 7)select `cte2`.`c2` AS `c2`,`cte1`.`c1` AS `c1` from `cte2` join `cte1`
 prepare stmt from "with recursive
 rcte(a) as
 (select 1 union select cast(a+1 as unsigned) from rcte where a < 10),

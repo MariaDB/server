@@ -2525,6 +2525,60 @@ void THD::close_active_vio()
 #endif
 
 
+/*
+  @brief MySQL parser used for recursive invocations
+
+  @param old_lex  The LEX structure in the state when this parser
+                  is called recursively
+  @param lex      The LEX structure used to parse a new SQL fragment
+  @param str      The SQL fragment to parse
+  @param str_len  The length of the SQL fragment to parse
+  @param stmt_prepare_mode true <=> when parsing a prepare statement
+
+  @details
+    This function is to be used when parsing of an SQL fragment is
+    needed within one of the grammar rules.
+
+  @notes
+    Currently the function is used only when the specification of a CTE
+    is parsed for the not first and not recursive references of the CTE.
+
+  @retval false   On a successful parsing of the fragment
+  @retval true    Otherwise
+*/
+
+bool THD::sql_parser(LEX *old_lex, LEX *lex,
+                     char *str, uint str_len, bool stmt_prepare_mode)
+{
+  extern int MYSQLparse(THD * thd);
+
+  bool parse_status= false;
+  Parser_state parser_state;
+  Parser_state *old_parser_state= m_parser_state;
+
+  if (parser_state.init(this, str, str_len))
+    return true;
+
+  m_parser_state= &parser_state;
+  parser_state.m_lip.stmt_prepare_mode= stmt_prepare_mode;
+  parser_state.m_lip.multi_statements= false;
+  parser_state.m_lip.m_digest= NULL;
+
+  lex->param_list= old_lex->param_list;
+  lex->sphead= old_lex->sphead;
+  lex->spname= old_lex->spname;
+  lex->spcont= old_lex->spcont;
+  lex->sp_chistics= old_lex->sp_chistics;
+  lex->trg_chistics= old_lex->trg_chistics;
+
+  parse_status= MYSQLparse(this) != 0;
+
+  m_parser_state= old_parser_state;
+
+  return parse_status;
+}
+
+
 struct Item_change_record: public ilink
 {
   Item **place;

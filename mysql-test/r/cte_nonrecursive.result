@@ -606,7 +606,7 @@ with t(c) as (select a from t1 where b >= 'c')
 select * from t r1 where r1.c=4;
 show create view v3;
 View	Create View	character_set_client	collation_connection
-v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS with t as (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c')select `r1`.`c` AS `c` from `t` `r1` where `r1`.`c` = 4	latin1	latin1_swedish_ci
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS with t(c) as (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c')select `r1`.`c` AS `c` from `t` `r1` where `r1`.`c` = 4	latin1	latin1_swedish_ci
 select * from v3;
 c
 4
@@ -618,7 +618,7 @@ with t(c) as (select a from t1 where b >= 'c')
 select * from t r1, t r2 where r1.c=r2.c and r2.c=4;
 show create view v4;
 View	Create View	character_set_client	collation_connection
-v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS with t as (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c')select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join `t` `r2`) where `r1`.`c` = `r2`.`c` and `r2`.`c` = 4	latin1	latin1_swedish_ci
+v4	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS with t(c) as (select `test`.`t1`.`a` AS `c` from `test`.`t1` where `test`.`t1`.`b` >= 'c')select `r1`.`c` AS `c`,`r2`.`c` AS `d` from (`t` `r1` join `t` `r2`) where `r1`.`c` = `r2`.`c` and `r2`.`c` = 4	latin1	latin1_swedish_ci
 select * from v4;
 c	d
 4	4
@@ -1120,10 +1120,10 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 5	UNION	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
 NULL	UNION RESULT	<union2,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
-6	UNION	<derived9>	ALL	NULL	NULL	NULL	NULL	14	100.00	
-9	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-12	UNION	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
-NULL	UNION RESULT	<union9,12>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+6	UNION	<derived14>	ALL	NULL	NULL	NULL	NULL	14	100.00	
+14	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+11	UNION	t1	ALL	NULL	NULL	NULL	NULL	7	100.00	Using where
+NULL	UNION RESULT	<union14,11>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 NULL	UNION RESULT	<union1,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
 Note	1003	with cte_e as (with cte_o as (with cte_i as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1 union select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1)select `cte_e1`.`a` AS `a` from `cte_e` `cte_e1` where `cte_e1`.`a` > 1 union select `cte_e2`.`a` AS `a` from `cte_e` `cte_e2`
@@ -1763,4 +1763,205 @@ a	c
 2	1
 7	3
 drop table t1;
+#
+# MDEV-23886: Stored Function returning the result of a query
+#             that uses CTE over a table twice
+#
+create table t1 (c1 int);
+insert into t1 values (1),(2),(6);
+create function f1() returns int return
+( with cte1 as (select c1 from t1)
+select sum(c1) from
+(select * from cte1 union all select * from cte1) dt
+);
+select f1();
+f1()
+18
+create function f2() returns int return
+( with cte1 as (select c1 from t1)
+select sum(s.c1) from cte1 as s, cte1 as t where s.c1=t.c1
+);
+select f2();
+f2()
+9
+create function f3() returns int return
+( with cte1 as (select c1 from t1)
+select
+case
+when exists(select 1 from cte1 where c1 between 1 and 2) then 1
+when exists(select 1 from cte1 where c1 between 5 and 6) then 2
+else 0
+end
+);
+select f3();
+f3()
+1
+create view v1 as (select c1 from t1);
+create function f4() returns int return
+( select sum(c1) from
+(select * from v1 union all select * from v1) dt
+);
+select f4();
+f4()
+18
+create function f5() returns int return
+( select sum(s.c1) from v1 as s, v1 as t where s.c1=t.c1
+);
+select f5();
+f5()
+9
+create view v2(s) as
+with cte1 as (select c1 from t1)
+select sum(c1) from (select * from cte1 union all select * from cte1) dt;
+create function f6() returns int return
+(select s from v2);
+select f6();
+f6()
+18
+create function f7() returns int return
+( select r.s from v2 as r, v2 as t where r.s=t.s
+);
+select f7();
+f7()
+18
+select f5() + f6();
+f5() + f6()
+27
+prepare stmt from "select f5() + f6();";
+execute stmt;
+f5() + f6()
+27
+execute stmt;
+f5() + f6()
+27
+deallocate prepare stmt;
+drop function f1;
+drop function f2;
+drop function f3;
+drop function f4;
+drop function f5;
+drop function f6;
+drop function f7;
+drop view v1;
+drop view v2;
+create table t2 (a int, b int);
+insert into t2
+with cte1 as (select c1 from t1)
+select * from cte1 as s, cte1 as t where s.c1=t.c1 and s.c1 > 5;
+select * from t2;
+a	b
+6	6
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select c1 from t1)
+select * from cte1 as s, cte1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+call p1();
+select * from t2;
+a	b
+6	6
+2	2
+drop procedure p1;
+# checking CTE resolution for queries with hanging CTEs
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from cte3;
+a	b
+1	2
+select * from t2;
+a	b
+6	6
+2	2
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from t2;
+a	b
+6	6
+2	2
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where c1 >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.b)
+select * from t2;
+ERROR 42S22: Unknown column 'c1' in 'where clause'
+with
+cte1(a) as (select * from t1 where c1 <= 2),
+cte2(b) as (select * from cte1 where a >= 2),
+cte3 as (select * from cte1,cte2 where cte1.a < cte2.c1)
+select * from t2;
+ERROR 42S22: Unknown column 'cte2.c1' in 'where clause'
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select * from cte2;
+a	b
+1	1
+2	2
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select * from t2;
+a	b
+6	6
+2	2
+with
+cte1 as (select * from t1 where c1 <= 2),
+cte2(a,b) as (select * from cte1 as s1, cte1 as s2 where s1.c1=c1)
+select * from t2;
+ERROR 23000: Column 'c1' in where clause is ambiguous
+with cte3 as
+( with cte2(a,b) as
+( with cte1 as (select * from t1 where c1 <= 2)
+select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select r1.a,r2.b from cte2 as r1, cte2 as r2)
+select * from cte3;
+a	b
+1	1
+2	1
+1	2
+2	2
+with cte3 as
+( with cte2(a,b) as
+( with cte1 as (select * from t1 where c1 <= 2)
+select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select r1.a,r2.b from cte2 as r1, cte2 as r2)
+select * from t2;
+a	b
+6	6
+2	2
+with cte3 as
+( with cte2(a,b) as
+( with cte1 as (select * from t1 where c1 <= 2)
+select * from cte1 as s1, cte1 as s2 where s1.c1=s2.c1)
+select r1.c1,r2.c1 from cte2 as r1, cte2 as r2)
+select * from t2;
+ERROR 42S22: Unknown column 'r1.c1' in 'field list'
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select c1 from t1)
+select * from t1 as s, t1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+call p1();
+select * from t2;
+a	b
+6	6
+2	2
+2	2
+drop procedure p1;
+create procedure p1()
+begin
+insert into t2
+with cte1 as (select a from t1)
+select * from t1 as s, t1 as t where s.c1=t.c1 and s.c1 <= 2 and t.c1 >= 2;
+end |
+call p1();
+ERROR 42S22: Unknown column 'a' in 'field list'
+drop procedure p1;
+drop table t1,t2;
 # End of 10.2 tests

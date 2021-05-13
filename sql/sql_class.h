@@ -4002,14 +4002,11 @@ public:
         to resolve all CTE names as we don't need this message to be thrown
         for any CTE references.
       */
-      if (!lex->with_clauses_list)
+      if (!lex->with_cte_resolution)
       {
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
         return TRUE;
       }
-      /* This will allow to throw an error later for non-CTE references */
-      *p_db= NULL;
-      *p_db_length= 0;
     }
     else
     {
@@ -4545,6 +4542,10 @@ public:
     current_linfo= 0;
     mysql_mutex_unlock(&LOCK_thread_count);
   }
+
+  bool sql_parser(LEX *old_lex, LEX *lex,
+                  char *str, uint str_len, bool stmt_prepare_mode);
+
 };
 
 inline void add_to_active_threads(THD *thd)

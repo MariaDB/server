@@ -981,6 +981,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
   class sp_label *splabel;
   class sp_name *spname;
   class sp_variable *spvar;
+  class With_element_head *with_element_head;
   class With_clause *with_clause;
   class Virtual_column_info *virtual_column;
 
@@ -2067,7 +2068,7 @@ END_OF_INPUT
 
 %type <with_clause> opt_with_clause with_clause
 
-%type <lex_str_ptr> query_name
+%type <with_element_head> with_element_head
 
 %type <lex_str_list> opt_with_column_list
 
@@ -2959,7 +2960,11 @@ call:
             lex->value_list.empty();
             sp_add_used_routine(lex, thd, $2, TYPE_ENUM_PROCEDURE);
           }
-          opt_sp_cparam_list {}
+          opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 /* CALL parameters */
@@ -3805,6 +3810,8 @@ sp_proc_stmt_return:
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
 
             if (sp->m_type != TYPE_ENUM_FUNCTION)
               my_yyabort_error((ER_SP_BADRETURN, MYF(0)));
@@ -4866,12 +4873,16 @@ create_select_query_expression:
           { 
             Select->set_braces(0);
             Select->set_with_clause($1);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
           union_clause
         | opt_with_clause SELECT_SYM create_select_part2 
           create_select_part3_union_not_ready create_select_part4
           {
             Select->set_with_clause($1);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
         | '(' create_select_query_specification ')'
         | '(' create_select_query_specification ')'
@@ -5578,6 +5589,8 @@ create_select_query_specification:
           create_select_part4
           {
             Select->set_with_clause($1);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
         ;
 
@@ -8454,6 +8467,8 @@ select:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SELECT;
             lex->current_select->set_with_clause($1);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
         ;
 
@@ -12161,6 +12176,8 @@ do:
           expr_list
           {
             Lex->insert_list= $3;
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
         ;
 
@@ -12377,7 +12394,10 @@ insert:
             Lex->current_select= &Lex->select_lex;
           }
           insert_field_spec opt_insert_update
-          {}
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 replace:
@@ -12394,7 +12414,10 @@ replace:
             Lex->current_select= &Lex->select_lex;
           }
           insert_field_spec
-          {}
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 insert_lock_option:
@@ -12586,7 +12609,11 @@ update:
             */
             slex->set_lock_for_tables($3, slex->table_list.elements == 1);
           }
-          opt_where_clause opt_order_clause delete_limit_clause {}
+          opt_where_clause opt_order_clause delete_limit_clause
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 update_list:
@@ -12674,6 +12701,8 @@ single_multi:
           USING join_table_list opt_where_clause
           {
             if (multi_delete_set_locks_and_link_aux_tables(Lex))
+              MYSQL_YYABORT;
+            if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
           }
         ;
@@ -13641,7 +13670,10 @@ load:
           opt_xml_rows_identified_by
           opt_field_term opt_line_term opt_ignore_lines opt_field_or_var_spec
           opt_load_data_set_spec
-          {}
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
           ;
 
 data_or_xml:
@@ -14096,6 +14128,8 @@ with_clause:
              if (with_clause == NULL)
                MYSQL_YYABORT;
              Lex->derived_tables|= DERIVED_WITH;
+             Lex->with_cte_resolution= true;
+             Lex->with_cte_resolution= true;
              Lex->curr_with_clause= with_clause;
              with_clause->add_to_list(Lex->with_clauses_list_last_next);
           }
@@ -14120,7 +14154,7 @@ with_list:
 
 
 with_list_element:
-	  query_name
+          with_element_head
 	  opt_with_column_list 
           {
             $2= new List<LEX_STRING> (Lex->with_column_list);
@@ -14140,6 +14174,7 @@ with_list_element:
             if (elem->set_unparsed_spec(thd, spec_start, $8,
                                         (uint) (spec_start - query_start)))
               MYSQL_YYABORT;
+            elem->set_tables_end_pos(lex->query_tables_last);
 	  }
 	;
 
@@ -14166,12 +14201,15 @@ with_column_list:
         ;
 
 
-query_name: 
+with_element_head:
           ident
           {
-            $$= (LEX_STRING *) thd->memdup(&$1, sizeof(LEX_STRING));
-            if ($$ == NULL)
+            LEX_CSTRING *name=
+              (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
+            $$= new (thd->mem_root) With_element_head(name);
+            if (unlikely(name == NULL || $$ == NULL))
               MYSQL_YYABORT;
+            $$->tables_pos.set_start_pos(Lex->query_tables_last);
           }
         ;
 
@@ -15078,7 +15116,10 @@ set:
             sp_create_assignment_lex(thd, yychar == YYEMPTY);
           }
           start_option_value_list
-          {}
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         | SET STATEMENT_SYM
           {
             LEX *lex= Lex;
@@ -16691,6 +16732,9 @@ view_select:
                             &not_used);
             lex->parsing_options.allows_variable= TRUE;
             lex->current_select->set_with_clause($2);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+
           }
         ;
 

@@ -3220,9 +3220,6 @@ mysql_execute_command(THD *thd)
       thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
   }
 
-  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-    DBUG_RETURN(1);
-
 #ifdef HAVE_REPLICATION
   if (unlikely(thd->slave_thread))
   {
@@ -7980,7 +7977,8 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     ptr->db= table->db.str;
     ptr->db_length= table->db.length;
   }
-  else if (lex->copy_db_to(&ptr->db, &ptr->db_length))
+  else if (!lex->with_cte_resolution &&
+           lex->copy_db_to(&ptr->db, &ptr->db_length))
     DBUG_RETURN(0);
   else
     ptr->is_fqtn= FALSE;
@@ -7997,7 +7995,9 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
       
   ptr->table_name=table->table.str;
   ptr->table_name_length=table->table.length;
-  ptr->lock_type=   lock_type;
+  ptr->lock_type= lock_type;
+  ptr->mdl_type= mdl_type;
+  ptr->table_options= table_options;
   ptr->updating=    MY_TEST(table_options & TL_OPTION_UPDATING);
   /* TODO: remove TL_OPTION_FORCE_INDEX as it looks like it's not used */
   ptr->force_index= MY_TEST(table_options & TL_OPTION_FORCE_INDEX);
@@ -8676,8 +8676,10 @@ void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update
   {
     tables->lock_type= lock_type;
     tables->updating=  for_update;
-    tables->mdl_request.set_type((lock_type >= TL_WRITE_ALLOW_WRITE) ?
-                                 MDL_SHARED_WRITE : MDL_SHARED_READ);
+
+    if (tables->db && tables->db[0])
+      tables->mdl_request.set_type((lock_type >= TL_WRITE_ALLOW_WRITE) ?
+                                   MDL_SHARED_WRITE : MDL_SHARED_READ);
   }
   DBUG_VOID_RETURN;
 }
