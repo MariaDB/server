@@ -6546,7 +6546,8 @@ void Field_year::sql_type(String &res) const
 {
   CHARSET_INFO *cs=res.charset();
   res.length(cs->cset->snprintf(cs,(char*)res.ptr(),res.alloced_length(),
-			  "year(%d)",(int) field_length));
+                                (field_length == 4 ? "year" : "year(%d)"),
+                                (int) field_length));
 }
 
 

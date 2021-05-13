@@ -1,6 +1,6 @@
 create table t1 (y year,y2 year(2));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 insert into t1 values (0,0),(1999,1999),(2000,2000),(2001,2001),(70,70),(69,69);
 select * from t1;
 y	y2
@@ -60,8 +60,10 @@ drop table t1;
 #
 CREATE TABLE t2(yy YEAR(2), c2 CHAR(4));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t4(yyyy YEAR(4), c4 CHAR(4));
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 INSERT INTO t2 (c2) VALUES (NULL),(1970),(1999),(2000),(2001),(2069);
 INSERT INTO t4 (c4) SELECT c2 FROM t2;
 UPDATE t2 SET yy = c2;
@@ -355,6 +357,8 @@ DROP TABLE t1;
 # Bug #59211: Select Returns Different Value for min(year) Function
 #
 CREATE TABLE t1(c1 YEAR(4));
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 INSERT INTO t1 VALUES (1901),(2155),(0000);
 SELECT * FROM t1;
 c1
@@ -373,11 +377,12 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (c1 YEAR(2), c2 YEAR(4));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 ALTER TABLE t1 MODIFY COLUMN c2 YEAR(2);
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 DROP TABLE t1;
 #
 # End of 5.1 tests
@@ -385,7 +390,7 @@ DROP TABLE t1;
 create function y2k() returns int deterministic return 2000;
 create table t1 (a year(2), b int);
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 insert t1 values (0,2000);
 select a from t1 where a=2000;
 a
@@ -509,23 +514,23 @@ DROP TABLE t1;
 #
 create or replace table t1 (a YEAR(0));
 Warnings:
-Note	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(0)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` year(4) DEFAULT NULL
+  `a` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a YEAR(1));
 Warnings:
-Note	1287	'YEAR(1)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(1)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` year(4) DEFAULT NULL
+  `a` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a YEAR(2));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -533,33 +538,35 @@ t1	CREATE TABLE `t1` (
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a YEAR(3));
 Warnings:
-Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(3)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` year(4) DEFAULT NULL
+  `a` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a YEAR(4));
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` year(4) DEFAULT NULL
+  `a` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a YEAR(5));
 Warnings:
-Note	1287	'YEAR(5)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(5)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` year(4) DEFAULT NULL
+  `a` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 create or replace table t1 (a YEAR(100));
 Warnings:
-Note	1287	'YEAR(100)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(100)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` year(4) DEFAULT NULL
+  `a` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 #
@@ -572,6 +579,8 @@ drop table t1;
 # MDEV-16451 Split Item_equal::add_const() into a virtual method in type_handler()
 #
 CREATE TABLE t1 (a YEAR(4));
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 INSERT INTO t1 VALUES (93),(94);
 SELECT * FROM t1;
 a
@@ -588,7 +597,7 @@ Note	1003	select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` =
 DROP TABLE t1;
 CREATE TABLE t1 (a YEAR(2));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 INSERT INTO t1 VALUES (93),(94);
 SELECT * FROM t1;
 a
@@ -620,7 +629,7 @@ MIN(a)	MAX(a)
 DROP TABLE t1;
 CREATE OR REPLACE TABLE t1 (a YEAR(2));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 INSERT INTO t1 VALUES (1970),(1978),(2000),(2069);
 SELECT a, CAST(a AS DATE), CAST(COALESCE(a) AS DATE) FROM t1;
 a	CAST(a AS DATE)	CAST(COALESCE(a) AS DATE)
@@ -652,10 +661,10 @@ DROP TABLE t1;
 #
 CREATE TABLE t1 (a YEAR(2));
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 DESC t2;
 Field	Type	Null	Key	Default	Extra
 a	year(2)	YES		NULL	
@@ -665,10 +674,12 @@ FLOOR(a)	int(2) unsigned	YES		NULL
 CEILING(a)	int(2) unsigned	YES		NULL	
 DROP TABLE t2,t1;
 CREATE TABLE t1 (a YEAR(4));
+Warnings:
+Note	1287	'YEAR(4)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t2 AS SELECT a, ROUND(a), TRUNCATE(a,0), FLOOR(a), CEILING(a) FROM t1;
 DESC t2;
 Field	Type	Null	Key	Default	Extra
-a	year(4)	YES		NULL	
+a	year	YES		NULL	
 ROUND(a)	int(4) unsigned	YES		NULL	
 TRUNCATE(a,0)	int(4) unsigned	YES		NULL	
 FLOOR(a)	int(4) unsigned	YES		NULL	

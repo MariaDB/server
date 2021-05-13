@@ -13,13 +13,13 @@ PRIMARY KEY (id)
 PARTITION BY HASH (id)
 PARTITIONS 2;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t2 LIKE t1;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 ALTER TABLE t2 REMOVE PARTITIONING;
 Warnings:
-Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Note	1287	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	t1
 Create Table	CREATE TABLE `t1` (
@@ -56,7 +56,7 @@ ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	t1
 Create Table	CREATE TABLE `t1` (
@@ -100,12 +100,12 @@ PRIMARY KEY (id)
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	t1
 Create Table	CREATE TABLE `t1` (
@@ -151,7 +151,7 @@ PARTITIONS 2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t2 (
 id int(11) NOT NULL AUTO_INCREMENT,
 year year(2) DEFAULT NULL,
@@ -161,12 +161,12 @@ PRIMARY KEY (id)
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	t1
 Create Table	CREATE TABLE `t1` (
@@ -212,7 +212,7 @@ PARTITIONS 2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t2 (
 id int(11) NOT NULL AUTO_INCREMENT,
 year year(2) DEFAULT NULL,
@@ -222,12 +222,12 @@ PRIMARY KEY (id)
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	t1
 Create Table	CREATE TABLE `t1` (
@@ -273,7 +273,7 @@ PARTITIONS 2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t2 (
 id int(11) NOT NULL AUTO_INCREMENT,
 year year(2) DEFAULT NULL,
@@ -283,12 +283,12 @@ PRIMARY KEY (id)
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 SHOW CREATE TABLE t1;
 Table	t1
 Create Table	CREATE TABLE `t1` (
@@ -334,7 +334,7 @@ PARTITIONS 2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t2 (
 id int(11) NOT NULL AUTO_INCREMENT,
 year year(2) DEFAULT NULL,
@@ -344,7 +344,7 @@ PRIMARY KEY (id)
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2;
 ERROR HY000: Non matching attribute 'ROW_FORMAT' between partition and table
 SHOW CREATE TABLE t1;
@@ -392,7 +392,7 @@ PARTITIONS 2;
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 CREATE TABLE t2 (
 id int(11) NOT NULL AUTO_INCREMENT,
 year year(2) DEFAULT NULL,
@@ -402,7 +402,7 @@ PRIMARY KEY (id)
 Warnings:
 Level	Note
 Code	1287
-Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR(4) instead
+Message	'YEAR(2)' is deprecated and will be removed in a future release. Please use YEAR instead
 ALTER TABLE t1 EXCHANGE PARTITION p1 WITH TABLE t2;
 ERROR HY000: Non matching attribute 'ROW_FORMAT' between partition and table
 SHOW CREATE TABLE t1;

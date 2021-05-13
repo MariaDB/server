@@ -25,7 +25,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY RANGE (year(`t`))
@@ -46,7 +46,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY RANGE (year(`t`))
@@ -113,7 +113,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY RANGE (year(`t`))
@@ -134,7 +134,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY RANGE (year(`t`))
@@ -210,7 +210,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY LIST (`id`)
@@ -228,7 +228,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY LIST (`id`)
@@ -292,7 +292,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY LIST (`id`)
@@ -310,7 +310,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY LIST (`id`)
@@ -381,7 +381,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY HASH (year(`t`))
@@ -397,7 +397,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY HASH (year(`t`))
@@ -458,7 +458,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY HASH (year(`t`))
@@ -474,7 +474,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
  PARTITION BY HASH (year(`t`))
@@ -543,7 +543,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -560,7 +560,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL,
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -623,7 +623,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned NOT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL,
   PRIMARY KEY (`id`,`total`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -640,7 +640,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned NOT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL,
   PRIMARY KEY (`id`,`total`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -703,7 +703,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned NOT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL,
   PRIMARY KEY (`id`,`total`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -720,7 +720,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned NOT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` date DEFAULT NULL,
   PRIMARY KEY (`id`,`total`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1

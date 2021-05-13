@@ -20,7 +20,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -37,7 +37,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -79,7 +79,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -121,7 +121,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1
@@ -163,7 +163,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1
@@ -180,7 +180,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -222,7 +222,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -264,7 +264,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1
@@ -306,7 +306,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -323,7 +323,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -365,7 +365,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
@@ -407,7 +407,7 @@ t1	CREATE TABLE `t1` (
   `d` decimal(10,4) DEFAULT 0.0000,
   `f` float DEFAULT 0,
   `total` bigint(20) unsigned DEFAULT NULL,
-  `y` year(4) DEFAULT NULL,
+  `y` year DEFAULT NULL,
   `t` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   PRIMARY KEY (`id`)
 ) ENGINE=MEMORY DEFAULT CHARSET=latin1

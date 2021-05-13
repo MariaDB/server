@@ -1217,7 +1217,7 @@ i64	bigint(20)	YES		NULL
 f	float	YES		NULL	
 d	double	YES		NULL	
 b8	bit(8)	YES		NULL	
-y	year(4)	YES		NULL	
+y	year	YES		NULL	
 t1	tinytext	YES		NULL	
 t2	text	YES		NULL	
 t3	mediumtext	YES		NULL	
@@ -1238,7 +1238,7 @@ $$
 CALL p1;
 Table	Create Table
 t1	CREATE TABLE "t1" (
-  "a" year(4) DEFAULT NULL
+  "a" year DEFAULT NULL
 )
 DROP PROCEDURE p1;
 #

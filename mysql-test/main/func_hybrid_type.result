@@ -1884,15 +1884,15 @@ t2	CREATE TABLE `t2` (
   `ifnull___a_a` int(11) DEFAULT NULL,
   `least____a_a` int(11) DEFAULT NULL,
   `greatest_a_a` int(11) DEFAULT NULL,
-  `___________b` year(4) DEFAULT NULL,
-  `case_______b` year(4) DEFAULT NULL,
-  `case_____b_b` year(4) DEFAULT NULL,
-  `coalesce___b` year(4) DEFAULT NULL,
-  `coalesce_b_b` year(4) DEFAULT NULL,
-  `if_______b_b` year(4) DEFAULT NULL,
-  `ifnull___b_b` year(4) DEFAULT NULL,
-  `least____b_b` year(4) DEFAULT NULL,
-  `greatest_b_b` year(4) DEFAULT NULL
+  `___________b` year DEFAULT NULL,
+  `case_______b` year DEFAULT NULL,
+  `case_____b_b` year DEFAULT NULL,
+  `coalesce___b` year DEFAULT NULL,
+  `coalesce_b_b` year DEFAULT NULL,
+  `if_______b_b` year DEFAULT NULL,
+  `ifnull___b_b` year DEFAULT NULL,
+  `least____b_b` year DEFAULT NULL,
+  `greatest_b_b` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
@@ -2061,15 +2061,15 @@ t2	CREATE TABLE `t2` (
   `ifnull___a_a` int(10) unsigned DEFAULT NULL,
   `least____a_a` int(10) unsigned DEFAULT NULL,
   `greatest_a_a` int(10) unsigned DEFAULT NULL,
-  `___________b` year(4) DEFAULT NULL,
-  `case_______b` year(4) DEFAULT NULL,
-  `case_____b_b` year(4) DEFAULT NULL,
-  `coalesce___b` year(4) DEFAULT NULL,
-  `coalesce_b_b` year(4) DEFAULT NULL,
-  `if_______b_b` year(4) DEFAULT NULL,
-  `ifnull___b_b` year(4) DEFAULT NULL,
-  `least____b_b` year(4) DEFAULT NULL,
-  `greatest_b_b` year(4) DEFAULT NULL
+  `___________b` year DEFAULT NULL,
+  `case_______b` year DEFAULT NULL,
+  `case_____b_b` year DEFAULT NULL,
+  `coalesce___b` year DEFAULT NULL,
+  `coalesce_b_b` year DEFAULT NULL,
+  `if_______b_b` year DEFAULT NULL,
+  `ifnull___b_b` year DEFAULT NULL,
+  `least____b_b` year DEFAULT NULL,
+  `greatest_b_b` year DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t2;
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR

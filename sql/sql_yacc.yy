@@ -6365,14 +6365,14 @@ field_type_temporal:
             {
               errno= 0;
               ulong length= strtoul($2, NULL, 10);
-              if (errno == 0 && length <= MAX_FIELD_BLOBLENGTH && length != 4)
+              if (errno == 0 && length <= MAX_FIELD_BLOBLENGTH)
               {
                 char buff[sizeof("YEAR()") + MY_INT64_NUM_DECIMAL_DIGITS + 1];
                 my_snprintf(buff, sizeof(buff), "YEAR(%lu)", length);
                 push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                                     ER_WARN_DEPRECATED_SYNTAX,
                                     ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
-                                    buff, "YEAR(4)");
+                                    buff, "YEAR");
               }
             }
             $$.set(&type_handler_year, $2);

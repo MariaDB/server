@@ -2962,7 +2962,7 @@ void Type_handler_year::
     push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
                         ER_WARN_DEPRECATED_SYNTAX,
                         ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX),
-                        buff, "YEAR(4)");
+                        buff, "YEAR");
   }
 }
 
