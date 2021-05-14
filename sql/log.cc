@@ -2203,6 +2203,9 @@ static int binlog_commit(handlerton *hton, THD *thd, bool all)
     */
     cache_mngr->reset(false, true);
     THD_STAGE_INFO(thd, org_stage);
+    //todo
+    DBUG_EXECUTE_IF("simulate_crash_after_binlog_commit_or_rollback",
+                  DBUG_SUICIDE(););
     DBUG_RETURN(error);
   }
 

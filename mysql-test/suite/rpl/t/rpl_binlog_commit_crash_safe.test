@@ -1,0 +1,42 @@
+# ==== Purpose ====
+#
+# Test verifies that Binlog Commits statements are crash safe.
+#
+# ==== Implementation ====
+# Create a innodb insert/update/delete and crash the server after binlog
+#  commit.  Roll forward recovery should work.
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+
+CREATE TABLE t ( f INT) ENGINE=INNODB;
+INSERT INTO t values(1);
+--sync_slave_with_master
+
+
+##Insert Block
+--let $exec_query= INSERT INTO t values(10)
+--source include/binlog_commit_crash_crud.inc
+
+
+##Update Block
+--let $exec_query= update t set f= 2 where f= 1
+--source include/binlog_commit_crash_crud.inc
+
+
+##Delete Block
+--let $exec_query= delete from t where f= 2
+--source include/binlog_commit_crash_crud.inc
+
+--connection master
+SELECT * FROM t;
+--sync_slave_with_master
+SELECT * FROM t;
+
+--connection master
+DROP TABLE t;
+--sync_slave_with_master
+--source include/rpl_end.inc

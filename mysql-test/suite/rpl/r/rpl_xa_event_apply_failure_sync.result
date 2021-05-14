@@ -1,0 +1,60 @@
+include/master-slave.inc
+[connection master]
+connect  master2,localhost,root,,;
+connection master;
+CALL mtr.add_suppression("Found 1 prepared XA transactions");
+CALL mtr.add_suppression("Failed to execute binlog query event");
+CALL mtr.add_suppression("Recovery: Error .Out of memory..");
+CALL mtr.add_suppression("Crash recovery failed.");
+CALL mtr.add_suppression("Can.t init tc log");
+CALL mtr.add_suppression("Aborting");
+CREATE TABLE t ( f INT ) ENGINE=INNODB;
+XA START 'xa1';
+INSERT INTO t VALUES (20);
+XA END 'xa1';
+XA PREPARE 'xa1';
+XA COMMIT 'xa1';
+connection slave;
+include/stop_slave.inc
+connection master1;
+XA START 'xa2';
+INSERT INTO t VALUES (40);
+XA END 'xa2';
+XA PREPARE 'xa2';
+SET GLOBAL DEBUG_DBUG="d,simulate_crash_after_binlog_commit_or_rollback";
+XA COMMIT 'xa2';
+ERROR HY000: Lost connection to MySQL server during query
+connection master1;
+connection master;
+connection default;
+connection default;
+connection master;
+*** must be no 'xa2' commit seen, as it's still prepared:
+SELECT * FROM t;
+f
+20
+XA RECOVER;
+formatID	gtrid_length	bqual_length	data
+1	3	0	xa2
+SET GLOBAL DEBUG_DBUG="";
+SET SQL_LOG_BIN=0;
+XA COMMIT 'xa2';
+SET SQL_LOG_BIN=1;
+connection server_1;
+connection master;
+connection slave;
+include/start_slave.inc
+connection master;
+SELECT * FROM t;
+f
+20
+40
+connection slave;
+SELECT * FROM t;
+f
+20
+40
+connection master;
+DROP TABLE t;
+connection slave;
+include/rpl_end.inc

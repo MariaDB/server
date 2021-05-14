@@ -1,0 +1,39 @@
+include/master-slave.inc
+[connection master]
+connection master;
+CREATE TABLE t ( f INT) ENGINE=INNODB;
+INSERT INTO t values(1);
+connection slave;
+connection master;
+SET GLOBAL DEBUG_DBUG="d,simulate_crash_after_binlog_commit_or_rollback";
+INSERT INTO t values(10);
+ERROR HY000: Lost connection to MySQL server during query
+connection default;
+connection server_1;
+connection master;
+connection master;
+SET GLOBAL DEBUG_DBUG="d,simulate_crash_after_binlog_commit_or_rollback";
+update t set f= 2 where f= 1;
+ERROR HY000: Lost connection to MySQL server during query
+connection default;
+connection server_1;
+connection master;
+connection master;
+SET GLOBAL DEBUG_DBUG="d,simulate_crash_after_binlog_commit_or_rollback";
+delete from t where f= 2;
+ERROR HY000: Lost connection to MySQL server during query
+connection default;
+connection server_1;
+connection master;
+connection master;
+SELECT * FROM t;
+f
+10
+connection slave;
+SELECT * FROM t;
+f
+10
+connection master;
+DROP TABLE t;
+connection slave;
+include/rpl_end.inc

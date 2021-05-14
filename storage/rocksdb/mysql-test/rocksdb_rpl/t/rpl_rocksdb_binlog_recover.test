@@ -1,0 +1,49 @@
+# ==== Purpose ====
+#
+# Test verifies that MultiEngine COMMITS statements are crash safe(crash after
+# Binlog sync).
+#
+# ==== Implementation ====
+# Create a innodb and insert/update/delete and crash the server after binlog
+#  commit. Roll forward recovery should work.
+--source include/have_innodb.inc
+--source include/have_debug.inc
+--source include/have_binlog_format_row.inc
+--source include/master-slave.inc
+
+--connection master
+
+CREATE TABLE t1 ( f INT) ENGINE=INNODB;
+CREATE TABLE t2 ( f INT) ENGINE=INNODB;
+INSERT INTO t1 values(1);
+INSERT INTO t2 values(1);
+--sync_slave_with_master
+
+
+##Insert Block
+--let $exec_query_1= INSERT INTO t1 values(10)
+--let $exec_query_2= INSERT INTO t2 values(10)
+--source rpl_rocksdb_binlog_recover.inc
+
+
+##Update Block
+--let $exec_query_1= update t1 set f= 2 where f= 1
+--let $exec_query_2= update t2 set f= 2 where f= 1
+--source rpl_rocksdb_binlog_recover.inc
+
+
+##Delete Block
+--let $exec_query_1= delete from t1 where f= 2
+--let $exec_query_2= delete from t2 where f= 2
+--source rpl_rocksdb_binlog_recover.inc
+
+--connection master
+SELECT * FROM t;
+--sync_slave_with_master
+SELECT * FROM t;
+
+--connection master
+DROP TABLE t;
+--sync_slave_with_master
+--source include/rpl_end.inc
+
