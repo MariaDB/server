@@ -4921,8 +4921,7 @@ exit:
 			msg("mariabackup: Renaming %s to %s.ibd",
 				fil_space->chain.start->name, tmpname);
 
-			if (fil_space->rename(tmpname, NULL, false)
-			    != DB_SUCCESS) {
+			if (fil_space->rename(tmpname, false) != DB_SUCCESS) {
 				msg("mariabackup: Cannot rename %s to %s",
 					fil_space->chain.start->name, tmpname);
 				goto exit;
