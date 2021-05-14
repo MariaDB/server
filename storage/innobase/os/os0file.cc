@@ -820,19 +820,9 @@ os_file_get_last_error_low(
 			<< " in a file operation.";
 
 		if (err == ENOENT) {
-
 			ib::error()
 				<< "The error means the system"
 				" cannot find the path specified.";
-
-			if (srv_is_being_started) {
-
-				ib::error()
-					<< "If you are installing InnoDB,"
-					" remember that you must create"
-					" directories yourself, InnoDB"
-					" does not create them.";
-			}
 		} else if (err == EACCES) {
 
 			ib::error()
@@ -1969,14 +1959,6 @@ os_file_get_last_error_low(
 			ib::error()
 				<< "The error means the system"
 				" cannot find the path specified.";
-
-			if (srv_is_being_started) {
-				ib::error()
-					<< "If you are installing InnoDB,"
-					" remember that you must create"
-					" directories yourself, InnoDB"
-					" does not create them.";
-			}
 
 		} else if (err == ERROR_ACCESS_DENIED) {
 

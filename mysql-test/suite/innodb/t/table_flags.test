@@ -14,7 +14,6 @@ call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`.`td` because it
 # FIXME: Remove the following spam due to invalid flags for test.td
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
-call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself");
 call mtr.add_suppression("InnoDB: adjusting FSP_SPACE_FLAGS of file ");
 call mtr.add_suppression("InnoDB: Parent table of FTS auxiliary table .* not found.");
 FLUSH TABLES;
