@@ -404,7 +404,6 @@ read_cnf()
                 # avoid CA verification if not set explicitly:
                 # nodes may happen to have different CA if self-generated
                 # zeroing up tcert does the trick
-                local mode=$(parse_cnf 'sst' 'ssl-mode')
                 [ "${tmode#VERIFY}" != "$tmode" ] || tcert=""
             fi
         fi
@@ -421,8 +420,9 @@ read_cnf()
     sockopt=$(parse_cnf sst sockopt "")
     progress=$(parse_cnf sst progress "")
     ttime=$(parse_cnf sst time 0)
-    cpat=$(parse_cnf sst cpat '.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
-    [ $OS = 'FreeBSD' ] && cpat=$(parse_cnf sst cpat '.*galera\.cache$|.*sst_in_progress$|.*\.sst$|.*gvwstate\.dat$|.*grastate\.dat$|.*\.err$|.*\.log$|.*RPM_UPGRADE_MARKER$|.*RPM_UPGRADE_HISTORY$')
+    cpat='.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
+    [ "$OS" = 'FreeBSD' ] && cpat=$(echo "$cpat" | sed 's/\\|/|/g')
+    cpat=$(parse_cnf sst cpat "$cpat")
     scomp=$(parse_cnf sst compressor "")
     sdecomp=$(parse_cnf sst decompressor "")
 
@@ -445,9 +445,7 @@ read_cnf()
     fi
 
     if [ $ssyslog -ne -1 ]; then
-        if $MY_PRINT_DEFAULTS mysqld_safe | grep -q -- "--syslog"; then
-            ssyslog=1
-        fi
+        ssyslog=$(in_config 'mysqld_safe' 'syslog')
     fi
 }
 
@@ -771,7 +769,7 @@ monitor_process()
 
     while true ; do
         if ! ps -p "$WSREP_SST_OPT_PARENT" &>/dev/null; then
-            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly."
+            wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT) terminated unexpectedly."
             exit 32
         fi
         if ! ps -p "$sst_stream_pid" &>/dev/null; then
@@ -1139,7 +1137,7 @@ then
 
     if ! ps -p "$WSREP_SST_OPT_PARENT" &>/dev/null
     then
-        wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly."
+        wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT) terminated unexpectedly."
         exit 32
     fi
 
