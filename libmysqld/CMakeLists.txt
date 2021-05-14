@@ -78,7 +78,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_binlog.cc ../sql/sql_manager.cc
            ../sql/sql_parse.cc ../sql/sql_bootstrap.cc
            ../sql/sql_partition.cc ../sql/sql_plugin.cc 
-           ../sql/debug_sync.cc ../sql/opt_table_elimination.cc
+           ../sql/debug_sync.cc ../sql/debug.cc
+           ../sql/opt_table_elimination.cc
            ../sql/sql_prepare.cc ../sql/sql_rename.cc ../sql/sql_repl.cc 
            ../sql/sql_select.cc ../sql/sql_servers.cc
            ../sql/group_by_handler.cc ../sql/derived_handler.cc

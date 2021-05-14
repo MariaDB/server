@@ -33,8 +33,9 @@
 #include "sql_handler.h"                  // mysql_ha_rm_tables
 #include "sp_cache.h"                     // sp_invalidate_cache
 #include <mysys_err.h>
-#include <ddl_log.h>                      // ddl_log_state
-#include "debug_sync.h"
+#include "ddl_log.h"                      // ddl_log_state
+#include "debug_sync.h"                   // DEBUG_SYNC
+#include "debug.h"                        // debug_crash_here
 #include "mysql/psi/mysql_sp.h"
 
 /*************************************************************************/

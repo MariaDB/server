@@ -25,7 +25,7 @@
 #include "parse_file.h"
 #include "unireg.h"                            // CREATE_MODE
 #include "sql_table.h"                         // build_table_filename
-#include "debug_sync.h"
+#include "debug.h"
 #include <mysys_err.h>                         // EE_WRITE
 #include <m_ctype.h>
 #include <my_dir.h>

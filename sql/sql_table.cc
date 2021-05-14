@@ -54,9 +54,9 @@
 #include "sql_audit.h"
 #include "sql_sequence.h"
 #include "tztime.h"
-#include "sql_insert.h"                        // binlog_drop_table
+#include "sql_insert.h"                // binlog_drop_table
 #include "ddl_log.h"
-#include "debug_sync.h"                         // debug_crash_here()
+#include "debug.h"                     // debug_crash_here()
 #include <algorithm>
 
 #ifdef __WIN__

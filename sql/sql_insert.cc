@@ -77,9 +77,9 @@
 #include "sql_audit.h"
 #include "sql_derived.h"                        // mysql_handle_derived
 #include "sql_prepare.h"
+#include "debug_sync.h"                         // DEBUG_SYNC
+#include "debug.h"                              // debug_crash_here
 #include <my_bit.h>
-
-#include "debug_sync.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h" /* wsrep_start_transction() */

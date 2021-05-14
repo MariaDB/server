@@ -16,29 +16,29 @@
 */
 
 #define MYSQL_LEX 1
-#include "mariadb.h"   /* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mariadb.h"           /* NO_EMBEDDED_ACCESS_CHECKS */
 #include "sql_priv.h"
 #include "unireg.h"
 #include "sql_view.h"
-#include "sql_base.h"    // find_table_in_global_list, lock_table_names
-#include "sql_parse.h"                          // sql_parse
-#include "sql_cache.h"                          // query_cache_*
-#include "lock.h"        // MYSQL_OPEN_SKIP_TEMPORARY 
-#include "sql_show.h"    // append_identifier
-#include "sql_table.h"                         // build_table_filename
+#include "sql_base.h"          // find_table_in_global_list, lock_table_names
+#include "sql_parse.h"         // sql_parse
+#include "sql_cache.h"         // query_cache_*
+#include "lock.h"              // MYSQL_OPEN_SKIP_TEMPORARY
+#include "sql_show.h"          // append_identifier
+#include "sql_table.h"         // build_table_filename
 #include "sql_db.h"            // mysql_opt_change_db, mysql_change_db
 #include "sql_select.h"
 #include "parse_file.h"
 #include "sp_head.h"
 #include "sp.h"
 #include "sp_cache.h"
-#include "datadict.h"   // dd_frm_is_view()
+#include "datadict.h"          // dd_frm_is_view()
 #include "sql_derived.h"
-#include "sql_cte.h"    // check_dependencies_in_with_clauses()
+#include "sql_cte.h"           // check_dependencies_in_with_clauses()
 #include "opt_trace.h"
 #include "ddl_log.h"
+#include "debug.h"              // debug_crash_here
 #include "wsrep_mysqld.h"
-#include "debug_sync.h" // debug_crash_here
 
 #define MD5_BUFF_LENGTH 33
 

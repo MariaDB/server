@@ -52,13 +52,4 @@ static inline void debug_sync_reset_thread(THD *thd) {}
 static inline bool debug_sync_set_action(THD *, const char *, size_t)
 { return false; }
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-
-#ifndef DBUG_OFF
-void debug_crash_here(const char *keyword);
-bool debug_simulate_error(const char *keyword, uint error);
-#else
-#define debug_crash_here(A) do { } while(0)
-#define debug_simulate_error(A, B) 0
-#endif
-
 #endif /* DEBUG_SYNC_INCLUDED */

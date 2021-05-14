@@ -47,7 +47,7 @@
 #ifdef __WIN__
 #include <direct.h>
 #endif
-#include "debug_sync.h"
+#include "debug.h"                       // debug_crash_here
 
 #define MAX_DROP_TABLE_Q_LEN      1024
 

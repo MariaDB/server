@@ -31,7 +31,7 @@
 #include "sql_handler.h"                        // mysql_ha_rm_tables
 #include "sql_statistics.h" 
 #include "ddl_log.h"
-#include "debug_sync.h"
+#include "debug.h"
 
 /* used to hold table entries for as part of list of renamed temporary tables */
 struct TABLE_PAIR

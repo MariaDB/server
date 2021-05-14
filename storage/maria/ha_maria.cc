@@ -45,7 +45,7 @@ C_MODE_END
 #include "key.h"
 #include "log.h"
 #include "sql_parse.h"
-#include "debug_sync.h"
+#include "debug.h"
 
 /*
   Note that in future versions, only *transactional* Maria tables can
