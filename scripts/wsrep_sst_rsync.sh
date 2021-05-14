@@ -218,23 +218,21 @@ SSTKEY=$(parse_cnf 'sst' 'tkey')
 SSTCERT=$(parse_cnf 'sst' 'tcert')
 SSTCA=$(parse_cnf 'sst' 'tca')
 
+SST_SECTIONS="--mysqld|sst"
+
 check_server_ssl_config()
 {
-    local section="$1"
-    SSTKEY=$(parse_cnf "$section" 'ssl-key')
-    SSTCERT=$(parse_cnf "$section" 'ssl-cert')
-    SSTCA=$(parse_cnf "$section" 'ssl-ca')
+    SSTKEY=$(parse_cnf "$SST_SECTIONS" 'ssl-key')
+    SSTCERT=$(parse_cnf "$SST_SECTIONS" 'ssl-cert')
+    SSTCA=$(parse_cnf "$SST_SECTIONS" 'ssl-ca')
 }
 
-SSLMODE=$(parse_cnf 'sst' 'ssl-mode' | tr [:lower:] [:upper:])
+SSLMODE=$(parse_cnf "$SST_SECTIONS" 'ssl-mode' | tr [:lower:] [:upper:])
 
+# no old-style SSL config in [sst], check for new one:
 if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" ]
 then
-    # no old-style SSL config in [sst], check for new one
-    check_server_ssl_config 'sst'
-    if [ -z "$SSTKEY" -a -z "$SSTCERT" -a -z "$SSTCA" ]; then
-        check_server_ssl_config '--mysqld'
-    fi
+    check_server_ssl_config
 fi
 
 if [ -z "$SSLMODE" ]; then
@@ -602,7 +600,7 @@ EOF
     if ! ps -p $MYSQLD_PID >/dev/null
     then
         wsrep_log_error \
-        "Parent mysqld process (PID:$MYSQLD_PID) terminated unexpectedly."
+        "Parent mysqld process (PID: $MYSQLD_PID) terminated unexpectedly."
         kill -- -$MYSQLD_PID
         sleep 1
         exit 32
