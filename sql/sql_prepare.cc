@@ -6082,6 +6082,7 @@ extern "C" int execute_sql_command(const char *command,
     new_thd->store_globals();
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;
+    new_thd->variables.wsrep_on= 0;
     bzero((char*) &new_thd->net, sizeof(new_thd->net));
     thd= new_thd;
   }
