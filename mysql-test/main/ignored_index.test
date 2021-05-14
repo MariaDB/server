@@ -442,3 +442,23 @@ CREATE TABLE t1 (a INT, KEY (a));
 ALTER TABLE t1 ALTER KEY a IGNORED;
 SHOW CREATE TABLE t1;
 DROP TABLE t1;
+
+--echo #
+--echo #  MDEV-25078, part #2: allow IF EXISTS
+--echo #
+
+create table t1 (a int, b int, c int, key(a), key(b), key(c));
+alter table t1 alter key if exists no_such_key ignored;
+alter table t1 alter key if exists a ignored;
+show create table t1;
+alter table t1
+  alter key if exists no_such_key ignored,
+  alter key if exists c ignored ;
+show create table t1;
+alter table t1 
+  alter key if exists no_such_key not ignored, 
+  alter key if exists c not ignored ;
+show create table t1;
+drop table t1;
+
+

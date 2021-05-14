@@ -7832,11 +7832,11 @@ alter_list_item:
             if (unlikely(Lex->add_alter_list($4, $7, $3)))
               MYSQL_YYABORT;
           }
-        | ALTER key_or_index ident ignorability
+        | ALTER key_or_index opt_if_exists_table_element ident ignorability
           {
             LEX *lex= Lex;
             Alter_index_ignorability *ac= new (thd->mem_root)
-                                        Alter_index_ignorability($3.str, $4);
+                                        Alter_index_ignorability($4.str, $5, $3);
             if (ac == NULL)
               MYSQL_YYABORT;
             lex->alter_info.alter_index_ignorability_list.push_back(ac);

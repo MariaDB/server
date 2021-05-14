@@ -5829,7 +5829,33 @@ drop_create_field:
       rename_key_it.remove();
     }
   }
-
+  /* Handle ALTER KEY IF EXISTS. */
+  {
+    List_iterator<Alter_index_ignorability> ignor_it(alter_info->alter_index_ignorability_list);
+    Alter_index_ignorability *aii;
+    while ((aii= ignor_it++))
+    {
+      if (!aii->if_exists())
+        continue;
+      bool exists= false;
+      for (uint n_key= 0; n_key < table->s->keys; n_key++)
+      {
+        if (my_strcasecmp(system_charset_info, aii->name(),
+                          table->key_info[n_key].name.str) == 0)
+        {
+          exists= true;
+          break;
+        }
+      }
+      if (exists)
+        continue;
+      push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
+                          ER_KEY_DOES_NOT_EXISTS,
+                          ER_THD(thd, ER_KEY_DOES_NOT_EXISTS),
+                          aii->name(), table->s->table_name.str);
+      ignor_it.remove();
+    }
+  }
   /* ALTER TABLE ADD KEY IF NOT EXISTS */
   /* ALTER TABLE ADD FOREIGN KEY IF NOT EXISTS */
   {

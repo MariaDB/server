@@ -390,13 +390,14 @@ public:
 class Alter_index_ignorability: public Sql_alloc
 {
 public:
-  Alter_index_ignorability(const char *name, bool is_ignored) :
-    m_name(name), m_is_ignored(is_ignored)
+  Alter_index_ignorability(const char *name, bool is_ignored, bool if_exists) :
+    m_name(name), m_is_ignored(is_ignored), m_if_exists(if_exists)
   {
     assert(name != NULL);
   }
 
   const char *name() const { return m_name; }
+  bool if_exists() const { return m_if_exists; }
 
   /* The ignorability after the operation is performed. */
   bool is_ignored() const { return m_is_ignored; }
@@ -406,6 +407,7 @@ public:
 private:
   const char *m_name;
   bool m_is_ignored;
+  bool m_if_exists;
 };
 
 
