@@ -187,8 +187,6 @@ static char*	innobase_disable_monitor_counter;
 static char*	innobase_reset_monitor_counter;
 static char*	innobase_reset_all_monitor_counter;
 
-static ulong	innodb_flush_method;
-
 /* This variable can be set in the server configure file, specifying
 stopword table to be used */
 static char*	innobase_server_stopword_table;
@@ -3591,12 +3589,12 @@ static int innodb_init_params()
                   Force O_DIRECT on Unixes (on Windows writes are always
                   unbuffered)
                 */
-		switch (innodb_flush_method) {
+		switch (srv_file_flush_method) {
 		case SRV_O_DIRECT:
 		case SRV_O_DIRECT_NO_FSYNC:
 			break;
 		default:
-			innodb_flush_method = SRV_O_DIRECT;
+			srv_file_flush_method = SRV_O_DIRECT;
 			fprintf(stderr, "InnoDB: using O_DIRECT due to atomic writes.\n");
 		}
 	}
@@ -3615,21 +3613,19 @@ static int innodb_init_params()
 #endif
 
 #ifndef _WIN32
-	ut_ad(innodb_flush_method <= SRV_O_DIRECT_NO_FSYNC);
+	ut_ad(srv_file_flush_method <= SRV_O_DIRECT_NO_FSYNC);
 #else
-	switch (innodb_flush_method) {
+	switch (srv_file_flush_method) {
 	case SRV_ALL_O_DIRECT_FSYNC + 1 /* "async_unbuffered"="unbuffered" */:
-		innodb_flush_method = SRV_ALL_O_DIRECT_FSYNC;
+		srv_file_flush_method = SRV_ALL_O_DIRECT_FSYNC;
 		break;
 	case SRV_ALL_O_DIRECT_FSYNC + 2 /* "normal"="fsync" */:
-		innodb_flush_method = SRV_FSYNC;
+		srv_file_flush_method = SRV_FSYNC;
 		break;
 	default:
-		ut_ad(innodb_flush_method <= SRV_ALL_O_DIRECT_FSYNC);
+		ut_ad(srv_file_flush_method <= SRV_ALL_O_DIRECT_FSYNC);
 	}
 #endif
-	srv_file_flush_method = srv_flush_t(innodb_flush_method);
-
 	innodb_buffer_pool_size_init();
 
 	srv_lock_table_size = 5 * (srv_buf_pool_size >> srv_page_size_shift);
@@ -18376,7 +18372,7 @@ static MYSQL_SYSVAR_ULONG(flush_log_at_trx_commit, srv_flush_log_at_trx_commit,
   " guarantees in case of crash. 0 and 2 can be faster than 1 or 3.",
   NULL, NULL, 1, 0, 3, 0);
 
-static MYSQL_SYSVAR_ENUM(flush_method, innodb_flush_method,
+static MYSQL_SYSVAR_ENUM(flush_method, srv_file_flush_method,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "With which method to flush data.",
   NULL, NULL, IF_WIN(SRV_ALL_O_DIRECT_FSYNC, SRV_O_DIRECT),
