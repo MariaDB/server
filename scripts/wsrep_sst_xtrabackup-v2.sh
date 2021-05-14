@@ -470,11 +470,8 @@ read_cnf()
     progress=$(parse_cnf sst progress "")
     rebuild=$(parse_cnf sst rebuild 0)
     ttime=$(parse_cnf sst time 0)
-    if [ "${OS}" = "FreeBSD" ]; then
-        cpat=$(parse_cnf sst cpat '.*\.pem$|.*init\.ok$|.*galera\.cache$|.*sst_in_progress$|.*\.sst$|.*gvwstate\.dat$|.*grastate\.dat$|.*\.err$|.*\.log$|.*RPM_UPGRADE_MARKER$|.*RPM_UPGRADE_HISTORY$')
-    else
-        cpat=$(parse_cnf sst cpat '.*\.pem$\|.*init\.ok$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$')
-    fi
+    cpat='.*\.pem$\|.*init\.ok$\|.*galera\.cache$\|.*sst_in_progress$\|.*\.sst$\|.*gvwstate\.dat$\|.*grastate\.dat$\|.*\.err$\|.*\.log$\|.*RPM_UPGRADE_MARKER$\|.*RPM_UPGRADE_HISTORY$'
+    [ "$OS" = 'FreeBSD' ] && cpat=$(echo "$cpat" | sed 's/\\|/|/g')
     ealgo=$(parse_cnf xtrabackup encrypt "")
     ekey=$(parse_cnf xtrabackup encrypt-key "")
     ekeyfile=$(parse_cnf xtrabackup encrypt-key-file "")
@@ -512,10 +509,8 @@ read_cnf()
     ssystag=$(parse_cnf mysqld_safe syslog-tag "${SST_SYSLOG_TAG:-}")
     ssystag+="-"
 
-    if [[ $ssyslog -ne -1 ]];then
-        if $MY_PRINT_DEFAULTS mysqld_safe | grep -q -- "--syslog";then
-            ssyslog=1
-        fi
+    if [ $ssyslog -ne -1 ]; then
+        ssyslog=$(in_config 'mysqld_safe' 'syslog')
     fi
 }
 
@@ -813,7 +808,7 @@ monitor_process()
     while true ; do
 
         if ! ps --pid "${WSREP_SST_OPT_PARENT}" &>/dev/null; then
-            wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly."
+            wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT) terminated unexpectedly."
             kill -- -"${WSREP_SST_OPT_PARENT}"
             exit 32
         fi
@@ -936,8 +931,8 @@ then
             exit 93
         fi
 
-        if [ -z "$(parse_cnf --mysqld tmpdir)" -a \
-             -z "$(parse_cnf xtrabackup tmpdir)" ]; then
+        tmpdir=$(parse_cnf "--mysqld|sst|xtrabackup" 'tmpdir')
+        if [ -z "$tmpdir" ]; then
             xtmpdir=$(mktemp -d)
             tmpopts=" --tmpdir='$xtmpdir'"
             wsrep_log_info "Using $xtmpdir as xtrabackup temporary directory"
@@ -1112,7 +1107,7 @@ then
 
     if ! ps -p ${WSREP_SST_OPT_PARENT} &>/dev/null
     then
-        wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly."
+        wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT) terminated unexpectedly."
         exit 32
     fi
 

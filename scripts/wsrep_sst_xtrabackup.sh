@@ -385,7 +385,8 @@ check_extra()
 {
     local use_socket=1
     if [[ $uextra -eq 1 ]];then
-        if [ $(parse_cnf --mysqld thread-handling) = 'pool-of-threads'];then
+        local thread_handling=$(parse_cnf '--mysqld' 'thread-handling')
+        if [ "$thread_handling" = 'pool-of-threads' ]; then
             local eport=$(parse_cnf --mysqld extra-port)
             if [[ -n $eport ]];then
                 # Xtrabackup works only locally.
@@ -530,7 +531,6 @@ then
 
     if [[ $incremental -eq 1 ]];then
         wsrep_log_info "Incremental SST enabled"
-        #lsn=$(/pxc/bin/mysqld $WSREP_SST_OPT_CONF  --basedir=/pxc  --wsrep-recover 2>&1 | grep -o 'log sequence number .*' | cut -d " " -f 4 | head -1)
         lsn=$(grep to_lsn xtrabackup_checkpoints | cut -d= -f2 | tr -d ' ')
         wsrep_log_info "Recovered LSN: $lsn"
     fi
@@ -604,7 +604,7 @@ then
 
     if ! ps -p ${WSREP_SST_OPT_PARENT} &>/dev/null
     then
-        wsrep_log_error "Parent mysqld process (PID:${WSREP_SST_OPT_PARENT}) terminated unexpectedly."
+        wsrep_log_error "Parent mysqld process (PID: $WSREP_SST_OPT_PARENT) terminated unexpectedly."
         exit 32
     fi
 
