@@ -19010,11 +19010,14 @@ no_victim:
 				case WSREP_OK:
 					break;
 				case WSREP_TRX_MISSING:
-					WSREP_DEBUG("calcel commit trx missing: "
+				case WSREP_TRX_FAIL:
+				case WSREP_BF_ABORT:
+					WSREP_DEBUG("calcel commit trx: "
 						    "rcode %d wsrep_trx_id %ld trx: "
-						TRX_ID_FMT,
-						rcode, victim_trx->id,
-						wsrep_handle->trx_id);
+						    TRX_ID_FMT,
+						    rcode,
+						    wsrep_handle->trx_id,
+						    victim_trx->id);
 					break;
 				default:
 					WSREP_ERROR(
@@ -19025,7 +19028,6 @@ no_victim:
 					/* note: kill_mysql() will block, if we cannot.
 					* kill the lock holder first.
 					*/
-					abort();
 				}
 			}
 		}
