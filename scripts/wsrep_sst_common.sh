@@ -240,44 +240,108 @@ case "$1" in
         original_cmd=""
         shift
         while [ $# -gt 0 ]; do
-           # check if the argument is the short option
-           # (starting with "-" instead of "--"):
-           if [ "${1#--}" = "$1" -a "${1#-}" != "$1" ]; then
-               option="${1#-}"
-               value=""
-               # check that the option value follows the name,
-               # without a space:
-               if [ ${#option} -gt 1 ]; then
-                   # let's separate the first character as the option name,
-                   # and the subsequent characters consider its value:
-                   value="${1#-?}"
-                   option="${1%$value}"
-               # check that the option name consists of one letter
-               # and there are the following arguments:
-               elif [ ${#option} -eq 1 -a $# -gt 1 ]; then
-                   # if the next argument does not start with a "-" character,
-                   # then this is the value of the current option:
-                   if [ "${2#-}" = "$2" ]; then
-                       value="$2"
+           lname="${1#--}"
+           # "--" is interpreted as the end of the list of options:
+           if [ -z "$lname" ]; then
+               shift
+               if [ $# -gt 0 ]; then
+                   # copy "--" to the output string:
+                   original_cmd="$original_cmd --"
+                   # All other arguments must be copied unchanged:
+                   while [ $# -gt 0 ]; do
+                       original_cmd="$original_cmd '$1'"
                        shift
+                   done
+               fi
+               break;
+           fi
+           # Make sure the argument does not start with "--", otherwise it
+           # is a long option, which is processed after this "if":
+           if [ "$lname" = "$1" ]; then
+               # Check if the argument is the short option or the short
+               # options list, starting with "-":
+               options="${1#-}"
+               if [ "$options" != "$1" -a -n "$options" ]; then
+                   slist=""
+                   while [ -n "$options" ]; do
+                       # Let's separate the first character as the current
+                       # option name:
+                       if [ -n "$BASH_VERSION" ]; then
+                           option="${options:0:1}"
+                       else
+                           # If it's not bash, then we need to use slow
+                           # external utilities:
+                           option=$(echo "$options" | cut -c1-1)
+                       fi
+                       # And the subsequent characters consider option value:
+                       value=""
+                       if [ ${#options} -gt 0 ]; then
+                           value="${options#?}"
+                       fi
+                       # Check for options without argument:
+                       if [ "$option" != '?' -a \
+                            "$option" != 'a' -a \
+                            "$option" != 's' -a \
+                            "$option" != 'v' ]
+                       then
+                           # If the option value is absent, then check
+                           # the following argument:
+                           if [ -z "$value" -a $# -gt 1 ]; then
+                               # if the next argument does not start with
+                               # the "-" character, then next argument is
+                               # the current option value:
+                               if [ "${2#-}" = "$2" ]; then
+                                   shift
+                                   value="$1"
+                               fi
+                           fi
+                           if [ $option == 'h' ]; then
+                               if [ -z "$WSREP_SST_OPT_DATA" ]; then
+                                   MYSQLD_OPT_DATADIR="${value%/}"
+                               fi
+                           elif [ $option != 'u' -a \
+                                  $option != 'P' ]
+                           then
+                               if [ -z "$value" ]; then
+                                   slist="$slist$option"
+                               elif [ -z "$slist" ]; then
+                                   slist="$option '$value'"
+                               else
+                                   slist="$slist -$option '$value'"
+                               fi
+                           fi
+                           break
+
+                       else
+                           slist="$slist$option"
+                       fi
+                       options="$value"
+                   done
+                   if [ -n "$slist" ]; then
+                       original_cmd="$original_cmd -$slist"
                    fi
+               elif [ -z "$options" ]; then
+                   # We found an equal sign without any characters after it:
+                   original_cmd="$original_cmd -"
+               else
+                   # We found a value that does not start with a minus -
+                   # it is a positional argument or the value of previous
+                   # option. Copy it to output string (as is):
+                   original_cmd="$original_cmd '$1'"
                fi
                shift
-               if [ "$option" = 'h' ]; then
-                   if [ -z "$WSREP_SST_OPT_DATA" ]; then
-                       MYSQLD_OPT_DATADIR="${value%/}"
-                   fi
-               elif [ "$option" != 'u' -a \
-                      "$option" != 'P' ]; then
-                   if [ -z "$original_cmd" ]; then
-                       original_cmd="'-$option$value'"
-                   else
-                       original_cmd="$original_cmd '-$option$value'"
-                   fi
-               fi
                continue;
            fi
+           # Now we are sure that we are working with an option
+           # that has a "long" name, so remove all characters after
+           # the first equal sign:
            option="${1%%=*}"
+           # The "--loose-" prefix should not affect the recognition
+           # of the option name:
+           if [ "${option#--loose-}" != "$option" ]; then
+               option="--${option#--loose-}"
+           fi
+           # Some options just need to be removed from the list:
            if [ "$option" != '--defaults-file' -a \
                 "$option" != '--defaults-extra-file' -a \
                 "$option" != '--defaults-group-suffix' -a \
@@ -340,22 +404,17 @@ case "$1" in
                        ;;
                esac
                if [ $skip_mysqld_arg -eq 0 ]; then
-                   if [ -z "$original_cmd" ]; then
-                       original_cmd="'$1'"
-                   else
-                       original_cmd="$original_cmd '$1'"
-                   fi
+                   original_cmd="$original_cmd '$1'"
                fi
-            fi
-            shift
+           fi
+           shift
         done
-        WSREP_SST_OPT_MYSQLD="$original_cmd"
+        WSREP_SST_OPT_MYSQLD="${original_cmd# *}"
         break
         ;;
-    *) # must be command
-       # usage
-       # exit 1
-       ;;
+    *) # Must be command usage
+        # exit 1
+        ;;
 esac
 shift
 done
@@ -601,9 +660,9 @@ parse_cnf()
         # of the groups list (as if it were a prefix):
         groups="${groups#$group}"
         groups="${groups#\|}"
-        # if the group name is the same as the "[--]mysqld", then
-        # try to use it together with the group suffix:
-        if [ "${group#--}" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
+        # If the group name is the same as the "mysqld" without "--" prefix,
+        # then try to use it together with the group suffix:
+        if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
             reval=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
             if [ -n "$reval" ]; then
                 break
@@ -616,7 +675,7 @@ parse_cnf()
         fi
     done
 
-    # use default if we haven't found a value:
+    # Use default if we haven't found a value:
     if [ -z "$reval" ]; then
         [ -n "${3:-}" ] && reval="$3"
     fi
@@ -648,9 +707,9 @@ in_config()
         # of the groups list (as if it were a prefix):
         groups="${groups#$group}"
         groups="${groups#\|}"
-        # if the group name is the same as the "[--]mysqld", then
-        # try to use it together with the group suffix:
-        if [ "${group#--}" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
+        # If the group name is the same as the "mysqld" without "--" prefix,
+        # then try to use it together with the group suffix:
+        if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
             found=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
             if [ $found -ne 0 ]; then
                 break
