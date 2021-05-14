@@ -2697,6 +2697,17 @@ static void wsrep_RSU_end(THD *thd)
   thd->variables.wsrep_on= 1;
 }
 
+static inline bool is_replaying_connection(THD *thd)
+{
+  bool ret;
+
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  ret=  (thd->wsrep_trx().state() == wsrep::transaction::s_replaying) ? true : false;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+
+  return ret;
+}
+
 int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
                              const TABLE_LIST* table_list,
                              const Alter_info *alter_info,
@@ -2706,9 +2717,18 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   /*
     No isolation for applier or replaying threads.
    */
-  if (!wsrep_thd_is_local(thd)) return 0;
+  if (!wsrep_thd_is_local(thd))
+  {
+    if (wsrep_OSU_method_get(thd) == WSREP_OSU_TOI)
+      WSREP_DEBUG("%s TOI Begin: %s",
+                  is_replaying_connection(thd) ? "Replay" : "Apply",
+                  wsrep_thd_query(thd));
+
+    return 0;
+  }
 
   int ret= 0;
+
   mysql_mutex_lock(&thd->LOCK_thd_data);
 
   if (thd->wsrep_trx().state() == wsrep::transaction::s_must_abort)
@@ -2791,25 +2811,32 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
 
 void wsrep_to_isolation_end(THD *thd)
 {
-  DBUG_ASSERT(wsrep_thd_is_local_toi(thd) ||
-              wsrep_thd_is_in_rsu(thd));
-
-  thd->variables.lock_wait_timeout= thd->variables.saved_lock_wait_timeout;
-
   if (wsrep_thd_is_local_toi(thd))
   {
+    thd->variables.lock_wait_timeout= thd->variables.saved_lock_wait_timeout;
     DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_TOI);
     wsrep_TOI_end(thd);
   }
   else if (wsrep_thd_is_in_rsu(thd))
   {
+    thd->variables.lock_wait_timeout= thd->variables.saved_lock_wait_timeout;
     DBUG_ASSERT(wsrep_OSU_method_get(thd) == WSREP_OSU_RSU);
     wsrep_RSU_end(thd);
   }
   else
   {
-    DBUG_ASSERT(0);
+   /* Applier or replaying threads just output TO END */
+   if (wsrep_debug)
+   {
+     wsrep::client_state& client_state(thd->wsrep_cs());
+     WSREP_DEBUG("%s TO END: %lld: %s",
+                 is_replaying_connection(thd) ? "Replay" : "Apply",
+                 client_state.toi_meta().seqno().get(),
+                 wsrep_thd_query(thd));
+   }
+   return;
   }
+
   if (wsrep_emulate_bin_log) wsrep_thd_binlog_trx_reset(thd);
 }
 
@@ -2955,17 +2982,6 @@ static bool abort_replicated(THD *thd)
 static inline bool is_client_connection(THD *thd)
 {
   return (thd->wsrep_client_thread && thd->variables.wsrep_on);
-}
-
-static inline bool is_replaying_connection(THD *thd)
-{
-  bool ret;
-
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  ret=  (thd->wsrep_trx().state() == wsrep::transaction::s_replaying) ? true : false;
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
-
-  return ret;
 }
 
 static inline bool is_committing_connection(THD *thd)

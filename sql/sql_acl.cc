@@ -4028,10 +4028,9 @@ end:
 
 #ifdef WITH_WSREP
 wsrep_error_label:
-  if (WSREP(thd) && !thd->wsrep_applier)
+  if (WSREP(thd))
   {
-    WSREP_TO_ISOLATION_END;
-
+    wsrep_to_isolation_end(thd);
     thd->set_query(query_save);
   }
 #endif /* WITH_WSREP */
@@ -4172,10 +4171,9 @@ int acl_set_default_role(THD *thd, const char *host, const char *user,
 
 #ifdef WITH_WSREP
 wsrep_error_label:
-  if (WSREP(thd) && !thd->wsrep_applier)
+  if (WSREP(thd))
   {
-    WSREP_TO_ISOLATION_END;
-
+    wsrep_to_isolation_end(thd);
     thd->set_query(query_save);
   }
 #endif /* WITH_WSREP */

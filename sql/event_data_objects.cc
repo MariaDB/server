@@ -1545,7 +1545,9 @@ end:
 
       if (sql_command_set)
       {
-        WSREP_TO_ISOLATION_END;
+#ifdef WITH_WSREP
+	wsrep_to_isolation_end(thd);
+#endif
         thd->lex->sql_command = sql_command_save;
       }
 

@@ -6114,7 +6114,8 @@ finish:
 #ifdef WITH_WSREP
   thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
 
-  WSREP_TO_ISOLATION_END;
+  if (wsrep_thd_is_toi(thd) || wsrep_thd_is_in_rsu(thd))
+    wsrep_to_isolation_end(thd);
   /*
     Force release of transactional locks if not in active MST and wsrep is on.
   */
