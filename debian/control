@@ -630,14 +630,14 @@ Architecture: any
 Suggests: mailx,
           mariadb-test,
           netcat-openbsd
-Recommends: libhtml-template-perl
+Recommends: galera-4 (>= 26.4),
+            libhtml-template-perl,
+            libdbi-perl
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
-Depends: galera-4 (>= 26.4),
-         gawk,
+Depends: gawk,
          iproute2 [linux-any],
-         libdbi-perl,
          lsb-base (>= 3.0-10),
          lsof [linux-any],
          mariadb-client-10.7 (>= ${source:Version}),
@@ -765,6 +765,7 @@ Replaces: mariadb-backup-10.1,
           mariadb-backup-10.2,
           mariadb-client-10.1
 Depends: mariadb-client-core-10.7 (= ${binary:Version}),
+         rsync,
          ${misc:Depends},
          ${shlibs:Depends}
 Description: Backup tool for MariaDB server
@@ -1014,9 +1015,12 @@ Description: Snappy compression support in the server and storage engines
 
 Package: mariadb-test
 Architecture: any
-Depends: mariadb-client-10.7 (= ${binary:Version}),
+Depends: libdbi-perl,
+         mariadb-client-10.7 (= ${binary:Version}),
          mariadb-server-10.7 (= ${server:Version}),
          mariadb-test-data (= ${source:Version}),
+         rsync,
+         socat,
          virtual-mysql-testsuite,
          ${misc:Depends},
          ${perl:Depends},
