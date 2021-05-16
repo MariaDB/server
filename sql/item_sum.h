@@ -364,6 +364,7 @@ public:
   Item_sum *in_sum_func;  /* embedding set function if any */ 
   st_select_lex * aggr_sel; /* select where the function is aggregated       */ 
   int8 nest_level;        /* number of the nesting level of the set function */
+  st_select_lex_unit *nest_level_base;
   int8 aggr_level;        /* nesting level of the aggregating subquery       */
   int8 max_arg_level;     /* max level of unbound column references          */
   int8 max_sum_func_level;/* max level of aggregation for embedded functions */

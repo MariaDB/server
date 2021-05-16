@@ -92,6 +92,7 @@ bool Item_sum::init_sum_func_check(THD *thd)
   /* Save a pointer to object to be used in items for nested set functions */
   thd->lex->in_sum_func= this;
   nest_level= thd->lex->current_select->nest_level;
+  nest_level_base= thd->lex->current_select->nest_level_base;
   ref_by= 0;
   aggr_level= -1;
   aggr_sel= NULL;

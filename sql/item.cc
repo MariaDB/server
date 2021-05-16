@@ -5608,9 +5608,12 @@ Item_field::fix_outer_field(THD *thd, Field **from_field, Item **reference)
             max_arg_level for the function if it's needed.
           */
           if (thd->lex->in_sum_func &&
+              thd->lex->in_sum_func->nest_level_base == select->nest_level_base &&
               thd->lex->in_sum_func->nest_level >= select->nest_level)
           {
             Item::Type ref_type= (*reference)->type();
+            // psergey-todo: check if in_sum_func "has" the same
+            // nest_level_base as we do..
             set_if_bigger(thd->lex->in_sum_func->max_arg_level,
                           select->nest_level);
             set_field(*from_field);

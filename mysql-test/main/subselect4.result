@@ -2898,3 +2898,14 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 2	MATERIALIZED	t2	ALL	NULL	NULL	NULL	NULL	100	
 drop table t0, t1, t2;
 # End of 10.4 tests
+#
+# MDEV-25631: Crash in st_select_lex::mark_as_dependent with VIEW, aggregate and subquery
+#
+CREATE TABLE t1 (i1 int);
+insert into t1 values (1),(2),(3);
+CREATE VIEW v1 AS
+SELECT t1.i1 FROM (t1 a JOIN t1 ON (t1.i1 = (SELECT t1.i1 FROM t1 b)));
+SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
+ERROR 21000: Subquery returns more than 1 row
+DROP VIEW v1;
+DROP TABLE t1;

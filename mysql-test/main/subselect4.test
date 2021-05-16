@@ -2398,3 +2398,18 @@ select * from t1 where t1.a in (select t2.a from t2 order by t2.b);
 drop table t0, t1, t2;
 
 --echo # End of 10.4 tests
+
+--echo #
+--echo # MDEV-25631: Crash in st_select_lex::mark_as_dependent with VIEW, aggregate and subquery
+--echo #
+
+CREATE TABLE t1 (i1 int);
+insert into t1 values (1),(2),(3); #not important
+CREATE VIEW v1 AS
+SELECT t1.i1 FROM (t1 a JOIN t1 ON (t1.i1 = (SELECT t1.i1 FROM t1 b)));
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1 FROM (SELECT count(((SELECT i1 FROM v1))) FROM v1) dt ;
+
+DROP VIEW v1;
+DROP TABLE t1;
