@@ -14368,7 +14368,7 @@ check_group_min_max_predicates(Item *cond, Item_field *min_max_arg_item,
                                           &has_min_max, &has_other))
         DBUG_RETURN(FALSE);
     }
-    else if (cur_arg->const_item() && !cur_arg->is_expensive())
+    else if (cur_arg->can_eval_in_optimize())
     {
       /*
         For predicates of the form "const OP expr" we also have to check 'expr'

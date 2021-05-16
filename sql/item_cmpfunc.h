@@ -2486,7 +2486,7 @@ class Item_func_in :public Item_func_opt_neg,
   {
     for (uint i= 0; i < nitems; i++)
     {
-      if (!items[i]->const_item() || items[i]->is_expensive())
+      if (!items[i]->can_eval_in_optimize())
         return false;
     }
     return true;

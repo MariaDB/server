@@ -2775,7 +2775,7 @@ bool Item_in_subselect::create_in_to_exists_cond(JOIN *join_arg)
   /*
     The IN=>EXISTS transformation makes non-correlated subqueries correlated.
   */
-  if (!left_expr->const_item() || left_expr->is_expensive())
+  if (!left_expr->can_eval_in_optimize())
   {
     join_arg->select_lex->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
     join_arg->select_lex->master_unit()->uncacheable|= 

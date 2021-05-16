@@ -318,7 +318,7 @@ static bool convert_const_to_int(THD *thd, Item_field *field_item,
       field_item->field_type() != MYSQL_TYPE_YEAR)
     return 1;
 
-  if ((*item)->const_item() && !(*item)->is_expensive())
+  if ((*item)->can_eval_in_optimize())
   {
     TABLE *table= field->table;
     Sql_mode_save sql_mode(thd);
@@ -4899,8 +4899,8 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       return TRUE; /* purecov: inspected */
     item= *li.ref(); // item can be substituted in fix_fields
     used_tables_cache|=     item->used_tables();
-    if (item->const_item() && !item->with_sp_var() &&
-        !item->is_expensive() && !cond_has_datetime_is_null(item))
+    if (item->can_eval_in_optimize() && !item->with_sp_var() &&
+        !cond_has_datetime_is_null(item))
     {
       if (item->eval_const_cond() == is_and_cond && top_level())
       {
@@ -4956,8 +4956,8 @@ Item_cond::eval_not_null_tables(void *opt_arg)
   while ((item=li++))
   {
     table_map tmp_table_map;
-    if (item->const_item() && !item->with_sp_var() &&
-        !item->is_expensive() && !cond_has_datetime_is_null(item))
+    if (item->can_eval_in_optimize() && !item->with_sp_var() &&
+        !cond_has_datetime_is_null(item))
     {
       if (item->eval_const_cond() == is_and_cond && top_level())
       {
@@ -5640,7 +5640,7 @@ bool Item_func_like::with_sargable_pattern() const
   if (negated)
     return false;
 
-  if (!args[1]->const_item() || args[1]->is_expensive())
+  if (!args[1]->can_eval_in_optimize())
     return false;
 
   String* res2= args[1]->val_str((String *) &cmp_value2);
@@ -5785,8 +5785,7 @@ bool Item_func_like::fix_fields(THD *thd, Item **ref)
       We could also do boyer-more for non-const items, but as we would have to
       recompute the tables for each row it's not worth it.
     */
-    if (args[1]->const_item() && !use_strnxfrm(collation.collation) &&
-        !args[1]->is_expensive())
+    if (args[1]->can_eval_in_optimize() && !use_strnxfrm(collation.collation))
     {
       String* res2= args[1]->val_str(&cmp_value2);
       if (!res2)
@@ -6980,7 +6979,7 @@ void Item_equal::update_const(THD *thd)
   Item *item;
   while ((item= it++))
   {
-    if (item->const_item() && !item->is_expensive() &&
+    if (item->can_eval_in_optimize() &&
         /*
           Don't propagate constant status of outer-joined column.
           Such a constant status here is a result of:

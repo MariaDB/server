@@ -1639,7 +1639,7 @@ String *Item_func_left::val_str(String *str)
 void Item_str_func::left_right_max_length()
 {
   uint32 char_length= args[0]->max_char_length();
-  if (args[1]->const_item() && !args[1]->is_expensive())
+  if (args[1]->can_eval_in_optimize())
   {
     uint32 length= max_length_for_string(args[1]);
     set_if_smaller(char_length, length);
@@ -2669,7 +2669,7 @@ bool Item_func_format::fix_length_and_dec()
     the number of decimals and round to the next integer.
   */
   bool need_extra_digit_for_rounding= args[0]->decimals > 0;
-  if (args[1]->const_item() && !args[1]->is_expensive())
+  if (args[1]->can_eval_in_optimize())
   {
     Longlong_hybrid tmp= args[1]->to_longlong_hybrid();
     if (!args[1]->null_value)
@@ -3034,7 +3034,7 @@ bool Item_func_repeat::fix_length_and_dec()
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return TRUE;
   DBUG_ASSERT(collation.collation != NULL);
-  if (args[1]->const_item() && !args[1]->is_expensive())
+  if (args[1]->can_eval_in_optimize())
   {
     uint32 length= max_length_for_string(args[1]);
     ulonglong char_length= (ulonglong) args[0]->max_char_length() * length;
@@ -3108,7 +3108,7 @@ err:
 bool Item_func_space::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
-  if (args[0]->const_item() && !args[0]->is_expensive())
+  if (args[0]->can_eval_in_optimize())
   {
     fix_char_length_ulonglong(max_length_for_string(args[0]));
     return false;
@@ -3228,7 +3228,7 @@ bool Item_func_pad::fix_length_and_dec()
   }
 
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
-  if (args[1]->const_item() && !args[1]->is_expensive())
+  if (args[1]->can_eval_in_optimize())
   {
     fix_char_length_ulonglong(max_length_for_string(args[1]));
     return false;

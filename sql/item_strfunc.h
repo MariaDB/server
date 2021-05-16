@@ -1706,7 +1706,7 @@ public:
     Item_str_func(thd, a)
   {
     collation.set(cs, DERIVATION_IMPLICIT);
-    if (cache_if_const && args[0]->const_item() && !args[0]->is_expensive())
+    if (cache_if_const && args[0]->can_eval_in_optimize())
     {
       uint errors= 0;
       String tmp, *str= args[0]->val_str(&tmp);

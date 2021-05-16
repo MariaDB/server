@@ -1636,6 +1636,10 @@ public:
     DBUG_ASSERT(!is_expensive());
     return val_bool();
   }
+  bool can_eval_in_optimize()
+  {
+    return const_item() && !is_expensive();
+  }
 
   /*
     save_val() is method of val_* family which stores value in the given

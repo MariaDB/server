@@ -2525,7 +2525,7 @@ void Item_func_round::fix_arg_temporal(const Type_handler *h,
                                        uint int_part_length)
 {
   set_handler(h);
-  if (args[1]->const_item() && !args[1]->is_expensive())
+  if (args[1]->can_eval_in_optimize())
   {
     Longlong_hybrid_null dec= args[1]->to_longlong_hybrid_null();
     fix_attributes_temporal(int_part_length,
@@ -2561,7 +2561,7 @@ bool Item_func_round::test_if_length_can_increase()
 {
   if (truncate)
     return false;
-  if (args[1]->const_item() && !args[1]->is_expensive())
+  if (args[1]->can_eval_in_optimize())
   {
     // Length can increase in some cases: e.g. ROUND(9,-1) -> 10.
     Longlong_hybrid val1= args[1]->to_longlong_hybrid();

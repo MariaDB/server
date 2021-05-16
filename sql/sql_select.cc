@@ -5939,8 +5939,7 @@ merge_key_fields(KEY_FIELD *start,KEY_FIELD *new_fields,KEY_FIELD *end,
                                 new_fields->null_rejecting);
 	}
 	else if (old->eq_func && new_fields->eq_func &&
-		 ((old->val->const_item() && !old->val->is_expensive() &&
-                   old->val->is_null()) ||
+		 ((old->val->can_eval_in_optimize() && old->val->is_null()) ||
                   (!new_fields->val->is_expensive() &&
                    new_fields->val->is_null())))
 	{
@@ -11212,8 +11211,7 @@ static void add_not_null_conds(JOIN *join)
           Item *item= tab->ref.items[keypart];
           Item *notnull;
           Item *real= item->real_item();
-	  if (real->const_item() && real->type() != Item::FIELD_ITEM && 
-              !real->is_expensive())
+	  if (real->can_eval_in_optimize() && real->type() != Item::FIELD_ITEM)
           {
             /*
               It could be constant instead of field after constant
@@ -14982,7 +14980,7 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
     Item *orig_field_item= 0;
     if (left_item->type() == Item::FIELD_ITEM &&
         !((Item_field*)left_item)->get_depended_from() &&
-        right_item->const_item() && !right_item->is_expensive())
+        right_item->can_eval_in_optimize())
     {
       orig_field_item= orig_left_item;
       field_item= (Item_field *) left_item;
@@ -14990,7 +14988,7 @@ bool check_simple_equality(THD *thd, const Item::Context &ctx,
     }
     else if (right_item->type() == Item::FIELD_ITEM &&
              !((Item_field*)right_item)->get_depended_from() &&
-             left_item->const_item() && !left_item->is_expensive())
+             left_item->can_eval_in_optimize())
     {
       orig_field_item= orig_right_item;
       field_item= (Item_field *) right_item;
@@ -16432,8 +16430,8 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
     {
       Item_bool_func2 *func= dynamic_cast<Item_bool_func2*>(cond);
       Item **args= func->arguments();
-      bool left_const= args[0]->const_item() && !args[0]->is_expensive();
-      bool right_const= args[1]->const_item() && !args[1]->is_expensive();
+      bool left_const= args[0]->can_eval_in_optimize();
+      bool right_const= args[1]->can_eval_in_optimize();
       if (!(left_const && right_const) &&
           args[0]->cmp_type() == args[1]->cmp_type())
       {
@@ -17736,7 +17734,7 @@ Item_cond::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
 COND *
 Item::remove_eq_conds(THD *thd, Item::cond_result *cond_value, bool top_level_arg)
 {
-  if (const_item() && !is_expensive())
+  if (can_eval_in_optimize())
   {
     *cond_value= eval_const_cond() ? Item::COND_TRUE : Item::COND_FALSE;
     return (COND*) 0;
@@ -17750,7 +17748,7 @@ COND *
 Item_bool_func2::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
                                  bool top_level_arg)
 {
-  if (const_item() && !is_expensive())
+  if (can_eval_in_optimize())
   {
     *cond_value= eval_const_cond() ? Item::COND_TRUE : Item::COND_FALSE;
     return (COND*) 0;

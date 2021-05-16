@@ -725,7 +725,7 @@ uint Interval_DDhhmmssff::fsp(THD *thd, Item *item)
   case STRING_RESULT:
     break;
   }
-  if (!item->const_item() || item->is_expensive())
+  if (!item->can_eval_in_optimize())
     return TIME_SECOND_PART_DIGITS;
   Status st;
   Interval_DDhhmmssff it(thd, &st, false/*no warnings*/, item, UINT_MAX32,

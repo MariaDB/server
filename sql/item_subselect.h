@@ -668,7 +668,7 @@ public:
 
   void disable_cond_guard_for_const_null_left_expr(int i)
   {
-    if (left_expr->const_item() && !left_expr->is_expensive())
+    if (left_expr->can_eval_in_optimize())
     {
       if (left_expr->element_index(i)->is_null())
         set_cond_guard_var(i,FALSE);
