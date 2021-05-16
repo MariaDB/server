@@ -115,7 +115,7 @@ struct st_global_ddl_log
   uint name_pos;
   uint io_size;
   bool initialized;
-  bool open;
+  bool open, backup_done, created;
 };
 
 /*
@@ -174,8 +174,10 @@ mysql_mutex_t LOCK_gdl;
 /* Header is stored in positions 0-3 */
 #define DDL_LOG_IO_SIZE_POS 4
 #define DDL_LOG_NAME_OFFSET_POS 6
+/* Marks if we have done a backup of the ddl log */
+#define DDL_LOG_BACKUP_OFFSET_POS 8
 /* Sum of the above variables */
-#define DDL_LOG_HEADER_SIZE 4+2+2
+#define DDL_LOG_HEADER_SIZE 4+2+2+1
 
 /**
   Sync the ddl log file.
@@ -207,9 +209,10 @@ static bool ddl_log_sync_no_lock()
   @param file_name                   Filename setup
 */
 
-static inline void create_ddl_log_file_name(char *file_name)
+static inline void create_ddl_log_file_name(char *file_name, bool backup)
 {
-  fn_format(file_name, opt_ddl_recovery_file, mysql_data_home, ".log", 0);
+  fn_format(file_name, opt_ddl_recovery_file, mysql_data_home,
+            backup ? "-backup.log" : ".log", MYF(MY_REPLACE_EXT));
 }
 
 
@@ -229,12 +232,40 @@ static bool write_ddl_log_header()
   memcpy(&header, ddl_log_file_magic, DDL_LOG_MAGIC_LENGTH);
   int2store(&header[DDL_LOG_IO_SIZE_POS],  global_ddl_log.io_size);
   int2store(&header[DDL_LOG_NAME_OFFSET_POS], global_ddl_log.name_pos);
+  header[DDL_LOG_BACKUP_OFFSET_POS]= 0;
 
   if (mysql_file_pwrite(global_ddl_log.file_id,
                         header, sizeof(header), 0,
                         MYF(MY_WME | MY_NABP)))
     DBUG_RETURN(TRUE);
   DBUG_RETURN(ddl_log_sync_file());
+}
+
+
+/*
+  Mark in the ddl log file that we have made a backup of it
+*/
+
+static void mark_ddl_log_header_backup_done()
+{
+  uchar marker[1];
+  marker[0]= 1;
+  (void) mysql_file_pwrite(global_ddl_log.file_id,
+                           marker, sizeof(marker), DDL_LOG_BACKUP_OFFSET_POS,
+                           MYF(MY_WME | MY_NABP));
+}
+
+
+void ddl_log_create_backup_file()
+{
+  char org_file_name[FN_REFLEN];
+  char backup_file_name[FN_REFLEN];
+
+  create_ddl_log_file_name(org_file_name, 0);
+  create_ddl_log_file_name(backup_file_name, 1);
+
+  my_copy(org_file_name, backup_file_name, MYF(MY_WME));
+  mark_ddl_log_header_backup_done();
 }
 
 
@@ -452,8 +483,8 @@ static int read_ddl_log_header(const char *file_name)
   DBUG_ENTER("read_ddl_log_header");
 
   if ((file_id= mysql_file_open(key_file_global_ddl_log,
-                                               file_name,
-                                               O_RDWR | O_BINARY, MYF(0))) < 0)
+                                file_name,
+                                O_RDWR | O_BINARY, MYF(0))) < 0)
     DBUG_RETURN(-1);
 
   if (mysql_file_read(file_id,
@@ -476,6 +507,7 @@ static int read_ddl_log_header(const char *file_name)
 
   io_size=  uint2korr(&header[DDL_LOG_IO_SIZE_POS]);
   global_ddl_log.name_pos= uint2korr(&header[DDL_LOG_NAME_OFFSET_POS]);
+  global_ddl_log.backup_done= header[DDL_LOG_BACKUP_OFFSET_POS];
 
   max_entry= (uint) (mysql_file_seek(file_id, 0L, MY_SEEK_END, MYF(0)) /
                      io_size);
@@ -488,6 +520,7 @@ static int read_ddl_log_header(const char *file_name)
     goto err;
 
   global_ddl_log.open= TRUE;
+  global_ddl_log.created= 0;
   global_ddl_log.file_id= file_id;
   global_ddl_log.num_entries= max_entry;
   global_ddl_log.io_size= io_size;
@@ -697,8 +730,11 @@ static bool create_ddl_log()
   DBUG_ENTER("create_ddl_log");
 
   global_ddl_log.open= 0;
+  global_ddl_log.created= 1;
   global_ddl_log.num_entries= 0;
   global_ddl_log.name_pos= DDL_LOG_TMP_NAME_POS;
+  global_ddl_log.num_entries= 0;
+  global_ddl_log.backup_done= 0;
 
   /*
     Fix file_entry_buf if the old log had a different io_size or if open of old
@@ -708,19 +744,19 @@ static bool create_ddl_log()
   {
     uchar *ptr= (uchar*)
       my_realloc(key_memory_DDL_LOG_MEMORY_ENTRY,
-                 global_ddl_log.file_entry_buf, IO_SIZE,
+                 global_ddl_log.file_entry_buf, DDL_LOG_IO_SIZE,
                  MYF(MY_WME | MY_ALLOW_ZERO_PTR));
     if (ptr)                                    // Resize succeded */
     {
       global_ddl_log.file_entry_buf= ptr;
-      global_ddl_log.io_size= IO_SIZE;
+      global_ddl_log.io_size= DDL_LOG_IO_SIZE;
     }
     if (!global_ddl_log.file_entry_buf)
       DBUG_RETURN(TRUE);
   }
   DBUG_ASSERT(global_ddl_log.file_entry_buf);
   bzero(global_ddl_log.file_entry_buf, global_ddl_log.io_size);
-  create_ddl_log_file_name(file_name);
+  create_ddl_log_file_name(file_name, 0);
   if ((global_ddl_log.file_id=
        mysql_file_create(key_file_global_ddl_log,
                          file_name, CREATE_MODE,
@@ -747,11 +783,11 @@ static bool create_ddl_log()
 
 /**
   Open ddl log and initialise ddl log variables
+  Create a backuip of of
 */
 
 bool ddl_log_initialize()
 {
-  int num_entries;
   char file_name[FN_REFLEN];
   DBUG_ENTER("ddl_log_initialize");
 
@@ -761,15 +797,13 @@ bool ddl_log_initialize()
 
   mysql_mutex_init(key_LOCK_gdl, &LOCK_gdl, MY_MUTEX_INIT_SLOW);
 
-  create_ddl_log_file_name(file_name);
-  if (likely((num_entries= read_ddl_log_header(file_name)) < 0))
+  create_ddl_log_file_name(file_name, 0);
+  if (unlikely(read_ddl_log_header(file_name) < 0))
   {
     /* Fatal error, log not opened. Recreate it */
     if (create_ddl_log())
       DBUG_RETURN(1);
   }
-  else
-    global_ddl_log.num_entries= (uint) num_entries;
   DBUG_RETURN(0);
 }
 
@@ -2669,6 +2703,9 @@ int ddl_log_execute_recovery()
   static char recover_query_string[]= "INTERNAL DDL LOG RECOVER IN PROGRESS";
   DBUG_ENTER("ddl_log_execute_recovery");
 
+  if (!global_ddl_log.backup_done && !global_ddl_log.created)
+    ddl_log_create_backup_file();
+
   if (global_ddl_log.num_entries == 0)
     DBUG_RETURN(0);
 
@@ -2794,7 +2831,7 @@ void ddl_log_release()
   global_ddl_log.file_entry_buf= 0;
   close_ddl_log();
 
-  create_ddl_log_file_name(file_name);
+  create_ddl_log_file_name(file_name, 0);
   (void) mysql_file_delete(key_file_global_ddl_log, file_name, MYF(0));
   mysql_mutex_destroy(&LOCK_gdl);
   DBUG_VOID_RETURN;
