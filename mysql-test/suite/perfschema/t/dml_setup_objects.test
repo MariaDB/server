@@ -94,3 +94,9 @@ insert into performance_schema.setup_objects
   select * from test.setup_objects;
 drop table test.setup_objects;
 SET sql_mode = default;
+--echo #
+--echo # MDEV-25325 column_comment for performance_shcema tables
+--echo #
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='setup_objects';
