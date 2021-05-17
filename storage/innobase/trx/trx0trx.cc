@@ -2276,13 +2276,7 @@ trx_start_for_ddl_low(
 		the data dictionary will be locked in crash recovery. */
 
 		trx_set_dict_operation(trx, op);
-
-		/* Ensure it is not flagged as an auto-commit-non-locking
-		transation. */
-		trx->will_lock = true;
-
 		trx->ddl= true;
-
 		trx_start_internal_low(trx);
 		return;
 
