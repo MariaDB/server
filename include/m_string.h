@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2019, MariaDB Corporation.
+   Copyright (c) 2019, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -66,7 +66,7 @@ extern "C" {
 #endif
 
 #ifdef DBUG_OFF
-#if defined(HAVE_STPCPY) && MY_GNUC_PREREQ(3, 4) && !defined(__INTEL_COMPILER)
+#if defined(HAVE_STPCPY) && defined(__GNUC__) && !defined(__INTEL_COMPILER)
 #define strmov(A,B) __builtin_stpcpy((A),(B))
 #elif defined(HAVE_STPCPY)
 #define strmov(A,B) stpcpy((A),(B))
