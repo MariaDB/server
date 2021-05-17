@@ -93,8 +93,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 	if (check_valid_path(module, strlen(module))) {
 		strcpy(g->Message, "Module cannot contain a path");
 		return NULL;
-	}
-	else
+	} else
 		PlugSetPath(soname, module, GetPluginDir());
 
 	// The exported name is always in uppercase

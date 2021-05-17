@@ -124,6 +124,15 @@ char *GetPluginDir(void)
 } // end of GetPluginDir
 
 /***********************************************************************/
+/*  Get the lc_messages_dir, it is where error messages for various    */
+/*  languages are installed, and by default the INSTALL_MYSQLSHAREDIR. */
+/***********************************************************************/
+char *GetMessageDir(void)
+{
+  return lc_messages_dir;
+} // end of GetMessageDir
+
+/***********************************************************************/
 /*  Get a unique enum table type ID.                                   */
 /***********************************************************************/
 TABTYPE GetTypeID(const char *type)

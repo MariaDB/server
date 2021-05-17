@@ -3,7 +3,7 @@ command varchar(128) not null,
 number int(5) not null flag=1,
 message varchar(255) flag=2)
 ENGINE=CONNECT TABLE_TYPE=JDBC CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
-OPTION_LIST='User=system,Password=Choupy01,Execsrc=1';
+OPTION_LIST='User=system,Password=Biscote01,Execsrc=1';
 SELECT * FROM t2 WHERE command = 'drop table employee';
 command	number	message
 drop table employee	0	Execute: java.sql.SQLSyntaxErrorException: ORA-00942: table or view does not exist
@@ -23,14 +23,14 @@ Warnings:
 Warning	1105	Affected rows
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC CATFUNC=tables
 CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
-OPTION_LIST='User=system,Password=Choupy01';
+OPTION_LIST='User=system,Password=Biscote01';
 SELECT * FROM t1 WHERE table_name='employee';
 Table_Cat	Table_Schema	Table_Name	Table_Type	Remark
 NULL	SYSTEM	EMPLOYEE	TABLE	NULL
 DROP TABLE t1;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME='EMPLOYEE' CATFUNC=columns
 CONNECTION='jdbc:oracle:thin:@localhost:1521:xe'
-OPTION_LIST='User=system,Password=Choupy01';
+OPTION_LIST='User=system,Password=Biscote01';
 SELECT * FROM t1;
 Table_Cat	Table_Schema	Table_Name	Column_Name	Data_Type	Type_Name	Column_Size	Buffer_Length	Decimal_Digits	Radix	Nullable	Remarks
 NULL	SYSTEM	EMPLOYEE	ID	3	NUMBER	38	0	0	10	0	NULL
@@ -42,7 +42,7 @@ CREATE SERVER 'oracle' FOREIGN DATA WRAPPER 'oracle.jdbc.driver.OracleDriver' OP
 HOST 'jdbc:oracle:thin:@localhost:1521:xe',
 DATABASE 'SYSTEM',
 USER 'system',
-PASSWORD 'Choupy01',
+PASSWORD 'Biscote01',
 PORT 0,
 SOCKET '',
 OWNER 'SYSTEM');

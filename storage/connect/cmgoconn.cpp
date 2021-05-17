@@ -123,11 +123,12 @@ CMgoConn::CMgoConn(PGLOBAL g, PCPARM pcg)
 {
 	Pcg = pcg;
 	Uri = NULL;
-	Pool = NULL;
+//Pool = NULL;
 	Client = NULL;
 	Database = NULL;
 	Collection = NULL;
 	Cursor = NULL;
+	Document = NULL;
 	Query = NULL;
 	Opts = NULL;
 	Fpc = NULL;
@@ -179,6 +180,7 @@ bool CMgoConn::Connect(PGLOBAL g)
 		return true;
 	}	// endif Uri
 
+#if 0
 	// Create a new client pool instance
 	Pool = mongoc_client_pool_new(Uri);
 	mongoc_client_pool_set_error_api(Pool, 2);
@@ -189,13 +191,24 @@ bool CMgoConn::Connect(PGLOBAL g)
 
 	// Create a new client instance
 	Client = mongoc_client_pool_pop(Pool);
+#else
+	// Create a new client instance
+	Client = mongoc_client_new_from_uri (Uri);
 
 	if (!Client) {
 		sprintf(g->Message, "Failed to get Client");
 		return true;
 	}	// endif Client
 
-	// Get a handle on the collection Coll_name
+	// Register the application name so we can track it in the profile logs
+	// on the server. This can also be done from the URI (see other examples).
+	mongoc_client_set_appname (Client, "Connect");
+
+	// Get a handle on the database
+	// Database = mongoc_client_get_database (Client, Pcg->Db_name);
+#endif // 0
+
+	// Get a handle on the collection
 	Collection = mongoc_client_get_collection(Client, Pcg->Db_name, Pcg->Coll_name);
 
 	if (!Collection) {
@@ -794,8 +807,9 @@ void CMgoConn::Close(void)
 	if (Opts) bson_destroy(Opts);
 	if (Cursor)	mongoc_cursor_destroy(Cursor);
 	if (Collection) mongoc_collection_destroy(Collection);
-	if (Client) mongoc_client_pool_push(Pool, Client);
-	if (Pool) mongoc_client_pool_destroy(Pool);
+//if (Client) mongoc_client_pool_push(Pool, Client);
+//if (Pool) mongoc_client_pool_destroy(Pool);
+	if (Client) mongoc_client_destroy(Client);
 	if (Uri) mongoc_uri_destroy(Uri);
 	if (Fpc) Fpc->Destroy();
 	if (fp) fp->Count = 0;

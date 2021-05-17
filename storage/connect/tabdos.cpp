@@ -2535,6 +2535,7 @@ void DOSCOL::ReadColumn(PGLOBAL g)
   char   *p = NULL;
   int     i, rc;
   int     field;
+  bool    err = false;
   double  dval;
   PTDBDOS tdbp = (PTDBDOS)To_Tdb;
 
@@ -2578,39 +2579,51 @@ void DOSCOL::ReadColumn(PGLOBAL g)
         case TYPE_SHORT:
         case TYPE_TINY:
         case TYPE_BIGINT:
-          if (Value->SetValue_char(p, field - Dcm)) {
-            sprintf(g->Message, "Out of range value for column %s at row %d",
-                    Name, tdbp->RowNumber(g));
-            PushWarning(g, tdbp);
-            } // endif SetValue_char
-
+          err = Value->SetValue_char(p, field - Dcm);
           break;
         case TYPE_DOUBLE:
-          Value->SetValue_char(p, field);
-          dval = Value->GetFloatValue();
+          if (!(err = Value->SetValue_char(p, field))) {
+            dval = Value->GetFloatValue();
 
-          for (i = 0; i < Dcm; i++)
-            dval /= 10.0;
+            for (i = 0; i < Dcm; i++)
+              dval /= 10.0;
 
-          Value->SetValue(dval);
+            Value->SetValue(dval);
+          } // endif err
+
           break;
         default:
-          Value->SetValue_char(p, field);
+          err = Value->SetValue_char(p, field);
+
+          if (!err && Buf_Type == TYPE_DECIM) {
+            char* s = Value->GetCharValue();
+
+            if (!(err = ((i = strlen(s)) >= Value->GetClen()))) {
+              for (int d = Dcm + 1; d; i--, d--)
+                s[i + 1] = s[i];
+
+              s[i + 1] = '.';
+            } // endif err
+
+          } // endif DECIM
+
           break;
-        } // endswitch Buf_Type
+      } // endswitch Buf_Type
 
       else
-        if (Value->SetValue_char(p, field)) {
-          sprintf(g->Message, "Out of range value for column %s at row %d",
-                  Name, tdbp->RowNumber(g));
-          PushWarning(g, tdbp);
-          } // endif SetValue_char
+        err = Value->SetValue_char(p, field);
 
       break;
     default:
       sprintf(g->Message, MSG(BAD_RECFM), tdbp->Ftype);
 			throw 34;
 	} // endswitch Ftype
+
+  if (err) {
+    sprintf(g->Message, "Out of range value for column %s at row %d",
+      Name, tdbp->RowNumber(g));
+    PushWarning(g, tdbp);
+  } // endif err
 
   // Set null when applicable
   if (Nullable)
@@ -2702,7 +2715,7 @@ void DOSCOL::WriteColumn(PGLOBAL g)
         case TYPE_DECIM:
           strcpy(fmt, (Ldz) ? "%0*.*lf" : "%*.*lf");
 					len = field + ((Nod && Dcm) ? 1 : 0);
-          snprintf(Buf, len, fmt, len, Dcm, Value->GetFloatValue());
+          snprintf(Buf, len + 1, fmt, len, Dcm, Value->GetFloatValue());
           len = strlen(Buf);
 
           if (Nod && Dcm)

@@ -58,6 +58,7 @@ extern char *JvmPath;   // The connect_jvm_path global variable value
 extern char *ClassPath; // The connect_class_path global variable value
 
 char *GetPluginDir(void);
+char *GetMessageDir(void);
 char *GetJavaWrapper(void);		// The connect_java_wrapper variable value
 
 /***********************************************************************/
@@ -400,24 +401,17 @@ bool JAVAConn::Open(PGLOBAL g)
 			jpop->Append(ClassPath);
 		}	// endif ClassPath
 
-#if 0
-		// Java source will be compiled as a jar file installed in the plugin dir
+		// All wrappers are pre-compiled in JavaWrappers.jar in the share dir
 		jpop->Append(sep);
-		jpop->Append(GetPluginDir());
-		jpop->Append("JdbcInterface.jar");
-#endif // 0
-
-		// All wrappers are pre-compiled in JavaWrappers.jar in the plugin dir
-		jpop->Append(sep);
-		jpop->Append(GetPluginDir());
+		jpop->Append(GetMessageDir());
 		jpop->Append("JavaWrappers.jar");
 
 #if defined(MONGO_SUPPORT)
 		jpop->Append(sep);
-		jpop->Append(GetPluginDir());
+		jpop->Append(GetMessageDir());
 		jpop->Append("Mongo3.jar");
 		jpop->Append(sep);
-		jpop->Append(GetPluginDir());
+		jpop->Append(GetMessageDir());
 		jpop->Append("Mongo2.jar");
 #endif   // MONGO_SUPPORT
 

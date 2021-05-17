@@ -104,7 +104,7 @@ protected:
 	// Members
 	PCPARM								Pcg;
 	mongoc_uri_t         *Uri;
-	mongoc_client_pool_t *Pool;				// Thread safe client pool
+//mongoc_client_pool_t *Pool;				// Thread safe client pool
 	mongoc_client_t      *Client;		  // The MongoDB client
 	mongoc_database_t    *Database;	  // The MongoDB database
 	mongoc_collection_t  *Collection; // The MongoDB collection
