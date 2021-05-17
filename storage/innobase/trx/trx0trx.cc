@@ -993,8 +993,6 @@ trx_start_low(
 		: microsecond_interval_timer();
 
 	ut_a(trx->error_state == DB_SUCCESS);
-
-	MONITOR_INC(MONITOR_TRX_ACTIVE);
 }
 
 /** Set the serialisation number for a persistent committed transaction.
@@ -1612,17 +1610,12 @@ trx_commit_for_mysql(
 
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
-		ut_d(trx->start_file = __FILE__);
-		ut_d(trx->start_line = __LINE__);
-
-		trx_start_low(trx, true);
-		/* fall through */
+		return DB_SUCCESS;
 	case TRX_STATE_ACTIVE:
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
 		trx->op_info = "committing";
 		trx->commit();
-		MONITOR_DEC(MONITOR_TRX_ACTIVE);
 		trx->op_info = "";
 		return(DB_SUCCESS);
 	case TRX_STATE_COMMITTED_IN_MEMORY:

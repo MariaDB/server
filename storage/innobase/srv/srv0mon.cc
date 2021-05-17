@@ -723,11 +723,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_TRX_ROLLBACK_SAVEPOINT},
 
-	{"trx_active_transactions", "transaction",
-	 "Number of active transactions",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_TRX_ACTIVE},
-
 	{"trx_rseg_history_len", "transaction",
 	 "Length of the TRX_RSEG_HISTORY list",
 	 static_cast<monitor_type_t>(

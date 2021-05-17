@@ -133,7 +133,6 @@ trx_nl_ro_commits	disabled
 trx_commits_insert_update	disabled
 trx_rollbacks	disabled
 trx_rollbacks_savepoint	disabled
-trx_active_transactions	disabled
 trx_rseg_history_len	disabled
 trx_undo_slots_used	disabled
 trx_undo_slots_cached	disabled
@@ -426,10 +425,9 @@ select name, max_count, min_count, count,
 max_count_reset, min_count_reset, count_reset,
 if(enabled,'enabled','disabled') status
 from information_schema.innodb_metrics
-where name like "trx_rollbacks" or name like "trx_active_transactions";
+where name='trx_rollbacks';
 name	max_count	min_count	count	max_count_reset	min_count_reset	count_reset	status
 trx_rollbacks	1	NULL	1	1	NULL	1	enabled
-trx_active_transactions	1	0	0	1	0	0	enabled
 set global innodb_monitor_disable = module_trx;
 set global innodb_monitor_enable = module_dml;
 insert into monitor_test values(9);

@@ -141,8 +141,6 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
   }
 
   mem_heap_free(heap);
-
-  MONITOR_DEC(MONITOR_TRX_ACTIVE);
 }
 
 /** Initiate rollback.
