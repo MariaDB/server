@@ -507,6 +507,8 @@ public:
   /** @return whether the storage device is rotational (HDD, not SSD) */
   inline bool is_rotational() const;
 
+  inline bool is_deferred() const;
+
   /** Open each file. Never invoked on .ibd files.
   @param create_new_db    whether to skip the call to fil_node_t::read_page0()
   @return whether all files were opened */
@@ -1088,6 +1090,10 @@ struct fil_node_t final
 	/** Filesystem block size */
 	ulint		block_size;
 
+	/** Deferring the tablespace during recovery and it
+	can be used to skip the validation of page0 */
+	bool		deferred=false;
+
 	/** FIL_NODE_MAGIC_N */
 	ulint		magic_n;
 
@@ -1143,6 +1149,11 @@ inline bool fil_space_t::is_rotational() const
     if (!node->on_ssd)
       return true;
   return false;
+}
+
+inline bool fil_space_t::is_deferred() const
+{
+  return UT_LIST_GET_FIRST(chain)->deferred;
 }
 
 /** Common InnoDB file extensions */
@@ -1473,8 +1484,13 @@ public:
   @retval NULL if this was the last */
   fil_space_t* keyrotate_next(fil_space_t* space, bool recheck, bool encrypt);
 
-        /** Extend all open data files to the recovered size */
-        ATTRIBUTE_COLD void extend_to_recv_size();
+  /** Extend all open data files to the recovered size */
+  ATTRIBUTE_COLD void extend_to_recv_size();
+
+  /** Determine if a tablespace associated with a file name exists.
+  @param path   tablespace file name to look for
+  @return a matching tablespace */
+  inline fil_space_t *find(const char *path) const;
 };
 
 /** The tablespace memory cache. */
@@ -1684,7 +1700,9 @@ enum fil_load_status {
 	/** The file(s) were not found */
 	FIL_LOAD_NOT_FOUND,
 	/** The file(s) were not valid */
-	FIL_LOAD_INVALID
+	FIL_LOAD_INVALID,
+	/** The tablespace file was deferred to open */
+	FIL_LOAD_DEFER
 };
 
 /** Open a single-file tablespace and add it to the InnoDB data structures.

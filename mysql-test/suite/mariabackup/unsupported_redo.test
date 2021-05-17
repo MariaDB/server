@@ -60,6 +60,7 @@ ALTER TABLE t21 FORCE, ALGORITHM=INPLACE;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables-exclude=test.t21" --target-dir=$targetdir;
 --enable_result_log
 --list_files $targetdir/test *.ibd
+--list_files $targetdir/test *.new
 
 --echo # Prepare the full backup
 --disable_result_log

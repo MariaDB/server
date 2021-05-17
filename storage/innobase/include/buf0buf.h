@@ -314,6 +314,17 @@ buf_block_t*
 buf_page_create(fil_space_t *space, uint32_t offset,
                 ulint zip_size, mtr_t *mtr, buf_block_t *free_block);
 
+/** Initialize a page in buffer pool while initializing the
+deferred tablespace
+@param space_id         space identfier
+@param zip_size         ROW_FORMAT=COMPRESSED page size or 0
+@param mtr              mini-transaction
+@param free_block       pre-allocated buffer block
+@return pointer to the block, page bufferfixed */
+buf_block_t*
+buf_page_create_deferred(uint32_t space_id, ulint zip_size, mtr_t *mtr,
+                         buf_block_t *free_block);
+
 /********************************************************************//**
 Releases a compressed-only page acquired with buf_page_get_zip(). */
 UNIV_INLINE

@@ -9,7 +9,7 @@ USE db2;
 CREATE TABLE t1(i INT) ENGINE INNODB;
 USE test;
 # xtrabackup backup
-t1.ibd
+t1.new
 DROP TABLE t1;
 DROP TABLE t2;
 DROP DATABASE db2;

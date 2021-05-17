@@ -2134,45 +2134,8 @@ err_exit:
 		crypt_data->fill_page0(flags, page);
 	}
 
-	if (ulint zip_size = fil_space_t::zip_size(flags)) {
-		page_zip_des_t	page_zip;
-		page_zip_set_size(&page_zip, zip_size);
-		page_zip.data = page + srv_page_size;
-#ifdef UNIV_DEBUG
-		page_zip.m_start = 0;
-#endif /* UNIV_DEBUG */
-		page_zip.m_end = 0;
-		page_zip.m_nonempty = 0;
-		page_zip.n_blobs = 0;
-
-		buf_flush_init_for_writing(NULL, page, &page_zip, false);
-
-		*err = os_file_write(IORequestWrite, path, file,
-				     page_zip.data, 0, zip_size);
-	} else {
-		buf_flush_init_for_writing(NULL, page, NULL,
-					   fil_space_t::full_crc32(flags));
-
-		*err = os_file_write(IORequestWrite, path, file,
-				     page, 0, srv_page_size);
-	}
-
 	aligned_free(page);
 	fil_space_t::name_type space_name;
-
-	if (*err != DB_SUCCESS) {
-		ib::error()
-			<< "Could not write the first page to"
-			<< " tablespace '" << path << "'";
-		goto err_exit;
-	}
-
-	if (!os_file_flush(file)) {
-		ib::error() << "File flush of tablespace '"
-			<< path << "' failed";
-		*err = DB_ERROR;
-		goto err_exit;
-	}
 
 	if (has_data_dir) {
 		/* Make the ISL file if the IBD file is not
@@ -2657,15 +2620,23 @@ fil_ibd_load(
 	}
 
 	os_offset_t	size;
+	bool		deferred_space = false;
 
 	/* Read and validate the first page of the tablespace.
 	Assign a tablespace name based on the tablespace type. */
 	switch (file.validate_for_recovery()) {
 		os_offset_t	minimum_size;
 	case DB_SUCCESS:
+		deferred_space = file.m_defer;
+
+		if (deferred_space) {
+			goto tablespace_check;
+		}
+
 		if (file.space_id() != space_id) {
 			return(FIL_LOAD_ID_CHANGED);
 		}
+tablespace_check:
 		/* Get and test the file size. */
 		size = os_file_get_size(file.handle());
 
@@ -2681,6 +2652,8 @@ fil_ibd_load(
 			ib::error() << "Could not measure the size of"
 				" single-table tablespace file '"
 				<< file.filepath() << "'";
+		} else if (deferred_space) {
+			return FIL_LOAD_DEFER;
 		} else if (size < minimum_size) {
 			ib::error() << "The size of tablespace file '"
 				<< file.filepath() << "' is only " << size

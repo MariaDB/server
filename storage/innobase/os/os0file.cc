@@ -4462,110 +4462,111 @@ void fil_node_t::find_metadata(os_file_t file
 @return	whether the page was found valid */
 bool fil_node_t::read_page0()
 {
-	mysql_mutex_assert_owner(&fil_system.mutex);
-	const unsigned psize = space->physical_size();
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  const unsigned psize= space->physical_size();
 #ifndef _WIN32
-	struct stat statbuf;
-	if (fstat(handle, &statbuf)) {
-		return false;
-	}
-	os_offset_t size_bytes = statbuf.st_size;
+  struct stat statbuf;
+  if (fstat(handle, &statbuf))
+    return false;
+  os_offset_t size_bytes= statbuf.st_size;
 #else
-	os_offset_t size_bytes = os_file_get_size(handle);
-	ut_a(size_bytes != (os_offset_t) -1);
+  os_offset_t size_bytes= os_file_get_size(handle);
+  ut_a(size_bytes != (os_offset_t) -1);
 #endif
-	const uint32_t min_size = FIL_IBD_FILE_INITIAL_SIZE * psize;
+  const uint32_t min_size= FIL_IBD_FILE_INITIAL_SIZE * psize;
 
-	if (size_bytes < min_size) {
-		ib::error() << "The size of the file " << name
-			    << " is only " << size_bytes
-			    << " bytes, should be at least " << min_size;
-		return false;
-	}
+  if (size_bytes < min_size)
+  {
+    ib::error() << "The size of the file " << name
+      << " is only " << size_bytes
+      << " bytes, should be at least " << min_size;
+    return false;
+  }
 
-	page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
-	if (os_file_read(IORequestRead, handle, page, 0, psize)
-	    != DB_SUCCESS) {
-		ib::error() << "Unable to read first page of file " << name;
+  if (!deferred)
+  {
+    page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
+    if (os_file_read(IORequestRead, handle, page, 0, psize)
+        != DB_SUCCESS)
+    {
+      ib::error() << "Unable to read first page of file " << name;
 corrupted:
-		aligned_free(page);
-		return false;
-	}
+      aligned_free(page);
+      return false;
+    }
 
-	const ulint space_id = memcmp_aligned<2>(
-		FIL_PAGE_SPACE_ID + page,
-		FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
-		? ULINT_UNDEFINED
-		: mach_read_from_4(FIL_PAGE_SPACE_ID + page);
-	ulint flags = fsp_header_get_flags(page);
-	const uint32_t size = fsp_header_get_field(page, FSP_SIZE);
-	const uint32_t free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
-	const uint32_t free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
-					       + page);
-	if (!fil_space_t::is_valid_flags(flags, space->id)) {
-		ulint cflags = fsp_flags_convert_from_101(flags);
-		if (cflags == ULINT_UNDEFINED) {
+    const ulint space_id= memcmp_aligned<2>
+      (FIL_PAGE_SPACE_ID + page,
+       FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
+      ? ULINT_UNDEFINED
+      : mach_read_from_4(FIL_PAGE_SPACE_ID + page);
+    ulint flags= fsp_header_get_flags(page);
+    const uint32_t size= fsp_header_get_field(page, FSP_SIZE);
+    const uint32_t free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
+    const uint32_t free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
+    if (!fil_space_t::is_valid_flags(flags, space->id))
+    {
+      ulint cflags= fsp_flags_convert_from_101(flags);
+      if (cflags == ULINT_UNDEFINED)
+      {
 invalid:
-			ib::error()
-				<< "Expected tablespace flags "
-				<< ib::hex(space->flags)
-				<< " but found " << ib::hex(flags)
-				<< " in the file " << name;
-			goto corrupted;
-		}
+        ib::error() << "Expected tablespace flags "
+          << ib::hex(space->flags)
+          << " but found " << ib::hex(flags)
+          << " in the file " << name;
+        goto corrupted;
+      }
 
-		ulint cf = cflags & ~FSP_FLAGS_MEM_MASK;
-		ulint sf = space->flags & ~FSP_FLAGS_MEM_MASK;
+      ulint cf= cflags & ~FSP_FLAGS_MEM_MASK;
+      ulint sf= space->flags & ~FSP_FLAGS_MEM_MASK;
 
-		if (!fil_space_t::is_flags_equal(cf, sf)
-		    && !fil_space_t::is_flags_equal(sf, cf)) {
-			goto invalid;
-		}
+      if (!fil_space_t::is_flags_equal(cf, sf) &&
+          !fil_space_t::is_flags_equal(sf, cf))
+        goto invalid;
+      flags= cflags;
+    }
 
-		flags = cflags;
-	}
+    ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
 
-	ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
+    /* Try to read crypt_data from page 0 if it is not yet read. */
+    if (!space->crypt_data)
+      space->crypt_data= fil_space_read_crypt_data(
+        fil_space_t::zip_size(flags), page);
+    aligned_free(page);
 
-	/* Try to read crypt_data from page 0 if it is not yet read. */
-	if (!space->crypt_data) {
-		space->crypt_data = fil_space_read_crypt_data(
-			fil_space_t::zip_size(flags), page);
-	}
-	aligned_free(page);
+    if (UNIV_UNLIKELY(space_id != space->id))
+    {
+      ib::error() << "Expected tablespace id " << space->id
+        << " but found " << space_id
+        << " in the file " << name;
+      return false;
+    }
 
-	if (UNIV_UNLIKELY(space_id != space->id)) {
-		ib::error() << "Expected tablespace id " << space->id
-			<< " but found " << space_id
-			<< " in the file " << name;
-		return false;
-	}
+    space->flags= (space->flags & FSP_FLAGS_MEM_MASK) | flags;
+    ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
+    ut_ad(space->free_len == 0 || space->free_len == free_len);
+    space->size_in_header= size;
+    space->free_limit= free_limit;
+    space->free_len= free_len;
+  }
 
 #ifdef UNIV_LINUX
-	find_metadata(handle, &statbuf);
+  find_metadata(handle, &statbuf);
 #else
-	find_metadata();
+  find_metadata();
 #endif
-	/* Truncate the size to a multiple of extent size. */
-	ulint	mask = psize * FSP_EXTENT_SIZE - 1;
+  /* Truncate the size to a multiple of extent size. */
+  ulint	mask= psize * FSP_EXTENT_SIZE - 1;
 
-	if (size_bytes <= mask) {
-		/* .ibd files start smaller than an
-		extent size. Do not truncate valid data. */
-	} else {
-		size_bytes &= ~os_offset_t(mask);
-	}
+  if (size_bytes <= mask);
+    /* .ibd files start smaller than an
+    extent size. Do not truncate valid data. */
+  else size_bytes &= ~os_offset_t(mask);
 
-	space->flags = (space->flags & FSP_FLAGS_MEM_MASK) | flags;
-
-	space->punch_hole = space->is_compressed();
-	this->size = uint32_t(size_bytes / psize);
-	space->set_sizes(this->size);
-	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
-	ut_ad(space->free_len == 0 || space->free_len == free_len);
-	space->size_in_header = size;
-	space->free_limit = free_limit;
-	space->free_len = free_len;
-	return true;
+  space->punch_hole= space->is_compressed();
+  this->size= uint32_t(size_bytes / psize);
+  space->set_sizes(this->size);
+  return true;
 }
+
 #endif /* !UNIV_INNOCHECKSUM */

@@ -29,7 +29,7 @@ connect ddl3, localhost, root,,;
 CREATE TABLE t3(a TEXT,b TEXT,FULLTEXT INDEX(a)) ENGINE=InnoDB;
 ALTER TABLE t3 DROP INDEX a, ADD FULLTEXT INDEX(b), ALGORITHM=COPY;
 connection default;
-# restart: with restart_parameters
+# restart
 disconnect ddl1;
 disconnect ddl2;
 disconnect ddl3;
@@ -69,7 +69,7 @@ DELETE FROM articles LIMIT 1;
 ROLLBACK;
 disconnect flush_redo_log;
 connection default;
-# restart: with restart_parameters
+# restart
 disconnect dml;
 INSERT INTO articles (title,body) VALUES
 ('MySQL Tutorial','DBMS stands for DataBase ...');
@@ -129,7 +129,7 @@ id	title	body
 1	MySQL Tutorial	DBMS stands for Database...
 2	MariaDB Tutorial	DB means Database ...
 connection default;
-# restart: with restart_parameters
+# restart
 disconnect dml;
 disconnect dml2;
 INSERT INTO articles VALUES         (8, 12, 'MySQL Tutorial','DBMS stands for DataBase ...');

@@ -24,6 +24,8 @@ INSERT INTO a1 VALUES(1);
 CREATE TABLE b1(b1 CHAR(2)) ENGINE INNODB;
 INSERT INTO b1 VALUES('b1');
 
+set global innodb_log_checkpoint_now = 1;
+
 # Test renames before of after copying tablespaces
 --let before_copy_test_t1=RENAME TABLE test.t1 TO test.t1_renamed
 --let after_copy_test_t2=RENAME TABLE  test.t2 TO test.t2_renamed

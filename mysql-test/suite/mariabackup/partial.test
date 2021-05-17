@@ -17,6 +17,7 @@ let targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables=test.*1" --target-dir=$targetdir;
 --enable_result_log
 list_files $targetdir/test *.ibd;
+list_files $targetdir/test *.new;
 
 # Inject a junk .ibd file into backup dir to
 # see if prepare does not choke on it.

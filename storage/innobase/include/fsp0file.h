@@ -324,6 +324,9 @@ public:
 	@return the first data page */
 	const byte* get_first_page() const { return(m_first_page); }
 
+	void set_space_id(ulint space_id) { m_space_id= space_id; }
+
+	void set_flags(ulint flags) { m_flags = flags; }
 private:
 	/** Free the filepath buffer. */
 	void free_filepath();
@@ -443,6 +446,8 @@ protected:
 	ulint			m_last_os_error;
 
 public:
+	/** true if table is deferred during recovery */
+	bool			m_defer=false;
 	/** Use the following to determine the uniqueness of this datafile. */
 #ifdef _WIN32
 	/* Use fields dwVolumeSerialNumber, nFileIndexLow, nFileIndexHigh. */

@@ -99,6 +99,7 @@ this must be equal to srv_page_size */
 class page_id_t
 {
 public:
+
   /** Constructor from (space, page_no).
   @param[in]	space	tablespace id
   @param[in]	page_no	page number */
@@ -152,6 +153,7 @@ public:
   }
 
   ulonglong raw() { return m_id; }
+
 private:
   /** The page identifier */
   uint64_t m_id;
