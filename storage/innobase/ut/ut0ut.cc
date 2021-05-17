@@ -366,8 +366,6 @@ ut_strerr(
 		return("Table not found");
 	case DB_MUST_GET_MORE_FILE_SPACE:
 		return("More file space needed");
-	case DB_TABLE_IS_BEING_USED:
-		return("Table is being used");
 	case DB_TOO_BIG_RECORD:
 		return("Record too big");
 	case DB_TOO_BIG_INDEX_COL:

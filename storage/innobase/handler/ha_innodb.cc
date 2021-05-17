@@ -1758,9 +1758,6 @@ convert_error_code_to_mysql(
 	case DB_TABLE_IN_FK_CHECK:
 		return(HA_ERR_TABLE_IN_FK_CHECK);
 
-	case DB_TABLE_IS_BEING_USED:
-		return(HA_ERR_WRONG_COMMAND);
-
 	case DB_TABLE_NOT_FOUND:
 		return(HA_ERR_NO_SUCH_TABLE);
 

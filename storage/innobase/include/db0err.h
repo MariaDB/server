@@ -51,7 +51,6 @@ enum dberr_t {
 	DB_TABLE_NOT_FOUND,
 	DB_MUST_GET_MORE_FILE_SPACE,	/*!< the database has to be stopped
 					and restarted with more file space */
-	DB_TABLE_IS_BEING_USED,
 	DB_TOO_BIG_RECORD,		/*!< a record in an index would not fit
 					on a compressed page, or it would
 					become bigger than 1/2 free space in
