@@ -1971,11 +1971,11 @@ int wsrep_sst_donate(const std::string& msg,
 
   if (!strcmp (WSREP_SST_MYSQLDUMP, method))
   {
-    ret= sst_donate_mysqldump(data, current_gtid, bypass, env());
+    ret= sst_donate_mysqldump(addr, current_gtid, bypass, env());
   }
   else
   {
-    ret= sst_donate_other(method, data, current_gtid, bypass, env());
+    ret= sst_donate_other(method, addr, current_gtid, bypass, env());
   }
 
   return (ret >= 0 ? 0 : 1);
