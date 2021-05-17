@@ -5858,8 +5858,6 @@ ha_innobase::close()
 		m_upd_buf_size = 0;
 	}
 
-	MONITOR_INC(MONITOR_TABLE_CLOSE);
-
 	DBUG_RETURN(0);
 }
 

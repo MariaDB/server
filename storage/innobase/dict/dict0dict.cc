@@ -339,8 +339,6 @@ dict_table_close(
 		table->stats_mutex_unlock();
 	}
 
-	MONITOR_DEC(MONITOR_TABLE_REFERENCE);
-
 	ut_ad(dict_lru_validate());
 	ut_ad(dict_sys.find(table));
 
@@ -920,9 +918,8 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
 		: DICT_ERR_IGNORE_FK_NOKEY,
 		table_op == DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 
-	if (table != NULL) {
+	if (table) {
 		dict_sys.acquire(table);
-		MONITOR_INC(MONITOR_TABLE_REFERENCE);
 	}
 
 	if (!dict_locked) {
@@ -1147,7 +1144,6 @@ dict_table_open_on_name(
 		}
 
 		dict_sys.acquire(table);
-		MONITOR_INC(MONITOR_TABLE_REFERENCE);
 	}
 
 	ut_ad(dict_lru_validate());

@@ -19,8 +19,6 @@ page_size	buffer_pool_instance	pages_used	pages_free	relocation_ops	relocation_t
 SELECT * FROM INFORMATION_SCHEMA.INNODB_METRICS;
 NAME	SUBSYSTEM	COUNT	MAX_COUNT	MIN_COUNT	AVG_COUNT	COUNT_RESET	MAX_COUNT_RESET	MIN_COUNT_RESET	AVG_COUNT_RESET	TIME_ENABLED	TIME_DISABLED	TIME_ELAPSED	TIME_RESET	ENABLED	TYPE	COMMENT
 metadata_table_handles_opened	metadata	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of table handles opened
-metadata_table_handles_closed	metadata	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of table handles closed
-metadata_table_reference_count	metadata	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Table reference counter
 lock_deadlocks	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Number of deadlocks
 lock_timeouts	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	value	Number of lock timeouts
 lock_rec_lock_waits	lock	0	NULL	NULL	NULL	0	NULL	NULL	NULL	NULL	NULL	NULL	NULL	0	counter	Number of times enqueued into record lock wait queue

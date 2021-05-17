@@ -214,24 +214,6 @@ select name, max_count, min_count, count,
 	max_count_reset, min_count_reset, count_reset,
 	if(enabled,'enabled','disabled') status
 from information_schema.innodb_metrics
-where name = "metadata_table_handles_opened";
-
-# Test counter "metadata_table_handles_closed",
-# create index will close the old handle
-set global innodb_monitor_enable = metadata_table_handles_closed;
-
-create index idx on monitor_test(col);
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name = "metadata_table_handles_closed";
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
 where name like "metadata%";
 
 # Reset counters only in "module_metadata" module

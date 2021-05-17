@@ -136,8 +136,6 @@ enum monitor_id_t {
 	/* Start of Metadata counter */
 	MONITOR_MODULE_METADATA,
 	MONITOR_TABLE_OPEN,
-	MONITOR_TABLE_CLOSE,
-	MONITOR_TABLE_REFERENCE,
 
 	/* Lock manager related counters */
 	MONITOR_MODULE_LOCK,

@@ -75,16 +75,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_TABLE_OPEN},
 
-	{"metadata_table_handles_closed", "metadata",
-	 "Number of table handles closed",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_TABLE_CLOSE},
-
-	{"metadata_table_reference_count", "metadata",
-	 "Table reference counter",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_TABLE_REFERENCE},
-
 	/* ========== Counters for Lock Module ========== */
 	{"module_lock", "lock", "Lock Module",
 	 MONITOR_MODULE,
