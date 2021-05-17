@@ -3710,13 +3710,6 @@ funct_exit_all_freed:
 	DBUG_RETURN(err);
 }
 
-/** Drop a table after failed CREATE TABLE. */
-dberr_t row_drop_table_after_create_fail(const char* name, trx_t* trx)
-{
-	ib::warn() << "Dropping incompletely created " << name << " table.";
-	return row_drop_table_for_mysql(name, trx, SQLCOM_DROP_DB, true);
-}
-
 /*******************************************************************//**
 Drop all foreign keys in a database, see Bug#18942.
 Called at the end of row_drop_database_for_mysql().

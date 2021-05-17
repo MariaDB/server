@@ -429,9 +429,6 @@ row_drop_table_for_mysql(
 	bool			create_failed = false,
 	bool			nonatomic = true);
 
-/** Drop a table after failed CREATE TABLE. */
-dberr_t row_drop_table_after_create_fail(const char* name, trx_t* trx);
-
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding
 means that this function deletes the .ibd file and assigns a new table id for

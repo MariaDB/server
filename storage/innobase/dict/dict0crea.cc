@@ -1378,9 +1378,6 @@ dict_create_or_check_foreign_constraint_tables(void)
 
 	ut_ad(!srv_any_background_activity());
 
-	/* Note: The master thread has not been started at this point. */
-
-
 	sys_foreign_err = dict_check_if_system_table_exists(
 		"SYS_FOREIGN", DICT_NUM_FIELDS__SYS_FOREIGN + 1, 3);
 	sys_foreign_cols_err = dict_check_if_system_table_exists(
@@ -1418,16 +1415,6 @@ dict_create_or_check_foreign_constraint_tables(void)
 		ut_ad(err == DB_SUCCESS);
 		row_drop_table_for_mysql("test/#sql-ib-garbage", trx,
 					 SQLCOM_DROP_DB, true););
-
-	/* Check which incomplete table definition to drop. */
-
-	if (sys_foreign_err == DB_CORRUPTION) {
-		row_drop_table_after_create_fail("SYS_FOREIGN", trx);
-	}
-
-	if (sys_foreign_cols_err == DB_CORRUPTION) {
-		row_drop_table_after_create_fail("SYS_FOREIGN_COLS", trx);
-	}
 
 	ib::info() << "Creating foreign key constraint system tables.";
 
@@ -1471,14 +1458,11 @@ dict_create_or_check_foreign_constraint_tables(void)
 
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
 		ib::error() << "Creation of SYS_FOREIGN and SYS_FOREIGN_COLS"
-			" failed: " << err << ". Tablespace is"
-			" full. Dropping incompletely created tables.";
+			" failed: " << err;
 
 		ut_ad(err == DB_OUT_OF_FILE_SPACE
 		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
-
-		row_drop_table_after_create_fail("SYS_FOREIGN", trx);
-		row_drop_table_after_create_fail("SYS_FOREIGN_COLS", trx);
+		trx->rollback();
 
 		if (err == DB_OUT_OF_FILE_SPACE) {
 			err = DB_MUST_GET_MORE_FILE_SPACE;
@@ -1519,7 +1503,6 @@ dict_create_or_check_sys_virtual()
 
 	ut_ad(!srv_any_background_activity());
 
-	/* Note: The master thread has not been started at this point. */
 	err = dict_check_if_system_table_exists(
 		"SYS_VIRTUAL", DICT_NUM_FIELDS__SYS_VIRTUAL + 1, 1);
 
@@ -1543,12 +1526,6 @@ dict_create_or_check_sys_virtual()
 
 	row_mysql_lock_data_dictionary(trx);
 
-	/* Check which incomplete table definition to drop. */
-
-	if (err == DB_CORRUPTION) {
-		row_drop_table_after_create_fail("SYS_VIRTUAL", trx);
-	}
-
 	ib::info() << "Creating sys_virtual system tables.";
 
 	srv_file_per_table_backup = srv_file_per_table;
@@ -1571,15 +1548,11 @@ dict_create_or_check_sys_virtual()
 		FALSE, trx);
 
 	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-		ib::error() << "Creation of SYS_VIRTUAL"
-			" failed: " << err << ". Tablespace is"
-			" full or too many transactions."
-			" Dropping incompletely created tables.";
+		ib::error() << "Creation of SYS_VIRTUAL failed: " << err;
 
 		ut_ad(err == DB_OUT_OF_FILE_SPACE
 		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
-
-		row_drop_table_after_create_fail("SYS_VIRTUAL", trx);
+		trx->rollback();
 
 		if (err == DB_OUT_OF_FILE_SPACE) {
 			err = DB_MUST_GET_MORE_FILE_SPACE;
