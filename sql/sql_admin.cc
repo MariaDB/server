@@ -1,5 +1,5 @@
 /* Copyright (c) 2010, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2020, MariaDB
+   Copyright (c) 2011, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -455,7 +455,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                               int (handler::*operator_func)(THD *,
                                                             HA_CHECK_OPT *),
                               int (view_operator_func)(THD *, TABLE_LIST*,
-                                                       HA_CHECK_OPT *))
+                                                       HA_CHECK_OPT *),
+                              bool is_cmd_replicated)
 {
   TABLE_LIST *table;
   List<Item> field_list;
@@ -466,6 +467,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
   int compl_result_code;
   bool need_repair_or_alter= 0;
   wait_for_commit* suspended_wfc;
+  bool is_table_modified= false;
+
   DBUG_ENTER("mysql_admin_table");
   DBUG_PRINT("enter", ("extra_open_options: %u", extra_open_options));
 
@@ -515,6 +518,10 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     bool open_for_modify= org_open_for_modify;
 
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
+    DEBUG_SYNC(thd, "admin_command_kill_before_modify");
+
+    if (thd->is_killed())
+      break;
     strxmov(table_name, db, ".", table->table_name.str, NullS);
     thd->open_options|= extra_open_options;
     table->lock_type= lock_type;
@@ -1167,6 +1174,13 @@ send_result_message:
         break;
       }
     }
+    /*
+      Admin commands acquire table locks and these locks are not detected by
+      parallel replication deadlock detection-and-handling mechanism. Hence
+      they must be marked as DDL so that they are not scheduled in parallel
+      with conflicting DMLs resulting in deadlock.
+    */
+    thd->transaction.stmt.mark_executed_table_admin_cmd();
     if (table->table && !table->view)
     {
       if (table->table->s->tmp_table)
@@ -1202,10 +1216,9 @@ send_result_message:
     }
     else
     {
-      if (trans_commit_stmt(thd) ||
-          (stmt_causes_implicit_commit(thd, CF_IMPLICIT_COMMIT_END) &&
-           trans_commit_implicit(thd)))
+      if (trans_commit_stmt(thd))
         goto err;
+      is_table_modified= true;
     }
     close_thread_tables(thd);
     thd->release_transactional_locks();
@@ -1227,6 +1240,13 @@ send_result_message:
       rt->mdl_request.ticket= NULL;
 
     if (protocol->write())
+      goto err;
+    DEBUG_SYNC(thd, "admin_command_kill_after_modify");
+  }
+  if (is_table_modified && is_cmd_replicated &&
+      (!opt_readonly || thd->slave_thread) && !thd->lex->no_write_to_binlog)
+  {
+    if (write_bin_log(thd, TRUE, thd->query(), thd->query_length()))
       goto err;
   }
 
@@ -1290,7 +1310,7 @@ bool mysql_assign_to_keycache(THD* thd, TABLE_LIST* tables,
   check_opt.key_cache= key_cache;
   DBUG_RETURN(mysql_admin_table(thd, tables, &check_opt,
 				"assign_to_keycache", TL_READ_NO_INSERT, 0, 0,
-				0, 0, &handler::assign_to_keycache, 0));
+				0, 0, &handler::assign_to_keycache, 0, false));
 }
 
 
@@ -1317,7 +1337,7 @@ bool mysql_preload_keys(THD* thd, TABLE_LIST* tables)
   */
   DBUG_RETURN(mysql_admin_table(thd, tables, 0,
 				"preload_keys", TL_READ_NO_INSERT, 0, 0, 0, 0,
-				&handler::preload_keys, 0));
+				&handler::preload_keys, 0, false));
 }
 
 
@@ -1335,15 +1355,7 @@ bool Sql_cmd_analyze_table::execute(THD *thd)
   WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, first_table);
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt,
                          "analyze", lock_type, 1, 0, 0, 0,
-                         &handler::ha_analyze, 0);
-  /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
-  {
-    /*
-      Presumably, ANALYZE and binlog writing doesn't require synchronization
-    */
-    res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-  }
+                         &handler::ha_analyze, 0, true);
   m_lex->select_lex.table_list.first= first_table;
   m_lex->query_tables= first_table;
 
@@ -1367,7 +1379,7 @@ bool Sql_cmd_check_table::execute(THD *thd)
 
   res= mysql_admin_table(thd, first_table, &m_lex->check_opt, "check",
                          lock_type, 0, 0, HA_OPEN_FOR_REPAIR, 0,
-                         &handler::ha_check, &view_check);
+                         &handler::ha_check, &view_check, false);
 
   m_lex->select_lex.table_list.first= first_table;
   m_lex->query_tables= first_table;
@@ -1393,15 +1405,7 @@ bool Sql_cmd_optimize_table::execute(THD *thd)
     mysql_recreate_table(thd, first_table, true) :
     mysql_admin_table(thd, first_table, &m_lex->check_opt,
                       "optimize", TL_WRITE, 1, 0, 0, 0,
-                      &handler::ha_optimize, 0);
-  /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
-  {
-    /*
-      Presumably, OPTIMIZE and binlog writing doesn't require synchronization
-    */
-    res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-  }
+                      &handler::ha_optimize, 0, true);
   m_lex->select_lex.table_list.first= first_table;
   m_lex->query_tables= first_table;
 
@@ -1426,16 +1430,8 @@ bool Sql_cmd_repair_table::execute(THD *thd)
                          TL_WRITE, 1,
                          MY_TEST(m_lex->check_opt.sql_flags & TT_USEFRM),
                          HA_OPEN_FOR_REPAIR, &prepare_for_repair,
-                         &handler::ha_repair, &view_repair);
+                         &handler::ha_repair, &view_repair, true);
 
-  /* ! we write after unlocking the table */
-  if (!res && !m_lex->no_write_to_binlog && (!opt_readonly || thd->slave_thread))
-  {
-    /*
-      Presumably, REPAIR and binlog writing doesn't require synchronization
-    */
-    res= write_bin_log(thd, TRUE, thd->query(), thd->query_length());
-  }
   m_lex->select_lex.table_list.first= first_table;
   m_lex->query_tables= first_table;
 
