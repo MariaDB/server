@@ -1516,14 +1516,16 @@ static struct my_option my_options[] =
   {"base64-output", OPT_BASE64_OUTPUT_MODE,
     /* 'unspec' is not mentioned because it is just a placeholder. */
    "Determine when the output statements should be base64-encoded BINLOG "
-   "statements: 'never' doesn't print binlog row events and should not be "
-   "used when directing output to a MariaDB master; "
+   "statements: "
+   "‘never’ neither prints base64 encodings nor verbose event data, and "
+   "will exit on error if a row-based event is found. "
    "'decode-rows' decodes row events into commented SQL statements if the "
-   "--verbose option is also given; "
-   "'auto' prints base64 only when necessary (i.e., for row-based events and "
-   "format description events); "
-   "If no --base64-output=name option is given at all, the default is "
-   "'auto'.",
+   "--verbose option is also given. "
+   "‘auto’ outputs base64 encoded entries for row-based and format "
+   "description events. "
+   "If no option is given at all, the default is ‘auto', and is "
+   "consequently the only option that should be used when row-format events "
+   "are processed for re-execution.",
    &opt_base64_output_mode_str, &opt_base64_output_mode_str,
    0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   /*
