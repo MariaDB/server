@@ -207,8 +207,8 @@ a file name for --relay-log-index option", opt_relaylog_index_name);
       */
       sql_print_warning("Neither --relay-log nor --relay-log-index were used;"
                         " so replication "
-                        "may break when this MySQL server acts as a "
-                        "slave and has his hostname changed!! Please "
+                        "may break when this MariaDB server acts as a "
+                        "replica and has its hostname changed. Please "
                         "use '--log-basename=#' or '--relay-log=%s' to avoid "
                         "this problem.", ln);
       name_warning_sent= 1;

@@ -7990,8 +7990,10 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     flags2|= FL_WAITED;
   if (thd_arg->transaction.stmt.trans_did_ddl() ||
       thd_arg->transaction.stmt.has_created_dropped_temp_table() ||
+      thd_arg->transaction.stmt.trans_executed_admin_cmd() ||
       thd_arg->transaction.all.trans_did_ddl() ||
-      thd_arg->transaction.all.has_created_dropped_temp_table())
+      thd_arg->transaction.all.has_created_dropped_temp_table() ||
+      thd_arg->transaction.all.trans_executed_admin_cmd())
     flags2|= FL_DDL;
   else if (is_transactional && !is_tmp_table)
     flags2|= FL_TRANSACTIONAL;
