@@ -3502,6 +3502,222 @@ static void xb_load_single_table_tablespace(const std::string &space_name,
   xb_load_single_table_tablespace(dbname, tablename, is_remote, set_size);
 }
 
+#ifdef _WIN32
+/**
+The os_file_opendir() function opens a directory stream corresponding to the
+directory named by the dirname argument. The directory stream is positioned
+at the first entry. In both Unix and Windows we automatically skip the '.'
+and '..' items at the start of the directory listing.
+@param[in]	dirname		directory name; it must not contain a trailing
+				'\' or '/'
+@return directory stream, NULL if error */
+os_file_dir_t os_file_opendir(const char *dirname)
+{
+  char path[OS_FILE_MAX_PATH + 3];
+
+  ut_a(strlen(dirname) < OS_FILE_MAX_PATH);
+
+  strcpy(path, dirname);
+  strcpy(path + strlen(path), "\\*");
+
+  /* Note that in Windows opening the 'directory stream' also retrieves
+  the first entry in the directory. Since it is '.', that is no problem,
+  as we will skip over the '.' and '..' entries anyway. */
+
+  LPWIN32_FIND_DATA lpFindFileData= static_cast<LPWIN32_FIND_DATA>
+    (ut_malloc_nokey(sizeof(WIN32_FIND_DATA)));
+  os_file_dir_t dir= FindFirstFile((LPCTSTR) path, lpFindFileData);
+  ut_free(lpFindFileData);
+
+  return dir;
+}
+#endif
+
+/** This function returns information of the next file in the directory. We jump
+over the '.' and '..' entries in the directory.
+@param[in]	dirname		directory name or path
+@param[in]	dir		directory stream
+@param[out]	info		buffer where the info is returned
+@return 0 if ok, -1 if error, 1 if at the end of the directory */
+int
+os_file_readdir_next_file(
+	const char*	dirname,
+	os_file_dir_t	dir,
+	os_file_stat_t* info)
+{
+#ifdef _WIN32
+	BOOL		ret;
+	int		status;
+	WIN32_FIND_DATA find_data;
+
+next_file:
+	ret = FindNextFile(dir, &find_data);
+
+	if (ret > 0) {
+
+		const char* name;
+
+		name = static_cast<const char*>(find_data.cFileName);
+
+		ut_a(strlen(name) < OS_FILE_MAX_PATH);
+
+		if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
+
+			goto next_file;
+		}
+
+		strcpy(info->name, name);
+
+		info->size = find_data.nFileSizeHigh;
+		info->size <<= 32;
+		info->size |= find_data.nFileSizeLow;
+
+		if (find_data.dwFileAttributes
+		    & FILE_ATTRIBUTE_REPARSE_POINT) {
+
+			/* TODO: test Windows symlinks */
+			/* TODO: MySQL has apparently its own symlink
+			implementation in Windows, dbname.sym can
+			redirect a database directory:
+			REFMAN "windows-symbolic-links.html" */
+
+			info->type = OS_FILE_TYPE_LINK;
+
+		} else if (find_data.dwFileAttributes
+			   & FILE_ATTRIBUTE_DIRECTORY) {
+
+			info->type = OS_FILE_TYPE_DIR;
+
+		} else {
+
+			/* It is probably safest to assume that all other
+			file types are normal. Better to check them rather
+			than blindly skip them. */
+
+			info->type = OS_FILE_TYPE_FILE;
+		}
+
+		status = 0;
+
+	} else {
+		DWORD err = GetLastError();
+		if (err == ERROR_NO_MORE_FILES) {
+			status = 1;
+		} else {
+			msg("readdir_next_file in %s returned %lu", dir, err);
+			status = -1;
+		}
+	}
+
+	return(status);
+#else
+	struct dirent*	ent;
+	char*		full_path;
+	int		ret;
+	struct stat	statinfo;
+
+next_file:
+
+	ent = readdir(dir);
+
+	if (ent == NULL) {
+
+		return(1);
+	}
+
+	ut_a(strlen(ent->d_name) < OS_FILE_MAX_PATH);
+
+	if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
+
+		goto next_file;
+	}
+
+	strcpy(info->name, ent->d_name);
+
+	full_path = static_cast<char*>(
+		ut_malloc_nokey(strlen(dirname) + strlen(ent->d_name) + 10));
+
+	sprintf(full_path, "%s/%s", dirname, ent->d_name);
+
+	ret = stat(full_path, &statinfo);
+
+	if (ret) {
+
+		if (errno == ENOENT) {
+			/* readdir() returned a file that does not exist,
+			it must have been deleted in the meantime. Do what
+			would have happened if the file was deleted before
+			readdir() - ignore and go to the next entry.
+			If this is the last entry then info->name will still
+			contain the name of the deleted file when this
+			function returns, but this is not an issue since the
+			caller shouldn't be looking at info when end of
+			directory is returned. */
+
+			ut_free(full_path);
+
+			goto next_file;
+		}
+
+		msg("stat %s: Got error %d", full_path, errno);
+
+		ut_free(full_path);
+
+		return(-1);
+	}
+
+	info->size = statinfo.st_size;
+
+	if (S_ISDIR(statinfo.st_mode)) {
+		info->type = OS_FILE_TYPE_DIR;
+	} else if (S_ISLNK(statinfo.st_mode)) {
+		info->type = OS_FILE_TYPE_LINK;
+	} else if (S_ISREG(statinfo.st_mode)) {
+		info->type = OS_FILE_TYPE_FILE;
+	} else {
+		info->type = OS_FILE_TYPE_UNKNOWN;
+	}
+
+	ut_free(full_path);
+	return(0);
+#endif
+}
+
+/***********************************************************************//**
+A fault-tolerant function that tries to read the next file name in the
+directory. We retry 100 times if os_file_readdir_next_file() returns -1. The
+idea is to read as much good data as we can and jump over bad data.
+@return 0 if ok, -1 if error even after the retries, 1 if at the end
+of the directory */
+int
+fil_file_readdir_next_file(
+/*=======================*/
+	dberr_t*	err,	/*!< out: this is set to DB_ERROR if an error
+				was encountered, otherwise not changed */
+	const char*	dirname,/*!< in: directory name or path */
+	os_file_dir_t	dir,	/*!< in: directory stream */
+	os_file_stat_t* info)	/*!< in/out: buffer where the
+				info is returned */
+{
+	for (ulint i = 0; i < 100; i++) {
+		int	ret = os_file_readdir_next_file(dirname, dir, info);
+
+		if (ret != -1) {
+
+			return(ret);
+		}
+
+		ib::error() << "os_file_readdir_next_file() returned -1 in"
+			" directory " << dirname
+			<< ", crash recovery may have failed"
+			" for some .ibd files!";
+
+		*err = DB_ERROR;
+	}
+
+	return(-1);
+}
+
 /** Scan the database directories under the MySQL datadir, looking for
 .ibd files and determining the space id in each of them.
 @return	DB_SUCCESS or error number */
@@ -3520,10 +3736,10 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 
 	/* The datadir of MySQL is always the default directory of mysqld */
 
-	dir = os_file_opendir(fil_path_to_mysql_datadir, true);
+	dir = os_file_opendir(fil_path_to_mysql_datadir);
 
-	if (dir == NULL) {
-
+	if (UNIV_UNLIKELY(dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr))) {
+		msg("cannot open dir %s", fil_path_to_mysql_datadir);
 		return(DB_ERROR);
 	}
 
@@ -3576,12 +3792,9 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 			goto next_datadir_item;
 		}
 
-		/* We want wrong directory permissions to be a fatal error for
-		XtraBackup. */
-		dbdir = os_file_opendir(dbpath, true);
+		dbdir = os_file_opendir(dbpath);
 
-		if (dbdir != NULL) {
-
+		if (UNIV_UNLIKELY(dbdir != IF_WIN(INVALID_HANDLE_VALUE,NULL))){
 			/* We found a database directory; loop through it,
 			looking for possible .ibd files in it */
 
@@ -3604,7 +3817,7 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 				}
 			}
 
-			if (0 != os_file_closedir(dbdir)) {
+			if (os_file_closedir_failed(dbdir)) {
 				fprintf(stderr, "InnoDB: Warning: could not"
 				 " close database directory %s\n",
 					dbpath);
@@ -3613,7 +3826,7 @@ static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback)
 			}
 
 		} else {
-
+			msg("Can't open dir %s", dbpath);
 			err = DB_ERROR;
 			break;
 
@@ -3627,10 +3840,9 @@ next_datadir_item:
 
 	ut_free(dbpath);
 
-	if (0 != os_file_closedir(dir)) {
+	if (os_file_closedir_failed(dir)) {
 		fprintf(stderr,
 			"InnoDB: Error: could not close MySQL datadir\n");
-
 		return(DB_ERROR);
 	}
 
@@ -5578,11 +5790,9 @@ static ibool xb_process_datadir(const char *path, const char *suffix,
 	suffix_len = strlen(suffix);
 
 	/* datafile */
-	dbdir = os_file_opendir(path, FALSE);
-
-	if (dbdir != NULL) {
-		ret = fil_file_readdir_next_file(&err, path, dbdir,
-							&fileinfo);
+	dbdir = os_file_opendir(path);
+	if (UNIV_UNLIKELY(dbdir != IF_WIN(INVALID_HANDLE_VALUE, nullptr))) {
+		ret = fil_file_readdir_next_file(&err, path, dbdir, &fileinfo);
 		while (ret == 0) {
 			if (fileinfo.type == OS_FILE_TYPE_DIR) {
 				goto next_file_item_1;
@@ -5612,14 +5822,14 @@ next_file_item_1:
 	}
 
 	/* single table tablespaces */
-	dir = os_file_opendir(path, FALSE);
+	dir = os_file_opendir(path);
 
-	if (dir == NULL) {
+	if (UNIV_UNLIKELY(dbdir == IF_WIN(INVALID_HANDLE_VALUE, nullptr))) {
 		msg("Can't open dir %s", path);
+		return TRUE;
 	}
 
-		ret = fil_file_readdir_next_file(&err, path, dir,
-								&dbinfo);
+	ret = fil_file_readdir_next_file(&err, path, dir, &dbinfo);
 	while (ret == 0) {
 		if (dbinfo.type == OS_FILE_TYPE_FILE
 		    || dbinfo.type == OS_FILE_TYPE_UNKNOWN) {
@@ -5635,10 +5845,9 @@ next_file_item_1:
 
 		os_normalize_path(dbpath);
 
-		dbdir = os_file_opendir(dbpath, FALSE);
+		dbdir = os_file_opendir(dbpath);
 
-		if (dbdir != NULL) {
-
+		if (dbdir != IF_WIN(INVALID_HANDLE_VALUE, nullptr)) {
 			ret = fil_file_readdir_next_file(&err, dbpath, dbdir,
 								&fileinfo);
 			while (ret == 0) {

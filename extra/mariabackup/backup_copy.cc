@@ -200,9 +200,9 @@ datadir_iter_new(const char *path, bool skip_first_level = true)
 	pthread_mutex_init(&it->mutex, NULL);
 	it->datadir_path = strdup(path);
 
-	it->dir = os_file_opendir(it->datadir_path, TRUE);
+	it->dir = os_file_opendir(it->datadir_path);
 
-	if (it->dir == NULL) {
+	if (it->dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) {
 
 		goto error;
 	}
@@ -233,11 +233,9 @@ bool
 datadir_iter_next_database(datadir_iter_t *it)
 {
 	if (it->dbdir != NULL) {
-		if (os_file_closedir(it->dbdir) != 0) {
-
+		if (os_file_closedir_failed(it->dbdir)) {
 			msg("Warning: could not"
 			      " close database directory %s", it->dbpath);
-
 			it->err = DB_ERROR;
 
 		}
@@ -283,10 +281,9 @@ datadir_iter_next_database(datadir_iter_t *it)
 
 		/* We want wrong directory permissions to be a fatal error for
 		XtraBackup. */
-		it->dbdir = os_file_opendir(it->dbpath, TRUE);
+		it->dbdir = os_file_opendir(it->dbpath);
 
-		if (it->dbdir != NULL) {
-
+		if (it->dir != IF_WIN(INVALID_HANDLE_VALUE, nullptr)) {
 			it->is_file = false;
 			return(true);
 		}
@@ -727,9 +724,9 @@ directory_exists(const char *dir, bool create)
 	}
 
 	/* could be symlink */
-	os_dir = os_file_opendir(dir, FALSE);
+	os_dir = os_file_opendir(dir);
 
-	if (os_dir == NULL) {
+	if (os_dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) {
 		my_strerror(errbuf, sizeof(errbuf), my_errno);
 		msg("Can not open directory %s: %s", dir,
 			errbuf);
@@ -757,9 +754,9 @@ directory_exists_and_empty(const char *dir, const char *comment)
 		return(false);
 	}
 
-	os_dir = os_file_opendir(dir, FALSE);
+	os_dir = os_file_opendir(dir);
 
-	if (os_dir == NULL) {
+	if (os_dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) {
 		msg("%s can not open directory %s", comment, dir);
 		return(false);
 	}
@@ -2179,7 +2176,9 @@ decrypt_decompress()
 */
 static bool backup_files_from_datadir(const char *dir_path)
 {
-	os_file_dir_t dir = os_file_opendir(dir_path, TRUE);
+	os_file_dir_t dir = os_file_opendir(dir_path);
+	if (dir == IF_WIN(INVALID_HANDLE_VALUE, nullptr)) return false;
+
 	os_file_stat_t info;
 	bool ret = true;
 	while (os_file_readdir_next_file(dir_path, dir, &info) == 0) {
