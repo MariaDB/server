@@ -2352,7 +2352,7 @@ innodb_instant_alter_column_allowed_reason:
 		}
 	}
 
-	m_prebuilt->trx->will_lock++;
+	m_prebuilt->trx->will_lock = true;
 
 	/* When changing a NULL column to NOT NULL and specifying a
 	DEFAULT value, ensure that the DEFAULT expression is a constant.
@@ -11458,7 +11458,6 @@ foreign_fail:
 				m_prebuilt = ctx->prebuilt;
 			}
 			trx_start_if_not_started(user_trx, true);
-			user_trx->will_lock++;
 			m_prebuilt->trx = user_trx;
 		}
 		DBUG_INJECT_CRASH("ib_commit_inplace_crash",
