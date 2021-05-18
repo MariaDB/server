@@ -5382,7 +5382,8 @@ public:
     transaction->all.m_unsafe_rollback_flags|=
       (transaction->stmt.m_unsafe_rollback_flags &
        (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
-        THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL));
+        THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
+        THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }
 
 

@@ -49,11 +49,15 @@ trx_state_eq(
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
 	case TRX_STATE_COMMITTED_IN_MEMORY:
-		ut_ad(!trx_is_autocommit_non_locking(trx));
+		ut_ad(!trx->is_autocommit_non_locking());
 		return(trx->state == state);
 
 	case TRX_STATE_ACTIVE:
-		assert_trx_nonlocking_or_in_list(trx);
+		if (trx->is_autocommit_non_locking()) {
+			ut_ad(!trx->is_recovered);
+			ut_ad(trx->read_only);
+			ut_ad(trx->mysql_thd);
+		}
 		return(state == trx->state);
 
 	case TRX_STATE_NOT_STARTED:

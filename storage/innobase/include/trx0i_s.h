@@ -150,7 +150,7 @@ struct i_s_trx_row_t {
 	bool		trx_is_read_only;
 					/*!< trx_t::read_only */
 	bool		trx_is_autocommit_non_locking;
-					/*!< trx_is_autocommit_non_locking(trx)
+					/*!< trx:t::is_autocommit_non_locking()
 					*/
 };
 

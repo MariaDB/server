@@ -99,10 +99,21 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
   roll_node_t *roll_node= roll_node_create(heap);
   roll_node->savept= savept;
 
-  if (savept)
-    check_trx_state(this);
-  else
-    assert_trx_nonlocking_or_in_list(this);
+  ut_ad(!in_rollback);
+#ifdef UNIV_DEBUG
+  {
+    const auto s= state;
+    ut_ad(s == TRX_STATE_ACTIVE ||
+          s == TRX_STATE_PREPARED ||
+          s == TRX_STATE_PREPARED_RECOVERED);
+    if (savept)
+    {
+      ut_ad(s == TRX_STATE_ACTIVE);
+      ut_ad(mysql_thd);
+      ut_ad(!is_recovered);
+    }
+  }
+#endif
 
   error_state = DB_SUCCESS;
 
@@ -198,7 +209,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 
 	switch (trx->state) {
 	case TRX_STATE_NOT_STARTED:
-		trx->will_lock = 0;
+		trx->will_lock = false;
 		ut_ad(trx->mysql_thd);
 #ifdef WITH_WSREP
 		trx->wsrep= false;
@@ -208,12 +219,13 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 
 	case TRX_STATE_ACTIVE:
 		ut_ad(trx->mysql_thd);
-		assert_trx_nonlocking_or_in_list(trx);
+		ut_ad(!trx->is_recovered);
+		ut_ad(!trx->is_autocommit_non_locking() || trx->read_only);
 		return(trx_rollback_for_mysql_low(trx));
 
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
-		ut_ad(!trx_is_autocommit_non_locking(trx));
+		ut_ad(!trx->is_autocommit_non_locking());
 		if (trx->rsegs.m_redo.undo || trx->rsegs.m_redo.old_insert) {
 			/* The XA ROLLBACK of a XA PREPARE transaction
 			will consist of multiple mini-transactions.
@@ -260,7 +272,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 		return(trx_rollback_for_mysql_low(trx));
 
 	case TRX_STATE_COMMITTED_IN_MEMORY:
-		check_trx_state(trx);
+		ut_ad(!trx->is_autocommit_non_locking());
 		break;
 	}
 
@@ -289,7 +301,9 @@ trx_rollback_last_sql_stat_for_mysql(
 		return(DB_SUCCESS);
 
 	case TRX_STATE_ACTIVE:
-		assert_trx_nonlocking_or_in_list(trx);
+		ut_ad(trx->mysql_thd);
+		ut_ad(!trx->is_recovered);
+		ut_ad(!trx->is_autocommit_non_locking() || trx->read_only);
 
 		trx->op_info = "rollback of SQL statement";
 

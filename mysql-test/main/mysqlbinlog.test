@@ -521,18 +521,32 @@ remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn.empty;
 remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn;
 
 #
-# WL#5625: Deprecate mysqlbinlog options --base64-output=always and --base64-output
+# MDEV-25222: Remove mysqlbinlog options --base64-output=always and --base64-output
 #
---echo # Expect deprecation warning.
---exec $MYSQL_BINLOG --base64-output=always std_data/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
---cat_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+--echo #
+--echo # Expect error for invalid --base64-output argument value.
+--echo # MYSQL_BINLOG std_data/master-bin.000001 --base64-output=always 2>&1
+--error 1
+--exec $MYSQL_BINLOG std_data/master-bin.000001 --base64-output=always 2>&1
 
---echo # Expect deprecation warning again.
---exec $MYSQL_BINLOG --base64-output std_data/master-bin.000001 > /dev/null 2> $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
---cat_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+--echo #
+--echo # Expect error for incomplete --base64-output argument.
+--echo # MYSQL_BINLOG  std_data/master-bin.000001 --base64-output 2>&1
+# The error produces the absolute path of the mysqlbinlog executable, remove it.
+--replace_regex /.*mysqlbinlog.*:/mysqlbinlog:/i
+--error 1
+--exec $MYSQL_BINLOG std_data/master-bin.000001 --base64-output 2>&1
 
-# Clean up this part of the test.
---remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog.warn
+--echo #
+--echo # Ensure --base64-output=auto outputs the same result as unspecified
+--echo # MYSQL_BINLOG -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
+--exec  $MYSQL_BINLOG -v $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
+--echo # MYSQL_BINLOG --base64-output=auto -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
+--exec  $MYSQL_BINLOG --base64-output=auto -v $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
+--diff_files $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
+--remove_file $MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
+
 
 # BUG#50914
 # This test verifies if the approach of the mysqlbinlog prints

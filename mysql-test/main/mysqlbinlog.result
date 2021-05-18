@@ -878,8 +878,19 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 End of 5.0 tests
 End of 5.1 tests
-# Expect deprecation warning.
-# Expect deprecation warning again.
+#
+# Expect error for invalid --base64-output argument value.
+# MYSQL_BINLOG std_data/master-bin.000001 --base64-output=always 2>&1
+Unknown option to base64-output: always
+Alternatives are: 'NEVER','AUTO','UNSPEC','DECODE-ROWS'
+#
+# Expect error for incomplete --base64-output argument.
+# MYSQL_BINLOG  std_data/master-bin.000001 --base64-output 2>&1
+mysqlbinlog: option '--base64-output' requires an argument
+#
+# Ensure --base64-output=auto outputs the same result as unspecified
+# MYSQL_BINLOG -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
+# MYSQL_BINLOG --base64-output=auto -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
 RESET MASTER;
 CREATE DATABASE test1;
 USE test1;

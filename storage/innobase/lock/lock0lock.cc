@@ -1097,6 +1097,19 @@ static void lock_reset_lock_and_trx_wait(lock_t *lock)
   lock->type_mode&= ~LOCK_WAIT;
 }
 
+#ifdef UNIV_DEBUG
+/** Check transaction state */
+static void check_trx_state(const trx_t *trx)
+{
+  ut_ad(!trx->auto_commit || trx->will_lock);
+  const auto state= trx->state;
+  ut_ad(state == TRX_STATE_ACTIVE ||
+        state == TRX_STATE_PREPARED_RECOVERED ||
+        state == TRX_STATE_PREPARED ||
+        state == TRX_STATE_COMMITTED_IN_MEMORY);
+}
+#endif
+
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
 @param[in]	c_lock		conflicting lock
@@ -1127,7 +1140,7 @@ lock_rec_create_low(
 	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
 	ut_ad(!(type_mode & LOCK_TABLE));
 	ut_ad(trx->state != TRX_STATE_NOT_STARTED);
-	ut_ad(!trx_is_autocommit_non_locking(trx));
+	ut_ad(!trx->is_autocommit_non_locking());
 
 	/* If rec is the supremum record, then we reset the gap and
 	LOCK_REC_NOT_GAP bits, as all locks on the supremum are
@@ -3083,7 +3096,7 @@ lock_table_create(
 	ut_ad(trx->mutex_is_owner());
 	ut_ad(!trx->is_wsrep() || lock_sys.is_writer());
 	ut_ad(trx->state == TRX_STATE_ACTIVE || trx->is_recovered);
-	ut_ad(!trx_is_autocommit_non_locking(trx));
+	ut_ad(!trx->is_autocommit_non_locking());
 
 	switch (LOCK_MODE_MASK & type_mode) {
 	case LOCK_AUTO_INC:
@@ -4334,7 +4347,8 @@ lock_rec_queue_validate(
 			ut_ad(!index || lock->index == index);
 
 			lock->trx->mutex_lock();
-			ut_ad(!trx_is_ac_nl_ro(lock->trx));
+			ut_ad(!lock->trx->read_only
+			      || !lock->trx->is_autocommit_non_locking());
 			ut_ad(trx_state_eq(lock->trx,
 					   TRX_STATE_COMMITTED_IN_MEMORY)
 			      || !lock->is_waiting()
@@ -4420,8 +4434,8 @@ func_exit:
 	for (lock = lock_sys_t::get_first(cell, id, heap_no);
 	     lock != NULL;
 	     lock = lock_rec_get_next_const(heap_no, lock)) {
-
-		ut_ad(!trx_is_ac_nl_ro(lock->trx));
+		ut_ad(!lock->trx->read_only
+		      || !lock->trx->is_autocommit_non_locking());
 		ut_ad(!page_rec_is_metadata(rec));
 
 		if (index) {
@@ -4497,7 +4511,8 @@ loop:
 		}
 	}
 
-	ut_ad(!trx_is_ac_nl_ro(lock->trx));
+	ut_ad(!lock->trx->read_only
+	      || !lock->trx->is_autocommit_non_locking());
 
 	/* Only validate the record queues when this thread is not
 	holding a tablespace latch. */
@@ -4560,7 +4575,8 @@ lock_rec_validate(
 	     lock != NULL;
 	     lock = static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock))) {
 
-		ut_ad(!trx_is_ac_nl_ro(lock->trx));
+		ut_ad(!lock->trx->read_only
+		      || !lock->trx->is_autocommit_non_locking());
 		ut_ad(!lock->is_table());
 
 		page_id_t current(lock->un_member.rec_lock.page_id);
