@@ -44,6 +44,7 @@ Created 2/25/1997 Heikki Tuuri
 #include "ibuf0ibuf.h"
 #include "log0log.h"
 #include "fil0fil.h"
+#include <mysql/service_thd_mdl.h>
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -152,8 +153,41 @@ restart:
 				}
 				ut_ad("corrupted SYS_INDEXES record" == 0);
 			}
-			dict_drop_index_tree(&node->pcur, node->trx,
-					     table, &mtr);
+
+			if (const uint32_t space_id = dict_drop_index_tree(
+				    &node->pcur, node->trx, &mtr)) {
+				if (table) {
+					lock_release_on_rollback(node->trx,
+								 table);
+					if (!dict_locked) {
+						dict_sys.mutex_lock();
+					}
+					if (table->release()) {
+						dict_sys.remove(table);
+					} else if (table->space_id
+						   == space_id) {
+						table->space = nullptr;
+						table->file_unreadable = true;
+					}
+					if (!dict_locked) {
+						dict_sys.mutex_unlock();
+					}
+					table = nullptr;
+					if (!mdl_ticket);
+					else if (MDL_context* mdl_context =
+						 static_cast<MDL_context*>(
+							 thd_mdl_context(
+								 node->trx->
+								 mysql_thd))) {
+						mdl_context->release_lock(
+							mdl_ticket);
+						mdl_ticket = nullptr;
+					}
+				}
+
+				fil_delete_tablespace(space_id, true);
+			}
+
 			mtr.commit();
 
 			mtr.start();

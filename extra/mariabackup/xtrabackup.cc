@@ -181,12 +181,11 @@ static hash_table_t databases_exclude_hash;
 
 static hash_table_t inc_dir_tables_hash;
 
-struct xb_filter_entry_struct{
+struct xb_filter_entry_t{
 	char*		name;
 	ibool		has_tables;
-	hash_node_t	name_hash;
+	xb_filter_entry_t *name_hash;
 };
-typedef struct xb_filter_entry_struct	xb_filter_entry_t;
 
 lsn_t checkpoint_lsn_start;
 lsn_t checkpoint_no_start;

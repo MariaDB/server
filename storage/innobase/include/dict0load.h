@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -65,15 +65,6 @@ was needed and force_recovery is not set.
 
 We also scan the biggest space id, and store it to fil_system. */
 void dict_check_tablespaces_and_store_max_id();
-
-/********************************************************************//**
-Finds the first table name in the given database.
-@return own: table name, NULL if does not exist; the caller must free
-the memory in the string! */
-char*
-dict_get_first_table_name_in_db(
-/*============================*/
-	const char*	name);	/*!< in: database name which ends to '/' */
 
 /** Make sure the data_file_name is saved in dict_table_t if needed.
 @param[in]	table		Table object

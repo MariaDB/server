@@ -1272,16 +1272,291 @@ innobase_commit_by_xid(
 	handlerton*	hton,		/*!< in: InnoDB handlerton */
 	XID*		xid);		/*!< in: X/Open XA transaction
 					identification */
+
+/** Ignore FOREIGN KEY constraints that would be violated by DROP DATABASE */
+static ibool innodb_drop_database_ignore_fk(void*,void*) { return false; }
+
+/** FOREIGN KEY error reporting context for DROP DATABASE */
+struct innodb_drop_database_fk_report
+{
+  /** database name, with trailing '/' */
+  const st_::span<char> name;
+  /** whether errors were found */
+  bool violated;
+};
+
+/** Report FOREIGN KEY constraints that would be violated by DROP DATABASE
+@return whether processing should continue */
+static ibool innodb_drop_database_fk(void *node, void *report)
+{
+  auto s= static_cast<sel_node_t*>(node);
+  auto r= static_cast<innodb_drop_database_fk_report*>(report);
+  const dfield_t *name= que_node_get_val(s->select_list);
+  ut_ad(name->type.mtype == DATA_VARCHAR);
+
+  if (name->len == UNIV_SQL_NULL || name->len <= r->name.size() ||
+      memcmp(static_cast<const char*>(name->data), r->name.data(), name->len))
+    return false; /* End of matches */
+
+  node= que_node_get_next(s->select_list);
+  const dfield_t *id= que_node_get_val(node);
+  ut_ad(id->type.mtype == DATA_BINARY);
+  ut_ad(!que_node_get_next(node));
+
+  if (id->len != UNIV_SQL_NULL)
+    sql_print_error("DROP DATABASE: table %.*s is referenced"
+                    " by FOREIGN KEY %.*s",
+                    static_cast<int>(name->len),
+                    static_cast<const char*>(name->data),
+                    static_cast<int>(id->len),
+                    static_cast<const char*>(id->data));
+  else
+    ut_ad("corrupted SYS_FOREIGN record" == 0);
+
+  return true;
+}
+
 /** Remove all tables in the named database inside InnoDB.
-@param[in]	hton	handlerton from InnoDB
-@param[in]	path	Database path; Inside InnoDB the name of the last
-directory in the path is used as the database name.
-For example, in 'mysql/data/test' the database name is 'test'. */
-static
-void
-innobase_drop_database(
-	handlerton*	hton,
-	char*		path);
+@param path  database path */
+static void innodb_drop_database(handlerton*, char *path)
+{
+  if (high_level_read_only)
+    return;
+
+  ulint len= 0;
+  char *ptr;
+
+  for (ptr= strend(path) - 2; ptr >= path &&
+#ifdef _WIN32
+       *ptr != '\\' &&
+#endif
+       *ptr != '/'; ptr--)
+    len++;
+
+  ptr++;
+  char *namebuf= static_cast<char*>
+    (my_malloc(PSI_INSTRUMENT_ME, len + 2, MYF(0)));
+  if (!namebuf)
+    return;
+  memcpy(namebuf, ptr, len);
+  namebuf[len] = '/';
+  namebuf[len + 1] = '\0';
+
+#ifdef _WIN32
+  innobase_casedn_str(namebuf);
+#endif /* _WIN32 */
+
+  trx_t *trx= innobase_trx_allocate(current_thd);
+retry:
+  row_mysql_lock_data_dictionary(trx);
+
+  for (auto i= dict_sys.table_id_hash.n_cells; i--; )
+  {
+    for (dict_table_t *table= static_cast<dict_table_t*>
+         (dict_sys.table_id_hash.array[i].node); table; table= table->id_hash)
+    {
+      ut_ad(table->cached);
+      if (!strncmp(table->name.m_name, namebuf, len) &&
+          !dict_stats_stop_bg(table))
+      {
+        row_mysql_unlock_data_dictionary(trx);
+        std::this_thread::sleep_for(std::chrono::milliseconds(250));
+        goto retry;
+      }
+    }
+  }
+
+  dberr_t err= DB_SUCCESS;
+
+  for (auto i= dict_sys.table_id_hash.n_cells; i--; )
+  {
+    for (dict_table_t *next, *table= static_cast<dict_table_t*>
+         (dict_sys.table_id_hash.array[i].node); table; table= next)
+    {
+      ut_ad(table->cached);
+      next= table->id_hash;
+      if (strncmp(table->name.m_name, namebuf, len + 1))
+        continue;
+      const auto n_handles= table->get_ref_count();
+      const bool locks= !n_handles && lock_table_has_locks(table);
+      const auto n_fk_checks= table->n_foreign_key_checks_running;
+      if (n_fk_checks || n_handles || locks)
+      {
+        err= DB_ERROR;
+        ib::error errmsg;
+        errmsg << "DROP DATABASE: cannot DROP TABLE " << table->name;
+        if (n_fk_checks)
+          errmsg << " due to " << n_fk_checks << " FOREIGN KEY checks";
+        else if (n_handles)
+          errmsg << " due to " << n_handles << " open handles";
+        else
+          errmsg << " due to locks";
+        continue;
+      }
+      dict_sys.remove(table);
+    }
+  }
+
+  static const char drop_database[] =
+    "PROCEDURE DROP_DATABASE_PROC () IS\n"
+    "fk CHAR;\n"
+    "name CHAR;\n"
+    "tid CHAR;\n"
+    "iid CHAR;\n"
+
+    "DECLARE FUNCTION fk_report;\n"
+
+    "DECLARE CURSOR fkf IS\n"
+    "SELECT ID FROM SYS_FOREIGN WHERE FOR_NAME >= :db FOR UPDATE\n"
+    "ORDER BY FOR_NAME;\n"
+
+    "DECLARE CURSOR fkr IS\n"
+    "SELECT REF_NAME,ID FROM SYS_FOREIGN WHERE REF_NAME >= :db FOR UPDATE\n"
+    "ORDER BY REF_NAME;\n"
+
+    "DECLARE CURSOR tab IS\n"
+    "SELECT ID,NAME FROM SYS_TABLES WHERE NAME >= :db FOR UPDATE;\n"
+
+    "DECLARE CURSOR idx IS\n"
+    "SELECT ID FROM SYS_INDEXES WHERE TABLE_ID = tid FOR UPDATE;\n"
+
+    "BEGIN\n"
+
+    "OPEN fkf;\n"
+    "WHILE 1 = 1 LOOP\n"
+    "  FETCH fkf INTO fk;\n"
+    "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+    "  IF SUBSTR(fk, 0, LENGTH(:db)) <> :db THEN EXIT; END IF;\n"
+    "  DELETE FROM SYS_FOREIGN_COLS WHERE ID=fk;\n"
+    "  DELETE FROM SYS_FOREIGN WHERE FOR_NAME=fk;\n"
+    "END LOOP;\n"
+    "CLOSE fkf;\n"
+
+    "OPEN fkr;\n"
+    "FETCH fkr INTO fk_report();\n"
+    "CLOSE fkr;\n"
+
+    "OPEN tab;\n"
+    "WHILE 1 = 1 LOOP\n"
+    "  FETCH tab INTO tid,name;\n"
+    "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+    "  IF SUBSTR(name, 0, LENGTH(:db)) <> :db THEN EXIT; END IF;\n"
+    "  DELETE FROM SYS_COLUMNS WHERE TABLE_ID=tid;\n"
+    "  DELETE FROM SYS_TABLES WHERE ID=tid;\n"
+    "  OPEN idx;\n"
+    "  WHILE 1 = 1 LOOP\n"
+    "    FETCH idx INTO iid;\n"
+    "    IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+    "    DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
+    "    DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
+    "  END LOOP;\n"
+    "  CLOSE idx;\n"
+    "END LOOP;\n"
+    "CLOSE tab;\n"
+
+    "END;\n";
+
+  innodb_drop_database_fk_report report{{namebuf, len + 1}, false};
+  trx_start_for_ddl(trx);
+
+  if (err == DB_SUCCESS)
+  {
+    pars_info_t* pinfo = pars_info_create();
+    pars_info_bind_function(pinfo, "fk_report", trx->check_foreigns
+                            ? innodb_drop_database_fk
+                            : innodb_drop_database_ignore_fk, &report);
+    pars_info_add_str_literal(pinfo, "db", namebuf);
+    err= que_eval_sql(pinfo, drop_database, false, trx);
+    if (err == DB_SUCCESS && report.violated)
+      err= DB_CANNOT_DROP_CONSTRAINT;
+  }
+
+  const trx_id_t trx_id= trx->id;
+
+  if (err != DB_SUCCESS)
+  {
+    trx->rollback();
+    namebuf[len] = '\0';
+    ib::error() << "DROP DATABASE " << namebuf << ": " << err;
+  }
+  else
+    trx_commit_for_mysql(trx);
+
+  row_mysql_unlock_data_dictionary(trx);
+
+  trx->free();
+
+  if (err == DB_SUCCESS)
+  {
+    /* Eventually after the DELETE FROM SYS_INDEXES was committed,
+    purge would invoke dict_drop_index_tree() to delete the associated
+    tablespaces. Because the SQL layer expects the directory to be empty,
+    we will "manually" purge the tablespaces that belong to the
+    records that we delete-marked. */
+
+    mem_heap_t *heap= mem_heap_create(100);
+    dtuple_t *tuple= dtuple_create(heap, 1);
+    dfield_t *dfield= dtuple_get_nth_field(tuple, 0);
+    dict_index_t* sys_index= UT_LIST_GET_FIRST(dict_sys.sys_tables->indexes);
+    btr_pcur_t pcur;
+    namebuf[len++]= '/';
+    dfield_set_data(dfield, namebuf, len);
+    dict_index_copy_types(tuple, sys_index, 1);
+    std::vector<pfs_os_file_t> to_close;
+    mtr_t mtr;
+    mtr.start();
+    for (btr_pcur_open_on_user_rec(sys_index, tuple, PAGE_CUR_GE,
+                                   BTR_SEARCH_LEAF, &pcur, &mtr);
+         btr_pcur_is_on_user_rec(&pcur);
+         btr_pcur_move_to_next_user_rec(&pcur, &mtr))
+    {
+      const rec_t *rec= btr_pcur_get_rec(&pcur);
+      if (rec_get_n_fields_old(rec) != DICT_NUM_FIELDS__SYS_TABLES)
+      {
+        ut_ad("corrupted SYS_TABLES record" == 0);
+        break;
+      }
+      if (!rec_get_deleted_flag(rec, false))
+        continue;
+      ulint flen;
+      static_assert(DICT_FLD__SYS_TABLES__NAME == 0, "compatibility");
+      rec_get_nth_field_offs_old(rec, 0, &flen);
+      if (flen == UNIV_SQL_NULL || flen <= len || memcmp(rec, namebuf, len))
+        /* We ran out of tables that had existed in the database. */
+        break;
+      const byte *db_trx_id=
+        rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__DB_TRX_ID, &flen);
+      if (flen != 6)
+      {
+        ut_ad("corrupted SYS_TABLES.SPACE" == 0);
+        break;
+      }
+      if (mach_read_from_6(db_trx_id) != trx_id)
+        /* This entry was modified by some other transaction than us.
+        Unfortunately, because SYS_TABLES.NAME is the PRIMARY KEY,
+        we cannot distinguish RENAME and DROP here. It is possible
+        that the table had been renamed to some other database. */
+        continue;
+      const byte *s=
+        rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__SPACE, &flen);
+      if (flen != 4)
+        ut_ad("corrupted SYS_TABLES.SPACE" == 0);
+      else if (uint32_t space_id= mach_read_from_4(s))
+      {
+        pfs_os_file_t detached= OS_FILE_CLOSED;
+        fil_delete_tablespace(space_id, true, &detached);
+        if (detached != OS_FILE_CLOSED)
+          to_close.emplace_back(detached);
+      }
+    }
+    mtr.commit();
+    mem_heap_free(heap);
+    for (pfs_os_file_t detached : to_close)
+      os_file_close(detached);
+  }
+
+  my_free(namebuf);
+}
 
 /** Shut down the InnoDB storage engine.
 @return	0 */
@@ -3661,7 +3936,7 @@ static int innodb_init(void* p)
 	innobase_hton->commit_checkpoint_request = innodb_log_flush_request;
 	innobase_hton->create = innobase_create_handler;
 
-	innobase_hton->drop_database = innobase_drop_database;
+	innobase_hton->drop_database = innodb_drop_database;
 	innobase_hton->panic = innobase_end;
 	innobase_hton->pre_shutdown = innodb_preshutdown;
 
@@ -12956,18 +13231,6 @@ ha_innobase::discard_or_import_tablespace(
 	DBUG_RETURN(0);
 }
 
-/**
-   @return 1 if frm file exists
-   @return 0 if it doesn't exists
-*/
-
-static bool frm_file_exists(const char *path)
-{
-  char buff[FN_REFLEN];
-  strxnmov(buff, FN_REFLEN, path, reg_ext, NullS);
-  return !access(buff, F_OK);
-}
-
 
 /**
 Drops a table from an InnoDB database. Before calling this function,
@@ -13061,67 +13324,6 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 		}
 	}
 
-	if (err == DB_TABLE_NOT_FOUND &&
-            frm_file_exists(name))
-        {
-		/* Test to drop all tables which matches db/tablename + '#'.
-		Only partitions can have '#' as non-first character in
-		the table name!
-
-		Temporary table names always start with '#', partitions are
-		the only 'tables' that can have '#' after the first character
-		and table name must have length > 0. User tables cannot have
-		'#' since it would be translated to @0023. Therefor this should
-		only match partitions. */
-		uint	len = (uint) strlen(norm_name);
-		ulint	num_partitions;
-		ut_a(len < FN_REFLEN);
-		norm_name[len] = '#';
-		norm_name[len + 1] = 0;
-		err = row_drop_database_for_mysql(norm_name, trx,
-			&num_partitions);
-		norm_name[len] = 0;
-		table_name_t tbl_name(norm_name);
-		if (num_partitions == 0 && !tbl_name.is_temporary()) {
-			ib::error() << "Table " << tbl_name <<
-				" does not exist in the InnoDB"
-				" internal data dictionary though MariaDB is"
-				" trying to drop it. Have you copied the .frm"
-				" file of the table to the MariaDB database"
-				" directory from another database? "
-				<< TROUBLESHOOTING_MSG;
-		}
-		if (num_partitions == 0) {
-			err = DB_TABLE_NOT_FOUND;
-		}
-	}
-
-	if (err == DB_TABLE_NOT_FOUND
-	    && innobase_get_lower_case_table_names() == 1) {
-		char*	is_part = is_partition(norm_name);
-
-		if (is_part != NULL) {
-			char	par_case_name[FN_REFLEN];
-
-#ifndef _WIN32
-			/* Check for the table using lower
-			case name, including the partition
-			separator "P" */
-			strcpy(par_case_name, norm_name);
-			innobase_casedn_str(par_case_name);
-#else
-			/* On Windows platfrom, check
-			whether there exists table name in
-			system table whose name is
-			not being normalized to lower case */
-			create_table_info_t::normalize_table_name_low(
-				par_case_name, name, FALSE);
-#endif /* _WIN32 */
-			err = row_drop_table_for_mysql(
-				par_case_name, trx, sqlcom, true);
-		}
-	}
-
 	ut_ad(!srv_read_only_mode);
 
 	innobase_commit_low(trx);
@@ -13156,64 +13358,6 @@ int ha_innobase::delete_table(const char* name)
 			&& (!m_prebuilt
 			    || m_prebuilt->table->is_temporary())));
 	return delete_table(name, sqlcom);
-}
-
-/** Remove all tables in the named database inside InnoDB.
-@param[in]	hton	handlerton from InnoDB
-@param[in]	path	Database path; Inside InnoDB the name of the last
-directory in the path is used as the database name.
-For example, in 'mysql/data/test' the database name is 'test'. */
-
-static
-void
-innobase_drop_database(
-	handlerton*	hton,
-	char*		path)
-{
-	char*	namebuf;
-
-	/* Get the transaction associated with the current thd, or create one
-	if not yet created */
-
-	DBUG_ASSERT(hton == innodb_hton_ptr);
-
-	if (high_level_read_only) {
-		return;
-	}
-
-	THD*	thd = current_thd;
-
-	ulint	len = 0;
-	char*	ptr = strend(path) - 2;
-
-	while (ptr >= path && *ptr != '\\' && *ptr != '/') {
-		ptr--;
-		len++;
-	}
-
-	ptr++;
-	namebuf = (char*) my_malloc(PSI_INSTRUMENT_ME, (uint) len + 2, MYF(0));
-
-	memcpy(namebuf, ptr, len);
-	namebuf[len] = '/';
-	namebuf[len + 1] = '\0';
-
-#ifdef	_WIN32
-	innobase_casedn_str(namebuf);
-#endif /* _WIN32 */
-
-	trx_t*	trx = innobase_trx_allocate(thd);
-	trx->will_lock = true;
-
-	ulint	dummy;
-
-	row_drop_database_for_mysql(namebuf, trx, &dummy);
-
-	my_free(namebuf);
-
-	innobase_commit_low(trx);
-
-	trx->free();
 }
 
 /** Rename an InnoDB table.

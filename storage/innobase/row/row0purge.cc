@@ -48,6 +48,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "handler.h"
 #include "ha_innodb.h"
 #include "fil0fil.h"
+#include <mysql/service_thd_mdl.h>
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -109,12 +110,16 @@ row_purge_remove_clust_if_poss_low(
 	index_id_t index_id = 0;
 	MDL_ticket* mdl_ticket = nullptr;
 	dict_table_t *table = nullptr;
+	pfs_os_file_t f = OS_FILE_CLOSED;
 retry:
 	if (table_id) {
+		dict_sys.mutex_lock();
 		table = dict_table_open_on_id(
-			table_id, false, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
 			node->purge_thd, &mdl_ticket);
-		if (table && table->n_rec_locks) {
+		if (!table) {
+			dict_sys.mutex_unlock();
+		} else if (table->n_rec_locks) {
 			for (dict_index_t* ind = UT_LIST_GET_FIRST(
 				     table->indexes); ind;
 			     ind = UT_LIST_GET_NEXT(indexes, ind)) {
@@ -128,16 +133,19 @@ retry:
 	mtr.start();
 	index->set_modified(mtr);
 	log_free_check();
+	bool success = true;
 
 	if (!row_purge_reposition_pcur(mode, node, &mtr)) {
 		/* The record was already removed. */
 removed:
 		mtr.commit();
+close_and_exit:
 		if (table) {
-			dict_table_close(table, false, false,
+			dict_table_close(table, true, false,
 					 node->purge_thd, mdl_ticket);
+			dict_sys.mutex_unlock();
 		}
-		return true;
+		return success;
 	}
 
 	if (node->table->id == DICT_INDEXES_ID) {
@@ -155,8 +163,39 @@ removed:
 			}
 			ut_ad("corrupted SYS_INDEXES record" == 0);
 		}
-		dict_drop_index_tree(&node->pcur, nullptr, table, &mtr);
+
+		if (const uint32_t space_id = dict_drop_index_tree(
+			    &node->pcur, nullptr, &mtr)) {
+			if (table) {
+				if (table->release()) {
+					dict_sys.remove(table);
+				} else if (table->space_id == space_id) {
+					table->space = nullptr;
+					table->file_unreadable = true;
+				}
+				table = nullptr;
+				dict_sys.mutex_unlock();
+				if (!mdl_ticket);
+				else if (MDL_context* mdl_context =
+					 static_cast<MDL_context*>(
+						 thd_mdl_context(node->
+								 purge_thd))) {
+					mdl_context->release_lock(mdl_ticket);
+					mdl_ticket = nullptr;
+				}
+			}
+			fil_delete_tablespace(space_id, true, &f);
+		}
+
 		mtr.commit();
+
+		if (table) {
+			dict_table_close(table, true, false,
+					 node->purge_thd, mdl_ticket);
+			dict_sys.mutex_unlock();
+			table = nullptr;
+		}
+
 		mtr.start();
 		index->set_modified(mtr);
 
@@ -172,7 +211,6 @@ removed:
 	rec_offs* offsets = rec_get_offsets(rec, index, offsets_,
 					    index->n_core_fields,
 					    ULINT_UNDEFINED, &heap);
-	bool success = true;
 
 	if (node->roll_ptr != row_get_rec_roll_ptr(rec, index, offsets)) {
 		/* Someone else has modified the record later: do not remove */
@@ -217,12 +255,7 @@ func_exit:
 		mtr_commit(&mtr);
 	}
 
-	if (UNIV_LIKELY_NULL(table)) {
-		dict_table_close(table, false, false, node->purge_thd,
-				 mdl_ticket);
-	}
-
-	return(success);
+	goto close_and_exit;
 }
 
 /***********************************************************//**

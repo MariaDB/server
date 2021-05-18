@@ -756,9 +756,12 @@ inline pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
   return OS_FILE_CLOSED;
 }
 
-/** Detach a tablespace from the cache and close the files. */
-std::vector<pfs_os_file_t> fil_system_t::detach(fil_space_t *space,
-                                                bool detach_handle)
+/** Detach a tablespace from the cache and close the files.
+@param space tablespace
+@param detach_handle whether to detach the handle, instead of closing
+@return detached handle
+@retval OS_FILE_CLOSED if no handle was detached */
+pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
   HASH_DELETE(fil_space_t, hash, &spaces, space->id, space);
@@ -791,19 +794,17 @@ std::vector<pfs_os_file_t> fil_system_t::detach(fil_space_t *space,
       n_open--;
     }
 
-  std::vector<pfs_os_file_t> handles;
-  handles.reserve(UT_LIST_GET_LEN(space->chain));
+  ut_ad(!detach_handle || space->id);
+  ut_ad(!detach_handle || UT_LIST_GET_LEN(space->chain) <= 1);
+
+  pfs_os_file_t handle= OS_FILE_CLOSED;
 
   for (fil_node_t* node= UT_LIST_GET_FIRST(space->chain); node;
        node= UT_LIST_GET_NEXT(chain, node))
-  {
-    auto handle= node->close_to_free(detach_handle);
-    if (handle != OS_FILE_CLOSED)
-      handles.push_back(handle);
-  }
+    handle= node->close_to_free(detach_handle);
 
   ut_ad(!space->referenced());
-  return handles;
+  return handle;
 }
 
 /** Free a tablespace object on which fil_system_t::detach() was invoked.
@@ -1567,11 +1568,12 @@ fil_space_t *fil_space_t::check_pending_operations(ulint id)
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
 
-  if (space)
+  if (!space);
+  else if (space->pending() & STOPPING)
+    space= nullptr;
+  else
   {
     space->reacquire();
-    ut_ad(!(space->pending() & STOPPING));
-
     if (space->crypt_data)
     {
       mysql_mutex_unlock(&fil_system.mutex);
@@ -1644,13 +1646,13 @@ void fil_close_tablespace(ulint id)
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	if_exists	whether to ignore missing tablespace
-@param[in,out]	detached_handles	return detached handles if not nullptr
+@param[out]	detached	deatched file handle (if closing is not wanted)
 @return	DB_SUCCESS or error */
 dberr_t fil_delete_tablespace(ulint id, bool if_exists,
-			      std::vector<pfs_os_file_t>* detached_handles)
+                              pfs_os_file_t *detached)
 {
 	ut_ad(!is_system_tablespace(id));
-	ut_ad(!detached_handles || detached_handles->empty());
+	ut_ad(!detached || *detached == OS_FILE_CLOSED);
 
 	dberr_t err;
 	fil_space_t *space = fil_space_t::check_pending_operations(id);
@@ -1728,9 +1730,9 @@ func_exit:
 	ut_a(space == fil_space_get_by_id(id));
 	ut_a(!space->referenced());
 	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-	auto handles = fil_system.detach(space, detached_handles != nullptr);
-	if (detached_handles) {
-		*detached_handles = std::move(handles);
+	pfs_os_file_t handle = fil_system.detach(space, detached != nullptr);
+	if (detached) {
+		*detached = handle;
 	}
 	mysql_mutex_unlock(&fil_system.mutex);
 

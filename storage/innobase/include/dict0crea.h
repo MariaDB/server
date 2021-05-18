@@ -101,11 +101,11 @@ dict_create_index_tree(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
-@param[in,out]	table	table that the record belongs to
-@param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, dict_table_t *table,
-                          mtr_t *mtr)
-	MY_ATTRIBUTE((nonnull(1,4)));
+@param[in,out]	mtr	mini-transaction
+@return tablespace ID to drop (if this is the clustered index)
+@retval 0 if no tablespace is to be dropped */
+uint32_t dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
 
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.

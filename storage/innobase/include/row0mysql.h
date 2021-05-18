@@ -451,17 +451,6 @@ row_import_tablespace_for_mysql(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL */
         MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Drop a database for MySQL.
-@param[in]	name	database name which ends at '/'
-@param[in]	trx	transaction handle
-@param[out]	found	number of dropped tables/partitions
-@return error code or DB_SUCCESS */
-dberr_t
-row_drop_database_for_mysql(
-	const char*	name,
-	trx_t*		trx,
-	ulint*		found);
-
 /*********************************************************************//**
 Renames a table for MySQL.
 @return error code or DB_SUCCESS */

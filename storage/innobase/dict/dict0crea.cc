@@ -826,10 +826,10 @@ dict_create_index_tree_in_mem(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
-@param[in,out]	table	table that the record belongs to
-@param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, dict_table_t *table,
-                          mtr_t *mtr)
+@param[in,out]	mtr	mini-transaction
+@return tablespace ID to drop (if this is the clustered index)
+@retval 0 if no tablespace is to be dropped */
+uint32_t dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, mtr_t *mtr)
 {
   rec_t *rec= btr_pcur_get_rec(pcur);
 
@@ -846,7 +846,7 @@ void dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, dict_table_t *table,
   {
 rec_corrupted:
     ib::error() << "Corrupted SYS_INDEXES record";
-    return;
+    return 0;
   }
 
   if (rec_get_1byte_offs_flag(rec))
@@ -875,14 +875,9 @@ rec_corrupted:
   ut_ad(root_page_no == FIL_NULL || space_id <= SRV_SPACE_ID_UPPER_BOUND);
 
   if (space_id && (type & DICT_CLUSTERED))
-  {
-    if (table && table->space_id == space_id)
-      table->space= nullptr;
-    else
-      ut_ad(!table);
-    fil_delete_tablespace(space_id, true);
-  }
-  else if (root_page_no == FIL_NULL)
+    return space_id;
+
+  if (root_page_no == FIL_NULL)
     /* The tree has already been freed */;
   else if (fil_space_t*s= fil_space_t::get(space_id))
   {
@@ -898,6 +893,8 @@ rec_corrupted:
     }
     s->release();
   }
+
+  return 0;
 }
 
 /*********************************************************************//**

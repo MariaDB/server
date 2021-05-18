@@ -3865,6 +3865,36 @@ released:
 #endif
 }
 
+/** Release locks on a table whose creation is being rolled back */
+ATTRIBUTE_COLD void lock_release_on_rollback(trx_t *trx, dict_table_t *table)
+{
+  trx->mod_tables.erase(table);
+
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  trx->mutex_lock();
+
+  for (lock_t *next, *lock= UT_LIST_GET_FIRST(table->locks); lock; lock= next)
+  {
+    next= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock);
+    ut_ad(lock->trx == trx);
+    UT_LIST_REMOVE(trx->lock.trx_locks, lock);
+    ut_list_remove(table->locks, lock, TableLockGetNode());
+  }
+
+  for (lock_t *p, *lock= UT_LIST_GET_LAST(trx->lock.trx_locks); lock; lock= p)
+  {
+    p= UT_LIST_GET_PREV(trx_locks, lock);
+    ut_ad(lock->trx == trx);
+    if (lock->is_table())
+      ut_ad(lock->un_member.tab_lock.table != table);
+    else if (lock->index->table == table)
+      lock_rec_dequeue_from_page(lock, false);
+  }
+
+  lock_sys.wr_unlock();
+  trx->mutex_unlock();
+}
+
 /*********************************************************************//**
 Removes table locks of the transaction on a table to be dropped. */
 static

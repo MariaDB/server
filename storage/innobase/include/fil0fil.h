@@ -352,8 +352,11 @@ struct fil_space_t final
     ut_ad(!latch_count);
     latch.destroy();
   }
+
 	ulint		id;	/*!< space id */
-	hash_node_t	hash;	/*!< hash chain node */
+
+  /** fil_system.spaces chain node */
+  fil_space_t *hash;
 	lsn_t		max_lsn;
 				/*!< LSN of the most recent
 				fil_names_write_if_was_clean().
@@ -1434,10 +1437,10 @@ public:
 public:
   /** Detach a tablespace from the cache and close the files.
   @param space tablespace
-  @param detach_handle whether to detach or close handles
-  @return detached handles or empty vector */
-  std::vector<pfs_os_file_t> detach(fil_space_t *space,
-                                    bool detach_handle= false);
+  @param detach_handle whether to detach the handle, instead of closing
+  @return detached handle
+  @retval OS_FILE_CLOSED if no handle was detached */
+  pfs_os_file_t detach(fil_space_t *space, bool detach_handle= false);
 
   /** the mutex protecting most data fields, and some fields of fil_space_t */
   mysql_mutex_t mutex;
@@ -1596,11 +1599,10 @@ MY_ATTRIBUTE((warn_unused_result));
 /** Delete a tablespace and associated .ibd file.
 @param[in]	id		tablespace identifier
 @param[in]	if_exists	whether to ignore missing tablespace
-@param[out]	leaked_handles	return detached handles here
+@param[out]	detached	deatched file handle (if closing is not wanted)
 @return	DB_SUCCESS or error */
-dberr_t
-fil_delete_tablespace(ulint id, bool if_exists= false,
-                      std::vector<pfs_os_file_t> *detached_handles= nullptr);
+dberr_t fil_delete_tablespace(ulint id, bool if_exists= false,
+                              pfs_os_file_t *detached= nullptr);
 
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
 The tablespace must be cached in the memory cache.

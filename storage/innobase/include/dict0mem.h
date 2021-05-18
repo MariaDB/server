@@ -2058,12 +2058,12 @@ private:
 public:
 	/** Id of the table. */
 	table_id_t				id;
-	/** Hash chain node. */
-	hash_node_t				id_hash;
+	/** dict_sys.id_hash chain node */
+	dict_table_t*				id_hash;
 	/** Table name. */
 	table_name_t				name;
-	/** Hash chain node. */
-	hash_node_t				name_hash;
+	/** dict_sys.name_hash chain node */
+	dict_table_t*				name_hash;
 
 	/** Memory heap */
 	mem_heap_t*				heap;

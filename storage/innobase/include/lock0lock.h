@@ -412,6 +412,9 @@ lock_rec_unlock(
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx);
 
+/** Release locks on a table whose creation is being rolled back */
+ATTRIBUTE_COLD void lock_release_on_rollback(trx_t *trx, dict_table_t *table);
+
 /**********************************************************************//**
 Looks for a set bit in a record lock bitmap. Returns ULINT_UNDEFINED,
 if none found.
