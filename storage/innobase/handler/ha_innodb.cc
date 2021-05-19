@@ -1295,12 +1295,13 @@ static ibool innodb_drop_database_fk(void *node, void *report)
   ut_ad(name->type.mtype == DATA_VARCHAR);
 
   if (name->len == UNIV_SQL_NULL || name->len <= r->name.size() ||
-      memcmp(static_cast<const char*>(name->data), r->name.data(), name->len))
+      memcmp(static_cast<const char*>(name->data), r->name.data(),
+             r->name.size()))
     return false; /* End of matches */
 
   node= que_node_get_next(s->select_list);
   const dfield_t *id= que_node_get_val(node);
-  ut_ad(id->type.mtype == DATA_BINARY);
+  ut_ad(id->type.mtype == DATA_VARCHAR);
   ut_ad(!que_node_get_next(node));
 
   if (id->len != UNIV_SQL_NULL)
@@ -1407,8 +1408,7 @@ retry:
     "DECLARE FUNCTION fk_report;\n"
 
     "DECLARE CURSOR fkf IS\n"
-    "SELECT ID FROM SYS_FOREIGN WHERE FOR_NAME >= :db FOR UPDATE\n"
-    "ORDER BY FOR_NAME;\n"
+    "SELECT ID FROM SYS_FOREIGN WHERE ID >= :db FOR UPDATE;\n"
 
     "DECLARE CURSOR fkr IS\n"
     "SELECT REF_NAME,ID FROM SYS_FOREIGN WHERE REF_NAME >= :db FOR UPDATE\n"
@@ -1428,7 +1428,7 @@ retry:
     "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
     "  IF SUBSTR(fk, 0, LENGTH(:db)) <> :db THEN EXIT; END IF;\n"
     "  DELETE FROM SYS_FOREIGN_COLS WHERE ID=fk;\n"
-    "  DELETE FROM SYS_FOREIGN WHERE FOR_NAME=fk;\n"
+    "  DELETE FROM SYS_FOREIGN WHERE CURRENT OF fkf;\n"
     "END LOOP;\n"
     "CLOSE fkf;\n"
 
