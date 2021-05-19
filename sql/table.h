@@ -64,6 +64,7 @@ class derived_handler;
 class Pushdown_derived;
 struct Name_resolution_context;
 class Table_function_json_table;
+class Open_table_context;
 
 /*
   Used to identify NESTED_JOIN structures within a join (applicable only to
@@ -1768,7 +1769,10 @@ public:
 
   ulonglong vers_start_id() const;
   ulonglong vers_end_id() const;
-  bool vers_need_hist_part(const THD *thd, const TABLE_LIST *table_list) const;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  bool vers_switch_partition(THD *thd, TABLE_LIST *table_list,
+                             Open_table_context *ot_ctx);
+#endif
 
   int update_generated_fields();
   int period_make_insert(Item *src, Field *dst);

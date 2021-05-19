@@ -1506,16 +1506,14 @@ affected rows: 1
 info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
 update t1 set x= x + 1;
 affected rows: 1
-info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 1
-Warnings:
-Warning	4114	Versioned table `test`.`t1`: last HISTORY partition (`p1`) is out of LIMIT, need more HISTORY partitions
+info: Rows matched: 1  Changed: 1  Inserted: 1  Warnings: 0
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
-PARTITIONS 3
+PARTITIONS 4
 affected rows: 1
 unlock tables;
 affected rows: 0
@@ -1525,7 +1523,7 @@ t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL
 ) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
  PARTITION BY SYSTEM_TIME LIMIT 1 AUTO
-PARTITIONS 3
+PARTITIONS 4
 affected rows: 1
 # Overflow prevention under LOCK TABLES
 create or replace table t1 (x int)
@@ -2115,3 +2113,167 @@ t	CREATE TABLE `t` (
  PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 02:00:00' AUTO
 PARTITIONS 6
 drop table t;
+#
+# MDEV-23639 Auto-create does not work under LOCK TABLES or inside triggers
+#
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto
+partitions 3;
+create table t2 (x int);
+create table t3 (x int);
+insert into t3 values (3);
+create trigger tr after insert on t2 for each row update t1 set x= x + 11;
+create or replace procedure sp() update t1 set x= x + 5;
+create or replace procedure sp2() insert into t2 values (5);
+prepare ps from 'update t1 set x= x + 6';
+prepare ps2 from 'insert into t2 values (6)';
+insert into t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 3
+insert into t2 values (2);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 4
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+call sp;
+call sp;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 5
+set timestamp= unix_timestamp('2000-01-01 04:00:00');
+call sp2;
+call sp2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 6
+set timestamp= unix_timestamp('2000-01-01 05:00:00');
+execute ps;
+execute ps;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 7
+set timestamp= unix_timestamp('2000-01-01 06:00:00');
+execute ps2;
+execute ps2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 8
+set timestamp= unix_timestamp('2000-01-01 08:00:00');
+lock tables t1 write, t2 write;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 10
+set timestamp= unix_timestamp('2000-01-01 09:00:00');
+update t1 set x= x + 1;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 11
+set timestamp= unix_timestamp('2000-01-01 10:00:00');
+update t1 set x= x + 2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 12
+update t2 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 11:00:00');
+insert into t2 values (4);
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 13
+update t3 set x= x + 1;
+ERROR HY000: Table 't3' was not locked with LOCK TABLES
+set timestamp= unix_timestamp('2000-01-01 12:00:00');
+call sp;
+call sp;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 14
+set timestamp= unix_timestamp('2000-01-01 13:00:00');
+call sp2;
+call sp2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 15
+set timestamp= unix_timestamp('2000-01-01 14:00:00');
+execute ps;
+execute ps;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 16
+set timestamp= unix_timestamp('2000-01-01 15:00:00');
+execute ps2;
+execute ps2;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 17
+unlock tables;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=DEFAULT_ENGINE DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 00:00:00' AUTO
+PARTITIONS 17
+drop tables t1, t2, t3;
+drop procedure sp;
+drop procedure sp2;
+drop prepare ps;
+drop prepare ps2;

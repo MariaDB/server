@@ -910,15 +910,6 @@ bool partition_info::vers_set_hist_part(THD *thd, uint *create_count)
     }
   }
 
-  /*
-     When hist_part is almost full LOCK TABLES may overflow the partition as we
-     can't add new partitions under LOCK TABLES. Reserve one more for this case.
-  */
-  if (auto_hist && *create_count == 0 &&
-      thd->lex->sql_command == SQLCOM_LOCK_TABLES &&
-      vers_info->hist_part->id + 1 == vers_info->now_part->id)
-    ++*create_count;
-
   return false;
 }
 

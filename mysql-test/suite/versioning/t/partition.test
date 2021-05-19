@@ -1552,4 +1552,97 @@ show create table t;
 # Cleanup
 drop table t;
 
+--echo #
+--echo # MDEV-23639 Auto-create does not work under LOCK TABLES or inside triggers
+--echo #
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour auto
+partitions 3;
+
+create table t2 (x int);
+create table t3 (x int);
+insert into t3 values (3);
+
+create trigger tr after insert on t2 for each row update t1 set x= x + 11;
+create or replace procedure sp() update t1 set x= x + 5;
+create or replace procedure sp2() insert into t2 values (5);
+prepare ps from 'update t1 set x= x + 6';
+prepare ps2 from 'insert into t2 values (6)';
+
+insert into t1 values (1);
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+insert into t2 values (2);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+set timestamp= unix_timestamp('2000-01-01 03:00:00');
+call sp; call sp;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 04:00:00');
+call sp2; call sp2;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+set timestamp= unix_timestamp('2000-01-01 05:00:00');
+execute ps; execute ps;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 06:00:00');
+execute ps2; execute ps2;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+set timestamp= unix_timestamp('2000-01-01 08:00:00');
+lock tables t1 write, t2 write;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 09:00:00');
+update t1 set x= x + 1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 10:00:00');
+update t1 set x= x + 2;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+update t2 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 11:00:00');
+insert into t2 values (4);
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+--error ER_TABLE_NOT_LOCKED
+update t3 set x= x + 1;
+
+set timestamp= unix_timestamp('2000-01-01 12:00:00');
+call sp; call sp;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 13:00:00');
+call sp2; call sp2;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+set timestamp= unix_timestamp('2000-01-01 14:00:00');
+execute ps; execute ps;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+set timestamp= unix_timestamp('2000-01-01 15:00:00');
+execute ps2; execute ps2;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+unlock tables;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+
+# Cleanup
+drop tables t1, t2, t3;
+drop procedure sp;
+drop procedure sp2;
+drop prepare ps;
+drop prepare ps2;
+
 --source suite/versioning/common_finish.inc

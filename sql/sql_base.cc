@@ -63,6 +63,9 @@
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 
+static bool
+open_tables_check_upgradable_mdl(THD *thd, TABLE_LIST *tables_start,
+                                 TABLE_LIST *tables_end, uint flags);
 
 bool
 No_such_table_error_handler::handle_condition(THD *,
@@ -1622,26 +1625,48 @@ bool is_locked_view(THD *thd, TABLE_LIST *t)
 }
 
 
-bool TABLE::vers_need_hist_part(const THD *thd, const TABLE_LIST *table_list) const
-{
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  if (part_info && part_info->part_type == VERSIONING_PARTITION &&
-      !table_list->vers_conditions.delete_history &&
-      !thd->stmt_arena->is_stmt_prepare() &&
-      table_list->lock_type >= TL_WRITE_ALLOW_WRITE &&
-       table_list->mdl_request.type >= MDL_SHARED_WRITE &&
-      table_list->mdl_request.type < MDL_EXCLUSIVE)
+/**
+  Switch part_info->hist_part and request partition creation if needed.
+
+  @retval true  Error or partition creation was requested.
+  @retval false No error
+*/
+bool TABLE::vers_switch_partition(THD *thd, TABLE_LIST *table_list,
+                                  Open_table_context *ot_ctx)
+{
+  if (!part_info || part_info->part_type != VERSIONING_PARTITION ||
+      table_list->vers_conditions.delete_history ||
+      thd->stmt_arena->is_stmt_prepare() ||
+      table_list->lock_type < TL_WRITE_ALLOW_WRITE ||
+      table_list->mdl_request.type < MDL_SHARED_WRITE ||
+      table_list->mdl_request.type == MDL_EXCLUSIVE)
+  {
+    return false;
+  }
+
+  /*
+    NOTE: we need this condition of prelocking_placeholder because we cannot do
+    auto-create after the transaction is started. Auto-create does
+    close_tables_for_reopen() and that is not possible under started transaction.
+    Also the transaction may not be cancelled at that moment: f.ex. trigger
+    after insert is run when some data is already written.
+
+    We must do auto-creation for PRELOCK_ROUTINE tables at the initial
+    open_tables() no matter what initiating sql_command is.
+  */
+  if (table_list->prelocking_placeholder != TABLE_LIST::PRELOCK_ROUTINE)
   {
     switch (thd->lex->sql_command)
     {
       case SQLCOM_INSERT:
         if (thd->lex->duplicates != DUP_UPDATE)
-          break;
-        return true;
+          return false;
+        break;
       case SQLCOM_LOAD:
         if (thd->lex->duplicates != DUP_REPLACE)
-          break;
-        return true;
+          return false;
+        break;
       case SQLCOM_LOCK_TABLES:
       case SQLCOM_DELETE:
       case SQLCOM_UPDATE:
@@ -1649,35 +1674,87 @@ bool TABLE::vers_need_hist_part(const THD *thd, const TABLE_LIST *table_list) co
       case SQLCOM_REPLACE_SELECT:
       case SQLCOM_DELETE_MULTI:
       case SQLCOM_UPDATE_MULTI:
-        return true;
-      default:;
         break;
-    }
-    /*
-      TODO: make row events set thd->lex->sql_command appropriately.
+      default:
+        /*
+          TODO: make row events set thd->lex->sql_command appropriately.
 
-      Sergei Golubchik: f.ex. currently row events increment
-      thd->status_var.com_stat[] each event for its own SQLCOM_xxx, it won't be
-      needed if they'll just set thd->lex->sql_command.
-    */
-    if (thd->rgi_slave && thd->rgi_slave->current_event &&
-        thd->lex->sql_command == SQLCOM_END)
-    {
-      switch (thd->rgi_slave->current_event->get_type_code())
-      {
-      case UPDATE_ROWS_EVENT:
-      case UPDATE_ROWS_EVENT_V1:
-      case DELETE_ROWS_EVENT:
-      case DELETE_ROWS_EVENT_V1:
-        return true;
-      default:;
+          Sergei Golubchik: f.ex. currently row events increment
+          thd->status_var.com_stat[] each event for its own SQLCOM_xxx, it won't be
+          needed if they'll just set thd->lex->sql_command.
+        */
+        if (thd->rgi_slave && thd->rgi_slave->current_event &&
+            thd->lex->sql_command == SQLCOM_END)
+        {
+          switch (thd->rgi_slave->current_event->get_type_code())
+          {
+          case UPDATE_ROWS_EVENT:
+          case UPDATE_ROWS_EVENT_V1:
+          case DELETE_ROWS_EVENT:
+          case DELETE_ROWS_EVENT_V1:
+            break;
+          default:;
+            return false;
+          }
+        }
         break;
-      }
     }
   }
-#endif
+
+  TABLE *table= this;
+
+  /*
+      NOTE: The semantics of vers_set_hist_part() is double: even when we
+      don't need auto-create, we need to update part_info->hist_part.
+  */
+  uint *create_count= table_list->vers_skip_create ?
+    NULL : &ot_ctx->vers_create_count;
+  table_list->vers_skip_create= true;
+  if (table->part_info->vers_set_hist_part(thd, create_count))
+  {
+    MYSQL_UNBIND_TABLE(table->file);
+    tc_release_table(table);
+    return true;
+  }
+  if (ot_ctx->vers_create_count)
+  {
+    Open_table_context::enum_open_table_action action;
+    TABLE_LIST *table_arg;
+    mysql_mutex_lock(&table->s->LOCK_share);
+    if (!table->s->vers_skip_auto_create)
+    {
+      table->s->vers_skip_auto_create= true;
+      action= Open_table_context::OT_ADD_HISTORY_PARTITION;
+      table_arg= table_list;
+    }
+    else
+    {
+      /*
+          NOTE: this may repeat multiple times until creating thread acquires
+          MDL_EXCLUSIVE. Since auto-creation is rare operation this is acceptable.
+          We could suspend this thread on cond-var but we must first exit
+          MDL_SHARED_WRITE first and we cannot store cond-var into TABLE_SHARE
+          because it is already released and there is no guarantee that it will
+          be same instance if we acquire it again.
+      */
+      table_list->vers_skip_create= false;
+      ot_ctx->vers_create_count= 0;
+      action= Open_table_context::OT_REOPEN_TABLES;
+      table_arg= NULL;
+    }
+    mysql_mutex_unlock(&table->s->LOCK_share);
+    if (!thd->locked_tables_mode)
+    {
+      MYSQL_UNBIND_TABLE(table->file);
+      tc_release_table(table);
+    }
+    ot_ctx->request_backoff_action(action, table_arg);
+    return true;
+  }
+
   return false;
 }
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
 
 
 /**
@@ -1832,14 +1909,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
       DBUG_PRINT("info",("Using locked table"));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
       part_names_error= set_partitions_as_used(table_list, table);
-      if (table->vers_need_hist_part(thd, table_list))
-      {
-        /*
-          New partitions are not auto-created under LOCK TABLES (TODO: fix it)
-          but rotation can still happen.
-        */
-        (void) table->part_info->vers_set_hist_part(thd, NULL);
-      }
+      if (table->vers_switch_partition(thd, table_list, ot_ctx))
+        DBUG_RETURN(true);
 #endif
       goto reset;
     }
@@ -2095,54 +2166,10 @@ retry_share:
     tc_add_table(thd, table);
   }
 
-  if (table->vers_need_hist_part(thd, table_list))
-  {
-    /*
-       NOTE: The semantics of vers_set_hist_part() is double: even when we
-       don't need auto-create, we need to update part_info->hist_part.
-    */
-    uint *create_count= table_list->vers_skip_create ?
-      NULL : &ot_ctx->vers_create_count;
-    table_list->vers_skip_create= true;
-    if (table->part_info->vers_set_hist_part(thd, create_count))
-    {
-      MYSQL_UNBIND_TABLE(table->file);
-      tc_release_table(table);
-      DBUG_RETURN(TRUE);
-    }
-    if (ot_ctx->vers_create_count)
-    {
-      Open_table_context::enum_open_table_action action;
-      TABLE_LIST *table_arg;
-      mysql_mutex_lock(&table->s->LOCK_share);
-      if (!table->s->vers_skip_auto_create)
-      {
-        table->s->vers_skip_auto_create= true;
-        action= Open_table_context::OT_ADD_HISTORY_PARTITION;
-        table_arg= table_list;
-      }
-      else
-      {
-        /*
-           NOTE: this may repeat multiple times until creating thread acquires
-           MDL_EXCLUSIVE. Since auto-creation is rare operation this is acceptable.
-           We could suspend this thread on cond-var but we must first exit
-           MDL_SHARED_WRITE first and we cannot store cond-var into TABLE_SHARE
-           because it is already released and there is no guarantee that it will
-           be same instance if we acquire it again.
-        */
-        table_list->vers_skip_create= false;
-        ot_ctx->vers_create_count= 0;
-        action= Open_table_context::OT_REOPEN_TABLES;
-        table_arg= NULL;
-      }
-      mysql_mutex_unlock(&table->s->LOCK_share);
-      MYSQL_UNBIND_TABLE(table->file);
-      tc_release_table(table);
-      ot_ctx->request_backoff_action(action, table_arg);
-      DBUG_RETURN(TRUE);
-    }
-  }
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (table->vers_switch_partition(thd, table_list, ot_ctx))
+    DBUG_RETURN(true);
+#endif /* WITH_PARTITION_STORAGE_ENGINE */
 
   if (!(flags & MYSQL_OPEN_HAS_MDL_LOCK) &&
       table->s->table_category < TABLE_CATEGORY_INFORMATION)
@@ -3291,8 +3318,14 @@ Open_table_context::recover_from_failed_open()
     case OT_DISCOVER:
     case OT_REPAIR:
     case OT_ADD_HISTORY_PARTITION:
-      result= lock_table_names(m_thd, m_thd->lex->create_info, m_failed_table,
-                               NULL, get_timeout(), 0);
+      if (!m_thd->locked_tables_mode)
+        result= lock_table_names(m_thd, m_thd->lex->create_info, m_failed_table,
+                                NULL, get_timeout(), 0);
+      else
+      {
+        DBUG_ASSERT(!result);
+        DBUG_ASSERT(m_action == OT_ADD_HISTORY_PARTITION);
+      }
       /*
          We are now under MDL_EXCLUSIVE mode. Other threads have no table share
          acquired: they are blocked either at open_table_get_mdl_lock() in
@@ -3320,8 +3353,13 @@ Open_table_context::recover_from_failed_open()
         break;
       }
 
-      tdc_remove_table(m_thd, m_failed_table->db.str,
-                       m_failed_table->table_name.str);
+      /*
+         We don't need to remove share under OT_ADD_HISTORY_PARTITION.
+         Moreover fast_alter_partition_table() works with TABLE instance.
+      */
+      if (m_action != OT_ADD_HISTORY_PARTITION)
+        tdc_remove_table(m_thd, m_failed_table->db.str,
+                        m_failed_table->table_name.str);
 
       switch (m_action)
       {
@@ -3361,12 +3399,56 @@ Open_table_context::recover_from_failed_open()
           }
 
           DBUG_ASSERT(vers_create_count);
-          TABLE_LIST *tl= m_failed_table;
-          result= vers_create_partitions(m_thd, tl, vers_create_count);
+          result= vers_create_partitions(m_thd, m_failed_table, vers_create_count);
+          vers_create_count= 0;
           if (!m_thd->transaction->stmt.is_empty())
             trans_commit_stmt(m_thd);
-          close_tables_for_reopen(m_thd, &tl, start_of_statement_svp());
-          vers_create_count= 0;
+          DBUG_ASSERT(!result ||
+                      !m_thd->locked_tables_mode ||
+                      m_thd->lock->lock_count);
+          if (result)
+            break;
+          if (!m_thd->locked_tables_mode)
+          {
+            /*
+              alter_partition_lock_handling() does mysql_lock_remove() but
+              does not clear thd->lock completely.
+            */
+            DBUG_ASSERT(m_thd->lock->lock_count == 0);
+            if (!(m_thd->lock->flags & GET_LOCK_ON_THD))
+              my_free(m_thd->lock);
+            m_thd->lock= NULL;
+          }
+          else if (m_thd->locked_tables_mode == LTM_PRELOCKED)
+          {
+            MYSQL_LOCK *lock;
+            MYSQL_LOCK *merged_lock;
+
+            /*
+              In LTM_LOCK_TABLES table was reopened via locked_tables_list,
+              but not in prelocked environment where we have to reopen
+              the table manually.
+            */
+            Open_table_context ot_ctx(m_thd, MYSQL_OPEN_REOPEN);
+            if (open_table(m_thd, m_failed_table, &ot_ctx))
+            {
+              result= true;
+              break;
+            }
+            TABLE *table= m_failed_table->table;
+            table->reginfo.lock_type= m_thd->update_lock_default;
+            m_thd->in_lock_tables= 1;
+            lock= mysql_lock_tables(m_thd, &table, 1,
+                                    MYSQL_OPEN_REOPEN | MYSQL_LOCK_USE_MALLOC);
+            m_thd->in_lock_tables= 0;
+            if (lock == NULL ||
+                !(merged_lock= mysql_lock_merge(m_thd->lock, lock, m_thd)))
+            {
+              result= true;
+              break;
+            }
+            m_thd->lock= merged_lock;
+          }
           break;
         }
         case OT_BACKOFF_AND_RETRY:
@@ -5308,9 +5390,6 @@ TABLE *open_ltable(THD *thd, TABLE_LIST *table_list, thr_lock_type lock_type,
   /* Ignore temporary tables as they have already been opened. */
   if (table_list->table)
     DBUG_RETURN(table_list->table);
-
-  /* should not be used in a prelocked_mode context, see NOTE above */
-  DBUG_ASSERT(thd->locked_tables_mode < LTM_PRELOCKED);
 
   THD_STAGE_INFO(thd, stage_opening_tables);
   thd->current_tablenr= 0;
