@@ -314,7 +314,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
       errmsg= "Can't create file";
       goto err;
     }
-    if (lock_control_file(name, wait_for_lock))
+    if (!aria_readonly && lock_control_file(name, wait_for_lock))
     {
       error= CONTROL_FILE_LOCKED;
       errmsg= lock_failed_errmsg;
@@ -332,7 +332,7 @@ CONTROL_FILE_ERROR ma_control_file_open(my_bool create_if_missing,
   }
 
   /* lock it before reading content */
-  if (lock_control_file(name, wait_for_lock))
+  if (!aria_readonly && lock_control_file(name, wait_for_lock))
   {
     error= CONTROL_FILE_LOCKED;
     errmsg= lock_failed_errmsg;
