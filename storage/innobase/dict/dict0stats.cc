@@ -25,6 +25,7 @@ Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
 #include "dict0stats.h"
+#include "dict0priv.h"
 #include "ut0ut.h"
 #include "ut0rnd.h"
 #include "dyn0buf.h"
@@ -32,6 +33,7 @@ Created Jan 06, 2010 Vasil Dimov
 #include "trx0trx.h"
 #include "pars0pars.h"
 #include <mysql_com.h>
+#include "log.h"
 #include "btr0btr.h"
 
 #include <algorithm>
@@ -159,6 +161,307 @@ dict_stats_should_ignore_index(
 	       || !index->is_committed());
 }
 
+
+/** expected column definition */
+struct dict_col_meta_t
+{
+  /** column name */
+  const char *name;
+  /** main type */
+  unsigned mtype;
+  /** prtype mask; all these bits have to be set in prtype */
+  unsigned prtype_mask;
+  /** column length in bytes */
+  unsigned len;
+};
+
+/** For checking whether a table exists and has a predefined schema */
+struct dict_table_schema_t
+{
+  /** table name */
+  const char *table_name;
+  /** table name in SQL */
+  const char *table_name_sql;
+  /** number of columns */
+  unsigned n_cols;
+  /** columns */
+  const dict_col_meta_t columns[8];
+};
+
+static const dict_table_schema_t table_stats_schema =
+{
+  TABLE_STATS_NAME, TABLE_STATS_NAME_PRINT, 6,
+  {
+    {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
+    {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
+    {"last_update", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 4},
+    {"n_rows", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"clustered_index_size", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"sum_of_other_index_sizes", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+  }
+};
+
+static const dict_table_schema_t index_stats_schema =
+{
+  INDEX_STATS_NAME, INDEX_STATS_NAME_PRINT, 8,
+  {
+    {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
+    {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
+    {"index_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
+    {"last_update", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 4},
+    {"stat_name", DATA_VARMYSQL, DATA_NOT_NULL, 64*3},
+    {"stat_value", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
+    {"sample_size", DATA_INT, DATA_UNSIGNED, 8},
+    {"stat_description", DATA_VARMYSQL, DATA_NOT_NULL, 1024*3}
+  }
+};
+
+/** Construct the type's SQL name (e.g. BIGINT UNSIGNED)
+@param mtype   InnoDB main type
+@param prtype  InnoDB precise type
+@param len     length of the column
+@param name    the SQL name
+@param name_sz size of the name buffer
+@return number of bytes written (excluding the terminating NUL byte) */
+static int dtype_sql_name(unsigned mtype, unsigned prtype, unsigned len,
+                          char *name, size_t name_sz)
+{
+  const char *Unsigned= "";
+  const char *Main= "UNKNOWN";
+
+  switch (mtype) {
+  case DATA_INT:
+    switch (len) {
+    case 1:
+      Main= "TINYINT";
+      break;
+    case 2:
+      Main= "SMALLINT";
+      break;
+    case 3:
+      Main= "MEDIUMINT";
+      break;
+    case 4:
+      Main= "INT";
+      break;
+    case 8:
+      Main= "BIGINT";
+      break;
+    }
+
+  append_unsigned:
+    if (prtype & DATA_UNSIGNED)
+      Unsigned= " UNSIGNED";
+    len= 0;
+    break;
+  case DATA_FLOAT:
+    Main= "FLOAT";
+    goto append_unsigned;
+  case DATA_DOUBLE:
+    Main= "DOUBLE";
+    goto append_unsigned;
+  case DATA_FIXBINARY:
+    Main= "BINARY";
+    break;
+  case DATA_CHAR:
+  case DATA_MYSQL:
+    Main= "CHAR";
+    break;
+  case DATA_VARCHAR:
+  case DATA_VARMYSQL:
+    Main= "VARCHAR";
+    break;
+  case DATA_BINARY:
+    Main= "VARBINARY";
+    break;
+  case DATA_GEOMETRY:
+    Main= "GEOMETRY";
+    len= 0;
+    break;
+  case DATA_BLOB:
+    switch (len) {
+    case 9:
+      Main= "TINYBLOB";
+      break;
+    case 10:
+      Main= "BLOB";
+      break;
+    case 11:
+      Main= "MEDIUMBLOB";
+      break;
+    case 12:
+      Main= "LONGBLOB";
+      break;
+    }
+    len= 0;
+  }
+
+  const char* Not_null= (prtype & DATA_NOT_NULL) ? " NOT NULL" : "";
+  if (len)
+    return snprintf(name, name_sz, "%s(%u)%s%s", Main, len, Unsigned,
+                    Not_null);
+  else
+    return snprintf(name, name_sz, "%s%s%s", Main, Unsigned, Not_null);
+}
+
+static bool innodb_table_stats_not_found;
+static bool innodb_index_stats_not_found;
+static bool innodb_table_stats_not_found_reported;
+static bool innodb_index_stats_not_found_reported;
+
+/*********************************************************************//**
+Checks whether a table exists and whether it has the given structure.
+The table must have the same number of columns with the same names and
+types. The order of the columns does not matter.
+The caller must own the dictionary mutex.
+dict_table_schema_check() @{
+@return DB_SUCCESS if the table exists and contains the necessary columns */
+static
+dberr_t
+dict_table_schema_check(
+/*====================*/
+	const dict_table_schema_t* req_schema,	/*!< in: required table
+						schema */
+	char*			errstr,		/*!< out: human readable error
+						message if != DB_SUCCESS is
+						returned */
+	size_t			errstr_sz)	/*!< in: errstr size */
+{
+	const dict_table_t* table = dict_table_get_low(req_schema->table_name);
+
+	if (!table) {
+		if (req_schema == &table_stats_schema) {
+			if (innodb_table_stats_not_found_reported) {
+				return DB_STATS_DO_NOT_EXIST;
+			}
+			innodb_table_stats_not_found = true;
+			innodb_table_stats_not_found_reported = true;
+		} else {
+			ut_ad(req_schema == &index_stats_schema);
+			if (innodb_index_stats_not_found_reported) {
+				return DB_STATS_DO_NOT_EXIST;
+			}
+			innodb_index_stats_not_found = true;
+			innodb_index_stats_not_found_reported = true;
+		}
+
+		snprintf(errstr, errstr_sz, "Table %s not found.",
+			 req_schema->table_name_sql);
+		return DB_TABLE_NOT_FOUND;
+	}
+
+	if (!table->is_readable() && !table->space) {
+		/* missing tablespace */
+		snprintf(errstr, errstr_sz,
+			 "Tablespace for table %s is missing.",
+			 req_schema->table_name_sql);
+		return DB_TABLE_NOT_FOUND;
+	}
+
+	if (unsigned(table->n_def - DATA_N_SYS_COLS) != req_schema->n_cols) {
+		/* the table has a different number of columns than required */
+		snprintf(errstr, errstr_sz,
+			 "%s has %d columns but should have %u.",
+			 req_schema->table_name_sql,
+			 table->n_def - DATA_N_SYS_COLS,
+			 req_schema->n_cols);
+		return DB_ERROR;
+	}
+
+	/* For each column from req_schema->columns[] search
+	whether it is present in table->cols[].
+	The following algorithm is O(n_cols^2), but is optimized to
+	be O(n_cols) if the columns are in the same order in both arrays. */
+
+	for (unsigned i = 0; i < req_schema->n_cols; i++) {
+		ulint	j = dict_table_has_column(
+			table, req_schema->columns[i].name, i);
+
+		if (j == table->n_def) {
+			snprintf(errstr, errstr_sz,
+				    "required column %s"
+				    " not found in table %s.",
+				    req_schema->columns[i].name,
+				    req_schema->table_name_sql);
+
+			return(DB_ERROR);
+		}
+
+		/* we found a column with the same name on j'th position,
+		compare column types and flags */
+
+		/* check length for exact match */
+		if (req_schema->columns[i].len != table->cols[j].len) {
+			ut_ad(table->cols[j].len < req_schema->columns[i].len);
+			sql_print_warning("InnoDB: Table %s has"
+					  " length mismatch in the"
+					  " column name %s."
+					  " Please run mariadb-upgrade",
+					  req_schema->table_name_sql,
+					  req_schema->columns[i].name);
+		}
+
+		/*
+                  check mtype for exact match.
+                  This check is relaxed to allow use to use TIMESTAMP
+                  (ie INT) for last_update instead of DATA_BINARY.
+                  We have to test for both values as the innodb_table_stats
+                  table may come from MySQL and have the old type.
+                */
+		if (req_schema->columns[i].mtype != table->cols[j].mtype &&
+                    !(req_schema->columns[i].mtype == DATA_INT &&
+                      table->cols[j].mtype == DATA_FIXBINARY)) {
+		} else if ((~table->cols[j].prtype
+			    & req_schema->columns[i].prtype_mask)) {
+		} else {
+			continue;
+		}
+
+		int s = snprintf(errstr, errstr_sz,
+				 "Column %s in table %s is ",
+				 req_schema->columns[i].name,
+				 req_schema->table_name_sql);
+		if (s < 0 || static_cast<size_t>(s) >= errstr_sz) {
+			return DB_ERROR;
+		}
+		errstr += s;
+		errstr_sz -= s;
+		s = dtype_sql_name(table->cols[j].mtype, table->cols[j].prtype,
+				   table->cols[j].len, errstr, errstr_sz);
+		if (s < 0 || static_cast<size_t>(s) + sizeof " but should be "
+		    >= errstr_sz) {
+			return DB_ERROR;
+		}
+		errstr += s;
+		memcpy(errstr, " but should be ", sizeof " but should be ");
+		errstr += (sizeof " but should be ") - 1;
+		errstr_sz -= s + (sizeof " but should be ") - 1;
+		s = dtype_sql_name(req_schema->columns[i].mtype,
+				   req_schema->columns[i].prtype_mask,
+				   req_schema->columns[i].len,
+				   errstr, errstr_sz);
+		return DB_ERROR;
+	}
+
+	if (size_t n_foreign = table->foreign_set.size()) {
+		snprintf(errstr, errstr_sz,
+			 "Table %s has %zu foreign key(s) pointing"
+			 " to other tables, but it must have 0.",
+			 req_schema->table_name_sql, n_foreign);
+		return DB_ERROR;
+	}
+
+	if (size_t n_referenced = table->referenced_set.size()) {
+		snprintf(errstr, errstr_sz,
+			 "There are %zu foreign key(s) pointing to %s, "
+			 "but there must be 0.", n_referenced,
+			 req_schema->table_name_sql);
+		return DB_ERROR;
+	}
+
+	return DB_SUCCESS;
+}
+
 /*********************************************************************//**
 Checks whether the persistent statistics storage exists and that all
 tables have the proper structure.
@@ -170,68 +473,6 @@ dict_stats_persistent_storage_check(
 	bool	caller_has_dict_sys_mutex)	/*!< in: true if the caller
 						owns dict_sys.mutex */
 {
-	/* definition for the table TABLE_STATS_NAME */
-	dict_col_meta_t	table_stats_columns[] = {
-		{"database_name", DATA_VARMYSQL,
-			DATA_NOT_NULL, 192},
-
-		{"table_name", DATA_VARMYSQL,
-			DATA_NOT_NULL, 597},
-
-		{"last_update", DATA_INT,
-			DATA_NOT_NULL | DATA_UNSIGNED, 4},
-
-		{"n_rows", DATA_INT,
-			DATA_NOT_NULL | DATA_UNSIGNED, 8},
-
-		{"clustered_index_size", DATA_INT,
-			DATA_NOT_NULL | DATA_UNSIGNED, 8},
-
-		{"sum_of_other_index_sizes", DATA_INT,
-			DATA_NOT_NULL | DATA_UNSIGNED, 8}
-	};
-	dict_table_schema_t	table_stats_schema = {
-		TABLE_STATS_NAME,
-		UT_ARR_SIZE(table_stats_columns),
-		table_stats_columns,
-		0 /* n_foreign */,
-		0 /* n_referenced */
-	};
-
-	/* definition for the table INDEX_STATS_NAME */
-	dict_col_meta_t	index_stats_columns[] = {
-		{"database_name", DATA_VARMYSQL,
-			DATA_NOT_NULL, 192},
-
-		{"table_name", DATA_VARMYSQL,
-			DATA_NOT_NULL, 597},
-
-		{"index_name", DATA_VARMYSQL,
-			DATA_NOT_NULL, 192},
-
-		{"last_update", DATA_INT,
-			DATA_NOT_NULL | DATA_UNSIGNED, 4},
-
-		{"stat_name", DATA_VARMYSQL,
-			DATA_NOT_NULL, 64*3},
-
-		{"stat_value", DATA_INT,
-			DATA_NOT_NULL | DATA_UNSIGNED, 8},
-
-		{"sample_size", DATA_INT,
-			DATA_UNSIGNED, 8},
-
-		{"stat_description", DATA_VARMYSQL,
-			DATA_NOT_NULL, 1024*3}
-	};
-	dict_table_schema_t	index_stats_schema = {
-		INDEX_STATS_NAME,
-		UT_ARR_SIZE(index_stats_columns),
-		index_stats_columns,
-		0 /* n_foreign */,
-		0 /* n_referenced */
-	};
-
 	char		errstr[512];
 	dberr_t		ret;
 
@@ -3925,129 +4166,6 @@ dict_stats_rename_index(
 
 /* tests @{ */
 #ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS
-
-/* The following unit tests test some of the functions in this file
-individually, such testing cannot be performed by the mysql-test framework
-via SQL. */
-
-/* test_dict_table_schema_check() @{ */
-void
-test_dict_table_schema_check()
-{
-	/*
-	CREATE TABLE tcheck (
-		c01 VARCHAR(123),
-		c02 INT,
-		c03 INT NOT NULL,
-		c04 INT UNSIGNED,
-		c05 BIGINT,
-		c06 BIGINT UNSIGNED NOT NULL,
-		c07 TIMESTAMP
-	) ENGINE=INNODB;
-	*/
-	/* definition for the table 'test/tcheck' */
-	dict_col_meta_t	columns[] = {
-		{"c01", DATA_VARCHAR, 0, 123},
-		{"c02", DATA_INT, 0, 4},
-		{"c03", DATA_INT, DATA_NOT_NULL, 4},
-		{"c04", DATA_INT, DATA_UNSIGNED, 4},
-		{"c05", DATA_INT, 0, 8},
-		{"c06", DATA_INT, DATA_NOT_NULL | DATA_UNSIGNED, 8},
-		{"c07", DATA_INT, 0, 4},
-		{"c_extra", DATA_INT, 0, 4}
-	};
-	dict_table_schema_t	schema = {
-		"test/tcheck",
-		0 /* will be set individually for each test below */,
-		columns
-	};
-	char	errstr[512];
-
-	snprintf(errstr, sizeof(errstr), "Table not found");
-
-	/* prevent any data dictionary modifications while we are checking
-	the tables' structure */
-
-	dict_sys.mutex_lock();
-
-	/* check that a valid table is reported as valid */
-	schema.n_cols = 7;
-	if (dict_table_schema_check(&schema, errstr, sizeof(errstr))
-	    == DB_SUCCESS) {
-		printf("OK: test.tcheck ok\n");
-	} else {
-		printf("ERROR: %s\n", errstr);
-		printf("ERROR: test.tcheck not present or corrupted\n");
-		goto test_dict_table_schema_check_end;
-	}
-
-	/* check columns with wrong length */
-	schema.columns[1].len = 8;
-	if (dict_table_schema_check(&schema, errstr, sizeof(errstr))
-	    != DB_SUCCESS) {
-		printf("OK: test.tcheck.c02 has different length and is"
-		       " reported as corrupted\n");
-	} else {
-		printf("OK: test.tcheck.c02 has different length but is"
-		       " reported as ok\n");
-		goto test_dict_table_schema_check_end;
-	}
-	schema.columns[1].len = 4;
-
-	/* request that c02 is NOT NULL while actually it does not have
-	this flag set */
-	schema.columns[1].prtype_mask |= DATA_NOT_NULL;
-	if (dict_table_schema_check(&schema, errstr, sizeof(errstr))
-	    != DB_SUCCESS) {
-		printf("OK: test.tcheck.c02 does not have NOT NULL while"
-		       " it should and is reported as corrupted\n");
-	} else {
-		printf("ERROR: test.tcheck.c02 does not have NOT NULL while"
-		       " it should and is not reported as corrupted\n");
-		goto test_dict_table_schema_check_end;
-	}
-	schema.columns[1].prtype_mask &= ~DATA_NOT_NULL;
-
-	/* check a table that contains some extra columns */
-	schema.n_cols = 6;
-	if (dict_table_schema_check(&schema, errstr, sizeof(errstr))
-	    == DB_SUCCESS) {
-		printf("ERROR: test.tcheck has more columns but is not"
-		       " reported as corrupted\n");
-		goto test_dict_table_schema_check_end;
-	} else {
-		printf("OK: test.tcheck has more columns and is"
-		       " reported as corrupted\n");
-	}
-
-	/* check a table that has some columns missing */
-	schema.n_cols = 8;
-	if (dict_table_schema_check(&schema, errstr, sizeof(errstr))
-	    != DB_SUCCESS) {
-		printf("OK: test.tcheck has missing columns and is"
-		       " reported as corrupted\n");
-	} else {
-		printf("ERROR: test.tcheck has missing columns but is"
-		       " reported as ok\n");
-		goto test_dict_table_schema_check_end;
-	}
-
-	/* check non-existent table */
-	schema.table_name = "test/tcheck_nonexistent";
-	if (dict_table_schema_check(&schema, errstr, sizeof(errstr))
-	    != DB_SUCCESS) {
-		printf("OK: test.tcheck_nonexistent is not present\n");
-	} else {
-		printf("ERROR: test.tcheck_nonexistent is present!?\n");
-		goto test_dict_table_schema_check_end;
-	}
-
-test_dict_table_schema_check_end:
-
-	dict_sys.mutex_unlock();
-}
-/* @} */
-
 /* save/fetch aux macros @{ */
 #define TEST_DATABASE_NAME		"foobardb"
 #define TEST_TABLE_NAME			"test_dict_stats"

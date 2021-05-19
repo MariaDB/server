@@ -35,8 +35,6 @@ Created 1/8/1996 Heikki Tuuri
 #include <deque>
 
 class MDL_ticket;
-extern bool innodb_table_stats_not_found;
-extern bool innodb_index_stats_not_found;
 
 /** the first table or index ID for other than hard-coded system tables */
 constexpr uint8_t DICT_HDR_FIRST_ID= 10;
@@ -1597,62 +1595,6 @@ extern dict_sys_t	dict_sys;
 #define dict_table_prevent_eviction(table) dict_sys.prevent_eviction(table)
 #define dict_sys_lock() dict_sys.lock(SRW_LOCK_CALL)
 #define dict_sys_unlock() dict_sys.unlock()
-
-/* Auxiliary structs for checking a table definition @{ */
-
-/* This struct is used to specify the name and type that a column must
-have when checking a table's schema. */
-struct dict_col_meta_t {
-	const char*	name;		/* column name */
-	ulint		mtype;		/* required column main type */
-	ulint		prtype_mask;	/* required column precise type mask;
-					if this is non-zero then all the
-					bits it has set must also be set
-					in the column's prtype */
-	ulint		len;		/* required column length */
-};
-
-/* This struct is used for checking whether a given table exists and
-whether it has a predefined schema (number of columns and column names
-and types) */
-struct dict_table_schema_t {
-	const char*		table_name;	/* the name of the table whose
-						structure we are checking */
-	ulint			n_cols;		/* the number of columns the
-						table must have */
-	dict_col_meta_t*	columns;	/* metadata for the columns;
-						this array has n_cols
-						elements */
-	ulint			n_foreign;	/* number of foreign keys this
-						table has, pointing to other
-						tables (where this table is
-						FK child) */
-	ulint			n_referenced;	/* number of foreign keys other
-						tables have, pointing to this
-						table (where this table is
-						parent) */
-};
-/* @} */
-
-/*********************************************************************//**
-Checks whether a table exists and whether it has the given structure.
-The table must have the same number of columns with the same names and
-types. The order of the columns does not matter.
-The caller must own the dictionary mutex.
-dict_table_schema_check() @{
-@return DB_SUCCESS if the table exists and contains the necessary columns */
-dberr_t
-dict_table_schema_check(
-/*====================*/
-	dict_table_schema_t*	req_schema,	/*!< in/out: required table
-						schema */
-	char*			errstr,		/*!< out: human readable error
-						message if != DB_SUCCESS and
-						!= DB_TABLE_NOT_FOUND is
-						returned */
-	size_t			errstr_sz)	/*!< in: errstr size */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/* @} */
 
 /*********************************************************************//**
 Converts a database and table name from filesystem encoding
