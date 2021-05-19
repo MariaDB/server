@@ -2319,22 +2319,6 @@ public:
 	/** The state of the background stats thread wrt this table.
 	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
 	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
-
-	#define BG_SCRUB_IN_PROGRESS	((byte)(1 << 2))
-				/*!< BG_SCRUB_IN_PROGRESS is set in
-				stats_bg_flag when the background
-				scrub code is working on this table. The DROP
-				TABLE code waits for this to be cleared
-				before proceeding. */
-
-	#define BG_STAT_SHOULD_QUIT		(1 << 1)
-
-	#define BG_IN_PROGRESS (BG_STAT_IN_PROGRESS | BG_SCRUB_IN_PROGRESS)
-
-
-	/** The state of the background stats thread wrt this table.
-	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
 	byte					stats_bg_flag;
 
 	bool		stats_error_printed;
