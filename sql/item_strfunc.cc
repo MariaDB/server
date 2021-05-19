@@ -3867,7 +3867,7 @@ String *Item_load_file::val_str(String *str)
   File file;
   MY_STAT stat_info;
   char path[FN_REFLEN];
-  size_t file_size;
+  ulonglong file_size;
   DBUG_ENTER("load_file");
 
   if (!(file_name= args[0]->val_str(str))
@@ -3896,7 +3896,7 @@ String *Item_load_file::val_str(String *str)
 
   {
     THD *thd= current_thd;
-    if (file_size >= (size_t) thd->variables.max_allowed_packet)
+    if (file_size >= thd->variables.max_allowed_packet)
     {
       push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_WARN_ALLOWED_PACKET_OVERFLOWED,
@@ -3905,7 +3905,7 @@ String *Item_load_file::val_str(String *str)
       goto err;
     }
   }
-  if (tmp_value.alloc(file_size))
+  if (tmp_value.alloc((ulong)file_size))
     goto err;
   if ((file= mysql_file_open(key_file_loadfile,
                              file_name->ptr(), O_RDONLY, MYF(0))) < 0)
