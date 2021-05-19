@@ -588,8 +588,6 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
     DEBUG_SYNC(thd, "admin_command_kill_before_modify");
 
-    if (thd->is_killed())
-      break;
     table_name.length= strxmov(table_name_buff, db, ".", table->table_name.str,
                                NullS) - table_name_buff;
     thd->open_options|= extra_open_options;
@@ -604,6 +602,13 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
                                 ? MDL_SHARED_NO_READ_WRITE
                                 : lock_type >= TL_FIRST_WRITE
                                 ? MDL_SHARED_WRITE : MDL_SHARED_READ);
+
+    if (thd->check_killed())
+    {
+      fatal_error= true;
+      result_code= HA_ADMIN_FAILED;
+      goto send_result;
+    }
 
     /* open only one table from local list of command */
     while (1)
