@@ -5324,7 +5324,7 @@ static int init_server_components()
     }
   }
 
-  if (opt_bin_log)
+  if (!opt_help && opt_bin_log)
   {
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
                                       TRUE))
@@ -5333,7 +5333,7 @@ static int init_server_components()
     }
   }
 
-  if (opt_bin_log)
+  if (!opt_help && opt_bin_log)
   {
     log_bin_basename=
       rpl_make_log_name(opt_bin_logname, pidfile_name,
