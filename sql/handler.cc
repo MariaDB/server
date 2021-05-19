@@ -1009,7 +1009,9 @@ void handler::log_not_redoable_operation(const char *operation)
       We can't use partition_engine() here as this function is called
       directly by the handler for the underlaying partition table
     */
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     ddl_log.org_partitioned= table->s->partition_info_str != 0;
+#endif
     lex_string_set(&ddl_log.org_storage_engine_name, table_type());
     ddl_log.org_database=     table->s->db;
     ddl_log.org_table=        table->s->table_name;
@@ -5904,6 +5906,7 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     if (!hton)
       hton= &dummy;
     *hton= element->share->db_type();
+#ifdef WITH_PARTITION_STORAGE_ENGINE
     if (partition_engine_name && element->share->db_type() == partition_hton)
     {
       if (!static_cast<Partition_share *>(element->share->ha_share)->
@@ -5917,6 +5920,7 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
         static_cast<Partition_share *>(element->share->ha_share)->
           partition_engine_name);
     }
+#endif
     *is_sequence= element->share->table_type == TABLE_TYPE_SEQUENCE;
     if (*hton != view_pseudo_hton && element->share->tabledef_version.length &&
         table_id &&
@@ -5927,7 +5931,7 @@ bool ha_table_exists(THD *thd, const LEX_CSTRING *db,
     DBUG_RETURN(TRUE);
   }
 
-retry_from_frm:
+retry_from_frm: __attribute__((unused));
   char path[FN_REFLEN + 1];
   size_t path_len = build_table_filename(path, sizeof(path) - 1,
                                          db->str, table_name->str, "", 0);
