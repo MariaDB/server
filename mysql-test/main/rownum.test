@@ -190,7 +190,8 @@ drop table t1;
 
 create table t1 (a int not null primary key, b int);
 insert delayed into t1 values (1,rownum()),(2,rownum()),(3,rownum());
-flush tables;
+let $wait_condition= SELECT COUNT(*)=3 FROM t1;
+source include/wait_condition.inc;
 select * from t1;
 drop table t1;
 

@@ -347,7 +347,6 @@ drop table t1;
 #
 create table t1 (a int not null primary key, b int);
 insert delayed into t1 values (1,rownum()),(2,rownum()),(3,rownum());
-flush tables;
 select * from t1;
 a	b
 1	1
