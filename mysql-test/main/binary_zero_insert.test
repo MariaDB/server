@@ -1,0 +1,15 @@
+#
+# MDEV-25444 mysql --binary-mode is not able to replay some mysqlbinlog outputs
+#
+# After investigating it turns out to be a issue of mysql client not able to properly
+#  handle  \\\0 <0 in binary>.
+# In this test case we will be pipelining binary_zero_insert.bin into  mysql client.
+# binary_zero_insert.bin contains insert stmt with \\\0
+
+CREATE TABLE `tb` (`id` int(11) NOT NULL AUTO_INCREMENT,`cb` longblob DEFAULT NULL,
+PRIMARY KEY (`id`)) ENGINE=myisam AUTO_INCREMENT=5 DEFAULT CHARSET=latin1;
+
+--exec $MYSQL --binary-mode  test < $MYSQL_TEST_DIR/std_data/binary_zero_insert.bin
+select count(*)=2 from tb;
+
+drop table tb;

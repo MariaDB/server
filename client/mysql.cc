@@ -2319,8 +2319,12 @@ static bool add_line(String &buffer, char *line, size_t line_length,
     {
       // Found possbile one character command like \c
 
-      if (!(inchar = (uchar) *++pos))
-	break;				// readline adds one '\'
+      inchar = (uchar) *++pos;
+      // In Binary mode , when in_string is not null \0 should not be treated as
+      // end statement. This can happen when we are in middle of binary data which
+      // can contain \0 and its quoted with ' '.
+      if (!real_binary_mode && !*in_string && !inchar)
+        break;				// readline adds one '\'
       if (*in_string || inchar == 'N')	// \N is short for NULL
       {					// Don't allow commands in string
 	*out++='\\';
