@@ -2419,7 +2419,18 @@ resume:
 
   thd->update_all_stats();
 
-  log_slow_statement(thd);
+  /*
+    Write to slow query log only those statements that received via the text
+    protocol except the EXECUTE statement. The reason we do that way is
+    that for statements received via binary protocol and for the EXECUTE
+    statement, the slow statements have been already written to slow query log
+    inside the method Prepared_statement::execute().
+  */
+  if(command == COM_QUERY &&
+     thd->lex->sql_command != SQLCOM_EXECUTE)
+    log_slow_statement(thd);
+  else
+    delete_explain_query(thd->lex);
 
   THD_STAGE_INFO(thd, stage_cleaning_up);
   thd->reset_query();

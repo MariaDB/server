@@ -1212,7 +1212,7 @@ public:
 
   void free_items();
   /* Close the active state associated with execution of this statement */
-  virtual void cleanup_stmt();
+  virtual void cleanup_stmt(bool /*restore_set_statement_vars*/);
 };
 
 

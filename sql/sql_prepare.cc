@@ -201,7 +201,7 @@ public:
   virtual ~Prepared_statement();
   void setup_set_params();
   virtual Query_arena::Type type() const;
-  virtual void cleanup_stmt();
+  virtual void cleanup_stmt(bool restore_set_statement_vars);
   bool set_name(const LEX_CSTRING *name);
   inline void close_cursor() { delete cursor; cursor= 0; }
   inline bool is_in_use() { return flags & (uint) IS_IN_USE; }
@@ -4193,11 +4193,14 @@ Query_arena::Type Prepared_statement::type() const
 }
 
 
-void Prepared_statement::cleanup_stmt()
+void Prepared_statement::cleanup_stmt(bool restore_set_statement_vars)
 {
   DBUG_ENTER("Prepared_statement::cleanup_stmt");
   DBUG_PRINT("enter",("stmt: %p", this));
-  lex->restore_set_statement_var();
+
+  if (restore_set_statement_vars)
+    lex->restore_set_statement_var();
+
   thd->rollback_item_tree_changes();
   cleanup_items(free_list);
   thd->cleanup_after_query();
@@ -4406,12 +4409,6 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
     lex->context_analysis_only&= ~CONTEXT_ANALYSIS_ONLY_PREPARE;
   }
 
-  /*
-    Restore original values of variables modified on handling
-    SET STATEMENT clause.
-  */
-  thd->lex->restore_set_statement_var();
-
   /* The order is important */
   lex->unit.cleanup();
 
@@ -4440,7 +4437,12 @@ bool Prepared_statement::prepare(const char *packet, uint packet_len)
   if (lex->sql_command != SQLCOM_SET_OPTION)
     lex_unlock_plugins(lex);
 
-  cleanup_stmt();
+  /*
+    Pass the value true to restore original values of variables modified
+    on handling SET STATEMENT clause.
+  */
+  cleanup_stmt(true);
+
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= old_stmt_arena;
   thd->cur_stmt= save_cur_stmt;
@@ -5159,6 +5161,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
                              (char *) thd->security_ctx->host_or_ip, 1);
       error= mysql_execute_command(thd, true);
       MYSQL_QUERY_EXEC_DONE(error);
+      thd->update_server_status();
     }
     else
     {
@@ -5184,8 +5187,47 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   DBUG_ASSERT(! (error && cursor));
 
   if (! cursor)
-    cleanup_stmt();
-  
+    /*
+      Pass the value false to don't restore set statement variables.
+      See the next comment block for more details.
+    */
+    cleanup_stmt(false);
+
+  /*
+    Log the statement to slow query log if it passes filtering.
+    We do it here for prepared statements despite of the fact that the function
+    log_slow_statement() is also called upper the stack from the function
+    dispatch_command(). The reason for logging slow queries here is that
+    the function log_slow_statement() must be called before restoring system
+    variables that could be set on execution of SET STATEMENT clause. Since
+    for prepared statement restoring of system variables set on execution of
+    SET STATEMENT clause is performed on return from the method
+    Prepared_statement::execute(), by the time the function log_slow_statement()
+    be invoked from the function dispatch_command() all variables set by
+    the SET STATEMEN clause would be already reset to their original values
+    that break semantic of the SET STATEMENT clause.
+
+    E.g., lets consider the following statements
+      SET slow_query_log= 1;
+      SET @@long_query_time=0.01;
+      PREPARE stmt FROM 'set statement slow_query_log=0 for select sleep(0.1)';
+      EXECUTE stmt;
+
+    It's expected that the above statements don't write any record
+    to slow query log since the system variable slow_query_log is set to 0
+    during execution of the whole statement
+      'set statement slow_query_log=0 for select sleep(0.1)'
+
+    However, if the function log_slow_statement wasn't called here the record
+    for the statement would be written to slow query log since the variable
+    slow_query_log is restored to its original value by the time the function
+    log_slow_statement is called from disptach_command() to write a record
+    into slow query log.
+  */
+  log_slow_statement(thd);
+
+  lex->restore_set_statement_var();
+
   /*
     EXECUTE command has its own dummy "explain data". We don't need it,
     instead, we want to keep the query plan of the statement that was 
