@@ -631,6 +631,8 @@ ALTER TABLE event ADD body_utf8 longblob DEFAULT NULL
                       AFTER db_collation;
 ALTER TABLE event MODIFY body_utf8 longblob DEFAULT NULL;
 
+alter table event MODIFY definer varchar(384) collate utf8_bin NOT NULL DEFAULT '';
+
 # Enable event scheduler if the event table was not up to date before.
 set global event_scheduler=original;
 
@@ -746,7 +748,6 @@ alter table tables_priv  modify User         char(128)  binary not null default 
 alter table columns_priv modify User         char(128)  binary not null default '';
 alter table procs_priv   modify User         char(128)  binary not null default '';
 alter table proc         modify definer      varchar(384) collate utf8_bin not null default '';
-alter table event        modify definer      varchar(384) collate utf8_bin not null default '';
 alter table proxies_priv modify User         char(128)  COLLATE utf8_bin not null default '';
 alter table proxies_priv modify Proxied_user char(128)  COLLATE utf8_bin not null default '';
 alter table proxies_priv modify Grantor      varchar(384) COLLATE utf8_bin not null default '';
