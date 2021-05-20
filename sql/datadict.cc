@@ -151,7 +151,7 @@ Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
     }
   }
 
-cont:
+cont: __attribute__((unused));
   /* read the true engine name */
   {
     MY_STAT state;
