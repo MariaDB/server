@@ -63,7 +63,7 @@ my $cmd;
 if ($opt_purge)
 {
   $cmd= "find . -name '*.da' -o -name '*.gcda' -o -name '*.gcov' -o ".
-               "-name '*.dgcov' | grep -v 'README\.gcov' | xargs rm -f ''";
+               "-name '*.dgcov' | xargs rm -f ''";
   logv "Running: $cmd";
   system($cmd)==0 or die "system($cmd): $? $!";
   exit 0;

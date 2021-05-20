@@ -85,6 +85,9 @@
 #undef SAFE_MUTEX
 #include <m_string.h>
 #include <errno.h>
+#ifdef HAVE_gcov
+extern void __gcov_flush();
+#endif
 
 #ifndef DBUG_OFF
 
@@ -2209,6 +2212,9 @@ void _db_suicide_()
 
   fprintf(stderr, "SIGKILL myself\n");
   fflush(stderr);
+#ifdef HAVE_gcov
+  __gcov_flush();
+#endif
 
   retval= kill(getpid(), SIGKILL);
   assert(retval == 0);
@@ -2253,7 +2259,13 @@ my_bool _db_my_assert(const char *file, int line, const char *msg)
   my_bool a = my_assert;
   _db_flush_();
   if (!a)
+  {
     fprintf(stderr, "%s:%d: assert: %s\n", file, line, msg);
+    fflush(stderr);
+#ifdef HAVE_gcov
+    __gcov_flush();
+#endif
+  }
   return a;
 }
 #else
