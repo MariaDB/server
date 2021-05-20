@@ -70,6 +70,9 @@ static struct my_option long_options[] =
   {"delimiter", 0, "Treat the specified characters as delimiters.",
     &opt.m_delimiter, &opt.m_delimiter, 0, GET_STR, REQUIRED_ARG,
     0, 0, 0, 0, 0, 0},
+  {"character-sets-dir", OPT_CHARSETS_DIR,
+   "Directory for character set files.", &charsets_dir,
+   &charsets_dir, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {0, 0, 0, 0, 0, 0, GET_NO_ARG, NO_ARG, 0, 0, 0, 0, 0, 0}
 };
 

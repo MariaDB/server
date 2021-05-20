@@ -2121,7 +2121,7 @@ sub environment_setup {
   $ENV{'EXE_MYSQL'}=                $exe_mysql;
   $ENV{'MYSQL_PLUGIN'}=             $exe_mysql_plugin;
   $ENV{'MYSQL_EMBEDDED'}=           $exe_mysql_embedded;
-  $ENV{'MARIADB_CONV'}=             $exe_mariadb_conv;
+  $ENV{'MARIADB_CONV'}=             "$exe_mariadb_conv --character-sets-dir=$path_charsetsdir";
   if(IS_WINDOWS)
   {
      $ENV{'MYSQL_INSTALL_DB_EXE'}=  mtr_exe_exists("$bindir/sql$opt_vs_config/mysql_install_db",
