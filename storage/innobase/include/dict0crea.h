@@ -117,15 +117,6 @@ dict_create_index_tree_in_mem(
 	dict_index_t*	index,		/*!< in/out: index */
 	const trx_t*	trx);		/*!< in: InnoDB transaction handle */
 
-/****************************************************************//**
-Creates the foreign key constraints system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_foreign_constraint_tables(void);
-/*================================================*/
-
 /********************************************************************//**
 Generate a foreign key constraint name when it was not named by the user.
 A generated constraint has a name of the format dbname/tablename_ibfk_NUMBER,
@@ -170,13 +161,6 @@ bool
 dict_foreigns_has_s_base_col(
 	const dict_foreign_set&	local_fk_set,
 	const dict_table_t*	table);
-
-/** Creates the virtual column system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_sys_virtual();
 
 /********************************************************************//**
 Add a foreign key definition to the data dictionary tables.

@@ -964,7 +964,7 @@ public:
   }
 
   /** @return whether the table has lock on
-  mysql.innodb_table_stats and mysql.innodb_index_stats */
+  mysql.innodb_table_stats or mysql.innodb_index_stats */
   bool has_stats_table_lock() const;
 
   /** Free the memory to trx_pools */

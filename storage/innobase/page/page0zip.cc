@@ -1652,8 +1652,8 @@ page_zip_fields_decode(
 		return(NULL);
 	}
 
-	table = dict_mem_table_create("ZIP_DUMMY", NULL, n, 0,
-				      DICT_TF_COMPACT, 0);
+	table = dict_table_t::create({C_STRING_WITH_LEN("ZIP_DUMMY")},
+				     nullptr, n, 0, DICT_TF_COMPACT, 0);
 	index = dict_mem_index_create(table, "ZIP_DUMMY", 0, n);
 	index->n_uniq = static_cast<unsigned>(n) & dict_index_t::MAX_N_FIELDS;
 	/* avoid ut_ad(index->cached) in dict_index_get_n_unique_in_tree */

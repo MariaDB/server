@@ -1373,23 +1373,48 @@ class dict_sys_t
   FIXME: merge the mutex and the latch, once MDEV-23484 has been fixed */
   mysql_mutex_t mutex;
 public:
-	hash_table_t	table_hash;	/*!< hash table of the tables, based
-					on name */
-	/** hash table of persistent table IDs */
-	hash_table_t	table_id_hash;
-	dict_table_t*	sys_tables;	/*!< SYS_TABLES table */
-	dict_table_t*	sys_columns;	/*!< SYS_COLUMNS table */
-	dict_table_t*	sys_indexes;	/*!< SYS_INDEXES table */
-	dict_table_t*	sys_fields;	/*!< SYS_FIELDS table */
-	dict_table_t*	sys_virtual;	/*!< SYS_VIRTUAL table */
+  /** Indexes of SYS_TABLE[] */
+  enum
+  {
+    SYS_TABLES= 0,
+    SYS_INDEXES,
+    SYS_COLUMNS,
+    SYS_FIELDS,
+    SYS_FOREIGN,
+    SYS_FOREIGN_COLS,
+    SYS_VIRTUAL
+  };
+  /** System table names */
+  static const span<const char> SYS_TABLE[];
 
-	/*=============================*/
-	UT_LIST_BASE_NODE_T(dict_table_t)
-			table_LRU;	/*!< List of tables that can be evicted
-					from the cache */
-	UT_LIST_BASE_NODE_T(dict_table_t)
-			table_non_LRU;	/*!< List of tables that can't be
-					evicted from the cache */
+  /** all tables (persistent and temporary), hashed by name */
+  hash_table_t table_hash;
+  /** hash table of persistent table IDs */
+  hash_table_t table_id_hash;
+
+  /** the SYS_TABLES table */
+  dict_table_t *sys_tables;
+  /** the SYS_COLUMNS table */
+  dict_table_t *sys_columns;
+  /** the SYS_INDEXES table */
+  dict_table_t *sys_indexes;
+  /** the SYS_FIELDS table */
+  dict_table_t *sys_fields;
+  /** the SYS_FOREIGN table */
+  dict_table_t *sys_foreign;
+  /** the SYS_FOREIGN_COLS table */
+  dict_table_t *sys_foreign_cols;
+  /** the SYS_VIRTUAL table */
+  dict_table_t *sys_virtual;
+
+  /** @return whether all non-hard-coded system tables exist */
+  bool sys_tables_exist() const
+  { return UNIV_LIKELY(sys_foreign && sys_foreign_cols && sys_virtual); }
+
+  /** list of persistent tables that can be evicted */
+  UT_LIST_BASE_NODE_T(dict_table_t) table_LRU;
+  /** list of persistent tables that cannot be evicted */
+  UT_LIST_BASE_NODE_T(dict_table_t) table_non_LRU;
 
 private:
   bool m_initialised= false;
@@ -1418,46 +1443,47 @@ public:
     row_id= ut_uint64_align_up(id, ROW_ID_WRITE_MARGIN) + ROW_ID_WRITE_MARGIN;
   }
 
-	/** @return a new temporary table ID */
-	table_id_t get_temporary_table_id() {
-		return temp_table_id.fetch_add(1, std::memory_order_relaxed);
-	}
+  /** @return a new temporary table ID */
+  table_id_t acquire_temporary_table_id()
+  {
+    return temp_table_id.fetch_add(1, std::memory_order_relaxed);
+  }
 
-	/** Look up a temporary table.
-	@param id	temporary table ID
-	@return	temporary table
-	@retval	NULL	if the table does not exist
-	(should only happen during the rollback of CREATE...SELECT) */
-	dict_table_t* get_temporary_table(table_id_t id)
-	{
-		mysql_mutex_assert_owner(&mutex);
-		dict_table_t* table;
-		ulint fold = ut_fold_ull(id);
-		HASH_SEARCH(id_hash, &temp_id_hash, fold, dict_table_t*, table,
-			    ut_ad(table->cached), table->id == id);
-		if (UNIV_LIKELY(table != NULL)) {
-			DBUG_ASSERT(table->is_temporary());
-			DBUG_ASSERT(table->id >= DICT_HDR_FIRST_ID);
-			table->acquire();
-		}
-		return table;
-	}
+  /** Look up a temporary table.
+  @param id        temporary table ID
+  @return          temporary table
+  @retval nullptr  if the table does not exist
+  (should only happen during the rollback of CREATE...SELECT) */
+  dict_table_t *acquire_temporary_table(table_id_t id)
+  {
+    mysql_mutex_assert_owner(&mutex);
+    dict_table_t *table;
+    ulint fold = ut_fold_ull(id);
+    HASH_SEARCH(id_hash, &temp_id_hash, fold, dict_table_t*, table,
+                ut_ad(table->cached), table->id == id);
+    if (UNIV_LIKELY(table != nullptr))
+    {
+      DBUG_ASSERT(table->is_temporary());
+      DBUG_ASSERT(table->id >= DICT_HDR_FIRST_ID);
+      table->acquire();
+    }
+    return table;
+  }
 
-	/** Look up a persistent table.
-	@param id	table ID
-	@return	table
-	@retval	NULL	if not cached */
-	dict_table_t* get_table(table_id_t id)
-	{
-		mysql_mutex_assert_owner(&mutex);
-		dict_table_t* table;
-		ulint fold = ut_fold_ull(id);
-		HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*,
-			    table,
-			    ut_ad(table->cached), table->id == id);
-		DBUG_ASSERT(!table || !table->is_temporary());
-		return table;
-	}
+  /** Look up a persistent table.
+  @param id     table ID
+  @return table
+  @retval nullptr if not cached */
+  dict_table_t *find_table(table_id_t id)
+  {
+    mysql_mutex_assert_owner(&mutex);
+    dict_table_t *table;
+    ulint fold = ut_fold_ull(id);
+    HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*, table,
+                ut_ad(table->cached), table->id == id);
+    DBUG_ASSERT(!table || !table->is_temporary());
+    return table;
+  }
 
   bool is_initialised() const { return m_initialised; }
 
@@ -1480,14 +1506,13 @@ public:
 
 #ifdef UNIV_DEBUG
   /** Find a table */
-  template <bool in_lru> bool find(dict_table_t* table)
+  template <bool in_lru> bool find(const dict_table_t *table)
   {
     ut_ad(table);
     ut_ad(table->can_be_evicted == in_lru);
     mysql_mutex_assert_owner(&mutex);
-    for (const dict_table_t* t = UT_LIST_GET_FIRST(in_lru
-					     ? table_LRU : table_non_LRU);
-	 t; t = UT_LIST_GET_NEXT(table_LRU, t))
+    for (const dict_table_t* t= in_lru ? table_LRU.start : table_non_LRU.start;
+         t; t = UT_LIST_GET_NEXT(table_LRU, t))
     {
       if (t == table) return true;
       ut_ad(t->can_be_evicted == in_lru);
@@ -1495,25 +1520,25 @@ public:
     return false;
   }
   /** Find a table */
-  bool find(dict_table_t* table)
+  bool find(const dict_table_t *table)
   {
     return table->can_be_evicted ? find<true>(table) : find<false>(table);
   }
 #endif
 
   /** Move a table to the non-LRU list from the LRU list. */
-  void prevent_eviction(dict_table_t* table)
+  void prevent_eviction(dict_table_t *table)
   {
     ut_ad(find(table));
     if (table->can_be_evicted)
     {
-      table->can_be_evicted = FALSE;
+      table->can_be_evicted= false;
       UT_LIST_REMOVE(table_LRU, table);
       UT_LIST_ADD_LAST(table_non_LRU, table);
     }
   }
   /** Acquire a reference to a cached table. */
-  inline void acquire(dict_table_t* table);
+  inline void acquire(dict_table_t *table);
 
   /** Assert that the mutex is locked */
   void assert_locked() const { mysql_mutex_assert_owner(&mutex); }
@@ -1573,8 +1598,8 @@ public:
       + (sizeof(dict_col_t) + sizeof(dict_field_t)) * 10
       + sizeof(dict_field_t) * 5 /* total number of key fields */
       + 200; /* arbitrary, covering names and overhead */
-    size += (table_hash.n_cells + table_id_hash.n_cells
-	     + temp_id_hash.n_cells) * sizeof(hash_cell_t);
+    size += (table_hash.n_cells + table_id_hash.n_cells +
+             temp_id_hash.n_cells) * sizeof(hash_cell_t);
     return size;
   }
 
@@ -1582,12 +1607,43 @@ public:
   @param half whether to consider half the tables only (instead of all)
   @return number of tables evicted */
   ulint evict_table_LRU(bool half);
+
+  /** Look up a table in the dictionary cache.
+  @param name   table name
+  @return table handle
+  @retval nullptr if not found */
+  dict_table_t *find_table(const span<const char> &name) const
+  {
+    assert_locked();
+    for (dict_table_t *table= static_cast<dict_table_t*>
+         (HASH_GET_FIRST(&table_hash, table_hash.calc_hash
+                         (ut_fold_binary(reinterpret_cast<const byte*>
+                                         (name.data()), name.size()))));
+         table; table= table->name_hash)
+      if (strlen(table->name.m_name) == name.size() &&
+          !memcmp(table->name.m_name, name.data(), name.size()))
+        return table;
+    return nullptr;
+  }
+
+  /** Look up or load a table definition
+  @param name   table name
+  @param ignore errors to ignore when loading the table definition
+  @return table handle
+  @retval nullptr if not found */
+  dict_table_t *load_table(const span<const char> &name,
+                           dict_err_ignore_t ignore= DICT_ERR_IGNORE_NONE);
+
+  /** Attempt to load the system tables on startup
+  @return whether any discrepancy with the expected definition was found */
+  bool load_sys_tables();
+  /** Create or check system tables on startup */
+  dberr_t create_or_check_sys_tables();
 };
 
 /** the data dictionary cache */
 extern dict_sys_t	dict_sys;
 
-#define dict_table_prevent_eviction(table) dict_sys.prevent_eviction(table)
 #define dict_sys_lock() dict_sys.lock(SRW_LOCK_CALL)
 #define dict_sys_unlock() dict_sys.unlock()
 

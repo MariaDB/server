@@ -51,9 +51,9 @@ extern uint	ibuf_debug;
 #include "buf0buf.h"
 #include "data0type.h"
 #include "dict0boot.h"
+#include "dict0load.h"
 #include "dict0crea.h"
 #include "dict0mem.h"
-#include "dict0priv.h"
 #include "dict0stats.h"
 #include "fts0fts.h"
 #include "fts0types.h"
@@ -79,6 +79,15 @@ extern uint	ibuf_debug;
 
 /** the dictionary system */
 dict_sys_t	dict_sys;
+
+/** System table names; @see dict_system_id_t */
+const span<const char> dict_sys_t::SYS_TABLE[]=
+{
+  {C_STRING_WITH_LEN("SYS_TABLES")},{C_STRING_WITH_LEN("SYS_INDEXES")},
+  {C_STRING_WITH_LEN("SYS_COLUMNS")},{C_STRING_WITH_LEN("SYS_FIELDS")},
+  {C_STRING_WITH_LEN("SYS_FOREIGN")},{C_STRING_WITH_LEN("SYS_FOREIGN_COLS")},
+  {C_STRING_WITH_LEN("SYS_VIRTUAL")}
+};
 
 /** Diagnostic message for exceeding the mutex_lock_wait() timeout */
 const char dict_sys_t::fatal_msg[]=
@@ -216,7 +225,7 @@ static dict_table_t* dict_table_open_on_id_low(
 	dict_err_ignore_t	ignore_err,
 	bool			cached_only)
 {
-	dict_table_t* table = dict_sys.get_table(table_id);
+	dict_table_t* table = dict_sys.find_table(table_id);
 
 	if (!table && !cached_only) {
 		table = dict_load_table_on_id(table_id, ignore_err);
@@ -1097,17 +1106,11 @@ dict_table_open_on_name(
 	}
 
 	ut_ad(table_name);
-	dict_sys.assert_locked();
+	table = dict_sys.load_table({table_name, strlen(table_name)},
+				    ignore_err);
 
-	table = dict_table_check_if_in_cache_low(table_name);
-
-	if (table == NULL) {
-		table = dict_load_table(table_name, ignore_err);
-	}
-
-	ut_ad(!table || table->cached);
-
-	if (table != NULL) {
+	if (table) {
+		ut_ad(table->cached);
 
 		/* If table is encrypted or corrupted */
 		if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY)
@@ -2984,11 +2987,13 @@ dict_foreign_add_to_cache(
 
 	dict_sys.assert_locked();
 
-	for_table = dict_table_check_if_in_cache_low(
-		foreign->foreign_table_name_lookup);
+	for_table = dict_sys.find_table(
+		{foreign->foreign_table_name_lookup,
+		 strlen(foreign->foreign_table_name_lookup)});
 
-	ref_table = dict_table_check_if_in_cache_low(
-		foreign->referenced_table_name_lookup);
+	ref_table = dict_sys.find_table(
+		{foreign->referenced_table_name_lookup,
+		 strlen(foreign->referenced_table_name_lookup)});
 	ut_a(for_table || ref_table);
 
 	if (for_table) {
@@ -3384,8 +3389,8 @@ dict_get_referenced_table(
 	}
 
 	/* Copy database_name, '/', table_name, '\0' */
-	ref = static_cast<char*>(mem_heap_alloc(
-		heap, database_name_len + table_name_len + 2));
+	const size_t len = database_name_len + table_name_len + 1;
+	ref = static_cast<char*>(mem_heap_alloc(heap, len + 1));
 	memcpy(ref, database_name, database_name_len);
 	ref[database_name_len] = '/';
 	memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
@@ -3395,7 +3400,7 @@ dict_get_referenced_table(
 	            2 = Store as given, compare in lower; case semi-sensitive */
 	if (lower_case_table_names == 2) {
 		innobase_casedn_str(ref);
-		*table = dict_table_get_low(ref);
+		*table = dict_sys.load_table({ref, len});
 		memcpy(ref, database_name, database_name_len);
 		ref[database_name_len] = '/';
 		memcpy(ref + database_name_len + 1, table_name, table_name_len + 1);
@@ -3408,7 +3413,7 @@ dict_get_referenced_table(
 #else
 		innobase_casedn_str(ref);
 #endif /* !_WIN32 */
-		*table = dict_table_get_low(ref);
+		*table = dict_sys.load_table({ref, len});
 	}
 
 	return(ref);
@@ -5030,10 +5035,4 @@ dict_tf_to_row_format_string(
 
 	ut_error;
 	return(0);
-}
-
-bool dict_table_t::is_stats_table() const
-{
-  return !strcmp(name.m_name, TABLE_STATS_NAME) ||
-         !strcmp(name.m_name, INDEX_STATS_NAME);
 }

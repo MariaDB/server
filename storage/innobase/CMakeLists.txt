@@ -115,8 +115,6 @@ SET(INNOBASE_SOURCES
 	include/dict0mem.ic
 	include/dict0pagecompress.h
 	include/dict0pagecompress.ic
-	include/dict0priv.h
-	include/dict0priv.ic
 	include/dict0stats.h
 	include/dict0stats.ic
 	include/dict0stats_bg.h

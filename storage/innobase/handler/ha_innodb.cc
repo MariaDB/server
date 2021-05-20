@@ -80,7 +80,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "btr0defragment.h"
 #include "dict0crea.h"
 #include "dict0dict.h"
-#include "dict0priv.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "fil0fil.h"
@@ -148,7 +147,6 @@ void close_thread_tables(THD* thd);
 #include <sstream>
 
 #ifdef WITH_WSREP
-#include "dict0priv.h"
 #include <mysql/service_md5.h>
 #include "wsrep_sst.h"
 #endif /* WITH_WSREP */
@@ -1277,7 +1275,7 @@ static ibool innodb_drop_database_ignore_fk(void*,void*) { return false; }
 struct innodb_drop_database_fk_report
 {
   /** database name, with trailing '/' */
-  const st_::span<char> name;
+  const span<const char> name;
   /** whether errors were found */
   bool violated;
 };
@@ -9798,8 +9796,11 @@ wsrep_append_foreign_key(
 
 		if (referenced) {
 			foreign->referenced_table =
-				dict_table_get_low(
-					foreign->referenced_table_name_lookup);
+				dict_sys.load_table(
+					{foreign->referenced_table_name_lookup,
+					 strlen(foreign->
+						referenced_table_name_lookup)
+					});
 			if (foreign->referenced_table) {
 				foreign->referenced_index =
 					dict_foreign_find_index(
@@ -9811,8 +9812,10 @@ wsrep_append_foreign_key(
 			}
 		} else {
 	  		foreign->foreign_table =
-				dict_table_get_low(
-					foreign->foreign_table_name_lookup);
+				dict_sys.load_table(
+					{foreign->foreign_table_name_lookup,
+					 strlen(foreign->
+						foreign_table_name_lookup)});
 
 			if (foreign->foreign_table) {
 				foreign->foreign_index =
@@ -10478,8 +10481,8 @@ create_table_info_t::create_table_def()
 	const ulint actual_n_cols = n_cols
 		+ (m_flags2 & DICT_TF2_FTS && !has_doc_id_col);
 
-	table = dict_mem_table_create(m_table_name, NULL,
-				      actual_n_cols, num_v, m_flags, m_flags2);
+	table = dict_table_t::create({m_table_name,table_name_len}, nullptr,
+				     actual_n_cols, num_v, m_flags, m_flags2);
 
 	/* Set the hidden doc_id column. */
 	if (m_flags2 & DICT_TF2_FTS) {
@@ -10696,7 +10699,7 @@ err_col:
 					    "temporary table creation.");
 		}
 
-		table->id = dict_sys.get_temporary_table_id();
+		table->id = dict_sys.acquire_temporary_table_id();
 		ut_ad(dict_tf_get_rec_format(table->flags)
 		      != REC_FORMAT_COMPRESSED);
 		table->space_id = SRV_TMP_SPACE_ID;
@@ -12140,7 +12143,7 @@ create_table_info_t::create_foreign_keys()
 	ut_ad(alter_info);
 	List_iterator_fast<Key> key_it(alter_info->key_list);
 
-	dict_table_t* table = dict_table_get_low(name);
+	dict_table_t* table = dict_sys.find_table({name,strlen(name)});
 	if (!table) {
 		ib_foreign_warn(m_trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
 				"%s table %s foreign key constraint"
@@ -12630,13 +12633,12 @@ int create_table_info_t::create_table(bool create_fk)
 	if (err == DB_SUCCESS) {
 		/* Check that also referencing constraints are ok */
 		dict_names_t	fk_tables;
-		err = dict_load_foreigns(m_table_name, NULL,
-						false, true,
-						DICT_ERR_IGNORE_NONE,
-						fk_tables);
+		err = dict_load_foreigns(m_table_name, NULL, false, true,
+					 DICT_ERR_IGNORE_NONE, fk_tables);
 		while (err == DB_SUCCESS && !fk_tables.empty()) {
-			dict_load_table(fk_tables.front(),
-					DICT_ERR_IGNORE_NONE);
+			dict_sys.load_table(
+				{fk_tables.front(), strlen(fk_tables.front())},
+				DICT_ERR_IGNORE_NONE);
 			fk_tables.pop_front();
 		}
 	}

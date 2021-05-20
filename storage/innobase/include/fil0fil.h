@@ -39,7 +39,6 @@ Created 10/25/1995 Heikki Tuuri
 #include "log0recv.h"
 #include "dict0types.h"
 #include "ilist.h"
-#include "span.h"
 #include <set>
 #include <mutex>
 
@@ -1621,7 +1620,7 @@ char* fil_make_filepath(const char *path, const fil_space_t::name_type &name,
                         ib_extention ext, bool trim_name);
 
 char *fil_make_filepath(const char* path, const table_name_t name,
-                        ib_extention ext, bool trim_name);
+                        ib_extention suffix, bool strip_name);
 
 /** Create a tablespace file.
 @param[in]	space_id	Tablespace ID
@@ -1677,7 +1676,7 @@ statement to update the dictionary tables if they are incorrect.
 @param[in]	purpose		FIL_TYPE_TABLESPACE or FIL_TYPE_TEMPORARY
 @param[in]	id		tablespace ID
 @param[in]	flags		expected FSP_SPACE_FLAGS
-@param[in]	tablename	table name
+@param[in]	name		table name
 If file-per-table, it is the table name in the databasename/tablename format
 @param[in]	path_in		expected filepath, usually read from dictionary
 @param[out]	err		DB_SUCCESS or error code
@@ -1689,7 +1688,7 @@ fil_ibd_open(
 	fil_type_t		purpose,
 	ulint			id,
 	ulint			flags,
-	const table_name_t	tablename,
+	fil_space_t::name_type	name,
 	const char*		path_in,
 	dberr_t*		err = NULL)
 	MY_ATTRIBUTE((warn_unused_result));

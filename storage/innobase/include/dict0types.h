@@ -28,7 +28,10 @@ Created 1/8/1996 Heikki Tuuri
 #define dict0types_h
 
 #include "univ.i"
+#include "span.h"
 #include <rem0types.h>
+
+using st_::span;
 
 struct dict_col_t;
 struct dict_field_t;

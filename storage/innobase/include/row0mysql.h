@@ -377,25 +377,17 @@ row_create_index_for_mysql(
 	fil_encryption_t mode,	/*!< in: encryption mode */
 	uint32_t	key_id)	/*!< in: encryption key_id */
 	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-The master thread in srv0srv.cc calls this regularly to drop tables which
-we must drop in background after queries to them have ended. Such lazy
-dropping of tables is needed in ALTER TABLE on Unix.
+
+/** The master task calls this regularly to drop tables which
+we must drop in background after queries to them have ended.
 @return how many tables dropped + remaining tables in list */
-ulint
-row_drop_tables_for_mysql_in_background(void);
-/*=========================================*/
-/*********************************************************************//**
-Get the background drop list length. NOTE: the caller must own the kernel
-mutex!
-@return how many tables in list */
-ulint
-row_get_background_drop_list_len_low(void);
-/*======================================*/
+ulint row_drop_tables_for_mysql_in_background();
+
+/** @return number of tables in the background drop list */
+ulint row_get_background_drop_list_len_low();
 
 /** Drop garbage tables during recovery. */
-void
-row_mysql_drop_garbage_tables();
+void row_mysql_drop_garbage_tables();
 
 /*********************************************************************//**
 Sets an exclusive lock on a table.

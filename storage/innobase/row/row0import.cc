@@ -4091,7 +4091,10 @@ row_import_for_mysql(
 	ut_ad(!DICT_TF_HAS_DATA_DIR(table->flags) || table->data_dir_path);
 	const char *data_dir_path = DICT_TF_HAS_DATA_DIR(table->flags)
 		? table->data_dir_path : nullptr;
-	filepath = fil_make_filepath(data_dir_path, table->name, IBD,
+	fil_space_t::name_type name{
+		table->name.m_name, strlen(table->name.m_name)};
+
+	filepath = fil_make_filepath(data_dir_path, name, IBD,
 				     data_dir_path != nullptr);
 
 	DBUG_EXECUTE_IF(
@@ -4116,7 +4119,7 @@ row_import_for_mysql(
 
 	table->space = fil_ibd_open(
 		true, FIL_TYPE_IMPORT, table->space_id,
-		fsp_flags, table->name, filepath, &err);
+		fsp_flags, name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",

@@ -6,8 +6,8 @@
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table `mysql`\\.`innodb_table_stats` not found");
 call mtr.add_suppression("InnoDB: incorrect flags in SYS_TABLES");
-call mtr.add_suppression("InnoDB: Table `test`.`t[cp]` in InnoDB data dictionary contains invalid flags\\. SYS_TABLES\\.TYPE=(129|289|3873|1232[31]) SYS_TABLES\\.N_COLS=2147483649\\r?$");
-call mtr.add_suppression("InnoDB: Table `test`\\.`tr` in InnoDB data dictionary contains invalid flags\\. SYS_TABLES\\.TYPE=65 SYS_TABLES\\.MIX_LEN=4294967295\\r?$");
+call mtr.add_suppression("InnoDB: Table test/t[cp] in InnoDB data dictionary contains invalid flags\\. SYS_TABLES\\.TYPE=(129|289|3873|1232[31]) SYS_TABLES\\.N_COLS=2147483649\\r?$");
+call mtr.add_suppression("InnoDB: Table test/tr in InnoDB data dictionary contains invalid flags\\. SYS_TABLES\\.TYPE=65 SYS_TABLES\\.MIX_LEN=4294967295\\r?$");
 call mtr.add_suppression("InnoDB: Refusing to load '\\..test.td\\.ibd' \\(id=3, flags=0x([2e]1)\\); dictionary contains id=3, flags=0x100\\1\\r?$");
 call mtr.add_suppression("InnoDB: Refusing to load '\\..test.td\\.ibd' \\(id=3, flags=0x(1[2ae]1)\\); dictionary contains id=3, flags=0x10\\1\\r?$");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`.`td` because it could not be opened\\.");
@@ -170,9 +170,9 @@ SHOW CREATE TABLE tp;
 --source include/shutdown_mysqld.inc
 
 let SEARCH_FILE= $MYSQLTEST_VARDIR/log/mysqld.1.err;
---let SEARCH_PATTERN= InnoDB: Table `test`.`t[cp]` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649
+--let SEARCH_PATTERN= InnoDB: Table test/t[cp] in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649
 --source include/search_pattern_in_file.inc
---let SEARCH_PATTERN= InnoDB: Table `test`\.`tr` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=65 SYS_TABLES\.MIX_LEN=4294967295\b
+--let SEARCH_PATTERN= InnoDB: Table test/tr in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=65 SYS_TABLES\.MIX_LEN=4294967295\b
 --source include/search_pattern_in_file.inc
 
 # Restore the backup of the corrupted SYS_TABLES clustered index root page

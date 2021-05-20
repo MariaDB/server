@@ -25,7 +25,6 @@ Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
 #include "dict0stats.h"
-#include "dict0priv.h"
 #include "ut0ut.h"
 #include "ut0rnd.h"
 #include "dyn0buf.h"
@@ -143,6 +142,20 @@ typedef ut_allocator<std::pair<const char* const, dict_index_t*> >
 typedef std::map<const char*, dict_index_t*, ut_strcmp_functor,
 		index_map_t_allocator>	index_map_t;
 
+inline bool dict_table_t::is_stats_table() const
+{
+  return !strcmp(name.m_name, TABLE_STATS_NAME) ||
+         !strcmp(name.m_name, INDEX_STATS_NAME);
+}
+
+bool trx_t::has_stats_table_lock() const
+{
+  for (const lock_t *l : lock.table_locks)
+    if (l && l->un_member.tab_lock.table->is_stats_table())
+      return true;
+  return false;
+}
+
 /*********************************************************************//**
 Checks whether an index should be ignored in stats manipulations:
 * stats fetch
@@ -179,7 +192,7 @@ struct dict_col_meta_t
 struct dict_table_schema_t
 {
   /** table name */
-  const char *table_name;
+  span<const char> table_name;
   /** table name in SQL */
   const char *table_name_sql;
   /** number of columns */
@@ -190,7 +203,7 @@ struct dict_table_schema_t
 
 static const dict_table_schema_t table_stats_schema =
 {
-  TABLE_STATS_NAME, TABLE_STATS_NAME_PRINT, 6,
+  {C_STRING_WITH_LEN(TABLE_STATS_NAME)}, TABLE_STATS_NAME_PRINT, 6,
   {
     {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
     {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
@@ -203,7 +216,7 @@ static const dict_table_schema_t table_stats_schema =
 
 static const dict_table_schema_t index_stats_schema =
 {
-  INDEX_STATS_NAME, INDEX_STATS_NAME_PRINT, 8,
+  {C_STRING_WITH_LEN(INDEX_STATS_NAME)}, INDEX_STATS_NAME_PRINT, 8,
   {
     {"database_name", DATA_VARMYSQL, DATA_NOT_NULL, 192},
     {"table_name", DATA_VARMYSQL, DATA_NOT_NULL, 597},
@@ -327,7 +340,7 @@ dict_table_schema_check(
 						returned */
 	size_t			errstr_sz)	/*!< in: errstr size */
 {
-	const dict_table_t* table = dict_table_get_low(req_schema->table_name);
+	const dict_table_t* table= dict_sys.load_table(req_schema->table_name);
 
 	if (!table) {
 		if (req_schema == &table_stats_schema) {

@@ -4,7 +4,7 @@
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Table `mysql`\\.`innodb_table_stats` not found");
-call mtr.add_suppression("InnoDB: Table `test`.`t1` in InnoDB data dictionary contains invalid flags. SYS_TABLES\\.TYPE=1 SYS_TABLES\\.MIX_LEN=511\\r?$");
+call mtr.add_suppression("InnoDB: Table test/t1 in InnoDB data dictionary contains invalid flags. SYS_TABLES\\.TYPE=1 SYS_TABLES\\.MIX_LEN=511\\r?$");
 call mtr.add_suppression("InnoDB: Parent table of FTS auxiliary table test/FTS_.* not found");
 call mtr.add_suppression("InnoDB: Cannot open table test/t1 from the internal data dictionary");
 call mtr.add_suppression("InnoDB: Table `test`.`t1` does not exist in the InnoDB internal data dictionary though MariaDB is trying to (rename|drop)");
@@ -153,7 +153,7 @@ RENAME TABLE t1 TO tee_one;
 DROP TABLE t1;
 DROP TABLE t2,t3;
 
---let SEARCH_PATTERN= \[ERROR\] InnoDB: Table `test`\.`t1` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b
+--let SEARCH_PATTERN= \[ERROR\] InnoDB: Table test/t1 in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=1 SYS_TABLES\.MIX_LEN=511\b
 --source include/search_pattern_in_file.inc
 
 --let $restart_parameters=

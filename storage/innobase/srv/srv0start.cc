@@ -1454,6 +1454,7 @@ file_checked:
 			if (srv_operation == SRV_OPERATION_RESTORE) {
 				break;
 			}
+			dict_sys.load_sys_tables();
 			trx_lists_init_at_db_start();
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
@@ -1796,11 +1797,7 @@ skip_monitors:
 		}
 	}
 
-	/* Create the SYS_FOREIGN and SYS_FOREIGN_COLS system tables */
-	err = dict_create_or_check_foreign_constraint_tables();
-	if (err == DB_SUCCESS) {
-		err = dict_create_or_check_sys_virtual();
-	}
+	err = dict_sys.create_or_check_sys_tables();
 	switch (err) {
 	case DB_SUCCESS:
 		break;

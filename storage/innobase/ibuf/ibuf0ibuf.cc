@@ -455,8 +455,9 @@ ibuf_init_at_db_start(void)
 	mtr.commit();
 
 	ibuf.index = dict_mem_index_create(
-		dict_mem_table_create("innodb_change_buffer",
-				      fil_system.sys_space, 1, 0, 0, 0),
+		dict_table_t::create(
+			{C_STRING_WITH_LEN("innodb_change_buffer")},
+			fil_system.sys_space, 1, 0, 0, 0),
 		"CLUST_IND",
 		DICT_CLUSTERED | DICT_IBUF, 1);
 	ibuf.index->id = DICT_IBUF_ID_MIN + IBUF_SPACE_ID;
@@ -1266,8 +1267,9 @@ ibuf_dummy_index_create(
 	dict_table_t*	table;
 	dict_index_t*	index;
 
-	table = dict_mem_table_create("IBUF_DUMMY", NULL, n, 0,
-				      comp ? DICT_TF_COMPACT : 0, 0);
+	table = dict_table_t::create({C_STRING_WITH_LEN("IBUF_DUMMY")},
+				     nullptr, n, 0,
+				     comp ? DICT_TF_COMPACT : 0, 0);
 
 	index = dict_mem_index_create(table, "IBUF_DUMMY", 0, n);
 

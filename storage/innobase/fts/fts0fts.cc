@@ -34,7 +34,6 @@ Full Text Search interface
 #include "fts0types.ic"
 #include "fts0vlc.ic"
 #include "fts0plugin.h"
-#include "dict0priv.h"
 #include "dict0stats.h"
 #include "btr0pcur.h"
 
@@ -1675,8 +1674,9 @@ fts_create_in_mem_aux_table(
 	const dict_table_t*	table,
 	ulint			n_cols)
 {
-	dict_table_t*	new_table = dict_mem_table_create(
-		aux_table_name, NULL, n_cols, 0, table->flags,
+	dict_table_t*	new_table = dict_table_t::create(
+		{aux_table_name,strlen(aux_table_name)},
+		nullptr, n_cols, 0, table->flags,
 		table->space_id == TRX_SYS_SPACE
 		? 0 : table->space_id == SRV_TMP_SPACE_ID
 		? DICT_TF2_TEMPORARY : DICT_TF2_USE_FILE_PER_TABLE);
@@ -5645,7 +5645,8 @@ fts_valid_stopword_table(
 		return(NULL);
 	}
 
-	table = dict_table_get_low(stopword_table_name);
+	table = dict_sys.load_table(
+		{stopword_table_name, strlen(stopword_table_name)});
 
 	if (!table) {
 		ib::error() << "User stopword table " << stopword_table_name

@@ -35,7 +35,7 @@ Smart ALTER TABLE
 #include "btr0sea.h"
 #include "dict0crea.h"
 #include "dict0dict.h"
-#include "dict0priv.h"
+#include "dict0load.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "log0log.h"
@@ -56,11 +56,9 @@ Smart ALTER TABLE
 #include "row0sel.h"
 #include "ha_innodb.h"
 #include "ut0stage.h"
-#include "span.h"
 #include <thread>
 #include <sstream>
 
-using st_::span;
 /** File format constraint for ALTER TABLE */
 extern ulong innodb_instant_alter_column_allowed;
 
@@ -2051,6 +2049,12 @@ ha_innobase::check_if_supported_inplace_alter(
 				ER_ALTER_OPERATION_NOT_SUPPORTED_REASON_COLUMN_TYPE);
 		}
 
+		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
+	}
+
+	if (!dict_sys.sys_tables_exist()) {
+		ha_alter_info->unsupported_reason
+			= "missing InnoDB system tables";
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
 
@@ -6397,9 +6401,9 @@ new_clustered_failed:
 
 		DBUG_ASSERT(!add_fts_doc_id_idx || (flags2 & DICT_TF2_FTS));
 
-		ctx->new_table = dict_mem_table_create(
-			new_table_name, NULL, n_cols + n_v_cols, n_v_cols,
-			flags, flags2);
+		ctx->new_table = dict_table_t::create(
+			{new_table_name, tablen + partlen}, nullptr,
+			n_cols + n_v_cols, n_v_cols, flags, flags2);
 
 		/* The rebuilt indexed_table will use the renamed
 		column names. */
@@ -6796,7 +6800,9 @@ wrong_column_name:
 			}
 		}
 
-		if (dict_table_get_low(ctx->new_table->name.m_name)) {
+		if (dict_sys.find_table(
+			    {ctx->new_table->name.m_name,
+			     strlen(ctx->new_table->name.m_name)})) {
 			my_error(ER_TABLE_EXISTS_ERROR, MYF(0),
 				 ctx->new_table->name.m_name);
 			goto new_clustered_failed;
@@ -9731,17 +9737,14 @@ innobase_update_foreign_cache(
 	/* For complete loading of foreign keys, all associated tables must
 	also be loaded. */
 	while (err == DB_SUCCESS && !fk_tables.empty()) {
-		dict_table_t*	table = dict_load_table(
-			fk_tables.front(), DICT_ERR_IGNORE_NONE);
-
-		if (table == NULL) {
+		const char *f = fk_tables.front();
+		if (!dict_sys.load_table({f, strlen(f)})) {
 			err = DB_TABLE_NOT_FOUND;
 			ib::error()
-				<< "Failed to load table '"
-				<< table_name_t(const_cast<char*>
-						(fk_tables.front()))
-				<< "' which has a foreign key constraint with"
-				<< " table '" << user_table->name << "'.";
+				<< "Failed to load table "
+				<< table_name_t(const_cast<char*>(f))
+				<< " which has a foreign key constraint with"
+				<< user_table->name;
 			break;
 		}
 

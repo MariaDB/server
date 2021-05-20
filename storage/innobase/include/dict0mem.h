@@ -28,10 +28,10 @@ Created 1/8/1996 Heikki Tuuri
 #ifndef dict0mem_h
 #define dict0mem_h
 
+#include "dict0types.h"
 #include "data0type.h"
 #include "mem0mem.h"
 #include "row0types.h"
-#include "rem0types.h"
 #include "btr0types.h"
 #include "lock0types.h"
 #include "que0types.h"
@@ -298,17 +298,6 @@ parent table will fail, and user has to drop excessive foreign constraint
 before proceeds. */
 #define FK_MAX_CASCADE_DEL		15
 
-/** Create a table memory object.
-@param name     table name
-@param space    tablespace
-@param n_cols   total number of columns (both virtual and non-virtual)
-@param n_v_cols number of virtual columns
-@param flags    table flags
-@param flags2   table flags2
-@return own: table object */
-dict_table_t *dict_mem_table_create(const char *name, fil_space_t *space,
-                                    ulint n_cols, ulint n_v_cols, ulint flags,
-                                    ulint flags2);
 /****************************************************************/ /**
  Free a table memory object. */
 void
@@ -1816,7 +1805,7 @@ typedef enum {
 } dict_frm_t;
 
 /** Data structure for a database table.  Most fields will be
-initialized to 0, NULL or FALSE in dict_mem_table_create(). */
+zero-initialized in dict_table_t::create(). */
 struct dict_table_t {
 
 	/** Get reference count.
@@ -2435,10 +2424,24 @@ public:
     return false;
   }
 
-  /** Check whether the table name is same as mysql/innodb_stats_table
-  or mysql/innodb_index_stats.
-  @return true if the table name is same as stats table */
-  bool is_stats_table() const;
+  /** @return whether the name is
+  mysql.innodb_index_stats or mysql.innodb_table_stats */
+  inline bool is_stats_table() const;
+
+  /** Create metadata.
+  @param name     table name
+  @param space    tablespace
+  @param n_cols   total number of columns (both virtual and non-virtual)
+  @param n_v_cols number of virtual columns
+  @param flags    table flags
+  @param flags2   table flags2
+  @return newly allocated table object */
+  static dict_table_t *create(const span<const char> &name, fil_space_t *space,
+                              ulint n_cols, ulint n_v_cols, ulint flags,
+                              ulint flags2);
+
+  /** @return whether SYS_TABLES.NAME is for a '#sql-ib' table */
+  static bool is_garbage_name(const void *data, size_t size);
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

@@ -428,10 +428,10 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
 		dict_sys.mutex_lock();
-		node->table = dict_sys.get_temporary_table(table_id);
+		node->table = dict_sys.acquire_temporary_table(table_id);
 		dict_sys.mutex_unlock();
 	} else {
-		node->table = dict_sys.get_temporary_table(table_id);
+		node->table = dict_sys.acquire_temporary_table(table_id);
 	}
 
 	if (!node->table) {

@@ -36,7 +36,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "dict0crea.h"
 #include "dict0dict.h"
 #include "dict0load.h"
-#include "dict0priv.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
 #include "dict0defrag_bg.h"
@@ -2321,14 +2320,18 @@ row_create_table_for_mysql(
 		ib::error() << "Trying to create a MySQL system table "
 			<< table->name << " of type InnoDB. MySQL system"
 			" tables must be of the MyISAM type!";
-#ifndef DBUG_OFF
+
 err_exit:
-#endif /* !DBUG_OFF */
 		dict_mem_table_free(table);
 
 		trx->op_info = "";
 
 		return(DB_ERROR);
+	}
+
+	if (!dict_sys.sys_tables_exist()) {
+		ib::error() << "Some InnoDB system tables are missing";
+		goto err_exit;
 	}
 
 	trx_start_if_not_started_xa(trx, true);
@@ -2622,10 +2625,8 @@ row_get_background_drop_list_len_low(void)
 }
 
 /** Drop garbage tables during recovery. */
-void
-row_mysql_drop_garbage_tables()
+void row_mysql_drop_garbage_tables()
 {
-	mem_heap_t*	heap = mem_heap_create(FN_REFLEN);
 	btr_pcur_t	pcur;
 	mtr_t		mtr;
 	trx_t*		trx = trx_create();
@@ -2641,7 +2642,6 @@ row_mysql_drop_garbage_tables()
 		const rec_t*	rec;
 		const byte*	field;
 		ulint		len;
-		const char*	table_name;
 
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
 
@@ -2655,38 +2655,37 @@ row_mysql_drop_garbage_tables()
 		}
 
 		field = rec_get_nth_field_old(rec, 0/*NAME*/, &len);
-		if (len == UNIV_SQL_NULL || len == 0) {
+		if (len == UNIV_SQL_NULL) {
 			/* Corrupted SYS_TABLES.NAME */
 			continue;
 		}
 
-		table_name = mem_heap_strdupl(
-			heap,
-			reinterpret_cast<const char*>(field), len);
-		if (strstr(table_name, "/" TEMP_FILE_PREFIX_INNODB)) {
-			btr_pcur_store_position(&pcur, &mtr);
-			btr_pcur_commit_specify_mtr(&pcur, &mtr);
-
-			if (dict_load_table(table_name,
-					    DICT_ERR_IGNORE_DROP)) {
-				row_drop_table_for_mysql(table_name, trx,
-							 SQLCOM_DROP_TABLE);
-				trx_commit_for_mysql(trx);
-			}
-
-			mtr.start();
-			btr_pcur_restore_position(BTR_SEARCH_LEAF,
-						  &pcur, &mtr);
+		if (!dict_table_t::is_garbage_name(field, len)) {
+			continue;
 		}
 
-		mem_heap_empty(heap);
+		btr_pcur_store_position(&pcur, &mtr);
+		btr_pcur_commit_specify_mtr(&pcur, &mtr);
+
+		const span<const char> name = {
+			reinterpret_cast<const char*>(pcur.old_rec), len
+		};
+		if (dict_sys.load_table(name, DICT_ERR_IGNORE_DROP)) {
+			char* table_name = mem_strdupl(name.data(), len);
+			row_drop_table_for_mysql(table_name, trx,
+						 SQLCOM_DROP_TABLE);
+			ut_free(table_name);
+			trx_commit_for_mysql(trx);
+		}
+
+		mtr.start();
+		btr_pcur_restore_position(BTR_SEARCH_LEAF, &pcur, &mtr);
 	}
 
 	btr_pcur_close(&pcur);
 	mtr.commit();
 	row_mysql_unlock_data_dictionary(trx);
 	trx->free();
-	mem_heap_free(heap);
 }
 
 /*********************************************************************//**
@@ -3160,38 +3159,6 @@ row_drop_ancillary_fts_tables(
 	return(DB_SUCCESS);
 }
 
-/** Drop a table from the memory cache as part of dropping a table.
-@param[in]	tablename	A copy of table->name. Used when table == null
-@param[in,out]	table		Table cache entry
-@param[in,out]	trx		Transaction handle
-@return error code or DB_SUCCESS */
-UNIV_INLINE
-dberr_t
-row_drop_table_from_cache(
-	const char*	tablename,
-	dict_table_t*	table,
-	trx_t*		trx)
-{
-	dberr_t	err = DB_SUCCESS;
-	ut_ad(!table->is_temporary());
-
-	/* Remove the pointer to this table object from the list
-	of modified tables by the transaction because the object
-	is going to be destroyed below. */
-	trx->mod_tables.erase(table);
-
-	dict_sys.remove(table);
-
-	if (dict_load_table(tablename, DICT_ERR_IGNORE_FK_NOKEY)) {
-		ib::error() << "Not able to remove table "
-			<< ut_get_name(trx, tablename)
-			<< " from the dictionary cache!";
-		err = DB_ERROR;
-	}
-
-	return(err);
-}
-
 /** Drop a table for MySQL.
 If the data dictionary was not already locked by the transaction,
 the transaction will be committed.  Otherwise, the data dictionary
@@ -3331,7 +3298,7 @@ row_drop_table_for_mysql(
 		}
 	}
 
-	dict_table_prevent_eviction(table);
+	dict_sys.prevent_eviction(table);
 	dict_table_close(table, TRUE, FALSE);
 
 	/* Check if the table is referenced by foreign key constraints from
@@ -3475,10 +3442,8 @@ defer:
 
 	pars_info_add_str_literal(info, "name", name);
 
-	if (sqlcom != SQLCOM_TRUNCATE
-	    && strchr(name, '/')
-	    && dict_table_get_low("SYS_FOREIGN")
-	    && dict_table_get_low("SYS_FOREIGN_COLS")) {
+	if (sqlcom != SQLCOM_TRUNCATE && strchr(name, '/')
+	    && dict_sys.sys_foreign && dict_sys.sys_foreign_cols) {
 		err = que_eval_sql(
 			info,
 			"PROCEDURE DROP_FOREIGN_PROC () IS\n"
@@ -3507,7 +3472,7 @@ defer:
 		}
 	} else {
 do_drop:
-		if (dict_table_get_low("SYS_VIRTUAL")) {
+		if (dict_sys.sys_virtual) {
 			err = que_eval_sql(
 				info,
 				"PROCEDURE DROP_VIRTUAL_PROC () IS\n"
@@ -3588,12 +3553,8 @@ do_drop:
 					    IBD,
 					    table->data_dir_path != nullptr);
 
-		/* Free the dict_table_t object. */
-		err = row_drop_table_from_cache(tablename, table, trx);
-		if (err != DB_SUCCESS) {
-			ut_free(filepath);
-			break;
-		}
+		trx->mod_tables.erase(table);
+		dict_sys.remove(table);
 
 		/* Do not attempt to drop known-to-be-missing tablespaces,
 		nor the system tablespace. */
@@ -4136,8 +4097,8 @@ row_rename_table_for_mysql(
 		dict_mem_table_fill_foreign_vcol_set(table);
 
 		while (!fk_tables.empty()) {
-			dict_load_table(fk_tables.front(),
-					DICT_ERR_IGNORE_NONE);
+			const char *f = fk_tables.front();
+			dict_sys.load_table({f, strlen(f)});
 			fk_tables.pop_front();
 		}
 

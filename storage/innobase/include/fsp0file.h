@@ -501,7 +501,7 @@ public:
 	@param name   table name
 	@return filepath()
 	@retval nullptr  if the .isl file does not exist or cannot be read */
-	const char* open_link_file(const table_name_t& name);
+	const char* open_link_file(const fil_space_t::name_type name);
 
 	/** Delete an InnoDB Symbolic Link (ISL) file. */
 	void delete_link_file(void);

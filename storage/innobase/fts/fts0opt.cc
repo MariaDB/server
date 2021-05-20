@@ -2554,7 +2554,7 @@ void fts_optimize_add_table(dict_table_t* table)
 	}
 
 	/* Make sure table with FTS index cannot be evicted */
-	dict_table_prevent_eviction(table);
+	dict_sys.prevent_eviction(table);
 
 	msg = fts_optimize_create_msg(FTS_MSG_ADD_TABLE, table);
 

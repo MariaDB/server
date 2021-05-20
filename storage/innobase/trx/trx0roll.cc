@@ -703,7 +703,6 @@ static my_bool trx_rollback_recovered_callback(rw_trx_hash_element_t *element,
   return 0;
 }
 
-
 /**
   Rollback any incomplete transactions which were encountered in crash recovery.
 

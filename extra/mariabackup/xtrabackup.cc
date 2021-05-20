@@ -71,7 +71,6 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 
 
 #include <btr0sea.h>
-#include <dict0priv.h>
 #include <lock0lock.h>
 #include <log0recv.h>
 #include <log0crypt.h>
@@ -3315,19 +3314,18 @@ static void xb_load_single_table_tablespace(const char *dirname,
 		name[pathlen - 5] = 0;
 	}
 
+	const fil_space_t::name_type n{name, pathlen - 5};
 	Datafile *file;
 
 	if (is_remote) {
 		RemoteDatafile* rf = new RemoteDatafile();
-		if (!rf->open_link_file(name)) {
+		if (!rf->open_link_file(n)) {
 			die("Can't open datafile %s", name);
 		}
 		file = rf;
 	} else {
 		file = new Datafile();
-		file->make_filepath(".",
-				    fil_space_t::name_type{name, strlen(name)},
-				    IBD);
+		file->make_filepath(".", n, IBD);
 	}
 
 	if (file->open_read_only(true) != DB_SUCCESS) {

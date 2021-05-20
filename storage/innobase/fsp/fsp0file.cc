@@ -837,7 +837,7 @@ open that file, and read the contents into m_filepath.
 @param name   table name
 @return filepath()
 @retval nullptr  if the .isl file does not exist or cannot be read */
-const char *RemoteDatafile::open_link_file(const table_name_t &name)
+const char *RemoteDatafile::open_link_file(const fil_space_t::name_type name)
 {
   if (!m_link_filepath)
     m_link_filepath= fil_make_filepath(nullptr, name, ISL, false);

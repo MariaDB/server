@@ -123,85 +123,73 @@ bool dict_col_t::same_encoding(uint16_t a, uint16_t b)
   return false;
 }
 
-/** Create a table memory object.
+/** Create metadata.
 @param name     table name
 @param space    tablespace
 @param n_cols   total number of columns (both virtual and non-virtual)
 @param n_v_cols number of virtual columns
 @param flags    table flags
 @param flags2   table flags2
-@return own: table object */
-dict_table_t *dict_mem_table_create(const char *name, fil_space_t *space,
-                                    ulint n_cols, ulint n_v_cols, ulint flags,
-                                    ulint flags2)
+@return newly allocated table object */
+dict_table_t *dict_table_t::create(const span<const char> &name,
+                                   fil_space_t *space,
+                                   ulint n_cols, ulint n_v_cols, ulint flags,
+                                   ulint flags2)
 {
-	dict_table_t*	table;
-	mem_heap_t*	heap;
+  ut_ad(!space || space->purpose == FIL_TYPE_TABLESPACE ||
+        space->purpose == FIL_TYPE_TEMPORARY ||
+        space->purpose == FIL_TYPE_IMPORT);
+  ut_a(dict_tf2_is_valid(flags, flags2));
+  ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
 
-	ut_ad(name);
-	ut_ad(!space
-	      || space->purpose == FIL_TYPE_TABLESPACE
-	      || space->purpose == FIL_TYPE_TEMPORARY
-	      || space->purpose == FIL_TYPE_IMPORT);
-	ut_a(dict_tf2_is_valid(flags, flags2));
-	ut_a(!(flags2 & DICT_TF2_UNUSED_BIT_MASK));
+  mem_heap_t *heap= mem_heap_create(DICT_HEAP_SIZE);
 
-	heap = mem_heap_create(DICT_HEAP_SIZE);
+  dict_table_t *table= static_cast<dict_table_t*>
+    (mem_heap_zalloc(heap, sizeof(*table)));
 
-	table = static_cast<dict_table_t*>(
-		mem_heap_zalloc(heap, sizeof(*table)));
-
-	lock_table_lock_list_init(&table->locks);
-
-	UT_LIST_INIT(table->indexes, &dict_index_t::indexes);
+  lock_table_lock_list_init(&table->locks);
+  UT_LIST_INIT(table->indexes, &dict_index_t::indexes);
 #ifdef BTR_CUR_HASH_ADAPT
-	UT_LIST_INIT(table->freed_indexes, &dict_index_t::indexes);
+  UT_LIST_INIT(table->freed_indexes, &dict_index_t::indexes);
 #endif /* BTR_CUR_HASH_ADAPT */
+  table->heap= heap;
 
-	table->heap = heap;
+  ut_d(table->magic_n= DICT_TABLE_MAGIC_N);
 
-	ut_d(table->magic_n = DICT_TABLE_MAGIC_N);
+  table->flags= static_cast<unsigned>(flags) & ((1U << DICT_TF_BITS) - 1);
+  table->flags2= static_cast<unsigned>(flags2) & ((1U << DICT_TF2_BITS) - 1);
+  table->name.m_name= mem_strdupl(name.data(), name.size());
+  table->is_system_db= dict_mem_table_is_system(table->name.m_name);
+  table->space= space;
+  table->space_id= space ? space->id : ULINT_UNDEFINED;
+  table->n_t_cols= static_cast<unsigned>(n_cols + DATA_N_SYS_COLS) &
+    dict_index_t::MAX_N_FIELDS;
+  table->n_v_cols= static_cast<unsigned>(n_v_cols) &
+    dict_index_t::MAX_N_FIELDS;
+  table->n_cols= static_cast<unsigned>(table->n_t_cols - table->n_v_cols) &
+    dict_index_t::MAX_N_FIELDS;
+  table->cols= static_cast<dict_col_t*>
+    (mem_heap_alloc(heap, table->n_cols * sizeof *table->cols));
+  table->v_cols= static_cast<dict_v_col_t*>
+    (mem_heap_alloc(heap, n_v_cols * sizeof *table->v_cols));
+  for (ulint i = n_v_cols; i--; )
+    new (&table->v_cols[i]) dict_v_col_t();
+  table->autoinc_lock= static_cast<ib_lock_t*>
+    (mem_heap_alloc(heap, sizeof *table->autoinc_lock));
+  /* If the table has an FTS index or we are in the process
+  of building one, create the table->fts */
+  if (dict_table_has_fts_index(table) ||
+      DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID |
+                           DICT_TF2_FTS_ADD_DOC_ID))
+  {
+    table->fts= fts_create(table);
+    table->fts->cache= fts_cache_create(table);
+  }
 
-	table->flags = static_cast<unsigned>(flags)
-		& ((1U << DICT_TF_BITS) - 1);
-	table->flags2 = static_cast<unsigned>(flags2)
-		& ((1U << DICT_TF2_BITS) - 1);
-	table->name.m_name = mem_strdup(name);
-	table->is_system_db = dict_mem_table_is_system(table->name.m_name);
-	table->space = space;
-	table->space_id = space ? space->id : ULINT_UNDEFINED;
-	table->n_t_cols = static_cast<unsigned>(n_cols + DATA_N_SYS_COLS)
-		& dict_index_t::MAX_N_FIELDS;
-	table->n_v_cols = static_cast<unsigned>(n_v_cols)
-		& dict_index_t::MAX_N_FIELDS;
-	table->n_cols = static_cast<unsigned>(
-		table->n_t_cols - table->n_v_cols)
-		& dict_index_t::MAX_N_FIELDS;
+  new (&table->foreign_set) dict_foreign_set();
+  new (&table->referenced_set) dict_foreign_set();
 
-	table->cols = static_cast<dict_col_t*>(
-		mem_heap_alloc(heap, table->n_cols * sizeof(dict_col_t)));
-	table->v_cols = static_cast<dict_v_col_t*>(
-		mem_heap_alloc(heap, n_v_cols * sizeof(*table->v_cols)));
-	for (ulint i = n_v_cols; i--; ) {
-		new (&table->v_cols[i]) dict_v_col_t();
-	}
-
-	table->autoinc_lock = static_cast<ib_lock_t*>(
-		mem_heap_alloc(heap, sizeof *table->autoinc_lock));
-
-	/* If the table has an FTS index or we are in the process
-	of building one, create the table->fts */
-	if (dict_table_has_fts_index(table)
-	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID)
-	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_ADD_DOC_ID)) {
-		table->fts = fts_create(table);
-		table->fts->cache = fts_cache_create(table);
-	}
-
-	new(&table->foreign_set) dict_foreign_set();
-	new(&table->referenced_set) dict_foreign_set();
-
-	return(table);
+  return table;
 }
 
 /****************************************************************//**

@@ -18,7 +18,7 @@ let page_size= `select @@innodb_page_size`;
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Tablespace flags are invalid in datafile: .*test.t[rcd]\\.ibd");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: Operating system error number .* in a file operation\\.");
 call mtr.add_suppression("\\[ERROR\\] InnoDB: The error means the system cannot find the path specified\\.");
-call mtr.add_suppression("\\[Warning\\] InnoDB: Ignoring tablespace for `test`\\.`td` because it could not be opened\\.");
+call mtr.add_suppression("\\[Warning\\] InnoDB: Ignoring tablespace for test/td because it could not be opened\\.");
 
 CREATE TABLE tr(a INT)ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
 CREATE TABLE tc(a INT)ENGINE=InnoDB ROW_FORMAT=COMPACT

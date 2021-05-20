@@ -4820,6 +4820,41 @@ i_s_dict_fill_sys_tables(
 
 	DBUG_RETURN(0);
 }
+
+/** Convert one SYS_TABLES record to dict_table_t.
+@param pcur      persistent cursor position on SYS_TABLES record
+@param rec       record to read from (nullptr=use the dict_sys cache)
+@param table     the converted dict_table_t
+@return error message
+@retval nullptr on success */
+static const char *i_s_sys_tables_rec(const btr_pcur_t &pcur, const rec_t *rec,
+                                      dict_table_t **table)
+{
+  static_assert(DICT_FLD__SYS_TABLES__NAME == 0, "compatibility");
+  size_t len;
+  if (rec_get_1byte_offs_flag(pcur.old_rec))
+  {
+    len= rec_1_get_field_end_info(pcur.old_rec, 0);
+    if (len & REC_1BYTE_SQL_NULL_MASK)
+      return "corrupted SYS_TABLES.NAME";
+  }
+  else
+  {
+    len= rec_2_get_field_end_info(pcur.old_rec, 0);
+    static_assert(REC_2BYTE_EXTERN_MASK == 16384, "compatibility");
+    if (len >= REC_2BYTE_EXTERN_MASK)
+      return "corrupted SYS_TABLES.NAME";
+  }
+
+  const span<const char>name{reinterpret_cast<const char*>(pcur.old_rec), len};
+
+  if (rec)
+    return dict_load_table_low(name, rec, table);
+
+  *table= dict_sys.load_table(name);
+  return *table ? nullptr : "Table not found in cache";
+}
+
 /*******************************************************************//**
 Function to go through each record in SYS_TABLES table, and fill the
 information_schema.innodb_sys_tables table with related table information
@@ -4833,8 +4868,6 @@ i_s_sys_tables_fill_table(
 	Item*		)	/*!< in: condition (not used) */
 {
 	btr_pcur_t	pcur;
-	const rec_t*	rec;
-	mem_heap_t*	heap;
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_tables_fill_table");
@@ -4845,21 +4878,23 @@ i_s_sys_tables_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
 	dict_sys.mutex_lock();
 	mtr_start(&mtr);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
+	for (const rec_t *rec = dict_startscan_system(&pcur, &mtr,
+						      dict_sys.sys_tables);
+	     rec; rec = dict_getnext_system(&pcur, &mtr)) {
+		if (rec_get_deleted_flag(rec, 0)) {
+			continue;
+		}
 
-	while (rec) {
 		const char*	err_msg;
 		dict_table_t*	table_rec;
 
 		/* Create and populate a dict_table_t structure with
 		information from SYS_TABLES row */
-		err_msg = dict_process_sys_tables_rec_and_mtr_commit(
-			heap, rec, &table_rec, false, &mtr);
-
+		err_msg = i_s_sys_tables_rec(pcur, rec, &table_rec);
+		mtr.commit();
 		dict_sys.mutex_unlock();
 
 		if (!err_msg) {
@@ -4875,17 +4910,13 @@ i_s_sys_tables_fill_table(
 			dict_mem_table_free(table_rec);
 		}
 
-		mem_heap_empty(heap);
-
 		/* Get the next record */
 		dict_sys.mutex_lock();
-		mtr_start(&mtr);
-		rec = dict_getnext_system(&pcur, &mtr);
+		mtr.start();
 	}
 
-	mtr_commit(&mtr);
+	mtr.commit();
 	dict_sys.mutex_unlock();
-	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
 }
@@ -5078,7 +5109,6 @@ i_s_sys_tables_fill_table_stats(
 {
 	btr_pcur_t	pcur;
 	const rec_t*	rec;
-	mem_heap_t*	heap;
 	mtr_t		mtr;
 
 	DBUG_ENTER("i_s_sys_tables_fill_table_stats");
@@ -5089,29 +5119,23 @@ i_s_sys_tables_fill_table_stats(
 		DBUG_RETURN(0);
 	}
 
-	heap = mem_heap_create(1000);
 	dict_sys.freeze();
 	dict_sys.mutex_lock();
 	mtr_start(&mtr);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_TABLES);
+	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_tables);
 
 	while (rec) {
 		const char*	err_msg;
 		dict_table_t*	table_rec;
 
+		mtr.commit();
 		/* Fetch the dict_table_t structure corresponding to
 		this SYS_TABLES record */
-		err_msg = dict_process_sys_tables_rec_and_mtr_commit(
-			heap, rec, &table_rec, true, &mtr);
+		err_msg = i_s_sys_tables_rec(pcur, nullptr, &table_rec);
 
 		ulint ref_count = table_rec ? table_rec->get_ref_count() : 0;
 		dict_sys.mutex_unlock();
-
-		DBUG_EXECUTE_IF("test_sys_tablestats", {
-			if (strcmp("test/t1", table_rec->name.m_name) == 0 ) {
-				DEBUG_SYNC_C("dict_table_not_protected");
-			}});
 
 		if (table_rec != NULL) {
 			ut_ad(err_msg == NULL);
@@ -5125,7 +5149,6 @@ i_s_sys_tables_fill_table_stats(
 		}
 
 		dict_sys.unfreeze();
-		mem_heap_empty(heap);
 
 		/* Get the next record */
 		dict_sys.freeze();
@@ -5138,7 +5161,6 @@ i_s_sys_tables_fill_table_stats(
 	mtr_commit(&mtr);
 	dict_sys.mutex_unlock();
 	dict_sys.unfreeze();
-	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
 }
@@ -5335,7 +5357,7 @@ i_s_sys_indexes_fill_table(
 	mtr_start(&mtr);
 
 	/* Start scan the SYS_INDEXES table */
-	rec = dict_startscan_system(&pcur, &mtr, SYS_INDEXES);
+	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_indexes);
 
 	/* Process each record in the table */
 	while (rec) {
@@ -5553,7 +5575,7 @@ i_s_sys_columns_fill_table(
 	dict_sys.mutex_lock();
 	mtr_start(&mtr);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_COLUMNS);
+	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_columns);
 
 	while (rec) {
 		const char*	err_msg;
@@ -5739,14 +5761,14 @@ i_s_sys_virtual_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
-	if (check_global_access(thd, PROCESS_ACL)) {
+	if (check_global_access(thd, PROCESS_ACL) || !dict_sys.sys_virtual) {
 		DBUG_RETURN(0);
 	}
 
 	dict_sys.mutex_lock();
 	mtr_start(&mtr);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_VIRTUAL);
+	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_virtual);
 
 	while (rec) {
 		const char*	err_msg;
@@ -5936,7 +5958,7 @@ i_s_sys_fields_fill_table(
 	the next index. This is used to calculate prefix length */
 	last_id = 0;
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_FIELDS);
+	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_fields);
 
 	while (rec) {
 		ulint		pos;
@@ -6127,8 +6149,7 @@ i_s_sys_foreign_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
-	if (check_global_access(thd, PROCESS_ACL)) {
-
+	if (check_global_access(thd, PROCESS_ACL) || !dict_sys.sys_foreign) {
 		DBUG_RETURN(0);
 	}
 
@@ -6136,7 +6157,7 @@ i_s_sys_foreign_fill_table(
 	dict_sys.mutex_lock();
 	mtr_start(&mtr);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_FOREIGN);
+	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_foreign);
 
 	while (rec) {
 		const char*	err_msg;
@@ -6320,7 +6341,8 @@ i_s_sys_foreign_cols_fill_table(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* deny access to user without PROCESS_ACL privilege */
-	if (check_global_access(thd, PROCESS_ACL)) {
+	if (check_global_access(thd, PROCESS_ACL)
+	    || !dict_sys.sys_foreign_cols) {
 		DBUG_RETURN(0);
 	}
 
@@ -6328,7 +6350,7 @@ i_s_sys_foreign_cols_fill_table(
 	dict_sys.mutex_lock();
 	mtr_start(&mtr);
 
-	rec = dict_startscan_system(&pcur, &mtr, SYS_FOREIGN_COLS);
+	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_foreign_cols);
 
 	while (rec) {
 		const char*	err_msg;

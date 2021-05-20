@@ -47,6 +47,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "buf0lru.h"
 #include "ibuf0ibuf.h"
 #include "buf0flu.h"
+#include "log.h"
 #ifdef UNIV_LINUX
 # include <sys/types.h>
 # include <sys/sysmacros.h>
@@ -2195,7 +2196,7 @@ statement to update the dictionary tables if they are incorrect.
 @param[in]	purpose		FIL_TYPE_TABLESPACE or FIL_TYPE_TEMPORARY
 @param[in]	id		tablespace ID
 @param[in]	flags		expected FSP_SPACE_FLAGS
-@param[in]	space_name	tablespace name of the datafile
+@param[in]	name		table name
 If file-per-table, it is the table name in the databasename/tablename format
 @param[in]	path_in		expected filepath, usually read from dictionary
 @param[out]	err		DB_SUCCESS or error code
@@ -2207,37 +2208,40 @@ fil_ibd_open(
 	fil_type_t		purpose,
 	ulint			id,
 	ulint			flags,
-	const table_name_t	tablename,
+	fil_space_t::name_type	name,
 	const char*		path_in,
 	dberr_t*		err)
 {
 	mysql_mutex_lock(&fil_system.mutex);
-	if (fil_space_t* space = fil_space_get_by_id(id)) {
-		mysql_mutex_unlock(&fil_system.mutex);
-
-		if (space && validate && !srv_read_only_mode) {
+	fil_space_t* space = fil_space_get_by_id(id);
+	mysql_mutex_unlock(&fil_system.mutex);
+	if (space) {
+		if (validate && !srv_read_only_mode) {
 			fsp_flags_try_adjust(space,
 					     flags & ~FSP_FLAGS_MEM_MASK);
 		}
-
 		return space;
 	}
-	mysql_mutex_unlock(&fil_system.mutex);
+
+	dberr_t local_err = DB_SUCCESS;
+
+	/* Table flags can be ULINT_UNDEFINED if
+	dict_tf_to_fsp_flags_failure is set. */
+	if (flags == ULINT_UNDEFINED) {
+corrupted:
+		local_err = DB_CORRUPTION;
+func_exit:
+		if (err) *err = local_err;
+		return space;
+	}
+
+	ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
 
 	Datafile	df_default;	/* default location */
 	RemoteDatafile	df_remote;	/* remote location */
 	ulint		tablespaces_found = 0;
 	ulint		valid_tablespaces_found = 0;
 
-	/* Table flags can be ULINT_UNDEFINED if
-	dict_tf_to_fsp_flags_failure is set. */
-	if (flags == ULINT_UNDEFINED) {
-corrupted:
-		if (err) *err = DB_CORRUPTION;
-		return NULL;
-	}
-
-	ut_ad(fil_space_t::is_valid_flags(flags & ~FSP_FLAGS_MEM_MASK, id));
 	df_default.init(flags);
 	df_remote.init(flags);
 
@@ -2245,12 +2249,11 @@ corrupted:
 	while avoiding unecessary effort. */
 
 	/* We will always look for an ibd in the default location. */
-	df_default.make_filepath(nullptr, {tablename.m_name,
-					   strlen(tablename.m_name)}, IBD);
+	df_default.make_filepath(nullptr, name, IBD);
 
 	/* Look for a filepath embedded in an ISL where the default file
 	would be. */
-	if (df_remote.open_link_file(tablename)) {
+	if (df_remote.open_link_file(name)) {
 		validate = true;
 		if (df_remote.open_read_only(true) == DB_SUCCESS) {
 			ut_ad(df_remote.is_open());
@@ -2314,8 +2317,10 @@ corrupted:
 	First, bail out if no tablespace files were found. */
 	if (valid_tablespaces_found == 0) {
 		os_file_get_last_error(true);
-		ib::error() << "Could not find a valid tablespace file for `"
-			<< tablename << "`. " << TROUBLESHOOT_DATADICT_MSG;
+		sql_print_error("InnoDB: Could not find a valid tablespace"
+				" file for %.*s. %s",
+				static_cast<int>(name.size()), name.data(),
+				TROUBLESHOOT_DATADICT_MSG);
 		goto corrupted;
 	}
 	if (!validate) {
@@ -2324,22 +2329,19 @@ corrupted:
 
 	/* Do not open any tablespaces if more than one tablespace with
 	the correct space ID and flags were found. */
-	if (tablespaces_found > 1) {
-		ib::error() << "A tablespace for `" << tablename
-			<< "` has been found in multiple places;";
-
-		if (df_default.is_open()) {
-			ib::error() << "Default location: "
-				<< df_default.filepath()
-				<< ", Space ID=" << df_default.space_id()
-				<< ", Flags=" << df_default.flags();
-		}
-		if (df_remote.is_open()) {
-			ib::error() << "Remote location: "
-				<< df_remote.filepath()
-				<< ", Space ID=" << df_remote.space_id()
-				<< ", Flags=" << df_remote.flags();
-		}
+	if (df_default.is_open() && df_remote.is_open()) {
+		ib::error()
+			<< "A tablespace has been found in multiple places: "
+			<< df_default.filepath()
+			<< "(Space ID=" << df_default.space_id()
+			<< ", Flags=" << df_default.flags()
+			<< ") and "
+			<< df_remote.filepath()
+			<< "(Space ID=" << df_remote.space_id()
+			<< ", Flags=" << df_remote.flags()
+			<< (valid_tablespaces_found > 1 || srv_force_recovery
+			    ? "); will not open"
+			    : ")");
 
 		/* Force-recovery will allow some tablespaces to be
 		skipped by REDO if there was more than one file found.
@@ -2349,9 +2351,6 @@ corrupted:
 		recovery and there is only one good tablespace, ignore
 		any bad tablespaces. */
 		if (valid_tablespaces_found > 1 || srv_force_recovery > 0) {
-			ib::error() << "Will not open tablespace `"
-				<< tablename << "`";
-
 			/* If the file is not open it cannot be valid. */
 			ut_ad(df_default.is_open() || !df_default.is_valid());
 			ut_ad(df_remote.is_open()  || !df_remote.is_valid());
@@ -2363,8 +2362,8 @@ corrupted:
 				goto corrupted;
 			}
 error:
-			if (err) *err = DB_ERROR;
-			return NULL;
+			local_err = DB_ERROR;
+			goto func_exit;
 		}
 
 		/* There is only one valid tablespace found and we did
@@ -2395,8 +2394,7 @@ skip_validate:
 					    first_page)
 		: NULL;
 
-	fil_space_t* space = fil_space_t::create(
-		id, flags, purpose, crypt_data);
+	space = fil_space_t::create(id, flags, purpose, crypt_data);
 	if (!space) {
 		goto error;
 	}
@@ -2420,8 +2418,7 @@ skip_validate:
 		}
 	}
 
-	if (err) *err = DB_SUCCESS;
-	return space;
+	goto func_exit;
 }
 
 /** Discover the correct IBD file to open given a remote or missing
@@ -2485,14 +2482,11 @@ fil_ibd_discover(
 		case SRV_OPERATION_RESTORE:
 			break;
 		case SRV_OPERATION_NORMAL:
-			char* name = const_cast<char*>(db);
-			size_t len= strlen(name);
-			if (len <= 4 || strcmp(name + len - 4, dot_ext[IBD])) {
+			size_t len= strlen(db);
+			if (len <= 4 || strcmp(db + len - 4, dot_ext[IBD])) {
 				break;
 			}
-			name[len - 4] = '\0';
-			df_rem_per.open_link_file(table_name_t{name});
-			name[len - 4] = *dot_ext[IBD];
+			df_rem_per.open_link_file({db, len - 4});
 
 			if (!df_rem_per.filepath()) {
 				break;

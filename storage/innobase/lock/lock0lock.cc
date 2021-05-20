@@ -3857,7 +3857,7 @@ released:
   LockMutexGuard g{SRW_LOCK_CALL};
   for (const table_id_t id : to_evict)
   {
-    if (dict_table_t *table= dict_sys.get_table(id))
+    if (dict_table_t *table= dict_sys.find_table(id))
       if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
         dict_sys.remove(table, true);
   }
