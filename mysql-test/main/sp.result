@@ -6237,9 +6237,6 @@ NULL
 set @@character_set_client=@save_character_set_client;
 set @@character_set_results=@save_character_set_client;
 DROP PROCEDURE p1;
-drop procedure if exists proc_25411_a;
-drop procedure if exists proc_25411_b;
-drop procedure if exists proc_25411_c;
 create procedure proc_25411_a()
 begin
 /* real comment */
@@ -6300,7 +6297,7 @@ proc_25411_b		CREATE DEFINER=`root`@`localhost` PROCEDURE `proc_25411_b`(
 begin
 select p1, p2;
 end	latin1	latin1_swedish_ci	latin1_swedish_ci
-select name, param_list, body from mysql.proc where name like "%25411%";
+select name, param_list, body from mysql.proc where name like "%25411%" order by name;
 name	param_list	body
 proc_25411_a		begin
 /* real comment */
