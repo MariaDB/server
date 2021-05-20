@@ -136,7 +136,6 @@ void close_thread_tables(THD* thd);
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 #define tc_size  400
-#define tdc_size 400
 #endif
 
 #include <mysql/plugin.h>
@@ -2360,31 +2359,6 @@ innobase_get_stmt_unsafe(
 
 	*length = 0;
 	return NULL;
-}
-
-/**********************************************************************//**
-Get the current setting of the tdc_size global parameter. We do
-a dirty read because for one there is no synchronization object and
-secondly there is little harm in doing so even if we get a torn read.
-@return	value of tdc_size */
-ulint
-innobase_get_table_cache_size(void)
-/*===============================*/
-{
-	return(tdc_size);
-}
-
-/**********************************************************************//**
-Get the current setting of the lower_case_table_names global parameter from
-mysqld.cc. We do a dirty read because for one there is no synchronization
-object and secondly there is little harm in doing so even if we get a torn
-read.
-@return value of lower_case_table_names */
-ulint
-innobase_get_lower_case_table_names(void)
-/*=====================================*/
-{
-	return(lower_case_table_names);
 }
 
 /**
@@ -6088,7 +6062,7 @@ ha_innobase::open_dict_table(
 		sensitive platform in Windows, we might need to
 		check the existence of table name without lower
 		case in the system table. */
-		if (innobase_get_lower_case_table_names() == 1) {
+		if (lower_case_table_names == 1) {
 			char	par_case_name[FN_REFLEN];
 
 #ifndef _WIN32
@@ -13352,8 +13326,7 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 
 	err = row_drop_table_for_mysql(norm_name, trx, sqlcom);
 
-	if (err == DB_TABLE_NOT_FOUND
-	    && innobase_get_lower_case_table_names() == 1) {
+	if (err == DB_TABLE_NOT_FOUND && lower_case_table_names == 1) {
 		char*	is_part = is_partition(norm_name);
 
 		if (is_part) {
@@ -13451,7 +13424,7 @@ inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
 
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
-		    && innobase_get_lower_case_table_names() == 1) {
+		    && lower_case_table_names == 1) {
 			char*	is_part = is_partition(norm_from);
 
 			if (is_part) {

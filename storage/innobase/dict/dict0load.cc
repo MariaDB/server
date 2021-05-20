@@ -3181,8 +3181,7 @@ loop:
 		goto next_rec;
 	}
 
-	if (innobase_get_lower_case_table_names() != 2
-	    && memcmp(field, table_name, len)) {
+	if (lower_case_table_names != 2 && memcmp(field, table_name, len)) {
 		goto next_rec;
 	}
 

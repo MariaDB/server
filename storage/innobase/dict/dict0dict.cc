@@ -1248,14 +1248,10 @@ inline void dict_sys_t::add(dict_table_t* table)
 	ut_ad(dict_lru_validate());
 }
 
-/**********************************************************************//**
-Test whether a table can be evicted from the LRU cache.
-@return TRUE if table can be evicted. */
-static
-ibool
-dict_table_can_be_evicted(
-/*======================*/
-	dict_table_t*	table)		/*!< in: table to test */
+/** Test whether a table can be evicted from dict_sys.table_LRU.
+@param table   table to be considered for eviction
+@return whether the table can be evicted */
+static bool dict_table_can_be_evicted(dict_table_t *table)
 {
 	ut_d(dict_sys.assert_locked());
 	ut_a(table->can_be_evicted);
@@ -1269,25 +1265,26 @@ dict_table_can_be_evicted(
 		the table instance is in "use". */
 
 		if (lock_table_has_locks(table)) {
-			return(FALSE);
+			return false;
 		}
 
 #ifdef BTR_CUR_HASH_ADAPT
 		/* We cannot really evict the table if adaptive hash
 		index entries are pointing to any of its indexes. */
-		for (dict_index_t* index = dict_table_get_first_index(table);
-		     index != NULL;
-		     index = dict_table_get_next_index(index)) {
+		for (const dict_index_t* index
+			     = dict_table_get_first_index(table);
+		     index; index = dict_table_get_next_index(index)) {
 			if (index->n_ahi_pages()) {
-				return(FALSE);
+				return false;
 			}
 		}
 #endif /* BTR_CUR_HASH_ADAPT */
 
-		return(TRUE);
+		ut_ad(!table->fts);
+		return true;
 	}
 
-	return(FALSE);
+	return false;
 }
 
 #ifdef BTR_CUR_HASH_ADAPT
@@ -1354,64 +1351,49 @@ dict_index_t *dict_index_t::clone_if_needed()
 }
 #endif /* BTR_CUR_HASH_ADAPT */
 
-/**********************************************************************//**
-Make room in the table cache by evicting an unused table. The unused table
-should not be part of FK relationship and currently not used in any user
-transaction. There is no guarantee that it will remove a table.
-@return number of tables evicted. If the number of tables in the dict_LRU
-is less than max_tables it will not do anything. */
-ulint
-dict_make_room_in_cache(
-/*====================*/
-	ulint		max_tables,	/*!< in: max tables allowed in cache */
-	ulint		pct_check)	/*!< in: max percent to check */
+/** Evict unused, unlocked tables from table_LRU.
+@param half whether to consider half the tables only (instead of all)
+@return number of tables evicted */
+ulint dict_sys_t::evict_table_LRU(bool half)
 {
-	ulint		i;
-	ulint		len;
-	dict_table_t*	table;
-	ulint		check_up_to;
-	ulint		n_evicted = 0;
+#ifdef MYSQL_DYNAMIC_PLUGIN
+	constexpr ulint max_tables = 400;
+#else
+	extern ulong tdc_size;
+	const ulint max_tables = tdc_size;
+#endif
+	ulint n_evicted = 0;
 
-	ut_a(pct_check > 0);
-	ut_a(pct_check <= 100);
-	ut_d(dict_sys.assert_locked());
+	lock(SRW_LOCK_CALL);
 	ut_ad(dict_lru_validate());
 
-	i = len = UT_LIST_GET_LEN(dict_sys.table_LRU);
+	const ulint len = UT_LIST_GET_LEN(table_LRU);
 
 	if (len < max_tables) {
-		return(0);
+func_exit:
+		unlock();
+		return(n_evicted);
 	}
 
-	check_up_to = len - ((len * pct_check) / 100);
-
-	/* Check for overflow */
-	ut_a(i == 0 || check_up_to <= i);
+	const ulint check_up_to = half ? len / 2 : 0;
+	ulint i = len;
 
 	/* Find a suitable candidate to evict from the cache. Don't scan the
 	entire LRU list. Only scan pct_check list entries. */
 
-	for (table = UT_LIST_GET_LAST(dict_sys.table_LRU);
-	     table != NULL
-	     && i > check_up_to
-	     && (len - n_evicted) > max_tables;
-	     --i) {
-
-		dict_table_t*	prev_table;
-
-	        prev_table = UT_LIST_GET_PREV(table_LRU, table);
+	for (dict_table_t *table = UT_LIST_GET_LAST(table_LRU);
+	     table && i > check_up_to && (len - n_evicted) > max_tables; --i) {
+		dict_table_t* prev_table = UT_LIST_GET_PREV(table_LRU, table);
 
 		if (dict_table_can_be_evicted(table)) {
-			ut_ad(!table->fts);
-			dict_sys.remove(table, true);
-
+			remove(table, true);
 			++n_evicted;
 		}
 
 		table = prev_table;
 	}
 
-	return(n_evicted);
+	goto func_exit;
 }
 
 /** Looks for an index with the given id given a table instance.
@@ -3411,7 +3393,7 @@ dict_get_referenced_table(
 	/* Values;  0 = Store and compare as given; case sensitive
 	            1 = Store and compare in lower; case insensitive
 	            2 = Store as given, compare in lower; case semi-sensitive */
-	if (innobase_get_lower_case_table_names() == 2) {
+	if (lower_case_table_names == 2) {
 		innobase_casedn_str(ref);
 		*table = dict_table_get_low(ref);
 		memcpy(ref, database_name, database_name_len);
@@ -3420,7 +3402,7 @@ dict_get_referenced_table(
 
 	} else {
 #ifndef _WIN32
-		if (innobase_get_lower_case_table_names() == 1) {
+		if (lower_case_table_names == 1) {
 			innobase_casedn_str(ref);
 		}
 #else

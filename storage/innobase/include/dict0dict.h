@@ -942,16 +942,6 @@ dict_index_find_on_id_low(
 /*======================*/
 	index_id_t	id)	/*!< in: index id */
 	MY_ATTRIBUTE((warn_unused_result));
-/**********************************************************************//**
-Make room in the table cache by evicting an unused table. The unused table
-should not be part of FK relationship and currently not used in any user
-transaction. There is no guarantee that it will remove a table.
-@return number of tables evicted. */
-ulint
-dict_make_room_in_cache(
-/*====================*/
-	ulint		max_tables,	/*!< in: max tables allowed in cache */
-	ulint		pct_check);	/*!< in: max percent to check */
 
 /** Adds an index to the dictionary cache, with possible indexing newly
 added column.
@@ -1587,6 +1577,11 @@ public:
 	     + temp_id_hash.n_cells) * sizeof(hash_cell_t);
     return size;
   }
+
+  /** Evict unused, unlocked tables from table_LRU.
+  @param half whether to consider half the tables only (instead of all)
+  @return number of tables evicted */
+  ulint evict_table_LRU(bool half);
 };
 
 /** the data dictionary cache */

@@ -257,25 +257,6 @@ const char*
 thd_innodb_tmpdir(
 	THD*	thd);
 
-/**********************************************************************//**
-Get the current setting of the table_cache_size global parameter. We do
-a dirty read because for one there is no synchronization object and
-secondly there is little harm in doing so even if we get a torn read.
-@return SQL statement string */
-ulint
-innobase_get_table_cache_size(void);
-/*===============================*/
-
-/**********************************************************************//**
-Get the current setting of the lower_case_table_names global parameter from
-mysqld.cc. We do a dirty read because for one there is no synchronization
-object and secondly there is little harm in doing so even if we get a torn
-read.
-@return value of lower_case_table_names */
-ulint
-innobase_get_lower_case_table_names(void);
-/*=====================================*/
-
 /******************************************************************//**
 compare two character string case insensitively according to their charset. */
 int

@@ -3815,10 +3815,9 @@ row_rename_table_for_mysql(
 	is_part = strstr((char *)old_name, (char *)"#P#");
 #endif /* __WIN__ */
 
-	/* MySQL partition engine hard codes the file name
-	separator as "#P#". The text case is fixed even if
-	lower_case_table_names is set to 1 or 2. This is true
-	for sub-partition names as well. InnoDB always
+	/* MariaDB partition engine hard codes the file name
+	separator as "#P#" and "#SP#". The text case is fixed even if
+	lower_case_table_names is set to 1 or 2. InnoDB always
 	normalises file names to lower case on Windows, this
 	can potentially cause problems when copying/moving
 	tables between platforms.
@@ -3832,9 +3831,7 @@ row_rename_table_for_mysql(
 	sensitive platform in Windows, we might need to
 	check the existence of table name without lowering
 	case them in the system table. */
-	if (!table &&
-	    is_part &&
-	    innobase_get_lower_case_table_names() == 1) {
+	if (!table && is_part && lower_case_table_names == 1) {
 		char par_case_name[MAX_FULL_NAME_LEN + 1];
 #ifndef __WIN__
 		/* Check for the table using lower

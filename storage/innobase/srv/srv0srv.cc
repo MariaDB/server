@@ -1487,27 +1487,6 @@ srv_sync_log_buffer_in_background(void)
 	}
 }
 
-/********************************************************************//**
-Make room in the table cache by evicting an unused table.
-@return number of tables evicted. */
-static
-ulint
-srv_master_evict_from_table_cache(
-/*==============================*/
-	ulint	pct_check)	/*!< in: max percent to check */
-{
-	ulint	n_tables_evicted = 0;
-
-	dict_sys_lock();
-
-	n_tables_evicted = dict_make_room_in_cache(
-		innobase_get_table_cache_size(), pct_check);
-
-	dict_sys_unlock();
-
-	return(n_tables_evicted);
-}
-
 /*********************************************************************//**
 This function prints progress message every 60 seconds during server
 shutdown, for any activities that master thread is pending on. */
@@ -1640,7 +1619,7 @@ srv_master_do_active_tasks(void)
 
 	if (cur_time % SRV_MASTER_DICT_LRU_INTERVAL == 0) {
 		srv_main_thread_op_info = "enforcing dict cache limit";
-		ulint	n_evicted = srv_master_evict_from_table_cache(50);
+		ulint	n_evicted = dict_sys.evict_table_LRU(true);
 		if (n_evicted != 0) {
 			MONITOR_INC_VALUE(
 				MONITOR_SRV_DICT_LRU_EVICT_COUNT_ACTIVE, n_evicted);
@@ -1694,8 +1673,7 @@ srv_master_do_idle_tasks(void)
 	}
 
 	srv_main_thread_op_info = "enforcing dict cache limit";
-	ulint	n_evicted = srv_master_evict_from_table_cache(100);
-	if (n_evicted != 0) {
+	if (ulint n_evicted = dict_sys.evict_table_LRU(false)) {
 		MONITOR_INC_VALUE(
 			MONITOR_SRV_DICT_LRU_EVICT_COUNT_IDLE, n_evicted);
 	}

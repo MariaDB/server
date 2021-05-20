@@ -833,7 +833,7 @@ dict_mem_foreign_table_name_lookup_set(
 	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
 	ibool		do_alloc)	/*!< in: is an alloc needed */
 {
-	if (innobase_get_lower_case_table_names() == 2) {
+	if (lower_case_table_names == 2) {
 		if (do_alloc) {
 			ulint	len;
 
@@ -863,7 +863,7 @@ dict_mem_referenced_table_name_lookup_set(
 	dict_foreign_t*	foreign,	/*!< in/out: foreign struct */
 	ibool		do_alloc)	/*!< in: is an alloc needed */
 {
-	if (innobase_get_lower_case_table_names() == 2) {
+	if (lower_case_table_names == 2) {
 		if (do_alloc) {
 			ulint	len;
 
