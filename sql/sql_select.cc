@@ -7943,7 +7943,9 @@ static
 double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                               table_map rem_tables)
 {
-  uint16 ref_keyuse_steps[MAX_REF_PARTS - 1];
+  uint16 ref_keyuse_steps_buf[MAX_REF_PARTS];
+  uint   ref_keyuse_size= MAX_REF_PARTS;
+  uint16 *ref_keyuse_steps= ref_keyuse_steps_buf;
   Field *field;
   TABLE *table= s->table;
   MY_BITMAP *read_set= table->read_set;
@@ -8090,6 +8092,29 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
             }
             if (keyparts > 1)
 	    {
+              /*
+                Prepare to set ref_keyuse_steps[keyparts-2]: resize the array
+                if it is not large enough
+              */
+              if (keyparts - 2 >= ref_keyuse_size)
+              {
+                uint new_size= MY_MAX(ref_keyuse_size*2, keyparts);
+                void *new_buf;
+                if (!(new_buf= my_malloc(sizeof(*ref_keyuse_steps)*new_size,
+                                         MYF(0))))
+                {
+                  sel= 1.0; // As if no selectivity was computed
+                  goto exit;
+                }
+                memcpy(new_buf, ref_keyuse_steps,
+                       sizeof(*ref_keyuse_steps)*ref_keyuse_size);
+                if (ref_keyuse_steps != ref_keyuse_steps_buf)
+                  my_free(ref_keyuse_steps);
+
+                ref_keyuse_steps= (uint16*)new_buf;
+                ref_keyuse_size= new_size;
+              }
+
               ref_keyuse_steps[keyparts-2]= (uint16)(keyuse - prev_ref_keyuse);
               prev_ref_keyuse= keyuse;
             }
@@ -8144,7 +8169,9 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 
   sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
                                         keyparts, ref_keyuse_steps);
-
+exit:
+  if (ref_keyuse_steps != ref_keyuse_steps_buf)
+    my_free(ref_keyuse_steps);
   return sel;
 }
 
