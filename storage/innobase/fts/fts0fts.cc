@@ -1787,7 +1787,6 @@ fts_create_one_common_table(
 
 	error = row_create_table_for_mysql(new_table, trx,
 		FIL_ENCRYPTION_DEFAULT, FIL_DEFAULT_ENCRYPTION_KEY);
-
 	if (error == DB_SUCCESS) {
 
 		dict_index_t*	index = dict_mem_index_create(
@@ -1808,17 +1807,22 @@ fts_create_one_common_table(
 		error =	row_create_index_for_mysql(index, trx, NULL);
 
 		trx->dict_operation = op;
+	} else {
+err_exit:
+		new_table = NULL;
+		ib::warn() << "Failed to create FTS common table "
+			<< fts_table_name;
+		trx->error_state = error;
+		return NULL;
 	}
 
 	if (error != DB_SUCCESS) {
 		dict_mem_table_free(new_table);
-		new_table = NULL;
-		ib::warn() << "Failed to create FTS common table "
-			<< fts_table_name;
 		trx->error_state = DB_SUCCESS;
 		row_drop_table_for_mysql(fts_table_name, trx, SQLCOM_DROP_DB);
-		trx->error_state = error;
+		goto err_exit;
 	}
+
 	return(new_table);
 }
 
@@ -1866,6 +1870,8 @@ fts_create_common_tables(
 
 	FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, table);
 
+	op = trx_get_dict_operation(trx);
+
 	error = fts_drop_common_tables(trx, &fts_table);
 
 	if (error != DB_SUCCESS) {
@@ -1882,6 +1888,7 @@ fts_create_common_tables(
 			trx, table, full_name[i], fts_table.suffix, heap);
 
 		 if (common_table == NULL) {
+			trx->error_state = DB_SUCCESS;
 			error = DB_ERROR;
 			goto func_exit;
 		} else {
@@ -1926,8 +1933,6 @@ fts_create_common_tables(
 
 	error =	row_create_index_for_mysql(index, trx, NULL);
 
-	trx->dict_operation = op;
-
 func_exit:
 	if (error != DB_SUCCESS) {
 		for (it = common_tables.begin(); it != common_tables.end();
@@ -1936,6 +1941,8 @@ func_exit:
 						 SQLCOM_DROP_DB);
 		}
 	}
+
+	trx->dict_operation = op;
 
 	common_tables.clear();
 	mem_heap_free(heap);
@@ -2019,16 +2026,20 @@ fts_create_one_index_table(
 		error =	row_create_index_for_mysql(index, trx, NULL);
 
 		trx->dict_operation = op;
+	} else {
+err_exit:
+		new_table = NULL;
+		ib::warn() << "Failed to create FTS index table "
+			<< table_name;
+		trx->error_state = error;
+		return NULL;
 	}
 
 	if (error != DB_SUCCESS) {
 		dict_mem_table_free(new_table);
-		new_table = NULL;
-		ib::warn() << "Failed to create FTS index table "
-			<< table_name;
 		trx->error_state = DB_SUCCESS;
 		row_drop_table_for_mysql(table_name, trx, SQLCOM_DROP_DB);
-		trx->error_state = error;
+		goto err_exit;
 	}
 
 	return(new_table);
