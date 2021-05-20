@@ -579,7 +579,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     uchar tabledef_version_buff[MY_UUID_SIZE];
     const char *db= table->db.str;
     bool fatal_error=0;
-    bool open_error;
+    bool open_error= 0;
     bool collect_eis=  FALSE;
     bool open_for_modify= org_open_for_modify;
 
