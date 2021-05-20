@@ -1462,13 +1462,9 @@ dict_create_or_check_foreign_constraint_tables(void)
 		ut_ad(err == DB_OUT_OF_FILE_SPACE
 		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
 		trx->rollback();
-
-		if (err == DB_OUT_OF_FILE_SPACE) {
-			err = DB_MUST_GET_MORE_FILE_SPACE;
-		}
+	} else {
+		trx_commit_for_mysql(trx);
 	}
-
-	trx_commit_for_mysql(trx);
 
 	row_mysql_unlock_data_dictionary(trx);
 
@@ -1552,13 +1548,9 @@ dict_create_or_check_sys_virtual()
 		ut_ad(err == DB_OUT_OF_FILE_SPACE
 		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
 		trx->rollback();
-
-		if (err == DB_OUT_OF_FILE_SPACE) {
-			err = DB_MUST_GET_MORE_FILE_SPACE;
-		}
+	} else {
+		trx_commit_for_mysql(trx);
 	}
-
-	trx_commit_for_mysql(trx);
 
 	row_mysql_unlock_data_dictionary(trx);
 

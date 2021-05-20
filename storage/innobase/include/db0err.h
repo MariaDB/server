@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2015, 2018, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -49,8 +49,6 @@ enum dberr_t {
 					rollback segment */
 	DB_CLUSTER_NOT_FOUND = 30,
 	DB_TABLE_NOT_FOUND,
-	DB_MUST_GET_MORE_FILE_SPACE,	/*!< the database has to be stopped
-					and restarted with more file space */
 	DB_TOO_BIG_RECORD,		/*!< a record in an index would not fit
 					on a compressed page, or it would
 					become bigger than 1/2 free space in

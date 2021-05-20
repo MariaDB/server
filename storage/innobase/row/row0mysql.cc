@@ -760,12 +760,6 @@ handle_new_error:
 		trx->rollback();
 		break;
 
-	case DB_MUST_GET_MORE_FILE_SPACE:
-		ib::fatal() << "The database cannot continue operation because"
-			" of lack of space. You must add a new data file"
-			" to my.cnf and restart the database.";
-		break;
-
 	case DB_CORRUPTION:
 	case DB_PAGE_CORRUPTED:
 		ib::error() << "We detected index corruption in an InnoDB type"
@@ -3616,21 +3610,6 @@ do_drop:
 						    &detached_handle);
 		}
 		break;
-
-	case DB_OUT_OF_FILE_SPACE:
-		err = DB_MUST_GET_MORE_FILE_SPACE;
-		trx->error_state = err;
-		row_mysql_handle_errors(&err, trx, NULL, NULL);
-
-		/* raise error */
-		ut_error;
-		break;
-
-	case DB_TOO_MANY_CONCURRENT_TRXS:
-		/* Cannot even find a free slot for the
-		the undo log. We can directly exit here
-		and return the DB_TOO_MANY_CONCURRENT_TRXS
-		error. */
 
 	default:
 		/* This is some error we do not expect. Print

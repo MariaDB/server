@@ -364,8 +364,6 @@ ut_strerr(
 		return("Cluster not found");
 	case DB_TABLE_NOT_FOUND:
 		return("Table not found");
-	case DB_MUST_GET_MORE_FILE_SPACE:
-		return("More file space needed");
 	case DB_TOO_BIG_RECORD:
 		return("Record too big");
 	case DB_TOO_BIG_INDEX_COL:
