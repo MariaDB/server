@@ -87,7 +87,7 @@ int wsrep_show_bf_aborts (THD *thd, SHOW_VAR *var, char *buff,
 bool wsrep_create_appliers(long threads, bool mutex_protected=false);
 void wsrep_create_rollbacker();
 
-bool wsrep_bf_abort(const THD*, THD*);
+bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd);
 int  wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal);
 
 extern void  wsrep_thd_set_PA_safe(void *thd_ptr, my_bool safe);
