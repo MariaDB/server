@@ -131,11 +131,12 @@ void handle_connection_in_main_thread(CONNECT *connect)
   Initialize scheduler for --thread-handling=no-threads
 */
 
-void one_thread_scheduler(scheduler_functions *func)
+void one_thread_scheduler(scheduler_functions *func,
+    Atomic_counter<uint> *arg_connection_count)
 {
   scheduler_init();
   func->max_threads= 1;
   func->max_connections= &max_connections;
-  func->connection_count= &connection_count;
+  func->connection_count= arg_connection_count;
   func->add_connection= handle_connection_in_main_thread;
 }
