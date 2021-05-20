@@ -14,3 +14,4 @@ START SLAVE sql_thread;
 --error ER_SLAVE_MUST_STOP
 CHANGE MASTER TO master_user='user',master_password='pwd';
 STOP SLAVE;
+RESET SLAVE ALL;
