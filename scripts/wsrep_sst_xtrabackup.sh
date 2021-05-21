@@ -52,7 +52,7 @@ pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
 pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE "
 uextra=0
 
-if [ -x "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
+if [ -n "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
     pvopts+=$pvformat
 fi
 pcmd="pv $pvopts"
@@ -218,7 +218,7 @@ get_footprint()
 {
     pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
-    if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then
+    if [ $(in_config 'xtrabackup' 'compress') -eq 1 ]; then
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
@@ -637,10 +637,12 @@ then
 
             wsrep_log_info "Compressed qpress files found"
 
-            if [ ! -x "$(command -v qpress)" ]; then
+            if [ -z "$(command -v qpress)" ]; then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi
+
+            dcmd="xargs -n 2 qpress -dT$nproc"
 
             if [[ -n $progress ]] && pv --help | grep -qw -- '--line-mode';then
                 count=$(find "${DATA}" -type f -name '*.qp' | wc -l)
@@ -652,9 +654,7 @@ then
                 fi
                 pcmd="pv $pvopts"
                 adjust_progress
-                dcmd="$pcmd | xargs -n 2 qpress -T${nproc}d"
-            else
-                dcmd="xargs -n 2 qpress -T${nproc}d"
+                dcmd="$pcmd | $dcmd"
             fi
 
             wsrep_log_info "Removing existing ibdata1 file"

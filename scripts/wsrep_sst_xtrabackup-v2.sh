@@ -55,8 +55,8 @@ tcmd=""
 rebuild=0
 rebuildcmd=""
 payload=0
-pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p' "
-pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE "
+pvformat="-F '%N => Rate:%r Avg:%a Elapsed:%t %e Bytes: %b %p'"
+pvopts="-f -i 10 -N $WSREP_SST_OPT_ROLE"
 STATDIR=""
 uextra=0
 disver=""
@@ -73,7 +73,7 @@ ssl_cert=""
 ssl_ca=""
 ssl_key=""
 
-if [ -x "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
+if [ -n "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
     pvopts+=$pvformat
 fi
 pcmd="pv $pvopts"
@@ -90,7 +90,7 @@ export PATH="/usr/sbin:/sbin:$PATH"
 
 OS="$(uname)"
 
-if [ ! -x "$(command -v lsof)" ]; then
+if [ -z "$(command -v lsof)" ]; then
     wsrep_log_error "lsof tool not found in PATH! Make sure you have it installed."
     exit 2 # ENOENT
 fi
@@ -165,31 +165,6 @@ get_keys()
     fi
 
     stagemsg+="-XB-Encrypted"
-}
-
-#
-# If the ssl_dhparams variable is already set, uses that as a source
-# of dh parameters for OpenSSL. Otherwise, looks for dhparams.pem in the
-# datadir, and creates it there if it can't find the file.
-# No input parameters
-#
-check_for_dhparams()
-{
-    if [[ -z "$ssl_dhparams" ]]; then
-        if ! [[ -r "$DATA/dhparams.pem" ]]; then
-            wsrep_check_programs openssl
-            wsrep_log_info "Could not find dhparams file, creating $DATA/dhparams.pem"
-
-            if ! openssl dhparam -out "$DATA/dhparams.pem" 2048 >/dev/null 2>&1
-            then
-                wsrep_log_error "******** FATAL ERROR ********************************* "
-                wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. "
-                wsrep_log_error "****************************************************** "
-                exit 22
-            fi
-        fi
-        ssl_dhparams="$DATA/dhparams.pem"
-    fi
 }
 
 #
@@ -322,27 +297,25 @@ get_transfer()
             fi
 
             # Determine the socat version
-            SOCAT_VERSION=`socat -V 2>&1 | grep -oe '[0-9]\.[0-9][\.0-9]*' | head -n1`
-            if [[ -z "$SOCAT_VERSION" ]]; then
-                wsrep_log_error "******** FATAL ERROR **************** "
-                wsrep_log_error "* Cannot determine the socat version. "
-                wsrep_log_error "************************************* "
+            SOCAT_VERSION=$(socat -V 2>&1 | grep -m1 -oe '[0-9]\.[0-9][\.0-9]*')
+            if [ -z "$SOCAT_VERSION" ]; then
+                wsrep_log_error "******** FATAL ERROR ******************"
+                wsrep_log_error "* Cannot determine the socat version. *"
+                wsrep_log_error "***************************************"
                 exit 2
             fi
-
-            # socat versions < 1.7.3 will have 512-bit dhparams (too small)
-            #       so create 2048-bit dhparams and send that as a parameter
-            # socat version >= 1.7.3, checks to see if the peername matches the hostname
-            #       set commonname="" to disable the peername checks
-            #
             if ! check_for_version "$SOCAT_VERSION" "1.7.3"; then
+                # socat versions < 1.7.3 will have 512-bit dhparams (too small)
+                # so create 2048-bit dhparams and send that as a parameter:
                 if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]]; then
                     # dhparams check (will create ssl_dhparams if needed)
                     check_for_dhparams
                     joiner_extra=",dhparam='$ssl_dhparams'"
                 fi
-            fi
-            if check_for_version "$SOCAT_VERSION" "1.7.3"; then
+            else
+                # socat version >= 1.7.3, checks to see if the peername matches
+                # the hostname, then set commonname="" to disable the peername
+                # checks:
                 donor_extra=',commonname=""'
             fi
         fi
@@ -420,7 +393,7 @@ get_footprint()
 {
     pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c -s | awk 'END { print $1 }')
-    if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress";then
+    if [ $(in_config 'xtrabackup' 'compress') -eq 1 ]; then
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
@@ -432,7 +405,7 @@ get_footprint()
 
 adjust_progress()
 {
-    if [ ! -x "$(command -v pv)" ]; then
+    if [ -z "$(command -v pv)" ]; then
         wsrep_log_error "pv not found in path: $PATH"
         wsrep_log_error "Disabling all progress/rate-limiting"
         pcmd=""
@@ -709,7 +682,7 @@ recv_joiner()
     pushd "${dir}" 1>/dev/null
     set +e
 
-    if [ $tmt -gt 0 -a -x "$(command -v timeout)" ]; then
+    if [ $tmt -gt 0 -a -n "$(command -v timeout)" ]; then
         if timeout --help | grep -qw -- '-k';then
             ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
         else
@@ -763,42 +736,6 @@ send_donor()
             exit 32
         fi
     done
-}
-
-# Returns the version string in a standardized format
-# Input "1.2.3" => echoes "010203"
-# Wrongly formatted values => echoes "000000"
-normalize_version()
-{
-    local major=0
-    local minor=0
-    local patch=0
-
-    # Only parses purely numeric version numbers, 1.2.3
-    # Everything after the first three values are ignored
-    if [[ $1 =~ ^([0-9]+)\.([0-9]+)\.?([0-9]*)([\.0-9])*$ ]]; then
-        major=${BASH_REMATCH[1]}
-        minor=${BASH_REMATCH[2]}
-        patch=${BASH_REMATCH[3]}
-    fi
-
-    printf %02d%02d%02d $major $minor $patch
-}
-
-# Compares two version strings
-# The first parameter is the version to be checked
-# The second parameter is the minimum version required
-# Returns 1 (failure) if $1 >= $2, 0 (success) otherwise
-check_for_version()
-{
-    local local_version_str=$(normalize_version "$1")
-    local required_version_str=$(normalize_version "$2")
-
-    if [[ "$local_version_str" < "$required_version_str" ]]; then
-        return 1
-    else
-        return 0
-    fi
 }
 
 monitor_process()
@@ -864,7 +801,7 @@ if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
 fi
 
 if [[ $ssyslog -eq 1 ]];then
-    if [ ! -x "$(command -v logger)" ]; then
+    if [ -z "$(command -v logger)" ]; then
         wsrep_log_error "logger not in path: $PATH. Ignoring"
     else
         wsrep_log_info "Logging all stderr of SST/Innobackupex to syslog"
@@ -902,13 +839,13 @@ fi
 
 OLD_PWD="$(pwd)"
 
+cd "$WSREP_SST_OPT_DATA"
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
     # handle both relative and absolute paths
-    INNODB_DATA_HOME_DIR=$(cd "$DATA"; mkdir -p "$INNODB_DATA_HOME_DIR"; cd "$INNODB_DATA_HOME_DIR"; pwd -P)
-else
-    # default to datadir
-    INNODB_DATA_HOME_DIR=$(cd "$DATA"; pwd -P)
+    [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
+    cd "$INNODB_DATA_HOME_DIR"
 fi
+INNODB_DATA_HOME_DIR=$(pwd -P)
 
 cd "$OLD_PWD"
 
@@ -924,7 +861,6 @@ then
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
-        usrst=0
         if [ -z "$WSREP_SST_OPT_SST_VER" ]; then
             wsrep_log_error "Upgrade joiner to 5.6.21 or higher for backup locks support"
             wsrep_log_error "The joiner is not supported for this version of donor"
@@ -941,8 +877,9 @@ then
         itmpdir=$(mktemp -d)
         wsrep_log_info "Using $itmpdir as innobackupex temporary directory"
 
+        usrst=0
         if [ -n "$WSREP_SST_OPT_USER" ]; then
-           INNOEXTRA+=" --user='$WSREP_SST_OPT_USER'"
+           INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER'"
            usrst=1
         fi
 
@@ -1172,10 +1109,12 @@ then
         if [ -n "$qpfiles" ]; then
             wsrep_log_info "Compressed qpress files found"
 
-            if [ ! -x "$(command -v qpress)" ]; then
+            if [ -z "$(command -v qpress)" ]; then
                 wsrep_log_error "qpress not found in path: $PATH"
                 exit 22
             fi
+
+            dcmd="xargs -n 2 qpress -dT$nproc"
 
             if [[ -n "$progress" ]] && pv --help | grep -qw '--line-mode';then
                 count=$(find "${DATA}" -type f -name '*.qp' | wc -l)
@@ -1187,9 +1126,7 @@ then
                 fi
                 pcmd="pv $pvopts"
                 adjust_progress
-                dcmd="$pcmd | xargs -n 2 qpress -T${nproc}d"
-            else
-                dcmd="xargs -n 2 qpress -T${nproc}d"
+                dcmd="$pcmd | $dcmd"
             fi
 
             # Decompress the qpress files
