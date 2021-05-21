@@ -4,7 +4,7 @@
 # We can not easily restart the first node, so instead we restart all the other nodes. MTR does not allow multiple nodes
 # to be down at the same time, so restarts are sequential.
 #
-# We can not test any of the actual WAN optimizations from inside MTR and no 
+# We can not test any of the actual WAN optimizations from inside MTR and no
 # status variables are provided. So we only check that simple replication works.
 #
 
@@ -97,7 +97,6 @@ INSERT INTO t1 VALUES (33);
 --source include/start_mysqld.inc
 
 INSERT INTO t1 VALUES (341);
-
 
 #
 # Check all nodes

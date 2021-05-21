@@ -67,9 +67,16 @@ push @::global_suppressions,
      qr|WSREP: Wait for gtid returned error 3 while waiting for prior transactions to commit before setting position|,
    );
 
+sub which($) { return `sh -c "command -v $_[0]"` }
+
 sub skip_combinations {
   my %skip = ();
-  $skip{'include/have_mariabackup.inc'} = 'Need ss' unless `ss -V`;
+  $skip{'include/have_mariabackup.inc'} = 'Need socket statistics utility'
+            unless which("lsof") || which("sockstat") || which("ss");
+  $skip{'include/have_stunnel.inc'} = "Need 'stunnel' utility"
+            unless which("stunnel");
+  $skip{'include/have_qpress.inc'} = "Need 'qpress' utility"
+            unless which("qpress");
   %skip;
 }
 

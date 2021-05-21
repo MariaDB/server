@@ -40,13 +40,12 @@ cleanup_joiner()
     [ "0" != "$RSYNC_REAL_PID" ]            && \
     kill $RSYNC_REAL_PID                    && \
     sleep 0.5                               && \
-    kill -9 $RSYNC_REAL_PID >/dev/null 2>&1 || \
-    :
-    rm -rf "$RSYNC_CONF"
-    rm -f "$STUNNEL_CONF"
-    rm -f "$STUNNEL_PID"
-    rm -rf "$MAGIC_FILE"
-    rm -rf "$RSYNC_PID"
+    kill -9 $RSYNC_REAL_PID >/dev/null 2>&1 || :
+    [ -f "$RSYNC_CONF"   ] && rm -f "$RSYNC_CONF"
+    [ -f "$STUNNEL_CONF" ] && rm -f "$STUNNEL_CONF"
+    [ -f "$STUNNEL_PID"  ] && rm -f "$STUNNEL_PID"
+    [ -f "$MAGIC_FILE"   ] && rm -f "$MAGIC_FILE"
+    [ -f "$RSYNC_PID"    ] && rm -f "$RSYNC_PID"
     wsrep_log_info "Joiner cleanup done."
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         wsrep_cleanup_progress_file
@@ -125,17 +124,13 @@ check_pid_and_port()
 }
 
 STUNNEL_CONF="$WSREP_SST_OPT_DATA/stunnel.conf"
-rm -f "$STUNNEL_CONF"
 
 STUNNEL_PID="$WSREP_SST_OPT_DATA/stunnel.pid"
-rm -f "$STUNNEL_PID"
 
 MAGIC_FILE="$WSREP_SST_OPT_DATA/rsync_sst_complete"
-rm -rf "$MAGIC_FILE"
 
 BINLOG_TAR_FILE="$WSREP_SST_OPT_DATA/wsrep_sst_binlog.tar"
 BINLOG_N_FILES=1
-rm -f "$BINLOG_TAR_FILE" || :
 
 get_binlog
 
@@ -154,13 +149,13 @@ OLD_PWD="$(pwd)"
 
 WSREP_LOG_DIR="$INNODB_LOG_GROUP_HOME"
 
+cd "$WSREP_SST_OPT_DATA"
 if [ -n "$WSREP_LOG_DIR" ]; then
     # handle both relative and absolute paths
-    WSREP_LOG_DIR=$(cd "$WSREP_SST_OPT_DATA"; mkdir -p "$WSREP_LOG_DIR"; cd "$WSREP_LOG_DIR"; pwd -P)
-else
-    # default to datadir
-    WSREP_LOG_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
+    [ ! -d "$WSREP_LOG_DIR" ] && mkdir -p "$WSREP_LOG_DIR"
+    cd "$WSREP_LOG_DIR"
 fi
+WSREP_LOG_DIR=$(pwd -P)
 
 cd "$OLD_PWD"
 
@@ -170,13 +165,13 @@ if [ -z "$INNODB_DATA_HOME_DIR" ]; then
     INNODB_DATA_HOME_DIR=$(parse_cnf '--mysqld' 'innodb-data-home-dir')
 fi
 
+cd "$WSREP_SST_OPT_DATA"
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
     # handle both relative and absolute paths
-    INNODB_DATA_HOME_DIR=$(cd "$WSREP_SST_OPT_DATA"; mkdir -p "$INNODB_DATA_HOME_DIR"; cd "$INNODB_DATA_HOME_DIR"; pwd -P)
-else
-    # default to datadir
-    INNODB_DATA_HOME_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
+    [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
+    cd "$INNODB_DATA_HOME_DIR"
 fi
+INNODB_DATA_HOME_DIR=$(pwd -P)
 
 cd "$OLD_PWD"
 
@@ -185,13 +180,13 @@ if [ -z "$INNODB_UNDO_DIR" ]; then
     INNODB_UNDO_DIR=$(parse_cnf '--mysqld' 'innodb-undo-directory')
 fi
 
+cd "$WSREP_SST_OPT_DATA"
 if [ -n "$INNODB_UNDO_DIR" ]; then
     # handle both relative and absolute paths
-    INNODB_UNDO_DIR=$(cd "$WSREP_SST_OPT_DATA"; mkdir -p "$INNODB_UNDO_DIR"; cd "$INNODB_UNDO_DIR"; pwd -P)
-else
-    # default to datadir
-    INNODB_UNDO_DIR=$(cd "$WSREP_SST_OPT_DATA"; pwd -P)
+    [ ! -d "$INNODB_UNDO_DIR" ] && mkdir -p "$INNODB_UNDO_DIR"
+    cd "$INNODB_UNDO_DIR"
 fi
+INNODB_UNDO_DIR=$(pwd -P)
 
 cd "$OLD_PWD"
 
@@ -239,7 +234,7 @@ if [ -z "$SSLMODE" ]; then
     # Implicit verification if CA is set and the SSL mode
     # is not specified by user:
     if [ -n "$SSTCA" ]; then
-        if [ -x "$(command -v stunnel)" ]; then
+        if [ -n "$(command -v stunnel)" ]; then
             SSLMODE='VERIFY_CA'
         fi
     # Require SSL by default if SSL key and cert are present:
@@ -260,28 +255,36 @@ then
     case "$SSLMODE" in
     'VERIFY_IDENTITY')
         VERIFY_OPT='verifyPeer = yes'
+        CHECK_OPT=""
         ;;
     'VERIFY_CA')
         VERIFY_OPT='verifyChain = yes'
+        if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+            CHECK_OPT='checkHost = localhost'
+        else
+            CHECK_OPT='checkHost = $WSREP_SST_OPT_HOST_UNESCAPED'
+        fi
         ;;
     *)
         wsrep_log_error "Unrecognized ssl-mode option: '$SSLMODE'"
         exit 22 # EINVAL
     esac
-    if [ -z "$CAFILE_OPT" ]
-    then
-        wsrep_log_error "Can't have ssl-mode=$SSLMODE without CA file"
+    if [ -z "$CAFILE_OPT" ]; then
+        wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file"
         exit 22 # EINVAL
     fi
 else
     VERIFY_OPT=""
+    CHECK_OPT=""
 fi
 
 STUNNEL=""
-if [ -n "$SSLMODE" -a "$SSLMODE" != 'DISABLED' ] && wsrep_check_programs stunnel
-then
-    wsrep_log_info "Using stunnel for SSL encryption: CAfile: '$SSTCA', SSLMODE: '$SSLMODE'"
-    STUNNEL="stunnel $STUNNEL_CONF"
+if [ -n "$SSLMODE" -a "$SSLMODE" != 'DISABLED' ]; then
+    STUNNEL_BIN="$(command -v stunnel)"
+    if [ -n "$STUNNEL_BIN" ]; then
+        wsrep_log_info "Using stunnel for SSL encryption: CAfile: '$SSTCA', ssl-mode='$SSLMODE'"
+        STUNNEL="$STUNNEL_BIN $STUNNEL_CONF"
+    fi
 fi
 
 readonly SECRET_TAG="secret"
@@ -289,7 +292,13 @@ readonly SECRET_TAG="secret"
 if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]
 then
 
-cat << EOF > "$STUNNEL_CONF"
+    [ -f "$MAGIC_FILE"      ] && rm -f "$MAGIC_FILE"
+    [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
+
+    if [ -n "$STUNNEL" ]
+    then
+        [ -f "$STUNNEL_PID" ] && rm -f "$STUNNEL_PID"
+        cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
 cert = $SSTCERT
 ${CAFILE_OPT}
@@ -300,7 +309,9 @@ client = yes
 connect = $WSREP_SST_OPT_HOST_UNESCAPED:$WSREP_SST_OPT_PORT
 TIMEOUTclose = 0
 ${VERIFY_OPT}
+${CHECK_OPT}
 EOF
+    fi
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
@@ -366,7 +377,7 @@ EOF
 
         # first, the normal directories, so that we can detect incompatible protocol
         RC=0
-        eval rsync ${STUNNEL:+--rsh=\"$STUNNEL\"} \
+        eval rsync ${STUNNEL:+"'--rsh=$STUNNEL'"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
               $WHOLE_FILE_OPT $FILTER "'$WSREP_SST_OPT_DATA/'" \
@@ -449,7 +460,7 @@ EOF
 
     fi
 
-    echo "continue" # now server can resume updating data
+    echo 'continue' # now server can resume updating data
 
     echo "$STATE" > "$MAGIC_FILE"
 
@@ -487,7 +498,10 @@ then
         wsrep_log_error "rsync daemon already running."
         exit 114 # EALREADY
     fi
-    rm -rf "$RSYNC_PID"
+
+    [ -f "$RSYNC_PID"       ] && rm -f "$RSYNC_PID"
+    [ -f "$MAGIC_FILE"      ] && rm -f "$MAGIC_FILE"
+    [ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
 
     ADDR="$WSREP_SST_OPT_ADDR"
     RSYNC_PORT="$WSREP_SST_OPT_PORT"
@@ -541,20 +555,40 @@ EOF
         rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" $RSYNC_EXTRA_ARGS &
         RSYNC_REAL_PID=$!
     else
-        cat << EOF > "$STUNNEL_CONF"
+        [ -f "$STUNNEL_PID" ] && rm -f "$STUNNEL_PID"
+        # Let's check if the path to the config file contains a space?
+        if [ "${RSYNC_CONF#* }" = "$RSYNC_CONF" ]; then
+            cat << EOF > "$STUNNEL_CONF"
 key = $SSTKEY
 cert = $SSTCERT
 ${CAFILE_OPT}
 foreground = yes
 pid = $STUNNEL_PID
 debug = warning
-debug = 6
 client = no
 [rsync]
 accept = $STUNNEL_ACCEPT
 exec = $(command -v rsync)
 execargs = rsync --server --daemon --config=$RSYNC_CONF .
 EOF
+        else
+            # The path contains a space, so we will run it via
+            # shell with "eval" command:
+            export RSYNC_CMD="eval $(command -v rsync) --server --daemon --config='$RSYNC_CONF' ."
+            cat << EOF > "$STUNNEL_CONF"
+key = $SSTKEY
+cert = $SSTCERT
+${CAFILE_OPT}
+foreground = yes
+pid = $STUNNEL_PID
+debug = warning
+client = no
+[rsync]
+accept = $STUNNEL_ACCEPT
+exec = $SHELL
+execargs = $SHELL -c \$RSYNC_CMD
+EOF
+        fi
         stunnel "$STUNNEL_CONF" &
         RSYNC_REAL_PID=$!
         RSYNC_PID="$STUNNEL_PID"
@@ -655,6 +689,6 @@ else
     exit 22 # EINVAL
 fi
 
-rm -f "$BINLOG_TAR_FILE" || :
+[ -f "$BINLOG_TAR_FILE" ] && rm -f "$BINLOG_TAR_FILE"
 
 exit 0
