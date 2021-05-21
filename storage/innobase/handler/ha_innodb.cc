@@ -6488,7 +6488,9 @@ no_such_table:
 			dict_table_get_format(m_prebuilt->table));
 	}
 
-	if (m_prebuilt->table == NULL
+	const my_bool for_vc_purge = THDVAR(thd, background_thread);
+
+	if (for_vc_purge || m_prebuilt->table == NULL
 	    || dict_table_is_temporary(m_prebuilt->table)
 	    || m_prebuilt->table->persistent_autoinc
 	    || !m_prebuilt->table->is_readable()) {
@@ -6512,7 +6514,7 @@ no_such_table:
 		}
 	}
 
-	if (!THDVAR(thd, background_thread)) {
+	if (!for_vc_purge) {
 		info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST);
 	}
 
