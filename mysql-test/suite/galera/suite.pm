@@ -69,4 +69,13 @@ push @::global_suppressions,
      qr|WSREP: Trying to continue unpaused monitor|,
    );
 
+sub skip_combinations {
+  my %skip = ();
+  $skip{'include/have_stunnel.inc'} = "Need 'stunnel' utility"
+            unless ::which("stunnel");
+  $skip{'include/have_qpress.inc'} = "Need 'qpress' utility"
+            unless ::which("qpress");
+  %skip;
+}
+
 bless { };

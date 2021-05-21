@@ -39,4 +39,3 @@ DROP TABLE t2;
 --echo #cleanup
 --connection node_1
 RESET MASTER;
-
