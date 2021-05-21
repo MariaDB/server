@@ -1,5 +1,5 @@
-# Copyright (C) 2012-2015 Codership Oy
 # Copyright (C) 2017-2021 MariaDB
+# Copyright (C) 2012-2015 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -822,14 +822,15 @@ wsrep_log_info()
 
 wsrep_cleanup_progress_file()
 {
-    [ -n "$SST_PROGRESS_FILE" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null || true
+    [ -n "$SST_PROGRESS_FILE" -a \
+      -f "$SST_PROGRESS_FILE" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null || true
 }
 
 wsrep_check_program()
 {
     local prog="$1"
     local cmd=$(command -v "$prog")
-    if [ ! -x "$cmd" ]; then
+    if [ -z "$cmd" ]; then
         echo "'$prog' not found in PATH"
         return 2 # no such file or directory
     fi
@@ -865,9 +866,9 @@ get_openssl()
     fi
     # Let's look for openssl:
     OPENSSL_BINARY="$(command -v openssl)"
-    if [ ! -x "$OPENSSL_BINARY" ]; then
+    if [ -z "$OPENSSL_BINARY" ]; then
         OPENSSL_BINARY='/usr/bin/openssl'
-        if [ ! -x "$OPENSSL_BINARY" ]; then
+        if [ -z "$OPENSSL_BINARY" ]; then
             OPENSSL_BINARY=""
         fi
     fi
@@ -899,14 +900,14 @@ is_local_ip()
     [ "$1" = "$(hostname -d)" ] && return 0
 
     local ip_util="$(command -v ip)"
-    if [ -x "$ip_util" ]; then
+    if [ -n "$ip_util" ]; then
         # ip address show ouput format is " inet[6] <address>/<mask>":
         "$ip_util" address show \
              | grep -E "^[[:space:]]*inet.? [^[:space:]]+/" -o \
              | grep -F " $1/" >/dev/null && return 0
     else
         local ifconfig_util="$(command -v ifconfig)"
-        if [ -x "$ifconfig_util" ]; then
+        if [ -n "$ifconfig_util" ]; then
             # ifconfig output format is " inet[6] <address> ...":
             "$ifconfig_util" \
                  | grep -E "^[[:space:]]*inet.? [^[:space:]]+ " -o \
@@ -923,16 +924,79 @@ check_sockets_utils()
     sockstat_available=0
     ss_available=0
 
-    [ -x "$(command -v lsof)" ] && lsof_available=1
-    [ -x "$(command -v sockstat)" ] && sockstat_available=1
-    [ -x "$(command -v ss)" ] && ss_available=1
+    [ -n "$(command -v lsof)" ] && lsof_available=1
+    [ -n "$(command -v sockstat)" ] && sockstat_available=1
+    [ -n "$(command -v ss)" ] && ss_available=1
 
     if [ $lsof_available -eq 0 -a \
          $sockstat_available -eq 0 -a \
          $ss_available -eq 0 ]
     then
-        wsrep_log_error "Neither lsof tool, nor ss or sockstat was found in " \
-                        "the PATH! Make sure you have it installed."
+        wsrep_log_error "Neither lsof, nor sockstat or ss tool was found in " \
+                        "the PATH. Make sure you have it installed."
         exit 2 # ENOENT
     fi
+}
+
+#
+# If the ssl_dhparams variable is already set, uses that as a source
+# of dh parameters for OpenSSL. Otherwise, looks for dhparams.pem in
+# the datadir, and creates it there if it can't find the file.
+#
+check_for_dhparams()
+{
+    if [ -z "$ssl_dhparams" ]; then
+        ssl_dhparams="$DATA/dhparams.pem"
+        if [ ! -r "$ssl_dhparams" ]; then
+            get_openssl
+            if [ -n "$OPENSSL_BINARY" ]; then
+                wsrep_log_info "Could not find dhparams file, creating $ssl_dhparams"
+                if ! "$OPENSSL_BINARY" dhparam -out "$ssl_dhparams" 2048 >/dev/null 2>&1
+                then
+                    wsrep_log_error "******** ERROR *****************************************"
+                    wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
+                    wsrep_log_error "********************************************************"
+                    ssl_dhparams=""
+                fi
+            else
+                # Rollback: if openssl is not installed, then use
+                # the default parameters:
+                ssl_dhparams=""
+            fi
+        fi
+    fi
+}
+
+#
+# Compares two version strings.
+# The first parameter is the version to be checked;
+# The second parameter is the minimum version required;
+# Returns 1 (failure) if $1 >= $2, 0 (success) otherwise.
+#
+check_for_version()
+{
+    y1=${1#*.}
+    [ "$y1" = "$1" ] && y1=""
+    z1=${y1#*.}
+    [ "$z1" = "$y1" ] && z1=""
+    x1=${1%%.*}
+    y1=${y1%%.*}
+    z1=${z1%%.*}
+    [ -z "$y1" ] && y1=0
+    [ -z "$z1" ] && z1=0
+    y2=${2#*.}
+    [ "$y2" = "$2" ] && y2=""
+    z2=${y2#*.}
+    [ "$z2" = "$y2" ] && z2=""
+    x2=${2%%.*}
+    y2=${y2%%.*}
+    z2=${z2%%.*}
+    [ -z "$y2" ] && y2=0
+    [ -z "$z2" ] && z2=0
+    [ $x1 -lt $x2 ] && return 1
+    [ $x1 -gt $x2 ] && return 0
+    [ $y1 -lt $y2 ] && return 1
+    [ $y1 -gt $y2 ] && return 0
+    [ $z1 -lt $z2 ] && return 1
+    return 0
 }

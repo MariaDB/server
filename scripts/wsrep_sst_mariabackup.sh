@@ -73,6 +73,12 @@ xtmpdir=""
 scomp=""
 sdecomp=""
 
+ssl_dhparams=""
+
+compress='none'
+compress_chunk=""
+compress_threads=""
+
 readonly SECRET_TAG="secret"
 
 # Required for backup locks
@@ -80,25 +86,24 @@ readonly SECRET_TAG="secret"
 # 5.6.21 PXC and later can't donate to an older joiner
 sst_ver=1
 
-if [ -x "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
+if [ -n "$(command -v pv)" ] && pv --help | grep -qw -- '-F'; then
     pvopts="$pvopts $pvformat"
 fi
 pcmd="pv $pvopts"
 declare -a RC
 
-set +e
 MARIABACKUP_BIN="$(command -v mariabackup)"
 if [ ! -x "$MARIABACKUP_BIN" ]; then
     wsrep_log_error 'mariabackup binary not found in $PATH'
     exit 42
 fi
-set -e
 MBSTREAM_BIN=mbstream
 
 DATA="$WSREP_SST_OPT_DATA"
 INFO_FILE="xtrabackup_galera_info"
 IST_FILE="xtrabackup_ist"
 MAGIC_FILE="$DATA/$INFO_FILE"
+
 INNOAPPLYLOG="$DATA/mariabackup.prepare.log"
 INNOMOVELOG="$DATA/mariabackup.move.log"
 INNOBACKUPLOG="$DATA/mariabackup.backup.log"
@@ -184,7 +189,7 @@ get_keys()
             ecmd="$ecmd -k '$ekey'"
         fi
     elif [ "$eformat" = 'xbcrypt' ]; then
-        if [ ! -x "$(command -v xbcrypt)" ]; then
+        if [ -z "$(command -v xbcrypt)" ]; then
             wsrep_log_error "If encryption using the xbcrypt is enabled, " \
                             "then you need to install xbcrypt"
             exit 2
@@ -268,6 +273,22 @@ get_transfer()
             exit 2
         fi
 
+        # Determine the socat version
+        SOCAT_VERSION=$(socat -V 2>&1 | grep -m1 -oe '[0-9]\.[0-9][\.0-9]*')
+        if [ -z "$SOCAT_VERSION" ]; then
+            wsrep_log_error "******** FATAL ERROR ******************"
+            wsrep_log_error "* Cannot determine the socat version. *"
+            wsrep_log_error "***************************************"
+            exit 2
+        fi
+
+        if ! check_for_version "$SOCAT_VERSION" "1.7.3"; then
+            # socat versions < 1.7.3 will have 512-bit dhparams (too small)
+            # so create 2048-bit dhparams and send that as a parameter:
+            check_for_dhparams
+            sockopt=",dhparam='$ssl_dhparams'$sockopt"
+        fi
+
         if [ $encrypt -eq 2 ]; then
             wsrep_log_info "Using openssl based encryption with socat: with crt and pem"
             if [ -z "$tpem" -o -z "$tcert" ]; then
@@ -328,7 +349,7 @@ get_footprint()
 {
     pushd "$WSREP_SST_OPT_DATA" 1>/dev/null
     payload=$(find . -regex '.*\.ibd$\|.*\.MYI$\|.*\.MYD$\|.*ibdata1$' -type f -print0 | du --files0-from=- --block-size=1 -c | awk 'END { print $1 }')
-    if $MY_PRINT_DEFAULTS xtrabackup | grep -q -- "--compress"; then
+    if [ "$compress" != 'none' ]; then
         # QuickLZ has around 50% compression ratio
         # When compression/compaction used, the progress is only an approximate.
         payload=$(( payload*1/2 ))
@@ -340,7 +361,7 @@ get_footprint()
 
 adjust_progress()
 {
-    if [ ! -x "$(command -v pv)" ]; then
+    if [ -z "$(command -v pv)" ]; then
         wsrep_log_error "pv not found in path: $PATH"
         wsrep_log_error "Disabling all progress/rate-limiting"
         pcmd=""
@@ -447,6 +468,14 @@ read_cnf()
     if [ $ssyslog -ne -1 ]; then
         ssyslog=$(in_config 'mysqld_safe' 'syslog')
     fi
+
+    if [ "$WSREP_SST_OPT_ROLE" = 'donor' ]; then
+        compress=$(parse_cnf "$encgroups" 'compress' 'none')
+        if [ "$compress" != 'none' ]; then
+            compress_chunk=$(parse_cnf "$encgroups" 'compress-chunk-size')
+            compress_threads=$(parse_cnf "$encgroups" 'compress-threads')
+        fi
+    fi
 }
 
 get_stream()
@@ -480,7 +509,7 @@ get_proc()
 sig_joiner_cleanup()
 {
     wsrep_log_error "Removing $MAGIC_FILE file due to signal"
-    rm -f "$MAGIC_FILE"
+    [ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
 }
 
 cleanup_joiner()
@@ -540,7 +569,7 @@ cleanup_donor()
         fi
     fi
 
-    rm -f "$DATA/$IST_FILE" || true
+    [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
     if [ -n "$progress" -a -p "$progress" ]; then
         wsrep_log_info "Cleaning up fifo file $progress"
@@ -549,13 +578,8 @@ cleanup_donor()
 
     wsrep_log_info "Cleaning up temporary directories"
 
-    if [ -n "$xtmpdir" ]; then
-       [ -d "$xtmpdir" ] && rm -rf "$xtmpdir" || true
-    fi
-
-    if [ -n "$itmpdir" ]; then
-       [ -d "$itmpdir" ] && rm -rf "$itmpdir" || true
-    fi
+    [ -n "$xtmpdir" -a -d "$xtmpdir" ] && rm -rf "$xtmpdir" || true
+    [ -n "$itmpdir" -a -d "$itmpdir" ] && rm -rf "$itmpdir" || true
 
     # Final cleanup
     pgid=$(ps -o pgid= $$ | grep -o '[0-9]*')
@@ -682,12 +706,9 @@ recv_joiner()
         return
     fi
 
-    pushd "$dir" 1>/dev/null
-    set +e
-
     local ltcmd="$tcmd"
     if [ $tmt -gt 0 ]; then
-        if [ -x "$(command -v timeout)" ]; then
+        if [ -n "$(command -v timeout)" ]; then
             if timeout --help | grep -qw -- '-k'; then
                 ltcmd="timeout -k $(( tmt+10 )) $tmt $tcmd"
             else
@@ -695,6 +716,9 @@ recv_joiner()
             fi
         fi
     fi
+
+    pushd "$dir" 1>/dev/null
+    set +e
 
     if [ $wait -ne 0 ]; then
         wait_for_listen "$SST_PORT" "$ADDR" "$MODULE" &
@@ -781,7 +805,7 @@ monitor_process()
 
 wsrep_check_programs "$MARIABACKUP_BIN"
 
-rm -f "$MAGIC_FILE"
+[ -f "$MAGIC_FILE" ] && rm -f "$MAGIC_FILE"
 
 if [ "$WSREP_SST_OPT_ROLE" != 'joiner' -a "$WSREP_SST_OPT_ROLE" != 'donor' ]; then
     wsrep_log_error "Invalid role ${WSREP_SST_OPT_ROLE}"
@@ -795,13 +819,6 @@ if "$MARIABACKUP_BIN" --help 2>/dev/null | grep -qw -- '--version-check'; then
     disver='--no-version-check'
 fi
 
-iopts="$iopts --databases-exclude='lost+found'"
-
-if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
-    wsrep_log_info "Forcing FTWRL due to environment variable FORCE_FTWRL equal to $FORCE_FTWRL"
-    iopts="$iopts --no-backup-locks"
-fi
-
 # if no command line argument and INNODB_DATA_HOME_DIR environment variable
 # is not set, try to get it from my.cnf:
 if [ -z "$INNODB_DATA_HOME_DIR" ]; then
@@ -810,19 +827,19 @@ fi
 
 OLD_PWD="$(pwd)"
 
+cd "$WSREP_SST_OPT_DATA"
 if [ -n "$INNODB_DATA_HOME_DIR" ]; then
     # handle both relative and absolute paths
-    INNODB_DATA_HOME_DIR=$(cd "$DATA"; mkdir -p "$INNODB_DATA_HOME_DIR"; cd "$INNODB_DATA_HOME_DIR"; pwd -P)
-else
-    # default to datadir
-    INNODB_DATA_HOME_DIR=$(cd "$DATA"; pwd -P)
+    [ ! -d "$INNODB_DATA_HOME_DIR" ] && mkdir -p "$INNODB_DATA_HOME_DIR"
+    cd "$INNODB_DATA_HOME_DIR"
 fi
+INNODB_DATA_HOME_DIR=$(pwd -P)
 
 cd "$OLD_PWD"
 
 if [ $ssyslog -eq 1 ]; then
 
-    if [ -x "$(command -v logger)" ]; then
+    if [ -n "$(command -v logger)" ]; then
         wsrep_log_info "Logging all stderr of SST/mariabackup to syslog"
 
         exec 2> >(logger -p daemon.err -t ${ssystag}wsrep-sst-$WSREP_SST_OPT_ROLE)
@@ -850,10 +867,8 @@ if [ $sstlogarchive -eq 1 ]
 then
     ARCHIVETIMESTAMP=$(date "+%Y.%m.%d-%H.%M.%S.%N")
 
-    if [ -n "$sstlogarchivedir" ]
-    then
-        if [ ! -d "$sstlogarchivedir" ]
-        then
+    if [ -n "$sstlogarchivedir" ]; then
+        if [ ! -d "$sstlogarchivedir" ]; then
             mkdir -p "$sstlogarchivedir"
         fi
     fi
@@ -927,7 +942,6 @@ then
 
     if [ $WSREP_SST_OPT_BYPASS -eq 0 ]
     then
-        usrst=0
         if [ -z "$sst_ver" ]; then
             wsrep_log_error "Upgrade joiner to 5.6.21 or higher for backup locks support"
             wsrep_log_error "The joiner is not supported for this version of donor"
@@ -944,6 +958,7 @@ then
         itmpdir="$(mktemp -d)"
         wsrep_log_info "Using $itmpdir as mariabackup temporary directory"
 
+        usrst=0
         if [ -n "$WSREP_SST_OPT_USER" ]; then
            INNOEXTRA="$INNOEXTRA --user='$WSREP_SST_OPT_USER'"
            usrst=1
@@ -1006,6 +1021,25 @@ then
         # Add encryption to the head of the stream (if specified)
         if [ $encrypt -eq 1 ]; then
             tcmd="$ecmd | $tcmd"
+        fi
+
+        iopts="$iopts --databases-exclude='lost+found'"
+
+        if [ ${FORCE_FTWRL:-0} -eq 1 ]; then
+           wsrep_log_info "Forcing FTWRL due to environment variable FORCE_FTWRL equal to $FORCE_FTWRL"
+           iopts="$iopts --no-backup-locks"
+        fi
+
+        # if compression is enabled for backup files, then add the
+        # appropriate options to the mariabackup command line:
+        if [ "$compress" != 'none' ]; then
+            iopts="$iopts --compress${compress:+=$compress}"
+            if [ -n "$compress_threads" ]; then
+                iopts="$iopts --compress-threads=$compress_threads"
+            fi
+            if [ -n "$compress_chunk" ]; then
+                iopts="$iopts --compress-chunk-size=$compress_chunk"
+            fi
         fi
 
         setup_commands
@@ -1082,10 +1116,12 @@ then
 
     MODULE="xtrabackup_sst"
 
-    rm -f "$DATA/$IST_FILE"
+    [ -f "$DATA/$IST_FILE" ] && rm -f "$DATA/$IST_FILE"
 
     # May need xtrabackup_checkpoints later on
-    rm -f "$DATA/xtrabackup_binary" "$DATA/xtrabackup_galera_info" "$DATA/ib_logfile0"
+    [ -f "$DATA/xtrabackup_binary"      ] && rm -f "$DATA/xtrabackup_binary"
+    [ -f "$DATA/xtrabackup_galera_info" ] && rm -f "$DATA/xtrabackup_galera_info"
+    [ -f "$DATA/ib_logfile0"            ] && rm -f "$DATA/ib_logfile0"
 
     ADDR="$WSREP_SST_OPT_ADDR"
 
@@ -1185,8 +1221,6 @@ then
         wsrep_log_info "Waiting for SST streaming to complete!"
         monitor_process $jpid
 
-        get_proc
-
         if [ ! -s "$DATA/xtrabackup_checkpoints" ]; then
             wsrep_log_error "xtrabackup_checkpoints missing, failed mariabackup/SST on donor"
             exit 2
@@ -1203,10 +1237,14 @@ then
         if [ -n "$qpfiles" ]; then
             wsrep_log_info "Compressed qpress files found"
 
-            if [ ! -x "$(command -v qpress)" ]; then
-                wsrep_log_error "qpress not found in path: $PATH"
+            if [ -z "$(command -v qpress)" ]; then
+                wsrep_log_error "qpress utility not found in the path"
                 exit 22
             fi
+
+            get_proc
+
+            dcmd="xargs -n 2 qpress -dT$nproc"
 
             if [ -n "$progress" ] && pv --help | grep -qw -- '--line-mode'; then
                 count=$(find "$DATA" -type f -name '*.qp' | wc -l)
@@ -1217,9 +1255,7 @@ then
                 fi
                 pcmd="pv $pvopts"
                 adjust_progress
-                dcmd="$pcmd | xargs -n 2 qpress -T${nproc}d"
-            else
-                dcmd="xargs -n 2 qpress -T${nproc}d"
+                dcmd="$pcmd | $dcmd"
             fi
 
             # Decompress the qpress files
@@ -1267,6 +1303,7 @@ then
         MAGIC_FILE="$TDATA/$INFO_FILE"
         wsrep_log_info "Moving the backup to ${TDATA}"
         timeit "mariabackup move stage" "$INNOMOVE"
+
         if [ $? -eq 0 ]; then
             wsrep_log_info "Move successful, removing ${DATA}"
             rm -rf "$DATA"
