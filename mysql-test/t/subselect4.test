@@ -2236,7 +2236,17 @@ SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
 
 DROP TABLE t1,t2;
 
---echo # End of 10.2 tests
+--echo #
+--echo # MDEV-22462: Item_in_subselect::create_single_in_to_exists_cond(JOIN *, Item **, Item **): Assertion `false' failed.
+--echo #
+
+select 1 from dual where 1 in (select 5 from dual where 1);
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+
+update t1 set a = 2 where a in (select a from dual where a = a);
+drop table t1;
 
 --echo #
 --echo # MDEV-24925: Server crashes in Item_subselect::init_expr_cache_tracker
@@ -2296,3 +2306,4 @@ FROM (t1 JOIN t1 AS ref_t1 ON
 
 DROP TABLE t1;
 
+--echo # End of 10.2 tests

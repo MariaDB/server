@@ -2721,7 +2721,15 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
 a
 DROP TABLE t1,t2;
-# End of 10.2 tests
+#
+# MDEV-22462: Item_in_subselect::create_single_in_to_exists_cond(JOIN *, Item **, Item **): Assertion `false' failed.
+#
+select 1 from dual where 1 in (select 5 from dual where 1);
+1
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+update t1 set a = 2 where a in (select a from dual where a = a);
+drop table t1;
 #
 # MDEV-24925: Server crashes in Item_subselect::init_expr_cache_tracker
 #
@@ -2793,3 +2801,4 @@ FROM (t1 JOIN t1 AS ref_t1 ON
 (t1.i1 > (SELECT ref_t1.i1 AS c0 FROM t1 b ORDER BY -c0)));
 ERROR 21000: Subquery returns more than 1 row
 DROP TABLE t1;
+# End of 10.2 tests
