@@ -1,3 +1,4 @@
+RESET MASTER;
 "engine: aria  crash point: ddl_log_create_before_create_trigger  position: 1"
 "engine: aria  crash point: ddl_log_create_before_create_trigger  position: 2"
 t1.TRG

@@ -1,3 +1,4 @@
+RESET MASTER;
 "engine: aria  crash point: ddl_log_drop_before_drop_trigger  position: 1"
 t1.TRG
 t1_trg.TRN

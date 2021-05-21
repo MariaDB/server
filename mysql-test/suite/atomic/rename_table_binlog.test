@@ -4,14 +4,16 @@
 --source include/have_log_bin.inc
 --source include/not_valgrind.inc
 
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+
 #
 # Testing of atomic rename with binlogging
 # - First crash is before binlog is written, in which case the rename should
 #   be reverted
 # - Second crash is after binlog is written, in which case the rename should hold
 #
-
-RESET MASTER;
 
 let $engine_count=2;
 let $engines='myisam', 'aria';

@@ -4,6 +4,9 @@
 --source include/not_valgrind.inc
 --source include/not_embedded.inc
 
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+
 #
 # Testing of atomic rename with forced crashes in a lot of different places
 #

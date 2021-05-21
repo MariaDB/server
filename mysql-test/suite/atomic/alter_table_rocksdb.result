@@ -1,5 +1,6 @@
 set global rocksdb_flush_log_at_trx_commit=1;
 create database test2;
+RESET MASTER;
 
 engine: rocksdb
 

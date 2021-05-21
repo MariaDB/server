@@ -6,6 +6,9 @@
 # Testing of atomic drop with crashes in a lot of different places
 #
 
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 let long_comment=`select repeat('a',16384)`;
@@ -70,7 +73,8 @@ while ($e < $engine_count)
       end|
       delimiter ;|
 
-      RESET MASTER;
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 
       echo "engine: $engine  crash point: $crash  position: $r";
       --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -99,12 +103,17 @@ while ($e < $engine_count)
       # Check which tables still exists
       --list_files $MYSQLD_DATADIR/test *TR*
 
-      --let $binlog_file=master-bin.000001
+      --let $binlog_file=$start_binlog_file
+      --let $binlog_output_name=master-bin.000001
       --source include/show_binlog_events.inc
       if ($error)
       {
-        --let $binlog_file=master-bin.000002
-        --source include/show_binlog_events.inc
+        --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+        --let $binlog_output_name=master-bin.000002
+        if ($binlog_file != $start_binlog_file)
+        {
+          --source include/show_binlog_events.inc
+        }
       }
       --disable_warnings
       drop table if exists t1;

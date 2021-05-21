@@ -1,4 +1,5 @@
 create database test2;
+RESET MASTER;
 
 engine: aria
 

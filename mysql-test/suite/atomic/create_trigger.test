@@ -2,6 +2,10 @@
 --source include/have_log_bin.inc
 --source include/not_valgrind.inc
 
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+
 #
 # Testing of atomic CREATE TRIGGER with crashes in a lot of different places
 #
@@ -53,7 +57,8 @@ while ($e < $engine_count)
     {
       inc $r;
 
-      RESET MASTER;
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 
       echo "engine: $engine  crash point: $crash  position: $r";
       --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -116,7 +121,8 @@ while ($e < $engine_count)
       --error 0,ER_TRG_DOES_NOT_EXIST
       SHOW CREATE TRIGGER t2_trg;
 
-      --let $binlog_file=master-bin.000001
+      --let $binlog_file=$start_binlog_file
+      --let $binlog_output_name=master-bin.000001
       --source include/show_binlog_events.inc
       --disable_warnings
       drop trigger if exists t1_trg;

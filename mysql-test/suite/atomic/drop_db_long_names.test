@@ -2,6 +2,10 @@
 --source include/have_log_bin.inc
 --source include/not_valgrind.inc
 
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+
 #
 # Testing of atomic DROP DATABASE when the generated query could be too long
 #
@@ -63,7 +67,8 @@ while ($e < $engine_count)
       flush tables;
       use test;
 
-      RESET MASTER;
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
 
       echo "engine: $engine  crash point: $crash  position: $r";
      --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
@@ -88,12 +93,16 @@ while ($e < $engine_count)
       --list_files $MYSQLD_DATADIR/test2 t*
       --error 0,ER_SP_DOES_NOT_EXIST
 
-      --let $binlog_file=master-bin.000001
-      --source include/show_binlog_events.inc
+      --let $binlog_file=$start_binlog_file
+      --let $binlog_output_name=master-bin.000001
       if ($error)
       {
-        --let $binlog_file=master-bin.000002
-        --source include/show_binlog_events.inc
+        --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+        --let $binlog_output_name=master-bin.000002
+        if ($binlog_file != $start_binlog_file)
+        {
+          --source include/show_binlog_events.inc
+        }
       }
       # Really drop the tables. The warnings will show what was dropped
       --disable_warnings

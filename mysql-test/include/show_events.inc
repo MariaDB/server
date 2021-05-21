@@ -89,6 +89,13 @@ if (!$binlog_database)
 --let $output_file= GENERATE
 --source include/write_result_to_file.inc
 
+# If requested, change the name of the binary log file in the output
+--let $modify_binlog_name=
+if ($binlog_output_name != "")
+{
+  --let $modify_binlog_name=s{$_binlog_file}{$binlog_output_name};
+}
+
 # Filter the file through the following script.
 --delimiter ||
 let $script=
@@ -108,7 +115,9 @@ let $script=
   s{SONAME ".*"}{SONAME "LIB"};
   s{DOLLARmysqltest_vardir}{MYSQLTEST_VARDIR}g;
   s{$binlog_database}{database};
+  $modify_binlog_name
 ||
+
 --let $pre_script= my DOLLARmysqltest_vardir = DOLLARENV{'MYSQLTEST_VARDIR'};
 
 --delimiter ;
