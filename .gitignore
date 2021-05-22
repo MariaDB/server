@@ -198,6 +198,7 @@ sql/mysqld
 sql/sql_builtin.cc
 sql/sql_yacc.cc
 sql/sql_yacc.hh
+sql/sql_yacc_mariadb.yy
 sql/sql_yacc_ora.cc
 sql/sql_yacc_ora.hh
 sql/sql_yacc_ora.yy

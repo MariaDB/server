@@ -355,7 +355,7 @@ void binlog_unsafe_map_init();
 
 #ifdef MYSQL_SERVER
 /*
-  The following hack is needed because mysql_yacc.cc does not define
+  The following hack is needed because sql_yacc.cc does not define
   YYSTYPE before including this file
 */
 #ifdef MYSQL_YACC
