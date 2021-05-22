@@ -250,19 +250,27 @@ else
     CAFILE_OPT=""
 fi
 
+VERIFY_OPT=""
+CHECK_OPT=""
+CHECK_OPT_LOCAL=""
 if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]
 then
     case "$SSLMODE" in
     'VERIFY_IDENTITY')
         VERIFY_OPT='verifyPeer = yes'
-        CHECK_OPT=""
         ;;
     'VERIFY_CA')
         VERIFY_OPT='verifyChain = yes'
-        if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
-            CHECK_OPT='checkHost = localhost'
+        # check if the address is an ip-address (v4 or v6):
+        if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
+           grep -q -E '^([0-9]+(\.[0-9]+){3,3}|[0-9a-fA-F]?(\:[0-9a-fA-F]*)+)$'
+        then
+            CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
         else
-            CHECK_OPT='checkHost = $WSREP_SST_OPT_HOST_UNESCAPED'
+            CHECK_OPT="checkHost = $WSREP_SST_OPT_HOST"
+        fi
+        if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+            CHECK_OPT_LOCAL="checkHost = localhost"
         fi
         ;;
     *)
@@ -273,9 +281,6 @@ then
         wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file"
         exit 22 # EINVAL
     fi
-else
-    VERIFY_OPT=""
-    CHECK_OPT=""
 fi
 
 STUNNEL=""
@@ -310,6 +315,7 @@ connect = $WSREP_SST_OPT_HOST_UNESCAPED:$WSREP_SST_OPT_PORT
 TIMEOUTclose = 0
 ${VERIFY_OPT}
 ${CHECK_OPT}
+${CHECK_OPT_LOCAL}
 EOF
     fi
 
@@ -566,6 +572,9 @@ foreground = yes
 pid = $STUNNEL_PID
 debug = warning
 client = no
+${VERIFY_OPT}
+${CHECK_OPT}
+${CHECK_OPT_LOCAL}
 [rsync]
 accept = $STUNNEL_ACCEPT
 exec = $(command -v rsync)
@@ -583,6 +592,9 @@ foreground = yes
 pid = $STUNNEL_PID
 debug = warning
 client = no
+${VERIFY_OPT}
+${CHECK_OPT}
+${CHECK_OPT_LOCAL}
 [rsync]
 accept = $STUNNEL_ACCEPT
 exec = $SHELL
