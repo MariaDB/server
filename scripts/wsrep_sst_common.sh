@@ -875,7 +875,9 @@ get_openssl()
     readonly OPENSSL_BINARY
 }
 
+#
 # Generate a string equivalent to 16 random bytes
+#
 wsrep_gen_secret()
 {
     get_openssl
@@ -889,16 +891,36 @@ wsrep_gen_secret()
     fi
 }
 
+#
+# Checking if the address passed to us is local.
+# If the second parameter is nonzero, then this function
+# does not check for matches with local domain names:
+#
 is_local_ip()
 {
-    [ "$1" = '127.0.0.1' ]      && return 0
-    [ "$1" = '127.0.0.2' ]      && return 0
-    [ "$1" = 'localhost' ]      && return 0
-    [ "$1" = '[::1]' ]          && return 0
-    [ "$1" = "$(hostname -s)" ] && return 0
-    [ "$1" = "$(hostname -f)" ] && return 0
-    [ "$1" = "$(hostname -d)" ] && return 0
-
+    # Rapid recognition of the most common cases:
+    [ "$1" = '127.0.0.1' -o \
+      "$1" = '127.0.0.2' -o \
+      "$1" = 'localhost' -o \
+      "$1" = '[::1]' ] && return 0
+    # If the address starts with "127." this is probably a local
+    # address, but we need to clarify what follows this prefix:
+    if [ "${1#127.}" != "$1" ]; then
+        # All 127.0.0.0/8 addresses are local:
+        if echo "$1" | grep -q -E '^127\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+            return 0
+        fi
+    fi
+    # If the second parameter is nonzero, then we will skip
+    # the domain name check:
+    if [ "${2:-0}" -eq 0 ]; then
+       # We consider all the names of a given host to be local addresses:
+       [ "$1" = "$(hostname -s)" -o \
+         "$1" = "$(hostname -f)" -o \
+         "$1" = "$(hostname -d)" ] && return 0
+    fi
+    # Now let's check if the given address is assigned to
+    # one of the network cards:
     local ip_util="$(command -v ip)"
     if [ -n "$ip_util" ]; then
         # ip address show ouput format is " inet[6] <address>/<mask>":
@@ -914,7 +936,6 @@ is_local_ip()
                  | grep -F " $1 " >/dev/null && return 0
         fi
     fi
-
     return 1
 }
 
