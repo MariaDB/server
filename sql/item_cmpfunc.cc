@@ -1416,6 +1416,9 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
     maybe_null=1;
   with_subselect= 1;
   with_sum_func= with_sum_func || args[1]->with_sum_func;
+  with_window_func= args[0]->with_window_func;
+  // The subquery cannot have window functions aggregated in this select
+  DBUG_ASSERT(!args[1]->with_window_func);
   with_field= with_field || args[1]->with_field;
   with_param= args[0]->with_param || args[1]->with_param; 
   used_tables_and_const_cache_join(args[1]);

@@ -8203,6 +8203,7 @@ Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   name= item_arg->name;
   name_length= item_arg->name_length;
   with_subselect=  orig_item->with_subselect;
+  with_window_func= orig_item->with_window_func;
 
   if ((expr_value= Item_cache::get_cache(thd, orig_item)))
     expr_value->setup(thd, orig_item);
