@@ -66,13 +66,14 @@ ADD_CUSTOM_COMMAND(
 )
 
 ADD_CUSTOM_COMMAND(
-  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_mariadb.yy
-         ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy
+  OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy
+         ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy
   COMMAND ${CMAKE_COMMAND} "-DVAL1=ORACLE" "-DVAL2=MARIADB"
-   "-DOUT1=${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy"
-   "-DOUT2=${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_mariadb.yy"
+   "-DOUT1=${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy"
+   "-DOUT2=${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy"
    "-DIN=${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy"
    -P ${CMAKE_CURRENT_SOURCE_DIR}/gen_yy_files.cmake
+  COMMENT "Building yy_mariadb.yy and yy_oracle.yy from sql_yacc.yy"
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy
           ${CMAKE_CURRENT_SOURCE_DIR}/gen_yy_files.cmake
 )
@@ -84,8 +85,8 @@ IF(SSL_DEFINES)
 ENDIF()
 
 SET (SQL_SOURCE
-               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-               ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
+               ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
               ../sql-common/client.c compat56.cc derror.cc des_key_file.cc
                discover.cc ../sql-common/errmsg.c
                field.cc field_conv.cc field_comp.cc
@@ -328,7 +329,7 @@ FIND_PACKAGE(BISON 2.0)
 # there
 IF (NOT BISON_FOUND)
   IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
-    FOREACH(file sql_yacc.cc sql_yacc.hh sql_yacc_ora.cc sql_yacc_ora.hh)
+    FOREACH(file yy_mariadb.cc yy_mariadb.hh yy_oracle.cc yy_oracle.hh)
     IF(EXISTS ${CMAKE_CURRENT_SOURCE_DIR}/${file} AND (NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/${file}))
         CONFIGURE_FILE(${CMAKE_CURRENT_SOURCE_DIR}/${file}
         ${CMAKE_CURRENT_BINARY_DIR}/${file} COPYONLY)
@@ -336,7 +337,7 @@ IF (NOT BISON_FOUND)
     ENDFOREACH()
   ENDIF()
 
-  IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc)
+  IF(NOT EXISTS ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc)
      # Output files are missing, bail out.
       SET(ERRMSG
          "Bison (GNU parser generator) is required to build MySQL."
@@ -351,18 +352,17 @@ IF (NOT BISON_FOUND)
       MESSAGE(FATAL_ERROR ${ERRMSG})
   ENDIF()
 ELSE()
-  BISON_TARGET(gen_mariadb_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_mariadb.yy
-                                 ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-                    DEFINES_FILE ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.hh
+  BISON_TARGET(gen_mariadb_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy
+                                 ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
                COMPILE_FLAGS "-p MYSQL -S ${CMAKE_CURRENT_SOURCE_DIR}/myskel.m4")
-  BISON_TARGET(gen_oracle_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.yy
-                                ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+  BISON_TARGET(gen_oracle_cc_hh ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy
+                                ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
                COMPILE_FLAGS "-p ORA -S ${CMAKE_CURRENT_SOURCE_DIR}/myskel.m4")
 ENDIF()
 
 IF(NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING_EMULATOR)
   ADD_EXECUTABLE(gen_lex_token gen_lex_token.cc
-   ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.hh)
+   ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.hh)
   ADD_EXECUTABLE(gen_lex_hash gen_lex_hash.cc)
 ENDIF()
 
@@ -381,8 +381,8 @@ ADD_CUSTOM_TARGET(
         DEPENDS
         ${CMAKE_CURRENT_BINARY_DIR}/lex_hash.h
         ${CMAKE_CURRENT_BINARY_DIR}/lex_token.h
-        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc.cc
-        ${CMAKE_CURRENT_BINARY_DIR}/sql_yacc_ora.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
+        ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
 )
 
 IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
@@ -397,8 +397,8 @@ CONFIGURE_FILE(
 
 ADD_CUSTOM_TARGET(dist
   COMMAND ${CMAKE_COMMAND} -P ${CMAKE_BINARY_DIR}/make_dist.cmake
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc.hh
-  DEPENDS ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc ${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc ${CMAKE_BINARY_DIR}/sql/yy_mariadb.hh
+  DEPENDS ${CMAKE_BINARY_DIR}/sql/yy_oracle.cc ${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
   WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
 )
 

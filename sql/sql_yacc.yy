@@ -165,7 +165,7 @@ static void yyerror(THD *thd, const char *s)
 void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 {
   /*
-     MYSQLdebug is in sql/sql_yacc.cc, in bison generated code.
+     MYSQLdebug is in sql/yy_*.cc, in bison generated code.
      Turning this option on is **VERY** verbose, and should be
      used when investigating a syntax error problem only.
 
@@ -17791,7 +17791,7 @@ uninstall:
           }
         ;
 
-/* Avoid compiler warning from sql_yacc.cc where yyerrlab1 is not used */
+/* Avoid compiler warning from yy_*.cc where yyerrlab1 is not used */
 keep_gcc_happy:
           IMPOSSIBLE_ACTION
           {

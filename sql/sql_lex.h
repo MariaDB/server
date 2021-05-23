@@ -355,7 +355,7 @@ void binlog_unsafe_map_init();
 
 #ifdef MYSQL_SERVER
 /*
-  The following hack is needed because sql_yacc.cc does not define
+  The following hack is needed because yy_*.cc do not define
   YYSTYPE before including this file
 */
 #ifdef MYSQL_YACC
@@ -363,10 +363,10 @@ void binlog_unsafe_map_init();
 #else
 #include "lex_symbol.h"
 #ifdef MYSQL_LEX
-#include "item_func.h"            /* Cast_target used in sql_yacc.hh */
-#include "sql_get_diagnostics.h"  /* Types used in sql_yacc.hh */
+#include "item_func.h"            /* Cast_target used in yy_mariadb.hh */
+#include "sql_get_diagnostics.h"  /* Types used in yy_mariadb.hh */
 #include "sp_pcontext.h"
-#include "sql_yacc.hh"
+#include "yy_mariadb.hh"
 #define LEX_YYSTYPE YYSTYPE *
 #else
 #define LEX_YYSTYPE void *
