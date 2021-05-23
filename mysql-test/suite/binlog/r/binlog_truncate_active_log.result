@@ -102,6 +102,7 @@ SELECT * FROM t;
 f
 10
 DELETE FROM t;
+# Case C.
 CREATE PROCEDURE sp_blank_xa()
 BEGIN
 XA START   'blank';
@@ -109,7 +110,6 @@ DELETE FROM t2 WHERE f = 0 /* no such record */;
 XA END     'blank';
 XA PREPARE 'blank';
 END|
-# Case C.
 connect master1,localhost,root,,;
 connect master2,localhost,root,,;
 connect master3,localhost,root,,;
@@ -164,6 +164,74 @@ f
 10
 DELETE FROM t;
 DROP PROCEDURE sp_blank_xa;
+# Case D.
+CREATE PROCEDURE sp_xa()
+BEGIN
+XA START   'xid';
+DELETE FROM t WHERE f = 10;
+XA END     'xid';
+XA PREPARE 'xid';
+END|
+connect master1,localhost,root,,;
+connect master2,localhost,root,,;
+connect master3,localhost,root,,;
+connection default;
+INSERT INTO t  VALUES (10);
+INSERT INTO tm VALUES (10);
+connection master1;
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT_FOR signal_never_arrives";
+CALL sp_xa;
+connection master2;
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
+SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
+INSERT INTO t2 VALUES (20);
+connection master3;
+SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
+SELECT @@global.gtid_binlog_pos as 'Before the crash';
+Before the crash
+0-1-20
+connection default;
+# Kill the server
+disconnect master1;
+disconnect master2;
+disconnect master3;
+# restart: --rpl-semi-sync-slave-enabled=1
+FOUND # /Successfully truncated.*to remove transactions starting from GTID 0-1-20/ in mysqld.1.err
+Pre-crash binlog file content:
+include/show_binlog_events.inc
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; DELETE FROM t
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+master-bin.000004	#	Gtid	#	#	GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; DROP PROCEDURE sp_blank_xa
+master-bin.000004	#	Gtid	#	#	GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` PROCEDURE `sp_xa`()
+BEGIN
+XA START   'xid';
+DELETE FROM t WHERE f = 10;
+XA END     'xid';
+XA PREPARE 'xid';
+END
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; INSERT INTO t  VALUES (10)
+master-bin.000004	#	Xid	#	#	COMMIT /* XID */
+master-bin.000004	#	Gtid	#	#	BEGIN GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; INSERT INTO tm VALUES (10)
+master-bin.000004	#	Query	#	#	COMMIT
+master-bin.000004	#	Gtid	#	#	XA START X'786964',X'',1 GTID #-#-#
+master-bin.000004	#	Query	#	#	use `test`; DELETE FROM t WHERE f = 10
+master-bin.000004	#	Query	#	#	XA END X'786964',X'',1
+master-bin.000004	#	XA_prepare	#	#	XA PREPARE X'786964',X'',1
+SELECT @@global.gtid_binlog_pos as 'After the crash';
+After the crash
+0-1-19
+"One row should be present in table 't'"
+SELECT * FROM t;
+f
+10
+DELETE FROM t;
+DROP PROCEDURE sp_xa;
 # Cleanup
 DROP TABLE t,t2,tm;
 # End of the tests

@@ -54,6 +54,7 @@ CREATE TABLE tm (f INT) ENGINE=Aria;
 --source binlog_truncate_active_log.inc
 
 
+--echo # Case C.
 delimiter |;
 CREATE PROCEDURE sp_blank_xa()
 BEGIN
@@ -64,8 +65,6 @@ BEGIN
 END|
 delimiter ;|
 
-
---echo # Case C.
 # The same as in A with $query2 being the zero-engine XA transaction.
 # Both $query1 and $query2 are going to be truncated.
 --let $truncate_gtid_pos = 0-1-14
@@ -73,7 +72,31 @@ delimiter ;|
 --let $pre_q2 = CALL sp_blank_xa
 --let $query2 =  XA COMMIT  'blank'
 --source binlog_truncate_active_log.inc
+
 DROP PROCEDURE sp_blank_xa;
+
+
+--echo # Case D.
+delimiter |;
+CREATE PROCEDURE sp_xa()
+BEGIN
+ XA START   'xid';
+ DELETE FROM t WHERE f = 10;
+ XA END     'xid';
+ XA PREPARE 'xid';
+END|
+delimiter ;|
+
+# The same as in B with $query1 being the prepared XA transaction.
+# Truncation must occurs at $query2.
+--let $truncate_gtid_pos = 0-1-20
+--let $query1 = CALL sp_xa
+--let $pre_q2 =
+--let $query2 = INSERT INTO t2 VALUES (20)
+--source binlog_truncate_active_log.inc
+
+DROP PROCEDURE sp_xa;
+
 
 --echo # Cleanup
 DROP TABLE t,t2,tm;

@@ -3292,17 +3292,24 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       xid.set(xid_state.get_xid());
     }
     /* count non-zero extra recoverable engines; total = extra + 1 */
-    if (has_xid || thd->lex->sql_command == SQLCOM_XA_PREPARE)
+    if (has_xid)
     {
       DBUG_ASSERT(ha_count_rw_2pc(thd_arg,
                                   thd_arg->in_multi_stmt_transaction_mode()));
 
       extra_engines=
-        ha_count_rw_2pc(thd_arg, thd_arg->in_multi_stmt_transaction_mode()) - 2; // TODO: remove binlog_hton->recover instead (-2)
+        ha_count_rw_2pc(thd_arg, thd_arg->in_multi_stmt_transaction_mode()) - 1;
     }
     else if (ro_1pc)
     {
       extra_engines= UCHAR_MAX;
+    }
+    else if (thd->lex->sql_command == SQLCOM_XA_PREPARE)
+    {
+      DBUG_ASSERT(thd_arg->in_multi_stmt_transaction_mode());
+
+      uint8 count= ha_count_rw_2pc(thd_arg, true);
+      extra_engines= count > 1 ? 0 : UCHAR_MAX;
     }
     if (extra_engines > 0)
       flags_extra|= FL_EXTRA_MULTI_ENGINE;
