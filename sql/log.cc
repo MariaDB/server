@@ -96,9 +96,6 @@ static bool binlog_savepoint_rollback_can_release_mdl(handlerton *hton,
                                                       THD *thd);
 static int binlog_rollback(handlerton *hton, THD *thd, bool all);
 static int binlog_prepare(handlerton *hton, THD *thd, bool all);
-static int binlog_xa_recover_dummy(handlerton *hton, XID *xid_list, uint len);
-static int binlog_commit_by_xid(handlerton *hton, XID *xid);
-static int binlog_rollback_by_xid(handlerton *hton, XID *xid);
 static int binlog_start_consistent_snapshot(handlerton *hton, THD *thd);
 static int binlog_flush_cache(THD *thd, binlog_cache_mngr *cache_mngr,
                               Log_event *end_ev, bool all, bool using_stmt,
@@ -1709,10 +1706,6 @@ int binlog_init(void *p)
   {
     binlog_hton->prepare= binlog_prepare;
     binlog_hton->start_consistent_snapshot= binlog_start_consistent_snapshot;
-    binlog_hton->commit_by_xid= binlog_commit_by_xid;   // TODO: dummy
-    binlog_hton->rollback_by_xid= binlog_rollback_by_xid;
-    // recover needs to be set to make xa{commit,rollback}_handlerton effective
-    binlog_hton->recover= binlog_xa_recover_dummy;
   }
   binlog_hton->flags= HTON_NOT_USER_SELECTABLE | HTON_HIDDEN | HTON_NO_ROLLBACK;
   return 0;
@@ -2026,22 +2019,12 @@ static int binlog_prepare(handlerton *hton, THD *thd, bool all)
 }
 
 
-static int binlog_xa_recover_dummy(handlerton *hton __attribute__((unused)),
-                             XID *xid_list __attribute__((unused)),
-                             uint len __attribute__((unused)))
-{
-  /* Does nothing. */
-  return 0;
-}
-
-
-static int binlog_commit_by_xid(handlerton *hton, XID *xid)
+int binlog_commit_by_xid(handlerton *hton, XID *xid)
 {
   THD *thd= current_thd;
 
-  if (!thd)
-    return 1;  // TODO: replace with the XA part of MDEV-21117 patch
-
+  if (thd->is_current_stmt_binlog_disabled())
+    return 0;
   (void) thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_COMMIT);
@@ -2050,13 +2033,12 @@ static int binlog_commit_by_xid(handlerton *hton, XID *xid)
 }
 
 
-static int binlog_rollback_by_xid(handlerton *hton, XID *xid)
+int binlog_rollback_by_xid(handlerton *hton, XID *xid)
 {
   THD *thd= current_thd;
 
-  if (!thd)
-    return 1;  // ditto
-
+  if (thd->is_current_stmt_binlog_disabled())
+    return 0;
   (void) thd->binlog_setup_trx_data();
 
   DBUG_ASSERT(thd->lex->sql_command == SQLCOM_XA_ROLLBACK ||
