@@ -986,7 +986,7 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
       case JSON_VALUE_ARRAY:
       case JSON_VALUE_FALSE:
       case JSON_VALUE_NULL:
-      case JSON_VALUE_UNINITALIZED:
+      case JSON_VALUE_UNINITIALIZED:
       break;
     };
   }
