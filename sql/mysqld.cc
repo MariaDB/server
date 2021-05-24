@@ -5407,7 +5407,7 @@ static int init_server_components()
     }
   }
 
-  if (opt_bin_log)
+  if (!opt_help && opt_bin_log)
   {
     if (mysql_bin_log.open_index_file(opt_binlog_index_name, opt_bin_logname,
                                       TRUE))

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -232,6 +232,7 @@ void ORAerror(THD *thd, const char *s)
   class sp_head *sphead;
   class sp_name *spname;
   class sp_variable *spvar;
+  class With_element_head *with_element_head;
   class With_clause *with_clause;
   class Virtual_column_info *virtual_column;
 
@@ -1628,7 +1629,7 @@ END_OF_INPUT
 
 %type <with_clause> opt_with_clause with_clause
 
-%type <lex_str_ptr> query_name
+%type <with_element_head> with_element_head
 
 %type <lex_str_list> opt_with_column_list
 
@@ -2999,7 +3000,11 @@ call:
             if (unlikely(Lex->call_statement_start(thd, $2)))
               MYSQL_YYABORT;
           }
-          opt_sp_cparam_list {}
+          opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 /* CALL parameters */
@@ -3986,6 +3991,8 @@ sp_proc_stmt_return:
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
             if (unlikely(sp->m_handler->add_instr_freturn(thd, sp, lex->spcont,
                                                           $3, lex)) ||
                 unlikely(sp->restore_lex(thd)))
@@ -3995,6 +4002,8 @@ sp_proc_stmt_return:
           {
             LEX *lex= Lex;
             sp_head *sp= lex->sphead;
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
             if (unlikely(sp->m_handler->add_instr_preturn(thd, sp,
                                                                lex->spcont)))
               MYSQL_YYABORT;
@@ -5185,12 +5194,16 @@ create_select_query_expression:
           { 
             Select->set_braces(0);
             Select->set_with_clause($1);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
           union_clause
         | opt_with_clause SELECT_SYM create_select_part2 
           create_select_part3_union_not_ready create_select_part4
           {
             Select->set_with_clause($1);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
         | '(' create_select_query_specification ')'
         | '(' create_select_query_specification ')'
@@ -5939,6 +5952,8 @@ create_select_query_specification:
           create_select_part4
           {
             Select->set_with_clause($1);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
         ;
 
@@ -9135,6 +9150,8 @@ select:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SELECT;
             lex->current_select->set_with_clause($1);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
         ;
 
@@ -13172,6 +13189,8 @@ do:
           expr_list
           {
             Lex->insert_list= $3;
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
         ;
 
@@ -13416,6 +13435,8 @@ insert:
           }
           insert_field_spec opt_insert_update
           {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
             Lex->mark_first_table_as_inserting();
           }
         ;
@@ -13435,6 +13456,8 @@ replace:
           }
           insert_field_spec
           {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
             Lex->mark_first_table_as_inserting();
           }
         ;
@@ -13683,7 +13706,11 @@ update:
             */
             slex->set_lock_for_tables($3, slex->table_list.elements == 1);
           }
-          opt_where_clause opt_order_clause delete_limit_clause {}
+          opt_where_clause opt_order_clause delete_limit_clause
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 update_list:
@@ -13797,6 +13824,8 @@ single_multi:
           USING join_table_list opt_where_clause
           {
             if (unlikely(multi_delete_set_locks_and_link_aux_tables(Lex)))
+              MYSQL_YYABORT;
+            if (Lex->check_cte_dependencies_and_resolve_references())
               MYSQL_YYABORT;
           }
         ;
@@ -14830,6 +14859,8 @@ load:
           opt_field_term opt_line_term opt_ignore_lines opt_field_or_var_spec
           opt_load_data_set_spec
           {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
             Lex->mark_first_table_as_inserting();
           }
           ;
@@ -15247,6 +15278,8 @@ with_clause:
              if (unlikely(with_clause == NULL))
                MYSQL_YYABORT;
              Lex->derived_tables|= DERIVED_WITH;
+             Lex->with_cte_resolution= true;
+             Lex->with_cte_resolution= true;
              Lex->curr_with_clause= with_clause;
              with_clause->add_to_list(Lex->with_clauses_list_last_next);
           }
@@ -15271,7 +15304,7 @@ with_list:
 
 
 with_list_element:
-	  query_name
+          with_element_head
 	  opt_with_column_list 
           {
             $2= new List<LEX_CSTRING> (Lex->with_column_list);
@@ -15292,6 +15325,7 @@ with_list_element:
             if (elem->set_unparsed_spec(thd, spec_start, $8,
                                         spec_start - query_start))
               MYSQL_YYABORT;
+            elem->set_tables_end_pos(lex->query_tables_last);
 	  }
 	;
 
@@ -15318,12 +15352,17 @@ with_column_list:
         ;
 
 
-query_name: 
+with_element_head:
           ident
           {
-            $$= (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
+            LEX_CSTRING *name=
+              (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
+            $$= new (thd->mem_root) With_element_head(name);
+            if ($$ == NULL)
+              MYSQL_YYABORT;
+            $$->tables_pos.set_start_pos(Lex->query_tables_last);
           }
         ;
 
@@ -16305,7 +16344,10 @@ set:
             sp_create_assignment_lex(thd, yychar == YYEMPTY);
           }
           start_option_value_list
-          {}
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         | SET STATEMENT_SYM
           {
             Lex->set_stmt_init();
@@ -17873,6 +17915,9 @@ view_select:
             lex->create_view->check= $4;
             lex->parsing_options.allows_variable= TRUE;
             lex->current_select->set_with_clause($2);
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+
           }
         ;
 

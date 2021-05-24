@@ -1,5 +1,5 @@
 /*
-   Copyright (c) 2016, 2017 MariaDB
+   Copyright (c) 2016, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -75,7 +75,7 @@ bool With_clause::add_with_element(With_element *elem)
     true    on failure
 */
 
-bool check_dependencies_in_with_clauses(With_clause *with_clauses_list)
+bool LEX::check_dependencies_in_with_clauses()
 {
   for (With_clause *with_clause= with_clauses_list;
        with_clause;
@@ -87,6 +87,200 @@ bool check_dependencies_in_with_clauses(With_clause *with_clauses_list)
       return true;
     with_clause->move_anchors_ahead();
   }
+  return false;
+}
+
+
+/**
+  @brief
+    Resolve references to CTE in specification of hanging CTE
+
+  @details
+    A CTE to which there are no references in the query is called hanging CTE.
+    Although such CTE is not used for execution its specification must be
+    subject to context analysis. All errors concerning references to
+    non-existing tables or fields occurred in the specification must be
+    reported as well as all other errors caught at the prepare stage.
+    The specification of a hanging CTE might contain references to other
+    CTE outside of the specification and within it if the specification
+    contains a with clause. This function resolves all such references for
+    all hanging CTEs encountered in the processed query.
+
+  @retval
+    false   on success
+    true    on failure
+*/
+
+bool
+LEX::resolve_references_to_cte_in_hanging_cte()
+{
+  for (With_clause *with_clause= with_clauses_list;
+       with_clause; with_clause= with_clause->next_with_clause)
+  {
+    for (With_element *with_elem= with_clause->with_list.first;
+         with_elem; with_elem= with_elem->next)
+    {
+      if (!with_elem->is_referenced())
+      {
+        TABLE_LIST *first_tbl=
+                     with_elem->spec->first_select()->table_list.first;
+        TABLE_LIST **with_elem_end_pos= with_elem->head->tables_pos.end_pos;
+        if (first_tbl && resolve_references_to_cte(first_tbl, with_elem_end_pos))
+          return true;
+      }
+    }
+  }
+  return false;
+}
+
+
+/**
+  @brief
+    Resolve table references to CTE from a sub-chain of table references
+
+  @param tables      Points to the beginning of the sub-chain
+  @param tables_last Points to the address with the sub-chain barrier
+
+  @details
+    The method resolves tables references to CTE from the chain of
+    table references specified by the parameters 'tables' and 'tables_last'.
+    It resolves the references against the CTE definition occurred in a query
+    or the specification of a CTE whose parsing tree is represented by
+    this LEX structure. The method is always called right after the process
+    of parsing the query or of the specification of a CTE has been finished,
+    thus the chain of table references used in the parsed fragment has been
+    already built. It is assumed that parameters of the method specify a
+    a sub-chain of this chain.
+    If a table reference can be potentially a table reference to a CTE and it
+    has not been resolved yet then the method tries to find the definition
+    of the CTE against which the reference can be resolved. If it succeeds
+    it sets the field TABLE_LIST::with to point to the found definition.
+    It also sets the field TABLE_LIST::derived to point to the specification
+    of the found CTE and sets TABLE::db.str to empty_c_string. This will
+    allow to handle this table reference like a reference to a derived handle.
+    If another table reference has been already resolved against this CTE
+    and this CTE is not recursive then a clone of the CTE specification is
+    constructed using the function With_element::clone_parsed_spec() and
+    TABLE_LIST::derived is set to point to this clone rather than to the
+    original specification.
+    If the method does not find a matched CTE definition in the parsed fragment
+    then in the case when the flag this->only_cte_resolution is set to true
+    it just moves to the resolution of the next table reference from the
+    specified sub-chain while in the case when this->only_cte_resolution is set
+    to false the method additionally sets an mdl request for this table
+    reference.
+
+  @notes
+    The flag this->only_cte_resolution is set to true in the cases when
+    the failure to resolve a table reference as a CTE reference within
+    the fragment associated with this LEX structure does not imply that
+    this table reference cannot be resolved as such at all.
+
+  @retval false  On success: no errors reported, no memory allocations failed
+  @retval true   Otherwise
+*/
+
+bool LEX::resolve_references_to_cte(TABLE_LIST *tables,
+                                    TABLE_LIST **tables_last)
+{
+  With_element *with_elem= 0;
+
+  for (TABLE_LIST *tbl= tables; tbl != *tables_last; tbl= tbl->next_global)
+  {
+    if (tbl->derived)
+      continue;
+    if (!tbl->db.length && !tbl->with)
+      tbl->with= tbl->select_lex->find_table_def_in_with_clauses(tbl);
+    if (!tbl->with)    // no CTE matches table reference tbl
+    {
+      if (only_cte_resolution)
+        continue;
+      if (!tbl->db.length)   // no database specified in table reference tbl
+      {
+        if (!thd->db.length) // no default database is set
+        {
+          my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
+          return true;
+        }
+        if (copy_db_to(&tbl->db))
+          return true;
+        if (!(tbl->table_options & TL_OPTION_ALIAS))
+          tbl->mdl_request.init(MDL_key::TABLE, tbl->db.str,
+                                tbl->table_name.str,
+                                tbl->mdl_type, MDL_TRANSACTION);
+        tbl->mdl_request.set_type((tbl->lock_type >= TL_WRITE_ALLOW_WRITE) ?
+                                   MDL_SHARED_WRITE : MDL_SHARED_READ);
+      }
+      continue;
+    }
+    with_elem= tbl->with;
+    if (tbl->is_recursive_with_table() &&
+        !tbl->is_with_table_recursive_reference())
+    {
+      tbl->with->rec_outer_references++;
+      while ((with_elem= with_elem->get_next_mutually_recursive()) !=
+             tbl->with)
+	with_elem->rec_outer_references++;
+    }
+    if (!with_elem->is_used_in_query || with_elem->is_recursive)
+    {
+      tbl->derived= with_elem->spec;
+      if (tbl->derived != tbl->select_lex->master_unit() &&
+          !with_elem->is_recursive &&
+          !tbl->is_with_table_recursive_reference())
+      {
+        tbl->derived->move_as_slave(tbl->select_lex);
+      }
+      with_elem->is_used_in_query= true;
+    }
+    else
+    {
+      if (!(tbl->derived= tbl->with->clone_parsed_spec(thd->lex, tbl)))
+        return true;
+    }
+    tbl->db.str= empty_c_string;
+    tbl->db.length= 0;
+    tbl->schema_table= 0;
+    if (tbl->derived)
+    {
+      tbl->derived->first_select()->linkage= DERIVED_TABLE_TYPE;
+    }
+    if (tbl->with->is_recursive && tbl->is_with_table_recursive_reference())
+      continue;
+    with_elem->inc_references();
+  }
+  return false;
+}
+
+
+/**
+  @brief
+    Find out dependencies between CTEs, resolve references to them
+
+  @details
+    The function can be called in two modes. With this->with_cte_resolution
+    set to false the function only finds out all dependencies between CTEs
+    used in a query expression with a WITH clause whose parsing has been
+    just finished. Based on these dependencies recursive CTEs are detected.
+    If this->with_cte_resolution is set to true the function additionally
+    resolves all references to CTE occurred in this query expression.
+
+  @retval
+    true   on failure
+    false  on success
+*/
+
+bool
+LEX::check_cte_dependencies_and_resolve_references()
+{
+  if (check_dependencies_in_with_clauses())
+    return true;
+  if (!with_cte_resolution)
+    return false;
+  if (resolve_references_to_cte(query_tables, query_tables_last))
+    return true;
+  if (resolve_references_to_cte_in_hanging_cte())
+    return true;
   return false;
 }
 
@@ -129,10 +323,11 @@ bool With_clause::check_dependencies()
          elem != with_elem;
          elem= elem->next)
     {
-      if (lex_string_cmp(system_charset_info, with_elem->query_name,
-                         elem->query_name) == 0)
+      if (my_strcasecmp(system_charset_info, with_elem->get_name_str(),
+                        elem->get_name_str()) == 0)
       {
-	my_error(ER_DUP_QUERY_NAME, MYF(0), with_elem->query_name->str);
+        my_error(ER_DUP_QUERY_NAME, MYF(0),
+                 with_elem->get_name_str());
 	return true;
       }
     }
@@ -239,13 +434,12 @@ With_element *With_clause::find_table_def(TABLE_LIST *table,
        with_elem != barrier;
        with_elem= with_elem->next)
   {
-    if (my_strcasecmp(system_charset_info, with_elem->query_name->str,
+    if (my_strcasecmp(system_charset_info, with_elem->get_name_str(),
 		      table->table_name.str) == 0 &&
         !table->is_fqtn)
     {
       table->set_derived();
-      table->db.str= empty_c_string;
-      table->db.length= 0;
+      with_elem->referenced= true;
       return with_elem;
     }
   }
@@ -602,7 +796,7 @@ bool With_clause::check_anchors()
       if (elem == with_elem)
       {
         my_error(ER_RECURSIVE_WITHOUT_ANCHORS, MYF(0),
-        with_elem->query_name->str);
+        with_elem->get_name_str());
         return true;
       }
     }
@@ -635,7 +829,7 @@ bool With_clause::check_anchors()
         if (elem->work_dep_map & elem->get_elem_map())
 	{
           my_error(ER_UNACCEPTABLE_MUTUAL_RECURSION, MYF(0),
-          with_elem->query_name->str);
+          with_elem->get_name_str());
           return true;
 	}
       }
@@ -787,7 +981,8 @@ bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end,
   @brief
    Create a clone of the specification for the given with table
     
-  @param thd        The context of the statement containing this with element
+  @param old_lex    The LEX structure created for the query or CTE specification
+                    where this With_element is defined
   @param with_table The reference to the table defined in this element for which
                      the clone is created.
 
@@ -797,12 +992,13 @@ bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end,
     this element.
     The clone is created when the string with the specification saved in
     unparsed_spec is fed into the parser as an input string. The parsing
-    this string a unit object representing the specification is build.
+    this string a unit object representing the specification is built.
     A chain of all table references occurred in the specification is also
     formed.
     The method includes the new unit and its sub-unit into hierarchy of
     the units of the main query. I also insert the constructed chain of the 
     table references into the chain of all table references of the main query.
+    The method resolves all references to CTE in the clone.
 
   @note
     Clones is created only for not first references to tables defined in
@@ -818,115 +1014,129 @@ bool With_element::set_unparsed_spec(THD *thd, char *spec_start, char *spec_end,
      NULL - otherwise
 */
 
-st_select_lex_unit *With_element::clone_parsed_spec(THD *thd,
+st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
                                                     TABLE_LIST *with_table)
 {
+  THD *thd= old_lex->thd;
   LEX *lex;
-  st_select_lex_unit *res= NULL; 
-  Query_arena backup;
-  Query_arena *arena= thd->activate_stmt_arena_if_needed(&backup);
+  st_select_lex_unit *res= NULL;
 
   if (!(lex= (LEX*) new(thd->mem_root) st_lex_local))
-  {
-    if (arena)
-      thd->restore_active_arena(arena, &backup);
     return res;
-  }
-  LEX *old_lex= thd->lex;
   thd->lex= lex;
 
   bool parse_status= false;
-  Parser_state parser_state;
-  TABLE_LIST *spec_tables;
-  TABLE_LIST *spec_tables_tail;
   st_select_lex *with_select;
 
   char save_end= unparsed_spec.str[unparsed_spec.length];
-  ((char*) &unparsed_spec.str[unparsed_spec.length])[0]= '\0';
-  if (parser_state.init(thd, (char*) unparsed_spec.str, (unsigned int)unparsed_spec.length))
-    goto err;
-  parser_state.m_lip.stmt_prepare_mode= stmt_prepare_mode;
-  parser_state.m_lip.multi_statements= false;
-  parser_state.m_lip.m_digest= NULL;
+  const_cast<char*>(unparsed_spec.str)[unparsed_spec.length]= '\0';
 
   lex_start(thd);
   lex->clone_spec_offset= unparsed_spec_offset;
-  lex->param_list= old_lex->param_list;
-  lex->sphead= old_lex->sphead;
-  lex->spname= old_lex->spname;
-  lex->spcont= old_lex->spcont;
-  lex->sp_chistics= old_lex->sp_chistics;
+  lex->with_cte_resolution= true;
 
-  lex->stmt_lex= old_lex;
-  with_select= &lex->select_lex;
-  with_select->select_number= ++thd->lex->stmt_lex->current_select_number;
-  parse_status= parse_sql(thd, &parser_state, 0);
-  ((char*) &unparsed_spec.str[unparsed_spec.length])[0]= save_end;
+  /*
+    The specification of a CTE is to be parsed as a regular query.
+    At the very end of the parsing query the function
+    check_cte_dependencies_and_resolve_references() will be called.
+    It will check the dependencies between CTEs that are defined
+    within the query and will resolve CTE references in this query.
+    If a table reference is not resolved as a CTE reference within
+    this query it still can be resolved as a reference to a CTE defined
+    in the same clause as the CTE whose specification is to be parsed
+    or defined in an embedding CTE definition.
+
+    Example:
+      with
+      cte1 as ( ... ),
+      cte2 as ([WITH ...] select ... from cte1 ...)
+      select ... from cte2 as r, ..., cte2 as s ...
+
+    Here the specification of cte2 has be cloned for table reference
+    with alias s1. The specification contains a reference to cte1
+    that is defined outside this specification. If the reference to
+    cte1 cannot be resolved within the specification of cte2 it's
+    not necessarily has to be a reference to a non-CTE table. That's
+    why the flag lex->only_cte_resolution has to be set to true
+    before parsing of the specification of cte2 invoked by this
+    function starts. Otherwise an mdl_lock would be requested for s
+    and this would not be correct.
+  */
+
+  lex->only_cte_resolution= true;
+
+  lex->stmt_lex= old_lex->stmt_lex ? old_lex->stmt_lex : old_lex;
+
+  parse_status= thd->sql_parser(old_lex, lex,
+                                (char*) unparsed_spec.str,
+                                (unsigned int)unparsed_spec.length,
+                                stmt_prepare_mode);
+
+  const_cast<char*>(unparsed_spec.str)[unparsed_spec.length]= save_end;
+  with_select= lex->unit.first_select();
+  with_select->select_number= ++lex->stmt_lex->current_select_number;
 
   if (parse_status)
     goto err;
 
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    goto err;
-
-  spec_tables= lex->query_tables;
-  spec_tables_tail= 0;
-  for (TABLE_LIST *tbl= spec_tables;
-       tbl;
-       tbl= tbl->next_global)
+  /*
+    The global chain of TABLE_LIST objects created for the specification that
+    just has been parsed is added to such chain that contains the reference
+    to the CTE whose specification is parsed right after the TABLE_LIST object
+    created for the reference.
+  */
+  if (lex->query_tables)
   {
-    if (!tbl->derived && !tbl->schema_table &&
-        thd->open_temporary_table(tbl))
-      goto err;
-    spec_tables_tail= tbl;
-  }
-  if (spec_tables)
-  {
-    if (with_table->next_global)
+    head->tables_pos.set_start_pos(&with_table->next_global);
+    head->tables_pos.set_end_pos(lex->query_tables_last);
+    TABLE_LIST *next_tbl= with_table->next_global;
+    if (next_tbl)
     {
-      spec_tables_tail->next_global= with_table->next_global;
-      with_table->next_global->prev_global= &spec_tables_tail->next_global;
+      *(lex->query_tables->prev_global= next_tbl->prev_global)=
+        lex->query_tables;
+      *(next_tbl->prev_global= lex->query_tables_last)= next_tbl;
     }
     else
     {
-      old_lex->query_tables_last= &spec_tables_tail->next_global;
+      *(lex->query_tables->prev_global= old_lex->query_tables_last)=
+        lex->query_tables;
+      old_lex->query_tables_last= lex->query_tables_last;
     }
-    spec_tables->prev_global= &with_table->next_global;
-    with_table->next_global= spec_tables;
   }
   res= &lex->unit;
   res->with_element= this;
   
+  /*
+    The unit of the specification that just has been parsed is included
+    as a slave of the select that contained in its from list the table
+    reference for which the unit has been created.
+  */
   lex->unit.include_down(with_table->select_lex);
-  lex->unit.set_slave(with_select); 
+  lex->unit.set_slave(with_select);
+  lex->unit.cloned_from= spec;
   old_lex->all_selects_list=
     (st_select_lex*) (lex->all_selects_list->
 		      insert_chain_before(
 			(st_select_lex_node **) &(old_lex->all_selects_list),
                         with_select));
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-    res= NULL;
-  /*
-    Resolve references to CTE from the spec_tables list that has not
-    been resolved yet.
-  */
-  for (TABLE_LIST *tbl= spec_tables;
-       tbl;
-       tbl= tbl->next_global)
-  {
-    if (!tbl->with)
-      tbl->with= with_select->find_table_def_in_with_clauses(tbl);
-    if (tbl == spec_tables_tail)
-      break;
-  }
-  if (check_table_access(thd, SELECT_ACL, spec_tables, FALSE, UINT_MAX, FALSE))
-    goto err;
 
-  lex->sphead= NULL;    // in order not to delete lex->sphead
+  /*
+    Now all references to the CTE defined outside of the cloned specification
+    has to be resolved. Additionally if old_lex->only_cte_resolution == false
+    for the table references that has not been resolved requests for mdl_locks
+    has to be set.
+  */
+  lex->only_cte_resolution= old_lex->only_cte_resolution;
+  if (lex->resolve_references_to_cte(lex->query_tables,
+                                     lex->query_tables_last))
+  {
+    res= NULL;
+    goto err;
+  }
+
+ lex->sphead= NULL;    // in order not to delete lex->sphead
   lex_end(lex);
 err:
-  if (arena)
-    thd->restore_active_arena(arena, &backup);
   thd->lex= old_lex;
   return res;
 }
@@ -1096,58 +1306,6 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
 }
 
 
-/**
-   @brief
-     Set the specifying unit in this reference to a with table  
-     
-  @details  
-    The method assumes that the given element with_elem defines the table T
-    this table reference refers to.
-    If this is the first reference to T the method just sets its specification
-    in the field 'derived' as the unit that yields T. Otherwise the method  
-    first creates a clone specification and sets rather this clone in this field.
- 
-  @retval
-    false   on success
-    true    on failure
-*/    
-
-bool TABLE_LIST::set_as_with_table(THD *thd, With_element *with_elem)
-{
-  if (table)
-  {
-    /*
-      This table was prematurely identified as a temporary table.
-      We correct it here, but it's not a nice solution in the case
-      when the temporary table with this name is not used anywhere
-      else in the query.
-    */
-    thd->mark_tmp_table_as_free_for_reuse(table);
-    table= 0;
-  }
-  with= with_elem;
-  schema_table= NULL;
-  if (!with_elem->is_referenced() || with_elem->is_recursive)
-  {
-    derived= with_elem->spec;
-    if (derived != select_lex->master_unit() &&
-        !with_elem->is_recursive &&
-        !is_with_table_recursive_reference())
-    {
-       derived->move_as_slave(select_lex);
-    }
-  }
-  else 
-  {
-    if(!(derived= with_elem->clone_parsed_spec(thd, this)))
-      return true;
-  }
-  derived->first_select()->linkage= DERIVED_TABLE_TYPE;
-  with_elem->inc_references();
-  return false;
-}
-
-
 bool TABLE_LIST::is_recursive_with_table()
 {
   return with && with->is_recursive;
@@ -1247,7 +1405,7 @@ bool st_select_lex::check_unrestricted_recursive(bool only_standard_compliant)
   if (only_standard_compliant && with_elem->is_unrestricted())
   {
     my_error(ER_NOT_STANDARD_COMPLIANT_RECURSIVE,
-	     MYF(0), with_elem->query_name->str);
+             MYF(0), with_elem->get_name_str());
     return true;
   }
 
@@ -1447,7 +1605,7 @@ void With_clause::print(String *str, enum_query_type query_type)
 
 void With_element::print(String *str, enum_query_type query_type)
 {
-  str->append(query_name);
+  str->append(get_name());
   if (column_list.elements)
   {
     List_iterator_fast<LEX_CSTRING> li(column_list);

@@ -1,0 +1,119 @@
+install soname 'auth_ed25519';
+flush status;
+flush hosts;
+flush user_resources;
+flush privileges;
+select `User`, `Host` from mysql.`user` where `host` like '%\\%%';
+User	Host
+select `User`, `Host` from mysql.`user` where `user` like '192.%';
+User	Host
+select `User`, `Host` from mysql.`user` where `user` like '2001:%';
+User	Host
+select `User`, `Host` from mysql.`user` where `user` like 'santa.claus.%';
+User	Host
+create user plug1@'santa.claus.ipv4.example.com'
+  identified with ed25519 as 'foo';
+create user plug2@'santa.claus.ipv4.example.com'
+  identified with ED25519 as 'vubFBzIrapbfHct1/J72dnUryz5VS7lA6XHH8sIx4TI';
+set @saved_dbug = @@global.debug_dbug;
+set global debug_dbug= "+d,vio_peer_addr_fake_ipv4,getnameinfo_fake_ipv4,getaddrinfo_fake_good_ipv4";
+connect(127.0.0.1,plug1,foo,test,PORT,SOCKET);
+connect con1, 127.0.0.1, plug1,foo,,$MASTER_MYPORT;
+ERROR 28000: Access denied for user 'plug1'@'santa.claus.ipv4.example.com' (using password: NO)
+"Dumping performance_schema.host_cache"
+IP	192.0.2.4
+HOST	santa.claus.ipv4.example.com
+HOST_VALIDATED	YES
+SUM_CONNECT_ERRORS	0
+COUNT_HOST_BLOCKED_ERRORS	0
+COUNT_NAMEINFO_TRANSIENT_ERRORS	0
+COUNT_NAMEINFO_PERMANENT_ERRORS	0
+COUNT_FORMAT_ERRORS	0
+COUNT_ADDRINFO_TRANSIENT_ERRORS	0
+COUNT_ADDRINFO_PERMANENT_ERRORS	0
+COUNT_FCRDNS_ERRORS	0
+COUNT_HOST_ACL_ERRORS	0
+COUNT_NO_AUTH_PLUGIN_ERRORS	0
+COUNT_AUTH_PLUGIN_ERRORS	1
+COUNT_HANDSHAKE_ERRORS	0
+COUNT_PROXY_USER_ERRORS	0
+COUNT_PROXY_USER_ACL_ERRORS	0
+COUNT_AUTHENTICATION_ERRORS	0
+COUNT_SSL_ERRORS	0
+COUNT_MAX_USER_CONNECTIONS_ERRORS	0
+COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS	0
+COUNT_DEFAULT_DATABASE_ERRORS	0
+COUNT_INIT_CONNECT_ERRORS	0
+COUNT_LOCAL_ERRORS	0
+COUNT_UNKNOWN_ERRORS	0
+FIRST_ERROR_SEEN	set
+LAST_ERROR_SEEN	set
+connect(127.0.0.1,plug2,bar,test,PORT,SOCKET);
+connect con1, 127.0.0.1, plug2,bar,,$MASTER_MYPORT;
+ERROR 28000: Access denied for user 'plug2'@'santa.claus.ipv4.example.com' (using password: YES)
+"Dumping performance_schema.host_cache"
+IP	192.0.2.4
+HOST	santa.claus.ipv4.example.com
+HOST_VALIDATED	YES
+SUM_CONNECT_ERRORS	0
+COUNT_HOST_BLOCKED_ERRORS	0
+COUNT_NAMEINFO_TRANSIENT_ERRORS	0
+COUNT_NAMEINFO_PERMANENT_ERRORS	0
+COUNT_FORMAT_ERRORS	0
+COUNT_ADDRINFO_TRANSIENT_ERRORS	0
+COUNT_ADDRINFO_PERMANENT_ERRORS	0
+COUNT_FCRDNS_ERRORS	0
+COUNT_HOST_ACL_ERRORS	0
+COUNT_NO_AUTH_PLUGIN_ERRORS	0
+COUNT_AUTH_PLUGIN_ERRORS	1
+COUNT_HANDSHAKE_ERRORS	0
+COUNT_PROXY_USER_ERRORS	0
+COUNT_PROXY_USER_ACL_ERRORS	0
+COUNT_AUTHENTICATION_ERRORS	1
+COUNT_SSL_ERRORS	0
+COUNT_MAX_USER_CONNECTIONS_ERRORS	0
+COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS	0
+COUNT_DEFAULT_DATABASE_ERRORS	0
+COUNT_INIT_CONNECT_ERRORS	0
+COUNT_LOCAL_ERRORS	0
+COUNT_UNKNOWN_ERRORS	0
+FIRST_ERROR_SEEN	set
+LAST_ERROR_SEEN	set
+connect con1, 127.0.0.1, plug2,foo,,$MASTER_MYPORT;
+select current_user();
+current_user()
+plug2@santa.claus.ipv4.example.com
+disconnect con1;
+connection default;
+"Dumping performance_schema.host_cache"
+IP	192.0.2.4
+HOST	santa.claus.ipv4.example.com
+HOST_VALIDATED	YES
+SUM_CONNECT_ERRORS	0
+COUNT_HOST_BLOCKED_ERRORS	0
+COUNT_NAMEINFO_TRANSIENT_ERRORS	0
+COUNT_NAMEINFO_PERMANENT_ERRORS	0
+COUNT_FORMAT_ERRORS	0
+COUNT_ADDRINFO_TRANSIENT_ERRORS	0
+COUNT_ADDRINFO_PERMANENT_ERRORS	0
+COUNT_FCRDNS_ERRORS	0
+COUNT_HOST_ACL_ERRORS	0
+COUNT_NO_AUTH_PLUGIN_ERRORS	0
+COUNT_AUTH_PLUGIN_ERRORS	1
+COUNT_HANDSHAKE_ERRORS	0
+COUNT_PROXY_USER_ERRORS	0
+COUNT_PROXY_USER_ACL_ERRORS	0
+COUNT_AUTHENTICATION_ERRORS	1
+COUNT_SSL_ERRORS	0
+COUNT_MAX_USER_CONNECTIONS_ERRORS	0
+COUNT_MAX_USER_CONNECTIONS_PER_HOUR_ERRORS	0
+COUNT_DEFAULT_DATABASE_ERRORS	0
+COUNT_INIT_CONNECT_ERRORS	0
+COUNT_LOCAL_ERRORS	0
+COUNT_UNKNOWN_ERRORS	0
+FIRST_ERROR_SEEN	set
+LAST_ERROR_SEEN	set
+drop user plug1@'santa.claus.ipv4.example.com';
+drop user plug2@'santa.claus.ipv4.example.com';
+set @@global.debug_dbug = @saved_dbug;
+uninstall plugin ed25519;

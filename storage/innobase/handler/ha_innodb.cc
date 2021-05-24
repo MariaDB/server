@@ -6367,7 +6367,9 @@ no_such_table:
 	/* Index block size in InnoDB: used by MySQL in query optimization */
 	stats.block_size = srv_page_size;
 
-	if (m_prebuilt->table == NULL
+	const my_bool for_vc_purge = THDVAR(thd, background_thread);
+
+	if (for_vc_purge || !m_prebuilt->table
 	    || m_prebuilt->table->is_temporary()
 	    || m_prebuilt->table->persistent_autoinc
 	    || !m_prebuilt->table->is_readable()) {
@@ -6394,7 +6396,7 @@ no_such_table:
 	ut_ad(!m_prebuilt->table
 	      || table->versioned() == m_prebuilt->table->versioned());
 
-	if (!THDVAR(thd, background_thread)) {
+	if (!for_vc_purge) {
 		info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST
 		     | HA_STATUS_OPEN);
 	}
@@ -12834,7 +12836,6 @@ create_table_info_t::create_table_update_dict()
 		if (!innobase_fts_load_stopword(innobase_table, NULL, m_thd)) {
 			dict_table_close(innobase_table, FALSE, FALSE);
 			srv_active_wake_master_thread();
-			m_trx->free();
 			DBUG_RETURN(-1);
 		}
 
@@ -12961,18 +12962,11 @@ ha_innobase::create(
 		}
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
-		if (own_trx) {
-			trx->free();
-		}
-		DBUG_RETURN(error);
+		goto func_exit;
 	}
 
 	innobase_commit_low(trx);
 	row_mysql_unlock_data_dictionary(trx);
-
-	if (own_trx) {
-		trx->free();
-	}
 
 	/* Flush the log to reduce probability that the .frm files and
 	the InnoDB data dictionary get out-of-sync if the user runs
@@ -12982,6 +12976,11 @@ ha_innobase::create(
 	ut_ad(!srv_read_only_mode);
 
 	error = info.create_table_update_dict();
+
+func_exit:
+	if (own_trx) {
+		trx->free();
+	}
 
 	/* Tell the InnoDB server that there might be work for
 	utility threads: */

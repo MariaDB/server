@@ -846,6 +846,8 @@ public:
   With_clause *with_clause;
   /* With element where this unit is used as the specification (if any) */
   With_element *with_element;
+  /* The unit used as a CTE specification from which this unit is cloned */
+  st_select_lex_unit *cloned_from;
   /* thread handler */
   THD *thd;
   /*
@@ -1378,7 +1380,9 @@ public:
   }
   With_element *get_with_element()
   {
-    return master_unit()->with_element;
+    return master_unit()->cloned_from ?
+           master_unit()->cloned_from->with_element :
+           master_unit()->with_element;
   }
   With_element *find_table_def_in_with_clauses(TABLE_LIST *table);
   bool check_unrestricted_recursive(bool only_standard_compliant);
@@ -3062,6 +3066,20 @@ public:
   */
   uint8 derived_tables;
   uint8 context_analysis_only;
+  /*
+    true <=> The parsed fragment requires resolution of references to CTE
+    at the end of parsing. This name resolution process involves searching
+    for possible dependencies between CTE defined in the parsed fragment and
+    detecting possible recursive references.
+    The flag is set to true if the fragment contains CTE definitions.
+  */
+  bool with_cte_resolution;
+  /*
+    true <=> only resolution of references to CTE are required in the parsed
+    fragment, no checking of dependencies between CTE is required.
+    This flag is used only when parsing clones of CTE specifications.
+  */
+  bool only_cte_resolution;
   bool local_file;
   bool check_exists;
   bool autocommit;
@@ -4029,6 +4047,12 @@ public:
   {
     return !create_like() && !create_select();
   }
+
+  bool check_dependencies_in_with_clauses();
+  bool resolve_references_to_cte_in_hanging_cte();
+  bool check_cte_dependencies_and_resolve_references();
+  bool resolve_references_to_cte(TABLE_LIST *tables,
+                                 TABLE_LIST **tables_last);
 
   SELECT_LEX *exclude_last_select();
   bool add_unit_in_brackets(SELECT_LEX *nselect);

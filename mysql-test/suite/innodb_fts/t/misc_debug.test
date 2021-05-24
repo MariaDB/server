@@ -83,3 +83,18 @@ ALTER TABLE t1 ADD bl INT AS (LENGTH(b)) VIRTUAL;
 CHECK TABLE t1;
 DROP TABLE t1;
 --source include/wait_until_count_sessions.inc
+
+--echo #
+--echo # MDEV-25663 Double free of transaction during TRUNCATE
+--echo #
+call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
+SET DEBUG_DBUG='-d,ib_create_table_fail_too_many_trx';
+
+CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
+SET @save_dbug= @@debug_dbug;
+SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
+--error ER_GET_ERRNO
+TRUNCATE t1;
+SET debug_dbug=@save_dbug;
+DROP TABLE t1;
+--echo # End of 10.3 tests

@@ -3520,7 +3520,11 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
   if (tables->derived)
   {
     if (!tables->view)
+    {
+      if (!tables->is_derived())
+        tables->set_derived();
       goto end;
+    }
     /*
       We restore view's name and database wiped out by derived tables
       processing and fall back to standard open process in order to
@@ -3529,35 +3533,6 @@ open_and_process_table(THD *thd, TABLE_LIST *tables, uint *counter, uint flags,
     */
     tables->db= tables->view_db;
     tables->table_name= tables->view_name;
-  }
-  else if (tables->select_lex) 
-  {
-    /*
-      Check whether 'tables' refers to a table defined in a with clause.
-      If so set the reference to the definition in tables->with.
-    */ 
-    if (!tables->with)
-      tables->with= tables->select_lex->find_table_def_in_with_clauses(tables);
-    /*
-      If 'tables' is defined in a with clause set the pointer to the
-      specification from its definition in tables->derived.
-    */
-    if (tables->with)
-    {
-      if (tables->is_recursive_with_table() &&
-          !tables->is_with_table_recursive_reference())
-      {
-        tables->with->rec_outer_references++;
-        With_element *with_elem= tables->with;
-        while ((with_elem= with_elem->get_next_mutually_recursive()) !=
-               tables->with)
-	  with_elem->rec_outer_references++;
-      }
-      if (tables->set_as_with_table(thd, tables->with))
-        DBUG_RETURN(1);
-      else
-        goto end;
-    }
   }
 
   if (!tables->derived && is_infoschema_db(&tables->db))

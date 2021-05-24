@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -958,7 +958,7 @@ mysqld_collation_get_by_name(const char *name,
 
 static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
-  return MY_TEST(cs->mbminlen == 1);
+  return MY_TEST(cs->mbminlen == 1 && cs->number != 17 /* filename */);
 }
 
 #ifdef MYSQL_SERVER
@@ -4226,15 +4226,11 @@ public:
         to resolve all CTE names as we don't need this message to be thrown
         for any CTE references.
       */
-      if (!lex->with_clauses_list)
+      if (!lex->with_cte_resolution)
       {
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
         return TRUE;
       }
-      /* This will allow to throw an error later for non-CTE references */
-      to->str= NULL;
-      to->length= 0;
-      return FALSE;
     }
 
     to->str= strmake(db.str, db.length);
@@ -4838,6 +4834,9 @@ public:
     current_linfo= 0;
     mysql_mutex_unlock(&LOCK_thread_count);
   }
+
+  bool sql_parser(LEX *old_lex, LEX *lex,
+                  char *str, uint str_len, bool stmt_prepare_mode);
 
 
   uint get_net_wait_timeout()
