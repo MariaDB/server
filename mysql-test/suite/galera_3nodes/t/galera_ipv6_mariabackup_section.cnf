@@ -38,4 +38,5 @@ bind-address=::
 [SST]
 transferfmt=@ENV.MTR_GALERA_TFMT
 streamfmt=xbstream
+# Not needed, but left here for debugging:
 sockopt=",pf=ip6"

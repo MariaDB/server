@@ -214,8 +214,6 @@ get_keys()
 
 get_transfer()
 {
-    TSST_PORT="$SST_PORT"
-
     if [ $tfmt = 'nc' ]; then
         wsrep_log_info "Using netcat as streamer"
         wsrep_check_programs nc
@@ -237,7 +235,7 @@ get_transfer()
                 wsrep_log_info "Using traditional netcat as streamer"
                 tcmd="$tcmd -l -p"
             fi
-            tcmd="$tcmd $TSST_PORT"
+            tcmd="$tcmd $SST_PORT"
         else
             # Check to see if netcat supports the '-N' flag.
             # -N Shutdown the network socket after EOF on stdin
@@ -259,7 +257,7 @@ get_transfer()
                 wsrep_log_info "Using traditional netcat as streamer"
                 tcmd="$tcmd -q0"
             fi
-            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $TSST_PORT"
+            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $SST_PORT"
         fi
     else
         tfmt='socat'
@@ -267,8 +265,38 @@ get_transfer()
         wsrep_log_info "Using socat as streamer"
         wsrep_check_programs socat
 
-        if [ $encrypt -eq 2 -o $encrypt -eq 3 ] && ! socat -V | grep -q -F 'WITH_OPENSSL 1'; then
-            wsrep_log_error "Encryption requested, but socat is not OpenSSL enabled (encrypt=$encrypt)"
+        if [ -n "$sockopt" ]; then
+            sockopt=$(trim_string "$sockopt" ',')
+            if [ -n "$sockopt" ]; then
+                sockopt=",$sockopt"
+            fi
+        fi
+
+        # Add an option for ipv6 if needed:
+        if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ]; then
+            # If sockopt contains 'pf=ip6' somewhere in the middle,
+            # this will not interfere with socat, but exclude the trivial
+            # cases when sockopt contains 'pf=ip6' as prefix or suffix:
+            if [ "$sockopt" = "${sockopt#,pf=ip6}" -a \
+                 "$sockopt" = "${sockopt%,pf=ip6}" ]
+            then
+                sockopt=",pf=ip6$sockopt"
+            fi
+        fi
+
+        if [ $encrypt -lt 2 ]; then
+            if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+                tcmd="socat -u TCP-LISTEN:$SST_PORT,reuseaddr$sockopt stdio"
+            else
+                tcmd="socat -u stdio TCP:$REMOTEIP:$SST_PORT$sockopt"
+            fi
+            return
+        fi
+
+        if ! socat -V | grep -q -F 'WITH_OPENSSL 1'; then
+            wsrep_log_error "******** FATAL ERROR ************************************************ "
+            wsrep_log_error "* Encryption requested, but socat is not OpenSSL enabled (encrypt=$encrypt) *"
+            wsrep_log_error "********************************************************************* "
             exit 2
         fi
 
@@ -281,11 +309,19 @@ get_transfer()
             exit 2
         fi
 
-        if ! check_for_version "$SOCAT_VERSION" "1.7.3"; then
+        local action='Decrypting'
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            tcmd="socat -u openssl-listen:$SST_PORT,reuseaddr"
+        else
+            tcmd="socat -u stdio openssl-connect:$REMOTEIP:$SST_PORT"
+            action='Encrypting'
+        fi
+
+        if ! check_for_version "$SOCAT_VERSION" '1.7.3'; then
             # socat versions < 1.7.3 will have 512-bit dhparams (too small)
             # so create 2048-bit dhparams and send that as a parameter:
             check_for_dhparams
-            sockopt=",dhparam='$ssl_dhparams'$sockopt"
+            tcmd="$tcmd,dhparam='$ssl_dhparams'"
         fi
 
         if [ $encrypt -eq 2 ]; then
@@ -294,15 +330,10 @@ get_transfer()
                 wsrep_log_error "Both PEM and CRT files required"
                 exit 22
             fi
+            tcmd="$tcmd,cert='$tpem',cafile='$tcert'$sockopt"
             stagemsg="$stagemsg-OpenSSL-Encrypted-2"
-            if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-                wsrep_log_info "Decrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u openssl-listen:$TSST_PORT,reuseaddr,cert='$tpem',cafile='$tcert'$sockopt stdio"
-            else
-                wsrep_log_info "Encrypting with cert=${tpem}, cafile=${tcert}"
-                tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',cafile='$tcert'$sockopt"
-            fi
-        elif [ $encrypt -eq 3 ]; then
+            wsrep_log_info "$action with cert=$tpem, cafile=$tcert"
+        elif [ $encrypt -eq 3 -o $encrypt -eq 4 ]; then
             wsrep_log_info "Using openssl based encryption with socat: with key and crt"
             if [ -z "$tpem" -o -z "$tkey" ]; then
                 wsrep_log_error "Both certificate and key files required"
@@ -310,36 +341,34 @@ get_transfer()
             fi
             stagemsg="$stagemsg-OpenSSL-Encrypted-3"
             if [ -z "$tcert" ]; then
-                # no verification
-                if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-                    wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, verify=0"
-                    tcmd="socat -u openssl-listen:$TSST_PORT,reuseaddr,cert='$tpem',key='$tkey',verify=0$sockopt stdio"
-                else
-                    wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, verify=0"
-                    tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',key='$tkey',verify=0$sockopt"
+                if [ $encrypt -eq 4 ]; then
+                    wsrep_log_error "Peer certificate required if encrypt=4"
+                    exit 22
                 fi
+                # no verification
+                tcmd="$tcmd,cert='$tpem',key='$tkey',verify=0$sockopt"
+                wsrep_log_info "$action with cert=$tpem, key=$tkey, verify=0"
             else
                 # CA verification
-                if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-                    wsrep_log_info "Decrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u openssl-listen:$TSST_PORT,reuseaddr,cert='$tpem',key='$tkey',cafile='$tcert'$sockopt stdio"
+                if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+                    CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
+                elif [ $encrypt -eq 4 ]; then
+                    CN_option=",commonname=''"
+                elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+                    CN_option=',commonname=localhost'
                 else
-                    CN_option=""
-                    if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
-                        CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
-                    elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
-                        CN_option=',commonname=localhost'
-                    fi
-                    wsrep_log_info "Encrypting with cert=${tpem}, key=${tkey}, cafile=${tcert}"
-                    tcmd="socat -u stdio openssl-connect:$REMOTEIP:$TSST_PORT,cert='$tpem',key='$tkey',cafile='$tcert'$CN_option$sockopt"
+                    CN_option=",commonname='$WSREP_SST_OPT_HOST_UNSECAPED'"
                 fi
+                tcmd="$tcmd,cert='$tpem',key='$tkey',cafile='$tcert'$CN_option$sockopt"
+                wsrep_log_info "$action with cert=$tpem, key=$tkey, cafile=$tcert"
             fi
         else
-            if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-                tcmd="socat -u TCP-LISTEN:$TSST_PORT,reuseaddr$sockopt stdio"
-            else
-                tcmd="socat -u stdio TCP:$REMOTEIP:$TSST_PORT$sockopt"
-            fi
+            wsrep_log_info "Unknown encryption mode: encrypt=$encrypt"
+            exit 22
+        fi
+
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            tcmd="$tcmd stdio"
         fi
     fi
 }

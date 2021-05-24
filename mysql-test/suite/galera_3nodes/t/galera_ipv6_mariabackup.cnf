@@ -34,4 +34,3 @@ bind-address=::
 [SST]
 transferfmt=@ENV.MTR_GALERA_TFMT
 streamfmt=xbstream
-sockopt=",pf=ip6"
