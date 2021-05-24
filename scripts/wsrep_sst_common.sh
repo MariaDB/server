@@ -295,7 +295,7 @@ case "$1" in
                                    value="$1"
                                fi
                            fi
-                           if [ $option == 'h' ]; then
+                           if [ $option = 'h' ]; then
                                if [ -z "$WSREP_SST_OPT_DATA" ]; then
                                    MYSQLD_OPT_DATADIR="${value%/}"
                                fi
