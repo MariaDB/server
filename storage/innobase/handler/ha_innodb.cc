@@ -13155,10 +13155,6 @@ ha_innobase::create(
 	innobase_commit_low(trx);
 	row_mysql_unlock_data_dictionary(trx);
 
-	if (own_trx) {
-		trx_free_for_mysql(trx);
-	}
-
 	/* Flush the log to reduce probability that the .frm files and
 	the InnoDB data dictionary get out-of-sync if the user runs
 	with innodb_flush_log_at_trx_commit = 0 */
@@ -13168,10 +13164,8 @@ ha_innobase::create(
 
 	error = info.create_table_update_dict();
 
-	/* In case of error, free the transaction only if
-	it is newly created transaction in ha_innobase::create() */
-	if (own_trx && error) {
-		trx_free_for_mysql(info.trx());
+	if (own_trx) {
+		trx_free_for_mysql(trx);
 	}
 
 	/* Tell the InnoDB server that there might be work for
