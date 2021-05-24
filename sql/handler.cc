@@ -6808,8 +6808,20 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
     rows_changed++;
     error= binlog_log_row(table, old_data, new_data, log_func);
 #ifdef WITH_WSREP
+    THD *thd = ha_thd();
+    /* for SR, the followin wsrep_after_row() may replicate a fragment, so we have to
+       declare potential PA unsafe before that*/
+    if (WSREP(thd) && wsrep_thd_is_local(thd) &&
+        table->s->primary_key == MAX_KEY)
+    {
+      WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
+      if (thd->wsrep_cs().mark_transaction_pa_unsafe())
+      {
+        WSREP_DEBUG("session does not have active transaction, can not mark as PA unsafe");
+      }
+    }
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
+        WSREP(thd) && (error= wsrep_after_row(thd)))
     {
       return error;
     }
@@ -6870,8 +6882,20 @@ int handler::ha_delete_row(const uchar *buf)
     rows_changed++;
     error= binlog_log_row(table, buf, 0, log_func);
 #ifdef WITH_WSREP
+    THD *thd = ha_thd();
+    /* for SR, the followin wsrep_after_row() may replicate a fragment, so we have to
+       declare potential PA unsafe before that*/
+    if (WSREP(thd) && wsrep_thd_is_local(thd) &&
+        table->s->primary_key == MAX_KEY)
+    {
+      WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
+      if (thd->wsrep_cs().mark_transaction_pa_unsafe())
+      {
+        WSREP_DEBUG("session does not have active transaction, can not mark as PA unsafe");
+      }
+    }
     if (table_share->tmp_table == NO_TMP_TABLE &&
-        WSREP(ha_thd()) && (error= wsrep_after_row(ha_thd())))
+        WSREP(thd) && (error= wsrep_after_row(thd)))
     {
       return error;
     }
