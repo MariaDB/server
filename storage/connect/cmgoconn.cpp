@@ -300,6 +300,7 @@ void CMgoConn::Project(PGLOBAL g, PSTRG s)
 	for (cp = tp->GetColumns(); cp; cp = cp->GetNext()) {
 		path = cp->GetJpath(g, true);
 
+		// Resolve path collision
 		for (hp = php; hp; hp = hp->Next) {
 			if (strlen(path) < strlen(hp->Path)) {
 				n = strlen(path);
@@ -318,6 +319,7 @@ void CMgoConn::Project(PGLOBAL g, PSTRG s)
 			// New path
 			hp = (PTHP)PlugSubAlloc(g, NULL, sizeof(PTH));
 			hp->Path = path;
+			hp->Name = cp->GetName();
 			hp->Next = NULL;
 			*nphp = hp;
 			nphp = &hp->Next;
@@ -332,8 +334,16 @@ void CMgoConn::Project(PGLOBAL g, PSTRG s)
 		else
 			b = true;
 
-		s->Append(hp->Path);
-		s->Append("\":1");
+		if (*hp->Path == '{') {
+			// This is a Mongo defined column
+			s->Append(hp->Name);
+			s->Append("\":");
+			s->Append(hp->Path);
+		} else {
+			s->Append(hp->Path);
+			s->Append("\":1");
+		}	// endif Path
+
 	} // endfor hp
 
 } // end of Project
@@ -885,9 +895,12 @@ void CMgoConn::GetColumnValue(PGLOBAL g, PCOL colp)
 	char       *jpath = colp->GetJpath(g, false);
 	bool        b = false;
 	PVAL        value = colp->GetValue();
-	bson_iter_t Iter;				// Used to retrieve column value
-	bson_iter_t Desc;				// Descendant iter
+	bson_iter_t Iter;				    // Used to retrieve column value
+	bson_iter_t Desc;				    // Descendant iter
 
+	if (*jpath == '{')
+		jpath = colp->GetName();  // This is a Mongo defined column
+	
 	if (!*jpath || !strcmp(jpath, "*")) {
 		value->SetValue_psz(Mini(g, colp, Document, false));
 	} else if (bson_iter_init(&Iter, Document) &&

@@ -173,7 +173,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
   sep = GetStringTableOption(g, topt, "Separator", ".");
   sz = GetIntegerTableOption(g, topt, "Jsize", 1024);
-  limit = GetIntegerTableOption(g, topt, "Limit", 10);
+  limit = GetIntegerTableOption(g, topt, "Limit", 50);
   strfy = GetStringTableOption(g, topt, "Stringify", NULL);
 
   /*********************************************************************/
@@ -1159,7 +1159,7 @@ bool BSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   Objname = GetStringCatInfo(g, "Object", NULL);
   Xcol = GetStringCatInfo(g, "Expand", NULL);
   Pretty = GetIntCatInfo("Pretty", 2);
-  Limit = GetIntCatInfo("Limit", 10);
+  Limit = GetIntCatInfo("Limit", 50);
   Base = GetIntCatInfo("Base", 0) ? 1 : 0;
   Sep = *GetStringCatInfo(g, "Separator", ".");
   Accept = GetBoolCatInfo("Accept", false);

@@ -525,7 +525,7 @@ bool XMLDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   XmlDB = GetStringCatInfo(g, "XmlDB", NULL);
   Nslist = GetStringCatInfo(g, "Nslist", NULL);
   DefNs = GetStringCatInfo(g, "DefNs", NULL);
-  Limit = GetIntCatInfo("Limit", 10);
+  Limit = GetIntCatInfo("Limit", 50);
   Xpand = GetBoolCatInfo("Expand", false);
   Header = GetIntCatInfo("Header", 0);
   GetCharCatInfo("Xmlsup", "*", buf, sizeof(buf));

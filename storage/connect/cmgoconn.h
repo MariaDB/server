@@ -44,6 +44,7 @@ typedef struct _path_list *PTHP;
 
 typedef struct _path_list {
 	PSZ  Path;
+	PSZ  Name;
 	PTHP Next;
 } PTH;
 

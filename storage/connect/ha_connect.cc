@@ -167,10 +167,10 @@
 #define SZCONV     1024							// Default converted text size
 #define SZWORK 67108864             // Default work area size 64M
 #define SZWMIN  4194304             // Minimum work area size  4M
-#define JSONMAX      10             // JSON Default max grp size
+#define JSONMAX      50             // JSON Default max grp size
 
 extern "C" {
-       char version[]= "Version 1.07.0003 May 02, 2021";
+       char version[]= "Version 1.07.0003 May 22, 2021";
 #if defined(__WIN__)
        char compver[]= "Version 1.07.0003 " __DATE__ " "  __TIME__;
        char slash= '\\';
@@ -508,7 +508,7 @@ char *GetJsonNull(void)
 int GetDefaultDepth(void) {return THDVAR(current_thd, default_depth);}
 int GetDefaultPrec(void) {return THDVAR(current_thd, default_prec);}
 uint GetJsonGrpSize(void)
-  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
+  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 50;}
 size_t GetWorkSize(void) {return (size_t)THDVAR(current_thd, work_size);}
 void SetWorkSize(size_t) 
 {
