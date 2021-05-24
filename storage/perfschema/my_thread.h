@@ -17,7 +17,7 @@
 typedef pthread_key_t thread_local_key_t;
 typedef pthread_t my_thread_handle;
 typedef pthread_attr_t my_thread_attr_t;
-typedef uint32 my_thread_os_id_t;
+typedef unsigned long long my_thread_os_id_t;
 
 #define LOCK_plugin_delete LOCK_plugin
 
@@ -73,7 +73,7 @@ static inline my_thread_os_id_t my_thread_os_id()
 #else
 #ifdef HAVE_INTEGER_PTHREAD_SELF
   /* Unknown platform, fallback. */
-  return pthread_self();
+  return (unsigned long long)pthread_self();
 #else
   /* Feature not available. */
   return 0;
