@@ -48,7 +48,7 @@ ib_home_dir=""
 ib_log_dir=""
 ib_undo_dir=""
 
-sfmt="tar"
+sfmt=""
 strmcmd=""
 tfmt=""
 tcmd=""
@@ -489,22 +489,28 @@ read_cnf()
 
 get_stream()
 {
-    if [[ $sfmt == 'xbstream' ]];then
-        wsrep_log_info "Streaming with xbstream"
-        if [[ "$WSREP_SST_OPT_ROLE" == "joiner" ]];then
-            strmcmd="xbstream -x"
+    if [ "$sfmt" = 'mbstream' -o "$sfmt" = 'xbstream' ]; then
+        XBSTREAM_BIN=$(command -v "$sfmt")
+        if [ -z "$XBSTREAM_BIN" ]; then
+            if [ -z "$XBSTREAM_BIN" ]; then
+                wsrep_log_error "Streaming with $sfmt, but $sfmt not found in path"
+                exit 42
+            fi
+        fi
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            strmcmd="'$XBSTREAM_BIN' -x"
         else
-            strmcmd="xbstream -c '${INFO_FILE}'"
+            strmcmd="'$XBSTREAM_BIN' -c '$INFO_FILE'"
         fi
     else
-        sfmt="tar"
-        wsrep_log_info "Streaming with tar"
-        if [[ "$WSREP_SST_OPT_ROLE" == "joiner" ]];then
-            strmcmd="tar xfi -"
+        sfmt='tar'
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            strmcmd='tar xfi -'
         else
-            strmcmd="tar cf - '${INFO_FILE}'"
+            strmcmd="tar cf - '$INFO_FILE'"
         fi
     fi
+    wsrep_log_info "Streaming with $sfmt"
 }
 
 get_proc()
@@ -575,7 +581,6 @@ cleanup_donor()
             wsrep_log_error "xtrabackup process is still running. Killing... "
             kill_xtrabackup
         fi
-
     fi
 
     rm -f "${DATA}/${IST_FILE}" || true
@@ -852,7 +857,11 @@ cd "$OLD_PWD"
 setup_commands () {
     INNOAPPLY="$INNOBACKUPEX_BIN $disver $iapts $INNOEXTRA --apply-log $rebuildcmd '$DATA' $INNOAPPLY"
     INNOMOVE="$INNOBACKUPEX_BIN $WSREP_SST_OPT_CONF $disver $impts --move-back --force-non-empty-directories '$DATA' $INNOMOVE"
-    INNOBACKUP="$INNOBACKUPEX_BIN $WSREP_SST_OPT_CONF $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream='$sfmt' '$itmpdir' $INNOBACKUP"
+    sfmt_work="$sfmt"
+    if [ "$sfmt" = 'mbstream' ]; then
+        sfmt_work='xbstream'
+    fi
+    INNOBACKUP="$INNOBACKUPEX_BIN $WSREP_SST_OPT_CONF $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream=$sfmt_work '$itmpdir' $INNOBACKUP"
 }
 
 if [ "$WSREP_SST_OPT_ROLE" = "donor" ]

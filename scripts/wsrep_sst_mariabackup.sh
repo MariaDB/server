@@ -55,7 +55,7 @@ ib_home_dir=""
 ib_log_dir=""
 ib_undo_dir=""
 
-sfmt="tar"
+sfmt=""
 strmcmd=""
 tfmt=""
 tcmd=""
@@ -97,7 +97,6 @@ if [ ! -x "$MARIABACKUP_BIN" ]; then
     wsrep_log_error 'mariabackup binary not found in $PATH'
     exit 42
 fi
-MBSTREAM_BIN=mbstream
 
 DATA="$WSREP_SST_OPT_DATA"
 INFO_FILE="xtrabackup_galera_info"
@@ -481,21 +480,26 @@ read_cnf()
 get_stream()
 {
     if [ "$sfmt" = 'mbstream' -o "$sfmt" = 'xbstream' ]; then
-        wsrep_log_info "Streaming with ${sfmt}"
+        sfmt='mbstream'
+        MBSTREAM_BIN="$(command -v mbstream)"
+        if [ -z "$MBSTREAM_BIN" ]; then
+            wsrep_log_error "Streaming with $sfmt, but $sfmt not found in path"
+            exit 42
+        fi
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
-            strmcmd="$MBSTREAM_BIN -x"
+            strmcmd="'$MBSTREAM_BIN' -x"
         else
-            strmcmd="$MBSTREAM_BIN -c '$INFO_FILE'"
+            strmcmd="'$MBSTREAM_BIN' -c '$INFO_FILE'"
         fi
     else
-        sfmt="tar"
-        wsrep_log_info "Streaming with tar"
-        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]]; then
-            strmcmd="tar xfi -"
+        sfmt='tar'
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            strmcmd='tar xfi -'
         else
             strmcmd="tar cf - '$INFO_FILE'"
         fi
     fi
+    wsrep_log_info "Streaming with $sfmt"
 }
 
 get_proc()
@@ -930,7 +934,7 @@ setup_commands()
     fi
     INNOAPPLY="$MARIABACKUP_BIN --prepare $disver $iapts $INNOEXTRA --target-dir='$DATA' --datadir='$DATA' $mysqld_args $INNOAPPLY"
     INNOMOVE="$MARIABACKUP_BIN $WSREP_SST_OPT_CONF --move-back $disver $impts --force-non-empty-directories --target-dir='$DATA' --datadir='${TDATA:-$DATA}' $INNOMOVE"
-    INNOBACKUP="$MARIABACKUP_BIN $WSREP_SST_OPT_CONF --backup $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream='$sfmt' --target-dir='$itmpdir' --datadir='$DATA' $mysqld_args $INNOBACKUP"
+    INNOBACKUP="$MARIABACKUP_BIN $WSREP_SST_OPT_CONF --backup $disver $iopts $tmpopts $INNOEXTRA --galera-info --stream=$sfmt --target-dir='$itmpdir' --datadir='$DATA' $mysqld_args $INNOBACKUP"
 }
 
 get_stream
