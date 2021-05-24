@@ -2,6 +2,7 @@
 
 --source include/have_innodb.inc
 -- source include/have_geometry.inc
+--source include/have_sequence.inc
 
 SET default_storage_engine=InnoDB;
 
@@ -1422,10 +1423,20 @@ WHERE ST_Contains(ST_Buffer(bridges.position, 15.0), buildings.footprint) = 1;
 #FROM lakes
 #WHERE lakes.name = 'Blue Lake';
 
-DROP DATABASE gis_ogs;
-
 --echo #
 --echo # Bug#13362660 ASSERTION `FIELD_POS < FIELD_COUNT' FAILED. IN PROTOCOL_TEXT::STORE
 --echo #
 
 SELECT ST_Union('', ''), md5(1);
+
+--echo #
+--echo # MDEV-25758 InnoDB spatial indexes miss large geometry
+--echo #	fields after MDEV-25459
+--echo #
+CREATE TABLE t1(l LINESTRING NOT NULL, SPATIAL INDEX(l))ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1;
+SELECT GROUP_CONCAT(CONCAT(seq, ' ', seq) SEPARATOR ',') INTO @g FROM seq_0_to_190;
+INSERT INTO t1 SET l=ST_GeomFromText(CONCAT('LINESTRING(',@g,',0 0)'));
+SELECT COUNT(*) FROM t1 WHERE MBRIntersects(GeomFromText('Polygon((0 0,0 10,10 10,10 0,0 0))'), l);
+DROP TABLE t1;
+
+DROP DATABASE gis_ogs;
