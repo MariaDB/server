@@ -3960,13 +3960,13 @@ public:
     */
     DBUG_PRINT("debug",
                ("temporary_tables: %s, in_sub_stmt: %s, system_thread: %s",
-                YESNO(has_thd_temporary_tables()), YESNO(in_sub_stmt),
+                YESNO(has_temporary_tables()), YESNO(in_sub_stmt),
                 show_system_thread(system_thread)));
     if (in_sub_stmt == 0)
     {
       if (wsrep_binlog_format() == BINLOG_FORMAT_ROW)
         set_current_stmt_binlog_format_row();
-      else if (!has_thd_temporary_tables())
+      else if (!has_temporary_tables())
         set_current_stmt_binlog_format_stmt();
     }
     DBUG_VOID_RETURN;
