@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -104,9 +104,10 @@ void buf_flush_wait_batch_end(bool lru);
 /** Wait until all persistent pages are flushed up to a limit.
 @param sync_lsn   buf_pool.get_oldest_modification(LSN_MAX) to wait for */
 ATTRIBUTE_COLD void buf_flush_wait_flushed(lsn_t sync_lsn);
-/** If innodb_flush_sync=ON, initiate a furious flush.
-@param lsn buf_pool.get_oldest_modification(LSN_MAX) target */
-void buf_flush_ahead(lsn_t lsn);
+/** Initiate more eager page flushing if the log checkpoint age is too old.
+@param lsn      buf_pool.get_oldest_modification(LSN_MAX) target
+@param furious  true=furious flushing, false=limit to innodb_io_capacity */
+ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious);
 
 /********************************************************************//**
 This function should be called at a mini-transaction commit, if a page was
