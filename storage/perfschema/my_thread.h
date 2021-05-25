@@ -50,12 +50,14 @@ static inline my_thread_os_id_t my_thread_os_id()
   pthread_threadid_np(nullptr, &tid64);
   return (pid_t)tid64;
 #else
+#ifdef HAVE_GETTID
+  /* Linux glibc-2.30+ */
+  return gettid();
+#else
 #ifdef HAVE_SYS_GETTID
   /*
-    Linux.
+    Linux before glibc-2.30
     See man gettid
-    See GLIBC Bug 6399 - gettid() should have a wrapper
-    https://sourceware.org/bugzilla/show_bug.cgi?id=6399
   */
   return syscall(SYS_gettid);
 #else
@@ -82,7 +84,8 @@ static inline my_thread_os_id_t my_thread_os_id()
 #endif /* HAVE_PTHREAD_GETTHREADID_NP */
 #endif /* _WIN32 */
 #endif /* HAVE_SYS_GETTID */
-#endif /* HAVE_SYS_THREAD_SELFID */
+#endif /* HAVE_GETTID */
+#endif /* HAVE_PTHREAD_THREADID_NP */
 }
 
 #define CHANNEL_NAME_LENGTH MAX_CONNECTION_NAME
