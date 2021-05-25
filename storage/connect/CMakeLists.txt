@@ -413,11 +413,11 @@ IF(CONNECT_WITH_JDBC AND JAVA_FOUND AND JNI_FOUND)
   INSTALL(FILES
     ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/JavaWrappers.jar
     ${CMAKE_CURRENT_BINARY_DIR}/JdbcInterface.jar
-    DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+    DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT connect-engine)
   IF(CONNECT_WITH_MONGO)
     INSTALL(FILES
       ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/Mongo2.jar
       ${CMAKE_CURRENT_SOURCE_DIR}/mysql-test/connect/std_data/Mongo3.jar
-      DESTINATION ${INSTALL_PLUGINDIR} COMPONENT connect-engine)
+      DESTINATION ${INSTALL_MYSQLSHAREDIR} COMPONENT connect-engine)
   ENDIF()
 ENDIF()

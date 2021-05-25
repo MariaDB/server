@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -990,7 +990,7 @@ mysqld_collation_get_by_name(const char *name,
 
 static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
-  return MY_TEST(cs->mbminlen == 1);
+  return MY_TEST(cs->mbminlen == 1 && cs->number != 17 /* filename */);
 }
 
 #ifdef MYSQL_SERVER
@@ -4992,7 +4992,6 @@ public:
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
         THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }
-
 
   uint get_net_wait_timeout()
   {

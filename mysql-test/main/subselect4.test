@@ -2236,7 +2236,17 @@ SELECT a FROM t1 WHERE (a, a) IN (SELECT 1, 2) AND a = (SELECT MIN(b) FROM t2);
 
 DROP TABLE t1,t2;
 
---echo # End of 10.2 tests
+--echo #
+--echo # MDEV-22462: Item_in_subselect::create_single_in_to_exists_cond(JOIN *, Item **, Item **): Assertion `false' failed.
+--echo #
+
+select 1 from dual where 1 in (select 5 from dual where 1);
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+
+update t1 set a = 2 where a in (select a from dual where a = a);
+drop table t1;
 
 --echo #
 --echo # MDEV-18335: Assertion `!error || error == 137' failed in subselect_rowid_merge_engine::init
@@ -2352,6 +2362,21 @@ INSERT INTO t2 VALUES (3),(4); # Optional, fails either way
 --error ER_SUBQUERY_NO_1_ROW
 SELECT 1 IN (SELECT (SELECT a FROM t1) AS x FROM t2 GROUP BY x);
 drop table t1,t2;
+
+--echo #
+--echo # MDEV-25629: Crash in get_sort_by_table() in subquery with order by having outer ref
+--echo #
+CREATE TABLE t1 (i1 int);
+insert into t1 values (1),(2);
+
+--error ER_SUBQUERY_NO_1_ROW
+SELECT 1
+FROM (t1 JOIN t1 AS ref_t1 ON
+	(t1.i1 > (SELECT ref_t1.i1 AS c0 FROM t1 b ORDER BY -c0)));
+
+DROP TABLE t1;
+
+--echo # End of 10.2 tests
 
 --echo # End of 10.3 tests
 

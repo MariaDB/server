@@ -588,14 +588,13 @@ else()
   set(GRN_WITH_MESSAGE_PACK FALSE)
 endif()
 
-find_program(RUBY NAMES
-  "ruby2.3" "ruby23"
-  "ruby2.2" "ruby22"
-  "ruby2.1" "ruby21"
-  "ruby")
-
 option(GRN_WITH_MRUBY "use mruby" OFF)
 if(GRN_WITH_MRUBY)
+  find_program(RUBY NAMES
+    "ruby2.3" "ruby23"
+    "ruby2.2" "ruby22"
+    "ruby2.1" "ruby21"
+    "ruby")
   set(MRUBY_INCLUDE_DIRS
     "${CMAKE_CURRENT_SOURCE_DIR}/vendor/mruby-source/include")
   set(MRUBY_LIBS mruby)

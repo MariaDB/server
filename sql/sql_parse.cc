@@ -8184,7 +8184,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     ptr->is_fqtn= TRUE;
     ptr->db= table->db;
   }
- else if (!lex->with_cte_resolution && lex->copy_db_to(&ptr->db))
+  else if (!lex->with_cte_resolution && lex->copy_db_to(&ptr->db))
     DBUG_RETURN(0);
   else
     ptr->is_fqtn= FALSE;
@@ -8199,7 +8199,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     if (ptr->db.length && ptr->db.str != any_db)
       ptr->db.length= my_casedn_str(files_charset_info, (char*) ptr->db.str);
   }
-      
+
   ptr->table_name= table->table;
   ptr->lock_type= lock_type;
   ptr->mdl_type= mdl_type;
@@ -8886,7 +8886,7 @@ void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update
     tables->lock_type= lock_type;
     tables->updating=  for_update;
 
-    if (tables->db.str && tables->db.str[0])
+    if (tables->db.length)
       tables->mdl_request.set_type((lock_type >= TL_WRITE_ALLOW_WRITE) ?
                                    MDL_SHARED_WRITE : MDL_SHARED_READ);
   }
