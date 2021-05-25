@@ -229,3 +229,16 @@ INSERT INTO t2 (id) VALUES (1);
 disconnect con2;
 connection default;
 DROP TABLE t3, t2, t1;
+#
+# MDEV-25738 Assertion `ticket->m_duration == MDL_EXPLICIT' failed in
+# void MDL_context::release_lock(MDL_ticket*)
+#
+CREATE TABLE t1 (id int(11)) ENGINE=InnoDB;
+SET max_statement_time= 0.001;
+LOCK TABLES t1 WRITE;
+CREATE TRIGGER tr16 AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t1 VALUES (1);
+DROP TABLE t1;
+SET max_statement_time= default;
+#
+# End of 10.5 tests
+#
