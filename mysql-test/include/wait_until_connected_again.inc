@@ -33,10 +33,7 @@ while ($mysql_errno)
   {
     let $mysql_errno=0;
   }
-  if ($mysql_errno > 0)
-  {
-    --sleep 0.1
-  }
+  --sleep 0.1
 }
 --enable_query_log
 --enable_result_log
