@@ -261,16 +261,20 @@ then
         ;;
     'VERIFY_CA')
         VERIFY_OPT='verifyChain = yes'
-        # check if the address is an ip-address (v4 or v6):
-        if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
-           grep -q -E '^([0-9]+(\.[0-9]+){3,3}|[0-9a-fA-F]?(\:[0-9a-fA-F]*)+)$'
-        then
-            CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
+        if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+            CHECK_OPT="checkHost = $WSREP_SST_OPT_REMOTE_USER"
         else
-            CHECK_OPT="checkHost = $WSREP_SST_OPT_HOST"
-        fi
-        if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
-            CHECK_OPT_LOCAL="checkHost = localhost"
+            # check if the address is an ip-address (v4 or v6):
+            if echo "$WSREP_SST_OPT_HOST_UNESCAPED" | \
+               grep -q -E '^([0-9]+(\.[0-9]+){3,3}|[0-9a-fA-F]*(\:[0-9a-fA-F]*)+)$'
+            then
+                CHECK_OPT="checkIP = $WSREP_SST_OPT_HOST_UNESCAPED"
+            else
+                CHECK_OPT="checkHost = $WSREP_SST_OPT_HOST"
+            fi
+            if is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+                CHECK_OPT_LOCAL="checkHost = localhost"
+            fi
         fi
         ;;
     *)

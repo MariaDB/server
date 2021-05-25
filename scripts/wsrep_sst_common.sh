@@ -1021,3 +1021,25 @@ check_for_version()
     [ $z1 -lt $z2 ] && return 1
     return 0
 }
+
+trim_string()
+{
+    if [ -n "$BASH_VERSION" ]; then
+        local pattern="[![:space:]${2:-}]"
+        local x="${1#*$pattern}"
+        local z=${#1}
+        x=${#x}
+        if [ $x -ne $z ]; then
+            local y="${1%$pattern*}"
+            y=${#y}
+            x=$(( $z-$x-1 ))
+            y=$(( $y-$x+1 ))
+            printf '%s' "${1:$x:$y}"
+        else
+            printf ''
+        fi
+    else
+        local pattern="[[:space:]${2:-}]"
+        echo "$1" | sed -E "s/^$pattern+|$pattern+\$//g"
+    fi
+}

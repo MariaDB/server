@@ -32,8 +32,8 @@ ecode=0
 ssyslog=""
 ssystag=""
 XTRABACKUP_PID=""
-tca=""
 tcert=""
+tpem=""
 tkey=""
 sockopt=""
 progress=""
@@ -224,20 +224,9 @@ verify_file_exists()
 
 get_transfer()
 {
-    TSST_PORT="$WSREP_SST_OPT_PORT"
-
-    if [[ $tfmt == 'nc' ]];then
+    if [ $tfmt = 'nc' ]; then
         wsrep_log_info "Using netcat as streamer"
         wsrep_check_programs nc
-
-        if [[ $encrypt -eq 2 || $encrypt -eq 3 || $encrypt -eq 4 ]]; then
-            wsrep_log_error "******** FATAL ERROR *********************** "
-            wsrep_log_error "* Using SSL encryption (encrypt= 2, 3, or 4) "
-            wsrep_log_error "* is not supported when using nc(netcat).    "
-            wsrep_log_error "******************************************** "
-            exit 22
-        fi
-
         tcmd="nc"
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             if nc -h 2>&1 | grep -q 'ncat'; then
@@ -256,7 +245,7 @@ get_transfer()
                 wsrep_log_info "Using traditional netcat as streamer"
                 tcmd="$tcmd -l -p"
             fi
-            tcmd="$tcmd $TSST_PORT"
+            tcmd="$tcmd $SST_PORT"
         else
             # Check to see if netcat supports the '-N' flag.
             # -N Shutdown the network socket after EOF on stdin
@@ -278,113 +267,118 @@ get_transfer()
                 wsrep_log_info "Using traditional netcat as streamer"
                 tcmd="$tcmd -q0"
             fi
-            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $TSST_PORT"
+            tcmd="$tcmd $WSREP_SST_OPT_HOST_UNESCAPED $SST_PORT"
         fi
     else
         tfmt='socat'
+
         wsrep_log_info "Using socat as streamer"
         wsrep_check_programs socat
 
-        donor_extra=""
-        joiner_extra=""
-        if [[ $encrypt -eq 2 || $encrypt -eq 3 || $encrypt -eq 4 ]]; then
-            if ! socat -V | grep -q WITH_OPENSSL; then
-                wsrep_log_error "******** FATAL ERROR ****************** "
-                wsrep_log_error "* socat is not openssl enabled.         "
-                wsrep_log_error "* Unable to encrypt SST communications. "
-                wsrep_log_error "*************************************** "
-                exit 2
-            fi
-
-            # Determine the socat version
-            SOCAT_VERSION=$(socat -V 2>&1 | grep -m1 -oe '[0-9]\.[0-9][\.0-9]*')
-            if [ -z "$SOCAT_VERSION" ]; then
-                wsrep_log_error "******** FATAL ERROR ******************"
-                wsrep_log_error "* Cannot determine the socat version. *"
-                wsrep_log_error "***************************************"
-                exit 2
-            fi
-            if ! check_for_version "$SOCAT_VERSION" "1.7.3"; then
-                # socat versions < 1.7.3 will have 512-bit dhparams (too small)
-                # so create 2048-bit dhparams and send that as a parameter:
-                if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]]; then
-                    # dhparams check (will create ssl_dhparams if needed)
-                    check_for_dhparams
-                    joiner_extra=",dhparam='$ssl_dhparams'"
-                fi
-            else
-                # socat version >= 1.7.3, checks to see if the peername matches
-                # the hostname, then set commonname="" to disable the peername
-                # checks:
-                donor_extra=',commonname=""'
+        if [ -n "$sockopt" ]; then
+            sockopt=$(trim_string "$sockopt" ',')
+            if [ -n "$sockopt" ]; then
+                sockopt=",$sockopt"
             fi
         fi
 
-        if [[ $encrypt -eq 2 ]]; then
-            wsrep_log_warning "**** WARNING **** encrypt=2 is deprecated and will be removed in a future release"
-            wsrep_log_info "Using openssl based encryption with socat: with crt and ca"
-
-            verify_file_exists "$tcert" "Both certificate and CA files are required." \
-                                        "Please check the 'tcert' option.           "
-            verify_file_exists "$tca" "Both certificate and CA files are required." \
-                                      "Please check the 'tca' option.             "
-
-            stagemsg+="-OpenSSL-Encrypted-2"
-            if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
-                wsrep_log_info "Decrypting with CERT: $tcert, CA: $tca"
-                tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert='${tcert}',cafile='${tca}'${joiner_extra}${sockopt} stdio"
-            else
-                wsrep_log_info "Encrypting with CERT: $tcert, CA: $tca"
-                tcmd="socat -u stdio openssl-connect:${WSREP_SST_OPT_HOST}:${TSST_PORT},cert='${tcert}',cafile='${tca}'${donor_extra}${sockopt}"
+        # Add an option for ipv6 if needed:
+        if [ $WSREP_SST_OPT_HOST_IPv6 -eq 1 ]; then
+            # If sockopt contains 'pf=ip6' somewhere in the middle,
+            # this will not interfere with socat, but exclude the trivial
+            # cases when sockopt contains 'pf=ip6' as prefix or suffix:
+            if [ "$sockopt" = "${sockopt#,pf=ip6}" -a \
+                 "$sockopt" = "${sockopt%,pf=ip6}" ]
+            then
+                sockopt=",pf=ip6$sockopt"
             fi
-        elif [[ $encrypt -eq 3 ]];then
-            wsrep_log_warning "**** WARNING **** encrypt=3 is deprecated and will be removed in a future release"
+        fi
+
+        if [ $encrypt -lt 2 ]; then
+            if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+                tcmd="socat -u TCP-LISTEN:$SST_PORT,reuseaddr$sockopt stdio"
+            else
+                tcmd="socat -u stdio TCP:$REMOTEIP:$SST_PORT$sockopt"
+            fi
+            return
+        fi
+
+        if ! socat -V | grep -q -F 'WITH_OPENSSL 1'; then
+            wsrep_log_error "******** FATAL ERROR ************************************************ "
+            wsrep_log_error "* Encryption requested, but socat is not OpenSSL enabled (encrypt=$encrypt) *"
+            wsrep_log_error "********************************************************************* "
+            exit 2
+        fi
+
+        # Determine the socat version
+        SOCAT_VERSION=$(socat -V 2>&1 | grep -m1 -oe '[0-9]\.[0-9][\.0-9]*')
+        if [ -z "$SOCAT_VERSION" ]; then
+            wsrep_log_error "******** FATAL ERROR ******************"
+            wsrep_log_error "* Cannot determine the socat version. *"
+            wsrep_log_error "***************************************"
+            exit 2
+        fi
+
+        local action='Decrypting'
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            tcmd="socat -u openssl-listen:$SST_PORT,reuseaddr"
+        else
+            tcmd="socat -u stdio openssl-connect:$REMOTEIP:$SST_PORT"
+            action='Encrypting'
+        fi
+
+        if ! check_for_version "$SOCAT_VERSION" '1.7.3'; then
+            # socat versions < 1.7.3 will have 512-bit dhparams (too small)
+            # so create 2048-bit dhparams and send that as a parameter:
+            check_for_dhparams
+            tcmd="$tcmd,dhparam='$ssl_dhparams'"
+        fi
+
+        if [ $encrypt -eq 2 ]; then
+            wsrep_log_info "Using openssl based encryption with socat: with crt and pem"
+            if [ -z "$tpem" -o -z "$tcert" ]; then
+                wsrep_log_error "Both PEM and CRT files required"
+                exit 22
+            fi
+            tcmd="$tcmd,cert='$tpem',cafile='$tcert'$sockopt"
+            stagemsg="$stagemsg-OpenSSL-Encrypted-2"
+            wsrep_log_info "$action with cert=$tpem, cafile=$tcert"
+        elif [ $encrypt -eq 3 -o $encrypt -eq 4 ]; then
             wsrep_log_info "Using openssl based encryption with socat: with key and crt"
-
-            verify_file_exists "$tcert" "Both certificate and key files are required." \
-                                        "Please check the 'tcert' option.            "
-            verify_file_exists "$tkey" "Both certificate and key files are required." \
-                                       "Please check the 'tkey' option.             "
-
-            stagemsg+="-OpenSSL-Encrypted-3"
-            if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]];then
-                wsrep_log_info "Decrypting with CERT: $tcert, KEY: $tkey"
-                tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert='${tcert}',key='${tkey}',verify=0${joiner_extra}${sockopt} stdio"
-            else
-                wsrep_log_info "Encrypting with CERT: $tcert, KEY: $tkey"
-                tcmd="socat -u stdio openssl-connect:${WSREP_SST_OPT_HOST}:${TSST_PORT},cert='${tcert}',key='${tkey}',verify=0${sockopt}"
+            if [ -z "$tpem" -o -z "$tkey" ]; then
+                wsrep_log_error "Both certificate and key files required"
+                exit 22
             fi
-        elif [[ $encrypt -eq 4 ]]; then
-            wsrep_log_info "Using openssl based encryption with socat: with key, crt, and ca"
-
-            verify_file_exists "$ssl_ca" "CA, certificate, and key files are required." \
-                                         "Please check the 'ssl-ca' option.           "
-            verify_file_exists "$ssl_cert" "CA, certificate, and key files are required." \
-                                           "Please check the 'ssl-cert' option.         "
-            verify_file_exists "$ssl_key" "CA, certificate, and key files are required." \
-                                          "Please check the 'ssl-key' option.          "
-
-            # Check to see that the key matches the cert
-            verify_cert_matches_key $ssl_cert $ssl_key
-
-            stagemsg+="-OpenSSL-Encrypted-4"
-            if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]]; then
-                wsrep_log_info "Decrypting with CERT: $ssl_cert, KEY: $ssl_key, CA: $ssl_ca"
-                tcmd="socat -u openssl-listen:${TSST_PORT},reuseaddr,cert='${ssl_cert}',key='${ssl_key}',cafile='${ssl_ca}',verify=1${joiner_extra}${sockopt} stdio"
+            stagemsg="$stagemsg-OpenSSL-Encrypted-3"
+            if [ -z "$tcert" ]; then
+                if [ $encrypt -eq 4 ]; then
+                    wsrep_log_error "Peer certificate required if encrypt=4"
+                    exit 22
+                fi
+                # no verification
+                tcmd="$tcmd,cert='$tpem',key='$tkey',verify=0$sockopt"
+                wsrep_log_info "$action with cert=$tpem, key=$tkey, verify=0"
             else
-                wsrep_log_info "Encrypting with CERT: $ssl_cert, KEY: $ssl_key, CA: $ssl_ca"
-                tcmd="socat -u stdio openssl-connect:${WSREP_SST_OPT_HOST}:${TSST_PORT},cert='${ssl_cert}',key='${ssl_key}',cafile='${ssl_ca}',verify=1${donor_extra}${sockopt}"
+                # CA verification
+                if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+                    CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
+                elif [ $encrypt -eq 4 ]; then
+                    CN_option=",commonname=''"
+                elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
+                    CN_option=',commonname=localhost'
+                else
+                    CN_option=",commonname='$WSREP_SST_OPT_HOST_UNSECAPED'"
+                fi
+                tcmd="$tcmd,cert='$tpem',key='$tkey',cafile='$tcert'$CN_option$sockopt"
+                wsrep_log_info "$action with cert=$tpem, key=$tkey, cafile=$tcert"
             fi
         else
-            if [[ $encrypt -eq 1 ]]; then
-                wsrep_log_warning "**** WARNING **** encrypt=1 is deprecated and will be removed in a future release"
-            fi
+            wsrep_log_info "Unknown encryption mode: encrypt=$encrypt"
+            exit 22
+        fi
 
-            if [[ "$WSREP_SST_OPT_ROLE"  == "joiner" ]]; then
-                tcmd="socat -u TCP-LISTEN:${TSST_PORT},reuseaddr${sockopt} stdio"
-            else
-                tcmd="socat -u stdio TCP:${WSREP_SST_OPT_HOST}:${TSST_PORT}${sockopt}"
-            fi
+        if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+            tcmd="$tcmd stdio"
         fi
     fi
 }
@@ -435,8 +429,8 @@ read_cnf()
 {
     sfmt=$(parse_cnf sst streamfmt "xbstream")
     tfmt=$(parse_cnf sst transferfmt "socat")
-    tca=$(parse_cnf sst tca "")
-    tcert=$(parse_cnf sst tcert "")
+    tcert=$(parse_cnf sst tca "")
+    tpem=$(parse_cnf sst tcert "")
     tkey=$(parse_cnf sst tkey "")
     encrypt=$(parse_cnf sst encrypt 0)
     sockopt=$(parse_cnf sst sockopt "")
