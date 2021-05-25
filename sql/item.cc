@@ -416,7 +416,7 @@ Item::Item(THD *thd):
   base_flags= item_base_t::FIXED;
   with_flags= item_with_t::NONE;
   null_value= 0;
-  marker= 0;
+  marker= MARKER_UNUSED;
 
    /* Initially this item is not attached to any JOIN_TAB. */
   join_tab_idx= MAX_TABLES;
@@ -449,7 +449,7 @@ Item::Item():
   base_flags= item_base_t::FIXED;
   with_flags= item_with_t::NONE;
   null_value= 0;
-  marker= 0;
+  marker= MARKER_UNUSED;
   join_tab_idx= MAX_TABLES;
 }
 
@@ -549,7 +549,7 @@ void Item::cleanup()
 {
   DBUG_ENTER("Item::cleanup");
   DBUG_PRINT("enter", ("this: %p", this));
-  marker= 0;
+  marker= MARKER_UNUSED;
   join_tab_idx= MAX_TABLES;
   if (orig_name)
   {
@@ -7361,10 +7361,10 @@ Item *Item_field::update_value_transformer(THD *thd, uchar *select_arg)
     extraction of a pushable condition. The criteria of pushability of
     a subformula is checked by the callback function 'checker' with one
     parameter arg. The subformulas that are not usable are marked with
-    the flag NO_EXTRACTION_FL.
+    the flag MARKER_NO_EXTRACTION.
   @note
     This method is called before any call of build_pushable_cond.
-    The flag NO_EXTRACTION_FL set in a subformula allows to avoid building
+    The flag MARKER_NO_EXTRACTION set in a subformula allows to avoid building
     clones for the subformulas that are not used in the pushable condition.
   @note
     This method is called for pushdown conditions into materialized
@@ -7388,14 +7388,14 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
     while ((item=li++))
     {
       item->check_pushable_cond(checker, arg);
-      if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
+      if (item->get_extraction_flag() !=  MARKER_NO_EXTRACTION)
         count++;
       else if (!and_cond)
         break;
     }
     if ((and_cond && count == 0) || item)
     {
-      set_extraction_flag(NO_EXTRACTION_FL);
+      set_extraction_flag(MARKER_NO_EXTRACTION);
       if (and_cond)
         li.rewind();
       while ((item= li++))
@@ -7403,7 +7403,7 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
     }
   }
   else if (!((this->*checker) (arg)))
-    set_extraction_flag(NO_EXTRACTION_FL);
+    set_extraction_flag(MARKER_NO_EXTRACTION);
 }
 
 
@@ -7420,7 +7420,7 @@ void Item::check_pushable_cond(Pushdown_checker checker, uchar *arg)
   @details
     This method finds out what condition that can be pushed down can be
     extracted from this condition. If such condition C exists the
-    method builds the item for it. The method uses the flag NO_EXTRACTION_FL
+    method builds the item for it. The method uses the flag MARKER_NO_EXTRACTION
     set by the preliminary call of the method check_pushable_cond() to figure
     out whether a subformula is pushable or not.
     In the case when this item is a multiple equality a checker method is
@@ -7455,7 +7455,7 @@ Item *Item::build_pushable_cond(THD *thd,
   bool is_multiple_equality= type() == Item::FUNC_ITEM &&
   ((Item_func*) this)->functype() == Item_func::MULT_EQUAL_FUNC;
 
-  if (get_extraction_flag() == NO_EXTRACTION_FL)
+  if (get_extraction_flag() == MARKER_NO_EXTRACTION)
     return 0;
 
   if (type() == Item::COND_ITEM)
@@ -7477,7 +7477,7 @@ Item *Item::build_pushable_cond(THD *thd,
 
     while ((item=li++))
     {
-      if (item->get_extraction_flag() == NO_EXTRACTION_FL)
+      if (item->get_extraction_flag() == MARKER_NO_EXTRACTION)
       {
         if (!cond_and)
           return 0;
@@ -7533,7 +7533,7 @@ Item *Item::build_pushable_cond(THD *thd,
       return 0;
     return new_cond;
   }
-  else if (get_extraction_flag() != NO_EXTRACTION_FL)
+  else if (get_extraction_flag() != MARKER_NO_EXTRACTION)
     return build_clone(thd);
   return 0;
 }
@@ -7584,7 +7584,7 @@ Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
     return this;
   Item *item= get_field_item_for_having(thd, this, sel);
   if (item)
-    item->marker|= SUBSTITUTION_FL;
+    item->marker|= MARKER_SUBSTITUTION;
   return item;
 }
 
@@ -7592,9 +7592,9 @@ Item *Item_field::derived_field_transformer_for_having(THD *thd, uchar *arg)
 Item *Item_direct_view_ref::derived_field_transformer_for_having(THD *thd,
                                                                  uchar *arg)
 {
-  if ((*ref)->marker & SUBSTITUTION_FL)
+  if ((*ref)->marker & MARKER_SUBSTITUTION)
   {
-    this->marker|= SUBSTITUTION_FL;
+    this->marker|= MARKER_SUBSTITUTION;
     return this;
   }
   st_select_lex *sel= (st_select_lex *)arg;
@@ -7650,7 +7650,7 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
   {
     Item *producing_clone= producing_item->build_clone(thd);
     if (producing_clone)
-      producing_clone->marker|= SUBSTITUTION_FL;
+      producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
   }
   return this;
@@ -7659,7 +7659,7 @@ Item *Item_field::derived_field_transformer_for_where(THD *thd, uchar *arg)
 Item *Item_direct_view_ref::derived_field_transformer_for_where(THD *thd,
                                                                 uchar *arg)
 {
-  if ((*ref)->marker & SUBSTITUTION_FL)
+  if ((*ref)->marker & MARKER_SUBSTITUTION)
     return (*ref);
   if (item_equal)
   {
@@ -7681,7 +7681,7 @@ Item *Item_field::grouping_field_transformer_for_where(THD *thd, uchar *arg)
     Item *producing_clone=
       gr_field->corresponding_item->build_clone(thd);
     if (producing_clone)
-      producing_clone->marker|= SUBSTITUTION_FL;
+      producing_clone->marker|= MARKER_SUBSTITUTION;
     return producing_clone;
   }
   return this;
@@ -7692,9 +7692,9 @@ Item *
 Item_direct_view_ref::grouping_field_transformer_for_where(THD *thd,
                                                            uchar *arg)
 {
-  if ((*ref)->marker & SUBSTITUTION_FL)
+  if ((*ref)->marker & MARKER_SUBSTITUTION)
   {
-    this->marker|= SUBSTITUTION_FL;
+    this->marker|= MARKER_SUBSTITUTION;
     return this;
   }
   if (!item_equal)
@@ -10734,7 +10734,7 @@ void Item::register_in(THD *thd)
 
 bool Item::cleanup_excluding_immutables_processor (void *arg)
 {
-  if (!(get_extraction_flag() == IMMUTABLE_FL))
+  if (!(get_extraction_flag() == MARKER_IMMUTABLE))
     return cleanup_processor(arg);
   else
   {

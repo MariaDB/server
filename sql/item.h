@@ -153,14 +153,36 @@ bool mark_unsupported_function(const char *w1, const char *w2,
 #define SPLIT_SUM_SKIP_REGISTERED 1     /* Skip registered funcs */
 #define SPLIT_SUM_SELECT 2		/* SELECT item; Split all parts */
 
+/*
+  Values for item->marker for cond items in the WHERE clause as used
+  by the optimizer.
 
-#define NO_EXTRACTION_FL              (1 << 6)
-#define FULL_EXTRACTION_FL            (1 << 7)
-#define DELETION_FL                   (1 << 8)
-#define IMMUTABLE_FL                  (1 << 9)
-#define SUBSTITUTION_FL               (1 << 10)
-#define EXTRACTION_MASK                                                \
-  (NO_EXTRACTION_FL | FULL_EXTRACTION_FL | DELETION_FL | IMMUTABLE_FL)
+  Note that for Item_fields, the marker contains
+  'select->cur_pos_in_select_list
+*/
+/* Used to check GROUP BY list in the MODE_ONLY_FULL_GROUP_BY mode */
+#define MARKER_UNDEF_POS      -1
+#define MARKER_UNUSED         0
+#define MARKER_CHANGE_COND    1
+#define MARKER_PROCESSED      2
+#define MARKER_CHECK_ON_READ  3
+#define MARKER_NULL_KEY       4
+#define MARKER_FOUND_IN_ORDER 6
+
+/* Used as bits in marker by Item::check_pushable_cond() */
+#define MARKER_NO_EXTRACTION              (1 << 6)
+#define MARKER_FULL_EXTRACTION            (1 << 7)
+#define MARKER_DELETION                   (1 << 8)
+#define MARKER_IMMUTABLE                  (1 << 9)
+#define MARKER_SUBSTITUTION               (1 << 10)
+
+/* Used as bits in marker by window functions */
+#define MARKER_SORTORDER_CHANGE           (1 << 11)
+#define MARKER_PARTITION_CHANGE           (1 << 12)
+#define MARKER_FRAME_CHANGE               (1 << 13)
+#define MARKER_EXTRACTION_MASK                                         \
+  (MARKER_NO_EXTRACTION | MARKER_FULL_EXTRACTION | MARKER_DELETION |   \
+   MARKER_IMMUTABLE)
 
 extern const char *item_empty_name;
 
@@ -2616,17 +2638,17 @@ public:
   void register_in(THD *thd);	 
   
   bool depends_only_on(table_map view_map) 
-  { return marker & FULL_EXTRACTION_FL; }
+  { return marker & MARKER_FULL_EXTRACTION; }
   int get_extraction_flag()
-  { return  marker & EXTRACTION_MASK; }
+  { return marker & MARKER_EXTRACTION_MASK; }
   void set_extraction_flag(int16 flags)
   {
-    marker &= ~EXTRACTION_MASK;
-    marker|= flags; 
+    marker &= ~MARKER_EXTRACTION_MASK;
+    marker|= flags;
   }
   void clear_extraction_flag()
   {
-    marker &= ~EXTRACTION_MASK;
+    marker &= ~MARKER_EXTRACTION_MASK;
   }
   void check_pushable_cond(Pushdown_checker excl_dep_func, uchar *arg);
   bool pushable_cond_checker_for_derived(uchar *arg)

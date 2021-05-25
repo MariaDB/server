@@ -16252,7 +16252,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
       bool all_deleted= true;
       while ((item_equal= it++))
       {
-        if (item_equal->get_extraction_flag() == DELETION_FL)
+        if (item_equal->get_extraction_flag() == MARKER_DELETION)
           continue;
         all_deleted= false;
         eq_cond= eliminate_item_equal(thd, eq_cond, cond_equal->upper_levels,
@@ -16312,7 +16312,7 @@ static COND* substitute_for_best_equal_field(THD *thd, JOIN_TAB *context_tab,
     cond_equal= item_equal->upper_levels;
     if (cond_equal && cond_equal->current_level.head() == item_equal)
       cond_equal= cond_equal->upper_levels;
-    if (item_equal->get_extraction_flag() == DELETION_FL)
+    if (item_equal->get_extraction_flag() == MARKER_DELETION)
       return 0;
     cond= eliminate_item_equal(thd, 0, cond_equal, item_equal);
     return cond ? cond : org_cond;
@@ -16482,7 +16482,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
       if ((functype == Item_func::EQ_FUNC || functype == Item_func::EQUAL_FUNC)
 	  && and_father != cond && !left_item->const_item())
       {
-	cond->marker=1;
+	cond->marker= MARKER_CHANGE_COND;
 	COND_CMP *tmp2;
         /* Will work, even if malloc would fail */
         if ((tmp2= new (thd->mem_root) COND_CMP(and_father, func)))
@@ -16515,7 +16515,7 @@ change_cond_ref_to_const(THD *thd, I_List<COND_CMP> *save_list,
       {
         args[0]= args[1];                       // For easy check
         thd->change_item_tree(args + 1, value);
-	cond->marker=1;
+	cond->marker= MARKER_CHANGE_COND;
 	COND_CMP *tmp2;
         /* Will work, even if malloc would fail */
         if ((tmp2=new (thd->mem_root) COND_CMP(and_father, func)))
@@ -16557,7 +16557,7 @@ propagate_cond_constants(THD *thd, I_List<COND_CMP> *save_list,
       }
     }
   }
-  else if (and_father != cond && !cond->marker)		// In a AND group
+  else if (and_father != cond && cond->marker == MARKER_UNUSED) // In a AND group
   {
     if (cond->type() == Item::FUNC_ITEM &&
 	(((Item_func*) cond)->functype() == Item_func::EQ_FUNC ||
@@ -18660,7 +18660,7 @@ TABLE *Create_tmp_table::start(THD *thd,
         - convert BIT fields to 64-bit long, needed because MEMORY tables
           can't index BIT fields.
       */
-      (*tmp->item)->marker=4;			// Store null in key
+      (*tmp->item)->marker= MARKER_NULL_KEY; // Store null in key
       if ((*tmp->item)->too_big_for_varchar())
         m_using_unique_constraint= true;
     }
@@ -18897,13 +18897,15 @@ bool Create_tmp_table::add_fields(THD *thd,
                          !param->force_copy_fields &&
                            (not_all_columns || m_group !=0),
                          /*
-                           If item->marker == 4 then we force create_tmp_field
-                           to create a 64-bit longs for BIT fields because HEAP
-                           tables can't index BIT fields directly. We do the
-                           same for distinct, as we want the distinct index
-                           to be usable in this case too.
+                           If item->marker == MARKER_NULL_KEY then we
+                           force create_tmp_field to create a 64-bit
+                           longs for BIT fields because HEAP tables
+                           can't index BIT fields directly. We do the
+                           same for distinct, as we want the distinct
+                           index to be usable in this case too.
                          */
-                         item->marker == 4  || param->bit_fields_as_long,
+                         item->marker == MARKER_NULL_KEY ||
+                         param->bit_fields_as_long,
                          param->force_copy_fields);
       if (!new_field)
       {
@@ -18943,7 +18945,7 @@ bool Create_tmp_table::add_fields(THD *thd,
       m_field_count[current_counter]++;
       m_uneven_bit[current_counter]+= (m_uneven_bit_length - uneven_delta);
 
-      if (item->marker == 4 && item->maybe_null())
+      if (item->marker == MARKER_NULL_KEY && item->maybe_null())
       {
         m_group_null_items++;
         new_field->flags|= GROUP_FLAG;
@@ -23014,11 +23016,11 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
     table_count times, we mark each item that we have examined with the result
     of the test
   */
-  if ((cond->marker == 3 && !retain_ref_cond) ||
+  if ((cond->marker == MARKER_CHECK_ON_READ && !retain_ref_cond) ||
       (cond->used_tables() & ~tables))
     return (COND*) 0;				// Can't check this yet
 
-  if (cond->marker == 2 || cond->eq_cmp_result() == Item::COND_OK)
+  if (cond->marker == MARKER_PROCESSED || cond->eq_cmp_result() == Item::COND_OK)
   {
     cond->set_join_tab_idx((uint8) join_tab_idx_arg);
     return cond;				// Not boolean op
@@ -23032,13 +23034,13 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
     if (left_item->type() == Item::FIELD_ITEM && !retain_ref_cond &&
 	test_if_ref(root_cond, (Item_field*) left_item,right_item))
     {
-      cond->marker=3;			// Checked when read
+      cond->marker= MARKER_CHECK_ON_READ;	// Checked when read
       return (COND*) 0;
     }
     if (right_item->type() == Item::FIELD_ITEM && !retain_ref_cond &&
 	test_if_ref(root_cond, (Item_field*) right_item,left_item))
     {
-      cond->marker=3;			// Checked when read
+      cond->marker= MARKER_CHECK_ON_READ;	// Checked when read
       return (COND*) 0;
     }
     /*
@@ -23053,11 +23055,11 @@ make_cond_for_table_from_pred(THD *thd, Item *root_cond, Item *cond,
         (!retain_ref_cond ||
          !test_if_ref(root_cond, (Item_field*) left_item,right_item)))
     {
-      cond->marker=3;
+      cond->marker= MARKER_CHECK_ON_READ;
       return (COND*) 0;
     }
   }
-  cond->marker=2;
+  cond->marker= MARKER_PROCESSED;
   cond->set_join_tab_idx((uint8) join_tab_idx_arg);
   return cond;
 }
@@ -23155,9 +23157,10 @@ make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
     of the test
   */
 
-  if (cond->marker == 3 || (cond->used_tables() & ~(tables | sjm_tables)))
+  if (cond->marker == MARKER_CHECK_ON_READ ||
+      (cond->used_tables() & ~(tables | sjm_tables)))
     return (COND*) 0;				// Can't check this yet
-  if (cond->marker == 2 || cond->eq_cmp_result() == Item::COND_OK)
+  if (cond->marker == MARKER_PROCESSED || cond->eq_cmp_result() == Item::COND_OK)
     return cond;				// Not boolean op
 
   /* 
@@ -23171,17 +23174,17 @@ make_cond_after_sjm(THD *thd, Item *root_cond, Item *cond, table_map tables,
     if (left_item->type() == Item::FIELD_ITEM &&
 	test_if_ref(root_cond, (Item_field*) left_item,right_item))
     {
-      cond->marker=3;			// Checked when read
+      cond->marker= MARKER_CHECK_ON_READ;
       return (COND*) 0;
     }
     if (right_item->type() == Item::FIELD_ITEM &&
 	test_if_ref(root_cond, (Item_field*) right_item,left_item))
     {
-      cond->marker=3;			// Checked when read
+      cond->marker= MARKER_CHECK_ON_READ;
       return (COND*) 0;
     }
   }
-  cond->marker=2;
+  cond->marker= MARKER_PROCESSED;
   return cond;
 }
 
@@ -25003,7 +25006,7 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     if (find_order_in_list(thd, ref_pointer_array, tables, ord, fields,
                            all_fields, true, true, from_window_spec))
       return 1;
-    (*ord->item)->marker= UNDEF_POS;		/* Mark found */
+    (*ord->item)->marker= MARKER_UNDEF_POS;		/* Mark found */
     if ((*ord->item)->with_sum_func() && context_analysis_place == IN_GROUP_BY)
     {
       my_error(ER_WRONG_GROUP_FIELD, MYF(0), (*ord->item)->full_name());
@@ -25039,6 +25042,9 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
       we throw an error. If there are no fields in the created list for a
       select list expression this means that all fields in it are used under
       aggregate functions.
+
+      Note that for items in the select list (fields), Item_field->markers
+      contains the position of the field in the select list.
     */
     Item *item;
     Item_field *field;
@@ -25049,7 +25055,8 @@ setup_group(THD *thd, Ref_ptr_array ref_pointer_array, TABLE_LIST *tables,
     field= naf_it++;
     while (field && (item=li++))
     {
-      if (item->type() != Item::SUM_FUNC_ITEM && item->marker >= 0 &&
+      if (item->type() != Item::SUM_FUNC_ITEM &&
+          item->marker != MARKER_UNDEF_POS &&
           !item->const_item() &&
           !(item->real_item()->type() == Item::FIELD_ITEM &&
             item->used_tables() & OUTER_REF_TABLE_BIT))
@@ -25146,7 +25153,7 @@ create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
 
   *all_order_by_fields_used= 1;
   while ((item=li++))
-    item->marker=0;			/* Marker that field is not used */
+    item->marker= MARKER_UNUSED;	/* Marker that field is not used */
 
   prev= &group;  group=0;
   for (order=order_list ; order; order=order->next)
@@ -25158,7 +25165,7 @@ create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
 	return 0;
       *prev=ord;
       prev= &ord->next;
-      (*ord->item)->marker=1;
+      (*ord->item)->marker= MARKER_FOUND_IN_ORDER;
     }
     else
       *all_order_by_fields_used= 0;
@@ -25167,7 +25174,8 @@ create_distinct_group(THD *thd, Ref_ptr_array ref_pointer_array,
   li.rewind();
   while ((item=li++))
   {
-    if (!item->const_item() && !item->with_sum_func() && !item->marker)
+    if (!item->const_item() && !item->with_sum_func() &&
+        item->marker == MARKER_UNUSED)
     {
       /* 
         Don't put duplicate columns from the SELECT list into the 
@@ -29416,7 +29424,7 @@ AGGR_OP::end_send()
 
   @details
     The function removes all top conjuncts marked with the flag
-    FULL_EXTRACTION_FL from the condition 'cond'. The resulting
+    MARKER_FULL_EXTRACTION from the condition 'cond'. The resulting
     formula is returned a the result of the function
     If 'cond' s marked with such flag the function returns 0. 
     The function clear the extraction flags for the removed
@@ -29429,7 +29437,7 @@ AGGR_OP::end_send()
 
 Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
 {
-  if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
+  if (cond->get_extraction_flag() == MARKER_FULL_EXTRACTION)
   {
     cond->clear_extraction_flag();
     return 0; 
@@ -29442,7 +29450,7 @@ Item *remove_pushed_top_conjuncts(THD *thd, Item *cond)
       Item *item;
       while ((item= li++))
       {
-	if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+	if (item->get_extraction_flag() == MARKER_FULL_EXTRACTION)
 	{
 	  item->clear_extraction_flag();
 	  li.remove();

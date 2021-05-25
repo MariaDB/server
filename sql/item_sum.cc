@@ -48,6 +48,25 @@ size_t Item_sum::ram_limitation(THD *thd)
 }
 
 
+/*
+  Force create_tmp_table() to convert BIT columns to BIGINT.
+  This is needed because BIT fields store parts of their data in table's
+  null bits, and we don't have methods to compare two table records with
+  bit fields.
+*/
+
+static void store_bit_fields_as_bigint_in_tempory_table(List<Item> *list)
+{
+  List_iterator_fast<Item> li(*list);
+  Item *item;
+  while ((item= li++))
+  {
+    if (item->type() == Item::FIELD_ITEM &&
+        ((Item_field*) item)->field->type() == FIELD_TYPE_BIT)
+      item->marker= MARKER_NULL_KEY;
+  }
+}
+
 /**
   Prepare an aggregate function item for checking context conditions.
 
@@ -781,24 +800,15 @@ bool Aggregator_distinct::setup(THD *thd)
     tmp_table_param->force_copy_fields= item_sum->has_force_copy_fields();
     DBUG_ASSERT(table == 0);
     /*
-      Make create_tmp_table() convert BIT columns to BIGINT.
-      This is needed because BIT fields store parts of their data in table's
-      null bits, and we don't have methods to compare two table records, which
-      is needed by Unique which is used when HEAP table is used.
+      Convert bit fields to bigint's in temporary table.
+      Needed by Unique which is used when HEAP table is used.
     */
-    {
-      List_iterator_fast<Item> li(list);
-      Item *item;
-      while ((item= li++))
-      {    
-        if (item->type() == Item::FIELD_ITEM &&
-            ((Item_field*)item)->field->type() == FIELD_TYPE_BIT)
-          item->marker=4;
-      }    
-    }    
+    store_bit_fields_as_bigint_in_tempory_table(&list);
+
     if (!(table= create_tmp_table(thd, tmp_table_param, list, (ORDER*) 0, 1,
                                   0,
-                                  (select_lex->options | thd->variables.option_bits),
+                                  (select_lex->options |
+                                   thd->variables.option_bits),
                                   HA_POS_ERROR, &empty_clex_str)))
       return TRUE;
     table->file->extra(HA_EXTRA_NO_ROWS);		// Don't update rows
@@ -4343,20 +4353,13 @@ bool Item_func_group_concat::setup(THD *thd)
   if (order_or_distinct)
   {
     /*
-      Force the create_tmp_table() to convert BIT columns to INT
-      as we cannot compare two table records containing BIT fields
+      Convert bit fields to bigint's in the temporary table.
+      Needed as we cannot compare two table records containing BIT fields
       stored in the the tree used for distinct/order by.
       Moreover we don't even save in the tree record null bits 
       where BIT fields store parts of their data.
     */
-    List_iterator_fast<Item> li(all_fields);
-    Item *item;
-    while ((item= li++))
-    {
-      if (item->type() == Item::FIELD_ITEM && 
-          ((Item_field*) item)->field->type() == FIELD_TYPE_BIT)
-        item->marker= 4;
-    }
+    store_bit_fields_as_bigint_in_tempory_table(&all_fields);
   }
 
   /*

@@ -640,10 +640,6 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
 }
 
 
-#define  SORTORDER_CHANGE_FLAG    1
-#define  PARTITION_CHANGE_FLAG    2
-#define  FRAME_CHANGE_FLAG        4
-
 typedef int (*Item_window_func_cmp)(Item_window_func *f1,
                                     Item_window_func *f2,
                                     void *arg); 
@@ -673,15 +669,15 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 
   List_iterator_fast<Item_window_func> it(*win_func_list);
   Item_window_func *prev= it++;
-  prev->marker= SORTORDER_CHANGE_FLAG |
-                PARTITION_CHANGE_FLAG |
-                FRAME_CHANGE_FLAG;
+  prev->marker= (MARKER_SORTORDER_CHANGE |
+                 MARKER_PARTITION_CHANGE |
+                 MARKER_FRAME_CHANGE);
   Item_window_func *curr;
   while ((curr= it++))
   {
     Window_spec *win_spec_prev= prev->window_spec;
     Window_spec *win_spec_curr= curr->window_spec;
-    curr->marker= 0;
+    curr->marker= MARKER_UNUSED;
     if (!(win_spec_prev->partition_list == win_spec_curr->partition_list &&
           win_spec_prev->order_list == win_spec_curr->order_list))
     {
@@ -693,17 +689,17 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
         cmp= compare_window_spec_joined_lists(win_spec_prev, win_spec_curr);
       if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
       {
-        curr->marker= SORTORDER_CHANGE_FLAG |
-                      PARTITION_CHANGE_FLAG |
-                      FRAME_CHANGE_FLAG;
+        curr->marker= (MARKER_SORTORDER_CHANGE |
+                       MARKER_PARTITION_CHANGE |
+                       MARKER_FRAME_CHANGE);
       }
       else if (win_spec_prev->partition_list != win_spec_curr->partition_list)
       {
-        curr->marker|= PARTITION_CHANGE_FLAG | FRAME_CHANGE_FLAG;
+        curr->marker|= MARKER_PARTITION_CHANGE | MARKER_FRAME_CHANGE;
       }
     }
     else if (win_spec_prev->window_frame != win_spec_curr->window_frame)
-      curr->marker|= FRAME_CHANGE_FLAG;
+      curr->marker|= MARKER_FRAME_CHANGE;
 
     prev= curr;
   }
@@ -3038,11 +3034,11 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
       return true;
     it++;
     win_func= it.peek();
-  } while (win_func && !(win_func->marker & SORTORDER_CHANGE_FLAG));
+  } while (win_func && !(win_func->marker & MARKER_SORTORDER_CHANGE));
 
   /*
     The sort criteria must be taken from the last win_func in the group of
-    adjacent win_funcs that do not have SORTORDER_CHANGE_FLAG. This is
+    adjacent win_funcs that do not have MARKER_SORTORDER_CHANGE. This is
     because the sort order must be the most specific sorting criteria defined
     within the window function group. This ensures that we sort the table
     in a way that the result is valid for all window functions belonging to

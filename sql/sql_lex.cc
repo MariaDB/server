@@ -8794,21 +8794,21 @@ bool st_select_lex::collect_grouping_fields(THD *thd)
     condition over the grouping fields of this select. The method uses
     the call-back parameter checker to check whether a primary formula
     depends only on grouping fields.
-    The subformulas that are not usable are marked with the flag NO_EXTRACTION_FL.
+    The subformulas that are not usable are marked with the flag MARKER_NO_EXTRACTION.
     The subformulas that can be entierly extracted are marked with the flag 
-    FULL_EXTRACTION_FL.
+    MARKER_FULL_EXTRACTION.
   @note
     This method is called before any call of extract_cond_for_grouping_fields.
-    The flag NO_EXTRACTION_FL set in a subformula allows to avoid building clone
+    The flag MARKER_NO_EXTRACTION set in a subformula allows to avoid building clone
     for the subformula when extracting the pushable condition.
-    The flag FULL_EXTRACTION_FL allows to delete later all top level conjuncts
+    The flag MARKER_FULL_EXTRACTION allows to delete later all top level conjuncts
     from cond.
 */ 
 
 void 
 st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
 {
-  if (cond->get_extraction_flag() == NO_EXTRACTION_FL)
+  if (cond->get_extraction_flag() == MARKER_NO_EXTRACTION)
     return;
   cond->clear_extraction_flag();
   if (cond->type() == Item::COND_ITEM)
@@ -8819,26 +8819,26 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
 
     List<Item> *arg_list=  ((Item_cond*) cond)->argument_list();
     List_iterator<Item> li(*arg_list);
-    uint count= 0;         // to count items not containing NO_EXTRACTION_FL
-    uint count_full= 0;    // to count items with FULL_EXTRACTION_FL
+    uint count= 0;         // to count items not containing MARKER_NO_EXTRACTION
+    uint count_full= 0;    // to count items with MARKER_FULL_EXTRACTION
     Item *item;
     while ((item=li++))
     {
       check_cond_extraction_for_grouping_fields(thd, item);
-      if (item->get_extraction_flag() !=  NO_EXTRACTION_FL)
+      if (item->get_extraction_flag() !=  MARKER_NO_EXTRACTION)
       {
         count++;
-        if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+        if (item->get_extraction_flag() == MARKER_FULL_EXTRACTION)
           count_full++;
       }
       else if (!and_cond)
         break;
     }
     if ((and_cond && count == 0) || item)
-      cond->set_extraction_flag(NO_EXTRACTION_FL);
+      cond->set_extraction_flag(MARKER_NO_EXTRACTION);
     if (count_full == arg_list->elements)
     {
-      cond->set_extraction_flag(FULL_EXTRACTION_FL);
+      cond->set_extraction_flag(MARKER_FULL_EXTRACTION);
     }
     if (cond->get_extraction_flag() != 0)
     {
@@ -8850,7 +8850,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
   else
   {
     int fl= cond->excl_dep_on_grouping_fields(this) && !cond->is_expensive() ?
-      FULL_EXTRACTION_FL : NO_EXTRACTION_FL;
+      MARKER_FULL_EXTRACTION : MARKER_NO_EXTRACTION;
     cond->set_extraction_flag(fl);
   }
 }
@@ -8870,7 +8870,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
     For the given condition cond this method finds out what condition depended
     only on the grouping fields can be extracted from cond. If such condition C
     exists the method builds the item for it.
-    This method uses the flags NO_EXTRACTION_FL and FULL_EXTRACTION_FL set by the
+    This method uses the flags MARKER_NO_EXTRACTION and MARKER_FULL_EXTRACTION set by the
     preliminary call of st_select_lex::check_cond_extraction_for_grouping_fields
     to figure out whether a subformula depends only on these fields or not.
   @note
@@ -8890,7 +8890,7 @@ st_select_lex::check_cond_extraction_for_grouping_fields(THD *thd, Item *cond)
 Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
                                                     bool no_top_clones)
 {
-  if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
+  if (cond->get_extraction_flag() == MARKER_FULL_EXTRACTION)
   {
     if (no_top_clones)
       return cond;
@@ -8914,7 +8914,7 @@ Item *st_select_lex::build_cond_for_grouping_fields(THD *thd, Item *cond,
     Item *item;
     while ((item=li++))
     {
-      if (item->get_extraction_flag() == NO_EXTRACTION_FL)
+      if (item->get_extraction_flag() == MARKER_NO_EXTRACTION)
       {
         DBUG_ASSERT(cond_and);
         item->clear_extraction_flag();
@@ -10646,7 +10646,7 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
     This will cause duplicate conditions in WHERE of dt.
 
     To avoid repeatable pushdown such OR conditions as or1 describen
-    above are marked with NO_EXTRACTION_FL.
+    above are marked with MARKER_NO_EXTRACTION.
 
   @note
     This method is called for pushdown into materialized
@@ -10664,12 +10664,12 @@ void mark_or_conds_to_avoid_pushdown(Item *cond)
     {
       if (item->type() == Item::COND_ITEM &&
           ((Item_cond*) item)->functype() == Item_func::COND_OR_FUNC)
-        item->set_extraction_flag(NO_EXTRACTION_FL);
+        item->set_extraction_flag(MARKER_NO_EXTRACTION);
     }
   }
   else if (cond->type() == Item::COND_ITEM &&
           ((Item_cond*) cond)->functype() == Item_func::COND_OR_FUNC)
-    cond->set_extraction_flag(NO_EXTRACTION_FL);
+    cond->set_extraction_flag(MARKER_NO_EXTRACTION);
 }
 
 /**
@@ -10683,16 +10683,16 @@ void mark_or_conds_to_avoid_pushdown(Item *cond)
     The method collects in attach_to_conds list conditions from cond
     that can be pushed from HAVING into WHERE.
 
-    Conditions that can be pushed were marked with FULL_EXTRACTION_FL in
+    Conditions that can be pushed were marked with MARKER_FULL_EXTRACTION in
     check_cond_extraction_for_grouping_fields() method.
-    Conditions that can't be pushed were marked with NO_EXTRACTION_FL.
+    Conditions that can't be pushed were marked with MARKER_NO_EXTRACTION.
     Conditions which parts can be pushed weren't marked.
 
     There are two types of conditions that can be pushed:
     1. Condition that can be simply moved from HAVING
-       (if cond is marked with FULL_EXTRACTION_FL or
+       (if cond is marked with MARKER_FULL_EXTRACTION or
            cond is an AND condition and some of its parts are marked with
-           FULL_EXTRACTION_FL)
+           MARKER_FULL_EXTRACTION)
        In this case condition is transformed and pushed into attach_to_conds
        list.
     2. Part of some other condition c1 that can't be entirely pushed
@@ -10731,14 +10731,14 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
   List<Item> equalities;
 
   /* Condition can't be pushed */
-  if (cond->get_extraction_flag() == NO_EXTRACTION_FL)
+  if (cond->get_extraction_flag() == MARKER_NO_EXTRACTION)
     return false;
 
   /**
     Condition can be pushed entirely.
     Transform its multiple equalities and add to attach_to_conds list.
   */
-  if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
+  if (cond->get_extraction_flag() == MARKER_FULL_EXTRACTION)
   {
     Item *result= cond->transform(thd,
                                   &Item::multiple_equality_transformer,
@@ -10789,9 +10789,9 @@ st_select_lex::build_pushable_cond_for_having_pushdown(THD *thd, Item *cond)
     Item *item;
     while ((item=li++))
     {
-      if (item->get_extraction_flag() == NO_EXTRACTION_FL)
+      if (item->get_extraction_flag() == MARKER_NO_EXTRACTION)
         continue;
-      else if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+      else if (item->get_extraction_flag() == MARKER_FULL_EXTRACTION)
       {
         Item *result= item->transform(thd,
                                       &Item::multiple_equality_transformer,
@@ -10924,13 +10924,13 @@ bool st_select_lex::collect_fields_equal_to_grouping(THD *thd)
 Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
 {
   /* Nothing to extract */
-  if (cond->get_extraction_flag() == NO_EXTRACTION_FL)
+  if (cond->get_extraction_flag() == MARKER_NO_EXTRACTION)
   {
     cond->clear_extraction_flag();
     return cond;
   }
   /* cond can be pushed in WHERE entirely */
-  if (cond->get_extraction_flag() == FULL_EXTRACTION_FL)
+  if (cond->get_extraction_flag() == MARKER_FULL_EXTRACTION)
   {
     cond->clear_extraction_flag();
     return 0;
@@ -10944,13 +10944,13 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
     Item *item;
     while ((item=li++))
     {
-      if (item->get_extraction_flag() == NO_EXTRACTION_FL)
+      if (item->get_extraction_flag() == MARKER_NO_EXTRACTION)
         item->clear_extraction_flag();
-      else if (item->get_extraction_flag() == FULL_EXTRACTION_FL)
+      else if (item->get_extraction_flag() == MARKER_FULL_EXTRACTION)
       {
         if (item->type() == Item::FUNC_ITEM &&
             ((Item_func*) item)->functype() == Item_func::MULT_EQUAL_FUNC)
-          item->set_extraction_flag(DELETION_FL);
+          item->set_extraction_flag(MARKER_DELETION);
         else
         {
           item->clear_extraction_flag();
@@ -11019,7 +11019,7 @@ Item *remove_pushed_top_conjuncts_for_having(THD *thd, Item *cond)
        the condition is put into attach_to_conds as the only its element.
     4. Remove conditions from HAVING clause that can be entirely pushed
        into WHERE.
-       Multiple equalities are not removed but marked with DELETION_FL flag.
+       Multiple equalities are not removed but marked with MARKER_DELETION flag.
        They will be deleted later in substitite_for_best_equal_field() called
        for the HAVING condition.
     5. Unwrap fields wrapped in Item_ref wrappers contained in the condition
@@ -11073,7 +11073,7 @@ Item *st_select_lex::pushdown_from_having_into_where(THD *thd, Item *having)
   /*
     4. Remove conditions from HAVING clause that can be entirely pushed
        into WHERE.
-       Multiple equalities are not removed but marked with DELETION_FL flag.
+       Multiple equalities are not removed but marked with MARKER_DELETION flag.
        They will be deleted later in substitite_for_best_equal_field() called
        for the HAVING condition.
   */

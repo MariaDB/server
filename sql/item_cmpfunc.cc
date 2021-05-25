@@ -7549,7 +7549,7 @@ Item_equal::excl_dep_on_grouping_fields(st_select_lex *sel)
   {
     if (item->excl_dep_on_grouping_fields(sel))
     {
-      set_extraction_flag(FULL_EXTRACTION_FL);
+      set_extraction_flag(MARKER_FULL_EXTRACTION);
       return true;
     }
   }
@@ -7663,7 +7663,7 @@ bool Item_equal::create_pushable_equalities(THD *thd,
     if (!eq ||  equalities->push_back(eq, thd->mem_root))
       return true;
     if (!clone_const)
-      right_item->set_extraction_flag(IMMUTABLE_FL);
+      right_item->set_extraction_flag(MARKER_IMMUTABLE);
   }
 
   while ((item=it++))
