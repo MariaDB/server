@@ -457,7 +457,6 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
                                     thd->variables.lock_wait_timeout))
     goto end;
 
-
   if (!create)
   {
     bool if_exists= thd->lex->if_exists();
@@ -565,7 +564,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
 #ifdef WITH_WSREP
   if (WSREP(thd) &&
       !wsrep_should_replicate_ddl(thd, table->s->db_type()->db_type))
-    goto wsrep_error_label;
+    goto end;
 #endif
 
   /* Later on we will need it to downgrade the lock */
@@ -652,9 +651,11 @@ end:
     thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
 
   DBUG_RETURN(result);
+
 #ifdef WITH_WSREP
 wsrep_error_label:
-  DBUG_RETURN(true);
+  DBUG_ASSERT(result == 1);
+  goto end;
 #endif
 }
 
