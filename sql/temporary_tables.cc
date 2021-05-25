@@ -420,9 +420,9 @@ bool THD::open_temporary_table(TABLE_LIST *tl)
 
   /* It is neither a derived table nor non-updatable view. */
   tl->updatable= true;
-  tl->table= table;
 
-  table->init(this, tl);
+  if (table->init(this, tl))
+    DBUG_RETURN(true);
 
   DBUG_PRINT("info", ("Using temporary table"));
   DBUG_RETURN(false);

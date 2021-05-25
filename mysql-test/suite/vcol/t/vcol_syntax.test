@@ -72,3 +72,18 @@ create table t1 (x int, y int check (y > test2.t1.x));
 create table t1 (x int, y int default test2.t1.x);
 --error ER_BAD_FIELD_ERROR
 create table t1 (x int, check (test2.t1.x > 0));
+
+--echo #
+--echo # MDEV-25672 table alias from previous statement interferes later commands
+--echo #
+create table t1 (
+  id int not null auto_increment primary key,
+  order_date_time datetime not null,
+  order_date date generated always as (convert(order_date_time, date)),
+  language_id binary(16) null
+);
+
+update t1 as tx set order_date= null;
+alter table t1 modify column language_id binary(16) not null;
+# Cleanup
+drop table t1;

@@ -1675,7 +1675,8 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     {
       table= best_table;
       table->query_id= thd->query_id;
-      table->init(thd, table_list);
+      if (table->init(thd, table_list))
+        DBUG_RETURN(TRUE);
       DBUG_PRINT("info",("Using locked table"));
       goto reset;
     }
@@ -1967,7 +1968,8 @@ retry_share:
   table->mdl_ticket= mdl_ticket;
   table->reginfo.lock_type=TL_READ;		/* Assume read */
 
-  table->init(thd, table_list);
+  if (table->init(thd, table_list))
+    goto err_lock;
 
   table->next= thd->open_tables;		/* Link into simple list */
   thd->set_open_tables(table);
@@ -1979,7 +1981,6 @@ retry_share:
   */
   DBUG_ASSERT(table->file->pushed_cond == NULL);
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
-  table_list->table= table;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (table->part_info)

@@ -1683,6 +1683,7 @@ public:
 
   /*========= Item processors, to be used with Item::walk() ========*/
   virtual bool remove_dependence_processor(void *arg) { return 0; }
+  virtual bool cached_table_cleanup_processor(void * arg) { return 0; }
   virtual bool cleanup_processor(void *arg);
   virtual bool cleanup_excluding_fields_processor(void *arg) { return cleanup_processor(arg); }
   virtual bool cleanup_excluding_const_fields_processor(void *arg) { return cleanup_processor(arg); }
@@ -2622,6 +2623,7 @@ public:
   void cleanup();
   st_select_lex *get_depended_from() const;
   bool remove_dependence_processor(void * arg);
+  bool cached_table_cleanup_processor(void * arg);
   virtual void print(String *str, enum_query_type query_type);
   virtual bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }

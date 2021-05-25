@@ -846,6 +846,12 @@ bool Item_ident::remove_dependence_processor(void * arg)
   DBUG_RETURN(0);
 }
 
+bool Item_ident::cached_table_cleanup_processor(void * arg)
+{
+  cached_table= NULL;
+  return false;
+}
+
 
 bool Item_ident::collect_outer_ref_processor(void *param)
 {
