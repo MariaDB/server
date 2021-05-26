@@ -107,10 +107,10 @@ sub sleep_until_file_created ($$$$) {
   my $timeout= shift;
   my $proc=     shift;
   my $warn_seconds = shift;
-  my $sleeptime= 100; # Milliseconds
-  my $loops= ($timeout * 1000) / $sleeptime;
+  my $sleeptime= 10; # Milliseconds
+  my $loops= ($timeout * 10000) / $sleeptime;
 
-  for ( my $loop= 1; $loop <= $loops; $loop++ )
+  for ( my $loop= 0; $loop <= $loops; $loop++ )
   {
     if ( -r $pidfile )
     {
