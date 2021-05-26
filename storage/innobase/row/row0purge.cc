@@ -957,7 +957,7 @@ already_locked:
 		if (!mysqld_server_started) {
 
 			node->close_table();
-			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
+			if (srv_shutdown_state > SRV_SHUTDOWN_NONE) {
 				return(false);
 			}
 			os_thread_sleep(1000000);
