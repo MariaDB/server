@@ -1573,6 +1573,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
   MDL_ticket *mdl_ticket;
   TABLE_SHARE *share;
   uint gts_flags;
+  bool from_share= false;
   DBUG_ENTER("open_table");
 
   /*
@@ -1675,8 +1676,7 @@ bool open_table(THD *thd, TABLE_LIST *table_list, Open_table_context *ot_ctx)
     {
       table= best_table;
       table->query_id= thd->query_id;
-      if (table->init(thd, table_list))
-        DBUG_RETURN(TRUE);
+      table->init(thd, table_list);
       DBUG_PRINT("info",("Using locked table"));
       goto reset;
     }
@@ -1963,13 +1963,13 @@ retry_share:
 
     /* Add table to the share's used tables list. */
     tc_add_table(thd, table);
+    from_share= true;
   }
 
   table->mdl_ticket= mdl_ticket;
   table->reginfo.lock_type=TL_READ;		/* Assume read */
 
-  if (table->init(thd, table_list))
-    goto err_lock;
+  table->init(thd, table_list);
 
   table->next= thd->open_tables;		/* Link into simple list */
   thd->set_open_tables(table);
@@ -1981,6 +1981,12 @@ retry_share:
   */
   DBUG_ASSERT(table->file->pushed_cond == NULL);
   table_list->updatable= 1; // It is not derived table nor non-updatable VIEW
+  table_list->table= table;
+
+  if (table->vfield && !from_share &&
+      table->vcol_update_expr(thd, table_list))
+    goto err_lock;
+
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (table->part_info)

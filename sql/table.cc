@@ -4621,9 +4621,8 @@ bool TABLE_SHARE::wait_for_old_version(THD *thd, struct timespec *abstime,
   @param tl   TABLE_LIST element.
 */
 
-bool TABLE::init(THD *thd, TABLE_LIST *tl)
+void TABLE::init(THD *thd, TABLE_LIST *tl)
 {
-  bool result= false;
   DBUG_ASSERT(s->tmp_table != NO_TMP_TABLE || s->tdc->ref_count > 0);
 
   if (thd->lex->need_correct_ident())
@@ -4662,7 +4661,6 @@ bool TABLE::init(THD *thd, TABLE_LIST *tl)
   auto_increment_field_not_null= FALSE;
 
   pos_in_table_list= tl;
-  tl->table= this;
 
   clear_column_bitmaps();
   for (Field **f_ptr= field ; *f_ptr ; f_ptr++)
@@ -4671,55 +4669,56 @@ bool TABLE::init(THD *thd, TABLE_LIST *tl)
     (*f_ptr)->cond_selectivity= 1.0;
   }
 
-  if (vfield)
-  {
-    result= true;
-    LEX *old_lex= thd->lex;
-    LEX lex;
-    table_map old_map= map;
-    /*
-       As this is vcol expression we must narrow down name resolution to
-       single table.
-    */
-    if (init_lex_with_single_table(thd, this, &lex))
-    {
-      my_error(ER_OUT_OF_RESOURCES, MYF(0));
-      goto end;
-    }
-
-    /* Avoid fix_outer_field() in Item_field::fix_fields(). */
-    lex.current_context()->select_lex= tl->select_lex;
-
-    for (Field **vf_ptr= vfield; *vf_ptr; vf_ptr++)
-    {
-      Item *expr= (*vf_ptr)->vcol_info->expr;
-      if (expr->walk(&Item::cached_table_cleanup_processor, 0, 0))
-        goto end;
-      if (expr->walk(&Item::cleanup_processor, 0, 0))
-        goto end;
-      if (expr->walk(&Item::change_context_processor, 0, lex.current_context()))
-        goto end;
-      if (fix_and_check_vcol_expr(thd, this, (*vf_ptr)->vcol_info))
-        goto end;
-      (void) expr->walk(&Item::change_context_processor, 0,
-                        old_lex->current_context());
-      result= false;
-    }
-
-end:
-    DBUG_ASSERT(!result || thd->get_stmt_da()->is_error());
-    end_lex_with_single_table(thd, this, old_lex);
-    map= old_map;
-  }
-
-
-
   DBUG_ASSERT(!file->keyread_enabled());
 
   restore_record(this, s->default_values);
 
   /* Tables may be reused in a sub statement. */
   DBUG_ASSERT(!file->extra(HA_EXTRA_IS_ATTACHED_CHILDREN));
+}
+
+
+bool TABLE::vcol_update_expr(THD *thd, TABLE_LIST *tl)
+{
+  bool result= true;
+  LEX *old_lex= thd->lex;
+  LEX lex;
+  table_map old_map= map;
+  /*
+      As this is vcol expression we must narrow down name resolution to
+      single table.
+  */
+  if (init_lex_with_single_table(thd, this, &lex))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    goto end;
+  }
+
+  /* Avoid fix_outer_field() in Item_field::fix_fields(). */
+  lex.current_context()->select_lex= tl->select_lex;
+
+  for (Field **vf_ptr= vfield; *vf_ptr; vf_ptr++)
+  {
+    Item *expr= (*vf_ptr)->vcol_info->expr;
+    if (expr->walk(&Item::cached_table_cleanup_processor, 0, 0))
+      goto end;
+    if (expr->walk(&Item::cleanup_processor, 0, 0))
+      goto end;
+    if (expr->walk(&Item::change_context_processor, 0, lex.current_context()))
+      goto end;
+    if (fix_and_check_vcol_expr(thd, this, (*vf_ptr)->vcol_info))
+      goto end;
+    if (expr->walk(&Item::change_context_processor, 0,
+                   old_lex->current_context()))
+      goto end;
+  }
+
+  result= false;
+
+end:
+  DBUG_ASSERT(!result || thd->get_stmt_da()->is_error());
+  end_lex_with_single_table(thd, this, old_lex);
+  map= old_map;
   return result;
 }
 
