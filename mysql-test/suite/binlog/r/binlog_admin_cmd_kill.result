@@ -20,7 +20,7 @@ master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t1 (f INT) ENGINE=INNODB
 master-bin.000001	#	Gtid	#	#	GTID #-#-#
 master-bin.000001	#	Query	#	#	use `test`; CREATE TABLE t2 (f INT) ENGINE=INNODB
 DROP TABLE t1,t2;
-FLUSH LOGS;
+RESET MASTER;
 #
 # Kill OPTIMIZE command after table modification
 #

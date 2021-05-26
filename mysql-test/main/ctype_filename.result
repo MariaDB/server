@@ -22,21 +22,50 @@ SELECT @a:=CONVERT('aя' USING filename) AS `@a`, BINARY @a, REVERSE(@a), HEX(@a
 @a	BINARY @a	REVERSE(@a)	HEX(@a)	HEX(REVERSE(@a))
 aя	a@r1	яa	61407231	40723161
 #
+# Beginning of 10.2 test.
+#
+# MDEV-25462: Assertion `m_status == DA_ERROR || m_status == DA_OK ||
+# m_status == DA_OK_BULK' failed in Diagnostics_area::message from
+# get_schema_tables_record
+#
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+utf8	utf8	utf8
+SET @old_character_set_client= @@character_set_client;
+SET @old_character_set_connection= @@character_set_connection;
+SET @old_character_set_results= @@character_set_results;
+SET NAMES 'filename';
+ERROR 42000: Variable 'character_set_client' can't be set to the value of 'filename'
+SELECT @@character_set_client, @@character_set_connection, @@character_set_results;
+@@character_set_client	@@character_set_connection	@@character_set_results
+utf8	utf8	utf8
+CREATE VIEW v2 AS SELECT 1;
+SHOW TABLE STATUS;
+Name	Engine	Version	Row_format	Rows	Avg_row_length	Data_length	Max_data_length	Index_length	Data_free	Auto_increment	Create_time	Update_time	Check_time	Collation	Checksum	Create_options	Comment	Max_index_length	Temporary
+v2	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	VIEW	NULL	NULL
+DROP VIEW v2;
+SET @@character_set_client= @old_character_set_client;
+SET @@character_set_connection= @old_character_set_connection;
+SET @@character_set_results= @old_character_set_results;
+#
+# End of 10.2 test
+#
+#
 # MDEV-22022 Various mangled SQL statements will crash 10.3 to 10.5 debug builds
 #
 SET CHARACTER_SET_CLIENT=17;
+ERROR 42000: Variable 'character_set_client' can't be set to the value of '17'
 SELECT doc.`Children`.0 FROM t1;
-ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '?Children??0?FROM?t1' at line 1
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '.0 FROM t1' at line 1
 SET NAMES latin1;
-#
-# Start of 10.5 tests
-#
+# End of 10.3 tests
 #
 # MDEV-22043 Special character leads to assertion in my_wc_to_printable_generic on 10.5.2 (debug)
 #
 SET NAMES filename;
+ERROR 42000: Variable 'character_set_client' can't be set to the value of 'filename'
 EXECUTE IMMEDIATE _latin1 0x01;
-ERROR 42000: You@0020have@0020an@0020error@0020in@0020your@0020SQL@0020syntax@003b@0020check@0020the@0020manual@0020that@0020corresponds@0020to@0020your@0020MariaDB@0020server@0020version@0020for@0020the@0020right@0020syntax@0020to@0020use@0020near@0020@0027@005c0001@0027@0020at@0020line@00201
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near '\0001' at line 1
 SET NAMES utf8;
 #
 # MDEV-23435 Functions do not convert numbers to character_set_results
@@ -103,6 +132,4 @@ a	c
 @002d1	@002d1
 DROP TABLE t1;
 SET NAMES utf8;
-#
 # End of 10.5 tests
-#

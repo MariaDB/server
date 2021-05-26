@@ -34,7 +34,6 @@
 #include "sp_cache.h"
 #include "datadict.h"   // dd_frm_is_view()
 #include "sql_derived.h"
-#include "sql_cte.h"    // check_dependencies_in_with_clauses()
 #include "opt_trace.h"
 #include "wsrep_mysqld.h"
 
@@ -892,6 +891,13 @@ static int mysql_register_view(THD *thd, TABLE_LIST *view,
 			       enum_view_create_mode mode)
 {
   LEX *lex= thd->lex;
+
+  /*
+    Ensure character set number != 17 (character set = filename) and mbminlen=1
+    because these character sets are not parser friendly, which can give weird
+    sequence in .frm file of view and later give parsing error.
+  */
+  DBUG_ASSERT(thd->charset()->mbminlen == 1 && thd->charset()->number != 17);
 
   /*
     View definition query -- a SELECT statement that fully defines view. It

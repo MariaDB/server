@@ -5902,6 +5902,7 @@ bool Item_field::fix_fields(THD *thd, Item **reference)
             */
             set_max_sum_func_level(thd, select);
             set_field(new_field);
+            depended_from= (*((Item_field**)res))->depended_from;
             return 0;
           }
           else

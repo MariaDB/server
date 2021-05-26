@@ -42,11 +42,11 @@ galera_var_notify_cmd : MDEV-21905 Galera test galera_var_notify_cmd causes hang
 galera_var_reject_queries : assertion in inline_mysql_socket_send
 galera_var_replicate_myisam_on : MDEV-24062 Galera test failure on galera_var_replicate_myisam_on
 galera_var_retry_autocommit: MDEV-18181 Galera test failure on galera.galera_var_retry_autocommit
-#galera_wan : MDEV-17259 Test failure on galera.galera_wan
 mysql-wsrep#198 : MDEV-24446: galera.mysql-wsrep#198 MTR failed: query 'reap' failed: 2000: Unknown MySQL error
 partition : MDEV-19958 Galera test failure on galera.partition
 query_cache: MDEV-15805 Test failure on galera.query_cache
-#sql_log_bin : MDEV-21491 galera.sql_log_bin
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 galera_wsrep_provider_unset_set: wsrep_provider is read-only for security reasons
 pxc-421: wsrep_provider is read-only for security reasons
+
+MDEV-25562: MDEV-25562 FIXME: lock wait timeout exceeded

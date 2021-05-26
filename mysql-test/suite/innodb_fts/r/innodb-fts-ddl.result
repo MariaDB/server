@@ -264,6 +264,18 @@ t1	CREATE TABLE `t1` (
   `f1` int(11) NOT NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+# MDEV-25271 Double free of table when inplace alter
+#        FTS add index fails
+#
+call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation.");
+call mtr.add_suppression("InnoDB: Error number .* means");
+call mtr.add_suppression("InnoDB: Cannot create file");
+call mtr.add_suppression("InnoDB: Failed to create");
+CREATE TABLE t1(a TEXT, FTS_DOC_ID BIGINT UNSIGNED NOT NULL UNIQUE) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FULLTEXT(a), ALGORITHM=INPLACE;
+ERROR HY000: Got error 11 "Resource temporarily unavailable" from storage engine InnoDB
+DROP TABLE t1;
 CREATE TABLE t1 (a VARCHAR(3)) ENGINE=InnoDB;
 ALTER TABLE t1 ADD FULLTEXT KEY(a), ADD COLUMN b VARCHAR(3), ADD FULLTEXT KEY(b);
 DROP TABLE t1;

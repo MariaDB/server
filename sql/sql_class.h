@@ -1044,7 +1044,7 @@ mysqld_collation_get_by_name(const char *name,
 
 static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
-  return MY_TEST(cs->mbminlen == 1);
+  return MY_TEST(cs->mbminlen == 1 && cs->number != 17 /* filename */);
 }
 
 /** THD registry */
@@ -5155,7 +5155,6 @@ public:
         THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
         THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }
-
 
   uint get_net_wait_timeout()
   {
