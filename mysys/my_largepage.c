@@ -336,8 +336,10 @@ uchar *my_large_malloc(size_t *size, myf my_flags)
 # warning "No explicit large page (HUGETLB pages) support in Linux < 3.8"
 #endif
 #elif defined(MAP_ALIGNED)
-        mapflag|= MAP_ALIGNED_SUPER |
-                  MAP_ALIGNED(my_bit_log2_size_t(large_page_size));
+        mapflag|= MAP_ALIGNED(my_bit_log2_size_t(large_page_size));
+#if defined(MAP_ALIGNED_SUPER)
+        mapflag|= MAP_ALIGNED_SUPER;
+#endif
 #endif
         aligned_size= MY_ALIGN(*size, (size_t) large_page_size);
       }
