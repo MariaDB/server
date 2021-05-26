@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2004, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2018, MariaDB
+   Copyright (c) 2010, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -483,7 +483,6 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
                                     thd->variables.lock_wait_timeout))
     goto end;
 
-
   if (!create)
   {
     bool if_exists= thd->lex->if_exists();
@@ -599,9 +598,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   table= tables->table;
 
 #ifdef WITH_WSREP
-  if (WSREP(thd) &&
-      !wsrep_should_replicate_ddl(thd, table->s->db_type()))
-    goto wsrep_error_label;
+  if (WSREP(thd) && !wsrep_should_replicate_ddl(thd, table->s->db_type()))
+    goto end;
 #endif
 
   /* Later on we will need it to downgrade the lock */
@@ -725,9 +723,11 @@ end:
     thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
 
   DBUG_RETURN(result);
+
 #ifdef WITH_WSREP
 wsrep_error_label:
-  DBUG_RETURN(true);
+  DBUG_ASSERT(result == 1);
+  goto end;
 #endif
 
 drop_orphan_trn:

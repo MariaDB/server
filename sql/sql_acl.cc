@@ -13909,7 +13909,12 @@ static int server_mpvio_read_packet(MYSQL_PLUGIN_VIO *param, uchar **buf)
 
 done:
   if (set_user_salt_if_needed(mpvio->acl_user, mpvio->curr_auth, mpvio->plugin))
+  {
+    ai->thd->clear_error(); // authenticating user should not see these errors
+    my_error(ER_ACCESS_DENIED_ERROR, MYF(0), ai->thd->security_ctx->user,
+             ai->thd->security_ctx->host_or_ip, ER_THD(ai->thd, ER_YES));
     goto err;
+  }
 
   ai->user_name= ai->thd->security_ctx->user;
   ai->user_name_length= (uint) strlen(ai->user_name);

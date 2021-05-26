@@ -1682,7 +1682,6 @@ PVAL JSONCOL::MakeJson(PGLOBAL g, PJSON jsp, int n)
 /***********************************************************************/
 PJVAL JSONCOL::GetRowValue(PGLOBAL g, PJSON row, int i)
 {
-  int   n = Nod - 1;
   PJVAL val = NULL;
 
   for (; i < Nod && row; i++) {

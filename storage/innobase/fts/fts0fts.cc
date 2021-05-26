@@ -1750,15 +1750,14 @@ fts_create_one_common_table(
 		error =	row_create_index_for_mysql(index, trx, NULL,
 						   FIL_ENCRYPTION_DEFAULT,
 						   FIL_DEFAULT_ENCRYPTION_KEY);
+		if (error == DB_SUCCESS) {
+			return new_table;
+		}
 	}
 
-	if (error != DB_SUCCESS) {
-		dict_mem_table_free(new_table);
-		new_table = NULL;
-		ib::warn() << "Failed to create FTS common table "
-			<< fts_table_name;
-	}
-	return(new_table);
+	ib::warn() << "Failed to create FTS common table " << fts_table_name;
+	trx->error_state = error;
+	return NULL;
 }
 
 /** Creates the common auxiliary tables needed for supporting an FTS index
@@ -1813,7 +1812,8 @@ fts_create_common_tables(
 		dict_table_t*	common_table = fts_create_one_common_table(
 			trx, table, full_name[i], fts_table.suffix, heap);
 
-		if (common_table == NULL) {
+		if (!common_table) {
+			trx->error_state = DB_SUCCESS;
 			error = DB_ERROR;
 			goto func_exit;
 		}
@@ -1928,16 +1928,15 @@ fts_create_one_index_table(
 		error =	row_create_index_for_mysql(index, trx, NULL,
 						   FIL_ENCRYPTION_DEFAULT,
 						   FIL_DEFAULT_ENCRYPTION_KEY);
+
+		if (error == DB_SUCCESS) {
+			return new_table;
+		}
 	}
 
-	if (error != DB_SUCCESS) {
-		dict_mem_table_free(new_table);
-		new_table = NULL;
-		ib::warn() << "Failed to create FTS index table "
-			<< table_name;
-	}
-
-	return(new_table);
+	ib::warn() << "Failed to create FTS index table " << table_name;
+	trx->error_state = error;
+	return NULL;
 }
 
 /** Creates the column specific ancillary tables needed for supporting an

@@ -5966,7 +5966,9 @@ ha_innobase::open(const char* name, int, uint)
 	/* Index block size in InnoDB: used by MySQL in query optimization */
 	stats.block_size = static_cast<uint>(srv_page_size);
 
-	if (m_prebuilt->table == NULL
+	const my_bool for_vc_purge = THDVAR(thd, background_thread);
+
+	if (for_vc_purge || !m_prebuilt->table
 	    || m_prebuilt->table->is_temporary()
 	    || m_prebuilt->table->persistent_autoinc
 	    || !m_prebuilt->table->is_readable()) {
@@ -5993,7 +5995,7 @@ ha_innobase::open(const char* name, int, uint)
 	ut_ad(!m_prebuilt->table
 	      || table->versioned() == m_prebuilt->table->versioned());
 
-	if (!THDVAR(thd, background_thread)) {
+	if (!for_vc_purge) {
 		info(HA_STATUS_NO_LOCK | HA_STATUS_VARIABLE | HA_STATUS_CONST
 		     | HA_STATUS_OPEN);
 	}
@@ -12956,7 +12958,6 @@ create_table_info_t::create_table_update_dict()
 	if (m_flags2 & DICT_TF2_FTS) {
 		if (!innobase_fts_load_stopword(innobase_table, NULL, m_thd)) {
 			dict_table_close(innobase_table, FALSE, FALSE);
-			m_trx->free();
 			DBUG_RETURN(-1);
 		}
 
@@ -13076,7 +13077,8 @@ ha_innobase::create(
 		DBUG_ASSERT(trx_state_eq(trx, TRX_STATE_NOT_STARTED));
 	}
 
-	if (int error = info.create_table(own_trx)) {
+	int error = info.create_table(own_trx);
+	if (error) {
 		/* Drop the being-created table before rollback,
 		so that rollback can possibly rename back a table
 		that could have been renamed before the failed creation. */
@@ -13088,22 +13090,18 @@ ha_innobase::create(
 		}
 		trx_rollback_for_mysql(trx);
 		row_mysql_unlock_data_dictionary(trx);
-		if (own_trx) {
-			trx->free();
-		}
-		DBUG_RETURN(error);
+	} else {
+		innobase_commit_low(trx);
+		row_mysql_unlock_data_dictionary(trx);
+		ut_ad(!srv_read_only_mode);
+		error = info.create_table_update_dict();
 	}
-
-	innobase_commit_low(trx);
-	row_mysql_unlock_data_dictionary(trx);
 
 	if (own_trx) {
 		trx->free();
 	}
 
-	ut_ad(!srv_read_only_mode);
-
-	DBUG_RETURN(info.create_table_update_dict());
+	DBUG_RETURN(error);
 }
 
 /** Create a new table to an InnoDB database.

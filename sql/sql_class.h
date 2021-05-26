@@ -1081,7 +1081,7 @@ mysqld_collation_get_by_name(const char *name, myf utf8_flag,
 
 static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
-  return MY_TEST(cs->mbminlen == 1);
+  return MY_TEST(cs->mbminlen == 1 && cs->number != 17 /* filename */);
 }
 
 /** THD registry */
@@ -4637,14 +4637,11 @@ public:
         to resolve all CTE names as we don't need this message to be thrown
         for any CTE references.
       */
-      if (!lex->with_clauses_list)
+      if (!lex->with_cte_resolution)
       {
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
         return TRUE;
       }
-      /* This will allow to throw an error later for non-CTE references */
-      to->str= NULL;
-      to->length= 0;
       return FALSE;
     }
 
@@ -5398,7 +5395,6 @@ public:
         THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }
 
-
   uint get_net_wait_timeout()
   {
     if (in_active_multi_stmt_transaction())
@@ -5449,7 +5445,10 @@ public:
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
-  myf get_utf8_flag()
+  bool sql_parser(LEX *old_lex, LEX *lex,
+                  char *str, uint str_len, bool stmt_prepare_mode);
+
+  myf get_utf8_flag() const
   {
     return (variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3 ?
             MY_UTF8_IS_UTF8MB3 : 0);

@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB Corporation
+   Copyright (c) 2011, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -34,7 +34,6 @@
 #include "sp_cache.h"
 #include "datadict.h"          // dd_frm_is_view()
 #include "sql_derived.h"
-#include "sql_cte.h"           // check_dependencies_in_with_clauses()
 #include "opt_trace.h"
 #include "ddl_log.h"
 #include "debug.h"              // debug_crash_here
@@ -439,12 +438,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
 
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
-
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-  {
-    res= TRUE;
-    goto err_no_relink;
-  }
 
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
@@ -942,6 +935,13 @@ static int mysql_register_view(THD *thd, DDL_LOG_STATE *ddl_log_state,
                                char *backup_file_name)
 {
   LEX *lex= thd->lex;
+
+  /*
+    Ensure character set number != 17 (character set = filename) and mbminlen=1
+    because these character sets are not parser friendly, which can give weird
+    sequence in .frm file of view and later give parsing error.
+  */
+  DBUG_ASSERT(thd->charset()->mbminlen == 1 && thd->charset()->number != 17);
 
   /*
     View definition query -- a SELECT statement that fully defines view. It
@@ -1484,9 +1484,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     TABLE_LIST *view_tables_tail= 0;
     TABLE_LIST *tbl;
     Security_context *security_ctx= 0;
-
-    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-      goto err;
 
     /*
       Check rights to run commands which show underlying tables.

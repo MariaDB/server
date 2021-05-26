@@ -2116,6 +2116,29 @@ struct vers_select_conds_t
 
 struct LEX;
 class Index_hint;
+
+/*
+  @struct TABLE_CHAIN
+  @brief Subchain of global chain of table references
+
+  The structure contains a pointer to the address of the next_global
+  pointer to the first TABLE_LIST objectof the subchain and the address
+  of the next_global pointer to the element right after the last
+  TABLE_LIST object of the subchain.  For an empty subchain both pointers
+  have the same value.
+*/
+
+struct TABLE_CHAIN
+{
+  TABLE_CHAIN() {}
+
+  TABLE_LIST **start_pos;
+  TABLE_LIST ** end_pos;
+
+  void set_start_pos(TABLE_LIST **pos) { start_pos= pos; }
+  void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
+};
+
 struct TABLE_LIST
 {
   TABLE_LIST() {}                          /* Remove gcc warning */
@@ -2451,6 +2474,20 @@ struct TABLE_LIST
   /* call back function for asking handler about caching in query cache */
   qc_engine_callback callback_func;
   thr_lock_type lock_type;
+
+  /*
+    Two fields below are set during parsing this table reference in the cases
+    when the table reference can be potentially a reference to a CTE table.
+    In this cases the fact that the reference is a reference to a CTE or not
+    will be ascertained at the very end of parsing of the query when referencies
+    to CTE are resolved. For references to CTE and to derived tables no mdl
+    requests are needed while for other table references they are. If a request
+    is possibly postponed the info that allows to issue this request must be
+    saved in 'mdl_type' and 'table_options'.
+  */
+  enum_mdl_type mdl_type;
+  ulong         table_options;
+
   uint		outer_join;		/* Which join type */
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */

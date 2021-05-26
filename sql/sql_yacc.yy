@@ -294,6 +294,7 @@ void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
   class sp_head *sphead;
   class sp_name *spname;
   class sp_variable *spvar;
+  class With_element_head *with_element_head;
   class With_clause *with_clause;
   class Virtual_column_info *virtual_column;
 
@@ -1788,7 +1789,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 
 %type <with_clause> with_clause
 
-%type <lex_str_ptr> query_name
+%type <with_element_head> with_element_head
 
 %type <ident_sys_list>
         comma_separated_ident_list
@@ -2981,7 +2982,11 @@ call:
             if (unlikely(Lex->call_statement_start(thd, $2)))
               MYSQL_YYABORT;
           }
-          opt_sp_cparam_list {}
+          opt_sp_cparam_list
+          {
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
+          }
         ;
 
 /* CALL parameters */
@@ -3788,6 +3793,8 @@ expr_lex:
             $$->sp_lex_in_use= true;
             $$->set_item($2);
             Lex->pop_select(); //min select
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
             if ($$->sphead->restore_lex(thd))
               MYSQL_YYABORT;
           }
@@ -12989,6 +12996,8 @@ do:
           {
             Lex->insert_list= $3;
             Lex->pop_select(); //main select
+            if (Lex->check_cte_dependencies_and_resolve_references())
+              MYSQL_YYABORT;
           }
         ;
 
@@ -15170,6 +15179,7 @@ with_clause:
              if (unlikely(with_clause == NULL))
                MYSQL_YYABORT;
              lex->derived_tables|= DERIVED_WITH;
+             lex->with_cte_resolution= true;
              lex->curr_with_clause= with_clause;
              with_clause->add_to_list(Lex->with_clauses_list_last_next);
              if (lex->current_select &&
@@ -15197,7 +15207,7 @@ with_list:
 
 
 with_list_element:
-	  query_name
+          with_element_head
 	  opt_with_column_list 
           AS '(' query_expression ')' opt_cycle
  	  {
@@ -15215,6 +15225,7 @@ with_list_element:
             {
               elem->set_cycle_list($7);
             }
+            elem->set_tables_end_pos(lex->query_tables_last);
 	  }
 	;
 
@@ -15275,12 +15286,15 @@ comma_separated_ident_list:
         ;
 
 
-query_name: 
+with_element_head:
           ident
           {
-            $$= (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
-            if (unlikely($$ == NULL))
+            LEX_CSTRING *name=
+              (LEX_CSTRING *) thd->memdup(&$1, sizeof(LEX_CSTRING));
+            $$= new (thd->mem_root) With_element_head(name);
+            if (unlikely(name == NULL || $$ == NULL))
               MYSQL_YYABORT;
+            $$->tables_pos.set_start_pos(Lex->query_tables_last);
           }
         ;
 

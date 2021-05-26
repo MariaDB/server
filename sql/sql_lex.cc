@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2019, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1255,6 +1255,8 @@ void LEX::start(THD *thd_arg)
   describe= 0;
   context_analysis_only= 0;
   derived_tables= 0;
+  with_cte_resolution= false;
+  only_cte_resolution= false;
   parsing_options.reset();
   part_info= 0;
   m_sql_cmd= NULL;
@@ -2925,6 +2927,7 @@ void st_select_lex_unit::init_query()
   with_wrapped_tvc= 0;
   is_view= 0;
   describe= 0;
+  cloned_from= 0;
   columns_are_renamed= 0;
 }
 
@@ -9079,6 +9082,8 @@ bool LEX::check_main_unit_semantics()
   if (unit.set_nest_level(0) ||
       unit.check_parameters(first_select_lex()))
     return TRUE;
+  if (check_cte_dependencies_and_resolve_references())
+    return TRUE;
   return FALSE;
 }
 
@@ -9805,8 +9810,8 @@ bool LEX::main_select_push(bool service)
 {
   DBUG_ENTER("LEX::main_select_push");
   DBUG_PRINT("info", ("service: %u", service));
-  current_select_number= 1;
-  builtin_select.select_number= 1;
+  current_select_number= ++thd->lex->stmt_lex->current_select_number;
+  builtin_select.select_number= current_select_number;
   builtin_select.is_service_select= service;
   if (push_select(&builtin_select))
     DBUG_RETURN(TRUE);
