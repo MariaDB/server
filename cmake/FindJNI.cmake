@@ -1,4 +1,4 @@
-if(JAVA_AWT_LIBRARY)
+if(JAVA_AWT_LIBRARY AND JAVA_INCLUDE_PATH)
   set(JNI_FOUND TRUE)
   return()
 endif()
