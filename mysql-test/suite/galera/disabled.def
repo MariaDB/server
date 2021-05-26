@@ -49,4 +49,3 @@ versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest
 galera_wsrep_provider_unset_set: wsrep_provider is read-only for security reasons
 pxc-421: wsrep_provider is read-only for security reasons
 
-MDEV-25562: MDEV-25562 FIXME: lock wait timeout exceeded
