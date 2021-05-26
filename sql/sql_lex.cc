@@ -1255,6 +1255,8 @@ void LEX::start(THD *thd_arg)
   explain_json= false;
   context_analysis_only= 0;
   derived_tables= 0;
+  with_cte_resolution= false;
+  only_cte_resolution= false;
   safe_to_cache_query= 1;
   parsing_options.reset();
   empty_field_list_on_rset= 0;
@@ -2911,6 +2913,7 @@ void st_select_lex_unit::init_query()
   is_view= false;
   with_clause= 0;
   with_element= 0;
+  cloned_from= 0;
   columns_are_renamed= false;
   with_wrapped_tvc= false;
   have_except_all_or_intersect_all= false;
@@ -8997,6 +9000,8 @@ bool LEX::check_main_unit_semantics()
   if (unit.set_nest_level(0) ||
       unit.check_parameters(first_select_lex()))
     return TRUE;
+  if (check_cte_dependencies_and_resolve_references())
+    return TRUE;
   return FALSE;
 }
 
@@ -9703,8 +9708,8 @@ bool LEX::main_select_push(bool service)
 {
   DBUG_ENTER("LEX::main_select_push");
   DBUG_PRINT("info", ("service: %u", service));
-  current_select_number= 1;
-  builtin_select.select_number= 1;
+  current_select_number= ++thd->lex->stmt_lex->current_select_number;
+  builtin_select.select_number= current_select_number;
   builtin_select.is_service_select= service;
   if (push_select(&builtin_select))
     DBUG_RETURN(TRUE);

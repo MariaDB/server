@@ -431,12 +431,6 @@ bool mysql_create_view(THD *thd, TABLE_LIST *views,
   lex->link_first_table_back(view, link_to_local);
   view->open_type= OT_BASE_ONLY;
 
-  if (check_dependencies_in_with_clauses(lex->with_clauses_list))
-  {
-    res= TRUE;
-    goto err_no_relink;
-  }
-
   WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL);
 
   /*
@@ -1418,9 +1412,6 @@ bool mysql_make_view(THD *thd, TABLE_SHARE *share, TABLE_LIST *table,
     TABLE_LIST *view_tables_tail= 0;
     TABLE_LIST *tbl;
     Security_context *security_ctx= 0;
-
-    if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-      goto err;
 
     /*
       Check rights to run commands which show underlying tables.

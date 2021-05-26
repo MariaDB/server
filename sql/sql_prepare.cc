@@ -2321,9 +2321,6 @@ static bool check_prepared_statement(Prepared_statement *stmt)
   if (tables)
     thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
 
-  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-    goto error;
-
   if (sql_command_flags[sql_command] & CF_HA_CLOSE)
     mysql_ha_rm_tables(thd, tables);
 
