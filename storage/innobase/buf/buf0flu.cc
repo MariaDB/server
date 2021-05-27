@@ -2361,14 +2361,8 @@ void buf_flush_sync()
   {
     const ulint n_flushed= buf_flush_lists(srv_max_io_capacity, LSN_MAX);
     buf_flush_wait_batch_end_acquiring_mutex(false);
-    if (!n_flushed)
-    {
-      mysql_mutex_lock(&buf_pool.flush_list_mutex);
-      const auto len= UT_LIST_GET_LEN(buf_pool.flush_list);
-      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
-      if (!len)
-        return;
-    }
+    if (!n_flushed && !buf_flush_list_length())
+      return;
   }
 }
 
