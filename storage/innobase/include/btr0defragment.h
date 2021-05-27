@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2020, MariaDB Corporation.
+Copyright (C) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -57,10 +57,7 @@ btr_defragment_remove_table(
 	dict_table_t*	table);	/*!< Index to be removed. */
 /*********************************************************************//**
 Check whether we should save defragmentation statistics to persistent storage.*/
-UNIV_INTERN
-void
-btr_defragment_save_defrag_stats_if_needed(
-	dict_index_t*	index);	/*!< in: index */
+void btr_defragment_save_defrag_stats_if_needed(dict_index_t *index);
 
 /* Stop defragmentation.*/
 void btr_defragment_end();

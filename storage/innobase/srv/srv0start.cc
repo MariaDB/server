@@ -128,13 +128,13 @@ static ulonglong	srv_log_file_size_requested;
 static bool		srv_start_has_been_called;
 
 /** Whether any undo log records can be generated */
-UNIV_INTERN bool	srv_undo_sources;
+bool	srv_undo_sources;
 
 #ifdef UNIV_DEBUG
 /** InnoDB system tablespace to set during recovery */
-UNIV_INTERN uint	srv_sys_space_size_debug;
+uint	srv_sys_space_size_debug;
 /** whether redo log file have been created at startup */
-UNIV_INTERN bool	srv_log_file_created;
+bool	srv_log_file_created;
 #endif /* UNIV_DEBUG */
 
 /** whether some background threads that create redo log have been started */

@@ -56,16 +56,6 @@ component, i.e. we show M.N.P as M.N */
 (time in seconds) */
 #define INNODB_EXTEND_TIMEOUT_INTERVAL 30
 
-#ifdef MYSQL_DYNAMIC_PLUGIN
-/* In the dynamic plugin, redefine some externally visible symbols
-in order not to conflict with the symbols of a builtin InnoDB. */
-
-/* Rename all C++ classes that contain virtual functions, because we
-have not figured out how to apply the visibility=hidden attribute to
-the virtual method table (vtable) in GCC 3. */
-# define ha_innobase ha_innodb
-#endif /* MYSQL_DYNAMIC_PLUGIN */
-
 #if defined(_WIN32)
 # include <windows.h>
 #endif /* _WIN32 */
@@ -205,16 +195,6 @@ using the call command. */
 #define UNIV_LIGHT_MEM_DEBUG			/* light memory debugging */
 
 // #define UNIV_SQL_DEBUG
-
-/* Linkage specifier for non-static InnoDB symbols (variables and functions)
-that are only referenced from within InnoDB, not from MySQL. We disable the
-GCC visibility directive on all Sun operating systems because there is no
-easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
-#if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(sun) || defined(__INTEL_COMPILER)
-# define UNIV_INTERN __attribute__((visibility ("hidden")))
-#else
-# define UNIV_INTERN
-#endif
 
 #ifndef MY_ATTRIBUTE
 #if defined(__GNUC__)

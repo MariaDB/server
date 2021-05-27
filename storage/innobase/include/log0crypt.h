@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2020, MariaDB Corporation.
+Copyright (C) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -38,19 +38,13 @@ The random parameters will be persisted in the log checkpoint pages.
 @see log_crypt_write_checkpoint_buf()
 @see log_crypt_read_checkpoint_buf()
 @return whether the operation succeeded */
-UNIV_INTERN
-bool
-log_crypt_init();
+bool log_crypt_init();
 
 /*********************************************************************//**
 Writes the crypto (version, msg and iv) info, which has been used for
 log blocks with lsn <= this checkpoint's lsn, to a log header's
 checkpoint buf. */
-UNIV_INTERN
-void
-log_crypt_write_checkpoint_buf(
-/*===========================*/
-	byte*	buf);			/*!< in/out: checkpoint buffer */
+void log_crypt_write_checkpoint_buf(byte *buf);
 
 /** Read the MariaDB 10.1 checkpoint crypto (version, msg and iv) info.
 @param[in]	buf	checkpoint buffer
@@ -93,9 +87,7 @@ bool log_crypt(byte* buf, lsn_t lsn, ulint size, log_crypt_t op = LOG_ENCRYPT);
 @param[in]	offs		offset to block
 @param[in]	encrypt		true=encrypt; false=decrypt
 @return whether the operation succeeded */
-UNIV_INTERN
-bool
-log_tmp_block_encrypt(
+bool log_tmp_block_encrypt(
 	const byte*	src,
 	ulint		size,
 	byte*		dst,

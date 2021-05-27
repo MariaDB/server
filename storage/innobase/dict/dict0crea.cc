@@ -1622,7 +1622,7 @@ dict_create_add_foreign_field_to_dictionary(
 /********************************************************************//**
 Construct foreign key constraint defintion from data dictionary information.
 */
-UNIV_INTERN
+static
 char*
 dict_foreign_def_get(
 /*=================*/

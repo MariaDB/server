@@ -606,52 +606,6 @@ btr_get_size(
 }
 
 /**************************************************************//**
-Gets the number of reserved and used pages in a B-tree.
-@return	number of pages reserved, or ULINT_UNDEFINED if the index
-is unavailable */
-UNIV_INTERN
-ulint
-btr_get_size_and_reserved(
-/*======================*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
-	ulint*		used,	/*!< out: number of pages used (<= reserved) */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
-				is s-latched */
-{
-	ulint		dummy;
-
-	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
-	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
-
-	if (index->page == FIL_NULL
-	    || dict_index_is_online_ddl(index)
-	    || !index->is_committed()
-	    || !index->table->space) {
-		return(ULINT_UNDEFINED);
-	}
-
-	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr);
-	*used = 0;
-	if (!root) {
-		return ULINT_UNDEFINED;
-	}
-
-	mtr->x_lock_space(index->table->space);
-
-	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
-					+ root->frame, used, mtr);
-	if (flag == BTR_TOTAL_SIZE) {
-		n += fseg_n_reserved_pages(*root,
-					   PAGE_HEADER + PAGE_BTR_SEG_TOP
-					   + root->frame, &dummy, mtr);
-		*used += dummy;
-	}
-
-	return(n);
-}
-
-/**************************************************************//**
 Frees a page used in an ibuf tree. Puts the page to the free list of the
 ibuf tree. */
 static
@@ -3206,10 +3160,8 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 If page is the only on its level, this function moves its records to the
 father page, thus reducing the tree height.
 @return father block */
-UNIV_INTERN
 buf_block_t*
 btr_lift_page_up(
-/*=============*/
 	dict_index_t*	index,	/*!< in: index tree */
 	buf_block_t*	block,	/*!< in: page which is the only on its level;
 				must not be empty: use

@@ -72,7 +72,7 @@ Created 10/8/1995 Heikki Tuuri
 
 #include <my_service_manager.h>
 /* The following is the maximum allowed duration of a lock wait. */
-UNIV_INTERN ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
+ulong	srv_fatal_semaphore_wait_threshold =  DEFAULT_SRV_FATAL_SEMAPHORE_TIMEOUT;
 
 /* How much data manipulation language (DML) statements need to be delayed,
 in microseconds, in order to reduce the lagging of the purge thread. */
@@ -353,22 +353,22 @@ ulint	srv_truncated_status_writes;
 ulong	srv_available_undo_logs;
 
 /* Defragmentation */
-UNIV_INTERN my_bool	srv_defragment;
+my_bool	srv_defragment;
 /** innodb_defragment_n_pages */
-UNIV_INTERN uint	srv_defragment_n_pages;
-UNIV_INTERN uint	srv_defragment_stats_accuracy;
+uint	srv_defragment_n_pages;
+uint	srv_defragment_stats_accuracy;
 /** innodb_defragment_fill_factor_n_recs */
-UNIV_INTERN uint	srv_defragment_fill_factor_n_recs;
+uint	srv_defragment_fill_factor_n_recs;
 /** innodb_defragment_fill_factor */
-UNIV_INTERN double	srv_defragment_fill_factor;
+double	srv_defragment_fill_factor;
 /** innodb_defragment_frequency */
-UNIV_INTERN uint	srv_defragment_frequency;
+uint	srv_defragment_frequency;
 /** derived from innodb_defragment_frequency;
 @see innodb_defragment_frequency_update() */
-UNIV_INTERN ulonglong	srv_defragment_interval;
+ulonglong	srv_defragment_interval;
 
 /** Current mode of operation */
-UNIV_INTERN enum srv_operation_mode srv_operation;
+enum srv_operation_mode srv_operation;
 
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. Not enabled on the embedded server. */
@@ -433,7 +433,7 @@ current_time % 5 != 0. */
 # define	SRV_MASTER_DICT_LRU_INTERVAL		(47)
 
 /** Buffer pool dump status frequence in percentages */
-UNIV_INTERN ulong srv_buf_dump_status_frequency;
+ulong srv_buf_dump_status_frequency;
 
 /*
 	IMPLEMENTATION OF THE SERVER MAIN PROGRAM

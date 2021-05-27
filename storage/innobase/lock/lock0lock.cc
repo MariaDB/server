@@ -6050,13 +6050,9 @@ void lock_sys_t::deadlock_check()
     wr_unlock();
 }
 
-
-/*************************************************************//**
-Updates the lock table when a page is split and merged to
-two pages. */
-UNIV_INTERN
-void
-lock_update_split_and_merge(
+/** Update the locks when a page is split and merged to two pages,
+in defragmentation. */
+void lock_update_split_and_merge(
 	const buf_block_t* left_block,	/*!< in: left page to which merged */
 	const rec_t* orig_pred,		/*!< in: original predecessor of
 					supremum on the left page before merge*/

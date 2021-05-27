@@ -1995,7 +1995,8 @@ calc_buf_pool_size:
     : my_round_up_to_next_power(static_cast<uint32_t>(s));
   curr_pool_size= n_chunks * srv_buf_pool_chunk_unit;
   srv_buf_pool_curr_size= curr_pool_size;/* FIXME: remove*/
-  innodb_set_buf_pool_size(buf_pool_size_align(srv_buf_pool_curr_size));
+  extern ulonglong innobase_buffer_pool_size;
+  innobase_buffer_pool_size= buf_pool_size_align(srv_buf_pool_curr_size);
 
 	const bool	new_size_too_diff
 		= srv_buf_pool_base_size > srv_buf_pool_size * 2

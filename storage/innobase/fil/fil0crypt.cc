@@ -44,16 +44,16 @@ Modified           Jan Lindström jan.lindstrom@mariadb.com
 static bool fil_crypt_threads_inited = false;
 
 /** Is encryption enabled/disabled */
-UNIV_INTERN ulong srv_encrypt_tables = 0;
+ulong srv_encrypt_tables;
 
 /** No of key rotation threads requested */
-UNIV_INTERN uint srv_n_fil_crypt_threads = 0;
+uint srv_n_fil_crypt_threads;
 
 /** No of key rotation threads started */
-UNIV_INTERN uint srv_n_fil_crypt_threads_started = 0;
+uint srv_n_fil_crypt_threads_started;
 
 /** At this age or older a space/page will be rotated */
-UNIV_INTERN uint srv_fil_crypt_rotate_key_age;
+uint srv_fil_crypt_rotate_key_age;
 
 /** Condition variable for srv_n_fil_crypt_threads_started */
 static pthread_cond_t fil_crypt_cond;
@@ -69,12 +69,12 @@ static pthread_cond_t fil_crypt_throttle_sleep_cond;
 static mysql_mutex_t fil_crypt_threads_mutex;
 
 /** Variable ensuring only 1 thread at time does initial conversion */
-static bool fil_crypt_start_converting = false;
+static bool fil_crypt_start_converting;
 
 /** Variables for throttling */
-UNIV_INTERN uint srv_n_fil_crypt_iops = 100;	 // 10ms per iop
-static uint srv_alloc_time = 3;		    // allocate iops for 3s at a time
-static uint n_fil_crypt_iops_allocated = 0;
+uint srv_n_fil_crypt_iops;	 // 10ms per iop
+static constexpr uint srv_alloc_time = 3; // allocate iops for 3s at a time
+static uint n_fil_crypt_iops_allocated;
 
 #define DEBUG_KEYROTATION_THROTTLING 0
 
@@ -226,7 +226,6 @@ Create a fil_space_crypt_t object
 
 @param[in]	key_id		Encryption key id
 @return crypt object */
-UNIV_INTERN
 fil_space_crypt_t*
 fil_space_create_crypt_data(
 	fil_encryption_t	encrypt_mode,
@@ -239,7 +238,7 @@ fil_space_create_crypt_data(
 Merge fil_space_crypt_t object
 @param[in,out]	dst		Destination cryp data
 @param[in]	src		Source crypt data */
-UNIV_INTERN
+static
 void
 fil_space_merge_crypt_data(
 	fil_space_crypt_t* dst,
@@ -313,10 +312,7 @@ fil_space_crypt_t* fil_space_read_crypt_data(ulint zip_size, const byte* page)
 /******************************************************************
 Free a crypt data object
 @param[in,out] crypt_data	crypt data to be freed */
-UNIV_INTERN
-void
-fil_space_destroy_crypt_data(
-	fil_space_crypt_t **crypt_data)
+void fil_space_destroy_crypt_data(fil_space_crypt_t **crypt_data)
 {
 	if (crypt_data != NULL && (*crypt_data) != NULL) {
 		fil_space_crypt_t* c;
@@ -466,7 +462,6 @@ static byte* fil_encrypt_buf_for_non_full_checksum(
 	const byte*	src = src_frame + header_len;
 	byte*		dst = dst_frame + header_len;
 	uint32		dstlen = 0;
-	ib_uint32_t	checksum = 0;
 
 	if (page_compressed) {
 		srclen = mach_read_from_2(src_frame + FIL_PAGE_DATA);
@@ -493,11 +488,12 @@ static byte* fil_encrypt_buf_for_non_full_checksum(
 		       size - (header_len + srclen));
 	}
 
-	checksum = fil_crypt_calculate_checksum(zip_size, dst_frame);
-
 	/* store the post-encryption checksum after the key-version */
 	mach_write_to_4(dst_frame + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION + 4,
-			checksum);
+			zip_size
+			? page_zip_calc_checksum(dst_frame, zip_size,
+						 SRV_CHECKSUM_ALGORITHM_CRC32)
+			: buf_calc_page_crc32(dst_frame));
 
 	ut_ad(fil_space_verify_crypt_checksum(dst_frame, zip_size));
 
@@ -809,7 +805,6 @@ static bool fil_space_decrypt_for_non_full_checksum(
 @param[in,out]	src_frame		Page to decrypt
 @param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
 @return true if page decrypted, false if not.*/
-UNIV_INTERN
 bool
 fil_space_decrypt(
 	ulint			space_id,
@@ -837,7 +832,6 @@ Decrypt a page.
 @param[in,out]	src_frame		Page to decrypt
 @return decrypted page, or original not encrypted page if decryption is
 not needed.*/
-UNIV_INTERN
 byte*
 fil_space_decrypt(
 	const fil_space_t* space,
@@ -867,22 +861,6 @@ fil_space_decrypt(
 	}
 
 	return res;
-}
-
-/**
-Calculate post encryption checksum
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	dst_frame	Block where checksum is calculated
-@return page checksum
-not needed. */
-uint32_t
-fil_crypt_calculate_checksum(ulint zip_size, const byte* dst_frame)
-{
-	/* For encrypted tables we use only crc32 and strict_crc32 */
-	return zip_size
-		? page_zip_calc_checksum(dst_frame, zip_size,
-					 SRV_CHECKSUM_ALGORITHM_CRC32)
-		: buf_calc_page_crc32(dst_frame);
 }
 
 /***********************************************************************/
@@ -2158,10 +2136,7 @@ wait_for_work:
 /*********************************************************************
 Adjust thread count for key rotation
 @param[in]	enw_cnt		Number of threads to be used */
-UNIV_INTERN
-void
-fil_crypt_set_thread_cnt(
-	const uint	new_cnt)
+void fil_crypt_set_thread_cnt(const uint new_cnt)
 {
 	if (!fil_crypt_threads_inited) {
 		if (srv_shutdown_state != SRV_SHUTDOWN_NONE)
@@ -2305,9 +2280,7 @@ void fil_crypt_threads_init()
 
 /*********************************************************************
 Clean up key rotation threads resources */
-UNIV_INTERN
-void
-fil_crypt_threads_cleanup()
+void fil_crypt_threads_cleanup()
 {
 	if (!fil_crypt_threads_inited) {
 		return;
@@ -2322,10 +2295,7 @@ fil_crypt_threads_cleanup()
 /*********************************************************************
 Wait for crypt threads to stop accessing space
 @param[in]	space		Tablespace */
-UNIV_INTERN
-void
-fil_space_crypt_close_tablespace(
-	const fil_space_t*	space)
+void fil_space_crypt_close_tablespace(const fil_space_t *space)
 {
 	fil_space_crypt_t* crypt_data = space->crypt_data;
 
@@ -2378,7 +2348,6 @@ fil_space_crypt_close_tablespace(
 Get crypt status for a space (used by information_schema)
 @param[in]	space		Tablespace
 @param[out]	status		Crypt status */
-UNIV_INTERN
 void
 fil_space_crypt_get_status(
 	const fil_space_t*			space,
@@ -2428,10 +2397,7 @@ fil_space_crypt_get_status(
 /*********************************************************************
 Return crypt statistics
 @param[out]	stat		Crypt statistics */
-UNIV_INTERN
-void
-fil_crypt_total_stat(
-	fil_crypt_stat_t *stat)
+void fil_crypt_total_stat(fil_crypt_stat_t *stat)
 {
 	mysql_mutex_lock(&crypt_stat_mutex);
 	*stat = crypt_stat;

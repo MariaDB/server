@@ -164,7 +164,7 @@ static const long AUTOINC_NO_LOCKING = 2;
 static ulong innobase_open_files;
 static long innobase_autoinc_lock_mode;
 
-static ulonglong innobase_buffer_pool_size;
+ulonglong innobase_buffer_pool_size;
 
 /** Percentage of the buffer pool to reserve for 'old' blocks.
 Connected to buf_LRU_old_ratio. */
@@ -1764,9 +1764,7 @@ static MYSQL_THDVAR_BOOL(background_thread,
 /** Create a MYSQL_THD for a background thread and mark it as such.
 @param name thread info for SHOW PROCESSLIST
 @return new MYSQL_THD */
-MYSQL_THD
-innobase_create_background_thd(const char* name)
-/*============================*/
+MYSQL_THD innobase_create_background_thd(const char* name)
 {
 	MYSQL_THD thd= create_background_thd();
 	thd_proc_info(thd, name);
@@ -1848,15 +1846,6 @@ thd_has_edited_nontrans_tables(
 	return((ibool) thd_non_transactional_update(thd));
 }
 
-/* Return high resolution timestamp for the start of the current query */
-UNIV_INTERN
-unsigned long long
-thd_query_start_micro(
-	const THD*	thd)	/*!< in: thread handle */
-{
-	return thd_start_utime(thd);
-}
-
 /******************************************************************//**
 Returns the lock wait timeout for the current connection.
 @return the lock wait timeout, in seconds */
@@ -1875,9 +1864,7 @@ thd_lock_wait_timeout(
 @param[in]	thd	thread handle, or NULL to query
 			the global innodb_tmpdir.
 @retval NULL if innodb_tmpdir="" */
-const char*
-thd_innodb_tmpdir(
-	THD*	thd)
+const char *thd_innodb_tmpdir(THD *thd)
 {
 	const char*	tmp_dir = THDVAR(thd, tmpdir);
 
@@ -2635,39 +2622,13 @@ overflow:
 	return(~(ulonglong) 0);
 }
 
-/********************************************************************//**
-Reset the autoinc value in the table.
-@return	DB_SUCCESS if all went well else error code */
-UNIV_INTERN
-dberr_t
-ha_innobase::innobase_reset_autoinc(
-/*================================*/
-	ulonglong	autoinc)	/*!< in: value to store */
-{
-	dberr_t		error;
-
-	error = innobase_lock_autoinc();
-
-	if (error == DB_SUCCESS) {
-
-		dict_table_autoinc_initialize(m_prebuilt->table, autoinc);
-		m_prebuilt->table->autoinc_mutex.wr_unlock();
-	}
-
-	return(error);
-}
-
 /*******************************************************************//**
 Reset the auto-increment counter to the given value, i.e. the next row
 inserted will get the given value. This is called e.g. after TRUNCATE
 is emulated by doing a 'DELETE FROM t'. HA_ERR_WRONG_COMMAND is
 returned by storage engines that don't support this operation.
 @return	0 or error code */
-UNIV_INTERN
-int
-ha_innobase::reset_auto_increment(
-/*==============================*/
-	ulonglong	value)		/*!< in: new value for table autoinc */
+int ha_innobase::reset_auto_increment(ulonglong value)
 {
 	DBUG_ENTER("ha_innobase::reset_auto_increment");
 
@@ -2678,6 +2639,7 @@ ha_innobase::reset_auto_increment(
 	error = row_lock_table_autoinc_for_mysql(m_prebuilt);
 
 	if (error != DB_SUCCESS) {
+err_exit:
 		DBUG_RETURN(convert_error_code_to_mysql(
 				    error, m_prebuilt->table->flags, m_user_thd));
 	}
@@ -2687,7 +2649,13 @@ ha_innobase::reset_auto_increment(
 		value = 1;
 	}
 
-	innobase_reset_autoinc(value);
+	error = innobase_lock_autoinc();
+	if (error != DB_SUCCESS) {
+		goto err_exit;
+	}
+
+	dict_table_autoinc_initialize(m_prebuilt->table, value);
+	m_prebuilt->table->autoinc_mutex.wr_unlock();
 
 	DBUG_RETURN(0);
 }
@@ -5625,11 +5593,7 @@ func_exit:
 /********************************************************************//**
 Get the upper limit of the MySQL integral and floating-point type.
 @return maximum allowed value for the field */
-UNIV_INTERN
-ulonglong
-innobase_get_int_col_max_value(
-/*===========================*/
-	const Field*	field)	/*!< in: MySQL field */
+ulonglong innobase_get_int_col_max_value(const Field *field)
 {
 	ulonglong	max_value = 0;
 
@@ -6169,10 +6133,8 @@ ha_innobase::close()
 /* The following accessor functions should really be inside MySQL code! */
 
 #ifdef WITH_WSREP
-UNIV_INTERN
 ulint
 wsrep_innobase_mysql_sort(
-/*======================*/
 					/* out: str contains sort string */
 	int		mysql_type,	/* in: MySQL type */
 	uint		charset_number,	/* in: number of the charset */
@@ -13923,15 +13885,6 @@ ha_innobase::read_time(
 	return(ranges + (double) rows / (double) total_rows * time_for_scan);
 }
 
-/** Update the system variable with the given value of the InnoDB
-buffer pool size.
-@param[in]	buf_pool_size	given value of buffer pool size.*/
-void
-innodb_set_buf_pool_size(ulonglong buf_pool_size)
-{
-	innobase_buffer_pool_size = buf_pool_size;
-}
-
 /*********************************************************************//**
 Calculates the key number used inside MySQL for an Innobase index.
 @return the key number used inside MySQL */
@@ -14870,11 +14823,7 @@ Adds information about free space in the InnoDB tablespace to a table comment
 which is printed out when a user calls SHOW TABLE STATUS. Adds also info on
 foreign keys.
 @return	table comment + InnoDB free space + info on foreign keys */
-UNIV_INTERN
-char*
-ha_innobase::update_table_comment(
-/*==============================*/
-	const char*	comment)/*!< in: table comment defined by user */
+char *ha_innobase::update_table_comment(const char *comment)
 {
 	uint	length = (uint) strlen(comment);
 	char*	str=0;
@@ -19347,7 +19296,7 @@ static MYSQL_SYSVAR_UINT(encryption_rotation_iops, srv_n_fil_crypt_iops,
 			 "Use this many iops for background key rotation",
 			 NULL,
 			 innodb_encryption_rotation_iops_update,
-			 srv_n_fil_crypt_iops, 0, UINT_MAX32, 0);
+			 100, 0, UINT_MAX32, 0);
 
 static MYSQL_SYSVAR_BOOL(encrypt_log, srv_encrypt_log,
   PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
@@ -20726,7 +20675,6 @@ static const size_t MAX_BUF_SIZE = 4 * 1024;
 
 /********************************************************************//**
 Helper function to push warnings from InnoDB internals to SQL-layer. */
-UNIV_INTERN
 void
 ib_push_warning(
 	trx_t*		trx,	/*!< in: trx */
@@ -20754,7 +20702,6 @@ ib_push_warning(
 
 /********************************************************************//**
 Helper function to push warnings from InnoDB internals to SQL-layer. */
-UNIV_INTERN
 void
 ib_push_warning(
 	void*		ithd,	/*!< in: thd */
@@ -20790,7 +20737,6 @@ ib_push_warning(
 @param[in]	table_name	Table name
 @param[in]	format		Warning message
 @param[in]	...		Message arguments */
-UNIV_INTERN
 void
 ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 		dberr_t	    error, /*!< in: error code to push as warning */
@@ -20833,10 +20779,8 @@ ib_foreign_warn(trx_t*	    trx,   /*!< in: trx */
 /********************************************************************//**
 Helper function to push frm mismatch error to error log and
 if needed to sql-layer. */
-UNIV_INTERN
 void
 ib_push_frm_error(
-/*==============*/
 	THD*		thd,		/*!< in: MySQL thd */
 	dict_table_t*	ib_table,	/*!< in: InnoDB table */
 	TABLE*		table,		/*!< in: MySQL table */

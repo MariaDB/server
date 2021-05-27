@@ -1821,9 +1821,7 @@ void test_make_filepath();
 @param[in]	space		tablespace
 @param[in]	offset		page number
 @return	block size */
-UNIV_INTERN
-ulint
-fil_space_get_block_size(const fil_space_t* space, unsigned offset);
+ulint fil_space_get_block_size(const fil_space_t* space, unsigned offset);
 
 #include "fil0fil.ic"
 #endif /* UNIV_INNOCHECKSUM */

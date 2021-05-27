@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2016, 2019, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -249,6 +249,51 @@ dict_stats_save_defrag_summary(
 	dict_sys_unlock();
 
 	return (ret);
+}
+
+/**************************************************************//**
+Gets the number of reserved and used pages in a B-tree.
+@return	number of pages reserved, or ULINT_UNDEFINED if the index
+is unavailable */
+static
+ulint
+btr_get_size_and_reserved(
+	dict_index_t*	index,	/*!< in: index */
+	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
+	ulint*		used,	/*!< out: number of pages used (<= reserved) */
+	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
+				is s-latched */
+{
+	ulint		dummy;
+
+	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
+	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
+
+	if (index->page == FIL_NULL
+	    || dict_index_is_online_ddl(index)
+	    || !index->is_committed()
+	    || !index->table->space) {
+		return(ULINT_UNDEFINED);
+	}
+
+	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr);
+	*used = 0;
+	if (!root) {
+		return ULINT_UNDEFINED;
+	}
+
+	mtr->x_lock_space(index->table->space);
+
+	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
+					+ root->frame, used, mtr);
+	if (flag == BTR_TOTAL_SIZE) {
+		n += fseg_n_reserved_pages(*root,
+					   PAGE_HEADER + PAGE_BTR_SEG_TOP
+					   + root->frame, &dummy, mtr);
+		*used += dummy;
+	}
+
+	return(n);
 }
 
 /*********************************************************************//**

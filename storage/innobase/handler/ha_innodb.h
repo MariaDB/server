@@ -455,7 +455,6 @@ protected:
 	dberr_t innobase_lock_autoinc();
 	ulonglong innobase_peek_autoinc();
 	dberr_t innobase_set_max_autoinc(ulonglong auto_inc);
-	dberr_t innobase_reset_autoinc(ulonglong auto_inc);
 
 	/** Resets a query execution 'template'.
 	@see build_template() */
@@ -538,14 +537,6 @@ extern "C" {
 @retval 0 the user thread is not running a non-transactional update
 @retval 1 the user thread is running a non-transactional update */
 int thd_non_transactional_update(const MYSQL_THD thd);
-
-/** Get high resolution timestamp for the current query start time.
-The timestamp is not anchored to any specific point in time,
-but can be used for comparison.
-@param thd user thread
-@retval timestamp in microseconds precision
-*/
-unsigned long long thd_start_utime(const MYSQL_THD thd);
 
 /** Get the user thread's binary logging format
 @param thd user thread
@@ -948,10 +939,8 @@ innodb_col_no(const Field* field)
 /********************************************************************//**
 Helper function to push frm mismatch error to error log and
 if needed to sql-layer. */
-UNIV_INTERN
 void
 ib_push_frm_error(
-/*==============*/
 	THD*		thd,		/*!< in: MySQL thd */
 	dict_table_t*	ib_table,	/*!< in: InnoDB table */
 	TABLE*		table,		/*!< in: MySQL table */

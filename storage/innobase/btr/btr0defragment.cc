@@ -220,10 +220,7 @@ btr_defragment_remove_table(
 /*********************************************************************//**
 Check whether we should save defragmentation statistics to persistent storage.
 Currently we save the stats to persistent storage every 100 updates. */
-UNIV_INTERN
-void
-btr_defragment_save_defrag_stats_if_needed(
-	dict_index_t*	index)	/*!< in: index */
+void btr_defragment_save_defrag_stats_if_needed(dict_index_t *index)
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
 	    && index->table->space_id != 0 // do not track system tables
@@ -240,7 +237,7 @@ Main defragment functionalities used by defragment thread.*/
 Calculate number of records from beginning of block that can
 fit into size_limit
 @return number of records */
-UNIV_INTERN
+static
 ulint
 btr_defragment_calc_n_recs_for_size(
 	buf_block_t* block,	/*!< in: B-tree page */

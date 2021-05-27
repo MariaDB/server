@@ -187,7 +187,7 @@ initialized. */
 fil_system_t	fil_system;
 
 /** At this age or older a space/page will be rotated */
-UNIV_INTERN extern uint srv_fil_crypt_rotate_key_age;
+extern uint srv_fil_crypt_rotate_key_age;
 
 #ifdef UNIV_DEBUG
 /** Try fil_validate() every this many times */
@@ -3300,9 +3300,7 @@ test_make_filepath()
 @param[in]	space		tablespace
 @param[in]	offset		page number
 @return	block size */
-UNIV_INTERN
-ulint
-fil_space_get_block_size(const fil_space_t* space, unsigned offset)
+ulint fil_space_get_block_size(const fil_space_t *space, unsigned offset)
 {
 	ulint block_size = 512;
 

@@ -1173,11 +1173,7 @@ private:
 /********************************************************************//**
 Get the upper limit of the MySQL integral and floating-point type.
 @return maximum allowed value for the field */
-UNIV_INTERN
-ulonglong
-innobase_get_int_col_max_value(
-/*===========================*/
-	const Field*	field);	/*!< in: MySQL field */
+ulonglong innobase_get_int_col_max_value(const Field *field);
 
 /* Report an InnoDB error to the client by invoking my_error(). */
 static ATTRIBUTE_COLD __attribute__((nonnull))

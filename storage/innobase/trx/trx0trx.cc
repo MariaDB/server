@@ -988,7 +988,7 @@ trx_start_low(
 
 	trx->start_time = time(NULL);
 	trx->start_time_micro = trx->mysql_thd
-		? thd_query_start_micro(trx->mysql_thd)
+		? thd_start_utime(trx->mysql_thd)
 		: microsecond_interval_timer();
 
 	ut_a(trx->error_state == DB_SUCCESS);

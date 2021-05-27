@@ -302,10 +302,8 @@ Write a merge block to the file system.
 @return whether the request was completed successfully
 @retval	false	on error
 @retval	true	on success */
-UNIV_INTERN
 bool
 row_merge_write(
-/*============*/
 	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint		offset,	/*!< in: offset where to write,
 				in number of row_merge_block_t elements */
