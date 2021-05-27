@@ -10688,6 +10688,31 @@ public:
   bool complete(MYSQL_BIN_LOG *log, HASH &xids);
 
   /*
+    member info suggests a committed (to be committed) transaction in
+    the normal case. That is the decision is always commit there.
+    TODO: in the semisync slave case and multi-engine transaction it can also
+    be rollback. To resolve the doubt (caused by relaxed setup for engine's durablity)
+    MDEV-21117 patch requires an amendment
+    to include into Gtid event the number of last-committed transaction binlog-offset
+    tracking engine participants.
+
+    Returns false on success
+            true  otherwise.
+  */
+  bool handle_committed(xid_recovery_member *member, int round, my_off_t pos);
+
+  /*
+    member does not contain any partially commmitted branch of the transaction.
+    The commit decision is settled in the normal case, and can be settled
+    in the semisync slave when there was already
+    validated truncation candidate.
+
+    Returns false on success
+            true  otherwise.
+  */
+  bool handle_prepared(xid_recovery_member *member, int round,
+                       Format_description_log_event *fdle, LOG_INFO *linfo);
+  /*
     decides on commit of xid passed through member argument.
     In the semisync slave case it assigns binlog coordinate to
     any xid that remains in-doubt. Decision on them will be
@@ -10886,6 +10911,86 @@ bool Recovery_context::set_truncate_coord(LOG_INFO *linfo, int round,
   return gtid_maybe_to_truncate->append(last_gtid);
 }
 
+bool Recovery_context::handle_committed(xid_recovery_member *member,
+                                        int round, my_off_t pos)
+{
+  if (!do_truncate)
+  {
+    if (member)
+      member->decided_to_commit= true; // TODO-18959: to replay the rest
+  }
+  else
+  {
+    if (member)
+      member->decided_to_commit= true;
+
+    /* Validated truncate at this point can be only in the 2nd round. */
+    DBUG_ASSERT(!truncate_validated ||
+                (round == 2 && truncate_set_in_1st &&
+                 last_gtid_coord < binlog_truncate_coord));
+    /*
+      Estimated truncate must not be greater than the current one's
+      offset, unless the turn of the rounds.
+    */
+    DBUG_ASSERT(truncate_validated ||
+                (last_gtid_coord >= binlog_truncate_coord ||
+                 (round == 2 && truncate_set_in_1st)));
+
+    if ((!member || member->decided_to_commit) &&
+        !truncate_validated && reset_truncate_coord(pos))
+      return true;
+  }
+  return false;
+}
+
+bool Recovery_context::handle_prepared(xid_recovery_member *member, int round,
+                                       Format_description_log_event *fdle,
+                                       LOG_INFO *linfo)
+{
+  if (!do_truncate) // "normal" recovery
+  {
+    member->decided_to_commit= true;
+  }
+  else
+  {
+    member->binlog_coord= last_gtid_coord;
+    last_gtid_valid= false;
+    /*
+      First time truncate position estimate before its validation.
+      An estimate may change to involve reset_truncate_coord call.
+    */
+    if (!truncate_validated)
+    {
+      if (truncate_gtid.seq_no == 0 /* was reset or never set */ ||
+          (truncate_set_in_1st && round == 2 /* reevaluted at round turn */))
+      {
+        if (set_truncate_coord(linfo, round, fdle->checksum_alg))
+          return true;
+      }
+      else
+      {
+        /* Truncate estimate was done ago, this gtid can't improve it. */
+        DBUG_ASSERT(last_gtid_coord >= binlog_truncate_coord);
+
+        gtid_maybe_to_truncate->append(last_gtid);
+      }
+
+      DBUG_ASSERT(member->decided_to_commit == false); // may redecided
+    }
+    else
+    {
+      /*
+        binlog truncate was determined, possibly to none, otherwise
+        its offset greater than that of the current gtid.
+      */
+      DBUG_ASSERT(truncate_gtid.seq_no == 0 ||
+                  last_gtid_coord < binlog_truncate_coord);
+      member->decided_to_commit= true;
+    }
+  }
+  return false;
+}
+
 bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
                                         Format_description_log_event *fdle,
                                         LOG_INFO *linfo, my_off_t pos)
@@ -10920,88 +11025,26 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
     }
     else if (member->in_engine_prepare < last_gtid_engines)
     {
-      DBUG_EXECUTE_IF("binlog_truncate_partial_commit",
-                      member->in_engine_prepare= 2;);
       DBUG_ASSERT(member->in_engine_prepare > 0);
       /*
         This is an "unlikely" branch of two or more engines in transaction
         that is partially committed, so to complete.
       */
-      member->decided_to_commit= true;
-      if (do_truncate)
-      {
-        /* Validated truncate at this point can be only in the 2nd round. */
-        DBUG_ASSERT(!truncate_validated ||
-                    (round == 2 && truncate_set_in_1st &&
-                     last_gtid_coord < binlog_truncate_coord));
-        /*
-          Estimated truncate must not be greater than the current one's
-          offset, unless the turn of the rounds.
-        */
-        DBUG_ASSERT(truncate_validated ||
-                    (last_gtid_coord >= binlog_truncate_coord ||
-                     (round == 2 && truncate_set_in_1st)));
+      if (handle_committed(member, round, pos))
+        return true;
 
-        if (!truncate_validated && reset_truncate_coord(pos))
-          return true;
-      }
+      DBUG_EXECUTE_IF("binlog_truncate_partial_commit",
+                      member->in_engine_prepare= 2;);
     }
     else // member->in_engine_prepare == last_gtid_engines
     {
-      if (!do_truncate) // "normal" recovery
-      {
-        member->decided_to_commit= true;
-      }
-      else
-      {
-        member->binlog_coord= last_gtid_coord;
-        last_gtid_valid= false;
-        /*
-          First time truncate position estimate before its validation.
-          An estimate may change to involve reset_truncate_coord call.
-        */
-        if (!truncate_validated)
-        {
-          if (truncate_gtid.seq_no == 0 /* was reset or never set */ ||
-              (truncate_set_in_1st && round == 2 /* reevaluted at round turn */))
-          {
-            if (set_truncate_coord(linfo, round, fdle->checksum_alg))
-              return true;
-          }
-          else
-          {
-            /* Truncate estimate was done ago, this gtid can't improve it. */
-            DBUG_ASSERT(last_gtid_coord >= binlog_truncate_coord);
-
-            gtid_maybe_to_truncate->append(last_gtid);
-          }
-
-          DBUG_ASSERT(member->decided_to_commit == false); // may redecided
-        }
-        else
-        {
-          /*
-            binlog truncate was determined, possibly to none, otherwise
-            its offset greater than that of the current gtid.
-          */
-          DBUG_ASSERT(truncate_gtid.seq_no == 0 ||
-                      last_gtid_coord < binlog_truncate_coord);
-          member->decided_to_commit= true;
-        }
-      }
+      if (handle_prepared(member, round, fdle, linfo))
+        return true;
     }
   }
-  else if (do_truncate) //  "0" < last_gtid_engines
+  else  //  "0" < last_gtid_engines
   {
-    /*
-      Similar to the partial commit branch above.
-    */
-    DBUG_ASSERT(!truncate_validated || last_gtid_coord < binlog_truncate_coord);
-    DBUG_ASSERT(truncate_validated ||
-                (last_gtid_coord >= binlog_truncate_coord ||
-                 (round == 2 && truncate_set_in_1st)));
-
-    if (!truncate_validated && reset_truncate_coord(pos))
+    if (handle_committed(NULL, round, pos))
       return true;
   }
 
