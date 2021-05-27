@@ -2174,61 +2174,6 @@ after_set_capability:
       }
     }
   }
-  else
-  {
-    /*
-      If we are not using GTID to connect this time, then instead request
-      the corresponding GTID position from the master, so that the user
-      can reconnect the next time using MASTER_GTID_POS=AUTO.
-    */
-    char quote_buf[2*sizeof(mi->master_log_name)+1];
-    char str_buf[28+2*sizeof(mi->master_log_name)+10];
-    String query(str_buf, sizeof(str_buf), system_charset_info);
-    query.length(0);
-
-    query.append("SELECT binlog_gtid_pos('");
-    escape_quotes_for_mysql(&my_charset_bin, quote_buf, sizeof(quote_buf),
-                            mi->master_log_name, strlen(mi->master_log_name));
-    query.append(quote_buf);
-    query.append("',");
-    query.append_ulonglong(mi->master_log_pos);
-    query.append(")");
-
-    if (!mysql_real_query(mysql, query.c_ptr_safe(), query.length()) &&
-        (master_res= mysql_store_result(mysql)) &&
-        (master_row= mysql_fetch_row(master_res)) &&
-        (master_row[0] != NULL))
-    {
-      rpl_global_gtid_slave_state->load(mi->io_thd, master_row[0],
-                                        strlen(master_row[0]), false, false);
-    }
-    else if (check_io_slave_killed(mi, NULL))
-      goto slave_killed_err;
-    else if (is_network_error(mysql_errno(mysql)))
-    {
-      mi->report(WARNING_LEVEL, mysql_errno(mysql), NULL,
-                 "Get master GTID position failed with error: %s", mysql_error(mysql));
-      goto network_err;
-    }
-    else
-    {
-      /*
-        ToDo: If the master does not have the binlog_gtid_pos() function, it
-        just means that it is an old master with no GTID support, so we should
-        do nothing.
-
-        However, if binlog_gtid_pos() exists, but fails or returns NULL, then
-        it means that the requested position is not valid. We could use this
-        to catch attempts to replicate from within the middle of an event,
-        avoiding strange failures or possible corruption.
-      */
-    }
-    if (master_res)
-    {
-      mysql_free_result(master_res);
-      master_res= NULL;
-    }
-  }
 
 err:
   if (errmsg)
