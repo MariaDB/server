@@ -15190,68 +15190,6 @@ ha_innobase::check(
 	DBUG_RETURN(is_ok ? HA_ADMIN_OK : HA_ADMIN_CORRUPT);
 }
 
-/*************************************************************//**
-Adds information about free space in the InnoDB tablespace to a table comment
-which is printed out when a user calls SHOW TABLE STATUS. Adds also info on
-foreign keys.
-@return	table comment + InnoDB free space + info on foreign keys */
-UNIV_INTERN
-char*
-ha_innobase::update_table_comment(
-/*==============================*/
-	const char*	comment)/*!< in: table comment defined by user */
-{
-	uint	length = (uint) strlen(comment);
-	char*	str=0;
-	size_t	flen;
-	std::string fk_str;
-
-	/* We do not know if MySQL can call this function before calling
-	external_lock(). To be safe, update the thd of the current table
-	handle. */
-
-	if (length > 64000 - 3) {
-		return((char*) comment); /* string too long */
-	}
-
-	update_thd(ha_thd());
-
-	m_prebuilt->trx->op_info = "returning table comment";
-
-#define SSTR( x ) reinterpret_cast< std::ostringstream & >(		\
-        ( std::ostringstream() << std::dec << x ) ).str()
-
-	fk_str.append("InnoDB free: ");
-	fk_str.append(SSTR(fsp_get_available_space_in_free_extents(
-				m_prebuilt->table->space)));
-
-	fk_str.append(dict_print_info_on_foreign_keys(
-			FALSE, m_prebuilt->trx,
-			m_prebuilt->table));
-
-	flen = fk_str.length();
-
-	if (length + flen + 3 > 64000) {
-		flen = 64000 - 3 - length;
-	}
-	/* allocate buffer for the full string */
-	str = (char*) my_malloc(length + flen + 3, MYF(0));
-	if (str) {
-		char* pos	= str + length;
-		if (length) {
-			memcpy(str, comment, length);
-			*pos++ = ';';
-			*pos++ = ' ';
-		}
-		memcpy(pos, fk_str.c_str(), flen);
-		pos[flen] = 0;
-	}
-
-	m_prebuilt->trx->op_info = (char*)"";
-
-	return(str ? str : (char*) comment);
-}
-
 /*******************************************************************//**
 Gets the foreign key create info for a table stored in InnoDB.
 @return own: character string in the form which can be inserted to the

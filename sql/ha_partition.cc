@@ -1,6 +1,6 @@
 /*
   Copyright (c) 2005, 2019, Oracle and/or its affiliates.
-  Copyright (c) 2009, 2019, MariaDB
+  Copyright (c) 2009, 2021, MariaDB
 
   This program is free software; you can redistribute it and/or modify
   it under the terms of the GNU General Public License as published by
@@ -2242,25 +2242,6 @@ void ha_partition::change_table_ptr(TABLE *table_arg, TABLE_SHARE *share)
       (*file_array)->change_table_ptr(table_arg, share);
     } while (*(++file_array));
   }
-}
-
-/*
-  Change comments specific to handler
-
-  SYNOPSIS
-    update_table_comment()
-    comment                       Original comment
-
-  RETURN VALUE
-    new comment 
-
-  DESCRIPTION
-    No comment changes so far
-*/
-
-char *ha_partition::update_table_comment(const char *comment)
-{
-  return (char*) comment;                       /* Nothing to change */
 }
 
 
