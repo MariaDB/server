@@ -1737,6 +1737,13 @@ public:
   /*========= Item processors, to be used with Item::walk() ========*/
   virtual bool remove_dependence_processor(void *arg) { return 0; }
   virtual bool cleanup_processor(void *arg);
+  /*
+    TODO: Remove cleanup_excluding_fields_processor()
+
+    This is just a quick hack to exclude wrongly working Item_field from
+    processing. Now it works due to correct execution environment (see
+    next commit). Related to MDEV-10355
+  */
   virtual bool cleanup_excluding_fields_processor(void *arg) { return cleanup_processor(arg); }
   virtual bool cleanup_excluding_const_fields_processor(void *arg) { return cleanup_processor(arg); }
   virtual bool collect_item_field_processor(void *arg) { return 0; }
@@ -2924,6 +2931,12 @@ public:
   const char *db_name;
   const char *table_name;
   LEX_CSTRING field_name;
+  /*
+     NOTE: came from TABLE::alias_name_used and this is only a hint! It works
+     only in need_correct_ident() condition. On other cases it is FALSE even if
+     table_name is alias! It cannot be TRUE in these cases, lots of spaghetti
+     logic depends on that.
+  */
   bool alias_name_used; /* true if item was resolved against alias */
   /* 
     Cached value of index for this field in table->field array, used by prep. 
