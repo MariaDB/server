@@ -1,4 +1,5 @@
-include/rpl_init.inc [topology=1->2]
+include/master-slave.inc
+[connection master]
 connection server_2;
 include/stop_slave.inc
 connection server_1;

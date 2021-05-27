@@ -3607,8 +3607,8 @@ public:
   uchar flags2;
   uint  flags_extra; // more flags area placed after the regular flags2's one
   /*
-    Extra to a "base" engine recoverable engines participating
-    in the transaction. Zero, when the base engine only is present.
+    Number of engine participants in transaction minus 1.
+    When zero the event does not contain that information.
   */
   uint8 extra_engines;
 

@@ -6213,6 +6213,7 @@ static int queue_event(Master_info* mi,const char* buf, ulong event_len)
     unlock_data_lock= FALSE;
     goto err;
   }
+  DBUG_ASSERT(((uchar) buf[FLAGS_OFFSET] & LOG_EVENT_ACCEPT_OWN_F) == 0);
 
   if (mi->rli.relay_log.description_event_for_queue->binlog_version<4 &&
       (uchar)buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT /* a way to escape */)
