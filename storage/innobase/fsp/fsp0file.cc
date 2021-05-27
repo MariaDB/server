@@ -805,10 +805,12 @@ static char *read_link_file(const char *link_filepath)
     {
       /* Trim whitespace from end of filepath */
       len--;
-      while (filepath[len] >= 0 && filepath[len] <= 0x20)
+      while (static_cast<byte>(filepath[len]) <= 0x20)
+      {
+        if (!len)
+          return nullptr;
         filepath[len--]= 0;
-      if (!*filepath)
-        return nullptr;
+      }
       /* Ensure that the last 2 path separators are forward slashes,
       because elsewhere we are assuming that tablespace file names end
       in "/databasename/tablename.ibd". */
