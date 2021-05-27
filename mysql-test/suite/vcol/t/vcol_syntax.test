@@ -77,7 +77,25 @@ update t1 as x set a = 1;
 alter table t1 force;
 drop table t1;
 
+create table t1 (
+  id int not null auto_increment primary key,
+  order_date_time datetime not null,
+  order_date date generated always as (convert(order_date_time, date)),
+  language_id binary(16) null
+);
+
+update t1 as tx set order_date= null;
+alter table t1 modify column language_id binary(16) not null;
+# Cleanup
+drop table t1;
 
 --echo #
---echo # End of 10.2 tests
+--echo # MDEV-24176 Server crashes after insert in the table with virtual column generated using date_format() and if()
 --echo #
+create table t1 (d1 date not null, d2 date not null,
+  gd text as (concat(d1,if(d1 <> d2, date_format(d2, 'to %y-%m-%d '), ''))) );
+
+insert into t1(d1,d2) values
+  ('2020-09-01','2020-09-01'),('2020-05-01','2020-09-01');
+
+drop table t1;

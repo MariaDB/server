@@ -1736,15 +1736,8 @@ public:
 
   /*========= Item processors, to be used with Item::walk() ========*/
   virtual bool remove_dependence_processor(void *arg) { return 0; }
+  virtual bool cached_table_cleanup_processor(void * arg) { return 0; }
   virtual bool cleanup_processor(void *arg);
-  /*
-    TODO: Remove cleanup_excluding_fields_processor()
-
-    This is just a quick hack to exclude wrongly working Item_field from
-    processing. Now it works due to correct execution environment (see
-    next commit). Related to MDEV-10355
-  */
-  virtual bool cleanup_excluding_fields_processor(void *arg) { return cleanup_processor(arg); }
   virtual bool cleanup_excluding_const_fields_processor(void *arg) { return cleanup_processor(arg); }
   virtual bool collect_item_field_processor(void *arg) { return 0; }
   virtual bool collect_outer_ref_processor(void *arg) {return 0; }
@@ -2973,6 +2966,7 @@ public:
   void cleanup();
   st_select_lex *get_depended_from() const;
   bool remove_dependence_processor(void * arg);
+  bool cached_table_cleanup_processor(void * arg);
   virtual void print(String *str, enum_query_type query_type);
   virtual bool change_context_processor(void *cntx)
     { context= (Name_resolution_context *)cntx; return FALSE; }
@@ -2984,6 +2978,19 @@ public:
                             const char *db_name,
                             const char *table_name, List_iterator<Item> *it,
                             bool any_privileges);
+  bool check_vcol_func_processor(void *arg)
+  {
+    if (table_name)
+    {
+      /*
+         NOTE: alias is different in every statement, we must update it.
+         We cannot rely on alias_name_used (see NOTE above).
+      */
+      DBUG_ASSERT(field_name.str);
+      return mark_unsupported_function(field_name.str, arg, VCOL_TABLE_ALIAS);
+    }
+    return false;
+  }
 };
 
 
@@ -3192,6 +3199,8 @@ public:
   bool check_vcol_func_processor(void *arg)
   {
     context= 0;
+    if (Item_ident::check_vcol_func_processor(arg))
+      return true;
     if (field && (field->unireg_check == Field::NEXT_NUMBER))
     {
       // Auto increment fields are unsupported
@@ -3242,8 +3251,6 @@ public:
   virtual void print(String *str, enum_query_type query_type);
   bool excl_dep_on_table(table_map tab_map);
   bool excl_dep_on_grouping_fields(st_select_lex *sel);
-  bool cleanup_excluding_fields_processor(void *arg)
-  { return field ? 0 : cleanup_processor(arg); }
   bool cleanup_excluding_const_fields_processor(void *arg)
   { return field && const_item() ? 0 : cleanup_processor(arg); }
   
@@ -5102,14 +5109,6 @@ public:
   }
   bool excl_dep_on_grouping_fields(st_select_lex *sel)
   { return (*ref)->excl_dep_on_grouping_fields(sel); }
-  bool cleanup_excluding_fields_processor(void *arg)
-  {
-    Item *item= real_item();
-    if (item && item->type() == FIELD_ITEM &&
-        ((Item_field *)item)->field)
-      return 0;
-    return cleanup_processor(arg);
-  }
   bool cleanup_excluding_const_fields_processor(void *arg)
   { 
     Item *item= real_item();

@@ -2964,13 +2964,105 @@ bool Virtual_column_info::fix_expr(THD *thd)
 */
 bool Virtual_column_info::fix_session_expr(THD *thd)
 {
-  DBUG_ENTER("fix_session_vcol_expr");
-  if (!(flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC)))
-    DBUG_RETURN(0);
+  // TODO: remove either this check or vcols_need_refixing
+  if (!(flags & (VCOL_TIME_FUNC|VCOL_SESSION_FUNC|VCOL_TABLE_ALIAS)))
+    return false;
 
-  expr->walk(&Item::cleanup_excluding_fields_processor, 0, 0);
+  if (expr->walk(&Item::cached_table_cleanup_processor, 0, 0))
+    return true;
+  if (expr->walk(&Item::cleanup_processor, 0, 0))
+    return true;
   DBUG_ASSERT(!expr->fixed);
-  DBUG_RETURN(fix_expr(thd));
+  if (expr->walk(&Item::change_context_processor, 0, thd->lex->current_context()))
+    return true;
+  if (fix_expr(thd))
+    return true;
+  if (expr->walk(&Item::change_context_processor, 0, NULL))
+    return true;
+  return false;
+}
+
+
+class Vcol_expr_context
+{
+  bool inited;
+  THD *thd;
+  TABLE *table;
+  LEX *old_lex;
+  LEX lex;
+  table_map old_map;
+  bool old_want_privilege;
+  Security_context *save_security_ctx;
+  sql_mode_t save_sql_mode;
+  Query_arena backup_arena;
+  Query_arena *stmt_backup;
+  Query_arena *expr_arena;
+  Silence_warnings disable_warnings;
+  bool warnings_disabled;
+
+public:
+  Vcol_expr_context(THD *_thd, TABLE *_table) :
+    inited(false),
+    thd(_thd),
+    table(_table),
+    old_lex(thd->lex),
+    old_map(table->map),
+    old_want_privilege(table->grant.want_privilege),
+    save_security_ctx(thd->security_ctx),
+    save_sql_mode(thd->variables.sql_mode),
+    stmt_backup(thd->stmt_arena),
+    expr_arena(table->expr_arena) {}
+  bool init();
+
+  ~Vcol_expr_context();
+};
+
+
+bool Vcol_expr_context::init()
+{
+  /*
+      As this is vcol expression we must narrow down name resolution to
+      single table.
+  */
+  if (init_lex_with_single_table(thd, table, &lex))
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    table->map= old_map;
+    return true;
+  }
+
+  thd->push_internal_handler(&disable_warnings);
+  table->grant.want_privilege= false;
+  TABLE_LIST const *tl= table->pos_in_table_list;
+
+  /* Avoid fix_outer_field() in Item_field::fix_fields(). */
+  lex.current_context()->select_lex= tl->select_lex;
+  lex.sql_command= old_lex->sql_command;
+
+  thd->set_n_backup_active_arena(expr_arena, &backup_arena);
+  thd->stmt_arena= expr_arena;
+
+  if (tl->security_ctx)
+    thd->security_ctx= tl->security_ctx;
+
+  thd->variables.sql_mode= 0;
+
+  inited= true;
+  return false;
+}
+
+Vcol_expr_context::~Vcol_expr_context()
+{
+  if (!inited)
+    return;
+  table->grant.want_privilege= old_want_privilege;
+  thd->restore_active_arena(expr_arena, &backup_arena);
+  thd->stmt_arena= stmt_backup;
+  thd->pop_internal_handler();
+  end_lex_with_single_table(thd, table, old_lex);
+  table->map= old_map;
+  thd->security_ctx= save_security_ctx;
+  thd->variables.sql_mode= save_sql_mode;
 }
 
 
@@ -2981,16 +3073,48 @@ bool Virtual_column_info::fix_session_expr(THD *thd)
 */
 bool Virtual_column_info::fix_session_expr_for_read(THD *thd, Field *field)
 {
-  DBUG_ENTER("fix_session_vcol_expr_for_read");
-  TABLE_LIST *tl= field->table->pos_in_table_list;
+  const TABLE_LIST *tl= field->table->pos_in_table_list;
   if (!tl || tl->lock_type >= TL_WRITE_ALLOW_WRITE)
-    DBUG_RETURN(0);
-  Security_context *save_security_ctx= thd->security_ctx;
-  if (tl->security_ctx)
-    thd->security_ctx= tl->security_ctx;
-  bool res= fix_session_expr(thd);
-  thd->security_ctx= save_security_ctx;
-  DBUG_RETURN(res);
+    return false;
+
+  Vcol_expr_context expr_ctx(thd, field->table);
+  if (expr_ctx.init())
+    return true;
+
+  const bool res= fix_session_expr(thd);
+  return res;
+}
+
+
+bool TABLE::vcol_fix_exprs(THD *thd)
+{
+  if (pos_in_table_list->placeholder() || !s->vcols_need_refixing)
+    return false;
+
+  Vcol_expr_context expr_ctx(thd, this);
+  if (expr_ctx.init())
+    return true;
+
+  bool result= true;
+
+  for (Field **vf= vfield; vf && *vf; vf++)
+    if ((*vf)->vcol_info->fix_session_expr(thd))
+      goto end;
+
+  for (Field **df= default_field; df && *df; df++)
+    if ((*df)->default_value &&
+        (*df)->default_value->fix_session_expr(thd))
+      goto end;
+
+  for (Virtual_column_info **cc= check_constraints; cc && *cc; cc++)
+    if ((*cc)->fix_session_expr(thd))
+      goto end;
+
+  result= false;
+
+end:
+  DBUG_ASSERT(!result || thd->get_stmt_da()->is_error());
+  return result;
 }
 
 
@@ -3071,7 +3195,7 @@ bool Virtual_column_info::fix_and_check_expr(THD *thd, TABLE *table)
   }
   flags= res.errors;
 
-  if (flags & VCOL_SESSION_FUNC)
+  if (flags & (VCOL_SESSION_FUNC|VCOL_TABLE_ALIAS))
     table->s->vcols_need_refixing= true;
 
   DBUG_RETURN(0);
@@ -3144,6 +3268,8 @@ unpack_vcol_info_from_frm(THD *thd, TABLE *table,
     sequence->next_global= table->internal_tables;
     table->internal_tables= sequence;
   }
+
+  lex.sql_command= old_lex->sql_command;
 
   vcol_storage.vcol_info->set_vcol_type(vcol->get_vcol_type());
   vcol_storage.vcol_info->stored_in_db=      vcol->stored_in_db;
