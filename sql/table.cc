@@ -52,6 +52,44 @@ class Table_arena: public Query_arena
 public:
   Table_arena(MEM_ROOT *mem_root, enum enum_state state_arg) :
           Query_arena(mem_root, state_arg){}
+  /*
+    TODO: whole new class for one virtual const method? Hmm...
+    Make type as a property of Query_arena.
+  */
+  virtual Type type() const
+  {
+    return TABLE_ARENA;
+  }
+};
+
+class Table_arena2: public Query_arena
+{
+public:
+  Table_arena2(MEM_ROOT *mem_root, enum enum_state state_arg) :
+          Query_arena(mem_root, state_arg){}
+
+  /* Makes everything: mem_root structure, object */
+  static Table_arena2 *make()
+  {
+    MEM_ROOT expr_root0;
+    init_alloc_root(&expr_root0, 512, 0, MYF(0));
+    MEM_ROOT *expr_root= (MEM_ROOT *) alloc_root(&expr_root0, sizeof(MEM_ROOT));
+    if (!expr_root)
+      return NULL;
+    memcpy(expr_root, &expr_root0, sizeof(expr_root0));
+    return new (alloc_root(expr_root, sizeof(Table_arena2)))
+      Table_arena2(expr_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  }
+
+  /* Frees everything: items, object, mem_root structure */
+  void free_items()
+  {
+    Query_arena::free_items();
+    MEM_ROOT expr_root0;
+    memcpy(&expr_root0, mem_root, sizeof(expr_root0));
+    free_root(&expr_root0, MYF(0));
+  }
+
   virtual Type type() const
   {
     return TABLE_ARENA;
@@ -1032,10 +1070,14 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     any new items created by fix_fields() are not reverted.
   */
   table->expr_arena= new (alloc_root(mem_root, sizeof(Table_arena)))
-                        Table_arena(mem_root, 
+                        Table_arena(mem_root,
                                     Query_arena::STMT_CONVENTIONAL_EXECUTION);
   if (!table->expr_arena)
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
     DBUG_RETURN(1);
+  }
+
 
   thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
   thd->stmt_arena= table->expr_arena;
@@ -4684,28 +4726,45 @@ bool TABLE::vcol_update_expr(THD *thd, TABLE_LIST *tl)
   LEX *old_lex= thd->lex;
   LEX lex;
   table_map old_map= map;
+  Query_arena backup_arena;
+  Query_arena  *backup_stmt_arena_ptr= thd->stmt_arena;
+
+  Query_arena *expr_arena2= Table_arena2::make();
+
+  if (!expr_arena2)
+  {
+    my_error(ER_OUT_OF_RESOURCES, MYF(0));
+    return true;
+  }
+
   /*
-      As this is vcol expression we must narrow down name resolution to
-      single table.
+    As this is vcol expression we must narrow down name resolution to
+    single table.
   */
   if (init_lex_with_single_table(thd, this, &lex))
   {
     my_error(ER_OUT_OF_RESOURCES, MYF(0));
-    goto end;
+    return true;
   }
 
   /* Avoid fix_outer_field() in Item_field::fix_fields(). */
   lex.current_context()->select_lex= tl->select_lex;
 
+  thd->set_n_backup_active_arena(expr_arena2, &backup_arena);
+  thd->stmt_arena= expr_arena2;
+
   for (Field **vf_ptr= vfield; *vf_ptr; vf_ptr++)
   {
-    Item *expr= (*vf_ptr)->vcol_info->expr;
+    Item *expr= (*vf_ptr)->vcol_info->expr->build_clone(thd, expr_arena2->mem_root);
     if (expr->walk(&Item::cached_table_cleanup_processor, 0, 0))
       goto end;
     if (expr->walk(&Item::cleanup_processor, 0, 0))
       goto end;
+    if (expr->walk(&Item::buffers_realloc_processor, 0, 0))
+      goto end;
     if (expr->walk(&Item::change_context_processor, 0, lex.current_context()))
       goto end;
+    (*vf_ptr)->vcol_info->expr= expr;
     if (fix_and_check_vcol_expr(thd, this, (*vf_ptr)->vcol_info))
       goto end;
     if (expr->walk(&Item::change_context_processor, 0,
@@ -4713,10 +4772,16 @@ bool TABLE::vcol_update_expr(THD *thd, TABLE_LIST *tl)
       goto end;
   }
 
+  expr_arena->free_items();
+  expr_arena= expr_arena2;
+
   result= false;
 
 end:
   DBUG_ASSERT(!result || thd->get_stmt_da()->is_error());
+  thd->restore_active_arena(expr_arena2, &backup_arena);
+  thd->stmt_arena= backup_stmt_arena_ptr;
+
   end_lex_with_single_table(thd, this, old_lex);
   map= old_map;
   return result;

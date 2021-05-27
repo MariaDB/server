@@ -1016,7 +1016,7 @@ public:
 
   void set_query_arena(Query_arena *set);
 
-  void free_items();
+  virtual void free_items();
   /* Close the active state associated with execution of this statement */
   virtual void cleanup_stmt();
 };

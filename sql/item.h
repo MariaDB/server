@@ -1315,6 +1315,12 @@ public:
   virtual bool vcol_assignment_allowed_value() const { return false; }
   /* cloning of constant items (0 if it is not const) */
   virtual Item *clone_item(THD *thd) { return 0; }
+  /*
+    TODO: build_clone() cannot be used without buffers_realloc_processor() if
+    Items were fixed on different Query_arena. That is because String buffers
+    are allocated on that arena and build_clone() does not reallocate these
+    buffers.
+  */
   virtual Item* build_clone(THD *thd, MEM_ROOT *mem_root) { return get_copy(thd, mem_root); }
   virtual cond_result eq_cmp_result() const { return COND_OK; }
   inline uint float_length(uint decimals_par) const
@@ -1684,6 +1690,10 @@ public:
   /*========= Item processors, to be used with Item::walk() ========*/
   virtual bool remove_dependence_processor(void *arg) { return 0; }
   virtual bool cached_table_cleanup_processor(void * arg) { return 0; }
+  virtual bool buffers_realloc_processor(void * arg)
+  {
+    return str_value.copy();
+  }
   virtual bool cleanup_processor(void *arg);
   virtual bool cleanup_excluding_fields_processor(void *arg) { return cleanup_processor(arg); }
   virtual bool cleanup_excluding_const_fields_processor(void *arg) { return cleanup_processor(arg); }
@@ -3270,6 +3280,14 @@ public:
 
   bool append_for_log(THD *thd, String *str);
   bool check_vcol_func_processor(void *int_arg) {return FALSE;}
+  bool buffers_realloc_processor(void * arg)
+  {
+    if (Item_basic_value::buffers_realloc_processor(arg))
+      return true;
+    str_value_ptr.set(str_value.ptr(), str_value.length(),
+                      str_value.charset());
+    return false;
+  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root) { return 0; }
 
   bool add_as_clone(THD *thd);
@@ -5962,6 +5980,12 @@ public:
   int save_in_field(Field *field, bool no_conversions);
   bool cache_value();
   Item *convert_to_basic_const_item(THD *thd);
+  bool buffers_realloc_processor(void * arg)
+  {
+    if (Item_cache::buffers_realloc_processor(arg))
+      return true;
+    return value_buff.copy();
+  }
   Item *get_copy(THD *thd, MEM_ROOT *mem_root)
   { return get_item_copy<Item_cache_str>(thd, mem_root, this); }
 };
