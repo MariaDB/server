@@ -1,0 +1,66 @@
+--source ../include/mdev_25808_init.inc
+--echo
+--echo this test is for MDEV-25808
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_query_log
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+  c1 BIGINT(20) UNSIGNED DEFAULT NULL
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+eval CREATE TABLE tbl_a (
+  c1 BIGINT(20) UNSIGNED DEFAULT NULL
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+--enable_query_log
+insert into tbl_a(c1) values (6800281190650363904), (6800283342014005248), (6800281443222175744), (6800288474713833472), (6800293877182906368), (6800283053403160576), (6800286406840958976), (17864960750176564435);
+
+--echo
+--echo test 1
+
+--connection child2_1
+TRUNCATE TABLE mysql.general_log;
+
+--connection master_1
+SELECT * FROM tbl_a WHERE c1 = 17864960750176564435;
+PREPARE p1 FROM 'select * FROM tbl_a WHERE c1 = ?';
+EXECUTE p1 USING 17864960750176564435;
+DEALLOCATE PREPARE p1;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+
+--enable_warnings
+--source ../include/mdev_25808_deinit.inc
+--echo
+--echo end of test
