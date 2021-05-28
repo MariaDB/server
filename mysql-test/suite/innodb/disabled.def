@@ -11,3 +11,4 @@
 ##############################################################################
 
 create-index-debug : MDEV-13680 InnoDB may crash when btr_page_alloc() fails
+innodb_stats_drop_locked : MDEV-25506 FIXME: do statistics in the same trx

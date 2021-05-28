@@ -897,17 +897,6 @@ rec_corrupted:
   return 0;
 }
 
-/** @return whether SYS_TABLES.NAME is for a '#sql-ib' table */
-bool dict_table_t::is_garbage_name(const void *data, size_t size)
-{
-  constexpr size_t suffix= sizeof TEMP_FILE_PREFIX_INNODB;
-  if (size <= suffix)
-    return false;
-  const char *f= static_cast<const char*>(memchr(data, '/', size - suffix));
-  return f && !memcmp(f + 1, TEMP_FILE_PREFIX_INNODB,
-                      (sizeof TEMP_FILE_PREFIX_INNODB) - 1);
-}
-
 /*********************************************************************//**
 Creates a table create graph.
 @return own: table create node */
@@ -1403,9 +1392,7 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
                                 "\"test/" TEMP_FILE_PREFIX_INNODB
                                 "-garbage\"(ID);\n"
                                 "END;\n", false, trx));
-                  row_drop_table_for_mysql("test/"
-                                           TEMP_FILE_PREFIX_INNODB "-garbage",
-                                           trx, SQLCOM_DROP_DB, true););
+		  trx->rollback(););
 
   /* NOTE: when designing InnoDB's foreign key support in 2001, Heikki Tuuri
   made a mistake defined table names and the foreign key id to be of type

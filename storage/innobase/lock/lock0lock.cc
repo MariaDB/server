@@ -1265,7 +1265,7 @@ lock_rec_enqueue_waiting(
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(trx->mutex_is_owner());
 
-	if (UNIV_UNLIKELY(trx->dict_operation)) {
+	if (UNIV_UNLIKELY(trx->dict_operation_lock_mode == RW_X_LATCH)) {
 		ib::error() << "A record lock wait happens in a dictionary"
 			" operation. index "
 			<< index->name
@@ -3314,7 +3314,7 @@ lock_table_enqueue_waiting(
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(trx->mutex_is_owner());
 
-	if (UNIV_UNLIKELY(trx->dict_operation)) {
+	if (UNIV_UNLIKELY(trx->dict_operation_lock_mode == RW_X_LATCH)) {
 		ib::error() << "A table lock wait happens in a dictionary"
 			" operation. Table " << table->name
 			<< ". " << BUG_REPORT_MSG;

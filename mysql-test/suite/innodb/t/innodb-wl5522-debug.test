@@ -1014,6 +1014,7 @@ do "$ENV{MTR_SUITE_DIR}/include/innodb-util.pl";
 ib_restore_tablespaces("test", "t1");
 EOF
 
+ALTER TABLE t1 IMPORT TABLESPACE;
 DROP TABLE t1;
 
 #

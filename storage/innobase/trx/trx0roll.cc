@@ -59,6 +59,8 @@ const trx_t*		trx_roll_crash_recv_trx;
 @retval	false	if the rollback was aborted by shutdown  */
 inline bool trx_t::rollback_finish()
 {
+  mod_tables.clear();
+
   if (UNIV_LIKELY(error_state == DB_SUCCESS))
   {
     commit();
@@ -89,6 +91,7 @@ inline bool trx_t::rollback_finish()
     undo= nullptr;
   }
   commit_low();
+  commit_cleanup();
   return false;
 }
 

@@ -853,14 +853,6 @@ static ulint dict_check_sys_tables()
 			rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__NAME,
 					      &len));
 
-		if (len == UNIV_SQL_NULL
-		    || dict_table_t::is_garbage_name(field, len)) {
-			/* This table will be dropped by
-			dict_table_t::drop_garbage().
-			We do not care if the file exists. */
-			continue;
-		}
-
 		DBUG_PRINT("dict_check_sys_tables",
 			   ("name: %*.s", static_cast<int>(len), field));
 

@@ -518,8 +518,12 @@ public:
   /** Close each file. Only invoked on fil_system.temp_space. */
   void close();
 
-  /** Note that operations on the tablespace must stop or can resume */
-  inline void set_stopping(bool stopping);
+  /** Note that operations on the tablespace must stop.
+  @return whether the operations were already stopped */
+  inline bool set_stopping();
+
+  /** Note that operations on the tablespace can resume after truncation */
+  inline void clear_stopping();
 
   /** Look up the tablespace and wait for pending operations to cease
   @param id  tablespace identifier
@@ -1508,12 +1512,19 @@ inline void fil_space_t::reacquire()
 #endif /* SAFE_MUTEX */
 }
 
-/** Note that operations on the tablespace must stop or can resume */
-inline void fil_space_t::set_stopping(bool stopping)
+/** Note that operations on the tablespace must stop.
+@return whether the operations were already stopped */
+inline bool fil_space_t::set_stopping()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_d(auto n=) n_pending.fetch_xor(STOPPING, std::memory_order_relaxed);
-  ut_ad(!(n & STOPPING) == stopping);
+  return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
+}
+
+inline void fil_space_t::clear_stopping()
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  ut_d(auto n=) n_pending.fetch_and(~STOPPING, std::memory_order_relaxed);
+  ut_ad(n & STOPPING);
 }
 
 /** Flush pending writes from the file system cache to the file. */
@@ -1595,13 +1606,12 @@ fil_write_flushed_lsn(
 	lsn_t	lsn)
 MY_ATTRIBUTE((warn_unused_result));
 
+MY_ATTRIBUTE((warn_unused_result))
 /** Delete a tablespace and associated .ibd file.
-@param[in]	id		tablespace identifier
-@param[in]	if_exists	whether to ignore missing tablespace
-@param[out]	detached	deatched file handle (if closing is not wanted)
-@return	DB_SUCCESS or error */
-dberr_t fil_delete_tablespace(ulint id, bool if_exists= false,
-                              pfs_os_file_t *detached= nullptr);
+@param id    tablespace identifier
+@return detached file handle (to be closed by the caller)
+@return	OS_FILE_CLOSED if no file existed */
+pfs_os_file_t fil_delete_tablespace(ulint id);
 
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
 The tablespace must be cached in the memory cache.

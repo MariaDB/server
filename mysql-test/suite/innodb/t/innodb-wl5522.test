@@ -96,6 +96,10 @@ if ($checksum_algorithm == "strict_full_crc32") {
 ALTER TABLE t2 IMPORT TABLESPACE;
 DROP TABLE t2;
 
+if ($error_code) {
+--remove_file $MYSQLD_DATADIR/test/t2.ibd
+}
+
 SET GLOBAL innodb_file_per_table = 1;
 SELECT @@innodb_file_per_table;
 

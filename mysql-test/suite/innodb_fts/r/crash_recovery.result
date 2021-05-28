@@ -151,6 +151,5 @@ id	title	body
 1	MySQL Tutorial	DBMS stands for Database...
 2	MariaDB Tutorial	DB means Database ...
 DROP TABLE mdev19073, mdev19073_2;
-SELECT * FROM information_schema.innodb_sys_tables
-WHERE name LIKE 'test/%' AND name NOT LIKE 'test/#sql-ib%';
+SELECT * FROM information_schema.innodb_sys_tables WHERE name LIKE 'test/%';
 TABLE_ID	NAME	FLAG	N_COLS	SPACE	ROW_FORMAT	ZIP_PAGE_SIZE	SPACE_TYPE

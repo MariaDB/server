@@ -694,7 +694,8 @@ not_free:
 
 		/* Adjust the tablespace metadata. */
 		mysql_mutex_lock(&fil_system.mutex);
-		space.set_stopping(true);
+		ut_d(bool stopped=) space.set_stopping();
+		ut_ad(!stopped);
 		space.is_being_truncated = true;
 		if (space.crypt_data) {
 			space.reacquire();
@@ -806,7 +807,7 @@ not_free:
 		mysql_mutex_lock(&fil_system.mutex);
 		ut_ad(&space == purge_sys.truncate.current);
 		ut_ad(space.is_being_truncated);
-		purge_sys.truncate.current->set_stopping(false);
+		purge_sys.truncate.current->clear_stopping();
 		purge_sys.truncate.current->is_being_truncated = false;
 		mysql_mutex_unlock(&fil_system.mutex);
 

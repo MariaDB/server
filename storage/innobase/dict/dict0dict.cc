@@ -1490,25 +1490,7 @@ dict_table_t::rename_tablespace(const char *new_name, bool replace) const
   ut_ad(!is_temporary());
 
   if (!space)
-  {
-    const char *data_dir= DICT_TF_HAS_DATA_DIR(flags)
-      ? data_dir_path : nullptr;
-    ut_ad(data_dir || !DICT_TF_HAS_DATA_DIR(flags));
-
-    if (char *filepath= fil_make_filepath(data_dir, name, IBD,
-                                          data_dir != nullptr))
-    {
-      fil_delete_tablespace(space_id, true);
-      os_file_type_t ftype;
-      bool exists;
-      /* Delete any temp file hanging around. */
-      if (os_file_status(filepath, &exists, &ftype) && exists &&
-          !os_file_delete_if_exists(innodb_temp_file_key, filepath, nullptr))
-        ib::info() << "Delete of " << filepath << " failed.";
-      ut_free(filepath);
-    }
     return DB_SUCCESS;
-  }
 
   const char *old_path= UT_LIST_GET_FIRST(space->chain)->name;
   fil_space_t::name_type space_name{new_name, strlen(new_name)};

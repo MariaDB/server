@@ -38,7 +38,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "ilist.h"
 
 #include <vector>
-#include <set>
 
 // Forward declaration
 struct mtr_t;
@@ -412,7 +411,8 @@ class trx_mod_table_time_t
 
   /** First modification of the table, possibly ORed with BULK */
   undo_no_t first;
-  /** First modification of a system versioned column (or NONE) */
+  /** First modification of a system versioned column
+  (NONE= no versioning, BULK= the table was dropped) */
   undo_no_t first_versioned= NONE;
 public:
   /** Constructor
@@ -427,15 +427,24 @@ public:
   { auto f= first & LIMIT; return f <= first_versioned && f <= rows; }
 #endif /* UNIV_DEBUG */
   /** @return if versioned columns were modified */
-  bool is_versioned() const { return first_versioned != NONE; }
+  bool is_versioned() const { return (~first_versioned & LIMIT) != 0; }
+  /** @return if the table was dropped */
+  bool is_dropped() const { return first_versioned == BULK; }
 
   /** After writing an undo log record, set is_versioned() if needed
   @param rows   number of modified rows so far */
   void set_versioned(undo_no_t rows)
   {
-    ut_ad(!is_versioned());
+    ut_ad(first_versioned == NONE);
     first_versioned= rows;
     ut_ad(valid(rows));
+  }
+
+  /** After writing an undo log record, note that the table will be dropped */
+  void set_dropped()
+  {
+    ut_ad(first_versioned == NONE);
+    first_versioned= BULK;
   }
 
   /** Notify the start of a bulk insert operation */
@@ -923,12 +932,36 @@ private:
   inline void commit_tables();
   /** Mark a transaction committed in the main memory data structures. */
   inline void commit_in_memory(const mtr_t *mtr);
+  /** Write log for committing the transaction. */
+  void commit_persist();
+  /** Clean up the transaction after commit_in_memory() */
+  void commit_cleanup();
   /** Commit the transaction in a mini-transaction.
   @param mtr  mini-transaction (if there are any persistent modifications) */
   void commit_low(mtr_t *mtr= nullptr);
 public:
   /** Commit the transaction. */
   void commit();
+
+
+  /** Try to drop a persistent table.
+  @param table       persistent table
+  @param fk          whether to drop FOREIGN KEY metadata
+  @return error code */
+  dberr_t drop_table(const dict_table_t &table);
+  /** Try to drop the foreign key constraints for a persistent table.
+  @param name        name of persistent table
+  @return error code */
+  dberr_t drop_table_foreign(const table_name_t &name);
+  /** Try to drop the statistics for a persistent table.
+  @param name        name of persistent table
+  @return error code */
+  dberr_t drop_table_statistics(const table_name_t &name);
+
+
+  /** Commit the transaction, possibly after drop_table().
+  @param deleted   handles of data files that were deleted */
+  void commit(std::vector<pfs_os_file_t> &deleted);
 
 
   /** Discard all savepoints */

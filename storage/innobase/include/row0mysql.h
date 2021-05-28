@@ -37,11 +37,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "fts0fts.h"
 #include "gis0type.h"
 
-#include "sql_list.h"
-#include "sql_cmd.h"
-
-extern ibool row_rollback_on_timeout;
-
 struct row_prebuilt_t;
 class ha_innobase;
 
@@ -378,17 +373,6 @@ row_create_index_for_mysql(
 	uint32_t	key_id)	/*!< in: encryption key_id */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/** The master task calls this regularly to drop tables which
-we must drop in background after queries to them have ended.
-@return how many tables dropped + remaining tables in list */
-ulint row_drop_tables_for_mysql_in_background();
-
-/** @return number of tables in the background drop list */
-ulint row_get_background_drop_list_len_low();
-
-/** Drop garbage tables during recovery. */
-void row_mysql_drop_garbage_tables();
-
 /*********************************************************************//**
 Sets an exclusive lock on a table.
 @return error code or DB_SUCCESS */
@@ -401,36 +385,12 @@ row_mysql_lock_table(
 	const char*	op_info)	/*!< in: string for trx->op_info */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Drop a table.
-If the data dictionary was not already locked by the transaction,
-the transaction will be committed.  Otherwise, the data dictionary
-will remain locked.
-@param[in]	name		Table name
-@param[in,out]	trx		Transaction handle
-@param[in]	sqlcom		type of SQL operation
-@param[in]	create_failed	true=create table failed
-				because e.g. foreign key column
-@param[in]	nonatomic	Whether it is permitted to release
-				and reacquire dict_sys.latch
-@return error code */
-dberr_t
-row_drop_table_for_mysql(
-	const char*		name,
-	trx_t*			trx,
-	enum_sql_command	sqlcom,
-	bool			create_failed = false,
-	bool			nonatomic = true);
-
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding
 means that this function deletes the .ibd file and assigns a new table id for
 the table. Also the file_unreadable flag is set.
 @return error code or DB_SUCCESS */
-dberr_t
-row_discard_tablespace_for_mysql(
-/*=============================*/
-	const char*	name,	/*!< in: table name */
-	trx_t*		trx)	/*!< in: transaction handle */
+dberr_t row_discard_tablespace_for_mysql(dict_table_t *table, trx_t *trx)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 /*****************************************************************//**
 Imports a tablespace. The space id in the .ibd file must match the space id
@@ -472,17 +432,6 @@ row_scan_index_for_mysql(
 	ulint*			n_rows)		/*!< out: number of entries
 						seen in the consistent read */
 	MY_ATTRIBUTE((warn_unused_result));
-/*********************************************************************//**
-Initialize this module */
-void
-row_mysql_init(void);
-/*================*/
-
-/*********************************************************************//**
-Close this module */
-void
-row_mysql_close(void);
-/*=================*/
 
 /* A struct describing a place for an individual column in the MySQL
 row format which is presented to the table handler in ha_innobase.
@@ -945,11 +894,5 @@ innobase_rename_vc_templ(
 #define ROW_READ_WITH_LOCKS		0
 #define ROW_READ_TRY_SEMI_CONSISTENT	1
 #define ROW_READ_DID_SEMI_CONSISTENT	2
-
-#ifdef UNIV_DEBUG
-/** Wait for the background drop list to become empty. */
-void
-row_wait_for_background_drop_list_empty();
-#endif /* UNIV_DEBUG */
 
 #endif /* row0mysql.h */

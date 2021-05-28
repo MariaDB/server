@@ -140,6 +140,27 @@ restart:
 		mem_heap_free(heap);
 	} else {
 		switch (node->table->id) {
+		case DICT_COLUMNS_ID:
+			/* This is rolling back an INSERT into SYS_COLUMNS.
+			If it was part of an instant ALTER TABLE operation, we
+			must evict the table definition, so that it can be
+			reloaded after the dictionary operation has been
+			completed. At this point, any corresponding operation
+			to the metadata record will have been rolled back. */
+			ut_ad(!online);
+			ut_ad(node->trx->dict_operation_lock_mode
+			      == RW_X_LATCH);
+			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
+			if (rec_get_n_fields_old(rec)
+			    != DICT_NUM_FIELDS__SYS_COLUMNS
+			    || (rec_get_1byte_offs_flag(rec)
+				? rec_1_get_field_end_info(rec, 0) != 8
+				: rec_2_get_field_end_info(rec, 0) != 8)) {
+				break;
+			}
+			static_assert(!DICT_FLD__SYS_COLUMNS__TABLE_ID, "");
+			node->trx->evict_table(mach_read_from_8(rec));
+			break;
 		case DICT_INDEXES_ID:
 			ut_ad(!online);
 			ut_ad(node->trx->dict_operation_lock_mode
@@ -153,6 +174,8 @@ restart:
 				}
 				ut_ad("corrupted SYS_INDEXES record" == 0);
 			}
+
+			pfs_os_file_t d = OS_FILE_CLOSED;
 
 			if (const uint32_t space_id = dict_drop_index_tree(
 				    &node->pcur, node->trx, &mtr)) {
@@ -185,36 +208,19 @@ restart:
 					}
 				}
 
-				fil_delete_tablespace(space_id, true);
+				d = fil_delete_tablespace(space_id);
 			}
 
 			mtr.commit();
+
+			if (d != OS_FILE_CLOSED) {
+				os_file_close(d);
+			}
 
 			mtr.start();
 			success = btr_pcur_restore_position(
 				BTR_MODIFY_LEAF, &node->pcur, &mtr);
 			ut_a(success);
-			break;
-		case DICT_COLUMNS_ID:
-			/* This is rolling back an INSERT into SYS_COLUMNS.
-			If it was part of an instant ALTER TABLE operation, we
-			must evict the table definition, so that it can be
-			reloaded after the dictionary operation has been
-			completed. At this point, any corresponding operation
-			to the metadata record will have been rolled back. */
-			ut_ad(!online);
-			ut_ad(node->trx->dict_operation_lock_mode
-			      == RW_X_LATCH);
-			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
-			if (rec_get_n_fields_old(rec)
-			    != DICT_NUM_FIELDS__SYS_COLUMNS
-			    || (rec_get_1byte_offs_flag(rec)
-				? rec_1_get_field_end_info(rec, 0) != 8
-				: rec_2_get_field_end_info(rec, 0) != 8)) {
-				break;
-			}
-			static_assert(!DICT_FLD__SYS_COLUMNS__TABLE_ID, "");
-			node->trx->evict_table(mach_read_from_8(rec));
 		}
 	}
 

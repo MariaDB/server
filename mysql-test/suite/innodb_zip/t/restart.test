@@ -162,11 +162,8 @@ SELECT count(*) FROM t7_restart;
 --echo #
 --source include/shutdown_mysqld.inc
 
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
-
 --echo ---- MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
@@ -174,7 +171,6 @@ SELECT count(*) FROM t7_restart;
 --list_files $MYSQL_TMP_DIR/alt_dir
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
@@ -263,13 +259,11 @@ SHOW CREATE TABLE t7_restart;
 
 --echo ---- MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
@@ -320,13 +314,11 @@ RENAME TABLE t5_restart TO t55_restart;
 
 --echo ---- MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
@@ -358,13 +350,11 @@ SHOW CREATE TABLE t77_restart;
 
 --echo ---- MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
@@ -404,19 +394,16 @@ SHOW CREATE TABLE t77_restart;
 --mkdir $MYSQL_TMP_DIR/new_dir/test
 --echo ---- MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/new_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
@@ -466,19 +453,16 @@ SHOW CREATE TABLE t77_restart;
 
 --echo ---- MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/alt_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/alt_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/new_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
@@ -522,13 +506,11 @@ SHOW CREATE TABLE t77_restart;
 
 --echo ---- MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/new_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
@@ -570,13 +552,11 @@ SHOW CREATE TABLE t77_restart;
 
 --echo ---- MYSQL_DATA_DIR/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_DATA_DIR/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt
 --echo ---- MYSQL_TMP_DIR/new_dir/test
 --list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQL_TMP_DIR/new_dir/test
---replace_regex $regexp
 --replace_result #P# #p#  #SP# #sp#
 --cat_file $MYSQLD_DATADIR.files.txt
 --remove_file $MYSQLD_DATADIR.files.txt

@@ -1427,6 +1427,10 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   ut_ad(!(lock.was_chosen_as_deadlock_victim & byte(~2U)));
   lock.was_chosen_as_deadlock_victim= false;
 #endif /* WITH_WSREP */
+}
+
+void trx_t::commit_cleanup()
+{
   mutex.wr_lock();
   dict_operation= false;
 
@@ -1498,7 +1502,7 @@ void trx_t::commit_low(mtr_t *mtr)
 }
 
 
-void trx_t::commit()
+void trx_t::commit_persist()
 {
   mtr_t *mtr= nullptr;
   mtr_t local_mtr;
@@ -1510,6 +1514,15 @@ void trx_t::commit()
   }
   commit_low(mtr);
 }
+
+
+void trx_t::commit()
+{
+  commit_persist();
+  ut_d(for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped()));
+  commit_cleanup();
+}
+
 
 /****************************************************************//**
 Prepares a transaction for commit/rollback. */

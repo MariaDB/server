@@ -677,7 +677,6 @@ srv_boot(void)
 {
 	srv_thread_pool_init();
 	trx_pool_init();
-	row_mysql_init();
 	srv_init();
 }
 
@@ -1471,10 +1470,7 @@ The master thread is tasked to ensure that flush of log file happens
 once every second in the background. This is to ensure that not more
 than one second of trxs are lost in case of crash when
 innodb_flush_logs_at_trx_commit != 1 */
-static
-void
-srv_sync_log_buffer_in_background(void)
-/*===================================*/
+static void srv_sync_log_buffer_in_background()
 {
 	time_t	current_time = time(NULL);
 
@@ -1496,8 +1492,6 @@ srv_shutdown_print_master_pending(
 /*==============================*/
 	time_t*		last_print_time,	/*!< last time the function
 						print the message */
-	ulint		n_tables_to_drop,	/*!< number of tables to
-						be dropped */
 	ulint		n_bytes_merged)		/*!< number of change buffer
 						just merged */
 {
@@ -1505,11 +1499,6 @@ srv_shutdown_print_master_pending(
 
 	if (difftime(current_time, *last_print_time) > 60) {
 		*last_print_time = current_time;
-
-		if (n_tables_to_drop) {
-			ib::info() << "Waiting for " << n_tables_to_drop
-				<< " table(s) to be dropped";
-		}
 
 		/* Check change buffer merge, we only wait for change buffer
 		merge if it is a slow shutdown */
@@ -1585,14 +1574,6 @@ srv_master_do_active_tasks(void)
 
 	MONITOR_INC(MONITOR_MASTER_ACTIVE_LOOPS);
 
-	/* ALTER TABLE in MySQL requires on Unix that the table handler
-	can drop tables lazily after there no longer are SELECT
-	queries to them. */
-	srv_main_thread_op_info = "doing background drop tables";
-	row_drop_tables_for_mysql_in_background();
-	MONITOR_INC_TIME_IN_MICRO_SECS(
-		MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND, counter_time);
-
 	ut_d(srv_master_do_disabled_loop());
 
 	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
@@ -1646,17 +1627,6 @@ srv_master_do_idle_tasks(void)
 
 	MONITOR_INC(MONITOR_MASTER_IDLE_LOOPS);
 
-
-	/* ALTER TABLE in MySQL requires on Unix that the table handler
-	can drop tables lazily after there no longer are SELECT
-	queries to them. */
-	ulonglong counter_time = microsecond_interval_timer();
-	srv_main_thread_op_info = "doing background drop tables";
-	row_drop_tables_for_mysql_in_background();
-	MONITOR_INC_TIME_IN_MICRO_SECS(
-		MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND,
-			 counter_time);
-
 	ut_d(srv_master_do_disabled_loop());
 
 	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
@@ -1672,6 +1642,7 @@ srv_master_do_idle_tasks(void)
 		return;
 	}
 
+	ulonglong counter_time = microsecond_interval_timer();
 	srv_main_thread_op_info = "enforcing dict cache limit";
 	if (ulint n_evicted = dict_sys.evict_table_LRU(false)) {
 		MONITOR_INC_VALUE(
@@ -1692,18 +1663,12 @@ and optionally change buffer merge (on innodb_fast_shutdown=0). */
 void srv_shutdown(bool ibuf_merge)
 {
 	ulint		n_bytes_merged	= 0;
-	ulint		n_tables_to_drop;
 	time_t		now = time(NULL);
 
 	do {
 		ut_ad(!srv_read_only_mode);
 		ut_ad(srv_shutdown_state == SRV_SHUTDOWN_CLEANUP);
 		++srv_main_shutdown_loops;
-
-		/* FIXME: Remove the background DROP TABLE queue; it is not
-		crash-safe and breaks ACID. */
-		srv_main_thread_op_info = "doing background drop tables";
-		n_tables_to_drop = row_drop_tables_for_mysql_in_background();
 
 		if (ibuf_merge) {
 			srv_main_thread_op_info = "checking free log space";
@@ -1717,10 +1682,10 @@ void srv_shutdown(bool ibuf_merge)
 
 		/* Print progress message every 60 seconds during shutdown */
 		if (srv_print_verbose_log) {
-			srv_shutdown_print_master_pending(
-				&now, n_tables_to_drop, n_bytes_merged);
+			srv_shutdown_print_master_pending(&now,
+							  n_bytes_merged);
 		}
-	} while (n_bytes_merged || n_tables_to_drop);
+	} while (n_bytes_merged);
 }
 
 /** The periodic master task controlling the server. */

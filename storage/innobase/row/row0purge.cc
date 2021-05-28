@@ -184,7 +184,7 @@ close_and_exit:
 					mdl_ticket = nullptr;
 				}
 			}
-			fil_delete_tablespace(space_id, true, &f);
+			f = fil_delete_tablespace(space_id);
 		}
 
 		mtr.commit();

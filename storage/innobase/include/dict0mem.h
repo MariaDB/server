@@ -2100,12 +2100,6 @@ public:
 	/** TRUE if the table object has been added to the dictionary cache. */
 	unsigned				cached:1;
 
-	/** TRUE if the table is to be dropped, but not yet actually dropped
-	(could in the background drop list). It is turned on at the beginning
-	of row_drop_table_for_mysql() and turned off just before we start to
-	update system tables for the drop. It is protected by dict_sys.latch. */
-	unsigned				to_be_dropped:1;
-
 	/** Number of non-virtual columns defined so far. */
 	unsigned				n_def:10;
 
@@ -2439,9 +2433,6 @@ public:
   static dict_table_t *create(const span<const char> &name, fil_space_t *space,
                               ulint n_cols, ulint n_v_cols, ulint flags,
                               ulint flags2);
-
-  /** @return whether SYS_TABLES.NAME is for a '#sql-ib' table */
-  static bool is_garbage_name(const void *data, size_t size);
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

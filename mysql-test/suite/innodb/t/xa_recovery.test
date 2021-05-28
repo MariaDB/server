@@ -39,9 +39,9 @@ let $wait_condition=
         info = 'SELECT * FROM t1 LOCK IN SHARE MODE';
 --source include/wait_condition.inc
 
+SET innodb_lock_wait_timeout=1;
+--error ER_LOCK_WAIT_TIMEOUT
 DROP TABLE t2;
-
---source include/restart_mysqld.inc
 
 disconnect con1;
 
@@ -51,8 +51,10 @@ XA ROLLBACK 'x';
 SELECT * FROM t1;
 
 DROP TABLE t1;
+--error ER_LOCK_WAIT_TIMEOUT
+DROP TABLE t2;
+XA ROLLBACK 'y';
+DROP TABLE t2;
 
 SET GLOBAL innodb_fast_shutdown=0;
 --source include/restart_mysqld.inc
-
-XA ROLLBACK 'y';

@@ -1836,14 +1836,14 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		check_table->dec_fk_checks();
-
 		if (err != DB_SUCCESS) {
-		} else if (check_table->to_be_dropped) {
+		} else if (check_table->name.is_temporary()) {
 			err = DB_LOCK_WAIT_TIMEOUT;
 		} else {
 			err = DB_LOCK_WAIT;
 		}
+
+		check_table->dec_fk_checks();
 	}
 
 exit_func:

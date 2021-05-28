@@ -52,11 +52,7 @@ insert into t1 values (1), (11), (21), (33);
 SELECT * FROM t1;
 SHOW CREATE TABLE t1;
 --replace_result #p# #P# #sp# #SP#
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQLD_DATADIR/test
---replace_regex $regexp
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQLD_DATADIR/test
 
 SET DEBUG_SYNC='before_open_in_get_all_tables SIGNAL parked WAIT_FOR open';
 SET DEBUG_SYNC='partition_open_error SIGNAL alter WAIT_FOR finish';

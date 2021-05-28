@@ -74,29 +74,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "wsrep_mysqld.h"
 #endif
 
-/** Provide optional 4.x backwards compatibility for 5.0 and above */
-ibool	row_rollback_on_timeout	= FALSE;
-
-/** Chain node of the list of tables to drop in the background. */
-struct row_mysql_drop_t{
-	table_id_t			table_id;	/*!< table id */
-	UT_LIST_NODE_T(row_mysql_drop_t)row_mysql_drop_list;
-							/*!< list chain node */
-};
-
-/** @brief List of tables we should drop in background.
-
-ALTER TABLE in MySQL requires that the table handler can drop the
-table in background when there are no queries to it any
-more.  Protected by row_drop_list_mutex. */
-static UT_LIST_BASE_NODE_T(row_mysql_drop_t)	row_mysql_drop_list;
-
-/** Mutex protecting the background table drop list. */
-static mysql_mutex_t row_drop_list_mutex;
-
-/** Flag: has row_mysql_drop_list been initialized? */
-static bool row_mysql_drop_list_inited;
-
 /*******************************************************************//**
 Determine if the given name is a name reserved for MySQL system tables.
 @return TRUE if name is a MySQL system table name */
@@ -115,21 +92,6 @@ row_mysql_is_system_table(
 	       || 0 == strcmp(name + 6, "user")
 	       || 0 == strcmp(name + 6, "db"));
 }
-
-#ifdef UNIV_DEBUG
-/** Wait for the background drop list to become empty. */
-void
-row_wait_for_background_drop_list_empty()
-{
-	bool	empty = false;
-	while (!empty) {
-		mysql_mutex_lock(&row_drop_list_mutex);
-		empty = (UT_LIST_GET_LEN(row_mysql_drop_list) == 0);
-		mysql_mutex_unlock(&row_drop_list_mutex);
-		std::this_thread::sleep_for(std::chrono::milliseconds(100));
-	}
-}
-#endif /* UNIV_DEBUG */
 
 /*******************************************************************//**
 Delays an INSERT, DELETE or UPDATE operation if the purge is lagging. */
@@ -701,7 +663,8 @@ handle_new_error:
 
 	switch (err) {
 	case DB_LOCK_WAIT_TIMEOUT:
-		if (row_rollback_on_timeout) {
+		extern my_bool innobase_rollback_on_timeout;
+		if (innobase_rollback_on_timeout) {
 			goto rollback;
 		}
 		/* fall through */
@@ -2476,258 +2439,6 @@ row_create_index_for_mysql(
 	return(err);
 }
 
-/*********************************************************************//**
-Drops a table for MySQL as a background operation. MySQL relies on Unix
-in ALTER TABLE to the fact that the table handler does not remove the
-table before all handles to it has been removed. Furhermore, the MySQL's
-call to drop table must be non-blocking. Therefore we do the drop table
-as a background operation, which is taken care of by the master thread
-in srv0srv.cc.
-@return error code or DB_SUCCESS */
-static
-dberr_t
-row_drop_table_for_mysql_in_background(
-/*===================================*/
-	const char*	name)	/*!< in: table name */
-{
-	dberr_t	error;
-	trx_t*	trx;
-
-	trx = trx_create();
-
-	/* If the original transaction was dropping a table referenced by
-	foreign keys, we must set the following to be able to drop the
-	table: */
-
-	trx->check_foreigns = false;
-
-	/* Try to drop the table in InnoDB */
-
-	error = row_drop_table_for_mysql(name, trx, SQLCOM_TRUNCATE);
-
-	trx_commit_for_mysql(trx);
-
-	trx->free();
-
-	return(error);
-}
-
-/*********************************************************************//**
-The master thread in srv0srv.cc calls this regularly to drop tables which
-we must drop in background after queries to them have ended. Such lazy
-dropping of tables is needed in ALTER TABLE on Unix.
-@return how many tables dropped + remaining tables in list */
-ulint
-row_drop_tables_for_mysql_in_background(void)
-/*=========================================*/
-{
-	row_mysql_drop_t*	drop;
-	dict_table_t*		table;
-	ulint			n_tables;
-	ulint			n_tables_dropped = 0;
-loop:
-	mysql_mutex_lock(&row_drop_list_mutex);
-
-	ut_a(row_mysql_drop_list_inited);
-next:
-	drop = UT_LIST_GET_FIRST(row_mysql_drop_list);
-
-	n_tables = UT_LIST_GET_LEN(row_mysql_drop_list);
-
-	mysql_mutex_unlock(&row_drop_list_mutex);
-
-	if (drop == NULL) {
-		/* All tables dropped */
-
-		return(n_tables + n_tables_dropped);
-	}
-
-	/* On fast shutdown, just empty the list without dropping tables. */
-	table = srv_shutdown_state == SRV_SHUTDOWN_NONE || !srv_fast_shutdown
-		? dict_table_open_on_id(drop->table_id, FALSE,
-					DICT_TABLE_OP_OPEN_ONLY_IF_CACHED)
-		: NULL;
-
-	if (!table) {
-		n_tables_dropped++;
-		mysql_mutex_lock(&row_drop_list_mutex);
-		UT_LIST_REMOVE(row_mysql_drop_list, drop);
-		MONITOR_DEC(MONITOR_BACKGROUND_DROP_TABLE);
-		ut_free(drop);
-		goto next;
-	}
-
-	ut_a(!table->can_be_evicted);
-
-	bool skip = false;
-
-	if (!table->to_be_dropped) {
-skip:
-		dict_table_close(table, FALSE, FALSE);
-
-		mysql_mutex_lock(&row_drop_list_mutex);
-		UT_LIST_REMOVE(row_mysql_drop_list, drop);
-		if (!skip) {
-			UT_LIST_ADD_LAST(row_mysql_drop_list, drop);
-		} else {
-			ut_free(drop);
-		}
-		goto next;
-	}
-
-	if (!srv_fast_shutdown && !trx_sys.any_active_transactions()) {
-		table->lock_mutex_lock();
-		skip = UT_LIST_GET_LEN(table->locks) != 0;
-		table->lock_mutex_unlock();
-		if (skip) {
-			/* We cannot drop tables that are locked by XA
-			PREPARE transactions. */
-			goto skip;
-		}
-	}
-
-	char* name = mem_strdup(table->name.m_name);
-
-	dict_table_close(table, FALSE, FALSE);
-
-	dberr_t err = row_drop_table_for_mysql_in_background(name);
-
-	ut_free(name);
-
-	if (err != DB_SUCCESS) {
-		/* If the DROP fails for some table, we return, and let the
-		main thread retry later */
-		return(n_tables + n_tables_dropped);
-	}
-
-	goto loop;
-}
-
-/*********************************************************************//**
-Get the background drop list length. NOTE: the caller must own the
-drop list mutex!
-@return how many tables in list */
-ulint
-row_get_background_drop_list_len_low(void)
-/*======================================*/
-{
-	ulint	len;
-
-	mysql_mutex_lock(&row_drop_list_mutex);
-
-	ut_a(row_mysql_drop_list_inited);
-
-	len = UT_LIST_GET_LEN(row_mysql_drop_list);
-
-	mysql_mutex_unlock(&row_drop_list_mutex);
-
-	return(len);
-}
-
-/** Drop garbage tables during recovery. */
-void row_mysql_drop_garbage_tables()
-{
-	btr_pcur_t	pcur;
-	mtr_t		mtr;
-	trx_t*		trx = trx_create();
-	trx->op_info = "dropping garbage tables";
-	row_mysql_lock_data_dictionary(trx);
-
-	mtr.start();
-	btr_pcur_open_at_index_side(
-		true, dict_table_get_first_index(dict_sys.sys_tables),
-		BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
-
-	for (;;) {
-		const rec_t*	rec;
-		const byte*	field;
-		ulint		len;
-
-		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
-
-		if (!btr_pcur_is_on_user_rec(&pcur)) {
-			break;
-		}
-
-		rec = btr_pcur_get_rec(&pcur);
-		if (rec_get_deleted_flag(rec, 0)) {
-			continue;
-		}
-
-		field = rec_get_nth_field_old(rec, 0/*NAME*/, &len);
-		if (len == UNIV_SQL_NULL) {
-			/* Corrupted SYS_TABLES.NAME */
-			continue;
-		}
-
-		if (!dict_table_t::is_garbage_name(field, len)) {
-			continue;
-		}
-
-		btr_pcur_store_position(&pcur, &mtr);
-		btr_pcur_commit_specify_mtr(&pcur, &mtr);
-
-		const span<const char> name = {
-			reinterpret_cast<const char*>(pcur.old_rec), len
-		};
-		if (dict_sys.load_table(name, DICT_ERR_IGNORE_DROP)) {
-			char* table_name = mem_strdupl(name.data(), len);
-			row_drop_table_for_mysql(table_name, trx,
-						 SQLCOM_DROP_TABLE);
-			ut_free(table_name);
-			trx_commit_for_mysql(trx);
-		}
-
-		mtr.start();
-		btr_pcur_restore_position(BTR_SEARCH_LEAF, &pcur, &mtr);
-	}
-
-	btr_pcur_close(&pcur);
-	mtr.commit();
-	row_mysql_unlock_data_dictionary(trx);
-	trx->free();
-}
-
-/*********************************************************************//**
-If a table is not yet in the drop list, adds the table to the list of tables
-which the master thread drops in background. We need this on Unix because in
-ALTER TABLE MySQL may call drop table even if the table has running queries on
-it. Also, if there are running foreign key checks on the table, we drop the
-table lazily.
-@return	whether background DROP TABLE was scheduled for the first time */
-static
-bool
-row_add_table_to_background_drop_list(table_id_t table_id)
-{
-	row_mysql_drop_t*	drop;
-	bool			added = true;
-
-	mysql_mutex_lock(&row_drop_list_mutex);
-
-	ut_a(row_mysql_drop_list_inited);
-
-	/* Look if the table already is in the drop list */
-	for (drop = UT_LIST_GET_FIRST(row_mysql_drop_list);
-	     drop != NULL;
-	     drop = UT_LIST_GET_NEXT(row_mysql_drop_list, drop)) {
-
-		if (drop->table_id == table_id) {
-			added = false;
-			goto func_exit;
-		}
-	}
-
-	drop = static_cast<row_mysql_drop_t*>(ut_malloc_nokey(sizeof *drop));
-	drop->table_id = table_id;
-
-	UT_LIST_ADD_LAST(row_mysql_drop_list, drop);
-
-	MONITOR_INC(MONITOR_BACKGROUND_DROP_TABLE);
-func_exit:
-	mysql_mutex_unlock(&row_drop_list_mutex);
-	return added;
-}
-
 /** Reassigns the table identifier of a table.
 @param[in,out]	table	table
 @param[in,out]	trx	transaction
@@ -2767,42 +2478,6 @@ row_mysql_table_id_reassign(
 		"END;\n", FALSE, trx);
 
 	return(err);
-}
-
-/*********************************************************************//**
-Setup the pre-requisites for DISCARD TABLESPACE. It will start the transaction,
-acquire the data dictionary lock in X mode and open the table.
-@return table instance or 0 if not found. */
-static
-dict_table_t*
-row_discard_tablespace_begin(
-/*=========================*/
-	const char*	name,	/*!< in: table name */
-	trx_t*		trx)	/*!< in: transaction handle */
-{
-	trx->op_info = "discarding tablespace";
-
-	trx->dict_operation = true;
-
-	trx_start_if_not_started_xa(trx, true);
-
-	/* Serialize data dictionary operations with dictionary mutex:
-	this is to avoid deadlocks during data dictionary operations */
-
-	row_mysql_lock_data_dictionary(trx);
-
-	dict_table_t*	table;
-
-	table = dict_table_open_on_name(
-		name, TRUE, FALSE, DICT_ERR_IGNORE_FK_NOKEY);
-
-	if (table) {
-		dict_stats_wait_bg_to_stop_using_table(table, trx);
-		ut_a(!is_system_tablespace(table->space_id));
-		ut_ad(!table->n_foreign_key_checks_running);
-	}
-
-	return(table);
 }
 
 /*********************************************************************//**
@@ -2859,38 +2534,6 @@ row_discard_tablespace_foreign_key_checks(
 }
 
 /*********************************************************************//**
-Cleanup after the DISCARD TABLESPACE operation.
-@return error code. */
-static
-dberr_t
-row_discard_tablespace_end(
-/*=======================*/
-	trx_t*		trx,	/*!< in/out: transaction handle */
-	dict_table_t*	table,	/*!< in/out: table to be discarded */
-	dberr_t		err)	/*!< in: error code */
-{
-	if (table != 0) {
-		dict_table_close(table, TRUE, FALSE);
-	}
-
-	DBUG_EXECUTE_IF("ib_discard_before_commit_crash",
-			log_write_up_to(LSN_MAX, true);
-			DBUG_SUICIDE(););
-
-	trx_commit_for_mysql(trx);
-
-	DBUG_EXECUTE_IF("ib_discard_after_commit_crash",
-			log_write_up_to(LSN_MAX, true);
-			DBUG_SUICIDE(););
-
-	row_mysql_unlock_data_dictionary(trx);
-
-	trx->op_info = "";
-
-	return(err);
-}
-
-/*********************************************************************//**
 Do the DISCARD TABLESPACE operation.
 @return DB_SUCCESS or error code. */
 static
@@ -2900,17 +2543,17 @@ row_discard_tablespace(
 	trx_t*		trx,	/*!< in/out: transaction handle */
 	dict_table_t*	table)	/*!< in/out: table to be discarded */
 {
-	dberr_t		err;
+	dberr_t err;
 
 	/* How do we prevent crashes caused by ongoing operations on
 	the table? Old operations could try to access non-existent
-	pages. MySQL will block all DML on the table using MDL and a
+	pages. The SQL layer will block all DML on the table using MDL and a
 	DISCARD will not start unless all existing operations on the
 	table to be discarded are completed.
 
-	1) Acquire the data dictionary latch in X mode. To prevent any
-	internal operations that MySQL is not aware off and also for
-	the internal SQL parser.
+	1) Acquire the data dictionary latch in X mode. This will
+	prevent any internal operations that are not covered by
+	MDL or InnoDB table locks.
 
 	2) Purge and rollback: we assign a new table id for the
 	table. Since purge and rollback look for the table based on
@@ -2943,7 +2586,7 @@ row_discard_tablespace(
 	if (dict_table_has_fts_index(table)
 	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID)) {
 
-		fts_drop_tables(trx, table);
+		fts_drop_tables(trx, *table);
 	}
 
 	/* Assign a new space ID to the table definition so that purge
@@ -2953,23 +2596,6 @@ row_discard_tablespace(
 
 	if (err != DB_SUCCESS) {
 		return(err);
-	}
-
-	/* Discard the physical file that is used for the tablespace. */
-	err = fil_delete_tablespace(table->space_id);
-	switch (err) {
-	case DB_IO_ERROR:
-		ib::warn() << "ALTER TABLE " << table->name
-			<< " DISCARD TABLESPACE failed to delete file";
-		break;
-	case DB_TABLESPACE_NOT_FOUND:
-		ib::warn() << "ALTER TABLE " << table->name
-			<< " DISCARD TABLESPACE failed to find tablespace";
-		break;
-	case DB_SUCCESS:
-		break;
-	default:
-		ut_error;
 	}
 
 	/* All persistent operations successful, update the
@@ -2999,73 +2625,72 @@ Discards the tablespace of a table which stored in an .ibd file. Discarding
 means that this function renames the .ibd file and assigns a new table id for
 the table. Also the file_unreadable flag is set.
 @return error code or DB_SUCCESS */
-dberr_t
-row_discard_tablespace_for_mysql(
-/*=============================*/
-	const char*	name,	/*!< in: table name */
-	trx_t*		trx)	/*!< in: transaction handle */
+dberr_t row_discard_tablespace_for_mysql(dict_table_t *table, trx_t *trx)
 {
-	dberr_t		err;
-	dict_table_t*	table;
+  ut_ad(!is_system_tablespace(table->space_id));
+  ut_ad(!table->is_temporary());
+  ut_ad(!table->n_foreign_key_checks_running);
 
-	/* Open the table and start the transaction if not started. */
+  const auto fts_exist = table->flags2 &
+    (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
 
-	table = row_discard_tablespace_begin(name, trx);
+  dberr_t err;
 
-	if (table == 0) {
-		err = DB_TABLE_NOT_FOUND;
-	} else if (table->is_temporary()) {
+  if (fts_exist)
+  {
+    fts_optimize_remove_table(table);
+    err= fts_lock_tables(trx, *table);
+    if (err != DB_SUCCESS)
+    {
+rollback:
+      table->stats_bg_flag= BG_STAT_NONE;
+      if (fts_exist)
+        fts_optimize_add_table(table);
+      trx->rollback();
+      return err;
+    }
+  }
 
-		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			    ER_CANNOT_DISCARD_TEMPORARY_TABLE);
+  row_mysql_lock_data_dictionary(trx);
+  dict_stats_wait_bg_to_stop_using_table(table, trx);
 
-		err = DB_ERROR;
+  trx->op_info = "discarding tablespace";
+  trx->dict_operation= true;
 
-	} else if (table->space_id == TRX_SYS_SPACE) {
-		char	table_name[MAX_FULL_NAME_LEN + 1];
+  /* Serialize data dictionary operations with dictionary mutex:
+  this is to avoid deadlocks during data dictionary operations */
 
-		innobase_format_name(
-			table_name, sizeof(table_name),
-			table->name.m_name);
+  err= row_discard_tablespace_foreign_key_checks(trx, table);
+  if (err != DB_SUCCESS)
+  {
+    row_mysql_unlock_data_dictionary(trx);
+    goto rollback;
+  }
 
-		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
-			    ER_TABLE_IN_SYSTEM_TABLESPACE, table_name);
+  /* Note: This cannot be rolled back. Rollback would see the UPDATE
+  SYS_INDEXES as two operations: DELETE and INSERT. It would invoke
+  btr_free_if_exists() when rolling back the INSERT, effectively
+  dropping all indexes of the table. */
+  err= row_discard_tablespace(trx, table);
+  DBUG_EXECUTE_IF("ib_discard_before_commit_crash",
+                  log_write_up_to(LSN_MAX, true); DBUG_SUICIDE(););
+  /* FTS_ tables may be deleted */
+  std::vector<pfs_os_file_t> deleted;
+  trx->commit(deleted);
+  const auto space_id= table->space_id;
+  pfs_os_file_t d= fil_delete_tablespace(space_id);
+  table->space= nullptr;
+  DBUG_EXECUTE_IF("ib_discard_after_commit_crash", DBUG_SUICIDE(););
+  row_mysql_unlock_data_dictionary(trx);
 
-		err = DB_ERROR;
+  if (d != OS_FILE_CLOSED)
+    os_file_close(d);
+  for (pfs_os_file_t d : deleted)
+    os_file_close(d);
 
-	} else {
-		ut_ad(!table->n_foreign_key_checks_running);
-
-		bool fts_exist = (dict_table_has_fts_index(table)
-				  || DICT_TF2_FLAG_IS_SET(
-					  table, DICT_TF2_FTS_HAS_DOC_ID));
-
-		if (fts_exist) {
-			row_mysql_unlock_data_dictionary(trx);
-			fts_optimize_remove_table(table);
-			row_mysql_lock_data_dictionary(trx);
-		}
-
-		/* Do foreign key constraint checks. */
-
-		err = row_discard_tablespace_foreign_key_checks(trx, table);
-
-		if (err == DB_SUCCESS) {
-			/* Note: This cannot be rolled back.
-			Rollback would see the UPDATE SYS_INDEXES
-			as two operations: DELETE and INSERT.
-			It would invoke btr_free_if_exists()
-			when rolling back the INSERT, effectively
-			dropping all indexes of the table. */
-			err = row_discard_tablespace(trx, table);
-		}
-
-		if (fts_exist && err != DB_SUCCESS) {
-			fts_optimize_add_table(table);
-		}
-	}
-
-	return(row_discard_tablespace_end(trx, table, err));
+  buf_flush_remove_pages(space_id);
+  trx->op_info= "";
+  return err;
 }
 
 /*********************************************************************//**
@@ -3116,530 +2741,166 @@ row_mysql_lock_table(
 	return(err);
 }
 
-/** Drop ancillary FTS tables as part of dropping a table.
-@param[in,out]	table		Table cache entry
-@param[in,out]	trx		Transaction handle
-@return error code or DB_SUCCESS */
-UNIV_INLINE
-dberr_t
-row_drop_ancillary_fts_tables(
-	dict_table_t*	table,
-	trx_t*		trx)
+dberr_t trx_t::drop_table_foreign(const table_name_t &name)
 {
-	/* Drop ancillary FTS tables */
-	if (dict_table_has_fts_index(table)
-	    || DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID)) {
+  ut_d(dict_sys.assert_locked());
+  ut_ad(state == TRX_STATE_ACTIVE);
+  ut_ad(dict_operation);
+  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
 
-		ut_ad(table->get_ref_count() == 0);
-		ut_ad(trx_is_started(trx));
+  if (!dict_sys.sys_foreign || !dict_sys.sys_foreign_cols)
+    return DB_SUCCESS;
 
-		dberr_t err = fts_drop_tables(trx, table);
+  pars_info_t *info= pars_info_create();
+  pars_info_add_str_literal(info, "name", name.m_name);
+  return que_eval_sql(info,
+                      "PROCEDURE DROP_FOREIGN() IS\n"
+                      "fid CHAR;\n"
 
-		if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-			ib::error() << " Unable to remove ancillary FTS"
-				" tables for table "
-				<< table->name << " : " << err;
+                      "DECLARE CURSOR fk IS\n"
+                      "SELECT ID FROM SYS_FOREIGN\n"
+                      "WHERE FOR_NAME=:name\n"
+                      "AND TO_BINARY(FOR_NAME)=TO_BINARY(:name)\n"
+                      "FOR UPDATE;\n"
 
-			return(err);
-		}
-	}
-
-	/* The table->fts flag can be set on the table for which
-	the cluster index is being rebuilt. Such table might not have
-	DICT_TF2_FTS flag set. So keep this out of above
-	dict_table_has_fts_index condition */
-	if (table->fts != NULL) {
-		/* fts_que_graph_free_check_lock would try to acquire
-		dict mutex lock */
-		table->fts->dict_locked = true;
-
-		fts_free(table);
-	}
-
-	return(DB_SUCCESS);
+                      "BEGIN\n"
+                      "OPEN fk;\n"
+                      "WHILE 1=1 LOOP\n"
+                      "  FETCH fk INTO fid;\n"
+                      "  IF (SQL % NOTFOUND)THEN RETURN;END IF;\n"
+                      "  DELETE FROM SYS_FOREIGN_COLS"
+                      " WHERE ID=fid;\n"
+                      "  DELETE FROM SYS_FOREIGN WHERE ID=fid;\n"
+                      "END LOOP;\n"
+                      "CLOSE fk;\n"
+                      "END;\n", FALSE, this);
 }
 
-/** Drop a table for MySQL.
-If the data dictionary was not already locked by the transaction,
-the transaction will be committed.  Otherwise, the data dictionary
-will remain locked.
-@param[in]	name		Table name
-@param[in,out]	trx		Transaction handle
-@param[in]	sqlcom		type of SQL operation
-@param[in]	create_failed	true=create table failed
-				because e.g. foreign key column
-@param[in]	nonatomic	Whether it is permitted to release
-				and reacquire dict_sys.latch
-@return error code or DB_SUCCESS */
-dberr_t
-row_drop_table_for_mysql(
-	const char*		name,
-	trx_t*			trx,
-	enum_sql_command	sqlcom,
-	bool			create_failed,
-	bool			nonatomic)
+dberr_t trx_t::drop_table_statistics(const table_name_t& name)
 {
-	dberr_t		err;
-	dict_foreign_t*	foreign;
-	dict_table_t*	table;
-	char*		tablename		= NULL;
-	bool		locked_dictionary	= false;
-	pars_info_t*	info			= NULL;
-	mem_heap_t*	heap			= NULL;
-
-
-	DBUG_ENTER("row_drop_table_for_mysql");
-	DBUG_PRINT("row_drop_table_for_mysql", ("table: '%s'", name));
-
-	ut_a(name != NULL);
-
-	/* Serialize data dictionary operations with dictionary mutex:
-	no deadlocks can occur then in these operations */
-
-	trx->op_info = "dropping table";
-
-	if (trx->dict_operation_lock_mode != RW_X_LATCH) {
-		/* Prevent foreign key checks etc. while we are
-		dropping the table */
-
-		row_mysql_lock_data_dictionary(trx);
-
-		locked_dictionary = true;
-		nonatomic = true;
-	}
-
-	ut_d(dict_sys.assert_locked());
-
-	table = dict_table_open_on_name(
-		name, TRUE, FALSE,
-		static_cast<dict_err_ignore_t>(
-			DICT_ERR_IGNORE_INDEX_ROOT
-			| DICT_ERR_IGNORE_CORRUPT));
-
-	if (!table) {
-		if (locked_dictionary) {
-			row_mysql_unlock_data_dictionary(trx);
-		}
-		trx->op_info = "";
-		DBUG_RETURN(DB_TABLE_NOT_FOUND);
-	}
-
-	pfs_os_file_t detached_handle = OS_FILE_CLOSED;
-
-	const bool is_temp_name = strstr(table->name.m_name,
-					 "/" TEMP_FILE_PREFIX_INNODB);
-
-	if (table->is_temporary()) {
-		ut_ad(table->space == fil_system.temp_space);
-		for (dict_index_t* index = dict_table_get_first_index(table);
-		     index != NULL;
-		     index = dict_table_get_next_index(index)) {
-			btr_free(page_id_t(SRV_TMP_SPACE_ID, index->page));
-		}
-		/* Remove the pointer to this table object from the list
-		of modified tables by the transaction because the object
-		is going to be destroyed below. */
-		trx->mod_tables.erase(table);
-		table->release();
-		dict_sys.remove(table);
-		err = DB_SUCCESS;
-		goto funct_exit_all_freed;
-	}
-
-	/* This function is called recursively via fts_drop_tables(). */
-	if (!trx_is_started(trx)) {
-		trx_start_for_ddl(trx);
-	}
-
-	/* Turn on this drop bit before we could release the dictionary
-	latch */
-	table->to_be_dropped = true;
-
-	if (nonatomic) {
-		/* This trx did not acquire any locks on dictionary
-		table records yet. Thus it is safe to release and
-		reacquire the data dictionary latches. */
-		if (table->fts) {
-			row_mysql_unlock_data_dictionary(trx);
-			fts_optimize_remove_table(table);
-			row_mysql_lock_data_dictionary(trx);
-		}
-
-		dict_stats_wait_bg_to_stop_using_table(table, trx);
-	}
-
-	/* make sure background stats thread is not running on the table */
-	ut_ad(!(table->stats_bg_flag & BG_STAT_IN_PROGRESS));
-	if (!table->no_rollback()) {
-		if (table->space != fil_system.sys_space) {
-			/* Delete the link file if used. */
-			if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-				RemoteDatafile::delete_link_file(
-					{table->name.m_name,
-					 strlen(table->name.m_name)});
-			}
-		}
-
-		dict_stats_recalc_pool_del(table);
-		dict_stats_defrag_pool_del(table, NULL);
-		if (btr_defragment_active) {
-			btr_defragment_remove_table(table);
-		}
-
-		if (UNIV_LIKELY(!strstr(name, "/" TEMP_FILE_PREFIX_INNODB))) {
-			/* Remove any persistent statistics for this table,
-			in a separate transaction. */
-			char errstr[1024];
-			err = dict_stats_drop_table(name, errstr,
-						    sizeof errstr);
-			if (err != DB_SUCCESS) {
-				ib::warn() << errstr;
-			}
-		}
-	}
-
-	dict_sys.prevent_eviction(table);
-	dict_table_close(table, TRUE, FALSE);
-
-	/* Check if the table is referenced by foreign key constraints from
-	some other table (not the table itself) */
-
-	if (!srv_read_only_mode && trx->check_foreigns) {
-
-		for (dict_foreign_set::iterator it
-			= table->referenced_set.begin();
-		     it != table->referenced_set.end();
-		     ++it) {
-
-			foreign = *it;
-
-			const bool	ref_ok = sqlcom == SQLCOM_DROP_DB
-				&& dict_tables_have_same_db(
-					name,
-					foreign->foreign_table_name_lookup);
-
-			/* We should allow dropping a referenced table if creating
-			that referenced table has failed for some reason. For example
-			if referenced table is created but it column types that are
-			referenced do not match. */
-			if (foreign->foreign_table != table &&
-			    !create_failed && !ref_ok) {
-
-				FILE*	ef	= dict_foreign_err_file;
-
-				/* We only allow dropping a referenced table
-				if FOREIGN_KEY_CHECKS is set to 0 */
-
-				err = DB_CANNOT_DROP_CONSTRAINT;
-
-				mysql_mutex_lock(&dict_foreign_err_mutex);
-				rewind(ef);
-				ut_print_timestamp(ef);
-
-				fputs("  Cannot drop table ", ef);
-				ut_print_name(ef, trx, name);
-				fputs("\n"
-				      "because it is referenced by ", ef);
-				ut_print_name(ef, trx,
-					      foreign->foreign_table_name);
-				putc('\n', ef);
-				mysql_mutex_unlock(&dict_foreign_err_mutex);
-
-				goto funct_exit;
-			}
-		}
-	}
-
-	DBUG_EXECUTE_IF("row_drop_table_add_to_background", goto defer;);
-
-	/* TODO: could we replace the counter n_foreign_key_checks_running
-	with lock checks on the table? Acquire here an exclusive lock on the
-	table, and rewrite lock0lock.cc and the lock wait in srv0srv.cc so that
-	they can cope with the table having been dropped here? Foreign key
-	checks take an IS or IX lock on the table. */
-
-	if (table->n_foreign_key_checks_running > 0) {
-defer:
-		/* Rename the table to #sql-ib prefix. This scenario can
-		occur also for #sql tables when purge is waiting for
-		dict_sys.mutex so that it could close the table. But
-		DROP TABLE acquires dict_sys.mutex. */
-		if (!is_temp_name) {
-			heap = mem_heap_create(FN_REFLEN);
-			const char* tmp_name
-				= dict_mem_create_temporary_tablename(
-					heap, table->name.m_name, table->id);
-			ib::info() << "Deferring DROP TABLE " << table->name
-				   << "; renaming to " << tmp_name;
-			err = row_rename_table_for_mysql(
-				table->name.m_name, tmp_name, trx,
-				false, false);
-		} else {
-			err = DB_SUCCESS;
-		}
-		if (err == DB_SUCCESS) {
-			row_add_table_to_background_drop_list(table->id);
-		}
-		goto funct_exit;
-	}
-
-	/* Remove all locks that are on the table or its records, if there
-	are no references to the table but it has record locks, we release
-	the record locks unconditionally. One use case is:
-
-		CREATE TABLE t2 (PRIMARY KEY (a)) SELECT * FROM t1;
-
-	If after the user transaction has done the SELECT and there is a
-	problem in completing the CREATE TABLE operation, MySQL will drop
-	the table. InnoDB will create a new background transaction to do the
-	actual drop, the trx instance that is passed to this function. To
-	preserve existing behaviour we remove the locks but ideally we
-	shouldn't have to. There should never be record locks on a table
-	that is going to be dropped. */
-
-	if (table->get_ref_count() > 0 || lock_table_has_locks(table)) {
-		goto defer;
-	}
-
-	/* The "to_be_dropped" marks table that is to be dropped, but
-	has not been dropped, instead, was put in the background drop
-	list due to being used by concurrent DML operations. Clear it
-	here since there are no longer any concurrent activities on it,
-	and it is free to be dropped */
-	table->to_be_dropped = false;
-
-	trx->dict_operation = true;
-
-	/* Mark all indexes unavailable in the data dictionary cache
-	before starting to drop the table. */
-
-	unsigned*	page_no;
-	unsigned*	page_nos;
-	heap = mem_heap_create(
-		200 + UT_LIST_GET_LEN(table->indexes) * sizeof *page_nos);
-	tablename = mem_heap_strdup(heap, name);
-
-	page_no = page_nos = static_cast<unsigned*>(
-		mem_heap_alloc(
-			heap,
-			UT_LIST_GET_LEN(table->indexes) * sizeof *page_no));
-
-	for (dict_index_t* index = dict_table_get_first_index(table);
-	     index != NULL;
-	     index = dict_table_get_next_index(index)) {
-		index->lock.x_lock(SRW_LOCK_CALL);
-		/* Save the page numbers so that we can restore them
-		if the operation fails. */
-		*page_no++ = index->page;
-		/* Mark the index unusable. */
-		index->page = FIL_NULL;
-		index->lock.x_unlock();
-	}
-
-	/* Deleting a row from SYS_INDEXES table will invoke
-	dict_drop_index_tree(). */
-	info = pars_info_create();
-
-	pars_info_add_str_literal(info, "name", name);
-
-	if (sqlcom != SQLCOM_TRUNCATE && strchr(name, '/')
-	    && dict_sys.sys_foreign && dict_sys.sys_foreign_cols) {
-		err = que_eval_sql(
-			info,
-			"PROCEDURE DROP_FOREIGN_PROC () IS\n"
-			"fid CHAR;\n"
-
-			"DECLARE CURSOR fk IS\n"
-			"SELECT ID FROM SYS_FOREIGN\n"
-			"WHERE FOR_NAME = :name\n"
-			"AND TO_BINARY(FOR_NAME) = TO_BINARY(:name)\n"
-			"FOR UPDATE;\n"
-
-			"BEGIN\n"
-			"OPEN fk;\n"
-			"WHILE 1 = 1 LOOP\n"
-			"  FETCH fk INTO fid;\n"
-			"  IF (SQL % NOTFOUND) THEN RETURN; END IF;\n"
-			"  DELETE FROM SYS_FOREIGN_COLS WHERE ID=fid;\n"
-			"  DELETE FROM SYS_FOREIGN WHERE ID=fid;\n"
-			"END LOOP;\n"
-			"CLOSE fk;\n"
-			"END;\n", FALSE, trx);
-		if (err == DB_SUCCESS) {
-			info = pars_info_create();
-			pars_info_add_str_literal(info, "name", name);
-			goto do_drop;
-		}
-	} else {
-do_drop:
-		if (dict_sys.sys_virtual) {
-			err = que_eval_sql(
-				info,
-				"PROCEDURE DROP_VIRTUAL_PROC () IS\n"
-				"tid CHAR;\n"
-
-				"BEGIN\n"
-				"SELECT ID INTO tid FROM SYS_TABLES\n"
-				"WHERE NAME = :name FOR UPDATE;\n"
-				"IF (SQL % NOTFOUND) THEN RETURN;"
-				" END IF;\n"
-				"DELETE FROM SYS_VIRTUAL"
-				" WHERE TABLE_ID = tid;\n"
-				"END;\n", FALSE, trx);
-			if (err == DB_SUCCESS) {
-				info = pars_info_create();
-				pars_info_add_str_literal(
-					info, "name", name);
-			}
-		} else {
-			err = DB_SUCCESS;
-		}
-
-		err = err == DB_SUCCESS ? que_eval_sql(
-			info,
-			"PROCEDURE DROP_TABLE_PROC () IS\n"
-			"tid CHAR;\n"
-			"iid CHAR;\n"
-
-			"DECLARE CURSOR cur_idx IS\n"
-			"SELECT ID FROM SYS_INDEXES\n"
-			"WHERE TABLE_ID = tid FOR UPDATE;\n"
-
-			"BEGIN\n"
-			"SELECT ID INTO tid FROM SYS_TABLES\n"
-			"WHERE NAME = :name FOR UPDATE;\n"
-			"IF (SQL % NOTFOUND) THEN RETURN; END IF;\n"
-
-			"OPEN cur_idx;\n"
-			"WHILE 1 = 1 LOOP\n"
-			"  FETCH cur_idx INTO iid;\n"
-			"  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-			"  DELETE FROM SYS_FIELDS\n"
-			"  WHERE INDEX_ID = iid;\n"
-			"  DELETE FROM SYS_INDEXES\n"
-			"  WHERE ID = iid AND TABLE_ID = tid;\n"
-			"END LOOP;\n"
-			"CLOSE cur_idx;\n"
-
-			"DELETE FROM SYS_COLUMNS WHERE TABLE_ID=tid;\n"
-			"DELETE FROM SYS_TABLES WHERE NAME=:name;\n"
-
-			"END;\n", FALSE, trx) : err;
-	}
-
-	switch (err) {
-		fil_space_t* space;
-		char* filepath;
-	case DB_SUCCESS:
-		if (!table->no_rollback()) {
-			err = row_drop_ancillary_fts_tables(table, trx);
-			if (err != DB_SUCCESS) {
-				break;
-			}
-		}
-
-		space = table->space;
-		ut_ad(!space || space->id == table->space_id);
-		/* Determine the tablespace filename before we drop
-		dict_table_t. */
-		if (DICT_TF_HAS_DATA_DIR(table->flags)) {
-			dict_get_and_save_data_dir_path(table, true);
-			ut_ad(table->data_dir_path || !space);
-		}
-
-		filepath = space
-			? nullptr
-			: fil_make_filepath(table->data_dir_path, table->name,
-					    IBD,
-					    table->data_dir_path != nullptr);
-
-		trx->mod_tables.erase(table);
-		dict_sys.remove(table);
-
-		/* Do not attempt to drop known-to-be-missing tablespaces,
-		nor the system tablespace. */
-		if (!space) {
-			fil_delete_file(filepath);
-			ut_free(filepath);
-			break;
-		}
-
-		ut_ad(!filepath);
-
-		if (space->id != TRX_SYS_SPACE) {
-			err = fil_delete_tablespace(space->id, false,
-						    &detached_handle);
-		}
-		break;
-
-	default:
-		/* This is some error we do not expect. Print
-		the error number and rollback the transaction */
-		ib::error() << "Unknown error code " << err << " while"
-			" dropping table: "
-			<< ut_get_name(trx, tablename) << ".";
-
-		trx->error_state = DB_SUCCESS;
-		trx->rollback();
-		trx->error_state = DB_SUCCESS;
-
-		/* Mark all indexes available in the data dictionary
-		cache again. */
-
-		page_no = page_nos;
-
-		for (dict_index_t* index = dict_table_get_first_index(table);
-		     index != NULL;
-		     index = dict_table_get_next_index(index)) {
-			index->lock.x_lock(SRW_LOCK_CALL);
-			ut_a(index->page == FIL_NULL);
-			index->page = *page_no++;
-			index->lock.x_unlock();
-		}
-	}
-
-	if (err != DB_SUCCESS && table != NULL) {
-		/* Drop table has failed with error but as drop table is not
-		transaction safe we should mark the table as corrupted to avoid
-		unwarranted follow-up action on this table that can result
-		in more serious issues. */
-
-		table->corrupted = true;
-		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
-		     index != NULL;
-		     index = UT_LIST_GET_NEXT(indexes, index)) {
-			dict_set_corrupted(index, trx, "DROP TABLE");
-		}
-	}
-
-funct_exit:
-	if (heap) {
-		mem_heap_free(heap);
-	}
-
-funct_exit_all_freed:
-	if (locked_dictionary) {
-
-		if (trx_is_started(trx)) {
-
-			trx_commit_for_mysql(trx);
-		}
-
-		/* Add the table to fts queue if drop table fails */
-		if (err != DB_SUCCESS && table->fts) {
-			fts_optimize_add_table(table);
-		}
-
-		row_mysql_unlock_data_dictionary(trx);
-	}
-
-	if (detached_handle != OS_FILE_CLOSED) {
-		os_file_close(detached_handle);
-	}
-
-	trx->op_info = "";
-
-	DBUG_RETURN(err);
+  if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB))
+    return DB_SUCCESS;
+
+  /* FIXME: Remove any persistent statistics, in THIS transaction. */
+  char errstr[1024];
+  if (dberr_t err= dict_stats_drop_table(name.m_name, errstr, sizeof errstr))
+  {
+    ib::warn() << err << errstr;
+    return err;
+  }
+
+  return DB_SUCCESS;
+}
+
+dberr_t trx_t::drop_table(const dict_table_t &table)
+{
+  ut_d(dict_sys.assert_locked());
+  ut_ad(state == TRX_STATE_ACTIVE);
+  ut_ad(dict_operation);
+  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
+  ut_ad(!table.is_temporary());
+  ut_ad(!(table.stats_bg_flag & BG_STAT_IN_PROGRESS));
+  ut_ad(!table.n_foreign_key_checks_running);
+  /* The table must be exclusively locked by this transaction. */
+  ut_ad(table.get_ref_count() <= 1);
+  ut_ad(!table.n_waiting_or_granted_auto_inc_locks);
+  ut_ad(table.n_lock_x_or_s == 1);
+  ut_ad(UT_LIST_GET_LEN(table.locks) >= 1);
+#ifdef UNIV_DEBUG
+  bool found_x;
+  for (lock_t *lock= UT_LIST_GET_FIRST(table.locks); lock;
+       lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
+  {
+    ut_ad(lock->trx == this);
+    if (lock->type_mode == (LOCK_X | LOCK_TABLE))
+      found_x= true;
+    else
+      ut_ad(lock->type_mode == (LOCK_IX | LOCK_TABLE));
+  }
+  ut_ad(found_x);
+#endif
+
+  if (dict_sys.sys_virtual)
+  {
+    pars_info_t *info= pars_info_create();
+    pars_info_add_ull_literal(info, "id", table.id);
+    if (dberr_t err= que_eval_sql(info,
+                                  "PROCEDURE DROP_VIRTUAL() IS\n"
+                                  "BEGIN\n"
+                                  "DELETE FROM SYS_VIRTUAL"
+                                  " WHERE TABLE_ID=:id;\n"
+                                  "END;\n", FALSE, this))
+      return err;
+  }
+
+  /* Once DELETE FROM SYS_INDEXES is committed, purge may invoke
+  dict_drop_index_tree(). */
+
+  if (!(table.flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS)));
+  else if (dberr_t err= fts_drop_tables(this, table))
+  {
+    ib::error() << "Unable to remove FTS tables for "
+                << table.name << ": " << err;
+    return err;
+  }
+
+  mod_tables.emplace(const_cast<dict_table_t*>(&table), undo_no).first
+    ->second.set_dropped();
+
+  pars_info_t *info= pars_info_create();
+  pars_info_add_ull_literal(info, "id", table.id);
+  return que_eval_sql(info,
+                      "PROCEDURE DROP_TABLE() IS\n"
+                      "iid CHAR;\n"
+
+                      "DECLARE CURSOR idx IS\n"
+                      "SELECT ID FROM SYS_INDEXES\n"
+                      "WHERE TABLE_ID=:id FOR UPDATE;\n"
+
+                      "BEGIN\n"
+                      "OPEN idx;\n"
+                      "WHILE 1 = 1 LOOP\n"
+                      "  FETCH idx INTO iid;\n"
+                      "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
+                      "  DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
+                      "  DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
+                      "END LOOP;\n"
+                      "CLOSE idx;\n"
+
+                      "DELETE FROM SYS_COLUMNS WHERE TABLE_ID=:id;\n"
+                      "DELETE FROM SYS_TABLES WHERE ID=:id;\n"
+
+                      "END;\n", FALSE, this);
+}
+
+void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
+{
+  ut_ad(dict_operation);
+  commit_persist();
+  if (dict_operation)
+  {
+    dict_sys.assert_locked();
+    for (const auto &p : mod_tables)
+    {
+      if (p.second.is_dropped())
+      {
+        dict_table_t *table= p.first;
+        dict_stats_recalc_pool_del(table);
+        dict_stats_defrag_pool_del(table, nullptr);
+        if (btr_defragment_active)
+          btr_defragment_remove_table(table);
+        const fil_space_t *space= table->space;
+        dict_sys.remove(table);
+        if (const auto id= space ? space->id : 0)
+        {
+          pfs_os_file_t d= fil_delete_tablespace(id);
+          if (d != OS_FILE_CLOSED)
+            deleted.emplace_back(d);
+        }
+      }
+    }
+  }
+  commit_cleanup();
 }
 
 /****************************************************************//**
@@ -4304,29 +3565,4 @@ not_ok:
 		buf, PAGE_CUR_G, prebuilt, 0, ROW_SEL_NEXT);
 
 	goto loop;
-}
-
-/** Initialize this module */
-void row_mysql_init()
-{
-  mysql_mutex_init(row_drop_list_mutex_key, &row_drop_list_mutex, nullptr);
-  UT_LIST_INIT(row_mysql_drop_list, &row_mysql_drop_t::row_mysql_drop_list);
-  row_mysql_drop_list_inited= true;
-}
-
-void row_mysql_close()
-{
-  ut_ad(!UT_LIST_GET_LEN(row_mysql_drop_list) ||
-        srv_force_recovery >= SRV_FORCE_NO_BACKGROUND);
-  if (row_mysql_drop_list_inited)
-  {
-    row_mysql_drop_list_inited= false;
-    mysql_mutex_destroy(&row_drop_list_mutex);
-
-    while (row_mysql_drop_t *drop= UT_LIST_GET_FIRST(row_mysql_drop_list))
-    {
-      UT_LIST_REMOVE(row_mysql_drop_list, drop);
-      ut_free(drop);
-    }
-  }
 }

@@ -245,17 +245,4 @@ SELECT * FROM mdev19073_2 WHERE MATCH (title, body)
 AGAINST ('Database' IN NATURAL LANGUAGE MODE);
 DROP TABLE mdev19073, mdev19073_2;
 
-if (!$have_debug)
-{
---disable_query_log
-# Some errors are reported despite the MDEV-24626 fix.
-call mtr.add_suppression("InnoDB: Cannot (read first page of|open datafile for read-only:) '\\./test/(FTS_|#sql-(alter|backup)-).*\\.ibd'");
-call mtr.add_suppression("InnoDB: Datafile '\\./test/(FTS_|#sql-(alter|backup)-).*\\.ibd' is corrupted");
-call mtr.add_suppression("InnoDB: (The error means|Operating system error)");
-call mtr.add_suppression("InnoDB: Ignoring tablespace for test/(FTS_|#sql-(backup|alter)-).* because it could not be opened\\.");
-call mtr.add_suppression("InnoDB: Expected tablespace id [1-9][0-9]* but found 0 in the file .*/test/(FTS_|#sql-(alter|backup)-).*\\.ibd");
---enable_query_log
-}
-
-SELECT * FROM information_schema.innodb_sys_tables
-WHERE name LIKE 'test/%' AND name NOT LIKE 'test/#sql-ib%';
+SELECT * FROM information_schema.innodb_sys_tables WHERE name LIKE 'test/%';
