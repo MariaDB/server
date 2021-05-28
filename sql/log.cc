@@ -10997,6 +10997,11 @@ bool Recovery_context::handle_committed(xid_recovery_member *member,
   }
   else
   {
+    // TODO-18959/21117
+    // if (last_gtid_coord < p_max)
+    //   member->decided_to_commit= true;
+    // else member->decided_to_commit= false; // TODO: (!)
+
     if (member)
       member->decided_to_commit= true;
 
@@ -11484,6 +11489,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
     if (binlog_checkpoint_found)
     {
 #ifndef HAVE_REPLICATION
+      // Relay_log_info *rli= new Relay_log_info(FALSE, "Recovery");
+      // rpl_group_info *rgi_recovery __attribute__((unused))= new rpl_group_info(rli);
       if (ha_recover_complete(&xids))
 #else
       if (ctx.complete(this))

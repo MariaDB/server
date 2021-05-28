@@ -5449,7 +5449,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     DBUG_ASSERT(lex->query_tables == NULL);
     if ((lex->query_tables= rgi->tables_to_lock))
       rgi->tables_to_lock->prev_global= &lex->query_tables;
-
+// TODO-18959: request thd->trans to remember T^j ha_info:s
     for (TABLE_LIST *tables= rgi->tables_to_lock; tables;
          tables= tables->next_global)
     {
@@ -5627,7 +5627,7 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
   }
 
   table= m_table= rgi->m_table_map.get_table(m_table_id);
-
+// TODO-18959: find T^j,\pi^j from the last ha_info found at register; compare \pi^j against \pi_k etc; reset T^j (as part of trans::reset)
   DBUG_PRINT("debug", ("m_table:%p, m_table_id: %llu%s",
                        m_table, m_table_id,
                        table && master_had_triggers ?
