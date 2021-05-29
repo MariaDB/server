@@ -4048,7 +4048,7 @@ xb_register_filter_entry(
 		strncpy(dbname, name, p - name);
 		dbname[p - name] = 0;
 
-		if (databases_hash) {
+		if (databases_hash && databases_hash->array) {
 			HASH_SEARCH(name_hash, databases_hash,
 					ut_fold_string(dbname),
 					xb_filter_entry_t*,
