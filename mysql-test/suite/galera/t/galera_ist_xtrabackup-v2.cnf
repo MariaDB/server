@@ -5,10 +5,8 @@ wsrep_sst_method=xtrabackup-v2
 wsrep_sst_auth=root:
 innodb_safe_truncate=OFF
 
-
 [mysqld.1]
 wsrep_provider_options='base_port=@mysqld.1.#galera_port;pc.ignore_sb=true'
 
 [mysqld.2]
 wsrep_provider_options='base_port=@mysqld.2.#galera_port;pc.ignore_sb=true'
-

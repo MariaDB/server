@@ -97,8 +97,9 @@ get_keys()
     fi
 
     if [[ $encrypt -eq 0 ]];then
-        if $MY_PRINT_DEFAULTS xtrabackup | grep -q encrypt;then
-            wsrep_log_error "Unexpected option combination. SST may fail. Refer to http://www.percona.com/doc/percona-xtradb-cluster/manual/xtrabackup_sst.html "
+        if [ -n "$ealgo" -o -n "$ekey" -o -n "$ekeyfile" ]; then
+            wsrep_log_error "Options for encryption are specified, " \
+                            "but encryption itself is disabled. SST may fail."
         fi
         return
     fi
@@ -324,12 +325,6 @@ cleanup_joiner()
     fi
 }
 
-check_pid()
-{
-    local pid_file="$1"
-    [ -r "$pid_file" ] && ps -p $(cat "$pid_file") >/dev/null 2>&1
-}
-
 cleanup_donor()
 {
     # Since this is invoked just after exit NNN
@@ -339,12 +334,11 @@ cleanup_donor()
     fi
 
     if [[ -n "$XTRABACKUP_PID" ]];then
-        if check_pid "$XTRABACKUP_PID"
+        if check_pid "$XTRABACKUP_PID" 1
         then
             wsrep_log_error "xtrabackup process is still running. Killing... "
-            kill_xtrabackup
+            cleanup_pid $CHECK_PID "$XTRABACKUP_PID"
         fi
-        rm -f "$XTRABACKUP_PID"
     fi
 
     rm -f "${DATA}/${IST_FILE}"
@@ -353,13 +347,6 @@ cleanup_donor()
         wsrep_log_info "Cleaning up fifo file $progress"
         rm $progress
     fi
-}
-
-kill_xtrabackup()
-{
-    local PID=$(cat "$XTRABACKUP_PID")
-    [ -n "$PID" -a $PID -ne 0 ] && kill $PID && (kill $PID && kill -9 $PID) || :
-    rm -f "$XTRABACKUP_PID"
 }
 
 # waits ~10 seconds for nc to open the port and then reports ready
