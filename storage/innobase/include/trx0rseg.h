@@ -67,7 +67,7 @@ trx_rseg_header_create(
 
 /** Initialize the rollback segments in memory at database startup. */
 void
-trx_rseg_array_init();
+trx_rseg_array_init(bool parallel);
 
 /** Free a rollback segment in memory. */
 void
@@ -134,6 +134,9 @@ struct trx_rseg_t {
 
 	/** trx_t::no * 2 + old_insert of the last not yet purged log */
 	trx_id_t			last_commit;
+
+	/** max trx_id in this segement, only valid in parallel initial rseg */
+	trx_id_t			max_trx_id;
 
 	/** Whether the log segment needs purge */
 	bool				needs_purge;
