@@ -448,7 +448,7 @@ Event_scheduler::start(int *err_no)
     scheduler_thd= NULL;
     deinit_event_thread(new_thd);
 
-    delete scheduler_param_value;
+    my_free(scheduler_param_value);
     ret= true;
   }
 
