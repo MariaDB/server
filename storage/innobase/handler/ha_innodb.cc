@@ -1375,15 +1375,12 @@ retry:
         continue;
       const auto n_handles= table->get_ref_count();
       const bool locks= !n_handles && lock_table_has_locks(table);
-      const auto n_fk_checks= table->n_foreign_key_checks_running;
-      if (n_fk_checks || n_handles || locks)
+      if (n_handles || locks)
       {
         err= DB_ERROR;
         ib::error errmsg;
         errmsg << "DROP DATABASE: cannot DROP TABLE " << table->name;
-        if (n_fk_checks)
-          errmsg << " due to " << n_fk_checks << " FOREIGN KEY checks";
-        else if (n_handles)
+        if (n_handles)
           errmsg << " due to " << n_handles << " open handles";
         else
           errmsg << " due to locks";
@@ -2067,9 +2064,6 @@ convert_error_code_to_mysql(
                          ut_strerr(DB_TEMP_FILE_WRITE_FAIL),
                          "InnoDB");
 		return(HA_ERR_INTERNAL_ERROR);
-
-	case DB_TABLE_IN_FK_CHECK:
-		return(HA_ERR_TABLE_IN_FK_CHECK);
 
 	case DB_TABLE_NOT_FOUND:
 		return(HA_ERR_NO_SUCH_TABLE);
@@ -13365,7 +13359,6 @@ err_exit:
       goto err_exit;
   }
 
-  ut_ad(!table->n_foreign_key_checks_running);
   err= trx->drop_table(*table);
   if (err != DB_SUCCESS)
     goto err_exit;

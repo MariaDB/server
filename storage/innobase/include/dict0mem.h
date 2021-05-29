@@ -1958,23 +1958,6 @@ struct dict_table_t {
 		return versioned() && cols[vers_start].mtype == DATA_INT;
 	}
 
-	void inc_fk_checks()
-	{
-#ifdef UNIV_DEBUG
-		int32_t fk_checks=
-#endif
-		n_foreign_key_checks_running++;
-		ut_ad(fk_checks >= 0);
-	}
-	void dec_fk_checks()
-	{
-#ifdef UNIV_DEBUG
-		int32_t fk_checks=
-#endif
-		n_foreign_key_checks_running--;
-		ut_ad(fk_checks > 0);
-	}
-
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
 
@@ -2195,11 +2178,6 @@ public:
 	together with FK constraints. If exceeds this level, we will stop
 	loading child table into memory along with its parent table. */
 	byte					fk_max_recusive_level;
-
-	/** Count of how many foreign key check operations are currently being
-	performed on the table. We cannot drop the table while there are
-	foreign key checks running on it. */
-	Atomic_counter<int32_t>			n_foreign_key_checks_running;
 
   /** DDL transaction that last touched the table definition, or 0 if
   no history is available. This includes possible changes in

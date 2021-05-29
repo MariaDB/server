@@ -1830,8 +1830,6 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_ROW;
 
-		check_table->inc_fk_checks();
-
 		err = lock_wait(thr);
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
@@ -1842,8 +1840,6 @@ do_possible_lock_wait:
 		} else {
 			err = DB_LOCK_WAIT;
 		}
-
-		check_table->dec_fk_checks();
 	}
 
 exit_func:
@@ -1912,13 +1908,9 @@ row_ins_check_foreign_constraints(
 {
 	dict_foreign_t*	foreign;
 	dberr_t		err = DB_SUCCESS;
-	trx_t*		trx;
-	ibool		got_s_lock	= FALSE;
 	mem_heap_t*	heap = NULL;
 
 	DBUG_ASSERT(index->is_primary() == pk);
-
-	trx = thr_get_trx(thr);
 
 	DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
 			    "foreign_constraint_check_for_ins");
@@ -1965,31 +1957,8 @@ row_ins_check_foreign_constraints(
 					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 			}
 
-			if (0 == trx->dict_operation_lock_mode) {
-				got_s_lock = TRUE;
-
-				row_mysql_freeze_data_dictionary(trx);
-			}
-
-			if (referenced_table) {
-				foreign->foreign_table->inc_fk_checks();
-			}
-
-			/* NOTE that if the thread ends up waiting for a lock
-			we will release dict_sys.latch temporarily!
-			But the counter on the table protects the referenced
-			table from being dropped while the check is running. */
-
 			err = row_ins_check_foreign_constraint(
 				TRUE, foreign, table, ref_tuple, thr);
-
-			if (referenced_table) {
-				foreign->foreign_table->dec_fk_checks();
-			}
-
-			if (got_s_lock) {
-				row_mysql_unfreeze_data_dictionary(trx);
-			}
 
 			if (ref_table != NULL) {
 				dict_table_close(ref_table, FALSE, FALSE);

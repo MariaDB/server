@@ -2629,7 +2629,6 @@ dberr_t row_discard_tablespace_for_mysql(dict_table_t *table, trx_t *trx)
 {
   ut_ad(!is_system_tablespace(table->space_id));
   ut_ad(!table->is_temporary());
-  ut_ad(!table->n_foreign_key_checks_running);
 
   const auto fts_exist = table->flags2 &
     (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS);
@@ -2800,7 +2799,6 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
   ut_ad(dict_operation_lock_mode == RW_X_LATCH);
   ut_ad(!table.is_temporary());
   ut_ad(!(table.stats_bg_flag & BG_STAT_IN_PROGRESS));
-  ut_ad(!table.n_foreign_key_checks_running);
   /* The table must be exclusively locked by this transaction. */
   ut_ad(table.get_ref_count() <= 1);
   ut_ad(!table.n_waiting_or_granted_auto_inc_locks);
@@ -2979,7 +2977,6 @@ row_rename_table_for_mysql(
 	ulint		n_constraints_to_drop	= 0;
 	ibool		old_is_tmp, new_is_tmp;
 	pars_info_t*	info			= NULL;
-	int		retry;
 	char*		is_part 		= NULL;
 
 	ut_a(old_name != NULL);
@@ -3057,9 +3054,12 @@ row_rename_table_for_mysql(
 	if (!table) {
 		err = DB_TABLE_NOT_FOUND;
 		goto funct_exit;
+	}
 
-	} else if (!table->is_readable() && !table->space
-		   && !(table->flags2 & DICT_TF2_DISCARDED)) {
+	ut_ad(!table->is_temporary());
+
+	if (!table->is_readable() && !table->space
+	    && !(table->flags2 & DICT_TF2_DISCARDED)) {
 
 		err = DB_TABLE_NOT_FOUND;
 
@@ -3087,33 +3087,14 @@ row_rename_table_for_mysql(
 		}
 	}
 
-	/* Is a foreign key check running on this table? */
-	for (retry = 0; retry < 100
-	     && table->n_foreign_key_checks_running > 0; ++retry) {
-		row_mysql_unlock_data_dictionary(trx);
-		std::this_thread::yield();
-		row_mysql_lock_data_dictionary(trx);
+	if (commit) {
+		dict_stats_wait_bg_to_stop_using_table(table, trx);
 	}
 
-	if (table->n_foreign_key_checks_running > 0) {
-		ib::error() << "In ALTER TABLE "
-			<< ut_get_name(trx, old_name)
-			<< " a FOREIGN KEY check is running. Cannot rename"
-			" table.";
-		err = DB_TABLE_IN_FK_CHECK;
+	err = trx_undo_report_rename(trx, table);
+
+	if (err != DB_SUCCESS) {
 		goto funct_exit;
-	}
-
-	if (!table->is_temporary()) {
-		if (commit) {
-			dict_stats_wait_bg_to_stop_using_table(table, trx);
-		}
-
-		err = trx_undo_report_rename(trx, table);
-
-		if (err != DB_SUCCESS) {
-			goto funct_exit;
-		}
 	}
 
 	/* We use the private SQL parser of Innobase to generate the query
@@ -3368,7 +3349,7 @@ row_rename_table_for_mysql(
 
 funct_exit:
 	if (table != NULL) {
-		if (commit && !table->is_temporary()) {
+		if (commit) {
 			table->stats_bg_flag &= byte(~BG_STAT_SHOULD_QUIT);
 		}
 		dict_table_close(table, dict_locked, FALSE);
