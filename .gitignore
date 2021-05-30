@@ -12,6 +12,7 @@
 *.mri.tpl
 .gdb_history
 .vs/
+cmake-build-debug
 errmsg.sys
 typescript
 _CPack_Packages
