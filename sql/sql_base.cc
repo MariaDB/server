@@ -9287,9 +9287,7 @@ void promote_select_describe_flag_if_needed(LEX *lex)
 {
   if (lex->describe)
   {
-    SELECT_LEX *sl= lex->first_select_lex();
-    for (; sl; sl= sl->next_select_in_list())
-      sl->options|= SELECT_DESCRIBE;
+    lex->select_lex.options |= SELECT_DESCRIBE;
   }
 }
 
