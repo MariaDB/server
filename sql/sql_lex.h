@@ -4714,6 +4714,20 @@ public:
                               const LEX_CSTRING *constraint_name,
                               Table_ident *ref_table_name,
                               DDL_options ddl_options);
+
+  /**
+    Turn on the SELECT_DESCRIBE flag for every SELECT_LEX involved into
+    the statement being processed in case the statement is EXPLAIN UPDATE/DELETE.
+
+    @param lex  current LEX
+  */
+
+  void promote_select_describe_flag_if_needed()
+  {
+    if (describe)
+      builtin_select.options |= SELECT_DESCRIBE;
+  }
+
 };
 
 
