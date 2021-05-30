@@ -1,0 +1,270 @@
+---
+# This Gitlab-CI pipeline offers basic validation that a commit did not
+# introduce easily detectable regressions. Builds run primairly on a new Fedora,
+# which has all the latest upstream build dependencies and thus is the primary
+# testing target, as eventually everything in Fedora becomes the next CentOS and
+# Red Hat releases.
+#
+# In addition test building on CentOS 7 and 8 to ensure that the code base
+# remains reasonably backwards compatible.
+#
+# This is now intentionally simple, to keep it fast and accurate with minimal
+# false positive failures. If one wants to extend it, see debian/salsa-ci.yml
+# for inspiration on more integration tests to run.
+#
+# Also make sure the pipeline stays within the bounds of what CI workers on
+# Gitlab-CI are capable of executing, thus ensuring that any potential
+# contributor can at any point in time fork to their own Gitlab account and
+# start working towards meaningful contributions!
+#
+# NOTE TO MERGERS: Most of the contents in the Gitlab-CI configuration has been
+# tailored for a specific release or MariaDB. As a general rule, do not merge
+# changes in this file across MariaDB branches to avoid breaking the CI. Updates
+# the Gitlab-CI pipeline are most of the time better done manually per major
+# release branch.
+
+stages:
+  - build
+  - test
+  - Salsa-CI
+
+# Base image for builds and tests unless otherwise defined
+# @TODO: Fedora 34 is latest, but fails to start on Gitlab.com with error "shell not found"
+image: fedora:33
+
+# Define common CMAKE_FLAGS for all builds. Skim down build by omitting all
+# submodules (a commit in this repo does not affect their builds anyway) and
+# many components that are otherwise slow to build.
+variables:
+  CMAKE_FLAGS: "-DWITH_SSL=system -DPLUGIN_COLUMNSTORE=NO -DPLUGIN_ROCKSDB=NO -DPLUGIN_S3=NO -DPLUGIN_MROONGA=NO -DPLUGIN_CONNECT=NO -DPLUGIN_MROONGA=NO -DPLUGIN_TOKUDB=NO -DPLUGIN_PERFSCHEMA=NO -DWITH_WSREP=OFF"
+  # Major version dictates which branches share the same ccache
+  MARIADB_MAJOR_VERSION: "10.6"
+  # Most steps don't need the source code, only artifacts
+  GIT_STRATEGY: none
+  # Hack to satisfy directory name length requirement by CPackRPM in CMake 3.x
+  # https://cmake.org/cmake/help/v3.7/module/CPackRPM.html#variable:CPACK_RPM_BUILD_SOURCE_DIRS_PREFIX
+  GIT_CLONE_PATH: $CI_BUILDS_DIR/CPACK_BUILD_SOURCE_DIRS_LONG_NAME_REQUIREMENT
+
+# Define once, use many times
+.rpm_listfiles: &rpm_listfiles
+  - |
+    echo "Generating rpmlist-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log ..."
+    for package in *.rpm
+    do
+      echo "$package"
+      rpm -qlpv "$package" | awk '{print $1 " " $3 "/" $4 " ." $9 " " $10 " " $11}' | sort -k 3
+      echo "------------------------------------------------"
+    done >> ../rpmlist-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+  # CPackRPM lists contents in build log, so no need to show the output of this,
+  # just store it as a build artifact that can be downloaded and diffed against
+  # other builds to detect which files where added/removed/moved
+
+fedora:
+  stage: build
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_SUBMODULE_STRATEGY: normal
+  script:
+    - yum install -y yum-utils rpm-build ccache openssl-devel
+    - source /etc/profile.d/ccache.sh
+    - export CCACHE_DIR="$(pwd)/.ccache"; ccache -s
+    # Accelerate builds with unsafe disk access, as we can afford to loose the entire build anyway
+    - yum install -y https://github.com/stewartsmith/libeatmydata/releases/download/v129/libeatmydata-129-1.fc33.x86_64.rpm
+    # This repository does not have any .spec files, so install dependencies based on Fedora spec file
+    - yum-builddep -y mariadb-server
+    - mkdir builddir; cd builddir
+    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - eatmydata make package 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    # @TODO: Don't use -j on Gitlab.com as builds just get stuck when running
+    # multi-proc, needs more debugging
+    - make test || true  # Unit tests constantly fail, see https://jira.mariadb.org/browse/MDEV-25820
+    # - make test-force || true  # mysql-test-runner takes too long, run it in a separate job instead
+    - *rpm_listfiles
+    - mkdir ../rpm; mv *.rpm ../rpm
+    - ccache -s
+  artifacts:
+    when: always  # Must be able to see logs
+    paths:
+      - build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+      - rpmlist-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+      - rpm
+      - builddir/_CPack_Packages/Linux/RPM/SPECS/
+  cache:
+    key: $MARIADB_MAJOR_VERSION-$CI_JOB_NAME
+    paths:
+      - .ccache
+    # policy: pull
+    # @TODO: It would be enough to only download the cache. There is no need for
+    # every job to upload a new cache every time. A monthly or weekly scheduled
+    # run could update the cache for all other builds to us.
+
+centos8:
+  stage: build
+  image: centos:8
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_SUBMODULE_STRATEGY: normal
+  script:
+    - yum install -y yum-utils rpm-build openssl-devel
+    - yum install -y https://dl.fedoraproject.org/pub/epel/epel-release-latest-8.noarch.rpm
+    # dnf --enablerepo=powertools install Judy-devel  #--> not found
+    - dnf config-manager --set-enabled powertools
+    # Error:
+    # Problem: conflicting requests
+    # - package Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.i686 is filtered out by modular filtering
+    # - package Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.x86_64 is filtered out by modular filtering
+    # Solution: install Judy-devel directly from downloaded rpm file:
+    - yum install -y http://mirror.centos.org/centos/8/PowerTools/x86_64/os/Packages/Judy-devel-1.0.5-18.module_el8.3.0+757+d382997d.x86_64.rpm
+    # Use eatmydata to speed up build
+    - yum install -y https://github.com/stewartsmith/libeatmydata/releases/download/v129/libeatmydata-129-1.fc33.x86_64.rpm
+    - yum install -y ccache  # From EPEL
+    - source /etc/profile.d/ccache.sh
+    - export CCACHE_DIR="$(pwd)/.ccache"; ccache -s
+    # This repository does not have any .spec files, so install dependencies based on CentOS spec file
+    - yum-builddep -y mariadb-server
+    - mkdir builddir; cd builddir
+    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - eatmydata make package 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    # @TODO: Don't use -j on Gitlab.com as builds just get stuck when running
+    # multi-proc and out of memory, see https://jira.mariadb.org/browse/MDEV-25968
+    - make test || true  # Unit tests constantly fail, see https://jira.mariadb.org/browse/MDEV-25820
+    # - make test-force || true  # mysql-test-runner takes too long, run it in a separate job instead
+    - *rpm_listfiles
+    - mkdir ../rpm; mv *.rpm ../rpm
+    - ccache -s
+  artifacts:
+    when: always  # Must be able to see logs
+    paths:
+      - build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+      - rpmlist-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+      - rpm
+      - builddir/_CPack_Packages/Linux/RPM/SPECS/
+  cache:
+    key: $MARIADB_MAJOR_VERSION-$CI_JOB_NAME
+    paths:
+      - .ccache
+
+centos7:
+  stage: build
+  image: centos:7
+  variables:
+    GIT_STRATEGY: fetch
+    GIT_SUBMODULE_STRATEGY: normal
+  script:
+    # This repository does not have any .spec files, so install dependencies based on Fedora spec file
+    - yum-builddep -y mariadb-server
+    # ..with a few extra ones, as CentOS 7 is very old and these are added in newer MariaDB releases
+    - yum install -y yum-utils rpm-build gcc gcc-c++ bison libxml2-devel libevent-devel openssl-devel
+    - mkdir builddir; cd builddir
+    - cmake -DRPM=$CI_JOB_NAME $CMAKE_FLAGS .. 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    - make package 2>&1 | tee -a ../build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+    # @TODO: Don't use -j on Gitlab.com as builds just get stuck when running
+    # multi-proc and out of memory, see https://jira.mariadb.org/browse/MDEV-25968
+    - make test || true  # Unit tests constantly fail, see https://jira.mariadb.org/browse/MDEV-25820
+    # - make test-force || true  # mysql-test-runner takes too long, run it in a separate job instead
+    - *rpm_listfiles
+    - mkdir ../rpm; mv *.rpm ../rpm
+  artifacts:
+    when: always  # Must be able to see logs
+    paths:
+      - build-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+      - rpmlist-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+      - rpm
+      - builddir/_CPack_Packages/Linux/RPM/SPECS/
+
+mysql-test-run:
+  stage: test
+  dependencies:
+    - fedora
+  script:
+    # Install packages so tests and the dependencies install
+    # @TODO: RPM missing 'patch' as dependency, so installing it manually for now
+    - yum install -y rpm/*.rpm patch
+    # @TODO: Fix on packaging level for /usr/share/mariadb to work and errormsg.sys be found
+    - rm -rf /usr/share/mariadb; ln -s /usr/share/mysql /usr/share/mariadb
+    # mtr expects to be launched in-place and with write access to it's own directories
+    - cd /usr/share/mysql-test
+    - |
+      echo "
+      main.mysqldump : flaky on Gitlab-CI
+      main.flush_logs_not_windows : flaky in containers in general
+      main.mysql_upgrade_noengine : requires diff but diffutils is not a dependency
+      " > skiplist
+    # @TODO: Flaky tests are skipped for now, but should be fixed
+    - ./mtr --suite=main --force --xml-report=$CI_PROJECT_DIR/junit.xml --skip-test-list=skiplist
+  artifacts:
+    when: always  # Also show results when tests fail
+    reports:
+      junit:
+        - junit.xml
+
+rpmlint:
+  stage: test
+  dependencies:
+    - fedora
+  script:
+    - yum install -y rpmlint
+    - rm -f rpm/*debuginfo*  # Not relevant in this test
+    # Limit output to 1000 lines as Gitlab-CI max output is 4194304 bytes
+    # Save everything in a log file so it can be viewed in full via artifacts
+    - rpmlint --info rpm/*.rpm | tee -a rpmlint-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+  artifacts:
+    when: always  # Also show results when tests fail
+    paths:
+      - rpmlint-$CI_JOB_NAME-$CI_COMMIT_REF_SLUG.log
+  allow_failure: true
+  # @TODO: The package is not rpmlint clean, must allow failure for now
+
+fedora install:
+  stage: test
+  dependencies:
+    - fedora
+  script:
+    - rm -f rpm/*debuginfo*  # Not relevant in this test
+    # Nothing provides galera-4 on Fedora, so this step fails if built with wsrep
+    - yum install -y rpm/*.rpm
+    # Fedora does not support running services in Docker (like Debian packages do) so start it manually
+    - /usr/bin/mariadb-install-db -u mysql
+    - sudo -u mysql /usr/sbin/mariadbd & sleep 10
+    # @TODO: Since we did a manual start, we also need to run upgrade manually
+    - /usr/bin/mariadb-upgrade -u root --socket /var/lib/mysql/mysql.sock
+    - |
+      mysql --skip-column-names -e "SELECT @@version, @@version_comment" | tee /tmp/version
+      grep $MARIADB_MAJOR_VERSION /tmp/version || echo "MariaDB didn't upgrade properly"
+
+fedora upgrade:
+  stage: test
+  dependencies:
+    - fedora
+  script:
+    - yum install -y mariadb-server
+    # Fedora does not support running services in Docker (like Debian packages do) so start it manually
+    - /usr/libexec/mysql-check-socket
+    - /usr/libexec/mysql-prepare-db-dir
+    - sudo -u mysql /usr/libexec/mysqld --basedir=/usr & sleep 10
+    - /usr/libexec/mysql-check-upgrade
+    - mysql --skip-column-names -e "SELECT @@version, @@version_comment"  # Show version
+    # @TODO: Upgrade from Fedora 33 MariaDB 10.4 to MariaDB.org latest does not work
+    # so do this manual step to remove conflicts until packaging is fixed
+    - >
+      yum remove -y mariadb-server-utils mariadb-gssapi-server mariadb-cracklib-password-check
+      mariadb-backup mariadb-connector-c-config
+    - rm -f rpm/*debuginfo*  # Not relevant in this test
+    - yum install -y rpm/*.rpm procps  # procps provides pkill
+    # nothing provides galera-4 on Fedora, so this step fails if built with wsrep
+    - pkill mysqld || true; sleep 5; pkill mysqld || true; sleep 5
+    - /usr/bin/mariadb-install-db -u mysql
+    - sudo -u mysql /usr/sbin/mariadbd & sleep 10
+    # @TODO: Since we did a manual start, we also need to run upgrade manually
+    - /usr/bin/mariadb-upgrade -u root --socket /var/lib/mysql/mysql.sock
+    - |
+      mysql --skip-column-names -e "SELECT @@version, @@version_comment" | tee /tmp/version
+      grep $MARIADB_MAJOR_VERSION /tmp/version || echo "MariaDB didn't upgrade properly"
+
+# Once all RPM builds and tests have passed, also run the DEB builds and tests
+# @NOTE: This is likely to work well only on salsa.debian.org as the Gitlab.com
+# runners are too small for everything this stage does.
+# build_deb:
+#   stage: Salsa-CI
+#   trigger:
+#     include: debian/salsa-ci.yml
