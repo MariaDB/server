@@ -257,6 +257,14 @@ extern TC_LOG_DUMMY tc_log_dummy;
 
 class Relay_log_info;
 
+/* used in search for a binlog file in its index */
+struct log_info_fname_record
+{
+  char log_name[FN_REFLEN];
+  uint binlog_id;
+  my_off_t  index_offset;
+};
+
 /*
   Note that we destroy the lock mutex in the desctructor here.
   This means that object instances cannot be destroyed/go out of scope,
@@ -268,13 +276,51 @@ typedef struct st_log_info
   my_off_t index_file_offset, index_file_start_offset;
   my_off_t pos;
   bool fatal; // if the purge happens to give us a negative offset
+  HASH *fname_hash;
+  Dynamic_array<log_info_fname_record*> *binlog_id_to_fname;
   st_log_info() : index_file_offset(0), index_file_start_offset(0),
-      pos(0), fatal(0)
+                  pos(0), fatal(0), fname_hash(NULL), binlog_id_to_fname(NULL)
   {
     DBUG_ENTER("LOG_INFO");
     log_file_name[0] = '\0';
     DBUG_VOID_RETURN;
   }
+
+  /* Returns the number of files in binlog index counted into the hash. */
+  ulong number_of_files()
+  {
+    DBUG_ASSERT(!fname_hash || fname_hash->records > 0);
+
+    return fname_hash ? fname_hash->records : 0;
+  }
+
+  my_off_t get_start_offset(const char* log_name)
+  {
+    log_info_fname_record *rec= NULL;
+    my_off_t ret= 0;
+
+    if (fname_hash &&
+        (rec= (log_info_fname_record *)
+         my_hash_search(fname_hash, (uchar*) log_name, strlen(log_name))))
+      ret= rec->index_offset;
+
+    return ret;
+  }
+
+  uint get_binlog_id(const char* log_name)
+  {
+    log_info_fname_record *rec= NULL;
+    uint ret= 0;
+
+    if (fname_hash &&
+        (rec= (log_info_fname_record *)
+         my_hash_search(fname_hash, (uchar*) log_name, strlen(log_name))))
+      ret= rec->binlog_id;
+
+    return ret;
+  }
+
+  uint get_binlog_id() { return get_binlog_id(log_file_name); }
 } LOG_INFO;
 
 /*

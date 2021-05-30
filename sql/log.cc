@@ -4098,6 +4098,8 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
   char *full_fname= linfo->log_file_name;
   char full_log_name[FN_REFLEN], fname[FN_REFLEN];
   uint log_name_len= 0, fname_len= 0;
+  my_off_t start_offset= 0;
+
   DBUG_ENTER("find_log_pos");
   full_log_name[0]= full_fname[0]= 0;
 
@@ -4123,8 +4125,9 @@ int MYSQL_BIN_LOG::find_log_pos(LOG_INFO *linfo, const char *log_name,
   DBUG_PRINT("enter", ("log_name: %s, full_log_name: %s", 
                        log_name ? log_name : "NULL", full_log_name));
 
+  start_offset= linfo->get_start_offset(log_name);
   /* As the file is flushed, we can't get an error here */
-  (void) reinit_io_cache(&index_file, READ_CACHE, (my_off_t) 0, 0, 0);
+  (void) reinit_io_cache(&index_file, READ_CACHE, (my_off_t)start_offset, 0, 0);
 
   for (;;)
   {
@@ -10656,14 +10659,19 @@ public:
   /* Flags the fact of truncate position estimation is done the 1st round */
   bool truncate_set_in_1st;
   /*
-    Monotonically indexes binlog files in the recovery list.
-    When the list is "likely" singleton the value is UINT_MAX.
-    Otherwise enumeration starts with zero for the first file, increments
-    by one for any next file except for the last file in the list, which
-    is also the initial binlog file for recovery,
-    that is enumberated with UINT_MAX.
+    The variable counter indexes binlog files in the recovery list.
+    The latest "hot" binlog file gets the maximum value of the total
+    number of file in the binlog index. Therefore the minimum value
+    is greater or equal 1.
+    The zero value is reserved to designate no file (e.g a purged one).
   */
   Binlog_file_id id_binlog;
+  /*
+    The recovery binlog file sequence starts with a checkpoint file
+    which then must have the index value greater or equal 1 *and*
+    less or equal the hot's one.
+  */
+  Binlog_file_id checkpoint_binlog_id;
   enum_binlog_checksum_alg checksum_alg;
   Binlog_offset binlog_truncate_coord,
     binlog_truncate_coord_1st_round;  // pair is similar to truncate_gtid
@@ -10675,7 +10683,7 @@ public:
     Gets empited by reset_truncate_coord into gtid binlog state.
   */
   Dynamic_array<rpl_gtid> *gtid_maybe_to_truncate;
-  Recovery_context();
+  Recovery_context(uint n_files);
   ~Recovery_context() { delete gtid_maybe_to_truncate; }
   /*
     Completes the recovery procedure.
@@ -10854,13 +10862,13 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
   return false;
 }
 
-Recovery_context::Recovery_context() :
+Recovery_context::Recovery_context(uint n_files) :
   prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
   last_gtid_engines(0),
   do_truncate(rpl_semi_sync_slave_enabled),
   truncate_validated(false), truncate_reset_done(false),
-  truncate_set_in_1st(false), id_binlog(MAX_binlog_id),
+  truncate_set_in_1st(false), id_binlog(n_files), checkpoint_binlog_id(0),
   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF), gtid_maybe_to_truncate(NULL)
 {
   last_gtid_coord= Binlog_offset(0,0);
@@ -11147,7 +11155,12 @@ int Recovery_context::next_binlog_or_round(int& round,
         gtid_maybe_to_truncate->clear();
       }
       truncate_reset_done= false;
-      id_binlog= 0;
+
+      DBUG_ASSERT(id_binlog > linfo->get_binlog_id());
+
+      checkpoint_binlog_id= id_binlog= linfo->get_binlog_id();
+
+      DBUG_ASSERT(id_binlog > 0);
     }
     round++;
   }
@@ -11155,6 +11168,7 @@ int Recovery_context::next_binlog_or_round(int& round,
   {
     id_binlog++;
 
+    DBUG_ASSERT(id_binlog == linfo->get_binlog_id());
     DBUG_ASSERT(id_binlog <= MAX_binlog_id); // the assert is "practical"
   }
 
@@ -11178,7 +11192,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
   File file= -1;
   const char *errmsg;
 #ifdef HAVE_REPLICATION
-  Recovery_context ctx;
+  Recovery_context ctx(linfo->number_of_files());
 #endif
   /*
     The for-loop variable is updated by the following rule set:
@@ -11267,7 +11281,8 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         break;
 #ifdef HAVE_REPLICATION
       case GTID_LIST_EVENT:
-        if (round == 1 || (ctx.do_truncate && ctx.id_binlog == 0))
+        if (round == 1 ||
+            (ctx.do_truncate && ctx.id_binlog == ctx.checkpoint_binlog_id))
         {
           Gtid_list_log_event *glev= (Gtid_list_log_event *)ev;
 
@@ -11432,12 +11447,21 @@ err1:
   return 1;
 }
 
+static uchar *log_info_get_key(const uchar *ptr, size_t *length,
+                               my_bool not_used __attribute__((unused)))
+{
+  log_info_fname_record *hash_item= (log_info_fname_record *)ptr;
+  *length= strlen(hash_item->log_name);
 
+  return (uchar*) hash_item->log_name;
+}
 
 int
 MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
 {
   LOG_INFO log_info;
+  HASH  log_info_hash;
+  Dynamic_array<log_info_fname_record*> *array= NULL;
   const char *errmsg;
   IO_CACHE    log;
   File        file;
@@ -11445,6 +11469,8 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
   Format_description_log_event fdle(BINLOG_VERSION);
   char        log_name[FN_REFLEN];
   int error;
+  MEM_ROOT mem_root_local;
+  uint   binlog_id= 1;
 
   if (unlikely((error= find_log_pos(&log_info, NullS, 1))))
   {
@@ -11474,21 +11500,50 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
   if (! fdle.is_valid())
     return 1;
 
+  if (do_xa_recovery)
+  {
+    init_alloc_root(key_memory_binlog_recover_exec, &mem_root_local,
+                    TC_LOG_PAGE_SIZE, TC_LOG_PAGE_SIZE, MYF(0));
+    array= new Dynamic_array<log_info_fname_record*>(&mem_root_local);
+    log_info.binlog_id_to_fname= array;
+    log_info.fname_hash= &log_info_hash;
+    my_hash_init(key_memory_binlog_recover_exec, log_info.fname_hash,
+                 &my_charset_bin, 64, 0, 0, log_info_get_key,
+                 NULL, 0);
+  }
   do
   {
     strmake_buf(log_name, log_info.log_file_name);
+    if (do_xa_recovery)
+    {
+      log_info_fname_record *rec= (log_info_fname_record*)
+        alloc_root(&mem_root_local, sizeof(log_info_fname_record));
+
+      strcpy(rec->log_name, log_name);
+      rec->binlog_id= binlog_id++;
+      rec->index_offset= log_info.index_file_start_offset;
+      if (my_hash_insert(log_info.fname_hash, (uchar*) rec) ||
+          log_info.binlog_id_to_fname->append(rec))
+      {
+        sql_print_error("could not allocate memory at hashing binlog files");
+        error= 1;
+        goto err;
+      }
+      DBUG_ASSERT(log_info.binlog_id_to_fname->at(rec->binlog_id - 1) == rec);
+    }
   } while (!(error= find_next_log(&log_info, 1)));
 
   if (error !=  LOG_INFO_EOF)
   {
     sql_print_error("find_log_pos() failed (error: %d)", error);
-    return error;
+    goto err;
   }
 
   if ((file= open_binlog(&log, log_name, &errmsg)) < 0)
   {
     sql_print_error("%s", errmsg);
-    return 1;
+    error= 1;
+    goto err;
   }
 
   if ((ev= Log_event::read_log_event(&log, &fdle,
@@ -11529,11 +11584,16 @@ MYSQL_BIN_LOG::do_binlog_recovery(const char *opt_name, bool do_xa_recovery)
       }
     }
   }
-
+err:
   delete ev;
   end_io_cache(&log);
   mysql_file_close(file, MYF(MY_WME));
-
+  if (do_xa_recovery)
+  {
+    free_root(&mem_root_local, MYF(0));
+    delete array;
+    my_hash_free(log_info.fname_hash);
+  }
   return error;
 }
 
