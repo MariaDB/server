@@ -24,6 +24,7 @@
 #define _m_string_h
 
 #include "my_decimal_limits.h"
+#include "my_global.h"
 
 #ifndef __USE_GNU
 #define __USE_GNU				/* We want to use stpcpy */
@@ -86,6 +87,7 @@ extern char *strmov_overlapp(char *dest, const char *src);
 #endif
 
 /* Prototypes for string functions */
+
 
 extern	void bmove_upp(uchar *dst,const uchar *src,size_t len);
 extern	void bchange(uchar *dst,size_t old_len,const uchar *src,
