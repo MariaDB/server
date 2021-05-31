@@ -814,6 +814,16 @@ select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted
  
 select * from json_table('{"a":"foo", "b":1, "c":1000}', '$.*' columns(converted tinyint path '$', original text path '$')) as jt order by original;
 
+select * from
+  json_table('[{"color": "blue",  "price": { "high": 10, "low": 5}},
+               {"color": "white",   "price": "pretty low"},
+               {"color": "yellow",  "price": 256.20},
+               {"color": "red",   "price": { "high": 20, "low": 8}}]',
+             '$[*]' columns(color varchar(100) path '$.color',
+                          price json path '$.price'
+                        )
+             ) as T;
+
 --echo #
 --echo # MDEV-27696 Json table columns accept redundant COLLATE syntax
 --echo #
