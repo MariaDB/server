@@ -831,6 +831,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
   flush_lock.release(flush_lsn);
 
   log_flush_notify(flush_lsn);
+  DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
 }
 
 /** write to the log file up to the last log entry.

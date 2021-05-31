@@ -9249,6 +9249,11 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
     if (!ht->commit_ordered)
       continue;
     ht->commit_ordered(ht, thd, all);
+    DBUG_EXECUTE_IF("enable_log_write_upto_crash",
+      {
+        DBUG_SET_INITIAL("+d,crash_after_log_write_upto");
+        sleep(1000);
+      });
     DEBUG_SYNC(thd, "commit_after_run_commit_ordered");
   }
 }
@@ -10897,12 +10902,6 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
 {
   if (member)
   {
-    DBUG_EXECUTE_IF("binlog_truncate_partial_commit",
-                    if (last_gtid_engines == 2)
-                    {
-                      DBUG_ASSERT(member->in_engine_prepare > 0);
-                      member->in_engine_prepare= 1;
-                    });
     /*
       xid in doubt are resolved as follows:
       in_engine_prepare is compared agaist binlogged info to
@@ -10925,8 +10924,6 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
     }
     else if (member->in_engine_prepare < last_gtid_engines)
     {
-      DBUG_EXECUTE_IF("binlog_truncate_partial_commit",
-                      member->in_engine_prepare= 2;);
       DBUG_ASSERT(member->in_engine_prepare > 0);
       /*
         This is an "unlikely" branch of two or more engines in transaction
