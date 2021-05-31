@@ -84,7 +84,15 @@ static inline void MY_RELAX_CPU(void)
   __ppc_get_timebase();
 #elif defined __GNUC__ && (defined __arm__ || defined __aarch64__)
   /* Mainly, prevent the compiler from optimizing away delay loops */
+#ifdef _aarch64_
   __asm__ __volatile__ ("isb":::"memory");
+#else
+  /*
+    some older 32 bits processor doesn't support isb but as per
+    arm-v8 reference manual all armv8 processor should support isb.
+  */
+  __asm__ __volatile__ ("":::"memory");
+#endif
 #else
   int32 var, oldval = 0;
   my_atomic_cas32_strong_explicit(&var, &oldval, 1, MY_MEMORY_ORDER_RELAXED,
