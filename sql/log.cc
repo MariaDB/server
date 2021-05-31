@@ -10731,6 +10731,8 @@ public:
   */
   Binlog_offset ha_offset[MAX_HA];
   Binlog_offset *ha_offset_min, *ha_offset_max; // min,max of the above
+  ulonglong     total_to_replay;
+  Binlog_offset replay_coordinate;
   /*
     Populated at decide_or_assess() with gtid-in-doubt whose
     binlog offset greater of equal by that of the current gtid truncate
@@ -10887,7 +10889,10 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log)
       return false; // there's later dry run ha_recover() to error out
     }
   }
-
+  if (total_to_replay)
+  {
+    // todo: call applier
+  }
   /* Truncation is not done when there's no transaction to roll back */
   if (do_truncate && truncate_gtid.seq_no > 0)
   {
@@ -10928,7 +10933,8 @@ Recovery_context::Recovery_context(LOG_INFO *linfo, MEM_ROOT *mem_root_arg,
   truncate_validated(false), truncate_reset_done(false),
   truncate_set_in_1st(false), checkpoint_binlog_id(0),
   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
-  ha_offset({ Binlog_offset(0,0) }),
+  ha_offset({ Binlog_offset(0,0) }), total_to_replay(0),
+  replay_coordinate(Binlog_offset(0,0)),
   gtid_maybe_to_truncate(NULL), ptr_mem_root(mem_root_arg), ptr_xids(xids_arg),
   ptr_log_info(linfo_arg)
 {
@@ -10992,6 +10998,24 @@ bool Recovery_context::set_truncate_coord(int round,
 bool Recovery_context::handle_committed(xid_recovery_member *member,
                                         int round, Xid_log_event *ev)
 {
+  // compute whether a member needs allocation for replaying
+  if (*ha_offset_min <= last_gtid_coord)
+  {
+    if (!member)                          // no prepared branches
+    {
+      member= xid_member_insert(ptr_xids, ev->xid, ptr_mem_root, 0);
+      if (!member)
+      {
+        sql_print_error("Error in memory allocation at xarecover_handlerton");
+        return true;
+      }
+    }
+    member->to_replay= last_gtid_engines - member->in_engine_prepare;
+    total_to_replay++;
+
+    DBUG_ASSERT(member->to_replay > 0);
+  }
+
   if (!do_truncate)
   {
     if (member)
@@ -11022,6 +11046,14 @@ bool Recovery_context::handle_committed(xid_recovery_member *member,
     if ((!member || member->decided_to_commit) &&
         !truncate_validated && reset_truncate_coord(ev->log_pos))
       return true;
+  }
+
+  if (member && member->to_replay)
+  {
+    DBUG_ASSERT(member->decided_to_commit);
+
+    if (total_to_replay == 0 || last_gtid_coord < replay_coordinate)
+      replay_coordinate= last_gtid_coord;
   }
   return false;
 }

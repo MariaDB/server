@@ -2357,6 +2357,7 @@ xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
   member->xid= xid_arg;
   member->in_engine_prepare= n_prepared;
   member->decided_to_commit= false;
+  member->to_replay= 0;
 
   return my_hash_insert(hash_arg, (uchar*) member) ? NULL : member;
 }

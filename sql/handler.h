@@ -954,6 +954,7 @@ struct xid_recovery_member
 {
   my_xid xid;
   uint in_engine_prepare;  // number of engines that have xid prepared
+  uint to_replay;          // number of engines suspected to miss prepare/commit
   bool decided_to_commit;
   Binlog_offset binlog_coord; // semisync recovery binlog offset
 };
