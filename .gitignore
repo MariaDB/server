@@ -197,11 +197,12 @@ sql/lex_hash.h
 sql/mysql_tzinfo_to_sql
 sql/mysqld
 sql/sql_builtin.cc
-sql/sql_yacc.cc
-sql/sql_yacc.hh
-sql/sql_yacc_ora.cc
-sql/sql_yacc_ora.hh
-sql/sql_yacc_ora.yy
+sql/yy_mariadb.cc
+sql/yy_mariadb.hh
+sql/yy_mariadb.yy
+sql/yy_oracle.cc
+sql/yy_oracle.hh
+sql/yy_oracle.yy
 storage/heap/hp_test1
 storage/heap/hp_test2
 storage/maria/aria_chk

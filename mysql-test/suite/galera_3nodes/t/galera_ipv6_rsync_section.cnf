@@ -29,6 +29,3 @@ wsrep_provider_options='base_host=[::1];base_port=@mysqld.3.#galera_port;gmcast.
 wsrep_sst_receive_address='[::1]:@mysqld.3.#sst_port'
 wsrep_node_incoming_address='[::1]:@mysqld.3.port'
 bind-address=::
-
-[SST]
-sockopt=",pf=ip6"

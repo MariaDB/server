@@ -719,8 +719,13 @@ end:
                   thd->lex->spname->m_name.str, static_cast<uint>(thd->lex->spname->m_name.length));
   }
 
-  if (mdl_request_for_trn.ticket)
-    thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
+  /* In Locked_tables_list::reopen_tables(),
+  MDL_context::set_transaction_duration_for_all_locks() may have been invoked,
+  converting our explicit MDL to transaction scope. In that case, we will not
+  release the lock, to avoid a debug assertion failure. */
+  if (MDL_ticket *ticket= mdl_request_for_trn.ticket)
+    if (thd->mdl_context.has_explicit_locks())
+      thd->mdl_context.release_lock(ticket);
 
   DBUG_RETURN(result);
 

@@ -2443,7 +2443,7 @@ corrupted:
     if (UNIV_UNLIKELY(free_rec - fextra_size < heap_bot))
       goto corrupted;
     const ulint fdata_size= rec_get_data_size_old(free_rec);
-    if (UNIV_UNLIKELY(free_rec + data_size > heap_top))
+    if (UNIV_UNLIKELY(free_rec + fdata_size > heap_top))
       goto corrupted;
     if (UNIV_UNLIKELY(extra_size + data_size > fextra_size + fdata_size))
       goto corrupted;

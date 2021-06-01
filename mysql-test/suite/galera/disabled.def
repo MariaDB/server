@@ -50,4 +50,3 @@ pxc-421: wsrep_provider is read-only for security reasons
 query_cache: MDEV-15805 Test failure on galera.query_cache
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
 
-MDEV-25562: MDEV-25562 FIXME: lock wait timeout exceeded

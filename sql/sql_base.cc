@@ -2556,7 +2556,17 @@ unlink_all_closed_tables(THD *thd, MYSQL_LOCK *lock, size_t reopen_count)
 
   /* If no tables left, do an automatic UNLOCK TABLES */
   if (thd->lock && thd->lock->table_count == 0)
+  {
+    /*
+      We have to rollback any open transactions here.
+      This is required in the case where the server has been killed
+      but some transations are still open (as part of locked tables).
+      If we don't do this, we will get an assert in unlock_locked_tables().
+    */
+    ha_rollback_trans(thd, FALSE);
+    ha_rollback_trans(thd, TRUE);
     unlock_locked_tables(thd);
+  }
 }
 
 
@@ -9260,6 +9270,21 @@ int dynamic_column_error_message(enum_dyncol_func_result rc)
   }
   return rc;
 }
+
+
+/**
+  Turn on the SELECT_DESCRIBE flag for the primary SELECT_LEX of the statement
+  being processed in case the statement is EXPLAIN UPDATE/DELETE.
+
+  @param lex  current LEX
+*/
+
+void promote_select_describe_flag_if_needed(LEX *lex)
+{
+  if (lex->describe)
+    lex->first_select_lex()->options|= SELECT_DESCRIBE;
+}
+
 
 /**
   @} (end of group Data_Dictionary)

@@ -10,3 +10,4 @@ transferfmt=@ENV.MTR_GALERA_TFMT
 compress=quicklz
 compress-threads=2
 compress-chunk-size=32768
+backup-threads=2

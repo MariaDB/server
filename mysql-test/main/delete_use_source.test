@@ -64,6 +64,7 @@ rollback;
 --echo #
 
 start transaction;
+--replace_column 9 #
 explain delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500;
 --enable_info ONCE
 delete from v1 where (select count(*) from t1 b where b.c1=v1.c1) = 500 ;
