@@ -13520,6 +13520,14 @@ int ha_innobase::truncate()
 
 		trx->free();
 
+#ifdef BTR_CUR_HASH_ADAPT
+		if (UT_LIST_GET_LEN(ib_table->freed_indexes)) {
+			ib_table->vc_templ = nullptr;
+			ib_table->id = 0;
+			DBUG_RETURN(err);
+		}
+#endif /* BTR_CUR_HASH_ADAPT */
+
 		dict_mem_table_free(ib_table);
 		DBUG_RETURN(err);
 	}
