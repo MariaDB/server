@@ -93,6 +93,7 @@ ulonglong test_flags = 0;
 ulong opt_binlog_rows_event_max_encoded_size= MAX_MAX_ALLOWED_PACKET;
 static uint opt_protocol= 0;
 static FILE *result_file;
+static FILE *progress_file = NULL;
 static char *result_file_name= 0;
 static const char *output_prefix= "";
 static char **defaults_argv= 0;
@@ -1596,6 +1597,16 @@ static struct my_option my_options[] =
    "built-in default (" STRINGIFY_ARG(MYSQL_PORT) ").",
    &port, &port, 0, GET_INT, REQUIRED_ARG,
    0, 0, 0, 0, 0, 0},
+  {"progress-log", 'L', "Write progress info to given file. "
+   "The following information is emitted to the progress log. "
+   "[OPEN]: mysqlbinlog successfully opened file. "
+   "[EOF]: The end of the file was reached before a stop condition was found. "
+   "[LAST]: The last event applied (assuming the output is being applied). "
+   "[FINAL]: The last event applied before a stop condition was found. If --stop--datetime "
+   "(or .stop-position) was given, this is the event that signals PITR is complete. "
+   "[STOP]: The event that satisfied the stop conditions. "
+   "[EXIT]: mysqlbinlog exited. See stderr for errors, if any.",
+   0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"protocol", OPT_MYSQL_PROTOCOL,
    "The protocol to use for connection (tcp, socket, pipe).",
    0, 0, 0, GET_STR,  REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
@@ -1835,6 +1846,8 @@ static void cleanup()
   my_free_open_file_info();
   load_processor.destroy();
   mysql_server_end();
+  if (progress_file != NULL)
+    my_fclose(progress_file, MYF(0));
   DBUG_VOID_RETURN;
 }
 
@@ -1941,6 +1954,11 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     break;
   case 'T':
     one_table= 1;
+    break;
+  case 'L':
+    if (!(progress_file = my_fopen(argument, O_APPEND | O_WRONLY | O_BINARY, MYF(MY_WME))))
+      exit(1);
+    setvbuf(progress_file, NULL, _IOLBF, 0); /* Force flush at end of line */
     break;
   case OPT_MYSQL_PROTOCOL:
     if ((opt_protocol= find_type_with_warning(argument, &sql_protocol_typelib,
@@ -2108,6 +2126,24 @@ static int parse_args(int *argc, char*** argv)
     start_position= UINT_MAX32;
   }
   return 0;
+}
+
+
+/**
+  Print time into progress log.
+
+  @param mytime timesnapt to be print
+*/
+static void print_progress_log_time(my_time_t mytime)
+{
+  struct tm *res = gmtime((time_t *)&mytime);
+  fprintf(progress_file, "Time: %04d-%02d-%02dT%02d:%02d:%02dZ",
+      res->tm_year + 1900,
+      res->tm_mon+1,
+      res->tm_mday,
+      res->tm_hour,
+      res->tm_min,
+      res->tm_sec);
 }
 
 
@@ -2892,6 +2928,10 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   IO_CACHE cache,*file= &cache;
   uchar tmp_buff[BIN_LOG_HEADER_SIZE];
   Exit_status retval= OK_CONTINUE;
+  my_time_t this_ev_time=0;
+  my_time_t prev_ev_time=0;
+  my_off_t this_ev_pos=0;
+  my_off_t prev_ev_pos=0;
 
   if (logname && strcmp(logname, "-") != 0)
   {
@@ -2904,6 +2944,11 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       my_close(fd, MYF(MY_WME));
       return ERROR_STOP;
     }
+
+    /* record the successful open in progress log */
+    if (progress_file != NULL)
+      fprintf(progress_file, "# OPEN %s with starting position %llu\n", logname, (ulonglong)start_position_mot);
+
     if ((retval= check_header(file, print_event_info, logname)) != OK_CONTINUE)
       goto end;
   }
@@ -2965,6 +3010,8 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
   {
     char llbuff[21];
     my_off_t old_off = my_b_tell(file);
+    prev_ev_time = this_ev_time;
+    prev_ev_pos = this_ev_pos;
 
     Log_event* ev = Log_event::read_log_event(file, glob_description_event,
                                               opt_verify_binlog_checksum);
@@ -2983,9 +3030,16 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
               llstr(old_off,llbuff));
         goto err;
       }
+      /* write EOF to progress log */
+      if (progress_file != NULL)
+        fprintf(progress_file, "# EOF reached on %s at position %s\n", logname, llstr(old_off,llbuff));
+
       // file->error == 0 means EOF, that's OK, we break in this case
       goto end;
     }
+
+    this_ev_time = ev->when;
+    this_ev_pos = old_off;
     if ((retval= process_event(print_event_info, ev, old_off, logname)) !=
         OK_CONTINUE)
       goto end;
@@ -2997,6 +3051,37 @@ err:
   retval= ERROR_STOP;
 
 end:
+  /* write this and previous events to progress log, if they exist */
+  if (progress_file != NULL)
+  {
+    if (retval == OK_STOP)
+    {
+      if (prev_ev_time)
+      {
+        fprintf(progress_file, "# FINAL applied event: logfile %s ", logname);
+        print_progress_log_time(prev_ev_time);
+        fprintf(progress_file, " Pos: %llu\n", (ulonglong)prev_ev_pos);
+      }
+      else
+      {
+        fprintf(progress_file, "# No previous event\n");
+      }
+      fprintf(progress_file, "# STOP event (not applied): logfile %s ", logname);
+      print_progress_log_time(this_ev_time);
+      fprintf(progress_file, " Pos: %llu\n", (ulonglong)this_ev_pos);
+    }
+    else if (this_ev_time)
+    {
+      fprintf(progress_file, "# LAST applied event: logfile %s ", logname);
+      print_progress_log_time(this_ev_time);
+      fprintf(progress_file, " Pos: %llu\n", (ulonglong)this_ev_pos);
+    }
+    else
+    {
+      fprintf(progress_file, "# No current event\n");
+    }
+  }
+
   if (fd >= 0)
     my_close(fd, MYF(MY_WME));
   /*
@@ -3008,7 +3093,6 @@ end:
 
   return retval;
 }
-
 
 int main(int argc, char** argv)
 {
@@ -3211,6 +3295,9 @@ int main(int argc, char** argv)
 
     fprintf(result_file, "/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;\n");
   }
+
+  if (progress_file != NULL)
+    fprintf(progress_file, "EXIT\n");
 
   if (tmpdir.list)
     free_tmpdir(&tmpdir);

@@ -1,0 +1,57 @@
+-- source include/have_binlog_format_row.inc
+-- source include/binlog_start_pos.inc
+
+#
+# Reset master to cleanup binlog
+#
+reset master;
+set timestamp=1000000000;
+
+#
+#  Write different events to binlog
+#
+create table t1 (a int);
+insert into t1 values (1);
+insert into t1 values (2);
+insert into t1 values (3);
+update t1 set a=a+2 where a=2;
+update t1 set a=a+2 where a=3;
+
+#
+#  Save binlog
+#
+flush logs;
+
+
+let $MYSQLD_DATADIR=`select @@datadir`;
+let $start_pos= `select @binlog_start_pos`;
+let $stop_pos= `select @binlog_start_pos + 1`;
+
+
+--echo
+--echo --- parse binlog and verify progress-log ---
+--enable_query_log
+--echo --- binlog output ---
+--exec $MYSQL_BINLOG --short-form $MYSQLD_DATADIR/master-bin.000001 --progress-log $MYSQLTEST_VARDIR/tmp/progress_log_1.event
+--echo
+--echo --- progress log output ---
+--replace_result $MYSQLD_DATADIR ""
+--replace_regex /Time.+Pos/Time: XXX Pos/
+--exec cat $MYSQLTEST_VARDIR/tmp/progress_log_1.event
+--disable_query_log
+
+
+--echo
+--echo --- parse binlog with --stop-position and verify progress-log ---
+--enable_query_log
+--echo --- binlog output ---
+--exec $MYSQL_BINLOG --short-form --start-position=$start_pos --stop-position $stop_pos $MYSQLD_DATADIR/master-bin.000001 --progress-log $MYSQLTEST_VARDIR/tmp/progress_log_2.event
+--echo
+--echo --- progress log output ---
+--replace_result $MYSQLD_DATADIR ""
+--replace_regex /Time.+Pos/Time: XXX Pos/
+--exec cat $MYSQLTEST_VARDIR/tmp/progress_log_2.event
+--disable_query_log
+
+drop table t1;
+RESET MASTER;
