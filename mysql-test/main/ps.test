@@ -4983,6 +4983,20 @@ SHOW WARNINGS;
 
 DEALLOCATE PREPARE stmt;
 DROP TABLE t1, t2;
+
 --echo #
+--echo # MDEV-25576: The statement EXPLAIN running as regular statement and
+--echo #             as prepared statement produces different results for
+--echo #             UPDATE with subquery
+--echo #
+CREATE TABLE t1 (c1 INT KEY) ENGINE=MyISAM;
+CREATE TABLE t2 (c2 INT) ENGINE=MyISAM;
+CREATE TABLE t3 (c3 INT) ENGINE=MyISAM;
+EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 );
+PREPARE stmt FROM "EXPLAIN EXTENDED UPDATE t3 SET c3 = ( SELECT COUNT(d1.c1) FROM ( SELECT a11.c1 FROM t1 AS a11 STRAIGHT_JOIN t2 AS a21 ON a21.c2 = a11.c1 JOIN t1 AS a12 ON a12.c1 = a11.c1 ) d1 )";
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+DROP TABLE t1, t2, t3;
+
 --echo # End of 10.2 tests
 --echo #

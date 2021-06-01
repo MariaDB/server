@@ -261,9 +261,6 @@ it every INNOBASE_WAKE_INTERVAL'th step. */
 #define INNOBASE_WAKE_INTERVAL	32
 ulong	innobase_active_counter	= 0;
 
-#ifndef _WIN32
-static char *xtrabackup_debug_sync = NULL;
-#endif
 
 my_bool xtrabackup_incremental_force_scan = FALSE;
 
@@ -1056,7 +1053,7 @@ enum options_xtrabackup
 struct my_option xb_client_options[]= {
     {"verbose", 'V', "display verbose output", (G_PTR *) &verbose,
      (G_PTR *) &verbose, 0, GET_BOOL, NO_ARG, FALSE, 0, 0, 0, 0, 0},
-    {"version", 'v', "print xtrabackup version information",
+    {"version", 'v', "print version information",
      (G_PTR *) &xtrabackup_version, (G_PTR *) &xtrabackup_version, 0, GET_BOOL,
      NO_ARG, 0, 0, 0, 0, 0, 0},
     {"target-dir", OPT_XTRA_TARGET_DIR, "destination directory",
@@ -1353,8 +1350,8 @@ struct my_option xb_client_options[]= {
      "starting lsn for the incremental backup. This will be mutually "
      "exclusive with --incremental-history-uuid, --incremental-basedir "
      "and --incremental-lsn. If no valid lsn can be found (no series by "
-     "that name, no successful backups by that name) xtrabackup will "
-     "return with an error. It is used with the --incremental option.",
+     "that name, no successful backups by that name), an error will be returned."
+     " It is used with the --incremental option.",
      (uchar *) &opt_incremental_history_name,
      (uchar *) &opt_incremental_history_name, 0, GET_STR, REQUIRED_ARG, 0, 0,
      0, 0, 0, 0},
@@ -1364,8 +1361,8 @@ struct my_option xb_client_options[]= {
      "stored in the PERCONA_SCHEMA.xtrabackup_history to base an "
      "incremental backup on. --incremental-history-name, "
      "--incremental-basedir and --incremental-lsn. If no valid lsn can be "
-     "found (no success record with that uuid) xtrabackup will return "
-     "with an error. It is used with the --incremental option.",
+     "found (no success record with that uuid), an error will be returned."
+     " It is used with the --incremental option.",
      (uchar *) &opt_incremental_history_uuid,
      (uchar *) &opt_incremental_history_uuid, 0, GET_STR, REQUIRED_ARG, 0, 0,
      0, 0, 0, 0},
@@ -1422,11 +1419,6 @@ struct my_option xb_client_options[]= {
      (uchar *) &opt_lock_wait_threshold, (uchar *) &opt_lock_wait_threshold, 0,
      GET_UINT, REQUIRED_ARG, 60, 0, 0, 0, 0, 0},
 
-    {"debug-sleep-before-unlock", OPT_DEBUG_SLEEP_BEFORE_UNLOCK,
-     "This is a debug-only option used by the XtraBackup test suite.",
-     (uchar *) &opt_debug_sleep_before_unlock,
-     (uchar *) &opt_debug_sleep_before_unlock, 0, GET_UINT, REQUIRED_ARG, 0, 0,
-     0, 0, 0, 0},
 
     {"safe-slave-backup-timeout", OPT_SAFE_SLAVE_BACKUP_TIMEOUT,
      "How many seconds --safe-slave-backup should wait for "
@@ -1436,9 +1428,9 @@ struct my_option xb_client_options[]= {
      0, 0, 0, 0, 0},
 
     {"binlog-info", OPT_BINLOG_INFO,
-     "This option controls how XtraBackup should retrieve server's binary log "
+     "This option controls how backup should retrieve server's binary log "
      "coordinates corresponding to the backup. Possible values are OFF, ON, "
-     "LOCKLESS and AUTO. See the XtraBackup manual for more information",
+     "LOCKLESS and AUTO.",
      &opt_binlog_info, &opt_binlog_info, &binlog_info_typelib, GET_ENUM,
      OPT_ARG, BINLOG_INFO_AUTO, 0, 0, 0, 0, 0},
 
@@ -1609,13 +1601,6 @@ struct my_option xb_server_options[] =
    &dbug_option, &dbug_option, 0, GET_STR, OPT_ARG,
    0, 0, 0, 0, 0, 0},
 #endif
-#ifndef __WIN__
-  {"debug-sync", OPT_XTRA_DEBUG_SYNC,
-   "Debug sync point. This is only used by the xtrabackup test suite",
-   (G_PTR*) &xtrabackup_debug_sync,
-   (G_PTR*) &xtrabackup_debug_sync,
-   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
-#endif
 
   {"innodb_checksum_algorithm", OPT_INNODB_CHECKSUM_ALGORITHM,
   "The algorithm InnoDB uses for page checksumming. [CRC32, STRICT_CRC32, "
@@ -1659,7 +1644,7 @@ struct my_option xb_server_options[] =
    REQUIRED_ARG, 0, 0, UINT_MAX, 0, 1, 0},
 
   {"lock-ddl-per-table", OPT_LOCK_DDL_PER_TABLE, "Lock DDL for each table "
-   "before xtrabackup starts to copy it and until the backup is completed.",
+   "before backup starts to copy it and until the backup is completed.",
    (uchar*) &opt_lock_ddl_per_table, (uchar*) &opt_lock_ddl_per_table, 0,
    GET_BOOL, NO_ARG, 0, 0, 0, 0, 0, 0},
 
@@ -1689,60 +1674,6 @@ struct my_option xb_server_options[] =
 };
 
 uint xb_server_options_count = array_elements(xb_server_options);
-
-#ifndef __WIN__
-static int debug_sync_resumed;
-
-static void sigcont_handler(int sig);
-
-static void sigcont_handler(int sig __attribute__((unused)))
-{
-	debug_sync_resumed= 1;
-}
-#endif
-
-static inline
-void
-debug_sync_point(const char *name)
-{
-#ifndef __WIN__
-	FILE	*fp;
-	pid_t	pid;
-	char	pid_path[FN_REFLEN];
-
-	if (xtrabackup_debug_sync == NULL) {
-		return;
-	}
-
-	if (strcmp(xtrabackup_debug_sync, name)) {
-		return;
-	}
-
-	pid = getpid();
-
-	snprintf(pid_path, sizeof(pid_path), "%s/xtrabackup_debug_sync",
-		 xtrabackup_target_dir);
-	fp = fopen(pid_path, "w");
-	if (fp == NULL) {
-		die("Can't open open %s", pid_path);
-	}
-	fprintf(fp, "%u\n", (uint) pid);
-	fclose(fp);
-
-	msg("mariabackup: DEBUG: Suspending at debug sync point '%s'. "
-	    "Resume with 'kill -SIGCONT %u'.", name, (uint) pid);
-
-	debug_sync_resumed= 0;
-	kill(pid, SIGSTOP);
-	while (!debug_sync_resumed) {
-		sleep(1);
-	}
-
-	/* On resume */
-	msg("mariabackup: DEBUG: removing the pid file.");
-	my_delete(pid_path, MYF(MY_WME));
-#endif
-}
 
 
 static std::set<std::string> tables_for_export;
@@ -3106,8 +3037,6 @@ static bool xtrabackup_copy_logfile(bool last = false)
 	log_copy_scanned_lsn = start_lsn;
 	pthread_cond_broadcast(&scanned_lsn_cond);
 	pthread_mutex_unlock(&backup_mutex);
-
-	debug_sync_point("xtrabackup_copy_logfile_pause");
 	return(false);
 }
 
@@ -3238,8 +3167,6 @@ DECLARE_THREAD(data_copy_thread_func)(
 	  use mysys functions in this thread.
 	*/
 	my_thread_init();
-
-	debug_sync_point("data_copy_thread_func");
 
 	while ((node = datafiles_iter_next(ctxt->it)) != NULL) {
 		DBUG_MARIABACKUP_EVENT("before_copy", node->space->name);
@@ -3771,8 +3698,6 @@ xb_load_tablespaces()
 	if (err != DB_SUCCESS) {
 		return(err);
 	}
-
-	debug_sync_point("xtrabackup_load_tablespaces_pause");
 	DBUG_MARIABACKUP_EVENT("after_load_tablespaces", 0);
 	return(DB_SUCCESS);
 }
@@ -4607,8 +4532,6 @@ fail_before_log_copying_thread_start:
 	if (!flush_changed_page_bitmaps()) {
 		goto fail;
 	}
-	debug_sync_point("xtrabackup_suspend_at_start");
-
 
 	ut_a(xtrabackup_parallel > 0);
 
@@ -6817,12 +6740,6 @@ static int main_low(char** argv)
 			return(EXIT_FAILURE);
 		}
 	}
-
-#ifndef __WIN__
-	if (xtrabackup_debug_sync) {
-		signal(SIGCONT, sigcont_handler);
-	}
-#endif
 
 	/* --backup */
 	if (xtrabackup_backup && !xtrabackup_backup_func()) {
