@@ -10868,8 +10868,16 @@ public:
             true  when OOM at gtid_maybe_to_truncate append
 
   */
-  bool set_truncate_coord(LOG_INFO *linfo, int round,
+  bool set_truncate_coord(int round,
                           enum_binlog_checksum_alg fd_checksum_alg);
+
+  /*
+    Replay binlog transactions that lost their prepared states in engines
+    typically due to their relaxed durability setup.
+
+    Returns  false on success, true as failure.
+  */
+  bool roll_forward(MYSQL_BIN_LOG *log);
 };
 
 bool Recovery_context::complete(MYSQL_BIN_LOG *log)
@@ -10891,7 +10899,11 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log)
   }
   if (total_to_replay)
   {
-    // todo: call applier
+    if (0 && roll_forward(log))
+    {
+      sql_print_error("Failed to replay transactions from binlog");
+      return true;
+    }
   }
   /* Truncation is not done when there's no transaction to roll back */
   if (do_truncate && truncate_gtid.seq_no > 0)
@@ -10924,7 +10936,204 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log)
   return false;
 }
 
-Recovery_context::Recovery_context(LOG_INFO *linfo, MEM_ROOT *mem_root_arg,
+bool Recovery_context::roll_forward(MYSQL_BIN_LOG *binlog)
+{
+  bool err= true;
+  int error=0;
+  Relay_log_info *rli= NULL;
+  rpl_group_info *rgi;
+  THD *thd= new THD(0);  /* Needed by start_slave_threads */
+  thd->thread_stack= (char*) &thd;
+  thd->store_globals();
+  thd->security_ctx->skip_grants();
+  IO_CACHE log;
+  const char *errmsg;
+  File        file;
+  bool enable_apply_event= false;
+  Log_event *ev = 0;
+//#ifndef DBUG_OFF
+  log_info_fname_record *binlog_fname_record=
+    ptr_log_info->binlog_id_to_fname->at(replay_coordinate.first);
+  const char* current_binlog= binlog_fname_record->log_name;
+//#endif
+  xid_recovery_member *member __attribute__((unused))= NULL;
+
+  if (!(rli= thd->rli_fake= new Relay_log_info(FALSE, "Recovery")))
+  {
+    my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
+    goto err2;
+  }
+  rli->sql_driver_thd= thd;
+  static LEX_CSTRING connection_name= { STRING_WITH_LEN("Recovery") };
+  rli->mi= new Master_info(&connection_name, false);
+  if (!(rgi= thd->rgi_fake))
+    rgi= thd->rgi_fake= new rpl_group_info(rli);
+  rgi->thd= thd;
+  thd->system_thread_info.rpl_sql_info=
+    new rpl_sql_thread_info(rli->mi->rpl_filter);
+
+  if (rli && !rli->relay_log.description_event_for_exec)
+  {
+    rli->relay_log.description_event_for_exec=
+      new Format_description_log_event(4);
+  }
+
+#ifndef DBUG_OFF
+  if (binlog->find_log_pos(ptr_log_info, current_binlog, 1))
+  {
+    sql_print_error("Binlog file '%s' not found in binlog index, needed "
+                    "for recovery. Aborting.", current_binlog);
+    goto err2;
+  }
+#endif
+  tmp_disable_binlog(thd);
+  thd->variables.pseudo_slave_mode= TRUE;
+  for (;;)
+  {
+    if ((file= open_binlog(&log, current_binlog, &errmsg)) < 0)
+    {
+      sql_print_error("%s", errmsg);
+      goto err1;
+    }
+    while (total_to_replay > 0 &&
+        (ev= Log_event::read_log_event(&log,
+                                       rli->relay_log.description_event_for_exec,
+                                       opt_master_verify_checksum)))
+    {
+      if (!ev->is_valid())
+      {
+        sql_print_error("Found invalid binlog query event %s"
+                        " at %s:%llu; error %d %s", ev->get_type_str(),
+                        ptr_log_info->log_file_name,
+                        (ev->log_pos - ev->data_written));
+        goto err1;
+      }
+      enum Log_event_type typ= ev->get_type_code();
+      ev->thd= thd;
+
+      if (typ == FORMAT_DESCRIPTION_EVENT)
+        enable_apply_event= true;
+
+      if (typ == GTID_EVENT)
+      // {
+      //   Gtid_log_event *gev= (Gtid_log_event *)ev;
+      //   if (gev->flags2 &
+      //       (Gtid_log_event::FL_PREPARED_XA | Gtid_log_event::FL_COMPLETED_XA))
+      //   {
+      //     if ((member=
+      //          (xid_recovery_member*) my_hash_search(ptr_xids,
+      //                                                gev->xid.key(),
+      //                                                gev->xid.key_length())))
+      //     {
+      //       /*
+      //         When XA PREPARE group of events (as flagged so) check
+      //         its actual binlog state which may be COMPLETED. If the
+      //         state is also PREPARED then analyze through
+      //         in_engine_prepare whether the transaction needs replay.
+      //        */
+      //       if (gev->flags2 & Gtid_log_event::FL_PREPARED_XA)
+      //       {
+      //         //if (member->state == XA_PREPARE)
+      //         {
+      //           // XA prepared is not present in (some) engine then apply it
+      //           if (member->in_engine_prepare == 0)
+      //             enable_apply_event= true;
+      //           else if (//gev->flags2 & Gtid_log_event::FL_MULTI_ENGINE_XA &&
+      //                    xa_recover_htons > member->in_engine_prepare)
+      //           {
+      //             enable_apply_event= true;
+      //             // partially engine-prepared XA is first cleaned out prior replay
+      //             thd->lex->sql_command= SQLCOM_XA_ROLLBACK;
+      //             ha_commit_or_rollback_by_xid(&gev->xid, 0);
+      //           }
+      //           else
+      //             --recover_xa_count;
+      //         }
+      //       }
+      //       else if (gev->flags2 & Gtid_log_event::FL_COMPLETED_XA)
+      //       {
+      //         if (//member->state == XA_COMPLETE &&
+      //             member->in_engine_prepare > 0)
+      //           enable_apply_event= true;
+      //         else
+      //           --recover_xa_count;
+      //       }
+      //     }
+      //   }
+      // }
+
+      if (enable_apply_event)
+      {
+        if ((err= ev->apply_event(rgi)))
+        {
+            sql_print_error("Failed to execute binlog query event of type: %s,"
+                            " at %s:%llu; error %d %s", ev->get_type_str(),
+                            ptr_log_info->log_file_name,
+                            (ev->log_pos - ev->data_written),
+                            thd->get_stmt_da()->sql_errno(),
+                            thd->get_stmt_da()->message());
+            delete ev;
+            goto err1;
+        }
+        else if (typ == FORMAT_DESCRIPTION_EVENT)
+          enable_apply_event=false;
+        // else if (thd->lex->sql_command == SQLCOM_XA_PREPARE ||
+        //          thd->lex->sql_command == SQLCOM_XA_COMMIT  ||
+        //          thd->lex->sql_command == SQLCOM_XA_ROLLBACK)
+        // {
+        //   --recover_xa_count;
+        //   enable_apply_event=false;
+
+        //   sql_print_information("Binlog event %s at %s:%llu"
+        //       " successfully applied",
+        //       typ == XA_PREPARE_LOG_EVENT ?
+        //       static_cast<XA_prepare_log_event *>(ev)->get_query() :
+        //       static_cast<Query_log_event *>(ev)->query,
+        //       ptr_log_info->log_file_name, (ev->log_pos - ev->data_written));
+        // }
+      }
+      if (typ != FORMAT_DESCRIPTION_EVENT)
+        delete ev;
+    }
+    end_io_cache(&log);
+    mysql_file_close(file, MYF(MY_WME));
+    file= -1;
+    if (unlikely((error= binlog->find_next_log(ptr_log_info, 1))))
+    {
+      if (error != LOG_INFO_EOF)
+        sql_print_error("find_log_pos() failed (error: %d)", error);
+      else
+        break;
+    }
+  }
+err1:
+  reenable_binlog(thd);
+  /*
+    There should be no more XA transactions to recover upon successful
+    completion.
+  */
+  if (total_to_replay > 0)
+    goto err2;
+  sql_print_information("Crash recovery finished.");
+  err= false;
+err2:
+  if (file >= 0)
+  {
+    end_io_cache(&log);
+    mysql_file_close(file, MYF(MY_WME));
+  }
+  thd->variables.pseudo_slave_mode= FALSE;
+  delete rli->mi;
+  delete thd->system_thread_info.rpl_sql_info;
+  rgi->slave_close_thread_tables(thd);
+  thd->reset_globals();
+  delete thd;
+
+  return err;
+}
+
+
+Recovery_context::Recovery_context(LOG_INFO *linfo_arg, MEM_ROOT *mem_root_arg,
                                    HASH *xids_arg) :
   prev_event_pos(0),
   last_gtid_standalone(false), last_gtid_valid(false), last_gtid_no2pc(false),
