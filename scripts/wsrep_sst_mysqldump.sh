@@ -103,7 +103,7 @@ then
     DROP PREPARE stmt;"
 fi
 
-MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF "\
+MYSQL="$MYSQL_CLIENT $WSREP_SST_OPT_CONF_UNQUOTED "\
 "$AUTH -h$WSREP_SST_OPT_HOST_UNESCAPED "\
 "-P$WSREP_SST_OPT_PORT --disable-reconnect --connect_timeout=10"
 
@@ -140,7 +140,7 @@ then
 fi
 
 # NOTE: we don't use --routines here because we're dumping mysql.proc table
-MYSQLDUMP="$MYSQLDUMP $WSREP_SST_OPT_CONF $AUTH -S$WSREP_SST_OPT_SOCKET \
+MYSQLDUMP="$MYSQLDUMP $WSREP_SST_OPT_CONF_UNQUOTED $AUTH -S$WSREP_SST_OPT_SOCKET \
 --add-drop-database --add-drop-table --skip-add-locks --create-options \
 --disable-keys --extended-insert --skip-lock-tables --quick --set-charset \
 --skip-comments --flush-privileges --all-databases --events"

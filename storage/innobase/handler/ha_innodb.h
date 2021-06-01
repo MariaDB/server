@@ -209,7 +209,6 @@ public:
 	int rename_table(const char* from, const char* to) override;
 	inline int defragment_table(const char* name);
 	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
-	char* update_table_comment(const char* comment) override;
 
 	inline void reload_statistics();
 

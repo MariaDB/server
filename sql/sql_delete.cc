@@ -365,6 +365,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.select_lex= thd->lex->first_select_lex();
   query_plan.table= table;
 
+  promote_select_describe_flag_if_needed(thd->lex);
+
   if (mysql_prepare_delete(thd, table_list, &conds, &delete_while_scanning))
     DBUG_RETURN(TRUE);
 

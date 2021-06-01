@@ -525,10 +525,6 @@ public:
     Meta data routines to CREATE, DROP, RENAME table and often used at
     ALTER TABLE (update_create_info used from ALTER TABLE and SHOW ..).
 
-    update_table_comment is used in SHOW TABLE commands to provide a
-    chance for the handler to add any interesting comments to the table
-    comments not provided by the users comment.
-
     create_partitioning_metadata is called before opening a new handler object
     with openfrm to call create. It is used to create any local handler
     object needed in opening the object in openfrm
@@ -544,7 +540,6 @@ public:
     override;
   bool check_if_updates_are_ignored(const char *op) const override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
-  char *update_table_comment(const char *comment) override;
   int change_partitions(HA_CREATE_INFO *create_info, const char *path,
                         ulonglong * const copied, ulonglong * const deleted,
                         const uchar *pack_frm_data, size_t pack_frm_len)
