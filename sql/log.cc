@@ -10740,6 +10740,7 @@ public:
   Dynamic_array<rpl_gtid> *gtid_maybe_to_truncate;
   MEM_ROOT *ptr_mem_root;
   HASH     *ptr_xids;
+  LOG_INFO *ptr_log_info;
   Recovery_context(LOG_INFO *linfo, MEM_ROOT *mem_root, HASH *xids);
   ~Recovery_context() { delete gtid_maybe_to_truncate; }
   /*
@@ -10776,7 +10777,7 @@ public:
             true  otherwise.
   */
   bool handle_prepared(xid_recovery_member *member, int round,
-                       Format_description_log_event *fdle, LOG_INFO *linfo);
+                       Format_description_log_event *fdle);
   /*
     decides on commit of xid passed through member argument.
     In the semisync slave case it assigns binlog coordinate to
@@ -10785,13 +10786,13 @@ public:
   */
   bool decide_or_assess(xid_recovery_member *member, int round,
                         Format_description_log_event *fdle,
-                        LOG_INFO *linfo, Xid_log_event *ev);
+                        Xid_log_event *ev);
 
   /*
     Assigns last_gtid and assesses the maximum (in the binlog offset term)
     unsafe gtid (group of events).
   */
-  void process_gtid(int round, Gtid_log_event *gev, LOG_INFO *linfo);
+  void process_gtid(int round, Gtid_log_event *gev);
 
   /*
     Compute next action at the end of processing of the current binlog file.
@@ -10806,7 +10807,6 @@ public:
       last_log_name  the recovery starting binlog file
       binlog_checkpoint_name
                      binlog checkpoint file
-      linfo          binlog file list struct for next file
       log            pointer to mysql_bin_log instance
 
     Returns: 0  when rounds continue, maybe the current one remains
@@ -10815,7 +10815,7 @@ public:
   int next_binlog_or_round(int& round,
                            const char *last_log_name,
                            const char *binlog_checkpoint_name,
-                           LOG_INFO *linfo, MYSQL_BIN_LOG *log);
+                           MYSQL_BIN_LOG *log);
   /*
     Relates to the semisync recovery.
     Returns true when truncated tail does not contain non-transactional
@@ -10838,7 +10838,7 @@ public:
     the no-engine group is considered safe, to be invalidated
     to not contribute to binlog state.
   */
-  void update_binlog_unsafe_coord_if_needed(LOG_INFO *linfo);
+  void update_binlog_unsafe_coord_if_needed();
 
   /*
     Relates to the semisync recovery.
@@ -10929,7 +10929,8 @@ Recovery_context::Recovery_context(LOG_INFO *linfo, MEM_ROOT *mem_root_arg,
   truncate_set_in_1st(false), checkpoint_binlog_id(0),
   checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
   ha_offset({ Binlog_offset(0,0) }),
-  gtid_maybe_to_truncate(NULL), ptr_mem_root(mem_root_arg), ptr_xids(xids_arg)
+  gtid_maybe_to_truncate(NULL), ptr_mem_root(mem_root_arg), ptr_xids(xids_arg),
+  ptr_log_info(linfo_arg)
 {
   last_gtid_coord= Binlog_offset(0,0);
   binlog_truncate_coord=  binlog_truncate_coord_1st_round= Binlog_offset(0,0);
@@ -10939,14 +10940,15 @@ Recovery_context::Recovery_context(LOG_INFO *linfo, MEM_ROOT *mem_root_arg,
   binlog_unsafe_gtid= truncate_gtid= truncate_gtid_1st_round= rpl_gtid();
   if (do_truncate)
     gtid_maybe_to_truncate= new Dynamic_array<rpl_gtid>(16, 16);
-  id_binlog= linfo->number_of_files();
+  id_binlog= ptr_log_info->number_of_files();
   ha_offset_min= &ha_offset[0];
   ha_offset_max= ha_offset_min;
   /*
     Retrieve <id_binlog, offset> of the last committed transaction
     in all engines.
   */
-  ha_last_committed_binlog_pos(linfo, ha_offset, &ha_offset_min,&ha_offset_max);
+  ha_last_committed_binlog_pos(ptr_log_info, ha_offset,
+                               &ha_offset_min, &ha_offset_max);
 }
 
 bool Recovery_context::reset_truncate_coord(my_off_t pos)
@@ -10974,11 +10976,11 @@ bool Recovery_context::reset_truncate_coord(my_off_t pos)
   return false;
 }
 
-bool Recovery_context::set_truncate_coord(LOG_INFO *linfo, int round,
+bool Recovery_context::set_truncate_coord(int round,
                                           enum_binlog_checksum_alg fd_checksum)
 {
   binlog_truncate_coord= last_gtid_coord;
-  strmake_buf(binlog_truncate_file_name, linfo->log_file_name);
+  strmake_buf(binlog_truncate_file_name, ptr_log_info->log_file_name);
 
   truncate_gtid= last_gtid;
   checksum_alg= fd_checksum;
@@ -11025,8 +11027,7 @@ bool Recovery_context::handle_committed(xid_recovery_member *member,
 }
 
 bool Recovery_context::handle_prepared(xid_recovery_member *member, int round,
-                                       Format_description_log_event *fdle,
-                                       LOG_INFO *linfo)
+                                       Format_description_log_event *fdle)
 {
   if (!do_truncate) // "normal" recovery
   {
@@ -11045,7 +11046,7 @@ bool Recovery_context::handle_prepared(xid_recovery_member *member, int round,
       if (truncate_gtid.seq_no == 0 /* was reset or never set */ ||
           (truncate_set_in_1st && round == 2 /* reevaluted at round turn */))
       {
-        if (set_truncate_coord(linfo, round, fdle->checksum_alg))
+        if (set_truncate_coord(round, fdle->checksum_alg))
           return true;
       }
       else
@@ -11074,7 +11075,7 @@ bool Recovery_context::handle_prepared(xid_recovery_member *member, int round,
 
 bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
                                         Format_description_log_event *fdle,
-                                        LOG_INFO *linfo, Xid_log_event *ev)
+                                        Xid_log_event *ev)
 {
   if (member)
   {
@@ -11101,7 +11102,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
                       "located at file:%s pos:%llu",
                       member->in_engine_prepare, last_gtid_engines,
                       last_gtid.domain_id, last_gtid.server_id, buf,
-                      linfo->log_file_name, last_gtid_coord.second);
+                      ptr_log_info->log_file_name, last_gtid_coord.second);
       return true;
     }
     else if (member->in_engine_prepare < last_gtid_engines)
@@ -11119,7 +11120,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
     }
     else // member->in_engine_prepare == last_gtid_engines
     {
-      if (handle_prepared(member, round, fdle, linfo))
+      if (handle_prepared(member, round, fdle))
         return true;
     }
   }
@@ -11132,7 +11133,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
   return false;
 }
 
-void Recovery_context::update_binlog_unsafe_coord_if_needed(LOG_INFO *linfo)
+void Recovery_context::update_binlog_unsafe_coord_if_needed()
 {
   if (!do_truncate)
     return;
@@ -11153,13 +11154,12 @@ void Recovery_context::update_binlog_unsafe_coord_if_needed(LOG_INFO *linfo)
     {
       binlog_unsafe_gtid= last_gtid;
       binlog_unsafe_coord= last_gtid_coord;
-      strmake_buf(binlog_unsafe_file_name, linfo->log_file_name);
+      strmake_buf(binlog_unsafe_file_name, ptr_log_info->log_file_name);
     }
   }
 }
 
-void Recovery_context::process_gtid(int round, Gtid_log_event *gev,
-                                    LOG_INFO *linfo)
+void Recovery_context::process_gtid(int round, Gtid_log_event *gev)
 {
   last_gtid.domain_id= gev->domain_id;
   last_gtid.server_id= gev->server_id;
@@ -11179,7 +11179,7 @@ void Recovery_context::process_gtid(int round, Gtid_log_event *gev,
     last_gtid_standalone=
       (gev->flags2 & Gtid_log_event::FL_STANDALONE) ? true : false;
     if (do_truncate && last_gtid_standalone)
-      update_binlog_unsafe_coord_if_needed(linfo);
+      update_binlog_unsafe_coord_if_needed();
     /* Update the binlog state with any 'valid' GTID logged after Gtid_list. */
     last_gtid_valid= true;    // may flip at Xid when falls to truncate
   }
@@ -11188,10 +11188,9 @@ void Recovery_context::process_gtid(int round, Gtid_log_event *gev,
 int Recovery_context::next_binlog_or_round(int& round,
                                            const char *last_log_name,
                                            const char *binlog_checkpoint_name,
-                                           LOG_INFO *linfo,
                                            MYSQL_BIN_LOG *log)
 {
-  if (!strcmp(linfo->log_file_name, last_log_name))
+  if (!strcmp(ptr_log_info->log_file_name, last_log_name))
   {
     /* Exit the loop now at the end of the current round. */
     DBUG_ASSERT(round <= 2);
@@ -11229,9 +11228,9 @@ int Recovery_context::next_binlog_or_round(int& round,
       }
       truncate_reset_done= false;
 
-      DBUG_ASSERT(id_binlog > linfo->get_binlog_id());
+      DBUG_ASSERT(id_binlog > ptr_log_info->get_binlog_id());
 
-      checkpoint_binlog_id= id_binlog= linfo->get_binlog_id();
+      checkpoint_binlog_id= id_binlog= ptr_log_info->get_binlog_id();
 
       DBUG_ASSERT(id_binlog > 0);
     }
@@ -11241,12 +11240,12 @@ int Recovery_context::next_binlog_or_round(int& round,
   {
     id_binlog++;
 
-    DBUG_ASSERT(id_binlog == linfo->get_binlog_id());
+    DBUG_ASSERT(id_binlog == ptr_log_info->get_binlog_id());
     DBUG_ASSERT(id_binlog <= MAX_binlog_id); // the assert is "practical"
   }
 
   DBUG_ASSERT(!do_truncate || id_binlog != MAX_binlog_id ||
-              !strcmp(linfo->log_file_name, binlog_checkpoint_name));
+              !strcmp(ptr_log_info->log_file_name, binlog_checkpoint_name));
 
   return 0;
 }
@@ -11325,7 +11324,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
             member->decided_to_commit= true;
         }
 #else
-        if (ctx.decide_or_assess(member, round, fdle, linfo,
+        if (ctx.decide_or_assess(member, round, fdle,
                                  static_cast<Xid_log_event*>(ev)))
           goto err2;
 #endif
@@ -11366,7 +11365,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
         break;
 
       case GTID_EVENT:
-        ctx.process_gtid(round, (Gtid_log_event *)ev, linfo);
+        ctx.process_gtid(round, (Gtid_log_event *)ev);
         break;
 
       case QUERY_EVENT:
@@ -11374,13 +11373,13 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
             ((Query_log_event *)ev)->is_rollback())
         {
           ctx.last_gtid_no2pc= true;
-          ctx.update_binlog_unsafe_coord_if_needed(linfo);
+          ctx.update_binlog_unsafe_coord_if_needed();
         }
         break;
 
       case XA_PREPARE_LOG_EVENT:
         ctx.last_gtid_no2pc= true; // TODO: complete MDEV-21469 that removes this block
-        ctx.update_binlog_unsafe_coord_if_needed(linfo);
+        ctx.update_binlog_unsafe_coord_if_needed();
         break;
 #endif
 
@@ -11465,7 +11464,7 @@ int TC_LOG_BINLOG::recover(LOG_INFO *linfo, const char *last_log_name,
 
 #ifdef HAVE_REPLICATION
     int rc= ctx.next_binlog_or_round(round, last_log_name,
-                                     binlog_checkpoint_name, linfo, this);
+                                     binlog_checkpoint_name, this);
     if (rc == -1)
       goto err2;
     else if (rc == 1)
