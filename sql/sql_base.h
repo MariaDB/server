@@ -512,6 +512,8 @@ bool extend_table_list(THD *thd, TABLE_LIST *tables,
                        Prelocking_strategy *prelocking_strategy,
                        bool has_prelocking_list);
 
+void promote_select_describe_flag_if_needed(LEX *lex);
+
 /**
   A context of open_tables() function, used to recover
   from a failed open_table() or open_routine() attempt.

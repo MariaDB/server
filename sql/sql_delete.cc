@@ -378,6 +378,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   query_plan.table= table;
   query_plan.updating_a_view= MY_TEST(table_list->view);
 
+  promote_select_describe_flag_if_needed(thd->lex);
+
   if (mysql_prepare_delete(thd, table_list, select_lex->with_wild,
                            select_lex->item_list, &conds,
                            &delete_while_scanning))

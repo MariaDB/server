@@ -29,7 +29,9 @@ WSREP_SST_OPT_USER="${WSREP_SST_OPT_USER:-}"
 WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_PSWD:-}"
 WSREP_SST_OPT_REMOTE_AUTH="${WSREP_SST_OPT_REMOTE_AUTH:-}"
 WSREP_SST_OPT_DEFAULT=""
+WSREP_SST_OPT_DEFAULTS=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
+WSREP_SST_OPT_EXTRA_DEFAULTS=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_VALUE=""
 WSREP_SST_OPT_MYSQLD=""
@@ -152,10 +154,12 @@ case "$1" in
         ;;
     '--defaults-file')
         readonly WSREP_SST_OPT_DEFAULT="$1=$2"
+        readonly WSREP_SST_OPT_DEFAULTS="$1='$2'"
         shift
         ;;
     '--defaults-extra-file')
         readonly WSREP_SST_OPT_EXTRA_DEFAULT="$1=$2"
+        readonly WSREP_SST_OPT_EXTRA_DEFAULTS="$1='$2'"
         shift
         ;;
     '--defaults-group-suffix')
@@ -295,7 +299,7 @@ case "$1" in
                                    value="$1"
                                fi
                            fi
-                           if [ $option == 'h' ]; then
+                           if [ $option = 'h' ]; then
                                if [ -z "$WSREP_SST_OPT_DATA" ]; then
                                    MYSQLD_OPT_DATADIR="${value%/}"
                                fi
@@ -611,24 +615,54 @@ else
     MYSQLDUMP="$(command -v mysqldump)"
 fi
 
+wsrep_log()
+{
+    # echo everything to stderr so that it gets into common error log
+    # deliberately made to look different from the rest of the log
+    local readonly tst="$(date +%Y%m%d\ %H:%M:%S.%N | cut -b -21)"
+    echo "WSREP_SST: $* ($tst)" >&2
+}
+
+wsrep_log_error()
+{
+    wsrep_log "[ERROR] $*"
+}
+
+wsrep_log_warning()
+{
+    wsrep_log "[WARNING] $*"
+}
+
+wsrep_log_info()
+{
+    wsrep_log "[INFO] $*"
+}
+
 if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then
     MY_PRINT_DEFAULTS="$SCRIPTS_DIR/my_print_defaults"
 elif [ -x "$EXTRA_DIR/my_print_defaults" ]; then
     MY_PRINT_DEFAULTS="$EXTRA_DIR/my_print_defaults"
 else
     MY_PRINT_DEFAULTS="$(command -v my_print_defaults)"
+    if [ -z "$MY_PRINT_DEFAULTS" ]; then
+        wsrep_log_error "my_print_defaults not found in path"
+        exit 2
+    fi
 fi
 
+readonly MY_PRINT_DEFAULTS
+
+wsrep_defaults="$WSREP_SST_OPT_DEFAULTS"
+wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_EXTRA_DEFAULTS"
+wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_SUFFIX_DEFAULT"
+
+readonly WSREP_SST_OPT_CONF="$wsrep_defaults"
+
 wsrep_defaults="$WSREP_SST_OPT_DEFAULT"
-if [ -n "$wsrep_defaults" ]; then
-    wsrep_defaults="$wsrep_defaults "
-fi
-wsrep_defaults="$wsrep_defaults$WSREP_SST_OPT_EXTRA_DEFAULT"
-if [ -n "$wsrep_defaults" ]; then
-    wsrep_defaults="$wsrep_defaults "
-fi
-readonly WSREP_SST_OPT_CONF="$wsrep_defaults$WSREP_SST_OPT_SUFFIX_DEFAULT"
-readonly MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
+wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_EXTRA_DEFAULT"
+wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_SUFFIX_DEFAULT"
+
+readonly WSREP_SST_OPT_CONF_UNQUOTED="$wsrep_defaults"
 
 #
 # User can specify mariabackup specific settings that will be used during sst
@@ -663,13 +697,21 @@ parse_cnf()
         # If the group name is the same as the "mysqld" without "--" prefix,
         # then try to use it together with the group suffix:
         if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
-            reval=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
+            reval=$("$MY_PRINT_DEFAULTS" \
+                    ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+                    ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+                    ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+                    "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
             if [ -n "$reval" ]; then
                 break
             fi
         fi
         # Let's try to use the group name as it is:
-        reval=$($MY_PRINT_DEFAULTS "$group" | awk "$pattern")
+        reval=$("$MY_PRINT_DEFAULTS" \
+                ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+                ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+                ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+                "$group" | awk "$pattern")
         if [ -n "$reval" ]; then
             break
         fi
@@ -710,13 +752,21 @@ in_config()
         # If the group name is the same as the "mysqld" without "--" prefix,
         # then try to use it together with the group suffix:
         if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
-            found=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
+            found=$("$MY_PRINT_DEFAULTS" \
+                    ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+                    ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+                    ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+                    "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
             if [ $found -ne 0 ]; then
                 break
             fi
         fi
         # Let's try to use the group name as it is:
-        found=$($MY_PRINT_DEFAULTS "$group" | awk "$pattern")
+        found=$($MY_PRINT_DEFAULTS \
+                ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+                ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+                ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+                "$group" | awk "$pattern")
         if [ $found -ne 0 ]; then
             break
         fi
@@ -796,29 +846,6 @@ then
 else
     SST_PROGRESS_FILE=""
 fi
-
-wsrep_log()
-{
-    # echo everything to stderr so that it gets into common error log
-    # deliberately made to look different from the rest of the log
-    local readonly tst="$(date +%Y%m%d\ %H:%M:%S.%N | cut -b -21)"
-    echo "WSREP_SST: $* ($tst)" >&2
-}
-
-wsrep_log_error()
-{
-    wsrep_log "[ERROR] $*"
-}
-
-wsrep_log_warning()
-{
-    wsrep_log "[WARNING] $*"
-}
-
-wsrep_log_info()
-{
-    wsrep_log "[INFO] $*"
-}
 
 wsrep_cleanup_progress_file()
 {
@@ -960,31 +987,135 @@ check_sockets_utils()
 }
 
 #
+# Check if the port is in the "listen" state.
+# The first parameter is the PID of the process that should
+# listen on the port - if it is not known, you can specify
+# an empty string or zero.
+# The second parameter is the port number.
+# The third parameter is a list of the names of utilities
+# (via "|") that can listen on this port during the state
+# transfer.
+#
+check_port()
+{
+    local pid="$1"
+    local port="$2"
+    local utils="$3"
+
+    [ -z "$pid" ] || [ $pid -eq 0 ] && pid='[0-9]+'
+
+    local rc=1
+
+    if [ $lsof_available -ne 0 ]; then
+        lsof -Pnl -i ":$port" 2>/dev/null | \
+        grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*\\(LISTEN\\)" && rc=0
+    elif [ $sockstat_available -ne 0 ]; then
+        sockstat -p "$port" 2>/dev/null | \
+        grep -q -E "[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*[[:space:]]LISTEN" && rc=0
+    elif [ $ss_available -ne 0 ]; then
+        ss -nlpH "( sport = :$port )" 2>/dev/null | \
+        grep -q -E "users:\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
+    else
+        wsrep_log_error "unknown sockets utility"
+        exit 2 # ENOENT
+    fi
+
+    return $rc
+}
+
+#
 # If the ssl_dhparams variable is already set, uses that as a source
 # of dh parameters for OpenSSL. Otherwise, looks for dhparams.pem in
 # the datadir, and creates it there if it can't find the file.
 #
 check_for_dhparams()
 {
-    if [ -z "$ssl_dhparams" ]; then
-        ssl_dhparams="$DATA/dhparams.pem"
-        if [ ! -r "$ssl_dhparams" ]; then
-            get_openssl
-            if [ -n "$OPENSSL_BINARY" ]; then
-                wsrep_log_info "Could not find dhparams file, creating $ssl_dhparams"
-                if ! "$OPENSSL_BINARY" dhparam -out "$ssl_dhparams" 2048 >/dev/null 2>&1
-                then
-                    wsrep_log_error "******** ERROR *****************************************"
-                    wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
-                    wsrep_log_error "********************************************************"
-                    ssl_dhparams=""
-                fi
-            else
-                # Rollback: if openssl is not installed, then use
-                # the default parameters:
+    ssl_dhparams="$DATA/dhparams.pem"
+    if [ ! -r "$ssl_dhparams" ]; then
+        get_openssl
+        if [ -n "$OPENSSL_BINARY" ]; then
+            wsrep_log_info "Could not find dhparams file, creating $ssl_dhparams"
+            if ! "$OPENSSL_BINARY" dhparam -out "$ssl_dhparams" 2048 >/dev/null 2>&1
+            then
+                wsrep_log_error "******** ERROR *****************************************"
+                wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
+                wsrep_log_error "********************************************************"
                 ssl_dhparams=""
-            fi
+             fi
+        else
+            # Rollback: if openssl is not installed, then use
+            # the default parameters:
+            ssl_dhparams=""
         fi
+    fi
+}
+
+#
+# Verifies that the CA file verifies the certificate.
+# Doing this here lets us generate better error messages.
+#
+# 1st param: path to the CA file.
+# 2nd param: path to the certificate.
+#
+verify_ca_matches_cert()
+{
+    local ca_path="$1"
+    local cert_path="$2"
+
+    # If the openssl utility is not installed, then
+    # we will not do this certificate check:
+    get_openssl
+    if [ -z "$OPENSSL_BINARY" ]; then
+        return
+    fi
+
+    if ! "$OPENSSL_BINARY" verify -verbose -CAfile "$ca_path" "$cert_path" >/dev/null 2>&1
+    then
+        wsrep_log_error "******** FATAL ERROR ********************************************"
+        wsrep_log_error "* The certifcate and CA (certificate authority) do not match.   *"
+        wsrep_log_error "* It does not appear that the certificate was issued by the CA. *"
+        wsrep_log_error "* Please check your certificate and CA files.                   *"
+        wsrep_log_error "*****************************************************************"
+        exit 22
+    fi
+}
+
+#
+# Verifies that the certificate matches the private key.
+# Doing this will save us having to wait for a timeout that would
+# otherwise occur.
+#
+# 1st param: path to the certificate.
+# 2nd param: path to the private key.
+#
+verify_cert_matches_key()
+{
+    local cert_path="$1"
+    local key_path="$2"
+
+    # If the diff utility is not installed, then
+    # we will not do this certificate check:
+    if [ -z "$(command -v diff)" ]; then
+        return
+    fi
+
+    # If the openssl utility is not installed, then
+    # we will not do this certificate check:
+    get_openssl
+    if [ -z "$OPENSSL_BINARY" ]; then
+        return
+    fi
+
+    # Generate the public key from the cert and the key.
+    # They should match (otherwise we can't create an SSL connection).
+    if ! diff <("$OPENSSL_BINARY" x509 -in "$cert_path" -pubkey -noout 2>/dev/null) \
+              <("$OPENSSL_BINARY" pkey -in "$key_path" -pubout 2>/dev/null) >/dev/null 2>&1
+    then
+        wsrep_log_error "******************* FATAL ERROR ****************"
+        wsrep_log_error "* The certifcate and private key do not match. *"
+        wsrep_log_error "* Please check your certificate and key files. *"
+        wsrep_log_error "************************************************"
+        exit 22
     fi
 }
 
@@ -996,22 +1127,22 @@ check_for_dhparams()
 #
 check_for_version()
 {
-    y1=${1#*.}
+    y1="${1#*.}"
     [ "$y1" = "$1" ] && y1=""
     z1=${y1#*.}
     [ "$z1" = "$y1" ] && z1=""
-    x1=${1%%.*}
-    y1=${y1%%.*}
-    z1=${z1%%.*}
+    x1="${1%%.*}"
+    y1="${y1%%.*}"
+    z1="${z1%%.*}"
     [ -z "$y1" ] && y1=0
     [ -z "$z1" ] && z1=0
-    y2=${2#*.}
+    y2="${2#*.}"
     [ "$y2" = "$2" ] && y2=""
-    z2=${y2#*.}
+    z2="${y2#*.}"
     [ "$z2" = "$y2" ] && z2=""
-    x2=${2%%.*}
-    y2=${y2%%.*}
-    z2=${z2%%.*}
+    x2="${2%%.*}"
+    y2="${y2%%.*}"
+    z2="${z2%%.*}"
     [ -z "$y2" ] && y2=0
     [ -z "$z2" ] && z2=0
     [ $x1 -lt $x2 ] && return 1
@@ -1020,4 +1151,128 @@ check_for_version()
     [ $y1 -gt $y2 ] && return 0
     [ $z1 -lt $z2 ] && return 1
     return 0
+}
+
+trim_string()
+{
+    if [ -n "$BASH_VERSION" ]; then
+        local pattern="[![:space:]${2:-}]"
+        local x="${1#*$pattern}"
+        local z=${#1}
+        x=${#x}
+        if [ $x -ne $z ]; then
+            local y="${1%$pattern*}"
+            y=${#y}
+            x=$(( z-x-1 ))
+            y=$(( y-x+1 ))
+            printf '%s' "${1:$x:$y}"
+        else
+            printf ''
+        fi
+    else
+        local pattern="[[:space:]${2:-}]"
+        echo "$1" | sed -E "s/^$pattern+|$pattern+\$//g"
+    fi
+}
+
+#
+# Check whether process is still running.
+# The first parameter contains the name of the PID file.
+# The second parameter is the flag of the need to delete
+# the PID file.
+# If the second parameter is not zero and not empty,
+# then if the process terminates, the corresponding
+# PID file will be deleted.
+# This function also sets the CHECK_PID variable to zero
+# if the process has already exited, or writes the PID
+# of the process there if it is still running.
+#
+check_pid()
+{
+    local pid_file="$1"
+    local remove=${2:-0}
+    if [ -r "$pid_file" ]; then
+        local pid=$(cat "$pid_file" 2>/dev/null)
+        if [ -n "$pid" ]; then
+            if [ $pid -ne 0 ]; then
+                if ps -p "$pid" >/dev/null 2>&1; then
+                    CHECK_PID=$pid
+                    return 0
+                fi
+            fi
+        fi
+        if [ $remove -eq 1 ]; then
+            rm -f "$pid_file"
+        fi
+    fi
+    CHECK_PID=0
+    return 1
+}
+
+#
+# Checking that the process with the specified PID is still
+# running and killing it in this case by sending SIGTERM
+# (using the "kill" operation).
+# The first parameter contains PID of the process.
+# The second and third parameters (both optional) are the names
+# of the PID and the configuration files, which should be removed
+# after the process ends.
+# If the first parameter (PID of the process) is zero, then
+# the function immediately deletes the PID and the configuration
+# files (if specified), without any additional checks.
+#
+cleanup_pid()
+{
+    local pid="$1"
+    local pid_file="${2:-}"
+    local config="${3:-}"
+
+    if [ $pid -ne 0 ]; then
+        if ps -p $pid >/dev/null 2>&1; then
+            if kill $pid >/dev/null 2>&1; then
+                sleep 0.5
+                local round=0
+                local force=0
+                while ps -p $pid >/dev/null 2>&1; do
+                   sleep 1
+                   round=$(( round+1 ))
+                   if [ $round -eq 16 ]; then
+                       if [ $force -eq 0 ]; then
+                           round=8
+                           force=1
+                           kill -9 $pid >/dev/null 2>&1
+                       else
+                           return 1;
+                       fi
+                   fi
+                done
+            elif ps -p $pid >/dev/null 2>&1; then
+                wsrep_log_warning "Unable to kill PID=$pid ($pid_file)"
+                return 1
+            fi
+        fi
+    fi
+
+    [ -n "$pid_file" ] && [ -f "$pid_file" ] && rm -f "$pid_file"
+    [ -n "$config" ]   && [ -f "$config"   ] && rm -f "$config"
+
+    return 0
+}
+
+nproc=""
+
+get_proc()
+{
+    if [ -z "$nproc" ]; then
+        set +e
+        if [ "$OS" = 'Linux' ]; then
+            nproc=$(grep -c processor /proc/cpuinfo 2>/dev/null)
+        elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
+            nproc=$(sysctl -n hw.ncpu)
+        fi
+        if [ -z "$nproc" ] || [ $nproc -eq 0 ]; then
+            nproc=1
+        fi
+        set -e
+    fi
 }

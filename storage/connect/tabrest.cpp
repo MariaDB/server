@@ -60,12 +60,12 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 
 	if (Uri) {
 		if (*Uri == '/' || Http[strlen(Http) - 1] == '/')
-			sprintf(buf, "%s%s", Http, Uri);
+			my_snprintf(buf, sizeof(buf)-1, "%s%s", Http, Uri);
 		else
-			sprintf(buf, "%s/%s", Http, Uri);
+			my_snprintf(buf, sizeof(buf)-1, "%s/%s", Http, Uri);
 
 	} else
-		strcpy(buf, Http);
+    my_snprintf(buf, sizeof(buf)-1, "%s", Http);
 
 #if defined(__WIN__)
 	char cmd[1024];
