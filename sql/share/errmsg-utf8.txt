@@ -7284,10 +7284,10 @@ ER_INVALID_ROLE OP000
        eng "Invalid role specification %`s"
        hindi "अमान्य रोल विनिर्देश %`s"
        rum "Rolul %`s este invalid"
-ER_INVALID_CURRENT_USER 0L000
-	eng "The current user is invalid"
-        hindi "वर्तमान यूज़र अमान्य है"
-	rum "Utilizatorul curent este invalid"
+ER_INVALID_TARGET_USER 0L000
+	eng "The target user is invalid"
+        hindi "लक्षित यूज़र अमान्य है"
+	rum "Utilizatorul specificat este invalid"
 ER_CANNOT_GRANT_ROLE
 	eng "Cannot grant role '%s' to: %s"
         hindi "रोल '%s', %s को प्रदान नहीं कर सकते"

@@ -167,3 +167,14 @@ change_user root;
 SELECT user, host, default_role FROM mysql.user where user='a' or user='b';
 DROP ROLE r1, r2;
 DROP USER a, b;
+
+--echo #
+--echo # Beginning of 10.2 test
+--echo #
+--echo # MDEV-17943: Unfortunate error code/message upon SET DEFAULT ROLE FOR
+--echo #
+
+--error ER_INVALID_TARGET_USER
+SET DEFAULT ROLE NONE FOR foo;
+
+--echo # End of 10.2 test

@@ -128,3 +128,11 @@ a	%	r1
 b	%	r2
 DROP ROLE r1, r2;
 DROP USER a, b;
+#
+# Beginning of 10.2 test
+#
+# MDEV-17943: Unfortunate error code/message upon SET DEFAULT ROLE FOR
+#
+SET DEFAULT ROLE NONE FOR foo;
+ERROR 0L000: The target user is invalid
+# End of 10.2 test
