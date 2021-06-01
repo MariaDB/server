@@ -290,6 +290,9 @@ int main(int ac, char **av)
 }"
 HAVE_PTHREAD_THREADID_NP)
 
+# gettid() library function (glibc-2.30+)
+CHECK_SYMBOL_EXISTS(gettid unistd.h HAVE_GETTID)
+
 # Check for gettid() system call
 CHECK_C_SOURCE_COMPILES("
 #include <sys/types.h>

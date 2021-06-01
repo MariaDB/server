@@ -1828,7 +1828,7 @@ public:
   { return get_item_copy<Item_sum_udf_decimal>(thd, this); }
 };
 
-#else /* Dummy functions to get sql_yacc.cc compiled */
+#else /* Dummy functions to get yy_*.cc files compiled */
 
 class Item_sum_udf_float :public Item_sum_double
 {

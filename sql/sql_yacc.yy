@@ -166,7 +166,7 @@ static void yyerror(THD *thd, const char *s)
 void _CONCAT_UNDERSCORED(turn_parser_debug_on,yyparse)()
 {
   /*
-     MYSQLdebug is in sql/sql_yacc.cc, in bison generated code.
+     MYSQLdebug is in sql/yy_*.cc, in bison generated code.
      Turning this option on is **VERY** verbose, and should be
      used when investigating a syntax error problem only.
 
@@ -355,14 +355,11 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
   We should not introduce any further shift/reduce conflicts.
 */
 
-/* Start SQL_MODE_DEFAULT_SPECIFIC */
+%ifdef MARIADB
 %expect 67
-/* End SQL_MODE_DEFAULT_SPECIFIC */
-
-
-/* Start SQL_MODE_ORACLE_SPECIFIC
+%else
 %expect 69
-End SQL_MODE_ORACLE_SPECIFIC */
+%endif
 
 
 /*
@@ -1801,7 +1798,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %type <vers_history_point> history_point
 %type <vers_column_versioning> with_or_without_system
 
-/* Start SQL_MODE_DEFAULT_SPECIFIC */
+%ifdef MARIADB
 %type <NONE> sp_tail_standalone
 %type <NONE> sp_unlabeled_block_not_atomic
 %type <NONE> sp_proc_stmt_in_returns_clause
@@ -1813,10 +1810,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %type <spblock> sp_decl_variable_list
 %type <spblock> sp_decl_variable_list_anchored
 %type <kwd> reserved_keyword_udt_param_type
-/* End SQL_MODE_DEFAULT_SPECIFIC */
-
-
-/* Start SQL_MODE_ORACLE_SPECIFIC
+%else
 %type <NONE> set_assign
 %type <spvar_mode> sp_opt_inout
 %type <NONE> sp_tail_standalone
@@ -1851,7 +1845,7 @@ End SQL_MODE_ORACLE_SPECIFIC */
 %type <lex> package_routine_lex
 %type <lex> package_specification_function
 %type <lex> package_specification_procedure
-End SQL_MODE_ORACLE_SPECIFIC */
+%endif ORACLE
 
 %%
 
@@ -10346,12 +10340,11 @@ function_call_nonkeyword:
               MYSQL_YYABORT;
           }
          | ROWNUM_SYM
-/* Start SQL_MODE_DEFAULT_SPECIFIC */
+%ifdef MARIADB
            '(' ')'
-/* End SQL_MODE_DEFAULT_SPECIFIC */
-/* Start SQL_MODE_ORACLE_SPECIFIC
+%else
            optional_braces
-End SQL_MODE_ORACLE_SPECIFIC */
+%endif ORACLE
           {
             $$= new (thd->mem_root) Item_func_rownum(thd);
             if (unlikely($$ == NULL))
@@ -10390,13 +10383,13 @@ End SQL_MODE_ORACLE_SPECIFIC */
             if (unlikely(!($$= Lex->make_item_func_substr(thd, $3, $5))))
               MYSQL_YYABORT;
           }
-/* Start SQL_MODE_ORACLE_SPECIFIC
+%ifdef ORACLE
         | SYSDATE
           {
              if (unlikely(!($$= Lex->make_item_func_sysdate(thd, 0))))
                MYSQL_YYABORT;
           }
-End SQL_MODE_ORACLE_SPECIFIC */
+%endif
         | SYSDATE '(' ')'
           {
              if (unlikely(!($$= Lex->make_item_func_sysdate(thd, 0))))
@@ -12023,7 +12016,7 @@ table_primary_derived:
             if (!($$= Lex->parsed_derived_table($1->master_unit(), $2, $3)))
               MYSQL_YYABORT;
           }
-/* Start SQL_MODE_ORACLE_SPECIFIC
+%ifdef ORACLE
         | subquery
           opt_for_system_time_clause
           {
@@ -12032,7 +12025,7 @@ table_primary_derived:
                 !($$= Lex->parsed_derived_table($1->master_unit(), $2, &alias)))
               MYSQL_YYABORT;
           }
-End SQL_MODE_ORACLE_SPECIFIC */
+%endif
         ;
 
 opt_outer:
@@ -14426,8 +14419,6 @@ opt_flush_lock:
           for (; tables; tables= tables->next_global)
           {
             tables->mdl_request.set_type(MDL_SHARED_NO_WRITE);
-            /* Don't try to flush views. */
-            tables->required_type= TABLE_TYPE_NORMAL;
             /* Ignore temporary tables. */
             tables->open_type= OT_BASE_ONLY;
           }
@@ -16061,9 +16052,9 @@ keyword_sp_var_and_label:
         | MICROSECOND_SYM
         | MIGRATE_SYM
         | MINUTE_SYM
-/* Start SQL_MODE_DEFAULT_SPECIFIC */
+%ifdef MARIADB
         | MINUS_ORACLE_SYM
-/* End SQL_MODE_DEFAULT_SPECIFIC */
+%endif
         | MINVALUE_SYM
         | MIN_ROWS
         | MODIFY_SYM
@@ -16148,9 +16139,9 @@ keyword_sp_var_and_label:
         | ROWTYPE_MARIADB_SYM
         | ROW_COUNT_SYM
         | ROW_FORMAT_SYM
-/* Start SQL_MODE_DEFAULT_SPECIFIC */
+%ifdef MARIADB
         | ROWNUM_SYM
-/* End SQL_MODE_DEFAULT_SPECIFIC */
+%endif
         | RTREE_SYM
         | SCHEDULE_SYM
         | SCHEMA_NAME_SYM
@@ -16186,9 +16177,9 @@ keyword_sp_var_and_label:
         | SUSPEND_SYM
         | SWAPS_SYM
         | SWITCHES_SYM
-/* Start SQL_MODE_DEFAULT_SPECIFIC */
+%ifdef MARIADB
         | SYSDATE
-/* End SQL_MODE_DEFAULT_SPECIFIC */
+%endif
         | SYSTEM
         | SYSTEM_TIME_SYM
         | TABLE_NAME_SYM
@@ -16356,9 +16347,9 @@ reserved_keyword_udt_not_param_type:
         | MINUTE_MICROSECOND_SYM
         | MINUTE_SECOND_SYM
         | MIN_SYM
-/* Start SQL_MODE_ORACLE_SPECIFIC
+%ifdef ORACLE
         | MINUS_ORACLE_SYM
-End SQL_MODE_ORACLE_SPECIFIC */
+%endif
         | MODIFIES_SYM
         | MOD_SYM
         | NATURAL
@@ -18164,7 +18155,7 @@ uninstall:
           }
         ;
 
-/* Avoid compiler warning from sql_yacc.cc where yyerrlab1 is not used */
+/* Avoid compiler warning from yy_*.cc where yyerrlab1 is not used */
 keep_gcc_happy:
           IMPOSSIBLE_ACTION
           {
@@ -18176,7 +18167,7 @@ _empty:
           /* Empty */
         ;
 
-/* Start SQL_MODE_DEFAULT_SPECIFIC */
+%ifdef MARIADB
 
 
 statement:
@@ -18577,10 +18568,10 @@ sp_unlabeled_block_not_atomic:
         ;
 
 
-/* End SQL_MODE_DEFAULT_SPECIFIC */
+%endif MARIADB
 
 
-/* Start SQL_MODE_ORACLE_SPECIFIC
+%ifdef ORACLE
 
 statement:
           verb_clause
@@ -19591,7 +19582,7 @@ sp_block_statements_and_exceptions:
           }
         ;
 
-End SQL_MODE_ORACLE_SPECIFIC */
+%endif ORACLE
 
 /**
   @} (end of group Parser)

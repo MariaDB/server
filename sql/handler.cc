@@ -7303,10 +7303,24 @@ int handler::ha_update_row(const uchar *old_data, const uchar *new_data)
       error= binlog_log_row(table, old_data, new_data, log_func);
     }
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION &&
-        !error && (error= wsrep_after_row(ha_thd())))
-      return error;
+    THD *thd= ha_thd();
+    if (WSREP_NNULL(thd))
+    {
+      /* for streaming replication, the following wsrep_after_row()
+      may replicate a fragment, so we have to declare potential PA
+      unsafe before that */
+      if (table->s->primary_key == MAX_KEY && wsrep_thd_is_local(thd))
+      {
+        WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
+        if (thd->wsrep_cs().mark_transaction_pa_unsafe())
+          WSREP_DEBUG("session does not have active transaction,"
+                      " can not mark as PA unsafe");
+      }
+
+      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
+          ht->flags & HTON_WSREP_REPLICATION)
+        error= wsrep_after_row(thd);
+    }
 #endif /* WITH_WSREP */
   }
   return error;
@@ -7367,11 +7381,23 @@ int handler::ha_delete_row(const uchar *buf)
       error= binlog_log_row(table, buf, 0, log_func);
     }
 #ifdef WITH_WSREP
-    if (WSREP_NNULL(ha_thd()) && table_share->tmp_table == NO_TMP_TABLE &&
-        ht->flags & HTON_WSREP_REPLICATION &&
-        !error && (error= wsrep_after_row(ha_thd())))
+    THD *thd= ha_thd();
+    if (WSREP_NNULL(thd))
     {
-      return error;
+      /* for streaming replication, the following wsrep_after_row()
+      may replicate a fragment, so we have to declare potential PA
+      unsafe before that */
+      if (table->s->primary_key == MAX_KEY && wsrep_thd_is_local(thd))
+      {
+        WSREP_DEBUG("marking trx as PA unsafe pk %d", table->s->primary_key);
+        if (thd->wsrep_cs().mark_transaction_pa_unsafe())
+          WSREP_DEBUG("session does not have active transaction,"
+                      " can not mark as PA unsafe");
+      }
+
+      if (!error && table_share->tmp_table == NO_TMP_TABLE &&
+          ht->flags & HTON_WSREP_REPLICATION)
+        error= wsrep_after_row(thd);
     }
 #endif /* WITH_WSREP */
   }

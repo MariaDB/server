@@ -1,7 +1,7 @@
 #ifndef MDL_H
 #define MDL_H
 /* Copyright (c) 2009, 2012, Oracle and/or its affiliates. All rights reserved.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -904,6 +904,10 @@ public:
     return !(m_tickets[MDL_STATEMENT].is_empty() &&
              m_tickets[MDL_TRANSACTION].is_empty() &&
              m_tickets[MDL_EXPLICIT].is_empty());
+  }
+  bool has_explicit_locks() const
+  {
+    return !m_tickets[MDL_EXPLICIT].is_empty();
   }
   inline bool has_transactional_locks() const
   {

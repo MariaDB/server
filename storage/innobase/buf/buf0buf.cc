@@ -3406,7 +3406,8 @@ loop:
 
   /* Delete possible entries for the page from the insert buffer:
   such can exist if the page belonged to an index which was dropped */
-  if (!recv_recovery_is_on())
+  if (page_id < page_id_t{SRV_SPACE_ID_UPPER_BOUND, 0} &&
+      !recv_recovery_is_on())
     ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size);
 
   static_assert(FIL_PAGE_PREV + 4 == FIL_PAGE_NEXT, "adjacent");

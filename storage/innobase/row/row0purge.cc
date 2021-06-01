@@ -1060,7 +1060,7 @@ already_locked:
 		if (!mysqld_server_started) {
 
 			node->close_table();
-			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
+			if (srv_shutdown_state > SRV_SHUTDOWN_NONE) {
 				return(false);
 			}
 			std::this_thread::sleep_for(std::chrono::seconds(1));

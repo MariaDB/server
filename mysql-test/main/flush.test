@@ -377,17 +377,17 @@ create view v1 as select 1;
 create view v2 as select * from t1;
 create view v3 as select * from v2;
 
---error ER_WRONG_OBJECT
 flush table v1, v2, v3 with read lock;
---error ER_WRONG_OBJECT
+unlock tables;
 flush table v1 with read lock;
---error ER_WRONG_OBJECT
+unlock tables;
 flush table v2 with read lock;
---error ER_WRONG_OBJECT
+unlock tables;
 flush table v3 with read lock;
+unlock tables;
 create temporary table v1 (a int);
---error ER_WRONG_OBJECT
 flush table v1 with read lock;
+unlock tables;
 drop view v1;
 create table v1 (a int);
 flush table v1 with read lock;
@@ -668,6 +668,60 @@ UNLOCK TABLES;
 
 DROP VIEW v1;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-15888 Implement FLUSH TABLES tbl_name [, tbl_name] ... WITH READ LOCK for views.
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1), (2), (3);
+create view v1 as select * from t1;
+create view v2 as select * from v1;
+
+flush table v1 with read lock;
+connect(con1, localhost, root);
+--send insert into v1 values (4)
+--sleep 1
+connection default;
+--echo # Wait until INSERT starts to wait for FTWRL to go away.
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = "Waiting for table metadata lock"
+  and info = "insert into v1 values (4)";
+--source include/wait_condition.inc
+select * from t1;
+unlock tables;
+
+connection con1;
+reap;
+
+connection default;
+select * from t1;
+
+flush table v2 with read lock;
+connection con1;
+--send insert into t1 values (5)
+--sleep 1
+connection default;
+--echo # Wait until INSERT starts to wait for FTWRL to go away.
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = "Waiting for table metadata lock"
+  and info = "insert into t1 values (5)";
+--source include/wait_condition.inc
+select * from t1;
+unlock tables;
+
+connection con1;
+reap;
+
+connection default;
+select * from t1;
+
+drop view v1, v2;
+drop table t1;
+disconnect con1;
+
 
 --echo #
 --echo # Test FLUSH THREADS

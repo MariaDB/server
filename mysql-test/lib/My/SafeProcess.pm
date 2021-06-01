@@ -622,7 +622,7 @@ sub self2str {
 
 sub _verbose {
   return unless $_verbose;
-  print STDERR " ## ". @_. "\n";
+  print STDERR " ## @_\n";
 }
 
 

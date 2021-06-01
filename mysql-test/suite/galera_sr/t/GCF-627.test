@@ -22,9 +22,14 @@ COMMIT;
 INSERT INTO t1 VALUES (2);
 
 --connection node_1
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+
+SELECT * FROM mysql.wsrep_streaming_log;
 
 --connection node_2
-SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log;
+--let $wait_condition = SELECT COUNT(*) = 0 FROM mysql.wsrep_streaming_log
+--source include/wait_condition.inc
+SELECT * FROM mysql.wsrep_streaming_log;
 
 DROP TABLE t2;
