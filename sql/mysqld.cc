@@ -660,6 +660,7 @@ SHOW_COMP_OPTION have_openssl;
 #ifndef EMBEDDED_LIBRARY
 static std::atomic<char*> shutdown_user;
 #endif //EMBEDDED_LIBRARY
+std::atomic<my_thread_id> shutdown_thread_id;
 
 /* Thread specific variables */
 
@@ -1532,10 +1533,7 @@ static my_bool kill_thread_phase_1(THD *thd, void *)
 
   if (DBUG_EVALUATE_IF("only_kill_system_threads", !thd->system_thread, 0))
     return 0;
-
-  thd->set_killed(KILL_SERVER_HARD);
-  MYSQL_CALLBACK(thread_scheduler, post_kill_notification, (thd));
-  kill_thread(thd);
+  thd->awake(KILL_SERVER_HARD);
   return 0;
 }
 
@@ -1666,6 +1664,7 @@ void kill_mysql(THD *thd)
     my_free(user);
   }
 
+  shutdown_thread_id= thd->thread_id;
   DBUG_EXECUTE_IF("mysql_admin_shutdown_wait_for_slaves",
                   thd->lex->is_shutdown_wait_for_slaves= true;);
   DBUG_EXECUTE_IF("simulate_delay_at_shutdown",
