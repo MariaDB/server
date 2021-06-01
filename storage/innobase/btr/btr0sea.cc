@@ -293,11 +293,7 @@ is NOT protected by any semaphore, to save CPU time! Do not assume its fields
 are consistent.
 @param[in,out]	info	search info
 @param[in]	cursor	cursor which was just positioned */
-static
-void
-btr_search_info_update_hash(
-	btr_search_t*	info,
-	btr_cur_t*	cursor)
+static void btr_search_info_update_hash(btr_search_t *info, btr_cur_t *cursor)
 {
 	dict_index_t*	index = cursor->index;
 	int		cmp;
@@ -1280,7 +1276,6 @@ retry:
 
 	assert_block_ahi_valid(block);
 
-
 	if (!index || !btr_search_enabled) {
 		if (is_freed) {
 			part->latch.wr_unlock();
@@ -1290,9 +1285,7 @@ retry:
 		return;
 	}
 
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	ut_ad(!index->disable_ahi);
-#endif
+	ut_ad(!index->table->is_temporary());
 	ut_ad(btr_search_enabled);
 
 	ut_ad(block->page.id().space() == index->table->space_id);
@@ -1479,9 +1472,8 @@ btr_search_build_page_hash_index(
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
 
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	if (index->disable_ahi) return;
-#endif
+	ut_ad(!index->table->is_temporary());
+
 	if (!btr_search_enabled) {
 		return;
 	}
@@ -1661,8 +1653,7 @@ exit_func:
 /** Updates the search info.
 @param[in,out]	info	search info
 @param[in,out]	cursor	cursor which was just positioned */
-void
-btr_search_info_update_slow(btr_search_t* info, btr_cur_t* cursor)
+void btr_search_info_update_slow(btr_search_t *info, btr_cur_t *cursor)
 {
 	srw_lock*	ahi_latch = &btr_search_sys.get_part(*cursor->index)
 		->latch;
@@ -1779,7 +1770,7 @@ drop_exit:
 /** Updates the page hash index when a single record is deleted from a page.
 @param[in]	cursor	cursor which was positioned on the record to delete
 			using btr_cur_search_, the record is not yet deleted.*/
-void btr_search_update_hash_on_delete(btr_cur_t* cursor)
+void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 {
 	buf_block_t*	block;
 	const rec_t*	rec;
@@ -1790,9 +1781,6 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 	rec_offs_init(offsets_);
 
 	ut_ad(page_is_leaf(btr_cur_get_page(cursor)));
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	if (cursor->index->disable_ahi) return;
-#endif
 
 	if (!btr_search_enabled) {
 		return;
@@ -1809,6 +1797,8 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 		return;
 	}
+
+	ut_ad(!cursor->index->table->is_temporary());
 
 	if (index != cursor->index) {
 		btr_search_drop_page_hash_index(block);
@@ -1864,9 +1854,7 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 	rec_t*		rec;
 
 	ut_ad(ahi_latch == &btr_search_sys.get_part(*cursor->index)->latch);
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	if (cursor->index->disable_ahi) return;
-#endif
+
 	if (!btr_search_enabled) {
 		return;
 	}
@@ -1883,6 +1871,8 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 
 		return;
 	}
+
+	ut_ad(!cursor->index->table->is_temporary());
 
 	if (index != cursor->index) {
 		ut_ad(index->id == cursor->index->id);
@@ -1949,9 +1939,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 
 	ut_ad(ahi_latch == &btr_search_sys.get_part(*cursor->index)->latch);
 	ut_ad(page_is_leaf(btr_cur_get_page(cursor)));
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	if (cursor->index->disable_ahi) return;
-#endif
+
 	if (!btr_search_enabled) {
 		return;
 	}
@@ -1973,9 +1961,8 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 
 	rec = btr_cur_get_rec(cursor);
 
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	ut_a(!index->disable_ahi);
-#endif
+	ut_ad(!cursor->index->table->is_temporary());
+
 	if (index != cursor->index) {
 		ut_ad(index->id == cursor->index->id);
 		btr_search_drop_page_hash_index(block);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -128,7 +128,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 /** Updates the page hash index when a single record is deleted from a page.
 @param[in]	cursor	cursor which was positioned on the record to delete
 			using btr_cur_search_, the record is not yet deleted.*/
-void btr_search_update_hash_on_delete(btr_cur_t* cursor);
+void btr_search_update_hash_on_delete(btr_cur_t *cursor);
 
 /** Validates the search system.
 @return true if ok */

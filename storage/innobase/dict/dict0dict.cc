@@ -2047,9 +2047,6 @@ dict_index_add_to_cache(
 	new_index->trx_id = index->trx_id;
 	new_index->set_committed(index->is_committed());
 	new_index->nulls_equal = index->nulls_equal;
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	new_index->disable_ahi = index->disable_ahi;
-#endif
 
 	n_ord = new_index->n_uniq;
 	/* Flag the ordering columns and also set column max_prefix */
