@@ -2212,4 +2212,29 @@ select * from v1 where m > 0;
 drop view v1;
 drop table t1;
 
+--echo #
+--echo # MDEV-25635: pushdown into grouping view using aggregate functions
+--echo #             with constant arguments via a mergeable derived table
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (3), (7), (7), (3);
+
+create view v1 as select a, sum(1) as f, sum(1) as g from t1 group by a;
+select * from v1;
+let $q1=
+select * from (select * from v1) as dt where a=f and a=g;
+eval $q1;
+eval explain extended $q1;
+
+create view v2 as select a, min(1) as f, min(1) as g from t1 group by a;
+select * from v2;
+let $q2=
+select * from (select * from v2) as dt where a=f and a=g;
+eval $q2;
+eval explain extended $q2;
+
+drop view v1,v2;
+drop table t1;
+
 --echo # End of 10.2 tests
