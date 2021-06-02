@@ -824,7 +824,7 @@ buf_madvise_do_dump()
 		ret+= madvise(chunk->mem, chunk->mem_size(), MADV_DODUMP);
 	}
 
-	mysql_mutex_lock(&buf_pool.mutex);
+	mysql_mutex_unlock(&buf_pool.mutex);
 	return ret;
 }
 #endif
