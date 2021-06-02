@@ -536,6 +536,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
     if (thd->check_killed())
     {
+      open_error= false;
       fatal_error= true;
       result_code= HA_ADMIN_FAILED;
       goto send_result;
