@@ -1390,6 +1390,37 @@ retry:
     }
   }
 
+  trx_start_for_ddl(trx);
+
+  dict_table_t *t= dict_sys.load_table({C_STRING_WITH_LEN(TABLE_STATS_NAME)});
+  dict_table_t *i= dict_sys.load_table({C_STRING_WITH_LEN(INDEX_STATS_NAME)});
+
+  static const char drop_database_stats[] =
+    "PROCEDURE DROP_DATABASE_STATS () IS\n"
+    "BEGIN\n"
+    "DELETE FROM " TABLE_STATS_NAME " WHERE database_name=:db;\n"
+    "DELETE FROM " INDEX_STATS_NAME " WHERE database_name=:db;\n"
+    "END;\n";
+
+  /* Drop persistent statistics if no locking conflicts exist. */
+  if (t && i && !t->get_ref_count() && !i->get_ref_count() &&
+      !strcmp(t->col_names, "database_name") &&
+      !strcmp(i->col_names, "database_name") &&
+      !lock_table_has_locks(t) && !lock_table_has_locks(i))
+  {
+    uint errors= 0;
+    char db[NAME_LEN + 1];
+    strconvert(&my_charset_filename, namebuf, len, system_charset_info, db,
+               sizeof db, &errors);
+    if (errors == 0)
+    {
+      pars_info_t* pinfo = pars_info_create();
+      pars_info_add_str_literal(pinfo, "db", db);
+      /* We intentionally ignore errors here. */
+      que_eval_sql(pinfo, drop_database_stats, false, trx);
+    }
+  }
+
   static const char drop_database[] =
     "PROCEDURE DROP_DATABASE_PROC () IS\n"
     "fk CHAR;\n"
@@ -1450,7 +1481,6 @@ retry:
     "END;\n";
 
   innodb_drop_database_fk_report report{{namebuf, len + 1}, false};
-  trx_start_for_ddl(trx);
 
   if (err == DB_SUCCESS)
   {
