@@ -2443,7 +2443,7 @@ corrupted:
 				<< " failed, the table has missing"
 				" foreign key indexes. Turn off"
 				" 'foreign_key_checks' and try again.";
-
+evict:
 			dict_sys.remove(table);
 			table = NULL;
 		} else {
@@ -2460,8 +2460,9 @@ corrupted:
 		if (!srv_force_recovery
 		    || !index
 		    || !index->is_primary()) {
-			dict_sys.remove(table);
-			table = NULL;
+			ib::warn() << "Failed to load table " << table->name
+				   << ":" << err;
+			goto evict;
 		} else if (index->is_corrupted()
 			   && table->is_readable()) {
 			/* It is possible we force to load a corrupted
