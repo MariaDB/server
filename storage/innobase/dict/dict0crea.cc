@@ -1377,7 +1377,7 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
     return DB_SUCCESS;
 
   trx_t *trx= trx_create();
-  trx->dict_operation = true;
+  trx->dict_operation= true;
   row_mysql_lock_data_dictionary(trx);
 
   DBUG_EXECUTE_IF("create_and_drop_garbage",
@@ -1392,7 +1392,7 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
                                 "\"test/" TEMP_FILE_PREFIX_INNODB
                                 "-garbage\"(ID);\n"
                                 "END;\n", false, trx));
-		  trx->rollback(););
+		  trx->rollback(); trx->dict_operation= true;);
 
   /* NOTE: when designing InnoDB's foreign key support in 2001, Heikki Tuuri
   made a mistake defined table names and the foreign key id to be of type
