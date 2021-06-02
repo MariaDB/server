@@ -1,4 +1,3 @@
-drop table if exists t1;
 set @OLD_SQL_MODE=@@SESSION.SQL_MODE;
 create table t1 (a int, b int generated always  as (a+1));
 show create table t1;
@@ -88,3 +87,13 @@ create table t1 (x int, y int default test2.t1.x);
 ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'DEFAULT'
 create table t1 (x int, check (test2.t1.x > 0));
 ERROR 42S22: Unknown column '`test2`.`t1`.`x`' in 'CHECK'
+#
+# MDEV-25672 table alias from previous statement interferes later commands
+#
+create table t1 (a int, v_a int generated always as (a));
+update t1 as x set a = 1;
+alter table t1 force;
+drop table t1;
+#
+# End of 10.2 tests
+#

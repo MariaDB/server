@@ -2841,7 +2841,7 @@ public:
   bool check_table_name_processor(void *arg)
   {
     Check_table_name_prm &p= *(Check_table_name_prm *) arg;
-    if (p.table_name.length && table_name)
+    if (!field && p.table_name.length && table_name)
     {
       DBUG_ASSERT(p.db.length);
       if ((db_name &&
