@@ -2023,7 +2023,7 @@ public:
 	table_id_t				id;
 	/** dict_sys.id_hash chain node */
 	dict_table_t*				id_hash;
-	/** Table name. */
+	/** Table name in name_hash */
 	table_name_t				name;
 	/** dict_sys.name_hash chain node */
 	dict_table_t*				name_hash;
@@ -2181,6 +2181,11 @@ public:
   latch on the clustered index root page (which must also be
   an empty leaf page), and an ahi_latch (if btr_search_enabled). */
   Atomic_relaxed<trx_id_t> bulk_trx_id;
+
+  /** Original table name, for MDL acquisition in purge. Normally,
+  this points to the same as name. When is_temporary_name(name.m_name) holds,
+  this should be a copy of the original table name, allocated from heap. */
+  table_name_t mdl_name;
 
 	/*!< set of foreign key constraints in the table; these refer to
 	columns in other tables */

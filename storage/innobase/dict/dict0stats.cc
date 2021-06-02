@@ -671,6 +671,7 @@ dict_stats_table_clone_create(
 	t->heap = heap;
 
 	t->name.m_name = mem_heap_strdup(heap, table->name.m_name);
+	t->mdl_name.m_name = t->name.m_name;
 
 	t->corrupted = table->corrupted;
 

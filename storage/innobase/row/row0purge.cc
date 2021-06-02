@@ -29,6 +29,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "fsp0fsp.h"
 #include "mach0data.h"
 #include "dict0crea.h"
+#include "dict0load.h"
 #include "dict0stats.h"
 #include "trx0rseg.h"
 #include "trx0trx.h"
@@ -965,6 +966,22 @@ skip_secondaries:
 	row_purge_upd_exist_or_extern_func(node,undo_rec)
 #endif /* UNIV_DEBUG */
 
+/** Determine the table ID of the main table, in case the current
+table is an internal FTS_ table.
+@return table identifier of main table
+@retval 0 if the table name does not look like an internal FTS table */
+static table_id_t row_purge_fts_id(const table_name_t &name)
+{
+  if (const char *start= strstr(name.m_name, "/FTS_"))
+  {
+    char *endp;
+    table_id_t id= strtoull(start + 5, &endp, 0x10);
+    if (endp == start + (5 + 16) && *endp == '_')
+      return id;
+  }
+  return 0;
+}
+
 /** Parses the row reference and other info in a modify undo log record.
 @param[in]	node		row undo node
 @param[in]	undo_rec	record to purge
@@ -1028,23 +1045,69 @@ row_purge_parse_undo_rec(
 
 	trx_id_t trx_id = TRX_ID_MAX;
 
-	if (node->retain_mdl(table_id)) {
-		ut_ad(node->table != NULL);
-		goto already_locked;
-	}
-
+	if (!node->retain_mdl(table_id)) {
 try_again:
-	node->table = dict_table_open_on_id(
-		table_id, false, DICT_TABLE_OP_NORMAL, node->purge_thd,
-		&node->mdl_ticket);
+		dict_sys.mutex_lock();
+		dict_table_t *table = dict_sys.find_table(table_id);
+		if (!table) {
+			table = dict_load_table_on_id(table_id,
+						      DICT_ERR_IGNORE_FK_NOKEY);
+			if (!table) {
+table_not_found:
+				dict_sys.mutex_unlock();
+				node->table = nullptr;
+				node->last_table_id = 0;
+				goto not_found_exit;
+			}
+		}
 
-	if (!node->table) {
-		/* The table has been dropped: no need to do purge and
-		release mdl happened as a part of open process itself */
-		goto err_exit;
+		node->table = table;
+
+		if (table_id_t id = row_purge_fts_id(node->table->name)) {
+			if (dict_table_t* t = dict_sys.find_table(id)) {
+				table = t;
+			}
+		}
+
+		table->acquire();
+
+		if (dict_table_t* mdl_table = dict_acquire_mdl_shared<false>(
+			    table, node->purge_thd, &node->mdl_ticket,
+			    DICT_TABLE_OP_NORMAL)) {
+			if (table == node->table) {
+				node->table = mdl_table;
+				if (mdl_table->can_be_evicted) {
+					UT_LIST_REMOVE(dict_sys.table_LRU,
+						       mdl_table);
+					UT_LIST_ADD_FIRST(dict_sys.table_LRU,
+							  mdl_table);
+				}
+			} else {
+				mdl_table->release();
+				node->table = dict_sys.find_table(table_id);
+				if (!node->table) {
+					dict_sys.mutex_unlock();
+					if (!node->mdl_ticket) {
+					} else if (MDL_context* mdl_context =
+						   static_cast<MDL_context*>
+						   (thd_mdl_context(
+							   node->purge_thd))) {
+						mdl_context->release_lock(
+							node->mdl_ticket);
+					}
+					node->mdl_ticket = nullptr;
+					goto try_again;
+				}
+				node->table->acquire();
+			}
+		} else {
+			goto table_not_found;
+		}
+
+		dict_sys.mutex_unlock();
 	}
 
-already_locked:
+	ut_ad(node->table);
 	ut_ad(!node->table->is_temporary());
 
 	switch (type) {
@@ -1080,8 +1143,8 @@ already_locked:
 			trx_id = TRX_ID_MAX;
 		}
 
-err_exit:
 		node->close_table();
+not_found_exit:
 		node->skip(table_id, trx_id);
 		return(false);
 	}
