@@ -7094,6 +7094,7 @@ error_handling_drop_uncached:
 		commit_unlock_and_unlink(ctx->trx);
 
 		trx_start_for_ddl(ctx->trx);
+		ctx->prebuilt->trx_id = ctx->trx->id;
 	}
 
 	if (ctx->old_table->fts) {
