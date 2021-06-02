@@ -45,6 +45,7 @@
 #include "sql_sequence.h"
 #include "mem_root_array.h"
 #include <utility>     // pair
+#include "rpl_gtid.h"  // rpl_gtid
 
 class Alter_info;
 class Virtual_column_info;
@@ -957,6 +958,7 @@ struct xid_recovery_member
   uint to_replay;          // number of engines suspected to miss prepare/commit
   bool decided_to_commit;
   Binlog_offset binlog_coord; // semisync recovery binlog offset
+  rpl_gtid gtid;          // also the key for re-exection hash
 };
 
 /* for recover() handlerton call */

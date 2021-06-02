@@ -2157,10 +2157,11 @@ rpl_group_info::reinit(Relay_log_info *rli)
   commit_orderer.reinit();
 }
 
-rpl_group_info::rpl_group_info(Relay_log_info *rli)
+rpl_group_info::rpl_group_info(Relay_log_info *rli, Binlog_offset *offset_arg)
   : thd(0), wait_commit_sub_id(0),
     wait_commit_group_info(0), parallel_entry(0),
-    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false)
+    deferred_events(NULL), m_annotate_event(0), is_parallel_exec(false),
+    ha_binlog_offset(offset_arg)
 {
   reinit(rli);
   bzero(&current_gtid, sizeof(current_gtid));

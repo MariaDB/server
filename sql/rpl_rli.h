@@ -834,8 +834,9 @@ struct rpl_group_info
     RETRY_KILL_KILLED
   };
   uchar killed_for_retry;
+  Binlog_offset *ha_binlog_offset;
 
-  rpl_group_info(Relay_log_info *rli_);
+  rpl_group_info(Relay_log_info *rli_, Binlog_offset *offset= NULL);
   ~rpl_group_info();
   void reinit(Relay_log_info *rli);
 
