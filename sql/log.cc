@@ -11037,7 +11037,10 @@ bool Recovery_context::roll_forward(MYSQL_BIN_LOG *binlog)
              my_hash_search(&replay_hash, (uchar*) &gtid, sizeof(gtid))))
         {
           if (member->to_replay > 0 && 1 /* TODO: member->is_safe_to_replay */)
+          {
+            rli->recovery_binlog_offset= member->binlog_coord;
             enable_apply_event= true;
+          }
         }
       }
       if (enable_apply_event)
@@ -11252,6 +11255,7 @@ bool Recovery_context::handle_committed(xid_recovery_member *member,
     if (total_to_replay == 0 || last_gtid_coord < replay_coordinate)
       replay_coordinate= last_gtid_coord;
     member->gtid= last_gtid;
+    member->binlog_coord= last_gtid_coord;
     if (my_hash_insert(&replay_hash, (uchar*) member))
       return true;
     total_to_replay++;

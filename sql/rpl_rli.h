@@ -387,6 +387,7 @@ public:
     starting event.
   */
   slave_connection_state restart_gtid_pos;
+  Binlog_offset recovery_binlog_offset;
 
   Relay_log_info(bool is_slave_recovery, const char* thread_name= "SQL");
   ~Relay_log_info();
