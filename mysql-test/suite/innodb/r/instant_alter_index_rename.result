@@ -30,7 +30,7 @@ add unique index a_key_strikes_back (a);
 select distinct(index_name) from mysql.innodb_index_stats where table_name = 't';
 index_name
 PRIMARY
-a_key_strikes_back
+a_key
 c_key
 check table t;
 Table	Op	Msg_type	Msg_text
@@ -224,13 +224,13 @@ table_name	index_name	stat_name
 t1	GEN_CLUST_INDEX	n_diff_pfx01
 t1	GEN_CLUST_INDEX	n_leaf_pages
 t1	GEN_CLUST_INDEX	size
+t1	ind1	n_diff_pfx01
+t1	ind1	n_diff_pfx02
+t1	ind1	n_leaf_pages
+t1	ind1	size
 t1	ind2	n_diff_pfx01
 t1	ind2	n_diff_pfx02
 t1	ind2	n_leaf_pages
 t1	ind2	size
-t1	ind3	n_diff_pfx01
-t1	ind3	n_diff_pfx02
-t1	ind3	n_leaf_pages
-t1	ind3	size
 UPDATE t1 SET a = 1 WHERE c = 'foo';
 DROP TABLE t1;

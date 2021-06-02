@@ -10086,22 +10086,6 @@ innobase_page_compression_try(
 	DBUG_RETURN(false);
 }
 
-static
-void
-dict_stats_try_drop_table(THD *thd, const table_name_t &name,
-                          const LEX_CSTRING &table_name)
-{
-  char errstr[1024];
-  if (dict_stats_drop_table(name.m_name, errstr, sizeof(errstr)) != DB_SUCCESS)
-  {
-    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN, ER_ALTER_INFO,
-                        "Deleting persistent statistics"
-                        " for table '%s' in InnoDB failed: %s",
-                        table_name.str,
-                        errstr);
-  }
-}
-
 /** Evict the table from cache and reopen it. Drop outdated statistics.
 @param thd           mariadb THD entity
 @param table         innodb table
@@ -10112,26 +10096,19 @@ static dict_table_t *innobase_reload_table(THD *thd, dict_table_t *table,
                                            const LEX_CSTRING &table_name,
                                            ha_innobase_inplace_ctx &ctx)
 {
-  char *tb_name= strdup(table->name.m_name);
-  dict_table_close(table, true, false);
-
   if (ctx.is_instant())
   {
-    for (auto i = ctx.old_n_v_cols; i--; )
+    for (auto i= ctx.old_n_v_cols; i--; )
     {
       ctx.old_v_cols[i].~dict_v_col_t();
-      const_cast<unsigned&>(ctx.old_n_v_cols) = 0;
+      const_cast<unsigned&>(ctx.old_n_v_cols)= 0;
     }
   }
 
+  const table_id_t id= table->id;
+  table->release();
   dict_sys.remove(table);
-  table= dict_table_open_on_name(tb_name, TRUE, TRUE,
-                                 DICT_ERR_IGNORE_FK_NOKEY);
-
-  /* Drop outdated table stats. */
-  dict_stats_try_drop_table(thd, table->name, table_name);
-  free(tb_name);
-  return table;
+  return dict_table_open_on_id(id, true, DICT_TABLE_OP_NORMAL);
 }
 
 /** Commit the changes made during prepare_inplace_alter_table()
@@ -10210,6 +10187,14 @@ commit_try_norebuild(
 	dict_index_t* index;
 	const char *op = "rename index to add";
 	ulint num_fts_index = 0;
+	const char *drop_index_stats = ctx->num_to_drop_index > 0
+		? "PROCEDURE DROP_INDEX_STATS() IS\n"
+		"BEGIN\n"
+		"DELETE FROM " INDEX_STATS_NAME "\n"
+		"WHERE database_name=:db"
+		" AND table_name=:table AND index_name=:index;\n"
+		"END;\n"
+		: nullptr;
 
 	/* We altered the table in place. Mark the indexes as committed. */
 	for (ulint i = 0; i < ctx->num_to_add_index; i++) {
@@ -10228,6 +10213,16 @@ commit_try_norebuild(
 	     index; index = UT_LIST_GET_NEXT(indexes, index)) {
 		if (index->type & DICT_FTS) {
 			num_fts_index++;
+		}
+	}
+
+	if (drop_index_stats) {
+		dict_table_t *i= dict_sys.load_table(
+			{C_STRING_WITH_LEN(INDEX_STATS_NAME)});
+		if (!i || i->get_ref_count()
+		    || strcmp(i->col_names, "database_name")
+		    || lock_table_has_locks(i)) {
+			drop_index_stats = nullptr;
 		}
 	}
 
@@ -10260,6 +10255,20 @@ commit_try_norebuild(
 		if (error != DB_SUCCESS) {
 			goto handle_error;
 		}
+
+		if (!drop_index_stats) {
+			continue;
+		}
+
+		info = pars_info_create();
+		char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
+		dict_fs2utf8(index->table->name.m_name,
+			     db, sizeof db, table, sizeof table);
+		pars_info_add_str_literal(info, "db", db);
+		pars_info_add_str_literal(info, "table", table);
+		pars_info_add_str_literal(info, "index", index->name);
+		/* We intentionally ignore errors for this. */
+		que_eval_sql(info, drop_index_stats, FALSE, trx);
 	}
 
 	if ((ctx->old_table->flags2 & DICT_TF2_FTS) && !num_fts_index) {
@@ -10545,8 +10554,6 @@ alter_stats_norebuild(
 	ha_innobase_inplace_ctx*	ctx,
 	THD*				thd)
 {
-	ulint	i;
-
 	DBUG_ENTER("alter_stats_norebuild");
 	DBUG_ASSERT(!ctx->need_rebuild());
 
@@ -10554,69 +10561,8 @@ alter_stats_norebuild(
 		DBUG_VOID_RETURN;
 	}
 
-	/* Delete corresponding rows from the stats table. We do this
-	in a separate transaction from trx, because lock waits are not
-	allowed in a data dictionary transaction. (Lock waits are possible
-	on the statistics table, because it is directly accessible by users,
-	not covered by the dict_sys.latch.)
-
-	Because the data dictionary changes were already committed, orphaned
-	rows may be left in the statistics table if the system crashes.
-
-	FIXME: each change to the statistics tables is being committed in a
-	separate transaction, meaning that the operation is not atomic
-
-	FIXME: This will not drop the (unused) statistics for
-	FTS_DOC_ID_INDEX if it was a hidden index, dropped together
-	with the last renamining FULLTEXT index. */
-	for (i = 0; i < ha_alter_info->index_drop_count; i++) {
-		const KEY* key = ha_alter_info->index_drop_buffer[i];
-
-		if (key->flags & HA_FULLTEXT) {
-			/* There are no index cardinality
-			statistics for FULLTEXT indexes. */
-			continue;
-		}
-
-		char	errstr[1024];
-
-		if (dict_stats_drop_index(
-			    ctx->new_table->name.m_name, key->name.str,
-			    errstr, sizeof errstr) != DB_SUCCESS) {
-			push_warning(thd,
-				     Sql_condition::WARN_LEVEL_WARN,
-				     ER_LOCK_WAIT_TIMEOUT, errstr);
-		}
-	}
-
-	for (size_t i = 0; i < ha_alter_info->rename_keys.size(); i++) {
-		const Alter_inplace_info::Rename_key_pair& pair
-			= ha_alter_info->rename_keys[i];
-
-		std::stringstream ss;
-		ss << TEMP_FILE_PREFIX_INNODB << std::this_thread::get_id()
-		   << i;
-		auto tmp_name = ss.str();
-
-		dberr_t err = dict_stats_rename_index(ctx->new_table,
-						      pair.old_key->name.str,
-						      tmp_name.c_str());
-
-		if (err != DB_SUCCESS) {
-			push_warning_printf(
-				thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				ER_ERROR_ON_RENAME,
-				"Error renaming an index of table '%s'"
-				" from '%s' to '%s' in InnoDB persistent"
-				" statistics storage: %s",
-				ctx->new_table->name.m_name,
-				pair.old_key->name.str,
-				tmp_name.c_str(),
-				ut_strerr(err));
-		}
-	}
-
+	/* FIXME: The rename should be done in commit_try_norebuild(),
+	in the same transaction! */
 	for (size_t i = 0; i < ha_alter_info->rename_keys.size(); i++) {
 		const Alter_inplace_info::Rename_key_pair& pair
 			= ha_alter_info->rename_keys[i];
@@ -10645,7 +10591,7 @@ alter_stats_norebuild(
 		}
 	}
 
-	for (i = 0; i < ctx->num_to_add_index; i++) {
+	for (ulint i = 0; i < ctx->num_to_add_index; i++) {
 		dict_index_t*	index = ctx->add_index[i];
 		DBUG_ASSERT(index->table == ctx->new_table);
 
