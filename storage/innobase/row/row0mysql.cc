@@ -62,6 +62,7 @@ Created 9/17/2000 Heikki Tuuri
 #include "trx0undo.h"
 #include "srv0mon.h"
 #include "srv0start.h"
+#include "log.h"
 
 #include <algorithm>
 #include <vector>
@@ -70,7 +71,6 @@ Created 9/17/2000 Heikki Tuuri
 #ifdef WITH_WSREP
 #include "mysql/service_wsrep.h"
 #include "wsrep.h"
-#include "log.h"
 #include "wsrep_mysqld.h"
 #endif
 
@@ -2775,20 +2775,29 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
                       "END;\n", FALSE, this);
 }
 
-dberr_t trx_t::drop_table_statistics(const table_name_t& name)
+dberr_t trx_t::drop_table_statistics(const table_name_t &name)
 {
-  if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB))
+  ut_d(dict_sys.assert_locked());
+
+  if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB) ||
+      !strcmp(name.m_name, TABLE_STATS_NAME) ||
+      !strcmp(name.m_name, INDEX_STATS_NAME))
     return DB_SUCCESS;
 
-  /* FIXME: Remove any persistent statistics, in THIS transaction. */
-  char errstr[1024];
-  if (dberr_t err= dict_stats_drop_table(name.m_name, errstr, sizeof errstr))
-  {
-    ib::warn() << err << errstr;
-    return err;
-  }
+  char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
+  dict_fs2utf8(name.m_name, db, sizeof db, table, sizeof table);
 
-  return DB_SUCCESS;
+  dberr_t err1= dict_stats_delete_from_table_stats(db, table, this);
+  dberr_t err= dict_stats_delete_from_index_stats(db, table, this);
+  if (err == DB_SUCCESS || err == DB_STATS_DO_NOT_EXIST)
+    err= err1;
+  if (err == DB_STATS_DO_NOT_EXIST)
+    err= DB_SUCCESS;
+  else if (err != DB_SUCCESS)
+    sql_print_warning("InnoDB: Unable to delete statistics for %s.%s: %s",
+                      db, table, ut_strerr(err));
+
+  return err;
 }
 
 dberr_t trx_t::drop_table(const dict_table_t &table)

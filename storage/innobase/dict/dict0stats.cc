@@ -3658,18 +3658,13 @@ transient:
 	return(DB_SUCCESS);
 }
 
-/*********************************************************************//**
-Executes
-DELETE FROM mysql.innodb_table_stats
-WHERE database_name = '...' AND table_name = '...';
-Creates its own transaction and commits it.
+/** Execute DELETE FROM mysql.innodb_table_stats
+@param database_name  database name
+@param table_name     table name
+@param trx            transaction (nullptr=start and commit a new one)
 @return DB_SUCCESS or error code */
-UNIV_INLINE
-dberr_t
-dict_stats_delete_from_table_stats(
-/*===============================*/
-	const char*	database_name,	/*!< in: database name, e.g. 'db' */
-	const char*	table_name)	/*!< in: table name, e.g. 'table' */
+dberr_t dict_stats_delete_from_table_stats(const char *database_name,
+                                           const char *table_name, trx_t *trx)
 {
 	pars_info_t*	pinfo;
 	dberr_t		ret;
@@ -3688,23 +3683,18 @@ dict_stats_delete_from_table_stats(
 		"DELETE FROM \"" TABLE_STATS_NAME "\" WHERE\n"
 		"database_name = :database_name AND\n"
 		"table_name = :table_name;\n"
-		"END;\n", NULL);
+		"END;\n", trx);
 
 	return(ret);
 }
 
-/*********************************************************************//**
-Executes
-DELETE FROM mysql.innodb_index_stats
-WHERE database_name = '...' AND table_name = '...';
-Creates its own transaction and commits it.
+/** Execute DELETE FROM mysql.innodb_index_stats
+@param database_name  database name
+@param table_name     table name
+@param trx            transaction (nullptr=start and commit a new one)
 @return DB_SUCCESS or error code */
-UNIV_INLINE
-dberr_t
-dict_stats_delete_from_index_stats(
-/*===============================*/
-	const char*	database_name,	/*!< in: database name, e.g. 'db' */
-	const char*	table_name)	/*!< in: table name, e.g. 'table' */
+dberr_t dict_stats_delete_from_index_stats(const char *database_name,
+                                           const char *table_name, trx_t *trx)
 {
 	pars_info_t*	pinfo;
 	dberr_t		ret;
@@ -3723,80 +3713,7 @@ dict_stats_delete_from_index_stats(
 		"DELETE FROM \"" INDEX_STATS_NAME "\" WHERE\n"
 		"database_name = :database_name AND\n"
 		"table_name = :table_name;\n"
-		"END;\n", NULL);
-
-	return(ret);
-}
-
-/*********************************************************************//**
-Removes the statistics for a table and all of its indexes from the
-persistent statistics storage if it exists and if there is data stored for
-the table. This function creates its own transaction and commits it.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_stats_drop_table(
-/*==================*/
-	const char*	db_and_table,	/*!< in: db and table, e.g. 'db/table' */
-	char*		errstr,		/*!< out: error message
-					if != DB_SUCCESS is returned */
-	ulint		errstr_sz)	/*!< in: size of errstr buffer */
-{
-	char		db_utf8[MAX_DB_UTF8_LEN];
-	char		table_utf8[MAX_TABLE_UTF8_LEN];
-	dberr_t		ret;
-
-	ut_d(dict_sys.assert_locked());
-
-	/* skip tables that do not contain a database name
-	e.g. if we are dropping SYS_TABLES */
-	if (strchr(db_and_table, '/') == NULL) {
-
-		return(DB_SUCCESS);
-	}
-
-	/* skip innodb_table_stats and innodb_index_stats themselves */
-	if (strcmp(db_and_table, TABLE_STATS_NAME) == 0
-	    || strcmp(db_and_table, INDEX_STATS_NAME) == 0) {
-
-		return(DB_SUCCESS);
-	}
-
-	dict_fs2utf8(db_and_table, db_utf8, sizeof(db_utf8),
-		     table_utf8, sizeof(table_utf8));
-
-	ret = dict_stats_delete_from_table_stats(db_utf8, table_utf8);
-
-	if (ret == DB_SUCCESS) {
-		ret = dict_stats_delete_from_index_stats(db_utf8, table_utf8);
-	}
-
-	if (ret == DB_STATS_DO_NOT_EXIST) {
-		ret = DB_SUCCESS;
-	}
-
-	if (ret != DB_SUCCESS) {
-
-		snprintf(errstr, errstr_sz,
-			 "Unable to delete statistics for table %s.%s: %s."
-			 " They can be deleted later using"
-
-			 " DELETE FROM %s WHERE"
-			 " database_name = '%s' AND"
-			 " table_name = '%s';"
-
-			 " DELETE FROM %s WHERE"
-			 " database_name = '%s' AND"
-			 " table_name = '%s';",
-
-			 db_utf8, table_utf8,
-			 ut_strerr(ret),
-
-			 INDEX_STATS_NAME_PRINT,
-			 db_utf8, table_utf8,
-
-			 TABLE_STATS_NAME_PRINT,
-			 db_utf8, table_utf8);
-	}
+		"END;\n", trx);
 
 	return(ret);
 }

@@ -140,18 +140,22 @@ dict_stats_update(
 					the stats or to fetch them from
 					the persistent storage */
 
-/*********************************************************************//**
-Removes the statistics for a table and all of its indexes from the
-persistent storage if it exists and if there is data stored for the table.
-This function creates its own transaction and commits it.
+/** Execute DELETE FROM mysql.innodb_table_stats
+@param database_name  database name
+@param table_name     table name
+@param trx            transaction (nullptr=start and commit a new one)
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_drop_table(
-/*==================*/
-	const char*	table_name,	/*!< in: table name */
-	char*		errstr,		/*!< out: error message
-					if != DB_SUCCESS is returned */
-	ulint		errstr_sz);	/*!< in: size of errstr buffer */
+dberr_t dict_stats_delete_from_table_stats(const char *database_name,
+                                           const char *table_name,
+                                           trx_t *trx= nullptr);
+/** Execute DELETE FROM mysql.innodb_index_stats
+@param database_name  database name
+@param table_name     table name
+@param trx            transaction (nullptr=start and commit a new one)
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_delete_from_index_stats(const char *database_name,
+                                           const char *table_name,
+                                           trx_t *trx= nullptr);
 
 /*********************************************************************//**
 Fetches or calculates new estimates for index statistics. */
