@@ -10667,6 +10667,7 @@ public:
   bool last_gtid_valid;
   bool last_gtid_no2pc; // true when the group does not end with Xid event
   uint last_gtid_engines;
+  uint last_gtid_engines_no_binlog_offset;
   Binlog_offset last_gtid_coord; // <binlog id, binlog offset>
   /*
     When true, it's semisync slave recovery mode
@@ -11199,6 +11200,8 @@ bool Recovery_context::set_truncate_coord(int round,
 bool Recovery_context::handle_committed(xid_recovery_member *member,
                                         int round, Xid_log_event *ev)
 {
+  DBUG_ASSERT(!member || member->in_engine_prepare <= last_gtid_engines);
+
   // compute whether a member needs allocation for replaying
   if (*ha_offset_min <= last_gtid_coord)
   {
@@ -11224,17 +11227,40 @@ bool Recovery_context::handle_committed(xid_recovery_member *member,
   if (!do_truncate)
   {
     if (member)
-      member->decided_to_commit= true; // TODO-18959: to replay the rest
+      member->decided_to_commit= true;
   }
   else
   {
-    // TODO-18959/21117
-    // if (last_gtid_coord < p_max)
-    //   member->decided_to_commit= true;
-    // else member->decided_to_commit= false; // TODO: (!)
+    if (*ha_offset_max == Binlog_offset(0,0) || last_gtid_coord < *ha_offset_max)
+    {
+      if (member)
+        member->decided_to_commit= true;
+    }
+    else if (member)   // ha_offset_max <= last_gtid_coord
+    {
+      // No need for last_gtid_engines_no_binlog_offset when last_gtid_engines is 1
+      if ((last_gtid_engines == 1 && member->in_engine_prepare == 0) ||
+          last_gtid_engines_no_binlog_offset < member->in_engine_prepare)
+      {
+        member->decided_to_commit= true; // exists a committed branch
+        member->to_replay= 0;            // the above estimate gets ascertained
+      }
+      else
+      {
+        /*
+          The number of prepared branches must be not less than the number of
+          engines supportive of the binlog offset of the last committed
+          transaction.
+          And current transaction is of such type.
 
-    if (member)
-      member->decided_to_commit= true;
+          DBUG_ASSERT(member->in_engine_prepare == last_gtid_engines_no_binlog_offset);
+          DBUG_ASSERT(last_gtid_engines == last_gtid_engines_no_binlog_offset);
+
+          However the fully prepared transaction is the subject of handled_prepare().
+        */
+        DBUG_ASSERT(0);
+      }
+    }
 
     /* Validated truncate at this point can be only in the 2nd round. */
     DBUG_ASSERT(!truncate_validated ||
@@ -11408,6 +11434,7 @@ void Recovery_context::process_gtid(int round, Gtid_log_event *gev)
   last_gtid.seq_no= gev->seq_no;
   last_gtid_engines= gev->extra_engines != UCHAR_MAX ?
     gev->extra_engines + 1 : 0;
+  last_gtid_engines_no_binlog_offset= 0; // TODO: fix GTID to carry the actual #
   last_gtid_coord= Binlog_offset(id_binlog, prev_event_pos);
 
   DBUG_ASSERT(!last_gtid_valid);
