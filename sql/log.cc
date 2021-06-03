@@ -9248,6 +9248,11 @@ TC_LOG::run_commit_ordered(THD *thd, bool all)
     if (!ht->commit_ordered)
       continue;
     ht->commit_ordered(ht, thd, all);
+    DBUG_EXECUTE_IF("enable_log_write_upto_crash",
+      {
+        DBUG_SET_INITIAL("+d,crash_after_log_write_upto");
+        sleep(1000);
+      });
     DEBUG_SYNC(thd, "commit_after_run_commit_ordered");
   }
 }
