@@ -10183,7 +10183,7 @@ commit_try_norebuild(
 		DBUG_RETURN(true);
 	}
 
-	dberr_t	error;
+	dberr_t	error = DB_SUCCESS;
 	dict_index_t* index;
 	const char *op = "rename index to add";
 	ulint num_fts_index = 0;
