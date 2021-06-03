@@ -13409,10 +13409,10 @@ err_exit:
 @param[in,out]	trx	InnoDB data dictionary transaction
 @param[in]	from	old table name
 @param[in]	to	new table name
-@param[in]	commit	whether to commit trx (and to enforce FOREIGN KEY)
+@param[in]	use_fk	whether to enforce FOREIGN KEY
 @return DB_SUCCESS or error code */
 inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
-                                     const char *to, bool commit)
+                                     const char *to, bool use_fk)
 {
 	dberr_t	error;
 	char	norm_to[FN_REFLEN];
@@ -13431,14 +13431,7 @@ inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
 	trx_start_if_not_started(trx, true);
 	ut_ad(trx->will_lock);
 
-	if (commit) {
-		/* Serialize data dictionary operations with dictionary mutex:
-		no deadlocks can occur then in these operations. */
-		row_mysql_lock_data_dictionary(trx);
-	}
-
-	error = row_rename_table_for_mysql(norm_from, norm_to, trx, commit,
-					   commit);
+	error = row_rename_table_for_mysql(norm_from, norm_to, trx, use_fk);
 
 	if (error != DB_SUCCESS) {
 		if (error == DB_TABLE_NOT_FOUND
@@ -13463,8 +13456,7 @@ inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
 #endif /* _WIN32 */
 				trx_start_if_not_started(trx, true);
 				error = row_rename_table_for_mysql(
-					par_case_name, norm_to, trx,
-					true, false);
+					par_case_name, norm_to, trx, false);
 			}
 		}
 
@@ -13486,10 +13478,6 @@ inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
 					  norm_from);
 #endif /* _WIN32 */
 		}
-	}
-
-	if (commit) {
-		row_mysql_unlock_data_dictionary(trx);
 	}
 
 	DBUG_RETURN(error);
@@ -13682,54 +13670,39 @@ ha_innobase::rename_table(
 	/* We are doing a DDL operation. */
 	trx->will_lock = true;
 	trx->dict_operation = true;
+	row_mysql_lock_data_dictionary(trx);
 
 	dberr_t	error = innobase_rename_table(trx, from, to, true);
 
 	DEBUG_SYNC(thd, "after_innobase_rename_table");
 
-	innobase_commit_low(trx);
-
-	trx->free();
-
 	if (error == DB_SUCCESS) {
 		char	norm_from[MAX_FULL_NAME_LEN];
 		char	norm_to[MAX_FULL_NAME_LEN];
-		char	errstr[512];
-		dberr_t	ret;
 
 		normalize_table_name(norm_from, from);
 		normalize_table_name(norm_to, to);
 
-		ret = dict_stats_rename_table(norm_from, norm_to,
-					      errstr, sizeof(errstr));
-
-		if (ret != DB_SUCCESS) {
-			ib::error() << errstr;
-
-			push_warning(thd, Sql_condition::WARN_LEVEL_WARN,
-				     ER_LOCK_WAIT_TIMEOUT, errstr);
-		}
+		error = dict_stats_rename_table(norm_from, norm_to, trx);
 	}
 
-	/* Add a special case to handle the Duplicated Key error
-	and return DB_ERROR instead.
-	This is to avoid a possible SIGSEGV error from mysql error
-	handling code. Currently, mysql handles the Duplicated Key
-	error by re-entering the storage layer and getting dup key
-	info by calling get_dup_key(). This operation requires a valid
-	table handle ('row_prebuilt_t' structure) which could no
-	longer be available in the error handling stage. The suggested
-	solution is to report a 'table exists' error message (since
-	the dup key error here is due to an existing table whose name
-	is the one we are trying to rename to) and return the generic
-	error code. */
-	if (error == DB_DUPLICATE_KEY) {
-		my_error(ER_TABLE_EXISTS_ERROR, MYF(0), to);
+	if (error == DB_SUCCESS) {
+		innobase_commit_low(trx);
+	} else {
+		trx->rollback();
+	}
 
+	row_mysql_unlock_data_dictionary(trx);
+	trx->free();
+
+	if (error == DB_DUPLICATE_KEY) {
+		/* We are not able to deal with handler::get_dup_key()
+		during DDL operations, because the duplicate key would
+		exist in metadata tables, not in the user table. */
+		my_error(ER_TABLE_EXISTS_ERROR, MYF(0), to);
 		error = DB_ERROR;
 	} else if (error == DB_LOCK_WAIT_TIMEOUT) {
 		my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0), to);
-
 		error = DB_LOCK_WAIT;
 	}
 

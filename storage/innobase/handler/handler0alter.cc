@@ -9923,12 +9923,10 @@ commit_try_rebuild(
 	char* old_name= mem_heap_strdup(ctx->heap, user_table->name.m_name);
 
 	dberr_t error = row_rename_table_for_mysql(user_table->name.m_name,
-						   ctx->tmp_name, trx,
-						   false, false);
+						   ctx->tmp_name, trx, false);
 	if (error == DB_SUCCESS) {
 		error = row_rename_table_for_mysql(
-			rebuilt_table->name.m_name, old_name, trx,
-			false, false);
+			rebuilt_table->name.m_name, old_name, trx, false);
 		if (error == DB_SUCCESS) {
 			error = trx->drop_table_statistics(
 				ctx->old_table->name);

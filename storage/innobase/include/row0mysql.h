@@ -412,7 +412,6 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		commit,		/*!< in: whether to commit trx */
 	bool		use_fk)		/*!< in: whether to parse and enforce
 					FOREIGN KEY constraints */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));

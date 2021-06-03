@@ -1,5 +1,6 @@
 CREATE TABLE stats_rename1 (a INT, PRIMARY KEY (a))
 ENGINE=INNODB STATS_PERSISTENT=1;
+BEGIN;
 INSERT INTO mysql.innodb_table_stats
 SELECT
 database_name,
@@ -10,7 +11,7 @@ clustered_index_size,
 sum_of_other_index_sizes
 FROM mysql.innodb_table_stats
 WHERE table_name = 'stats_rename1';
-INSERT INTO mysql.innodb_index_stats 
+INSERT INTO mysql.innodb_index_stats
 SELECT
 database_name,
 'stats_rename2' AS table_name,
@@ -22,6 +23,7 @@ sample_size,
 stat_description
 FROM mysql.innodb_index_stats
 WHERE table_name = 'stats_rename1';
+COMMIT;
 SELECT table_name, n_rows
 FROM mysql.innodb_table_stats
 WHERE table_name IN ('stats_rename1', 'stats_rename2');
@@ -56,6 +58,12 @@ table_name	stats_rename2
 index_name	PRIMARY
 stat_name	size
 stat_value	567
+RENAME TABLE stats_rename1 TO stats_rename2;
+ERROR 42S01: Table './test/stats_rename2' already exists
+BEGIN;
+DELETE FROM mysql.innodb_table_stats WHERE table_name='stats_rename2';
+DELETE FROM mysql.innodb_index_stats WHERE table_name='stats_rename2';
+COMMIT;
 RENAME TABLE stats_rename1 TO stats_rename2;
 SELECT table_name, n_rows
 FROM mysql.innodb_table_stats

@@ -2973,7 +2973,6 @@ row_rename_table_for_mysql(
 	const char*	old_name,	/*!< in: old table name */
 	const char*	new_name,	/*!< in: new table name */
 	trx_t*		trx,		/*!< in/out: transaction */
-	bool		commit,		/*!< in: whether to commit trx */
 	bool		use_fk)		/*!< in: whether to parse and enforce
 					FOREIGN KEY constraints */
 {
@@ -2989,8 +2988,7 @@ row_rename_table_for_mysql(
 	ut_a(old_name != NULL);
 	ut_a(new_name != NULL);
 	ut_ad(trx->state == TRX_STATE_ACTIVE);
-	const bool dict_locked = trx->dict_operation_lock_mode == RW_X_LATCH;
-	ut_ad(!commit || dict_locked);
+	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 
 	if (high_level_read_only) {
 		return(DB_READ_ONLY);
@@ -3009,7 +3007,7 @@ row_rename_table_for_mysql(
 	old_is_tmp = dict_table_t::is_temporary_name(old_name);
 	new_is_tmp = dict_table_t::is_temporary_name(new_name);
 
-	table = dict_table_open_on_name(old_name, dict_locked, FALSE,
+	table = dict_table_open_on_name(old_name, true, false,
 					DICT_ERR_IGNORE_FK_NOKEY);
 
 	/* We look for pattern #P# to see if the table is partitioned
@@ -3054,7 +3052,7 @@ row_rename_table_for_mysql(
 		normalize_table_name_c_low(
 			par_case_name, old_name, FALSE);
 #endif
-		table = dict_table_open_on_name(par_case_name, dict_locked, FALSE,
+		table = dict_table_open_on_name(par_case_name, true, false,
 						DICT_ERR_IGNORE_FK_NOKEY);
 	}
 
@@ -3092,10 +3090,6 @@ row_rename_table_for_mysql(
 		if (err != DB_SUCCESS) {
 			goto funct_exit;
 		}
-	}
-
-	if (commit) {
-		dict_stats_wait_bg_to_stop_using_table(table, trx);
 	}
 
 	err = trx_undo_report_rename(trx, table);
@@ -3355,16 +3349,8 @@ row_rename_table_for_mysql(
 	}
 
 funct_exit:
-	if (table != NULL) {
-		if (commit) {
-			table->stats_bg_flag &= byte(~BG_STAT_SHOULD_QUIT);
-		}
-		dict_table_close(table, dict_locked, FALSE);
-	}
-
-	if (commit) {
-		DEBUG_SYNC(trx->mysql_thd, "before_rename_table_commit");
-		trx_commit_for_mysql(trx);
+	if (table) {
+		table->release();
 	}
 
 	if (UNIV_LIKELY_NULL(heap)) {

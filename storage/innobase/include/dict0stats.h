@@ -171,18 +171,13 @@ dict_stats_update_for_index(
 	dict_index_t*	index)	/*!< in/out: index */
 	MY_ATTRIBUTE((nonnull));
 
-/*********************************************************************//**
-Renames a table in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
+/** Rename a table in InnoDB persistent stats storage.
+@param old_name  old table name
+@param new_name  new table name
+@param trx       transaction
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_rename_table(
-/*====================*/
-	const char*	old_name,	/*!< in: old table name */
-	const char*	new_name,	/*!< in: new table name */
-	char*		errstr,		/*!< out: error string if != DB_SUCCESS
-					is returned */
-	size_t		errstr_sz);	/*!< in: errstr size */
+dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
+				trx_t *trx);
 /*********************************************************************//**
 Renames an index in InnoDB persistent stats storage.
 This function creates its own transaction and commits it.

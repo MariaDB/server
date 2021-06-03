@@ -3718,236 +3718,47 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 		"END;\n", trx);
 }
 
-/*********************************************************************//**
-Executes
-UPDATE mysql.innodb_table_stats SET
-database_name = '...', table_name = '...'
-WHERE database_name = '...' AND table_name = '...';
-Creates its own transaction and commits it.
+/** Rename a table in InnoDB persistent stats storage.
+@param old_name  old table name
+@param new_name  new table name
+@param trx       transaction
 @return DB_SUCCESS or error code */
-UNIV_INLINE
-dberr_t
-dict_stats_rename_table_in_table_stats(
-/*===================================*/
-	const char*	old_dbname_utf8,/*!< in: database name, e.g. 'olddb' */
-	const char*	old_tablename_utf8,/*!< in: table name, e.g. 'oldtable' */
-	const char*	new_dbname_utf8,/*!< in: database name, e.g. 'newdb' */
-	const char*	new_tablename_utf8)/*!< in: table name, e.g. 'newtable' */
+dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
+				trx_t *trx)
 {
-	pars_info_t*	pinfo;
-	dberr_t		ret;
+  /* skip the statistics tables themselves */
+  if (!strcmp(old_name, TABLE_STATS_NAME) ||
+      !strcmp(old_name, INDEX_STATS_NAME) ||
+      !strcmp(new_name, TABLE_STATS_NAME) ||
+      !strcmp(new_name, INDEX_STATS_NAME))
+    return DB_SUCCESS;
 
-	ut_d(dict_sys.assert_locked());
+  char old_db[MAX_DB_UTF8_LEN];
+  char new_db[MAX_DB_UTF8_LEN];
+  char old_table[MAX_TABLE_UTF8_LEN];
+  char new_table[MAX_TABLE_UTF8_LEN];
 
-	pinfo = pars_info_create();
+  dict_fs2utf8(old_name, old_db, sizeof old_db, old_table, sizeof old_table);
+  dict_fs2utf8(new_name, new_db, sizeof new_db, new_table, sizeof new_table);
 
-	pars_info_add_str_literal(pinfo, "old_dbname_utf8", old_dbname_utf8);
-	pars_info_add_str_literal(pinfo, "old_tablename_utf8", old_tablename_utf8);
-	pars_info_add_str_literal(pinfo, "new_dbname_utf8", new_dbname_utf8);
-	pars_info_add_str_literal(pinfo, "new_tablename_utf8", new_tablename_utf8);
+  pars_info_t *pinfo= pars_info_create();
+  pars_info_add_str_literal(pinfo, "old_db", old_db);
+  pars_info_add_str_literal(pinfo, "old_table", old_table);
+  pars_info_add_str_literal(pinfo, "new_db", new_db);
+  pars_info_add_str_literal(pinfo, "new_table", new_table);
 
-	ret = dict_stats_exec_sql(
-		pinfo,
-		"PROCEDURE RENAME_TABLE_IN_TABLE_STATS () IS\n"
-		"BEGIN\n"
-		"UPDATE \"" TABLE_STATS_NAME "\" SET\n"
-		"database_name = :new_dbname_utf8,\n"
-		"table_name = :new_tablename_utf8\n"
-		"WHERE\n"
-		"database_name = :old_dbname_utf8 AND\n"
-		"table_name = :old_tablename_utf8;\n"
-		"END;\n", NULL);
+  static const char sql[]=
+    "PROCEDURE RENAME_TABLE_IN_STATS() IS\n"
+    "BEGIN\n"
+    "UPDATE \"" TABLE_STATS_NAME "\" SET\n"
+    "database_name=:new_db, table_name=:new_table\n"
+    "WHERE database_name=:old_db AND table_name=:old_table;\n"
+    "UPDATE \"" INDEX_STATS_NAME "\" SET\n"
+    "database_name=:new_db, table_name=:new_table\n"
+    "WHERE database_name=:old_db AND table_name=:old_table;\n"
+    "END;\n";
 
-	return(ret);
-}
-
-/*********************************************************************//**
-Executes
-UPDATE mysql.innodb_index_stats SET
-database_name = '...', table_name = '...'
-WHERE database_name = '...' AND table_name = '...';
-Creates its own transaction and commits it.
-@return DB_SUCCESS or error code */
-UNIV_INLINE
-dberr_t
-dict_stats_rename_table_in_index_stats(
-/*===================================*/
-	const char*	old_dbname_utf8,/*!< in: database name, e.g. 'olddb' */
-	const char*	old_tablename_utf8,/*!< in: table name, e.g. 'oldtable' */
-	const char*	new_dbname_utf8,/*!< in: database name, e.g. 'newdb' */
-	const char*	new_tablename_utf8)/*!< in: table name, e.g. 'newtable' */
-{
-	pars_info_t*	pinfo;
-	dberr_t		ret;
-
-	ut_d(dict_sys.assert_locked());
-
-	pinfo = pars_info_create();
-
-	pars_info_add_str_literal(pinfo, "old_dbname_utf8", old_dbname_utf8);
-	pars_info_add_str_literal(pinfo, "old_tablename_utf8", old_tablename_utf8);
-	pars_info_add_str_literal(pinfo, "new_dbname_utf8", new_dbname_utf8);
-	pars_info_add_str_literal(pinfo, "new_tablename_utf8", new_tablename_utf8);
-
-	ret = dict_stats_exec_sql(
-		pinfo,
-		"PROCEDURE RENAME_TABLE_IN_INDEX_STATS () IS\n"
-		"BEGIN\n"
-		"UPDATE \"" INDEX_STATS_NAME "\" SET\n"
-		"database_name = :new_dbname_utf8,\n"
-		"table_name = :new_tablename_utf8\n"
-		"WHERE\n"
-		"database_name = :old_dbname_utf8 AND\n"
-		"table_name = :old_tablename_utf8;\n"
-		"END;\n", NULL);
-
-	return(ret);
-}
-
-/*********************************************************************//**
-Renames a table in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_stats_rename_table(
-/*====================*/
-	const char*	old_name,	/*!< in: old name, e.g. 'db/table' */
-	const char*	new_name,	/*!< in: new name, e.g. 'db/table' */
-	char*		errstr,		/*!< out: error string if != DB_SUCCESS
-					is returned */
-	size_t		errstr_sz)	/*!< in: errstr size */
-{
-	char		old_db_utf8[MAX_DB_UTF8_LEN];
-	char		new_db_utf8[MAX_DB_UTF8_LEN];
-	char		old_table_utf8[MAX_TABLE_UTF8_LEN];
-	char		new_table_utf8[MAX_TABLE_UTF8_LEN];
-	dberr_t		ret;
-
-	/* skip innodb_table_stats and innodb_index_stats themselves */
-	if (strcmp(old_name, TABLE_STATS_NAME) == 0
-	    || strcmp(old_name, INDEX_STATS_NAME) == 0
-	    || strcmp(new_name, TABLE_STATS_NAME) == 0
-	    || strcmp(new_name, INDEX_STATS_NAME) == 0) {
-
-		return(DB_SUCCESS);
-	}
-
-	dict_fs2utf8(old_name, old_db_utf8, sizeof(old_db_utf8),
-		     old_table_utf8, sizeof(old_table_utf8));
-
-	dict_fs2utf8(new_name, new_db_utf8, sizeof(new_db_utf8),
-		     new_table_utf8, sizeof(new_table_utf8));
-
-	dict_sys_lock();
-
-	ulint	n_attempts = 0;
-	do {
-		n_attempts++;
-
-		ret = dict_stats_rename_table_in_table_stats(
-			old_db_utf8, old_table_utf8,
-			new_db_utf8, new_table_utf8);
-
-		if (ret == DB_DUPLICATE_KEY) {
-			dict_stats_delete_from_table_stats(
-				new_db_utf8, new_table_utf8);
-		}
-
-		if (ret == DB_STATS_DO_NOT_EXIST) {
-			ret = DB_SUCCESS;
-		}
-
-		if (ret != DB_SUCCESS) {
-			dict_sys_unlock();
-			std::this_thread::sleep_for(
-				std::chrono::milliseconds(200));
-			dict_sys_lock();
-		}
-	} while ((ret == DB_DEADLOCK
-		  || ret == DB_DUPLICATE_KEY
-		  || ret == DB_LOCK_WAIT_TIMEOUT)
-		 && n_attempts < 5);
-
-	if (ret != DB_SUCCESS) {
-		snprintf(errstr, errstr_sz,
-			 "Unable to rename statistics from"
-			 " %s.%s to %s.%s in %s: %s."
-			 " They can be renamed later using"
-
-			 " UPDATE %s SET"
-			 " database_name = '%s',"
-			 " table_name = '%s'"
-			 " WHERE"
-			 " database_name = '%s' AND"
-			 " table_name = '%s';",
-
-			 old_db_utf8, old_table_utf8,
-			 new_db_utf8, new_table_utf8,
-			 TABLE_STATS_NAME_PRINT,
-			 ut_strerr(ret),
-
-			 TABLE_STATS_NAME_PRINT,
-			 new_db_utf8, new_table_utf8,
-			 old_db_utf8, old_table_utf8);
-		dict_sys_unlock();
-		return(ret);
-	}
-	/* else */
-
-	n_attempts = 0;
-	do {
-		n_attempts++;
-
-		ret = dict_stats_rename_table_in_index_stats(
-			old_db_utf8, old_table_utf8,
-			new_db_utf8, new_table_utf8);
-
-		if (ret == DB_DUPLICATE_KEY) {
-			dict_stats_delete_from_index_stats(
-				new_db_utf8, new_table_utf8);
-		}
-
-		if (ret == DB_STATS_DO_NOT_EXIST) {
-			ret = DB_SUCCESS;
-		}
-
-		if (ret != DB_SUCCESS) {
-			dict_sys_unlock();
-			std::this_thread::sleep_for(
-				std::chrono::milliseconds(200));
-			dict_sys_lock();
-		}
-	} while ((ret == DB_DEADLOCK
-		  || ret == DB_DUPLICATE_KEY
-		  || ret == DB_LOCK_WAIT_TIMEOUT)
-		 && n_attempts < 5);
-
-	dict_sys_unlock();
-
-	if (ret != DB_SUCCESS) {
-		snprintf(errstr, errstr_sz,
-			 "Unable to rename statistics from"
-			 " %s.%s to %s.%s in %s: %s."
-			 " They can be renamed later using"
-
-			 " UPDATE %s SET"
-			 " database_name = '%s',"
-			 " table_name = '%s'"
-			 " WHERE"
-			 " database_name = '%s' AND"
-			 " table_name = '%s';",
-
-			 old_db_utf8, old_table_utf8,
-			 new_db_utf8, new_table_utf8,
-			 INDEX_STATS_NAME_PRINT,
-			 ut_strerr(ret),
-
-			 INDEX_STATS_NAME_PRINT,
-			 new_db_utf8, new_table_utf8,
-			 old_db_utf8, old_table_utf8);
-	}
-
-	return(ret);
+  return dict_stats_exec_sql(pinfo, sql, trx);
 }
 
 /*********************************************************************//**
