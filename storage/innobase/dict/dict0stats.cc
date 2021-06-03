@@ -3741,6 +3741,14 @@ dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
   dict_fs2utf8(old_name, old_db, sizeof old_db, old_table, sizeof old_table);
   dict_fs2utf8(new_name, new_db, sizeof new_db, new_table, sizeof new_table);
 
+  if (dict_table_t::is_temporary_name(old_name) ||
+      dict_table_t::is_temporary_name(new_name))
+  {
+    if (dberr_t e= dict_stats_delete_from_table_stats(old_db, old_table, trx))
+      return e;
+    return dict_stats_delete_from_index_stats(old_db, old_table, trx);
+  }
+
   pars_info_t *pinfo= pars_info_create();
   pars_info_add_str_literal(pinfo, "old_db", old_db);
   pars_info_add_str_literal(pinfo, "old_table", old_table);
