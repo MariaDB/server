@@ -69,8 +69,7 @@ delimiter ;|
 # Both $query1 and $query2 are going to be truncated.
 --let $truncate_gtid_pos = 0-1-14
 --let $query1 = INSERT INTO t VALUES (20)
---let $pre_q2 = CALL sp_blank_xa
---let $query2 =  XA COMMIT  'blank'
+--let $query2 = CALL sp_blank_xa
 --source binlog_truncate_active_log.inc
 
 DROP PROCEDURE sp_blank_xa;
@@ -91,7 +90,6 @@ delimiter ;|
 # Truncation must occurs at $query2.
 --let $truncate_gtid_pos = 0-1-20
 --let $query1 = CALL sp_xa
---let $pre_q2 =
 --let $query2 = INSERT INTO t2 VALUES (20)
 --source binlog_truncate_active_log.inc
 

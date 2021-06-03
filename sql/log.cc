@@ -1679,10 +1679,6 @@ binlog_trans_log_truncate(THD *thd, my_off_t pos)
   DBUG_VOID_RETURN;
 }
 
-int binlog_commit_dummy(handlerton *hton, THD *thd, bool all)
-{
-  return 0;
-}
 
 /*
   this function is mostly a placeholder.
@@ -1699,7 +1695,7 @@ int binlog_init(void *p)
   binlog_hton->savepoint_rollback= binlog_savepoint_rollback;
   binlog_hton->savepoint_rollback_can_release_mdl=
                                      binlog_savepoint_rollback_can_release_mdl;
-  binlog_hton->commit= binlog_commit_dummy;
+  binlog_hton->commit= [](handlerton *, THD *thd, bool all) { return 0; };
   binlog_hton->rollback= binlog_rollback;
   binlog_hton->drop_table= [](handlerton *, const char*) { return -1; };
   if (WSREP_ON || opt_bin_log)
@@ -10058,13 +10054,13 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
     }
 
     // Trim index file
-    if ((error=
-         mysql_file_chsize(index_file.file, index_file_offset, '\n',
-                           MYF(MY_WME))) ||
-         (error=
-         mysql_file_sync(index_file.file, MYF(MY_WME|MY_SYNC_FILESIZE))))
+    error= mysql_file_chsize(index_file.file, index_file_offset, '\n',
+                             MYF(MY_WME));
+    if (!error)
+      error= mysql_file_sync(index_file.file, MYF(MY_WME|MY_SYNC_FILESIZE));
+    if (error)
     {
-      sql_print_error("Failed to trim binlog index "
+      sql_print_error("Failed to truncate binlog index "
                       "file:%s to offset:%llu. Error:%d", index_file_name,
                       index_file_offset, error);
       goto end;
@@ -10105,7 +10101,7 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
        mysql_file_chsize(file, pos, 0, MYF(MY_WME))) ||
       (error= mysql_file_sync(file, MYF(MY_WME|MY_SYNC_FILESIZE))))
   {
-    sql_print_error("Failed to trim the "
+    sql_print_error("Failed to truncate the "
                     "binlog file:%s to size:%llu. Error:%d",
                     file_name, pos, error);
     goto end;
@@ -10113,17 +10109,14 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
   else
   {
     char buf[21];
-    my_stat(file_name, &s, MYF(0));
-    my_off_t new_size= s.st_size;
-
     longlong10_to_str(ptr_gtid->seq_no, buf, 10);
     sql_print_information("Successfully truncated binlog file:%s "
+                          "from previous file size %llu "
                           "to pos:%llu to remove transactions starting from "
-                          "GTID %u-%u-%s; "
-                          "former file size shrunk from %llu to %llu.",
-                          file_name, pos,
+                          "GTID %u-%u-%s",
+                          file_name, old_size, pos,
                           ptr_gtid->domain_id, ptr_gtid->server_id, buf,
-                          old_size, new_size);
+                          old_size);
   }
 
 end:
@@ -10817,7 +10810,7 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
                                       binlog_truncate_coord.second,
                                       &truncate_gtid))
       {
-        sql_print_error("Failed to trim the binary log to "
+        sql_print_error("Failed to truncate the binary log to "
                         "file:%s pos:%llu.", binlog_truncate_file_name,
                         binlog_truncate_coord.second);
         return true;
@@ -10825,7 +10818,7 @@ bool Recovery_context::complete(MYSQL_BIN_LOG *log, HASH &xids)
     }
     else
     {
-      sql_print_error("Cannot trim the binary log to file:%s "
+      sql_print_error("Cannot truncate the binary log to file:%s "
                       "pos:%llu as unsafe statement "
                       "is found at file:%s pos:%llu which is "
                       "beyond the truncation position;"

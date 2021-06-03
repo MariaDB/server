@@ -35,7 +35,7 @@ call mtr.add_suppression("Table '.*tm' is marked as crashed and should be repair
 call mtr.add_suppression("Got an error from unknown thread");
 call mtr.add_suppression("Checking table:   '.*tm'");
 call mtr.add_suppression("Recovering table: '.*tm'");
-call mtr.add_suppression("Cannot trim the binary log to file");
+call mtr.add_suppression("Cannot truncate the binary log to file");
 call mtr.add_suppression("Crash recovery failed");
 call mtr.add_suppression("Can.t init tc log");
 call mtr.add_suppression("Aborting");
@@ -100,7 +100,7 @@ SELECT @@global.gtid_binlog_state;
 let $log_error_ = $MYSQLTEST_VARDIR/log/mysqld.1.err;
 
 --let SEARCH_FILE=$log_error_
---let SEARCH_PATTERN=Cannot trim the binary log to file
+--let SEARCH_PATTERN=Cannot truncate the binary log to file
 --source include/search_pattern_in_file.inc
 
 --echo # Proof that the in-doubt transactions are recovered by the 2nd normal server restart

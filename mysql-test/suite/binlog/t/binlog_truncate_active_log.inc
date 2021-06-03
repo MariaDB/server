@@ -16,15 +16,7 @@ SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master1_ready WAIT
 --connection master2
 SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
 SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
-if ($pre_q2)
-{
-  --send_eval $pre_q2;
-}
-# To binlog non-xid transactional group which will be truncated all right
-if (!$pre_q2)
-{
-  --send_eval $query2
-}
+--send_eval $query2
 
 --connection master3
 SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
@@ -47,7 +39,7 @@ SELECT @@global.gtid_binlog_pos as 'Before the crash';
 
 --let SEARCH_FILE=$log_error_
 --let SEARCH_PATTERN=Successfully truncated.*to remove transactions starting from GTID $truncate_gtid_pos
---replace_regex /FOUND [0-9]+/FOUND #/
+ 
 --source include/search_pattern_in_file.inc
 
 --echo Pre-crash binlog file content:

@@ -29,7 +29,7 @@ disconnect master1;
 disconnect master2;
 disconnect master3;
 # restart: --rpl-semi-sync-slave-enabled=1
-FOUND # /Successfully truncated.*to remove transactions starting from GTID 0-1-6/ in mysqld.1.err
+FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-6/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -78,7 +78,7 @@ disconnect master1;
 disconnect master2;
 disconnect master3;
 # restart: --rpl-semi-sync-slave-enabled=1
-FOUND # /Successfully truncated.*to remove transactions starting from GTID 0-1-10/ in mysqld.1.err
+FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-10/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -122,7 +122,7 @@ INSERT INTO t VALUES (20);
 connection master2;
 SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
 SET DEBUG_SYNC= "commit_before_get_LOCK_after_binlog_sync SIGNAL master2_ready";
-CALL sp_blank_xa;;
+CALL sp_blank_xa;
 connection master3;
 SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
 SELECT @@global.gtid_binlog_pos as 'Before the crash';
@@ -134,7 +134,7 @@ disconnect master1;
 disconnect master2;
 disconnect master3;
 # restart: --rpl-semi-sync-slave-enabled=1
-FOUND # /Successfully truncated.*to remove transactions starting from GTID 0-1-14/ in mysqld.1.err
+FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-14/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
@@ -196,7 +196,7 @@ disconnect master1;
 disconnect master2;
 disconnect master3;
 # restart: --rpl-semi-sync-slave-enabled=1
-FOUND # /Successfully truncated.*to remove transactions starting from GTID 0-1-20/ in mysqld.1.err
+FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-20/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
 Log_name	Pos	Event_type	Server_id	End_log_pos	Info
