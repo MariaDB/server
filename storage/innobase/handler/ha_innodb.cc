@@ -94,7 +94,6 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "mtr0mtr.h"
 #include "os0file.h"
 #include "page0zip.h"
-#include "pars0pars.h"
 #include "rem0types.h"
 #include "row0import.h"
 #include "row0ins.h"
@@ -1312,7 +1311,8 @@ static ibool innodb_drop_database_fk(void *node, void *report)
   return true;
 }
 
-/** Remove all tables in the named database inside InnoDB.
+/** After DROP DATABASE executed ha_innobase::delete_table() on all
+tables that it was aware of, drop any leftover tables inside InnoDB.
 @param path  database path */
 static void innodb_drop_database(handlerton*, char *path)
 {
@@ -1416,7 +1416,8 @@ retry:
     {
       pars_info_t* pinfo = pars_info_create();
       pars_info_add_str_literal(pinfo, "db", db);
-      /* We intentionally ignore errors here. */
+      /* We intentionally ignore errors here. DROP DATABASE is not
+      allowed to return an error at this point. */
       que_eval_sql(pinfo, drop_database_stats, false, trx);
       trx->error_state= DB_SUCCESS;
     }

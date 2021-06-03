@@ -38,8 +38,6 @@ Created 9/17/2000 Heikki Tuuri
 #include "dict0load.h"
 #include "dict0stats.h"
 #include "dict0stats_bg.h"
-#include "dict0defrag_bg.h"
-#include "btr0defragment.h"
 #include "fil0fil.h"
 #include "fil0crypt.h"
 #include "fsp0file.h"
@@ -2666,10 +2664,15 @@ rollback:
     goto rollback;
   }
 
-  /* Note: This cannot be rolled back. Rollback would see the UPDATE
-  SYS_INDEXES as two operations: DELETE and INSERT. It would invoke
-  btr_free_if_exists() when rolling back the INSERT, effectively
-  dropping all indexes of the table. */
+  /* Note: The following cannot be rolled back. Rollback would see the
+  UPDATE of SYS_INDEXES.TABLE_ID as two operations: DELETE and INSERT.
+  It would invoke btr_free_if_exists() when rolling back the INSERT,
+  effectively dropping all indexes of the table. Furthermore, calls like
+  ibuf_delete_for_discarded_space() are already discarding data
+  before the transaction is committed.
+
+  It would be better to remove the integrity-breaking
+  ALTER TABLE...DISCARD TABLESPACE operation altogether. */
   err= row_discard_tablespace(trx, table);
   DBUG_EXECUTE_IF("ib_discard_before_commit_crash",
                   log_write_up_to(LSN_MAX, true); DBUG_SUICIDE(););
@@ -2738,174 +2741,6 @@ row_mysql_lock_table(
 	trx->op_info = "";
 
 	return(err);
-}
-
-dberr_t trx_t::drop_table_foreign(const table_name_t &name)
-{
-  ut_d(dict_sys.assert_locked());
-  ut_ad(state == TRX_STATE_ACTIVE);
-  ut_ad(dict_operation);
-  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
-
-  if (!dict_sys.sys_foreign || !dict_sys.sys_foreign_cols)
-    return DB_SUCCESS;
-
-  pars_info_t *info= pars_info_create();
-  pars_info_add_str_literal(info, "name", name.m_name);
-  return que_eval_sql(info,
-                      "PROCEDURE DROP_FOREIGN() IS\n"
-                      "fid CHAR;\n"
-
-                      "DECLARE CURSOR fk IS\n"
-                      "SELECT ID FROM SYS_FOREIGN\n"
-                      "WHERE FOR_NAME=:name\n"
-                      "AND TO_BINARY(FOR_NAME)=TO_BINARY(:name)\n"
-                      "FOR UPDATE;\n"
-
-                      "BEGIN\n"
-                      "OPEN fk;\n"
-                      "WHILE 1=1 LOOP\n"
-                      "  FETCH fk INTO fid;\n"
-                      "  IF (SQL % NOTFOUND)THEN RETURN;END IF;\n"
-                      "  DELETE FROM SYS_FOREIGN_COLS"
-                      " WHERE ID=fid;\n"
-                      "  DELETE FROM SYS_FOREIGN WHERE ID=fid;\n"
-                      "END LOOP;\n"
-                      "CLOSE fk;\n"
-                      "END;\n", FALSE, this);
-}
-
-dberr_t trx_t::drop_table_statistics(const table_name_t &name)
-{
-  ut_d(dict_sys.assert_locked());
-  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
-
-  if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB) ||
-      !strcmp(name.m_name, TABLE_STATS_NAME) ||
-      !strcmp(name.m_name, INDEX_STATS_NAME))
-    return DB_SUCCESS;
-
-  char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
-  dict_fs2utf8(name.m_name, db, sizeof db, table, sizeof table);
-
-  dberr_t err= dict_stats_delete_from_table_stats(db, table, this);
-  if (err == DB_SUCCESS || err == DB_STATS_DO_NOT_EXIST)
-  {
-    err= dict_stats_delete_from_index_stats(db, table, this);
-    if (err == DB_STATS_DO_NOT_EXIST)
-      err= DB_SUCCESS;
-  }
-  return err;
-}
-
-dberr_t trx_t::drop_table(const dict_table_t &table)
-{
-  ut_d(dict_sys.assert_locked());
-  ut_ad(state == TRX_STATE_ACTIVE);
-  ut_ad(dict_operation);
-  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
-  ut_ad(!table.is_temporary());
-  ut_ad(!(table.stats_bg_flag & BG_STAT_IN_PROGRESS));
-  /* The table must be exclusively locked by this transaction. */
-  ut_ad(table.get_ref_count() <= 1);
-  ut_ad(!table.n_waiting_or_granted_auto_inc_locks);
-  ut_ad(table.n_lock_x_or_s == 1);
-  ut_ad(UT_LIST_GET_LEN(table.locks) >= 1);
-#ifdef UNIV_DEBUG
-  bool found_x;
-  for (lock_t *lock= UT_LIST_GET_FIRST(table.locks); lock;
-       lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
-  {
-    ut_ad(lock->trx == this);
-    if (lock->type_mode == (LOCK_X | LOCK_TABLE))
-      found_x= true;
-    else
-      ut_ad(lock->type_mode == (LOCK_IX | LOCK_TABLE));
-  }
-  ut_ad(found_x);
-#endif
-
-  if (dict_sys.sys_virtual)
-  {
-    pars_info_t *info= pars_info_create();
-    pars_info_add_ull_literal(info, "id", table.id);
-    if (dberr_t err= que_eval_sql(info,
-                                  "PROCEDURE DROP_VIRTUAL() IS\n"
-                                  "BEGIN\n"
-                                  "DELETE FROM SYS_VIRTUAL"
-                                  " WHERE TABLE_ID=:id;\n"
-                                  "END;\n", FALSE, this))
-      return err;
-  }
-
-  /* Once DELETE FROM SYS_INDEXES is committed, purge may invoke
-  dict_drop_index_tree(). */
-
-  if (!(table.flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS)));
-  else if (dberr_t err= fts_drop_tables(this, table))
-  {
-    ib::error() << "Unable to remove FTS tables for "
-                << table.name << ": " << err;
-    return err;
-  }
-
-  mod_tables.emplace(const_cast<dict_table_t*>(&table), undo_no).first
-    ->second.set_dropped();
-
-  pars_info_t *info= pars_info_create();
-  pars_info_add_ull_literal(info, "id", table.id);
-  return que_eval_sql(info,
-                      "PROCEDURE DROP_TABLE() IS\n"
-                      "iid CHAR;\n"
-
-                      "DECLARE CURSOR idx IS\n"
-                      "SELECT ID FROM SYS_INDEXES\n"
-                      "WHERE TABLE_ID=:id FOR UPDATE;\n"
-
-                      "BEGIN\n"
-                      "OPEN idx;\n"
-                      "WHILE 1 = 1 LOOP\n"
-                      "  FETCH idx INTO iid;\n"
-                      "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-                      "  DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
-                      "  DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
-                      "END LOOP;\n"
-                      "CLOSE idx;\n"
-
-                      "DELETE FROM SYS_COLUMNS WHERE TABLE_ID=:id;\n"
-                      "DELETE FROM SYS_TABLES WHERE ID=:id;\n"
-
-                      "END;\n", FALSE, this);
-}
-
-void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
-{
-  ut_ad(dict_operation);
-  commit_persist();
-  if (dict_operation)
-  {
-    dict_sys.assert_locked();
-    for (const auto &p : mod_tables)
-    {
-      if (p.second.is_dropped())
-      {
-        dict_table_t *table= p.first;
-        dict_stats_recalc_pool_del(table);
-        dict_stats_defrag_pool_del(table, nullptr);
-        if (btr_defragment_active)
-          btr_defragment_remove_table(table);
-        const fil_space_t *space= table->space;
-        dict_sys.remove(table);
-        if (const auto id= space ? space->id : 0)
-        {
-          pfs_os_file_t d= fil_delete_tablespace(id);
-          if (d != OS_FILE_CLOSED)
-            deleted.emplace_back(d);
-        }
-      }
-    }
-  }
-  commit_cleanup();
 }
 
 /****************************************************************//**
