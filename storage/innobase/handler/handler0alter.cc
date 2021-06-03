@@ -10248,10 +10248,45 @@ commit_try_norebuild(
 							   index->name, trx);
 		switch (error) {
 		case DB_SUCCESS:
-			break;
 		case DB_STATS_DO_NOT_EXIST:
-			error = DB_SUCCESS;
+			continue;
+		default:
+			goto handle_error;
+		}
+	}
+
+	if (const size_t size = ha_alter_info->rename_keys.size()) {
+		char tmp_name[5];
+		char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
+
+		dict_fs2utf8(ctx->new_table->name.m_name, db, sizeof db,
+			     table, sizeof table);
+
+		for (size_t i = 0; error == DB_SUCCESS && i < size; i++) {
+			snprintf(tmp_name, sizeof tmp_name, "\xff%zu", i);
+			error = dict_stats_rename_index(db, table,
+							ha_alter_info->
+							rename_keys[i].
+							old_key->name.str,
+							tmp_name, trx);
+		}
+		for (size_t i = 0; error == DB_SUCCESS && i < size; i++) {
+			snprintf(tmp_name, sizeof tmp_name, "\xff%zu", i);
+			error = dict_stats_rename_index(db, table, tmp_name,
+							ha_alter_info
+							->rename_keys[i].
+							new_key->name.str,
+							trx);
+		}
+
+		switch (error) {
+		case DB_SUCCESS:
+		case DB_STATS_DO_NOT_EXIST:
 			break;
+		case DB_DUPLICATE_KEY:
+			my_error(ER_DUP_KEY, MYF(0),
+				 "mysql.innodb_index_stats");
+			DBUG_RETURN(true);
 		default:
 			goto handle_error;
 		}
@@ -10548,36 +10583,6 @@ alter_stats_norebuild(
 
 	if (!dict_stats_is_persistent_enabled(ctx->new_table)) {
 		DBUG_VOID_RETURN;
-	}
-
-	/* FIXME: The rename should be done in commit_try_norebuild(),
-	in the same transaction! */
-	for (size_t i = 0; i < ha_alter_info->rename_keys.size(); i++) {
-		const Alter_inplace_info::Rename_key_pair& pair
-			= ha_alter_info->rename_keys[i];
-
-		std::stringstream ss;
-		ss << TEMP_FILE_PREFIX_INNODB << std::this_thread::get_id()
-		   << i;
-		auto tmp_name = ss.str();
-
-		dberr_t err = dict_stats_rename_index(ctx->new_table,
-						      tmp_name.c_str(),
-						      pair.new_key->name.str);
-
-		if (err != DB_SUCCESS) {
-			push_warning_printf(
-				thd,
-				Sql_condition::WARN_LEVEL_WARN,
-				ER_ERROR_ON_RENAME,
-				"Error renaming an index of table '%s'"
-				" from '%s' to '%s' in InnoDB persistent"
-				" statistics storage: %s",
-				ctx->new_table->name.m_name,
-				tmp_name.c_str(),
-				pair.new_key->name.str,
-				ut_strerr(err));
-		}
 	}
 
 	for (ulint i = 0; i < ctx->num_to_add_index; i++) {

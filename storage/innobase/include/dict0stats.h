@@ -177,20 +177,17 @@ dict_stats_update_for_index(
 @param trx       transaction
 @return DB_SUCCESS or error code */
 dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
-				trx_t *trx);
-/*********************************************************************//**
-Renames an index in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
-@return DB_SUCCESS or error code. DB_STATS_DO_NOT_EXIST will be returned
-if the persistent stats do not exist. */
-dberr_t
-dict_stats_rename_index(
-/*====================*/
-	const dict_table_t*	table,		/*!< in: table whose index
-						is renamed */
-	const char*		old_index_name,	/*!< in: old index name */
-	const char*		new_index_name)	/*!< in: new index name */
-	__attribute__((warn_unused_result));
+                                trx_t *trx);
+/** Rename an index in InnoDB persistent statistics.
+@param db         database name
+@param table      table name
+@param old_name   old table name
+@param new_name   new table name
+@param trx        transaction
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_rename_index(const char *db, const char *table,
+                                const char *old_name, const char *new_name,
+                                trx_t *trx);
 
 /** Save an individual index's statistic into the persistent statistics
 storage.

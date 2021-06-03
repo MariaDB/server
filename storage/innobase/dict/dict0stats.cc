@@ -3724,7 +3724,7 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 @param trx       transaction
 @return DB_SUCCESS or error code */
 dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
-				trx_t *trx)
+                                trx_t *trx)
 {
   /* skip the statistics tables themselves */
   if (!strcmp(old_name, TABLE_STATS_NAME) ||
@@ -3761,58 +3761,34 @@ dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
   return dict_stats_exec_sql(pinfo, sql, trx);
 }
 
-/*********************************************************************//**
-Renames an index in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
-@return DB_SUCCESS or error code. DB_STATS_DO_NOT_EXIST will be returned
-if the persistent stats do not exist. */
-dberr_t
-dict_stats_rename_index(
-/*====================*/
-	const dict_table_t*	table,		/*!< in: table whose index
-						is renamed */
-	const char*		old_index_name,	/*!< in: old index name */
-	const char*		new_index_name)	/*!< in: new index name */
+/** Rename an index in InnoDB persistent statistics.
+@param db         database name
+@param table      table name
+@param old_name   old table name
+@param new_name   new table name
+@param trx        transaction
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_rename_index(const char *db, const char *table,
+                                const char *old_name, const char *new_name,
+                                trx_t *trx)
 {
-	dict_sys_lock();
+  if (!dict_stats_persistent_storage_check(true))
+    return DB_STATS_DO_NOT_EXIST;
+  pars_info_t *pinfo= pars_info_create();
 
-	if (!dict_stats_persistent_storage_check(true)) {
-		dict_sys_unlock();
-		return(DB_STATS_DO_NOT_EXIST);
-	}
+  pars_info_add_str_literal(pinfo, "db", db);
+  pars_info_add_str_literal(pinfo, "table", table);
+  pars_info_add_str_literal(pinfo, "old", old_name);
+  pars_info_add_str_literal(pinfo, "new", new_name);
 
-	char	dbname_utf8[MAX_DB_UTF8_LEN];
-	char	tablename_utf8[MAX_TABLE_UTF8_LEN];
+  static const char sql[]=
+    "PROCEDURE RENAME_INDEX_IN_STATS() IS\n"
+    "BEGIN\n"
+    "UPDATE \"" INDEX_STATS_NAME "\" SET index_name=:new\n"
+    "WHERE database_name=:db AND table_name=:table AND index_name=:old;\n"
+    "END;\n";
 
-	dict_fs2utf8(table->name.m_name, dbname_utf8, sizeof(dbname_utf8),
-		     tablename_utf8, sizeof(tablename_utf8));
-
-	pars_info_t*	pinfo;
-
-	pinfo = pars_info_create();
-
-	pars_info_add_str_literal(pinfo, "dbname_utf8", dbname_utf8);
-	pars_info_add_str_literal(pinfo, "tablename_utf8", tablename_utf8);
-	pars_info_add_str_literal(pinfo, "new_index_name", new_index_name);
-	pars_info_add_str_literal(pinfo, "old_index_name", old_index_name);
-
-	dberr_t	ret;
-
-	ret = dict_stats_exec_sql(
-		pinfo,
-		"PROCEDURE RENAME_INDEX_IN_INDEX_STATS () IS\n"
-		"BEGIN\n"
-		"UPDATE \"" INDEX_STATS_NAME "\" SET\n"
-		"index_name = :new_index_name\n"
-		"WHERE\n"
-		"database_name = :dbname_utf8 AND\n"
-		"table_name = :tablename_utf8 AND\n"
-		"index_name = :old_index_name;\n"
-		"END;\n", NULL);
-
-	dict_sys_unlock();
-
-	return(ret);
+  return dict_stats_exec_sql(pinfo, sql, trx);
 }
 
 /* tests @{ */
