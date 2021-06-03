@@ -957,8 +957,6 @@ public:
   @param name        name of persistent table
   @return error code */
   dberr_t drop_table_statistics(const table_name_t &name);
-
-
   /** Commit the transaction, possibly after drop_table().
   @param deleted   handles of data files that were deleted */
   void commit(std::vector<pfs_os_file_t> &deleted);

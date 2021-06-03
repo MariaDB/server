@@ -30,9 +30,6 @@ Created Jan 06, 2010 Vasil Dimov
 #include "dict0types.h"
 #include "trx0types.h"
 
-#define TABLE_STATS_NAME        "mysql/innodb_table_stats"
-#define INDEX_STATS_NAME        "mysql/innodb_index_stats"
-
 enum dict_stats_upd_option_t {
 	DICT_STATS_RECALC_PERSISTENT,/* (re) calculate the
 				statistics using a precise and slow
@@ -156,6 +153,15 @@ dberr_t dict_stats_delete_from_table_stats(const char *database_name,
 dberr_t dict_stats_delete_from_index_stats(const char *database_name,
                                            const char *table_name,
                                            trx_t *trx= nullptr);
+/** Execute DELETE FROM mysql.innodb_index_stats
+@param database_name  database name
+@param table_name     table name
+@param index_name     name of the index
+@param trx            transaction (nullptr=start and commit a new one)
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_delete_from_index_stats(const char *database_name,
+                                           const char *table_name,
+                                           const char *index_name, trx_t *trx);
 
 /*********************************************************************//**
 Fetches or calculates new estimates for index statistics. */

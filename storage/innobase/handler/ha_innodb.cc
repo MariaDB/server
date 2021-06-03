@@ -1402,11 +1402,11 @@ retry:
     "DELETE FROM " INDEX_STATS_NAME " WHERE database_name=:db;\n"
     "END;\n";
 
-  /* Drop persistent statistics if no locking conflicts exist. */
-  if (t && i && !t->get_ref_count() && !i->get_ref_count() &&
+  /* Drop persistent statistics if the tables exist. */
+  if (t && i &&
+      t->cols[0].mtype == DATA_VARMYSQL && i->cols[0].mtype == DATA_VARMYSQL &&
       !strcmp(t->col_names, "database_name") &&
-      !strcmp(i->col_names, "database_name") &&
-      !lock_table_has_locks(t) && !lock_table_has_locks(i))
+      !strcmp(i->col_names, "database_name"))
   {
     uint errors= 0;
     char db[NAME_LEN + 1];
@@ -1418,6 +1418,7 @@ retry:
       pars_info_add_str_literal(pinfo, "db", db);
       /* We intentionally ignore errors here. */
       que_eval_sql(pinfo, drop_database_stats, false, trx);
+      trx->error_state= DB_SUCCESS;
     }
   }
 

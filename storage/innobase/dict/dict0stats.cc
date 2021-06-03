@@ -529,61 +529,35 @@ free the trx object. If it is not NULL then it will be rolled back
 only in the case of error, but not freed.
 @return DB_SUCCESS or error code */
 static
-dberr_t
-dict_stats_exec_sql(
-	pars_info_t*	pinfo,
-	const char*	sql,
-	trx_t*		trx)
+dberr_t dict_stats_exec_sql(pars_info_t *pinfo, const char* sql, trx_t *trx)
 {
-	dberr_t	err;
-	bool	trx_started = false;
+  ut_d(dict_sys.assert_locked());
 
-	ut_d(dict_sys.assert_locked());
+  if (!dict_stats_persistent_storage_check(true))
+  {
+    pars_info_free(pinfo);
+    return DB_STATS_DO_NOT_EXIST;
+  }
 
-	if (!dict_stats_persistent_storage_check(true)) {
-		pars_info_free(pinfo);
-		return(DB_STATS_DO_NOT_EXIST);
-	}
+  if (trx)
+    return que_eval_sql(pinfo, sql, FALSE, trx);
 
-	if (trx == NULL) {
-		trx = trx_create();
-		trx_started = true;
+  trx= trx_create();
+  if (srv_read_only_mode)
+    trx_start_internal_read_only(trx);
+  else
+    trx_start_internal(trx);
 
-		if (srv_read_only_mode) {
-			trx_start_internal_read_only(trx);
-		} else {
-			trx_start_internal(trx);
-		}
-	}
+  trx->dict_operation_lock_mode= RW_X_LATCH;
+  dberr_t err= que_eval_sql(pinfo, sql, FALSE, trx);
 
-	err = que_eval_sql(pinfo, sql, FALSE, trx); /* pinfo is freed here */
-
-	DBUG_EXECUTE_IF("stats_index_error",
-		if (!trx_started) {
-			err = DB_STATS_DO_NOT_EXIST;
-			trx->error_state = DB_STATS_DO_NOT_EXIST;
-		});
-
-	if (!trx_started && err == DB_SUCCESS) {
-		return(DB_SUCCESS);
-	}
-
-	if (err == DB_SUCCESS) {
-		trx_commit_for_mysql(trx);
-	} else {
-		trx->op_info = "rollback of internal trx on stats tables";
-		trx->dict_operation_lock_mode = RW_X_LATCH;
-		trx->rollback();
-		trx->dict_operation_lock_mode = 0;
-		trx->op_info = "";
-		ut_a(trx->error_state == DB_SUCCESS);
-	}
-
-	if (trx_started) {
-		trx->free();
-	}
-
-	return(err);
+  if (err == DB_SUCCESS)
+    trx->commit();
+  else
+    trx->rollback();
+  trx->dict_operation_lock_mode= 0;
+  trx->free();
+  return err;
 }
 
 /*********************************************************************//**
@@ -2750,6 +2724,9 @@ dict_stats_save(
 		     table_utf8, sizeof(table_utf8));
 
 	const time_t now = time(NULL);
+	trx_t*	trx = trx_create();
+	trx_start_internal(trx);
+	trx->dict_operation_lock_mode = RW_X_LATCH;
 	dict_sys_lock();
 
 	pinfo = pars_info_create();
@@ -2783,19 +2760,20 @@ dict_stats_save(
 		":clustered_index_size,\n"
 		":sum_of_other_index_sizes\n"
 		");\n"
-		"END;", NULL);
+		"END;", trx);
 
 	if (UNIV_UNLIKELY(ret != DB_SUCCESS)) {
 		ib::error() << "Cannot save table statistics for table "
 			<< table->name << ": " << ret;
-func_exit:
+rollback_and_exit:
+		trx->rollback();
+free_and_exit:
+		trx->dict_operation_lock_mode = 0;
 		dict_sys_unlock();
+		trx->free();
 		dict_stats_snapshot_free(table);
 		return ret;
 	}
-
-	trx_t*	trx = trx_create();
-	trx_start_internal(trx);
 
 	dict_index_t*	index;
 	index_map_t	indexes(
@@ -2865,7 +2843,7 @@ func_exit:
 				stat_description, trx);
 
 			if (ret != DB_SUCCESS) {
-				goto end;
+				goto rollback_and_exit;
 			}
 		}
 
@@ -2875,7 +2853,7 @@ func_exit:
 						 "Number of leaf pages "
 						 "in the index", trx);
 		if (ret != DB_SUCCESS) {
-			goto end;
+			goto rollback_and_exit;
 		}
 
 		ret = dict_stats_save_index_stat(index, now, "size",
@@ -2884,15 +2862,12 @@ func_exit:
 						 "Number of pages "
 						 "in the index", trx);
 		if (ret != DB_SUCCESS) {
-			goto end;
+			goto rollback_and_exit;
 		}
 	}
 
-	trx_commit_for_mysql(trx);
-
-end:
-	trx->free();
-	goto func_exit;
+	trx->commit();
+	goto free_and_exit;
 }
 
 /*********************************************************************//**
@@ -3667,7 +3642,6 @@ dberr_t dict_stats_delete_from_table_stats(const char *database_name,
                                            const char *table_name, trx_t *trx)
 {
 	pars_info_t*	pinfo;
-	dberr_t		ret;
 
 	ut_d(dict_sys.assert_locked());
 
@@ -3676,7 +3650,7 @@ dberr_t dict_stats_delete_from_table_stats(const char *database_name,
 	pars_info_add_str_literal(pinfo, "database_name", database_name);
 	pars_info_add_str_literal(pinfo, "table_name", table_name);
 
-	ret = dict_stats_exec_sql(
+	return dict_stats_exec_sql(
 		pinfo,
 		"PROCEDURE DELETE_FROM_TABLE_STATS () IS\n"
 		"BEGIN\n"
@@ -3684,8 +3658,6 @@ dberr_t dict_stats_delete_from_table_stats(const char *database_name,
 		"database_name = :database_name AND\n"
 		"table_name = :table_name;\n"
 		"END;\n", trx);
-
-	return(ret);
 }
 
 /** Execute DELETE FROM mysql.innodb_index_stats
@@ -3697,7 +3669,6 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
                                            const char *table_name, trx_t *trx)
 {
 	pars_info_t*	pinfo;
-	dberr_t		ret;
 
 	ut_d(dict_sys.assert_locked());
 
@@ -3706,7 +3677,7 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 	pars_info_add_str_literal(pinfo, "database_name", database_name);
 	pars_info_add_str_literal(pinfo, "table_name", table_name);
 
-	ret = dict_stats_exec_sql(
+	return dict_stats_exec_sql(
 		pinfo,
 		"PROCEDURE DELETE_FROM_INDEX_STATS () IS\n"
 		"BEGIN\n"
@@ -3714,8 +3685,37 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 		"database_name = :database_name AND\n"
 		"table_name = :table_name;\n"
 		"END;\n", trx);
+}
 
-	return(ret);
+/** Execute DELETE FROM mysql.innodb_index_stats
+@param database_name  database name
+@param table_name     table name
+@param index_name     name of the index
+@param trx            transaction (nullptr=start and commit a new one)
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_delete_from_index_stats(const char *database_name,
+                                           const char *table_name,
+                                           const char *index_name, trx_t *trx)
+{
+	pars_info_t*	pinfo;
+
+	ut_d(dict_sys.assert_locked());
+
+	pinfo = pars_info_create();
+
+	pars_info_add_str_literal(pinfo, "database_name", database_name);
+	pars_info_add_str_literal(pinfo, "table_name", table_name);
+	pars_info_add_str_literal(pinfo, "index_name", index_name);
+
+	return dict_stats_exec_sql(
+		pinfo,
+		"PROCEDURE DELETE_FROM_INDEX_STATS () IS\n"
+		"BEGIN\n"
+		"DELETE FROM \"" INDEX_STATS_NAME "\" WHERE\n"
+		"database_name = :database_name AND\n"
+		"table_name = :table_name AND\n"
+		"index_name = :index_name;\n"
+		"END;\n", trx);
 }
 
 /*********************************************************************//**

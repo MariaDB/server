@@ -9930,9 +9930,11 @@ commit_try_rebuild(
 			rebuilt_table->name.m_name, old_name, trx,
 			false, false);
 		if (error == DB_SUCCESS) {
-			/* We ignore errors for dropping statistics */
-			trx->drop_table_statistics(ctx->old_table->name);
-			error = trx->drop_table(*ctx->old_table);
+			error = trx->drop_table_statistics(
+				ctx->old_table->name);
+			if (error == DB_SUCCESS) {
+				error = trx->drop_table(*ctx->old_table);
+			}
 		}
 	}
 
@@ -10187,14 +10189,6 @@ commit_try_norebuild(
 	dict_index_t* index;
 	const char *op = "rename index to add";
 	ulint num_fts_index = 0;
-	const char *drop_index_stats = ctx->num_to_drop_index > 0
-		? "PROCEDURE DROP_INDEX_STATS() IS\n"
-		"BEGIN\n"
-		"DELETE FROM " INDEX_STATS_NAME "\n"
-		"WHERE database_name=:db"
-		" AND table_name=:table AND index_name=:index;\n"
-		"END;\n"
-		: nullptr;
 
 	/* We altered the table in place. Mark the indexes as committed. */
 	for (ulint i = 0; i < ctx->num_to_add_index; i++) {
@@ -10216,14 +10210,10 @@ commit_try_norebuild(
 		}
 	}
 
-	if (drop_index_stats) {
-		dict_table_t *i= dict_sys.load_table(
-			{C_STRING_WITH_LEN(INDEX_STATS_NAME)});
-		if (!i || i->get_ref_count()
-		    || strcmp(i->col_names, "database_name")
-		    || lock_table_has_locks(i)) {
-			drop_index_stats = nullptr;
-		}
+	char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
+	if (ctx->num_to_drop_index) {
+		dict_fs2utf8(ctx->old_table->name.m_name,
+			     db, sizeof db, table, sizeof table);
 	}
 
 	for (ulint i = 0; i < ctx->num_to_drop_index; i++) {
@@ -10256,19 +10246,17 @@ commit_try_norebuild(
 			goto handle_error;
 		}
 
-		if (!drop_index_stats) {
-			continue;
+		error = dict_stats_delete_from_index_stats(db, table,
+							   index->name, trx);
+		switch (error) {
+		case DB_SUCCESS:
+			break;
+		case DB_STATS_DO_NOT_EXIST:
+			error = DB_SUCCESS;
+			break;
+		default:
+			goto handle_error;
 		}
-
-		info = pars_info_create();
-		char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
-		dict_fs2utf8(index->table->name.m_name,
-			     db, sizeof db, table, sizeof table);
-		pars_info_add_str_literal(info, "db", db);
-		pars_info_add_str_literal(info, "table", table);
-		pars_info_add_str_literal(info, "index", index->name);
-		/* We intentionally ignore errors for this. */
-		que_eval_sql(info, drop_index_stats, FALSE, trx);
 	}
 
 	if ((ctx->old_table->flags2 & DICT_TF2_FTS) && !num_fts_index) {
@@ -10278,6 +10266,9 @@ handle_error:
 			switch (error) {
 			case DB_TOO_MANY_CONCURRENT_TRXS:
 				my_error(ER_TOO_MANY_CONCURRENT_TRXS, MYF(0));
+				break;
+			case DB_LOCK_WAIT_TIMEOUT:
+				my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
 				break;
 			default:
 				sql_print_error("InnoDB: %s: %s\n", op,

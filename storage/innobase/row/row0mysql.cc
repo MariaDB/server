@@ -2778,6 +2778,7 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
 dberr_t trx_t::drop_table_statistics(const table_name_t &name)
 {
   ut_d(dict_sys.assert_locked());
+  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
 
   if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB) ||
       !strcmp(name.m_name, TABLE_STATS_NAME) ||
@@ -2787,16 +2788,13 @@ dberr_t trx_t::drop_table_statistics(const table_name_t &name)
   char db[MAX_DB_UTF8_LEN], table[MAX_TABLE_UTF8_LEN];
   dict_fs2utf8(name.m_name, db, sizeof db, table, sizeof table);
 
-  dberr_t err1= dict_stats_delete_from_table_stats(db, table, this);
-  dberr_t err= dict_stats_delete_from_index_stats(db, table, this);
+  dberr_t err= dict_stats_delete_from_table_stats(db, table, this);
   if (err == DB_SUCCESS || err == DB_STATS_DO_NOT_EXIST)
-    err= err1;
-  if (err == DB_STATS_DO_NOT_EXIST)
-    err= DB_SUCCESS;
-  else if (err != DB_SUCCESS)
-    sql_print_warning("InnoDB: Unable to delete statistics for %s.%s: %s",
-                      db, table, ut_strerr(err));
-
+  {
+    err= dict_stats_delete_from_index_stats(db, table, this);
+    if (err == DB_STATS_DO_NOT_EXIST)
+      err= DB_SUCCESS;
+  }
   return err;
 }
 
