@@ -2580,10 +2580,15 @@ void Locked_tables_list::mark_table_for_reopen(THD *thd, TABLE *table)
 {
   TABLE_SHARE *share= table->s;
 
-    for (TABLE_LIST *table_list= m_locked_tables;
+  for (TABLE_LIST *table_list= m_locked_tables;
        table_list; table_list= table_list->next_global)
   {
-    if (table_list->table->s == share)
+    /*
+      table_list->table can be NULL in the case of TRUNCATE TABLE where
+      the table was locked twice and one instance closed in
+      close_all_tables_for_name().
+    */
+    if (table_list->table && table_list->table->s == share)
       table_list->table->internal_set_needs_reopen(true);
   }
   /* This is needed in the case where lock tables where not used */
