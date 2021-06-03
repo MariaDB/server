@@ -3791,6 +3791,24 @@ dberr_t dict_stats_rename_index(const char *db, const char *table,
   return dict_stats_exec_sql(pinfo, sql, trx);
 }
 
+/** Delete all persistent statistics for a database.
+@param db    database name
+@param trx   transaction
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_delete(const char *db, trx_t *trx)
+{
+  static const char sql[] =
+    "PROCEDURE DROP_DATABASE_STATS () IS\n"
+    "BEGIN\n"
+    "DELETE FROM \"" TABLE_STATS_NAME "\" WHERE database_name=:db;\n"
+    "DELETE FROM \"" INDEX_STATS_NAME "\" WHERE database_name=:db;\n"
+    "END;\n";
+
+  pars_info_t *pinfo= pars_info_create();
+  pars_info_add_str_literal(pinfo, "db", db);
+  return dict_stats_exec_sql(pinfo, sql, trx);
+}
+
 /* tests @{ */
 #ifdef UNIV_ENABLE_UNIT_TEST_DICT_STATS
 /* save/fetch aux macros @{ */

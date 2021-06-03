@@ -189,6 +189,12 @@ dberr_t dict_stats_rename_index(const char *db, const char *table,
                                 const char *old_name, const char *new_name,
                                 trx_t *trx);
 
+/** Delete all persistent statistics for a database.
+@param db    database name
+@param trx   transaction
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_delete(const char *db, trx_t *trx);
+
 /** Save an individual index's statistic into the persistent statistics
 storage.
 @param[in]	index			index to be updated

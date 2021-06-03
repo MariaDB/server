@@ -5,6 +5,11 @@
 
 -- source include/have_innodb.inc
 
+CREATE DATABASE unlocked;
+CREATE TABLE unlocked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=0;
+CREATE DATABASE locked;
+CREATE TABLE locked.t1(a INT PRIMARY KEY) ENGINE=INNODB STATS_PERSISTENT=1;
+
 CREATE TABLE innodb_stats_drop_locked (c INT, KEY c_key (c))
 ENGINE=INNODB STATS_PERSISTENT=1;
 ANALYZE TABLE innodb_stats_drop_locked;
@@ -26,10 +31,15 @@ SHOW CREATE TABLE innodb_stats_drop_locked;
 
 --error ER_LOCK_WAIT_TIMEOUT
 DROP TABLE innodb_stats_drop_locked;
--- disconnect con1
 
+DROP DATABASE unlocked;
+--error ER_LOCK_WAIT_TIMEOUT
+DROP DATABASE locked;
+-- disconnect con1
 -- connection default
 COMMIT;
+
+DROP DATABASE locked;
 
 # the stats should be there
 

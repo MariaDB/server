@@ -1391,36 +1391,17 @@ retry:
   }
 
   trx_start_for_ddl(trx);
-
-  dict_table_t *t= dict_sys.load_table({C_STRING_WITH_LEN(TABLE_STATS_NAME)});
-  dict_table_t *i= dict_sys.load_table({C_STRING_WITH_LEN(INDEX_STATS_NAME)});
-
-  static const char drop_database_stats[] =
-    "PROCEDURE DROP_DATABASE_STATS () IS\n"
-    "BEGIN\n"
-    "DELETE FROM " TABLE_STATS_NAME " WHERE database_name=:db;\n"
-    "DELETE FROM " INDEX_STATS_NAME " WHERE database_name=:db;\n"
-    "END;\n";
-
-  /* Drop persistent statistics if the tables exist. */
-  if (t && i &&
-      t->cols[0].mtype == DATA_VARMYSQL && i->cols[0].mtype == DATA_VARMYSQL &&
-      !strcmp(t->col_names, "database_name") &&
-      !strcmp(i->col_names, "database_name"))
+  uint errors= 0;
+  char db[NAME_LEN + 1];
+  strconvert(&my_charset_filename, namebuf, len, system_charset_info, db,
+             sizeof db, &errors);
+  if (errors);
+  else if (dict_stats_delete(db, trx))
   {
-    uint errors= 0;
-    char db[NAME_LEN + 1];
-    strconvert(&my_charset_filename, namebuf, len, system_charset_info, db,
-               sizeof db, &errors);
-    if (errors == 0)
-    {
-      pars_info_t* pinfo = pars_info_create();
-      pars_info_add_str_literal(pinfo, "db", db);
-      /* We intentionally ignore errors here. DROP DATABASE is not
-      allowed to return an error at this point. */
-      que_eval_sql(pinfo, drop_database_stats, false, trx);
-      trx->error_state= DB_SUCCESS;
-    }
+    /* Ignore this error. Leaving garbage statistics behind is a
+    lesser evil. Carry on to try to remove any garbage tables. */
+    trx->rollback();
+    trx_start_for_ddl(trx);
   }
 
   static const char drop_database[] =
