@@ -13497,6 +13497,7 @@ int ha_innobase::truncate()
 		break;
 	}
 
+	const auto stored_lock = m_prebuilt->stored_select_lock_type;
 	trx_t*	trx = innobase_trx_allocate(m_user_thd);
 	trx_start_for_ddl(trx);
 
@@ -13518,6 +13519,7 @@ int ha_innobase::truncate()
 				 trx);
 		if (!err) {
 			err = open(ib_table->name.m_name, 0, 0);
+			m_prebuilt->stored_select_lock_type = stored_lock;
 		}
 
 		trx->free();
