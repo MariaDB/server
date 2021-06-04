@@ -166,6 +166,8 @@ create table t3 (
   index idx1 (userid, itemid), index idx2 (itemid)
 ) engine innodb;
 insert into t3 values (1,1,1), (2,1,1), (3,2,1), (4,2,1), (5,3,1);
+set use_stat_tables='never';
+set optimizer_use_condition_selectivity=1;
 analyze table t1,t2,t3;
 
 let $q=
@@ -185,5 +187,7 @@ eval $q;
 
 drop table t1,t2,t3;
 set optimizer_switch='split_materialized=default';
+set use_stat_tables=default;
+set optimizer_use_condition_selectivity=default;
 
 --echo # End of 10.3 tests
