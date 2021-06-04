@@ -8313,6 +8313,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     goto end;
   }
 
+  int err;
   do
   {
     /*
@@ -8346,8 +8347,6 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
       goto end;
     }
 
-    /* If we got here the statement was both executed and read successfully */
-    handle_no_error(command);
     if (!disable_result_log)
     {
       /*
@@ -8425,7 +8424,12 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
         }
       }
     }
-  } while ( !mysql_stmt_next_result(stmt));
+  } while ( !(err= mysql_stmt_next_result(stmt)));
+
+  if (err > 0)
+    /* We got an error from mysql_next_result, maybe expected */
+    handle_error(command, mysql_errno(mysql), mysql_error(mysql),
+                 mysql_sqlstate(mysql), ds);
 
 end:
   if (!disable_warnings)
