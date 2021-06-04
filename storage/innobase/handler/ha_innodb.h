@@ -570,6 +570,7 @@ bool thd_is_strict_mode(const MYSQL_THD thd);
  * current commit.
  */
 extern void mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file);
+extern void mysql_recovery_commit_pos(LOG_POS_COORD *coord, ulonglong *out_pos, const char **out_file);
 
 struct trx_t;
 #ifdef WITH_WSREP

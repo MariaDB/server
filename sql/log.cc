@@ -11980,6 +11980,13 @@ mysql_bin_log_commit_pos(THD *thd, ulonglong *out_pos, const char **out_file)
     *out_pos= 0;
   }
 }
+
+void mysql_recovery_commit_pos(LOG_POS_COORD *coord,
+                               ulonglong *out_pos, const char **out_file)
+{
+  *out_file= coord->file_name;
+  *out_pos=  coord->pos;
+}
 #endif /* INNODB_COMPATIBILITY_HOOKS */
 
 

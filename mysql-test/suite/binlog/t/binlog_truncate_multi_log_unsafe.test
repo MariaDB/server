@@ -42,6 +42,7 @@ call mtr.add_suppression("Aborting");
 call mtr.add_suppression("Found 1 prepared transactions");
 call mtr.add_suppression("mysqld: Table.*tm.*is marked as crashed");
 call mtr.add_suppression("Checking table.*tm");
+call mtr.add_suppression("3 transactions could not be replayed");
 
 RESET MASTER;
 FLUSH LOGS;

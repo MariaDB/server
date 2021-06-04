@@ -16514,7 +16514,18 @@ innobase_commit_by_xid(
 
 	if (trx_t* trx = trx_get_trx_by_xid(xid)) {
 		/* use cases are: disconnected xa, slave xa, recovery */
+		if (hton->committed_binlog_pos)
+		{
+			mysql_recovery_commit_pos(hton->committed_binlog_pos,
+						  &trx->mysql_log_offset,
+						  &trx->mysql_log_file_name);
+		}
 		innobase_commit_low(trx);
+		if (hton->committed_binlog_pos)
+		{
+			trx->mysql_log_offset= 0;
+			trx->mysql_log_file_name= NULL;
+		}
 		ut_ad(trx->mysql_thd == NULL);
 		trx_deregister_from_2pc(trx);
 		ut_ad(!trx->will_lock);    /* trx cache requirement */

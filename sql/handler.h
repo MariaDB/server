@@ -1301,7 +1301,7 @@ class select_handler;
 struct Query;
 typedef class st_select_lex SELECT_LEX;
 typedef struct st_order ORDER;
-
+typedef struct event_coordinates LOG_POS_COORD;
 /*
   handlerton is a singleton structure - one instance per storage engine -
   to provide access to storage engine functionality that works on the
@@ -1341,6 +1341,11 @@ struct handlerton
      see binlog_hton and binlog_savepoint_set/rollback for an example.
    */
    uint savepoint_offset;
+   /*
+     the binlog offset of the last committed transaction.
+     Used by recovery for engines that maintain it per commit.
+   */
+   LOG_POS_COORD *committed_binlog_pos;
    /*
      handlerton methods:
 

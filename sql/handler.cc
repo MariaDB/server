@@ -2428,12 +2428,18 @@ static void xarecover_do_commit_or_rollback(handlerton *hton,
   my_bool rc;
   xid_recovery_member *member= arg->member;
   Binlog_offset *ptr_commit_max= arg->binlog_coord;
+  LOG_POS_COORD coord;
 
   x.set(member->xid);
-
+  if (hton->binlog_recovery_info)
+  {
+      coord= { member->binlog_file_name, member->xid_log_pos };
+      hton->committed_binlog_pos= &coord;
+  }
   rc= xarecover_decide_to_commit(member, ptr_commit_max) ?
     hton->commit_by_xid(hton, &x) : hton->rollback_by_xid(hton, &x);
-
+  if (hton->binlog_recovery_info)
+    hton->committed_binlog_pos= NULL;
   /*
     It's fine to have non-zero rc which would be from transaction
     non-participant hton:s.
