@@ -100,6 +100,14 @@ disconnect ddl1;
 disconnect ddl2;
 disconnect ddl3;
 
+# Ensure that the history list length will actually be decremented by purge.
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+# Wait for purge, so that any #sql-ib.ibd files from the previous kill
+# will be deleted.
+source ../../innodb/include/wait_all_purged.inc;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+
 CHECK TABLE t1,t2,t3;
 DROP TABLE t1,t2,t3;
 

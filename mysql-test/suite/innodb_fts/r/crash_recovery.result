@@ -33,6 +33,10 @@ connection default;
 disconnect ddl1;
 disconnect ddl2;
 disconnect ddl3;
+SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+InnoDB		0 transactions not purged
+SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
 CHECK TABLE t1,t2,t3;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
