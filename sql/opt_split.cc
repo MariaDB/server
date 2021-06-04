@@ -958,11 +958,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       in the cache
     */
     spl_plan= spl_opt_info->find_plan(best_table, best_key, best_key_parts);
-    if (!spl_plan &&
-	(spl_plan= (SplM_plan_info *) thd->alloc(sizeof(SplM_plan_info))) &&
-	(spl_plan->best_positions=
-	   (POSITION *) thd->alloc(sizeof(POSITION) * join->table_count)) &&
-	!spl_opt_info->plan_cache.push_back(spl_plan))
+    if (!spl_plan)
     {
       /*
         The plan for the chosen key has not been found in the cache.
@@ -972,6 +968,27 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, remaining_tables, true);
       choose_plan(join, all_table_map & ~join->const_table_map);
+
+      /*
+        Check that the chosen plan is really a splitting plan.
+        If not or if there is not enough memory to save the plan in the cache
+        then just return with no splitting plan.
+      */
+      POSITION *first_non_const_pos= join->best_positions + join->const_tables;
+      TABLE *table= first_non_const_pos->table->table;
+      key_map spl_keys= table->keys_usable_for_splitting;
+      if (!(first_non_const_pos->key &&
+            spl_keys.is_set(first_non_const_pos->key->key)) ||
+          !(spl_plan= (SplM_plan_info *) thd->alloc(sizeof(SplM_plan_info))) ||
+	  !(spl_plan->best_positions=
+	     (POSITION *) thd->alloc(sizeof(POSITION) * join->table_count)) ||
+	  spl_opt_info->plan_cache.push_back(spl_plan))
+      {
+        reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
+                                        best_key, remaining_tables, false);
+        return 0;
+      }
+
       spl_plan->keyuse_ext_start= best_key_keyuse_ext_start;
       spl_plan->table= best_table;
       spl_plan->key= best_key;

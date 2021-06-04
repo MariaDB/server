@@ -1315,8 +1315,10 @@ page_cur_insert_rec_low(
 
 #ifdef HAVE_MEM_CHECK
   {
-    const void *rec_start= rec - rec_offs_extra_size(offsets);
-    ulint extra_size= rec_offs_extra_size(offsets) -
+    const void *rec_start __attribute__((unused))=
+      rec - rec_offs_extra_size(offsets);
+    ulint extra_size __attribute__((unused))=
+      rec_offs_extra_size(offsets) -
       (page_is_comp(block->frame)
        ? REC_N_NEW_EXTRA_BYTES
        : REC_N_OLD_EXTRA_BYTES);
@@ -1722,8 +1724,10 @@ page_cur_insert_rec_zip(
 
 #ifdef HAVE_MEM_CHECK
   {
-    const void *rec_start= rec - rec_offs_extra_size(offsets);
-    ulint extra_size= rec_offs_extra_size(offsets) - REC_N_NEW_EXTRA_BYTES;
+    const void *rec_start __attribute__((unused))=
+      rec - rec_offs_extra_size(offsets);
+    ulint extra_size __attribute__((unused))=
+      rec_offs_extra_size(offsets) - REC_N_NEW_EXTRA_BYTES;
     /* All data bytes of the record must be valid. */
     MEM_CHECK_DEFINED(rec, rec_offs_data_size(offsets));
     /* The variable-length header must be valid. */

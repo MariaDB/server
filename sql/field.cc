@@ -7857,7 +7857,7 @@ bool Field_varstring::send(Protocol *protocol)
 #ifdef HAVE_MEM_CHECK
 void Field_varstring::mark_unused_memory_as_defined()
 {
-  uint used_length= get_length();
+  uint used_length __attribute__((unused)) = get_length();
   MEM_MAKE_DEFINED(get_data() + used_length, field_length - used_length);
 }
 #endif
