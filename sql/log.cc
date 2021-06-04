@@ -10767,18 +10767,17 @@ public:
   bool complete(MYSQL_BIN_LOG *log);
 
   /*
-    member info suggests a committed (to be committed) transaction in
-    the normal case. That is the decision is always commit there.
-    TODO: in the semisync slave case and multi-engine transaction it can also
-    be rollback. To resolve the doubt (caused by relaxed setup for engine's durablity)
-    MDEV-21117 patch requires an amendment
-    to include into Gtid event the number of last-committed transaction binlog-offset
-    tracking engine participants.
+    The function processes a partially or fully committed transaction
+    to settle the commit decision and compute whether its (partial) replay
+    is required. The latter may turn out necessary even for NULL member
+    argument in which case an instance of its type is created,
+    inserted into the recovery context's hash and returned.
 
-    Returns false on success
-            true  otherwise.
+    Returns false  on success
+            true   as failure.
   */
-  bool handle_committed(xid_recovery_member *member, int round, Xid_log_event *ev);
+  bool
+  handle_committed(xid_recovery_member **member, int round, Xid_log_event *ev);
 
   /*
     member does not contain any partially commmitted branch of the transaction.
@@ -11197,9 +11196,11 @@ bool Recovery_context::set_truncate_coord(int round,
   return gtid_maybe_to_truncate->append(last_gtid);
 }
 
-bool Recovery_context::handle_committed(xid_recovery_member *member,
+bool Recovery_context::handle_committed(xid_recovery_member **ptr_member,
                                         int round, Xid_log_event *ev)
 {
+  xid_recovery_member *member= *ptr_member;
+
   DBUG_ASSERT(!member || member->in_engine_prepare <= last_gtid_engines);
 
   // compute whether a member needs allocation for replaying
@@ -11207,7 +11208,7 @@ bool Recovery_context::handle_committed(xid_recovery_member *member,
   {
     if (!member)                          // no prepared branches
     {
-      member= xid_member_insert(ptr_xids, ev->xid, ptr_mem_root, 0);
+      member= *ptr_member= xid_member_insert(ptr_xids, ev->xid, ptr_mem_root,0);
       if (!member)
       {
         sql_print_error("Error in memory allocation at xarecover_handlerton");
@@ -11279,18 +11280,17 @@ bool Recovery_context::handle_committed(xid_recovery_member *member,
       return true;
   }
 
-  if (member && member->to_replay)
+  if (member && member->to_replay > 0)
   {
     DBUG_ASSERT(member->decided_to_commit);
 
     if (total_to_replay == 0 || last_gtid_coord < replay_coordinate)
       replay_coordinate= last_gtid_coord;
-    member->gtid= last_gtid;
-    member->binlog_coord= last_gtid_coord;
     if (my_hash_insert(&replay_hash, (uchar*) member))
       return true;
     total_to_replay++;
   }
+
   return false;
 }
 
@@ -11303,7 +11303,6 @@ bool Recovery_context::handle_prepared(xid_recovery_member *member, int round,
   }
   else
   {
-    member->binlog_coord= last_gtid_coord;
     last_gtid_valid= false;
     /*
       First time truncate position estimate before its validation.
@@ -11380,7 +11379,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
         This is an "unlikely" branch of two or more engines in transaction
         that is partially committed, so to complete.
       */
-      if (handle_committed(member, round, ev))
+      if (handle_committed(&member, round, ev))
         return true;
 
       DBUG_EXECUTE_IF("binlog_truncate_partial_commit",
@@ -11394,8 +11393,21 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
   }
   else  //  "0" < last_gtid_engines
   {
-    if (handle_committed(NULL, round, ev))
+    if (handle_committed(&member, round, ev))
       return true;
+  }
+
+  // member can turn from NULL to non-NULL by handle_committed
+  if (member)
+  {
+    member->gtid= last_gtid;
+    member->binlog_coord= last_gtid_coord;
+    log_info_fname_record *binlog_fname_record=
+      ptr_log_info->binlog_id_to_fname->at(member->binlog_coord.first - 1);
+    member->binlog_file_name= binlog_fname_record->log_name;
+    member->xid_log_pos= ev->log_pos;
+
+    DBUG_ASSERT(member->xid_log_pos > last_gtid_coord.second);
   }
 
   return false;

@@ -959,6 +959,8 @@ struct xid_recovery_member
   bool decided_to_commit;
   Binlog_offset binlog_coord; // semisync recovery binlog offset
   rpl_gtid gtid;          // also the key for re-exection hash
+  char *binlog_file_name; // file name corr to binlog_coord and
+  my_off_t xid_log_pos;   // Xid_log_event::log_pos
 };
 
 /* for recover() handlerton call */
