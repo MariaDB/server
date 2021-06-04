@@ -2771,7 +2771,7 @@ DROP TABLE t2;
 
 DROP PROCEDURE IF EXISTS p1;
 DROP PROCEDURE IF EXISTS p2;
-SET sql_mode = '';
+SET sql_mode = ''|
 CREATE PROCEDURE p1()
 BEGIN
 DECLARE var1 INTEGER DEFAULT 'string';
@@ -2782,7 +2782,7 @@ CALL p1()|
 Warnings:
 Warning	1366	Incorrect integer value: 'string' for column ``.``.`var1` at row 1
 
-SET sql_mode = DEFAULT;
+SET sql_mode = DEFAULT|
 CREATE PROCEDURE p2()
 BEGIN
 DECLARE EXIT HANDLER FOR SQLWARNING SELECT 'H2';
