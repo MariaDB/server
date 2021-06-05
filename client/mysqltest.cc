@@ -8430,7 +8430,8 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     /* We got an error from mysql_next_result, maybe expected */
     handle_error(command, mysql_errno(mysql), mysql_error(mysql),
                  mysql_sqlstate(mysql), ds);
-
+  else
+    handle_no_error(command);
 end:
   if (!disable_warnings)
   {
