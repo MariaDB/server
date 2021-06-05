@@ -955,6 +955,7 @@ struct xid_recovery_member
 {
   my_xid xid;
   uint in_engine_prepare;  // number of engines that have xid prepared
+  uint no_binlog_offset_engines; // engines unaware of binlog offset in above
   uint to_replay;          // number of engines suspected to miss prepare/commit
   bool decided_to_commit;
   Binlog_offset binlog_coord; // semisync recovery binlog offset
@@ -5409,12 +5410,12 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *table);
 uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
 bool non_existing_table_error(int error);
-uint ha_count_rw_2pc(THD *thd, bool all);
+uint8 ha_count_rw_2pc(THD *thd, bool all, uint8 *binlog_recovery_count= NULL);
 uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
                                          bool all);
 xid_recovery_member*
 xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
-                  uint n_prepared= 1);
+                  uint n_prepared= 1, uint n_prepared_no_binlog_info= 0);
 
 
 #endif /* HANDLER_INCLUDED */

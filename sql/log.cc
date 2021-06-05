@@ -10767,17 +10767,20 @@ public:
   bool complete(MYSQL_BIN_LOG *log);
 
   /*
-    The function processes a partially or fully committed transaction
-    to settle the commit decision and compute whether its (partial) replay
+    The function processes an apprearing as partially or fully committed
+    transaction to settle the commit decision (always so in normal reccovery)
+    or pass it to handle_prepared.
+    In the commit case it computes whether its (partial) replay
     is required. The latter may turn out necessary even for NULL member
     argument in which case an instance of its type is created,
-    inserted into the recovery context's hash and returned.
+    inserted into the recovery context's hash for all branches replay.
 
     Returns false  on success
             true   as failure.
   */
   bool
-  handle_committed(xid_recovery_member **member, int round, Xid_log_event *ev);
+  handle_committed(xid_recovery_member **member, int round, Xid_log_event *ev,
+                   Format_description_log_event *fdle);
 
   /*
     member does not contain any partially commmitted branch of the transaction.
@@ -11197,14 +11200,15 @@ bool Recovery_context::set_truncate_coord(int round,
 }
 
 bool Recovery_context::handle_committed(xid_recovery_member **ptr_member,
-                                        int round, Xid_log_event *ev)
+                                        int round, Xid_log_event *ev,
+                                        Format_description_log_event *fdle)
 {
   xid_recovery_member *member= *ptr_member;
 
   DBUG_ASSERT(!member || member->in_engine_prepare <= last_gtid_engines);
 
   // compute whether a member needs allocation for replaying
-  if (*ha_offset_min <= last_gtid_coord)
+  if (*ha_offset_min == Binlog_offset(0,0) || *ha_offset_min <= last_gtid_coord)
   {
     if (!member)                          // no prepared branches
     {
@@ -11215,11 +11219,7 @@ bool Recovery_context::handle_committed(xid_recovery_member **ptr_member,
         return true;
       }
     }
-    /*
-      This is an optimistic estimate which is precise when
-      only binlog_offset unaware engines are prepared.
-      (Respectively, when the number of those is zero it is still an estimate).
-    */
+    // estimate possible replayed branches
     member->to_replay= last_gtid_engines - member->in_engine_prepare;
 
     DBUG_ASSERT(member->to_replay > 0);
@@ -11237,29 +11237,41 @@ bool Recovery_context::handle_committed(xid_recovery_member **ptr_member,
       if (member)
         member->decided_to_commit= true;
     }
-    else if (member)   // ha_offset_max <= last_gtid_coord
+    else if (member)
     {
-      // No need for last_gtid_engines_no_binlog_offset when last_gtid_engines is 1
-      if ((last_gtid_engines == 1 && member->in_engine_prepare == 0) ||
-          last_gtid_engines_no_binlog_offset < member->in_engine_prepare)
+      DBUG_ASSERT(*ha_offset_max <= last_gtid_coord);
+      DBUG_ASSERT(member->in_engine_prepare >= member->no_binlog_offset_engines);
+      DBUG_ASSERT(last_gtid_engines_no_binlog_offset >= member->no_binlog_offset_engines);
+      if (last_gtid_engines == 1 ||
+          last_gtid_engines_no_binlog_offset >
+          (member->in_engine_prepare - member->no_binlog_offset_engines))
       {
-        member->decided_to_commit= true; // exists a committed branch
-        member->to_replay= 0;            // the above estimate gets ascertained
+        member->decided_to_commit= true;        // exists a committed branch
+        /*
+          The above estimate gets ascertained.
+          The number of engines to replay is calculated as
+          the subtract from the total engine number both those that
+          are prepared and committed.
+          With just one engine there can't be any replay. See the assert.
+        */
+        DBUG_ASSERT((last_gtid_engines > 1 &&
+                     last_gtid_engines != last_gtid_engines_no_binlog_offset) ||
+                    member->in_engine_prepare == 0);
+
+        member->to_replay=
+          (last_gtid_engines == 1 ||
+           last_gtid_engines != last_gtid_engines_no_binlog_offset) ? 0 :
+          last_gtid_engines - member->in_engine_prepare -
+          (member->in_engine_prepare - member->no_binlog_offset_engines);
       }
       else
       {
         /*
-          The number of prepared branches must be not less than the number of
-          engines supportive of the binlog offset of the last committed
-          transaction.
-          And current transaction is of such type.
-
-          DBUG_ASSERT(member->in_engine_prepare == last_gtid_engines_no_binlog_offset);
-          DBUG_ASSERT(last_gtid_engines == last_gtid_engines_no_binlog_offset);
-
-          However the fully prepared transaction is the subject of handled_prepare().
+          Turns out there is no committed transaction branch so this
+          transaction may be the truncation candidate.
         */
-        DBUG_ASSERT(0);
+        return
+          handle_prepared(member, round, fdle);
       }
     }
 
@@ -11334,6 +11346,7 @@ bool Recovery_context::handle_prepared(xid_recovery_member *member, int round,
       */
       DBUG_ASSERT(truncate_gtid.seq_no == 0 ||
                   last_gtid_coord < binlog_truncate_coord);
+
       member->decided_to_commit= true;
     }
   }
@@ -11378,8 +11391,10 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
       /*
         This is an "unlikely" branch of two or more engines in transaction
         that is partially committed, so to complete.
+        It's also possible to have lost-in-engine transaction that is
+        still present in binlog in which case it may be replayed.
       */
-      if (handle_committed(&member, round, ev))
+      if (handle_committed(&member, round, ev, fdle))
         return true;
 
       DBUG_EXECUTE_IF("binlog_truncate_partial_commit",
@@ -11393,7 +11408,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
   }
   else  //  "0" < last_gtid_engines
   {
-    if (handle_committed(&member, round, ev))
+    if (handle_committed(&member, round, ev, fdle))
       return true;
   }
 
@@ -11446,7 +11461,7 @@ void Recovery_context::process_gtid(int round, Gtid_log_event *gev)
   last_gtid.seq_no= gev->seq_no;
   last_gtid_engines= gev->extra_engines != UCHAR_MAX ?
     gev->extra_engines + 1 : 0;
-  last_gtid_engines_no_binlog_offset= 0; // TODO: fix GTID to carry the actual #
+  last_gtid_engines_no_binlog_offset= gev->no_binlog_info_engines;
   last_gtid_coord= Binlog_offset(id_binlog, prev_event_pos);
 
   DBUG_ASSERT(!last_gtid_valid);
@@ -11494,6 +11509,20 @@ int Recovery_context::next_binlog_or_round(int& round,
         truncate_gtid= truncate_gtid_1st_round;
         binlog_truncate_coord= binlog_truncate_coord_1st_round;
       }
+      if (*ha_offset_max != Binlog_offset(0,0) &&
+          binlog_truncate_coord < *ha_offset_max)
+      {
+        log_info_fname_record *binlog_fname_record=
+          ptr_log_info->binlog_id_to_fname->at(ha_offset_max->first - 1);
+        const char* max_binlog_name= binlog_fname_record->log_name;
+
+        sql_print_error("Can not truncate binlog at file:pos %s:llu "
+                        "having a greater value %s:llu of the maximum binlog "
+                        "offset of the last committed transaction in engines.",
+                        binlog_truncate_file_name, binlog_truncate_coord.second,
+                        max_binlog_name, ha_offset_max->second);
+        return -1;
+      }
     }
     return 1;
   }
@@ -11506,6 +11535,11 @@ int Recovery_context::next_binlog_or_round(int& round,
       {
         rpl_global_gtid_binlog_state.reset_nolock();
         gtid_maybe_to_truncate->clear();
+      }
+      else
+      {
+        DBUG_ASSERT(*ha_offset_max == Binlog_offset(0,0) ||
+                    *ha_offset_max <= binlog_truncate_coord);
       }
       truncate_reset_done= false;
 

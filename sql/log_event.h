@@ -3611,6 +3611,12 @@ public:
     When zero the event does not contain that information.
   */
   uint8 extra_engines;
+  /*
+    In case of non-zero of extra_engines this number indicates how many engines
+    do not support the binlog offset of the last committed transaction.
+    The counter is not used in a normal case of just one engine.
+  */
+  uint8 no_binlog_info_engines;
 
   /* Flags2. */
 

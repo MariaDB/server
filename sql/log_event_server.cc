@@ -3256,7 +3256,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
     flags2((standalone ? FL_STANDALONE : 0) |
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
-    flags_extra(0), extra_engines(0)
+    flags_extra(0), extra_engines(0), no_binlog_info_engines(0)
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
@@ -3294,11 +3294,20 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     /* count non-zero extra recoverable engines; total = extra + 1 */
     if (has_xid)
     {
+      uint8 binlog_recovery_info_count= 0;
+
       DBUG_ASSERT(ha_count_rw_2pc(thd_arg,
                                   thd_arg->in_multi_stmt_transaction_mode()));
 
       extra_engines=
-        ha_count_rw_2pc(thd_arg, thd_arg->in_multi_stmt_transaction_mode()) - 1;
+        ha_count_rw_2pc(thd_arg, thd_arg->in_multi_stmt_transaction_mode(),
+                        &binlog_recovery_info_count) - 1;
+      if (extra_engines > 0)
+      {
+        DBUG_ASSERT(extra_engines + 1 >= binlog_recovery_info_count);
+
+        no_binlog_info_engines= extra_engines + 1 - binlog_recovery_info_count;
+      }
     }
     else if (ro_1pc)
     {
@@ -3388,7 +3397,12 @@ Gtid_log_event::write()
   if (flags_extra & FL_EXTRA_MULTI_ENGINE)
   {
     buf[write_len]= extra_engines;
-    write_len++;
+    write_len += 1;
+    if (extra_engines < UCHAR_MAX)
+    {
+      buf[write_len]= no_binlog_info_engines;
+      write_len += 1;
+    }
   }
 
   if (write_len < GTID_HEADER_LEN)

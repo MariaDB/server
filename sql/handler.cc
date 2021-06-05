@@ -1458,20 +1458,29 @@ uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info)
 /*
   Returns counted number of
   read-write recoverable transaction participants.
+  Also increments the counter passed as a pointer
+  (so optionally when it's non-NULL)
+  when a hton represents an engine tracking the binlog offset
+  of its last commmited transaction.
 */
-uint ha_count_rw_2pc(THD *thd, bool all)
+uint8 ha_count_rw_2pc(THD *thd, bool all, uint8 *binlog_recovery_count)
 {
-  unsigned rw_ha_count= 0;
+  uint8 rw_ha_count= 0;
   THD_TRANS *trans=all ? &thd->transaction->all : &thd->transaction->stmt;
 
   for (Ha_trx_info * ha_info= trans->ha_list; ha_info;
        ha_info= ha_info->next())
   {
     if (ha_info->is_trx_read_write() && ha_info->ht()->recover)
+    {
       ++rw_ha_count;
+      if (binlog_recovery_count)
+        *binlog_recovery_count += ha_info->ht()->binlog_recovery_info ? 1 : 0;
+    }
   }
   return rw_ha_count;
 }
+
 
 /**
   Check if we can skip the two-phase commit.
@@ -2347,7 +2356,7 @@ struct xarecover_st
 */
 xid_recovery_member*
 xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
-                  uint n_prepared)
+                  uint n_prepared, uint n_prepared_no_binlog_info)
 {
   xid_recovery_member *member= (xid_recovery_member*)
     alloc_root(ptr_mem_root, sizeof(xid_recovery_member));
@@ -2356,6 +2365,7 @@ xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
 
   member->xid= xid_arg;
   member->in_engine_prepare= n_prepared;
+  member->no_binlog_offset_engines= n_prepared_no_binlog_info;
   member->decided_to_commit= false;
   member->to_replay= 0;
   member->binlog_coord= Binlog_offset(0,0);
@@ -2371,15 +2381,21 @@ xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
            true   otherwise.
 */
 static bool xid_member_replace(HASH *hash_arg, my_xid xid_arg,
-                               MEM_ROOT *ptr_mem_root)
+                               MEM_ROOT *ptr_mem_root,
+                               bool engine_has_binlog_info)
 {
   xid_recovery_member* member;
   if ((member= (xid_recovery_member *)
        my_hash_search(hash_arg, (uchar *)& xid_arg, sizeof(xid_arg))))
+  {
     member->in_engine_prepare++;
+    member->no_binlog_offset_engines += engine_has_binlog_info ? 1 : 0;
+  }
   else
-    member= xid_member_insert(hash_arg, xid_arg, ptr_mem_root);
-
+  {
+    member= xid_member_insert(hash_arg, xid_arg, ptr_mem_root, 1,
+                              engine_has_binlog_info ? 1 : 0);
+  }
   return member == NULL;
 }
 
@@ -2586,7 +2602,8 @@ static my_bool xarecover_handlerton(THD *unused, plugin_ref plugin,
         */
         if (info->mem_root)
         {
-          if (xid_member_replace(info->commit_list, x, info->mem_root))
+          if (xid_member_replace(info->commit_list, x, info->mem_root,
+                                 hton->binlog_recovery_info == NULL))
           {
             info->error= true;
             sql_print_error("Error in memory allocation at xarecover_handlerton");
