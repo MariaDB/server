@@ -1036,10 +1036,12 @@ begin
   return f1;
 end //
 
+--enable_prepare_warnings
 CREATE PROCEDURE bug9056_proc2(OUT a INT)
 BEGIN
   select sum(id) from t1 into a;
 END //
+--disable_prepare_warnings
 
 DELIMITER ;//
 

@@ -5,6 +5,7 @@
 DROP TABLE IF EXISTS t1, t2, t3, t, tp, tsp, tmp;
 --enable_warnings
 
+--enable_prepare_warnings
 --echo #
 --echo # Bug#11894100: EXCHANGE PARTITION CAN'T BE EXECUTED IF
 --echo #               ROW_FORMAT WAS SET EXPLICITLY
@@ -536,3 +537,4 @@ ALTER TABLE t2 REMOVE PARTITIONING;
 ALTER TABLE t1 EXCHANGE PARTITION pm WITH TABLE t2;
 DROP TABLE t1, t2;
 
+--disable_prepare_warnings

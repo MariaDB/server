@@ -2292,6 +2292,7 @@ CREATE VIEW v1 AS SELECT 42 AS Meaning;
 DROP FUNCTION IF EXISTS f1;
 --enable_warnings
 DELIMITER //;
+--enable_prepare_warnings
 CREATE FUNCTION f1() RETURNS INTEGER
 BEGIN
   DECLARE retn INTEGER;
@@ -2300,6 +2301,7 @@ BEGIN
 END
 //
 DELIMITER ;//
+--disable_prepare_warnings
 CREATE VIEW v2 AS SELECT f1();
 select * from v2;
 drop view v2,v1;
@@ -2476,6 +2478,7 @@ drop view t1, v1;
 # using SP function
 create table t1 (a int);
 delimiter //;
+--enable_prepare_warnings
 create function f1() returns int
 begin
   declare mx int;
@@ -2483,6 +2486,7 @@ begin
   return mx;
 end//
 delimiter ;//
+--disable_prepare_warnings
 create view v1 as select f1() as a;
 create view v2 as select * from v1;
 drop table t1;
@@ -3117,12 +3121,13 @@ DROP VIEW IF EXISTS v1;
 
 let $query = SELECT * FROM (SELECT 1) AS t into @w;
 
+--enable_prepare_warnings
 eval $query;
 --error ER_PARSE_ERROR
 eval CREATE VIEW v1 AS $query;
 --echo # Previously the following would fail.
 eval $query;
-
+--disable_prepare_warnings
 
 #
 # Bug#24532 The return data type of IS TRUE is different from similar operations
@@ -3885,11 +3890,13 @@ CREATE TABLE t1 (a INT);
 CREATE TABLE t2 (a INT);
 
 delimiter //;
+--enable_prepare_warnings
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
   SELECT a FROM v2 INTO @a;
   RETURN @a;
 END//
+--disable_prepare_warnings
 delimiter ;//
 
 --echo # Trigger pre-locking when opening v2.

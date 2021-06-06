@@ -1043,7 +1043,7 @@ update t1 set a= a + 0.1;
 select a, hex(a) from t1;
 drop table t1;
 
-
+--enable_prepare_warnings
 #
 # Columns
 #
@@ -1202,7 +1202,6 @@ select hex(concat(a)) from t1;
 create table t2 as select concat(a) from t1;
 show create table t2;
 drop table t1, t2;
-
 
 #
 # create view with string functions with numeric input
@@ -1517,6 +1516,7 @@ select hex(a) from v1;
 drop table t1;
 drop view v1;
 
+--disable_prepare_warnings
 #
 # User defined function returning numeric result
 #

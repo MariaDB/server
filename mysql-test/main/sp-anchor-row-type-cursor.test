@@ -1006,6 +1006,7 @@ DROP TABLE t1;
 --echo # SELECT INTO + cursor ROW TYPE variable with a wrong column count
 --echo #
 
+--enable_prepare_warnings
 CREATE TABLE t1 (a INT, b VARCHAR(32));
 INSERT INTO t1 VALUES (10,'b10');
 DELIMITER $$;
@@ -1067,6 +1068,8 @@ DELIMITER ;$$
 CALL p1();
 DROP TABLE t1;
 DROP PROCEDURE p1;
+
+--disable_prepare_warnings
 
 --echo #
 --echo #  End of MDEV-12461 TYPE OF and ROW TYPE OF anchored data types
