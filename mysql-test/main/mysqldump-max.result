@@ -102,7 +102,11 @@ CREATE TABLE `t1` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t1` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED IGNORE INTO `t1` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -114,7 +118,11 @@ CREATE TABLE `t2` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t2` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED IGNORE INTO `t2` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t2` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t3`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -126,7 +134,11 @@ CREATE TABLE `t3` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t3` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t3` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED IGNORE INTO `t3` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t3` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t4`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -138,7 +150,11 @@ CREATE TABLE `t4` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t4` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t4` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED IGNORE INTO `t4` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t4` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t5`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -150,7 +166,11 @@ CREATE TABLE `t5` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t5` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t5` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED IGNORE INTO `t5` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t5` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t6`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -162,7 +182,11 @@ CREATE TABLE `t6` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t6` DISABLE KEYS */;
-INSERT  IGNORE INTO `t6` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  IGNORE INTO `t6` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t6` ENABLE KEYS */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -199,7 +223,11 @@ CREATE TABLE `t1` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT  DELAYED INTO `t1` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED INTO `t1` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t1` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -211,7 +239,11 @@ CREATE TABLE `t2` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT  DELAYED INTO `t2` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED INTO `t2` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t2` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t3`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -223,7 +255,11 @@ CREATE TABLE `t3` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t3` DISABLE KEYS */;
-INSERT  DELAYED INTO `t3` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED INTO `t3` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t3` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t4`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -235,7 +271,11 @@ CREATE TABLE `t4` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t4` DISABLE KEYS */;
-INSERT  DELAYED INTO `t4` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED INTO `t4` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t4` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t5`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -247,7 +287,11 @@ CREATE TABLE `t5` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t5` DISABLE KEYS */;
-INSERT  DELAYED INTO `t5` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT  DELAYED INTO `t5` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t5` ENABLE KEYS */;
 DROP TABLE IF EXISTS `t6`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -259,7 +303,11 @@ CREATE TABLE `t6` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t6` DISABLE KEYS */;
-INSERT INTO `t6` VALUES (1,'first value'),(2,'first value'),(3,'first value'),(4,'first value'),(5,'first value');
+INSERT INTO `t6` VALUES (1,'first value'),
+(2,'first value'),
+(3,'first value'),
+(4,'first value'),
+(5,'first value');
 /*!40000 ALTER TABLE `t6` ENABLE KEYS */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
