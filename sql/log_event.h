@@ -3616,7 +3616,7 @@ public:
     do not support the binlog offset of the last committed transaction.
     The counter is not used in a normal case of just one engine.
   */
-  uint8 no_binlog_info_engines;
+  uint8 engines_no_binlog;
 
   /* Flags2. */
 

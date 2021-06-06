@@ -2365,7 +2365,7 @@ xid_member_insert(HASH *hash_arg, my_xid xid_arg, MEM_ROOT *ptr_mem_root,
 
   member->xid= xid_arg;
   member->in_engine_prepare= n_prepared;
-  member->no_binlog_offset_engines= n_prepared_no_binlog_info;
+  member->engines_no_binlog= n_prepared_no_binlog_info;
   member->decided_to_commit= false;
   member->to_replay= 0;
   member->binlog_coord= Binlog_offset(0,0);
@@ -2389,7 +2389,7 @@ static bool xid_member_replace(HASH *hash_arg, my_xid xid_arg,
        my_hash_search(hash_arg, (uchar *)& xid_arg, sizeof(xid_arg))))
   {
     member->in_engine_prepare++;
-    member->no_binlog_offset_engines += engine_has_binlog_info ? 1 : 0;
+    member->engines_no_binlog += engine_has_binlog_info ? 1 : 0;
   }
   else
   {

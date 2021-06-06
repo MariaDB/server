@@ -10667,7 +10667,7 @@ public:
   bool last_gtid_valid;
   bool last_gtid_no2pc; // true when the group does not end with Xid event
   uint last_gtid_engines;
-  uint last_gtid_engines_no_binlog_offset;
+  uint last_gtid_engines_no_binlog;
   Binlog_offset last_gtid_coord; // <binlog id, binlog offset>
   /*
     When true, it's semisync slave recovery mode
@@ -10769,7 +10769,8 @@ public:
   /*
     The function processes an apprearing as partially or fully committed
     transaction to settle the commit decision (always so in normal reccovery)
-    or pass it to handle_prepared.
+    or pass it to handle_prepared when the fact of a committed branch is
+    recognized.
     In the commit case it computes whether its (partial) replay
     is required. The latter may turn out necessary even for NULL member
     argument in which case an instance of its type is created,
@@ -10779,11 +10780,12 @@ public:
             true   as failure.
   */
   bool
-  handle_committed(xid_recovery_member **member, int round, Xid_log_event *ev,
-                   Format_description_log_event *fdle);
+  handle_maybe_committed(xid_recovery_member **member, int round,
+                         Xid_log_event *ev,
+                         Format_description_log_event *fdle);
 
   /*
-    member does not contain any partially commmitted branch of the transaction.
+    member does represent any partially commmitted branch of the transaction.
     The commit decision is settled in the normal case, and can be settled
     in the semisync slave when there was already
     validated truncation candidate.
@@ -11199,9 +11201,10 @@ bool Recovery_context::set_truncate_coord(int round,
   return gtid_maybe_to_truncate->append(last_gtid);
 }
 
-bool Recovery_context::handle_committed(xid_recovery_member **ptr_member,
-                                        int round, Xid_log_event *ev,
-                                        Format_description_log_event *fdle)
+bool
+Recovery_context::handle_maybe_committed(xid_recovery_member **ptr_member,
+                                         int round, Xid_log_event *ev,
+                                         Format_description_log_event *fdle)
 {
   xid_recovery_member *member= *ptr_member;
 
@@ -11240,11 +11243,11 @@ bool Recovery_context::handle_committed(xid_recovery_member **ptr_member,
     else if (member)
     {
       DBUG_ASSERT(*ha_offset_max <= last_gtid_coord);
-      DBUG_ASSERT(member->in_engine_prepare >= member->no_binlog_offset_engines);
-      DBUG_ASSERT(last_gtid_engines_no_binlog_offset >= member->no_binlog_offset_engines);
+      DBUG_ASSERT(member->in_engine_prepare >= member->engines_no_binlog);
+      DBUG_ASSERT(last_gtid_engines_no_binlog >= member->engines_no_binlog);
       if (last_gtid_engines == 1 ||
-          last_gtid_engines_no_binlog_offset >
-          (member->in_engine_prepare - member->no_binlog_offset_engines))
+          last_gtid_engines_no_binlog >
+          (member->in_engine_prepare - member->engines_no_binlog))
       {
         member->decided_to_commit= true;        // exists a committed branch
         /*
@@ -11252,10 +11255,11 @@ bool Recovery_context::handle_committed(xid_recovery_member **ptr_member,
           The number of engines to replay is calculated as
           the subtract from the total engine number both those that
           are prepared and committed.
-          With just one engine there can't be any replay. See the assert.
+          With just one engine and when none of the engines is
+          binlog_recovery_info capable there is nothing to replay.
         */
         DBUG_ASSERT((last_gtid_engines > 1 &&
-                     last_gtid_engines != last_gtid_engines_no_binlog_offset) ||
+                     last_gtid_engines != last_gtid_engines_no_binlog) ||
                     member->in_engine_prepare == 0);
 
         member->to_replay=
@@ -11394,7 +11398,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
         It's also possible to have lost-in-engine transaction that is
         still present in binlog in which case it may be replayed.
       */
-      if (handle_committed(&member, round, ev, fdle))
+      if (handle_maybe_committed(&member, round, ev, fdle))
         return true;
 
       DBUG_EXECUTE_IF("binlog_truncate_partial_commit",
@@ -11408,7 +11412,7 @@ bool Recovery_context::decide_or_assess(xid_recovery_member *member, int round,
   }
   else  //  "0" < last_gtid_engines
   {
-    if (handle_committed(&member, round, ev, fdle))
+    if (handle_maybe_committed(&member, round, ev, fdle))
       return true;
   }
 
@@ -11461,7 +11465,7 @@ void Recovery_context::process_gtid(int round, Gtid_log_event *gev)
   last_gtid.seq_no= gev->seq_no;
   last_gtid_engines= gev->extra_engines != UCHAR_MAX ?
     gev->extra_engines + 1 : 0;
-  last_gtid_engines_no_binlog_offset= gev->no_binlog_info_engines;
+  last_gtid_engines_no_binlog= gev->engines_no_binlog;
   last_gtid_coord= Binlog_offset(id_binlog, prev_event_pos);
 
   DBUG_ASSERT(!last_gtid_valid);

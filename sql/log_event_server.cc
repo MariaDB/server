@@ -3256,7 +3256,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
     seq_no(seq_no_arg), commit_id(commit_id_arg), domain_id(domain_id_arg),
     flags2((standalone ? FL_STANDALONE : 0) |
            (commit_id_arg ? FL_GROUP_COMMIT_ID : 0)),
-    flags_extra(0), extra_engines(0), no_binlog_info_engines(0)
+    flags_extra(0), extra_engines(0), engines_no_binlog(0)
 {
   cache_type= Log_event::EVENT_NO_CACHE;
   bool is_tmp_table= thd_arg->lex->stmt_accessed_temp_table();
@@ -3306,7 +3306,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       {
         DBUG_ASSERT(extra_engines + 1 >= binlog_recovery_info_count);
 
-        no_binlog_info_engines= extra_engines + 1 - binlog_recovery_info_count;
+        engines_no_binlog= extra_engines + 1 - binlog_recovery_info_count;
       }
     }
     else if (ro_1pc)
@@ -3400,7 +3400,7 @@ Gtid_log_event::write()
     write_len += 1;
     if (extra_engines < UCHAR_MAX)
     {
-      buf[write_len]= no_binlog_info_engines;
+      buf[write_len]= engines_no_binlog;
       write_len += 1;
     }
   }

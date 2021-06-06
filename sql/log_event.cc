@@ -2570,7 +2570,7 @@ Binlog_checkpoint_log_event::Binlog_checkpoint_log_event(
 Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
                const Format_description_log_event *description_event)
   : Log_event(buf, description_event), seq_no(0), commit_id(0),
-    flags_extra(0), extra_engines(0), no_binlog_info_engines(0)
+    flags_extra(0), extra_engines(0), engines_no_binlog(0)
 {
   uint8 header_size= description_event->common_header_len;
   uint8 post_header_len= description_event->post_header_len[GTID_EVENT-1];
@@ -2623,7 +2623,7 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
 
       extra_engines= *buf++;
       if (extra_engines < UCHAR_MAX)
-        no_binlog_info_engines= *buf++;
+        engines_no_binlog= *buf++;
 
       DBUG_ASSERT(extra_engines > 0);
     }
