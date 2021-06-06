@@ -1651,7 +1651,7 @@ static void append_directory(THD *thd, String *packet, LEX_CSTRING *dir_type,
     packet->append(' ');
     packet->append(dir_type);
     packet->append(STRING_WITH_LEN(" DIRECTORY='"));
-#ifdef __WIN__
+#ifdef _WIN32
     /* Convert \ to / to be able to create table on unix */
     char *winfilename= (char*) thd->memdup(filename, length);
     char *pos, *end;

@@ -65,7 +65,7 @@ typedef my_bool ALARM;
 #define end_thr_alarm(A)
 
 #else
-#if defined(__WIN__)
+#if defined(_WIN32)
 typedef struct st_thr_alarm_entry
 {
   UINT_PTR crono;
@@ -77,7 +77,7 @@ typedef int thr_alarm_entry;
 
 #define thr_got_alarm(thr_alarm) (**(thr_alarm))
 
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 typedef thr_alarm_entry* thr_alarm_t;
 

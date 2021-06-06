@@ -2183,7 +2183,7 @@ static int add_keyword_path(String *str, const char *keyword,
 {
   char temp_path[FN_REFLEN];
   strcpy(temp_path, path);
-#ifdef __WIN__
+#ifdef _WIN32
   /* Convert \ to / to be able to create table on unix */
   char *pos, *end;
   size_t length= strlen(temp_path);

@@ -21,7 +21,7 @@
 #include "sp_defs.h"
 #include <my_bit.h>
 
-#ifdef __WIN__
+#ifdef _WIN32
 #include <fcntl.h>
 #endif
 #include <m_ctype.h>

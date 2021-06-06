@@ -1959,7 +1959,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
       list= NULL; /* terminate the loop */
       /* fall through */
     case ';':
-#ifndef __WIN__
+#ifndef _WIN32
     case ':':     /* can't use this as delimiter as it may be drive letter */
 #endif
       p[-1]= 0;

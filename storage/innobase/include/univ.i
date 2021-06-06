@@ -487,7 +487,7 @@ it is read or written. */
 #  define UNIV_PREFETCH_RW(addr) ((void) 0)
 # endif /* COMPILER_HINTS */
 
-# elif defined __WIN__ && defined COMPILER_HINTS
+# elif defined _WIN32 && defined COMPILER_HINTS
 # include <xmmintrin.h>
 # define UNIV_EXPECT(expr,value) (expr)
 # define UNIV_LIKELY_NULL(expr) (expr)

@@ -505,7 +505,7 @@ static void usage(void)
 		      maria_chk very silent.\n\
   -t, --tmpdir=path   Path for temporary files. Multiple paths can be\n\
                       specified, separated by ");
-#if defined( __WIN__) || defined(__NETWARE__)
+#if defined( _WIN32)
    printf("semicolon (;)");
 #else
    printf("colon (:)");

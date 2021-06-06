@@ -81,7 +81,7 @@ int my_rename(const char *from, const char *to, myf MyFlags)
   DBUG_ENTER("my_rename");
   DBUG_PRINT("my",("from %s to %s MyFlags %lu", from, to, MyFlags));
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (!win_rename_with_retries(from, to))
   {
     my_osmaperr(GetLastError());

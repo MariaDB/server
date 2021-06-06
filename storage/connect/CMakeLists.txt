@@ -82,6 +82,7 @@ ELSE(NOT UNIX)
     # Connect does not work with clang-cl
     RETURN()
   ENDIF()
+  add_definitions(-D__WIN__)
 ENDIF(UNIX)
 
 

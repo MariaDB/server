@@ -3749,11 +3749,11 @@ row_rename_table_for_mysql(
 
 	/* We look for pattern #P# to see if the table is partitioned
 	MySQL table. */
-#ifdef __WIN__
+#ifdef _WIN32
 	is_part = strstr((char *)old_name, (char *)"#p#");
 #else
 	is_part = strstr((char *)old_name, (char *)"#P#");
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 	/* MariaDB partition engine hard codes the file name
 	separator as "#P#" and "#SP#". The text case is fixed even if
@@ -3773,7 +3773,7 @@ row_rename_table_for_mysql(
 	case them in the system table. */
 	if (!table && is_part && lower_case_table_names == 1) {
 		char par_case_name[MAX_FULL_NAME_LEN + 1];
-#ifndef __WIN__
+#ifndef _WIN32
 		/* Check for the table using lower
 		case name, including the partition
 		separator "P" */

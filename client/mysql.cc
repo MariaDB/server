@@ -88,7 +88,7 @@ extern "C" {
 #endif /* defined(HAVE_CURSES_H) && defined(HAVE_TERM_H) */
 
 #undef bcmp				// Fix problem with new readline
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <conio.h>
 #else
 #include <readline.h>
@@ -1587,7 +1587,7 @@ static struct my_option my_long_options[] =
   {"password", 'p',
    "Password to use when connecting to server. If password is not given it's asked from the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -1893,7 +1893,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     set_if_bigger(opt_silent,1);                         // more silent
     break;
   case 'W':
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
     opt_protocol_type= "pipe";
 
@@ -2026,7 +2026,7 @@ static int get_options(int argc, char **argv)
 
 static int read_and_execute(bool interactive)
 {
-#if defined(__WIN__)
+#if defined(_WIN32)
   String tmpbuf;
   String buffer;
 #endif
@@ -2106,7 +2106,7 @@ static int read_and_execute(bool interactive)
       if (opt_outfile && glob_buffer.is_empty())
 	fflush(OUTFILE);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
       tee_fputs(prompt, stdout);
       if (!tmpbuf.is_alloced())
         tmpbuf.alloc(65535);
@@ -2139,7 +2139,7 @@ static int read_and_execute(bool interactive)
       if (line)
         free(line);
       line= readline(prompt);
-#endif /* defined(__WIN__) */
+#endif /* defined(_WIN32) */
 
       /*
         When Ctrl+d or Ctrl+z is pressed, the line may be NULL on some OS
@@ -2194,7 +2194,7 @@ static int read_and_execute(bool interactive)
     }
   }
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   buffer.free();
   tmpbuf.free();
 #else

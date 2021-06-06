@@ -345,7 +345,7 @@ int exit_status()
   return EXIT_SUCCESS;
 }
 
-#if defined(__WIN__) || defined(__NETWARE__)
+#if defined(_WIN32)
 #include <time.h>
 #else
 #include <sys/times.h>
@@ -357,7 +357,7 @@ int exit_status()
 
 static ulong start_timer(void)
 {
-#if defined(__WIN__) || defined(__NETWARE__)
+#if defined(_WIN32)
  return clock();
 #else
   struct tms tms_tmp;

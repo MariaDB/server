@@ -33,7 +33,7 @@
 #include <m_ctype.h>
 #include <mysql_version.h>
 
-#ifdef __WIN__
+#ifdef _WIN32
 #include <fcntl.h>
 #endif
 

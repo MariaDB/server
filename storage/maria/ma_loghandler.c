@@ -29,7 +29,7 @@
   Also there is no need to flush filesystem changes ,i.e to sync()
   directories.
 */
-#ifdef __WIN__
+#ifdef _WIN32
 #define sync_dir(A,B) 0
 #else
 #define sync_dir(A,B) mysql_file_sync(A,B)
@@ -3673,7 +3673,7 @@ my_bool translog_init_with_table(const char *directory,
 
   /* Directory to store files */
   unpack_dirname(log_descriptor.directory, directory);
-#ifndef __WIN__
+#ifndef _WIN32
   if ((log_descriptor.directory_fd= my_open(log_descriptor.directory,
                                             O_RDONLY, MYF(MY_WME))) < 0)
   {

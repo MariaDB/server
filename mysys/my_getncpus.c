@@ -63,7 +63,7 @@ int my_getncpus(void)
 
 #ifdef _SC_NPROCESSORS_ONLN
     ncpus= sysconf(_SC_NPROCESSORS_ONLN);
-#elif defined(__WIN__)
+#elif defined(_WIN32)
     SYSTEM_INFO sysinfo;
 
     /*

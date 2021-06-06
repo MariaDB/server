@@ -10,7 +10,7 @@
 #define DENA_AUTO_FILE_HPP
 
 /*
-#ifndef __WIN__
+#ifndef _WIN32
 #include <dirent.h>
 #endif
 */

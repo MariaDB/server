@@ -24,7 +24,7 @@
 #include "sql_class.h"
 #include "my_stacktrace.h"
 
-#ifdef __WIN__
+#ifdef _WIN32
 #include <crtdbg.h>
 #define SIGNAL_FMT "exception 0x%x"
 #else
@@ -346,7 +346,7 @@ extern "C" sig_handler handle_fatal_signal(int sig)
 #endif
 
 end:
-#ifndef __WIN__
+#ifndef _WIN32
   /*
      Quit, without running destructors (etc.)
      Use a signal, because the parent (systemd) can check that with WIFSIGNALED

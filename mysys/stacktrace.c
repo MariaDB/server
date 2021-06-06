@@ -18,7 +18,7 @@
 #include "mysys_priv.h"
 #include <my_stacktrace.h>
 
-#ifndef __WIN__
+#ifndef _WIN32
 #include <signal.h>
 #include <m_string.h>
 #ifdef HAVE_STACKTRACE
@@ -43,10 +43,10 @@ static sig_handler default_handle_fatal_signal(int sig)
   my_safe_printf_stderr("%s: Got signal %d. Attempting backtrace\n",
                         my_progname_short, sig);
   my_print_stacktrace(0,0,1);
-#ifndef __WIN__
+#ifndef _WIN32
   signal(sig, SIG_DFL);
   kill(getpid(), sig);
-#endif /* __WIN__ */
+#endif /* _WIN32 */
   return;
 }
 
@@ -428,7 +428,7 @@ void my_write_core(int sig)
 #endif
 }
 
-#else /* __WIN__*/
+#else /* _WIN32*/
 
 #ifdef _MSC_VER
 /* Silence warning in OS header dbghelp.h */
@@ -713,7 +713,7 @@ int my_safe_print_str(const char *val, size_t len)
   }
   return 0;
 }
-#endif /*__WIN__*/
+#endif /*_WIN32*/
 
 
 size_t my_write_stderr(const void *buf, size_t count)

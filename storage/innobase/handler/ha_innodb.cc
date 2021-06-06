@@ -13294,7 +13294,7 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 		if (is_part) {
 			char	par_case_name[FN_REFLEN];
 
-#ifndef __WIN__
+#ifndef _WIN32
 			/* Check for the table using lower
 			case name, including the partition
 			separator "P" */

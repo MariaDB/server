@@ -23,12 +23,8 @@
 #include "trnman.h"
 #include "ma_crypt.h"
 
-#if defined(MSDOS) || defined(__WIN__)
-#ifdef __WIN__
+#ifdef _WIN32
 #include <fcntl.h>
-#else
-#include <process.h>			/* Prototype for getpid */
-#endif
 #endif
 #include <m_ctype.h>
 

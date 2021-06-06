@@ -111,4 +111,4 @@ int pthread_attr_destroy(pthread_attr_t *connect_att)
   return 0;
 }
 
-#endif /* __WIN__ */
+#endif /* _WIN32 */

@@ -44,7 +44,7 @@ int test_file(PAGECACHE_FILE file, char *file_name,
   int step= 0;
   int res= 1;                                   /* ok */
 
-#ifdef __WIN__
+#ifdef _WIN32
   /*
     On Windows, the info returned by stat(), specifically file length
     is not necessarily current, because this is the behavior of

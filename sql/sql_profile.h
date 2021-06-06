@@ -46,7 +46,7 @@ int make_profile_table_for_show(THD *thd, ST_SCHEMA_TABLE *schema_table);
 #include "sql_priv.h"
 #include "unireg.h"
 
-#ifdef __WIN__
+#ifdef _WIN32
 #include <psapi.h>
 #endif
 

@@ -220,7 +220,7 @@ int maria_lock_database(MARIA_HA *info, int lock_type)
       break;				/* Impossible */
     }
   }
-#ifdef __WIN__
+#ifdef _WIN32
   else
   {
     /*
@@ -320,7 +320,7 @@ int _ma_writeinfo(register MARIA_HA *info, uint operation)
                                     &share->state,
                                     MA_STATE_INFO_WRITE_DONT_MOVE_OFFSET)))
 	olderror=my_errno;
-#ifdef __WIN__
+#ifdef _WIN32
       if (maria_flush)
       {
 	_commit(share->kfile.file);

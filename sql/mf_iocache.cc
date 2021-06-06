@@ -87,7 +87,7 @@ int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t)
 
 } /* extern "C" */
 
-#elif defined(__WIN__)
+#elif defined(_WIN32)
 
 // Remove linker warning 4221 about empty file
 namespace { char dummy; };
