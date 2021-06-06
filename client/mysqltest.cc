@@ -8293,7 +8293,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     Get the warnings from mysql_stmt_prepare and keep them in a
     separate string
   */
-  if (!disable_warnings)
+  if (!disable_warnings && prepare_warnings_enabled)
     append_warnings(&ds_prepare_warnings, mysql);
 
   /*

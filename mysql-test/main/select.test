@@ -3525,7 +3525,9 @@ CREATE VIEW v1 AS SELECT 1 AS `  `;
 --error 1166
 CREATE VIEW v1 AS SELECT (SELECT 1 AS `  `);
 
+--enable_prepare_warnings
 CREATE VIEW v1 AS SELECT 1 AS ` x`;
+--disable_prepare_warnings
 SELECT `x` FROM v1;
 
 --error 1166

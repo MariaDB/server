@@ -7,7 +7,9 @@
 -- source include/have_log_bin.inc
 -- source include/have_perfschema.inc
 
+--enable_prepare_warnings
 select variable_value from information_schema.global_status where variable_name="handler_read_key" into @global_read_key;
+--disable_prepare_warnings
 show columns from information_schema.client_statistics;
 show columns from information_schema.user_statistics;
 show columns from information_schema.index_statistics;

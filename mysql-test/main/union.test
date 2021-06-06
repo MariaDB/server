@@ -987,7 +987,9 @@ DROP TABLE t1;
 (select 1) union (select 1 into @var);
 --error ER_PARSE_ERROR
 (select 2) union (select 1 into @var);
+--enable_prepare_warnings
 (select 1) union (select 1) into @var;
+--disable_prepare_warnings
 --error ER_TOO_MANY_ROWS
 (select 2) union (select 1) into @var;
 
@@ -1115,9 +1117,11 @@ SELECT a FROM t1 UNION SELECT a INTO @v FROM t1;
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file5' FROM t1;
 --error ER_PARSE_ERROR
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file6' FROM t1;
+--enable_prepare_warnings
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO @v ;
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file5';
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file6';
+--disable_prepare_warnings
 --error ER_PARSE_ERROR
 SELECT a INTO @v FROM t1 UNION SELECT a FROM t1;
 --error ER_PARSE_ERROR
