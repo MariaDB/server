@@ -367,7 +367,10 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
     ErrorExit("Stdout SetHandleInformation"); 
 
   string commandline("mysql_upgrade_service.exe --service=");
+  commandline += "\"";
   commandline += servicename;
+  commandline += "\"";
+
   si.cb = sizeof(si);
   si.hStdInput= GetStdHandle(STD_INPUT_HANDLE);
   si.hStdOutput= hPipeWrite;
@@ -397,7 +400,7 @@ void CUpgradeDlg::UpgradeOneService(const string& servicename)
   else
   {
 	/* 
-	  Creating a process with CREATE_BREAKAWAY_FROM_JOB, reset this flag
+	  Creating a process with CREATE_BREAKAWAY_FROM_JOB failed, reset this flag
 	  and retry.
 	*/
     if (!CreateProcess(NULL, (LPSTR)commandline.c_str(), NULL, NULL, TRUE,
