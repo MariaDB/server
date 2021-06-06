@@ -2475,7 +2475,7 @@ __forceinline unsigned int nlz (ulonglong x)
   return (unsigned int) n ^ m;
 #endif
 #elif defined(_M_ARM64)
-  return _CountLeadingZeros(x);
+  return _CountLeadingZeros64(x);
 #endif
 }
 #else

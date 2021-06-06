@@ -487,14 +487,21 @@ it is read or written. */
 #  define UNIV_PREFETCH_RW(addr) ((void) 0)
 # endif /* COMPILER_HINTS */
 
-# elif defined _WIN32 && defined COMPILER_HINTS
-# include <xmmintrin.h>
+# elif defined _MSC_VER && defined COMPILER_HINTS
 # define UNIV_EXPECT(expr,value) (expr)
 # define UNIV_LIKELY_NULL(expr) (expr)
-// __MM_HINT_T0 - (temporal data)
-// prefetch data into all levels of the cache hierarchy.
-# define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
-# define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# if defined _M_IX86 || defined _M_X64
+   // __MM_HINT_T0 - (temporal data)
+   // prefetch data into all levels of the cache hierarchy.
+#  define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+#  define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# elif defined _M_ARM64
+#  define UNIV_PREFETCH_R(addr) __prefetch(addr)
+#  define UNIV_PREFETCH_RW(addr) __prefetch(addr)
+# else
+#  define UNIV_PREFETCH_R ((void) 0)
+#  define  UNIV_PREFETCH_RW(addr) ((void) 0)
+# endif
 #else
 /* Dummy versions of the macros */
 # define UNIV_EXPECT(expr,value) (expr)

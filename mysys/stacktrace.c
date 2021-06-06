@@ -587,8 +587,12 @@ void my_print_stacktrace(uchar* unused1, ulong unused2, my_bool silent)
   frame.AddrFrame.Offset= context.Rbp;
   frame.AddrPC.Offset=    context.Rip;
   frame.AddrStack.Offset= context.Rsp;
+#elif defined(_M_ARM64)
+  machine= IMAGE_FILE_MACHINE_ARM64;
+  frame.AddrFrame.Offset= context.Fp;
+  frame.AddrPC.Offset=    context.Pc;
+  frame.AddrStack.Offset= context.Sp;
 #else
-  /*There is currently no need to support IA64*/
 #pragma error ("unsupported architecture")
 #endif
 

@@ -42,6 +42,9 @@ endif()
 IF (WIN32 AND CMAKE_SIZEOF_VOID_P EQUAL 4)
   SKIP_ROCKSDB_PLUGIN("32-Bit Windows are temporarily disabled")
 ENDIF()
+IF(MSVC_ARM64)
+ SKIP_ROCKSDB_PLUGIN("Windows ARM64 not supported")
+ENDIF()
 
 # This plugin needs recent C++ compilers (it is using C++11 features)
 # Skip build for the old compilers
