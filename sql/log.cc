@@ -11260,9 +11260,9 @@ bool Recovery_context::handle_committed(xid_recovery_member **ptr_member,
 
         member->to_replay=
           (last_gtid_engines == 1 ||
-           last_gtid_engines != last_gtid_engines_no_binlog_offset) ? 0 :
+           last_gtid_engines == last_gtid_engines_no_binlog) ? 0 :
           last_gtid_engines - member->in_engine_prepare -
-          (member->in_engine_prepare - member->no_binlog_offset_engines);
+          (member->in_engine_prepare - member->engines_no_binlog);
       }
       else
       {
