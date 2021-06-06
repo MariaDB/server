@@ -1,6 +1,6 @@
-/etc/init.d/mysql\[[0-9]+\]: [0-9]+ processes alive and '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
-/etc/init.d/mysql\[[0-9]+\]: Check that mysqld is running and that the socket: '/var/run/mysqld/mysqld.sock' exists\!$
-/etc/init.d/mysql\[[0-9]+\]: '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
+/etc/init.d/mariadb\[[0-9]+\]: [0-9]+ processes alive and '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
+/etc/init.d/mariadb\[[0-9]+\]: Check that mysqld is running and that the socket: '/run/mysqld/mysqld.sock' exists\!$
+/etc/init.d/mariadb\[[0-9]+\]: '/usr/bin/mysqladmin --defaults-(extra-)?file=/etc/mysql/debian.cnf ping' resulted in$
 /etc/mysql/debian-start\[[0-9]+\]: Checking for crashed MySQL tables\.$
 mysqld\[[0-9]+\]: ?$
 mysqld\[[0-9]+\]: .*InnoDB: Shutdown completed
