@@ -2296,9 +2296,11 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 static void ibuf_read_merge_pages(const uint32_t* space_ids,
 				  const uint32_t* page_nos, ulint n_stored)
 {
+#ifndef DBUG_OFF
 	mem_heap_t* heap = mem_heap_create(512);
 	ulint dops[IBUF_OP_COUNT];
 	memset(dops, 0, sizeof(dops));
+#endif
 
 	for (ulint i = 0; i < n_stored; i++) {
 		const ulint space_id = space_ids[i];
@@ -2331,6 +2333,28 @@ tablespace_deleted:
 				goto tablespace_deleted;
 			}
 		}
+#ifndef DBUG_OFF
+		DBUG_EXECUTE_IF("ibuf_merge_corruption", goto work_around;);
+		continue;
+
+		/* The following code works around a hang when the
+		change buffer is corrupted, likely due to the race
+		condition in crash recovery that was fixed in
+		MDEV-24449. But, it also introduces corruption by
+		itself in the following scenario:
+
+		(1) We merged buffered changes in buf_page_get_gen()
+		(2) We committed the mini-transaction
+		(3) Redo log and the page with the merged changes is written
+		(4) A write completion callback thread evicts the page.
+		(5) Other threads buffer changes for that page.
+		(6) We will wrongly discard those newly buffered changes below.
+
+		This code will be available in debug builds, so that
+		users may try to fix a shutdown hang that occurs due
+		to a corrupted change buffer. */
+
+work_around:
 		/* Prevent an infinite loop, by removing entries from
 		the change buffer also in the case the bitmap bits were
 		wrongly clear even though buffered changes exist. */
@@ -2377,10 +2401,13 @@ done:
 		ibuf_mtr_commit(&mtr);
 		btr_pcur_close(&pcur);
 		mem_heap_empty(heap);
+#endif
 	}
 
+#ifndef DBUG_OFF
 	ibuf_add_ops(ibuf.n_discarded_ops, dops);
 	mem_heap_free(heap);
+#endif
 }
 
 /*********************************************************************//**
