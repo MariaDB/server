@@ -6751,7 +6751,7 @@ String *Field_newdate::val_str(String *val_buffer,
 			       String *val_ptr __attribute__((unused)))
 {
   DBUG_ASSERT(marked_for_read());
-  val_buffer->alloc(field_length);
+  val_buffer->alloc(field_length+1);
   val_buffer->length(field_length);
   uint32 tmp=(uint32) uint3korr(ptr);
   int part;
@@ -6923,7 +6923,7 @@ longlong Field_datetime0::val_int(void)
 String *Field_datetime0::val_str(String *val_buffer,
                                  String *val_ptr __attribute__((unused)))
 {
-  val_buffer->alloc(field_length);
+  val_buffer->alloc(field_length+1);
   val_buffer->length(field_length);
 
   DBUG_ASSERT(marked_for_read());

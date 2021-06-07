@@ -17,3 +17,13 @@ SELECT length(ENCRYPT(a)) AS f, COUNT(*) FROM t1 GROUP BY f;
 f	COUNT(*)
 13	2
 DROP TABLE t1;
+#
+# MDEV-25754 ASAN: stack-buffer-overflow in Field_newdate::val_str
+#
+CREATE TABLE t1 (d DATE);
+INSERT INTO t1 VALUES ('1920-03-02'),('2020-12-01');
+SELECT LENGTH(CONCAT_WS(d, ' ')) FROM t1;
+LENGTH(CONCAT_WS(d, ' '))
+1
+1
+DROP TABLE t1;
