@@ -115,7 +115,7 @@ int my_decimal::to_string_native(String *str, uint fixed_prec, uint fixed_dec,
                ? (fixed_prec + ((fixed_prec == fixed_dec) ? 1 : 0) + 1)
                : my_decimal_string_length(this));
   int result;
-  if (str->alloc(length))
+  if (str->alloc(length+1))                     // Alloc also space for \0
     return check_result(mask, E_DEC_OOM);
   result= decimal2string(this, (char*) str->ptr(),
                          &length, (int)fixed_prec, fixed_dec,
