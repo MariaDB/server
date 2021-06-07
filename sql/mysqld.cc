@@ -163,8 +163,10 @@ extern "C" {					// Because of SCO 3.2V4.2
 #endif /* _WIN32 */
 
 #include <my_libwrap.h>
+#include <atomic>
+std::atomic<uint> commits_in_progress(0);
 
-#ifdef _WIN32 
+#ifdef _WIN32
 #include <crtdbg.h>
 #endif
 
@@ -2981,6 +2983,7 @@ void init_signals(void)
   sigaddset(&set,SIGHUP);
 #endif
   sigaddset(&set,SIGTERM);
+  sigaddset(&set,SIGUSR2);
 
   /* Fix signals if blocked by parents (can happen on Mac OS X) */
   sigemptyset(&sa.sa_mask);
@@ -3085,6 +3088,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
 #endif
   (void) sigaddset(&set,SIGTERM);
   (void) sigaddset(&set,SIGTSTP);
+  (void) sigaddset(&set,SIGUSR2);
 
   /* Save pid to this process (or thread on Linux) */
   if (!opt_bootstrap)
@@ -3118,7 +3122,11 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
       return 0;                                 // Avoid compiler warnings
     }
     switch (sig) {
+    case SIGUSR2:
     case SIGTERM:
+      if (commits_in_progress > 0)
+        __builtin_trap();
+      break;
     case SIGQUIT:
     case SIGKILL:
 #ifdef EXTRA_DEBUG

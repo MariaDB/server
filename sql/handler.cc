@@ -47,6 +47,8 @@
 #include "rowid_filter.h"
 #include "mysys_err.h"
 
+#include <atomic>
+extern std::atomic<uint> commits_in_progress;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
 #include "ha_partition.h"
 #endif
@@ -1727,6 +1729,7 @@ int ha_commit_trans(THD *thd, bool all)
     DEBUG_SYNC(thd, "ha_commit_trans_after_acquire_commit_lock");
   }
 
+  commits_in_progress++;
   if (rw_trans &&
       opt_readonly &&
       !(thd->security_ctx->master_access & PRIV_IGNORE_READ_ONLY) &&
@@ -1950,6 +1953,7 @@ end:
     wsrep_commit_empty(thd, all);
   }
 #endif /* WITH_WSREP */
+  commits_in_progress--;
 
   DBUG_RETURN(error);
 }
