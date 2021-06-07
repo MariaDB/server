@@ -2526,7 +2526,7 @@ public:
     :Field_str(ptr_arg, len_arg, null, 1,
 	       unireg_check_arg, field_name_arg, collation)
     {}
-  const Type_handler *type_handler() const { return &type_handler_null; }
+  const Type_handler *type_handler() const { return &type_handler_string; }
   Information_schema_character_attributes
     information_schema_character_attributes() const
   {
