@@ -3460,6 +3460,31 @@ SET max_length_for_sort_data=@save_max_length_for_sort_data;
 SET max_sort_length= @save_max_sort_length;
 SET sql_select_limit= @save_sql_select_limit;
 DROP TABLE t1;
+#
+# MDEV-25682: EXPLAIN for SELECT with ORDER BY after [ORDER BY] LIMIT
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+explain (select a from t1 limit 2) order by a desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	
+NULL	UNIT RESULT	<unit1>	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
+(select a from t1 limit 2) order by a desc;
+a
+7
+3
+create table t2 (a int, b int);
+insert into t2 values (3,70), (7,10), (1,40), (4,30);
+explain (select b,a from t2 order by a limit 3) order by b desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	4	Using filesort
+NULL	UNIT RESULT	<unit1>	ALL	NULL	NULL	NULL	NULL	NULL	Using filesort
+(select b,a from t2 order by a limit 3) order by b desc;
+b	a
+70	3
+40	1
+30	4
+drop table t1,t2;
 # End of 10.2 tests
 #
 # MDEV-16214: Incorrect plan taken by the optimizer , uses INDEX instead of ref access with ORDER BY
