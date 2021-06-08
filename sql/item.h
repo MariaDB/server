@@ -3198,7 +3198,7 @@ public:
   bool check_table_name_processor(void *arg)
   {
     Check_table_name_prm &p= *(Check_table_name_prm *) arg;
-    if (p.table_name.length && table_name)
+    if (!field && p.table_name.length && table_name)
     {
       DBUG_ASSERT(p.db.length);
       if ((db_name &&
@@ -5383,7 +5383,10 @@ public:
   table_map used_tables() const;
   void update_used_tables();
   table_map not_null_tables() const;
-  bool const_item() const { return used_tables() == 0; }
+  bool const_item() const
+  {
+    return (*ref)->const_item() && (null_ref_table == NO_NULL_TABLE);
+  }
   TABLE *get_null_ref_table() const { return null_ref_table; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg)
   { 
