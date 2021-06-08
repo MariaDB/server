@@ -23,7 +23,7 @@
 
 #define ARGS       MY_MIN(24,(int)len-i),s+MY_MAX(i-3,0)
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define EL  "\r\n"
 #else
 #define EL  "\n"

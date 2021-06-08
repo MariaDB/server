@@ -30,11 +30,11 @@
 #include "sql_class.h"
 #include "sql_time.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #include <string.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 #include <math.h>
 
@@ -77,12 +77,12 @@ int DTVAL::Shift = 0;
 /***********************************************************************/
 bool PlugEvalLike(PGLOBAL, LPCSTR, LPCSTR, bool);
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 extern "C" {
 PSZ strupr(PSZ s);
 PSZ strlwr(PSZ s);
 }
-#endif   // !__WIN__
+#endif   // !_WIN32
 
 /***********************************************************************/
 /*  Get a long long number from its character representation.          */
@@ -1648,10 +1648,10 @@ int TYPVAL<PSZ>::CompareValue(PVAL vp)
   else
     n = strcmp(Strp, vp->GetCharValue());
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (n == _NLSCMPERROR)
     return n;                        // Here we should raise an error
-#endif   // __WIN__
+#endif   // _WIN32
 
   return (n > 0) ? 1 : (n < 0) ? -1 : 0;
 } // end of CompareValue

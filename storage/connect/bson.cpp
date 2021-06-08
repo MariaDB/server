@@ -30,7 +30,7 @@
 #define CheckType(X,Y)
 #endif
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 #define EL  "\r\n"
 #else
 #define EL  "\n"

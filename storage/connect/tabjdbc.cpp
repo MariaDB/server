@@ -38,7 +38,7 @@
 #include "my_global.h"
 #include "sql_class.h"
 #include "sql_servers.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)

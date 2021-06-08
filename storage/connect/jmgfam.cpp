@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <io.h>
 //#include <fcntl.h>
 //#include <errno.h>
@@ -25,7 +25,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX) || defined(UNIV_LINUX)
 //#include <errno.h>
 #include <unistd.h>
@@ -36,7 +36,7 @@
 //#include <io.h>
 #endif  // !UNIX
 //#include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */

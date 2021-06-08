@@ -6,24 +6,24 @@
 /*  This file contains the JAVA connection classes functions.          */
 /***********************************************************************/
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 // This is needed for RegGetValue
 #define _WINVER 0x0601
 #undef  _WIN32_WINNT
 #define _WIN32_WINNT 0x0601
-#endif   // __WIN__
+#endif   // _WIN32
 
 /***********************************************************************/
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include <my_global.h>
 //#include <m_string.h>
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <direct.h>                      // for getcwd
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #else   // !UNIX
@@ -31,7 +31,7 @@
 #include <stdio.h>
 #include <stdlib.h>                      // for getenv
 #define NODW
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Required objects includes.                                         */
@@ -47,9 +47,9 @@
 #include "valblk.h"
 #include "osutil.h"
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#endif   // __WIN__
+#endif   // _WIN32
 #define nullptr 0
 
 //TYPCONV GetTypeConv();
@@ -200,11 +200,11 @@ int JAVAConn::GetMaxValue(int n)
 void JAVAConn::ResetJVM(void)
 {
 	if (LibJvm) {
-#if defined(__WIN__)
+#if defined(_WIN32)
 		FreeLibrary((HMODULE)LibJvm);
-#else   // !__WIN__
+#else   // !_WIN32
 		dlclose(LibJvm);
-#endif  // !__WIN__
+#endif  // !_WIN32
 		LibJvm = NULL;
 		CreateJavaVM = NULL;
 		GetCreatedJavaVMs = NULL;
@@ -227,7 +227,7 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 	if (!LibJvm) {
 		char soname[512];
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 		for (ntry = 0; !LibJvm && ntry < 3; ntry++) {
 			if (!ntry && JvmPath) {
 				strcat(strcpy(soname, JvmPath), "\\jvm.dll");
@@ -295,7 +295,7 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 			LibJvm = NULL;
 #endif   // _DEBUG
 		} // endif LibJvm
-#else   // !__WIN__
+#else   // !_WIN32
 		const char *error = NULL;
 
 		for (ntry = 0; !LibJvm && ntry < 2; ntry++) {
@@ -336,7 +336,7 @@ bool JAVAConn::GetJVM(PGLOBAL g)
 			LibJvm = NULL;
 #endif   // _DEBUG
 		} // endif LibJvm
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	} // endif LibJvm
 
@@ -378,7 +378,7 @@ bool JAVAConn::Open(PGLOBAL g)
 		char    *cp = NULL;
 		char     sep;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 		sep = ';';
 #define N 1
 		//#define N 2
