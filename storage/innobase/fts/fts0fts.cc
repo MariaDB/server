@@ -2596,7 +2596,6 @@ func_exit:
   btr_pcur_close(&pcur);
   mtr.commit();
   que_graph_free((que_t*) que_node_get_parent(thr));
-  mem_heap_free(heap);
   trx->commit();
   trx->free();
 }
