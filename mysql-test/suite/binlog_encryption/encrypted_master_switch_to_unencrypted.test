@@ -65,7 +65,7 @@ INSERT INTO table1_no_encryption SELECT NULL,NOW(),b FROM table1_no_encryption;
 --echo # Part 2: restart master, now with binlog encryption
 --echo #####################################################
 
---let $rpl_server_parameters= --encrypt-binlog=1 --plugin-load-add=$FILE_KEY_MANAGEMENT_SO --file-key-management --loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
+--let $rpl_server_parameters= --encrypt-binlog=1 --plugin-load-add=file_key_management --file-key-management --loose-file-key-management-filename=$MYSQL_TEST_DIR/std_data/keys.txt
 
 --let $rpl_server_number= 1
 --source restart_server.inc

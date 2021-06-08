@@ -3562,7 +3562,7 @@ public:
   bool check_table_name_processor(void *arg) override
   {
     Check_table_name_prm &p= *static_cast<Check_table_name_prm*>(arg);
-    if (p.table_name.length && table_name.length)
+    if (!field && p.table_name.length && table_name.length)
     {
       DBUG_ASSERT(p.db.length);
       if ((db_name.length &&
@@ -5865,7 +5865,10 @@ public:
   table_map used_tables() const override;
   void update_used_tables() override;
   table_map not_null_tables() const override;
-  bool const_item() const override { return used_tables() == 0; }
+  bool const_item() const override
+  {
+    return (*ref)->const_item() && (null_ref_table == NO_NULL_TABLE);
+  }
   TABLE *get_null_ref_table() const { return null_ref_table; }
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override
   {

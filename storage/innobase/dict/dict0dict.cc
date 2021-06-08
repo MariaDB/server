@@ -2527,8 +2527,8 @@ dict_index_build_internal_clust(
 	ulint		i;
 	ibool*		indexed;
 
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(!dict_index_is_ibuf(index));
+	ut_ad(index->is_primary());
+	ut_ad(!index->has_virtual());
 
 	ut_ad(mutex_own(&dict_sys.mutex));
 
