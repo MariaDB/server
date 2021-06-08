@@ -281,6 +281,8 @@ bool Item_subselect::fix_fields(THD *thd_param, Item **ref)
         res= TRUE;
         goto end;
       }
+      if (sl ==  unit->first_select() && !sl->next_select())
+        unit->fake_select_lex= 0;
     }
   }
   

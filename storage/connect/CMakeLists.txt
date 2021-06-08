@@ -13,6 +13,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1335 USA
 
+IF(WITHOUT_DYNAMIC_PLUGINS OR WITH_NONE OR ("${PLUGIN_CONNECT}" STREQUAL "NO"))
+  RETURN()
+ENDIF()
+
 SET(CONNECT_PLUGIN_STATIC  "connect")
 SET(CONNECT_PLUGIN_DYNAMIC "connect")
 
