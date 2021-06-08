@@ -1848,8 +1848,8 @@ fts_create_common_tables(
 	char		full_name[sizeof(fts_common_tables) / sizeof(char*)]
 				[MAX_FULL_NAME_LEN];
 
-	dict_index_t*					index = NULL;
-
+	dict_index_t*		index = NULL;
+	dict_table_t* 		config_table=  nullptr;
 	FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, table);
 
 	error = fts_drop_common_tables(trx, &fts_table, true);
@@ -1873,6 +1873,13 @@ fts_create_common_tables(
 			goto func_exit;
 		}
 
+		if (i == 2) {
+			/* Disable undo logging for config table while
+			creating the fts common tables */
+			config_table = common_table;
+			config_table->skip_alter_undo = true;
+		}
+
 		mem_heap_empty(heap);
 	}
 
@@ -1889,6 +1896,8 @@ fts_create_common_tables(
 	error = fts_eval_sql(trx, graph);
 
 	que_graph_free(graph);
+
+	config_table->skip_alter_undo = false;
 
 	if (error != DB_SUCCESS || skip_doc_id_index) {
 
@@ -2462,6 +2471,136 @@ fts_get_max_cache_size(
 }
 #endif
 
+/** Update the max doc id in config table during DDL.
+@param table 	FTS parent table
+@param doc_id	doc id to be updated */
+static
+void fts_update_config_sync_max_doc_id(
+  const dict_table_t *table, doc_id_t doc_id)
+{
+  fts_table_t fts_table;
+  char table_name[MAX_FULL_NAME_LEN];
+  big_rec_t *big_rec= nullptr;
+
+  fts_table.suffix = "CONFIG";
+  fts_table.table_id = table->id;
+  fts_table.type = FTS_COMMON_TABLE;
+  fts_table.table = table;
+  fts_get_table_name(&fts_table, table_name, false);
+
+  if (!table->fts->dict_locked)
+    dict_sys.mutex_lock();
+
+  dict_table_t *config_table= dict_sys.load_table(
+    {table_name, strlen(table_name)});
+
+  config_table->skip_alter_undo= false;
+
+  if (!table->fts->dict_locked)
+    dict_sys.mutex_unlock();
+
+  dict_index_t *clust_index= dict_table_get_first_index(config_table);
+
+  trx_t *trx = trx_create();
+  trx_start_internal(trx);
+  trx->op_info = "setting last FTS document id";
+
+  mem_heap_t *heap= mem_heap_create(512);
+
+  que_t *graph = static_cast<que_fork_t *>(
+    que_node_get_parent(
+      pars_complete_graph_for_exec(
+	nullptr, trx, heap, nullptr)));
+
+  que_thr_t *thr = que_fork_start_command(graph);
+  btr_pcur_t pcur;
+  rec_offs *offsets= NULL;
+  mtr_t mtr;
+  btr_cur_t *btr_cur;
+  byte id[FTS_MAX_ID_LEN];
+  ulint id_len;
+  dberr_t err = DB_SUCCESS;
+
+  /* Build tuple to search */
+  dtuple_t *tuple= dtuple_create(heap, clust_index->n_uniq);
+  dict_index_copy_types(tuple, clust_index, clust_index->n_uniq);
+  dfield_t *dfield= dtuple_get_nth_field(tuple, 0);
+  dfield_set_data(dfield, FTS_SYNCED_DOC_ID, sizeof(FTS_SYNCED_DOC_ID) - 1);
+
+  dtuple_t *entry= dtuple_create(heap, clust_index->n_fields);
+  dict_index_copy_types(entry, clust_index, clust_index->n_fields);
+
+  /* Build tuple to update the synced doc id */
+  /* Set synced_doc_id as key */
+  dfield= dtuple_get_nth_field(entry, 0);
+  dfield_set_data(dfield, FTS_SYNCED_DOC_ID, sizeof(FTS_SYNCED_DOC_ID) - 1);
+
+  byte *buf = static_cast<byte *>(mem_heap_alloc(heap, DATA_ROLL_PTR_LEN));
+  memset(buf, 0, DATA_ROLL_PTR_LEN);
+
+  dfield = dtuple_get_nth_field(entry, 1);
+  dfield_set_data(dfield, buf, DATA_TRX_ID_LEN);
+
+  dfield = dtuple_get_nth_field(entry, 2);
+  dfield_set_data(dfield, buf, DATA_ROLL_PTR_LEN);
+
+  id_len= (ulint) snprintf(
+    (char*) id, sizeof(id), FTS_DOC_ID_FORMAT, doc_id + 1);
+
+  /* Set max doc id as value */
+  dfield = dtuple_get_nth_field(entry, 3);
+  dfield_set_data(dfield, id, id_len);
+
+  mtr.start();
+  mtr.set_named_space(clust_index->table->space);
+  btr_pcur_init(&pcur);
+  btr_pcur_open(clust_index, tuple, PAGE_CUR_LE, BTR_MODIFY_LEAF,
+                &pcur, &mtr);
+  rec_t *rec= btr_pcur_get_rec(&pcur);
+
+  btr_cur = btr_pcur_get_btr_cur(&pcur);
+
+  offsets= rec_get_offsets(rec, clust_index, offsets,
+                           clust_index->n_core_fields,
+                           ULINT_UNDEFINED, &heap);
+
+  ut_ad(!rec_get_deleted_flag(
+	  rec, dict_table_is_comp(config_table)));
+
+  upd_t *upd= row_upd_build_difference_binary(
+    clust_index, entry, rec, offsets, false, NULL, heap,
+    nullptr, &err);
+  if (err != DB_SUCCESS)
+    goto func_exit;
+
+  err= btr_cur_optimistic_update(
+    BTR_NO_ROLLBACK, btr_cur, &offsets, &heap, upd, 0, thr, trx->id, &mtr);
+
+  if (err == DB_SUCCESS)
+    goto func_exit;
+  btr_pcur_store_position(&pcur, &mtr);
+  mtr.commit();
+
+  mtr.start();
+  clust_index->set_modified(mtr);
+  if (!btr_pcur_restore_position(BTR_MODIFY_TREE, &pcur, &mtr))
+    goto func_exit;
+
+  err = btr_cur_pessimistic_update(
+		BTR_NO_ROLLBACK, btr_cur,
+                &offsets, &heap, heap, &big_rec,
+                upd, 0, thr, trx->id, &mtr);
+
+  ut_ad(err == DB_SUCCESS);
+func_exit:
+  btr_pcur_close(&pcur);
+  mtr.commit();
+  que_graph_free((que_t*) que_node_get_parent(thr));
+  mem_heap_free(heap);
+  trx->commit();
+  trx->free();
+}
+
 /*********************************************************************//**
 Update the next and last Doc ID in the CONFIG table to be the input
 "doc_id" value (+ 1). We would do so after each FTS index build or
@@ -2477,10 +2616,8 @@ fts_update_next_doc_id(
 	table->fts->cache->next_doc_id = doc_id + 1;
 
 	table->fts->cache->first_doc_id = table->fts->cache->next_doc_id;
-
-	fts_update_sync_doc_id(
-		table, table->fts->cache->synced_doc_id, trx);
-
+	fts_update_config_sync_max_doc_id(
+		table, table->fts->cache->synced_doc_id);
 }
 
 /*********************************************************************//**
@@ -5758,6 +5895,7 @@ fts_load_stopword(
 	const char*	stopword_to_use = NULL;
 	ibool		new_trx = FALSE;
 	byte		str_buffer[MAX_FULL_NAME_LEN + 1];
+	dict_table_t*	config_table= nullptr;
 
 	FTS_INIT_FTS_TABLE(&fts_table, "CONFIG", FTS_COMMON_TABLE, table);
 
@@ -5765,6 +5903,26 @@ fts_load_stopword(
 
 	if (!reload && !(cache->stopword_info.status & STOPWORD_NOT_INIT)) {
 		return true;
+	}
+
+	if (!reload) {
+		/* Disable undo logging for config table */
+		char table_name[MAX_FULL_NAME_LEN];
+		fts_get_table_name(&fts_table, table_name,
+				   table->fts->dict_locked);
+
+		if (!table->fts->dict_locked) {
+			dict_sys.mutex_lock();
+		}
+
+		config_table= dict_sys.load_table(
+			{table_name, strlen(table_name)});
+
+		config_table->skip_alter_undo= true;
+
+		if (!table->fts->dict_locked) {
+			dict_sys.mutex_unlock();
+		}
 	}
 
 	if (!trx) {
@@ -5848,6 +6006,10 @@ cleanup:
 		}
 
 		trx->free();
+	}
+
+	if (!reload && config_table) {
+		config_table->skip_alter_undo = false;
 	}
 
 	if (!cache->stopword_info.cached_stopword) {
