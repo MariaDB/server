@@ -1460,12 +1460,13 @@ void trx_t::commit_low(mtr_t *mtr)
   if (fts_trx && undo_no)
   {
     ut_a(!is_autocommit_non_locking());
-    /* FTS-FIXME: Temporarily tolerate DB_DUPLICATE_KEY instead of
-    dying. This is a possible scenario if there is a crash between
+    /* FTS-FIXME: Do this earlier, so that we can return an error,
+    instead of violating atomicity and corrupting data!
+    This is a possible scenario if there is a crash between
     insert to DELETED table committing and transaction committing. The
     fix would be able to return error from this function */
-    if (dberr_t error= fts_commit(this))
-      ut_a(error == DB_DUPLICATE_KEY);
+    if (ut_d(dberr_t error=) fts_commit(this))
+      ut_ad(error == DB_DUPLICATE_KEY || error == DB_LOCK_WAIT_TIMEOUT);
   }
 
 #ifndef DBUG_OFF
