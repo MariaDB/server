@@ -699,8 +699,8 @@ static void srv_refresh_innodb_monitor_stats(time_t current_time)
 
 #ifdef BTR_CUR_HASH_ADAPT
 	btr_cur_n_sea_old = btr_cur_n_sea;
-#endif /* BTR_CUR_HASH_ADAPT */
 	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
+#endif /* BTR_CUR_HASH_ADAPT */
 
 	log_refresh_stats();
 
@@ -839,20 +839,18 @@ srv_printf_innodb_monitor(
 		part->latch.rd_unlock();
 	}
 
+	/* btr_cur_n_sea_old and btr_cur_n_non_sea_old are protected by
+	srv_innodb_monitor_mutex (srv_refresh_innodb_monitor_stats) */
+	const ulint with_ahi = btr_cur_n_sea, without_ahi = btr_cur_n_non_sea;
 	fprintf(file,
 		"%.2f hash searches/s, %.2f non-hash searches/s\n",
-		static_cast<double>(btr_cur_n_sea - btr_cur_n_sea_old)
+		static_cast<double>(with_ahi - btr_cur_n_sea_old)
 		/ time_elapsed,
-		static_cast<double>(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
+		static_cast<double>(without_ahi - btr_cur_n_non_sea_old)
 		/ time_elapsed);
-	btr_cur_n_sea_old = btr_cur_n_sea;
-#else /* BTR_CUR_HASH_ADAPT */
-	fprintf(file,
-		"%.2f non-hash searches/s\n",
-		static_cast<double>(btr_cur_n_non_sea - btr_cur_n_non_sea_old)
-		/ time_elapsed);
+	btr_cur_n_sea_old = with_ahi;
+	btr_cur_n_non_sea_old = without_ahi;
 #endif /* BTR_CUR_HASH_ADAPT */
-	btr_cur_n_non_sea_old = btr_cur_n_non_sea;
 
 	fputs("---\n"
 	      "LOG\n"
@@ -968,6 +966,9 @@ srv_export_innodb_status(void)
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
+	export_vars.innodb_ahi_hit = btr_cur_n_sea;
+	export_vars.innodb_ahi_miss = btr_cur_n_non_sea;
+
 	ulint mem_adaptive_hash = 0;
 	for (ulong i = 0; i < btr_ahi_parts; i++) {
 		const auto part= &btr_search_sys.parts[i];
