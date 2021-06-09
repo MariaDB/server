@@ -4256,7 +4256,7 @@ dict_set_corrupted(
 
 	/* If this is read only mode, do not update SYS_INDEXES, just
 	mark it as corrupted in memory */
-	if (srv_read_only_mode) {
+	if (high_level_read_only) {
 		index->type |= DICT_CORRUPT;
 		goto func_exit;
 	}
