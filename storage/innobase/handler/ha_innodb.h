@@ -204,8 +204,6 @@ public:
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info) override;
 
-	inline int delete_table(const char* name, enum_sql_command sqlcom);
-
 	int truncate() override;
 
 	int delete_table(const char *name) override;
@@ -708,25 +706,8 @@ public:
 	const char* table_name() const
 	{ return(m_table_name); }
 
-	/** @return whether the table needs to be dropped on rollback */
-	bool drop_before_rollback() const { return m_drop_before_rollback; }
-
 	THD* thd() const
 	{ return(m_thd); }
-
-	/** Normalizes a table name string.
-	A normalized name consists of the database name catenated to '/' and
-	table name. An example: test/mytable. On Windows normalization puts
-	both the database name and the table name always to lower case if
-	"set_lower_case" is set to true.
-	@param[in,out]	norm_name	Buffer to return the normalized name in.
-	@param[in]	name		Table name string.
-	@param[in]	set_lower_case	True if we want to set name to lower
-					case. */
-	static void normalize_table_name_low(
-		char*           norm_name,
-		const char*     name,
-		ibool           set_lower_case);
 
 private:
 	/** Parses the table name into normal name and either temp path or
@@ -757,8 +738,6 @@ private:
 	char*		m_table_name;
 	/** Table */
 	dict_table_t*	m_table;
-	/** Whether the table needs to be dropped before rollback */
-	bool		m_drop_before_rollback;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;
@@ -860,15 +839,6 @@ innodb_base_col_setup_for_stored(
 
 /** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
-
-/** Always normalize table name to lower case on Windows */
-#ifdef _WIN32
-#define normalize_table_name(norm_name, name)           \
-	create_table_info_t::normalize_table_name_low(norm_name, name, TRUE)
-#else
-#define normalize_table_name(norm_name, name)           \
-	create_table_info_t::normalize_table_name_low(norm_name, name, FALSE)
-#endif /* _WIN32 */
 
 /** Converts a search mode flag understood by MySQL to a flag understood
 by InnoDB.

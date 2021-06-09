@@ -453,7 +453,7 @@ normalize_table_name_c_low(
 	char*		norm_name,	/*!< out: normalized name as a
 					null-terminated string */
 	const char*	name,		/*!< in: table name string */
-	ibool		set_lower_case); /*!< in: TRUE if we want to set
+	bool		set_lower_case); /*!< in: true if we want to set
 					name to lower case */
 
 /** Create a MYSQL_THD for a background thread and mark it as such.

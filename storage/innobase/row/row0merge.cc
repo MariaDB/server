@@ -3787,7 +3787,7 @@ static void row_merge_drop_fulltext_indexes(trx_t *trx, dict_table_t *table)
       return;
 
   fts_optimize_remove_table(table);
-  fts_drop_tables(trx, table);
+  fts_drop_tables(trx, *table);
   fts_free(table);
   DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
 }

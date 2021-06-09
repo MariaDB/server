@@ -20,12 +20,13 @@ DROP TABLE t;
 CREATE TABLE t1 (pk INT, a VARCHAR(8), PRIMARY KEY(pk),
 FULLTEXT KEY(a)) ENGINE=InnoDB;
 CREATE TABLE t2 (b INT, FOREIGN KEY(b) REFERENCES t1(pk)) ENGINE=InnoDB;
-DROP TABLE t1;
+DROP TABLE/*foo*/ t1;
 ERROR 23000: Cannot delete or update a parent row: a foreign key constraint fails
 SET DEBUG_DBUG="+d,fts_instrument_sync";
 INSERT INTO t1 VALUES(1, "mariadb");
 ALTER TABLE t1 FORCE;
 DROP TABLE t2, t1;
+SET SESSION debug_dbug=@saved_debug_dbug;
 #
 # MDEV-25200 Index count mismatch due to aborted FULLTEXT INDEX
 #
@@ -56,12 +57,10 @@ DROP TABLE t1;
 # MDEV-25663 Double free of transaction during TRUNCATE
 #
 call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
-SET DEBUG_DBUG='-d,ib_create_table_fail_too_many_trx';
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
-SET @save_dbug= @@debug_dbug;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
 TRUNCATE t1;
 ERROR HY000: Got error -1 "Internal error < 0 (Not system error)" from storage engine InnoDB
-SET debug_dbug=@save_dbug;
+SET debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 # End of 10.3 tests

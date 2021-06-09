@@ -159,6 +159,7 @@ dict_table_t *dict_table_t::create(const span<const char> &name,
   table->flags= static_cast<unsigned>(flags) & ((1U << DICT_TF_BITS) - 1);
   table->flags2= static_cast<unsigned>(flags2) & ((1U << DICT_TF2_BITS) - 1);
   table->name.m_name= mem_strdupl(name.data(), name.size());
+  table->mdl_name.m_name= table->name.m_name;
   table->is_system_db= dict_mem_table_is_system(table->name.m_name);
   table->space= space;
   table->space_id= space ? space->id : ULINT_UNDEFINED;
@@ -221,7 +222,6 @@ dict_mem_table_free(
 	table->referenced_set.~dict_foreign_set();
 
 	ut_free(table->name.m_name);
-	table->name.m_name = NULL;
 
 	/* Clean up virtual index info structures that are registered
 	with virtual columns */

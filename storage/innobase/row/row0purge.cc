@@ -111,8 +111,10 @@ row_purge_remove_clust_if_poss_low(
 	MDL_ticket* mdl_ticket = nullptr;
 	dict_table_t *table = nullptr;
 	pfs_os_file_t f = OS_FILE_CLOSED;
-retry:
+
 	if (table_id) {
+retry:
+		purge_sys.check_stop_FTS();
 		dict_sys.mutex_lock();
 		table = dict_table_open_on_id(
 			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
@@ -184,7 +186,7 @@ close_and_exit:
 					mdl_ticket = nullptr;
 				}
 			}
-			fil_delete_tablespace(space_id, true, &f);
+			f = fil_delete_tablespace(space_id);
 		}
 
 		mtr.commit();
@@ -739,6 +741,12 @@ void purge_sys_t::wait_SYS()
     std::this_thread::sleep_for(std::chrono::seconds(1));
 }
 
+void purge_sys_t::wait_FTS()
+{
+  while (must_wait_FTS())
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+
 /** Reset DB_TRX_ID, DB_ROLL_PTR of a clustered index record
 whose old history can no longer be observed.
 @param[in,out]	node	purge node
@@ -1034,11 +1042,13 @@ row_purge_parse_undo_rec(
 	}
 
 try_again:
+	purge_sys.check_stop_FTS();
+
 	node->table = dict_table_open_on_id(
 		table_id, false, DICT_TABLE_OP_NORMAL, node->purge_thd,
 		&node->mdl_ticket);
 
-	if (node->table == NULL || node->table->name.is_temporary()) {
+	if (!node->table) {
 		/* The table has been dropped: no need to do purge and
 		release mdl happened as a part of open process itself */
 		goto err_exit;

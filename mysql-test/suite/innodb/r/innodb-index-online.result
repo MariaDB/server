@@ -8,7 +8,6 @@ SET GLOBAL innodb_monitor_enable = module_ddl;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -27,7 +26,6 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -81,7 +79,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -99,7 +96,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -113,7 +109,6 @@ ALTER TABLE t1 ADD UNIQUE INDEX(c2);
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -163,7 +158,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR c2d_created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -175,7 +169,6 @@ ERROR 70100: Query execution was interrupted
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -243,7 +236,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR c2e_created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -283,7 +275,6 @@ ROLLBACK;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -316,7 +307,6 @@ ERROR HY000: Creating index 'c2e' required more than 'innodb_online_alter_log_ma
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -328,7 +318,6 @@ name	pos
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -338,7 +327,6 @@ ALTER TABLE t1 COMMENT 'testing if c2e will be dropped';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -363,7 +351,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR c2f_created';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -387,7 +374,6 @@ ROLLBACK;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -400,7 +386,6 @@ ALTER TABLE t1 CHANGE c2 c22f INT;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -464,7 +449,6 @@ name	pos
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -473,7 +457,6 @@ connection default;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	1
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -493,7 +476,6 @@ ALTER TABLE t1 DROP INDEX c2d, DROP INDEX c2f;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0

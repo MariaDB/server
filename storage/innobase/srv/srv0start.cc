@@ -1764,9 +1764,6 @@ file_checked:
 		    && !srv_read_only_mode) {
 			/* Drop partially created indexes. */
 			row_merge_drop_temp_indexes();
-			/* Drop garbage tables. */
-			row_mysql_drop_garbage_tables();
-
 			/* Rollback incomplete non-DDL transactions */
 			trx_rollback_is_active = true;
 			srv_thread_pool->submit_task(&rollback_all_recovered_task);
@@ -1898,10 +1895,6 @@ void srv_shutdown_bg_undo_sources()
 		ut_ad(!srv_read_only_mode);
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
-		while (row_get_background_drop_list_len_low()) {
-			srv_inc_activity_count();
-			std::this_thread::yield();
-		}
 		srv_undo_sources = false;
 	}
 }
@@ -2028,7 +2021,6 @@ void innodb_shutdown()
 
 	dict_sys.close();
 	btr_search_sys_free();
-	row_mysql_close();
 	srv_free();
 	fil_system.close();
 	pars_lexer_close();

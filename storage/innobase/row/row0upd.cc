@@ -281,21 +281,9 @@ row_upd_check_references_constraints(
 					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
 			}
 
-			if (foreign_table) {
-				foreign_table->inc_fk_checks();
-			}
-
-			/* NOTE that if the thread ends up waiting for a lock
-			we will release dict_sys.latch temporarily!
-			But the inc_fk_checks() protects foreign_table from
-			being dropped while the check is running. */
-
 			err = row_ins_check_foreign_constraint(
 				FALSE, foreign, table, entry, thr);
 
-			if (foreign_table) {
-				foreign_table->dec_fk_checks();
-			}
 			if (ref_table != NULL) {
 				dict_table_close(ref_table, FALSE, FALSE);
 			}

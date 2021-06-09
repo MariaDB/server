@@ -1090,11 +1090,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_MASTER_IDLE_LOOPS},
 
-	{"innodb_background_drop_table_usec", "server",
-	 "Time (in microseconds) spent to process drop table list",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_SRV_BACKGROUND_DROP_TABLE_MICROSECOND},
-
 	{"innodb_log_flush_usec", "server",
 	 "Time (in microseconds) spent to flush log records",
 	 MONITOR_NONE,
@@ -1188,11 +1183,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 "Number of indexes waiting to be dropped after failed index creation",
 	 MONITOR_NONE,
 	 MONITOR_DEFAULT_START, MONITOR_BACKGROUND_DROP_INDEX},
-
-	{"ddl_background_drop_tables", "ddl",
-	 "Number of tables in background drop table list",
-	 MONITOR_NONE,
-	 MONITOR_DEFAULT_START, MONITOR_BACKGROUND_DROP_TABLE},
 
 	{"ddl_online_create_index", "ddl",
 	 "Number of indexes being created online",

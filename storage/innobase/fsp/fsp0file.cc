@@ -267,20 +267,20 @@ Datafile::read_first_page(bool read_only_mode)
 			IORequestReadPartial, m_handle, m_first_page, 0,
 			page_size, &n_read);
 
-		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
-
-			page_size >>= 1;
-
-		} else if (err == DB_SUCCESS) {
-
+		if (err == DB_SUCCESS) {
 			ut_a(n_read == page_size);
-
 			break;
+		}
 
+		if (err == DB_IO_ERROR && n_read == 0) {
+			break;
+		}
+		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
+			page_size >>= 1;
 		} else if (srv_operation == SRV_OPERATION_BACKUP) {
 			break;
 		} else {
-			ib::error() << "Cannot read first page of '"
+			ib::info() << "Cannot read first page of '"
 				<< m_filepath << "': " << err;
 			break;
 		}

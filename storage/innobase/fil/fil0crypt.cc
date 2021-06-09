@@ -2312,9 +2312,6 @@ void fil_space_crypt_close_tablespace(const fil_space_t *space)
 	while (crypt_data->rotate_state.active_threads
 	       || crypt_data->rotate_state.flushing) {
 		mysql_mutex_unlock(&crypt_data->mutex);
-		/* release dict mutex so that scrub threads can release their
-		* table references */
-		dict_sys.mutex_unlock();
 
 		/* wakeup throttle (all) sleepers */
 		mysql_mutex_lock(&fil_crypt_threads_mutex);
@@ -2323,8 +2320,6 @@ void fil_space_crypt_close_tablespace(const fil_space_t *space)
 		mysql_mutex_unlock(&fil_crypt_threads_mutex);
 
 		std::this_thread::sleep_for(std::chrono::milliseconds(20));
-		dict_sys.mutex_lock();
-		mysql_mutex_lock(&crypt_data->mutex);
 
 		time_t now = time(0);
 
@@ -2339,6 +2334,8 @@ void fil_space_crypt_close_tablespace(const fil_space_t *space)
 				   << crypt_data->rotate_state.flushing << ".";
 			last = now;
 		}
+
+		mysql_mutex_lock(&crypt_data->mutex);
 	}
 
 	mysql_mutex_unlock(&crypt_data->mutex);

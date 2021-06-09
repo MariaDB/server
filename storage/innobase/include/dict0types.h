@@ -168,4 +168,7 @@ enum spatial_status_t {
 	SPATIAL_ONLY	= 3
 };
 
+#define TABLE_STATS_NAME "mysql/innodb_table_stats"
+#define INDEX_STATS_NAME "mysql/innodb_index_stats"
+
 #endif

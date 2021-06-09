@@ -93,17 +93,9 @@ SHOW WARNINGS;
 
 --echo # Verifying .frm, .par, .isl & .ibd files
 --echo ---- MYSQLD_DATADIR/test
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQLD_DATADIR/test
---replace_regex $regexp
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLTEST_VARDIR/files.txt $MYSQLTEST_VARDIR/mysql-test-data-dir/test
---replace_regex $regexp
---cat_file $MYSQLTEST_VARDIR/files.txt
---remove_file $MYSQLTEST_VARDIR/files.txt
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/test
 --echo # The ibd tablespaces should not be directly under the DATA DIRECTORY
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
@@ -122,11 +114,7 @@ ALTER TABLE t1 engine=MyISAM;
 --replace_result $MYSQLTEST_VARDIR MYSQLTEST_VARDIR
 SHOW CREATE TABLE t1;
 --echo # Verifying .frm, .par and MyISAM files (.MYD, MYI)
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQLD_DATADIR/test
---replace_regex $regexp
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
 --echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
@@ -142,21 +130,13 @@ ALTER TABLE t1 engine=InnoDB;
 SHOW CREATE TABLE t1;
 --echo # Verifying .frm, .par, .isl and InnoDB .ibd files
 --echo ---- MYSQLD_DATADIR/test
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLD_DATADIR.files.txt $MYSQLD_DATADIR/test
---replace_regex $regexp
---cat_file $MYSQLD_DATADIR.files.txt
---remove_file $MYSQLD_DATADIR.files.txt
+--list_files $MYSQLD_DATADIR/test
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-data-dir
 --echo ---- MYSQLTEST_VARDIR/mysql-test-idx-dir
 --list_files $MYSQLTEST_VARDIR/mysql-test-idx-dir
 --echo ---- MYSQLTEST_VARDIR/mysql-test-data-dir/test
---let $regexp=/#sql-ib[0-9a-f]+\.ibd\n//
---list_files_write_file $MYSQLTEST_VARDIR/files.txt $MYSQLTEST_VARDIR/mysql-test-data-dir/test
---replace_regex $regexp
---cat_file $MYSQLTEST_VARDIR/files.txt
---remove_file $MYSQLTEST_VARDIR/files.txt
+--list_files $MYSQLTEST_VARDIR/mysql-test-data-dir/test
 
 DROP TABLE t1;
 

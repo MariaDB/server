@@ -1427,6 +1427,10 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   ut_ad(!(lock.was_chosen_as_deadlock_victim & byte(~2U)));
   lock.was_chosen_as_deadlock_victim= false;
 #endif /* WITH_WSREP */
+}
+
+void trx_t::commit_cleanup()
+{
   mutex.wr_lock();
   dict_operation= false;
 
@@ -1452,16 +1456,19 @@ void trx_t::commit_low(mtr_t *mtr)
   ut_ad(!mtr == (aborted || !has_logged_or_recovered()));
   ut_ad(!mtr || !aborted);
 
-  /* undo_no is non-zero if we're doing the final commit. */
   if (fts_trx && undo_no)
   {
     ut_a(!is_autocommit_non_locking());
-    /* FTS-FIXME: Temporarily tolerate DB_DUPLICATE_KEY instead of
-    dying. This is a possible scenario if there is a crash between
+    /* MDEV-24088 FIXME: Invoke fts_commit() earlier (before possible
+    XA PREPARE), so that we will be able to return an error and rollback
+    the transaction, instead of violating consistency!
+
+    The original claim about DB_DUPLICATE KEY was:
+    This is a possible scenario if there is a crash between
     insert to DELETED table committing and transaction committing. The
     fix would be able to return error from this function */
-    if (dberr_t error= fts_commit(this))
-      ut_a(error == DB_DUPLICATE_KEY);
+    if (ut_d(dberr_t error=) fts_commit(this))
+      ut_ad(error == DB_DUPLICATE_KEY || error == DB_LOCK_WAIT_TIMEOUT);
   }
 
 #ifndef DBUG_OFF
@@ -1498,7 +1505,7 @@ void trx_t::commit_low(mtr_t *mtr)
 }
 
 
-void trx_t::commit()
+void trx_t::commit_persist()
 {
   mtr_t *mtr= nullptr;
   mtr_t local_mtr;
@@ -1510,6 +1517,15 @@ void trx_t::commit()
   }
   commit_low(mtr);
 }
+
+
+void trx_t::commit()
+{
+  commit_persist();
+  ut_d(for (const auto &p : mod_tables) ut_ad(!p.second.is_dropped()));
+  commit_cleanup();
+}
+
 
 /****************************************************************//**
 Prepares a transaction for commit/rollback. */

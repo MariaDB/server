@@ -1482,8 +1482,7 @@ os_file_rename_func(
 
 	/* New path must not exist. */
 	ut_ad(os_file_status(newpath, &exists, &type));
-	/* MDEV-25506 FIXME: Remove the strstr() */
-	ut_ad(!exists || strstr(oldpath, "/" TEMP_FILE_PREFIX_INNODB));
+	ut_ad(!exists);
 
 	/* Old path must exist. */
 	ut_ad(os_file_status(oldpath, &exists, &type));
@@ -2535,8 +2534,7 @@ os_file_rename_func(
 
 	/* New path must not exist. */
 	ut_ad(os_file_status(newpath, &exists, &type));
-	/* MDEV-25506 FIXME: Remove the strstr() */
-	ut_ad(!exists || strstr(oldpath, "/" TEMP_FILE_PREFIX_INNODB));
+	ut_ad(!exists);
 
 	/* Old path must exist. */
 	ut_ad(os_file_status(oldpath, &exists, &type));

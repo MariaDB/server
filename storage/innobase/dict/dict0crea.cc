@@ -897,17 +897,6 @@ rec_corrupted:
   return 0;
 }
 
-/** @return whether SYS_TABLES.NAME is for a '#sql-ib' table */
-bool dict_table_t::is_garbage_name(const void *data, size_t size)
-{
-  constexpr size_t suffix= sizeof TEMP_FILE_PREFIX_INNODB;
-  if (size <= suffix)
-    return false;
-  const char *f= static_cast<const char*>(memchr(data, '/', size - suffix));
-  return f && !memcmp(f + 1, TEMP_FILE_PREFIX_INNODB,
-                      (sizeof TEMP_FILE_PREFIX_INNODB) - 1);
-}
-
 /*********************************************************************//**
 Creates a table create graph.
 @return own: table create node */
@@ -1388,34 +1377,15 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
     return DB_SUCCESS;
 
   trx_t *trx= trx_create();
-  trx->dict_operation = true;
+  trx->dict_operation= true;
   row_mysql_lock_data_dictionary(trx);
 
-  DBUG_EXECUTE_IF("create_and_drop_garbage",
-                  ut_ad(DB_SUCCESS == que_eval_sql(
-                                nullptr,
-                                "PROCEDURE CREATE_GARBAGE_TABLE_PROC () IS\n"
-                                "BEGIN\n"
-                                "CREATE TABLE\n"
-                                "\"test/" TEMP_FILE_PREFIX_INNODB "-garbage\""
-                                "(ID CHAR);\n"
-                                "CREATE UNIQUE CLUSTERED INDEX PRIMARY ON "
-                                "\"test/" TEMP_FILE_PREFIX_INNODB
-                                "-garbage\"(ID);\n"
-                                "END;\n", false, trx));
-                  row_drop_table_for_mysql("test/"
-                                           TEMP_FILE_PREFIX_INNODB "-garbage",
-                                           trx, SQLCOM_DROP_DB, true););
-
   /* NOTE: when designing InnoDB's foreign key support in 2001, Heikki Tuuri
-  made a mistake defined table names and the foreign key id to be of type
-  'CHAR' (internally, really a VARCHAR).
-  The type should have been VARBINARY. */
+  made a mistake and defined table names and the foreign key id to be of type
+  CHAR (internally, really VARCHAR). The type should have been VARBINARY. */
 
+  /* System tables are always created inside the system tablespace. */
   const auto srv_file_per_table_backup= srv_file_per_table;
-
-  /* We always want SYSTEM tables to be created inside the system
-  tablespace. */
   srv_file_per_table= 0;
   dberr_t error;
   const char *tablename;

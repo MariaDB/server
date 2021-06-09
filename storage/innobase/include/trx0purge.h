@@ -138,6 +138,8 @@ private:
   Atomic_counter<uint32_t> m_paused;
   /** number of stop_SYS() calls without resume_SYS() */
   Atomic_counter<uint32_t> m_SYS_paused;
+  /** number of stop_FTS() calls without resume_FTS() */
+  Atomic_counter<uint32_t> m_FTS_paused;
 public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
@@ -243,13 +245,14 @@ public:
 
   /** @return whether the purge tasks are active */
   bool running() const;
-  /** Stop purge during FLUSH TABLES FOR EXPORT */
+  /** Stop purge during FLUSH TABLES FOR EXPORT. */
   void stop();
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
 
 private:
   void wait_SYS();
+  void wait_FTS();
 public:
   /** Suspend purge in data dictionary tables */
   void stop_SYS();
@@ -259,6 +262,15 @@ public:
   bool must_wait_SYS() const { return m_SYS_paused; }
   /** check stop_SYS() */
   void check_stop_SYS() { if (must_wait_SYS()) wait_SYS(); }
+
+  /** Pause purge during a DDL operation that could drop FTS_ tables. */
+  void stop_FTS() { m_FTS_paused++; }
+  /** Resume purge after stop_FTS(). */
+  void resume_FTS() { ut_d(const auto p=) m_FTS_paused--; ut_ad(p); }
+  /** @return whether stop_SYS() is in effect */
+  bool must_wait_FTS() const { return m_FTS_paused; }
+  /** check stop_SYS() */
+  void check_stop_FTS() { if (must_wait_FTS()) wait_FTS(); }
 
   /** A wrapper around ReadView::changes_visible(). */
   bool changes_visible(trx_id_t id, const table_name_t &name) const

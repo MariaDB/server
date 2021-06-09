@@ -1265,19 +1265,16 @@ lock_rec_enqueue_waiting(
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(trx->mutex_is_owner());
 
-	if (UNIV_UNLIKELY(trx->dict_operation)) {
-		ib::error() << "A record lock wait happens in a dictionary"
-			" operation. index "
-			<< index->name
-			<< " of table "
-			<< index->table->name
-			<< ". " << BUG_REPORT_MSG;
-		ut_ad(0);
+	if (UNIV_UNLIKELY(trx->dict_operation_lock_mode == RW_X_LATCH)) {
+		ut_ad(!strcmp(index->table->name.m_name, TABLE_STATS_NAME)
+		      || !strcmp(index->table->name.m_name, INDEX_STATS_NAME));
+instant_timeout:
+		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+		return DB_LOCK_WAIT_TIMEOUT;
 	}
 
 	if (trx->mysql_thd && thd_lock_wait_timeout(trx->mysql_thd) == 0) {
-		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
-		return DB_LOCK_WAIT_TIMEOUT;
+		goto instant_timeout;
 	}
 
 	/* Enqueue the lock request that will wait to be granted, note that
@@ -3314,11 +3311,11 @@ lock_table_enqueue_waiting(
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(trx->mutex_is_owner());
 
-	if (UNIV_UNLIKELY(trx->dict_operation)) {
-		ib::error() << "A table lock wait happens in a dictionary"
-			" operation. Table " << table->name
-			<< ". " << BUG_REPORT_MSG;
-		ut_ad(0);
+	if (UNIV_UNLIKELY(trx->dict_operation_lock_mode == RW_X_LATCH)) {
+		ut_ad(!strcmp(table->name.m_name, TABLE_STATS_NAME)
+		      || !strcmp(table->name.m_name, INDEX_STATS_NAME));
+		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+		return DB_LOCK_WAIT_TIMEOUT;
 	}
 
 #ifdef WITH_WSREP

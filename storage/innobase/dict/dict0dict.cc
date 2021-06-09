@@ -716,18 +716,18 @@ bool dict_table_t::parse_name(char (&db_name)[NAME_LEN + 1],
   const size_t db_len= name.dblen();
   ut_ad(db_len <= MAX_DATABASE_NAME_LEN);
 
-  memcpy(db_buf, name.m_name, db_len);
+  memcpy(db_buf, mdl_name.m_name, db_len);
   db_buf[db_len]= 0;
 
-  size_t tbl_len= strlen(name.m_name + db_len + 1);
-  const bool is_temp= name.is_temporary();
+  size_t tbl_len= strlen(mdl_name.m_name + db_len + 1);
+  const bool is_temp= mdl_name.is_temporary();
 
   if (is_temp);
   else if (const char *is_part= static_cast<const char*>
-           (memchr(name.m_name + db_len + 1, '#', tbl_len)))
-    tbl_len= static_cast<size_t>(is_part - &name.m_name[db_len + 1]);
+           (memchr(mdl_name.m_name + db_len + 1, '#', tbl_len)))
+    tbl_len= static_cast<size_t>(is_part - &mdl_name.m_name[db_len + 1]);
 
-  memcpy(tbl_buf, name.m_name + db_len + 1, tbl_len);
+  memcpy(tbl_buf, mdl_name.m_name + db_len + 1, tbl_len);
   tbl_buf[tbl_len]= 0;
 
   if (!dict_locked)
@@ -1019,13 +1019,13 @@ void dict_sys_t::create()
 
 
 /** Acquire a reference to a cached table. */
-inline void dict_sys_t::acquire(dict_table_t* table)
+inline void dict_sys_t::acquire(dict_table_t *table)
 {
   ut_ad(dict_sys.find(table));
   if (table->can_be_evicted)
   {
-    UT_LIST_REMOVE(dict_sys.table_LRU, table);
-    UT_LIST_ADD_FIRST(dict_sys.table_LRU, table);
+    UT_LIST_REMOVE(table_LRU, table);
+    UT_LIST_ADD_FIRST(table_LRU, table);
   }
 
   table->acquire();
@@ -1490,25 +1490,7 @@ dict_table_t::rename_tablespace(const char *new_name, bool replace) const
   ut_ad(!is_temporary());
 
   if (!space)
-  {
-    const char *data_dir= DICT_TF_HAS_DATA_DIR(flags)
-      ? data_dir_path : nullptr;
-    ut_ad(data_dir || !DICT_TF_HAS_DATA_DIR(flags));
-
-    if (char *filepath= fil_make_filepath(data_dir, name, IBD,
-                                          data_dir != nullptr))
-    {
-      fil_delete_tablespace(space_id, true);
-      os_file_type_t ftype;
-      bool exists;
-      /* Delete any temp file hanging around. */
-      if (os_file_status(filepath, &exists, &ftype) && exists &&
-          !os_file_delete_if_exists(innodb_temp_file_key, filepath, nullptr))
-        ib::info() << "Delete of " << filepath << " failed.";
-      ut_free(filepath);
-    }
     return DB_SUCCESS;
-  }
 
   const char *old_path= UT_LIST_GET_FIRST(space->chain)->name;
   fil_space_t::name_type space_name{new_name, strlen(new_name)};
@@ -1594,16 +1576,32 @@ dict_table_rename_in_cache(
 	HASH_DELETE(dict_table_t, name_hash, &dict_sys.table_hash,
 		    ut_fold_string(old_name), table);
 
-	if (strlen(new_name) > strlen(table->name.m_name)) {
+	const bool keep_mdl_name = dict_table_t::is_temporary_name(new_name)
+		&& !table->name.is_temporary();
+
+	if (keep_mdl_name) {
+		/* Preserve the original table name for
+		dict_table_t::parse_name() and dict_acquire_mdl_shared(). */
+		table->mdl_name.m_name = mem_heap_strdup(table->heap,
+							 table->name.m_name);
+	}
+
+	const size_t new_len = strlen(new_name);
+
+	if (new_len > strlen(table->name.m_name)) {
 		/* We allocate MAX_FULL_NAME_LEN + 1 bytes here to avoid
 		memory fragmentation, we assume a repeated calls of
 		ut_realloc() with the same size do not cause fragmentation */
-		ut_a(strlen(new_name) <= MAX_FULL_NAME_LEN);
+		ut_a(new_len <= MAX_FULL_NAME_LEN);
 
 		table->name.m_name = static_cast<char*>(
 			ut_realloc(table->name.m_name, MAX_FULL_NAME_LEN + 1));
 	}
 	strcpy(table->name.m_name, new_name);
+
+	if (!keep_mdl_name) {
+		table->mdl_name.m_name = table->name.m_name;
+	}
 
 	/* Add table to hash table of tables */
 	HASH_INSERT(dict_table_t, name_hash, &dict_sys.table_hash, fold,
@@ -2065,9 +2063,6 @@ dict_index_add_to_cache(
 	new_index->trx_id = index->trx_id;
 	new_index->set_committed(index->is_committed());
 	new_index->nulls_equal = index->nulls_equal;
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	new_index->disable_ahi = index->disable_ahi;
-#endif
 
 	n_ord = new_index->n_uniq;
 	/* Flag the ordering columns and also set column max_prefix */
