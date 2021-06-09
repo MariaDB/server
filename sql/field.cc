@@ -1891,8 +1891,7 @@ void Field::copy_from_tmp(int row_offset)
 
 bool Field::send(Protocol *protocol)
 {
-  char buff[MAX_FIELD_WIDTH];
-  String tmp(buff,sizeof(buff),charset());
+  StringBuffer<MAX_FIELD_WIDTH> tmp(charset());
   val_str(&tmp);
   return protocol->store(tmp.ptr(), tmp.length(), tmp.charset());
 }
@@ -9401,8 +9400,7 @@ String *Field_set::val_str(String *val_buffer,
     {
       if (val_buffer->length())
 	val_buffer->append(&field_separator, 1, &my_charset_latin1);
-      String str(typelib->type_names[bitnr],
-		 typelib->type_lengths[bitnr],
+      String str(typelib->type_names[bitnr], typelib->type_lengths[bitnr],
 		 field_charset());
       val_buffer->append(str);
     }

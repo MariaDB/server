@@ -5002,8 +5002,7 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
   /* Allocate query. */
 
   if (expanded_query->length() &&
-      alloc_query(thd, (char*) expanded_query->ptr(),
-                  expanded_query->length()))
+      alloc_query(thd, expanded_query->ptr(), expanded_query->length()))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), expanded_query->length());
     goto error;
@@ -5040,12 +5039,9 @@ bool Prepared_statement::execute(String *expanded_query, bool open_cursor)
     if (query_cache_send_result_to_client(thd, thd->query(),
                                           thd->query_length()) <= 0)
     {
-      MYSQL_QUERY_EXEC_START(thd->query(),
-                             thd->thread_id,
-                             thd->get_db(),
+      MYSQL_QUERY_EXEC_START(thd->query(), thd->thread_id, thd->get_db(),
                              &thd->security_ctx->priv_user[0],
-                             (char *) thd->security_ctx->host_or_ip,
-                             1);
+                             (char *) thd->security_ctx->host_or_ip, 1);
       error= mysql_execute_command(thd);
       MYSQL_QUERY_EXEC_DONE(error);
     }

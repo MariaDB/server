@@ -4805,14 +4805,11 @@ private:
 class Field_set final :public Field_enum {
 public:
   Field_set(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-	    uchar null_bit_arg,
-	    enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	    uint32 packlength_arg,
+	    uchar null_bit_arg, enum utype unireg_check_arg,
+            const LEX_CSTRING *field_name_arg, uint32 packlength_arg,
 	    const TYPELIB *typelib_arg, const DTCollation &collation)
-    :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-		    unireg_check_arg, field_name_arg,
-                packlength_arg,
-                typelib_arg, collation),
+    :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
+                field_name_arg, packlength_arg, typelib_arg, collation),
       empty_set_string("", 0, collation.collation)
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;

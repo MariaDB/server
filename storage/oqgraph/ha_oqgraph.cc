@@ -80,6 +80,8 @@ static my_bool g_allow_create_integer_latch = FALSE;
 
 using namespace open_query;
 
+static const LEX_CSTRING empty_lex_cstring= {"", 0};
+
 // Table of varchar latch operations.
 // In the future this needs to be refactactored to live somewhere else
 struct oqgraph_latch_op_table { const char *key; int latch; };
@@ -623,7 +625,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   }
 
   if (enum open_frm_error err= open_table_from_share(thd, share,
-                                                     &empty_clex_str,
+                                                     &empty_lex_cstring,
                             (uint) (HA_OPEN_KEYFILE | HA_TRY_READ_ONLY),
                             EXTRA_RECORD,
                             thd->open_options, edges, FALSE))
