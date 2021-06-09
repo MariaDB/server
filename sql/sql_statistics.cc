@@ -178,7 +178,7 @@ TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
   },
   {
     { STRING_WITH_LEN("hist_type") },
-    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')") },
+    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON')") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
@@ -1070,8 +1070,12 @@ public:
           stat_field->store(stats->histogram.get_type() + 1);
           break;
         case COLUMN_STAT_HISTOGRAM:
-	  stat_field->store((char *)stats->histogram.get_values(),
-                            stats->histogram.get_size(), &my_charset_bin);
+          if (stats->histogram.get_type() == JSON) {
+            stat_field->store((char *) "hello_world", 11, &my_charset_bin);
+          } else {
+            stat_field->store((char *) stats->histogram.get_values(),
+                              stats->histogram.get_size(), &my_charset_bin);
+          }
           break;           
         }
       }
