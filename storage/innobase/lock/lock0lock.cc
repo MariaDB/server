@@ -1650,8 +1650,10 @@ func_exit:
       lock_sys.wr_unlock();
       return;
     }
+    ut_ad(wait_lock->is_waiting());
   }
-  ut_ad(wait_lock->is_waiting());
+  else if (!wait_lock->is_waiting())
+    goto func_exit;
   ut_ad(!(wait_lock->type_mode & LOCK_AUTO_INC));
 
   if (wait_lock->is_table())
