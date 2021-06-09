@@ -836,9 +836,9 @@ int set_var::light_check(THD *thd)
     my_error(err, MYF(0), var->name.str);
     return -1;
   }
-  if (type == OPT_GLOBAL &&
-      check_global_access(thd, PRIV_SET_GLOBAL_SYSTEM_VARIABLE))
-    return 1;
+
+  if (type == OPT_GLOBAL && var->on_check_access_global(thd))
+      return 1;
 
   if (value && value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
