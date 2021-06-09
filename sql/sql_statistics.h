@@ -42,7 +42,8 @@ typedef
 enum enum_histogram_type
 {
   SINGLE_PREC_HB,
-  DOUBLE_PREC_HB
+  DOUBLE_PREC_HB,
+  JSON
 } Histogram_type;
 
 enum enum_stat_tables
@@ -154,6 +155,7 @@ private:
     case SINGLE_PREC_HB:
       return ((uint) (1 << 8) - 1);
     case DOUBLE_PREC_HB:
+    case JSON:
       return ((uint) (1 << 16) - 1);
     }
     return 1;
@@ -166,6 +168,7 @@ public:
     case SINGLE_PREC_HB:
       return size;
     case DOUBLE_PREC_HB:
+    case JSON:
       return size / 2;
     }
     return 0;
@@ -179,6 +182,7 @@ private:
     case SINGLE_PREC_HB:
       return (uint) (((uint8 *) values)[i]);
     case DOUBLE_PREC_HB:
+    case JSON:
       return (uint) uint2korr(values + i * 2);
     }
     return 0;
@@ -253,7 +257,8 @@ public:
   void set_value(uint i, double val)
   {
     switch (type) {
-    case SINGLE_PREC_HB:   
+    case SINGLE_PREC_HB:
+    case JSON:
       ((uint8 *) values)[i]= (uint8) (val * prec_factor());
       return;
     case DOUBLE_PREC_HB:
@@ -265,7 +270,8 @@ public:
   void set_prev_value(uint i)
   {
     switch (type) {
-    case SINGLE_PREC_HB:   
+    case SINGLE_PREC_HB:
+    case JSON:
       ((uint8 *) values)[i]= ((uint8 *) values)[i-1];
       return;
     case DOUBLE_PREC_HB:

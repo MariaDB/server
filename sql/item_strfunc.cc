@@ -503,7 +503,7 @@ err:
 
 
 const char *histogram_types[] =
-           {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
+    {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", "JSON", 0};
 static TYPELIB histogram_types_typelib=
   { array_elements(histogram_types),
     "histogram_types",
