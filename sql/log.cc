@@ -10097,9 +10097,10 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
   old_size= s.st_size;
   clear_inuse_flag_when_closing(file);
   /* Change binlog file size to truncate_pos */
-  if ((error=
-       mysql_file_chsize(file, pos, 0, MYF(MY_WME))) ||
-      (error= mysql_file_sync(file, MYF(MY_WME|MY_SYNC_FILESIZE))))
+  error= mysql_file_chsize(file, pos, 0, MYF(MY_WME));
+  if (!error)
+    error= mysql_file_sync(file, MYF(MY_WME|MY_SYNC_FILESIZE));
+  if (error)
   {
     sql_print_error("Failed to truncate the "
                     "binlog file:%s to size:%llu. Error:%d",
@@ -10115,8 +10116,7 @@ bool MYSQL_BIN_LOG::truncate_and_remove_binlogs(const char *file_name,
                           "to pos:%llu to remove transactions starting from "
                           "GTID %u-%u-%s",
                           file_name, old_size, pos,
-                          ptr_gtid->domain_id, ptr_gtid->server_id, buf,
-                          old_size);
+                          ptr_gtid->domain_id, ptr_gtid->server_id, buf);
   }
 
 end:
