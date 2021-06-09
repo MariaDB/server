@@ -10,6 +10,7 @@
 #                  
 ############################################################################
 
+--disable_ps_protocol
 --source include/default_charset.inc
 set sql_mode="";
 
@@ -29547,3 +29548,4 @@ DROP TABLE IF EXISTS res_t1;
 let $message= .                               +++ END OF SCRIPT +++;
 --source include/show_msg80.inc
 # ==============================================================================
+--enable_ps_protocol
