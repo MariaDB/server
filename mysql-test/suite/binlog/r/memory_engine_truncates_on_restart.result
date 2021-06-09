@@ -1,0 +1,44 @@
+include/master-slave.inc
+[connection master]
+reset master;
+create table t (val int) engine=MEMORY;
+# DELETE trigger should never be activated
+create trigger tr after delete on t for each row update t2 set val = 1;
+insert into t values (1),(2);
+connection slave;
+#
+# Check pre-restart values
+#
+connection master;
+select * from t;
+val
+1
+2
+connection slave;
+select * from t;
+val
+1
+2
+connection master;
+#
+# Restart server should empty master and slave `t`
+#
+include/rpl_restart_server.inc [server_number=1]
+insert into t values (3),(4);
+connection slave;
+#
+# Validate values after restart do not include those inserted previously
+#
+connection master;
+select * from t;
+val
+3
+4
+connection slave;
+select * from t;
+val
+3
+4
+connection master;
+drop table t;
+include/rpl_end.inc

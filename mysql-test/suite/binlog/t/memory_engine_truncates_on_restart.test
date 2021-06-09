@@ -1,0 +1,44 @@
+--source include/master-slave.inc
+
+reset master;
+
+create table t (val int) engine=MEMORY;
+
+-- echo # DELETE trigger should never be activated
+create trigger tr after delete on t for each row update t2 set val = 1;
+
+insert into t values (1),(2);
+
+--sync_slave_with_master
+
+-- echo #
+-- echo # Check pre-restart values
+-- echo #
+--connection master
+select * from t;
+--connection slave
+select * from t;
+
+--connection master
+-- echo #
+-- echo # Restart server should empty master and slave `t`
+-- echo #
+--let $rpl_server_number= 1
+--source include/rpl_restart_server.inc
+
+insert into t values (3),(4);
+
+--sync_slave_with_master
+
+-- echo #
+-- echo # Validate values after restart do not include those inserted previously
+-- echo #
+--connection master
+select * from t;
+--connection slave
+select * from t;
+
+# Cleanup
+--connection master
+drop table t;
+--source include/rpl_end.inc
