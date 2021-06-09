@@ -597,6 +597,8 @@ static struct
     lsn_t lsn;
     /** File name from the FILE_ record */
     std::string file_name;
+    /** whether a FILE_DELETE record was encountered */
+    mutable bool deleted;
   };
 
   using map= std::map<const uint32_t, item, std::less<const uint32_t>,
@@ -638,11 +640,39 @@ static struct
 
     char *fil_path= fil_make_filepath(nullptr, {filename, strlen(filename)},
                                       IBD, false);
-    const item defer= {lsn, fil_path};
-    auto p= defers.emplace(space, defer);
-    if (!p.second && p.first->second.lsn <= defer.lsn)
-      p.first->second= defer;
+    const item defer{lsn, fil_path, false};
     ut_free(fil_path);
+
+    /* The file name must be unique. Keep the one with the latest LSN. */
+    auto d= defers.begin();
+
+    while (d != defers.end())
+    {
+      if (d->second.file_name != defer.file_name)
+        ++d;
+      else if (d->first == space)
+      {
+        /* Neither the file name nor the tablespace ID changed.
+        Update the LSN if needed. */
+        if (d->second.lsn < lsn)
+          d->second.lsn= lsn;
+        return;
+      }
+      else if (d->second.lsn < lsn)
+        defers.erase(d++);
+      else
+      {
+        ut_ad(d->second.lsn != lsn);
+        return; /* A later tablespace already has this name. */
+      }
+    }
+
+    auto p= defers.emplace(space, defer);
+    if (!p.second && p.first->second.lsn <= lsn)
+    {
+      p.first->second.lsn= lsn;
+      p.first->second.file_name= defer.file_name;
+    }
   }
 
   void remove(uint32_t space)
@@ -684,20 +714,42 @@ retry:
       const uint32_t space_id{d->first};
       recv_sys_t::map::iterator p{recv_sys.pages.lower_bound({space_id,0})};
 
-      if (p == recv_sys.pages.end() || p->first.space() != space_id)
+      if (d->second.deleted ||
+          p == recv_sys.pages.end() || p->first.space() != space_id)
       {
-        /* No pages were recovered. We create a dummy tablespace,
-        and let dict_drop_index_tree() delete the file. */
+        /* We found a FILE_DELETE record for the tablespace, or
+        there were no buffered records. Either way, we must create a
+        dummy tablespace with the latest known name,
+        for dict_drop_index_tree(). */
+        while (p != recv_sys.pages.end() && p->first.space() == space_id)
+        {
+          recv_sys_t::map::iterator r= p++;
+          r->second.log.clear();
+          recv_sys.pages.erase(r);
+        }
         recv_spaces_t::iterator it{recv_spaces.find(space_id)};
         if (it != recv_spaces.end())
-          create(it, d->second.file_name, static_cast<uint32_t>
+        {
+          const std::string *name= &d->second.file_name;
+          if (d->second.deleted)
+          {
+            const auto r= renamed_spaces.find(space_id);
+            if (r != renamed_spaces.end())
+              name= &r->second;
+            bool exists;
+            os_file_type_t ftype;
+            if (!os_file_status(name->c_str(), &exists, &ftype) || !exists)
+              goto processed;
+          }
+          create(it, *name, static_cast<uint32_t>
                  (1U << FSP_FLAGS_FCRC32_POS_MARKER |
-                 FSP_FLAGS_FCRC32_PAGE_SSIZE()), nullptr, 0);
+                  FSP_FLAGS_FCRC32_PAGE_SSIZE()), nullptr, 0);
+        }
       }
       else
         fail= recv_sys.recover_deferred(p, d->second.file_name, free_block);
-      auto e= d++;
-      defers.erase(e);
+processed:
+      defers.erase(d++);
       if (fail)
         break;
       if (free_block)
@@ -791,11 +843,13 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
         space->release();
         return false;
       }
+      goto fail;
     }
 
     block->unfix();
   }
 
+fail:
   ib::error() << "Cannot apply log to " << first
               << " of corrupted file '" << name << "'";
   return true;
@@ -1034,9 +1088,11 @@ fil_name_process(char* name, ulint len, ulint space_id,
 
 	if (deleted) {
 		/* Got FILE_DELETE */
+		if (auto d = deferred_spaces.find(static_cast<uint32_t>(
+							  space_id))) {
+			d->deleted = true;
+		}
 
-		deferred_spaces.remove(
-			static_cast<uint32_t>(space_id));
 		if (!p.second && f.status != file_name_t::DELETED) {
 			f.status = file_name_t::DELETED;
 			if (f.space != NULL) {
@@ -2988,10 +3044,10 @@ void recv_sys_t::apply(bool last_batch)
       auto d= deferred_spaces.defers.find(space_id);
       if (d != deferred_spaces.defers.end())
       {
-        if (recover_deferred(p, d->second.file_name, free_block))
+        if (d->second.deleted)
         {
-          if (!srv_force_recovery)
-            set_corrupt_fs();
+          /* For deleted files we must preserve the entry in deferred_spaces */
+erase_for_space:
           while (p != pages.end() && p->first.space() == space_id)
           {
             map::iterator r= p++;
@@ -2999,7 +3055,15 @@ void recv_sys_t::apply(bool last_batch)
             pages.erase(r);
           }
         }
-        deferred_spaces.defers.erase(d);
+        else if (recover_deferred(p, d->second.file_name, free_block))
+        {
+          if (!srv_force_recovery)
+            set_corrupt_fs();
+          deferred_spaces.defers.erase(d);
+          goto erase_for_space;
+        }
+        else
+          deferred_spaces.defers.erase(d);
         if (!free_block)
           goto next_free_block;
         p= pages.lower_bound(page_id);
@@ -3685,12 +3749,16 @@ static dberr_t recv_rename_files()
 
   dberr_t err= DB_SUCCESS;
 
-  for (const auto &r : renamed_spaces)
+  for (auto i= renamed_spaces.begin(); i != renamed_spaces.end(); )
   {
+    const auto &r= *i;
     const uint32_t id= r.first;
     fil_space_t *space= fil_space_t::get(id);
     if (!space)
+    {
+      i++;
       continue;
+    }
     ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
     char *old= space->chain.start->name;
     if (r.second != old)
@@ -3743,8 +3811,8 @@ done:
       recv_sys.set_corrupt_fs();
       break;
     }
+    renamed_spaces.erase(i++);
   }
-  renamed_spaces.clear();
   return err;
 }
 
