@@ -697,6 +697,10 @@ void srv_master_thread_enable();
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
+#ifdef BTR_CUR_HASH_ADAPT
+	ulint innodb_ahi_hit;
+	ulint innodb_ahi_miss;
+#endif /* BTR_CUR_HASH_ADAPT */
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */

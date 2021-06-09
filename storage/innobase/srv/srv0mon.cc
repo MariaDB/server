@@ -959,7 +959,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 static_cast<monitor_type_t>(
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_SEARCH},
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	{"adaptive_hash_searches_btree", "adaptive_hash_index",
 	 "Number of searches using B-tree on an index search",
@@ -967,7 +966,6 @@ static monitor_info_t	innodb_counter_info[] =
 	 MONITOR_EXISTING | MONITOR_DEFAULT_ON),
 	 MONITOR_DEFAULT_START, MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE},
 
-#ifdef BTR_CUR_HASH_ADAPT
 	{"adaptive_hash_pages_added", "adaptive_hash_index",
 	 "Number of index pages on which the Adaptive Hash Index is built",
 	 MONITOR_NONE,
@@ -1819,11 +1817,11 @@ srv_mon_process_existing_counter(
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH:
 		value = btr_cur_n_sea;
 		break;
-#endif /* BTR_CUR_HASH_ADAPT */
 
 	case MONITOR_OVLD_ADAPTIVE_HASH_SEARCH_BTREE:
 		value = btr_cur_n_non_sea;
 		break;
+#endif /* BTR_CUR_HASH_ADAPT */
 
         case MONITOR_OVLD_PAGE_COMPRESS_SAVED:
 		value = srv_stats.page_compression_saved;
