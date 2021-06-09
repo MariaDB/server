@@ -8073,6 +8073,12 @@ err_exit:
 		== ALTER_OPTIONS
 		&& !alter_options_need_rebuild(ha_alter_info, table))) {
 
+		DBUG_ASSERT(!m_prebuilt->trx->dict_operation_lock_mode);
+		if (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
+			online_retry_drop_indexes(m_prebuilt->table,
+						  m_user_thd);
+		}
+
 		if (heap) {
 			ha_alter_info->handler_ctx
 				= new ha_innobase_inplace_ctx(
@@ -8087,14 +8093,6 @@ err_exit:
 					 || !thd_is_strict_mode(m_user_thd)),
 					alt_opt.page_compressed,
 					alt_opt.page_compression_level);
-		}
-
-		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
-		if (ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE)) {
-
-			online_retry_drop_indexes(
-				m_prebuilt->table, m_user_thd);
-
 		}
 
 		if ((ha_alter_info->handler_flags
@@ -11119,7 +11117,22 @@ ha_innobase::commit_inplace_alter_table(
 
 		ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 		ut_ad(!new_clustered || trx->has_logged());
+		/* The SQL layer recovery of ALTER TABLE will invoke
+		innodb_check_version() to know whether our trx->id, which we
+		reported via ha_innobase::table_version() after
+		ha_innobase::prepare_inplace_alter_table(), was committed.
 
+		If this trx was committed (the log write below completed),
+		we will be able to recover our trx->id to
+		dict_table_t::def_trx_id from the data dictionary tables.
+
+		For this logic to work, purge_sys.stop_SYS() and
+		purge_sys.resume_SYS() will ensure that the DB_TRX_ID that we
+		wrote to the SYS_ tables will be preserved until the SQL layer
+		has durably marked the ALTER TABLE operation as completed.
+
+		During recovery, the purge of InnoDB transaction history will
+		not start until innodb_ddl_recovery_done(). */
 		ha_alter_info->inplace_alter_table_committed =
 			purge_sys.resume_SYS;
 		purge_sys.stop_SYS();
