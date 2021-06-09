@@ -68,6 +68,8 @@ cleanup_joiner()
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         wsrep_cleanup_progress_file
     fi
+
+    [ -f "$SST_PID" ] && rm -f "$SST_PID"
 }
 
 check_pid_and_port()
@@ -281,6 +283,7 @@ then
     *)
         wsrep_log_error "Unrecognized ssl-mode option: '$SSLMODE'"
         exit 22 # EINVAL
+        ;;
     esac
     if [ -z "$CAFILE_OPT" ]; then
         wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file"
@@ -499,6 +502,21 @@ elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
 then
     check_sockets_utils
 
+    SST_PID="$WSREP_SST_OPT_DATA/wsrep_rsync_sst.pid"
+
+    # give some time for lingering stunnel from previous SST to complete
+    check_round=0
+    while check_pid "$SST_PID" 0
+    do
+        wsrep_log_info "previous SST not completed, waiting for it to exit"
+        check_round=$(( check_round + 1 ))
+        if [ $check_round -eq 10 ]; then
+            wsrep_log_error "SST script already running."
+            exit 114 # EALREADY
+        fi
+        sleep 1
+    done
+
     # give some time for lingering stunnel from previous SST to complete
     check_round=0
     while check_pid "$STUNNEL_PID" 1
@@ -583,12 +601,14 @@ EOF
         RSYNC_ADDR="*"
     fi
 
+    echo $$ > "$SST_PID"
+
     if [ -z "$STUNNEL" ]
     then
         rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" $RSYNC_EXTRA_ARGS &
         RSYNC_REAL_PID=$!
-        TRANSFER_REAL_PID="$RSYNC_REAL_PID"
-        TRANSFER_PID=$RSYNC_PID
+        TRANSFER_REAL_PID=$RSYNC_REAL_PID
+        TRANSFER_PID="$RSYNC_PID"
     else
         # Let's check if the path to the config file contains a space?
         if [ "${RSYNC_CONF#* }" = "$RSYNC_CONF" ]; then
@@ -631,8 +651,8 @@ EOF
         fi
         stunnel "$STUNNEL_CONF" &
         STUNNEL_REAL_PID=$!
-        TRANSFER_REAL_PID="$STUNNEL_REAL_PID"
-        TRANSFER_PID=$STUNNEL_PID
+        TRANSFER_REAL_PID=$STUNNEL_REAL_PID
+        TRANSFER_PID="$STUNNEL_PID"
     fi
 
     if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]

@@ -1190,7 +1190,6 @@ trim_string()
 check_pid()
 {
     local pid_file="$1"
-    local remove=${2:-0}
     if [ -r "$pid_file" ]; then
         local pid=$(cat "$pid_file" 2>/dev/null)
         if [ -n "$pid" ]; then
@@ -1201,6 +1200,7 @@ check_pid()
                 fi
             fi
         fi
+        local remove=${2:-0}
         if [ $remove -eq 1 ]; then
             rm -f "$pid_file"
         fi
