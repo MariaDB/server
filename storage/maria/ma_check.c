@@ -3417,6 +3417,9 @@ static my_bool maria_zerofill_index(HA_CHECK *param, MARIA_HA *info,
   my_bool zero_lsn= (share->base.born_transactional &&
                      !(param->testflag & T_ZEROFILL_KEEP_LSN));
   int error= 1;
+  enum pagecache_page_type page_type= (share->base.born_transactional ?
+                                       PAGECACHE_LSN_PAGE :
+                                       PAGECACHE_PLAIN_PAGE);
   DBUG_ENTER("maria_zerofill_index");
 
   if (!(param->testflag & T_SILENT))
@@ -3431,7 +3434,7 @@ static my_bool maria_zerofill_index(HA_CHECK *param, MARIA_HA *info,
     if (!(buff= pagecache_read(share->pagecache,
                                &share->kfile, page,
                                DFLT_INIT_HITS, 0,
-                               PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
+                               page_type, PAGECACHE_LOCK_WRITE,
                                &page_link.link)))
     {
       pagecache_unlock_by_link(share->pagecache, page_link.link,
@@ -3508,6 +3511,9 @@ static my_bool maria_zerofill_data(HA_CHECK *param, MARIA_HA *info,
   uint block_size= share->block_size;
   MARIA_FILE_BITMAP *bitmap= &share->bitmap;
   my_bool zero_lsn= !(param->testflag & T_ZEROFILL_KEEP_LSN), error;
+  enum pagecache_page_type read_page_type= (share->base.born_transactional ?
+                                            PAGECACHE_LSN_PAGE :
+                                            PAGECACHE_PLAIN_PAGE);
   DBUG_ENTER("maria_zerofill_data");
 
   /* This works only with BLOCK_RECORD files */
@@ -3531,7 +3537,7 @@ static my_bool maria_zerofill_data(HA_CHECK *param, MARIA_HA *info,
     if (!(buff= pagecache_read(share->pagecache,
                                &info->dfile,
                                page, 1, 0,
-                               PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
+                               read_page_type, PAGECACHE_LOCK_WRITE,
                                &page_link.link)))
     {
       _ma_check_print_error(param,

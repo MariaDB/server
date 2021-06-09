@@ -28,3 +28,16 @@ SELECT * FROM INFORMATION_SCHEMA.TABLES;
 SELECT * FROM t1;
 UNLOCK TABLES;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-23824 SIGSEGV in end_io_cache on REPAIR LOCAL TABLE for Aria table
+--echo #
+
+CREATE TABLE t1 (i INT) ENGINE=Aria;
+INSERT INTO t1 VALUES (1);
+SET max_session_mem_used=50000;
+--disable_result_log
+REPAIR LOCAL TABLE t1 USE_FRM;
+REPAIR LOCAL TABLE t1;
+--enable_result_log
+DROP TABLE t1;
