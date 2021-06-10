@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2014, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -96,8 +96,6 @@ struct trx_t;
 struct trx_lock_t;
 /** Transaction system */
 struct trx_sys_t;
-/** Signal */
-struct trx_sig_t;
 /** Rollback segment */
 struct trx_rseg_t;
 /** Transaction undo log */
