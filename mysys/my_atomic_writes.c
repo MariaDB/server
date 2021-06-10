@@ -269,7 +269,7 @@ static my_bool shannon_has_atomic_write(File file, int page_size)
 
 /**
   Threshold for logical_space / physical_space
-  No less than the threshold means we can disable hole punch
+  No less than the threshold means we can disable hole punching
 */
 #define SFX_DISABLE_PUNCH_HOLE_RATIO (2)
 
