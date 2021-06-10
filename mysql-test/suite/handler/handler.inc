@@ -1293,6 +1293,7 @@ DROP TABLE IF EXISTS t1, t2;
 DROP FUNCTION IF EXISTS f1;
 --enable_warnings
 
+--enable_prepare_warnings
 delimiter |;
 CREATE FUNCTION f1() RETURNS INTEGER
 BEGIN
@@ -1300,6 +1301,7 @@ BEGIN
   RETURN 1;
 END|
 delimiter ;|
+--disable_prepare_warnings
 
 # Get f1() parsed and cached
 --error ER_NO_SUCH_TABLE

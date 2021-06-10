@@ -14,6 +14,8 @@ create or replace table t1 (
   period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning;
 
+--enable_prepare_warnings
+
 --echo # No history inside the transaction
 start transaction;
 insert into t1 (x) values (1);
@@ -502,3 +504,5 @@ alter table t add `row_start` bigint unsigned as row start,
 
 
 create or replace database test;
+
+--disable_prepare_warnings

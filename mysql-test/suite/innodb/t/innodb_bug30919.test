@@ -22,6 +22,8 @@ eval CREATE TABLE test.part_tbl(id MEDIUMINT NOT NULL AUTO_INCREMENT,
 
 ######## Create SPs, Functions, Views and Triggers Section ##############
 
+--enable_prepare_warnings
+
 delimiter |;
 
 CREATE PROCEDURE test.proc_part()
@@ -51,6 +53,8 @@ BEGIN
 END|
 
 delimiter ;|
+
+--disable_prepare_warnings
 
 ############ Finish Setup Section ###################
 
