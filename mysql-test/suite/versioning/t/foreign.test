@@ -314,7 +314,9 @@ create or replace table subchild (
 ) engine=innodb;
 
 insert into parent (value) values (23);
+--enable_prepare_warnings
 select id, value from parent into @id, @value;
+--disable_prepare_warnings
 insert into child values (default, @id, @value);
 insert into subchild values (default, @id, @value);
 

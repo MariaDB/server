@@ -5,6 +5,8 @@
 drop table if exists t1;
 --enable_warnings
 
+--enable_prepare_warnings
+
 --replace_result $default_engine DEFAULT_ENGINE $sys_datatype_expl SYS_DATATYPE NULL ''
 eval create table t1 (
   x1 int unsigned,
@@ -439,3 +441,4 @@ show create table t1;
 show create table t2;
 drop temporary table t2;
 drop table t1;
+--disable_prepare_warnings
