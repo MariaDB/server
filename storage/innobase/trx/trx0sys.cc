@@ -225,10 +225,42 @@ trx_sys_create_sys_pages(void)
 	mtr_commit(&mtr);
 }
 
+/** Create a persistent rollback segment.
+@param space_id   system or undo tablespace id
+@return pointer to new rollback segment
+@retval nullptr  on failure */
+static trx_rseg_t *trx_rseg_create(ulint space_id)
+{
+  trx_rseg_t *rseg= nullptr;
+  mtr_t mtr;
+
+  mtr.start();
+
+  if (fil_space_t *space= mtr.x_lock_space(space_id))
+  {
+    ut_ad(space->purpose == FIL_TYPE_TABLESPACE);
+    if (buf_block_t *sys_header= trx_sysf_get(&mtr))
+    {
+      ulint rseg_id= trx_sys_rseg_find_free(sys_header);
+      if (buf_block_t *rblock= rseg_id == ULINT_UNDEFINED
+          ? nullptr : trx_rseg_header_create(space, rseg_id, sys_header,
+                                             &mtr))
+      {
+        ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id) == space_id);
+        rseg= &trx_sys.rseg_array[rseg_id];
+        rseg->init(space, rblock->page.id().page_no());
+        ut_ad(rseg->is_persistent());
+      }
+    }
+  }
+
+  mtr.commit();
+  return rseg;
+}
+
 /** Create the rollback segments.
 @return	whether the creation succeeded */
-bool
-trx_sys_create_rsegs()
+bool trx_sys_create_rsegs()
 {
 	/* srv_available_undo_logs reflects the number of persistent
 	rollback segments that have been initialized in the
@@ -308,14 +340,11 @@ trx_sys_t::close()
 
 	/* There can't be any active transactions. */
 
-	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		if (trx_rseg_t* rseg = rseg_array[i]) {
-			trx_rseg_mem_free(rseg);
-		}
-
-		if (trx_rseg_t* rseg = temp_rsegs[i]) {
-			trx_rseg_mem_free(rseg);
-		}
+	for (ulint i = 0; i < array_elements(temp_rsegs); ++i) {
+		temp_rsegs[i].destroy();
+	}
+	for (ulint i = 0; i < array_elements(rseg_array); ++i) {
+		rseg_array[i].destroy();
 	}
 
 	ut_a(trx_list.empty());

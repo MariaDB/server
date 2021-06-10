@@ -110,7 +110,7 @@ inline bool TrxUndoRsegsIterator::set_next()
 
 	purge_sys.rseg = *m_iter++;
 	mysql_mutex_unlock(&purge_sys.pq_mutex);
-	mysql_mutex_lock(&purge_sys.rseg->mutex);
+	purge_sys.rseg->mutex.wr_lock();
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 	ut_ad(purge_sys.rseg->last_trx_no() == m_rsegs.trx_no());
@@ -126,8 +126,7 @@ inline bool TrxUndoRsegsIterator::set_next()
 	purge_sys.hdr_offset = purge_sys.rseg->last_offset;
 	purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
 
-	mysql_mutex_unlock(&purge_sys.rseg->mutex);
-
+	purge_sys.rseg->mutex.wr_unlock();
 	return(true);
 }
 
@@ -319,7 +318,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		rseg->last_offset = undo->hdr_offset;
 		rseg->set_last_trx_no(trx->rw_trx_hash_element->no,
 				      undo == trx->rsegs.m_redo.undo);
-		rseg->needs_purge = true;
+		rseg->set_needs_purge();
 	}
 
 	trx_sys.rseg_history_len++;
@@ -351,18 +350,20 @@ static void trx_purge_remove_log_hdr(buf_block_t *rseg, buf_block_t* log,
 /** Free an undo log segment, and remove the header from the history list.
 @param[in,out]	rseg		rollback segment
 @param[in]	hdr_addr	file address of log_hdr */
-static
-void
-trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
+static void trx_purge_free_segment(trx_rseg_t *rseg, fil_addr_t hdr_addr)
 {
 	mtr_t		mtr;
 
 	mtr.start();
-	mysql_mutex_lock(&rseg->mutex);
+	const page_id_t hdr_page_id(rseg->space->id, hdr_addr.page);
+
+	/* We only need the mutex to maintain rseg->curr_size. To follow the
+	latching order, we must acquire it before acquiring any related
+	page latch.  */
+	rseg->mutex.wr_lock();
 
 	buf_block_t* rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
-	buf_block_t* block = trx_undo_page_get(
-		page_id_t(rseg->space->id, hdr_addr.page), &mtr);
+	buf_block_t* block = trx_undo_page_get(hdr_page_id, &mtr);
 
 	/* Mark the last undo log totally purged, so that if the
 	system crashes, the tail of the undo log will not get accessed
@@ -375,17 +376,14 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 	while (!fseg_free_step_not_header(
 		       TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
 		       + block->frame, &mtr)) {
-		mysql_mutex_unlock(&rseg->mutex);
-
+		rseg->mutex.wr_unlock();
 		mtr.commit();
 		mtr.start();
-
-		mysql_mutex_lock(&rseg->mutex);
+		rseg->mutex.wr_lock();
 
 		rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 
-		block = trx_undo_page_get(
-			page_id_t(rseg->space->id, hdr_addr.page), &mtr);
+		block = trx_undo_page_get(hdr_page_id, &mtr);
 	}
 
 	/* The page list may now be inconsistent, but the length field
@@ -421,9 +419,9 @@ trx_purge_free_segment(trx_rseg_t* rseg, fil_addr_t hdr_addr)
 
 	rseg->curr_size -= seg_size;
 
-	mysql_mutex_unlock(&rseg->mutex);
+	rseg->mutex.wr_unlock();
 
-	mtr_commit(&mtr);
+	mtr.commit();
 }
 
 /** Remove unnecessary history data from a rollback segment.
@@ -442,7 +440,7 @@ trx_purge_truncate_rseg_history(
 
 	mtr.start();
 	ut_ad(rseg.is_persistent());
-	mysql_mutex_lock(&rseg.mutex);
+	rseg.mutex.wr_lock();
 
 	buf_block_t* rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
@@ -454,7 +452,7 @@ trx_purge_truncate_rseg_history(
 loop:
 	if (hdr_addr.page == FIL_NULL) {
 func_exit:
-		mysql_mutex_unlock(&rseg.mutex);
+		rseg.mutex.wr_unlock();
 		mtr.commit();
 		return;
 	}
@@ -487,7 +485,7 @@ func_exit:
 
 		/* We can free the whole log segment */
 
-		mysql_mutex_unlock(&rseg.mutex);
+		rseg.mutex.wr_unlock();
 		mtr.commit();
 
 		/* calls the trx_purge_remove_log_hdr()
@@ -498,12 +496,12 @@ func_exit:
 		trx_purge_remove_log_hdr(rseg_hdr, block, hdr_addr.boffset,
 					 &mtr);
 
-		mysql_mutex_unlock(&rseg.mutex);
+		rseg.mutex.wr_unlock();
 		mtr.commit();
 	}
 
 	mtr.start();
-	mysql_mutex_lock(&rseg.mutex);
+	rseg.mutex.wr_lock();
 
 	rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
@@ -566,10 +564,9 @@ static void trx_purge_truncate_history()
 		head.undo_no = 0;
 	}
 
-	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		if (trx_rseg_t* rseg = trx_sys.rseg_array[i]) {
-			ut_ad(rseg->id == i);
-			trx_purge_truncate_rseg_history(*rseg, head);
+	for (auto& rseg : trx_sys.rseg_array) {
+		if (rseg.space) {
+			trx_purge_truncate_rseg_history(rseg, head);
 		}
 	}
 
@@ -615,40 +612,40 @@ static void trx_purge_truncate_history()
 
 		DBUG_LOG("undo", "marking for truncate: " << file->name);
 
-		for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-			if (trx_rseg_t* rseg = trx_sys.rseg_array[i]) {
-				ut_ad(rseg->is_persistent());
-				if (rseg->space == &space) {
-					/* Once set, this rseg will
-					not be allocated to subsequent
-					transactions, but we will wait
-					for existing active
-					transactions to finish. */
-					rseg->skip_allocation = true;
-				}
+		for (auto& rseg : trx_sys.rseg_array) {
+			if (rseg.space == &space) {
+				/* Once set, this rseg will
+				not be allocated to subsequent
+				transactions, but we will wait
+				for existing active
+				transactions to finish. */
+				rseg.set_skip_allocation();
 			}
 		}
 
-		for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-			trx_rseg_t*	rseg = trx_sys.rseg_array[i];
-			if (!rseg || rseg->space != &space) {
+		for (auto& rseg : trx_sys.rseg_array) {
+			if (rseg.space != &space) {
 				continue;
 			}
-			mysql_mutex_lock(&rseg->mutex);
-			ut_ad(rseg->skip_allocation);
-			if (rseg->trx_ref_count) {
+			ut_ad(rseg.skip_allocation());
+			if (rseg.is_referenced()) {
+				return;
+			}
+			rseg.mutex.wr_lock();
+			ut_ad(rseg.skip_allocation());
+			if (rseg.is_referenced()) {
 not_free:
-				mysql_mutex_unlock(&rseg->mutex);
+				rseg.mutex.wr_unlock();
 				return;
 			}
 
-			if (rseg->curr_size != 1) {
+			if (rseg.curr_size != 1) {
 				/* Check if all segments are
 				cached and safe to remove. */
 				ulint cached = 0;
 
 				for (trx_undo_t* undo = UT_LIST_GET_FIRST(
-					     rseg->undo_cached);
+					     rseg.undo_cached);
 				     undo;
 				     undo = UT_LIST_GET_NEXT(undo_list,
 							     undo)) {
@@ -659,14 +656,14 @@ not_free:
 					}
 				}
 
-				ut_ad(rseg->curr_size > cached);
+				ut_ad(rseg.curr_size > cached);
 
-				if (rseg->curr_size > cached + 1) {
+				if (rseg.curr_size > cached + 1) {
 					goto not_free;
 				}
 			}
 
-			mysql_mutex_unlock(&rseg->mutex);
+			rseg.mutex.wr_unlock();
 		}
 
 		ib::info() << "Truncating " << file->name;
@@ -732,62 +729,22 @@ not_free:
 
 		buf_block_t* sys_header = trx_sysf_get(&mtr);
 
-		for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-			trx_rseg_t* rseg = trx_sys.rseg_array[i];
-			if (!rseg || rseg->space != &space) {
+		for (auto& rseg : trx_sys.rseg_array) {
+			if (rseg.space != &space) {
 				continue;
 			}
 
-			ut_ad(rseg->is_persistent());
-			ut_d(const ulint old_page = rseg->page_no);
-
 			buf_block_t* rblock = trx_rseg_header_create(
 				purge_sys.truncate.current,
-				rseg->id, sys_header, &mtr);
+				i, sys_header, &mtr);
 			ut_ad(rblock);
-			rseg->page_no = rblock
-				? rblock->page.id().page_no() : FIL_NULL;
-			ut_ad(old_page == rseg->page_no);
-
-			/* Before re-initialization ensure that we
-			free the existing structure. There can't be
-			any active transactions. */
-			ut_a(UT_LIST_GET_LEN(rseg->undo_list) == 0);
-			ut_a(UT_LIST_GET_LEN(rseg->old_insert_list) == 0);
-
-			trx_undo_t*	next_undo;
-
-			for (trx_undo_t* undo = UT_LIST_GET_FIRST(
-				     rseg->undo_cached);
-			     undo; undo = next_undo) {
-
-				next_undo = UT_LIST_GET_NEXT(undo_list, undo);
-				UT_LIST_REMOVE(rseg->undo_cached, undo);
-				MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_CACHED);
-				ut_free(undo);
-			}
-
-			UT_LIST_INIT(rseg->undo_list,
-				     &trx_undo_t::undo_list);
-			UT_LIST_INIT(rseg->undo_cached,
-				     &trx_undo_t::undo_list);
-			UT_LIST_INIT(rseg->old_insert_list,
-				     &trx_undo_t::undo_list);
-
 			/* These were written by trx_rseg_header_create(). */
 			ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT
 						+ rblock->frame));
 			ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE
 						+ rblock->frame));
-
-			/* Initialize the undo log lists according to
-			the rseg header */
-			rseg->curr_size = 1;
-			rseg->trx_ref_count = 0;
-			rseg->last_page_no = FIL_NULL;
-			rseg->last_offset = 0;
-			rseg->last_commit = 0;
-			rseg->needs_purge = false;
+			rseg.reinit(rblock
+				    ? rblock->page.id().page_no() : FIL_NULL);
 		}
 
 		mtr.commit();
@@ -831,12 +788,9 @@ not_free:
 				log_write_up_to(LSN_MAX, true);
 				DBUG_SUICIDE(););
 
-		for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-			if (trx_rseg_t* rseg = trx_sys.rseg_array[i]) {
-				ut_ad(rseg->is_persistent());
-				if (rseg->space == &space) {
-					rseg->skip_allocation = false;
-				}
+		for (auto& rseg : trx_sys.rseg_array) {
+			if (rseg.space == &space) {
+				rseg.clear_skip_allocation();
 			}
 		}
 
@@ -857,7 +811,7 @@ static void trx_purge_rseg_get_next_history_log(
 	trx_id_t	trx_no;
 	mtr_t		mtr;
 
-	mysql_mutex_lock(&purge_sys.rseg->mutex);
+	purge_sys.rseg->mutex.wr_lock();
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 
@@ -890,7 +844,7 @@ static void trx_purge_rseg_get_next_history_log(
 		purge_sys.rseg->last_page_no = FIL_NULL;
 	}
 
-	mysql_mutex_unlock(&purge_sys.rseg->mutex);
+	purge_sys.rseg->mutex.wr_unlock();
 	mtr.commit();
 
 	if (empty) {
@@ -911,12 +865,16 @@ static void trx_purge_rseg_get_next_history_log(
 
 	mtr_commit(&mtr);
 
-	mysql_mutex_lock(&purge_sys.rseg->mutex);
+	purge_sys.rseg->mutex.wr_lock();
 
 	purge_sys.rseg->last_page_no = prev_log_addr.page;
 	purge_sys.rseg->last_offset = prev_log_addr.boffset;
 	purge_sys.rseg->set_last_trx_no(trx_no, purge != 0);
-	purge_sys.rseg->needs_purge = purge != 0;
+	if (purge) {
+		purge_sys.rseg->set_needs_purge();
+	} else {
+		purge_sys.rseg->clear_needs_purge();
+	}
 
 	/* Purge can also produce events, however these are already ordered
 	in the rollback segment and any user generated event will be greater
@@ -929,7 +887,7 @@ static void trx_purge_rseg_get_next_history_log(
 
 	mysql_mutex_unlock(&purge_sys.pq_mutex);
 
-	mysql_mutex_unlock(&purge_sys.rseg->mutex);
+	purge_sys.rseg->mutex.wr_unlock();
 }
 
 /** Position the purge sys "iterator" on the undo record to use for purging. */
@@ -944,7 +902,7 @@ trx_purge_read_undo_rec()
 	purge_sys.hdr_offset = purge_sys.rseg->last_offset;
 	page_no = purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
 
-	if (purge_sys.rseg->needs_purge) {
+	if (purge_sys.rseg->needs_purge()) {
 		mtr_t		mtr;
 		mtr.start();
 		buf_block_t* undo_page;
@@ -1110,7 +1068,7 @@ trx_purge_fetch_next_rec(
 		/* row_purge_record_func() will later set
 		ROLL_PTR_INSERT_FLAG for TRX_UNDO_INSERT_REC */
 		false,
-		purge_sys.rseg->id,
+		trx_sys.rseg_id(purge_sys.rseg, true),
 		purge_sys.page_no, purge_sys.offset);
 
 	/* The following call will advance the stored values of the

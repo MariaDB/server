@@ -2112,9 +2112,9 @@ err_exit:
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
 
-				mysql_mutex_lock(&rseg->mutex);
+				rseg->mutex.wr_lock();
 				trx_undo_free_last_page(undo, &mtr);
-				mysql_mutex_unlock(&rseg->mutex);
+				rseg->mutex.wr_unlock();
 
 				if (m.second) {
 					/* We are not going to modify
@@ -2167,8 +2167,8 @@ err_exit:
 
 			if (!bulk) {
 				*roll_ptr = trx_undo_build_roll_ptr(
-					!rec, rseg->id, undo->top_page_no,
-					offset);
+					!rec, trx_sys.rseg_id(rseg, !is_temp),
+					undo->top_page_no, offset);
 			}
 
 			return(DB_SUCCESS);
@@ -2221,7 +2221,6 @@ trx_undo_get_undo_rec_low(
 	ulint		rseg_id;
 	uint32_t	page_no;
 	uint16_t	offset;
-	trx_rseg_t*	rseg;
 	bool		is_insert;
 	mtr_t		mtr;
 
@@ -2229,7 +2228,7 @@ trx_undo_get_undo_rec_low(
 				 &offset);
 	ut_ad(page_no > FSP_FIRST_INODE_PAGE_NO);
 	ut_ad(offset >= TRX_UNDO_PAGE_HDR + TRX_UNDO_PAGE_HDR_SIZE);
-	rseg = trx_sys.rseg_array[rseg_id];
+	trx_rseg_t* rseg = &trx_sys.rseg_array[rseg_id];
 	ut_ad(rseg->is_persistent());
 
 	mtr.start();

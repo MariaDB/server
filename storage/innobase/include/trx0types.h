@@ -110,3 +110,9 @@ typedef	byte	trx_undo_rec_t;
 /* @} */
 
 typedef std::vector<trx_id_t, ut_allocator<trx_id_t> >	trx_ids_t;
+
+/** The number of rollback segments; rollback segment id must fit in
+the 7 bits reserved for it in DB_ROLL_PTR. */
+static constexpr unsigned TRX_SYS_N_RSEGS= 128;
+/** Maximum number of undo tablespaces (not counting the system tablespace) */
+static constexpr unsigned TRX_SYS_MAX_UNDO_SPACES= TRX_SYS_N_RSEGS - 1;

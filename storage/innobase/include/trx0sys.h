@@ -27,7 +27,7 @@ Created 3/26/1996 Heikki Tuuri
 #pragma once
 #include "buf0buf.h"
 #include "fil0fil.h"
-#include "trx0types.h"
+#include "trx0rseg.h"
 #include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "ut0byte.h"
@@ -35,9 +35,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "read0types.h"
 #include "page0types.h"
 #include "trx0trx.h"
-#ifdef WITH_WSREP
-#include "trx0xa.h"
-#endif /* WITH_WSREP */
 #include "ilist.h"
 #include "my_cpu.h"
 
@@ -157,13 +154,6 @@ from older MySQL or MariaDB versions. */
 					/*!< the start of the array of
 					rollback segment specification
 					slots */
-/*------------------------------------------------------------- @} */
-
-/** The number of rollback segments; rollback segment id must fit in
-the 7 bits reserved for it in DB_ROLL_PTR. */
-#define	TRX_SYS_N_RSEGS			128
-/** Maximum number of undo tablespaces (not counting the system tablespace) */
-#define TRX_SYS_MAX_UNDO_SPACES		(TRX_SYS_N_RSEGS - 1)
 
 /* Rollback segment specification slot offsets */
 
@@ -879,18 +869,11 @@ public:
   /** List of all transactions. */
   thread_safe_trx_ilist_t trx_list;
 
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	/** Temporary rollback segments */
-	trx_rseg_t*	temp_rsegs[TRX_SYS_N_RSEGS];
+  /** Temporary rollback segments */
+  trx_rseg_t temp_rsegs[TRX_SYS_N_RSEGS];
 
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	trx_rseg_t*	rseg_array[TRX_SYS_N_RSEGS];
-					/*!< Pointer array to rollback
-					segments; NULL if slot not in use;
-					created and destroyed in
-					single-threaded mode; not protected
-					by any mutex, because it is read-only
-					during multi-threaded operation */
+  /** Persistent rollback segments; space==nullptr if slot not in use */
+  trx_rseg_t rseg_array[TRX_SYS_N_RSEGS];
 
   /**
     Lock-free hash of in memory read-write transactions.
@@ -1054,6 +1037,22 @@ public:
 
   /** @return total number of active (non-prepared) transactions */
   ulint any_active_transactions();
+
+
+  /**
+    Determine the rollback segment identifier.
+
+    @param rseg        rollback segment
+    @param persistent  whether the rollback segment is persistent
+    @return the rollback segment identifier
+  */
+  unsigned rseg_id(const trx_rseg_t *rseg, bool persistent) const
+  {
+    const trx_rseg_t *array= persistent ? rseg_array : temp_rsegs;
+    ut_ad(rseg >= array);
+    ut_ad(rseg < &array[TRX_SYS_N_RSEGS]);
+    return static_cast<unsigned>(rseg - array);
+  }
 
 
   /**

@@ -27,7 +27,7 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0purge_h
 #define trx0purge_h
 
-#include "trx0rseg.h"
+#include "trx0sys.h"
 #include "que0types.h"
 #include "srw_lock.h"
 

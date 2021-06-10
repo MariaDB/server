@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -24,16 +24,12 @@ Rollback segment
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef trx0rseg_h
-#define trx0rseg_h
-
-#include "trx0sys.h"
+#pragma once
+#include "trx0types.h"
 #include "fut0lst.h"
-
-#ifdef UNIV_PFS_MUTEX
-extern mysql_pfs_key_t redo_rseg_mutex_key;
-extern mysql_pfs_key_t noredo_rseg_mutex_key;
-#endif /* UNIV_PFS_MUTEX */
+#ifdef WITH_WSREP
+# include "trx0xa.h"
+#endif /* WITH_WSREP */
 
 /** Gets a rollback segment header.
 @param[in]	space		space where placed
@@ -70,25 +66,11 @@ trx_rseg_header_create(
 	buf_block_t*	sys_header,
 	mtr_t*		mtr);
 
-/** Initialize the rollback segments in memory at database startup. */
-void
-trx_rseg_array_init();
-
-/** Free a rollback segment in memory. */
-void
-trx_rseg_mem_free(trx_rseg_t* rseg);
-
-/** Create a persistent rollback segment.
-@param[in]	space_id	system or undo tablespace id
-@return pointer to new rollback segment
-@retval	NULL	on failure */
-trx_rseg_t*
-trx_rseg_create(ulint space_id)
-	MY_ATTRIBUTE((warn_unused_result));
+/** Initialize or recover the rollback segments at startup. */
+void trx_rseg_array_init();
 
 /** Create the temporary rollback segments. */
-void
-trx_temp_rseg_create();
+void trx_temp_rseg_create();
 
 /* Number of undo log slots in a rollback segment file copy */
 #define TRX_RSEG_N_SLOTS	(srv_page_size / 16)
@@ -97,24 +79,88 @@ trx_temp_rseg_create();
 #define TRX_RSEG_MAX_N_TRXS	(TRX_RSEG_N_SLOTS / 2)
 
 /** The rollback segment memory object */
-struct trx_rseg_t {
-	/*--------------------------------------------------------*/
-	/** rollback segment id == the index of its slot in the trx
-	system file copy */
-	ulint				id;
+struct trx_rseg_t
+{
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
+  /** mutex protecting everything except space, page_no (which are constant) */
+  srw_mutex mutex;
 
-	/** mutex protecting the fields in this struct except id,space,page_no
-	which are constant */
-	mysql_mutex_t			mutex;
+  /** space where the rollback segment header is placed */
+  fil_space_t *space;
 
-	/** space where the rollback segment header is placed */
-	fil_space_t*			space;
+  /** rollback segment header page number */
+  uint32_t page_no;
 
-	/** page number of the rollback segment header */
-	uint32_t			page_no;
+private:
+  /** Reference counter to track rseg allocated transactions,
+  with NEEDS_PURGE and SKIP_ALLOCATION flags. */
+  std::atomic<uint32_t> ref;
 
-	/** current size in pages */
-	uint32_t			curr_size;
+  /** Whether the log segment needs purge */
+  static constexpr uint32_t NEEDS_PURGE= 1;
+  /** Whether the segment needs purge */
+  static constexpr uint32_t SKIP= 2;
+  /** Transaction reference count multiplier */
+  static constexpr uint32_t REF= 4;
+
+  ulint ref_load() const { return ref.load(std::memory_order_relaxed); }
+public:
+  /** Initialize the fields that are not zero-initialized. */
+  void init(fil_space_t *space, uint32_t page);
+  /** Reinitialize the fields on undo tablespace truncation. */
+  void reinit(uint32_t page);
+  /** Clean up. */
+  void destroy();
+
+  /** Note that undo tablespace truncation was started. */
+  void set_skip_allocation()
+  { ut_ad(is_persistent()); ref.fetch_or(SKIP, std::memory_order_relaxed); }
+  /** Note that undo tablespace truncation was completed. */
+  void clear_skip_allocation()
+  {
+    ut_ad(is_persistent());
+    ut_d(auto r=) ref.fetch_and(~SKIP, std::memory_order_relaxed);
+    ut_ad(r == SKIP);
+  }
+  /** Note that the rollback segment requires purge. */
+  void set_needs_purge()
+  { ref.fetch_or(NEEDS_PURGE, std::memory_order_relaxed); }
+  /** Note that the rollback segment will not require purge. */
+  void clear_needs_purge()
+  { ref.fetch_and(~NEEDS_PURGE, std::memory_order_relaxed); }
+  /** @return whether the segment is marked for undo truncation */
+  bool skip_allocation() const { return ref_load() & SKIP; }
+  /** @return whether the segment needs purge */
+  bool needs_purge() const { return ref_load() & NEEDS_PURGE; }
+  /** Increment the reference count */
+  void acquire()
+  { ut_d(auto r=) ref.fetch_add(REF); ut_ad(!(r & SKIP)); }
+  /** Increment the reference count if possible
+  @retval true  if the reference count was incremented
+  @retval false if skip_allocation() holds */
+  bool acquire_if_available()
+  {
+    uint32_t r= 0;
+    while (!ref.compare_exchange_weak(r, r + REF,
+                                      std::memory_order_relaxed,
+                                      std::memory_order_relaxed))
+      if (r & SKIP)
+        return false;
+    return true;
+  }
+
+  /** Decrement the reference count */
+  void release()
+  {
+    ut_d(const auto r=)
+    ref.fetch_sub(REF, std::memory_order_relaxed);
+    ut_ad(r >= REF);
+  }
+  /** @return whether references exist */
+  bool is_referenced() const { return ref_load() >= REF; }
+
+  /** current size in pages */
+  uint32_t curr_size;
 
 	/*--------------------------------------------------------*/
 	/* Fields for undo logs */
@@ -139,16 +185,6 @@ struct trx_rseg_t {
 
 	/** trx_t::no * 2 + old_insert of the last not yet purged log */
 	trx_id_t			last_commit;
-
-	/** Whether the log segment needs purge */
-	bool				needs_purge;
-
-	/** Reference counter to track rseg allocated transactions. */
-	ulint				trx_ref_count;
-
-	/** If true, then skip allocating this rseg as it reside in
-	UNDO-tablespace marked for truncate. */
-	bool				skip_allocation;
 
 	/** @return the commit ID of the last committed transaction */
 	trx_id_t last_trx_no() const { return last_commit >> 1; }
@@ -283,5 +319,3 @@ void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
                                    mtr_t *mtr);
 
 #include "trx0rseg.ic"
-
-#endif
