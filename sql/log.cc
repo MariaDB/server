@@ -11245,8 +11245,12 @@ Recovery_context::handle_maybe_committed(xid_recovery_member **ptr_member,
       DBUG_ASSERT(*ha_offset_max <= last_gtid_coord);
       DBUG_ASSERT(member->in_engine_prepare >= member->engines_no_binlog);
       DBUG_ASSERT(last_gtid_engines_no_binlog >= member->engines_no_binlog);
-      if (last_gtid_engines == 1 ||
-          last_gtid_engines_no_binlog >
+
+      /*
+        Check if the transaction has at least one commmitted branch
+        which can be only by an no-binlog-offset engine.
+      */
+      if (last_gtid_engines_no_binlog >
           (member->in_engine_prepare - member->engines_no_binlog))
       {
         member->decided_to_commit= true;        // exists a committed branch

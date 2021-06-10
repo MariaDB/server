@@ -2625,7 +2625,7 @@ Gtid_log_event::Gtid_log_event(const char *buf, uint event_len,
       if (extra_engines < UCHAR_MAX)
         engines_no_binlog= *buf++;
 
-      DBUG_ASSERT(extra_engines > 0);
+      DBUG_ASSERT(extra_engines > 0 || engines_no_binlog > 0);
     }
   }
   /*

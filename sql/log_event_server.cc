@@ -3302,12 +3302,9 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       extra_engines=
         ha_count_rw_2pc(thd_arg, thd_arg->in_multi_stmt_transaction_mode(),
                         &binlog_recovery_info_count) - 1;
-      if (extra_engines > 0)
-      {
-        DBUG_ASSERT(extra_engines + 1 >= binlog_recovery_info_count);
+      engines_no_binlog= (extra_engines + 1) - binlog_recovery_info_count;
 
-        engines_no_binlog= extra_engines + 1 - binlog_recovery_info_count;
-      }
+      DBUG_ASSERT(extra_engines + 1 >= binlog_recovery_info_count);
     }
     else if (ro_1pc)
     {
@@ -3320,7 +3317,7 @@ Gtid_log_event::Gtid_log_event(THD *thd_arg, uint64 seq_no_arg,
       uint8 count= ha_count_rw_2pc(thd_arg, true);
       extra_engines= count > 1 ? 0 : UCHAR_MAX;
     }
-    if (extra_engines > 0)
+    if (extra_engines > 0 || engines_no_binlog > 0)
       flags_extra|= FL_EXTRA_MULTI_ENGINE;
   }
 }
