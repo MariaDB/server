@@ -189,7 +189,7 @@ select * from t2;
 a
 23
 connection master;
-drop function fn1;
+drop function fn1|
 create function fn1()
 returns int
 no sql

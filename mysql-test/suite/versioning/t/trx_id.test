@@ -18,6 +18,8 @@ create or replace table t1 (
   period for system_time (sys_trx_start, sys_trx_end)
 ) with system versioning;
 
+--enable_prepare_warnings
+
 --echo # No history inside the transaction
 start transaction;
 insert into t1 (x) values (1);
@@ -511,3 +513,5 @@ drop table t;
 uninstall plugin test_versioning;
 --error ER_SP_DOES_NOT_EXIST
 select trt_begin_ts(0);
+
+--disable_prepare_warnings
