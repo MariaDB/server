@@ -1815,7 +1815,7 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 			std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
 			n_threads = n_use_threads = srv_n_purge_threads;
 			srv_purge_thread_count_changed = 0;
-		} else if (trx_sys.history_exceeds(rseg_history_len)
+		} else if (trx_sys.history_size_approx() > rseg_history_len
 			   || (srv_max_purge_lag > 0
 			       && rseg_history_len > srv_max_purge_lag)) {
 			/* History length is now longer than what it was

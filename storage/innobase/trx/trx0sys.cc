@@ -223,8 +223,6 @@ uint32_t trx_sys_t::history_size()
 bool trx_sys_t::history_exceeds(uint32_t threshold)
 {
   ut_ad(is_initialised());
-  if (!threshold)
-    return history_exists();
   uint32_t size= 0;
   bool exceeds= false;
   size_t i;
@@ -244,18 +242,22 @@ bool trx_sys_t::history_exceeds(uint32_t threshold)
   return exceeds;
 }
 
-bool trx_sys_t::history_exists()
+TPOOL_SUPPRESS_TSAN bool trx_sys_t::history_exists()
 {
   ut_ad(is_initialised());
   for (auto &rseg : rseg_array)
-  {
-    rseg.latch.rd_lock();
-    const auto size= rseg.history_size;
-    rseg.latch.rd_unlock();
-    if (size)
+    if (rseg.history_size)
       return true;
-  }
   return false;
+}
+
+TPOOL_SUPPRESS_TSAN uint32_t trx_sys_t::history_size_approx() const
+{
+  ut_ad(is_initialised());
+  uint32_t size= 0;
+  for (auto &rseg : rseg_array)
+    size+= rseg.history_size;
+  return size;
 }
 
 /*****************************************************************//**

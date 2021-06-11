@@ -915,9 +915,15 @@ public:
 
 
   /**
-    @return whether history_size() is nonzero
+    @return approximate history_size(), without latch protection
   */
-  bool history_exists();
+  TPOOL_SUPPRESS_TSAN uint32_t history_size_approx() const;
+
+
+  /**
+    @return whether history_size() is nonzero (with some race condition)
+  */
+  TPOOL_SUPPRESS_TSAN bool history_exists();
 
 
   /**
@@ -1041,7 +1047,7 @@ public:
   }
 
 
-  bool is_initialised() { return m_initialised; }
+  bool is_initialised() const { return m_initialised; }
 
 
   /** Initialise the transaction subsystem. */

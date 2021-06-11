@@ -1463,7 +1463,8 @@ btr_cur_search_to_nth_level_func(
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
 		    && buf_pool.n_pend_reads
-		    && trx_sys.history_exceeds(BTR_CUR_FINE_HISTORY_LENGTH)) {
+		    && trx_sys.history_size_approx()
+		    > BTR_CUR_FINE_HISTORY_LENGTH) {
 x_latch_index:
 			mtr_x_lock_index(index, mtr);
 		} else if (index->is_spatial()
@@ -2576,7 +2577,8 @@ btr_cur_open_at_index_side(
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
 		    && buf_pool.n_pend_reads
-		    && trx_sys.history_exceeds(BTR_CUR_FINE_HISTORY_LENGTH)) {
+		    && trx_sys.history_size_approx()
+		    > BTR_CUR_FINE_HISTORY_LENGTH) {
 			mtr_x_lock_index(index, mtr);
 		} else {
 			mtr_sx_lock_index(index, mtr);
@@ -2899,7 +2901,8 @@ btr_cur_open_at_rnd_pos(
 		for them, when the history list is glowing huge. */
 		if (lock_intention == BTR_INTENTION_DELETE
 		    && buf_pool.n_pend_reads
-		    && trx_sys.history_exceeds(BTR_CUR_FINE_HISTORY_LENGTH)) {
+		    && trx_sys.history_size_approx()
+		    > BTR_CUR_FINE_HISTORY_LENGTH) {
 			mtr_x_lock_index(index, mtr);
 		} else {
 			mtr_sx_lock_index(index, mtr);

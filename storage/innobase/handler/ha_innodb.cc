@@ -216,7 +216,7 @@ static my_bool innodb_read_only_compressed;
 /** A dummy variable */
 static uint innodb_max_purge_lag_wait;
 
-/** Wait for trx_sys_t::rseg_history_len to be below a limit. */
+/** Wait for trx_sys.history_size() to be below a limit. */
 static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
                                              void *, const void *limit)
 {
