@@ -7517,27 +7517,21 @@ public:
   Item_type_holder do not need cleanup() because its time of live limited by
   single SP/PS execution.
 */
-class Item_type_holder: public Item,
-                        public Type_handler_hybrid_field_type
+class Item_type_holder: public Item, public Type_handler_hybrid_field_type
 {
 protected:
   const TYPELIB *enum_set_typelib;
 public:
-  Item_type_holder(THD *thd,
-                   Item *item,
-                   const Type_handler *handler,
-                   const Type_all_attributes *attr,
-                   bool maybe_null_arg)
-   :Item(thd),
-    Type_handler_hybrid_field_type(handler),
+  Item_type_holder(THD *thd, Item *item, const Type_handler *handler,
+                   const Type_all_attributes *attr, bool maybe_null_arg)
+   :Item(thd), Type_handler_hybrid_field_type(handler),
     enum_set_typelib(attr->get_typelib())
   {
     name= item->name;
     Type_std_attributes::set(*attr);
     set_maybe_null(maybe_null_arg);
-    copy_flags(item,
-               item_base_t::IS_EXPLICIT_NAME |
-               item_base_t::IS_IN_WITH_CYCLE);
+    copy_flags(item, item_base_t::IS_EXPLICIT_NAME |
+                     item_base_t::IS_IN_WITH_CYCLE);
   }
 
   const Type_handler *type_handler() const override

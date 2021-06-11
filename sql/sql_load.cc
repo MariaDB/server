@@ -51,11 +51,11 @@ public:
   int level;
   String field;
   String value;
-  XML_TAG(int l, String f, String v);
+  XML_TAG(int l, const String &f, const String &v);
 };
 
 
-XML_TAG::XML_TAG(int l, String f, String v)
+XML_TAG::XML_TAG(int l, const String &f, const String &v)
 {
   level= l;
   field.append(f);

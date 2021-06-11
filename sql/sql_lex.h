@@ -388,7 +388,7 @@ void binlog_unsafe_map_init();
 #ifdef MYSQL_SERVER
 
 extern const LEX_STRING  empty_lex_str;
-extern MYSQL_PLUGIN_IMPORT const LEX_CSTRING empty_clex_str;
+extern const LEX_CSTRING empty_clex_str;
 extern const LEX_CSTRING star_clex_str;
 extern const LEX_CSTRING param_clex_str;
 

@@ -1891,8 +1891,7 @@ void Field::copy_from_tmp(int row_offset)
 
 bool Field::send(Protocol *protocol)
 {
-  char buff[MAX_FIELD_WIDTH];
-  String tmp(buff,sizeof(buff),charset());
+  StringBuffer<MAX_FIELD_WIDTH> tmp(charset());
   val_str(&tmp);
   return protocol->store(tmp.ptr(), tmp.length(), tmp.charset());
 }
@@ -5460,7 +5459,7 @@ bool Field_timestamp0::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp0::get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, 0);
+  return protocol->store_datetime(&ltime, 0);
 }
 
 
@@ -5620,7 +5619,7 @@ bool Field_timestamp_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp::get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, dec);
+  return protocol->store_datetime(&ltime, dec);
 }
 
 
@@ -6907,7 +6906,7 @@ bool Field_datetime0::send(Protocol *protocol)
 {
   MYSQL_TIME tm;
   Field_datetime0::get_date(&tm, date_mode_t(0));
-  return protocol->store(&tm, 0);
+  return protocol->store_datetime(&tm, 0);
 }
 
 
@@ -7035,7 +7034,7 @@ bool Field_datetime_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, dec);
+  return protocol->store_datetime(&ltime, dec);
 }
 
 
@@ -9382,16 +9381,6 @@ String *Field_set::val_str(String *val_buffer,
   ulonglong tmp=(ulonglong) Field_enum::val_int();
   uint bitnr=0;
 
-  /*
-    Some callers expect *val_buffer to contain the result,
-    so we assign to it, rather than doing 'return &empty_set_string.
-  */
-  *val_buffer= empty_set_string;
-  if (tmp == 0)
-  {
-    return val_buffer;
-  }
-
   val_buffer->set_charset(field_charset());
   val_buffer->length(0);
 
@@ -9401,8 +9390,7 @@ String *Field_set::val_str(String *val_buffer,
     {
       if (val_buffer->length())
 	val_buffer->append(&field_separator, 1, &my_charset_latin1);
-      String str(typelib->type_names[bitnr],
-		 typelib->type_lengths[bitnr],
+      String str(typelib->type_names[bitnr], typelib->type_lengths[bitnr],
 		 field_charset());
       val_buffer->append(str);
     }

@@ -74,11 +74,7 @@ override_dh_auto_clean:
 	@echo "RULES.$@"
 	dh_testdir
 	dh_testroot
-	rm -rf $(BUILDDIR) builddir-native
-
-	[ ! -f debian/mysql-test-unstable-tests.orig ] || \
-	    mv debian/mysql-test-unstable-tests.orig mysql-test/unstable-tests
-
+	rm -rf $(BUILDDIR) builddir-native mysql-test/unstable-tests
 	debconf-updatepo # Update po-files when clean runs before each build
 
 override_dh_auto_configure:
@@ -121,8 +117,7 @@ override_dh_auto_build:
 override_dh_auto_test:
 	@echo "RULES.$@"
 	dh_testdir
-	# Skip unstable tests if such are defined for arch
-	cp mysql-test/unstable-tests debian/mysql-test-unstable-tests.orig
+	touch mysql-test/unstable-tests
 	[ ! -f debian/unstable-tests.$(DEB_HOST_ARCH) ] || cat debian/unstable-tests.$(DEB_HOST_ARCH) >> mysql-test/unstable-tests
 	# Run testsuite
 ifeq (,$(filter nocheck,$(DEB_BUILD_OPTIONS)))

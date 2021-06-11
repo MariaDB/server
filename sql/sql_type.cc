@@ -7522,7 +7522,7 @@ bool Type_handler::Item_send_timestamp(Item *item,
   if (native.is_null())
     return protocol->store_null();
   native.to_TIME(protocol->thd, &buf->value.m_time);
-  return protocol->store(&buf->value.m_time, item->decimals);
+  return protocol->store_datetime(&buf->value.m_time, item->decimals);
 }
 
 
@@ -7532,7 +7532,7 @@ bool Type_handler::
   item->get_date(protocol->thd, &buf->value.m_time,
                  Datetime::Options(protocol->thd));
   if (!item->null_value)
-    return protocol->store(&buf->value.m_time, item->decimals);
+    return protocol->store_datetime(&buf->value.m_time, item->decimals);
   return protocol->store_null();
 }
 
