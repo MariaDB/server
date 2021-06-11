@@ -1,0 +1,19 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_debug_sync.inc
+
+--let $targetdir=$MYSQLTEST_VARDIR/tmp/backup
+--mkdir $targetdir
+
+CREATE TABLE IF NOT EXISTS t1 ( col1 INT, col_text TEXT ) ENGINE = InnoDB;
+ALTER TABLE t1 ADD FULLTEXT KEY `ftidx1` ( col_text );
+
+echo # xtrabackup backup;
+--let _RR_TRACE_DIR=/dev/shm/mbackup.rr
+--disable_result_log
+exec rr record $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup --parallel=10  --target-dir=$targetdir --dbug=+d,mariabackup_events,emulate_ddl_on_intermediate_table;
+--enable_result_log
+
+SET debug_sync='RESET';
+rmdir $targetdir;
+DROP TABLE t1;

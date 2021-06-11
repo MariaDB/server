@@ -27,6 +27,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 #include "changed_page_bitmap.h"
 #include <set>
 
+#ifndef DBUG_OFF
+pthread_t dbug_start_query_thread(const char *query, const char *wait_state,
+                                  int expected_err, int expected_errno);
+extern pthread_t dbug_emulate_ddl_on_intermediate_table_thread;
+#endif /* DBUG_OFF */
+
 struct xb_delta_info_t
 {
 	xb_delta_info_t(ulint page_size, ulint zip_size, ulint space_id)

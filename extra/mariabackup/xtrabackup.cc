@@ -669,6 +669,7 @@ static void *dbug_execute_in_new_connection(void *arg)
 }
 
 static pthread_t dbug_alter_thread;
+pthread_t dbug_emulate_ddl_on_intermediate_table_thread;
 
 /*
 Execute query from a new connection, in own thread.
@@ -681,7 +682,7 @@ Execute query from a new connection, in own thread.
 @param expected_errno - if not 0, and query finished with error,
 	expected mysql_errno()
 */
-static void dbug_start_query_thread(
+pthread_t dbug_start_query_thread(
 	const char *query,
 	const char *wait_state,
 	int expected_err,
@@ -693,12 +694,14 @@ static void dbug_start_query_thread(
 	par->expect_err = expected_err;
 	par->expect_errno = expected_errno;
 	par->con =  xb_mysql_connect();
-
-	mysql_thread_create(0, &dbug_alter_thread, nullptr,
+	if (mysql_set_server_option(par->con, MYSQL_OPTION_MULTI_STATEMENTS_ON))
+		die("Can't set multistatement option for query: %s", query);
+	pthread_t result_thread;
+	mysql_thread_create(0, &result_thread, nullptr,
 			    dbug_execute_in_new_connection, par);
 
 	if (!wait_state)
-		return;
+		return result_thread;
 
 	char q[256];
 	snprintf(q, sizeof(q),
@@ -720,7 +723,9 @@ static void dbug_start_query_thread(
 end:
 	msg("query '%s' on connection %lu reached state '%s'", query,
 	mysql_thread_id(par->con), wait_state);
+	return result_thread;
 }
+
 #endif
 
 void mdl_lock_all()
@@ -4663,6 +4668,12 @@ fail_before_log_copying_thread_start:
 		DBUG_EXECUTE_IF("check_mdl_lock_works",
 				pthread_join(dbug_alter_thread, nullptr););
 
+		DBUG_EXECUTE_IF("emulate_ddl_on_intermediate_table",
+			pthread_join(
+				dbug_emulate_ddl_on_intermediate_table_thread,
+				nullptr);
+		);
+
 		if (ok) {
 			backup_finish();
 		}
@@ -4737,6 +4748,12 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 	pthread_mutex_unlock(&backup_mutex);
 
 	DBUG_MARIABACKUP_EVENT("backup_fix_ddl", {});
+
+	DBUG_EXECUTE_IF("emulate_ddl_on_intermediate_table",
+			xb_mysql_query(mysql_connection,
+				"SET debug_sync='now SIGNAL backup_lock_reset "
+				"WAIT_FOR temp_table_dropped'", false, true);
+			);
 
 	for (space_id_to_name_t::iterator iter = ddl_tracker.tables_in_backup.begin();
 		iter != ddl_tracker.tables_in_backup.end();
