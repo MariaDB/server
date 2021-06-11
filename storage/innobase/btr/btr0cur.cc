@@ -101,16 +101,16 @@ operations by purge as the previous, when it seems to be growing huge.
 throughput clearly from about 100000. */
 #define BTR_CUR_FINE_HISTORY_LENGTH	100000
 
+#ifdef BTR_CUR_HASH_ADAPT
 /** Number of searches down the B-tree in btr_cur_search_to_nth_level(). */
-Atomic_counter<ulint>	btr_cur_n_non_sea;
+ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_non_sea;
 /** Old value of btr_cur_n_non_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
 ulint	btr_cur_n_non_sea_old;
-#ifdef BTR_CUR_HASH_ADAPT
 /** Number of successful adaptive hash index lookups in
 btr_cur_search_to_nth_level(). */
-ulint	btr_cur_n_sea;
+ib_counter_t<ulint, ib_counter_element_t>	btr_cur_n_sea;
 /** Old value of btr_cur_n_sea.  Copied by
 srv_refresh_innodb_monitor_stats().  Referenced by
 srv_printf_innodb_monitor(). */
@@ -1403,7 +1403,8 @@ btr_cur_search_to_nth_level_func(
 # ifdef UNIV_SEARCH_PERF_STAT
 	info->n_searches++;
 # endif
-	if (autoinc == 0
+	if (!btr_search_enabled) {
+	} else if (autoinc == 0
 	    && !estimate
 	    && latch_mode <= BTR_MODIFY_LEAF
 	    && !modify_external
@@ -1429,13 +1430,14 @@ btr_cur_search_to_nth_level_func(
 		      || mode != PAGE_CUR_LE);
 		ut_ad(cursor->low_match != ULINT_UNDEFINED
 		      || mode != PAGE_CUR_LE);
-		btr_cur_n_sea++;
+		++btr_cur_n_sea;
 
 		DBUG_RETURN(err);
+	} else {
+		++btr_cur_n_non_sea;
 	}
 # endif /* BTR_CUR_HASH_ADAPT */
 #endif /* BTR_CUR_ADAPT */
-	btr_cur_n_non_sea++;
 
 	/* If the hash search did not succeed, do binary search down the
 	tree */

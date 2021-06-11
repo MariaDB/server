@@ -885,8 +885,9 @@ static MYSQL_THDVAR_STR(tmpdir,
 
 static SHOW_VAR innodb_status_variables[]= {
 #ifdef BTR_CUR_HASH_ADAPT
-  {"adaptive_hash_hash_searches", &btr_cur_n_sea, SHOW_SIZE_T},
-  {"adaptive_hash_non_hash_searches", &btr_cur_n_non_sea, SHOW_SIZE_T},
+  {"adaptive_hash_hash_searches", &export_vars.innodb_ahi_hit, SHOW_SIZE_T},
+  {"adaptive_hash_non_hash_searches",
+  &export_vars.innodb_ahi_miss, SHOW_SIZE_T},
 #endif
   {"background_log_sync", &srv_log_writes_and_flush, SHOW_SIZE_T},
   {"buffer_pool_dump_status",
