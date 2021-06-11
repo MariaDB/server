@@ -560,6 +560,8 @@ int thd_in_lock_tables(const THD* thd);
 int thd_tablespace_op(const THD* thd);
 long long thd_test_options(const THD* thd, long long test_options);
 int thd_sql_command(const THD* thd);
+struct DDL_options_st;
+struct DDL_options_st *thd_ddl_options(const THD* thd);
 void thd_storage_lock_wait(THD* thd, long long value);
 int thd_tx_isolation(const THD* thd);
 int thd_tx_is_read_only(const THD* thd);

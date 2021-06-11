@@ -13258,21 +13258,15 @@ int ha_innobase::delete_table(const char *name)
 
   trx_t *trx= parent_trx;
   if (!trx->lock.table_locks.empty() &&
-      thd_sql_command(trx->mysql_thd) == SQLCOM_CREATE_TABLE)
+      thd_ddl_options(trx->mysql_thd)->is_create_select())
   {
-#if 0 // MDEV-21602 FIXME: this fails for innodb.innodb and some others
-    for (const lock_t *l : trx->lock.table_locks)
-      if (l && l->type_mode == (LOCK_IX | LOCK_TABLE) &&
-          l->un_member.tab_lock.table == table)
-        goto create_select;
-    sql_print_warning("InnoDB: CREATE...SELECT did not hold expected locks");
-create_select:
-#endif
     /* CREATE TABLE...PRIMARY KEY...SELECT ought to be dropping the
-    table because a duplicate key was detected. We shall hijack the
-    existing transaction to drop the table and commit the transaction.
-    If this is a partitioned table, one partition will use this hijacked
-    transaction; others will use a separate transaction, one per partition. */
+    table because a duplicate key was detected or a timeout occurred.
+
+    We shall hijack the existing transaction to drop the table and
+    commit the transaction.  If this is a partitioned table, one
+    partition will use this hijacked transaction; others will use a
+    separate transaction, one per partition. */
     ut_ad(!trx->dict_operation_lock_mode);
     ut_ad(trx->will_lock);
     ut_ad(trx->state == TRX_STATE_ACTIVE);

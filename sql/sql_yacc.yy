@@ -4675,6 +4675,9 @@ create_like:
 opt_create_select:
           /* empty */ {}
         | opt_duplicate opt_as create_select_query_expression opt_versioning_option
+        {
+           Lex->create_info.add(DDL_options_st::OPT_CREATE_SELECT);
+        }
         ;
 
 create_select_query_expression:
