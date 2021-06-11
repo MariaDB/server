@@ -17,7 +17,13 @@ sub skip_combinations {
                 unless $ENV{DEBUG_KEY_MANAGEMENT_SO};
 
   # don't run tests for the wrong platform
-  $skip{'include/platform.combinations'} = [ (IS_WINDOWS) ? 'unix' : 'win' ];
+  if (IS_WINDOWS) {
+    $skip{'include/platform.combinations'} = [ 'aix', 'unix' ];
+  } elsif (IS_AIX) {
+    $skip{'include/platform.combinations'} = [ 'win', 'unix' ];
+  } else {
+    $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
+  }
 
   $skip{'include/maybe_debug.combinations'} =
     [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
