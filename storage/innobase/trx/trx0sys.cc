@@ -197,17 +197,65 @@ trx_sysf_create(
 	ut_a(rblock->page.id() == page_id_t(0, FSP_FIRST_RSEG_PAGE_NO));
 }
 
-/** Create the instance */
-void
-trx_sys_t::create()
+void trx_sys_t::create()
 {
-	ut_ad(this == &trx_sys);
-	ut_ad(!is_initialised());
-	m_initialised = true;
-	trx_list.create();
-	rseg_history_len= 0;
+  ut_ad(this == &trx_sys);
+  ut_ad(!is_initialised());
+  m_initialised= true;
+  trx_list.create();
+  rw_trx_hash.init();
+}
 
-	rw_trx_hash.init();
+uint32_t trx_sys_t::history_size()
+{
+  ut_ad(is_initialised());
+  uint32_t size= 0;
+  for (auto &rseg : rseg_array)
+  {
+    rseg.mutex.wr_lock();
+    size+= rseg.history_size;
+  }
+  for (auto &rseg : rseg_array)
+    rseg.mutex.wr_unlock();
+  return size;
+}
+
+bool trx_sys_t::history_exceeds(uint32_t threshold)
+{
+  ut_ad(is_initialised());
+  if (!threshold)
+    return history_exists();
+  uint32_t size= 0;
+  bool exceeds= false;
+  size_t i;
+  for (i= 0; i < array_elements(rseg_array); i++)
+  {
+    rseg_array[i].mutex.wr_lock();
+    size+= rseg_array[i].history_size;
+    if (size > threshold)
+    {
+      exceeds= true;
+      i++;
+      break;
+    }
+  }
+  while (i)
+    rseg_array[--i].mutex.wr_unlock();
+  return exceeds;
+}
+
+bool trx_sys_t::history_exists()
+{
+  ut_ad(is_initialised());
+  for (auto &rseg : rseg_array)
+  {
+    rseg.mutex.wr_lock();
+    const auto size= rseg.history_size;
+    rseg.mutex.wr_unlock();
+    if (size)
+      return true;
+  }
+  return false;
 }
 
 /*****************************************************************//**

@@ -861,11 +861,6 @@ class trx_sys_t
   bool m_initialised;
 
 public:
-  /**
-    TRX_RSEG_HISTORY list length (number of committed transactions to purge)
-  */
-  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<uint32_t> rseg_history_len;
-
   /** List of all transactions. */
   thread_safe_trx_ilist_t trx_list;
 
@@ -903,6 +898,26 @@ public:
   */
 
   trx_sys_t(): m_initialised(false) {}
+
+
+  /**
+    @return TRX_RSEG_HISTORY length (number of committed transactions to purge)
+  */
+  uint32_t history_size();
+
+
+  /**
+    Check whether history_size() exceeds a specified number.
+    @param threshold   number of committed transactions
+    @return whether TRX_RSEG_HISTORY length exceeds the threshold
+  */
+  bool history_exceeds(uint32_t threshold);
+
+
+  /**
+    @return whether history_size() is nonzero
+  */
+  bool history_exists();
 
 
   /**

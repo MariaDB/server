@@ -221,10 +221,10 @@ static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
                                              void *, const void *limit)
 {
   const uint l= *static_cast<const uint*>(limit);
-  if (trx_sys.rseg_history_len <= l)
+  if (!trx_sys.history_exceeds(l))
     return;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  while (trx_sys.rseg_history_len > l)
+  while (trx_sys.history_exceeds(l))
   {
     if (thd_kill_level(thd))
       break;

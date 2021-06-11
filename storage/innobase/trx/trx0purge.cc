@@ -321,7 +321,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		rseg->set_needs_purge();
 	}
 
-	trx_sys.rseg_history_len++;
+	rseg->history_size++;
 
 	if (undo->state == TRX_UNDO_CACHED) {
 		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
@@ -344,7 +344,6 @@ static void trx_purge_remove_log_hdr(buf_block_t *rseg, buf_block_t* log,
 {
   flst_remove(rseg, TRX_RSEG + TRX_RSEG_HISTORY,
               log, static_cast<uint16_t>(offset + TRX_UNDO_HISTORY_NODE), mtr);
-  trx_sys.rseg_history_len--;
 }
 
 /** Free an undo log segment, and remove the header from the history list.
@@ -417,6 +416,7 @@ static void trx_purge_free_segment(trx_rseg_t *rseg, fil_addr_t hdr_addr)
 
 	ut_ad(rseg->curr_size >= seg_size);
 
+	rseg->history_size--;
 	rseg->curr_size -= seg_size;
 
 	rseg->mutex.wr_unlock();
@@ -495,7 +495,7 @@ func_exit:
 		/* Remove the log hdr from the rseg history. */
 		trx_purge_remove_log_hdr(rseg_hdr, block, hdr_addr.boffset,
 					 &mtr);
-
+		rseg.history_size--;
 		rseg.mutex.wr_unlock();
 		mtr.commit();
 	}
@@ -1202,7 +1202,7 @@ trx_purge_dml_delay(void)
 	/* If purge lag is set then calculate the new DML delay. */
 
 	if (srv_max_purge_lag > 0) {
-		double ratio = static_cast<double>(trx_sys.rseg_history_len) /
+		double ratio = static_cast<double>(trx_sys.history_size()) /
 			static_cast<double>(srv_max_purge_lag);
 
 		if (ratio > 1.0) {

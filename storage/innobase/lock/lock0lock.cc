@@ -4142,7 +4142,7 @@ lock_print_info_summary(
 		? (purge_sys.running() ? "running"
 		   : purge_sys.paused() ? "stopped" : "running but idle")
 		: "disabled",
-		uint32_t{trx_sys.rseg_history_len});
+		trx_sys.history_size());
 
 #ifdef PRINT_NUM_OF_LOCK_STRUCTS
 	fprintf(file,

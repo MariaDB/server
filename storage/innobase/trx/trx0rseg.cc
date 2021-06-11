@@ -389,9 +389,10 @@ void trx_rseg_t::reinit(uint32_t page)
 {
   ut_ad(is_persistent());
   ut_ad(page_no == page);
-  page_no= page;
+  ut_ad(history_size == 0);
   ut_a(!UT_LIST_GET_LEN(undo_list));
   ut_a(!UT_LIST_GET_LEN(old_insert_list));
+  page_no= page;
 
   for (trx_undo_t *next, *undo= UT_LIST_GET_FIRST(undo_cached); undo;
        undo= next)
@@ -497,7 +498,7 @@ trx_rseg_mem_restore(trx_rseg_t* rseg, trx_id_t& max_trx_id, mtr_t* mtr)
 
 	if (auto len = flst_get_len(TRX_RSEG + TRX_RSEG_HISTORY
 				    + rseg_hdr->frame)) {
-		trx_sys.rseg_history_len += len;
+		rseg->history_size += len;
 
 		fil_addr_t node_addr = flst_get_last(TRX_RSEG
 						     + TRX_RSEG_HISTORY

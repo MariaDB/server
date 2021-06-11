@@ -1070,7 +1070,7 @@ srv_export_innodb_status(void)
 		- UT_LIST_GET_LEN(buf_pool.free);
 
 	export_vars.innodb_max_trx_id = trx_sys.get_max_trx_id();
-	export_vars.innodb_history_list_length = trx_sys.rseg_history_len;
+	export_vars.innodb_history_list_length = trx_sys.history_size();
 
 	export_vars.innodb_log_waits = srv_stats.log_waits;
 
@@ -1349,7 +1349,7 @@ srv_wake_purge_thread_if_not_active()
 	ut_ad(!srv_read_only_mode);
 
 	if (purge_sys.enabled() && !purge_sys.paused()
-	    && trx_sys.rseg_history_len) {
+	    && trx_sys.history_exists()) {
 		if(++purge_state.m_running == 1) {
 			srv_thread_pool->submit_task(&purge_coordinator_task);
 		}
@@ -1719,7 +1719,8 @@ static bool srv_purge_should_exit()
     return true;
 
   /* Slow shutdown was requested. */
-  if (const uint32_t history_size= trx_sys.rseg_history_len)
+  const uint32_t history_size= trx_sys.history_size();
+  if (history_size)
   {
     static time_t progress_time;
     time_t now= time(NULL);
@@ -1813,10 +1814,9 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 			std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
 			n_threads = n_use_threads = srv_n_purge_threads;
 			srv_purge_thread_count_changed = 0;
-		} else if (trx_sys.rseg_history_len > rseg_history_len
-		    || (srv_max_purge_lag > 0
-			&& rseg_history_len > srv_max_purge_lag)) {
-
+		} else if (trx_sys.history_exceeds(rseg_history_len)
+			   || (srv_max_purge_lag > 0
+			       && rseg_history_len > srv_max_purge_lag)) {
 			/* History length is now longer than what it was
 			when we took the last snapshot. Use more threads. */
 
@@ -1840,7 +1840,7 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 		ut_a(n_use_threads <= n_threads);
 
 		/* Take a snapshot of the history list before purge. */
-		if (!(rseg_history_len = trx_sys.rseg_history_len)) {
+		if (!(rseg_history_len = trx_sys.history_size())) {
 			break;
 		}
 
@@ -1890,24 +1890,21 @@ void release_thd(THD *thd, void *ctx)
 }
 
 
-/*
+/**
   Called by timer when purge coordinator decides
   to delay processing of purge records.
 */
 static void purge_coordinator_timer_callback(void *)
 {
-  if (!purge_sys.enabled() || purge_sys.paused() ||
-      purge_state.m_running || !trx_sys.rseg_history_len)
+  if (!purge_sys.enabled() || purge_sys.paused() || purge_state.m_running)
     return;
 
-  if (purge_state.m_history_length < 5000 &&
-      purge_state.m_history_length == trx_sys.rseg_history_len)
-    /* No new records were added since wait started.
-    Simply wait for new records. The magic number 5000 is an
-    approximation for the case where we	have cached UNDO
-    log records which prevent truncate of the UNDO segments.*/
-    return;
-  srv_wake_purge_thread_if_not_active();
+  /* The magic number 5000 is an approximation for the case where we have
+  cached undo log records which prevent truncate of the rollback segments. */
+  if (const auto history_size= trx_sys.history_size())
+    if (purge_state.m_history_length >= 5000 ||
+        purge_state.m_history_length != history_size)
+      srv_wake_purge_thread_if_not_active();
 }
 
 static void purge_worker_callback(void*)
@@ -1945,7 +1942,7 @@ static void purge_coordinator_callback_low()
     someone added work and woke us up. */
     if (n_total_purged == 0)
     {
-      if (trx_sys.rseg_history_len == 0)
+      if (trx_sys.history_size() == 0)
         return;
       if (!woken_during_purge)
       {

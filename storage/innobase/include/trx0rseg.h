@@ -82,29 +82,31 @@ void trx_temp_rseg_create();
 struct trx_rseg_t
 {
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
-  /** mutex protecting everything except space, page_no (which are constant) */
+  /** mutex protecting everything except page_no, space */
   srw_mutex mutex;
-
-  /** space where the rollback segment header is placed */
-  fil_space_t *space;
-
-  /** rollback segment header page number */
+  /** rollback segment header page number; constant after init() */
   uint32_t page_no;
+  /** space where the rollback segment header is placed;
+  constant after init() */
+  fil_space_t *space;
 
 private:
   /** Reference counter to track rseg allocated transactions,
-  with NEEDS_PURGE and SKIP_ALLOCATION flags. */
+  with SKIP and NEEDS_PURGE flags. */
   std::atomic<uint32_t> ref;
 
+  /** Whether undo tablespace truncation is pending */
+  static constexpr uint32_t SKIP= 1;
   /** Whether the log segment needs purge */
-  static constexpr uint32_t NEEDS_PURGE= 1;
-  /** Whether the segment needs purge */
-  static constexpr uint32_t SKIP= 2;
+  static constexpr uint32_t NEEDS_PURGE= 2;
   /** Transaction reference count multiplier */
   static constexpr uint32_t REF= 4;
 
   ulint ref_load() const { return ref.load(std::memory_order_relaxed); }
 public:
+  /** length of the TRX_RSEG_HISTORY list (number of transactions) */
+  uint32_t history_size;
+
   /** Initialize the fields that are not zero-initialized. */
   void init(fil_space_t *space, uint32_t page);
   /** Reinitialize the fields on undo tablespace truncation. */
