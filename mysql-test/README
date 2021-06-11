@@ -2,10 +2,8 @@ This directory contains test suites for the MariaDB server. To run
 currently existing test cases, execute ./mysql-test-run in this directory.
 
 Some tests are known to fail on some platforms or be otherwise unreliable.
-The file "unstable-tests" contains the list of such tests along with
-a comment for every test.
-To exclude them from the test run, execute
-  # ./mysql-test-run --skip-test-list=unstable-tests
+In the file collections/smoke_test there is a list of tests that are
+expected to be stable.
 
 In general you do not have to have to do "make install", and you can have
 a co-existing MariaDB installation, the tests will not conflict with it.
@@ -15,7 +13,7 @@ In Red Hat distributions, you should run the script as user "mysql".
 The user is created with nologin shell, so the best bet is something like
   # su -
   # cd /usr/share/mysql-test
-  # su -s /bin/bash mysql -c "./mysql-test-run --skip-test-list=unstable-tests"
+  # su -s /bin/bash mysql -c ./mysql-test-run
 
 This will use the installed MariaDB executables, but will run a private
 copy of the server process (using data files within /usr/share/mysql-test),
@@ -27,8 +25,7 @@ the listed failures occur for you.
 To clean up afterwards, remove the created "var" subdirectory, e.g.
   # su -s /bin/bash - mysql -c "rm -rf /usr/share/mysql-test/var"
 
-If one or more tests fail on your system on reasons other than listed
-in lists of unstable tests, please read the following manual section
+If tests fail on your system, please read the following manual section
 for instructions on how to report the problem:
 
 https://mariadb.com/kb/en/reporting-bugs
