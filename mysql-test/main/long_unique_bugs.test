@@ -368,3 +368,9 @@ show index from t2;
 
 # Cleanup
 DROP TABLE t1,t2;
+
+#
+# MDEV-20131 Assertion `!pk->has_virtual ()' failed in instant_alter_column_possible
+#  (.opt file is created which will make innodb_page_size=8k)
+--error ER_TOO_LONG_KEY
+CREATE TABLE t2 (a TEXT, PRIMARY KEY(a(1871))) ENGINE=InnoDB;

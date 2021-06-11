@@ -148,7 +148,7 @@ ALTER TABLE t1 DROP KEY f, ADD INDEX idx1(f), ALGORITHM=INSTANT;
 ERROR 0A000: ALGORITHM=INSTANT is not supported. Reason: ADD INDEX. Try ALGORITHM=NOCOPY
 ALTER TABLE t1 ADD KEY idx2(f);
 Warnings:
-Note	1071	Specified key was too long; max key length is 3072 bytes
+Note	1071	Specified key was too long; max key length is 1536 bytes
 DROP TABLE t1;
 CREATE TABLE t1(a blob , b blob , unique(a,b));
 alter table t1 drop column b;
@@ -288,3 +288,5 @@ Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_par
 t2	0	a	1	a	A	NULL	NULL	NULL	YES	HASH		
 t2	0	a	2	b	A	NULL	NULL	NULL	YES	HASH		
 DROP TABLE t1,t2;
+CREATE TABLE t2 (a TEXT, PRIMARY KEY(a(1871))) ENGINE=InnoDB;
+ERROR 42000: Specified key was too long; max key length is 1536 bytes

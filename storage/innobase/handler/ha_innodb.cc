@@ -6537,14 +6537,21 @@ ha_innobase::clone(
 	DBUG_RETURN(new_handler);
 }
 
-
-uint
-ha_innobase::max_supported_key_part_length() const
-/*==============================================*/
+uint ha_innobase::max_supported_key_part_length() const
 {
-	/* A table format specific index column length check will be performed
-	at ha_innobase::add_index() and row_create_index_for_mysql() */
-	return(REC_VERSION_56_MAX_INDEX_COL_LEN);
+  /* A table format specific index column length check will be performed
+  at ha_innobase::add_index() and row_create_index_for_mysql() */
+  /* FIXME: rewrite this as well as ha_innobase::max_supported_key_length()
+  using an API that considers the PRIMARY KEY as well as secondary index
+  metadata and the ROW_FORMAT and KEY_BLOCK_SIZE */
+  switch (srv_page_size) {
+  case 4096:
+    return 1173;
+  case 8192:
+    return 1536;
+  default:
+    return REC_VERSION_56_MAX_INDEX_COL_LEN;
+  }
 }
 
 /******************************************************************//**
