@@ -1856,8 +1856,7 @@ trx_prepare_low(trx_t* trx)
 		return(0);
 	}
 
-	trx_rseg_t*	rseg = trx->rsegs.m_redo.rseg;
-	ut_ad(undo->rseg == rseg);
+	ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
 
 	mtr.start();
 
