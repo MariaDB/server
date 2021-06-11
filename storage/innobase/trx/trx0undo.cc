@@ -553,7 +553,7 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	a pessimistic insert in a B-tree, and we must reserve the
 	counterpart of the tree latch, which is the rseg mutex. */
 
-	rseg->mutex.wr_lock();
+	rseg->latch.wr_lock();
 
 	buf_block_t* header_block = trx_undo_page_get(
 		page_id_t(undo->rseg->space->id, undo->hdr_page_no), mtr);
@@ -585,7 +585,7 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	rseg->curr_size++;
 
 func_exit:
-	rseg->mutex.wr_unlock();
+	rseg->latch.wr_unlock();
 	return(new_block);
 }
 
@@ -673,7 +673,7 @@ void trx_undo_truncate_end(trx_undo_t& undo, undo_no_t limit, bool is_temp)
 		}
 
 		trx_undo_rec_t* trunc_here = NULL;
-		undo.rseg->mutex.wr_lock();
+		undo.rseg->latch.wr_lock();
 		buf_block_t* undo_block = trx_undo_page_get(
 			page_id_t(undo.rseg->space->id, undo.last_page_no),
 			&mtr);
@@ -693,13 +693,13 @@ void trx_undo_truncate_end(trx_undo_t& undo, undo_no_t limit, bool is_temp)
 
 		if (undo.last_page_no != undo.hdr_page_no) {
 			trx_undo_free_last_page(&undo, &mtr);
-			undo.rseg->mutex.wr_unlock();
+			undo.rseg->latch.wr_unlock();
 			mtr.commit();
 			continue;
 		}
 
 func_exit:
-		undo.rseg->mutex.wr_unlock();
+		undo.rseg->latch.wr_unlock();
 
 		if (trunc_here) {
 			mtr.write<2>(*undo_block,
@@ -797,8 +797,6 @@ static void trx_undo_seg_free(const trx_undo_t* undo, bool noredo)
 			mtr.set_log_mode(MTR_LOG_NO_REDO);
 		}
 
-		rseg->mutex.wr_lock();
-
 		buf_block_t* block = trx_undo_page_get(
 			page_id_t(rseg->space->id, undo->hdr_page_no), &mtr);
 
@@ -817,7 +815,6 @@ static void trx_undo_seg_free(const trx_undo_t* undo, bool noredo)
 			MONITOR_DEC(MONITOR_NUM_UNDO_SLOT_USED);
 		}
 
-		rseg->mutex.wr_unlock();
 		mtr.commit();
 	} while (!finished);
 }
@@ -1121,7 +1118,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 
 	trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
 
-	rseg->mutex.wr_lock();
+	rseg->latch.wr_lock();
 	buf_block_t* block = trx_undo_reuse_cached(
 		trx, rseg, &trx->rsegs.m_redo.undo, mtr);
 
@@ -1139,7 +1136,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 	UT_LIST_ADD_FIRST(rseg->undo_list, trx->rsegs.m_redo.undo);
 
 func_exit:
-	rseg->mutex.wr_unlock();
+	rseg->latch.wr_unlock();
 	return block;
 }
 
@@ -1177,7 +1174,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		*err = DB_TOO_MANY_CONCURRENT_TRXS; return NULL;
 	);
 
-	rseg->mutex.wr_lock();
+	rseg->latch.wr_lock();
 
 	buf_block_t* block = trx_undo_reuse_cached(trx, rseg, undo, mtr);
 
@@ -1194,7 +1191,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 	UT_LIST_ADD_FIRST(rseg->undo_list, *undo);
 
 func_exit:
-	rseg->mutex.wr_unlock();
+	rseg->latch.wr_unlock();
 	return block;
 }
 
@@ -1273,7 +1270,7 @@ trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp)
 	ut_ad(is_temp == !rseg->is_persistent());
 	ut_ad(!is_temp || 0 == UT_LIST_GET_LEN(rseg->old_insert_list));
 
-	rseg->mutex.wr_lock();
+	rseg->latch.wr_lock();
 
 	UT_LIST_REMOVE(is_temp ? rseg->undo_list : rseg->old_insert_list,
 		       undo);
@@ -1286,15 +1283,13 @@ trx_undo_commit_cleanup(trx_undo_t* undo, bool is_temp)
 		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
 
 		/* Delete first the undo log segment in the file */
-		rseg->mutex.wr_unlock();
 		trx_undo_seg_free(undo, is_temp);
-		rseg->mutex.wr_lock();
 
 		ut_ad(rseg->curr_size > undo->size);
 		rseg->curr_size -= undo->size;
 	}
 
-	rseg->mutex.wr_unlock();
+	rseg->latch.wr_unlock();
 	ut_free(undo);
 }
 

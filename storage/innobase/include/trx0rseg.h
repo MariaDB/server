@@ -82,8 +82,8 @@ void trx_temp_rseg_create();
 struct trx_rseg_t
 {
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
-  /** mutex protecting everything except page_no, space */
-  srw_mutex mutex;
+  /** latch protecting everything except page_no, space */
+  srw_lock_low latch;
   /** rollback segment header page number; constant after init() */
   uint32_t page_no;
   /** space where the rollback segment header is placed;

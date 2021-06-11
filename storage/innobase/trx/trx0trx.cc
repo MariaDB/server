@@ -1062,7 +1062,7 @@ trx_write_serialisation_history(
 	ut_ad(!trx->read_only);
 	ut_ad(!undo || undo->rseg == rseg);
 	ut_ad(!old_insert || old_insert->rseg == rseg);
-	rseg->mutex.wr_lock();
+	rseg->latch.wr_lock();
 
 	/* Assign the transaction serialisation number and add any
 	undo log to the purge queue. */
@@ -1077,7 +1077,7 @@ trx_write_serialisation_history(
 		trx_purge_add_undo_to_history(trx, undo, mtr);
 	}
 
-	rseg->mutex.wr_unlock();
+	rseg->latch.wr_unlock();
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 }

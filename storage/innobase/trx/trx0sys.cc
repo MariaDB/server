@@ -212,11 +212,11 @@ uint32_t trx_sys_t::history_size()
   uint32_t size= 0;
   for (auto &rseg : rseg_array)
   {
-    rseg.mutex.wr_lock();
+    rseg.latch.rd_lock();
     size+= rseg.history_size;
   }
   for (auto &rseg : rseg_array)
-    rseg.mutex.wr_unlock();
+    rseg.latch.rd_unlock();
   return size;
 }
 
@@ -230,7 +230,7 @@ bool trx_sys_t::history_exceeds(uint32_t threshold)
   size_t i;
   for (i= 0; i < array_elements(rseg_array); i++)
   {
-    rseg_array[i].mutex.wr_lock();
+    rseg_array[i].latch.rd_lock();
     size+= rseg_array[i].history_size;
     if (size > threshold)
     {
@@ -240,7 +240,7 @@ bool trx_sys_t::history_exceeds(uint32_t threshold)
     }
   }
   while (i)
-    rseg_array[--i].mutex.wr_unlock();
+    rseg_array[--i].latch.rd_unlock();
   return exceeds;
 }
 
@@ -249,9 +249,9 @@ bool trx_sys_t::history_exists()
   ut_ad(is_initialised());
   for (auto &rseg : rseg_array)
   {
-    rseg.mutex.wr_lock();
+    rseg.latch.rd_lock();
     const auto size= rseg.history_size;
-    rseg.mutex.wr_unlock();
+    rseg.latch.rd_unlock();
     if (size)
       return true;
   }

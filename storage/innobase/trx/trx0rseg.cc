@@ -356,7 +356,7 @@ trx_rseg_header_create(
 
 void trx_rseg_t::destroy()
 {
-  mutex.destroy();
+  latch.destroy();
 
   /* There can't be any active transactions. */
   ut_a(!UT_LIST_GET_LEN(undo_list));
@@ -373,7 +373,7 @@ void trx_rseg_t::destroy()
 
 void trx_rseg_t::init(fil_space_t *space, uint32_t page)
 {
-  mutex.init();
+  latch.init();
   ut_ad(!this->space);
   this->space= space;
   page_no= page;

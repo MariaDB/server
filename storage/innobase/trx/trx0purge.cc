@@ -110,7 +110,7 @@ inline bool TrxUndoRsegsIterator::set_next()
 
 	purge_sys.rseg = *m_iter++;
 	mysql_mutex_unlock(&purge_sys.pq_mutex);
-	purge_sys.rseg->mutex.wr_lock();
+	purge_sys.rseg->latch.rd_lock();
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 	ut_ad(purge_sys.rseg->last_trx_no() == m_rsegs.trx_no());
@@ -126,7 +126,7 @@ inline bool TrxUndoRsegsIterator::set_next()
 	purge_sys.hdr_offset = purge_sys.rseg->last_offset;
 	purge_sys.hdr_page_no = purge_sys.rseg->last_page_no;
 
-	purge_sys.rseg->mutex.wr_unlock();
+	purge_sys.rseg->latch.rd_unlock();
 	return(true);
 }
 
@@ -356,10 +356,10 @@ static void trx_purge_free_segment(trx_rseg_t *rseg, fil_addr_t hdr_addr)
 	mtr.start();
 	const page_id_t hdr_page_id(rseg->space->id, hdr_addr.page);
 
-	/* We only need the mutex to maintain rseg->curr_size. To follow the
+	/* We only need the latch to maintain rseg->curr_size. To follow the
 	latching order, we must acquire it before acquiring any related
 	page latch.  */
-	rseg->mutex.wr_lock();
+	rseg->latch.wr_lock();
 
 	buf_block_t* rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 	buf_block_t* block = trx_undo_page_get(hdr_page_id, &mtr);
@@ -375,10 +375,10 @@ static void trx_purge_free_segment(trx_rseg_t *rseg, fil_addr_t hdr_addr)
 	while (!fseg_free_step_not_header(
 		       TRX_UNDO_SEG_HDR + TRX_UNDO_FSEG_HEADER
 		       + block->frame, &mtr)) {
-		rseg->mutex.wr_unlock();
+		rseg->latch.wr_unlock();
 		mtr.commit();
 		mtr.start();
-		rseg->mutex.wr_lock();
+		rseg->latch.wr_lock();
 
 		rseg_hdr = trx_rsegf_get(rseg->space, rseg->page_no, &mtr);
 
@@ -419,7 +419,7 @@ static void trx_purge_free_segment(trx_rseg_t *rseg, fil_addr_t hdr_addr)
 	rseg->history_size--;
 	rseg->curr_size -= seg_size;
 
-	rseg->mutex.wr_unlock();
+	rseg->latch.wr_unlock();
 
 	mtr.commit();
 }
@@ -440,7 +440,7 @@ trx_purge_truncate_rseg_history(
 
 	mtr.start();
 	ut_ad(rseg.is_persistent());
-	rseg.mutex.wr_lock();
+	rseg.latch.wr_lock();
 
 	buf_block_t* rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
@@ -452,7 +452,7 @@ trx_purge_truncate_rseg_history(
 loop:
 	if (hdr_addr.page == FIL_NULL) {
 func_exit:
-		rseg.mutex.wr_unlock();
+		rseg.latch.wr_unlock();
 		mtr.commit();
 		return;
 	}
@@ -485,7 +485,7 @@ func_exit:
 
 		/* We can free the whole log segment */
 
-		rseg.mutex.wr_unlock();
+		rseg.latch.wr_unlock();
 		mtr.commit();
 
 		/* calls the trx_purge_remove_log_hdr()
@@ -496,12 +496,12 @@ func_exit:
 		trx_purge_remove_log_hdr(rseg_hdr, block, hdr_addr.boffset,
 					 &mtr);
 		rseg.history_size--;
-		rseg.mutex.wr_unlock();
+		rseg.latch.wr_unlock();
 		mtr.commit();
 	}
 
 	mtr.start();
-	rseg.mutex.wr_lock();
+	rseg.latch.wr_lock();
 
 	rseg_hdr = trx_rsegf_get(rseg.space, rseg.page_no, &mtr);
 
@@ -631,11 +631,11 @@ static void trx_purge_truncate_history()
 			if (rseg.is_referenced()) {
 				return;
 			}
-			rseg.mutex.wr_lock();
+			rseg.latch.rd_lock();
 			ut_ad(rseg.skip_allocation());
 			if (rseg.is_referenced()) {
 not_free:
-				rseg.mutex.wr_unlock();
+				rseg.latch.rd_unlock();
 				return;
 			}
 
@@ -663,7 +663,7 @@ not_free:
 				}
 			}
 
-			rseg.mutex.wr_unlock();
+			rseg.latch.rd_unlock();
 		}
 
 		ib::info() << "Truncating " << file->name;
@@ -811,15 +811,15 @@ static void trx_purge_rseg_get_next_history_log(
 	trx_id_t	trx_no;
 	mtr_t		mtr;
 
-	purge_sys.rseg->mutex.wr_lock();
+	mtr.start();
+
+	purge_sys.rseg->latch.wr_lock();
 
 	ut_a(purge_sys.rseg->last_page_no != FIL_NULL);
 
 	purge_sys.tail.commit = purge_sys.rseg->last_commit + 1;
 	purge_sys.tail.undo_no = 0;
 	purge_sys.next_stored = false;
-
-	mtr.start();
 
 	const buf_block_t* undo_page = trx_undo_page_get_s_latched(
 		page_id_t(purge_sys.rseg->space->id,
@@ -844,7 +844,7 @@ static void trx_purge_rseg_get_next_history_log(
 		purge_sys.rseg->last_page_no = FIL_NULL;
 	}
 
-	purge_sys.rseg->mutex.wr_unlock();
+	purge_sys.rseg->latch.wr_unlock();
 	mtr.commit();
 
 	if (empty) {
@@ -865,7 +865,7 @@ static void trx_purge_rseg_get_next_history_log(
 
 	mtr_commit(&mtr);
 
-	purge_sys.rseg->mutex.wr_lock();
+	purge_sys.rseg->latch.wr_lock();
 
 	purge_sys.rseg->last_page_no = prev_log_addr.page;
 	purge_sys.rseg->last_offset = prev_log_addr.boffset;
@@ -887,7 +887,7 @@ static void trx_purge_rseg_get_next_history_log(
 
 	mysql_mutex_unlock(&purge_sys.pq_mutex);
 
-	purge_sys.rseg->mutex.wr_unlock();
+	purge_sys.rseg->latch.wr_unlock();
 }
 
 /** Position the purge sys "iterator" on the undo record to use for purging. */

@@ -2112,9 +2112,9 @@ err_exit:
 					mtr.set_log_mode(MTR_LOG_NO_REDO);
 				}
 
-				rseg->mutex.wr_lock();
+				rseg->latch.wr_lock();
 				trx_undo_free_last_page(undo, &mtr);
-				rseg->mutex.wr_unlock();
+				rseg->latch.wr_unlock();
 
 				if (m.second) {
 					/* We are not going to modify
