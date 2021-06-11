@@ -354,8 +354,28 @@ void mysql_client_binlog_statement(THD* thd)
         (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?
          OPTION_SKIP_REPLICATION : 0);
 
-      err= ev->apply_event(rgi);
+      {
+        /*
+          For conventional statements thd->lex points to thd->main_lex, that is
+          thd->lex == &thd->main_lex. On the other hand, for prepared statement
+          thd->lex points to the LEX object explicitly allocated for execution
+          of the prepared statement and in this case thd->lex != &thd->main_lex.
+          On handling the BINLOG statement, invocation of ev->apply_event(rgi)
+          initiates the following sequence of calls
+            Rows_log_event::do_apply_event -> THD::reset_for_next_command
+          Since the method THD::reset_for_next_command() contains assert
+            DBUG_ASSERT(lex == &main_lex)
+          this sequence of calls results in crash when a binlog event is
+          applied in PS mode. So, reset the current lex temporary to point to
+          thd->main_lex before running ev->apply_event() and restore its
+          original value on return.
+        */
+        LEX *backup_lex;
 
+        thd->backup_and_reset_current_lex(&backup_lex);
+        err= ev->apply_event(rgi);
+        thd->restore_current_lex(backup_lex);
+      }
       thd->variables.option_bits=
         (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
         save_skip_replication;
