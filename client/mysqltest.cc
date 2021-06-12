@@ -90,6 +90,8 @@ static my_bool non_blocking_api_enabled= 0;
 
 #define QUERY_PRINT_ORIGINAL_FLAG 4
 
+#define CLOSED_CONNECTION "-closed_connection-"
+
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
 #endif
@@ -5569,11 +5571,12 @@ void do_close_connection(struct st_command *command)
   my_free(con->name);
 
   /*
-    When the connection is closed set name to "-closed_connection-"
+    When the connection is closed set name to CLOSED_CONNECTION
     to make it possible to reuse the connection name.
   */
-  if (!(con->name = my_strdup("-closed_connection-", MYF(MY_WME))))
+  if (!(con->name = my_strdup(CLOSED_CONNECTION, MYF(MY_WME))))
     die("Out of memory");
+  con->name_len= sizeof(CLOSED_CONNECTION)-1;
 
   if (con == cur_con)
   {
@@ -5957,7 +5960,7 @@ void do_connect(struct st_command *command)
     con_slot= next_con;
   else
   {
-    if (!(con_slot= find_connection_by_name("-closed_connection-")))
+    if (!(con_slot= find_connection_by_name(CLOSED_CONNECTION)))
       die("Connection limit exhausted, you can have max %d connections",
           opt_max_connections);
     my_free(con_slot->name);
@@ -8980,7 +8983,7 @@ static void dump_backtrace(void)
   struct st_connection *conn= cur_con;
 
   fprintf(stderr, "read_command_buf (%p): ", read_command_buf);
-  my_safe_print_str(read_command_buf, sizeof(read_command_buf));
+  fprintf(stderr, "%.*s\n", (int)read_command_buflen, read_command_buf);
   fputc('\n', stderr);
 
   if (conn)
