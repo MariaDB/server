@@ -72,12 +72,6 @@ inline bool trx_t::rollback_finish()
   ut_a(!srv_undo_sources);
   ut_ad(srv_fast_shutdown);
   ut_d(in_rollback= false);
-  if (trx_undo_t *&undo= rsegs.m_redo.old_insert)
-  {
-    UT_LIST_REMOVE(rsegs.m_redo.rseg->old_insert_list, undo);
-    ut_free(undo);
-    undo= nullptr;
-  }
   if (trx_undo_t *&undo= rsegs.m_redo.undo)
   {
     UT_LIST_REMOVE(rsegs.m_redo.rseg->undo_list, undo);
@@ -120,7 +114,7 @@ inline void trx_t::rollback_low(trx_savept_t *savept)
 
   error_state = DB_SUCCESS;
 
-  if (has_logged_or_recovered())
+  if (has_logged())
   {
     ut_ad(rsegs.m_redo.rseg || rsegs.m_noredo.rseg);
     que_thr_t *thr= pars_complete_graph_for_exec(roll_node, this, heap,
@@ -229,7 +223,7 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 	case TRX_STATE_PREPARED:
 	case TRX_STATE_PREPARED_RECOVERED:
 		ut_ad(!trx->is_autocommit_non_locking());
-		if (trx->rsegs.m_redo.undo || trx->rsegs.m_redo.old_insert) {
+		if (trx->rsegs.m_redo.undo) {
 			/* The XA ROLLBACK of a XA PREPARE transaction
 			will consist of multiple mini-transactions.
 
@@ -245,19 +239,11 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 			killed, and finally, the transaction would be
 			recovered in XA PREPARE state, with some of
 			the actions already having been rolled back. */
-			ut_ad(!trx->rsegs.m_redo.undo
-			      || trx->rsegs.m_redo.undo->rseg
-			      == trx->rsegs.m_redo.rseg);
-			ut_ad(!trx->rsegs.m_redo.old_insert
-			      || trx->rsegs.m_redo.old_insert->rseg
+			ut_ad(trx->rsegs.m_redo.undo->rseg
 			      == trx->rsegs.m_redo.rseg);
 			mtr_t		mtr;
 			mtr.start();
 			if (trx_undo_t* undo = trx->rsegs.m_redo.undo) {
-				trx_undo_set_state_at_prepare(trx, undo, true,
-							      &mtr);
-			}
-			if (trx_undo_t* undo = trx->rsegs.m_redo.old_insert) {
 				trx_undo_set_state_at_prepare(trx, undo, true,
 							      &mtr);
 			}

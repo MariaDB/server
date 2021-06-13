@@ -1050,6 +1050,11 @@ dberr_t srv_start(bool create_new_db)
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
 
+	if (srv_force_recovery) {
+		ib::info() << "!!! innodb_force_recovery is set to "
+			<< srv_force_recovery << " !!!";
+	}
+
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = true;
 	}
@@ -1392,7 +1397,11 @@ file_checked:
 		All the remaining rollback segments will be created later,
 		after the double write buffer has been created. */
 		trx_sys_create_sys_pages();
-		trx_lists_init_at_db_start();
+		err = trx_lists_init_at_db_start();
+
+		if (err != DB_SUCCESS) {
+			return(srv_init_abort(err));
+		}
 
 		err = dict_create();
 
@@ -1455,7 +1464,10 @@ file_checked:
 				break;
 			}
 			dict_sys.load_sys_tables();
-			trx_lists_init_at_db_start();
+			err = trx_lists_init_at_db_start();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
@@ -1831,11 +1843,6 @@ skip_monitors:
 			   << " started; log sequence number "
 			   << recv_sys.recovered_lsn
 			   << "; transaction id " << trx_sys.get_max_trx_id();
-	}
-
-	if (srv_force_recovery > 0) {
-		ib::info() << "!!! innodb_force_recovery is set to "
-			<< srv_force_recovery << " !!!";
 	}
 
 	if (srv_force_recovery == 0) {

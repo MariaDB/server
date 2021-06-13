@@ -67,7 +67,7 @@ trx_rseg_header_create(
 	mtr_t*		mtr);
 
 /** Initialize or recover the rollback segments at startup. */
-void trx_rseg_array_init();
+dberr_t trx_rseg_array_init();
 
 /** Create the temporary rollback segments. */
 void trx_temp_rseg_create();
@@ -79,16 +79,17 @@ void trx_temp_rseg_create();
 #define TRX_RSEG_MAX_N_TRXS	(TRX_RSEG_N_SLOTS / 2)
 
 /** The rollback segment memory object */
-struct trx_rseg_t
+struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) trx_rseg_t
 {
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE)
-  /** latch protecting everything except page_no, space */
-  srw_lock_low latch;
+  /** length of the TRX_RSEG_HISTORY list (number of transactions) */
+  uint32_t history_size;
   /** rollback segment header page number; constant after init() */
   uint32_t page_no;
   /** space where the rollback segment header is placed;
   constant after init() */
   fil_space_t *space;
+  /** latch protecting everything except page_no, space */
+  srw_lock_low latch;
 
 private:
   /** Reference counter to track rseg allocated transactions,
@@ -104,9 +105,6 @@ private:
 
   ulint ref_load() const { return ref.load(std::memory_order_relaxed); }
 public:
-  /** length of the TRX_RSEG_HISTORY list (number of transactions) */
-  uint32_t history_size;
-
   /** Initialize the fields that are not zero-initialized. */
   void init(fil_space_t *space, uint32_t page);
   /** Reinitialize the fields on undo tablespace truncation. */
@@ -163,38 +161,29 @@ public:
 
   /** current size in pages */
   uint32_t curr_size;
+  /** Last not yet purged undo log header; FIL_NULL if all list purged */
+  uint32_t last_page_no;
+private:
+  /** trx_t::no | last_offset << 48 */
+  uint64_t last_commit_and_offset;
+public:
 
-	/*--------------------------------------------------------*/
-	/* Fields for undo logs */
-	/** List of undo logs */
-	UT_LIST_BASE_NODE_T(trx_undo_t)	undo_list;
+  /** List of undo logs (transactions) */
+  UT_LIST_BASE_NODE_T(trx_undo_t) undo_list;
+  /** List of undo log segments cached for fast reuse */
+  UT_LIST_BASE_NODE_T(trx_undo_t) undo_cached;
 
-	/** List of undo log segments cached for fast reuse */
-	UT_LIST_BASE_NODE_T(trx_undo_t)	undo_cached;
+  /** @return the commit ID of the last committed transaction */
+  trx_id_t last_trx_no() const
+  { return last_commit_and_offset & ((1ULL << 48) - 1); }
+  /** @return header offset of the last committed transaction */
+  uint16_t last_offset() const
+  { return static_cast<uint16_t>(last_commit_and_offset >> 48); }
 
-	/** List of recovered old insert_undo logs of incomplete
-	transactions (to roll back or XA COMMIT & purge) */
-	UT_LIST_BASE_NODE_T(trx_undo_t) old_insert_list;
-
-	/*--------------------------------------------------------*/
-
-	/** Page number of the last not yet purged log header in the history
-	list; FIL_NULL if all list purged */
-	uint32_t			last_page_no;
-
-	/** Byte offset of the last not yet purged log header */
-	uint16_t			last_offset;
-
-	/** trx_t::no * 2 + old_insert of the last not yet purged log */
-	trx_id_t			last_commit;
-
-	/** @return the commit ID of the last committed transaction */
-	trx_id_t last_trx_no() const { return last_commit >> 1; }
-
-	void set_last_trx_no(trx_id_t trx_no, bool is_update)
-	{
-		last_commit = trx_no << 1 | trx_id_t(is_update);
-	}
+  void set_last_commit(uint16_t last_offset, trx_id_t trx_no)
+  {
+    last_commit_and_offset= uint64_t{last_offset} << 48 | trx_no;
+  }
 
 	/** @return whether the rollback segment is persistent */
 	bool is_persistent() const
