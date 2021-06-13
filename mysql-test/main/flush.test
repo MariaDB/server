@@ -727,5 +727,8 @@ disconnect con1;
 --echo # Test FLUSH THREADS
 --echo #
 
+set @save_thread_cache_size=@@global.thread_cache_size;
+set @@global.thread_cache_size=0;
 flush threads;
 show status like "Threads_cached";
+set @@global.thread_cache_size=@save_thread_cache_size;
