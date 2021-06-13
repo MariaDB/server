@@ -11,7 +11,7 @@
 #include <mysqld.h>
 #include <mysql.h>
 #include <sql_error.h>
-#include <stdio.h>
+#include <m_string.h>
 
 #include "jsonudf.h"
 
@@ -1475,16 +1475,16 @@ static PBSON MakeBinResult(PGLOBAL g, UDF_ARGS *args, PJSON top, ulong len, int 
 
 		if ((bsnp->Filename = (char*)args->args[0])) {
 			bsnp->Filename = MakePSZ(g, args, 0);
-			strncpy(bsnp->Msg, bsnp->Filename, BMX);
+			strmake(bsnp->Msg, bsnp->Filename, BMX-1);
 		} else
-			strncpy(bsnp->Msg, "null filename", BMX);
+			strmake(bsnp->Msg, "null filename", BMX-1);
 
 	} else if (IsJson(args, 0) == 3) {
 		PBSON bsp = (PBSON)args->args[0];
 
 		if (bsp->Filename) {
 			bsnp->Filename = bsp->Filename;
-			strncpy(bsnp->Msg, bsp->Filename, BMX);
+			strmake(bsnp->Msg, bsp->Filename, BMX-1);
 			bsnp->Pretty = bsp->Pretty;
 		} else
 			strcpy(bsnp->Msg, "Json Binary item");
@@ -4758,7 +4758,7 @@ char *jbin_array(UDF_INIT *initid, UDF_ARGS *args, char *result,
 			bsp = NULL;
 
 		if (!bsp && (bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-			strncpy(bsp->Msg, g->Message, BMX);
+			strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -4829,7 +4829,7 @@ char *jbin_array_add_values(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5051,7 +5051,7 @@ char *jbin_object(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5107,7 +5107,7 @@ char *jbin_object_nonull(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
@@ -5166,7 +5166,7 @@ char *jbin_object_key(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 		} else
 			if ((bsp = JbinAlloc(g, args, initid->max_length, NULL)))
-				strncpy(bsp->Msg, g->Message, BMX);
+				strmake(bsp->Msg, g->Message, BMX-1);
 
 		// Keep result of constant function
 		g->Xchk = (initid->const_item) ? bsp : NULL;
