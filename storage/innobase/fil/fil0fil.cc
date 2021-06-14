@@ -1244,10 +1244,9 @@ fil_space_detach(
 		space->is_in_unflushed_spaces = false;
 	}
 
-	if (space->is_in_rotation_list) {
-
-		fil_system->rotation_list.remove(*space);
-		space->is_in_rotation_list = false;
+	if (space->is_in_default_encrypt) {
+		fil_system->default_encrypt_tables.remove(*space);
+		space->is_in_default_encrypt = false;
 	}
 
 	UT_LIST_REMOVE(fil_system->space_list, space);
@@ -1473,8 +1472,8 @@ fil_space_create(
 		    srv_encrypt_tables)) {
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
-		fil_system->rotation_list.push_back(*space);
-		space->is_in_rotation_list = true;
+		fil_system->default_encrypt_tables.push_back(*space);
+		space->is_in_default_encrypt = true;
 		mutex_exit(&fil_system->mutex);
 		mutex_enter(&fil_crypt_threads_mutex);
 		os_event_set(fil_crypt_threads_event);
