@@ -490,6 +490,16 @@ class String;
 #define LOG_EVENT_IGNORABLE_F 0x80
 
 /**
+   @def LOG_EVENT_ACCEPT_OWN_F
+
+   Flag sets by the semisync slave for accepting
+   the same server_id ("own") events which the slave must not have
+   in its state. Typically such events were never committed by
+   their originator (this server) and discared at its semisync-slave recovery.
+*/
+#define LOG_EVENT_ACCEPT_OWN_F 0x4000
+
+/**
    @def LOG_EVENT_SKIP_REPLICATION_F
 
    Flag set by application creating the event (with @@skip_replication); the
@@ -3602,6 +3612,13 @@ public:
   event_mysql_xid_t xid;
 #endif
   uchar flags2;
+  uint  flags_extra; // more flags area placed after the regular flags2's one
+  /*
+    Number of engine participants in transaction minus 1.
+    When zero the event does not contain that information.
+  */
+  uint8 extra_engines;
+
   /* Flags2. */
 
   /* FL_STANDALONE is set when there is no terminating COMMIT event. */
@@ -3633,9 +3650,19 @@ public:
   /* FL_"COMMITTED or ROLLED-BACK"_XA is set for XA transaction. */
   static const uchar FL_COMPLETED_XA= 128;
 
+  /* Flags_extra. */
+
+  /*
+    FL_EXTRA_MULTI_ENGINE is set for event group comprising a transaction
+    involving multiple storage engines. No flag and extra data are added
+    to the event when the transaction involves only one engine.
+  */
+  static const uchar FL_EXTRA_MULTI_ENGINE= 1;
+
 #ifdef MYSQL_SERVER
   Gtid_log_event(THD *thd_arg, uint64 seq_no, uint32 domain_id, bool standalone,
-                 uint16 flags, bool is_transactional, uint64 commit_id);
+                 uint16 flags, bool is_transactional, uint64 commit_id,
+                 bool has_xid= false, bool is_ro_1pc= false);
 #ifdef HAVE_REPLICATION
   void pack_info(Protocol *protocol);
   virtual int do_apply_event(rpl_group_info *rgi);

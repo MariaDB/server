@@ -6174,6 +6174,15 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   bool is_malloc = false;
   bool is_rows_event= false;
   /*
+    The flag has replicate_same_server_id semantics and is raised to accept
+    a same-server-id event on the semisync slave, for both the gtid and legacy
+    connection modes.
+    Such events can appear as result of this server recovery so the event
+    was created there and replicated elsewhere right before the crash. At recovery
+    it could be evicted from the server's binlog.
+  */
+  bool do_accept_own_server_id= false;
+  /*
     FD_q must have been prepared for the first R_a event
     inside get_master_version_and_clock()
     Show-up of FD:s affects checksum_alg at once because
@@ -6234,6 +6243,7 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
     unlock_data_lock= FALSE;
     goto err;
   }
+  DBUG_ASSERT(((uchar) buf[FLAGS_OFFSET] & LOG_EVENT_ACCEPT_OWN_F) == 0);
 
   if (mi->rli.relay_log.description_event_for_queue->binlog_version<4 &&
       buf[EVENT_TYPE_OFFSET] != FORMAT_DESCRIPTION_EVENT /* a way to escape */)
@@ -6933,7 +6943,8 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   }
   else
   if ((s_id == global_system_variables.server_id &&
-       !mi->rli.replicate_same_server_id) ||
+       !(mi->rli.replicate_same_server_id ||
+         (do_accept_own_server_id= rpl_semi_sync_slave_enabled))) ||
       event_that_should_be_ignored(buf) ||
       /*
         the following conjunction deals with IGNORE_SERVER_IDS, if set
@@ -6993,6 +7004,19 @@ static int queue_event(Master_info* mi, const uchar *buf, ulong event_len)
   }
   else
   {
+    if (do_accept_own_server_id)
+    {
+      int2store(const_cast<uchar*>(buf + FLAGS_OFFSET),
+                uint2korr(buf + FLAGS_OFFSET) | LOG_EVENT_ACCEPT_OWN_F);
+      if (checksum_alg != BINLOG_CHECKSUM_ALG_OFF)
+      {
+        ha_checksum crc= 0;
+
+        crc= my_checksum(crc, (const uchar *) buf,
+                         event_len - BINLOG_CHECKSUM_LEN);
+        int4store(&buf[event_len - BINLOG_CHECKSUM_LEN], crc);
+      }
+    }
     if (likely(!rli->relay_log.write_event_buffer((uchar*)buf, event_len)))
     {
       mi->master_log_pos+= inc_pos;
