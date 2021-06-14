@@ -1850,11 +1850,15 @@ static void lock_wait_end(trx_t *trx)
 {
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
   ut_ad(trx->mutex_is_owner());
-  ut_ad(trx->state == TRX_STATE_ACTIVE);
+  ut_d(const auto state= trx->state);
+  ut_ad(state == TRX_STATE_ACTIVE || state == TRX_STATE_PREPARED);
   ut_ad(trx->lock.wait_thr);
 
   if (trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~1)))
+  {
+    ut_ad(state == TRX_STATE_ACTIVE);
     trx->error_state= DB_DEADLOCK;
+  }
 
   trx->lock.wait_thr= nullptr;
   pthread_cond_signal(&trx->lock.cond);
