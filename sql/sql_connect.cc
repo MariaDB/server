@@ -1189,12 +1189,25 @@ void end_connection(THD *thd)
   NET *net= &thd->net;
 
 #ifdef WITH_WSREP
-  if (thd->wsrep_cs().state() == wsrep::client_state::s_exec)
+  switch (thd->wsrep_cs().state())
   {
+  case wsrep::client_state::s_exec:
     /* Error happened after the thread acquired ownership to wsrep
        client state, but before command was processed. Clean up the
        state before wsrep_close(). */
     wsrep_after_command_ignore_result(thd);
+    break;
+  case wsrep::client_state::s_idle:
+    if (thd->wsrep_trx().state() == wsrep::transaction::s_aborting)
+    {
+      /* background rollbacker is active, we have to wait */
+      WSREP_DEBUG("waiting for background rollback at connection end");
+      wsrep_before_command(thd);
+      wsrep_after_command_before_result(thd);
+      wsrep_after_command_after_result(thd);
+    }
+    break;
+  default: break;
   }
   wsrep_close(thd);
 #endif /* WITH_WSREP */

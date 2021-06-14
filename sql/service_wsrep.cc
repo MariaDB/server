@@ -216,7 +216,7 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
 }
 
 extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
-                                      my_bool signal)
+                                      my_bool signal, int kill_signal)
 {
   DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
                  {
@@ -234,7 +234,9 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
     have wsrep on. Note that this should never interrupt RSU
     as RSU has paused the provider.
    */
-  if ((ret || !wsrep_on(victim_thd)) && signal)
+  /* KILL_QUERY abort is used for BF aborting, other kill signals should
+     carry out THD::awake */
+  if ((ret || !wsrep_on(victim_thd) || kill_signal != KILL_QUERY) && signal)
   {
     mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
     mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_kill);
@@ -250,7 +252,7 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
 
     mysql_mutex_lock(&victim_thd->LOCK_thd_kill);
     victim_thd->wsrep_aborter= bf_thd->thread_id;
-    victim_thd->awake_no_mutex(KILL_QUERY);
+    victim_thd->awake_no_mutex((killed_state)kill_signal);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
     mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
   } else {
@@ -291,7 +293,7 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
       return (cs.state() == wsrep::client_state::s_exec ||
               cs.state() == wsrep::client_state::s_result);
     case wsrep::transaction::s_aborting:
-    case wsrep::transaction::s_aborted:
+      //case wsrep::transaction::s_aborted:
       return true;
     default:
       return false;
@@ -344,6 +346,10 @@ extern "C" void wsrep_commit_ordered(THD *thd)
   }
 }
 
+extern "C" unsigned long wsrep_thd_get_wsrep_aborter(THD *victim_thd)
+{
+  return victim_thd->wsrep_aborter;
+}
 extern "C" bool wsrep_thd_set_wsrep_aborter(THD *bf_thd, THD *victim_thd)
 {
   WSREP_DEBUG("wsrep_thd_set_wsrep_aborter called");

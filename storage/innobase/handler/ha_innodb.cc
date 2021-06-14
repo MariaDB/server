@@ -1848,7 +1848,7 @@ thd_to_trx_id(
 	return(thd_to_trx(thd)->id);
 }
 
-static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool);
+static void wsrep_abort_transaction(handlerton*, THD *, THD *, my_bool, int kill_signal=-1);
 static int innobase_wsrep_set_checkpoint(handlerton* hton, const XID* xid);
 static int innobase_wsrep_get_checkpoint(handlerton* hton, XID* xid);
 #endif /* WITH_WSREP */
@@ -5185,7 +5185,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
   {
     ut_ad(trx->mysql_thd == thd);
 #ifdef WITH_WSREP
-    if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
+    if (wsrep_thd_is_aborting(thd) || wsrep_thd_get_wsrep_aborter(thd))
       /* if victim has been signaled by BF thread and/or aborting is already
       progressing, following query aborting is not necessary any more.
       Also, BF thread should own trx mutex for the victim. */
@@ -18671,7 +18671,8 @@ void
 wsrep_innobase_kill_one_trx(
 	THD* bf_thd,
 	trx_t *victim_trx,
-	bool signal)
+	bool signal,
+	int kill_signal= KILL_QUERY)
 {
 	ut_ad(bf_thd);
 	ut_ad(victim_trx);
@@ -18679,26 +18680,6 @@ wsrep_innobase_kill_one_trx(
 	ut_ad(trx_mutex_own(victim_trx));
 
 	DBUG_ENTER("wsrep_innobase_kill_one_trx");
-
-	lock_mutex_enter();
-	trx_mutex_enter(victim_trx);
-	if (victim_trx->id != arg->trx_id
-	    || victim_trx->state == TRX_STATE_COMMITTED_IN_MEMORY)
-	{
-		/* Apparently victim trx was meanwhile rolled back or
-		committed. Tell bf thd not to wait, in case it already
-		started to. */
-		trx_t *trx= thd_to_trx(bf_thd);
-		if (!trx) {
-			/* bf_thd might not be associated with a
-			transaction, in case of MDL conflict */
-		} else if (lock_t *lock = trx->lock.wait_lock) {
-			trx_mutex_enter(trx);
-			lock_cancel_waiting_and_release(lock);
-			trx_mutex_exit(trx);
-		}
-		goto ret1;
-	}
 
 	THD *thd= (THD *) victim_trx->mysql_thd;
 	ut_ad(thd);
@@ -18711,6 +18692,15 @@ wsrep_innobase_kill_one_trx(
 	DBUG_ASSERT(wsrep_on(bf_thd));
 
 	wsrep_thd_LOCK(thd);
+        DBUG_EXECUTE_IF("sync.wsrep_after_BF_victim_lock",
+                 {
+                   const char act[]=
+                     "now "
+                     "wait_for signal.wsrep_after_BF_victim_lock";
+                   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+                                                      STRING_WITH_LEN(act)));
+                 };);
+
 
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
@@ -18752,7 +18742,7 @@ wsrep_innobase_kill_one_trx(
 	wsrep_thd_UNLOCK(thd);
 	DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
 
-	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
+	if (wsrep_thd_bf_abort(bf_thd, thd, signal, kill_signal))
 	{
 		lock_t*  wait_lock = victim_trx->lock.wait_lock;
 		if (wait_lock) {
@@ -18784,7 +18774,8 @@ wsrep_abort_transaction(
 	handlerton*,
 	THD *bf_thd,
 	THD *victim_thd,
-	my_bool signal)
+	my_bool signal,
+	int kill_signal)
 {
 	DBUG_ENTER("wsrep_abort_transaction");
 	ut_ad(bf_thd);
@@ -18800,13 +18791,13 @@ wsrep_abort_transaction(
 	if (victim_trx) {
 		lock_mutex_enter();
 		trx_mutex_enter(victim_trx);
-		wsrep_innobase_kill_one_trx(bf_thd, victim_trx, signal);
+		wsrep_innobase_kill_one_trx(bf_thd, victim_trx, signal, kill_signal);
 		trx_mutex_exit(victim_trx);
 		lock_mutex_exit();
 		wsrep_srv_conc_cancel_wait(victim_trx);
 		DBUG_VOID_RETURN;
 	} else {
-		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
+          wsrep_thd_bf_abort(bf_thd, victim_thd, signal, kill_signal);
 	}
 
 	DBUG_VOID_RETURN;
