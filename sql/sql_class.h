@@ -3323,11 +3323,11 @@ public:
   void awake_no_mutex(killed_state state_to_set);
   void awake(killed_state state_to_set)
   {
-    mysql_mutex_lock(&LOCK_thd_kill);
     mysql_mutex_lock(&LOCK_thd_data);
+    mysql_mutex_lock(&LOCK_thd_kill);
     awake_no_mutex(state_to_set);
-    mysql_mutex_unlock(&LOCK_thd_data);
     mysql_mutex_unlock(&LOCK_thd_kill);
+    mysql_mutex_unlock(&LOCK_thd_data);
   }
   void abort_current_cond_wait(bool force);
  
