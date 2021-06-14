@@ -405,7 +405,6 @@ dict_table_schema_check(
 
 		/* check length for exact match */
 		if (req_schema->columns[i].len != table->cols[j].len) {
-			ut_ad(table->cols[j].len < req_schema->columns[i].len);
 			sql_print_warning("InnoDB: Table %s has"
 					  " length mismatch in the"
 					  " column name %s."
