@@ -956,6 +956,10 @@ struct xid_recovery_member
   uint in_engine_prepare;  // number of engines that have xid prepared
   bool decided_to_commit;
   Binlog_offset binlog_coord; // semisync recovery binlog offset
+
+  xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg)
+    : xid(xid_arg), in_engine_prepare(prepare_arg),
+      decided_to_commit(decided_arg) {};
 };
 
 /* for recover() handlerton call */

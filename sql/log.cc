@@ -11040,7 +11040,7 @@ void Recovery_context::process_gtid(int round, Gtid_log_event *gev,
   last_gtid_coord= Binlog_offset(id_binlog, prev_event_pos);
 
   DBUG_ASSERT(!last_gtid_valid);
-  DBUG_ASSERT(!last_gtid.seq_no == 0);
+  DBUG_ASSERT(last_gtid.seq_no != 0);
 
   if (round == 1 || (do_truncate && !truncate_validated))
   {
