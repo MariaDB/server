@@ -2414,7 +2414,8 @@ find_filter_in_hashtable(
 )
 {
 	xb_filter_entry_t* found = NULL;
-	HASH_SEARCH(name_hash, table, ut_fold_string(name),
+	const ulint fold = my_crc32c(0, name, strlen(name));
+	HASH_SEARCH(name_hash, table, fold,
 		    xb_filter_entry_t*,
 		    found, (void) 0,
 		    !strcmp(found->name, name));
@@ -3874,22 +3875,16 @@ new hash table */
 static
 xb_filter_entry_t*
 xb_add_filter(
-/*========================*/
 	const char*	name,	/*!< in: name of table/database */
 	hash_table_t*	hash)	/*!< in/out: hash to insert into */
 {
-	xb_filter_entry_t*	entry;
-
-	entry = xb_new_filter_entry(name);
+	xb_filter_entry_t* entry = xb_new_filter_entry(name);
 
 	if (UNIV_UNLIKELY(!hash->array)) {
 		hash->create(1000);
 	}
-	HASH_INSERT(xb_filter_entry_t,
-		name_hash, hash,
-		ut_fold_string(entry->name),
-		entry);
-
+	const ulint fold = my_crc32c(0, entry->name, strlen(entry->name));
+	HASH_INSERT(xb_filter_entry_t, name_hash, hash, fold, entry);
 	return entry;
 }
 
@@ -3943,8 +3938,9 @@ xb_register_filter_entry(
 		dbname[p - name] = 0;
 
 		if (databases_hash && databases_hash->array) {
+			const ulint fold = my_crc32c(0, dbname, p - name);
 			HASH_SEARCH(name_hash, databases_hash,
-					ut_fold_string(dbname),
+					fold,
 					xb_filter_entry_t*,
 					db_entry, (void) 0,
 					!strcmp(db_entry->name, dbname));
@@ -4153,9 +4149,10 @@ xb_filter_hash_free(hash_table_t* hash)
 
 			table = static_cast<xb_filter_entry_t *>
 				(HASH_GET_NEXT(name_hash, prev_table));
-
+			const ulint fold = my_crc32c(0, prev_table->name,
+						     strlen(prev_table->name));
 			HASH_DELETE(xb_filter_entry_t, name_hash, hash,
-				ut_fold_string(prev_table->name), prev_table);
+				    fold, prev_table);
 			free(prev_table);
 		}
 	}
@@ -5049,15 +5046,17 @@ exit:
 		return file;
 	}
 
+	const size_t len = strlen(dest_space_name);
 	/* remember space name for further reference */
 	table = static_cast<xb_filter_entry_t *>
 		(malloc(sizeof(xb_filter_entry_t) +
-			strlen(dest_space_name) + 1));
+			len + 1));
 
 	table->name = ((char*)table) + sizeof(xb_filter_entry_t);
-	strcpy(table->name, dest_space_name);
+	memcpy(table->name, dest_space_name, len + 1);
+	const ulint fold = my_crc32c(0, dest_space_name, len);
 	HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
-			ut_fold_string(table->name), table);
+		    fold, table);
 
 	mysql_mutex_lock(&fil_system.mutex);
 	fil_space = fil_space_get_by_name(dest_space_name);
@@ -5458,8 +5457,10 @@ static ibool prepare_handle_new_files(const char *data_home_dir,
 			(malloc(sizeof(xb_filter_entry_t) + table_name.size() + 1));
 		table->name = ((char*)table) + sizeof(xb_filter_entry_t);
 		strcpy(table->name, table_name.c_str());
+		const ulint fold = my_crc32c(0, table->name,
+					     table_name.size());
 		HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
-				ut_fold_string(table->name), table);
+			    fold, table);
 	}
 
 	return TRUE;
@@ -5482,9 +5483,11 @@ rm_if_not_found(
 
 	snprintf(name, FN_REFLEN, "%s/%s", db_name, file_name);
 	/* Truncate ".ibd" */
-	name[strlen(name) - 4] = '\0';
+	const size_t len = strlen(name) - 4;
+	name[len] = '\0';
+	const ulint fold = my_crc32c(0, name, len);
 
-	HASH_SEARCH(name_hash, &inc_dir_tables_hash, ut_fold_string(name),
+	HASH_SEARCH(name_hash, &inc_dir_tables_hash, fold,
 		    xb_filter_entry_t*,
 		    table, (void) 0,
 		    !strcmp(table->name, name));

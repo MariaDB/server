@@ -1201,7 +1201,8 @@ inline void dict_sys_t::add(dict_table_t* table)
 {
 	ut_ad(!find(table));
 
-	ulint fold = ut_fold_string(table->name.m_name);
+	ulint fold = my_crc32c(0, table->name.m_name,
+			       strlen(table->name.m_name));
 
 	table->autoinc_mutex.init();
 	table->lock_mutex_init();
@@ -1545,10 +1546,11 @@ dict_table_rename_in_cache(
 	dict_sys.assert_locked();
 
 	/* store the old/current name to an automatic variable */
-	ut_a(strlen(table->name.m_name) < sizeof old_name);
+	const size_t old_name_len = strlen(table->name.m_name);
+	ut_a(old_name_len < sizeof old_name);
 	strcpy(old_name, table->name.m_name);
 
-	fold = ut_fold_string(new_name);
+	fold = my_crc32c(0, new_name, strlen(new_name));
 
 	/* Look for a table with the same name: error if such exists */
 	dict_table_t*	table2;
@@ -1560,7 +1562,7 @@ dict_table_rename_in_cache(
 			table2 = (dict_table_t*) -1;
 		} );
 	if (table2) {
-		ib::error() << "Cannot rename table '" << old_name
+		ib::error() << "Cannot rename table '" << table->name
 			<< "' to '" << new_name << "' since the"
 			" dictionary cache already contains '" << new_name << "'.";
 		return(DB_ERROR);
@@ -1574,7 +1576,7 @@ dict_table_rename_in_cache(
 
 	/* Remove table from the hash tables of tables */
 	HASH_DELETE(dict_table_t, name_hash, &dict_sys.table_hash,
-		    ut_fold_string(old_name), table);
+		    my_crc32c(0, table->name.m_name, old_name_len), table);
 
 	const bool keep_mdl_name = dict_table_t::is_temporary_name(new_name)
 		&& !table->name.is_temporary();
@@ -1922,7 +1924,9 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 	/* Remove table from the hash tables of tables */
 
 	HASH_DELETE(dict_table_t, name_hash, &table_hash,
-		    ut_fold_string(table->name.m_name), table);
+		    my_crc32c(0, table->name.m_name,
+			      strlen(table->name.m_name)),
+		    table);
 
 	hash_table_t* id_hash = table->is_temporary()
 		? &temp_id_hash : &table_id_hash;
@@ -4663,7 +4667,7 @@ void dict_sys_t::resize()
        table= UT_LIST_GET_NEXT(table_LRU, table))
   {
     ut_ad(!table->is_temporary());
-    ulint fold= ut_fold_string(table->name.m_name);
+    ulint fold= my_crc32c(0, table->name.m_name, strlen(table->name.m_name));
     ulint id_fold= ut_fold_ull(table->id);
 
     HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
@@ -4673,7 +4677,7 @@ void dict_sys_t::resize()
   for (dict_table_t *table = UT_LIST_GET_FIRST(table_non_LRU); table;
        table= UT_LIST_GET_NEXT(table_LRU, table))
   {
-    ulint fold= ut_fold_string(table->name.m_name);
+    ulint fold= my_crc32c(0, table->name.m_name, strlen(table->name.m_name));
     ulint id_fold= ut_fold_ull(table->id);
 
     HASH_INSERT(dict_table_t, name_hash, &table_hash, fold, table);
