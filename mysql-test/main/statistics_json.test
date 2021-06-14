@@ -1,0 +1,28 @@
+--source include/have_stat_tables.inc
+--echo #
+--echo # Test that JSON is a valid histogram type and we can store JSON strings in mysql.column_stats
+--echo #
+--disable_warnings
+drop table if exists t1;
+--enable_warnings
+
+set @save_histogram_type=@@histogram_type;
+
+CREATE TABLE t1 (
+  a int NOT NULL PRIMARY KEY,
+  b varchar(32)
+) ENGINE=MYISAM;
+
+SET histogram_type='JSON';
+SELECT @@histogram_type;
+
+INSERT INTO t1 VALUES
+  (7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx'),
+  (17, 'vvvvvvvvvvvvv');
+
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES();
+DESCRIBE mysql.column_stats;
+SELECT * FROM mysql.column_stats;
+
+set histogram_type=@save_histogram_type;
+DROP TABLE t1;
