@@ -5,6 +5,7 @@
 #
 
 SET SESSION wsrep_trx_fragment_size = 1;
+SET SESSION wsrep_retry_autocommit = 0;
 
 CREATE TABLE ten (f1 INTEGER) ENGINE=InnoDB;
 INSERT INTO ten VALUES (1), (2), (3), (4), (5), (6), (7), (8), (9), (10);
@@ -28,7 +29,7 @@ SET TRANSACTION ISOLATION LEVEL READ UNCOMMITTED;
 --enable_query_log
 
 --connection node_1
---error ER_QUERY_INTERRUPTED
+--error ER_LOCK_DEADLOCK
 --reap
 
 # Confirm that the kill caused the updates made so far to be removed
