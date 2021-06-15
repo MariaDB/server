@@ -1896,13 +1896,12 @@ protected:
   virtual ~Create_func_sec_to_time() {}
 };
 
-class Create_func_sformat : public Create_func_arg1
+class Create_func_sformat : public Create_native_func
 {
 public:
-  virtual Item *create_1_arg(THD *thd, Item *arg1);
-
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
+			      List<Item> *item_list);
   static Create_func_sformat s_singleton;
-
 protected:
   Create_func_sformat() {}
   virtual ~Create_func_sformat() {}
@@ -4979,9 +4978,21 @@ Create_func_sec_to_time::create_1_arg(THD *thd, Item *arg1)
 Create_func_sformat Create_func_sformat::s_singleton;
 
 Item*
-Create_func_sformat::create_1_arg(THD *thd, Item *arg1)
+Create_func_sformat::create_native(THD *thd, LEX_CSTRING *name,
+                                  List<Item> *item_list)
 {
-  return new (thd->mem_root) Item_func_sformat(thd, arg1);
+  int arg_count= 0;
+  
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+  
+  if (unlikely(arg_count < 1))
+  {
+    my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+    return NULL;
+  }
+  
+  return new (thd->mem_root) Item_func_sformat(thd, *item_list);
 }
 
 

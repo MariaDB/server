@@ -1304,22 +1304,75 @@ bool Item_func_replace::fix_length_and_dec()
 
 bool Item_func_sformat::fix_length_and_dec()
 {
+  ulonglong char_length= 0;
+  
+  if (agg_arg_charsets_for_string_result(collation, args, arg_count))
+    return TRUE;
+  
+  for (uint i=0 ; i < arg_count ; i++)
+    char_length+= args[i]->max_char_length() * 10; // temporal solution
+  
+  fix_char_length_ulonglong(char_length);
   return FALSE;
+}
+
+longlong Item_func_sformat::locate(String *a, String *b, longlong offset)
+{
+  /* must be longlong to avoid truncation */
+  longlong   start=  0;
+  my_match_t match;
+  
+  if (offset > 0)
+  {
+    start= offset;
+    
+    if ((start <= 0) || (start > a->length()))
+      return 0;
+    offset--;
+    start--;
+    
+    /* start is now sufficiently valid to pass to charpos function */
+    start= a->charpos((int) start);
+    
+    if (start + b->length() > a->length())
+      return 0;
+  }
+  
+  if (!b->length())       // Found empty string at start
+    return start + 1;
+  
+  if (!cmp_collation.collation->instr(a->ptr() + start,
+                                      (uint) (a->length() - start),
+                                      b->ptr(), b->length(),
+                                      &match, 1))
+    return 0;
+  return (longlong) match.mb_len + offset + 1;
 }
 
 String *Item_func_sformat::val_str(String *str)
 {
-  String *res;
   DBUG_ASSERT(fixed());
+  String *res= NULL;
+  String *tmp= NULL;
   
-  if (!(res=args[0]->val_str(str)))
+  null_value= false;
+  if (!(res= args[0]->val_str(str)))
+    goto null;
+  
+  for (uint i= 1 ; i < arg_count ; i++)
   {
-    null_value= 1;
-    return NULL;
+    if(!(tmp= args[i]->val_str(&tmp_value)))
+      goto null;
+    
+    res->append(*tmp);
   }
+  res->set_charset(collation.collation);
   return res;
+  
+null:
+  null_value= true;
+  return 0;
 }
-
 
 
 /*********************************************************************/
