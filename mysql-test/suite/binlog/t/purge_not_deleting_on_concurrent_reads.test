@@ -1,0 +1,30 @@
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--source include/have_binlog_format_row.inc
+
+connect(con1,localhost,root,,);
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+PURGE BINARY LOGS to 'master-bin.000004';
+FLUSH LOGS;
+
+connect(con2,localhost,root,,);
+SET DEBUG_SYNC= "show_binlog_events_got_linfo WAIT_FOR purge_finished";
+--send SHOW BINLOG EVENTS
+
+--connection con1
+PURGE BINARY LOGS to 'master-bin.000005';
+SET DEBUG_SYNC= "now SIGNAL purge_finished";
+
+--connection con2
+--reap
+
+--let $datadir= `SELECT @@datadir`
+--let $index=$datadir/mysqld-bin.index
+--echo # -- Index File:
+--cat_file $index
+
+
+SET debug_sync = 'reset';

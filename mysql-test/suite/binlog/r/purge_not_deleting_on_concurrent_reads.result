@@ -1,0 +1,23 @@
+connect con1,localhost,root,,;
+FLUSH LOGS;
+FLUSH LOGS;
+FLUSH LOGS;
+PURGE BINARY LOGS to 'master-bin.000004';
+FLUSH LOGS;
+connect con2,localhost,root,,;
+SET DEBUG_SYNC= "show_binlog_events_got_linfo WAIT_FOR purge_finished";
+SHOW BINLOG EVENTS;
+connection con1;
+PURGE BINARY LOGS to 'master-bin.000005';
+SET DEBUG_SYNC= "now SIGNAL purge_finished";
+connection con2;
+Log_name	Pos	Event_type	Server_id	End_log_pos	Info
+master-bin.000004	4	Format_desc	1	256	Server ver: 10.3.30-MariaDB-debug-log, Binlog ver: 4
+master-bin.000004	256	Gtid_list	1	285	[]
+master-bin.000004	285	Binlog_checkpoint	1	329	master-bin.000003
+master-bin.000004	329	Binlog_checkpoint	1	373	master-bin.000004
+master-bin.000004	373	Rotate	1	421	master-bin.000005;pos=4
+# -- Index File:
+./master-bin.000004
+./master-bin.000005
+SET debug_sync = 'reset';

@@ -4015,6 +4015,8 @@ bool mysql_show_binlog_events(THD* thd)
 
     thd->current_linfo= &linfo;
 
+    DEBUG_SYNC(thd, "show_binlog_events_got_linfo");
+
     if ((file=open_binlog(&log, linfo.log_file_name, &errmsg)) < 0)
       goto err;
 
