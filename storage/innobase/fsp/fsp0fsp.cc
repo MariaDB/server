@@ -2719,7 +2719,6 @@ fsp_reserve_free_extents(
 	ulint		n_free;
 	ulint		n_free_up;
 	ulint		reserve;
-	size_t		total_reserved = 0;
 
 	ut_ad(mtr);
 	*n_reserved = n_ext;
@@ -2801,7 +2800,6 @@ try_again:
 	}
 try_to_extend:
 	if (ulint n = fsp_try_extend_data_file(space, space_header, mtr)) {
-		total_reserved += n;
 		goto try_again;
 	}
 

@@ -2756,7 +2756,6 @@ bool Item_func_min_max::fix_length_and_dec()
   max_length=0;
   maybe_null=0;
   Item_result tmp_cmp_type= args[0]->cmp_type();
-  uint string_type_count= 0;
   uint temporal_type_count= 0;
   enum_field_types temporal_field_type= MYSQL_TYPE_DATETIME;
 
@@ -2769,7 +2768,6 @@ bool Item_func_min_max::fix_length_and_dec()
     if (args[i]->maybe_null)
       maybe_null= 1;
     tmp_cmp_type= item_cmp_type(tmp_cmp_type, args[i]->cmp_type());
-    string_type_count+= args[i]->cmp_type() == STRING_RESULT;
     if (args[i]->cmp_type() == TIME_RESULT)
     {
       if (!temporal_type_count)
