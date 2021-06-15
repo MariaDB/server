@@ -691,7 +691,10 @@ error:
 				continue;
 			}
 
-			if (field->len != UNIV_SQL_NULL
+			/* innobase_get_computed_value() sets the
+			length of the virtual column field. */
+			if (v_col == NULL
+			    && field->len != UNIV_SQL_NULL
 			    && col->mtype == DATA_MYSQL
 			    && col->len != field->len) {
 				if (conv_heap != NULL) {
