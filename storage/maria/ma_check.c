@@ -4191,7 +4191,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 			const char * name, my_bool rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ha_rows start_records;
   my_off_t new_header_length,del;
   File new_file;
@@ -4353,7 +4353,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     _ma_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->new_rec_per_key_part;
   share->state.state.records=share->state.state.del=share->state.split=0;
   share->state.state.empty=0;
@@ -4422,7 +4424,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {

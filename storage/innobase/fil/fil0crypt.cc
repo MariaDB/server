@@ -1012,13 +1012,11 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		/* 4 - sync tablespace before publishing crypt data */
 
 		bool success = false;
-		ulint sum_pages = 0;
 
 		do {
 			ulint n_pages = 0;
 			success = buf_flush_lists(ULINT_MAX, end_lsn, &n_pages);
 			buf_flush_wait_batch_end(NULL, BUF_FLUSH_LIST);
-			sum_pages += n_pages;
 		} while (!success);
 
 		/* 5 - publish crypt data */
