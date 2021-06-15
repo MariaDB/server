@@ -1464,22 +1464,28 @@ fil_space_create(
 		fil_system->max_assigned_id = id;
 	}
 
+	const bool rotate =
+		(purpose == FIL_TYPE_TABLESPACE
+		 && (mode == FIL_ENCRYPTION_ON
+		     || mode == FIL_ENCRYPTION_OFF || srv_encrypt_tables)
+		 && fil_crypt_must_default_encrypt());
+
 	/* Inform key rotation that there could be something
 	to do */
-	if (purpose == FIL_TYPE_TABLESPACE
-	    && !srv_fil_crypt_rotate_key_age && fil_crypt_threads_event &&
-	    (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF ||
-		    srv_encrypt_tables)) {
+	if (rotate) {
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
 		fil_system->default_encrypt_tables.push_back(*space);
 		space->is_in_default_encrypt = true;
 		mutex_exit(&fil_system->mutex);
+	} else {
+		mutex_exit(&fil_system->mutex);
+	}
+
+	if (rotate && srv_n_fil_crypt_threads_started) {
 		mutex_enter(&fil_crypt_threads_mutex);
 		os_event_set(fil_crypt_threads_event);
 		mutex_exit(&fil_crypt_threads_mutex);
-	} else {
-		mutex_exit(&fil_system->mutex);
 	}
 
 	return(space);

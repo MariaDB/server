@@ -55,6 +55,9 @@ UNIV_INTERN uint srv_n_fil_crypt_threads_started = 0;
 /** At this age or older a space/page will be rotated */
 UNIV_INTERN uint srv_fil_crypt_rotate_key_age;
 
+/** Whether the encryption plugin does key rotation */
+static bool srv_encrypt_rotate;
+
 /** Event to signal FROM the key rotation threads. */
 static os_event_t fil_crypt_event;
 
@@ -136,6 +139,14 @@ fil_space_crypt_t::key_get_latest_version(void)
 
 	if (is_key_found()) {
 		key_version = encryption_key_get_latest_version(key_id);
+		/* InnoDB does dirty read of srv_fil_crypt_rotate_key_age.
+		It doesn't matter because srv_encrypt_rotate
+		can be set to true only once */
+		if (!srv_encrypt_rotate
+		    && key_version > srv_fil_crypt_rotate_key_age) {
+			srv_encrypt_rotate = true;
+		}
+
 		srv_stats.n_key_requests.inc();
 		key_found = key_version;
 	}
@@ -1380,6 +1391,11 @@ fil_crypt_return_iops(
 	fil_crypt_update_total_stat(state);
 }
 
+bool fil_crypt_must_default_encrypt()
+{
+  return !srv_fil_crypt_rotate_key_age || !srv_encrypt_rotate;
+}
+
 /** Return the next tablespace from default_encrypt_tables.
 @param space   previous tablespace (NULL to start from the start)
 @param recheck whether the removal condition needs to be rechecked after
@@ -1455,7 +1471,7 @@ static fil_space_t *fil_space_next(fil_space_t *space, bool recheck,
   mutex_enter(&fil_system->mutex);
   ut_ad(!space || space->n_pending_ops);
 
-  if (!srv_fil_crypt_rotate_key_age)
+  if (fil_crypt_must_default_encrypt())
     space= fil_system->default_encrypt_next(space, recheck, encrypt);
   else if (!space)
   {
@@ -2448,7 +2464,7 @@ fil_crypt_set_encrypt_tables(
 
 	srv_encrypt_tables = val;
 
-	if (srv_fil_crypt_rotate_key_age == 0) {
+	if (fil_crypt_must_default_encrypt()) {
 		fil_crypt_default_encrypt_tables_fill();
 	}
 
