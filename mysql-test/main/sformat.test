@@ -1,0 +1,224 @@
+# Description
+# -----------
+# Test cases for the sformat function
+
+echo #;
+echo # Normal Test Cases;
+echo #;
+select sformat('string test');
+select sformat(0);
+select sformat('C');
+select sformat(-4.2);
+select sformat(5, 5, 5);
+select sformat('{} {}', 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
+  0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0);
+select sformat('{{{}}}', 0);
+select sformat('{{{}{{', 0);
+select sformat('{{{{{}{{', 'param1');
+select sformat(' {{ {{ {} {{ ', 'param1');
+select sformat(' {{ {} {}', 'param1', 'param2');
+select sformat('A{}C{}E{}', 'B', 'D', 'F');
+select sformat('{} {}', FALSE, TRUE);
+select sformat('Add € != {} !=  {}?', '$', '£');
+select sformat('Check {} != {} != {}?', '€', '$', '£');
+select sformat('{}{}{}', 1, 2, 3);
+select sformat('Float {} Boolean {} Number {}', 3.14159, True, -50);
+select sformat('SUM {} + {} = {}', 2, 3, 2+3);
+select sformat('Numbers {} {} {}', 1, 1.11, 1.111);
+select sformat('what {} is {}?', 'time', 'it');
+select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}', 1, 2, 3, 4, 5, 6,
+  7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23, 24, 25, 26, 27, 28, 29, 30, 31, 32,
+  33, 34, 35, 36, 37, 38, 39, 40, 41, 42, 43, 44, 45, 46, 47, 48, 49, 50, 51, 52, 53, 54, 55, 56, 57,
+  58, 59, 60, 61, 62, 63, 64, 65, 66, 67, 68, 69, 70, 71, 72, 73, 74, 75, 76, 77, 78, 79, 80, 81, 82,
+  83, 84, 85, 86, 87, 88, 89, 90, 91, 92, 93, 94, 95, 96, 97, 98, 99, 100, 101, 102, 103, 104, 105,
+  106, 107, 108, 109, 110, 111, 112, 113, 114, 115, 116, 117, 118, 119, 120);
+select sformat('{} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}
+  {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {} {}', '1', '2', '3 ',
+  '4', '5', '6', '7', '8', '9', '10', '11', '12', '13', '14', '15', '16', '17', '18', '19', '20',
+  '21', '22', '23', '24', '25', '26', '27', '28', '29', '30', '31', '32', '33', '34', '35', '36',
+  '37', '38', '39', '40', '41', '42', '43', '44', '45', '46', '47', '48', '49', '50', '51', '52',
+  '53', '54', '55', '56', '57', '58', '59', '60', '61', '62', '63', '64', '65', '66', '67', '68',
+  '69', '70', '71', '72', '73', '74', '75', '76', '77', '78', '79', '80', '81', '82', '83', '84',
+  '85', '86', '87', '88', '89', '90', '91', '92', '93', '94', '95', '96', '97', '98', '99', '100',
+  '101', '102', '103', '104', '105', '106', '107', '108', '109', '110', '111', '112', '113', '114',
+  '115', '116', '117', '118', '119', '120');
+
+echo #;
+echo # Error Test Cases;
+echo #;
+select sformat('R={ }', 42);
+select sformat(NULL, 'Null', 'Test');
+select sformat('Null Test {} {} ', 0, NULL);
+select sformat(NULL);
+select sformat('My { Test');
+select sformat('Test { {');
+select sformat('A{}C{}E{}', 'B', 'D');
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select sformat();
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+echo #;
+echo # Table Test Cases;
+echo #;
+create table t1 (param1 text, param2 text, param3 int);
+insert into  t1 values ('string: {}, number: {}', 'xyz', 123),
+                       ('something {} went {} wrong {}', 'foo', 0),
+                       ('Test case {} -> {}', 'Print', -32);
+select sformat(param1, param2, param3) from t1;
+drop table t1;
+
+create table t2 (param1 FLOAT, param2 SMALLINT, param3 CHAR, param4 DATE);
+insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29')),
+                      (0.0005,  5, 'B', DATE('2020-6-29')),
+                      (5.5555, -5, 'C', DATE('200629')),
+                      (-9,     -9, 'D', DATE('20*06*29'));
+select sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t2;
+drop table t2;
+
+set names utf8;
+create table t3 (format_str   text character set 'latin1',
+                 first_param  text character set 'utf8',
+                 second_param text character set 'latin1');
+insert into t3 values ('test 1 {} {}', UNHEX('C3A5'), UNHEX('E5'));
+select sformat(format_str, first_param, second_param) from t3;
+select HEX(sformat(format_str, first_param, second_param)) from t3;
+drop table t3;
+set names latin1;
+
+create table t4 (p1 bit(8), p2 boolean, p3 DECIMAL, p4 TIMESTAMP);
+insert into t4 values (42, TRUE,  42, '2021-08-18 16:50:07'),
+                      (24, FALSE, 24, '0000-00-00 00:00:00');
+select sformat('{}: {} {} {} {}', 'Data', p1, p2, p3, p4) from t4;
+drop table t4;
+
+set names utf8;
+create table t5 (param text character SET utf8 COLLATE utf8_general_ci);
+insert into t5 values (UNHEX('C3A5')),(UNHEX('C5BB')),(UNHEX('e0b1bb')),
+                      (UNHEX('C38A')), (NULL);
+select sformat('{}', param) from t5;
+select HEX(sformat('{}', param)) from t5;
+drop table t5;
+set names latin1;
+
+echo #;
+echo # Format Test Cases;
+echo #;
+select sformat('Num {:L}', 13800000000);
+select sformat('Num [{:20}]', 42);
+select sformat('Number: {:*^{}}', 4, 5);
+select sformat('{:02} - {:02} - {:02}', 1, 2, 3);
+select sformat('Character {:c}', 'h');
+select sformat('String {:s}', 'hello');
+select sformat('Large {0:+010.4g}', 392.64);
+select sformat('Large {:g}', 392.65);
+select sformat('Float {:.2f}', 42.0);
+select sformat('Float {:f}', 42.0);
+select sformat('Number {:d}', 42);
+select sformat('Number {:{}}', 5, 5);
+select sformat('Number [{:10}]', 9999);
+select sformat('Number {:.3}', 3.1416);
+select sformat('int: {0:d};  hex: {0:x};  oct: {0:o}', 42);
+select sformat('int: {0:d};  hex: {0:#x};  oct: {0:#o}', 42);
+select sformat('The Hexadecimal version of {0} is {0:X}', 255);
+select sformat('The Hexadecimal version of {0} is {0:x}', 255);
+select sformat('The octal version of {0} is {0:o}', 10);
+select sformat('The binary version of {0} is {0:b}', 5);
+select sformat('{:+f}; {:+f}', 3.14, -3.14);
+select sformat('{: f}; {: f}', 3.14, -3.14);
+select sformat('{:-f}; {:-f}', 3.14, -3.14);
+select sformat('The temperature is between {: } and {: } degrees celsius.', -3, 7);
+select sformat('The temperature is between {:-} and {:-} degrees celsius.', -3, 7);
+select sformat('The temperature is between {:+} and {:+} degrees celsius.', -3, 7);
+select sformat('We have {:<8} chickens.', 49);
+select sformat('Center alimgn [{:*^10}]', 'data');
+select sformat('Center aling [{:^10}].', 'data');
+select sformat('Right aling [{:>10}].', 'data');
+select sformat('Left align [{:<10}].', 'data');
+select sformat('{0}{1}{0}', 'abra', 'cad');
+select sformat('Change Order {1} {0}', 'second', 'first');
+
+echo #;
+echo # Failed Format Test Cases;
+echo #;
+select sformat('Test {:c}', 'word');
+select sformat('Test {one} {two} {three}', 1, 2, 3);
+select sformat('Number {:{<}', 8);
+select sformat('Number {:10000000000}', 5);
+select sformat('1={1} 2={2} 0={0}', 0, 1);
+select sformat('Number {:.2d}', 42);
+select sformat('You scored {:.0%}', 0.25);
+select sformat('You scored {:%}', 0.25);
+select sformat('The price is {:f} dollars.', 45);
+select sformat('The price is {:.2f} dollars.', 45);
+select sformat('We have {:E} chickens.', 5);
+select sformat('We have {:e} chickens.', 5);
+select sformat('The universe is {:,} years old.', 13800000000);
+select sformat('The universe is {:_} years old.', 13800000000);
+select sformat('String {:-}', 'hello');
+
+echo #;
+echo # Table Format Test Cases;
+echo #;
+create table t1 (pformat text, data1 FLOAT, data2 INT,
+                 data3 VARCHAR(30), data4 CHAR);
+insert into t1 values ('{:.2f} {: } |{:*^15}| {:c}',  1.11,  1, 'example I',   'A'),
+                      ('{:.1f} {:-} |{:^15}| {:c}',   -2.22, -2, 'example II',  'B'),
+                      ('{:.2f} {:+} |{:<15}| {:c}',    3.33,  3, 'example III', 'C'),
+                      ('{:.4f} {:d} |{:^15}| {:c}',   -4.44, -4, 'example IV',  'D');
+select sformat(pformat, data1, data2, data3, data4) from t1;
+drop table t1;
+
+create table t2 (a double);
+insert into t2 values (3.14159265358979323846);
+select a, sformat('{:.15f}', a) from t2;
+drop table t2;
+
+echo #;
+echo # Table Test Cases;
+echo #;
+create table t1 (param1 text, param2 text, param3 int);
+insert into  t1 values ('string: {}, number: {}', 'xyz', 123),
+                       ('something {} went {} wrong {}', 'foo', 0),
+                       ('Test case {} -> {}', 'Print', -32);
+select sformat(param1, param2, param3) from t1;
+drop table t1;
+
+create table t2 (param1 FLOAT, param2 SMALLINT, param3 CHAR, param4 DATE);
+insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29')),
+                      (0.0005,  5, 'B', DATE('2020-6-29')),
+                      (5.5555, -5, 'C', DATE('200629')),
+                      (-9,     -9, 'D', DATE('20*06*29'));
+select sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t2;
+drop table t2;
+
+set names utf8;
+create table t3 (format_str   text character set 'latin1',
+                 first_param  text character set 'utf8',
+                 second_param text character set 'latin1');
+insert into t3 values ('test 1 {} {}', UNHEX('C3A5'), UNHEX('E5'));
+select sformat(format_str, first_param, second_param) from t3;
+select HEX(sformat(format_str, first_param, second_param)) from t3;
+drop table t3;
+set names latin1;
+
+create table t4 (p1 bit(8), p2 boolean, p3 DECIMAL, p4 TIMESTAMP);
+insert into t4 values (42, TRUE,  42, '2021-08-18 16:50:07'),
+                      (24, FALSE, 24, '0000-00-00 00:00:00');
+select sformat('{}: {} {} {} {}', 'Data', p1, p2, p3, p4) from t4;
+drop table t4;
+
+set names utf8;
+create table t5 (param text character SET utf8 COLLATE utf8_general_ci);
+insert into t5 values (UNHEX('C3A5')),(UNHEX('C5BB')),(UNHEX('e0b1bb')),
+                      (UNHEX('C38A')), (NULL);
+select sformat('{}', param) from t5;
+select HEX(sformat('{}', param)) from t5;
+drop table t5;
+set names latin1;
