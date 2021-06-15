@@ -302,3 +302,15 @@ INSERT IGNORE INTO t1 (id, a) VALUES (NULL, -1);
 --error ER_WARN_DATA_OUT_OF_RANGE
 ALTER TABLE t1 FORCE;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-24713 Assertion `dict_table_is_comp(index->table)' failed
+--echo #		in row_merge_buf_add()
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(3),
+		 b CHAR(8) AS (a) VIRTUAL, KEY(b))
+		 ROW_FORMAT=REDUNDANT ENGINE=InnoDB
+		 CHARACTER SET utf8;
+INSERT INTO t1 (id,a) VALUES (1,'foo');
+OPTIMIZE TABLE t1;
+DROP TABLE t1;
