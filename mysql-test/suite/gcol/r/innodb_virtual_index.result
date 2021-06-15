@@ -266,3 +266,23 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+#
+# MDEV-25872 InnoDB: Assertion failure in row_merge_read_clustered_index
+#	upon ALTER on table with indexed virtual columns
+#
+CREATE TABLE t1 (
+id BIGINT AUTO_INCREMENT PRIMARY KEY,
+a INT,
+va INT ZEROFILL AS (a) VIRTUAL,
+b TIMESTAMP,
+c CHAR(204),
+vc CHAR(8),
+KEY(vc,c(64),b,va)
+) ENGINE=InnoDB CHARACTER SET utf32;
+INSERT INTO t1 (id) SELECT NULL FROM seq_1_to_75;
+INSERT IGNORE INTO t1 (id, a) VALUES (NULL, -1);
+Warnings:
+Warning	1264	Out of range value for column 'va' at row 1
+ALTER TABLE t1 FORCE;
+ERROR 22003: Out of range value for column 'va' at row 1
+DROP TABLE t1;
