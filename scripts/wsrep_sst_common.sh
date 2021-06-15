@@ -1223,7 +1223,7 @@ check_pid()
 #
 cleanup_pid()
 {
-    local pid="$1"
+    local pid=$1
     local pid_file="${2:-}"
     local config="${3:-}"
 
@@ -1241,8 +1241,9 @@ cleanup_pid()
                            round=8
                            force=1
                            kill -9 $pid >/dev/null 2>&1
+                           sleep 0.5
                        else
-                           return 1;
+                           return 1
                        fi
                    fi
                 done
@@ -1254,7 +1255,7 @@ cleanup_pid()
     fi
 
     [ -n "$pid_file" ] && [ -f "$pid_file" ] && rm -f "$pid_file"
-    [ -n "$config" ]   && [ -f "$config"   ] && rm -f "$config"
+    [ -n "$config" ]   && [ -f "$config" ]   && rm -f "$config"
 
     return 0
 }

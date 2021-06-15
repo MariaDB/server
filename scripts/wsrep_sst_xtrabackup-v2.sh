@@ -750,15 +750,15 @@ recv_joiner()
         fi
 
         # check donor supplied secret
-        SECRET=$(grep -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+        SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
         if [ "$SECRET" != "$MY_SECRET" ]; then
             wsrep_log_error "Donor does not know my secret!"
             wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
             exit 32
         fi
 
-        # remove secret from magic file
-        grep -v -- "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
+        # remove secret from the magic file
+        grep -v -F -- "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
         mv "$MAGIC_FILE.new" "$MAGIC_FILE"
     fi
 }
