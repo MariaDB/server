@@ -691,6 +691,8 @@ a	b	c
 1	127	0
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 ALTER TABLE t ADD UNIQUE INDEX (c(1));
+Warnings:
+Warning	1264	Out of range value for column 'b' at row 1
 SELECT * FROM t WHERE c = '0';
 a	b	c
 1	127	0
