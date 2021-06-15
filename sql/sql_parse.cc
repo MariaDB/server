@@ -9175,7 +9175,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   uint error= (type == KILL_TYPE_QUERY ? ER_NO_SUCH_QUERY : ER_NO_SUCH_THREAD);
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
-  tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY);
+  tmp= find_thread_by_id_with_thd_data_lock(id, type == KILL_TYPE_QUERY);
   if (!tmp)
     DBUG_RETURN(error);
 
@@ -9203,7 +9203,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       faster and do a harder kill than KILL_SYSTEM_THREAD;
     */
 
-    mysql_mutex_lock(&tmp->LOCK_thd_data); // for various wsrep* checks below
+    //mysql_mutex_lock(&tmp->LOCK_thd_data); // for various wsrep* checks below
 #ifdef WITH_WSREP
     if (((thd->security_ctx->master_access & SUPER_ACL) ||
         thd->security_ctx->user_matches(tmp->security_ctx)) &&
