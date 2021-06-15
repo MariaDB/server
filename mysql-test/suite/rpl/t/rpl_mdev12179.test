@@ -285,8 +285,10 @@ EOF
 
 --connection server_2
 --enable_reconnect
+--enable_prepare_warnings
 --source include/wait_until_connected_again.inc
 SELECT max(seq_no) FROM mysql.gtid_slave_pos_InnoDB into @seq_no;
+--disable_prepare_warnings
 
 --connection server_1
 INSERT INTO t2(a) SELECT 1+MAX(a) FROM t2;

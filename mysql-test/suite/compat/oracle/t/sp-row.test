@@ -1,3 +1,8 @@
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Test temporary disabled for ps-protocol
+}
+
 SET sql_mode=ORACLE;
 
 

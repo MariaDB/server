@@ -1,3 +1,7 @@
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Test temporary disabled for ps-protocol
+}
 --source include/not_embedded.inc
 --source include/have_sequence.inc
 SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";

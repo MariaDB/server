@@ -355,7 +355,9 @@ eval $get_handler_status_counts;
 --echo #
 SELECT * FROM t1 PARTITION (pNeg, `p10-99`);
 FLUSH STATUS;
+--enable_prepare_warnings
 SELECT * FROM t1 PARTITION (pNeg, `p10-99`) INTO OUTFILE 'loadtest.txt';
+--disable_prepare_warnings
 eval $get_handler_status_counts;
 --echo # 1 commit
 --echo # 10 locks (1 ha_partition + 4 ha_innobase) x 2 (lock/unlock)

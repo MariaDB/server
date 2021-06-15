@@ -2,6 +2,7 @@
 
 SET sql_mode=ORACLE;
 
+--enable_prepare_warnings
 
 --echo #
 --echo # Creating a body of a non-existing package
@@ -49,7 +50,6 @@ DELIMITER ;$$
 --echo # PACKAGE and PS
 --echo #
 
---error ER_UNSUPPORTED_PS
 PREPARE stmt FROM 'CREATE PACKAGE test2 AS FUNCTION f1 RETURN INT; END test2';
 
 DELIMITER $$;
@@ -58,7 +58,6 @@ CREATE PACKAGE test2 AS
 END;
 $$
 DELIMITER ;$$
---error ER_UNSUPPORTED_PS
 PREPARE stmt FROM 'CREATE PACKAGE BODY test2 AS'
                   '  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;'
                   'END test2';
@@ -2689,3 +2688,4 @@ DELIMITER ;$$
 CALL xyz.xyz123(17,18,@R);
 DROP PACKAGE xyz;
 DROP TABLE t1;
+--disable_prepare_warnings

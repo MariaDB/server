@@ -318,7 +318,9 @@ SELECT NOT NOT NULLIF(2,3);
 --echo #
 --echo # MDEV-7146 NULLIF returns unexpected result with a YEAR field
 --echo #
+--enable_prepare_warnings
 CREATE TABLE t1 (a YEAR(2));
+--disable_prepare_warnings
 INSERT INTO t1 VALUES (0);
 SELECT a,NULLIF(a,2000),NULLIF(2000,a) FROM t1;
 SELECT a,NULLIF(a,2001),NULLIF(2001,a) FROM t1;

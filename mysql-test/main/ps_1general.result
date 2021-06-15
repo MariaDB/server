@@ -387,9 +387,7 @@ ERROR HY000: This command is not supported in the prepared statement protocol ye
 prepare stmt1 from ' deallocate prepare never_prepared ' ;
 ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt1 from 'alter view v1 as select 2';
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt4 from ' use test ' ;
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt3 from ' create database mysqltest ';
 create database mysqltest ;
 prepare stmt3 from ' drop database mysqltest ';
@@ -403,12 +401,9 @@ drop table t2 ;
 execute stmt3;
 ERROR 42S02: Table 'test.t2' doesn't exist
 prepare stmt3 from ' lock tables t1 read ' ;
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt3 from ' unlock tables ' ;
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt1 from ' load data infile ''<MYSQLTEST_VARDIR>/tmp/data.txt''
      into table t1 fields terminated by ''\t'' ';
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt1 from ' select * into outfile ''<MYSQLTEST_VARDIR>/tmp/data.txt'' from t1 ';
 execute stmt1 ;
 prepare stmt1 from ' optimize table t1 ' ;
@@ -416,7 +411,6 @@ prepare stmt1 from ' analyze table t1 ' ;
 prepare stmt1 from ' checksum table t1 ' ;
 prepare stmt1 from ' repair table t1 ' ;
 prepare stmt1 from ' handler t1 open ';
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 prepare stmt3 from ' commit ' ;
 prepare stmt3 from ' rollback ' ;
 prepare stmt4 from ' SET sql_mode=ansi ';

@@ -659,6 +659,7 @@ DROP TABLE t1;
 CREATE TABLE t1 (a INT, b VARCHAR(10),c DATETIME(3));
 INSERT INTO t1 VALUES (1,'b1','2001-01-01 10:20:30.123');
 DELIMITER $$;
+--enable_prepare_warnings
 CREATE PROCEDURE p1()
 BEGIN
   DECLARE v_a TYPE OF t1.a;
@@ -669,6 +670,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+--disable_prepare_warnings
 CALL p1();
 DROP PROCEDURE p1;
 DROP TABLE t1;

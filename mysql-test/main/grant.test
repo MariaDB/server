@@ -1239,12 +1239,14 @@ drop function if exists test_function;
 drop view if exists v1;
 create table test (col1 varchar(30));
 delimiter |;
+--enable_prepare_warnings
 create function test_function() returns varchar(30)
 begin
         declare tmp varchar(30);
         select col1 from test limit 1 into tmp;
         return '1';
 end|
+--disable_prepare_warnings
 delimiter ;|
 create view v1 as select test.* from test where test.col1=test_function();
 grant update (col1) on v1 to 'greg'@'localhost';

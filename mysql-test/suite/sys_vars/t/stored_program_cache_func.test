@@ -1,3 +1,7 @@
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Test temporary disabled for ps-protocol
+}
 create procedure p1() select 1;
 
 flush status;

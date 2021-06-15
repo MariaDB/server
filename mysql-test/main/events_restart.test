@@ -1,6 +1,6 @@
 # Can't test with embedded server that doesn't support grants
 -- source include/not_embedded.inc
-
+--disable_ps_protocol
 call mtr.add_suppression("Column count of mysql.event is wrong. Expected .*, found .*\. The table is probably corrupted");
 
 let $collation_server=`select @@collation_server`;
@@ -172,3 +172,4 @@ select name, originator, status from mysql.event;
 
 # Cleanup
 drop event ev;
+--enable_ps_protocol

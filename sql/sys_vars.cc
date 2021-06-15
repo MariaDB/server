@@ -1955,6 +1955,15 @@ Sys_var_gtid_slave_pos::do_check(THD *thd, set_var *var)
     return true;
   }
   var->save_result.string_value.length= res->length();
+  /*
+    Clear the member THD::m_reprepare_observer to avoid spurious
+    ER_NEED_REPREPARE errors that could happened on opening rpl-related system
+    tables (these tables are not subject to metadata version tracking).
+    The member THD::m_reprepare_observer is restored to its original value
+    on return from the method Sys_var_gtid_slave_pos::global_update().
+  */
+  save_reprepare_observer= thd->m_reprepare_observer;
+  thd->m_reprepare_observer= NULL;
   return false;
 }
 
@@ -1969,6 +1978,7 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
   if (!var->value)
   {
     my_error(ER_NO_DEFAULT, MYF(0), var->var->name.str);
+    thd->m_reprepare_observer= save_reprepare_observer;
     return true;
   }
 
@@ -1981,6 +1991,8 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
                              var->save_result.string_value.length);
   mysql_mutex_unlock(&LOCK_active_mi);
   mysql_mutex_lock(&LOCK_global_system_variables);
+  thd->m_reprepare_observer= save_reprepare_observer;
+
   return err;
 }
 

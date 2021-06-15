@@ -869,7 +869,7 @@ public:
   // Ensures that at least all members used during cleanup() are initialized.
   st_select_lex_unit()
     : union_result(NULL), table(NULL),  result(NULL), fake_select_lex(NULL),
-      cleaned(false), bag_set_op_optimized(false),
+      last_procedure(NULL), cleaned(false), bag_set_op_optimized(false),
       have_except_all_or_intersect_all(false)
   {
   }
@@ -4772,6 +4772,19 @@ public:
   bool check_cte_dependencies_and_resolve_references();
   bool resolve_references_to_cte(TABLE_LIST *tables,
                                  TABLE_LIST **tables_last);
+
+  /**
+    Turn on the SELECT_DESCRIBE flag for every SELECT_LEX involved into
+    the statement being processed in case the statement is EXPLAIN UPDATE/DELETE.
+
+    @param lex  current LEX
+  */
+
+  void promote_select_describe_flag_if_needed()
+  {
+    if (describe)
+      builtin_select.options |= SELECT_DESCRIBE;
+  }
 
 };
 

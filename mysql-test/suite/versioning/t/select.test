@@ -1,7 +1,12 @@
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Need regular protocol but ps-protocol was specified
+}
 --source suite/versioning/engines.inc
 --source suite/versioning/common.inc
 --source include/default_optimizer_switch.inc
 
+--enable_prepare_warnings
 # test_01
 
 --replace_result $sys_datatype_expl SYS_DATATYPE
@@ -475,5 +480,6 @@ drop table tmp1;
 drop tables x, x_p;
 
 call verify_trt_dummy(34);
+--disable_prepare_warnings
 
 -- source suite/versioning/common_finish.inc

@@ -1270,7 +1270,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
   DBUG_ASSERT(join->thd == thd);
 
   SELECT_LEX *select_lex= join->select_lex;
-  Query_arena *arena= thd->stmt_arena;
+  Query_arena *arena, backup;
+  arena= thd->activate_stmt_arena_if_needed(&backup);
 
   if (!select_lex->master_unit()->is_unit_op() &&
       !select_lex->table_list.elements &&
@@ -1286,12 +1287,7 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
       !(select_lex->item_list.head()->type() == FIELD_ITEM ||
 	select_lex->item_list.head()->type() == REF_ITEM) &&
       !join->conds && !join->having &&
-      /*
-        switch off this optimization for prepare statement,
-        because we do not rollback this changes
-        TODO: make rollback for it, or special name resolving mode in 5.0.
-      */
-      !arena->is_stmt_prepare_or_first_sp_execute()
+      thd->stmt_arena->state != Query_arena::STMT_INITIALIZED_FOR_SP
       )
   {
     have_to_be_excluded= 1;
@@ -1310,6 +1306,8 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
     substitution->fix_after_pullout(select_lex->outer_select(),
                                     &substitution, TRUE);
   }
+  if (arena)
+    thd->restore_active_arena(arena, &backup);
   DBUG_RETURN(false);
 }
 
