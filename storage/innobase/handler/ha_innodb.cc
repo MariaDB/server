@@ -15308,6 +15308,7 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 0;
+		log_write_up_to(LSN_MAX, true);
 		break;
 	default:/* Do nothing */
 		;
