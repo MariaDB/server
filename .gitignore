@@ -103,6 +103,7 @@ packaging/rpm-oel/mysql.spec
 packaging/rpm-uln/mysql.10.0.11.spec
 packaging/solaris/postinstall-solaris
 extra/pcre2
+extra/libfmt
 plugin/auth_pam/auth_pam_tool
 plugin/auth_pam/config_auth_pam.h
 plugin/aws_key_management/aws-sdk-cpp
