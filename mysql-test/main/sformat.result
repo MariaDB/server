@@ -1,0 +1,9 @@
+select sformat("string test");
+sformat("string test")
+string test
+select sformat('string test');
+sformat('string test')
+string test
+select sformat('string test') from dual;
+sformat('string test')
+string test

@@ -1896,6 +1896,17 @@ protected:
   virtual ~Create_func_sec_to_time() {}
 };
 
+class Create_func_sformat : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_sformat s_singleton;
+
+protected:
+  Create_func_sformat() {}
+  virtual ~Create_func_sformat() {}
+};
 
 class Create_func_sha : public Create_func_arg1
 {
@@ -4965,6 +4976,14 @@ Create_func_sec_to_time::create_1_arg(THD *thd, Item *arg1)
   return new (thd->mem_root) Item_func_sec_to_time(thd, arg1);
 }
 
+Create_func_sformat Create_func_sformat::s_singleton;
+
+Item*
+Create_func_sformat::create_1_arg(THD *thd, Item *arg1)
+{
+  return new (thd->mem_root) Item_func_sformat(thd, arg1);
+}
+
 
 Create_func_sha Create_func_sha::s_singleton;
 
@@ -5631,6 +5650,7 @@ static Native_func_registry func_array[] =
   { { STRING_WITH_LEN("RTRIM") }, BUILDER(Create_func_rtrim)},
   { { STRING_WITH_LEN("RTRIM_ORACLE") }, BUILDER(Create_func_rtrim_oracle)},
   { { STRING_WITH_LEN("SEC_TO_TIME") }, BUILDER(Create_func_sec_to_time)},
+  { { STRING_WITH_LEN("SFORMAT") }, BUILDER(Create_func_sformat)},
   { { STRING_WITH_LEN("SHA") }, BUILDER(Create_func_sha)},
   { { STRING_WITH_LEN("SHA1") }, BUILDER(Create_func_sha)},
   { { STRING_WITH_LEN("SHA2") }, BUILDER(Create_func_sha2)},

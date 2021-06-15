@@ -1,0 +1,7 @@
+# Description
+# -----------
+# Test cases for the sformat function
+
+select sformat("string test");
+select sformat('string test');
+select sformat('string test') from dual;

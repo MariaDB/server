@@ -1302,6 +1302,26 @@ bool Item_func_replace::fix_length_and_dec()
 }
 
 
+bool Item_func_sformat::fix_length_and_dec()
+{
+  return FALSE;
+}
+
+String *Item_func_sformat::val_str(String *str)
+{
+  String *res;
+  DBUG_ASSERT(fixed());
+  
+  if (!(res=args[0]->val_str(str)))
+  {
+    null_value= 1;
+    return NULL;
+  }
+  return res;
+}
+
+
+
 /*********************************************************************/
 bool Item_func_regexp_replace::fix_length_and_dec()
 {

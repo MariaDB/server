@@ -586,6 +586,21 @@ public:
   { return get_item_copy<Item_func_substr>(thd, this); }
 };
 
+class Item_func_sformat :public Item_str_func
+{
+public:
+  Item_func_sformat(THD *thd, Item *format): Item_str_func(thd, format) {}
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("sformat") };
+    return name;
+  }
+  String *val_str(String *) override;
+  bool fix_length_and_dec() override;
+  Item *get_copy(THD *thd) override
+  { return get_item_copy<Item_func_sformat>(thd, this); }
+};
+
 class Item_func_substr_oracle :public Item_func_substr
 {
 protected:
