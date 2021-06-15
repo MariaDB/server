@@ -480,7 +480,7 @@ file '%s')", fname);
     if (init_intvar_from_file(&master_log_pos, &mi->file, 4) ||
         init_strvar_from_file(mi->host, sizeof(mi->host), &mi->file, 0) ||
         init_strvar_from_file(mi->user, sizeof(mi->user), &mi->file, "test") ||
-        init_strvar_from_file(mi->password, SCRAMBLED_PASSWORD_CHAR_LENGTH+1,
+        init_strvar_from_file(mi->password, sizeof(mi->password),
                               &mi->file, 0) ||
         init_intvar_from_file(&port, &mi->file, MYSQL_PORT) ||
         init_intvar_from_file(&connect_retry, &mi->file,
