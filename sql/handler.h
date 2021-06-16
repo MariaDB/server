@@ -956,10 +956,12 @@ struct xid_recovery_member
   uint in_engine_prepare;  // number of engines that have xid prepared
   bool decided_to_commit;
   Binlog_offset binlog_coord; // semisync recovery binlog offset
+  XID *full_xid;           // needed by wsrep or past it recovery
 
-  xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg)
+  xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
+                      XID *full_xid_arg)
     : xid(xid_arg), in_engine_prepare(prepare_arg),
-      decided_to_commit(decided_arg) {};
+      decided_to_commit(decided_arg), full_xid(full_xid_arg) {};
 };
 
 /* for recover() handlerton call */
