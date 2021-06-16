@@ -393,7 +393,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     This is a good candidate for a minor refactoring.
   */
   TABLE *table;
-  bool result= TRUE;
+  bool result= TRUE, refresh_metadata= FALSE;
   String stmt_query;
   bool lock_upgrade_done= FALSE;
   bool backup_of_table_list_done= 0;;
@@ -606,25 +606,33 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
            table->triggers->create_trigger(thd, tables, &stmt_query):
            table->triggers->drop_trigger(thd, tables, &stmt_query));
 
-  close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
-
-  /*
-    Reopen the table if we were under LOCK TABLES.
-    Ignore the return value for now. It's better to
-    keep master/slave in consistent state.
-  */
-  if (thd->locked_tables_list.reopen_tables(thd, false))
-    thd->clear_error();
-
-  /*
-    Invalidate SP-cache. That's needed because triggers may change list of
-    pre-locking tables.
-  */
-  sp_cache_invalidate();
+  refresh_metadata= TRUE;
 
 end:
   if (!result)
     result= write_bin_log(thd, TRUE, stmt_query.ptr(), stmt_query.length());
+
+  if (mdl_request_for_trn.ticket)
+    thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
+
+  if (refresh_metadata)
+  {
+    close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
+
+    /*
+      Reopen the table if we were under LOCK TABLES.
+      Ignore the return value for now. It's better to
+      keep master/slave in consistent state.
+    */
+    if (thd->locked_tables_list.reopen_tables(thd, false))
+      thd->clear_error();
+
+    /*
+      Invalidate SP-cache. That's needed because triggers may change list of
+      pre-locking tables.
+    */
+    sp_cache_invalidate();
+  }
 
   /*
     If we are under LOCK TABLES we should restore original state of
@@ -646,14 +654,6 @@ end:
                   thd->lex->spname->m_db.str, static_cast<uint>(thd->lex->spname->m_db.length),
                   thd->lex->spname->m_name.str, static_cast<uint>(thd->lex->spname->m_name.length));
   }
-
-  /* In Locked_tables_list::reopen_tables(),
-  MDL_context::set_transaction_duration_for_all_locks() may have been invoked,
-  converting our explicit MDL to transaction scope. In that case, we will not
-  release the lock, to avoid a debug assertion failure. */
-  if (MDL_ticket *ticket= mdl_request_for_trn.ticket)
-    if (thd->mdl_context.has_explicit_locks())
-      thd->mdl_context.release_lock(ticket);
 
   DBUG_RETURN(result);
 
