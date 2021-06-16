@@ -2134,7 +2134,7 @@ t1	CREATE TABLE `t1` (
   KEY `a` (`a`)
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1 COMMENT='new'
 count(*)
-0
+2
 master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
 crash point: ddl_log_alter_after_rename_to_backup
 t1.frm

@@ -4090,6 +4090,26 @@ online_retry_drop_indexes_low(
 	}
 }
 
+/** After commit, unlock the data dictionary and close any deleted files.
+@param deleted  handles of deleted files
+@param trx      committed transaction */
+static void unlock_and_close_files(const std::vector<pfs_os_file_t> &deleted,
+                                   trx_t *trx)
+{
+  row_mysql_unlock_data_dictionary(trx);
+  for (pfs_os_file_t d : deleted)
+    os_file_close(d);
+  log_write_up_to(trx->commit_lsn, true);
+}
+
+/** Commit a DDL transaction and unlink any deleted files. */
+static void commit_unlock_and_unlink(trx_t *trx)
+{
+  std::vector<pfs_os_file_t> deleted;
+  trx->commit(deleted);
+  unlock_and_close_files(deleted, trx);
+}
+
 /********************************************************************//**
 Drop any indexes that we were not able to free previously due to
 open table handles. */
@@ -4107,8 +4127,7 @@ online_retry_drop_indexes(
 
 		row_mysql_lock_data_dictionary(trx);
 		online_retry_drop_indexes_low(table, trx);
-		trx_commit_for_mysql(trx);
-		row_mysql_unlock_data_dictionary(trx);
+		commit_unlock_and_unlink(trx);
 		trx->free();
 	}
 
@@ -4139,7 +4158,16 @@ online_retry_drop_indexes_with_trx(
 		trx_start_for_ddl(trx);
 
 		online_retry_drop_indexes_low(table, trx);
-		trx_commit_for_mysql(trx);
+		std::vector<pfs_os_file_t> deleted;
+		trx->commit(deleted);
+		/* FIXME: We are holding the data dictionary latch here
+		while waiting for the files to be actually deleted.
+		However, we should never have any deleted files here,
+		because they would be related to ADD FULLTEXT INDEX,
+		and that operation is never supported online. */
+		for (pfs_os_file_t d : deleted) {
+			os_file_close(d);
+		}
 	}
 }
 
@@ -6092,24 +6120,6 @@ create_index_dict(
 	que_graph_free((que_t*) que_node_get_parent(thr));
 
 	DBUG_RETURN(index);
-}
-
-/** After releasing the data dictionary latch, close deleted files
-@param deleted  handles of deleted files */
-static void close_unlinked_files(const std::vector<pfs_os_file_t> &deleted)
-{
-  dict_sys.assert_not_locked();
-  for (pfs_os_file_t d : deleted)
-    os_file_close(d);
-}
-
-/** Commit a DDL transaction and unlink any deleted files. */
-static void commit_unlock_and_unlink(trx_t *trx)
-{
-  std::vector<pfs_os_file_t> deleted;
-  trx->commit(deleted);
-  row_mysql_unlock_data_dictionary(trx);
-  close_unlinked_files(deleted);
 }
 
 /** Update internal structures with concurrent writes blocked,
@@ -11146,9 +11156,8 @@ foreign_fail:
 				ctx->prebuilt->table, altered_table->s);
 		}
 
-		row_mysql_unlock_data_dictionary(trx);
+		unlock_and_close_files(deleted, trx);
 		trx->free();
-		close_unlinked_files(deleted);
 		if (fts_exist) {
 			purge_sys.resume_FTS();
 		}
@@ -11199,9 +11208,8 @@ foreign_fail:
 #endif
 	}
 
-	row_mysql_unlock_data_dictionary(trx);
+	unlock_and_close_files(deleted, trx);
 	trx->free();
-	close_unlinked_files(deleted);
 	if (fts_exist) {
 		purge_sys.resume_FTS();
 	}

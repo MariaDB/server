@@ -1559,6 +1559,8 @@ retry:
     mem_heap_free(heap);
     for (pfs_os_file_t detached : to_close)
       os_file_close(detached);
+    /* Any changes must be persisted before we return. */
+    log_write_up_to(mtr.commit_lsn(), true);
   }
 
   my_free(namebuf);
@@ -13033,6 +13035,9 @@ ha_innobase::create(
 		row_mysql_unlock_data_dictionary(trx);
 		for (pfs_os_file_t d : deleted) os_file_close(d);
 		error = info.create_table_update_dict();
+		if (!(info.flags2() & DICT_TF2_TEMPORARY)) {
+			log_write_up_to(trx->commit_lsn, true);
+		}
 	}
 
 	if (own_trx) {
@@ -13379,10 +13384,11 @@ err_exit:
   std::vector<pfs_os_file_t> deleted;
   trx->commit(deleted);
   row_mysql_unlock_data_dictionary(trx);
-  if (trx != parent_trx)
-    trx->free();
   for (pfs_os_file_t d : deleted)
     os_file_close(d);
+  log_write_up_to(trx->commit_lsn, true);
+  if (trx != parent_trx)
+    trx->free();
   if (fts)
     purge_sys.resume_FTS();
   DBUG_RETURN(0);
@@ -13595,6 +13601,7 @@ int ha_innobase::truncate()
 
 		err = create(name, table, &info,
 			     dict_table_is_file_per_table(ib_table), trx);
+		/* On success, create() durably committed trx. */
 		if (fts) {
 			purge_sys.resume_FTS();
 		}
@@ -13690,6 +13697,9 @@ ha_innobase::rename_table(
 	}
 
 	row_mysql_unlock_data_dictionary(trx);
+	if (error == DB_SUCCESS) {
+		log_write_up_to(trx->commit_lsn, true);
+	}
 	trx->free();
 
 	if (error == DB_DUPLICATE_KEY) {
@@ -15308,7 +15318,9 @@ ha_innobase::extra(
 		break;
 	case HA_EXTRA_END_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 0;
-		log_write_up_to(LSN_MAX, true);
+		if (!m_prebuilt->table->is_temporary()) {
+			log_write_up_to(LSN_MAX, true);
+		}
 		break;
 	default:/* Do nothing */
 		;
