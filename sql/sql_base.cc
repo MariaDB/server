@@ -2815,7 +2815,13 @@ static bool
 check_and_update_table_version(THD *thd,
                                TABLE_LIST *tables, TABLE_SHARE *table_share)
 {
-  if (! tables->is_table_ref_id_equal(table_share))
+  /*
+    First, verify that TABLE_LIST was indeed *created by the parser* -
+    it must be in the global TABLE_LIST list. Standalone TABLE_LIST objects
+    created with TABLE_LIST::init_one_table() have a short life time and
+    aren't linked anywhere.
+  */
+  if (tables->prev_global && !tables->is_table_ref_id_equal(table_share))
   {
     if (thd->m_reprepare_observer &&
         thd->m_reprepare_observer->report_error(thd))
