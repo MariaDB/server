@@ -1,3 +1,7 @@
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Test temporarily disabled for ps-protocol
+}
 --source include/default_optimizer_switch.inc
 
 create table t1 (a int, b varchar(32));

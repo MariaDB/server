@@ -1,3 +1,7 @@
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Test temporarily disabled for ps-protocol
+}
 --echo #
 --echo # The following entries are meant for testing the parser, ensuring
 --echo # the right values are passed down to the executor, for all possible

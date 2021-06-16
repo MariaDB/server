@@ -1906,6 +1906,8 @@ drop table t1;
 --echo # MDEV-19682 sql_mode="oracle" does not support sysdate
 --echo #
 
+--enable_prepare_warnings
+
 --error ER_BAD_FIELD_ERROR
 SELECT sysdate LIKE '____-__-__ __:__:__';
 --error ER_BAD_FIELD_ERROR
@@ -1950,6 +1952,8 @@ sysdate:
 END;
 $$
 DELIMITER ;$$
+
+--disable_prepare_warnings
 
 --echo #
 --echo # End of 10.6 tests
