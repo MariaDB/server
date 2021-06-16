@@ -15,6 +15,7 @@ if (`SELECT VERSION() NOT LIKE '%embedded%'`)
    --skip Test requires: embedded server
 }
 let $engine_type= MyISAM;
+--enable_prepare_warnings
 SET @@session.sql_mode = 'NO_ENGINE_SUBSTITUTION';
 --source suite/funcs_1/datadict/datadict_load.inc
 

@@ -210,26 +210,6 @@ DROP TABLE t1;
 CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (USER 'u1', HOST '127.0.0.1');
 ALTER SERVER s OPTIONS (USER 'u2');
 DROP SERVER s;
-# Test case 18: Check that the statements CREATE EVENT/ALTER EVENT/
-# DROP EVENT can be executed as a prepared statement
-# Create the event e1 that specifies time in past. Such event is created
-# just for the sake of its existence and never will be triggered.
-# Disable warnings temprorary in order to hide the following warnings
-# generated in result of execution the 'CREATE EVENT' statement:
-#   "1544 | Event execution time is in the past. Event has been disabled"
-#   "1105 | Event scheduler is switched off, use SET GLOBAL event_scheduler=ON to enable it."
-CREATE EVENT e1 ON SCHEDULE AT CURRENT_TIMESTAMP - INTERVAL 1 DAY ON COMPLETION PRESERVE DO SET @a=1;
-ALTER EVENT e1 COMMENT 'New comment';
-DROP EVENT IF EXISTS e1;
-# Test case 19: Check that the statement 'SHOW RELAYLOG EVENTS' can be
-# executed as a prepared statement.
-SHOW RELAYLOG EVENTS;
-Log_name	Pos	Event_type	Server_id	End_log_pos	Info
-# Test case 20: Check the the statement 'EXECUTE IMMEDIATE'
-# can be executed as a prepared statement
-EXECUTE IMMEDIATE 'SELECT 1';
-1
-1
 # Test Test case 21: Check the statements 'BACKUP'/'BACKUP STAGE'
 # can be executed as a prepared statement
 CREATE TABLE t1 (a INT);
