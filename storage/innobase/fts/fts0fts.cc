@@ -1549,15 +1549,19 @@ static dberr_t fts_lock_table(trx_t *trx, const char *table_name)
   {
     dberr_t err= lock_table_for_trx(table, trx, LOCK_X);
     /* Wait for purge threads to stop using the table. */
+    dict_sys.mutex_lock();
     for (uint n= 15; table->get_ref_count() > 1; )
     {
+      dict_sys.mutex_unlock();
       if (!--n)
       {
         err= DB_LOCK_WAIT_TIMEOUT;
         break;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
+      dict_sys.mutex_lock();
     }
+    dict_sys.mutex_unlock();
     table->release();
     return err;
   }
