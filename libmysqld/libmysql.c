@@ -2132,7 +2132,7 @@ static my_bool execute(MYSQL_STMT *stmt, char *packet, ulong length)
   buff[4]= (char) stmt->flags;
   int4store(buff+5, 1);                         /* iteration count */
 
-  res= MY_TEST(cli_advanced_command(mysql, COM_STMT_EXECUTE, buff, sizeof(buff),
+  res= MY_TEST((*mysql->methods->advanced_command)(mysql, COM_STMT_EXECUTE, buff, sizeof(buff),
                                     (uchar*) packet, length, 1, stmt) ||
             (*mysql->methods->read_query_result)(mysql));
   stmt->affected_rows= mysql->affected_rows;
@@ -2524,9 +2524,16 @@ static void reinit_result_set_metadata(MYSQL_STMT *stmt)
 }
 
 
+static int has_cursor(MYSQL_STMT *stmt)
+{
+  return stmt->server_status & SERVER_STATUS_CURSOR_EXISTS &&
+         stmt->flags & CURSOR_TYPE_READ_ONLY;
+}
+
+
 static void prepare_to_fetch_result(MYSQL_STMT *stmt)
 {
-  if (stmt->server_status & SERVER_STATUS_CURSOR_EXISTS)
+  if (has_cursor(stmt))
   {
     stmt->mysql->status= MYSQL_STATUS_READY;
     stmt->read_row_func= stmt_read_row_from_cursor;
@@ -4470,8 +4477,7 @@ int STDCALL mysql_stmt_store_result(MYSQL_STMT *stmt)
     DBUG_RETURN(1);
   }
 
-  if (mysql->status == MYSQL_STATUS_READY &&
-      stmt->server_status & SERVER_STATUS_CURSOR_EXISTS)
+  if (mysql->status == MYSQL_STATUS_READY && has_cursor(stmt))
   {
     /*
       Server side cursor exist, tell server to start sending the rows
@@ -4483,7 +4489,7 @@ int STDCALL mysql_stmt_store_result(MYSQL_STMT *stmt)
     /* Send row request to the server */
     int4store(buff, stmt->stmt_id);
     int4store(buff + 4, (int)~0); /* number of rows to fetch */
-    if (cli_advanced_command(mysql, COM_STMT_FETCH, buff, sizeof(buff),
+    if ((*mysql->methods->advanced_command)(mysql, COM_STMT_FETCH, buff, sizeof(buff),
                              (uchar*) 0, 0, 1, stmt))
     {
       /* 
