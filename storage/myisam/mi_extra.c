@@ -282,6 +282,7 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
     mysql_mutex_unlock(&share->intern_lock);
     mysql_mutex_unlock(&THR_LOCK_myisam);
     break;
+  case HA_EXTRA_END_ALTER_COPY:
   case HA_EXTRA_FLUSH:
     if (!share->temporary)
       flush_key_blocks(share->key_cache, share->kfile, &share->dirty_part_map,
