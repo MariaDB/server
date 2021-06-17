@@ -4936,6 +4936,12 @@ int STDCALL mysql_stmt_next_result(MYSQL_STMT *stmt)
     alloc_stmt_fields(stmt);
     prepare_to_fetch_result(stmt);
   }
+  else
+  {
+    stmt->affected_rows= stmt->mysql->affected_rows;
+    stmt->server_status= stmt->mysql->server_status;
+    stmt->insert_id= stmt->mysql->insert_id;
+  }
 
   DBUG_RETURN(0);
 }
