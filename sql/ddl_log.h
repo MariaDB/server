@@ -34,13 +34,13 @@ enum ddl_log_entry_code
     DDL_LOG_ENTRY_CODE:
       An entry to be executed in a linked list from an execute log
       entry.
-    DDL_IGNORE_LOG_ENTRY_CODE:
+    DDL_LOG_IGNORE_ENTRY_CODE:
       An entry that is to be ignored
   */
   DDL_LOG_UNKNOWN= 0,
   DDL_LOG_EXECUTE_CODE= 1,
   DDL_LOG_ENTRY_CODE= 2,
-  DDL_IGNORE_LOG_ENTRY_CODE= 3,
+  DDL_LOG_IGNORE_ENTRY_CODE= 3,
   DDL_LOG_ENTRY_CODE_LAST= 4
 };
 
@@ -267,7 +267,7 @@ bool ddl_log_write_execute_entry(uint first_entry,
 bool ddl_log_disable_execute_entry(DDL_LOG_MEMORY_ENTRY **active_entry);
 
 void ddl_log_complete(DDL_LOG_STATE *ddl_log_state);
-void ddl_log_revert(THD *thd, DDL_LOG_STATE *ddl_log_state);
+bool ddl_log_revert(THD *thd, DDL_LOG_STATE *ddl_log_state);
 
 bool ddl_log_update_phase(DDL_LOG_STATE *entry, uchar phase);
 bool ddl_log_add_flag(DDL_LOG_STATE *entry, uint16 flag);

@@ -697,7 +697,7 @@ end:
   ddl_log_complete(&ddl_log_state);
   debug_crash_here("ddl_log_drop_before_delete_tmp");
   /* delete any created log files */
-  ddl_log_revert(thd, &ddl_log_state_tmp_file);
+  result|= ddl_log_revert(thd, &ddl_log_state_tmp_file);
   /*
     If we are under LOCK TABLES we should restore original state of
     meta-data locks. Otherwise all locks will be released along
