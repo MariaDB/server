@@ -370,6 +370,9 @@ ulonglong	srv_defragment_interval;
 /** Current mode of operation */
 enum srv_operation_mode srv_operation;
 
+/** whether this is the server's first start after mariabackup --prepare */
+bool srv_start_after_restore;
+
 /* Set the following to 0 if you want InnoDB to write messages on
 stderr on startup/shutdown. Not enabled on the embedded server. */
 ibool	srv_print_verbose_log;

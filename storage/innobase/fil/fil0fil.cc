@@ -2246,7 +2246,19 @@ func_exit:
 	/* Always look for a file at the default location. But don't log
 	an error if the tablespace is already open in remote or dict. */
 	ut_a(df_default.filepath());
-	const bool	strict = (tablespaces_found == 0);
+
+	/* Mariabackup will not copy files whose names start with
+	#sql-. We will suppress messages about such files missing on
+	the first server startup. The tables ought to be dropped by
+	drop_garbage_tables_after_restore() a little later. */
+
+	const bool strict = !tablespaces_found
+		&& !(srv_operation == SRV_OPERATION_NORMAL
+		     && srv_start_after_restore
+		     && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
+		     && dict_table_t::is_temporary_name(
+			     df_default.filepath()));
+
 	if (df_default.open_read_only(strict) == DB_SUCCESS) {
 		ut_ad(df_default.is_open());
 		++tablespaces_found;
@@ -2281,6 +2293,13 @@ func_exit:
 	/* Make sense of these three possible locations.
 	First, bail out if no tablespace files were found. */
 	if (valid_tablespaces_found == 0) {
+		if (!strict
+		    && IF_WIN(GetLastError() == ERROR_FILE_NOT_FOUND,
+			      errno == ENOENT)) {
+			/* Suppress a message about a missing file. */
+			goto corrupted;
+		}
+
 		os_file_get_last_error(true);
 		sql_print_error("InnoDB: Could not find a valid tablespace"
 				" file for %.*s. %s",

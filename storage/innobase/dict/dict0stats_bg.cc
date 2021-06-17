@@ -168,6 +168,9 @@ void dict_stats_update_if_needed_func(dict_table_t *table)
 	ulonglong	n_rows = dict_table_get_n_rows(table);
 
 	if (dict_stats_is_persistent_enabled(table)) {
+		if (table->name.is_temporary()) {
+			return;
+		}
 		if (counter > n_rows / 10 /* 10% */
 		    && dict_stats_auto_recalc_is_enabled(table)) {
 

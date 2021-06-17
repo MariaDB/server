@@ -10743,7 +10743,7 @@ err_new_table_cleanup:
                           &alter_ctx.new_db, &alter_ctx.tmp_name,
                           (FN_IS_TMP | (no_ha_table ? NO_HA_TABLE : 0)),
                           alter_ctx.get_tmp_path());
-
+  DEBUG_SYNC(thd, "alter_table_after_temp_table_drop");
 err_cleanup:
   my_free(const_cast<uchar*>(frm.str));
   ddl_log_complete(&ddl_log_state);
@@ -11178,6 +11178,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
+  DEBUG_SYNC(thd, "copy_data_between_tables_before_reset_backup_lock");
   if (backup_reset_alter_copy_lock(thd))
     error= 1;
 

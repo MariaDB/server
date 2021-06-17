@@ -1,0 +1,24 @@
+# xtrabackup backup
+CREATE TABLE t1(i int) ENGINE=InnoDB;
+INSERT into t1 values(1);
+connect  con2, localhost, root,,;
+connection con2;
+set lock_wait_timeout=1;
+SET debug_sync='copy_data_between_tables_before_reset_backup_lock  SIGNAL go WAIT_FOR after_backup_stage_block_commit';
+SET debug_sync='alter_table_after_temp_table_drop SIGNAL temp_table_dropped';
+SET debug_sync='now WAIT_FOR after_backup_stage_start';ALTER TABLE test.t1 FORCE, algorithm=COPY;|
+connection default;
+connection con2;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+SET debug_sync='RESET';
+disconnect con2;
+connection default;
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t1;
+i
+1
+DROP TABLE t1;

@@ -888,11 +888,18 @@ static ulint dict_check_sys_tables()
 						     IBD, false);
 
 		/* Check that the .ibd file exists. */
-		if (!fil_ibd_open(
-			    false,
-			    FIL_TYPE_TABLESPACE,
-			    space_id, dict_tf_to_fsp_flags(flags),
-			    name, filepath)) {
+		if (fil_ibd_open(false, FIL_TYPE_TABLESPACE,
+				 space_id, dict_tf_to_fsp_flags(flags),
+				 name, filepath)) {
+		} else if (srv_operation == SRV_OPERATION_NORMAL
+			   && srv_start_after_restore
+			   && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
+			   && dict_table_t::is_temporary_name(filepath)) {
+			/* Mariabackup will not copy files whose
+			names start with #sql-. This table ought to
+			be dropped by drop_garbage_tables_after_restore()
+			a little later. */
+		} else {
 			sql_print_warning("InnoDB: Ignoring tablespace for"
 					  " %.*s because it"
 					  " could not be opened.",

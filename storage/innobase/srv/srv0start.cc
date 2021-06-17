@@ -989,6 +989,9 @@ static dberr_t find_and_check_log_file(bool &log_file_found)
     if (is_operation_restore())
       return DB_NOT_FOUND;
 
+    /* This might be first start after mariabackup
+    copy-back or move-back. */
+    srv_start_after_restore= true;
     return DB_SUCCESS;
   }
 
@@ -1019,7 +1022,9 @@ static dberr_t find_and_check_log_file(bool &log_file_found)
   header, checkpoint page 1, empty, checkpoint page 2, redo log page(s).
 
   Mariabackup --prepare would create an empty LOG_FILE_NAME. Tolerate it. */
-  if (size != 0 && size <= OS_FILE_LOG_BLOCK_SIZE * 4)
+  if (size == 0)
+    srv_start_after_restore= true;
+  else if (size <= OS_FILE_LOG_BLOCK_SIZE * 4)
   {
     ib::error() << "Log file " << logfile0 << " size " << size
                 << " is too small";

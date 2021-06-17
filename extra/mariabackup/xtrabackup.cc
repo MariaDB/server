@@ -2546,9 +2546,22 @@ check_if_skip_table(
 
 	dbname = NULL;
 	tbname = name;
-	while ((ptr = strchr(tbname, '/')) != NULL) {
+	for (;;) {
+		ptr= strchr(tbname, '/');
+#ifdef _WIN32
+		if (!ptr) {
+			ptr= strchr(tbname,'\\');
+		}
+#endif
+		if (!ptr) {
+			break;
+		}
 		dbname = tbname;
 		tbname = ptr + 1;
+	}
+
+	if (strncmp(tbname, tmp_file_prefix, tmp_file_prefix_length) == 0) {
+		return TRUE;
 	}
 
 	if (regex_exclude_list.empty() &&
@@ -3038,7 +3051,7 @@ To use this facility, you need to
    for the variable)
 3. start mariabackup with --dbug=+d,debug_mariabackup_events
 */
-static void dbug_mariabackup_event(const char *event,
+void dbug_mariabackup_event(const char *event,
                                    const fil_space_t::name_type key)
 {
 	char *sql = dbug_mariabackup_get_val(event, key);
@@ -3047,10 +3060,6 @@ static void dbug_mariabackup_event(const char *event,
 		xb_mysql_query(mysql_connection, sql, false, true);
 	}
 }
-# define DBUG_MARIABACKUP_EVENT(A, B)					\
-  DBUG_EXECUTE_IF("mariabackup_events", dbug_mariabackup_event(A,B);)
-#else
-# define DBUG_MARIABACKUP_EVENT(A, B) /* empty */
 #endif // DBUG_OFF
 
 /** Datafiles copying thread.*/
