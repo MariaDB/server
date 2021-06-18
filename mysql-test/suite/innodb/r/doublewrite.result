@@ -28,10 +28,8 @@ commit work;
 # ---------------------------------------------------------------
 # Test Begin: Test if recovery works if first page of user
 # tablespace is full of zeroes.
-select space from information_schema.innodb_sys_tables
-where name = 'test/t1' into @space_id;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select space into @space_id from information_schema.innodb_sys_tables
+where name = 'test/t1';
 begin;
 insert into t1 values (6, repeat('%', 12));
 # Ensure that dirty pages of table t1 are flushed.
@@ -62,10 +60,8 @@ f1	f2
 # ---------------------------------------------------------------
 # Test Begin: Test if recovery works if first page of user
 # tablespace is corrupted.
-select space from information_schema.innodb_sys_tables
-where name = 'test/t1' into @space_id;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select space into @space_id from information_schema.innodb_sys_tables
+where name = 'test/t1';
 # Ensure that dirty pages of table t1 is flushed.
 flush tables t1 for export;
 unlock tables;
@@ -93,10 +89,8 @@ f1	f2
 # ---------------------------------------------------------------
 # Test Begin: Test if recovery works if 2nd page of user
 # tablespace is full of zeroes.
-select space from information_schema.innodb_sys_tables
-where name = 'test/t1' into @space_id;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select space into @space_id from information_schema.innodb_sys_tables
+where name = 'test/t1';
 # Ensure that dirty pages of table t1 is flushed.
 flush tables t1 for export;
 unlock tables;
@@ -124,10 +118,8 @@ f1	f2
 # ---------------------------------------------------------------
 # Test Begin: Test if recovery works if 2nd page of user
 # tablespace is corrupted.
-select space from information_schema.innodb_sys_tables
-where name = 'test/t1' into @space_id;
-Warnings:
-Warning	1287	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
+select space into @space_id from information_schema.innodb_sys_tables
+where name = 'test/t1';
 # Ensure that dirty pages of table t1 is flushed.
 flush tables t1 for export;
 unlock tables;
