@@ -1,3 +1,4 @@
+--source include/no_protocol.inc
 --source ../include/partition_mrr_init.inc
 if (!$HAVE_PARTITION)
 {
