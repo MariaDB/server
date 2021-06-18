@@ -5368,6 +5368,9 @@ static int init_server_components()
   if (!opt_bootstrap)
     servers_init(0);
   init_status_vars();
+  Item_false= new (&startup_root) Item_bool_static("FALSE", 0);
+  Item_true=  new (&startup_root) Item_bool_static("TRUE", 1);
+
   DBUG_RETURN(0);
 }
 

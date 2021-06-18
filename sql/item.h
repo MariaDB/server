@@ -4424,7 +4424,8 @@ public:
   { DBUG_ASSERT(0); }
 };
 
-extern const Item_bool_static Item_false, Item_true;
+/* The following variablese are stored in a read only segment */
+extern Item_bool_static *Item_false, *Item_true;
 
 class Item_uint :public Item_int
 {

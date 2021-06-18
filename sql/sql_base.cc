@@ -7427,7 +7427,7 @@ store_top_level_join_columns(THD *thd, TABLE_LIST *table_ref,
     /* Add a TRUE condition to outer joins that have no common columns. */
     if (table_ref_2->outer_join &&
         !table_ref_1->on_expr && !table_ref_2->on_expr)
-      table_ref_2->on_expr= (Item*) &Item_true;
+      table_ref_2->on_expr= (Item*) Item_true;
 
     /* Change this table reference to become a leaf for name resolution. */
     if (left_neighbor)

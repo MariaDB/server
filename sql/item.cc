@@ -55,8 +55,8 @@ const char *item_empty_name="";
 const char *item_used_name= "\0";
 
 static int save_field_in_field(Field *, bool *, Field *, bool);
-const Item_bool_static Item_false("FALSE", 0);
-const Item_bool_static Item_true("TRUE", 1);
+Item_bool_static *Item_false;
+Item_bool_static *Item_true;
 
 /**
   Compare two Items for List<Item>::add_unique()
@@ -445,7 +445,7 @@ Item::Item(THD *thd):
 Item::Item():
   name(null_clex_str), orig_name(0), is_expensive_cache(-1)
 {
-  DBUG_ASSERT(my_progname == NULL); // before main()
+  DBUG_ASSERT(!mysqld_server_started);          // Created early
   base_flags= item_base_t::FIXED;
   with_flags= item_with_t::NONE;
   null_value= 0;

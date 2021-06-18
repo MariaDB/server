@@ -1232,13 +1232,13 @@ my_xpath_keyword(MY_XPATH *x,
 
 static Item *create_func_true(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return (Item*) &Item_true;
+  return (Item*) Item_true;
 }
 
 
 static Item *create_func_false(MY_XPATH *xpath, Item **args, uint nargs)
 {
-  return (Item*) &Item_false;
+  return (Item*) Item_false;
 }
 
 

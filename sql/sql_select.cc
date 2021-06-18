@@ -2560,7 +2560,7 @@ int JOIN::optimize_stage2()
   if (!conds && outer_join)
   {
     /* Handle the case where we have an OUTER JOIN without a WHERE */
-    conds= (Item*) &Item_true;
+    conds= (Item*) Item_true;
   }
 
   if (impossible_where)
@@ -2730,9 +2730,7 @@ int JOIN::optimize_stage2()
 
   if (conds && const_table_map != found_const_table_map &&
       (select_options & SELECT_DESCRIBE))
-  {
-    conds= (Item*) &Item_false;
-  }
+    conds= (Item*) Item_false;
 
   /* Cache constant expressions in WHERE, HAVING, ON clauses. */
   cache_const_exprs();
@@ -3049,7 +3047,7 @@ int JOIN::optimize_stage2()
     having= having->remove_eq_conds(thd, &select_lex->having_value, true);
     if (select_lex->having_value == Item::COND_FALSE)
     {
-      having= (Item*) &Item_false;
+      having= (Item*) Item_false;
       zero_result_cause= "Impossible HAVING noticed after reading const tables";
       error= 0;
       select_lex->mark_const_derived(zero_result_cause);
@@ -5625,7 +5623,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
     if (join->cond_value == Item::COND_FALSE)
     {
       join->impossible_where= true;
-      conds= (Item*) &Item_false;
+      conds= (Item*) Item_false;
     }
 
     join->cond_equal= NULL;
@@ -11872,7 +11870,7 @@ make_join_select(JOIN *join,SQL_SELECT *select,COND *cond)
             below to check if we should use 'quick' instead.
           */
           DBUG_PRINT("info", ("Item_int"));
-          tmp= (Item*) &Item_true;
+          tmp= (Item*) Item_true;
         }
 
       }
@@ -15455,7 +15453,7 @@ COND *Item_cond_and::build_equal_items(THD *thd,
   if (!cond_args->elements && 
       !cond_equal.current_level.elements && 
       !eq_list.elements)
-    return (Item*) &Item_true;
+    return (Item*) Item_true;
 
   List_iterator_fast<Item_equal> it(cond_equal.current_level);
   while ((item_equal= it++))
@@ -15562,7 +15560,7 @@ COND *Item_func_eq::build_equal_items(THD *thd,
     Item_equal *item_equal;
     int n= cond_equal.current_level.elements + eq_list.elements;
     if (n == 0)
-      return (Item*) &Item_true;
+      return (Item*) Item_true;
     else if (n == 1)
     {
       if ((item_equal= cond_equal.current_level.pop()))
@@ -15966,7 +15964,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   List<Item> eq_list;
   Item_func_eq *eq_item= 0;
   if (((Item *) item_equal)->const_item() && !item_equal->val_int())
-    return (Item*) &Item_false;
+    return (Item*) Item_false;
   Item *item_const= item_equal->get_const();
   Item_equal_fields_iterator it(*item_equal);
   Item *head;
@@ -16111,7 +16109,7 @@ Item *eliminate_item_equal(THD *thd, COND *cond, COND_EQUAL *upper_levels,
   switch (eq_list.elements)
   {
   case 0:
-    res= cond ? cond : (Item*) &Item_true;
+    res= cond ? cond : (Item*) Item_true;
     break;
   case 1:
     if (!cond || cond->is_bool_literal())
@@ -17949,7 +17947,7 @@ Item_func_isnull::remove_eq_conds(THD *thd, Item::cond_result *cond_value,
 
       */
 
-      Item *item0= (Item*) &Item_false;
+      Item *item0= (Item*) Item_false;
       Item *eq_cond= new(thd->mem_root) Item_func_eq(thd, args[0], item0);
       if (!eq_cond)
         return this;
@@ -29630,7 +29628,7 @@ void JOIN::make_notnull_conds_for_range_scans()
       Found a IS NULL conjunctive predicate for a null-rejected field
       in the WHERE clause
     */
-    conds= (Item*) &Item_false;
+    conds= (Item*) Item_false;
     cond_equal= 0;
     impossible_where= true;
     DBUG_VOID_RETURN;
@@ -29653,7 +29651,7 @@ void JOIN::make_notnull_conds_for_range_scans()
           Found a IS NULL conjunctive predicate for a null-rejected field
           of the inner table of an outer join with ON expression tbl->on_expr
         */
-        tbl->on_expr= (Item*) &Item_false;
+        tbl->on_expr= (Item*) Item_false;
       }
     }
   }
@@ -29804,7 +29802,7 @@ void build_notnull_conds_for_inner_nest_of_outer_join(JOIN *join,
   if (used_tables &&
       build_notnull_conds_for_range_scans(join, nest_tbl->on_expr, used_tables))
   {
-    nest_tbl->on_expr= (Item*) &Item_false;
+    nest_tbl->on_expr= (Item*) Item_false;
   }
 
   li.rewind();
@@ -29818,7 +29816,7 @@ void build_notnull_conds_for_inner_nest_of_outer_join(JOIN *join,
       }
       else if (build_notnull_conds_for_range_scans(join, tbl->on_expr,
                                                    tbl->table->map))
-        tbl->on_expr= (Item*) &Item_false;
+        tbl->on_expr= (Item*) Item_false;
     }
   }
 }
