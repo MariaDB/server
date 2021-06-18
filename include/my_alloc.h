@@ -50,11 +50,12 @@ typedef struct st_mem_root
      first free block in queue test counter (if it exceed 
      MAX_BLOCK_USAGE_BEFORE_DROP block will be dropped in 'used' list)
   */
-  unsigned int first_block_usage;
+  unsigned short first_block_usage;
+  unsigned short flags;
 
   void (*error_handler)(void);
 
-  PSI_memory_key m_psi_key;
+  PSI_memory_key psi_key;
 } MEM_ROOT;
 
 #ifdef  __cplusplus

@@ -259,9 +259,10 @@ typedef struct st_mem_root
   size_t min_malloc;
   size_t block_size;
   unsigned int block_num;
-  unsigned int first_block_usage;
+  unsigned short first_block_usage;
+  unsigned short flags;
   void (*error_handler)(void);
-  PSI_memory_key m_psi_key;
+  PSI_memory_key psi_key;
 } MEM_ROOT;
 }
 typedef struct st_typelib {

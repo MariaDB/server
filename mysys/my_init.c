@@ -22,6 +22,9 @@
 #include <m_ctype.h>
 #include <signal.h>
 #include <mysql/psi/mysql_stage.h>
+#ifdef HAVE_UNISTD_H
+#include <unistd.h>
+#endif
 #ifdef _WIN32
 #ifdef _MSC_VER
 #include <locale.h>
@@ -35,6 +38,10 @@ static my_bool win32_init_tcp_ip();
 #define my_win_init()
 #endif
 
+#if defined(_SC_PAGE_SIZE) && !defined(_SC_PAGESIZE)
+#define _SC_PAGESIZE _SC_PAGE_SIZE
+#endif
+
 extern pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 
 #define SCALE_SEC       100
@@ -42,6 +49,7 @@ extern pthread_key(struct st_my_thread_var*, THR_KEY_mysys);
 
 my_bool my_init_done= 0;
 uint	mysys_usage_id= 0;              /* Incremented for each my_init() */
+size_t  my_system_page_size= 8192;	/* Default if no sysconf() */
 
 ulonglong   my_thread_stack_size= (sizeof(void*) <= 4)? 65536: ((256-16)*1024);
 
@@ -79,6 +87,9 @@ my_bool my_init(void)
   my_umask= 0660;                       /* Default umask for new files */
   my_umask_dir= 0700;                   /* Default umask for new directories */
   my_global_flags= 0;
+#ifdef _SC_PAGESIZE
+  my_system_page_size= sysconf(_SC_PAGESIZE);
+#endif
 
   /* Default creation of new files */
   if ((str= getenv("UMASK")) != 0)

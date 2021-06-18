@@ -748,8 +748,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
     will be re-initialized in init_for_queries().
   */
   init_sql_alloc(key_memory_thd_main_mem_root,
-                 &main_mem_root, ALLOC_ROOT_MIN_BLOCK_SIZE, 0,
-                 MYF(MY_THREAD_SPECIFIC));
+                 &main_mem_root, 64, 0, MYF(MY_THREAD_SPECIFIC));
 
   /*
     Allocation of user variables for binary logging is always done with main

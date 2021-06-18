@@ -369,6 +369,7 @@ uint volatile global_disable_checkpoint;
 ulong slow_start_timeout;
 #endif
 static MEM_ROOT startup_root;
+MEM_ROOT read_only_root;
 
 /**
    @brief 'grant_option' is used to indicate if privileges needs
@@ -1969,6 +1970,8 @@ static void clean_up(bool print_message)
   mysql_library_end();
   finish_client_errs();
   free_root(&startup_root, MYF(0));
+  protect_root(&read_only_root, PROT_READ | PROT_WRITE);
+  free_root(&read_only_root, MYF(0));
   cleanup_errmsgs();
   free_error_messages();
   /* Tell main we are ready */
@@ -3719,6 +3722,8 @@ static int init_early_variables()
   set_malloc_size_cb(my_malloc_size_cb_func);
   global_status_var.global_memory_used= 0;
   init_alloc_root(PSI_NOT_INSTRUMENTED, &startup_root, 1024, 0, MYF(0));
+  init_alloc_root(PSI_NOT_INSTRUMENTED, &read_only_root, 1024, 0,
+		  MYF(MY_ROOT_USE_MPROTECT));
   return 0;
 }
 
@@ -5368,8 +5373,9 @@ static int init_server_components()
   if (!opt_bootstrap)
     servers_init(0);
   init_status_vars();
-  Item_false= new (&startup_root) Item_bool_static("FALSE", 0);
-  Item_true=  new (&startup_root) Item_bool_static("TRUE", 1);
+  Item_false= new (&read_only_root) Item_bool_static("FALSE", 0);
+  Item_true=  new (&read_only_root) Item_bool_static("TRUE", 1);
+  DBUG_ASSERT(Item_false);
 
   DBUG_RETURN(0);
 }
@@ -5733,6 +5739,9 @@ int mysqld_main(int argc, char **argv)
     }
   }
 #endif /* WITH_WSREP */
+
+  /* Protect read_only_root against writes */
+  protect_root(&read_only_root, PROT_READ);
 
   if (opt_bootstrap)
   {
