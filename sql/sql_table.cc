@@ -10508,7 +10508,12 @@ do_continue:;
   DBUG_PRINT("info", ("is_table_renamed: %d  engine_changed: %d",
                       alter_ctx.is_table_renamed(), engine_changed));
 
-  if (!alter_ctx.is_table_renamed())
+  /*
+    InnoDB cannot use the rename optimization when foreign key
+    constraint is involved because InnoDB fails to drop the
+    parent table due to foreign key constraint
+  */
+  if (!alter_ctx.is_table_renamed() || alter_ctx.fk_error_if_delete_row)
   {
     /*
       Rename the old table to temporary name to have a backup in case
@@ -10560,7 +10565,7 @@ do_continue:;
     (void) quick_rm_table(thd, new_db_type, &alter_ctx.new_db,
                           &alter_ctx.tmp_name, FN_IS_TMP);
 
-    if (!alter_ctx.is_table_renamed())
+    if (!alter_ctx.is_table_renamed() || alter_ctx.fk_error_if_delete_row)
     {
       // Restore the backup of the original table to the old name.
       (void) mysql_rename_table(old_db_type, &alter_ctx.db, &backup_name,

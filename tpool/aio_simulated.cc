@@ -159,7 +159,9 @@ public:
 #endif
     cb->m_ret_len = ret_len;
     cb->m_err = err;
-    cb->m_callback(cb);
+    cb->m_internal_task.m_func= cb->m_callback;
+    thread_pool *pool= (thread_pool *)cb->m_internal;
+    pool->submit_task(&cb->m_internal_task);
   }
 
   virtual int submit_io(aiocb *aiocb) override
@@ -167,6 +169,7 @@ public:
     aiocb->m_internal_task.m_func = simulated_aio_callback;
     aiocb->m_internal_task.m_arg = aiocb;
     aiocb->m_internal_task.m_group = aiocb->m_group;
+    aiocb->m_internal = m_pool;
     m_pool->submit_task(&aiocb->m_internal_task);
     return 0;
   }
