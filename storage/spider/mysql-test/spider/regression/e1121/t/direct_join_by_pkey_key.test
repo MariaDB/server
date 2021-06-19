@@ -21,8 +21,10 @@ USE auto_test_remote;
 
 --connection child2_1
 --disable_query_log
+--disable_ps_protocol
 echo CHILD2_1_CREATE_TABLES;
 eval $CHILD2_1_CREATE_TABLES;
+--enable_ps_protocol
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
@@ -62,8 +64,10 @@ TRUNCATE TABLE mysql.general_log;
 SELECT a.val, a.akey FROM tbl_a a, tbl_b b WHERE a.akey = b.akey AND b.bkey = 5;
 
 --connection child2_1
+--disable_ps_protocol
 eval $CHILD2_1_SELECT_ARGUMENT1;
 eval $CHILD2_1_SELECT_TABLES;
+--enable_ps_protocol
 
 --echo
 --echo deinit
