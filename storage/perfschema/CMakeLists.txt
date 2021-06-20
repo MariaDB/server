@@ -281,6 +281,14 @@ table_replication_applier_status_by_worker.cc
 #table_replication_group_member_stats.cc
 )
 
+IF(WITH_WSREP)
+SET(PERFSCHEMA_WSREP_SOURCES
+table_galera_group_members.h
+table_galera_group_member_stats.h
+table_galera_group_members.cc
+table_galera_group_member_stats.cc)
+ENDIF()
+
 # Check for pthread_threadid_np()
 CHECK_C_SOURCE_COMPILES("
 #include <pthread.h>
@@ -342,7 +350,8 @@ FAIL_REGEX "warning: incompatible pointer to integer conversion"
 
 CONFIGURE_FILE(pfs_config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/pfs_config.h)
 
-MYSQL_ADD_PLUGIN(perfschema ${PERFSCHEMA_SOURCES} STORAGE_ENGINE DEFAULT
+MYSQL_ADD_PLUGIN(perfschema ${PERFSCHEMA_SOURCES}
+  ${PERFSCHEMA_WSREP_SOURCES} STORAGE_ENGINE DEFAULT
   STATIC_ONLY RECOMPILE_FOR_EMBEDDED DEPENDS GenServerSource)
 IF (TARGET perfschema)
   IF(WITH_UNIT_TESTS)
