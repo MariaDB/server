@@ -699,6 +699,39 @@ def	performance_schema	file_summary_by_instance	SUM_TIMER_MISC	22	NULL	NO	bigint
 def	performance_schema	file_summary_by_instance	MIN_TIMER_MISC	23	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Minimum wait time of all miscellaneous operations that are timed.	NEVER	NULL
 def	performance_schema	file_summary_by_instance	AVG_TIMER_MISC	24	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Average wait time of all miscellaneous operations that are timed.	NEVER	NULL
 def	performance_schema	file_summary_by_instance	MAX_TIMER_MISC	25	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Maximum wait time of all miscellaneous operations that are timed.	NEVER	NULL
+def	performance_schema	galera_group_members	wsrep_node_id	1	NULL	NO	char	36	108	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(36)			select,insert,update,references	Unique node ID (UUID)	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_local_index	2	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select,insert,update,references	Index of this node in the Galera cluster nodes table	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_cluster_state_uuid	3	NULL	NO	char	36	108	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(36)			select,insert,update,references	The UUID of the cluster	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_local_state_uuid	4	NULL	NO	char	36	108	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(36)			select,insert,update,references	The UUID of the state stored on this node	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_last_applied	5	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Sequence number of the last applied transaction	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_last_committed	6	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Sequence number of the last committed transaction	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_replicated	7	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total number of write-sets replicated	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_replicated_bytes	8	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total size of write-sets replicated (in bytes)	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_received	9	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total number of write-sets received	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_received_bytes	10	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total size of write-sets received (in bytes)	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_local_bf_aborts	11	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total number of local transactions that were aborted by slave transactions while in execution	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_local_commits	12	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total number of local transactions committed	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_local_cert_failures	13	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total number of local transactions that failed certification test	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_apply_window	14	NULL	NO	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references	Average distance between the highest and lowest concurrently applied seqno	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_members	wsrep_commit_window	15	NULL	NO	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references	Average distance between the highest and lowest concurrently committed seqno	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_node_id	1	NULL	NO	char	36	108	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	char(36)			select,insert,update,references	Unique node ID (UUID)	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_local_index	2	NULL	NO	int	NULL	NULL	10	0	NULL	NULL	NULL	int(10) unsigned			select,insert,update,references	Index of this node in the Galera cluster nodes table	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_repl_keys	3	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total number of keys replicated	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_repl_keys_bytes	4	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total size of keys replicated (in bytes)	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_repl_data_bytes	5	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total size of data replicated (in bytes)	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_repl_other_bytes	6	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total size of other bits replicated (in bytes)	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_local_replays	7	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Total number of transaction replays due to asymmetric lock granularity	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_local_send_queue	8	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Current (instantaneous) length of the send queue	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_local_send_queue_avg	9	NULL	NO	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references	Send queue length averaged over time since the last FLUSH STATUS command	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_local_recv_queue	10	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	Current (instantaneous) length of the receive queue	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_local_recv_queue_avg	11	NULL	NO	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references	Receive queue length averaged over interval since the last FLUSH STATUS command	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_flow_control_paused	12	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	The fraction of time (out of 1.0) since the last SHOW GLOBAL STATUS that flow control is effective	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_flow_control_sent	13	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	The number of flow control messages sent by the local node to the cluster	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_flow_control_recv	14	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	The number of flow control messages the node has received, including those the node has sent	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_flow_control_status	15	NULL	NO	varchar	32	96	NULL	NULL	NULL	utf8mb3	utf8mb3_general_ci	varchar(32)			select,insert,update,references	Status shows whether a node has flow control enabled for normal traffic	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_cert_deps_distance	16	NULL	NO	double	NULL	NULL	22	NULL	NULL	NULL	NULL	double			select,insert,update,references	Average distance between the highest and lowest seqno value that can be possibly applied in parallel	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_open_transactions	17	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	The number of locally running transactions which have been registered inside the wsrep provider	NEVER	NULL	NO	NO
+def	performance_schema	galera_group_member_stats	wsrep_evs_repl_latency	18	NULL	NO	bigint	NULL	NULL	20	0	NULL	NULL	NULL	bigint(20) unsigned			select,insert,update,references	This status variable provides figures for the replication latency on group communication	NEVER	NULL	NO	NO
 def	performance_schema	global_status	VARIABLE_NAME	1	NULL	NO	varchar	64	192	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(64)			select,insert,update,references	The global status variable name.	NEVER	NULL
 def	performance_schema	global_status	VARIABLE_VALUE	2	NULL	YES	varchar	1024	3072	NULL	NULL	NULL	utf8	utf8_general_ci	varchar(1024)			select,insert,update,references	The global status variable value.	NEVER	NULL
 def	performance_schema	hosts	HOST	1	NULL	YES	char	60	180	NULL	NULL	NULL	utf8	utf8_bin	char(60)			select,insert,update,references	Host name used by the client to connect, NULL for internal threads or user sessions that failed to authenticate.	NEVER	NULL
@@ -1189,8 +1222,8 @@ where table_schema="performance_schema" and data_type="bigint"
 select (@count_object_columns - @count_object_unsigned) = 0;
 (@count_object_columns - @count_object_unsigned) = 0
 1
-select count(*) from information_schema.columns
+select count(*) `expect 0` from information_schema.columns
 where table_schema="performance_schema"
    and (column_comment is null or column_comment = '');
-count(*)
+expect 0
 0
