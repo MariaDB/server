@@ -221,3 +221,32 @@ select * from t1;
 drop view v1;
 drop table t1;
 
+
+--echo #
+--echo # MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+--echo #
+
+CREATE TABLE t1 (d DATETIME(3), v DATETIME(2) AS (d));
+CREATE VIEW v1 AS SELECT * FROM t1;
+
+INSERT INTO t1 (d) VALUES ('2004-04-19 15:37:39.123'),
+                          ('1985-12-24 10:15:08.456');
+DELETE FROM v1 ORDER BY v LIMIT 4;
+
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo #
+--echo # [duplicate] MDEV-19306 Assertion `marked_for_read()' failed in
+--echo # Field_blob::val_str with virtual columns and views
+--echo #
+
+CREATE TABLE t1 (a BLOB, b TEXT AS (a) VIRTUAL);
+CREATE VIEW v1 AS SELECT * FROM t1;
+INSERT INTO t1 (a) VALUES ('foo'),('bar');
+DELETE FROM v1 ORDER BY b LIMIT 2;
+ 
+# Cleanup
+DROP VIEW v1;
+DROP TABLE t1;
