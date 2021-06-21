@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2524,7 +2524,6 @@ fsp_reserve_free_extents(
 	ulint		n_free;
 	ulint		n_free_up;
 	ulint		reserve;
-	size_t		total_reserved = 0;
 
 	ut_ad(mtr);
 	*n_reserved = n_ext;
@@ -2603,8 +2602,7 @@ try_again:
 		return(true);
 	}
 try_to_extend:
-	if (ulint n = fsp_try_extend_data_file(space, space_header, mtr)) {
-		total_reserved += n;
+	if (fsp_try_extend_data_file(space, space_header, mtr)) {
 		goto try_again;
 	}
 

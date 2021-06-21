@@ -1083,9 +1083,9 @@ fil_space_detach(
 		space->is_in_unflushed_spaces = false;
 	}
 
-	if (space->is_in_rotation_list) {
-		fil_system.rotation_list.remove(*space);
-		space->is_in_rotation_list = false;
+	if (space->is_in_default_encrypt) {
+		fil_system.default_encrypt_tables.remove(*space);
+		space->is_in_default_encrypt = false;
 	}
 
 	UT_LIST_REMOVE(fil_system.space_list, space);
@@ -1292,20 +1292,25 @@ fil_space_create(
 		fil_system.max_assigned_id = id;
 	}
 
+	const bool rotate =
+		(purpose == FIL_TYPE_TABLESPACE
+		 && (mode == FIL_ENCRYPTION_ON
+		     || mode == FIL_ENCRYPTION_OFF || srv_encrypt_tables)
+		 && fil_crypt_must_default_encrypt());
+
 	/* Inform key rotation that there could be something
 	to do */
-	if (purpose == FIL_TYPE_TABLESPACE
-	    && !srv_fil_crypt_rotate_key_age && fil_crypt_threads_event &&
-	    (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF
-	     || srv_encrypt_tables)) {
+	if (rotate) {
 		/* Key rotation is not enabled, need to inform background
 		encryption threads. */
-		fil_system.rotation_list.push_back(*space);
-		space->is_in_rotation_list = true;
-		mutex_exit(&fil_system.mutex);
+		fil_system.default_encrypt_tables.push_back(*space);
+		space->is_in_default_encrypt = true;
+	}
+
+	mutex_exit(&fil_system.mutex);
+
+	if (rotate && srv_n_fil_crypt_threads_started) {
 		os_event_set(fil_crypt_threads_event);
-	} else {
-		mutex_exit(&fil_system.mutex);
 	}
 
 	return(space);

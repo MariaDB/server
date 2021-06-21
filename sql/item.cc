@@ -8470,6 +8470,7 @@ Item_cache_wrapper::Item_cache_wrapper(THD *thd, Item *item_arg):
   with_field= orig_item->with_field;
   name= item_arg->name;
   m_with_subquery= orig_item->with_subquery();
+  with_window_func= orig_item->with_window_func;
 
   if ((expr_value= orig_item->get_cache(thd)))
     expr_value->setup(thd, orig_item);

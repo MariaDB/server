@@ -524,7 +524,9 @@ row_merge_buf_add(
 	DBUG_ENTER("row_merge_buf_add");
 
 	if (buf->n_tuples >= buf->max_tuples) {
-		DBUG_RETURN(0);
+error:
+		n_row_added = 0;
+		goto end;
 	}
 
 	DBUG_EXECUTE_IF(
@@ -689,7 +691,10 @@ row_merge_buf_add(
 				continue;
 			}
 
-			if (field->len != UNIV_SQL_NULL
+			/* innobase_get_computed_value() sets the
+			length of the virtual column field. */
+			if (v_col == NULL
+			    && field->len != UNIV_SQL_NULL
 			    && col->mtype == DATA_MYSQL
 			    && col->len != field->len) {
 				if (conv_heap != NULL) {
@@ -845,11 +850,6 @@ end:
         if (vcol_storage.innobase_record)
 		innobase_free_row_for_vcol(&vcol_storage);
 	DBUG_RETURN(n_row_added);
-
-error:
-        if (vcol_storage.innobase_record)
-		innobase_free_row_for_vcol(&vcol_storage);
-        DBUG_RETURN(0);
 }
 
 /*************************************************************//**
@@ -2691,16 +2691,18 @@ write_buffers:
 						new_table, psort_info, row, ext,
 						&doc_id, conv_heap,
 						&err, &v_heap, eval_table, trx)))) {
-					/* An empty buffer should have enough
-					room for at least one record. */
-					ut_error;
+                                        /* An empty buffer should have enough
+                                        room for at least one record. */
+					ut_ad(err == DB_COMPUTE_VALUE_FAILED
+					      || err == DB_OUT_OF_MEMORY
+					      || err == DB_TOO_BIG_RECORD);
+				} else if (err == DB_SUCCESS) {
+					file->n_rec += rows_added;
+					continue;
 				}
 
-				if (err != DB_SUCCESS) {
-					break;
-				}
-
-				file->n_rec += rows_added;
+				trx->error_key_num = i;
+				break;
 			}
 		}
 
