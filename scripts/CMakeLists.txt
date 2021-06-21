@@ -253,7 +253,7 @@ SET(mysql_config_COMPONENT Development)
 SET(msql2mysql_COMPONENT Client)
 SET(mariadb-access_COMPONENT Client)
 SET(mariadb-find-rows_COMPONENT Client)
-SET(mytop_COMPONENT Mytop)
+SET(mytop_COMPONENT Client)
 
 IF(WIN32)
   # On Windows, some .sh and some .pl.in files are configured

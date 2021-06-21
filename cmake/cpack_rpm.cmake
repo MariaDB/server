@@ -150,11 +150,14 @@ ENDMACRO(SETA)
 
 SETA(CPACK_RPM_client_PACKAGE_OBSOLETES
   "mysql-client"
-  "MySQL-client")
+  "MySQL-client"
+  "mytop <= 1.7")
 SETA(CPACK_RPM_client_PACKAGE_PROVIDES
   "MySQL-client"
-  "mysql-client")
-
+  "mysql-client"
+  "mytop")
+SET(CPACK_RPM_client_PACKAGE_CONFLICTS
+  "MariaDB-server <= 10.5.10")
 SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
 SETA(CPACK_RPM_devel_PACKAGE_PROVIDES
@@ -180,7 +183,7 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
 
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
   "${CPACK_RPM_PACKAGE_REQUIRES}"
-  "MariaDB-client")
+  "MariaDB-client >= 10.5.11")
 
 IF(WITH_WSREP)
   SETA(CPACK_RPM_server_PACKAGE_REQUIRES
@@ -223,7 +226,7 @@ ALTERNATIVE_NAME("test"   "mysql-test")
 IF(RPM MATCHES "(rhel|centos)6")
   ALTERNATIVE_NAME("client" "mysql")
 ELSEIF(RPM MATCHES "fedora" OR RPM MATCHES "(rhel|centos)7")
-  SET(epoch 1:) # this is fedora
+  SET(epoch 1:)
   ALTERNATIVE_NAME("client" "mariadb")
   ALTERNATIVE_NAME("client" "mysql")
   ALTERNATIVE_NAME("devel"  "mariadb-devel")
