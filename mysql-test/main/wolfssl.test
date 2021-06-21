@@ -1,0 +1,6 @@
+#
+# Various tests that require WolfSSL
+#
+--source include/have_ssl_communication.inc
+--source include/not_embedded.inc
+SELECT @@ssl_cipher;

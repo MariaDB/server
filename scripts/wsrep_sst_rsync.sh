@@ -68,6 +68,8 @@ cleanup_joiner()
     if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
         wsrep_cleanup_progress_file
     fi
+
+    [ -f "$SST_PID" ] && rm -f "$SST_PID"
 }
 
 check_pid_and_port()
@@ -281,6 +283,7 @@ then
     *)
         wsrep_log_error "Unrecognized ssl-mode option: '$SSLMODE'"
         exit 22 # EINVAL
+        ;;
     esac
     if [ -z "$CAFILE_OPT" ]; then
         wsrep_log_error "Can't have ssl-mode='$SSLMODE' without CA file"
@@ -426,7 +429,7 @@ EOF
             exit 255 # unknown error
         fi
 
-        # second, we transfer InnoDB log files
+        # second, we transfer InnoDB and Aria log files
         rsync ${STUNNEL:+--rsh="$STUNNEL"} \
               --owner --group --perms --links --specials \
               --ignore-times --inplace --dirs --delete --quiet \
@@ -499,7 +502,22 @@ elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]
 then
     check_sockets_utils
 
-    # give some time for lingering stunnel from previous SST to complete
+    SST_PID="$WSREP_SST_OPT_DATA/wsrep_rsync_sst.pid"
+
+    # give some time for previous SST to complete:
+    check_round=0
+    while check_pid "$SST_PID" 0
+    do
+        wsrep_log_info "previous SST is not completed, waiting for it to exit"
+        check_round=$(( check_round + 1 ))
+        if [ $check_round -eq 10 ]; then
+            wsrep_log_error "previous SST script still running."
+            exit 114 # EALREADY
+        fi
+        sleep 1
+    done
+
+    # give some time for stunnel from the previous SST to complete:
     check_round=0
     while check_pid "$STUNNEL_PID" 1
     do
@@ -516,7 +534,7 @@ then
     RSYNC_PID="$WSREP_SST_OPT_DATA/$MODULE.pid"
     RSYNC_CONF="$WSREP_SST_OPT_DATA/$MODULE.conf"
 
-    # give some time for lingering rsync from previous SST to complete
+    # give some time for rsync from the previous SST to complete:
     check_round=0
     while check_pid "$RSYNC_PID" 1
     do
@@ -583,12 +601,14 @@ EOF
         RSYNC_ADDR="*"
     fi
 
+    echo $$ > "$SST_PID"
+
     if [ -z "$STUNNEL" ]
     then
         rsync --daemon --no-detach --port "$RSYNC_PORT" --config "$RSYNC_CONF" $RSYNC_EXTRA_ARGS &
         RSYNC_REAL_PID=$!
-        TRANSFER_REAL_PID="$RSYNC_REAL_PID"
-        TRANSFER_PID=$RSYNC_PID
+        TRANSFER_REAL_PID=$RSYNC_REAL_PID
+        TRANSFER_PID="$RSYNC_PID"
     else
         # Let's check if the path to the config file contains a space?
         if [ "${RSYNC_CONF#* }" = "$RSYNC_CONF" ]; then
@@ -631,8 +651,8 @@ EOF
         fi
         stunnel "$STUNNEL_CONF" &
         STUNNEL_REAL_PID=$!
-        TRANSFER_REAL_PID="$STUNNEL_REAL_PID"
-        TRANSFER_PID=$STUNNEL_PID
+        TRANSFER_REAL_PID=$STUNNEL_REAL_PID
+        TRANSFER_PID="$STUNNEL_PID"
     fi
 
     if [ "${SSLMODE#VERIFY}" != "$SSLMODE" ]
@@ -691,35 +711,49 @@ EOF
 
             # Clean up old binlog files first
             rm -f "$BINLOG_FILENAME".[0-9]*
-            [ -f "$binlog_index" ] && rm "$binlog_index"
+            [ -f "$binlog_index" ] && rm -f "$binlog_index"
+
+            # Create a temporary file:
+            tmpdir=$(parse_cnf '--mysqld|sst' 'tmpdir')
+            if [ -z "$tmpdir" ]; then
+               tmpfile="$(mktemp)"
+            else
+               tmpfile=$(mktemp "--tmpdir=$tmpdir")
+            fi
 
             wsrep_log_info "Extracting binlog files:"
-            tar -xvf "$BINLOG_TAR_FILE" >> _binlog_tmp_files_$!
+            if ! tar -xvf "$BINLOG_TAR_FILE" > "$tmpfile"; then
+                wsrep_log_error "Error unpacking tar file with binlog files"
+                rm -f "$tmpfile"
+                exit 32
+            fi
+
+            # Rebuild binlog index:
             while read bin_file; do
                 echo "$BINLOG_DIRNAME/$bin_file" >> "$binlog_index"
-            done < _binlog_tmp_files_$!
-            rm -f _binlog_tmp_files_$!
+            done < "$tmpfile"
+            rm -f "$tmpfile"
 
             cd "$OLD_PWD"
         fi
     fi
 
-    if [ -r "$MAGIC_FILE" ]
-    then
-        # check donor supplied secret
-        SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
-        if [ "$SECRET" != "$MY_SECRET" ]; then
-            wsrep_log_error "Donor does not know my secret!"
-            wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
-            exit 32
+    if [ -r "$MAGIC_FILE" ]; then
+        if [ -n "$MY_SECRET" ]; then
+            # check donor supplied secret
+            SECRET=$(grep -F -- "$SECRET_TAG " "$MAGIC_FILE" 2>/dev/null | cut -d ' ' -f 2)
+            if [ "$SECRET" != "$MY_SECRET" ]; then
+                wsrep_log_error "Donor does not know my secret!"
+                wsrep_log_info "Donor:'$SECRET', my:'$MY_SECRET'"
+                exit 32
+            fi
+            # remove secret from the magic file, and output
+            # the UUID:seqno & wsrep_gtid_domain_id:
+            grep -v -F -- "$SECRET_TAG " "$MAGIC_FILE"
+        else
+            # Output the UUID:seqno and wsrep_gtid_domain_id:
+            cat "$MAGIC_FILE"
         fi
-
-        # remove secret from magic file
-        grep -v -F -- "$SECRET_TAG " "$MAGIC_FILE" > "$MAGIC_FILE.new"
-
-        mv "$MAGIC_FILE.new" "$MAGIC_FILE"
-        # UUID:seqno & wsrep_gtid_domain_id is received here.
-        cat "$MAGIC_FILE" # Output : UUID:seqno wsrep_gtid_domain_id
     else
         # this message should cause joiner to abort
         echo "rsync process ended without creating '$MAGIC_FILE'"

@@ -21,8 +21,10 @@ USE auto_test_remote;
 
 --connection child2_1
 --disable_query_log
+--disable_ps_protocol
 echo CHILD2_1_CREATE_TABLES;
 eval $CHILD2_1_CREATE_TABLES;
+--enable_ps_protocol
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 

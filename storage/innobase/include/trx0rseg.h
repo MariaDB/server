@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -70,9 +70,8 @@ trx_rseg_header_create(
 	buf_block_t*	sys_header,
 	mtr_t*		mtr);
 
-/** Initialize the rollback segments in memory at database startup. */
-void
-trx_rseg_array_init();
+/** Initialize or recover the rollback segments at startup. */
+dberr_t trx_rseg_array_init();
 
 /** Free a rollback segment in memory. */
 void
@@ -124,21 +123,13 @@ struct trx_rseg_t {
 	/** List of undo log segments cached for fast reuse */
 	UT_LIST_BASE_NODE_T(trx_undo_t)	undo_cached;
 
-	/** List of recovered old insert_undo logs of incomplete
-	transactions (to roll back or XA COMMIT & purge) */
-	UT_LIST_BASE_NODE_T(trx_undo_t) old_insert_list;
-
 	/*--------------------------------------------------------*/
 
-	/** Page number of the last not yet purged log header in the history
-	list; FIL_NULL if all list purged */
-	uint32_t			last_page_no;
+  /** Last not yet purged undo log header; FIL_NULL if all purged */
+  uint32_t last_page_no;
 
-	/** Byte offset of the last not yet purged log header */
-	uint16_t			last_offset;
-
-	/** trx_t::no * 2 + old_insert of the last not yet purged log */
-	trx_id_t			last_commit;
+  /** trx_t::no | last_offset << 48 */
+  uint64_t last_commit_and_offset;
 
 	/** Whether the log segment needs purge */
 	bool				needs_purge;
@@ -150,13 +141,17 @@ struct trx_rseg_t {
 	UNDO-tablespace marked for truncate. */
 	bool				skip_allocation;
 
-	/** @return the commit ID of the last committed transaction */
-	trx_id_t last_trx_no() const { return last_commit >> 1; }
+  /** @return the commit ID of the last committed transaction */
+  trx_id_t last_trx_no() const
+  { return last_commit_and_offset & ((1ULL << 48) - 1); }
+  /** @return header offset of the last committed transaction */
+  uint16_t last_offset() const
+  { return static_cast<uint16_t>(last_commit_and_offset >> 48); }
 
-	void set_last_trx_no(trx_id_t trx_no, bool is_update)
-	{
-		last_commit = trx_no << 1 | trx_id_t(is_update);
-	}
+  void set_last_commit(uint16_t last_offset, trx_id_t trx_no)
+  {
+    last_commit_and_offset= static_cast<uint64_t>(last_offset) << 48 | trx_no;
+  }
 
 	/** @return whether the rollback segment is persistent */
 	bool is_persistent() const

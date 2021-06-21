@@ -774,10 +774,10 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
     unflushed_spaces.remove(*space);
   }
 
-  if (space->is_in_rotation_list)
+  if (space->is_in_default_encrypt)
   {
-    space->is_in_rotation_list= false;
-    rotation_list.remove(*space);
+    space->is_in_default_encrypt= false;
+    default_encrypt_tables.remove(*space);
   }
   space_list.erase(space_list_t::iterator(space));
   if (space == sys_space)
@@ -993,20 +993,19 @@ fil_space_t *fil_space_t::create(ulint id, ulint flags,
 		fil_system.max_assigned_id = id;
 	}
 
-	const bool rotate= purpose == FIL_TYPE_TABLESPACE
+	const bool rotate = purpose == FIL_TYPE_TABLESPACE
 		&& (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF
 		    || srv_encrypt_tables)
-		&& !srv_fil_crypt_rotate_key_age
-		&& srv_n_fil_crypt_threads_started;
+		&& fil_crypt_must_default_encrypt();
 
 	if (rotate) {
-		fil_system.rotation_list.push_back(*space);
-		space->is_in_rotation_list = true;
+		fil_system.default_encrypt_tables.push_back(*space);
+		space->is_in_default_encrypt = true;
 	}
 
 	mysql_mutex_unlock(&fil_system.mutex);
 
-	if (rotate) {
+	if (rotate && srv_n_fil_crypt_threads_started) {
 		fil_crypt_threads_signal();
 	}
 

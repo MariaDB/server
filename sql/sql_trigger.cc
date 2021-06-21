@@ -414,8 +414,8 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
     This is a good candidate for a minor refactoring.
   */
   TABLE *table;
-  bool result= TRUE;
-  bool add_if_exists_to_binlog= 0, action_executed= 0;
+  bool result= true, refresh_metadata= false;
+  bool add_if_exists_to_binlog= false, action_executed= false;
   String stmt_query;
   bool lock_upgrade_done= FALSE;
   bool backup_of_table_list_done= 0;;
@@ -651,21 +651,7 @@ bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create)
   }
   action_executed= 1;
 
-  close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
-
-  /*
-    Reopen the table if we were under LOCK TABLES.
-    Ignore the return value for now. It's better to
-    keep master/slave in consistent state.
-  */
-  if (thd->locked_tables_list.reopen_tables(thd, false))
-    thd->clear_error();
-
-  /*
-    Invalidate SP-cache. That's needed because triggers may change list of
-    pre-locking tables.
-  */
-  sp_cache_invalidate();
+  refresh_metadata= TRUE;
 
 end:
   if (!result && action_executed)
@@ -698,6 +684,28 @@ end:
   debug_crash_here("ddl_log_drop_before_delete_tmp");
   /* delete any created log files */
   result|= ddl_log_revert(thd, &ddl_log_state_tmp_file);
+
+  if (mdl_request_for_trn.ticket)
+    thd->mdl_context.release_lock(mdl_request_for_trn.ticket);
+
+  if (refresh_metadata)
+  {
+    close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
+
+    /*
+      Reopen the table if we were under LOCK TABLES.
+      Ignore the return value for now. It's better to
+      keep master/slave in consistent state.
+    */
+    if (thd->locked_tables_list.reopen_tables(thd, false))
+      thd->clear_error();
+
+    /*
+      Invalidate SP-cache. That's needed because triggers may change list of
+      pre-locking tables.
+    */
+    sp_cache_invalidate();
+  }
   /*
     If we are under LOCK TABLES we should restore original state of
     meta-data locks. Otherwise all locks will be released along
@@ -718,14 +726,6 @@ end:
                   thd->lex->spname->m_db.str, static_cast<uint>(thd->lex->spname->m_db.length),
                   thd->lex->spname->m_name.str, static_cast<uint>(thd->lex->spname->m_name.length));
   }
-
-  /* In Locked_tables_list::reopen_tables(),
-  MDL_context::set_transaction_duration_for_all_locks() may have been invoked,
-  converting our explicit MDL to transaction scope. In that case, we will not
-  release the lock, to avoid a debug assertion failure. */
-  if (MDL_ticket *ticket= mdl_request_for_trn.ticket)
-    if (thd->mdl_context.has_explicit_locks())
-      thd->mdl_context.release_lock(ticket);
 
   DBUG_RETURN(result);
 
