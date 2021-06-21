@@ -77,7 +77,13 @@ SELECT VARIABLE_VALUE <= 29  FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABL
 set global innodb_encrypt_tables=OFF;
 
 --echo # wait until tables are decrypted
---let $wait_condition=SELECT COUNT(*) = 0 FROM INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION WHERE MIN_KEY_VERSION <> 0
+SET GLOBAL innodb_max_dirty_pages_pct=0.0;
+SET GLOBAL innodb_max_dirty_pages_pct_lwm=0.0;
+
+let $wait_condition =
+SELECT variable_value = 0
+FROM information_schema.global_status
+WHERE variable_name = 'INNODB_BUFFER_POOL_PAGES_DIRTY';
 --source include/wait_condition.inc
 
 --echo # result should be actual number of tables except remote tables could be read twice

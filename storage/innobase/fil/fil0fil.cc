@@ -1421,10 +1421,12 @@ fil_space_create(
 		encryption threads. */
 		fil_system.default_encrypt_tables.push_back(*space);
 		space->is_in_default_encrypt = true;
-		mutex_exit(&fil_system.mutex);
+	}
+
+	mutex_exit(&fil_system.mutex);
+
+	if (rotate && srv_n_fil_crypt_threads_started) {
 		os_event_set(fil_crypt_threads_event);
-	} else {
-		mutex_exit(&fil_system.mutex);
 	}
 
 	return(space);
