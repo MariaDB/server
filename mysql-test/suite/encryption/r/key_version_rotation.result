@@ -1,0 +1,19 @@
+create table t1(f1 int not null)engine=innodb;
+create table t2(f1 int not null)engine=innodb;
+insert into t1 select * from seq_1_to_100;
+insert into t2 select * from seq_1_to_100;
+# Enable encryption
+set global innodb_encrypt_tables=ON;
+# Create a new table and it is added to rotation list
+create table t3(f1 int not null)engine=innodb;
+insert into t3 select * from seq_1_to_100;
+# Increase the version and it should set rotation
+# variable for the encryption plugin
+set global debug_key_management_version=10;
+select  @@debug_key_management_version;
+@@debug_key_management_version
+10
+# Decrease the key version and Disable the encryption
+set global debug_key_management_version=1;
+set global innodb_encrypt_tables=off;
+DROP TABLE t1, t2, t3;

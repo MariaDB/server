@@ -1049,10 +1049,13 @@ a
 10
 DROP TABLE t1;
 CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
+SET @save_allowed = @@GLOBAL.innodb_instant_alter_column_allowed;
+SET GLOBAL innodb_instant_alter_column_allowed=never;
 iNSERT INTO t1 VALUES (10);
 ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
 affected rows: 0
 info: Records: 0  Duplicates: 0  Warnings: 0
+SET GLOBAL innodb_instant_alter_column_allowed=@save_allowed;
 SELECT * FROM t1;
 a	b
 10	2001-01-01

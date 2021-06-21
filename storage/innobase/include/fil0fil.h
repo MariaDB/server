@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2017, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -170,7 +170,7 @@ public:
 	bool is_in_unflushed_spaces;
 
 	/** Checks that this tablespace needs key rotation. */
-	bool is_in_rotation_list;
+	bool is_in_default_encrypt;
 
 	/** True if the device this filespace is on supports atomic writes */
 	bool		atomic_write_supported;
@@ -683,9 +683,9 @@ public:
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys.mutex. */
-	ilist<fil_space_t, rotation_list_tag_t> rotation_list;
-					/*!< list of all file spaces needing
-					key rotation.*/
+
+	/** List of all file spaces need key rotation */
+	ilist<fil_space_t, rotation_list_tag_t> default_encrypt_tables;
 
 	bool		space_id_reuse_warned;
 					/*!< whether fil_space_create()
@@ -698,15 +698,15 @@ public:
 	@retval	NULL	if the tablespace does not exist or cannot be read */
 	fil_space_t* read_page0(ulint id);
 
-  /** Return the next tablespace from rotation_list.
+  /** Return the next tablespace from default_encrypt_tables list.
   @param space   previous tablespace (NULL to start from the start)
   @param recheck whether the removal condition needs to be rechecked after
   the encryption parameters were changed
   @param encrypt expected state of innodb_encrypt_tables
   @return the next tablespace to process (n_pending_ops incremented)
   @retval NULL if this was the last */
-  inline fil_space_t* keyrotate_next(fil_space_t *space, bool recheck,
-                                     bool encrypt);
+  inline fil_space_t* default_encrypt_next(
+    fil_space_t *space, bool recheck, bool encrypt);
 };
 
 /** The tablespace memory cache. */
