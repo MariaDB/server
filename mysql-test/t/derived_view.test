@@ -2249,3 +2249,20 @@ eval explain extended $q;
 
 drop view v1;
 drop table t1,t2,t3;
+
+--echo #
+--echo # MDEV-25679: view / derived table defined as ordered select with LIMIT
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+create view v1 as (select a from t1 limit 2) order by a desc;
+(select a from t1 limit 2) order by a desc;
+select * from v1;
+select * from ((select a from t1 limit 2) order by a desc) dt;
+
+drop view v1;
+drop table t1;
+
+--echo # End of 10.2 tests
