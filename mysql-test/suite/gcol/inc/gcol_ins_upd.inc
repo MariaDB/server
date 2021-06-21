@@ -607,4 +607,26 @@ DELETE FROM t1;
 
 DROP TEMPORARY TABLE t1;
 
+--echo #
+--echo # Original test case from MDEV-17890
+--echo #
+
+CREATE TABLE t1 (
+  pk BIGINT AUTO_INCREMENT,
+  b BIT(15),
+  v BIT(10) AS (b) VIRTUAL,
+  PRIMARY KEY(pk),
+  UNIQUE(v)
+);
+
+INSERT IGNORE INTO t1 (b) VALUES (b'101110001110100'),(b'011101');
+SELECT pk, b FROM t1 INTO OUTFILE 'load.data';
+--error ER_DATA_TOO_LONG
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
+
+# Cleanup
+DROP TABLE t1;
+--let $datadir= `SELECT @@datadir`
+--remove_file $datadir/test/load.data
+
 }
