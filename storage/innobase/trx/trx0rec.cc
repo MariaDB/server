@@ -2164,12 +2164,11 @@ trx_undo_report_row_operation(
 				goto err_exit;
 			}
 
-			mtr_commit(&mtr);
+			mtr.commit();
 		} else {
 			/* Success */
-			mtr_commit(&mtr);
-
 			undo->top_page_no = undo_block->page.id.page_no();
+			mtr.commit();
 			undo->top_offset  = offset;
 			undo->top_undo_no = trx->undo_no++;
 			undo->guess_block = undo_block;
