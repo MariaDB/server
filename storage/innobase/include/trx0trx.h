@@ -79,7 +79,7 @@ void trx_free_at_shutdown(trx_t *trx);
 void trx_disconnect_prepared(trx_t *trx);
 
 /** Initialize (resurrect) transactions at startup. */
-void trx_lists_init_at_db_start();
+dberr_t trx_lists_init_at_db_start();
 
 /*************************************************************//**
 Starts the transaction if it is not yet started. */
@@ -698,10 +698,6 @@ struct trx_undo_ptr_t {
 					yet */
 	trx_undo_t*	undo;		/*!< pointer to the undo log, or
 					NULL if nothing logged yet */
-	trx_undo_t*     old_insert;	/*!< pointer to recovered
-					insert undo log, or NULL if no
-					INSERT transactions were
-					recovered from old-format undo logs */
 };
 
 /** An instance of temporary rollback segment. */
@@ -1053,13 +1049,6 @@ public:
 	bool has_logged() const
 	{
 		return(has_logged_persistent() || rsegs.m_noredo.undo);
-	}
-
-	/** @return whether any undo log has been generated or
-	recovered */
-	bool has_logged_or_recovered() const
-	{
-		return(has_logged() || rsegs.m_redo.old_insert);
 	}
 
 	/** @return rollback segment for modifying temporary tables */
