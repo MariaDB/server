@@ -112,8 +112,8 @@ File::tab#.ibd
 
 ===============================================
 Additional information:
-Undo page type: # insert, # update, # other
-Undo page state: # active, # cached, # to_free, # to_purge, # prepared, # other
+Undo page type: #
+Undo page state: # active, # cached, # to_purge, # prepared, # other
 index_id	#pages		#leaf_pages	#recs_per_page	#bytes_per_page
 #		#		#		#		#
 #		#		#		#		#
@@ -147,8 +147,8 @@ File::tab#.ibd
 
 ===============================================
 Additional information:
-Undo page type: # insert, # update, # other
-Undo page state: # active, # cached, # to_free, # to_purge, # prepared, # other
+Undo page type: #
+Undo page state: # active, # cached, # to_purge, # prepared, # other
 index_id	#pages		#leaf_pages	#recs_per_page	#bytes_per_page
 #		#		#		#		#
 #		#		#		#		#

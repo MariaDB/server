@@ -2323,7 +2323,6 @@ fsp_reserve_free_extents(
 	uint32_t	n_pages)
 {
 	ulint		reserve;
-	size_t		total_reserved = 0;
 
 	ut_ad(mtr);
 	*n_reserved = n_ext;
@@ -2409,8 +2408,7 @@ try_again:
 		return(true);
 	}
 try_to_extend:
-	if (ulint n = fsp_try_extend_data_file(space, header, mtr)) {
-		total_reserved += n;
+	if (fsp_try_extend_data_file(space, header, mtr)) {
 		goto try_again;
 	}
 
