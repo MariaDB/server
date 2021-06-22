@@ -1423,6 +1423,7 @@ public:
   { return prepare_for_keyread(index, &tmp_set); }
   void mark_columns_used_by_index(uint index, MY_BITMAP *map);
   void mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *map);
+  void mark_columns_used_by_index_for_read_no_reset(uint index);
   void restore_column_maps_after_keyread(MY_BITMAP *backup);
   void mark_auto_increment_column(void);
   void mark_columns_needed_for_update(void);
