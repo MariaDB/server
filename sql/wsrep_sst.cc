@@ -984,6 +984,8 @@ static ssize_t sst_prepare_other (const char*  method,
   {
     WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
                 ret);
+    if (binlog_opt_val) my_free(binlog_opt_val);
+    return ret;
   }
 
   make_wsrep_defaults_file();
@@ -1001,6 +1003,7 @@ static ssize_t sst_prepare_other (const char*  method,
                  wsrep_defaults_file,
                  (int)getpid(),
                  binlog_opt_val, binlog_index_opt_val);
+
   my_free(binlog_opt_val);
   my_free(binlog_index_opt_val);
 
@@ -1658,11 +1661,20 @@ static int sst_donate_other (const char*   method,
   }
 
   char* binlog_opt_val= NULL;
+  char* binlog_index_opt_val= NULL;
 
   int ret;
   if ((ret= generate_binlog_opt_val(&binlog_opt_val)))
   {
     WSREP_ERROR("sst_donate_other(): generate_binlog_opt_val() failed: %d",ret);
+    return ret;
+  }
+
+  if ((ret= generate_binlog_index_opt_val(&binlog_index_opt_val)))
+  {
+    WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
+                ret);
+    if (binlog_opt_val) my_free(binlog_opt_val);
     return ret;
   }
 
@@ -1679,14 +1691,17 @@ static int sst_donate_other (const char*   method,
                  WSREP_SST_OPT_GTID " '%s:%lld' "
                  WSREP_SST_OPT_GTID_DOMAIN_ID " '%d'"
                  "%s"
+                 "%s"
                  "%s",
                  method, addr, mysqld_port, mysqld_unix_port,
                  mysql_real_data_home,
                  wsrep_defaults_file,
                  uuid, (long long) seqno, wsrep_gtid_domain_id,
-                 binlog_opt_val,
+                 binlog_opt_val, binlog_index_opt_val,
                  bypass ? " " WSREP_SST_OPT_BYPASS : "");
+
   my_free(binlog_opt_val);
+  my_free(binlog_index_opt_val);
 
   if (ret < 0 || size_t(ret) >= cmd_len)
   {
