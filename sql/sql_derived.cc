@@ -1163,7 +1163,7 @@ bool mysql_derived_fill(THD *thd, LEX *lex, TABLE_LIST *derived)
       res= derived->fill_recursive(thd);
     }
   }
-  else if (unit->is_unit_op())
+  else if (unit->is_unit_op() || unit->fake_select_lex)
   {
     // execute union without clean up
     res= unit->exec();
