@@ -1,0 +1,12 @@
+!include ../galera_2nodes.cnf
+
+[mysqld]
+wsrep_sst_method=rsync
+
+[mysqld.1]
+wsrep_provider_options='base_port=@mysqld.1.#galera_port;gcache.size=1;pc.ignore_sb=true'
+log_bin=server1_binlog
+
+[mysqld.2]
+wsrep_provider_options='base_port=@mysqld.2.#galera_port;gcache.size=1;pc.ignore_sb=true'
+log_bin=server2_binlog
