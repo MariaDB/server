@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (C) 2014, 2018, MariaDB Corporation.
+Copyright (C) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -163,6 +163,7 @@ static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 			<< info->key_version << " failed (" << rc
 			<< "). Maybe the key or the required encryption "
 			"key management plugin was not found.";
+		info->key_version = ENCRYPTION_KEY_VERSION_INVALID;
 		return false;
 	}
 
@@ -182,6 +183,7 @@ static bool init_crypt_key(crypt_info_t* info, bool upgrade = false)
 	if (err != MY_AES_OK || dst_len != MY_AES_BLOCK_SIZE) {
 		ib::error() << "Getting redo log crypto key failed: err = "
 			<< err << ", len = " << dst_len;
+		info->key_version = ENCRYPTION_KEY_VERSION_INVALID;
 		return false;
 	}
 
@@ -275,6 +277,7 @@ log_crypt_101_read_block(byte* buf)
 	for (const crypt_info_t* const end = info + infos_used; info < end;
 	     info++) {
 		if (info->key_version
+		    && info->key_version != ENCRYPTION_KEY_VERSION_INVALID
 		    && info->checkpoint_no == checkpoint_no) {
 			goto found;
 		}
@@ -286,6 +289,9 @@ log_crypt_101_read_block(byte* buf)
 	/* MariaDB Server 10.1 would use the first key if it fails to
 	find a key for the current checkpoint. */
 	info = infos;
+	if (info->key_version == ENCRYPTION_KEY_VERSION_INVALID) {
+		return false;
+	}
 found:
 	byte dst[OS_FILE_LOG_BLOCK_SIZE];
 	uint dst_len;
