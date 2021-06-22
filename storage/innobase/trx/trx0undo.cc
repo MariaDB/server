@@ -1078,18 +1078,11 @@ trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no,
 	const uint16_t type = mach_read_from_2(TRX_UNDO_PAGE_HDR
 					       + TRX_UNDO_PAGE_TYPE
 					       + undo_page);
-	switch (type) {
-	case 0:
-	case 2: /* TRX_UNDO_UPDATE */
-		break;
-	case 1: /* TRX_UNDO_INSERT */
-		sql_print_error("InnoDB: upgrade from older version than"
-				" MariaDB 10.3 requires clean shutdown");
-		goto corrupted;
-	default:
+	if (UNIV_UNLIKELY(type > 2)) {
+corrupted_type:
 		sql_print_error("InnoDB: unsupported undo header type %u",
 				type);
-	corrupted:
+corrupted:
 		mtr.commit();
 		return NULL;
 	}
@@ -1109,12 +1102,21 @@ trx_undo_mem_create_at_db_start(trx_rseg_t *rseg, ulint id, uint32_t page_no,
 	switch (state) {
 	case TRX_UNDO_ACTIVE:
 	case TRX_UNDO_PREPARED:
-		break;
+		if (UNIV_LIKELY(type != 1)) {
+			break;
+		}
+		sql_print_error("InnoDB: upgrade from older version than"
+				" MariaDB 10.3 requires clean shutdown");
+		goto corrupted;
 	default:
 		sql_print_error("InnoDB: unsupported undo header state %u",
 				state);
 		goto corrupted;
 	case TRX_UNDO_TO_PURGE:
+		if (UNIV_UNLIKELY(type == 1)) {
+			goto corrupted_type;
+		}
+		/* fall through */
 	case TRX_UNDO_CACHED:
 		trx_id_t id = mach_read_from_8(TRX_UNDO_TRX_NO + undo_header);
 		if (id >> 48) {
