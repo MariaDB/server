@@ -9961,10 +9961,11 @@ commit_try_rebuild(
 		error = row_rename_table_for_mysql(
 			rebuilt_table->name.m_name, old_name, trx, false);
 		if (error == DB_SUCCESS) {
-			error = trx->drop_table_statistics(
-				ctx->old_table->name);
+			/* The statistics for the surviving indexes will be
+			re-inserted in alter_stats_rebuild(). */
+			error = trx->drop_table_statistics(old_name);
 			if (error == DB_SUCCESS) {
-				error = trx->drop_table(*ctx->old_table);
+				error = trx->drop_table(*user_table);
 			}
 		}
 	}
