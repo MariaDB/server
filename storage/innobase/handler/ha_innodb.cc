@@ -1969,6 +1969,9 @@ static void drop_garbage_tables_after_restore()
   mtr_t mtr;
   trx_t *trx= trx_create();
 
+  ut_ad(!purge_sys.enabled());
+  ut_d(purge_sys.stop_FTS());
+
   mtr.start();
   btr_pcur_open_at_index_side(true, dict_sys.sys_tables->indexes.start,
                               BTR_SEARCH_LEAF, &pcur, true, 0, &mtr);
@@ -2028,8 +2031,10 @@ static void drop_garbage_tables_after_restore()
       if (err == DB_SUCCESS &&
           (table->flags2 & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS)))
       {
+        dict_sys.unlock();
         fts_optimize_remove_table(table);
         err= fts_lock_tables(trx, *table);
+        dict_sys.lock(SRW_LOCK_CALL);
       }
       table->release();
 
@@ -2058,6 +2063,7 @@ fail:
   btr_pcur_close(&pcur);
   mtr.commit();
   trx->free();
+  ut_d(purge_sys.resume_FTS());
 }
 
 static void innodb_ddl_recovery_done(handlerton*)

@@ -7,14 +7,14 @@
 echo # xtrabackup backup;
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 
-CREATE TABLE t1(i int) ENGINE=InnoDB;
-INSERT into t1 values(1);
+CREATE TABLE t1(i int, t text, fulltext index(t)) ENGINE=InnoDB;
+INSERT into t1 values(1,'foo');
 
 connect  con2, localhost, root,,;
 connection con2;
 SET debug_sync='copy_data_between_tables_before_reset_backup_lock SIGNAL go  WAIT_FOR after_backup_stage_block_commit' ;
 DELIMITER |;
-send  SET debug_sync='now WAIT_FOR after_backup_stage_start';ALTER TABLE test.t1 FORCE, algorithm=COPY;|
+send  SET debug_sync='now WAIT_FOR after_backup_stage_start';ALTER TABLE test.t1 DROP t, algorithm=COPY;|
 DELIMITER ;|
 connection default;
 
@@ -53,9 +53,9 @@ exec $XTRABACKUP  --prepare --target-dir=$targetdir;
 --enable_result_log
 
 # Check there are no temp tablespaces in sys_tablespaces, after backup
-SELECT COUNT(*) AS expect_0 FROM INFORMATION_SCHEMA.innodb_sys_tablespaces WHERE name like '%/#sql%';
 SELECT * FROM t1;
 DROP TABLE t1;
+SELECT * FROM INFORMATION_SCHEMA.innodb_sys_tablespaces WHERE name like '%/#sql%' or name like 'test/%';
 
 # Restart once again to clear first_start_after_backup flag
 # This is to catch potential warnings, since "missing file" for #sql is suppressed
