@@ -947,7 +947,8 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
     else
       buf_pool.n_flush_list++;
 
-    /* Write data with uncompressed size when hole punching disabled. */
+    /* Write data with uncompressed size when hole punching disabled. In 
+    such case, the compressed page is padded with 0 to uncompressed size. */
     if (space->punch_hole) {
       if (status != buf_page_t::NORMAL || !space->use_doublewrite())
         space->io(IORequest(type, bpage),
