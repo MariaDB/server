@@ -672,6 +672,16 @@ private:
   /** Count of how manyfold this block is currently bufferfixed. */
   Atomic_counter<uint32_t> buf_fix_count_;
 
+  /** log sequence number of the START of the log entry written of the
+  oldest modification to this block which has not yet been written
+  to the data file;
+
+  0 if no modifications are pending;
+  1 if no modifications are pending, but the block is in buf_pool.flush_list;
+  2 if modifications are pending, but the block is not in buf_pool.flush_list
+  (because id().space() is the temporary tablespace). */
+  Atomic_counter<lsn_t> oldest_modification_;
+
   /** type of pending I/O operation; protected by buf_pool.mutex
   if in_LRU_list */
   Atomic_relaxed<buf_io_fix> io_fix_;
@@ -721,12 +731,6 @@ public:
   or if state() is BUF_BLOCK_MEMORY or BUF_BLOCK_REMOVE_HASH. */
   UT_LIST_NODE_T(buf_page_t) list;
 
-private:
-  /** log sequence number of the START of the log entry written of the
-  oldest modification to this block which has not yet been written
-  to the data file; 0 if no modifications are pending. */
-  Atomic_counter<lsn_t> oldest_modification_;
-public:
 	/** @name LRU replacement algorithm fields.
 	Protected by buf_pool.mutex. */
 	/* @{ */
@@ -841,12 +845,19 @@ public:
   inline void set_io_fix(buf_io_fix io_fix);
   inline void set_corrupt_id();
 
-  /** @return the oldest modification */
+  /** @return the log sequence number of the oldest pending modification
+  @retval 0 if the block is not in buf_pool.flush_list
+  @retval 1 if the block is in buf_pool.flush_list but not modified
+  @retval 2 if the block belongs to the temporary tablespace and
+  has unwritten changes */
   lsn_t oldest_modification() const { return oldest_modification_; }
   /** Set oldest_modification when adding to buf_pool.flush_list */
   inline void set_oldest_modification(lsn_t lsn);
   /** Clear oldest_modification when removing from buf_pool.flush_list */
   inline void clear_oldest_modification();
+  /** Note that a block is no longer dirty, while not removing
+  it from buf_pool.flush_list */
+  inline void clear_oldest_modification(bool temporary);
 
   /** Notify that a page in a temporary tablespace has been modified. */
   void set_temp_modified()
@@ -854,7 +865,7 @@ public:
     ut_ad(fsp_is_system_temporary(id().space()));
     ut_ad(state() == BUF_BLOCK_FILE_PAGE);
     ut_ad(!oldest_modification());
-    oldest_modification_= 1;
+    oldest_modification_= 2;
   }
 
   /** Prepare to release a file page to buf_pool.free. */
@@ -1462,23 +1473,24 @@ public:
   inline buf_block_t *block_from_ahi(const byte *ptr) const;
 #endif /* BTR_CUR_HASH_ADAPT */
 
-  /** @return the block that was made dirty the longest time ago */
-  const buf_page_t *get_oldest_modified() const
-  {
-    mysql_mutex_assert_owner(&flush_list_mutex);
-    const buf_page_t *bpage= UT_LIST_GET_LAST(flush_list);
-    ut_ad(!bpage || !fsp_is_system_temporary(bpage->id().space()));
-    ut_ad(!bpage || bpage->oldest_modification());
-    return bpage;
-  }
-
   /**
   @return the smallest oldest_modification lsn for any page
   @retval empty_lsn if all modified persistent pages have been flushed */
-  lsn_t get_oldest_modification(lsn_t empty_lsn) const
+  lsn_t get_oldest_modification(lsn_t empty_lsn)
   {
-    const buf_page_t *bpage= get_oldest_modified();
-    return bpage ? bpage->oldest_modification() : empty_lsn;
+    mysql_mutex_assert_owner(&flush_list_mutex);
+    while (buf_page_t *bpage= UT_LIST_GET_LAST(flush_list))
+    {
+      ut_ad(!fsp_is_system_temporary(bpage->id().space()));
+      lsn_t lsn= bpage->oldest_modification();
+      if (lsn != 1)
+      {
+        ut_ad(lsn > 2);
+        return lsn;
+      }
+      delete_from_flush_list(bpage);
+    }
+    return empty_lsn;
   }
 
   /** Determine if a buffer block was created by chunk_t::create().
@@ -1692,14 +1704,17 @@ public:
 
   /** Buffer pool mutex */
   MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) mysql_mutex_t mutex;
-  /** Number of pending LRU flush. */
-  Atomic_counter<ulint> n_flush_LRU;
+  /** Number of pending LRU flush; protected by mutex. */
+  ulint n_flush_LRU_;
   /** broadcast when n_flush_LRU reaches 0; protected by mutex */
   pthread_cond_t done_flush_LRU;
-  /** Number of pending flush_list flush. */
-  Atomic_counter<ulint> n_flush_list;
+  /** Number of pending flush_list flush; protected by mutex */
+  ulint n_flush_list_;
   /** broadcast when n_flush_list reaches 0; protected by mutex */
   pthread_cond_t done_flush_list;
+
+  TPOOL_SUPPRESS_TSAN ulint n_flush_LRU() const { return n_flush_LRU_; }
+  TPOOL_SUPPRESS_TSAN ulint n_flush_list() const { return n_flush_list_; }
 
 	/** @name General fields */
 	/* @{ */
@@ -1875,8 +1890,8 @@ public:
     last_activity_count= activity_count;
   }
 
-  // n_flush_LRU + n_flush_list is approximately COUNT(io_fix()==BUF_IO_WRITE)
-  // in flush_list
+  // n_flush_LRU() + n_flush_list()
+  // is approximately COUNT(io_fix()==BUF_IO_WRITE) in flush_list
 
 	unsigned	freed_page_clock;/*!< a sequence number used
 					to count the number of buffer
@@ -1961,13 +1976,35 @@ public:
   /** @return whether any I/O is pending */
   bool any_io_pending() const
   {
-    return n_pend_reads || n_flush_LRU || n_flush_list;
+    return n_pend_reads || n_flush_LRU() || n_flush_list();
   }
   /** @return total amount of pending I/O */
   ulint io_pending() const
   {
-    return n_pend_reads + n_flush_LRU + n_flush_list;
+    return n_pend_reads + n_flush_LRU() + n_flush_list();
   }
+
+private:
+  /** Remove a block from the flush list. */
+  inline void delete_from_flush_list_low(buf_page_t *bpage);
+  /** Remove a block from flush_list.
+  @param bpage   buffer pool page
+  @param clear   whether to invoke buf_page_t::clear_oldest_modification() */
+  void delete_from_flush_list(buf_page_t *bpage, bool clear);
+public:
+  /** Remove a block from flush_list.
+  @param bpage   buffer pool page */
+  void delete_from_flush_list(buf_page_t *bpage)
+  { delete_from_flush_list(bpage, true); }
+
+  /** Insert a modified block into the flush list.
+  @param block    modified block
+  @param lsn      start LSN of the mini-transaction that modified the block */
+  void insert_into_flush_list(buf_block_t *block, lsn_t lsn);
+
+  /** Free a page whose underlying file page has been freed. */
+  inline void release_freed_page(buf_page_t *bpage);
+
 private:
   /** Temporary memory for page_compressed and encrypted I/O */
   struct io_buf_t
@@ -2080,7 +2117,7 @@ inline void buf_page_t::set_corrupt_id()
   switch (oldest_modification()) {
   case 0:
     break;
-  case 1:
+  case 2:
     ut_ad(fsp_is_system_temporary(id().space()));
     ut_d(oldest_modification_= 0); /* for buf_LRU_block_free_non_file_page() */
     break;
@@ -2106,7 +2143,7 @@ inline void buf_page_t::set_corrupt_id()
 inline void buf_page_t::set_oldest_modification(lsn_t lsn)
 {
   mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
-  ut_ad(!oldest_modification());
+  ut_ad(oldest_modification() <= 1);
   oldest_modification_= lsn;
 }
 
@@ -2121,13 +2158,27 @@ inline void buf_page_t::clear_oldest_modification()
   oldest_modification_= 0;
 }
 
+/** Note that a block is no longer dirty, while not removing
+it from buf_pool.flush_list */
+inline void buf_page_t::clear_oldest_modification(bool temporary)
+{
+  mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
+  ut_ad(temporary == fsp_is_system_temporary(id().space()));
+  ut_ad(io_fix_ == BUF_IO_WRITE);
+  ut_ad(temporary ? oldest_modification() == 2 : oldest_modification() > 2);
+  oldest_modification_= !temporary;
+}
+
 /** @return whether the block is modified and ready for flushing */
 inline bool buf_page_t::ready_for_flush() const
 {
   mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(in_LRU_list);
   ut_a(in_file());
-  return oldest_modification() && io_fix_ == BUF_IO_NONE;
+  ut_ad(fsp_is_system_temporary(id().space())
+        ? oldest_modification() == 2
+        : oldest_modification() > 2);
+  return io_fix_ == BUF_IO_NONE;
 }
 
 /** @return whether the block can be relocated in memory.
@@ -2204,7 +2255,7 @@ MEMORY:		is not in free list, LRU list, or flush list, nor page
 		hash table
 FILE_PAGE:	space and offset are defined, is in page hash table
 		if io_fix == BUF_IO_WRITE,
-			buf_pool.n_flush_LRU > 0 || buf_pool.n_flush_list > 0
+			buf_pool.n_flush_LRU() || buf_pool.n_flush_list()
 
 		(1) if buf_fix_count == 0, then
 			is in LRU list, not in free list

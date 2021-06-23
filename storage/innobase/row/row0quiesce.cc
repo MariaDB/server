@@ -536,7 +536,7 @@ row_quiesce_table_start(
 		}
 	}
 
-	while (buf_flush_dirty_pages(table->space_id)) {
+	while (buf_flush_list_space(table->space)) {
 		if (trx_is_interrupted(trx)) {
 			goto aborted;
 		}

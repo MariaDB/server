@@ -1092,12 +1092,6 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_log_writes = srv_stats.log_writes;
 
-	export_vars.innodb_pages_created = buf_pool.stat.n_pages_created;
-
-	export_vars.innodb_pages_read = buf_pool.stat.n_pages_read;
-
-	export_vars.innodb_pages_written = buf_pool.stat.n_pages_written;
-
 	mysql_mutex_lock(&lock_sys.wait_mutex);
 	export_vars.innodb_row_lock_waits = lock_sys.get_wait_cumulative();
 

@@ -108,7 +108,7 @@ uint	buf_LRU_old_threshold_ms;
 
 /** Remove bpage from buf_pool.LRU and buf_pool.page_hash.
 
-If bpage->state() == BUF_BLOCK_ZIP_PAGE && !bpage->oldest_modification(),
+If bpage->state() == BUF_BLOCK_ZIP_PAGE && bpage->oldest_modification() <= 1,
 the object will be freed.
 
 @param bpage      buffer block
@@ -242,8 +242,8 @@ static bool buf_LRU_free_from_common_LRU_list(ulint limit)
 		buf_pool.lru_scan_itr.set(prev);
 
 		const auto accessed = bpage->is_accessed();
-		if (!bpage->oldest_modification()
-		    && buf_LRU_free_page(bpage, true)) {
+
+		if (buf_LRU_free_page(bpage, true)) {
 			if (!accessed) {
 				/* Keep track of pages that are evicted without
 				ever being accessed. This gives us a measure of
@@ -449,8 +449,8 @@ retry:
 #ifndef DBUG_OFF
 not_found:
 #endif
+	buf_flush_wait_batch_end(true);
 	mysql_mutex_unlock(&buf_pool.mutex);
-	buf_flush_wait_batch_end_acquiring_mutex(true);
 
 	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
 	    && srv_buf_pool_old_size == srv_buf_pool_size) {
@@ -487,7 +487,7 @@ not_found:
 	involved (particularly in case of ROW_FORMAT=COMPRESSED pages). We
 	can do that in a separate patch sometime in future. */
 
-	if (!buf_flush_lists(innodb_lru_flush_size, 0)) {
+	if (!buf_flush_LRU(innodb_lru_flush_size)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;
 	}
@@ -801,20 +801,33 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	const ulint fold = id.fold();
 	page_hash_latch* hash_lock = buf_pool.page_hash.lock_get(fold);
 	hash_lock->write_lock();
+	lsn_t oldest_modification = bpage->oldest_modification();
 
 	if (UNIV_UNLIKELY(!bpage->can_relocate())) {
 		/* Do not free buffer fixed and I/O-fixed blocks. */
 		goto func_exit;
 	}
 
+	if (oldest_modification == 1) {
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		oldest_modification = bpage->oldest_modification();
+		if (oldest_modification) {
+			ut_ad(oldest_modification == 1);
+			buf_pool.delete_from_flush_list(bpage);
+		}
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+		ut_ad(!bpage->oldest_modification());
+		oldest_modification = 0;
+	}
+
 	if (zip || !bpage->zip.data) {
 		/* This would completely free the block. */
 		/* Do not completely free dirty blocks. */
 
-		if (bpage->oldest_modification()) {
+		if (oldest_modification) {
 			goto func_exit;
 		}
-	} else if (bpage->oldest_modification()
+	} else if (oldest_modification
 		   && bpage->state() != BUF_BLOCK_FILE_PAGE) {
 func_exit:
 		hash_lock->write_unlock();

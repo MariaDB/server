@@ -1079,7 +1079,7 @@ func_exit:
 		mtr.commit();
 
 		/* 4 - sync tablespace before publishing crypt data */
-		while (buf_flush_dirty_pages(space->id));
+		while (buf_flush_list_space(space));
 
 		/* 5 - publish crypt data */
 		mysql_mutex_lock(&fil_crypt_threads_mutex);
@@ -1820,7 +1820,7 @@ fil_crypt_rotate_page(
 		if (block->page.status == buf_page_t::FREED) {
 			/* Do not modify freed pages to avoid an assertion
 			failure on recovery.*/
-		} else if (block->page.oldest_modification()) {
+		} else if (block->page.oldest_modification() > 1) {
 			/* Do not unnecessarily touch pages that are
 			already dirty. */
 		} else if (space->is_stopping()) {
@@ -1970,14 +1970,7 @@ fil_crypt_flush_space(
 	if (end_lsn > 0 && !space->is_stopping()) {
 		ulint sum_pages = 0;
 		const ulonglong start = my_interval_timer();
-		do {
-			ulint n_dirty= buf_flush_dirty_pages(state->space->id);
-			if (!n_dirty) {
-				break;
-			}
-			sum_pages += n_dirty;
-		} while (!space->is_stopping());
-
+		while (buf_flush_list_space(space, &sum_pages));
 		if (sum_pages) {
 			const ulonglong end = my_interval_timer();
 

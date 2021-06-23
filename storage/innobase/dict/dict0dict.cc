@@ -40,11 +40,6 @@ Created 1/8/1996 Heikki Tuuri
 #include "sql_table.h"
 #include <mysql/service_thd_mdl.h>
 
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-/** Flag to control insert buffer debugging. */
-extern uint	ibuf_debug;
-#endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
-
 #include "btr0btr.h"
 #include "btr0cur.h"
 #include "btr0sea.h"

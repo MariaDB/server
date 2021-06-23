@@ -672,7 +672,7 @@ not_free:
 		mini-transaction commit and the server was killed, then
 		discarding the to-be-trimmed pages without flushing would
 		break crash recovery. So, we cannot avoid the write. */
-		while (buf_flush_dirty_pages(space.id));
+		while (buf_flush_list_space(&space));
 
 		log_free_check();
 

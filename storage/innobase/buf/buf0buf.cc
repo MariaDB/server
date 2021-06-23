@@ -1108,13 +1108,15 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
         break;
       }
 
+      const lsn_t lsn= block->page.oldest_modification();
+
       if (fsp_is_system_temporary(block->page.id().space()))
       {
-        ut_ad(block->page.oldest_modification() <= 1);
+        ut_ad(lsn == 0 || lsn == 2);
         break;
       }
 
-      if (!block->page.ready_for_replace())
+      if (lsn > 1 || !block->page.can_relocate())
         return block;
 
       break;
@@ -1269,9 +1271,9 @@ void buf_pool_t::close()
     Only on aborted startup (with recovery) or with innodb_fast_shutdown=2
     we may discard changes. */
     ut_d(const lsn_t oldest= bpage->oldest_modification();)
-    ut_ad(!oldest || srv_is_being_started ||
-          srv_fast_shutdown == 2 ||
-          (oldest == 1 && fsp_is_system_temporary(bpage->id().space())));
+    ut_ad(fsp_is_system_temporary(bpage->id().space())
+          ? (oldest == 0 || oldest == 2)
+          : oldest <= 1 || srv_is_being_started || srv_fast_shutdown == 2);
 
     if (bpage->state() != BUF_BLOCK_FILE_PAGE)
       buf_page_free_descriptor(bpage);
@@ -1489,10 +1491,10 @@ inline bool buf_pool_t::withdraw_blocks()
 
 		/* reserve free_list length */
 		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-			buf_flush_lists(
+			buf_flush_LRU(
 				std::max<ulint>(withdraw_target
 						- UT_LIST_GET_LEN(withdraw),
-						srv_LRU_scan_depth), 0);
+						srv_LRU_scan_depth));
 			buf_flush_wait_batch_end_acquiring_mutex(true);
 		}
 
@@ -2970,8 +2972,10 @@ re_evict:
 
 		fix_block->fix();
 		mysql_mutex_unlock(&buf_pool.mutex);
-		buf_flush_lists(ULINT_UNDEFINED, LSN_MAX);
+		buf_flush_list();
 		buf_flush_wait_batch_end_acquiring_mutex(false);
+		while (buf_flush_list_space(space));
+		os_aio_wait_until_no_pending_writes();
 
 		if (fix_block->page.buf_fix_count() == 1
 		    && !fix_block->page.oldest_modification()) {
@@ -4066,8 +4070,8 @@ void buf_pool_t::print()
 		<< UT_LIST_GET_LEN(flush_list)
 		<< ", n pending decompressions=" << n_pend_unzip
 		<< ", n pending reads=" << n_pend_reads
-		<< ", n pending flush LRU=" << n_flush_LRU
-		<< " list=" << n_flush_list
+		<< ", n pending flush LRU=" << n_flush_LRU_
+		<< " list=" << n_flush_list_
 		<< ", pages made young=" << stat.n_pages_made_young
 		<< ", not young=" << stat.n_pages_not_made_young
 		<< ", pages read=" << stat.n_pages_read
@@ -4166,7 +4170,6 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 	double			time_elapsed;
 
 	mysql_mutex_lock(&buf_pool.mutex);
-	mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
 	pool_info->pool_size = buf_pool.curr_size;
 
@@ -4176,17 +4179,17 @@ void buf_stats_get_pool_info(buf_pool_info_t *pool_info)
 
 	pool_info->free_list_len = UT_LIST_GET_LEN(buf_pool.free);
 
+	mysql_mutex_lock(&buf_pool.flush_list_mutex);
 	pool_info->flush_list_len = UT_LIST_GET_LEN(buf_pool.flush_list);
 
 	pool_info->n_pend_unzip = UT_LIST_GET_LEN(buf_pool.unzip_LRU);
+	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 	pool_info->n_pend_reads = buf_pool.n_pend_reads;
 
-	pool_info->n_pending_flush_lru = buf_pool.n_flush_LRU;
+	pool_info->n_pending_flush_lru = buf_pool.n_flush_LRU_;
 
-	pool_info->n_pending_flush_list = buf_pool.n_flush_list;
-
-	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+	pool_info->n_pending_flush_list = buf_pool.n_flush_list_;
 
 	current_time = time(NULL);
 	time_elapsed = 0.001 + difftime(current_time,
