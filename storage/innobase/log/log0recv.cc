@@ -837,13 +837,18 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
       block->unfix();
       fil_node_t *node= UT_LIST_GET_FIRST(space->chain);
       node->deferred= true;
-      if (space->acquire())
+      if (!space->acquire())
+        goto fail;
+      if (!os_file_set_size(node->name, node->handle,
+                            size * fil_space_t::physical_size(flags),
+                            space->is_compressed()))
       {
-        node->deferred= false;
         space->release();
-        return false;
+        goto fail;
       }
-      goto fail;
+      node->deferred= false;
+      space->release();
+      return false;
     }
 
     block->unfix();
