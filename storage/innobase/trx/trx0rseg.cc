@@ -580,6 +580,7 @@ dberr_t trx_rseg_array_init()
 	bool wsrep_xid_in_rseg_found = false;
 #endif
 	mtr_t mtr;
+	dberr_t err = DB_SUCCESS;
 
 	for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
 		mtr.start();
@@ -609,10 +610,11 @@ dberr_t trx_rseg_array_init()
 				ut_ad(rseg->id == rseg_id);
 				ut_ad(!trx_sys.rseg_array[rseg_id]);
 				trx_sys.rseg_array[rseg_id] = rseg;
-				if (dberr_t err = trx_rseg_mem_restore(
-					    rseg, max_trx_id, &mtr)) {
+				if ((err = trx_rseg_mem_restore(
+					     rseg, max_trx_id, &mtr))
+				    != DB_SUCCESS) {
 					mtr.commit();
-					return err;
+					break;
 				}
 #ifdef WITH_WSREP
 				if (!wsrep_sys_xid.is_null() &&
@@ -631,6 +633,21 @@ dberr_t trx_rseg_array_init()
 		}
 
 		mtr.commit();
+	}
+
+	if (err != DB_SUCCESS) {
+		for (ulint rseg_id = 0; rseg_id < TRX_SYS_N_RSEGS; rseg_id++) {
+			if (trx_rseg_t*& rseg = trx_sys.rseg_array[rseg_id]) {
+				while (trx_undo_t* u= UT_LIST_GET_FIRST(
+					     rseg->undo_list)) {
+					UT_LIST_REMOVE(rseg->undo_list, u);
+					ut_free(u);
+				}
+				trx_rseg_mem_free(rseg);
+				rseg = NULL;
+			}
+		}
+		return err;
 	}
 
 #ifdef WITH_WSREP
