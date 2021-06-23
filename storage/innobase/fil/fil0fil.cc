@@ -1743,8 +1743,6 @@ void fil_close_tablespace(ulint id)
 	Thus we can clean the tablespace out of buf_pool
 	completely and permanently. */
 	while (buf_flush_dirty_pages(id));
-	/* Ensure that all asynchronous IO is completed. */
-	os_aio_wait_until_no_pending_writes();
 	ut_ad(space->is_stopping());
 
 	/* If the free is successful, the X lock will be released before

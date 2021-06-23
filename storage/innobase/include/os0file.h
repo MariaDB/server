@@ -1111,10 +1111,9 @@ void os_aio_free();
 @retval DB_IO_ERROR on I/O error */
 dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
 
-/** Waits until there are no pending writes in os_aio_write_array. There can
-be other, synchronous, pending writes. */
-void
-os_aio_wait_until_no_pending_writes();
+/** Wait until there are no pending asynchronous writes.
+Only used on FLUSH TABLES...FOR EXPORT. */
+void os_aio_wait_until_no_pending_writes();
 
 
 /** Prints info of the aio arrays.

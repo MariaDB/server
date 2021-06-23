@@ -4234,6 +4234,16 @@ row_import_for_mysql(
 	of delete marked records that couldn't be purged in Phase I. */
 	while (buf_flush_dirty_pages(prebuilt->table->space_id));
 
+	for (ulint count = 0; prebuilt->table->space->referenced(); count++) {
+		/* Issue a warning every 10.24 seconds, starting after
+		2.56 seconds */
+		if ((count & 511) == 128) {
+			ib::warn() << "Waiting for flush to complete on "
+				   << prebuilt->table->name;
+		}
+		os_thread_sleep(20000);
+	}
+
 	ib::info() << "Phase IV - Flush complete";
 	prebuilt->table->space->set_imported();
 

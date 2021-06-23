@@ -689,7 +689,6 @@ void buf_dblwr_t::flush_buffered_writes()
 {
   if (!is_initialised() || !srv_use_doublewrite_buf)
   {
-    os_aio_wait_until_no_pending_writes();
     fil_flush_file_spaces();
     return;
   }
