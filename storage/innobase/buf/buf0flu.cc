@@ -63,8 +63,11 @@ static constexpr ulint buf_flush_lsn_scan_factor = 3;
 /** Average redo generation rate */
 static lsn_t lsn_avg_rate = 0;
 
-/** Target oldest_modification for the page cleaner; writes are protected by
-buf_pool.flush_list_mutex */
+/** Target oldest_modification for the page cleaner background flushing;
+writes are protected by buf_pool.flush_list_mutex */
+static Atomic_relaxed<lsn_t> buf_flush_async_lsn;
+/** Target oldest_modification for the page cleaner furious flushing;
+writes are protected by buf_pool.flush_list_mutex */
 static Atomic_relaxed<lsn_t> buf_flush_sync_lsn;
 
 #ifdef UNIV_PFS_THREAD
@@ -1905,9 +1908,10 @@ try_checkpoint:
   }
 }
 
-/** If innodb_flush_sync=ON, initiate a furious flush.
-@param lsn buf_pool.get_oldest_modification(LSN_MAX) target */
-void buf_flush_ahead(lsn_t lsn)
+/** Initiate more eager page flushing if the log checkpoint age is too old.
+@param lsn      buf_pool.get_oldest_modification(LSN_MAX) target
+@param furious  true=furious flushing, false=limit to innodb_io_capacity */
+ATTRIBUTE_COLD void buf_flush_ahead(lsn_t lsn, bool furious)
 {
   mysql_mutex_assert_not_owner(&log_sys.mutex);
   ut_ad(!srv_read_only_mode);
@@ -1915,14 +1919,15 @@ void buf_flush_ahead(lsn_t lsn)
   if (recv_recovery_is_on())
     recv_sys.apply(true);
 
-  if (buf_flush_sync_lsn < lsn)
+  Atomic_relaxed<lsn_t> &limit= furious
+    ? buf_flush_sync_lsn : buf_flush_async_lsn;
+
+  if (limit < lsn)
   {
     mysql_mutex_lock(&buf_pool.flush_list_mutex);
-    if (buf_flush_sync_lsn < lsn)
-    {
-      buf_flush_sync_lsn= lsn;
-      pthread_cond_signal(&buf_pool.do_flush_list);
-    }
+    if (limit < lsn)
+      limit= lsn;
+    pthread_cond_signal(&buf_pool.do_flush_list);
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
   }
 }
@@ -1997,6 +2002,8 @@ ATTRIBUTE_COLD static void buf_flush_sync_for_checkpoint(lsn_t lsn)
 
     if (measure >= target)
       buf_flush_sync_lsn= 0;
+    else if (measure >= buf_flush_async_lsn)
+      buf_flush_async_lsn= 0;
 
     /* wake up buf_flush_wait_flushed() */
     pthread_cond_broadcast(&buf_pool.done_flush_list);
@@ -2016,7 +2023,7 @@ static bool af_needed_for_redo(lsn_t oldest_lsn)
 {
   lsn_t age= (log_sys.get_lsn() - oldest_lsn);
   lsn_t af_lwm= static_cast<lsn_t>(srv_adaptive_flushing_lwm *
-   static_cast<double>(log_sys.log_capacity) / 100);
+    static_cast<double>(log_sys.log_capacity) / 100);
 
   /* if age > af_lwm adaptive flushing is recommended */
   return (age > af_lwm);
@@ -2240,6 +2247,7 @@ furious_flush:
 
     set_timespec(abstime, 1);
 
+    lsn_t soft_lsn_limit= buf_flush_async_lsn;
     lsn_limit= buf_flush_sync_lsn;
 
     if (UNIV_UNLIKELY(lsn_limit != 0))
@@ -2261,6 +2269,7 @@ furious_flush:
         pthread_cond_broadcast(&buf_pool.done_flush_list);
       }
 unemployed:
+      buf_flush_async_lsn= 0;
       buf_pool.page_cleaner_set_idle(true);
       continue;
     }
@@ -2275,7 +2284,7 @@ unemployed:
 
     bool idle_flush= false;
 
-    if (lsn_limit);
+    if (lsn_limit || soft_lsn_limit);
     else if (af_needed_for_redo(oldest_lsn));
     else if (srv_max_dirty_pages_pct_lwm != 0.0)
     {
@@ -2300,10 +2309,15 @@ unemployed:
       goto unemployed;
 
     if (UNIV_UNLIKELY(lsn_limit != 0) && oldest_lsn >= lsn_limit)
-      buf_flush_sync_lsn= 0;
+      lsn_limit= buf_flush_sync_lsn= 0;
+    if (UNIV_UNLIKELY(soft_lsn_limit != 0) && oldest_lsn >= soft_lsn_limit)
+      soft_lsn_limit= buf_flush_async_lsn= 0;
 
     buf_pool.page_cleaner_set_idle(false);
     mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+    if (!lsn_limit)
+      lsn_limit= soft_lsn_limit;
 
     ulint n_flushed;
 
@@ -2355,7 +2369,7 @@ do_checkpoint:
         goto do_checkpoint;
       }
     }
-    else
+    else if (buf_flush_async_lsn <= oldest_lsn)
     {
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
       goto unemployed;
@@ -2410,6 +2424,7 @@ ATTRIBUTE_COLD void buf_flush_page_cleaner_init()
   ut_ad(srv_operation == SRV_OPERATION_NORMAL ||
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+  buf_flush_async_lsn= 0;
   buf_flush_sync_lsn= 0;
   buf_page_cleaner_is_active= true;
   os_thread_create(buf_flush_page_cleaner);
