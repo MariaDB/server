@@ -287,6 +287,7 @@ static bool row_undo_rec_get(undo_node_t* node)
 	trx_undo_t*	update	= trx->rsegs.m_redo.undo;
 	trx_undo_t*	temp	= trx->rsegs.m_noredo.undo;
 	const undo_no_t	limit	= trx->roll_limit;
+	bool		is_temp = false;
 
 	ut_ad(!update || !temp || update->empty() || temp->empty()
 	      || update->top_undo_no != temp->top_undo_no);
@@ -300,10 +301,9 @@ static bool row_undo_rec_get(undo_node_t* node)
 	}
 
 	if (temp && !temp->empty() && temp->top_undo_no >= limit) {
-		if (!undo) {
+		if (!undo || undo->top_undo_no < temp->top_undo_no) {
 			undo = temp;
-		} else if (undo->top_undo_no < temp->top_undo_no) {
-			undo = temp;
+			is_temp = true;
 		}
 	}
 
@@ -321,7 +321,8 @@ static bool row_undo_rec_get(undo_node_t* node)
 	ut_ad(limit <= undo->top_undo_no);
 
 	node->roll_ptr = trx_undo_build_roll_ptr(
-		false, undo->rseg->id, undo->top_page_no, undo->top_offset);
+		false, trx_sys.rseg_id(undo->rseg, !is_temp),
+		undo->top_page_no, undo->top_offset);
 
 	mtr_t	mtr;
 	mtr.start();

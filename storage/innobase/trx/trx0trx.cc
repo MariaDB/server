@@ -674,7 +674,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
     or will not qualify for purge limit criteria. So it is safe to increment
     this trx_ref_count w/o mutex protection.
   */
-  ++trx->rsegs.m_redo.rseg->trx_ref_count;
+  trx->rsegs.m_redo.rseg->acquire();
   *trx->xid= undo->xid;
   trx->id= undo->trx_id;
   trx->is_recovered= true;
@@ -719,31 +719,30 @@ dberr_t trx_lists_init_at_db_start()
 	const ulonglong	start_time_micro= microsecond_interval_timer();
 	uint64_t	rows_to_undo	= 0;
 
-	for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
+	for (auto& rseg : trx_sys.rseg_array) {
 		trx_undo_t*	undo;
-		trx_rseg_t*	rseg = trx_sys.rseg_array[i];
 
 		/* Some rollback segment may be unavailable,
 		especially if the server was previously run with a
 		non-default value of innodb_undo_logs. */
-		if (rseg == NULL) {
+		if (!rseg.space) {
 			continue;
 		}
 		/* Ressurrect other transactions. */
-		for (undo = UT_LIST_GET_FIRST(rseg->undo_list);
+		for (undo = UT_LIST_GET_FIRST(rseg.undo_list);
 		     undo != NULL;
 		     undo = UT_LIST_GET_NEXT(undo_list, undo)) {
 			trx_t *trx = trx_sys.find(0, undo->trx_id, false);
 			if (!trx) {
-				trx_resurrect(undo, rseg, start_time,
+				trx_resurrect(undo, &rseg, start_time,
 					      start_time_micro, &rows_to_undo);
 			} else {
 				ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
 				      trx_state_eq(trx, TRX_STATE_PREPARED));
 				ut_ad(trx->start_time == start_time);
 				ut_ad(trx->is_recovered);
-				ut_ad(trx->rsegs.m_redo.rseg == rseg);
-				ut_ad(trx->rsegs.m_redo.rseg->trx_ref_count);
+				ut_ad(trx->rsegs.m_redo.rseg == &rseg);
+				ut_ad(rseg.is_referenced());
 
 				trx->rsegs.m_redo.undo = undo;
 				if (undo->top_undo_no >= trx->undo_no) {
@@ -787,7 +786,7 @@ static trx_rseg_t* trx_assign_rseg_low()
 	ut_ad(srv_available_undo_logs == TRX_SYS_N_RSEGS);
 
 	/* The first slot is always assigned to the system tablespace. */
-	ut_ad(trx_sys.rseg_array[0]->space == fil_system.sys_space);
+	ut_ad(trx_sys.rseg_array[0].space == fil_system.sys_space);
 
 	/* Choose a rollback segment evenly distributed between 0 and
 	innodb_undo_logs-1 in a round-robin fashion, skipping those
@@ -806,7 +805,7 @@ static trx_rseg_t* trx_assign_rseg_low()
 
 	do {
 		for (;;) {
-			rseg = trx_sys.rseg_array[slot];
+			rseg = &trx_sys.rseg_array[slot];
 
 #ifdef UNIV_DEBUG
 			/* Ensure that we are not revisiting the same
@@ -820,20 +819,20 @@ static trx_rseg_t* trx_assign_rseg_low()
 			ut_d(if (!trx_rseg_n_slots_debug))
 			slot = (slot + 1) % TRX_SYS_N_RSEGS;
 
-			if (rseg == NULL) {
+			if (!rseg->space) {
 				continue;
 			}
 
 			ut_ad(rseg->is_persistent());
 
 			if (rseg->space != fil_system.sys_space) {
-				if (rseg->skip_allocation
+				if (rseg->skip_allocation()
 				    || !srv_undo_tablespaces) {
 					continue;
 				}
-			} else if (trx_rseg_t* next
-				   = trx_sys.rseg_array[slot]) {
-				if (next->space != fil_system.sys_space
+			} else if (const fil_space_t *space =
+				   trx_sys.rseg_array[slot].space) {
+				if (space != fil_system.sys_space
 				    && srv_undo_tablespaces > 0) {
 					/** If dedicated
 					innodb_undo_tablespaces have
@@ -849,15 +848,10 @@ static trx_rseg_t* trx_assign_rseg_low()
 		/* By now we have only selected the rseg but not marked it
 		allocated. By marking it allocated we are ensuring that it will
 		never be selected for UNDO truncate purge. */
-		mysql_mutex_lock(&rseg->mutex);
-		if (!rseg->skip_allocation) {
-			rseg->trx_ref_count++;
-			allocated = true;
-		}
-		mysql_mutex_unlock(&rseg->mutex);
+		allocated = rseg->acquire_if_available();
 	} while (!allocated);
 
-	ut_ad(rseg->trx_ref_count > 0);
+	ut_ad(rseg->is_referenced());
 	ut_ad(rseg->is_persistent());
 	return(rseg);
 }
@@ -873,7 +867,7 @@ trx_rseg_t *trx_t::assign_temp_rseg()
 	/* Choose a temporary rollback segment between 0 and 127
 	in a round-robin fashion. */
 	static Atomic_counter<unsigned> rseg_slot;
-	trx_rseg_t*	rseg = trx_sys.temp_rsegs[
+	trx_rseg_t*	rseg = &trx_sys.temp_rsegs[
 		rseg_slot++ & (TRX_SYS_N_RSEGS - 1)];
 	ut_ad(!rseg->is_persistent());
 	rsegs.m_noredo.rseg = rseg;
@@ -882,7 +876,6 @@ trx_rseg_t *trx_t::assign_temp_rseg()
 		trx_sys.register_rw(this);
 	}
 
-	ut_ad(!rseg->is_persistent());
 	return(rseg);
 }
 
@@ -984,7 +977,6 @@ trx_serialise(trx_t* trx)
 {
 	trx_rseg_t *rseg = trx->rsegs.m_redo.rseg;
 	ut_ad(rseg);
-	mysql_mutex_assert_owner(&rseg->mutex);
 
 	if (rseg->last_page_no == FIL_NULL) {
 		mysql_mutex_lock(&purge_sys.pq_mutex);
@@ -1031,10 +1023,7 @@ trx_write_serialisation_history(
 		mtr_t	temp_mtr;
 		temp_mtr.start();
 		temp_mtr.set_log_mode(MTR_LOG_NO_REDO);
-
-		mysql_mutex_lock(&trx->rsegs.m_noredo.rseg->mutex);
 		trx_undo_set_state_at_finish(undo, &temp_mtr);
-		mysql_mutex_unlock(&trx->rsegs.m_noredo.rseg->mutex);
 		temp_mtr.commit();
 	}
 
@@ -1052,7 +1041,7 @@ trx_write_serialisation_history(
 
 	ut_ad(!trx->read_only);
 	ut_ad(!undo || undo->rseg == rseg);
-	mysql_mutex_lock(&rseg->mutex);
+	rseg->latch.wr_lock();
 
 	/* Assign the transaction serialisation number and add any
 	undo log to the purge queue. */
@@ -1062,7 +1051,7 @@ trx_write_serialisation_history(
 		trx_purge_add_undo_to_history(trx, undo, mtr);
 	}
 
-	mysql_mutex_unlock(&rseg->mutex);
+	rseg->latch.wr_unlock();
 
 	MONITOR_INC(MONITOR_TRX_COMMIT_UNDO);
 }
@@ -1320,12 +1309,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
   ut_ad(UT_LIST_GET_LEN(lock.evicted_tables) == 0);
 
   if (trx_rseg_t *rseg= rsegs.m_redo.rseg)
-  {
-    mysql_mutex_lock(&rseg->mutex);
-    ut_ad(rseg->trx_ref_count > 0);
-    --rseg->trx_ref_count;
-    mysql_mutex_unlock(&rseg->mutex);
-  }
+    rseg->release();
 
   if (mtr)
   {
@@ -1821,11 +1805,7 @@ static lsn_t trx_prepare_low(trx_t *trx)
 
 		mtr.start();
 		mtr.set_log_mode(MTR_LOG_NO_REDO);
-
-		mysql_mutex_lock(&undo->rseg->mutex);
 		trx_undo_set_state_at_prepare(trx, undo, false, &mtr);
-		mysql_mutex_unlock(&undo->rseg->mutex);
-
 		mtr.commit();
 	}
 
@@ -1836,8 +1816,7 @@ static lsn_t trx_prepare_low(trx_t *trx)
 		return(0);
 	}
 
-	trx_rseg_t*	rseg = trx->rsegs.m_redo.rseg;
-	ut_ad(undo->rseg == rseg);
+	ut_ad(undo->rseg == trx->rsegs.m_redo.rseg);
 
 	mtr.start();
 
@@ -1845,10 +1824,7 @@ static lsn_t trx_prepare_low(trx_t *trx)
 	TRX_UNDO_PREPARED: these modifications to the file data
 	structure define the transaction as prepared in the file-based
 	world, at the serialization point of lsn. */
-
-	mysql_mutex_lock(&rseg->mutex);
 	trx_undo_set_state_at_prepare(trx, undo, false, &mtr);
-	mysql_mutex_unlock(&rseg->mutex);
 
 	/* Make the XA PREPARE durable. */
 	mtr.commit();

@@ -24,16 +24,12 @@ Rollback segment
 Created 3/26/1996 Heikki Tuuri
 *******************************************************/
 
-#ifndef trx0rseg_h
-#define trx0rseg_h
-
-#include "trx0sys.h"
+#pragma once
+#include "trx0types.h"
 #include "fut0lst.h"
-
-#ifdef UNIV_PFS_MUTEX
-extern mysql_pfs_key_t redo_rseg_mutex_key;
-extern mysql_pfs_key_t noredo_rseg_mutex_key;
-#endif /* UNIV_PFS_MUTEX */
+#ifdef WITH_WSREP
+# include "trx0xa.h"
+#endif /* WITH_WSREP */
 
 /** Gets a rollback segment header.
 @param[in]	space		space where placed
@@ -73,21 +69,8 @@ trx_rseg_header_create(
 /** Initialize or recover the rollback segments at startup. */
 dberr_t trx_rseg_array_init();
 
-/** Free a rollback segment in memory. */
-void
-trx_rseg_mem_free(trx_rseg_t* rseg);
-
-/** Create a persistent rollback segment.
-@param[in]	space_id	system or undo tablespace id
-@return pointer to new rollback segment
-@retval	NULL	on failure */
-trx_rseg_t*
-trx_rseg_create(ulint space_id)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Create the temporary rollback segments. */
-void
-trx_temp_rseg_create();
+void trx_temp_rseg_create();
 
 /* Number of undo log slots in a rollback segment file copy */
 #define TRX_RSEG_N_SLOTS	(srv_page_size / 16)
@@ -96,50 +79,99 @@ trx_temp_rseg_create();
 #define TRX_RSEG_MAX_N_TRXS	(TRX_RSEG_N_SLOTS / 2)
 
 /** The rollback segment memory object */
-struct trx_rseg_t {
-	/*--------------------------------------------------------*/
-	/** rollback segment id == the index of its slot in the trx
-	system file copy */
-	ulint				id;
+struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) trx_rseg_t
+{
+  /** tablespace containing the rollback segment; constant after init() */
+  fil_space_t *space;
+  /** latch protecting everything except page_no, space */
+  srw_lock_low latch;
+  /** rollback segment header page number; constant after init() */
+  uint32_t page_no;
+  /** length of the TRX_RSEG_HISTORY list (number of transactions) */
+  uint32_t history_size;
 
-	/** mutex protecting the fields in this struct except id,space,page_no
-	which are constant */
-	mysql_mutex_t			mutex;
+private:
+  /** Reference counter to track rseg allocated transactions,
+  with SKIP and NEEDS_PURGE flags. */
+  std::atomic<uint32_t> ref;
 
-	/** space where the rollback segment header is placed */
-	fil_space_t*			space;
+  /** Whether undo tablespace truncation is pending */
+  static constexpr uint32_t SKIP= 1;
+  /** Whether the log segment needs purge */
+  static constexpr uint32_t NEEDS_PURGE= 2;
+  /** Transaction reference count multiplier */
+  static constexpr uint32_t REF= 4;
 
-	/** page number of the rollback segment header */
-	uint32_t			page_no;
+  uint32_t ref_load() const { return ref.load(std::memory_order_relaxed); }
+public:
 
-	/** current size in pages */
-	uint32_t			curr_size;
+  /** Initialize the fields that are not zero-initialized. */
+  void init(fil_space_t *space, uint32_t page);
+  /** Reinitialize the fields on undo tablespace truncation. */
+  void reinit(uint32_t page);
+  /** Clean up. */
+  void destroy();
 
-	/*--------------------------------------------------------*/
-	/* Fields for undo logs */
-	/** List of undo logs */
-	UT_LIST_BASE_NODE_T(trx_undo_t)	undo_list;
+  /** Note that undo tablespace truncation was started. */
+  void set_skip_allocation()
+  { ut_ad(is_persistent()); ref.fetch_or(SKIP, std::memory_order_relaxed); }
+  /** Note that undo tablespace truncation was completed. */
+  void clear_skip_allocation()
+  {
+    ut_ad(is_persistent());
+    ut_d(auto r=) ref.fetch_and(~SKIP, std::memory_order_relaxed);
+    ut_ad(r == SKIP);
+  }
+  /** Note that the rollback segment requires purge. */
+  void set_needs_purge()
+  { ref.fetch_or(NEEDS_PURGE, std::memory_order_relaxed); }
+  /** Note that the rollback segment will not require purge. */
+  void clear_needs_purge()
+  { ref.fetch_and(~NEEDS_PURGE, std::memory_order_relaxed); }
+  /** @return whether the segment is marked for undo truncation */
+  bool skip_allocation() const { return ref_load() & SKIP; }
+  /** @return whether the segment needs purge */
+  bool needs_purge() const { return ref_load() & NEEDS_PURGE; }
+  /** Increment the reference count */
+  void acquire()
+  { ut_d(auto r=) ref.fetch_add(REF); ut_ad(!(r & SKIP)); }
+  /** Increment the reference count if possible
+  @retval true  if the reference count was incremented
+  @retval false if skip_allocation() holds */
+  bool acquire_if_available()
+  {
+    uint32_t r= 0;
+    while (!ref.compare_exchange_weak(r, r + REF,
+                                      std::memory_order_relaxed,
+                                      std::memory_order_relaxed))
+      if (r & SKIP)
+        return false;
+    return true;
+  }
 
-	/** List of undo log segments cached for fast reuse */
-	UT_LIST_BASE_NODE_T(trx_undo_t)	undo_cached;
+  /** Decrement the reference count */
+  void release()
+  {
+    ut_d(const auto r=)
+    ref.fetch_sub(REF, std::memory_order_relaxed);
+    ut_ad(r >= REF);
+  }
+  /** @return whether references exist */
+  bool is_referenced() const { return ref_load() >= REF; }
 
-	/*--------------------------------------------------------*/
+  /** current size in pages */
+  uint32_t curr_size;
+
+  /** List of undo logs (transactions) */
+  UT_LIST_BASE_NODE_T(trx_undo_t) undo_list;
+  /** List of undo log segments cached for fast reuse */
+  UT_LIST_BASE_NODE_T(trx_undo_t) undo_cached;
 
   /** Last not yet purged undo log header; FIL_NULL if all purged */
   uint32_t last_page_no;
 
   /** trx_t::no | last_offset << 48 */
   uint64_t last_commit_and_offset;
-
-	/** Whether the log segment needs purge */
-	bool				needs_purge;
-
-	/** Reference counter to track rseg allocated transactions. */
-	ulint				trx_ref_count;
-
-	/** If true, then skip allocating this rseg as it reside in
-	UNDO-tablespace marked for truncate. */
-	bool				skip_allocation;
 
   /** @return the commit ID of the last committed transaction */
   trx_id_t last_trx_no() const
@@ -153,24 +185,21 @@ struct trx_rseg_t {
     last_commit_and_offset= static_cast<uint64_t>(last_offset) << 48 | trx_no;
   }
 
-	/** @return whether the rollback segment is persistent */
-	bool is_persistent() const
-	{
-		ut_ad(space == fil_system.temp_space
-		      || space == fil_system.sys_space
-		      || (srv_undo_space_id_start > 0
-			  && space->id >= srv_undo_space_id_start
-			  && space->id <= srv_undo_space_id_start
-			  + TRX_SYS_MAX_UNDO_SPACES));
-		ut_ad(space == fil_system.temp_space
-		      || space == fil_system.sys_space
-		      || (srv_undo_space_id_start > 0
-			  && space->id >= srv_undo_space_id_start
-			  && space->id <= srv_undo_space_id_start
-			  + srv_undo_tablespaces_open)
-		      || !srv_was_started);
-		return(space->id != SRV_TMP_SPACE_ID);
-	}
+  /** @return whether the rollback segment is persistent */
+  bool is_persistent() const
+  {
+    ut_ad(space == fil_system.temp_space || space == fil_system.sys_space ||
+          (srv_undo_space_id_start > 0 &&
+           space->id >= srv_undo_space_id_start &&
+           space->id <= srv_undo_space_id_start + TRX_SYS_MAX_UNDO_SPACES));
+    ut_ad(space == fil_system.temp_space || space == fil_system.sys_space ||
+          !srv_was_started ||
+          (srv_undo_space_id_start > 0 &&
+           space->id >= srv_undo_space_id_start
+           && space->id <= srv_undo_space_id_start +
+           srv_undo_tablespaces_open));
+    return space->id != SRV_TMP_SPACE_ID;
+  }
 };
 
 /* Undo log segment slot in a rollback segment header */
@@ -278,5 +307,3 @@ void trx_rseg_update_binlog_offset(buf_block_t *rseg_header, const trx_t *trx,
                                    mtr_t *mtr);
 
 #include "trx0rseg.ic"
-
-#endif

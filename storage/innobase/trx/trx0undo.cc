@@ -554,7 +554,7 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	a pessimistic insert in a B-tree, and we must reserve the
 	counterpart of the tree latch, which is the rseg mutex. */
 
-	mysql_mutex_lock(&rseg->mutex);
+	rseg->latch.wr_lock();
 
 	buf_block_t* header_block = trx_undo_page_get(
 		page_id_t(undo->rseg->space->id, undo->hdr_page_no), mtr);
@@ -586,7 +586,7 @@ buf_block_t* trx_undo_add_page(trx_undo_t* undo, mtr_t* mtr)
 	rseg->curr_size++;
 
 func_exit:
-	mysql_mutex_unlock(&rseg->mutex);
+	rseg->latch.wr_unlock();
 	return(new_block);
 }
 
@@ -610,7 +610,6 @@ trx_undo_free_page(
 	const ulint	space = rseg->space->id;
 
 	ut_a(hdr_page_no != page_no);
-	mysql_mutex_assert_owner(&rseg->mutex);
 
 	buf_block_t* undo_block = trx_undo_page_get(page_id_t(space, page_no),
 						    mtr);
@@ -675,7 +674,7 @@ void trx_undo_truncate_end(trx_undo_t& undo, undo_no_t limit, bool is_temp)
 		}
 
 		trx_undo_rec_t* trunc_here = NULL;
-		mysql_mutex_lock(&undo.rseg->mutex);
+		undo.rseg->latch.wr_lock();
 		buf_block_t* undo_block = trx_undo_page_get(
 			page_id_t(undo.rseg->space->id, undo.last_page_no),
 			&mtr);
@@ -695,13 +694,13 @@ void trx_undo_truncate_end(trx_undo_t& undo, undo_no_t limit, bool is_temp)
 
 		if (undo.last_page_no != undo.hdr_page_no) {
 			trx_undo_free_last_page(&undo, &mtr);
-			mysql_mutex_unlock(&undo.rseg->mutex);
+			undo.rseg->latch.wr_unlock();
 			mtr.commit();
 			continue;
 		}
 
 func_exit:
-		mysql_mutex_unlock(&undo.rseg->mutex);
+		undo.rseg->latch.wr_unlock();
 
 		if (trunc_here) {
 			mtr.write<2>(*undo_block,
@@ -733,8 +732,6 @@ trx_undo_truncate_start(
 	trx_undo_rec_t* rec;
 	trx_undo_rec_t* last_rec;
 	mtr_t		mtr;
-
-	mysql_mutex_assert_owner(&rseg->mutex);
 
 	if (!limit) {
 		return;
@@ -913,10 +910,8 @@ corrupted:
 		max_trx_id = trx_id;
 	}
 
-	mysql_mutex_lock(&rseg->mutex);
 	trx_undo_t* undo = trx_undo_mem_create(
 		rseg, id, trx_id, &xid, page_no, offset);
-	mysql_mutex_unlock(&rseg->mutex);
 	if (!undo) {
 		return undo;
 	}
@@ -974,8 +969,6 @@ trx_undo_mem_create(
 {
 	trx_undo_t*	undo;
 
-	mysql_mutex_assert_owner(&rseg->mutex);
-
 	ut_a(id < TRX_RSEG_N_SLOTS);
 
 	undo = static_cast<trx_undo_t*>(ut_malloc_nokey(sizeof(*undo)));
@@ -1019,8 +1012,6 @@ trx_undo_mem_init_for_reuse(
 	const XID*	xid,	/*!< in: X/Open XA transaction identification*/
 	uint16_t	offset)	/*!< in: undo log header byte offset on page */
 {
-	mysql_mutex_assert_owner(&undo->rseg->mutex);
-
 	ut_a(undo->id < TRX_RSEG_N_SLOTS);
 
 	undo->state = TRX_UNDO_ACTIVE;
@@ -1048,9 +1039,6 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		dberr_t* err, mtr_t* mtr)
 {
 	ulint		id;
-
-	mysql_mutex_assert_owner(&rseg->mutex);
-
 	buf_block_t*	block = trx_undo_seg_create(
 		rseg->space,
 		trx_rsegf_get(rseg->space, rseg->page_no, mtr), &id, err, mtr);
@@ -1099,8 +1087,6 @@ buf_block_t*
 trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 		      mtr_t* mtr)
 {
-	mysql_mutex_assert_owner(&rseg->mutex);
-
 	trx_undo_t* undo = UT_LIST_GET_FIRST(rseg->undo_cached);
 	if (!undo) {
 		return NULL;
@@ -1163,7 +1149,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 
 	trx_rseg_t* rseg = trx->rsegs.m_redo.rseg;
 
-	mysql_mutex_lock(&rseg->mutex);
+	rseg->latch.wr_lock();
 	buf_block_t* block = trx_undo_reuse_cached(
 		trx, rseg, &trx->rsegs.m_redo.undo, mtr);
 
@@ -1181,7 +1167,7 @@ trx_undo_assign(trx_t* trx, dberr_t* err, mtr_t* mtr)
 	UT_LIST_ADD_FIRST(rseg->undo_list, trx->rsegs.m_redo.undo);
 
 func_exit:
-	mysql_mutex_unlock(&rseg->mutex);
+	rseg->latch.wr_unlock();
 	return block;
 }
 
@@ -1219,7 +1205,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 		*err = DB_TOO_MANY_CONCURRENT_TRXS; return NULL;
 	);
 
-	mysql_mutex_lock(&rseg->mutex);
+	rseg->latch.wr_lock();
 
 	buf_block_t* block = trx_undo_reuse_cached(trx, rseg, undo, mtr);
 
@@ -1236,7 +1222,7 @@ trx_undo_assign_low(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 	UT_LIST_ADD_FIRST(rseg->undo_list, *undo);
 
 func_exit:
-	mysql_mutex_unlock(&rseg->mutex);
+	rseg->latch.wr_unlock();
 	return block;
 }
 
@@ -1312,13 +1298,14 @@ void trx_undo_commit_cleanup(trx_undo_t *undo)
 	trx_rseg_t*	rseg	= undo->rseg;
 	ut_ad(rseg->space == fil_system.temp_space);
 
-	mysql_mutex_lock(&rseg->mutex);
+	rseg->latch.wr_lock();
 
 	UT_LIST_REMOVE(rseg->undo_list, undo);
 
 	if (undo->state == TRX_UNDO_CACHED) {
 		UT_LIST_ADD_FIRST(rseg->undo_cached, undo);
 		MONITOR_INC(MONITOR_NUM_UNDO_SLOT_CACHED);
+		undo = nullptr;
 	} else {
 		ut_ad(undo->state == TRX_UNDO_TO_PURGE);
 
@@ -1327,11 +1314,10 @@ void trx_undo_commit_cleanup(trx_undo_t *undo)
 
 		ut_ad(rseg->curr_size > undo->size);
 		rseg->curr_size -= undo->size;
-
-		ut_free(undo);
 	}
 
-	mysql_mutex_unlock(&rseg->mutex);
+	rseg->latch.wr_unlock();
+	ut_free(undo);
 }
 
 /** At shutdown, frees the undo logs of a transaction. */

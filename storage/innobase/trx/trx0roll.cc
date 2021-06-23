@@ -243,12 +243,10 @@ dberr_t trx_rollback_for_mysql(trx_t* trx)
 			      == trx->rsegs.m_redo.rseg);
 			mtr_t		mtr;
 			mtr.start();
-			mysql_mutex_lock(&trx->rsegs.m_redo.rseg->mutex);
 			if (trx_undo_t* undo = trx->rsegs.m_redo.undo) {
 				trx_undo_set_state_at_prepare(trx, undo, true,
 							      &mtr);
 			}
-			mysql_mutex_unlock(&trx->rsegs.m_redo.rseg->mutex);
 			/* Write the redo log for the XA ROLLBACK
 			state change to the global buffer. It is
 			not necessary to flush the redo log. If

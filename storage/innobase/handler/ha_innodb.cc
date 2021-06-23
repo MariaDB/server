@@ -216,15 +216,15 @@ static my_bool innodb_read_only_compressed;
 /** A dummy variable */
 static uint innodb_max_purge_lag_wait;
 
-/** Wait for trx_sys_t::rseg_history_len to be below a limit. */
+/** Wait for trx_sys.history_size() to be below a limit. */
 static void innodb_max_purge_lag_wait_update(THD *thd, st_mysql_sys_var *,
                                              void *, const void *limit)
 {
   const uint l= *static_cast<const uint*>(limit);
-  if (trx_sys.rseg_history_len <= l)
+  if (!trx_sys.history_exceeds(l))
     return;
   mysql_mutex_unlock(&LOCK_global_system_variables);
-  while (trx_sys.rseg_history_len > l)
+  while (trx_sys.history_exceeds(l))
   {
     if (thd_kill_level(thd))
       break;
@@ -520,8 +520,6 @@ mysql_pfs_key_t	log_flush_order_mutex_key;
 mysql_pfs_key_t	recalc_pool_mutex_key;
 mysql_pfs_key_t	purge_sys_pq_mutex_key;
 mysql_pfs_key_t	recv_sys_mutex_key;
-mysql_pfs_key_t	redo_rseg_mutex_key;
-mysql_pfs_key_t	noredo_rseg_mutex_key;
 mysql_pfs_key_t page_zip_stat_per_index_mutex_key;
 mysql_pfs_key_t rtr_active_mutex_key;
 mysql_pfs_key_t	rtr_match_mutex_key;
@@ -564,8 +562,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(page_zip_stat_per_index_mutex),
 	PSI_KEY(purge_sys_pq_mutex),
 	PSI_KEY(recv_sys_mutex),
-	PSI_KEY(redo_rseg_mutex),
-	PSI_KEY(noredo_rseg_mutex),
 	PSI_KEY(srv_innodb_monitor_mutex),
 	PSI_KEY(srv_misc_tmpfile_mutex),
 	PSI_KEY(srv_monitor_file_mutex),

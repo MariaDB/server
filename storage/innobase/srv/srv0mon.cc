@@ -1387,27 +1387,12 @@ srv_mon_set_module_control(
 /****************************************************************//**
 Get transaction system's rollback segment size in pages
 @return size in pages */
-static
-ulint
-srv_mon_get_rseg_size(void)
-/*=======================*/
+TPOOL_SUPPRESS_TSAN static ulint srv_mon_get_rseg_size()
 {
-	ulint		i;
-	ulint		value = 0;
-
-	/* rseg_array is a static array, so we can go through it without
-	mutex protection. In addition, we provide an estimate of the
-	total rollback segment size and to avoid mutex contention we
-	don't acquire the rseg->mutex" */
-	for (i = 0; i < TRX_SYS_N_RSEGS; ++i) {
-		const trx_rseg_t*	rseg = trx_sys.rseg_array[i];
-
-		if (rseg != NULL) {
-			value += rseg->curr_size;
-		}
-	}
-
-	return(value);
+  ulint size= 0;
+  for (const auto &rseg : trx_sys.rseg_array)
+    size+= rseg.curr_size;
+  return size;
 }
 
 /****************************************************************//**
@@ -1719,7 +1704,7 @@ srv_mon_process_existing_counter(
 		break;
 
 	case MONITOR_RSEG_HISTORY_LEN:
-		value = trx_sys.rseg_history_len;
+		value = trx_sys.history_size();
 		break;
 
 	case MONITOR_RSEG_CUR_SIZE:
