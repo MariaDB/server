@@ -1892,6 +1892,9 @@ fil_crypt_rotate_page(
 		if (block->page.status == buf_page_t::FREED) {
 			/* Do not modify freed pages to avoid an assertion
 			failure on recovery.*/
+		} else if (block->page.oldest_modification() > 1) {
+			/* Do not unnecessarily touch pages that are
+			already dirty. */
 		} else if (space->is_stopping()) {
 			/* The tablespace is closing (in DROP TABLE or
 			TRUNCATE TABLE or similar): avoid further access */

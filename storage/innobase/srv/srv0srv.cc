@@ -1137,12 +1137,6 @@ srv_export_innodb_status(void)
 
 	export_vars.innodb_log_writes = srv_stats.log_writes;
 
-	export_vars.innodb_pages_created = buf_pool.stat.n_pages_created;
-
-	export_vars.innodb_pages_read = buf_pool.stat.n_pages_read;
-
-	export_vars.innodb_pages_written = buf_pool.stat.n_pages_written;
-
 	export_vars.innodb_row_lock_waits = srv_stats.n_lock_wait_count;
 
 	export_vars.innodb_row_lock_current_waits =

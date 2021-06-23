@@ -95,7 +95,7 @@ ulint buf_flush_list(ulint max_n= ULINT_UNDEFINED, lsn_t lsn= LSN_MAX);
 /** Try to flush dirty pages that belong to a given tablespace.
 @param space       tablespace
 @param n_flushed   number of pages written
-@return whether any pages might not have been flushed */
+@return whether the flush for some pages might not have been initiated */
 bool buf_flush_list_space(fil_space_t *space, ulint *n_flushed= nullptr)
   MY_ATTRIBUTE((warn_unused_result));
 
