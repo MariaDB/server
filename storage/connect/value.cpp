@@ -2643,9 +2643,9 @@ bool DTVAL::SetValue_pval(PVAL valp, bool chktype)
 			} else if (valp->GetType() == TYPE_BIGINT &&
 				       !(valp->GetBigintValue() % 1000)) {
 				// Assuming that this timestamp is in milliseconds
-				Tval = (int)(valp->GetBigintValue() / 1000);
+				SetValue((int)(valp->GetBigintValue() / 1000));
 			}	else
-        Tval = valp->GetIntValue();
+        SetValue(valp->GetIntValue());
 
     } else
       Reset();
@@ -2737,20 +2737,38 @@ void DTVAL::SetValue_pvblk(PVBLK blk, int n)
 } // end of SetValue
 
 /***********************************************************************/
+/*  DTVAL SetValue: get date as an integer.                            */
+/***********************************************************************/
+void DTVAL::SetValue(int n)
+{
+  Tval = n;
+
+  if (Pdtp) {
+    size_t n = 0, slen = (size_t)Len + 1;
+    struct tm tm, *ptm= GetGmTime(&tm);
+
+    if (ptm)
+      n = strftime(Sdate, slen, Pdtp->OutFmt, ptm);
+
+  } // endif Pdtp
+
+} // end of SetValue
+
+/***********************************************************************/
 /*  DTVAL GetCharString: get string representation of a date value.    */
 /***********************************************************************/
 char *DTVAL::GetCharString(char *p)
 {
   if (Pdtp) {
-    size_t n = 0;
+    size_t n = 0, slen = (size_t)Len + 1;
     struct tm tm, *ptm= GetGmTime(&tm);
 
     if (ptm)
-      n = strftime(Sdate, Len + 1, Pdtp->OutFmt, ptm);
+      n = strftime(Sdate, slen, Pdtp->OutFmt, ptm);
 
     if (!n) {
       *Sdate = '\0';
-      strncat(Sdate, "Error", Len + 1);
+      strncat(Sdate, "Error", slen);
       } // endif n
 
     return Sdate;

@@ -1,5 +1,5 @@
 /************* tabjson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjson     Version 1.8                               */
+/* PROGRAM NAME: tabjson     Version 1.9                               */
 /*  (C) Copyright to the author Olivier BERTRAND          2014 - 2021  */
 /*  This program are the JSON class DB execution routines.             */
 /***********************************************************************/
@@ -191,13 +191,19 @@ int JSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 #endif   // ZIP_SUPPORT
   tdp->Fn = GetStringTableOption(g, topt, "Filename", NULL);
 
-  if (!tdp->Fn && topt->http)
+  if (!tdp->Fn && topt->http) {
     tdp->Fn = GetStringTableOption(g, topt, "Subtype", NULL);
+    topt->subtype = NULL;
+  } // endif fn
 
   if (!(tdp->Database = SetPath(g, db)))
     return 0;
 
-  tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
+  if ((tdp->Objname = GetStringTableOption(g, topt, "Object", NULL))) {
+    if (*tdp->Objname == '$') tdp->Objname++;
+    if (*tdp->Objname == '.') tdp->Objname++;
+  } // endif Objname
+
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
   tdp->Pretty = GetIntegerTableOption(g, topt, "Pretty", 2);
   tdp->Xcol = GetStringTableOption(g, topt, "Expand", NULL);
@@ -632,7 +638,12 @@ bool JSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
 {
   Schema = GetStringCatInfo(g, "DBname", Schema);
   Jmode = (JMODE)GetIntCatInfo("Jmode", MODE_OBJECT);
-  Objname = GetStringCatInfo(g, "Object", NULL);
+
+  if ((Objname = GetStringCatInfo(g, "Object", NULL))) {
+    if (*Objname == '$') Objname++;
+    if (*Objname == '.') Objname++;
+  } // endif Objname
+
   Xcol = GetStringCatInfo(g, "Expand", NULL);
   Pretty = GetIntCatInfo("Pretty", 2);
   Limit = GetIntCatInfo("Limit", 50);
@@ -950,23 +961,29 @@ int TDBJSN::EstimatedLength(void)
 /***********************************************************************/
 PJSON TDBJSN::FindRow(PGLOBAL g)
 {
-  char *p, *objpath;
+  char *p, *objpath = PlugDup(g, Objname);
+  char *sep = (Sep == ':') ? ":[" : ".[";
+  bool  bp = false, b = false;
   PJSON jsp = Row;
   PJVAL val = NULL;
 
-  for (objpath = PlugDup(g, Objname); jsp && objpath; objpath = p) {
-    if ((p = strchr(objpath, Sep)))
+  for (; jsp && objpath; objpath = p, bp = b) {
+    if ((p = strpbrk(objpath + 1, sep))) {
+      b = (*p == '[');
       *p++ = 0;
+    } // endif p
 
-    if (*objpath != '[' && !IsNum(objpath)) { // objpass is a key
+    if (!bp && *objpath != '[' && !IsNum(objpath)) { // objpass is a key
       val = (jsp->GetType() == TYPE_JOB) ?
         jsp->GetObject()->GetKeyValue(objpath) : NULL;
     } else {
-      if (*objpath == '[') {
-        if (objpath[strlen(objpath) - 1] == ']')
-          objpath++;
-        else
+      if (bp || *objpath == '[') {
+        if (objpath[strlen(objpath) - 1] != ']') {
+          sprintf(g->Message, "Invalid Table path %s", Objname);
           return NULL;
+        } else if (!bp)
+          objpath++;
+
       } // endif [
 
       val = (jsp->GetType() == TYPE_JAR) ?
@@ -975,6 +992,18 @@ PJSON TDBJSN::FindRow(PGLOBAL g)
 
     jsp = (val) ? val->GetJson() : NULL;
   } // endfor objpath
+
+  if (jsp && jsp->GetType() != TYPE_JOB) {
+    if (jsp->GetType() == TYPE_JAR) {
+      jsp = jsp->GetArray()->GetArrayValue(B);
+
+      if (jsp->GetType() != TYPE_JOB)
+        jsp = NULL;
+
+    } else
+      jsp = NULL;
+
+  } // endif Type
 
   return jsp;
 } // end of FindRow
@@ -1149,20 +1178,23 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
   if (Objname) {
     if (!Val) {
       // Parse and allocate Objname item(s)
-      char *p;
-      char *objpath = PlugDup(g, Objname);
+      char *p, *objpath = PlugDup(g, Objname);
+      char *sep = (Sep == ':') ? ":[" : ".[";
       int   i;
+      bool  bp = false, b = false;
       PJOB  objp;
       PJAR  arp;
       PJVAL val = NULL;
 
       Top = NULL;
 
-      for (; objpath; objpath = p) {
-        if ((p = strchr(objpath, Sep)))
+      for (; objpath; objpath = p, bp = b) {
+        if ((p = strpbrk(objpath + 1, sep))) {
+          b = (*p == '[');
           *p++ = 0;
+        } // endif p
 
-        if (*objpath != '[' && !IsNum(objpath)) {
+        if (!bp && *objpath != '[' && !IsNum(objpath)) {
           objp = new(g) JOBJECT;
 
           if (!Top)
@@ -1174,15 +1206,15 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
           val = new(g) JVALUE;
           objp->SetKeyValue(g, val, objpath);
         } else {
-          if (*objpath == '[') {
+          if (bp || *objpath == '[') {
             // Old style
             if (objpath[strlen(objpath) - 1] != ']') {
               sprintf(g->Message, "Invalid Table path %s", Objname);
-              return RC_FX;
-            } else
+              return NULL;
+            } else if (!bp)
               objpath++;
 
-          } // endif objpath
+          } // endif bp
 
           arp = new(g) JARRAY;
 
@@ -1537,6 +1569,10 @@ bool JSONCOL::ParseJpath(PGLOBAL g)
       // Analyse intermediate array processing
       if (SetArrayOptions(g, p, i, Nodes[i - 1].Key))
         return true;
+      else if (Xpd && Tjp->Mode == MODE_DELETE) {
+        strcpy(g->Message, "Cannot delete expanded columns");
+        return true;
+      } // endif Xpd
 
     } else if (*p == '*') {
       // Return JSON
@@ -1752,10 +1788,16 @@ void JSONCOL::SetJsonValue(PGLOBAL g, PVAL vp, PJVAL jvp)
 					break;
         case TYPE_DATE:
           if (jvp->GetValType() == TYPE_STRG) {
-            if (!((DTVAL*)vp)->IsFormatted())
-              ((DTVAL*)vp)->SetFormat(g, "YYYY-MM-DDThh:mm:ssZ", 20, 0);
+            PSZ dat = jvp->GetString(g);
 
-            vp->SetValue_psz(jvp->GetString(g));
+            if (!IsNum(dat)) {
+              if (!((DTVAL*)vp)->IsFormatted())
+                ((DTVAL*)vp)->SetFormat(g, "YYYY-MM-DDThh:mm:ssZ", 20, 0);
+
+              vp->SetValue_psz(dat);
+            } else
+              vp->SetValue(atoi(dat));
+
           } else
             vp->SetValue(jvp->GetInteger());
 

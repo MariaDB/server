@@ -1,5 +1,5 @@
 /************** tabrest C++ Program Source Code File (.CPP) ************/
-/* PROGRAM NAME: tabrest   Version 2.0                                 */
+/* PROGRAM NAME: tabrest   Version 2.1                                 */
 /*  (C) Copyright to the author Olivier BERTRAND          2018 - 2021  */
 /*  This program is the REST Web API support for MariaDB.              */
 /*  The way Connect handles NOSQL data returned by REST queries is     */
@@ -37,7 +37,7 @@
 #include "tabrest.h"
 
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, 0, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
@@ -60,12 +60,12 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 
 	if (Uri) {
 		if (*Uri == '/' || Http[strlen(Http) - 1] == '/')
-			sprintf(buf, "%s%s", Http, Uri);
+			my_snprintf(buf, sizeof(buf)-1, "%s%s", Http, Uri);
 		else
-			sprintf(buf, "%s/%s", Http, Uri);
+			my_snprintf(buf, sizeof(buf)-1, "%s/%s", Http, Uri);
 
 	} else
-		strcpy(buf, Http);
+		my_snprintf(buf, sizeof(buf)-1, "%s", Http);
 
 #if defined(_WIN32)
 	char cmd[1024];

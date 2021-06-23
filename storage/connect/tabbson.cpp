@@ -1,5 +1,5 @@
 /************* tabbson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabbson     Version 1.1                               */
+/* PROGRAM NAME: tabbson     Version 1.2                               */
 /*  (C) Copyright to the author Olivier BERTRAND          2020 - 2021  */
 /*  This program are the BSON class DB execution routines.             */
 /***********************************************************************/
@@ -193,7 +193,11 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   if (!(tdp->Database = SetPath(g, db)))
     return 0;
 
-  tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
+  if ((tdp->Objname = GetStringTableOption(g, topt, "Object", NULL))) {
+    if (*tdp->Objname == '$') tdp->Objname++;
+    if (*tdp->Objname == '.') tdp->Objname++;
+  } // endif Objname
+
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
   tdp->Pretty = GetIntegerTableOption(g, topt, "Pretty", 2);
   tdp->Xcol = GetStringTableOption(g, topt, "Expand", NULL);
@@ -603,32 +607,50 @@ void BSONDISC::AddColumn(PGLOBAL g)
 /***********************************************************************/
 PBVAL BTUTIL::FindRow(PGLOBAL g)
 {
-  char *p, *objpath;
+  char *p, *objpath = PlugDup(g, Tp->Objname);
+  char *sep = (Tp->Sep == ':') ? ":[" : ".[";
+  bool  bp = false, b = false;
   PBVAL jsp = Tp->Row;
   PBVAL val = NULL;
 
-  for (objpath = PlugDup(g, Tp->Objname); jsp && objpath; objpath = p) {
-    if ((p = strchr(objpath, Tp->Sep)))
+  for (; jsp && objpath; objpath = p, bp = b) {
+    if ((p = strpbrk(objpath + 1, sep))) {
+      b = (*p == '[');
       *p++ = 0;
+    } // endif p
 
-    if (*objpath != '[' && !IsNum(objpath)) { // objpass is a key
+    if (!bp && *objpath != '[' && !IsNum(objpath)) { // objpass is a key
       val = (jsp->Type == TYPE_JOB) ?
         GetKeyValue(jsp, objpath) : NULL;
     } else {
-      if (*objpath == '[') {
-        if (objpath[strlen(objpath) - 1] == ']')
-          objpath++;
-        else
+      if (bp || *objpath == '[') {                   // Old style
+        if (objpath[strlen(objpath) - 1] != ']') {
+          sprintf(g->Message, "Invalid Table path %s", Tp->Objname);
           return NULL;
-      } // endif [
+        } else if (!bp)
+          objpath++;
+
+      } // endif bp
 
       val = (jsp->Type == TYPE_JAR) ?
-        GetArrayValue(GetArray(jsp), atoi(objpath) - Tp->B) : NULL;
+        GetArrayValue(jsp, atoi(objpath) - Tp->B) : NULL;
     } // endif objpath
 
       //  jsp = (val) ? val->GetJson() : NULL;
     jsp = val;
   } // endfor objpath
+
+  if (jsp && jsp->Type != TYPE_JOB) {
+    if (jsp->Type == TYPE_JAR) {
+      jsp = GetArrayValue(jsp, Tp->B);
+
+      if (jsp->Type != TYPE_JOB)
+        jsp = NULL;
+
+    } else
+      jsp = NULL;
+
+  } // endif Type
 
   return jsp;
 } // end of FindRow
@@ -653,17 +675,22 @@ PBVAL BTUTIL::MakeTopTree(PGLOBAL g, int type)
   if (Tp->Objname) {
     if (!Tp->Row) {
       // Parse and allocate Objpath item(s)
-      char* p;
-      char *objpath = PlugDup(g, Tp->Objname);
+      char *p, *objpath = PlugDup(g, Tp->Objname);
+      char *sep = (Tp->Sep == ':') ? ":[" : ".[";
       int   i;
+      bool  bp = false, b = false;
       PBVAL objp = NULL;
       PBVAL arp = NULL;
 
-      for (; objpath; objpath = p) {
-        if ((p = strchr(objpath, Tp->Sep)))
+      for (; objpath; objpath = p, bp = b) {
+        if ((p = strpbrk(objpath + 1, sep))) {
+          b = (*p == '[');
           *p++ = 0;
+        } // endif p
 
-        if (*objpath != '[' && !IsNum(objpath)) {
+
+        if (!bp && *objpath != '[' && !IsNum(objpath)) {
+          // objpass is a key
           objp = NewVal(TYPE_JOB);
 
           if (!top)
@@ -675,15 +702,15 @@ PBVAL BTUTIL::MakeTopTree(PGLOBAL g, int type)
           val = NewVal();
           SetKeyValue(objp, MOF(val), objpath);
         } else {
-          if (*objpath == '[') {
+          if (bp || *objpath == '[') {
             // Old style
             if (objpath[strlen(objpath) - 1] != ']') {
               sprintf(g->Message, "Invalid Table path %s", Tp->Objname);
               return NULL;
-            } else
+            } else if (!bp)
               objpath++;
 
-          } // endif objpath
+          } // endif bp
 
           if (!top)
             top = NewVal(TYPE_JAR);
@@ -755,10 +782,16 @@ void BCUTIL::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp)
           break;
         case TYPE_DATE:
           if (jvp->Type == TYPE_STRG) {
-            if (!((DTVAL*)vp)->IsFormatted())
-              ((DTVAL*)vp)->SetFormat(g, "YYYY-MM-DDThh:mm:ssZ", 20, 0);
+            PSZ dat = GetString(jvp);
 
-            vp->SetValue_psz(GetString(jvp));
+            if (!IsNum(dat)) {
+              if (!((DTVAL*)vp)->IsFormatted())
+                ((DTVAL*)vp)->SetFormat(g, "YYYY-MM-DDThh:mm:ssZ", 20, 0);
+
+              vp->SetValue_psz(dat);
+            } else
+              vp->SetValue(atoi(dat));
+
           } else
             vp->SetValue(GetInteger(jvp));
 
@@ -1156,7 +1189,12 @@ bool BSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   G = g;
   Schema = GetStringCatInfo(g, "DBname", Schema);
   Jmode = (JMODE)GetIntCatInfo("Jmode", MODE_OBJECT);
-  Objname = GetStringCatInfo(g, "Object", NULL);
+
+  if ((Objname = GetStringCatInfo(g, "Object", NULL))) {
+    if (*Objname == '$') Objname++;
+    if (*Objname == '.') Objname++;
+  } // endif Objname
+
   Xcol = GetStringCatInfo(g, "Expand", NULL);
   Pretty = GetIntCatInfo("Pretty", 2);
   Limit = GetIntCatInfo("Limit", 50);
@@ -1935,6 +1973,10 @@ bool BSONCOL::ParseJpath(PGLOBAL g)
       // Analyse intermediate array processing
       if (SetArrayOptions(g, p, i, Nodes[i - 1].Key))
         return true;
+      else if (Xpd && Tbp->Mode == MODE_DELETE) {
+        strcpy(g->Message, "Cannot delete expanded columns");
+        return true;
+      } // endif Xpd
 
     } else if (*p == '*') {
       // Return JSON
@@ -2237,8 +2279,6 @@ int TDBBSON::MakeDocument(PGLOBAL g)
     return RC_FX;
 
   if ((objpath = PlugDup(g, Objname))) {
-    if (*objpath == '$') objpath++;
-    if (*objpath == '.') objpath++;
     p1 = (*objpath == '[') ? objpath++ : NULL;
 
     /*********************************************************************/

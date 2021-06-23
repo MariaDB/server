@@ -75,6 +75,7 @@ protected:
 	CMgoConn             *Cmgp;       // Points to a C Mongo connection class
 	CMGOPARM							Pcg;				// Parms passed to Cmgp
 	const Item           *Cnd;			  // The first condition
+	PCSZ									Strfy;			// The stringified column
 	int                   Fpos;       // The current row index
 	int                   N;          // The current Rownum
 	int                   B;          // Array index base

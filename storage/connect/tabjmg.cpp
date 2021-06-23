@@ -1,6 +1,6 @@
 /************** tabjmg C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjmg     Version 1.2                                */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/* PROGRAM NAME: tabjmg     Version 1.3                                */
+/*  (C) Copyright to the author Olivier BERTRAND          2021         */
 /*  This file contains the MongoDB classes using the Java Driver.      */
 /***********************************************************************/
 
@@ -166,6 +166,7 @@ TDBJMG::TDBJMG(PMGODEF tdp) : TDBEXT(tdp)
 		Coll_name = tdp->Tabname;
 		Options = tdp->Colist;
 		Filter = tdp->Filter;
+		Strfy = tdp->Strfy;
 		B = tdp->Base ? 1 : 0;
 		Pipe = tdp->Pipe && Options != NULL;
 	} else {
@@ -177,6 +178,7 @@ TDBJMG::TDBJMG(PMGODEF tdp) : TDBEXT(tdp)
 		Coll_name = NULL;
 		Options = NULL;
 		Filter = NULL;
+		Strfy = NULL;
 		B = 0;
 		Pipe = false;
 	} // endif tdp
@@ -197,6 +199,7 @@ TDBJMG::TDBJMG(TDBJMG *tdbp) : TDBEXT(tdbp)
 	Coll_name = tdbp->Coll_name;
 	Options = tdbp->Options;
 	Filter = tdbp->Filter;
+	Strfy = tdbp->Strfy;
 	B = tdbp->B;
 	Fpos = tdbp->Fpos;
 	N = tdbp->N;
@@ -420,7 +423,7 @@ JMGCOL::JMGCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 	: EXTCOL(cdp, tdbp, cprec, i, "MGO")
 {
 	Tmgp = (PTDBJMG)(tdbp->GetOrig() ? tdbp->GetOrig() : tdbp);
-	Sgfy = false;
+	Sgfy = (Tmgp->Strfy && !stricmp(Tmgp->Strfy, Name));
 
 	if ((Jpath = cdp->GetFmt())) {
 		int n = strlen(Jpath) - 1;

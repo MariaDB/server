@@ -1,6 +1,6 @@
 /************** mongo C++ Program Source Code File (.CPP) **************/
-/* PROGRAM NAME: mongo     Version 1.0                                 */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/* PROGRAM NAME: mongo     Version 1.1                                 */
+/*  (C) Copyright to the author Olivier BERTRAND          2021         */
 /*  These programs are the MGODEF class execution routines.            */
 /***********************************************************************/
 
@@ -36,6 +36,7 @@
 bool MakeSelector(PGLOBAL g, PFIL fp, PSTRG s);
 bool IsNum(PSZ s);
 int  GetDefaultDepth(void);
+bool JsonAllPath(void);
 
 /***********************************************************************/
 /*  Make selector json representation for Mongo tables.                */
@@ -350,7 +351,7 @@ void MGODISC::AddColumn(PGLOBAL g, PCSZ colname, PCSZ fmt, int k)
 		bcp->Name = PlugDup(g, colname);
 		length[0] = MY_MAX(length[0], (signed)strlen(colname));
 
-		if (k) {
+		if (k || JsonAllPath()) {
 			bcp->Fmt = PlugDup(g, fmt);
 			length[7] = MY_MAX(length[7], (signed)strlen(fmt));
 		} else
@@ -395,6 +396,7 @@ bool MGODEF::DefineAM(PGLOBAL g, LPCSTR, int poff)
 	Uri = GetStringCatInfo(g, "Connect", "mongodb://localhost:27017");
 	Colist = GetStringCatInfo(g, "Colist", NULL);
 	Filter = GetStringCatInfo(g, "Filter", NULL);
+	Strfy = GetStringCatInfo(g, "Stringify", NULL);
 	Base = GetIntCatInfo("Base", 0) ? 1 : 0;
 	Version = GetIntCatInfo("Version", 3);
 

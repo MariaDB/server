@@ -290,10 +290,14 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 /****************************************************************************/
 static char *strz(PGLOBAL g, LEX_STRING &ls)
 {
-  char *str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
+  char* str= NULL;
+  
+  if (ls.str) {
+    str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
+    memcpy(str, ls.str, ls.length);
+    str[ls.length] = 0;
+  } // endif str
 
-  memcpy(str, ls.str, ls.length);
-  str[ls.length]= 0;
   return str;
 } // end of strz
 
@@ -5625,7 +5629,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // JAVA_SUPPORT
   uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool     bif, ok= false, dbf= false;
-  TABTYPE  ttp= TAB_UNDEF;
+  TABTYPE  ttp= TAB_UNDEF, ttr=TAB_UNDEF;
   PQRYRES  qrp= NULL;
   PCOLRES  crp;
   PCONNECT xp= NULL;
@@ -5707,7 +5711,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			topt->type= (src) ? "MYSQL" : (tab) ? "PROXY" : "DOS";
 			ttp= GetTypeID(topt->type);
 			sprintf(g->Message, "No table_type. Was set to %s", topt->type);
-			push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+			push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
 		} else if (ttp == TAB_NIY) {
 			sprintf(g->Message, "Unsupported table type %s", topt->type);
 			rc= HA_ERR_INTERNAL_ERROR;
@@ -5715,13 +5719,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
 		} else if (topt->http) {
       if (ttp == TAB_UNDEF) {
-        topt->type = "JSON";
-        ttp= GetTypeID(topt->type);
-        sprintf(g->Message, "No table_type. Was set to %s", topt->type);
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
-      } // endif ttp
+        ttr= TAB_JSON;
+        strcpy(g->Message, "No table_type. Was set to JSON");
+        push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
+      } else
+        ttr= ttp;
 
-      switch (ttp) {
+      switch (ttr) {
 				case TAB_JSON:
 #if defined(BSON_SUPPORT)
         case TAB_BSON:
@@ -5956,7 +5960,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
 			case TAB_REST:
 				if (!topt->http)
-					sprintf(g->Message, "Missing %s HTTP address", topt->type);
+					strcpy(g->Message, "Missing REST HTTP option");
 				else
 					ok = true;
 
@@ -6176,7 +6180,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				// Restore language type
 				if (ttp == TAB_REST)
-          ttp = GetTypeID(topt->type);
+          ttp = ttr;
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
 					typ= len= prec= dec= flg= 0;

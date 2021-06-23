@@ -1,5 +1,5 @@
 /**************** tabjmg H Declares Source Code File (.H) **************/
-/*  Name: tabjmg.h   Version 1.2                                       */
+/*  Name: tabjmg.h   Version 1.3                                       */
 /*                                                                     */
 /*  (C) Copyright to the author Olivier BERTRAND          2017 - 2021  */
 /*                                                                     */
@@ -83,6 +83,7 @@ protected:
 	PCSZ       Coll_name;
 	PCSZ       Options;		         // The MongoDB options
 	PCSZ       Filter;			       // The filtering query
+	PCSZ			 Strfy;			         // The stringified column
 	PSZ        Wrapname;           // Java wrapper name
 	int        Fpos;               // The current row index
 	int        N;                  // The current Rownum

@@ -1,5 +1,5 @@
 /************** tabcmg C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabcmg     Version 1.2                                */
+/* PROGRAM NAME: tabcmg     Version 1.3                                */
 /*  (C) Copyright to the author Olivier BERTRAND          2017 - 2021  */
 /*  This program are the C MongoDB class DB execution routines.        */
 /***********************************************************************/
@@ -192,6 +192,7 @@ TDBCMG::TDBCMG(MGODEF *tdp) : TDBEXT(tdp)
 		Pcg.Line = NULL;
 		Pcg.Pipe = tdp->Pipe && tdp->Colist != NULL;
 		B = tdp->Base ? 1 : 0;
+		Strfy = tdp->Strfy;
 	} else {
 		Pcg.Uristr = NULL;
 		Pcg.Db_name = NULL;
@@ -200,6 +201,7 @@ TDBCMG::TDBCMG(MGODEF *tdp) : TDBEXT(tdp)
 		Pcg.Filter = NULL;
 		Pcg.Line = NULL;
 		Pcg.Pipe = false;
+		Strfy = NULL;
 		B = 0;
 	} // endif tdp
 
@@ -213,6 +215,7 @@ TDBCMG::TDBCMG(TDBCMG *tdbp) : TDBEXT(tdbp)
 	Cmgp = tdbp->Cmgp;
 	Cnd = tdbp->Cnd;
 	Pcg = tdbp->Pcg;
+	Strfy = tdbp->Strfy;
 	B = tdbp->B;
 	Fpos = tdbp->Fpos;
 	N = tdbp->N;
@@ -394,7 +397,7 @@ MGOCOL::MGOCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 	    : EXTCOL(cdp, tdbp, cprec, i, "MGO")
 {
 	Tmgp = (PTDBCMG)(tdbp->GetOrig() ? tdbp->GetOrig() : tdbp);
-	Sgfy = false;
+	Sgfy = (Tmgp->Strfy && !stricmp(Tmgp->Strfy, Name));
 
 	if ((Jpath = cdp->GetFmt())) {
 		int n = strlen(Jpath) - 1;
