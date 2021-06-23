@@ -3436,7 +3436,11 @@ fil_iterate(
 	required by buf_zip_decompress() */
 	dberr_t		err = DB_SUCCESS;
 	bool		page_compressed = false;
+#ifdef UNIV_LINUX
+	bool		punch_hole = !my_test_if_disable_punch_hole(iter.file);
+#else
 	bool		punch_hole = true;
+#endif
 
 	for (offset = iter.start; offset < iter.end; offset += n_bytes) {
 		if (callback.is_interrupted()) {

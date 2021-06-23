@@ -2044,7 +2044,7 @@ fil_ibd_create(
 	}
 
 	const bool is_compressed = fil_space_t::is_compressed(flags);
-	bool punch_hole = is_compressed;
+	bool punch_hole = is_compressed && !my_test_if_disable_punch_hole(file);
 	fil_space_crypt_t* crypt_data = nullptr;
 #ifdef _WIN32
 	if (is_compressed) {

@@ -892,6 +892,8 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
     size_t orig_size;
 #endif
+    size_t write_size;
+
     IORequest::Type type= lru ? IORequest::WRITE_LRU : IORequest::WRITE_ASYNC;
 
     if (UNIV_UNLIKELY(!rw_lock)) /* ROW_FORMAT=COMPRESSED */
@@ -902,6 +904,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
       orig_size= size;
 #endif
+      write_size= size;
       buf_flush_update_zip_checksum(frame, size);
       frame= buf_page_encrypt(space, bpage, frame, &size);
       ut_ad(size == bpage->zip_size());
@@ -913,14 +916,15 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
       orig_size= size;
 #endif
+      write_size= size;
 
       if (space->full_crc32())
       {
         /* innodb_checksum_algorithm=full_crc32 is not implemented for
         ROW_FORMAT=COMPRESSED pages. */
         ut_ad(!frame);
-	page= buf_page_encrypt(space, bpage, page, &size);
-	buf_flush_init_for_writing(block, page, nullptr, true);
+	    page= buf_page_encrypt(space, bpage, page, &size);
+	    buf_flush_init_for_writing(block, page, nullptr, true);
       }
       else
       {
@@ -942,11 +946,21 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
       buf_pool.n_flush_LRU++;
     else
       buf_pool.n_flush_list++;
-    if (status != buf_page_t::NORMAL || !space->use_doublewrite())
-      space->io(IORequest(type, bpage),
-                bpage->physical_offset(), size, frame, bpage);
-    else
-      buf_dblwr.add_to_batch(IORequest(bpage, space->chain.start, type), size);
+
+    /* Write data with uncompressed size when hole punching disabled. */
+    if (space->punch_hole) {
+      if (status != buf_page_t::NORMAL || !space->use_doublewrite())
+        space->io(IORequest(type, bpage),
+                  bpage->physical_offset(), size, frame, bpage);
+      else
+        buf_dblwr.add_to_batch(IORequest(bpage, space->chain.start, type), size);
+    } else {
+      if (status != buf_page_t::NORMAL || !space->use_doublewrite())
+        space->io(IORequest(type, bpage),
+                  bpage->physical_offset(), write_size, frame, bpage);
+      else
+        buf_dblwr.add_to_batch(IORequest(bpage, space->chain.start, type), write_size);
+    }
   }
 
   /* Increment the I/O operation count used for selecting LRU policy. */
