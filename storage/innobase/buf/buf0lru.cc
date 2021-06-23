@@ -487,7 +487,7 @@ not_found:
 	involved (particularly in case of ROW_FORMAT=COMPRESSED pages). We
 	can do that in a separate patch sometime in future. */
 
-	if (!buf_flush_lists(innodb_lru_flush_size, 0)) {
+	if (!buf_flush_LRU(innodb_lru_flush_size)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;
 	}

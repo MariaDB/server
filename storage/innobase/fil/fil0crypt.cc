@@ -1098,7 +1098,7 @@ static bool fil_crypt_start_encrypting_space(fil_space_t* space)
 		mtr.commit();
 
 		/* 4 - sync tablespace before publishing crypt data */
-		while (buf_flush_dirty_pages(space->id));
+		while (buf_flush_list_space(space));
 
 		/* 5 - publish crypt data */
 		mutex_enter(&fil_crypt_threads_mutex);
@@ -2036,14 +2036,7 @@ fil_crypt_flush_space(
 	if (end_lsn > 0 && !space->is_stopping()) {
 		ulint sum_pages = 0;
 		const ulonglong start = my_interval_timer();
-		do {
-			ulint n_dirty= buf_flush_dirty_pages(state->space->id);
-			if (!n_dirty) {
-				break;
-			}
-			sum_pages += n_dirty;
-		} while (!space->is_stopping());
-
+		while (buf_flush_list_space(space, &sum_pages));
 		if (sum_pages) {
 			const ulonglong end = my_interval_timer();
 

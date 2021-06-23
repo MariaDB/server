@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2012, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -536,7 +536,7 @@ row_quiesce_table_start(
 		}
 	}
 
-	while (buf_flush_dirty_pages(table->space_id)) {
+	while (buf_flush_list_space(table->space)) {
 		if (trx_is_interrupted(trx)) {
 			goto aborted;
 		}

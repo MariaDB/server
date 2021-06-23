@@ -596,7 +596,7 @@ static void trx_purge_truncate_history()
 			return;
 		}
 
-		const fil_space_t& space = *purge_sys.truncate.current;
+		fil_space_t& space = *purge_sys.truncate.current;
 		/* Undo tablespace always are a single file. */
 		ut_a(UT_LIST_GET_LEN(space.chain) == 1);
 		fil_node_t* file = UT_LIST_GET_FIRST(space.chain);
@@ -672,7 +672,7 @@ not_free:
 		mini-transaction commit and the server was killed, then
 		discarding the to-be-trimmed pages without flushing would
 		break crash recovery. So, we cannot avoid the write. */
-		while (buf_flush_dirty_pages(space.id));
+		while (buf_flush_list_space(&space));
 
 		log_free_check();
 

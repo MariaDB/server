@@ -1729,10 +1729,10 @@ inline bool buf_pool_t::withdraw_blocks()
 
 		/* reserve free_list length */
 		if (UT_LIST_GET_LEN(withdraw) < withdraw_target) {
-			ulint n_flushed = buf_flush_lists(
+			ulint n_flushed = buf_flush_LRU(
 				std::max<ulint>(withdraw_target
 						- UT_LIST_GET_LEN(withdraw),
-						srv_LRU_scan_depth), 0);
+						srv_LRU_scan_depth));
 			buf_flush_wait_batch_end_acquiring_mutex(true);
 
 			if (n_flushed) {
@@ -3321,7 +3321,7 @@ re_evict:
 
 		fix_block->fix();
 		mysql_mutex_unlock(&buf_pool.mutex);
-		buf_flush_lists(ULINT_UNDEFINED, LSN_MAX);
+		buf_flush_list();
 		buf_flush_wait_batch_end_acquiring_mutex(false);
 
 		if (fix_block->page.buf_fix_count() == 1
