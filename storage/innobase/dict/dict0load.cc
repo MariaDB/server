@@ -834,7 +834,7 @@ static ulint dict_check_sys_tables()
 
 	for (const rec_t *rec = dict_startscan_system(&pcur, &mtr,
 						      dict_sys.sys_tables);
-	     rec; rec = dict_getnext_system(&pcur, &mtr)) {
+	     rec; rec = dict_getnext_system_low(&pcur, &mtr)) {
 		ulint		len;
 		table_id_t	table_id;
 		ulint		space_id;
