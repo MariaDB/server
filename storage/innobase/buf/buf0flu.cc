@@ -899,24 +899,6 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
   buf_block_t *block= reinterpret_cast<buf_block_t*>(bpage);
   page_t *frame= bpage->zip.data;
 
-  if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
-  {
-    const lsn_t lsn= mach_read_from_8(my_assume_aligned<8>
-                                      (FIL_PAGE_LSN +
-                                       (frame ? frame : block->frame)));
-    ut_ad(lsn);
-    ut_ad(lsn >= bpage->oldest_modification());
-    ut_ad(!srv_read_only_mode);
-    if (UNIV_UNLIKELY(lsn > log_sys.get_flushed_lsn()))
-    {
-      if (rw_lock)
-        rw_lock_sx_unlock_gen(rw_lock, BUF_IO_WRITE);
-      mysql_mutex_lock(&buf_pool.mutex);
-      bpage->set_io_fix(BUF_IO_NONE);
-      return false;
-    }
-  }
-
   if (status == buf_page_t::FREED)
     buf_release_freed_page(&block->page);
   else
@@ -977,9 +959,22 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
       buf_pool.n_flush_LRU++;
     else
       buf_pool.n_flush_list++;
+
     if (status != buf_page_t::NORMAL || !space->use_doublewrite())
+    {
+      if (UNIV_LIKELY(space->purpose == FIL_TYPE_TABLESPACE))
+      {
+        const lsn_t lsn= mach_read_from_8(my_assume_aligned<8>
+                                          (FIL_PAGE_LSN + (frame ? frame
+                                                           : block->frame)));
+        ut_ad(lsn);
+        ut_ad(lsn >= bpage->oldest_modification());
+        if (lsn > log_sys.get_flushed_lsn())
+          log_write_up_to(lsn, true);
+      }
       space->io(IORequest(type, bpage),
                 bpage->physical_offset(), size, frame, bpage);
+    }
     else
       buf_dblwr.add_to_batch(IORequest(bpage, space->chain.start, type), size);
   }
@@ -1540,19 +1535,6 @@ void buf_flush_wait_batch_end(bool lru)
   }
 }
 
-/** Whether a background log flush is pending */
-static std::atomic_flag log_flush_pending;
-
-/** Advance log_sys.get_flushed_lsn() */
-static void log_flush(void *)
-{
-  /* Guarantee progress for buf_flush_lists(). */
-  log_buffer_flush_to_disk(true);
-  log_flush_pending.clear();
-}
-
-static tpool::waitable_task log_flush_task(log_flush, nullptr, nullptr);
-
 /** Write out dirty blocks from buf_pool.flush_list.
 @param max_n    wished maximum mumber of blocks flushed
 @param lsn      buf_pool.get_oldest_modification(LSN_MAX) target (0=LRU flush)
@@ -1564,20 +1546,6 @@ ulint buf_flush_lists(ulint max_n, lsn_t lsn)
 
   if (n_flush)
     return 0;
-
-  lsn_t flushed_lsn= log_sys.get_flushed_lsn();
-  if (log_sys.get_lsn() > flushed_lsn)
-  {
-    log_flush_task.wait();
-    flushed_lsn= log_sys.get_flushed_lsn();
-    if (log_sys.get_lsn() > flushed_lsn &&
-        !log_flush_pending.test_and_set())
-      srv_thread_pool->submit_task(&log_flush_task);
-#if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
-    if (UNIV_UNLIKELY(ibuf_debug))
-      log_buffer_flush_to_disk(true);
-#endif
-  }
 
   auto cond= lsn ? &buf_pool.done_flush_list : &buf_pool.done_flush_LRU;
 
@@ -1787,7 +1755,15 @@ try_checkpoint:
   mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
   if (UNIV_UNLIKELY(log_sys.last_checkpoint_lsn < sync_lsn))
+  {
+    /* If the buffer pool was clean, no log write was guaranteed
+    to happen until now. There could be an outstanding FILE_CHECKPOINT
+    record from a previous fil_names_clear() call, which we must
+    write out before we can advance the checkpoint. */
+    if (sync_lsn > log_sys.get_flushed_lsn())
+      log_write_up_to(sync_lsn, true);
     log_checkpoint();
+  }
 }
 
 /** If innodb_flush_sync=ON, initiate a furious flush.
@@ -2275,8 +2251,6 @@ next:
     buf_flush_wait_batch_end_acquiring_mutex(false);
   }
 
-  log_flush_task.wait();
-
   mysql_mutex_lock(&buf_pool.flush_list_mutex);
   lsn_limit= buf_flush_sync_lsn;
   if (UNIV_UNLIKELY(lsn_limit != 0))
@@ -2343,7 +2317,6 @@ ATTRIBUTE_COLD void buf_flush_buffer_pool()
   }
 
   ut_ad(!buf_pool.any_io_pending());
-  log_flush_task.wait();
 }
 
 /** Synchronously flush dirty blocks.
