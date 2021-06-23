@@ -949,19 +949,14 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 
     /* Write data with uncompressed size when hole punching disabled. In 
     such case, the compressed page is padded with 0 to uncompressed size. */
-    if (space->punch_hole) {
-      if (status != buf_page_t::NORMAL || !space->use_doublewrite())
-        space->io(IORequest(type, bpage),
-                  bpage->physical_offset(), size, frame, bpage);
-      else
-        buf_dblwr.add_to_batch(IORequest(bpage, space->chain.start, type), size);
-    } else {
-      if (status != buf_page_t::NORMAL || !space->use_doublewrite())
-        space->io(IORequest(type, bpage),
-                  bpage->physical_offset(), write_size, frame, bpage);
-      else
-        buf_dblwr.add_to_batch(IORequest(bpage, space->chain.start, type), write_size);
-    }
+#ifdef UNIV_LINUX
+    size = space->punch_hole ? size : write_size;
+#endif 
+    if (status != buf_page_t::NORMAL || !space->use_doublewrite())
+      space->io(IORequest(type, bpage),
+                bpage->physical_offset(), size, frame, bpage);
+    else
+      buf_dblwr.add_to_batch(IORequest(bpage, space->chain.start, type), size);
   }
 
   /* Increment the I/O operation count used for selecting LRU policy. */
