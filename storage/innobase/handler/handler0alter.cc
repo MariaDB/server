@@ -10885,6 +10885,9 @@ ha_innobase::commit_inplace_alter_table(
 lock_fail:
 			my_error_innodb(
 				error, table_share->table_name.str, 0);
+			if (fts_exist) {
+				purge_sys.resume_FTS();
+			}
 			DBUG_RETURN(true);
 		} else if ((ctx->new_table->flags2
 			    & (DICT_TF2_FTS_HAS_DOC_ID | DICT_TF2_FTS))
@@ -10916,6 +10919,9 @@ lock_fail:
 			DBUG_ASSERT(ctx->need_rebuild());
 			if (alter_rebuild_apply_log(ctx, ha_alter_info,
 						    altered_table)) {
+				if (fts_exist) {
+					purge_sys.resume_FTS();
+				}
 				DBUG_RETURN(true);
 			}
 		}
