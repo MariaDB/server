@@ -1349,24 +1349,78 @@ longlong Item_func_sformat::locate(String *a, String *b, longlong offset)
   return (longlong) match.mb_len + offset + 1;
 }
 
-String *Item_func_sformat::val_str(String *str)
+String *Item_func_sformat::substr(String *res, longlong start, longlong length)
+{
+  longlong tmp_length;
+
+  if (length <= 0)
+    return make_empty_result();
+  
+  /* Assumes that the maximum length of a String is < INT_MAX32. */
+  /* Set here so that rest of code sees out-of-bound value as such. */
+  if (length > INT_MAX32)
+    length= INT_MAX32;
+  
+  /* Assumes that the maximum length of a String is < INT_MAX32. */
+  if (start > INT_MAX32)
+    return make_empty_result();
+  
+  start= ((start < 0) ? res->numchars() + start : start - 1);
+  start= res->charpos((int) start);
+  if ((start < 0) || ((uint) start + 1 > res->length()))
+    return make_empty_result();
+  
+  length= res->charpos((int) length, (uint32) start);
+  tmp_length= res->length() - start;
+  length= MY_MIN(length, tmp_length);
+  
+  if (!start && (longlong) res->length() == length)
+    return res;
+  tmp_value.set(*res, (uint32) start, (uint32) length);
+  return &tmp_value;
+}
+
+String *Item_func_sformat::val_str(String *res)
 {
   DBUG_ASSERT(fixed());
-  String *res= NULL;
-  String *tmp= NULL;
+  uint     i=1;
+  String  *format= NULL;
+  String  *tmp= NULL;
+  String   keys;
+  longlong index= 0;
+  longlong prev= 1;
+  
+  res->length(0);
+  res->set_charset(collation.collation);
   
   null_value= false;
-  if (!(res= args[0]->val_str(str)))
+  if (!(format= args[0]->val_str(&tmp_value)))
     goto null;
   
-  for (uint i= 1 ; i < arg_count ; i++)
-  {
-    if(!(tmp= args[i]->val_str(&tmp_value)))
-      goto null;
-    
+  keys.set("{}", 2, format->charset());
+  index= locate(format, &keys, index);
+  while (index != 0) {
+    // Add a part of the format
+    tmp= substr(format, prev, index-prev);
     res->append(*tmp);
+    // Add the parameter
+    if (i < arg_count) {
+      if (!(tmp= args[i]->val_str(&tmp_value)))
+	goto null;
+      i++;
+      res->append(*tmp);
+    } else {
+      res->append_char(' ');
+    }
+    // Search next {}
+    index+= 2;
+    prev= index;
+    index= locate(format, &keys, index);
   }
-  res->set_charset(collation.collation);
+  // insert the rest of the format
+  index= format->numchars() + 1;
+  tmp= substr(format, prev, index-prev);
+  res->append(*tmp);
   return res;
   
 null:

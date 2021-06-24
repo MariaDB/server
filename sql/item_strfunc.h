@@ -592,6 +592,8 @@ protected:
   String tmp_value;
   DTCollation cmp_collation;
   longlong locate(String*, String*, longlong);
+  String *substr(String*, longlong, longlong);
+  //uint find(String*, String*, uint);
   
 public:
   Item_func_sformat(THD *thd, List<Item> &list): Item_str_func(thd, list) {}

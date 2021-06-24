@@ -1,12 +1,6 @@
-select sformat("string test");
-sformat("string test")
-string test
+select sformat('what {} is {}?', 'time', 'it');
+sformat('what {} is {}?', 'time', 'it')
+what time is it?
 select sformat('string test');
 sformat('string test')
 string test
-select sformat('string test') from dual;
-sformat('string test')
-string test
-select sformat('what {} is {}?', 'time', 'it');
-sformat('what {} is {}?', 'time', 'it')
-what {} is {}?timeit
