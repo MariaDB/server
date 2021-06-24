@@ -4377,7 +4377,6 @@ int ha_connect::info(uint flag)
   // tdbp must be available to get updated info
   if (xp->CheckQuery(valid_query_id) || !tdbp) {
     PDBUSER dup= PlgGetUser(g);
-    PCATLG  cat= (dup) ? dup->Catalog : NULL;
 
     if (xmod == MODE_ANY || xmod == MODE_ALTER) {
       // Pure info, not a query
@@ -5615,7 +5614,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	PCSZ     nsp= NULL, cls= NULL;
 #endif   // _WIN32
 //int      hdr, mxe;
-	int      port= 0, mxr= 0, rc= 0, mul= 0, lrecl= 0;
+	int      port= 0, mxr= 0, rc= 0, mul= 0;
 //PCSZ     tabtyp= NULL;
 #if defined(ODBC_SUPPORT)
   POPARM   sop= NULL;
@@ -5638,8 +5637,6 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
   if (!g)
     return HA_ERR_INTERNAL_ERROR;
 
-  PDBUSER  dup= PlgGetUser(g);
-  PCATLG   cat= (dup) ? dup->Catalog : NULL;
   PTOS     topt= table_s->option_struct;
   char     buf[1024];
   String   sql(buf, sizeof(buf), system_charset_info);
