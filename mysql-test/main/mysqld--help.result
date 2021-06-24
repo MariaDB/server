@@ -1844,5 +1844,5 @@ userstat FALSE
 verbose TRUE
 wait-timeout 28800
 
-To see what variables a running MySQL server is using, type
-'mysqladmin variables' instead of 'mysqld --verbose --help'.
+To see what variables a running server is using, type
+'SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES' instead of 'mysqld --verbose --help' or 'mariadbd --verbose --help'.

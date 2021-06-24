@@ -14546,7 +14546,7 @@ ha_innobase::info_low(
 					sql_print_error(
 						"Index %s of %s has %u columns"
 					        " unique inside InnoDB, but "
-						"MySQL is asking statistics for"
+						"server is asking statistics for"
 					        " %lu columns. Have you mixed "
 						"up .frm files from different "
 						" installations? %s",

@@ -2731,10 +2731,10 @@ int ha_recover(HASH *commit_list, MEM_ROOT *arg_mem_root)
                       info.found_foreign_xids);
   if (info.dry_run && info.found_my_xids)
   {
-    sql_print_error("Found %d prepared transactions! It means that mysqld was "
+    sql_print_error("Found %d prepared transactions! It means that server was "
                     "not shut down properly last time and critical recovery "
                     "information (last binlog or %s file) was manually deleted "
-                    "after a crash. You have to start mysqld with "
+                    "after a crash. You have to start server with "
                     "--tc-heuristic-recover switch to commit or rollback "
                     "pending transactions.",
                     info.found_my_xids, opt_tc_log_file);
