@@ -356,7 +356,7 @@ void buf_dblwr_t::recover()
 
     if (recv_sys.scanned_lsn < lsn)
     {
-      ib::warn() << "Ignoring a doublewrite copy of page " << page_id
+      ib::info() << "Ignoring a doublewrite copy of page " << page_id
                  << " with future log sequence number " << lsn;
       continue;
     }
