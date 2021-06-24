@@ -392,18 +392,19 @@ void buf_page_write_complete(const IORequest &request)
     reinterpret_cast<buf_block_t*>(bpage)->lock.u_unlock(true);
 
   if (request.is_LRU())
-    buf_LRU_free_page(bpage, true);
-  else
-    ut_ad(!temp);
-
-  if (request.is_LRU())
   {
+    buf_LRU_free_page(bpage, true);
+
     ut_ad(buf_pool.n_flush_LRU_);
     if (!--buf_pool.n_flush_LRU_)
+    {
       pthread_cond_broadcast(&buf_pool.done_flush_LRU);
+      pthread_cond_signal(&buf_pool.done_free);
+    }
   }
   else
   {
+    ut_ad(!temp);
     ut_ad(buf_pool.n_flush_list_);
     if (!--buf_pool.n_flush_list_)
       pthread_cond_broadcast(&buf_pool.done_flush_list);
@@ -1676,7 +1677,10 @@ ulint buf_flush_LRU(ulint max_n)
   mysql_mutex_unlock(&buf_pool.mutex);
 
   if (!n_flushing)
+  {
     pthread_cond_broadcast(&buf_pool.done_flush_LRU);
+    pthread_cond_signal(&buf_pool.done_free);
+  }
 
   buf_dblwr.flush_buffered_writes();
 

@@ -401,7 +401,7 @@ we put it to free list to be used.
 
 @param have_mutex  whether buf_pool.mutex is already being held
 @return the free control block, in state BUF_BLOCK_MEMORY */
-buf_block_t* buf_LRU_get_free_block(bool have_mutex)
+buf_block_t *buf_LRU_get_free_block(bool have_mutex)
 {
 	ulint		n_iterations	= 0;
 	ulint		flush_failures	= 0;
@@ -413,6 +413,7 @@ buf_block_t* buf_LRU_get_free_block(bool have_mutex)
 	mysql_mutex_lock(&buf_pool.mutex);
 got_mutex:
 	buf_LRU_check_size_of_non_data_objects();
+	buf_block_t* block;
 
 	DBUG_EXECUTE_IF("ib_lru_force_no_free_page",
 		if (!buf_lru_free_blocks_error_printed) {
@@ -421,7 +422,8 @@ got_mutex:
 
 retry:
 	/* If there is a block in the free list, take it */
-	if (buf_block_t* block = buf_LRU_get_free_only()) {
+	if ((block = buf_LRU_get_free_only()) != nullptr) {
+got_block:
 		if (!have_mutex) {
 			mysql_mutex_unlock(&buf_pool.mutex);
 		}
@@ -446,10 +448,19 @@ retry:
 		buf_pool.try_LRU_scan = false;
 	}
 
+	for (;;) {
+		if ((block = buf_LRU_get_free_only()) != nullptr) {
+			goto got_block;
+		}
+		if (!buf_pool.n_flush_LRU_) {
+			break;
+		}
+		my_cond_wait(&buf_pool.done_free, &buf_pool.mutex.m_mutex);
+	}
+
 #ifndef DBUG_OFF
 not_found:
 #endif
-	buf_flush_wait_batch_end(true);
 	mysql_mutex_unlock(&buf_pool.mutex);
 
 	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
@@ -477,13 +488,11 @@ not_found:
 	}
 
 	/* No free block was found: try to flush the LRU list.
-	This call will flush one page from the LRU and put it on the
-	free list. That means that the free block is up for grabs for
-	all user threads.
+	The freed blocks will be up for grabs for all threads.
 
-	TODO: A more elegant way would have been to return the freed
+	TODO: A more elegant way would have been to return one freed
 	up block to the caller here but the code that deals with
-	removing the block from page_hash and LRU_list is fairly
+	removing the block from buf_pool.page_hash and buf_pool.LRU is fairly
 	involved (particularly in case of ROW_FORMAT=COMPRESSED pages). We
 	can do that in a separate patch sometime in future. */
 
@@ -1027,6 +1036,7 @@ buf_LRU_block_free_non_file_page(
 	} else {
 		UT_LIST_ADD_FIRST(buf_pool.free, &block->page);
 		ut_d(block->page.in_free_list = true);
+		pthread_cond_signal(&buf_pool.done_free);
 	}
 
 	MEM_NOACCESS(block->frame, srv_page_size);
