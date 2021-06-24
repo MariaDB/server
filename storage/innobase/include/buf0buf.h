@@ -2020,6 +2020,8 @@ public:
 	UT_LIST_BASE_NODE_T(buf_page_t) free;
 					/*!< base node of the free
 					block list */
+  /** signaled each time when the free list grows; protected by mutex */
+  pthread_cond_t done_free;
 
 	UT_LIST_BASE_NODE_T(buf_page_t) withdraw;
 					/*!< base node of the withdraw

@@ -1467,6 +1467,7 @@ bool buf_pool_t::create()
   pthread_cond_init(&done_flush_LRU, nullptr);
   pthread_cond_init(&done_flush_list, nullptr);
   pthread_cond_init(&do_flush_list, nullptr);
+  pthread_cond_init(&done_free, nullptr);
 
   try_LRU_scan= true;
 
@@ -1532,6 +1533,7 @@ void buf_pool_t::close()
   pthread_cond_destroy(&done_flush_LRU);
   pthread_cond_destroy(&done_flush_list);
   pthread_cond_destroy(&do_flush_list);
+  pthread_cond_destroy(&done_free);
 
   ut_free(chunks);
   chunks= nullptr;
