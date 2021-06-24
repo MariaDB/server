@@ -1347,7 +1347,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     serialize all commits and prevent a group of transactions from
     gathering. */
 
-    commit_lsn= mtr->commit_lsn();
+    commit_lsn= undo_no || !xid->is_null() ? mtr->commit_lsn() : 0;
     if (!commit_lsn)
       /* Nothing to be done. */;
     else if (flush_log_later)
