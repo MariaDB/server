@@ -25,4 +25,10 @@ DESCRIBE mysql.column_stats;
 SELECT * FROM mysql.column_stats;
 
 set histogram_type=@save_histogram_type;
+
+## Remove against Milestone-2
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES();
+SELECT * FROM mysql.column_stats;
+select table_name, hist_type, decode_histogram(hist_type, histogram ) from mysql.column_stats;
+
 DROP TABLE t1;
