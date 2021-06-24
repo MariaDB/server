@@ -208,10 +208,10 @@ void buf_pool_t::insert_into_flush_list(buf_block_t *block, lsn_t lsn)
 @param clear   whether to invoke buf_page_t::clear_oldest_modification() */
 void buf_pool_t::delete_from_flush_list(buf_page_t *bpage, bool clear)
 {
-  if (clear)
-    bpage->clear_oldest_modification();
   delete_from_flush_list_low(bpage);
   stat.flush_list_bytes-= bpage->physical_size();
+  if (clear)
+    bpage->clear_oldest_modification();
 #ifdef UNIV_DEBUG
   buf_flush_validate_skip();
 #endif /* UNIV_DEBUG */
@@ -309,10 +309,10 @@ buf_flush_relocate_on_flush_list(
 		the bpage from the flush list. */
 		buf_pool.flush_hp.adjust(bpage);
 
-		bpage->clear_oldest_modification();
-
 		prev = UT_LIST_GET_PREV(list, bpage);
 		UT_LIST_REMOVE(buf_pool.flush_list, bpage);
+
+		bpage->clear_oldest_modification();
 	} else {
 		/* bpage was removed from buf_pool.flush_list
 		since we last checked, and before we acquired

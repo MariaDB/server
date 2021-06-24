@@ -944,7 +944,7 @@ public:
   lsn_t oldest_modification() const { return oldest_modification_; }
   /** Set oldest_modification when adding to buf_pool.flush_list */
   inline void set_oldest_modification(lsn_t lsn);
-  /** Clear oldest_modification when removing from buf_pool.flush_list */
+  /** Clear oldest_modification after removing from buf_pool.flush_list */
   inline void clear_oldest_modification();
   /** Note that a block is no longer dirty, while not removing
   it from buf_pool.flush_list */
@@ -2246,10 +2246,11 @@ inline void buf_page_t::set_oldest_modification(lsn_t lsn)
 {
   mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
   ut_ad(oldest_modification() <= 1);
+  ut_ad(lsn > 2);
   oldest_modification_= lsn;
 }
 
-/** Clear oldest_modification when removing from buf_pool.flush_list */
+/** Clear oldest_modification after removing from buf_pool.flush_list */
 inline void buf_page_t::clear_oldest_modification()
 {
   mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
