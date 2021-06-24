@@ -6745,13 +6745,6 @@ Create_func_year_week::create_native(THD *thd, LEX_STRING name,
   return func;
 }
 
-
-struct Native_func_registry
-{
-  LEX_STRING name;
-  Create_func *builder;
-};
-
 #define BUILDER(F) & F::s_singleton
 
 #ifdef HAVE_SPATIAL
@@ -6771,7 +6764,7 @@ struct Native_func_registry
   - keep 1 line per entry, it makes grep | sort easier
 */
 
-static Native_func_registry func_array[] =
+Native_func_registry func_array[] =
 {
   { { C_STRING_WITH_LEN("ABS") }, BUILDER(Create_func_abs)},
   { { C_STRING_WITH_LEN("ACOS") }, BUILDER(Create_func_acos)},
@@ -7112,6 +7105,8 @@ static Native_func_registry func_array[] =
 
   { {0, 0}, NULL}
 };
+
+size_t func_array_length= sizeof(func_array) / sizeof(Native_func_registry) - 1;
 
 static HASH native_functions_hash;
 

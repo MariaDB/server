@@ -183,6 +183,12 @@ Item *create_temporal_literal(THD *thd, const String *str,
                                  type, send_error);
 }
 
+struct Native_func_registry
+{
+  LEX_STRING name;
+  Create_func *builder;
+};
+
 int item_create_init();
 void item_create_cleanup();
 
