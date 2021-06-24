@@ -560,15 +560,17 @@ public:
                              is_separator, limit_clause, row_limit, offset_limit)
   {
   }
-  Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item);
+  Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item) :
+    Item_func_group_concat(thd, item) {}
   bool is_json_type() { return true; }
 
   const char *func_name() const { return "json_arrayagg("; }
   enum Sumfunctype sum_func() const {return JSON_ARRAYAGG_FUNC;}
 
-  String* val_str(String *str);
+  String* val_str(String *str) override;
 
-  Item *get_copy(THD *thd)
+  Item *copy_or_same(THD* thd) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_arrayagg>(thd, this); }
 };
 

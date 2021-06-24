@@ -3743,6 +3743,12 @@ void Item_func_json_arrayagg::cut_max_length(String *result,
 }
 
 
+Item *Item_func_json_arrayagg::copy_or_same(THD* thd)
+{
+   return new (thd->mem_root) Item_func_json_arrayagg(thd, this);
+}
+
+
 String* Item_func_json_arrayagg::val_str(String *str)
 {
   if ((str= Item_func_group_concat::val_str(str)))
