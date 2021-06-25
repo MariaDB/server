@@ -608,7 +608,7 @@ void BSONDISC::AddColumn(PGLOBAL g)
 PBVAL BTUTIL::FindRow(PGLOBAL g)
 {
   char *p, *objpath = PlugDup(g, Tp->Objname);
-  char *sep = (Tp->Sep == ':') ? ":[" : ".[";
+  char *sep = (char*)(Tp->Sep == ':' ? ":[" : ".[");
   bool  bp = false, b = false;
   PBVAL jsp = Tp->Row;
   PBVAL val = NULL;

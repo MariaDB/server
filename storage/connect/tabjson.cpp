@@ -962,7 +962,7 @@ int TDBJSN::EstimatedLength(void)
 PJSON TDBJSN::FindRow(PGLOBAL g)
 {
   char *p, *objpath = PlugDup(g, Objname);
-  char *sep = (Sep == ':') ? ":[" : ".[";
+  char *sep = (char*)(Sep == ':' ? ":[" : ".[");
   bool  bp = false, b = false;
   PJSON jsp = Row;
   PJVAL val = NULL;
