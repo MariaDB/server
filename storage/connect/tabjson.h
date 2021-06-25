@@ -170,7 +170,7 @@ public:
 
 protected:
           PJSON FindRow(PGLOBAL g);
-          int   MakeTopTree(PGLOBAL g, PJSON jsp);
+          bool  MakeTopTree(PGLOBAL g, PJSON jsp);
 
   // Members
 	PGLOBAL G;											 // Support of parse memory

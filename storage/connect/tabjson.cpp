@@ -1173,7 +1173,7 @@ int TDBJSN::ReadDB(PGLOBAL g) {
 /***********************************************************************/
 /*  Make the top tree from the object path.                            */
 /***********************************************************************/
-int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
+bool TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
 {
   if (Objname) {
     if (!Val) {
@@ -1210,7 +1210,7 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
             // Old style
             if (objpath[strlen(objpath) - 1] != ']') {
               sprintf(g->Message, "Invalid Table path %s", Objname);
-              return NULL;
+              return true;
             } else if (!bp)
               objpath++;
 
@@ -1239,7 +1239,7 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
   } else
     Top = jsp;
 
-  return RC_OK;
+  return false;
 } // end of MakeTopTree
 
 /***********************************************************************/

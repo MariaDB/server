@@ -1492,7 +1492,7 @@ int TDBBSN::EstimatedLength(void)
 } // end of Estimated Length
 
 /***********************************************************************/
-/*  OpenDB: Data Base open routine for JSN access method.              */
+/*  OpenDB: Data Base open routine for BSN access method.              */
 /***********************************************************************/
 bool TDBBSN::OpenDB(PGLOBAL g)
 {
