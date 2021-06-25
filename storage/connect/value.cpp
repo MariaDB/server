@@ -2744,11 +2744,11 @@ void DTVAL::SetValue(int n)
   Tval = n;
 
   if (Pdtp) {
-    size_t n = 0, slen = (size_t)Len + 1;
+    size_t slen = (size_t)Len + 1;
     struct tm tm, *ptm= GetGmTime(&tm);
 
     if (ptm)
-      n = strftime(Sdate, slen, Pdtp->OutFmt, ptm);
+      strftime(Sdate, slen, Pdtp->OutFmt, ptm);
 
   } // endif Pdtp
 
