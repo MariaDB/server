@@ -1179,7 +1179,7 @@ int TDBJSN::MakeTopTree(PGLOBAL g, PJSON jsp)
     if (!Val) {
       // Parse and allocate Objname item(s)
       char *p, *objpath = PlugDup(g, Objname);
-      char *sep = (Sep == ':') ? ":[" : ".[";
+      char *sep = (char*)(Sep == ':' ? ":[" : ".[");
       int   i;
       bool  bp = false, b = false;
       PJOB  objp;

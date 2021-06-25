@@ -676,7 +676,7 @@ PBVAL BTUTIL::MakeTopTree(PGLOBAL g, int type)
     if (!Tp->Row) {
       // Parse and allocate Objpath item(s)
       char *p, *objpath = PlugDup(g, Tp->Objname);
-      char *sep = (Tp->Sep == ':') ? ":[" : ".[";
+      char *sep = (char*)(Tp->Sep == ':' ? ":[" : ".[");
       int   i;
       bool  bp = false, b = false;
       PBVAL objp = NULL;
