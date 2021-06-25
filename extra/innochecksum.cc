@@ -912,12 +912,7 @@ parse_page(
 			}
 			/* update per-index statistics */
 			{
-				if (index_ids.count(id) == 0) {
-					index_ids[id] = per_index_stats();
-				}
-				std::map<unsigned long long, per_index_stats>::iterator it;
-				it = index_ids.find(id);
-				per_index_stats &index = (it->second);
+				per_index_stats &index = index_ids[id];
 				if (page_is_free(xdes, page_size, page_no)) {
 					index.free_pages++;
 					return;
