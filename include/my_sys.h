@@ -188,7 +188,7 @@ my_bool my_test_if_atomic_write(File handle, int pagesize);
 my_bool my_test_if_disable_punch_hole(File handle);
 #else
 #define my_test_if_atomic_write(A, B)       0
-#define my_test_if_disable_punch_hole(A, B) 0
+#define my_test_if_disable_punch_hole(A)    0
 #endif /* __linux__ */
 extern my_bool my_may_have_atomic_write;
 

@@ -892,7 +892,9 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
     size_t orig_size;
 #endif
+#ifdef UNIV_LINUX
     size_t write_size;
+#endif
 
     IORequest::Type type= lru ? IORequest::WRITE_LRU : IORequest::WRITE_ASYNC;
 
@@ -904,7 +906,9 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
       orig_size= size;
 #endif
+#ifdef UNIV_LINUX
       write_size= size;
+#endif
       buf_flush_update_zip_checksum(frame, size);
       frame= buf_page_encrypt(space, bpage, frame, &size);
       ut_ad(size == bpage->zip_size());
@@ -916,8 +920,9 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
       orig_size= size;
 #endif
+#ifdef UNIV_LINUX
       write_size= size;
-
+#endif
       if (space->full_crc32())
       {
         /* innodb_checksum_algorithm=full_crc32 is not implemented for
