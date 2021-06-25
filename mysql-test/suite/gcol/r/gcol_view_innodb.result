@@ -303,6 +303,15 @@ INSERT INTO t1 (d) VALUES ('2004-04-19 15:37:39.123'),('1985-12-24 10:15:08.456'
 DELETE FROM v1 ORDER BY v LIMIT 4;
 DROP TABLE t1;
 DROP VIEW v1;
+#
+# MDEV-18249 ASSERT_COLUMN_MARKED_FOR_READ failed in ANALYZE TABLE
+#
+create table t1 (c varchar(3) not null, v varchar(4) as (c) virtual);
+insert into t1 (c) values ('a'),('b');
+analyze table t1 persistent for columns (v) indexes ();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;
 DROP PROCEDURE IF EXISTS p1;

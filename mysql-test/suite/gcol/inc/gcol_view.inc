@@ -267,3 +267,12 @@ DELETE FROM v1 ORDER BY v LIMIT 4;
 DROP TABLE t1;
 DROP VIEW v1;
 
+
+--echo #
+--echo # MDEV-18249 ASSERT_COLUMN_MARKED_FOR_READ failed in ANALYZE TABLE
+--echo #
+
+create table t1 (c varchar(3) not null, v varchar(4) as (c) virtual);
+insert into t1 (c) values ('a'),('b');
+analyze table t1 persistent for columns (v) indexes ();
+
