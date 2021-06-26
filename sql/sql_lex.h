@@ -2176,7 +2176,7 @@ public:
   /** Get the token start position, in the raw buffer. */
   const char *get_tok_start()
   {
-    return m_tok_start;
+    return lookahead_token >= 0 ? m_tok_start_prev : m_tok_start;
   }
 
   void set_cpp_tok_start(const char *pos)
@@ -2222,7 +2222,7 @@ public:
   /** Get the token start position, in the pre-processed buffer. */
   const char *get_cpp_tok_start()
   {
-    return m_cpp_tok_start;
+    return lookahead_token >= 0 ? m_cpp_tok_start_prev : m_cpp_tok_start;
   }
 
   /** Get the token end position, in the pre-processed buffer. */
