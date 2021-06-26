@@ -1095,20 +1095,18 @@ inline const buf_block_t *buf_pool_t::chunk_t::not_freed() const
       /* Skip blocks that are not being used for file pages. */
       break;
     case BUF_BLOCK_FILE_PAGE:
+      const lsn_t lsn= block->page.oldest_modification();
+
       if (srv_read_only_mode)
       {
         /* The page cleaner is disabled in read-only mode.  No pages
         can be dirtied, so all of them must be clean. */
-        ut_d(lsn_t oldest_modification= block->page.oldest_modification());
-        ut_ad(oldest_modification == 0 ||
-              oldest_modification == recv_sys.recovered_lsn ||
+        ut_ad(lsn == 0 || lsn == recv_sys.recovered_lsn ||
               srv_force_recovery == SRV_FORCE_NO_LOG_REDO);
         ut_ad(!block->page.buf_fix_count());
         ut_ad(block->page.io_fix() == BUF_IO_NONE);
         break;
       }
-
-      const lsn_t lsn= block->page.oldest_modification();
 
       if (fsp_is_system_temporary(block->page.id().space()))
       {

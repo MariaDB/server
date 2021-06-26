@@ -292,7 +292,7 @@ buf_flush_relocate_on_flush_list(
 	mysql_mutex_assert_owner(&buf_pool.mutex);
 	ut_ad(!fsp_is_system_temporary(bpage->id().space()));
 
-	const lsn_t lsn = bpage->oldest_modification();
+	const lsn_t lsn = bpage->oldest_modification_acquire();
 
 	if (!lsn) {
 		return;
@@ -320,13 +320,14 @@ buf_flush_relocate_on_flush_list(
 		/* bpage was removed from buf_pool.flush_list
 		since we last checked, and before we acquired
 		buf_pool.flush_list_mutex. */
-		dpage->list.prev = nullptr;
-		dpage->list.next = nullptr;
 		goto was_clean;
 	}
 
 	if (lsn == 1) {
+		buf_pool.stat.flush_list_bytes -= bpage->physical_size();
 was_clean:
+		dpage->list.prev = nullptr;
+		dpage->list.next = nullptr;
 		dpage->clear_oldest_modification();
 	} else if (prev) {
 		ut_ad(prev->oldest_modification());
@@ -770,14 +771,15 @@ inline void buf_pool_t::release_freed_page(buf_page_t *bpage)
   bpage->set_io_fix(BUF_IO_NONE);
   bpage->status= buf_page_t::NORMAL;
   mysql_mutex_lock(&flush_list_mutex);
+  ut_d(const lsn_t oldest_modification= bpage->oldest_modification();)
   if (fsp_is_system_temporary(bpage->id().space()))
   {
     ut_ad(uncompressed);
-    ut_ad(bpage->oldest_modification() == 2);
+    ut_ad(oldest_modification == 2);
   }
   else
   {
-    ut_ad(bpage->oldest_modification() > 2);
+    ut_ad(oldest_modification > 2);
     delete_from_flush_list(bpage, false);
   }
   bpage->clear_oldest_modification();
@@ -805,6 +807,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
   ut_ad(space->purpose == FIL_TYPE_TABLESPACE ||
         space->atomic_write_supported);
   ut_ad(space->referenced());
+  ut_ad(lru || space != fil_system.temp_space);
 
   block_lock *rw_lock;
 
@@ -848,7 +851,10 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
                         lru ? "LRU" : "flush_list",
                         bpage->id().space(), bpage->id().page_no()));
   ut_ad(bpage->io_fix() == BUF_IO_WRITE);
-  ut_ad(bpage->oldest_modification());
+  ut_d(const lsn_t oldest_modification= bpage->oldest_modification());
+  ut_ad(space == fil_system.temp_space
+        ? oldest_modification == 2
+        : oldest_modification > 2);
   ut_ad(bpage->state() ==
         (rw_lock ? BUF_BLOCK_FILE_PAGE : BUF_BLOCK_ZIP_PAGE));
   ut_ad(ULINT_UNDEFINED >
@@ -913,6 +919,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
     }
 
     ut_ad(status == bpage->status);
+    ut_ad(oldest_modification == bpage->oldest_modification());
 
     if (status != buf_page_t::NORMAL || !space->use_doublewrite())
     {
@@ -921,8 +928,7 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
         const lsn_t lsn= mach_read_from_8(my_assume_aligned<8>
                                           (FIL_PAGE_LSN + (frame ? frame
                                                            : block->frame)));
-        ut_ad(lsn);
-        ut_ad(lsn >= bpage->oldest_modification());
+        ut_ad(lsn >= oldest_modification);
         if (lsn > log_sys.get_flushed_lsn())
           log_write_up_to(lsn, true);
       }

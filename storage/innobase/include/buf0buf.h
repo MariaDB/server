@@ -680,7 +680,7 @@ private:
   1 if no modifications are pending, but the block is in buf_pool.flush_list;
   2 if modifications are pending, but the block is not in buf_pool.flush_list
   (because id().space() is the temporary tablespace). */
-  Atomic_counter<lsn_t> oldest_modification_;
+  Atomic_relaxed<lsn_t> oldest_modification_;
 
   /** type of pending I/O operation; protected by buf_pool.mutex
   if in_LRU_list */
@@ -846,11 +846,18 @@ public:
   inline void set_corrupt_id();
 
   /** @return the log sequence number of the oldest pending modification
-  @retval 0 if the block is not in buf_pool.flush_list
+  @retval 0 if the block is being removed from (or not in) buf_pool.flush_list
   @retval 1 if the block is in buf_pool.flush_list but not modified
   @retval 2 if the block belongs to the temporary tablespace and
   has unwritten changes */
   lsn_t oldest_modification() const { return oldest_modification_; }
+  /** @return the log sequence number of the oldest pending modification,
+  @retval 0 if the block is definitely not in buf_pool.flush_list
+  @retval 1 if the block is in buf_pool.flush_list but not modified
+  @retval 2 if the block belongs to the temporary tablespace and
+  has unwritten changes */
+  lsn_t oldest_modification_acquire() const
+  { return oldest_modification_.load(std::memory_order_acquire); }
   /** Set oldest_modification when adding to buf_pool.flush_list */
   inline void set_oldest_modification(lsn_t lsn);
   /** Clear oldest_modification after removing from buf_pool.flush_list */
@@ -872,7 +879,8 @@ public:
   void free_file_page()
   {
     ut_ad(state() == BUF_BLOCK_REMOVE_HASH);
-    ut_d(oldest_modification_= 0); /* for buf_LRU_block_free_non_file_page() */
+    /* buf_LRU_block_free_non_file_page() asserts !oldest_modification() */
+    ut_d(oldest_modification_= 0;)
     set_corrupt_id();
     ut_d(set_state(BUF_BLOCK_MEMORY));
   }
@@ -2121,7 +2129,8 @@ inline void buf_page_t::set_corrupt_id()
     break;
   case 2:
     ut_ad(fsp_is_system_temporary(id().space()));
-    ut_d(oldest_modification_= 0); /* for buf_LRU_block_free_non_file_page() */
+    /* buf_LRU_block_free_non_file_page() asserts !oldest_modification() */
+    ut_d(oldest_modification_= 0;)
     break;
   default:
     ut_ad("block is dirty" == 0);
@@ -2158,7 +2167,12 @@ inline void buf_page_t::clear_oldest_modification()
   ut_ad(state == BUF_BLOCK_FILE_PAGE || state == BUF_BLOCK_ZIP_PAGE ||
         state == BUF_BLOCK_REMOVE_HASH);
   ut_ad(oldest_modification());
-  oldest_modification_= 0;
+  ut_ad(!list.prev);
+  ut_ad(!list.next);
+  /* We must use release memory order to guarantee that callers of
+  oldest_modification_acquire() will observe the block as
+  being detached from buf_pool.flush_list, after reading the value 0. */
+  oldest_modification_.store(0, std::memory_order_release);
 }
 
 /** Note that a block is no longer dirty, while not removing
@@ -2168,8 +2182,19 @@ inline void buf_page_t::clear_oldest_modification(bool temporary)
   mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
   ut_ad(temporary == fsp_is_system_temporary(id().space()));
   ut_ad(io_fix_ == BUF_IO_WRITE);
-  ut_ad(temporary ? oldest_modification() == 2 : oldest_modification() > 2);
-  oldest_modification_= !temporary;
+  if (temporary)
+  {
+    ut_ad(oldest_modification() == 2);
+    oldest_modification_= 0;
+  }
+  else
+  {
+    /* We use release memory order to guarantee that callers of
+    oldest_modification_acquire() will observe the block as
+    being detached from buf_pool.flush_list, after reading the value 0. */
+    ut_ad(oldest_modification() > 2);
+    oldest_modification_.store(1, std::memory_order_release);
+  }
 }
 
 /** @return whether the block is modified and ready for flushing */

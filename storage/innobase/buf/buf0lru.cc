@@ -810,7 +810,7 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	const ulint fold = id.fold();
 	page_hash_latch* hash_lock = buf_pool.page_hash.lock_get(fold);
 	hash_lock->write_lock();
-	lsn_t oldest_modification = bpage->oldest_modification();
+	lsn_t oldest_modification = bpage->oldest_modification_acquire();
 
 	if (UNIV_UNLIKELY(!bpage->can_relocate())) {
 		/* Do not free buffer fixed and I/O-fixed blocks. */
