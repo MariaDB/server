@@ -9003,6 +9003,12 @@ error:
   return TRUE;
 }
 
+bool Item_default_value::enchant_default_with_arg_processor(void *proc_arg)
+{
+  if (!arg) arg= (Item *)proc_arg;
+  return 0;
+}
+
 void Item_default_value::cleanup()
 {
   delete cached_field;                        // Free cached blob data

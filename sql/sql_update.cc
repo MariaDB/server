@@ -370,6 +370,8 @@ int mysql_update(THD *thd,
     DBUG_RETURN(1);
   }
 
+  setup_defaults(thd, fields, values);
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
   /* Check values */
   table_list->grant.want_privilege= table->grant.want_privilege=
@@ -1748,6 +1750,8 @@ int multi_update::prepare(List<Item> &not_used_values,
       bitmap_clear_all(table->read_set);
     }
   }
+
+  setup_defaults(thd, *fields, *values);
 
   /*
     We have to check values after setup_tables to get covering_keys right in

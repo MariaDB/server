@@ -660,3 +660,25 @@ INSERT IGNORE INTO t1 SELECT * FROM t1;
 DROP TABLE t1;
 
 }
+
+--echo #
+--echo # MDEV-23597 Assertion `marked_for_read()' failed while evaluating DEFAULT
+--echo #
+
+CREATE TABLE t1 (a INT UNIQUE, b INT DEFAULT (c+1), c int);
+INSERT INTO t1 VALUES (1,1,1);
+UPDATE t1 SET b=DEFAULT;
+SELECT * from t1;
+
+REPLACE t1 VALUES(1,1,1);
+INSERT INTO t1 VALUES (1,1,1) ON DUPLICATE KEY UPDATE b= DEFAULT;
+SELECT * from t1;
+
+REPLACE t1 VALUES(1,1,1);
+CREATE TABLE t2 (a INT, b INT DEFAULT (c+1), c int);
+INSERT INTO t2 VALUES (5,5,5);
+UPDATE t1 join t2 set t1.b= DEFAULT, t2.b= DEFAULT;
+SELECT * from t1, t2;
+
+DROP TABLE t1, t2;
+
