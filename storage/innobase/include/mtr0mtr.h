@@ -81,11 +81,6 @@ savepoint. */
 #define mtr_block_x_latch_at_savepoint(m, s, b)				\
 				(m)->x_latch_at_savepoint((s), (b))
 
-/** Check if a mini-transaction is dirtying a clean page.
-@param b	block being x-fixed
-@return true if the mtr is dirtying a clean page. */
-#define mtr_block_dirtied(b)	mtr_t::is_block_dirtied((b))
-
 /** Mini-transaction memo stack slot. */
 struct mtr_memo_slot_t {
 	/** pointer to the object */
