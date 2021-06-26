@@ -321,6 +321,7 @@ buf_flush_relocate_on_flush_list(
 	}
 
 	if (lsn == 1) {
+		buf_pool.stat.flush_list_bytes -= bpage->physical_size();
 was_clean:
 		dpage->list.prev = nullptr;
 		dpage->list.next = nullptr;
