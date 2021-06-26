@@ -172,6 +172,7 @@ bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &item, enum_mark_columns mark_used_columns,
                   List<Item> *sum_func_list, List<Item> *pre_fix,
                   bool allow_sum_func);
+void setup_defaults(THD *thd, List<Item> &fields, List<Item> &values);
 void unfix_fields(List<Item> &items);
 bool fill_record(THD * thd, TABLE *table_arg, List<Item> &fields,
                  List<Item> &values, bool ignore_errors, bool update);

@@ -7193,6 +7193,18 @@ int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
   DBUG_RETURN(0);
 }
 
+/** Transforms b= F(DEFAULT) -> b= F(DEFAULT(b)) */
+void setup_defaults(THD *thd, List<Item> &fields, List<Item> &values)
+{
+  List_iterator<Item> fit(fields);
+  List_iterator<Item> vit(values);
+
+  for (Item *value= vit++, *f_item= fit++; value; value= vit++, f_item= fit++)
+  {
+    value->walk(&Item::enchant_default_with_arg_processor, false, f_item);
+  }
+}
+
 /****************************************************************************
 ** Check that all given fields exists and fill struct with current data
 ****************************************************************************/
