@@ -32,5 +32,5 @@ let $CHILD2_1_SELECT_TABLES=
   SELECT akey, val FROM tbl_a ORDER BY akey $STR_SEMICOLON
   SELECT bkey, akey FROM tbl_b ORDER BY bkey;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%' $STR_SEMICOLON
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_b`%';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%' $STR_SEMICOLON
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_b`%';

@@ -35,7 +35,7 @@ let $CHILD2_1_CREATE_TABLES=
 let $CHILD2_1_SELECT_TABLES=
   SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --let $CHILD2_2_DROP_TABLES_BACKUP= $CHILD2_2_DROP_TABLES
 let $CHILD2_2_DROP_TABLES=
   DROP TABLE IF EXISTS tbl_a;
@@ -51,7 +51,7 @@ let $CHILD2_2_CREATE_TABLES=
 let $CHILD2_2_SELECT_TABLES=
   SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 let $CHILD2_2_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --connection master_1
 set @old_spider_sync_sql_mode= @@spider_sync_sql_mode;
 set session spider_sync_sql_mode= FALSE;

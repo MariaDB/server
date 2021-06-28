@@ -105,11 +105,11 @@ pkey
 26
 27
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote`.`tbl_a` order by `pkey`
 select a.id,b.`pkey` from auto_test_remote.tmp_spider_bka_xxxx a,`auto_test_remote`.`tbl_b` b where a.c0 <=> b.`pkey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey ;
 SELECT pkey FROM tbl_b ORDER BY pkey;
 pkey
@@ -135,11 +135,11 @@ pkey
 26
 27
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote2`.`tbl_a` order by `pkey`
 select a.id,b.`pkey` from auto_test_remote2.tmp_spider_bka_xxxx a,`auto_test_remote2`.`tbl_b` b where a.c0 <=> b.`pkey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey ;
 SELECT pkey FROM tbl_b ORDER BY pkey;
 pkey
@@ -165,11 +165,11 @@ pkey
 28
 29
 connection child2_3;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select `pkey` from `auto_test_remote3`.`tbl_a` order by `pkey`
 select a.id,b.`pkey` from auto_test_remote3.tmp_spider_bka_xxxx a,`auto_test_remote3`.`tbl_b` b where a.c0 <=> b.`pkey`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey FROM tbl_a ORDER BY pkey ;
 SELECT pkey FROM tbl_b ORDER BY pkey;
 pkey

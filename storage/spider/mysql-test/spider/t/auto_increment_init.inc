@@ -31,7 +31,7 @@ let $CHILD2_1_CREATE_TABLES=
 let $CHILD2_1_SELECT_TABLES=
   SELECT col_a, col_b, col_c FROM tbl_a ORDER BY col_a;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --let $OUTPUT_CHILD_GROUP2_BACKUP= $OUTPUT_CHILD_GROUP2
 --let $OUTPUT_CHILD_GROUP2= 1
 --let $USE_GENERAL_LOG_BACKUP= $USE_GENERAL_LOG

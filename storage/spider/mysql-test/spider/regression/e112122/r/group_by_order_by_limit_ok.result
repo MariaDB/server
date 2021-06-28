@@ -54,10 +54,10 @@ skey	cnt
 11	2
 10	2
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select count(0),`skey` from `auto_test_remote`.`tbl_a` group by `skey` order by count(0) desc,`skey` desc limit 5
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 pkey	skey
 1	1
@@ -76,10 +76,10 @@ pkey	skey
 26	11
 28	13
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select count(0),`skey` from `auto_test_remote2`.`tbl_a` group by `skey` order by count(0) desc,`skey` desc limit 5
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT pkey, skey FROM tbl_a ORDER BY pkey;
 pkey	skey
 0	0

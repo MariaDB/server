@@ -39,10 +39,10 @@ a	b	c
 2	b	2015-06-30 23:59:59
 3	c	2013-11-01 01:01:01
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select%';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select%';
 argument
 select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r` t0 where (t0.`b` not like 'a%')
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select%'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select%'
 
 deinit
 connection master_1;

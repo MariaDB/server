@@ -25,7 +25,7 @@ let $CHILD2_1_CREATE_TABLES=
 let $CHILD2_1_SELECT_TABLES=
   SELECT value FROM tbl_a ORDER BY value;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --let $CHILD2_2_DROP_TABLES_BACKUP= $CHILD2_2_DROP_TABLES
 let $CHILD2_2_DROP_TABLES=
   DROP TABLE IF EXISTS tbl_a;
@@ -38,7 +38,7 @@ let $CHILD2_2_CREATE_TABLES=
 let $CHILD2_2_SELECT_TABLES=
   SELECT value FROM tbl_a ORDER BY value;
 let $CHILD2_2_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --let $CHILD2_3_DROP_TABLES_BACKUP= $CHILD2_3_DROP_TABLES
 let $CHILD2_3_DROP_TABLES=
   DROP TABLE IF EXISTS tbl_a;
@@ -51,7 +51,7 @@ let $CHILD2_3_CREATE_TABLES=
 let $CHILD2_3_SELECT_TABLES=
   SELECT value FROM tbl_a ORDER BY value;
 let $CHILD2_3_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --let $OUTPUT_CHILD_GROUP2_BACKUP= $OUTPUT_CHILD_GROUP2
 --let $OUTPUT_CHILD_GROUP2= 1
 --let $USE_GENERAL_LOG_BACKUP= $USE_GENERAL_LOG
