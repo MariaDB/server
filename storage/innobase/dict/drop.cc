@@ -151,7 +151,6 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
   ut_ad(!(table.stats_bg_flag & BG_STAT_IN_PROGRESS));
   /* The table must be exclusively locked by this transaction. */
   ut_ad(table.get_ref_count() <= 1);
-  ut_ad(!table.n_waiting_or_granted_auto_inc_locks);
   ut_ad(table.n_lock_x_or_s == 1);
   ut_ad(UT_LIST_GET_LEN(table.locks) >= 1);
 #ifdef UNIV_DEBUG
