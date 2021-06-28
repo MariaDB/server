@@ -1754,7 +1754,7 @@ SESSION_VALUE	NULL
 DEFAULT_VALUE	ON
 VARIABLE_SCOPE	GLOBAL
 VARIABLE_TYPE	BOOLEAN
-VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes. This option only works on Linux with either FusionIO cards using the directFS filesystem or with Shannon cards using any file system.
+VARIABLE_COMMENT	Enable atomic writes, instead of using the doublewrite buffer, for files on devices that supports atomic writes.
 NUMERIC_MIN_VALUE	NULL
 NUMERIC_MAX_VALUE	NULL
 NUMERIC_BLOCK_SIZE	NULL

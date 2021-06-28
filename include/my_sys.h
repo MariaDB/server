@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -183,10 +183,11 @@ extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
 #endif
 
 void my_init_atomic_write(void);
+#define my_test_if_thinly_provisioned(A)    0
 #ifdef __linux__
 my_bool my_test_if_atomic_write(File handle, int pagesize);
 #else
-#define my_test_if_atomic_write(A, B) 0
+# define my_test_if_atomic_write(A, B)      0
 #endif /* __linux__ */
 extern my_bool my_may_have_atomic_write;
 

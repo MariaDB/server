@@ -317,8 +317,6 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 
 	node->size = size;
 
-	node->magic_n = FIL_NODE_MAGIC_N;
-
 	node->init_size = size;
 	node->max_size = max_pages;
 
@@ -718,7 +716,6 @@ bool fil_space_extend(fil_space_t *space, uint32_t size)
 inline pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_a(magic_n == FIL_NODE_MAGIC_N);
   ut_a(!being_extended);
 
   if (is_open() &&
@@ -940,16 +937,6 @@ fil_space_t *fil_space_t::create(ulint id, ulint flags,
 	}
 
 	space->latch.SRW_LOCK_INIT(fil_space_latch_key);
-
-	if (space->purpose == FIL_TYPE_TEMPORARY) {
-		/* SysTablespace::open_or_create() would pass
-		size!=0 to fil_space_t::add(), so first_time_open
-		would not hold in fil_node_open_file(), and we
-		must assign this manually. We do not care about
-		the durability or atomicity of writes to the
-		temporary tablespace files. */
-		space->atomic_write_supported = true;
-	}
 
 	mysql_mutex_lock(&fil_system.mutex);
 
@@ -1951,9 +1938,6 @@ skip_second_rename:
 	return(success);
 }
 
-/* FIXME: remove this! */
-IF_WIN(, bool os_is_sparse_file_supported(os_file_t fh));
-
 /** Create a tablespace file.
 @param[in]	space_id	Tablespace ID
 @param[in]	name		Tablespace name in dbname/tablename format.
@@ -2041,7 +2025,6 @@ fil_ibd_create(
 	}
 
 	const bool is_compressed = fil_space_t::is_compressed(flags);
-	bool punch_hole = is_compressed;
 	fil_space_crypt_t* crypt_data = nullptr;
 #ifdef _WIN32
 	if (is_compressed) {
@@ -2059,9 +2042,6 @@ err_exit:
 		free(crypt_data);
 		return NULL;
 	}
-
-	/* FIXME: remove this */
-	IF_WIN(, punch_hole = punch_hole && os_is_sparse_file_supported(file));
 
 	/* We have to write the space id to the file immediately and flush the
 	file to disk. This is because in crash recovery we must be aware what
@@ -2115,9 +2095,8 @@ err_exit:
 	if (fil_space_t* space = fil_space_t::create(space_id, flags,
 						     FIL_TYPE_TABLESPACE,
 						     crypt_data, mode)) {
-		space->punch_hole = punch_hole;
 		fil_node_t* node = space->add(path, file, size, false, true);
-		node->find_metadata(file);
+		IF_WIN(node->find_metadata(), node->find_metadata(file, true));
 		mtr.start();
 		mtr.set_named_space(space);
 		fsp_header_init(space, size, &mtr);
@@ -2878,7 +2857,7 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 		/* Punch hole is not supported, make space not to
 		support punch hole */
 		if (UNIV_UNLIKELY(err == DB_IO_NO_PUNCH_HOLE)) {
-			punch_hole = false;
+			node->punch_hole = false;
 			err = DB_SUCCESS;
 		}
 		goto release_sync_write;

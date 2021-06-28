@@ -804,8 +804,6 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
   ut_ad(bpage->ready_for_flush());
   ut_ad((space->purpose == FIL_TYPE_TEMPORARY) ==
         (space == fil_system.temp_space));
-  ut_ad(space->purpose == FIL_TYPE_TABLESPACE ||
-        space->atomic_write_supported);
   ut_ad(space->referenced());
   ut_ad(lru || space != fil_system.temp_space);
 
@@ -912,8 +910,16 @@ static bool buf_flush_page(buf_page_t *bpage, bool lru, fil_space_t *space)
       }
 
 #if defined HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE || defined _WIN32
-      if (size != orig_size && space->punch_hole)
-        type= lru ? IORequest::PUNCH_LRU : IORequest::PUNCH;
+      if (size != orig_size)
+      {
+        switch (space->chain.start->punch_hole) {
+        case 1:
+          type= lru ? IORequest::PUNCH_LRU : IORequest::PUNCH;
+          break;
+        case 2:
+          size= orig_size;
+        }
+      }
 #endif
       frame=page;
     }
@@ -1036,8 +1042,8 @@ innodb_immediate_scrub_data_uncompressed from the freed ranges.
 @param space   tablespace which may contain ranges of freed pages */
 static void buf_flush_freed_pages(fil_space_t *space)
 {
-  const bool punch_hole= space->punch_hole;
-  if (!srv_immediate_scrub_data_uncompressed && !punch_hole)
+  const bool punch_hole= space->chain.start->punch_hole == 1;
+  if (!punch_hole && !srv_immediate_scrub_data_uncompressed)
     return;
   lsn_t flush_to_disk_lsn= log_sys.get_flushed_lsn();
 
@@ -1064,7 +1070,7 @@ static void buf_flush_freed_pages(fil_space_t *space)
                           (range.last - range.first + 1) * physical_size,
                           nullptr);
     }
-    else if (srv_immediate_scrub_data_uncompressed)
+    else
     {
       for (os_offset_t i= range.first; i <= range.last; i++)
       {
