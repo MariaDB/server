@@ -115,7 +115,7 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
   NET *net= &mysql->net;
   my_bool stmt_skip= stmt ? stmt->state != MYSQL_STMT_INIT_DONE : FALSE;
 
-  if (thd->killed != NOT_KILLED)
+  if (thd && thd->killed != NOT_KILLED)
   {
     if (thd->killed < KILL_CONNECTION)
       thd->killed= NOT_KILLED;
