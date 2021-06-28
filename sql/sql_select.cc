@@ -14231,6 +14231,7 @@ void JOIN::cleanup(bool full)
 
     // Run Cached_item DTORs!
     group_fields.delete_elements();
+    order_fields.delete_elements();
 
     /*
       We can't call delete_elements() on copy_funcs as this will cause
