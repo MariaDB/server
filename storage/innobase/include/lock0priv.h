@@ -572,6 +572,25 @@ lock_table_has(
 	const dict_table_t*	table,	/*!< in: table */
 	enum lock_mode		mode);	/*!< in: lock mode */
 
+inline
+bool ib_lock_t::is_stronger(ulint precise_mode, ulint heap_no, const trx_t* t) const
+{
+	ut_ad(!is_table());
+	return trx == t
+	    && !is_waiting()
+	    && !is_insert_intention()
+	    && (!is_record_not_gap()
+		|| (precise_mode & LOCK_REC_NOT_GAP) /* only record */
+		|| heap_no == PAGE_HEAP_NO_SUPREMUM)
+	    && (!is_gap()
+		|| (precise_mode & LOCK_GAP)         /* only gap */
+		|| heap_no == PAGE_HEAP_NO_SUPREMUM)
+	    && lock_mode_stronger_or_eq(
+		mode(),
+		static_cast<lock_mode>(
+			precise_mode & LOCK_MODE_MASK));
+}
+
 #include "lock0priv.ic"
 
 #endif /* lock0priv_h */

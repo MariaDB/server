@@ -835,13 +835,7 @@ lock_rec_has_expl(
 
   for (lock_t *lock= lock_sys_t::get_first(cell, id, heap_no); lock;
        lock= lock_rec_get_next(heap_no, lock))
-    if (lock->trx == trx &&
-	!(lock->type_mode & (LOCK_WAIT | LOCK_INSERT_INTENTION)) &&
-	(!((LOCK_REC_NOT_GAP | LOCK_GAP) & lock->type_mode) ||
-	 heap_no == PAGE_HEAP_NO_SUPREMUM ||
-	 ((LOCK_REC_NOT_GAP | LOCK_GAP) & precise_mode & lock->type_mode)) &&
-	lock_mode_stronger_or_eq(lock->mode(), static_cast<lock_mode>
-				 (precise_mode & LOCK_MODE_MASK)))
+    if (lock->is_stronger(precise_mode, heap_no, trx))
       return lock;
 
   return nullptr;
@@ -984,23 +978,32 @@ lock_rec_other_has_conflicting(
 /*===========================*/
 	unsigned		mode,	/*!< in: LOCK_S or LOCK_X,
 					possibly ORed to LOCK_GAP or
-					LOC_REC_NOT_GAP,
+					LOCK_REC_NOT_GAP,
 					LOCK_INSERT_INTENTION */
 	const hash_cell_t&	cell,	/*!< in: lock hash table cell */
 	const page_id_t		id,	/*!< in: page identifier */
 	ulint			heap_no,/*!< in: heap number of the record */
 	const trx_t*		trx)	/*!< in: our transaction */
 {
+	lock_t*		res = NULL;
+
 	bool	is_supremum = (heap_no == PAGE_HEAP_NO_SUPREMUM);
 
 	for (lock_t* lock = lock_sys_t::get_first(cell, id, heap_no);
 	     lock; lock = lock_rec_get_next(heap_no, lock)) {
-		if (lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
-			return(lock);
+		/* If current trx already acquired a lock not weaker covering
+		same types then we don't have to wait for any locks. */
+		if (lock->is_stronger(mode, heap_no, trx)) {
+
+			return(NULL);
+		}
+
+		if (!res && lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
+			res = lock;
 		}
 	}
 
-	return(NULL);
+	return(res);
 }
 
 /*********************************************************************//**

@@ -200,6 +200,7 @@ struct ib_lock_t
 	}
 
 	bool is_table() const { return type_mode & LOCK_TABLE; }
+	bool is_stronger(ulint precise_mode, ulint heap_no, const trx_t* t) const;
 
 	enum lock_mode mode() const
 	{

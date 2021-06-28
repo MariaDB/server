@@ -186,7 +186,6 @@ send update t1 set b = 'foo';
 connection con1;
 let $wait_condition= select count(*) from information_schema.innodb_lock_waits;
 source include/wait_condition.inc;
-error ER_LOCK_DEADLOCK;
 update t1 set a = 'bar';
 disconnect con1;
 connection default;
