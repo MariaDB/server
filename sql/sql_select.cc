@@ -1179,7 +1179,7 @@ int JOIN::init_join_caches()
     if (table->file->keyread_enabled())
     {
       if (!(table->file->index_flags(table->file->keyread, 0, 1) & HA_CLUSTERED_INDEX))
-        table->mark_columns_used_by_index(table->file->keyread, table->read_set);
+        table->mark_index_columns(table->file->keyread, table->read_set);
     }
     else if ((tab->read_first_record == join_read_first ||
               tab->read_first_record == join_read_last) &&
