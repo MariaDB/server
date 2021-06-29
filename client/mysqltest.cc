@@ -8412,7 +8412,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
         append_session_track_info(ds, mysql);
 
 
-      if (!disable_warnings)
+      if (!disable_warnings && !mysql_more_results(stmt->mysql))
       {
         /* Get the warnings from execute */
 
