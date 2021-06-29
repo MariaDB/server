@@ -183,11 +183,12 @@ extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
 #endif
 
 void my_init_atomic_write(void);
-#define my_test_if_thinly_provisioned(A)    0
 #ifdef __linux__
 my_bool my_test_if_atomic_write(File handle, int pagesize);
+my_bool my_test_if_thinly_provisioned(File handle);
 #else
 # define my_test_if_atomic_write(A, B)      0
+# define my_test_if_thinly_provisioned(A)   0
 #endif /* __linux__ */
 extern my_bool my_may_have_atomic_write;
 
