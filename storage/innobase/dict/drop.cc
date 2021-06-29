@@ -205,17 +205,18 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
                       "WHERE TABLE_ID=:id FOR UPDATE;\n"
 
                       "BEGIN\n"
+
+                      "DELETE FROM SYS_TABLES WHERE ID=:id;\n"
+                      "DELETE FROM SYS_COLUMNS WHERE TABLE_ID=:id;\n"
+
                       "OPEN idx;\n"
                       "WHILE 1 = 1 LOOP\n"
                       "  FETCH idx INTO iid;\n"
                       "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-                      "  DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
                       "  DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
+                      "  DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
                       "END LOOP;\n"
                       "CLOSE idx;\n"
-
-                      "DELETE FROM SYS_COLUMNS WHERE TABLE_ID=:id;\n"
-                      "DELETE FROM SYS_TABLES WHERE ID=:id;\n"
 
                       "END;\n", FALSE, this);
 }
