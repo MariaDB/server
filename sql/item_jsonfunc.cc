@@ -3723,12 +3723,12 @@ String *Item_func_json_arrayagg::get_str_from_item(Item *i, String *tmp)
 }
 
 
-String *Item_func_json_arrayagg::get_str_from_field(Item *i,Field *f,
+String *Item_func_json_arrayagg::get_str_from_field(Item *, Field *f,
     String *tmp, const uchar *key, size_t offset)
 {
   m_tmp_json.length(0);
 
-  if (append_json_value_from_field(&m_tmp_json, i, f, key, offset, tmp))
+  if (append_json_value_from_field(&m_tmp_json, *orig_args, f, key, offset, tmp))
     return NULL;
 
   return &m_tmp_json;

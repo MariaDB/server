@@ -1376,9 +1376,9 @@ SELECT t1.id, JSON_ARRAYAGG(JSON_OBJECT('id',t2.id)) as materials
 from t1 LEFT JOIN t2 on t1.id = t2.owner_id
 GROUP BY t1.id ORDER BY id;
 id	materials
-1	["{\"id\": 1}","{\"id\": 2}"]
-2	["{\"id\": 3}"]
-3	["{\"id\": 4}"]
+1	[{"id": 1},{"id": 2}]
+2	[{"id": 3}]
+3	[{"id": 4}]
 DROP TABLE t1;
 DROP TABLE t2;
 #
