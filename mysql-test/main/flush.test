@@ -722,6 +722,19 @@ drop view v1, v2;
 drop table t1;
 disconnect con1;
 
+--echo #
+--echo # MDEV-25837 Assertion `thd->locked_tables_mode == LTM_NONE' failed in Locked_tables_list::init_locked_tables.
+--echo #
+
+CREATE FUNCTION f() RETURNS INTEGER RETURN 1;
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT 2 FROM t WHERE f() < 3;
+FLUSH TABLE v WITH READ LOCK;
+ 
+UNLOCK TABLES;
+DROP VIEW v;
+DROP FUNCTION f;
+DROP TABLE t;
 
 --echo #
 --echo # Test FLUSH THREADS
