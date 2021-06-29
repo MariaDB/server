@@ -1,7 +1,7 @@
 #ifndef ITEM_JSONFUNC_INCLUDED
 #define ITEM_JSONFUNC_INCLUDED
 
-/* Copyright (c) 2016, MariaDB
+/* Copyright (c) 2016, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -123,8 +123,8 @@ public:
    :Item_str_func(thd, a, b) { }
   Item_json_func(THD *thd, List<Item> &list)
    :Item_str_func(thd, list) { }
-  bool is_json_type() { return true; }
-  void make_send_field(THD *thd, Send_field *tmp_field)
+  bool is_json_type() override { return true; }
+  void make_send_field(THD *thd, Send_field *tmp_field) override
   {
     Item_str_func::make_send_field(thd, tmp_field);
     static const Lex_cstring fmt(STRING_WITH_LEN("json"));
@@ -544,12 +544,12 @@ protected:
     Overrides Item_func_group_concat::skip_nulls()
     NULL-s should be added to the result as JSON null value.
   */
-  bool skip_nulls() const { return false; }
-  String *get_str_from_item(Item *i, String *tmp);
+  bool skip_nulls() const override { return false; }
+  String *get_str_from_item(Item *i, String *tmp) override;
   String *get_str_from_field(Item *i, Field *f, String *tmp,
-                             const uchar *key, size_t offset);
+                             const uchar *key, size_t offset) override;
   void cut_max_length(String *result,
-                      uint old_length, uint max_length) const;
+                      uint old_length, uint max_length) const override;
 public:
   String m_tmp_json; /* Used in get_str_from_*.. */
   Item_func_json_arrayagg(THD *thd, Name_resolution_context *context_arg,
@@ -562,10 +562,10 @@ public:
   }
   Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item) :
     Item_func_group_concat(thd, item) {}
-  bool is_json_type() { return true; }
+  bool is_json_type() override { return true; }
 
-  const char *func_name() const { return "json_arrayagg("; }
-  enum Sumfunctype sum_func() const {return JSON_ARRAYAGG_FUNC;}
+  const char *func_name() const override { return "json_arrayagg("; }
+  enum Sumfunctype sum_func() const override { return JSON_ARRAYAGG_FUNC; }
 
   String* val_str(String *str) override;
 
@@ -587,40 +587,38 @@ public:
   }
 
   Item_func_json_objectagg(THD *thd, Item_func_json_objectagg *item);
-  bool is_json_type() { return true; }
-  void cleanup();
+  bool is_json_type() override { return true; }
+  void cleanup() override;
 
-  enum Sumfunctype sum_func () const {return JSON_OBJECTAGG_FUNC;}
-  const char *func_name() const { return "json_objectagg"; }
-  const Type_handler *type_handler() const
+  enum Sumfunctype sum_func() const override {return JSON_OBJECTAGG_FUNC;}
+  const char *func_name() const override { return "json_objectagg"; }
+  const Type_handler *type_handler() const override
   {
     if (too_big_for_varchar())
       return &type_handler_blob;
     return &type_handler_varchar;
   }
-  void clear();
-  bool add();
-  void reset_field() { DBUG_ASSERT(0); }        // not used
-  void update_field() { DBUG_ASSERT(0); }       // not used
-  bool fix_fields(THD *,Item **);
+  void clear() override;
+  bool add() override;
+  void reset_field() override { DBUG_ASSERT(0); }        // not used
+  void update_field() override { DBUG_ASSERT(0); }       // not used
+  bool fix_fields(THD *,Item **) override;
 
-  double val_real()
-  { return 0.0; }
-  longlong val_int()
-  { return 0; }
-  my_decimal *val_decimal(my_decimal *decimal_value)
+  double val_real() override { return 0.0; }
+  longlong val_int() override { return 0; }
+  my_decimal *val_decimal(my_decimal *decimal_value) override
   {
     my_decimal_set_zero(decimal_value);
     return decimal_value;
   }
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override
   {
     return get_date_from_string(thd, ltime, fuzzydate);
   }
-  String* val_str(String* str);
-  Item *copy_or_same(THD* thd);
-  void no_rows_in_result() {}
-  Item *get_copy(THD *thd)
+  String* val_str(String* str) override;
+  Item *copy_or_same(THD* thd) override;
+  void no_rows_in_result() override {}
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_objectagg>(thd, this); }
 };
 
