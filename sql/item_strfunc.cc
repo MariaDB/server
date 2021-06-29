@@ -1310,14 +1310,17 @@ bool Item_func_sformat::fix_length_and_dec()
     return TRUE;
   
   for (uint i=0 ; i < arg_count ; i++)
-    char_length+= args[i]->max_char_length() * 10; // temporal solution
+    char_length+= args[i]->max_char_length();
   
   fix_char_length_ulonglong(char_length);
   return FALSE;
 }
 
-longlong Item_func_sformat::locate(String *a, String *b, longlong offset)
+// buscar b en a
+//longlong Item_func_sformat::locate(String *a, String *b, longlong offset)
+longlong Item_func_sformat::locate(String *haystack, String *needle, longlong offset)
 {
+  DBUG_ASSERT(offset >= 0);
   /* must be longlong to avoid truncation */
   longlong   start=  0;
   my_match_t match;
@@ -1325,25 +1328,26 @@ longlong Item_func_sformat::locate(String *a, String *b, longlong offset)
   if (offset > 0)
   {
     start= offset;
-    
-    if ((start <= 0) || (start > a->length()))
+
+    if (offset > haystack->length())
       return 0;
+    
     offset--;
     start--;
     
     /* start is now sufficiently valid to pass to charpos function */
-    start= a->charpos((int) start);
+    start= haystack->charpos((int) start);
     
-    if (start + b->length() > a->length())
+    if (start + needle->length() > haystack->length())
       return 0;
   }
   
-  if (!b->length())       // Found empty string at start
+  if (!needle->length())       // Found empty string at start
     return start + 1;
   
-  if (!cmp_collation.collation->instr(a->ptr() + start,
-                                      (uint) (a->length() - start),
-                                      b->ptr(), b->length(),
+  if (!cmp_collation.collation->instr(haystack->ptr() + start,
+                                      (uint) (haystack->length() - start),
+                                      needle->ptr(), needle->length(),
                                       &match, 1))
     return 0;
   return (longlong) match.mb_len + offset + 1;
@@ -1351,10 +1355,8 @@ longlong Item_func_sformat::locate(String *a, String *b, longlong offset)
 
 String *Item_func_sformat::substr(String *res, longlong start, longlong length)
 {
+  DBUG_ASSERT(length > 0);
   longlong tmp_length;
-
-  if (length <= 0)
-    return make_empty_result();
   
   /* Assumes that the maximum length of a String is < INT_MAX32. */
   /* Set here so that rest of code sees out-of-bound value as such. */
@@ -1362,13 +1364,12 @@ String *Item_func_sformat::substr(String *res, longlong start, longlong length)
     length= INT_MAX32;
   
   /* Assumes that the maximum length of a String is < INT_MAX32. */
-  if (start > INT_MAX32)
-    return make_empty_result();
+  DBUG_ASSERT(start <= INT_MAX32);
   
   start= ((start < 0) ? res->numchars() + start : start - 1);
   start= res->charpos((int) start);
-  if ((start < 0) || ((uint) start + 1 > res->length()))
-    return make_empty_result();
+  DBUG_ASSERT(start >= 0);
+  DBUG_ASSERT((uint) start + 1 <= res->length());
   
   length= res->charpos((int) length, (uint32) start);
   tmp_length= res->length() - start;
@@ -1383,7 +1384,7 @@ String *Item_func_sformat::substr(String *res, longlong start, longlong length)
 String *Item_func_sformat::val_str(String *res)
 {
   DBUG_ASSERT(fixed());
-  uint     i=1;
+  uint     i= 1;
   String  *format= NULL;
   String  *tmp= NULL;
   String   keys;
@@ -1397,13 +1398,15 @@ String *Item_func_sformat::val_str(String *res)
   if (!(format= args[0]->val_str(&tmp_value)))
     goto null;
   
-  keys.set("{}", 2, format->charset());
+  keys.set("{}", 2, collation.collation); 
   index= locate(format, &keys, index);
   while (index != 0) {
-    // Add a part of the format
-    tmp= substr(format, prev, index-prev);
-    res->append(*tmp);
-    // Add the parameter
+    /* Add a part of the format */
+    if (index-prev > 0) {
+      tmp= substr(format, prev, index-prev);
+      res->append(*tmp);
+    }
+    /* Add the parameter */
     if (i < arg_count) {
       if (!(tmp= args[i]->val_str(&tmp_value)))
 	goto null;
@@ -1412,15 +1415,17 @@ String *Item_func_sformat::val_str(String *res)
     } else {
       res->append_char(' ');
     }
-    // Search next {}
+    /* Search next {} */
     index+= 2;
     prev= index;
     index= locate(format, &keys, index);
   }
-  // insert the rest of the format
+  /* insert the rest of the format */
   index= format->numchars() + 1;
-  tmp= substr(format, prev, index-prev);
-  res->append(*tmp);
+  if (index-prev > 0) {
+    tmp= substr(format, prev, index-prev);
+    res->append(*tmp);
+  }
   return res;
   
 null:
