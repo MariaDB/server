@@ -386,7 +386,7 @@ get_transfer()
                 elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
                     CN_option=',commonname=localhost'
                 else
-                    CN_option=",commonname='$WSREP_SST_OPT_HOST_UNSECAPED'"
+                    CN_option=",commonname='$WSREP_SST_OPT_HOST_UNESCAPED'"
                 fi
                 tcmd="$tcmd,cert='$tpem',key='$tkey',cafile='$tcert'$CN_option$sockopt"
                 wsrep_log_info "$action with cert=$tpem, key=$tkey, cafile=$tcert"
