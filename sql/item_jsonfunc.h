@@ -1,7 +1,7 @@
 #ifndef ITEM_JSONFUNC_INCLUDED
 #define ITEM_JSONFUNC_INCLUDED
 
-/* Copyright (c) 2016, MariaDB
+/* Copyright (c) 2016, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -139,8 +139,8 @@ public:
    :Item_str_func(thd, a, b) { }
   Item_json_func(THD *thd, List<Item> &list)
    :Item_str_func(thd, list) { }
-  bool is_json_type() { return true; }
-  void make_send_field(THD *thd, Send_field *tmp_field)
+  bool is_json_type() override { return true; }
+  void make_send_field(THD *thd, Send_field *tmp_field) override
   {
     Item_str_func::make_send_field(thd, tmp_field);
     static const Lex_cstring fmt(STRING_WITH_LEN("json"));
@@ -655,7 +655,8 @@ public:
                              is_separator, limit_clause, row_limit, offset_limit)
   {
   }
-  Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item);
+  Item_func_json_arrayagg(THD *thd, Item_func_json_arrayagg *item) :
+    Item_func_group_concat(thd, item) {}
   bool is_json_type() override { return true; }
 
   LEX_CSTRING func_name_cstring() const override
@@ -663,10 +664,11 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("json_arrayagg(") };
     return name;
   }
-  enum Sumfunctype sum_func() const override {return JSON_ARRAYAGG_FUNC;}
+  enum Sumfunctype sum_func() const override { return JSON_ARRAYAGG_FUNC; }
 
   String* val_str(String *str) override;
 
+  Item *copy_or_same(THD* thd) override;
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_arrayagg>(thd, this); }
 };
@@ -705,10 +707,8 @@ public:
   void update_field() override { DBUG_ASSERT(0); }       // not used
   bool fix_fields(THD *,Item **) override;
 
-  double val_real() override
-  { return 0.0; }
-  longlong val_int() override
-  { return 0; }
+  double val_real() override { return 0.0; }
+  longlong val_int() override { return 0; }
   my_decimal *val_decimal(my_decimal *decimal_value) override
   {
     my_decimal_set_zero(decimal_value);
@@ -718,7 +718,7 @@ public:
   {
     return get_date_from_string(thd, ltime, fuzzydate);
   }
-  String *val_str(String* str) override;
+  String* val_str(String* str) override;
   Item *copy_or_same(THD* thd) override;
   void no_rows_in_result() override {}
   Item *get_copy(THD *thd) override

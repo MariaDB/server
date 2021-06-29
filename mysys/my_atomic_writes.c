@@ -1,4 +1,4 @@
-/* Copyright (c) 2016, MariaDB Corporation
+/* Copyright (c) 2016, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -24,6 +24,10 @@ my_bool has_shannon_atomic_write= 0, has_fusion_io_atomic_write= 0,
 
 #include <sys/ioctl.h>
 
+/* Linux seems to allow up to 15 partitions per block device.
+Partition number 0 is the whole block device. */
+# define SAME_DEV(fs_dev, blk_dev) \
+  (fs_dev == blk_dev) || ((fs_dev & ~15U) == blk_dev)
 
 /***********************************************************************
   FUSION_IO
@@ -115,9 +119,9 @@ static my_bool test_if_shannon_card_exists()
 
     sprintf(path, "/dev/df%c", dev_part);
 #ifdef TEST_SHANNON
-    if (lstat(path, &stat_buff) < 0)
+    if (stat(path, &stat_buff) < 0)
     {
-      printf("%s(): lstat failed.\n", __func__);
+      printf("%s(): stat %s failed.\n", __func__, path);
       break;
     }
 #endif
@@ -147,7 +151,7 @@ static my_bool test_if_shannon_card_exists()
     for (dev_no= 1 ; dev_no < 9 ; dev_no++)
     {
       sprintf(path, "/dev/df%c%d", dev_part, dev_no);
-      if (lstat(path, &stat_buff) < 0)
+      if (stat(path, &stat_buff) < 0)
         break;
 
       shannon_devices[shannon_found_devices].st_dev= stat_buff.st_rdev;
@@ -194,12 +198,13 @@ static my_bool shannon_dev_has_atomic_write(struct shannon_dev *dev,
     int fd= open(dev->dev_name, 0);
     if (fd < 0)
     {
-      perror("open() failed!");
+      fprintf(stderr, "Unable to determine if atomic writes are supported:"
+              " open(\"%s\"): %m\n", dev->dev_name);
       dev->atomic_size= 0;                      /* Don't try again */
       return FALSE;
     }
-     dev->atomic_size= ioctl(fd, SHANNON_IOCQATOMIC_SIZE);
-     close(fd);
+    dev->atomic_size= ioctl(fd, SHANNON_IOCQATOMIC_SIZE);
+    close(fd);
   }
 
 #ifdef TEST_SHANNON
@@ -248,7 +253,7 @@ static my_bool shannon_has_atomic_write(File file, int page_size)
 #ifdef TEST_SHANNON
     printf("%s(): st_rdev=0x%lx\n", __func__, (ulong) dev->st_dev);
 #endif
-    if (stat_buff.st_dev == dev->st_dev)
+    if (SAME_DEV(stat_buff.st_dev, dev->st_dev))
       return shannon_dev_has_atomic_write(dev, page_size);
  }
  return 0;
@@ -290,8 +295,7 @@ static my_bool test_if_sfx_card_exists()
 
     sprintf(sfx_devices[sfx_found_devices].dev_name, "/dev/sfdv%dn1",
             dev_num);
-    if (lstat(sfx_devices[sfx_found_devices].dev_name,
-                &stat_buff) < 0)
+    if (stat(sfx_devices[sfx_found_devices].dev_name, &stat_buff) < 0)
       break;
 
     sfx_devices[sfx_found_devices].st_dev= stat_buff.st_rdev;
@@ -316,13 +320,15 @@ static my_bool sfx_dev_has_atomic_write(struct sfx_dev *dev,
     int fd= open(dev->dev_name, 0);
     if (fd < 0)
     {
-      perror("open() failed!");
+      fprintf(stderr, "Unable to determine if atomic writes are supported:"
+              " open(\"%s\"): %m\n", dev->dev_name);
       dev->atomic_size= 0;                      /* Don't try again */
-      return FALSE;
     }
-
-    dev->atomic_size= ioctl(fd, SFX_GET_ATOMIC_SIZE);
-    close(fd);
+    else
+    {
+      dev->atomic_size= ioctl(fd, SFX_GET_ATOMIC_SIZE);
+      close(fd);
+    }
   }
 
   return (page_size <= dev->atomic_size);
@@ -346,16 +352,10 @@ static my_bool sfx_has_atomic_write(File file, int page_size)
   struct sfx_dev *dev;
   struct stat stat_buff;
 
-  if (fstat(file, &stat_buff) < 0)
-  {
-    return 0;
-  }
-
-  for (dev = sfx_devices; dev->st_dev; dev++)
-  {
-    if (stat_buff.st_dev == dev->st_dev)
-      return sfx_dev_has_atomic_write(dev, page_size);
-  }
+  if (fstat(file, &stat_buff) == 0)
+    for (dev= sfx_devices; dev->st_dev; dev++)
+      if (SAME_DEV(stat_buff.st_dev, dev->st_dev))
+        return sfx_dev_has_atomic_write(dev, page_size);
   return 0;
 }
 /***********************************************************************
@@ -369,10 +369,13 @@ static my_bool sfx_has_atomic_write(File file, int page_size)
 
 void my_init_atomic_write(void)
 {
-  if ((has_shannon_atomic_write=   test_if_shannon_card_exists()) ||
-      (has_fusion_io_atomic_write= test_if_fusion_io_card_exists()) ||
-      (has_sfx_atomic_write=       test_if_sfx_card_exists()))
-  my_may_have_atomic_write= 1;
+  has_shannon_atomic_write= test_if_shannon_card_exists();
+  has_fusion_io_atomic_write= test_if_fusion_io_card_exists();
+  has_sfx_atomic_write= test_if_sfx_card_exists();
+
+  my_may_have_atomic_write= has_shannon_atomic_write ||
+    has_fusion_io_atomic_write || has_sfx_atomic_write;
+
 #ifdef TEST_SHANNON
   printf("%s(): has_shannon_atomic_write=%d, my_may_have_atomic_write=%d\n",
           __func__,
