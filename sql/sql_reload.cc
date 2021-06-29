@@ -586,29 +586,45 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
                            &lock_tables_prelocking_strategy))
     goto error_reset_bits;
 
-  if (thd->lex->type & REFRESH_FOR_EXPORT)
+  // Iterate all tables
+  for (auto table_list= all_tables; table_list;
+       table_list= table_list->next_global)
   {
-    // Check if all storage engines support FOR EXPORT.
-    for (TABLE_LIST *table_list= all_tables; table_list;
-         table_list= table_list->next_global)
+    // FLUSH [WITH READ LOCK|FOR EXPORT] not supported
+    // for information_schema or performance_schema tables
+    if (is_infoschema_db(&table_list->db) ||
+	is_perfschema_db(&table_list->db))
     {
-      if (!(table_list->is_view() ||
-            table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
+      my_error(ER_DBACCESS_DENIED_ERROR, MYF(0),
+               thd->security_ctx->priv_user,
+               thd->security_ctx->priv_host,
+               table_list->db.str);
+      goto error_reset_bits;
+    }
+    // FLUSH [WITH READ LOCK|FOR EXPORT] not supported
+    // if there is no base table
+    if (!table_list->is_view() && !table_list->table)
+    {
+      TABLE_LIST *view= table_list->top_table();
+
+      my_error(ER_WRONG_OBJECT, MYF(0),
+               view ? view->db.str : all_tables->db.str,
+               view ? view->table_name.str : all_tables->table_name.str,
+               "BASE TABLE");
+      goto error_reset_bits;
+    }
+    if (!table_list->is_view())
+    {
+      // Check if storage engine support FOR EXPORT.
+      if ((thd->lex->type & REFRESH_FOR_EXPORT) &&
+          !(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
       {
         my_error(ER_ILLEGAL_HA, MYF(0),table_list->table->file->table_type(),
                  table_list->db.str, table_list->table_name.str);
         goto error_reset_bits;
       }
-    }
-  }
-
-  if (thd->lex->type & REFRESH_READ_LOCK)
-  {
-    for (auto table_list= all_tables; table_list;
-         table_list= table_list->next_global)
-    {
-      if (!table_list->is_view() &&
-          table_list->table->file->extra(HA_EXTRA_FLUSH))
+      else if ((thd->lex->type & REFRESH_READ_LOCK) &&
+               table_list->table->file->extra(HA_EXTRA_FLUSH))
         goto error_reset_bits;
     }
   }
