@@ -153,9 +153,9 @@ private:
   {
     switch (type) {
     case SINGLE_PREC_HB:
+    case JSON:
       return ((uint) (1 << 8) - 1);
     case DOUBLE_PREC_HB:
-    case JSON:
       return ((uint) (1 << 16) - 1);
     }
     return 1;
@@ -166,9 +166,9 @@ public:
   {
     switch (type) {
     case SINGLE_PREC_HB:
+    case JSON:
       return size;
     case DOUBLE_PREC_HB:
-    case JSON:
       return size / 2;
     }
     return 0;
@@ -180,9 +180,9 @@ private:
     DBUG_ASSERT(i < get_width());
     switch (type) {
     case SINGLE_PREC_HB:
+    case JSON:
       return (uint) (((uint8 *) values)[i]);
     case DOUBLE_PREC_HB:
-    case JSON:
       return (uint) uint2korr(values + i * 2);
     }
     return 0;
