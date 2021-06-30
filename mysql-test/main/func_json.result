@@ -1382,5 +1382,16 @@ id	materials
 DROP TABLE t1;
 DROP TABLE t2;
 #
+# MDEV-26054 Server crashes in Item_func_json_arrayagg::get_str_from_field
+#
+CREATE TABLE t (a VARCHAR(8));
+CREATE VIEW v AS SELECT * FROM t;
+INSERT INTO t VALUES ('foo'),('bar');
+SELECT JSON_ARRAYAGG(a) AS f FROM v;
+f
+["foo","bar"]
+DROP VIEW v;
+DROP TABLE t;
+#
 # End of 10.5 tests
 #
