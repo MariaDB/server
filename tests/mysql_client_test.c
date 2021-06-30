@@ -19900,6 +19900,38 @@ static void test_ps_params_in_ctes()
 #ifndef EMBEDDED_LIBRARY
 #define MDEV19838_MAX_PARAM_COUNT 32
 #define MDEV19838_FIELDS_COUNT 17
+
+static void test_mdev26015()
+{
+  MYSQL *my;
+  int rc;
+
+  myheader("test_mdev16025");
+
+  my= mysql_client_init(NULL);
+
+  rc= mysql_options(my, MARIADB_OPT_TLS_VERSION, "TLSv1.2");
+  myquery(rc);
+  rc= mysql_ssl_set(my, NULL, NULL, NULL, NULL, "DHE-RSA-AES128-SHA256");
+  myquery(rc);
+
+  if (!(mysql_real_connect(my, opt_host, opt_user,
+                           opt_password, current_db, opt_port,
+                           opt_unix_socket, 0)))
+  {
+    fprintf(stderr, "\n connection failed(%s)", mysql_error(my));
+    mysql_close(my);
+    exit(1);
+  }
+
+  fprintf(stdout, "cipher in use: %s\n", mysql_get_ssl_cipher(my));
+
+  DIE_UNLESS(!mysql_get_ssl_cipher(my) ||
+             strcmp(mysql_get_ssl_cipher(my), "DHE-RSA-AES128-SHA256") == 0);
+
+  mysql_close(my);
+}
+
 static void test_mdev19838()
 {
   int rc;
@@ -20047,6 +20079,7 @@ static void test_mdev19838()
 #endif // EMBEDDED_LIBRARY
 
 static struct my_tests_st my_tests[]= {
+  { "test_mdev26015", test_mdev26015 },
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
   { "client_query", client_query },
@@ -20334,6 +20367,7 @@ static struct my_tests_st my_tests[]= {
 #ifndef EMBEDDED_LIBRARY
   { "test_mdev19838", test_mdev19838 },
 #endif
+  { "test_mdev26015", test_mdev26015 },
   { 0, 0 }
 };
 
