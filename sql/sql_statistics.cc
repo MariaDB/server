@@ -1073,9 +1073,16 @@ public:
           stat_field->store(stats->histogram.get_type() + 1);
           break;
         case COLUMN_STAT_HISTOGRAM:
+          if (stats->histogram.get_type() == JSON)
+          {
+            stat_field->store((char *) stats->histogram.get_values(),
+                              strlen((char *) stats->histogram.get_values()), &my_charset_bin);
+          } else
+          {
             stat_field->store((char *) stats->histogram.get_values(),
                               stats->histogram.get_size(), &my_charset_bin);
-          break;           
+          }
+          break;
         }
       }
     }
@@ -1588,7 +1595,7 @@ public:
 
 class Histogram_builder_json : public Histogram_builder
 {
-std::vector<String> bucket_bounds;
+std::vector<std::string> bucket_bounds;
 
 public:
   Histogram_builder_json(Field *col, uint col_len, ha_rows rows)
@@ -1619,9 +1626,10 @@ public:
       return 0;
     if (count > bucket_capacity * (curr_bucket + 1))
     {
-      auto *val= new StringBuffer<MAX_FIELD_WIDTH>;
-      column->val_str(val);
-      bucket_bounds.emplace_back(String(val->ptr(), val->length(), &my_charset_bin));
+      column->store_field_value((uchar *) elem, col_length);
+      StringBuffer<MAX_FIELD_WIDTH> val;
+      column->val_str(&val);
+      bucket_bounds.emplace_back(val.ptr());
       curr_bucket++;
     }
     return 0;
@@ -1631,9 +1639,10 @@ public:
     Json_writer *writer = new Json_writer();
     writer->start_array();
     for(auto& value: bucket_bounds) {
-      writer->add_str(value);
+      writer->add_str(value.c_str());
     }
     writer->end_array();
+    histogram->set_size(bucket_bounds.size());
     histogram->set_values((uchar *) writer->output.get_string()->ptr());
   }
 };
