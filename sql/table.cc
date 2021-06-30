@@ -61,6 +61,17 @@ public:
   }
 };
 
+bool TABLE::init_expr_arena(MEM_ROOT *mem_root)
+{
+  /*
+    We need to use CONVENTIONAL_EXECUTION here to ensure that
+    any new items created by fix_fields() are not reverted.
+  */
+  expr_arena= new (alloc_root(mem_root, sizeof(Table_arena)))
+                Table_arena(mem_root, Query_arena::STMT_CONVENTIONAL_EXECUTION);
+  return expr_arena == NULL;
+}
+
 struct extra2_fields
 {
   LEX_CUSTRING version;
@@ -1155,14 +1166,8 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
            table->s->table_check_constraints * sizeof(Virtual_column_info*));
 
   DBUG_ASSERT(table->expr_arena == NULL);
-  /*
-    We need to use CONVENTIONAL_EXECUTION here to ensure that
-    any new items created by fix_fields() are not reverted.
-  */
-  table->expr_arena= new (alloc_root(mem_root, sizeof(Table_arena)))
-                        Table_arena(mem_root, 
-                                    Query_arena::STMT_CONVENTIONAL_EXECUTION);
-  if (!table->expr_arena)
+
+  if (table->init_expr_arena(mem_root))
     DBUG_RETURN(1);
 
   thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
