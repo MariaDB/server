@@ -1,34 +1,56 @@
 --source include/have_stat_tables.inc
+--source include/have_sequence.inc
+--source include/analyze-format.inc
 --echo #
---echo # Test that JSON is a valid histogram type and we can store JSON strings in mysql.column_stats
+--echo # Test that we can store JSON arrays in histogram field mysql.column_stats when histogram_type=JSON
 --echo #
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
 
 set @save_histogram_type=@@histogram_type;
+set @save_histogram_size=@@histogram_size;
 
 CREATE TABLE t1 (
-  a int NOT NULL PRIMARY KEY,
-  b varchar(32)
-) ENGINE=MYISAM;
+  a int,
+  b varchar(32),
+  c char(2),
+  d double
+);
+
+--disable_result_log
+INSERT INTO t1 SELECT seq, seq, seq, seq from seq_1_to_25;
+--enable_result_log
 
 SET histogram_type='JSON';
-SELECT @@histogram_type;
+# set histogram size to be < row count (25 in this case) to see how histogram behaves
+set histogram_size=10;
 
-INSERT INTO t1 VALUES
-  (7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx'),
-  (17, 'vvvvvvvvvvvvv');
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SELECT * FROM mysql.column_stats WHERE table_name='t1';
+DELETE FROM mysql.column_stats;
+DROP TABLE t1;
 
-ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES();
-DESCRIBE mysql.column_stats;
-SELECT * FROM mysql.column_stats;
+create schema world;
+use world;
+--disable_query_log
+--disable_result_log
+--disable_warnings
+--source include/world_schema_utf8.inc
+--source include/world.inc
+--enable_warnings
+--enable_result_log
+--enable_query_log
+
+set histogram_type='JSON';
+set histogram_size=25;
+--disable_result_log
+ANALYZE TABLE Country PERSISTENT FOR ALL;
+--enable_result_log
+
+SELECT column_name, min_value, max_value, hist_size, hist_type, histogram FROM mysql.column_stats;
 
 set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
 
-## Remove against Milestone-2
-ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES();
-SELECT * FROM mysql.column_stats;
-select table_name, hist_type, decode_histogram(hist_type, histogram ) from mysql.column_stats;
-
-DROP TABLE t1;
+DROP SCHEMA world;
