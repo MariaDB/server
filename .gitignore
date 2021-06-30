@@ -520,3 +520,5 @@ compile_commands.json
 
 # Visual Studio Code workspace
 .vscode/
+
+.cache/clangd

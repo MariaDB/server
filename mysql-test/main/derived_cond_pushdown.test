@@ -2238,6 +2238,76 @@ eval explain extended $q2;
 drop view v1,v2;
 drop table t1;
 
+--echo #
+--echo # MDEV-25969: Condition pushdown into derived table doesn't work if select list uses SP
+--echo #
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+
+create table t1 (
+  pk int primary key,
+  a int,
+  b int,
+  key(a)
+);
+
+create table t2(a int);
+insert into t2 values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+
+create table t3(a int);
+insert into t3 select A.a + B.a* 10 + C.a * 100 from t2 A, t2 B, t2 C;
+
+insert into t1 select a,a,a from t3;
+
+create view v1 as
+select
+  t1.a as col1,
+  f1(t1.b) as col2
+from
+  t1;
+
+create view v2 as
+select
+  t1.a as col1,
+  f1(t1.b) as col2
+from
+  t1;
+create view v3 as
+select col2, col1 from v1
+union all
+select col2, col1 from v2;
+
+explain select * from v3 where col1=123;
+
+--echo # This must use ref accesses for reading table t1, not full scans:
+explain format=json
+select * from v3 where col1=123 and col2=321;
+
+drop function f1;
+drop view v1,v2,v3;
+drop table t1, t2,t3;
+
+--echo #
+--echo # Another testcase, with pushdown through GROUP BY
+--echo #
+create table t1 (a int, b  int);
+insert into t1 values (1,1),(2,2),(3,3);
+
+create function f1(a int) returns int DETERMINISTIC return (a+1);
+
+create view v2(a, a2, s) as 
+select a, f1(a), sum(b) from t1 group by a, f1(a);
+
+--echo # Here, 
+--echo #   "(s+1) > 10" will be pushed into HAVING
+--echo #   "a > 1" will be pushed all the way to the table scan on t1
+--echo #   "a2>123" will be pushed into HAVING (as it refers to an SP call which
+--echo #                                       prevents pushing it to the WHERE)
+explain format=json
+select * from v2 where (s+1) > 10 AND a > 1 and a2>123;
+
+drop view v2;
+drop function f1;
+drop table t1;
 --echo # End of 10.2 tests
 
 --echo #
