@@ -159,10 +159,16 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
        lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
   {
     ut_ad(lock->trx == this);
-    if (lock->type_mode == (LOCK_X | LOCK_TABLE))
+    switch (lock->type_mode) {
+    case LOCK_TABLE | LOCK_X:
       found_x= true;
-    else
-      ut_ad(lock->type_mode == (LOCK_IX | LOCK_TABLE));
+      break;
+    case LOCK_TABLE | LOCK_IX:
+    case LOCK_TABLE | LOCK_AUTO_INC:
+      break;
+    default:
+      ut_ad("unexpected lock type" == 0);
+    }
   }
   ut_ad(found_x);
 #endif

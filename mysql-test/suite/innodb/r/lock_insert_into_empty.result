@@ -37,3 +37,18 @@ REPLACE INTO t1 VALUES (1,12);
 ERROR 23000: Cannot add or update a child row: a foreign key constraint fails (`test`.`t1`, CONSTRAINT `t1_ibfk_1` FOREIGN KEY (`f`) REFERENCES `nonexistent` (`x`))
 COMMIT;
 DROP TABLE t1;
+#
+# MDEV-25942 Assertion failed in trx_t::drop_table()
+#
+CREATE TABLE t1 (k INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 SET k=1;
+START TRANSACTION;
+INSERT INTO t1 SET k=2;
+connect  con1,localhost,root,,test;
+SET innodb_lock_wait_timeout= 1;
+CREATE TABLE t2 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB
+AS SELECT k FROM t1;
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+connection default;
+DROP TABLE t1;
