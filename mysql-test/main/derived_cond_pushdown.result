@@ -10814,9 +10814,64 @@ EXPLAIN
     }
   }
 }
+# Extra test for 10.4+: Check that this works for pushdown into IN
+# subqueries:
+create table t4 (a int, b int, c decimal);
+insert into t4 select a,a,a from t1;
+# The subquery must be materialized and must have
+#  "attached_condition": "t1.a + 1 > 10",
+#  "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+explain format=json
+select *
+from t4
+where
+(a,b,c) in (select a, f1(a), sum(b) from t1 group by a, f1(a))
+and
+(a+1) > 10 AND b > 1 and c>123;
+EXPLAIN
+{
+  "query_block": {
+    "select_id": 1,
+    "table": {
+      "table_name": "t4",
+      "access_type": "ALL",
+      "rows": 3,
+      "filtered": 100,
+      "attached_condition": "t4.a + 1 > 10 and t4.b > 1 and t4.c > 123 and t4.a is not null and t4.b is not null and t4.c is not null"
+    },
+    "table": {
+      "table_name": "<subquery2>",
+      "access_type": "eq_ref",
+      "possible_keys": ["distinct_key"],
+      "key": "distinct_key",
+      "key_length": "23",
+      "used_key_parts": ["a", "f1(a)", "sum(b)"],
+      "ref": ["test.t4.a", "test.t4.b", "test.t4.c"],
+      "rows": 1,
+      "filtered": 100,
+      "attached_condition": "t4.c = `<subquery2>`.`sum(b)`",
+      "materialized": {
+        "unique": 1,
+        "query_block": {
+          "select_id": 2,
+          "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+          "temporary_table": {
+            "table": {
+              "table_name": "t1",
+              "access_type": "ALL",
+              "rows": 3,
+              "filtered": 100,
+              "attached_condition": "t1.a + 1 > 10"
+            }
+          }
+        }
+      }
+    }
+  }
+}
 drop view v2;
 drop function f1;
-drop table t1;
+drop table t1, t4;
 # End of 10.2 tests
 #
 # MDEV-14579: pushdown conditions into materialized views/derived tables

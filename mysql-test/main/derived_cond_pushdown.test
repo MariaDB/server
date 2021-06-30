@@ -2305,9 +2305,26 @@ select a, f1(a), sum(b) from t1 group by a, f1(a);
 explain format=json
 select * from v2 where (s+1) > 10 AND a > 1 and a2>123;
 
+--echo # Extra test for 10.4+: Check that this works for pushdown into IN
+--echo # subqueries:
+
+create table t4 (a int, b int, c decimal);
+insert into t4 select a,a,a from t1;
+
+--echo # The subquery must be materialized and must have
+--echo #  "attached_condition": "t1.a + 1 > 10",
+--echo #  "having_condition": "`f1(a)` > 1 and `sum(b)` > 123",
+explain format=json
+select *
+from t4
+where
+  (a,b,c) in (select a, f1(a), sum(b) from t1 group by a, f1(a))
+  and
+   (a+1) > 10 AND b > 1 and c>123;
+
 drop view v2;
 drop function f1;
-drop table t1;
+drop table t1, t4;
 --echo # End of 10.2 tests
 
 --echo #
