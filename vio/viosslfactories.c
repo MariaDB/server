@@ -24,7 +24,13 @@
 static my_bool     ssl_algorithms_added    = FALSE;
 static my_bool     ssl_error_strings_loaded= FALSE;
 
-/* the function below was generated with "openssl dhparam -2 -C 2048" */
+#if !defined(WOLFSSL) && !defined(SSL_CTRL_SET_DH_AUTO)
+
+/* Older OpenSSL versions (< 1.0.2) don't handle dhparam
+   setting automatically during TLS handshake.
+
+   The function below was generated with "openssl dhparam -2 -C 2048"
+*/
 
 static
 DH *get_dh2048()
@@ -72,6 +78,7 @@ DH *get_dh2048()
     }
     return dh;
 }
+#endif
 
 static const char*
 ssl_error_string[] =
@@ -228,7 +235,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
              enum enum_ssl_init_error *error,
              const char *crl_file, const char *crl_path, ulonglong tls_version)
 {
-  DH *dh;
   struct st_VioSSLFd *ssl_fd;
   long ssl_ctx_options;
   DBUG_ENTER("new_VioSSLFd");
@@ -334,18 +340,36 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
     goto err2;
   }
 
-  /* DH stuff */
+#if !defined(WOLFSSL)
+  /* DH stuff:
+
+     WolfSSL chooses right DH public key automatically depending
+     on RSA key size of server certificate during TLS handshake.
+     For OpenSSL >=  1.0.2 this feature needs to be explicitly turned on.
+     OpenSSL versions < 1.0.2 will still use the old get_dh2048() method
+     to obtain and set DH public key (see also MDEV-26015).
+  */
   if (!is_client_method)
   {
-    dh=get_dh2048();
+#if !defined(SSL_CTRL_SET_DH_AUTO)
+    DH *dh=get_dh2048();
     if (!SSL_CTX_set_tmp_dh(ssl_fd->ssl_context, dh))
     {
       *error= SSL_INITERR_DH;
-      goto err3;
+      DH_free(dh);
+      goto err2;
     }
 
     DH_free(dh);
+#else
+    if (!SSL_CTX_set_dh_auto(ssl_fd->ssl_context, 1))
+    {
+      *error= SSL_INITERR_DH;
+      goto err2;
+    }
+#endif
   }
+#endif
 
 #ifdef HAVE_WOLFSSL
   /* set IO functions used by wolfSSL */
@@ -357,8 +381,6 @@ new_VioSSLFd(const char *key_file, const char *cert_file,
 
   DBUG_RETURN(ssl_fd);
 
-err3:
-  DH_free(dh);
 err2:
   SSL_CTX_free(ssl_fd->ssl_context);
 err1:

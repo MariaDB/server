@@ -1,0 +1,11 @@
+# Tests for SSL connections, only run if mysqld is compiled
+# with support for SSL.
+
+-- source include/have_ssl_communication.inc
+
+#
+# MDEV-26015 - using DHE cipher will fail if DH public key size doesn't match
+# RSA key size of server certificate
+#
+--exec $MYSQL -uroot --ssl-cipher=DHE-RSA-AES128-SHA256 --tls_version=TLSv1.2 -e"show status like 'ssl_cipher'" 2>&1
+
