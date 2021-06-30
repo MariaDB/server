@@ -10764,6 +10764,7 @@ EXPLAIN
               {
                 "query_block": {
                   "select_id": 3,
+                  "operation": "UNION",
                   "table": {
                     "table_name": "t1",
                     "access_type": "ref",
