@@ -4357,7 +4357,7 @@ innobase_commit_ordered_2(
 	/* If the transaction is not run in 2pc, we must assign wsrep
 	XID here in order to get it written in rollback segment. */
 	if (trx->is_wsrep()) {
-		thd_get_xid(thd, (MYSQL_XID*)trx->xid);
+		thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
 	}
 #endif /* WITH_WSREP */
 
@@ -4552,8 +4552,9 @@ innobase_rollback(
 	trx is being rolled back due to BF abort, clear XID in order
 	to avoid writing it to rollback segment out of order. The XID
 	will be reassigned when the transaction is replayed. */
-	if (trx->state != TRX_STATE_NOT_STARTED && wsrep_is_wsrep_xid(trx->xid)) {
-		trx->xid->null();
+	if (trx->state != TRX_STATE_NOT_STARTED
+	    && wsrep_is_wsrep_xid(&trx->xid)) {
+		trx->xid.null();
 	}
 #endif /* WITH_WSREP */
 	if (rollback_trx
@@ -16683,7 +16684,7 @@ innobase_xa_prepare(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	thd_get_xid(thd, (MYSQL_XID*) trx->xid);
+	thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
 
 	if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 
@@ -16815,8 +16816,8 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid)
 		/* If a wsrep transaction is being rolled back during
 		the recovery, we must clear the xid in order to avoid
 		writing serialisation history for rolled back transaction. */
-		if (wsrep_is_wsrep_xid(trx->xid)) {
-			trx->xid->null();
+		if (wsrep_is_wsrep_xid(&trx->xid)) {
+			trx->xid.null();
 		}
 #endif /* WITH_WSREP */
 		int ret = innobase_rollback_trx(trx);
@@ -18312,7 +18313,7 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
         default:
           break;
         case TRX_STATE_PREPARED:
-          if (!wsrep_is_wsrep_xid(vtrx->xid))
+          if (!wsrep_is_wsrep_xid(&vtrx->xid))
             break;
           /* fall through */
         case TRX_STATE_ACTIVE:

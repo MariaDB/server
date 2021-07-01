@@ -859,7 +859,7 @@ public:
 	const char*	start_file;	/*!< Filename where it was started */
 #endif /* UNIV_DEBUG */
 
-	XID*		xid;		/*!< X/Open XA transaction
+	XID		xid;		/*!< X/Open XA transaction
 					identification to identify a
 					transaction branch */
 	trx_mod_tables_t mod_tables;	/*!< List of tables that were modified

@@ -178,8 +178,6 @@ struct TrxFactory {
 
 		trx->dict_operation_lock_mode = 0;
 
-		trx->xid = UT_NEW_NOKEY(xid_t());
-
 		trx->detailed_error = reinterpret_cast<char*>(
 			ut_zalloc_nokey(MAX_DETAILED_ERROR_LEN));
 
@@ -231,7 +229,6 @@ struct TrxFactory {
 		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 		ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
 
-		UT_DELETE(trx->xid);
 		ut_free(trx->detailed_error);
 
 		trx->mutex_destroy();
@@ -675,7 +672,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
     this trx_ref_count w/o mutex protection.
   */
   trx->rsegs.m_redo.rseg->acquire();
-  *trx->xid= undo->xid;
+  trx->xid= undo->xid;
   trx->id= undo->trx_id;
   trx->is_recovered= true;
   trx->start_time= start_time;
@@ -913,7 +910,7 @@ trx_start_low(
 	}
 
 #ifdef WITH_WSREP
-	trx->xid->null();
+	trx->xid.null();
 #endif /* WITH_WSREP */
 
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
@@ -1347,7 +1344,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     serialize all commits and prevent a group of transactions from
     gathering. */
 
-    commit_lsn= undo_no || !xid->is_null() ? mtr->commit_lsn() : 0;
+    commit_lsn= undo_no || !xid.is_null() ? mtr->commit_lsn() : 0;
     if (!commit_lsn)
       /* Nothing to be done. */;
     else if (flush_log_later)
@@ -1922,7 +1919,7 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
                    << " in prepared state after recovery";
         ib::info() << "Transaction contains changes to " << trx->undo_no
                    << " rows";
-        xid= *trx->xid;
+        xid= trx->xid;
       }
     }
   }
@@ -1997,16 +1994,16 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
     if (trx->is_recovered &&
 	(trx_state_eq(trx, TRX_STATE_PREPARED) ||
 	 trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) &&
-        arg->xid->eq(reinterpret_cast<XID*>(trx->xid)))
+        arg->xid->eq(&trx->xid))
     {
 #ifdef WITH_WSREP
       /* The commit of a prepared recovered Galera
       transaction needs a valid trx->xid for
       invoking trx_sys_update_wsrep_checkpoint(). */
-      if (!wsrep_is_wsrep_xid(trx->xid))
+      if (!wsrep_is_wsrep_xid(&trx->xid))
 #endif /* WITH_WSREP */
       /* Invalidate the XID, so that subsequent calls will not find it. */
-      trx->xid->null();
+      trx->xid.null();
       arg->trx= trx;
       found= 1;
     }

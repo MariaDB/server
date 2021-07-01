@@ -284,8 +284,8 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		  && srv_fast_shutdown));
 
 #ifdef	WITH_WSREP
-	if (wsrep_is_wsrep_xid(trx->xid)) {
-		trx_rseg_update_wsrep_checkpoint(rseg_header, trx->xid, mtr);
+	if (wsrep_is_wsrep_xid(&trx->xid)) {
+		trx_rseg_update_wsrep_checkpoint(rseg_header, &trx->xid, mtr);
 	}
 #endif
 
