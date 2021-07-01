@@ -20079,7 +20079,6 @@ static void test_mdev19838()
 #endif // EMBEDDED_LIBRARY
 
 static struct my_tests_st my_tests[]= {
-  { "test_mdev26015", test_mdev26015 },
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
   { "client_query", client_query },
