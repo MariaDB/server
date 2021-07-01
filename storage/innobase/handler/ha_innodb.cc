@@ -11363,8 +11363,9 @@ innobase_fts_load_stopword(
     mysql_mutex_unlock(&LOCK_global_system_variables);
   }
 
-  return fts_load_stopword(table, trx, stopword_table,
-                           THDVAR(thd, ft_enable_stopword), false);
+  return !high_level_read_only &&
+    fts_load_stopword(table, trx, stopword_table,
+                      THDVAR(thd, ft_enable_stopword), false);
 }
 
 /** Parse the table name into normal name and remote path if needed.
@@ -13387,7 +13388,6 @@ int ha_innobase::delete_table(const char *name)
     ut_ad(trx->will_lock);
     ut_ad(trx->state == TRX_STATE_ACTIVE);
     trx->dict_operation= true;
-    trx->internal= true;
   }
   else
   {

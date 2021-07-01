@@ -95,18 +95,11 @@ trx_start_if_not_started_low(
 	trx_t*	trx,		/*!< in/out: transaction */
 	bool	read_write);	/*!< in: true if read write transaction */
 
-/*************************************************************//**
-Starts a transaction for internal processing. */
-void
-trx_start_internal_low(
-/*===================*/
-	trx_t*	trx);		/*!< in/out: transaction */
-
-/** Starts a read-only transaction for internal processing.
-@param[in,out] trx	transaction to be started */
-void
-trx_start_internal_read_only_low(
-	trx_t*	trx);
+/**
+Start a transaction for internal processing.
+@param trx          transaction
+@param read_write   whether writes may be performed */
+void trx_start_internal_low(trx_t *trx, bool read_write);
 
 #ifdef UNIV_DEBUG
 #define trx_start_if_not_started_xa(t, rw)			\
@@ -127,24 +120,13 @@ trx_start_internal_read_only_low(
 	do {							\
 	(t)->start_line = __LINE__;				\
 	(t)->start_file = __FILE__;				\
-	trx_start_internal_low((t));				\
-	} while (false)
-
-#define trx_start_internal_read_only(t)				\
-	do {							\
-	(t)->start_line = __LINE__;				\
-	(t)->start_file = __FILE__;				\
-	trx_start_internal_read_only_low(t);			\
+	trx_start_internal_low(t, true);			\
 	} while (false)
 #else
 #define trx_start_if_not_started(t, rw)				\
 	trx_start_if_not_started_low((t), rw)
 
-#define trx_start_internal(t)					\
-	trx_start_internal_low((t))
-
-#define trx_start_internal_read_only(t)				\
-	trx_start_internal_read_only_low(t)
+#define trx_start_internal(t) trx_start_internal_low(t, true)
 
 #define trx_start_if_not_started_xa(t, rw)			\
 	trx_start_if_not_started_xa_low((t), (rw))
@@ -847,12 +829,6 @@ public:
 	ib_uint32_t	flush_tables;	/*!< if "covering" the FLUSH TABLES",
 					count of tables being flushed. */
 
-	/*------------------------------*/
-	bool		internal;	/*!< true if it is a system/internal
-					transaction background task. This
-					includes DDL transactions too.  Such
-					transactions are always treated as
-					read-write. */
 	/*------------------------------*/
 #ifdef UNIV_DEBUG
 	unsigned	start_line;	/*!< Track where it was started from */

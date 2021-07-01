@@ -542,10 +542,7 @@ dberr_t dict_stats_exec_sql(pars_info_t *pinfo, const char* sql, trx_t *trx)
     return que_eval_sql(pinfo, sql, FALSE, trx);
 
   trx= trx_create();
-  if (srv_read_only_mode)
-    trx_start_internal_read_only(trx);
-  else
-    trx_start_internal(trx);
+  trx_start_internal(trx);
 
   trx->dict_operation_lock_mode= RW_X_LATCH;
   dberr_t err= que_eval_sql(pinfo, sql, FALSE, trx);
@@ -2589,7 +2586,6 @@ dict_stats_save_index_stat(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	ut_ad(!trx || trx->internal || trx->mysql_thd);
 	ut_d(dict_sys.assert_locked());
 
 	dict_fs2utf8(index->table->name.m_name, db_utf8, sizeof(db_utf8),
@@ -3247,11 +3243,7 @@ dict_stats_fetch_from_ps(
 
 	trx->isolation_level = TRX_ISO_READ_UNCOMMITTED;
 
-	if (srv_read_only_mode) {
-		trx_start_internal_read_only(trx);
-	} else {
-		trx_start_internal(trx);
-	}
+	trx_start_internal(trx);
 
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));

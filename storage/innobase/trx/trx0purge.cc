@@ -280,8 +280,7 @@ trx_purge_add_undo_to_history(const trx_t* trx, trx_undo_t*& undo, mtr_t* mtr)
 		  && (srv_is_being_started
 		      || trx_rollback_is_active
 		      || srv_force_recovery >= SRV_FORCE_NO_BACKGROUND))
-	      || ((trx->mysql_thd || trx->internal)
-		  && srv_fast_shutdown));
+	      || srv_fast_shutdown);
 
 #ifdef	WITH_WSREP
 	if (wsrep_is_wsrep_xid(&trx->xid)) {
