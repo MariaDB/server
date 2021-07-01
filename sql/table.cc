@@ -8574,25 +8574,6 @@ bool is_simple_order(ORDER *order)
   return TRUE;
 }
 
-class Turn_errors_to_warnings_handler : public Internal_error_handler
-{
-public:
-  Turn_errors_to_warnings_handler() {}
-  bool handle_condition(THD *thd,
-                        uint sql_errno,
-                        const char* sqlstate,
-                        Sql_condition::enum_warning_level *level,
-                        const char* msg,
-                        Sql_condition ** cond_hdl)
-  {
-    *cond_hdl= NULL;
-    if (*level == Sql_condition::WARN_LEVEL_ERROR)
-      *level= Sql_condition::WARN_LEVEL_WARN;
-    return(0);
-  }
-};
-
-
 /*
   to satisfy marked_for_write_or_computed() Field's assert we temporarily
   mark field for write before storing the generated value in it

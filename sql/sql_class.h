@@ -2015,6 +2015,25 @@ private:
 };
 
 
+class Turn_errors_to_warnings_handler : public Internal_error_handler
+{
+public:
+  Turn_errors_to_warnings_handler() {}
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (*level == Sql_condition::WARN_LEVEL_ERROR)
+      *level= Sql_condition::WARN_LEVEL_WARN;
+    return(0);
+  }
+};
+
+
 /**
   Tables that were locked with LOCK TABLES statement.
 
