@@ -2,11 +2,6 @@
 --echo # MDEV-10914 ROW data type for stored routine variables
 --echo #
 
-if (`SELECT $PS_PROTOCOL != 0`)
-{
-   --skip Test temporarily disabled for ps-protocol
-}
-
 --echo #
 --echo # ROW of ROWs is not supported yet
 --echo #
@@ -304,6 +299,7 @@ CREATE FUNCTION f1(a INT) RETURNS INT
 BEGIN
   RETURN a;
 END;
+$$
 CREATE PROCEDURE p1()
 BEGIN
   DECLARE a ROW (a INT,b INT);
@@ -1340,6 +1336,7 @@ DROP PROCEDURE p1;
 
 
 --echo # ROW variable with a wrong column count
+--enable_prepare_warnings
 CREATE TABLE t1 (a INT, b VARCHAR(32));
 INSERT INTO t1 VALUES (10,'b10');
 DELIMITER $$;
@@ -1351,6 +1348,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+--disable_prepare_warnings
 --error ER_WRONG_NUMBER_OF_COLUMNS_IN_SELECT
 CALL p1();
 DROP TABLE t1;
@@ -1360,6 +1358,7 @@ DROP PROCEDURE p1;
 --echo # Multiple ROW variables
 CREATE TABLE t1 (a INT, b VARCHAR(32));
 INSERT INTO t1 VALUES (10,'b10');
+--enable_prepare_warnings
 DELIMITER $$;
 CREATE PROCEDURE p1()
 BEGIN
@@ -1369,6 +1368,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+--disable_prepare_warnings
 --error ER_OPERAND_COLUMNS
 CALL p1();
 DROP TABLE t1;
@@ -1378,6 +1378,7 @@ DROP PROCEDURE p1;
 --echo # ROW variables working example
 CREATE TABLE t1 (a INT, b VARCHAR(32));
 INSERT INTO t1 VALUES (10,'b10');
+--enable_prepare_warnings
 DELIMITER $$;
 CREATE PROCEDURE p1()
 BEGIN
@@ -1387,6 +1388,7 @@ BEGIN
 END;
 $$
 DELIMITER ;$$
+--disable_prepare_warnings
 CALL p1();
 DROP TABLE t1;
 DROP PROCEDURE p1;
