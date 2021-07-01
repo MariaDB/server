@@ -1,0 +1,32 @@
+source include/not_embedded.inc;
+
+--echo #
+--echo # MDEV-15888 Implement FLUSH TABLES tbl_name [, tbl_name] ... WITH READ LOCK for views.
+--echo #
+
+--echo #
+--echo # privilege checks with views
+--echo #
+create database mysqltest1;
+create table mysqltest1.t1 (a int);
+create user u1@localhost;
+grant reload on *.* to u1@localhost;
+grant select on mysqltest1.* to u1@localhost;
+connect u1,localhost,u1;
+error ER_DBACCESS_DENIED_ERROR;
+flush tables mysqltest1.t1 for export;
+create view v as select * from mysqltest1.t1;
+create view v2 as select * from v;
+error ER_DBACCESS_DENIED_ERROR;
+flush tables v for export;
+error ER_DBACCESS_DENIED_ERROR;
+flush tables v2 for export;
+disconnect u1;
+connection default;
+drop database mysqltest1;
+drop view v, v2;
+drop user u1@localhost;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
