@@ -22,3 +22,36 @@ CREATE TABLE t1 (id INT PRIMARY KEY, a INT, va INT AS (a) VIRTUAL)
 ENGINE=InnoDB PARTITION BY HASH(id) PARTITIONS 2;
 ALTER TABLE t1 ADD b INT, ALGORITHM=INSTANT;
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25902 Unexpected ER_LOCK_WAIT_TIMEOUT and result,
+--echo # assertion failure err != DB_DUPLICATE_KEY
+
+CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
+
+--connect (con1,localhost,root,,test)
+
+START TRANSACTION;
+INSERT INTO t2 (pk) VALUES (1);
+SAVEPOINT sp;
+INSERT INTO t1 (pk) VALUES (1);
+ROLLBACK TO SAVEPOINT sp;
+
+--connection default
+SET lock_wait_timeout=0;
+SET innodb_lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
+ALTER TABLE t1 PARTITION BY HASH(pk);
+
+SHOW CREATE TABLE t1;
+--connection con1
+COMMIT;
+--connection default
+ALTER TABLE t2 PARTITION BY HASH(pk);
+# Cleanup
+--disconnect con1
+--connection default
+DROP TABLE t1, t2;
+
+--echo # End of 10.6 tests
