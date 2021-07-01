@@ -133,16 +133,15 @@ static int json_nice(json_engine_t *je, String *nice_js,
                      Item_func_json_format::formats mode, int tab_size=4)
 {
   int depth= 0;
-  const char *comma, *colon;
+  static const char *comma= ", ", *colon= "\": ";
   uint comma_len, colon_len;
   int first_value= 1;
 
-  DBUG_ASSERT(je->s.cs == nice_js->charset());
+  nice_js->length(0);
+  nice_js->set_charset(je->s.cs);
   DBUG_ASSERT(mode != Item_func_json_format::DETAILED ||
               (tab_size >= 0 && tab_size <= TAB_SIZE_LIMIT));
 
-  comma= ", ";
-  colon= "\": ";
   if (mode == Item_func_json_format::LOOSE)
   {
     comma_len= 2;
@@ -873,8 +872,6 @@ String *Item_func_json_extract::read_json(String *str,
   js= str;
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  tmp_js.length(0);
-  tmp_js.set_charset(js->charset());
   if (json_nice(&je, &tmp_js, Item_func_json_format::LOOSE))
     goto error;
 
@@ -1761,8 +1758,6 @@ String *Item_func_json_array_append::val_str(String *str)
 
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  str->length(0);
-  str->set_charset(js->charset());
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
@@ -1902,8 +1897,6 @@ String *Item_func_json_array_insert::val_str(String *str)
 
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  str->length(0);
-  str->set_charset(js->charset());
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
@@ -2070,8 +2063,7 @@ merged_j1:
             return 2;
           continue;
         }
-        if (json_skip_key(je2) ||
-            json_skip_level(je1))
+        if (json_skip_key(je2) || json_skip_level(je1))
           return 1;
         goto continue_j2;
       }
@@ -2211,8 +2203,6 @@ String *Item_func_json_merge::val_str(String *str)
 
   json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
                   (const uchar *) js1->ptr() + js1->length());
-  str->length(0);
-  str->set_charset(js1->charset());
   if (json_nice(&je1, str, Item_func_json_format::LOOSE))
     goto error_return;
 
@@ -2538,8 +2528,6 @@ cont_point:
 
   json_scan_start(&je1, js1->charset(),(const uchar *) js1->ptr(),
                   (const uchar *) js1->ptr() + js1->length());
-  str->length(0);
-  str->set_charset(js1->charset());
   if (json_nice(&je1, str, Item_func_json_format::LOOSE))
     goto error_return;
 
@@ -3008,7 +2996,6 @@ continue_point:
 
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  str->length(0);
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
@@ -3193,8 +3180,6 @@ v_found:
 
   json_scan_start(&je, js->charset(),(const uchar *) js->ptr(),
                   (const uchar *) js->ptr() + js->length());
-  str->length(0);
-  str->set_charset(js->charset());
   if (json_nice(&je, str, Item_func_json_format::LOOSE))
     goto js_error;
 
@@ -3616,8 +3601,6 @@ String *Item_func_json_format::val_str(String *str)
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
                   (const uchar *) js->ptr()+js->length());
 
-  str->length(0);
-  str->set_charset(js->charset());
   if (json_nice(&je, str, fmt, tab_size))
   {
     null_value= 1;
