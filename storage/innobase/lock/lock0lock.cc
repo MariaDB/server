@@ -1701,7 +1701,7 @@ dberr_t lock_wait(que_thr_t *thr)
   /* InnoDB system transactions may use the global value of
   innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
   const ulong innodb_lock_wait_timeout= trx_lock_wait_timeout_get(trx);
-  const bool no_timeout= innodb_lock_wait_timeout > 100000000;
+  const bool no_timeout= innodb_lock_wait_timeout >= 100000000;
   const my_hrtime_t suspend_time= my_hrtime_coarse();
   ut_ad(!trx->dict_operation_lock_mode ||
         trx->dict_operation_lock_mode == RW_S_LATCH);
