@@ -13707,6 +13707,7 @@ int ha_innobase::truncate()
 	} else {
 		const auto update_time = ib_table->update_time;
 		const auto stored_lock = m_prebuilt->stored_select_lock_type;
+		const auto def_trx_id = ib_table->def_trx_id;
 		ib_table->release();
 		m_prebuilt->table = nullptr;
 
@@ -13721,6 +13722,7 @@ int ha_innobase::truncate()
 reload:
 			m_prebuilt->table = dict_table_open_on_name(
 				name, false, false, DICT_ERR_IGNORE_NONE);
+			m_prebuilt->table->def_trx_id = def_trx_id;
 		} else {
 			row_prebuilt_t* prebuilt = m_prebuilt;
 			uchar* upd_buf = m_upd_buf;
