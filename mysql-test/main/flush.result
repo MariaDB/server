@@ -626,3 +626,37 @@ show status like "Threads_cached";
 Variable_name	Value
 Threads_cached	0
 set @@global.thread_cache_size=@save_thread_cache_size;
+#
+# MDEV-25906: SIGSEGV in flush_tables_with_read_lock on FTWRL or FTFE | SIGSEGV in ha_maria::extra
+#
+CREATE VIEW v0 AS SELECT 1;
+CREATE VIEW v1 AS SELECT 1 FROM (SELECT 1) AS d;
+CREATE VIEW v2 AS SELECT * FROM v1;
+FLUSH TABLE v0 WITH READ LOCK;
+DROP VIEW v0;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v1 WITH READ LOCK;
+DROP VIEW v1;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v2 WITH READ LOCK;
+DROP VIEW v2;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v0 FOR EXPORT;
+DROP VIEW v0;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v1 FOR EXPORT;
+DROP VIEW v1;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v2 FOR EXPORT;
+DROP VIEW v2;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+DROP VIEW v2, v1, v0;
+#
+# End of 10.6 tests
+#

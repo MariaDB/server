@@ -745,3 +745,41 @@ set @@global.thread_cache_size=0;
 flush threads;
 show status like "Threads_cached";
 set @@global.thread_cache_size=@save_thread_cache_size;
+
+--echo #
+--echo # MDEV-25906: SIGSEGV in flush_tables_with_read_lock on FTWRL or FTFE | SIGSEGV in ha_maria::extra
+--echo #
+CREATE VIEW v0 AS SELECT 1;
+CREATE VIEW v1 AS SELECT 1 FROM (SELECT 1) AS d;
+CREATE VIEW v2 AS SELECT * FROM v1;
+
+FLUSH TABLE v0 WITH READ LOCK;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v0;
+UNLOCK TABLES;
+FLUSH TABLE v1 WITH READ LOCK;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v1;
+UNLOCK TABLES;
+FLUSH TABLE v2 WITH READ LOCK;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v2;
+UNLOCK TABLES;
+
+FLUSH TABLE v0 FOR EXPORT;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v0;
+UNLOCK TABLES;
+FLUSH TABLE v1 FOR EXPORT;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v1;
+UNLOCK TABLES;
+FLUSH TABLE v2 FOR EXPORT;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v2;
+UNLOCK TABLES;
+DROP VIEW v2, v1, v0;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

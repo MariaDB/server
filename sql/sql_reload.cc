@@ -598,7 +598,7 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
         table_list->hide_view_error(thd);
         goto error_reset_bits;
       }
-      if (table_list->is_view())
+      if (table_list->is_view_or_derived())
         continue;
       if (thd->lex->type & REFRESH_FOR_EXPORT &&
           !(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
