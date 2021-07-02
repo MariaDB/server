@@ -1643,7 +1643,8 @@ public:
     }
     writer->end_array();
     histogram->set_size(bucket_bounds.size());
-    histogram->set_values((uchar *) writer->output.get_string()->ptr());
+    Binary_string *json_string = (Binary_string *) writer->output.get_string();
+    histogram->set_values((uchar *) json_string->c_ptr());
   }
 };
 
