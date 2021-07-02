@@ -8847,9 +8847,9 @@ static bool show_default_role(THD *thd, ACL_USER *acl_entry,
   {
     String def_str(buff, buffsize, system_charset_info);
     def_str.length(0);
-    def_str.append(STRING_WITH_LEN("SET DEFAULT ROLE "));
+    def_str.append(STRING_WITH_LEN("SET DEFAULT ROLE '"));
     def_str.append(&def_rolename);
-    def_str.append(" FOR '");
+    def_str.append("' FOR '");
     def_str.append(&acl_entry->user);
     DBUG_ASSERT(!(acl_entry->flags & IS_ROLE));
     def_str.append(STRING_WITH_LEN("'@'"));
@@ -8878,12 +8878,12 @@ static bool show_role_grants(THD *thd, const char *hostname,
   for (counter= 0; counter < acl_entry->role_grants.elements; counter++)
   {
     grant.length(0);
-    grant.append(STRING_WITH_LEN("GRANT "));
+    grant.append(STRING_WITH_LEN("GRANT '"));
     ACL_ROLE *acl_role= *(dynamic_element(&acl_entry->role_grants, counter,
                                           ACL_ROLE**));
     grant.append(acl_role->user.str, acl_role->user.length,
                   system_charset_info);
-    grant.append(STRING_WITH_LEN(" TO '"));
+    grant.append(STRING_WITH_LEN("' TO '"));
     grant.append(acl_entry->user.str, acl_entry->user.length,
                   system_charset_info);
     if (!(acl_entry->flags & IS_ROLE))

@@ -4,7 +4,7 @@ grant select on *.* to test_role;
 grant test_role to test_user@localhost;
 show grants;
 Grants for test_user@localhost
-GRANT test_role TO 'test_user'@'localhost'
+GRANT 'test_role' TO 'test_user'@'localhost'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 set default role test_role;
 select user, host, default_role from mysql.user;
@@ -14,10 +14,10 @@ user	host	default_role
 test_user	localhost	test_role
 show grants;
 Grants for test_user@localhost
-GRANT test_role TO 'test_user'@'localhost'
+GRANT 'test_role' TO 'test_user'@'localhost'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
 GRANT SELECT ON *.* TO 'test_role'
-SET DEFAULT ROLE test_role FOR 'test_user'@'localhost'
+SET DEFAULT ROLE 'test_role' FOR 'test_user'@'localhost'
 select user, host, default_role from mysql.user where user='test_user';
 user	host	default_role
 test_user	localhost	test_role

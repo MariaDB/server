@@ -19,8 +19,8 @@ select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for table 'roles_mapping'
 show grants;
 Grants for test_user@localhost
+GRANT 'test_role1' TO 'test_user'@'localhost'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
-GRANT test_role1 TO 'test_user'@'localhost'
 select current_user(), current_role();
 current_user()	current_role()
 test_user@localhost	NULL
@@ -30,12 +30,12 @@ current_user()	current_role()
 test_user@localhost	test_role1
 show grants;
 Grants for test_user@localhost
+GRANT 'test_role1' TO 'test_user'@'localhost'
+GRANT 'test_role2' TO 'test_role1'
 GRANT SELECT (Role) ON `mysql`.`roles_mapping` TO 'test_role2'
 GRANT USAGE ON *.* TO 'test_role1'
 GRANT USAGE ON *.* TO 'test_role2'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
-GRANT test_role1 TO 'test_user'@'localhost'
-GRANT test_role2 TO 'test_role1'
 select * from mysql.roles_mapping;
 ERROR 42000: SELECT command denied to user 'test_user'@'localhost' for column 'Host' in table 'roles_mapping'
 select Role from mysql.roles_mapping;
@@ -46,12 +46,12 @@ test_role2
 test_role2
 show grants;
 Grants for test_user@localhost
+GRANT 'test_role1' TO 'test_user'@'localhost'
+GRANT 'test_role2' TO 'test_role1'
 GRANT SELECT (Role) ON `mysql`.`roles_mapping` TO 'test_role2'
 GRANT USAGE ON *.* TO 'test_role1'
 GRANT USAGE ON *.* TO 'test_role2'
 GRANT USAGE ON *.* TO 'test_user'@'localhost'
-GRANT test_role1 TO 'test_user'@'localhost'
-GRANT test_role2 TO 'test_role1'
 use mysql;
 set role none;
 select current_user(), current_role();

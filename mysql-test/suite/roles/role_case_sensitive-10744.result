@@ -21,7 +21,7 @@ grant select on secret_db.* to test_role;
 grant test_role to test_user;
 show grants for test_user;
 Grants for test_user@%
-GRANT test_role TO 'test_user'@'%'
+GRANT 'test_role' TO 'test_user'@'%'
 GRANT USAGE ON *.* TO 'test_user'@'%'
 #
 # Now test the UPPER case role.
@@ -30,8 +30,8 @@ grant test_ROLE to test_user;
 grant insert on secret_db.t1 to test_ROLE;
 show grants for test_user;
 Grants for test_user@%
-GRANT test_role TO 'test_user'@'%'
-GRANT test_ROLE TO 'test_user'@'%'
+GRANT 'test_role' TO 'test_user'@'%'
+GRANT 'test_ROLE' TO 'test_user'@'%'
 GRANT USAGE ON *.* TO 'test_user'@'%'
 connect  test_user,localhost,test_user;
 #

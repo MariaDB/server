@@ -56,7 +56,7 @@ drop role role2;
 connection foo;
 show grants;
 Grants for foo@localhost
-GRANT role1 TO 'foo'@'localhost'
+GRANT 'role1' TO 'foo'@'localhost'
 GRANT USAGE ON *.* TO 'foo'@'localhost'
 GRANT USAGE ON *.* TO 'role1'
 select * from information_schema.enabled_roles;

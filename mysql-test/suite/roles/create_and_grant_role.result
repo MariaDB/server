@@ -13,10 +13,10 @@ Host	User	Role	Admin_option
 localhost	root	r1	Y
 show grants;
 Grants for root@localhost
+GRANT 'r1' TO 'root'@'localhost' WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'r1'
-GRANT r1 TO 'root'@'localhost' WITH ADMIN OPTION
 drop role r1;
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option

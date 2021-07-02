@@ -21,9 +21,9 @@ show tables in mysqltest2;
 Tables_in_mysqltest2
 show grants;
 Grants for foo@localhost
-GRANT r2 TO 'foo'@'localhost'
+GRANT 'r2' TO 'foo'@'localhost'
 GRANT USAGE ON *.* TO 'foo'@'localhost'
-GRANT r1 TO 'r2'
+GRANT 'r1' TO 'r2'
 GRANT USAGE ON *.* TO 'r2'
 GRANT ALL PRIVILEGES ON `mysqltest2`.* TO 'r2'
 GRANT USAGE ON *.* TO 'r1'

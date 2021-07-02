@@ -3,13 +3,13 @@ create user u1;
 grant r1 to u1;
 show grants for u1;
 Grants for u1@%
+GRANT 'r1' TO 'u1'@'%'
 GRANT USAGE ON *.* TO 'u1'@'%'
-GRANT r1 TO 'u1'@'%'
 create user u2;
 show grants for u1;
 Grants for u1@%
+GRANT 'r1' TO 'u1'@'%'
 GRANT USAGE ON *.* TO 'u1'@'%'
-GRANT r1 TO 'u1'@'%'
 show grants for u2;
 Grants for u2@%
 GRANT USAGE ON *.* TO 'u2'@'%'
@@ -30,8 +30,8 @@ grant r1 to u1;
 grant r1 to u1;
 show grants for u1;
 Grants for u1@%
+GRANT 'r1' TO 'u1'@'%'
 GRANT USAGE ON *.* TO 'u1'@'%'
-GRANT r1 TO 'u1'@'%'
 select * from mysql.roles_mapping;
 Host	User	Role	Admin_option
 %	u1	r1	N

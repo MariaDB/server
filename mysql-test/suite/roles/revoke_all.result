@@ -10,18 +10,18 @@ grant r1 to u1;
 grant r4 to r1;
 show grants for u1;
 Grants for u1@%
+GRANT 'r1' TO 'u1'@'%'
 GRANT USAGE ON *.* TO 'u1'@'%'
-GRANT r1 TO 'u1'@'%'
 show grants for r1;
 Grants for r1
+GRANT 'r2' TO 'r1'
+GRANT 'r3' TO 'r2'
+GRANT 'r4' TO 'r1'
+GRANT 'r4' TO 'r3'
 GRANT USAGE ON *.* TO 'r1'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
 GRANT USAGE ON *.* TO 'r4'
-GRANT r2 TO 'r1'
-GRANT r3 TO 'r2'
-GRANT r4 TO 'r1'
-GRANT r4 TO 'r3'
 grant SELECT on *.* to u1;
 grant INSERT on mysql.* to r1;
 grant DELETE on mysql.roles_mapping to r2;
@@ -38,6 +38,10 @@ grant execute on procedure mysql.test_proc to r3;
 grant execute on mysql.* to r4;
 show grants for r1;
 Grants for r1
+GRANT 'r2' TO 'r1'
+GRANT 'r3' TO 'r2'
+GRANT 'r4' TO 'r1'
+GRANT 'r4' TO 'r3'
 GRANT DELETE ON `mysql`.`roles_mapping` TO 'r2'
 GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO 'r2'
 GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'r3'
@@ -48,12 +52,10 @@ GRANT USAGE ON *.* TO 'r1'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
 GRANT USAGE ON *.* TO 'r4'
-GRANT r2 TO 'r1'
-GRANT r3 TO 'r2'
-GRANT r4 TO 'r1'
-GRANT r4 TO 'r3'
 show grants for r2;
 Grants for r2
+GRANT 'r3' TO 'r2'
+GRANT 'r4' TO 'r3'
 GRANT DELETE ON `mysql`.`roles_mapping` TO 'r2'
 GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO 'r2'
 GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'r3'
@@ -62,16 +64,14 @@ GRANT UPDATE ON `mysql`.`user` TO 'r3'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
 GRANT USAGE ON *.* TO 'r4'
-GRANT r3 TO 'r2'
-GRANT r4 TO 'r3'
 show grants for r3;
 Grants for r3
+GRANT 'r4' TO 'r3'
 GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'r3'
 GRANT EXECUTE ON `mysql`.* TO 'r4'
 GRANT UPDATE ON `mysql`.`user` TO 'r3'
 GRANT USAGE ON *.* TO 'r3'
 GRANT USAGE ON *.* TO 'r4'
-GRANT r4 TO 'r3'
 show grants for r4;
 Grants for r4
 GRANT EXECUTE ON `mysql`.* TO 'r4'
@@ -79,6 +79,10 @@ GRANT USAGE ON *.* TO 'r4'
 revoke all privileges, grant option from r4;
 show grants for r1;
 Grants for r1
+GRANT 'r2' TO 'r1'
+GRANT 'r3' TO 'r2'
+GRANT 'r4' TO 'r1'
+GRANT 'r4' TO 'r3'
 GRANT DELETE ON `mysql`.`roles_mapping` TO 'r2'
 GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO 'r2'
 GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'r3'
@@ -88,12 +92,10 @@ GRANT USAGE ON *.* TO 'r1'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
 GRANT USAGE ON *.* TO 'r4'
-GRANT r2 TO 'r1'
-GRANT r3 TO 'r2'
-GRANT r4 TO 'r1'
-GRANT r4 TO 'r3'
 show grants for r2;
 Grants for r2
+GRANT 'r3' TO 'r2'
+GRANT 'r4' TO 'r3'
 GRANT DELETE ON `mysql`.`roles_mapping` TO 'r2'
 GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO 'r2'
 GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'r3'
@@ -101,21 +103,22 @@ GRANT UPDATE ON `mysql`.`user` TO 'r3'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
 GRANT USAGE ON *.* TO 'r4'
-GRANT r3 TO 'r2'
-GRANT r4 TO 'r3'
 show grants for r3;
 Grants for r3
+GRANT 'r4' TO 'r3'
 GRANT EXECUTE ON PROCEDURE `mysql`.`test_proc` TO 'r3'
 GRANT UPDATE ON `mysql`.`user` TO 'r3'
 GRANT USAGE ON *.* TO 'r3'
 GRANT USAGE ON *.* TO 'r4'
-GRANT r4 TO 'r3'
 show grants for r4;
 Grants for r4
 GRANT USAGE ON *.* TO 'r4'
 revoke all privileges, grant option from r3;
 show grants for r1;
 Grants for r1
+GRANT 'r2' TO 'r1'
+GRANT 'r3' TO 'r2'
+GRANT 'r4' TO 'r1'
 GRANT DELETE ON `mysql`.`roles_mapping` TO 'r2'
 GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO 'r2'
 GRANT INSERT ON `mysql`.* TO 'r1'
@@ -123,16 +126,13 @@ GRANT USAGE ON *.* TO 'r1'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
 GRANT USAGE ON *.* TO 'r4'
-GRANT r2 TO 'r1'
-GRANT r3 TO 'r2'
-GRANT r4 TO 'r1'
 show grants for r2;
 Grants for r2
+GRANT 'r3' TO 'r2'
 GRANT DELETE ON `mysql`.`roles_mapping` TO 'r2'
 GRANT EXECUTE ON FUNCTION `mysql`.`test_func` TO 'r2'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r3'
-GRANT r3 TO 'r2'
 show grants for r3;
 Grants for r3
 GRANT USAGE ON *.* TO 'r3'
@@ -142,12 +142,12 @@ GRANT USAGE ON *.* TO 'r4'
 revoke all privileges, grant option from r2;
 show grants for r1;
 Grants for r1
+GRANT 'r2' TO 'r1'
+GRANT 'r4' TO 'r1'
 GRANT INSERT ON `mysql`.* TO 'r1'
 GRANT USAGE ON *.* TO 'r1'
 GRANT USAGE ON *.* TO 'r2'
 GRANT USAGE ON *.* TO 'r4'
-GRANT r2 TO 'r1'
-GRANT r4 TO 'r1'
 show grants for r2;
 Grants for r2
 GRANT USAGE ON *.* TO 'r2'

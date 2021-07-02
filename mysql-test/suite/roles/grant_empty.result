@@ -9,7 +9,7 @@ current_user
 @localhost
 show grants;
 Grants for @localhost
-GRANT r1 TO ''@'localhost'
+GRANT 'r1' TO ''@'localhost'
 GRANT USAGE ON *.* TO ''@'localhost'
 connection default;
 drop role r1;

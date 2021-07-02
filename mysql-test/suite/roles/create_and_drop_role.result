@@ -66,7 +66,7 @@ localhost	r1	r2	N
 localhost	root	r2	Y
 SHOW GRANTS FOR r1@localhost;
 Grants for r1@localhost
-GRANT r2 TO 'r1'@'localhost'
+GRANT 'r2' TO 'r1'@'localhost'
 GRANT USAGE ON *.* TO 'r1'@'localhost'
 DROP USER u1;
 DROP ROLE r2;

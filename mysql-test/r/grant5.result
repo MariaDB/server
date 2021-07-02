@@ -8,7 +8,7 @@ connect  conn_1, localhost, test,,;
 set role foo;
 show grants for test;
 Grants for test@%
-GRANT foo TO 'test'@'%'
+GRANT 'foo' TO 'test'@'%'
 GRANT USAGE ON *.* TO 'test'@'%'
 show grants for foo;
 Grants for foo
@@ -45,29 +45,60 @@ GRANT test_role TO test_user;
 SET DEFAULT ROLE test_role FOR test_user;
 SHOW GRANTS FOR test_user;
 Grants for test_user@%
-GRANT test_role TO 'test_user'@'%'
+GRANT 'test_role' TO 'test_user'@'%'
 GRANT USAGE ON *.* TO 'test_user'@'%'
-SET DEFAULT ROLE test_role FOR 'test_user'@'%'
+SET DEFAULT ROLE 'test_role' FOR 'test_user'@'%'
 SET DEFAULT ROLE NONE for test_user;
 SHOW GRANTS FOR test_user;
 Grants for test_user@%
-GRANT test_role TO 'test_user'@'%'
+GRANT 'test_role' TO 'test_user'@'%'
 GRANT USAGE ON *.* TO 'test_user'@'%'
 SET ROLE test_role;
 SET DEFAULT ROLE test_role;
 SHOW GRANTS;
 Grants for root@localhost
-GRANT test_role TO 'root'@'localhost' WITH ADMIN OPTION
+GRANT 'test_role' TO 'root'@'localhost' WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'test_role'
-SET DEFAULT ROLE test_role FOR 'root'@'localhost'
+SET DEFAULT ROLE 'test_role' FOR 'root'@'localhost'
 SET DEFAULT ROLE NONE;
 SHOW GRANTS;
 Grants for root@localhost
-GRANT test_role TO 'root'@'localhost' WITH ADMIN OPTION
+GRANT 'test_role' TO 'root'@'localhost' WITH ADMIN OPTION
 GRANT ALL PRIVILEGES ON *.* TO 'root'@'localhost' WITH GRANT OPTION
 GRANT PROXY ON ''@'%' TO 'root'@'localhost' WITH GRANT OPTION
 GRANT USAGE ON *.* TO 'test_role'
 DROP USER test_user;
 DROP ROLE test_role;
+CREATE ROLE 'test-role';
+CREATE USER 'test-user';
+GRANT 'test-role' TO 'test-user';
+SET DEFAULT ROLE 'test-role' FOR 'test-user';
+SHOW GRANTS FOR 'test-user';
+Grants for test-user@%
+GRANT 'test-role' TO 'test-user'@'%'
+GRANT USAGE ON *.* TO 'test-user'@'%'
+SET DEFAULT ROLE 'test-role' FOR 'test-user'@'%'
+DROP ROLE 'test-role';
+SHOW GRANTS FOR 'test-user';
+Grants for test-user@%
+GRANT USAGE ON *.* TO 'test-user'@'%'
+SET DEFAULT ROLE 'test-role' FOR 'test-user'@'%'
+SET DEFAULT ROLE NONE FOR 'test-user';
+SHOW GRANTS FOR 'test-user';
+Grants for test-user@%
+GRANT USAGE ON *.* TO 'test-user'@'%'
+CREATE ROLE `r``o'l"e`;
+select user from mysql.user where is_role='Y';
+user
+r`o'l"e
+GRANT `r``o'l"e` TO 'test-user';
+SET DEFAULT ROLE `r``o'l"e` FOR 'test-user';
+SHOW GRANTS FOR 'test-user';
+Grants for test-user@%
+GRANT 'r`o'l"e' TO 'test-user'@'%'
+GRANT USAGE ON *.* TO 'test-user'@'%'
+SET DEFAULT ROLE 'r`o'l"e' FOR 'test-user'@'%'
+DROP ROLE `r``o'l"e`;
+DROP USER 'test-user';

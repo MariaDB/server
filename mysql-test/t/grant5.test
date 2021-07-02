@@ -71,5 +71,28 @@ DROP USER test_user;
 DROP ROLE test_role;
 
 #
+# MDEV-26080 SHOW GRANTS does not quote role names properly for DEFAULT ROLE
+#
+
+CREATE ROLE 'test-role';
+CREATE USER 'test-user';
+GRANT 'test-role' TO 'test-user';
+SET DEFAULT ROLE 'test-role' FOR 'test-user';
+SHOW GRANTS FOR 'test-user';
+DROP ROLE 'test-role';
+SHOW GRANTS FOR 'test-user';
+SET DEFAULT ROLE NONE FOR 'test-user';
+SHOW GRANTS FOR 'test-user';
+CREATE ROLE `r``o'l"e`;
+select user from mysql.user where is_role='Y';
+GRANT `r``o'l"e` TO 'test-user';
+SET DEFAULT ROLE `r``o'l"e` FOR 'test-user';
+# it is expected that quotes won't be shown correctly
+SHOW GRANTS FOR 'test-user';
+DROP ROLE `r``o'l"e`;
+DROP USER 'test-user';
+
+
+#
 # End of 10.1 tests
 #
