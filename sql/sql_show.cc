@@ -7572,7 +7572,7 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
 int add_symbol_to_table(const char* name, TABLE* table){
   DBUG_ENTER("add_symbol_to_table");
 
-  uint length= strlen(name);
+  size_t length= strlen(name);
 
   // If you've added a new SQL keyword longer than KEYWORD_SIZE,
   // please increase the defined max length
