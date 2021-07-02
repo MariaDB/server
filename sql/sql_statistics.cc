@@ -1629,7 +1629,7 @@ public:
       column->store_field_value((uchar *) elem, col_length);
       StringBuffer<MAX_FIELD_WIDTH> val;
       column->val_str(&val);
-      bucket_bounds.emplace_back(val.ptr());
+      bucket_bounds.emplace_back(val.c_ptr());
       curr_bucket++;
     }
     return 0;
