@@ -1855,6 +1855,7 @@ static void mysqld_exit(int exit_code)
   wait_for_signal_thread_to_end();
 #ifdef WITH_WSREP
   wsrep_deinit_server();
+  wsrep_sst_auth_free();
 #endif /* WITH_WSREP */
   mysql_audit_finalize();
   clean_up_mutexes();

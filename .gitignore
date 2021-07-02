@@ -542,6 +542,9 @@ compile_commands.json
 # Clion && other JetBrains ides
 .idea
 
+.cache/clangd
+
+
 client/mariadb
 client/mariadb-admin
 client/mariadb-binlog

@@ -1,31 +1,10 @@
 --source include/have_innodb.inc
 --source include/have_partition.inc
 
-CREATE TABLE t1(a INT, b VARCHAR(10), INDEX(a))ENGINE=InnoDB
-PARTITION BY RANGE(a)
-(PARTITION pa VALUES LESS THAN (3),
-PARTITION pb VALUES LESS THAN (5));
-
---error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
-CREATE TABLE t2(a INT, FOREIGN KEY(a) REFERENCES t1(a))ENGINE=INNODB
-PARTITION BY RANGE(a)
-(PARTITION pa VALUES LESS THAN (2),
-PARTITION pb VALUES LESS THAN (4));
-
-DROP TABLE t1;
-
 --echo #
---echo # MDEV-24754 Server crash in
---echo # ha_partition_inplace_ctx::~ha_partition_inplace_ctx
+--echo # MDEV-26077 Assertion failure err != DB_DUPLICATE_KEY
+--echo # or unexpected ER_TABLE_EXISTS_ERROR
 --echo #
-CREATE TABLE t1 (id INT PRIMARY KEY, a INT, va INT AS (a) VIRTUAL)
-ENGINE=InnoDB PARTITION BY HASH(id) PARTITIONS 2;
-ALTER TABLE t1 ADD b INT, ALGORITHM=INSTANT;
-DROP TABLE t1;
-
---echo #
---echo # MDEV-25902 Unexpected ER_LOCK_WAIT_TIMEOUT and result,
---echo # assertion failure err != DB_DUPLICATE_KEY
 
 CREATE TABLE t1 (pk INT PRIMARY KEY) ENGINE=InnoDB;
 CREATE TABLE t2 (pk INT PRIMARY KEY) ENGINE=InnoDB;
@@ -54,4 +33,30 @@ ALTER TABLE t2 PARTITION BY HASH(pk);
 --connection default
 DROP TABLE t1, t2;
 
---echo # End of 10.6 tests
+--echo # End of 10.2 tests
+
+CREATE TABLE t1(a INT, b VARCHAR(10), INDEX(a))ENGINE=InnoDB
+PARTITION BY RANGE(a)
+(PARTITION pa VALUES LESS THAN (3),
+PARTITION pb VALUES LESS THAN (5));
+
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+CREATE TABLE t2(a INT, FOREIGN KEY(a) REFERENCES t1(a))ENGINE=INNODB
+PARTITION BY RANGE(a)
+(PARTITION pa VALUES LESS THAN (2),
+PARTITION pb VALUES LESS THAN (4));
+
+DROP TABLE t1;
+
+--echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-24754 Server crash in
+--echo # ha_partition_inplace_ctx::~ha_partition_inplace_ctx
+--echo #
+CREATE TABLE t1 (id INT PRIMARY KEY, a INT, va INT AS (a) VIRTUAL)
+ENGINE=InnoDB PARTITION BY HASH(id) PARTITIONS 2;
+ALTER TABLE t1 ADD b INT, ALGORITHM=INSTANT;
+DROP TABLE t1;
+
+--echo # End of 10.5 tests

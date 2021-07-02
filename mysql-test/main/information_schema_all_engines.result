@@ -39,6 +39,7 @@ INNODB_SYS_TABLESTATS
 INNODB_SYS_VIRTUAL
 INNODB_TABLESPACES_ENCRYPTION
 INNODB_TRX
+KEYWORDS
 KEY_CACHES
 KEY_COLUMN_USAGE
 OPTIMIZER_TRACE
@@ -54,6 +55,7 @@ SCHEMA_PRIVILEGES
 SESSION_STATUS
 SESSION_VARIABLES
 SPATIAL_REF_SYS
+SQL_FUNCTIONS
 STATISTICS
 SYSTEM_VARIABLES
 TABLES
@@ -118,6 +120,7 @@ INNODB_SYS_TABLESTATS	TABLE_ID
 INNODB_SYS_VIRTUAL	TABLE_ID
 INNODB_TABLESPACES_ENCRYPTION	SPACE
 INNODB_TRX	trx_id
+KEYWORDS	WORD
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
 OPTIMIZER_TRACE	QUERY
@@ -133,6 +136,7 @@ SCHEMA_PRIVILEGES	TABLE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
 SPATIAL_REF_SYS	SRID
+SQL_FUNCTIONS	FUNCTION
 STATISTICS	TABLE_SCHEMA
 SYSTEM_VARIABLES	VARIABLE_NAME
 TABLES	TABLE_SCHEMA
@@ -197,6 +201,7 @@ INNODB_SYS_TABLESTATS	TABLE_ID
 INNODB_SYS_VIRTUAL	TABLE_ID
 INNODB_TABLESPACES_ENCRYPTION	SPACE
 INNODB_TRX	trx_id
+KEYWORDS	WORD
 KEY_CACHES	KEY_CACHE_NAME
 KEY_COLUMN_USAGE	CONSTRAINT_SCHEMA
 OPTIMIZER_TRACE	QUERY
@@ -212,6 +217,7 @@ SCHEMA_PRIVILEGES	TABLE_SCHEMA
 SESSION_STATUS	VARIABLE_NAME
 SESSION_VARIABLES	VARIABLE_NAME
 SPATIAL_REF_SYS	SRID
+SQL_FUNCTIONS	FUNCTION
 STATISTICS	TABLE_SCHEMA
 SYSTEM_VARIABLES	VARIABLE_NAME
 TABLES	TABLE_SCHEMA
@@ -350,6 +356,7 @@ Database: information_schema
 | INNODB_SYS_VIRTUAL                    |
 | INNODB_TABLESPACES_ENCRYPTION         |
 | INNODB_TRX                            |
+| KEYWORDS                              |
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
 | OPTIMIZER_TRACE                       |
@@ -365,6 +372,7 @@ Database: information_schema
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
 | SPATIAL_REF_SYS                       |
+| SQL_FUNCTIONS                         |
 | STATISTICS                            |
 | SYSTEM_VARIABLES                      |
 | TABLES                                |
@@ -419,6 +427,7 @@ Database: INFORMATION_SCHEMA
 | INNODB_SYS_VIRTUAL                    |
 | INNODB_TABLESPACES_ENCRYPTION         |
 | INNODB_TRX                            |
+| KEYWORDS                              |
 | KEY_CACHES                            |
 | KEY_COLUMN_USAGE                      |
 | OPTIMIZER_TRACE                       |
@@ -434,6 +443,7 @@ Database: INFORMATION_SCHEMA
 | SESSION_STATUS                        |
 | SESSION_VARIABLES                     |
 | SPATIAL_REF_SYS                       |
+| SQL_FUNCTIONS                         |
 | STATISTICS                            |
 | SYSTEM_VARIABLES                      |
 | TABLES                                |
@@ -453,5 +463,5 @@ Wildcard: inf_rmation_schema
 | information_schema |
 SELECT table_schema, count(*) FROM information_schema.TABLES WHERE table_schema IN ('mysql', 'INFORMATION_SCHEMA', 'test', 'mysqltest') GROUP BY TABLE_SCHEMA;
 table_schema	count(*)
-information_schema	64
+information_schema	66
 mysql	31

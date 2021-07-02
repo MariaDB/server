@@ -3292,6 +3292,8 @@ os_file_set_size(
 
 fallback:
 #else
+	struct stat statbuf;
+
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
@@ -3305,10 +3307,17 @@ fallback:
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		os_offset_t current_size = os_file_get_size(file);
-		err = current_size >= size
-			? 0 : posix_fallocate(file, current_size,
+		if (fstat(file, &statbuf)) {
+			err = errno;
+		} else {
+			os_offset_t current_size = statbuf.st_size;
+			if (current_size >= size) {
+				return true;
+			}
+			current_size &= ~os_offset_t(statbuf.st_blksize - 1);
+			err = posix_fallocate(file, current_size,
 					      size - current_size);
+		}
 	} while (err == EINTR
 		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
@@ -3331,6 +3340,27 @@ fallback:
 # endif /* HAVE_POSIX_ALLOCATE */
 #endif /* _WIN32*/
 
+#ifdef _WIN32
+	os_offset_t	current_size = os_file_get_size(file);
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(file, FileStorageInfo, &info,
+					 sizeof info)) {
+		if (info.LogicalBytesPerSector) {
+			current_size &= ~os_offset_t(info.LogicalBytesPerSector
+						     - 1);
+		}
+	}
+#else
+	if (fstat(file, &statbuf)) {
+		return false;
+	}
+	os_offset_t current_size = statbuf.st_size
+		& ~os_offset_t(statbuf.st_blksize - 1);
+#endif
+	if (current_size >= size) {
+		return true;
+	}
+
 	/* Write up to 1 megabyte at a time. */
 	ulint	buf_size = ut_min(ulint(64),
 				  ulint(size >> srv_page_size_shift))
@@ -3341,8 +3371,6 @@ fallback:
 							srv_page_size));
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
-
-	os_offset_t	current_size = os_file_get_size(file);
 
 	while (current_size < size
 	       && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {

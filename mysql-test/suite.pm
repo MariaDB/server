@@ -49,6 +49,7 @@ sub skip_combinations {
              unless $ENV{HA_EXAMPLE_SO};
 
   $skip{'include/not_windows.inc'} = 'Requires not Windows' if IS_WINDOWS;
+  $skip{'include/not_aix.inc'} = 'Requires not AIX' if IS_AIX;
 
   $skip{'main/plugin_loaderr.test'} = 'needs compiled-in innodb'
             unless $::mysqld_variables{'innodb'} eq "ON";
