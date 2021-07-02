@@ -1,6 +1,8 @@
 #ifndef JSON_LIB_INCLUDED
 #define JSON_LIB_INCLUDED
 
+#include <my_sys.h>
+
 #ifdef __cplusplus
 extern "C" {
 #endif
@@ -430,6 +432,9 @@ int json_locate_key(const char *js, const char *js_end,
                     const char *kname,
                     const char **key_start, const char **key_end,
                     int *comma_pos);
+
+int json_normalize(DYNAMIC_STRING *result,
+                   const char *s, size_t size, CHARSET_INFO *cs);
 
 #ifdef  __cplusplus
 }
