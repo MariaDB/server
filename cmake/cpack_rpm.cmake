@@ -128,7 +128,11 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/pkgconfig"
   )
 
-SET(CPACK_RPM_server_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
+SET(CPACK_RPM_server_USER_FILELIST
+    ${ignored}
+    "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*"
+    "%config(noreplace) ${INSTALL_SYSCONFDIR}/logrotate.d/mysql"
+    )
 SET(CPACK_RPM_common_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONFDIR}/my.cnf")
 SET(CPACK_RPM_shared_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
 SET(CPACK_RPM_client_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")

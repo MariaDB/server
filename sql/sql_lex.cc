@@ -31,6 +31,7 @@
 #include "sql_select.h"
 #include "sql_cte.h"
 #include "sql_signal.h"
+#include "sql_derived.h"
 #include "sql_truncate.h"                      // Sql_cmd_truncate_table
 #include "sql_admin.h"                         // Sql_cmd_analyze/Check..._table
 #include "sql_partition.h"
@@ -10437,8 +10438,7 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
 
   if (!join->group_list && !with_sum_func)
   {
-    cond=
-      cond->transform(thd, transformer, arg);
+    cond= transform_condition_or_part(thd, cond, transformer, arg);
     if (cond)
     {
       cond->walk(
@@ -10463,9 +10463,12 @@ void st_select_lex::pushdown_cond_into_where_clause(THD *thd, Item *cond,
     into WHERE so it can be pushed.
   */
   if (cond_over_grouping_fields)
-    cond_over_grouping_fields= cond_over_grouping_fields->transform(thd,
-                            &Item::grouping_field_transformer_for_where,
-                            (uchar*) this);
+  {
+    cond_over_grouping_fields= 
+       transform_condition_or_part(thd, cond_over_grouping_fields,
+                                   &Item::grouping_field_transformer_for_where,
+                                   (uchar*) this);
+  }
 
   if (cond_over_grouping_fields)
   {

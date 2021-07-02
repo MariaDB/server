@@ -456,7 +456,7 @@ if [ -n "${MYSQLD_OPT_LOG_BASENAME:-}" -a \
 fi
 
 # If the --log-bin option is present without a value, then
-# setting WSREP_SST_OPT_BINLOG by using other arguments:
+# set WSREP_SST_OPT_BINLOG value using other arguments:
 if [ -z "$WSREP_SST_OPT_BINLOG" -a -n "${MYSQLD_OPT_LOG_BIN+x}" ]; then
     if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
         # If the WSREP_SST_OPT_BINLOG variable is not set, but
@@ -549,9 +549,9 @@ get_binlog()
                 # the "-bin" suffix:
                 readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_LOG_BASENAME-bin.index"
             else
-                # If the base name not specified, then we take
-                # the default name:
-                readonly WSREP_SST_OPT_BINLOG_INDEX='mysql-bin.index'
+                # the default name (note that base of this name
+                # is already defined above):
+                readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_BINLOG.index"
             fi
         fi
     fi
