@@ -512,6 +512,32 @@ SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
 SELECT * FROM t1;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-25236 Online log apply fails for ROW_FORMAT=REDUNDANT tables
+--echo #
+
+CREATE TABLE t1
+(a INT NOT NULL, b INT, c INT, d INT, e INT, f INT, g INT, h INT, i TEXT)
+ENGINE=InnoDB;
+
+ALTER TABLE t1 MODIFY a INT NULL;
+
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL alter WAIT_FOR go';
+send ALTER TABLE t1 ADD PRIMARY KEY (a);
+connect(con1,localhost,root,,);
+set DEBUG_SYNC='now WAIT_FOR alter';
+BEGIN;
+INSERT INTO t1 SET a=0, i=REPEAT('1', 10000);
+ROLLBACK;
+set DEBUG_SYNC='now SIGNAL go';
+connection default;
+reap;
+
+disconnect con1;
+SELECT * FROM t1;
+DROP TABLE t1;
+SET DEBUG_SYNC=RESET;
+
 --echo # End of 10.4 tests
 
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
