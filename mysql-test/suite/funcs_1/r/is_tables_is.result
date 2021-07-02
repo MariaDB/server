@@ -458,6 +458,8 @@ TABLE_COLLATION	utf8_general_ci
 CHECKSUM	NULL
 CREATE_OPTIONS	#CO#
 TABLE_COMMENT	#TC#
+MAX_INDEX_LENGTH	#MIL#
+TEMPORARY	Y
 user_comment	
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
@@ -806,6 +808,8 @@ TABLE_COLLATION	utf8_general_ci
 CHECKSUM	NULL
 CREATE_OPTIONS	#CO#
 TABLE_COMMENT	#TC#
+MAX_INDEX_LENGTH	#MIL#
+TEMPORARY	Y
 user_comment	
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
@@ -1545,6 +1549,8 @@ TABLE_COLLATION	utf8_general_ci
 CHECKSUM	NULL
 CREATE_OPTIONS	#CO#
 TABLE_COMMENT	#TC#
+MAX_INDEX_LENGTH	#MIL#
+TEMPORARY	Y
 user_comment	
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
@@ -1893,6 +1899,8 @@ TABLE_COLLATION	utf8_general_ci
 CHECKSUM	NULL
 CREATE_OPTIONS	#CO#
 TABLE_COMMENT	#TC#
+MAX_INDEX_LENGTH	#MIL#
+TEMPORARY	Y
 user_comment	
 Separator	-----------------------------------------------------
 TABLE_CATALOG	def
