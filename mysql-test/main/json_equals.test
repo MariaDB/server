@@ -1,0 +1,69 @@
+
+select json_equals("{}", "{}");
+
+select json_equals("{}", "[]");
+
+select json_equals("{}", NULL);
+
+select json_equals("", "");
+
+select json_equals("", 1);
+
+select json_equals(now(), now());
+
+select json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3, 4]}');
+
+select json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3]}');
+
+select json_equals('{"țanțoș":[1, 2, "ț", {"some uâß€":"uâßr"}]}',
+                   '{"țanțoș":[1, 2, "ț", {"some uâß€":"uâßr"}]}');
+
+select json_equals('{"a" : [0.123456789123456789], "b" : [1, 2, 3]}',
+                   '{"b" : [1, 2, 3], "a" : [0.123456789123456789]}');
+
+--echo #
+--echo # Test max json depth for json_equals.
+--echo #
+with recursive rec_json (step, obj) as (
+  select 1, cast('{"key":"value"}' as varchar(1000))
+  union
+  select r.step + 1, JSON_INSERT('{}', '$.obj', JSON_QUERY(r.obj, '$'))
+  from rec_json r
+  where r.step < 10
+)
+select step, obj, json_equals(obj, obj) from rec_json;
+
+--echo #
+--echo # 31 levels of nesting.
+--echo #
+select json_equals('{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}',
+'{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}') as 31_levels;
+
+--echo #
+--echo # 32 Levels of nesting. This should hit max json depth.
+--echo #
+select json_equals('{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}',
+'{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}') as 32_levels;
+
+
+--echo #
+--echo # test values from different charset
+--echo # (UTF-8 two-bytes vs. latin1 single high-byte)
+--echo #
+create table t1 (a varchar(200) character set latin1);
+create table t2 (a varchar(200) character set utf8);
+insert into t1 values (UNHEX('22CA22'));
+set names utf8;
+insert into t2 values (UNHEX('22C38A22'));
+
+select a from t1;
+select hex(a) from t1;
+select a from t2;
+select hex(a) from t2;
+
+select t1.a, t2.a, t1.a = t2.a,
+       json_valid(t1.a), json_valid(t2.a), json_equals(t1.a, t2.a)
+from t1, t2;
+
+drop table t1;
+drop table t2;
