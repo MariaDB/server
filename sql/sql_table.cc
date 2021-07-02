@@ -10214,9 +10214,12 @@ do_continue:;
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
       ha_alter_info.online= true;
     // Ask storage engine whether to use copy or in-place
-    ha_alter_info.inplace_supported=
-      table->file->check_if_supported_inplace_alter(&altered_table,
-                                                    &ha_alter_info);
+    {
+      Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
+      ha_alter_info.inplace_supported=
+        table->file->check_if_supported_inplace_alter(&altered_table,
+                                                      &ha_alter_info);
+    }
 
     if (alter_info->supports_algorithm(thd, &ha_alter_info) ||
         alter_info->supports_lock(thd, &ha_alter_info))
