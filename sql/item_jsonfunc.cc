@@ -139,6 +139,8 @@ static int json_nice(json_engine_t *je, String *nice_js,
 
   nice_js->length(0);
   nice_js->set_charset(je->s.cs);
+  nice_js->alloc(je->s.str_end - je->s.c_str + 32);
+
   DBUG_ASSERT(mode != Item_func_json_format::DETAILED ||
               (tab_size >= 0 && tab_size <= TAB_SIZE_LIMIT));
 
