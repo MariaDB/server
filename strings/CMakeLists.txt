@@ -23,7 +23,7 @@ SET(STRINGS_SOURCES bchange.c bmove_upp.c ctype-big5.c ctype-bin.c ctype-cp932.c
                 str2int.c strcend.c strend.c strfill.c strmake.c strmov.c strnmov.c
                 strxmov.c strxnmov.c xml.c
                 strmov_overlapp.c
-		my_strchr.c strcont.c strappend.c json_lib.c)
+		my_strchr.c strcont.c strappend.c json_lib.c json_normalize.c)
 
 IF(NOT HAVE_STRNLEN)
   # OSX below 10.7 did not have strnlen
