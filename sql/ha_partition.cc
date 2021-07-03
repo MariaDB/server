@@ -74,8 +74,7 @@
                                        HA_REC_NOT_IN_SEQ | \
                                        HA_CAN_REPAIR | \
                                        HA_REUSES_FILE_NAMES)
-#define PARTITION_DISABLED_TABLE_FLAGS (HA_CAN_GEOMETRY | \
-                                        HA_DUPLICATE_POS | \
+#define PARTITION_DISABLED_TABLE_FLAGS (HA_DUPLICATE_POS | \
                                         HA_CAN_INSERT_DELAYED | \
                                         HA_READ_BEFORE_WRITE_REMOVAL |\
                                         HA_CAN_TABLES_WITHOUT_ROLLBACK)
