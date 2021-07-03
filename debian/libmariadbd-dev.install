@@ -3,4 +3,4 @@ usr/lib/*/libmariadbd.a
 usr/lib/*/libmariadbd.so
 usr/lib/*/libmysqld.a
 usr/lib/*/libmysqld.so
-usr/lib/*/pkgconfig/mariadb.pc
+usr/lib/*/pkgconfig/mariadbd.pc

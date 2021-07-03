@@ -163,6 +163,13 @@ endif
 	# Rename and install AppArmor profile
 	install -D -m 644 debian/apparmor-profile $(TMP)/etc/apparmor.d/usr.sbin.mariadbd
 
+	# Rename mariadb.pc as mariadbd.pc as it really is a file for the daemon
+	mv -v $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/mariadb.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/mariadbd.pc
+
+	# Install mariadb.pc as a symlink for the client library,
+	# use -f to override the existing server mariadb.pc file
+	ln -sf libmariadb.pc $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/pkgconfig/mariadb.pc
+
 	# Install libmariadbclient18 compatibility links
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so
 	ln -s libmariadb.so.3 $(TMP)/usr/lib/$(DEB_HOST_MULTIARCH)/libmariadbclient.so.18
