@@ -237,6 +237,8 @@ endmacro()
 include(build/ac_macros/check_headers.m4)
 include(build/ac_macros/check_functions.m4)
 
+ac_check_lib(atomic __atomic_store_8)
+
 ac_check_symbols(fpclassify math.h)
 ac_check_lib(m fpclassify)
 
