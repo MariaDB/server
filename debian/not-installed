@@ -31,7 +31,6 @@ usr/share/mysql/binary-configure
 usr/share/mysql/magic
 usr/share/mysql/maria_add_gis_sp.sql
 usr/share/mysql/mysqld_multi.server
-usr/share/mysql/mysql-log-rotate
 usr/share/mysql/mysql.server
 usr/share/mysql/mysql-test/mtr # Already created by mariadb-test.links
 usr/share/mysql/mysql-test/mysql-test-run # Already created by mariadb-test.links
