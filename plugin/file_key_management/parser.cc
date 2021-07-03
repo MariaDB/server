@@ -327,31 +327,23 @@ char* Parser::read_and_decrypt_file(const char *secret)
     goto err0;
   }
 
-  my_off_t file_size;
-  file_size= lseek(f, 0, SEEK_END);
-
-  if (file_size == MY_FILEPOS_ERROR || (my_off_t)lseek(f, 0, SEEK_SET) == MY_FILEPOS_ERROR)
+   //Read file into buffer
+  uchar *buffer;
+  buffer= (uchar*)malloc(MAX_KEY_FILE_SIZE + 1);
+  if (!buffer)
   {
-    my_error(EE_CANT_SEEK, MYF(0), filename, errno);
+    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG| ME_FATAL, MAX_KEY_FILE_SIZE + 1);
     goto err1;
   }
 
+  ssize_t file_size;
+  file_size= read(f, buffer, MAX_KEY_FILE_SIZE + 1);
   if (file_size > MAX_KEY_FILE_SIZE)
   {
     my_error(EE_READ, MYF(0), filename, EFBIG);
-    goto err1;
+    goto err2;
   }
-
-  //Read file into buffer
-  uchar *buffer;
-  buffer= (uchar*)malloc((size_t)file_size + 1);
-  if (!buffer)
-  {
-    my_error(EE_OUTOFMEMORY, ME_ERROR_LOG| ME_FATAL, file_size);
-    goto err1;
-  }
-
-  if (read(f, buffer, (int)file_size) != (int)file_size)
+  else if (file_size < 0)
   {
     my_printf_error(EE_READ,
       "read from %s failed, errno %d",
