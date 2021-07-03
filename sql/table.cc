@@ -3316,10 +3316,10 @@ static bool sql_unusable_for_discovery(THD *thd, handlerton *engine,
   // ... if exists
   if (lex->create_info.if_not_exists())
     return 1;
-
-  // XXX error out or rather ignore the following:
   // ... partitioning
-  if (lex->part_info)
+  if (lex->part_info &&
+      !(engine->partition_flags &&
+        engine->partition_flags() & HA_CAN_PARTITION))
     return 1;
   // ... union
   if (create_info->used_fields & HA_CREATE_USED_UNION)
@@ -3400,7 +3400,7 @@ int TABLE_SHARE::init_from_sql_statement_string(THD *thd, bool write,
 
   thd->lex->create_info.db_type= hton;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-  thd->work_part_info= 0;                       // For partitioning
+  thd->work_part_info= thd->lex->part_info;
 #endif
 
   if (tabledef_version.str)
@@ -3425,6 +3425,9 @@ ret:
   lex_end(thd->lex);
   thd->reset_db(&db_backup);
   thd->lex= old_lex;
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  thd->work_part_info= 0;
+#endif
   if (arena)
     thd->restore_active_arena(arena, &backup);
   reenable_binlog(thd);
