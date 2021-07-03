@@ -305,7 +305,7 @@ buf_flush_relocate_on_flush_list(
 	/* FIXME: Can we avoid holding buf_pool.mutex here? */
 	ut_ad(dpage->oldest_modification() == lsn);
 
-	if (const lsn_t o_lsn = bpage->oldest_modification()) {
+	if (ut_d(const lsn_t o_lsn =) bpage->oldest_modification()) {
 		ut_ad(o_lsn == lsn);
 
 		/* Important that we adjust the hazard pointer before removing
@@ -324,7 +324,7 @@ buf_flush_relocate_on_flush_list(
 	}
 
 	if (lsn == 1) {
-		buf_pool.stat.flush_list_bytes -= bpage->physical_size();
+		buf_pool.stat.flush_list_bytes -= dpage->physical_size();
 was_clean:
 		dpage->list.prev = nullptr;
 		dpage->list.next = nullptr;
