@@ -362,6 +362,13 @@ trx_t *trx_create()
 /** Free the memory to trx_pools */
 void trx_t::free()
 {
+#ifdef HAVE_MEM_CHECK
+  if (xid.is_null())
+    MEM_MAKE_DEFINED(&xid, sizeof xid);
+  else
+    MEM_MAKE_DEFINED(&xid.data[xid.gtrid_length + xid.bqual_length],
+                     sizeof xid.data - (xid.gtrid_length + xid.bqual_length));
+#endif
   MEM_CHECK_DEFINED(this, sizeof *this);
 
   ut_ad(!n_mysql_tables_in_use);
