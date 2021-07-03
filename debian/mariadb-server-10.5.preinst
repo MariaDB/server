@@ -12,6 +12,21 @@
 # Automatically set version to ease maintenance of this file
 MAJOR_VER="${DPKG_MAINTSCRIPT_PACKAGE#mariadb-server-}"
 
+echo "= Debian script trace ="
+echo "RUNNING $0 $*" 1>&2
+echo "Operation: $1"
+OLD_MARIADB_VERSION=$(echo "$2" | grep -m 1 -oE "[0-9]+\.[0-9]+\.[0-9]+") || true
+NEW_MARIADB_VERSION=$(echo "$3" | grep -m 1 -oE "[0-9]+\.[0-9]+\.[0-9]+") || true
+echo "Old: Release = $2 - MariaDB version = $OLD_MARIADB_VERSION"
+echo "New: Release = $3 - MariaDB version = $NEW_MARIADB_VERSION"
+if [ -n "$OLD_MARIADB_VERSION" ] && [ -n "$NEW_MARIADB_VERSION" ] && \
+   [ "$OLD_MARIADB_VERSION" != "$NEW_MARIADB_VERSION" ]
+then
+  echo "New MariaDB version $NEW_MARIADB_VERSION detected!"
+  # Shut down gracefully, if possible
+  mariadb --defaults-file=/etc/mysql/debian.cnf -e 'SET GLOBAL innodb_max_purge_lag_wait=0' || true
+fi
+
 # Just kill the invalid insserv.conf.d directory without fallback
 if [ -d "/etc/insserv.conf.d/mariadb/" ]; then
     rm -rf "/etc/insserv.conf.d/mariadb/"
