@@ -1065,14 +1065,14 @@ int Arg_comparator::compare_row()
       // NULL was compared
       switch (((Item_func*)owner)->functype()) {
       case Item_func::NE_FUNC:
-        break; // NE never aborts on NULL even if abort_on_null is set
+        break; // NE never aborts on NULL
       case Item_func::LT_FUNC:
       case Item_func::LE_FUNC:
       case Item_func::GT_FUNC:
       case Item_func::GE_FUNC:
         return -1; // <, <=, > and >= always fail on NULL
       case Item_func::EQ_FUNC:
-        if (((Item_func_eq*)owner)->abort_on_null)
+        if (owner->is_top_level_item())
           return -1; // We do not need correct NULL returning
         break;
       default:
@@ -1186,12 +1186,6 @@ bool Item_func_truth::val_bool()
 longlong Item_func_truth::val_int()
 {
   return (val_bool() ? 1 : 0);
-}
-
-
-bool Item_in_optimizer::is_top_level_item() const
-{
-  return args[1]->is_top_level_item();
 }
 
 
@@ -1379,7 +1373,8 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
   }
 
   base_flags|= (item_base_t::FIXED |
-                (args[1]->base_flags & item_base_t::MAYBE_NULL));
+                (args[1]->base_flags & (item_base_t::MAYBE_NULL |
+                                        item_base_t::AT_TOP_LEVEL)));
   with_flags|= (item_with_t::SUBQUERY |
                 args[1]->with_flags |
                 (args[0]->with_flags &
@@ -2065,7 +2060,7 @@ bool Item_func_between::eval_not_null_tables(void *opt_arg)
     return 1;
 
   /* not_null_tables_cache == union(T1(e),T1(e1),T1(e2)) */
-  if (pred_level && !negated)
+  if (is_top_level_item() && !negated)
     return 0;
 
   /* not_null_tables_cache == union(T1(e), intersection(T1(e1),T1(e2))) */
@@ -2467,6 +2462,10 @@ bool
 Item_func_if::fix_fields(THD *thd, Item **ref)
 {
   DBUG_ASSERT(fixed() == 0);
+  /*
+    Mark that we don't care if args[0] is NULL or FALSE, we regard both cases as
+    false.
+  */
   args[0]->top_level_item();
 
   if (Item_func::fix_fields(thd, ref))
@@ -4342,7 +4341,7 @@ Item_func_in::eval_not_null_tables(void *opt_arg)
     return 1;
 
   /* not_null_tables_cache == union(T1(e),union(T1(ei))) */
-  if (pred_level && negated)
+  if (is_top_level_item() && negated)
     return 0;
 
   /* not_null_tables_cache = union(T1(e),intersection(T1(ei))) */
@@ -4796,9 +4795,10 @@ bool Item_func_bit_and::fix_length_and_dec()
 
 Item_cond::Item_cond(THD *thd, Item_cond *item)
   :Item_bool_func(thd, item),
-   abort_on_null(item->abort_on_null),
    and_tables_cache(item->and_tables_cache)
 {
+  base_flags|= (item->base_flags & item_base_t::AT_TOP_LEVEL);
+
   /*
     item->list will be copied by copy_andor_arguments() call
   */
@@ -4806,7 +4806,7 @@ Item_cond::Item_cond(THD *thd, Item_cond *item)
 
 
 Item_cond::Item_cond(THD *thd, Item *i1, Item *i2):
-  Item_bool_func(thd), abort_on_null(0)
+  Item_bool_func(thd)
 {
   list.push_back(i1, thd->mem_root);
   list.push_back(i2, thd->mem_root);
@@ -4874,7 +4874,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
       ((Item_cond*) item)->list.empty();
       item= *li.ref();				// new current item
     }
-    if (abort_on_null)
+    if (is_top_level_item())
       item->top_level_item();
 
     /*
@@ -4901,7 +4901,7 @@ Item_cond::fix_fields(THD *thd, Item **ref)
     if (item->can_eval_in_optimize() && !item->with_sp_var() &&
         !cond_has_datetime_is_null(item))
     {
-      if (item->eval_const_cond() == is_and_cond && top_level())
+      if (item->eval_const_cond() == is_and_cond && is_top_level_item())
       {
         /* 
           a. This is "... AND true_cond AND ..."
@@ -4958,7 +4958,7 @@ Item_cond::eval_not_null_tables(void *opt_arg)
     if (item->can_eval_in_optimize() && !item->with_sp_var() &&
         !cond_has_datetime_is_null(item))
     {
-      if (item->eval_const_cond() == is_and_cond && top_level())
+      if (item->eval_const_cond() == is_and_cond && is_top_level_item())
       {
         /* 
           a. This is "... AND true_cond AND ..."
@@ -5393,17 +5393,18 @@ void Item_cond_and::mark_as_condition_AND_part(TABLE_LIST *embedding)
   Evaluation of AND(expr, expr, expr ...).
 
   @note
-    abort_if_null is set for AND expressions for which we don't care if the
-    result is NULL or 0. This is set for:
+    There are AND expressions for which we don't care if the
+    result is NULL or 0. This is the case for:
     - WHERE clause
     - HAVING clause
     - IF(expression)
+    For these we mark them as "top_level_items"
 
   @retval
     1  If all expressions are true
   @retval
-    0  If all expressions are false or if we find a NULL expression and
-       'abort_on_null' is set.
+    0  If any of the expressions are false or if we find a NULL expression and
+       this is a top_level_item.
   @retval
     NULL if all expression are either 1 or NULL
 */
@@ -5419,8 +5420,8 @@ longlong Item_cond_and::val_int()
   {
     if (!item->val_bool())
     {
-      if (abort_on_null || !(null_value= item->null_value))
-	return 0;				// return FALSE
+      if (is_top_level_item() || !(null_value= item->null_value))
+        return 0;
     }
   }
   return null_value ? 0 : 1;

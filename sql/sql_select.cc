@@ -16362,9 +16362,9 @@ static void update_const_equal_items(THD *thd, COND *cond, JOIN_TAB *tab,
     Item *item;
     while ((item= li++))
       update_const_equal_items(thd, item, tab,
-                               (((Item_cond*) cond)->top_level() &&
-                                ((Item_cond*) cond)->functype() ==
-                                Item_func::COND_AND_FUNC));
+                               cond->is_top_level_item() &&
+                               ((Item_cond*) cond)->functype() ==
+                               Item_func::COND_AND_FUNC);
   }
   else if (cond->type() == Item::FUNC_ITEM && 
            ((Item_func*) cond)->functype() == Item_func::MULT_EQUAL_FUNC)

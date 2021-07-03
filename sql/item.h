@@ -769,8 +769,8 @@ enum class item_base_t : item_flags_t
   FIXED=                 (1<<2),   // Was fixed with fix_fields().
   IS_EXPLICIT_NAME=      (1<<3),   // The name of this Item was set by the user
                                    // (or was auto generated otherwise)
-  IS_IN_WITH_CYCLE=      (1<<4)    // This item is in CYCLE clause
-                                   // of WITH.
+  IS_IN_WITH_CYCLE=      (1<<4),   // This item is in CYCLE clause of WITH.
+  AT_TOP_LEVEL=          (1<<5)    // At top (AND) level of item tree
 };
 
 
@@ -1319,6 +1319,25 @@ public:
   {
     set_maybe_null(maybe_null_arg);
   }
+  /*
+    Mark the item that it is a top level item, or part of a top level AND item,
+    for WHERE and ON clauses:
+    Example:   ... WHERE a=5 AND b=6;   Both a=5 and b=6 are top level items
+
+    This is used to indicate that there is no distinction between if the
+    value of the item is FALSE or NULL..
+    This enables Item_cond_and and subquery related items to do special
+    "top level" optimizations.
+  */
+  virtual void top_level_item()
+  {
+    base_flags|= item_base_t::AT_TOP_LEVEL;
+  }
+  /*
+    Return TRUE if this item of top WHERE level (AND/OR)
+  */
+  bool is_top_level_item() const
+  { return (bool) (base_flags & item_base_t::AT_TOP_LEVEL); }
 
   void set_typelib(const TYPELIB *typelib) override
   {
@@ -2027,25 +2046,6 @@ public:
   {
     return type_handler()->Item_update_null_value(this);
   }
-
-  /*
-    Inform the item that there will be no distinction between its result
-    being FALSE or NULL.
-
-    NOTE
-      This function will be called for eg. Items that are top-level AND-parts
-      of the WHERE clause. Items implementing this function (currently
-      Item_cond_and and subquery-related item) enable special optimizations
-      when they are "top level".
-  */
-  virtual void top_level_item() {}
-  /*
-    Return TRUE if it is item of top WHERE level (AND/OR)  and it is
-    important, return FALSE if it not important (we can not use to simplify
-    calculations) or not top level
-  */
-  virtual bool is_top_level_item() const
-  { return FALSE; /* not important */}
   /*
     return IN/ALL/ANY subquery or NULL
   */
@@ -4420,6 +4420,8 @@ public:
   Item_bool_static(const char *str_arg, longlong i):
     Item_bool(str_arg, i) {};
 
+  /* Don't mark static items as top level item */
+  virtual void top_level_item() override {}
   void set_join_tab_idx(uint8 join_tab_idx_arg) override
   { DBUG_ASSERT(0); }
 };

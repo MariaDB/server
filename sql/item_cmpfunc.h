@@ -411,7 +411,6 @@ public:
   void set_join_tab_idx(uint8 join_tab_idx_arg) override
   { args[1]->set_join_tab_idx(join_tab_idx_arg); }
   void get_cache_parameters(List<Item> &parameters) override;
-  bool is_top_level_item() const override;
   bool eval_not_null_tables(void *opt_arg) override;
   bool find_not_null_fields(table_map allowed) override;
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,
@@ -631,12 +630,8 @@ public:
 
 class Item_func_not :public Item_bool_func
 {
-  bool abort_on_null;
 public:
-  Item_func_not(THD *thd, Item *a):
-    Item_bool_func(thd, a), abort_on_null(FALSE) {}
-  void top_level_item() override { abort_on_null= 1; }
-  bool is_top_level_item() const override { return abort_on_null; }
+  Item_func_not(THD *thd, Item *a): Item_bool_func(thd, a) {}
   longlong val_int() override;
   enum Functype functype() const override { return NOT_FUNC; }
   LEX_CSTRING func_name_cstring() const override
@@ -755,11 +750,10 @@ public:
 
 class Item_func_eq :public Item_bool_rowready_func2
 {
-  bool abort_on_null;
 public:
   Item_func_eq(THD *thd, Item *a, Item *b):
     Item_bool_rowready_func2(thd, a, b),
-    abort_on_null(false), in_equality_no(UINT_MAX)
+      in_equality_no(UINT_MAX)
   {}
   longlong val_int() override;
   enum Functype functype() const override { return EQ_FUNC; }
@@ -770,7 +764,6 @@ public:
     static LEX_CSTRING name= {STRING_WITH_LEN("=") };
     return name;
   }
-  void top_level_item() override { abort_on_null= true; }
   Item *negated_item(THD *thd) override;
   COND *build_equal_items(THD *thd, COND_EQUAL *inherited,
                           bool link_item_fields,
@@ -956,15 +949,12 @@ protected:
   DTCollation cmp_collation;
 public:
   bool negated;     /* <=> the item represents NOT <func> */
-  bool pred_level;  /* <=> [NOT] <func> is used on a predicate level */
 public:
   Item_func_opt_neg(THD *thd, Item *a, Item *b, Item *c):
-    Item_bool_func(thd, a, b, c), negated(0), pred_level(0) {}
+    Item_bool_func(thd, a, b, c), negated(0) {}
   Item_func_opt_neg(THD *thd, List<Item> &list):
-    Item_bool_func(thd, list), negated(0), pred_level(0) {}
+    Item_bool_func(thd, list), negated(0) {}
 public:
-  void top_level_item() override { pred_level= 1; }
-  bool is_top_level_item() const override { return pred_level; }
   Item *neg_transformer(THD *thd) override
   {
     negated= !negated;
@@ -2800,11 +2790,9 @@ public:
 
 class Item_func_isnotnull :public Item_func_null_predicate
 {
-  bool abort_on_null;
 public:
   Item_func_isnotnull(THD *thd, Item *a):
-    Item_func_null_predicate(thd, a), abort_on_null(0)
-  { }
+  Item_func_null_predicate(thd, a) {}
   longlong val_int() override;
   enum Functype functype() const override { return ISNOTNULL_FUNC; }
   LEX_CSTRING func_name_cstring() const override
@@ -2814,10 +2802,9 @@ public:
   }
   enum precedence precedence() const override { return CMP_PRECEDENCE; }
   table_map not_null_tables() const override
-  { return abort_on_null ? not_null_tables_cache : 0; }
+  { return is_top_level_item() ? not_null_tables_cache : 0; }
   Item *neg_transformer(THD *thd) override;
   void print(String *str, enum_query_type query_type) override;
-  void top_level_item() override { abort_on_null=1; }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_isnotnull>(thd, this); }
 };
@@ -3128,17 +3115,19 @@ class Item_cond :public Item_bool_func
 {
 protected:
   List<Item> list;
-  bool abort_on_null;
   table_map and_tables_cache;
 
 public:
-  /* Item_cond() is only used to create top level items */
-  Item_cond(THD *thd): Item_bool_func(thd), abort_on_null(1)
-  { const_item_cache=0; }
+  Item_cond(THD *thd): Item_bool_func(thd)
+  {
+    /* Item_cond() is only used to create top level items */
+    top_level_item();
+    const_item_cache=0;
+  }
   Item_cond(THD *thd, Item *i1, Item *i2);
   Item_cond(THD *thd, Item_cond *item);
   Item_cond(THD *thd, List<Item> &nlist):
-    Item_bool_func(thd), list(nlist), abort_on_null(0) {}
+    Item_bool_func(thd), list(nlist) {}
   bool add(Item *item, MEM_ROOT *root)
   {
     DBUG_ASSERT(item);
@@ -3185,8 +3174,6 @@ public:
                       List<Item> &fields, uint flags) override;
   friend int setup_conds(THD *thd, TABLE_LIST *tables, TABLE_LIST *leaves,
                          COND **conds);
-  void top_level_item() override { abort_on_null=1; }
-  bool top_level() { return abort_on_null; }
   void copy_andor_arguments(THD *thd, Item_cond *item);
   bool walk(Item_processor processor, bool walk_subquery, void *arg) override;
   Item *transform(THD *thd, Item_transformer transformer, uchar *arg) override;
@@ -3542,7 +3529,7 @@ public:
   }
   enum precedence precedence() const override { return AND_PRECEDENCE; }
   table_map not_null_tables() const override
-  { return abort_on_null ? not_null_tables_cache: and_tables_cache; }
+  { return is_top_level_item() ? not_null_tables_cache: and_tables_cache; }
   Item *copy_andor_structure(THD *thd) override;
   Item *neg_transformer(THD *thd) override;
   void mark_as_condition_AND_part(TABLE_LIST *embedding) override;

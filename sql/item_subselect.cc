@@ -1587,7 +1587,7 @@ bool Item_singlerow_subselect::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t
 
 Item_exists_subselect::Item_exists_subselect(THD *thd,
                                              st_select_lex *select_lex):
-  Item_subselect(thd), upper_not(NULL), abort_on_null(0),
+  Item_subselect(thd), upper_not(NULL),
   emb_on_expr_nest(NULL), optimizer(0), exists_transformed(0)
 {
   DBUG_ENTER("Item_exists_subselect::Item_exists_subselect");
@@ -1672,7 +1672,6 @@ Item_allany_subselect::Item_allany_subselect(THD *thd, Item * left_exp,
   func= func_creator(all_arg);
   init(select_lex, new (thd->mem_root) select_exists_subselect(thd, this));
   max_columns= 1;
-  abort_on_null= 0;
   reset();
   //if test_limit will fail then error will be reported to client
   test_limit(select_lex->master_unit());
@@ -2247,8 +2246,11 @@ bool Item_allany_subselect::is_maxmin_applicable(JOIN *join)
     Check if max/min optimization applicable: It is top item of
     WHERE condition.
   */
-  return (abort_on_null || (upper_item && upper_item->is_top_level_item())) &&
-      !(join->select_lex->master_unit()->uncacheable & ~UNCACHEABLE_EXPLAIN) && !func->eqne_op();
+  return ((is_top_level_item() ||
+           (upper_item && upper_item->is_top_level_item())) &&
+          !(join->select_lex->master_unit()->uncacheable &
+            ~UNCACHEABLE_EXPLAIN) &&
+          !func->eqne_op());
 }
 
 
@@ -2318,7 +2320,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                                       ref_pointer_array[0],  
                                                       {STRING_WITH_LEN("<ref>")},
                                                       field_name));
-    if (!abort_on_null && left_expr->maybe_null())
+    if (!is_top_level_item() && left_expr->maybe_null())
     {
       /* 
         We can encounter "NULL IN (SELECT ...)". Wrap the added condition
@@ -2351,7 +2353,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
       Item *orig_item= item;
 
       item= func->create(thd, expr, item);
-      if (!abort_on_null && orig_item->maybe_null())
+      if (!is_top_level_item() && orig_item->maybe_null())
       {
 	having= new (thd->mem_root) Item_is_not_null_test(thd, this, having);
         if (left_expr->maybe_null())
@@ -2373,7 +2375,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
         If we may encounter NULL IN (SELECT ...) and care whether subquery
         result is NULL or FALSE, wrap condition in a trig_cond.
       */
-      if (!abort_on_null && left_expr->maybe_null())
+      if (!is_top_level_item() && left_expr->maybe_null())
       {
         disable_cond_guard_for_const_null_left_expr(0);
         if (!(item= new (thd->mem_root) Item_func_trig_cond(thd, item,
@@ -2403,7 +2405,7 @@ Item_in_subselect::create_single_in_to_exists_cond(JOIN *join,
                                                   &select_lex->ref_pointer_array[0],
                                                   no_matter_name,
                                                   field_name));
-      if (!abort_on_null && left_expr->maybe_null())
+      if (!is_top_level_item() && left_expr->maybe_null())
       {
         disable_cond_guard_for_const_null_left_expr(0);
         if (!(new_having= new (thd->mem_root)
@@ -2602,7 +2604,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                   list_ref));
       Item *col_item= new (thd->mem_root)
         Item_cond_or(thd, item_eq, item_isnull);
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null() &&
+      if (!is_top_level_item() && left_expr->element_index(i)->maybe_null() &&
           get_cond_guard(i))
       {
         disable_cond_guard_for_const_null_left_expr(i);
@@ -2621,7 +2623,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                        ref_pointer_array[i],
                                        no_matter_name,
                                        list_ref));
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null() &&
+      if (!is_top_level_item() && left_expr->element_index(i)->maybe_null() &&
           get_cond_guard(i) )
       {
         disable_cond_guard_for_const_null_left_expr(i);
@@ -2662,7 +2664,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
                                      ref_pointer_array[i],
                                      no_matter_name,
                                      list_ref));
-      if (!abort_on_null && select_lex->ref_pointer_array[i]->maybe_null())
+      if (!is_top_level_item() && select_lex->ref_pointer_array[i]->maybe_null())
       {
         Item *having_col_item=
           new (thd->mem_root)
@@ -2694,7 +2696,7 @@ Item_in_subselect::create_row_in_to_exists_cond(JOIN * join,
         }
         *having_item= and_items(thd, *having_item, having_col_item);
       }
-      if (!abort_on_null && left_expr->element_index(i)->maybe_null() &&
+      if (!is_top_level_item() && left_expr->element_index(i)->maybe_null() &&
           get_cond_guard(i))
       {
         if (!(item= new (thd->mem_root)
@@ -3663,7 +3665,7 @@ bool Item_in_subselect::init_cond_guards()
 {
   DBUG_ASSERT(thd);
   uint cols_num= left_expr->cols();
-  if (!abort_on_null && !pushed_cond_guards &&
+  if (!is_top_level_item() && !pushed_cond_guards &&
       (left_expr->maybe_null() || cols_num > 1))
   {
     if (!(pushed_cond_guards= (bool*)thd->alloc(sizeof(bool) * cols_num)))
@@ -4245,9 +4247,9 @@ bool subselect_uniquesubquery_engine::copy_ref_key(bool skip_constants)
       - NULL  if select produces empty row set
       - FALSE otherwise.
 
-    In some cases (IN subselect is a top level item, i.e. abort_on_null==TRUE)
-    the caller doesn't distinguish between NULL and FALSE result and we just
-    return FALSE. 
+    In some cases (IN subselect is a top level item, i.e.
+    is_top_level_item() == TRUE, the caller doesn't distinguish between NULL and
+    FALSE result and we just return FALSE.
     Otherwise we make a full table scan to see if there is at least one 
     matching row.
     
