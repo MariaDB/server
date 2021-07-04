@@ -6919,17 +6919,42 @@ static int show_ssl_get_cipher(THD *thd, SHOW_VAR *var, char *buff,
   return 0;
 }
 
+static int show_ssl_get_shared_ciphers(THD *thd, SHOW_VAR *var, char *buff,
+                                        enum enum_var_type scope)
+{
+  var->type= SHOW_CHAR;
+  var->value= buff;
+
+  if (thd->vio_ok() && thd->net.vio->ssl_arg)
+  {
+    char *end= buff + SHOW_VAR_FUNC_BUFF_SIZE;
+    memset(buff, 0, end - buff);
+    if (SSL_get_shared_ciphers((SSL *)thd->net.vio->ssl_arg, buff, (int)(end - buff - 1)))
+      buff+= strlen(buff);
+  }
+  *buff=0;
+  return 0;
+}
+
 static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
                                     enum enum_var_type scope)
 {
   var->type= SHOW_CHAR;
   var->value= buff;
-  if (thd->vio_ok() && thd->net.vio->ssl_arg)
+
+  char *end= buff + SHOW_VAR_FUNC_BUFF_SIZE;
+  memset(buff, 0, end - buff);
+#ifdef HAVE_WOLFSSL
+  if (wolfSSL_get_ciphers(buff, (int)(end - buff - 1)) == SSL_SUCCESS)
+    buff+= strlen(buff);
+#else
   {
     int i;
     const char *p;
-    char *end= buff + SHOW_VAR_FUNC_BUFF_SIZE;
-    for (i=0; (p= SSL_get_cipher_list((SSL*) thd->net.vio->ssl_arg,i)) &&
+    SSL *ssl= thd->net.vio->ssl_arg ? 
+              (SSL *)thd->net.vio->ssl_arg : SSL_new(ssl_acceptor_fd->ssl_context);
+    
+    for (i=0; (p= SSL_get_cipher_list(ssl,i)) &&
                buff < end; i++)
     {
       buff= strnmov(buff, p, end-buff-1);
@@ -6937,7 +6962,10 @@ static int show_ssl_get_cipher_list(THD *thd, SHOW_VAR *var, char *buff,
     }
     if (i)
       buff--;
+    if (!thd->net.vio->ssl_arg)
+      SSL_free(ssl);
   }
+#endif
   *buff=0;
   return 0;
 }
@@ -7384,6 +7412,7 @@ SHOW_VAR status_vars[]= {
   {"Ssl_session_cache_size",   (char*) &ssl_acceptor_stats.cache_size, SHOW_LONG},
   {"Ssl_session_cache_timeouts", (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_sessions_reused",      (char*) &ssl_acceptor_stats.zero, SHOW_LONG},
+  {"Ssl_shared_ciphers",       (char*) &show_ssl_get_shared_ciphers, SHOW_SIMPLE_FUNC},
   {"Ssl_used_session_cache_entries",(char*) &ssl_acceptor_stats.zero, SHOW_LONG},
   {"Ssl_verify_depth",         (char*) &show_ssl_get_verify_depth, SHOW_SIMPLE_FUNC},
   {"Ssl_verify_mode",          (char*) &show_ssl_get_verify_mode, SHOW_SIMPLE_FUNC},

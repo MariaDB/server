@@ -1,0 +1,26 @@
+# Tests for SSL connections, only run if mysqld is compiled
+# with support for SSL.
+
+-- source include/have_ssl_communication.inc
+
+# Make sure WolfSSL doesn't return  cipher in use only for ssl_cipher_list. 
+# ssl_cipher_list shouldn't be empty for non secure connections.
+--exec $MYSQL  -e"select count(*) AS TRUE_EXPECTED from information_schema.session_status  where variable_name = 'SSL_CIPHER_LIST' and locate(':', variable_value) > 0"
+
+
+# Note: WolfSSL does support SSL_get_shared_ciphers via OpenSSL compatibility layer, however 
+# it returns only the cipher in use. Therefore we bypass when testing against WolfSSL by checking
+# if there is only one cipher suite returned (locate(':', variable_value) = 0)
+
+# check shared ciphers for TLSv1.1: They should contain a valid cipher <= TLSc1.1, but no TLSv1.2 ciphers
+--exec $MYSQL --ssl --tls_version=TLSv1.1 -e "SELECT count(*) as TRUE_EXPECTED  from information_schema.session_status where variable_name='SSL_SHARED_CIPHERS' and (locate('AES256-SHA', variable_value) > 0 OR /* WolfSSL */ locate(':', variable_value)=0)"
+
+# check that a TLSv1.2 cipher isn't in list of TLSv1 ciphers
+--exec $MYSQL --ssl --tls_version=TLSv1.1 -e "SELECT count(*) AS FALSE_EXPECTED from information_schema.session_status where variable_name='SSL_SHARED_CIPHERS' and locate('AES256-SHA256', variable_value) > 0"
+
+# check that TLSv1.2 contain AES256-SHA256 (TLSv1.2 cipher)
+--exec $MYSQL --ssl --tls_version=TLSv1.2 -e "SELECT count(*) AS TRUE_EXPECTED from information_schema.session_status where variable_name='SSL_SHARED_CIPHERS' and (locate('AES256-SHA256', variable_value) > 0 OR /* WolfSSL */ locate(':', variable_value)=0)"
+
+# check that TLSv1.2 contains no TLSv1.3 cipher
+--exec $MYSQL --ssl --tls_version=TLSv1.2 -e "SELECT count(*) AS FALSE_EXPECTED from information_schema.session_status where variable_name='SSL_SHARED_CIPHERS' and locate('TLS_AES_256_GCM_SHA384', variable_value) > 0"
+

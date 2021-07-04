@@ -4,9 +4,9 @@
 #
 --source include/have_ssl_communication.inc
 
-if (`select @@version_ssl_library like 'OpenSSL 1.1.1%'`) {
-  skip OpenSSL 1.1.1;
-}
+#if (`select @@version_ssl_library like 'OpenSSL 1.1.1%'`) {
+#  skip OpenSSL 1.1.1;
+#}
 
 create user ssl_user1@localhost require SSL;
 create user ssl_user2@localhost require cipher 'AES256-SHA';
@@ -98,6 +98,6 @@ let $restart_parameters=--ssl-cipher=AES128-SHA;
 source include/restart_mysqld.inc;
 connect (ssl_con,localhost,root,,,,,SSL);
 SHOW STATUS LIKE 'Ssl_cipher';
-SHOW STATUS LIKE 'Ssl_cipher_list';
+SELECT 'Ssl_cipher_list' as Variable_name, 'AES128-SHA' as Value from information_schema.session_status where variable_name='SSL_CIPHER_LIST' and locate('AES128-SHA', variable_value) > 0;
 disconnect ssl_con;
 connection default;

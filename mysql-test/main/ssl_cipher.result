@@ -61,7 +61,7 @@ connect  ssl_con,localhost,root,,,,,SSL;
 SHOW STATUS LIKE 'Ssl_cipher';
 Variable_name	Value
 Ssl_cipher	AES128-SHA
-SHOW STATUS LIKE 'Ssl_cipher_list';
+SELECT 'Ssl_cipher_list' as Variable_name, 'AES128-SHA' as Value from information_schema.session_status where variable_name='SSL_CIPHER_LIST' and locate('AES128-SHA', variable_value) > 0;
 Variable_name	Value
 Ssl_cipher_list	AES128-SHA
 disconnect ssl_con;
