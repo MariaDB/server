@@ -589,15 +589,20 @@ public:
 class Item_func_sformat :public Item_str_func
 {
 protected:
+  /* Types */
+  struct Token { bool is_arg; String data; };
+  /* Variables */
+  uint   argument;
+  Token  *tokens;
   String tmp_value;
-  DTCollation cmp_collation;
-  longlong locate(String*, String*, longlong);
-  String *substr(String*, longlong, longlong);
-  //uint find(String*, String*, uint);
+  /* Methods */
+  uint          split(String*, uint);
+  inline String *getNextArgument(void);
   
 public:
-  Item_func_sformat(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
-  String *val_str(String *) override;
+  Item_func_sformat(THD *thd, List<Item> &list):
+    Item_str_func(thd, list), argument(0), tokens(NULL) { }
+  String *val_str(String*) override;
   bool fix_length_and_dec() override;
   LEX_CSTRING func_name_cstring() const override
   {

@@ -1316,121 +1316,107 @@ bool Item_func_sformat::fix_length_and_dec()
   return FALSE;
 }
 
-// buscar b en a
-//longlong Item_func_sformat::locate(String *a, String *b, longlong offset)
-longlong Item_func_sformat::locate(String *haystack, String *needle, longlong offset)
+inline String *Item_func_sformat::getNextArgument()
 {
-  DBUG_ASSERT(offset >= 0);
-  /* must be longlong to avoid truncation */
-  longlong   start=  0;
-  my_match_t match;
+  String *next= NULL;
   
-  if (offset > 0)
-  {
-    start= offset;
-
-    if (offset > haystack->length())
-      return 0;
-    
-    offset--;
-    start--;
-    
-    /* start is now sufficiently valid to pass to charpos function */
-    start= haystack->charpos((int) start);
-    
-    if (start + needle->length() > haystack->length())
-      return 0;
-  }
+  if (argument >= arg_count)
+    return NULL;
   
-  if (!needle->length())       // Found empty string at start
-    return start + 1;
+  if (!(next= args[argument]->val_str(&tmp_value)))
+    return NULL;
   
-  if (!cmp_collation.collation->instr(haystack->ptr() + start,
-                                      (uint) (haystack->length() - start),
-                                      needle->ptr(), needle->length(),
-                                      &match, 1))
-    return 0;
-  return (longlong) match.mb_len + offset + 1;
+  argument++;
+  return next;
 }
 
-String *Item_func_sformat::substr(String *res, longlong start, longlong length)
+uint Item_func_sformat::split(String *format, uint nargs)
 {
-  DBUG_ASSERT(length > 0);
-  longlong tmp_length;
+  uint        i= 0;
+  uint        j= 0;
+  uint        len= (nargs * 2) + 1;
+  char        tmp[3]= {0};
+  bool        in_format= false;
+  String      item;
+  const char *ptr= format->ptr();
   
-  /* Assumes that the maximum length of a String is < INT_MAX32. */
-  /* Set here so that rest of code sees out-of-bound value as such. */
-  if (length > INT_MAX32)
-    length= INT_MAX32;
-  
-  /* Assumes that the maximum length of a String is < INT_MAX32. */
-  DBUG_ASSERT(start <= INT_MAX32);
-  
-  start= ((start < 0) ? res->numchars() + start : start - 1);
-  start= res->charpos((int) start);
-  DBUG_ASSERT(start >= 0);
-  DBUG_ASSERT((uint) start + 1 <= res->length());
-  
-  length= res->charpos((int) length, (uint32) start);
-  tmp_length= res->length() - start;
-  length= MY_MIN(length, tmp_length);
-  
-  if (!start && (longlong) res->length() == length)
-    return res;
-  tmp_value.set(*res, (uint32) start, (uint32) length);
-  return &tmp_value;
+  tokens= new Token[len]; /* check mariadb malloc/calloc */
+  item.set("", 0, format->charset());
+  while (ptr[i] != 0 && i < format->length()) {
+    tmp[0] = ptr[i];
+    tmp[1] = ptr[i+1];
+    
+    if (!in_format &&
+	(strncmp(tmp, "{{", 3)==0 ||
+	 strncmp(tmp, "}}", 3)==0)) {
+      item.append_char(tmp[0]);
+      i++;
+    } else if (j+1 >= len) {
+      item.append_char(ptr[i]);
+    } else if (ptr[i] == '{') {
+      tokens[j].is_arg= false;
+      tokens[j].data.copy(item);
+      j++;
+
+      in_format= true;
+      item.set("", 0, format->charset());
+    } else if (ptr[i] == '}') {
+      tokens[j].is_arg=	true;
+      tokens[j].data.copy(item);
+      j++;
+      
+      in_format= false;
+      item.set("", 0, format->charset());
+    } else {
+      item.append_char(ptr[i]);
+    }
+    i++;
+  }
+  tokens[j].is_arg= false;
+  tokens[j].data.copy(item);
+  j++;
+  return j;
 }
 
 String *Item_func_sformat::val_str(String *res)
 {
   DBUG_ASSERT(fixed());
-  uint     i= 1;
-  String  *format= NULL;
-  String  *tmp= NULL;
-  String   keys;
-  longlong index= 0;
-  longlong prev= 1;
-  
-  res->length(0);
-  res->set_charset(collation.collation);
+  uint    n=      0;
+  uint    i=      0;
+  String *tmp=    NULL;
+  String *format= NULL;;
   
   null_value= false;
-  if (!(format= args[0]->val_str(&tmp_value)))
+  argument=   0;
+  res->length(0);
+  res->set_charset(collation.collation);
+  if (!(format= getNextArgument()))
     goto null;
   
-  keys.set("{}", 2, collation.collation); 
-  index= locate(format, &keys, index);
-  while (index != 0) {
-    /* Add a part of the format */
-    if (index-prev > 0) {
-      tmp= substr(format, prev, index-prev);
-      res->append(*tmp);
-    }
-    /* Add the parameter */
-    if (i < arg_count) {
-      if (!(tmp= args[i]->val_str(&tmp_value)))
+  /* Split the format into tokes */
+  n = split(format, arg_count-1);
+  for (i=0 ; i<n ; i++) {
+    /* If the token is argument/parameter get it, else add its data */
+    if (tokens[i].is_arg) {
+      if ((tmp= getNextArgument()))
+	res->append(*tmp);
+      else if (argument < arg_count)
 	goto null;
-      i++;
-      res->append(*tmp);
     } else {
-      res->append_char(' ');
+      res->append(tokens[i].data);
     }
-    /* Search next {} */
-    index+= 2;
-    prev= index;
-    index= locate(format, &keys, index);
   }
-  /* insert the rest of the format */
-  index= format->numchars() + 1;
-  if (index-prev > 0) {
-    tmp= substr(format, prev, index-prev);
-    res->append(*tmp);
-  }
+  delete [] tokens;
+  tokens= NULL;
   return res;
   
 null:
   null_value= true;
-  return 0;
+  if (tokens != NULL) {
+    delete [] tokens;
+    tokens= NULL;
+  }
+  return NULL;
 }
 
 

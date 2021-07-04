@@ -20,6 +20,14 @@ select sformat('p1 {} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t
 drop table t2;
 
 echo # Normal Test Cases;
+select sformat('{{{}}}', 0);
+select sformat('{{{}{{', 0);
+select sformat('{{{{{}{{', 'param1');
+select sformat(' {{ {{ {} {{ ', 'param1');
+select sformat(' {{ {} {}', 'param1', 'param2');
+select sformat('A{}C{}E{}', 'B', 'D');
+select sformat('A{}C{}E{}', 'B', 'D', 'F');
+select sformat('Add € != {} !=  {}?', '$', '£');
 select sformat('{}{}{}', 1, 2, 3);
 select sformat('Float {} Boolean {} Number {}', 3.14159, True, -50);
 select sformat(NULL, 'Null', 'Test');

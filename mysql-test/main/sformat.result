@@ -7,7 +7,7 @@ insert into  t1 values ('string: {}, number: {}', 'xyz', 123),
 select sformat(param1, param2, param3) from t1;
 sformat(param1, param2, param3)
 string: xyz, number: 123
-something foo went 0 wrong  
+something foo went 0 wrong {}
 Test case Print -> -32
 drop table t1;
 create table t2 (param1 FLOAT, param2 SMALLINT, param3 CHAR, param4 DATE);
@@ -17,6 +17,30 @@ sformat('p1 {} p2 {} p3 {} p4 {}', param1, param2, param3, param4)
 p1 0.0025 p2 25 p3 A p4 2020-06-29
 drop table t2;
 # Normal Test Cases
+select sformat('{{{}}}', 0);
+sformat('{{{}}}', 0)
+{0}
+select sformat('{{{}{{', 0);
+sformat('{{{}{{', 0)
+{0{
+select sformat('{{{{{}{{', 'param1');
+sformat('{{{{{}{{', 'param1')
+{{param1{
+select sformat(' {{ {{ {} {{ ', 'param1');
+sformat(' {{ {{ {} {{ ', 'param1')
+ { { param1 { 
+select sformat(' {{ {} {}', 'param1', 'param2');
+sformat(' {{ {} {}', 'param1', 'param2')
+ { param1 param2
+select sformat('A{}C{}E{}', 'B', 'D');
+sformat('A{}C{}E{}', 'B', 'D')
+ABCDE{}
+select sformat('A{}C{}E{}', 'B', 'D', 'F');
+sformat('A{}C{}E{}', 'B', 'D', 'F')
+ABCDEF
+select sformat('Add € != {} !=  {}?', '$', '£');
+sformat('Add € != {} !=  {}?', '$', '£')
+Add € != $ !=  £?
 select sformat('{}{}{}', 1, 2, 3);
 sformat('{}{}{}', 1, 2, 3)
 123
