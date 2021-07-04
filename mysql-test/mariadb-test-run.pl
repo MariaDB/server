@@ -5095,7 +5095,7 @@ sub mysqld_start ($$) {
     $tinfo->{logfile}=get_log_from_proc($mysqld->{'proc'}, $tinfo->{name});
     report_option('verbose', 1);
     mtr_report_test($tinfo);
-    mtr_error("Failed to start mysqld $mname with command $exe");
+    mtr_error("Failed to start mysqld $mname with command $exe @$args");
   }
 
   # Remember options used when starting
