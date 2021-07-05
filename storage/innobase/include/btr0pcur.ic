@@ -633,3 +633,17 @@ btr_pcur_move_before_first_on_page(
 
 	cursor->old_stored = false;
 }
+
+UNIV_INLINE
+void
+btr_pcur_move_after_last_on_page(
+/*===============================*/
+	btr_pcur_t*	cursor) /*!< in/out: persistent cursor */
+{
+	ut_ad(cursor->latch_mode != BTR_NO_LATCHES);
+
+	page_cur_set_after_last(btr_pcur_get_block(cursor),
+		btr_pcur_get_page_cur(cursor));
+
+	cursor->old_stored = false;
+}

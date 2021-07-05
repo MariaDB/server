@@ -4333,6 +4333,8 @@ row_search_mvcc(
 	ibool		table_lock_waited		= FALSE;
 	byte*		next_buf			= 0;
 	bool		spatial_search			= false;
+	bool		is_infimum = false;
+	bool		is_supremum = false;
 
 	ut_ad(index && pcur && search_tuple);
 	ut_a(prebuilt->magic_n == ROW_PREBUILT_ALLOCATED);
@@ -5809,10 +5811,16 @@ lock_wait_or_error:
 	if (!dict_index_is_spatial(index)) {
 		/* Locked gap may be filled with inserted records.
 		Make sure we don't miss them. */
+		is_infimum = false;
+		is_supremum = false;
 		if (moves_up) {
 			btr_pcur_move_to_prev(pcur, &mtr);
+			rec = btr_pcur_get_rec(pcur);
+			is_infimum= page_rec_is_infimum(rec);
 		} else {
 			btr_pcur_move_to_next(pcur, &mtr);
+			rec = btr_pcur_get_rec(pcur);
+			is_supremum= page_rec_is_supremum(rec);
 		}
 		btr_pcur_store_position(pcur, &mtr);
 	}
@@ -5826,6 +5834,7 @@ page_read_error:
 
 lock_table_wait:
 	mtr.commit();
+ 	DEBUG_SYNC_C("row_search_lock_wait");
 	mtr_has_extra_clust_latch = FALSE;
 
 	trx->error_state = err;
@@ -5849,6 +5858,14 @@ lock_table_wait:
 			sel_restore_position_for_mysql(
 				&same_user_rec, BTR_SEARCH_LEAF, pcur,
 				moves_up, &mtr);
+			if (is_infimum)
+			{
+				ut_ad(moves_up);
+				btr_pcur_move_before_first_on_page(pcur);
+			} else if (is_supremum) {
+				ut_ad(!moves_up);
+				btr_pcur_move_after_last_on_page(pcur);
+			}
 			/* Counterpart of the stepping backward in lock_wait_or_error.
 			This is linked tight with that btr_pcur_store_position().
 			The jumps to page_read_error: and lock_table_wait: do not get here. */
