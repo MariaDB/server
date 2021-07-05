@@ -2845,11 +2845,11 @@ sub mysql_server_start($) {
 
 sub mysql_server_wait {
   my ($mysqld, $tinfo) = @_;
+  my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
 
-  if (!sleep_until_file_created($mysqld->value('pid-file'),
-                                      $opt_start_timeout,
-                                      $mysqld->{'proc'},
-                                      $warn_seconds))
+  if (!sleep_until_file_created($mysqld->value('pid-file'), $expect_file,
+                                $opt_start_timeout, $mysqld->{'proc'},
+                                $warn_seconds))
   {
     $tinfo->{comment}= "Failed to start ".$mysqld->name() . "\n";
     return 1;
@@ -5123,7 +5123,8 @@ sub mysqld_start ($$) {
 
   $mysqld->{'started_opts'}= $extra_opts;
 
-  return sleep_until_file_created($mysqld->value('pid-file'),
+  my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
+  return sleep_until_file_created($mysqld->value('pid-file'), $expect_file,
            $opt_start_timeout, $mysqld->{'proc'}, $warn_seconds);
 }
 
