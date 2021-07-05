@@ -436,6 +436,12 @@ btr_pcur_move_before_first_on_page(
 /*===============================*/
 	btr_pcur_t*	cursor); /*!< in/out: persistent cursor */
 
+UNIV_INLINE
+void
+btr_pcur_move_after_last_on_page(
+	btr_pcur_t*	cursor); /*!< in/out: persistent cursor */
+
+
 /** Position state of persistent B-tree cursor. */
 enum pcur_pos_t {
 	/** The persistent cursor is not positioned. */
