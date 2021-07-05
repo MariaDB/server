@@ -3612,6 +3612,9 @@ sel_restore_position_for_mysql(
 	ibool		success;
 
 	success = btr_pcur_restore_position(latch_mode, pcur, mtr);
+	DBUG_PRINT("pcur", ("rec: %u", pcur->btr_cur.page_cur.rec[3]));
+	DBUG_PRINT("pcur", ("same_user_rec: %u", success));
+	DBUG_PRINT("pcur", ("rel_pos: %u", pcur->rel_pos));
 
 	*same_user_rec = success;
 
@@ -5822,6 +5825,7 @@ lock_wait_or_error:
 			rec = btr_pcur_get_rec(pcur);
 			is_supremum= page_rec_is_supremum(rec);
 		}
+// 		DBUG_ASSERT(pcur->btr_cur.page_cur.rec[0] == 'i');
 		btr_pcur_store_position(pcur, &mtr);
 	}
 page_read_error:
@@ -5858,11 +5862,13 @@ lock_table_wait:
 			sel_restore_position_for_mysql(
 				&same_user_rec, BTR_SEARCH_LEAF, pcur,
 				moves_up, &mtr);
+// 			DBUG_ASSERT(pcur->btr_cur.page_cur.rec[0] == 'i');
 			if (is_infimum)
 			{
 				ut_ad(moves_up);
 				btr_pcur_move_before_first_on_page(pcur);
-			} else if (is_supremum) {
+			} else if (is_supremum)
+			{
 				ut_ad(!moves_up);
 				btr_pcur_move_after_last_on_page(pcur);
 			}
