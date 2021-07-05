@@ -6676,6 +6676,16 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       LEX_CSTRING unknown= {STRING_WITH_LEN("?unknown field?") };
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
+        if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
+            DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+        {
+          /*
+            NOTE: we will get SEQ_IN_INDEX gap inside the result if this key_part
+            is not last (currently not possible). Though nothing is wrong with
+            that probably.
+          */
+          continue;
+        }
         restore_record(table, s->default_values);
         table->field[0]->store(STRING_WITH_LEN("def"), cs);
         table->field[1]->store(db_name->str, db_name->length, cs);
