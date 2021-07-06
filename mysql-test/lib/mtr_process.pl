@@ -121,7 +121,7 @@ sub sleep_until_file_created ($$$$$) {
     my $seconds= ($loop * $sleeptime) / 1000;
 
     # Check if it died after the fork() was successful
-    if ( defined $proc and ! $proc->wait_one(0) )
+    if ( defined $proc and ! $proc->wait_one(0, 1) )
     {
       return 1 if -r $expectfile;
       mtr_warning("Process $proc died after mysql-test-run waited $seconds " .
