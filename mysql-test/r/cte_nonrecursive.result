@@ -2019,4 +2019,29 @@ drop procedure sp1;
 drop procedure sp2;
 drop procedure sp3;
 drop table t1;
+#
+# MDEV-26095: missing RECURSIVE for the recursive definition of CTE
+#             embedded into another CTE definition
+#
+create table t1 (a int);
+insert into t1 values (5), (7);
+with cte_e as (
+with recursive cte_r as (
+select a from t1 union select a+1 as a from cte_r r where a < 10
+) select * from cte_r
+) select * from cte_e;
+a
+5
+7
+6
+8
+9
+10
+with cte_e as (
+with cte_r as (
+select a from t1 union select a+1 as a from cte_r r where a < 10
+) select * from cte_r
+) select * from cte_e;
+ERROR 42S02: Table 'test.cte_r' doesn't exist
+drop table t1;
 # End of 10.2 tests
