@@ -985,25 +985,40 @@ lock_rec_other_has_conflicting(
 	ulint			heap_no,/*!< in: heap number of the record */
 	const trx_t*		trx)	/*!< in: our transaction */
 {
-	lock_t*		res = NULL;
+	lock_t*		conflict = NULL;
+	bool		skip_waiting = false;
 
 	bool	is_supremum = (heap_no == PAGE_HEAP_NO_SUPREMUM);
 
 	for (lock_t* lock = lock_sys_t::get_first(cell, id, heap_no);
 	     lock; lock = lock_rec_get_next(heap_no, lock)) {
+
+		if (skip_waiting && lock->is_waiting()) {
+			continue;
+		}
+
 		/* If current trx already acquired a lock not weaker covering
 		same types then we don't have to wait for any locks. */
 		if (lock->is_stronger(mode, heap_no, trx)) {
 
 			return(NULL);
-		}
+		} else if (lock->trx == trx && !lock->is_waiting()) {
+			if (conflict && conflict->is_waiting()) {
+				conflict = NULL;
+			}
+			skip_waiting = true;
+		} else if (lock_rec_has_to_wait(true, trx, mode, lock,
+						is_supremum)) {
 
-		if (!res && lock_rec_has_to_wait(true, trx, mode, lock, is_supremum)) {
-			res = lock;
+			if (!conflict || (conflict->is_waiting()
+					  && !lock->is_waiting())) {
+
+				conflict = lock;
+			}
 		}
 	}
 
-	return(res);
+	return(conflict);
 }
 
 /*********************************************************************//**
