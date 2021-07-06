@@ -8301,8 +8301,7 @@ alter_templ_needs_rebuild(
 			for (ulint j=0; j < table->n_cols; j++) {
 				dict_col_t* cols
                                    = dict_table_get_nth_col(table, j);
-				if (cf.length > cols->len
-				    && dict_col_in_v_indexes(table, cols)) {
+				if (cf.length > cols->len) {
 					return(true);
 				}
 			}
@@ -8363,7 +8362,32 @@ ha_innobase::inplace_alter_table(
 
 	DEBUG_SYNC(m_user_thd, "innodb_inplace_alter_table_enter");
 
+	ha_innobase_inplace_ctx* ctx =static_cast<ha_innobase_inplace_ctx*>
+					(ha_alter_info->handler_ctx);
+
+	bool field_len_changed= ctx ?
+				alter_templ_needs_rebuild(altered_table,
+							  ha_alter_info,
+							  ctx->new_table) :
+				0;
+
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)) {
+		if (field_len_changed && ctx->new_table->n_v_cols > 0) {
+			/* Changing mysql record structure may end up here if
+			only virtual fields were altered. In this case,
+			however, vc_templ should be rebuilt. Since we don't
+			actually change any stored data, we can just dispose
+			vc_templ; it will be recreated on next
+			ha_innobase::open(). */
+
+			dict_free_vc_templ(ctx->new_table->vc_templ);
+			UT_DELETE(ctx->new_table->vc_templ);
+
+			DBUG_ASSERT(ctx->new_table->vc_templ ==
+					ctx->old_table->vc_templ);
+			ctx->new_table->vc_templ = NULL;
+			ctx->old_table->vc_templ = NULL;
+		}
 ok_exit:
 		DEBUG_SYNC(m_user_thd, "innodb_after_inplace_alter_table");
 		DBUG_RETURN(false);
@@ -8376,10 +8400,6 @@ ok_exit:
 	    && !alter_options_need_rebuild(ha_alter_info, table)) {
 		goto ok_exit;
 	}
-
-	ha_innobase_inplace_ctx*	ctx
-		= static_cast<ha_innobase_inplace_ctx*>
-		(ha_alter_info->handler_ctx);
 
 	DBUG_ASSERT(ctx);
 	DBUG_ASSERT(ctx->trx);
@@ -8412,8 +8432,7 @@ ok_exit:
 	     = ctx->need_rebuild()
 	       || ((ha_alter_info->handler_flags
 		& ALTER_COLUMN_TYPE_CHANGE_BY_ENGINE)
-		&& alter_templ_needs_rebuild(
-		   altered_table, ha_alter_info, ctx->new_table));
+		&& field_len_changed);
 
 	if ((ctx->new_table->n_v_cols > 0) && rebuild_templ) {
 		/* Save the templ if isn't NULL so as to restore the
