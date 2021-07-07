@@ -468,7 +468,7 @@ int mysql_update(THD *thd,
   want_privilege= (table_list->view ? UPDATE_ACL :
                    table_list->grant.want_privilege);
 #endif
-  promote_select_describe_flag_if_needed(thd->lex);
+  thd->lex->promote_select_describe_flag_if_needed();
 
   if (mysql_prepare_update(thd, table_list, &conds, order_num, order))
     DBUG_RETURN(1);

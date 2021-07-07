@@ -18,7 +18,7 @@
 #include "mysys_priv.h"
 #include <my_stacktrace.h>
 
-#ifndef __WIN__
+#ifndef _WIN32
 #include <signal.h>
 #include <m_string.h>
 #ifdef HAVE_STACKTRACE
@@ -43,10 +43,10 @@ static sig_handler default_handle_fatal_signal(int sig)
   my_safe_printf_stderr("%s: Got signal %d. Attempting backtrace\n",
                         my_progname_short, sig);
   my_print_stacktrace(0,0,1);
-#ifndef __WIN__
+#ifndef _WIN32
   signal(sig, SIG_DFL);
   kill(getpid(), sig);
-#endif /* __WIN__ */
+#endif /* _WIN32 */
   return;
 }
 
@@ -428,7 +428,7 @@ void my_write_core(int sig)
 #endif
 }
 
-#else /* __WIN__*/
+#else /* _WIN32*/
 
 #ifdef _MSC_VER
 /* Silence warning in OS header dbghelp.h */
@@ -587,8 +587,12 @@ void my_print_stacktrace(uchar* unused1, ulong unused2, my_bool silent)
   frame.AddrFrame.Offset= context.Rbp;
   frame.AddrPC.Offset=    context.Rip;
   frame.AddrStack.Offset= context.Rsp;
+#elif defined(_M_ARM64)
+  machine= IMAGE_FILE_MACHINE_ARM64;
+  frame.AddrFrame.Offset= context.Fp;
+  frame.AddrPC.Offset=    context.Pc;
+  frame.AddrStack.Offset= context.Sp;
 #else
-  /*There is currently no need to support IA64*/
 #pragma error ("unsupported architecture")
 #endif
 
@@ -713,7 +717,7 @@ int my_safe_print_str(const char *val, size_t len)
   }
   return 0;
 }
-#endif /*__WIN__*/
+#endif /*_WIN32*/
 
 
 size_t my_write_stderr(const void *buf, size_t count)

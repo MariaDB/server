@@ -23,7 +23,7 @@
 #include "mariadb.h"
 #include "mysqld.h"
 #include "sql_priv.h"
-#ifndef __WIN__
+#ifndef _WIN32
 #include <netdb.h>        // getservbyname, servent
 #endif
 #include "sql_audit.h"

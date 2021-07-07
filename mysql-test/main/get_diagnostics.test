@@ -331,12 +331,10 @@ DROP PROCEDURE p1;
 --echo #
 
 --echo
---echo # GET DIAGNOSTICS cannot be the object of a PREPARE statement.
+--echo # GET DIAGNOSTICS can be the object of a PREPARE statement.
 --echo
 
---error ER_UNSUPPORTED_PS
 PREPARE stmt FROM "GET DIAGNOSTICS CONDITION 1 @var = CLASS_ORIGIN";
---error ER_UNSUPPORTED_PS
 PREPARE stmt FROM "GET DIAGNOSTICS @var = NUMBER";
 
 --echo

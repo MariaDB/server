@@ -256,7 +256,7 @@ buf_dump(
 #ifdef _WIN32
 	/* use my_fopen() for correct permissions during bootstrap*/
 	f = my_fopen(tmp_filename, O_RDWR|O_TRUNC|O_CREAT, 0);
-#elif defined(__GLIBC__) || defined(__WIN__) || O_CLOEXEC == 0
+#elif defined(__GLIBC__) || O_CLOEXEC == 0
 	f = fopen(tmp_filename, "w" STR_O_CLOEXEC);
 #else
 	{

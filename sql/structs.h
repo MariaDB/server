@@ -537,7 +537,8 @@ public:
     OPT_OR_REPLACE= 16,                // CREATE OR REPLACE TABLE
     OPT_OR_REPLACE_SLAVE_GENERATED= 32,// REPLACE was added on slave, it was
                                        // not in the original query on master.
-    OPT_IF_EXISTS= 64
+    OPT_IF_EXISTS= 64,
+    OPT_CREATE_SELECT= 128             // CREATE ... SELECT
   };
 
 private:
@@ -565,6 +566,8 @@ public:
   { return m_options & OPT_OR_REPLACE_SLAVE_GENERATED; }
   bool like() const { return m_options & OPT_LIKE; }
   bool if_exists() const { return m_options & OPT_IF_EXISTS; }
+  bool is_create_select() const { return m_options & OPT_CREATE_SELECT; }
+
   void add(const DDL_options_st::Options other)
   {
     m_options= (Options) ((uint) m_options | (uint) other);

@@ -28,6 +28,7 @@ CREATE TABLE diaries (
     COMMENT 'parser "TokenBigramSplitSymbolAlphaDigit"'
 ) DEFAULT CHARSET utf8;
 
+--enable_prepare_warnings
 INSERT INTO diaries (body) VALUES ("will start Groonga!");
 INSERT INTO diaries (body) VALUES ("starting Groonga...");
 INSERT INTO diaries (body) VALUES ("started Groonga.");

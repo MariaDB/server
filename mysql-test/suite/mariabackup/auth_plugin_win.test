@@ -18,7 +18,7 @@ INSTALL SONAME 'auth_named_pipe';
 --replace_result $USERNAME USERNAME
 eval CREATE USER '$USERNAME' IDENTIFIED WITH named_pipe;
 --replace_result $USERNAME USERNAME
-eval GRANT ALL PRIVILEGES ON *.* to $USERNAME;
+eval GRANT ALL PRIVILEGES ON *.* to '$USERNAME';
 
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 --disable_result_log

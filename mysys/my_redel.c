@@ -106,7 +106,7 @@ int my_copystat(const char *from, const char *to, int MyFlags)
     return -1;
   }
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
   if (statbuf.st_nlink > 1 && MyFlags & MY_LINK_WARNING)
   {
     if (MyFlags & MY_LINK_WARNING)
@@ -121,7 +121,7 @@ int my_copystat(const char *from, const char *to, int MyFlags)
     if (MyFlags & MY_FAE)
       return -1;
   }
-#endif /* !__WIN__ */
+#endif /* !_WIN32 */
 
   if (MyFlags & MY_COPYTIME)
   {

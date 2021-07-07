@@ -44,6 +44,7 @@
 #include <mysql/psi/mysql_table.h>
 #include "sql_sequence.h"
 #include "mem_root_array.h"
+#include <utility>     // pair
 
 class Alter_info;
 class Virtual_column_info;
@@ -931,6 +932,38 @@ struct xid_t {
 };
 typedef struct xid_t XID;
 
+/*
+  Enumerates a sequence in the order of
+  their creation that is in the top-down order of the index file.
+  Ranges from zero through MAX_binlog_id.
+  Not confuse the value with the binlog file numerical suffix,
+  neither with the binlog file line in the binlog index file.
+*/
+typedef uint Binlog_file_id;
+const Binlog_file_id MAX_binlog_id= UINT_MAX;
+/*
+  Compound binlog-id and byte offset of transaction's first event
+  in a sequence (e.g the recovery sequence) of binlog files.
+  Binlog_offset(0,0) is the minimum value to mean
+  the first byte of the first binlog file.
+*/
+typedef std::pair<Binlog_file_id, my_off_t> Binlog_offset;
+
+/* binlog-based recovery transaction descriptor */
+struct xid_recovery_member
+{
+  my_xid xid;
+  uint in_engine_prepare;  // number of engines that have xid prepared
+  bool decided_to_commit;
+  Binlog_offset binlog_coord; // semisync recovery binlog offset
+  XID *full_xid;           // needed by wsrep or past it recovery
+
+  xid_recovery_member(my_xid xid_arg, uint prepare_arg, bool decided_arg,
+                      XID *full_xid_arg)
+    : xid(xid_arg), in_engine_prepare(prepare_arg),
+      decided_to_commit(decided_arg), full_xid(full_xid_arg) {};
+};
+
 /* for recover() handlerton call */
 #define MIN_XID_LIST_SIZE  128
 #define MAX_XID_LIST_SIZE  (1024*128)
@@ -1046,6 +1079,7 @@ enum enum_schema_tables
   SCH_FILES,
   SCH_GLOBAL_STATUS,
   SCH_GLOBAL_VARIABLES,
+  SCH_KEYWORDS,
   SCH_KEY_CACHES,
   SCH_KEY_COLUMN_USAGE,
   SCH_OPEN_TABLES,
@@ -1062,6 +1096,7 @@ enum enum_schema_tables
   SCH_SESSION_STATUS,
   SCH_SESSION_VARIABLES,
   SCH_STATISTICS,
+  SCH_SQL_FUNCTIONS,
   SCH_SYSTEM_VARIABLES,
   SCH_TABLES,
   SCH_TABLESPACES,
@@ -1853,11 +1888,13 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
 */
 #define HTON_REQUIRES_CLOSE_AFTER_TRUNCATE (1 << 18)
 
+/* Truncate requires that all other handlers are closed */
+#define HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE (1 << 19)
 /*
   Used by mysql_inplace_alter_table() to decide if we should call
   hton->notify_tabledef_changed() before commit (MyRocks) or after (InnoDB).
 */
-#define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 19)
+#define HTON_REQUIRES_NOTIFY_TABLEDEF_CHANGED_AFTER_COMMIT (1 << 20)
 
 class Ha_trx_info;
 
@@ -5318,7 +5355,8 @@ int ha_commit_one_phase(THD *thd, bool all);
 int ha_commit_trans(THD *thd, bool all);
 int ha_rollback_trans(THD *thd, bool all);
 int ha_prepare(THD *thd);
-int ha_recover(HASH *commit_list);
+int ha_recover(HASH *commit_list, MEM_ROOT *mem_root= NULL);
+uint ha_recover_complete(HASH *commit_list, Binlog_offset *coord= NULL);
 
 /* transactions: these functions never call handlerton functions directly */
 int ha_enable_transaction(THD *thd, bool on);
@@ -5446,4 +5484,8 @@ int del_global_index_stat(THD *thd, TABLE* table, KEY* key_info);
 int del_global_table_stat(THD *thd, const  LEX_CSTRING *db, const LEX_CSTRING *table);
 uint ha_count_rw_all(THD *thd, Ha_trx_info **ptr_ha_info);
 bool non_existing_table_error(int error);
+uint ha_count_rw_2pc(THD *thd, bool all);
+uint ha_check_and_coalesce_trx_read_only(THD *thd, Ha_trx_info *ha_list,
+                                         bool all);
+
 #endif /* HANDLER_INCLUDED */

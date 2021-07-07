@@ -24,6 +24,14 @@ INCLUDE (CheckCSourceRuns)
 INCLUDE (CheckSymbolExists)
 INCLUDE (CheckTypeSize)
 
+IF(MSVC)
+  IF(CMAKE_CXX_COMPILER_ARCHITECTURE_ID STREQUAL ARM64)
+   SET(MSVC_ARM64 1)
+   SET(MSVC_INTEL 0)
+  ELSE()
+   SET(MSVC_INTEL 1)
+  ENDIF()
+ENDIF()
 
 # avoid running system checks by using pre-cached check results
 # system checks are expensive on VS since every tiny program is to be compiled in 
@@ -50,7 +58,7 @@ IF(MSVC  AND CMAKE_CXX_COMPILER_ID MATCHES Clang)
  SET(CLANG_CL TRUE)
 ENDIF()
 
-ADD_DEFINITIONS(-D_WINDOWS -D__WIN__ -D_CRT_SECURE_NO_DEPRECATE)
+ADD_DEFINITIONS(-D_CRT_SECURE_NO_DEPRECATE)
 ADD_DEFINITIONS(-D_WIN32_WINNT=0x0A00)
 # We do not want the windows.h macros min/max
 ADD_DEFINITIONS(-DNOMINMAX)

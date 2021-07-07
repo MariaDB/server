@@ -3417,6 +3417,9 @@ static my_bool maria_zerofill_index(HA_CHECK *param, MARIA_HA *info,
   my_bool zero_lsn= (share->base.born_transactional &&
                      !(param->testflag & T_ZEROFILL_KEEP_LSN));
   int error= 1;
+  enum pagecache_page_type page_type= (share->base.born_transactional ?
+                                       PAGECACHE_LSN_PAGE :
+                                       PAGECACHE_PLAIN_PAGE);
   DBUG_ENTER("maria_zerofill_index");
 
   if (!(param->testflag & T_SILENT))
@@ -3431,7 +3434,7 @@ static my_bool maria_zerofill_index(HA_CHECK *param, MARIA_HA *info,
     if (!(buff= pagecache_read(share->pagecache,
                                &share->kfile, page,
                                DFLT_INIT_HITS, 0,
-                               PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
+                               page_type, PAGECACHE_LOCK_WRITE,
                                &page_link.link)))
     {
       pagecache_unlock_by_link(share->pagecache, page_link.link,
@@ -3508,6 +3511,9 @@ static my_bool maria_zerofill_data(HA_CHECK *param, MARIA_HA *info,
   uint block_size= share->block_size;
   MARIA_FILE_BITMAP *bitmap= &share->bitmap;
   my_bool zero_lsn= !(param->testflag & T_ZEROFILL_KEEP_LSN), error;
+  enum pagecache_page_type read_page_type= (share->base.born_transactional ?
+                                            PAGECACHE_LSN_PAGE :
+                                            PAGECACHE_PLAIN_PAGE);
   DBUG_ENTER("maria_zerofill_data");
 
   /* This works only with BLOCK_RECORD files */
@@ -3531,7 +3537,7 @@ static my_bool maria_zerofill_data(HA_CHECK *param, MARIA_HA *info,
     if (!(buff= pagecache_read(share->pagecache,
                                &info->dfile,
                                page, 1, 0,
-                               PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
+                               read_page_type, PAGECACHE_LOCK_WRITE,
                                &page_link.link)))
     {
       _ma_check_print_error(param,
@@ -4287,7 +4293,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 			const char * name, my_bool rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ha_rows start_records;
   my_off_t new_header_length,del;
   File new_file;
@@ -4449,7 +4455,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     _ma_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->new_rec_per_key_part;
   share->state.state.records=share->state.state.del=share->state.split=0;
   share->state.state.empty=0;
@@ -4519,7 +4527,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {

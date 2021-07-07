@@ -422,14 +422,7 @@ public:
 	bool is_in_unflushed_spaces;
 
 	/** Checks that this tablespace needs key rotation. */
-	bool is_in_rotation_list;
-
-	/** True if the device this filespace is on supports atomic writes */
-	bool		atomic_write_supported;
-
-	/** True if file system storing this tablespace supports
-	punch hole */
-	bool		punch_hole;
+	bool is_in_default_encrypt;
 
 	/** mutex to protect freed ranges */
 	std::mutex	freed_range_mutex;
@@ -444,11 +437,7 @@ public:
 	ulint		magic_n;/*!< FIL_SPACE_MAGIC_N */
 
   /** @return whether doublewrite buffering is needed */
-  bool use_doublewrite() const
-  {
-    return !atomic_write_supported && srv_use_doublewrite_buf &&
-      buf_dblwr.is_initialised();
-  }
+  inline bool use_doublewrite() const;
 
 	/** Append a file to the chain of files of a space.
 	@param[in]	name		file name of a file that is not open
@@ -509,6 +498,8 @@ public:
   /** @return whether the storage device is rotational (HDD, not SSD) */
   inline bool is_rotational() const;
 
+  /** whether the tablespace discovery is being deferred during crash
+  recovery due to incompletely written page 0 */
   inline bool is_deferred() const;
 
   /** Open each file. Never invoked on .ibd files.
@@ -518,8 +509,12 @@ public:
   /** Close each file. Only invoked on fil_system.temp_space. */
   void close();
 
-  /** Note that operations on the tablespace must stop or can resume */
-  inline void set_stopping(bool stopping);
+  /** Note that operations on the tablespace must stop.
+  @return whether the operations were already stopped */
+  inline bool set_stopping();
+
+  /** Note that operations on the tablespace can resume after truncation */
+  inline void clear_stopping();
 
   /** Look up the tablespace and wait for pending operations to cease
   @param id  tablespace identifier
@@ -1062,60 +1057,56 @@ private:
 /** File node of a tablespace or the log data space */
 struct fil_node_t final
 {
-	/** tablespace containing this file */
-	fil_space_t*	space;
-	/** file name; protected by fil_system.mutex and log_sys.mutex. */
-	char*		name;
-	/** file handle (valid if is_open) */
-	pfs_os_file_t	handle;
-	/** whether the file actually is a raw device or disk partition */
-	bool		is_raw_disk;
-	/** whether the file is on non-rotational media (SSD) */
-	bool		on_ssd;
-	/** size of the file in database pages (0 if not known yet);
-	the possible last incomplete megabyte may be ignored
-	if space->id == 0 */
-	uint32_t	size;
-	/** initial size of the file in database pages;
-	FIL_IBD_FILE_INITIAL_SIZE by default */
-	uint32_t	init_size;
-	/** maximum size of the file in database pages (0 if unlimited) */
-	uint32_t	max_size;
-	/** whether the file is currently being extended */
-	Atomic_relaxed<bool> being_extended;
-	/** link to other files in this tablespace */
-	UT_LIST_NODE_T(fil_node_t) chain;
+  /** tablespace containing this file */
+  fil_space_t *space;
+  /** file name; protected by fil_system.mutex and log_sys.mutex */
+  char *name;
+  /** file handle */
+  pfs_os_file_t handle;
+  /** whether the file is on non-rotational media (SSD) */
+  unsigned on_ssd:1;
+  /** how to write page_compressed tables
+  (0=do not punch holes but write minimal amount of data, 1=punch holes,
+  2=always write the same amount; thinly provisioned storage will compress) */
+  unsigned punch_hole:2;
+  /** whether this file could use atomic write */
+  unsigned atomic_write:1;
+  /** whether the file actually is a raw device or disk partition */
+  unsigned is_raw_disk:1;
+  /** whether the tablespace discovery is being deferred during crash
+  recovery due to incompletely written page 0 */
+  unsigned deferred:1;
 
-	/** whether this file could use atomic write (data file) */
-	bool		atomic_write;
+  /** size of the file in database pages (0 if not known yet);
+  the possible last incomplete megabyte may be ignored if space->id == 0 */
+  uint32_t size;
+  /** initial size of the file in database pages;
+  FIL_IBD_FILE_INITIAL_SIZE by default */
+  uint32_t init_size;
+  /** maximum size of the file in database pages (0 if unlimited) */
+  uint32_t max_size;
+  /** whether the file is currently being extended */
+  Atomic_relaxed<bool> being_extended;
+  /** link to other files in this tablespace */
+  UT_LIST_NODE_T(fil_node_t) chain;
 
-	/** Filesystem block size */
-	ulint		block_size;
+  /** Filesystem block size */
+  ulint block_size;
 
-	/** Deferring the tablespace during recovery and it
-	can be used to skip the validation of page0 */
-	bool		deferred=false;
+  /** @return whether this file is open */
+  bool is_open() const { return handle != OS_FILE_CLOSED; }
 
-	/** FIL_NODE_MAGIC_N */
-	ulint		magic_n;
+  /** Read the first page of a data file.
+  @return whether the page was found valid */
+  bool read_page0();
 
-	/** @return whether this file is open */
-	bool is_open() const
-	{
-		return(handle != OS_FILE_CLOSED);
-	}
-
-	/** Read the first page of a data file.
-	@return	whether the page was found valid */
-	bool read_page0();
-
-	/** Determine some file metadata when creating or reading the file.
-	@param	file	the file that is being created, or OS_FILE_CLOSED */
-	void find_metadata(os_file_t file = OS_FILE_CLOSED
+  /** Determine some file metadata when creating or reading the file.
+  @param file   the file that is being created, or OS_FILE_CLOSED */
+  void find_metadata(os_file_t file= OS_FILE_CLOSED
 #ifndef _WIN32
-			   , struct stat* statbuf = NULL
+                     , bool create= false, struct stat *statbuf= nullptr
 #endif
-			   );
+                     );
 
   /** Close the file handle. */
   void close();
@@ -1134,8 +1125,11 @@ private:
   void prepare_to_close_or_detach();
 };
 
-/** Value of fil_node_t::magic_n */
-#define	FIL_NODE_MAGIC_N	89389
+inline bool fil_space_t::use_doublewrite() const
+{
+  return !UT_LIST_GET_FIRST(chain)->atomic_write && srv_use_doublewrite_buf &&
+    buf_dblwr.is_initialised();
+}
 
 inline void fil_space_t::set_imported()
 {
@@ -1468,23 +1462,25 @@ public:
 					record has been written since
 					the latest redo log checkpoint.
 					Protected only by log_sys.mutex. */
-	ilist<fil_space_t, rotation_list_tag_t> rotation_list;
-					/*!< list of all file spaces needing
-					key rotation.*/
+
+	/** List of all file spaces need key rotation */
+	ilist<fil_space_t, rotation_list_tag_t> default_encrypt_tables;
 
 	bool		space_id_reuse_warned;
 					/*!< whether fil_space_t::create()
 					has issued a warning about
 					potential space_id reuse */
 
-  /** Return the next tablespace from rotation_list.
-  @param space   previous tablespace (NULL to start from the start)
+  /** Return the next tablespace from default_encrypt_tables list.
+  @param space   previous tablespace (nullptr to start from the start)
   @param recheck whether the removal condition needs to be rechecked after
   the encryption parameters were changed
   @param encrypt expected state of innodb_encrypt_tables
   @return the next tablespace to process (n_pending_ops incremented)
-  @retval NULL if this was the last */
-  fil_space_t* keyrotate_next(fil_space_t* space, bool recheck, bool encrypt);
+  @retval fil_system.temp_space if there is no work to do
+  @retval nullptr upon reaching the end of the iteration */
+  inline fil_space_t* default_encrypt_next(fil_space_t *space, bool recheck,
+                                           bool encrypt);
 
   /** Extend all open data files to the recovered size */
   ATTRIBUTE_COLD void extend_to_recv_size();
@@ -1508,12 +1504,19 @@ inline void fil_space_t::reacquire()
 #endif /* SAFE_MUTEX */
 }
 
-/** Note that operations on the tablespace must stop or can resume */
-inline void fil_space_t::set_stopping(bool stopping)
+/** Note that operations on the tablespace must stop.
+@return whether the operations were already stopped */
+inline bool fil_space_t::set_stopping()
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_d(auto n=) n_pending.fetch_xor(STOPPING, std::memory_order_relaxed);
-  ut_ad(!(n & STOPPING) == stopping);
+  return n_pending.fetch_or(STOPPING, std::memory_order_relaxed) & STOPPING;
+}
+
+inline void fil_space_t::clear_stopping()
+{
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  ut_d(auto n=) n_pending.fetch_and(~STOPPING, std::memory_order_relaxed);
+  ut_ad(n & STOPPING);
 }
 
 /** Flush pending writes from the file system cache to the file. */
@@ -1595,13 +1598,12 @@ fil_write_flushed_lsn(
 	lsn_t	lsn)
 MY_ATTRIBUTE((warn_unused_result));
 
+MY_ATTRIBUTE((warn_unused_result))
 /** Delete a tablespace and associated .ibd file.
-@param[in]	id		tablespace identifier
-@param[in]	if_exists	whether to ignore missing tablespace
-@param[out]	detached	deatched file handle (if closing is not wanted)
-@return	DB_SUCCESS or error */
-dberr_t fil_delete_tablespace(ulint id, bool if_exists= false,
-                              pfs_os_file_t *detached= nullptr);
+@param id    tablespace identifier
+@return detached file handle (to be closed by the caller)
+@return	OS_FILE_CLOSED if no file existed */
+pfs_os_file_t fil_delete_tablespace(ulint id);
 
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
 The tablespace must be cached in the memory cache.

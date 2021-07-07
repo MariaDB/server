@@ -17,10 +17,11 @@
 #define WC_RSA_BLINDING
 #define HAVE_TLS_EXTENSIONS
 #define HAVE_AES_ECB
+#define HAVE_AESGCM
 #define WOLFSSL_AES_COUNTER
 #define NO_WOLFSSL_STUB
 #define OPENSSL_ALL
-#undef WOLFSSL_ALLOW_TLSV10 /* see https://github.com/wolfSSL/wolfssl/issues/2960 */
+#define WOLFSSL_ALLOW_TLSV10
 #define NO_OLD_TIMEVAL_NAME
 /*
   FP_MAX_BITS is set high solely to satisfy ssl_8k_key.test

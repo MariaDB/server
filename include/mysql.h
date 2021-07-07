@@ -32,13 +32,6 @@
 #include <standards.h>
 #endif
 
-#ifdef __CYGWIN__     /* CYGWIN implements a UNIX API */
-#undef WIN
-#undef _WIN
-#undef _WIN32
-#undef _WIN64
-#undef __WIN__
-#endif
 
 #ifdef	__cplusplus
 extern "C" {
@@ -53,10 +46,7 @@ extern "C" {
 typedef char my_bool;
 #endif
 
-#if (defined(_WIN32) || defined(_WIN64)) && !defined(__WIN__)
-#define __WIN__
-#endif
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #define STDCALL
 #else
 #define STDCALL __stdcall
@@ -130,7 +120,7 @@ typedef unsigned int MYSQL_FIELD_OFFSET; /* offset to current field */
 #ifndef MY_GLOBAL_INCLUDED
 #if defined(NO_CLIENT_LONG_LONG)
 typedef unsigned long my_ulonglong;
-#elif defined (__WIN__)
+#elif defined (_WIN32)
 typedef unsigned __int64 my_ulonglong;
 #else
 typedef unsigned long long my_ulonglong;

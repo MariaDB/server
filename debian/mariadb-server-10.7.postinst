@@ -36,7 +36,7 @@ case "$1" in
     # latest 'mariadb' file. This has also the added benefit that anything that
     # invokes traditional sysv init with either 'mysql' or 'mariadb' will end up
     # controlling this newly installed MariaDB, and thus we maintain better
-    # backwards compatiblity.
+    # backwards compatibility.
     #
     # Note that the 'Provides' line is also updated to avoid 'insserv' exiting
     # on failure (when it is run by update-rc.d) because of duplicate service

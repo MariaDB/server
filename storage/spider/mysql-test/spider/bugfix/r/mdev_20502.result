@@ -52,7 +52,7 @@ m	const	val	sq
 3	0	1	2
 2	0	2	2
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select t0.`id` `id`,t0.`val` `val` from `auto_test_remote`.`tbl_a` t0
 select t0.`id` `id`,t0.`val` `val`,(t0.`val` + 10) `val+10` from `auto_test_remote`.`tbl_a` t0
@@ -62,7 +62,7 @@ select (t0.`val` + 10) `val+10`,t0.`val` `val` from `auto_test_remote`.`tbl_a` t
 select (t0.`val` + 1) `tbl_a.val+1` from `auto_test_remote`.`tbl_a` t0 limit 1
 select max(t0.`id`) `m`,t0.`val` `val` from `auto_test_remote`.`tbl_a` t0 group by t0.`val` order by t0.`val`
 select (t0.`val` + 1) `tbl_a.val+1` from `auto_test_remote`.`tbl_a` t0 limit 1
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT id, val FROM tbl_a ORDER BY id;
 id	val
 1	1

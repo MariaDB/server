@@ -1466,7 +1466,7 @@ static void fill_server(MEM_ROOT *mem_root, FEDERATEDX_SERVER *server,
     database.length(my_casedn_str(system_charset_info, database.c_ptr_safe()));
   }
 
-#ifndef __WIN__
+#ifndef _WIN32
   /*
     TODO: there is no unix sockets under windows so the engine should be
     revised about using sockets in such environment.

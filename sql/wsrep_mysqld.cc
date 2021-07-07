@@ -2229,6 +2229,9 @@ bool wsrep_should_replicate_ddl(THD* thd, const handlerton *hton)
   if (!wsrep_check_mode(WSREP_MODE_STRICT_REPLICATION))
     return true;
 
+  if (!hton)
+    return true;
+
   switch (hton->db_type)
   {
     case DB_TYPE_INNODB:

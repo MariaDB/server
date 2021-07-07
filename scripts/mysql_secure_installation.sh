@@ -159,15 +159,15 @@ then
     cannot_find_file my_print_defaults $basedir/bin $basedir/extra
     exit 1
   fi
-  mysql_command=`find_in_basedir mysql bin`
+  mysql_command=`find_in_basedir mariadb bin`
   if test -z "$mysql_command"
   then
-    cannot_find_file mysql $basedir/bin
-    exit 1
+      cannot_find_file mariadb $basedir/bin
+      exit 1
   fi
 else
   print_defaults="@bindir@/my_print_defaults"
-  mysql_command="@bindir@/mysql"
+  mysql_command="@bindir@/mariadb"
 fi
 
 if test ! -x "$print_defaults"

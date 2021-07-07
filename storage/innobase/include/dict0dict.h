@@ -32,6 +32,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "dict0mem.h"
 #include "fsp0fsp.h"
 #include "srw_lock.h"
+#include <my_sys.h>
 #include <deque>
 
 class MDL_ticket;
@@ -1478,7 +1479,7 @@ public:
   {
     mysql_mutex_assert_owner(&mutex);
     dict_table_t *table;
-    ulint fold = ut_fold_ull(id);
+    ulint fold= ut_fold_ull(id);
     HASH_SEARCH(id_hash, &table_id_hash, fold, dict_table_t*, table,
                 ut_ad(table->cached), table->id == id);
     DBUG_ASSERT(!table || !table->is_temporary());
@@ -1617,8 +1618,7 @@ public:
     assert_locked();
     for (dict_table_t *table= static_cast<dict_table_t*>
          (HASH_GET_FIRST(&table_hash, table_hash.calc_hash
-                         (ut_fold_binary(reinterpret_cast<const byte*>
-                                         (name.data()), name.size()))));
+                         (my_crc32c(0, name.data(), name.size()))));
          table; table= table->name_hash)
       if (strlen(table->name.m_name) == name.size() &&
           !memcmp(table->name.m_name, name.data(), name.size()))

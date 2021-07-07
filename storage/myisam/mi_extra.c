@@ -279,54 +279,10 @@ int mi_extra(MI_INFO *info, enum ha_extra_function function, void *extra_arg)
       mi_print_error(info->s, HA_ERR_CRASHED);
       mi_mark_crashed(info);			/* Fatal error found */
     }
-#ifdef __WIN__REMOVE_OBSOLETE_WORKAROUND
-    /* Close the isam and data files as Win32 can't drop an open table */
-    if (info->opt_flag & (READ_CACHE_USED | WRITE_CACHE_USED))
-    {
-      info->opt_flag&= ~(READ_CACHE_USED | WRITE_CACHE_USED);
-      error=end_io_cache(&info->rec_cache);
-    }
-    if (info->lock_type != F_UNLCK && ! info->was_locked)
-    {
-      info->was_locked=info->lock_type;
-      if (mi_lock_database(info,F_UNLCK))
-	error=my_errno;
-      info->lock_type = F_UNLCK;
-    }
-    if (share->kfile >= 0)
-    {
-      /*
-        We don't need to call _mi_decrement_open_count() if we are
-        dropping the table, as the files will be removed anyway. If we
-        are aborted before the files is removed, it's better to not
-        call it as in that case the automatic repair on open will add
-        the missing index entries
-      */
-      if (function != HA_EXTRA_PREPARE_FOR_DROP)
-      _mi_decrement_open_count(info);
-      if (mysql_file_close(share->kfile,MYF(0)))
-        error=my_errno;
-    }
-    {
-      LIST *list_element ;
-      for (list_element=myisam_open_list ;
-	   list_element ;
-	   list_element=list_element->next)
-      {
-	MI_INFO *tmpinfo=(MI_INFO*) list_element->data;
-	if (tmpinfo->s == info->s)
-	{
-          if (tmpinfo->dfile >= 0 && mysql_file_close(tmpinfo->dfile, MYF(0)))
-	    error = my_errno;
-	  tmpinfo->dfile= -1;
-	}
-      }
-    }
-    share->kfile= -1;				/* Files aren't open anymore */
-#endif
     mysql_mutex_unlock(&share->intern_lock);
     mysql_mutex_unlock(&THR_LOCK_myisam);
     break;
+  case HA_EXTRA_END_ALTER_COPY:
   case HA_EXTRA_FLUSH:
     if (!share->temporary)
       flush_key_blocks(share->key_cache, share->kfile, &share->dirty_part_map,

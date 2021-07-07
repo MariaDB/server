@@ -2977,8 +2977,8 @@ public:
 };
 
 
-bool Delayed_prelocking_strategy::
-handle_table(THD *thd, Query_tables_list *prelocking_ctx,
+bool Delayed_prelocking_strategy::handle_table(THD *thd,
+             Query_tables_list *prelocking_ctx,
              TABLE_LIST *table_list, bool *need_prelocking)
 {
   DBUG_ASSERT(table_list->lock_type == TL_WRITE_DELAYED);
@@ -2992,10 +2992,9 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
 }
 
 
-bool Delayed_prelocking_strategy::
-handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
-               Sroutine_hash_entry *rt, sp_head *sp,
-               bool *need_prelocking)
+bool Delayed_prelocking_strategy::handle_routine(THD *thd,
+               Query_tables_list *prelocking_ctx, Sroutine_hash_entry *rt,
+               sp_head *sp, bool *need_prelocking)
 {
   /* LEX used by the delayed insert thread has no routines. */
   DBUG_ASSERT(0);

@@ -1265,19 +1265,16 @@ lock_rec_enqueue_waiting(
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(trx->mutex_is_owner());
 
-	if (UNIV_UNLIKELY(trx->dict_operation)) {
-		ib::error() << "A record lock wait happens in a dictionary"
-			" operation. index "
-			<< index->name
-			<< " of table "
-			<< index->table->name
-			<< ". " << BUG_REPORT_MSG;
-		ut_ad(0);
+	if (UNIV_UNLIKELY(trx->dict_operation_lock_mode == RW_X_LATCH)) {
+		ut_ad(!strcmp(index->table->name.m_name, TABLE_STATS_NAME)
+		      || !strcmp(index->table->name.m_name, INDEX_STATS_NAME));
+instant_timeout:
+		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+		return DB_LOCK_WAIT_TIMEOUT;
 	}
 
 	if (trx->mysql_thd && thd_lock_wait_timeout(trx->mysql_thd) == 0) {
-		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
-		return DB_LOCK_WAIT_TIMEOUT;
+		goto instant_timeout;
 	}
 
 	/* Enqueue the lock request that will wait to be granted, note that
@@ -1653,8 +1650,10 @@ func_exit:
       lock_sys.wr_unlock();
       return;
     }
+    ut_ad(wait_lock->is_waiting());
   }
-  ut_ad(wait_lock->is_waiting());
+  else if (!wait_lock->is_waiting())
+    goto func_exit;
   ut_ad(!(wait_lock->type_mode & LOCK_AUTO_INC));
 
   if (wait_lock->is_table())
@@ -1702,7 +1701,7 @@ dberr_t lock_wait(que_thr_t *thr)
   /* InnoDB system transactions may use the global value of
   innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
   const ulong innodb_lock_wait_timeout= trx_lock_wait_timeout_get(trx);
-  const bool no_timeout= innodb_lock_wait_timeout > 100000000;
+  const bool no_timeout= innodb_lock_wait_timeout >= 100000000;
   const my_hrtime_t suspend_time= my_hrtime_coarse();
   ut_ad(!trx->dict_operation_lock_mode ||
         trx->dict_operation_lock_mode == RW_S_LATCH);
@@ -1851,11 +1850,15 @@ static void lock_wait_end(trx_t *trx)
 {
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
   ut_ad(trx->mutex_is_owner());
-  ut_ad(trx->state == TRX_STATE_ACTIVE);
+  ut_d(const auto state= trx->state);
+  ut_ad(state == TRX_STATE_ACTIVE || state == TRX_STATE_PREPARED);
   ut_ad(trx->lock.wait_thr);
 
   if (trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~1)))
+  {
+    ut_ad(state == TRX_STATE_ACTIVE);
     trx->error_state= DB_DEADLOCK;
+  }
 
   trx->lock.wait_thr= nullptr;
   pthread_cond_signal(&trx->lock.cond);
@@ -3314,11 +3317,11 @@ lock_table_enqueue_waiting(
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(trx->mutex_is_owner());
 
-	if (UNIV_UNLIKELY(trx->dict_operation)) {
-		ib::error() << "A table lock wait happens in a dictionary"
-			" operation. Table " << table->name
-			<< ". " << BUG_REPORT_MSG;
-		ut_ad(0);
+	if (UNIV_UNLIKELY(trx->dict_operation_lock_mode == RW_X_LATCH)) {
+		ut_ad(!strcmp(table->name.m_name, TABLE_STATS_NAME)
+		      || !strcmp(table->name.m_name, INDEX_STATS_NAME));
+		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
+		return DB_LOCK_WAIT_TIMEOUT;
 	}
 
 #ifdef WITH_WSREP
@@ -4137,13 +4140,13 @@ lock_print_info_summary(
 		"Purge done for trx's n:o < " TRX_ID_FMT
 		" undo n:o < " TRX_ID_FMT " state: %s\n"
 		"History list length %u\n",
-		purge_sys.tail.trx_no(),
+		purge_sys.tail.trx_no,
 		purge_sys.tail.undo_no,
 		purge_sys.enabled()
 		? (purge_sys.running() ? "running"
 		   : purge_sys.paused() ? "stopped" : "running but idle")
 		: "disabled",
-		uint32_t{trx_sys.rseg_history_len});
+		trx_sys.history_size());
 
 #ifdef PRINT_NUM_OF_LOCK_STRUCTS
 	fprintf(file,

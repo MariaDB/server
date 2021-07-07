@@ -6,7 +6,7 @@
 --source include/have_innodb.inc
 
 SET @innodb_file_per_table_orig=@@GLOBAL.innodb_file_per_table;
-LET $regexp=/FTS_[0-9a-f_]+([A-Z0-9_]+)\.([islbd]{3})/FTS_AUX_\1.\2/ /#sql-ib[1-9][0-9]*\.ibd\n//;
+LET $regexp=/FTS_[0-9a-f_]+([A-Z0-9_]+)\.([islbd]{3})/FTS_AUX_\1.\2/;
 
 # Set up some variables
 LET $MYSQL_DATA_DIR = `select @@datadir`;

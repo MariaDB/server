@@ -23,7 +23,7 @@ let $CHILD2_1_CREATE_TABLES=
 let $CHILD2_1_SELECT_TABLES=
   SELECT pkey, txt_utf8, txt_cp932 FROM tbl_a ORDER BY pkey;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%update %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%update %');
 --connection master_1
 set @old_spider_direct_dup_insert= @@spider_direct_dup_insert;
 set session spider_direct_dup_insert= 1;

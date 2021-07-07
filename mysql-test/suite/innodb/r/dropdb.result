@@ -1,3 +1,5 @@
+SET NAMES utf8;
+call mtr.add_suppression("Invalid .old.. table or database name");
 #
 # Bug #19929435 DROP DATABASE HANGS WITH MALFORMED TABLE
 #
@@ -6,4 +8,5 @@ create database `b`;
 use `b`;
 create table `#mysql50#q.q` select 1;
 ERROR 42000: Incorrect table name '#mysql50#q.q'
+create table `#mysql50#q·q` select 1;
 drop database `b`;

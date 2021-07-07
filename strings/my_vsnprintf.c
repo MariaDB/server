@@ -933,7 +933,7 @@ const char* my_strerror(char *buf, size_t len, int nr)
       this choice is not advertised, use the default (POSIX/XSI).  Testing
       for __GNUC__ is not sufficient to determine whether this choice exists.
     */
-#if defined(__WIN__)
+#if defined(_WIN32)
     strerror_s(buf, len, nr);
 #elif ((defined _POSIX_C_SOURCE && (_POSIX_C_SOURCE >= 200112L)) ||    \
        (defined _XOPEN_SOURCE   && (_XOPEN_SOURCE >= 600)))      &&    \

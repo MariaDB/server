@@ -729,7 +729,7 @@ static int sst_append_env_var(wsp::env&   env,
   return -env.error();
 }
 
-#ifdef __WIN__
+#ifdef _WIN32
 /*
   Space, single quote, ampersand, backquote, I/O redirection
   characters, caret, all brackets, plus, exclamation and comma
@@ -803,7 +803,7 @@ static size_t estimate_cmd_len (bool* extra_args)
         else if (IS_REQ_ESCAPING(c))
         {
           cmd_len++;
-#ifdef __WIN__
+#ifdef _WIN32
           quotation= true;
 #endif
         }
@@ -832,7 +832,7 @@ static size_t estimate_cmd_len (bool* extra_args)
             else if (IS_REQ_ESCAPING(c))
             {
               cmd_len++;
-#ifdef __WIN__
+#ifdef _WIN32
               quotation= true;
 #endif
             }
@@ -888,7 +888,7 @@ static void copy_orig_argv (char* cmd_str)
         else if (IS_REQ_ESCAPING(c))
         {
           plain= false;
-#ifdef __WIN__
+#ifdef _WIN32
           quotation= true;
 #endif
         }
@@ -928,7 +928,7 @@ static void copy_orig_argv (char* cmd_str)
                 c = *arg++;
                 if (IS_REQ_ESCAPING(c))
                 {
-#ifdef __WIN__
+#ifdef _WIN32
                   *cmd_str++ = c;
 #else
                   *cmd_str++ = '\\';
@@ -968,7 +968,7 @@ static void copy_orig_argv (char* cmd_str)
             else if (IS_REQ_ESCAPING(c))
             {
               plain= false;
-#ifdef __WIN__
+#ifdef _WIN32
               quotation= true;
 #endif
             }
@@ -999,7 +999,7 @@ static void copy_orig_argv (char* cmd_str)
           {
             if (IS_REQ_ESCAPING(c))
             {
-#ifdef __WIN__
+#ifdef _WIN32
               *cmd_str++ = c;
 #else
               *cmd_str++ = '\\';
@@ -1055,6 +1055,8 @@ static ssize_t sst_prepare_other (const char*  method,
   {
     WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
                 ret);
+    if (binlog_opt_val) my_free(binlog_opt_val);
+    return ret;
   }
 
   make_wsrep_defaults_file();
@@ -1072,6 +1074,7 @@ static ssize_t sst_prepare_other (const char*  method,
                  wsrep_defaults_file,
                  (int)getpid(),
                  binlog_opt_val, binlog_index_opt_val);
+
   my_free(binlog_opt_val);
   my_free(binlog_index_opt_val);
 
@@ -1800,6 +1803,8 @@ static int sst_donate_other (const char*        method,
   {
     WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
                 ret);
+    if (binlog_opt_val) my_free(binlog_opt_val);
+    return ret;
   }
 
   make_wsrep_defaults_file();

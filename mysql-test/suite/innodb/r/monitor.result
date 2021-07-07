@@ -194,7 +194,6 @@ innodb_master_thread_sleeps	disabled
 innodb_activity_count	disabled
 innodb_master_active_loops	disabled
 innodb_master_idle_loops	disabled
-innodb_background_drop_table_usec	disabled
 innodb_log_flush_usec	disabled
 innodb_dict_lru_usec	disabled
 innodb_dict_lru_count_active	disabled
@@ -211,7 +210,6 @@ dml_system_inserts	disabled
 dml_system_deletes	disabled
 dml_system_updates	disabled
 ddl_background_drop_indexes	disabled
-ddl_background_drop_tables	disabled
 ddl_online_create_index	disabled
 ddl_pending_alter_table	disabled
 ddl_sort_file_alter_table	disabled

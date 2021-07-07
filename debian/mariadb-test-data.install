@@ -4,4 +4,3 @@ usr/share/mysql/mysql-test/main
 usr/share/mysql/mysql-test/plugin
 usr/share/mysql/mysql-test/std_data
 usr/share/mysql/mysql-test/suite
-usr/share/mysql/mysql-test/unstable-tests

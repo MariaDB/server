@@ -317,8 +317,6 @@ fil_node_t* fil_space_t::add(const char* name, pfs_os_file_t handle,
 
 	node->size = size;
 
-	node->magic_n = FIL_NODE_MAGIC_N;
-
 	node->init_size = size;
 	node->max_size = max_pages;
 
@@ -718,7 +716,6 @@ bool fil_space_extend(fil_space_t *space, uint32_t size)
 inline pfs_os_file_t fil_node_t::close_to_free(bool detach_handle)
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
-  ut_a(magic_n == FIL_NODE_MAGIC_N);
   ut_a(!being_extended);
 
   if (is_open() &&
@@ -774,10 +771,10 @@ pfs_os_file_t fil_system_t::detach(fil_space_t *space, bool detach_handle)
     unflushed_spaces.remove(*space);
   }
 
-  if (space->is_in_rotation_list)
+  if (space->is_in_default_encrypt)
   {
-    space->is_in_rotation_list= false;
-    rotation_list.remove(*space);
+    space->is_in_default_encrypt= false;
+    default_encrypt_tables.remove(*space);
   }
   space_list.erase(space_list_t::iterator(space));
   if (space == sys_space)
@@ -941,16 +938,6 @@ fil_space_t *fil_space_t::create(ulint id, ulint flags,
 
 	space->latch.SRW_LOCK_INIT(fil_space_latch_key);
 
-	if (space->purpose == FIL_TYPE_TEMPORARY) {
-		/* SysTablespace::open_or_create() would pass
-		size!=0 to fil_space_t::add(), so first_time_open
-		would not hold in fil_node_open_file(), and we
-		must assign this manually. We do not care about
-		the durability or atomicity of writes to the
-		temporary tablespace files. */
-		space->atomic_write_supported = true;
-	}
-
 	mysql_mutex_lock(&fil_system.mutex);
 
 	if (const fil_space_t *old_space = fil_space_get_by_id(id)) {
@@ -993,20 +980,19 @@ fil_space_t *fil_space_t::create(ulint id, ulint flags,
 		fil_system.max_assigned_id = id;
 	}
 
-	const bool rotate= purpose == FIL_TYPE_TABLESPACE
+	const bool rotate = purpose == FIL_TYPE_TABLESPACE
 		&& (mode == FIL_ENCRYPTION_ON || mode == FIL_ENCRYPTION_OFF
 		    || srv_encrypt_tables)
-		&& !srv_fil_crypt_rotate_key_age
-		&& srv_n_fil_crypt_threads_started;
+		&& fil_crypt_must_default_encrypt();
 
 	if (rotate) {
-		fil_system.rotation_list.push_back(*space);
-		space->is_in_rotation_list = true;
+		fil_system.default_encrypt_tables.push_back(*space);
+		space->is_in_default_encrypt = true;
 	}
 
 	mysql_mutex_unlock(&fil_system.mutex);
 
-	if (rotate) {
+	if (rotate && srv_n_fil_crypt_threads_started) {
 		fil_crypt_threads_signal();
 	}
 
@@ -1566,39 +1552,61 @@ fil_name_write(
 fil_space_t *fil_space_t::check_pending_operations(ulint id)
 {
   ut_a(!is_system_tablespace(id));
+  bool being_deleted= false;
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
 
   if (!space);
   else if (space->pending() & STOPPING)
-    space= nullptr;
+    being_deleted= true;
   else
   {
-    space->reacquire();
     if (space->crypt_data)
     {
+      space->reacquire();
       mysql_mutex_unlock(&fil_system.mutex);
       fil_space_crypt_close_tablespace(space);
       mysql_mutex_lock(&fil_system.mutex);
+      space->release();
     }
-    space->set_stopping(true);
-    space->release();
+    being_deleted= space->set_stopping();
   }
   mysql_mutex_unlock(&fil_system.mutex);
 
   if (!space)
     return nullptr;
 
+  if (being_deleted)
+  {
+    /* A thread executing DDL and another thread executing purge may
+    be executing fil_delete_tablespace() concurrently for the same
+    tablespace. Wait for the other thread to complete the operation. */
+    for (ulint count= 0;; count++)
+    {
+      mysql_mutex_lock(&fil_system.mutex);
+      space= fil_space_get_by_id(id);
+      ut_ad(!space || space->is_stopping());
+      mysql_mutex_unlock(&fil_system.mutex);
+      if (!space)
+        return nullptr;
+      /* Issue a warning every 10.24 seconds, starting after 2.56 seconds */
+      if ((count & 511) == 128)
+        sql_print_warning("InnoDB: Waiting for tablespace " ULINTPF
+                          " to be deleted", id);
+      std::this_thread::sleep_for(std::chrono::milliseconds(20));
+    }
+  }
+
   for (ulint count= 0;; count++)
   {
-    auto pending= space->referenced();
+    const unsigned pending= space->referenced();
     if (!pending)
       return space;
-    /* Give a warning every 10 second, starting after 1 second */
-    if ((count % 500) == 50)
-      ib::warn() << "Trying to delete tablespace '"
-                 << space->chain.start->name << "' but there are "
-                 << pending << " pending operations on it.";
+    /* Issue a warning every 10.24 seconds, starting after 2.56 seconds */
+    if ((count & 511) == 128)
+      sql_print_warning("InnoDB: Trying to delete tablespace '%s' "
+                        "but there are %u pending operations",
+                        space->chain.start->name, id);
     std::this_thread::sleep_for(std::chrono::milliseconds(20));
   }
 }
@@ -1621,9 +1629,7 @@ void fil_close_tablespace(ulint id)
 	can no longer read more pages of this tablespace to buf_pool.
 	Thus we can clean the tablespace out of buf_pool
 	completely and permanently. */
-	while (buf_flush_dirty_pages(id));
-	/* Ensure that all asynchronous IO is completed. */
-	os_aio_wait_until_no_pending_writes();
+	while (buf_flush_list_space(space));
 	ut_ad(space->is_stopping());
 
 	/* If it is a delete then also delete any generated files, otherwise
@@ -1645,117 +1651,60 @@ void fil_close_tablespace(ulint id)
 }
 
 /** Delete a tablespace and associated .ibd file.
-@param[in]	id		tablespace identifier
-@param[in]	if_exists	whether to ignore missing tablespace
-@param[out]	detached	deatched file handle (if closing is not wanted)
-@return	DB_SUCCESS or error */
-dberr_t fil_delete_tablespace(ulint id, bool if_exists,
-                              pfs_os_file_t *detached)
+@param id    tablespace identifier
+@return detached file handle (to be closed by the caller)
+@return	OS_FILE_CLOSED if no file existed */
+pfs_os_file_t fil_delete_tablespace(ulint id)
 {
-	ut_ad(!is_system_tablespace(id));
-	ut_ad(!detached || *detached == OS_FILE_CLOSED);
+  ut_ad(!is_system_tablespace(id));
+  pfs_os_file_t handle= OS_FILE_CLOSED;
+  if (fil_space_t *space= fil_space_t::check_pending_operations(id))
+  {
+    /* Before deleting the file(s), persistently write a log record. */
+    mtr_t mtr;
+    mtr.start();
+    mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
+    mtr.commit();
+    log_write_up_to(mtr.commit_lsn(), true);
 
-	dberr_t err;
-	fil_space_t *space = fil_space_t::check_pending_operations(id);
+    /* Remove any additional files. */
+    if (char *cfg_name= fil_make_filepath(space->chain.start->name,
+					  fil_space_t::name_type{}, CFG,
+					  false))
+    {
+      os_file_delete_if_exists(innodb_data_file_key, cfg_name, nullptr);
+      ut_free(cfg_name);
+    }
+    if (FSP_FLAGS_HAS_DATA_DIR(space->flags))
+      RemoteDatafile::delete_link_file(space->name());
 
-	if (!space) {
-		err = DB_TABLESPACE_NOT_FOUND;
-		if (!if_exists) {
-			ib::error() << "Cannot delete tablespace " << id
-				    << " because it is not found"
-				       " in the tablespace memory cache.";
-		}
-func_exit:
-		ibuf_delete_for_discarded_space(id);
-		return err;
-	}
+    /* Remove the directory entry. The file will actually be deleted
+    when our caller closes the handle. */
+    os_file_delete(innodb_data_file_key, space->chain.start->name);
 
-	/* IMPORTANT: Because we have set space::stop_new_ops there
-	can't be any new reads or flushes. We are here
-	because node::n_pending was zero above. However, it is still
-	possible to have pending read and write requests:
+    mysql_mutex_lock(&fil_system.mutex);
+    /* Sanity checks after reacquiring fil_system.mutex */
+    ut_ad(space == fil_space_get_by_id(id));
+    ut_ad(!space->referenced());
+    ut_ad(space->is_stopping());
+    ut_ad(UT_LIST_GET_LEN(space->chain) == 1);
+    /* Detach the file handle. */
+    handle= fil_system.detach(space, true);
+    mysql_mutex_unlock(&fil_system.mutex);
 
-	A read request can happen because the reader thread has
-	gone through the ::stop_new_ops check in buf_page_init_for_read()
-	before the flag was set and has not yet incremented ::n_pending
-	when we checked it above.
+    mysql_mutex_lock(&log_sys.mutex);
+    if (space->max_lsn)
+    {
+      ut_d(space->max_lsn = 0);
+      fil_system.named_spaces.remove(*space);
+    }
+    mysql_mutex_unlock(&log_sys.mutex);
 
-	A write request can be issued any time because we don't check
-	fil_space_t::is_stopping() when queueing a block for write.
+    fil_space_free_low(space);
+  }
 
-	We deal with pending write requests in the following function
-	where we'd minimally evict all dirty pages belonging to this
-	space from the flush_list. Note that if a block is IO-fixed
-	we'll wait for IO to complete.
-
-	To deal with potential read requests, we will check the
-	is_stopping() in fil_space_t::io(). */
-
-	err = DB_SUCCESS;
-	buf_flush_remove_pages(id);
-
-	/* If it is a delete then also delete any generated files, otherwise
-	when we drop the database the remove directory will fail. */
-	{
-		/* Before deleting the file, write a log record about
-		it, so that InnoDB crash recovery will expect the file
-		to be gone. */
-		mtr_t		mtr;
-
-		mtr.start();
-		mtr.log_file_op(FILE_DELETE, id, space->chain.start->name);
-		mtr.commit();
-		/* Even if we got killed shortly after deleting the
-		tablespace file, the record must have already been
-		written to the redo log. */
-		log_write_up_to(mtr.commit_lsn(), true);
-
-		if (char* cfg_name = fil_make_filepath(
-			    space->chain.start->name,
-			    fil_space_t::name_type{}, CFG, false)) {
-			os_file_delete_if_exists(innodb_data_file_key,
-						 cfg_name, nullptr);
-			ut_free(cfg_name);
-		}
-	}
-
-	/* Delete the link file pointing to the ibd file we are deleting. */
-	if (FSP_FLAGS_HAS_DATA_DIR(space->flags)) {
-		RemoteDatafile::delete_link_file(space->name());
-	}
-
-	mysql_mutex_lock(&fil_system.mutex);
-
-	/* Double check the sanity of pending ops after reacquiring
-	the fil_system::mutex. */
-	ut_a(space == fil_space_get_by_id(id));
-	ut_a(!space->referenced());
-	ut_a(UT_LIST_GET_LEN(space->chain) == 1);
-	pfs_os_file_t handle = fil_system.detach(space, detached != nullptr);
-	if (detached) {
-		*detached = handle;
-	}
-	mysql_mutex_unlock(&fil_system.mutex);
-
-	mysql_mutex_lock(&log_sys.mutex);
-
-	if (space->max_lsn != 0) {
-		ut_d(space->max_lsn = 0);
-		fil_system.named_spaces.remove(*space);
-	}
-
-	mysql_mutex_unlock(&log_sys.mutex);
-
-	if (!os_file_delete(innodb_data_file_key, space->chain.start->name)
-	    && !os_file_delete_if_exists(innodb_data_file_key,
-					 space->chain.start->name, NULL)) {
-		/* Note: This is because we have removed the
-		tablespace instance from the cache. */
-		err = DB_IO_ERROR;
-	}
-
-	fil_space_free_low(space);
-	goto func_exit;
+  ibuf_delete_for_discarded_space(id);
+  return handle;
 }
 
 /*******************************************************************//**
@@ -1989,9 +1938,6 @@ skip_second_rename:
 	return(success);
 }
 
-/* FIXME: remove this! */
-IF_WIN(, bool os_is_sparse_file_supported(os_file_t fh));
-
 /** Create a tablespace file.
 @param[in]	space_id	Tablespace ID
 @param[in]	name		Tablespace name in dbname/tablename format.
@@ -2079,7 +2025,6 @@ fil_ibd_create(
 	}
 
 	const bool is_compressed = fil_space_t::is_compressed(flags);
-	bool punch_hole = is_compressed;
 	fil_space_crypt_t* crypt_data = nullptr;
 #ifdef _WIN32
 	if (is_compressed) {
@@ -2097,9 +2042,6 @@ err_exit:
 		free(crypt_data);
 		return NULL;
 	}
-
-	/* FIXME: remove this */
-	IF_WIN(, punch_hole = punch_hole && os_is_sparse_file_supported(file));
 
 	/* We have to write the space id to the file immediately and flush the
 	file to disk. This is because in crash recovery we must be aware what
@@ -2153,9 +2095,8 @@ err_exit:
 	if (fil_space_t* space = fil_space_t::create(space_id, flags,
 						     FIL_TYPE_TABLESPACE,
 						     crypt_data, mode)) {
-		space->punch_hole = punch_hole;
 		fil_node_t* node = space->add(path, file, size, false, true);
-		node->find_metadata(file);
+		IF_WIN(node->find_metadata(), node->find_metadata(file, true));
 		mtr.start();
 		mtr.set_named_space(space);
 		fsp_header_init(space, size, &mtr);
@@ -2281,7 +2222,19 @@ func_exit:
 	/* Always look for a file at the default location. But don't log
 	an error if the tablespace is already open in remote or dict. */
 	ut_a(df_default.filepath());
-	const bool	strict = (tablespaces_found == 0);
+
+	/* Mariabackup will not copy files whose names start with
+	#sql-. We will suppress messages about such files missing on
+	the first server startup. The tables ought to be dropped by
+	drop_garbage_tables_after_restore() a little later. */
+
+	const bool strict = !tablespaces_found
+		&& !(srv_operation == SRV_OPERATION_NORMAL
+		     && srv_start_after_restore
+		     && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
+		     && dict_table_t::is_temporary_name(
+			     df_default.filepath()));
+
 	if (df_default.open_read_only(strict) == DB_SUCCESS) {
 		ut_ad(df_default.is_open());
 		++tablespaces_found;
@@ -2316,6 +2269,13 @@ func_exit:
 	/* Make sense of these three possible locations.
 	First, bail out if no tablespace files were found. */
 	if (valid_tablespaces_found == 0) {
+		if (!strict
+		    && IF_WIN(GetLastError() == ERROR_FILE_NOT_FOUND,
+			      errno == ENOENT)) {
+			/* Suppress a message about a missing file. */
+			goto corrupted;
+		}
+
 		os_file_get_last_error(true);
 		sql_print_error("InnoDB: Could not find a valid tablespace"
 				" file for %.*s. %s",
@@ -2897,7 +2857,7 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 		/* Punch hole is not supported, make space not to
 		support punch hole */
 		if (UNIV_UNLIKELY(err == DB_IO_NO_PUNCH_HOLE)) {
-			punch_hole = false;
+			node->punch_hole = false;
 			err = DB_SUCCESS;
 		}
 		goto release_sync_write;

@@ -44,6 +44,8 @@
 
 #include "wsrep_mysqld.h"
 
+#include "scope.h"  // scope_exit
+
 extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 
 class XML_TAG {
@@ -51,11 +53,11 @@ public:
   int level;
   String field;
   String value;
-  XML_TAG(int l, String f, String v);
+  XML_TAG(int l, const String &f, const String &v);
 };
 
 
-XML_TAG::XML_TAG(int l, String f, String v)
+XML_TAG::XML_TAG(int l, const String &f, const String &v)
 {
   level= l;
   field.append(f);
@@ -444,6 +446,12 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   if (check_duplic_insert_without_overlaps(thd, table, handle_duplicates) != 0)
     DBUG_RETURN(true);
 
+  auto scope_cleaner = make_scope_exit(
+    [&fields_vars]() {
+      fields_vars.empty();
+    }
+  );
+
   if (!fields_vars.elements)
   {
     Field_iterator_table_ref field_iterator;
@@ -471,6 +479,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   }
   else
   {						// Part field list
+    scope_cleaner.release();
     /* TODO: use this conds for 'WITH CHECK OPTIONS' */
     if (setup_fields(thd, Ref_ptr_array(),
                      fields_vars, MARK_COLUMNS_WRITE, 0, NULL, 0) ||
@@ -567,7 +576,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       DBUG_RETURN(TRUE);
     }
 
-#if !defined(__WIN__) && ! defined(__NETWARE__)
+#if !defined(_WIN32)
     MY_STAT stat_info;
     if (!my_stat(name, &stat_info, MYF(MY_WME)))
       DBUG_RETURN(TRUE);

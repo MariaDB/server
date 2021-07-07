@@ -162,6 +162,11 @@ private:
 
       io_uring_cqe_seen(&aio->uring_, cqe);
 
+      // If we need to resubmit the IO operation, but the ring is full,
+      // we will follow the same path as for any other error codes.
+      if (res == -EAGAIN && !aio->submit_io(iocb))
+        continue;
+
       iocb->m_internal_task.m_func= iocb->m_callback;
       iocb->m_internal_task.m_arg= iocb;
       iocb->m_internal_task.m_group= iocb->m_group;

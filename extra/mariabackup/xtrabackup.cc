@@ -1398,7 +1398,7 @@ struct my_option xb_server_options[] =
    (G_PTR*) &mysql_data_home, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tmpdir", 't',
    "Path for temporary files. Several paths may be specified, separated by a "
-#if defined(__WIN__) || defined(OS2) || defined(__NETWARE__)
+#if defined(_WIN32)
    "semicolon (;)"
 #else
    "colon (:)"
@@ -2414,7 +2414,8 @@ find_filter_in_hashtable(
 )
 {
 	xb_filter_entry_t* found = NULL;
-	HASH_SEARCH(name_hash, table, ut_fold_string(name),
+	const ulint fold = my_crc32c(0, name, strlen(name));
+	HASH_SEARCH(name_hash, table, fold,
 		    xb_filter_entry_t*,
 		    found, (void) 0,
 		    !strcmp(found->name, name));
@@ -2545,9 +2546,22 @@ check_if_skip_table(
 
 	dbname = NULL;
 	tbname = name;
-	while ((ptr = strchr(tbname, '/')) != NULL) {
+	for (;;) {
+		ptr= strchr(tbname, '/');
+#ifdef _WIN32
+		if (!ptr) {
+			ptr= strchr(tbname,'\\');
+		}
+#endif
+		if (!ptr) {
+			break;
+		}
 		dbname = tbname;
 		tbname = ptr + 1;
+	}
+
+	if (strncmp(tbname, tmp_file_prefix, tmp_file_prefix_length) == 0) {
+		return TRUE;
 	}
 
 	if (regex_exclude_list.empty() &&
@@ -3037,7 +3051,7 @@ To use this facility, you need to
    for the variable)
 3. start mariabackup with --dbug=+d,debug_mariabackup_events
 */
-static void dbug_mariabackup_event(const char *event,
+void dbug_mariabackup_event(const char *event,
                                    const fil_space_t::name_type key)
 {
 	char *sql = dbug_mariabackup_get_val(event, key);
@@ -3046,10 +3060,6 @@ static void dbug_mariabackup_event(const char *event,
 		xb_mysql_query(mysql_connection, sql, false, true);
 	}
 }
-# define DBUG_MARIABACKUP_EVENT(A, B)					\
-  DBUG_EXECUTE_IF("mariabackup_events", dbug_mariabackup_event(A,B);)
-#else
-# define DBUG_MARIABACKUP_EVENT(A, B) /* empty */
 #endif // DBUG_OFF
 
 /** Datafiles copying thread.*/
@@ -3874,22 +3884,16 @@ new hash table */
 static
 xb_filter_entry_t*
 xb_add_filter(
-/*========================*/
 	const char*	name,	/*!< in: name of table/database */
 	hash_table_t*	hash)	/*!< in/out: hash to insert into */
 {
-	xb_filter_entry_t*	entry;
-
-	entry = xb_new_filter_entry(name);
+	xb_filter_entry_t* entry = xb_new_filter_entry(name);
 
 	if (UNIV_UNLIKELY(!hash->array)) {
 		hash->create(1000);
 	}
-	HASH_INSERT(xb_filter_entry_t,
-		name_hash, hash,
-		ut_fold_string(entry->name),
-		entry);
-
+	const ulint fold = my_crc32c(0, entry->name, strlen(entry->name));
+	HASH_INSERT(xb_filter_entry_t, name_hash, hash, fold, entry);
 	return entry;
 }
 
@@ -3943,8 +3947,9 @@ xb_register_filter_entry(
 		dbname[p - name] = 0;
 
 		if (databases_hash && databases_hash->array) {
+			const ulint fold = my_crc32c(0, dbname, p - name);
 			HASH_SEARCH(name_hash, databases_hash,
-					ut_fold_string(dbname),
+					fold,
 					xb_filter_entry_t*,
 					db_entry, (void) 0,
 					!strcmp(db_entry->name, dbname));
@@ -4153,9 +4158,10 @@ xb_filter_hash_free(hash_table_t* hash)
 
 			table = static_cast<xb_filter_entry_t *>
 				(HASH_GET_NEXT(name_hash, prev_table));
-
+			const ulint fold = my_crc32c(0, prev_table->name,
+						     strlen(prev_table->name));
 			HASH_DELETE(xb_filter_entry_t, name_hash, hash,
-				ut_fold_string(prev_table->name), prev_table);
+				    fold, prev_table);
 			free(prev_table);
 		}
 	}
@@ -5049,15 +5055,17 @@ exit:
 		return file;
 	}
 
+	const size_t len = strlen(dest_space_name);
 	/* remember space name for further reference */
 	table = static_cast<xb_filter_entry_t *>
 		(malloc(sizeof(xb_filter_entry_t) +
-			strlen(dest_space_name) + 1));
+			len + 1));
 
 	table->name = ((char*)table) + sizeof(xb_filter_entry_t);
-	strcpy(table->name, dest_space_name);
+	memcpy(table->name, dest_space_name, len + 1);
+	const ulint fold = my_crc32c(0, dest_space_name, len);
 	HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
-			ut_fold_string(table->name), table);
+		    fold, table);
 
 	mysql_mutex_lock(&fil_system.mutex);
 	fil_space = fil_space_get_by_name(dest_space_name);
@@ -5458,8 +5466,10 @@ static ibool prepare_handle_new_files(const char *data_home_dir,
 			(malloc(sizeof(xb_filter_entry_t) + table_name.size() + 1));
 		table->name = ((char*)table) + sizeof(xb_filter_entry_t);
 		strcpy(table->name, table_name.c_str());
+		const ulint fold = my_crc32c(0, table->name,
+					     table_name.size());
 		HASH_INSERT(xb_filter_entry_t, name_hash, &inc_dir_tables_hash,
-				ut_fold_string(table->name), table);
+			    fold, table);
 	}
 
 	return TRUE;
@@ -5482,9 +5492,11 @@ rm_if_not_found(
 
 	snprintf(name, FN_REFLEN, "%s/%s", db_name, file_name);
 	/* Truncate ".ibd" */
-	name[strlen(name) - 4] = '\0';
+	const size_t len = strlen(name) - 4;
+	name[len] = '\0';
+	const ulint fold = my_crc32c(0, name, len);
 
-	HASH_SEARCH(name_hash, &inc_dir_tables_hash, ut_fold_string(name),
+	HASH_SEARCH(name_hash, &inc_dir_tables_hash, fold,
 		    xb_filter_entry_t*,
 		    table, (void) 0,
 		    !strcmp(table->name, name));
@@ -6690,7 +6702,7 @@ static int main_low(char** argv)
 	/* get default temporary directory */
 	if (!opt_mysql_tmpdir || !opt_mysql_tmpdir[0]) {
 		opt_mysql_tmpdir = getenv("TMPDIR");
-#if defined(__WIN__)
+#if defined(_WIN32)
 		if (!opt_mysql_tmpdir) {
 			opt_mysql_tmpdir = getenv("TEMP");
 		}

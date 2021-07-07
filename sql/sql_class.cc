@@ -499,6 +499,18 @@ int thd_sql_command(const THD *thd)
   return (int) thd->lex->sql_command;
 }
 
+/*
+  Returns options used with DDL's, like IF EXISTS etc...
+  Will returns 'nonsense' if the command was not a DDL.
+*/
+
+extern "C"
+struct DDL_options_st *thd_ddl_options(const THD *thd)
+{
+  return &thd->lex->create_info;
+}
+
+
 extern "C"
 int thd_tx_isolation(const THD *thd)
 {
@@ -1851,7 +1863,7 @@ void add_diff_to_status(STATUS_VAR *to_var, STATUS_VAR *from_var,
 }
 
 #define SECONDS_TO_WAIT_FOR_KILL 2
-#if !defined(__WIN__) && defined(HAVE_SELECT)
+#if !defined(_WIN32) && defined(HAVE_SELECT)
 /* my_sleep() can wait for sub second times */
 #define WAIT_FOR_KILL_TRY_TIMES 20
 #else
@@ -3823,7 +3835,7 @@ void Query_arena::set_query_arena(Query_arena *set)
 }
 
 
-void Query_arena::cleanup_stmt()
+void Query_arena::cleanup_stmt(bool /*restore_set_statement_vars*/)
 {
   DBUG_ASSERT(! "Query_arena::cleanup_stmt() not implemented");
 }

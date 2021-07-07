@@ -405,7 +405,6 @@ dict_table_schema_check(
 
 		/* check length for exact match */
 		if (req_schema->columns[i].len != table->cols[j].len) {
-			ut_ad(table->cols[j].len < req_schema->columns[i].len);
 			sql_print_warning("InnoDB: Table %s has"
 					  " length mismatch in the"
 					  " column name %s."
@@ -529,61 +528,32 @@ free the trx object. If it is not NULL then it will be rolled back
 only in the case of error, but not freed.
 @return DB_SUCCESS or error code */
 static
-dberr_t
-dict_stats_exec_sql(
-	pars_info_t*	pinfo,
-	const char*	sql,
-	trx_t*		trx)
+dberr_t dict_stats_exec_sql(pars_info_t *pinfo, const char* sql, trx_t *trx)
 {
-	dberr_t	err;
-	bool	trx_started = false;
+  ut_d(dict_sys.assert_locked());
 
-	ut_d(dict_sys.assert_locked());
+  if (!dict_stats_persistent_storage_check(true))
+  {
+    pars_info_free(pinfo);
+    return DB_STATS_DO_NOT_EXIST;
+  }
 
-	if (!dict_stats_persistent_storage_check(true)) {
-		pars_info_free(pinfo);
-		return(DB_STATS_DO_NOT_EXIST);
-	}
+  if (trx)
+    return que_eval_sql(pinfo, sql, FALSE, trx);
 
-	if (trx == NULL) {
-		trx = trx_create();
-		trx_started = true;
+  trx= trx_create();
+  trx_start_internal(trx);
 
-		if (srv_read_only_mode) {
-			trx_start_internal_read_only(trx);
-		} else {
-			trx_start_internal(trx);
-		}
-	}
+  trx->dict_operation_lock_mode= RW_X_LATCH;
+  dberr_t err= que_eval_sql(pinfo, sql, FALSE, trx);
 
-	err = que_eval_sql(pinfo, sql, FALSE, trx); /* pinfo is freed here */
-
-	DBUG_EXECUTE_IF("stats_index_error",
-		if (!trx_started) {
-			err = DB_STATS_DO_NOT_EXIST;
-			trx->error_state = DB_STATS_DO_NOT_EXIST;
-		});
-
-	if (!trx_started && err == DB_SUCCESS) {
-		return(DB_SUCCESS);
-	}
-
-	if (err == DB_SUCCESS) {
-		trx_commit_for_mysql(trx);
-	} else {
-		trx->op_info = "rollback of internal trx on stats tables";
-		trx->dict_operation_lock_mode = RW_X_LATCH;
-		trx->rollback();
-		trx->dict_operation_lock_mode = 0;
-		trx->op_info = "";
-		ut_a(trx->error_state == DB_SUCCESS);
-	}
-
-	if (trx_started) {
-		trx->free();
-	}
-
-	return(err);
+  if (err == DB_SUCCESS)
+    trx->commit();
+  else
+    trx->rollback();
+  trx->dict_operation_lock_mode= 0;
+  trx->free();
+  return err;
 }
 
 /*********************************************************************//**
@@ -671,6 +641,7 @@ dict_stats_table_clone_create(
 	t->heap = heap;
 
 	t->name.m_name = mem_heap_strdup(heap, table->name.m_name);
+	t->mdl_name.m_name = t->name.m_name;
 
 	t->corrupted = table->corrupted;
 
@@ -2615,7 +2586,6 @@ dict_stats_save_index_stat(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	ut_ad(!trx || trx->internal || trx->mysql_thd);
 	ut_d(dict_sys.assert_locked());
 
 	dict_fs2utf8(index->table->name.m_name, db_utf8, sizeof(db_utf8),
@@ -2749,6 +2719,9 @@ dict_stats_save(
 		     table_utf8, sizeof(table_utf8));
 
 	const time_t now = time(NULL);
+	trx_t*	trx = trx_create();
+	trx_start_internal(trx);
+	trx->dict_operation_lock_mode = RW_X_LATCH;
 	dict_sys_lock();
 
 	pinfo = pars_info_create();
@@ -2782,19 +2755,20 @@ dict_stats_save(
 		":clustered_index_size,\n"
 		":sum_of_other_index_sizes\n"
 		");\n"
-		"END;", NULL);
+		"END;", trx);
 
 	if (UNIV_UNLIKELY(ret != DB_SUCCESS)) {
 		ib::error() << "Cannot save table statistics for table "
 			<< table->name << ": " << ret;
-func_exit:
+rollback_and_exit:
+		trx->rollback();
+free_and_exit:
+		trx->dict_operation_lock_mode = 0;
 		dict_sys_unlock();
+		trx->free();
 		dict_stats_snapshot_free(table);
 		return ret;
 	}
-
-	trx_t*	trx = trx_create();
-	trx_start_internal(trx);
 
 	dict_index_t*	index;
 	index_map_t	indexes(
@@ -2864,7 +2838,7 @@ func_exit:
 				stat_description, trx);
 
 			if (ret != DB_SUCCESS) {
-				goto end;
+				goto rollback_and_exit;
 			}
 		}
 
@@ -2874,7 +2848,7 @@ func_exit:
 						 "Number of leaf pages "
 						 "in the index", trx);
 		if (ret != DB_SUCCESS) {
-			goto end;
+			goto rollback_and_exit;
 		}
 
 		ret = dict_stats_save_index_stat(index, now, "size",
@@ -2883,15 +2857,12 @@ func_exit:
 						 "Number of pages "
 						 "in the index", trx);
 		if (ret != DB_SUCCESS) {
-			goto end;
+			goto rollback_and_exit;
 		}
 	}
 
-	trx_commit_for_mysql(trx);
-
-end:
-	trx->free();
-	goto func_exit;
+	trx->commit();
+	goto free_and_exit;
 }
 
 /*********************************************************************//**
@@ -3272,11 +3243,7 @@ dict_stats_fetch_from_ps(
 
 	trx->isolation_level = TRX_ISO_READ_UNCOMMITTED;
 
-	if (srv_read_only_mode) {
-		trx_start_internal_read_only(trx);
-	} else {
-		trx_start_internal(trx);
-	}
+	trx_start_internal(trx);
 
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
@@ -3657,112 +3624,15 @@ transient:
 	return(DB_SUCCESS);
 }
 
-/** Remove the information for a particular index's stats from the persistent
-storage if it exists and if there is data stored for this index.
-This function creates its own trx and commits it.
-
-We must modify system tables in a separate transaction in order to
-adhere to the InnoDB design constraint that dict_sys.latch prevents
-lock waits on system tables. If we modified system and user tables in
-the same transaction, we should exclusively hold dict_sys.latch until
-the transaction is committed, and effectively block other transactions
-that will attempt to open any InnoDB tables. Because we have no
-guarantee that user transactions will be committed fast, we cannot
-afford to keep the system tables locked in a user transaction.
+/** Execute DELETE FROM mysql.innodb_table_stats
+@param database_name  database name
+@param table_name     table name
+@param trx            transaction (nullptr=start and commit a new one)
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_drop_index(
-/*==================*/
-	const char*	db_and_table,/*!< in: db and table, e.g. 'db/table' */
-	const char*	iname,	/*!< in: index name */
-	char*		errstr, /*!< out: error message if != DB_SUCCESS
-				is returned */
-	ulint		errstr_sz)/*!< in: size of the errstr buffer */
-{
-	char		db_utf8[MAX_DB_UTF8_LEN];
-	char		table_utf8[MAX_TABLE_UTF8_LEN];
-	pars_info_t*	pinfo;
-	dberr_t		ret;
-
-	dict_sys.assert_not_locked();
-
-	/* skip indexes whose table names do not contain a database name
-	e.g. if we are dropping an index from SYS_TABLES */
-	if (strchr(db_and_table, '/') == NULL) {
-
-		return(DB_SUCCESS);
-	}
-
-	dict_fs2utf8(db_and_table, db_utf8, sizeof(db_utf8),
-		     table_utf8, sizeof(table_utf8));
-
-	pinfo = pars_info_create();
-
-	pars_info_add_str_literal(pinfo, "database_name", db_utf8);
-
-	pars_info_add_str_literal(pinfo, "table_name", table_utf8);
-
-	pars_info_add_str_literal(pinfo, "index_name", iname);
-
-	dict_sys_lock();
-
-	ret = dict_stats_exec_sql(
-		pinfo,
-		"PROCEDURE DROP_INDEX_STATS () IS\n"
-		"BEGIN\n"
-		"DELETE FROM \"" INDEX_STATS_NAME "\" WHERE\n"
-		"database_name = :database_name AND\n"
-		"table_name = :table_name AND\n"
-		"index_name = :index_name;\n"
-		"END;\n", NULL);
-
-	dict_sys_unlock();
-
-	if (ret == DB_STATS_DO_NOT_EXIST) {
-		ret = DB_SUCCESS;
-	}
-
-	if (ret != DB_SUCCESS) {
-		snprintf(errstr, errstr_sz,
-			 "Unable to delete statistics for index %s"
-			 " from %s%s: %s. They can be deleted later using"
-			 " DELETE FROM %s WHERE"
-			 " database_name = '%s' AND"
-			 " table_name = '%s' AND"
-			 " index_name = '%s';",
-			 iname,
-			 INDEX_STATS_NAME_PRINT,
-			 (ret == DB_LOCK_WAIT_TIMEOUT
-			  ? " because the rows are locked"
-			  : ""),
-			 ut_strerr(ret),
-			 INDEX_STATS_NAME_PRINT,
-			 db_utf8,
-			 table_utf8,
-			 iname);
-
-		ut_print_timestamp(stderr);
-		fprintf(stderr, " InnoDB: %s\n", errstr);
-	}
-
-	return(ret);
-}
-
-/*********************************************************************//**
-Executes
-DELETE FROM mysql.innodb_table_stats
-WHERE database_name = '...' AND table_name = '...';
-Creates its own transaction and commits it.
-@return DB_SUCCESS or error code */
-UNIV_INLINE
-dberr_t
-dict_stats_delete_from_table_stats(
-/*===============================*/
-	const char*	database_name,	/*!< in: database name, e.g. 'db' */
-	const char*	table_name)	/*!< in: table name, e.g. 'table' */
+dberr_t dict_stats_delete_from_table_stats(const char *database_name,
+                                           const char *table_name, trx_t *trx)
 {
 	pars_info_t*	pinfo;
-	dberr_t		ret;
 
 	ut_d(dict_sys.assert_locked());
 
@@ -3771,33 +3641,25 @@ dict_stats_delete_from_table_stats(
 	pars_info_add_str_literal(pinfo, "database_name", database_name);
 	pars_info_add_str_literal(pinfo, "table_name", table_name);
 
-	ret = dict_stats_exec_sql(
+	return dict_stats_exec_sql(
 		pinfo,
 		"PROCEDURE DELETE_FROM_TABLE_STATS () IS\n"
 		"BEGIN\n"
 		"DELETE FROM \"" TABLE_STATS_NAME "\" WHERE\n"
 		"database_name = :database_name AND\n"
 		"table_name = :table_name;\n"
-		"END;\n", NULL);
-
-	return(ret);
+		"END;\n", trx);
 }
 
-/*********************************************************************//**
-Executes
-DELETE FROM mysql.innodb_index_stats
-WHERE database_name = '...' AND table_name = '...';
-Creates its own transaction and commits it.
+/** Execute DELETE FROM mysql.innodb_index_stats
+@param database_name  database name
+@param table_name     table name
+@param trx            transaction (nullptr=start and commit a new one)
 @return DB_SUCCESS or error code */
-UNIV_INLINE
-dberr_t
-dict_stats_delete_from_index_stats(
-/*===============================*/
-	const char*	database_name,	/*!< in: database name, e.g. 'db' */
-	const char*	table_name)	/*!< in: table name, e.g. 'table' */
+dberr_t dict_stats_delete_from_index_stats(const char *database_name,
+                                           const char *table_name, trx_t *trx)
 {
 	pars_info_t*	pinfo;
-	dberr_t		ret;
 
 	ut_d(dict_sys.assert_locked());
 
@@ -3806,375 +3668,144 @@ dict_stats_delete_from_index_stats(
 	pars_info_add_str_literal(pinfo, "database_name", database_name);
 	pars_info_add_str_literal(pinfo, "table_name", table_name);
 
-	ret = dict_stats_exec_sql(
+	return dict_stats_exec_sql(
 		pinfo,
 		"PROCEDURE DELETE_FROM_INDEX_STATS () IS\n"
 		"BEGIN\n"
 		"DELETE FROM \"" INDEX_STATS_NAME "\" WHERE\n"
 		"database_name = :database_name AND\n"
 		"table_name = :table_name;\n"
-		"END;\n", NULL);
-
-	return(ret);
+		"END;\n", trx);
 }
 
-/*********************************************************************//**
-Removes the statistics for a table and all of its indexes from the
-persistent statistics storage if it exists and if there is data stored for
-the table. This function creates its own transaction and commits it.
+/** Execute DELETE FROM mysql.innodb_index_stats
+@param database_name  database name
+@param table_name     table name
+@param index_name     name of the index
+@param trx            transaction (nullptr=start and commit a new one)
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_drop_table(
-/*==================*/
-	const char*	db_and_table,	/*!< in: db and table, e.g. 'db/table' */
-	char*		errstr,		/*!< out: error message
-					if != DB_SUCCESS is returned */
-	ulint		errstr_sz)	/*!< in: size of errstr buffer */
-{
-	char		db_utf8[MAX_DB_UTF8_LEN];
-	char		table_utf8[MAX_TABLE_UTF8_LEN];
-	dberr_t		ret;
-
-	ut_d(dict_sys.assert_locked());
-
-	/* skip tables that do not contain a database name
-	e.g. if we are dropping SYS_TABLES */
-	if (strchr(db_and_table, '/') == NULL) {
-
-		return(DB_SUCCESS);
-	}
-
-	/* skip innodb_table_stats and innodb_index_stats themselves */
-	if (strcmp(db_and_table, TABLE_STATS_NAME) == 0
-	    || strcmp(db_and_table, INDEX_STATS_NAME) == 0) {
-
-		return(DB_SUCCESS);
-	}
-
-	dict_fs2utf8(db_and_table, db_utf8, sizeof(db_utf8),
-		     table_utf8, sizeof(table_utf8));
-
-	ret = dict_stats_delete_from_table_stats(db_utf8, table_utf8);
-
-	if (ret == DB_SUCCESS) {
-		ret = dict_stats_delete_from_index_stats(db_utf8, table_utf8);
-	}
-
-	if (ret == DB_STATS_DO_NOT_EXIST) {
-		ret = DB_SUCCESS;
-	}
-
-	if (ret != DB_SUCCESS) {
-
-		snprintf(errstr, errstr_sz,
-			 "Unable to delete statistics for table %s.%s: %s."
-			 " They can be deleted later using"
-
-			 " DELETE FROM %s WHERE"
-			 " database_name = '%s' AND"
-			 " table_name = '%s';"
-
-			 " DELETE FROM %s WHERE"
-			 " database_name = '%s' AND"
-			 " table_name = '%s';",
-
-			 db_utf8, table_utf8,
-			 ut_strerr(ret),
-
-			 INDEX_STATS_NAME_PRINT,
-			 db_utf8, table_utf8,
-
-			 TABLE_STATS_NAME_PRINT,
-			 db_utf8, table_utf8);
-	}
-
-	return(ret);
-}
-
-/*********************************************************************//**
-Executes
-UPDATE mysql.innodb_table_stats SET
-database_name = '...', table_name = '...'
-WHERE database_name = '...' AND table_name = '...';
-Creates its own transaction and commits it.
-@return DB_SUCCESS or error code */
-UNIV_INLINE
-dberr_t
-dict_stats_rename_table_in_table_stats(
-/*===================================*/
-	const char*	old_dbname_utf8,/*!< in: database name, e.g. 'olddb' */
-	const char*	old_tablename_utf8,/*!< in: table name, e.g. 'oldtable' */
-	const char*	new_dbname_utf8,/*!< in: database name, e.g. 'newdb' */
-	const char*	new_tablename_utf8)/*!< in: table name, e.g. 'newtable' */
+dberr_t dict_stats_delete_from_index_stats(const char *database_name,
+                                           const char *table_name,
+                                           const char *index_name, trx_t *trx)
 {
 	pars_info_t*	pinfo;
-	dberr_t		ret;
 
 	ut_d(dict_sys.assert_locked());
 
 	pinfo = pars_info_create();
 
-	pars_info_add_str_literal(pinfo, "old_dbname_utf8", old_dbname_utf8);
-	pars_info_add_str_literal(pinfo, "old_tablename_utf8", old_tablename_utf8);
-	pars_info_add_str_literal(pinfo, "new_dbname_utf8", new_dbname_utf8);
-	pars_info_add_str_literal(pinfo, "new_tablename_utf8", new_tablename_utf8);
+	pars_info_add_str_literal(pinfo, "database_name", database_name);
+	pars_info_add_str_literal(pinfo, "table_name", table_name);
+	pars_info_add_str_literal(pinfo, "index_name", index_name);
 
-	ret = dict_stats_exec_sql(
+	return dict_stats_exec_sql(
 		pinfo,
-		"PROCEDURE RENAME_TABLE_IN_TABLE_STATS () IS\n"
+		"PROCEDURE DELETE_FROM_INDEX_STATS () IS\n"
 		"BEGIN\n"
-		"UPDATE \"" TABLE_STATS_NAME "\" SET\n"
-		"database_name = :new_dbname_utf8,\n"
-		"table_name = :new_tablename_utf8\n"
-		"WHERE\n"
-		"database_name = :old_dbname_utf8 AND\n"
-		"table_name = :old_tablename_utf8;\n"
-		"END;\n", NULL);
-
-	return(ret);
+		"DELETE FROM \"" INDEX_STATS_NAME "\" WHERE\n"
+		"database_name = :database_name AND\n"
+		"table_name = :table_name AND\n"
+		"index_name = :index_name;\n"
+		"END;\n", trx);
 }
 
-/*********************************************************************//**
-Executes
-UPDATE mysql.innodb_index_stats SET
-database_name = '...', table_name = '...'
-WHERE database_name = '...' AND table_name = '...';
-Creates its own transaction and commits it.
+/** Rename a table in InnoDB persistent stats storage.
+@param old_name  old table name
+@param new_name  new table name
+@param trx       transaction
 @return DB_SUCCESS or error code */
-UNIV_INLINE
-dberr_t
-dict_stats_rename_table_in_index_stats(
-/*===================================*/
-	const char*	old_dbname_utf8,/*!< in: database name, e.g. 'olddb' */
-	const char*	old_tablename_utf8,/*!< in: table name, e.g. 'oldtable' */
-	const char*	new_dbname_utf8,/*!< in: database name, e.g. 'newdb' */
-	const char*	new_tablename_utf8)/*!< in: table name, e.g. 'newtable' */
+dberr_t dict_stats_rename_table(const char *old_name, const char *new_name,
+                                trx_t *trx)
 {
-	pars_info_t*	pinfo;
-	dberr_t		ret;
+  /* skip the statistics tables themselves */
+  if (!strcmp(old_name, TABLE_STATS_NAME) ||
+      !strcmp(old_name, INDEX_STATS_NAME) ||
+      !strcmp(new_name, TABLE_STATS_NAME) ||
+      !strcmp(new_name, INDEX_STATS_NAME))
+    return DB_SUCCESS;
 
-	ut_d(dict_sys.assert_locked());
+  char old_db[MAX_DB_UTF8_LEN];
+  char new_db[MAX_DB_UTF8_LEN];
+  char old_table[MAX_TABLE_UTF8_LEN];
+  char new_table[MAX_TABLE_UTF8_LEN];
 
-	pinfo = pars_info_create();
+  dict_fs2utf8(old_name, old_db, sizeof old_db, old_table, sizeof old_table);
+  dict_fs2utf8(new_name, new_db, sizeof new_db, new_table, sizeof new_table);
 
-	pars_info_add_str_literal(pinfo, "old_dbname_utf8", old_dbname_utf8);
-	pars_info_add_str_literal(pinfo, "old_tablename_utf8", old_tablename_utf8);
-	pars_info_add_str_literal(pinfo, "new_dbname_utf8", new_dbname_utf8);
-	pars_info_add_str_literal(pinfo, "new_tablename_utf8", new_tablename_utf8);
+  if (dict_table_t::is_temporary_name(old_name) ||
+      dict_table_t::is_temporary_name(new_name))
+  {
+    if (dberr_t e= dict_stats_delete_from_table_stats(old_db, old_table, trx))
+      return e;
+    return dict_stats_delete_from_index_stats(old_db, old_table, trx);
+  }
 
-	ret = dict_stats_exec_sql(
-		pinfo,
-		"PROCEDURE RENAME_TABLE_IN_INDEX_STATS () IS\n"
-		"BEGIN\n"
-		"UPDATE \"" INDEX_STATS_NAME "\" SET\n"
-		"database_name = :new_dbname_utf8,\n"
-		"table_name = :new_tablename_utf8\n"
-		"WHERE\n"
-		"database_name = :old_dbname_utf8 AND\n"
-		"table_name = :old_tablename_utf8;\n"
-		"END;\n", NULL);
+  pars_info_t *pinfo= pars_info_create();
+  pars_info_add_str_literal(pinfo, "old_db", old_db);
+  pars_info_add_str_literal(pinfo, "old_table", old_table);
+  pars_info_add_str_literal(pinfo, "new_db", new_db);
+  pars_info_add_str_literal(pinfo, "new_table", new_table);
 
-	return(ret);
+  static const char sql[]=
+    "PROCEDURE RENAME_TABLE_IN_STATS() IS\n"
+    "BEGIN\n"
+    "UPDATE \"" TABLE_STATS_NAME "\" SET\n"
+    "database_name=:new_db, table_name=:new_table\n"
+    "WHERE database_name=:old_db AND table_name=:old_table;\n"
+    "UPDATE \"" INDEX_STATS_NAME "\" SET\n"
+    "database_name=:new_db, table_name=:new_table\n"
+    "WHERE database_name=:old_db AND table_name=:old_table;\n"
+    "END;\n";
+
+  return dict_stats_exec_sql(pinfo, sql, trx);
 }
 
-/*********************************************************************//**
-Renames a table in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
+/** Rename an index in InnoDB persistent statistics.
+@param db         database name
+@param table      table name
+@param old_name   old table name
+@param new_name   new table name
+@param trx        transaction
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_rename_table(
-/*====================*/
-	const char*	old_name,	/*!< in: old name, e.g. 'db/table' */
-	const char*	new_name,	/*!< in: new name, e.g. 'db/table' */
-	char*		errstr,		/*!< out: error string if != DB_SUCCESS
-					is returned */
-	size_t		errstr_sz)	/*!< in: errstr size */
+dberr_t dict_stats_rename_index(const char *db, const char *table,
+                                const char *old_name, const char *new_name,
+                                trx_t *trx)
 {
-	char		old_db_utf8[MAX_DB_UTF8_LEN];
-	char		new_db_utf8[MAX_DB_UTF8_LEN];
-	char		old_table_utf8[MAX_TABLE_UTF8_LEN];
-	char		new_table_utf8[MAX_TABLE_UTF8_LEN];
-	dberr_t		ret;
+  if (!dict_stats_persistent_storage_check(true))
+    return DB_STATS_DO_NOT_EXIST;
+  pars_info_t *pinfo= pars_info_create();
 
-	/* skip innodb_table_stats and innodb_index_stats themselves */
-	if (strcmp(old_name, TABLE_STATS_NAME) == 0
-	    || strcmp(old_name, INDEX_STATS_NAME) == 0
-	    || strcmp(new_name, TABLE_STATS_NAME) == 0
-	    || strcmp(new_name, INDEX_STATS_NAME) == 0) {
+  pars_info_add_str_literal(pinfo, "db", db);
+  pars_info_add_str_literal(pinfo, "table", table);
+  pars_info_add_str_literal(pinfo, "old", old_name);
+  pars_info_add_str_literal(pinfo, "new", new_name);
 
-		return(DB_SUCCESS);
-	}
+  static const char sql[]=
+    "PROCEDURE RENAME_INDEX_IN_STATS() IS\n"
+    "BEGIN\n"
+    "UPDATE \"" INDEX_STATS_NAME "\" SET index_name=:new\n"
+    "WHERE database_name=:db AND table_name=:table AND index_name=:old;\n"
+    "END;\n";
 
-	dict_fs2utf8(old_name, old_db_utf8, sizeof(old_db_utf8),
-		     old_table_utf8, sizeof(old_table_utf8));
-
-	dict_fs2utf8(new_name, new_db_utf8, sizeof(new_db_utf8),
-		     new_table_utf8, sizeof(new_table_utf8));
-
-	dict_sys_lock();
-
-	ulint	n_attempts = 0;
-	do {
-		n_attempts++;
-
-		ret = dict_stats_rename_table_in_table_stats(
-			old_db_utf8, old_table_utf8,
-			new_db_utf8, new_table_utf8);
-
-		if (ret == DB_DUPLICATE_KEY) {
-			dict_stats_delete_from_table_stats(
-				new_db_utf8, new_table_utf8);
-		}
-
-		if (ret == DB_STATS_DO_NOT_EXIST) {
-			ret = DB_SUCCESS;
-		}
-
-		if (ret != DB_SUCCESS) {
-			dict_sys_unlock();
-			std::this_thread::sleep_for(
-				std::chrono::milliseconds(200));
-			dict_sys_lock();
-		}
-	} while ((ret == DB_DEADLOCK
-		  || ret == DB_DUPLICATE_KEY
-		  || ret == DB_LOCK_WAIT_TIMEOUT)
-		 && n_attempts < 5);
-
-	if (ret != DB_SUCCESS) {
-		snprintf(errstr, errstr_sz,
-			 "Unable to rename statistics from"
-			 " %s.%s to %s.%s in %s: %s."
-			 " They can be renamed later using"
-
-			 " UPDATE %s SET"
-			 " database_name = '%s',"
-			 " table_name = '%s'"
-			 " WHERE"
-			 " database_name = '%s' AND"
-			 " table_name = '%s';",
-
-			 old_db_utf8, old_table_utf8,
-			 new_db_utf8, new_table_utf8,
-			 TABLE_STATS_NAME_PRINT,
-			 ut_strerr(ret),
-
-			 TABLE_STATS_NAME_PRINT,
-			 new_db_utf8, new_table_utf8,
-			 old_db_utf8, old_table_utf8);
-		dict_sys_unlock();
-		return(ret);
-	}
-	/* else */
-
-	n_attempts = 0;
-	do {
-		n_attempts++;
-
-		ret = dict_stats_rename_table_in_index_stats(
-			old_db_utf8, old_table_utf8,
-			new_db_utf8, new_table_utf8);
-
-		if (ret == DB_DUPLICATE_KEY) {
-			dict_stats_delete_from_index_stats(
-				new_db_utf8, new_table_utf8);
-		}
-
-		if (ret == DB_STATS_DO_NOT_EXIST) {
-			ret = DB_SUCCESS;
-		}
-
-		if (ret != DB_SUCCESS) {
-			dict_sys_unlock();
-			std::this_thread::sleep_for(
-				std::chrono::milliseconds(200));
-			dict_sys_lock();
-		}
-	} while ((ret == DB_DEADLOCK
-		  || ret == DB_DUPLICATE_KEY
-		  || ret == DB_LOCK_WAIT_TIMEOUT)
-		 && n_attempts < 5);
-
-	dict_sys_unlock();
-
-	if (ret != DB_SUCCESS) {
-		snprintf(errstr, errstr_sz,
-			 "Unable to rename statistics from"
-			 " %s.%s to %s.%s in %s: %s."
-			 " They can be renamed later using"
-
-			 " UPDATE %s SET"
-			 " database_name = '%s',"
-			 " table_name = '%s'"
-			 " WHERE"
-			 " database_name = '%s' AND"
-			 " table_name = '%s';",
-
-			 old_db_utf8, old_table_utf8,
-			 new_db_utf8, new_table_utf8,
-			 INDEX_STATS_NAME_PRINT,
-			 ut_strerr(ret),
-
-			 INDEX_STATS_NAME_PRINT,
-			 new_db_utf8, new_table_utf8,
-			 old_db_utf8, old_table_utf8);
-	}
-
-	return(ret);
+  return dict_stats_exec_sql(pinfo, sql, trx);
 }
 
-/*********************************************************************//**
-Renames an index in InnoDB persistent stats storage.
-This function creates its own transaction and commits it.
-@return DB_SUCCESS or error code. DB_STATS_DO_NOT_EXIST will be returned
-if the persistent stats do not exist. */
-dberr_t
-dict_stats_rename_index(
-/*====================*/
-	const dict_table_t*	table,		/*!< in: table whose index
-						is renamed */
-	const char*		old_index_name,	/*!< in: old index name */
-	const char*		new_index_name)	/*!< in: new index name */
+/** Delete all persistent statistics for a database.
+@param db    database name
+@param trx   transaction
+@return DB_SUCCESS or error code */
+dberr_t dict_stats_delete(const char *db, trx_t *trx)
 {
-	dict_sys_lock();
+  static const char sql[] =
+    "PROCEDURE DROP_DATABASE_STATS () IS\n"
+    "BEGIN\n"
+    "DELETE FROM \"" TABLE_STATS_NAME "\" WHERE database_name=:db;\n"
+    "DELETE FROM \"" INDEX_STATS_NAME "\" WHERE database_name=:db;\n"
+    "END;\n";
 
-	if (!dict_stats_persistent_storage_check(true)) {
-		dict_sys_unlock();
-		return(DB_STATS_DO_NOT_EXIST);
-	}
-
-	char	dbname_utf8[MAX_DB_UTF8_LEN];
-	char	tablename_utf8[MAX_TABLE_UTF8_LEN];
-
-	dict_fs2utf8(table->name.m_name, dbname_utf8, sizeof(dbname_utf8),
-		     tablename_utf8, sizeof(tablename_utf8));
-
-	pars_info_t*	pinfo;
-
-	pinfo = pars_info_create();
-
-	pars_info_add_str_literal(pinfo, "dbname_utf8", dbname_utf8);
-	pars_info_add_str_literal(pinfo, "tablename_utf8", tablename_utf8);
-	pars_info_add_str_literal(pinfo, "new_index_name", new_index_name);
-	pars_info_add_str_literal(pinfo, "old_index_name", old_index_name);
-
-	dberr_t	ret;
-
-	ret = dict_stats_exec_sql(
-		pinfo,
-		"PROCEDURE RENAME_INDEX_IN_INDEX_STATS () IS\n"
-		"BEGIN\n"
-		"UPDATE \"" INDEX_STATS_NAME "\" SET\n"
-		"index_name = :new_index_name\n"
-		"WHERE\n"
-		"database_name = :dbname_utf8 AND\n"
-		"table_name = :tablename_utf8 AND\n"
-		"index_name = :old_index_name;\n"
-		"END;\n", NULL);
-
-	dict_sys_unlock();
-
-	return(ret);
+  pars_info_t *pinfo= pars_info_create();
+  pars_info_add_str_literal(pinfo, "db", db);
+  return dict_stats_exec_sql(pinfo, sql, trx);
 }
 
 /* tests @{ */

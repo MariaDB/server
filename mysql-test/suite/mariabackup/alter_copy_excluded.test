@@ -1,0 +1,65 @@
+--source include/have_innodb.inc
+--source include/have_debug.inc
+
+# The test demonstrates that intermediate tables (ALTER TABLE...ALGORITHM=COPY)
+# will not be included in a backup.
+
+echo # xtrabackup backup;
+let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
+
+CREATE TABLE t1(i int, t text, fulltext index(t)) ENGINE=InnoDB;
+INSERT into t1 values(1,'foo');
+
+connect  con2, localhost, root,,;
+connection con2;
+SET debug_sync='copy_data_between_tables_before_reset_backup_lock SIGNAL go  WAIT_FOR after_backup_stage_block_commit' ;
+DELIMITER |;
+send  SET debug_sync='now WAIT_FOR after_backup_stage_start';ALTER TABLE test.t1 DROP t, algorithm=COPY;|
+DELIMITER ;|
+connection default;
+
+# Setup mariabackup events
+# - After BACKUP STAGE START , let concurrent ALTER run, wand wait for it to  create temporary tables
+# - After BACKUP STAGE COMMIT, check that temporary files are in the database
+
+let after_backup_stage_start=SET debug_sync='now SIGNAL after_backup_stage_start WAIT_FOR go';
+DELIMITER |;
+# The following query only works if there are innodb "intermediate" tables
+# in the system tables , which we want to prove there
+let after_backup_stage_block_commit=
+  IF (SELECT COUNT(*) > 0 FROM INFORMATION_SCHEMA.innodb_sys_tablespaces WHERE name like '%/#sql%') THEN
+    SET debug_sync='now SIGNAL after_backup_stage_block_commit';
+  END IF|
+DELIMITER ;|
+
+--disable_result_log
+exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --dbug=+d,mariabackup_events;
+--enable_result_log
+
+# There should be no temp files in the backup.
+--list_files $targetdir/test #sql*
+
+connection con2;
+#Wait for ALTER to finish, cleanup
+reap;
+SET debug_sync='RESET';
+disconnect con2;
+
+connection default;
+echo # xtrabackup prepare;
+--disable_result_log
+exec $XTRABACKUP  --prepare --target-dir=$targetdir;
+-- source include/restart_and_restore.inc
+--enable_result_log
+
+# Check there are no temp tablespaces in sys_tablespaces, after backup
+SELECT * FROM t1;
+DROP TABLE t1;
+SELECT * FROM INFORMATION_SCHEMA.innodb_sys_tablespaces WHERE name like '%/#sql%' or name like 'test/%';
+
+# Restart once again to clear first_start_after_backup flag
+# This is to catch potential warnings, since "missing file" for #sql is suppressed
+# during the first start after backup
+--source include/restart_mysqld.inc
+
+rmdir $targetdir;

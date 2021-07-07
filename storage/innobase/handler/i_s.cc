@@ -5127,7 +5127,7 @@ i_s_sys_tables_fill_table_stats(
 
 	while (rec) {
 		const char*	err_msg;
-		dict_table_t*	table_rec;
+		dict_table_t*	table_rec= 0;
 
 		mtr.commit();
 		/* Fetch the dict_table_t structure corresponding to

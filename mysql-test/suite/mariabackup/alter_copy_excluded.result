@@ -1,0 +1,24 @@
+# xtrabackup backup
+CREATE TABLE t1(i int, t text, fulltext index(t)) ENGINE=InnoDB;
+INSERT into t1 values(1,'foo');
+connect  con2, localhost, root,,;
+connection con2;
+SET debug_sync='copy_data_between_tables_before_reset_backup_lock SIGNAL go  WAIT_FOR after_backup_stage_block_commit' ;
+SET debug_sync='now WAIT_FOR after_backup_stage_start';ALTER TABLE test.t1 DROP t, algorithm=COPY;|
+connection default;
+connection con2;
+SET debug_sync='RESET';
+disconnect con2;
+connection default;
+# xtrabackup prepare
+# shutdown server
+# remove datadir
+# xtrabackup move back
+# restart
+SELECT * FROM t1;
+i	t
+1	foo
+DROP TABLE t1;
+SELECT * FROM INFORMATION_SCHEMA.innodb_sys_tablespaces WHERE name like '%/#sql%' or name like 'test/%';
+SPACE	NAME	FLAG	ROW_FORMAT	PAGE_SIZE	FILENAME	FS_BLOCK_SIZE	FILE_SIZE	ALLOCATED_SIZE
+# restart

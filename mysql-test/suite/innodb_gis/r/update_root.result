@@ -7,10 +7,14 @@ insert into t1 values (i, Point(i, i));
 set i = i + 1;
 end while;
 end|
+BEGIN;
 CALL insert_t1(70000);
+COMMIT;
+BEGIN;
 CALL insert_t1(90);
 CALL insert_t1(90);
 CALL insert_t1(83);
+COMMIT;
 insert into t1 values (0, Point(0.9, 0.9));
 check table t1;
 Table	Op	Msg_type	Msg_text

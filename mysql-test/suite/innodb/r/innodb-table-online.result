@@ -10,7 +10,6 @@ SET GLOBAL innodb_monitor_enable = module_ddl;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -29,7 +28,6 @@ ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -95,7 +93,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR scanned';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -123,7 +120,6 @@ ALTER TABLE t1 DROP INDEX c2, ADD PRIMARY KEY(c1), ALGORITHM = INPLACE;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -148,7 +144,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR rebuilt';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -164,7 +159,6 @@ ERROR 70100: Query execution was interrupted
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -215,7 +209,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR rebuilt2';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -247,7 +240,6 @@ ROLLBACK;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	0
@@ -274,7 +266,6 @@ ERROR HY000: Creating index 'PRIMARY' required more than 'innodb_online_alter_lo
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	0
@@ -304,7 +295,6 @@ SET DEBUG_SYNC = 'now WAIT_FOR rebuilt3';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	2
@@ -320,7 +310,6 @@ ROLLBACK;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	1
 ddl_pending_alter_table	1
 ddl_sort_file_alter_table	2
@@ -330,7 +319,6 @@ connection con1;
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	2
@@ -410,7 +398,6 @@ SET DEBUG_SYNC = 'now SIGNAL ddl_timed_out';
 SELECT name, count FROM INFORMATION_SCHEMA.INNODB_METRICS WHERE subsystem = 'ddl';
 name	count
 ddl_background_drop_indexes	0
-ddl_background_drop_tables	0
 ddl_online_create_index	0
 ddl_pending_alter_table	0
 ddl_sort_file_alter_table	6

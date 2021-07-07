@@ -9,17 +9,20 @@ DELETE FROM t1;
 --error ER_DUP_ENTRY
 INSERT INTO t2 VALUES(1),(1);
 
-connect (con1,localhost,root,,);
 BEGIN;
 SELECT * FROM t2 LOCK IN SHARE MODE;
 
-connection default;
-SET innodb_lock_wait_timeout=1;
+connect (con1,localhost,root,,);
+SET innodb_lock_wait_timeout=0;
 --error ER_LOCK_WAIT_TIMEOUT
 INSERT INTO t2 VALUES(2);
-disconnect con1;
+connection default;
+ROLLBACK;
+connection con1;
 INSERT INTO t2 VALUES(3);
 COMMIT;
+disconnect con1;
+connection default;
 
 SELECT * FROM t1;
 SELECT * FROM t2;
@@ -37,5 +40,24 @@ INSERT IGNORE INTO t1 VALUES (1,11);
 --error ER_NO_REFERENCED_ROW_2
 REPLACE INTO t1 VALUES (1,12);
 COMMIT;
+
+DROP TABLE t1;
+
+--echo #
+--echo # MDEV-25942 Assertion failed in trx_t::drop_table()
+--echo #
+
+CREATE TABLE t1 (k INT PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t1 SET k=1;
+START TRANSACTION;
+INSERT INTO t1 SET k=2;
+
+--connect (con1,localhost,root,,test)
+SET innodb_lock_wait_timeout=0;
+--error ER_LOCK_WAIT_TIMEOUT
+CREATE TABLE t2 (pk INT AUTO_INCREMENT PRIMARY KEY) ENGINE=InnoDB
+AS SELECT k FROM t1;
+--disconnect con1
+--connection default
 
 DROP TABLE t1;

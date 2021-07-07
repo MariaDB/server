@@ -885,6 +885,7 @@ SELECT 1 FROM t1 UNION SELECT 1 FROM t1 ORDER BY 1 LIMIT 1 FOR UPDATE;
 
 --echo # "INTO" clause tests
 
+--enable_prepare_warnings
 SELECT 1 FROM t1 INTO @var17727401;
 SELECT 1 FROM DUAL INTO @var17727401;
 SELECT 1 INTO @var17727401;
@@ -924,6 +925,7 @@ SELECT 1 FROM t1 INTO @var17727401 UNION SELECT 1 FROM t1 INTO t1;
 
 SELECT 1 FROM t1 UNION SELECT 1 FROM t1 INTO @var17727401;
 
+--disable_prepare_warnings
 --error ER_PARSE_ERROR
 SELECT 1 INTO @var17727401 FROM t1 PROCEDURE ANALYSE();
 
@@ -1904,6 +1906,8 @@ drop table t1;
 --echo # MDEV-19682 sql_mode="oracle" does not support sysdate
 --echo #
 
+--enable_prepare_warnings
+
 --error ER_BAD_FIELD_ERROR
 SELECT sysdate LIKE '____-__-__ __:__:__';
 --error ER_BAD_FIELD_ERROR
@@ -1948,6 +1952,8 @@ sysdate:
 END;
 $$
 DELIMITER ;$$
+
+--disable_prepare_warnings
 
 --echo #
 --echo # End of 10.6 tests

@@ -63,6 +63,7 @@ drop view if exists v1, v2;
 TRUNCATE TABLE mysql.general_log;
 
 delimiter |;
+--enable_prepare_warnings
 create procedure p_verify_reprepare_count(expected int)
 begin
   declare old_reprepare_count int default @reprepare_count;
@@ -80,6 +81,7 @@ begin
     select '' as "SUCCESS";
   end if;
 end|
+--disable_prepare_warnings
 delimiter ;|
 set @reprepare_count= 0;
 flush status;
@@ -902,14 +904,18 @@ begin
   return x;
 end|
 delimiter ;|
+--enable_prepare_warnings
 create procedure p1(out x int) select max(a) from t1 into x;
+--disable_prepare_warnings
 
 prepare stmt from "select * from v1";
 execute stmt;
 execute stmt;
 call p_verify_reprepare_count(0);
 drop procedure p1;
+--enable_prepare_warnings
 create procedure p1(out x int) select max(a) from t2 into x;
+--disable_prepare_warnings
 --echo # XXX: used to be a bug. The prelocked list was not invalidated
 --echo # and we kept opening table t1, whereas the procedure
 --echo # is now referring to table t2
@@ -1880,7 +1886,6 @@ call p_verify_reprepare_count(8);
 drop table if exists t1;
 --enable_warnings
 create table t1 (a varchar(20));
---error ER_UNSUPPORTED_PS
 prepare stmt from "load data infile '../std_data_ln/words.dat' into table t1";
 drop table t1;
 
@@ -2202,7 +2207,6 @@ call p_verify_reprepare_count(17);
 drop view if exists v1;
 --enable_warnings
 create view v1 as select 1;
---error ER_UNSUPPORTED_PS
 prepare stmt from "alter view v1 as select 2";
 drop view v1;
 

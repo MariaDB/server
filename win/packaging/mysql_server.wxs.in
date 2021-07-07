@@ -12,7 +12,7 @@
        Keywords='Installer'
        Description='MariaDB Server'
        Manufacturer='@MANUFACTURER@'
-       InstallerVersion='301'
+       InstallerVersion='500'
        Languages='1033'
        Compressed='yes'
        SummaryCodepage='1252'

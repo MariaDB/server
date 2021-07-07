@@ -38,7 +38,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "ilist.h"
 
 #include <vector>
-#include <set>
 
 // Forward declaration
 struct mtr_t;
@@ -79,7 +78,7 @@ void trx_free_at_shutdown(trx_t *trx);
 void trx_disconnect_prepared(trx_t *trx);
 
 /** Initialize (resurrect) transactions at startup. */
-void trx_lists_init_at_db_start();
+dberr_t trx_lists_init_at_db_start();
 
 /*************************************************************//**
 Starts the transaction if it is not yet started. */
@@ -96,18 +95,11 @@ trx_start_if_not_started_low(
 	trx_t*	trx,		/*!< in/out: transaction */
 	bool	read_write);	/*!< in: true if read write transaction */
 
-/*************************************************************//**
-Starts a transaction for internal processing. */
-void
-trx_start_internal_low(
-/*===================*/
-	trx_t*	trx);		/*!< in/out: transaction */
-
-/** Starts a read-only transaction for internal processing.
-@param[in,out] trx	transaction to be started */
-void
-trx_start_internal_read_only_low(
-	trx_t*	trx);
+/**
+Start a transaction for internal processing.
+@param trx          transaction
+@param read_write   whether writes may be performed */
+void trx_start_internal_low(trx_t *trx, bool read_write);
 
 #ifdef UNIV_DEBUG
 #define trx_start_if_not_started_xa(t, rw)			\
@@ -128,24 +120,13 @@ trx_start_internal_read_only_low(
 	do {							\
 	(t)->start_line = __LINE__;				\
 	(t)->start_file = __FILE__;				\
-	trx_start_internal_low((t));				\
-	} while (false)
-
-#define trx_start_internal_read_only(t)				\
-	do {							\
-	(t)->start_line = __LINE__;				\
-	(t)->start_file = __FILE__;				\
-	trx_start_internal_read_only_low(t);			\
+	trx_start_internal_low(t, true);			\
 	} while (false)
 #else
 #define trx_start_if_not_started(t, rw)				\
 	trx_start_if_not_started_low((t), rw)
 
-#define trx_start_internal(t)					\
-	trx_start_internal_low((t))
-
-#define trx_start_internal_read_only(t)				\
-	trx_start_internal_read_only_low(t)
+#define trx_start_internal(t) trx_start_internal_low(t, true)
 
 #define trx_start_if_not_started_xa(t, rw)			\
 	trx_start_if_not_started_xa_low((t), (rw))
@@ -412,7 +393,8 @@ class trx_mod_table_time_t
 
   /** First modification of the table, possibly ORed with BULK */
   undo_no_t first;
-  /** First modification of a system versioned column (or NONE) */
+  /** First modification of a system versioned column
+  (NONE= no versioning, BULK= the table was dropped) */
   undo_no_t first_versioned= NONE;
 public:
   /** Constructor
@@ -427,15 +409,24 @@ public:
   { auto f= first & LIMIT; return f <= first_versioned && f <= rows; }
 #endif /* UNIV_DEBUG */
   /** @return if versioned columns were modified */
-  bool is_versioned() const { return first_versioned != NONE; }
+  bool is_versioned() const { return (~first_versioned & LIMIT) != 0; }
+  /** @return if the table was dropped */
+  bool is_dropped() const { return first_versioned == BULK; }
 
   /** After writing an undo log record, set is_versioned() if needed
   @param rows   number of modified rows so far */
   void set_versioned(undo_no_t rows)
   {
-    ut_ad(!is_versioned());
+    ut_ad(first_versioned == NONE);
     first_versioned= rows;
     ut_ad(valid(rows));
+  }
+
+  /** After writing an undo log record, note that the table will be dropped */
+  void set_dropped()
+  {
+    ut_ad(first_versioned == NONE);
+    first_versioned= BULK;
   }
 
   /** Notify the start of a bulk insert operation */
@@ -520,10 +511,6 @@ struct trx_undo_ptr_t {
 					yet */
 	trx_undo_t*	undo;		/*!< pointer to the undo log, or
 					NULL if nothing logged yet */
-	trx_undo_t*     old_insert;	/*!< pointer to recovered
-					insert undo log, or NULL if no
-					INSERT transactions were
-					recovered from old-format undo logs */
 };
 
 /** An instance of temporary rollback segment. */
@@ -843,18 +830,12 @@ public:
 					count of tables being flushed. */
 
 	/*------------------------------*/
-	bool		internal;	/*!< true if it is a system/internal
-					transaction background task. This
-					includes DDL transactions too.  Such
-					transactions are always treated as
-					read-write. */
-	/*------------------------------*/
 #ifdef UNIV_DEBUG
 	unsigned	start_line;	/*!< Track where it was started from */
 	const char*	start_file;	/*!< Filename where it was started */
 #endif /* UNIV_DEBUG */
 
-	XID*		xid;		/*!< X/Open XA transaction
+	XID		xid;		/*!< X/Open XA transaction
 					identification to identify a
 					transaction branch */
 	trx_mod_tables_t mod_tables;	/*!< List of tables that were modified
@@ -876,13 +857,6 @@ public:
 	bool has_logged() const
 	{
 		return(has_logged_persistent() || rsegs.m_noredo.undo);
-	}
-
-	/** @return whether any undo log has been generated or
-	recovered */
-	bool has_logged_or_recovered() const
-	{
-		return(has_logged() || rsegs.m_redo.old_insert);
 	}
 
 	/** @return rollback segment for modifying temporary tables */
@@ -923,12 +897,34 @@ private:
   inline void commit_tables();
   /** Mark a transaction committed in the main memory data structures. */
   inline void commit_in_memory(const mtr_t *mtr);
+  /** Write log for committing the transaction. */
+  void commit_persist();
+  /** Clean up the transaction after commit_in_memory() */
+  void commit_cleanup();
   /** Commit the transaction in a mini-transaction.
   @param mtr  mini-transaction (if there are any persistent modifications) */
   void commit_low(mtr_t *mtr= nullptr);
 public:
   /** Commit the transaction. */
   void commit();
+
+
+  /** Try to drop a persistent table.
+  @param table       persistent table
+  @param fk          whether to drop FOREIGN KEY metadata
+  @return error code */
+  dberr_t drop_table(const dict_table_t &table);
+  /** Try to drop the foreign key constraints for a persistent table.
+  @param name        name of persistent table
+  @return error code */
+  dberr_t drop_table_foreign(const table_name_t &name);
+  /** Try to drop the statistics for a persistent table.
+  @param name        name of persistent table
+  @return error code */
+  dberr_t drop_table_statistics(const table_name_t &name);
+  /** Commit the transaction, possibly after drop_table().
+  @param deleted   handles of data files that were deleted */
+  void commit(std::vector<pfs_os_file_t> &deleted);
 
 
   /** Discard all savepoints */

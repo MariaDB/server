@@ -429,7 +429,7 @@
 #define PSAPI_VERSION 1     /* for GetProcessMemoryInfo() */
 
 /* We don't want the min/max macros */
-#ifdef __WIN__
+#ifdef _WIN32
 #define NOMINMAX 1
 #endif
 

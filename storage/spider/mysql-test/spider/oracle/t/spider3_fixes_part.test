@@ -275,7 +275,7 @@ if ($HAVE_PARTITION)
     --connection child2_1
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
     }
     eval $CHILD2_1_SELECT_INCREMENT_TABLES1;
     if ($OUTPUT_CHILD_GROUP2)
@@ -293,7 +293,7 @@ if ($HAVE_PARTITION)
     --connection child2_2
     if ($USE_GENERAL_LOG)
     {
-      SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+      SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
     }
     eval $CHILD2_2_SELECT_INCREMENT_TABLES1;
     if ($OUTPUT_CHILD_GROUP2)

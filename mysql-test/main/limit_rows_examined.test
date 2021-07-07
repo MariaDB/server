@@ -2,6 +2,11 @@
 # Tests for LIMIT ROWS EXAMINED, MDEV-28
 #
 
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Test temporarily disabled for ps-protocol
+}
+
 --source include/default_optimizer_switch.inc
 call mtr.add_suppression("Sort aborted.*");
 

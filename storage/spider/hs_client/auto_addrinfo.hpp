@@ -9,7 +9,7 @@
 #ifndef DENA_AUTO_ADDRINFO_HPP
 #define DENA_AUTO_ADDRINFO_HPP
 
-#ifndef __WIN__
+#ifndef _WIN32
 #include <netdb.h>
 #endif
 

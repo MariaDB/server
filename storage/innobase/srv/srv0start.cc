@@ -989,6 +989,9 @@ static dberr_t find_and_check_log_file(bool &log_file_found)
     if (is_operation_restore())
       return DB_NOT_FOUND;
 
+    /* This might be first start after mariabackup
+    copy-back or move-back. */
+    srv_start_after_restore= true;
     return DB_SUCCESS;
   }
 
@@ -1019,7 +1022,9 @@ static dberr_t find_and_check_log_file(bool &log_file_found)
   header, checkpoint page 1, empty, checkpoint page 2, redo log page(s).
 
   Mariabackup --prepare would create an empty LOG_FILE_NAME. Tolerate it. */
-  if (size != 0 && size <= OS_FILE_LOG_BLOCK_SIZE * 4)
+  if (size == 0)
+    srv_start_after_restore= true;
+  else if (size <= OS_FILE_LOG_BLOCK_SIZE * 4)
   {
     ib::error() << "Log file " << logfile0 << " size " << size
                 << " is too small";
@@ -1049,6 +1054,11 @@ dberr_t srv_start(bool create_new_db)
 	ut_ad(srv_operation == SRV_OPERATION_NORMAL
 	      || srv_operation == SRV_OPERATION_RESTORE
 	      || srv_operation == SRV_OPERATION_RESTORE_EXPORT);
+
+	if (srv_force_recovery) {
+		ib::info() << "!!! innodb_force_recovery is set to "
+			<< srv_force_recovery << " !!!";
+	}
 
 	if (srv_force_recovery == SRV_FORCE_NO_LOG_REDO) {
 		srv_read_only_mode = true;
@@ -1392,7 +1402,11 @@ file_checked:
 		All the remaining rollback segments will be created later,
 		after the double write buffer has been created. */
 		trx_sys_create_sys_pages();
-		trx_lists_init_at_db_start();
+		err = trx_lists_init_at_db_start();
+
+		if (err != DB_SUCCESS) {
+			return(srv_init_abort(err));
+		}
 
 		err = dict_create();
 
@@ -1455,7 +1469,10 @@ file_checked:
 				break;
 			}
 			dict_sys.load_sys_tables();
-			trx_lists_init_at_db_start();
+			err = trx_lists_init_at_db_start();
+			if (err != DB_SUCCESS) {
+				return srv_init_abort(err);
+			}
 			break;
 		case SRV_OPERATION_RESTORE_DELTA:
 		case SRV_OPERATION_BACKUP:
@@ -1764,9 +1781,6 @@ file_checked:
 		    && !srv_read_only_mode) {
 			/* Drop partially created indexes. */
 			row_merge_drop_temp_indexes();
-			/* Drop garbage tables. */
-			row_mysql_drop_garbage_tables();
-
 			/* Rollback incomplete non-DDL transactions */
 			trx_rollback_is_active = true;
 			srv_thread_pool->submit_task(&rollback_all_recovered_task);
@@ -1836,11 +1850,6 @@ skip_monitors:
 			   << "; transaction id " << trx_sys.get_max_trx_id();
 	}
 
-	if (srv_force_recovery > 0) {
-		ib::info() << "!!! innodb_force_recovery is set to "
-			<< srv_force_recovery << " !!!";
-	}
-
 	if (srv_force_recovery == 0) {
 		/* In the change buffer we may have even bigger tablespace
 		id's, because we may have dropped those tablespaces, but
@@ -1898,10 +1907,6 @@ void srv_shutdown_bg_undo_sources()
 		ut_ad(!srv_read_only_mode);
 		fts_optimize_shutdown();
 		dict_stats_shutdown();
-		while (row_get_background_drop_list_len_low()) {
-			srv_inc_activity_count();
-			std::this_thread::yield();
-		}
 		srv_undo_sources = false;
 	}
 }
@@ -2028,7 +2033,6 @@ void innodb_shutdown()
 
 	dict_sys.close();
 	btr_search_sys_free();
-	row_mysql_close();
 	srv_free();
 	fil_system.close();
 	pars_lexer_close();

@@ -98,8 +98,6 @@
 
 #include "my_json_writer.h" 
 
-#define PRIV_LOCK_TABLES (SELECT_ACL | LOCK_TABLES_ACL)
-
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
@@ -1672,7 +1670,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
                command != COM_PING &&
                command != COM_QUIT &&
                command != COM_STMT_PREPARE &&
-               command != COM_STMT_EXECUTE))
+               command != COM_STMT_EXECUTE &&
+               command != COM_STMT_CLOSE))
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     goto dispatch_end;
@@ -2418,7 +2417,18 @@ resume:
 
   thd->update_all_stats();
 
-  log_slow_statement(thd);
+  /*
+    Write to slow query log only those statements that received via the text
+    protocol except the EXECUTE statement. The reason we do that way is
+    that for statements received via binary protocol and for the EXECUTE
+    statement, the slow statements have been already written to slow query log
+    inside the method Prepared_statement::execute().
+  */
+  if(command == COM_QUERY &&
+     thd->lex->sql_command != SQLCOM_EXECUTE)
+    log_slow_statement(thd);
+  else
+    delete_explain_query(thd->lex);
 
   THD_STAGE_INFO(thd, stage_cleaning_up);
   thd->reset_query();
@@ -3432,7 +3442,7 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
 */
 
 int
-mysql_execute_command(THD *thd)
+mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 {
   int res= 0;
   int  up_result= 0;
@@ -5259,7 +5269,7 @@ mysql_execute_command(THD *thd)
 
   } while (0);
   /* Don't do it, if we are inside a SP */
-  if (!thd->spcont)
+  if (!thd->spcont && !is_called_from_prepared_stmt)
   {
     sp_head::destroy(lex->sphead);
     lex->sphead= NULL;
@@ -10364,10 +10374,8 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
 
   /* Parse the query. */
 
-  bool mysql_parse_status=
-         ((thd->variables.sql_mode & MODE_ORACLE) ?
-          ORAparse(thd) :
-          MYSQLparse(thd)) != 0;
+  bool mysql_parse_status= thd->variables.sql_mode & MODE_ORACLE
+                           ? ORAparse(thd) : MYSQLparse(thd);
   DBUG_ASSERT(opt_bootstrap || mysql_parse_status ||
               thd->lex->select_stack_top == 0);
   thd->lex->current_select= thd->lex->first_select_lex();

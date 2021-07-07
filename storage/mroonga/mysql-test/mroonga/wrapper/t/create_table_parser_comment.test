@@ -28,6 +28,7 @@ create table diaries (
   fulltext index body_index (body)
     comment 'parser "TokenBigramSplitSymbolAlphaDigit"'
 ) comment = 'engine "innodb"' default charset utf8;
+--enable_prepare_warnings
 insert into diaries (body) values ("will start Groonga!");
 insert into diaries (body) values ("starting Groonga...");
 insert into diaries (body) values ("started Groonga.");

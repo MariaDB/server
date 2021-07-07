@@ -639,7 +639,9 @@ extern PSI_stage_info stage_upgrading_lock;
 extern PSI_stage_info stage_user_lock;
 extern PSI_stage_info stage_user_sleep;
 extern PSI_stage_info stage_verifying_table;
+extern PSI_stage_info stage_waiting_for_ddl;
 extern PSI_stage_info stage_waiting_for_delay_list;
+extern PSI_stage_info stage_waiting_for_flush;
 extern PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log;
 extern PSI_stage_info stage_waiting_for_handler_insert;
 extern PSI_stage_info stage_waiting_for_handler_lock;
@@ -697,7 +699,7 @@ void init_sql_statement_info();
 void init_com_statement_info();
 #endif /* HAVE_PSI_STATEMENT_INTERFACE */
 
-#ifndef __WIN__
+#ifndef _WIN32
 extern pthread_t signal_thread;
 #endif
 

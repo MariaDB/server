@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1382,7 +1382,10 @@ bool Item_in_optimizer::fix_fields(THD *thd, Item **ref)
                 (args[1]->base_flags & item_base_t::MAYBE_NULL));
   with_flags|= (item_with_t::SUBQUERY |
                 args[1]->with_flags |
-                (args[0]->with_flags & item_with_t::SP_VAR));
+                (args[0]->with_flags &
+                 (item_with_t::SP_VAR | item_with_t::WINDOW_FUNC)));
+  // The subquery cannot have window functions aggregated in this select
+  DBUG_ASSERT(!args[1]->with_window_func());
   used_tables_and_const_cache_join(args[1]);
   return FALSE;
 }

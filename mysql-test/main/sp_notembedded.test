@@ -185,6 +185,7 @@ set @@max_sp_recursion_depth=255|
 set @var=1|
 # disable log because error about stack overrun contains numbers which
 # depend on a system
+-- disable_ps_protocol
 -- disable_result_log
 -- error ER_STACK_OVERRUN_NEED_MORE
 call bug10100p(255, @var)|
@@ -197,6 +198,7 @@ call bug10100pd(1,255)|
 -- error ER_STACK_OVERRUN_NEED_MORE
 call bug10100pc(1,255)|
 -- enable_result_log
+-- enable_ps_protocol
 set @@max_sp_recursion_depth=0|
 
 deallocate prepare stmt2|

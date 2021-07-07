@@ -848,10 +848,9 @@ bool Binary_string::copy_printable_hhhh(CHARSET_INFO *to_cs,
 */
 
 
-int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
+int sortcmp(const Binary_string *s, const Binary_string *t, CHARSET_INFO *cs)
 {
- return cs->strnncollsp(s->ptr(), s->length(),
-                        t->ptr(), t->length());
+ return cs->strnncollsp(s->ptr(), s->length(), t->ptr(), t->length());
 }
 
 
@@ -873,7 +872,7 @@ int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
 */
 
 
-int stringcmp(const String *s,const String *t)
+int stringcmp(const Binary_string *s, const Binary_string *t)
 {
   uint32 s_len=s->length(),t_len=t->length(),len=MY_MIN(s_len,t_len);
   int cmp= len ? memcmp(s->ptr(), t->ptr(), len) : 0;

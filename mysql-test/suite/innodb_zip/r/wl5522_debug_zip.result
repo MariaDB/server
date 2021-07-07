@@ -111,6 +111,7 @@ ALTER TABLE t1 IMPORT TABLESPACE;
 ERROR HY000: Index for table 't1' is corrupt; try to repair it
 SET SESSION debug_dbug=@saved_debug_dbug;
 restore: t1 .ibd and .cfg files
+ALTER TABLE t1 IMPORT TABLESPACE;
 DROP TABLE t1;
 CREATE TABLE t1 (
 c1 BIGINT NOT NULL AUTO_INCREMENT PRIMARY KEY,

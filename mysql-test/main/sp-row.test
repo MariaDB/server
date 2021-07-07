@@ -2,7 +2,10 @@
 --echo # MDEV-10914 ROW data type for stored routine variables
 --echo #
 
-
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Test temporarily disabled for ps-protocol
+}
 
 --echo #
 --echo # ROW of ROWs is not supported yet

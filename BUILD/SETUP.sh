@@ -274,13 +274,7 @@ fi
 # As cmake doesn't like CC and CXX with a space, use symlinks from
 # /usr/lib64/ccache if they exits.
 
-if test "$USING_GCOV" != "1"
-then
-  # Not using gcov; Safe to use ccache
-  CCACHE_GCOV_VERSION_ENABLED=1
-fi
-
-if ccache -V > /dev/null 2>&1 && test "$CCACHE_GCOV_VERSION_ENABLED" = "1" && test "$CC" = "gcc"
+if ccache -V > /dev/null 2>&1 && test "$CCACHE_DISABLE" != "1" && test "$CC" = "gcc"
 then
     if test -x /usr/lib64/ccache/gcc
     then

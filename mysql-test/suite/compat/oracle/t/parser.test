@@ -247,6 +247,7 @@ CALL comment();
 CALL comment;
 DROP PROCEDURE comment;
 
+enable_prepare_warnings;
 DELIMITER /;
 CREATE FUNCTION comment RETURN INT COMMENT 'test' AS
 BEGIN
@@ -254,7 +255,6 @@ BEGIN
 END;
 /
 DELIMITER ;/
-enable_prepare_warnings;
 SELECT test.comment() FROM DUAL;
 disable_prepare_warnings;
 DROP FUNCTION comment;
@@ -570,8 +570,8 @@ call p1(1,2);
 
 drop procedure p1;
 
-delimiter //;
 set sql_mode=ORACLE;
+delimiter //;
 create or replace procedure p1(id int, dt int) as
 begin
   while (1)

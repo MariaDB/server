@@ -217,7 +217,7 @@ static int loc_rename(const char *from, const char *to)
 {
   int error = 0;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (!MoveFileEx(from, to, MOVEFILE_COPY_ALLOWED |
                             MOVEFILE_REPLACE_EXISTING))
   {
@@ -1044,9 +1044,9 @@ static int get_user_host(const char *uh_line, unsigned int uh_len,
   return 0;
 }
 
-#if defined(__WIN__) && !defined(S_ISDIR)
+#if defined(_WIN32) && !defined(S_ISDIR)
 #define S_ISDIR(x) ((x) & _S_IFDIR)
-#endif /*__WIN__ && !S_ISDIR*/
+#endif /*_WIN32 && !S_ISDIR*/
 
 static int start_logging()
 {

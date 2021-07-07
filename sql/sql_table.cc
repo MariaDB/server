@@ -59,7 +59,7 @@
 #include "debug.h"                     // debug_crash_here()
 #include <algorithm>
 
-#ifdef __WIN__
+#ifdef _WIN32
 #include <io.h>
 #endif
 
@@ -9286,10 +9286,11 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        uint order_num, ORDER *order, bool ignore,
                        bool if_exists)
 {
-  bool engine_changed, error, frm_is_created= false;
+  bool engine_changed, error, frm_is_created= false, error_handler_pushed= false;
   bool no_ha_table= true;  /* We have not created table in storage engine yet */
   TABLE *table, *new_table;
   DDL_LOG_STATE ddl_log_state;
+  Turn_errors_to_warnings_handler errors_to_warnings;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool partition_changed= false;
@@ -10155,9 +10156,13 @@ do_continue:;
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
       ha_alter_info.online= true;
     // Ask storage engine whether to use copy or in-place
-    ha_alter_info.inplace_supported=
-      table->file->check_if_supported_inplace_alter(&altered_table,
-                                                    &ha_alter_info);
+    {
+      Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
+      ha_alter_info.inplace_supported=
+        table->file->check_if_supported_inplace_alter(&altered_table,
+                                                      &ha_alter_info);
+    }
+
     if (ha_alter_info.inplace_supported != HA_ALTER_INPLACE_NOT_SUPPORTED)
     {
       List_iterator<Key> it(alter_info->key_list);
@@ -10410,7 +10415,7 @@ do_continue:;
         DROP + CREATE + data statement to the binary log
       */
       thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
-      (binlog_hton->commit)(binlog_hton, thd, 1);
+      binlog_commit(thd, true);
     }
 
     /* We don't replicate alter table statement on temporary tables */
@@ -10508,7 +10513,12 @@ do_continue:;
   DBUG_PRINT("info", ("is_table_renamed: %d  engine_changed: %d",
                       alter_ctx.is_table_renamed(), engine_changed));
 
-  if (!alter_ctx.is_table_renamed())
+  /*
+    InnoDB cannot use the rename optimization when foreign key
+    constraint is involved because InnoDB fails to drop the
+    parent table due to foreign key constraint
+  */
+  if (!alter_ctx.is_table_renamed() || alter_ctx.fk_error_if_delete_row)
   {
     /*
       Rename the old table to temporary name to have a backup in case
@@ -10560,7 +10570,7 @@ do_continue:;
     (void) quick_rm_table(thd, new_db_type, &alter_ctx.new_db,
                           &alter_ctx.tmp_name, FN_IS_TMP);
 
-    if (!alter_ctx.is_table_renamed())
+    if (!alter_ctx.is_table_renamed() || alter_ctx.fk_error_if_delete_row)
     {
       // Restore the backup of the original table to the old name.
       (void) mysql_rename_table(old_db_type, &alter_ctx.db, &backup_name,
@@ -10601,19 +10611,21 @@ do_continue:;
   }
 
   // ALTER TABLE succeeded, delete the backup of the old table.
-  error= quick_rm_table(thd, old_db_type, &alter_ctx.db, &backup_name,
-                        FN_IS_TMP |
-                        (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE: 0));
+  // a failure to delete isn't an error, as we cannot rollback ALTER anymore
+  thd->push_internal_handler(&errors_to_warnings);
+  error_handler_pushed=1;
+
+  quick_rm_table(thd, old_db_type, &alter_ctx.db, &backup_name,
+                        FN_IS_TMP | (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE: 0));
 
   debug_crash_here("ddl_log_alter_after_delete_backup");
   if (engine_changed)
   {
     /* the .frm file was removed but not the original table */
-    error|= quick_rm_table(thd, old_db_type, &alter_ctx.db,
-                           &alter_ctx.table_name,
-                           NO_FRM_RENAME |
-                           (engine_changed ? 0 : FN_IS_TMP));
+    quick_rm_table(thd, old_db_type, &alter_ctx.db, &alter_ctx.table_name,
+                           NO_FRM_RENAME | (engine_changed ? 0 : FN_IS_TMP));
   }
+
   debug_crash_here("ddl_log_alter_after_drop_original_table");
   if (binlog_as_create_select)
   {
@@ -10624,25 +10636,19 @@ do_continue:;
     thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
     thd->binlog_xid= thd->query_id;
     ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
-    binlog_hton->commit(binlog_hton, thd, 1);
+    binlog_commit(thd, true);
     thd->binlog_xid= 0;
-  }
-
-  if (error)
-  {
-    /*
-      The fact that deletion of the backup failed is not critical
-      error, but still worth reporting as it might indicate serious
-      problem with server.
-    */
-    goto err_with_mdl_after_alter;
   }
 
 end_inplace:
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
-  if (thd->locked_tables_list.reopen_tables(thd, false))
-    goto err_with_mdl_after_alter;
+  if (!error_handler_pushed)
+    thd->push_internal_handler(&errors_to_warnings);
+
+  thd->locked_tables_list.reopen_tables(thd, false);
+
+  thd->pop_internal_handler();
 
   THD_STAGE_INFO(thd, stage_end);
   DEBUG_SYNC(thd, "alter_table_before_main_binlog");
@@ -10743,7 +10749,7 @@ err_new_table_cleanup:
                           &alter_ctx.new_db, &alter_ctx.tmp_name,
                           (FN_IS_TMP | (no_ha_table ? NO_HA_TABLE : 0)),
                           alter_ctx.get_tmp_path());
-
+  DEBUG_SYNC(thd, "alter_table_after_temp_table_drop");
 err_cleanup:
   my_free(const_cast<uchar*>(frm.str));
   ddl_log_complete(&ddl_log_state);
@@ -10753,19 +10759,6 @@ err_cleanup:
     (*inplace_alter_table_committed)(inplace_alter_table_committed_argument);
   }
   DBUG_RETURN(true);
-
-err_with_mdl_after_alter:
-  DBUG_PRINT("error", ("err_with_mdl_after_alter"));
-  /* the table was altered. binlog the operation */
-  DBUG_ASSERT(!(mysql_bin_log.is_open() &&
-                thd->is_current_stmt_binlog_format_row() &&
-                (create_info->tmp_table())));
-  /*
-    We can't reset error as we will return 'true' below and the server
-    expects that error is set
-  */
-  if (!binlog_as_create_select)
-    write_bin_log_with_if_exists(thd, FALSE, FALSE, log_if_exists);
 
 err_with_mdl:
   ddl_log_complete(&ddl_log_state);
@@ -11178,6 +11171,7 @@ copy_data_between_tables(THD *thd, TABLE *from, TABLE *to,
   cleanup_done= 1;
   to->file->extra(HA_EXTRA_NO_IGNORE_DUP_KEY);
 
+  DEBUG_SYNC(thd, "copy_data_between_tables_before_reset_backup_lock");
   if (backup_reset_alter_copy_lock(thd))
     error= 1;
 
@@ -11266,12 +11260,35 @@ bool mysql_recreate_table(THD *thd, TABLE_LIST *table_list, bool table_copy)
 }
 
 
+/**
+  Collect field names of result set that will be sent to a client in result of
+  handling the CHECKSUM TABLE statement.
+
+  @param      thd     Thread data object
+  @param[out] fields  List of fields whose metadata should be collected for
+                      sending to client
+ */
+
+void fill_checksum_table_metadata_fields(THD *thd, List<Item> *fields)
+{
+  Item *item;
+
+  item= new (thd->mem_root) Item_empty_string(thd, "Table", NAME_LEN*2);
+  item->set_maybe_null();
+  fields->push_back(item, thd->mem_root);
+
+  item= new (thd->mem_root) Item_int(thd, "Checksum", (longlong) 1,
+                                     MY_INT64_NUM_DECIMAL_DIGITS);
+  item->set_maybe_null();
+  fields->push_back(item, thd->mem_root);
+}
+
+
 bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
                           HA_CHECK_OPT *check_opt)
 {
   TABLE_LIST *table;
   List<Item> field_list;
-  Item *item;
   Protocol *protocol= thd->protocol;
   DBUG_ENTER("mysql_checksum_table");
 
@@ -11281,15 +11298,8 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
   */
   DBUG_ASSERT(! thd->in_sub_stmt);
 
-  field_list.push_back(item= new (thd->mem_root)
-                       Item_empty_string(thd, "Table", NAME_LEN*2),
-                       thd->mem_root);
-  item->set_maybe_null();
-  field_list.push_back(item= new (thd->mem_root)
-                       Item_int(thd, "Checksum", (longlong) 1,
-                                MY_INT64_NUM_DECIMAL_DIGITS),
-                       thd->mem_root);
-  item->set_maybe_null();
+  fill_checksum_table_metadata_fields(thd, &field_list);
+
   if (protocol->send_result_set_metadata(&field_list,
                             Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
     DBUG_RETURN(TRUE);

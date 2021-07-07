@@ -59,16 +59,12 @@ INSERT INTO t1 VALUES (NULL, NOW(), USER() , UUID(),
 ins_count,'Going to test MBR for MySQL');
 SET ins_count = ins_count - 1;
 END WHILE;
-SELECT MAX(id) FROM t1 INTO del_count;
+SELECT MAX(id) INTO del_count FROM t1;
 WHILE del_count > 0 DO
 DELETE FROM t1 WHERE id = del_count;
 SET del_count = del_count - 2;
 END WHILE;
 END|
-Warnings:
-Level	Warning
-Code	1287
-Message	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE PROCEDURE p2()
 BEGIN
 DECLARE ins_count INT DEFAULT 1000; 
@@ -84,16 +80,12 @@ INSERT INTO t2 VALUES (NULL, NOW(), USER() , UUID(),
 ins_count,'Going to test MBR for MySQL');
 SET ins_count = ins_count - 1;
 END WHILE;
-SELECT MAX(id) FROM t2 INTO del_count;
+SELECT MAX(id) INTO del_count FROM t2;
 WHILE del_count > 0 DO
 DELETE FROM t2 WHERE id = del_count;
 SET del_count = del_count - 2;
 END WHILE;
 END|
-Warnings:
-Level	Warning
-Code	1287
-Message	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 CREATE PROCEDURE p3()
 BEGIN
 DECLARE ins_count INT DEFAULT 1000; 
@@ -109,16 +101,12 @@ INSERT INTO t3 VALUES (NULL, NOW(), USER(), UUID(),
 ins_count,'Going to test MBR for MySQL');
 SET ins_count = ins_count - 1;
 END WHILE;
-SELECT MAX(id) FROM t3 INTO del_count;
+SELECT MAX(id) INTO del_count FROM t3;
 WHILE del_count > 0 DO
 DELETE FROM t3 WHERE id = del_count;
 SET del_count = del_count - 2;
 END WHILE;
 END|
-Warnings:
-Level	Warning
-Code	1287
-Message	'<select expression> INTO <destination>;' is deprecated and will be removed in a future release. Please use 'SELECT <select list> INTO <destination> FROM...' instead
 begin;
 CALL p1();
 commit;

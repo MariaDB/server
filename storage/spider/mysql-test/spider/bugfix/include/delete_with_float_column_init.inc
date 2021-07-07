@@ -10,7 +10,7 @@
 let $CHILD2_1_SELECT_TABLES=
   SELECT pkey, f FROM tbl_a ORDER BY pkey;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%delete %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%delete %';
 --connection slave1_1
 --disable_warnings
 --disable_query_log

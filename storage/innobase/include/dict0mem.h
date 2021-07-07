@@ -1000,15 +1000,6 @@ struct dict_index_t {
 				representation we add more columns */
 	unsigned	nulls_equal:1;
 				/*!< if true, SQL NULL == SQL NULL */
-#ifdef BTR_CUR_HASH_ADAPT
-#ifdef MYSQL_INDEX_DISABLE_AHI
- 	unsigned	disable_ahi:1;
-				/*!< whether to disable the
-				adaptive hash index.
-				Maybe this could be disabled for
-				temporary tables? */
-#endif
-#endif /* BTR_CUR_HASH_ADAPT */
 	unsigned	n_uniq:10;/*!< number of fields from the beginning
 				which are enough to determine an index
 				entry uniquely */
@@ -1958,23 +1949,6 @@ struct dict_table_t {
 		return versioned() && cols[vers_start].mtype == DATA_INT;
 	}
 
-	void inc_fk_checks()
-	{
-#ifdef UNIV_DEBUG
-		int32_t fk_checks=
-#endif
-		n_foreign_key_checks_running++;
-		ut_ad(fk_checks >= 0);
-	}
-	void dec_fk_checks()
-	{
-#ifdef UNIV_DEBUG
-		int32_t fk_checks=
-#endif
-		n_foreign_key_checks_running--;
-		ut_ad(fk_checks > 0);
-	}
-
 	/** For overflow fields returns potential max length stored inline */
 	inline size_t get_overflow_field_local_len() const;
 
@@ -2049,7 +2023,7 @@ public:
 	table_id_t				id;
 	/** dict_sys.id_hash chain node */
 	dict_table_t*				id_hash;
-	/** Table name. */
+	/** Table name in name_hash */
 	table_name_t				name;
 	/** dict_sys.name_hash chain node */
 	dict_table_t*				name_hash;
@@ -2099,12 +2073,6 @@ public:
 
 	/** TRUE if the table object has been added to the dictionary cache. */
 	unsigned				cached:1;
-
-	/** TRUE if the table is to be dropped, but not yet actually dropped
-	(could in the background drop list). It is turned on at the beginning
-	of row_drop_table_for_mysql() and turned off just before we start to
-	update system tables for the drop. It is protected by dict_sys.latch. */
-	unsigned				to_be_dropped:1;
 
 	/** Number of non-virtual columns defined so far. */
 	unsigned				n_def:10;
@@ -2202,11 +2170,6 @@ public:
 	loading child table into memory along with its parent table. */
 	byte					fk_max_recusive_level;
 
-	/** Count of how many foreign key check operations are currently being
-	performed on the table. We cannot drop the table while there are
-	foreign key checks running on it. */
-	Atomic_counter<int32_t>			n_foreign_key_checks_running;
-
   /** DDL transaction that last touched the table definition, or 0 if
   no history is available. This includes possible changes in
   ha_innobase::prepare_inplace_alter_table() and
@@ -2218,6 +2181,11 @@ public:
   latch on the clustered index root page (which must also be
   an empty leaf page), and an ahi_latch (if btr_search_enabled). */
   Atomic_relaxed<trx_id_t> bulk_trx_id;
+
+  /** Original table name, for MDL acquisition in purge. Normally,
+  this points to the same as name. When is_temporary_name(name.m_name) holds,
+  this should be a copy of the original table name, allocated from heap. */
+  table_name_t mdl_name;
 
 	/*!< set of foreign key constraints in the table; these refer to
 	columns in other tables */
@@ -2439,9 +2407,6 @@ public:
   static dict_table_t *create(const span<const char> &name, fil_space_t *space,
                               ulint n_cols, ulint n_v_cols, ulint flags,
                               ulint flags2);
-
-  /** @return whether SYS_TABLES.NAME is for a '#sql-ib' table */
-  static bool is_garbage_name(const void *data, size_t size);
 };
 
 inline void dict_index_t::set_modified(mtr_t& mtr) const

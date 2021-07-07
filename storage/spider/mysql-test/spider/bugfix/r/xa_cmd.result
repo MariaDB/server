@@ -35,10 +35,10 @@ XA END 'test';
 XA PREPARE 'test';
 XA COMMIT 'test';
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %';
 argument
 insert into `auto_test_remote`.`tbl_a`(`pkey`)values(0),(1),(2),(3),(4),(5),(6),(7),(8),(9)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%insert %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
 0

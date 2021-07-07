@@ -1,0 +1,105 @@
+diff --git a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
+index bb3378139f2..ddab28508ec 100644
+--- a/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
++++ b/mysql-test/suite/sys_vars/r/sysvars_server_notembedded.result
+@@ -4259,99 +4259,9 @@ VARIABLE_COMMENT	Define threads usage for handling queries
+ NUMERIC_MIN_VALUE	NULL
+ NUMERIC_MAX_VALUE	NULL
+ NUMERIC_BLOCK_SIZE	NULL
+-ENUM_VALUE_LIST	one-thread-per-connection,no-threads,pool-of-threads
++ENUM_VALUE_LIST	one-thread-per-connection,no-threads
+ READ_ONLY	YES
+ COMMAND_LINE_ARGUMENT	REQUIRED
+-VARIABLE_NAME	THREAD_POOL_DEDICATED_LISTENER
+-VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	BOOLEAN
+-VARIABLE_COMMENT	If set to 1,listener thread will not pick up queries
+-NUMERIC_MIN_VALUE	NULL
+-NUMERIC_MAX_VALUE	NULL
+-NUMERIC_BLOCK_SIZE	NULL
+-ENUM_VALUE_LIST	OFF,ON
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	OPTIONAL
+-VARIABLE_NAME	THREAD_POOL_EXACT_STATS
+-VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	BOOLEAN
+-VARIABLE_COMMENT	If set to 1, provides better statistics in information_schema threadpool tables
+-NUMERIC_MIN_VALUE	NULL
+-NUMERIC_MAX_VALUE	NULL
+-NUMERIC_BLOCK_SIZE	NULL
+-ENUM_VALUE_LIST	OFF,ON
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	OPTIONAL
+-VARIABLE_NAME	THREAD_POOL_IDLE_TIMEOUT
+-VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	INT UNSIGNED
+-VARIABLE_COMMENT	Timeout in seconds for an idle thread in the thread pool.Worker thread will be shut down after timeout
+-NUMERIC_MIN_VALUE	1
+-NUMERIC_MAX_VALUE	4294967295
+-NUMERIC_BLOCK_SIZE	1
+-ENUM_VALUE_LIST	NULL
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	REQUIRED
+-VARIABLE_NAME	THREAD_POOL_MAX_THREADS
+-VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	INT UNSIGNED
+-VARIABLE_COMMENT	Maximum allowed number of worker threads in the thread pool
+-NUMERIC_MIN_VALUE	1
+-NUMERIC_MAX_VALUE	65536
+-NUMERIC_BLOCK_SIZE	1
+-ENUM_VALUE_LIST	NULL
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	REQUIRED
+-VARIABLE_NAME	THREAD_POOL_OVERSUBSCRIBE
+-VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	INT UNSIGNED
+-VARIABLE_COMMENT	How many additional active worker threads in a group are allowed.
+-NUMERIC_MIN_VALUE	1
+-NUMERIC_MAX_VALUE	1000
+-NUMERIC_BLOCK_SIZE	1
+-ENUM_VALUE_LIST	NULL
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	REQUIRED
+-VARIABLE_NAME	THREAD_POOL_PRIORITY
+-VARIABLE_SCOPE	SESSION
+-VARIABLE_TYPE	ENUM
+-VARIABLE_COMMENT	Threadpool priority. High priority connections usually start executing earlier than low priority.If priority set to 'auto', the the actual priority(low or high) is determined based on whether or not connection is inside transaction.
+-NUMERIC_MIN_VALUE	NULL
+-NUMERIC_MAX_VALUE	NULL
+-NUMERIC_BLOCK_SIZE	NULL
+-ENUM_VALUE_LIST	high,low,auto
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	REQUIRED
+-VARIABLE_NAME	THREAD_POOL_PRIO_KICKUP_TIMER
+-VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	INT UNSIGNED
+-VARIABLE_COMMENT	The number of milliseconds before a dequeued low-priority statement is moved to the high-priority queue
+-NUMERIC_MIN_VALUE	0
+-NUMERIC_MAX_VALUE	4294967295
+-NUMERIC_BLOCK_SIZE	1
+-ENUM_VALUE_LIST	NULL
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	REQUIRED
+-VARIABLE_NAME	THREAD_POOL_SIZE
+-VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	INT UNSIGNED
+-VARIABLE_COMMENT	Number of thread groups in the pool. This parameter is roughly equivalent to maximum number of concurrently executing threads (threads in a waiting state do not count as executing).
+-NUMERIC_MIN_VALUE	1
+-NUMERIC_MAX_VALUE	100000
+-NUMERIC_BLOCK_SIZE	1
+-ENUM_VALUE_LIST	NULL
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	REQUIRED
+-VARIABLE_NAME	THREAD_POOL_STALL_LIMIT
+-VARIABLE_SCOPE	GLOBAL
+-VARIABLE_TYPE	INT UNSIGNED
+-VARIABLE_COMMENT	Maximum query execution time in milliseconds,before an executing non-yielding thread is considered stalled.If a worker thread is stalled, additional worker thread may be created to handle remaining clients.
+-NUMERIC_MIN_VALUE	1
+-NUMERIC_MAX_VALUE	4294967295
+-NUMERIC_BLOCK_SIZE	1
+-ENUM_VALUE_LIST	NULL
+-READ_ONLY	NO
+-COMMAND_LINE_ARGUMENT	REQUIRED
+ VARIABLE_NAME	THREAD_STACK
+ VARIABLE_SCOPE	GLOBAL
+ VARIABLE_TYPE	BIGINT UNSIGNED

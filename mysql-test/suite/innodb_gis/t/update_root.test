@@ -26,11 +26,15 @@ end|
 delimiter ;|
 
 # Test level 3 rtree.
+BEGIN;
 CALL insert_t1(70000);
+COMMIT;
 
+BEGIN;
 CALL insert_t1(90);
 CALL insert_t1(90);
 CALL insert_t1(83);
+COMMIT;
 
 insert into t1 values (0, Point(0.9, 0.9));
 

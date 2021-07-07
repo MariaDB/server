@@ -11,6 +11,8 @@
 --echo # Referring to a table in a non-existing database
 --echo #
 
+--enable_prepare_warnings
+
 DELIMITER $$;
 CREATE PROCEDURE p1()
 BEGIN
@@ -881,3 +883,4 @@ END;
 $$
 DELIMITER ;$$
 DROP TABLE t1;
+--disable_prepare_warnings

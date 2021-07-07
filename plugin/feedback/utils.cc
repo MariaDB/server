@@ -246,7 +246,7 @@ int my_getncpus()
 {
 #ifdef _SC_NPROCESSORS_ONLN
   return sysconf(_SC_NPROCESSORS_ONLN);
-#elif defined(__WIN__)
+#elif defined(_WIN32)
   SYSTEM_INFO sysinfo;
   GetSystemInfo(&sysinfo);
   return sysinfo.dwNumberOfProcessors;

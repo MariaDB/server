@@ -115,7 +115,7 @@ emb_advanced_command(MYSQL *mysql, enum enum_server_command command,
   NET *net= &mysql->net;
   my_bool stmt_skip= stmt ? stmt->state != MYSQL_STMT_INIT_DONE : FALSE;
 
-  if (thd->killed != NOT_KILLED)
+  if (thd && thd->killed != NOT_KILLED)
   {
     if (thd->killed < KILL_CONNECTION)
       thd->killed= NOT_KILLED;
@@ -578,7 +578,7 @@ int init_embedded_server(int argc, char **argv, char **groups)
 
   /* Get default temporary directory */
   opt_mysql_tmpdir=getenv("TMPDIR");	/* Use this if possible */
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (!opt_mysql_tmpdir)
     opt_mysql_tmpdir=getenv("TEMP");
   if (!opt_mysql_tmpdir)

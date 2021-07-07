@@ -43,7 +43,7 @@ xb_stream_read_new(void)
 
 	stream = (xb_rstream_t *) my_malloc(PSI_NOT_INSTRUMENTED, sizeof(xb_rstream_t), MYF(MY_FAE));
 
-#ifdef __WIN__
+#ifdef _WIN32
 	setmode(fileno(stdin), _O_BINARY);
 #endif
 

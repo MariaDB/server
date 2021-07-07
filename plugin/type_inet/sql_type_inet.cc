@@ -1342,15 +1342,13 @@ Type_handler_inet6::character_or_binary_string_to_native(THD *thd,
   Inet6_null tmp(*str);
   if (tmp.is_null())
     thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                  name().ptr(),
-                                  ErrConvString(str).ptr());
+                                  name().ptr(), ErrConvString(str).ptr());
   return tmp.is_null() || tmp.to_native(to);
 }
 
 
 bool
-Type_handler_inet6::Item_save_in_value(THD *thd,
-                                       Item *item,
+Type_handler_inet6::Item_save_in_value(THD *thd, Item *item,
                                        st_value *value) const
 {
   value->m_type= DYN_COL_STRING;
@@ -1366,8 +1364,7 @@ Type_handler_inet6::Item_save_in_value(THD *thd,
           FROM t1;
       */
       thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                    name().ptr(),
-                                    ErrConvString(str).ptr());
+                                    name().ptr(), ErrConvString(str).ptr());
       value->m_type= DYN_COL_NULL;
       return true;
     }

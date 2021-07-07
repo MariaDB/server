@@ -28,7 +28,7 @@ static pthread_mutex_t LOCK_thread_count;
 static char *database,*host,*user,*password,*unix_socket,*query;
 uint tcp_port;
 
-#ifndef __WIN__
+#ifndef _WIN32
 void *test_thread(void *arg __attribute__((unused)))
 #else
 unsigned __stdcall test_thread(void *arg __attribute__((unused)))

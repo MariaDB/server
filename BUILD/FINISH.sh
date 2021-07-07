@@ -40,16 +40,22 @@ then
 git clean -fdX
 cd ./libmariadb
 git submodule update
+git clean -fdX
 cd ../storage/rocksdb/rocksdb
+git clean -fdX
 git submodule update
+git clean -fdX
 cd ../../maria/libmarias3
 git submodule update
+git clean -fdX
 cd ../../..
 cd storage/columnstore/columnstore
 git submodule update
+git clean -fdX
 cd ../../..
 cd wsrep-lib
 git submodule update
+git clean -fdX
 cd .."
 fi
 commands="$commands

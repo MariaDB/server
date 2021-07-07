@@ -27,7 +27,7 @@
 #include <mysql_version.h>
 
 #ifndef WEXITSTATUS
-# ifdef __WIN__
+# ifdef _WIN32
 #  define WEXITSTATUS(stat_val) (stat_val)
 # else
 #  define WEXITSTATUS(stat_val) ((unsigned)(stat_val) >> 8)

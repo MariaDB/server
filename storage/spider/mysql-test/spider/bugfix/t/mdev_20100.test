@@ -22,7 +22,9 @@ USE auto_test_remote;
 --connection child2_1
 --disable_query_log
 echo CHILD2_1_CREATE_TABLES;
+--disable_ps_protocol
 eval $CHILD2_1_CREATE_TABLES;
+--enable_ps_protocol
 --enable_query_log
 TRUNCATE TABLE mysql.general_log;
 
@@ -66,7 +68,9 @@ SELECT a, b, c FROM tbl_a PARTITION (pt2,pt3);
 
 --connection child2_1
 eval $CHILD2_1_SELECT_ARGUMENT1;
+--disable_ps_protocol
 eval $CHILD2_1_SELECT_TABLES;
+--enable_ps_protocol
 
 --echo
 --echo deinit

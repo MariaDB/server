@@ -258,16 +258,19 @@ static bool backup_flush(THD *thd)
 
 static bool backup_block_ddl(THD *thd)
 {
+  PSI_stage_info org_stage;
   DBUG_ENTER("backup_block_ddl");
 
   kill_delayed_threads();
   mysql_ha_cleanup_no_free(thd);
 
+  thd->backup_stage(&org_stage);
+  THD_STAGE_INFO(thd, stage_waiting_for_flush);
   /* Wait until all non trans statements has ended */
   if (thd->mdl_context.upgrade_shared_lock(backup_flush_ticket,
                                            MDL_BACKUP_WAIT_FLUSH,
                                            thd->variables.lock_wait_timeout))
-    DBUG_RETURN(1);
+    goto err;
 
   /*
     Remove not used tables from the table share.  Flush all changes to
@@ -284,6 +287,7 @@ static bool backup_block_ddl(THD *thd)
     We didn't do this lock above, as we wanted DDL's to be executed while
     we wait for non transactional tables (which may take a while).
  */
+  THD_STAGE_INFO(thd, stage_waiting_for_ddl);
   if (thd->mdl_context.upgrade_shared_lock(backup_flush_ticket,
                                            MDL_BACKUP_WAIT_DDL,
                                            thd->variables.lock_wait_timeout))
@@ -293,12 +297,16 @@ static bool backup_block_ddl(THD *thd)
       was called so that this function can be called again
     */
     backup_flush_ticket->downgrade_lock(MDL_BACKUP_FLUSH);
-    DBUG_RETURN(1);
+    goto err;
   }
 
   /* There can't be anything more that needs to be logged to ddl log */
+  THD_STAGE_INFO(thd, org_stage);
   stop_ddl_logging();
   DBUG_RETURN(0);
+err:
+  THD_STAGE_INFO(thd, org_stage);
+  DBUG_RETURN(1);
 }
 
 

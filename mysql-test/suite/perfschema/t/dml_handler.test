@@ -21,6 +21,8 @@ CREATE TEMPORARY TABLE table_list (id INT AUTO_INCREMENT, PRIMARY KEY (id)) AS
   WHERE TABLE_SCHEMA='performance_schema'
   ORDER BY TABLE_NAME;
 
+--enable_prepare_warnings
+
 SELECT COUNT(*) FROM table_list INTO @table_count;
 
 let $count=`SELECT @table_count`;
@@ -39,5 +41,6 @@ while ($count > 0)
    dec $count;
 }
 
-DROP TEMPORARY TABLE table_list;
+--disable_prepare_warnings
 
+DROP TEMPORARY TABLE table_list;

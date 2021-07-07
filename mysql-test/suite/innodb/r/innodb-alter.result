@@ -1052,10 +1052,12 @@ a
 10
 DROP TABLE t1;
 CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
-iNSERT INTO t1 VALUES (10);
-ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
-affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+INSERT INTO t1 VALUES (10);
+ALTER TABLE t1 ADD b DATE NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0), algorithm=copy;
+affected rows: 1
+info: Records: 1  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'b' at row 1
 SELECT * FROM t1;
 a	b
 10	2001-01-01
@@ -1064,7 +1066,9 @@ CREATE TABLE t1 (a INT NOT NULL DEFAULT 0) ENGINE=InnoDB;
 iNSERT INTO t1 VALUES (10);
 ALTER TABLE t1 ADD b TIME NOT NULL DEFAULT if(unix_timestamp()>1,TIMESTAMP'2001-01-01 10:20:30',0);
 affected rows: 0
-info: Records: 0  Duplicates: 0  Warnings: 0
+info: Records: 0  Duplicates: 0  Warnings: 1
+Warnings:
+Note	1265	Data truncated for column 'b' at row 1
 SELECT * FROM t1;
 a	b
 10	10:20:30

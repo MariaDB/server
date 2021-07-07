@@ -5464,7 +5464,6 @@ Create_func_year_week::create_native(THD *thd, LEX_CSTRING *name,
   return func;
 }
 
-
 #define BUILDER(F) & F::s_singleton
 
 /*
@@ -5478,7 +5477,7 @@ Create_func_year_week::create_native(THD *thd, LEX_CSTRING *name,
   - keep 1 line per entry, it makes grep | sort easier
 */
 
-static Native_func_registry func_array[] =
+Native_func_registry func_array[] =
 {
   { { STRING_WITH_LEN("ABS") }, BUILDER(Create_func_abs)},
   { { STRING_WITH_LEN("ACOS") }, BUILDER(Create_func_acos)},

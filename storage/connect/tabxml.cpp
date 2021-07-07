@@ -12,9 +12,8 @@
 /*  Include required compiler header files.                            */
 /***********************************************************************/
 #include "my_global.h"
-#include <stdio.h>
+#include <m_string.h>
 #include <fcntl.h>
-#include <errno.h>
 #if defined(__WIN__)
 #include <io.h>
 #include <winsock2.h>
@@ -252,10 +251,11 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
 
      more:
       if (vp->atp) {
-				size_t z = sizeof(colname) - 1;
-        strncpy(colname, vp->atp->GetName(g), z);
-				colname[z] = 0;
-				strncat(xcol->Name, colname, XLEN(xcol->Name));
+			size_t z = sizeof(colname) - 1;
+                        size_t xlen= strlen(xcol->Name);
+                        strmake(colname, vp->atp->GetName(g), z);
+                        strmake(xcol->Name + xlen, colname,
+                                sizeof(xcol->Name) - 1 - xlen);
 
         switch (vp->atp->GetText(g, buf, sizeof(buf))) {
           case RC_INFO:
@@ -272,11 +272,13 @@ PQRYRES XMLColumns(PGLOBAL g, char *db, char *tab, PTOS topt, bool info)
           strncat(fmt, colname, XLEN(fmt));
 
       } else {
+        size_t xlen;
         if (tdp->Usedom && node->GetType() != 1)
           continue;
 
-        strncpy(colname, node->GetName(g), sizeof(colname));
-				strncat(xcol->Name, colname, XLEN(xcol->Name));
+        xlen= strlen(xcol->Name);
+        strmake(colname, node->GetName(g), sizeof(colname)-1);
+        strmake(xcol->Name + xlen, colname, sizeof(xcol->Name) - 1 - xlen);
 
         if (j)
           strncat(fmt, colname, XLEN(fmt));

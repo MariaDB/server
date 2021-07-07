@@ -39,7 +39,7 @@
 #include <my_sys.h>
 #include <mysql.h> // include client for INSERT table (sort of redoing federated..)
 
-#ifndef __WIN__
+#ifndef _WIN32
 	// UNIX-specific
 	#include <my_net.h>
 	#include <netdb.h>
@@ -959,7 +959,7 @@ static char * sphDup ( const char * sSrc, int iLen=-1 )
 static void sphLogError ( const char * sFmt, ... )
 {
 	// emit timestamp
-#ifdef __WIN__
+#ifdef _WIN32
 	SYSTEMTIME t;
 	GetLocalTime ( &t );
 
@@ -983,7 +983,7 @@ static void sphLogError ( const char * sFmt, ... )
 	fprintf ( stderr, "%02d%02d%02d %2d:%02d:%02d SphinxSE: internal error: ",
 		pParsed->tm_year % 100, pParsed->tm_mon + 1, pParsed->tm_mday,
 		pParsed->tm_hour, pParsed->tm_min, pParsed->tm_sec);
-#endif // __WIN__
+#endif // _WIN32
 
 	// emit message
 	va_list ap;
@@ -1194,7 +1194,7 @@ static CSphSEShare * get_share ( const char * table_name, TABLE * table )
 #if MYSQL_VERSION_ID>=50120
 		pShare = (CSphSEShare*) sphinx_hash_search ( &sphinx_open_tables, (const uchar *) table_name, strlen(table_name) );
 #else
-#ifdef __WIN__
+#ifdef _WIN32
 		pShare = (CSphSEShare*) sphinx_hash_search ( &sphinx_open_tables, (const byte *) table_name, strlen(table_name) );
 #else
 		pShare = (CSphSEShare*) sphinx_hash_search ( &sphinx_open_tables, table_name, strlen(table_name) );
@@ -2128,7 +2128,7 @@ int ha_sphinx::open ( const char * name, int, uint )
 int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 {
 	struct sockaddr_in sin;
-#ifndef __WIN__
+#ifndef _WIN32
 	struct sockaddr_un saun;
 #endif
 
@@ -2197,7 +2197,7 @@ int ha_sphinx::Connect ( const char * sHost, ushort uPort )
 		}
 	} else
 	{
-#ifndef __WIN__
+#ifndef _WIN32
 		iDomain = AF_UNIX;
 		iSockaddrSize = sizeof(saun);
 		pSockaddr = (struct sockaddr *) &saun;

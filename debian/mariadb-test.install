@@ -25,7 +25,6 @@ usr/share/man/man1/mariadb-client-test-embedded.1
 usr/share/man/man1/mariadb-client-test.1
 usr/share/man/man1/mariadb-test-embedded.1
 usr/share/man/man1/mariadb-test.1
-usr/share/man/man1/mysql-stress-test.pl.1
 usr/share/man/man1/mysql-test-run.pl.1
 usr/share/man/man1/mysql_client_test.1
 usr/share/man/man1/mysql_client_test_embedded.1
@@ -36,8 +35,9 @@ usr/share/mysql/mysql-test/README-gcov
 usr/share/mysql/mysql-test/README.stress
 usr/share/mysql/mysql-test/dgcov.pl
 usr/share/mysql/mysql-test/lib
-usr/share/mysql/mysql-test/mysql-stress-test.pl
+usr/share/mysql/mysql-test/mariadb-stress-test.pl
 usr/share/mysql/mysql-test/mysql-test-run.pl
+usr/share/mysql/mysql-test/mariadb-test-run.pl
 usr/share/mysql/mysql-test/purify.supp
 usr/share/mysql/mysql-test/suite.pm
 usr/share/mysql/mysql-test/valgrind.supp

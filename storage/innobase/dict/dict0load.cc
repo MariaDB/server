@@ -834,7 +834,7 @@ static ulint dict_check_sys_tables()
 
 	for (const rec_t *rec = dict_startscan_system(&pcur, &mtr,
 						      dict_sys.sys_tables);
-	     rec; rec = dict_getnext_system(&pcur, &mtr)) {
+	     rec; rec = dict_getnext_system_low(&pcur, &mtr)) {
 		ulint		len;
 		table_id_t	table_id;
 		ulint		space_id;
@@ -852,14 +852,6 @@ static ulint dict_check_sys_tables()
 		const char *field = reinterpret_cast<const char*>(
 			rec_get_nth_field_old(rec, DICT_FLD__SYS_TABLES__NAME,
 					      &len));
-
-		if (len == UNIV_SQL_NULL
-		    || dict_table_t::is_garbage_name(field, len)) {
-			/* This table will be dropped by
-			dict_table_t::drop_garbage().
-			We do not care if the file exists. */
-			continue;
-		}
 
 		DBUG_PRINT("dict_check_sys_tables",
 			   ("name: %*.s", static_cast<int>(len), field));
@@ -896,11 +888,18 @@ static ulint dict_check_sys_tables()
 						     IBD, false);
 
 		/* Check that the .ibd file exists. */
-		if (!fil_ibd_open(
-			    false,
-			    FIL_TYPE_TABLESPACE,
-			    space_id, dict_tf_to_fsp_flags(flags),
-			    name, filepath)) {
+		if (fil_ibd_open(false, FIL_TYPE_TABLESPACE,
+				 space_id, dict_tf_to_fsp_flags(flags),
+				 name, filepath)) {
+		} else if (srv_operation == SRV_OPERATION_NORMAL
+			   && srv_start_after_restore
+			   && srv_force_recovery < SRV_FORCE_NO_BACKGROUND
+			   && dict_table_t::is_temporary_name(filepath)) {
+			/* Mariabackup will not copy files whose
+			names start with #sql-. This table ought to
+			be dropped by drop_garbage_tables_after_restore()
+			a little later. */
+		} else {
 			sql_print_warning("InnoDB: Ignoring tablespace for"
 					  " %.*s because it"
 					  " could not be opened.",
@@ -2451,7 +2450,7 @@ corrupted:
 				<< " failed, the table has missing"
 				" foreign key indexes. Turn off"
 				" 'foreign_key_checks' and try again.";
-
+evict:
 			dict_sys.remove(table);
 			table = NULL;
 		} else {
@@ -2468,8 +2467,9 @@ corrupted:
 		if (!srv_force_recovery
 		    || !index
 		    || !index->is_primary()) {
-			dict_sys.remove(table);
-			table = NULL;
+			ib::warn() << "Failed to load table " << table->name
+				   << ":" << err;
+			goto evict;
 		} else if (index->is_corrupted()
 			   && table->is_readable()) {
 			/* It is possible we force to load a corrupted

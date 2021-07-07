@@ -17,7 +17,7 @@
 
 #include "mysys_priv.h"
 
-#ifdef __WIN__
+#ifdef _WIN32
 
 static HANDLE my_coninpfh= 0;     /* console input */
 
@@ -220,4 +220,4 @@ char* my_cgets(char *buffer, size_t clen, size_t* plen)
   return result;
 }
 
-#endif /* __WIN__ */
+#endif /* _WIN32 */

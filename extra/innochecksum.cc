@@ -32,7 +32,7 @@
 #include <time.h>
 #include <sys/types.h>
 #include <sys/stat.h>
-#ifndef __WIN__
+#ifndef _WIN32
 # include <unistd.h>
 #endif
 #include <my_getopt.h>
@@ -103,13 +103,10 @@ struct flock			lk;
 struct innodb_page_type {
 	int n_undo_state_active;
 	int n_undo_state_cached;
-	int n_undo_state_to_free;
 	int n_undo_state_to_purge;
 	int n_undo_state_prepared;
 	int n_undo_state_other;
-	int n_undo_insert;
-	int n_undo_update;
-	int n_undo_other;
+	int n_undo;
 	int n_fil_page_index;
 	int n_fil_page_undo_log;
 	int n_fil_page_inode;
@@ -876,21 +873,7 @@ parse_page(
 			fprintf(file, "#::%llu\t\t|\t\tUndo log page\t\t\t|",
 				cur_page_num);
 		}
-		if (undo_page_type == TRX_UNDO_INSERT) {
-			page_type.n_undo_insert++;
-			if (page_type_dump) {
-				fprintf(file, "\t%s",
-					"Insert Undo log page");
-			}
-
-		} else if (undo_page_type == TRX_UNDO_UPDATE) {
-			page_type.n_undo_update++;
-			if (page_type_dump) {
-				fprintf(file, "\t%s",
-					"Update undo log page");
-			}
-		}
-
+		page_type.n_undo++;
 		undo_page_type = mach_read_from_2(page + TRX_UNDO_SEG_HDR +
 						  TRX_UNDO_STATE);
 		switch (undo_page_type) {
@@ -907,14 +890,6 @@ parse_page(
 				if (page_type_dump) {
 					fprintf(file, ", %s", "Page is "
 						"cached for quick reuse");
-				}
-				break;
-
-			case TRX_UNDO_TO_FREE:
-				page_type.n_undo_state_to_free++;
-				if (page_type_dump) {
-					fprintf(file, ", %s", "Insert undo "
-						"segment that can be freed");
 				}
 				break;
 
@@ -1141,15 +1116,11 @@ print_summary(
 
 	fprintf(fil_out, "\n===============================================\n");
 	fprintf(fil_out, "Additional information:\n");
-	fprintf(fil_out, "Undo page type: %d insert, %d update, %d other\n",
-		page_type.n_undo_insert,
-		page_type.n_undo_update,
-		page_type.n_undo_other);
-	fprintf(fil_out, "Undo page state: %d active, %d cached, %d to_free, %d"
+	fprintf(fil_out, "Undo page type: %d\n", page_type.n_undo);
+	fprintf(fil_out, "Undo page state: %d active, %d cached, %d"
 		" to_purge, %d prepared, %d other\n",
 		page_type.n_undo_state_active,
 		page_type.n_undo_state_cached,
-		page_type.n_undo_state_to_free,
 		page_type.n_undo_state_to_purge,
 		page_type.n_undo_state_prepared,
 		page_type.n_undo_state_other);

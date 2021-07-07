@@ -35,7 +35,7 @@ use warnings;
 
 BEGIN {
   # Check that mysql-test-run.pl is started from mysql-test/
-  unless ( -f "mysql-test-run.pl" )
+  unless ( -f "mariadb-test-run.pl" )
   {
     print "**** ERROR **** ",
       "You must start mysql-test-run from the mysql-test/ directory\n";
@@ -57,10 +57,10 @@ BEGIN {
   if ( $version == 1 )
   {
     print "=======================================================\n";
-    print "  WARNING: Using mysql-test-run.pl version 1!  \n";
+    print "  WARNING: Using mariadb-test-run.pl version 1!  \n";
     print "=======================================================\n";
     # Should use exec() here on *nix but this appears not to work on Windows
-    exit(system($^X, "lib/v1/mysql-test-run.pl", @ARGV) >> 8);
+    exit(system($^X, "lib/v1/mariadb-test-run.pl", @ARGV) >> 8);
   }
   elsif ( $version == 2 )
   {
@@ -69,7 +69,7 @@ BEGIN {
   }
   else
   {
-    print "ERROR: Version $version of mysql-test-run does not exist!\n";
+    print "ERROR: Version $version of mariadb-test-run does not exist!\n";
     exit(1);
   }
 }
@@ -509,6 +509,12 @@ sub main {
   }
 
   if ( not @$completed ) {
+    my $test_name= mtr_grab_file($path_current_testlog);
+    $test_name =~ s/^CURRENT_TEST:\s//;
+    my $tinfo = My::Test->new(name => $test_name);
+    $tinfo->{result}= 'MTR_RES_FAILED';
+    $tinfo->{logfile}=$path_current_testlog;
+    mtr_report_test($tinfo);
     mtr_error("Test suite aborted");
   }
 
@@ -5080,7 +5086,16 @@ sub mysqld_start ($$) {
                       $opt_start_timeout, $mysqld->{'proc'}, $warn_seconds))
   {
     my $mname= $mysqld->name();
-    mtr_error("Failed to start mysqld $mname with command $exe");
+    # Report failure about the last test case before exit
+    my $test_name= mtr_grab_file($path_current_testlog);
+    $test_name =~ s/^CURRENT_TEST:\s//;
+    my $tinfo = My::Test->new(name => $test_name);
+    $tinfo->{result}= 'MTR_RES_FAILED';
+    $tinfo->{failures}= 1;
+    $tinfo->{logfile}=get_log_from_proc($mysqld->{'proc'}, $tinfo->{name});
+    report_option('verbose', 1);
+    mtr_report_test($tinfo);
+    mtr_error("Failed to start mysqld $mname with command $exe @$args");
   }
 
   # Remember options used when starting

@@ -5156,7 +5156,7 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   int error= 0;
   TABLE *UNINIT_VAR(table); /* inited in all loops */
   uint i,table_count,const_count,key;
-  table_map found_const_table_map, all_table_map, found_ref, refs;
+  table_map found_const_table_map, all_table_map;
   key_map const_ref, eq_part;
   bool has_expensive_keyparts;
   TABLE **table_vector;
@@ -5422,7 +5422,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
   {
     ref_changed = 0;
   more_const_tables_found:
-    found_ref=0;
 
     /*
       We only have to loop from stat_vector + const_count as
@@ -5512,7 +5511,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 	  key=keyuse->key;
 	  s->keys.set_bit(key);               // TODO: remove this ?
 
-	  refs=0;
           const_ref.clear_all();
 	  eq_part.clear_all();
           has_expensive_keyparts= false;
@@ -5528,8 +5526,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
                 if (keyuse->val->is_expensive())
                   has_expensive_keyparts= true;
               }
-	      else
-		refs|=keyuse->used_tables;
 	      eq_part.set_bit(keyuse->keypart);
 	    }
 	    keyuse++;
@@ -5581,8 +5577,6 @@ make_join_statistics(JOIN *join, List<TABLE_LIST> &tables_list,
 		  found_const_table_map|= table->map;
 	        break;
 	      }
-	      else
-	        found_ref|= refs;      // Table is const if all refs are const
 	    }
             else if (base_const_ref == base_eq_part)
               s->const_keys.set_bit(key);
@@ -14237,6 +14231,7 @@ void JOIN::cleanup(bool full)
 
     // Run Cached_item DTORs!
     group_fields.delete_elements();
+    order_fields.delete_elements();
 
     /*
       We can't call delete_elements() on copy_funcs as this will cause
@@ -18417,6 +18412,25 @@ Field *Item_func_sp::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
   return result;
 }
 
+
+static bool make_json_valid_expr(TABLE *table, Field *field)
+{
+  THD *thd= table->in_use;
+  Query_arena backup_arena;
+  Item *expr, *item_field;
+
+  if (!table->expr_arena && table->init_expr_arena(thd->mem_root))
+    return NULL;
+
+  thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
+  if ((item_field= new (thd->mem_root) Item_field(thd, field)) &&
+      (expr= new (thd->mem_root) Item_func_json_valid(thd, item_field)))
+    field->check_constraint= add_virtual_expression(thd, expr);
+  thd->restore_active_arena(table->expr_arena, &backup_arena);
+  return field->check_constraint == NULL;
+}
+
+
 /**
   Create field for temporary table.
 
@@ -18462,6 +18476,9 @@ Field *create_tmp_field(TABLE *table, Item *item,
                       make_copy_field);
   Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
                                            table, &src, &prm);
+  if (item->is_json_type() && make_json_valid_expr(table, result))
+    result= NULL;
+
   *from_field= src.field();
   *default_field= src.default_field();
   if (src.item_result_field())
@@ -27662,7 +27679,7 @@ bool mysql_explain_union(THD *thd, SELECT_LEX_UNIT *unit, select_result *result)
     sl->options|= SELECT_DESCRIBE;
   }
 
-  if (unit->is_unit_op())
+  if (unit->is_unit_op() || unit->fake_select_lex)
   {
     if (unit->union_needs_tmp_table() && unit->fake_select_lex)
     {
@@ -28579,7 +28596,6 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
     */
     if (tab)
     {
-      key_part_map const_parts= 0;
       key_part_map map= 1;
       uint kp;
       /* Find how many key parts would be used by ref(const) */
@@ -28587,7 +28603,6 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
       {
         if (!(table->const_key_parts[keynr] & map))
           break;
-        const_parts |= map;
       }
       
       if (kp > 0)
