@@ -35,6 +35,7 @@
 #include "my_json_writer.h"
 
 #include <vector>
+#include <string>
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -1595,7 +1596,7 @@ public:
 
 class Histogram_builder_json : public Histogram_builder
 {
-std::vector<std::string> bucket_bounds;
+std::vector<std::string> bucket_bounds = {};
 
 public:
   Histogram_builder_json(Field *col, uint col_len, ha_rows rows)
@@ -1611,7 +1612,6 @@ public:
     count= 0;
     count_distinct= 0;
     count_distinct_single_occurence= 0;
-    bucket_bounds = {};
   }
 
   ~Histogram_builder_json() override = default;
