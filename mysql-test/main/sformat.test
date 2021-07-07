@@ -1,0 +1,38 @@
+# Description
+# -----------
+# Test cases for the sformat function
+
+--disable_warnings
+drop table if exists t1,t2;
+--enable_warnings
+
+echo # Table Test Cases;
+create table t1 (param1 text, param2 text, param3 int);
+insert into  t1 values ('string: {}, number: {}', 'xyz', 123),
+       	               ('something {} went {} wrong {}', 'foo', 0),
+		       ('Test case {} -> {}', 'Print', -32);
+select sformat(param1, param2, param3) from t1;
+drop table t1;
+
+create table t2 (param1 FLOAT, param2 SMALLINT, param3 CHAR, param4 DATE);
+insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29'));
+select sformat('p1 {} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t2;
+drop table t2;
+
+echo # Normal Test Cases;
+select sformat('{{{}}}', 0);
+select sformat('{{{}{{', 0);
+select sformat('{{{{{}{{', 'param1');
+select sformat(' {{ {{ {} {{ ', 'param1');
+select sformat(' {{ {} {}', 'param1', 'param2');
+select sformat('A{}C{}E{}', 'B', 'D');
+select sformat('A{}C{}E{}', 'B', 'D', 'F');
+select sformat('Add € != {} !=  {}?', '$', '£');
+select sformat('{}{}{}', 1, 2, 3);
+select sformat('Float {} Boolean {} Number {}', 3.14159, True, -50);
+select sformat(NULL, 'Null', 'Test');
+select sformat('Null Test {} {} ', 0, NULL);
+select sformat('SUM {} + {} = {}', 2, 3, 2+3);
+select sformat('Numbers {} {} {}', 1, 1.11, 1.111);
+select sformat('what {} is {}?', 'time', 'it');
+select sformat('string test');

@@ -1,0 +1,67 @@
+drop table if exists t1,t2;
+# Table Test Cases
+create table t1 (param1 text, param2 text, param3 int);
+insert into  t1 values ('string: {}, number: {}', 'xyz', 123),
+('something {} went {} wrong {}', 'foo', 0),
+('Test case {} -> {}', 'Print', -32);
+select sformat(param1, param2, param3) from t1;
+sformat(param1, param2, param3)
+string: xyz, number: 123
+something foo went 0 wrong {}
+Test case Print -> -32
+drop table t1;
+create table t2 (param1 FLOAT, param2 SMALLINT, param3 CHAR, param4 DATE);
+insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29'));
+select sformat('p1 {} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t2;
+sformat('p1 {} p2 {} p3 {} p4 {}', param1, param2, param3, param4)
+p1 0.0025 p2 25 p3 A p4 2020-06-29
+drop table t2;
+# Normal Test Cases
+select sformat('{{{}}}', 0);
+sformat('{{{}}}', 0)
+{0}
+select sformat('{{{}{{', 0);
+sformat('{{{}{{', 0)
+{0{
+select sformat('{{{{{}{{', 'param1');
+sformat('{{{{{}{{', 'param1')
+{{param1{
+select sformat(' {{ {{ {} {{ ', 'param1');
+sformat(' {{ {{ {} {{ ', 'param1')
+ { { param1 { 
+select sformat(' {{ {} {}', 'param1', 'param2');
+sformat(' {{ {} {}', 'param1', 'param2')
+ { param1 param2
+select sformat('A{}C{}E{}', 'B', 'D');
+sformat('A{}C{}E{}', 'B', 'D')
+ABCDE{}
+select sformat('A{}C{}E{}', 'B', 'D', 'F');
+sformat('A{}C{}E{}', 'B', 'D', 'F')
+ABCDEF
+select sformat('Add € != {} !=  {}?', '$', '£');
+sformat('Add € != {} !=  {}?', '$', '£')
+Add € != $ !=  £?
+select sformat('{}{}{}', 1, 2, 3);
+sformat('{}{}{}', 1, 2, 3)
+123
+select sformat('Float {} Boolean {} Number {}', 3.14159, True, -50);
+sformat('Float {} Boolean {} Number {}', 3.14159, True, -50)
+Float 3.14159 Boolean 1 Number -50
+select sformat(NULL, 'Null', 'Test');
+sformat(NULL, 'Null', 'Test')
+NULL
+select sformat('Null Test {} {} ', 0, NULL);
+sformat('Null Test {} {} ', 0, NULL)
+NULL
+select sformat('SUM {} + {} = {}', 2, 3, 2+3);
+sformat('SUM {} + {} = {}', 2, 3, 2+3)
+SUM 2 + 3 = 5
+select sformat('Numbers {} {} {}', 1, 1.11, 1.111);
+sformat('Numbers {} {} {}', 1, 1.11, 1.111)
+Numbers 1 1.11 1.111
+select sformat('what {} is {}?', 'time', 'it');
+sformat('what {} is {}?', 'time', 'it')
+what time is it?
+select sformat('string test');
+sformat('string test')
+string test
