@@ -8847,14 +8847,13 @@ static bool show_default_role(THD *thd, ACL_USER *acl_entry,
     String def_str(buff, buffsize, system_charset_info);
     def_str.length(0);
     def_str.append(STRING_WITH_LEN("SET DEFAULT ROLE "));
-    def_str.append(&def_rolename);
-    def_str.append(" FOR '");
-    def_str.append(&acl_entry->user);
+    append_identifier(thd, &def_str, def_rolename.str, def_rolename.length);
+    def_str.append(" FOR ");
+    append_identifier(thd, &def_str, acl_entry->user.str, acl_entry->user.length);
     DBUG_ASSERT(!(acl_entry->flags & IS_ROLE));
-    def_str.append(STRING_WITH_LEN("'@'"));
-    def_str.append(acl_entry->host.hostname, acl_entry->hostname_length,
-                   system_charset_info);
-    def_str.append('\'');
+    def_str.append('@');
+    append_identifier(thd, &def_str, acl_entry->host.hostname,
+                      acl_entry->hostname_length);
     protocol->prepare_for_resend();
     protocol->store(def_str.ptr(),def_str.length(),def_str.charset());
     if (protocol->write())

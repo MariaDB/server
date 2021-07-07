@@ -21,7 +21,7 @@ Grants for user_a@localhost
 GRANT `role_a` TO `user_a`@`localhost`
 GRANT USAGE ON *.* TO `user_a`@`localhost`
 GRANT SELECT ON *.* TO `role_a`
-SET DEFAULT ROLE role_a FOR 'user_a'@'localhost'
+SET DEFAULT ROLE `role_a` FOR `user_a`@`localhost`
 select user, host, default_role from mysql.user where user like 'user_%';
 user	host	default_role
 user_a	localhost	role_a
@@ -43,7 +43,7 @@ Grants for user_b@localhost
 GRANT `role_b` TO `user_b`@`localhost`
 GRANT USAGE ON *.* TO `user_b`@`localhost`
 GRANT INSERT, UPDATE ON *.* TO `role_b`
-SET DEFAULT ROLE role_b FOR 'user_b'@'localhost'
+SET DEFAULT ROLE `role_b` FOR `user_b`@`localhost`
 select user, host, default_role from mysql.user where user like 'user_%';
 ERROR 42000: SELECT command denied to user 'user_b'@'localhost' for table 'user'
 insert ignore into mysql.user (user, host) values ('someuser', 'somehost');
