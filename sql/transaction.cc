@@ -1,4 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates. All rights reserved.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -696,32 +697,6 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
   if (WSREP_ON)
     wsrep_register_hton(thd, thd->in_multi_stmt_transaction_mode());
 
-  /**
-    Checking whether it is safe to release metadata locks acquired after
-    savepoint, if rollback to savepoint is successful.
-  
-    Whether it is safe to release MDL after rollback to savepoint depends
-    on storage engines participating in transaction:
-  
-    - InnoDB doesn't release any row-locks on rollback to savepoint so it
-      is probably a bad idea to release MDL as well.
-    - Binary log implementation in some cases (e.g when non-transactional
-      tables involved) may choose not to remove events added after savepoint
-      from transactional cache, but instead will write them to binary
-      log accompanied with ROLLBACK TO SAVEPOINT statement. Since the real
-      write happens at the end of transaction releasing MDL on tables
-      mentioned in these events (i.e. acquired after savepoint and before
-      rollback ot it) can break replication, as concurrent DROP TABLES
-      statements will be able to drop these tables before events will get
-      into binary log,
-  
-    For backward-compatibility reasons we always release MDL if binary
-    logging is off.
-  */
-  bool mdl_can_safely_rollback_to_savepoint=
-                (!(mysql_bin_log.is_open() && thd->variables.sql_log_bin) ||
-                 ha_rollback_to_savepoint_can_release_mdl(thd));
-
   if (ha_rollback_to_savepoint(thd, sv))
     res= TRUE;
   else if (((thd->variables.option_bits & OPTION_KEEP_LOG) ||
@@ -733,7 +708,14 @@ bool trans_rollback_to_savepoint(THD *thd, LEX_STRING name)
 
   thd->transaction.savepoints= sv;
 
-  if (!res && mdl_can_safely_rollback_to_savepoint)
+  if (res)
+    /* An error occurred during rollback; we cannot release any MDL */;
+  else if (thd->variables.sql_log_bin && mysql_bin_log.is_open())
+    /* In some cases (such as with non-transactional tables) we may
+    choose to preserve events that were added after the SAVEPOINT,
+    delimiting them by SAVEPOINT and ROLLBACK TO SAVEPOINT statements.
+    Prematurely releasing MDL on such objects would break replication. */;
+  else if (ha_rollback_to_savepoint_can_release_mdl(thd))
     thd->mdl_context.rollback_to_savepoint(sv->mdl_savepoint);
 
   DBUG_RETURN(MY_TEST(res));

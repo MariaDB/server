@@ -39,4 +39,24 @@ SET @@LOCAL.skip_name_resolve=0;
 ERROR HY000: Variable 'skip_name_resolve' is a read only variable
 SET @@GLOBAL.skip_name_resolve=0;
 ERROR HY000: Variable 'skip_name_resolve' is a read only variable
-End of 5.1 tests
+#
+# End of 5.1 tests
+#
+#
+# MDEV-26081 set role crashes when a hostname cannot be resolved
+#
+create user u1@`%`;
+create role r1;
+create role r2;
+grant r2 to r1;
+grant r1 to u1@`%`;
+connect u1,127.0.0.1,u1,,,$MASTER_MYPORT;
+set role r2;
+ERROR OP000: User `u1`@`%` has not been granted role `r2`
+disconnect u1;
+connection default;
+drop user u1@`%`;
+drop role r1, r2;
+#
+# End of 10.2 tests
+#
