@@ -39,17 +39,6 @@
 #include <mysql.h>
 
 
-struct Slave_info
-{
-  uint32 server_id;
-  uint32 master_id;
-  char host[HOSTNAME_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  char user[USERNAME_LENGTH+1];
-  char password[MAX_PASSWORD_LENGTH*SYSTEM_CHARSET_MBMAXLEN+1];
-  uint16 port;
-};
-
-
 Atomic_counter<uint32_t> binlog_dump_thread_count;
 ulong rpl_status=RPL_NULL;
 mysql_mutex_t LOCK_rpl_status;
@@ -128,6 +117,8 @@ int THD::register_slave(uchar *packet, size_t packet_length)
                                    MYF(MY_WME))))
     return 1;
 
+  si->log_file[0] = '\0';
+
   variables.server_id= si->server_id= uint4korr(p);
   p+= 4;
   get_object(p,si->host, "Failed to register slave: too long 'report-host'");
@@ -179,8 +170,11 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
 {
   my_bool res= FALSE;
   mysql_mutex_lock(&thd->LOCK_thd_data);
+  String gtid[30];
   if (auto si= thd->slave_info)
   {
+    gtid_state_from_binlog_pos(si->log_file, (uint32)si->log_pos, gtid);
+
     protocol->prepare_for_resend();
     protocol->store(si->server_id);
     protocol->store(si->host, &my_charset_bin);
@@ -191,6 +185,9 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
     }
     protocol->store((uint32) si->port);
     protocol->store(si->master_id);
+    protocol->store(si->log_file, &my_charset_bin);
+    protocol->store(si->log_pos);
+    protocol->store(gtid);
     res= protocol->write();
   }
   mysql_mutex_unlock(&thd->LOCK_thd_data);
@@ -233,6 +230,15 @@ bool show_slave_hosts(THD* thd)
                        thd->mem_root);
   field_list.push_back(new (mem_root)
                        Item_return_int(thd, "Master_id", 10, MYSQL_TYPE_LONG),
+                       thd->mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "File", FN_REFLEN),
+                       thd->mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_return_int(thd, "Position", 20, MYSQL_TYPE_LONGLONG),
+                       thd->mem_root);
+  field_list.push_back(new (mem_root)
+                       Item_empty_string(thd, "Gtid", 30),
                        thd->mem_root);
 
   if (protocol->send_result_set_metadata(&field_list,
