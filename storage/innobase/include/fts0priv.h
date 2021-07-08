@@ -211,18 +211,24 @@ fts_write_node(
 	fts_node_t*	node)		/*!< in: node columns */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/** Check if a fts token is a stopword or less than fts_min_token_size
-or greater than fts_max_token_size.
+/** Check if a fts token is not outside
+(fts_min_token_size, fts_max_token_size) range.
+@param[in]	token		token string
+@retval true	if length is in range
+@retval false	if length is not in range */
+bool
+fts_token_length_in_range(
+	const fts_string_t*	token);
+
+/** True if token is in stopword list.
 @param[in]	token		token string
 @param[in]	stopwords	stopwords rb tree
-@param[in]	cs		token charset
 @retval true	if it is not stopword and length in range
 @retval false	if it is stopword or length not in range */
 bool
-fts_check_token(
+fts_token_is_stopword(
 	const fts_string_t*	token,
-	const ib_rbt_t*		stopwords,
-	const CHARSET_INFO*	cs);
+	const ib_rbt_t*		stopwords);
 
 /******************************************************************//**
 Initialize a document. */

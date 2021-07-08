@@ -1,0 +1,60 @@
+# Ngram fulltext parser basic functionality.
+
+source include/have_innodb.inc;
+
+SET NAMES utf8mb4;
+SELECT @@ngram_token_size;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=InnoDB CHARSET utf8mb4;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=InnoDB CHARSET big5;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=InnoDB CHARSET gbk;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=InnoDB CHARSET gb2312;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=InnoDB CHARSET sjis;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=InnoDB CHARSET ujis;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=MyISAM CHARSET utf8mb4;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=MyISAM CHARSET big5;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=MyISAM CHARSET gbk;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=MyISAM CHARSET gb2312;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=MyISAM CHARSET sjis;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=MyISAM CHARSET ujis;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=Aria CHARSET utf8mb4;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=Aria CHARSET big5;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=Aria CHARSET gbk;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=Aria CHARSET gb2312;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=Aria CHARSET sjis;
+source ngram_basic.inc;
+
+CREATE TABLE t (lang TEXT, str TEXT, FULLTEXT(str) WITH PARSER ngram) ENGINE=Aria CHARSET ujis;
+source ngram_basic.inc;
