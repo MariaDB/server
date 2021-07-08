@@ -1,0 +1,38 @@
+#
+# Test that JSON is a valid histogram type and we can store JSON strings in mysql.column_stats
+#
+drop table if exists t1;
+set @save_histogram_type=@@histogram_type;
+CREATE TABLE t1 (
+a int NOT NULL PRIMARY KEY,
+b varchar(32)
+) ENGINE=MYISAM;
+SET histogram_type='JSON';
+SELECT @@histogram_type;
+@@histogram_type
+JSON
+INSERT INTO t1 VALUES
+(7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx'),
+(17, 'vvvvvvvvvvvvv');
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+DESCRIBE mysql.column_stats;
+Field	Type	Null	Key	Default	Extra
+db_name	varchar(64)	NO	PRI	NULL	
+table_name	varchar(64)	NO	PRI	NULL	
+column_name	varchar(64)	NO	PRI	NULL	
+min_value	varbinary(255)	YES		NULL	
+max_value	varbinary(255)	YES		NULL	
+nulls_ratio	decimal(12,4)	YES		NULL	
+avg_length	decimal(12,4)	YES		NULL	
+avg_frequency	decimal(12,4)	YES		NULL	
+hist_size	tinyint(3) unsigned	YES		NULL	
+hist_type	enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON')	YES		NULL	
+histogram	blob	YES		NULL	
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	b	vvvvvvvvvvvvv	xxxxxxxxxxxxxxxxxxxxxxxxxx	0.0000	19.5000	1.0000	254	JSON	{'hello': 'world'}
+set histogram_type=@save_histogram_type;
+DROP TABLE t1;

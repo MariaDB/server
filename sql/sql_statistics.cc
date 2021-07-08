@@ -178,12 +178,12 @@ TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
   },
   {
     { STRING_WITH_LEN("hist_type") },
-    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')") },
+    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON')") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("histogram") },
-    { STRING_WITH_LEN("varbinary(255)") },
+    { STRING_WITH_LEN("blob") },
     { NULL, 0 }
   }
 };
@@ -1070,8 +1070,13 @@ public:
           stat_field->store(stats->histogram.get_type() + 1);
           break;
         case COLUMN_STAT_HISTOGRAM:
-	  stat_field->store((char *)stats->histogram.get_values(),
-                            stats->histogram.get_size(), &my_charset_bin);
+          if (stats->histogram.get_type() == JSON) {
+            const char* val = "{'hello': 'world'}";
+            stat_field->store(val, strlen(val), &my_charset_bin);
+          } else {
+            stat_field->store((char *) stats->histogram.get_values(),
+                              stats->histogram.get_size(), &my_charset_bin);
+          }
           break;           
         }
       }
