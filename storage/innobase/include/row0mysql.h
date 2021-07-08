@@ -632,6 +632,12 @@ struct row_prebuilt_t {
 					(VARCHAR can be off-page too) */
 	unsigned	versioned_write:1;/*!< whether this is
 					a versioned write */
+	unsigned	on_dup_ignore:1;/*!< 1 if ha_innobase::extra(
+					HA_EXTRA_INSERT_WITH_UPDATE) was called,
+					0 otherwise */
+	unsigned	on_dup_replace:1;/*!< 1 if ha_innobase::extra(
+					HA_EXTRA_WRITE_CAN_REPLACE) was called,
+					0 otherwise */
 	mysql_row_templ_t* mysql_template;/*!< template used to transform
 					rows fast between MySQL and Innobase
 					formats; memory for this template
@@ -819,6 +825,12 @@ struct row_prebuilt_t {
 			}
 		}
 		return NULL;
+	}
+
+	/** Determine if any of duplicates allowance flags were set. */
+	bool duplicates_allowed() const
+	{
+		return on_dup_ignore || on_dup_replace;
 	}
 };
 
