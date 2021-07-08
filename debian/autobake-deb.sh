@@ -42,34 +42,12 @@ GCCVERSION=$(gcc -dumpfullversion -dumpversion | sed -e 's/\.\([0-9][0-9]\)/\1/g
 # Debian policy and targeting Debian Sid. Then case-by-case run in autobake-deb.sh
 # tests for backwards compatibility and strip away parts on older builders.
 
-# If libcrack2 (>= 2.9.0) is not available (before Debian Jessie and Ubuntu Trusty)
-# clean away the cracklib stanzas so the package can build without them.
-if ! apt-cache madison libcrack2-dev | grep 'libcrack2-dev *| *2\.9' >/dev/null 2>&1
+# From Debian Bullseye/Ubuntu Hirsute onwards libreadline is gone, so build with
+# it only on older releases where it is still available. On Hirsute and newer,
+# link with libedit. This is a 10.4 adaptation of 10.5 commit 5cdf245d7e.
+if apt-cache madison libreadline-gplv2-dev | grep 'libreadline-gplv2-dev' >/dev/null 2>&1
 then
-  sed '/libcrack2-dev/d' -i debian/control
-  sed '/Package: mariadb-plugin-cracklib/,/^$/d' -i debian/control
-fi
-
-# If libpcre3-dev (>= 2:8.35-3.2~) is not available (before Debian Jessie or Ubuntu Wily)
-# clean away the PCRE3 stanzas so the package can build without them.
-# Update check when version 2:8.40 or newer is available.
-if ! apt-cache madison libpcre3-dev | grep 'libpcre3-dev *| *2:8\.3[2-9]' >/dev/null 2>&1
-then
-  sed '/libpcre3-dev/d' -i debian/control
-fi
-
-# If libsystemd-dev is not available (before Debian Jessie or Ubuntu Wily)
-# clean away the systemd stanzas so the package can build without them.
-if ! apt-cache madison libsystemd-dev | grep 'libsystemd-dev' >/dev/null 2>&1
-then
-  sed '/dh-systemd/d' -i debian/control
-  sed '/libsystemd-dev/d' -i debian/control
-  sed 's/ --with systemd//' -i debian/rules
-  sed '/systemd/d' -i debian/rules
-  sed '/\.service/d' -i debian/rules
-  sed '/galera_new_cluster/d' -i debian/mariadb-server-10.4.install
-  sed '/galera_recovery/d' -i debian/mariadb-server-10.4.install
-  sed '/mariadb-service-convert/d' -i debian/mariadb-server-10.4.install
+  sed 's/libedit-dev,/libreadline-gplv2-dev,/' -i debian/control
 fi
 
 # If libzstd-dev is not available (before Debian Stretch and Ubuntu Xenial)
@@ -111,15 +89,6 @@ then
   sed '/Package: mariadb-plugin-cassandra/,/^$/d' -i debian/control
 fi
 
-# From Debian Stretch/Ubuntu Bionic onwards dh-systemd is just an empty
-# transitional metapackage and the functionality was merged into debhelper.
-# In Ubuntu Hirsute is was completely removed, so it can't be referenced anymore.
-# Keep using it only on Debian Jessie and Ubuntu Xenial.
-if apt-cache madison dh-systemd | grep 'dh-systemd' >/dev/null 2>&1
-then
-  sed 's/debhelper (>= 9.20160709~),/debhelper (>= 9), dh-systemd,/' -i debian/control
-fi
-
 # Mroonga, TokuDB never built on Travis CI anyway, see build flags above
 if [[ $TRAVIS ]]
 then
@@ -139,7 +108,7 @@ source ./VERSION
 UPSTREAM="${MYSQL_VERSION_MAJOR}.${MYSQL_VERSION_MINOR}.${MYSQL_VERSION_PATCH}${MYSQL_VERSION_EXTRA}"
 PATCHLEVEL="+maria"
 LOGSTRING="MariaDB build"
-CODENAME="$(lsb_release -sc)"
+CODENAME="$(lsb_release -sc || true)"  # If lsb_release is not installed, stay empty
 EPOCH="1:"
 
 dch -b -D ${CODENAME} -v "${EPOCH}${UPSTREAM}${PATCHLEVEL}~${CODENAME}" "Automatic build with ${LOGSTRING}."

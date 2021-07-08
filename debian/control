@@ -3,17 +3,15 @@ Section: database
 Priority: optional
 Maintainer: MariaDB Developers <maria-developers@lists.launchpad.net>
 Build-Depends: bison,
-               chrpath,
                cmake (>= 2.7),
                debhelper (>= 9.20160709~),
-               dh-apparmor,
                dh-exec,
-               dh-systemd,
                gdb,
                libaio-dev [linux-any],
                libboost-dev,
                libcrack2-dev (>= 2.9.0),
                libcurl3-dev,
+               libedit-dev,
                libjemalloc-dev (>= 3.0.0~) [linux-any],
                libjudy-dev,
                libkrb5-dev,
@@ -21,7 +19,6 @@ Build-Depends: bison,
                libnuma-dev [!armhf],
                libpam0g-dev,
                libpcre3-dev (>= 2:8.35-3.2~),
-               libreadline-gplv2-dev,
                libsnappy-dev,
                libssl-dev | libssl1.0-dev,
                libsystemd-dev,
@@ -652,27 +649,6 @@ Description: Spider storage engine for MariaDB
  partitioning and xa transactions, and allows tables of different MariaDB
  instances to be handled as if they were on the same insctance. It refers to one
  possible implementation of ISO/IEC 9075-9:2008 SQL/MED.
-
-Package: mariadb-plugin-cassandra
-Architecture: any
-Depends: mariadb-server-10.4 (= ${binary:Version}),
-         ${misc:Depends},
-         ${shlibs:Depends}
-Breaks: mariadb-server-10.0,
-        mariadb-server-10.1,
-        mariadb-server-10.2,
-        mariadb-server-10.3
-Replaces: mariadb-server-10.0,
-          mariadb-server-10.1,
-          mariadb-server-10.2,
-          mariadb-server-10.3
-Description: Cassandra storage engine for MariaDB
- The Cassandra Storage Engine allows access to data in a Cassandra cluster from
- MariaDB, combining the best of SQL and no-SQL worlds. Cassandra SE (storage
- engine) makes Cassandra's column family appear as a table in MariaDB that you
- can insert to, update, and select from. You can write joins against this table,
- it is possible to join data that's stored in MariaDB with data that's stored in
- Cassandra.
 
 Package: mariadb-plugin-gssapi-server
 Architecture: any
