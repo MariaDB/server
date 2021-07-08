@@ -4444,7 +4444,8 @@ static void dump_table(const char *table, const char *db, const uchar *hash_key,
         if (total_length + row_length < opt_net_buffer_length)
         {
           total_length+= row_length;
-          fputc(',',md_result_file);            /* Always row break */
+          fputc(',',md_result_file);            
+          fputc('\n',md_result_file);           /* Always row break */
           fputs(extended_row.str,md_result_file);
         }
         else
