@@ -26,7 +26,7 @@ DELETE FROM t1 WHERE a=1;
 INSERT INTO t1 VALUES(1,'X',1);
 SET DEBUG_DBUG='+d,crash_after_log_ibuf_upd_inplace';
 SELECT b FROM t1 LIMIT 3;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 disconnect con1;
 connection default;
 FOUND 1 /Wrote log record for ibuf update in place operation/ in mysqld.1.err

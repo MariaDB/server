@@ -100,7 +100,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t5;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -126,7 +126,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -152,7 +152,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -178,7 +178,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t3;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -204,7 +204,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t4;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -316,7 +316,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t5;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -342,7 +342,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -368,7 +368,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -394,7 +394,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t3;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -420,7 +420,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t4;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -532,7 +532,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -558,7 +558,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -584,7 +584,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t3;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -610,7 +610,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t4;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -722,7 +722,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -748,7 +748,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -774,7 +774,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t3;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -800,7 +800,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t4;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -912,7 +912,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -938,7 +938,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -964,7 +964,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t3;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -990,7 +990,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t4;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -1102,7 +1102,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t1;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -1128,7 +1128,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -1154,7 +1154,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t3;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)
@@ -1180,7 +1180,7 @@ Warning	1287	'@@debug' is deprecated and will be removed in a future release. Pl
 # Write file to make mysql-test-run.pl expect crash and restart
 # Run the crashing query
 truncate table t4;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart the MySQL server
 select count(*) from t1;
 count(*)

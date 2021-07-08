@@ -11,10 +11,10 @@ drop user bad;
 set global debug_dbug='+d,increase_srv_handshake_scramble_len';
 connect(localhost,root,,test,MASTER_MYPORT,MYSQL_TMP_DIR/mysqld.1.sock);
 connect con1,localhost,root;
-ERROR HY000: received malformed packet
+ERROR HY000: Received malformed packet
 set global debug_dbug=@old_dbug;
 set global debug_dbug='+d,poison_srv_handshake_scramble_len';
 connect(localhost,root,,test,MASTER_MYPORT,MYSQL_TMP_DIR/mysqld.1.sock);
 connect con2,localhost,root;
-ERROR HY000: received malformed packet
+ERROR HY000: Received malformed packet
 set global debug_dbug=@old_dbug;

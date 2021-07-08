@@ -45,7 +45,7 @@ CREATE TABLE t1 (f1 INT NOT NULL, f2 INT NOT NULL) ENGINE=innodb;
 INSERT INTO t1 VALUES (1,2),(3,4);
 SET DEBUG_DBUG='+d,innodb_alter_commit_crash_after_commit';
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart mysqld after the crash and reconnect.
 SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;
@@ -84,7 +84,7 @@ CREATE TABLE t2 (f1 int not null, f2 int not null) ENGINE=InnoDB;
 INSERT INTO t2 VALUES (1,2),(3,4);
 SET DEBUG_DBUG='+d,innodb_alter_commit_crash_before_commit';
 ALTER TABLE t2 ADD PRIMARY KEY (f2, f1);
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Startup the server after the crash
 SELECT * FROM information_schema.innodb_sys_tables
 WHERE name LIKE 'test/#sql-%';
@@ -122,7 +122,7 @@ ENGINE=InnoDB;
 INSERT INTO t1 SET a=1,c=2;
 SET DEBUG_DBUG='+d,innodb_alter_commit_crash_after_commit';
 ALTER TABLE t1 ADD INDEX (b), CHANGE c d int, ALGORITHM=INPLACE;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # Restart mysqld after the crash and reconnect.
 SELECT * FROM information_schema.innodb_sys_tables
 WHERE table_id = ID;

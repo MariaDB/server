@@ -46,7 +46,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -114,7 +114,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -184,7 +184,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -254,7 +254,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -324,7 +324,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -395,7 +395,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -466,7 +466,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -537,7 +537,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -610,7 +610,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -681,7 +681,7 @@ a	b
 4	Original from partition p0
 ALTER TABLE t1 ADD PARTITION
 (PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -2017,7 +2017,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 DROP PARTITION p10;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -2084,7 +2084,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 DROP PARTITION p10;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -2153,7 +2153,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 DROP PARTITION p10;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -2222,7 +2222,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 DROP PARTITION p10;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -2285,7 +2285,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 DROP PARTITION p10;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -2348,7 +2348,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 DROP PARTITION p10;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -2411,7 +2411,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 DROP PARTITION p10;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -2472,7 +2472,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 DROP PARTITION p10;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -2532,7 +2532,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 DROP PARTITION p10;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -3634,7 +3634,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -3703,7 +3703,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -3774,7 +3774,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -3845,7 +3845,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -3918,7 +3918,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -3991,7 +3991,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -4064,7 +4064,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -4139,7 +4139,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sql-t1.frm
 #sql-t1.par
@@ -4214,7 +4214,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -4287,7 +4287,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -4360,7 +4360,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -4432,7 +4432,7 @@ a	b
 ALTER TABLE t1 REORGANIZE PARTITION p10 INTO
 (PARTITION p10 VALUES IN (10,11,12,13,14,15,16,17,18,19),
 PARTITION p20 VALUES IN (20,21,22,23,24,25,26,27,28,29));
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -6080,7 +6080,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -6188,7 +6188,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -6296,7 +6296,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -6404,7 +6404,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sqlx-nnnn_nnnn.ibd
 db.opt
@@ -6512,7 +6512,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sqlx-nnnn_nnnn.ibd
 db.opt
@@ -6620,7 +6620,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sqlx-nnnn_nnnn.ibd
 db.opt
@@ -6728,7 +6728,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 #sqlx-nnnn_nnnn.ibd
 db.opt
@@ -6836,7 +6836,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd
@@ -6944,7 +6944,7 @@ a	b
 3	Original from partition p0
 4	Original from partition p0
 ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 # State after crash (before recovery)
 db.opt
 t1#P#p0.ibd

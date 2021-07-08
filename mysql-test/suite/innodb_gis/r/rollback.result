@@ -413,6 +413,6 @@ set session debug="+d,row_mysql_crash_if_error";
 Warnings:
 Warning	1287	'@@debug' is deprecated and will be removed in a future release. Please use '@@debug_dbug' instead
 update t1 set a=point(5,5), b=point(5,5), c=5 where i < 3;
-ERROR HY000: Lost connection to MySQL server during query
+ERROR HY000: Lost connection to server during query
 insert into t1 values(5, point(5,5), point(5,5), 5);
 drop table t1;
