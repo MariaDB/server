@@ -1135,7 +1135,7 @@ static void wsrep_kill_victim(const trx_t * const trx, const lock_t *lock)
 			is in the queue*/
 		} else {
 			wsrep_innobase_kill_one_trx(trx->mysql_thd, trx,
-						    lock_trx, true);
+						    lock_trx, true, KILL_QUERY);
 		}
 	}
 }

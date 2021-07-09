@@ -235,7 +235,8 @@ void
 wsrep_innobase_kill_one_trx(MYSQL_THD const thd_ptr,
                             const trx_t * const bf_trx,
                             trx_t *victim_trx,
-                            ibool signal);
+                            ibool signal,
+                            int kill_signal);
 ulint wsrep_innobase_mysql_sort(int mysql_type, uint charset_number,
                              unsigned char* str, unsigned int str_length,
                              unsigned int buf_length);

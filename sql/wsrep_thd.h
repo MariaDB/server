@@ -31,7 +31,7 @@ bool wsrep_create_appliers(long threads, bool thread_count_lock=false);
 void wsrep_create_rollbacker();
 
 int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
-                                my_bool signal);
+		     my_bool signal, killed_state kill_signal=KILL_QUERY);
 
 /*
   PA = Parallel Applying (on the slave side)
@@ -51,7 +51,7 @@ extern void wsrep_report_bf_lock_wait(THD *thd,
 #else /* WITH_WSREP */
 
 #define wsrep_thd_is_BF(T, S) (0)
-#define wsrep_abort_thd(X,Y,Z) do { } while(0)
+#define wsrep_abort_thd(X,Y,Z,W) do { } while(0)
 #define wsrep_create_appliers(T) do { } while(0)
 
 #endif

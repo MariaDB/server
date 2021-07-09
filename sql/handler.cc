@@ -6754,7 +6754,7 @@ void handler::set_lock_type(enum thr_lock_type lock)
     always 0
 */
 
-int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
+int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal, int kill_signal)
 {
   DBUG_ENTER("ha_abort_transaction");
   if (!WSREP(bf_thd) &&
@@ -6766,7 +6766,7 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   handlerton *hton= installed_htons[DB_TYPE_INNODB];
   if (hton && hton->abort_transaction)
   {
-    hton->abort_transaction(hton, bf_thd, victim_thd, signal);
+    hton->abort_transaction(hton, bf_thd, victim_thd, signal, kill_signal);
   }
   else
   {

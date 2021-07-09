@@ -1999,7 +1999,7 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
           {
             WSREP_DEBUG("remove_table_from_cache: %llu",
                         (unsigned long long) this->real_id);
-            wsrep_abort_thd((void *)this, (void *)in_use, FALSE);
+            wsrep_abort_thd((void *)this, (void *)in_use, FALSE, KILL_QUERY);
           }
         }
       }

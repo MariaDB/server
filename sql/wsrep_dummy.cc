@@ -98,7 +98,7 @@ void wsrep_thd_kill_LOCK(THD *)
 void wsrep_thd_kill_UNLOCK(THD *)
 { }
 
-void wsrep_thd_awake(THD *, my_bool)
+void wsrep_thd_awake(THD *, my_bool, int)
 { }
 
 const char *wsrep_thd_conflict_state_str(THD *)
