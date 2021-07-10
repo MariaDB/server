@@ -1,5 +1,5 @@
 
-!include include/default_mysqld_autosize.cnf
+!include suite/perfschema/include/default_mysqld_autosize.cnf
 
 [mysqld.1]
 
@@ -32,6 +32,7 @@ open_files_limit=1024
 # max_connections*5 = 200*5 = 1000
 
 # Automated sizing for everything
+loose-enable-performance-schema
 
 loose-performance-schema-accounts-size=-1
 loose-performance-schema-digests-size=-1
