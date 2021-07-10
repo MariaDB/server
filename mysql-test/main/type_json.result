@@ -31,7 +31,7 @@ t1	CREATE TABLE `t1` (
 insert t1 values ();
 select * from t1;
 a
-{"now": "2010-11-12 13:14:15"}
+{"now": 2010-11-12 13:14:15}
 drop table t1;
 select cast('{a:1}' as text);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'text)' at line 1
