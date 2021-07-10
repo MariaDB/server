@@ -30,6 +30,7 @@
 #include "filesort.h"                           // filesort_free_buffers
 #include "sql_view.h"
 #include "sql_cte.h"
+#include "item_windowfunc.h"
 
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulong setup_tables_done_option)
@@ -1551,6 +1552,29 @@ static void cleanup_order(ORDER *order)
 }
 
 
+static void cleanup_window_funcs(List<Item_window_func> &win_funcs)
+{
+  List_iterator_fast<Item_window_func> it(win_funcs);
+  Item_window_func *win_func;
+  while ((win_func= it++))
+  {
+    Window_spec *win_spec= win_func->window_spec;
+    if (!win_spec)
+      continue;
+    if (win_spec->save_partition_list)
+    {
+      win_spec->partition_list= win_spec->save_partition_list;
+      win_spec->save_partition_list= NULL;
+    }
+    if (win_spec->save_order_list)
+    {
+      win_spec->order_list= win_spec->save_order_list;
+      win_spec->save_order_list= NULL;
+    }
+  }
+}
+
+
 bool st_select_lex::cleanup()
 {
   bool error= FALSE;
@@ -1558,6 +1582,8 @@ bool st_select_lex::cleanup()
 
   cleanup_order(order_list.first);
   cleanup_order(group_list.first);
+
+  cleanup_window_funcs(window_funcs);
 
   if (join)
   {
