@@ -2051,6 +2051,35 @@ bool mysql_rm_table(THD *thd,TABLE_LIST *tables, bool if_exists,
       {
         LEX_CSTRING db_name= table->db;
         LEX_CSTRING table_name= table->table_name;
+        TABLE_LIST *tab_same;
+        int found;
+        found=0;
+        for (tab_same= table->next_local; tab_same; tab_same= tab_same->next_local)
+        {
+          /*  Try to find the tables with the same name.
+           *  In that case the base table is the same as temporary table.
+           *  Temporary tables are checked first.
+          */
+          if (tab_same->table)
+          {
+            if (!strcmp(table->get_db_name(), tab_same->get_db_name()) &&
+                !strcmp(table->get_table_name(), tab_same->get_table_name()))
+            {
+              found++;
+              if (found > 1)
+              {
+                my_error(ER_NONUNIQ_TABLE, MYF(0), table->get_table_name());
+                DBUG_RETURN(true);
+              }
+              else
+              {
+                thd->mark_tmp_table_as_free_for_reuse(table->table);
+                table->table= NULL;
+              }
+            }
+          }
+        }
+
         if (table->open_type == OT_BASE_ONLY ||
             !thd->find_temporary_table(table))
           (void) delete_statistics_for_table(thd, &db_name, &table_name);
@@ -2334,6 +2363,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     DBUG_ASSERT(!(thd->locked_tables_mode &&
                   table->open_type != OT_BASE_ONLY &&
                   thd->find_temporary_table(table) &&
+                  is_temporary_table(table) &&
                   table->mdl_request.ticket != NULL));
 
     if (table->open_type == OT_BASE_ONLY || !is_temporary_table(table))
