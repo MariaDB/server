@@ -58,6 +58,7 @@ extern struct wsrep_service_st {
   bool                        (*wsrep_prepare_key_for_innodb_func)(MYSQL_THD thd, const unsigned char*, size_t, const unsigned char*, size_t, struct wsrep_buf*, size_t*);
   void                        (*wsrep_thd_LOCK_func)(const MYSQL_THD thd);
   void                        (*wsrep_thd_UNLOCK_func)(const MYSQL_THD thd);
+  void                        (*wsrep_thd_awake_func)(THD *thd, my_bool signal, int kill_signal);
   const char *                (*wsrep_thd_query_func)(const MYSQL_THD thd);
   int                         (*wsrep_thd_retry_counter_func)(const MYSQL_THD thd);
   bool                        (*wsrep_thd_ignore_table_func)(MYSQL_THD thd);
@@ -75,7 +76,7 @@ extern struct wsrep_service_st {
   query_id_t                  (*wsrep_thd_transaction_id_func)(const MYSQL_THD thd);
   my_bool                     (*wsrep_thd_bf_abort_func)(MYSQL_THD bf_thd,
                                                          MYSQL_THD victim_thd,
-                                                         my_bool signal);
+                                                         my_bool signal, int kill_signal);
   my_bool                     (*wsrep_thd_order_before_func)(const MYSQL_THD left, const MYSQL_THD right);
   void                        (*wsrep_handle_SR_rollback_func)(MYSQL_THD BF_thd, MYSQL_THD victim_thd);
   my_bool                     (*wsrep_thd_skip_locking_func)(const MYSQL_THD thd);
@@ -84,6 +85,7 @@ extern struct wsrep_service_st {
   void                        (*wsrep_commit_ordered_func)(MYSQL_THD thd);
   my_bool                     (*wsrep_thd_is_applying_func)(const MYSQL_THD thd);
   bool                        (*wsrep_thd_set_wsrep_aborter_func)(MYSQL_THD bf_thd, MYSQL_THD thd);
+  unsigned long               (*wsrep_thd_get_wsrep_aborter_func)(MYSQL_THD thd);
   void                        (*wsrep_report_bf_lock_wait_func)(const MYSQL_THD thd,
                                                                 unsigned long long trx_id);
   void                        (*wsrep_thd_kill_LOCK_func)(const MYSQL_THD thd);
@@ -107,6 +109,7 @@ extern struct wsrep_service_st {
 #define wsrep_thd_UNLOCK(T) wsrep_service->wsrep_thd_UNLOCK_func(T)
 #define wsrep_thd_kill_LOCK(T) wsrep_service->wsrep_thd_kill_LOCK_func(T)
 #define wsrep_thd_kill_UNLOCK(T) wsrep_service->wsrep_thd_kill_UNLOCK_func(T)
+#define wsrep_thd_awake(T,S) wsrep_service->wsrep_thd_awake_func(T,S,K)
 #define wsrep_thd_query(T) wsrep_service->wsrep_thd_query_func(T)
 #define wsrep_thd_retry_counter(T) wsrep_service->wsrep_thd_retry_counter_func(T)
 #define wsrep_thd_ignore_table(T) wsrep_service->wsrep_thd_ignore_table_func(T)
@@ -121,7 +124,7 @@ extern struct wsrep_service_st {
 #define wsrep_thd_client_mode_str(T) wsrep_service->wsrep_thd_client_mode_str_func(T)
 #define wsrep_thd_transaction_state_str(T) wsrep_service->wsrep_thd_transaction_state_str_func(T)
 #define wsrep_thd_transaction_id(T) wsrep_service->wsrep_thd_transaction_id_func(T)
-#define wsrep_thd_bf_abort(T,T2,S) wsrep_service->wsrep_thd_bf_abort_func(T,T2,S)
+#define wsrep_thd_bf_abort(T,T2,S) wsrep_service->wsrep_thd_bf_abort_func(T,T2,S,K)
 #define wsrep_thd_order_before(L,R) wsrep_service->wsrep_thd_order_before_func(L,R)
 #define wsrep_handle_SR_rollback(B,V) wsrep_service->wsrep_handle_SR_rollback_func(B,V)
 #define wsrep_thd_skip_locking(T) wsrep_service->wsrep_thd_skip_locking_func(T)
@@ -130,6 +133,7 @@ extern struct wsrep_service_st {
 #define wsrep_commit_ordered(T) wsrep_service->wsrep_commit_ordered_func(T)
 #define wsrep_thd_is_applying(T) wsrep_service->wsrep_thd_is_applying_func(T)
 #define wsrep_thd_set_wsrep_aborter(T) wsrep_service->wsrep_thd_set_wsrep_aborter_func(T1, T2)
+#define wsrep_thd_get_wsrep_aborter(T) wsrep_service->wsrep_thd_get_wsrep_aborter_func(T1)
 #define wsrep_report_bf_lock_wait(T,I) wsrep_service->wsrep_report_bf_lock_wait(T,I)
 #else
 
@@ -165,6 +169,8 @@ extern "C" void wsrep_thd_LOCK(const MYSQL_THD thd);
 /* Unlock thd wsrep lock */
 extern "C" void wsrep_thd_UNLOCK(const MYSQL_THD thd);
 
+void wsrep_thd_awake(THD *thd, my_bool signal, int kill_signal);
+
 extern "C" void wsrep_thd_kill_LOCK(const MYSQL_THD thd);
 extern "C" void wsrep_thd_kill_UNLOCK(const MYSQL_THD thd);
 
@@ -186,6 +192,8 @@ extern "C" my_bool wsrep_thd_is_local(const MYSQL_THD thd);
 extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
 /* set wsrep_aborter for the target THD */
 extern "C" bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
+/* get wsrep_aborter for the victim THD */
+extern "C" unsigned long wsrep_thd_get_wsrep_aborter(MYSQL_THD victim_thd);
 /* Return true if thd is in TOI mode */
 extern "C" my_bool wsrep_thd_is_toi(const MYSQL_THD thd);
 /* Return true if thd is in replicating TOI mode */
@@ -202,7 +210,7 @@ extern "C" int wsrep_thd_retry_counter(const MYSQL_THD thd);
 /* BF abort victim_thd */
 extern "C" my_bool wsrep_thd_bf_abort(MYSQL_THD bf_thd,
                                       MYSQL_THD victim_thd,
-                                      my_bool signal);
+                                      my_bool signal, int kill_signal);
 /* Return true if left thd is ordered before right thd */
 extern "C" my_bool wsrep_thd_order_before(const MYSQL_THD left, const MYSQL_THD right);
 /* Return true if thd should skip locking. This means that the thd
@@ -225,8 +233,6 @@ extern "C" const char* wsrep_get_sr_table_name();
 extern "C" my_bool wsrep_get_debug();
 
 extern "C" void wsrep_commit_ordered(MYSQL_THD thd);
-extern "C" my_bool wsrep_thd_is_applying(const MYSQL_THD thd);
-extern "C" bool wsrep_thd_set_wsrep_aborter(MYSQL_THD bf_thd, MYSQL_THD victim_thd);
 extern "C" void wsrep_report_bf_lock_wait(const THD *thd,
                                           unsigned long long trx_id);
 #endif

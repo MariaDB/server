@@ -84,7 +84,7 @@ SET DEBUG_SYNC = "now SIGNAL continue_kill";
 --reap
 
 --connection node_2a
---error 0,1213,2013
+--error 0,1213
 select * from t1;
 
 --connection node_2

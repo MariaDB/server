@@ -2449,6 +2449,7 @@ row_upd_sec_index_entry(
 					err = DB_SUCCESS;
 					break;
 				case DB_LOCK_WAIT:
+				case DB_LOCK_WAIT_TIMEOUT:
 					if (UNIV_UNLIKELY(wsrep_debug)) {
 						ib::warn() << "WSREP: sec index FK lock wait"
 							   << " index " << index->name
@@ -2476,7 +2477,12 @@ row_upd_sec_index_entry(
 #endif /* WITH_WSREP */
 		}
 
+#ifdef WITH_WSREP
+		ut_ad(err == DB_SUCCESS || err == DB_LOCK_WAIT_TIMEOUT ||
+		      err == DB_DEADLOCK || err == DB_LOCK_WAIT);
+#else
 		ut_ad(err == DB_SUCCESS);
+#endif /* WITH_WSREP */
 
 		if (referenced) {
 			rec_offs* offsets = rec_get_offsets(

@@ -65,6 +65,9 @@ void wsrep_thd_kill_LOCK(const THD *)
 void wsrep_thd_kill_UNLOCK(const THD *)
 { }
 
+void wsrep_thd_awake(THD *, my_bool, int)
+{ }
+
 const char *wsrep_thd_conflict_state_str(THD *)
 { return 0; }
 
@@ -113,7 +116,7 @@ const char* wsrep_thd_transaction_state_str(const THD*)
 query_id_t wsrep_thd_transaction_id(const THD *)
 { return 0; }
 
-my_bool wsrep_thd_bf_abort(THD *, THD *, my_bool)
+my_bool wsrep_thd_bf_abort(THD *, THD *, my_bool, int)
 { return 0; }
 
 my_bool wsrep_thd_order_before(const THD*, const THD *)
@@ -142,6 +145,9 @@ my_bool wsrep_thd_is_applying(const THD*)
 { return 0;}
 
 bool wsrep_thd_set_wsrep_aborter(THD*, THD*)
+{ return 0;}
+
+unsigned long wsrep_thd_get_wsrep_aborter(THD*)
 { return 0;}
 
 void wsrep_report_bf_lock_wait(const THD*,
