@@ -1,0 +1,29 @@
+--- suite/plugins/r/compression.result	2021-06-13 21:25:07.837950863 +0200
++++ suite/plugins/r/compression,mroonga-lz4.reject	2021-06-13 21:26:36.772955613 +0200
+@@ -1,10 +1,7 @@
+ #
+-# Testing lzma compression with innodb
++# Testing lz4 compression with mroonga
+ #
+-set global innodb_compression_algorithm = lzma;
+-call mtr.add_suppression("InnoDB: Background Page read failed to read or decrypt \\[page id: space=\\d+, page number=\\d+\\]");
+-call mtr.add_suppression("InnoDB: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
+-CREATE TABLE t1 (a int, b text ) engine = innodb page_compressed = 1;
++CREATE TABLE t1 (a int, b text COMMENT 'FLAGS "COLUMN_SCALAR|COMPRESS_LZ4"') engine = mroonga charset = utf8;
+ insert t1 (a, b) values (0, repeat("abc", 100));
+ insert t1 (a, b) values (1, repeat("def", 1000));
+ insert t1 (a, b) values (2, repeat("ghi", 10000));
+@@ -13,8 +10,11 @@
+ 0	abcabcabc	300
+ 1	defdefdef	3000
+ 2	ghighighi	30000
+-# restart: --disable-lzma
++# restart: --disable-lz4
+ select a, left(b, 9), length(b) from t1;
+-ERROR 42S02: Table 'test.t1' doesn't exist in engine
++a	left(b, 9)	length(b)
++0		0
++1		0
++2		0
+ drop table t1;
+ # restart

@@ -36,14 +36,16 @@ static constexpr size_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0;
 #include "ut0byte.h"
 
 /* Possible values of innodb_compression_algorithm */
-#define PAGE_UNCOMPRESSED	0
-#define PAGE_ZLIB_ALGORITHM	1
-#define PAGE_LZ4_ALGORITHM	2
-#define PAGE_LZO_ALGORITHM	3
-#define PAGE_LZMA_ALGORITHM	4
+#define PAGE_UNCOMPRESSED		0
+#define PAGE_ZLIB_ALGORITHM		1
+#define PAGE_LZ4_ALGORITHM		2
+#define PAGE_LZO_ALGORITHM		3
+#define PAGE_LZMA_ALGORITHM		4
 #define PAGE_BZIP2_ALGORITHM	5
 #define PAGE_SNAPPY_ALGORITHM	6
-#define PAGE_ALGORITHM_LAST	PAGE_SNAPPY_ALGORITHM
+#define PAGE_ALGORITHM_LAST		PAGE_SNAPPY_ALGORITHM
+
+extern const char *page_compression_algorithms[];
 
 /** @name Flags for inserting records in order
 If records are inserted in order, there are the following

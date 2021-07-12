@@ -217,36 +217,6 @@ management to ensure correct alignment for doubles etc. */
 			========================
 */
 
-#ifdef HAVE_LZO
-#define IF_LZO(A,B) A
-#else
-#define IF_LZO(A,B) B
-#endif
-
-#ifdef HAVE_LZ4
-#define IF_LZ4(A,B) A
-#else
-#define IF_LZ4(A,B) B
-#endif
-
-#ifdef HAVE_LZMA
-#define IF_LZMA(A,B) A
-#else
-#define IF_LZMA(A,B) B
-#endif
-
-#ifdef HAVE_BZIP2
-#define IF_BZIP2(A,B) A
-#else
-#define IF_BZIP2(A,B) B
-#endif
-
-#ifdef HAVE_SNAPPY
-#define IF_SNAPPY(A,B) A
-#else
-#define IF_SNAPPY(A,B) B
-#endif
-
 #if defined (HAVE_FALLOC_PUNCH_HOLE_AND_KEEP_SIZE) || defined(_WIN32)
 #define IF_PUNCH_HOLE(A,B) A
 #else

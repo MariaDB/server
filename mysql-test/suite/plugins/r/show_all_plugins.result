@@ -4,8 +4,8 @@ Variable_name	Value
 Opened_plugin_libraries	0
 select * from information_schema.all_plugins where plugin_library='ha_example.so';
 PLUGIN_NAME	PLUGIN_VERSION	PLUGIN_STATUS	PLUGIN_TYPE	PLUGIN_TYPE_VERSION	PLUGIN_LIBRARY	PLUGIN_LIBRARY_VERSION	PLUGIN_AUTHOR	PLUGIN_DESCRIPTION	PLUGIN_LICENSE	LOAD_OPTION	PLUGIN_MATURITY	PLUGIN_AUTH_VERSION
-EXAMPLE	0.1	NOT INSTALLED	STORAGE ENGINE	MYSQL_VERSION_ID	ha_example.so	1.14	Brian Aker, MySQL AB	Example storage engine	GPL	OFF	Experimental	0.1
-UNUSABLE	3.14	NOT INSTALLED	DAEMON	MYSQL_VERSION_ID	ha_example.so	1.14	Sergei Golubchik	Unusable Daemon	GPL	OFF	Experimental	3.14.15.926
+EXAMPLE	0.1	NOT INSTALLED	STORAGE ENGINE	MYSQL_VERSION_ID	ha_example.so	1.15	Brian Aker, MySQL AB	Example storage engine	GPL	OFF	Experimental	0.1
+UNUSABLE	3.14	NOT INSTALLED	DAEMON	MYSQL_VERSION_ID	ha_example.so	1.15	Sergei Golubchik	Unusable Daemon	GPL	OFF	Experimental	3.14.15.926
 show status like '%libraries%';
 Variable_name	Value
 Opened_plugin_libraries	1

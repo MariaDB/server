@@ -1,0 +1,21 @@
+--- suite/plugins/r/compression.result	2021-06-13 21:25:07.837950863 +0200
++++ suite/plugins/r/compression,innodb-snappy.reject	2021-06-13 21:27:42.538959125 +0200
+@@ -1,7 +1,7 @@
+ #
+-# Testing lzma compression with innodb
++# Testing snappy compression with innodb
+ #
+-set global innodb_compression_algorithm = lzma;
++set global innodb_compression_algorithm = snappy;
+ call mtr.add_suppression("InnoDB: Background Page read failed to read or decrypt \\[page id: space=\\d+, page number=\\d+\\]");
+ call mtr.add_suppression("InnoDB: Table `test`.`t1` is corrupted. Please drop the table and recreate.");
+ CREATE TABLE t1 (a int, b text ) engine = innodb page_compressed = 1;
+@@ -13,7 +13,7 @@
+ 0	abcabcabc	300
+ 1	defdefdef	3000
+ 2	ghighighi	30000
+-# restart: --disable-lzma
++# restart: --disable-snappy
+ select a, left(b, 9), length(b) from t1;
+ ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ drop table t1;

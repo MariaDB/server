@@ -38,7 +38,12 @@ SET(MYSQLSERVICES_SOURCES
   thd_wait_service.c
   wsrep_service.c
   json_service.c
-  )
+  provider_service_bzip2.c
+  provider_service_lz4.c
+  provider_service_lzma.c
+  provider_service_lzo.c
+  provider_service_snappy.c
+)
 
 ADD_CONVENIENCE_LIBRARY(mysqlservices ${MYSQLSERVICES_SOURCES})
 INSTALL(TARGETS mysqlservices DESTINATION ${INSTALL_LIBDIR} COMPONENT Development)
