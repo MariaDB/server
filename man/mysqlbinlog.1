@@ -752,6 +752,40 @@ Directory for client-side plugins\&.
 .sp -1
 .IP \(bu 2.3
 .\}
+.\" mysqlbinlog: progress-log option
+.\" progress-log option: mysqlbinlog
+\fB\-\-progress\-log=\fIfile_name\fR
+.sp
+This progress log provides information on mysqlbinlog's progress in processing binlogs. If the file does not exist, it is created. If it already exists, it is appended.
+.sp
+The following information is emitted to the progress log:
+.RS 4
+OPEN  : mysqlbinlog successfully opened file.
+.RE
+.RS 4
+EOF   : The end of the file was reached before a stop condition was found. Pos should = file size.
+.RE
+.RS 4
+LAST  : The last event applied (assuming the output is being applied).
+.RE
+.RS 4
+FINAL : The last event applied before a stop condition was found. If --stop--datetime (or .stop-position) was given, this is the event that signals point-in-time restore is complete.
+.RE
+.RS 4
+STOP  : The event that satisfied the stop conditions.
+.RE
+.RS 4
+EXIT  : mysqlbinlog exited. See stderr for errors, if any.
+.fi
+.sp
+.RE
+.ie n \{\
+\h'-04'\(bu\h'+03'\c
+.\}
+.el \{\
+.sp -1
+.IP \(bu 2.3
+.\}
 .\" mysqlbinlog: print-defaults option
 .\" print-defaults option: mysqlbinlog
 \fB\-\-print\-defaults\fR
