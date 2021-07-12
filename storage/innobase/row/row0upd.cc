@@ -2476,7 +2476,14 @@ row_upd_sec_index_entry(
 #endif /* WITH_WSREP */
 		}
 
+#ifdef WITH_WSREP
+		ut_ad(err == DB_SUCCESS ||
+                      err == DB_LOCK_WAIT ||
+                      err == DB_LOCK_WAIT_TIMEOUT ||
+                      err == DB_INTERRUPTED);
+#else
 		ut_ad(err == DB_SUCCESS);
+#endif /* WITH_WSREP */
 
 		if (referenced) {
 			rec_offs* offsets = rec_get_offsets(
