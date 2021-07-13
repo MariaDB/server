@@ -607,4 +607,56 @@ DELETE FROM t1;
 
 DROP TEMPORARY TABLE t1;
 
+--echo #
+--echo # Original test case from MDEV-17890
+--echo #
+
+CREATE TABLE t1 (
+  pk BIGINT AUTO_INCREMENT,
+  b BIT(15),
+  v BIT(10) AS (b) VIRTUAL,
+  PRIMARY KEY(pk),
+  UNIQUE(v)
+);
+
+INSERT IGNORE INTO t1 (b) VALUES (b'101110001110100'),(b'011101');
+SELECT pk, b FROM t1 INTO OUTFILE 'load.data';
+--error ER_DATA_TOO_LONG
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
+
+# Cleanup
+DROP TABLE t1;
+--let $datadir= `SELECT @@datadir`
+--remove_file $datadir/test/load.data
+
+
+--echo #
+--echo # MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT,
+  f ENUM('a','b','c'),
+  v ENUM('a','b','c') AS (f),
+  KEY(v,id)
+) ENGINE=MyISAM;
+INSERT INTO t1 (f) VALUES ('a'),('b');
+INSERT IGNORE INTO t1 SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT,
+  f ENUM('a','b','c'),
+  v ENUM('a','b','c') AS (f),
+  KEY(v,id)
+) ENGINE=MyISAM;
+INSERT INTO t1 (f) VALUES ('a'),('b');
+INSERT IGNORE INTO t1 SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+
 }

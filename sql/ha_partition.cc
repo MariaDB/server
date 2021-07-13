@@ -5255,8 +5255,7 @@ int ha_partition::index_init(uint inx, bool sorted)
     do
     {
       for (i= 0; i < (*key_info)->user_defined_key_parts; i++)
-        bitmap_set_bit(table->read_set,
-                       (*key_info)->key_part[i].field->field_index);
+        (*key_info)->key_part[i].field->register_field_in_read_map();
     } while (*(++key_info));
   }
   for (i= bitmap_get_first_set(&m_part_info->read_partitions);
