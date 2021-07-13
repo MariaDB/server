@@ -3274,9 +3274,17 @@ bool JOIN::make_aggr_tables_info()
 
     if (ht && ht->create_group_by)
     {
-      /* Check if the storage engine can intercept the query */
-      Query query= {&all_fields, select_distinct, tables_list, conds,
-                    group_list, order ? order : group_list, having};
+      /*
+        Check if the storage engine can intercept the query.
+
+        JOIN::optimize_stage2() might convert DISTINCT into GROUP BY and then
+        optimize away GROUP BY (group_list). In such a case, we need to notify
+        a storage engine supporting a group by handler of the existence of the
+        original DISTINCT. Thus, we set select_distinct || group_optimized_away
+        to Query::distinct.
+      */
+      Query query= {&all_fields, select_distinct || group_optimized_away, tables_list,
+                    conds, group_list, order ? order : group_list, having};
       group_by_handler *gbh= ht->create_group_by(thd, &query);
 
       if (gbh)
