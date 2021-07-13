@@ -6722,3 +6722,28 @@ static Sys_var_ulonglong Sys_max_rowid_filter_size(
        SESSION_VAR(max_rowid_filter_size), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1024, (ulonglong)~(intptr)0), DEFAULT(128*1024),
        BLOCK_SIZE(1));
+
+static Sys_var_mybool Sys_redirect_enabled(
+       "redirect_enabled",
+       "Return redirection information to client.",
+       GLOBAL_VAR(redirect_enabled), CMD_LINE(OPT_ARG),
+       DEFAULT(FALSE), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(0));
+
+static Sys_var_charptr Sys_redirect_server_host(
+       "redirect_server_host",
+       "The server host that client can choose to redirect to.",
+       READ_ONLY GLOBAL_VAR(redirect_server_host), CMD_LINE(OPT_ARG),
+       DEFAULT(""));
+
+static Sys_var_uint Sys_redirect_server_port(
+       "redirect_server_port",
+       "The server host port that client can choose to redirect to.",
+       READ_ONLY GLOBAL_VAR(redirect_server_port), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, 65535), DEFAULT(0), BLOCK_SIZE(1));
+
+static Sys_var_uint Sys_redirect_server_ttl(
+       "redirect_server_ttl",
+       "The life time of the validity of redirected information in seconds.",
+       READ_ONLY GLOBAL_VAR(redirect_server_ttl), CMD_LINE(OPT_ARG),
+       VALID_RANGE(0, UINT_MAX), DEFAULT(0), BLOCK_SIZE(1));

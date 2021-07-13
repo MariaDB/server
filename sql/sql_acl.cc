@@ -58,6 +58,7 @@
 #include "sql_plugin_compat.h"
 
 #define MAX_SCRAMBLE_LENGTH 1024
+#define MAX_REDIRECTION_LEN  512
 
 bool mysql_user_table_is_in_short_password_format= false;
 bool using_global_priv_table= true;
@@ -14519,7 +14520,27 @@ bool acl_authenticate(THD *thd, uint com_change_user_pkt_len)
   if (res == CR_OK_HANDSHAKE_COMPLETE)
     thd->get_stmt_da()->disable_status();
   else
-    my_ok(thd);
+  {
+    char *msg = NULL;
+    char msg_buf[MAX_REDIRECTION_LEN];
+
+    if (redirect_enabled)
+    {
+      size_t len = 0;
+
+      len = snprintf(msg_buf, MAX_REDIRECTION_LEN, "Location: mysql://[%s]:%u/?user=%s&ttl=%u\n", 
+        redirect_server_host, redirect_server_port, sctx->user, redirect_server_ttl);
+
+      if (len > MAX_REDIRECTION_LEN - 1){
+        sql_print_error("redirection info is too large to return to client (len= %u)",len);
+      }
+      else{
+        msg = msg_buf;
+      }
+    }
+
+    my_ok(thd, 0, 0, msg);
+  } 
 
   PSI_CALL_set_thread_account
     (thd->main_security_ctx.user, static_cast<uint>(strlen(thd->main_security_ctx.user)),
