@@ -393,6 +393,66 @@ longlong Item_func_json_valid::val_int()
 }
 
 
+bool Item_func_json_equals::fix_length_and_dec()
+{
+  if (Item_bool_func::fix_length_and_dec())
+    return TRUE;
+  set_maybe_null();
+  return FALSE;
+}
+
+
+longlong Item_func_json_equals::val_int()
+{
+  longlong result= 0;
+
+  String a_tmp, b_tmp;
+
+  String *a= args[0]->val_json(&a_tmp);
+  String *b= args[1]->val_json(&b_tmp);
+
+  DYNAMIC_STRING a_res;
+  if (init_dynamic_string(&a_res, NULL, 0, 0))
+  {
+    null_value= 1;
+    return 1;
+  }
+
+  DYNAMIC_STRING b_res;
+  if (init_dynamic_string(&b_res, NULL, 0, 0))
+  {
+    dynstr_free(&a_res);
+    null_value= 1;
+    return 1;
+  }
+
+  if ((null_value= args[0]->null_value || args[1]->null_value))
+  {
+    null_value= 1;
+    goto end;
+  }
+
+  if (json_normalize(&a_res, a->c_ptr(), a->length(), a->charset()))
+  {
+    null_value= 1;
+    goto end;
+  }
+
+  if (json_normalize(&b_res, b->c_ptr(), b->length(), b->charset()))
+  {
+    null_value= 1;
+    goto end;
+  }
+
+  result= strcmp(a_res.str, b_res.str) ? 0 : 1;
+
+end:
+  dynstr_free(&b_res);
+  dynstr_free(&a_res);
+  return result;
+}
+
+
 bool Item_func_json_exists::fix_length_and_dec()
 {
   if (Item_bool_func::fix_length_and_dec())
@@ -986,7 +1046,7 @@ my_decimal *Item_func_json_extract::val_decimal(my_decimal *to)
       case JSON_VALUE_ARRAY:
       case JSON_VALUE_FALSE:
       case JSON_VALUE_NULL:
-      case JSON_VALUE_UNINITALIZED:
+      case JSON_VALUE_UNINITIALIZED:
       break;
     };
   }
@@ -3885,3 +3945,48 @@ String* Item_func_json_objectagg::val_str(String* str)
 }
 
 
+String *Item_func_json_normalize::val_str(String *buf)
+{
+  String tmp;
+  String *raw_json= args[0]->val_str(&tmp);
+
+  DYNAMIC_STRING normalized_json;
+  if (init_dynamic_string(&normalized_json, NULL, 0, 0))
+  {
+    null_value= 1;
+    return NULL;
+  }
+
+  null_value= args[0]->null_value;
+  if (null_value)
+    goto end;
+
+  if (json_normalize(&normalized_json,
+                     raw_json->c_ptr(), raw_json->length(),
+                     raw_json->charset()))
+  {
+    null_value= 1;
+    goto end;
+  }
+
+  buf->length(0);
+  if (buf->append(normalized_json.str, normalized_json.length))
+  {
+    null_value= 1;
+    goto end;
+  }
+
+end:
+  dynstr_free(&normalized_json);
+  return null_value ? NULL : buf;
+}
+
+
+bool Item_func_json_normalize::fix_length_and_dec()
+{
+  collation.set(&my_charset_utf8mb4_bin);
+  /* 0 becomes 0.0E0, thus one character becomes 5 chars */
+  fix_char_length_ulonglong((ulonglong) args[0]->max_char_length() * 5);
+  set_maybe_null();
+  return FALSE;
+}

@@ -902,6 +902,32 @@ protected:
 };
 
 
+class Create_func_json_normalize : public Create_func_arg1
+{
+public:
+  virtual Item *create_1_arg(THD *thd, Item *arg1);
+
+  static Create_func_json_normalize s_singleton;
+
+protected:
+  Create_func_json_normalize() {}
+  virtual ~Create_func_json_normalize() {}
+};
+
+
+class Create_func_json_equals : public Create_func_arg2
+{
+public:
+  virtual Item *create_2_arg(THD *thd, Item *arg1, Item *arg2);
+
+  static Create_func_json_equals s_singleton;
+
+protected:
+  Create_func_json_equals() {}
+  virtual ~Create_func_json_equals() {}
+};
+
+
 class Create_func_json_exists : public Create_func_arg2
 {
 public:
@@ -3596,6 +3622,25 @@ Create_func_isnull::create_1_arg(THD *thd, Item *arg1)
   return new (thd->mem_root) Item_func_isnull(thd, arg1);
 }
 
+Create_func_json_normalize Create_func_json_normalize::s_singleton;
+
+Item*
+Create_func_json_normalize::create_1_arg(THD *thd, Item *arg1)
+{
+  status_var_increment(thd->status_var.feature_json);
+  return new (thd->mem_root) Item_func_json_normalize(thd, arg1);
+}
+
+
+Create_func_json_equals Create_func_json_equals::s_singleton;
+
+Item*
+Create_func_json_equals::create_2_arg(THD *thd, Item *arg1, Item *arg2)
+{
+  status_var_increment(thd->status_var.feature_json);
+  return new (thd->mem_root) Item_func_json_equals(thd, arg1, arg2);
+}
+
 
 Create_func_json_exists Create_func_json_exists::s_singleton;
 
@@ -5552,6 +5597,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_CONTAINS_PATH") }, BUILDER(Create_func_json_contains_path)},
   { { STRING_WITH_LEN("JSON_DEPTH") }, BUILDER(Create_func_json_depth)},
   { { STRING_WITH_LEN("JSON_DETAILED") }, BUILDER(Create_func_json_detailed)},
+  { { STRING_WITH_LEN("JSON_EQUALS") }, BUILDER(Create_func_json_equals)},
   { { STRING_WITH_LEN("JSON_EXISTS") }, BUILDER(Create_func_json_exists)},
   { { STRING_WITH_LEN("JSON_EXTRACT") }, BUILDER(Create_func_json_extract)},
   { { STRING_WITH_LEN("JSON_INSERT") }, BUILDER(Create_func_json_insert)},
@@ -5561,6 +5607,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("JSON_MERGE") }, BUILDER(Create_func_json_merge)},
   { { STRING_WITH_LEN("JSON_MERGE_PATCH") }, BUILDER(Create_func_json_merge_patch)},
   { { STRING_WITH_LEN("JSON_MERGE_PRESERVE") }, BUILDER(Create_func_json_merge)},
+  { { STRING_WITH_LEN("JSON_NORMALIZE") }, BUILDER(Create_func_json_normalize)},
   { { STRING_WITH_LEN("JSON_QUERY") }, BUILDER(Create_func_json_query)},
   { { STRING_WITH_LEN("JSON_QUOTE") }, BUILDER(Create_func_json_quote)},
   { { STRING_WITH_LEN("JSON_OBJECT") }, BUILDER(Create_func_json_object)},

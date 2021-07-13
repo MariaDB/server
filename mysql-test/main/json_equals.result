@@ -1,0 +1,98 @@
+select json_equals("{}", "{}");
+json_equals("{}", "{}")
+1
+select json_equals("{}", "[]");
+json_equals("{}", "[]")
+0
+select json_equals("{}", NULL);
+json_equals("{}", NULL)
+NULL
+select json_equals("", "");
+json_equals("", "")
+NULL
+select json_equals("", 1);
+json_equals("", 1)
+NULL
+select json_equals(now(), now());
+json_equals(now(), now())
+NULL
+select json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3, 4]}');
+json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3, 4]}')
+0
+select json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3]}');
+json_equals('{"a":[1, 2, 3]}', '{"a":[1, 2, 3]}')
+1
+select json_equals('{"țanțoș":[1, 2, "ț", {"some uâß€":"uâßr"}]}',
+'{"țanțoș":[1, 2, "ț", {"some uâß€":"uâßr"}]}');
+json_equals('{"țanțoș":[1, 2, "ț", {"some uâß€":"uâßr"}]}',
+'{"țanțoș":[1, 2, "ț", {"some uâß€":"uâßr"}]}')
+1
+select json_equals('{"a" : [0.123456789123456789], "b" : [1, 2, 3]}',
+'{"b" : [1, 2, 3], "a" : [0.123456789123456789]}');
+json_equals('{"a" : [0.123456789123456789], "b" : [1, 2, 3]}',
+'{"b" : [1, 2, 3], "a" : [0.123456789123456789]}')
+1
+#
+# Test max json depth for json_equals.
+#
+with recursive rec_json (step, obj) as (
+select 1, cast('{"key":"value"}' as varchar(1000))
+union
+select r.step + 1, JSON_INSERT('{}', '$.obj', JSON_QUERY(r.obj, '$'))
+from rec_json r
+where r.step < 10
+)
+select step, obj, json_equals(obj, obj) from rec_json;
+step	obj	json_equals(obj, obj)
+1	{"key":"value"}	1
+2	{"obj": {"key": "value"}}	1
+3	{"obj": {"obj": {"key": "value"}}}	1
+4	{"obj": {"obj": {"obj": {"key": "value"}}}}	1
+5	{"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}	1
+6	{"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}	1
+7	{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}	1
+8	{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}	1
+9	{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}	1
+10	{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}	1
+#
+# 31 levels of nesting.
+#
+select json_equals('{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}',
+'{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}') as 31_levels;
+31_levels
+1
+#
+# 32 Levels of nesting. This should hit max json depth.
+#
+select json_equals('{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}',
+'{"obj":{"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"obj": {"key": "value"}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}}') as 32_levels;
+32_levels
+NULL
+#
+# test values from different charset
+# (UTF-8 two-bytes vs. latin1 single high-byte)
+#
+create table t1 (a varchar(200) character set latin1);
+create table t2 (a varchar(200) character set utf8);
+insert into t1 values (UNHEX('22CA22'));
+set names utf8;
+insert into t2 values (UNHEX('22C38A22'));
+select a from t1;
+a
+"Ê"
+select hex(a) from t1;
+hex(a)
+22CA22
+select a from t2;
+a
+"Ê"
+select hex(a) from t2;
+hex(a)
+22C38A22
+select t1.a, t2.a, t1.a = t2.a,
+json_valid(t1.a), json_valid(t2.a), json_equals(t1.a, t2.a)
+from t1, t2;
+a	a	t1.a = t2.a	json_valid(t1.a)	json_valid(t2.a)	json_equals(t1.a, t2.a)
+"Ê"	"Ê"	1	1	1	1
+drop table t1;
+drop table t2;
