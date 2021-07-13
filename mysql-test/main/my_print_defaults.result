@@ -15,4 +15,37 @@
 --max_connections=1024
 --long_query_time=60
 --slow_query_log=1
-# End of 10.5 test
+#
+# MDEV-25908: -e does not work for my_print_defaults
+#
+# Testing -e
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+#Testing --defaults-extra-file
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+# Testing -c option
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+# Testing --defaults-file
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+# Testing -g option
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+--table_definition_cache=2000
+--read_buffer_size=1M
+--thread_cache_size=8
+# Testing --defaults-group-suffix
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+--table_definition_cache=2000
+--read_buffer_size=1M
+--thread_cache_size=8
+# End of 10.5 Test

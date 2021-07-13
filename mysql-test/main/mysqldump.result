@@ -2688,6 +2688,7 @@ DROP TABLE t1, t2;
 # (Problems with --defaults-extra-file option)
 #
 --port=1234
+--port=1234
 #
 # Test of fix to Bug#12597 mysqldump dumps triggers wrongly
 #
