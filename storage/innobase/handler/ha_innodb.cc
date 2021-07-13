@@ -869,9 +869,9 @@ static MYSQL_THDVAR_BOOL(ft_enable_stopword, PLUGIN_VAR_OPCMDARG,
   NULL, NULL,
   /* default */ TRUE);
 
-static MYSQL_THDVAR_ULONG(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
-  "Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. Values above 100000000 disable the timeout.",
-  NULL, NULL, 50, 0, 1024 * 1024 * 1024, 0);
+static MYSQL_THDVAR_UINT(lock_wait_timeout, PLUGIN_VAR_RQCMDARG,
+  "Timeout in seconds an InnoDB transaction may wait for a lock before being rolled back. The value 100000000 is infinite timeout.",
+  NULL, NULL, 50, 0, 100000000, 0);
 
 static MYSQL_THDVAR_STR(ft_user_stopword_table,
   PLUGIN_VAR_OPCMDARG|PLUGIN_VAR_MEMALLOC,
@@ -1857,7 +1857,7 @@ thd_has_edited_nontrans_tables(
 /******************************************************************//**
 Returns the lock wait timeout for the current connection.
 @return the lock wait timeout, in seconds */
-ulong
+uint
 thd_lock_wait_timeout(
 /*==================*/
 	THD*	thd)	/*!< in: thread handle, or NULL to query
@@ -4357,7 +4357,7 @@ innobase_commit_ordered_2(
 	/* If the transaction is not run in 2pc, we must assign wsrep
 	XID here in order to get it written in rollback segment. */
 	if (trx->is_wsrep()) {
-		thd_get_xid(thd, (MYSQL_XID*)trx->xid);
+		thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
 	}
 #endif /* WITH_WSREP */
 
@@ -4552,8 +4552,9 @@ innobase_rollback(
 	trx is being rolled back due to BF abort, clear XID in order
 	to avoid writing it to rollback segment out of order. The XID
 	will be reassigned when the transaction is replayed. */
-	if (trx->state != TRX_STATE_NOT_STARTED && wsrep_is_wsrep_xid(trx->xid)) {
-		trx->xid->null();
+	if (trx->state != TRX_STATE_NOT_STARTED
+	    && wsrep_is_wsrep_xid(&trx->xid)) {
+		trx->xid.null();
 	}
 #endif /* WITH_WSREP */
 	if (rollback_trx
@@ -11362,8 +11363,9 @@ innobase_fts_load_stopword(
     mysql_mutex_unlock(&LOCK_global_system_variables);
   }
 
-  return fts_load_stopword(table, trx, stopword_table,
-                           THDVAR(thd, ft_enable_stopword), false);
+  return !high_level_read_only &&
+    fts_load_stopword(table, trx, stopword_table,
+                      THDVAR(thd, ft_enable_stopword), false);
 }
 
 /** Parse the table name into normal name and remote path if needed.
@@ -13386,7 +13388,6 @@ int ha_innobase::delete_table(const char *name)
     ut_ad(trx->will_lock);
     ut_ad(trx->state == TRX_STATE_ACTIVE);
     trx->dict_operation= true;
-    trx->internal= true;
   }
   else
   {
@@ -13706,6 +13707,7 @@ int ha_innobase::truncate()
 	} else {
 		const auto update_time = ib_table->update_time;
 		const auto stored_lock = m_prebuilt->stored_select_lock_type;
+		const auto def_trx_id = ib_table->def_trx_id;
 		ib_table->release();
 		m_prebuilt->table = nullptr;
 
@@ -13720,6 +13722,7 @@ int ha_innobase::truncate()
 reload:
 			m_prebuilt->table = dict_table_open_on_name(
 				name, false, false, DICT_ERR_IGNORE_NONE);
+			m_prebuilt->table->def_trx_id = def_trx_id;
 		} else {
 			row_prebuilt_t* prebuilt = m_prebuilt;
 			uchar* upd_buf = m_upd_buf;
@@ -16683,7 +16686,7 @@ innobase_xa_prepare(
 
 	DBUG_ASSERT(hton == innodb_hton_ptr);
 
-	thd_get_xid(thd, (MYSQL_XID*) trx->xid);
+	thd_get_xid(thd, &reinterpret_cast<MYSQL_XID&>(trx->xid));
 
 	if (!trx_is_registered_for_2pc(trx) && trx_is_started(trx)) {
 
@@ -16815,8 +16818,8 @@ int innobase_rollback_by_xid(handlerton* hton, XID* xid)
 		/* If a wsrep transaction is being rolled back during
 		the recovery, we must clear the xid in order to avoid
 		writing serialisation history for rolled back transaction. */
-		if (wsrep_is_wsrep_xid(trx->xid)) {
-			trx->xid->null();
+		if (wsrep_is_wsrep_xid(&trx->xid)) {
+			trx->xid.null();
 		}
 #endif /* WITH_WSREP */
 		int ret = innobase_rollback_trx(trx);
@@ -18312,7 +18315,7 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
         default:
           break;
         case TRX_STATE_PREPARED:
-          if (!wsrep_is_wsrep_xid(vtrx->xid))
+          if (!wsrep_is_wsrep_xid(&vtrx->xid))
             break;
           /* fall through */
         case TRX_STATE_ACTIVE:
@@ -18510,9 +18513,7 @@ static MYSQL_SYSVAR_BOOL(doublewrite, srv_use_doublewrite_buf,
 static MYSQL_SYSVAR_BOOL(use_atomic_writes, srv_use_atomic_writes,
   PLUGIN_VAR_NOCMDARG | PLUGIN_VAR_READONLY,
   "Enable atomic writes, instead of using the doublewrite buffer, for files "
-  "on devices that supports atomic writes. "
-  "This option only works on Linux with either FusionIO cards using "
-  "the directFS filesystem or with Shannon cards using any file system.",
+  "on devices that supports atomic writes.",
   NULL, NULL, TRUE);
 
 static MYSQL_SYSVAR_BOOL(stats_include_delete_marked,

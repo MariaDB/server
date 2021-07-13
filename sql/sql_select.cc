@@ -18412,6 +18412,25 @@ Field *Item_func_sp::create_tmp_field_ex(MEM_ROOT *root, TABLE *table,
   return result;
 }
 
+
+static bool make_json_valid_expr(TABLE *table, Field *field)
+{
+  THD *thd= table->in_use;
+  Query_arena backup_arena;
+  Item *expr, *item_field;
+
+  if (!table->expr_arena && table->init_expr_arena(thd->mem_root))
+    return NULL;
+
+  thd->set_n_backup_active_arena(table->expr_arena, &backup_arena);
+  if ((item_field= new (thd->mem_root) Item_field(thd, field)) &&
+      (expr= new (thd->mem_root) Item_func_json_valid(thd, item_field)))
+    field->check_constraint= add_virtual_expression(thd, expr);
+  thd->restore_active_arena(table->expr_arena, &backup_arena);
+  return field->check_constraint == NULL;
+}
+
+
 /**
   Create field for temporary table.
 
@@ -18457,6 +18476,9 @@ Field *create_tmp_field(TABLE *table, Item *item,
                       make_copy_field);
   Field *result= item->create_tmp_field_ex(table->in_use->mem_root,
                                            table, &src, &prm);
+  if (item->is_json_type() && make_json_valid_expr(table, result))
+    result= NULL;
+
   *from_field= src.field();
   *default_field= src.default_field();
   if (src.item_result_field())

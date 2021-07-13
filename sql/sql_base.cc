@@ -5553,7 +5553,8 @@ bool lock_tables(THD *thd, TABLE_LIST *tables, uint count, uint flags)
     DEBUG_SYNC(thd, "after_lock_tables_takes_lock");
 
     if (thd->lex->requires_prelocking() &&
-        thd->lex->sql_command != SQLCOM_LOCK_TABLES)
+        thd->lex->sql_command != SQLCOM_LOCK_TABLES &&
+        thd->lex->sql_command != SQLCOM_FLUSH)
     {
       /*
         We just have done implicit LOCK TABLES, and now we have

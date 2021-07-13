@@ -43,16 +43,16 @@ SELECT a.val, a.akey FROM tbl_a a, tbl_b b WHERE a.akey = b.akey AND b.bkey = 5;
 val	akey
 4	4
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%' ;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_b`%';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%' ;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_b`%';
 argument
 select `akey`,`val` from `auto_test_remote`.`tbl_a` where `akey` = 4
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%' ;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_b`%'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%' ;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_b`%'
 argument
 select `bkey`,`akey` from `auto_test_remote`.`tbl_b` where `bkey` = 5
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%' ;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_b`%'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%' ;
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_b`%'
 SELECT akey, val FROM tbl_a ORDER BY akey ;
 SELECT bkey, akey FROM tbl_b ORDER BY bkey;
 akey	val

@@ -563,7 +563,11 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
             goto handle_geometry_key;
           feature_type_found= 1;
         }
+        else /* can't understand the type. */
+          break;
       }
+      else /* The "type" value can only be string. */
+        break;
     }
     else if (key_len == coord_keyname_len &&
              memcmp(key_buf, coord_keyname, coord_keyname_len) == 0)
@@ -580,6 +584,8 @@ Geometry *Geometry::create_from_json(Geometry_buffer *buffer,
         coord_start= je->value_begin;
         if (ci && ci != &geometrycollection_class)
           goto create_geom;
+        if (json_skip_level(je))
+          goto err_return;
       }
     }
     else if (key_len == geometries_keyname_len &&

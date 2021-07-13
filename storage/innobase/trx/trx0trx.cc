@@ -131,8 +131,6 @@ trx_init(
 
 	trx->will_lock = false;
 
-	trx->internal = false;
-
 	trx->bulk_insert = false;
 
 	ut_d(trx->start_file = 0);
@@ -177,8 +175,6 @@ struct TrxFactory {
 		trx_init(trx);
 
 		trx->dict_operation_lock_mode = 0;
-
-		trx->xid = UT_NEW_NOKEY(xid_t());
 
 		trx->detailed_error = reinterpret_cast<char*>(
 			ut_zalloc_nokey(MAX_DETAILED_ERROR_LEN));
@@ -231,7 +227,6 @@ struct TrxFactory {
 		ut_a(UT_LIST_GET_LEN(trx->lock.trx_locks) == 0);
 		ut_ad(UT_LIST_GET_LEN(trx->lock.evicted_tables) == 0);
 
-		UT_DELETE(trx->xid);
 		ut_free(trx->detailed_error);
 
 		trx->mutex_destroy();
@@ -367,12 +362,18 @@ trx_t *trx_create()
 /** Free the memory to trx_pools */
 void trx_t::free()
 {
+#ifdef HAVE_MEM_CHECK
+  if (xid.is_null())
+    MEM_MAKE_DEFINED(&xid, sizeof xid);
+  else
+    MEM_MAKE_DEFINED(&xid.data[xid.gtrid_length + xid.bqual_length],
+                     sizeof xid.data - (xid.gtrid_length + xid.bqual_length));
+#endif
   MEM_CHECK_DEFINED(this, sizeof *this);
 
   ut_ad(!n_mysql_tables_in_use);
   ut_ad(!mysql_log_file_name);
   ut_ad(!mysql_n_tables_locked);
-  ut_ad(!internal);
   ut_ad(!will_lock);
   ut_ad(error_state == DB_SUCCESS);
   ut_ad(magic_n == TRX_MAGIC_N);
@@ -443,7 +444,6 @@ void trx_t::free()
   MEM_NOACCESS(&fts_trx, sizeof fts_trx);
   MEM_NOACCESS(&fts_next_doc_id, sizeof fts_next_doc_id);
   MEM_NOACCESS(&flush_tables, sizeof flush_tables);
-  MEM_NOACCESS(&internal, sizeof internal);
 #ifdef UNIV_DEBUG
   MEM_NOACCESS(&start_line, sizeof start_line);
   MEM_NOACCESS(&start_file, sizeof start_file);
@@ -675,7 +675,7 @@ static void trx_resurrect(trx_undo_t *undo, trx_rseg_t *rseg,
     this trx_ref_count w/o mutex protection.
   */
   trx->rsegs.m_redo.rseg->acquire();
-  *trx->xid= undo->xid;
+  trx->xid= undo->xid;
   trx->id= undo->trx_id;
   trx->is_recovered= true;
   trx->start_time= start_time;
@@ -903,7 +903,7 @@ trx_start_low(
 	trx->auto_commit = thd_trx_is_auto_commit(trx->mysql_thd);
 
 	trx->read_only = srv_read_only_mode
-		|| (!trx->dict_operation && !trx->internal
+		|| (!trx->dict_operation
 		    && thd_trx_is_read_only(trx->mysql_thd));
 
 	if (!trx->auto_commit) {
@@ -913,7 +913,7 @@ trx_start_low(
 	}
 
 #ifdef WITH_WSREP
-	trx->xid->null();
+	trx->xid.null();
 #endif /* WITH_WSREP */
 
 	ut_a(ib_vector_is_empty(trx->autoinc_locks));
@@ -1347,7 +1347,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
     serialize all commits and prevent a group of transactions from
     gathering. */
 
-    commit_lsn= undo_no || !xid->is_null() ? mtr->commit_lsn() : 0;
+    commit_lsn= undo_no || !xid.is_null() ? mtr->commit_lsn() : 0;
     if (!commit_lsn)
       /* Nothing to be done. */;
     else if (flush_log_later)
@@ -1922,7 +1922,7 @@ static my_bool trx_recover_for_mysql_callback(rw_trx_hash_element_t *element,
                    << " in prepared state after recovery";
         ib::info() << "Transaction contains changes to " << trx->undo_no
                    << " rows";
-        xid= *trx->xid;
+        xid= trx->xid;
       }
     }
   }
@@ -1997,16 +1997,16 @@ static my_bool trx_get_trx_by_xid_callback(rw_trx_hash_element_t *element,
     if (trx->is_recovered &&
 	(trx_state_eq(trx, TRX_STATE_PREPARED) ||
 	 trx_state_eq(trx, TRX_STATE_PREPARED_RECOVERED)) &&
-        arg->xid->eq(reinterpret_cast<XID*>(trx->xid)))
+        arg->xid->eq(&trx->xid))
     {
 #ifdef WITH_WSREP
       /* The commit of a prepared recovered Galera
       transaction needs a valid trx->xid for
       invoking trx_sys_update_wsrep_checkpoint(). */
-      if (!wsrep_is_wsrep_xid(trx->xid))
+      if (!wsrep_is_wsrep_xid(&trx->xid))
 #endif /* WITH_WSREP */
       /* Invalidate the XID, so that subsequent calls will not find it. */
-      trx->xid->null();
+      trx->xid.null();
       arg->trx= trx;
       found= 1;
     }
@@ -2093,48 +2093,24 @@ trx_start_if_not_started_low(
 	ut_error;
 }
 
-/*************************************************************//**
-Starts a transaction for internal processing. */
-void
-trx_start_internal_low(
-/*===================*/
-	trx_t*	trx)		/*!< in/out: transaction */
+/**
+Start a transaction for internal processing.
+@param trx          transaction
+@param read_write   whether writes may be performed */
+void trx_start_internal_low(trx_t *trx, bool read_write)
 {
-	/* Ensure it is not flagged as an auto-commit-non-locking
-	transaction. */
-
-	trx->will_lock = true;
-
-	trx->internal = true;
-
-	trx_start_low(trx, true);
-}
-
-/** Starts a read-only transaction for internal processing.
-@param[in,out] trx	transaction to be started */
-void
-trx_start_internal_read_only_low(
-	trx_t*	trx)
-{
-	/* Ensure it is not flagged as an auto-commit-non-locking
-	transaction. */
-
-	trx->will_lock = true;
-
-	trx->internal = true;
-
-	trx_start_low(trx, false);
+  trx->will_lock= true;
+  trx_start_low(trx, read_write);
 }
 
 /** Start a transaction for a DDL operation.
 @param trx   transaction */
 void trx_start_for_ddl_low(trx_t *trx)
 {
-  ut_a(trx->state == TRX_STATE_NOT_STARTED);
   /* Flag this transaction as a dictionary operation, so that
   the data dictionary will be locked in crash recovery. */
   trx->dict_operation= true;
-  trx_start_internal_low(trx);
+  trx_start_internal_low(trx, true);
 }
 
 /*************************************************************//**

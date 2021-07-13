@@ -98,8 +98,6 @@
 
 #include "my_json_writer.h" 
 
-#define PRIV_LOCK_TABLES (SELECT_ACL | LOCK_TABLES_ACL)
-
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE

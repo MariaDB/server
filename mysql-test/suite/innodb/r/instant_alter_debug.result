@@ -443,6 +443,27 @@ SET GLOBAL innodb_limit_optimistic_insert_debug=@save_limit;
 SELECT * FROM t1;
 c2	c
 DROP TABLE t1;
+#
+# MDEV-25236 Online log apply fails for ROW_FORMAT=REDUNDANT tables
+#
+CREATE TABLE t1
+(a INT NOT NULL, b INT, c INT, d INT, e INT, f INT, g INT, h INT, i TEXT)
+ENGINE=InnoDB;
+ALTER TABLE t1 MODIFY a INT NULL;
+SET DEBUG_SYNC='innodb_inplace_alter_table_enter SIGNAL alter WAIT_FOR go';
+ALTER TABLE t1 ADD PRIMARY KEY (a);
+connect con1,localhost,root,,;
+set DEBUG_SYNC='now WAIT_FOR alter';
+BEGIN;
+INSERT INTO t1 SET a=0, i=REPEAT('1', 10000);
+ROLLBACK;
+set DEBUG_SYNC='now SIGNAL go';
+connection default;
+disconnect con1;
+SELECT * FROM t1;
+a	b	c	d	e	f	g	h	i
+DROP TABLE t1;
+SET DEBUG_SYNC=RESET;
 # End of 10.4 tests
 #
 # MDEV-22867 Assertion instant.n_core_fields == n_core_fields

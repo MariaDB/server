@@ -1795,22 +1795,14 @@ public:
     page_hash_latch *lock_get(ulint fold) const
     { return lock_get(fold, n_cells); }
 
-    /** Acquire an array latch, tolerating concurrent buf_pool_t::resize()
+    /** Acquire an array latch.
     @tparam exclusive  whether the latch is to be acquired exclusively
     @param fold    hash bucket key */
     template<bool exclusive> page_hash_latch *lock(ulint fold)
     {
-      for (;;)
-      {
-        auto n= n_cells;
-        page_hash_latch *latch= lock_get(fold, n);
-        latch->acquire<exclusive>();
-        /* Our latch prevents n_cells from changing. */
-        if (UNIV_LIKELY(n == n_cells))
-          return latch;
-        /* Retry, because buf_pool_t::resize_hash() affected us. */
-        latch->release<exclusive>();
-      }
+      page_hash_latch *latch= lock_get(fold, n_cells);
+      latch->acquire<exclusive>();
+      return latch;
     }
 
     /** Exclusively aqcuire all latches */
@@ -1820,19 +1812,6 @@ public:
     inline void write_unlock_all();
   };
 
-private:
-  /** Former page_hash that has been deleted during resize();
-  singly-linked list via freed_page_hash->array[1] */
-  page_hash_table *freed_page_hash;
-
-  /** Lock all page_hash, also freed_page_hash. */
-  inline void write_lock_all_page_hash();
-  /** Release all page_hash, also freed_page_hash. */
-  inline void write_unlock_all_page_hash();
-  /** Resize page_hash and zip_hash. */
-  inline void resize_hash();
-
-public:
   /** Hash table of file pages (buf_page_t::in_file() holds),
   indexed by page_id_t. Protected by both mutex and page_hash.lock_get(). */
   page_hash_table page_hash;

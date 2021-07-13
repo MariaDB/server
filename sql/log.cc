@@ -2186,11 +2186,20 @@ int binlog_commit(THD *thd, bool all, bool ro_1pc)
   */
   if (likely(!error) && ending_trans(thd, all))
   {
-    error= is_preparing_xa(thd) ?
+    bool is_xa_prepare= is_preparing_xa(thd);
+
+    error= is_xa_prepare ?
       binlog_commit_flush_xa_prepare(thd, all, cache_mngr) :
       binlog_commit_flush_trx_cache (thd, all, cache_mngr, ro_1pc);
+      // the user xa is unlogged on common exec path with the "empty" xa case
+      if (cache_mngr->need_unlog && !is_xa_prepare)
+      {
+        error=
+          mysql_bin_log.unlog(BINLOG_COOKIE_MAKE(cache_mngr->binlog_id,
+                                                 cache_mngr->delayed_error), 1);
+        cache_mngr->need_unlog= false;
+      }
   }
-
   /*
     This is part of the stmt rollback.
   */
@@ -7634,16 +7643,16 @@ MYSQL_BIN_LOG::write_transaction_to_binlog(THD *thd,
   entry.need_unlog= is_preparing_xa(thd);
   ha_info= all ? thd->transaction->all.ha_list : thd->transaction->stmt.ha_list;
   entry.ro_1pc= is_ro_1pc;
+  entry.end_event= end_ev;
+  auto has_xid= entry.end_event->get_type_code() == XID_EVENT;
 
-  for (; !entry.need_unlog && ha_info; ha_info= ha_info->next())
+  for (; has_xid && !entry.need_unlog && ha_info; ha_info= ha_info->next())
   {
     if (ha_info->is_started() && ha_info->ht() != binlog_hton &&
         !ha_info->ht()->commit_checkpoint_request)
       entry.need_unlog= true;
-    break;
   }
 
-  entry.end_event= end_ev;
   if (cache_mngr->stmt_cache.has_incident() ||
       cache_mngr->trx_cache.has_incident())
   {

@@ -1051,7 +1051,7 @@ trx_undo_create(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** undo,
 
 	uint16_t offset = trx_undo_header_create(block, trx->id, mtr);
 
-	*undo = trx_undo_mem_create(rseg, id, trx->id, trx->xid,
+	*undo = trx_undo_mem_create(rseg, id, trx->id, &trx->xid,
 				    block->page.id().page_no(), offset);
 	if (*undo == NULL) {
 		*err = DB_OUT_OF_MEMORY;
@@ -1109,7 +1109,7 @@ trx_undo_reuse_cached(trx_t* trx, trx_rseg_t* rseg, trx_undo_t** pundo,
 
 	uint16_t offset = trx_undo_header_create(block, trx->id, mtr);
 
-	trx_undo_mem_init_for_reuse(undo, trx->id, trx->xid, offset);
+	trx_undo_mem_init_for_reuse(undo, trx->id, &trx->xid, offset);
 
 	if (rseg != trx->rsegs.m_redo.rseg) {
 		return block;
@@ -1277,7 +1277,7 @@ void trx_undo_set_state_at_prepare(trx_t *trx, trx_undo_t *undo, bool rollback,
 	/*------------------------------*/
 	ut_ad(undo->state == TRX_UNDO_ACTIVE);
 	undo->state = TRX_UNDO_PREPARED;
-	undo->xid   = *trx->xid;
+	undo->xid   = trx->xid;
 	/*------------------------------*/
 
 	mtr->write<2>(*block, TRX_UNDO_SEG_HDR + TRX_UNDO_STATE + block->frame,

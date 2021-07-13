@@ -159,10 +159,16 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
        lock= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock))
   {
     ut_ad(lock->trx == this);
-    if (lock->type_mode == (LOCK_X | LOCK_TABLE))
+    switch (lock->type_mode) {
+    case LOCK_TABLE | LOCK_X:
       found_x= true;
-    else
-      ut_ad(lock->type_mode == (LOCK_IX | LOCK_TABLE));
+      break;
+    case LOCK_TABLE | LOCK_IX:
+    case LOCK_TABLE | LOCK_AUTO_INC:
+      break;
+    default:
+      ut_ad("unexpected lock type" == 0);
+    }
   }
   ut_ad(found_x);
 #endif
@@ -205,17 +211,18 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
                       "WHERE TABLE_ID=:id FOR UPDATE;\n"
 
                       "BEGIN\n"
+
+                      "DELETE FROM SYS_TABLES WHERE ID=:id;\n"
+                      "DELETE FROM SYS_COLUMNS WHERE TABLE_ID=:id;\n"
+
                       "OPEN idx;\n"
                       "WHILE 1 = 1 LOOP\n"
                       "  FETCH idx INTO iid;\n"
                       "  IF (SQL % NOTFOUND) THEN EXIT; END IF;\n"
-                      "  DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
                       "  DELETE FROM SYS_INDEXES WHERE CURRENT OF idx;\n"
+                      "  DELETE FROM SYS_FIELDS WHERE INDEX_ID=iid;\n"
                       "END LOOP;\n"
                       "CLOSE idx;\n"
-
-                      "DELETE FROM SYS_COLUMNS WHERE TABLE_ID=:id;\n"
-                      "DELETE FROM SYS_TABLES WHERE ID=:id;\n"
 
                       "END;\n", FALSE, this);
 }

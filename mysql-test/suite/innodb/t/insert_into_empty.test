@@ -1,6 +1,7 @@
 --source include/have_innodb.inc
 --source include/have_sequence.inc
 --source include/maybe_debug.inc
+--source include/have_partition.inc
 
 # Enable MDEV-515 table-level undo logging for insert into empty table
 SET foreign_key_checks=0, unique_checks=0;
@@ -183,3 +184,12 @@ COMMIT;
 SET autocommit=1;
 DROP TABLE t1;
 DROP TEMPORARY TABLE t0;
+
+--echo #
+--echo # MDEV-25496 Assertion 'trx->bulk_insert' failed
+--echo # in trx_undo_report_row_operation on INSERT
+--echo #
+CREATE TABLE t (i INT) ENGINE=InnoDB PARTITION BY HASH (i) PARTITIONS 2;
+INSERT INTO t VALUES (0);
+INSERT INTO t VALUES (1),(0),(1);
+DROP TABLE t;

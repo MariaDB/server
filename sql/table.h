@@ -1612,6 +1612,8 @@ public:
     m_needs_reopen= value;
   }
 
+  bool init_expr_arena(MEM_ROOT *mem_root);
+
   bool alloc_keys(uint key_count);
   bool check_tmp_key(uint key, uint key_parts,
                      uint (*next_field_no) (uchar *), uchar *arg);

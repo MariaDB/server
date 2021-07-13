@@ -2550,6 +2550,10 @@ fts_cmp_set_sync_doc_id(
 						to the one stored in CONFIG
 						table */
 {
+	if (srv_read_only_mode) {
+		return DB_READ_ONLY;
+	}
+
 	trx_t*		trx;
 	pars_info_t*	info;
 	dberr_t		error;
@@ -2566,11 +2570,7 @@ retry:
 	fts_table.table = table;
 
 	trx = trx_create();
-	if (srv_read_only_mode) {
-		trx_start_internal_read_only(trx);
-	} else {
-		trx_start_internal(trx);
-	}
+	trx_start_internal(trx);
 
 	trx->op_info = "update the next FTS document id";
 
@@ -5788,11 +5788,11 @@ fts_load_stopword(
 
 	if (!trx) {
 		trx = trx_create();
-		if (srv_read_only_mode) {
-			trx_start_internal_read_only(trx);
-		} else {
-			trx_start_internal(trx);
-		}
+#ifdef UNIV_DEBUG
+		trx->start_line = __LINE__;
+		trx->start_file = __FILE__;
+#endif
+		trx_start_internal_low(trx, !high_level_read_only);
 		trx->op_info = "upload FTS stopword";
 		new_trx = TRUE;
 	}

@@ -46,6 +46,13 @@ SELECT st_astext(st_geomfromgeojson('{"type": "MultiPolygon","coordinates": []}'
 
 SELECT ST_GEOMFROMGEOJSON("{ \"type\": \"Feature\", \"geometry\": [10, 20] }");
 
+#
+# MDEV-25461 Assertion `je->state == JST_KEY' failed in Geometry::create_from_json.
+#
+
+SELECT ST_ASTEXT (ST_GEOMFROMGEOJSON ('{ "type": "GEOMETRYCOLLECTION", "coordinates": [102.0, 0.0]}'));
+
+SELECT ST_ASTEXT(ST_GEOMFROMGEOJSON('{"type": ["POINT"], "coINates": [0,0] }'));
 --echo #
 --echo # End of 10.2 tests
 --echo #

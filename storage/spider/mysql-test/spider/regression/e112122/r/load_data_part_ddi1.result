@@ -50,10 +50,10 @@ TRUNCATE TABLE mysql.general_log;
 connection master_1;
 LOAD DATA  INFILE 'MYSQLTEST_VARDIR/tmp/spider_outfile.tsv'  INTO TABLE tbl_a;
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%';
 argument
 insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`,`val`)values(1,1),(3,3),(5,5),(7,7),(9,9)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%'
 SELECT pkey, val FROM tbl_a ORDER BY pkey;
 pkey	val
 1	1
@@ -62,10 +62,10 @@ pkey	val
 7	7
 9	9
 connection child2_2;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%';
 argument
 insert high_priority into `auto_test_remote2`.`tbl_a`(`pkey`,`val`)values(0,0),(2,2),(4,4),(6,6),(8,8)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%`tbl_a`%'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%`tbl_a`%'
 SELECT pkey, val FROM tbl_a ORDER BY pkey;
 pkey	val
 0	0

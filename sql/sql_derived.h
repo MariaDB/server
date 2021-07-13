@@ -23,6 +23,11 @@ struct LEX;
 bool mysql_handle_derived(LEX *lex, uint phases);
 bool mysql_handle_single_derived(LEX *lex, TABLE_LIST *derived, uint phases);
 
+Item *transform_condition_or_part(THD *thd,
+                                  Item *cond,
+                                  Item_transformer transformer,
+                                  uchar *arg);
+
 bool pushdown_cond_for_derived(THD *thd, Item *cond, TABLE_LIST *derived);
 
 #endif /* SQL_DERIVED_INCLUDED */

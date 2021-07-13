@@ -9286,10 +9286,11 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                        uint order_num, ORDER *order, bool ignore,
                        bool if_exists)
 {
-  bool engine_changed, error, frm_is_created= false;
+  bool engine_changed, error, frm_is_created= false, error_handler_pushed= false;
   bool no_ha_table= true;  /* We have not created table in storage engine yet */
   TABLE *table, *new_table;
   DDL_LOG_STATE ddl_log_state;
+  Turn_errors_to_warnings_handler errors_to_warnings;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   bool partition_changed= false;
@@ -10155,9 +10156,13 @@ do_continue:;
     if (alter_info->requested_lock == Alter_info::ALTER_TABLE_LOCK_NONE)
       ha_alter_info.online= true;
     // Ask storage engine whether to use copy or in-place
-    ha_alter_info.inplace_supported=
-      table->file->check_if_supported_inplace_alter(&altered_table,
-                                                    &ha_alter_info);
+    {
+      Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
+      ha_alter_info.inplace_supported=
+        table->file->check_if_supported_inplace_alter(&altered_table,
+                                                      &ha_alter_info);
+    }
+
     if (ha_alter_info.inplace_supported != HA_ALTER_INPLACE_NOT_SUPPORTED)
     {
       List_iterator<Key> it(alter_info->key_list);
@@ -10606,19 +10611,21 @@ do_continue:;
   }
 
   // ALTER TABLE succeeded, delete the backup of the old table.
-  error= quick_rm_table(thd, old_db_type, &alter_ctx.db, &backup_name,
-                        FN_IS_TMP |
-                        (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE: 0));
+  // a failure to delete isn't an error, as we cannot rollback ALTER anymore
+  thd->push_internal_handler(&errors_to_warnings);
+  error_handler_pushed=1;
+
+  quick_rm_table(thd, old_db_type, &alter_ctx.db, &backup_name,
+                        FN_IS_TMP | (engine_changed ? NO_HA_TABLE | NO_PAR_TABLE: 0));
 
   debug_crash_here("ddl_log_alter_after_delete_backup");
   if (engine_changed)
   {
     /* the .frm file was removed but not the original table */
-    error|= quick_rm_table(thd, old_db_type, &alter_ctx.db,
-                           &alter_ctx.table_name,
-                           NO_FRM_RENAME |
-                           (engine_changed ? 0 : FN_IS_TMP));
+    quick_rm_table(thd, old_db_type, &alter_ctx.db, &alter_ctx.table_name,
+                           NO_FRM_RENAME | (engine_changed ? 0 : FN_IS_TMP));
   }
+
   debug_crash_here("ddl_log_alter_after_drop_original_table");
   if (binlog_as_create_select)
   {
@@ -10633,21 +10640,15 @@ do_continue:;
     thd->binlog_xid= 0;
   }
 
-  if (error)
-  {
-    /*
-      The fact that deletion of the backup failed is not critical
-      error, but still worth reporting as it might indicate serious
-      problem with server.
-    */
-    goto err_with_mdl_after_alter;
-  }
-
 end_inplace:
   thd->variables.option_bits&= ~OPTION_BIN_COMMIT_OFF;
 
-  if (thd->locked_tables_list.reopen_tables(thd, false))
-    goto err_with_mdl_after_alter;
+  if (!error_handler_pushed)
+    thd->push_internal_handler(&errors_to_warnings);
+
+  thd->locked_tables_list.reopen_tables(thd, false);
+
+  thd->pop_internal_handler();
 
   THD_STAGE_INFO(thd, stage_end);
   DEBUG_SYNC(thd, "alter_table_before_main_binlog");
@@ -10758,19 +10759,6 @@ err_cleanup:
     (*inplace_alter_table_committed)(inplace_alter_table_committed_argument);
   }
   DBUG_RETURN(true);
-
-err_with_mdl_after_alter:
-  DBUG_PRINT("error", ("err_with_mdl_after_alter"));
-  /* the table was altered. binlog the operation */
-  DBUG_ASSERT(!(mysql_bin_log.is_open() &&
-                thd->is_current_stmt_binlog_format_row() &&
-                (create_info->tmp_table())));
-  /*
-    We can't reset error as we will return 'true' below and the server
-    expects that error is set
-  */
-  if (!binlog_as_create_select)
-    write_bin_log_with_if_exists(thd, FALSE, FALSE, log_if_exists);
 
 err_with_mdl:
   ddl_log_complete(&ddl_log_state);

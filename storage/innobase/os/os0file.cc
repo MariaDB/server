@@ -3233,7 +3233,7 @@ os_file_set_nocache(
 /** Check if the file system supports sparse files.
 @param fh	file handle
 @return true if the file system supports sparse files */
-IF_WIN(static,) bool os_is_sparse_file_supported(os_file_t fh)
+static bool os_is_sparse_file_supported(os_file_t fh)
 {
 #ifdef _WIN32
 	FILE_ATTRIBUTE_TAG_INFO info;
@@ -3292,6 +3292,8 @@ os_file_set_size(
 
 fallback:
 #else
+	struct stat statbuf;
+
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
@@ -3305,10 +3307,17 @@ fallback:
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		os_offset_t current_size = os_file_get_size(file);
-		err = current_size >= size
-			? 0 : posix_fallocate(file, current_size,
+		if (fstat(file, &statbuf)) {
+			err = errno;
+		} else {
+			os_offset_t current_size = statbuf.st_size;
+			if (current_size >= size) {
+				return true;
+			}
+			current_size &= ~os_offset_t(statbuf.st_blksize - 1);
+			err = posix_fallocate(file, current_size,
 					      size - current_size);
+		}
 	} while (err == EINTR
 		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
@@ -3331,6 +3340,27 @@ fallback:
 # endif /* HAVE_POSIX_ALLOCATE */
 #endif /* _WIN32*/
 
+#ifdef _WIN32
+	os_offset_t	current_size = os_file_get_size(file);
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(file, FileStorageInfo, &info,
+					 sizeof info)) {
+		if (info.LogicalBytesPerSector) {
+			current_size &= ~os_offset_t(info.LogicalBytesPerSector
+						     - 1);
+		}
+	}
+#else
+	if (fstat(file, &statbuf)) {
+		return false;
+	}
+	os_offset_t current_size = statbuf.st_size
+		& ~os_offset_t(statbuf.st_blksize - 1);
+#endif
+	if (current_size >= size) {
+		return true;
+	}
+
 	/* Write up to 1 megabyte at a time. */
 	ulint	buf_size = ut_min(ulint(64),
 				  ulint(size >> srv_page_size_shift))
@@ -3341,8 +3371,6 @@ fallback:
 							srv_page_size));
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
-
-	os_offset_t	current_size = os_file_get_size(file);
 
 	while (current_size < size
 	       && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
@@ -3495,24 +3523,23 @@ dberr_t IORequest::punch_hole(os_offset_t off, ulint len) const
 
 	/* Check does file system support punching holes for this
 	tablespace. */
-	if (!node->space->punch_hole) {
+	if (!node->punch_hole) {
 		return DB_IO_NO_PUNCH_HOLE;
 	}
 
 	dberr_t err = os_file_punch_hole(node->handle, off, trim_len);
 
-	if (err == DB_SUCCESS) {
+	switch (err) {
+	case DB_SUCCESS:
 		srv_stats.page_compressed_trim_op.inc();
-	} else {
-		/* If punch hole is not supported,
-		set space so that it is not used. */
-		if (err == DB_IO_NO_PUNCH_HOLE) {
-			node->space->punch_hole = false;
-			err = DB_SUCCESS;
-		}
+		return err;
+	case DB_IO_NO_PUNCH_HOLE:
+		node->punch_hole = false;
+		err = DB_SUCCESS;
+		/* fall through */
+	default:
+		return err;
 	}
-
-	return (err);
 }
 
 /** This function returns information about the specified file
@@ -4101,81 +4128,56 @@ static bool is_file_on_ssd(char *file_path)
 
 #endif
 
-/** Determine some file metadata when creating or reading the file.
-@param	file	the file that is being created, or OS_FILE_CLOSED */
 void fil_node_t::find_metadata(os_file_t file
 #ifndef _WIN32
-			       , struct stat* statbuf
+                               , bool create, struct stat *statbuf
 #endif
-			       )
+                               )
 {
-	if (file == OS_FILE_CLOSED) {
-		file = handle;
-		ut_ad(is_open());
-	}
+  if (!is_open())
+  {
+    handle= file;
+    ut_ad(is_open());
+  }
 
-#ifdef _WIN32 /* FIXME: make this unconditional */
-	if (space->punch_hole) {
-		space->punch_hole = os_is_sparse_file_supported(file);
-	}
-#endif
+  if (!space->is_compressed())
+    punch_hole= 0;
+  else if (my_test_if_thinly_provisioned(file))
+    punch_hole= 2;
+  else
+    punch_hole= IF_WIN(, !create ||) os_is_sparse_file_supported(file);
 
-	/*
-	For the temporary tablespace and during the
-	non-redo-logged adjustments in
-	IMPORT TABLESPACE, we do not care about
-	the atomicity of writes.
-
-	Atomic writes is supported if the file can be used
-	with atomic_writes (not log file), O_DIRECT is
-	used (tested in ha_innodb.cc) and the file is
-	device and file system that supports atomic writes
-	for the given block size.
-	*/
-	space->atomic_write_supported = space->purpose == FIL_TYPE_TEMPORARY
-		|| space->purpose == FIL_TYPE_IMPORT;
 #ifdef _WIN32
-	on_ssd = is_file_on_ssd(name);
-	FILE_STORAGE_INFO info;
-	if (GetFileInformationByHandleEx(
-		file, FileStorageInfo, &info, sizeof(info))) {
-		block_size = info.PhysicalBytesPerSectorForAtomicity;
-	} else {
-		block_size = 512;
-	}
+  on_ssd= is_file_on_ssd(name);
+  FILE_STORAGE_INFO info;
+  if (GetFileInformationByHandleEx(file, FileStorageInfo, &info, sizeof info))
+    block_size= info.PhysicalBytesPerSectorForAtomicity;
+  else
+    block_size= 512;
 #else
-	struct stat sbuf;
-	if (!statbuf && !fstat(file, &sbuf)) {
-		statbuf = &sbuf;
-	}
-	if (statbuf) {
-		block_size = statbuf->st_blksize;
-	}
-	on_ssd = space->atomic_write_supported
+  struct stat sbuf;
+  if (!statbuf && !fstat(file, &sbuf))
+    statbuf= &sbuf;
+  if (statbuf)
+    block_size= statbuf->st_blksize;
 # ifdef UNIV_LINUX
-		|| (statbuf && fil_system.is_ssd(statbuf->st_dev))
+  on_ssd= statbuf && fil_system.is_ssd(statbuf->st_dev);
 # endif
-		;
 #endif
-	if (!space->atomic_write_supported) {
-		space->atomic_write_supported = atomic_write
-			&& srv_use_atomic_writes
-#ifndef _WIN32
-			&& my_test_if_atomic_write(file,
-						   space->physical_size())
-#else
-			/* On Windows, all single sector writes are atomic,
-			as per WriteFile() documentation on MSDN.
-			We also require SSD for atomic writes, eventhough
-			technically it is not necessary- the reason is that
-			on hard disks, we still want the benefit from
-			(non-atomic) neighbor page flushing in the buffer
-			pool code. */
-			&& srv_page_size == block_size
-			&& on_ssd
-#endif
-			;
-	}
+
+  if (space->purpose != FIL_TYPE_TABLESPACE)
+  {
+    /* For temporary tablespace or during IMPORT TABLESPACE, we
+    disable neighbour flushing and do not care about atomicity. */
+    on_ssd= true;
+    atomic_write= true;
+  }
+  else
+    /* On Windows, all single sector writes are atomic, as per
+    WriteFile() documentation on MSDN. */
+    atomic_write= srv_use_atomic_writes &&
+      IF_WIN(srv_page_size == block_size,
+	     my_test_if_atomic_write(file, space->physical_size()));
 }
 
 /** Read the first page of a data file.
@@ -4270,20 +4272,16 @@ invalid:
     space->free_len= free_len;
   }
 
-#ifdef UNIV_LINUX
-  find_metadata(handle, &statbuf);
-#else
-  find_metadata();
-#endif
+  IF_WIN(find_metadata(), find_metadata(handle, false, &statbuf));
   /* Truncate the size to a multiple of extent size. */
   ulint	mask= psize * FSP_EXTENT_SIZE - 1;
 
   if (size_bytes <= mask);
     /* .ibd files start smaller than an
     extent size. Do not truncate valid data. */
-  else size_bytes &= ~os_offset_t(mask);
+  else
+    size_bytes&= ~os_offset_t(mask);
 
-  space->punch_hole= space->is_compressed();
   this->size= uint32_t(size_bytes / psize);
   space->set_sizes(this->size);
   return true;

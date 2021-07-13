@@ -125,7 +125,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
   }
   eval $CHILD2_1_SELECT_TEXT_PK_TABLES1;
   if (!$OUTPUT_CHILD_GROUP2)
@@ -219,7 +219,7 @@ if ($USE_CHILD_GROUP2)
   --connection child2_1
   if ($USE_GENERAL_LOG)
   {
-    SELECT argument FROM mysql.general_log WHERE argument LIKE '%update %';
+    SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
   }
   eval $CHILD2_1_SELECT_TABLES;
   if (!$OUTPUT_CHILD_GROUP2)

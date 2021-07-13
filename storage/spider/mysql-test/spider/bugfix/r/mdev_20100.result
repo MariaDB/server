@@ -76,7 +76,7 @@ SELECT a, b, c FROM tbl_a PARTITION (pt2,pt3);
 a	b	c
 5	c	2001-12-31 23:59:59
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r3` t0 where (t0.`b` = 'c')
 select `a`,`b`,`c` from `auto_test_remote`.`ta_r2`
@@ -90,7 +90,7 @@ select `a`,`b`,`c` from `auto_test_remote`.`ta_r4`
 select t0.`a` `a`,t0.`b` `b`,t0.`c` `c` from `auto_test_remote`.`ta_r2` t0 where (t0.`b` = 'c')
 select `a`,`b`,`c` from `auto_test_remote`.`ta_r3`
 select `a`,`b`,`c` from `auto_test_remote`.`ta_r4`
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT a, b, c FROM ta_r2 ORDER BY a ;
 SELECT a, b, c FROM ta_r3 ORDER BY a ;
 SELECT a, b, c FROM ta_r4 ORDER BY a;
