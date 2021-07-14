@@ -2682,6 +2682,13 @@ create table t2345678911234567892123456789312345678941234567895123234234(id int)
     COMMENT='host "192.168.21.1", user "spider", password "password", database "test32738123123123"';
 drop table t2345678911234567892123456789312345678941234567895123234234;
 
+--echo #
+--echo # MDEV-26139 Spider crashes with segmentation fault (signal 11) on CREATE TABLE when COMMENT does not contain embedded double quotes
+--echo #
+create table mdev_26139 (id int) ENGINE=SPIDER
+    COMMENT="host '192.168.21.1', user 'spider', password 'password', database 'test'";
+drop table mdev_26139;
+
 --echo
 --echo deinit
 --disable_warnings
