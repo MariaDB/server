@@ -1560,6 +1560,9 @@ trx_flush_log_if_needed_low(
 
 	switch (srv_flush_log_at_trx_commit) {
 	case 3:
+               /* Write the log and optionally flush it to disk */
+               log_write_up_to(lsn, flush);
+               return;
 	case 2:
 		/* Write the log but do not flush it to disk */
 		flush = false;
