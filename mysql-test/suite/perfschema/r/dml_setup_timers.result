@@ -100,3 +100,12 @@ statement	NANOSECOND
 transaction	MICROSECOND
 Warnings:
 Warning	1681	'performance_schema.setup_timers' is deprecated and will be removed in a future release
+#
+# MDEV-25325 column_comment for performance_shcema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='setup_timers';
+column_name	column_comment
+NAME	Type of instrument the timer is used for.
+TIMER_NAME	Timer applying to the instrument type. Can be modified.

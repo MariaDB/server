@@ -46,9 +46,9 @@ table_users::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE users("
-                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default null,"
-                      "CURRENT_CONNECTIONS bigint not null,"
-                      "TOTAL_CONNECTIONS bigint not null)") },
+                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default null comment 'The connection''s client user name for the connection, or NULL if an internal thread.',"
+                      "CURRENT_CONNECTIONS bigint not null comment 'Current connections for the user.',"
+                      "TOTAL_CONNECTIONS bigint not null comment 'Total connections for the user.')") },
   false  /* perpetual */
 };
 

@@ -46,9 +46,9 @@ table_hosts::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE hosts("
-                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null,"
-                      "CURRENT_CONNECTIONS bigint not null,"
-                      "TOTAL_CONNECTIONS bigint not null)") },
+                      "HOST CHAR(" STRINGIFY_ARG(HOSTNAME_LENGTH) ") collate utf8_bin default null comment 'Host name used by the client to connect, NULL for internal threads or user sessions that failed to authenticate.',"
+                      "CURRENT_CONNECTIONS bigint not null comment 'Current number of the host''s connections.',"
+                      "TOTAL_CONNECTIONS bigint not null comment 'Total number of the host''s connections')") },
   false  /* perpetual */
 };
 

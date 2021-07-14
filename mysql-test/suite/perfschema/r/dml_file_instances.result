@@ -77,3 +77,13 @@ DROP TABLE t_db_26152751;
 SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t_db_26152751%";
 FILE_NAME
 DROP DATABASE db_26152751;
+#
+# MDEV-25325 column_comment for performance_shcema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='file_instances';
+column_name	column_comment
+FILE_NAME	File name.
+EVENT_NAME	Instrument name associated with the file.
+OPEN_COUNT	Open handles on the file. A value of greater than zero means that the file is currently open.

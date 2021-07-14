@@ -49,13 +49,13 @@ table_socket_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE socket_instances("
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "THREAD_ID BIGINT unsigned,"
-                      "SOCKET_ID INTEGER not null,"
-                      "IP VARCHAR(64) not null,"
-                      "PORT INTEGER not null,"
-                      "STATE ENUM('IDLE','ACTIVE') not null)") },
+                      "EVENT_NAME VARCHAR(128) not null comment 'NAME from the setup_instruments table, and the name of the wait/io/socket/* instrument that produced the event.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Memory address of the object.',"
+                      "THREAD_ID BIGINT unsigned comment 'Thread identifier that the server assigns to each socket.',"
+                      "SOCKET_ID INTEGER not null comment 'The socket''s internal file handle.',"
+                      "IP VARCHAR(64) not null comment 'Client IP address. Blank for Unix socket file, otherwise an IPv4 or IPv6 address. Together with the PORT identifies the connection.',"
+                      "PORT INTEGER not null comment 'TCP/IP port number, from 0 to 65535. Together with the IP identifies the connection.',"
+                      "STATE ENUM('IDLE','ACTIVE') not null comment 'Socket status, either IDLE if waiting to receive a request from a client, or ACTIVE')") },
   false  /* perpetual */
 };
 

@@ -49,9 +49,9 @@ table_file_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE file_instances("
-                      "FILE_NAME VARCHAR(512) not null,"
-                      "EVENT_NAME VARCHAR(128) not null,"
-                      "OPEN_COUNT INTEGER unsigned not null)") },
+                      "FILE_NAME VARCHAR(512) not null comment 'File name.',"
+                      "EVENT_NAME VARCHAR(128) not null comment 'Instrument name associated with the file.',"
+                      "OPEN_COUNT INTEGER unsigned not null comment 'Open handles on the file. A value of greater than zero means that the file is currently open.')") },
   false  /* perpetual */
 };
 

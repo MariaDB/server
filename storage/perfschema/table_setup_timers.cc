@@ -73,8 +73,8 @@ table_setup_timers::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_timers("
-                      "NAME VARCHAR(64) not null,"
-                      "TIMER_NAME ENUM ('CYCLE', 'NANOSECOND', 'MICROSECOND', 'MILLISECOND', 'TICK') not null)") },
+                      "NAME VARCHAR(64) not null comment 'Type of instrument the timer is used for.',"
+                      "TIMER_NAME ENUM ('CYCLE', 'NANOSECOND', 'MICROSECOND', 'MILLISECOND', 'TICK') not null comment 'Timer applying to the instrument type. Can be modified.')") },
   false  /* perpetual */
 };
 
