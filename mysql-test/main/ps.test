@@ -5054,3 +5054,16 @@ DROP USER user1@localhost;
 --echo #
 --echo # End of 10.4 tests
 --echo #
+
+--echo #
+--echo # MDEV-26145: Incorrect metadata is sent on running query with union in PS mode
+--echo #
+CREATE TABLE t1(a INT);
+--enable_metadata
+(SELECT MAX(a) FROM t1) UNION (SELECT MAX(a) FROM t1);
+--disable_metadata
+DROP TABLE t1;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #
