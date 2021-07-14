@@ -485,15 +485,15 @@ Description: MariaDB database core server files
 
 Package: mariadb-server-10.5
 Architecture: any
-Suggests: mailx,
+Suggests: galera-4 (>=26.4),
+          mailx,
           mariadb-test,
           netcat-openbsd
 Recommends: libhtml-template-perl
 Pre-Depends: adduser (>= 3.40),
              debconf,
              mariadb-common (>= ${source:Version})
-Depends: galera-4 (>=26.4),
-         gawk,
+Depends: gawk,
          iproute2 [linux-any],
          libdbi-perl,
          lsb-base (>= 3.0-10),
