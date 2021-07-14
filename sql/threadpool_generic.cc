@@ -1590,6 +1590,9 @@ int TP_pool_generic::init()
     sql_print_error("Allocation failed");
     DBUG_RETURN(-1);
   }
+  PSI_register(mutex);
+  PSI_register(cond);
+  PSI_register(thread);
   scheduler_init();
   threadpool_started= true;
   for (uint i= 0; i < threadpool_max_size; i++)
@@ -1603,10 +1606,6 @@ int TP_pool_generic::init()
     sql_print_error("Can't set threadpool size to %d",threadpool_size);
     DBUG_RETURN(-1);
   }
-  PSI_register(mutex);
-  PSI_register(cond);
-  PSI_register(thread);
-
   pool_timer.tick_interval= threadpool_stall_limit;
   start_timer(&pool_timer);
   DBUG_RETURN(0);
