@@ -1753,7 +1753,10 @@ static void close_connections(void)
                       uint32_t(thread_count)));
 
   while (thread_count - binlog_dump_thread_count)
+  {
     my_sleep(1000);
+    server_threads.iterate(kill_thread_phase_1);
+  }
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);

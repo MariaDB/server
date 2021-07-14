@@ -22,14 +22,16 @@
 #include <mysql/psi/mysql_socket.h>
 #include <hash.h>
 #include "violite.h"
+#include "sql_class.h"
 
 /*
   Object to hold connect information to be given to the newly created thread
 */
 
+#ifdef MYSQL_SERVER
 struct scheduler_functions;
 
-class CONNECT : public ilink {
+class CONNECT : public THD_count, public ilink {
 public:
   MYSQL_SOCKET sock;
 #ifdef _WIN32
@@ -60,15 +62,7 @@ class THD;
 typedef struct user_conn USER_CONN;
 
 void init_max_user_conn(void);
-void init_global_user_stats(void);
-void init_global_table_stats(void);
-void init_global_index_stats(void);
-void init_global_client_stats(void);
 void free_max_user_conn(void);
-void free_global_user_stats(void);
-void free_global_table_stats(void);
-void free_global_index_stats(void);
-void free_global_client_stats(void);
 
 pthread_handler_t handle_one_connection(void *arg);
 void do_handle_one_connection(CONNECT *connect, bool put_in_cache);
@@ -97,6 +91,16 @@ void update_global_user_stats(THD* thd, bool create_user, time_t now);
 int get_or_create_user_conn(THD *thd, const char *user,
                             const char *host, const USER_RESOURCES *mqh);
 int check_for_max_user_connections(THD *thd, USER_CONN *uc);
+#endif
+
+void init_global_user_stats(void);
+void init_global_table_stats(void);
+void init_global_index_stats(void);
+void init_global_client_stats(void);
+void free_global_user_stats(void);
+void free_global_table_stats(void);
+void free_global_index_stats(void);
+void free_global_client_stats(void);
 
 extern HASH global_user_stats;
 extern HASH global_client_stats;
