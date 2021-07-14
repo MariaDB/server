@@ -1,0 +1,60 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+this test is for MDEV-25808
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+SET @old_log_output = @@global.log_output;
+SET GLOBAL log_output = 'TABLE,FILE';
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+CREATE TABLE tbl_a (
+c1 BIGINT(20) UNSIGNED DEFAULT NULL
+) ENGINE=Spider PARTITION BY LIST(c1 % 3) (
+PARTITION pt1 VALUES IN (0) COMMENT='srv "s_2_1", table "ta_r2"',
+PARTITION pt2 VALUES IN (1) COMMENT='srv "s_2_1", table "ta_r3"',
+PARTITION pt3 VALUES IN (2) COMMENT='srv "s_2_1", table "ta_r4"'
+  )
+insert into tbl_a(c1) values (6800281190650363904), (6800283342014005248), (6800281443222175744), (6800288474713833472), (6800293877182906368), (6800283053403160576), (6800286406840958976), (17864960750176564435);
+
+test 1
+connection child2_1;
+TRUNCATE TABLE mysql.general_log;
+connection master_1;
+SELECT * FROM tbl_a WHERE c1 = 17864960750176564435;
+c1
+17864960750176564435
+PREPARE p1 FROM 'select * FROM tbl_a WHERE c1 = ?';
+EXECUTE p1 USING 17864960750176564435;
+c1
+17864960750176564435
+DEALLOCATE PREPARE p1;
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+SET GLOBAL log_output = @old_log_output;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

@@ -4559,6 +4559,48 @@ String *Item_param::PValue::val_str(String *str,
   return NULL;
 }
 
+String *Item_param::PValue::val_str(String *str,
+                                    const Type_std_attributes *attr,
+	                                bool val_is_unsigned)
+{
+  ulonglong uinteger= 0ULL;
+  switch (type_handler()->cmp_type())
+  {
+  case STRING_RESULT:
+    return &m_string_ptr;
+  case REAL_RESULT:
+    str->set_real(real, NOT_FIXED_DEC, &my_charset_bin);
+    return str;
+  case INT_RESULT:
+    if (val_is_unsigned)
+    {
+      uinteger= static_cast<ulonglong>(integer);
+      str->set(uinteger, &my_charset_bin);
+    }
+    else
+    {
+      str->set(integer, &my_charset_bin);
+    }
+    return str;
+  case DECIMAL_RESULT:
+    if (m_decimal.to_string_native(str, 0, 0, 0) <= 1)
+      return str;
+    return NULL;
+  case TIME_RESULT: {
+    if (str->reserve(MAX_DATE_STRING_REP_LENGTH))
+      return NULL;
+    str->length(
+        (uint) my_TIME_to_str(&time, (char *) str->ptr(), attr->decimals));
+    str->set_charset(&my_charset_bin);
+    return str;
+  }
+  case ROW_RESULT:
+    DBUG_ASSERT(0);
+    break;
+  }
+  return NULL;
+}
+
 
 /**
   Return Param item values in string format, for generating the dynamic 
