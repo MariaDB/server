@@ -32,6 +32,10 @@
 #include "uniques.h"
 #include "sql_show.h"
 #include "sql_partition.h"
+#include "my_json_writer.h"
+
+#include <vector>
+#include <string>
 
 /*
   The system variable 'use_stat_tables' can take one of the
@@ -178,12 +182,12 @@ TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
   },
   {
     { STRING_WITH_LEN("hist_type") },
-    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB')") },
+    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON')") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("histogram") },
-    { STRING_WITH_LEN("varbinary(255)") },
+    { STRING_WITH_LEN("blob") },
     { NULL, 0 }
   }
 };
@@ -1070,9 +1074,16 @@ public:
           stat_field->store(stats->histogram.get_type() + 1);
           break;
         case COLUMN_STAT_HISTOGRAM:
-	  stat_field->store((char *)stats->histogram.get_values(),
-                            stats->histogram.get_size(), &my_charset_bin);
-          break;           
+          if (stats->histogram.get_type() == JSON)
+          {
+            stat_field->store((char *) stats->histogram.get_values(),
+                              strlen((char *) stats->histogram.get_values()), &my_charset_bin);
+          } else
+          {
+            stat_field->store((char *) stats->histogram.get_values(),
+                              stats->histogram.get_size(), &my_charset_bin);
+          }
+          break;
         }
       }
     }
@@ -1519,6 +1530,7 @@ public:
 
 class Histogram_builder
 {
+protected:
   Field *column;           /* table field for which the histogram is built */
   uint col_length;         /* size of this field                           */
   ha_rows records;         /* number of records the histogram is built for */
@@ -1549,13 +1561,15 @@ public:
     count_distinct_single_occurence= 0;
   }
 
+  virtual ~Histogram_builder() = default;
+
   ulonglong get_count_distinct() const { return count_distinct; }
   ulonglong get_count_single_occurence() const
   {
     return count_distinct_single_occurence;
   }
 
-  int next(void *elem, element_count elem_cnt)
+  virtual int next(void *elem, element_count elem_cnt)
   {
     count_distinct++;
     if (elem_cnt == 1)
@@ -1567,7 +1581,7 @@ public:
     {
       column->store_field_value((uchar *) elem, col_length);
       histogram->set_value(curr_bucket,
-                           column->pos_in_interval(min_value, max_value)); 
+                           column->pos_in_interval(min_value, max_value));
       curr_bucket++;
       while (curr_bucket != hist_width &&
              count > bucket_capacity * (curr_bucket + 1))
@@ -1580,12 +1594,71 @@ public:
   }
 };
 
+class Histogram_builder_json : public Histogram_builder
+{
+std::vector<std::string> bucket_bounds = {};
+
+public:
+  Histogram_builder_json(Field *col, uint col_len, ha_rows rows)
+  : Histogram_builder(col, col_len, rows)
+  {
+    Column_statistics *col_stats= col->collected_stats;
+    min_value= col_stats->min_value;
+    max_value= col_stats->max_value;
+    histogram= &col_stats->histogram;
+    hist_width= histogram->get_width();
+    bucket_capacity= (double) records / (hist_width + 1);
+    curr_bucket= 0;
+    count= 0;
+    count_distinct= 0;
+    count_distinct_single_occurence= 0;
+  }
+
+  ~Histogram_builder_json() override = default;
+
+  int next(void *elem, element_count elem_cnt) override
+  {
+    count_distinct++;
+    if (elem_cnt == 1)
+      count_distinct_single_occurence++;
+    count+= elem_cnt;
+    if (curr_bucket == hist_width)
+      return 0;
+    if (count > bucket_capacity * (curr_bucket + 1))
+    {
+      column->store_field_value((uchar *) elem, col_length);
+      StringBuffer<MAX_FIELD_WIDTH> val;
+      column->val_str(&val);
+      bucket_bounds.emplace_back(val.c_ptr());
+      curr_bucket++;
+    }
+    return 0;
+  }
+
+  void build() {
+    Json_writer *writer = new Json_writer();
+    writer->start_array();
+    for(auto& value: bucket_bounds) {
+      writer->add_str(value.c_str());
+    }
+    writer->end_array();
+    histogram->set_size(bucket_bounds.size());
+    Binary_string *json_string = (Binary_string *) writer->output.get_string();
+    histogram->set_values((uchar *) json_string->c_ptr());
+  }
+};
 
 C_MODE_START
 
 int histogram_build_walk(void *elem, element_count elem_cnt, void *arg)
 {
   Histogram_builder *hist_builder= (Histogram_builder *) arg;
+  return hist_builder->next(elem, elem_cnt);
+}
+
+int json_histogram_build_walk(void *elem, element_count elem_cnt, void *arg)
+{
+  Histogram_builder_json *hist_builder= (Histogram_builder_json *) arg;
   return hist_builder->next(elem, elem_cnt);
 }
 
@@ -1694,10 +1767,22 @@ public:
   */
    void walk_tree_with_histogram(ha_rows rows)
   {
-    Histogram_builder hist_builder(table_field, tree_key_length, rows);
-    tree->walk(table_field->table,  histogram_build_walk, (void *) &hist_builder);
-    distincts= hist_builder.get_count_distinct();
-    distincts_single_occurence= hist_builder.get_count_single_occurence();
+    if(table_field->collected_stats->histogram.get_type() == JSON)
+    {
+      Histogram_builder_json hist_builder(table_field, tree_key_length, rows);
+      tree->walk(table_field->table, json_histogram_build_walk,
+                 (void *) &hist_builder);
+      hist_builder.build();
+      distincts= hist_builder.get_count_distinct();
+      distincts_single_occurence= hist_builder.get_count_single_occurence();
+    } else
+    {
+      Histogram_builder hist_builder(table_field, tree_key_length, rows);
+      tree->walk(table_field->table, histogram_build_walk,
+                 (void *) &hist_builder);
+      distincts= hist_builder.get_count_distinct();
+      distincts_single_occurence= hist_builder.get_count_single_occurence();
+    }
   }
 
   ulonglong get_count_distinct()

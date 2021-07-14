@@ -1,0 +1,300 @@
+#
+# Test that we can store JSON arrays in histogram field mysql.column_stats when histogram_type=JSON
+#
+drop table if exists t1;
+set @save_histogram_type=@@histogram_type;
+set @save_histogram_size=@@histogram_size;
+CREATE TABLE t1 (
+a int,
+b varchar(32),
+c char(2),
+d double
+);
+INSERT INTO t1 SELECT seq, seq, seq, seq from seq_1_to_25;
+SET histogram_type='JSON';
+set histogram_size=10;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats WHERE table_name='t1';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	1	25	0.0000	4.0000	1.0000	10	JSON	[
+  "3",
+  "5",
+  "7",
+  "10",
+  "12",
+  "14",
+  "16",
+  "19",
+  "21",
+  "23"
+]
+test	t1	b	1	9	0.0000	1.6400	1.0000	10	JSON	[
+  "11",
+  "13",
+  "15",
+  "18",
+  "2",
+  "21",
+  "23",
+  "3",
+  "5",
+  "7"
+]
+test	t1	c	1	9	0.0000	2.0000	1.0000	10	JSON	[
+  "11",
+  "13",
+  "15",
+  "18",
+  "2",
+  "21",
+  "23",
+  "3",
+  "5",
+  "7"
+]
+test	t1	d	1	25	0.0000	8.0000	1.0000	10	JSON	[
+  "3",
+  "5",
+  "7",
+  "10",
+  "12",
+  "14",
+  "16",
+  "19",
+  "21",
+  "23"
+]
+DELETE FROM mysql.column_stats;
+DROP TABLE t1;
+create schema world;
+use world;
+set histogram_type='JSON';
+set histogram_size=25;
+ANALYZE TABLE Country PERSISTENT FOR ALL;
+SELECT column_name, min_value, max_value, hist_size, hist_type, histogram FROM mysql.column_stats;
+column_name	min_value	max_value	hist_size	hist_type	histogram
+Code	ABW	ZWE	25	JSON	[
+  "ARM",
+  "BEL",
+  "BLZ",
+  "CAF",
+  "COG",
+  "CZE",
+  "ERI",
+  "FRO",
+  "GMB",
+  "GUY",
+  "IRL",
+  "KAZ",
+  "LBN",
+  "LVA",
+  "MKD",
+  "MUS",
+  "NIC",
+  "PAN",
+  "PRT",
+  "SAU",
+  "SMR",
+  "SYC",
+  "TMP",
+  "UKR",
+  "VIR"
+]
+Name	Afghanistan	Zimbabwe	25	JSON	[
+  "Argentina",
+  "Barbados",
+  "Botswana",
+  "Cameroon",
+  "Cocos (Keeling) Islands",
+  "Czech Republic",
+  "El Salvador",
+  "France",
+  "Gibraltar",
+  "Guyana",
+  "Iran",
+  "Kenya",
+  "Libyan Arab Jamahiriya",
+  "Maldives",
+  "Micronesia, Federated States of",
+  "Nepal",
+  "Norfolk Island",
+  "Papua New Guinea",
+  "Romania",
+  "Samoa",
+  "Solomon Islands",
+  "Svalbard and Jan Mayen",
+  "Togo",
+  "Uganda",
+  "Venezuela"
+]
+SurfaceArea	0.40	17075400.00	25	JSON	[
+  "36.00",
+  "151.00",
+  "261.00",
+  "388.00",
+  "618.00",
+  "1102.00",
+  "4000.00",
+  "10990.00",
+  "18274.00",
+  "27750.00",
+  "36188.00",
+  "51197.00",
+  "71740.00",
+  "93030.00",
+  "112622.00",
+  "163610.00",
+  "238391.00",
+  "283561.00",
+  "338145.00",
+  "449964.00",
+  "587041.00",
+  "796095.00",
+  "1104300.00",
+  "1648195.00",
+  "2724900.00"
+]
+Population	0	1277558000	25	JSON	[
+  "1000",
+  "8000",
+  "25000",
+  "65000",
+  "94000",
+  "181000",
+  "293000",
+  "453000",
+  "817000",
+  "1439200",
+  "2542000",
+  "3337000",
+  "3869000",
+  "4807000",
+  "5496000",
+  "7430000",
+  "8861400",
+  "10278100",
+  "11669000",
+  "16125000",
+  "22256000",
+  "28351000",
+  "40377000",
+  "61399000",
+  "111506000"
+]
+Capital	1	4074	25	JSON	[
+  "62",
+  "149",
+  "201",
+  "553",
+  "645",
+  "902",
+  "922",
+  "1109",
+  "1530",
+  "1859",
+  "2296",
+  "2430",
+  "2452",
+  "2482",
+  "2689",
+  "2729",
+  "2831",
+  "2919",
+  "3047",
+  "3162",
+  "3209",
+  "3250",
+  "3336",
+  "3426",
+  "3538"
+]
+ID	1	4079	10	JSON	[
+  "371",
+  "742",
+  "1113",
+  "1484",
+  "1855",
+  "2225",
+  "2596",
+  "2967",
+  "3338",
+  "3709"
+]
+Name	A CoruÃ±a (La CoruÃ±a)	Ã…rhus	10	JSON	[
+  "BerdytÂšiv",
+  "Clermont-Ferrand",
+  "Gatineau",
+  "Itapecerica da Serra",
+  "Kuytun",
+  "Milano",
+  "Ota",
+  "Roanoke",
+  "Split",
+  "Ulsan"
+]
+Country	ABW	ZWE	10	JSON	[
+  "BRA",
+  "CHN",
+  "DZA",
+  "IDN",
+  "IND",
+  "JPN",
+  "MEX",
+  "PHL",
+  "RUS",
+  "USA"
+]
+Population	42	10500000	10	JSON	[
+  "96002",
+  "105819",
+  "118326",
+  "132318",
+  "152397",
+  "181900",
+  "221400",
+  "288173",
+  "398300",
+  "670208"
+]
+Country	ABW	ZWE	10	JSON	[
+  "BGD",
+  "CMR",
+  "ESP",
+  "GUF",
+  "KAZ",
+  "MDA",
+  "NAM",
+  "PNG",
+  "SVK",
+  "UGA"
+]
+Language	Abhyasi	[South]Mande	10	JSON	[
+  "Bariba",
+  "Creole English",
+  "English",
+  "Georgiana",
+  "Italian",
+  "Lomwe",
+  "Moravian",
+  "Punjabi",
+  "Soga",
+  "Tigrinja"
+]
+Percentage	0.0	99.9	10	JSON	[
+  "0.2",
+  "0.6",
+  "1.4",
+  "2.4",
+  "3.9",
+  "6.5",
+  "9.6",
+  "17.7",
+  "45.5",
+  "87.5"
+]
+set histogram_type=@save_histogram_type;
+set histogram_size=@save_histogram_size;
+DROP SCHEMA world;
