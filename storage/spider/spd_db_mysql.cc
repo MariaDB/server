@@ -5828,6 +5828,9 @@ int spider_db_mbase_util::open_item_func(
       last_str = SPIDER_SQL_IS_NOT_NULL_STR;
       last_str_length = SPIDER_SQL_IS_NOT_NULL_LEN;
       break;
+    case Item_func::JSON_EXTRACT_FUNC:
+      /* JSON_EXTRACT_FUNC should be processed the same way as UNKNOWN_FUNC */
+      /* fall through */
     case Item_func::UNKNOWN_FUNC:
       org_func_name= item_func->func_name_cstring();
       func_name= org_func_name.str;
