@@ -7,13 +7,18 @@
 int main() {
   int fd;
 
-  RingBuffer rg;
+  //RingBuffer rg;
 
 
   IO_CACHE cache;
 
 
   fd = my_open("input.txt",O_CREAT | O_RDWR,MYF(MY_WME));
+
+  RingBuffer bf(fd, 4096);
+
+
+
   init_io_cache(&cache, fd, 4096, SEQ_READ_APPEND, 0,0, MYF(MY_WME));
 
 
