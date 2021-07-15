@@ -1,6 +1,8 @@
 #include "stdio.h"
 #include "my_sys.h"
 
+#include "ring_buffer.hpp"
+
 
 int main() {
   int fd;
