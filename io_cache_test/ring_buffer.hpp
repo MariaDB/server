@@ -53,9 +53,68 @@ private:
 
   /* To sync on writers into buffer. */
   mysql_mutex_t _mutex_writer;
+
+  int _error;
+
+  size_t round_to_block(size_t count);
 };
 
-int RingBuffer::write(uchar *From, size_t Count) { return 0; }
+int RingBuffer::write(uchar *From, size_t Count) {
+  size_t rest_length, length;
+  const uchar* saved_buffer;
+  uchar* saved_write_pos;
+
+  mysql_mutex_lock(&_buffer_lock);
+  saved_buffer = From;
+  rest_length= (size_t) (_write_end - _write_pos);
+  if(Count <= rest_length)
+    goto end;
+
+  From += rest_length;
+  Count -= rest_length;
+  saved_write_pos = _write_pos;
+  _write_pos += rest_length;
+  mysql_mutex_unlock(&_buffer_lock);
+  memcpy(saved_write_pos, saved_buffer, rest_length);
+
+  /*
+  if(my_b_flush_io_cache(info, 1))
+    return 1;
+  */
+  mysql_mutex_lock(&_buffer_lock);
+  if (Count >= _buffer_length)
+  {					/* Fill first intern buffer */
+    length = round_to_block(Count);
+    if (mysql_file_write(_file, From, length, MY_NABP))
+    {
+      return _error= -1;
+    }
+
+    Count-=length;
+    From+=length;
+    saved_buffer = From;
+    _end_of_file+=length;
+  }
+
+  end:
+  saved_write_pos = _write_new_pos;
+  _write_new_pos+=Count;
+  mysql_mutex_unlock(&_buffer_lock);
+  memcpy(saved_write_pos, saved_buffer, Count);
+
+
+  mysql_mutex_lock(&_mutex_writer);
+  while(saved_write_pos != _write_pos)
+    mysql_cond_wait(&_cond_writer, &_mutex_writer);
+  mysql_mutex_unlock(&_mutex_writer);
+
+  mysql_mutex_lock(&_buffer_lock);
+  _write_pos = _write_new_pos;
+  mysql_mutex_unlock(&_buffer_lock);
+  mysql_cond_signal(&_cond_writer);
+
+  return 0;
+}
 int RingBuffer::read(uchar *To, size_t Count) { return 0; }
 RingBuffer::RingBuffer(File file, size_t cachesize) : _file(file)
 {
@@ -104,6 +163,8 @@ RingBuffer::RingBuffer(File file, size_t cachesize) : _file(file)
   _read_end = _buffer;
 
   _write_new_pos = _write_pos;
+
+  _error = 0;
   mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
                    &_buffer_lock, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_IO_CACHE_SHARE_cond_writer, &_cond_writer, 0);
@@ -118,4 +179,7 @@ RingBuffer::~RingBuffer() {
   mysql_mutex_destroy(&_buffer_lock);
   mysql_cond_destroy(&_cond_writer);
   mysql_mutex_destroy(&_mutex_writer);
+}
+size_t RingBuffer::round_to_block(size_t count) {
+  return count - (count % 4096 /* block size for disk write */);
 }
