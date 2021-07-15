@@ -6,6 +6,10 @@
 
 int main() {
   int fd;
+
+  RingBuffer rg;
+
+
   IO_CACHE cache;
 
 
