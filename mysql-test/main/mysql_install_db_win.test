@@ -49,7 +49,7 @@ connection default;
 let _BASEDIR = $MYSQLTEST_VARDIR/tmp/basedir;
 perl;
   use autodie;
-  open(IN, '<', "std_data/mysql_install_db_win.ini.in");
+  open(IN, '<', "std_data/mysql_install_db_win.ini");
   open(OUT, '>', "$ENV{MYSQLTEST_VARDIR}/tmp/mysql_install_db_win.ini");
   while (<IN>) {
     s/BASEDIR/$ENV{_BASEDIR}/g;
