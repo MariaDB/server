@@ -56,7 +56,9 @@ private:
 
   int _error;
 
-  size_t round_to_block(size_t count);
+  size_t _round_to_block(size_t count);
+
+  int _flush_io_cache();
 };
 
 int RingBuffer::write(uchar *From, size_t Count) {
@@ -77,16 +79,17 @@ int RingBuffer::write(uchar *From, size_t Count) {
   mysql_mutex_unlock(&_buffer_lock);
   memcpy(saved_write_pos, saved_buffer, rest_length);
 
-  /*
-  if(my_b_flush_io_cache(info, 1))
+
+  if(_flush_io_cache())
     return 1;
-  */
+
   mysql_mutex_lock(&_buffer_lock);
   if (Count >= _buffer_length)
   {					/* Fill first intern buffer */
-    length = round_to_block(Count);
+    length = _round_to_block(Count);
     if (mysql_file_write(_file, From, length, MY_NABP))
     {
+      mysql_mutex_unlock(&_buffer_lock);
       return _error= -1;
     }
 
@@ -165,6 +168,8 @@ RingBuffer::RingBuffer(File file, size_t cachesize) : _file(file)
   _write_new_pos = _write_pos;
 
   _error = 0;
+
+  _pos_in_file = 0;
   mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
                    &_buffer_lock, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_IO_CACHE_SHARE_cond_writer, &_cond_writer, 0);
@@ -173,13 +178,45 @@ RingBuffer::RingBuffer(File file, size_t cachesize) : _file(file)
 RingBuffer::~RingBuffer() {
   if (_file != -1) /* File doesn't exist */
   {
-    //my_b_flush_io_cache(info, 1);
+    _flush_io_cache();
   }
   my_free(_buffer);
   mysql_mutex_destroy(&_buffer_lock);
   mysql_cond_destroy(&_cond_writer);
   mysql_mutex_destroy(&_mutex_writer);
 }
-size_t RingBuffer::round_to_block(size_t count) {
-  return count - (count % 4096 /* block size for disk write */);
+size_t RingBuffer::_round_to_block(size_t count) {
+  auto rounded =  count - (count % 4096 /* block size for disk write */);
+  return rounded ? rounded : count;
+}
+int RingBuffer::_flush_io_cache() {
+  size_t length;
+
+
+  if (_file == -1)
+    return _error= -1;
+
+  mysql_mutex_lock(&_buffer_lock);
+
+  if ((length=(size_t) (_write_pos - _write_buffer)))
+  {
+
+    if (mysql_file_write(_file, _write_buffer, length, MY_NABP))
+      _error= -1;
+
+    _end_of_file+= _write_pos - _append_read_pos;
+    _write_new_pos = _append_read_pos= _write_buffer;
+
+    DBUG_ASSERT(_end_of_file == mysql_file_tell(_file, MYF(0)));
+
+    _write_end= (_write_buffer +_buffer_length -
+                      ((_pos_in_file + length) & (IO_SIZE - 1)));
+    _write_pos= _write_buffer;
+    //++info->disk_writes;
+    mysql_mutex_unlock(&_buffer_lock);
+    return _error;
+  }
+
+  mysql_mutex_unlock(&_buffer_lock);
+  return 0;
 }
