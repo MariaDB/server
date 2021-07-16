@@ -4,7 +4,7 @@
 class RingBuffer
 {
 public:
-  RingBuffer(File file, size_t cachesize);
+  RingBuffer(char* filename, size_t cachesize);
   int read(uchar *To, size_t Count);
   int write(uchar *From, size_t Count);
   ~RingBuffer();
@@ -251,20 +251,20 @@ int RingBuffer::read(uchar *To, size_t Count) {
   return _read_append(To, Count);
 }
 
-RingBuffer::RingBuffer(File file, size_t cachesize) : _file(file)
+RingBuffer::RingBuffer(char* filename, size_t cachesize)
 {
-
+  _file = my_open("input.txt",O_CREAT | O_RDWR,MYF(MY_WME));
   if (_file >= 0)
   {
     my_off_t pos;
-    pos= mysql_file_tell(file, MYF(0));
+    pos= mysql_file_tell(_file, MYF(0));
     assert(pos != (my_off_t) -1);
   }
 
   size_t min_cache=IO_SIZE*2;
 
   // Calculate end of file to avoid allocating oversized buffers
-  _end_of_file= mysql_file_seek(file, 0L, MY_SEEK_END, MYF(0));
+  _end_of_file= mysql_file_seek(_file, 0L, MY_SEEK_END, MYF(0));
   // Need to reset seek_not_done now that we just did a seek.
   _seek_not_done= 0;
 
@@ -317,6 +317,7 @@ RingBuffer::~RingBuffer() {
   mysql_mutex_destroy(&_buffer_lock);
   mysql_cond_destroy(&_cond_writer);
   mysql_mutex_destroy(&_mutex_writer);
+  my_close(_file, MYF(MY_WME));
 }
 size_t RingBuffer::_round_to_block(size_t count) {
   return count & ~(IO_SIZE-1);
