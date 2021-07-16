@@ -59,6 +59,8 @@ private:
   size_t _round_to_block(size_t count);
 
   int _flush_io_cache();
+
+  int _read_append(uchar* To, size_t Count);
 };
 
 int RingBuffer::write(uchar *From, size_t Count) {
@@ -118,7 +120,137 @@ int RingBuffer::write(uchar *From, size_t Count) {
 
   return 0;
 }
-int RingBuffer::read(uchar *To, size_t Count) { return 0; }
+
+int RingBuffer::_read_append(uchar* To, size_t Count){
+  size_t len_in_buff, copy_len, transfer_len;
+  uchar* save_append_read_pos;
+  mysql_mutex_lock(&_buffer_lock);
+
+  len_in_buff = (size_t) (_write_pos - _append_read_pos);
+  DBUG_ASSERT(_append_read_pos <= _write_pos);
+  copy_len=MY_MIN(Count, len_in_buff);
+  save_append_read_pos = _append_read_pos;
+  _append_read_pos += copy_len;
+  mysql_mutex_unlock(&_buffer_lock);
+
+
+  memcpy(To, save_append_read_pos, copy_len);
+  /*
+  Count -= copy_len;
+  if (Count)
+    info->error= (int) (save_count - Count);
+  */
+
+  /* Fill read buffer with data from write buffer */
+  memcpy(_buffer, _append_read_pos,
+  (size_t) (transfer_len=len_in_buff - copy_len));
+  mysql_mutex_lock(&_buffer_lock);
+  _read_pos= _buffer;
+  _read_end= _buffer+transfer_len;
+  _append_read_pos=_write_pos;
+  _end_of_file+=len_in_buff;
+  mysql_mutex_unlock(&_buffer_lock);
+  return 0;
+}
+
+
+int RingBuffer::read(uchar *To, size_t Count) {
+  size_t left_length = 0, diff_length, length, max_length;
+  my_off_t pos_in_file;
+  int error;
+
+  if (_read_pos + Count <= _read_end)
+  {
+    memcpy(To, _read_pos, Count);
+    _read_pos+= Count;
+    return 0;
+  }
+
+  mysql_mutex_lock(&_buffer_lock);
+  if ((pos_in_file=_pos_in_file +
+                   (size_t) (_read_end - _buffer)) < _end_of_file)
+  {
+    error= mysql_file_seek(_file, pos_in_file, MY_SEEK_SET, MYF(0)) ==
+           MY_FILEPOS_ERROR;
+
+    if (!error)
+    {
+      _seek_not_done= 0;
+
+      diff_length= (size_t) (pos_in_file & (IO_SIZE - 1));
+
+      if (Count >= (size_t) (IO_SIZE + (IO_SIZE - diff_length)))
+      {
+        /* Fill first intern buffer */
+        size_t read_length;
+
+        length= _round_to_block(Count) - diff_length;
+
+        read_length=
+            mysql_file_read(_file, To, length, MYF(0));
+        if (read_length != (size_t) -1)
+        {
+          Count-= read_length;
+          To+= read_length;
+          pos_in_file+= read_length;
+
+          if (read_length != length)
+          {
+            mysql_mutex_unlock(&_buffer_lock);
+            return _read_append(To, Count);
+          }
+        }
+        left_length+= length;
+        diff_length= 0;
+      }
+
+      max_length= /*info->read_length -*/ diff_length;
+      if (max_length > (_end_of_file - pos_in_file))
+        max_length= (size_t) (_end_of_file - pos_in_file);
+
+      if (max_length)
+      {
+        length= mysql_file_read(_file, _buffer, max_length,
+                                MYF(0));
+        if (length >= Count)
+        {
+          _read_pos=_buffer+Count;
+          _read_end=_buffer+length;
+          _pos_in_file=pos_in_file;
+          mysql_mutex_unlock(&_buffer_lock);
+          memcpy(To,_buffer,(size_t) Count);
+          return 0;
+        }
+        memcpy(To, _buffer, length);
+        Count-= length;
+        To+= length;
+
+        pos_in_file+= length;
+      }
+      else
+      {
+        if (Count)
+          // goto read_append_buffer;
+          length= 0;
+      }
+    }
+  }
+
+
+  if(_read_pos != _read_end)
+  {
+    if ((left_length= (size_t) (_read_end - _read_pos)))
+    {
+      DBUG_ASSERT(Count > left_length);
+      memcpy(To, _read_pos, left_length);
+      To+=left_length;
+      Count-=left_length;
+    }
+  }
+
+  return _read_append(To, Count);
+}
+
 RingBuffer::RingBuffer(File file, size_t cachesize) : _file(file)
 {
 
@@ -186,8 +318,7 @@ RingBuffer::~RingBuffer() {
   mysql_mutex_destroy(&_mutex_writer);
 }
 size_t RingBuffer::_round_to_block(size_t count) {
-  auto rounded =  count - (count % 4096 /* block size for disk write */);
-  return rounded ? rounded : count;
+  return count & ~(IO_SIZE-1);
 }
 int RingBuffer::_flush_io_cache() {
   size_t length;
