@@ -54,6 +54,8 @@ private:
   /* To sync on writers into buffer. */
   mysql_mutex_t _mutex_writer;
 
+  size_t _read_length;
+
   int _error;
 
   size_t _round_to_block(size_t count);
@@ -204,7 +206,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
         diff_length= 0;
       }
 
-      max_length= /*info->read_length -*/ diff_length;
+      max_length= _read_length - diff_length;
       if (max_length > (_end_of_file - pos_in_file))
         max_length= (size_t) (_end_of_file - pos_in_file);
 
@@ -239,15 +241,13 @@ int RingBuffer::read(uchar *To, size_t Count) {
 
   if(_read_pos != _read_end)
   {
-    if ((left_length= (size_t) (_read_end - _read_pos)))
-    {
-      DBUG_ASSERT(Count > left_length);
-      memcpy(To, _read_pos, left_length);
-      To+=left_length;
-      Count-=left_length;
-    }
+    left_length= (size_t) (_read_end - _read_pos);
+    DBUG_ASSERT(Count > left_length);
+    memcpy(To, _read_pos, left_length);
+    To+=left_length;
+    Count-=left_length;
   }
-
+  mysql_mutex_unlock(&_buffer_lock);
   return _read_append(To, Count);
 }
 
@@ -289,6 +289,7 @@ RingBuffer::RingBuffer(File file, size_t cachesize) : _file(file)
     // Try with less memory
     cachesize= (cachesize*3/4 & ~(min_cache-1));
   }
+  _read_length = cachesize;
 
   _buffer_length = cachesize;
   _read_pos = _buffer;

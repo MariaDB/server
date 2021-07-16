@@ -5,23 +5,15 @@
 
 
 int main() {
+  uchar buff[20];
   int fd;
-
-  //RingBuffer rg;
-
-
-  IO_CACHE cache;
-
-
   fd = my_open("input.txt",O_CREAT | O_RDWR,MYF(MY_WME));
 
   RingBuffer bf(fd, 4096);
 
+  bf.read(buff, 10);
+  bf.write((uchar*)"123", 3);
+  bf.read(buff+10, 10);
 
-
-  init_io_cache(&cache, fd, 4096, SEQ_READ_APPEND, 0,0, MYF(MY_WME));
-
-
-  end_io_cache(&cache);
-  my_close(cache.file, MYF(MY_WME));
+  my_close(fd, MYF(MY_WME));
 }
