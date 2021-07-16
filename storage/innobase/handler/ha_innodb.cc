@@ -15432,7 +15432,7 @@ ha_innobase::extra(
 	case HA_EXTRA_END_ALTER_COPY:
 		m_prebuilt->table->skip_alter_undo = 0;
 		if (!m_prebuilt->table->is_temporary()) {
-			log_write_up_to(LSN_MAX, true);
+			log_buffer_flush_to_disk();
 		}
 		break;
 	default:/* Do nothing */

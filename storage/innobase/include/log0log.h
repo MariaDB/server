@@ -705,15 +705,6 @@ public:
 
   /** Shut down the redo log subsystem. */
   void close();
-
-  /** Initiate a write of the log buffer to the file if needed.
-  @param flush  whether to initiate a durable write */
-  inline void initiate_write(bool flush)
-  {
-    const lsn_t lsn= get_lsn();
-    if (!flush || get_flushed_lsn() < lsn)
-      log_write_up_to(lsn, flush);
-  }
 };
 
 /** Redo log system */
