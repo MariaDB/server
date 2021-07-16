@@ -1136,7 +1136,8 @@ static bool should_send_column_info(THD* thd, List<Item>* list, uint flags)
   auto cmd= thd->get_command();
 #endif
 
-  DBUG_ASSERT(cmd == COM_STMT_EXECUTE || cmd == COM_STMT_PREPARE);
+  DBUG_ASSERT(cmd == COM_STMT_EXECUTE || cmd == COM_STMT_PREPARE
+              || cmd == COM_STMT_BULK_EXECUTE);
   DBUG_ASSERT(cmd != COM_STMT_PREPARE || !column_info_state.initialized);
 
   bool ret= metadata_columns_changed(column_info_state, thd, *list);
