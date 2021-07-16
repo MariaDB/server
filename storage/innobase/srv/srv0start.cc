@@ -331,7 +331,7 @@ static dberr_t create_log_file(bool create_new_db, lsn_t lsn,
 	mysql_mutex_unlock(&log_sys.mutex);
 
 	log_make_checkpoint();
-	log_write_up_to(LSN_MAX, true);
+	log_buffer_flush_to_disk();
 
 	return DB_SUCCESS;
 }

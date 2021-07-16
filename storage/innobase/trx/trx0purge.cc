@@ -792,7 +792,7 @@ not_free:
 
 		DBUG_EXECUTE_IF("ib_undo_trunc",
 				ib::info() << "ib_undo_trunc";
-				log_write_up_to(LSN_MAX, true);
+				log_buffer_flush_to_disk();
 				DBUG_SUICIDE(););
 
 		for (ulint i = 0; i < TRX_SYS_N_RSEGS; ++i) {
