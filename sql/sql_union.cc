@@ -1382,7 +1382,8 @@ bool st_select_lex_unit::cleanup()
   {
     DBUG_RETURN(FALSE);
   }
-  if (with_element && with_element->is_recursive && union_result)
+  if (with_element && with_element->is_recursive && union_result &&
+      with_element->rec_outer_references)
   {
     select_union_recursive *result= with_element->rec_result;
     if (++result->cleanup_count == with_element->rec_outer_references)
@@ -1584,7 +1585,8 @@ bool st_select_lex::cleanup()
   for (SELECT_LEX_UNIT *lex_unit= first_inner_unit(); lex_unit ;
        lex_unit= lex_unit->next_unit())
   {
-    if (lex_unit->with_element && lex_unit->with_element->is_recursive)
+    if (lex_unit->with_element && lex_unit->with_element->is_recursive &&
+        lex_unit->with_element->rec_outer_references)
       continue;
     error= (bool) ((uint) error | (uint) lex_unit->cleanup());
   }
