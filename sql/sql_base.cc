@@ -8032,12 +8032,14 @@ insert_fields(THD *thd, Name_resolution_context *context, const char *db_name,
     else treat natural joins as leaves and do not iterate over their underlying
     tables.
   */
-  for (TABLE_LIST *tables= (table_name ? context->table_list :
-                            context->first_name_resolution_table);
-       tables;
-       tables= (table_name ? tables->next_local :
-                tables->next_name_resolution_table)
-       )
+  TABLE_LIST *first= context->first_name_resolution_table;
+  TABLE_LIST *TABLE_LIST::* next= &TABLE_LIST::next_name_resolution_table;
+  if (table_name)
+  {
+    first= context->table_list;
+    next= &TABLE_LIST::next_local;
+  }
+  for (TABLE_LIST *tables= first; tables; tables= tables->*next)
   {
     Field *field;
     TABLE *table= tables->table;
