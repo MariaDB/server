@@ -642,7 +642,23 @@ struct system_variables max_system_variables;
 struct system_status_var global_status_var;
 
 MY_TMPDIR mysql_tmpdir_list;
-MY_BITMAP temp_pool;
+static MY_BITMAP temp_pool;
+static mysql_mutex_t LOCK_temp_pool;
+
+void temp_pool_clear_bit(uint bit)
+{
+  mysql_mutex_lock(&LOCK_temp_pool);
+  bitmap_clear_bit(&temp_pool, bit);
+  mysql_mutex_unlock(&LOCK_temp_pool);
+}
+
+uint temp_pool_set_next()
+{
+  mysql_mutex_lock(&LOCK_temp_pool);
+  uint res= bitmap_set_next(&temp_pool);
+  mysql_mutex_unlock(&LOCK_temp_pool);
+  return res;
+}
 
 CHARSET_INFO *system_charset_info, *files_charset_info ;
 CHARSET_INFO *national_charset_info, *table_alias_charset;
@@ -889,7 +905,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_manager, key_LOCK_backup_log,
   key_LOCK_prepared_stmt_count,
   key_LOCK_rpl_status, key_LOCK_server_started,
-  key_LOCK_status,
+  key_LOCK_status, key_LOCK_temp_pool,
   key_LOCK_system_variables_hash, key_LOCK_thd_data, key_LOCK_thd_kill,
   key_LOCK_user_conn, key_LOCK_uuid_short_generator, key_LOG_LOCK_log,
   key_master_info_data_lock, key_master_info_run_lock,
@@ -947,6 +963,7 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_hash_filo_lock, "hash_filo::lock", 0},
   { &key_LOCK_active_mi, "LOCK_active_mi", PSI_FLAG_GLOBAL},
   { &key_LOCK_backup_log, "LOCK_backup_log", PSI_FLAG_GLOBAL},
+  { &key_LOCK_temp_pool, "LOCK_temp_pool", PSI_FLAG_GLOBAL},
   { &key_LOCK_thread_id, "LOCK_thread_id", PSI_FLAG_GLOBAL},
   { &key_LOCK_crypt, "LOCK_crypt", PSI_FLAG_GLOBAL},
   { &key_LOCK_delayed_create, "LOCK_delayed_create", PSI_FLAG_GLOBAL},
@@ -2053,6 +2070,7 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_active_mi);
   mysql_rwlock_destroy(&LOCK_ssl_refresh);
   mysql_mutex_destroy(&LOCK_backup_log);
+  mysql_mutex_destroy(&LOCK_temp_pool);
   mysql_rwlock_destroy(&LOCK_sys_init_connect);
   mysql_rwlock_destroy(&LOCK_sys_init_slave);
   mysql_mutex_destroy(&LOCK_global_system_variables);
@@ -4230,7 +4248,7 @@ static int init_common_variables()
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
 #if (ENABLE_TEMP_POOL)
-  if (use_temp_pool && my_bitmap_init(&temp_pool,0,1024,1))
+  if (use_temp_pool && my_bitmap_init(&temp_pool,0,1024))
     return 1;
 #else
   use_temp_pool= 0;
@@ -4357,6 +4375,7 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_commit_ordered, &LOCK_commit_ordered,
                    MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_backup_log, &LOCK_backup_log, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_LOCK_temp_pool, &LOCK_temp_pool, MY_MUTEX_INIT_FAST);
 
 #ifdef HAVE_OPENSSL
   mysql_mutex_init(key_LOCK_des_key_file,

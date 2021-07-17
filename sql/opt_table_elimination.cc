@@ -1070,7 +1070,7 @@ bool Dep_analysis_context::setup_equality_modules_deps(List<Dep_module>
  
   void *buf;
   if (!(buf= thd->alloc(bitmap_buffer_size(offset))) ||
-      my_bitmap_init(&expr_deps, (my_bitmap_map*)buf, offset, FALSE))
+      my_bitmap_init(&expr_deps, (my_bitmap_map*)buf, offset))
   {
     DBUG_RETURN(TRUE); /* purecov: inspected */
   }

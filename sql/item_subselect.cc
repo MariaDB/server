@@ -5119,7 +5119,7 @@ my_bitmap_init_memroot(MY_BITMAP *map, uint n_bits, MEM_ROOT *mem_root)
 
   if (!(bitmap_buf= (my_bitmap_map*) alloc_root(mem_root,
                                                 bitmap_buffer_size(n_bits))) ||
-      my_bitmap_init(map, bitmap_buf, n_bits, FALSE))
+      my_bitmap_init(map, bitmap_buf, n_bits))
     return TRUE;
   bitmap_clear_all(map);
   return FALSE;
@@ -6011,7 +6011,7 @@ bool Ordered_key::alloc_keys_buffers()
     lookup offset.
   */
   /* Notice that max_null_row is max array index, we need count, so +1. */
-  if (my_bitmap_init(&null_key, NULL, (uint)(max_null_row + 1), FALSE))
+  if (my_bitmap_init(&null_key, NULL, (uint)(max_null_row + 1)))
     return TRUE;
 
   cur_key_idx= HA_POS_ERROR;

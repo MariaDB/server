@@ -3321,8 +3321,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                          m_width,
-                          false)))
+                          m_width)))
   {
     DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
     memcpy(m_cols.bitmap, ptr_after_width, (m_width + 7) / 8);
@@ -3346,8 +3345,7 @@ Rows_log_event::Rows_log_event(const uchar *buf, uint event_len,
     /* if my_bitmap_init fails, caught in is_valid() */
     if (likely(!my_bitmap_init(&m_cols_ai,
                             m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai : NULL,
-                            m_width,
-                            false)))
+                            m_width)))
     {
       DBUG_PRINT("debug", ("Reading from %p", ptr_after_width));
       memcpy(m_cols_ai.bitmap, ptr_after_width, (m_width + 7) / 8);

@@ -156,8 +156,7 @@ static MARIA_HA *maria_clone_internal(MARIA_SHARE *share,
     info.lock_type= F_WRLCK;
 
   _ma_set_data_pagecache_callbacks(&info.dfile, share);
-  my_bitmap_init(&info.changed_fields, changed_fields_bitmap,
-                 share->base.fields, 0);
+  my_bitmap_init(&info.changed_fields, changed_fields_bitmap, share->base.fields);
   if ((*share->init)(&info))
     goto err;
 

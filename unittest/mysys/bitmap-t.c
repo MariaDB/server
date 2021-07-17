@@ -129,8 +129,8 @@ my_bool test_compare_operators(MY_BITMAP *map, uint bitsize)
   MY_BITMAP *map2= &map2_obj, *map3= &map3_obj;
   my_bitmap_map map2buf[MAX_TESTED_BITMAP_SIZE];
   my_bitmap_map map3buf[MAX_TESTED_BITMAP_SIZE];
-  my_bitmap_init(&map2_obj, map2buf, bitsize, FALSE);
-  my_bitmap_init(&map3_obj, map3buf, bitsize, FALSE);
+  my_bitmap_init(&map2_obj, map2buf, bitsize);
+  my_bitmap_init(&map3_obj, map3buf, bitsize);
   bitmap_clear_all(map2);
   bitmap_clear_all(map3);
   for (i=0; i < no_loops; i++)
@@ -374,7 +374,7 @@ my_bool test_compare(MY_BITMAP *map, uint bitsize)
   uint32 map2buf[MAX_TESTED_BITMAP_SIZE];
   uint i, test_bit;
   uint no_loops= bitsize > 128 ? 128 : bitsize;
-  if (my_bitmap_init(&map2, map2buf, bitsize, FALSE))
+  if (my_bitmap_init(&map2, map2buf, bitsize))
   {
     diag("init error for bitsize %d", bitsize);
     return TRUE;
@@ -433,7 +433,7 @@ my_bool test_intersect(MY_BITMAP *map, uint bitsize)
   MY_BITMAP map2;
   uint32 map2buf[MAX_TESTED_BITMAP_SIZE];
   uint i, test_bit1, test_bit2, test_bit3;
-  if (my_bitmap_init(&map2, map2buf, bitsize2, FALSE))
+  if (my_bitmap_init(&map2, map2buf, bitsize2))
   {
     diag("init error for bitsize %d", bitsize2);
     return TRUE;
@@ -481,7 +481,7 @@ my_bool do_test(uint bitsize)
 {
   MY_BITMAP map;
   my_bitmap_map buf[MAX_TESTED_BITMAP_SIZE];
-  if (my_bitmap_init(&map, buf, bitsize, FALSE))
+  if (my_bitmap_init(&map, buf, bitsize))
   {
     diag("init error for bitsize %d", bitsize);
     goto error;

@@ -3329,7 +3329,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
                                              share->column_bitmap_size *
                                              bitmap_count)))
     goto err;
-  my_bitmap_init(&share->all_set, bitmaps, share->fields, FALSE);
+  my_bitmap_init(&share->all_set, bitmaps, share->fields);
   bitmap_set_all(&share->all_set);
   if (share->check_set)
   {
@@ -3340,7 +3340,7 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     my_bitmap_init(share->check_set,
                    (my_bitmap_map*) ((uchar*) bitmaps +
                                      share->column_bitmap_size),
-                   share->fields, FALSE);
+                   share->fields);
     bitmap_clear_all(share->check_set);
   }
 
@@ -4292,26 +4292,26 @@ partititon_err:
     goto err;
 
   my_bitmap_init(&outparam->def_read_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->def_write_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
 
   my_bitmap_init(&outparam->has_value_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->tmp_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->eq_join_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->cond_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   bitmaps+= bitmap_size;
   my_bitmap_init(&outparam->def_rpl_write_set,
-                 (my_bitmap_map*) bitmaps, share->fields, FALSE);
+                 (my_bitmap_map*) bitmaps, share->fields);
   outparam->default_column_bitmaps();
 
   outparam->cond_selectivity= 1.0;
