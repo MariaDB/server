@@ -5000,3 +5000,19 @@ DROP TABLE t1, t2, t3;
 
 --echo # End of 10.2 tests
 --echo #
+
+--echo #
+--echo # MDEV-26147: The test main.sp-row fails in case it is run in PS mode
+--echo #
+DELIMITER $$;
+CREATE PROCEDURE p1(a ROW(a INT,b INT))
+BEGIN
+  SELECT a.a, a.b;
+END;
+$$
+DELIMITER ;$$
+PREPARE stmt FROM 'CALL p1(ROW(10, 20))';
+EXECUTE stmt;
+DEALLOCATE PREPARE stmt;
+
+DROP PROCEDURE p1;
