@@ -702,7 +702,7 @@ static lsn_t log_reserve_and_open(size_t len)
     DEBUG_SYNC_C("log_buf_size_exceeded");
 
     /* Not enough free space, do a write of the log buffer */
-    log_sys.initiate_write(false);
+    log_write_up_to(log_sys.get_lsn(), false);
 
     srv_stats.log_waits.inc();
 

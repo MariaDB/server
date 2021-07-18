@@ -1,0 +1,76 @@
+diff --git a/mysql-test/main/mysqld--help.result b/mysql-test/main/mysqld--help.result
+index 7b0ce27ead3..38176dcaa86 100644
+--- a/mysql-test/main/mysqld--help.result
++++ b/mysql-test/main/mysqld--help.result
+@@ -1301,8 +1301,6 @@ The following specify which files/extra groups are read (specified before remain
+  WHERE clause, or a LIMIT clause, or else they will
+  aborted. Prevents the common mistake of accidentally
+  deleting or updating every row in a table.
+- --stack-trace       Print a symbolic stack trace on failure
+- (Defaults to on; use --skip-stack-trace to disable.)
+  --standard-compliant-cte 
+  Allow only CTEs compliant to SQL standard
+  (Defaults to on; use --skip-standard-compliant-cte to disable.)
+@@ -1367,39 +1365,6 @@ The following specify which files/extra groups are read (specified before remain
+  --thread-cache-size=# 
+  How many threads we should keep in a cache for reuse.
+  These are freed after 5 minutes of idle time
+- --thread-pool-dedicated-listener 
+- If set to 1,listener thread will not pick up queries
+- --thread-pool-exact-stats 
+- If set to 1, provides better statistics in
+- information_schema threadpool tables
+- --thread-pool-idle-timeout=# 
+- Timeout in seconds for an idle thread in the thread
+- pool.Worker thread will be shut down after timeout
+- --thread-pool-max-threads=# 
+- Maximum allowed number of worker threads in the thread
+- pool
+- --thread-pool-oversubscribe=# 
+- How many additional active worker threads in a group are
+- allowed.
+- --thread-pool-prio-kickup-timer=# 
+- The number of milliseconds before a dequeued low-priority
+- statement is moved to the high-priority queue
+- --thread-pool-priority=name 
+- Threadpool priority. High priority connections usually
+- start executing earlier than low priority.If priority set
+- to 'auto', the the actual priority(low or high) is
+- determined based on whether or not connection is inside
+- transaction.
+- --thread-pool-size=# 
+- Number of thread groups in the pool. This parameter is
+- roughly equivalent to maximum number of concurrently
+- executing threads (threads in a waiting state do not
+- count as executing).
+- --thread-pool-stall-limit=# 
+- Maximum query execution time in milliseconds,before an
+- executing non-yielding thread is considered stalled.If a
+- worker thread is stalled, additional worker thread may be
+- created to handle remaining clients.
+  --thread-stack=#    The stack size for each thread
+  --time-format=name  The TIME format (ignored)
+  --tls-version=name  TLS protocol version for secure connections.. Any
+@@ -1788,7 +1753,6 @@ slow-query-log FALSE
+ sort-buffer-size 2097152
+ sql-mode STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION
+ sql-safe-updates FALSE
+-stack-trace TRUE
+ standard-compliant-cte TRUE
+ stored-program-cache 256
+ strict-password-validation TRUE
+@@ -1807,14 +1771,6 @@ tcp-keepalive-probes 0
+ tcp-keepalive-time 0
+ tcp-nodelay TRUE
+ thread-cache-size 151
+-thread-pool-dedicated-listener FALSE
+-thread-pool-exact-stats FALSE
+-thread-pool-idle-timeout 60
+-thread-pool-max-threads 65536
+-thread-pool-oversubscribe 3
+-thread-pool-prio-kickup-timer 1000
+-thread-pool-priority auto
+-thread-pool-stall-limit 500
+ thread-stack 299008
+ time-format %H:%i:%s
+ tmp-disk-table-size 18446744073709551615

@@ -1,0 +1,18 @@
+--- stored_program_cache_func.result
++++ stored_program_cache_func,ps.result
+@@ -21,13 +21,13 @@
+ 1
+ show status like 'handler_read_key';
+ Variable_name	Value
+-Handler_read_key	2
++Handler_read_key	3
+ call p1;
+ 1
+ 1
+ show status like 'handler_read_key';
+ Variable_name	Value
+-Handler_read_key	3
++Handler_read_key	5
+ drop procedure p1;
+ set global stored_program_cache=default;
+ create procedure pr(i int) begin

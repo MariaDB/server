@@ -903,6 +903,9 @@ static bool insert_bulk_params(Prepared_statement *stmt,
       case STMT_INDICATOR_IGNORE:
         param->set_ignore();
         break;
+      default:
+        DBUG_ASSERT(0);
+        DBUG_RETURN(1);
       }
     }
     else
@@ -4680,6 +4683,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
                                       uchar *packet_end_arg)
 {
   Reprepare_observer reprepare_observer;
+  unsigned char *readbuff= NULL;
   bool error= 0;
   packet= packet_arg;
   packet_end= packet_end_arg;
@@ -4693,24 +4697,37 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
   if (state == Query_arena::STMT_ERROR)
   {
     my_message(last_errno, last_error, MYF(0));
-    thd->set_bulk_execution(0);
-    return TRUE;
+    goto err;
   }
   /* Check for non zero parameter count*/
   if (param_count == 0)
   {
     DBUG_PRINT("error", ("Statement with no parameters for bulk execution."));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
-    thd->set_bulk_execution(0);
-    return TRUE;
+    goto err;
   }
 
   if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_SAFE))
   {
     DBUG_PRINT("error", ("Command is not supported in bulk execution."));
     my_error(ER_UNSUPPORTED_PS, MYF(0));
-    thd->set_bulk_execution(0);
-    return TRUE;
+    goto err;
+  }
+  /*
+     Here second buffer for not optimized commands,
+     optimized commands do it inside thier internal loop.
+  */
+  if (!(sql_command_flags[lex->sql_command] & CF_PS_ARRAY_BINDING_OPTIMIZED) &&
+      this->lex->has_returning())
+  {
+    // Above check can be true for SELECT in future
+    DBUG_ASSERT(lex->sql_command != SQLCOM_SELECT);
+    readbuff= thd->net.buff; // old buffer
+    if (net_allocate_new_packet(&thd->net, thd, MYF(MY_THREAD_SPECIFIC)))
+    {
+      readbuff= NULL; // failure, net_allocate_new_packet keeps old buffer
+      goto err;
+    }
   }
 
 #ifndef EMBEDDED_LIBRARY
@@ -4722,9 +4739,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
   {
     my_error(ER_WRONG_ARGUMENTS, MYF(0),
             "mysqld_stmt_bulk_execute");
-    reset_stmt_params(this);
-    thd->set_bulk_execution(0);
-    return true;
+    goto err;
   }
   read_types= FALSE;
 
@@ -4741,8 +4756,7 @@ Prepared_statement::execute_bulk_loop(String *expanded_query,
     {
       if (set_bulk_parameters(TRUE))
       {
-        thd->set_bulk_execution(0);
-        return true;
+        goto err;
       }
     }
 
@@ -4806,8 +4820,16 @@ reexecute:
   }
   reset_stmt_params(this);
   thd->set_bulk_execution(0);
-
+  if (readbuff)
+    my_free(readbuff);
   return error;
+
+err:
+  reset_stmt_params(this);
+  thd->set_bulk_execution(0);
+  if (readbuff)
+    my_free(readbuff);
+  return true;
 }
 
 
