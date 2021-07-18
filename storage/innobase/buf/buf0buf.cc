@@ -1064,6 +1064,7 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
     buf_block_init(block, frame);
     MEM_UNDEFINED(block->frame, srv_page_size);
     /* Add the block to the free list */
+#pragma omp critical
     UT_LIST_ADD_LAST(buf_pool.free, &block->page);
 
     ut_d(block->page.in_free_list = TRUE);
@@ -1071,6 +1072,7 @@ inline bool buf_pool_t::chunk_t::create(size_t bytes)
     frame+= srv_page_size;
   }
 
+#pragma omp critical
   reg();
 
   return true;
@@ -1175,13 +1177,26 @@ bool buf_pool_t::create()
   chunks= static_cast<chunk_t*>(ut_zalloc_nokey(n_chunks * sizeof *chunks));
   UT_LIST_INIT(free, &buf_page_t::list);
   curr_size= 0;
-  auto chunk= chunks;
+  ulint s= 0, chunks_initialized= 0;
 
-  do
+#pragma omp parallel for reduction(+ : s, chunks_initialized) default(none) firstprivate(chunk_size)
+  for (auto chunk= chunks; chunk < chunks + n_chunks; chunk++)
   {
-    if (!chunk->create(chunk_size))
+    if (chunk->create(chunk_size))
     {
-      while (--chunk >= chunks)
+      s+= chunk->size;
+      chunks_initialized++;
+    }
+  }
+
+  curr_size= s;
+
+  if (chunks_initialized < n_chunks)
+  {
+#pragma omp parallel for default(none) firstprivate(chunks)
+    for (auto chunk= chunks; chunk < chunks + n_chunks; chunk++)
+    {
+      if (chunk)
       {
         buf_block_t* block= chunk->blocks;
 
@@ -1190,19 +1205,17 @@ bool buf_pool_t::create()
 
         allocator.deallocate_large_dodump(chunk->mem, &chunk->mem_pfx);
       }
-      ut_free(chunks);
-      chunks= nullptr;
-      UT_DELETE(chunk_t::map_reg);
-      chunk_t::map_reg= nullptr;
-      aligned_free(const_cast<byte*>(field_ref_zero));
-      field_ref_zero= nullptr;
-      ut_ad(!is_initialised());
-      return true;
     }
 
-    curr_size+= chunk->size;
+    ut_free(chunks);
+    chunks= nullptr;
+    UT_DELETE(chunk_t::map_reg);
+    chunk_t::map_reg= nullptr;
+    aligned_free(const_cast<byte*>(field_ref_zero));
+    field_ref_zero= nullptr;
+    ut_ad(!is_initialised());
+    return true;
   }
-  while (++chunk < chunks + n_chunks);
 
   ut_ad(is_initialised());
   mysql_mutex_init(buf_pool_mutex_key, &mutex, MY_MUTEX_INIT_FAST);
@@ -1215,7 +1228,6 @@ bool buf_pool_t::create()
 
   for (size_t i= 0; i < UT_ARR_SIZE(zip_free); ++i)
     UT_LIST_INIT(zip_free[i], &buf_buddy_free_t::list);
-  ulint s= curr_size;
   old_size= s;
   s/= BUF_READ_AHEAD_PORTION;
   read_ahead_area= s >= READ_AHEAD_PAGES
