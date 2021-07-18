@@ -2318,9 +2318,7 @@ public:
     mysql_mutex_init(key_delayed_insert_mutex, &mutex, MY_MUTEX_INIT_FAST);
     mysql_cond_init(key_delayed_insert_cond, &cond, NULL);
     mysql_cond_init(key_delayed_insert_cond_client, &cond_client, NULL);
-    mysql_mutex_lock(&LOCK_delayed_insert);
     delayed_insert_threads++;
-    mysql_mutex_unlock(&LOCK_delayed_insert);
     delayed_lock= global_system_variables.low_priority_updates ?
                                           TL_WRITE_LOW_PRIORITY : TL_WRITE;
     DBUG_VOID_RETURN;
@@ -2341,7 +2339,6 @@ public:
     mysql_cond_destroy(&cond_client);
 
     server_threads.erase(&thd);
-    mysql_mutex_assert_owner(&LOCK_delayed_insert);
     delayed_insert_threads--;
 
     my_free(thd.query());
@@ -2923,7 +2920,7 @@ int write_delayed(THD *thd, TABLE *table, enum_duplicates duplic,
     unlink_blobs(table);
   mysql_cond_signal(&di->cond);
 
-  thread_safe_increment(delayed_rows_in_use,&LOCK_delayed_status);
+  delayed_rows_in_use++;
   mysql_mutex_unlock(&di->mutex);
   DBUG_RETURN(0);
 
@@ -3587,7 +3584,7 @@ bool Delayed_insert::handle_inserts(void)
     if (unlikely(tmp_error || write_record(&thd, table, &info, NULL)))
     {
       info.error_count++;				// Ignore errors
-      thread_safe_increment(delayed_insert_errors,&LOCK_delayed_status);
+      delayed_insert_errors++;
       row->log_query = 0;
     }
 
@@ -3604,8 +3601,8 @@ bool Delayed_insert::handle_inserts(void)
 
     if (table->s->blob_fields)
       free_delayed_insert_blobs(table);
-    thread_safe_decrement(delayed_rows_in_use,&LOCK_delayed_status);
-    thread_safe_increment(delayed_insert_writes,&LOCK_delayed_status);
+    delayed_rows_in_use--;
+    delayed_insert_writes++;
     mysql_mutex_lock(&mutex);
 
     /*
@@ -3710,14 +3707,14 @@ bool Delayed_insert::handle_inserts(void)
       free_delayed_insert_blobs(table);
     }
     delete row;
-    thread_safe_increment(delayed_insert_errors,&LOCK_delayed_status);
+    delayed_insert_errors++;
     stacked_inserts--;
 #ifndef DBUG_OFF
     max_rows++;
 #endif
   }
   DBUG_PRINT("error", ("dropped %lu rows after an error", max_rows));
-  thread_safe_increment(delayed_insert_errors, &LOCK_delayed_status);
+  delayed_insert_errors++;
   DBUG_RETURN(1);
 }
 #endif /* EMBEDDED_LIBRARY */

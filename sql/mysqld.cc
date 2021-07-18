@@ -469,8 +469,9 @@ ulong executed_events=0;
 Atomic_counter<query_id_t> global_query_id;
 ulong aborted_threads, aborted_connects, aborted_connects_preauth;
 ulong delayed_insert_timeout, delayed_insert_limit, delayed_queue_size;
-ulong delayed_insert_threads, delayed_insert_writes, delayed_rows_in_use;
-ulong delayed_insert_errors,flush_time;
+Atomic_counter<unsigned long> delayed_insert_writes, delayed_rows_in_use;
+Atomic_counter<unsigned long> delayed_insert_threads, delayed_insert_errors;
+ulong flush_time;
 ulong malloc_calls;
 ulong specialflag=0;
 ulong binlog_cache_use= 0, binlog_cache_disk_use= 0;
@@ -689,7 +690,7 @@ mysql_mutex_t  LOCK_start_thread;
 
 mysql_mutex_t
   LOCK_status, LOCK_error_log, LOCK_short_uuid_generator,
-  LOCK_delayed_insert, LOCK_delayed_status, LOCK_delayed_create,
+  LOCK_delayed_insert, LOCK_delayed_create,
   LOCK_crypt,
   LOCK_global_system_variables,
   LOCK_user_conn,
@@ -884,7 +885,7 @@ PSI_mutex_key key_BINLOG_LOCK_index, key_BINLOG_LOCK_xid_list,
   key_LOCK_binlog_end_pos,
   key_delayed_insert_mutex, key_hash_filo_lock, key_LOCK_active_mi,
   key_LOCK_crypt, key_LOCK_delayed_create,
-  key_LOCK_delayed_insert, key_LOCK_delayed_status, key_LOCK_error_log,
+  key_LOCK_delayed_insert, key_LOCK_error_log,
   key_LOCK_gdl, key_LOCK_global_system_variables,
   key_LOCK_manager, key_LOCK_backup_log,
   key_LOCK_prepared_stmt_count,
@@ -951,7 +952,6 @@ static PSI_mutex_info all_server_mutexes[]=
   { &key_LOCK_crypt, "LOCK_crypt", PSI_FLAG_GLOBAL},
   { &key_LOCK_delayed_create, "LOCK_delayed_create", PSI_FLAG_GLOBAL},
   { &key_LOCK_delayed_insert, "LOCK_delayed_insert", PSI_FLAG_GLOBAL},
-  { &key_LOCK_delayed_status, "LOCK_delayed_status", PSI_FLAG_GLOBAL},
   { &key_LOCK_error_log, "LOCK_error_log", PSI_FLAG_GLOBAL},
   { &key_LOCK_gdl, "LOCK_gdl", PSI_FLAG_GLOBAL},
   { &key_LOCK_global_system_variables, "LOCK_global_system_variables", PSI_FLAG_GLOBAL},
@@ -2027,7 +2027,6 @@ static void clean_up_mutexes()
   mysql_mutex_destroy(&LOCK_status);
   mysql_rwlock_destroy(&LOCK_all_status_vars);
   mysql_mutex_destroy(&LOCK_delayed_insert);
-  mysql_mutex_destroy(&LOCK_delayed_status);
   mysql_mutex_destroy(&LOCK_delayed_create);
   mysql_mutex_destroy(&LOCK_crypt);
   mysql_mutex_destroy(&LOCK_user_conn);
@@ -4319,8 +4318,6 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_status, &LOCK_status, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_delayed_insert,
                    &LOCK_delayed_insert, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_LOCK_delayed_status,
-                   &LOCK_delayed_status, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_delayed_create,
                    &LOCK_delayed_create, MY_MUTEX_INIT_SLOW);
   mysql_mutex_init(key_LOCK_crypt, &LOCK_crypt, MY_MUTEX_INIT_FAST);
@@ -7236,9 +7233,9 @@ SHOW_VAR status_vars[]= {
 #ifndef DBUG_OFF
   {"Debug",                    (char*) &debug_status_func,  SHOW_FUNC},
 #endif
-  {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_LONG},
-  {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_LONG_NOFLUSH},
-  {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_LONG},
+  {"Delayed_errors",           (char*) &delayed_insert_errors,  SHOW_ATOMIC_COUNTER_ULONG},
+  {"Delayed_insert_threads",   (char*) &delayed_insert_threads, SHOW_ATOMIC_COUNTER_ULONG_NOFLUSH},
+  {"Delayed_writes",           (char*) &delayed_insert_writes,  SHOW_ATOMIC_COUNTER_ULONG},
   {"Delete_scan",	       (char*) offsetof(STATUS_VAR, delete_scan_count), SHOW_LONG_STATUS},
   {"Empty_queries",            (char*) offsetof(STATUS_VAR, empty_queries), SHOW_LONG_STATUS},
   {"Executed_events",          (char*) &executed_events, SHOW_LONG_NOFLUSH },
@@ -7300,7 +7297,7 @@ SHOW_VAR status_vars[]= {
   {"Memory_used",              (char*) &show_memory_used, SHOW_SIMPLE_FUNC},
   {"Memory_used_initial",      (char*) &start_memory_used, SHOW_LONGLONG},
   {"Resultset_metadata_skipped", (char *) offsetof(STATUS_VAR, skip_metadata_count),SHOW_LONG_STATUS},
-  {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_LONG_NOFLUSH},
+  {"Not_flushed_delayed_rows", (char*) &delayed_rows_in_use,    SHOW_ATOMIC_COUNTER_ULONG_NOFLUSH},
   {"Open_files",               (char*) &my_file_opened,         SHOW_SINT},
   {"Open_streams",             (char*) &my_stream_opened,       SHOW_LONG_NOFLUSH},
   {"Open_table_definitions",   (char*) &show_table_definitions, SHOW_SIMPLE_FUNC},
