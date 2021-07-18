@@ -3476,6 +3476,8 @@ void reset_status_vars()
     /* Note that SHOW_LONG_NOFLUSH variables are not reset */
     if (ptr->type == SHOW_LONG)
       *(ulong*) ptr->value= 0;
+    if (ptr->type == SHOW_ATOMIC_COUNTER_ULONG)
+      *static_cast<Atomic_counter<unsigned long>*>(ptr->value)= 0;
   }
 }
 
@@ -3611,7 +3613,7 @@ const char* get_one_variable(THD *thd,
     value= ((char *) status_var + (intptr) value);
     /* fall through */
   case SHOW_ULONG:
-  case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status()
+  case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status_vars()
 #ifndef _WIN64
   case SHOW_SIZE_T:
 #endif
@@ -3685,6 +3687,14 @@ const char* get_one_variable(THD *thd,
     end= int10_to_str(
            static_cast<long>(*static_cast<Atomic_counter<uint32_t>*>(value)),
            buff, 10);
+    break;
+  case SHOW_ATOMIC_COUNTER_ULONG_STATUS:
+    value= (char *) status_var + (intptr) value;
+    /* fall through */
+  case SHOW_ATOMIC_COUNTER_ULONG:
+  case SHOW_ATOMIC_COUNTER_ULONG_NOFLUSH:
+    end= int10_to_str(*static_cast<Atomic_counter<unsigned long>*>(value),
+                      buff, 10);
     break;
   case SHOW_UNDEF:
     break;                                        // Return empty string
