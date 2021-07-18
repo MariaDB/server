@@ -1931,7 +1931,6 @@ static void clean_up(bool print_message)
   key_caches.delete_elements(free_key_cache);
   wt_end();
   multi_keycache_free();
-  sp_cache_end();
   free_status_vars();
   end_thr_alarm(1);			/* Free allocated memory */
   end_thr_timer();
@@ -4382,7 +4381,6 @@ static int init_thread_environment()
   mysql_mutex_init(key_LOCK_server_started,
                    &LOCK_server_started, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_server_started, &COND_server_started, NULL);
-  sp_cache_init();
 #ifdef HAVE_EVENT_SCHEDULER
   Events::init_mutexes();
 #endif

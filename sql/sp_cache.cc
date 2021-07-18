@@ -22,8 +22,7 @@
 #include "sp_cache.h"
 #include "sp_head.h"
 
-static mysql_mutex_t Cversion_lock;
-static ulong volatile Cversion= 1;
+static Atomic_counter<unsigned long> Cversion= 1UL;
 
 
 /*
@@ -80,38 +79,6 @@ private:
   HASH m_hashtable;
 }; // class sp_cache
 
-#ifdef HAVE_PSI_INTERFACE
-static PSI_mutex_key key_Cversion_lock;
-
-static PSI_mutex_info all_sp_cache_mutexes[]=
-{
-  { &key_Cversion_lock, "Cversion_lock", PSI_FLAG_GLOBAL}
-};
-
-static void init_sp_cache_psi_keys(void)
-{
-  const char* category= "sql";
-  int count;
-
-  if (PSI_server == NULL)
-    return;
-
-  count= array_elements(all_sp_cache_mutexes);
-  PSI_server->register_mutex(category, all_sp_cache_mutexes, count);
-}
-#endif
-
-/* Initialize the SP caching once at startup */
-
-void sp_cache_init()
-{
-#ifdef HAVE_PSI_INTERFACE
-  init_sp_cache_psi_keys();
-#endif
-
-  mysql_mutex_init(key_Cversion_lock, &Cversion_lock, MY_MUTEX_INIT_FAST);
-}
-
 
 /*
   Clear the cache *cp and set *cp to NULL.
@@ -133,12 +100,6 @@ void sp_cache_clear(sp_cache **cp)
     delete c;
     *cp= NULL;
   }
-}
-
-
-void sp_cache_end()
-{
-  mysql_mutex_destroy(&Cversion_lock);
 }
 
 
@@ -214,7 +175,7 @@ sp_head *sp_cache_lookup(sp_cache **cp, const Database_qualified_name *name)
 void sp_cache_invalidate()
 {
   DBUG_PRINT("info",("sp_cache: invalidating"));
-  thread_safe_increment(Cversion, &Cversion_lock);
+  Cversion++;
 }
 
 
@@ -231,7 +192,7 @@ void sp_cache_invalidate()
 
 void sp_cache_flush_obsolete(sp_cache **cp, sp_head **sp)
 {
-  if ((*sp)->sp_cache_version() < Cversion && !(*sp)->is_invoked())
+  if ((*sp)->sp_cache_version() < sp_cache_version() && !(*sp)->is_invoked())
   {
     (*cp)->remove(*sp);
     *sp= NULL;

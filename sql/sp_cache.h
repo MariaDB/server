@@ -53,8 +53,6 @@ class Database_qualified_name;
     sp_cache_clear();
 */
 
-void sp_cache_init();
-void sp_cache_end();
 void sp_cache_clear(sp_cache **cp);
 void sp_cache_insert(sp_cache **cp, sp_head *sp);
 sp_head *sp_cache_lookup(sp_cache **cp, const Database_qualified_name *name);
