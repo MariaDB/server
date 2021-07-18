@@ -735,29 +735,13 @@ int set_mysys_var(struct st_my_thread_var *mysys_var);
 */
 
 #ifndef thread_safe_increment
-#ifdef _WIN32
-#define thread_safe_increment(V,L) InterlockedIncrement((long*) &(V))
-#define thread_safe_decrement(V,L) InterlockedDecrement((long*) &(V))
-#else
 #define thread_safe_increment(V,L) \
-        (mysql_mutex_lock((L)), (V)++, mysql_mutex_unlock((L)))
+	std::atomic_fetch_add((long*) &(V), 1)
 #define thread_safe_decrement(V,L) \
-        (mysql_mutex_lock((L)), (V)--, mysql_mutex_unlock((L)))
+	std::atomic_fetch_sub((long*) &(V), 1)
+#define thread_safe_add(V,C,L) std::atomic_fetch_add((long*) &(V), (C))
+#define thread_safe_sub(V,C,L) std::atomic_fetch_sub((long*) &(V), (C))
 #endif
-#endif
-
-#ifndef thread_safe_add
-#ifdef _WIN32
-#define thread_safe_add(V,C,L) InterlockedExchangeAdd((long*) &(V),(C))
-#define thread_safe_sub(V,C,L) InterlockedExchangeAdd((long*) &(V),-(long) (C))
-#else
-#define thread_safe_add(V,C,L) \
-        (mysql_mutex_lock((L)), (V)+=(C), mysql_mutex_unlock((L)))
-#define thread_safe_sub(V,C,L) \
-        (mysql_mutex_lock((L)), (V)-=(C), mysql_mutex_unlock((L)))
-#endif
-#endif
-
 
 /*
   statistics_xxx functions are for non critical statistic,
@@ -771,10 +755,10 @@ int set_mysys_var(struct st_my_thread_var *mysys_var);
   - the lock given is not honored.
 */
 #ifdef SAFE_STATISTICS
-#define statistic_increment(V,L) thread_safe_increment((V),(L))
-#define statistic_decrement(V,L) thread_safe_decrement((V),(L))
-#define statistic_add(V,C,L)     thread_safe_add((V),(C),(L))
-#define statistic_sub(V,C,L)     thread_safe_sub((V),(C),(L))
+#define statistic_increment(V,L) _Pragma("omp atomic") (V)++
+#define statistic_decrement(V,L) _Pragma("omp atomic") (V)--
+#define statistic_add(V,C,L) _Pragma("omp atomic") (V)+=(C)
+#define statistic_sub(V,C,L) _Pragma("omp atomic") (V)-=(C)
 #else
 #define statistic_decrement(V,L) (V)--
 #define statistic_increment(V,L) (V)++
