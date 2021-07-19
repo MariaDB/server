@@ -4181,88 +4181,18 @@ int spider_db_mbase_util::open_item_func(
       ) {
         /* no action */
         break;
-      } else if (func_name_length == 4)
-      {
-        if (
-          !strncasecmp("rand", func_name, func_name_length) &&
+      } else if (func_name_length == 4 &&
+        !strncasecmp("rand", func_name, func_name_length) &&
 #ifdef SPIDER_Item_args_arg_count_IS_PROTECTED
-          !item_func->argument_count()
+        !item_func->argument_count()
 #else
-          !item_func->arg_count
+        !item_func->arg_count
 #endif
-        ) {
-          if (str)
-            str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
-          DBUG_RETURN(spider_db_open_item_int(item_func, NULL, spider, str,
-            alias, alias_length, dbton_id, use_fields, fields));
-        } else if (
-          !strncasecmp("case", func_name, func_name_length)
-        ) {
-#ifdef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
-          Item_func_case *item_func_case = (Item_func_case *) item_func;
-          if (str)
-          {
-            if (str->reserve(SPIDER_SQL_CASE_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str->q_append(SPIDER_SQL_CASE_STR, SPIDER_SQL_CASE_LEN);
-          }
-          if (item_func_case->first_expr_num != -1)
-          {
-            if ((error_num = spider_db_print_item_type(
-              item_list[item_func_case->first_expr_num], NULL, spider, str,
-              alias, alias_length, dbton_id, use_fields, fields)))
-              DBUG_RETURN(error_num);
-          }
-          for (roop_count = 0; roop_count < item_func_case->ncases;
-            roop_count += 2)
-          {
-            if (str)
-            {
-              if (str->reserve(SPIDER_SQL_WHEN_LEN))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_WHEN_STR, SPIDER_SQL_WHEN_LEN);
-            }
-            if ((error_num = spider_db_print_item_type(
-              item_list[roop_count], NULL, spider, str,
-              alias, alias_length, dbton_id, use_fields, fields)))
-              DBUG_RETURN(error_num);
-            if (str)
-            {
-              if (str->reserve(SPIDER_SQL_THEN_LEN))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_THEN_STR, SPIDER_SQL_THEN_LEN);
-            }
-            if ((error_num = spider_db_print_item_type(
-              item_list[roop_count + 1], NULL, spider, str,
-              alias, alias_length, dbton_id, use_fields, fields)))
-              DBUG_RETURN(error_num);
-          }
-          if (item_func_case->else_expr_num != -1)
-          {
-            if (str)
-            {
-              if (str->reserve(SPIDER_SQL_ELSE_LEN))
-                DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-              str->q_append(SPIDER_SQL_ELSE_STR, SPIDER_SQL_ELSE_LEN);
-            }
-            if ((error_num = spider_db_print_item_type(
-              item_list[item_func_case->else_expr_num], NULL, spider, str,
-              alias, alias_length, dbton_id, use_fields, fields)))
-              DBUG_RETURN(error_num);
-          }
-          if (str)
-          {
-            if (str->reserve(SPIDER_SQL_END_LEN + SPIDER_SQL_CLOSE_PAREN_LEN))
-              DBUG_RETURN(HA_ERR_OUT_OF_MEM);
-            str->q_append(SPIDER_SQL_END_STR, SPIDER_SQL_END_LEN);
-            str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
-              SPIDER_SQL_CLOSE_PAREN_LEN);
-          }
-          DBUG_RETURN(0);
-#else
-          DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
-#endif
-        }
+      ) {
+        if (str)
+          str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
+        DBUG_RETURN(spider_db_open_item_int(item_func, NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields));
       } else if (func_name_length == 6 &&
         !strncasecmp("istrue", func_name, func_name_length)
       ) {
@@ -5088,6 +5018,72 @@ int spider_db_mbase_util::open_item_func(
          }
       }
       break;
+    case Item_func::CASE_SEARCHED_FUNC:
+    case Item_func::CASE_SIMPLE_FUNC:
+#ifdef ITEM_FUNC_CASE_PARAMS_ARE_PUBLIC
+      Item_func_case *item_func_case = (Item_func_case *) item_func;
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_CASE_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(SPIDER_SQL_CASE_STR, SPIDER_SQL_CASE_LEN);
+      }
+      if (item_func_case->first_expr_num != -1)
+      {
+        if ((error_num = spider_db_print_item_type(
+          item_list[item_func_case->first_expr_num], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+      }
+      for (roop_count = 0; roop_count < item_func_case->ncases;
+        roop_count += 2)
+      {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_WHEN_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_WHEN_STR, SPIDER_SQL_WHEN_LEN);
+        }
+        if ((error_num = spider_db_print_item_type(
+          item_list[roop_count], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_THEN_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_THEN_STR, SPIDER_SQL_THEN_LEN);
+        }
+        if ((error_num = spider_db_print_item_type(
+          item_list[roop_count + 1], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+      }
+      if (item_func_case->else_expr_num != -1)
+      {
+        if (str)
+        {
+          if (str->reserve(SPIDER_SQL_ELSE_LEN))
+            DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+          str->q_append(SPIDER_SQL_ELSE_STR, SPIDER_SQL_ELSE_LEN);
+        }
+        if ((error_num = spider_db_print_item_type(
+          item_list[item_func_case->else_expr_num], NULL, spider, str,
+          alias, alias_length, dbton_id, use_fields, fields)))
+          DBUG_RETURN(error_num);
+      }
+      if (str)
+      {
+        if (str->reserve(SPIDER_SQL_END_LEN + SPIDER_SQL_CLOSE_PAREN_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(SPIDER_SQL_END_STR, SPIDER_SQL_END_LEN);
+        str->q_append(SPIDER_SQL_CLOSE_PAREN_STR,
+          SPIDER_SQL_CLOSE_PAREN_LEN);
+      }
+      DBUG_RETURN(0);
+#else
+      DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
+#endif
     default:
       THD *thd = spider->trx->thd;
       SPIDER_SHARE *share = spider->share;
