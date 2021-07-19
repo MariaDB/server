@@ -1477,7 +1477,7 @@ static void srv_sync_log_buffer_in_background()
 	srv_main_thread_op_info = "flushing log";
 	if (difftime(current_time, srv_last_log_flush_time)
 	    >= srv_flush_log_at_timeout) {
-		log_sys.initiate_write(true);
+		log_buffer_flush_to_disk();
 		srv_last_log_flush_time = current_time;
 		srv_log_writes_and_flush++;
 	}

@@ -2672,7 +2672,7 @@ rollback:
   ALTER TABLE...DISCARD TABLESPACE operation altogether. */
   err= row_discard_tablespace(trx, table);
   DBUG_EXECUTE_IF("ib_discard_before_commit_crash",
-                  log_write_up_to(LSN_MAX, true); DBUG_SUICIDE(););
+                  log_buffer_flush_to_disk(); DBUG_SUICIDE(););
   /* FTS_ tables may be deleted */
   std::vector<pfs_os_file_t> deleted;
   trx->commit(deleted);

@@ -2,15 +2,10 @@
 # fix the #line directives in the generated .cc files
 # to refer to the original sql_yacc.yy
 #
-m4_define([yyfile],m4_bpatsubst(__file__,[[a-z.0-9]+$],sql_yacc.yy))
-
 m4_define([b4_syncline],
-[m4_if(m4_index([$2],[.yy]),[-1],
-[b4_sync_start([$1], [$2])[]dnl
+[b4_sync_start([$1], m4_bpatsubst([$2],[yy_[a-z]+\.yy],sql_yacc.yy))[]dnl
 
-],[b4_sync_start([$1], ["yyfile"])[]dnl
-
-])])
+])
 
 # try both paths for different bison versions
 m4_sinclude(skeletons/c-skel.m4)

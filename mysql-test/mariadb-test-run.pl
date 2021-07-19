@@ -244,7 +244,7 @@ my $opt_ssl;
 my $opt_skip_ssl;
 my @opt_skip_test_list;
 our $opt_ssl_supported;
-my $opt_ps_protocol;
+our $opt_ps_protocol;
 my $opt_sp_protocol;
 my $opt_cursor_protocol;
 my $opt_view_protocol;

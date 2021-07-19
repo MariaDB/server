@@ -25,6 +25,12 @@ sub skip_combinations {
     $skip{'include/platform.combinations'} = [ 'aix', 'win' ];
   }
 
+  if ( $::opt_ps_protocol ) {
+    $skip{'include/protocol.combinations'} = [ 'nm' ];
+  } else {
+    $skip{'include/protocol.combinations'} = [ 'ps' ];
+  }
+
   $skip{'include/maybe_debug.combinations'} =
     [ defined $::mysqld_variables{'debug-dbug'} ? 'release' : 'debug' ];
 
