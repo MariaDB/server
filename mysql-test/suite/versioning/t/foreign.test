@@ -476,4 +476,22 @@ select pk, f1, f2, left(f3, 4), check_row_ts(row_start, row_end) from t1 for sys
 # cleanup
 drop table t1;
 
+--echo #
+--echo # MDEV-21555 Assertion secondary index is out of sync on delete from versioned table
+--echo #
+create table t1 (a int, b int as (a + 1) virtual, key(a)) engine=innodb with system versioning;
+
+set foreign_key_checks= off;
+insert into t1 (a) values (1), (2);
+alter table t1 add foreign key (b) references t1 (a), algorithm=copy;
+update t1 set a= null where a = 1;
+delete from t1 where a is null;
+set foreign_key_checks= on;
+
+delete history from t1;
+delete from t1;
+
+# cleanup
+drop table t1;
+
 --source suite/versioning/common_finish.inc
