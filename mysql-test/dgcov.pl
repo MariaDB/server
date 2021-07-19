@@ -171,7 +171,7 @@ sub gcov_one_file {
         next;
       }
       if (/^file:/) {
-        $fname=realpath($');
+        $fname=realpath(-f $' ? $' : $root.$');
         next;
       }
       next if /^lcount:\d+,-\d+/; # whatever that means
