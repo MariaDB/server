@@ -60,7 +60,7 @@ private:
 
   size_t _round_to_block(size_t count);
 
-  int _flush_io_cache();
+  int _flush_io_buffer();
 
   int _read_append(uchar* To, size_t Count);
 };
@@ -84,7 +84,7 @@ int RingBuffer::write(uchar *From, size_t Count) {
   memcpy(saved_write_pos, saved_buffer, rest_length);
 
 
-  if(_flush_io_cache())
+  if(_flush_io_buffer())
     return 1;
 
   mysql_mutex_lock(&_buffer_lock);
@@ -253,7 +253,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
 
 RingBuffer::RingBuffer(char* filename, size_t cachesize)
 {
-  _file = my_open("input.txt",O_CREAT | O_RDWR,MYF(MY_WME));
+  _file = my_open(filename,O_CREAT | O_RDWR,MYF(MY_WME));
   if (_file >= 0)
   {
     my_off_t pos;
@@ -311,7 +311,7 @@ RingBuffer::RingBuffer(char* filename, size_t cachesize)
 RingBuffer::~RingBuffer() {
   if (_file != -1) /* File doesn't exist */
   {
-    _flush_io_cache();
+    _flush_io_buffer();
   }
   my_free(_buffer);
   mysql_mutex_destroy(&_buffer_lock);
@@ -322,7 +322,7 @@ RingBuffer::~RingBuffer() {
 size_t RingBuffer::_round_to_block(size_t count) {
   return count & ~(IO_SIZE-1);
 }
-int RingBuffer::_flush_io_cache() {
+int RingBuffer::_flush_io_buffer() {
   size_t length;
 
 
