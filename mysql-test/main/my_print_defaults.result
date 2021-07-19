@@ -1,0 +1,13 @@
+# MDEV-24248: my_print_defaults is not taking all the values when using
+# -e option which is called from mysql.server (extra_args).
+#
+# checking for mysql.server
+--key_buffer_size=20M
+--max_allowed_packet=250M
+--table_open_cache=1000
+--table_definition_cache=2000
+--read_buffer_size=1M
+--thread_cache_size=8
+--max_connections=1024
+--long_query_time=60
+--slow_query_log=1

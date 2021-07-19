@@ -200,11 +200,11 @@ su_kill() {
 extra_args=""
 if test -r "$basedir/my.cnf"
 then
-  extra_args="-e $basedir/my.cnf"
+  extra_args="--defaults-extra-file= $basedir/my.cnf"
 else
   if test -r "$datadir/my.cnf"
   then
-    extra_args="-e $datadir/my.cnf"
+    extra_args="--defaults-extra-file= $datadir/my.cnf"
   fi
 fi
 
