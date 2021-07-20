@@ -9466,8 +9466,8 @@ column_default_non_parenthesized_expr:
             Item_splocal *il= $3->get_item_splocal();
             if (il)
               my_yyabort_error((ER_WRONG_COLUMN_NAME, MYF(0), il->my_name()->str));
-            $$= new (thd->mem_root) Item_default_value(thd, Lex->current_context(),
-                                                         $3);
+            $$= new (thd->mem_root) Item_default_value_arg(thd, Lex->current_context(),
+                                                           $3);
             if ($$ == NULL)
               MYSQL_YYABORT;
           }

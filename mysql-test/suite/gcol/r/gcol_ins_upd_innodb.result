@@ -791,6 +791,28 @@ Warnings:
 Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
 Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
 DROP TABLE t1;
+#
+# MDEV-23597 Assertion `marked_for_read()' failed while evaluating DEFAULT
+#
+CREATE TABLE t1 (a INT UNIQUE, b INT DEFAULT (c+1), c int);
+INSERT INTO t1 VALUES (1,1,1);
+UPDATE t1 SET b=DEFAULT;
+SELECT * from t1;
+a	b	c
+1	2	1
+REPLACE t1 VALUES(1,1,1);
+INSERT INTO t1 VALUES (1,1,1) ON DUPLICATE KEY UPDATE b= DEFAULT;
+SELECT * from t1;
+a	b	c
+1	2	1
+REPLACE t1 VALUES(1,1,1);
+CREATE TABLE t2 (a INT, b INT DEFAULT (c+1), c int);
+INSERT INTO t2 VALUES (5,5,5);
+UPDATE t1 join t2 set t1.b= DEFAULT, t2.b= DEFAULT;
+SELECT * from t1, t2;
+a	b	c	a	b	c
+1	2	1	5	6	5
+DROP TABLE t1, t2;
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;
 DROP PROCEDURE IF EXISTS p1;

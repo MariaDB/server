@@ -4454,5 +4454,32 @@ deallocate prepare stmt;
 drop table folks;
 set big_tables=@save_big_tables;
 #
+# MDEV-26135: execution of PS for query with hanging recursive CTE
+#
+create table t1 (a int);
+insert into t1 values (5), (7);
+create table t2 (b int);
+insert into t2 values (3), (7), (1);
+with recursive r as (select a from t1 union select a+1 from r where a < 10)
+select * from t2;
+b
+3
+7
+1
+prepare stmt from "with recursive r as (select a from t1 union select a+1 from r where a < 10)
+select * from t2";
+execute stmt;
+b
+3
+7
+1
+execute stmt;
+b
+3
+7
+1
+deallocate prepare stmt;
+drop table t1,t2;
+#
 # End of 10.2 tests
 #
