@@ -4291,18 +4291,15 @@ int ha_mroonga::wrapper_open(const char *name, int mode, uint open_options)
   if (error)
     DBUG_RETURN(error);
 
-  if (!(open_options & HA_OPEN_FOR_REPAIR)) {
-    error = open_table(name);
-    if (error)
-      DBUG_RETURN(error);
+  error = open_table(name);
+  if (error && !(open_options & HA_OPEN_FOR_REPAIR))
+    goto error_exit;
 
-    error = wrapper_open_indexes(name);
-    if (error) {
-      grn_obj_unlink(ctx, grn_table);
-      grn_table = NULL;
-      DBUG_RETURN(error);
-    }
-  }
+  error = wrapper_open_indexes(name);
+  if (error && !(open_options & HA_OPEN_FOR_REPAIR))
+    goto error_exit;
+
+  error = 0;
 
   mrn_init_alloc_root(&mem_root, 1024, 0, MYF(0));
   wrap_key_info = mrn_create_key_info_for_table(share, table, &error);
@@ -4390,6 +4387,7 @@ int ha_mroonga::wrapper_open(const char *name, int mode, uint open_options)
     }
   }
 
+error_exit:
   if (error)
   {
     grn_obj_unlink(ctx, grn_table);
@@ -4662,37 +4660,35 @@ int ha_mroonga::storage_open(const char *name, int mode, uint open_options)
     DBUG_RETURN(error);
   }
 
+  error = storage_open_indexes(name);
+  if (error && !(open_options & HA_OPEN_FOR_REPAIR)) {
+    storage_close_columns();
+    grn_obj_unlink(ctx, grn_table);
+    grn_table = NULL;
+    DBUG_RETURN(error);
+  }
+
+  storage_set_keys_in_use();
+
   if (!(open_options & HA_OPEN_FOR_REPAIR)) {
-    error = storage_open_indexes(name);
-    if (error) {
-      storage_close_columns();
-      grn_obj_unlink(ctx, grn_table);
-      grn_table = NULL;
-      DBUG_RETURN(error);
-    }
-
-    storage_set_keys_in_use();
-
-    {
-      mrn::Lock lock(&mrn_operations_mutex);
-      mrn::PathMapper mapper(name);
-      const char *table_name = mapper.table_name();
-      size_t table_name_size = strlen(table_name);
-      if (db->is_broken_table(table_name, table_name_size)) {
-        GRN_LOG(ctx, GRN_LOG_NOTICE,
-                "Auto repair is started: <%s>",
-                name);
-        error = operations_->repair(table_name, table_name_size);
+    mrn::Lock lock(&mrn_operations_mutex);
+    mrn::PathMapper mapper(name);
+    const char *table_name = mapper.table_name();
+    size_t table_name_size = strlen(table_name);
+    if (db->is_broken_table(table_name, table_name_size)) {
+      GRN_LOG(ctx, GRN_LOG_NOTICE,
+              "Auto repair is started: <%s>",
+              name);
+      error = operations_->repair(table_name, table_name_size);
+      if (!error)
+        db->mark_table_repaired(table_name, table_name_size);
+      if (!share->disable_keys) {
         if (!error)
-          db->mark_table_repaired(table_name, table_name_size);
-        if (!share->disable_keys) {
-          if (!error)
-            error = storage_reindex();
-        }
-        GRN_LOG(ctx, GRN_LOG_NOTICE,
-                "Auto repair is done: <%s>: %s",
-                name, error == 0 ? "success" : "failure");
+          error = storage_reindex();
       }
+      GRN_LOG(ctx, GRN_LOG_NOTICE,
+              "Auto repair is done: <%s>: %s",
+              name, error == 0 ? "success" : "failure");
     }
   }
 
@@ -5237,7 +5233,7 @@ void ha_mroonga::storage_set_keys_in_use()
     if (i == table_share->primary_key) {
       continue;
     }
-    if (!grn_index_tables[i]) {
+    if (grn_index_tables && !grn_index_tables[i]) {
       /* disabled */
       table_share->keys_in_use.clear_bit(i);
       DBUG_PRINT("info", ("mroonga: key %u disabled", i));
