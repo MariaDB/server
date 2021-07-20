@@ -839,9 +839,19 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
       node->deferred= true;
       if (!space->acquire())
         goto fail;
+      const bool is_compressed= fil_space_t::is_compressed(flags);
+#ifdef _WIN32
+      const bool is_sparse= is_compressed;
+      if (is_compressed)
+        os_file_set_sparse_win32(node->handle);
+#else
+      const bool is_sparse= is_compressed &&
+        DB_SUCCESS == os_file_punch_hole(node->handle, 0, 4096) &&
+        !my_test_if_thinly_provisioned(node->handle);
+#endif
       if (!os_file_set_size(node->name, node->handle,
                             size * fil_space_t::physical_size(flags),
-                            space->is_compressed()))
+                            is_sparse))
       {
         space->release();
         goto fail;

@@ -577,7 +577,7 @@ fil_space_extend_must_retry(
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,
-				    space->is_compressed());
+				    node->punch_hole == 1);
 
 	os_has_said_disk_full = *success;
 	if (*success) {
@@ -2024,23 +2024,16 @@ fil_ibd_create(
 	}
 
 	const bool is_compressed = fil_space_t::is_compressed(flags);
-	fil_space_crypt_t* crypt_data = nullptr;
 #ifdef _WIN32
+	const bool is_sparse = is_compressed;
 	if (is_compressed) {
 		os_file_set_sparse_win32(file);
 	}
+#else
+	const bool is_sparse = is_compressed
+		&& DB_SUCCESS == os_file_punch_hole(file, 0, 4096)
+		&& !my_test_if_thinly_provisioned(file);
 #endif
-
-	if (!os_file_set_size(
-		path, file,
-		os_offset_t(size) << srv_page_size_shift, is_compressed)) {
-		*err = DB_OUT_OF_FILE_SPACE;
-err_exit:
-		os_file_close(file);
-		os_file_delete(innodb_data_file_key, path);
-		free(crypt_data);
-		return NULL;
-	}
 
 	if (fil_space_t::full_crc32(flags)) {
 		flags |= FSP_FLAGS_FCRC32_PAGE_SSIZE();
@@ -2050,9 +2043,21 @@ err_exit:
 
 	/* Create crypt data if the tablespace is either encrypted or user has
 	requested it to remain unencrypted. */
-	crypt_data = (mode != FIL_ENCRYPTION_DEFAULT || srv_encrypt_tables)
+	fil_space_crypt_t* crypt_data = (mode != FIL_ENCRYPTION_DEFAULT
+					 || srv_encrypt_tables)
 		? fil_space_create_crypt_data(mode, key_id)
-		: NULL;
+		: nullptr;
+
+	if (!os_file_set_size(path, file,
+			      os_offset_t(size) << srv_page_size_shift,
+			      is_sparse)) {
+		*err = DB_OUT_OF_FILE_SPACE;
+err_exit:
+		os_file_close(file);
+		os_file_delete(innodb_data_file_key, path);
+		free(crypt_data);
+		return nullptr;
+	}
 
 	fil_space_t::name_type space_name;
 
