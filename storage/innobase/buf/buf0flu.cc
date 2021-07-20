@@ -1670,7 +1670,7 @@ ulint buf_flush_LRU(ulint max_n)
   if (buf_pool.n_flush_LRU())
     return 0;
 
-  log_buffer_flush_to_disk(true);
+  log_buffer_flush_to_disk();
 
   mysql_mutex_lock(&buf_pool.mutex);
   if (buf_pool.n_flush_LRU_)

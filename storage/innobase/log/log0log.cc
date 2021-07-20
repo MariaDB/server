@@ -802,12 +802,10 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
   }
 
   if (flush_to_disk &&
-    flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
-  {
+      flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
     return;
-  }
 
-  if (write_lock.acquire(lsn, flush_to_disk?0:callback) ==
+  if (write_lock.acquire(lsn, flush_to_disk ? nullptr : callback) ==
       group_commit_lock::ACQUIRED)
   {
     mysql_mutex_lock(&log_sys.mutex);
@@ -821,9 +819,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
   }
 
   if (!flush_to_disk)
-  {
     return;
-  }
 
   /* Flush the highest written lsn.*/
   auto flush_lsn = write_lock.value();
