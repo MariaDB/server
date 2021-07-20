@@ -4909,53 +4909,6 @@ xb_space_create_file(
 		return ret;
 	}
 
-	/* Align the memory for file i/o if we might have O_DIRECT set */
-	byte* page = static_cast<byte*>(aligned_malloc(2 * srv_page_size,
-						       srv_page_size));
-
-	memset(page, '\0', srv_page_size);
-
-	fsp_header_init_fields(page, space_id, flags);
-	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
-
-	const ulint zip_size = fil_space_t::zip_size(flags);
-
-	if (!zip_size) {
-		buf_flush_init_for_writing(
-			NULL, page, NULL,
-			fil_space_t::full_crc32(flags));
-
-		ret = os_file_write(IORequestWrite, path, *file, page, 0,
-				    srv_page_size);
-	} else {
-		page_zip_des_t	page_zip;
-		page_zip_set_size(&page_zip, zip_size);
-		page_zip.data = page + srv_page_size;
-		fprintf(stderr, "zip_size = " ULINTPF "\n", zip_size);
-
-#ifdef UNIV_DEBUG
-		page_zip.m_start = 0;
-#endif /* UNIV_DEBUG */
-		page_zip.m_end = 0;
-		page_zip.m_nonempty = 0;
-		page_zip.n_blobs = 0;
-
-		buf_flush_init_for_writing(NULL, page, &page_zip, false);
-
-		ret = os_file_write(IORequestWrite, path, *file,
-				    page_zip.data, 0, zip_size);
-	}
-
-	aligned_free(page);
-
-	if (ret != DB_SUCCESS) {
-		msg("mariabackup: could not write the first page to %s",
-		    path);
-		os_file_close(*file);
-		os_file_delete(0, path);
-		return ret;
-	}
-
 	return TRUE;
 }
 

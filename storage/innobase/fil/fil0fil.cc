@@ -1962,7 +1962,6 @@ fil_ibd_create(
 	dberr_t*	err)
 {
 	pfs_os_file_t	file;
-	byte*		page;
 	bool		success;
 	mtr_t		mtr;
 	bool		has_data_dir = FSP_FLAGS_HAS_DATA_DIR(flags) != 0;
@@ -2043,29 +2042,11 @@ err_exit:
 		return NULL;
 	}
 
-	/* We have to write the space id to the file immediately and flush the
-	file to disk. This is because in crash recovery we must be aware what
-	tablespaces exist and what are their space id's, so that we can apply
-	the log records to the right file. It may take quite a while until
-	buffer pool flush algorithms write anything to the file and flush it to
-	disk. If we would not write here anything, the file would be filled
-	with zeros from the call of os_file_set_size(), until a buffer pool
-	flush would write to it. */
-
-	/* Align the memory for file i/o if we might have O_DIRECT set */
-	page = static_cast<byte*>(aligned_malloc(2 * srv_page_size,
-						 srv_page_size));
-
-	memset(page, '\0', srv_page_size);
-
 	if (fil_space_t::full_crc32(flags)) {
 		flags |= FSP_FLAGS_FCRC32_PAGE_SSIZE();
 	} else {
 		flags |= FSP_FLAGS_PAGE_SSIZE();
 	}
-
-	fsp_header_init_fields(page, space_id, flags);
-	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
 
 	/* Create crypt data if the tablespace is either encrypted or user has
 	requested it to remain unencrypted. */
@@ -2073,13 +2054,6 @@ err_exit:
 		? fil_space_create_crypt_data(mode, key_id)
 		: NULL;
 
-	if (crypt_data) {
-		/* Write crypt data information in page0 while creating
-		ibd file. */
-		crypt_data->fill_page0(flags, page);
-	}
-
-	aligned_free(page);
 	fil_space_t::name_type space_name;
 
 	if (has_data_dir) {
