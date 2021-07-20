@@ -2168,7 +2168,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   if (Wsrep_server_state::instance().desynced_on_pause())
   {
     my_message(ER_UNKNOWN_COM_ERROR,
-               "Aborting TOI: Global Read-Lock (FTWRL) in place.", MYF(0));
+               "Aborting TOI: Replication paused on node for FTWRL/BACKUP STAGE.", MYF(0));
     return -1;
   }
 
