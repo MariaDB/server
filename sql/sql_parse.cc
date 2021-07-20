@@ -2232,15 +2232,13 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     size_t length=
 #endif
     my_snprintf(buff, buff_len - 1,
-                        "Uptime: %lu  Threads: %d  Questions: %lu  "
+                        "Uptime: %lu  Threads: %u  Questions: %lu  "
                         "Slow queries: %lu  Opens: %lu  Flush tables: %lld  "
                         "Open tables: %u  Queries per second avg: %u.%03u",
-                        uptime,
-                        (int) thread_count, (ulong) thd->query_id,
+                        uptime, THD_count::value(), (ulong) thd->query_id,
                         current_global_status_var->long_query_count,
                         current_global_status_var->opened_tables,
-                        tdc_refresh_version(),
-                        tc_records(),
+                        tdc_refresh_version(), tc_records(),
                         (uint) (queries_per_second1000 / 1000),
                         (uint) (queries_per_second1000 % 1000));
 #ifdef EMBEDDED_LIBRARY

@@ -51,7 +51,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <my_getopt.h>
 #include <mysql_com.h>
 #include <my_default.h>
-#include <mysqld.h>
+#include <sql_class.h>
 
 #include <fcntl.h>
 #include <string.h>
@@ -6199,7 +6199,7 @@ static bool xtrabackup_prepare_func(char** argv)
           // See innobase_end() and thd_destructor_proxy()
           while (srv_fast_shutdown == 0 &&
                  (trx_sys.any_active_transactions() ||
-                  static_cast<uint>(thread_count) > srv_n_purge_threads + 1))
+                  THD_count::value() > srv_n_purge_threads + 1))
             os_thread_sleep(1000);
 
           srv_shutdown_bg_undo_sources();

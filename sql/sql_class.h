@@ -993,6 +993,23 @@ static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
   return MY_TEST(cs->mbminlen == 1 && cs->number != 17 /* filename */);
 }
 
+/**
+  A counter of THDs
+
+  It must be specified as a first base class of THD, so that increment is
+  done before any other THD constructors and decrement - after any other THD
+  destructors.
+
+  Destructor unblocks close_conneciton() if there are no more THD's left.
+*/
+struct THD_count
+{
+  static Atomic_counter<uint32_t> count;
+  static uint value() { return static_cast<uint>(count); }
+  THD_count() { count++; }
+  ~THD_count() { count--; }
+};
+
 #ifdef MYSQL_SERVER
 
 void free_tmp_table(THD *thd, TABLE *entry);
@@ -2153,22 +2170,6 @@ struct wait_for_commit
 };
 
 extern "C" void my_message_sql(uint error, const char *str, myf MyFlags);
-
-
-/**
-  A wrapper around thread_count.
-
-  It must be specified as a first base class of THD, so that increment is
-  done before any other THD constructors and decrement - after any other THD
-  destructors.
-
-  Destructor unblocks close_conneciton() if there are no more THD's left.
-*/
-struct THD_count
-{
-  THD_count() { thread_count++; }
-  ~THD_count() { thread_count--; }
-};
 
 
 /**
