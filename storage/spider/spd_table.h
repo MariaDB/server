@@ -189,7 +189,8 @@ typedef struct st_spider_param_string_parse
     {
       DBUG_RETURN(print_param_error());
     }
-    else if (!sq || sq > dq)
+
+    if (dq && (!sq || sq > dq))
     {
       while (1)
       {
@@ -227,7 +228,7 @@ typedef struct st_spider_param_string_parse
         }
       }
     }
-    else
+    else /* sq && (!dq || sq <= dq) */
     {
       while (1)
       {
