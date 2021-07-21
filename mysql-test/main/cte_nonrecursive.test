@@ -1492,6 +1492,56 @@ drop procedure sp3;
 
 drop table t1;
 
+--echo #
+--echo # MDEV-26095: missing RECURSIVE for the recursive definition of CTE
+--echo #             embedded into another CTE definition
+--echo #
+
+create table t1 (a int);
+insert into t1 values (5), (7);
+
+with cte_e as (
+  with recursive cte_r as (
+    select a from t1 union select a+1 as a from cte_r r where a < 10
+  ) select * from cte_r
+) select * from cte_e;
+
+--ERROR ER_NO_SUCH_TABLE
+with cte_e as (
+  with cte_r as (
+    select a from t1 union select a+1 as a from cte_r r where a < 10
+  ) select * from cte_r
+) select * from cte_e;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-26025: query with two usage of a CTE executing via PS /SP
+--echo #
+
+create table t1 (a int, b int);
+insert into t1 value (1,3), (3,2), (1,3), (4,1);
+
+let $q=
+with
+  cte1 as ( select a,b from t1 where a = 1 AND b = 3 ),
+  cte2 as ( select a,b from cte1 ),
+  cte3 as ( select a,b from cte2 )
+select * from cte3, cte2;
+
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+eval create procedure sp() $q;
+
+call sp();
+call sp();
+
+drop procedure sp;
+drop table t1;
+
 --echo # End of 10.2 tests
 
 --echo #

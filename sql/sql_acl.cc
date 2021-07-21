@@ -2634,7 +2634,6 @@ end:
       my_error(ER_INVALID_ROLE, MYF(0), rolename);
       break;
     case 1:
-      StringBuffer<1024> c_usr;
       LEX_CSTRING role_lex;
       /* First, check if current user can see mysql database. */
       bool read_access= !check_access(thd, SELECT_ACL, "mysql", NULL, NULL, 1, 1);
@@ -2655,11 +2654,9 @@ end:
                                                 NULL) == -1))
       {
         /* Role is not granted but current user can see the role */
-        c_usr.append(user, strlen(user));
-        c_usr.append('@');
-        c_usr.append(host, strlen(host));
-        my_printf_error(ER_INVALID_ROLE, "User %`s has not been granted role %`s",
-                        MYF(0), c_usr.c_ptr(), rolename);
+        my_printf_error(ER_INVALID_ROLE, "User %`s@%`s has not been granted role %`s",
+                        MYF(0), thd->security_ctx->priv_user,
+                        thd->security_ctx->priv_host, rolename);
       }
       else
       {

@@ -30,6 +30,7 @@
 #include "filesort.h"                           // filesort_free_buffers
 #include "sql_view.h"
 #include "sql_cte.h"
+#include "item_windowfunc.h"
 
 bool mysql_union(THD *thd, LEX *lex, select_result *result,
                  SELECT_LEX_UNIT *unit, ulong setup_tables_done_option)
@@ -1875,7 +1876,8 @@ bool st_select_lex_unit::cleanup()
   {
     DBUG_RETURN(FALSE);
   }
-  if (with_element && with_element->is_recursive && union_result)
+  if (with_element && with_element->is_recursive && union_result &&
+      with_element->rec_outer_references)
   {
     select_union_recursive *result= with_element->rec_result;
     if (++result->cleanup_count == with_element->rec_outer_references)
@@ -2044,6 +2046,29 @@ static void cleanup_order(ORDER *order)
 }
 
 
+static void cleanup_window_funcs(List<Item_window_func> &win_funcs)
+{
+  List_iterator_fast<Item_window_func> it(win_funcs);
+  Item_window_func *win_func;
+  while ((win_func= it++))
+  {
+    Window_spec *win_spec= win_func->window_spec;
+    if (!win_spec)
+      continue;
+    if (win_spec->save_partition_list)
+    {
+      win_spec->partition_list= win_spec->save_partition_list;
+      win_spec->save_partition_list= NULL;
+    }
+    if (win_spec->save_order_list)
+    {
+      win_spec->order_list= win_spec->save_order_list;
+      win_spec->save_order_list= NULL;
+    }
+  }
+}
+
+
 bool st_select_lex::cleanup()
 {
   bool error= FALSE;
@@ -2052,6 +2077,8 @@ bool st_select_lex::cleanup()
   cleanup_order(order_list.first);
   cleanup_order(group_list.first);
   cleanup_ftfuncs(this);
+
+  cleanup_window_funcs(window_funcs);
 
   if (join)
   {
@@ -2079,7 +2106,8 @@ bool st_select_lex::cleanup()
   for (SELECT_LEX_UNIT *lex_unit= first_inner_unit(); lex_unit ;
        lex_unit= lex_unit->next_unit())
   {
-    if (lex_unit->with_element && lex_unit->with_element->is_recursive)
+    if (lex_unit->with_element && lex_unit->with_element->is_recursive &&
+        lex_unit->with_element->rec_outer_references)
       continue;
     error= (bool) ((uint) error | (uint) lex_unit->cleanup());
   }

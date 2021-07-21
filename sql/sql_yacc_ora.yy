@@ -1338,7 +1338,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         table_wild simple_expr column_default_non_parenthesized_expr udf_expr
         primary_expr string_factor_expr mysql_concatenation_expr
         select_sublist_qualified_asterisk
-        expr_or_default set_expr_or_default
+        expr_or_ignore expr_or_ignore_or_default set_expr_or_default
         geometry_function signed_literal expr_or_literal
         sp_opt_default
         simple_ident_nospvar
@@ -1848,7 +1848,7 @@ execute_var_list:
         ;
 
 execute_var_ident:
-          expr_or_default
+          expr_or_ignore_or_default
           {
             if (unlikely(Lex->prepared_stmt_params.push_back($1,
                          thd->mem_root)))
@@ -10293,7 +10293,7 @@ column_default_non_parenthesized_expr:
             if (unlikely(il))
               my_yyabort_error((ER_WRONG_COLUMN_NAME, MYF(0), il->my_name()->str));
             $$= new (thd->mem_root) Item_default_value(thd, Lex->current_context(),
-                                                         $3);
+                                                         $3, 0);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
             Lex->default_used= TRUE;
@@ -13546,7 +13546,7 @@ ident_eq_list:
         ;
 
 ident_eq_value:
-          simple_ident_nospvar equal expr_or_default
+          simple_ident_nospvar equal expr_or_ignore_or_default
           {
             LEX *lex=Lex;
             if (unlikely(lex->field_list.push_back($1, thd->mem_root)) ||
@@ -13616,12 +13616,12 @@ opt_values_with_names:
         ;
 
 values:
-          values ','  expr_or_default
+          values ','  expr_or_ignore_or_default
           {
             if (unlikely(Lex->insert_list->push_back($3, thd->mem_root)))
               MYSQL_YYABORT;
           }
-        | expr_or_default
+        | expr_or_ignore_or_default
           {
             if (unlikely(Lex->insert_list->push_back($1, thd->mem_root)))
               MYSQL_YYABORT;
@@ -13629,7 +13629,7 @@ values:
         ;
 
 values_with_names:
-          values_with_names ','  remember_name expr_or_default remember_end
+          values_with_names ','  remember_name expr_or_ignore_or_default remember_end
           {
             if (unlikely(Lex->insert_list->push_back($4, thd->mem_root)))
                MYSQL_YYABORT;
@@ -13637,7 +13637,7 @@ values_with_names:
             if (!$4->name.str || $4->name.str == item_empty_name)
               $4->set_name(thd, $3, (uint) ($5 - $3), thd->charset());
            }
-        | remember_name expr_or_default remember_end
+        | remember_name expr_or_ignore_or_default remember_end
           {
             if (unlikely(Lex->insert_list->push_back($2, thd->mem_root)))
                MYSQL_YYABORT;
@@ -13647,17 +13647,21 @@ values_with_names:
           }
         ;
 
-expr_or_default:
+expr_or_ignore:
           expr { $$= $1;}
-        | DEFAULT
-          {
-            $$= new (thd->mem_root) Item_default_specification(thd);
-            if (unlikely($$ == NULL))
-              MYSQL_YYABORT;
-          }
         | IGNORE_SYM
           {
             $$= new (thd->mem_root) Item_ignore_specification(thd);
+            if (unlikely($$ == NULL))
+              MYSQL_YYABORT;
+          }
+        ;
+
+expr_or_ignore_or_default:
+          expr_or_ignore { $$= $1;}
+        | DEFAULT
+          {
+            $$= new (thd->mem_root) Item_default_specification(thd);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
           }
@@ -13719,10 +13723,16 @@ update_list:
         ;
 
 update_elem:
-          simple_ident_nospvar equal expr_or_default
+          simple_ident_nospvar equal DEFAULT
           {
-            if (unlikely(add_item_to_list(thd, $1)) ||
-                unlikely(add_value_to_list(thd, $3)))
+            Item *def= new (thd->mem_root) Item_default_value(thd,
+                                             Lex->current_context(), $1, 1);
+            if (!def || add_item_to_list(thd, $1) || add_value_to_list(thd, def))
+              MYSQL_YYABORT;
+          }
+        | simple_ident_nospvar equal expr_or_ignore
+          {
+            if (add_item_to_list(thd, $1) || add_value_to_list(thd, $3))
               MYSQL_YYABORT;
           }
         ;
@@ -13733,7 +13743,7 @@ insert_update_list:
         ;
 
 insert_update_elem:
-          simple_ident_nospvar equal expr_or_default
+          simple_ident_nospvar equal expr_or_ignore_or_default
           {
           LEX *lex= Lex;
           if (unlikely(lex->update_list.push_back($1, thd->mem_root)) ||
@@ -15006,7 +15016,7 @@ load_data_set_list:
         ;
 
 load_data_set_elem:
-          simple_ident_nospvar equal remember_name expr_or_default remember_end
+          simple_ident_nospvar equal remember_name expr_or_ignore_or_default remember_end
           {
             LEX *lex= Lex;
             if (unlikely(lex->update_list.push_back($1, thd->mem_root)) ||
