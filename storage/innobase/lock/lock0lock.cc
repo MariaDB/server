@@ -5802,7 +5802,8 @@ lock_sec_rec_read_check_and_lock(
 	if (!page_rec_is_supremum(rec)
 	    && page_get_max_trx_id(block->frame) >= trx_sys.get_min_trx_id()
 	    && lock_rec_convert_impl_to_expl(thr_get_trx(thr), block, rec,
-					     index, offsets)) {
+					     index, offsets)
+	    && gap_mode == LOCK_REC_NOT_GAP) {
 		/* We already hold an implicit exclusive lock. */
 		return DB_SUCCESS;
 	}
@@ -5884,7 +5885,8 @@ lock_clust_rec_read_check_and_lock(
 
 	if (heap_no != PAGE_HEAP_NO_SUPREMUM
 	    && lock_rec_convert_impl_to_expl(thr_get_trx(thr), block, rec,
-					     index, offsets)) {
+					     index, offsets)
+	    && gap_mode == LOCK_REC_NOT_GAP) {
 		/* We already hold an implicit exclusive lock. */
 		return DB_SUCCESS;
 	}

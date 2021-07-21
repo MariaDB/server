@@ -1,0 +1,17 @@
+CREATE TABLE t(a INT UNSIGNED PRIMARY KEY) ENGINE=InnoDB;
+INSERT INTO t VALUES (10), (30);
+connect  con1,localhost,root,,;
+SET TRANSACTION ISOLATION LEVEL SERIALIZABLE;
+BEGIN;
+INSERT INTO t VALUES (20);
+SELECT * FROM t WHERE a BETWEEN 10 AND 30;
+a
+10
+20
+30
+connection default;
+SET session innodb_lock_wait_timeout=1;
+INSERT INTO t VALUES (15);
+ERROR HY000: Lock wait timeout exceeded; try restarting transaction
+disconnect con1;
+DROP TABLE t;
