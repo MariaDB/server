@@ -1868,7 +1868,7 @@ int json_path_compare(const json_path_t *a, const json_path_t *b,
 }
 
 
-static enum json_types smart_read_value(json_engine_t *je,
+enum json_types smart_read_value(json_engine_t *je,
                                         const char **value, int *value_len)
 {
   if (json_read_value(je))
@@ -1952,7 +1952,6 @@ err_return:
   return JSV_BAD_JSON;
 }
 
-
 /** Simple json lookup for a value by the key.
 
   Expects JSON object.
@@ -2027,6 +2026,7 @@ enum json_types json_get_object_nkey(const char *js __attribute__((unused)),
 {
   return JSV_NOTHING;
 }
+
 
 
 /** Check if json is valid (well-formed)

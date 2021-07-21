@@ -1635,7 +1635,7 @@ public:
     return 0;
   }
 
-  void build() {
+  void build_json_from_histogram() {
     Json_writer *writer = new Json_writer();
     writer->start_array();
     for(auto& value: bucket_bounds) {
@@ -1645,6 +1645,87 @@ public:
     histogram->set_size(bucket_bounds.size());
     Binary_string *json_string = (Binary_string *) writer->output.get_string();
     histogram->set_values((uchar *) json_string->c_ptr());
+
+    std::vector<std::string> buckets = parse_histogram_from_json(json_string->c_ptr());
+    printf("%zu", buckets.size());
+
+    test_parse_histogram_from_json();
+  }
+
+  static std::vector<std::string> parse_histogram_from_json(const char *json)
+  {
+    std::vector<std::string> hist_buckets= {};
+    enum json_types vt = json_get_array_items(json, json + strlen(json), hist_buckets);
+    printf("%d", vt);
+    printf("%zu", hist_buckets.size());
+
+    return hist_buckets;
+  }
+
+  static void test_parse_histogram_from_json()
+  {
+    std::vector<std::string> bucket = {};
+    std::string json;
+    std::string tests[7] = {
+        R"(["aabbb", "ccccdd", "eeefff"])",
+        R"(["aabbb", "ccc{}dd", "eeefff"])",
+        R"(["aabbb", {"a": "b"}, "eeefff"])",
+        R"({})",
+        R"([1,2,3, null])",
+        R"([null])",
+        R"([])"
+    };
+
+    for(const auto& test : tests) {
+      json = test;
+      bucket = parse_histogram_from_json(json.c_str());
+      printf("%zu", bucket.size());
+    }
+  }
+
+  /*
+   * json_get_array_items expects a JSON array as argument,
+   * and pushes the elements of the array into the `container` vector.
+   * It only works if all the elements in the original JSON array
+   * are scalar values (i.e., strings, numbers, true or false), and returns JSV_BAD_JSON if:
+   * the original JSON is not an array OR the JSON array contains non-scalar elements.
+   */
+  static json_types json_get_array_items(const char *json, const char *json_end, std::vector<std::string> &container) {
+    json_engine_t je;
+    enum json_types value_type;
+    int vl;
+    const char *v;
+
+    json_scan_start(&je, &my_charset_utf8mb4_bin, (const uchar *)json, (const uchar *)json_end);
+
+    if (json_read_value(&je) || je.value_type != JSON_VALUE_ARRAY)
+    {
+      return JSV_BAD_JSON;
+    }
+    value_type = static_cast<json_types>(je.value_type);
+
+    std::string val;
+    while(!json_scan_next(&je))
+    {
+      switch(je.state)
+      {
+      case JST_VALUE:
+        if (je.value_type != JSON_VALUE_STRING &&
+            je.value_type != JSON_VALUE_NUMBER &&
+            je.value_type != JSON_VALUE_TRUE &&
+            je.value_type != JSON_VALUE_FALSE)
+        {
+          return JSV_BAD_JSON;
+        }
+        value_type = smart_read_value(&je, &v, &vl);
+        val = std::string(v, vl);
+        container.emplace_back(val);
+      case JST_ARRAY_END:
+        break;
+      }
+    }
+
+    return value_type;
   }
 };
 
@@ -1772,7 +1853,7 @@ public:
       Histogram_builder_json hist_builder(table_field, tree_key_length, rows);
       tree->walk(table_field->table, json_histogram_build_walk,
                  (void *) &hist_builder);
-      hist_builder.build();
+      hist_builder.build_json_from_histogram();
       distincts= hist_builder.get_count_distinct();
       distincts_single_occurence= hist_builder.get_count_single_occurence();
     } else
