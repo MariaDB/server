@@ -23,6 +23,16 @@
 #define OPENSSL_ALL
 #define WOLFSSL_ALLOW_TLSV10
 #define NO_OLD_TIMEVAL_NAME
+
+/* TLSv1.3 definitions (all needed to build) */
+#define WOLFSSL_TLS13
+#define HAVE_HKDF
+#define HAVE_TLS_EXTENSIONS
+#define HAVE_SUPPORTED_CURVES
+#define HAVE_FFDHE_2048
+#define WC_RSA_PSS
+/* End of TLSv1.3 defines */
+
 /*
   FP_MAX_BITS is set high solely to satisfy ssl_8k_key.test
   WolfSSL will use more stack space with it, with fastmath
