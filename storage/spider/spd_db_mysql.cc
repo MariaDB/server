@@ -5084,6 +5084,23 @@ int spider_db_mbase_util::open_item_func(
 #else
       DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
 #endif
+    case Item_func::JSON_EXTRACT_FUNC:
+      func_name = (char*) item_func->func_name();
+      func_name_length = strlen(func_name);
+      if (str)
+      {
+        if (str->reserve(func_name_length + SPIDER_SQL_OPEN_PAREN_LEN))
+          DBUG_RETURN(HA_ERR_OUT_OF_MEM);
+        str->q_append(func_name, func_name_length);
+        str->q_append(SPIDER_SQL_OPEN_PAREN_STR, SPIDER_SQL_OPEN_PAREN_LEN);
+      }
+      func_name = SPIDER_SQL_COMMA_STR;
+      func_name_length = SPIDER_SQL_COMMA_LEN;
+      separator_str = SPIDER_SQL_COMMA_STR;
+      separator_str_length = SPIDER_SQL_COMMA_LEN;
+      last_str = SPIDER_SQL_CLOSE_PAREN_STR;
+      last_str_length = SPIDER_SQL_CLOSE_PAREN_LEN;
+      break;
     default:
       THD *thd = spider->trx->thd;
       SPIDER_SHARE *share = spider->share;
