@@ -3089,8 +3089,8 @@ DROP TABLE t1;
 #
 # Collations
 #
-CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET latin1 DEFAULT CONCAT('ï¿½')) CHARACTER SET koi8r COLLATE koi8r_bin;
-ERROR 22007: Encountered illegal value 'ï¿½' when converting to koi8r
+CREATE TABLE t1 (a VARCHAR(20) CHARACTER SET latin1 DEFAULT CONCAT('ö')) CHARACTER SET koi8r COLLATE koi8r_bin;
+ERROR 22007: Encountered illegal value 'ö' when converting to koi8r
 CREATE OR REPLACE TABLE t1 (a char(2) default concat('A') COLLATE utf8mb4_unicode_ci);
 SHOW CREATE TABLE t1;
 Table	Create Table
