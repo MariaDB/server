@@ -5205,16 +5205,18 @@ lock_sec_rec_read_check_and_lock(
 	if the max trx id for the page >= min trx id for the trx list or a
 	database recovery is running. */
 
-	if (!page_rec_is_supremum(rec)
+	trx_t *trx = thr_get_trx(thr);
+	if (!lock_table_has(trx, index->table, LOCK_X)
+	    && !page_rec_is_supremum(rec)
 	    && page_get_max_trx_id(block->frame) >= trx_sys.get_min_trx_id()
-	    && lock_rec_convert_impl_to_expl(thr_get_trx(thr), id, rec,
-					     index, offsets)) {
+	    && lock_rec_convert_impl_to_expl(trx, id, rec,
+					     index, offsets)
+	    && gap_mode == LOCK_REC_NOT_GAP) {
 		/* We already hold an implicit exclusive lock. */
 		return DB_SUCCESS;
 	}
 
 #ifdef WITH_WSREP
-	trx_t *trx= thr_get_trx(thr);
 	/* If transaction scanning an unique secondary key is wsrep
 	high priority thread (brute force) this scanning may involve
 	GAP-locking in the index. As this locking happens also when
@@ -5290,9 +5292,12 @@ lock_clust_rec_read_check_and_lock(
 
 	heap_no = page_rec_get_heap_no(rec);
 
-	if (heap_no != PAGE_HEAP_NO_SUPREMUM
-	    && lock_rec_convert_impl_to_expl(thr_get_trx(thr), id, rec,
-					     index, offsets)) {
+	trx_t *trx = thr_get_trx(thr);
+	if (!lock_table_has(trx, index->table, LOCK_X)
+	    && heap_no != PAGE_HEAP_NO_SUPREMUM
+	    && lock_rec_convert_impl_to_expl(trx, id, rec,
+					     index, offsets)
+	    && gap_mode == LOCK_REC_NOT_GAP ) {
 		/* We already hold an implicit exclusive lock. */
 		return DB_SUCCESS;
 	}
