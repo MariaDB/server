@@ -1118,6 +1118,8 @@ bool wsrep_sync_wait (THD* thd, uint mask)
                 "mask= %u, thd->variables.wsrep_on= %d",
                 thd->variables.wsrep_sync_wait, mask,
                 thd->variables.wsrep_on);
+
+    DEBUG_SYNC(thd, "wsrep_entering_sync_wait");
     /*
       This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
       TODO: modify to check if thd has locked any rows.
@@ -2168,7 +2170,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   if (Wsrep_server_state::instance().desynced_on_pause())
   {
     my_message(ER_UNKNOWN_COM_ERROR,
-               "Aborting TOI: Global Read-Lock (FTWRL) in place.", MYF(0));
+               "Aborting TOI: Replication paused on node for FTWRL/BACKUP STAGE.", MYF(0));
     return -1;
   }
 

@@ -9,6 +9,7 @@
 --source include/have_innodb.inc
 
 --connection node_1
+SET SESSION debug_sync = "reset";
 CREATE TABLE t1 (f1 varchar(10)) ENGINE=InnoDB;
 
 # First, check that BACKUP STAGE END skipping desyncing stages is fine
@@ -28,21 +29,40 @@ ALTER TABLE t1 ADD COLUMN (f2 int(10));
 INSERT INTO t1 (f1) values ("node2_1");
 ALTER TABLE t1 ADD COLUMN (f3 int(10));
 
---connection node_1
 # BLOCK_DDL desyncs and pauses the node
+--connection node_1
 BACKUP STAGE BLOCK_DDL;
+
+--connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1c
+SET SESSION wsrep_sync_wait=0;
+--let $wait_condition = SELECT variable_value="Donor/Desynced" FROM information_schema.global_status WHERE variable_name="wsrep_local_state_comment"
+--source include/wait_condition.inc
 
 --connection node_2
 INSERT INTO t1 (f1) values("node2_2");
 ALTER TABLE t1 ADD COLUMN (f5 int(10));
 
 --connection node_1a
---error 1047
+--error ER_UNKNOWN_COM_ERROR
 ALTER TABLE t1 ADD COLUMN (f4 int(10));
+SET SESSION debug_sync = "wsrep_entering_sync_wait SIGNAL insert_a_sync_wait";
 --send INSERT INTO t1 (f1) values("node1a");
+
+--connection node_1c
+# we check that the insert statement is at a point immediately before going into
+# the provider for the sync wait, and since the node is desynced, it will block
+# when it gets there. We can't guarantee it actually gets into the provider before
+# BLOCK_COMMIT/END are later executed, but in the very unlikely chance it
+# doesn't, the test result doesn't change (insert gets executed after the node resyncs).
+SET SESSION debug_sync = "now WAIT_FOR insert_a_sync_wait";
 
 --connection node_1
 BACKUP STAGE BLOCK_COMMIT;
+
+# node only resumes/resyncs upon STAGE END
+--connection node_1c
+SELECT variable_value="Donor/Desynced" FROM information_schema.global_status WHERE variable_name="wsrep_local_state_comment";
 
 --connection node_2
 INSERT INTO t1 (f1) values("node2_3");
@@ -50,18 +70,20 @@ ALTER TABLE t1 ADD COLUMN (f6 int(10));
 
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1b
---error 1047
+--error ER_UNKNOWN_COM_ERROR
 ALTER TABLE t1 ADD COLUMN (f4 int(10));
+SET SESSION debug_sync = "wsrep_entering_sync_wait SIGNAL insert_b_sync_wait";
 --send INSERT INTO t1 (f1) values("node1b");
 
---connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1c
-SET SESSION wsrep_sync_wait=0;
+SET SESSION debug_sync = "now WAIT_FOR insert_b_sync_wait";
+--let $wait_condition = SELECT COUNT(*) = 2 FROM information_schema.processlist WHERE Info like 'INSERT INTO t1 (f1) values("node1%")' AND State = 'Init'
+--source include/wait_condition.inc
 SELECT COUNT(*)=2 FROM t1;
 SELECT COUNT(*)=3 FROM information_schema.columns WHERE table_name = 't1';
 
---connection node_1
 # STAGE END resumes and resyncs the node
+--connection node_1
 BACKUP STAGE END;
 
 --connection node_1a
@@ -79,5 +101,6 @@ SELECT COUNT(*)=5 FROM information_schema.columns WHERE table_name = 't1';
 
 --connection node_1
 DROP TABLE t1;
+SET SESSION debug_sync = "reset";
 call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
 call mtr.add_suppression("greater than drain seqno");
