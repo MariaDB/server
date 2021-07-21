@@ -25276,8 +25276,10 @@ int JOIN::save_explain_data_intern(Explain_query *output,
     if (!(tmp_unit->item && tmp_unit->item->eliminated) &&    // (1)
         (!tmp_unit->derived ||
          tmp_unit->derived->is_materialized_derived()) &&     // (2)
-        !(tmp_unit->with_element &&
-          (!tmp_unit->derived || !tmp_unit->derived->derived_result))) // (3)
+        (!tmp_unit->with_element  ||
+         (tmp_unit->derived &&
+          tmp_unit->derived->derived_result &&
+          !tmp_unit->with_element->is_hanging_recursive())))  // (3)
    {
       explain->add_child(tmp_unit->first_select()->select_number);
     }
@@ -25342,8 +25344,10 @@ static void select_describe(JOIN *join, bool need_tmp_table, bool need_order,
     */
     if (!(unit->item && unit->item->eliminated) &&                     // (1)
         !(unit->derived && unit->derived->merged_for_insert) &&        // (2)
-        !(unit->with_element &&
-          (!unit->derived || !unit->derived->derived_result)))         // (3)
+        (!unit->with_element ||
+          (unit->derived &&
+           unit->derived->derived_result &&
+           !unit->with_element->is_hanging_recursive())))              // (3)
     {
       if (mysql_explain_union(thd, unit, result))
         DBUG_VOID_RETURN;

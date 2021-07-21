@@ -911,7 +911,8 @@ bool With_clause::prepare_unreferenced_elements(THD *thd)
        with_elem;
        with_elem= with_elem->next)
   {
-    if (!with_elem->is_referenced() && with_elem->prepare_unreferenced(thd))
+    if ((with_elem->is_hanging_recursive() || !with_elem->is_referenced()) &&
+        with_elem->prepare_unreferenced(thd))
       return true;
   }
 
