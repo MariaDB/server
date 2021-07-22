@@ -829,6 +829,7 @@ struct VCOL_STORAGE
 
 bool innobase_allocate_row_for_vcol(
 				    THD *	  thd,
+				    const
 				    dict_index_t* index,
 				    mem_heap_t**  heap,
 				    TABLE**	  table,
@@ -845,7 +846,7 @@ public:
 
   ib_vcol_row(mem_heap_t *heap) : heap(heap) {}
 
-  byte *record(THD *thd, dict_index_t *index, TABLE **table)
+  byte *record(THD *thd, const dict_index_t *index, TABLE **table)
   {
     if (!storage.innobase_record)
     {

@@ -465,6 +465,10 @@ que_graph_free_recursive(
 			mem_heap_free(ins->entry_sys_heap);
 			ins->entry_sys_heap = NULL;
 		}
+		if (ins->heap != NULL) {
+			mem_heap_free(ins->heap);
+			ins->heap = NULL;
+		}
 
 		break;
 	case QUE_NODE_PURGE:

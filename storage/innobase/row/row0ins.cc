@@ -92,6 +92,8 @@ ins_node_create(
 
 	node->magic_n = INS_NODE_MAGIC_N;
 
+	node->heap = mem_heap_create(128);
+
 	return(node);
 }
 
@@ -3304,7 +3306,10 @@ dberr_t
 row_ins_index_entry_set_vals(
 	const dict_index_t*	index,
 	dtuple_t*		entry,
-	const dtuple_t*		row)
+	dtuple_t*		row,
+	mem_heap_t		*heap,
+	THD*			thd,
+	TABLE*			mysql_table)
 {
 	ulint	n_fields;
 	ulint	i;
@@ -3336,6 +3341,18 @@ row_ins_index_entry_set_vals(
 			ut_ad(dtuple_get_n_fields(row)
 			      == dict_table_get_n_cols(index->table));
 			row_field = dtuple_get_nth_v_field(row, v_col->v_pos);
+			ib_vcol_row	vc(NULL);
+			if (v_col->m_col.ord_part
+			    && dfield_is_null(row_field)) {
+				uchar *record = vc.record(thd, index,
+							  &mysql_table);
+				innobase_get_computed_value(row, v_col, index,
+							    &vc.heap, heap,
+							    NULL,
+							    thd, mysql_table,
+							    record,
+							    NULL, NULL, NULL);
+			}
 		} else {
 			row_field = dtuple_get_nth_field(
 				row, ind_field->col->ind);
@@ -3394,13 +3411,18 @@ row_ins_index_entry_step(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t	err;
+	trx_t*	trx = thr_get_trx(thr);
 
 	DBUG_ENTER("row_ins_index_entry_step");
 
 	ut_ad(dtuple_check_typed(node->row));
 
 	err = row_ins_index_entry_set_vals(node->index, *node->entry,
-					   node->row);
+					   node->row, node->heap,
+					   trx->mysql_thd,
+					   thr->prebuilt
+					   ? thr->prebuilt->m_mysql_table
+					   : NULL);
 
 	if (err != DB_SUCCESS) {
 		DBUG_RETURN(err);

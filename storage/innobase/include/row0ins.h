@@ -190,6 +190,7 @@ struct ins_node_t{
 				if this is NULL, entry list should be created
 				and buffers for sys fields in row allocated */
 	ulint		magic_n;
+	mem_heap_t	*heap;
 };
 
 #define	INS_NODE_MAGIC_N	15849075

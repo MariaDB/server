@@ -286,6 +286,7 @@ row_log_online_op(
 	ulint		mrec_size;
 	ulint		avail_size;
 	row_log_t*	log;
+	row_op op;
 
 	ut_ad(dtuple_validate(tuple));
 	ut_ad(dtuple_get_n_fields(tuple) == dict_index_get_n_fields(index));
@@ -337,11 +338,11 @@ row_log_online_op(
 	}
 
 	if (trx_id != 0) {
-		*b++ = ROW_OP_INSERT;
+		*b++ = op = ROW_OP_INSERT;
 		trx_write_trx_id(b, trx_id);
 		b += DATA_TRX_ID_LEN;
 	} else {
-		*b++ = ROW_OP_DELETE;
+		*b++ = op = ROW_OP_DELETE;
 	}
 
 	if (extra_size < 0x80) {
@@ -351,6 +352,11 @@ row_log_online_op(
 		*b++ = (byte) (0x80 | (extra_size >> 8));
 		*b++ = (byte) extra_size;
 	}
+
+	DBUG_EXECUTE_IF("ib_log_online",
+		ib::info() << "LOG " << index->name()
+			<< (op == ROW_OP_INSERT ? " INS " : " DEL ")
+			<< *tuple;);
 
 	rec_convert_dtuple_to_temp(
 		b + extra_size, index, tuple->fields, tuple->n_fields);
