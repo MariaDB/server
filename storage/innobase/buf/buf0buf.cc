@@ -321,6 +321,12 @@ constexpr ulint	BUF_PAGE_READ_MAX_RETRIES= 100;
 read-ahead buffer.  (Divide buf_pool size by this amount) */
 constexpr uint32_t BUF_READ_AHEAD_PORTION= 32;
 
+/** A 64KiB buffer of NUL bytes, for use in assertions and checks,
+and dummy default values of instantly dropped columns.
+Initially, BLOB field references are set to NUL bytes, in
+dtuple_convert_big_rec(). */
+const byte *field_ref_zero;
+
 /** The InnoDB buffer pool */
 buf_pool_t buf_pool;
 buf_pool_t::chunk_t::map *buf_pool_t::chunk_t::map_reg;
@@ -698,7 +704,7 @@ static void buf_page_check_lsn(bool check_lsn, const byte* read_buf)
 @return whether the buffer is all zeroes */
 bool buf_is_zeroes(span<const byte> buf)
 {
-  ut_ad(buf.size() <= sizeof field_ref_zero);
+  ut_ad(buf.size() <= UNIV_PAGE_SIZE_MAX);
   return memcmp(buf.data(), field_ref_zero, buf.size()) == 0;
 }
 
@@ -1391,11 +1397,17 @@ bool buf_pool_t::create()
   ut_ad(srv_buf_pool_size % srv_buf_pool_chunk_unit == 0);
   ut_ad(!is_initialised());
   ut_ad(srv_buf_pool_size > 0);
+  ut_ad(!resizing);
+  ut_ad(!chunks_old);
+  ut_ad(!field_ref_zero);
 
   NUMA_MEMPOLICY_INTERLEAVE_IN_SCOPE;
 
-  ut_ad(!resizing);
-  ut_ad(!chunks_old);
+  if (auto b= aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096))
+    field_ref_zero= static_cast<const byte*>
+      (memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
+  else
+    return true;
 
   chunk_t::map_reg= UT_NEW_NOKEY(chunk_t::map());
 
@@ -1426,6 +1438,8 @@ bool buf_pool_t::create()
       chunks= nullptr;
       UT_DELETE(chunk_t::map_reg);
       chunk_t::map_reg= nullptr;
+      aligned_free(const_cast<byte*>(field_ref_zero));
+      field_ref_zero= nullptr;
       ut_ad(!is_initialised());
       return true;
     }
@@ -1541,6 +1555,8 @@ void buf_pool_t::close()
   io_buf.close();
   UT_DELETE(chunk_t::map_reg);
   chunk_t::map_reg= chunk_t::map_ref= nullptr;
+  aligned_free(const_cast<byte*>(field_ref_zero));
+  field_ref_zero= nullptr;
 }
 
 /** Try to reallocate a control block.
