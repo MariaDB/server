@@ -324,7 +324,7 @@ public:
 
   inline void init(THD *thd, Field * table_field);
   inline bool add();
-  inline void finish(ha_rows rows, double sample_fraction);
+  inline void finish(MEM_ROOT *mem_root, ha_rows rows, double sample_fraction);
   inline void cleanup();
 };
 
@@ -1081,21 +1081,22 @@ public:
           stat_field->store(stats->get_avg_frequency());
           break; 
         case COLUMN_STAT_HIST_SIZE:
-          stat_field->store(stats->histogram.get_size());
+          // Note: this is dumb. the histogram size is stored with the
+          // histogram!
+          stat_field->store(stats->histogram_? 
+                              stats->histogram_->get_size() : 0);
           break;
         case COLUMN_STAT_HIST_TYPE:
-          stat_field->store(stats->histogram.get_type() + 1);
+          if (stats->histogram_)
+            stat_field->store(stats->histogram_->get_type() + 1);
+          else
+            stat_field->set_null();
           break;
         case COLUMN_STAT_HISTOGRAM:
-          if (stats->histogram.get_type() == JSON)
-          {
-            stat_field->store((char *) stats->histogram.get_values(),
-                              strlen((char *) stats->histogram.get_values()), &my_charset_bin);
-          } else
-          {
-            stat_field->store((char *) stats->histogram.get_values(),
-                              stats->histogram.get_size(), &my_charset_bin);
-          }
+          if (stats->histogram_)
+            stats->histogram_->serialize(stat_field);
+          else
+            stat_field->set_null();
           break;
         }
       }
@@ -1124,6 +1125,7 @@ public:
   void get_stat_values()
   {
     table_field->read_stats->set_all_nulls();
+    table_field->read_stats->histogram_type_on_disk= INVALID_HISTOGRAM;
 
     if (table_field->read_stats->min_value)
       table_field->read_stats->min_value->set_null();
@@ -1135,7 +1137,7 @@ public:
       char buff[MAX_FIELD_WIDTH];
       String val(buff, sizeof(buff), &my_charset_bin);
 
-      for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HIST_TYPE; i++)
+      for (uint i= COLUMN_STAT_MIN_VALUE; i <= COLUMN_STAT_HISTOGRAM; i++)
       {  
         Field *stat_field= stat_table->field[i];
 
@@ -1179,13 +1181,22 @@ public:
             table_field->read_stats->set_avg_frequency(stat_field->val_real());
             break;
           case COLUMN_STAT_HIST_SIZE:
-            table_field->read_stats->histogram.set_size(stat_field->val_int());
+            //TODO: ignore this. The size is a part of histogram!
+            //table_field->read_stats->histogram.set_size(stat_field->val_int());
             break;            
           case COLUMN_STAT_HIST_TYPE:
-            Histogram_type hist_type= (Histogram_type) (stat_field->val_int() -
-                                                        1);
-            table_field->read_stats->histogram.set_type(hist_type);
-            break;            
+            // TODO: save this next to histogram.
+            // For some reason, the histogram itself is read in
+            //   read_histograms_for_table
+            {
+              Histogram_type hist_type= (Histogram_type) (stat_field->val_int() -
+                                                          1);
+              table_field->read_stats->histogram_type_on_disk= hist_type;
+              break;
+            }
+          case COLUMN_STAT_HISTOGRAM:
+            //TODO: if stat_field->length() == 0 then histogram_type_on_disk is set to INVALID_HISTOGRAM
+            break;
           }
         }
       }
@@ -1208,7 +1219,7 @@ public:
     of read_stats->histogram.
   */    
 
-  void get_histogram_value()
+  Histogram * load_histogram(MEM_ROOT *mem_root)
   {
     if (find_stat())
     {
@@ -1218,13 +1229,54 @@ public:
       Field *stat_field= stat_table->field[fldno];
       table_field->read_stats->set_not_null(fldno);
       stat_field->val_str(&val);
-      memcpy(table_field->read_stats->histogram.get_values(),
-             val.ptr(), table_field->read_stats->histogram.get_size());
+      // histogram-todo: here, create the histogram of appropriate type.
+      Histogram *hist= new (mem_root) Histogram();
+      if (!hist->parse(mem_root, table_field->read_stats->histogram_type_on_disk, 
+                       (const uchar*)val.ptr(), val.length()))
+      {
+        table_field->read_stats->histogram_= hist;
+        return hist;
+      }
+      //memcpy(table_field->read_stats->histogram_.get_values(),
+      //       val.ptr(), table_field->read_stats->histogram.get_size());
     }
+    return NULL;
   }
-
 };
 
+bool Histogram::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr_arg, uint size_arg)
+{
+  // Just copy the data
+  size = (uint8) size_arg;
+  type = type_arg;
+  values = (uchar*)alloc_root(mem_root, size_arg);
+  memcpy(values, ptr_arg, size_arg);
+  return false;
+}
+
+
+/*
+  Save the histogram data info a table field.
+*/
+void Histogram::serialize(Field *field)
+{
+  if (get_type() == JSON)
+  {
+    field->store((char*)get_values(), strlen((char*)get_values()), 
+                 &my_charset_bin);
+  }
+  else
+    field->store((char*)get_values(), get_size(), &my_charset_bin);
+}
+
+void Histogram::init_for_collection(MEM_ROOT *mem_root,
+                                    Histogram_type htype_arg, 
+                                    ulonglong size_arg)
+{
+  type= htype_arg;
+  values = (uchar*)alloc_root(mem_root, size_arg);
+  size= (uint8) size_arg;
+}
 
 /*
   An object of the class Index_stat is created to read statistical
@@ -1565,7 +1617,7 @@ public:
     Column_statistics *col_stats= col->collected_stats;
     min_value= col_stats->min_value;
     max_value= col_stats->max_value;
-    histogram= &col_stats->histogram;
+    histogram= col_stats->histogram_;
     hist_width= histogram->get_width();
     bucket_capacity= (double) records / (hist_width + 1);
     curr_bucket= 0;
@@ -1618,7 +1670,7 @@ public:
     Column_statistics *col_stats= col->collected_stats;
     min_value= col_stats->min_value;
     max_value= col_stats->max_value;
-    histogram= &col_stats->histogram;
+    histogram= col_stats->histogram_;
     hist_width= histogram->get_width();
     bucket_capacity= (double) records / (hist_width + 1);
     curr_bucket= 0;
@@ -1857,9 +1909,9 @@ public:
     @brief
     Calculate a histogram of the tree
   */
-   void walk_tree_with_histogram(ha_rows rows)
+  void walk_tree_with_histogram(ha_rows rows)
   {
-    if(table_field->collected_stats->histogram.get_type() == JSON)
+    if (table_field->collected_stats->histogram_->get_type() == JSON)
     {
       Histogram_builder_json hist_builder(table_field, tree_key_length, rows);
       tree->walk(table_field->table, json_histogram_build_walk,
@@ -1867,7 +1919,8 @@ public:
       hist_builder.build_json_from_histogram();
       distincts= hist_builder.get_count_distinct();
       distincts_single_occurence= hist_builder.get_count_single_occurence();
-    } else
+    }
+    else
     {
       Histogram_builder hist_builder(table_field, tree_key_length, rows);
       tree->walk(table_field->table, histogram_build_walk,
@@ -1891,18 +1944,19 @@ public:
     @brief
     Get the size of the histogram in bytes built for table_field
   */
+  /*
   uint get_hist_size()
   {
     return table_field->collected_stats->histogram.get_size();
-  }
+  }*/
 
   /*
     @brief
     Get the pointer to the histogram built for table_field
   */
-  uchar *get_histogram()
+  Histogram *get_histogram()
   {
-    return table_field->collected_stats->histogram.get_values();
+    return table_field->collected_stats->histogram_;
   }
 
 };
@@ -2301,7 +2355,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   uint key_parts= table->s->ext_key_parts;
   ulonglong *idx_avg_frequency= (ulonglong*) alloc_root(&table->mem_root,
                                                sizeof(ulonglong) * key_parts);
-
+/*
   uint hist_size= thd->variables.histogram_size;
   Histogram_type hist_type= (Histogram_type) (thd->variables.histogram_type);
   uchar *histogram= NULL;
@@ -2312,16 +2366,16 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
       bzero(histogram, hist_size * columns);
 
   }
-
-  if (!table_stats || !column_stats || !index_stats || !idx_avg_frequency ||
-      (hist_size && !histogram))
+*/
+  if (!table_stats || !column_stats || !index_stats || !idx_avg_frequency)
+    //|| (hist_size && !histogram))
     DBUG_RETURN(1);
 
   table->collected_stats= table_stats;
   table_stats->column_stats= column_stats;
   table_stats->index_stats= index_stats;
   table_stats->idx_avg_frequency= idx_avg_frequency;
-  table_stats->histograms= histogram;
+  //table_stats->histograms= histogram;
   
   memset(column_stats, 0, sizeof(Column_statistics) * columns);
 
@@ -2329,10 +2383,12 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   {
     if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
     {
+      column_stats->histogram_ = NULL;
+      /*
       column_stats->histogram.set_size(hist_size);
       column_stats->histogram.set_type(hist_type);
       column_stats->histogram.set_values(histogram);
-      histogram+= hist_size;
+      histogram+= hist_size;*/
       (*field_ptr)->collected_stats= column_stats++;
     }
   }
@@ -2551,6 +2607,25 @@ bool Column_statistics_collected::add()
 }
 
 
+/* 
+  Create an empty Histogram object from histogram_type.
+
+  Note: it is not yet clear whether collection-time histogram should be the same 
+  as lookup-time histogram. At the moment, they are.
+*/
+
+Histogram* get_histogram_by_type(MEM_ROOT *mem_root, Histogram_type hist_type) {
+  switch (hist_type) {
+  case SINGLE_PREC_HB:
+  case DOUBLE_PREC_HB:
+  case JSON:
+    return new Histogram();
+  default:
+    DBUG_ASSERT(0);
+  }
+  return NULL;
+};
+
 /**
   @brief
   Get the results of aggregation when collecting the statistics on a column
@@ -2560,7 +2635,7 @@ bool Column_statistics_collected::add()
 */
 
 inline
-void Column_statistics_collected::finish(ha_rows rows, double sample_fraction)
+void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, double sample_fraction)
 {
   double val;
 
@@ -2578,10 +2653,19 @@ void Column_statistics_collected::finish(ha_rows rows, double sample_fraction)
   }
   if (count_distinct)
   {
-    uint hist_size= count_distinct->get_hist_size();
+    //uint hist_size= count_distinct->get_hist_size();
+    uint hist_size= current_thd->variables.histogram_size;
+    Histogram_type hist_type= (Histogram_type) (current_thd->variables.histogram_type);
+    bool have_histogram= false;
+    if (hist_size != 0 && hist_type != INVALID_HISTOGRAM)
+    {
+      have_histogram= true;
+      histogram_= new Histogram;
+      histogram_->init_for_collection(mem_root, hist_type, hist_size);
+    }
 
     /* Compute cardinality statistics and optionally histogram. */
-    if (hist_size == 0)
+    if (!have_histogram)
       count_distinct->walk_tree();
     else
       count_distinct->walk_tree_with_histogram(rows - nulls);
@@ -2619,13 +2703,14 @@ void Column_statistics_collected::finish(ha_rows rows, double sample_fraction)
       set_not_null(COLUMN_STAT_AVG_FREQUENCY);
     }
     else
-      hist_size= 0;
-    histogram.set_size(hist_size);
+      have_histogram= false ; // TODO: need this?
+    //histogram.set_size(hist_size);
     set_not_null(COLUMN_STAT_HIST_SIZE);
-    if (hist_size && distincts)
+    if (have_histogram && distincts)
     {
       set_not_null(COLUMN_STAT_HIST_TYPE);
-      histogram.set_values(count_distinct->get_histogram());
+      //histogram.set_values(count_distinct->get_histogram());
+      histogram_= count_distinct->get_histogram();
       set_not_null(COLUMN_STAT_HISTOGRAM);
     } 
     delete count_distinct;
@@ -2887,7 +2972,7 @@ int collect_statistics_for_table(THD *thd, TABLE *table)
       continue;
     bitmap_set_bit(table->write_set, table_field->field_index); 
     if (!rc)
-      table_field->collected_stats->finish(rows, sample_fraction);
+      table_field->collected_stats->finish(&table->mem_root, rows, sample_fraction);
     else
       table_field->collected_stats->cleanup();
   }
@@ -3093,16 +3178,19 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
    
   /* Read statistics from the statistical table column_stats */
   stat_table= stat_tables[COLUMN_STAT].table;
-  ulong total_hist_size= 0;
+  //ulong total_hist_size= 0;
+  bool have_histograms= false;
   Column_stat column_stat(stat_table, table);
   for (field_ptr= table_share->field; *field_ptr; field_ptr++)
   {
     table_field= *field_ptr;
     column_stat.set_key_fields(table_field);
     column_stat.get_stat_values();
-    total_hist_size+= table_field->read_stats->histogram.get_size();
+    //total_hist_size+= table_field->read_stats->histogram.get_size();
+    if (table_field->read_stats->histogram_type_on_disk != INVALID_HISTOGRAM)
+      have_histograms= true;
   }
-  table_share->stats_cb.total_hist_size= total_hist_size;
+  table_share->stats_cb.total_hist_size= have_histograms? 1:0; // total_hist_size
 
   /* Read statistics from the statistical table index_stats */
   stat_table= stat_tables[INDEX_STAT].table;
@@ -3239,28 +3327,36 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 {
   TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   DBUG_ENTER("read_histograms_for_table");
-
+  
+  // histograms-todo: why do we use synchronization here, when we load 
+  //  histogram for the TABLE object, not TABLE_SHARE?
+  //  is it because of the use of stats_cb->mem_root?
   if (stats_cb->start_histograms_load())
   {
-    uchar *histogram= (uchar *) alloc_root(&stats_cb->mem_root,
-                                           stats_cb->total_hist_size);
+    //uchar *histogram= (uchar *) alloc_root(&stats_cb->mem_root,
+    //                                       stats_cb->total_hist_size);
+    /*
     if (!histogram)
     {
       stats_cb->abort_histograms_load();
       DBUG_RETURN(1);
     }
-    memset(histogram, 0, stats_cb->total_hist_size);
+    */
+    //memset(histogram, 0, stats_cb->total_hist_size);
 
     Column_stat column_stat(stat_tables[COLUMN_STAT].table, table);
     for (Field **field_ptr= table->s->field; *field_ptr; field_ptr++)
     {
       Field *table_field= *field_ptr;
-      if (uint hist_size= table_field->read_stats->histogram.get_size())
+      //if (uint hist_size= table_field->read_stats->histogram.get_size())
+      if (table_field->read_stats->histogram_type_on_disk != INVALID_HISTOGRAM)
       {
         column_stat.set_key_fields(table_field);
-        table_field->read_stats->histogram.set_values(histogram);
-        column_stat.get_histogram_value();
-        histogram+= hist_size;
+        //table_field->read_stats->histogram.set_values(histogram);
+
+        table_field->read_stats->histogram_=
+          column_stat.load_histogram(&stats_cb->mem_root); 
+        //histogram+= hist_size;
       }
     }
     stats_cb->end_histograms_load();
@@ -3952,8 +4048,8 @@ double get_column_range_cardinality(Field *field,
       if (avg_frequency > 1.0 + 0.000001 && 
           col_stats->min_max_values_are_provided())
       {
-        Histogram *hist= &col_stats->histogram;
-        if (hist->is_usable(thd))
+        Histogram *hist= col_stats->histogram_;
+        if (hist && hist->is_usable(thd))
         {
           store_key_image_to_rec(field, (uchar *) min_endp->key,
                                  field->key_length());
@@ -3996,8 +4092,8 @@ double get_column_range_cardinality(Field *field,
       else
         max_mp_pos= 1.0;
 
-      Histogram *hist= &col_stats->histogram;
-      if (hist->is_usable(thd))
+      Histogram *hist= col_stats->histogram_;
+      if (hist && hist->is_usable(thd))
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
       else
         sel= (max_mp_pos - min_mp_pos);

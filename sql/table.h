@@ -679,7 +679,15 @@ class TABLE_STATISTICS_CB
 public:
   MEM_ROOT  mem_root; /* MEM_ROOT to allocate statistical data for the table */
   Table_statistics *table_stats; /* Structure to access the statistical data */
-  ulong total_hist_size;         /* Total size of all histograms */
+
+  /*
+    Total size of all histograms. A value of 0 means historams are not present,
+    and histograms_are_ready() can finish sooner.
+
+    Currently we just set it to 1 when we expect to load histograms.
+    histogram-todo: rename this or even remove?
+  */
+  ulong total_hist_size;
 
   bool histograms_are_ready() const
   {
