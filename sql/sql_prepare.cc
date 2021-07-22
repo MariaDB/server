@@ -6228,6 +6228,7 @@ extern "C" int execute_sql_command(const char *command,
   THD *new_thd= 0;
   int result;
   my_bool qc_save= 0;
+  Reprepare_observer *save_reprepare_observer= nullptr;
 
   if (!thd)
   {
@@ -6248,6 +6249,8 @@ extern "C" int execute_sql_command(const char *command,
 
     qc_save= thd->query_cache_is_applicable;
     thd->query_cache_is_applicable= 0;
+    save_reprepare_observer= thd->m_reprepare_observer;
+    thd->m_reprepare_observer= nullptr;
   }
   sql_text.str= (char *) command;
   sql_text.length= strlen(command);
@@ -6285,7 +6288,10 @@ extern "C" int execute_sql_command(const char *command,
   if (new_thd)
     delete new_thd;
   else
+  {
     thd->query_cache_is_applicable= qc_save;
+    thd->m_reprepare_observer= save_reprepare_observer;
+  }
 
   *hosts= 0;
   return result;
