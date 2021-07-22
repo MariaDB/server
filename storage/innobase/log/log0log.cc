@@ -792,6 +792,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key)
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(!rotate_key || flush_to_disk);
+  ut_ad(lsn != LSN_MAX);
 
   if (recv_no_ibuf_operations)
   {

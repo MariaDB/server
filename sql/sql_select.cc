@@ -189,6 +189,7 @@ static int join_read_system(JOIN_TAB *tab);
 static int join_read_const(JOIN_TAB *tab);
 static int join_read_key(JOIN_TAB *tab);
 static void join_read_key_unlock_row(st_join_table *tab);
+static void join_const_unlock_row(JOIN_TAB *tab);
 static int join_read_always_key(JOIN_TAB *tab);
 static int join_read_last_key(JOIN_TAB *tab);
 static int join_no_more_records(READ_RECORD *info);
@@ -10968,8 +10969,12 @@ static bool create_ref_for_key(JOIN *join, JOIN_TAB *j,
   else
     j->type=JT_EQ_REF;
 
-  j->read_record.unlock_row= (j->type == JT_EQ_REF)? 
-                             join_read_key_unlock_row : rr_unlock_row; 
+  if (j->type == JT_EQ_REF)
+    j->read_record.unlock_row= join_read_key_unlock_row;
+  else if (j->type == JT_CONST)
+    j->read_record.unlock_row= join_const_unlock_row;
+  else
+    j->read_record.unlock_row= rr_unlock_row;
   DBUG_RETURN(0);
 }
 
@@ -13232,6 +13237,7 @@ make_join_readinfo(JOIN *join, ulonglong options, uint no_jbuf_after)
       /* Only happens with outer joins */
       tab->read_first_record= tab->type == JT_SYSTEM ? join_read_system
                                                      : join_read_const;
+      tab->read_record.unlock_row= join_const_unlock_row;
       if (!(table->covering_keys.is_set(tab->ref.key) && !table->no_keyread) &&
           (!jcl || jcl > 4) && !tab->ref.is_access_triggered())
         push_index_cond(tab, tab->ref.key);
@@ -21532,6 +21538,19 @@ join_read_key_unlock_row(st_join_table *tab)
     tab->ref.use_count--;
 }
 
+/**
+  Rows from const tables are read once but potentially used
+  multiple times during execution of a query.
+  Ensure such rows are never unlocked during query execution.
+*/
+
+void
+join_const_unlock_row(JOIN_TAB *tab)
+{
+  DBUG_ASSERT(tab->type == JT_CONST);
+}
+
+
 /*
   ref access method implementation: "read_first" function
 
@@ -23938,8 +23957,12 @@ check_reverse_order:
     else if (select && select->quick)
       select->quick->need_sorted_output();
 
-    tab->read_record.unlock_row= (tab->type == JT_EQ_REF) ?
-                                 join_read_key_unlock_row : rr_unlock_row;
+    if (tab->type == JT_EQ_REF)
+      tab->read_record.unlock_row= join_read_key_unlock_row;
+    else if (tab->type == JT_CONST)
+      tab->read_record.unlock_row= join_const_unlock_row;
+    else
+      tab->read_record.unlock_row= rr_unlock_row;
 
   } // QEP has been modified
 

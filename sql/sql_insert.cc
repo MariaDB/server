@@ -710,6 +710,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
   SELECT_LEX   *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
+  unsigned char *readbuff= NULL;
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
@@ -786,7 +787,25 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   /* Prepares LEX::returing_list if it is not empty */
   if (returning)
+  {
     result->prepare(returning->item_list, NULL);
+    if (thd->is_bulk_op())
+    {
+      /*
+        It is RETURNING which needs network buffer to write result set and
+        it is array binfing which need network buffer to read parameters.
+        So we allocate yet another network buffer.
+        The old buffer will be freed at the end of operation.
+      */
+      DBUG_ASSERT(thd->protocol == &thd->protocol_binary);
+      readbuff= thd->net.buff; // old buffer
+      if (net_allocate_new_packet(&thd->net, thd, MYF(MY_THREAD_SPECIFIC)))
+      {
+        readbuff= NULL; // failure, net_allocate_new_packet keeps old buffer
+        goto abort;
+      }
+    }
+  }
 
   context= &thd->lex->first_select_lex()->context;
   /*
@@ -1316,7 +1335,8 @@ values_loop_end:
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
-
+  if (readbuff)
+    my_free(readbuff);
   DBUG_RETURN(FALSE);
 
 abort:
@@ -1330,6 +1350,8 @@ abort:
   if (!joins_freed)
     free_underlaid_joins(thd, thd->lex->first_select_lex());
   thd->abort_on_warning= 0;
+  if (readbuff)
+    my_free(readbuff);
   DBUG_RETURN(retval);
 }
 

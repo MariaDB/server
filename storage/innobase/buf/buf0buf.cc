@@ -1536,13 +1536,6 @@ void buf_pool_t::close()
   ut_free(chunks);
   chunks= nullptr;
   page_hash.free();
-  while (page_hash_table *old_page_hash= freed_page_hash)
-  {
-    freed_page_hash= static_cast<page_hash_table*>
-      (old_page_hash->array[1].node);
-    old_page_hash->free();
-    UT_DELETE(old_page_hash);
-  }
   zip_hash.free();
 
   io_buf.close();
@@ -1829,57 +1822,6 @@ inline bool buf_pool_t::withdraw_blocks()
 	return(false);
 }
 
-/** resize page_hash and zip_hash */
-inline void buf_pool_t::resize_hash()
-{
-  page_hash_table *new_page_hash= UT_NEW_NOKEY(page_hash_table());
-  new_page_hash->create(2 * buf_pool.curr_size);
-  new_page_hash->write_lock_all();
-
-  for (auto i= page_hash.pad(page_hash.n_cells); i--; )
-  {
-    static_assert(!((page_hash_table::ELEMENTS_PER_LATCH + 1) &
-                    page_hash_table::ELEMENTS_PER_LATCH),
-                  "must be one less than a power of 2");
-    if (!(i & page_hash_table::ELEMENTS_PER_LATCH))
-    {
-      ut_ad(reinterpret_cast<page_hash_latch*>
-            (&page_hash.array[i])->is_write_locked());
-      continue;
-    }
-    while (buf_page_t *bpage= static_cast<buf_page_t*>
-           (page_hash.array[i].node))
-    {
-      ut_ad(bpage->in_page_hash);
-      const ulint fold= bpage->id().fold();
-      HASH_DELETE(buf_page_t, hash, &buf_pool.page_hash, fold, bpage);
-      HASH_INSERT(buf_page_t, hash, new_page_hash, fold, bpage);
-    }
-  }
-
-  buf_pool.page_hash.array[1].node= freed_page_hash;
-  std::swap(buf_pool.page_hash, *new_page_hash);
-  freed_page_hash= new_page_hash;
-
-  /* recreate zip_hash */
-  hash_table_t new_hash;
-  new_hash.create(2 * buf_pool.curr_size);
-
-  for (ulint i= 0; i < buf_pool.zip_hash.n_cells; i++)
-  {
-    while (buf_page_t *bpage= static_cast<buf_page_t*>
-           (HASH_GET_FIRST(&buf_pool.zip_hash, i)))
-    {
-      const ulint fold= BUF_POOL_ZIP_FOLD_BPAGE(bpage);
-      HASH_DELETE(buf_page_t, hash, &buf_pool.zip_hash, fold, bpage);
-      HASH_INSERT(buf_page_t, hash, &new_hash, fold, bpage);
-    }
-  }
-
-  std::swap(buf_pool.zip_hash.array, new_hash.array);
-  buf_pool.zip_hash.n_cells= new_hash.n_cells;
-  new_hash.free();
-}
 
 
 inline void buf_pool_t::page_hash_table::write_lock_all()
@@ -1903,26 +1845,6 @@ inline void buf_pool_t::page_hash_table::write_unlock_all()
   }
 }
 
-
-inline void buf_pool_t::write_lock_all_page_hash()
-{
-  mysql_mutex_assert_owner(&mutex);
-  page_hash.write_lock_all();
-  for (page_hash_table *old_page_hash= freed_page_hash; old_page_hash;
-       old_page_hash= static_cast<page_hash_table*>
-         (old_page_hash->array[1].node))
-    old_page_hash->write_lock_all();
-}
-
-
-inline void buf_pool_t::write_unlock_all_page_hash()
-{
-  page_hash.write_unlock_all();
-  for (page_hash_table *old_page_hash= freed_page_hash; old_page_hash;
-       old_page_hash= static_cast<page_hash_table*>
-         (old_page_hash->array[1].node))
-    old_page_hash->write_unlock_all();
-}
 
 namespace
 {
@@ -2097,7 +2019,7 @@ withdraw_retry:
 	resizing.store(true, std::memory_order_relaxed);
 
   mysql_mutex_lock(&mutex);
-  write_lock_all_page_hash();
+  page_hash.write_lock_all();
 
 	chunk_t::map_reg = UT_NEW_NOKEY(chunk_t::map());
 
@@ -2252,16 +2174,8 @@ calc_buf_pool_size:
 		= srv_buf_pool_base_size > srv_buf_pool_size * 2
 			|| srv_buf_pool_base_size * 2 < srv_buf_pool_size;
 
-	/* Normalize page_hash and zip_hash,
-	if the new size is too different */
-	if (!warning && new_size_too_diff) {
-		buf_resize_status("Resizing hash table");
-		resize_hash();
-		ib::info() << "hash tables were resized";
-	}
-
   mysql_mutex_unlock(&mutex);
-  write_unlock_all_page_hash();
+  page_hash.write_unlock_all();
 
 	UT_DELETE(chunk_map_old);
 
