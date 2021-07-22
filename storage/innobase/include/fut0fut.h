@@ -42,7 +42,7 @@ bufferfixed and latched */
 inline
 byte*
 fut_get_ptr(
-	ulint			space,
+	uint32_t		space,
 	ulint			zip_size,
 	fil_addr_t		addr,
 	rw_lock_type_t		rw_latch,

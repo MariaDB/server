@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1995, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -25,15 +25,12 @@ Created May 26, 2009 Vasil Dimov
 *******************************************************/
 
 #pragma once
-#include <cstddef>
-
-/** The fil_space_t::id of the redo log. All persistent tablespaces
-have a smaller fil_space_t::id. */
-static constexpr size_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0;
-/** The fil_space_t::id of the innodb_temporary tablespace. */
-#define SRV_TMP_SPACE_ID		0xFFFFFFFEU
-
 #include "ut0byte.h"
+
+/** All persistent tablespaces have a smaller fil_space_t::id than this. */
+constexpr uint32_t SRV_SPACE_ID_UPPER_BOUND= 0xFFFFFFF0U;
+/** The fil_space_t::id of the innodb_temporary tablespace. */
+constexpr uint32_t SRV_TMP_SPACE_ID= 0xFFFFFFFEU;
 
 /* Possible values of innodb_compression_algorithm */
 #define PAGE_UNCOMPRESSED	0

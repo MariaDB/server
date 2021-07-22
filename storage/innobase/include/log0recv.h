@@ -87,7 +87,7 @@ void recv_sys_justify_left_parsing_buf();
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-extern void (*log_file_op)(ulint space_id, bool create,
+extern void (*log_file_op)(uint32_t space_id, bool create,
 			   const byte* name, ulint len,
 			   const byte* new_name, ulint new_len);
 

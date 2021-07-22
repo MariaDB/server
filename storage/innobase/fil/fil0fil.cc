@@ -54,15 +54,6 @@ Created 10/25/1995 Heikki Tuuri
 # include <dirent.h>
 #endif
 
-/** Determine if the space id is a user tablespace id or not.
-@param space_id tablespace identifier
-@return true if it is a user tablespace ID */
-inline bool fil_is_user_tablespace_id(ulint space_id)
-{
-  return space_id != TRX_SYS_SPACE && space_id != SRV_TMP_SPACE_ID &&
-    !srv_is_undo_tablespace(space_id);
-}
-
 /** Try to close a file to adhere to the innodb_open_files limit.
 @param print_info   whether to diagnose why a file cannot be closed
 @return whether a file was closed */
@@ -77,7 +68,7 @@ bool fil_space_t::try_to_close(bool print_info)
     case FIL_TYPE_IMPORT:
       break;
     case FIL_TYPE_TABLESPACE:
-      if (!fil_is_user_tablespace_id(space.id))
+      if (is_predefined_tablespace(space.id))
         continue;
     }
 
@@ -118,11 +109,8 @@ The tablespace must exist in the memory cache.
 @param[in]	new_path_in	new file name,
 or NULL if it is located in the normal data directory
 @return true if success */
-static bool
-fil_rename_tablespace(
-	ulint		id,
-	const char*	old_path,
-	const char*	new_path_in);
+static bool fil_rename_tablespace(uint32_t id, const char *old_path,
+                                  const char *new_path_in);
 
 /*
 		IMPLEMENTATION OF THE TABLESPACE MEMORY CACHE
@@ -210,14 +198,11 @@ fil_validate_skip(void)
 }
 #endif /* UNIV_DEBUG */
 
-/*******************************************************************//**
-Returns the table space by a given id, NULL if not found.
-It is unsafe to dereference the returned pointer. It is fine to check
-for NULL. */
-fil_space_t*
-fil_space_get_by_id(
-/*================*/
-	ulint	id)	/*!< in: space id */
+/** Look up a tablespace.
+@param tablespace identifier
+@return tablespace
+@retval nullptr if not found */
+fil_space_t *fil_space_get_by_id(uint32_t id)
 {
 	fil_space_t*	space;
 
@@ -240,14 +225,12 @@ or the caller should be in single-threaded crash recovery mode
 Normally, fil_space_t::get() should be used instead.
 @param[in]	id	tablespace ID
 @return tablespace, or NULL if not found */
-fil_space_t*
-fil_space_get(
-	ulint	id)
+fil_space_t *fil_space_get(uint32_t id)
 {
-	mysql_mutex_lock(&fil_system.mutex);
-	fil_space_t*	space = fil_space_get_by_id(id);
-	mysql_mutex_unlock(&fil_system.mutex);
-	return(space);
+  mysql_mutex_lock(&fil_system.mutex);
+  fil_space_t *space= fil_space_get_by_id(id);
+  mysql_mutex_unlock(&fil_system.mutex);
+  return space;
 }
 
 /** Validate the compression algorithm for full crc32 format.
@@ -409,7 +392,7 @@ static bool fil_node_open_file(fil_node_t *node)
 {
   mysql_mutex_assert_owner(&fil_system.mutex);
   ut_ad(!node->is_open());
-  ut_ad(fil_is_user_tablespace_id(node->space->id) ||
+  ut_ad(!is_predefined_tablespace(node->space->id) ||
         srv_operation == SRV_OPERATION_BACKUP ||
         srv_operation == SRV_OPERATION_RESTORE ||
         srv_operation == SRV_OPERATION_RESTORE_DELTA);
@@ -844,13 +827,10 @@ fil_space_free_low(
 /** Frees a space object from the tablespace memory cache.
 Closes the files in the chain but does not delete them.
 There must not be any pending i/o's or flushes on the files.
-@param[in]	id		tablespace identifier
-@param[in]	x_latched	whether the caller holds X-mode space->latch
+@param id          tablespace identifier
+@param x_latched   whether the caller holds exclusive fil_space_t::latch
 @return true if success */
-bool
-fil_space_free(
-	ulint		id,
-	bool		x_latched)
+bool fil_space_free(uint32_t id, bool x_latched)
 {
 	ut_ad(id != TRX_SYS_SPACE);
 
@@ -898,7 +878,7 @@ fil_space_free(
 @param mode       encryption mode
 @return pointer to created tablespace, to be filled in with add()
 @retval nullptr on failure (such as when the same tablespace exists) */
-fil_space_t *fil_space_t::create(ulint id, ulint flags,
+fil_space_t *fil_space_t::create(uint32_t id, uint32_t flags,
                                  fil_type_t purpose,
 				 fil_space_crypt_t *crypt_data,
 				 fil_encryption_t mode)
@@ -1004,17 +984,12 @@ Assigns a new space id for a new single-table tablespace. This works simply by
 incrementing the global counter. If 4 billion id's is not enough, we may need
 to recycle id's.
 @return true if assigned, false if not */
-bool
-fil_assign_new_space_id(
-/*====================*/
-	ulint*	space_id)	/*!< in/out: space id */
+bool fil_assign_new_space_id(uint32_t *space_id)
 {
-	ulint	id;
+	uint32_t id = *space_id;
 	bool	success;
 
 	mysql_mutex_lock(&fil_system.mutex);
-
-	id = *space_id;
 
 	if (id < fil_system.max_assigned_id) {
 		id = fil_system.max_assigned_id;
@@ -1041,7 +1016,7 @@ fil_assign_new_space_id(
 			<< ". To reset the counter to zero"
 			" you have to dump all your tables and"
 			" recreate the whole InnoDB installation.";
-		*space_id = ULINT_UNDEFINED;
+		*space_id = UINT32_MAX;
 	}
 
 	mysql_mutex_unlock(&fil_system.mutex);
@@ -1074,7 +1049,7 @@ bool fil_space_t::read_page0()
 }
 
 /** Look up a tablespace and ensure that its first page has been validated. */
-static fil_space_t *fil_space_get_space(ulint id)
+static fil_space_t *fil_space_get_space(uint32_t id)
 {
   if (fil_space_t *space= fil_space_get_by_id(id))
     if (space->read_page0())
@@ -1082,7 +1057,8 @@ static fil_space_t *fil_space_get_space(ulint id)
   return nullptr;
 }
 
-void fil_space_set_recv_size_and_flags(ulint id, uint32_t size, uint32_t flags)
+void fil_space_set_recv_size_and_flags(uint32_t id, uint32_t size,
+                                       uint32_t flags)
 {
   ut_ad(id < SRV_SPACE_ID_UPPER_BOUND);
   mysql_mutex_lock(&fil_system.mutex);
@@ -1360,14 +1336,9 @@ void fil_space_t::close_all()
 /*******************************************************************//**
 Sets the max tablespace id counter if the given number is bigger than the
 previous value. */
-void
-fil_set_max_space_id_if_bigger(
-/*===========================*/
-	ulint	max_id)	/*!< in: maximum known id */
+void fil_set_max_space_id_if_bigger(uint32_t max_id)
 {
-	if (max_id >= SRV_SPACE_ID_UPPER_BOUND) {
-		ib::fatal() << "Max tablespace id is too high, " << max_id;
-	}
+	ut_a(max_id < SRV_SPACE_ID_UPPER_BOUND);
 
 	mysql_mutex_lock(&fil_system.mutex);
 
@@ -1403,7 +1374,7 @@ fil_write_flushed_lsn(
 		mach_write_to_8(buf + FIL_PAGE_FILE_FLUSH_LSN_OR_KEY_VERSION,
 				lsn);
 
-		ulint fsp_flags = mach_read_from_4(
+		uint32_t fsp_flags = mach_read_from_4(
 			buf + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
 
 		if (fil_space_t::full_crc32(fsp_flags)) {
@@ -1425,7 +1396,7 @@ fil_write_flushed_lsn(
 @param id      tablespace identifier
 @return tablespace
 @retval nullptr if the tablespace is missing or inaccessible */
-fil_space_t *fil_space_t::get(ulint id)
+fil_space_t *fil_space_t::get(uint32_t id)
 {
   mysql_mutex_lock(&fil_system.mutex);
   fil_space_t *space= fil_space_get_by_id(id);
@@ -1446,7 +1417,7 @@ fil_space_t *fil_space_t::get(ulint id)
 @param first_page_no  first page number in the file
 @param path           file path
 @param new_path       new file path for type=FILE_RENAME */
-inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
+inline void mtr_t::log_file_op(mfile_type_t type, uint32_t space_id,
 			       const char *path, const char *new_path)
 {
   ut_ad((new_path != nullptr) == (type == FILE_RENAME));
@@ -1505,13 +1476,8 @@ inline void mtr_t::log_file_op(mfile_type_t type, ulint space_id,
 @param[in]	old_name	tablespace file name
 @param[in]	new_name	tablespace file name after renaming
 @param[in,out]	mtr		mini-transaction */
-static
-void
-fil_name_write_rename_low(
-	ulint		space_id,
-	const char*	old_name,
-	const char*	new_name,
-	mtr_t*		mtr)
+static void fil_name_write_rename_low(uint32_t space_id, const char *old_name,
+                                      const char *new_name, mtr_t *mtr)
 {
   ut_ad(!is_predefined_tablespace(space_id));
   mtr->log_file_op(FILE_RENAME, space_id, old_name, new_name);
@@ -1521,35 +1487,28 @@ fil_name_write_rename_low(
 @param[in]	space_id	tablespace id
 @param[in]	old_name	tablespace file name
 @param[in]	new_name	tablespace file name after renaming */
-static void
-fil_name_write_rename(
-	ulint		space_id,
-	const char*	old_name,
-	const char*	new_name)
+static void fil_name_write_rename(uint32_t space_id,
+				  const char *old_name, const char* new_name)
 {
-	mtr_t	mtr;
-	mtr.start();
-	fil_name_write_rename_low(space_id, old_name, new_name, &mtr);
-	mtr.commit();
-	log_write_up_to(mtr.commit_lsn(), true);
+  mtr_t mtr;
+  mtr.start();
+  fil_name_write_rename_low(space_id, old_name, new_name, &mtr);
+  mtr.commit();
+  log_write_up_to(mtr.commit_lsn(), true);
 }
 
 /** Write FILE_MODIFY for a file.
 @param[in]	space_id	tablespace id
 @param[in]	name		tablespace file name
 @param[in,out]	mtr		mini-transaction */
-static
-void
-fil_name_write(
-	ulint		space_id,
-	const char*	name,
-	mtr_t*		mtr)
+static void fil_name_write(uint32_t space_id, const char *name,
+                           mtr_t *mtr)
 {
   ut_ad(!is_predefined_tablespace(space_id));
   mtr->log_file_op(FILE_MODIFY, space_id, name);
 }
 
-fil_space_t *fil_space_t::check_pending_operations(ulint id)
+fil_space_t *fil_space_t::check_pending_operations(uint32_t id)
 {
   ut_a(!is_system_tablespace(id));
   bool being_deleted= false;
@@ -1614,7 +1573,7 @@ fil_space_t *fil_space_t::check_pending_operations(ulint id)
 /** Close a single-table tablespace on failed IMPORT TABLESPACE.
 The tablespace must be cached in the memory cache.
 Free all pages used by the tablespace. */
-void fil_close_tablespace(ulint id)
+void fil_close_tablespace(uint32_t id)
 {
 	ut_ad(!is_system_tablespace(id));
 	fil_space_t* space = fil_space_t::check_pending_operations(id);
@@ -1654,7 +1613,7 @@ void fil_close_tablespace(ulint id)
 @param id    tablespace identifier
 @return detached file handle (to be closed by the caller)
 @return	OS_FILE_CLOSED if no file existed */
-pfs_os_file_t fil_delete_tablespace(ulint id)
+pfs_os_file_t fil_delete_tablespace(uint32_t id)
 {
   ut_ad(!is_system_tablespace(id));
   pfs_os_file_t handle= OS_FILE_CLOSED;
@@ -1863,11 +1822,8 @@ The tablespace must exist in the memory cache.
 @param[in]	new_path_in	new file name,
 or NULL if it is located in the normal data directory
 @return true if success */
-static bool
-fil_rename_tablespace(
-	ulint		id,
-	const char*	old_path,
-	const char*	new_path_in)
+static bool fil_rename_tablespace(uint32_t id, const char *old_path,
+                                  const char *new_path_in)
 {
 	fil_space_t*	space;
 	fil_node_t*	node;
@@ -1952,10 +1908,10 @@ must be >= FIL_IBD_FILE_INITIAL_SIZE
 @retval	NULL	on error */
 fil_space_t*
 fil_ibd_create(
-	ulint		space_id,
+	uint32_t	space_id,
 	const table_name_t name,
 	const char*	path,
-	ulint		flags,
+	uint32_t	flags,
 	uint32_t	size,
 	fil_encryption_t mode,
 	uint32_t	key_id,
@@ -2126,8 +2082,8 @@ fil_space_t*
 fil_ibd_open(
 	bool			validate,
 	fil_type_t		purpose,
-	ulint			id,
-	ulint			flags,
+	uint32_t		id,
+	uint32_t		flags,
 	fil_space_t::name_type	name,
 	const char*		path_in,
 	dberr_t*		err)
@@ -2147,7 +2103,7 @@ fil_ibd_open(
 
 	/* Table flags can be ULINT_UNDEFINED if
 	dict_tf_to_fsp_flags_failure is set. */
-	if (flags == ULINT_UNDEFINED) {
+	if (flags == UINT32_MAX) {
 corrupted:
 		local_err = DB_CORRUPTION;
 func_exit:
@@ -2490,10 +2446,7 @@ of the file in validate_for_recovery().
 @param[out]	space		the tablespace, or NULL on error
 @return status of the operation */
 enum fil_load_status
-fil_ibd_load(
-	ulint		space_id,
-	const char*	filename,
-	fil_space_t*&	space)
+fil_ibd_load(uint32_t space_id, const char *filename, fil_space_t *&space)
 {
 	/* If the a space is already in the file system cache with this
 	space ID, then there is nothing to do. */
@@ -2612,7 +2565,7 @@ tablespace_check:
 
 	/* Adjust the memory-based flags that would normally be set by
 	dict_tf_to_fsp_flags(). In recovery, we have no data dictionary. */
-	ulint flags = file.flags();
+	uint32_t flags = file.flags();
 	if (fil_space_t::is_compressed(flags)) {
 		flags |= page_zip_level
 			<< FSP_FLAGS_MEM_COMPRESSION_LEVEL;
@@ -2646,7 +2599,7 @@ tablespace_check:
 (Typically when upgrading from MariaDB 10.1.0..10.1.20.)
 @param[in,out]	space		tablespace
 @param[in]	flags		desired tablespace flags */
-void fsp_flags_try_adjust(fil_space_t* space, ulint flags)
+void fsp_flags_try_adjust(fil_space_t *space, uint32_t flags)
 {
 	ut_ad(!srv_read_only_mode);
 	ut_ad(fil_space_t::is_valid_flags(flags, space->id));
@@ -2696,14 +2649,15 @@ startup, there may be many tablespaces which are not yet in the memory cache.
 @param[in]	table_flags	table flags
 @return the tablespace
 @retval	NULL	if no matching tablespace exists in the memory cache */
-fil_space_t *fil_space_for_table_exists_in_mem(ulint id, ulint table_flags)
+fil_space_t *fil_space_for_table_exists_in_mem(uint32_t id,
+                                               uint32_t table_flags)
 {
-	const ulint	expected_flags = dict_tf_to_fsp_flags(table_flags);
+	const uint32_t expected_flags = dict_tf_to_fsp_flags(table_flags);
 
 	mysql_mutex_lock(&fil_system.mutex);
 	if (fil_space_t* space = fil_space_get_by_id(id)) {
-		ulint tf = expected_flags & ~FSP_FLAGS_MEM_MASK;
-		ulint sf = space->flags & ~FSP_FLAGS_MEM_MASK;
+		uint32_t tf = expected_flags & ~FSP_FLAGS_MEM_MASK;
+		uint32_t sf = space->flags & ~FSP_FLAGS_MEM_MASK;
 
 		if (!fil_space_t::is_flags_equal(tf, sf)
 		    && !fil_space_t::is_flags_equal(sf, tf)) {

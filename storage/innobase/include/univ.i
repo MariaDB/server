@@ -524,7 +524,7 @@ it is read or written. */
 #include "ut0lst.h"
 #include "ut0ut.h"
 
-extern ulong	srv_page_size_shift;
+extern uint32_t srv_page_size_shift;
 extern ulong	srv_page_size;
 
 /* Dimension of spatial object we support so far. It has its root in

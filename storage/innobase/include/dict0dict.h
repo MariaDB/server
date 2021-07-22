@@ -873,11 +873,8 @@ fil_space_t::flags  |     0     |    0    |     1      |    1
 ==================================================================
 @param[in]	table_flags	dict_table_t::flags
 @return tablespace flags (fil_space_t::flags) */
-UNIV_INLINE
-ulint
-dict_tf_to_fsp_flags(ulint table_flags)
-	MY_ATTRIBUTE((const));
-
+inline uint32_t dict_tf_to_fsp_flags(unsigned table_flags)
+  MY_ATTRIBUTE((const));
 
 /** Extract the ROW_FORMAT=COMPRESSED page size from table flags.
 @param[in]	flags	flags

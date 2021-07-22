@@ -40,18 +40,6 @@ UNIV_INLINE
 buf_block_t*
 trx_rsegf_get(fil_space_t* space, uint32_t page_no, mtr_t* mtr);
 
-/** Gets a newly created rollback segment header.
-@param[in]	space		space where placed
-@param[in]	page_no		page number of the header
-@param[in,out]	mtr		mini-transaction
-@return rollback segment header, page x-latched */
-UNIV_INLINE
-buf_block_t*
-trx_rsegf_get_new(
-	ulint			space,
-	uint32_t		page_no,
-	mtr_t*			mtr);
-
 /** Create a rollback segment header.
 @param[in,out]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier

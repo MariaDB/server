@@ -7236,7 +7236,6 @@ btr_store_big_rec_extern_fields(
 	byte*		field_ref;
 	ulint		extern_len;
 	ulint		store_len;
-	ulint		space_id;
 	ulint		i;
 	mtr_t		mtr;
 	mem_heap_t*	heap = NULL;
@@ -7259,7 +7258,6 @@ btr_store_big_rec_extern_fields(
 	btr_blob_log_check_t redo_log(pcur, btr_mtr, offsets, &rec_block,
 				      &rec, op);
 	page_zip = buf_block_get_page_zip(rec_block);
-	space_id = rec_block->page.id().space();
 	ut_a(fil_page_index_page_check(page_align(rec))
 	     || op == BTR_STORE_INSERT_BULK);
 
@@ -7377,6 +7375,7 @@ btr_store_big_rec_extern_fields(
 
 			ut_a(block != NULL);
 
+			const uint32_t space_id = block->page.id().space();
 			const uint32_t page_no = block->page.id().page_no();
 
 			if (prev_page_no != FIL_NULL) {

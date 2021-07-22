@@ -170,10 +170,10 @@ struct mtr_t {
 	(needed for generating a FILE_MODIFY record)
 	@param[in]	space_id	user or system tablespace ID
 	@return	the tablespace */
-	fil_space_t* set_named_space_id(ulint space_id)
+	fil_space_t* set_named_space_id(uint32_t space_id)
 	{
 		ut_ad(!m_user_space_id);
-		ut_d(m_user_space_id = static_cast<uint32_t>(space_id));
+		ut_d(m_user_space_id = space_id);
 		if (!space_id) {
 			return fil_system.sys_space;
 		} else {
@@ -191,7 +191,7 @@ struct mtr_t {
 	void set_named_space(fil_space_t* space)
 	{
 		ut_ad(!m_user_space_id);
-		ut_d(m_user_space_id = static_cast<uint32_t>(space->id));
+		ut_d(m_user_space_id = space->id);
 		if (space->id) {
 			m_user_space = space;
 		}
@@ -202,7 +202,7 @@ struct mtr_t {
 	(needed for generating a FILE_MODIFY record)
 	@param[in]	space	tablespace
 	@return whether the mini-transaction is associated with the space */
-	bool is_named_space(ulint space) const;
+	bool is_named_space(uint32_t space) const;
 	/** Check the tablespace associated with the mini-transaction
 	(needed for generating a FILE_MODIFY record)
 	@param[in]	space	tablespace
@@ -210,10 +210,10 @@ struct mtr_t {
 	bool is_named_space(const fil_space_t* space) const;
 #endif /* UNIV_DEBUG */
 
-	/** Acquire a tablespace X-latch.
-	@param[in]	space_id	tablespace ID
-	@return the tablespace object (never NULL) */
-	fil_space_t* x_lock_space(ulint space_id);
+  /** Acquire a tablespace X-latch.
+  @param space_id   tablespace ID
+  @return the tablespace object (never NULL) */
+  fil_space_t *x_lock_space(uint32_t space_id);
 
   /** Acquire a shared rw-latch. */
   void s_lock(
@@ -559,7 +559,7 @@ public:
   @param space_id       tablespace identifier
   @param path           file path
   @param new_path       new file path for type=FILE_RENAME */
-  inline void log_file_op(mfile_type_t type, ulint space_id,
+  inline void log_file_op(mfile_type_t type, uint32_t space_id,
                           const char *path,
                           const char *new_path= nullptr);
 

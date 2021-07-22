@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1997, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -334,7 +334,7 @@ void ibuf_merge_or_delete_for_page(buf_block_t *block, const page_id_t page_id,
 /** Delete all change buffer entries for a tablespace,
 in DISCARD TABLESPACE, IMPORT TABLESPACE, or crash recovery.
 @param[in]	space		missing or to-be-discarded tablespace */
-void ibuf_delete_for_discarded_space(ulint space);
+void ibuf_delete_for_discarded_space(uint32_t space);
 
 /** Contract the change buffer by reading pages to the buffer pool.
 @return a lower limit for the combined size in bytes of entries which

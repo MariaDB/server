@@ -507,7 +507,7 @@ void mtr_t::commit_files(lsn_t checkpoint_lsn)
 @param[in]	space	tablespace
 @return whether the mini-transaction is associated with the space */
 bool
-mtr_t::is_named_space(ulint space) const
+mtr_t::is_named_space(uint32_t space) const
 {
 	ut_ad(!m_user_space || m_user_space->id != TRX_SYS_SPACE);
 
@@ -547,8 +547,7 @@ bool mtr_t::is_named_space(const fil_space_t* space) const
 /** Acquire a tablespace X-latch.
 @param[in]	space_id	tablespace ID
 @return the tablespace object (never NULL) */
-fil_space_t*
-mtr_t::x_lock_space(ulint space_id)
+fil_space_t *mtr_t::x_lock_space(uint32_t space_id)
 {
 	fil_space_t*	space;
 

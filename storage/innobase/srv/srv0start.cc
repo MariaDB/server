@@ -113,7 +113,7 @@ ibool	srv_start_raw_disk_in_use;
 uint	srv_n_file_io_threads;
 
 /** UNDO tablespaces starts with space id. */
-ulint	srv_undo_space_id_start;
+uint32_t srv_undo_space_id_start;
 
 /** TRUE if the server is being started, before rolling back any
 incomplete transactions */
@@ -455,7 +455,7 @@ static dberr_t srv_validate_undo_tablespaces()
 }
 
 /** @return the number of active undo tablespaces (except system tablespace) */
-static ulint trx_rseg_get_n_undo_tablespaces()
+static uint32_t trx_rseg_get_n_undo_tablespaces()
 {
   std::set<uint32_t> space_ids;
   mtr_t mtr;
@@ -467,7 +467,7 @@ static ulint trx_rseg_get_n_undo_tablespaces()
         if (uint32_t space= trx_sysf_rseg_get_space(sys_header, rseg_id))
           space_ids.insert(space);
   mtr.commit();
-  return space_ids.size();
+  return static_cast<uint32_t>(space_ids.size());
 }
 
 /** Open an undo tablespace.
@@ -476,11 +476,12 @@ static ulint trx_rseg_get_n_undo_tablespaces()
 @param[in]	i	undo tablespace count
 @return undo tablespace identifier
 @retval 0 on failure */
-static ulint srv_undo_tablespace_open(bool create, const char* name, ulint i)
+static uint32_t srv_undo_tablespace_open(bool create, const char *name,
+                                         uint32_t i)
 {
   bool success;
-  ulint space_id= 0;
-  ulint fsp_flags= 0;
+  uint32_t space_id= 0;
+  uint32_t fsp_flags= 0;
 
   if (create)
   {
@@ -636,20 +637,21 @@ srv_check_undo_redo_logs_exists()
 	return(DB_SUCCESS);
 }
 
-static dberr_t srv_all_undo_tablespaces_open(bool create_new_db, ulint n_undo)
+static dberr_t srv_all_undo_tablespaces_open(bool create_new_db,
+                                             uint32_t n_undo)
 {
   /* Open all the undo tablespaces that are currently in use. If we
   fail to open any of these it is a fatal error. The tablespace ids
   should be contiguous. It is a fatal error because they are required
   for recovery and are referenced by the UNDO logs (a.k.a RBS). */
 
-  ulint prev_id= create_new_db ? srv_undo_space_id_start - 1 : 0;
+  uint32_t prev_id= create_new_db ? srv_undo_space_id_start - 1 : 0;
 
-  for (ulint i= 0; i < n_undo; ++i)
+  for (uint32_t i= 0; i < n_undo; ++i)
   {
     char name[OS_FILE_MAX_PATH];
-    snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i + 1);
-    ulint space_id= srv_undo_tablespace_open(create_new_db, name, i);
+    snprintf(name, sizeof name, "%s/undo%03u", srv_undo_dir, i + 1);
+    uint32_t space_id= srv_undo_tablespace_open(create_new_db, name, i);
     if (!space_id)
     {
       if (!create_new_db)
@@ -674,11 +676,11 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_db, ulint n_undo)
   not in use and therefore not required by recovery. We only check
   that there are no gaps. */
 
-  for (ulint i= prev_id + 1; i < srv_undo_space_id_start + TRX_SYS_N_RSEGS;
+  for (uint32_t i= prev_id + 1; i < srv_undo_space_id_start + TRX_SYS_N_RSEGS;
        ++i)
   {
      char name[OS_FILE_MAX_PATH];
-     snprintf(name, sizeof name, "%s/undo%03zu", srv_undo_dir, i);
+     snprintf(name, sizeof name, "%s/undo%03u", srv_undo_dir, i);
      if (!srv_undo_tablespace_open(create_new_db, name, i))
        break;
      ++srv_undo_tablespaces_open;
@@ -690,8 +692,7 @@ static dberr_t srv_all_undo_tablespaces_open(bool create_new_db, ulint n_undo)
 /** Open the configured number of dedicated undo tablespaces.
 @param[in]	create_new_db	whether the database is being initialized
 @return DB_SUCCESS or error code */
-dberr_t
-srv_undo_tablespaces_init(bool create_new_db)
+dberr_t srv_undo_tablespaces_init(bool create_new_db)
 {
   srv_undo_tablespaces_open= 0;
 
@@ -727,8 +728,8 @@ srv_undo_tablespaces_init(bool create_new_db)
   already exist. */
   srv_undo_tablespaces_active= srv_undo_tablespaces;
 
-  ulint n_undo= (create_new_db || srv_operation == SRV_OPERATION_BACKUP ||
-                 srv_operation == SRV_OPERATION_RESTORE_DELTA)
+  uint32_t n_undo= (create_new_db || srv_operation == SRV_OPERATION_BACKUP ||
+                    srv_operation == SRV_OPERATION_RESTORE_DELTA)
     ? srv_undo_tablespaces : TRX_SYS_N_RSEGS;
 
   if (dberr_t err= srv_all_undo_tablespaces_open(create_new_db, n_undo))
@@ -742,7 +743,7 @@ srv_undo_tablespaces_init(bool create_new_db)
   if (create_new_db)
   {
     mtr_t mtr;
-    for (ulint i= 0; i < srv_undo_tablespaces; ++i)
+    for (uint32_t i= 0; i < srv_undo_tablespaces; ++i)
     {
        mtr.start();
        fsp_header_init(fil_space_get(srv_undo_space_id_start + i),
@@ -1501,8 +1502,9 @@ file_checked:
 		fil_system.space_id_reuse_warned = false;
 
 		if (!srv_read_only_mode) {
-			const ulint flags = FSP_FLAGS_PAGE_SSIZE();
-			for (ulint id = 0; id <= srv_undo_tablespaces; id++) {
+			const uint32_t flags = FSP_FLAGS_PAGE_SSIZE();
+			for (uint32_t id = 0; id <= srv_undo_tablespaces;
+			     id++) {
 				if (fil_space_t* space = fil_space_get(id)) {
 					fsp_flags_try_adjust(space, flags);
 				}

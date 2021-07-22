@@ -577,7 +577,7 @@ struct file_name_t {
 
 /** Map of dirty tablespaces during recovery */
 typedef std::map<
-	ulint,
+	uint32_t,
 	file_name_t,
 	std::less<ulint>,
 	ut_allocator<std::pair<const ulint, file_name_t> > >	recv_spaces_t;
@@ -877,7 +877,7 @@ fail:
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-void (*log_file_op)(ulint space_id, bool create,
+void (*log_file_op)(uint32_t space_id, bool create,
 		    const byte* name, ulint len,
 		    const byte* new_name, ulint new_len);
 
@@ -1079,7 +1079,7 @@ inline size_t recv_sys_t::files_size()
 				stored */
 static
 void
-fil_name_process(char* name, ulint len, ulint space_id,
+fil_name_process(char* name, ulint len, uint32_t space_id,
 		 bool deleted, lsn_t lsn, store_t *store)
 {
 	if (srv_operation == SRV_OPERATION_BACKUP) {
@@ -2870,8 +2870,7 @@ static void recv_read_in_area(page_id_t page_id)
 
 	if (p != page_nos) {
 		mysql_mutex_unlock(&recv_sys.mutex);
-		buf_read_recv_pages(page_id.space(), page_nos,
-				    ulint(p - page_nos));
+		buf_read_recv_pages(page_id.space(), {page_nos, p});
 		mysql_mutex_lock(&recv_sys.mutex);
 	}
 }
@@ -3621,7 +3620,7 @@ recv_validate_tablespace(bool rescan, bool& missing_tablespace)
 	for (recv_sys_t::map::iterator p = recv_sys.pages.begin();
 	     p != recv_sys.pages.end();) {
 		ut_ad(!p->second.log.empty());
-		const ulint space = p->first.space();
+		const uint32_t space = p->first.space();
 		if (is_predefined_tablespace(space)) {
 next:
 			p++;
@@ -4157,11 +4156,11 @@ bool recv_dblwr_t::validate_page(const page_id_t page_id,
 {
   if (page_id.page_no() == 0)
   {
-    ulint flags= fsp_header_get_flags(page);
+    uint32_t flags= fsp_header_get_flags(page);
     if (!fil_space_t::is_valid_flags(flags, page_id.space()))
     {
-      ulint cflags= fsp_flags_convert_from_101(flags);
-      if (cflags == ULINT_UNDEFINED)
+      uint32_t cflags= fsp_flags_convert_from_101(flags);
+      if (cflags == UINT32_MAX)
       {
         ib::warn() << "Ignoring a doublewrite copy of page " << page_id
                    << "due to invalid flags " << ib::hex(flags);

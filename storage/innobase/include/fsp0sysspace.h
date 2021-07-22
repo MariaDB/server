@@ -1,6 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2013, 2016, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -266,24 +267,15 @@ extern SysTablespace srv_tmp_space;
 /** Check if the space_id is for a system-tablespace (shared + temp).
 @param[in]	id	Space ID to check
 @return true if id is a system tablespace, false if not. */
-UNIV_INLINE
-bool
-is_system_tablespace(ulint	id)
+inline bool is_system_tablespace(uint32_t id)
 {
-	return(id == TRX_SYS_SPACE || id == SRV_TMP_SPACE_ID);
+  return id == TRX_SYS_SPACE || id == SRV_TMP_SPACE_ID;
 }
 
 /** Check if predefined shared tablespace.
 @return true if predefined shared tablespace */
-UNIV_INLINE
-bool
-is_predefined_tablespace(
-	ulint   id)
+inline bool is_predefined_tablespace(uint32_t id)
 {
-	ut_ad(srv_sys_space.space_id() == TRX_SYS_SPACE);
-	ut_ad(TRX_SYS_SPACE == 0);
-	return(id == TRX_SYS_SPACE
-	       || id == SRV_TMP_SPACE_ID
-	       || srv_is_undo_tablespace(id));
+  return is_system_tablespace(id) || srv_is_undo_tablespace(id);
 }
 #endif /* fsp0sysspace_h */

@@ -1072,7 +1072,7 @@ fsp_alloc_free_page(
 {
 	fil_addr_t	first;
 	xdes_t*		descr;
-	const ulint	space_id = space->id;
+	const uint32_t	space_id = space->id;
 
 	ut_d(space->modify_check(*mtr));
 	buf_block_t* block = fsp_get_header(space, mtr);
@@ -1511,7 +1511,7 @@ static
 fseg_inode_t*
 fseg_inode_try_get(
 	const fseg_header_t*	header,
-	ulint			space,
+	uint32_t		space,
 	ulint			zip_size,
 	mtr_t*			mtr,
 	buf_block_t**		block)
@@ -1548,7 +1548,7 @@ static
 fseg_inode_t*
 fseg_inode_get(
 	const fseg_header_t*	header,
-	ulint			space,
+	uint32_t		space,
 	ulint			zip_size,
 	mtr_t*			mtr,
 	buf_block_t**		block = NULL)
@@ -1993,7 +1993,7 @@ fseg_alloc_free_page_low(
 	xdes_t*		ret_descr;	/*!< the extent of the allocated page */
 	buf_block_t*	xdes;
 	ulint		n;
-	const ulint	space_id	= space->id;
+	const uint32_t	space_id	= space->id;
 
 	ut_ad((direction >= FSP_UP) && (direction <= FSP_NO_DIR));
 	ut_ad(mach_read_from_4(seg_inode + FSEG_MAGIC_N)
@@ -2248,13 +2248,12 @@ fseg_alloc_free_page_general(
 				in which the page should be initialized. */
 {
 	fseg_inode_t*	inode;
-	ulint		space_id;
 	fil_space_t*	space;
 	buf_block_t*	iblock;
 	buf_block_t*	block;
 	uint32_t	n_reserved;
 
-	space_id = page_get_space_id(page_align(seg_header));
+	const uint32_t space_id = page_get_space_id(page_align(seg_header));
 	space = mtr->x_lock_space(space_id);
 	inode = fseg_inode_get(seg_header, space_id, space->zip_size(),
 			       mtr, &iblock);

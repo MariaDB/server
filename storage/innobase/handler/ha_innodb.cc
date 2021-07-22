@@ -1733,16 +1733,11 @@ If correct, set the associated page_size_shift which is the power of 2
 for this page size.
 @param[in]	page_size	Page Size to evaluate
 @return an associated page_size_shift if valid, 0 if invalid. */
-inline
-ulong
-innodb_page_size_validate(
-	ulong	page_size)
+inline uint32_t innodb_page_size_validate(ulong page_size)
 {
-	ulong		n;
-
 	DBUG_ENTER("innodb_page_size_validate");
 
-	for (n = UNIV_PAGE_SIZE_SHIFT_MIN;
+	for (uint32_t n = UNIV_PAGE_SIZE_SHIFT_MIN;
 	     n <= UNIV_PAGE_SIZE_SHIFT_MAX;
 	     n++) {
 		if (page_size == static_cast<ulong>(1 << n)) {
@@ -19081,7 +19076,7 @@ static MYSQL_SYSVAR_STR(undo_directory, srv_undo_dir,
   "Directory where undo tablespace files live, this path can be absolute.",
   NULL, NULL, NULL);
 
-static MYSQL_SYSVAR_ULONG(undo_tablespaces, srv_undo_tablespaces,
+static MYSQL_SYSVAR_UINT(undo_tablespaces, srv_undo_tablespaces,
   PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_READONLY,
   "Number of undo tablespaces to use.",
   NULL, NULL,

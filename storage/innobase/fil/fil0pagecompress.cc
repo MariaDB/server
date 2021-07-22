@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (C) 2013, 2020, MariaDB Corporation.
+Copyright (C) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -195,7 +195,7 @@ static ulint fil_page_compress_low(
 static ulint fil_page_compress_for_full_crc32(
 	const byte*	buf,
 	byte*		out_buf,
-	ulint		flags,
+	uint32_t	flags,
 	ulint		block_size,
 	bool		encrypted)
 {
@@ -378,7 +378,7 @@ static ulint fil_page_compress_for_non_full_crc32(
 ulint fil_page_compress(
 	const byte*	buf,
 	byte*		out_buf,
-	ulint		flags,
+	uint32_t	flags,
 	ulint		block_size,
 	bool		encrypted)
 {
@@ -502,7 +502,8 @@ static bool fil_page_decompress_low(
 @return size of the compressed data
 @retval	0		if decompression failed
 @retval	srv_page_size	if the page was not compressed */
-ulint fil_page_decompress_for_full_crc32(byte* tmp_buf, byte* buf, ulint flags)
+static size_t fil_page_decompress_for_full_crc32(byte *tmp_buf, byte *buf,
+                                                 uint32_t flags)
 {
 	ut_ad(fil_space_t::full_crc32(flags));
 	bool compressed = false;
@@ -547,9 +548,7 @@ ulint fil_page_decompress_for_full_crc32(byte* tmp_buf, byte* buf, ulint flags)
 @return size of the compressed data
 @retval	0		if decompression failed
 @retval	srv_page_size	if the page was not compressed */
-ulint fil_page_decompress_for_non_full_crc32(
-	byte*	tmp_buf,
-	byte*	buf)
+static size_t fil_page_decompress_for_non_full_crc32(byte *tmp_buf, byte *buf)
 {
 	ulint header_len;
 	uint comp_algo;
@@ -599,10 +598,7 @@ ulint fil_page_decompress_for_non_full_crc32(
 @return size of the compressed data
 @retval	0		if decompression failed
 @retval	srv_page_size	if the page was not compressed */
-ulint fil_page_decompress(
-	byte*	tmp_buf,
-	byte*	buf,
-	ulint	flags)
+ulint fil_page_decompress(byte *tmp_buf, byte *buf, uint32_t flags)
 {
 	if (fil_space_t::full_crc32(flags)) {
 		return fil_page_decompress_for_full_crc32(tmp_buf, buf, flags);

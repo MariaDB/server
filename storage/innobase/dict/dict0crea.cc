@@ -347,8 +347,8 @@ dict_build_table_def_step(
 	dict_table_t*	table = node->table;
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
-	ut_ad(table->space_id == ULINT_UNDEFINED);
-	dict_hdr_get_new_id(&table->id, NULL, NULL);
+	ut_ad(table->space_id == UINT32_MAX);
+	dict_hdr_get_new_id(&table->id, nullptr, nullptr);
 
 	/* Always set this bit for all new created tables */
 	DICT_TF2_FLAG_SET(table, DICT_TF2_FTS_AUX_HEX_NAME);
@@ -366,10 +366,10 @@ dict_build_table_def_step(
 
 		DBUG_EXECUTE_IF(
 			"ib_create_table_fail_out_of_space_ids",
-			table->space_id = ULINT_UNDEFINED;
+			table->space_id = UINT32_MAX;
 		);
 
-		if (table->space_id == ULINT_UNDEFINED) {
+		if (table->space_id == UINT32_MAX) {
 			return DB_ERROR;
 		}
 	} else {

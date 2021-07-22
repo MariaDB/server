@@ -225,7 +225,7 @@ deleting the data file of that tablespace.
 The pages still remain a part of LRU and are evicted from
 the list as they age towards the tail of the LRU.
 @param id    tablespace identifier */
-void buf_flush_remove_pages(ulint id)
+void buf_flush_remove_pages(uint32_t id)
 {
   const page_id_t first(id, 0), end(id + 1, 0);
   ut_ad(id);

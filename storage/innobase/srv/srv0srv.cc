@@ -94,15 +94,15 @@ char*	srv_data_home;
 char*	srv_undo_dir;
 
 /** The number of tablespaces to use for rollback segments. */
-ulong	srv_undo_tablespaces;
+uint	srv_undo_tablespaces;
 
 /** The number of UNDO tablespaces that are open and ready to use. */
-ulint	srv_undo_tablespaces_open;
+uint32_t srv_undo_tablespaces_open;
 
 /** The number of UNDO tablespaces that are active (hosting some rollback
 segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
-ulint	srv_undo_tablespaces_active;
+uint32_t srv_undo_tablespaces_active;
 
 /** Rate at which UNDO records should be purged. */
 ulong	srv_purge_rseg_truncate_frequency;
@@ -166,7 +166,7 @@ uint		srv_flush_log_at_timeout;
 /** innodb_page_size */
 ulong		srv_page_size;
 /** log2 of innodb_page_size; @see innodb_init_params() */
-ulong		srv_page_size_shift;
+uint32_t	srv_page_size_shift;
 /** innodb_log_write_ahead_size */
 ulong		srv_log_write_ahead_size;
 

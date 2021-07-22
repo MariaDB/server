@@ -582,16 +582,12 @@ bool buf_is_zeroes(span<const byte> buf)
 }
 
 /** Check if a page is corrupt.
-@param[in]	check_lsn	whether the LSN should be checked
-@param[in]	read_buf	database page
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	space		tablespace
+@param check_lsn   whether FIL_PAGE_LSN should be checked
+@param read_buf    database page
+@param fsp_flags   contents of FIL_SPACE_FLAGS
 @return whether the page is corrupted */
-bool
-buf_page_is_corrupted(
-	bool			check_lsn,
-	const byte*		read_buf,
-	ulint			fsp_flags)
+bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
+                           uint32_t fsp_flags)
 {
 #ifndef UNIV_INNOCHECKSUM
 	DBUG_EXECUTE_IF("buf_page_import_corrupt_failure", return(true); );
@@ -4330,10 +4326,10 @@ buf_print_io(
 
 /** Verify that post encryption checksum match with the calculated checksum.
 This function should be called only if tablespace contains crypt data metadata.
-@param[in]	page		page frame
-@param[in]	fsp_flags	tablespace flags
-@return true if true if page is encrypted and OK, false otherwise */
-bool buf_page_verify_crypt_checksum(const byte* page, ulint fsp_flags)
+@param page       page frame
+@param fsp_flags  contents of FSP_SPACE_FLAGS
+@return whether the page is encrypted and valid */
+bool buf_page_verify_crypt_checksum(const byte *page, uint32_t fsp_flags)
 {
 	if (!fil_space_t::full_crc32(fsp_flags)) {
 		return fil_space_verify_crypt_checksum(

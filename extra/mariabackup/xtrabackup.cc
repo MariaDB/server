@@ -369,45 +369,45 @@ CorruptedPages::CorruptedPages() { ut_a(!pthread_mutex_init(&m_mutex, NULL)); }
 
 CorruptedPages::~CorruptedPages() { ut_a(!pthread_mutex_destroy(&m_mutex)); }
 
-void CorruptedPages::add_page_no_lock(const char *space_name, ulint space_id,
-                                      unsigned page_no,
+void CorruptedPages::add_page_no_lock(const char *space_name,
+                                      page_id_t page_id,
                                       bool convert_space_name)
 {
-  space_info_t  &space_info = m_spaces[space_id];
+  space_info_t  &space_info = m_spaces[page_id.space()];
   if (space_info.space_name.empty())
     space_info.space_name= convert_space_name
       ? filename_to_spacename(space_name, strlen(space_name))
       : space_name;
-  (void)space_info.pages.insert(page_no);
+  (void)space_info.pages.insert(page_id.page_no());
 }
 
-void CorruptedPages::add_page(const char *file_name, ulint space_id,
-                              unsigned page_no)
+void CorruptedPages::add_page(const char *file_name, page_id_t page_id)
 {
-  ut_a(!pthread_mutex_lock(&m_mutex));
-  add_page_no_lock(file_name, space_id, page_no, true);
-  ut_a(!pthread_mutex_unlock(&m_mutex));
+  pthread_mutex_lock(&m_mutex);
+  add_page_no_lock(file_name, page_id, true);
+  pthread_mutex_unlock(&m_mutex);
 }
 
-bool CorruptedPages::contains(ulint space_id, unsigned page_no) const
+bool CorruptedPages::contains(page_id_t page_id) const
 {
   bool result = false;
   ut_a(!pthread_mutex_lock(&m_mutex));
-  container_t::const_iterator space_it= m_spaces.find(space_id);
+  container_t::const_iterator space_it= m_spaces.find(page_id.space());
   if (space_it != m_spaces.end())
-    result = space_it->second.pages.count(page_no);
+    result = space_it->second.pages.count(page_id.page_no());
   ut_a(!pthread_mutex_unlock(&m_mutex));
   return result;
 }
 
-void CorruptedPages::drop_space(ulint space_id)
+void CorruptedPages::drop_space(uint32_t space_id)
 {
   ut_a(!pthread_mutex_lock(&m_mutex));
   m_spaces.erase(space_id);
   ut_a(!pthread_mutex_unlock(&m_mutex));
 }
 
-void CorruptedPages::rename_space(ulint space_id, const std::string &new_name)
+void CorruptedPages::rename_space(uint32_t space_id,
+                                  const std::string &new_name)
 {
   ut_a(!pthread_mutex_lock(&m_mutex));
   container_t::iterator space_it = m_spaces.find(space_id);
@@ -468,7 +468,7 @@ void CorruptedPages::read_from_file(const char *file_name)
         strerror(errno));
   std::string line;
   std::string space_name;
-  ulint space_id;
+  uint32_t space_id;
   ulint line_number= 0;
   while (std::getline(infile, line))
   {
@@ -488,7 +488,7 @@ void CorruptedPages::read_from_file(const char *file_name)
       std::istringstream iss(line);
       unsigned page_no;
       while ((iss >> page_no))
-        add_page_no_lock(space_name.c_str(), space_id, page_no, false);
+        add_page_no_lock(space_name.c_str(), {space_id, page_no}, false);
       if (!iss.eof())
         die("Corrupted pages file parse error on line number " ULINTPF,
             line_number);
@@ -506,7 +506,7 @@ bool CorruptedPages::empty() const
 
 static void xb_load_single_table_tablespace(const std::string &space_name,
                                             bool set_size,
-                                            ulint defer_space_id=0);
+                                            uint32_t defer_space_id=0);
 static void xb_data_files_close();
 static fil_space_t* fil_space_get_by_name(const char* name);
 
@@ -521,7 +521,7 @@ void CorruptedPages::zero_out_free_pages()
   for (container_t::const_iterator space_it= m_spaces.begin();
        space_it != m_spaces.end(); ++space_it)
   {
-    ulint space_id = space_it->first;
+    uint32_t space_id = space_it->first;
     const std::string &space_name = space_it->second.space_name;
     // There is no need to close tablespaces explixitly as they will be closed
     // in innodb_shutdown().
@@ -584,7 +584,7 @@ typedef void (*process_single_tablespace_func_t)(const char *dirname,
                                                  const char *filname,
                                                  bool is_remote,
                                                  bool skip_node_page0,
-                                                 ulint defer_space_id);
+                                                 uint32_t defer_space_id);
 static dberr_t enumerate_ibd_files(process_single_tablespace_func_t callback);
 
 /* ======== Datafiles iterator ======== */
@@ -774,7 +774,7 @@ static std::string filename_to_spacename(const void *filename, size_t len)
 @param[in]	len		length of name, in bytes
 @param[in]	new_name	new file name (NULL if not rename)
 @param[in]	new_len		length of new_name, in bytes (0 if NULL) */
-static void backup_file_op(ulint space_id, bool create,
+static void backup_file_op(uint32_t space_id, bool create,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
@@ -787,15 +787,15 @@ static void backup_file_op(ulint space_id, bool create,
 
 	if (create) {
 		ddl_tracker.id_to_name[space_id] = filename_to_spacename(name, len);
-		msg("DDL tracking : create %zu \"%.*s\"", space_id, int(len), name);
+		msg("DDL tracking : create %u \"%.*s\"", space_id, int(len), name);
 	}
 	else if (new_name) {
 		ddl_tracker.id_to_name[space_id] = filename_to_spacename(new_name, new_len);
-		msg("DDL tracking : rename %zu \"%.*s\",\"%.*s\"",
+		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
 	} else {
 		ddl_tracker.drops.insert(space_id);
-		msg("DDL tracking : delete %zu \"%.*s\"", space_id, int(len), name);
+		msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
 	}
 	pthread_mutex_unlock(&backup_mutex);
 }
@@ -810,19 +810,19 @@ static void backup_file_op(ulint space_id, bool create,
 
  We will abort backup in this case.
 */
-static void backup_file_op_fail(ulint space_id, bool create,
+static void backup_file_op_fail(uint32_t space_id, bool create,
 	const byte* name, ulint len,
 	const byte* new_name, ulint new_len)
 {
 	bool fail;
 	if (create) {
-		msg("DDL tracking : create %zu \"%.*s\"",
+		msg("DDL tracking : create %u \"%.*s\"",
 			space_id, int(len), name);
 		std::string  spacename = filename_to_spacename(name, len);
 		fail = !check_if_skip_table(spacename.c_str());
 	}
 	else if (new_name) {
-		msg("DDL tracking : rename %zu \"%.*s\",\"%.*s\"",
+		msg("DDL tracking : rename %u \"%.*s\",\"%.*s\"",
 			space_id, int(len), name, int(new_len), new_name);
 		std::string  spacename = filename_to_spacename(name, len);
 		std::string  new_spacename = filename_to_spacename(new_name, new_len);
@@ -831,7 +831,7 @@ static void backup_file_op_fail(ulint space_id, bool create,
 	else {
 		std::string  spacename = filename_to_spacename(name, len);
 		fail = !check_if_skip_table(spacename.c_str());
-		msg("DDL tracking : delete %zu \"%.*s\"", space_id, int(len), name);
+		msg("DDL tracking : delete %u \"%.*s\"", space_id, int(len), name);
 	}
 	if (fail) {
 		ut_a(opt_no_lock);
@@ -1541,7 +1541,7 @@ struct my_option xb_server_options[] =
   {"innodb_undo_tablespaces", OPT_INNODB_UNDO_TABLESPACES,
    "Number of undo tablespaces to use.",
    (G_PTR*)&srv_undo_tablespaces, (G_PTR*)&srv_undo_tablespaces,
-   0, GET_ULONG, REQUIRED_ARG, 0, 0, 126, 0, 1, 0},
+   0, GET_UINT, REQUIRED_ARG, 0, 0, 126, 0, 1, 0},
 
   {"innodb_compression_level", OPT_INNODB_COMPRESSION_LEVEL,
    "Compression level used for zlib compression.",
@@ -1612,7 +1612,7 @@ static std::set<std::string> tables_for_export;
 
 static void append_export_table(const char *dbname, const char *tablename,
                                 bool is_remote, bool skip_node_page0,
-                                ulint defer_space_id)
+                                uint32_t defer_space_id)
 {
   if(dbname && tablename && !is_remote)
   {
@@ -1948,7 +1948,7 @@ static bool innodb_init_param()
 		size_t n_shift = get_bit_shift(size_t(innobase_page_size));
 
 		if (n_shift >= 12 && n_shift <= UNIV_PAGE_SIZE_SHIFT_MAX) {
-			srv_page_size_shift = ulong(n_shift);
+			srv_page_size_shift = uint32_t(n_shift);
 			srv_page_size = 1U << n_shift;
 			msg("InnoDB: The universal page size of the "
 			    "database is set to %lu.", srv_page_size);
@@ -2298,7 +2298,7 @@ xb_read_delta_metadata(const char *filepath, xb_delta_info_t *info)
 
 	/* set defaults */
 	ulint page_size = ULINT_UNDEFINED, zip_size = 0;
-	info->space_id = ULINT_UNDEFINED;
+	info->space_id = UINT32_MAX;
 
 	fp = fopen(filepath, "r");
 	if (!fp) {
@@ -2313,7 +2313,8 @@ xb_read_delta_metadata(const char *filepath, xb_delta_info_t *info)
 			} else if (strcmp(key, "zip_size") == 0) {
 				zip_size = strtoul(value, NULL, 10);
 			} else if (strcmp(key, "space_id") == 0) {
-				info->space_id = strtoul(value, NULL, 10);
+				info->space_id = static_cast<uint32_t>
+					(strtoul(value, NULL, 10));
 			}
 		}
 	}
@@ -2327,7 +2328,7 @@ xb_read_delta_metadata(const char *filepath, xb_delta_info_t *info)
 		info->page_size = zip_size ? zip_size : page_size;
 	}
 
-	if (info->space_id == ULINT_UNDEFINED) {
+	if (info->space_id == UINT32_MAX) {
 		msg("mariabackup: Warning: This backup was taken with XtraBackup 2.0.1 "
 			"or earlier, some DDL operations between full and incremental "
 			"backups may be handled incorrectly");
@@ -2351,7 +2352,7 @@ xb_write_delta_metadata(const char *filename, const xb_delta_info_t *info)
 	snprintf(buf, sizeof(buf),
 		 "page_size = " ULINTPF "\n"
 		 "zip_size = " ULINTPF " \n"
-		 "space_id = " ULINTPF "\n",
+		 "space_id = %u\n",
 		 info->page_size,
 		 info->zip_size,
 		 info->space_id);
@@ -3216,7 +3217,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
                                             const char *filname,
                                             bool is_remote,
                                             bool skip_node_page0,
-                                            ulint defer_space_id)
+                                            uint32_t defer_space_id)
 {
 	ut_ad(srv_operation == SRV_OPERATION_BACKUP
 	      || srv_operation == SRV_OPERATION_RESTORE_DELTA
@@ -3328,7 +3329,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 
 static void xb_load_single_table_tablespace(const std::string &space_name,
                                             bool skip_node_page0,
-                                            ulint defer_space_id)
+                                            uint32_t defer_space_id)
 {
   std::string name(space_name);
   bool is_remote= access((name + ".ibd").c_str(), R_OK) != 0;
@@ -3707,9 +3708,9 @@ static dberr_t xb_assign_undo_space_start()
 	pfs_os_file_t	file;
 	bool		ret;
 	dberr_t		error = DB_SUCCESS;
-	ulint		space;
+	uint32_t	space;
+	uint32_t 	fsp_flags;
 	int		n_retries = 5;
-	ulint		fsp_flags;
 
 	if (srv_undo_tablespaces == 0) {
 		return error;
@@ -3734,7 +3735,7 @@ static dberr_t xb_assign_undo_space_start()
 	}
 
 	fsp_flags = mach_read_from_4(
-			page + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
+		page + FSP_HEADER_OFFSET + FSP_SPACE_FLAGS);
 retry:
 	if (os_file_read(IORequestRead, file, page,
 			 TRX_SYS_PAGE_NO << srv_page_size_shift,
@@ -4766,7 +4767,7 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 		iter++) {
 
 		const std::string name = iter->second;
-		ulint id = iter->first;
+		uint32_t id = iter->first;
 
 		if (ddl_tracker.drops.find(id) != ddl_tracker.drops.end()) {
 			dropped_tables.insert(name);
@@ -4792,7 +4793,7 @@ void backup_fix_ddl(CorruptedPages &corrupted_pages)
 		iter != ddl_tracker.id_to_name.end();
 		iter++) {
 
-		ulint id = iter->first;
+		uint32_t id = iter->first;
 		std::string name = iter->second;
 
 		if (ddl_tracker.tables_in_backup.find(id) != ddl_tracker.tables_in_backup.end()) {
@@ -4903,8 +4904,8 @@ bool
 xb_space_create_file(
 /*==================*/
 	const char*	path,		/*!<in: path to tablespace */
-	ulint		space_id,	/*!<in: space id */
-	ulint		flags,		/*!<in: tablespace flags */
+	uint32_t	space_id,	/*!<in: space id */
+	uint32_t	flags,		/*!<in: tablespace flags */
 	pfs_os_file_t*	file)		/*!<out: file handle */
 {
 	bool		ret;
@@ -4967,7 +4968,7 @@ xb_delta_open_matching_space(
 
 	ut_a(dbname != NULL ||
 	     !fil_is_user_tablespace_id(info.space_id) ||
-	     info.space_id == ULINT_UNDEFINED);
+	     info.space_id == UINT32_MAX);
 
 	*success = false;
 
@@ -5043,14 +5044,14 @@ exit:
 
 	if (fil_space != NULL) {
 		if (fil_space->id == info.space_id
-		    || info.space_id == ULINT_UNDEFINED) {
+		    || info.space_id == UINT32_MAX) {
 			/* we found matching space */
 			goto found;
 		} else {
 
 			char	tmpname[FN_REFLEN];
 
-			snprintf(tmpname, FN_REFLEN, "%s/xtrabackup_tmp_#" ULINTPF,
+			snprintf(tmpname, FN_REFLEN, "%s/xtrabackup_tmp_#%u",
 				 dbname, fil_space->id);
 
 			msg("mariabackup: Renaming %s to %s.ibd",
@@ -5064,7 +5065,7 @@ exit:
 		}
 	}
 
-	if (info.space_id == ULINT_UNDEFINED)
+	if (info.space_id == UINT32_MAX)
 	{
 		die("Can't handle DDL operation on tablespace "
 		    "%s\n", dest_space_name);
@@ -5090,7 +5091,7 @@ exit:
 	}
 
 	/* No matching space found. create the new one.  */
-	const ulint flags = info.zip_size
+	const uint32_t flags = info.zip_size
 		? get_bit_shift(info.page_size
 				>> (UNIV_ZIP_SIZE_SHIFT_MIN - 1))
 		<< FSP_FLAGS_POS_ZIP_SSIZE

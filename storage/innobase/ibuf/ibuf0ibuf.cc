@@ -2258,7 +2258,7 @@ static void ibuf_read_merge_pages(const uint32_t* space_ids,
 #endif
 
 	for (ulint i = 0; i < n_stored; i++) {
-		const ulint space_id = space_ids[i];
+		const uint32_t space_id = space_ids[i];
 		fil_space_t* s = fil_space_t::get(space_id);
 		if (!s) {
 tablespace_deleted:
@@ -2944,7 +2944,7 @@ void
 ibuf_update_max_tablespace_id(void)
 /*===============================*/
 {
-	ulint		max_space_id;
+	uint32_t	max_space_id;
 	const rec_t*	rec;
 	const byte*	field;
 	ulint		len;
@@ -4463,7 +4463,7 @@ reset_bit:
 /** Delete all change buffer entries for a tablespace,
 in DISCARD TABLESPACE, IMPORT TABLESPACE, or crash recovery.
 @param[in]	space		missing or to-be-discarded tablespace */
-void ibuf_delete_for_discarded_space(ulint space)
+void ibuf_delete_for_discarded_space(uint32_t space)
 {
 	mem_heap_t*	heap;
 	btr_pcur_t	pcur;

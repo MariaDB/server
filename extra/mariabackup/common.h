@@ -149,10 +149,9 @@ static inline ATTRIBUTE_FORMAT(printf, 1,2) ATTRIBUTE_NORETURN void die(const ch
 /***********************************************************************
 Computes bit shift for a given value. If the argument is not a power
 of 2, returns 0.*/
-static inline size_t
-get_bit_shift(size_t value)
+static inline unsigned get_bit_shift(size_t value)
 {
-    size_t shift;
+    unsigned shift;
 
     if (value == 0)
 	return 0;

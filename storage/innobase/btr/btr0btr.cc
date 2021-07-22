@@ -382,8 +382,8 @@ btr_root_adjust_on_import(
 		} else {
 			/* Check that the table flags and the tablespace
 			flags match. */
-			ulint tf = dict_tf_to_fsp_flags(table->flags);
-			ulint sf = table->space->flags;
+			uint32_t tf = dict_tf_to_fsp_flags(table->flags);
+			uint32_t sf = table->space->flags;
 			sf &= ~FSP_FLAGS_MEM_MASK;
 			tf &= ~FSP_FLAGS_MEM_MASK;
 			if (fil_space_t::is_flags_equal(tf, sf)

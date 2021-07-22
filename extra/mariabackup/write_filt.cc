@@ -124,8 +124,8 @@ wf_incremental_process(xb_write_filt_ctxt_t *ctxt, ds_file_t *dstfile)
 	     i++, page += page_size) {
 
 		if ((!cp->corrupted_pages ||
-				!cp->corrupted_pages->contains(cursor->node->space->id,
-					cursor->buf_page_no + i)) &&
+		     !cp->corrupted_pages->contains({cursor->node->space->id,
+			 cursor->buf_page_no + i})) &&
 				incremental_lsn >= mach_read_from_8(page + FIL_PAGE_LSN))
 			continue;
 

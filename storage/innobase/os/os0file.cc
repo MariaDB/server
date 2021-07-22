@@ -4222,14 +4222,14 @@ corrupted:
        FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
       ? ULINT_UNDEFINED
       : mach_read_from_4(FIL_PAGE_SPACE_ID + page);
-    ulint flags= fsp_header_get_flags(page);
+    uint32_t flags= fsp_header_get_flags(page);
     const uint32_t size= fsp_header_get_field(page, FSP_SIZE);
     const uint32_t free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
     const uint32_t free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
     if (!fil_space_t::is_valid_flags(flags, space->id))
     {
-      ulint cflags= fsp_flags_convert_from_101(flags);
-      if (cflags == ULINT_UNDEFINED)
+      uint32_t cflags= fsp_flags_convert_from_101(flags);
+      if (cflags == UINT32_MAX)
       {
 invalid:
         ib::error() << "Expected tablespace flags "
@@ -4239,8 +4239,8 @@ invalid:
         goto corrupted;
       }
 
-      ulint cf= cflags & ~FSP_FLAGS_MEM_MASK;
-      ulint sf= space->flags & ~FSP_FLAGS_MEM_MASK;
+      uint32_t cf= cflags & ~FSP_FLAGS_MEM_MASK;
+      uint32_t sf= space->flags & ~FSP_FLAGS_MEM_MASK;
 
       if (!fil_space_t::is_flags_equal(cf, sf) &&
           !fil_space_t::is_flags_equal(sf, cf))

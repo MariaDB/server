@@ -10452,8 +10452,8 @@ commit_cache_norebuild(
 				space->flags
 					|= FSP_FLAGS_MASK_PAGE_COMPRESSION;
 			} else if (!space->is_compressed()) {
-				space->flags
-					|= innodb_compression_algorithm
+				space->flags |= static_cast<uint32_t>(
+					innodb_compression_algorithm)
 					<< FSP_FLAGS_FCRC32_POS_COMPRESSED_ALGO;
 			}
 			mysql_mutex_unlock(&fil_system.mutex);

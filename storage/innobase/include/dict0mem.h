@@ -112,7 +112,7 @@ are described in fsp0fsp.h. */
 
 /** This bitmask is used in SYS_TABLES.N_COLS to set and test whether
 the Compact page format is used, i.e ROW_FORMAT != REDUNDANT */
-#define DICT_N_COLS_COMPACT	0x80000000UL
+constexpr uint32_t DICT_N_COLS_COMPACT= 1U << 31;
 
 /** Width of the COMPACT flag */
 #define DICT_TF_WIDTH_COMPACT		1
@@ -2037,7 +2037,7 @@ public:
 	/** The tablespace of the table */
 	fil_space_t*				space;
 	/** Tablespace ID */
-	ulint					space_id;
+	uint32_t				space_id;
 
 	/** Stores information about:
 	1 row format (redundant or compact),

@@ -634,7 +634,7 @@ buf_load()
 	/* Avoid calling the expensive fil_space_t::get() for each
 	page within the same tablespace. dump[] is sorted by (space, page),
 	so all pages from a given tablespace are consecutive. */
-	ulint		cur_space_id = dump[0].space();
+	uint32_t	cur_space_id = dump[0].space();
 	fil_space_t*	space = fil_space_t::get(cur_space_id);
 	ulint		zip_size = space ? space->zip_size() : 0;
 
@@ -646,10 +646,9 @@ buf_load()
 	for (i = 0; i < dump_n && !SHUTTING_DOWN(); i++) {
 
 		/* space_id for this iteration of the loop */
-		const ulint	this_space_id = dump[i].space();
+		const uint32_t this_space_id = dump[i].space();
 
-		if (this_space_id == SRV_TMP_SPACE_ID) {
-			/* Ignore the innodb_temporary tablespace. */
+		if (this_space_id >= SRV_SPACE_ID_UPPER_BOUND) {
 			continue;
 		}
 

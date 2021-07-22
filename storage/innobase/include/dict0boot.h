@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -45,7 +45,7 @@ dict_hdr_get_new_id(
 						(not assigned if NULL) */
 	index_id_t*		index_id,	/*!< out: index id
 						(not assigned if NULL) */
-	ulint*			space_id);	/*!< out: space id
+	uint32_t*		space_id);	/*!< out: space id
 						(not assigned if NULL) */
 /** Update dict_sys.row_id in the dictionary header file page. */
 void dict_hdr_flush_row_id(row_id_t id);

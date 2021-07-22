@@ -607,7 +607,7 @@ trx_undo_free_page(
 				undo log page; the caller must have reserved
 				the rollback segment mutex */
 {
-	const ulint	space = rseg->space->id;
+	const uint32_t space = rseg->space->id;
 
 	ut_a(hdr_page_no != page_no);
 

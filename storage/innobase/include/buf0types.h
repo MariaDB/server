@@ -101,12 +101,10 @@ class page_id_t
 public:
 
   /** Constructor from (space, page_no).
-  @param[in]	space	tablespace id
-  @param[in]	page_no	page number */
-  page_id_t(ulint space, uint32_t page_no) : m_id(uint64_t{space} << 32 | page_no)
-  {
-    ut_ad(space <= 0xFFFFFFFFU);
-  }
+  @param space	 tablespace id
+  @param page_no page number */
+  page_id_t(uint32_t space, uint32_t page_no) :
+    m_id(uint64_t{space} << 32 | page_no) {}
 
   page_id_t(uint64_t id) : m_id(id) {}
   bool operator==(const page_id_t& rhs) const { return m_id == rhs.m_id; }

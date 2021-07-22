@@ -31,6 +31,22 @@ Created 3/26/1996 Heikki Tuuri
 #include "trx0purge.h"
 #include "srv0mon.h"
 
+/** Get a newly created rollback segment header.
+@param page_id   header page location
+@param mtr       mini-transaction
+@return rollback segment header, page x-latched */
+static buf_block_t *trx_rsegf_get_new(page_id_t page_id, mtr_t *mtr)
+{
+#ifdef UNIV_DEBUG
+  if (page_id.space() != SRV_TMP_SPACE_ID)
+  {
+    ut_ad(page_id.space() <= srv_undo_tablespaces_active || !srv_was_started);
+    ut_ad(page_id.space() <= TRX_SYS_MAX_UNDO_SPACES);
+  }
+#endif
+  return buf_page_get(page_id, 0, RW_X_LATCH, mtr);
+}
+
 #ifdef WITH_WSREP
 #include <mysql/service_wsrep.h>
 
@@ -258,7 +274,8 @@ bool trx_rseg_read_wsrep_checkpoint(XID& xid)
 		}
 
 		const buf_block_t* rseg_header = trx_rsegf_get_new(
-			trx_sysf_rseg_get_space(sys, rseg_id), page_no, &mtr);
+			page_id_t(trx_sysf_rseg_get_space(sys, rseg_id),
+				  page_no), &mtr);
 
 		if (mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT
 				     + rseg_header->frame)) {
@@ -445,7 +462,7 @@ static dberr_t trx_rseg_mem_restore(trx_rseg_t *rseg, trx_id_t &max_trx_id,
                                     mtr_t *mtr)
 {
 	buf_block_t* rseg_hdr = trx_rsegf_get_new(
-		rseg->space->id, rseg->page_no, mtr);
+		page_id_t(rseg->space->id, rseg->page_no), mtr);
 
 	if (!mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT + rseg_hdr->frame)) {
 		trx_id_t id = mach_read_from_8(TRX_RSEG + TRX_RSEG_MAX_TRX_ID

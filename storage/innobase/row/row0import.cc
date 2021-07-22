@@ -80,9 +80,9 @@ struct row_index_t {
 						in the exporting server */
 	byte*		m_name;			/*!< Index name */
 
-	ulint		m_space;		/*!< Space where it is placed */
+	uint32_t	m_space;		/*!< Space where it is placed */
 
-	ulint		m_page_no;		/*!< Root page number */
+	uint32_t	m_page_no;		/*!< Root page number */
 
 	ulint		m_type;			/*!< Index type */
 
@@ -390,14 +390,14 @@ class AbstractCallback
 public:
 	/** Constructor
 	@param trx covering transaction */
-	AbstractCallback(trx_t* trx, ulint space_id)
+	AbstractCallback(trx_t* trx, uint32_t space_id)
 		:
 		m_zip_size(0),
 		m_trx(trx),
 		m_space(space_id),
 		m_xdes(),
-		m_xdes_page_no(ULINT_UNDEFINED),
-		m_space_flags(ULINT_UNDEFINED) UNIV_NOTHROW { }
+		m_xdes_page_no(UINT32_MAX),
+		m_space_flags(UINT32_MAX) UNIV_NOTHROW { }
 
 	/** Free any extent descriptor instance */
 	virtual ~AbstractCallback()
@@ -420,10 +420,7 @@ public:
 	}
 
 	/** @return the tablespace flags */
-	ulint get_space_flags() const
-	{
-		return(m_space_flags);
-	}
+	uint32_t get_space_flags() const { return m_space_flags; }
 
 	/**
 	Set the name of the physical file and the file handle that is used
@@ -454,7 +451,7 @@ public:
 	virtual dberr_t operator()(buf_block_t* block) UNIV_NOTHROW = 0;
 
 	/** @return the tablespace identifier */
-	ulint get_space_id() const { return m_space; }
+	uint32_t get_space_id() const { return m_space; }
 
 	bool is_interrupted() const { return trx_is_interrupted(m_trx); }
 
@@ -493,7 +490,7 @@ protected:
 	@param page page contents
 	@return DB_SUCCESS or error code. */
 	dberr_t	set_current_xdes(
-		ulint		page_no,
+		uint32_t	page_no,
 		const page_t*	page) UNIV_NOTHROW
 	{
 		m_xdes_page_no = page_no;
@@ -558,19 +555,16 @@ protected:
 	trx_t*			m_trx;
 
 	/** Space id of the file being iterated over. */
-	ulint			m_space;
-
-	/** Current size of the space in pages */
-	ulint			m_size;
+	uint32_t		m_space;
 
 	/** Current extent descriptor page */
 	xdes_t*			m_xdes;
 
 	/** Physical page offset in the file of the extent descriptor */
-	ulint			m_xdes_page_no;
+	uint32_t		m_xdes_page_no;
 
 	/** Flags value read from the header page */
-	ulint			m_space_flags;
+	uint32_t		m_space_flags;
 };
 
 /** Determine the page size to use for traversing the tablespace
@@ -586,8 +580,8 @@ AbstractCallback::init(
 
 	m_space_flags = fsp_header_get_flags(page);
 	if (!fil_space_t::is_valid_flags(m_space_flags, true)) {
-		ulint cflags = fsp_flags_convert_from_101(m_space_flags);
-		if (cflags == ULINT_UNDEFINED) {
+		uint32_t cflags = fsp_flags_convert_from_101(m_space_flags);
+		if (cflags == UINT32_MAX) {
 			ib::error() << "Invalid FSP_SPACE_FLAGS="
 				<< ib::hex(m_space_flags);
 			return(DB_CORRUPTION);
@@ -618,8 +612,7 @@ AbstractCallback::init(
 		return(DB_CORRUPTION);
 	}
 
-	m_size  = mach_read_from_4(page + FSP_SIZE);
-	if (m_space == ULINT_UNDEFINED) {
+	if (m_space == UINT32_MAX) {
 		m_space = mach_read_from_4(FSP_HEADER_OFFSET + FSP_SPACE_ID
 					   + page);
 	}
@@ -635,13 +628,13 @@ struct FetchIndexRootPages : public AbstractCallback {
 	/** Index information gathered from the .ibd file. */
 	struct Index {
 
-		Index(index_id_t id, ulint page_no)
+		Index(index_id_t id, uint32_t page_no)
 			:
 			m_id(id),
 			m_page_no(page_no) { }
 
 		index_id_t	m_id;		/*!< Index id */
-		ulint		m_page_no;	/*!< Root page number */
+		uint32_t	m_page_no;	/*!< Root page number */
 	};
 
 	typedef std::vector<Index, ut_allocator<Index> >	Indexes;
@@ -651,7 +644,7 @@ struct FetchIndexRootPages : public AbstractCallback {
 	@param table table definition in server .*/
 	FetchIndexRootPages(const dict_table_t* table, trx_t* trx)
 		:
-		AbstractCallback(trx, ULINT_UNDEFINED),
+		AbstractCallback(trx, UINT32_MAX),
 		m_table(table) UNIV_NOTHROW { }
 
 	/** Destructor */
@@ -698,8 +691,10 @@ dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 		m_indexes.push_back(Index(id, block->page.id().page_no()));
 
 		if (m_indexes.size() == 1) {
-			/* Check that the tablespace flags match the table flags. */
-			ulint expected = dict_tf_to_fsp_flags(m_table->flags);
+			/* Check that the tablespace flags match the
+			table flags. */
+			const uint32_t expected
+				= dict_tf_to_fsp_flags(m_table->flags);
 			if (!fsp_flags_match(expected, m_space_flags)) {
 				ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 					ER_TABLE_SCHEMA_MISMATCH,
@@ -817,7 +812,7 @@ public:
 	@param cfg config of table being imported.
 	@param space_id tablespace identifier
 	@param trx transaction covering the import */
-	PageConverter(row_import* cfg, ulint space_id, trx_t* trx)
+	PageConverter(row_import* cfg, uint32_t space_id, trx_t* trx)
 		:
 		AbstractCallback(trx, space_id),
 		m_cfg(cfg),
@@ -1388,7 +1383,7 @@ row_import::set_root_by_name() UNIV_NOTHROW
 		/* We've already checked that it exists. */
 		ut_a(index != 0);
 
-		index->page = static_cast<uint32_t>(cfg_index->m_page_no);
+		index->page = cfg_index->m_page_no;
 	}
 }
 
@@ -1447,8 +1442,7 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 
 			cfg_index[i].m_srv_index = index;
 
-			index->page = static_cast<uint32_t>(
-				cfg_index[i++].m_page_no);
+			index->page = cfg_index[i++].m_page_no;
 		}
 	}
 
@@ -3427,7 +3421,7 @@ fil_iterate(
 		return DB_OUT_OF_MEMORY;
 	}
 
-	ulint actual_space_id = 0;
+	uint32_t actual_space_id = 0;
 	const bool full_crc32 = fil_space_t::full_crc32(
 		callback.get_space_flags());
 
@@ -3556,9 +3550,9 @@ not_encrypted:
 
 				decrypted = fil_space_decrypt(
 					actual_space_id,
+					callback.get_space_flags(),
 					iter.crypt_data, dst,
 					callback.physical_size(),
-					callback.get_space_flags(),
 					src, &err);
 
 				if (err != DB_SUCCESS) {
@@ -4115,11 +4109,9 @@ row_import_for_mysql(
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
 
-	ulint	fsp_flags = dict_tf_to_fsp_flags(table->flags);
-
 	table->space = fil_ibd_open(
 		true, FIL_TYPE_IMPORT, table->space_id,
-		fsp_flags, name, filepath, &err);
+		dict_tf_to_fsp_flags(table->flags), name, filepath, &err);
 
 	ut_ad((table->space == NULL) == (err != DB_SUCCESS));
 	DBUG_EXECUTE_IF("ib_import_open_tablespace_failure",

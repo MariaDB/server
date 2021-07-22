@@ -514,7 +514,8 @@ bool get_mysql_vars(MYSQL *connection)
 
   if (innodb_undo_tablespaces_var)
   {
-    srv_undo_tablespaces= strtoul(innodb_undo_tablespaces_var, &endptr, 10);
+    srv_undo_tablespaces= static_cast<uint32_t>
+      (strtoul(innodb_undo_tablespaces_var, &endptr, 10));
     ut_ad(*endptr == 0);
   }
 

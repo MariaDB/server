@@ -622,11 +622,10 @@ dict_sys_tables_type_valid(ulint type, bool not_redundant)
 @param[in]	not_redundant	whether ROW_FORMAT=REDUNDANT is not used
 @return	table flags */
 static
-ulint
-dict_sys_tables_type_to_tf(ulint type, bool not_redundant)
+uint32_t dict_sys_tables_type_to_tf(uint32_t type, bool not_redundant)
 {
 	ut_ad(dict_sys_tables_type_valid(type, not_redundant));
-	ulint	flags = not_redundant ? 1 : 0;
+	uint32_t flags = not_redundant ? 1 : 0;
 
 	/* ZIP_SSIZE, ATOMIC_BLOBS, DATA_DIR, PAGE_COMPRESSION,
 	PAGE_COMPRESSION_LEVEL are the same. */
@@ -657,14 +656,13 @@ dict_sys_tables_rec_read(
 	const rec_t*		rec,
 	const span<const char>&	name,
 	table_id_t*		table_id,
-	ulint*			space_id,
-	ulint*			n_cols,
-	ulint*			flags,
-	ulint*			flags2)
+	uint32_t*		space_id,
+	uint32_t*		n_cols,
+	uint32_t*		flags,
+	uint32_t*		flags2)
 {
 	const byte*	field;
 	ulint		len;
-	ulint		type;
 
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__ID, &len);
@@ -680,7 +678,7 @@ dict_sys_tables_rec_read(
 	field = rec_get_nth_field_old(
 		rec, DICT_FLD__SYS_TABLES__TYPE, &len);
 	ut_a(len == 4);
-	type = mach_read_from_4(field);
+	uint32_t type = mach_read_from_4(field);
 
 	/* Handle MDEV-12873 InnoDB SYS_TABLES.TYPE incompatibility
 	for PAGE_COMPRESSED=YES in MariaDB 10.2.2 to 10.2.6.
@@ -820,9 +818,9 @@ Search SYS_TABLES and check each tablespace mentioned that has not
 already been added to the fil_system.  If it is valid, add it to the
 file_system list.
 @return the highest space ID found. */
-static ulint dict_check_sys_tables()
+static uint32_t dict_check_sys_tables()
 {
-	ulint		max_space_id = 0;
+	uint32_t	max_space_id = 0;
 	btr_pcur_t	pcur;
 	mtr_t		mtr;
 
@@ -837,10 +835,10 @@ static ulint dict_check_sys_tables()
 	     rec; rec = dict_getnext_system_low(&pcur, &mtr)) {
 		ulint		len;
 		table_id_t	table_id;
-		ulint		space_id;
-		ulint		n_cols;
-		ulint		flags;
-		ulint		flags2;
+		uint32_t	space_id;
+		uint32_t	n_cols;
+		uint32_t	flags;
+		uint32_t	flags2;
 
 		/* If a table record is not useable, ignore it and continue
 		on to the next record. Error messages were logged. */
@@ -938,9 +936,9 @@ void dict_check_tablespaces_and_store_max_id()
 
 	/* Initialize the max space_id from sys header */
 	mtr.start();
-	ulint max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
-					      + DICT_HDR
-					      + dict_hdr_get(&mtr)->frame);
+	uint32_t max_space_id = mach_read_from_4(DICT_HDR_MAX_SPACE_ID
+						 + DICT_HDR
+						 + dict_hdr_get(&mtr)->frame);
 	mtr.commit();
 
 	fil_set_max_space_id_if_bigger(max_space_id);
@@ -2074,12 +2072,8 @@ const char *dict_load_table_low(const span<const char> &name,
                                 const rec_t *rec, dict_table_t **table)
 {
 	table_id_t	table_id;
-	ulint		space_id;
-	ulint		n_cols;
-	ulint		t_num;
-	ulint		flags;
-	ulint		flags2;
-	ulint		n_v_col;
+	uint32_t	space_id, t_num, flags, flags2;
+	ulint		n_cols, n_v_col;
 
 	if (const char* error_text = dict_sys_tables_rec_check(rec)) {
 		*table = NULL;

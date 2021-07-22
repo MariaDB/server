@@ -181,8 +181,8 @@ static void init_ibd_data(ds_local_file_t *local_file, const uchar *buf, size_t 
 		return;
 	}
 
-	ulint flags = mach_read_from_4(&buf[FIL_PAGE_DATA + FSP_SPACE_FLAGS]);
-	ulint ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
+	auto flags = mach_read_from_4(&buf[FIL_PAGE_DATA + FSP_SPACE_FLAGS]);
+	auto ssize = FSP_FLAGS_GET_PAGE_SSIZE(flags);
 	local_file->pagesize= ssize == 0 ? UNIV_PAGE_SIZE_ORIG : ((UNIV_ZIP_SIZE_MIN >> 1) << ssize);
 	local_file->compressed = fil_space_t::full_crc32(flags)
 		? fil_space_t::is_compressed(flags)

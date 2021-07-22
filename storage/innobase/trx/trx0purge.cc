@@ -570,11 +570,12 @@ static void trx_purge_truncate_history()
 		if (!purge_sys.truncate.current) {
 			const ulint threshold = ulint(srv_max_undo_log_size
 						      >> srv_page_size_shift);
-			for (ulint i = purge_sys.truncate.last
+			for (uint32_t i = purge_sys.truncate.last
 				     ? purge_sys.truncate.last->id
 				     - srv_undo_space_id_start
 				     : 0, j = i;; ) {
-				ulint space_id = srv_undo_space_id_start + i;
+				uint32_t space_id = srv_undo_space_id_start
+					+ i;
 				ut_ad(srv_is_undo_tablespace(space_id));
 				fil_space_t* space= fil_space_get(space_id);
 
@@ -956,8 +957,7 @@ trx_purge_get_next_rec(
 	ut_ad(purge_sys.next_stored);
 	ut_ad(purge_sys.tail.trx_no < purge_sys.low_limit_no());
 
-	const ulint space = purge_sys.rseg->space->id;
-	const uint32_t page_no = purge_sys.page_no;
+	const page_id_t page_id{purge_sys.rseg->space->id, purge_sys.page_no};
 	const uint16_t offset = purge_sys.offset;
 
 	if (offset == 0) {
@@ -975,8 +975,7 @@ trx_purge_get_next_rec(
 
 	mtr_start(&mtr);
 
-	buf_block_t* undo_page = trx_undo_page_get_s_latched(
-		page_id_t(space, page_no), &mtr);
+	buf_block_t* undo_page = trx_undo_page_get_s_latched(page_id, &mtr);
 	buf_block_t* rec2_page = undo_page;
 
 	const trx_undo_rec_t* rec2 = trx_undo_page_get_next_rec(
@@ -999,8 +998,7 @@ trx_purge_get_next_rec(
 
 		mtr_start(&mtr);
 
-		undo_page = trx_undo_page_get_s_latched(
-			page_id_t(space, page_no), &mtr);
+		undo_page = trx_undo_page_get_s_latched(page_id, &mtr);
 	} else {
 		purge_sys.offset = page_offset(rec2);
 		purge_sys.page_no = rec2_page->page.id().page_no();

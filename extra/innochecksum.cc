@@ -70,7 +70,7 @@ static my_bool per_page_details;
 static ulint n_merge;
 static ulint physical_page_size;  /* Page size in bytes on disk. */
 ulong srv_page_size;
-ulong srv_page_size_shift;
+uint32_t srv_page_size_shift;
 /* Current page number (0 based). */
 unsigned long long		cur_page_num;
 /* Current space. */

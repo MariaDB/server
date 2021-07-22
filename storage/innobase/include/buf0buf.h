@@ -425,16 +425,13 @@ Decrements the bufferfix count. */
 bool buf_is_zeroes(st_::span<const byte> buf);
 
 /** Check if a page is corrupt.
-@param[in]	check_lsn	whether the LSN should be checked
-@param[in]	read_buf	database page
-@param[in]	fsp_flags	tablespace flags
+@param check_lsn   whether FIL_PAGE_LSN should be checked
+@param read_buf    database page
+@param fsp_flags   contents of FIL_SPACE_FLAGS
 @return whether the page is corrupted */
-bool
-buf_page_is_corrupted(
-	bool			check_lsn,
-	const byte*		read_buf,
-	ulint			fsp_flags)
-	MY_ATTRIBUTE((warn_unused_result));
+bool buf_page_is_corrupted(bool check_lsn, const byte *read_buf,
+                           uint32_t fsp_flags)
+  MY_ATTRIBUTE((warn_unused_result));
 
 inline void *aligned_malloc(size_t size, size_t align)
 {
@@ -463,7 +460,8 @@ stored in 26th position.
 @param[in]	read_buf	database page
 @param[in]	fsp_flags	tablespace flags
 @return key version of the page. */
-inline uint32_t buf_page_get_key_version(const byte* read_buf, ulint fsp_flags)
+inline uint32_t buf_page_get_key_version(const byte* read_buf,
+                                         uint32_t fsp_flags)
 {
   static_assert(FIL_PAGE_FCRC32_KEY_VERSION == 0, "compatibility");
   return fil_space_t::full_crc32(fsp_flags)
@@ -478,7 +476,7 @@ stored in page type.
 @param[in]	read_buf	database page
 @param[in]	fsp_flags	tablespace flags
 @return true if page is compressed. */
-inline bool buf_page_is_compressed(const byte* read_buf, ulint fsp_flags)
+inline bool buf_page_is_compressed(const byte* read_buf, uint32_t fsp_flags)
 {
   uint16_t page_type= fil_page_get_type(read_buf);
   return fil_space_t::full_crc32(fsp_flags)
@@ -604,12 +602,10 @@ buf_pool_size_align(
 
 /** Verify that post encryption checksum match with the calculated checksum.
 This function should be called only if tablespace contains crypt data metadata.
-@param[in]	page		page frame
-@param[in]	fsp_flags	tablespace flags
-@return true if page is encrypted and OK, false otherwise */
-bool buf_page_verify_crypt_checksum(
-	const byte*	page,
-	ulint		fsp_flags);
+@param page       page frame
+@param fsp_flags  contents of FSP_SPACE_FLAGS
+@return whether the page is encrypted and valid */
+bool buf_page_verify_crypt_checksum(const byte *page, uint32_t fsp_flags);
 
 /** Calculate a ROW_FORMAT=COMPRESSED page checksum and update the page.
 @param[in,out]	page		page to update

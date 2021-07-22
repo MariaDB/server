@@ -27,7 +27,7 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 #include "changed_page_bitmap.h"
 
-typedef ulint space_id_t;
+typedef uint32_t space_id_t;
 
 struct xb_fil_cur_t;
 

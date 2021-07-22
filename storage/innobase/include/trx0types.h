@@ -38,7 +38,7 @@ the terminating NUL character. */
 static const ulint TRX_ID_MAX_LEN = 17;
 
 /** Space id of the transaction system page (the system tablespace) */
-static const ulint TRX_SYS_SPACE = 0;
+static constexpr uint32_t TRX_SYS_SPACE= 0;
 
 /** Page number of the transaction system page */
 #define TRX_SYS_PAGE_NO		FSP_TRX_SYS_PAGE_NO

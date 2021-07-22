@@ -29,12 +29,12 @@ Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA  02110-1335  USA
 
 struct xb_delta_info_t
 {
-	xb_delta_info_t(ulint page_size, ulint zip_size, ulint space_id)
+	xb_delta_info_t(ulint page_size, ulint zip_size, uint32_t space_id)
 	: page_size(page_size), zip_size(zip_size), space_id(space_id) {}
 
 	ulint	page_size;
 	ulint	zip_size;
-	ulint	space_id;
+	uint32_t space_id;
 };
 
 class CorruptedPages
@@ -42,23 +42,23 @@ class CorruptedPages
 public:
   CorruptedPages();
   ~CorruptedPages();
-  void add_page(const char *file_name, ulint space_id, unsigned page_no);
-  bool contains(ulint space_id, unsigned page_no) const;
-  void drop_space(ulint space_id);
-  void rename_space(ulint space_id, const std::string &new_name);
+  void add_page(const char *file_name, page_id_t page_id);
+  bool contains(page_id_t page_id) const;
+  void drop_space(uint32_t space_id);
+  void rename_space(uint32_t space_id, const std::string &new_name);
   bool print_to_file(const char *file_name) const;
   void read_from_file(const char *file_name);
   bool empty() const;
   void zero_out_free_pages();
 
 private:
-  void add_page_no_lock(const char *space_name, ulint space_id,
-                        unsigned page_no, bool convert_space_name);
+  void add_page_no_lock(const char *space_name, page_id_t page_id,
+                        bool convert_space_name);
   struct space_info_t {
     std::string space_name;
-    std::set<unsigned> pages;
+    std::set<uint32_t> pages;
   };
-  typedef std::map<ulint, space_info_t> container_t;
+  typedef std::map<uint32_t, space_info_t> container_t;
   mutable pthread_mutex_t m_mutex;
   container_t m_spaces;
 };

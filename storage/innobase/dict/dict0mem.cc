@@ -162,7 +162,7 @@ dict_table_t *dict_table_t::create(const span<const char> &name,
   table->mdl_name.m_name= table->name.m_name;
   table->is_system_db= dict_mem_table_is_system(table->name.m_name);
   table->space= space;
-  table->space_id= space ? space->id : ULINT_UNDEFINED;
+  table->space_id= space ? space->id : UINT32_MAX;
   table->n_t_cols= static_cast<unsigned>(n_cols + DATA_N_SYS_COLS) &
     dict_index_t::MAX_N_FIELDS;
   table->n_v_cols= static_cast<unsigned>(n_v_cols) &

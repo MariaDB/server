@@ -351,7 +351,7 @@ void buf_dblwr_t::recover()
     if (recv_sys.parse_start_lsn > lsn)
       /* Pages written before the checkpoint are not useful for recovery. */
       continue;
-    const ulint space_id= page_get_space_id(page);
+    const uint32_t space_id= page_get_space_id(page);
     const page_id_t page_id(space_id, page_no);
 
     if (recv_sys.scanned_lsn < lsn)

@@ -261,12 +261,12 @@ extern bool	srv_was_started;
 extern char*	srv_undo_dir;
 
 /** Number of undo tablespaces to use. */
-extern ulong	srv_undo_tablespaces;
+extern uint	srv_undo_tablespaces;
 
 /** The number of UNDO tablespaces that are active (hosting some rollback
 segment). It is quite possible that some of the tablespaces doesn't host
 any of the rollback-segment based on configuration used. */
-extern ulint	srv_undo_tablespaces_active;
+extern uint32_t srv_undo_tablespaces_active;
 
 /** Maximum size of undo tablespace. */
 extern unsigned long long	srv_max_undo_log_size;
