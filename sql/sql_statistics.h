@@ -43,7 +43,8 @@ enum enum_histogram_type
 {
   SINGLE_PREC_HB,
   DOUBLE_PREC_HB,
-  JSON
+  JSON,
+  INVALID_HISTOGRAM
 } Histogram_type;
 
 enum enum_stat_tables
@@ -141,8 +142,50 @@ double get_column_range_cardinality(Field *field,
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
 bool is_eits_usable(Field* field);
 
-class Histogram
+/*
+  Common base for all histograms
+*/
+class Histogram_base : public Sql_alloc
 {
+public:
+  virtual bool parse(MEM_ROOT *mem_root, Histogram_type type_arg, 
+                     const uchar *ptr, uint size)= 0;
+  virtual void serialize(Field *to_field)= 0;
+
+  virtual Histogram_type get_type()=0;
+  
+  // Legacy: return the size of the histogram on disk.
+  // This will be stored in mysql.column_stats.hist_size column.
+  // Newer, JSON-based histograms may return 0.
+  virtual uint get_size()=0;
+
+  virtual ~Histogram_base(){}
+};
+
+class Histogram : public Histogram_base
+{
+public:
+  bool parse(MEM_ROOT *mem_root, Histogram_type type_arg, 
+             const uchar *ptr_arg, uint size_arg) override;
+  void serialize(Field *to_field) override;
+  Histogram_type get_type() override { return type; }
+
+  uint get_size() override { return (uint) size; }
+
+  // returns number of buckets in the histogram
+  uint get_width()
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:
+    case JSON:
+      return size;
+    case DOUBLE_PREC_HB:
+      return size / 2;
+    default:
+      DBUG_ASSERT(0);
+    }
+    return 0;
+  }
 
 private:
   Histogram_type type;
@@ -157,24 +200,12 @@ private:
       return ((uint) (1 << 8) - 1);
     case DOUBLE_PREC_HB:
       return ((uint) (1 << 16) - 1);
+    default:
+      DBUG_ASSERT(0);
     }
     return 1;
   }
 
-public:
-  uint get_width()
-  {
-    switch (type) {
-    case SINGLE_PREC_HB:
-    case JSON:
-      return size;
-    case DOUBLE_PREC_HB:
-      return size / 2;
-    }
-    return 0;
-  }
-
-private:
   uint get_value(uint i)
   {
     DBUG_ASSERT(i < get_width());
@@ -184,6 +215,8 @@ private:
       return (uint) (((uint8 *) values)[i]);
     case DOUBLE_PREC_HB:
       return (uint) uint2korr(values + i * 2);
+    default:
+      DBUG_ASSERT(0);
     }
     return 0;
   }
@@ -227,19 +260,13 @@ private:
     return i;
   }
 
-public:
-
-  uint get_size() { return (uint) size; }
-
-  Histogram_type get_type() { return type; }
-
   uchar *get_values() { return (uchar *) values; }
+public:
+  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size);
 
-  void set_size (ulonglong sz) { size= (uint8) sz; }
-
-  void set_type (Histogram_type t) { type= t; }
-
+  // Note: these two are used only for saving the JSON text:
   void set_values (uchar *vals) { values= (uchar *) vals; }
+  void set_size (ulonglong sz) { size= (uint8) sz; }
 
   bool is_available() { return get_size() > 0 && get_values(); }
 
@@ -264,6 +291,9 @@ public:
     case DOUBLE_PREC_HB:
       int2store(values + i * 2, val * prec_factor());
       return;
+    default:
+      DBUG_ASSERT(0);
+      return;
     }
   }
 
@@ -276,6 +306,9 @@ public:
       return;
     case DOUBLE_PREC_HB:
       int2store(values + i * 2, uint2korr(values + i * 2 - 2));
+      return;
+    default:
+      DBUG_ASSERT(0);
       return;
     }
   }
@@ -314,7 +347,7 @@ public:
 
   /* Array of records per key for index prefixes */
   ulonglong *idx_avg_frequency;
-  uchar *histograms;                /* Sequence of histograms       */                    
+  //uchar *histograms;                /* Sequence of histograms       */
 };
 
 
@@ -377,7 +410,8 @@ private:
 
 public:
 
-  Histogram histogram;
+  Histogram_type histogram_type_on_disk;
+  Histogram *histogram_;
 
   uint32 no_values_provided_bitmap()
   {
