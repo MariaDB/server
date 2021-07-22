@@ -1,15 +1,24 @@
 
 #include <mysql/psi/mysql_file.h>
 #include <mysys_priv.h>
+
 class RingBuffer
 {
 public:
+  enum WriteState{
+    SUCSECC,
+    ERR_FLUSH,
+    ERR_FILE_WRITE
+  };
+
   RingBuffer(char* filename, size_t cachesize);
   int read(uchar *To, size_t Count);
-  int write(uchar *From, size_t Count);
+  WriteState write(uchar *From, size_t Count);
   ~RingBuffer();
 
 private:
+
+
   File _file;
 
   /* buffer writes */
@@ -65,7 +74,7 @@ private:
   int _read_append(uchar* To, size_t Count);
 };
 
-int RingBuffer::write(uchar *From, size_t Count) {
+RingBuffer::WriteState RingBuffer::write(uchar *From, size_t Count) {
   size_t rest_length, length;
   const uchar* saved_buffer;
   uchar* saved_write_pos;
@@ -85,7 +94,7 @@ int RingBuffer::write(uchar *From, size_t Count) {
 
 
   if(_flush_io_buffer())
-    return 1;
+    return ERR_FLUSH;
 
   mysql_mutex_lock(&_buffer_lock);
   if (Count >= _buffer_length)
@@ -94,7 +103,8 @@ int RingBuffer::write(uchar *From, size_t Count) {
     if (mysql_file_write(_file, From, length, MY_NABP))
     {
       mysql_mutex_unlock(&_buffer_lock);
-      return _error= -1;
+      _error= -1;
+      return ERR_FILE_WRITE;
     }
 
     Count-=length;
@@ -120,7 +130,7 @@ int RingBuffer::write(uchar *From, size_t Count) {
   mysql_mutex_unlock(&_buffer_lock);
   mysql_cond_signal(&_cond_writer);
 
-  return 0;
+  return SUCSECC;
 }
 
 int RingBuffer::_read_append(uchar* To, size_t Count){
