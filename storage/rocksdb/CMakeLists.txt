@@ -2,6 +2,7 @@
 
 MACRO(SKIP_ROCKSDB_PLUGIN msg)
   MESSAGE_ONCE(SKIP_ROCKSDB_PLUGIN "Can't build rocksdb engine - ${msg}")
+  ADD_FEATURE_INFO(ROCKSDB "OFF" "Storage Engine")
   RETURN()
 ENDMACRO()
 

@@ -500,7 +500,7 @@ err:
 
 const char *histogram_types[] =
            {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", 0};
-static TYPELIB hystorgam_types_typelib=
+static TYPELIB histogram_types_typelib=
   { array_elements(histogram_types),
     "histogram_types",
     histogram_types, NULL};
@@ -516,7 +516,7 @@ String *Item_func_decode_histogram::val_str(String *str)
   tmp.length(0);
   if (!(res= args[0]->val_str(&tmp)) ||
       (type= find_type(res->c_ptr_safe(),
-                       &hystorgam_types_typelib, MYF(0))) <= 0)
+                       &histogram_types_typelib, MYF(0))) <= 0)
   {
     null_value= 1;
     return 0;
@@ -601,7 +601,7 @@ bool Item_func_concat::realloc_result(String *str, uint length) const
     as str was initially set by args[0]->val_str(str).
     So multiplication by 2 can overflow, if args[0] for some reasons
     did not limit the result to max_alloced_packet. But it's not harmful,
-    "str" will be realloced exactly to "length" bytes in case of overflow.
+    "str" will be reallocated exactly to "length" bytes in case of overflow.
   */
   uint new_length= MY_MAX(str->alloced_length() * 2, length);
   return str->realloc(new_length);
@@ -1529,7 +1529,7 @@ String *Item_func_insert::val_str(String *str)
     length= res->length();
 
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -3282,7 +3282,7 @@ String *Item_func_rpad::val_str(String *str)
   if ((ulonglong) count > INT_MAX32)
     count= INT_MAX32;
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -3375,7 +3375,7 @@ String *Item_func_lpad::val_str(String *str)
     count= INT_MAX32;
 
   /*
-    There is one exception not handled (intentionaly) by the character set
+    There is one exception not handled (intentionally) by the character set
     aggregation code. If one string is strong side and is binary, and
     another one is weak side and is a multi-byte character string,
     then we need to operate on the second string in terms on bytes when
@@ -4184,7 +4184,7 @@ longlong Item_func_uncompressed_length::val_int()
     5 bytes long.
     res->c_ptr() is not used because:
       - we do not need \0 terminated string to get first 4 bytes
-      - c_ptr() tests simbol after string end (uninitialiozed memory) which
+      - c_ptr() tests simbol after string end (uninitialized memory) which
         confuse valgrind
   */
   return uint4korr(res->ptr()) & 0x3FFFFFFF;
