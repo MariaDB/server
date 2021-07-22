@@ -5387,7 +5387,6 @@ ha_innobase::prepare_inplace_alter_table(
 	mem_heap_t*	heap;
 	const char**	col_names;
 	int		error;
-	ulint		max_col_len;
 	ulint		add_autoinc_col_no	= ULINT_UNDEFINED;
 	ulonglong	autoinc_col_max_value	= 0;
 	ulint		fts_doc_col_no		= ULINT_UNDEFINED;
@@ -5601,7 +5600,13 @@ check_if_ok_to_rename:
 			       & 1U << DICT_TF_POS_DATA_DIR);
 	}
 
-	max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(info.flags());
+
+	/* ALGORITHM=INPLACE without rebuild (10.3+ ALGORITHM=NOCOPY)
+	must use the current ROW_FORMAT of the table. */
+	const ulint max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(
+		innobase_need_rebuild(ha_alter_info, this->table)
+		? info.flags()
+		: m_prebuilt->table->flags);
 
 	/* Check each index's column length to make sure they do not
 	exceed limit */
