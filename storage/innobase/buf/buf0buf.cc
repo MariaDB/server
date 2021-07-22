@@ -1566,6 +1566,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 	if (block->page.can_relocate()) {
 		memcpy_aligned<OS_FILE_LOG_BLOCK_SIZE>(
 			new_block->frame, block->frame, srv_page_size);
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		new (&new_block->page) buf_page_t(block->page);
 
 		/* relocate LRU list */
@@ -1625,6 +1626,7 @@ inline bool buf_pool_t::realloc(buf_block_t *block)
 			buf_flush_relocate_on_flush_list(&block->page,
 							 &new_block->page);
 		}
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 		block->page.set_corrupt_id();
 
 		/* set other flags of buf_block_t */
@@ -3131,12 +3133,14 @@ evict_from_pool:
 		/* Note: this is the uncompressed block and it is not
 		accessible by other threads yet because it is not in
 		any list or hash table */
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		buf_relocate(bpage, &block->page);
 
 		/* Set after buf_relocate(). */
 		block->page.set_buf_fix_count(1);
 
 		buf_flush_relocate_on_flush_list(bpage, &block->page);
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 		/* Buffer-fix, I/O-fix, and X-latch the block
 		for the duration of the decompression.
@@ -3646,8 +3650,10 @@ loop:
       }
 
       rw_lock_x_lock(&free_block->lock);
+      mysql_mutex_lock(&buf_pool.flush_list_mutex);
       buf_relocate(&block->page, &free_block->page);
       buf_flush_relocate_on_flush_list(&block->page, &free_block->page);
+      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
       free_block->page.set_state(BUF_BLOCK_FILE_PAGE);
       buf_unzip_LRU_add_block(free_block, FALSE);

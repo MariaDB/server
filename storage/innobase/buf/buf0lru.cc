@@ -845,6 +845,7 @@ func_exit:
 	} else if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
 		b = buf_page_alloc_descriptor();
 		ut_a(b);
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		new (b) buf_page_t(*bpage);
 		b->set_state(BUF_BLOCK_ZIP_PAGE);
 	}
@@ -859,6 +860,8 @@ func_exit:
 	ut_ad(bpage->can_relocate());
 
 	if (!buf_LRU_block_remove_hashed(bpage, id, hash_lock, zip)) {
+		ut_ad(!b);
+		mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
 		return(true);
 	}
 
@@ -871,8 +874,6 @@ func_exit:
 
 	if (UNIV_LIKELY_NULL(b)) {
 		buf_page_t*	prev_b	= UT_LIST_GET_PREV(LRU, b);
-
-		hash_lock->write_lock();
 
 		ut_ad(!buf_pool.page_hash_get_low(id, fold));
 		ut_ad(b->zip_size());
@@ -940,6 +941,7 @@ func_exit:
 		}
 
 		buf_flush_relocate_on_flush_list(bpage, b);
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 		bpage->zip.data = nullptr;
 
@@ -949,6 +951,8 @@ func_exit:
 		decompressing the block while we release
 		hash_lock. */
 		b->set_io_fix(BUF_IO_PIN);
+		hash_lock->write_unlock();
+	} else if (!zip) {
 		hash_lock->write_unlock();
 	}
 
@@ -1182,6 +1186,10 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		MEM_UNDEFINED(((buf_block_t*) bpage)->frame, srv_page_size);
 		bpage->set_state(BUF_BLOCK_REMOVE_HASH);
 
+		if (!zip) {
+			return true;
+		}
+
 		/* Question: If we release hash_lock here
 		then what protects us against:
 		1) Some other thread buffer fixing this page
@@ -1203,7 +1211,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		page_hash. */
 		hash_lock->write_unlock();
 
-		if (zip && bpage->zip.data) {
+		if (bpage->zip.data) {
 			/* Free the compressed page. */
 			void*	data = bpage->zip.data;
 			bpage->zip.data = NULL;

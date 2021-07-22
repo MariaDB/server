@@ -286,43 +286,29 @@ buf_flush_relocate_on_flush_list(
 {
 	buf_page_t*	prev;
 
-	mysql_mutex_assert_owner(&buf_pool.mutex);
+	mysql_mutex_assert_owner(&buf_pool.flush_list_mutex);
 	ut_ad(!fsp_is_system_temporary(bpage->id().space()));
 
-	const lsn_t lsn = bpage->oldest_modification_acquire();
+	const lsn_t lsn = bpage->oldest_modification();
 
 	if (!lsn) {
 		return;
 	}
 
 	ut_ad(lsn == 1 || lsn > 2);
-
-	mysql_mutex_lock(&buf_pool.flush_list_mutex);
-
-	/* FIXME: Can we avoid holding buf_pool.mutex here? */
 	ut_ad(dpage->oldest_modification() == lsn);
 
-	if (ut_d(const lsn_t o_lsn =) bpage->oldest_modification()) {
-		ut_ad(o_lsn == lsn);
+	/* Important that we adjust the hazard pointer before removing
+	the bpage from the flush list. */
+	buf_pool.flush_hp.adjust(bpage);
 
-		/* Important that we adjust the hazard pointer before removing
-		the bpage from the flush list. */
-		buf_pool.flush_hp.adjust(bpage);
+	prev = UT_LIST_GET_PREV(list, bpage);
+	UT_LIST_REMOVE(buf_pool.flush_list, bpage);
 
-		prev = UT_LIST_GET_PREV(list, bpage);
-		UT_LIST_REMOVE(buf_pool.flush_list, bpage);
-
-		bpage->clear_oldest_modification();
-	} else {
-		/* bpage was removed from buf_pool.flush_list
-		since we last checked, and before we acquired
-		buf_pool.flush_list_mutex. */
-		goto was_clean;
-	}
+	bpage->clear_oldest_modification();
 
 	if (lsn == 1) {
 		buf_pool.stat.flush_list_bytes -= dpage->physical_size();
-was_clean:
 		dpage->list.prev = nullptr;
 		dpage->list.next = nullptr;
 		dpage->clear_oldest_modification();
@@ -334,7 +320,6 @@ was_clean:
 	}
 
 	ut_d(buf_flush_validate_low());
-	mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 }
 
 /** Complete write of a file page from buf_pool.
