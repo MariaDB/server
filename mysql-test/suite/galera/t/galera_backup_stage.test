@@ -7,9 +7,9 @@
 
 --source include/galera_cluster.inc
 --source include/have_innodb.inc
+--source include/have_metadata_lock_info.inc
 
 --connection node_1
-SET SESSION debug_sync = "reset";
 CREATE TABLE t1 (f1 varchar(10)) ENGINE=InnoDB;
 
 # First, check that BACKUP STAGE END skipping desyncing stages is fine
@@ -22,6 +22,8 @@ BACKUP STAGE FLUSH;
 
 --connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1a
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_retry_autocommit=0;
 INSERT INTO t1 (f1) values ("node1_1");
 ALTER TABLE t1 ADD COLUMN (f2 int(10));
 
@@ -46,16 +48,18 @@ ALTER TABLE t1 ADD COLUMN (f5 int(10));
 --connection node_1a
 --error ER_UNKNOWN_COM_ERROR
 ALTER TABLE t1 ADD COLUMN (f4 int(10));
-SET SESSION debug_sync = "wsrep_entering_sync_wait SIGNAL insert_a_sync_wait";
+--let $insert_id = `SELECT CONNECTION_ID()`
 --send INSERT INTO t1 (f1) values("node1a");
 
+# the insert will block during commit inside the provider, in certify. We can't
+# check for sure it is blocked there, so we wait for the thread to at least
+# reach commit stage. In the unlikely case the interleaving is different, the
+# result of the test should not change.
 --connection node_1c
-# we check that the insert statement is at a point immediately before going into
-# the provider for the sync wait, and since the node is desynced, it will block
-# when it gets there. We can't guarantee it actually gets into the provider before
-# BLOCK_COMMIT/END are later executed, but in the very unlikely chance it
-# doesn't, the test result doesn't change (insert gets executed after the node resyncs).
-SET SESSION debug_sync = "now WAIT_FOR insert_a_sync_wait";
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.processlist WHERE State='Commit' AND ID=$insert_id
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info WHERE TABLE_NAME='t1' AND THREAD_ID=$insert_id
+--source include/wait_condition.inc
 
 --connection node_1
 BACKUP STAGE BLOCK_COMMIT;
@@ -70,15 +74,23 @@ ALTER TABLE t1 ADD COLUMN (f6 int(10));
 
 --connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
 --connection node_1b
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_retry_autocommit=0;
 --error ER_UNKNOWN_COM_ERROR
 ALTER TABLE t1 ADD COLUMN (f4 int(10));
-SET SESSION debug_sync = "wsrep_entering_sync_wait SIGNAL insert_b_sync_wait";
+--let $insert_id = `SELECT CONNECTION_ID()`
 --send INSERT INTO t1 (f1) values("node1b");
 
+# wait for insert to get blocked
 --connection node_1c
-SET SESSION debug_sync = "now WAIT_FOR insert_b_sync_wait";
---let $wait_condition = SELECT COUNT(*) = 2 FROM information_schema.processlist WHERE Info like 'INSERT INTO t1 (f1) values("node1%")' AND State = 'Init'
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.processlist WHERE State='Commit' AND ID=$insert_id
 --source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*)=1 FROM information_schema.metadata_lock_info WHERE TABLE_NAME='t1' AND THREAD_ID=$insert_id
+--source include/wait_condition.inc
+--let $wait_condition = SELECT COUNT(*)=2 FROM information_schema.processlist WHERE Info like 'INSERT INTO t1 (f1) values("node1%")' AND State = 'Commit'
+--source include/wait_condition.inc
+
+# nothing after BLOCK_DDL is applied
 SELECT COUNT(*)=2 FROM t1;
 SELECT COUNT(*)=3 FROM information_schema.columns WHERE table_name = 't1';
 
@@ -86,21 +98,23 @@ SELECT COUNT(*)=3 FROM information_schema.columns WHERE table_name = 't1';
 --connection node_1
 BACKUP STAGE END;
 
+# Upon resume, blocked inserts will continue but conflict with the applying alters
 --connection node_1a
+--error ER_LOCK_DEADLOCK
 --reap
 --connection node_1b
+--error ER_LOCK_DEADLOCK
 --reap
 
 --connection node_1
-SELECT COUNT(*)=6 FROM t1;
+SELECT COUNT(*)=4 FROM t1;
 SELECT COUNT(*)=5 FROM information_schema.columns WHERE table_name = 't1';
 
 --connection node_2
-SELECT COUNT(*)=6 FROM t1;
+SELECT COUNT(*)=4 FROM t1;
 SELECT COUNT(*)=5 FROM information_schema.columns WHERE table_name = 't1';
 
 --connection node_1
 DROP TABLE t1;
-SET SESSION debug_sync = "reset";
 call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
 call mtr.add_suppression("greater than drain seqno");

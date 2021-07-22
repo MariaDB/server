@@ -1,7 +1,6 @@
 connection node_2;
 connection node_1;
 connection node_1;
-SET SESSION debug_sync = "reset";
 CREATE TABLE t1 (f1 varchar(10)) ENGINE=InnoDB;
 BACKUP STAGE START;
 BACKUP STAGE FLUSH;
@@ -10,6 +9,8 @@ BACKUP STAGE START;
 BACKUP STAGE FLUSH;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1a;
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_retry_autocommit=0;
 INSERT INTO t1 (f1) values ("node1_1");
 ALTER TABLE t1 ADD COLUMN (f2 int(10));
 connection node_2;
@@ -26,10 +27,8 @@ ALTER TABLE t1 ADD COLUMN (f5 int(10));
 connection node_1a;
 ALTER TABLE t1 ADD COLUMN (f4 int(10));
 ERROR 08S01: Aborting TOI: Replication paused on node for FTWRL/BACKUP STAGE.
-SET SESSION debug_sync = "wsrep_entering_sync_wait SIGNAL insert_a_sync_wait";
 INSERT INTO t1 (f1) values("node1a");;
 connection node_1c;
-SET SESSION debug_sync = "now WAIT_FOR insert_a_sync_wait";
 connection node_1;
 BACKUP STAGE BLOCK_COMMIT;
 connection node_1c;
@@ -41,12 +40,12 @@ INSERT INTO t1 (f1) values("node2_3");
 ALTER TABLE t1 ADD COLUMN (f6 int(10));
 connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 connection node_1b;
+SET SESSION wsrep_sync_wait=0;
+SET SESSION wsrep_retry_autocommit=0;
 ALTER TABLE t1 ADD COLUMN (f4 int(10));
 ERROR 08S01: Aborting TOI: Replication paused on node for FTWRL/BACKUP STAGE.
-SET SESSION debug_sync = "wsrep_entering_sync_wait SIGNAL insert_b_sync_wait";
 INSERT INTO t1 (f1) values("node1b");;
 connection node_1c;
-SET SESSION debug_sync = "now WAIT_FOR insert_b_sync_wait";
 SELECT COUNT(*)=2 FROM t1;
 COUNT(*)=2
 1
@@ -56,23 +55,24 @@ COUNT(*)=3
 connection node_1;
 BACKUP STAGE END;
 connection node_1a;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 connection node_1b;
+ERROR 40001: Deadlock found when trying to get lock; try restarting transaction
 connection node_1;
-SELECT COUNT(*)=6 FROM t1;
-COUNT(*)=6
+SELECT COUNT(*)=4 FROM t1;
+COUNT(*)=4
 1
 SELECT COUNT(*)=5 FROM information_schema.columns WHERE table_name = 't1';
 COUNT(*)=5
 1
 connection node_2;
-SELECT COUNT(*)=6 FROM t1;
-COUNT(*)=6
+SELECT COUNT(*)=4 FROM t1;
+COUNT(*)=4
 1
 SELECT COUNT(*)=5 FROM information_schema.columns WHERE table_name = 't1';
 COUNT(*)=5
 1
 connection node_1;
 DROP TABLE t1;
-SET SESSION debug_sync = "reset";
 call mtr.add_suppression("WSREP: ALTER TABLE isolation failure");
 call mtr.add_suppression("greater than drain seqno");

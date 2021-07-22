@@ -1118,8 +1118,6 @@ bool wsrep_sync_wait (THD* thd, uint mask)
                 "mask= %u, thd->variables.wsrep_on= %d",
                 thd->variables.wsrep_sync_wait, mask,
                 thd->variables.wsrep_on);
-
-    DEBUG_SYNC(thd, "wsrep_entering_sync_wait");
     /*
       This allows autocommit SELECTs and a first SELECT after SET AUTOCOMMIT=0
       TODO: modify to check if thd has locked any rows.
