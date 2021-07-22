@@ -732,8 +732,8 @@ mariadb.org-10.2 to mariadb-10.6 upgrade:
     # prepending with --defaults-file=/etc/mysql/debian.cnf is needed in upstream 5.5–10.3
     - mysql --defaults-file=/etc/mysql/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
     - echo 'SHOW DATABASES;' | mysql --defaults-file=/etc/mysql/debian.cnf
-    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
-    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM plugin;" mysql
+    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM mysql.global_priv; SHOW CREATE USER root@localhost; SHOW CREATE USER 'mariadb.sys'@localhost"
+    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM mysql.plugin; SHOW PLUGINS"
     - *test-install
     - service mysql status
     - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server

@@ -94,6 +94,9 @@ FILE*				log_file = NULL;
 /* Enabled for log write option. */
 static bool			is_log_enabled = false;
 
+static byte field_ref_zero_buf[UNIV_PAGE_SIZE_MAX];
+const byte *field_ref_zero = field_ref_zero_buf;
+
 #ifndef _WIN32
 /* advisory lock for non-window system. */
 struct flock			lk;
