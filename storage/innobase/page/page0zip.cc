@@ -2,7 +2,7 @@
 
 Copyright (c) 2005, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -4983,9 +4983,9 @@ bool page_zip_verify_checksum(const byte *data, size_t size)
 
 #ifdef UNIV_INNOCHECKSUM
 	if (log_file) {
-		fprintf(log_file, "page::%llu;"
-			" %s checksum: calculated = %u;"
-			" recorded = %u\n", cur_page_num,
+		fprintf(log_file, "page::" UINT32PF ";"
+			" %s checksum: calculated = " UINT32PF ";"
+			" recorded = " UINT32PF "\n", cur_page_num,
 			buf_checksum_algorithm_name(
 				static_cast<srv_checksum_algorithm_t>(
 				srv_checksum_algorithm)),
@@ -4997,11 +4997,11 @@ bool page_zip_verify_checksum(const byte *data, size_t size)
 			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
 
 		if (log_file) {
-			fprintf(log_file, "page::%llu: crc32 checksum:"
-				" calculated = %u; recorded = %u\n",
+			fprintf(log_file, "page::" UINT32PF ": crc32 checksum:"
+				" calculated = " UINT32PF "; recorded = " UINT32PF "\n",
 				cur_page_num, crc32, stored);
-			fprintf(log_file, "page::%llu: none checksum:"
-				" calculated = %lu; recorded = %u\n",
+			fprintf(log_file, "page::" UINT32PF ": none checksum:"
+				" calculated = %lu; recorded = " UINT32PF "\n",
 				cur_page_num, BUF_NO_CHECKSUM_MAGIC, stored);
 		}
 	}
