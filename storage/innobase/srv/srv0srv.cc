@@ -1552,97 +1552,34 @@ void srv_master_thread_enable()
 }
 #endif /* UNIV_DEBUG */
 
-/*********************************************************************//**
-Perform the tasks that the master thread is supposed to do when the
-server is active. There are two types of tasks. The first category is
-of such tasks which are performed at each inovcation of this function.
-We assume that this function is called roughly every second when the
-server is active. The second category is of such tasks which are
-performed at some interval e.g.: purge, dict_LRU cleanup etc. */
-static
-void
-srv_master_do_active_tasks(void)
-/*============================*/
+/** Perform periodic tasks whenever the server is active.
+@param counter_time  microsecond_interval_timer() */
+static void srv_master_do_active_tasks(ulonglong counter_time)
 {
-	time_t		cur_time = time(NULL);
-	ulonglong	counter_time = microsecond_interval_timer();
-
-	/* First do the tasks that we are suppose to do at each
-	invocation of this function. */
-
 	++srv_main_active_loops;
 
 	MONITOR_INC(MONITOR_MASTER_ACTIVE_LOOPS);
 
-	ut_d(srv_master_do_disabled_loop());
-
-	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
-		return;
-	}
-
-	/* make sure that there is enough reusable space in the redo
-	log files */
-	srv_main_thread_op_info = "checking free log space";
-	log_free_check();
-
-	/* Flush logs if needed */
-	srv_main_thread_op_info = "flushing log";
-	srv_sync_log_buffer_in_background();
-	MONITOR_INC_TIME_IN_MICRO_SECS(
-		MONITOR_SRV_LOG_FLUSH_MICROSECOND, counter_time);
-
-	/* Now see if various tasks that are performed at defined
-	intervals need to be performed. */
-
-	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
-		return;
-	}
-
-	if (cur_time % SRV_MASTER_DICT_LRU_INTERVAL == 0) {
+	if (!(counter_time % (SRV_MASTER_DICT_LRU_INTERVAL * 1000000ULL))) {
 		srv_main_thread_op_info = "enforcing dict cache limit";
-		ulint	n_evicted = dict_sys.evict_table_LRU(true);
-		if (n_evicted != 0) {
+		if (ulint n_evicted = dict_sys.evict_table_LRU(true)) {
 			MONITOR_INC_VALUE(
-				MONITOR_SRV_DICT_LRU_EVICT_COUNT_ACTIVE, n_evicted);
+				MONITOR_SRV_DICT_LRU_EVICT_COUNT_ACTIVE,
+				n_evicted);
 		}
 		MONITOR_INC_TIME_IN_MICRO_SECS(
 			MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
 	}
 }
 
-/*********************************************************************//**
-Perform the tasks that the master thread is supposed to do whenever the
-server is idle. We do check for the server state during this function
-and if the server has entered the shutdown phase we may return from
-the function without completing the required tasks.
-Note that the server can move to active state when we are executing this
-function but we don't check for that as we are suppose to perform more
-or less same tasks when server is active. */
-static
-void
-srv_master_do_idle_tasks(void)
-/*==========================*/
+/** Perform periodic tasks whenever the server is idle.
+@param counter_time  microsecond_interval_timer() */
+static void srv_master_do_idle_tasks(ulonglong counter_time)
 {
 	++srv_main_idle_loops;
 
 	MONITOR_INC(MONITOR_MASTER_IDLE_LOOPS);
 
-	ut_d(srv_master_do_disabled_loop());
-
-	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
-		return;
-	}
-
-	/* make sure that there is enough reusable space in the redo
-	log files */
-	srv_main_thread_op_info = "checking free log space";
-	log_free_check();
-
-	if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
-		return;
-	}
-
-	ulonglong counter_time = microsecond_interval_timer();
 	srv_main_thread_op_info = "enforcing dict cache limit";
 	if (ulint n_evicted = dict_sys.evict_table_LRU(false)) {
 		MONITOR_INC_VALUE(
@@ -1650,11 +1587,6 @@ srv_master_do_idle_tasks(void)
 	}
 	MONITOR_INC_TIME_IN_MICRO_SECS(
 		MONITOR_SRV_DICT_LRU_MICROSECOND, counter_time);
-
-	/* Flush logs if needed */
-	srv_sync_log_buffer_in_background();
-	MONITOR_INC_TIME_IN_MICRO_SECS(
-		MONITOR_SRV_LOG_FLUSH_MICROSECOND, counter_time);
 }
 
 /**
@@ -1695,12 +1627,18 @@ void srv_master_callback(void*)
 
 	ut_a(srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
-	srv_main_thread_op_info = "";
 	MONITOR_INC(MONITOR_MASTER_THREAD_SLEEP);
+	ut_d(srv_master_do_disabled_loop());
+	purge_coordinator_timer_callback(nullptr);
+	ulonglong counter_time = microsecond_interval_timer();
+	srv_sync_log_buffer_in_background();
+	MONITOR_INC_TIME_IN_MICRO_SECS(
+		MONITOR_SRV_LOG_FLUSH_MICROSECOND, counter_time);
+
 	if (srv_check_activity(&old_activity_count)) {
-		srv_master_do_active_tasks();
+		srv_master_do_active_tasks(counter_time);
 	} else {
-		srv_master_do_idle_tasks();
+		srv_master_do_idle_tasks(counter_time);
 	}
 	srv_main_thread_op_info = "sleeping";
 }

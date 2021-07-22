@@ -1273,22 +1273,37 @@ Item_singlerow_subselect::select_transformer(JOIN *join)
   Query_arena *arena, backup;
   arena= thd->activate_stmt_arena_if_needed(&backup);
 
+  auto need_to_pull_out_item = [](enum_parsing_place context_analysis_place,
+                                  Item *item) {
+    return
+      !item->with_sum_func() &&
+      /*
+        We can't change name of Item_field or Item_ref, because it will
+        prevent its correct resolving, but we should save name of
+        removed item => we do not make optimization if top item of
+        list is field or reference.
+        TODO: solve above problem
+      */
+      item->type() != FIELD_ITEM && item->type() != REF_ITEM &&
+      /*
+        The item can be pulled out to upper level in case it doesn't represent
+        the constant in the clause 'ORDER/GROUP BY (constant)'.
+      */
+      !((item->is_order_clause_position() ||
+         item->is_stored_routine_parameter()) &&
+        (context_analysis_place == IN_ORDER_BY ||
+         context_analysis_place == IN_GROUP_BY)
+       );
+  };
+
   if (!select_lex->master_unit()->is_unit_op() &&
       !select_lex->table_list.elements &&
       select_lex->item_list.elements == 1 &&
-      !select_lex->item_list.head()->with_sum_func() &&
-      /*
-	We can't change name of Item_field or Item_ref, because it will
-	prevent its correct resolving, but we should save name of
-	removed item => we do not make optimization if top item of
-	list is field or reference.
-	TODO: solve above problem
-      */
-      !(select_lex->item_list.head()->type() == FIELD_ITEM ||
-	select_lex->item_list.head()->type() == REF_ITEM) &&
       !join->conds && !join->having &&
-      thd->stmt_arena->state != Query_arena::STMT_INITIALIZED_FOR_SP
-      )
+      need_to_pull_out_item(
+        join->select_lex->outer_select()->context_analysis_place,
+        select_lex->item_list.head()) &&
+      thd->stmt_arena->state != Query_arena::STMT_INITIALIZED_FOR_SP)
   {
     have_to_be_excluded= 1;
     if (thd->lex->describe)

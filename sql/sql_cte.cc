@@ -1039,6 +1039,7 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
 
   bool parse_status= false;
   st_select_lex *with_select;
+  st_select_lex *last_clone_select;
 
   char save_end= unparsed_spec.str[unparsed_spec.length];
   ((char*) &unparsed_spec.str[unparsed_spec.length])[0]= '\0';
@@ -1125,11 +1126,14 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
   lex->unit.include_down(with_table->select_lex);
   lex->unit.set_slave(with_select);
   lex->unit.cloned_from= spec;
+  last_clone_select= lex->all_selects_list;
+  while (last_clone_select->next_select_in_list())
+    last_clone_select= last_clone_select->next_select_in_list();
   old_lex->all_selects_list=
     (st_select_lex*) (lex->all_selects_list->
-		      insert_chain_before(
-			(st_select_lex_node **) &(old_lex->all_selects_list),
-                        with_select));
+                     insert_chain_before(
+                       (st_select_lex_node **) &(old_lex->all_selects_list),
+                       last_clone_select));
 
   /*
     Now all references to the CTE defined outside of the cloned specification

@@ -526,7 +526,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 		}
 
 		DBUG_ASSERT(c.is_added());
-		if (c.def_val.len <= sizeof field_ref_zero
+		if (c.def_val.len <= UNIV_PAGE_SIZE_MAX
 		    && (!c.def_val.len
 			|| !memcmp(c.def_val.data, field_ref_zero,
 				   c.def_val.len))) {

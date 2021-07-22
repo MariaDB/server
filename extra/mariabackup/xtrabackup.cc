@@ -4479,6 +4479,14 @@ fail:
 		goto fail;
 	}
 
+
+	if (auto b = aligned_malloc(UNIV_PAGE_SIZE_MAX, 4096)) {
+		field_ref_zero = static_cast<byte*>(
+			memset_aligned<4096>(b, 0, UNIV_PAGE_SIZE_MAX));
+	} else {
+		goto fail;
+	}
+
         {
 	/* definition from recv_recovery_from_checkpoint_start() */
 	ulint		max_cp_field;
@@ -4493,14 +4501,17 @@ reread_log_header:
 
 	if (err != DB_SUCCESS) {
 		msg("Error: cannot read redo log header");
+unlock_and_fail:
 		mysql_mutex_unlock(&log_sys.mutex);
+free_and_fail:
+		aligned_free(const_cast<byte*>(field_ref_zero));
+		field_ref_zero = nullptr;
 		goto fail;
 	}
 
 	if (log_sys.log.format == 0) {
 		msg("Error: cannot process redo log before MariaDB 10.2.2");
-		mysql_mutex_unlock(&log_sys.mutex);
-		goto fail;
+		goto unlock_and_fail;
 	}
 
 	byte* buf = log_sys.checkpoint_buf;
@@ -4521,7 +4532,7 @@ reread_log_header:
 	xtrabackup_init_datasinks();
 
 	if (!select_history()) {
-		goto fail;
+		goto free_and_fail;
 	}
 
 	/* open the log file */
@@ -4530,12 +4541,13 @@ reread_log_header:
 	if (dst_log_file == NULL) {
 		msg("Error: failed to open the target stream for '%s'.",
 		    LOG_FILE_NAME);
-		goto fail;
+		goto free_and_fail;
 	}
 
 	/* label it */
-	byte MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE) log_hdr_buf[LOG_FILE_HDR_SIZE];
-	memset(log_hdr_buf, 0, sizeof log_hdr_buf);
+	byte* log_hdr_buf = static_cast<byte*>(
+		aligned_malloc(LOG_FILE_HDR_SIZE, OS_FILE_LOG_BLOCK_SIZE));
+	memset(log_hdr_buf, 0, LOG_FILE_HDR_SIZE);
 
 	byte *log_hdr_field = log_hdr_buf;
 	mach_write_to_4(LOG_HEADER_FORMAT + log_hdr_field, log_sys.log.format);
@@ -4564,11 +4576,13 @@ reread_log_header:
 			log_block_calc_checksum_crc32(log_hdr_field));
 
 	/* Write log header*/
-	if (ds_write(dst_log_file, log_hdr_buf, sizeof(log_hdr_buf))) {
+	if (ds_write(dst_log_file, log_hdr_buf, LOG_FILE_HDR_SIZE)) {
 		msg("error: write to logfile failed");
-		goto fail;
+		aligned_free(log_hdr_buf);
+		goto free_and_fail;
 	}
 
+	aligned_free(log_hdr_buf);
 	log_copying_running = true;
 	/* start io throttle */
 	if(xtrabackup_throttle) {
@@ -4586,7 +4600,7 @@ reread_log_header:
 		    " error %s.", ut_strerr(err));
 fail_before_log_copying_thread_start:
 		log_copying_running = false;
-		goto fail;
+		goto free_and_fail;
 	}
 
 	/* copy log file by current position */
@@ -4609,7 +4623,7 @@ fail_before_log_copying_thread_start:
 
 	/* FLUSH CHANGED_PAGE_BITMAPS call */
 	if (!flush_changed_page_bitmaps()) {
-		goto fail;
+		goto free_and_fail;
 	}
 
 	ut_a(xtrabackup_parallel > 0);
@@ -4676,6 +4690,9 @@ fail_before_log_copying_thread_start:
 
 	if (opt_log_innodb_page_corruption)
 		ok = corrupted_pages.print_to_file(MB_CORRUPTED_PAGES_FILE);
+
+	aligned_free(const_cast<byte*>(field_ref_zero));
+	field_ref_zero = nullptr;
 
 	if (!ok) {
 		goto fail;
@@ -4904,53 +4921,6 @@ xb_space_create_file(
 			       << srv_page_size_shift);
 	if (!ret) {
 		msg("mariabackup: cannot set size for file %s", path);
-		os_file_close(*file);
-		os_file_delete(0, path);
-		return ret;
-	}
-
-	/* Align the memory for file i/o if we might have O_DIRECT set */
-	byte* page = static_cast<byte*>(aligned_malloc(2 * srv_page_size,
-						       srv_page_size));
-
-	memset(page, '\0', srv_page_size);
-
-	fsp_header_init_fields(page, space_id, flags);
-	mach_write_to_4(page + FIL_PAGE_ARCH_LOG_NO_OR_SPACE_ID, space_id);
-
-	const ulint zip_size = fil_space_t::zip_size(flags);
-
-	if (!zip_size) {
-		buf_flush_init_for_writing(
-			NULL, page, NULL,
-			fil_space_t::full_crc32(flags));
-
-		ret = os_file_write(IORequestWrite, path, *file, page, 0,
-				    srv_page_size);
-	} else {
-		page_zip_des_t	page_zip;
-		page_zip_set_size(&page_zip, zip_size);
-		page_zip.data = page + srv_page_size;
-		fprintf(stderr, "zip_size = " ULINTPF "\n", zip_size);
-
-#ifdef UNIV_DEBUG
-		page_zip.m_start = 0;
-#endif /* UNIV_DEBUG */
-		page_zip.m_end = 0;
-		page_zip.m_nonempty = 0;
-		page_zip.n_blobs = 0;
-
-		buf_flush_init_for_writing(NULL, page, &page_zip, false);
-
-		ret = os_file_write(IORequestWrite, path, *file,
-				    page_zip.data, 0, zip_size);
-	}
-
-	aligned_free(page);
-
-	if (ret != DB_SUCCESS) {
-		msg("mariabackup: could not write the first page to %s",
-		    path);
 		os_file_close(*file);
 		os_file_delete(0, path);
 		return ret;

@@ -1392,8 +1392,6 @@ void trx_t::commit_cleanup()
   mutex.wr_unlock();
 
   ut_a(error_state == DB_SUCCESS);
-  if (!srv_read_only_mode)
-    srv_wake_purge_thread_if_not_active();
 }
 
 /** Commit the transaction in a mini-transaction.

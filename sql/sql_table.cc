@@ -1235,7 +1235,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     bool wrong_drop_sequence= 0;
     bool table_dropped= 0, res;
     bool is_temporary= 0;
-    bool was_view= 0, was_table= 0;
     const LEX_CSTRING db= table->db;
     const LEX_CSTRING table_name= table->table_name;
     LEX_CSTRING cpath= {0,0};
@@ -1392,7 +1391,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
     }
 
     thd->replication_flags= 0;
-    was_view= table_type == TABLE_TYPE_VIEW;
+    const bool was_view= table_type == TABLE_TYPE_VIEW;
 
     if (!table_count++)
     {
@@ -1414,7 +1413,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
           . "DROP SEQUENCE", but it's not a sequence
       */
       wrong_drop_sequence= drop_sequence && hton;
-      was_table|= wrong_drop_sequence;
       error= table_type == TABLE_TYPE_UNKNOWN ? ENOENT : -1;
       tdc_remove_table(thd, db.str, table_name.str);
       if (wrong_drop_sequence)

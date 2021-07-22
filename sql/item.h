@@ -1837,6 +1837,14 @@ public:
     their method implementations typically have DBUG_ASSERT(0).
   */
   virtual bool is_evaluable_expression() const { return true; }
+
+  /**
+   * Check whether the item is a parameter  ('?') of stored routine.
+   * Default implementation returns false. Method is overridden in the class
+   * Item_param where it returns true.
+   */
+  virtual bool is_stored_routine_parameter() const { return false; }
+
   bool check_is_evaluable_expression_or_error()
   {
     if (is_evaluable_expression())
@@ -4281,6 +4289,7 @@ public:
     return state == SHORT_DATA_VALUE &&
            value.type_handler()->cmp_type() == INT_RESULT;
   }
+  bool is_stored_routine_parameter() const override { return true; }
   /*
     This method is used to make a copy of a basic constant item when
     propagating constants in the optimizer. The reason to create a new

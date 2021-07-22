@@ -3091,3 +3091,20 @@ SELECT * FROM cte;
 DROP TABLE t1;
 
 --echo # End of 10.3 tests
+
+--echo #
+--echo # MDEV-26108: Recursive CTE embedded into another CTE which is used twice
+--echo #
+
+create table t1 (a int);
+insert into t1 values (5), (7);
+
+with cte_e as (
+  with recursive cte_r as (
+    select a from t1 union select a+1 as a from cte_r r where a < 10
+  ) select * from cte_r
+) select * from cte_e s1, cte_e s2 where s1.a=s2.a;
+
+drop table t1;
+
+--echo # End of 10.4 tests

@@ -1126,7 +1126,7 @@ NULL	UNION RESULT	<union4,5>	ALL	NULL	NULL	NULL	NULL	NULL	NULL
 NULL	UNION RESULT	<union11,12>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 NULL	UNION RESULT	<union1,6>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
 Warnings:
-Note	1003	with cte_e as (with cte_o as (with cte_i as (select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1 union select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1)select `cte_e1`.`a` AS `a` from `cte_e` `cte_e1` where `cte_e1`.`a` > 1 union select `cte_e2`.`a` AS `a` from `cte_e` `cte_e2`
+Note	1003	with cte_e as (with cte_o as (with cte_i as (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 7)/* select#3 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 1)/* select#4 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 3 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1 union /* select#5 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` > 4 and `test`.`t1`.`a` > 1 and `test`.`t1`.`a` < 7 and `test`.`t1`.`a` > 1)/* select#1 */ select `cte_e1`.`a` AS `a` from `cte_e` `cte_e1` where `cte_e1`.`a` > 1 union /* select#6 */ select `cte_e2`.`a` AS `a` from `cte_e` `cte_e2`
 drop table t1;
 #
 # MDEV-13753: embedded CTE in a VIEW created in prepared statement
