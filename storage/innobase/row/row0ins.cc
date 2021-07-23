@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -969,8 +969,8 @@ row_ins_foreign_fill_virtual(
 		upd_field = update->fields + n_diff;
 
 		upd_field->old_v_val = static_cast<dfield_t*>(
-				mem_heap_alloc(cascade->heap,
-					sizeof *upd_field->old_v_val));
+			mem_heap_alloc(update->heap,
+				       sizeof *upd_field->old_v_val));
 
 		dfield_copy(upd_field->old_v_val, vfield);
 

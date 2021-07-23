@@ -670,6 +670,7 @@ CREATE TABLE email_stats (
   PRIMARY KEY (id),
   KEY mautic_generated_sent_date_email_id (generated_email_id),
   FOREIGN KEY (email_id) REFERENCES emails (id) ON DELETE SET NULL
+  ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 
@@ -677,6 +678,7 @@ CREATE TABLE emails_metadata (
   email_id int,
   PRIMARY KEY (email_id),
   CONSTRAINT FK FOREIGN KEY (email_id) REFERENCES emails (id) ON DELETE CASCADE
+  ON UPDATE CASCADE
 ) ENGINE=InnoDB;
 
 
@@ -684,6 +686,7 @@ INSERT INTO emails VALUES (1);
 INSERT INTO email_stats (id, email_id,  date_sent) VALUES (1,1,'Jan');
 INSERT INTO emails_metadata VALUES (1);
 
+UPDATE emails SET id=2;
 DELETE FROM emails;
 
 DROP TABLE email_stats;
