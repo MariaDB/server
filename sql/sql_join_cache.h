@@ -1113,7 +1113,7 @@ private:
   */
   uint rem_records;
 
-protected:
+public:
 
   bool prepare_look_for_matches(bool skip_last);
 
@@ -1122,8 +1122,6 @@ protected:
   bool skip_next_candidate_for_match(uchar *rec_ptr);
 
   void read_next_candidate_for_match(uchar *rec_ptr);
-
-public:
 
   /* 
     This constructor creates an unlinked BNL join cache. The cache is to be
