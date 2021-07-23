@@ -3192,6 +3192,14 @@ err:
 }
 
 
+static String *default_pad_str(String *pad_str, CHARSET_INFO *collation)
+{
+  pad_str->set_charset(collation);
+  pad_str->length(0);
+  pad_str->append(" ", 1);
+  return pad_str;
+}
+
 bool Item_func_pad::fix_length_and_dec()
 {
   if (arg_count == 3)
@@ -3207,9 +3215,7 @@ bool Item_func_pad::fix_length_and_dec()
   {
     if (agg_arg_charsets_for_string_result(collation, &args[0], 1, 1))
       return TRUE;
-    pad_str.set_charset(collation.collation);
-    pad_str.length(0);
-    pad_str.append(" ", 1);
+    default_pad_str(&pad_str, collation.collation);
   }
 
   DBUG_ASSERT(collation.collation->mbmaxlen > 0);
@@ -3232,9 +3238,9 @@ bool Item_func_pad::fix_length_and_dec()
 Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
 {
   DBUG_ASSERT(fixed);
-  DBUG_ASSERT(arg_count == 3);
+  DBUG_ASSERT(arg_count >= 2);
   if (!args[1]->value_depends_on_sql_mode_const_item() ||
-      !args[2]->value_depends_on_sql_mode_const_item())
+          (arg_count == 3 && !args[2]->value_depends_on_sql_mode_const_item()))
     return Item_func::value_depends_on_sql_mode();
   Longlong_hybrid len= args[1]->to_longlong_hybrid();
   if (args[1]->null_value || len.neg())
@@ -3242,7 +3248,8 @@ Sql_mode_dependency Item_func_rpad::value_depends_on_sql_mode() const
   if (len.abs() > 0 && len.abs() < args[0]->max_char_length())
     return Item_func::value_depends_on_sql_mode();
   StringBuffer<64> padstrbuf;
-  String *padstr= args[2]->val_str(&padstrbuf);
+  String *padstr= arg_count == 3 ? args[2]->val_str(&padstrbuf) :
+                               default_pad_str(&padstrbuf, collation.collation);
   if (!padstr || !padstr->length())
     return Sql_mode_dependency();                  // will return NULL
   if (padstr->lengthsp() != 0)
