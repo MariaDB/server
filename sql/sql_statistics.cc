@@ -61,8 +61,21 @@
   the collected statistics in the persistent statistical tables only
   when the value of the variable 'use_stat_tables' is not
   equal to "never".
-*/ 
-   
+*/
+
+/*
+   * json_get_array_items expects a JSON array as argument,
+   * and pushes the elements of the array into the `container` vector.
+   * It only works if all the elements in the original JSON array
+   * are scalar values (i.e., strings, numbers, true or false), and returns JSV_BAD_JSON if:
+   * the original JSON is not an array OR the JSON array contains non-scalar elements.
+   */
+bool json_get_array_items(const char *json, const char *json_end, int *value_type, std::vector<std::string> &container);
+
+std::vector<std::string> parse_histogram_from_json(const char *json);
+
+void test_parse_histogram_from_json();
+
 /* Currently there are only 3 persistent statistical tables */
 static const uint STATISTICS_TABLES= 3;
 
@@ -1651,83 +1664,81 @@ public:
 
     test_parse_histogram_from_json();
   }
-
-  static std::vector<std::string> parse_histogram_from_json(const char *json)
-  {
-    std::vector<std::string> hist_buckets= {};
-    enum json_types vt = json_get_array_items(json, json + strlen(json), hist_buckets);
-    printf("%d", vt);
-    printf("%zu", hist_buckets.size());
-
-    return hist_buckets;
-  }
-
-  static void test_parse_histogram_from_json()
-  {
-    std::vector<std::string> bucket = {};
-    std::string json;
-    std::string tests[7] = {
-        R"(["aabbb", "ccccdd", "eeefff"])",
-        R"(["aabbb", "ccc{}dd", "eeefff"])",
-        R"(["aabbb", {"a": "b"}, "eeefff"])",
-        R"({})",
-        R"([1,2,3, null])",
-        R"([null])",
-        R"([])"
-    };
-
-    for(const auto& test : tests) {
-      json = test;
-      bucket = parse_histogram_from_json(json.c_str());
-      printf("%zu", bucket.size());
-    }
-  }
-
-  /*
-   * json_get_array_items expects a JSON array as argument,
-   * and pushes the elements of the array into the `container` vector.
-   * It only works if all the elements in the original JSON array
-   * are scalar values (i.e., strings, numbers, true or false), and returns JSV_BAD_JSON if:
-   * the original JSON is not an array OR the JSON array contains non-scalar elements.
-   */
-  static json_types json_get_array_items(const char *json, const char *json_end, std::vector<std::string> &container) {
-    json_engine_t je;
-    enum json_types value_type;
-    int vl;
-    const char *v;
-
-    json_scan_start(&je, &my_charset_utf8mb4_bin, (const uchar *)json, (const uchar *)json_end);
-
-    if (json_read_value(&je) || je.value_type != JSON_VALUE_ARRAY)
-    {
-      return JSV_BAD_JSON;
-    }
-    value_type = static_cast<json_types>(je.value_type);
-
-    std::string val;
-    while(!json_scan_next(&je))
-    {
-      switch(je.state)
-      {
-      case JST_VALUE:
-        if (je.value_type != JSON_VALUE_STRING &&
-            je.value_type != JSON_VALUE_NUMBER &&
-            je.value_type != JSON_VALUE_TRUE &&
-            je.value_type != JSON_VALUE_FALSE)
-        {
-          return JSV_BAD_JSON;
-        }
-        value_type = smart_read_value(&je, &v, &vl);
-        val = std::string(v, vl);
-        container.emplace_back(val);
-      case JST_ARRAY_END:
-        break;
-      }
-    }
-
-    return value_type;
-  }
 };
+
+void test_parse_histogram_from_json()
+{
+  std::vector<std::string> bucket = {};
+  std::string json;
+  std::string tests[7] = {
+      R"(["aabbb", "ccccdd", "eeefff"])",
+      R"(["aabbb", "ccc{}dd", "eeefff"])",
+      R"(["aabbb", {"a": "b"}, "eeefff"])",
+      R"({})",
+      R"([1,2,3, null])",
+      R"([null])",
+      R"([])"
+  };
+
+  for(const auto& test : tests) {
+    json = test;
+    bucket = parse_histogram_from_json(json.c_str());
+  }
+}
+
+std::vector<std::string> parse_histogram_from_json(const char *json)
+{
+  std::vector<std::string> hist_buckets= {};
+  int vt;
+  bool result = json_get_array_items(json, json + strlen(json), &vt, hist_buckets);
+  fprintf(stderr,"==============\n");
+  fprintf(stderr,"histogram: %s\n", json);
+  fprintf(stderr, "json_get_array_items() returned %s\n", result ? "true" : "false");
+  fprintf(stderr, "value type after json_get_array_items() is %d\n", vt);
+  fprintf(stderr, " JSV_BAD_JSON=%d, JSON_VALUE_ARRAY=%d\n", (int)JSV_BAD_JSON, (int)JSON_VALUE_ARRAY);
+  fprintf(stderr, "hist_buckets.size()=%zu\n", hist_buckets.size());
+
+  return hist_buckets;
+}
+
+bool json_get_array_items(const char *json, const char *json_end, int *value_type, std::vector<std::string> &container) {
+  json_engine_t je;
+  int vl;
+  const char *v;
+
+  json_scan_start(&je, &my_charset_utf8mb4_bin, (const uchar *)json, (const uchar *)json_end);
+
+  if (json_read_value(&je) || je.value_type != JSON_VALUE_ARRAY)
+  {
+    *value_type = JSV_BAD_JSON;
+    return false;
+  }
+  *value_type = je.value_type;
+
+  std::string val;
+  while(!json_scan_next(&je))
+  {
+    switch(je.state)
+    {
+    case JST_VALUE:
+      *value_type = json_smart_read_value(&je, &v, &vl);
+      if (je.value_type != JSON_VALUE_STRING &&
+          je.value_type != JSON_VALUE_NUMBER &&
+          je.value_type != JSON_VALUE_TRUE &&
+          je.value_type != JSON_VALUE_FALSE)
+      {
+        *value_type = JSV_BAD_JSON;
+        return false;
+      }
+      val = std::string(v, vl);
+      container.emplace_back(val);
+    case JST_ARRAY_END:
+      break;
+    }
+  }
+
+  return true;
+}
 
 C_MODE_START
 
