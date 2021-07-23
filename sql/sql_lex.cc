@@ -8396,8 +8396,15 @@ bool LEX::tvc_finalize_derived()
     thd->parse_error();
     return true;
   }
+  if (unlikely(!(current_select->tvc=
+               new (thd->mem_root)
+               table_value_constr(many_values,
+                                  current_select,
+                                  current_select->options))))
+    return true;
+  restore_values_list_state();
   current_select->linkage= DERIVED_TABLE_TYPE;
-  return tvc_finalize();
+  return false;
 }
 
 

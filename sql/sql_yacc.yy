@@ -12855,10 +12855,13 @@ order_clause:
                 created yet.
               */
               SELECT_LEX *first_sl= unit->first_select();
-              if (unlikely(!unit->is_unit_op() &&
-                          (first_sl->order_list.elements ||
-                           first_sl->select_limit) &&
+              if (unlikely(!first_sl->next_select() && first_sl->tvc &&
                            unit->add_fake_select_lex(thd)))
+                 MYSQL_YYABORT;
+              else if (unlikely(!unit->is_unit_op() &&
+                                (first_sl->order_list.elements ||
+                                 first_sl->select_limit) &&
+                                unit->add_fake_select_lex(thd)))
                 MYSQL_YYABORT;
             }
             if (sel->master_unit()->is_unit_op() && !sel->braces)
@@ -12907,7 +12910,8 @@ limit_clause_init:
           LIMIT
           {
             SELECT_LEX *sel= Select;
-            if (sel->master_unit()->is_unit_op() && !sel->braces)
+            if (sel->master_unit()->is_unit_op() && !sel->braces &&
+                sel->master_unit()->fake_select_lex)
             {
               /* Move LIMIT that belongs to UNION to fake_select_lex */
               Lex->current_select= sel->master_unit()->fake_select_lex;
