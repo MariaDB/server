@@ -1135,8 +1135,8 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, trx_state_t trx_state)
   if (log_sys.get_flushed_lsn() > lsn)
     return;
 
-  bool flush= srv_file_flush_method != SRV_NOSYNC &&
-              srv_flush_log_at_trx_commit == 1;
+  const bool flush= srv_file_flush_method != SRV_NOSYNC &&
+    (srv_flush_log_at_trx_commit & 1);
 
   if (trx_state == TRX_STATE_PREPARED)
   {
