@@ -1550,7 +1550,7 @@ fil_space_t *fil_space_t::check_pending_operations(uint32_t id)
         return nullptr;
       /* Issue a warning every 10.24 seconds, starting after 2.56 seconds */
       if ((count & 511) == 128)
-        sql_print_warning("InnoDB: Waiting for tablespace " ULINTPF
+        sql_print_warning("InnoDB: Waiting for tablespace " UINT32PF
                           " to be deleted", id);
       std::this_thread::sleep_for(std::chrono::milliseconds(20));
     }

@@ -769,8 +769,8 @@ dict_sys_tables_rec_read(
 	if (!dict_sys_tables_type_valid(type, not_redundant)) {
 		sql_print_error("InnoDB: Table %.*s in InnoDB"
 				" data dictionary contains invalid flags."
-				" SYS_TABLES.TYPE=" ULINTPF
-				" SYS_TABLES.N_COLS=" ULINTPF,
+				" SYS_TABLES.TYPE=" UINT32PF
+				" SYS_TABLES.N_COLS=" UINT32PF,
 				name.size(), name.data(), type, *n_cols);
 		return(false);
 	}
@@ -794,8 +794,8 @@ dict_sys_tables_rec_read(
 			sql_print_error("InnoDB: Table %.*s in InnoDB"
 					" data dictionary"
 					" contains invalid flags."
-					" SYS_TABLES.TYPE=" ULINTPF
-					" SYS_TABLES.MIX_LEN=" ULINTPF,
+					" SYS_TABLES.TYPE=" UINT32PF
+					" SYS_TABLES.MIX_LEN=" UINT32PF,
 					name.size(), name.data(),
 					type, *flags2);
 			return(false);
