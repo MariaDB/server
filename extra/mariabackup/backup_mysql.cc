@@ -1608,7 +1608,7 @@ bool write_backup_config_file()
 		"innodb_log_file_size=%llu\n"
 		"innodb_page_size=%lu\n"
 		"innodb_undo_directory=%s\n"
-		"innodb_undo_tablespaces=%lu\n"
+		"innodb_undo_tablespaces=%u\n"
 		"innodb_compression_level=%u\n"
 		"%s%s\n"
 		"%s\n",
