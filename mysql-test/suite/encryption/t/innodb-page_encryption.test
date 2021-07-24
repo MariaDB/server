@@ -1,6 +1,9 @@
 -- source include/have_innodb.inc
 -- source include/have_file_key_management_plugin.inc
 
+# The test can take very long time with valgrind
+--source include/not_valgrind.inc
+
 create table innodb_normal(c1 bigint not null, b char(200)) engine=innodb;
 show warnings;
 create table innodb_compact(c1 bigint not null, b char(200)) engine=innodb row_format=compact encrypted=yes encryption_key_id=1;
