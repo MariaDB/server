@@ -1,7 +1,7 @@
 /*************** json CPP Declares Source Code File (.H) ***************/
-/*  Name: json.cpp   Version 1.5                                       */
+/*  Name: json.cpp   Version 1.6                                       */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2020  */
+/*  (C) Copyright to the author Olivier BERTRAND          2014 - 2021  */
 /*                                                                     */
 /*  This file contains the JSON classes functions.                     */
 /***********************************************************************/
@@ -55,6 +55,7 @@ char *GetExceptionDesc(PGLOBAL g, unsigned int e);
 
 char *GetJsonNull(void);
 int   GetDefaultPrec(void);
+int   PrepareColist(char*);
 
 /***********************************************************************/
 /* IsNum: check whether this string is all digits.                     */
@@ -110,6 +111,27 @@ char* NextChr(PSZ s, char sep)
 
   return p2;
 } // end of NextChr
+
+/***********************************************************************/
+/* Stringified: check that this column is in the stringified list.     */
+/***********************************************************************/
+bool Stringified(PCSZ strfy, char *colname)
+{
+  if (strfy) {
+    char *p, colist[512];
+    int   n;
+
+    strncpy(colist, strfy, sizeof(colist) - 1);
+    n = PrepareColist(colist); 
+
+    for (p = colist; n && p; p += (strlen(p) + 1), n--)
+      if (!stricmp(p, colname))
+        return true;
+
+  } // endif strfy
+
+  return false;
+} // end of Stringified
 
 #if 0
 /***********************************************************************/

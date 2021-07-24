@@ -53,6 +53,7 @@ USETEMP UseTemp(void);
 bool    JsonAllPath(void);
 int     GetDefaultDepth(void);
 char   *GetJsonNull(void);
+bool    Stringified(PCSZ, char*);
 
 /***********************************************************************/
 /* BSONColumns: construct the result blocks containing the description */
@@ -436,7 +437,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
     jcol.Type = TYPE_UNKNOWN;
     jcol.Len = jcol.Scale = 0;
     jcol.Cbn = true;
-  } else  if (j < lvl && !(strfy && !stricmp(strfy, colname))) {
+  } else  if (j < lvl && !Stringified(strfy, colname)) {
     if (!fmt[bf])
       strcat(fmt, colname);
 
@@ -507,7 +508,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
     } // endswitch Type
 
   } else if (lvl >= 0) {
-    if (strfy && !stricmp(strfy, colname)) {
+    if (Stringified(strfy, colname)) {
       if (!fmt[bf])
         strcat(fmt, colname);
 

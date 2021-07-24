@@ -83,7 +83,7 @@ protected:
 	PCSZ       Coll_name;
 	PCSZ       Options;		         // The MongoDB options
 	PCSZ       Filter;			       // The filtering query
-	PCSZ			 Strfy;			         // The stringified column
+	PCSZ			 Strfy;			         // The stringified columns
 	PSZ        Wrapname;           // Java wrapper name
 	int        Fpos;               // The current row index
 	int        N;                  // The current Rownum

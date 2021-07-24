@@ -27,6 +27,7 @@
 #include "filter.h"
 
 PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info);
+bool    Stringified(PCSZ, char*);
 
 /* -------------------------- Class CMGDISC -------------------------- */
 
@@ -397,7 +398,7 @@ MGOCOL::MGOCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 	    : EXTCOL(cdp, tdbp, cprec, i, "MGO")
 {
 	Tmgp = (PTDBCMG)(tdbp->GetOrig() ? tdbp->GetOrig() : tdbp);
-	Sgfy = (Tmgp->Strfy && !stricmp(Tmgp->Strfy, Name));
+	Sgfy = Stringified(Tmgp->Strfy, Name);
 
 	if ((Jpath = cdp->GetFmt())) {
 		int n = strlen(Jpath) - 1;

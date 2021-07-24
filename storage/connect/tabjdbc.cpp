@@ -188,6 +188,9 @@ int JDBCDEF::ParseURL(PGLOBAL g, char *url, bool b)
 		} else		 // host is a URL
 			Url = PlugDup(g, server->host);
 
+		if (!Tabschema && server->db)
+			Tabschema = PlugDup(g, server->db);
+
 		if (!Username && server->username)
 			Username = PlugDup(g, server->username);
 

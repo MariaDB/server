@@ -82,7 +82,7 @@ protected:
 	PSZ   Wrapname;               /* Java wrapper name                   */
 	PCSZ  Colist;                 /* Options list                        */
 	PCSZ  Filter;									/* Filtering query                     */
-	PCSZ  Strfy;									/* Stringify column                    */
+	PCSZ  Strfy;									/* The stringify columns               */
 	int   Base;                   /* The array index base                */
 	int   Version;                /* The Java driver version             */
 	bool  Pipe;                   /* True is Colist is a pipeline        */

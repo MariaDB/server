@@ -30,6 +30,7 @@
 #define nullptr 0
 
 PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info);
+bool    Stringified(PCSZ, char*);
 
 /* -------------------------- Class JMGDISC -------------------------- */
 
@@ -423,15 +424,19 @@ JMGCOL::JMGCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 	: EXTCOL(cdp, tdbp, cprec, i, "MGO")
 {
 	Tmgp = (PTDBJMG)(tdbp->GetOrig() ? tdbp->GetOrig() : tdbp);
-	Sgfy = (Tmgp->Strfy && !stricmp(Tmgp->Strfy, Name));
+	Sgfy = Stringified(Tmgp->Strfy, Name);
 
 	if ((Jpath = cdp->GetFmt())) {
-		int n = strlen(Jpath) - 1;
+		int n = strlen(Jpath);
 
-		if (Jpath[n] == '*') {
+		if (n && Jpath[n - 1] == '*') {
 			Jpath = PlugDup(g, cdp->GetFmt());
-			if (Jpath[n - 1] == '.') n--;
-			Jpath[n] = 0;
+
+			if (--n) {
+				if (Jpath[n - 1] == '.') n--;
+				Jpath[n] = 0;
+			}	// endif n
+
 			Sgfy = true;
 		}	// endif Jpath
 

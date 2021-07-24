@@ -58,6 +58,7 @@ USETEMP UseTemp(void);
 bool    JsonAllPath(void);
 int     GetDefaultDepth(void);
 char   *GetJsonNull(void);
+bool    Stringified(PCSZ, char*);
 
 /***********************************************************************/
 /* JSONColumns: construct the result blocks containing the description */
@@ -447,7 +448,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
     jcol.Type = TYPE_UNKNOWN;
     jcol.Len = jcol.Scale = 0;
     jcol.Cbn = true;
-  } else if (j < lvl && !(strfy && !stricmp(strfy, colname))) {
+  } else if (j < lvl && !Stringified(strfy, colname)) {
     if (!fmt[bf])
       strcat(fmt, colname);
 
@@ -517,7 +518,7 @@ bool JSONDISC::Find(PGLOBAL g, PJVAL jvp, PCSZ key, int j)
     } // endswitch Type
 
   } else if (lvl >= 0) {
-		if (strfy && !stricmp(strfy, colname)) {
+    if (Stringified(strfy, colname)) {
 			if (!fmt[bf])
 				strcat(fmt, colname);
 
