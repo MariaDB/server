@@ -49,6 +49,8 @@
 #include "tabmysql.h"
 #include "ha_connect.h"
 
+int PrepareColist(char *colist);
+
 /***********************************************************************/
 /*  Prepare and count columns in the column list.                      */
 /***********************************************************************/
