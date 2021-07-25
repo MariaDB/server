@@ -2,6 +2,7 @@
 #include "pthread.h"
 #include "time.h"
 #include "ring_buffer.hpp"
+#include <fstream>
 
 RingBuffer* cache;
 uchar* buff_from = (uchar*)"Chapter One\n"
@@ -54,7 +55,7 @@ uchar* buff_to;
 
 void* read_to_cache(void*)
 {
-  for (int i= 0; i < 32; ++i)
+  for (int i= 0; i < 22; ++i)
     cache->read(buff_to + (i*275), 275);
   return NULL;
 }
@@ -78,7 +79,7 @@ int main() {
   tss = clock();
   cache = new RingBuffer((char*)"input.txt", 4096);
 
-  for (int i= 0; i < 5; ++i)
+  for (int i= 0; i < 1; ++i)
   {
 
     args[i*2] = i*8;
@@ -86,17 +87,21 @@ int main() {
     pthread_create(&thr_write[i], NULL, write_to_cache, (void*)&args[i*2]);
   }
 
+  //pthread_join(thr_write[0], NULL);
   pthread_create(&thr_read, NULL, read_to_cache, NULL);
 
-  pthread_join(thr_read, NULL);
-  //pthread_join(thr_write, NULL);
 
-  for (int i= 0; i < 5; ++i)
+
+  for (int i= 0; i < 1; ++i)
   {
     pthread_join(thr_write[i], NULL);
   }
+  pthread_join(thr_read, NULL);
 
   delete cache;
   tee = clock();
   printf("Time: %lld\n", (long long) tee - tss);
+  std::ofstream of;
+  of.open("test_out.txt", std::ios_base::out);
+  of << buff_to;
 }

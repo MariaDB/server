@@ -67,15 +67,13 @@ private:
 
   int _error;
 
-  size_t _round_to_block(size_t count);
-
   int _flush_io_buffer();
 
   int _read_append(uchar* To, size_t Count);
 };
 
 RingBuffer::WriteState RingBuffer::write(uchar *From, size_t Count) {
-  size_t rest_length, length;
+  size_t rest_length;
   const uchar* saved_buffer;
   uchar* saved_write_pos;
 
@@ -98,19 +96,17 @@ RingBuffer::WriteState RingBuffer::write(uchar *From, size_t Count) {
 
   mysql_mutex_lock(&_buffer_lock);
   if (Count >= _buffer_length)
-  {					/* Fill first intern buffer */
-    length = _round_to_block(Count);
-    if (mysql_file_write(_file, From, length, MY_NABP))
+  {
+    if (mysql_file_write(_file, From, Count, MY_NABP))
     {
       mysql_mutex_unlock(&_buffer_lock);
       _error= -1;
       return ERR_FILE_WRITE;
     }
 
-    Count-=length;
-    From+=length;
+    From+=Count;
     saved_buffer = From;
-    _end_of_file+=length;
+    _end_of_file+=Count;
   }
 
   end:
@@ -177,6 +173,14 @@ int RingBuffer::read(uchar *To, size_t Count) {
     _read_pos+= Count;
     return 0;
   }
+  if(_read_pos != _read_end)
+  {
+    left_length= (size_t) (_read_end - _read_pos);
+    DBUG_ASSERT(Count > left_length);
+    memcpy(To, _read_pos, left_length);
+    To+=left_length;
+    Count-=left_length;
+  }
 
   mysql_mutex_lock(&_buffer_lock);
   if ((pos_in_file=_pos_in_file +
@@ -190,10 +194,10 @@ int RingBuffer::read(uchar *To, size_t Count) {
       _seek_not_done= 0;
 
       diff_length= (size_t) (pos_in_file & (IO_SIZE - 1));
-
+      /*
       if (Count >= (size_t) (IO_SIZE + (IO_SIZE - diff_length)))
       {
-        /* Fill first intern buffer */
+        // Fill first intern buffer
         size_t read_length;
 
         length= _round_to_block(Count) - diff_length;
@@ -215,7 +219,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
         left_length+= length;
         diff_length= 0;
       }
-
+      */
       max_length= _read_length - diff_length;
       if (max_length > (_end_of_file - pos_in_file))
         max_length= (size_t) (_end_of_file - pos_in_file);
@@ -249,14 +253,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
   }
 
 
-  if(_read_pos != _read_end)
-  {
-    left_length= (size_t) (_read_end - _read_pos);
-    DBUG_ASSERT(Count > left_length);
-    memcpy(To, _read_pos, left_length);
-    To+=left_length;
-    Count-=left_length;
-  }
+
   mysql_mutex_unlock(&_buffer_lock);
   return _read_append(To, Count);
 }
@@ -271,7 +268,6 @@ RingBuffer::RingBuffer(char* filename, size_t cachesize)
     assert(pos != (my_off_t) -1);
   }
 
-  size_t min_cache=IO_SIZE*2;
 
   // Calculate end of file to avoid allocating oversized buffers
   _end_of_file= mysql_file_seek(_file, 0L, MY_SEEK_END, MYF(0));
@@ -280,13 +276,10 @@ RingBuffer::RingBuffer(char* filename, size_t cachesize)
 
 
   // Retry allocating memory in smaller blocks until we get one
-  cachesize= ((cachesize + min_cache-1) & ~(min_cache-1));
   for (;;)
   {
     size_t buffer_block;
 
-    if (cachesize < min_cache)
-      cachesize = min_cache;
     buffer_block= cachesize * 2;
 
     if ((_buffer= (uchar*) my_malloc(key_memory_IO_CACHE, buffer_block, (myf) MY_WME)) != 0)
@@ -295,9 +288,8 @@ RingBuffer::RingBuffer(char* filename, size_t cachesize)
       _alloced_buffer= buffer_block;
       break;					// Enough memory found
     }
-    assert(cachesize != min_cache); // Can't alloc cache
     // Try with less memory
-    cachesize= (cachesize*3/4 & ~(min_cache-1));
+    cachesize= (cachesize*3/4);
   }
   _read_length = cachesize;
 
@@ -329,9 +321,7 @@ RingBuffer::~RingBuffer() {
   mysql_mutex_destroy(&_mutex_writer);
   my_close(_file, MYF(MY_WME));
 }
-size_t RingBuffer::_round_to_block(size_t count) {
-  return count & ~(IO_SIZE-1);
-}
+
 int RingBuffer::_flush_io_buffer() {
   size_t length;
 
@@ -352,8 +342,7 @@ int RingBuffer::_flush_io_buffer() {
 
     DBUG_ASSERT(_end_of_file == mysql_file_tell(_file, MYF(0)));
 
-    _write_end= (_write_buffer +_buffer_length -
-                      ((_pos_in_file + length) & (IO_SIZE - 1)));
+    _write_end= (_write_buffer +_buffer_length);
     _write_pos= _write_buffer;
     //++info->disk_writes;
     mysql_mutex_unlock(&_buffer_lock);
