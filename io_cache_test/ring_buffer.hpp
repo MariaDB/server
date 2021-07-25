@@ -174,6 +174,14 @@ int RingBuffer::read(uchar *To, size_t Count) {
     return 0;
   }
 
+  if(_read_pos != _read_end)
+  {
+    left_length= (size_t) (_read_end - _read_pos);
+    DBUG_ASSERT(Count > left_length);
+    memcpy(To, _read_pos, left_length);
+    To+=left_length;
+    Count-=left_length;
+  }
 
   mysql_mutex_lock(&_buffer_lock);
   if ((pos_in_file=_pos_in_file +
@@ -248,14 +256,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
 
 
   mysql_mutex_unlock(&_buffer_lock);
-  if(_read_pos != _read_end)
-  {
-    left_length= (size_t) (_read_end - _read_pos);
-    DBUG_ASSERT(Count > left_length);
-    memcpy(To, _read_pos, left_length);
-    To+=left_length;
-    Count-=left_length;
-  }
+
   return _read_append(To, Count);
 }
 
