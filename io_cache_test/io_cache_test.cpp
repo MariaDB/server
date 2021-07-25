@@ -4,8 +4,8 @@
 #include "ring_buffer.hpp"
 #include <fstream>
 
-RingBuffer* cache;
-uchar* buff_from = (uchar*)"Chapter One\n"
+IO_CACHE cache;
+uchar* buff_from = (uchar*)"\nChapter One\n"
                            "A Stop on the Salt Route\n"
                            "1000 B.C.\n"
                            "As they rounded a bend in the path that ran beside the river, Lara recognized the silhouette of a fig tree atop a nearby hill. The weather was hot and the days were long. The fig tree was in full leaf, but not yet bearing fruit.\n"
@@ -56,7 +56,8 @@ uchar* buff_to;
 void* read_to_cache(void*)
 {
   for (int i= 0; i < 22; ++i)
-    cache->read(buff_to + (i*275), 275);
+    my_b_read(&cache, buff_to + (i*275), 275);
+    //cache->read(buff_to + (i*275), 275);
   return NULL;
 }
 
@@ -64,7 +65,8 @@ void* write_to_cache(void* args)
 {
   int* v_args = (int*)args;
   for (int i = v_args[0]; i < v_args[1]; ++i)
-    cache->write(buff_from + (i*275), 275);
+    my_b_safe_write(&cache, buff_from + (i*275), 275);
+    //cache->write(buff_from + (i*275), 275);
   return NULL;
 }
 
@@ -77,8 +79,9 @@ int main() {
 
   buff_to = (uchar*)malloc(sizeof(uchar) * 10000);
   tss = clock();
-  cache = new RingBuffer((char*)"input.txt", 4096);
-
+  //cache = new RingBuffer((char*)"input.txt", 4096);
+  File fd = my_open((char*)"input.txt", O_CREAT | O_RDWR,MYF(MY_WME));
+  init_io_cache(&cache, fd, 4096, SEQ_READ_APPEND, 0, 0, MYF(0));
   for (int i= 0; i < 1; ++i)
   {
 
@@ -87,21 +90,24 @@ int main() {
     pthread_create(&thr_write[i], NULL, write_to_cache, (void*)&args[i*2]);
   }
 
-  //pthread_join(thr_write[0], NULL);
+  pthread_join(thr_write[0], NULL);
   pthread_create(&thr_read, NULL, read_to_cache, NULL);
 
 
-
+/*
   for (int i= 0; i < 1; ++i)
   {
     pthread_join(thr_write[i], NULL);
   }
+  */
   pthread_join(thr_read, NULL);
 
-  delete cache;
+  //delete cache;
+  end_io_cache(&cache);
   tee = clock();
   printf("Time: %lld\n", (long long) tee - tss);
   std::ofstream of;
   of.open("test_out.txt", std::ios_base::out);
   of << buff_to;
+  my_close(fd, MYF(0));
 }
