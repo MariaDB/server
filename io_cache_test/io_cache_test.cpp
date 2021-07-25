@@ -70,16 +70,15 @@ void* write_to_cache(void* args)
   return NULL;
 }
 
-int main() {
+int wait_test() {
   pthread_t thr_read;
   pthread_t* thr_write = (pthread_t*) malloc(8 * sizeof(pthread_t));
   int args[8];
 
   clock_t tss, tee;
-
   buff_to = (uchar*)malloc(sizeof(uchar) * 10000);
   tss = clock();
-  //cache = new RingBuffer((char*)"input.txt", 4096);
+
   File fd = my_open((char*)"input.txt", O_CREAT | O_RDWR,MYF(MY_WME));
   init_io_cache(&cache, fd, 4096, SEQ_READ_APPEND, 0, 0, MYF(0));
   for (int i= 0; i < 1; ++i)
@@ -91,18 +90,10 @@ int main() {
   }
 
   pthread_join(thr_write[0], NULL);
+
   pthread_create(&thr_read, NULL, read_to_cache, NULL);
-
-
-/*
-  for (int i= 0; i < 1; ++i)
-  {
-    pthread_join(thr_write[i], NULL);
-  }
-  */
   pthread_join(thr_read, NULL);
 
-  //delete cache;
   end_io_cache(&cache);
   tee = clock();
   printf("Time: %lld\n", (long long) tee - tss);
@@ -110,4 +101,12 @@ int main() {
   of.open("test_out.txt", std::ios_base::out);
   of << buff_to;
   my_close(fd, MYF(0));
+  return 0;
+}
+
+int main() {
+  for (int i= 0; i < 3; ++i) {
+    wait_test();
+  }
+  return 0;
 }
