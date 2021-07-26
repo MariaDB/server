@@ -57,15 +57,24 @@ SELECT 'Connection on extra port ok';
 # (abort in interruptible wait connection check).
 send SELECT sleep(5.5);
 
-
 connect(extracon2,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,);
 connection extracon2;
 SELECT 'Connection on extra port 2 ok';
+send SELECT sleep(5.5);
+
+connect(extracon3,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,);
+connection extracon3;
+SELECT 'Connection on extra port 3 ok';
+send SELECT sleep(5.5);
+
+connect(extracon4,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,);
+connection extracon4;
+SELECT 'Connection on extra port 4 ok';
 
 --disable_abort_on_error
 --disable_result_log
 --disable_query_log
-connect(extracon3,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,,connect_timeout=2);
+connect(extracon5,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,,connect_timeout=2);
 --enable_query_log
 --enable_result_log
 --enable_abort_on_error
@@ -76,10 +85,9 @@ if (!$error)
 }
 if ($error)
 {
-  --echo # -- Success: more than --extra-max-connections + 1 normal connections not possible
+  --echo # -- Success: more than --extra-max-connections + 3 normal connections not possible
 }
 
-connection extracon2;
 --replace_result $con1_id <default_connection_ID>
 eval KILL QUERY $con1_id;
 --replace_result $con2_id <con2_connection_ID>

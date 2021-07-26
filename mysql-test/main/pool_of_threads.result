@@ -2175,8 +2175,19 @@ connection extracon2;
 SELECT 'Connection on extra port 2 ok';
 Connection on extra port 2 ok
 Connection on extra port 2 ok
-# -- Success: more than --extra-max-connections + 1 normal connections not possible
-connection extracon2;
+SELECT sleep(5.5);
+connect extracon3,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,;
+connection extracon3;
+SELECT 'Connection on extra port 3 ok';
+Connection on extra port 3 ok
+Connection on extra port 3 ok
+SELECT sleep(5.5);
+connect extracon4,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,;
+connection extracon4;
+SELECT 'Connection on extra port 4 ok';
+Connection on extra port 4 ok
+Connection on extra port 4 ok
+# -- Success: more than --extra-max-connections + 3 normal connections not possible
 KILL QUERY <default_connection_ID>;
 KILL QUERY <con2_connection_ID>;
 connection default;

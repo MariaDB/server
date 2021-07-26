@@ -230,12 +230,20 @@ disconnect default;
 # -- Establishing connection 'con_super_1' (user: root)...
 # -- Connection 'con_super_1' has been established.
 
-# -- Connecting super (2) [should fail]...
+# -- Connecting super (2)...
 # -- Establishing connection 'con_super_2' (user: root)...
-# -- Error: can not establish connection 'con_super_2'.
+# -- Connection 'con_super_2' has been established.
+
+# -- Connecting super (3)...
+# -- Establishing connection 'con_super_3' (user: root)...
+# -- Connection 'con_super_3' has been established.
+
+# -- Connecting super (4) [should fail]...
+# -- Establishing connection 'con_super_4' (user: root)...
+# -- Error: can not establish connection 'con_super_4'.
 
 # -- Ensure that we have Event Scheduler thread, 3 ordinary user
-# -- connections and one extra super-user connection.
+# -- connections and three extra super-user connections.
 SELECT user FROM information_schema.processlist ORDER BY id;
 user
 event_scheduler
@@ -249,6 +257,8 @@ mysqltest_u1
 mysqltest_u1
 mysqltest_u1
 mysqltest_u1
+root
+root
 root
 
 # -- Resetting variables...
@@ -264,6 +274,8 @@ disconnect con_1;
 disconnect con_2;
 disconnect con_3;
 disconnect con_super_1;
+disconnect con_super_2;
+disconnect con_super_3;
 disconnect tmp_con1;
 disconnect tmp_con2;
 disconnect tmp_con3;
@@ -319,7 +331,17 @@ connect extracon2,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,;
 SELECT 'Connection on extra port 2 ok';
 Connection on extra port 2 ok
 Connection on extra port 2 ok
-# -- Success: more than --extra-max-connections + 1 normal connections not possible
+connect extracon3,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,;
+connection extracon3;
+SELECT 'Connection on extra port 3 ok';
+Connection on extra port 3 ok
+Connection on extra port 3 ok
+connect extracon4,127.0.0.1,root,,test,$MASTER_EXTRA_PORT,;
+connection extracon4;
+SELECT 'Connection on extra port 4 ok';
+Connection on extra port 4 ok
+Connection on extra port 4 ok
+# -- Success: more than --extra-max-connections + 3 normal connections not possible
 #
 # -- Bug#49752: 2469.126.2 unintentionally breaks authentication
 #               against MySQL 5.1 server

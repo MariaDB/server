@@ -17,6 +17,14 @@ connect  con2,localhost,root,,;
 SELECT 2;
 2
 2
+connect  con3,localhost,root,,;
+SELECT 3;
+3
+3
+connect  con4,localhost,root,,;
+SELECT 4;
+4
+4
 ERROR HY000: Too many connections
 connection default;
 SELECT 0;
@@ -24,6 +32,6 @@ SELECT 0;
 0
 show status like "Threads_connected";
 Variable_name	Value
-Threads_connected	11
+Threads_connected	13
 SET GLOBAL log_warnings=@save_log_warnings;
 SET GLOBAL max_connections=@save_max_connections;

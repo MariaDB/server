@@ -5968,10 +5968,10 @@ void create_new_thread(CONNECT *connect)
 
   /*
     Don't allow too many connections. We roughly check here that we allow
-    only (max_connections + 1) connections.
+    only (max_connections + 3) connections.
   */
   if ((*connect->scheduler->connection_count)++ >=
-      *connect->scheduler->max_connections + 1)
+      *connect->scheduler->max_connections + 3)
   {
     DBUG_PRINT("error",("Too many connections"));
     connect->close_with_error(0, NullS, ER_CON_COUNT_ERROR);

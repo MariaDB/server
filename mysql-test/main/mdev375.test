@@ -20,14 +20,18 @@ SET GLOBAL max_connections=10;
 SELECT 1;
 --connect (con2,localhost,root,,)
 SELECT 2;
+--connect (con3,localhost,root,,)
+SELECT 3;
+--connect (con4,localhost,root,,)
+SELECT 4;
 --disable_query_log
 --error ER_CON_COUNT_ERROR
---connect (con3,localhost,root,,)
+--connect (con5,localhost,root,,)
 --enable_query_log
 
 --connection default
 SELECT 0;
-let $count_sessions=11;
+let $count_sessions=13;
 --source include/wait_until_count_sessions.inc
 show status like "Threads_connected";
 
