@@ -14374,8 +14374,6 @@ ha_innobase::info_low(
 		stats.update_time = (ulong) ib_table->update_time;
 	}
 
-	DBUG_EXECUTE_IF("dict_sys_mutex_avoid", goto func_exit;);
-
 	dict_stats_init(ib_table);
 
 	if (flag & HA_STATUS_VARIABLE) {
