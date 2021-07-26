@@ -742,13 +742,9 @@ static Sys_var_charptr_fscs Sys_character_sets_dir(
 
 static bool check_engine_supports_temporary(sys_var *self, THD *thd, set_var *var)
 {
-  String str, *res;
-  LEX_CSTRING name;
-  if (!var->value || var->value->is_null())
+  plugin_ref plugin= var->save_result.plugin;
+  if (!plugin)
     return false;
-  res= var->value->val_str(&str);
-  res->get_value(&name);
-  plugin_ref plugin= ha_resolve_by_name(thd, &name, true);
   DBUG_ASSERT(plugin);
   handlerton *hton= plugin_hton(plugin);
   DBUG_ASSERT(hton);
@@ -756,10 +752,8 @@ static bool check_engine_supports_temporary(sys_var *self, THD *thd, set_var *va
   {
     my_error(ER_ILLEGAL_HA_CREATE_OPTION, MYF(0), hton_name(hton)->str,
              "TEMPORARY");
-    plugin_unlock(thd, plugin);
     return true;
   }
-  plugin_unlock(thd, plugin);
   return false;
 }
 

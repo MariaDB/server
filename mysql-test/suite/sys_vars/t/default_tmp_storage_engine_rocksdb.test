@@ -4,6 +4,8 @@
 
 --source include/have_rocksdb.inc
 --source include/not_embedded.inc
+--source include/have_innodb.inc
+
 --error ER_UNKNOWN_STORAGE_ENGINE
 SET default_tmp_storage_engine = engine_doesnt_exist;
 --error ER_ILLEGAL_HA_CREATE_OPTION
@@ -50,3 +52,35 @@ DROP TABLE t2;
 CREATE TEMPORARY TABLE t2 LIKE t1;
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26242: Assertion `i >= 0' failed on setting 
+--echo #             default_tmp_storage_engine to 'DEFAULT' in 10.7
+--echo #
+
+
+SHOW VARIABLES like '%storage_engine';
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
+--error ER_UNKNOWN_SYSTEM_VARIABLE
+SELECT @@GLOBAL.table_type;
+
+SET default_storage_engine=DEFAULT;
+SET default_tmp_storage_engine=innodb;
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
+
+CREATE TABLE t (t int);
+CREATE TEMPORARY TABLE t1 (t int);
+SHOW CREATE TABLE t;
+SHOW CREATE TABLE t1;
+DROP TABLE t1, t;
+
+SET GLOBAL default_tmp_storage_engine='default';
+SELECT @@GLOBAL.default_tmp_storage_engine, @@GLOBAL.default_storage_engine, @@GLOBAL.storage_engine, @@SESSION.default_tmp_storage_engine, @@SESSION.default_storage_engine, @@SESSION.storage_engine;
+
+CREATE TABLE t (t int);
+CREATE TEMPORARY TABLE t1 (t int);
+SHOW CREATE TABLE t;
+SHOW CREATE TABLE t1;
+DROP TABLE t1, t;
+
+SET GLOBAL default_tmp_storage_engine=NULL;
