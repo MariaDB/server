@@ -593,11 +593,12 @@ bool ib_lock_t::is_stronger(ulint precise_mode, ulint heap_no, const trx_t* t) c
 	    && !is_waiting()
 	    && !is_insert_intention()
 	    && (!is_record_not_gap()
-		|| (precise_mode & LOCK_REC_NOT_GAP) /* only record */
-		|| heap_no == PAGE_HEAP_NO_SUPREMUM)
+		|| heap_no == PAGE_HEAP_NO_SUPREMUM
+		|| (precise_mode & LOCK_REC_NOT_GAP)) /* only record */
 	    && (!is_gap()
-		|| (precise_mode & LOCK_GAP)         /* only gap */
-		|| heap_no == PAGE_HEAP_NO_SUPREMUM)
+		|| heap_no == PAGE_HEAP_NO_SUPREMUM
+		|| ((precise_mode & LOCK_GAP) &&  /* only gap */
+		     !(precise_mode & LOCK_INSERT_INTENTION)))
 	    && lock_mode_stronger_or_eq(
 		mode(),
 		static_cast<lock_mode>(

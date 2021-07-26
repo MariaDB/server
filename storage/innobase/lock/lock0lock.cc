@@ -4742,8 +4742,8 @@ static void lock_validate()
 
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
-a record. If they do, first tests if the query thread should anyway
-be suspended for some reason; if not, then puts the transaction and
+a record. If they don't, first tests if the query thread should anyway
+be suspended for some reason; if they do, then puts the transaction and
 the query thread to the lock wait state and inserts a waiting request
 for a gap x-lock to the lock queue.
 @return DB_SUCCESS, DB_LOCK_WAIT, or DB_DEADLOCK */
