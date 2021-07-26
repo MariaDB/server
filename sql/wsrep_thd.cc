@@ -349,6 +349,15 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
   if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {
     WSREP_DEBUG("wsrep_bf_abort, BF abort for non active transaction");
+    switch (victim_thd->wsrep_trx().state()) 
+    {
+    case wsrep::transaction::s_aborting: /* fall through */
+    case wsrep::transaction::s_aborted:
+      WSREP_DEBUG("victim thd is already aborted or in aborting state.");
+      return false;
+    default:
+      break;
+    }
     wsrep_start_transaction(victim_thd, victim_thd->wsrep_next_trx_id());
   }
 
