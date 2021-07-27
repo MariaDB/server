@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1103,7 +1103,7 @@ static bool fil_crypt_must_remove(const fil_space_t &space)
 {
   ut_ad(space.purpose == FIL_TYPE_TABLESPACE);
   fil_space_crypt_t *crypt_data = space.crypt_data;
-  mutex_own(&fil_system->mutex);
+  ut_ad(mutex_own(&fil_system->mutex));
   const ulong encrypt_tables= srv_encrypt_tables;
   if (!crypt_data)
     return !encrypt_tables;
