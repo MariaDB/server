@@ -1,11 +1,11 @@
 // TABMAC.H     Olivier Bertrand    2011-2012
 // MAC: virtual table to Get Mac Addresses via GetAdaptersInfo
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <windows.h>
 #include <iphlpapi.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #error This is a WINDOWS only table TYPE
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Definitions.                                                       */

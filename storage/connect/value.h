@@ -412,13 +412,15 @@ class DllExport DTVAL : public TYPVAL<int> {
   // Constructors
   DTVAL(PGLOBAL g, int n, int p, PCSZ fmt);
   DTVAL(int n);
+  using TYPVAL<int>::SetValue;
 
   // Implementation
   virtual bool   SetValue_pval(PVAL valp, bool chktype);
   virtual bool   SetValue_char(const char *p, int n);
   virtual void   SetValue_psz(PCSZ s);
   virtual void   SetValue_pvblk(PVBLK blk, int n);
-	virtual PSZ    GetCharValue(void) { return Sdate; }
+  virtual void   SetValue(int n);
+  virtual PSZ    GetCharValue(void) { return Sdate; }
 	virtual char  *GetCharString(char *p);
   virtual int    ShowValue(char *buf, int len);
   virtual bool   FormatValue(PVAL vp, PCSZ fmt);

@@ -1,6 +1,6 @@
 /************** tabjmg C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabjmg     Version 1.2                                */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/* PROGRAM NAME: tabjmg     Version 1.3                                */
+/*  (C) Copyright to the author Olivier BERTRAND          2021         */
 /*  This file contains the MongoDB classes using the Java Driver.      */
 /***********************************************************************/
 
@@ -30,6 +30,7 @@
 #define nullptr 0
 
 PQRYRES MGOColumns(PGLOBAL g, PCSZ db, PCSZ uri, PTOS topt, bool info);
+bool    Stringified(PCSZ, char*);
 
 /* -------------------------- Class JMGDISC -------------------------- */
 
@@ -166,6 +167,7 @@ TDBJMG::TDBJMG(PMGODEF tdp) : TDBEXT(tdp)
 		Coll_name = tdp->Tabname;
 		Options = tdp->Colist;
 		Filter = tdp->Filter;
+		Strfy = tdp->Strfy;
 		B = tdp->Base ? 1 : 0;
 		Pipe = tdp->Pipe && Options != NULL;
 	} else {
@@ -177,6 +179,7 @@ TDBJMG::TDBJMG(PMGODEF tdp) : TDBEXT(tdp)
 		Coll_name = NULL;
 		Options = NULL;
 		Filter = NULL;
+		Strfy = NULL;
 		B = 0;
 		Pipe = false;
 	} // endif tdp
@@ -197,6 +200,7 @@ TDBJMG::TDBJMG(TDBJMG *tdbp) : TDBEXT(tdbp)
 	Coll_name = tdbp->Coll_name;
 	Options = tdbp->Options;
 	Filter = tdbp->Filter;
+	Strfy = tdbp->Strfy;
 	B = tdbp->B;
 	Fpos = tdbp->Fpos;
 	N = tdbp->N;
@@ -384,7 +388,7 @@ int TDBJMG::WriteDB(PGLOBAL g)
 	int rc = RC_OK;
 
 	if (Mode == MODE_INSERT) {
-		rc = Jcp->DocWrite(g);
+		rc = Jcp->DocWrite(g, NULL);
 	} else if (Mode == MODE_DELETE) {
 		rc = Jcp->DocDelete(g, false);
 	} else if (Mode == MODE_UPDATE) {
@@ -420,8 +424,25 @@ JMGCOL::JMGCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
 	: EXTCOL(cdp, tdbp, cprec, i, "MGO")
 {
 	Tmgp = (PTDBJMG)(tdbp->GetOrig() ? tdbp->GetOrig() : tdbp);
-	Jpath = cdp->GetFmt() ? cdp->GetFmt() : cdp->GetName();
-//Mbuf = NULL;
+	Sgfy = Stringified(Tmgp->Strfy, Name);
+
+	if ((Jpath = cdp->GetFmt())) {
+		int n = strlen(Jpath);
+
+		if (n && Jpath[n - 1] == '*') {
+			Jpath = PlugDup(g, cdp->GetFmt());
+
+			if (--n) {
+				if (Jpath[n - 1] == '.') n--;
+				Jpath[n] = 0;
+			}	// endif n
+
+			Sgfy = true;
+		}	// endif Jpath
+
+	}	else
+		Jpath = cdp->GetName();
+
 } // end of JMGCOL constructor
 
 /***********************************************************************/
@@ -432,7 +453,7 @@ JMGCOL::JMGCOL(JMGCOL *col1, PTDB tdbp) : EXTCOL(col1, tdbp)
 {
 	Tmgp = col1->Tmgp;
 	Jpath = col1->Jpath;
-//Mbuf = col1->Mbuf;
+	Sgfy = col1->Sgfy;
 } // end of JMGCOL copy constructor
 
 /***********************************************************************/
@@ -442,7 +463,7 @@ PSZ JMGCOL::GetJpath(PGLOBAL g, bool proj)
 {
 	if (Jpath) {
 		if (proj) {
-			char *p1, *p2, *projpath = PlugDup(g, Jpath);
+			char* p1, * p2, * projpath = PlugDup(g, Jpath);
 			int   i = 0;
 
 			for (p1 = p2 = projpath; *p1; p1++)
@@ -459,6 +480,9 @@ PSZ JMGCOL::GetJpath(PGLOBAL g, bool proj)
 
 				} else
 					*p2++ = *p1;
+
+			if (*(p2 - 1) == '.')
+				p2--;
 
 			*p2 = 0;
 			return projpath;
@@ -489,6 +513,7 @@ char *JMGCOL::Mini(PGLOBAL g, const bson_t *bson, bool b)
 		switch (s[i]) {
 			case ' ':
 				if (ok) continue;
+				break;
 			case '"':
 				ok = !ok;
 			default:
