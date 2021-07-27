@@ -1,8 +1,25 @@
 ChangeLog for PCRE
 ------------------
 
-Note that the PCRE 8.xx series (PCRE1) is now in a bugfix-only state. All
-development is happening in the PCRE2 10.xx series.
+Note that the PCRE 8.xx series (PCRE1) is now at end of life. All development
+is happening in the PCRE2 10.xx series.
+
+
+Version 8.45 15-June-2021
+-------------------------
+
+This is the final release of PCRE1. A few minor tidies are included.
+
+1. CMakeLists.txt has two user-supplied patches applied, one to allow for the
+setting of MODULE_PATH, and the other to support the generation of pcre-config
+file and libpcre*.pc files.
+
+2. There was a memory leak if a compile error occurred when there were more
+than 20 named groups (Bugzilla #2613).
+
+3. Fixed some typos in code and documentation.
+
+4. Fixed a small (*MARK) bug in the interpreter (Bugzilla #2771).
 
 
 Version 8.44 12 February-2020
