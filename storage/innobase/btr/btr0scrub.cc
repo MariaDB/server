@@ -1,5 +1,5 @@
 // Copyright (c) 2014, Google Inc.
-// Copyright (c) 2017, MariaDB Corporation.
+// Copyright (c) 2017, 2021, MariaDB Corporation.
 
 /**************************************************//**
 @file btr/btr0scrub.cc
@@ -830,20 +830,12 @@ btr_scrub_page(
 
 /**************************************************************//**
 Start iterating a space */
-UNIV_INTERN
-bool
-btr_scrub_start_space(
-/*===================*/
-	ulint space,             /*!< in: space */
-	btr_scrub_t* scrub_data) /*!< in/out: scrub data */
+bool btr_scrub_start_space(const fil_space_t &space, btr_scrub_t *scrub_data)
 {
-	bool found;
-	scrub_data->space = space;
+	scrub_data->space = space.id;
 	scrub_data->current_table = NULL;
 	scrub_data->current_index = NULL;
-	const page_size_t page_size = fil_space_get_page_size(space, &found);
-
-	scrub_data->compressed = page_size.is_compressed();
+	scrub_data->compressed = FSP_FLAGS_GET_ZIP_SSIZE(space.flags) != 0;
 	scrub_data->scrubbing = check_scrub_setting(scrub_data);
 	return scrub_data->scrubbing;
 }
