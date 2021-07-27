@@ -1200,7 +1200,7 @@ fil_crypt_space_needs_rotation(
 			key_state->rotate_key_age);
 
 		crypt_data->rotate_state.scrubbing.is_active =
-			btr_scrub_start_space(space->id, &state->scrub_data);
+			btr_scrub_start_space(*space, &state->scrub_data);
 
 		time_t diff = time(0) - crypt_data->rotate_state.scrubbing.
 			last_scrub_completed;
