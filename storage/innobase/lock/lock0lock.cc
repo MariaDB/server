@@ -1376,6 +1376,19 @@ wsrep_print_wait_locks(
 }
 #endif /* WITH_WSREP */
 
+#ifdef UNIV_DEBUG
+/** Check transaction state */
+static void check_trx_state(const trx_t *trx)
+{
+  ut_ad(!trx->auto_commit || trx->will_lock);
+  const trx_state_t state= trx->state;
+  ut_ad(state == TRX_STATE_ACTIVE ||
+        state == TRX_STATE_PREPARED_RECOVERED ||
+        state == TRX_STATE_PREPARED ||
+        state == TRX_STATE_COMMITTED_IN_MEMORY);
+}
+#endif
+
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
 @param[in]	type_mode	lock mode and wait flag; type will be replaced
@@ -3589,8 +3602,8 @@ lock_table_create(
 	ut_ad(table && trx);
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(trx));
-
-	check_trx_state(trx);
+	ut_ad(trx->is_recovered || trx->state == TRX_STATE_ACTIVE);
+	ut_ad(!trx->auto_commit || trx->will_lock);
 
 	if ((type_mode & LOCK_MODE_MASK) == LOCK_AUTO_INC) {
 		++table->n_waiting_or_granted_auto_inc_locks;
@@ -4545,7 +4558,10 @@ lock_remove_recovered_trx_record_locks(
 	     trx != NULL;
 	     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
 
-		assert_trx_in_rw_list(trx);
+		ut_ad(!trx->read_only);
+		ut_ad(trx->in_rw_trx_list);
+		ut_ad(!trx->is_autocommit_non_locking());
+		ut_ad(trx->state != TRX_STATE_NOT_STARTED);
 
 		if (!trx->is_recovered) {
 			continue;
@@ -5181,7 +5197,8 @@ lock_rec_queue_validate(
 			ut_ad(!index || lock->index == index);
 
 			trx_mutex_enter(lock->trx);
-			ut_ad(!trx_is_ac_nl_ro(lock->trx));
+			ut_ad(!lock->trx->read_only
+			      || !lock->trx->is_autocommit_non_locking());
 			ut_ad(trx_state_eq(lock->trx,
 					   TRX_STATE_COMMITTED_IN_MEMORY)
 			      || !lock_get_wait(lock)
@@ -5260,8 +5277,7 @@ lock_rec_queue_validate(
 	for (lock = lock_rec_get_first(lock_sys->rec_hash, block, heap_no);
 	     lock != NULL;
 	     lock = lock_rec_get_next_const(heap_no, lock)) {
-
-		ut_ad(!trx_is_ac_nl_ro(lock->trx));
+		ut_ad(!lock->trx->is_autocommit_non_locking());
 
 		if (index) {
 			ut_a(lock->index == index);
@@ -5357,7 +5373,8 @@ loop:
 		}
 	}
 
-	ut_ad(!trx_is_ac_nl_ro(lock->trx));
+	ut_ad(!lock->trx->read_only
+	      || !lock->trx->is_autocommit_non_locking());
 
 	/* Only validate the record queues when this thread is not
 	holding a space->latch. */
@@ -5465,7 +5482,7 @@ lock_rec_validate(
 
 		ib_uint64_t	current;
 
-		ut_ad(!trx_is_ac_nl_ro(lock->trx));
+		ut_ad(!lock->trx->is_autocommit_non_locking());
 		ut_ad(lock_get_type(lock) == LOCK_REC);
 
 		current = ut_ull_create(
@@ -7075,7 +7092,8 @@ DeadlockChecker::search()
 
 	ut_ad(m_start != NULL);
 	ut_ad(m_wait_lock != NULL);
-	check_trx_state(m_wait_lock->trx);
+	ut_ad(!m_wait_lock->trx->auto_commit || m_wait_lock->trx->will_lock);
+	ut_d(check_trx_state(m_wait_lock->trx));
 	ut_ad(m_mark_start <= s_lock_mark_counter);
 
 	/* Look at the locks ahead of wait_lock in the lock queue. */
@@ -7235,7 +7253,8 @@ DeadlockChecker::check_and_resolve(const lock_t* lock, trx_t* trx)
 {
 	ut_ad(lock_mutex_own());
 	ut_ad(trx_mutex_own(trx));
-	check_trx_state(trx);
+	ut_ad(trx->state == TRX_STATE_ACTIVE);
+	ut_ad(!trx->auto_commit || trx->will_lock);
 	ut_ad(!srv_read_only_mode);
 
 	if (!innobase_deadlock_detect) {

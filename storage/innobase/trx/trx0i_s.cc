@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2019, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -577,7 +577,7 @@ thd_done:
 
 	row->trx_is_read_only = trx->read_only;
 
-	row->trx_is_autocommit_non_locking = trx_is_autocommit_non_locking(trx);
+	row->trx_is_autocommit_non_locking = trx->is_autocommit_non_locking();
 
 	return(TRUE);
 }
@@ -1259,7 +1259,21 @@ fetch_data_into_cache_low(
 			continue;
 		}
 
-		assert_trx_nonlocking_or_in_list(trx);
+
+#ifdef UNIV_DEBUG
+		if (trx->is_autocommit_non_locking()) {
+			ut_ad(trx->read_only);
+			ut_ad(!trx->is_recovered);
+			ut_ad(trx->mysql_thd);
+			ut_ad(trx->in_mysql_trx_list);
+			const trx_state_t state = trx->state;
+			ut_ad(state == TRX_STATE_NOT_STARTED
+			      || state == TRX_STATE_ACTIVE);
+		}
+		else {
+			ut_ad(trx->state != TRX_STATE_NOT_STARTED);
+		}
+#endif /* UNIV_DEBUG */
 
 		ut_ad(trx->in_rw_trx_list == rw_trx_list);
 

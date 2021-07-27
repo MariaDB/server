@@ -513,7 +513,9 @@ trx_sys_init_at_db_start()
 		     trx = UT_LIST_GET_NEXT(trx_list, trx)) {
 
 			ut_ad(trx->is_recovered);
-			assert_trx_in_rw_list(trx);
+			ut_ad(!trx->read_only);
+			ut_ad(trx->in_rw_trx_list);
+			ut_ad(!trx->is_autocommit_non_locking());
 
 			if (trx_state_eq(trx, TRX_STATE_ACTIVE)) {
 				rows_to_undo += trx->undo_no;
@@ -1026,7 +1028,8 @@ trx_sys_validate_trx_list_low(
 	     trx != NULL;
 	     prev_trx = trx, trx = UT_LIST_GET_NEXT(trx_list, prev_trx)) {
 
-		check_trx_state(trx);
+		ut_ad(!trx->is_autocommit_non_locking());
+		ut_ad(trx->state != TRX_STATE_NOT_STARTED);
 		ut_a(prev_trx == NULL || prev_trx->id > trx->id);
 	}
 
