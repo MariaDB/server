@@ -62,12 +62,15 @@ my $res;
 my $cmd;
 if ($opt_purge)
 {
-  $cmd= "find . -name '*.da' -o -name '*.gcda' -o -name '*.gcov' -o ".
+  $cmd= "find . -name '*.da' -o -name '*.gcda*' -o -name '*.gcov' -o ".
                "-name '*.dgcov' | grep -v 'README\.gcov' | xargs rm -f ''";
   logv "Running: $cmd";
   system($cmd)==0 or die "system($cmd): $? $!";
   exit 0;
 }
+
+my $gcc_version= `gcc -dumpversion`;
+$gcc_version=~ s/(\d).*$/$1/;
 
 find(\&gcov_one_file, $root);
 find(\&write_coverage, $root) if $opt_generate;
@@ -162,26 +165,41 @@ sub gcov_one_file {
   }
 
   # now, read the generated file
-  for my $gcov_file (<$_*.gcov>) {
-    open FH, '<', "$gcov_file" or die "open(<$gcov_file): $!";
-    my $fname;
-    while (<FH>) {
-      chomp;
-      if (/^function:/) {
-        next;
+  if ($gcc_version <9){
+    for my $gcov_file (<$_*.gcov>) {
+      open FH, '<', "$gcov_file" or die "open(<$gcov_file): $!";
+      my $fname;
+      while (<FH>) {
+        chomp;
+        if (/^function:/) {
+          next;
+        }
+        if (/^file:/) {
+          $fname=realpath(-f $' ? $' : $root.$');
+          next;
+        }
+        next if /^lcount:\d+,-\d+/; # whatever that means
+        unless (/^lcount:(\d+),(\d+)/ and $fname) {
+          warn "unknown line '$_' in $gcov_file";
+          next;
+        }
+        $cov{$fname}->{$1}+=$2;
       }
-      if (/^file:/) {
-        $fname=realpath(-f $' ? $' : $root.$');
-        next;
-      }
-      next if /^lcount:\d+,-\d+/; # whatever that means
-      unless (/^lcount:(\d+),(\d+)/ and $fname) {
-        warn "unknown line '$_' in $gcov_file";
-        next;
-      }
-      $cov{$fname}->{$1}+=$2;
+      close(FH);
     }
-    close(FH);
+  } else {
+    use IO::Uncompress::Gunzip qw(gunzip $GunzipError);
+    use JSON::PP;
+    my $gcov_file_json;
+    my $fname;
+    gunzip "$_.gcov.json.gz" => \$gcov_file_json or die "gunzip($_.gcov.json.gz): $GunzipError";
+    my $obj= decode_json $gcov_file_json;
+    for my $file (@{$obj->{files}}) {
+      $fname= $file->{file};
+      for my $line (@{$file->{lines}}){
+        $cov{$fname}->{$line->{line_number}}+= $line->{count};
+      }
+    }
   }
 }
 
