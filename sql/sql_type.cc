@@ -5933,13 +5933,19 @@ void Type_handler_geometry::Item_param_set_param_func(Item_param *param,
 
 /***************************************************************************/
 
-bool Type_handler_string_result::union_element_finalize(const Item * item) const
+bool Type_handler_string_result::union_element_finalize(Item_type_holder *item) const
 {
   if (item->collation.derivation == DERIVATION_NONE)
   {
     my_error(ER_CANT_AGGREGATE_NCOLLATIONS, MYF(0), "UNION");
     return true;
   }
+  return false;
+}
+
+bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
+{
+  item->set_handler(&type_handler_string);
   return false;
 }
 

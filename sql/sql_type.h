@@ -62,6 +62,7 @@ class Item_func_minus;
 class Item_func_mul;
 class Item_func_div;
 class Item_func_mod;
+class Item_type_holder;
 class cmp_item;
 class in_vector;
 class Type_handler_hybrid_field_type;
@@ -1191,7 +1192,7 @@ public:
     Performs the final data type validation for a UNION element,
     after the regular "aggregation for result" was done.
   */
-  virtual bool union_element_finalize(const Item * item) const
+  virtual bool union_element_finalize(Item_type_holder *item) const
   {
     return false;
   }
@@ -2244,7 +2245,7 @@ public:
   void sortlength(THD *thd,
                   const Type_std_attributes *item,
                   SORT_FIELD_ATTR *attr) const;
-  bool union_element_finalize(const Item * item) const;
+  bool union_element_finalize(Item_type_holder *item) const;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
                                         Column_definition *c,
@@ -3118,6 +3119,7 @@ public:
   bool Item_send(Item *item, Protocol *protocol, st_value *buf) const;
   Field *make_conversion_table_field(TABLE *, uint metadata,
                                      const Field *target) const;
+  bool union_element_finalize(Item_type_holder *item) const;
   bool Column_definition_fix_attributes(Column_definition *c) const;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,

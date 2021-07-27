@@ -1154,7 +1154,8 @@ cont:
         Test if the aggregated data type is OK for a UNION element.
         E.g. in case of string data, DERIVATION_NONE is not allowed.
       */
-      if (type->type_handler()->union_element_finalize(type))
+      if (type->type() == Item::TYPE_HOLDER && type->type_handler()->
+            union_element_finalize(static_cast<Item_type_holder*>(type)))
         goto err;
     }
     
