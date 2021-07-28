@@ -1734,10 +1734,7 @@ int spider_db_append_key_where_internal(
       }
     } else {
       DBUG_PRINT("info", ("spider tgt_key_part_map=%lu", tgt_key_part_map));
-      if (tgt_key_part_map > 1)
-        key_eq = TRUE;
-      else
-        key_eq = FALSE;
+      key_eq = FALSE;
     }
     if (
       (key_eq && use_key == start_key) ||

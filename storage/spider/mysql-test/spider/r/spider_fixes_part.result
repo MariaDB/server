@@ -264,6 +264,7 @@ a	b	c	d	e	f
 093B37A93A534DF883787AF5F6799674	996C7F14989D480589A553717D735E3E	51041110620302	2018-08-02 13:48:30	510411	0
 #
 # MDEV-25985 Spider handle ">=" as ">" in some cases
+# MDEV-26111 Spider handle ">=" as "=" in some cases
 #
 connection child2_1;
 DROP TABLE IF EXISTS t1;
@@ -288,11 +289,17 @@ KEY (b,c)
 PARTITION `pt1` DEFAULT COMMENT = 'srv "s_2_1"'
   );
 connection master_1;
+# MDEV-25985
 SELECT * FROM t1 WHERE c > 0 AND b >= 1 AND b <= 2;
 a	b	c
 1	1	1
 2	2	1
 SELECT * FROM t1 WHERE c < 3 AND b <= 2;
+a	b	c
+1	1	1
+2	2	1
+# MDEV-26111
+SELECT * FROM t1 WHERE b >= 1 AND c > 0;
 a	b	c
 1	1	1
 2	2	1
