@@ -33,12 +33,19 @@
 #define WC_RSA_PSS
 /* End of TLSv1.3 defines */
 
+/* Features we exclude */
+#define NO_DSA
+#define NO_HC128
+#define NO_MD4
+#define NO_PSK
+#define NO_RABBIT
+#define NO_RC4
+
 /*
   FP_MAX_BITS is set high solely to satisfy ssl_8k_key.test
   WolfSSL will use more stack space with it, with fastmath
 */
-#define FP_MAX_BITS 16384
-
+#cmakedefine FP_MAX_BITS 16384
 #cmakedefine WOLFSSL_AESNI
 #cmakedefine USE_FAST_MATH
 #cmakedefine TFM_TIMING_RESISTANT
