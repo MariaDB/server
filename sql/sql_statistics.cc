@@ -76,6 +76,8 @@ std::vector<std::string> parse_histogram_from_json(const char *json);
 
 void test_parse_histogram_from_json();
 
+Histogram_base *create_histogram(Histogram_type hist_type);
+
 /* Currently there are only 3 persistent statistical tables */
 static const uint STATISTICS_TABLES= 3;
 
@@ -1217,9 +1219,9 @@ public:
     The method assumes that the value of histogram size and the pointer to
     the histogram location has been already set in the fields size and values
     of read_stats->histogram.
-  */    
+  */
 
-  Histogram * load_histogram(MEM_ROOT *mem_root)
+  Histogram_binary * load_histogram(MEM_ROOT *mem_root)
   {
     if (find_stat())
     {
@@ -1230,7 +1232,7 @@ public:
       table_field->read_stats->set_not_null(fldno);
       stat_field->val_str(&val);
       // histogram-todo: here, create the histogram of appropriate type.
-      Histogram *hist= new (mem_root) Histogram();
+      Histogram_binary *hist= new (mem_root) Histogram_binary();
       if (!hist->parse(mem_root, table_field->read_stats->histogram_type_on_disk, 
                        (const uchar*)val.ptr(), val.length()))
       {
@@ -1244,7 +1246,7 @@ public:
   }
 };
 
-bool Histogram::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr_arg, uint size_arg)
+bool Histogram_binary::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr_arg, uint size_arg)
 {
   // Just copy the data
   size = (uint8) size_arg;
@@ -1258,7 +1260,7 @@ bool Histogram::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *
 /*
   Save the histogram data info a table field.
 */
-void Histogram::serialize(Field *field)
+void Histogram_binary::serialize(Field *field)
 {
   if (get_type() == JSON)
   {
@@ -1269,7 +1271,7 @@ void Histogram::serialize(Field *field)
     field->store((char*)get_values(), get_size(), &my_charset_bin);
 }
 
-void Histogram::init_for_collection(MEM_ROOT *mem_root,
+void Histogram_binary::init_for_collection(MEM_ROOT *mem_root,
                                     Histogram_type htype_arg, 
                                     ulonglong size_arg)
 {
@@ -1278,6 +1280,13 @@ void Histogram::init_for_collection(MEM_ROOT *mem_root,
   size= (uint8) size_arg;
 }
 
+
+void Histogram_json::init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size_arg)
+{
+  type= htype_arg;
+  values = (uchar*)alloc_root(mem_root, size_arg);
+  size = (uint8) size_arg;
+}
 /*
   An object of the class Index_stat is created to read statistical
   data on tables from the statistical table table_stat, to update
@@ -1595,13 +1604,13 @@ public:
 
 class Histogram_builder
 {
-protected:
+private:
   Field *column;           /* table field for which the histogram is built */
   uint col_length;         /* size of this field                           */
   ha_rows records;         /* number of records the histogram is built for */
   Field *min_value;        /* pointer to the minimal value for the field   */
   Field *max_value;        /* pointer to the maximal value for the field   */
-  Histogram *histogram;    /* the histogram location                       */
+  Histogram_binary *histogram;    /* the histogram location                       */
   uint hist_width;         /* the number of points in the histogram        */
   double bucket_capacity;  /* number of rows in a bucket of the histogram  */ 
   uint curr_bucket;        /* number of the current bucket to be built     */
@@ -1617,7 +1626,7 @@ public:
     Column_statistics *col_stats= col->collected_stats;
     min_value= col_stats->min_value;
     max_value= col_stats->max_value;
-    histogram= col_stats->histogram_;
+    histogram= dynamic_cast<Histogram_binary *>(col_stats->histogram_);
     hist_width= histogram->get_width();
     bucket_capacity= (double) records / (hist_width + 1);
     curr_bucket= 0;
@@ -1625,6 +1634,8 @@ public:
     count_distinct= 0;
     count_distinct_single_occurence= 0;
   }
+
+  Histogram_builder() = default;
 
   virtual ~Histogram_builder() = default;
 
@@ -1661,16 +1672,29 @@ public:
 
 class Histogram_builder_json : public Histogram_builder
 {
-std::vector<std::string> bucket_bounds = {};
+  Field *column;           /* table field for which the histogram is built */
+  uint col_length;         /* size of this field                           */
+  ha_rows records;         /* number of records the histogram is built for */
+  Field *min_value;        /* pointer to the minimal value for the field   */
+  Field *max_value;        /* pointer to the maximal value for the field   */
+  Histogram_json *histogram;    /* the histogram location                       */
+  uint hist_width;         /* the number of points in the histogram        */
+  double bucket_capacity;  /* number of rows in a bucket of the histogram  */
+  uint curr_bucket;        /* number of the current bucket to be built     */
+  ulonglong count;         /* number of values retrieved                   */
+  ulonglong count_distinct;    /* number of distinct values retrieved      */
+  /* number of distinct values that occured only once  */
+  ulonglong count_distinct_single_occurence;
+  std::vector<std::string> bucket_bounds = {};
 
 public:
   Histogram_builder_json(Field *col, uint col_len, ha_rows rows)
-  : Histogram_builder(col, col_len, rows)
+  : column(col), col_length(col_len), records(rows)
   {
     Column_statistics *col_stats= col->collected_stats;
     min_value= col_stats->min_value;
     max_value= col_stats->max_value;
-    histogram= col_stats->histogram_;
+    histogram= dynamic_cast<Histogram_json *>(col_stats->histogram_);
     hist_width= histogram->get_width();
     bucket_capacity= (double) records / (hist_width + 1);
     curr_bucket= 0;
@@ -1717,6 +1741,15 @@ public:
     test_parse_histogram_from_json();
   }
 };
+
+Histogram_base *create_histogram(Histogram_type hist_type)
+{
+  // assumes the caller already checked for invalid histograms
+  if (hist_type == JSON)
+    return new Histogram_json;
+  else
+    return new Histogram_binary;
+}
 
 void test_parse_histogram_from_json()
 {
@@ -1954,9 +1987,9 @@ public:
     @brief
     Get the pointer to the histogram built for table_field
   */
-  Histogram *get_histogram()
+  Histogram_binary *get_histogram()
   {
-    return table_field->collected_stats->histogram_;
+    return dynamic_cast<Histogram_binary *>(table_field->collected_stats->histogram_);
   }
 
 };
@@ -2608,18 +2641,18 @@ bool Column_statistics_collected::add()
 
 
 /* 
-  Create an empty Histogram object from histogram_type.
+  Create an empty Histogram_binary object from histogram_type.
 
   Note: it is not yet clear whether collection-time histogram should be the same 
   as lookup-time histogram. At the moment, they are.
 */
 
-Histogram* get_histogram_by_type(MEM_ROOT *mem_root, Histogram_type hist_type) {
+Histogram_binary * get_histogram_by_type(MEM_ROOT *mem_root, Histogram_type hist_type) {
   switch (hist_type) {
   case SINGLE_PREC_HB:
   case DOUBLE_PREC_HB:
   case JSON:
-    return new Histogram();
+    return new Histogram_binary();
   default:
     DBUG_ASSERT(0);
   }
@@ -2660,7 +2693,7 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, doubl
     if (hist_size != 0 && hist_type != INVALID_HISTOGRAM)
     {
       have_histogram= true;
-      histogram_= new Histogram;
+      histogram_= create_histogram(hist_type);
       histogram_->init_for_collection(mem_root, hist_type, hist_size);
     }
 
@@ -4048,7 +4081,8 @@ double get_column_range_cardinality(Field *field,
       if (avg_frequency > 1.0 + 0.000001 && 
           col_stats->min_max_values_are_provided())
       {
-        Histogram *hist= col_stats->histogram_;
+        Histogram_binary *hist=
+            dynamic_cast<Histogram_binary *>(col_stats->histogram_);
         if (hist && hist->is_usable(thd))
         {
           store_key_image_to_rec(field, (uchar *) min_endp->key,
@@ -4092,7 +4126,8 @@ double get_column_range_cardinality(Field *field,
       else
         max_mp_pos= 1.0;
 
-      Histogram *hist= col_stats->histogram_;
+      Histogram_binary *hist=
+          dynamic_cast<Histogram_binary *>(col_stats->histogram_);
       if (hist && hist->is_usable(thd))
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
       else
@@ -4143,7 +4178,7 @@ double get_column_range_cardinality(Field *field,
       value.
 */
 
-double Histogram::point_selectivity(double pos, double avg_sel)
+double Histogram_binary::point_selectivity(double pos, double avg_sel)
 {
   double sel;
   /* Find the bucket that contains the value 'pos'. */
@@ -4179,7 +4214,7 @@ double Histogram::point_selectivity(double pos, double avg_sel)
     /* 
       The value 'pos' fits within one single histogram bucket.
 
-      Histogram buckets have the same numbers of rows, but they cover
+      Histogram_binary buckets have the same numbers of rows, but they cover
       different ranges of values.
 
       We assume that values are uniformly distributed across the [0..1] value

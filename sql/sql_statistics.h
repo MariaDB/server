@@ -153,6 +153,24 @@ public:
   virtual void serialize(Field *to_field)= 0;
 
   virtual Histogram_type get_type()=0;
+
+  virtual uint get_width()=0;
+
+  virtual void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size)=0;
+
+  virtual bool is_available()=0;
+
+  virtual bool is_usable(THD *thd)=0;
+
+  virtual void set_values(uchar * values)=0;
+
+  virtual uchar *get_values()=0;
+
+  virtual void set_size(ulonglong sz)=0;
+
+  virtual double range_selectivity(double min_pos, double max_pos)=0;
+
+  virtual double point_selectivity(double pos, double avg_selection)=0;
   
   // Legacy: return the size of the histogram on disk.
   // This will be stored in mysql.column_stats.hist_size column.
@@ -162,22 +180,21 @@ public:
   virtual ~Histogram_base(){}
 };
 
-class Histogram : public Histogram_base
+class Histogram_binary : public Histogram_base
 {
 public:
   bool parse(MEM_ROOT *mem_root, Histogram_type type_arg, 
              const uchar *ptr_arg, uint size_arg) override;
   void serialize(Field *to_field) override;
+
   Histogram_type get_type() override { return type; }
 
   uint get_size() override { return (uint) size; }
 
-  // returns number of buckets in the histogram
-  uint get_width()
+  uint get_width() override
   {
     switch (type) {
     case SINGLE_PREC_HB:
-    case JSON:
       return size;
     case DOUBLE_PREC_HB:
       return size / 2;
@@ -196,7 +213,6 @@ private:
   {
     switch (type) {
     case SINGLE_PREC_HB:
-    case JSON:
       return ((uint) (1 << 8) - 1);
     case DOUBLE_PREC_HB:
       return ((uint) (1 << 16) - 1);
@@ -211,7 +227,6 @@ private:
     DBUG_ASSERT(i < get_width());
     switch (type) {
     case SINGLE_PREC_HB:
-    case JSON:
       return (uint) (((uint8 *) values)[i]);
     case DOUBLE_PREC_HB:
       return (uint) uint2korr(values + i * 2);
@@ -260,22 +275,22 @@ private:
     return i;
   }
 
-  uchar *get_values() { return (uchar *) values; }
+  uchar *get_values() override { return (uchar *) values; }
 public:
-  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size);
+  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size) override;
 
   // Note: these two are used only for saving the JSON text:
-  void set_values (uchar *vals) { values= (uchar *) vals; }
-  void set_size (ulonglong sz) { size= (uint8) sz; }
+  void set_values (uchar *vals) override { values= (uchar *) vals; }
+  void set_size (ulonglong sz) override { size= (uint8) sz; }
 
-  bool is_available() { return get_size() > 0 && get_values(); }
+  bool is_available() override { return get_size() > 0 && get_values(); }
 
   /*
     This function checks that histograms should be usable only when
       1) the level of optimizer_use_condition_selectivity > 3
       2) histograms have been collected
   */
-  bool is_usable(THD *thd)
+  bool is_usable(THD *thd) override
   {
     return thd->variables.optimizer_use_condition_selectivity > 3 &&
            is_available();
@@ -285,7 +300,6 @@ public:
   {
     switch (type) {
     case SINGLE_PREC_HB:
-    case JSON:
       ((uint8 *) values)[i]= (uint8) (val * prec_factor());
       return;
     case DOUBLE_PREC_HB:
@@ -301,7 +315,6 @@ public:
   {
     switch (type) {
     case SINGLE_PREC_HB:
-    case JSON:
       ((uint8 *) values)[i]= ((uint8 *) values)[i-1];
       return;
     case DOUBLE_PREC_HB:
@@ -313,7 +326,7 @@ public:
     }
   }
 
-  double range_selectivity(double min_pos, double max_pos)
+  double range_selectivity(double min_pos, double max_pos) override
   {
     double sel;
     double bucket_sel= 1.0/(get_width() + 1);  
@@ -326,9 +339,54 @@ public:
   /*
     Estimate selectivity of "col=const" using a histogram
   */
-  double point_selectivity(double pos, double avg_sel);
+  double point_selectivity(double pos, double avg_sel) override;
 };
 
+class Histogram_json : public Histogram_base
+{
+private:
+  Histogram_type type;
+  uint8 size; /* Number of elements in the histogram*/
+  uchar *values;
+
+public:
+  bool parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr, uint size) override {return false;}
+
+  void serialize(Field *to_field) override{}
+
+  uint get_size() override {return (uint) size;}
+
+  // returns number of buckets in the histogram
+  uint get_width() override
+  {
+      return size;
+  };
+
+  Histogram_type get_type() override
+  {
+    return JSON;
+  }
+
+  void set_size (ulonglong sz) override {size = (uint8) sz; }
+
+  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size) override;
+
+  bool is_available() override {return get_size() > 0 && get_values(); }
+
+  bool is_usable(THD *thd) override
+  {
+    return thd->variables.optimizer_use_condition_selectivity > 3 &&
+           is_available();
+  }
+
+  void set_values (uchar *vals) override { values= (uchar *) vals; }
+
+  uchar *get_values() override { return (uchar *) values; }
+
+  double range_selectivity(double min_pos, double max_pos) override {return 0.1;}
+
+  double point_selectivity(double pos, double avg_selection) override {return 0.5;}
+};
 
 class Columns_statistics;
 class Index_statistics;
@@ -411,7 +469,7 @@ private:
 public:
 
   Histogram_type histogram_type_on_disk;
-  Histogram *histogram_;
+  Histogram_base *histogram_;
 
   uint32 no_values_provided_bitmap()
   {
