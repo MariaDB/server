@@ -4181,25 +4181,31 @@ int spider_db_mbase_util::open_item_func(
       ) {
         /* no action */
         break;
-      } else if (func_name_length == 4) {
-        if (!strncasecmp("rand", func_name, func_name_length) &&
+      } else if (func_name_length == 4)
+      {
+        if (
+          !strncasecmp("rand", func_name, func_name_length) &&
 #ifdef SPIDER_Item_args_arg_count_IS_PROTECTED
-           !item_func->argument_count()
+          !item_func->argument_count()
 #else
-           !item_func->arg_count
+          !item_func->arg_count
 #endif
         ) {
           if (str)
             str->length(str->length() - SPIDER_SQL_OPEN_PAREN_LEN);
           DBUG_RETURN(spider_db_open_item_int(item_func, NULL, spider, str,
             alias, alias_length, dbton_id, use_fields, fields));
-        } else if (!strncasecmp("trim", func_name, func_name_length) &&
-          item_count == 2) {
+        } else if (
+          !strncasecmp("trim", func_name, func_name_length) &&
+          item_count == 2
+        ) {
           /* item_count == 1 means this TRIM() is without a remove_str */
           item = item_list[0];
           Item *item_tmp = item_list[1];
-          if (str) {
-            if (item_tmp->type() == Item::STRING_ITEM) {
+          if (str) 
+          {
+            if (item_tmp->type() == Item::STRING_ITEM) 
+            {
               /* 1. append 'TRIM(BOTH ' */
               if (str->reserve(SPIDER_SQL_TRIM_LEN + SPIDER_SQL_OPEN_PAREN_LEN +
                                SPIDER_SQL_TRIM_BOTH_LEN))
@@ -4232,17 +4238,24 @@ int spider_db_mbase_util::open_item_func(
           item_count -= 2;
           break;
         }
-            } else if (func_name_length == 5) {
-        if ((!strncasecmp("ltrim", func_name, func_name_length) ||
-            !strncasecmp("rtrim", func_name, func_name_length)) &&
-            (item_count == 2)) {
-                    /* item_count = 2 means this LTRIM/RTRIM is actually TRIM(LEADING/TRAILING) */
+      } else if (func_name_length == 5)
+      {
+        if (
+          (!strncasecmp("ltrim", func_name, func_name_length) ||
+           !strncasecmp("rtrim", func_name, func_name_length)) &&
+          (item_count == 2)
+        ) {
+          /* the func_name for TRIM(LEADING ...) is LTRIM, for TRIM(TRAILING) is RTRIM */
+          /* item_count == 2 means this TRIM(LEADING/TRAILING ...) is with a remove_str */
           item = item_list[0];
           Item *item_tmp = item_list[1];
-          if (str) {
-            if (item_tmp->type() == Item::STRING_ITEM) {
+          if (str) 
+          {
+            if (item_tmp->type() == Item::STRING_ITEM) 
+            {
               /* 1. append 'TRIM(LEADING ' or 'TRIM(TRAILING ' */
-              if (func_name[0] == 'l' || func_name[0] == 'L') { /* ltrim */
+              if (func_name[0] == 'l' || func_name[0] == 'L')
+              { /* ltrim */
                 if (str->reserve(SPIDER_SQL_TRIM_LEN + SPIDER_SQL_OPEN_PAREN_LEN +
                                  SPIDER_SQL_TRIM_LEADING_LEN))
                   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
@@ -4250,7 +4263,8 @@ int spider_db_mbase_util::open_item_func(
                 str->q_append(SPIDER_SQL_OPEN_PAREN_STR,
                               SPIDER_SQL_OPEN_PAREN_LEN);
                 str->q_append(SPIDER_SQL_TRIM_LEADING_STR, SPIDER_SQL_TRIM_LEADING_LEN);
-              } else { /* rtrim */
+              } else 
+              { /* rtrim */
                 if (str->reserve(SPIDER_SQL_TRIM_LEN + SPIDER_SQL_OPEN_PAREN_LEN +
                                  SPIDER_SQL_TRIM_TRAILING_LEN))
                   DBUG_RETURN(HA_ERR_OUT_OF_MEM);

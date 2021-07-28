@@ -12,15 +12,12 @@ connection master_1;
 CREATE DATABASE auto_test_local;
 USE auto_test_local;
 connection child2_1;
-SET @old_log_output = @@global.log_output;
-SET GLOBAL log_output = 'TABLE,FILE';
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
 
 create table and insert
 connection child2_1;
 CHILD2_1_CREATE_TABLES
-TRUNCATE TABLE mysql.general_log;
 connection master_1;
 CREATE TABLE tbl_a (
 a INT,
@@ -43,8 +40,6 @@ INSERT INTO tbl_a VALUES(10008, "[[[abcd]]");
 INSERT INTO tbl_a VALUES(10009, "[[[**abcd****]]");
 
 test 1
-connection child2_1;
-TRUNCATE TABLE mysql.general_log;
 connection master_1;
 UPDATE tbl_a SET b = trim(b) WHERE a = 10000;
 SELECT * FROM tbl_a WHERE a = 10000;
@@ -92,7 +87,6 @@ connection master_1;
 DROP DATABASE IF EXISTS auto_test_local;
 connection child2_1;
 DROP DATABASE IF EXISTS auto_test_remote;
-SET GLOBAL log_output = @old_log_output;
 for master_1
 for child2
 child2_1

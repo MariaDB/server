@@ -10,8 +10,6 @@ CREATE DATABASE auto_test_local;
 USE auto_test_local;
 
 --connection child2_1
-SET @old_log_output = @@global.log_output;
-SET GLOBAL log_output = 'TABLE,FILE';
 CREATE DATABASE auto_test_remote;
 USE auto_test_remote;
 --enable_warnings
@@ -26,7 +24,6 @@ echo CHILD2_1_CREATE_TABLES;
 eval $CHILD2_1_CREATE_TABLES;
 --enable_ps_protocol
 --enable_query_log
-TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 --disable_query_log
@@ -54,9 +51,6 @@ INSERT INTO tbl_a VALUES(10009, "[[[**abcd****]]");
 
 --echo
 --echo test 1
-
---connection child2_1
-TRUNCATE TABLE mysql.general_log;
 
 --connection master_1
 UPDATE tbl_a SET b = trim(b) WHERE a = 10000;
@@ -89,7 +83,6 @@ DROP DATABASE IF EXISTS auto_test_local;
 
 --connection child2_1
 DROP DATABASE IF EXISTS auto_test_remote;
-SET GLOBAL log_output = @old_log_output;
 
 --enable_warnings
 --source ../include/mdev_24020_deinit.inc
