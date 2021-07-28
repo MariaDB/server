@@ -15,7 +15,7 @@ while (!$mysql_errno)
   dec $counter;
   if (!$counter)
   {
-    --die Server failed to dissapear
+    --die Server failed to disappear
   }
   --real_sleep 0.1
 }

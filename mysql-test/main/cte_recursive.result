@@ -4565,6 +4565,28 @@ drop procedure sp1;
 drop procedure sp2;
 drop table t1;
 #
+# MDEV-26202: Recursive CTE used indirectly twice
+# (fixed by the patch forMDEV-26025)
+#
+with recursive
+rcte as ( SELECT 1 AS a
+UNION ALL
+SELECT cast(a + 1 as unsigned int) FROM rcte WHERE a < 3),
+cte1 AS (SELECT a FROM rcte),
+cte2 AS (SELECT a FROM cte1),
+cte3 AS ( SELECT a FROM  cte2)
+SELECT * FROM cte2, cte3;
+a	a
+1	1
+2	1
+3	1
+1	2
+2	2
+3	2
+1	3
+2	3
+3	3
+#
 # End of 10.2 tests
 #
 #

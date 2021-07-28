@@ -140,7 +140,7 @@ trx_init(
 
 	trx->auto_commit = false;
 
-	trx->will_lock = 0;
+	trx->will_lock = false;
 
 	trx->ddl = false;
 
@@ -345,13 +345,13 @@ trx_t *trx_create()
 	MEM_MAKE_DEFINED(trx, sizeof *trx);
 #endif
 
-	assert_trx_is_free(trx);
+	trx->assert_freed();
 
 	mem_heap_t*	heap;
 	ib_alloc_t*	alloc;
 
 	/* We just got trx from pool, it should be non locking */
-	ut_ad(trx->will_lock == 0);
+	ut_ad(!trx->will_lock);
 	ut_ad(trx->state == TRX_STATE_NOT_STARTED);
 	ut_ad(!trx->rw_trx_hash_pins);
 
@@ -395,7 +395,7 @@ void trx_t::free()
 
   dict_operation= TRX_DICT_OP_NONE;
   trx_sys.deregister_trx(this);
-  assert_trx_is_free(this);
+  assert_freed();
   trx_sys.rw_trx_hash.put_pins(this);
 
   mysql_thd= NULL;
@@ -567,7 +567,7 @@ void trx_disconnect_prepared(trx_t *trx)
   trx->is_recovered= true;
   trx->mysql_thd= NULL;
   /* todo/fixme: suggest to do it at innodb prepare */
-  trx->will_lock= 0;
+  trx->will_lock= false;
 }
 
 /****************************************************************//**
@@ -917,11 +917,10 @@ void trx_t::remove_flush_observer()
 
 /** Assign a rollback segment for modifying temporary tables.
 @return the assigned rollback segment */
-trx_rseg_t*
-trx_t::assign_temp_rseg()
+trx_rseg_t *trx_t::assign_temp_rseg()
 {
 	ut_ad(!rsegs.m_noredo.rseg);
-	ut_ad(!trx_is_autocommit_non_locking(this));
+	ut_ad(!is_autocommit_non_locking());
 	compile_time_assert(ut_is_2pow(TRX_SYS_N_RSEGS));
 
 	/* Choose a temporary rollback segment between 0 and 127
@@ -971,8 +970,8 @@ trx_start_low(
 		    && thd_trx_is_read_only(trx->mysql_thd));
 
 	if (!trx->auto_commit) {
-		++trx->will_lock;
-	} else if (trx->will_lock == 0) {
+		trx->will_lock = true;
+	} else if (!trx->will_lock) {
 		trx->read_only = true;
 	}
 
@@ -1015,7 +1014,7 @@ trx_start_low(
 
 		trx_sys.register_rw(trx);
 	} else {
-		if (!trx_is_autocommit_non_locking(trx)) {
+		if (!trx->is_autocommit_non_locking()) {
 
 			/* If this is a read-only transaction that is writing
 			to a temporary table then it needs a transaction id
@@ -1285,11 +1284,14 @@ trx_commit_in_memory(
 	trx->must_flush_log_later = false;
 	trx->read_view.close();
 
-	if (trx_is_autocommit_non_locking(trx)) {
+	if (trx->is_autocommit_non_locking()) {
 		ut_ad(trx->id == 0);
 		ut_ad(trx->read_only);
+		ut_ad(!trx->will_lock);
 		ut_a(!trx->is_recovered);
 		ut_ad(trx->rsegs.m_redo.rseg == NULL);
+		ut_ad(trx->mysql_thd);
+		ut_ad(trx->state == TRX_STATE_ACTIVE);
 
 		/* Note: We are asserting without holding the lock mutex. But
 		that is OK because this transaction is not waiting and cannot
@@ -1304,8 +1306,6 @@ trx_commit_in_memory(
 		However, the trx_sys_t::mutex will protect the trx_t instance
 		and it cannot be removed from the trx_list and freed
 		without first acquiring the trx_sys_t::mutex. */
-
-		ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE));
 
 		MONITOR_INC(MONITOR_TRX_NL_RO_COMMIT);
 
@@ -1437,7 +1437,7 @@ trx_commit_in_memory(
 	trx->wsrep = false;
 #endif
 
-	assert_trx_is_free(trx);
+	trx->assert_freed();
 
 	trx_init(trx);
 
@@ -1452,8 +1452,6 @@ trx_commit_in_memory(
 @param[in,out]	mtr	mini-transaction (NULL if no modifications) */
 void trx_commit_low(trx_t* trx, mtr_t* mtr)
 {
-	assert_trx_nonlocking_or_in_list(trx);
-	ut_ad(!trx_state_eq(trx, TRX_STATE_COMMITTED_IN_MEMORY));
 	ut_ad(!mtr || mtr->is_active());
 	ut_d(bool aborted = trx->in_rollback
 	     && trx->error_state == DB_DEADLOCK);
@@ -1462,23 +1460,15 @@ void trx_commit_low(trx_t* trx, mtr_t* mtr)
 
 	/* undo_no is non-zero if we're doing the final commit. */
 	if (trx->fts_trx != NULL && trx->undo_no != 0) {
-		dberr_t	error;
-
-		ut_a(!trx_is_autocommit_non_locking(trx));
-
-		error = fts_commit(trx);
+		ut_a(!trx->is_autocommit_non_locking());
 
 		/* FTS-FIXME: Temporarily tolerate DB_DUPLICATE_KEY
 		instead of dying. This is a possible scenario if there
 		is a crash between insert to DELETED table committing
 		and transaction committing. The fix would be able to
 		return error from this function */
-		if (error != DB_SUCCESS && error != DB_DUPLICATE_KEY) {
-			/* FTS-FIXME: once we can return values from this
-			function, we should do so and signal an error
-			instead of just dying. */
-
-			ut_error;
+		if (dberr_t error = fts_commit(trx)) {
+			ut_a(error == DB_DUPLICATE_KEY);
 		}
 	}
 
@@ -1770,7 +1760,6 @@ trx_print_low(
 			/*!< in: mem_heap_get_size(trx->lock.lock_heap) */
 {
 	ibool		newline;
-	const char*	op_info;
 
 	fprintf(f, "TRANSACTION " TRX_ID_FMT, trx_get_id_for_print(trx));
 
@@ -1797,9 +1786,7 @@ trx_print_low(
 	fprintf(f, ", state %lu", (ulong) trx->state);
 	ut_ad(0);
 state_ok:
-
-	/* prevent a race condition */
-	op_info = trx->op_info;
+	const char* op_info = trx->op_info;
 
 	if (*op_info) {
 		putc(' ', f);
@@ -2270,7 +2257,7 @@ trx_start_internal_low(
 	/* Ensure it is not flagged as an auto-commit-non-locking
 	transaction. */
 
-	trx->will_lock = 1;
+	trx->will_lock = true;
 
 	trx->internal = true;
 
@@ -2286,7 +2273,7 @@ trx_start_internal_read_only_low(
 	/* Ensure it is not flagged as an auto-commit-non-locking
 	transaction. */
 
-	trx->will_lock = 1;
+	trx->will_lock = true;
 
 	trx->internal = true;
 
@@ -2307,13 +2294,7 @@ trx_start_for_ddl_low(
 		the data dictionary will be locked in crash recovery. */
 
 		trx_set_dict_operation(trx, op);
-
-		/* Ensure it is not flagged as an auto-commit-non-locking
-		transation. */
-		trx->will_lock = 1;
-
 		trx->ddl= true;
-
 		trx_start_internal_low(trx);
 		return;
 
@@ -2340,7 +2321,7 @@ trx_set_rw_mode(
 	trx_t*		trx)		/*!< in/out: transaction that is RW */
 {
 	ut_ad(trx->rsegs.m_redo.rseg == 0);
-	ut_ad(!trx_is_autocommit_non_locking(trx));
+	ut_ad(!trx->is_autocommit_non_locking());
 	ut_ad(!trx->read_only);
 	ut_ad(trx->id == 0);
 
