@@ -22,6 +22,7 @@ output=".my.output.$$"
 trap "interrupt" 1 2 3 6 15
 
 rootpass=""
+user="root"
 echo_n=
 echo_c=
 basedir=
@@ -182,7 +183,7 @@ then
   exit 1
 fi
 
-# Now we can get arguments from the group [client] and [client-server]
+# Now we can get arguments from the group [client],[client-server] and [client-mariadb]
 # in the my.cfg file, then re-run to merge with command line arguments.
 parse_arguments `$print_defaults $defaults_file $defaults_extra_file $no_defaults client client-server client-mariadb`
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
@@ -217,7 +218,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command >$output
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command >$output 2>&1
     return $?
 }
 
@@ -248,7 +249,7 @@ basic_single_escape () {
 make_config() {
     echo "# mysql_secure_installation config file" >$config
     echo "[mysql]" >>$config
-    echo "user=root" >>$config
+    echo "user=$user" >>$config
     esc_pass=`basic_single_escape "$rootpass"`
     echo "password='$esc_pass'" >>$config
     #sed 's,^,> ,' < $config  # Debugging
@@ -264,7 +265,20 @@ get_root_password() {
     status=1
     while [ $status -eq 1 ]; do
 	stty -echo
-	echo $echo_n "Enter current password for root (enter for none): $echo_c"
+  make_config
+    do_query "select current_user"
+    if grep -A1 "current_user" -q $output; then
+      user="$(grep -A1 "current_user" $output|tail -n +2|cut -d "@" -f1)"
+    else
+      if grep -q 'ERROR 1698' $output; then
+        echo "Access denied for user root. Use sudo."
+      else
+        echo "No such user exist. Force exit."
+      fi
+      stty sane
+      clean_and_exit
+    fi
+	echo $echo_n "Enter current password for $user (enter for none): $echo_c"
 	read password
 	echo
 	stty echo
@@ -277,6 +291,10 @@ get_root_password() {
 	make_config
 	do_query "show create user root@localhost"
 	status=$?
+    if grep -q 'ERROR 1133' $output; then
+      echo "User 'root' doesn't exist. Force exit."
+      clean_and_exit
+    fi
     done
     if grep -q unix_socket $output; then
       emptypass=0
