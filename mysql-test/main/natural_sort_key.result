@@ -1,0 +1,169 @@
+SET NAMES utf8mb4;
+SELECT NATURAL_SORT_KEY(NULL);
+NATURAL_SORT_KEY(NULL)
+NULL
+SELECT '' c WHERE 0 UNION VALUES('a10'),('a9'),('a1000'), ('a0'),('b'),('b0') ORDER BY NATURAL_SORT_KEY(c);
+c
+a0
+a9
+a10
+a1000
+b
+b0
+SELECT NATURAL_SORT_KEY(repeat('a1',@@max_allowed_packet/2-1));
+NATURAL_SORT_KEY(repeat('a1',@@max_allowed_packet/2-1))
+NULL
+Warnings:
+Warning	1301	Result of natural_sort_key() was larger than max_allowed_packet (16777216) - truncated
+CREATE TABLE t1(
+c VARCHAR(30) CHARACTER SET latin1 COLLATE latin1_bin,
+k VARCHAR(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (NATURAL_SORT_KEY(CONVERT(c USING utf8mb4))) INVISIBLE,
+KEY(k,c)) ENGINE=InnoDB;
+INSERT INTO t1 values
+('A1'),('a1'),('A100'),('a100'),('A2'),('ä2'),('a2'),('A99'),
+('äb'),('B1'),('B100'),('B9'),('C'),('100');
+EXPLAIN SELECT c FROM t1 ORDER BY k,c;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	index	NULL	k	216	NULL	14	Using index
+#Natural sort order.
+SELECT c FROM t1 ORDER BY k,c;
+c
+100
+A1
+a1
+A2
+a2
+ä2
+A99
+A100
+a100
+äb
+B1
+B9
+B100
+C
+#Unnatural but  unicode aware) sort order
+SELECT c FROM t1 ORDER BY CONVERT(c USING utf8mb4) COLLATE utf8mb4_unicode_ci,c;
+c
+100
+A1
+a1
+A100
+a100
+A2
+a2
+ä2
+A99
+äb
+B1
+B100
+B9
+C
+CREATE TABLE t2 AS SELECT c, NATURAL_SORT_KEY(c) FROM t1 WHERE 0;
+SHOW CREATE TABLE t2;
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` varchar(30) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL,
+  `NATURAL_SORT_KEY(c)` varchar(45) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+DROP TABLE t1,t2;
+SELECT RPAD(val,21,' ') value , RPAD(NATURAL_SORT_KEY(val),26,' ') sortkey , LENGTH(NATURAL_SORT_KEY(val)) - LENGTH(val) encoding_overhead
+FROM
+(
+SELECT 0 val
+UNION  VALUES ('0.0'),('0.1'), ('0,15'),('1.001'),('1.002'),('1.010'),('1.02'),('1.1'),('1.3'),('1'),('01'),('0001')
+UNION  SELECT CONCAT('1',repeat('0',seq)) FROM seq_1_to_20
+) AS numbers ORDER BY sortkey;
+value	sortkey	encoding_overhead
+0                    	00                        	1
+0,15                 	00,115                    	2
+0.0                  	00.00                     	2
+0.1                  	00.01                     	2
+1                    	01                        	1
+1.1                  	01.01                     	2
+1.001                	01.011                    	1
+1.02                 	01.020                    	2
+1.002                	01.021                    	1
+1.3                  	01.03                     	2
+1.010                	01.1100                   	2
+01                   	010                       	1
+0001                 	012                       	-1
+10                   	110                       	1
+100                  	2100                      	1
+1000                 	31000                     	1
+10000                	410000                    	1
+100000               	5100000                   	1
+1000000              	61000000                  	1
+10000000             	710000000                 	1
+100000000            	8100000000                	1
+1000000000           	901000000000              	2
+10000000000          	9110000000000             	2
+100000000000         	92100000000000            	2
+1000000000000        	931000000000000           	2
+10000000000000       	9410000000000000          	2
+100000000000000      	95100000000000000         	2
+1000000000000000     	961000000000000000        	2
+10000000000000000    	9710000000000000000       	2
+100000000000000000   	98100000000000000000      	2
+1000000000000000000  	9901000000000000000000    	3
+10000000000000000000 	9912010000000000000000000 	5
+100000000000000000000	99121100000000000000000000	5
+# Disable fractions handling by passing NULL as second parameter to NATURAL_SORT_KEY
+SELECT val value
+FROM
+(
+SELECT 0 val
+UNION  VALUES ('0.1'),('1.001'),('1.002'),('1.010'),('1.02'),('1.1'),('1.3'),('1'), ('0,1'),('1,001'),('1,002'),('1,010'),('1,02'),('1,1'),('1,3'),('1'))
+AS numbers ORDER BY NATURAL_SORT_KEY(val, NULL);
+value
+0
+0,1
+0.1
+1
+1,1
+1,001
+1,02
+1,002
+1,3
+1,010
+1.1
+1.001
+1.02
+1.002
+1.3
+1.010
+# Use ',' as decimal separator for NATURAL_SORT_KEY
+SELECT val value, NATURAL_SORT_KEY(val,',') sortkey
+FROM
+(
+SELECT 0 val
+UNION  VALUES ('0,1'),('1,001'),('1,002'),('1,010'),('1,02'),('1,1'),('1,3'),('1'))
+AS numbers ORDER BY sortkey;
+value	sortkey
+0	00
+0,1	00,1
+1	01
+1,001	01,001
+1,002	01,002
+1,010	01,010
+1,02	01,02
+1,1	01,1
+1,3	01,3
+# Use '.' as decimal separator for NATURAL_SORT_KEY
+SELECT val value,NATURAL_SORT_KEY(val,'.') sortkey
+FROM
+(
+SELECT 0 val
+UNION  VALUES ('0.1'),('1.001'),('1.002'),('1.010'),('1.02'),('1.1'),('1.3'),('1'))
+AS numbers ORDER BY  sortkey;
+value	sortkey
+0	00
+0.1	00.1
+1	01
+1.001	01.001
+1.002	01.002
+1.010	01.010
+1.02	01.02
+1.1	01.1
+1.3	01.3
+SET NAMES DEFAULT;

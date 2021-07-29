@@ -1622,6 +1622,16 @@ protected:
   virtual ~Create_func_name_const() {}
 };
 
+class Create_func_natural_sort_key : public Create_native_func
+{
+public:
+  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
+                List<Item> *item_list) override;
+  static Create_func_natural_sort_key s_singleton;
+protected:
+  Create_func_natural_sort_key() {}
+  virtual ~Create_func_natural_sort_key() {}
+};
 
 class Create_func_nullif : public Create_func_arg2
 {
@@ -4642,6 +4652,36 @@ Create_func_md5::create_1_arg(THD *thd, Item *arg1)
   return new (thd->mem_root) Item_func_md5(thd, arg1);
 }
 
+Create_func_natural_sort_key Create_func_natural_sort_key::s_singleton;
+
+Item *Create_func_natural_sort_key::create_native(THD *thd, LEX_CSTRING *name,
+                                                  List<Item> *item_list)
+{
+  Item *func= NULL;
+  int arg_count= 0;
+
+  if (item_list != NULL)
+    arg_count= item_list->elements;
+
+  Item *param_1, *param_2;
+
+  switch (arg_count)
+  {
+    case 1:
+      param_1= item_list->pop();
+      func= new (thd->mem_root) Item_func_natural_sort_key(thd, param_1);
+      break;
+    case 2:
+      param_1= item_list->pop();
+      param_2= item_list->pop();
+      func= new (thd->mem_root) Item_func_natural_sort_key(thd, param_1, param_2);
+      break;
+    default:
+      my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
+      break;
+  }
+  return func;
+}
 
 Create_func_monthname Create_func_monthname::s_singleton;
 
@@ -5648,6 +5688,7 @@ Native_func_registry func_array[] =
   { { STRING_WITH_LEN("MD5") }, BUILDER(Create_func_md5)},
   { { STRING_WITH_LEN("MONTHNAME") }, BUILDER(Create_func_monthname)},
   { { STRING_WITH_LEN("NAME_CONST") }, BUILDER(Create_func_name_const)},
+  {  {STRING_WITH_LEN("NATURAL_SORT_KEY")}, BUILDER(Create_func_natural_sort_key)},
   { { STRING_WITH_LEN("NVL") }, BUILDER(Create_func_ifnull)},
   { { STRING_WITH_LEN("NVL2") }, BUILDER(Create_func_nvl2)},
   { { STRING_WITH_LEN("NULLIF") }, BUILDER(Create_func_nullif)},

@@ -5293,6 +5293,232 @@ String *Item_temptable_rowid::val_str(String *str)
   return &str_value;
 }
 
+/**
+  Here is how we generate a key suitable for lexicographic comparison
+  from a numeric string (representing positive number).
+
+  We prepend variable length prefix, that only encodes string length
+  The longer the string, the lexicographically larger is the prefix.
+
+  Rules for generating prefix is following.
+
+  1. Small length (1 to 9)
+   Prefix is single char  '0' + length -1
+   This gives the range '0' - '8'
+  2. Medium length(10 to 18)
+   Prefix is 2 chars - concat('9', '0'+length-10)'
+   This gives range '90'-'98'
+  3. Large length(19)
+   Prefix is "990"
+  4. Huge length (20 to 2^32-1)
+   Prefix stars with '99', then log10 of the length is added as char
+   then the number itself is added
+   The range is '99120' - '9994294967295'
+*/
+
+#define NATSORT_BUFSIZE 16
+static size_t natsort_num2str(size_t n, char *s)
+{
+  if (n < 10)
+  {
+    s[0]= '0' + (char)n -1;
+    return 1;
+  }
+
+  if (n < 19)
+  {
+    s[0]= '9';
+    s[1]= '0'+ (char)n- 10;
+    return 2;
+  }
+
+  if (n == 19)
+  {
+    s[0]= '9';
+    s[1]= '9';
+    s[2]= '0';
+    return 3;
+  }
+
+  /* Here, n > 19*/
+  s[0]= '9';
+  s[1]= '9';
+  size_t log10n= 0;
+  for (size_t tmp= n/10; tmp; tmp /= 10)
+    log10n++;
+  DBUG_ASSERT(log10n && log10n < 10);
+  s[2]='0' + (char)log10n;
+  return ll2str(n,s+3,10,0) - s;
+}
+
+/**
+  Convert a string to natural sort key.
+  @param[in]   in - input string
+  @param[out]  s  - output string
+
+  We assume that memory is preallocated for the output
+  string, so that appends do not fail.
+
+  The lead zeros count, if positive, is stored after
+  the numeric string.
+
+  Fractional parts are stored and compared as strings.
+  Even if they have numbers in them, they should just
+  be compared as strings.
+*/
+static void to_natsort_key(const String *in, String *s, my_wc_t decimal_sep)
+{
+  CHARSET_INFO *cs= in->charset();
+  uchar *pos= (uchar *) in->ptr();
+  uchar *end= pos + in->length();
+  size_t num_len= 0;
+  size_t leading_zeros= 0;
+  uchar *num_start= nullptr;
+  bool in_fraction= false;
+  size_t fraction_len=0;
+
+  for (;;)
+  {
+    my_wc_t c= 0;
+    int charlen= cs->mb_wc(&c, pos, end);
+    bool is_digit= charlen >= 1 && (c >= '0' && c <= '9');
+
+    if (!is_digit && (num_start || leading_zeros))
+    {
+      /*
+         Handle end of digits run.
+
+         Write prefix, natsort_num2str(length) is without leading zeros
+         Write numeric value, without leading zeros
+         If there were leading zeros, write variable length suffix
+      */
+      char buf[NATSORT_BUFSIZE];
+      if (!num_len)
+      {
+        // number was zeros only
+        leading_zeros--;
+        num_len= 1;
+      }
+
+      s->append(buf, natsort_num2str(num_len, buf));
+      if (!num_start)
+        s->append('0');
+      else
+        s->append((const char *) num_start, pos - num_start, cs);
+
+      if (leading_zeros)
+        s->append(buf, natsort_num2str(leading_zeros, buf));
+
+      /* Reset state.*/
+      num_len= 0;
+      num_start= nullptr;
+      leading_zeros= 0;
+      in_fraction= c == decimal_sep;
+      fraction_len= 0;
+    }
+
+    if (charlen < 1)
+      break;
+
+    if (is_digit && !in_fraction)
+    {
+      /* Do not count leading zeros in num_len, and num_pos */
+      if (c != '0' || num_len)
+      {
+        num_len++;
+        if (!num_start)
+          num_start= pos;
+      }
+      else
+        leading_zeros++;
+    }
+    else
+    {
+      /* Append a non-digit, or fractional part of the number (handling the same as string) */
+      s->append((const char *) pos, charlen);
+      if (in_fraction)
+      {
+        if (!is_digit && fraction_len)
+          in_fraction= false;
+        fraction_len++;
+      }
+    }
+    pos+= charlen;
+  }
+}
+
+
+String *Item_func_natural_sort_key::val_str(String *s)
+{
+  if (args[0]->is_null())
+  {
+    null_value= true;
+    return nullptr;
+  }
+
+  String *in= args[0]->val_str();
+  CHARSET_INFO *cs= in->charset();
+  ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
+  size_t reserve_length= (size_t) in->length() + in->length() / 2 + 2;
+  if (s->alloc((uint32)reserve_length))
+    goto error_exit;
+  s->length(0);
+  s->set_charset(cs);
+
+  to_natsort_key(in, s, decimal_separator());
+
+  DBUG_ASSERT(s->length() < reserve_length);
+
+  if (s->length() > max_allowed_packet)
+  {
+    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                        ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
+                        max_allowed_packet);
+    goto error_exit;
+  }
+  return s;
+
+error_exit:
+  null_value=true;
+  return nullptr;
+}
+
+
+my_wc_t Item_func_natural_sort_key::decimal_separator()
+{
+  if (m_decimal_separator != DECIMAL_SEP_UNDEFINED)
+    return m_decimal_separator;
+
+  DBUG_ASSERT(arg_count > 1);
+  String *s= args[1]->val_str();
+  if (s && s->length())
+  {
+    my_wc_t c;
+    if (s->charset()->mb_wc(&c, (const uchar *) s->ptr(),
+                        (const uchar *) s->end()))
+      return c;
+  }
+  return DECIMAL_SEP_NONE;
+}
+
+bool Item_func_natural_sort_key::fix_length_and_dec(void)
+{
+  if (agg_arg_charsets_for_string_result(collation, args, 1))
+    return true;
+  DBUG_ASSERT(collation.collation != NULL);
+  uint32 max_clen= args[0]->max_char_length();
+  fix_char_length(max_clen + max_clen/2 + ((max_clen <= 3)?1:0));
+  set_maybe_null();
+
+  if (arg_count> 1 && args[1]->can_eval_in_optimize())
+  {
+    /* Initialize decimal separator */
+    m_decimal_separator= decimal_separator();
+  }
+  return false;
+}
+
 #ifdef WITH_WSREP
 
 #include "wsrep_mysqld.h"
