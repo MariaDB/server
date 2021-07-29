@@ -1086,7 +1086,7 @@ public:
           // Note: this is dumb. the histogram size is stored with the
           // histogram!
           stat_field->store(stats->histogram_? 
-                              stats->histogram_->get_size() : 0);
+                              stats->histogram_->get_width() : 0);
           break;
         case COLUMN_STAT_HIST_TYPE:
           if (stats->histogram_)
@@ -1256,7 +1256,6 @@ bool Histogram_binary::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const 
   return false;
 }
 
-
 /*
   Save the histogram data info a table field.
 */
@@ -1268,7 +1267,7 @@ void Histogram_binary::serialize(Field *field)
                  &my_charset_bin);
   }
   else
-    field->store((char*)get_values(), get_size(), &my_charset_bin);
+    field->store((char*)get_values(), get_width(), &my_charset_bin);
 }
 
 void Histogram_binary::init_for_collection(MEM_ROOT *mem_root,
@@ -1287,6 +1286,7 @@ void Histogram_json::init_for_collection(MEM_ROOT *mem_root, Histogram_type htyp
   values = (uchar*)alloc_root(mem_root, size_arg);
   size = (uint8) size_arg;
 }
+
 /*
   An object of the class Index_stat is created to read statistical
   data on tables from the statistical table table_stat, to update
@@ -2641,18 +2641,19 @@ bool Column_statistics_collected::add()
 
 
 /* 
-  Create an empty Histogram_binary object from histogram_type.
+  Create an empty Histogram object from histogram_type.
 
   Note: it is not yet clear whether collection-time histogram should be the same 
   as lookup-time histogram. At the moment, they are.
 */
 
-Histogram_binary * get_histogram_by_type(MEM_ROOT *mem_root, Histogram_type hist_type) {
+Histogram_base * get_histogram_by_type(MEM_ROOT *mem_root, Histogram_type hist_type) {
   switch (hist_type) {
   case SINGLE_PREC_HB:
   case DOUBLE_PREC_HB:
-  case JSON:
     return new Histogram_binary();
+  case JSON:
+    return new Histogram_json();
   default:
     DBUG_ASSERT(0);
   }
