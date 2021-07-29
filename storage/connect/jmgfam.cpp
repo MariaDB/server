@@ -1,11 +1,11 @@
 /************ JMONGO FAM C++ Program Source Code File (.CPP) ***********/
 /* PROGRAM NAME: jmgfam.cpp                                            */
 /* -------------                                                       */
-/*  Version 1.1                                                        */
+/*  Version 1.2                                                        */
 /*                                                                     */
 /* COPYRIGHT:                                                          */
 /* ----------                                                          */
-/*  (C) Copyright to the author Olivier BERTRAND          20017 - 2020 */
+/*  (C) Copyright to the author Olivier BERTRAND          20017 - 2021 */
 /*                                                                     */
 /* WHAT THIS PROGRAM DOES:                                             */
 /* -----------------------                                             */
@@ -17,7 +17,7 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <io.h>
 //#include <fcntl.h>
 //#include <errno.h>
@@ -25,7 +25,7 @@
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX) || defined(UNIV_LINUX)
 //#include <errno.h>
 #include <unistd.h>
@@ -36,7 +36,7 @@
 //#include <io.h>
 #endif  // !UNIX
 //#include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -241,8 +241,8 @@ bool JMGFAM::OpenTableFile(PGLOBAL g)
 		return true;
 	}	// endif Mode
 
-	if (Mode == MODE_INSERT)
-		Jcp->MakeColumnGroups(g, Tdbp);
+//if (Mode == MODE_INSERT)
+//	Jcp->MakeColumnGroups(g, Tdbp);
 
 	if (Mode != MODE_UPDATE)
 		return Jcp->MakeCursor(g, Tdbp, Options, Filter, Pipe);
@@ -346,14 +346,14 @@ int JMGFAM::ReadBuffer(PGLOBAL g)
 } // end of ReadBuffer
 
 /***********************************************************************/
-/*  WriteBuffer: File write routine for MGO access method.             */
+/*  WriteBuffer: File write routine for JMG access method.             */
 /***********************************************************************/
 int JMGFAM::WriteBuffer(PGLOBAL g)
 {
 	int rc = RC_OK;
 
 	if (Mode == MODE_INSERT) {
-		rc = Jcp->DocWrite(g);
+		rc = Jcp->DocWrite(g, Tdbp->GetLine());
 	} else if (Mode == MODE_DELETE) {
 		rc = Jcp->DocDelete(g, false);
 	} else if (Mode == MODE_UPDATE) {

@@ -1,7 +1,7 @@
 /**************** mongo H Declares Source Code File (.H) ***************/
-/*  Name: mongo.h   Version 1.0                                        */
+/*  Name: mongo.h   Version 1.1                                        */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2021         */
 /*                                                                     */
 /*  This file contains the common MongoDB classes declares.            */
 /***********************************************************************/
@@ -82,6 +82,7 @@ protected:
 	PSZ   Wrapname;               /* Java wrapper name                   */
 	PCSZ  Colist;                 /* Options list                        */
 	PCSZ  Filter;									/* Filtering query                     */
+	PCSZ  Strfy;									/* The stringify columns               */
 	int   Base;                   /* The array index base                */
 	int   Version;                /* The Java driver version             */
 	bool  Pipe;                   /* True is Colist is a pipeline        */

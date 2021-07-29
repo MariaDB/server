@@ -12,12 +12,12 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -25,7 +25,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -36,9 +36,9 @@
 #include "global.h"
 #include "plgdbsem.h"
 #include "reldef.h"
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #include "osutil.h"
-#endif   // !__WIN__
+#endif   // !_WIN32
 #include "filamtxt.h"
 #include "tabdos.h"
 #include "tabsys.h"
@@ -48,10 +48,10 @@
 #define CSZ      36                       // Column section name length
 #define CDZ      256                      // Column definition length
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #define GetPrivateProfileSectionNames(S,L,I)  \
         GetPrivateProfileString(NULL,NULL,"",S,L,I)
-#endif   // !__WIN__
+#endif   // !_WIN32
 
 /* -------------- Implementation of the INI classes ------------------ */
 
@@ -123,7 +123,7 @@ bool INIDEF::DeleteTableFile(PGLOBAL g)
   // Delete the INI table file if not protected
   if (!IsReadOnly()) {
     PlugSetPath(filename, Fn, GetPath());
-#if defined(__WIN__)
+#if defined(_WIN32)
     rc = !DeleteFile(filename);
 #else    // UNIX
     rc = remove(filename);
@@ -345,9 +345,9 @@ int TDBINI::DeleteDB(PGLOBAL g, int irc)
 /***********************************************************************/
 void TDBINI::CloseDB(PGLOBAL)
   {
-#if !defined(__WIN__)
+#if !defined(_WIN32)
   PROFILE_Close(Ifile);
-#endif   // !__WIN__
+#endif   // !_WIN32
   } // end of CloseDB
 
 // ------------------------ INICOL functions ----------------------------
