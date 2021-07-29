@@ -137,24 +137,6 @@ select * from t as empty;
 set system_versioning_asof= FROM_UNIXTIME(@after);
 select * from t as nonempty;
 
-set global system_versioning_asof= FROM_UNIXTIME(@after);
-select * from t as nonempty;
-
---connect (subcon,127.0.0.1,root,,,$SERVER_MYPORT_1)
---connection subcon
-select * from t as nonempty;
---disconnect subcon
---connection default
-
-set global system_versioning_asof= FROM_UNIXTIME(@before);
-select * from t as nonempty;
-
---connect (subcon,127.0.0.1,root,,,$SERVER_MYPORT_1)
---connection subcon
-select * from t as empty;
---disconnect subcon
---connection default
-
 --echo # MDEV-16481: set global system_versioning_asof=sf() crashes in specific case
 --echo # Using global variable inside a stored function should not crash
 create or replace function now_global() returns timestamp
