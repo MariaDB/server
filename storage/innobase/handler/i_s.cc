@@ -2401,21 +2401,17 @@ i_s_fts_deleted_generic_fill(
 
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	/* Prevent DROP of the internal tables for fulltext indexes.
-	FIXME: acquire DDL-blocking MDL on the user table name! */
-	dict_sys.freeze();
-
+	MDL_ticket* mdl_ticket = nullptr;
 	user_table = dict_table_open_on_id(
-		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
+		innodb_ft_aux_table_id, false, DICT_TABLE_OP_NORMAL,
+		thd, &mdl_ticket);
 
 	if (!user_table) {
-func_exit:
-		dict_sys.unfreeze();
 		DBUG_RETURN(0);
 	} else if (!dict_table_has_fts_index(user_table)
 		   || !user_table->is_readable()) {
-		dict_table_close(user_table, FALSE, FALSE);
-		goto func_exit;
+		dict_table_close(user_table, false, false, thd, mdl_ticket);
+		DBUG_RETURN(0);
 	}
 
 	deleted = fts_doc_ids_create();
@@ -2429,9 +2425,7 @@ func_exit:
 
 	fts_table_fetch_doc_ids(trx, &fts_table, deleted);
 
-	dict_table_close(user_table, FALSE, FALSE);
-
-	dict_sys.unfreeze();
+	dict_table_close(user_table, false, false, thd, mdl_ticket);
 
 	trx->free();
 
@@ -2778,22 +2772,18 @@ i_s_fts_index_cache_fill(
 
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	/* Prevent DROP of the internal tables for fulltext indexes.
-	FIXME: acquire DDL-blocking MDL on the user table name! */
-	dict_sys.freeze();
-
+	MDL_ticket* mdl_ticket = nullptr;
 	user_table = dict_table_open_on_id(
-		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
+		innodb_ft_aux_table_id, false, DICT_TABLE_OP_NORMAL,
+		thd, &mdl_ticket);
 
 	if (!user_table) {
-no_fts:
-		dict_sys.unfreeze();
 		DBUG_RETURN(0);
 	}
 
 	if (!user_table->fts || !user_table->fts->cache) {
-		dict_table_close(user_table, FALSE, FALSE);
-		goto no_fts;
+		dict_table_close(user_table, false, false, thd, mdl_ticket);
+		DBUG_RETURN(0);
 	}
 
 	cache = user_table->fts->cache;
@@ -2817,8 +2807,7 @@ no_fts:
 	}
 
 	mysql_mutex_unlock(&cache->lock);
-	dict_table_close(user_table, FALSE, FALSE);
-	dict_sys.unfreeze();
+	dict_table_close(user_table, false, false, thd, mdl_ticket);
 
 	DBUG_RETURN(ret);
 }
@@ -3226,15 +3215,12 @@ i_s_fts_index_table_fill(
 
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	/* Prevent DROP of the internal tables for fulltext indexes.
-	FIXME: acquire DDL-blocking MDL on the user table name! */
-	dict_sys.freeze();
-
+	MDL_ticket* mdl_ticket = nullptr;
 	user_table = dict_table_open_on_id(
-		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
+		innodb_ft_aux_table_id, false, DICT_TABLE_OP_NORMAL,
+		thd, &mdl_ticket);
 
 	if (!user_table) {
-		dict_sys.unfreeze();
 		DBUG_RETURN(0);
 	}
 
@@ -3252,9 +3238,7 @@ i_s_fts_index_table_fill(
 		}
 	}
 
-	dict_table_close(user_table, FALSE, FALSE);
-
-	dict_sys.unfreeze();
+	dict_table_close(user_table, false, false, thd, mdl_ticket);
 
 	ut_free(conv_str.f_str);
 
@@ -3380,22 +3364,18 @@ i_s_fts_config_fill(
 
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
-	/* Prevent DROP of the internal tables for fulltext indexes.
-	FIXME: acquire DDL-blocking MDL on the user table name! */
-	dict_sys.freeze();
-
+	MDL_ticket* mdl_ticket = nullptr;
 	user_table = dict_table_open_on_id(
-		innodb_ft_aux_table_id, FALSE, DICT_TABLE_OP_NORMAL);
+		innodb_ft_aux_table_id, false, DICT_TABLE_OP_NORMAL,
+		thd, &mdl_ticket);
 
 	if (!user_table) {
-no_fts:
-		dict_sys.unfreeze();
 		DBUG_RETURN(0);
 	}
 
 	if (!dict_table_has_fts_index(user_table)) {
-		dict_table_close(user_table, FALSE, FALSE);
-		goto no_fts;
+		dict_table_close(user_table, false, false, thd, mdl_ticket);
+		DBUG_RETURN(0);
 	}
 
 	fields = table->field;
@@ -3451,9 +3431,7 @@ no_fts:
 
 	fts_sql_commit(trx);
 
-	dict_table_close(user_table, FALSE, FALSE);
-
-	dict_sys.unfreeze();
+	dict_table_close(user_table, false, false, thd, mdl_ticket);
 
 	trx->free();
 
