@@ -6158,7 +6158,7 @@ prepare_inplace_alter_table_dict(
 	dict_table_t*		user_table;
 	dict_index_t*		fts_index	= NULL;
 	bool			new_clustered	= false;
-	dberr_t			error;
+	dberr_t			error		= DB_SUCCESS;
 	ulint			num_fts_index;
 	dict_add_v_col_t*	add_v = NULL;
 	ha_innobase_inplace_ctx*ctx;
@@ -6282,11 +6282,27 @@ prepare_inplace_alter_table_dict(
 	/* Acquire a lock on the table before creating any indexes. */
 	bool table_lock_failed = false;
 
-	if (ctx->online) {
-		error = DB_SUCCESS;
-	} else {
+	if (!ctx->online) {
+acquire_lock:
 		ctx->prebuilt->trx->op_info = "acquiring table lock";
-		error = lock_table_for_trx(ctx->new_table, ctx->trx, LOCK_S);
+		error = lock_table_for_trx(user_table, ctx->trx, LOCK_S);
+	} else if (add_key_nums) {
+		/* FIXME: trx_resurrect_table_locks() will not resurrect
+		MDL for any recovered transactions that may hold locks on
+		the table. We will prevent race conditions by "unnecessarily"
+		acquiring an InnoDB table lock even for online operation,
+		to ensure that the rollback of recovered transactions will
+		not run concurrently with online ADD INDEX. */
+		user_table->lock_mutex_lock();
+		for (lock_t *lock = UT_LIST_GET_FIRST(user_table->locks);
+		     lock;
+		     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
+			if (lock->trx->is_recovered) {
+				user_table->lock_mutex_unlock();
+				goto acquire_lock;
+			}
+		}
+		user_table->lock_mutex_unlock();
 	}
 
 	if (fts_exist) {
