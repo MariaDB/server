@@ -271,6 +271,31 @@ public:
   { return get_item_copy<Item_func_aes_decrypt>(thd, this); }
 };
 
+class Item_func_natural_sort_key : public Item_str_func
+{
+  my_wc_t m_decimal_separator;
+  static constexpr my_wc_t DECIMAL_SEP_UNDEFINED=ULONG_MAX-1;
+  static constexpr my_wc_t DECIMAL_SEP_NONE= ULONG_MAX;
+
+public:
+  Item_func_natural_sort_key(THD *thd, Item *a)
+      : Item_str_func(thd, a), m_decimal_separator(DECIMAL_SEP_NONE){}
+
+  Item_func_natural_sort_key(THD *thd, Item *a, Item *b)
+      : Item_str_func(thd, a, b), m_decimal_separator(DECIMAL_SEP_UNDEFINED){}
+  my_wc_t decimal_separator();
+  String *val_str(String *) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("natural_sort_key")};
+    return name;
+  }
+  bool fix_length_and_dec(void) override;
+  Item *get_copy(THD *thd) override
+  {
+    return get_item_copy<Item_func_natural_sort_key>(thd, this);
+  }
+};
 
 class Item_func_concat :public Item_str_func
 {

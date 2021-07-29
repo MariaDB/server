@@ -1,0 +1,64 @@
+--source include/have_innodb.inc
+--source include/have_sequence.inc
+
+SET NAMES utf8mb4;
+SELECT NATURAL_SORT_KEY(NULL);
+
+# Sort without tables
+SELECT '' c WHERE 0 UNION VALUES('a10'),('a9'),('a1000'), ('a0'),('b'),('b0') ORDER BY NATURAL_SORT_KEY(c);
+
+#Test that max packet overflow produces NULL plus warning
+SELECT NATURAL_SORT_KEY(repeat('a1',@@max_allowed_packet/2-1));
+
+#Test with virtual(index only) key
+CREATE TABLE t1(
+  c VARCHAR(30) CHARACTER SET latin1 COLLATE latin1_bin,
+  k VARCHAR(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (NATURAL_SORT_KEY(CONVERT(c USING utf8mb4))) INVISIBLE,
+  KEY(k,c)) ENGINE=InnoDB;
+INSERT INTO t1 values
+ ('A1'),('a1'),('A100'),('a100'),('A2'),('ä2'),('a2'),('A99'),
+ ('äb'),('B1'),('B100'),('B9'),('C'),('100');
+EXPLAIN SELECT c FROM t1 ORDER BY k,c;
+-- echo #Natural sort order.
+# We sort by 2 colums, for stable sort,as we do not currenly have a case and accent insensitive Unicode collation.
+SELECT c FROM t1 ORDER BY k,c;
+-- echo #Unnatural but  unicode aware) sort order
+SELECT c FROM t1 ORDER BY CONVERT(c USING utf8mb4) COLLATE utf8mb4_unicode_ci,c;
+# CREATE TABLE AS SELECT, to see that length of the column is correct.
+CREATE TABLE t2 AS SELECT c, NATURAL_SORT_KEY(c) FROM t1 WHERE 0;
+SHOW CREATE TABLE t2;
+DROP TABLE t1,t2;
+
+#Show encoding of numbers, including fractions, and leading whitespace.
+SELECT RPAD(val,21,' ') value , RPAD(NATURAL_SORT_KEY(val),26,' ') sortkey , LENGTH(NATURAL_SORT_KEY(val)) - LENGTH(val) encoding_overhead
+FROM
+(
+SELECT 0 val
+UNION  VALUES ('0.0'),('0.1'), ('0,15'),('1.001'),('1.002'),('1.010'),('1.02'),('1.1'),('1.3'),('1'),('01'),('0001')
+UNION  SELECT CONCAT('1',repeat('0',seq)) FROM seq_1_to_20
+) AS numbers ORDER BY sortkey;
+
+--echo # Disable fractions handling by passing NULL as second parameter to NATURAL_SORT_KEY
+SELECT val value
+FROM
+(
+SELECT 0 val
+UNION  VALUES ('0.1'),('1.001'),('1.002'),('1.010'),('1.02'),('1.1'),('1.3'),('1'), ('0,1'),('1,001'),('1,002'),('1,010'),('1,02'),('1,1'),('1,3'),('1'))
+AS numbers ORDER BY NATURAL_SORT_KEY(val, NULL);
+
+--echo # Use ',' as decimal separator for NATURAL_SORT_KEY
+SELECT val value, NATURAL_SORT_KEY(val,',') sortkey
+FROM
+(
+SELECT 0 val
+UNION  VALUES ('0,1'),('1,001'),('1,002'),('1,010'),('1,02'),('1,1'),('1,3'),('1'))
+AS numbers ORDER BY sortkey;
+
+--echo # Use '.' as decimal separator for NATURAL_SORT_KEY
+SELECT val value,NATURAL_SORT_KEY(val,'.') sortkey
+FROM
+(
+SELECT 0 val
+UNION  VALUES ('0.1'),('1.001'),('1.002'),('1.010'),('1.02'),('1.1'),('1.3'),('1'))
+AS numbers ORDER BY  sortkey;
+SET NAMES DEFAULT;
