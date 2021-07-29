@@ -171,11 +171,6 @@ public:
   virtual double range_selectivity(double min_pos, double max_pos)=0;
 
   virtual double point_selectivity(double pos, double avg_selection)=0;
-  
-  // Legacy: return the size of the histogram on disk.
-  // This will be stored in mysql.column_stats.hist_size column.
-  // Newer, JSON-based histograms may return 0.
-  virtual uint get_size()=0;
 
   virtual ~Histogram_base(){}
 };
@@ -188,8 +183,6 @@ public:
   void serialize(Field *to_field) override;
 
   Histogram_type get_type() override { return type; }
-
-  uint get_size() override { return (uint) size; }
 
   uint get_width() override
   {
@@ -283,7 +276,7 @@ public:
   void set_values (uchar *vals) override { values= (uchar *) vals; }
   void set_size (ulonglong sz) override { size= (uint8) sz; }
 
-  bool is_available() override { return get_size() > 0 && get_values(); }
+  bool is_available() override { return get_width() > 0 && get_values(); }
 
   /*
     This function checks that histograms should be usable only when
@@ -354,8 +347,6 @@ public:
 
   void serialize(Field *to_field) override{}
 
-  uint get_size() override {return (uint) size;}
-
   // returns number of buckets in the histogram
   uint get_width() override
   {
@@ -371,7 +362,7 @@ public:
 
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size) override;
 
-  bool is_available() override {return get_size() > 0 && get_values(); }
+  bool is_available() override {return get_width() > 0 && get_values(); }
 
   bool is_usable(THD *thd) override
   {
