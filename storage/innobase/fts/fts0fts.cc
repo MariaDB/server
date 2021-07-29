@@ -1556,12 +1556,13 @@ static dberr_t fts_lock_table(trx_t *trx, const char *table_name)
       if (!--n)
       {
         err= DB_LOCK_WAIT_TIMEOUT;
-        break;
+        goto fail;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
       dict_sys.mutex_lock();
     }
     dict_sys.mutex_unlock();
+fail:
     table->release();
     return err;
   }
