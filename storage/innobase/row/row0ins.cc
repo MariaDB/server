@@ -1342,16 +1342,6 @@ row_ins_foreign_check_on_constraint(
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
-	/* Release the data dictionary latch for a while, so that we do not
-	starve other threads from doing CREATE TABLE etc. if we have a huge
-	cascaded operation running. */
-
-	row_mysql_unfreeze_data_dictionary(thr_get_trx(thr));
-
-	DEBUG_SYNC_C("innodb_dml_cascade_dict_unfreeze");
-
-	row_mysql_freeze_data_dictionary(thr_get_trx(thr));
-
 	mtr_start(mtr);
 
 	/* Restore pcur position */

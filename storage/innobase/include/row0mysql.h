@@ -330,17 +330,6 @@ row_mysql_unlock_data_dictionary(
 /*=============================*/
 	trx_t*	trx);	/*!< in/out: transaction */
 /*********************************************************************//**
-Locks the data dictionary in shared mode from modifications, for performing
-foreign key check, rollback, or other operation invisible to MySQL. */
-void row_mysql_freeze_data_dictionary(trx_t *trx);
-
-/*********************************************************************//**
-Unlocks the data dictionary shared lock. */
-void
-row_mysql_unfreeze_data_dictionary(
-/*===============================*/
-	trx_t*	trx);	/*!< in/out: transaction */
-/*********************************************************************//**
 Creates a table for MySQL. On failure the transaction will be rolled back
 and the 'table' object will be freed.
 @return error code or DB_SUCCESS */

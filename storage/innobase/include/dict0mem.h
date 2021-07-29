@@ -1524,24 +1524,6 @@ struct dict_foreign_with_index {
 	const dict_index_t*	m_index;
 };
 
-#ifdef WITH_WSREP
-/** A function object to find a foreign key with the given index as the
-foreign index. Return the foreign key with matching criteria or NULL */
-struct dict_foreign_with_foreign_index {
-
-	dict_foreign_with_foreign_index(const dict_index_t*	index)
-	: m_index(index)
-	{}
-
-	bool operator()(const dict_foreign_t*	foreign) const
-	{
-		return(foreign->foreign_index == m_index);
-	}
-
-	const dict_index_t*	m_index;
-};
-#endif
-
 /* A function object to check if the foreign constraint is between different
 tables.  Returns true if foreign key constraint is between different tables,
 false otherwise. */

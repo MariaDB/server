@@ -1626,33 +1626,24 @@ init_fts_doc_id_for_ref(
 	dict_table_t*	table,		/*!< in: table */
 	ulint*		depth)		/*!< in: recusive call depth */
 {
-	dict_foreign_t* foreign;
-
 	table->fk_max_recusive_level = 0;
 
-	(*depth)++;
-
 	/* Limit on tables involved in cascading delete/update */
-	if (*depth > FK_MAX_CASCADE_DEL) {
+	if (++*depth > FK_MAX_CASCADE_DEL) {
 		return;
 	}
 
 	/* Loop through this table's referenced list and also
 	recursively traverse each table's foreign table list */
-	for (dict_foreign_set::iterator it = table->referenced_set.begin();
-	     it != table->referenced_set.end();
-	     ++it) {
+	for (dict_foreign_t* foreign : table->referenced_set) {
+		ut_ad(foreign->foreign_table);
 
-		foreign = *it;
-
-		ut_ad(foreign->foreign_table != NULL);
-
-		if (foreign->foreign_table->fts != NULL) {
+		if (foreign->foreign_table->fts) {
 			fts_init_doc_id(foreign->foreign_table);
 		}
 
-		if (!foreign->foreign_table->referenced_set.empty()
-		    && foreign->foreign_table != table) {
+		if (foreign->foreign_table != table
+		    && !foreign->foreign_table->referenced_set.empty()) {
 			init_fts_doc_id_for_ref(
 				foreign->foreign_table, depth);
 		}
@@ -1673,7 +1664,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	dict_table_t*	table		= prebuilt->table;
 	trx_t*		trx		= prebuilt->trx;
 	ulint		fk_depth	= 0;
-	bool		got_s_lock	= false;
 
 	DBUG_ENTER("row_update_for_mysql");
 
@@ -1701,18 +1691,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 
 	if (!table->no_rollback()) {
 		trx_start_if_not_started_xa(trx, true);
-	}
-
-	if (dict_table_is_referenced_by_foreign_key(table)) {
-		/* Share lock the data dictionary to prevent any
-		table dictionary (for foreign constraint) change.
-		This is similar to row_ins_check_foreign_constraint
-		check protect by the dictionary lock as well.
-		In the future, this can be removed once the Foreign
-		key MDL is implemented */
-		row_mysql_freeze_data_dictionary(trx);
-		init_fts_doc_id_for_ref(table, &fk_depth);
-		row_mysql_unfreeze_data_dictionary(trx);
 	}
 
 	node = prebuilt->upd_node;
@@ -1795,10 +1773,6 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	}
 
 	/* Completed cascading operations (if any) */
-	if (got_s_lock) {
-		row_mysql_unfreeze_data_dictionary(trx);
-	}
-
 	bool	update_statistics;
 	ut_ad(is_delete == (node->is_delete == PLAIN_DELETE));
 
@@ -1834,16 +1808,8 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 		prebuilt->table->stat_modified_counter++;
 	}
 
-	trx->op_info = "";
-
-	DBUG_RETURN(err);
-
 error:
 	trx->op_info = "";
-	if (got_s_lock) {
-		row_mysql_unfreeze_data_dictionary(trx);
-	}
-
 	DBUG_RETURN(err);
 }
 
@@ -1968,29 +1934,6 @@ no_unlock:
 	}
 
 	trx->op_info = "";
-}
-
-/*********************************************************************//**
-Locks the data dictionary in shared mode from modifications, for performing
-foreign key check, rollback, or other operation invisible to MySQL. */
-void row_mysql_freeze_data_dictionary(trx_t *trx)
-{
-  ut_a(trx->dict_operation_lock_mode == 0);
-  trx->dict_operation_lock_mode = RW_S_LATCH;
-  dict_sys.freeze();
-}
-
-/*********************************************************************//**
-Unlocks the data dictionary shared lock. */
-void
-row_mysql_unfreeze_data_dictionary(
-/*===============================*/
-	trx_t*	trx)	/*!< in/out: transaction */
-{
-  ut_ad(!lock_trx_has_sys_table_locks(trx));
-  ut_ad(trx->dict_operation_lock_mode == RW_S_LATCH);
-  dict_sys.unfreeze();
-  trx->dict_operation_lock_mode = 0;
 }
 
 /** Write query start time as SQL field data to a buffer. Needed by InnoDB.
