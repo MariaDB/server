@@ -1916,22 +1916,6 @@ pars_procedure_definition(
 }
 
 /*************************************************************//**
-Parses a stored procedure call, when this is not within another stored
-procedure, that is, the client issues a procedure call directly.
-In MySQL/InnoDB, stored InnoDB procedures are invoked via the
-parsed procedure tree, not via InnoDB SQL, so this function is not used.
-@return query graph */
-que_fork_t*
-pars_stored_procedure_call(
-/*=======================*/
-	sym_node_t*	sym_node MY_ATTRIBUTE((unused)))
-					/*!< in: stored procedure name */
-{
-	ut_error;
-	return(NULL);
-}
-
-/*************************************************************//**
 Retrieves characters to the lexical analyzer. */
 int
 pars_get_lex_chars(
