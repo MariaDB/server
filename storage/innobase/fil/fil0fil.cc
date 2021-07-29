@@ -3056,8 +3056,7 @@ fil_space_validate_for_mtr_commit(
 
 	/* We are serving mtr_commit(). While there is an active
 	mini-transaction, we should have !space->stop_new_ops. This is
-	guaranteed by meta-data locks or transactional locks, or
-	dict_sys.latch (X-lock in DROP, S-lock in purge). */
+	guaranteed by meta-data locks or transactional locks. */
 	ut_ad(!space->is_stopping()
 	      || space->is_being_truncated /* fil_truncate_prepare() */
 	      || space->referenced());
