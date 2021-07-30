@@ -614,8 +614,8 @@ Datafile::find_space_id()
 		typedef std::map<
 			uint32_t,
 			uint32_t,
-			std::less<ulint>,
-			ut_allocator<std::pair<const ulint, ulint> > >
+			std::less<uint32_t>,
+			ut_allocator<std::pair<const uint32_t, uint32_t> > >
 			Pages;
 
 		Pages	verify;
