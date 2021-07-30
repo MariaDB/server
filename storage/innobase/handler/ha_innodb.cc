@@ -15294,8 +15294,8 @@ bool ha_innobase::can_switch_engines()
 {
   DBUG_ENTER("ha_innobase::can_switch_engines");
   update_thd();
-  return m_prebuilt->table->foreign_set.empty() &&
-    m_prebuilt->table->referenced_set.empty();
+  DBUG_RETURN(m_prebuilt->table->foreign_set.empty() &&
+              m_prebuilt->table->referenced_set.empty());
 }
 
 /*******************************************************************//**
