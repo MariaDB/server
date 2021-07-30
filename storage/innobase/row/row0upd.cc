@@ -157,7 +157,7 @@ wsrep_row_upd_index_is_foreign(
   /* No MDL protects dereferencing the members of table->foreign_set. */
   const bool no_lock= !trx->dict_operation_lock_mode;
   if (no_lock)
-    dict_sys.freeze();
+    dict_sys.mutex_lock();
 
   auto end= table->foreign_set.end();
   const bool is_referenced= end !=
@@ -165,7 +165,7 @@ wsrep_row_upd_index_is_foreign(
                  [index](const dict_foreign_t* f)
                  {return f->foreign_index == index;});
   if (no_lock)
-    dict_sys.unfreeze();
+    dict_sys.mutex_unlock();
 
   return is_referenced;
 }
