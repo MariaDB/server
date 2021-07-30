@@ -343,6 +343,9 @@ bool JOIN::check_for_splittable_materialized()
   if (!partition_list)
     return false;
 
+  Json_writer_object trace_wrapper(thd);
+  Json_writer_object trace_split(thd, "check_lateral_derived");
+
   ORDER *ord;
   Dynamic_array<SplM_field_ext_info> candidates(PSI_INSTRUMENT_MEM);
 
@@ -388,8 +391,10 @@ bool JOIN::check_for_splittable_materialized()
     }
   }
   if (candidates.elements() == 0)  // no candidates satisfying (8.1) && (8.2)
+  {
+    trace_split.add("not_applicable", "group list has no candidates");
     return false;
-
+  }
   /*
     For each table from this join find the keys that can be used for ref access
     of the fields mentioned in the 'array candidates'
@@ -447,7 +452,11 @@ bool JOIN::check_for_splittable_materialized()
   }
 
   if (!spl_field_cnt)  // No candidate field can be accessed by ref => !(9)
+  {
+    trace_split.add("not_applicable",
+                    "no candidate field can be accessed through ref");
     return false;
+  }
 
   /*
     Create a structure of the type SplM_opt_info and fill it with
@@ -465,16 +474,20 @@ bool JOIN::check_for_splittable_materialized()
   spl_opt_info->tables_usable_for_splitting= 0;
   spl_opt_info->spl_field_cnt= spl_field_cnt;
   spl_opt_info->spl_fields= spl_field;
-  for (cand= cand_start; cand < cand_end; cand++)
   {
-    if (!cand->is_usable_for_ref_access)
-      continue;
-    spl_field->producing_item= cand->producing_item;
-    spl_field->underlying_field= cand->underlying_field;
-    spl_field->mat_field= cand->mat_field;
-    spl_opt_info->tables_usable_for_splitting|=
-    cand->underlying_field->table->map;
-    spl_field++;
+    Json_writer_array trace_range(thd, "split_variants");
+    for (cand= cand_start; cand < cand_end; cand++)
+    {
+      if (!cand->is_usable_for_ref_access)
+        continue;
+      spl_field->producing_item= cand->producing_item;
+      trace_range.add(cand->producing_item);
+      spl_field->underlying_field= cand->underlying_field;
+      spl_field->mat_field= cand->mat_field;
+      spl_opt_info->tables_usable_for_splitting|=
+      cand->underlying_field->table->map;
+      spl_field++;
+    }
   }
 
   /* Attach this info to the table T */
@@ -738,7 +751,19 @@ void JOIN::add_keyuses_for_splitting()
 
   spl_opt_info->unsplit_cost= best_positions[table_count-1].read_time +
                               oper_cost;
+  {
+    Json_writer_object trace(thd, "lateral_derived_info");
+    {
+      Json_writer_object cost_detail(thd, "cost_breakdown");
+      cost_detail.add("oper_cost", oper_cost);
+      cost_detail.add("read_time", best_positions[table_count-1].read_time);
+      cost_detail.add("join_read_time", best_read);
+    }
+    trace.add("unsplit_cost", spl_opt_info->unsplit_cost);
+    trace.add("unsplit_card", spl_opt_info->unsplit_card);
+    trace.add("rec_len", (ulonglong) rec_len);
 
+  }
   if (!(save_qep= new Join_plan_state(table_count + 1)))
     goto err;
 
@@ -793,6 +818,9 @@ err:
 
 void JOIN_TAB::add_keyuses_for_splitting()
 {
+  Json_writer_object trace(join->thd);
+  trace.add_table_name(this);
+
   DBUG_ASSERT(table->spl_opt_info != NULL);
   SplM_opt_info *spl_opt_info= table->spl_opt_info;
   spl_opt_info->join->add_keyuses_for_splitting();
@@ -895,6 +923,8 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
   uint best_key= 0;
   uint best_key_parts= 0;
 
+  Json_writer_object spl_trace(thd, "lateral_derived_choice");
+  Json_writer_array trace_indexes(thd, "indexes_for_splitting");
   /*
     Check whether there are keys that can be used to join T employing splitting
     and if so, select the best out of such keys
@@ -939,6 +969,13 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
                  key_info->actual_rec_per_key(keyuse_ext->keypart);
         if (rec_per_key < best_rec_per_key)
 	{
+          Json_writer_object trace(thd);
+          trace.add_table_name(keyuse_ext->table);
+          trace.add("index",
+                    keyuse_ext->table->key_info[keyuse_ext->key].name.str);
+          trace.add("parts", (longlong)keyuse_ext->keypart + 1);
+          trace.add("rec_per_key", rec_per_key);
+
           best_table= keyuse_ext->table;
           best_key= keyuse_ext->key;
 	  best_key_parts= keyuse_ext->keypart + 1;
@@ -951,17 +988,19 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
     }
     while (keyuse_ext->table == table);
   }
+  trace_indexes.end();
   spl_opt_info->last_plan= 0;
+
   if (best_table)
   {
     /*
       The key for splitting was chosen, look for the plan for this key
       in the cache
     */
-    Json_writer_array spl_trace(thd, "choose_best_splitting");
     spl_plan= spl_opt_info->find_plan(best_table, best_key, best_key_parts);
     if (!spl_plan)
     {
+      Json_writer_array spl_trace(thd, "build_split_plan");
       /*
         The plan for the chosen key has not been found in the cache.
         Build a new plan and save info on it in the cache
@@ -1010,12 +1049,11 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       if (unlikely(thd->trace_started()))
       {
         Json_writer_object wrapper(thd);
-        Json_writer_object find_trace(thd, "best_splitting");
-        find_trace.add("table", best_table->alias.c_ptr());
-        find_trace.add("key", best_table->key_info[best_key].name);
-        find_trace.add("record_count", record_count);
+        Json_writer_object find_trace(thd, "found_split_plan");
+        find_trace.add("oper_cost", oper_cost);
+        find_trace.add("join_best_read", join->best_read);
         find_trace.add("cost", spl_plan->cost);
-        find_trace.add("unsplit_cost", spl_opt_info->unsplit_cost);
+        find_trace.add("output_cardinality", split_card);
       }
       memcpy((char *) spl_plan->best_positions,
              (char *) join->best_positions,
@@ -1023,8 +1061,17 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       reset_validity_vars_for_keyuses(best_key_keyuse_ext_start, best_table,
                                       best_key, remaining_tables, false);
     }
+    else
+    {
+      Json_writer_object find_trace(thd, "cached_split_plan_found");
+      find_trace.add("cost", spl_plan->cost);
+    }
     if (spl_plan)
     {
+      Json_writer_object choice(thd, "split_plan_choice");
+      choice.add("split_cost", spl_plan->cost);
+      choice.add("record_count_for_split", record_count);
+      choice.add("unsplit_cost", spl_opt_info->unsplit_cost);
       if(record_count * spl_plan->cost < spl_opt_info->unsplit_cost - 0.01)
       {
         /*
@@ -1032,7 +1079,10 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
           the plan without splitting
 	*/
         spl_opt_info->last_plan= spl_plan;
+        choice.add("split_chosen", true);
       }
+      else
+        choice.add("split_chosen", false);
     }
   }
 
@@ -1044,9 +1094,9 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
     startup_cost= record_count * spl_plan->cost;
     records= (ha_rows) (records * spl_plan->split_sel);
 
-    Json_writer_object trace(thd, "lateral_derived");
+    Json_writer_object trace(thd, "chosen_lateral_derived");
     trace.add("startup_cost", startup_cost);
-    trace.add("splitting_cost", spl_plan->cost);
+    trace.add("lateral_cost", spl_plan->cost);
     trace.add("records", records);
   }
   else

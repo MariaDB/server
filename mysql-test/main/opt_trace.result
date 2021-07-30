@@ -450,6 +450,11 @@ select * from v2	{
                   ]
                 },
                 {
+                  "check_lateral_derived": {
+                    "not_applicable": "no candidate field can be accessed through ref"
+                  }
+                },
+                {
                   "best_join_order": ["t1"]
                 },
                 {
@@ -773,6 +778,11 @@ explain select * from v1	{
                       "estimated_join_cardinality": 10
                     }
                   ]
+                },
+                {
+                  "check_lateral_derived": {
+                    "not_applicable": "group list has no candidates"
+                  }
                 },
                 {
                   "best_join_order": ["t1"]
@@ -8829,84 +8839,138 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	PRIMARY	t1	range	idx_b	idx_b	5	NULL	4	Using index condition; Using where
 1	PRIMARY	<derived2>	ref	key0	key0	5	test.t1.a	2	
 2	LATERAL DERIVED	t2	ref	idx_a	idx_a	5	test.t1.a	1	
+select json_valid(trace) from information_schema.optimizer_trace;
+json_valid(trace)
+1
 select
-json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
+json_detailed(json_extract(trace, '$**.check_lateral_derived'))
 from
 information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.choose_best_splitting'))
-[
-    
-    [
-        
-        {
-            "considered_execution_plans": 
-            [
-                
-                {
-                    "plan_prefix": 
-                    [
-                    ],
-                    "table": "t2",
-                    "best_access_path": 
-                    {
-                        "considered_access_paths": 
-                        [
-                            
-                            {
-                                "access_type": "ref",
-                                "index": "idx_a",
-                                "used_range_estimates": false,
-                                "cause": "not available",
-                                "rows": 1.8367,
-                                "cost": 2.000585794,
-                                "chosen": true
-                            },
-                            
-                            {
-                                "type": "scan",
-                                "chosen": false,
-                                "cause": "cost"
-                            }
-                        ],
-                        "chosen_access_method": 
-                        {
-                            "type": "ref",
-                            "records": 1.8367,
-                            "cost": 2.000585794,
-                            "uses_join_buffering": false
-                        }
-                    },
-                    "rows_for_plan": 1.8367,
-                    "cost_for_plan": 2.367925794,
-                    "cost_for_sorting": 1.8367,
-                    "estimated_join_cardinality": 1.8367
-                }
-            ]
-        },
-        
-        {
-            "best_splitting": 
-            {
-                "table": "t2",
-                "key": "idx_a",
-                "record_count": 4,
-                "cost": 2.488945919,
-                "unsplit_cost": 25.72361682
-            }
-        }
-    ]
-]
-select
-json_detailed(json_extract(trace, '$**.lateral_derived')) 
-from
-information_schema.optimizer_trace;
-json_detailed(json_extract(trace, '$**.lateral_derived'))
+json_detailed(json_extract(trace, '$**.check_lateral_derived'))
 [
     
     {
-        "startup_cost": 9.955783677,
-        "splitting_cost": 2.488945919,
-        "records": 1
+        "split_variants": 
+        [
+            "t2.a"
+        ]
+    }
+]
+select
+json_detailed(json_extract(trace, '$**.lateral_derived_info'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.lateral_derived_info'))
+[
+    
+    {
+        "cost_breakdown": 
+        {
+            "oper_cost": 20.73533557,
+            "read_time": 4.98828125,
+            "join_read_time": 112.9872812
+        },
+        "unsplit_cost": 25.72361682,
+        "unsplit_card": 90,
+        "rec_len": 152
+    }
+]
+select
+json_detailed(json_extract(trace, '$**.lateral_derived_choice'))
+from
+information_schema.optimizer_trace;
+json_detailed(json_extract(trace, '$**.lateral_derived_choice'))
+[
+    
+    {
+        "indexes_for_splitting": 
+        [
+            
+            {
+                "table": "t2",
+                "index": "idx_a",
+                "parts": 1,
+                "rec_per_key": 1.8367
+            }
+        ],
+        "build_split_plan": 
+        [
+            
+            {
+                "considered_execution_plans": 
+                [
+                    
+                    {
+                        "plan_prefix": 
+                        [
+                        ],
+                        "table": "t2",
+                        "best_access_path": 
+                        {
+                            "considered_access_paths": 
+                            [
+                                
+                                {
+                                    "access_type": "ref",
+                                    "index": "idx_a",
+                                    "used_range_estimates": false,
+                                    "cause": "not available",
+                                    "rows": 1.8367,
+                                    "cost": 2.000585794,
+                                    "chosen": true
+                                },
+                                
+                                {
+                                    "type": "scan",
+                                    "chosen": false,
+                                    "cause": "cost"
+                                }
+                            ],
+                            "chosen_access_method": 
+                            {
+                                "type": "ref",
+                                "records": 1.8367,
+                                "cost": 2.000585794,
+                                "uses_join_buffering": false
+                            }
+                        },
+                        "rows_for_plan": 1.8367,
+                        "cost_for_plan": 2.367925794,
+                        "cost_for_sorting": 1.8367,
+                        "estimated_join_cardinality": 1.8367
+                    }
+                ]
+            },
+            
+            {
+                "found_split_plan": 
+                {
+                    "oper_cost": 0.488360125,
+                    "join_best_read": 4.203625794,
+                    "cost": 2.488945919,
+                    "output_cardinality": 1.8367
+                }
+            }
+        ],
+        "split_plan_choice": 
+        {
+            "split_cost": 2.488945919,
+            "record_count_for_split": 4,
+            "unsplit_cost": 25.72361682,
+            "split_chosen": true
+        },
+        "chosen_lateral_derived": 
+        {
+            "startup_cost": 9.955783677,
+            "lateral_cost": 2.488945919,
+            "records": 1
+        }
+    },
+    
+    {
+        "indexes_for_splitting": 
+        [
+        ]
     }
 ]
 drop table t1,t2;

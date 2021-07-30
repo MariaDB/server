@@ -729,19 +729,20 @@ from t1 join
      on t1.a=t.a
 where t1.b < 3;
 
-#
-# Just show that choose_best_splitting function has coverage in the 
-# optimizer trace and re-optmization of child select inside it is distinct 
-# from the rest of join optimization.
+select json_valid(trace) from information_schema.optimizer_trace;
+
 select
-  json_detailed(json_extract(trace, '$**.choose_best_splitting')) 
+  json_detailed(json_extract(trace, '$**.check_lateral_derived'))
 from
   information_schema.optimizer_trace;
 
-# Same as above. just to show that splitting plan has some coverage in the
-# trace.
 select
-  json_detailed(json_extract(trace, '$**.lateral_derived')) 
+  json_detailed(json_extract(trace, '$**.lateral_derived_info'))
+from
+  information_schema.optimizer_trace;
+
+select
+  json_detailed(json_extract(trace, '$**.lateral_derived_choice'))
 from
   information_schema.optimizer_trace;
 
