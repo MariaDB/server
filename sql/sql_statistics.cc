@@ -1261,12 +1261,6 @@ bool Histogram_binary::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const 
 */
 void Histogram_binary::serialize(Field *field)
 {
-  if (get_type() == JSON)
-  {
-    field->store((char*)get_values(), strlen((char*)get_values()), 
-                 &my_charset_bin);
-  }
-  else
     field->store((char*)get_values(), get_width(), &my_charset_bin);
 }
 
@@ -1285,6 +1279,32 @@ void Histogram_json::init_for_collection(MEM_ROOT *mem_root, Histogram_type htyp
   type= htype_arg;
   values = (uchar*)alloc_root(mem_root, size_arg);
   size = (uint8) size_arg;
+}
+
+bool Histogram_json::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr, uint size_arg)
+{
+  size = (uint8) size_arg;
+  type = type_arg;
+  // I think we could use memcpy here, but not sure about how to get the right size
+  // since we can't depend on size_arg (it's zero for json histograms)
+  // also, does it make sense to cast here? or we can modify json_get_array_items
+  // to accept uchar*
+  const char *json = (char *)ptr;
+  int vt;
+  bool result = json_get_array_items(json, json + strlen(json), &vt, hist_buckets);
+  fprintf(stderr,"==============\n");
+  fprintf(stderr,"histogram: %s\n", json);
+  fprintf(stderr, "json_get_array_items() returned %s\n", result ? "true" : "false");
+  fprintf(stderr, "value type after json_get_array_items() is %d\n", vt);
+  fprintf(stderr, " JSV_BAD_JSON=%d, JSON_VALUE_ARRAY=%d\n", (int)JSV_BAD_JSON, (int)JSON_VALUE_ARRAY);
+  fprintf(stderr, "hist_buckets.size()=%zu\n", hist_buckets.size());
+  return false;
+}
+
+void Histogram_json::serialize(Field *field)
+{
+  field->store((char*)get_values(), strlen((char*)get_values()),
+               &my_charset_bin);
 }
 
 /*
@@ -1987,9 +2007,9 @@ public:
     @brief
     Get the pointer to the histogram built for table_field
   */
-  Histogram_binary *get_histogram()
+  Histogram_base *get_histogram()
   {
-    return dynamic_cast<Histogram_binary *>(table_field->collected_stats->histogram_);
+    return table_field->collected_stats->histogram_;
   }
 
 };

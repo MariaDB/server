@@ -16,6 +16,7 @@
 #ifndef SQL_STATISTICS_H
 #define SQL_STATISTICS_H
 
+#include <vector>
 /*
   For COMPLEMENTARY_FOR_QUERIES and PREFERABLY_FOR_QUERIES they are
   similar to the COMPLEMENTARY and PREFERABLY respectively except that
@@ -341,11 +342,12 @@ private:
   Histogram_type type;
   uint8 size; /* Number of elements in the histogram*/
   uchar *values;
+  std::vector<std::string> hist_buckets;
 
 public:
-  bool parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr, uint size) override {return false;}
+  bool parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr, uint size) override;
 
-  void serialize(Field *to_field) override{}
+  void serialize(Field *field) override;
 
   // returns number of buckets in the histogram
   uint get_width() override
