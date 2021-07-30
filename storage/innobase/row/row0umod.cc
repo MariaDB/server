@@ -1215,9 +1215,9 @@ static bool row_undo_mod_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		dict_sys.mutex_lock();
+		dict_sys.freeze(SRW_LOCK_CALL);
 		node->table = dict_sys.acquire_temporary_table(table_id);
-		dict_sys.mutex_unlock();
+		dict_sys.unfreeze();
 	} else {
 		node->table = dict_sys.acquire_temporary_table(table_id);
 	}
@@ -1391,7 +1391,7 @@ rollback_clust:
 			/* Do not attempt to update statistics when
 			executing ROLLBACK in the InnoDB SQL
 			interpreter, because in that case we would
-			already be holding dict_sys.mutex, which
+			already be holding dict_sys.latch, which
 			would be acquired when updating statistics. */
 			if (update_statistics && !dict_locked) {
 				dict_stats_update_if_needed(node->table,

@@ -318,7 +318,7 @@ public:
 
 	/** Whether the ADDED table record sync-ed after crash recovery */
 	unsigned	added_synced:1;
-	/** Whether the table holds dict_sys.mutex */
+	/** Whether the table holds dict_sys.latch */
 	unsigned	dict_locked:1;
 
 	/** Work queue for scheduling jobs for the FTS 'Add' thread, or NULL
@@ -741,7 +741,7 @@ FTS auxiliary INDEX table and clear the cache at the end.
 dberr_t fts_sync_table(dict_table_t* table, bool wait = true);
 
 /****************************************************************//**
-Free the query graph but check whether dict_sys.mutex is already
+Free the query graph but check whether dict_sys.latch is already
 held */
 void
 fts_que_graph_free_check_lock(

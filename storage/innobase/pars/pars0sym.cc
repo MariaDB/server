@@ -67,7 +67,7 @@ sym_tab_free_private(
 	sym_node_t*	sym;
 	func_node_t*	func;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	for (sym = UT_LIST_GET_FIRST(sym_tab->sym_list);
 	     sym != NULL;

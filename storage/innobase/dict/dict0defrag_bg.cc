@@ -145,7 +145,7 @@ dict_stats_defrag_pool_del(
 {
 	ut_a((table && !index) || (!table && index));
 	ut_ad(!srv_read_only_mode);
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.frozen());
 
 	mysql_mutex_lock(&defrag_pool_mutex);
 
@@ -187,7 +187,7 @@ dict_stats_process_entry_from_defrag_pool()
 
 	dict_table_t*	table;
 
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	/* If the table is no longer cached, we've already lost the in
 	memory stats so there's nothing really to write to disk. */
@@ -202,11 +202,11 @@ dict_stats_process_entry_from_defrag_pool()
 		if (table) {
 			dict_table_close(table, TRUE, FALSE);
 		}
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 		return;
 	}
 
-	dict_sys.mutex_unlock();
+	dict_sys.unlock();
 	dict_stats_save_defrag_stats(index);
 	dict_table_close(table, FALSE, FALSE);
 }
@@ -237,7 +237,7 @@ dict_stats_save_defrag_summary(
 		return DB_SUCCESS;
 	}
 
-	dict_sys_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	ret = dict_stats_save_index_stat(index, time(NULL), "n_pages_freed",
 					 index->stat_defrag_n_pages_freed,
@@ -246,7 +246,7 @@ dict_stats_save_defrag_summary(
 					 " last defragmentation run.",
 					 NULL);
 
-	dict_sys_unlock();
+	dict_sys.unlock();
 
 	return (ret);
 }
@@ -331,7 +331,7 @@ dict_stats_save_defrag_stats(
 		return DB_SUCCESS;
 	}
 
-	dict_sys_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 	ret = dict_stats_save_index_stat(index, now, "n_page_split",
 					 index->stat_defrag_n_page_split,
 					 NULL,
@@ -361,6 +361,6 @@ dict_stats_save_defrag_stats(
 		NULL);
 
 end:
-	dict_sys_unlock();
+	dict_sys.unlock();
 	return ret;
 }

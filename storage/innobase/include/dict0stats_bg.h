@@ -67,25 +67,25 @@ dict_stats_stop_bg(
 	dict_table_t*	table)	/*!< in/out: table */
 {
 	ut_ad(!srv_read_only_mode);
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	if (!(table->stats_bg_flag & BG_STAT_IN_PROGRESS)) {
 		return(true);
 	}
 
+	/* In dict_stats_update_persistent() this flag is being read
+	while holding the mutex, not dict_sys.latch. */
+	table->stats_mutex_lock();
 	table->stats_bg_flag |= BG_STAT_SHOULD_QUIT;
+	table->stats_mutex_unlock();
 	return(false);
 }
 
 /*****************************************************************//**
 Wait until background stats thread has stopped using the specified table.
-The caller must have locked the data dictionary using
-row_mysql_lock_data_dictionary() and this function may unlock it temporarily
-and restore the lock before it exits.
 The background stats thread is guaranteed not to start using the specified
-table after this function returns and before the caller unlocks the data
-dictionary because it sets the BG_STAT_IN_PROGRESS bit in table->stats_bg_flag
-under dict_sys.mutex. */
+table after this function returns and before the caller releases
+dict_sys.latch. */
 void
 dict_stats_wait_bg_to_stop_using_table(
 /*===================================*/

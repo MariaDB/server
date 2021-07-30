@@ -3680,7 +3680,7 @@ row_merge_drop_index_dict(
 	ut_ad(!srv_read_only_mode);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx->dict_operation);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	info = pars_info_create();
 	pars_info_add_ull_literal(info, "indexid", index_id);
@@ -3742,7 +3742,7 @@ row_merge_drop_indexes_dict(
 	ut_ad(!srv_read_only_mode);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx->dict_operation);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	/* It is possible that table->n_ref_count > 1 when
 	locked=TRUE. In this case, all code that should have an open
@@ -3815,7 +3815,7 @@ row_merge_drop_indexes(
 	ut_ad(!srv_read_only_mode);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx->dict_operation);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	index = dict_table_get_first_index(table);
 	ut_ad(dict_index_is_clust(index));
@@ -3900,7 +3900,7 @@ row_merge_drop_indexes(
 				index->lock.x_unlock();
 
 				DEBUG_SYNC_C("merge_drop_index_after_abort");
-				/* covered by dict_sys.mutex */
+				/* covered by dict_sys.latch */
 				MONITOR_INC(MONITOR_BACKGROUND_DROP_INDEX);
 				/* fall through */
 			case ONLINE_INDEX_ABORTED:
@@ -3967,7 +3967,7 @@ row_merge_drop_indexes(
 				break;
 			case ONLINE_INDEX_ABORTED:
 			case ONLINE_INDEX_ABORTED_DROPPED:
-				/* covered by dict_sys.mutex */
+				/* covered by dict_sys.latch */
 				MONITOR_DEC(MONITOR_BACKGROUND_DROP_INDEX);
 			}
 

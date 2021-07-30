@@ -326,7 +326,6 @@ static bool innodb_index_stats_not_found_reported;
 Checks whether a table exists and whether it has the given structure.
 The table must have the same number of columns with the same names and
 types. The order of the columns does not matter.
-The caller must own the dictionary mutex.
 dict_table_schema_check() @{
 @return DB_SUCCESS if the table exists and contains the necessary columns */
 static
@@ -478,21 +477,16 @@ dict_table_schema_check(
 Checks whether the persistent statistics storage exists and that all
 tables have the proper structure.
 @return true if exists and all tables are ok */
-static
-bool
-dict_stats_persistent_storage_check(
-/*================================*/
-	bool	caller_has_dict_sys_mutex)	/*!< in: true if the caller
-						owns dict_sys.mutex */
+static bool dict_stats_persistent_storage_check(bool dict_already_locked)
 {
 	char		errstr[512];
 	dberr_t		ret;
 
-	if (!caller_has_dict_sys_mutex) {
-		dict_sys.mutex_lock();
+	if (!dict_already_locked) {
+		dict_sys.lock(SRW_LOCK_CALL);
 	}
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	/* first check table_stats */
 	ret = dict_table_schema_check(&table_stats_schema, errstr,
@@ -503,8 +497,8 @@ dict_stats_persistent_storage_check(
 					      sizeof(errstr));
 	}
 
-	if (!caller_has_dict_sys_mutex) {
-		dict_sys.mutex_unlock();
+	if (!dict_already_locked) {
+		dict_sys.unlock();
 	}
 
 	if (ret != DB_SUCCESS && ret != DB_STATS_DO_NOT_EXIST) {
@@ -530,7 +524,7 @@ only in the case of error, but not freed.
 static
 dberr_t dict_stats_exec_sql(pars_info_t *pinfo, const char* sql, trx_t *trx)
 {
-  ut_d(dict_sys.assert_locked());
+  ut_ad(dict_sys.locked());
 
   if (!dict_stats_persistent_storage_check(true))
   {
@@ -1014,7 +1008,7 @@ dict_table_t*
 dict_stats_snapshot_create(
 	dict_table_t*	table)
 {
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	dict_stats_assert_initialized(table);
 
@@ -1035,7 +1029,7 @@ dict_stats_snapshot_create(
 	t->stats_sample_pages = table->stats_sample_pages;
 	t->stats_bg_flag = table->stats_bg_flag;
 
-	dict_sys.mutex_unlock();
+	dict_sys.unlock();
 
 	return(t);
 }
@@ -1074,14 +1068,13 @@ dict_stats_update_transient_for_index(
 		Initialize some bogus index cardinality
 		statistics, so that the data can be queried in
 		various means, also via secondary indexes. */
+dummy_empty:
 		index->table->stats_mutex_lock();
 		dict_stats_empty_index(index, false);
 		index->table->stats_mutex_unlock();
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 	} else if (ibuf_debug && !dict_index_is_clust(index)) {
-		index->table->stats_mutex_lock();
-		dict_stats_empty_index(index, false);
-		index->table->stats_mutex_unlock();
+		goto dummy_empty;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 	} else {
 		mtr_t	mtr;
@@ -1102,10 +1095,7 @@ dict_stats_update_transient_for_index(
 
 		switch (size) {
 		case ULINT_UNDEFINED:
-			index->table->stats_mutex_lock();
-			dict_stats_empty_index(index, false);
-			index->table->stats_mutex_unlock();
-			return;
+			goto dummy_empty;
 		case 0:
 			/* The root node of the tree is a leaf */
 			size = 1;
@@ -2586,7 +2576,7 @@ dict_stats_save_index_stat(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	dict_fs2utf8(index->table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
@@ -2722,7 +2712,7 @@ dict_stats_save(
 	trx_t*	trx = trx_create();
 	trx_start_internal(trx);
 	trx->dict_operation_lock_mode = RW_X_LATCH;
-	dict_sys_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	pinfo = pars_info_create();
 
@@ -2764,7 +2754,7 @@ rollback_and_exit:
 		trx->rollback();
 free_and_exit:
 		trx->dict_operation_lock_mode = 0;
-		dict_sys_unlock();
+		dict_sys.unlock();
 		trx->free();
 		dict_stats_snapshot_free(table);
 		return ret;
@@ -3634,7 +3624,7 @@ dberr_t dict_stats_delete_from_table_stats(const char *database_name,
 {
 	pars_info_t*	pinfo;
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	pinfo = pars_info_create();
 
@@ -3661,7 +3651,7 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 {
 	pars_info_t*	pinfo;
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	pinfo = pars_info_create();
 
@@ -3690,7 +3680,7 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 {
 	pars_info_t*	pinfo;
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	pinfo = pars_info_create();
 

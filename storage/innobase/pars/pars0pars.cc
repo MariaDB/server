@@ -1973,7 +1973,7 @@ pars_sql(
 	heap = mem_heap_create(16000);
 
 	/* Currently, the parser is not reentrant: */
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	pars_sym_tab_global = sym_tab_create(heap);
 

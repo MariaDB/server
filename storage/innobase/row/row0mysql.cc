@@ -1440,7 +1440,8 @@ error_exit:
 		srv_stats.n_rows_inserted.inc(size_t(trx->id));
 	}
 
-	/* Not protected by dict_sys.mutex for performance
+	/* Not protected by dict_sys.latch or table->stats_mutex_lock()
+	for performance
 	reasons, we would rather get garbage in stat_n_rows (which is
 	just an estimate anyway) than protecting the following code
 	with a latch. */
@@ -1777,7 +1778,8 @@ row_update_for_mysql(row_prebuilt_t* prebuilt)
 	ut_ad(is_delete == (node->is_delete == PLAIN_DELETE));
 
 	if (is_delete) {
-		/* Not protected by dict_sys.mutex for performance
+		/* Not protected by dict_sys.latch
+		or prebuilt->table->stats_mutex_lock() for performance
 		reasons, we would rather get garbage in stat_n_rows (which is
 		just an estimate anyway) than protecting the following code
 		with a latch. */
@@ -2124,7 +2126,8 @@ row_update_cascade_for_mysql(
 			bool stats;
 
 			if (node->is_delete == PLAIN_DELETE) {
-				/* Not protected by dict_sys.mutex for
+				/* Not protected by dict_sys.latch
+				or node->table->stats_mutex_lock() for
 				performance reasons, we would rather
 				get garbage in stat_n_rows (which is
 				just an estimate anyway) than
@@ -2200,7 +2203,7 @@ row_create_table_for_mysql(
 	que_thr_t*	thr;
 	dberr_t		err;
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 
 	DEBUG_SYNC_C("create_table");
@@ -2288,7 +2291,7 @@ row_create_index_for_mysql(
 	ulint		len;
 	dict_table_t*	table = index->table;
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	for (i = 0; i < index->n_def; i++) {
 		/* Check that prefix_len and actual length
@@ -2577,7 +2580,6 @@ dberr_t row_discard_tablespace_for_mysql(dict_table_t *table, trx_t *trx)
     if (err != DB_SUCCESS)
     {
 rollback:
-      table->stats_bg_flag= BG_STAT_NONE;
       if (fts_exist)
       {
         purge_sys.resume_FTS();
@@ -2594,12 +2596,13 @@ rollback:
   trx->op_info = "discarding tablespace";
   trx->dict_operation= true;
 
-  /* Serialize data dictionary operations with dictionary mutex:
+  /* We serialize data dictionary operations with dict_sys.latch:
   this is to avoid deadlocks during data dictionary operations */
 
   err= row_discard_tablespace_foreign_key_checks(trx, table);
   if (err != DB_SUCCESS)
   {
+    table->stats_bg_flag= BG_STAT_NONE;
     row_mysql_unlock_data_dictionary(trx);
     goto rollback;
   }

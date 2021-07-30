@@ -748,9 +748,9 @@ que_eval_sql(
 /*=========*/
 	pars_info_t*	info,	/*!< in: info struct, or NULL */
 	const char*	sql,	/*!< in: SQL string */
-	bool		reserve_dict_mutex,
+	bool		lock_dict,
 				/*!< in: whether to acquire/release
-				dict_sys.mutex around call to pars_sql. */
+				dict_sys.latch around call to pars_sql(). */
 	trx_t*		trx)	/*!< in: trx */
 {
 	que_thr_t*	thr;
@@ -761,14 +761,14 @@ que_eval_sql(
 
 	ut_a(trx->error_state == DB_SUCCESS);
 
-	if (reserve_dict_mutex) {
-		dict_sys.mutex_lock();
+	if (lock_dict) {
+		dict_sys.lock(SRW_LOCK_CALL);
 	}
 
 	graph = pars_sql(info, sql);
 
-	if (reserve_dict_mutex) {
-		dict_sys.mutex_unlock();
+	if (lock_dict) {
+		dict_sys.unlock();
 	}
 
 	graph->trx = trx;
@@ -778,14 +778,14 @@ que_eval_sql(
 
 	que_run_threads(thr);
 
-	if (reserve_dict_mutex) {
-		dict_sys.mutex_lock();
+	if (lock_dict) {
+		dict_sys.lock(SRW_LOCK_CALL);
 	}
 
 	que_graph_free(graph);
 
-	if (reserve_dict_mutex) {
-		dict_sys.mutex_unlock();
+	if (lock_dict) {
+		dict_sys.unlock();
 	}
 
 	DBUG_RETURN(trx->error_state);

@@ -1660,7 +1660,7 @@ right in it. If does not succeed, prints an error message to the .err log. This
 function is used to open a tablespace when we start up mysqld, and also in
 IMPORT TABLESPACE.
 NOTE that we assume this operation is used either at the database startup
-or under the protection of the dictionary mutex, so that two users cannot
+or under the protection of dict_sys.latch, so that two users cannot
 race here. This operation does not leave the file associated with the
 tablespace open, but closes it after we have looked at the space id in it.
 

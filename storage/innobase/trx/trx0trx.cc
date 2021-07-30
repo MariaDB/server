@@ -604,10 +604,10 @@ trx_resurrect_table_locks(
 		if (dict_table_t* table = dict_table_open_on_id(
 			    p.first, FALSE, DICT_TABLE_OP_LOAD_TABLESPACE)) {
 			if (!table->is_readable()) {
-				dict_sys.mutex_lock();
+				dict_sys.lock(SRW_LOCK_CALL);
 				dict_table_close(table, TRUE, FALSE);
 				dict_sys.remove(table);
-				dict_sys.mutex_unlock();
+				dict_sys.unlock();
 				continue;
 			}
 

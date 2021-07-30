@@ -537,7 +537,6 @@ typedef unsigned int mysql_pfs_key_t;
 # ifdef UNIV_PFS_MUTEX
 extern mysql_pfs_key_t buf_pool_mutex_key;
 extern mysql_pfs_key_t dict_foreign_err_mutex_key;
-extern mysql_pfs_key_t dict_sys_mutex_key;
 extern mysql_pfs_key_t fil_system_mutex_key;
 extern mysql_pfs_key_t flush_list_mutex_key;
 extern mysql_pfs_key_t fts_cache_mutex_key;

@@ -115,12 +115,12 @@ row_purge_remove_clust_if_poss_low(
 	if (table_id) {
 retry:
 		purge_sys.check_stop_FTS();
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 		table = dict_table_open_on_id(
 			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
 			node->purge_thd, &mdl_ticket);
 		if (!table) {
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		} else if (table->n_rec_locks) {
 			for (dict_index_t* ind = UT_LIST_GET_FIRST(
 				     table->indexes); ind;
@@ -145,7 +145,7 @@ close_and_exit:
 		if (table) {
 			dict_table_close(table, true, false,
 					 node->purge_thd, mdl_ticket);
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		}
 		return success;
 	}
@@ -176,7 +176,7 @@ close_and_exit:
 					table->file_unreadable = true;
 				}
 				table = nullptr;
-				dict_sys.mutex_unlock();
+				dict_sys.unlock();
 				if (!mdl_ticket);
 				else if (MDL_context* mdl_context =
 					 static_cast<MDL_context*>(
@@ -194,7 +194,7 @@ close_and_exit:
 		if (table) {
 			dict_table_close(table, true, false,
 					 node->purge_thd, mdl_ticket);
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 			table = nullptr;
 		}
 
