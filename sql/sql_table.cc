@@ -2853,8 +2853,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
-    if (sql_field->flags & VERS_SYSTEM_FIELD)
-      continue;
   }
   /* Update virtual fields' offset and give error if
      All fields are invisible */
