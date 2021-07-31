@@ -908,6 +908,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   org_charset= 0;
   /* Restore THR_THD */
   set_current_thd(old_THR_THD);
+  current_insert_index= 0;
 }
 
 
@@ -1055,6 +1056,8 @@ Sql_condition* THD::raise_condition(uint sql_errno,
 {
   Diagnostics_area *da= get_stmt_da();
   Sql_condition *cond= NULL;
+  ulonglong saved_error_index;
+
   DBUG_ENTER("THD::raise_condition");
   DBUG_ASSERT(level < Sql_condition::WARN_LEVEL_END);
 
@@ -1149,7 +1152,10 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (likely(!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
                                   sql_errno == ER_OUTOFMEMORY))))
   {
+    saved_error_index= this->current_insert_index;
+    this->current_insert_index= this->correct_error_index(sql_errno);
     cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg);
+    this->current_insert_index= saved_error_index;
   }
   DBUG_RETURN(cond);
 }

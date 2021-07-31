@@ -971,6 +971,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MUTEX_SYM
 %token  <kwd>  MYSQL_SYM
 %token  <kwd>  MYSQL_ERRNO_SYM
+%token  <kwd>  ERROR_INDEX_SYM
 %token  <kwd>  NAMES_SYM                     /* SQL-2003-N */
 %token  <kwd>  NAME_SYM                      /* SQL-2003-N */
 %token  <kwd>  NATIONAL_SYM                  /* SQL-2003-R */
@@ -3627,6 +3628,8 @@ condition_information_item_name:
           { $$= Condition_information_item::MYSQL_ERRNO; }
         | RETURNED_SQLSTATE_SYM
           { $$= Condition_information_item::RETURNED_SQLSTATE; }
+        | ERROR_INDEX_SYM
+          { $$= Condition_information_item::ERROR_INDEX; }
         ;
 
 sp_decl_ident:
@@ -12915,6 +12918,7 @@ insert_table:
             //lex->field_list.empty();
             lex->many_values.empty();
             lex->insert_list=0;
+            thd->current_insert_index= lex->many_values.elements+1;
           }
         ;
 
@@ -12924,11 +12928,14 @@ insert_field_spec:
         | SET
           {
             LEX *lex=Lex;
+            ulonglong saved_current_insert_index= thd->current_insert_index;
             if (unlikely(!(lex->insert_list= new (thd->mem_root) List_item)) ||
                 unlikely(lex->many_values.push_back(lex->insert_list,
                          thd->mem_root)))
               MYSQL_YYABORT;
             lex->current_select->parsing_place= NO_MATTER;
+            if (saved_current_insert_index < lex->many_values.elements)
+              thd->current_insert_index++;
           }
           ident_eq_list
         ;
@@ -13009,6 +13016,7 @@ no_braces:
             if (unlikely(lex->many_values.push_back(lex->insert_list,
                                                     thd->mem_root)))
               MYSQL_YYABORT;
+            thd->current_insert_index++;
           }
         ;
 
@@ -13024,6 +13032,7 @@ no_braces_with_names:
             if (unlikely(lex->many_values.push_back(lex->insert_list,
                                                     thd->mem_root)))
               MYSQL_YYABORT;
+            thd->current_insert_index++;
           }
         ;
 
@@ -15652,6 +15661,7 @@ keyword_sp_var_and_label:
         | INVOKER_SYM
         | IMPORT
         | INDEXES
+        | ERROR_INDEX_SYM
         | INITIAL_SIZE_SYM
         | IO_SYM
         | IPC_SYM

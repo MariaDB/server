@@ -338,6 +338,8 @@ Condition_information_item::get_value(THD *thd, const Sql_condition *cond)
     str.set_ascii(cond->get_sqlstate(), strlen(cond->get_sqlstate()));
     value= make_utf8_string_item(thd, &str);
     break;
+  case ERROR_INDEX:
+    value= new (thd->mem_root) Item_uint(thd, cond->error_index);
   }
 
   DBUG_RETURN(value);

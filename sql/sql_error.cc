@@ -672,7 +672,8 @@ Sql_condition *Warning_info::push_warning(THD *thd,
     if (m_allow_unlimited_warnings ||
         m_warn_list.elements() < thd->variables.max_error_count)
     {
-      cond= new (& m_warn_root) Sql_condition(& m_warn_root, *value, msg);
+      cond= new (& m_warn_root) Sql_condition(& m_warn_root, *value, msg,
+                                              thd->current_insert_index);
       if (cond)
         m_warn_list.push_back(cond);
     }

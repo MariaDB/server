@@ -1338,9 +1338,10 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
                                                   table_list->table_name.str));
       goto error;
     }
+    thd->current_insert_index= 0;
     while ((values= its++))
     {
-      counter++;
+      thd->current_insert_index= ++counter;
       if (values->elements != value_count)
       {
         my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), counter);
@@ -1350,6 +1351,7 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
                        *values, COLUMNS_READ, 0, NULL, 0))
         goto error;
     }
+    thd->current_insert_index= 0;
   }
   DBUG_RETURN(FALSE);
 
