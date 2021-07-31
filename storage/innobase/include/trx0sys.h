@@ -506,7 +506,7 @@ class rw_trx_hash_t
   static void validate_element(trx_t *trx)
   {
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
-    ut_ad(!trx_is_autocommit_non_locking(trx));
+    ut_ad(!trx->is_autocommit_non_locking());
     /* trx->state can be anything except TRX_STATE_NOT_STARTED */
     mutex_enter(&trx->mutex);
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||

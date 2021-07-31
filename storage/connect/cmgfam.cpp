@@ -56,6 +56,7 @@ CMGFAM::CMGFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 		Pcg.Coll_name = tdp->Collname;
 		Pcg.Options = tdp->Options;
 		Pcg.Filter = tdp->Filter;
+		Pcg.Line = NULL;
 		Pcg.Pipe = tdp->Pipe && tdp->Options != NULL;
 		Lrecl = tdp->Lrecl + tdp->Ending;
 	} else {
@@ -64,6 +65,7 @@ CMGFAM::CMGFAM(PJDEF tdp) : DOSFAM((PDOSDEF)NULL)
 		Pcg.Coll_name = NULL;
 		Pcg.Options = NULL;
 		Pcg.Filter = NULL;
+		Pcg.Line = NULL;
 		Pcg.Pipe = false;
 		Lrecl = 0;
 	} // endif tdp
@@ -88,6 +90,7 @@ CMGFAM::CMGFAM(PBDEF tdp) : DOSFAM((PDOSDEF)NULL)
 		Pcg.Coll_name = tdp->Collname;
 		Pcg.Options = tdp->Options;
 		Pcg.Filter = tdp->Filter;
+		Pcg.Line = NULL;
 		Pcg.Pipe = tdp->Pipe && tdp->Options != NULL;
 		Lrecl = tdp->Lrecl + tdp->Ending;
 	} else {
@@ -96,6 +99,7 @@ CMGFAM::CMGFAM(PBDEF tdp) : DOSFAM((PDOSDEF)NULL)
 		Pcg.Coll_name = NULL;
 		Pcg.Options = NULL;
 		Pcg.Filter = NULL;
+		Pcg.Line = NULL;
 		Pcg.Pipe = false;
 		Lrecl = 0;
 	} // endif tdp
@@ -280,6 +284,7 @@ int CMGFAM::ReadBuffer(PGLOBAL g)
 /***********************************************************************/
 int CMGFAM::WriteBuffer(PGLOBAL g)
 {
+	Pcg.Line = Tdbp->GetLine();
 	return Cmgp->Write(g);
 } // end of WriteBuffer
 

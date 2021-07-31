@@ -1524,22 +1524,31 @@ static int *GetIntArgPtr(PGLOBAL g, UDF_ARGS *args, uint& n)
 /*********************************************************************************/
 int IsJson(UDF_ARGS *args, uint i, bool b)
 {
-	int n = 0;
+	const char *pat = args->attributes[i];
+	int   n = 0;
+
+	if (*pat == '@') {
+		pat++;
+
+		if (*pat == '\'' || *pat == '"')
+			pat++;
+
+	} // endif pat
 
 	if (i >= args->arg_count || args->arg_type[i] != STRING_RESULT) {
-	} else if (!strnicmp(args->attributes[i], "Json_", 5)) {
+	} else if (!strnicmp(pat, "Json_", 5)) {
 		if (!args->args[i] || strchr("[{ \t\r\n", *args->args[i]))
 			n = 1;					 // arg should be is a json item
 		else
 			n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Jbin_", 5)) {
+	} else if (!strnicmp(pat, "Jbin_", 5)) {
 		if (args->lengths[i] == sizeof(BSON))
 			n = 3;					 //	arg is a binary json item
 		else
 			n = 2;           // A file name may have been returned
 
-	} else if (!strnicmp(args->attributes[i], "Jfile_", 6)) {
+	} else if (!strnicmp(pat, "Jfile_", 6)) {
 		n = 2;					   //	arg is a json file name
 	} else if (b) {
 		char   *sap;
@@ -5945,7 +5954,7 @@ char *jfile_convert(UDF_INIT* initid, UDF_ARGS* args, char* result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		PUSH_WARNING(g->Message ? g->Message : "Unexpected error");
+		PUSH_WARNING(*g->Message ? g->Message : "Unexpected error");
 		*is_null = 1;
 		*error = 1;
 		*res_length = 0;
@@ -6006,7 +6015,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 
 	if (!g->Xchk) {
 		int 	msgid = MSGID_OPEN_MODE_STRERROR;
-		FILE *fout;
+		FILE *fout = NULL;
 		FILE *fin;
 
 		if (!(fin = global_fopen(g, msgid, fn, "rt")))
@@ -6073,7 +6082,7 @@ char *jfile_bjson(UDF_INIT *initid, UDF_ARGS *args, char *result,
 		str = (char*)g->Xchk;
 
 	if (!str) {
-		if (g->Message)
+		if (*g->Message)
 			str = strcpy(result, g->Message);
 		else
 			str = strcpy(result, "Unexpected error");

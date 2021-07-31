@@ -4435,7 +4435,7 @@ innobase_commit_low(
 	if (trx_is_started(trx)) {
 		trx_commit_for_mysql(trx);
 	} else {
-		trx->will_lock = 0;
+		trx->will_lock = false;
 #ifdef WITH_WSREP
 		trx->wsrep = false;
 #endif /* WITH_WSREP */
@@ -4806,7 +4806,7 @@ innobase_rollback_trx(
 	lock_unlock_table_autoinc(trx);
 
 	if (!trx->has_logged()) {
-		trx->will_lock = 0;
+		trx->will_lock = false;
 #ifdef WITH_WSREP
 		trx->wsrep= false;
 		trx->lock.was_chosen_as_wsrep_victim= false;
@@ -8063,7 +8063,7 @@ ha_innobase::write_row(
 	ut_a(m_prebuilt->trx == trx);
 
 	if (!trx_is_started(trx)) {
-		++trx->will_lock;
+		trx->will_lock = true;
 	}
 
 	ins_mode_t	vers_set_fields;
@@ -8833,7 +8833,7 @@ ha_innobase::update_row(
 		ib_senderrf(ha_thd(), IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	} else if (!trx_is_started(trx)) {
-		++trx->will_lock;
+		trx->will_lock = true;
 	}
 
 	if (m_upd_buf == NULL) {
@@ -9015,7 +9015,7 @@ ha_innobase::delete_row(
 		ib_senderrf(ha_thd(), IB_LOG_LEVEL_WARN, ER_READ_ONLY_MODE);
 		DBUG_RETURN(HA_ERR_TABLE_READONLY);
 	} else if (!trx_is_started(trx)) {
-		++trx->will_lock;
+		trx->will_lock = true;
 	}
 
 	if (!m_prebuilt->upd_node) {
@@ -9894,7 +9894,7 @@ ha_innobase::ft_init()
 	them as regular read only transactions for now. */
 
 	if (!trx_is_started(trx)) {
-		++trx->will_lock;
+		trx->will_lock = true;
 	}
 
 	DBUG_RETURN(rnd_init(false));
@@ -9960,7 +9960,7 @@ ha_innobase::ft_init_ext(
 	them as regular read only transactions for now. */
 
 	if (!trx_is_started(trx)) {
-		++trx->will_lock;
+		trx->will_lock = true;
 	}
 
 	dict_table_t*	ft_table = m_prebuilt->table;
@@ -12915,7 +12915,7 @@ create_table_info_t::allocate_trx()
 {
 	m_trx = innobase_trx_allocate(m_thd);
 
-	m_trx->will_lock++;
+	m_trx->will_lock = true;
 	m_trx->ddl = true;
 }
 
@@ -13229,13 +13229,7 @@ inline int ha_innobase::delete_table(const char* name, enum_sql_command sqlcom)
 
 	ut_a(name_len < 1000);
 
-	/* Either the transaction is already flagged as a locking transaction
-	or it hasn't been started yet. */
-
-	ut_a(!trx_is_started(trx) || trx->will_lock > 0);
-
-	/* We are doing a DDL operation. */
-	++trx->will_lock;
+	trx->will_lock = true;
 
 	/* Drop the table in InnoDB */
 
@@ -13412,14 +13406,7 @@ innobase_drop_database(
 #endif /* _WIN32 */
 
 	trx_t*	trx = innobase_trx_allocate(thd);
-
-	/* Either the transaction is already flagged as a locking transaction
-	or it hasn't been started yet. */
-
-	ut_a(!trx_is_started(trx) || trx->will_lock > 0);
-
-	/* We are doing a DDL operation. */
-	++trx->will_lock;
+	trx->will_lock = true;
 
 	ulint	dummy;
 
@@ -13463,7 +13450,7 @@ inline dberr_t innobase_rename_table(trx_t *trx, const char *from,
 	DEBUG_SYNC_C("innodb_rename_table_ready");
 
 	trx_start_if_not_started(trx, true);
-	ut_ad(trx->will_lock > 0);
+	ut_ad(trx->will_lock);
 
 	if (commit) {
 		/* Serialize data dictionary operations with dictionary mutex:
@@ -13612,8 +13599,7 @@ int ha_innobase::truncate()
 		heap, ib_table->name.m_name, ib_table->id);
 	const char* name = mem_heap_strdup(heap, ib_table->name.m_name);
 	trx_t*	trx = innobase_trx_allocate(m_user_thd);
-
-	++trx->will_lock;
+	trx->will_lock = true;
 	trx_set_dict_operation(trx, TRX_DICT_OP_TABLE);
 	row_mysql_lock_data_dictionary(trx);
 	dict_stats_wait_bg_to_stop_using_table(ib_table, trx);
@@ -13698,9 +13684,7 @@ ha_innobase::rename_table(
 	}
 
 	trx_t*	trx = innobase_trx_allocate(thd);
-
-	/* We are doing a DDL operation. */
-	++trx->will_lock;
+	trx->will_lock = true;
 	trx_set_dict_operation(trx, TRX_DICT_OP_INDEX);
 
 	dberr_t	error = innobase_rename_table(trx, from, to, true);
@@ -15511,7 +15495,7 @@ ha_innobase::start_stmt(
 	innobase_register_trx(ht, thd, trx);
 
 	if (!trx_is_started(trx)) {
-		++trx->will_lock;
+		trx->will_lock = true;
 	}
 
 	DBUG_RETURN(0);
@@ -15737,7 +15721,7 @@ ha_innobase::external_lock(
 		    && (m_prebuilt->select_lock_type != LOCK_NONE
 			|| m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
 
-			++trx->will_lock;
+			trx->will_lock = true;
 		}
 
 		DBUG_RETURN(0);
@@ -15778,7 +15762,7 @@ ha_innobase::external_lock(
 	    && (m_prebuilt->select_lock_type != LOCK_NONE
 		|| m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
 
-		++trx->will_lock;
+		trx->will_lock = true;
 	}
 
 	DBUG_RETURN(0);
@@ -16460,7 +16444,7 @@ ha_innobase::store_lock(
 	    && (m_prebuilt->select_lock_type != LOCK_NONE
 	        || m_prebuilt->stored_select_lock_type != LOCK_NONE)) {
 
-		++trx->will_lock;
+		trx->will_lock = true;
 	}
 
 	return(to);

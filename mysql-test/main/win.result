@@ -3911,6 +3911,293 @@ sum(i) over () IN ( SELECT 1 FROM t1 a)
 0
 DROP TABLE t1;
 #
+# MDEV-25565: 2-nd call of SP with SELECT from view / derived table / CTE
+#             returning the result  of calculation of 2 window
+#             functions that use the same window specification
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1), (7), (1), (1), (3), (1), (5);
+create view v2 as select a from t1 group by a;
+create view v1 as select * from v2;
+create procedure sp1() select v1.a,
+sum(v1.a) over (partition by v1.a  order by v1.a) as k,
+avg(v1.a) over (partition by v1.a  order by v1.a) as m
+from v1;
+call sp1();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+call sp1();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+prepare stmt from "select v1.a,
+sum(v1.a) over (partition by v1.a  order by v1.a) as k,
+avg(v1.a) over (partition by v1.a  order by v1.a) as m
+from v1";
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+deallocate prepare stmt;
+create procedure sp2() select * from
+( select dt1.a,
+sum(dt1.a) over (partition by dt1.a  order by dt1.a) as k,
+avg(dt1.a) over (partition by dt1.a  order by dt1.a) as m
+from (select * from v2) as dt1
+) as dt;
+call sp2();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+call sp2();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+prepare stmt from "select * from
+( select dt1.a,
+sum(dt1.a) over (partition by dt1.a  order by dt1.a) as k,
+avg(dt1.a) over (partition by dt1.a  order by dt1.a) as m
+from (select * from v2) as dt1
+) as dt";
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+deallocate prepare stmt;
+create procedure sp3() select * from
+( select dt1.a,
+sum(dt1.a) over (partition by dt1.a  order by dt1.a) as k,
+avg(dt1.a) over (partition by dt1.a  order by dt1.a) as m
+from ( select * from (select * from t1 group by a) as dt2 ) as dt1
+) as dt;
+call sp3();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+call sp3();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+prepare stmt from "select * from
+( select dt1.a,
+sum(dt1.a) over (partition by dt1.a  order by dt1.a) as k,
+avg(dt1.a) over (partition by dt1.a  order by dt1.a) as m
+from ( select * from (select * from t1 group by a) as dt2 ) as dt1
+) as dt";
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+deallocate prepare stmt;
+create procedure sp4() with cte1 as (select * from (select * from t1 group by a) as dt2),
+cte as
+( select cte1.a,
+sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+from cte1 )
+select * from cte;
+call sp4();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+call sp4();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+prepare stmt from "with cte1 as (select * from (select * from t1 group by a) as dt2),
+cte as
+( select cte1.a,
+sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+from cte1 )
+select * from cte";
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+deallocate prepare stmt;
+create procedure sp5() with cte1 as (select * from v2),
+cte as
+( select cte1.a,
+sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+from cte1 )
+select * from cte;
+call sp5();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+call sp5();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+prepare stmt from "with cte1 as (select * from v2),
+cte as
+( select cte1.a,
+sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+from cte1 )
+select * from cte";
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+deallocate prepare stmt;
+create procedure sp6() with
+cte1 as (with cte2 as (select * from t1 group by a) select * from cte2),
+cte as
+( select cte1.a,
+sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+from cte1 )
+select * from cte;
+call sp6();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+call sp6();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+prepare stmt from "with
+cte1 as (with cte2 as (select * from t1 group by a) select * from cte2),
+cte as
+( select cte1.a,
+sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+from cte1 )
+select * from cte";
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+deallocate prepare stmt;
+create procedure sp7() with
+cte2 as (select * from v1),
+cte1 as (select * from cte2),
+cte as
+( select cte1.a,
+sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+from cte1 )
+select * from cte;
+call sp7();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+call sp7();
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+prepare stmt from "with
+cte2 as (select * from v1),
+cte1 as (select * from cte2),
+cte as
+( select cte1.a,
+sum(cte1.a) over (partition by cte1.a  order by cte1.a) as k,
+avg(cte1.a) over (partition by cte1.a  order by cte1.a) as m
+from cte1 )
+select * from cte";
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+execute stmt;
+a	k	m
+1	1	1.0000
+3	3	3.0000
+5	5	5.0000
+7	7	7.0000
+deallocate prepare stmt;
+drop procedure sp1;
+drop procedure sp2;
+drop procedure sp3;
+drop procedure sp4;
+drop procedure sp5;
+drop procedure sp6;
+drop procedure sp7;
+drop view v1,v2;
+drop table t1;
+#
 # End of 10.2 tests
 #
 #

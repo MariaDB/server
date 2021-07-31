@@ -6327,6 +6327,7 @@ bool Field_timef::val_native(Native *to)
 int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
+  THD *thd= get_thd();
   char *end;
   int error;
   longlong nr= cs->cset->strntoull10rnd(cs, from, len, 0, &end, &error);
@@ -6338,7 +6339,14 @@ int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
+
+  if (thd->count_cuted_fields <= CHECK_FIELD_EXPRESSION && error == MY_ERRNO_EDOM)
+  {
+    *ptr= 0;
+    return 1;
+  }
+
+  if (thd->count_cuted_fields > CHECK_FIELD_EXPRESSION && 
       (error= check_int(cs, from, len, end, error)))
   {
     if (unlikely(error == 1)  /* empty or incorrect string */)

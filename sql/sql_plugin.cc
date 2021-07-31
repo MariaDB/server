@@ -294,14 +294,14 @@ public:
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
                     st_plugin_int *p, st_mysql_sys_var *plugin_var_arg);
   sys_var_pluginvar *cast_pluginvar() { return this; }
-  uchar* real_value_ptr(THD *thd, enum_var_type type);
-  TYPELIB* plugin_var_typelib(void);
-  uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base);
-  uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  uchar* real_value_ptr(THD *thd, enum_var_type type) const;
+  TYPELIB* plugin_var_typelib(void) const;
+  const uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
+  const uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_SESSION, base); }
-  uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_GLOBAL, base); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return do_value_ptr(thd, OPT_DEFAULT, 0); }
   bool do_check(THD *thd, set_var *var);
   virtual void session_save_default(THD *thd, set_var *var) {}
@@ -3388,7 +3388,7 @@ sys_var_pluginvar::sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
   plugin_opt_set_limits(&option, pv);
 }
 
-uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
+uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type) const
 {
   if (type == OPT_DEFAULT)
   {
@@ -3462,7 +3462,7 @@ bool sys_var_pluginvar::session_is_default(THD *thd)
 }
 
 
-TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
+TYPELIB* sys_var_pluginvar::plugin_var_typelib(void) const
 {
   switch (plugin_var->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_THDLOCAL)) {
   case PLUGIN_VAR_ENUM:
@@ -3480,12 +3480,10 @@ TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
 }
 
 
-uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
-                                       const LEX_CSTRING *base)
+const uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
+                                             const LEX_CSTRING *base) const
 {
-  uchar* result;
-
-  result= real_value_ptr(thd, type);
+  const uchar* result= real_value_ptr(thd, type);
 
   if ((plugin_var->flags & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_ENUM)
     result= (uchar*) get_type(plugin_var_typelib(), *(ulong*)result);

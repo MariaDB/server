@@ -298,9 +298,9 @@ FIDBLK::FIDBLK(PCOLUMN cp, OPVAL op) : SPCBLK(cp), Op(op)
   Buf_Type = TYPE_STRING;
   *Format.Type = 'C';
   Format.Length = Long;
-#if defined(__WIN__)
+#if defined(_WIN32)
   Format.Prec = 1;          // Case insensitive
-#endif   // __WIN__
+#endif   // _WIN32
   Constant = (!To_Tdb->GetDef()->GetMultiple() &&
               To_Tdb->GetAmType() != TYPE_AM_PLG &&
               To_Tdb->GetAmType() != TYPE_AM_PLM);

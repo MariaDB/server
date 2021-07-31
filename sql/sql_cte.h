@@ -261,6 +261,8 @@ public:
 
   bool is_referenced() { return referenced; }
 
+  bool is_hanging_recursive() { return is_recursive && !rec_outer_references; }
+
   void inc_references() { references++; }
 
   bool rename_columns_of_derived_unit(THD *thd, st_select_lex_unit *unit);

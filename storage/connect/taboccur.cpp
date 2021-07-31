@@ -1,7 +1,7 @@
 /************ TabOccur CPP Declares Source Code File (.CPP) ************/
 /*  Name: TABOCCUR.CPP   Version 1.2                                   */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2013 - 2017  */
+/*  (C) Copyright to the author Olivier BERTRAND          2013 - 2021  */
 /*                                                                     */
 /*  OCCUR: Table that provides a view of a source table where the      */
 /*  contain of several columns of the source table is placed in only   */
@@ -13,7 +13,7 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -49,11 +49,13 @@
 #include "tabmysql.h"
 #include "ha_connect.h"
 
+int PrepareColist(char *colist);
+
 /***********************************************************************/
 /*  Prepare and count columns in the column list.                      */
 /***********************************************************************/
-static int PrepareColist(char *colist)
-	{
+int PrepareColist(char *colist)
+{
 	char *p, *pn;
 	int   n = 0;
 
@@ -71,7 +73,7 @@ static int PrepareColist(char *colist)
 		} // endif p
 
 	return n;
-	} // end of PrepareColist
+} // end of PrepareColist
 
 /************************************************************************/
 /*  OcrColumns: constructs the result blocks containing all the columns */
@@ -79,7 +81,7 @@ static int PrepareColist(char *colist)
 /************************************************************************/
 bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col, 
                        const char *ocr, const char *rank)
-  {
+{
   char   *pn, *colist;
   int     i, k, m, n = 0, c = 0, j = qrp->Nblin;
   bool    rk, b = false;
@@ -168,7 +170,7 @@ bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col,
   /**********************************************************************/
   qrp->Nblin = j;
   return false;
-  } // end of OcrColumns
+} // end of OcrColumns
 
 /************************************************************************/
 /*  OcrSrcCols: constructs the result blocks containing all the columns */
@@ -176,7 +178,7 @@ bool OcrColumns(PGLOBAL g, PQRYRES qrp, const char *col,
 /************************************************************************/
 bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col, 
                        const char *ocr, const char *rank)
-  {
+{
   char   *pn, *colist;
   int     i, k, m, n = 0, c = 0;
   bool    rk, b = false;
@@ -249,7 +251,7 @@ bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col,
   /**********************************************************************/
   qrp->Nblin = i;
   return false;
-  } // end of OcrSrcCols
+} // end of OcrSrcCols
 
 /* -------------- Implementation of the OCCUR classes	---------------- */
 
@@ -257,24 +259,24 @@ bool OcrSrcCols(PGLOBAL g, PQRYRES qrp, const char *col,
 /*  DefineAM: define specific AM block values from OCCUR table.        */
 /***********************************************************************/
 bool OCCURDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
-  {
+{
   Rcol = GetStringCatInfo(g, "RankCol", "");
   Colist = GetStringCatInfo(g, "Colist", "");
   Xcol = GetStringCatInfo(g, "OccurCol", Colist);
   return PRXDEF::DefineAM(g, am, poff);
-  } // end of DefineAM
+} // end of DefineAM
 
 /***********************************************************************/
 /*  GetTable: makes a new TDB of the proper type.                      */
 /***********************************************************************/
 PTDB OCCURDEF::GetTable(PGLOBAL g, MODE)
-  {
+{
   if (Catfunc != FNC_COL)
   	return new(g) TDBOCCUR(this);
   else
     return new(g) TDBTBC(this);
 
-  } // end of GetTable
+} // end of GetTable
 
 /* ------------------------------------------------------------------- */
 
@@ -282,7 +284,7 @@ PTDB OCCURDEF::GetTable(PGLOBAL g, MODE)
 /*  Implementation of the TDBOCCUR class.                              */
 /***********************************************************************/
 TDBOCCUR::TDBOCCUR(POCCURDEF tdp) : TDBPRX(tdp)
-  {
+{
 //Tdbp = NULL;      			           // Source table (in TDBPRX)
   Tabname = tdp->Tablep->GetName();	 // Name of source table
 	Colist = tdp->Colist;							 // List of source columns
@@ -294,13 +296,13 @@ TDBOCCUR::TDBOCCUR(POCCURDEF tdp) : TDBPRX(tdp)
 	N = 0;									           // The current table index
 	M = 0;                             // The occurence rank
 	RowFlag = 0;    				           // 0: Ok, 1: Same, 2: Skip
-  } // end of TDBOCCUR constructor
+} // end of TDBOCCUR constructor
 
 /***********************************************************************/
 /*  Allocate OCCUR/SRC column description block.                       */
 /***********************************************************************/
 PCOL TDBOCCUR::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
-	{
+{
 	PCOL colp = NULL;
 
 	if (!stricmp(cdp->GetName(), Rcolumn)) {
@@ -321,13 +323,13 @@ PCOL TDBOCCUR::MakeCol(PGLOBAL g, PCOLDEF cdp, PCOL cprec, int n)
 	} // endif cprec
 
 	return colp;
-	} // end of MakeCol
+} // end of MakeCol
 
 /***********************************************************************/
 /*  Initializes the table.                                             */
 /***********************************************************************/
 bool TDBOCCUR::InitTable(PGLOBAL g)
-  {
+{
   if (!Tdbp)
     // Get the table description block of this table
     if (!(Tdbp = GetSubTable(g, ((POCCURDEF)To_Def)->Tablep, TRUE)))
@@ -338,13 +340,13 @@ bool TDBOCCUR::InitTable(PGLOBAL g)
       return TRUE;
 
   return FALSE;
-  } // end of InitTable
+} // end of InitTable
 
 /***********************************************************************/
 /*  Allocate OCCUR column description block.                           */
 /***********************************************************************/
 bool TDBOCCUR::MakeColumnList(PGLOBAL g)
-	{
+{
 	char *pn;
 	int   i;
   PCOL  colp;
@@ -371,13 +373,13 @@ bool TDBOCCUR::MakeColumnList(PGLOBAL g)
 		} // endfor i
 
 	return false;
-	} // end of MakeColumnList
+} // end of MakeColumnList
 
 /***********************************************************************/
 /*  Allocate OCCUR column description block for a view.                */
 /***********************************************************************/
 bool TDBOCCUR::ViewColumnList(PGLOBAL g)
-	{
+{
 	char *pn;
 	int   i;
   PCOL  colp, cp;
@@ -412,13 +414,13 @@ bool TDBOCCUR::ViewColumnList(PGLOBAL g)
 			} // endif Col
 
 	return false;
-	} // end of ViewColumnList
+} // end of ViewColumnList
 
 /***********************************************************************/
 /*  OCCUR GetMaxSize: returns the maximum number of rows in the table. */
 /***********************************************************************/
 int TDBOCCUR::GetMaxSize(PGLOBAL g)
-  {
+{
   if (MaxSize < 0) {
     if (!(Tdbp = GetSubTable(g, ((POCCURDEF)To_Def)->Tablep, TRUE)))
       return 0;
@@ -427,22 +429,22 @@ int TDBOCCUR::GetMaxSize(PGLOBAL g)
 		} // endif MaxSize
 
   return MaxSize;
-  } // end of GetMaxSize
+} // end of GetMaxSize
 
 /***********************************************************************/
 /*  In this sample, ROWID will be the (virtual) row number,            */
 /*  while ROWNUM will be the occurence rank in the multiple column.    */
 /***********************************************************************/
 int TDBOCCUR::RowNumber(PGLOBAL, bool b)
-	{
+{
 	return (b) ? M : N;
-	} // end of RowNumber
+} // end of RowNumber
  
 /***********************************************************************/
 /*  OCCUR Access Method opening routine.                               */
 /***********************************************************************/
 bool TDBOCCUR::OpenDB(PGLOBAL g)
-  {
+{
   if (Use == USE_OPEN) {
     /*******************************************************************/
     /*  Table already open, just replace it at its beginning.          */
@@ -491,13 +493,13 @@ bool TDBOCCUR::OpenDB(PGLOBAL g)
 
   Use = USE_OPEN;
   return ViewColumnList(g);
-  } // end of OpenDB
+} // end of OpenDB
 
 /***********************************************************************/
 /*  Data Base read routine for OCCUR access method.                    */
 /***********************************************************************/
 int TDBOCCUR::ReadDB(PGLOBAL g)
-  {
+{
 	int rc = RC_OK;
 
   /*********************************************************************/
@@ -518,7 +520,7 @@ int TDBOCCUR::ReadDB(PGLOBAL g)
 
 	N++;
 	return rc;
-  } // end of ReadDB
+} // end of ReadDB
 
 // ------------------------ OCCURCOL functions ----------------------------
 
@@ -527,17 +529,17 @@ int TDBOCCUR::ReadDB(PGLOBAL g)
 /***********************************************************************/
 OCCURCOL::OCCURCOL(PCOLDEF cdp, PTDBOCCUR tdbp, int n)
 				: COLBLK(cdp, tdbp, n)
-  {
+{
   // Set additional OCCUR access method information for column.
 	I = 0;
-  } // end of OCCURCOL constructor
+} // end of OCCURCOL constructor
 
 /***********************************************************************/
 /*  ReadColumn: what this routine does is to access the columns of     */
 /*  list, extract their value and convert it to buffer type.           */
 /***********************************************************************/
 void OCCURCOL::ReadColumn(PGLOBAL g)
-  {
+{
 	PTDBOCCUR tdbp = (PTDBOCCUR)To_Tdb;
 	PCOL     *col = tdbp->Col;
 
@@ -559,7 +561,7 @@ void OCCURCOL::ReadColumn(PGLOBAL g)
 	// Set the OCCUR column value from the Ith source column value
 	Value->SetValue_pval(col[I++]->GetValue());
 	tdbp->RowFlag = 1;
-  } // end of ReadColumn
+} // end of ReadColumn
 
 
 // ------------------------ RANKCOL functions ---------------------------
@@ -569,7 +571,7 @@ void OCCURCOL::ReadColumn(PGLOBAL g)
 /*  list, extract its name and set to it the rank column value.        */
 /***********************************************************************/
 void RANKCOL::ReadColumn(PGLOBAL)
-  {
+{
 	PTDBOCCUR tdbp = (PTDBOCCUR)To_Tdb;
 	PCOL     *col = tdbp->Col;
 
@@ -584,4 +586,4 @@ void RANKCOL::ReadColumn(PGLOBAL)
 
     } // endelse
 
-  } // end of ReadColumn
+} // end of ReadColumn

@@ -885,7 +885,7 @@ ERROR 22003: Out of range value for column 'vi' at row 1
 DROP TABLE t1;
 # MDEV-19011 Assertion `file->s->base.reclength < file->s->vreclength'
 # failed in ha_myisam::setup_vcols_for_repair
-CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL) ENGINE=MyISAM;
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL);
 ALTER TABLE t1 ADD KEY (a);
 DROP TABLE t1;
 #

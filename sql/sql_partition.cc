@@ -3735,6 +3735,17 @@ uint32 get_partition_id_range_for_endpoint(partition_info *part_info,
     if (part_func_value >= part_end_val &&
         (loc_part_id < max_partition || !part_info->defined_max_value))
       loc_part_id++;
+    if (part_info->part_type == VERSIONING_PARTITION &&
+        part_func_value < INT_MAX32 &&
+        loc_part_id > part_info->vers_info->hist_part->id)
+    {
+      /*
+        Historical query with AS OF point after the last history partition must
+        include last history partition because it can be overflown (contain
+        history rows out of right endpoint).
+      */
+      loc_part_id= part_info->vers_info->hist_part->id;
+    }
   }
   else 
   {

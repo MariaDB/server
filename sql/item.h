@@ -3891,7 +3891,7 @@ class Item_param :public Item_basic_value,
       m_string.swap(other.m_string);
       m_string_ptr.swap(other.m_string_ptr);
     }
-    double val_real() const;
+    double val_real(const Type_std_attributes *attr) const;
     longlong val_int(const Type_std_attributes *attr) const;
     my_decimal *val_decimal(my_decimal *dec, const Type_std_attributes *attr);
     String *val_str(String *str, const Type_std_attributes *attr);
@@ -3993,7 +3993,7 @@ public:
 
   double val_real()
   {
-    return can_return_value() ? value.val_real() : 0e0;
+    return can_return_value() ? value.val_real(this) : 0e0;
   }
   longlong val_int()
   {
@@ -6442,13 +6442,15 @@ public:
 
 class Item_default_value : public Item_field
 {
+  bool vcol_assignment_ok;
   void calculate();
 public:
   Item *arg;
   Field *cached_field;
-  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a)
+  Item_default_value(THD *thd, Name_resolution_context *context_arg, Item *a,
+                     bool vcol_assignment_arg)
     :Item_field(thd, context_arg, (const char *)NULL, (const char *)NULL,
-                &null_clex_str),
+                &null_clex_str), vcol_assignment_ok(vcol_assignment_arg),
      arg(a), cached_field(NULL) {}
   enum Type type() const { return DEFAULT_VALUE_ITEM; }
   bool eq(const Item *item, bool binary_cmp) const;
@@ -6487,6 +6489,7 @@ public:
     if (field && field->default_value)
       field->default_value->expr->update_used_tables();
   }
+  bool vcol_assignment_allowed_value() const { return vcol_assignment_ok; }
   Field *get_tmp_table_field() { return 0; }
   Item *get_tmp_table_item(THD *thd) { return this; }
   Item_field *field_for_view_update() { return 0; }

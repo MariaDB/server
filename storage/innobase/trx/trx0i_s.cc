@@ -575,7 +575,7 @@ thd_done:
 
 	row->trx_is_read_only = trx->read_only;
 
-	row->trx_is_autocommit_non_locking = trx_is_autocommit_non_locking(trx);
+	row->trx_is_autocommit_non_locking = trx->is_autocommit_non_locking();
 
 	return(TRUE);
 }
@@ -1229,7 +1229,24 @@ static void fetch_data_into_cache_low(trx_i_s_cache_t *cache, const trx_t *trx)
 {
   i_s_locks_row_t *requested_lock_row;
 
-  assert_trx_nonlocking_or_in_list(trx);
+#ifdef UNIV_DEBUG
+  {
+    const auto state= trx->state;
+
+    if (trx->is_autocommit_non_locking())
+    {
+      ut_ad(trx->read_only);
+      ut_ad(!trx->is_recovered);
+      ut_ad(trx->mysql_thd);
+      ut_ad(state == TRX_STATE_NOT_STARTED || state == TRX_STATE_ACTIVE);
+    }
+    else
+      ut_ad(state == TRX_STATE_ACTIVE ||
+            state == TRX_STATE_PREPARED ||
+            state == TRX_STATE_PREPARED_RECOVERED ||
+            state == TRX_STATE_COMMITTED_IN_MEMORY);
+  }
+#endif /* UNIV_DEBUG */
 
   if (add_trx_relevant_locks_to_cache(cache, trx, &requested_lock_row))
   {

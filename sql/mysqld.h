@@ -194,7 +194,8 @@ enum vers_system_time_t
 struct vers_asof_timestamp_t
 {
   ulong type;
-  MYSQL_TIME ltime;
+  my_time_t unix_time;
+  ulong second_part;
 };
 
 enum vers_alter_history_enum

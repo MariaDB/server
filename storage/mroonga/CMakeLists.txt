@@ -80,7 +80,7 @@ else()
   set(MRN_SOURCE_DIR ${CMAKE_SOURCE_DIR})
 endif()
 
-file(READ ${MRN_SOURCE_DIR}/version        MRN_VERSION)
+file(READ ${MRN_SOURCE_DIR}/version_full   MRN_VERSION)
 file(READ ${MRN_SOURCE_DIR}/version_major  MRN_VERSION_MAJOR)
 file(READ ${MRN_SOURCE_DIR}/version_minor  MRN_VERSION_MINOR)
 file(READ ${MRN_SOURCE_DIR}/version_micro  MRN_VERSION_MICRO)

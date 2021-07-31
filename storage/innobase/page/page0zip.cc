@@ -4992,9 +4992,9 @@ bool page_zip_verify_checksum(const byte *data, size_t size)
 
 #ifdef UNIV_INNOCHECKSUM
 	if (log_file) {
-		fprintf(log_file, "page::%llu;"
-			" %s checksum: calculated = %u;"
-			" recorded = %u\n", cur_page_num,
+		fprintf(log_file, "page::" UINT32PF ";"
+			" %s checksum: calculated = " UINT32PF ";"
+			" recorded = " UINT32PF "\n", cur_page_num,
 			buf_checksum_algorithm_name(
 				static_cast<srv_checksum_algorithm_t>(
 				srv_checksum_algorithm)),
@@ -5006,11 +5006,11 @@ bool page_zip_verify_checksum(const byte *data, size_t size)
 			data, size, SRV_CHECKSUM_ALGORITHM_CRC32);
 
 		if (log_file) {
-			fprintf(log_file, "page::%llu: crc32 checksum:"
-				" calculated = %u; recorded = %u\n",
+			fprintf(log_file, "page::" UINT32PF ": crc32 checksum:"
+				" calculated = " UINT32PF "; recorded = " UINT32PF "\n",
 				cur_page_num, crc32, stored);
-			fprintf(log_file, "page::%llu: none checksum:"
-				" calculated = %lu; recorded = %u\n",
+			fprintf(log_file, "page::" UINT32PF ": none checksum:"
+				" calculated = %lu; recorded = " UINT32PF "\n",
 				cur_page_num, BUF_NO_CHECKSUM_MAGIC, stored);
 		}
 	}

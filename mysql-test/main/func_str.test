@@ -2091,6 +2091,24 @@ DROP TABLE t1, t2;
 
 
 --echo #
+--echo # MDEV-25560 Creating table with certain generated column crashes server
+--echo #
+
+CREATE TABLE t1 (i int, b int AS (RPAD(123,1)) stored);
+
+--echo # Original case from the reporter
+CREATE TABLE crash_test_2 (
+  DATA_VALUE CHAR(10) NULL,
+  HAS_DATA BIT NOT NULL,
+  TEST_COLUMN CHAR(10) AS (RPAD(CASE WHEN HAS_DATA = 1
+                                THEN DATA_VALUE ELSE NULL END, 10)) STORED);
+
+--echo # Cleanup
+DROP TABLE t1;
+DROP TABLE crash_test_2;
+
+
+--echo #
 --echo # End of 10.3 tests
 --echo #
 

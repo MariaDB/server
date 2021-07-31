@@ -21,7 +21,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include <fcntl.h>
 #if defined(__BORLANDC__)
@@ -29,7 +29,7 @@
 #endif   // __BORLAND__
 //#include <windows.h>
 #include <sys/stat.h>
-#else   // !__WIN__
+#else   // !_WIN32
 #if defined(UNIX)
 #include <sys/types.h>
 #include <sys/stat.h>
@@ -40,7 +40,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -372,11 +372,11 @@ bool VCTFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   int  h, n;
 
   PlugSetPath(filename, fn, Tdbp->GetPath());
-#if defined(__WIN__)
+#if defined(_WIN32)
   h= global_open(g, MSGID_OPEN_EMPTY_FILE, filename, _O_CREAT | _O_WRONLY, S_IREAD | S_IWRITE);
-#else   // !__WIN__
+#else   // !_WIN32
   h= global_open(g, MSGID_OPEN_EMPTY_FILE, filename,  O_CREAT |  O_WRONLY, S_IREAD | S_IWRITE);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   if (h == -1)
     return true;
@@ -1673,7 +1673,7 @@ int VCMFAM::DeleteRecords(PGLOBAL g, int irc)
       // Remove extra blocks
       n = Block * Blksize;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
@@ -2580,11 +2580,11 @@ bool VECFAM::ReadBlock(PGLOBAL g, PVCTCOL colp)
     char fn[_MAX_PATH];
 
     sprintf(fn, Colfn, colp->Index);
-#if defined(__WIN__)
+#if defined(_WIN32)
     if (feof(Streams[i]))
-#else   // !__WIN__
+#else   // !_WIN32
     if (errno == NO_ERROR)
-#endif  // !__WIN__
+#endif  // !_WIN32
       sprintf(g->Message, MSG(BAD_READ_NUMBER), (int) n, fn);
     else
       sprintf(g->Message, MSG(READ_ERROR),
@@ -2980,7 +2980,7 @@ int VMPFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       n = Tpos * Clens[i];
 
-#if defined(__WIN__)
+#if defined(_WIN32)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
@@ -3060,7 +3060,7 @@ BGVFAM::BGVFAM(PBGVFAM txfp) : VCTFAM(txfp)
 /***********************************************************************/
 bool BGVFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
   char          buf[256];
   DWORD         drc, m = (b) ? FILE_END : FILE_BEGIN;
   LARGE_INTEGER of;
@@ -3076,12 +3076,12 @@ bool BGVFAM::BigSeek(PGLOBAL g, HANDLE h, BIGINT pos, bool b)
     sprintf(g->Message, MSG(SFP_ERROR), buf);
     return true;
     } // endif
-#else   // !__WIN__
+#else   // !_WIN32
   if (lseek64(h, pos, (b) ? SEEK_END : SEEK_SET) < 0) {
     sprintf(g->Message, MSG(ERROR_IN_LSK), errno);
     return true;
     } // endif
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return false;
   } // end of BigSeek
@@ -3093,7 +3093,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
   {
   bool rc = false;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD nbr, drc, len = (DWORD)req;
   bool  brc = ReadFile(h, inbuf, len, &nbr, NULL);
 
@@ -3119,7 +3119,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif brc || nbr
-#else   // !__WIN__
+#else   // !_WIN32
   size_t  len = (size_t)req;
   ssize_t nbr = read(h, inbuf, len);
 
@@ -3134,7 +3134,7 @@ bool BGVFAM::BigRead(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif nbr
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return rc;
   } // end of BigRead
@@ -3146,7 +3146,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
   {
   bool rc = false;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD nbw, drc, len = (DWORD)req;
   bool  brc = WriteFile(h, inbuf, len, &nbw, NULL);
 
@@ -3174,7 +3174,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif brc || nbw
-#else   // !__WIN__
+#else   // !_WIN32
   size_t  len = (size_t)req;
   ssize_t nbw = write(h, inbuf, len);
 
@@ -3189,7 +3189,7 @@ bool BGVFAM::BigWrite(PGLOBAL g, HANDLE h, void *inbuf, int req)
 
     rc = true;
     } // endif nbr
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return rc;
   } // end of BigWrite
@@ -3215,7 +3215,7 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
   if (Header == 2)
     strcat(PlugRemoveType(filename, filename), ".blk");
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   LARGE_INTEGER len;
 
   h = CreateFile(filename, GENERIC_READ, FILE_SHARE_READ, NULL,
@@ -3227,11 +3227,11 @@ int BGVFAM::GetBlockInfo(PGLOBAL g)
     } // endif h
 
   if (h == INVALID_HANDLE_VALUE || !len.QuadPart) {
-#else   // !__WIN__
+#else   // !_WIN32
   h = open64(filename, O_RDONLY, 0);
 
   if (h == INVALID_HANDLE_VALUE || !_filelength(h)) {
-#endif  // !__WIN__
+#endif  // !_WIN32
     // Consider this is a void table
     if (trace(1))
       htrc("Void table h=%d\n", h);
@@ -3292,17 +3292,17 @@ bool BGVFAM::SetBlockInfo(PGLOBAL g)
     strcat(PlugRemoveType(filename, filename), ".blk");
 
   if (h == INVALID_HANDLE_VALUE) {
-#if defined(__WIN__)
+#if defined(_WIN32)
     DWORD creation = (b) ? OPEN_EXISTING : TRUNCATE_EXISTING;
 
     h = CreateFile(filename, GENERIC_READ | GENERIC_WRITE, 0,
                    NULL, creation, FILE_ATTRIBUTE_NORMAL, NULL);
 
-#else   // !__WIN__
+#else   // !_WIN32
     int oflag = (b) ?  O_RDWR : O_RDWR | O_TRUNC;
 
     h = open64(filename, oflag, 0);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
     if (h == INVALID_HANDLE_VALUE) {
       sprintf(g->Message, "Error opening header file %s", filename);
@@ -3340,7 +3340,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
 
   PlugSetPath(filename, fn, Tdbp->GetPath());
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   PCSZ          p;
   DWORD         rc;
   bool          brc;
@@ -3392,7 +3392,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
     CloseHandle(h);
 
   return true;
-#else   // !__WIN__
+#else   // !_WIN32
   int    h;
   BIGINT pos;
 
@@ -3421,7 +3421,7 @@ bool BGVFAM::MakeEmptyFile(PGLOBAL g, PCSZ fn)
   sprintf(g->Message, MSG(MAKE_EMPTY_FILE), To_File, strerror(errno));
   close(h);
   return true;
-#endif  // !__WIN__
+#endif  // !_WIN32
   } // end of MakeEmptyFile
 
 /***********************************************************************/
@@ -3452,7 +3452,7 @@ bool BGVFAM::OpenTableFile(PGLOBAL g)
     htrc("OpenTableFile: filename=%s mode=%d Last=%d\n",
                          filename, mode, Last);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD access, creation, share = 0, rc = 0;
 
   /*********************************************************************/
@@ -3780,7 +3780,7 @@ int BGVFAM::WriteBuffer(PGLOBAL g)
 
         if (!Closing && !MaxBlk) {
           // Close the VCT file and reopen it in mode Insert
-//#if defined(__WIN__)  //OB
+//#if defined(_WIN32)  //OB
 //          CloseHandle(Hfile);
 //#else    // UNIX
 //          close(Hfile);
@@ -3907,7 +3907,7 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
         /***************************************************************/
         /*  Remove extra records.                                      */
         /***************************************************************/
-#if defined(__WIN__)
+#if defined(_WIN32)
         BIGINT pos = (BIGINT)Block * (BIGINT)Blksize;
 
         if (BigSeek(g, Hfile, pos))
@@ -3919,12 +3919,12 @@ int BGVFAM::DeleteRecords(PGLOBAL g, int irc)
           sprintf(g->Message, MSG(SETEOF_ERROR), drc);
           return RC_FX;
           } // endif error
-#else   // !__WIN__
+#else   // !_WIN32
         if (ftruncate64(Hfile, (BIGINT)(Tpos * Lrecl))) {
           sprintf(g->Message, MSG(TRUNCATE_ERROR), strerror(errno));
           return RC_FX;
           } // endif
-#endif  // !__WIN__
+#endif  // !_WIN32
       } else // MaxBlk
         // Clean the unused space in the file, this is required when
         // inserting again with a partial column list.
@@ -3961,7 +3961,7 @@ bool BGVFAM::OpenTempFile(PGLOBAL g)
   else if (MakeEmptyFile(g, tempname))
     return true;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   DWORD access = (MaxBlk) ? OPEN_EXISTING : CREATE_NEW;
 
   Tfile = CreateFile(tempname, GENERIC_WRITE, 0, NULL,
@@ -4233,7 +4233,7 @@ void BGVFAM::Rewind(void)
   CurNum = Nrec - 1;
 
 #if 0 // This is probably unuseful as the file is directly accessed
-#if defined(__WIN__)  //OB
+#if defined(_WIN32)  //OB
   SetFilePointer(Hfile, 0, NULL, FILE_BEGIN);
 #else    // UNIX
   lseek64(Hfile, 0, SEEK_SET);

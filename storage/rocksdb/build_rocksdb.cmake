@@ -42,6 +42,7 @@ macro(check_lib package var)
 
   IF (NOT ${WITH_ROCKSDB_${package}} STREQUAL "OFF")
     FIND_PACKAGE(${package} QUIET)
+    SET(HAVE_ROCKSDB_${PACKAGE_NAME} TRUE)
     IF (${${PACKAGE_NAME}_FOUND})
       IF(${ARGC} GREATER 2)
         SET(CMAKE_REQUIRED_LIBRARIES ${${var}_LIBRARIES})
@@ -52,6 +53,7 @@ macro(check_lib package var)
       ENDIF()
     ENDIF()
   ENDIF()
+  ADD_FEATURE_INFO(ROCKSDB_${PACKAGE_NAME} HAVE_ROCKSDB_${PACKAGE_NAME} "${package} Compression in the RocksDB storage engine")
 
   IF(${${var}_VALID})
     MESSAGE_ONCE(rocksdb_${var} "Found ${package}: ${${var}_LIBRARIES}")
@@ -78,6 +80,7 @@ check_lib(ZSTD   ZSTD ZDICT_trainFromBuffer)
 
 add_definitions(-DZLIB)
 list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARY})
+ADD_FEATURE_INFO(ROCKSDB_ZLIB "ON" "zlib Compression in the RocksDB storage engine")
 
 if(CMAKE_SYSTEM_NAME MATCHES "Cygwin")
   add_definitions(-fno-builtin-memcmp -DCYGWIN)

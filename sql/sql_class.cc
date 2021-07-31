@@ -6805,8 +6805,8 @@ void THD::binlog_prepare_row_images(TABLE *table)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
-        table->mark_columns_used_by_index(table->s->primary_key,
-                                          &table->tmp_set);
+        table->mark_index_columns(table->s->primary_key,
+                                  &table->tmp_set);
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
         /**

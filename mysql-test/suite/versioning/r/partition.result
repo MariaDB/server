@@ -734,6 +734,27 @@ create or replace table t1 (a int) with system versioning;
 alter table t1 partition by system_time (partition pn current);
 ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
 drop table t1;
+#
+# MDEV-22247 History partition overflow leads to wrong SELECT result
+#
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour
+(partition p0 history, partition p1 history, partition pn current);
+insert into t1 values (0);
+update t1 set x= x + 1;
+set timestamp= unix_timestamp('2000-01-01 02:00:01');
+update t1 set x= x + 1;
+select *, row_start, row_end from t1 for system_time as of '2000-01-01 02:00:00';
+x	row_start	row_end
+1	2000-01-01 00:00:00.000000	2000-01-01 02:00:01.000000
+explain partitions select * from t1 for system_time as of '2000-01-01 02:00:00';
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	p1,pn	ALL	NULL	NULL	NULL	NULL	#	Using where
+explain partitions select * from t1;
+id	select_type	table	partitions	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	pn	#	NULL	NULL	NULL	NULL	#	#
+drop table t1;
 # End of 10.3 tests
 #
 # MDEV-22283 Server crashes in key_copy or unexpected error 156: The table already existed in the storage engine

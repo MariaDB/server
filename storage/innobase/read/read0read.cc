@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2019, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -235,7 +235,7 @@ void ReadView::open(trx_t *trx)
       may get started, committed and purged meanwhile. It is acceptable as
       well, since this view doesn't see it.
     */
-    if (trx_is_autocommit_non_locking(trx) && m_ids.empty() &&
+    if (trx->is_autocommit_non_locking() && m_ids.empty() &&
         m_low_limit_id == trx_sys.get_max_trx_id())
       goto reopen;
 

@@ -35,9 +35,9 @@
 #include "my_global.h"
 #include "sql_class.h"
 #include "sql_servers.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
-#else   // !__WIN__
+#else   // !_WIN32
 //#include <fnmatch.h>
 //#include <errno.h>
 #include <stdlib.h>
@@ -46,7 +46,7 @@
 #include "osutil.h"
 //#include <io.h>
 //#include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */

@@ -576,13 +576,13 @@ UNIQUE(b1)
 INSERT IGNORE INTO t VALUES();
 SELECT b from t;
 b
-2000
+0000
 SELECT b1 from t;
 b1
 0000
 SELECT * from t;
 a	b	c	b1	c1
-NULL	2000	0000	0000	0000
+NULL	0000	0000	0000	0000
 DELETE FROM t;
 CHECK TABLE t EXTENDED;
 Table	Op	Msg_type	Msg_text
@@ -674,6 +674,72 @@ INSERT INTO t1 (a) VALUES (0), (0), (0);
 ALTER TABLE t1 ADD INDEX idx (b);
 DELETE FROM t1;
 DROP TEMPORARY TABLE t1;
+#
+# Original test case from MDEV-17890
+#
+CREATE TABLE t1 (
+pk BIGINT AUTO_INCREMENT,
+b BIT(15),
+v BIT(10) AS (b) VIRTUAL,
+PRIMARY KEY(pk),
+UNIQUE(v)
+);
+INSERT IGNORE INTO t1 (b) VALUES (b'101110001110100'),(b'011101');
+Warnings:
+Warning	1264	Out of range value for column 'v' at row 1
+SELECT pk, b INTO OUTFILE 'load.data' FROM t1;
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
+ERROR 22001: Data too long for column 'v' at row 1
+DROP TABLE t1;
+#
+# MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+#
+CREATE TABLE t1 (
+id INT NOT NULL AUTO_INCREMENT,
+f ENUM('a','b','c'),
+v ENUM('a','b','c') AS (f),
+KEY(v,id)
+) ENGINE=MyISAM;
+INSERT INTO t1 (f) VALUES ('a'),('b');
+INSERT IGNORE INTO t1 SELECT * FROM t1;
+Warnings:
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
+DROP TABLE t1;
+CREATE TABLE t1 (
+id INT NOT NULL AUTO_INCREMENT,
+f ENUM('a','b','c'),
+v ENUM('a','b','c') AS (f),
+KEY(v,id)
+) ENGINE=MyISAM;
+INSERT INTO t1 (f) VALUES ('a'),('b');
+INSERT IGNORE INTO t1 SELECT * FROM t1;
+Warnings:
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
+DROP TABLE t1;
+#
+# MDEV-23597 Assertion `marked_for_read()' failed while evaluating DEFAULT
+#
+CREATE TABLE t1 (a INT UNIQUE, b INT DEFAULT (c+1), c int);
+INSERT INTO t1 VALUES (1,1,1);
+UPDATE t1 SET b=DEFAULT;
+SELECT * from t1;
+a	b	c
+1	2	1
+REPLACE t1 VALUES(1,1,1);
+INSERT INTO t1 VALUES (1,1,1) ON DUPLICATE KEY UPDATE b= DEFAULT;
+SELECT * from t1;
+a	b	c
+1	2	1
+REPLACE t1 VALUES(1,1,1);
+CREATE TABLE t2 (a INT, b INT DEFAULT (c+1), c int);
+INSERT INTO t2 VALUES (5,5,5);
+UPDATE t1 join t2 set t1.b= DEFAULT, t2.b= DEFAULT;
+SELECT * from t1, t2;
+a	b	c	a	b	c
+1	2	1	5	6	5
+DROP TABLE t1, t2;
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;
 DROP PROCEDURE IF EXISTS p1;

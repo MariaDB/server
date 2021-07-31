@@ -20601,6 +20601,71 @@ static void test_ps_params_in_ctes()
   myquery(rc);
 }
 
+void display_result_metadata(MYSQL_FIELD *field,
+                             uint num_fields)
+{
+  MYSQL_FIELD* field_end;
+
+  mct_log("Catalog\tDatabase\tTable\tTable_alias\tColumn\t"
+          "Column_alias\tType\tLength\tMax length\tIs_null\t"
+          "Flags\tDecimals\tCharsetnr\n");
+  for (field_end= field+num_fields; field < field_end; field++)
+  {
+    mct_log("%s\t", field->catalog);
+    mct_log("%s\t", field->db);
+    mct_log("%s\t", field->org_table);
+    mct_log("%s\t", field->table);
+    mct_log("%s\t", field->org_name);
+    mct_log("%s\t", field->name);
+    mct_log("%u\t", field->type);
+    mct_log("%lu\t", field->length);
+    mct_log("%lu\t", field->max_length);
+    mct_log("%s\t", (IS_NOT_NULL(field->flags) ?  "N" : "Y"));
+    mct_log("%u\t", field->flags);
+    mct_log("%u\t", field->decimals);
+    mct_log("%u\n", field->charsetnr);
+  }
+}
+
+static void test_mdev_26145()
+{
+  MYSQL_STMT *stmt;
+  MYSQL_RES *result;
+  MYSQL_FIELD *fields;
+  int        rc, num_fields;
+
+  myheader("test_mdev_26145");
+
+  rc= mysql_query(mysql, "DROP TABLE IF EXISTS t1");
+  myquery(rc);
+
+  rc= mysql_query(mysql, "CREATE TABLE t1(a INT)");
+  myquery(rc);
+
+  stmt= mysql_simple_prepare(
+    mysql, "(SELECT MAX(a) FROM t1) UNION (SELECT MAX(a) FROM t1)");
+  check_stmt(stmt);
+
+  rc= mysql_stmt_execute(stmt);
+  check_execute(stmt, rc);
+
+  result= mysql_stmt_result_metadata(stmt);
+  DIE_UNLESS(result);
+
+  num_fields= mysql_stmt_field_count(stmt);
+  fields= mysql_fetch_fields(result);
+
+  mct_start_logging("test_mdev26145");
+  display_result_metadata(fields, num_fields);
+  mct_close_log();
+
+  mysql_free_result(result);
+  mysql_stmt_close(stmt);
+
+  rc= mysql_query(mysql, "DROP TABLE t1");
+
+  myquery(rc);
+}
 
 static void print_metadata(MYSQL_RES *rs_metadata, int num_fields)
 {
@@ -21138,6 +21203,7 @@ static void test_mdev20261()
 
 
 static struct my_tests_st my_tests[]= {
+  { "test_mdev_26145", test_mdev_26145 },
   { "disable_query_logs", disable_query_logs },
   { "test_view_sp_list_fields", test_view_sp_list_fields },
   { "client_query", client_query },
