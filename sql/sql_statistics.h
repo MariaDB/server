@@ -372,9 +372,9 @@ public:
            is_available();
   }
 
-  void set_values (uchar *vals) override { values= (uchar *) vals; }
+  void set_values (uchar *vals) override { values= vals; }
 
-  uchar *get_values() override { return (uchar *) values; }
+  uchar *get_values() override { return values; }
 
   double range_selectivity(double min_pos, double max_pos) override {return 0.1;}
 

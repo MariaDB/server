@@ -1283,7 +1283,6 @@ void Histogram_json::init_for_collection(MEM_ROOT *mem_root, Histogram_type htyp
 
 bool Histogram_json::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr, uint size_arg)
 {
-  size = (uint8) size_arg;
   type = type_arg;
   // I think we could use memcpy here, but not sure about how to get the right size
   // since we can't depend on size_arg (it's zero for json histograms)
@@ -1303,7 +1302,7 @@ bool Histogram_json::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uc
 
 void Histogram_json::serialize(Field *field)
 {
-  field->store((char*)get_values(), strlen((char*)get_values()),
+  field->store((char*)values, strlen((char*)values),
                &my_charset_bin);
 }
 
