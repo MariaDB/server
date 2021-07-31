@@ -2422,6 +2422,7 @@ void TDBBSON::ResetSize(void)
   MaxSize = Cardinal = -1;
   Fpos = -1;
   N = 0;
+  Docrow = NULL;
   Done = false;
 } // end of ResetSize
 
@@ -2480,6 +2481,7 @@ bool TDBBSON::SetRecpos(PGLOBAL, int recpos)
 #endif // 0
 
   Fpos = recpos - 1;
+  Docrow = NULL;
   return false;
 } // end of SetRecpos
 
@@ -2495,6 +2497,7 @@ bool TDBBSON::OpenDB(PGLOBAL g)
     Fpos = -1;
     NextSame = false;
     SameRow = 0;
+    Docrow = NULL;
     return false;
   } // endif use
 
