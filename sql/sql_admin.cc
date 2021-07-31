@@ -906,7 +906,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             enum enum_field_types type= (*field_ptr)->type();
             if (type < MYSQL_TYPE_MEDIUM_BLOB ||
                 type > MYSQL_TYPE_BLOB)
-              bitmap_set_bit(tab->read_set, fields);
+              tab->field[fields]->register_field_in_read_map();
             else
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_NO_EIS_FOR_FIELD,
@@ -934,7 +934,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             enum enum_field_types type= tab->field[pos]->type();
             if (type < MYSQL_TYPE_MEDIUM_BLOB ||
                 type > MYSQL_TYPE_BLOB)
-              bitmap_set_bit(tab->read_set, pos);
+              tab->field[pos]->register_field_in_read_map();
             else
               push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
                                   ER_NO_EIS_FOR_FIELD,

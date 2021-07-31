@@ -2390,8 +2390,8 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   if (Wsrep_server_state::instance().desynced_on_pause())
   {
     my_message(ER_UNKNOWN_COM_ERROR,
-               "Aborting TOI: Global Read-Lock (FTWRL) in place.", MYF(0));
-    WSREP_DEBUG("Aborting TOI: Global Read-Lock (FTWRL) in place: %s %llu",
+               "Aborting TOI: Replication paused on node for FTWRL/BACKUP STAGE.", MYF(0));
+    WSREP_DEBUG("Aborting TOI: Replication paused on node for FTWRL/BACKUP STAGE.: %s %llu",
                 wsrep_thd_query(thd), thd->thread_id);
     return -1;
   }
@@ -2735,15 +2735,13 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD* except_caller_thd)
   */
   server_threads.iterate(kill_remaining_threads, except_caller_thd);
 
-  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)",
-             uint32_t(thread_count)));
-  WSREP_DEBUG("waiting for client connections to close: %u",
-              uint32_t(thread_count));
+  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)", THD_count::value()));
+  WSREP_DEBUG("waiting for client connections to close: %u", THD_count::value());
 
   while (wait_to_end && server_threads.iterate(have_client_connections))
   {
     sleep(1);
-    DBUG_PRINT("quit",("One thread died (count=%u)", uint32_t(thread_count)));
+    DBUG_PRINT("quit",("One thread died (count=%u)", THD_count::value()));
   }
 
   /* All client connection threads have now been aborted */

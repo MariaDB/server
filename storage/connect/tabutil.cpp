@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)

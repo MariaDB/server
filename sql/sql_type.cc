@@ -1089,6 +1089,13 @@ Datetime::Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
   DBUG_ASSERT(is_valid_value_slow());
 }
 
+Datetime::Datetime(my_time_t unix_time, ulong second_part_arg,
+                   const Time_zone* time_zone)
+{
+  time_zone->gmt_sec_to_TIME(this, unix_time);
+  second_part= second_part_arg;
+}
+
 
 bool Temporal::datetime_add_nanoseconds_or_invalidate(THD *thd, int *warn, ulong nsec)
 {
@@ -8738,7 +8745,7 @@ bool Type_handler_string_result::Item_eq_value(THD *thd,
 
 /***************************************************************************/
 
-bool Type_handler_string_result::union_element_finalize(const Item * item) const
+bool Type_handler_string_result::union_element_finalize(Item_type_holder* item) const
 {
   if (item->collation.derivation == DERIVATION_NONE)
   {
@@ -9032,6 +9039,12 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
   return
     item->get_date(thd, &ltime, Datetime::Options(TIME_NO_ZERO_IN_DATE, thd)) ||
     TIME_to_native(thd, &ltime, to, item->datetime_precision(thd));
+}
+
+bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
+{
+  item->set_handler(&type_handler_string);
+  return false;
 }
 
 

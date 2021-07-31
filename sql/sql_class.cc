@@ -1306,6 +1306,7 @@ void THD::init()
   wsrep_affected_rows     = 0;
   m_wsrep_next_trx_id     = WSREP_UNDEFINED_TRX_ID;
   wsrep_aborter           = 0;
+  wsrep_desynced_backup_stage= false;
 #endif /* WITH_WSREP */
 
   if (variables.sql_log_bin)
@@ -4886,7 +4887,7 @@ MYSQL_THD create_background_thd()
     in THD constructor. We do not want these THDs to be counted,
     or waited for on shutdown.
   */
-  thread_count--;
+  THD_count::count--;
 
   thd->mysys_var= (st_my_thread_var *) thd_mysysvar;
   thd->set_command(COM_DAEMON);
@@ -4942,7 +4943,7 @@ void destroy_background_thd(MYSQL_THD thd)
     As we decremented it in create_background_thd(), in order for it
     not to go negative, we have to increment it before destructor.
   */
-  thread_count++;
+  THD_count::count++;
   delete thd;
 
   thd_detach_thd(save_mysys_var);
@@ -7071,8 +7072,8 @@ void THD::binlog_prepare_row_images(TABLE *table)
     {
       case BINLOG_ROW_IMAGE_MINIMAL:
         /* MINIMAL: Mark only PK */
-        table->mark_columns_used_by_index(table->s->primary_key,
-                                          &table->tmp_set);
+        table->mark_index_columns(table->s->primary_key,
+                                  &table->tmp_set);
         break;
       case BINLOG_ROW_IMAGE_NOBLOB:
         /**

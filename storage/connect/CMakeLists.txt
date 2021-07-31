@@ -108,6 +108,7 @@ IF(CONNECT_WITH_VCT)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} filamvct.cpp tabvct.cpp filamvct.h tabvct.h)
   add_definitions(-DVCT_SUPPORT)
 ENDIF(CONNECT_WITH_VCT)
+ADD_FEATURE_INFO(CONNECT_VCT CONNECT_WITH_VCT "Support for VCT in the CONNECT storage engine")
 
 
 #
@@ -133,6 +134,7 @@ IF(CONNECT_WITH_LIBXML2)
         D:/libxml/lib)
   ENDIF(WIN32)
   FIND_PACKAGE(LibXml2)
+  SET_PACKAGE_PROPERTIES(LibXml2 PROPERTIES TYPE OPTIONAL)
   IF (LIBXML2_FOUND)
     INCLUDE_DIRECTORIES(${LIBXML2_INCLUDE_DIR})
     SET(XML_LIBRARY  ${LIBXML2_LIBRARIES})
@@ -140,6 +142,8 @@ IF(CONNECT_WITH_LIBXML2)
     add_definitions(-DLIBXML2_SUPPORT)
   ENDIF(LIBXML2_FOUND)
 ENDIF(CONNECT_WITH_LIBXML2)
+ADD_FEATURE_INFO(CONNECT_LIBXML2 CONNECT_WITH_LIBXML2
+                 "Support for LIBXML2 in the CONNECT storage engine")
 
 
 IF(WIN32)
@@ -149,6 +153,8 @@ IF(WIN32)
     SET(MSXML_FOUND 1)
     SET(CONNECT_SOURCES ${CONNECT_SOURCES} domdoc.cpp domdoc.h)
   ENDIF(CONNECT_WITH_MSXML)
+  ADD_FEATURE_INFO(CONNECT_MSXML CONNECT_WITH_MSXML
+                   "Support for MSXML in the CONNECT storage engine")
 ENDIF(WIN32)
 
 IF(LIBXML2_FOUND OR MSXML_FOUND)
@@ -249,6 +255,7 @@ int main() {
     tabodbc.cpp tabodbc.h odbccat.h odbconn.cpp odbconn.h)
   ENDIF(UNIX)
 ENDIF(CONNECT_WITH_ODBC)
+ADD_FEATURE_INFO(CONNECT_ODBC ODBC_LIBRARY "Support for ODBC in the CONNECT storage engine")
 
 #
 # JDBC with MongoDB Java Driver included but disabled if without MONGO
@@ -258,7 +265,9 @@ OPTION(CONNECT_WITH_JDBC "Compile CONNECT storage engine with JDBC support" ON)
 
 IF(CONNECT_WITH_JDBC)
   FIND_PACKAGE(Java 1.6)
+  SET_PACKAGE_PROPERTIES(Java PROPERTIES TYPE OPTIONAL)
   FIND_PACKAGE(JNI)
+  SET_PACKAGE_PROPERTIES(JNI PROPERTIES TYPE OPTIONAL)
   IF (JAVA_FOUND AND JNI_FOUND)
     INCLUDE(UseJava)
     INCLUDE_DIRECTORIES(${JAVA_INCLUDE_PATH})
@@ -274,6 +283,7 @@ IF(CONNECT_WITH_JDBC)
     Mongo2Interface.java Mongo3Interface.java
     mysql-test/connect/std_data/JavaWrappers.jar)
     add_definitions(-DJAVA_SUPPORT)
+    ADD_FEATURE_INFO(CONNECT_JDBC "ON" "Support for JDBC in the CONNECT storage engine")
     IF(CONNECT_WITH_MONGO)
       SET(CONNECT_SOURCES ${CONNECT_SOURCES}
         mysql-test/connect/std_data/Mongo2.jar
@@ -282,7 +292,10 @@ IF(CONNECT_WITH_JDBC)
     ENDIF()
   ELSE()
     SET(JDBC_LIBRARY "")
+    ADD_FEATURE_INFO(CONNECT_JDBC "OFF" "Support for JDBC in the CONNECT storage engine")
   ENDIF()
+ELSE(CONNECT_WITH_JDBC)
+  ADD_FEATURE_INFO(CONNECT_JDBC "OFF" "Support for JDBC in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_JDBC)
 
 #
@@ -296,6 +309,7 @@ IF(CONNECT_WITH_ZIP)
     filamzip.h tabzip.h ioapi.h unzip.h zip.h)
   add_definitions(-DZIP_SUPPORT -DNOCRYPT)
 ENDIF(CONNECT_WITH_ZIP)
+ADD_FEATURE_INFO(CONNECT_ZIP CONNECT_WITH_ZIP "Support for ZIP in the CONNECT storage engine")
 
 #
 # MONGO C Driver
@@ -312,6 +326,7 @@ IF(CONNECT_WITH_MONGO)
         D:/mongo-c-driver/lib)
   ENDIF(WIN32)
   FIND_PACKAGE(libmongoc-1.0 1.7 QUIET)
+  SET_PACKAGE_PROPERTIES(libmongoc PROPERTIES TYPE OPTIONAL)
   IF (libmongoc-1.0_FOUND)
     INCLUDE_DIRECTORIES(${MONGOC_INCLUDE_DIRS})
     SET(MONGOC_LIBRARY  ${MONGOC_LIBRARIES})
@@ -319,13 +334,17 @@ IF(CONNECT_WITH_MONGO)
     cmgoconn.cpp cmgfam.cpp tabcmg.cpp
     cmgoconn.h cmgfam.h tabcmg.h)
     add_definitions(-DCMGO_SUPPORT)
+    ADD_FEATURE_INFO(CONNECT_MONGODB "ON" "Support for MongoDB in the CONNECT storage engine")
     IF (NOT JAVA_FOUND AND JNI_FOUND)
       SET(CONNECT_SOURCES ${CONNECT_SOURCES} mongo.cpp mongo.h)
       add_definitions(-DMONGO_SUPPORT)
     ENDIF (NOT JAVA_FOUND AND JNI_FOUND)
+  ELSE(libmongoc-1.0_FOUND)
+    ADD_FEATURE_INFO(CONNECT_MONGODB "OFF" "Support for MongoDB in the CONNECT storage engine")
   ENDIF(libmongoc-1.0_FOUND)
+ELSE(CONNECT_WITH_MONGO)
+  ADD_FEATURE_INFO(CONNECT_MONGODB "OFF" "Support for MongoDB in the CONNECT storage engine")
 ENDIF(CONNECT_WITH_MONGO)
-
 
 #
 # REST
@@ -358,6 +377,7 @@ IF(CONNECT_WITH_REST)
 ##  MESSAGE(STATUS "=====> cpprestsdk package not found")
 # ENDIF (cpprestsdk_FOUND)
 ENDIF(CONNECT_WITH_REST)
+ADD_FEATURE_INFO(CONNECT_REST CONNECT_WITH_REST "Support for REST API in the CONNECT storage engine")
 
 #
 # XMAP
@@ -368,6 +388,7 @@ OPTION(CONNECT_WITH_XMAP "Compile CONNECT storage engine with index file mapping
 IF(CONNECT_WITH_XMAP)
   add_definitions(-DXMAP)
 ENDIF(CONNECT_WITH_XMAP)
+ADD_FEATURE_INFO(CONNECT_XMAP CONNECT_WITH_XMAP "Support for index file mapping in the CONNECT storage engine")
 
 #
 # Plugin definition

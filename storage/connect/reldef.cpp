@@ -17,7 +17,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <sqlext.h>
 #else
 //#include <dlfcn.h>          // dlopen(), dlclose(), dlsym() ...
@@ -52,9 +52,9 @@
 #include "ha_connect.h"
 #include "mycat.h"
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 extern handlerton *connect_hton;
-#endif   // !__WIN__
+#endif   // !_WIN32
 
 /***********************************************************************/
 /*  External function.                                                 */
@@ -71,11 +71,11 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 	typedef PQRYRES(__stdcall* XCOLDEF) (PGLOBAL, void*, char*, char*, bool);
 	const char* module, * subtype;
 	char    c, soname[_MAX_PATH], getname[40] = "Col";
-#if defined(__WIN__)
+#if defined(_WIN32)
 	HANDLE  hdll;               /* Handle to the external DLL            */
-#else   // !__WIN__
+#else   // !_WIN32
 	void* hdll;               /* Handle for the loaded shared library  */
-#endif  // !__WIN__
+#endif  // !_WIN32
 	XCOLDEF coldef = NULL;
 	PQRYRES qrp = NULL;
 
@@ -93,8 +93,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 	if (check_valid_path(module, strlen(module))) {
 		strcpy(g->Message, "Module cannot contain a path");
 		return NULL;
-	}
-	else
+	} else
 		PlugSetPath(soname, module, GetPluginDir());
 
 	// The exported name is always in uppercase
@@ -104,7 +103,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 		if (!c) break;
 	} // endfor i
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 	// Load the Dll implementing the table
 	if (!(hdll = LoadLibrary(soname))) {
 		char  buf[256];
@@ -124,7 +123,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 		FreeLibrary((HMODULE)hdll);
 		return NULL;
 	} // endif coldef
-#else   // !__WIN__
+#else   // !_WIN32
 	const char* error = NULL;
 
 	// Load the desired shared library
@@ -141,7 +140,7 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 		dlclose(hdll);
 		return NULL;
 	} // endif coldef
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	// Just in case the external Get function does not set error messages
 	sprintf(g->Message, "Error getting column info from %s", subtype);
@@ -149,11 +148,11 @@ PQRYRES OEMColumns(PGLOBAL g, PTOS topt, char* tab, char* db, bool info)
 	// Get the table column definition
 	qrp = coldef(g, topt, tab, db, info);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 	FreeLibrary((HMODULE)hdll);
-#else   // !__WIN__
+#else   // !_WIN32
 	dlclose(hdll);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	return qrp;
 } // end of OEMColumns
@@ -406,13 +405,13 @@ int TABDEF::GetColCatInfo(PGLOBAL g)
   // Take care of the column definitions
   i= poff= nof= nlg= 0;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   // Offsets of HTML and DIR tables start from 0, DBF at 1
   loff= (trf == RECFM_DBF) ? 1 : (trf  == RECFM_XML || trf  == RECFM_DIR) ? -1 : 0;
-#else   // !__WIN__
+#else   // !_WIN32
   // Offsets of HTML tables start from 0, DIR and DBF at 1
   loff = (trf  == RECFM_DBF || trf  == RECFM_DIR) ? 1 : (trf  == RECFM_XML) ? -1 : 0;
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   while (true) {
     // Default Offset depends on table format
@@ -625,7 +624,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     strncat(strcpy(soname, GetPluginDir()), Module,
 			sizeof(soname) - strlen(soname) - 1);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   // Is the DLL already loaded?
   if (!Hdll && !(Hdll = GetModuleHandle(soname)))
     // No, load the Dll implementing the function
@@ -661,7 +660,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     FreeLibrary((HMODULE)Hdll);
     return NULL;
     } // endif getdef
-#else   // !__WIN__
+#else   // !_WIN32
   const char *error = NULL;
 
 #if 0  // Don't know what all this stuff does
@@ -703,7 +702,7 @@ PTABDEF OEMDEF::GetXdef(PGLOBAL g)
     dlclose(Hdll);
     return NULL;
     } // endif getdef
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   // Just in case the external Get function does not set error messages
   sprintf(g->Message, MSG(DEF_ALLOC_ERROR), Subtype);

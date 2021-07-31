@@ -1022,20 +1022,7 @@ public:
   int save_union_explain_part2(Explain_query *output);
   unit_common_op common_op();
 
-  bool explainable() const
-  {
-    /*
-      EXPLAIN/ANALYZE unit, when:
-      (1) if it's a subquery - it's not part of eliminated WHERE/ON clause.
-      (2) if it's a CTE - it's not hanging (needed for execution)
-      (3) if it's a derived - it's not merged
-      if it's not 1/2/3 - it's some weird internal thing, ignore it
-    */
-    return item ? !item->eliminated :                           // (1)
-           with_element ? derived && derived->derived_result :  // (2)
-           derived ? derived->is_materialized_derived() :       // (3)
-           false;
-  }
+  bool explainable() const;
 
   void reset_distinct();
   void fix_distinct();

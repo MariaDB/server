@@ -768,7 +768,8 @@ bool vers_select_conds_t::init_from_sysvar(THD *thd)
   if (type != SYSTEM_TIME_UNSPECIFIED && type != SYSTEM_TIME_ALL)
   {
     DBUG_ASSERT(type == SYSTEM_TIME_AS_OF);
-    Datetime dt(&in.ltime);
+    Datetime dt(in.unix_time, in.second_part, thd->variables.time_zone);
+
     start.item= new (thd->mem_root)
         Item_datetime_literal(thd, &dt, TIME_SECOND_PART_DIGITS);
     if (!start.item)
@@ -2072,7 +2073,7 @@ JOIN::optimize_inner()
       sel->attach_to_conds.empty();
     }
   }
-  
+
   if (optimizer_flag(thd, OPTIMIZER_SWITCH_COND_PUSHDOWN_FOR_SUBQUERY))
   {
     TABLE_LIST *tbl;
@@ -2341,7 +2342,7 @@ int JOIN::optimize_stage2()
   /* Generate an execution plan from the found optimal join order. */
   if (get_best_combination())
     DBUG_RETURN(1);
-  
+
   if (make_range_rowid_filters())
     DBUG_RETURN(1);
 
@@ -3254,8 +3255,17 @@ bool JOIN::make_aggr_tables_info()
 
     if (ht && ht->create_group_by)
     {
-      /* Check if the storage engine can intercept the query */
-      Query query= {&all_fields, select_distinct, tables_list, conds,
+      /*
+        Check if the storage engine can intercept the query
+
+        JOIN::optimize_stage2() might convert DISTINCT into GROUP BY and then
+        optimize away GROUP BY (group_list). In such a case, we need to notify
+        a storage engine supporting a group by handler of the existence of the
+        original DISTINCT. Thus, we set select_distinct || group_optimized_away
+        to Query::distinct.
+      */
+      Query query= {&all_fields, select_distinct || group_optimized_away,
+                    tables_list, conds,
                     group_list, order ? order : group_list, having,
                     &select_lex->master_unit()->lim};
       group_by_handler *gbh= ht->create_group_by(thd, &query);
@@ -7450,7 +7460,7 @@ best_access_path(JOIN      *join,
 
   Json_writer_object trace_wrapper(thd, "best_access_path");
   Json_writer_array trace_paths(thd, "considered_access_paths");
-  
+
   bitmap_clear_all(eq_join_set);
 
   loose_scan_opt.init(join, s, remaining_tables);
@@ -9244,7 +9254,9 @@ static
 double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
                               table_map rem_tables)
 {
-  uint16 ref_keyuse_steps[MAX_REF_PARTS - 1];
+  uint16 ref_keyuse_steps_buf[MAX_REF_PARTS];
+  uint   ref_keyuse_size= MAX_REF_PARTS;
+  uint16 *ref_keyuse_steps= ref_keyuse_steps_buf;
   Field *field;
   TABLE *table= s->table;
   MY_BITMAP *read_set= table->read_set;
@@ -9392,6 +9404,30 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
             }
             if (keyparts > 1)
 	    {
+              /*
+                Prepare to set ref_keyuse_steps[keyparts-2]: resize the array
+                if it is not large enough
+              */
+              if (keyparts - 2 >= ref_keyuse_size)
+              {
+                uint new_size= MY_MAX(ref_keyuse_size*2, keyparts);
+                void *new_buf;
+                if (!(new_buf= my_malloc(PSI_INSTRUMENT_ME,
+                                         sizeof(*ref_keyuse_steps)*new_size,
+                                         MYF(0))))
+                {
+                  sel= 1.0; // As if no selectivity was computed
+                  goto exit;
+                }
+                memcpy(new_buf, ref_keyuse_steps,
+                       sizeof(*ref_keyuse_steps)*ref_keyuse_size);
+                if (ref_keyuse_steps != ref_keyuse_steps_buf)
+                  my_free(ref_keyuse_steps);
+
+                ref_keyuse_steps= (uint16*)new_buf;
+                ref_keyuse_size= new_size;
+              }
+
               ref_keyuse_steps[keyparts-2]= (uint16)(keyuse - prev_ref_keyuse);
               prev_ref_keyuse= keyuse;
             }
@@ -9446,7 +9482,9 @@ double table_cond_selectivity(JOIN *join, uint idx, JOIN_TAB *s,
 
   sel*= table_multi_eq_cond_selectivity(join, idx, s, rem_tables,
                                         keyparts, ref_keyuse_steps);
-
+exit:
+  if (ref_keyuse_steps != ref_keyuse_steps_buf)
+    my_free(ref_keyuse_steps);
   return sel;
 }
 
@@ -23932,6 +23970,12 @@ check_reverse_order:
         if (select->quick == save_quick)
           save_quick= 0;                // make_reverse() consumed it
         select->set_quick(tmp);
+        /* Cancel "Range checked for each record" */
+        if (tab->use_quick == 2)
+        {
+          tab->use_quick= 1;
+          tab->read_first_record= join_init_read_record;
+        }
       }
       else if (tab->type != JT_NEXT && tab->type != JT_REF_OR_NULL &&
                tab->ref.key >= 0 && tab->ref.key_parts <= used_key_parts)
@@ -23944,6 +23988,12 @@ check_reverse_order:
         */
         tab->read_first_record= join_read_last_key;
         tab->read_record.read_record_func= join_read_prev_same;
+        /* Cancel "Range checked for each record" */
+        if (tab->use_quick == 2)
+        {
+          tab->use_quick= 1;
+          tab->read_first_record= join_init_read_record;
+        }
         /*
           Cancel Pushed Index Condition, as it doesn't work for reverse scans.
         */
@@ -28318,7 +28368,7 @@ void JOIN::cache_const_exprs()
 static bool get_range_limit_read_cost(const JOIN_TAB *tab, 
                                       const TABLE *table, 
                                       ha_rows table_records,
-                                      uint keynr, 
+                                      uint keynr,
                                       ha_rows rows_limit,
                                       double *read_time)
 {
@@ -28401,7 +28451,7 @@ static bool get_range_limit_read_cost(const JOIN_TAB *tab,
       to discount it from the rows_limit:
     */
     double rows_limit_for_quick= rows_limit * (best_rows / table_records);
- 
+
     if (best_rows > rows_limit_for_quick)
     {
       /*
@@ -28684,7 +28734,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           refkey_rows_estimate is E(#rows) produced by the table access
           strategy that was picked without regard to ORDER BY ... LIMIT.
 
-          It will be used as the source of selectivity data. 
+          It will be used as the source of selectivity data.
           Use table->cond_selectivity as a better estimate which includes
           condition selectivity too.
         */
@@ -28693,7 +28743,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
           // cond_selectivity=1 while refkey_rows_estimate has a better
           // estimate.
           refkey_rows_estimate= MY_MIN(refkey_rows_estimate,
-                                       ha_rows(table_records * 
+                                       ha_rows(table_records *
                                                table->cond_selectivity));
         }
 
@@ -28801,7 +28851,7 @@ test_if_cheaper_ordering(const JOIN_TAB *tab, ORDER *order, TABLE *table,
         {
           possible_key.add("usable", false);
           possible_key.add("cause", "cost");
-        }   
+        }
       }
       else
       {
@@ -29646,7 +29696,7 @@ void JOIN::init_join_cache_and_keyread()
           tuple.
       */
       if (!(table->file->index_flags(table->file->keyread, 0, 1) & HA_CLUSTERED_INDEX))
-        table->mark_columns_used_by_index(table->file->keyread, table->read_set);
+        table->mark_index_columns(table->file->keyread, table->read_set);
     }
     if (tab->cache && tab->cache->init(select_options & SELECT_DESCRIBE))
       revise_cache_usage(tab);

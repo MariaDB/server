@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -266,7 +266,8 @@ extern int my_umask_dir,
 extern my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
-extern my_bool  my_disable_locking, my_disable_async_io,
+extern MYSQL_PLUGIN_IMPORT my_bool my_disable_locking;
+extern my_bool  my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;

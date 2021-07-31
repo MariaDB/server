@@ -421,7 +421,7 @@ in both 32-bit and 64-bit environments. */
 #ifdef UNIV_INNOCHECKSUM
 extern bool 			strict_verify;
 extern FILE* 			log_file;
-extern unsigned long long	cur_page_num;
+extern uint32_t			cur_page_num;
 #endif /* UNIV_INNOCHECKSUM */
 
 typedef int64_t ib_int64_t;

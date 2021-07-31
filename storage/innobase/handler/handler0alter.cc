@@ -2369,6 +2369,13 @@ innodb_instant_alter_column_allowed_reason:
 				& ALTER_ADD_COLUMN));
 
 		if (const Field* f = cf.field) {
+			/* An AUTO_INCREMENT attribute can only
+			be added to an existing column by ALGORITHM=COPY,
+			but we can remove the attribute. */
+			ut_ad((MTYP_TYPENR((*af)->unireg_check)
+			       != Field::NEXT_NUMBER)
+			      || (MTYP_TYPENR(f->unireg_check)
+				  == Field::NEXT_NUMBER));
 			if (!f->real_maybe_null() || (*af)->real_maybe_null())
 				goto next_column;
 			/* We are changing an existing column
@@ -2377,7 +2384,6 @@ innodb_instant_alter_column_allowed_reason:
 				    & ALTER_COLUMN_NOT_NULLABLE);
 			/* Virtual columns are never NOT NULL. */
 			DBUG_ASSERT(f->stored_in_db());
-
 			switch ((*af)->type()) {
 			case MYSQL_TYPE_TIMESTAMP:
 			case MYSQL_TYPE_TIMESTAMP2:
@@ -2397,14 +2403,7 @@ innodb_instant_alter_column_allowed_reason:
 				break;
 			default:
 				/* For any other data type, NULL
-				values are not converted.
-				(An AUTO_INCREMENT attribute cannot
-				be introduced to a column with
-				ALGORITHM=INPLACE.) */
-				ut_ad((MTYP_TYPENR((*af)->unireg_check)
-				       == Field::NEXT_NUMBER)
-				      == (MTYP_TYPENR(f->unireg_check)
-					  == Field::NEXT_NUMBER));
+				values are not converted. */
 				goto next_column;
 			}
 
@@ -7536,7 +7535,6 @@ ha_innobase::prepare_inplace_alter_table(
 	mem_heap_t*	heap;
 	const char**	col_names;
 	int		error;
-	ulint		max_col_len;
 	ulint		add_autoinc_col_no	= ULINT_UNDEFINED;
 	ulonglong	autoinc_col_max_value	= 0;
 	ulint		fts_doc_col_no		= ULINT_UNDEFINED;
@@ -7574,12 +7572,6 @@ ha_innobase::prepare_inplace_alter_table(
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		/* Nothing to do */
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
-		if (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
-
-			online_retry_drop_indexes(
-				m_prebuilt->table, m_user_thd);
-
-		}
 		DBUG_RETURN(false);
 	}
 
@@ -7745,7 +7737,13 @@ check_if_ok_to_rename:
 			       & 1U << DICT_TF_POS_DATA_DIR);
 	}
 
-	max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(info.flags());
+
+	/* ALGORITHM=INPLACE without rebuild (10.3+ ALGORITHM=NOCOPY)
+	must use the current ROW_FORMAT of the table. */
+	const ulint max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(
+		innobase_need_rebuild(ha_alter_info, this->table)
+		? info.flags()
+		: m_prebuilt->table->flags);
 
 	/* Check each index's column length to make sure they do not
 	exceed limit */

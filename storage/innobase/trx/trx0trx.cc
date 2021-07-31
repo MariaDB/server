@@ -1169,12 +1169,12 @@ trx_flush_log_if_needed_low(
 	bool	flush = srv_file_flush_method != SRV_NOSYNC;
 
 	switch (srv_flush_log_at_trx_commit) {
-	case 3:
 	case 2:
 		/* Write the log but do not flush it to disk */
 		flush = false;
 		/* fall through */
 	case 1:
+	case 3:
 		/* Write the log and optionally flush it to disk */
 		log_write_up_to(lsn, flush);
 		srv_inc_activity_count();
@@ -1717,6 +1717,7 @@ trx_print_low(
 			/*!< in: mem_heap_get_size(trx->lock.lock_heap) */
 {
 	ibool		newline;
+
 	fprintf(f, "TRANSACTION " TRX_ID_FMT, trx_get_id_for_print(trx));
 
 	switch (trx->state) {
@@ -1739,8 +1740,9 @@ trx_print_low(
 	fprintf(f, ", state %lu", (ulong) trx->state);
 	ut_ad(0);
 state_ok:
+	const char* op_info = trx->op_info;
 
-	if (const char *op_info = trx->op_info) {
+	if (*op_info) {
 		putc(' ', f);
 		fputs(op_info, f);
 	}

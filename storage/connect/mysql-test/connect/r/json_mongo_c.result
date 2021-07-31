@@ -8,9 +8,9 @@ ENGINE=CONNECT TABLE_TYPE=JSON TABNAME=restaurants CONNECTION='mongodb://localho
 OPTION_LIST='Driver=C,Version=0' DATA_CHARSET=utf8;
 SELECT * from t1 limit 3;
 Document
-{"_id":{"$oid":"58ada47de5a51ddfcd5ed51c"},"address":{"building":"1007","coord":[-73.856076999999999089,40.848447000000000173],"street":"Morris Park Ave","zipcode":"10462"},"borough":"Bronx","cuisine":"Bakery","grades":[{"date":{"$date":1393804800000},"grade":"A","score":2},{"date":{"$date":1378857600000},"grade":"A","score":6},{"date":{"$date":1358985600000},"grade":"A","score":10},{"date":{"$date":1322006400000},"grade":"A","score":9},{"date":{"$date":1299715200000},"grade":"B","score":14}],"name":"Morris Park Bake Shop","restaurant_id":"30075445"}
-{"_id":{"$oid":"58ada47de5a51ddfcd5ed51d"},"address":{"building":"469","coord":[-73.96170399999999745,40.66294200000000103],"street":"Flatbush Avenue","zipcode":"11225"},"borough":"Brooklyn","cuisine":"Hamburgers","grades":[{"date":{"$date":1419897600000},"grade":"A","score":8},{"date":{"$date":1404172800000},"grade":"B","score":23},{"date":{"$date":1367280000000},"grade":"A","score":12},{"date":{"$date":1336435200000},"grade":"A","score":12}],"name":"Wendy'S","restaurant_id":"30112340"}
-{"_id":{"$oid":"58ada47de5a51ddfcd5ed51e"},"address":{"building":"351","coord":[-73.985135599999992451,40.767691900000002647],"street":"West   57 Street","zipcode":"10019"},"borough":"Manhattan","cuisine":"Irish","grades":[{"date":{"$date":1409961600000},"grade":"A","score":2},{"date":{"$date":1374451200000},"grade":"A","score":11},{"date":{"$date":1343692800000},"grade":"A","score":12},{"date":{"$date":1325116800000},"grade":"A","score":12}],"name":"Dj Reynolds Pub And Restaurant","restaurant_id":"30191841"}
+{"_id":{"$oid":"58ada47de5a51ddfcd5ed51c"},"address":{"building":"1007","coord":[-73.856077,40.848447],"street":"Morris Park Ave","zipcode":"10462"},"borough":"Bronx","cuisine":"Bakery","grades":[{"date":{"$date":1393804800000},"grade":"A","score":2},{"date":{"$date":1378857600000},"grade":"A","score":6},{"date":{"$date":1358985600000},"grade":"A","score":10},{"date":{"$date":1322006400000},"grade":"A","score":9},{"date":{"$date":1299715200000},"grade":"B","score":14}],"name":"Morris Park Bake Shop","restaurant_id":"30075445"}
+{"_id":{"$oid":"58ada47de5a51ddfcd5ed51d"},"address":{"building":"469","coord":[-73.961704,40.662942],"street":"Flatbush Avenue","zipcode":"11225"},"borough":"Brooklyn","cuisine":"Hamburgers","grades":[{"date":{"$date":1419897600000},"grade":"A","score":8},{"date":{"$date":1404172800000},"grade":"B","score":23},{"date":{"$date":1367280000000},"grade":"A","score":12},{"date":{"$date":1336435200000},"grade":"A","score":12}],"name":"Wendy'S","restaurant_id":"30112340"}
+{"_id":{"$oid":"58ada47de5a51ddfcd5ed51e"},"address":{"building":"351","coord":[-73.985136,40.767692],"street":"West   57 Street","zipcode":"10019"},"borough":"Manhattan","cuisine":"Irish","grades":[{"date":{"$date":1409961600000},"grade":"A","score":2},{"date":{"$date":1374451200000},"grade":"A","score":11},{"date":{"$date":1343692800000},"grade":"A","score":12},{"date":{"$date":1325116800000},"grade":"A","score":12}],"name":"Dj Reynolds Pub And Restaurant","restaurant_id":"30191841"}
 DROP TABLE t1;
 #
 # Test catfunc
@@ -363,7 +363,7 @@ _id	item	prices_0	prices_1	prices_2	prices_3	prices_4
 1	journal	87	45	63	12	78
 2	notebook	123	456	789	NULL	NULL
 3	paper	5	7	3	8	NULL
-4	planner	25	71	44	27	NULL
+4	planner	25	71	NULL	44	27
 5	postcard	5	7	3	8	NULL
 DROP TABLE t1;
 #

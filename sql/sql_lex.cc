@@ -11613,3 +11613,23 @@ bool LEX::map_data_type(const Lex_ident_sys_st &schema_name,
   type->set_handler(mapped);
   return false;
 }
+
+
+bool SELECT_LEX_UNIT::explainable() const
+{
+  /*
+    EXPLAIN/ANALYZE unit, when:
+    (1) if it's a subquery - it's not part of eliminated WHERE/ON clause.
+    (2) if it's a CTE - it's not hanging (needed for execution)
+    (3) if it's a derived - it's not merged
+    if it's not 1/2/3 - it's some weird internal thing, ignore it
+  */
+  return item ?
+           !item->eliminated :                        // (1)
+           with_element ?
+             derived && derived->derived_result &&
+               !with_element->is_hanging_recursive(): // (2)
+             derived ?
+               derived->is_materialized_derived() :   // (3)
+               false;
+}

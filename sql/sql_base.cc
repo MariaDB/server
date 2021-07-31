@@ -6211,7 +6211,7 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
           TABLE *table= field_to_set->table;
           DBUG_ASSERT(table);
           if (thd->column_usage == MARK_COLUMNS_READ)
-            bitmap_set_bit(table->read_set, field_to_set->field_index);
+            field_to_set->register_field_in_read_map();
           else
             bitmap_set_bit(table->write_set, field_to_set->field_index);
         }

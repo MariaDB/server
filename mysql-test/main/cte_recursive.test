@@ -2590,8 +2590,8 @@ insert into t2 values (1,1),(2,2);
 
 explain
 with recursive cte as
- ( select * from t1 union select s1.* from t1 as s1, cte where s1.i1 = cte.i2 )
-select * from t1 as t;
+ ( select * from t2 union select s1.* from t2 as s1, cte where s1.i1 = cte.i2 )
+select * from t2 as t;
 
 drop table t1,t2;
 
@@ -2853,6 +2853,85 @@ deallocate prepare stmt;
 drop table folks;
 
 set big_tables=@save_big_tables;
+
+--echo #
+--echo # MDEV-26135: execution of PS for query with hanging recursive CTE
+--echo #
+
+create table t1 (a int);
+insert into t1 values (5), (7);
+create table t2 (b int);
+insert into t2 values (3), (7), (1);
+
+let $q=
+with recursive r as (select a from t1 union select a+1 from r where a < 10)
+select * from t2;
+
+eval $q;
+eval prepare stmt from "$q";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1,t2;
+
+--echo #
+--echo # MDEV-26189: Unknown column reference within hanging recursive CTE
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+let $q1=
+with recursive
+  r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
+select * from t1 as t;
+
+--ERROR ER_BAD_FIELD_ERROR
+eval $q1;
+--ERROR ER_BAD_FIELD_ERROR
+eval explain $q1;
+
+eval create procedure sp1() $q1;
+--ERROR ER_BAD_FIELD_ERROR
+call sp1();
+--ERROR ER_BAD_FIELD_ERROR
+call sp1();
+
+let $q2=
+with recursive
+  r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
+select * from t1 as t;
+
+--ERROR ER_BAD_FIELD_ERROR
+eval $q2;
+--ERROR ER_BAD_FIELD_ERROR
+eval explain $q2;
+
+eval create procedure sp2() $q2;
+--ERROR ER_BAD_FIELD_ERROR
+call sp2();
+--ERROR ER_BAD_FIELD_ERROR
+call sp2();
+
+drop procedure sp1;
+drop procedure sp2;
+
+drop table t1;
+
+--echo #
+--echo # MDEV-26202: Recursive CTE used indirectly twice
+--echo # (fixed by the patch forMDEV-26025)
+--echo #
+
+with recursive
+  rcte as ( SELECT 1 AS a
+            UNION ALL
+            SELECT cast(a + 1 as unsigned int) FROM rcte WHERE a < 3),
+  cte1 AS (SELECT a FROM rcte),
+  cte2 AS (SELECT a FROM cte1),
+  cte3 AS ( SELECT a FROM  cte2)
+SELECT * FROM cte2, cte3;
 
 --echo #
 --echo # End of 10.2 tests

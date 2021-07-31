@@ -34,6 +34,7 @@
 #include "sql_insert.h"                         // kill_delayed_threads
 #include "sql_handler.h"                        // mysql_ha_cleanup_no_free
 #include <my_sys.h>
+#include "wsrep_mysqld.h"
 
 static const char *stage_names[]=
 {"START", "FLUSH", "BLOCK_DDL", "BLOCK_COMMIT", "END", 0};
@@ -255,6 +256,21 @@ static bool backup_block_ddl(THD *thd)
   (void) flush_tables(thd, FLUSH_NON_TRANS_TABLES);
   thd->clear_error();
 
+#ifdef WITH_WSREP
+  /*
+    We desync the node for BACKUP STAGE because applier threads
+    bypass backup MDL locks (see MDL_lock::can_grant_lock)
+  */
+  if (WSREP_NNULL(thd))
+  {
+    Wsrep_server_state &server_state= Wsrep_server_state::instance();
+    if (server_state.desync_and_pause().is_undefined()) {
+      DBUG_RETURN(1);
+    }
+    thd->wsrep_desynced_backup_stage= true;
+  }
+#endif /* WITH_WSREP */
+
   /*
     block new DDL's, in addition to all previous blocks
     We didn't do this lock above, as we wanted DDL's to be executed while
@@ -319,6 +335,14 @@ bool backup_end(THD *thd)
     ha_end_backup();
     thd->current_backup_stage= BACKUP_FINISHED;
     thd->mdl_context.release_lock(backup_flush_ticket);
+#ifdef WITH_WSREP
+    if (WSREP_NNULL(thd) && thd->wsrep_desynced_backup_stage)
+    {
+      Wsrep_server_state &server_state= Wsrep_server_state::instance();
+      server_state.resume_and_resync();
+      thd->wsrep_desynced_backup_stage= false;
+    }
+#endif /* WITH_WSREP */
   }
   DBUG_RETURN(0);
 }

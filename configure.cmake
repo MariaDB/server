@@ -170,6 +170,7 @@ IF(UNIX)
       SET(LIBWRAP "wrap")
     ENDIF()
   ENDIF()
+  ADD_FEATURE_INFO(LIBWRAP HAVE_LIBWRAP "Support for tcp wrappers")
 ENDIF()
 
 #

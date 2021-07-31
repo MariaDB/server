@@ -4680,8 +4680,17 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   }
 
   if (!(table= create_table_from_items(thd, &values, &extra_lock, hook_ptr)))
+  {
+    if (create_info->or_replace())
+    {
+      /* Original table was deleted. We have to log it */
+      log_drop_table(thd, &create_table->db, &create_table->table_name,
+                     thd->lex->tmp_table());
+    }
+
     /* abort() deletes table */
     DBUG_RETURN(-1);
+  }
 
   if (create_info->tmp_table())
   {

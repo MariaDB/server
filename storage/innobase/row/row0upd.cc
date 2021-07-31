@@ -52,6 +52,11 @@ Created 12/27/1996 Heikki Tuuri
 #include <algorithm>
 #include <mysql/plugin.h>
 #include <mysql/service_wsrep.h>
+#ifdef WITH_WSREP
+#include "log.h"
+#include "wsrep.h"
+#endif /* WITH_WSREP */
+
 
 /* What kind of latch and lock can we assume when the control comes to
    -------------------------------------------------------------------
@@ -2148,34 +2153,30 @@ row_upd_sec_index_entry(
 					err = DB_SUCCESS;
 					break;
 				case DB_LOCK_WAIT:
-					if (UNIV_UNLIKELY(wsrep_debug)) {
-						ib::warn() << "WSREP: sec index FK lock wait"
-							   << " index " << index->name
-							   << " table " << index->table->name
-							   << " query " << wsrep_thd_query(trx->mysql_thd);
-					}
-					break;
 				case DB_DEADLOCK:
-					if (UNIV_UNLIKELY(wsrep_debug)) {
-						ib::warn() << "WSREP: sec index FK check fail for deadlock"
-							   << " index " << index->name
-							   << " table " << index->table->name
-							   << " query " << wsrep_thd_query(trx->mysql_thd);
-					}
+				case DB_LOCK_WAIT_TIMEOUT:
+					WSREP_DEBUG("Foreign key check fail: "
+						"%s on table %s index %s query %s",
+						ut_strerr(err), index->name(), index->table->name.m_name,
+						wsrep_thd_query(trx->mysql_thd));
 					break;
 				default:
-					ib::error() << "WSREP: referenced FK check fail: " << err
-						    << " index " << index->name
-						    << " table " << index->table->name
-						    << " query " << wsrep_thd_query(trx->mysql_thd);
-
+					WSREP_ERROR("Foreign key check fail: "
+						"%s on table %s index %s query %s",
+						ut_strerr(err), index->name(), index->table->name.m_name,
+						wsrep_thd_query(trx->mysql_thd));
 					break;
 				}
 			}
 #endif /* WITH_WSREP */
 		}
 
+#ifdef WITH_WSREP
+		ut_ad(err == DB_SUCCESS || err == DB_LOCK_WAIT
+		      || err == DB_DEADLOCK || err == DB_LOCK_WAIT_TIMEOUT);
+#else
 		ut_ad(err == DB_SUCCESS);
+#endif
 
 		if (referenced) {
 			rec_offs* offsets = rec_get_offsets(
@@ -2496,17 +2497,21 @@ check_fk:
 			case DB_NO_REFERENCED_ROW:
 				err = DB_SUCCESS;
 				break;
+			case DB_LOCK_WAIT:
 			case DB_DEADLOCK:
-				if (UNIV_UNLIKELY(wsrep_debug)) {
-					ib::warn() << "WSREP: sec index FK check fail for deadlock"
-						   << " index " << index->name
-						   << " table " << index->table->name;
-				}
+			case DB_LOCK_WAIT_TIMEOUT:
+				WSREP_DEBUG("Foreign key check fail: "
+					    "%s on table %s index %s query %s",
+					    ut_strerr(err), index->name(), index->table->name.m_name,
+					    wsrep_thd_query(trx->mysql_thd));
+
 				goto err_exit;
 			default:
-				ib::error() << "WSREP: referenced FK check fail: " << err
-					    << " index " << index->name
-					    << " table " << index->table->name;
+				WSREP_ERROR("Foreign key check fail: "
+					    "%s on table %s index %s query %s",
+					    ut_strerr(err), index->name(), index->table->name.m_name,
+					    wsrep_thd_query(trx->mysql_thd));
+
 				goto err_exit;
 			}
 #endif /* WITH_WSREP */
@@ -2723,18 +2728,19 @@ row_upd_del_mark_clust_rec(
 		case DB_NO_REFERENCED_ROW:
 			err = DB_SUCCESS;
 			break;
+		case DB_LOCK_WAIT:
 		case DB_DEADLOCK:
-			if (UNIV_UNLIKELY(wsrep_debug)) {
-				ib::warn() << "WSREP: sec index FK check fail for deadlock"
-					   << " index " << index->name
-					   << " table " << index->table->name;
-			}
+		case DB_LOCK_WAIT_TIMEOUT:
+			WSREP_DEBUG("Foreign key check fail: "
+				    "%d on table %s index %s query %s",
+				    err, index->name(), index->table->name.m_name,
+				    wsrep_thd_query(trx->mysql_thd));
 			break;
 		default:
-			ib::error() << "WSREP: referenced FK check fail: " << err
-				    << " index " << index->name
-				    << " table " << index->table->name;
-
+			WSREP_ERROR("Foreign key check fail: "
+				    "%d on table %s index %s query %s",
+				    err, index->name(), index->table->name.m_name,
+				    wsrep_thd_query(trx->mysql_thd));
 			break;
 		}
 #endif /* WITH_WSREP */

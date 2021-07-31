@@ -5158,6 +5158,19 @@ c1
 42
 DROP TABLE t1, t2;
 #
+# MDEV-25560 Creating table with certain generated column crashes server
+#
+CREATE TABLE t1 (i int, b int AS (RPAD(123,1)) stored);
+# Original case from the reporter
+CREATE TABLE crash_test_2 (
+DATA_VALUE CHAR(10) NULL,
+HAS_DATA BIT NOT NULL,
+TEST_COLUMN CHAR(10) AS (RPAD(CASE WHEN HAS_DATA = 1
+THEN DATA_VALUE ELSE NULL END, 10)) STORED);
+ERROR HY000: Function or expression 'rpad(case when `HAS_DATA` = 1 then `DATA_VALUE` else NULL end,10)' cannot be used in the GENERATED ALWAYS AS clause of `TEST_COLUMN`
+# Cleanup
+DROP TABLE t1;
+#
 # End of 10.3 tests
 #
 #

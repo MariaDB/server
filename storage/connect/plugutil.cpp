@@ -44,7 +44,7 @@
 /*                                                                     */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
 #else
 #if defined(UNIX) || defined(UNIV_LINUX)
@@ -81,9 +81,9 @@
 #include "rcmsg.h"
 #endif   // NEWMSG
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 extern HINSTANCE s_hModule;                   /* Saved module handle    */
-#endif   // __WIN__
+#endif   // _WIN32
 
 #if defined(XMSG)
 extern char *msg_path;
@@ -205,7 +205,7 @@ PGLOBAL PlugExit(PGLOBAL g)
 /***********************************************************************/
 LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
 {
-#if defined(__WIN__)
+#if defined(_WIN32)
   char drive[_MAX_DRIVE];
 #else
   char *drive = NULL;
@@ -232,7 +232,7 @@ LPSTR PlugRemoveType(LPSTR pBuff, LPCSTR FileName)
 
 BOOL PlugIsAbsolutePath(LPCSTR path)
 {
-#if defined(__WIN__)
+#if defined(_WIN32)
   return ((path[0] >= 'a' && path[0] <= 'z') ||
           (path[0] >= 'A' && path[0] <= 'Z')) && path[1] == ':';
 #else
@@ -250,7 +250,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
   char direc[_MAX_DIR], defdir[_MAX_DIR], tmpdir[_MAX_DIR];
   char fname[_MAX_FNAME];
   char ftype[_MAX_EXT];
-#if defined(__WIN__)
+#if defined(_WIN32)
   char drive[_MAX_DRIVE], defdrv[_MAX_DRIVE];
 #else
   char *drive = NULL, *defdrv = NULL;
@@ -270,7 +270,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
     return pBuff;
   } // endif
   
-#if !defined(__WIN__)
+#if !defined(_WIN32)
   if (*FileName == '~') {
     if (_fullpath(pBuff, FileName, _MAX_PATH)) {
       if (trace(2))
@@ -281,7 +281,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
       return FileName;     // Error, return unchanged name
       
     } // endif FileName  
-#endif   // !__WIN__
+#endif   // !_WIN32
   
   if (prefix && strcmp(prefix, ".") && !PlugIsAbsolutePath(defpath))
   {
@@ -310,7 +310,7 @@ LPCSTR PlugSetPath(LPSTR pBuff, LPCSTR prefix, LPCSTR FileName, LPCSTR defpath)
 
   if (trace(2)) {
     htrc("after _splitpath: FileName=%-.256s\n", FileName);
-#if defined(__WIN__)
+#if defined(_WIN32)
     htrc("drive=%-.256s dir=%-.256s fname=%-.256s ext=%-.256s\n", drive, direc, fname, ftype);
     htrc("defdrv=%-.256s defdir=%-.256s\n", defdrv, defdir);
 #else
@@ -442,7 +442,7 @@ char *PlugGetMessage(PGLOBAL g, int mid)
 } // end of PlugGetMessage
 #endif     // NEWMSG
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 /***********************************************************************/
 /*  Return the line length of the console screen buffer.               */
 /***********************************************************************/
@@ -454,7 +454,7 @@ short GetLineLength(PGLOBAL g)
 
   return (b) ? coninfo.dwSize.X : 0;
 } // end of GetLineLength
-#endif   // __WIN__
+#endif   // _WIN32
 
 /***********************************************************************/
 /*  Program for memory allocation of work and language areas.          */
@@ -464,7 +464,7 @@ bool AllocSarea(PGLOBAL g, size_t size)
   /*********************************************************************/
   /*  This is the allocation routine for the WIN32/UNIX/AIX version.   */
   /*********************************************************************/
-#if defined(__WIN__)
+#if defined(_WIN32)
 	if (size >= 1048576)			 // 1M
 		g->Sarea = VirtualAlloc(NULL, size, MEM_COMMIT | MEM_RESERVE, PAGE_READWRITE);
 	else
@@ -500,7 +500,7 @@ bool AllocSarea(PGLOBAL g, size_t size)
 void FreeSarea(PGLOBAL g)
 {
 	if (g->Sarea) {
-#if defined(__WIN__)
+#if defined(_WIN32)
 		if (g->Sarea_Size >= 1048576)			 // 1M
 			VirtualFree(g->Sarea, 0, MEM_RELEASE);
 		else

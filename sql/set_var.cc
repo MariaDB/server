@@ -231,12 +231,12 @@ bool sys_var::update(THD *thd, set_var *var)
   }
 }
 
-uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return session_var_ptr(thd);
 }
 
-uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return global_var_ptr();
 }
@@ -269,8 +269,8 @@ bool sys_var::check(THD *thd, set_var *var)
   return false;
 }
 
-uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
-                          const LEX_CSTRING *base)
+const uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
+                                const LEX_CSTRING *base) const
 {
   DBUG_ASSERT(base);
   if (type == OPT_GLOBAL || scope() == GLOBAL)
@@ -1063,7 +1063,7 @@ int set_var_collation_client::update(THD *thd)
  INFORMATION_SCHEMA.SYSTEM_VARIABLES
 *****************************************************************************/
 static void store_value_ptr(Field *field, sys_var *var, String *str,
-                            uchar *value_ptr)
+                            const uchar *value_ptr)
 {
   field->set_notnull();
   str= var->val_str_nolock(str, field->table->in_use, value_ptr);
@@ -1133,8 +1133,8 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     fields[3]->store(origin->str, origin->length, scs);
 
     // DEFAULT_VALUE
-    uchar *def= var->is_readonly() && var->option.id < 0
-                ? 0 : var->default_value_ptr(thd);
+    const uchar *def= var->is_readonly() && var->option.id < 0
+                      ? 0 : var->default_value_ptr(thd);
     if (def)
       store_value_ptr(fields[4], var, &strbuf, def);
 

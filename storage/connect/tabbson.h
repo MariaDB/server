@@ -1,7 +1,7 @@
 /*************** tabbson H Declares Source Code File (.H) **************/
-/*  Name: tabbson.h   Version 1.0                                      */
+/*  Name: tabbson.h   Version 1.1                                      */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2020         */
+/*  (C) Copyright to the author Olivier BERTRAND          2020 - 2021  */
 /*                                                                     */
 /*  This file contains the BSON classes declares.                      */
 /***********************************************************************/
@@ -242,7 +242,8 @@ public:
   BSONCOL(BSONCOL* colp, PTDB tdbp); // Constructor used in copy process
 
   // Implementation
-  virtual int  GetAmType(void) { return Tbp->GetAmType(); }
+  virtual int   GetAmType(void) { return Tbp->GetAmType(); }
+  virtual bool  Stringify(void) { return Sgfy; }
 
   // Methods
   virtual bool  SetBuffer(PGLOBAL g, PVAL value, bool ok, bool check);
@@ -270,6 +271,7 @@ protected:
   bool    Xpd;                  // True for expandable column
   bool    Parsed;               // True when parsed
   bool    Warned;               // True when warning issued
+  bool    Sgfy;									// True if stringified
 }; // end of class BSONCOL
 
 /* -------------------------- TDBBSON class -------------------------- */

@@ -34,6 +34,7 @@ wsrep_cert_deps_distance	#
 wsrep_apply_oooe	#
 wsrep_apply_oool	#
 wsrep_apply_window	#
+wsrep_apply_waits	#
 wsrep_commit_oooe	#
 wsrep_commit_oool	#
 wsrep_commit_window	#

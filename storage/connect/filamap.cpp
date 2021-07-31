@@ -17,12 +17,12 @@
 /*  Include relevant sections of the System header files.              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif   // __BORLANDC__
 //#include <windows.h>
-#else    // !__WIN__
+#else    // !_WIN32
 #if defined(UNIX)
 #include <errno.h>
 #include <unistd.h>
@@ -30,7 +30,7 @@
 #include <io.h>
 #endif  // !UNIX
 #include <fcntl.h>
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -197,11 +197,11 @@ bool MAPFAM::OpenTableFile(PGLOBAL g)
       return true;
       } // endif Memory
 
-#if defined(__WIN__)
+#if defined(_WIN32)
     if (mode != MODE_DELETE) {
-#else   // !__WIN__
+#else   // !_WIN32
     if (mode == MODE_READ) {
-#endif  // !__WIN__
+#endif  // !_WIN32
       CloseFileHandle(hFile);                    // Not used anymore
       hFile = INVALID_HANDLE_VALUE;              // For Fblock
       } // endif Mode
@@ -469,7 +469,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
       /*****************************************************************/
       n = (int)(Tpos - Memory);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
       DWORD drc = SetFilePointer(fp->Handle, n, NULL, FILE_BEGIN);
 
       if (drc == 0xFFFFFFFF) {
@@ -499,7 +499,7 @@ int MAPFAM::DeleteRecords(PGLOBAL g, int irc)
 #endif   // UNIX
     } // endif Abort
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   CloseHandle(fp->Handle);
 #else    // UNIX
   close(fp->Handle);

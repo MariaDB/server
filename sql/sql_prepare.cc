@@ -1570,7 +1570,12 @@ static int mysql_test_select(Prepared_statement *stmt,
   if (!lex->describe && !thd->lex->analyze_stmt && !stmt->is_sql_prepare())
   {
     /* Make copy of item list, as change_columns may change it */
-    List<Item> fields(lex->first_select_lex()->item_list);
+    SELECT_LEX_UNIT* master_unit= unit->first_select()->master_unit();
+    bool is_union_op=
+      master_unit->is_unit_op() || master_unit->fake_select_lex;
+
+    List<Item> fields(is_union_op ? unit->item_list :
+                                    lex->first_select_lex()->item_list);
 
     /* Change columns if a procedure like analyse() */
     if (unit->last_procedure && unit->last_procedure->change_columns(thd, fields))
@@ -1692,7 +1697,7 @@ static bool mysql_test_call_fields(Prepared_statement *stmt,
 
   while ((item= it++))
   {
-    if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
+    if (item->fix_fields_if_needed(thd, it.ref()))
       goto err;
   }
   DBUG_RETURN(FALSE);
