@@ -3034,66 +3034,6 @@ static bool check_vcol_forward_refs(Field *field, Virtual_column_info *vcol)
   return res;
 }
 
-/**
- Copy keys from share to a table, so that fields in key_parts would match
- fields in a table.
-
- Also if key_part uses a field prefix, clone a field and make its length match
- that prefix.
-
- @retval true if success
- @retval false if memory allocation fails
- */
-static bool initialize_keys(TABLE_SHARE *share, TABLE *outparam)
-{
-  if (share->key_parts == 0)
-    return true;
-  uint n_length= share->keys * sizeof(KEY)
-                 + share->ext_key_parts * sizeof(KEY_PART_INFO);
-
-  KEY *key_info= (KEY*) alloc_root(&outparam->mem_root, n_length);
-  if (!key_info)
-    return false;
-
-  outparam->key_info= key_info;
-
-  KEY *key_info_end= key_info + share->keys;
-  KEY_PART_INFO *key_part= reinterpret_cast<KEY_PART_INFO*>(key_info_end);
-
-  memcpy(key_info, share->key_info, sizeof(*key_info) * share->keys);
-  memcpy(key_part, share->key_info[0].key_part, (sizeof(*key_part) *
-                                                 share->ext_key_parts));
-
-  for ( ; key_info < key_info_end; key_info++)
-  {
-    key_info->table= outparam;
-    key_info->key_part= key_part;
-
-    KEY_PART_INFO *key_part_end= key_part + (share->use_ext_keys
-                                            ? key_info->ext_key_parts
-                                            : key_info->user_defined_key_parts);
-    for ( ; key_part < key_part_end; key_part++)
-    {
-      Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
-
-      if (field->key_length() != key_part->length &&
-          !(field->flags & BLOB_FLAG))
-      {
-        /*
-          We are using only a prefix of the column as a key:
-          Create a new field for the key part that matches the index
-        */
-        field= key_part->field=field->make_new_field(&outparam->mem_root,
-                                                     outparam, 0);
-        field->field_length= key_part->length;
-      }
-    }
-    if (!share->use_ext_keys)
-      key_part+= key_info->ext_key_parts - key_info->user_defined_key_parts;
-  }
-  return true;
-}
-
 /*
   Open a table based on a TABLE_SHARE
 
@@ -3133,7 +3073,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
   Field **field_ptr;
   uint8 save_context_analysis_only= thd->lex->context_analysis_only;
   TABLE_SHARE::enum_v_keys check_set_initialized= share->check_set_initialized;
-  bool success;
   DBUG_ENTER("open_table_from_share");
   DBUG_PRINT("enter",("name: '%s.%s'  form: %p", share->db.str,
                       share->table_name.str, outparam));
@@ -3243,6 +3182,54 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     outparam->found_next_number_field=
       outparam->field[(uint) (share->found_next_number_field - share->field)];
 
+  /* Fix key->name and key_part->field */
+  if (share->key_parts)
+  {
+    KEY	*key_info, *key_info_end;
+    KEY_PART_INFO *key_part;
+    uint n_length;
+    n_length= share->keys*sizeof(KEY) + share->ext_key_parts*sizeof(KEY_PART_INFO);
+    if (!(key_info= (KEY*) alloc_root(&outparam->mem_root, n_length)))
+      goto err;
+    outparam->key_info= key_info;
+    key_part= (reinterpret_cast<KEY_PART_INFO*>(key_info+share->keys));
+
+    memcpy(key_info, share->key_info, sizeof(*key_info)*share->keys);
+    memcpy(key_part, share->key_info[0].key_part, (sizeof(*key_part) *
+                                                   share->ext_key_parts));
+
+    for (key_info_end= key_info + share->keys ;
+         key_info < key_info_end ;
+         key_info++)
+    {
+      KEY_PART_INFO *key_part_end;
+
+      key_info->table= outparam;
+      key_info->key_part= key_part;
+
+      key_part_end= key_part + (share->use_ext_keys ? key_info->ext_key_parts :
+			                              key_info->user_defined_key_parts) ;
+      for ( ; key_part < key_part_end; key_part++)
+      {
+        Field *field= key_part->field= outparam->field[key_part->fieldnr - 1];
+
+        if (field->key_length() != key_part->length &&
+            !(field->flags & BLOB_FLAG))
+        {
+          /*
+            We are using only a prefix of the column as a key:
+            Create a new field for the key part that matches the index
+          */
+          field= key_part->field=field->make_new_field(&outparam->mem_root,
+                                                       outparam, 0);
+          field->field_length= key_part->length;
+        }
+      }
+      if (!share->use_ext_keys)
+	key_part+= key_info->ext_key_parts - key_info->user_defined_key_parts;
+    }
+  }
+
   /*
     Process virtual and default columns, if any.
   */
@@ -3298,10 +3285,6 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
   }
-
-  success= initialize_keys(share, outparam);
-  if (!success)
-    goto err;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   if (share->partition_info_str_len && outparam->file)

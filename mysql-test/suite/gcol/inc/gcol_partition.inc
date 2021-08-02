@@ -169,15 +169,3 @@ CREATE TABLE t1 (
 INSERT INTO t1 () VALUES (),();
 UPDATE t1 SET a = 0 WHERE b IS NULL ORDER BY pk;
 DROP TABLE t1;
-
---echo #
---echo # MDEV-26220 Server crashes with indexed by prefix virtual column
---echo #
-
-CREATE TABLE t1 (pk INT PRIMARY KEY, a INT, b CHAR(20), c CHAR(20) AS (b),
-                 KEY (c(10),a)) PARTITION BY HASH(pk);
-INSERT INTO t1 (pk,a,b) VALUES (1,10,'foo'),(2,11,'baz');
-SELECT a FROM t1;
-
-# Cleanup
-DROP TABLE t1;
