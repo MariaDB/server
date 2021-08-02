@@ -14,8 +14,7 @@
   Foundation, Inc., 59 Temple Place, Suite 330, Boston, MA  02111-1307  USA */
 
 #ifdef SPIDER_HAS_GROUP_BY_HANDLER
-class spider_group_by_handler: public group_by_handler
-{
+class spider_group_by_handler : public group_by_handler {
   Query query;
   spider_fields *fields;
   ha_spider *spider;
@@ -25,20 +24,14 @@ class spider_group_by_handler: public group_by_handler
   longlong offset_limit;
   int store_error;
 
-public:
-  spider_group_by_handler(
-    THD *thd_arg,
-    Query *query_arg,
-    spider_fields *fields_arg
-  );
+ public:
+  spider_group_by_handler(THD *thd_arg, Query *query_arg,
+                          spider_fields *fields_arg);
   ~spider_group_by_handler();
   int init_scan();
   int next_row();
   int end_scan();
 };
 
-group_by_handler *spider_create_group_by_handler(
-  THD *thd,
-  Query *query
-);
+group_by_handler *spider_create_group_by_handler(THD *thd, Query *query);
 #endif
