@@ -812,7 +812,7 @@ DROP TABLE t1;
 
 --echo # MDEV-19011 Assertion `file->s->base.reclength < file->s->vreclength'
 --echo # failed in ha_myisam::setup_vcols_for_repair
-CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL) ENGINE=MyISAM;
+CREATE TABLE t1 (a INT GENERATED ALWAYS AS (1) VIRTUAL);
 ALTER TABLE t1 ADD KEY (a);
 
 DROP TABLE t1;

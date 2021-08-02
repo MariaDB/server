@@ -442,3 +442,15 @@ show create table t2;
 drop temporary table t2;
 drop table t1;
 --disable_prepare_warnings
+
+--echo #
+--echo # MDEV-16857 system-invisible row_end is displayed in SHOW INDEX
+--echo #
+create or replace table t1 (id int primary key, x int) with system versioning;
+select table_schema, table_name, non_unique, index_schema, index_name, seq_in_index, column_name
+from information_schema.statistics where table_name = 't1';
+--replace_column 6 # 7 # 8 # 9 # 10 # 11 #
+show index from t1;
+--replace_result $default_engine DEFAULT_ENGINE
+show create table t1;
+drop table t1;

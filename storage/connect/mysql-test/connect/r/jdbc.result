@@ -1,4 +1,5 @@
-SET GLOBAL time_zone='+1:00';
+SET GLOBAL time_zone='+0:00';
+SET time_zone='+0:00';
 CREATE DATABASE connect;
 USE connect;
 CREATE TABLE t2 (
@@ -16,7 +17,7 @@ id	msg	tm	dt	dtm	ts
 # Testing JDBC connection to MySQL driver
 #
 USE test;
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=t2 CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false';
 SELECT * FROM t1;
 id	msg	tm	dt	dtm	ts
 455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
@@ -26,7 +27,7 @@ Note	1105	t2: 1 affected rows
 SELECT * FROM t1;
 id	msg	tm	dt	dtm	ts
 455000000000	A very big number	18:10:25	2016-03-16	1999-12-11 23:01:52	2015-07-24 09:32:45
-786325481247	Hello!	19:45:03	1933-08-09	1985-11-12 09:02:44	2014-06-17 10:32:01
+786325481247	Hello!	19:45:03	1933-08-10	1985-11-12 09:02:44	2014-06-17 10:32:01
 DELETE FROM t1 WHERE msg = 'Hello!';
 Warnings:
 Note	1105	t2: 1 affected rows
@@ -37,7 +38,7 @@ DROP TABLE t1;
 #
 # Testing JDBC view
 #
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC SRCDEF='select id, msg, tm, dt from t2' CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false';
 SELECT * FROM t1;
 id	msg	tm	dt
 455000000000	A very big number	18:10:25	2016-03-16
@@ -74,7 +75,7 @@ SELECT * FROM t3;
 name	city	birth	hired
 Donald	Atlanta	1999-04-01	2016-03-31
 Mick	New York	1980-01-20	2002-09-11
-CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=boys CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root' OPTION_LIST='scrollable=1';
+CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME=boys CONNECTION='jdbc:mysql://localhost:PORT/connect?user=root&useSSL=false' OPTION_LIST='scrollable=1';
 SELECT * FROM t1;
 name	city	birth	hired
 John	Boston	1986-01-25	2010-06-02
@@ -100,9 +101,9 @@ George	San Jose	1981-08-10	2010-06-02
 Sam	Chicago	1979-11-22	2007-10-10
 James	Dallas	1992-05-13	2009-12-14
 Bill	Boston	1986-09-11	2008-02-10
-Donald	Atlanta	1999-03-31	2016-03-30
-Mick	New York	1980-01-20	2002-09-10
-Tom	Seatle	2002-03-15	1970-01-01
+Donald	Atlanta	1999-04-01	2016-03-31
+Mick	New York	1980-01-20	2002-09-11
+Tom	Seatle	2002-03-15	NULL
 DROP TABLE t3;
 #
 # Testing JDBC join operations
@@ -280,3 +281,4 @@ DROP TABLE t1;
 DROP TABLE connect.tx1;
 DROP DATABASE connect;
 SET GLOBAL time_zone=SYSTEM;
+SET time_zone=SYSTEM;

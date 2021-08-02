@@ -1,0 +1,20 @@
+--source include/have_innodb.inc
+
+call mtr.add_suppression("Index for table 'imp_t1' is corrupt; try to repair it");
+
+SET @save_innodb_checksum_algorithm=@@GLOBAL.innodb_checksum_algorithm;
+SET GLOBAL innodb_checksum_algorithm=full_crc32;
+
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=REDUNDANT;
+CREATE TABLE imp_t1 (a INT PRIMARY KEY) ENGINE=InnoDB ROW_FORMAT=DYNAMIC;
+ALTER TABLE imp_t1 DISCARD TABLESPACE ;
+FLUSH TABLES t1 FOR EXPORT;
+let $datadir=`select @@datadir`;
+--copy_file $datadir/test/t1.ibd $datadir/test/imp_t1.ibd
+UNLOCK TABLES;
+--error ER_TABLE_SCHEMA_MISMATCH
+ALTER TABLE imp_t1 IMPORT TABLESPACE;
+DROP TABLE imp_t1, t1;
+--remove_file $datadir/test/imp_t1.ibd
+
+SET GLOBAL innodb_checksum_algorithm=@save_innodb_checksum_algorithm;

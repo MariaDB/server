@@ -261,7 +261,7 @@ public:
   { var->save_result.ulonglong_value= option.def_value; }
   private:
   T get_max_var() { return *((T*) max_var_ptr()); }
-  uchar *default_value_ptr(THD *thd) { return (uchar*) &option.def_value; }
+  const uchar *default_value_ptr(THD *thd) const { return (uchar*) &option.def_value; }
 };
 
 typedef Sys_var_integer<int, GET_INT, SHOW_SINT> Sys_var_int;
@@ -272,25 +272,25 @@ typedef Sys_var_integer<ulonglong, GET_ULL, SHOW_ULONGLONG> Sys_var_ulonglong;
 typedef Sys_var_integer<long, GET_LONG, SHOW_SLONG> Sys_var_long;
 
 
-template<> uchar *Sys_var_int::default_value_ptr(THD *thd)
+template<> const uchar *Sys_var_int::default_value_ptr(THD *thd) const
 {
   thd->sys_var_tmp.int_value= (int)option.def_value;
   return (uchar*) &thd->sys_var_tmp.int_value;
 }
 
-template<> uchar *Sys_var_uint::default_value_ptr(THD *thd)
+template<> const uchar *Sys_var_uint::default_value_ptr(THD *thd) const
 {
   thd->sys_var_tmp.uint_value= (uint)option.def_value;
   return (uchar*) &thd->sys_var_tmp.uint_value;
 }
 
-template<> uchar *Sys_var_long::default_value_ptr(THD *thd)
+template<> const uchar *Sys_var_long::default_value_ptr(THD *thd) const
 {
   thd->sys_var_tmp.long_value= (long)option.def_value;
   return (uchar*) &thd->sys_var_tmp.long_value;
 }
 
-template<> uchar *Sys_var_ulong::default_value_ptr(THD *thd)
+template<> const uchar *Sys_var_ulong::default_value_ptr(THD *thd) const
 {
   thd->sys_var_tmp.ulong_value= (ulong)option.def_value;
   return (uchar*) &thd->sys_var_tmp.ulong_value;
@@ -420,13 +420,13 @@ public:
   { var->save_result.ulonglong_value= global_var(ulong); }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
-  uchar *valptr(THD *thd, ulong val)
-  { return (uchar*)typelib.type_names[val]; }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *valptr(THD *thd, ulong val) const
+  { return reinterpret_cast<const uchar*>(typelib.type_names[val]); }
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, session_var(thd, ulong)); }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(ulong)); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, (ulong)option.def_value); }
 
   ulong get_max_var() { return *((ulong *) max_var_ptr()); }
@@ -474,7 +474,7 @@ public:
   { var->save_result.ulonglong_value= (ulonglong)*(my_bool *)global_value_ptr(thd, 0); }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   {
     thd->sys_var_tmp.my_bool_value=(my_bool) option.def_value;
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
@@ -723,7 +723,7 @@ public:
   void global_save_default(THD *thd, set_var *var)
   { DBUG_ASSERT(FALSE); }
 protected:
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     return thd->security_ctx->proxy_user[0] ?
       (uchar *) &(thd->security_ctx->proxy_user[0]) : NULL;
@@ -738,7 +738,7 @@ public:
   {}
 
 protected:
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     return (uchar*)thd->security_ctx->external_user;
   }
@@ -790,7 +790,8 @@ public:
   }
 
 protected:
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) override;
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+    const override;
   bool set_filter_value(const char *value, Master_info *mi);
 };
 
@@ -903,7 +904,7 @@ public:
   {
     DBUG_ASSERT(FALSE);
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(FALSE);
     return NULL;
@@ -981,19 +982,19 @@ public:
     var->save_result.string_value.str= ptr;
     var->save_result.string_value.length= safe_strlen(ptr);
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     char buf[256];
     DBUG_EXPLAIN(buf, sizeof(buf));
     return (uchar*) thd->strdup(buf);
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     char buf[256];
     DBUG_EXPLAIN_INITIAL(buf, sizeof(buf));
     return (uchar*) thd->strdup(buf);
   }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return (uchar*)""; }
 };
 #endif
@@ -1069,7 +1070,7 @@ public:
 
     return keycache_update(thd, key_cache, offset, new_value);
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     KEY_CACHE *key_cache= get_key_cache(base);
     if (!key_cache)
@@ -1254,7 +1255,7 @@ public:
               lock, binlog_status_arg, on_check_func, on_update_func,
               substitute)
   { }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     if (thd->user_connect && thd->user_connect->user_resources.user_conn)
       return (uchar*) &(thd->user_connect->user_resources.user_conn);
@@ -1366,13 +1367,13 @@ public:
   { var->save_result.ulonglong_value= global_var(ulonglong); }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
-  uchar *valptr(THD *thd, ulonglong val)
+  const uchar *valptr(THD *thd, ulonglong val) const
   { return (uchar*)flagset_to_string(thd, 0, val, typelib.type_names); }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, session_var(thd, ulonglong)); }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(ulonglong)); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, option.def_value); }
 };
 
@@ -1480,13 +1481,13 @@ public:
   { var->save_result.ulonglong_value= global_var(ulonglong); }
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
-  uchar *valptr(THD *thd, ulonglong val)
-  { return (uchar*)set_to_string(thd, 0, val, typelib.type_names); }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *valptr(THD *thd, ulonglong val) const
+  { return reinterpret_cast<const uchar*>(set_to_string(thd, 0, val, typelib.type_names)); }
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, session_var(thd, ulonglong)); }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(ulonglong)); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, option.def_value); }
 
   ulonglong get_max_var() { return *((ulonglong*) max_var_ptr()); }
@@ -1583,7 +1584,7 @@ public:
     plugin_ref plugin= global_var(plugin_ref);
     var->save_result.plugin= plugin ? my_plugin_lock(thd, plugin) : 0;
   }
-  plugin_ref get_default(THD *thd)
+  plugin_ref get_default(THD *thd) const
   {
     char *default_value= *reinterpret_cast<char**>(option.def_value);
     if (!default_value)
@@ -1605,16 +1606,16 @@ public:
     var->save_result.plugin= get_default(thd);
   }
 
-  uchar *valptr(THD *thd, plugin_ref plugin)
+  uchar *valptr(THD *thd, plugin_ref plugin) const
   {
     return (uchar*)(plugin ? thd->strmake(plugin_name(plugin)->str,
                                           plugin_name(plugin)->length) : 0);
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, session_var(thd, plugin_ref)); }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(plugin_ref)); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, get_default(thd)); }
 };
 
@@ -1701,7 +1702,7 @@ public:
     plugin_ref* plugins= global_var(plugin_ref *);
     var->save_result.plugins= plugins ? temp_copy_engine_list(thd, plugins) : 0;
   }
-  plugin_ref *get_default(THD *thd)
+  plugin_ref *get_default(THD *thd) const
   {
     char *default_value= *reinterpret_cast<char**>(option.def_value);
     if (!default_value)
@@ -1715,15 +1716,15 @@ public:
     var->save_result.plugins= get_default(thd);
   }
 
-  uchar *valptr(THD *thd, plugin_ref *plugins)
+  uchar *valptr(THD *thd, plugin_ref *plugins) const
   {
-    return (uchar*)pretty_print_engine_list(thd, plugins);
+    return reinterpret_cast<uchar*>(pretty_print_engine_list(thd, plugins));
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, session_var(thd, plugin_ref*)); }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(plugin_ref*)); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, get_default(thd)); }
 };
 
@@ -1787,16 +1788,16 @@ public:
   {
     DBUG_ASSERT(FALSE);
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     return debug_sync_value_ptr(thd);
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(FALSE);
     return 0;
   }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return (uchar*)""; }
 };
 #endif /* defined(ENABLED_DEBUG_SYNC) */
@@ -1872,16 +1873,16 @@ public:
   void global_save_default(THD *thd, set_var *var)
   { var->save_result.ulonglong_value= option.def_value; }
 
-  uchar *valptr(THD *thd, ulonglong val)
+  uchar *valptr(THD *thd, ulonglong val) const
   {
     thd->sys_var_tmp.my_bool_value= (reverse_semantics == !(val & bitmask));
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, session_var(thd, ulonglong)); }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(ulonglong)); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   {
     thd->sys_var_tmp.my_bool_value= option.def_value != 0;
     return (uchar*) &thd->sys_var_tmp.my_bool_value;
@@ -1940,17 +1941,17 @@ public:
   { var->value= 0; }
   void global_save_default(THD *thd, set_var *var)
   { DBUG_ASSERT(FALSE); }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     thd->sys_var_tmp.ulonglong_value= read_func(thd);
     return (uchar*) &thd->sys_var_tmp.ulonglong_value;
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(FALSE);
     return 0;
   }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   {
     thd->sys_var_tmp.ulonglong_value= 0;
     return (uchar*) &thd->sys_var_tmp.ulonglong_value;
@@ -2006,18 +2007,18 @@ public:
   { var->value= 0; }
   void global_save_default(THD *thd, set_var *var)
   { DBUG_ASSERT(FALSE); }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     thd->sys_var_tmp.double_value= thd->start_time +
           thd->start_time_sec_part/(double)TIME_SECOND_PART_FACTOR;
     return (uchar*) &thd->sys_var_tmp.double_value;
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(FALSE);
     return 0;
   }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   {
     thd->sys_var_tmp.double_value= 0;
     return (uchar*) &thd->sys_var_tmp.double_value;
@@ -2077,12 +2078,12 @@ public:
   }
   void session_save_default(THD *thd, set_var *var) { }
   void global_save_default(THD *thd, set_var *var) { }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(FALSE);
     return 0;
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     return (uchar*)show_comp_option_name[global_var(enum SHOW_COMP_OPTION)];
   }
@@ -2152,13 +2153,13 @@ public:
     void **default_value= reinterpret_cast<void**>(option.def_value);
     var->save_result.ptr= *default_value;
   }
-  uchar *valptr(THD *thd, uchar *val)
+  uchar *valptr(THD *thd, uchar *val) const
   { return val ? *(uchar**)(val+name_offset) : 0; }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, session_var(thd, uchar*)); }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(uchar*)); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, *(uchar**)option.def_value); }
 };
 
@@ -2228,9 +2229,9 @@ public:
     var->save_result.time_zone=
       *(Time_zone**)(intptr)option.def_value;
   }
-  uchar *valptr(THD *thd, Time_zone *val)
-  { return (uchar *)(val->get_name()->ptr()); }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *valptr(THD *thd, Time_zone *val) const
+  { return reinterpret_cast<const uchar*>(val->get_name()->ptr()); }
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     /*
       This is an ugly fix for replication: we don't replicate properly queries
@@ -2243,9 +2244,9 @@ public:
     thd->time_zone_used= 1;
     return valptr(thd, session_var(thd, Time_zone *));
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return valptr(thd, global_var(Time_zone*)); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return valptr(thd, *(Time_zone**)option.def_value); }
 };
 
@@ -2404,7 +2405,7 @@ public:
     /* Use value given in variable declaration */
     global_save_default(thd, var);
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     ulonglong *tmp, res;
     tmp= (ulonglong*) (((uchar*)&(thd->variables)) + offset);
@@ -2412,11 +2413,11 @@ public:
     *tmp= res;
     return (uchar*) tmp;
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     return session_value_ptr(thd, base);
   }
-  ulonglong get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset);
+  ulonglong get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const;
   bool update_variable(THD *thd, Master_info *mi)
   {
     return update_multi_source_variable_func(this, thd, mi);
@@ -2464,12 +2465,12 @@ public:
   {
     DBUG_ASSERT(false);
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(false);
     return NULL;
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
 };
 
 
@@ -2513,12 +2514,12 @@ public:
   {
     DBUG_ASSERT(false);
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(false);
     return NULL;
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
 };
 
 
@@ -2553,13 +2554,13 @@ public:
     /* Record the attempt to use default so we can error. */
     var->value= 0;
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(false);
     return NULL;
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
-  uchar *default_value_ptr(THD *thd)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  const uchar *default_value_ptr(THD *thd) const
   { return 0; }
   bool on_check_access_global(THD *thd) const
   {
@@ -2599,13 +2600,13 @@ public:
     /* Record the attempt to use default so we can error. */
     var->value= 0;
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(false);
     return NULL;
   }
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
-  uchar *default_value_ptr(THD *thd)
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  const uchar *default_value_ptr(THD *thd) const
   { return 0; }
   bool on_check_access_global(THD *thd) const
   {
@@ -2654,8 +2655,8 @@ public:
   {
     DBUG_ASSERT(false);
   }
-  uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base);
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const;
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
     DBUG_ASSERT(false);
     return NULL;
@@ -2681,30 +2682,32 @@ public:
     SYSVAR_ASSERT(scope() == GLOBAL);
   }
   bool global_update(THD *thd, set_var *var);
-  uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base);
+  const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const;
 };
 
 
-class Sys_var_vers_asof: public Sys_var_enum
+class Sys_var_vers_asof: public sys_var
 {
-public:
-  static const char *asof_keywords[];
-
 public:
   Sys_var_vers_asof(const char *name_arg,
           const char *comment, int flag_args, ptrdiff_t off, size_t size,
-          CMD_LINE getopt, const char *values[],
-          uint def_val)
-    : Sys_var_enum(name_arg, comment, flag_args, off, size,
-                   getopt, values, def_val)
+          CMD_LINE getopt, uint def_val,
+          PolyLock *lock= NO_MUTEX_GUARD,
+          binlog_status_enum binlog_status_arg= VARIABLE_NOT_IN_BINLOG,
+          on_check_function on_check_func= NULL,
+          on_update_function on_update_func= NULL,
+          const char *substitute= NULL)
+    : sys_var(&all_sys_vars, name_arg, comment, flag_args, off,
+              getopt.id, getopt.arg_type, SHOW_CHAR, def_val, lock,
+              binlog_status_arg, on_check_func, on_update_func, substitute)
   {
-    // setval() accepts string rather enum
     option.var_type= GET_STR;
   }
   virtual bool do_check(THD *thd, set_var *var)
   {
-    if (!Sys_var_enum::do_check(thd, var))
+    if (!var->value)
       return false;
+
     MYSQL_TIME ltime;
     Datetime::Options opt(TIME_CONV_NONE |
                           TIME_NO_ZERO_IN_DATE |
@@ -2712,78 +2715,92 @@ public:
     bool res= var->value->get_date(thd, &ltime, opt);
     if (!res)
     {
-      var->save_result.ulonglong_value= SYSTEM_TIME_AS_OF;
+      uint error;
+      var->save_result.timestamp.unix_time=
+              thd->variables.time_zone->TIME_to_gmt_sec(&ltime, &error);
+      var->save_result.timestamp.second_part= ltime.second_part;
+      res= error != 0;
     }
     return res;
   }
 
 private:
-  bool update(set_var *var, vers_asof_timestamp_t &out)
+  static bool update(THD *thd, set_var *var, vers_asof_timestamp_t *out)
   {
-    bool res= false;
-    out.type= static_cast<enum_var_type>(var->save_result.ulonglong_value);
-    if (out.type == SYSTEM_TIME_AS_OF)
+    if (var->value)
     {
-      if (var->value)
-      {
-        THD *thd= current_thd;
-        Datetime::Options opt(TIME_CONV_NONE |
-                              TIME_NO_ZERO_IN_DATE |
-                              TIME_NO_ZERO_DATE, thd);
-        /*
-          var->value is allowed to return DATETIME and DATE
-          Make sure to convert DATE to DATETIME.
-        */
-        res= Datetime(thd, var->value, opt).copy_to_mysql_time(&out.ltime);
-      }
-      else // set DEFAULT from global var
-      {
-        out= global_var(vers_asof_timestamp_t);
-        res= false;
-      }
+      out->type       = SYSTEM_TIME_AS_OF;
+      out->unix_time  = var->save_result.timestamp.unix_time;
+      out->second_part= var->save_result.timestamp.second_part;
     }
-    return res;
+    return 0;
+  }
+
+  static void save_default(set_var *var, vers_asof_timestamp_t *out)
+  {
+    out->type= SYSTEM_TIME_UNSPECIFIED;
   }
 
 public:
   virtual bool global_update(THD *thd, set_var *var)
   {
-    return update(var, global_var(vers_asof_timestamp_t));
+    return update(thd, var, &global_var(vers_asof_timestamp_t));
   }
   virtual bool session_update(THD *thd, set_var *var)
   {
-    return update(var, session_var(thd, vers_asof_timestamp_t));
+    return update(thd, var, &session_var(thd, vers_asof_timestamp_t));
+  }
+
+  virtual bool session_is_default(THD *thd)
+  {
+    const vers_asof_timestamp_t &var= session_var(thd, vers_asof_timestamp_t);
+    return var.type == SYSTEM_TIME_UNSPECIFIED;
+  }
+
+  virtual void session_save_default(THD *thd, set_var *var)
+  {
+    save_default(var, &session_var(thd, vers_asof_timestamp_t));
+  }
+  virtual void global_save_default(THD *thd, set_var *var)
+  {
+    save_default(var, &global_var(vers_asof_timestamp_t));
   }
 
 private:
-  uchar *value_ptr(THD *thd, vers_asof_timestamp_t &val)
+  const uchar *value_ptr(THD *thd, vers_asof_timestamp_t &val) const
   {
+    const char *value;
     switch (val.type)
     {
     case SYSTEM_TIME_UNSPECIFIED:
-    case SYSTEM_TIME_ALL:
-      return (uchar*) thd->strdup(asof_keywords[val.type]);
+      return (uchar*)"DEFAULT";
+      break;
     case SYSTEM_TIME_AS_OF:
     {
-      uchar *buf= (uchar*) thd->alloc(MAX_DATE_STRING_REP_LENGTH);
-      if (buf &&!my_datetime_to_str(&val.ltime, (char*) buf, 6))
+      char *buf= (char*) thd->alloc(MAX_DATE_STRING_REP_LENGTH);
+      MYSQL_TIME ltime;
+
+      thd->variables.time_zone->gmt_sec_to_TIME(&ltime, val.unix_time);
+      ltime.second_part= val.second_part;
+
+      value= buf;
+      if (buf && !my_datetime_to_str(&ltime, buf, 6))
       {
-        // TODO: figure out variable name
-        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "system_versioning_asof_timestamp", "NULL (wrong datetime)");
-        return (uchar*) thd->strdup("Error: wrong datetime");
+        my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name.str, "NULL (wrong datetime)");
+        value= thd->strdup("Error: wrong datetime");
       }
-      return buf;
-    }
-    default:
       break;
     }
-    my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "system_versioning_asof_timestamp", "NULL (wrong range type)");
-    return (uchar*) thd->strdup("Error: wrong range type");
+    default:
+      my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), name.str, "NULL (wrong range type)");
+      value= thd->strdup("Error: wrong range type");
+    }
+    return reinterpret_cast<const uchar *>(value);
   }
 
 public:
-  virtual uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  virtual const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return value_ptr(thd, session_var(thd, vers_asof_timestamp_t)); }
-  virtual uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  virtual const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return value_ptr(thd, global_var(vers_asof_timestamp_t)); }
 };

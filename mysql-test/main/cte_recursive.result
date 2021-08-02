@@ -3735,7 +3735,7 @@ select * from t1 as t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	100.00	
 Warnings:
-Note	1003	with recursive cte as (/* select#2 */ select `*` AS `*` from `test`.`t1` where `a` = 1 union /* select#3 */ select `a` + 1 AS `a+1` from `cte` where `a` < 3)/* select#1 */ select `test`.`t`.`a` AS `a` from `test`.`t1` `t`
+Note	1003	with recursive cte as (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` = 1 union /* select#3 */ select `cte`.`a` + 1 AS `a+1` from `cte` where `cte`.`a` < 3)/* select#1 */ select `test`.`t`.`a` AS `a` from `test`.`t1` `t`
 with recursive cte as
 (select * from t1 where a=1 union select a+1 from cte where a<3)
 select * from t1 as t;
@@ -3748,10 +3748,10 @@ create table t2 ( i1 int, i2 int);
 insert into t2 values (1,1),(2,2);
 explain
 with recursive cte as
-( select * from t1 union select s1.* from t1 as s1, cte where s1.i1 = cte.i2 )
-select * from t1 as t;
+( select * from t2 union select s1.* from t2 as s1, cte where s1.i1 = cte.i2 )
+select * from t2 as t;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
-1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	4	
+1	PRIMARY	t	ALL	NULL	NULL	NULL	NULL	2	
 drop table t1,t2;
 #
 # MDEV-22042: ANALYZE of query using stored function and recursive CTE
@@ -4498,6 +4498,93 @@ drop table folks;
 set big_tables=@save_big_tables;
 Warnings:
 Warning	1287	'@@big_tables' is deprecated and will be removed in a future release
+#
+# MDEV-26135: execution of PS for query with hanging recursive CTE
+#
+create table t1 (a int);
+insert into t1 values (5), (7);
+create table t2 (b int);
+insert into t2 values (3), (7), (1);
+with recursive r as (select a from t1 union select a+1 from r where a < 10)
+select * from t2;
+b
+3
+7
+1
+prepare stmt from "with recursive r as (select a from t1 union select a+1 from r where a < 10)
+select * from t2";
+execute stmt;
+b
+3
+7
+1
+execute stmt;
+b
+3
+7
+1
+deallocate prepare stmt;
+drop table t1,t2;
+#
+# MDEV-26189: Unknown column reference within hanging recursive CTE
+#
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+with recursive
+r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
+select * from t1 as t;
+ERROR 42S22: Unknown column 'r.b' in 'where clause'
+explain with recursive
+r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
+select * from t1 as t;
+ERROR 42S22: Unknown column 'r.b' in 'where clause'
+create procedure sp1() with recursive
+r as (select * from t1 union select s1.* from t1 as s1, r where s1.a = r.b)
+select * from t1 as t;
+call sp1();
+ERROR 42S22: Unknown column 'r.b' in 'where clause'
+call sp1();
+ERROR 42S22: Unknown column 'r.b' in 'where clause'
+with recursive
+r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
+select * from t1 as t;
+ERROR 42S22: Unknown column 's1.b' in 'where clause'
+explain with recursive
+r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
+select * from t1 as t;
+ERROR 42S22: Unknown column 's1.b' in 'where clause'
+create procedure sp2() with recursive
+r as (select * from t1 union select s1.* from t1 as s1, r where s1.b = r.a)
+select * from t1 as t;
+call sp2();
+ERROR 42S22: Unknown column 's1.b' in 'where clause'
+call sp2();
+ERROR 42S22: Unknown column 's1.b' in 'where clause'
+drop procedure sp1;
+drop procedure sp2;
+drop table t1;
+#
+# MDEV-26202: Recursive CTE used indirectly twice
+# (fixed by the patch forMDEV-26025)
+#
+with recursive
+rcte as ( SELECT 1 AS a
+UNION ALL
+SELECT cast(a + 1 as unsigned int) FROM rcte WHERE a < 3),
+cte1 AS (SELECT a FROM rcte),
+cte2 AS (SELECT a FROM cte1),
+cte3 AS ( SELECT a FROM  cte2)
+SELECT * FROM cte2, cte3;
+a	a
+1	1
+2	1
+3	1
+1	2
+2	2
+3	2
+1	3
+2	3
+3	3
 #
 # End of 10.2 tests
 #

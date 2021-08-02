@@ -1117,6 +1117,23 @@ public:
   static THD_list_iterator *iterator();
 };
 
+/**
+  A counter of THDs
+
+  It must be specified as a first base class of THD, so that increment is
+  done before any other THD constructors and decrement - after any other THD
+  destructors.
+
+  Destructor unblocks close_conneciton() if there are no more THD's left.
+*/
+struct THD_count
+{
+  static Atomic_counter<uint32_t> count;
+  static uint value() { return static_cast<uint>(count); }
+  THD_count() { count++; }
+  ~THD_count() { count--; }
+};
+
 #ifdef MYSQL_SERVER
 
 void free_tmp_table(THD *thd, TABLE *entry);
@@ -2359,21 +2376,6 @@ public:
 };
 
 /**
-  A wrapper around thread_count.
-
-  It must be specified as a first base class of THD, so that increment is
-  done before any other THD constructors and decrement - after any other THD
-  destructors.
-
-  Destructor unblocks close_conneciton() if there are no more THD's left.
-*/
-struct THD_count
-{
-  THD_count() { thread_count++; }
-  ~THD_count() { thread_count--; }
-};
-
-/**
   Support structure for asynchronous group commit, or more generally
   any asynchronous operation that needs to finish before server writes
   response to client.
@@ -3407,6 +3409,9 @@ public:
   uint	     server_status,open_options;
   enum enum_thread_type system_thread;
   enum backup_stages current_backup_stage;
+#ifdef WITH_WSREP
+  bool wsrep_desynced_backup_stage;
+#endif /* WITH_WSREP */
   /*
     Current or next transaction isolation level.
     When a connection is established, the value is taken from

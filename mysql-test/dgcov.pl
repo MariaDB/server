@@ -155,7 +155,7 @@ END
 sub gcov_one_file {
   return unless /\.gcda$/;
   unless ($opt_skip_gcov) {
-    $cmd= "gcov -i '$_' 2>/dev/null >/dev/null";
+    $cmd= "gcov -il '$_' 2>/dev/null >/dev/null";
     print STDERR ++$file_no,"\r" if not $opt_verbose and -t STDERR;
     logv "Running: $cmd";
     system($cmd)==0 or die "system($cmd): $? $!";
@@ -167,25 +167,27 @@ sub gcov_one_file {
   {
     return;
   }
-  open FH, '<', "$gcov_file_path" or die "open(<$gcov_file_path): $!";
-  my $fname;
-  while (<FH>) {
-    chomp;
-    if (/^function:/) {
-      next;
+  for my $gcov_file (<$_*.gcov>) {
+    open FH, '<', "$gcov_file_path" or die "open(<$gcov_file_path): $!";
+    my $fname;
+    while (<FH>) {
+      chomp;
+      if (/^function:/) {
+        next;
+      }
+      if (/^file:/) {
+        $fname=realpath(-f $' ? $' : $root.$');
+        next;
+      }
+      next if /^lcount:\d+,-\d+/; # whatever that means
+      unless (/^lcount:(\d+),(\d+)/ and $fname) {
+        warn "unknown line '$_' in $gcov_file";
+        next;
+      }
+      $cov{$fname}->{$1}+=$2;
     }
-    if (/^file:/) {
-      $fname=realpath($');
-      next;
-    }
-    next if /^lcount:\d+,-\d+/; # whatever that means
-    unless (/^lcount:(\d+),(\d+)/ and $fname) {
-      warn "unknown line '$_' after running '$cmd'";
-      next;
-    }
-    $cov{$fname}->{$1}+=$2;
+    close(FH);
   }
-  close(FH);
 }
 
 sub write_coverage {

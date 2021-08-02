@@ -191,7 +191,8 @@ enum vers_system_time_t
 struct vers_asof_timestamp_t
 {
   ulong type;
-  MYSQL_TIME ltime;
+  my_time_t unix_time;
+  ulong second_part;
 };
 
 enum vers_alter_history_enum
@@ -760,7 +761,6 @@ extern mysql_rwlock_t LOCK_ssl_refresh;
 extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_start_thread;
 extern mysql_cond_t COND_manager;
-extern Atomic_counter<uint32_t> thread_count;
 
 extern my_bool opt_use_ssl;
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,

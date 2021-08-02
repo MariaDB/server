@@ -1695,7 +1695,9 @@ trx_print_low(
 	fprintf(f, ", state %lu", (ulong) trx->state);
 	ut_ad(0);
 state_ok:
-	if (const char *op_info = trx->op_info) {
+	const char* op_info = trx->op_info;
+
+	if (*op_info) {
 		putc(' ', f);
 		fputs(op_info, f);
 	}

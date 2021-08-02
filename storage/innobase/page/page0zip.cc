@@ -4630,12 +4630,12 @@ bool page_zip_verify_checksum(const byte *data, size_t size)
 
 #ifdef UNIV_INNOCHECKSUM
 	extern FILE* log_file;
-	extern unsigned long long cur_page_num;
+	extern uint32_t cur_page_num;
 
 	if (log_file) {
-		fprintf(log_file, "page::%llu;"
-			" checksum: calculated = %u;"
-			" recorded = %u\n", cur_page_num,
+		fprintf(log_file, "page::" UINT32PF ";"
+			" checksum: calculated = " UINT32PF ";"
+			" recorded = " UINT32PF "\n", cur_page_num,
 			calc, stored);
 	}
 #endif /* UNIV_INNOCHECKSUM */

@@ -917,7 +917,7 @@ bool lock_tables(MYSQL *connection)
 
   if (have_galera_enabled)
   {
-    xb_mysql_query(connection, "SET SESSION wsrep_causal_reads=0", false);
+    xb_mysql_query(connection, "SET SESSION wsrep_sync_wait=0", false);
   }
 
   xb_mysql_query(connection, "BACKUP STAGE START", true);

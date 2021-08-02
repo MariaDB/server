@@ -24,7 +24,7 @@ Grants for test_user@localhost
 GRANT `test_role` TO `test_user`@`localhost`
 GRANT USAGE ON *.* TO `test_user`@`localhost`
 GRANT SELECT ON *.* TO `test_role`
-SET DEFAULT ROLE test_role FOR 'test_user'@'localhost'
+SET DEFAULT ROLE `test_role` FOR `test_user`@`localhost`
 select user, host, default_role from mysql.user where user='test_user';
 User	Host	default_role
 test_user	localhost	test_role
@@ -48,7 +48,7 @@ CREATE USER b;
 CREATE ROLE r1;
 CREATE ROLE r2;
 SET DEFAULT ROLE r1 FOR a;
-ERROR OP000: User `a@%` has not been granted role `r1`
+ERROR OP000: User `root`@`localhost` has not been granted role `r1`
 GRANT r1 TO b;
 GRANT r2 TO b;
 SET DEFAULT ROLE r1 FOR b;
@@ -72,7 +72,7 @@ GRANT `r1` TO `b`@`%`
 GRANT `r2` TO `b`@`%`
 GRANT USAGE ON *.* TO `b`@`%`
 GRANT SELECT ON `mysql`.* TO `b`@`%`
-SET DEFAULT ROLE r2 FOR 'b'@'%'
+SET DEFAULT ROLE `r2` FOR `b`@`%`
 SET DEFAULT ROLE r1 FOR a;
 ERROR 42000: Access denied for user 'b'@'%' to database 'mysql'
 SELECT CURRENT_ROLE;
@@ -98,9 +98,9 @@ GRANT `r1` TO `b`@`%`
 GRANT `r2` TO `b`@`%`
 GRANT USAGE ON *.* TO `b`@`%`
 GRANT SELECT, UPDATE ON `mysql`.* TO `b`@`%`
-SET DEFAULT ROLE r2 FOR 'b'@'%'
+SET DEFAULT ROLE `r2` FOR `b`@`%`
 SET DEFAULT ROLE r1 FOR a;
-ERROR OP000: User `a@%` has not been granted role `r1`
+ERROR OP000: User `b`@`%` has not been granted role `r1`
 SET DEFAULT ROLE invalid_role;
 ERROR OP000: Invalid role specification `invalid_role`
 SET DEFAULT ROLE invalid_role FOR a;
@@ -117,7 +117,7 @@ SET DEFAULT ROLE None;
 # Change user b (session 3: role granted to user a)
 SET DEFAULT ROLE r1 FOR a;
 SET DEFAULT ROLE r2 FOR a;
-ERROR OP000: User `a@%` has not been granted role `r2`
+ERROR OP000: User `b`@`%` has not been granted role `r2`
 SET DEFAULT ROLE invalid_role;
 ERROR OP000: Invalid role specification `invalid_role`
 SET DEFAULT ROLE invalid_role FOR a;

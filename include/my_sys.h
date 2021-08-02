@@ -278,7 +278,8 @@ LPSECURITY_ATTRIBUTES my_win_file_secattr();
 extern my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
-extern my_bool  my_disable_locking, my_disable_async_io,
+extern MYSQL_PLUGIN_IMPORT my_bool my_disable_locking;
+extern my_bool  my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;

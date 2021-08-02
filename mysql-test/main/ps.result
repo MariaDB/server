@@ -5566,6 +5566,20 @@ DROP TABLE t1, t2, t3;
 # End of 10.2 tests
 #
 #
+# MDEV-26147: The test main.sp-row fails in case it is run in PS mode
+#
+CREATE PROCEDURE p1(a ROW(a INT,b INT))
+BEGIN
+SELECT a.a, a.b;
+END;
+$$
+PREPARE stmt FROM 'CALL p1(ROW(10, 20))';
+EXECUTE stmt;
+a.a	a.b
+10	20
+DEALLOCATE PREPARE stmt;
+DROP PROCEDURE p1;
+#
 # MDEV-19263: Server crashes in mysql_handle_single_derived
 # upon 2nd execution of PS
 #

@@ -89,6 +89,21 @@ Table	Op	Msg_type	Msg_text
 test.t	check	status	OK
 DROP TABLE t;
 #
+# MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+#
+CREATE TABLE t1 (
+a INT,
+b INT,
+c BIT(4) NOT NULL DEFAULT b'0',
+pk INTEGER AUTO_INCREMENT,
+d BIT(4) AS (c) VIRTUAL,
+PRIMARY KEY(pk),
+KEY (b,d)
+) PARTITION BY HASH(pk);
+INSERT INTO t1 () VALUES (),();
+UPDATE t1 SET a = 0 WHERE b IS NULL ORDER BY pk;
+DROP TABLE t1;
+#
 # MDEV-16980 Wrongly set tablename len while opening the
 #                table for purge thread
 #

@@ -2,14 +2,14 @@ connection node_2;
 connection node_1;
 FLUSH TABLES WITH READ LOCK;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
-ERROR 08S01: Aborting TOI: Global Read-Lock (FTWRL) in place.
+ERROR 08S01: Aborting TOI: Replication paused on node for FTWRL/BACKUP STAGE.
 SET wsrep_OSU_method=RSU;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
-ERROR 08S01: Aborting TOI: Global Read-Lock (FTWRL) in place.
+ERROR 08S01: Aborting TOI: Replication paused on node for FTWRL/BACKUP STAGE.
 SET wsrep_OSU_method=TOI;
 connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;
-ERROR 08S01: Aborting TOI: Global Read-Lock (FTWRL) in place.
+ERROR 08S01: Aborting TOI: Replication paused on node for FTWRL/BACKUP STAGE.
 connection node_1;
 UNLOCK TABLES;
 CREATE TABLE t1 (a INT) ENGINE=InnoDB;

@@ -710,6 +710,14 @@ dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 				return(DB_CORRUPTION);
 			}
 		}
+
+		if (!page_is_comp(block->frame) !=
+		    !dict_table_is_comp(m_table)) {
+			ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+				ER_TABLE_SCHEMA_MISMATCH,
+				"ROW_FORMAT mismatch");
+			return DB_CORRUPTION;
+		}
 	}
 
 	return DB_SUCCESS;

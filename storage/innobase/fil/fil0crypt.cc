@@ -1119,6 +1119,33 @@ struct rotate_thread_t {
 	}
 };
 
+/** Avoid the removal of the tablespace from
+default_encrypt_list only when
+1) Another active encryption thread working on tablespace
+2) Eligible for tablespace key rotation
+3) Tablespace is in flushing phase
+@return true if tablespace should be removed from
+default encrypt */
+static bool fil_crypt_must_remove(const fil_space_t &space)
+{
+  ut_ad(space.purpose == FIL_TYPE_TABLESPACE);
+  fil_space_crypt_t *crypt_data = space.crypt_data;
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  const ulong encrypt_tables= srv_encrypt_tables;
+  if (!crypt_data)
+    return !encrypt_tables;
+  if (!crypt_data->is_key_found())
+    return true;
+
+  mysql_mutex_lock(&crypt_data->mutex);
+  const bool remove= (space.is_stopping() || crypt_data->not_encrypted()) &&
+    (!crypt_data->rotate_state.flushing &&
+     !encrypt_tables == !!crypt_data->min_key_version &&
+     !crypt_data->rotate_state.active_threads);
+  mysql_mutex_unlock(&crypt_data->mutex);
+  return remove;
+}
+
 /***********************************************************************
 Check if space needs rotation given a key_state
 @param[in,out]		state		Key rotation state
@@ -1419,8 +1446,7 @@ inline fil_space_t *fil_system_t::default_encrypt_next(fil_space_t *space,
       If there is a change in innodb_encrypt_tables variables
       value then don't remove the last processed tablespace
       from the default encrypt list. */
-      if (released && (!recheck || space->crypt_data) &&
-          !encrypt == !srv_encrypt_tables)
+      if (released && !recheck && fil_crypt_must_remove(*space))
       {
         ut_a(!default_encrypt_tables.empty());
         default_encrypt_tables.remove(*space);
