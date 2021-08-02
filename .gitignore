@@ -530,6 +530,7 @@ FakesAssemblies/
 
 compile_commands.json
 .clang-format
+!storage/spider/.clang-format
 .kscope/
 .vimrc
 .editorconfig

@@ -1,0 +1,57 @@
+
+/* Copyright (c) 2000, 2021, Oracle and/or its affiliates.
+  This program is free software; you can redistribute it and/or modify
+  it under the terms of the GNU General Public License, version 2.0,
+  as published by the Free Software Foundation.
+  This program is also distributed with certain software (including
+  but not limited to OpenSSL) that is licensed under separate terms,
+  as designated in a particular file or component or in included license
+  documentation.  The authors of MySQL hereby grant you an additional
+  permission to link the program and your derivative works with the
+  separately licensed software that they have included with MySQL.
+  This program is distributed in the hope that it will be useful,
+  but WITHOUT ANY WARRANTY; without even the implied warranty of
+  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+  GNU General Public License, version 2.0, for more details.
+  You should have received a copy of the GNU General Public License
+  along with this program; if not, write to the Free Software
+  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301  USA */
+
+/**
+  @page PAGE_CODING_GUIDELINES Coding Guidelines
+  This section shows the guidelines that MySQL developers
+  follow when writing new code.
+  New MySQL code uses the Google C++ coding style
+  (https://google.github.io/styleguide/cppguide.html), with one
+  exception:
+  - Member variable names: Do not use foo_. Instead, use
+    m_foo (non-static) or s_foo (static).
+  Old projects and modifications to old code use an older MySQL-specific
+  style for the time being. Since 8.0, MySQL style uses the same formatting
+  rules as Google coding style (e.g., brace placement, indentation, line
+  lengths, etc.), but differs in a few important aspects:
+  - Class names: Do not use MyClass. Instead, use My_class.
+  - Function names: Use snake_case().
+  - Comment Style: Use either the // or <em>/</em>* *<em>/</em> syntax. // is
+    much more common but both syntaxes are permitted for the time being.
+  - Doxygen comments: Use <em>/</em>** ... *<em>/</em> syntax and not ///.
+  - Doxygen commands: Use '@' and not '\' for doxygen commands.
+  - You may see structs starting with st_ and being typedef-ed to some
+    UPPERCASE (e.g. typedef struct st_foo { ... } FOO). However,
+    this is legacy from when the codebase contained C. Do not make such new
+    typedefs nor structs with st_ prefixes, and feel free to remove those that
+    already exist, except in public header files that are part of libmysql
+    (which need to be parseable as C99).
+  Code formatting is enforced by use of clang-format throughout the code
+  base. However, note that formatting is only one part of coding style;
+  you are required to take care of non-formatting issues yourself, such as
+  following naming conventions, having clear ownership of code or minimizing
+  the use of macros. See the Google coding style guide for the entire list.
+  Consistent style is important for us, because everyone must know what to
+  expect. Knowing our rules, you'll find it easier to read our code, and when
+  you decide to contribute (which we hope you'll consider!) we'll find it
+  easier to read and review your code.
+  - @subpage GENERAL_DEVELOPMENT_GUIDELINES
+  - @subpage CPP_CODING_GUIDELINES_FOR_NDB_SE
+  - @subpage DBUG_TAGS
+*/
