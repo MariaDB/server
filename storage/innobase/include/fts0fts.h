@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2016, 2020, MariaDB Corporation.
+Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -928,16 +928,6 @@ ibool
 fts_check_cached_index(
 /*===================*/
 	dict_table_t*	table);  /*!< in: Table where indexes are dropped */
-
-/** Check if the all the auxillary tables associated with FTS index are in
-consistent state. For now consistency is check only by ensuring
-index->page_no != FIL_NULL
-@param[out]	base_table	table has host fts index
-@param[in,out]	trx		trx handler */
-void
-fts_check_corrupt(
-	dict_table_t*	base_table,
-	trx_t*		trx);
 
 /** Fetch the document from tuple, tokenize the text data and
 insert the text data into fts auxiliary table and
