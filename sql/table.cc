@@ -4092,6 +4092,21 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
+
+    for (uint k= 0; k < share->keys; k++)
+    {
+      KEY &key_info= outparam->key_info[k];
+      uint parts = (share->use_ext_keys ? key_info.ext_key_parts :
+                    key_info.user_defined_key_parts);
+      for (uint p= 0; p < parts; p++)
+      {
+        KEY_PART_INFO &kp= key_info.key_part[p];
+        if (kp.field != outparam->field[kp.fieldnr - 1])
+        {
+          kp.field->vcol_info = outparam->field[kp.fieldnr - 1]->vcol_info;
+        }
+      }
+    }
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
