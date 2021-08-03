@@ -689,6 +689,7 @@ typedef struct system_variables
   ulong optimizer_search_depth;
   ulong optimizer_selectivity_sampling_limit;
   ulong optimizer_use_condition_selectivity;
+  ulong optimizer_lateral_lazy_refill;
   ulong use_stat_tables;
   double sample_percentage;
   ulong histogram_size;

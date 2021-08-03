@@ -876,6 +876,70 @@ void reset_validity_vars_for_keyuses(KEYUSE_EXT *key_keyuse_ext_start,
 }
 
 
+
+/*
+  given a table bitmap, find the prefix of positions array that covers the
+  tables in the bitmap.
+*/
+
+uint get_prefix_size(const POSITION *positions, uint max_position, table_map map)
+{
+  map= map & ~PSEUDO_TABLE_BITS; // remove OUTER_REF_TABLE_BIT
+  table_map covered= 0;
+  uint i;
+
+  for (i=0; i < max_position; i++)
+  {
+    covered |= positions[i].table->table->map;
+    if (!(map & ~covered))
+      break;
+  }
+  return i;
+}
+
+
+/*
+  Walk through the KEYUSE_EXT objects for given {table,key,key_part} and
+  find the shortest prefix of positions array that we have a keyuse object for.
+*/
+
+uint get_min_prefix_for_key_part(const POSITION *positions, uint max_prefix_size,
+                                 KEYUSE_EXT *keyuse)
+{
+  TABLE *table= keyuse->table;
+  uint key= keyuse->key;
+  uint keypart= keyuse->keypart;
+  uint prefix_size= max_prefix_size;
+
+  while (keyuse->table == table && keyuse->key == key &&
+         keyuse->keypart == keypart)
+  {
+    uint cur_size= get_prefix_size(positions, max_prefix_size,
+                                   keyuse->needed_in_prefix);
+    if (cur_size < prefix_size)
+      prefix_size= cur_size;
+    keyuse++;
+  }
+  return prefix_size;
+}
+
+
+/*
+  Get fanout of of a join prefix
+*/
+double get_join_prefix_fanout(const POSITION *positions, uint prefix_size)
+{
+  double fanout = 1.0;
+  for (uint i=0; i <= prefix_size; i++)
+  {
+    if (positions[i].records_read > 1e-30)
+      fanout *= positions[i].records_read;
+    if (positions[i].cond_selectivity > 1e-30)
+      fanout *= positions[i].cond_selectivity;
+  }
+  return fanout;
+}
+
 /**
   @brief
     Choose the best splitting to extend the evaluated partial join
@@ -906,7 +970,9 @@ void reset_validity_vars_for_keyuses(KEYUSE_EXT *key_keyuse_ext_start,
     if the plan has been chosen, NULL - otherwise.
 */
 
-SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
+SplM_plan_info * JOIN_TAB::choose_best_splitting(const POSITION *join_prefix,
+                                                 uint top_prefix_size,
+                                                 double record_count,
                                                  table_map remaining_tables)
 {
   SplM_opt_info *spl_opt_info= table->spl_opt_info;
@@ -922,6 +988,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
   SplM_plan_info *spl_plan= 0;
   uint best_key= 0;
   uint best_key_parts= 0;
+  uint best_min_prefix_size;
 
   Json_writer_object spl_trace(thd, "lateral_derived_choice");
   Json_writer_array trace_indexes(thd, "indexes_for_splitting");
@@ -942,6 +1009,7 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
       uint key= keyuse_ext->key;
       KEYUSE_EXT *key_keyuse_ext_start= keyuse_ext;
       key_part_map found_parts= 0;
+      uint prefix_len= 0;
       do
       {
         if (keyuse_ext->needed_in_prefix & remaining_tables)
@@ -951,11 +1019,31 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
         }
         if (!(keyuse_ext->keypart_map & found_parts))
 	{
+          /*
+            1. found_parts is empty and this is the first key part we've found
+            2. or, we are looking at the first keyuse object for this keypart,
+               and found_parts has a bit set for the previous key part.
+          */
           if ((!found_parts && !keyuse_ext->keypart) ||
               (found_parts && ((keyuse_ext->keypart_map >> 1) & found_parts)))
+          {
+            if (thd->variables.optimizer_lateral_lazy_refill > 0)
+            {
+              uint min_for_kp= get_min_prefix_for_key_part(join_prefix,
+                                                           top_prefix_size,
+                                                           keyuse_ext);
+              // The prefix length needed for {kp1, kp2, ...} is max of the
+              // needed prefix length for each key part.
+              if (min_for_kp > prefix_len)
+                prefix_len= min_for_kp;
+            }
+
             found_parts|= keyuse_ext->keypart_map;
+          }
           else
 	  {
+            // This is a new key part but it doesn't form a continuous
+            // index prefix. Skip all KEYUSEs for this index.
             do
 	    {
               keyuse_ext++;
@@ -981,6 +1069,11 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
 	  best_key_parts= keyuse_ext->keypart + 1;
           best_rec_per_key= rec_per_key;
           best_key_keyuse_ext_start= key_keyuse_ext_start;
+          if (thd->variables.optimizer_lateral_lazy_refill > 0)
+          {
+            best_min_prefix_size= prefix_len;
+            trace.add("min_prefix_len", (longlong)prefix_len);
+          }
         }
         keyuse_ext++;
       }
@@ -1069,10 +1162,21 @@ SplM_plan_info * JOIN_TAB::choose_best_splitting(double record_count,
     if (spl_plan)
     {
       Json_writer_object choice(thd, "split_plan_choice");
+      choice.add("unsplit_cost", spl_opt_info->unsplit_cost);
+
       choice.add("split_cost", spl_plan->cost);
       choice.add("record_count_for_split", record_count);
-      choice.add("unsplit_cost", spl_opt_info->unsplit_cost);
-      if(record_count * spl_plan->cost < spl_opt_info->unsplit_cost - 0.01)
+
+      // psergey-todo: best_min_prefix_size allows us to compute a more tight
+      //  bound than record_count.
+      double fanout= record_count;
+      if (thd->variables.optimizer_lateral_lazy_refill > 0)
+      {
+        fanout= get_join_prefix_fanout(join_prefix, best_min_prefix_size);
+        choice.add("join_prefix_fanout_for_split", fanout);
+      }
+
+      if(fanout * spl_plan->cost < spl_opt_info->unsplit_cost - 0.01)
       {
         /*
           The best plan that employs splitting is cheaper than
@@ -1134,12 +1238,14 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
   List<Item> *inj_cond_list= &spl_opt_info->inj_cond_list;
   List_iterator<KEY_FIELD> li(spl_opt_info->added_key_fields);
   KEY_FIELD *added_key_field;
+  table_map needed_tables= 0;
   while ((added_key_field= li++))
   {
     if (remaining_tables & added_key_field->val->used_tables())
       continue;
     if (inj_cond_list->push_back(added_key_field->cond, thd->mem_root))
       return true;
+    needed_tables |= added_key_field->val->used_tables();
   }
   DBUG_ASSERT(inj_cond_list->elements);
   switch (inj_cond_list->elements) {
@@ -1155,6 +1261,10 @@ bool JOIN::inject_best_splitting_cond(table_map remaining_tables)
 
   if (inject_cond_into_where(inj_cond))
     return true;
+
+  // psergey-todo: walk the join tabs until we are satisfying needed_tables...
+  // and inject the check at that point.
+  // Other solution is to just add a cache...
 
   select_lex->uncacheable|= UNCACHEABLE_DEPENDENT_INJECTED;
   st_select_lex_unit *unit= select_lex->master_unit();

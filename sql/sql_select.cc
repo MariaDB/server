@@ -7455,7 +7455,7 @@ best_access_path(JOIN      *join,
   loose_scan_opt.init(join, s, remaining_tables);
 
   if (s->table->is_splittable())
-    spl_plan= s->choose_best_splitting(record_count, remaining_tables);
+    spl_plan= s->choose_best_splitting(join_positions, idx, record_count, remaining_tables);
   Json_writer_array trace_paths(thd, "considered_access_paths");
 
   if (s->keyuse)

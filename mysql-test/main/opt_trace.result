@@ -8954,9 +8954,9 @@ json_detailed(json_extract(trace, '$**.lateral_derived_choice'))
         ],
         "split_plan_choice": 
         {
+            "unsplit_cost": 25.72361682,
             "split_cost": 2.488945919,
             "record_count_for_split": 4,
-            "unsplit_cost": 25.72361682,
             "split_chosen": true
         },
         "chosen_lateral_derived": 

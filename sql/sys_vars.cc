@@ -2672,6 +2672,14 @@ static Sys_var_ulong Sys_optimizer_use_condition_selectivity(
        SESSION_VAR(optimizer_use_condition_selectivity), CMD_LINE(REQUIRED_ARG),
        VALID_RANGE(1, 5), DEFAULT(4), BLOCK_SIZE(1));
 
+static Sys_var_ulong Sys_optimizer_lateral_lazy_refill(
+       "optimizer_lateral_lazy_refill",
+       "Controls Lazy Lateral Table Refill fix. 0 means disabled, "
+       "1 means enabled in the optimizer. Higher values are reserved "
+       "for future use.",
+       SESSION_VAR(optimizer_lateral_lazy_refill), CMD_LINE(REQUIRED_ARG),
+       VALID_RANGE(0, 2), DEFAULT(0), BLOCK_SIZE(1));
+
 static Sys_var_ulong Sys_optimizer_search_depth(
        "optimizer_search_depth",
        "Maximum depth of search performed by the query optimizer. Values "
