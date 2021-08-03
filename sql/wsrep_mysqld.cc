@@ -1,4 +1,5 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
+   Copyright 2008-2021 MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -838,13 +839,6 @@ void wsrep_thr_init()
 void wsrep_init_startup (bool first)
 {
   if (wsrep_init()) unireg_abort(1);
-
-  wsrep_thr_lock_init(
-     (wsrep_thd_is_brute_force_fun)wsrep_thd_is_BF,
-     (wsrep_abort_thd_fun)wsrep_abort_thd,
-     wsrep_debug, wsrep_convert_LOCK_to_trx,
-     (wsrep_on_fun)wsrep_on);
-
   /*
     Pre-initialize global_system_variables.table_plugin with a dummy engine
     (placeholder) required during the initialization of wsrep threads (THDs).
@@ -1649,10 +1643,10 @@ static bool wsrep_can_run_in_toi(THD *thd, const char *db, const char *table,
 }
 
 /*
-  returns: 
+  returns:
    0: statement was replicated as TOI
    1: TOI replication was skipped
-  -1: TOI replication failed 
+  -1: TOI replication failed
  */
 static int wsrep_TOI_begin(THD *thd, char *db_, char *table_,
                            const TABLE_LIST* table_list,
@@ -1980,10 +1974,11 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
                                MDL_ticket *ticket,
                                const MDL_key *key)
 {
-  /* Fallback to the non-wsrep behaviour */
-  if (!WSREP_ON) return FALSE;
-
   THD *request_thd= requestor_ctx->get_thd();
+
+  /* Fallback to the non-wsrep behaviour */
+  if (!WSREP(request_thd)) return FALSE;
+
   THD *granted_thd= ticket->get_ctx()->get_thd();
   bool ret= false;
 
@@ -2020,6 +2015,7 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
     ticket->wsrep_report(wsrep_debug);
 
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
+
     if (granted_thd->wsrep_exec_mode == TOTAL_ORDER ||
         granted_thd->wsrep_exec_mode == REPL_RECV)
     {
@@ -2058,8 +2054,8 @@ bool wsrep_grant_mdl_exception(MDL_context *requestor_ctx,
         ticket->wsrep_report(true);
       }
 
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       wsrep_abort_thd((void *) request_thd, (void *) granted_thd, 1);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       ret= false;
     }
   }
@@ -2403,13 +2399,15 @@ void wsrep_close_client_connections(my_bool wait_to_end, THD *except_caller_thd)
     /*
       instead of wsrep_close_thread() we do now  soft kill by THD::awake
      */
+    mysql_mutex_lock(&tmp->LOCK_thd_kill);
     mysql_mutex_lock(&tmp->LOCK_thd_data);
 
     tmp->awake(KILL_CONNECTION);
 
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
-
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
+
   mysql_mutex_unlock(&LOCK_thread_count);
 
   if (thread_count)
@@ -2633,11 +2631,11 @@ enum wsrep_exec_mode wsrep_thd_exec_mode(THD *thd)
 
 const char *wsrep_thd_exec_mode_str(THD *thd)
 {
-  return 
+  return
     (!thd) ? "void" :
     (thd->wsrep_exec_mode == LOCAL_STATE)  ? "local"         :
     (thd->wsrep_exec_mode == REPL_RECV)    ? "applier"       :
-    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   : 
+    (thd->wsrep_exec_mode == TOTAL_ORDER)  ? "total order"   :
     (thd->wsrep_exec_mode == LOCAL_COMMIT) ? "local commit"  : "void";
 }
 
@@ -2650,12 +2648,12 @@ enum wsrep_query_state wsrep_thd_query_state(THD *thd)
 
 const char *wsrep_thd_query_state_str(THD *thd)
 {
-  return 
-    (!thd) ? "void" : 
+  return
+    (!thd) ? "void" :
     (thd->wsrep_query_state == QUERY_IDLE)        ? "idle"          :
     (thd->wsrep_query_state == QUERY_EXEC)        ? "executing"     :
     (thd->wsrep_query_state == QUERY_COMMITTING)  ? "committing"    :
-    (thd->wsrep_query_state == QUERY_EXITING)     ? "exiting"       : 
+    (thd->wsrep_query_state == QUERY_EXITING)     ? "exiting"       :
     (thd->wsrep_query_state == QUERY_ROLLINGBACK) ? "rolling back"  : "void";
 }
 
@@ -2668,14 +2666,14 @@ enum wsrep_conflict_state wsrep_thd_get_conflict_state(THD *thd)
 
 const char *wsrep_thd_conflict_state_str(THD *thd)
 {
-  return 
+  return
     (!thd) ? "void" :
     (thd->wsrep_conflict_state == NO_CONFLICT)      ? "no conflict"  :
     (thd->wsrep_conflict_state == MUST_ABORT)       ? "must abort"   :
     (thd->wsrep_conflict_state == ABORTING)         ? "aborting"     :
-    (thd->wsrep_conflict_state == MUST_REPLAY)      ? "must replay"  : 
-    (thd->wsrep_conflict_state == REPLAYING)        ? "replaying"    : 
-    (thd->wsrep_conflict_state == RETRY_AUTOCOMMIT) ? "retrying"     : 
+    (thd->wsrep_conflict_state == MUST_REPLAY)      ? "must replay"  :
+    (thd->wsrep_conflict_state == REPLAYING)        ? "replaying"    :
+    (thd->wsrep_conflict_state == RETRY_AUTOCOMMIT) ? "retrying"     :
     (thd->wsrep_conflict_state == CERT_FAILURE)     ? "cert failure" : "void";
 }
 
@@ -2688,6 +2686,7 @@ wsrep_ws_handle_t* wsrep_thd_ws_handle(THD *thd)
 
 void wsrep_thd_LOCK(THD *thd)
 {
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
   mysql_mutex_lock(&thd->LOCK_thd_data);
 }
 
@@ -2695,16 +2694,16 @@ void wsrep_thd_LOCK(THD *thd)
 void wsrep_thd_UNLOCK(THD *thd)
 {
   mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
-
-extern "C" time_t wsrep_thd_query_start(THD *thd) 
+extern "C" time_t wsrep_thd_query_start(THD *thd)
 {
   return thd->query_start();
 }
 
 
-extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd) 
+extern "C" uint32 wsrep_thd_wsrep_rand(THD *thd)
 {
   return thd->wsrep_rand;
 }
@@ -2715,7 +2714,7 @@ longlong wsrep_thd_trx_seqno(THD *thd)
 }
 
 
-extern "C" query_id_t wsrep_thd_query_id(THD *thd) 
+extern "C" query_id_t wsrep_thd_query_id(THD *thd)
 {
   return thd->query_id;
 }
@@ -2746,13 +2745,13 @@ const char *wsrep_thd_query(THD *thd)
 }
 
 
-extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd) 
+extern "C" query_id_t wsrep_thd_wsrep_last_query_id(THD *thd)
 {
   return thd->wsrep_last_query_id;
 }
 
 
-extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id) 
+extern "C" void wsrep_thd_set_wsrep_last_query_id(THD *thd, query_id_t id)
 {
   thd->wsrep_last_query_id= id;
 }
@@ -2763,6 +2762,8 @@ extern "C" void wsrep_thd_awake(THD *thd, my_bool signal)
   if (signal)
   {
     thd->awake(KILL_QUERY);
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
   }
   else
   {
@@ -2842,7 +2843,7 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
   if (create_info->tmp_table())
   {
     /* CREATE TEMPORARY TABLE LIKE must be skipped from replication */
-    WSREP_DEBUG("CREATE TEMPORARY TABLE LIKE... skipped replication\n %s", 
+    WSREP_DEBUG("CREATE TEMPORARY TABLE LIKE... skipped replication\n %s",
                 thd->query());
   }
   else if (!(thd->find_temporary_table(src_table)))
@@ -2852,7 +2853,7 @@ bool wsrep_create_like_table(THD* thd, TABLE_LIST* table,
   }
   else
   {
-    /* here we have CREATE TABLE LIKE <temporary table> 
+    /* here we have CREATE TABLE LIKE <temporary table>
        the temporary table definition will be needed in slaves to
        enable the create to succeed
      */

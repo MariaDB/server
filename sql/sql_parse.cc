@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8907,7 +8907,8 @@ THD *find_thread_by_id(longlong id, bool query_id)
       continue;
     if (id == (query_id ? tmp->query_id : (longlong) tmp->thread_id))
     {
-      mysql_mutex_lock(&tmp->LOCK_thd_data);    // Lock from delete
+      mysql_mutex_lock(&tmp->LOCK_thd_kill); // Lock from delete
+      mysql_mutex_lock(&tmp->LOCK_thd_data); // Lock from concurrent usage
       break;
     }
   }
@@ -8970,6 +8971,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
       error= (type == KILL_TYPE_QUERY ? ER_KILL_QUERY_DENIED_ERROR :
                                         ER_KILL_DENIED_ERROR);
     mysql_mutex_unlock(&tmp->LOCK_thd_data);
+    mysql_mutex_unlock(&tmp->LOCK_thd_kill);
   }
   DBUG_PRINT("exit", ("%d", error));
   DBUG_RETURN(error);

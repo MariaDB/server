@@ -808,6 +808,10 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
   THD *bf_thd     = (THD *) bf_thd_ptr;
   DBUG_ENTER("wsrep_abort_thd");
 
+  /* We need to hold THD::LOCK_thd_data for below wsrep checks. */
+  if (victim_thd)
+    mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
+
   if ( (WSREP(bf_thd) ||
          ( (WSREP_ON || bf_thd->variables.wsrep_OSU_method == WSREP_OSU_RSU) &&
            bf_thd->wsrep_exec_mode == TOTAL_ORDER) )                         &&
@@ -826,7 +830,12 @@ int wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr, my_bool signal)
 
     WSREP_DEBUG("wsrep_abort_thd, by: %llu, victim: %llu", (bf_thd) ?
                 (long long)bf_thd->real_id : 0, (long long)victim_thd->real_id);
+    /* We need to release THD::LOCK_thd_data because below
+    innobase_kill_query will later acquire it and makes sanity
+    checks. */
+    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
     ha_abort_transaction(bf_thd, victim_thd, signal);
+    mysql_mutex_lock(&victim_thd->LOCK_thd_data);
   }
   else
   {

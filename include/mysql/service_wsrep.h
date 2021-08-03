@@ -1,5 +1,5 @@
 #ifndef MYSQL_SERVICE_WSREP_INCLUDED
-/* Copyright (c) 2015 MariaDB Corporation Ab
+/* Copyright (c) 2015-2021 MariaDB Corporation Ab
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by

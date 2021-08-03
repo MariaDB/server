@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2017, MariaDB Corporation.
+   Copyright (c) 2009, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3727,7 +3727,7 @@ public:
     mysql_mutex_unlock(&LOCK_thd_kill);
   }
   /*
-    This is only used by THD::awake where we need to keep the lock mutex
+    This is only used where we need to keep the lock mutex
     locked over some time.
     It's ok to have this inline, as in most cases killed_errno_arg will
     be a constant 0 and most of the function will disappear.

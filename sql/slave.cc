@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB Corporation
+   Copyright (c) 2009, 2021, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -317,9 +317,11 @@ static void bg_rpl_load_gtid_slave_state(void *)
 static void bg_slave_kill(void *victim)
 {
   THD *to_kill= (THD *)victim;
+  mysql_mutex_lock(&to_kill->LOCK_thd_kill);
   mysql_mutex_lock(&to_kill->LOCK_thd_data);
   to_kill->awake(KILL_CONNECTION);
   mysql_mutex_unlock(&to_kill->LOCK_thd_data);
+  mysql_mutex_unlock(&to_kill->LOCK_thd_kill);
   mysql_mutex_lock(&to_kill->LOCK_wakeup_ready);
   to_kill->rgi_slave->killed_for_retry= rpl_group_info::RETRY_KILL_KILLED;
   mysql_cond_broadcast(&to_kill->COND_wakeup_ready);
@@ -754,6 +756,7 @@ terminate_slave_thread(THD *thd,
     int error __attribute__((unused));
     DBUG_PRINT("loop", ("killing slave thread"));
 
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
     mysql_mutex_lock(&thd->LOCK_thd_data);
 #ifndef DONT_USE_THR_ALARM
     /*
@@ -767,7 +770,7 @@ terminate_slave_thread(THD *thd,
     thd->awake(NOT_KILLED);
 
     mysql_mutex_unlock(&thd->LOCK_thd_data);
-
+    mysql_mutex_unlock(&thd->LOCK_thd_kill);
     /*
       There is a small chance that slave thread might miss the first
       alarm. To protect againts it, resend the signal until it reacts
