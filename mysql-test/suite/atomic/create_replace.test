@@ -150,14 +150,6 @@ while ($r < $statement_count)
       --source include/show_binlog_events.inc
     }
 
-    if ($c > 5)
-    {
-      if ($MTR_COMBINATION_MYISAM)
-      {
-        # MyISAM warns normally about table marked as crashed, but not for --ps-protocol
-        --disable_warnings
-      }
-    }
     --replace_result $default_engine DEFAULT_ENGINE ' PAGE_CHECKSUM=1' ''
     --error $show_error
     show create table t1;
