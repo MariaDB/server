@@ -681,6 +681,10 @@ The following specify which files/extra groups are read (specified before remain
  max_connections*5 or max_connections + table_cache*2
  (whichever is larger) number of file descriptors
  (Automatically configured unless set explicitly)
+ --optimizer-lateral-lazy-refill=# 
+ Controls Lazy Lateral Table Refill fix. 0 means disabled,
+ 1 means enabled in the optimizer. Higher values are
+ reserved for future use.
  --optimizer-max-sel-arg-weight=# 
  The maximum weight of the SEL_ARG graph. Set to 0 for no
  limit
@@ -1640,6 +1644,7 @@ old-alter-table DEFAULT
 old-mode 
 old-passwords FALSE
 old-style-user-limits FALSE
+optimizer-lateral-lazy-refill 0
 optimizer-max-sel-arg-weight 32000
 optimizer-prune-level 1
 optimizer-search-depth 62
