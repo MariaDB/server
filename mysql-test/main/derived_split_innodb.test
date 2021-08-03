@@ -277,6 +277,50 @@ select
 from
   information_schema.optimizer_trace;
 
+create table t21 (pk int primary key);
+insert into t21 values (1),(2),(3);
+
+create table t22 (pk int primary key);
+insert into t22 values (1),(2),(3);
+
+# Same as above but throw in a couple of const tables.
+explain
+select * from
+  t21, t22,
+  (
+    (t1 left join t2 on t2.a=t1.b)
+    left join t3 on t3.a=t1.b
+  ) left join (select grp_id, count(*)
+               from t10 left join t11 on t11.col1=t10.col1
+               group by grp_id) T on T.grp_id=t1.b
+where
+  t21.pk=1 and t22.pk=2;
+
+select
+  json_detailed(json_extract(trace, '$**.split_plan_choice'))
+from
+  information_schema.optimizer_trace;
+
+explain
+select * from
+  t21,
+  (
+    (t1 left join t2 on t2.a=t1.b)
+    left join t3 on t3.a=t1.b
+  ) left join (select grp_id, count(*)
+               from
+                 t22 join t10 left join t11 on t11.col1=t10.col1
+               where
+                 t22.pk=1
+               group by grp_id) T on T.grp_id=t1.b
+where
+  t21.pk=1;
+
+select
+  json_detailed(json_extract(trace, '$**.split_plan_choice'))
+from
+  information_schema.optimizer_trace;
+
 set optimizer_trace=0;
 set @@optimizer_lateral_lazy_refill=default;
-drop table t1,t2,t3, t10, t11;
+drop table t1,t2,t3, t10, t11, t21, t22;
