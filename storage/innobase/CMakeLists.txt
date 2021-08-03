@@ -188,7 +188,3 @@ IF(MSVC)
 ENDIF()
 
 ADD_SUBDIRECTORY(${CMAKE_SOURCE_DIR}/extra/mariabackup ${CMAKE_BINARY_DIR}/extra/mariabackup)
-
-IF(TARGET innobase)
-  ADD_DEPENDENCIES(innobase GenError)
-ENDIF()
