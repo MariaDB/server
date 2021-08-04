@@ -72,7 +72,7 @@ IF(UNIX)
   get_property(inc_dirs DIRECTORY PROPERTY INCLUDE_DIRECTORIES)
   SET(CONNECT_SOURCES ${CONNECT_SOURCES} inihandl.cpp)
   SET(IPHLPAPI_LIBRARY "")
-ELSE(NOT UNIX)
+ELSE()
   SET(CONNECT_SOURCES ${CONNECT_SOURCES}
   tabwmi.cpp tabwmi.h tabmac.cpp tabmac.h macutil.cpp macutil.h)
   # Add exception handling to the CONNECT project)
@@ -82,8 +82,7 @@ ELSE(NOT UNIX)
     # Connect does not work with clang-cl
     RETURN()
   ENDIF()
-  add_definitions(-D__WIN__)
-ENDIF(UNIX)
+ENDIF()
 
 
 #
