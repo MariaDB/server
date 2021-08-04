@@ -1359,6 +1359,14 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
     return;
   }
 
+  DBUG_EXECUTE_IF("CONNECT_wait",
+  {
+    extern Dynamic_array<MYSQL_SOCKET> listen_sockets;
+    DBUG_ASSERT(listen_sockets.size());
+    while (listen_sockets.size())
+      my_sleep(1000);
+  });
+
   /*
     If a thread was created to handle this connection:
     increment slow_launch_threads counter if it took more than
@@ -1372,10 +1380,10 @@ void do_handle_one_connection(CONNECT *connect, bool put_in_cache)
     if (launch_time >= slow_launch_time*1000000L)
       statistic_increment(slow_launch_threads, &LOCK_status);
   }
-  delete connect;
 
-  /* Make THD visible in show processlist */
-  server_threads.insert(thd);
+  server_threads.insert(thd); // Make THD visible in show processlist
+
+  delete connect; // must be after server_threads.insert, see close_connections()
   
   thd->thr_create_utime= thr_create_utime;
   /* We need to set this because of time_out_user_resource_limits */

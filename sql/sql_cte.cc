@@ -938,7 +938,8 @@ bool With_clause::prepare_unreferenced_elements(THD *thd)
        with_elem;
        with_elem= with_elem->next)
   {
-    if (!with_elem->is_referenced() && with_elem->prepare_unreferenced(thd))
+    if ((with_elem->is_hanging_recursive() || !with_elem->is_referenced()) &&
+        with_elem->prepare_unreferenced(thd))
       return true;
   }
 
@@ -1126,14 +1127,6 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
   lex->unit.include_down(with_table->select_lex);
   lex->unit.set_slave(with_select);
   lex->unit.cloned_from= spec;
-  last_clone_select= lex->all_selects_list;
-  while (last_clone_select->next_select_in_list())
-    last_clone_select= last_clone_select->next_select_in_list();
-  old_lex->all_selects_list=
-    (st_select_lex*) (lex->all_selects_list->
-                     insert_chain_before(
-                       (st_select_lex_node **) &(old_lex->all_selects_list),
-                       last_clone_select));
 
   /*
     Now all references to the CTE defined outside of the cloned specification
@@ -1148,6 +1141,15 @@ st_select_lex_unit *With_element::clone_parsed_spec(LEX *old_lex,
     res= NULL;
     goto err;
   }
+
+  last_clone_select= lex->all_selects_list;
+  while (last_clone_select->next_select_in_list())
+    last_clone_select= last_clone_select->next_select_in_list();
+  old_lex->all_selects_list=
+    (st_select_lex*) (lex->all_selects_list->
+                     insert_chain_before(
+                       (st_select_lex_node **) &(old_lex->all_selects_list),
+                       last_clone_select));
 
  lex->sphead= NULL;    // in order not to delete lex->sphead
   lex_end(lex);
@@ -1323,6 +1325,7 @@ bool With_element::is_anchor(st_select_lex *sel)
 With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
 {
   With_element *found= NULL;
+  With_clause *containing_with_clause= NULL;
   st_select_lex_unit *master_unit;
   st_select_lex *outer_sl;
   for (st_select_lex *sl= this; sl; sl= outer_sl)
@@ -1335,6 +1338,7 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
     */
     With_clause *attached_with_clause= sl->get_with_clause();
     if (attached_with_clause &&
+        attached_with_clause != containing_with_clause &&
         (found= attached_with_clause->find_table_def(table, NULL)))
       break;
     master_unit= sl->master_unit();
@@ -1342,7 +1346,7 @@ With_element *st_select_lex::find_table_def_in_with_clauses(TABLE_LIST *table)
     With_element *with_elem= sl->get_with_element();
     if (with_elem)
     {
-      With_clause *containing_with_clause= with_elem->get_owner();
+      containing_with_clause= with_elem->get_owner();
       With_element *barrier= containing_with_clause->with_recursive ?
                                NULL : with_elem;
       if ((found= containing_with_clause->find_table_def(table, barrier)))

@@ -51,7 +51,7 @@ Street, Fifth Floor, Boston, MA 02110-1335 USA
 #include <my_getopt.h>
 #include <mysql_com.h>
 #include <my_default.h>
-#include <mysqld.h>
+#include <sql_class.h>
 
 #include <fcntl.h>
 #include <string.h>

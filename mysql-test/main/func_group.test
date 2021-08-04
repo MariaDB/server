@@ -2,11 +2,6 @@
 # simple test of all group functions
 #
 
-if (`SELECT $PS_PROTOCOL != 0`)
-{
-   --skip Test temporarily disabled for ps-protocol
-}
-
 --disable_warnings
 drop table if exists t1,t2,t3,t4,t5,t6;
 --enable_warnings

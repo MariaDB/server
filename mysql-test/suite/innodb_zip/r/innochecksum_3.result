@@ -158,10 +158,10 @@ Filename::tab#.ibd
 # allow-mismatches,page,start-page,end-page
 [9]: check the both short and long options "page" and "start-page" when
 # seek value is larger than file size.
-FOUND 1 /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
-FOUND 1 /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
-FOUND 1 /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
-FOUND 1 /Error: Unable to seek to necessary offset: Invalid argument/ in my_restart.err
+FOUND 1 /Error: Unable to seek to necessary offset/ in my_restart.err
+FOUND 1 /Error: Unable to seek to necessary offset/ in my_restart.err
+FOUND 1 /Error: Unable to seek to necessary offset/ in my_restart.err
+FOUND 1 /Error: Unable to seek to necessary offset/ in my_restart.err
 [34]: check the invalid upper bound values for options, allow-mismatches, end-page, start-page and page.
 # innochecksum will fail with error code: 1
 NOT FOUND /Incorrect unsigned integer value: '18446744073709551616'/ in my_restart.err

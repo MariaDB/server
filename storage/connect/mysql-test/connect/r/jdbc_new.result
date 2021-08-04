@@ -2,7 +2,8 @@ connect  master,127.0.0.1,root,,test,$MASTER_MYPORT,;
 connect  slave,127.0.0.1,root,,test,$SLAVE_MYPORT,;
 connection master;
 connection slave;
-SET GLOBAL time_zone='+1:00';
+SET GLOBAL time_zone='+0:00';
+SET time_zone='+0:00';
 CREATE TABLE t1 (a int, b char(10));
 INSERT INTO t1 VALUES (NULL,NULL),(0,'test00'),(1,'test01'),(2,'test02'),(3,'test03');
 SELECT * FROM t1;
@@ -16,31 +17,32 @@ NULL	NULL
 # Testing errors
 #
 connection master;
-SET GLOBAL time_zone='+1:00';
+SET GLOBAL time_zone='+0:00';
+SET time_zone='+0:00';
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=unknown';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=unknown&useSSL=false';
 ERROR HY000: Connecting: java.sql.SQLException: Access denied for user 'unknown'@'localhost' (using password: NO) rc=-2
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/unknown?user=root';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/unknown?user=root&useSSL=false';
 ERROR HY000: Connecting: java.sql.SQLSyntaxErrorException: Unknown database 'unknown' rc=-2
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME='unknown'
-  CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+  CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 ERROR HY000: Cannot get columns from unknown
 SHOW CREATE TABLE t1;
 ERROR 42S02: Table 'test.t1' doesn't exist
 CREATE TABLE t1 (x int, y char(10)) ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `x` int(11) DEFAULT NULL,
   `y` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`=JDBC
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false' `TABLE_TYPE`=JDBC
 SELECT * FROM t1;
 ERROR HY000: Got error 174 'ExecuteQuery: java.sql.SQLSyntaxErrorException: Unknown column 'x' in 'field list'' from CONNECT
 DROP TABLE t1;
 CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 connection slave;
 ALTER TABLE t1 RENAME t1backup;
 connection master;
@@ -54,13 +56,13 @@ DROP TABLE t1;
 # Testing SELECT, etc.
 #
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(10) DEFAULT NULL,
   `b` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`='JDBC'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false' `TABLE_TYPE`='JDBC'
 SELECT * FROM t1;
 a	b
 NULL	NULL
@@ -70,13 +72,13 @@ NULL	NULL
 3	test03
 DROP TABLE t1;
 CREATE TABLE t1 (a int, b char(10)) ENGINE=CONNECT TABLE_TYPE=JDBC TABNAME='t1'
-  CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+  CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) DEFAULT NULL,
   `b` char(10) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`=JDBC `TABNAME`='t1'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false' `TABLE_TYPE`=JDBC `TABNAME`='t1'
 SELECT * FROM t1;
 a	b
 NULL	NULL
@@ -86,13 +88,13 @@ NULL	NULL
 3	test03
 DROP TABLE t1;
 CREATE TABLE t1 (a INT NOT NULL, b CHAR(10) NOT NULL) ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` int(11) NOT NULL,
   `b` char(10) NOT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`=JDBC
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false' `TABLE_TYPE`=JDBC
 SELECT * FROM t1;
 a	b
 0	
@@ -102,13 +104,13 @@ a	b
 3	test03
 DROP TABLE t1;
 CREATE TABLE t1 (a char(10), b int) ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(10) DEFAULT NULL,
   `b` int(11) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`=JDBC
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false' `TABLE_TYPE`=JDBC
 SELECT * FROM t1;
 a	b
 NULL	NULL
@@ -138,7 +140,7 @@ t1	CREATE TABLE `t1` (
 INSERT INTO t1 VALUES(100,3333,41235,1234567890,235000000000,3.14159265,3.14159265,3141.59265);
 connection master;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -150,7 +152,7 @@ t1	CREATE TABLE `t1` (
   `f` double(14,0) DEFAULT NULL,
   `g` double(24,0) DEFAULT NULL,
   `h` decimal(27,5) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`='JDBC'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false' `TABLE_TYPE`='JDBC'
 SELECT * FROM t1;
 a	b	c	d	e	f	g	h
 100	3333	41235	1234567890	235000000000	3	3	3141.59265
@@ -173,13 +175,13 @@ a	b
 Welcome	Hello, World
 connection master;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` char(12) DEFAULT NULL,
   `b` varchar(12) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`='JDBC'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false' `TABLE_TYPE`='JDBC'
 SELECT * FROM t1;
 a	b
 Welcome	Hello, World
@@ -209,7 +211,7 @@ a	b	c	d	e
 2003-05-27	2003-05-27 10:45:23	10:45:23	2003-05-27 10:45:23	2003
 connection master;
 CREATE TABLE t1 ENGINE=CONNECT TABLE_TYPE=JDBC
-CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root';
+CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
@@ -218,13 +220,15 @@ t1	CREATE TABLE `t1` (
   `c` time DEFAULT NULL,
   `d` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `e` year(4) DEFAULT NULL
-) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root' `TABLE_TYPE`='JDBC'
+) ENGINE=CONNECT DEFAULT CHARSET=latin1 CONNECTION='jdbc:mysql://127.0.0.1:SLAVE_PORT/test?user=root&useSSL=false' `TABLE_TYPE`='JDBC'
 SELECT * FROM t1;
 a	b	c	d	e
-2003-05-27	2003-05-27 11:45:23	10:45:23	2003-05-27 10:45:23	2003
+2003-05-27	2003-05-27 10:45:23	10:45:23	2003-05-27 10:45:23	2003
 DROP TABLE t1;
 connection slave;
 DROP TABLE t1;
 SET GLOBAL time_zone=SYSTEM;
+SET time_zone=SYSTEM;
 connection master;
 SET GLOBAL time_zone=SYSTEM;
+SET time_zone=SYSTEM;

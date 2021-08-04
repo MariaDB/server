@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "sql_servers.h"
 #include "sql_string.h"
-#if !defined(__WIN__)
+#if !defined(_WIN32)
 #include "osutil.h"
 #endif
 

@@ -4185,6 +4185,21 @@ enum open_frm_error open_table_from_share(THD *thd, TABLE_SHARE *share,
 
     /* Update to use trigger fields */
     switch_defaults_to_nullable_trigger_fields(outparam);
+
+    for (uint k= 0; k < share->keys; k++)
+    {
+      KEY &key_info= outparam->key_info[k];
+      uint parts = (share->use_ext_keys ? key_info.ext_key_parts :
+                    key_info.user_defined_key_parts);
+      for (uint p= 0; p < parts; p++)
+      {
+        KEY_PART_INFO &kp= key_info.key_part[p];
+        if (kp.field != outparam->field[kp.fieldnr - 1])
+        {
+          kp.field->vcol_info = outparam->field[kp.fieldnr - 1]->vcol_info;
+        }
+      }
+    }
   }
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -7206,7 +7221,7 @@ void TABLE::prepare_for_position()
   if ((file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX) &&
       s->primary_key < MAX_KEY)
   {
-    mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+    mark_index_columns_for_read(s->primary_key);
     /* signal change */
     file->column_bitmaps_signal();
   }
@@ -7222,7 +7237,7 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
     file->ha_start_keyread(index);
   if (map != read_set || !(file->index_flags(index, 0, 1) & HA_CLUSTERED_INDEX))
   {
-    mark_columns_used_by_index(index, map);
+    mark_index_columns(index, map);
     column_bitmaps_set(map);
   }
   DBUG_RETURN(backup);
@@ -7233,12 +7248,12 @@ MY_BITMAP *TABLE::prepare_for_keyread(uint index, MY_BITMAP *map)
   Mark that only fields from one key is used. Useful before keyread.
 */
 
-void TABLE::mark_columns_used_by_index(uint index, MY_BITMAP *bitmap)
+void TABLE::mark_index_columns(uint index, MY_BITMAP *bitmap)
 {
-  DBUG_ENTER("TABLE::mark_columns_used_by_index");
+  DBUG_ENTER("TABLE::mark_index_columns");
 
   bitmap_clear_all(bitmap);
-  mark_columns_used_by_index_no_reset(index, bitmap);
+  mark_index_columns_no_reset(index, bitmap);
   DBUG_VOID_RETURN;
 }
 
@@ -7246,11 +7261,11 @@ void TABLE::mark_columns_used_by_index(uint index, MY_BITMAP *bitmap)
   Restore to use normal column maps after key read
 
   NOTES
-    This reverse the change done by mark_columns_used_by_index
+    This reverse the change done by mark_index_columns
 
   WARNING
     For this to work, one must have the normal table maps in place
-    when calling mark_columns_used_by_index
+    when calling mark_index_columns
 */
 
 void TABLE::restore_column_maps_after_keyread(MY_BITMAP *backup)
@@ -7262,22 +7277,35 @@ void TABLE::restore_column_maps_after_keyread(MY_BITMAP *backup)
   DBUG_VOID_RETURN;
 }
 
+static void do_mark_index_columns(TABLE *table, uint index,
+                                  MY_BITMAP *bitmap, bool read)
+{
+  KEY_PART_INFO *key_part= table->key_info[index].key_part;
+  uint key_parts= table->key_info[index].user_defined_key_parts;
+  for (uint k= 0; k < key_parts; k++)
+    if (read)
+      key_part[k].field->register_field_in_read_map();
+    else
+      bitmap_set_bit(bitmap, key_part[k].fieldnr-1);
+  if (table->file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX &&
+      table->s->primary_key != MAX_KEY && table->s->primary_key != index)
+    do_mark_index_columns(table, table->s->primary_key, bitmap, read);
 
+}
 /*
   mark columns used by key, but don't reset other fields
 */
 
-void TABLE::mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *bitmap)
+inline void TABLE::mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap)
 {
-  KEY_PART_INFO *key_part= key_info[index].key_part;
-  KEY_PART_INFO *key_part_end= (key_part + key_info[index].user_defined_key_parts);
-  for (;key_part != key_part_end; key_part++)
-    bitmap_set_bit(bitmap, key_part->fieldnr-1);
-  if (file->ha_table_flags() & HA_PRIMARY_KEY_IN_READ_INDEX &&
-      s->primary_key != MAX_KEY && s->primary_key != index)
-    mark_columns_used_by_index_no_reset(s->primary_key, bitmap);
+  do_mark_index_columns(this, index, bitmap, false);
 }
 
+
+inline void TABLE::mark_index_columns_for_read(uint index)
+{
+  do_mark_index_columns(this, index, read_set, true);
+}
 
 /*
   Mark auto-increment fields as used fields in both read and write maps
@@ -7297,7 +7325,7 @@ void TABLE::mark_auto_increment_column()
   bitmap_set_bit(read_set, found_next_number_field->field_index);
   bitmap_set_bit(write_set, found_next_number_field->field_index);
   if (s->next_number_keypart)
-    mark_columns_used_by_index_no_reset(s->next_number_index, read_set);
+    mark_index_columns_for_read(s->next_number_index);
   file->column_bitmaps_signal();
 }
 
@@ -7348,7 +7376,7 @@ void TABLE::mark_columns_needed_for_delete()
       file->use_hidden_primary_key();
     else
     {
-      mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+      mark_index_columns_for_read(s->primary_key);
       need_signal= true;
     }
   }
@@ -7434,7 +7462,7 @@ void TABLE::mark_columns_needed_for_update()
       file->use_hidden_primary_key();
     else
     {
-      mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+      mark_index_columns_for_read(s->primary_key);
       need_signal= true;
     }
   }
@@ -7594,7 +7622,7 @@ void TABLE::mark_columns_per_binlog_row_image()
           if ((my_field->flags & PRI_KEY_FLAG) ||
               (my_field->type() != MYSQL_TYPE_BLOB))
           {
-            bitmap_set_bit(read_set, my_field->field_index);
+            my_field->register_field_in_read_map();
             bitmap_set_bit(rpl_write_set, my_field->field_index);
           }
         }
@@ -7606,7 +7634,7 @@ void TABLE::mark_columns_per_binlog_row_image()
           We don't need to mark the primary key in the rpl_write_set as the
           binary log will include all columns read anyway.
         */
-        mark_columns_used_by_index_no_reset(s->primary_key, read_set);
+        mark_index_columns_for_read(s->primary_key);
         if (versioned())
         {
           // TODO: After MDEV-18432 we don't pass history rows, so remove this:

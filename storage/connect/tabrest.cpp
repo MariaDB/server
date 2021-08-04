@@ -1,5 +1,5 @@
 /************** tabrest C++ Program Source Code File (.CPP) ************/
-/* PROGRAM NAME: tabrest   Version 2.0                                 */
+/* PROGRAM NAME: tabrest   Version 2.1                                 */
 /*  (C) Copyright to the author Olivier BERTRAND          2018 - 2021  */
 /*  This program is the REST Web API support for MariaDB.              */
 /*  The way Connect handles NOSQL data returned by REST queries is     */
@@ -13,10 +13,10 @@
 #include <my_global.h>    // All MariaDB stuff
 #include <mysqld.h>
 #include <sql_error.h>
-#if !defined(__WIN__) && !defined(_WINDOWS)
+#if !defined(_WIN32) && !defined(_WINDOWS)
 #include <sys/types.h>
 #include <sys/wait.h>
-#endif	 // !__WIN__ && !_WINDOWS
+#endif	 // !_WIN32 && !_WINDOWS
 
 /***********************************************************************/
 /*  Include application header files:                                  */
@@ -37,7 +37,7 @@
 #include "tabrest.h"
 
 #if defined(connect_EXPORTS)
-#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_WARN, 0, M)
+#define PUSH_WARNING(M) push_warning(current_thd, Sql_condition::WARN_LEVEL_NOTE, 0, M)
 #else
 #define PUSH_WARNING(M) htrc(M)
 #endif
@@ -65,9 +65,9 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 			my_snprintf(buf, sizeof(buf)-1, "%s/%s", Http, Uri);
 
 	} else
-    my_snprintf(buf, sizeof(buf)-1, "%s", Http);
+		my_snprintf(buf, sizeof(buf)-1, "%s", Http);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 	char cmd[1024];
 	STARTUPINFO si;
 	PROCESS_INFORMATION pi;
@@ -90,7 +90,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		sprintf(g->Message, "CreateProcess curl failed (%d)", GetLastError());
 		rc = 1;
 	}	// endif CreateProcess
-#else   // !__WIN__
+#else   // !_WIN32
 	char  fn[600];
 	pid_t pID;
 
@@ -130,7 +130,7 @@ int Xcurl(PGLOBAL g, PCSZ Http, PCSZ Uri, PCSZ filename)
 		// Parent process
 		wait(NULL);  // Wait for the child to terminate
 	}	// endif pID
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	return rc;
 } // end of Xcurl
@@ -147,7 +147,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 	if (trace(515))
 		htrc("Looking for GetRest library\n");
 
-#if defined(__WIN__) || defined(_WINDOWS)
+#if defined(_WIN32) || defined(_WINDOWS)
 	HANDLE Hdll;
 	const char* soname = "GetRest.dll";   // Module name
 
@@ -176,7 +176,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 		FreeLibrary((HMODULE)Hdll);
 		return NULL;
 	} // endif getRestFnc
-#else   // !__WIN__
+#else   // !_WIN32
 	void* Hso;
 	const char* error = NULL;
 	const char* soname = "GetRest.so";   // Module name
@@ -195,7 +195,7 @@ XGETREST GetRestFunction(PGLOBAL g)
 		dlclose(Hso);
 		return NULL;
 	} // endif getdef
-#endif  // !__WIN__
+#endif  // !_WIN32
 #else   // REST_SOURCE
 	getRestFnc = restGetFile;
 #endif	// REST_SOURCE

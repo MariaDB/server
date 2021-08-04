@@ -1,5 +1,7 @@
 create table t (a int) with system versioning;
+set @before= UNIX_TIMESTAMP(now(6));
 insert into t values (1);
+set @after= UNIX_TIMESTAMP(now(6));
 update t set a= 2;
 
 show global variables like 'system_versioning_asof';
@@ -51,18 +53,18 @@ set system_versioning_asof= '2011-00-28 00:00';
 set system_versioning_asof= '0000-00-00 00:00';
 
 --echo # GLOBAL @@system_versioning_asof
-set global system_versioning_asof= '1911-11-11 11:11:11.1111119';
+set global system_versioning_asof= '1991-11-11 11:11:11.1111119';
 show global variables like 'system_versioning_asof';
 
-set global system_versioning_asof= '1900-01-01 00:00:00';
+set global system_versioning_asof= '1990-01-01 00:00:00';
 show global variables like 'system_versioning_asof';
 
 --enable_prepare_warnings
-set global system_versioning_asof= timestamp'1911-11-11 11:11:11.1111119';
+set global system_versioning_asof= timestamp'1991-11-11 11:11:11.1111119';
 --disable_prepare_warnings
 show global variables like 'system_versioning_asof';
 
-set @ts= timestamp'1900-01-01 00:00:00';
+set @ts= timestamp'1990-01-01 00:00:00';
 set global system_versioning_asof= @ts;
 show global variables like 'system_versioning_asof';
 
@@ -70,28 +72,34 @@ set global system_versioning_asof= default;
 select @@global.system_versioning_asof;
 
 --echo # SESSION @@system_versioning_asof
-set system_versioning_asof= '1911-11-11 11:11:11.1111119';
+set system_versioning_asof= '1991-11-11 11:11:11.1111119';
 show variables like 'system_versioning_asof';
 
-set system_versioning_asof= '1900-01-01 00:00:00';
+set system_versioning_asof= '1990-01-01 00:00:00';
 show variables like 'system_versioning_asof';
 
 --enable_prepare_warnings
-set system_versioning_asof= timestamp'1911-11-11 11:11:11.1111119';
+set system_versioning_asof= timestamp'1991-11-11 11:11:11.1111119';
 --disable_prepare_warnings
 show variables like 'system_versioning_asof';
 
-set @ts= timestamp'1900-01-01 00:00:00';
+set @ts= timestamp'1990-01-01 00:00:00';
 set system_versioning_asof= @ts;
 show variables like 'system_versioning_asof';
 
 --echo # DEFAULT: value is copied from GLOBAL to SESSION
-set global system_versioning_asof= timestamp'1911-11-11 11:11:11.111111';
-set system_versioning_asof= '1900-01-01 00:00:00';
+set global time_zone= "+03:00";
+set time_zone= "+10:00";
+set global system_versioning_asof= timestamp'1991-11-11 11:11:11.111111';
+set system_versioning_asof= '1990-01-01 00:00:00';
 select @@global.system_versioning_asof != @@system_versioning_asof as different;
 set system_versioning_asof= default;
+select @@global.system_versioning_asof != @@system_versioning_asof as different;
+set global system_versioning_asof= default;
 select @@global.system_versioning_asof = @@system_versioning_asof as equal;
 
+set global time_zone= DEFAULT;
+set time_zone= DEFAULT;
 set global system_versioning_asof= DEFAULT;
 set system_versioning_asof= DEFAULT;
 select @@global.system_versioning_asof, @@system_versioning_asof;
@@ -104,6 +112,47 @@ select * from t for system_time all;
 select * from t for system_time from '1970-01-01 00:00' to current_timestamp(6);
 select * from t for system_time between '1970-01-01 00:00' and current_timestamp(6);
 
+-- echo # MDEV-16026: Global system_versioning_asof must not be used if client sessions can have non-default time zone
+-- echo # changing time zone should not abuse `system_versioning_asof`
+
+set session time_zone = '+10:00';
+set global system_versioning_asof = '1999-09-08 00:00:00.000000';
+show global variables like 'system_versioning_asof';
+set session time_zone = '+03:00';
+show global variables like 'system_versioning_asof';
+
+set session time_zone = '+03:00';
+set session system_versioning_asof = '2000-09-08 00:00:00.000000';
+show session variables like 'system_versioning_asof';
+set session time_zone = '+10:00';
+show session variables like 'system_versioning_asof';
+-- echo # global and local time zones should not interfere
+show global variables like 'system_versioning_asof';
+
+set time_zone= "+10:00";
+set system_versioning_asof= FROM_UNIXTIME(@before);
+select * from t as empty;
+set system_versioning_asof= FROM_UNIXTIME(@after);
+select * from t as nonempty;
+
+set time_zone= "+03:00";
+set system_versioning_asof= FROM_UNIXTIME(@before);
+select * from t as empty;
+set system_versioning_asof= FROM_UNIXTIME(@after);
+select * from t as nonempty;
+
+--echo # MDEV-16481: set global system_versioning_asof=sf() crashes in specific case
+--echo # Using global variable inside a stored function should not crash
+create or replace function now_global() returns timestamp
+  return  CONVERT_TZ(now(), @@session.time_zone, @@global.time_zone);
+set global system_versioning_asof= now_global();
+drop function now_global;
+
+set global time_zone= "SYSTEM";
+set time_zone= "SYSTEM";
+set global system_versioning_asof= default;
+set system_versioning_asof= default;
+
 show status like "Feature_system_versioning";
 
 drop table t;
@@ -115,7 +164,7 @@ create or replace table t1 (x int) with system versioning;
 create or replace table t2 (y int);
 insert into t1 values (1);
 insert into t2 values (1);
-set system_versioning_asof= '1970-01-01 00:00:00';
+set system_versioning_asof= '1970-01-02 00:00:00';
 delete t1, t2 from t1 join t2 where t1.x = t2.y;
 select * from t1 for system_time as of timestamp now(6);
 

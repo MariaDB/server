@@ -40,7 +40,7 @@ BEGIN
   eval 'sub USE_NETPING { $use_netping }';
 }
   
-sub sleep_until_file_created ($$$$);
+sub sleep_until_file_created ($$$$$);
 sub mtr_ping_port ($);
 
 sub mtr_ping_port ($) {
@@ -102,8 +102,9 @@ sub mtr_ping_port ($) {
 
 # FIXME check that the pidfile contains the expected pid!
 
-sub sleep_until_file_created ($$$$) {
+sub sleep_until_file_created ($$$$$) {
   my $pidfile= shift;
+  my $expectfile = shift;
   my $timeout= shift;
   my $proc=     shift;
   my $warn_seconds = shift;
@@ -121,8 +122,9 @@ sub sleep_until_file_created ($$$$) {
     my $seconds= ($loop * $sleeptime) / 1000;
 
     # Check if it died after the fork() was successful
-    if ( defined $proc and ! $proc->wait_one(0) )
+    if ( defined $proc and ! $proc->wait_one(0, 1) )
     {
+      return 1 if -r $expectfile;
       mtr_warning("Process $proc died after mysql-test-run waited $seconds " .
 		  "seconds for $pidfile to be created.");
       return 0;

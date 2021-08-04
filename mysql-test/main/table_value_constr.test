@@ -1630,6 +1630,28 @@ select * from t1;
 
 drop table t1;
 
+
+--echo #
+--echo # MDEV-25484: Derived table using TVC with LIMIT and ORDER BY
+--echo #
+
+create table t1 (a int);
+insert into t1 values (3), (7), (1);
+
+select * from ( (select * from t1 limit 2) order by 1 desc) as dt;
+(values (3), (7), (1) limit 2) order by 1 desc;
+select * from ( (values (3), (7), (1) limit 2) order by 1 desc) as dt;
+
+
+select * from ( select * from t1 order by 1 limit 2 ) as dt;
+values (3),(7),(1) order by 1 limit 2;
+select * from ( values (3),(7),(1) order by 1 limit 2 ) as dt;
+
+values (3),(7),(1) union values (2),(4) order by 1 limit 2;
+select * from (values (3),(7),(1) union values (2),(4) order by 1 limit 2) as dt;
+
+drop table t1;
+
 --echo End of 10.3 tests
 
 --echo #

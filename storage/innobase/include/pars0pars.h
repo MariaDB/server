@@ -367,16 +367,6 @@ pars_procedure_definition(
 					table */
 	que_node_t*	stat_list);	/*!< in: statement list */
 
-/*************************************************************//**
-Parses a stored procedure call, when this is not within another stored
-procedure, that is, the client issues a procedure call directly.
-In MySQL/InnoDB, stored InnoDB procedures are invoked via the
-parsed procedure tree, not via InnoDB SQL, so this function is not used.
-@return query graph */
-que_fork_t*
-pars_stored_procedure_call(
-/*=======================*/
-	sym_node_t*	sym_node);	/*!< in: stored procedure name */
 /** Completes a query graph by adding query thread and fork nodes
 above it and prepares the graph for running.
 @param[in]	node		root node for an incomplete query

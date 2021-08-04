@@ -1,6 +1,6 @@
 /*****************************************************************************
 
-Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
+Copyright (c) 2011, 2021, Oracle and/or its affiliates.
 Copyright (c) 2016, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
@@ -1279,6 +1279,9 @@ fts_cache_node_add_positions(
 		ptr = ilist + node->ilist_size;
 
 		node->ilist_size_alloc = new_size;
+		if (cache) {
+			cache->total_size += new_size;
+		}
 	}
 
 	ptr_start = ptr;
@@ -1305,16 +1308,15 @@ fts_cache_node_add_positions(
 		if (node->ilist_size > 0) {
 			memcpy(ilist, node->ilist, node->ilist_size);
 			ut_free(node->ilist);
+			if (cache) {
+				cache->total_size -= node->ilist_size;
+			}
 		}
 
 		node->ilist = ilist;
 	}
 
 	node->ilist_size += enc_len;
-
-	if (cache) {
-		cache->total_size += enc_len;
-	}
 
 	if (node->first_doc_id == FTS_NULL_DOC_ID) {
 		node->first_doc_id = doc_id;
@@ -1556,12 +1558,13 @@ static dberr_t fts_lock_table(trx_t *trx, const char *table_name)
       if (!--n)
       {
         err= DB_LOCK_WAIT_TIMEOUT;
-        break;
+        goto fail;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
       dict_sys.mutex_lock();
     }
     dict_sys.mutex_unlock();
+fail:
     table->release();
     return err;
   }
@@ -6104,60 +6107,5 @@ func_exit:
 		/* Register the table with the optimize thread. */
 		fts_optimize_add_table(table);
 		dict_sys.mutex_unlock();
-	}
-}
-
-/** Check if the all the auxillary tables associated with FTS index are in
-consistent state. For now consistency is check only by ensuring
-index->page_no != FIL_NULL
-@param[out]	base_table	table has host fts index
-@param[in,out]	trx		trx handler */
-void
-fts_check_corrupt(
-	dict_table_t*	base_table,
-	trx_t*		trx)
-{
-	bool		sane = true;
-	fts_table_t	fts_table;
-
-	/* Iterate over the common table and check for their sanity. */
-	FTS_INIT_FTS_TABLE(&fts_table, NULL, FTS_COMMON_TABLE, base_table);
-
-	for (ulint i = 0; fts_common_tables[i] != NULL && sane; ++i) {
-
-		char	table_name[MAX_FULL_NAME_LEN];
-
-		fts_table.suffix = fts_common_tables[i];
-		fts_get_table_name(&fts_table, table_name);
-
-		dict_table_t*	aux_table = dict_table_open_on_name(
-			table_name, true, FALSE, DICT_ERR_IGNORE_NONE);
-
-		if (aux_table == NULL) {
-			dict_set_corrupted(
-				dict_table_get_first_index(base_table),
-				trx, "FTS_SANITY_CHECK");
-			ut_ad(base_table->corrupted == TRUE);
-			sane = false;
-			continue;
-		}
-
-		for (dict_index_t*	aux_table_index =
-			UT_LIST_GET_FIRST(aux_table->indexes);
-		     aux_table_index != NULL;
-		     aux_table_index =
-			UT_LIST_GET_NEXT(indexes, aux_table_index)) {
-
-			/* Check if auxillary table needed for FTS is sane. */
-			if (aux_table_index->page == FIL_NULL) {
-				dict_set_corrupted(
-					dict_table_get_first_index(base_table),
-					trx, "FTS_SANITY_CHECK");
-				ut_ad(base_table->corrupted == TRUE);
-				sane = false;
-			}
-		}
-
-		dict_table_close(aux_table, FALSE, FALSE);
 	}
 }

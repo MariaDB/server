@@ -101,8 +101,7 @@ restart:
 		online = dict_index_is_online_ddl(index);
 		if (online) {
 			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
-			ut_ad(node->trx->dict_operation_lock_mode
-			      != RW_X_LATCH);
+			ut_ad(!node->trx->dict_operation_lock_mode);
 			ut_ad(node->table->id != DICT_INDEXES_ID);
 			ut_ad(node->table->id != DICT_COLUMNS_ID);
 			mtr_s_lock_index(index, &mtr);
@@ -616,6 +615,9 @@ row_undo_ins(
 	if (!row_undo_ins_parse_undo_rec(node, dict_locked)) {
 		return DB_SUCCESS;
 	}
+
+	ut_ad(node->table->is_temporary()
+	      || lock_table_has_locks(node->table));
 
 	/* Iterate over all the indexes and undo the insert.*/
 

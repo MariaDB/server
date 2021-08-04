@@ -516,10 +516,10 @@ buf_page_is_checksum_valid_crc32(
 
 #ifdef UNIV_INNOCHECKSUM
 	extern FILE* log_file;
-	extern unsigned long long cur_page_num;
+	extern uint32_t cur_page_num;
 	if (log_file) {
-		fprintf(log_file, "page::%llu;"
-			" crc32 calculated = %u;"
+		fprintf(log_file, "page::" UINT32PF ";"
+			" crc32 calculated = " UINT32PF ";"
 			" recorded checksum field1 = " ULINTPF " recorded"
 			" checksum field2 =" ULINTPF "\n", cur_page_num,
 			crc32, checksum_field1, checksum_field2);

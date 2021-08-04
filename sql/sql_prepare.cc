@@ -1612,7 +1612,12 @@ static int mysql_test_select(Prepared_statement *stmt,
   if (!lex->describe && !thd->lex->analyze_stmt && !stmt->is_sql_prepare())
   {
     /* Make copy of item list, as change_columns may change it */
-    List<Item> fields(lex->first_select_lex()->item_list);
+    SELECT_LEX_UNIT* master_unit= unit->first_select()->master_unit();
+    bool is_union_op=
+      master_unit->is_unit_op() || master_unit->fake_select_lex;
+
+    List<Item> fields(is_union_op ? unit->item_list :
+                                    lex->first_select_lex()->item_list);
 
     /* Change columns if a procedure like analyse() */
     if (unit->last_procedure && unit->last_procedure->change_columns(thd, fields))
@@ -1734,7 +1739,7 @@ static bool mysql_test_call_fields(Prepared_statement *stmt,
 
   while ((item= it++))
   {
-    if (item->fix_fields_if_needed_for_scalar(thd, it.ref()))
+    if (item->fix_fields_if_needed(thd, it.ref()))
       goto err;
   }
   DBUG_RETURN(FALSE);
@@ -6244,6 +6249,7 @@ extern "C" int execute_sql_command(const char *command,
   THD *new_thd= 0;
   int result;
   my_bool qc_save= 0;
+  Reprepare_observer *save_reprepare_observer= nullptr;
 
   if (!thd)
   {
@@ -6264,6 +6270,8 @@ extern "C" int execute_sql_command(const char *command,
 
     qc_save= thd->query_cache_is_applicable;
     thd->query_cache_is_applicable= 0;
+    save_reprepare_observer= thd->m_reprepare_observer;
+    thd->m_reprepare_observer= nullptr;
   }
   sql_text.str= (char *) command;
   sql_text.length= strlen(command);
@@ -6301,7 +6309,10 @@ extern "C" int execute_sql_command(const char *command,
   if (new_thd)
     delete new_thd;
   else
+  {
     thd->query_cache_is_applicable= qc_save;
+    thd->m_reprepare_observer= save_reprepare_observer;
+  }
 
   *hosts= 0;
   return result;

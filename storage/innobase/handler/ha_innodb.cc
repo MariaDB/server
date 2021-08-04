@@ -14369,8 +14369,6 @@ ha_innobase::info_low(
 		stats.update_time = (ulong) ib_table->update_time;
 	}
 
-	DBUG_EXECUTE_IF("dict_sys_mutex_avoid", goto func_exit;);
-
 	dict_stats_init(ib_table);
 
 	if (flag & HA_STATUS_VARIABLE) {
@@ -14543,7 +14541,7 @@ ha_innobase::info_low(
 					sql_print_error(
 						"Index %s of %s has %u columns"
 					        " unique inside InnoDB, but "
-						"MySQL is asking statistics for"
+						"server is asking statistics for"
 					        " %lu columns. Have you mixed "
 						"up .frm files from different "
 						" installations? %s",
@@ -15286,32 +15284,13 @@ struct table_list_item {
 	const char*		name;
 };
 
-/*****************************************************************//**
-Checks if ALTER TABLE may change the storage engine of the table.
-Changing storage engines is not allowed for tables for which there
-are foreign key constraints (parent or child tables).
-@return TRUE if can switch engines */
-
-bool
-ha_innobase::can_switch_engines(void)
-/*=================================*/
+/** @return whether ALTER TABLE may change the storage engine of the table */
+bool ha_innobase::can_switch_engines()
 {
-	DBUG_ENTER("ha_innobase::can_switch_engines");
-
-	update_thd();
-
-	m_prebuilt->trx->op_info =
-			"determining if there are foreign key constraints";
-
-	row_mysql_freeze_data_dictionary(m_prebuilt->trx);
-
-	bool	can_switch = m_prebuilt->table->referenced_set.empty()
-		&& m_prebuilt->table->foreign_set.empty();
-
-	row_mysql_unfreeze_data_dictionary(m_prebuilt->trx);
-	m_prebuilt->trx->op_info = "";
-
-	DBUG_RETURN(can_switch);
+  DBUG_ENTER("ha_innobase::can_switch_engines");
+  update_thd();
+  DBUG_RETURN(m_prebuilt->table->foreign_set.empty() &&
+              m_prebuilt->table->referenced_set.empty());
 }
 
 /*******************************************************************//**

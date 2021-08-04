@@ -2382,6 +2382,11 @@ innodb_instant_alter_column_allowed_reason:
 				& ALTER_ADD_COLUMN));
 
 		if (const Field* f = cf.field) {
+			/* An AUTO_INCREMENT attribute can only
+			be added to an existing column by ALGORITHM=COPY,
+			but we can remove the attribute. */
+			ut_ad((*af)->unireg_check != Field::NEXT_NUMBER
+			      || f->unireg_check == Field::NEXT_NUMBER);
 			if (!f->real_maybe_null() || (*af)->real_maybe_null())
 				goto next_column;
 			/* We are changing an existing column
@@ -2390,7 +2395,6 @@ innodb_instant_alter_column_allowed_reason:
 				    & ALTER_COLUMN_NOT_NULLABLE);
 			/* Virtual columns are never NOT NULL. */
 			DBUG_ASSERT(f->stored_in_db());
-
 			switch ((*af)->type()) {
 			case MYSQL_TYPE_TIMESTAMP:
 			case MYSQL_TYPE_TIMESTAMP2:
@@ -2410,14 +2414,7 @@ innodb_instant_alter_column_allowed_reason:
 				break;
 			default:
 				/* For any other data type, NULL
-				values are not converted.
-				(An AUTO_INCREMENT attribute cannot
-				be introduced to a column with
-				ALGORITHM=INPLACE.) */
-				ut_ad(((*af)->unireg_check
-				       == Field::NEXT_NUMBER)
-				      == (f->unireg_check
-					  == Field::NEXT_NUMBER));
+				values are not converted. */
 				goto next_column;
 			}
 
@@ -6158,7 +6155,7 @@ prepare_inplace_alter_table_dict(
 	dict_table_t*		user_table;
 	dict_index_t*		fts_index	= NULL;
 	bool			new_clustered	= false;
-	dberr_t			error;
+	dberr_t			error		= DB_SUCCESS;
 	ulint			num_fts_index;
 	dict_add_v_col_t*	add_v = NULL;
 	ha_innobase_inplace_ctx*ctx;
@@ -6282,11 +6279,27 @@ prepare_inplace_alter_table_dict(
 	/* Acquire a lock on the table before creating any indexes. */
 	bool table_lock_failed = false;
 
-	if (ctx->online) {
-		error = DB_SUCCESS;
-	} else {
+	if (!ctx->online) {
+acquire_lock:
 		ctx->prebuilt->trx->op_info = "acquiring table lock";
-		error = lock_table_for_trx(ctx->new_table, ctx->trx, LOCK_S);
+		error = lock_table_for_trx(user_table, ctx->trx, LOCK_S);
+	} else if (add_key_nums) {
+		/* FIXME: trx_resurrect_table_locks() will not resurrect
+		MDL for any recovered transactions that may hold locks on
+		the table. We will prevent race conditions by "unnecessarily"
+		acquiring an InnoDB table lock even for online operation,
+		to ensure that the rollback of recovered transactions will
+		not run concurrently with online ADD INDEX. */
+		user_table->lock_mutex_lock();
+		for (lock_t *lock = UT_LIST_GET_FIRST(user_table->locks);
+		     lock;
+		     lock = UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock)) {
+			if (lock->trx->is_recovered) {
+				user_table->lock_mutex_unlock();
+				goto acquire_lock;
+			}
+		}
+		user_table->lock_mutex_unlock();
 	}
 
 	if (fts_exist) {
@@ -7482,6 +7495,10 @@ alter_fill_stored_column(
 	}
 }
 
+static bool alter_templ_needs_rebuild(const TABLE* altered_table,
+                                      const Alter_inplace_info* ha_alter_info,
+                                      const dict_table_t* table);
+
 
 /** Allows InnoDB to update internal structures with concurrent
 writes blocked (provided that check_if_supported_inplace_alter()
@@ -7512,7 +7529,6 @@ ha_innobase::prepare_inplace_alter_table(
 	mem_heap_t*	heap;
 	const char**	col_names;
 	int		error;
-	ulint		max_col_len;
 	ulint		add_autoinc_col_no	= ULINT_UNDEFINED;
 	ulonglong	autoinc_col_max_value	= 0;
 	ulint		fts_doc_col_no		= ULINT_UNDEFINED;
@@ -7550,12 +7566,6 @@ ha_innobase::prepare_inplace_alter_table(
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		/* Nothing to do */
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
-		if (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
-
-			online_retry_drop_indexes(
-				m_prebuilt->table, m_user_thd);
-
-		}
 		DBUG_RETURN(false);
 	}
 
@@ -7636,11 +7646,7 @@ ha_innobase::prepare_inplace_alter_table(
 		    ha_alter_info->key_count)) {
 err_exit_no_heap:
 		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
-		if (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
-
-			online_retry_drop_indexes(
-				m_prebuilt->table, m_user_thd);
-		}
+		online_retry_drop_indexes(m_prebuilt->table, m_user_thd);
 		DBUG_RETURN(true);
 	}
 
@@ -7721,7 +7727,13 @@ check_if_ok_to_rename:
 			       & 1U << DICT_TF_POS_DATA_DIR);
 	}
 
-	max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(info.flags());
+
+	/* ALGORITHM=INPLACE without rebuild (10.3+ ALGORITHM=NOCOPY)
+	must use the current ROW_FORMAT of the table. */
+	const ulint max_col_len = DICT_MAX_FIELD_LEN_BY_FORMAT_FLAG(
+		innobase_need_rebuild(ha_alter_info, this->table)
+		? info.flags()
+		: m_prebuilt->table->flags);
 
 	/* Check each index's column length to make sure they do not
 	exceed limit */
@@ -8083,6 +8095,8 @@ err_exit:
 	const ha_table_option_struct& alt_opt=
 		*ha_alter_info->create_info->option_struct;
 
+        ha_innobase_inplace_ctx *ctx = NULL;
+
 	if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
 	    || ((ha_alter_info->handler_flags & ~(INNOBASE_INPLACE_IGNORE
 						  | INNOBASE_ALTER_NOCREATE
@@ -8090,15 +8104,11 @@ err_exit:
 		== ALTER_OPTIONS
 		&& !alter_options_need_rebuild(ha_alter_info, table))) {
 
-		DBUG_ASSERT(!m_prebuilt->trx->dict_operation_lock_mode);
-		if (ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE) {
-			online_retry_drop_indexes(m_prebuilt->table,
-						  m_user_thd);
-		}
+		DBUG_ASSERT(m_prebuilt->trx->dict_operation_lock_mode == 0);
+		online_retry_drop_indexes(m_prebuilt->table, m_user_thd);
 
 		if (heap) {
-			ha_alter_info->handler_ctx
-				= new ha_innobase_inplace_ctx(
+			ctx = new ha_innobase_inplace_ctx(
 					m_prebuilt,
 					drop_index, n_drop_index,
 					drop_fk, n_drop_fk,
@@ -8110,6 +8120,7 @@ err_exit:
 					 || !thd_is_strict_mode(m_user_thd)),
 					alt_opt.page_compressed,
 					alt_opt.page_compression_level);
+			ha_alter_info->handler_ctx = ctx;
 		}
 
 		if ((ha_alter_info->handler_flags
@@ -8124,6 +8135,25 @@ err_exit:
 			    ha_alter_info, altered_table, table)) {
 			DBUG_RETURN(true);
 		}
+
+		if (!(ha_alter_info->handler_flags & INNOBASE_ALTER_DATA)
+		    && alter_templ_needs_rebuild(altered_table, ha_alter_info,
+						 ctx->new_table)
+		    && ctx->new_table->n_v_cols > 0) {
+			/* Changing maria record structure may end up here only
+			if virtual columns were altered. In this case, however,
+			vc_templ should be rebuilt. Since we don't actually
+			change any stored data, we can just dispose vc_templ;
+			it will be recreated on next ha_innobase::open(). */
+
+			DBUG_ASSERT(ctx->new_table == ctx->old_table);
+
+			dict_free_vc_templ(ctx->new_table->vc_templ);
+			UT_DELETE(ctx->new_table->vc_templ);
+
+			ctx->new_table->vc_templ = NULL;
+		}
+
 
 success:
 		/* Memorize the future transaction ID for committing
@@ -8249,35 +8279,6 @@ found_col:
 	DBUG_RETURN(true);
 }
 
-/** Check that the column is part of a virtual index(index contains
-virtual column) in the table
-@param[in]	table		Table containing column
-@param[in]	col		column to be checked
-@return true if this column is indexed with other virtual columns */
-static
-bool
-dict_col_in_v_indexes(
-	dict_table_t*	table,
-	dict_col_t*	col)
-{
-	for (dict_index_t* index = dict_table_get_next_index(
-		dict_table_get_first_index(table)); index != NULL;
-		index = dict_table_get_next_index(index)) {
-		if (!dict_index_has_virtual(index)) {
-			continue;
-		}
-		for (ulint k = 0; k < index->n_fields; k++) {
-			dict_field_t*   field
-				= dict_index_get_nth_field(index, k);
-			if (field->col->ind == col->ind) {
-				return(true);
-			}
-		}
-	}
-
-	return(false);
-}
-
 /* Check whether a columnn length change alter operation requires
 to rebuild the template.
 @param[in]	altered_table	TABLE object for new version of table.
@@ -8289,9 +8290,9 @@ to rebuild the template.
 static
 bool
 alter_templ_needs_rebuild(
-	TABLE*                  altered_table,
-	Alter_inplace_info*     ha_alter_info,
-	dict_table_t*		table)
+	const TABLE*            altered_table,
+	const Alter_inplace_info*     ha_alter_info,
+	const dict_table_t*		table)
 {
         ulint	i = 0;
 
@@ -8301,8 +8302,7 @@ alter_templ_needs_rebuild(
 			for (ulint j=0; j < table->n_cols; j++) {
 				dict_col_t* cols
                                    = dict_table_get_nth_col(table, j);
-				if (cf.length > cols->len
-				    && dict_col_in_v_indexes(table, cols)) {
+				if (cf.length > cols->len) {
 					return(true);
 				}
 			}
