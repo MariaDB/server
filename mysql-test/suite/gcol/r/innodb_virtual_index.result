@@ -296,3 +296,17 @@ Table	Op	Msg_type	Msg_text
 test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
 test.t1	optimize	status	OK
 DROP TABLE t1;
+#
+# MDEV-20154 Assertion `len <= col->len || ((col->mtype) == 5
+# || (col->mtype) == 14)' failed in row_merge_buf_add
+#
+CREATE TABLE t1 (
+a VARCHAR(2500),
+b VARCHAR(2499) AS (a) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES ('foo');
+ALTER TABLE t1 MODIFY a VARCHAR(2600), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD KEY (b), ALGORITHM=INPLACE;
+# Cleanup
+DROP TABLE t1;
+# End of 10.2 tests
