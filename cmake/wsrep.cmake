@@ -64,4 +64,7 @@ Then restart the build.
   ADD_SUBDIRECTORY(wsrep-lib)
   SET(BUILD_SHARED_LIBS ${old_BUILD_SHARED_LIBS})
 ENDIF()
+IF (NOT WIN32)
+  ADD_FEATURE_INFO(WSREP WITH_WSREP "WSREP replication API (to use, e.g. Galera Replication library)")
+ENDIF()
 ENDIF(NOT WITHOUT_SERVER)

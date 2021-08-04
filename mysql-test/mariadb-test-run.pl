@@ -2737,7 +2737,9 @@ sub mysql_server_start($) {
 
   if (!$opt_embedded_server)
   {
-    mysqld_start($mysqld,$extra_opts);
+    mysqld_start($mysqld, $extra_opts) or
+      mtr_error("Failed to start mysqld ".$mysqld->name()." with command "
+        . $ENV{MYSQLD_LAST_CMD});
 
     # Save this test case information, so next can examine it
     $mysqld->{'started_tinfo'}= $tinfo;
@@ -2760,10 +2762,10 @@ sub mysql_server_start($) {
 
 sub mysql_server_wait {
   my ($mysqld, $tinfo) = @_;
+  my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
 
-  if (!sleep_until_file_created($mysqld->value('pid-file'),
-                                $opt_start_timeout,
-                                $mysqld->{'proc'},
+  if (!sleep_until_file_created($mysqld->value('pid-file'), $expect_file,
+                                $opt_start_timeout, $mysqld->{'proc'},
                                 $warn_seconds))
   {
     $tinfo->{comment}= "Failed to start ".$mysqld->name() . "\n";
@@ -4080,9 +4082,12 @@ sub run_testcase ($$) {
       # ----------------------------------------------------
       # Check if it was an expected crash
       # ----------------------------------------------------
-      my $check_crash = check_expected_crash_and_restart($wait_for_proc);
+      my @mysqld = grep($wait_for_proc eq $_->{proc}, mysqlds());
+      goto SRVDIED unless @mysqld;
+      my $check_crash = check_expected_crash_and_restart($mysqld[0]);
       if ($check_crash == 0) # unexpected exit/crash of $wait_for_proc
       {
+        $proc= $mysqld[0]->{proc};
         goto SRVDIED;
       }
       elsif ($check_crash == 1) # $wait_for_proc was started again by check_expected_crash_and_restart()
@@ -4653,61 +4658,52 @@ sub check_warnings_post_shutdown {
 }
 
 #
-# Loop through our list of processes and look for and entry
-# with the provided pid, if found check for the file indicating
-# expected crash and restart it.
+# Check for the file indicating expected crash and restart it.
 #
 sub check_expected_crash_and_restart {
-  my ($proc)= @_;
+  my $mysqld = shift;
 
-  foreach my $mysqld ( mysqlds() )
+  # Check if crash expected by looking at the .expect file
+  # in var/tmp
+  my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
+  if ( -f $expect_file )
   {
-    next unless ( $mysqld->{proc} and $mysqld->{proc} eq $proc );
+    mtr_verbose("Crash was expected, file '$expect_file' exists");
 
-    # Check if crash expected by looking at the .expect file
-    # in var/tmp
-    my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
-    if ( -f $expect_file )
+    for (my $waits = 0;  $waits < 50;  mtr_milli_sleep(100), $waits++)
     {
-      mtr_verbose("Crash was expected, file '$expect_file' exists");
-
-      for (my $waits = 0;  $waits < 50;  mtr_milli_sleep(100), $waits++)
+      # Race condition seen on Windows: try again until file not empty
+      next if -z $expect_file;
+      # If last line in expect file starts with "wait"
+      # sleep a little and try again, thus allowing the
+      # test script to control when the server should start
+      # up again. Keep trying for up to 5s at a time.
+      my $last_line= mtr_lastlinesfromfile($expect_file, 1);
+      if ($last_line =~ /^wait/ )
       {
-	# Race condition seen on Windows: try again until file not empty
-	next if -z $expect_file;
-	# If last line in expect file starts with "wait"
-	# sleep a little and try again, thus allowing the
-	# test script to control when the server should start
-	# up again. Keep trying for up to 5s at a time.
-	my $last_line= mtr_lastlinesfromfile($expect_file, 1);
-	if ($last_line =~ /^wait/ )
-	{
-	  mtr_verbose("Test says wait before restart") if $waits == 0;
-	  next;
-	}
-
-	# Ignore any partial or unknown command
-	next unless $last_line =~ /^restart/;
-	# If last line begins "restart:", the rest of the line is read as
-        # extra command line options to add to the restarted mysqld.
-        # Anything other than 'wait' or 'restart:' (with a colon) will
-        # result in a restart with original mysqld options.
-	if ($last_line =~ /restart:(.+)/) {
-	  my @rest_opt= split(' ', $1);
-	  $mysqld->{'restart_opts'}= \@rest_opt;
-	} else {
-	  delete $mysqld->{'restart_opts'};
-	}
-	unlink($expect_file);
-
-	# Start server with same settings as last time
-	mysqld_start($mysqld, $mysqld->{'started_opts'});
-
-	return 1;
+        mtr_verbose("Test says wait before restart") if $waits == 0;
+        next;
       }
-      # Loop ran through: we should keep waiting after a re-check
-      return 2;
+
+      # Ignore any partial or unknown command
+      next unless $last_line =~ /^restart/;
+      # If last line begins "restart:", the rest of the line is read as
+      # extra command line options to add to the restarted mysqld.
+      # Anything other than 'wait' or 'restart:' (with a colon) will
+      # result in a restart with original mysqld options.
+      if ($last_line =~ /restart:(.+)/) {
+        my @rest_opt= split(' ', $1);
+        $mysqld->{'restart_opts'}= \@rest_opt;
+      } else {
+        delete $mysqld->{'restart_opts'};
+      }
+      unlink($expect_file);
+
+      # Start server with same settings as last time
+      return mysqld_start($mysqld, $mysqld->{'started_opts'});
     }
+    # Loop ran through: we should keep waiting after a re-check
+    return 2;
   }
 
   # Not an expected crash
@@ -5064,6 +5060,7 @@ sub mysqld_start ($$) {
 
   if ( defined $exe )
   {
+    mtr_tofile($output, "\$ $exe @$args\n");
     pre_write_errorlog($output);
     $mysqld->{'proc'}= My::SafeProcess->new
       (
@@ -5082,10 +5079,13 @@ sub mysqld_start ($$) {
     mtr_verbose("Started $mysqld->{proc}");
   }
 
-  if (!sleep_until_file_created($mysqld->value('pid-file'),
-                      $opt_start_timeout, $mysqld->{'proc'}, $warn_seconds))
+  $mysqld->{'started_opts'}= $extra_opts;
+
+  my $expect_file= "$opt_vardir/tmp/".$mysqld->name().".expect";
+  my $rc= sleep_until_file_created($mysqld->value('pid-file'), $expect_file,
+           $opt_start_timeout, $mysqld->{'proc'}, $warn_seconds);
+  if (!$rc)
   {
-    my $mname= $mysqld->name();
     # Report failure about the last test case before exit
     my $test_name= mtr_grab_file($path_current_testlog);
     $test_name =~ s/^CURRENT_TEST:\s//;
@@ -5095,13 +5095,8 @@ sub mysqld_start ($$) {
     $tinfo->{logfile}=get_log_from_proc($mysqld->{'proc'}, $tinfo->{name});
     report_option('verbose', 1);
     mtr_report_test($tinfo);
-    mtr_error("Failed to start mysqld $mname with command $exe @$args");
   }
-
-  # Remember options used when starting
-  $mysqld->{'started_opts'}= $extra_opts;
-
-  return;
+  return $rc;
 }
 
 

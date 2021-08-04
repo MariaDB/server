@@ -2098,6 +2098,57 @@ drop view v1;
 #
 # End of 10.1 tests
 #
+#
+# MDEV-17783: AddressSanitizer: stack-buffer-overflow in table_cond_selectivity
+#
+set
+@tmp_jcl=@@join_cache_level,
+@tmp_sel=@@optimizer_use_condition_selectivity;
+set
+join_cache_level=3,
+optimizer_use_condition_selectivity=2;
+CREATE TABLE t1 (
+c1 int, c2 int, c3 int, c4 int, c5 int, c6 int, c7 int, c8 int, c9 int, c10 int,
+c11 int, c12 int, c13 int, c14 int, c15 int, c16 int, c17 int, c18 int, c19 int,
+c20 int, c21 int, c22 int, c23 int, c24 int, c25 int, c26 int, c27 int, c28 int,
+c29 int, c30 int, c31 int, c32 int, c33 int, c34 int
+) ENGINE=InnoDB;
+SELECT * FROM t1
+WHERE
+(c1, c2, c3, c4, c5, c6, c7, c8, c9, c10,
+c11, c12, c13, c14, c15, c16, c17, c18, c19,
+c20, c21, c22, c23, c24, c25, c26, c27, c28, c29,
+c30, c31, c32, c33, c34) IN (SELECT * FROM t1) ;
+c1	c2	c3	c4	c5	c6	c7	c8	c9	c10	c11	c12	c13	c14	c15	c16	c17	c18	c19	c20	c21	c22	c23	c24	c25	c26	c27	c28	c29	c30	c31	c32	c33	c34
+set
+join_cache_level=@tmp_jcl,
+optimizer_use_condition_selectivity=@tmp_sel;
+drop table t1;
+# 
+# MDEV-25013: SIGSEGV in best_extension_by_limited_search | SIGSEGV in restore_prev_nj_state
+# 
+SET join_cache_level=3;
+CREATE TABLE t1 (
+TEXT1 TEXT, TEXT2 TEXT, TEXT3 TEXT, TEXT4 TEXT, TEXT5 TEXT,
+TEXT6 TEXT, TEXT7 TEXT, TEXT8 TEXT, TEXT9 TEXT, TEXT10 TEXT,
+TEXT11 TEXT, TEXT12 TEXT,TEXT13 TEXT,TEXT14 TEXT,TEXT15 TEXT,
+TEXT16 TEXT,TEXT17 TEXT,TEXT18 TEXT,TEXT19 TEXT,TEXT20 TEXT,
+TEXT21 TEXT,TEXT22 TEXT,TEXT23 TEXT,TEXT24 TEXT,TEXT25 TEXT,
+TEXT26 TEXT,TEXT27 TEXT,TEXT28 TEXT,TEXT29 TEXT,TEXT30 TEXT,
+TEXT31 TEXT,TEXT32 TEXT,TEXT33 TEXT,TEXT34 TEXT,TEXT35 TEXT,
+TEXT36 TEXT,TEXT37 TEXT,TEXT38 TEXT,TEXT39 TEXT,TEXT40 TEXT,
+TEXT41 TEXT,TEXT42 TEXT,TEXT43 TEXT,TEXT44 TEXT,TEXT45 TEXT,
+TEXT46 TEXT,TEXT47 TEXT,TEXT48 TEXT,TEXT49 TEXT,TEXT50 TEXT
+) ENGINE=InnoDB;
+EXPLAIN SELECT 1 FROM t1 NATURAL JOIN t1 AS t2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	1	Using where
+1	SIMPLE	t2	hash_ALL	NULL	#hash#$hj	150	test.t1.TEXT1,test.t1.TEXT2,test.t1.TEXT3,test.t1.TEXT4,test.t1.TEXT5,test.t1.TEXT6,test.t1.TEXT7,test.t1.TEXT8,test.t1.TEXT9,test.t1.TEXT10,test.t1.TEXT11,test.t1.TEXT12,test.t1.TEXT13,test.t1.TEXT14,test.t1.TEXT15,test.t1.TEXT16,test.t1.TEXT17,test.t1.TEXT18,test.t1.TEXT19,test.t1.TEXT20,test.t1.TEXT21,test.t1.TEXT22,test.t1.TEXT23,test.t1.TEXT24,test.t1.TEXT25,test.t1.TEXT26,test.t1.TEXT27,test.t1.TEXT28,test.t1.TEXT29,test.t1.TEXT30,test.t1.TEXT31,test.t1.TEXT32,test.t1.TEXT33,test.t1.TEXT34,test.t1.TEXT35,test.t1.TEXT36,test.t1.TEXT37,test.t1.TEXT38,test.t1.TEXT39,test.t1.TEXT40,test.t1.TEXT41,test.t1.TEXT42,test.t1.TEXT43,test.t1.TEXT44,test.t1.TEXT45,test.t1.TEXT46,test.t1.TEXT47,test.t1.TEXT48,test.t1.TEXT49,test.t1.TEXT50	1	Using where; Using join buffer (flat, BNLH join)
+set join_cache_level=@tmp_jcl;
+drop table t1;
+#
+# End of 10.1 tests
+#
 set use_stat_tables= @tmp_ust;
 set optimizer_use_condition_selectivity= @tmp_oucs;
 set @@global.histogram_size=@save_histogram_size;

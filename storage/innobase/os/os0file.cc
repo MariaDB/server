@@ -335,6 +335,10 @@ os_file_lock(
 	int		fd,
 	const char*	name)
 {
+	if (my_disable_locking) {
+		return 0;
+	}
+
 	struct flock lk;
 
 	lk.l_type = F_WRLCK;

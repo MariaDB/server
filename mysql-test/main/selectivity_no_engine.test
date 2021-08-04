@@ -229,6 +229,27 @@ SELECT * FROM t1 WHERE t1.d = 0 AND t1.p = '1' AND t1.i != '-1' AND t1.n = 'some
 set optimizer_use_condition_selectivity= @tmp_mdev8779;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-23937: SIGSEGV in looped best_extension_by_limited_search from greedy_search
+--echo # (Testcase only)
+--echo #
+set
+  @tmp_jcl= @@join_cache_level,
+  @tmp_ucs= @@optimizer_use_condition_selectivity;
+set
+  join_cache_level=3,
+  optimizer_use_condition_selectivity=2;
+
+CREATE TABLE t1 AS SELECT * FROM mysql.user;
+CREATE TABLE t3 (b VARCHAR (1));
+CREATE TABLE t2 (c2 INT);
+INSERT INTO t2 VALUES (1);
+
+EXPLAIN
+SELECT * FROM t1 AS a NATURAL JOIN t1 AS b;
+
+DROP TABLE t1,t2,t3;
+
 --echo # 
 --echo # End of the test file
 --echo # 

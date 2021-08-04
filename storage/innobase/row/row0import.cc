@@ -705,6 +705,14 @@ dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 				return(DB_CORRUPTION);
 			}
 		}
+
+		if (!page_is_comp(block->frame) !=
+		    !dict_table_is_comp(m_table)) {
+			ib_errf(m_trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+				ER_TABLE_SCHEMA_MISMATCH,
+				"ROW_FORMAT mismatch");
+			return DB_CORRUPTION;
+		}
 	}
 
 	return DB_SUCCESS;
@@ -3954,10 +3962,6 @@ row_import_for_mysql(
 
 	prebuilt->trx->op_info = "read meta-data file";
 
-	/* Prevent DDL operations while we are checking. */
-
-	dict_sys.freeze();
-
 	row_import	cfg;
 
 	err = row_import_read_cfg(table, trx->mysql_thd, cfg);
@@ -3981,15 +3985,10 @@ row_import_for_mysql(
 			autoinc = cfg.m_autoinc;
 		}
 
-		dict_sys.unfreeze();
-
 		DBUG_EXECUTE_IF("ib_import_set_index_root_failure",
 				err = DB_TOO_MANY_CONCURRENT_TRXS;);
 
 	} else if (cfg.m_missing) {
-
-		dict_sys.unfreeze();
-
 		/* We don't have a schema file, we will have to discover
 		the index root pages from the .ibd file and skip the schema
 		matching step. */
@@ -4016,8 +4015,6 @@ row_import_for_mysql(
 				err = cfg.set_root_by_heuristic();
 			}
 		}
-	} else {
-		dict_sys.unfreeze();
 	}
 
 	if (err != DB_SUCCESS) {

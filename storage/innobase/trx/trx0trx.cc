@@ -1135,8 +1135,8 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, trx_state_t trx_state)
   if (log_sys.get_flushed_lsn() > lsn)
     return;
 
-  bool flush= srv_file_flush_method != SRV_NOSYNC &&
-              srv_flush_log_at_trx_commit == 1;
+  const bool flush= srv_file_flush_method != SRV_NOSYNC &&
+    (srv_flush_log_at_trx_commit & 1);
 
   if (trx_state == TRX_STATE_PREPARED)
   {
@@ -1695,7 +1695,9 @@ trx_print_low(
 	fprintf(f, ", state %lu", (ulong) trx->state);
 	ut_ad(0);
 state_ok:
-	if (const char *op_info = trx->op_info) {
+	const char* op_info = trx->op_info;
+
+	if (*op_info) {
 		putc(' ', f);
 		fputs(op_info, f);
 	}

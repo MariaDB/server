@@ -1,4 +1,3 @@
-source include/have_debug.inc;
 source include/have_debug_sync.inc;
 source include/not_embedded.inc;
 source include/count_sessions.inc;
@@ -37,8 +36,6 @@ connection default;
 
 SET DEBUG_SYNC = 'RESET';
 
-source include/wait_until_count_sessions.inc;
-
 --echo #
 --echo # End of 5.5 tests
 --echo #
@@ -52,8 +49,12 @@ source include/wait_until_count_sessions.inc;
 --send select sleep(100000)
 
 --connection default
+let $wait_condition= SELECT COUNT(*)=1 FROM information_schema.processlist where state='User sleep';
+source include/wait_condition.inc;
 evalp SHOW EXPLAIN FOR $con_id;
 evalp KILL QUERY $con_id;
+disconnect con1;
+source include/wait_until_count_sessions.inc;
 
 --echo #
 --echo # End of 10.2 tests

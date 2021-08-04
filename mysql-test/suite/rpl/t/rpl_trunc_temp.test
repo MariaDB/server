@@ -42,7 +42,7 @@ truncate t1;
 sync_slave_with_master;
 show status like 'Slave_open_temp_tables';
 
-# Disconnect the master, temp table on slave should dissapear
+# Disconnect the master, temp table on slave should disappear
 disconnect master;
 
 connection slave;

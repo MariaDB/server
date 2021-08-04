@@ -74,6 +74,7 @@ class Item_func_minus;
 class Item_func_mul;
 class Item_func_div;
 class Item_func_mod;
+class Item_type_holder;
 class cmp_item;
 class in_vector;
 class Type_handler_data;
@@ -2455,6 +2456,8 @@ public:
     *(static_cast<MYSQL_TIME*>(this))= *from;
     DBUG_ASSERT(is_valid_datetime_slow());
   }
+  Datetime(my_time_t unix_time, ulong second_part,
+           const Time_zone* time_zone);
 
   bool is_valid_datetime() const
   {
@@ -3886,7 +3889,7 @@ public:
     Performs the final data type validation for a UNION element,
     after the regular "aggregation for result" was done.
   */
-  virtual bool union_element_finalize(const Item * item) const
+  virtual bool union_element_finalize(Item_type_holder* item) const
   {
     return false;
   }
@@ -5386,7 +5389,7 @@ public:
                    const Type_std_attributes *item,
                    SORT_FIELD_ATTR *attr) const override;
   bool is_packable() const override { return true; }
-  bool union_element_finalize(const Item * item) const override;
+  bool union_element_finalize(Item_type_holder* item) const override;
   uint calc_key_length(const Column_definition &def) const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,
@@ -6827,6 +6830,7 @@ public:
   Field *make_conversion_table_field(MEM_ROOT *root,
                                      TABLE *table, uint metadata,
                                      const Field *target) const override;
+  bool union_element_finalize(Item_type_holder* item) const override;
   bool Column_definition_fix_attributes(Column_definition *c) const override;
   bool Column_definition_prepare_stage1(THD *thd,
                                         MEM_ROOT *mem_root,

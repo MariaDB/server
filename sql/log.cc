@@ -2534,7 +2534,7 @@ int check_binlog_magic(IO_CACHE* log, const char** errmsg)
   }
   if (bcmp(magic, BINLOG_MAGIC, sizeof(magic)))
   {
-    *errmsg = "Binlog has bad magic number;  It's not a binary log file that can be used by this version of MySQL";
+    *errmsg = "Binlog has bad magic number;  It's not a binary log file that can be used by this version of MariaDB";
     return 1;
   }
   return 0;
@@ -9953,7 +9953,7 @@ err2:
 err1:
   sql_print_error("Crash recovery failed. Either correct the problem "
                   "(if it's, for example, out of memory error) and restart, "
-                  "or delete tc log and start mysqld with "
+                  "or delete tc log and start server with "
                   "--tc-heuristic-recover={commit|rollback}");
   return 1;
 }
@@ -9984,7 +9984,7 @@ int TC_LOG::using_heuristic_recover()
   sql_print_information("Heuristic crash recovery mode");
   if (ha_recover(0))
     sql_print_error("Heuristic crash recovery failed");
-  sql_print_information("Please restart mysqld without --tc-heuristic-recover");
+  sql_print_information("Please restart without --tc-heuristic-recover");
   return 1;
 }
 
@@ -11417,7 +11417,7 @@ err2:
 err1:
   sql_print_error("Crash recovery failed. Either correct the problem "
                   "(if it's, for example, out of memory error) and restart, "
-                  "or delete (or rename) binary log and start mysqld with "
+                  "or delete (or rename) binary log and start serverwith "
                   "--tc-heuristic-recover={commit|rollback}");
   DBUG_RETURN(1);
 }

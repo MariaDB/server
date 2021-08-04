@@ -2259,11 +2259,10 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     size_t length=
 #endif
     my_snprintf(buff, buff_len - 1,
-                        "Uptime: %lu  Threads: %d  Questions: %lu  "
+                        "Uptime: %lu  Threads: %u  Questions: %lu  "
                         "Slow queries: %lu  Opens: %lu  "
                         "Open tables: %u  Queries per second avg: %u.%03u",
-                        uptime,
-                        (int) thread_count, (ulong) thd->query_id,
+                        uptime, THD_count::value(), (ulong) thd->query_id,
                         current_global_status_var->long_query_count,
                         current_global_status_var->opened_tables,
                         tc_records(),
@@ -5667,6 +5666,11 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
     /* Begin transaction with the same isolation level. */
     if (tx_chain)
     {
+#ifdef WITH_WSREP
+      /* If there are pending changes after rollback we should clear them */
+      if (wsrep_on(thd) && wsrep_has_changes(thd))
+        wsrep_after_statement(thd);
+#endif
       if (trans_begin(thd))
         goto error;
     }

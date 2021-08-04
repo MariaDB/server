@@ -440,7 +440,7 @@ ulong delay_key_write_options;
 uint protocol_version;
 uint lower_case_table_names;
 ulong tc_heuristic_recover= 0;
-Atomic_counter<uint32_t> thread_count;
+Atomic_counter<uint32_t> THD_count::count, CONNECT::count;
 bool shutdown_wait_for_slaves;
 Atomic_counter<uint32_t> slave_open_temp_tables;
 ulong thread_created;
@@ -1709,6 +1709,9 @@ static void close_connections(void)
 
   end_thr_alarm(0);			 // Abort old alarms.
 
+  while (CONNECT::count)
+    my_sleep(100);
+
   /*
     First signal all threads that it's time to die
     This will give the threads some time to gracefully abort their
@@ -1735,9 +1738,9 @@ static void close_connections(void)
     much smaller than even 2 seconds, this is only a safety fallback against
     stuck threads so server shutdown is not held up forever.
   */
-  DBUG_PRINT("info", ("thread_count: %u", uint32_t(thread_count)));
+  DBUG_PRINT("info", ("THD_count: %u", THD_count::value()));
 
-  for (int i= 0; (thread_count - binlog_dump_thread_count) && i < 1000; i++)
+  for (int i= 0; (THD_count::value() - binlog_dump_thread_count) && i < 1000; i++)
     my_sleep(20000);
 
   if (global_system_variables.log_warnings)
@@ -1750,15 +1753,14 @@ static void close_connections(void)
   }
 #endif
   /* All threads has now been aborted */
-  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)",
-                      uint32_t(thread_count)));
+  DBUG_PRINT("quit", ("Waiting for threads to die (count=%u)", THD_count::value()));
 
-  while (thread_count - binlog_dump_thread_count)
+  while (THD_count::value() - binlog_dump_thread_count)
     my_sleep(1000);
 
   /* Kill phase 2 */
   server_threads.iterate(kill_thread_phase_2);
-  for (uint64 i= 0; thread_count; i++)
+  for (uint64 i= 0; THD_count::value(); i++)
   {
     /*
       This time the warnings are emitted within the loop to provide a
@@ -2333,7 +2335,7 @@ static void activate_tcp_port(uint port,
         sprintf(buff, "Can't start server: Bind on TCP/IP port. Got error: %d",
                 (int) socket_errno);
         sql_perror(buff);
-        sql_print_error("Do you already have another mysqld server running on "
+        sql_print_error("Do you already have another server running on "
                         "port: %u ?", port);
         unireg_abort(1);
       }
@@ -2591,7 +2593,7 @@ static void network_init(void)
                           port_len) < 0)
     {
       sql_perror("Can't start server : Bind on unix socket"); /* purecov: tested */
-      sql_print_error("Do you already have another mysqld server running on socket: %s ?",mysqld_unix_port);
+      sql_print_error("Do you already have another server running on socket: %s ?",mysqld_unix_port);
       unireg_abort(1);					/* purecov: tested */
     }
     umask(((~my_umask) & 0666));
@@ -3126,7 +3128,7 @@ pthread_handler_t signal_hand(void *arg __attribute__((unused)))
     case SIGQUIT:
     case SIGKILL:
 #ifdef EXTRA_DEBUG
-      sql_print_information("Got signal %d to shutdown mysqld",sig);
+      sql_print_information("Got signal %d to shutdown server",sig);
 #endif
       /* switch to the old log message processing */
       logger.set_handlers(LOG_FILE, global_system_variables.sql_log_slow ? LOG_FILE:LOG_NONE,
@@ -3861,7 +3863,7 @@ static int init_common_variables()
   /* TODO: remove this when my_time_t is 64 bit compatible */
   if (!IS_TIME_T_VALID_FOR_TIMESTAMP(server_start_time))
   {
-    sql_print_error("This MySQL server doesn't support dates later than 2038");
+    sql_print_error("This server doesn't support dates later than 2038");
     exit(1);
   }
 
@@ -3952,13 +3954,13 @@ static int init_common_variables()
   if (!opt_abort)
   {
     if (IS_SYSVAR_AUTOSIZE(&server_version_ptr))
-      sql_print_information("%s (mysqld %s) starting as process %lu ...",
+      sql_print_information("%s (server %s) starting as process %lu ...",
                             my_progname, server_version, (ulong) getpid());
     else
     {
       char real_server_version[SERVER_VERSION_LENGTH];
       set_server_version(real_server_version, sizeof(real_server_version));
-      sql_print_information("%s (mysqld %s as %s) starting as process %lu ...",
+      sql_print_information("%s (server %s as %s) starting as process %lu ...",
                             my_progname, real_server_version, server_version,
                             (ulong) getpid());
     }
@@ -5260,7 +5262,7 @@ static int init_server_components()
 #ifdef USE_ARIA_FOR_TMP_TABLES
   if (!ha_storage_engine_is_enabled(maria_hton) && !opt_bootstrap)
   {
-    sql_print_error("Aria engine is not enabled or did not start. The Aria engine must be enabled to continue as mysqld was configured with --with-aria-tmp-tables");
+    sql_print_error("Aria engine is not enabled or did not start. The Aria engine must be enabled to continue as server was configured with --with-aria-tmp-tables");
     unireg_abort(1);
   }
 #endif
@@ -6136,7 +6138,7 @@ void handle_connections_sockets()
         */
         statistic_increment(connection_errors_accept, &LOCK_status);
 	if (!select_errors++ && !abort_loop)	/* purecov: inspected */
-	  sql_print_error("mysqld: Got error %d from select",socket_errno); /* purecov: inspected */
+	  sql_print_error("Server: Got error %d from select",socket_errno); /* purecov: inspected */
       }
       continue;
     }
@@ -7579,8 +7581,8 @@ static void usage(void)
          "\nbecause execution stopped before plugins were initialized.");
   }
 
-    puts("\nTo see what variables a running MySQL server is using, type"
-         "\n'mysqladmin variables' instead of 'mysqld --verbose --help'.");
+    puts("\nTo see what variables a running server is using, type"
+         "\n'SELECT * FROM INFORMATION_SCHEMA.GLOBAL_VARIABLES' instead of 'mysqld --verbose --help' or 'mariadbd --verbose --help'.");
   }
   DBUG_VOID_RETURN;
 }
@@ -7623,7 +7625,7 @@ static int mysql_init_variables(void)
   mqh_used= 0;
   cleanup_done= 0;
   test_flags= select_errors= dropping_tables= ha_open_options=0;
-  thread_count= 0;
+  THD_count::count= CONNECT::count= 0;
   slave_open_temp_tables= 0;
   opt_endinfo= using_udf_functions= 0;
   opt_using_transactions= 0;

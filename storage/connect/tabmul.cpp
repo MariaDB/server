@@ -37,7 +37,7 @@
 /*  Include relevant section of system dependant header files.         */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -166,11 +166,11 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
 		while (true)
 			if ((rc = dirp->ReadDB(g)) == RC_OK) {
-#if defined(__WIN__)
+#if defined(_WIN32)
 				strcat(strcpy(filename, dirp->Drive), dirp->Direc);
-#else   // !__WIN__
+#else   // !_WIN32
 				strcpy(filename, dirp->Direc);
-#endif  // !__WIN__
+#endif  // !_WIN32
 				strcat(strcat(filename, dirp->Fname), dirp->Ftype);
 				pfn[n++] = PlugDup(g, filename);
 			} else
@@ -199,7 +199,7 @@ bool TDBMUL::InitFileNames(PGLOBAL g)
 
       p = filename + strlen(filename) - 1;
 
-#if !defined(__WIN__)
+#if !defined(_WIN32)
       // Data files can be imported from Windows (having CRLF)
       if (*p == '\n' || *p == '\r') {
         // is this enough for Unix ???
@@ -566,11 +566,11 @@ bool TDBMSD::InitFileNames(PGLOBAL g)
 
 	while (true)
 		if ((rc = dirp->ReadDB(g)) == RC_OK) {
-#if defined(__WIN__)
+#if defined(_WIN32)
 			strcat(strcpy(filename, dirp->Drive), dirp->Direc);
-#else   // !__WIN__
+#else   // !_WIN32
 			strcpy(filename, dirp->Direc);
-#endif  // !__WIN__
+#endif  // !_WIN32
 			strcat(strcat(filename, dirp->Fname), dirp->Ftype);
 			pfn[n++] = PlugDup(g, filename);
 		} else
@@ -634,18 +634,18 @@ PTDB DIRDEF::GetTable(PGLOBAL g, MODE)
 void TDBDIR::Init(void)
 {
 	iFile = 0;
-#if defined(__WIN__)
+#if defined(_WIN32)
 	Dvalp = NULL;
 	memset(&FileData, 0, sizeof(_finddata_t));
 	hSearch = INVALID_HANDLE_VALUE;
 	*Drive = '\0';
-#else   // !__WIN__
+#else   // !_WIN32
 	memset(&Fileinfo, 0, sizeof(struct stat));
 	Entry = NULL;
 	Dir = NULL;
 	Done = false;
 	*Pattern = '\0';
-#endif  // !__WIN__
+#endif  // !_WIN32
 	*Fpath = '\0';
 	*Direc = '\0';
 	*Fname = '\0';
@@ -674,7 +674,7 @@ char* TDBDIR::Path(PGLOBAL g)
     (void) PlgGetCatalog(g);                    // XXX Should be removed?
     PTABDEF defp = (PTABDEF)To_Def;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (!*Drive) {
     PlugSetPath(Fpath, To_File, defp ? defp->GetPath() : NULL);
     _splitpath(Fpath, Drive, Direc, Fname, Ftype);
@@ -682,7 +682,7 @@ char* TDBDIR::Path(PGLOBAL g)
     _makepath(Fpath, Drive, Direc, Fname, Ftype); // Usefull for TDBSDR
 
   return Fpath;
-#else   // !__WIN__
+#else   // !_WIN32
   if (!Done) {
     PlugSetPath(Fpath, To_File, defp ? defp->GetPath() : NULL);
     _splitpath(Fpath, NULL, Direc, Fname, Ftype);
@@ -691,7 +691,7 @@ char* TDBDIR::Path(PGLOBAL g)
     } // endif Done
 
   return Pattern;
-#endif  // !__WIN__
+#endif  // !_WIN32
   } // end of Path
 
 /***********************************************************************/
@@ -709,7 +709,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
   {
   if (MaxSize < 0) {
     int n = -1;
-#if defined(__WIN__)
+#if defined(_WIN32)
     int rc;
     // Start searching files in the target directory.
 		hSearch = FindFirstFile(Path(g), &FileData);
@@ -750,7 +750,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
 
     // Close the search handle.
 		FindClose(hSearch);
-#else   // !__WIN__
+#else   // !_WIN32
     Path(g);
 
     // Start searching files in the target directory.
@@ -774,7 +774,7 @@ int TDBDIR::GetMaxSize(PGLOBAL g)
 
     // Close the DIR handle.
     closedir(Dir);
-#endif  // !__WIN__
+#endif  // !_WIN32
     MaxSize = n;
     } // endif MaxSize
 
@@ -800,10 +800,10 @@ bool TDBDIR::OpenDB(PGLOBAL g)
     } // endif use
 
   Use = USE_OPEN;
-#if !defined(__WIN__)
+#if !defined(_WIN32)
   Path(g);                          // Be sure it is done
   Dir = NULL;                       // For ReadDB
-#endif   // !__WIN__
+#endif   // !_WIN32
   return false;
   } // end of OpenDB
 
@@ -814,7 +814,7 @@ int TDBDIR::ReadDB(PGLOBAL g)
   {
   int rc = RC_OK;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 	do {
 		if (hSearch == INVALID_HANDLE_VALUE) {
 			/*****************************************************************/
@@ -877,7 +877,7 @@ int TDBDIR::ReadDB(PGLOBAL g)
       rc = RC_EF;
     } // endif Entry
 
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return rc;
   } // end of ReadDB
@@ -905,17 +905,17 @@ int TDBDIR::DeleteDB(PGLOBAL g, int)
 /***********************************************************************/
 void TDBDIR::CloseDB(PGLOBAL)
   {
-#if defined(__WIN__)
+#if defined(_WIN32)
   // Close the search handle.
   FindClose(hSearch);
 	hSearch = INVALID_HANDLE_VALUE;
-#else   // !__WIN__
+#else   // !_WIN32
   // Close the DIR handle
   if (Dir) {
     closedir(Dir);
     Dir = NULL;
     } // endif dir
-#endif  // !__WIN__
+#endif  // !_WIN32
   iFile = 0;
   } // end of CloseDB
 
@@ -950,7 +950,7 @@ DIRCOL::DIRCOL(DIRCOL *col1, PTDB tdbp) : COLBLK(col1, tdbp)
 	N = col1->N;
   } // end of DIRCOL copy constructor
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 /***********************************************************************/
 /*  Retrieve time information from FileData.                           */
 /***********************************************************************/
@@ -977,7 +977,7 @@ void DIRCOL::SetTimeValue(PGLOBAL g, FILETIME& ftime)
 		Value->Reset();
 
 } // end of SetTimeValue
-#endif   // __WIN__
+#endif   // _WIN32
 
 /***********************************************************************/
 /*  ReadColumn: what this routine does is to access the information    */
@@ -993,19 +993,19 @@ void DIRCOL::ReadColumn(PGLOBAL g)
   /*  Retrieve the information corresponding to the column number.     */
   /*********************************************************************/
   switch (N) {
-#if defined(__WIN__)
+#if defined(_WIN32)
     case  0: Value->SetValue_psz(Tdbp->Drive); break;
-#endif   // __WIN__
+#endif   // _WIN32
     case  1: Value->SetValue_psz(Tdbp->Direc); break;
     case  2: Value->SetValue_psz(Tdbp->Fname); break;
     case  3: Value->SetValue_psz(Tdbp->Ftype); break;
-#if defined(__WIN__)
+#if defined(_WIN32)
     case  4: Value->SetValue((int)Tdbp->FileData.dwFileAttributes); break;
 		case  5: Value->SetValue((int)Tdbp->FileData.nFileSizeLow); break;
     case  6: SetTimeValue(g, Tdbp->FileData.ftLastWriteTime);   break;
     case  7: SetTimeValue(g, Tdbp->FileData.ftCreationTime);    break;
     case  8: SetTimeValue(g, Tdbp->FileData.ftLastAccessTime);  break;
-#else   // !__WIN__
+#else   // !_WIN32
     case  4: Value->SetValue((int)Tdbp->Fileinfo.st_mode);  break;
     case  5: Value->SetValue((int)Tdbp->Fileinfo.st_size);  break;
     case  6: Value->SetValue((int)Tdbp->Fileinfo.st_mtime); break;
@@ -1013,7 +1013,7 @@ void DIRCOL::ReadColumn(PGLOBAL g)
     case  8: Value->SetValue((int)Tdbp->Fileinfo.st_atime); break;
     case  9: Value->SetValue((int)Tdbp->Fileinfo.st_uid);   break;
     case 10: Value->SetValue((int)Tdbp->Fileinfo.st_gid);   break;
-#endif  // !__WIN__
+#endif  // !_WIN32
     default:
       sprintf(g->Message, MSG(INV_DIRCOL_OFST), N);
 			throw GetAmType();
@@ -1045,7 +1045,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
   size_t m = strlen(Direc);
 
   // Start searching files in the target directory.
-#if defined(__WIN__)
+#if defined(_WIN32)
 	int rc;
 	HANDLE h;
 
@@ -1156,7 +1156,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
 
   // Close the search handle.
 	FindClose(h);
-#else   // !__WIN__
+#else   // !_WIN32
   int k;
   DIR *dir = opendir(Direc);
 
@@ -1190,7 +1190,7 @@ int TDBSDR::FindInDir(PGLOBAL g)
 
   // Close the DIR handle.
   closedir(dir);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return n;
   } // end of FindInDir
@@ -1206,13 +1206,13 @@ bool TDBSDR::OpenDB(PGLOBAL g)
     Sub = (PSUBDIR)PlugSubAlloc(g, NULL, sizeof(SUBDIR));
     Sub->Next = NULL;
     Sub->Prev = NULL;
-#if defined(__WIN__)
+#if defined(_WIN32)
     Sub->H = INVALID_HANDLE_VALUE;
     Sub->Len = strlen(Direc);
-#else   // !__WIN__
+#else   // !_WIN32
     Sub->D = NULL;
     Sub->Len = 0;
-#endif  // !__WIN__
+#endif  // !_WIN32
     } // endif To_Sub
 
   return TDBDIR::OpenDB(g);
@@ -1225,7 +1225,7 @@ int TDBSDR::ReadDB(PGLOBAL g)
   {
   int rc;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
  again:
   rc = TDBDIR::ReadDB(g);
 
@@ -1281,7 +1281,7 @@ int TDBSDR::ReadDB(PGLOBAL g)
     } // endif H
 
     } // endif rc
-#else   // !__WIN__
+#else   // !_WIN32
   rc = RC_NF;
 
  again:
@@ -1339,7 +1339,7 @@ int TDBSDR::ReadDB(PGLOBAL g)
 
     } // endif Entry
 
-#endif  // !__WIN__
+#endif  // !_WIN32
 
   return rc;
   } // end of ReadDB

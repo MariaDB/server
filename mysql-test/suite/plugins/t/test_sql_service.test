@@ -1,8 +1,3 @@
-if (`SELECT $PS_PROTOCOL != 0`)
-{
-   --skip Test temporarily disabled for ps-protocol
-}
-
 --source include/not_embedded.inc
 
 if (!$TEST_SQL_SERVICE_SO) {

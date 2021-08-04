@@ -579,8 +579,8 @@ struct file_name_t {
 typedef std::map<
 	uint32_t,
 	file_name_t,
-	std::less<ulint>,
-	ut_allocator<std::pair<const ulint, file_name_t> > >	recv_spaces_t;
+	std::less<uint32_t>,
+	ut_allocator<std::pair<const uint32_t, file_name_t> > >	recv_spaces_t;
 
 static recv_spaces_t	recv_spaces;
 

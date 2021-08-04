@@ -1703,8 +1703,7 @@ dberr_t lock_wait(que_thr_t *thr)
   const ulong innodb_lock_wait_timeout= trx_lock_wait_timeout_get(trx);
   const bool no_timeout= innodb_lock_wait_timeout >= 100000000;
   const my_hrtime_t suspend_time= my_hrtime_coarse();
-  ut_ad(!trx->dict_operation_lock_mode ||
-        trx->dict_operation_lock_mode == RW_S_LATCH);
+  ut_ad(!trx->dict_operation_lock_mode);
 
   /* The wait_lock can be cleared by another thread in lock_grant(),
   lock_rec_cancel(), or lock_cancel_waiting_and_release(). But, a wait
@@ -1739,9 +1738,7 @@ dberr_t lock_wait(que_thr_t *thr)
 
   trx->lock.suspend_time= suspend_time;
 
-  const auto had_dict_lock= trx->dict_operation_lock_mode;
-  if (had_dict_lock) /* Release foreign key check latch */
-    row_mysql_unfreeze_data_dictionary(trx);
+  ut_ad(!trx->dict_operation_lock_mode);
 
   IF_WSREP(if (trx->is_wsrep()) lock_wait_wsrep(trx),);
 
@@ -1836,9 +1833,6 @@ end_wait:
 
   mysql_mutex_unlock(&lock_sys.wait_mutex);
   thd_wait_end(trx->mysql_thd);
-
-  if (had_dict_lock)
-    row_mysql_freeze_data_dictionary(trx);
 
   trx->error_state= error_state;
   return error_state;
@@ -3791,11 +3785,7 @@ void lock_release(trx_t *trx)
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
   std::set<table_id_t> to_evict;
   if (innodb_evict_tables_on_commit_debug && !trx->is_recovered)
-# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-    if (!dict_sys.mutex_is_locked())
-# else /* this would be more proper way to do it */
     if (!trx->dict_operation_lock_mode && !trx->dict_operation)
-# endif
       for (const auto& p: trx->mod_tables)
         if (!p.first->is_temporary())
           to_evict.emplace(p.first->id);

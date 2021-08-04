@@ -5850,7 +5850,7 @@ void Item_func_get_system_var::update_null_value()
 
 bool Item_func_get_system_var::fix_length_and_dec()
 {
-  char *cptr;
+  const char *cptr;
   set_maybe_null();
   max_length= 0;
 
@@ -5884,9 +5884,12 @@ bool Item_func_get_system_var::fix_length_and_dec()
     case SHOW_CHAR:
     case SHOW_CHAR_PTR:
       mysql_mutex_lock(&LOCK_global_system_variables);
-      cptr= var->show_type() == SHOW_CHAR ? 
-        (char*) var->value_ptr(current_thd, var_type, &component) :
-        *(char**) var->value_ptr(current_thd, var_type, &component);
+      cptr= var->show_type() == SHOW_CHAR ?
+          reinterpret_cast<const char*>(var->value_ptr(current_thd, var_type,
+                                                       &component)) :
+          *reinterpret_cast<const char* const*>(var->value_ptr(current_thd,
+                                                               var_type,
+                                                               &component));
       if (cptr)
         max_length= (uint32) system_charset_info->numchars(cptr,
                                                            cptr + strlen(cptr));
@@ -5898,7 +5901,10 @@ bool Item_func_get_system_var::fix_length_and_dec()
     case SHOW_LEX_STRING:
       {
         mysql_mutex_lock(&LOCK_global_system_variables);
-        LEX_STRING *ls= ((LEX_STRING*)var->value_ptr(current_thd, var_type, &component));
+        const LEX_STRING *ls=
+                reinterpret_cast<const LEX_STRING*>(var->value_ptr(current_thd,
+                                                                   var_type,
+                                                                   &component));
         max_length= (uint32) system_charset_info->numchars(ls->str,
                                                            ls->str + ls->length);
         mysql_mutex_unlock(&LOCK_global_system_variables);

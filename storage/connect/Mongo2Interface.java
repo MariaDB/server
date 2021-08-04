@@ -21,6 +21,7 @@ import com.mongodb.util.JSON;
 public class Mongo2Interface {
 	boolean DEBUG = false;
 	String Errmsg = "No error";
+	String ovalName = null;
 	Set<String> Colnames = null;
 	Cursor cursor = null;
 	MongoClient client = null;
@@ -220,7 +221,7 @@ public class Mongo2Interface {
 					System.out.println("Class doc = " + doc.getClass());
 
 				Colnames = doc.keySet();
-				return 1;
+				return Colnames.size();
 			} else
 				return 0;
 
@@ -253,22 +254,98 @@ public class Mongo2Interface {
 
 	} // end of GetColumns
 
-	public String ColumnDesc(int n, int[] val) {
-		// if (rsmd == null) {
-		// System.out.println("No result metadata");
-		// return null;
-		// } else try {
-		// val[0] = rsmd.getColumnType(n);
-		// val[1] = rsmd.getPrecision(n);
-		// val[2] = rsmd.getScale(n);
-		// val[3] = rsmd.isNullable(n);
-		// return rsmd.getColumnLabel(n);
-		// } catch (SQLException se) {
-		// SetErrmsg(se);
-		// } //end try/catch
+	public Object ColumnDesc(Object obj, int n, int[] val, int lvl) {
+		Object ret = null;
+		Object oval = ((obj != null) ? obj : doc);
+		BasicDBObject dob = (oval instanceof BasicDBObject) ? (BasicDBObject) oval : null;
+		BasicDBList ary = (oval instanceof BasicDBList) ? (BasicDBList) oval : null;
 
+		try {
+			if (ary != null) {
+				oval = ary.get(n);
+				ovalName = Integer.toString(n);
+			} else if (dob != null) {
+				// String[] k = dob.keySet().toArray(new String[0]);
+				Object[] k = dob.keySet().toArray();
+				oval = dob.get(k[n]);
+				ovalName = (String) k[n];
+			} else
+				ovalName = "x" + Integer.toString(n);
+
+			if (DEBUG)
+				System.out.println("Class of " + ovalName + " = " + oval.getClass());
+
+			val[0] = 0; // ColumnType
+			val[1] = 0; // Precision
+			val[2] = 0; // Scale
+			val[3] = 0; // Nullable
+			val[4] = 0; // ncol
+
+			if (oval == null) {
+				val[3] = 1;
+			} else if (oval instanceof String) {
+				val[0] = 1;
+				val[1] = ((String) oval).length();
+			} else if (oval instanceof org.bson.types.ObjectId) {
+				val[0] = 1;
+				val[1] = ((org.bson.types.ObjectId) oval).toString().length();
+			} else if (oval instanceof Integer) {
+				val[0] = 7;
+				val[1] = Integer.toString(((Integer) oval).intValue()).length();
+			} else if (oval instanceof Long) {
+				val[0] = 5;
+				val[1] = Long.toString(((Long) oval).longValue()).length();
+			} else if (oval instanceof Date) {
+				Long TS = (((Date) oval).getTime() / 1000);
+				val[0] = 8;
+				val[1] = TS.toString().length();
+			} else if (oval instanceof Double) {
+				String d = Double.toString(((Double) oval).doubleValue());
+				int i = d.indexOf('.') + 1;
+
+				val[0] = 2;
+				val[1] = d.length();
+				val[2] = (i > 0) ? val[1] - i : 0;
+			} else if (oval instanceof Boolean) {
+				val[0] = 4;
+				val[1] = 1;
+			} else if (oval instanceof BasicDBObject) {
+				if (lvl > 0) {
+					ret = oval;
+					val[0] = 1;
+					val[4] = ((BasicDBObject) oval).size();
+				} else if (lvl == 0) {
+					val[0] = 1;
+					val[1] = oval.toString().length();
+				} // endif lvl
+
+			} else if (oval instanceof BasicDBList) {
+				if (lvl > 0) {
+					ret = oval;
+					val[0] = 2;
+					val[4] = ((BasicDBList) oval).size();
+				} else if (lvl == 0) {
+					val[0] = 1;
+					val[1] = oval.toString().length();
+				} // endif lvl
+
+			} else {
+				SetErrmsg("Type " + " of " + ovalName + " not supported");
+				val[0] = -1;
+			} // endif's
+
+			return ret;
+		} catch (Exception ex) {
+			SetErrmsg(ex);
+		} // end try/catch
+
+		val[0] = -1;
 		return null;
 	} // end of ColumnDesc
+
+	public String ColDescName() {
+		return ovalName;
+	} // end of ColDescName
 
 	protected Object GetFieldObject(String path) {
 		Object o = null;
@@ -276,7 +353,7 @@ public class Mongo2Interface {
 		BasicDBList lst = null;
 		String[] names = null;
 
-		if (path == null || path.equals("*"))
+		if (path == null || path.equals("") || path.equals("*"))
 			return doc;
 		else if (doc instanceof BasicDBObject)
 			dob = doc;
@@ -325,9 +402,10 @@ public class Mongo2Interface {
 
 		if (o != null) {
 			if (o instanceof Date) {
-				Integer TS = (int) (((Date) o).getTime() / 1000);
+				Long TS = (((Date) o).getTime() / 1000);
 				return TS.toString();
-			} // endif Date
+			} else if (o instanceof Boolean)
+				return (Boolean) o ? "1" : "0";
 
 			return o.toString();
 		} else
@@ -335,13 +413,25 @@ public class Mongo2Interface {
 
 	} // end of GetField
 
+	public Object MakeBson(String s, int json) {
+		if (json == 1 || json == 2) {
+			return com.mongodb.util.JSON.parse(s);
+		} else
+			return null;
+
+	} // end of MakeBson
+
 	public Object MakeDocument() {
 		return new BasicDBObject();
 	} // end of MakeDocument
 
-	public boolean DocAdd(Object bdc, String key, Object val) {
+	public boolean DocAdd(Object bdc, String key, Object val, int json) {
 		try {
-			((BasicDBObject) bdc).append(key, val);
+			if (json != 0 && val instanceof String)
+				((BasicDBObject) bdc).append(key, JSON.parse((String) val));
+			else
+				((BasicDBObject) bdc).append(key, val);
+
 		} catch (MongoException me) {
 			SetErrmsg(me);
 			return true;
@@ -354,9 +444,13 @@ public class Mongo2Interface {
 		return new BasicDBList();
 	} // end of MakeArray
 
-	public boolean ArrayAdd(Object bar, int n, Object val) {
+	public boolean ArrayAdd(Object bar, int n, Object val, int json) {
 		try {
-			((BasicDBList) bar).put(n, val);
+			if (json != 0 && val instanceof String)
+				((BasicDBList) bar).put(n, JSON.parse((String) val));
+			else
+				((BasicDBList) bar).put(n, val);
+
 		} catch (MongoException me) {
 			SetErrmsg(me);
 			return true;
