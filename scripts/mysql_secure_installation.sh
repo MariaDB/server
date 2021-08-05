@@ -18,6 +18,7 @@
 config=".my.cnf.$$"
 command=".mysql.$$"
 output=".my.output.$$"
+err_out=".my.error.$$"
 
 trap "interrupt" 1 2 3 6 15
 
@@ -218,7 +219,7 @@ prepare() {
 do_query() {
     echo "$1" >$command
     #sed 's,^,> ,' < $command  # Debugging
-    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command >$output 2>&1
+    $mysql_command --defaults-file=$config $defaults_extra_file $no_defaults $args <$command >$output 2>$err_out
     return $?
 }
 
@@ -266,16 +267,15 @@ get_root_password() {
     while [ $status -eq 1 ]; do
 	stty -echo
   make_config
-    do_query "select current_user"
-    if grep -A1 "current_user" -q $output; then
-      user="$(grep -A1 "current_user" $output|tail -n +2|cut -d "@" -f1)"
-    else
-      if grep -q 'ERROR 1698' $output; then
-        echo "Access denied for user root. Use sudo."
+    do_query "SELECT REGEXP_SUBSTR(current_user, '[^@]+') as 'current_user'"
+    user="$(tail -n 1 $output)"
+    if [ -s $err_out ]; then
+      if grep -q 'ERROR 1698' $err_out; then
+        echo "Access denied for user root. Run as root."
       else
-        echo "No such user exist. Force exit."
+        echo "Wrong option. Force exit."
       fi
-      stty sane
+      stty echo
       clean_and_exit
     fi
 	echo $echo_n "Enter current password for $user (enter for none): $echo_c"
@@ -408,7 +408,7 @@ interrupt() {
 
 cleanup() {
     echo "Cleaning up..."
-    rm -f $config $command $output
+    rm -f $config $command $output $err_out
 }
 
 # Remove the files before exiting.
