@@ -1939,6 +1939,9 @@ row_upd_sec_index_entry(
 		break;
 	}
 
+	if (lock_table_locked(thr_get_trx(thr), index->table, LOCK_X))
+	  flags |= BTR_NO_LOCKING_FLAG;
+
 	bool uncommitted = !index->is_committed();
 
 	if (uncommitted) {
@@ -2722,7 +2725,8 @@ row_upd_clust_step(
 
 	mtr.start();
 
-	if (node->table->is_temporary()) {
+	if (node->table->is_temporary()
+	    || lock_table_locked(trx, index->table, LOCK_X)) {
 		/* Disable locking, because temporary tables are
 		private to the connection (no concurrent access). */
 		flags = node->table->no_rollback()

@@ -1040,6 +1040,20 @@ lock_rtr_move_rec_list(
 						moved */
 	ulint			num_move);	/*!< in: num of rec to move */
 
+/*********************************************************************//**
+Checks if a transaction has the specified table lock, or stronger. This
+function should only be called by the thread that owns the transaction.
+The function is the same as lock_table_has(), but lock_table_has() is
+supposed to be private for lock0lock.cc, and if we try to make it public and
+move it in lock0lock.ic, we also need to move a half of lock0priv.ic. So
+making some wrap is the less evil.
+@param[in] trx transaction
+@param[in] table table
+@param[in] in_mode lock_mode
+@return lock or NULL */
+const lock_t *lock_table_locked(const trx_t *trx, const dict_table_t *table,
+                                lock_mode in_mode);
+
 #include "lock0lock.ic"
 
 #endif

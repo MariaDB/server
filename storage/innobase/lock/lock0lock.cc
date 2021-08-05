@@ -63,6 +63,23 @@ extern "C" int thd_need_wait_reports(const MYSQL_THD thd);
 extern "C" int thd_need_ordering_with(const MYSQL_THD thd, const MYSQL_THD other_thd);
 #endif
 
+/*********************************************************************//**
+Checks if a transaction has the specified table lock, or stronger. This
+function should only be called by the thread that owns the transaction.
+The function is the same as lock_table_has(), but lock_table_has() is
+supposed to be private for lock0lock.cc, and if we try to make it public and
+move it in lock0lock.ic, we also need to move a half of lock0priv.ic. So
+making some wrap is the less evil.
+@param[in] trx transaction
+@param[in] table table
+@param[in] in_mode lock_mode
+@return lock or NULL */
+const lock_t *lock_table_locked(const trx_t *trx, const dict_table_t *table,
+                                lock_mode in_mode)
+{
+  return lock_table_has(trx, table, in_mode);
+}
+
 /** Functor for accessing the embedded node within a table lock. */
 struct TableLockGetNode
 {
@@ -5206,8 +5223,7 @@ lock_sec_rec_read_check_and_lock(
 	database recovery is running. */
 
 	trx_t *trx = thr_get_trx(thr);
-	if (!lock_table_has(trx, index->table, LOCK_X)
-	    && !page_rec_is_supremum(rec)
+	if (!page_rec_is_supremum(rec)
 	    && page_get_max_trx_id(block->frame) >= trx_sys.get_min_trx_id()
 	    && lock_rec_convert_impl_to_expl(trx, id, rec,
 					     index, offsets)
@@ -5293,8 +5309,7 @@ lock_clust_rec_read_check_and_lock(
 	heap_no = page_rec_get_heap_no(rec);
 
 	trx_t *trx = thr_get_trx(thr);
-	if (!lock_table_has(trx, index->table, LOCK_X)
-	    && heap_no != PAGE_HEAP_NO_SUPREMUM
+	if (heap_no != PAGE_HEAP_NO_SUPREMUM
 	    && lock_rec_convert_impl_to_expl(trx, id, rec,
 					     index, offsets)
 	    && gap_mode == LOCK_REC_NOT_GAP ) {

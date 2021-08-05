@@ -3189,7 +3189,9 @@ row_ins_clust_index_entry(
 	const bool skip_locking
 		= wsrep_thd_skip_locking(thr_get_trx(thr)->mysql_thd);
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
-		: (index->table->is_temporary() || skip_locking)
+		: (index->table->is_temporary()
+		    || lock_table_locked(thr_get_trx(thr), index->table, LOCK_X)
+		    || skip_locking)
 		? BTR_NO_LOCKING_FLAG : 0;
 #ifdef UNIV_DEBUG
 	if (skip_locking && strcmp(wsrep_get_sr_table_name(),
@@ -3204,6 +3206,7 @@ row_ins_clust_index_entry(
 #else
 	ulint	flags = index->table->no_rollback() ? BTR_NO_ROLLBACK
 		: index->table->is_temporary()
+		  || lock_table_locked(thr_get_trx(thr), index->table, LOCK_X)
 		? BTR_NO_LOCKING_FLAG : 0;
 #endif /* WITH_WSREP */
 	const ulint	orig_n_fields = entry->n_fields;
@@ -3290,6 +3293,7 @@ row_ins_sec_index_entry(
 
 	log_free_check();
 	ulint flags = index->table->is_temporary()
+		  || lock_table_locked(thr_get_trx(thr), index->table, LOCK_X)
 		? BTR_NO_LOCKING_FLAG
 		: 0;
 
