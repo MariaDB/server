@@ -67,6 +67,41 @@ test	t1	d	1	25	0.0000	8.0000	0.0000	10	JSON	[
   "21",
   "23"
 ]
+SELECT * FROM t1;
+a	b	c	d
+1	1	1	1
+2	2	2	2
+3	3	3	3
+4	4	4	4
+5	5	5	5
+6	6	6	6
+7	7	7	7
+8	8	8	8
+9	9	9	9
+10	10	10	10
+11	11	11	11
+12	12	12	12
+13	13	13	13
+14	14	14	14
+15	15	15	15
+16	16	16	16
+17	17	17	17
+18	18	18	18
+19	19	19	19
+20	20	20	20
+21	21	21	21
+22	22	22	22
+23	23	23	23
+24	24	24	24
+25	25	25	25
+UPDATE mysql.column_stats SET histogram='["1", {"a": "b"}, "2"]' WHERE table_name='t1';
+FLUSH TABLES;
+SELECT * FROM t1;
+ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '1'.
+UPDATE mysql.column_stats SET histogram='{}' WHERE table_name='t1';
+FLUSH TABLES;
+SELECT * FROM t1;
+ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '32608'.
 DELETE FROM mysql.column_stats;
 DROP TABLE t1;
 create schema world;
