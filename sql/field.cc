@@ -8318,6 +8318,7 @@ int Field_blob::store(const char *from,uint length,CHARSET_INFO *cs)
   copy_length= copier.well_formed_copy(field_charset,
                                        (char*) value.ptr(), new_length,
                                        cs, from, length);
+  value.length(copy_length);
   Field_blob::store_length(copy_length);
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 
