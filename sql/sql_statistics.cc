@@ -67,14 +67,10 @@
    * json_get_array_items expects a JSON array as argument,
    * and pushes the elements of the array into the `container` vector.
    * It only works if all the elements in the original JSON array
-   * are scalar values (i.e., strings, numbers, true or false), and returns JSV_BAD_JSON if:
-   * the original JSON is not an array OR the JSON array contains non-scalar elements.
+   * are scalar values (i.e., strings, numbers, true or false),
+   * else, the JSON type encountered is stored in value_type and the function returns false.
    */
 bool json_get_array_items(const char *json, const char *json_end, int *value_type, std::vector<std::string> &container);
-
-std::vector<std::string> parse_histogram_from_json(const char *json);
-
-void test_parse_histogram_from_json();
 
 Histogram_base *create_histogram(Histogram_type hist_type);
 
@@ -1221,18 +1217,29 @@ public:
     of read_stats->histogram.
   */
 
-  Histogram_binary * load_histogram(MEM_ROOT *mem_root)
+  Histogram_base * load_histogram(MEM_ROOT *mem_root)
   {
     if (find_stat())
     {
       char buff[MAX_FIELD_WIDTH];
       String val(buff, sizeof(buff), &my_charset_bin);
       uint fldno= COLUMN_STAT_HISTOGRAM;
+      Histogram_base *hist;
       Field *stat_field= stat_table->field[fldno];
       table_field->read_stats->set_not_null(fldno);
       stat_field->val_str(&val);
-      // histogram-todo: here, create the histogram of appropriate type.
-      Histogram_binary *hist= new (mem_root) Histogram_binary();
+      switch (table_field->read_stats->histogram_type_on_disk)
+      {
+      case SINGLE_PREC_HB:
+      case DOUBLE_PREC_HB:
+        hist = new (mem_root) Histogram_binary();
+        break;
+      case JSON:
+        hist = new (mem_root) Histogram_json();
+        break;
+      default:
+        return NULL;
+      }
       if (!hist->parse(mem_root, table_field->read_stats->histogram_type_on_disk, 
                        (const uchar*)val.ptr(), val.length()))
       {
@@ -1283,21 +1290,17 @@ void Histogram_json::init_for_collection(MEM_ROOT *mem_root, Histogram_type htyp
 
 bool Histogram_json::parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr, uint size_arg)
 {
+  DBUG_ENTER("Histogram_json::parse");
   type = type_arg;
-  // I think we could use memcpy here, but not sure about how to get the right size
-  // since we can't depend on size_arg (it's zero for json histograms)
-  // also, does it make sense to cast here? or we can modify json_get_array_items
-  // to accept uchar*
   const char *json = (char *)ptr;
   int vt;
   bool result = json_get_array_items(json, json + strlen(json), &vt, hist_buckets);
-  fprintf(stderr,"==============\n");
-  fprintf(stderr,"histogram: %s\n", json);
-  fprintf(stderr, "json_get_array_items() returned %s\n", result ? "true" : "false");
-  fprintf(stderr, "value type after json_get_array_items() is %d\n", vt);
-  fprintf(stderr, " JSV_BAD_JSON=%d, JSON_VALUE_ARRAY=%d\n", (int)JSV_BAD_JSON, (int)JSON_VALUE_ARRAY);
-  fprintf(stderr, "hist_buckets.size()=%zu\n", hist_buckets.size());
-  return false;
+  if (!result)
+  {
+    my_error(ER_JSON_HISTOGRAM_PARSE_FAILED, MYF(0), vt);
+    DBUG_RETURN(true);
+  }
+  DBUG_RETURN(false);
 }
 
 void Histogram_json::serialize(Field *field)
@@ -1753,11 +1756,6 @@ public:
     histogram->set_size(bucket_bounds.size());
     Binary_string *json_string = (Binary_string *) writer->output.get_string();
     histogram->set_values((uchar *) json_string->c_ptr());
-
-    std::vector<std::string> buckets = parse_histogram_from_json(json_string->c_ptr());
-    printf("%zu", buckets.size());
-
-    test_parse_histogram_from_json();
   }
 };
 
@@ -1770,41 +1768,6 @@ Histogram_base *create_histogram(Histogram_type hist_type)
     return new Histogram_binary;
 }
 
-void test_parse_histogram_from_json()
-{
-  std::vector<std::string> bucket = {};
-  std::string json;
-  std::string tests[7] = {
-      R"(["aabbb", "ccccdd", "eeefff"])",
-      R"(["aabbb", "ccc{}dd", "eeefff"])",
-      R"(["aabbb", {"a": "b"}, "eeefff"])",
-      R"({})",
-      R"([1,2,3, null])",
-      R"([null])",
-      R"([])"
-  };
-
-  for(const auto& test : tests) {
-    json = test;
-    bucket = parse_histogram_from_json(json.c_str());
-  }
-}
-
-std::vector<std::string> parse_histogram_from_json(const char *json)
-{
-  std::vector<std::string> hist_buckets= {};
-  int vt;
-  bool result = json_get_array_items(json, json + strlen(json), &vt, hist_buckets);
-  fprintf(stderr,"==============\n");
-  fprintf(stderr,"histogram: %s\n", json);
-  fprintf(stderr, "json_get_array_items() returned %s\n", result ? "true" : "false");
-  fprintf(stderr, "value type after json_get_array_items() is %d\n", vt);
-  fprintf(stderr, " JSV_BAD_JSON=%d, JSON_VALUE_ARRAY=%d\n", (int)JSV_BAD_JSON, (int)JSON_VALUE_ARRAY);
-  fprintf(stderr, "hist_buckets.size()=%zu\n", hist_buckets.size());
-
-  return hist_buckets;
-}
-
 bool json_get_array_items(const char *json, const char *json_end, int *value_type, std::vector<std::string> &container) {
   json_engine_t je;
   int vl;
@@ -1814,7 +1777,6 @@ bool json_get_array_items(const char *json, const char *json_end, int *value_typ
 
   if (json_read_value(&je) || je.value_type != JSON_VALUE_ARRAY)
   {
-    *value_type = JSV_BAD_JSON;
     return false;
   }
   *value_type = je.value_type;
@@ -1831,16 +1793,15 @@ bool json_get_array_items(const char *json, const char *json_end, int *value_typ
           je.value_type != JSON_VALUE_TRUE &&
           je.value_type != JSON_VALUE_FALSE)
       {
-        *value_type = JSV_BAD_JSON;
         return false;
       }
       val = std::string(v, vl);
       container.emplace_back(val);
+      break;
     case JST_ARRAY_END:
       break;
     }
   }
-
   return true;
 }
 
@@ -3408,7 +3369,7 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
         //table_field->read_stats->histogram.set_values(histogram);
 
         table_field->read_stats->histogram_=
-          column_stat.load_histogram(&stats_cb->mem_root); 
+          column_stat.load_histogram(&stats_cb->mem_root);
         //histogram+= hist_size;
       }
     }
@@ -4101,8 +4062,7 @@ double get_column_range_cardinality(Field *field,
       if (avg_frequency > 1.0 + 0.000001 && 
           col_stats->min_max_values_are_provided())
       {
-        Histogram_binary *hist=
-            dynamic_cast<Histogram_binary *>(col_stats->histogram_);
+        Histogram_base *hist = col_stats->histogram_;
         if (hist && hist->is_usable(thd))
         {
           store_key_image_to_rec(field, (uchar *) min_endp->key,
@@ -4146,8 +4106,7 @@ double get_column_range_cardinality(Field *field,
       else
         max_mp_pos= 1.0;
 
-      Histogram_binary *hist=
-          dynamic_cast<Histogram_binary *>(col_stats->histogram_);
+      Histogram_base *hist = col_stats->histogram_;
       if (hist && hist->is_usable(thd))
         sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
       else
