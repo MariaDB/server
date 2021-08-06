@@ -19291,6 +19291,45 @@ static void test_bug12337762()
   DBUG_VOID_RETURN;
 }
 
+/**
+ MDEV-23519: Protocol packet - "Original Name" info is showing alias name, instead of original name of the column
+ */
+static void test_mdev23519()
+{
+  int rc;
+  MYSQL_RES *result;
+
+  DBUG_ENTER("test_mdev23519");
+  myheader("test_mdev23519");
+  MYSQL *my= mysql_client_init(NULL);
+
+  if (!mysql_real_connect(my, opt_host, opt_user,
+                          opt_password, current_db, opt_port,
+                          opt_unix_socket, CLIENT_MULTI_RESULTS))
+    DIE("mysql_real_connect failed");
+
+  rc= mysql_query(mysql, "create table fears("\
+                  "`FearID` int(11) DEFAULT NULL,"\
+                  "`Fear` varchar(50) DEFAULT NULL"\
+                  ")");
+
+  DIE_UNLESS(rc == 0);
+  DIE_IF(mysql_errno(mysql));
+
+  rc= mysql_query(mysql, "select distinct a.Fear as Fears_Fear from fears a");
+  myquery(rc);
+
+  /* get the result */
+  result= mysql_use_result(mysql);
+  mytest(result);
+  DIE_UNLESS(strcmp(result->fields->org_name, "Fear") == 0 && strcmp(result->fields->name, "Fears_Fear") == 0);
+
+  mysql_free_result(result);
+  mysql_close(my);
+
+  DBUG_VOID_RETURN;
+}
+
 /* 
    MDEV-4603: mysql_stmt_reset doesn't clear
               all result sets (from stored procedures).
@@ -21308,6 +21347,7 @@ static struct my_tests_st my_tests[]= {
   { "test_free_store_result", test_free_store_result },
   { "test_sqlmode", test_sqlmode },
   { "test_ts", test_ts },
+  { "test_mdev23519", test_mdev23519},
   { "test_bug1115", test_bug1115 },
   { "test_bug1180", test_bug1180 },
   { "test_bug1500", test_bug1500 },
