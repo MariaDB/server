@@ -19308,6 +19308,7 @@ static void test_mdev23519()
                           opt_unix_socket, CLIENT_MULTI_RESULTS))
     DIE("mysql_real_connect failed");
 
+  rc= mysql_query(mysql, "drop table if exists fears");
   rc= mysql_query(mysql, "create table fears("\
                   "`FearID` int(11) DEFAULT NULL,"\
                   "`Fear` varchar(50) DEFAULT NULL"\
