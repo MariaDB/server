@@ -6166,50 +6166,78 @@ static void release_part_info_log_entries(DDL_LOG_MEMORY_ENTRY *log_entry)
 
 
 /*
-  Log an delete/rename frm file
+  Log an delete frm file
   SYNOPSIS
-    write_log_replace_delete_frm()
+    write_log_delete_frm()
     lpt                            Struct for parameters
-    next_entry                     Next reference to use in log record
-    from_path                      Name to rename from
-    to_path                        Name to rename to
-    replace_flag                   TRUE if replace, else delete
+    to_path                        Name to delete
   RETURN VALUES
     TRUE                           Error
     FALSE                          Success
   DESCRIPTION
-    Support routine that writes a replace or delete of an frm file into the
+    Support routine that writes a delete of an frm file into the
     ddl log. It also inserts an entry that keeps track of used space into
     the partition info object
 */
 
-static bool write_log_replace_delete_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                         uint next_entry,
-                                         const char *from_path,
-                                         const char *to_path,
-                                         bool replace_flag)
+static bool write_log_delete_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
+                                 const char *to_path)
 {
   DDL_LOG_ENTRY ddl_log_entry;
   DDL_LOG_MEMORY_ENTRY *log_entry;
-  DBUG_ENTER("write_log_replace_delete_frm");
-
   bzero(&ddl_log_entry, sizeof(ddl_log_entry));
-  if (replace_flag)
-    ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
-  else
-    ddl_log_entry.action_type= DDL_LOG_DELETE_ACTION;
-  ddl_log_entry.next_entry= next_entry;
+  ddl_log_entry.action_type= DDL_LOG_DELETE_ACTION;
+  ddl_log_entry.next_entry= 0;
   lex_string_set(&ddl_log_entry.handler_name, reg_ext);
   lex_string_set(&ddl_log_entry.name, to_path);
 
-  if (replace_flag)
-    lex_string_set(&ddl_log_entry.from_name, from_path);
   if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
   {
-    DBUG_RETURN(TRUE);
+    return true;
   }
   insert_part_info_log_entry_list(lpt->part_info, log_entry);
-  DBUG_RETURN(FALSE);
+  return false;
+}
+
+
+/*
+  Log an rename frm file
+  SYNOPSIS
+    write_log_replace_frm()
+    lpt                            Struct for parameters
+    next_entry                     Next reference to use in log record
+    from_path                      Name to rename from
+    to_path                        Name to rename to
+  RETURN VALUES
+    TRUE                           Error
+    FALSE                          Success
+  DESCRIPTION
+    Support routine that writes a replace of an frm file into the
+    ddl log. It also inserts an entry that keeps track of used space into
+    the partition info object
+*/
+
+static bool write_log_replace_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
+                                  uint next_entry,
+                                  const char *from_path,
+                                  const char *to_path)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  DDL_LOG_MEMORY_ENTRY *log_entry;
+
+  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+  ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
+  ddl_log_entry.next_entry= next_entry;
+  lex_string_set(&ddl_log_entry.handler_name, reg_ext);
+  lex_string_set(&ddl_log_entry.name, to_path);
+  lex_string_set(&ddl_log_entry.from_name, from_path);
+
+  if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
+  {
+    return true;
+  }
+  insert_part_info_log_entry_list(lpt->part_info, log_entry);
+  return false;
 }
 
 
@@ -6464,8 +6492,7 @@ static bool write_log_drop_shadow_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
 
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
-  if (write_log_replace_delete_frm(lpt, 0UL, NULL,
-                                  (const char*)shadow_path, FALSE))
+  if (write_log_delete_frm(lpt, (const char*)shadow_path))
     goto error;
   log_entry= part_info->first_log_entry;
   if (ddl_log_write_execute_entry(log_entry->entry_pos,
@@ -6511,7 +6538,7 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
-  if (write_log_replace_delete_frm(lpt, 0UL, shadow_path, path, TRUE))
+  if (write_log_replace_frm(lpt, 0UL, shadow_path, path))
     goto error;
   log_entry= part_info->first_log_entry;
   part_info->frm_log_entry= log_entry;
@@ -6565,8 +6592,8 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   if (write_log_dropped_partitions(lpt, &next_entry, (const char*)path,
                                    FALSE))
     goto error;
-  if (write_log_replace_delete_frm(lpt, next_entry, (const char*)tmp_path,
-                                  (const char*)path, TRUE))
+  if (write_log_replace_frm(lpt, next_entry, (const char*)tmp_path,
+                            (const char*)path))
     goto error;
   log_entry= part_info->first_log_entry;
   part_info->frm_log_entry= log_entry;
@@ -6693,7 +6720,7 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
                                    lpt->alter_info->partition_flags &
                                    ALTER_PARTITION_REORGANIZE))
     goto error;
-  if (write_log_replace_delete_frm(lpt, next_entry, shadow_path, path, TRUE))
+  if (write_log_replace_frm(lpt, next_entry, shadow_path, path))
     goto error;
   log_entry= part_info->first_log_entry;
   part_info->frm_log_entry= log_entry;
