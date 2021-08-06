@@ -149,7 +149,7 @@ bool is_eits_usable(Field* field);
 class Histogram_base : public Sql_alloc
 {
 public:
-  virtual bool parse(MEM_ROOT *mem_root, Histogram_type type_arg, 
+  virtual bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
                      const uchar *ptr, uint size)= 0;
   virtual void serialize(Field *to_field)= 0;
 
@@ -173,13 +173,19 @@ public:
 
   virtual double point_selectivity(double pos, double avg_selection)=0;
 
+  virtual double range_selectivity_new(Field *field, key_range *min_endp,
+                                       key_range *max_endp)
+  {
+    return 1.0;
+  };
+
   virtual ~Histogram_base(){}
 };
 
 class Histogram_binary : public Histogram_base
 {
 public:
-  bool parse(MEM_ROOT *mem_root, Histogram_type type_arg, 
+  bool parse(MEM_ROOT *mem_root, Field *, Histogram_type type_arg, 
              const uchar *ptr_arg, uint size_arg) override;
   void serialize(Field *to_field) override;
 
@@ -341,11 +347,28 @@ class Histogram_json : public Histogram_base
 private:
   Histogram_type type;
   uint8 size; /* Number of elements in the histogram*/
+
+  /*
+    GSOC-TODO: This is used for storing collected JSON text. Rename it
+    accordingly.
+  */
   uchar *values;
-  std::vector<std::string> hist_buckets;
+
+  // List of values in string form.
+  /* 
+    GSOC-TODO: We don't need to save this. It can be a local variable in
+    parse().
+    Eventually we should get rid of this at all, as we can convert the
+    endpoints and add them to histogram_bounds as soon as we've read them.
+  */
+  std::vector<std::string> hist_buckets_text;
+  
+  // Array of histogram bucket endpoints in KeyTupleFormat.
+  std::vector<std::string> histogram_bounds;
 
 public:
-  bool parse(MEM_ROOT *mem_root, Histogram_type type_arg, const uchar *ptr, uint size) override;
+  bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
+            const uchar *ptr, uint size) override;
 
   void serialize(Field *field) override;
 
@@ -364,7 +387,7 @@ public:
 
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size) override;
 
-  bool is_available() override {return get_width() > 0 && get_values(); }
+  bool is_available() override {return get_width() > 0 /*&& get_values()*/; }
 
   bool is_usable(THD *thd) override
   {
@@ -379,6 +402,13 @@ public:
   double range_selectivity(double min_pos, double max_pos) override {return 0.1;}
 
   double point_selectivity(double pos, double avg_selection) override {return 0.5;}
+
+  /*
+    GSOC-TODO: This function should eventually replace both range_selectivity()
+    and point_selectivity(). See its code for more details.
+  */
+  double range_selectivity_new(Field *field, key_range *min_endp,
+                                       key_range *max_endp) override;
 };
 
 class Columns_statistics;
