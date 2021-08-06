@@ -37,6 +37,8 @@ enum frm_type_enum
 */
 frm_type_enum dd_frm_type(THD *thd, char *path, LEX_STRING *engine_name);
 
+frm_type_enum dd_frm_type_for_force_drop(THD *thd, char *path, LEX_STRING *engine_name);
+
 static inline bool dd_frm_is_view(THD *thd, char *path)
 {
   return dd_frm_type(thd, path, NULL) == FRMTYPE_VIEW;

@@ -5279,6 +5279,51 @@ bool ha_table_exists(THD *thd, const char *db, const char *table_name,
 }
 
 /**
+  Checks if a table exists.
+  If there's no .frm file, will initialize *hton based on force_drop_table_mode session variable value.
+
+  @retval true    Table exists (even if the error occurred, like bad frm or no frm)
+  @retval false   Table does not exist (one can do CREATE TABLE table_name)
+
+  @note if frm exists and the table in engine doesn't, *hton will be set,
+        but the return value will be false.
+
+  @note if frm file exists, but the table cannot be opened (engine not
+        loaded, frm is invalid), the return value will be true, and the *hton will be
+        initialized with a value corresponding to a value of force_drop_table_mode.
+*/
+
+bool ha_table_exists_force_drop(THD *thd, const char *db, const char *table_name,
+                     handlerton **hton)
+{
+  bool exists;
+  char path[FN_REFLEN + 1];
+  char engine_buf[NAME_CHAR_LEN + 1];
+  LEX_STRING engine= { engine_buf, 0 };
+  DBUG_ENTER("ha_table_exists_force_drop");
+
+  size_t path_len = build_table_filename(path, sizeof(path) - 1,
+                                         db, table_name, "", 0);
+  exists = ha_table_exists(thd, db, table_name, hton);
+
+  if(thd->variables.force_drop_table_mode && !exists && !file_ext_exists(path, path_len, reg_ext)) // No .frm file
+  {
+    frm_type_enum type;
+    if ((type= dd_frm_type_for_force_drop(thd, path, &engine)) == FRMTYPE_ERROR)
+        DBUG_RETURN(0);
+
+    if (type != FRMTYPE_VIEW) // initialize *hton
+    {
+      plugin_ref p=  plugin_lock_by_name(thd, &engine,
+                                          MYSQL_STORAGE_ENGINE_PLUGIN);
+      *hton= p ? plugin_hton(p) : NULL;
+    }
+    DBUG_RETURN(TRUE);
+  }
+  DBUG_RETURN(exists);
+}
+
+/**
   Discover all table names in a given database
 */
 extern "C" {

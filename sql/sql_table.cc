@@ -2372,7 +2372,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
     DEBUG_SYNC(thd, "rm_table_no_locks_before_delete_table");
     error= 0;
     if (drop_temporary ||
-        (ha_table_exists(thd, db, alias, &table_type) == 0 && table_type == 0) ||
+        (ha_table_exists_force_drop(thd, db, alias, &table_type) == 0 && table_type == 0) ||
         (!drop_view && (was_view= (table_type == view_pseudo_hton))))
     {
       /*
@@ -2474,7 +2474,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables, bool if_exists,
         }
         else
           frm_delete_error= mysql_file_delete(key_file_frm, path,
-                                              MYF(MY_WME));
+                                              MYF(MY_WME)) && !thd->variables.force_drop_table_mode;
         if (frm_delete_error)
           frm_delete_error= my_errno;
         else

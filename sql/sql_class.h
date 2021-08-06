@@ -106,6 +106,12 @@ enum enum_binlog_row_image {
   BINLOG_ROW_IMAGE_FULL= 2
 };
 
+enum force_drop_table_mode
+ {
+   NONE=0,
+   INNODB,
+   MYISAM
+ };
 
 /* Bits for different SQL modes modes (including ANSI mode) */
 #define MODE_REAL_AS_FLOAT              (1ULL << 0)
@@ -718,6 +724,7 @@ typedef struct system_variables
   my_bool session_track_state_change;
 
   ulong threadpool_priority;
+  ulong force_drop_table_mode;
 } SV;
 
 /**

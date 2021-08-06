@@ -5792,3 +5792,15 @@ static Sys_var_mybool Sys_session_track_state_change(
        ON_UPDATE(update_session_track_state_change));
 
 #endif //EMBEDDED_LIBRARY
+static const char *force_drop_table_mode_names[]=
+   { "NONE", "INNODB", "MYISAM", NULL };
+ 
+ static Sys_var_enum Sys_force_drop_table_mode(
+        "force_drop_table_mode",
+        "Select an engine type to drop an orphaned table. Default value is INNODB",
+        SESSION_VAR(force_drop_table_mode), 
+        NO_CMD_LINE, 
+        force_drop_table_mode_names, 
+        DEFAULT(NONE)
+ );
+

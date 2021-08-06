@@ -35,6 +35,42 @@ static int read_string(File file, uchar**to, size_t length)
   DBUG_RETURN (0);
 }
 
+frm_type_enum dd_frm_type_for_force_drop(THD *thd, char *path, LEX_STRING *engine_name)
+{
+  File file;
+  uchar dbt;
+  DBUG_ENTER("dd_frm_type_for_force_drop");
+  if ((file = mysql_file_open(key_file_frm, path, O_RDONLY | O_SHARE, MYF(0))) < 0)
+  {
+    // no .frm file. We should check session variables to determine if we can drop an orphaned table
+    if(thd->variables.force_drop_table_mode) 
+    {
+        switch (thd->variables.force_drop_table_mode) // Let's find out the storage engine type based on a session variable
+        {
+          case INNODB:
+            dbt=DB_TYPE_INNODB;
+            break;
+          case MYISAM:
+            dbt=DB_TYPE_MYISAM;
+            break;
+          default:
+            dbt=DB_TYPE_INNODB;
+            break;
+        }
+        handlerton *ht= ha_resolve_by_legacy_type(thd, (enum legacy_db_type)dbt);
+        if (ht)
+        {
+          *engine_name= hton2plugin[ht->slot]->name;
+        }
+        DBUG_RETURN(FRMTYPE_TABLE);
+     }
+  }
+  else
+  {
+    mysql_file_close(file, MYF(MY_WME));
+  }
+  DBUG_RETURN(dd_frm_type(thd, path, engine_name));
+}
 
 /**
   Check type of .frm if we are not going to parse it.

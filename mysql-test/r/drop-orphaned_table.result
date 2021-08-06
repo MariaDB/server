@@ -1,0 +1,13 @@
+create database droptest;
+use droptest;
+set @@SESSION.force_drop_table_mode='INNODB';
+create table t1(a int);
+create table t2(a int);
+create trigger tr1 before insert on t1 for each row insert into t2 values (new.a);
+insert into t1 values (1);
+insert into t1 values (3);
+insert into t1 values (3);
+insert into t1 values (7);
+drop table t1;
+set @@SESSION.force_drop_table_mode='NONE';
+drop database droptest;
