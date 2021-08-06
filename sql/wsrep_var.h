@@ -1,4 +1,4 @@
-/* Copyright (C) 2013 Codership Oy <info@codership.com>
+/* Copyright (C) 2013-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -109,7 +109,6 @@ extern bool wsrep_gtid_seq_no_check          CHECK_ARGS;
 extern bool wsrep_gtid_domain_id_update      UPDATE_ARGS;
 
 extern bool wsrep_mode_check                 CHECK_ARGS;
-extern bool wsrep_replicate_myisam_update    UPDATE_ARGS;
 #else  /* WITH_WSREP */
 
 #define wsrep_provider_init(X)

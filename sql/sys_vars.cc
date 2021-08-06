@@ -6051,13 +6051,6 @@ static Sys_var_mybool Sys_wsrep_recover_datadir(
        READ_ONLY GLOBAL_VAR(wsrep_recovery),
        CMD_LINE(OPT_ARG), DEFAULT(FALSE));
 
-static Sys_var_mybool Sys_wsrep_replicate_myisam(
-       "wsrep_replicate_myisam", "To enable myisam replication",
-       GLOBAL_VAR(wsrep_replicate_myisam), CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
-       ON_UPDATE(wsrep_replicate_myisam_update),
-       DEPRECATED("'@@wsrep_mode=REPLICATE_MYISAM'")); // since 10.6.0
-
 static Sys_var_mybool Sys_wsrep_log_conflicts(
        "wsrep_log_conflicts", "To log multi-master conflicts",
        GLOBAL_VAR(wsrep_log_conflicts), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
