@@ -84,11 +84,21 @@ SET GLOBAL wsrep_provider_options = 'dbug=';
 SET GLOBAL wsrep_provider_options = 'signal=commit_monitor_enter_sync';
 SET DEBUG_SYNC = "RESET";
 connection node_2a;
-set session wsrep_sync_wait=15;
-SELECT COUNT(*) = 1 FROM test.t1 WHERE f2 = 'e';
-COUNT(*) = 1
-1
 set session wsrep_sync_wait=0;
+SELECT * from test.t1;
+f1	f2
+1	a
+2	b
+3	e
+4	d
+connection node_1;
+SELECT * from test.t1;
+f1	f2
+1	a
+2	b
+3	e
+4	d
+connection node_2a;
 STOP SLAVE;
 RESET SLAVE;
 DROP TABLE t1;
