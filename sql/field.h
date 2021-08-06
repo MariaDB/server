@@ -1857,6 +1857,7 @@ public:
   {
     return (double) 0.5; 
   }
+  virtual bool pos_through_val_str() { return false;}
 
   /*
     Check if comparison between the field and an item unambiguously
@@ -2142,6 +2143,8 @@ public:
   {
     return pos_in_interval_val_str(min, max, length_size());
   }
+  bool pos_through_val_str() override {return true;}
+
   bool test_if_equality_guarantees_uniqueness(const Item *const_item) const
     override;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, KEY_PART *key_part,
