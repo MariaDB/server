@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1097,17 +1097,6 @@ bool wsrep_gtid_domain_id_update(sys_var* self, THD *thd, enum_var_type)
   WSREP_DEBUG("wsrep_gtid_domain_id_update: %llu",
               wsrep_gtid_domain_id);
   wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
-  return false;
-}
-
-bool wsrep_strict_ddl_update(sys_var *self, THD* thd, enum_var_type var_type)
-{
-  // In case user still sets wsrep_strict_ddl we set new
-  // option to wsrep_mode
-  if (wsrep_strict_ddl)
-    wsrep_mode|= WSREP_MODE_STRICT_REPLICATION;
-  else
-    wsrep_mode&= (~WSREP_MODE_STRICT_REPLICATION);
   return false;
 }
 

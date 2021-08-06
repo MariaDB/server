@@ -6031,16 +6031,6 @@ static Sys_var_mybool Sys_wsrep_desync (
        ON_CHECK(wsrep_desync_check),
        ON_UPDATE(wsrep_desync_update));
 
-static Sys_var_mybool Sys_wsrep_strict_ddl (
-       "wsrep_strict_ddl",
-       "If set, reject DDL on affected tables not supporting Galera replication",
-       GLOBAL_VAR(wsrep_strict_ddl),
-       CMD_LINE(OPT_ARG), DEFAULT(FALSE),
-       NO_MUTEX_GUARD, NOT_IN_BINLOG,
-       ON_CHECK(0),
-       ON_UPDATE(wsrep_strict_ddl_update),
-       DEPRECATED("'@@wsrep_mode=STRICT_REPLICATION'")); // since 10.6.0
-
 static const char *wsrep_reject_queries_names[]= { "NONE", "ALL", "ALL_KILL", NullS };
 static Sys_var_enum Sys_wsrep_reject_queries(
        "wsrep_reject_queries", "Variable to set to reject queries",

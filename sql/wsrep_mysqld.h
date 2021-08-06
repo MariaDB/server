@@ -103,7 +103,6 @@ extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern uint        wsrep_gtid_domain_id;
 extern ulonglong   wsrep_mode;
-extern my_bool     wsrep_strict_ddl;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */

@@ -100,9 +100,6 @@ my_bool wsrep_restart_slave;                    // Should mysql slave thread be
 my_bool wsrep_desync;                           // De(re)synchronize the node from the
                                                 // cluster
 ulonglong wsrep_mode;
-my_bool wsrep_strict_ddl;                       // Deprecated: Reject DDL to
-                                                // effected tables not
-                                                // supporting Galera replication
 bool wsrep_service_started;                     // If Galera was initialized
 long wsrep_slave_threads;                       // No. of slave appliers threads
 ulong wsrep_retry_autocommit;                   // Retry aborted autocommit trx
