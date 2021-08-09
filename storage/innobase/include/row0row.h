@@ -30,6 +30,7 @@ Created 4/20/1996 Heikki Tuuri
 #include "que0types.h"
 #include "ibuf0ibuf.h"
 #include "trx0types.h"
+#include "trx0sys.h"
 #include "mtr0mtr.h"
 #include "rem0types.h"
 #include "row0types.h"
@@ -426,6 +427,32 @@ row_mtr_start(mtr_t* mtr, dict_index_t* index, bool pessimistic)
 
 	log_free_check();
 }
+
+/*********************************************************************//**
+Reads the trx id field from a clustered index record.
+@return value of the field */
+static inline
+trx_id_t
+row_get_rec_trx_id(
+/*===============*/
+	const rec_t*		rec,	/*!< in: record */
+	const dict_index_t*	index,	/*!< in: clustered index */
+	const rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index) */
+{
+	ulint	offset;
+
+	ut_ad(dict_index_is_clust(index));
+	ut_ad(rec_offs_validate(rec, index, offsets));
+
+	offset = index->trx_id_offset;
+
+	if (!offset) {
+		offset = row_get_trx_id_offset(index, offsets);
+	}
+
+	return(trx_read_trx_id(rec + offset));
+}
+
 
 #include "row0row.ic"
 

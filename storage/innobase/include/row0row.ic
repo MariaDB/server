@@ -52,31 +52,6 @@ row_get_trx_id_offset(
 }
 
 /*********************************************************************//**
-Reads the trx id field from a clustered index record.
-@return value of the field */
-UNIV_INLINE
-trx_id_t
-row_get_rec_trx_id(
-/*===============*/
-	const rec_t*		rec,	/*!< in: record */
-	const dict_index_t*	index,	/*!< in: clustered index */
-	const rec_offs*		offsets)/*!< in: rec_get_offsets(rec, index) */
-{
-	ulint	offset;
-
-	ut_ad(dict_index_is_clust(index));
-	ut_ad(rec_offs_validate(rec, index, offsets));
-
-	offset = index->trx_id_offset;
-
-	if (!offset) {
-		offset = row_get_trx_id_offset(index, offsets);
-	}
-
-	return(trx_read_trx_id(rec + offset));
-}
-
-/*********************************************************************//**
 Reads the roll pointer field from a clustered index record.
 @return value of the field */
 UNIV_INLINE
