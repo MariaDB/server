@@ -1,3 +1,4 @@
+call mtr.add_suppression("Index for table 'tab' is corrupt; try to repair it");
 SET @row_format = @@GLOBAL.innodb_default_row_format;
 # ###########################################################
 # Check with Import/Export tablespace with Default_row_format
@@ -38,7 +39,7 @@ tab	InnoDB	#	Compact	#	#	#	#	#	#	NULL	#	NULL	NULL	latin1_swedish_ci	NULL			0	N
 ALTER TABLE tab DISCARD TABLESPACE;
 call mtr.add_suppression("InnoDB: Tried to read .* bytes at offset 0");
 ALTER TABLE tab IMPORT TABLESPACE;
-ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`tab` : I/O error
+ERROR HY000: Index for table 'tab' is corrupt; try to repair it
 ALTER TABLE tab IMPORT TABLESPACE;
 SELECT * FROM tab;
 a

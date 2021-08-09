@@ -46,7 +46,7 @@ t1	CREATE TABLE `t1` (
   `b` blob DEFAULT NULL,
   `c` blob DEFAULT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB AUTO_INCREMENT=46 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB AUTO_INCREMENT=57 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 UPDATE t1 set b = repeat("de", 100) where b = repeat("cd", 200);
 explain SELECT a FROM t1 where b = repeat("de", 100);
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
@@ -126,7 +126,7 @@ t1	CREATE TABLE `t1` (
   `c2` point NOT NULL,
   `c3` linestring NOT NULL,
   PRIMARY KEY (`c1`)
-) ENGINE=InnoDB AUTO_INCREMENT=14325 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
+) ENGINE=InnoDB AUTO_INCREMENT=16372 DEFAULT CHARSET=latin1 ROW_FORMAT=DYNAMIC
 UPDATE t1 SET C2 = ST_GeomFromText('POINT(0 0)');
 SELECT COUNT(*) FROM t1;
 COUNT(*)

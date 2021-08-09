@@ -407,7 +407,7 @@ ERROR HY000: Tablespace has been discarded for table `t1`
 restore: t1 .ibd and .cfg files
 SET SESSION debug_dbug="+d,fsp_flags_is_valid_failure";
 ALTER TABLE t1 IMPORT TABLESPACE;
-ERROR HY000: Internal error: Cannot reset LSNs in table `test`.`t1` : Data structure corruption
+ERROR HY000: Index for table 't1' is corrupt; try to repair it
 SET SESSION debug_dbug=@saved_debug_dbug;
 DROP TABLE t1;
 unlink: t1.ibd
