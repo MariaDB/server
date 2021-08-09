@@ -2844,8 +2844,7 @@ void ddl_log_release()
    Methods for DDL_LOG_STATE
 */
 
-static void add_log_entry(DDL_LOG_STATE *state,
-                          DDL_LOG_MEMORY_ENTRY *log_entry)
+void ddl_log_add_entry(DDL_LOG_STATE *state, DDL_LOG_MEMORY_ENTRY *log_entry)
 {
   log_entry->next_active_log_entry= state->list;
   state->main_entry= state->list= log_entry;
@@ -3024,7 +3023,7 @@ static bool ddl_log_write(DDL_LOG_STATE *ddl_state,
       ddl_log_release_memory_entry(log_entry);
     DBUG_RETURN(1);
   }
-  add_log_entry(ddl_state, log_entry);
+  ddl_log_add_entry(ddl_state, log_entry);
   ddl_state->flags|= ddl_log_entry->flags;      // Update cache
   DBUG_RETURN(0);
 }
@@ -3176,7 +3175,7 @@ static bool ddl_log_drop(THD *thd, DDL_LOG_STATE *ddl_state,
   }
 
   mysql_mutex_unlock(&LOCK_gdl);
-  add_log_entry(ddl_state, log_entry);
+  ddl_log_add_entry(ddl_state, log_entry);
   DBUG_RETURN(0);
 
 error:
@@ -3477,7 +3476,7 @@ bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_state,
     goto err;
   parent_entry_pos= ddl_state->list->entry_pos;
   entry_pos= first_entry->entry_pos;
-  add_log_entry(ddl_state, first_entry);
+  ddl_log_add_entry(ddl_state, first_entry);
 
   while (length)
   {
@@ -3493,7 +3492,7 @@ bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_state,
       if (ddl_log_get_free_entry(&next_entry))
         goto err;
       ddl_log_entry.next_entry= next_entry_pos= next_entry->entry_pos;
-      add_log_entry(ddl_state, next_entry);
+      ddl_log_add_entry(ddl_state, next_entry);
     }
     else
     {

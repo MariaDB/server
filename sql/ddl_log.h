@@ -285,6 +285,7 @@ void ddl_log_release_memory_entry(DDL_LOG_MEMORY_ENTRY *log_entry);
 bool ddl_log_sync();
 bool ddl_log_execute_entry(THD *thd, uint first_entry);
 
+void ddl_log_add_entry(DDL_LOG_STATE *state, DDL_LOG_MEMORY_ENTRY *log_entry);
 void ddl_log_release_entries(DDL_LOG_STATE *ddl_log_state);
 bool ddl_log_rename_table(THD *thd, DDL_LOG_STATE *ddl_state,
                           handlerton *hton,
