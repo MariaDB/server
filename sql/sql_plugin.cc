@@ -1053,6 +1053,39 @@ plugin_ref plugin_lock(THD *thd, plugin_ref ptr)
   DBUG_RETURN(rc);
 }
 
+/**
+ Locks the plugins referenced by the plugin system variables in the array.
+ If the system variable is not a pluginvar, it is skipped.
+
+ @param thd  is required to store an entry in thd->lex->plugins and unlock the
+             locked plugins automatically on the statement end
+ @param vars an array of system variables. Must be sorted by name in ascending
+             order.
+*/
+void plugin_lock_by_sys_var_array(THD *thd, Dynamic_array<SHOW_VAR> *vars)
+{
+  /* Block plugins from unloading */
+  mysql_mutex_assert_owner(&LOCK_plugin);
+
+  st_plugin_int *prev= NULL;
+  for (SHOW_VAR *show_var= vars->front(); show_var != vars->end(); show_var++)
+  {
+    sys_var *var= (sys_var *)show_var->value;
+
+    if (unlikely(!var)) continue;
+    sys_var_pluginvar *pv= var->cast_pluginvar();
+    if (!pv) continue;
+
+    DBUG_ASSERT(show_var == vars->front()
+                || strcmp(show_var->name, (show_var-1)->name) > 0);
+
+    if (!prev || pv->plugin != prev)
+      intern_plugin_lock(thd->lex, plugin_int_to_ref(pv->plugin));
+
+    prev= pv->plugin;
+  }
+}
+
 
 /*
   Notes on lifetime:

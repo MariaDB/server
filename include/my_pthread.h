@@ -713,6 +713,7 @@ struct st_my_thread_var
   int volatile abort;
   uint lock_type; /* used by conditional release the queue */
   my_bool init;
+  void (* volatile refresh_data)();
 #ifndef DBUG_OFF
   void *dbug;
   char name[THREAD_NAME_SIZE+1];

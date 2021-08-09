@@ -79,7 +79,7 @@ public:
       records.
     */
     return HA_NO_TRANSACTIONS | HA_REC_NOT_IN_SEQ | HA_NO_AUTO_INCREMENT |
-      HA_PRIMARY_KEY_REQUIRED_FOR_DELETE;
+      HA_PRIMARY_KEY_REQUIRED_FOR_DELETE | HA_SLOW_RND_POS;
   }
 
   /**

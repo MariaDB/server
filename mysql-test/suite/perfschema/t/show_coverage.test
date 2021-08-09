@@ -68,48 +68,6 @@ SHOW GLOBAL VARIABLES WHERE VARIABLE_NAME LIKE "foo";
 SHOW SESSION VARIABLES WHERE VARIABLE_NAME LIKE "foo";
 
 --echo #
---echo # TEST 5
---echo # Confirm FLUSH STATUS resets counters for all threads.
---echo #
---echo #
---echo # Create a new connection
---connect(con1, localhost, root,,)
---echo #
---echo # Record thread id
-let $thread_id= `SELECT THREAD_ID FROM performance_schema.threads WHERE PROCESSLIST_ID = CONNECTION_ID()`;
---echo #
---echo # Increase bytes_received for new connection
-USE test;
-SHOW TABLES;
---connection default
-USE performance_schema;
---disable_query_log
-eval SELECT $thread_id INTO @thread_id;
---enable_query_log
-
---echo #
---echo # Record bytes_received for other connection
-SELECT variable_value FROM status_by_thread
-  WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_before;
---echo #
---echo # Reset status counters
-FLUSH STATUS;
---echo #
---echo # Record bytes_received after reset
-SELECT variable_value FROM status_by_thread
-  WHERE variable_name = "bytes_received" and thread_id = @thread_id INTO @bytes_after;
---echo #
---echo # Expect bytes_before > bytes_after
-SELECT @bytes_before > @bytes_after AS 'Expect 1';
---echo #
---echo # Expect bytes_after is zero
-SELECT @bytes_after AS 'Expect 0';
-
-disconnect con1;
---source include/wait_until_count_sessions.inc
-
-
---echo #
 --echo # TEST 6
 --echo #
 --echo # Bug#28291258 FLUSH STATUS ADDS TWICE TO GLOBAL VALUES
@@ -184,3 +142,26 @@ FLUSH STATUS;
 --let $assert_cond = $default_session_value = 0
 --let $assert_text = Default session value after FLUSH must remain zero
 --source include/assert.inc
+
+
+--echo # BUG: results from inactive connections are not shown
+SET time_zone= '+2:00';
+
+--connect (con1, localhost, root,,)
+set time_zone= '+10:00';
+
+SELECT THREAD_ID INTO @con1_thread_id FROM performance_schema.threads 
+  WHERE PROCESSLIST_ID = CONNECTION_ID();
+
+SELECT thread_id = @con1_thread_id as current, variable_value
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
+
+--disconnect con1
+--connection default
+
+SELECT THREAD_ID INTO @def_thread_id FROM performance_schema.threads 
+  WHERE PROCESSLIST_ID = CONNECTION_ID();
+SELECT thread_id = @def_thread_id as current, variable_value 
+  FROM performance_schema.variables_by_thread
+  WHERE variable_name = "time_zone";
