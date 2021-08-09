@@ -14,6 +14,9 @@
 #        dump request command execution.
 #    2 - Start the slave. Observe that slave is able to reconnect post
 #        temporary network write error.
+#    3 - Simulate packet read error during dump request command execution.
+#    4 - Start the slave. Observe that slave is able to reconnect post
+#        temporary network read error.
 #
 # ==== References ====
 #
@@ -38,6 +41,37 @@ INSERT INTO t1 VALUES(1);
 connection slave;
 SET @saved_dbug = @@GLOBAL.debug_dbug;
 SET @@global.debug_dbug= 'd,simulate_error_on_packet_write';
+
+START SLAVE;
+SET DEBUG_SYNC= 'now WAIT_FOR parked';
+SET @@GLOBAL.debug_dbug = @saved_dbug;
+SET DEBUG_SYNC= 'now SIGNAL continue';
+SET DEBUG_SYNC= 'RESET';
+
+--source include/wait_for_slave_io_to_start.inc
+--source include/wait_for_slave_sql_to_start.inc
+
+# Sync the slave and verify that slave has caught up with the master.
+connection master;
+--source include/sync_slave_sql_with_master.inc
+SELECT * FROM t1;
+
+# Cleanup
+connection master;
+DROP TABLE t1;
+
+connection slave;
+--source include/stop_slave.inc
+
+connection master;
+# Do an insert on master
+CREATE TABLE t1(a int);
+INSERT INTO t1 VALUES(1);
+
+# Add a debug point and start the slave so that dump request fails.
+connection slave;
+SET @saved_dbug = @@GLOBAL.debug_dbug;
+SET @@global.debug_dbug= 'd,simulate_error_on_packet_read';
 
 START SLAVE;
 SET DEBUG_SYNC= 'now WAIT_FOR parked';

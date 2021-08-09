@@ -498,6 +498,17 @@ net_write_command(NET *net,uchar command,
                       DBUG_RETURN(true);
                     }
                   };);
+  DBUG_EXECUTE_IF("simulate_error_on_packet_read",
+                  {
+                    if (command == COM_BINLOG_DUMP)
+                    {
+                      net->last_errno = ER_NET_READ_ERROR;
+                      DBUG_ASSERT(!debug_sync_set_action(
+                      (THD *)net->thd,
+                      STRING_WITH_LEN("now SIGNAL parked WAIT_FOR continue")));
+                      DBUG_RETURN(true);
+                    }
+                  };);
   MYSQL_NET_WRITE_START(length);
 
   buff[4]=command;				/* For first packet */
