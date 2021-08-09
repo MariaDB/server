@@ -212,7 +212,7 @@ public:
       return false;
 
     /* Hold this lock to keep THD during materialization. */
-    mysql_mutex_lock(&thd->LOCK_thd_data);
+    mysql_mutex_lock(&thd->LOCK_thd_kill);
     return true;
   }
   void set_unsafe_thd(THD *unsafe_thd) { m_unsafe_thd= unsafe_thd; }
@@ -605,6 +605,18 @@ public:
   ulonglong get_sysvar_hash_version(void) { return m_version; }
   ~PFS_system_variable_cache() { free_mem_root(); }
 
+  typedef void (PFS_system_variable_cache::* Request_func)(uint);
+
+  THD *safe_thd() const
+  {
+    DBUG_ASSERT(m_safe_thd);
+    return m_safe_thd;
+  }
+
+  enum_var_type query_scope() const
+  {
+    return m_query_scope;
+  }
 private:
   /* Build SHOW_var array. */
   bool init_show_var_array(enum_var_type scope, bool strict);
@@ -620,6 +632,11 @@ private:
   int do_materialize_session(PFS_thread *thread);
   /* Single variable -  PFS_thread */
   int do_materialize_session(PFS_thread *pfs_thread, uint index);
+
+  int make_call(Request_func func, uint param);
+
+  void refresh_vars(uint all);
+  void refresh_one_var(uint);
 
   /* Temporary mem_root to use for materialization. */
   MEM_ROOT m_mem_sysvar;

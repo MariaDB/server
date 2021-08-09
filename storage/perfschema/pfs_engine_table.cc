@@ -329,9 +329,9 @@ static PFS_engine_table_share *all_shares[]=
   &table_global_status::m_share,
   &table_session_status::m_share,
 
-  //&table_variables_by_thread::m_share,
-  //&table_global_variables::m_share,
-  //&table_session_variables::m_share,
+  &table_variables_by_thread::m_share,
+  &table_global_variables::m_share,
+  &table_session_variables::m_share,
 
   NULL
 };

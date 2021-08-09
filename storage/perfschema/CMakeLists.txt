@@ -255,9 +255,9 @@ table_status_by_thread.cc
 table_status_by_user.cc
 table_global_status.cc
 table_session_status.cc
-#table_variables_by_thread.cc
-#table_global_variables.cc
-#table_session_variables.cc
+table_variables_by_thread.cc
+table_global_variables.cc
+table_session_variables.cc
 table_table_handles.cc
 table_threads.cc
 table_tiws_by_index_usage.cc
