@@ -105,10 +105,10 @@ RingBuffer::WriteState RingBuffer::write(uchar *From, size_t Count) {
     }
 
     From+=Count;
-    saved_buffer = From;
+    ;
     _end_of_file+=Count;
   }
-
+  saved_buffer = From;
   end:
   saved_write_pos = _write_new_pos;
   _write_new_pos+=Count;
