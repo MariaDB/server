@@ -101,7 +101,7 @@ ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '1'.
 UPDATE mysql.column_stats SET histogram='{}' WHERE table_name='t1';
 FLUSH TABLES;
 SELECT * FROM t1;
-ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '32641'.
+ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '1'.
 DELETE FROM mysql.column_stats;
 DROP TABLE t1;
 create schema world;

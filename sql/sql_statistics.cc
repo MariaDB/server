@@ -1993,11 +1993,10 @@ bool json_get_array_items(const char *json, const char *json_end, int *value_typ
 
   json_scan_start(&je, &my_charset_utf8mb4_bin, (const uchar *)json, (const uchar *)json_end);
 
-  if (json_read_value(&je) || je.value_type != JSON_VALUE_ARRAY)
+  if (json_read_value(&je) || (*value_type = je.value_type) != JSON_VALUE_ARRAY)
   {
     return false;
   }
-  *value_type = je.value_type;
 
   std::string val;
   while(!json_scan_next(&je))
