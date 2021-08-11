@@ -23,7 +23,7 @@
 /*
   MDEV-25602 Deprecate __WIN__ symbol.
 */
-#ifdef _MSC_VER
+#if defined (_MSC_VER) && !defined(__clang__)
 #pragma deprecated("__WIN__")
 #elif defined (__GNUC__)
 #pragma GCC poison __WIN__
