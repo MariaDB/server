@@ -5581,20 +5581,14 @@ Ed_connection::store_result_set()
   return ed_result_set;
 }
 
-/*
-  MENT-56
-  Protocol_local and service_sql for plugins to enable 'local' SQL query execution.
-*/
-
 #ifndef EMBEDDED_LIBRARY
-// This part is mostly copied from libmysqld/lib_sql.cc
-// TODO: get rid of code duplications
 
 #include <mysql.h>
 #include "../libmysqld/embedded_priv.h"
 
 class Protocol_local : public Protocol_text
 {
+  THD *new_thd;
 public:
   struct st_mysql_data *cur_data;
   struct st_mysql_data *first_data;
@@ -5605,10 +5599,32 @@ public:
   MYSQL_FIELD *next_mysql_field;
   MEM_ROOT *alloc;
 
-  Protocol_local(THD *thd_arg, ulong prealloc= 0) :
+  my_bool qc_save;
+  Reprepare_observer *save_reprepare_observer;
+
+  Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
     Protocol_text(thd_arg, prealloc),
-      cur_data(0), first_data(0), data_tail(&first_data), alloc(0)
-    {}
+      new_thd(new_thd_arg), cur_data(0), first_data(0),
+      data_tail(&first_data), alloc(0)
+  {
+    if (!new_thd)
+    {
+      qc_save= thd->query_cache_is_applicable;
+      thd->query_cache_is_applicable= 0;
+      save_reprepare_observer= thd->m_reprepare_observer;
+      thd->m_reprepare_observer= nullptr;
+    }
+  }
+  ~Protocol_local()
+  {
+    if (new_thd)
+      delete new_thd;
+    else
+    {
+      thd->query_cache_is_applicable= qc_save;
+      thd->m_reprepare_observer= save_reprepare_observer;
+    }
+  }
  
 protected:
   bool net_store_data(const uchar *from, size_t length);
@@ -5677,6 +5693,20 @@ MYSQL_DATA *Protocol_local::alloc_new_dataset()
   data_tail= &emb_data->next;
   data->embedded_info= emb_data;
   return data;
+}
+
+
+void Protocol_local::clear_data_list()
+{
+  while (first_data)
+  {
+    MYSQL_DATA *data= first_data;
+    first_data= data->embedded_info->next;
+    free_rows(data);
+  }
+  data_tail= &first_data;
+  free_rows(cur_data);
+  cur_data= 0;
 }
 
 
@@ -5973,7 +6003,6 @@ bool Protocol_local::send_result_set_metadata(List<Item> *list, uint flags)
 {
   List_iterator_fast<Item> it(*list);
   Item *item;
-//  Protocol_local prot(thd);
   DBUG_ENTER("send_result_set_metadata");
 
 //  if (!thd->mysql)            // bootstrap file handling
@@ -5984,7 +6013,7 @@ bool Protocol_local::send_result_set_metadata(List<Item> *list, uint flags)
 
   for (uint pos= 0 ; (item= it++); pos++)
   {
-    if (/*prot.*/store_item_metadata(thd, item, pos))
+    if (store_item_metadata(thd, item, pos))
       goto err;
   }
 
@@ -5997,6 +6026,7 @@ bool Protocol_local::send_result_set_metadata(List<Item> *list, uint flags)
   my_error(ER_OUT_OF_RESOURCES, MYF(0));        /* purecov: inspected */
   DBUG_RETURN(1);				/* purecov: inspected */
 }
+
 
 static void
 list_fields_send_default(THD *thd, Protocol_local *p, Field *fld, uint pos)
@@ -6085,19 +6115,6 @@ bool Protocol_local::store_null()
 #include <sql_common.h>
 #include <errmsg.h>
 
-struct local_results
-{
-  struct st_mysql_data *cur_data;
-  struct st_mysql_data *first_data;
-  struct st_mysql_data **data_tail;
-  void clear_data_list();
-  struct st_mysql_data *alloc_new_dataset();
-  char **next_field;
-  MYSQL_FIELD *next_mysql_field;
-  MEM_ROOT *alloc;
-};
-
-
 static void embedded_get_error(MYSQL *mysql, MYSQL_DATA *data)
 {
   NET *net= &mysql->net;
@@ -6112,11 +6129,11 @@ static void embedded_get_error(MYSQL *mysql, MYSQL_DATA *data)
 
 static my_bool loc_read_query_result(MYSQL *mysql)
 {
-  local_results *thd= (local_results *) mysql->thd;
+  Protocol_local *p= (Protocol_local *) mysql->thd;
 
-  MYSQL_DATA *res= thd->first_data;
-  DBUG_ASSERT(!thd->cur_data);
-  thd->first_data= res->embedded_info->next;
+  MYSQL_DATA *res= p->first_data;
+  DBUG_ASSERT(!p->cur_data);
+  p->first_data= res->embedded_info->next;
   if (res->embedded_info->last_errno &&
       !res->embedded_info->fields_list)
   {
@@ -6144,7 +6161,7 @@ static my_bool loc_read_query_result(MYSQL *mysql)
   if (res->embedded_info->fields_list)
   {
     mysql->status=MYSQL_STATUS_GET_RESULT;
-    thd->cur_data= res;
+    p->cur_data= res;
   }
   else
     my_free(res);
@@ -6153,23 +6170,160 @@ static my_bool loc_read_query_result(MYSQL *mysql)
 }
 
 
+static my_bool
+loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
+                     const uchar *header, ulong header_length,
+                     const uchar *arg, ulong arg_length, my_bool skip_check,
+                     MYSQL_STMT *stmt)
+{
+  MYSQL_LEX_STRING sql_text;
+  my_bool result= 1;
+  Protocol_local *p= (Protocol_local *) mysql->thd;
+  NET *net= &mysql->net;
+
+  if (p->thd && p->thd->killed != NOT_KILLED)
+  {
+    if (p->thd->killed < KILL_CONNECTION)
+      p->thd->killed= NOT_KILLED;
+    else
+      return 1;
+  }
+
+  p->clear_data_list();
+  /* Check that we are calling the client functions in right order */
+  if (mysql->status != MYSQL_STATUS_READY)
+  {
+    set_mysql_error(mysql, CR_COMMANDS_OUT_OF_SYNC, unknown_sqlstate);
+    goto end;
+  }
+
+  /* Clear result variables */
+  p->thd->clear_error(1);
+  mysql->affected_rows= ~(my_ulonglong) 0;
+  mysql->field_count= 0;
+  net_clear_error(net);
+
+  /* 
+     We have to call free_old_query before we start to fill mysql->fields 
+     for new query. In the case of embedded server we collect field data
+     during query execution (not during data retrieval as it is in remote
+     client). So we have to call free_old_query here
+  */
+  free_old_query(mysql);
+
+  if (header)
+  {
+    arg= header;
+    arg_length= header_length;
+  }
+
+  sql_text.str= (char *) arg;
+  sql_text.length= arg_length;
+  {
+    Ed_connection con(p->thd);
+    result= con.execute_direct(p, sql_text);
+    if (skip_check)
+      result= 0;
+  }
+  p->cur_data= 0;
+
+end:
+  return result;
+}
+
+
+/*
+  reads dataset from the next query result
+
+  SYNOPSIS
+  loc_read_rows()
+  mysql		connection handle
+  other parameters are not used
+
+  NOTES
+    It just gets next MYSQL_DATA from the result's queue
+
+  RETURN
+    pointer to MYSQL_DATA with the coming recordset
+*/
+
+static MYSQL_DATA *
+loc_read_rows(MYSQL *mysql, MYSQL_FIELD *mysql_fields __attribute__((unused)),
+              unsigned int fields __attribute__((unused)))
+{
+  MYSQL_DATA *result= ((Protocol_local *)mysql->thd)->cur_data;
+  ((Protocol_local *)mysql->thd)->cur_data= 0;
+  if (result->embedded_info->last_errno)
+  {
+    embedded_get_error(mysql, result);
+    return NULL;
+  }
+  *result->embedded_info->prev_ptr= NULL;
+  return result;
+}
+
+
+/**************************************************************************
+  Get column lengths of the current row
+  If one uses mysql_use_result, res->lengths contains the length information,
+  else the lengths are calculated from the offset between pointers.
+**************************************************************************/
+
+static void loc_fetch_lengths(ulong *to, MYSQL_ROW column,
+                              unsigned int field_count)
+{
+  MYSQL_ROW end;
+
+  for (end=column + field_count; column != end ; column++,to++)
+    *to= *column ? *(uint *)((*column) - sizeof(uint)) : 0;
+}
+
+
+static void loc_flush_use_result(MYSQL *mysql, my_bool)
+{
+  Protocol_local *p= (Protocol_local *) mysql->thd;
+  if (p->cur_data)
+  {
+    free_rows(p->cur_data);
+    p->cur_data= 0;
+  }
+  else if (p->first_data)
+  {
+    MYSQL_DATA *data= p->first_data;
+    p->first_data= data->embedded_info->next;
+    free_rows(data);
+  }
+}
+
+
+static void loc_on_close_free(MYSQL *mysql)
+{
+  Protocol_local *p= (Protocol_local *) mysql->thd;
+  delete p;
+  my_free(mysql->info_buffer);
+  mysql->info_buffer= 0;
+}
+
+
 static MYSQL_METHODS local_methods=
 {
   loc_read_query_result,                       /* read_query_result */
-  NULL/*loc_advanced_command*/,                        /* advanced_command */
-  NULL/*loc_read_rows*/,                               /* read_rows */
-  NULL/*loc_use_result*/,                              /* use_result */
-  NULL/*loc_fetch_lengths*/,                           /* fetch_lengths */
-  NULL/*loc_flush_use_result*/,                        /* flush_use_result */
-  NULL/*loc_read_change_user_result*/                  /* read_change_user_result */
+  loc_advanced_command,                        /* advanced_command */
+  loc_read_rows,                               /* read_rows */
+  mysql_store_result,                          /* use_result */
+  loc_fetch_lengths,                           /* fetch_lengths */
+  loc_flush_use_result,                        /* flush_use_result */
+  NULL,                                        /* read_change_user_result */
+  loc_on_close_free                            /* on_close_free */
 };
 
 
 extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
-    const char *host, const char *user, const char *passwd, const char *db)
+    const char *host, const char *user, const char *db,
+    unsigned long clientflag)
 {
-  //char name_buff[USERNAME_LENGTH];
-
+  THD *thd= current_thd;
+  THD *new_thd= NULL;
   DBUG_ENTER("mysql_real_connect_local");
 
   /* Test whether we're already connected */
@@ -6190,11 +6344,25 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
   if (!user || !user[0])
     user=mysql->options.user;
 
-  mysql->user= my_strdup(PSI_INSTRUMENT_ME, user, MYF(0));
+//  mysql->user= my_strdup(PSI_INSTRUMENT_ME, user, MYF(0));
+  mysql->user= NULL;
 
 
   mysql->info_buffer= (char *) my_malloc(PSI_INSTRUMENT_ME,
                                          MYSQL_ERRMSG_SIZE, MYF(0));
+  if (!thd)
+  {
+    new_thd= new THD(0);
+    new_thd->thread_stack= (char*) &thd;
+    new_thd->store_globals();
+    new_thd->security_ctx->skip_grants();
+    new_thd->query_cache_is_applicable= 0;
+    new_thd->variables.wsrep_on= 0;
+    bzero((char*) &new_thd->net, sizeof(new_thd->net));
+    thd= new_thd;
+  }
+
+  mysql->thd= new Protocol_local(thd, new_thd, 0);
   //mysql->thd= create_embedded_thd(client_flag);
 
   //init_embedded_mysql(mysql, client_flag);
@@ -6281,7 +6449,7 @@ extern "C" int execute_sql_command(const char *command,
   sql_text.str= (char *) command;
   sql_text.length= strlen(command);
   {
-    Protocol_local p(thd);
+    Protocol_local p(thd, 0, 0);
     Ed_connection con(thd);
     result= con.execute_direct(&p, sql_text);
     if (!result && p.first_data)

@@ -772,6 +772,13 @@ void thd_set_ha_data(MYSQL_THD thd, const struct handlerton *hton,
 */
 void thd_wakeup_subsequent_commits(MYSQL_THD thd, int wakeup_error);
 
+#ifdef MYSQL_SERVER
+struct st_mysql;
+struct st_mysql *mysql_real_connect_local(struct st_mysql *mysql,
+    const char *host, const char *user, const char *db,
+    unsigned long clientflag);
+#endif
+
 #ifdef __cplusplus
 }
 #endif

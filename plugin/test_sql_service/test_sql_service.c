@@ -28,6 +28,7 @@
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
 //#include <string.h>
+#include <mysql.h>
 
 
 LEX_STRING * thd_query_string (MYSQL_THD thd);
@@ -72,15 +73,23 @@ extern int execute_sql_command(const char *command,
 
 static int do_tests()
 {
-  char plugins[1024];
-  char names[1024];
-  char dl[2048];
-  int result;
+  MYSQL *mysql;
+  MYSQL_RES *res;
+  mysql= mysql_init(NULL);
+  if (mysql_real_connect_local(mysql, NULL, NULL, NULL, 0) == NULL)
+    return 1;
 
-  result= execute_sql_command("select 'plugin', name, dl from mysql.plugin",
-                          plugins, names, dl);
+  if (mysql_real_query(mysql,
+        STRING_WITH_LEN("select 'plugin', name, dl from mysql.plugin")))
+    return 1;
 
-  return result;
+  if (!(res= mysql_store_result(mysql)))
+    return 1;
+
+  mysql_free_result(res);
+  mysql_close(mysql);
+
+  return 0;
 }
  
 
@@ -103,6 +112,7 @@ static int init_done= 0;
 static int test_sql_service_plugin_init(void *p __attribute__((unused)))
 {
   init_done= 1;
+  do_tests();
   return 0;
 }
 
