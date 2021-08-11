@@ -1082,7 +1082,7 @@ public:
           // Note: this is dumb. the histogram size is stored with the
           // histogram!
           stat_field->store(stats->histogram_? 
-                              stats->histogram_->get_width() : 0);
+                              stats->histogram_->get_size() : 0);
           break;
         case COLUMN_STAT_HIST_TYPE:
           if (stats->histogram_)
@@ -1269,7 +1269,7 @@ bool Histogram_binary::parse(MEM_ROOT *mem_root, Field *, Histogram_type type_ar
 */
 void Histogram_binary::serialize(Field *field)
 {
-    field->store((char*)get_values(), get_width(), &my_charset_bin);
+    field->store((char*)get_values(), get_size(), &my_charset_bin);
 }
 
 void Histogram_binary::init_for_collection(MEM_ROOT *mem_root,
@@ -1292,6 +1292,7 @@ void Histogram_json::init_for_collection(MEM_ROOT *mem_root, Histogram_type htyp
 bool Histogram_json::parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg, const uchar *ptr, uint size_arg)
 {
   DBUG_ENTER("Histogram_json::parse");
+  size = (uint8) size_arg;
   type = type_arg;
   const char *json = (char *)ptr;
   int vt;
@@ -1545,7 +1546,7 @@ double Histogram_json::range_selectivity_new(Field *field, key_range *min_endp,
 
 void Histogram_json::serialize(Field *field)
 {
-  field->store((char*)values, strlen((char*)values),
+  field->store((char*)get_values(), strlen((char*)get_values()),
                &my_charset_bin);
 }
 
@@ -1866,13 +1867,13 @@ public:
 
 class Histogram_builder
 {
-private:
+public:
   Field *column;           /* table field for which the histogram is built */
   uint col_length;         /* size of this field                           */
   ha_rows records;         /* number of records the histogram is built for */
   Field *min_value;        /* pointer to the minimal value for the field   */
   Field *max_value;        /* pointer to the maximal value for the field   */
-  Histogram_binary *histogram;    /* the histogram location                       */
+  Histogram_base *histogram;    /* the histogram location                       */
   uint hist_width;         /* the number of points in the histogram        */
   double bucket_capacity;  /* number of rows in a bucket of the histogram  */ 
   uint curr_bucket;        /* number of the current bucket to be built     */
@@ -1881,14 +1882,13 @@ private:
   /* number of distinct values that occured only once  */
   ulonglong count_distinct_single_occurence;
 
-public: 
   Histogram_builder(Field *col, uint col_len, ha_rows rows)
     : column(col), col_length(col_len), records(rows)
   {
     Column_statistics *col_stats= col->collected_stats;
     min_value= col_stats->min_value;
     max_value= col_stats->max_value;
-    histogram= dynamic_cast<Histogram_binary *>(col_stats->histogram_);
+    histogram= col_stats->histogram_;
     hist_width= histogram->get_width();
     bucket_capacity= (double) records / (hist_width + 1);
     curr_bucket= 0;
@@ -1918,13 +1918,13 @@ public:
     if (count > bucket_capacity * (curr_bucket + 1))
     {
       column->store_field_value((uchar *) elem, col_length);
-      histogram->set_value(curr_bucket,
+      ((Histogram_binary *)histogram)->set_value(curr_bucket,
                            column->pos_in_interval(min_value, max_value));
       curr_bucket++;
       while (curr_bucket != hist_width &&
              count > bucket_capacity * (curr_bucket + 1))
       {
-        histogram->set_prev_value(curr_bucket);
+        ((Histogram_binary *)histogram)->set_prev_value(curr_bucket);
         curr_bucket++;
       }
     }
@@ -1934,35 +1934,13 @@ public:
 
 class Histogram_builder_json : public Histogram_builder
 {
-  Field *column;           /* table field for which the histogram is built */
-  uint col_length;         /* size of this field                           */
-  ha_rows records;         /* number of records the histogram is built for */
-  Field *min_value;        /* pointer to the minimal value for the field   */
-  Field *max_value;        /* pointer to the maximal value for the field   */
-  Histogram_json *histogram;    /* the histogram location                       */
-  uint hist_width;         /* the number of points in the histogram        */
-  double bucket_capacity;  /* number of rows in a bucket of the histogram  */
-  uint curr_bucket;        /* number of the current bucket to be built     */
-  ulonglong count;         /* number of values retrieved                   */
-  ulonglong count_distinct;    /* number of distinct values retrieved      */
-  /* number of distinct values that occured only once  */
-  ulonglong count_distinct_single_occurence;
-  std::vector<std::string> bucket_bounds = {};
+  std::vector<std::string> bucket_bounds;
 
 public:
   Histogram_builder_json(Field *col, uint col_len, ha_rows rows)
-  : column(col), col_length(col_len), records(rows)
+  : Histogram_builder(col, col_len, rows)
   {
-    Column_statistics *col_stats= col->collected_stats;
-    min_value= col_stats->min_value;
-    max_value= col_stats->max_value;
-    histogram= dynamic_cast<Histogram_json *>(col_stats->histogram_);
-    hist_width= histogram->get_width();
-    bucket_capacity= (double) records / (hist_width + 1);
-    curr_bucket= 0;
-    count= 0;
-    count_distinct= 0;
-    count_distinct_single_occurence= 0;
+    bucket_bounds = {};
   }
 
   ~Histogram_builder_json() override = default;
@@ -1995,7 +1973,7 @@ public:
     writer->end_array();
     histogram->set_size(bucket_bounds.size());
     Binary_string *json_string = (Binary_string *) writer->output.get_string();
-    histogram->set_values((uchar *) json_string->c_ptr());
+    ((Histogram_json *)histogram)->set_values((uchar *) json_string->c_ptr());
   }
 };
 
