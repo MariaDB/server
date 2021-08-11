@@ -920,6 +920,20 @@ typedef struct st_print_event_info
   IO_CACHE review_sql_cache;
 #endif
   FILE *file;
+
+
+
+  /*
+    Used to include the events within a GTID start/stop boundary
+  */
+  my_bool m_is_event_group_active;
+
+  /*
+    Tracks whether or not output events must be explicitly activated in order
+    to be printed
+  */
+  my_bool m_is_event_group_filtering_enabled;
+
   st_print_event_info();
 
   ~st_print_event_info() {
@@ -941,6 +955,40 @@ typedef struct st_print_event_info
     if (!copy_event_cache_to_file_and_reinit(&head_cache, file))
       copy_event_cache_to_file_and_reinit(&body_cache, file);
     fflush(file);
+  }
+
+  /*
+    Notify that all events part of the current group should be printed
+  */
+  void activate_current_event_group()
+  {
+    m_is_event_group_active= TRUE;
+  }
+  void deactivate_current_event_group()
+  {
+    m_is_event_group_active= FALSE;
+  }
+
+  /*
+    Used for displaying events part of an event group.
+    Returns TRUE when both event group filtering is enabled and the current
+            event group should be displayed, OR if event group filtering is
+            disabled. More specifically, if filtering is disabled, all events
+            should be shown.
+    Returns FALSE when event group filtering is enabled and the current event
+            group is filtered out.
+  */
+  my_bool is_event_group_active()
+  {
+    return m_is_event_group_filtering_enabled ? m_is_event_group_active : TRUE;
+  }
+
+  /*
+    Notify that events must be explicitly activated in order to be printed
+  */
+  void enable_event_group_filtering()
+  {
+    m_is_event_group_filtering_enabled= TRUE;
   }
 } PRINT_EVENT_INFO;
 #endif
