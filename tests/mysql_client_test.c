@@ -5256,10 +5256,10 @@ static void test_manual_sample()
 {
   unsigned int param_count;
   MYSQL_STMT   *stmt;
-  short        small_data;
-  int          int_data;
+  short        small_data= 1;
+  int          int_data= 2;
   int          rc;
-  char         str_data[50];
+  char         str_data[50]= "std_data";
   ulonglong    affected_rows;
   MYSQL_BIND   my_bind[3];
   my_bool      is_null;
