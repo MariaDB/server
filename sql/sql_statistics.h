@@ -179,7 +179,11 @@ public:
     return 1.0;
   };
 
-  virtual ~Histogram_base(){}
+  // Legacy: return the size of the histogram on disk.
+  // This will be stored in mysql.column_stats.hist_size column.
+  // Newer, JSON-based histograms may return 0.
+  virtual uint get_size()=0;
+  virtual ~Histogram_base()= default;
 };
 
 class Histogram_binary : public Histogram_base
@@ -283,7 +287,9 @@ public:
   void set_values (uchar *vals) override { values= (uchar *) vals; }
   void set_size (ulonglong sz) override { size= (uint8) sz; }
 
-  bool is_available() override { return get_width() > 0 && get_values(); }
+  uint get_size() override {return (uint)size;}
+
+  bool is_available() override { return get_size() > 0 && get_values(); }
 
   /*
     This function checks that histograms should be usable only when
@@ -385,6 +391,10 @@ public:
 
   void set_size (ulonglong sz) override {size = (uint8) sz; }
 
+  uint get_size() override {
+    return size;
+  }
+
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size) override;
 
   bool is_available() override {return get_width() > 0 /*&& get_values()*/; }
@@ -395,9 +405,9 @@ public:
            is_available();
   }
 
-  void set_values (uchar *vals) override { values= vals; }
+  void set_values (uchar *vals) override { values= (uchar *) vals; }
 
-  uchar *get_values() override { return values; }
+  uchar *get_values() override { return (uchar *) values; }
 
   double range_selectivity(double min_pos, double max_pos) override {return 0.1;}
 
