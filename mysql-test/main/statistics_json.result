@@ -19,7 +19,7 @@ test.t1	analyze	status	Engine-independent statistics collected
 test.t1	analyze	status	OK
 SELECT * FROM mysql.column_stats WHERE table_name='t1';
 db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	1	25	0.0000	4.0000	0.0000	10	JSON	[
+test	t1	a	1	25	0.0000	4.0000	1.0000	10	JSON	[
   "3",
   "5",
   "7",
@@ -31,7 +31,7 @@ test	t1	a	1	25	0.0000	4.0000	0.0000	10	JSON	[
   "21",
   "23"
 ]
-test	t1	b	1	9	0.0000	1.6400	0.0000	10	JSON	[
+test	t1	b	1	9	0.0000	1.6400	1.0000	10	JSON	[
   "11",
   "13",
   "15",
@@ -43,7 +43,7 @@ test	t1	b	1	9	0.0000	1.6400	0.0000	10	JSON	[
   "5",
   "7"
 ]
-test	t1	c	1	9	0.0000	2.0000	0.0000	10	JSON	[
+test	t1	c	1	9	0.0000	2.0000	1.0000	10	JSON	[
   "11",
   "13",
   "15",
@@ -55,7 +55,7 @@ test	t1	c	1	9	0.0000	2.0000	0.0000	10	JSON	[
   "5",
   "7"
 ]
-test	t1	d	1	25	0.0000	8.0000	0.0000	10	JSON	[
+test	t1	d	1	25	0.0000	8.0000	1.0000	10	JSON	[
   "3",
   "5",
   "7",
@@ -101,7 +101,7 @@ ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '1'.
 UPDATE mysql.column_stats SET histogram='{}' WHERE table_name='t1';
 FLUSH TABLES;
 SELECT * FROM t1;
-ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '32608'.
+ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '32641'.
 DELETE FROM mysql.column_stats;
 DROP TABLE t1;
 create schema world;
