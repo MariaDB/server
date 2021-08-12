@@ -1,6 +1,7 @@
 
 #include <mysql/psi/mysql_file.h>
 #include <mysys_priv.h>
+#include <semaphore.h>
 
 class RingBuffer
 {
@@ -18,6 +19,49 @@ public:
 
 private:
 
+  class cache_slot {
+    friend RingBuffer;
+    mysql_mutex_t vacant;
+    bool finished = false;
+    unsigned int next = -1;
+    uchar* pos = nullptr;
+    cache_slot() {
+      mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
+                       &vacant, MY_MUTEX_INIT_FAST);
+    }
+    ~cache_slot() {
+      mysql_mutex_destroy(&vacant);
+    }
+  };
+  static const int count_thread_for_slots = 4;
+  cache_slot _slots[count_thread_for_slots];
+
+  sem_t semaphore;
+
+  int last_slot = -1;
+
+  int slot_acquire() {
+    sem_wait(&semaphore);
+    int i;
+    for (i = 0; i < count_thread_for_slots; ++i)
+      if(mysql_mutex_trylock(&_slots[i].vacant) == 0)
+        break;
+
+    if(last_slot != -1)
+      _slots[last_slot].next = i;
+    last_slot = i;
+
+    return i;
+  }
+
+  bool slot_release(int slot_id) {
+    
+
+
+    mysql_mutex_unlock(&_slots[slot_id].vacant);
+    sem_post(&semaphore);
+    return true;
+  }
 
   File _file;
 
@@ -262,6 +306,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
 
 RingBuffer::RingBuffer(char* filename, size_t cachesize)
 {
+  sem_init(&semaphore, 0, count_thread_for_slots);
   _file = my_open(filename,O_CREAT | O_RDWR,MYF(MY_WME));
   if (_file >= 0)
   {
@@ -313,6 +358,7 @@ RingBuffer::RingBuffer(char* filename, size_t cachesize)
   mysql_mutex_init(key_IO_CACHE_SHARE_mutex, &_mutex_writer, MY_MUTEX_INIT_FAST);
 }
 RingBuffer::~RingBuffer() {
+  sem_destroy(&semaphore);
   if (_file != -1) /* File doesn't exist */
   {
     _flush_io_buffer();
