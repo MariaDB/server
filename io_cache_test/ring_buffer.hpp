@@ -113,7 +113,7 @@ private:
 
   int _flush_io_buffer();
 
-  int _read_append(uchar* To, size_t Count);
+  int _read_append(uchar* To, size_t Count, my_off_t pos_in_file);
 };
 
 RingBuffer::WriteState RingBuffer::write(uchar *From, size_t Count) {
@@ -173,7 +173,7 @@ RingBuffer::WriteState RingBuffer::write(uchar *From, size_t Count) {
   return SUCSECC;
 }
 
-int RingBuffer::_read_append(uchar* To, size_t Count){
+int RingBuffer::_read_append(uchar* To, size_t Count, my_off_t pos_in_file){
   size_t len_in_buff, copy_len, transfer_len;
   uchar* save_append_read_pos;
   mysql_mutex_lock(&_buffer_lock);
@@ -200,6 +200,7 @@ int RingBuffer::_read_append(uchar* To, size_t Count){
   _read_pos= _buffer;
   _read_end= _buffer+transfer_len;
   _append_read_pos=_write_pos;
+  _pos_in_file=pos_in_file+copy_len;
   _end_of_file+=len_in_buff;
   mysql_mutex_unlock(&_buffer_lock);
   return 0;
@@ -301,7 +302,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
 
   mysql_mutex_unlock(&_buffer_lock);
 
-  return _read_append(To, Count);
+  return _read_append(To, Count, pos_in_file);
 }
 
 RingBuffer::RingBuffer(char* filename, size_t cachesize)
