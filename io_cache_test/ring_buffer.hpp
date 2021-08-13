@@ -15,51 +15,83 @@ public:
   RingBuffer(char* filename, size_t cachesize);
   int read(uchar *To, size_t Count);
   WriteState write(uchar *From, size_t Count);
+  int write_slot(uchar *From, size_t Count);
   ~RingBuffer();
 
 private:
 
   class cache_slot {
     friend RingBuffer;
-    mysql_mutex_t vacant;
+    bool vacant = true;
+    mysql_mutex_t vacant_lock;
     bool finished = false;
-    unsigned int next = -1;
-    uchar* pos = nullptr;
+    int next = -1;
+    uchar* pos_start = nullptr;
+    uchar* pos_end = nullptr;
     cache_slot() {
       mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
-                       &vacant, MY_MUTEX_INIT_FAST);
+                       &vacant_lock, MY_MUTEX_INIT_FAST);
     }
     ~cache_slot() {
-      mysql_mutex_destroy(&vacant);
+      mysql_mutex_destroy(&vacant_lock);
     }
   };
-  static const int count_thread_for_slots = 4;
+  static const int count_thread_for_slots = 3;
   cache_slot _slots[count_thread_for_slots];
 
   sem_t semaphore;
 
   int last_slot = -1;
 
-  int slot_acquire() {
+  int slot_acquire(uchar* From, size_t& Count) {
     sem_wait(&semaphore);
     int i;
     for (i = 0; i < count_thread_for_slots; ++i)
-      if(mysql_mutex_trylock(&_slots[i].vacant) == 0)
-        break;
+      if(_slots[i].vacant)
+        if(mysql_mutex_trylock(&_slots[i].vacant_lock) == 0)
+          break;
+
+    _slots[i].vacant = false;
 
     if(last_slot != -1)
       _slots[last_slot].next = i;
     last_slot = i;
 
+    mysql_mutex_lock(&_buffer_lock);
+    size_t rest_length = (size_t) (_write_end - _write_new_pos);
+    if(Count > rest_length) {
+      memcpy(_write_new_pos, From, rest_length);
+      Count -= rest_length;
+      From += rest_length;
+      _flush_io_buffer();
+    }
+    _slots[i].pos_start = _write_new_pos;
+    _slots[i].pos_end = (_write_new_pos += Count);
+    mysql_mutex_unlock(&_buffer_lock);
     return i;
   }
 
   bool slot_release(int slot_id) {
-    
+    mysql_mutex_lock(&_buffer_lock);
+    _slots[slot_id].finished = true;
+    if(_write_pos == _slots[slot_id].pos_start) {
+      do {
+        _write_pos = _slots[slot_id].pos_end;
 
+        int tmp_id = slot_id;
+        slot_id = _slots[slot_id].next;
 
-    mysql_mutex_unlock(&_slots[slot_id].vacant);
-    sem_post(&semaphore);
+        _slots[tmp_id].next = -1;
+        _slots[tmp_id].finished = false;
+        _slots[tmp_id].pos_start = _slots[tmp_id].pos_end = nullptr;
+        mysql_mutex_unlock(&_slots[tmp_id].vacant_lock);
+        _slots[tmp_id].vacant = true;
+        sem_post(&semaphore);
+      }
+      while(slot_id != -1);
+      last_slot = -1;
+    }
+    mysql_mutex_unlock(&_buffer_lock);
     return true;
   }
 
@@ -171,6 +203,15 @@ RingBuffer::WriteState RingBuffer::write(uchar *From, size_t Count) {
   mysql_cond_signal(&_cond_writer);
 
   return SUCSECC;
+}
+
+int RingBuffer::write_slot(uchar* From, size_t Count) {
+  int slot_id = slot_acquire(From, Count);
+
+  memcpy(_slots[slot_id].pos_start, From, Count);
+
+  slot_release(slot_id);
+  return 0;
 }
 
 int RingBuffer::_read_append(uchar* To, size_t Count, my_off_t pos_in_file){
@@ -378,7 +419,7 @@ int RingBuffer::_flush_io_buffer() {
   if (_file == -1)
     return _error= -1;
 
-  mysql_mutex_lock(&_buffer_lock);
+  //mysql_mutex_lock(&_buffer_lock);
 
   if ((length=(size_t) (_write_pos - _write_buffer)))
   {
@@ -394,10 +435,10 @@ int RingBuffer::_flush_io_buffer() {
     _write_end= (_write_buffer +_buffer_length);
     _write_pos= _write_buffer;
     //++info->disk_writes;
-    mysql_mutex_unlock(&_buffer_lock);
+    //mysql_mutex_unlock(&_buffer_lock);
     return _error;
   }
 
-  mysql_mutex_unlock(&_buffer_lock);
+  //mysql_mutex_unlock(&_buffer_lock);
   return 0;
 }

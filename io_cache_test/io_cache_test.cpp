@@ -23,7 +23,7 @@ void *write_to_cache(void *args) {
 
 void *write_to_cache_one(void*) {
   for (int i= 0; i < 32; ++i)
-    cache->write(buff_from + (i * 255), 255);
+    cache->write_slot(buff_from + (i * 255), 255);
   return NULL;
 }
 
@@ -53,27 +53,29 @@ int main() {
   remove("cache_file.txt");
   pthread_t thr_read;
   pthread_t *thr_write= (pthread_t *) malloc(8 * sizeof(pthread_t));
-  int args[8];
+  //int args[8];
 
   clock_t tss, tee;
   buff_to= (uchar *) malloc(sizeof(uchar) * 10000);
   tss= clock();
 
   cache= new RingBuffer((char *) "cache_file.txt", 4096);
-
+/*
   for (int i= 0; i < 4; ++i) {
     args[i * 2]= i * 8;
     args[(i * 2) + 1]= (i + 1) * 8;
     pthread_create(&thr_write[i], NULL, write_to_cache, (void *) &args[i * 2]);
   }
+*/
 
-/*
   pthread_create(&thr_write[0], NULL, write_to_cache_one, NULL);
   pthread_join(thr_write[0], NULL);
-*/
+
   pthread_create(&thr_read, NULL, read_to_cache, NULL);
+  /*
   for (int i= 0; i < 4; ++i)
     pthread_join(thr_write[i], NULL);
+  */
   pthread_join(thr_read, NULL);
 
   delete cache;
