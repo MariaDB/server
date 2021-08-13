@@ -5288,7 +5288,6 @@ bool LEX::add_unit_in_brackets(SELECT_LEX *nselect)
   DBUG_ASSERT(nselect->outer_select() == dummy_select);
 
   current_select= dummy_select;
-  current_select->nest_level--;
 
   SELECT_LEX_UNIT *unit= nselect->master_unit();
   Table_ident *ti= new (thd->mem_root) Table_ident(unit);
@@ -5314,7 +5313,6 @@ bool LEX::add_unit_in_brackets(SELECT_LEX *nselect)
   derived_tables|= DERIVED_SUBQUERY;
 
   current_select= nselect;
-  current_select->nest_level++;
   DBUG_RETURN(rc);
 }
 
