@@ -192,6 +192,8 @@ enum enum_binlog_row_image {
 #define OLD_MODE_NO_PROGRESS_INFO			(1 << 1)
 #define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
 #define OLD_MODE_UTF8_IS_UTF8MB3      (1 << 3)
+#define OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN          (1 << 4)
+#define OLD_MODE_COMPAT_5_1_CHECKSUM    (1 << 5)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];

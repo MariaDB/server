@@ -2654,9 +2654,28 @@ static Sys_var_ulong Sys_net_retry_count(
        BLOCK_SIZE(1), NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(0),
        ON_UPDATE(fix_net_retry_count));
 
+static bool set_old_mode (sys_var *self, THD *thd, enum_var_type type)
+{
+  if (thd->variables.old_mode)
+  {
+    thd->variables.old_behavior|= (OLD_MODE_NO_PROGRESS_INFO |
+                                   OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
+                                   OLD_MODE_COMPAT_5_1_CHECKSUM);
+  }
+  else
+  {
+    thd->variables.old_behavior&= ~(OLD_MODE_NO_PROGRESS_INFO|
+                                    OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
+                                    OLD_MODE_COMPAT_5_1_CHECKSUM);
+  }
+
+  return false;
+}
+
 static Sys_var_mybool Sys_old_mode(
        "old", "Use compatible behavior from previous MariaDB version. See also --old-mode",
-       SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE));
+       SESSION_VAR(old_mode), CMD_LINE(OPT_ARG), DEFAULT(FALSE), 0, NOT_IN_BINLOG, ON_CHECK(0),
+       ON_UPDATE(set_old_mode), DEPRECATED("'@@old_mode'"));
 
 static const char *alter_algorithm_modes[]= {"DEFAULT", "COPY", "INPLACE",
 "NOCOPY", "INSTANT", NULL};
@@ -3772,6 +3791,8 @@ static const char *old_mode_names[]=
   "NO_PROGRESS_INFO",
   "ZERO_DATE_TIME_CAST",
   "UTF8_IS_UTF8MB3",
+  "IGNORE_INDEX_ONLY_FOR_JOIN",
+  "COMPAT_5_1_CHECKSUM",
   0
 };
 

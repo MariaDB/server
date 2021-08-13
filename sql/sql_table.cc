@@ -11901,8 +11901,10 @@ bool mysql_checksum_table(THD *thd, TABLE_LIST *tables,
     {
       /* Call ->checksum() if the table checksum matches 'old_mode' settings */
       if (!(check_opt->flags & T_EXTEND) &&
-          (((t->file->ha_table_flags() & HA_HAS_OLD_CHECKSUM) && thd->variables.old_mode) ||
-           ((t->file->ha_table_flags() & HA_HAS_NEW_CHECKSUM) && !thd->variables.old_mode)))
+          (((t->file->ha_table_flags() & HA_HAS_OLD_CHECKSUM) &&
+           (thd->variables.old_behavior & OLD_MODE_COMPAT_5_1_CHECKSUM)) ||
+           ((t->file->ha_table_flags() & HA_HAS_NEW_CHECKSUM) &&
+           !(thd->variables.old_behavior & OLD_MODE_COMPAT_5_1_CHECKSUM))))
       {
         if (t->file->info(HA_STATUS_VARIABLE) || t->file->stats.checksum_null)
           protocol->store_null();

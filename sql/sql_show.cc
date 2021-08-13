@@ -2921,8 +2921,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
                        Item_empty_string(thd, "Info", arg.max_query_length),
                        mem_root);
   field->set_maybe_null();;
-  if (!thd->variables.old_mode &&
-      !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
+  if (!(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
   {
     field_list.push_back(field= new (mem_root)
                          Item_float(thd, "Progress", 0.0, 3, 7),
@@ -2964,8 +2963,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
                       thd_info->query_string.charset());
     else
       protocol->store_null();
-    if (!thd->variables.old_mode &&
-        !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
+    if (!(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
       protocol->store_double(thd_info->progress, 3);
     if (protocol->write())
       break; /* purecov: inspected */

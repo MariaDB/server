@@ -8490,6 +8490,14 @@ static int get_options(int *argc_ptr, char ***argv_ptr)
     between options, setting of multiple variables, etc.
     Do them here.
   */
+
+  if (global_system_variables.old_mode)
+  {
+    global_system_variables.old_behavior|= (OLD_MODE_NO_PROGRESS_INFO |
+                                           OLD_MODE_IGNORE_INDEX_ONLY_FOR_JOIN |
+                                           OLD_MODE_COMPAT_5_1_CHECKSUM);
+  }
+
   if (global_system_variables.net_buffer_length > 
       global_system_variables.max_allowed_packet)
   {
