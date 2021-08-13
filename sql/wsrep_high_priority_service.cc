@@ -1,4 +1,4 @@
-/* Copyright 2018 Codership Oy <info@codership.com>
+/* Copyright 2018-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -658,7 +658,7 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
     DBUG_ASSERT(0);
     WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
                 m_replay_status,
-                orig_thd->db.str, WSREP_QUERY(orig_thd));
+                orig_thd->db.str, wsrep_thd_query(orig_thd));
     unireg_abort(1);
   }
 }

@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2008,10 +2008,10 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
 {
   DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI);
 
-  WSREP_DEBUG("TOI Begin for %s", WSREP_QUERY(thd));
+  WSREP_DEBUG("TOI Begin for %s", wsrep_thd_query(thd));
   if (wsrep_can_run_in_toi(thd, db, table, table_list) == false)
   {
-    WSREP_DEBUG("No TOI for %s", WSREP_QUERY(thd));
+    WSREP_DEBUG("No TOI for %s", wsrep_thd_query(thd));
     return 1;
   }
 
@@ -2039,7 +2039,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
     /* non replicated DDL, affecting temporary tables only */
     WSREP_DEBUG("TO isolation skipped, sql: %s."
                 "Only temporary tables affected.",
-                WSREP_QUERY(thd));
+                wsrep_thd_query(thd));
     if (buf) my_free(buf);
     return -1;
   }
@@ -2054,7 +2054,7 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   {
     DBUG_ASSERT(cs.current_error());
     WSREP_DEBUG("to_execute_start() failed for %llu: %s, seqno: %lld",
-                thd->thread_id, WSREP_QUERY(thd),
+                thd->thread_id, wsrep_thd_query(thd),
                 (long long)wsrep_thd_trx_seqno(thd));
 
     /* jump to error handler in mysql_execute_command() */
@@ -2065,15 +2065,32 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
                  "Maximum size exceeded.",
                  ret,
                  (thd->db.str ? thd->db.str : "(null)"),
-                 WSREP_QUERY(thd));
+                 wsrep_thd_query(thd));
       my_error(ER_ERROR_DURING_COMMIT, MYF(0), WSREP_SIZE_EXCEEDED);
+      break;
+    case wsrep::e_deadlock_error:
+      WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
+                 "Deadlock error.",
+                 ret,
+                 (thd->db.str ? thd->db.str : "(null)"),
+                 wsrep_thd_query(thd));
+      my_error(ER_LOCK_DEADLOCK, MYF(0));
+      break;
+    case wsrep::e_timeout_error:
+      WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
+                 "Operation timed out.",
+                 ret,
+                 (thd->db.str ? thd->db.str : "(null)"),
+                 wsrep_thd_query(thd));
+      my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
       break;
     default:
       WSREP_WARN("TO isolation failed for: %d, schema: %s, sql: %s. "
-                 "Check wsrep connection state and retry the query.",
+                 "Check your wsrep connection state and retry the query.",
                  ret,
                  (thd->db.str ? thd->db.str : "(null)"),
-                 WSREP_QUERY(thd));
+                 wsrep_thd_query(thd));
+
       if (!thd->is_error())
       {
         my_error(ER_LOCK_DEADLOCK, MYF(0), "WSREP replication failed. Check "
@@ -2106,19 +2123,19 @@ static void wsrep_TOI_end(THD *thd) {
   if (!ret)
   {
     WSREP_DEBUG("TO END: %lld: %s",
-                client_state.toi_meta().seqno().get(), WSREP_QUERY(thd));
+                client_state.toi_meta().seqno().get(), wsrep_thd_query(thd));
   }
   else
   {
     WSREP_WARN("TO isolation end failed for: %d, sql: %s",
-                ret, WSREP_QUERY(thd));
+                ret, wsrep_thd_query(thd));
   }
 }
 
 static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
 {
   WSREP_DEBUG("RSU BEGIN: %lld, : %s", wsrep_thd_trx_seqno(thd),
-              WSREP_QUERY(thd));
+              wsrep_thd_query(thd));
   if (thd->wsrep_cs().begin_rsu(5000))
   {
     WSREP_WARN("RSU begin failed");
@@ -2133,7 +2150,7 @@ static int wsrep_RSU_begin(THD *thd, const char *db_, const char *table_)
 static void wsrep_RSU_end(THD *thd)
 {
   WSREP_DEBUG("RSU END: %lld : %s", wsrep_thd_trx_seqno(thd),
-              WSREP_QUERY(thd));
+              wsrep_thd_query(thd));
   if (thd->wsrep_cs().end_rsu())
   {
     WSREP_WARN("Failed to end RSU, server may need to be restarted");
@@ -2175,7 +2192,7 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
   if (wsrep_debug && thd->mdl_context.has_locks())
   {
     WSREP_DEBUG("thread holds MDL locks at TI begin: %s %llu",
-                WSREP_QUERY(thd), thd->thread_id);
+                wsrep_thd_query(thd), thd->thread_id);
   }
 
   /*
@@ -2190,13 +2207,6 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
     thd->variables.auto_increment_offset= 1;
     thd->variables.auto_increment_increment= 1;
   }
-
-  /*
-    TOI operations will ignore provided lock_wait_timeout and restore it
-    after operation is done.
-   */
-  thd->variables.saved_lock_wait_timeout= thd->variables.lock_wait_timeout;
-  thd->variables.lock_wait_timeout= LONG_TIMEOUT;
 
   if (thd->variables.wsrep_on && wsrep_thd_is_local(thd))
   {
@@ -2213,8 +2223,19 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
       ret= -1;
       break;
     }
+
     switch (ret) {
-    case 0: /* wsrep_TOI_begin sould set toi mode */ break;
+    case 0: /* wsrep_TOI_begin sould set toi mode */
+      if (thd->variables.wsrep_OSU_method == WSREP_OSU_TOI)
+      {
+        /*
+          TOI operations ignore the provided lock_wait_timeout once replicated,
+          and restore it after operation is done.
+         */
+        thd->variables.saved_lock_wait_timeout= thd->variables.lock_wait_timeout;
+        thd->variables.lock_wait_timeout= LONG_TIMEOUT;
+      }
+      break;
     case 1:
       /* TOI replication skipped, treat as success */
       ret= 0;
@@ -2233,10 +2254,9 @@ void wsrep_to_isolation_end(THD *thd)
   DBUG_ASSERT(wsrep_thd_is_local_toi(thd) ||
               wsrep_thd_is_in_rsu(thd));
 
-  thd->variables.lock_wait_timeout= thd->variables.saved_lock_wait_timeout;
-
   if (wsrep_thd_is_local_toi(thd))
   {
+    thd->variables.lock_wait_timeout= thd->variables.saved_lock_wait_timeout;
     DBUG_ASSERT(thd->variables.wsrep_OSU_method == WSREP_OSU_TOI);
     wsrep_TOI_end(thd);
   }
