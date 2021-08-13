@@ -43,7 +43,9 @@ private:
 
   int last_slot = -1;
 
-  int slot_acquire(uchar* From, size_t& Count) {
+  mysql_rwlock_t flush_rw_lock;
+
+  int slot_acquire(uchar*& From, size_t& Count) {
     sem_wait(&semaphore);
     int i;
     for (i = 0; i < count_thread_for_slots; ++i)
@@ -63,8 +65,12 @@ private:
       memcpy(_write_new_pos, From, rest_length);
       Count -= rest_length;
       From += rest_length;
+      mysql_rwlock_wrlock(&flush_rw_lock);
+      _write_pos += rest_length;
       _flush_io_buffer();
+      mysql_rwlock_unlock(&flush_rw_lock);
     }
+    mysql_rwlock_rdlock(&flush_rw_lock);
     _slots[i].pos_start = _write_new_pos;
     _slots[i].pos_end = (_write_new_pos += Count);
     mysql_mutex_unlock(&_buffer_lock);
@@ -72,12 +78,13 @@ private:
   }
 
   bool slot_release(int slot_id) {
-    mysql_mutex_lock(&_buffer_lock);
+
     _slots[slot_id].finished = true;
     if(_write_pos == _slots[slot_id].pos_start) {
       do {
+        mysql_mutex_lock(&_buffer_lock);
         _write_pos = _slots[slot_id].pos_end;
-
+        mysql_mutex_unlock(&_buffer_lock);
         int tmp_id = slot_id;
         slot_id = _slots[slot_id].next;
 
@@ -88,10 +95,11 @@ private:
         _slots[tmp_id].vacant = true;
         sem_post(&semaphore);
       }
-      while(slot_id != -1);
-      last_slot = -1;
+      while(slot_id != -1 && _slots[slot_id].finished);
+      if(slot_id == -1) last_slot = -1;
     }
-    mysql_mutex_unlock(&_buffer_lock);
+    mysql_rwlock_unlock(&flush_rw_lock);
+
     return true;
   }
 
@@ -249,7 +257,7 @@ int RingBuffer::_read_append(uchar* To, size_t Count, my_off_t pos_in_file){
 
 
 int RingBuffer::read(uchar *To, size_t Count) {
-  size_t left_length = 0, diff_length, length, max_length;
+  size_t left_length = 0, /*diff_length,*/ length, max_length;
   my_off_t pos_in_file;
   int error;
 
@@ -280,7 +288,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
     {
       _seek_not_done= 0;
 
-      diff_length= (size_t) (pos_in_file & (IO_SIZE - 1));
+      //diff_length= (size_t) (pos_in_file & (IO_SIZE - 1));
       /*
       if (Count >= (size_t) (IO_SIZE + (IO_SIZE - diff_length)))
       {
@@ -307,7 +315,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
         diff_length= 0;
       }
       */
-      max_length= _read_length - diff_length;
+      max_length= _read_length;
       if (max_length > (_end_of_file - pos_in_file))
         max_length= (size_t) (_end_of_file - pos_in_file);
 
@@ -349,6 +357,7 @@ int RingBuffer::read(uchar *To, size_t Count) {
 RingBuffer::RingBuffer(char* filename, size_t cachesize)
 {
   sem_init(&semaphore, 0, count_thread_for_slots);
+  mysql_rwlock_init(0, &flush_rw_lock);
   _file = my_open(filename,O_CREAT | O_RDWR,MYF(MY_WME));
   if (_file >= 0)
   {
@@ -401,6 +410,7 @@ RingBuffer::RingBuffer(char* filename, size_t cachesize)
 }
 RingBuffer::~RingBuffer() {
   sem_destroy(&semaphore);
+  mysql_rwlock_destroy(&flush_rw_lock);
   if (_file != -1) /* File doesn't exist */
   {
     _flush_io_buffer();
