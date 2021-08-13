@@ -22,6 +22,7 @@ call mtr.add_suppression("Aborting");
 # C. Similarly to A, with the XA blank transaction
 
 RESET MASTER;
+SET @@global.sync_binlog=1;
 CREATE TABLE t (f INT) ENGINE=INNODB;
 CREATE TABLE t2 (f INT) ENGINE=INNODB;
 CREATE TABLE tm (f INT) ENGINE=Aria;
@@ -98,5 +99,5 @@ DROP PROCEDURE sp_xa;
 
 --echo # Cleanup
 DROP TABLE t,t2,tm;
-
+SET @@global.sync_binlog= default;
 --echo # End of the tests

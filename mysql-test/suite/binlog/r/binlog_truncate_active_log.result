@@ -1,6 +1,7 @@
 call mtr.add_suppression("Can.t init tc log");
 call mtr.add_suppression("Aborting");
 RESET MASTER;
+SET @@global.sync_binlog=1;
 CREATE TABLE t (f INT) ENGINE=INNODB;
 CREATE TABLE t2 (f INT) ENGINE=INNODB;
 CREATE TABLE tm (f INT) ENGINE=Aria;
@@ -28,7 +29,7 @@ connection default;
 disconnect master1;
 disconnect master2;
 disconnect master3;
-# restart: --rpl-semi-sync-slave-enabled=1
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
 FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-6/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
@@ -77,7 +78,7 @@ connection default;
 disconnect master1;
 disconnect master2;
 disconnect master3;
-# restart: --rpl-semi-sync-slave-enabled=1
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
 FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-10/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
@@ -133,7 +134,7 @@ connection default;
 disconnect master1;
 disconnect master2;
 disconnect master3;
-# restart: --rpl-semi-sync-slave-enabled=1
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
 FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-14/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
@@ -195,7 +196,7 @@ connection default;
 disconnect master1;
 disconnect master2;
 disconnect master3;
-# restart: --rpl-semi-sync-slave-enabled=1
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
 FOUND 1 /Successfully truncated.*to remove transactions starting from GTID 0-1-20/ in mysqld.1.err
 Pre-crash binlog file content:
 include/show_binlog_events.inc
@@ -234,4 +235,5 @@ DELETE FROM t;
 DROP PROCEDURE sp_xa;
 # Cleanup
 DROP TABLE t,t2,tm;
+SET @@global.sync_binlog= default;
 # End of the tests

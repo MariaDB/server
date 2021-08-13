@@ -45,6 +45,7 @@ call mtr.add_suppression("Checking table.*tm");
 
 RESET MASTER;
 FLUSH LOGS;
+SET @@global.sync_binlog=1;
 CREATE TABLE ti (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
 CREATE TABLE tm (f INT) ENGINE=MYISAM;
 
@@ -66,13 +67,13 @@ connect(master3,localhost,root,,);
 --connection master1
 
 # The 1st trx binlogs, rotate binlog and hold on before committing at engine
-SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL master1_ready WAIT_FOR master1_go";
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL master1_ready WAIT_FOR master1_go_never_arrives";
 --send_eval INSERT INTO ti VALUES ($row_count - 1, REPEAT("x", 4100))
 
 --connection master2
-
+SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
 # The 2nd trx for recovery, it does not rotate binlog
-SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT_FOR master2_go";
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT_FOR master2_go_never_arrives";
 --send_eval INSERT INTO ti VALUES ($row_count, REPEAT("x", 1))
 
 --connection master3

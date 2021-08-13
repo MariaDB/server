@@ -13,7 +13,7 @@ call mtr.add_suppression("Can.t init tc log");
 call mtr.add_suppression("Aborting");
 
 SET @@global.max_binlog_size= 4096;
-
+SET @@global.sync_binlog= 1;
 RESET MASTER;
 FLUSH LOGS;
 CREATE TABLE ti (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
@@ -29,13 +29,13 @@ INSERT INTO ti VALUES(1,"I am gonna survive");
 INSERT INTO tm VALUES(1,"me too!");
 
 # hold on near engine commit
-SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL master1_ready WAIT_FOR con1_go";
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL master1_ready WAIT_FOR master1_go_never_arrives";
 --send INSERT INTO ti VALUES (2, REPEAT("x", 4100))
 
 connect(master2,localhost,root,,);
 # The 2nd trx for recovery, it does not rotate binlog
 SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
-SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT_FOR master2_go";
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT_FOR master2_go_never_arrives";
 --send INSERT INTO ti VALUES (3, "not gonna survive")
 
 --connection default
@@ -53,7 +53,7 @@ SELECT @@global.gtid_binlog_state;
 #
 # Server restart
 #
---let $restart_parameters= --rpl-semi-sync-slave-enabled=1
+--let $restart_parameters= --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
 --source include/start_mysqld.inc
 
 # Check error log for a successful truncate message.
@@ -73,5 +73,5 @@ SELECT @@global.gtid_binlog_pos;
 
 --echo # Cleanup
 DROP TABLE ti;
-
+SET @@global.sync_binlog= default;
 --echo # End of the tests
