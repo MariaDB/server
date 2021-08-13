@@ -1710,6 +1710,58 @@ void srv_update_purge_thread_count(uint n)
 
 Atomic_counter<int> srv_purge_thread_count_changed;
 
+/** get age of the redo log in lsn units
+@return percentage of redo log filled (calculated using lsn) */
+static ulint get_lsn_age_factor()
+{
+  mysql_mutex_lock(&log_sys.mutex);
+  lsn_t age = (log_sys.get_lsn() - log_sys.last_checkpoint_lsn);
+  mysql_mutex_unlock(&log_sys.mutex);
+  return ((age * 100) / log_sys.max_checkpoint_age);
+}
+
+/** distribute spread across N points.
+e.g.: spread of 60 is distrubuted across 4 points as: 6+12+18+24
+@param[in,out]	series	distributed spread series
+@param[in]	len	length of series
+@param[in]	spread	spread to distribute
+@param[in]	points	distribute spread across N points */
+static void compute_series(ulint* series, ulint len, ulint spread, ulint points)
+{
+  memset(series, 0, sizeof(ulint) * len);
+
+  /* check if arithmetic progression is possible. */
+  const ulint additional_points = (points * (points + 1)) / 2;
+  if (spread % additional_points == 0) {
+    const ulint delta = spread / additional_points;
+    ulint growth = delta;
+    for (ulint i = points; i > 0; --i) {
+      series[i] = growth;
+      growth += delta;
+    }
+    return;
+  }
+
+  /* exact arithmetic progression is not possible try to distribute
+  spread across the expected points using average distribution */
+  {
+    const ulint delta = spread / points;
+    ulint growth = delta;
+    ulint total = 0;
+    for (ulint i = points; i > 0; --i) {
+      series[i] = delta;
+      total += delta;
+      growth += delta;
+    }
+    if (total < spread) {
+      for (ulint i = 1; i <= points && total < spread; ++i) {
+        series[i] += 1;
+        total += 1;
+      }
+    }
+  }
+}
+
 /** Do the actual purge operation.
 @param[in,out]	n_total_purged	total number of purged pages
 @return length of history list before the last purge batch. */
@@ -1722,6 +1774,9 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 	static uint32_t	rseg_history_len = 0;
 	ulint		old_activity_count = srv_get_activity_count();
 	static ulint	n_threads = srv_n_purge_threads;
+	static ulint	adaptive_purge_threshold = 20;
+	static ulint	safety_net = 20;
+	static ulint	series[innodb_purge_threads_MAX + 1];
 
 	ut_a(n_threads > 0);
 	ut_ad(!srv_read_only_mode);
@@ -1734,9 +1789,40 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 
 	if (n_use_threads == 0) {
 		n_use_threads = n_threads;
+		compute_series(series, innodb_purge_threads_MAX + 1,
+			(100 - (adaptive_purge_threshold + safety_net)),
+			n_threads);
 	}
 
+	/* user can configure > 1 purge threads. purge operation generates
+	redo records. user workload too generates redo records. this dual redo
+	generation can cause redo log to hit the threshold there-by increasing
+	performance jitter, especially with user visible workload.
+	adaptive purge logic abates this effect by dynamically adjusting
+	purge threads (in turn the redo-log generation) based on redo-log fill
+	factor. This greatly helps stabilize and also improve overall
+        performance of user visible workload at a slight cost of increasing
+	history-length.
+	Continous growth of history length could increase select latency.
+	To handle this effect, adaptive logic continue to increase and decrease
+	purge threads there-by keeping a check on history-length without
+	any visible impact on performance (infact sysbench update-index
+	which involves point-select has shown significant performance
+	improvement) */
+	static ulint lsn_lwm = adaptive_purge_threshold;
+	static ulint lsn_hwm = adaptive_purge_threshold + series[n_use_threads];
+	static ulint start_time = 0;
+	static ulint lsn_age_factor = get_lsn_age_factor();
+
 	do {
+		if ((my_interval_timer() - start_time) > 1000) {
+			/* refresh lsn_age_factor once per second to avoid
+			too frequent purge threads increase/decrease and
+			flush list mutex contention */
+			lsn_age_factor = get_lsn_age_factor();
+			start_time = my_interval_timer();
+		}
+
 		if (UNIV_UNLIKELY(srv_purge_thread_count_changed)) {
 			/* Read the fresh value of srv_n_purge_threads, reset
 			the changed flag. Both variables are protected by
@@ -1750,14 +1836,42 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 			std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
 			n_threads = n_use_threads = srv_n_purge_threads;
 			srv_purge_thread_count_changed = 0;
-		} else if (trx_sys.history_size_approx() > rseg_history_len
-			   || (srv_max_purge_lag > 0
-			       && rseg_history_len > srv_max_purge_lag)) {
+
+			compute_series(series, innodb_purge_threads_MAX + 1,
+				(100 - (adaptive_purge_threshold + safety_net)),
+				n_threads);
+			lsn_lwm = adaptive_purge_threshold;
+			lsn_hwm = adaptive_purge_threshold + series[n_threads];
+			start_time = 0;
+			lsn_age_factor = get_lsn_age_factor();
+		} else if (trx_sys.history_size_approx() > rseg_history_len) {
+
+			/* dynamically adjust the purge thread based on redo log
+			fill factor */
+			if (n_use_threads < n_threads &&
+				lsn_age_factor < lsn_lwm) {
+				++n_use_threads;
+				lsn_hwm = lsn_lwm;
+				lsn_lwm -= series[n_use_threads];
+			} else if (n_use_threads > 1 &&
+				lsn_age_factor >= lsn_hwm) {
+				--n_use_threads;
+				lsn_lwm = lsn_hwm;
+				lsn_hwm += series[n_use_threads];
+			} else if (n_use_threads == 1 &&
+				lsn_age_factor >= (100 - safety_net)) {
+				std::this_thread::sleep_for(
+					std::chrono::milliseconds(10));
+			}
+		} else if ((srv_max_purge_lag > 0
+			    && rseg_history_len > srv_max_purge_lag)) {
 			/* History length is now longer than what it was
 			when we took the last snapshot. Use more threads. */
 
 			if (n_use_threads < n_threads) {
 				++n_use_threads;
+				lsn_hwm = lsn_lwm;
+				lsn_lwm -= series[n_use_threads];
 			}
 
 		} else if (srv_check_activity(&old_activity_count)
@@ -1767,6 +1881,8 @@ static uint32_t srv_do_purge(ulint* n_total_purged)
 			use fewer threads. */
 
 			--n_use_threads;
+			lsn_lwm = lsn_hwm;
+			lsn_hwm += series[n_use_threads];
 		}
 
 		/* Ensure that the purge threads are less than what
