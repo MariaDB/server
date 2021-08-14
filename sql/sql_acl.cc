@@ -971,6 +971,21 @@ class User_table: public Grant_table_base
   { return get_field(start_privilege_column + num_privileges() + 12); }
   Field* max_statement_time() const
   { return get_field(start_privilege_column + num_privileges() + 13); }
+  void set_password_last_changed(my_time_t x) const
+  {
+    Field *f= get_field(start_privilege_column + num_privileges() + 14);
+    if (f && f->real_type() == MYSQL_TYPE_TIMESTAMP2 &&
+        !strcasecmp(f->field_name,"password_last_changed"))
+    {
+       f->set_notnull();
+       f->store_timestamp(x, 0);
+    }
+    f= password_expired();
+    if (f && f->real_type() == MYSQL_TYPE_ENUM &&
+        !strcasecmp(f->field_name,"password_expired"))
+      /* storing first N in enum */
+      f->store(1, 0);
+  }
 
   /*
     Check if a user entry in the user table is marked as being a role entry
@@ -4013,6 +4028,7 @@ static bool update_user_table(THD *thd, const User_table& user_table,
   if (user_table.password())
     user_table.password()->store(new_password, new_password_len, system_charset_info);
 
+  user_table.set_password_last_changed(thd->query_start());
 
   if ((error=table->file->ha_update_row(table->record[1],table->record[0])) &&
       error != HA_ERR_RECORD_IS_THE_SAME)
@@ -4186,8 +4202,11 @@ static int replace_user_table(THD *thd, const User_table &user_table,
   /* If we don't have a password column, we'll use the authentication_string
      column later. */
   if (combo.pwhash.str[0] && user_table.password())
+  {
     user_table.password()->store(combo.pwhash.str, combo.pwhash.length,
                                  system_charset_info);
+    user_table.set_password_last_changed(thd->query_start());
+  }
   /* We either have the password column, the plugin column, or both. Otherwise
      we have a corrupt user table. */
   DBUG_ASSERT(user_table.password() || user_table.plugin());
