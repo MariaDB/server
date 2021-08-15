@@ -388,7 +388,7 @@ EOF
         # Use deltaxfer only for WAN
         inv=$(basename "$0")
         WHOLE_FILE_OPT=""
-        if [ "${inv%wsrep_sst_rsync_wan*}" != "$inv" ]; then
+        if [ "${inv%wsrep_sst_rsync_wan*}" = "$inv" ]; then
             WHOLE_FILE_OPT="--whole-file"
         fi
 
