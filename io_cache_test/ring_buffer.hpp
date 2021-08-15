@@ -20,8 +20,7 @@ public:
 
 private:
 
-  class cache_slot {
-    friend RingBuffer;
+  struct cache_slot {
     bool vacant = true;
     mysql_mutex_t vacant_lock;
     bool finished = false;
