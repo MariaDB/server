@@ -57,6 +57,21 @@ IF (HAVE_XUCRED)
   SET(ok 1)
 ELSE()
 
+# NetBSD, is that you?
+CHECK_CXX_SOURCE_COMPILES(
+"#include <sys/un.h>
+#include <sys/socket.h>
+int main() {
+  struct unpcbid unp;
+  socklen_t unpl = sizeof(unp);
+  getsockopt(0, 0, LOCAL_PEEREID, &unp, &unpl);
+  }" HAVE_UNPCBID)
+
+IF (HAVE_UNPCBID)
+  ADD_DEFINITIONS(-DHAVE_UNPCBID)
+  SET(ok 1)
+ELSE()
+
 # illumos, is that you?
 CHECK_CXX_SOURCE_COMPILES(
 "#include <ucred.h>
@@ -99,6 +114,7 @@ ELSE()
 # Who else? Anyone?
 # C'mon, show your creativity, be different! ifdef's are fun, aren't they?
 
+ENDIF()
 ENDIF()
 ENDIF()
 ENDIF()
