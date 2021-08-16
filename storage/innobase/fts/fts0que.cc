@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2020, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -2146,7 +2146,7 @@ fts_query_find_term(
 		query->fts_index_table.suffix = fts_get_suffix(selected);
 
 		fts_get_table_name(&query->fts_index_table, table_name);
-		pars_info_bind_id(info, true, "index_table_name", table_name);
+		pars_info_bind_id(info, "index_table_name", table_name);
 	}
 
 	select.found = FALSE;
@@ -2286,7 +2286,7 @@ fts_query_total_docs_containing_term(
 
 	fts_get_table_name(&query->fts_index_table, table_name);
 
-	pars_info_bind_id(info, true, "index_table_name", table_name);
+	pars_info_bind_id(info, "index_table_name", table_name);
 
 	graph = fts_parse_sql(
 		&query->fts_index_table,
@@ -2369,7 +2369,7 @@ fts_query_terms_in_document(
 
 	fts_get_table_name(&query->fts_index_table, table_name);
 
-	pars_info_bind_id(info, true, "index_table_name", table_name);
+	pars_info_bind_id(info, "index_table_name", table_name);
 
 	graph = fts_parse_sql(
 		&query->fts_index_table,
