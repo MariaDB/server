@@ -8316,6 +8316,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     }
     else
     {
+      DEBUG_SYNC(leader->thd, "commit_before_update_binlog_end_pos");
       bool any_error= false;
 
       mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);

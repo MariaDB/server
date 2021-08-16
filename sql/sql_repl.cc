@@ -2828,6 +2828,12 @@ static int send_one_binlog_file(binlog_send_info *info,
      */
     if (send_events(info, log, linfo, end_pos))
       return 1;
+    DBUG_EXECUTE_IF("Notify_binlog_EOF",
+                    {
+                      const char act[]= "now signal eof_reached";
+                      DBUG_ASSERT(!debug_sync_set_action(current_thd,
+                                                         STRING_WITH_LEN(act)));
+                    };);
   }
 
   return 1;
