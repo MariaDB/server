@@ -419,6 +419,13 @@ public:
   */
   double range_selectivity_new(Field *field, key_range *min_endp,
                                        key_range *max_endp) override;
+
+  /*
+   * Returns the index of the biggest histogram value that is smaller than endpoint
+   */
+  int find_bucket(Field *field, const uchar *endpoint);
+
+  double selection_in_interval(Field *field, const uchar* endpoint);
 };
 
 class Columns_statistics;

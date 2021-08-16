@@ -1466,88 +1466,93 @@ double Histogram_json::range_selectivity_new(Field *field, key_range *min_endp,
                                              key_range *max_endp)
 {
   fprintf(stderr, "Histogram_json::range_selectivity_new\n");
-
-
-  /*
-    GSOC-TODO: 
-    The code below is NOT what this function have. 
-
-    == WHAT THIS CODE DOES ==
-    At the moment it does a linear walk through histogram_bounds and compares 
-    min_endp to each of histogram bucket's min and max. 
-    ATTENTION:  This is a demo of how key_cmp() is used to compare the values.
-    
-    When it finds the bucket such that BUCKET_START < min_endp < BUCKET_END, 
-    it computes a position of min_endp within the bucket.
-    ATTENTION: calls to pos_in_interval_.... are a demo of how to compute 
-    position of a value within a [min,max] range.
-
-    == WHAT THIS CODE SHOULD DO ==
-    * Use binary search to locate the range  [MIN_BUCKET; MAX_BUCKET] - the
-      set of buckets that overlaps with the search interval {min_endp, max_endp}.
-
-    * If the search interval covers MIN_BUCKET only partially, compute a
-      position of min_endp within the bucket.
-
-    * The same for max_endp.
-
-    * Compute the final selectivity and return it.
-  */
-  std::string prev_s;
-  bool have_prev_s=false;
-  for (auto &s : histogram_bounds)
+  double min_sel, max_sel;
+  if (min_endp)
   {
-    if (!have_prev_s)
-    {
-      prev_s = s;
-      have_prev_s= true;
-      continue;
-    }
+    const uchar *min_key= min_endp->key;
+    // TODO: also, properly handle SQL NULLs.
+    // in this test patch, we just assume the values are not SQL NULLs.
+    if (field->real_maybe_null())
+      min_key++;
 
-    // It's a test code, so we only process min_endp.
-    if (min_endp)
-    {
-      const uchar *min_key= min_endp->key;
-      // TODO: also, properly handle SQL NULLs.
-      // in this test patch, we just assume the values are not SQL NULLs.
-      if (field->real_maybe_null())
-        min_key++;
-
-      int res1= field->key_cmp((uchar*)prev_s.data(), min_key);
-      const char *str1="<";
-      if (res1>0) str1=">";
-      if (res1==0) str1="=";
-
-      int res2= field->key_cmp(min_key, (uchar*)s.data());
-      const char *str2="<";
-      if (res2>0) str2=">";
-      if (res2==0) str2="=";
-      fprintf(stderr, "prev_bound %s min_key %s bound\n", str1, str2);
-
-      if (res1<0 && res2 < 0)
-      {
-        double sel;
-        if (field->pos_through_val_str())
-          sel= pos_in_interval_through_strxfrm(field, (uchar*)prev_s.data(), 
-                                               (uchar*)s.data(), (uchar*)min_key);
-        else
-          sel= pos_in_interval_through_val_real(field, (uchar*)prev_s.data(), 
-                                                (uchar*)s.data(), (uchar*)min_key);
-
-        fprintf(stderr, "  pos_in_interval=%g\n", sel);
-      }
-
-      prev_s= s;
-    }
+    min_sel= selection_in_interval(field, min_key);
+    fprintf(stderr, "min pos_in_interval(min_endp)=%g\n", min_sel);
   }
+  if (max_endp)
+  {
+    const uchar *max_key= max_endp->key;
+    if (field->real_maybe_null())
+      max_key++;
+
+    max_sel= selection_in_interval(field, max_key);
+    fprintf(stderr, "max pos_in_interval(min_endp)=%g\n", max_sel);
+  }
+
   fprintf(stderr, "Histogram_json::range_selectivity_new ends\n");
   return 0.5;
+}
+
+double Histogram_json::selection_in_interval(Field *field, const uchar* endpoint)
+{
+  int min_bucket_idx, max_bucket_idx;
+  min_bucket_idx= find_bucket(field, endpoint);
+  std::string min_bucket, max_bucket;
+
+  // todo:
+  //  this will probably trip up for cases where mind_endp > the last histogram value i.e min_bucket_idx = -1, but max_bucket_idx = 0 doesn't make sense.
+  max_bucket_idx= min_bucket_idx + 1;
+  double selection = 0;
+  if (min_bucket_idx != -1)
+  {
+    min_bucket= histogram_bounds[min_bucket_idx];
+    max_bucket= (max_bucket_idx < (int)histogram_bounds.size()) ? histogram_bounds[max_bucket_idx] : "";
+
+    if (field->pos_through_val_str())
+      selection = pos_in_interval_through_strxfrm(field, (uchar *) min_bucket.data(),
+                                           (uchar *) max_bucket.data(),
+                                           (uchar *) endpoint);
+    else
+      selection = pos_in_interval_through_val_real(field, (uchar *) min_bucket.data(),
+                                            (uchar *) max_bucket.data(),
+                                            (uchar *) endpoint);
+  }
+  return selection;
 }
 
 void Histogram_json::serialize(Field *field)
 {
   field->store((char*)get_values(), strlen((char*)get_values()),
                &my_charset_bin);
+}
+
+int Histogram_json::find_bucket(Field *field, const uchar *endpoint)
+{
+  int low = 0;
+  int high = (int)histogram_bounds.size()-1;
+  int mid;
+  int min_bucket_index = -1;
+  std::string mid_val;
+
+  while(low <= high) {
+    // c++ gives us the floor of integer divisions by default, below we get the ceiling (round-up).
+    // it works but it doesn't feel so readable, maybe we could make improvements?
+    int sum = (low+high);
+    mid = sum/2 + (sum % 2 != 0);
+
+    mid_val = histogram_bounds[mid];
+
+    int res = field->key_cmp((uchar*) mid_val.data(), endpoint);
+    min_bucket_index = mid;
+    if (res < 0) {
+      low = mid + 1;
+    } else if (res > 0) {
+      high = mid - 1;
+    } else {
+      //todo: endpoint is on a bucket boundary
+      break;
+    }
+  }
+  return min_bucket_index;
 }
 
 /*
