@@ -284,14 +284,10 @@ IF(CONNECT_WITH_JDBC)
     jmgfam.h jmgoconn.h mongo.h tabjmg.h
     JdbcInterface.java ApacheInterface.java MariadbInterface.java
     MysqlInterface.java OracleInterface.java PostgresqlInterface.java
-    Mongo2Interface.java Mongo3Interface.java
-    mysql-test/connect/std_data/JavaWrappers.jar)
+    Mongo2Interface.java Mongo3Interface.java)
     add_definitions(-DJAVA_SUPPORT)
     ADD_FEATURE_INFO(CONNECT_JDBC "ON" "Support for JDBC in the CONNECT storage engine")
     IF(CONNECT_WITH_MONGO)
-      SET(CONNECT_SOURCES ${CONNECT_SOURCES}
-        mysql-test/connect/std_data/Mongo2.jar
-        mysql-test/connect/std_data/Mongo3.jar)
       add_definitions(-DMONGO_SUPPORT)
     ENDIF()
   ELSE()

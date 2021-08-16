@@ -79,6 +79,23 @@ then
   sed '/libzstd-dev/d' -i debian/control
 fi
 
+# If openjdk-11-jre is not available (before Debian Buster and Ubuntu Bionic)
+# use an older package that also provides libjawt.so and libjvm.so which are
+# required to build JdbcInterface.jar for the Connect storage engine
+# openjdk-8-jre-headless: libjawt.so and libjvm.so
+# openjdk-8-jdk-headless: javac jarsigner jni.h javah idlj
+# openjdk-11-jre: libjawt.so
+# openjdk-11-jre-headless: libjvm.so jarsigner
+# openjdk-11-jdk-headless: javac jarsigner jni.h
+# Note! command 'javah' was replaced by 'javac -h' in Java 10
+
+if ! apt-cache madison openjdk-11-jre | grep 'openjdk-11-jre' >/dev/null 2>&1
+then
+  sed 's/openjdk-11-jre-headless,/openjdk-8-jre-headless,/' -i debian/control
+  sed 's/openjdk-11-jdk-headless,/openjdk-8-jdk-headless,/' -i debian/control
+  sed '/openjdk-11-jre,/d' -i debian/control
+fi
+
 # The binaries should be fully hardened by default. However TokuDB compilation seems to fail on
 # Debian Jessie and older and on Ubuntu Xenial and older with the following error message:
 #   /usr/bin/ld.bfd.real: /tmp/ccOIwjFo.ltrans0.ltrans.o: relocation R_X86_64_PC32 against symbol

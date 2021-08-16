@@ -5,8 +5,6 @@ usr/bin/mysql_embedded # Huge 500 MB file. Not intended for distribution via any
 usr/bin/mytop # Mytop is distributed from a separate source package
 usr/lib/sysusers.d/sysusers.conf
 usr/lib/tmpfiles.d/tmpfiles.conf
-usr/lib/mysql/plugin/JavaWrappers.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
-usr/lib/mysql/plugin/JdbcInterface.jar # These are only built if JNI/libjawt.so is installed from e.g. openjdk-8-jre-headless
 usr/share/doc/mariadb-server-10.3/COPYING
 usr/share/doc/mariadb-server-10.3/COPYING.AGPLv3
 usr/share/doc/mariadb-server-10.3/COPYING.GPLv2
