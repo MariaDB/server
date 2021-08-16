@@ -67,33 +67,11 @@ test	t1	d	1	25	0.0000	8.0000	1.0000	10	JSON	[
   "21",
   "23"
 ]
-SELECT * FROM t1;
-a	b	c	d
-1	1	1	1
-2	2	2	2
-3	3	3	3
-4	4	4	4
-5	5	5	5
-6	6	6	6
-7	7	7	7
-8	8	8	8
-9	9	9	9
-10	10	10	10
-11	11	11	11
-12	12	12	12
-13	13	13	13
-14	14	14	14
-15	15	15	15
-16	16	16	16
-17	17	17	17
-18	18	18	18
-19	19	19	19
-20	20	20	20
-21	21	21	21
-22	22	22	22
-23	23	23	23
-24	24	24	24
-25	25	25	25
+explain extended select * from t1 where b between '20' and '70';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	25	10.00	Using where
+Warnings:
+Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d` from `test`.`t1` where `test`.`t1`.`b` between '20' and '70'
 UPDATE mysql.column_stats SET histogram='["1", {"a": "b"}, "2"]' WHERE table_name='t1';
 FLUSH TABLES;
 SELECT * FROM t1;

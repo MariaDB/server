@@ -28,7 +28,7 @@ set histogram_size=10;
 
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 SELECT * FROM mysql.column_stats WHERE table_name='t1';
-SELECT * FROM t1;
+explain extended select * from t1 where b between '20' and '70';
 
 # We then test different valid JSON strings that are invalid histograms.
 UPDATE mysql.column_stats SET histogram='["1", {"a": "b"}, "2"]' WHERE table_name='t1';
