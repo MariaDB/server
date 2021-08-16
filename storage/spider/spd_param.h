@@ -421,3 +421,6 @@ uint spider_param_table_sts_thread_count();
 uint spider_param_table_crd_thread_count();
 #endif
 int spider_param_slave_trx_isolation();
+bool spider_param_enable_group_by_handler(
+  THD *thd
+);

@@ -1,0 +1,37 @@
+--source ../include/server_variables.init
+
+--disable_query_log
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+eval CREATE TABLE ta_l (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+eval CREATE TABLE ta_r (
+    pkey int NOT NULL,
+    PRIMARY KEY (pkey)
+) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+--enable_query_log
+
+--echo #
+--echo # MDEV-26364 Add Spider server variable for disabling GROUP BY handler
+--echo #
+--connection master_1
+SET SESSION spider_enable_group_by_handler=0;
+EXPLAIN SELECT * FROM ta_l;
+SET SESSION spider_enable_group_by_handler=1;
+EXPLAIN SELECT * FROM ta_l;
+
+--connection master_1
+DROP DATABASE auto_test_local;
+--connection child2_1
+DROP DATABASE auto_test_remote;
+
+--source ../include/server_variables.deinit

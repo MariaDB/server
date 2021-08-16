@@ -1645,6 +1645,9 @@ group_by_handler *spider_create_group_by_handler(
       break;
   }
 
+  if (!spider_param_enable_group_by_handler(thd))
+    DBUG_RETURN(NULL);
+
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   from = query->from;
   do {
