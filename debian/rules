@@ -76,8 +76,7 @@ ifneq (32,$(DEB_HOST_ARCH_BITS))
 	cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
 	# Don't include twice
 	grep -q '^Package: mariadb-plugin-columnstore$$' debian/control || \
-	echo >> debian/control && \
-	cat storage/columnstore/columnstore/debian/control >> debian/control
+	( echo && cat storage/columnstore/columnstore/debian/control ) >> debian/control
 endif
 
 	echo "server:Version=$(DEB_VERSION)" >> debian/substvars
