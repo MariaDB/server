@@ -3037,6 +3037,8 @@ fts_optimize_shutdown()
 @param[in]	table	table to be synced */
 void fts_sync_during_ddl(dict_table_t* table)
 {
+  if (!fts_optimize_wq)
+    return;
   mutex_enter(&fts_optimize_wq->mutex);
   if (!table->fts->sync_message)
   {
