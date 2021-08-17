@@ -2007,8 +2007,8 @@ Item_func_uuid(THD *thd, bool without_separators_arg): Item_str_func(thd),
   bool fix_length_and_dec() override
   {
     collation.set(DTCollation_numeric());
-    fix_char_length(without_separators ? MY_UUID_ORACLE_STRING_LENGTH :
-                    MY_UUID_STRING_LENGTH);
+    fix_char_length(without_separators ? MY_UUID_BARE_STRING_LENGTH
+                                       : MY_UUID_STRING_LENGTH);
     return FALSE;
   }
   bool const_item() const override { return false; }

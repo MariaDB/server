@@ -4379,18 +4379,14 @@ String *Item_func_uuid::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
   uchar guid[MY_UUID_SIZE];
-  size_t length= (without_separators ?
-                  MY_UUID_ORACLE_STRING_LENGTH :
-                  MY_UUID_STRING_LENGTH);
+  size_t length= without_separators ? MY_UUID_BARE_STRING_LENGTH
+                                    : MY_UUID_STRING_LENGTH;
 
   str->alloc(length+1);
   str->length(length);
   str->set_charset(system_charset_info);
   my_uuid(guid);
-  if (without_separators)
-    my_uuid2str_oracle(guid, (char *)str->ptr());
-  else
-    my_uuid2str(guid, (char *)str->ptr());
+  my_uuid2str(guid, (char *)str->ptr(), !without_separators);
   return str;
 }
 

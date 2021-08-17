@@ -535,7 +535,7 @@ static char *add_id_to_buffer(char *ptr, const LEX_CUSTRING *from)
 
   tmp.str= buff;
   tmp.length= MY_UUID_STRING_LENGTH;
-  my_uuid2str(from->str, buff);
+  my_uuid2str(from->str, buff, 1);
   return add_str_to_buffer(ptr, &tmp);
 }
 
