@@ -1453,71 +1453,93 @@ double pos_in_interval_through_strxfrm(Field *field,
 
 
 /*
-  GSOC-TODO:
-  This is how range selectivity function should look like.
-
   @param field  The table field histogram is for.  We don't care about the
                  field's current value, we only need its virtual functions to 
                  perform various operations
   
   @param min_endp, max_endp - this specifies the range.
 */
-double Histogram_json::range_selectivity_new(Field *field, key_range *min_endp,
+double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
                                              key_range *max_endp)
 {
-  fprintf(stderr, "Histogram_json::range_selectivity_new\n");
-  double min_sel, max_sel;
+  fprintf(stderr, "Histogram_json::range_selectivity\n");
+  double min = 0.0, max = 1.0;
+  double width = 1.0/(int)histogram_bounds.size();
   if (min_endp)
   {
+    double min_sel = 0.0;
     const uchar *min_key= min_endp->key;
     // TODO: also, properly handle SQL NULLs.
     // in this test patch, we just assume the values are not SQL NULLs.
     if (field->real_maybe_null())
       min_key++;
 
-    min_sel= selection_in_interval(field, min_key);
-    fprintf(stderr, "min pos_in_interval(min_endp)=%g\n", min_sel);
+    int min_bucket_idx, max_bucket_idx;
+    min_bucket_idx= find_bucket(field, min_key);
+    std::string min_bucket, max_bucket;
+
+    max_bucket_idx= min_bucket_idx + 1;
+    if (min_bucket_idx != -1)
+    {
+      min_bucket= histogram_bounds[min_bucket_idx];
+      max_bucket= (max_bucket_idx < (int) histogram_bounds.size())
+                      ? histogram_bounds[max_bucket_idx]
+                      : "";
+
+      if (field->pos_through_val_str())
+        min_sel= pos_in_interval_through_strxfrm(
+            field, (uchar *) min_bucket.data(), (uchar *) max_bucket.data(),
+            (uchar *) min_key);
+      else
+        min_sel= pos_in_interval_through_val_real(
+            field, (uchar *) min_bucket.data(), (uchar *) max_bucket.data(),
+            (uchar *) min_key);
+    }
+
+    min = min_bucket_idx * (width) + min_sel * (width);
+    fprintf(stderr, "min pos_in_interval =%g\n", min_sel);
+    fprintf(stderr, "min =%g\n", min);
   }
   if (max_endp)
   {
+    double max_sel = 1.0;
     const uchar *max_key= max_endp->key;
     if (field->real_maybe_null())
       max_key++;
 
-    max_sel= selection_in_interval(field, max_key);
-    fprintf(stderr, "max pos_in_interval(min_endp)=%g\n", max_sel);
+    int min_bucket_idx, max_bucket_idx;
+    min_bucket_idx= find_bucket(field, max_key);
+    std::string min_bucket, max_bucket;
+
+    max_bucket_idx= min_bucket_idx + 1;
+    if (min_bucket_idx != -1)
+    {
+      min_bucket= histogram_bounds[min_bucket_idx];
+      max_bucket= (max_bucket_idx < (int) histogram_bounds.size())
+                  ? histogram_bounds[max_bucket_idx]
+                  : "";
+
+      if (field->pos_through_val_str())
+        max_sel= pos_in_interval_through_strxfrm(
+            field, (uchar *) min_bucket.data(), (uchar *) max_bucket.data(),
+            (uchar *) max_key);
+      else
+        max_sel= pos_in_interval_through_val_real(
+            field, (uchar *) min_bucket.data(), (uchar *) max_bucket.data(),
+            (uchar *) max_key);
+    }
+
+    max = min_bucket_idx * (width) + max_sel * (width);
+    fprintf(stderr, "max pos_in_interval =%g\n", max_sel);
+    fprintf(stderr, "max =%g\n", max);
   }
 
-  fprintf(stderr, "Histogram_json::range_selectivity_new ends\n");
-  return 0.5;
+  double sel = max - min;
+  fprintf(stderr, "final selection = %g\n", sel);
+  fprintf(stderr, "Histogram_json::range_selectivity ends\n");
+  return sel;
 }
 
-double Histogram_json::selection_in_interval(Field *field, const uchar* endpoint)
-{
-  int min_bucket_idx, max_bucket_idx;
-  min_bucket_idx= find_bucket(field, endpoint);
-  std::string min_bucket, max_bucket;
-
-  // todo:
-  //  this will probably trip up for cases where mind_endp > the last histogram value i.e min_bucket_idx = -1, but max_bucket_idx = 0 doesn't make sense.
-  max_bucket_idx= min_bucket_idx + 1;
-  double selection = 0;
-  if (min_bucket_idx != -1)
-  {
-    min_bucket= histogram_bounds[min_bucket_idx];
-    max_bucket= (max_bucket_idx < (int)histogram_bounds.size()) ? histogram_bounds[max_bucket_idx] : "";
-
-    if (field->pos_through_val_str())
-      selection = pos_in_interval_through_strxfrm(field, (uchar *) min_bucket.data(),
-                                           (uchar *) max_bucket.data(),
-                                           (uchar *) endpoint);
-    else
-      selection = pos_in_interval_through_val_real(field, (uchar *) min_bucket.data(),
-                                            (uchar *) max_bucket.data(),
-                                            (uchar *) endpoint);
-  }
-  return selection;
-}
 
 void Histogram_json::serialize(Field *field)
 {
@@ -4307,38 +4329,8 @@ double get_column_range_cardinality(Field *field,
   {
     if (col_stats->min_max_values_are_provided())
     {
-      double sel, min_mp_pos, max_mp_pos;
-
-      if (min_endp && !(field->null_ptr && min_endp->key[0]))
-      {
-        store_key_image_to_rec(field, (uchar *) min_endp->key,
-                               field->key_length());
-        min_mp_pos= field->pos_in_interval(col_stats->min_value,
-                                           col_stats->max_value);
-      }
-      else
-        min_mp_pos= 0.0;
-      if (max_endp)
-      {
-        store_key_image_to_rec(field, (uchar *) max_endp->key,
-                               field->key_length());
-        max_mp_pos= field->pos_in_interval(col_stats->min_value,
-                                           col_stats->max_value);
-      }
-      else
-        max_mp_pos= 1.0;
-
       Histogram_base *hist = col_stats->histogram_;
-      if (hist && hist->is_usable(thd)) {
-        /*
-          GSOC-TODO: for now, we just call range_selectivity_new here.
-        */
-        sel= hist->range_selectivity_new(field, min_endp, max_endp);
-
-        sel= hist->range_selectivity(min_mp_pos, max_mp_pos);
-      }
-      else
-        sel= (max_mp_pos - min_mp_pos);
+      double sel= hist->range_selectivity(field, min_endp, max_endp);
       res= col_non_nulls * sel;
       set_if_bigger(res, col_stats->get_avg_frequency());
     }
@@ -4349,8 +4341,6 @@ double get_column_range_cardinality(Field *field,
   }
   return res;
 }
-
-
 
 /*
   Estimate selectivity of "col=const" using a histogram
@@ -4466,8 +4456,60 @@ double Histogram_binary::point_selectivity(double pos, double avg_sel)
   return sel;
 }
 
+double Histogram_binary::range_selectivity(Field *field,
+                                               key_range *min_endp,
+                                               key_range *max_endp)
+{
+  fprintf(stderr, "Histogram_binary::range_selectivity\n");
+  double sel, min_mp_pos, max_mp_pos;
+  Column_statistics *col_stats= field->read_stats;
+
+  if (min_endp && !(field->null_ptr && min_endp->key[0]))
+  {
+    store_key_image_to_rec(field, (uchar *) min_endp->key,
+                           field->key_length());
+    min_mp_pos=
+        field->pos_in_interval(col_stats->min_value, col_stats->max_value);
+  }
+  else
+    min_mp_pos= 0.0;
+  if (max_endp)
+  {
+    store_key_image_to_rec(field, (uchar *) max_endp->key,
+                           field->key_length());
+    max_mp_pos=
+        field->pos_in_interval(col_stats->min_value, col_stats->max_value);
+  }
+  else
+    max_mp_pos= 1.0;
+
+  // GSOC-todo: previously it was if (hist && hist->is_usable) - I wonder in what cases
+  // (hist) would be null and if it makes sense to handle that case now.
+  if (is_usable(field->table->in_use))
+  {
+    double bucket_sel= 1.0 / (get_width() + 1);
+    uint min= find_bucket(min_mp_pos, TRUE);
+    uint max= find_bucket(max_mp_pos, FALSE);
+    sel= bucket_sel * (max - min + 1);
+
+    fprintf(stderr, "bucket_sel =%g\n", bucket_sel);
+    fprintf(stderr, "min pos_in_interval =%g\n", min_mp_pos);
+    fprintf(stderr, "max pos_in_interval =%g\n", max_mp_pos);
+    fprintf(stderr, "min =%d\n", min);
+    fprintf(stderr, "max =%d\n", max);
+  }
+  else
+  {
+    /* GSOC-todo: figure how to handle the else case below for Histogram_json*/
+    sel= (max_mp_pos - min_mp_pos);
+  }
+  fprintf(stderr, "final sel =%g\n", sel);
+  fprintf(stderr, "Histogram_binary::range_selectivity ends\n");
+  return sel;
+}
+
 /*
-  Check whether the table is one of the persistent statistical tables.
+Check whether the table is one of the persistent statistical tables.
 */
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
 {

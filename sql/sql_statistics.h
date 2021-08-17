@@ -169,15 +169,10 @@ public:
 
   virtual void set_size(ulonglong sz)=0;
 
-  virtual double range_selectivity(double min_pos, double max_pos)=0;
-
   virtual double point_selectivity(double pos, double avg_selection)=0;
 
-  virtual double range_selectivity_new(Field *field, key_range *min_endp,
-                                       key_range *max_endp)
-  {
-    return 1.0;
-  };
+  virtual double range_selectivity(Field *field, key_range *min_endp,
+                                       key_range *max_endp)=0;
 
   // Legacy: return the size of the histogram on disk.
   // This will be stored in mysql.column_stats.hist_size column.
@@ -332,15 +327,8 @@ public:
     }
   }
 
-  double range_selectivity(double min_pos, double max_pos) override
-  {
-    double sel;
-    double bucket_sel= 1.0/(get_width() + 1);  
-    uint min= find_bucket(min_pos, TRUE);
-    uint max= find_bucket(max_pos, FALSE);
-    sel= bucket_sel * (max - min + 1);
-    return sel;
-  } 
+  double range_selectivity(Field *field, key_range *min_endp,
+                               key_range *max_endp) override;
   
   /*
     Estimate selectivity of "col=const" using a histogram
@@ -409,23 +397,18 @@ public:
 
   uchar *get_values() override { return (uchar *) values; }
 
-  double range_selectivity(double min_pos, double max_pos) override {return 0.1;}
-
   double point_selectivity(double pos, double avg_selection) override {return 0.5;}
 
   /*
-    GSOC-TODO: This function should eventually replace both range_selectivity()
-    and point_selectivity(). See its code for more details.
+    GSOC-TODO: This function should eventually replace point_selectivity(). See its code for more details.
   */
-  double range_selectivity_new(Field *field, key_range *min_endp,
+  double range_selectivity(Field *field, key_range *min_endp,
                                        key_range *max_endp) override;
 
   /*
    * Returns the index of the biggest histogram value that is smaller than endpoint
    */
   int find_bucket(Field *field, const uchar *endpoint);
-
-  double selection_in_interval(Field *field, const uchar* endpoint);
 };
 
 class Columns_statistics;
