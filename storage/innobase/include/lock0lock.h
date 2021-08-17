@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -477,6 +477,10 @@ lock_rec_unlock(
 /** Release the explicit locks of a committing transaction,
 and release possible other transactions waiting because of these locks. */
 void lock_release(trx_t* trx);
+
+/** Release non-exclusive locks on XA PREPARE,
+and release possible other transactions waiting because of these locks. */
+void lock_release_on_prepare(trx_t *trx);
 
 /*************************************************************//**
 Get the lock hash table */

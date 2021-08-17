@@ -4219,6 +4219,65 @@ void lock_release(trx_t* trx)
 #endif
 }
 
+/** Release non-exclusive locks on XA PREPARE,
+and release possible other transactions waiting because of these locks. */
+void lock_release_on_prepare(trx_t *trx)
+{
+  ulint count= 0;
+  lock_mutex_enter();
+  ut_ad(!trx_mutex_own(trx));
+
+  for (lock_t *lock= UT_LIST_GET_LAST(trx->lock.trx_locks); lock; )
+  {
+    ut_ad(lock->trx == trx);
+
+    if (lock_get_type_low(lock) == LOCK_REC)
+    {
+      ut_ad(!lock->index->table->is_temporary());
+      if (lock_rec_get_gap(lock) || lock_get_mode(lock) != LOCK_X)
+        lock_rec_dequeue_from_page(lock);
+      else
+      {
+        ut_ad(trx->dict_operation ||
+              lock->index->table->id >= DICT_HDR_FIRST_ID);
+retain_lock:
+        lock= UT_LIST_GET_PREV(trx_locks, lock);
+        continue;
+      }
+    }
+    else
+    {
+      ut_ad(lock_get_type_low(lock) & LOCK_TABLE);
+      dict_table_t *table= lock->un_member.tab_lock.table;
+      ut_ad(!table->is_temporary());
+
+      switch (lock_get_mode(lock)) {
+      case LOCK_IS:
+      case LOCK_S:
+        lock_table_dequeue(lock);
+        break;
+      case LOCK_IX:
+      case LOCK_X:
+        ut_ad(table->id >= DICT_HDR_FIRST_ID || trx->dict_operation);
+        /* fall through */
+      default:
+        goto retain_lock;
+      }
+    }
+
+    if (++count == LOCK_RELEASE_INTERVAL)
+    {
+      lock_mutex_exit();
+      count= 0;
+      lock_mutex_enter();
+    }
+
+    lock= UT_LIST_GET_LAST(trx->lock.trx_locks);
+  }
+
+  lock_mutex_exit();
+}
+
 /* True if a lock mode is S or X */
 #define IS_LOCK_S_OR_X(lock) \
 	(lock_get_mode(lock) == LOCK_S \

@@ -1971,6 +1971,11 @@ trx_prepare(
 		We must not be holding any mutexes or latches here. */
 
 		trx_flush_log_if_needed(lsn, trx);
+
+		if (UT_LIST_GET_LEN(trx->lock.trx_locks)
+		    && trx->isolation_level <= TRX_ISO_READ_COMMITTED) {
+			lock_release_on_prepare(trx);
+		}
 	}
 }
 
