@@ -22,15 +22,11 @@
 
 /*
   MDEV-25602 Deprecate __WIN__ symbol.
-  Temporarily, allow inside connect engine,
-  until fixed in upstream.
 */
-#ifndef connect_EXPORTS
-#ifdef _MSC_VER
+#if defined (_MSC_VER) && !defined(__clang__)
 #pragma deprecated("__WIN__")
 #elif defined (__GNUC__)
 #pragma GCC poison __WIN__
-#endif
 #endif
 
 /*

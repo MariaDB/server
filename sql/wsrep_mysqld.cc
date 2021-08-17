@@ -90,7 +90,6 @@ my_bool wsrep_drupal_282555_workaround;         // Retry autoinc insert after du
 my_bool wsrep_certify_nonPK;                    // Certify, even when no primary key
 ulong   wsrep_certification_rules      = WSREP_CERTIFICATION_RULES_STRICT;
 my_bool wsrep_recovery;                         // Recovery
-my_bool wsrep_replicate_myisam;                 // Enable MyISAM replication
 my_bool wsrep_log_conflicts;
 my_bool wsrep_load_data_splitting= 0;           // Commit load data every 10K intervals
 my_bool wsrep_slave_UK_checks;                  // Slave thread does UK checks
@@ -100,9 +99,6 @@ my_bool wsrep_restart_slave;                    // Should mysql slave thread be
 my_bool wsrep_desync;                           // De(re)synchronize the node from the
                                                 // cluster
 ulonglong wsrep_mode;
-my_bool wsrep_strict_ddl;                       // Deprecated: Reject DDL to
-                                                // effected tables not
-                                                // supporting Galera replication
 bool wsrep_service_started;                     // If Galera was initialized
 long wsrep_slave_threads;                       // No. of slave appliers threads
 ulong wsrep_retry_autocommit;                   // Retry aborted autocommit trx

@@ -85,7 +85,6 @@ extern ulong       wsrep_forced_binlog_format;
 extern my_bool     wsrep_desync;
 extern ulong       wsrep_reject_queries;
 extern my_bool     wsrep_recovery;
-extern my_bool     wsrep_replicate_myisam;
 extern my_bool     wsrep_log_conflicts;
 extern ulong       wsrep_mysql_replication_bundle;
 extern my_bool     wsrep_load_data_splitting;
@@ -103,7 +102,6 @@ extern bool        wsrep_new_cluster;
 extern bool        wsrep_gtid_mode;
 extern uint        wsrep_gtid_domain_id;
 extern ulonglong   wsrep_mode;
-extern my_bool     wsrep_strict_ddl;
 
 enum enum_wsrep_reject_types {
   WSREP_REJECT_NONE,    /* nothing rejected */
