@@ -95,6 +95,11 @@ enum ddl_log_action_code
 /* Number of phases for each ddl_log_action_code */
 extern const uchar ddl_log_entry_phases[DDL_LOG_LAST_ACTION];
 
+enum enum_ddl_log_rename_phase {
+  RENAME_PHASE_FILE= 0,
+  RENAME_PHASE_BINLOG= 1,
+  RENAME_PHASE_END
+};
 
 enum enum_ddl_log_exchange_phase {
   EXCH_PHASE_NAME_TO_TEMP= 0,
@@ -355,7 +360,7 @@ bool ddl_log_alter_table(THD *thd, DDL_LOG_STATE *ddl_state,
                          ulonglong table_version,
                          bool is_renamed);
 bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_log_state,
-                         const char *query, size_t length);
+                         const char *query, size_t length, bool locked= false);
 void ddl_log_link_events(DDL_LOG_STATE *state, DDL_LOG_STATE *master_state);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */
