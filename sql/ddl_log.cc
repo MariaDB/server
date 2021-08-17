@@ -2462,9 +2462,10 @@ bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
 
   error= FALSE;
   DBUG_PRINT("ddl_log",
-             ("pos: %u  action: %u (%s) phase: %u  "
+             ("pos: %u->%u  action: %u (%s) phase: %u  "
               "handler: '%s'  name: '%s'  from_name: '%s'  tmp_name: '%s'",
               (*active_entry)->entry_pos,
+              (uint) ddl_log_entry->next_entry,
               (uint) ddl_log_entry->action_type,
               ddl_log_action_name[ddl_log_entry->action_type],
               (uint) ddl_log_entry->phase,
