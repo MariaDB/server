@@ -11,12 +11,12 @@ pthread_barrier_t barrier;
 
 void *read_to_cache(void *) {
   for (int i= 0; i < 32; ++i)
-    cache->read(buff_to + (i * 255), 255);
+    ;//cache->read(buff_to + (i * 255), 255);
   return NULL;
 }
 
 void *write_to_cache(void *args) {
-  //pthread_barrier_wait(&barrier);
+  pthread_barrier_wait(&barrier);
   int *v_args= (int *) args;
   for (int i= v_args[0]; i < v_args[1]; ++i)
     cache->write_slot(buff_from + (i * 255), 255);
@@ -30,7 +30,13 @@ void *write_to_cache_one(void*) {
 }
 
 int main() {
-  pthread_barrier_init(&barrier, NULL, 4);
+  static const int thread_write_count= 4;
+  pthread_t thr_read;
+  pthread_t *thr_write= (pthread_t *) malloc(8 * sizeof(pthread_t));
+  int args[8];
+
+
+  pthread_barrier_init(&barrier, NULL, thread_write_count);
   {
     std::ofstream off;
     off.open("tandom.txt");
@@ -53,9 +59,7 @@ int main() {
   }
 
   remove("cache_file.txt");
-  pthread_t thr_read;
-  pthread_t *thr_write= (pthread_t *) malloc(8 * sizeof(pthread_t));
-  int args[8];
+
 
   clock_t tss, tee;
   buff_to= (uchar *) malloc(sizeof(uchar) * 10000);
@@ -63,7 +67,7 @@ int main() {
 
   cache= new RingBuffer((char *) "cache_file.txt", 4096);
 
-  for (int i= 0; i < 4; ++i) {
+  for (int i= 0; i < thread_write_count; ++i) {
     args[i * 2]= i * 8;
     args[(i * 2) + 1]= (i + 1) * 8;
     pthread_create(&thr_write[i], NULL, write_to_cache, (void *) &args[i * 2]);
@@ -74,10 +78,10 @@ int main() {
   pthread_join(thr_write[0], NULL);
 */
   pthread_create(&thr_read, NULL, read_to_cache, NULL);
-/*
-  for (int i= 0; i < 4; ++i)
+
+  for (int i= 0; i < thread_write_count; ++i)
     pthread_join(thr_write[i], NULL);
-*/
+
   pthread_join(thr_read, NULL);
 
   delete cache;
