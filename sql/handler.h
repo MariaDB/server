@@ -1432,7 +1432,7 @@ handlerton *ha_default_tmp_handlerton(THD *thd);
   needed and delete_table() always returns 0 (table deleted). This flag
   mainly used to skip storage engines in case of ha_delete_table_force()
 */
-#define HTON_AUTOMATIC_DELETE_TABLE (1 << 18)
+#define HTON_AUTOMATIC_DELETE_TABLE (1 << 19)
 
 class Ha_trx_info;
 

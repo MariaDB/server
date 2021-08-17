@@ -1150,7 +1150,7 @@ static int execute_ddl_log_action(THD *thd, DDL_LOG_ENTRY *ddl_log_entry)
                                                      MY_IGNORE_ENOENT)))))
             break;
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-          strxmov(to_path, ddl_log_entry->name, PAR_EXT, NullS);
+          strxmov(to_path, ddl_log_entry->name, par_ext, NullS);
           (void) mysql_file_delete(key_file_partition, to_path,
                                    MYF(0));
 #endif
