@@ -1022,14 +1022,27 @@ int my_getpagesize(void);
 int my_msync(int, void *, size_t, int);
 
 #define MY_UUID_SIZE 16
-#define MY_UUID_STRING_LENGTH (8+1+4+1+4+1+4+1+12)
-#define MY_UUID_ORACLE_STRING_LENGTH (8+4+4+4+12)
+#define MY_UUID_BARE_STRING_LENGTH (8+4+4+4+12)
+#define MY_UUID_SEPARATORS 4
+#define MY_UUID_STRING_LENGTH (MY_UUID_BARE_STRING_LENGTH + MY_UUID_SEPARATORS)
 
 void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
-void my_uuid2str(const uchar *guid, char *s);
-void my_uuid2str_oracle(const uchar *guid, char *s);
 void my_uuid_end(void);
+
+static inline void my_uuid2str(const uchar *guid, char *s, int with_separators)
+{
+  int i;
+  int mask= with_separators ? ((1 << 3) | (1 << 5) | (1 << 7) | (1 << 9)) : 0;
+  for (i=0; i < MY_UUID_SIZE; i++, mask >>= 1)
+  {
+    *s++= _dig_vec_lower[guid[i] >>4];
+    *s++= _dig_vec_lower[guid[i] & 15];
+    if (mask & 1)
+      *s++= '-';
+  }
+}
+
 
 const char *my_dlerror(const char *dlpath);
 

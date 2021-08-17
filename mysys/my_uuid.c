@@ -216,37 +216,6 @@ void my_uuid(uchar *to)
 }
 
 
-/**
-   Convert uuid to string representation
-
-   @func  my_uuid2str()
-   @param guid uuid
-   @param s    Output buffer.Must be at least MY_UUID_STRING_LENGTH+1 large.
-*/
-void my_uuid2str(const uchar *guid, char *s)
-{
-  int i;
-  for (i=0; i < MY_UUID_SIZE; i++)
-  {
-    *s++= _dig_vec_lower[guid[i] >>4];
-    *s++= _dig_vec_lower[guid[i] & 15];
-    /* Set '-' at intervals 3, 5, 7 and 9 */
-    if ((1 << i) & ((1 << 3) | (1 << 5) | (1 << 7) | (1 << 9)))
-      *s++= '-';
-  }
-}
-
-void my_uuid2str_oracle(const uchar *guid, char *s)
-{
-  int i;
-  for (i=0; i < MY_UUID_SIZE; i++)
-  {
-    *s++= _dig_vec_upper[guid[i] >>4];
-    *s++= _dig_vec_upper[guid[i] & 15];
-  }
-}
-
-
 void my_uuid_end()
 {
   if (my_uuid_inited)
