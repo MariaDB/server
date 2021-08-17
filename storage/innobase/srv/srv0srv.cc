@@ -1960,7 +1960,7 @@ static std::mutex purge_thd_mutex;
 extern void* thd_attach_thd(THD*);
 extern void thd_detach_thd(void *);
 
-THD* acquire_thd(void **ctx)
+static THD *acquire_thd(void **ctx)
 {
 	std::unique_lock<std::mutex> lk(purge_thd_mutex);
 	if (purge_thds.empty()) {
@@ -1978,7 +1978,7 @@ THD* acquire_thd(void **ctx)
 	return thd;
 }
 
-void release_thd(THD *thd, void *ctx)
+static void release_thd(THD *thd, void *ctx)
 {
 	thd_detach_thd(ctx);
 	std::unique_lock<std::mutex> lk(purge_thd_mutex);
