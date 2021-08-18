@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2007, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -97,7 +97,7 @@ fts_config_get_value(
 
 	fts_table->suffix = "CONFIG";
 	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		fts_table,
@@ -217,7 +217,7 @@ fts_config_set_value(
 
 	fts_table->suffix = "CONFIG";
 	fts_get_table_name(fts_table, table_name, dict_locked);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		fts_table, info,
@@ -245,7 +245,7 @@ fts_config_set_value(
 			info, "value", value->f_str, value->f_len);
 
 		fts_get_table_name(fts_table, table_name, dict_locked);
-		pars_info_bind_id(info, true, "table_name", table_name);
+		pars_info_bind_id(info, "table_name", table_name);
 
 		graph = fts_parse_sql(
 			fts_table, info,

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -8441,6 +8441,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
   rc= well_formed_copy_with_check((char*) value.ptr(), (uint) new_length,
                                   cs, from, length,
                                   length, true, &copy_len);
+  value.length(copy_len);
   Field_blob::store_length(copy_len);
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 

@@ -201,7 +201,8 @@ buf_read_page_low(
 			}
 			return(0);
 		} else if (IORequest::ignore_missing(type)
-			   || *err == DB_TABLESPACE_DELETED) {
+			   || *err == DB_TABLESPACE_DELETED
+			   || *err == DB_IO_ERROR) {
 			buf_read_page_handle_error(bpage);
 			return(0);
 		}

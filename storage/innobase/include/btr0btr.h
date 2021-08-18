@@ -757,7 +757,7 @@ btr_validate_index(
 /*************************************************************//**
 Removes a page from the level list of pages. */
 UNIV_INTERN
-void
+MY_ATTRIBUTE((warn_unused_result)) dberr_t
 btr_level_list_remove_func(
 /*=======================*/
 	ulint			space,	/*!< in: space where removed */

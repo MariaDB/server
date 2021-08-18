@@ -4114,27 +4114,30 @@ fil_node_complete_io(fil_node_t* node, const IORequest& type)
 	}
 }
 
-/** Report information about an invalid page access. */
-static
-void
-fil_report_invalid_page_access(
-	ulint		block_offset,	/*!< in: block offset */
-	ulint		space_id,	/*!< in: space id */
-	const char*	space_name,	/*!< in: space name */
-	ulint		byte_offset,	/*!< in: byte offset */
-	ulint		len,		/*!< in: I/O length */
-	bool		is_read)	/*!< in: I/O type */
+/** Compose error message about an invalid page access.
+@param[in]	block_offset	block offset
+@param[in]	space_id	space id
+@param[in]	space_name	space name
+@param[in]	byte_offset	byte offset
+@param[in]	len		I/O length
+@param[in]	is_read		I/O type
+@return	std::string with error message */
+static std::string fil_invalid_page_access_msg(size_t block_offset,
+                                               size_t space_id,
+                                               const char *space_name,
+                                               size_t byte_offset, size_t len,
+                                               bool is_read)
 {
-	ib::fatal()
-		<< "Trying to " << (is_read ? "read" : "write")
-		<< " page number " << block_offset << " in"
-		" space " << space_id << ", space name " << space_name << ","
-		" which is outside the tablespace bounds. Byte offset "
-		<< byte_offset << ", len " << len <<
-		(space_id == 0 && !srv_was_started
-		? "Please check that the configuration matches"
-		" the InnoDB system tablespace location (ibdata files)"
-		: "");
+  std::stringstream ss;
+  ss << "Trying to " << (is_read ? "read" : "write") << " page number "
+     << block_offset << " in space " << space_id << ", space name "
+     << space_name << ", which is outside the tablespace bounds. Byte offset "
+     << byte_offset << ", len " << len
+     << (space_id == 0 && !srv_was_started
+             ? "Please check that the configuration matches"
+               " the InnoDB system tablespace location (ibdata files)"
+             : "");
+  return ss.str();
 }
 
 /** Reads or writes data. This operation could be asynchronous (aio).
@@ -4269,7 +4272,17 @@ fil_io(
 				return(DB_ERROR);
 			}
 
-			fil_report_invalid_page_access(
+			if (space->purpose == FIL_TYPE_IMPORT) {
+				mutex_exit(&fil_system.mutex);
+				ib::error() << fil_invalid_page_access_msg(
+					page_id.page_no(), page_id.space(),
+					space->name, byte_offset, len,
+					req_type.is_read());
+
+				return DB_IO_ERROR;
+			}
+
+			ib::fatal() << fil_invalid_page_access_msg(
 				page_id.page_no(), page_id.space(),
 				space->name, byte_offset, len,
 				req_type.is_read());
@@ -4349,7 +4362,7 @@ fil_io(
 			return(DB_ERROR);
 		}
 
-		fil_report_invalid_page_access(
+		ib::fatal() << fil_invalid_page_access_msg(
 			page_id.page_no(), page_id.space(),
 			space->name, byte_offset, len, req_type.is_read());
 	}
