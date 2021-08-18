@@ -1,0 +1,58 @@
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+this test is for MDEV-24523
+
+drop and create databases
+connection master_1;
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+connection child2_1;
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+
+create table and insert
+connection child2_1;
+CHILD2_1_CREATE_TABLES
+connection master_1;
+CREATE TABLE tbl_a (
+i INT,
+j JSON,
+PRIMARY KEY(i)
+) ENGINE=Spider PARTITION BY RANGE(i) (
+PARTITION pt1 VALUES LESS THAN (5) COMMENT='srv "s_2_1", table "ta_r2"',
+PARTITION pt2 VALUES LESS THAN (10) COMMENT='srv "s_2_1", table "ta_r3"',
+PARTITION pt3 VALUES LESS THAN MAXVALUE COMMENT='srv "s_2_1", table "ta_r4"'
+  )
+INSERT INTO tbl_a VALUES (1, '{ "a": 1, "b": [2, 3]}');
+
+test 1
+connection master_1;
+UPDATE tbl_a SET j = JSON_REPLACE(j, '$.a', 10, '$.c', '[1, 2]');
+SELECT * FROM tbl_a;
+i	j
+1	{"a": 10, "b": [2, 3]}
+TRUNCATE TABLE tbl_a;
+INSERT INTO tbl_a VALUES (1, '{ "a": 1, "b": [2, 3]}');
+UPDATE tbl_a SET j = JSON_REPLACE(j, '$.a', 10, '$.b', '[1, 2]');
+SELECT * FROM tbl_a;
+i	j
+1	{"a": 10, "b": "[1, 2]"}
+
+deinit
+connection master_1;
+DROP DATABASE IF EXISTS auto_test_local;
+connection child2_1;
+DROP DATABASE IF EXISTS auto_test_remote;
+for master_1
+for child2
+child2_1
+child2_2
+child2_3
+for child3
+
+end of test

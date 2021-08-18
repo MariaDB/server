@@ -3216,16 +3216,16 @@ func_exit:
 /*============================ FILE I/O ================================*/
 
 /** Report information about an invalid page access. */
-ATTRIBUTE_COLD __attribute__((noreturn))
-static void
-fil_report_invalid_page_access(const char *name,
-                               os_offset_t offset, ulint len, bool is_read)
+ATTRIBUTE_COLD
+static std::string fil_invalid_page_access_msg(const char *name,
+                                               os_offset_t offset, ulint len,
+                                               bool is_read)
 {
-  ib::fatal() << "Trying to " << (is_read ? "read " : "write ") << len
-              << " bytes at " << offset
-              << " outside the bounds of the file: " << name;
+  std::stringstream ss;
+  ss << "Trying to " << (is_read ? "read " : "write ") << len << " bytes at "
+     << offset << " outside the bounds of the file: " << name;
+  return ss.str();
 }
-
 
 /** Update the data structures on write completion */
 inline void fil_node_t::complete_write()
@@ -3294,9 +3294,9 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 					release();
 					return {DB_ERROR, nullptr};
 				}
-				fil_report_invalid_page_access(name, offset,
-							       len,
-							       type.is_read());
+				ib::fatal()
+					<< fil_invalid_page_access_msg(name,
+						offset, len, type.is_read());
 			}
 		}
 
@@ -3312,7 +3312,16 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 			return {DB_ERROR, nullptr};
 		}
 
-		fil_report_invalid_page_access(
+		if (node->space->purpose == FIL_TYPE_IMPORT) {
+			release();
+			ib::error() << fil_invalid_page_access_msg(
+				node->name, offset, len, type.is_read());
+
+
+			return {DB_IO_ERROR, nullptr};
+		}
+
+		ib::fatal() << fil_invalid_page_access_msg(
 			node->name, offset, len, type.is_read());
 	}
 

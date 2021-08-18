@@ -483,7 +483,7 @@ cleanup:
 
 	pars_info_t* info = pars_info_create();
 
-	pars_info_bind_id(info, TRUE, "table_stopword", stopword_table_name);
+	pars_info_bind_id(info, "table_stopword", stopword_table_name);
 
 	pars_info_bind_function(info, "my_func", fts_read_stopword,
 				stopword_info);
@@ -1899,7 +1899,7 @@ fts_create_common_tables(
 
 	fts_table.suffix = "CONFIG";
 	fts_get_table_name(&fts_table, fts_name, true);
-	pars_info_bind_id(info, true, "config_table", fts_name);
+	pars_info_bind_id(info, "config_table", fts_name);
 
 	graph = fts_parse_sql_no_dict_lock(
 		info, fts_config_table_insert_values_sql);
@@ -2627,7 +2627,7 @@ retry:
 		info, "my_func", fts_fetch_store_doc_id, doc_id);
 
 	fts_get_table_name(&fts_table, table_name);
-	pars_info_bind_id(info, true, "config_table", table_name);
+	pars_info_bind_id(info, "config_table", table_name);
 
 	graph = fts_parse_sql(
 		&fts_table, info,
@@ -2755,7 +2755,7 @@ fts_update_sync_doc_id(
 
 	fts_get_table_name(&fts_table, fts_name,
 			   table->fts->dict_locked);
-	pars_info_bind_id(info, true, "table_name", fts_name);
+	pars_info_bind_id(info, "table_name", fts_name);
 
 	graph = fts_parse_sql(
 		&fts_table, info,
@@ -2898,7 +2898,7 @@ fts_delete(
 		fts_table.suffix = "DELETED";
 
 		fts_get_table_name(&fts_table, table_name);
-		pars_info_bind_id(info, true, "deleted", table_name);
+		pars_info_bind_id(info, "deleted", table_name);
 
 		graph = fts_parse_sql(
 			&fts_table,
@@ -3704,7 +3704,7 @@ fts_doc_fetch_by_doc_id(
 	pars_info_bind_function(info, "my_func", callback, arg);
 
 	select_str = fts_get_select_columns_str(index, info, info->heap);
-	pars_info_bind_id(info, TRUE, "table_name", index->table->name.m_name);
+	pars_info_bind_id(info, "table_name", index->table->name.m_name);
 
 	if (!get_doc || !get_doc->get_document_graph) {
 		if (option == FTS_FETCH_DOC_BY_ID_EQUAL) {
@@ -3811,7 +3811,7 @@ fts_write_node(
 		info = pars_info_create();
 
 		fts_get_table_name(fts_table, table_name);
-		pars_info_bind_id(info, true, "index_table_name", table_name);
+		pars_info_bind_id(info, "index_table_name", table_name);
 	}
 
 	pars_info_bind_varchar_literal(info, "token", word->f_str, word->f_len);
@@ -3886,7 +3886,7 @@ fts_sync_add_deleted_cache(
 		&fts_table, "DELETED_CACHE", FTS_COMMON_TABLE, sync->table);
 
 	fts_get_table_name(&fts_table, table_name);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		&fts_table,
@@ -4883,7 +4883,7 @@ fts_get_rows_count(
 	pars_info_bind_function(info, "my_func", fts_read_ulint, &count);
 
 	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		fts_table,

@@ -341,9 +341,8 @@ FAIL_REGEX "warning: incompatible pointer to integer conversion"
 CONFIGURE_FILE(pfs_config.h.cmake ${CMAKE_CURRENT_BINARY_DIR}/pfs_config.h)
 
 MYSQL_ADD_PLUGIN(perfschema ${PERFSCHEMA_SOURCES} STORAGE_ENGINE DEFAULT
-  STATIC_ONLY RECOMPILE_FOR_EMBEDDED)
+  STATIC_ONLY RECOMPILE_FOR_EMBEDDED DEPENDS GenServerSource)
 IF (TARGET perfschema)
-  ADD_DEPENDENCIES(perfschema GenServerSource)
   IF(WITH_UNIT_TESTS)
     ADD_SUBDIRECTORY(unittest)
   ENDIF(WITH_UNIT_TESTS)

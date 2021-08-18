@@ -5256,10 +5256,10 @@ static void test_manual_sample()
 {
   unsigned int param_count;
   MYSQL_STMT   *stmt;
-  short        small_data;
-  int          int_data;
+  short        small_data= 1;
+  int          int_data= 2;
   int          rc;
-  char         str_data[50];
+  char         str_data[50]= "std_data";
   ulonglong    affected_rows;
   MYSQL_BIND   my_bind[3];
   my_bool      is_null;
@@ -18209,9 +18209,9 @@ static void test_bug40365(void)
     if (!opt_silent)
       fprintf(stdout, "\ntime[%d]: %02d-%02d-%02d ",
               i, tm[i].year, tm[i].month, tm[i].day);
-      DIE_UNLESS(tm[i].year == 0);
-      DIE_UNLESS(tm[i].month == 0);
-      DIE_UNLESS(tm[i].day == 0);
+    DIE_UNLESS(tm[i].year == 0);
+    DIE_UNLESS(tm[i].month == 0);
+    DIE_UNLESS(tm[i].day == 0);
   }
   mysql_stmt_close(stmt);
   rc= mysql_commit(mysql);

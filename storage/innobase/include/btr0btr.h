@@ -2,7 +2,7 @@
 
 Copyright (c) 1994, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2014, 2020, MariaDB Corporation.
+Copyright (c) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -728,8 +728,9 @@ btr_validate_index(
 @param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
-			   mtr_t* mtr);
+dberr_t btr_level_list_remove(const buf_block_t& block,
+                              const dict_index_t& index, mtr_t* mtr)
+  MY_ATTRIBUTE((warn_unused_result));
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the

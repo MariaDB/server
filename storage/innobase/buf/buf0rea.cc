@@ -345,7 +345,8 @@ nothing_read:
 	*err= fio.err;
 
 	if (UNIV_UNLIKELY(fio.err != DB_SUCCESS)) {
-		if (!sync || fio.err == DB_TABLESPACE_DELETED) {
+		if (!sync || fio.err == DB_TABLESPACE_DELETED
+		    || fio.err == DB_IO_ERROR) {
 			buf_pool.corrupted_evict(bpage);
 			return false;
 		}

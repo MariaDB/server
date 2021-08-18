@@ -330,10 +330,12 @@ btr_cur_latch_leaves(
 						  true, mtr);
 			latch_leaves.blocks[2] = get_block;
 #ifdef UNIV_BTR_DEBUG
-			ut_a(page_is_comp(get_block->frame)
-			     == page_is_comp(block->frame));
-			ut_a(btr_page_get_prev(get_block->frame)
-			     == block->page.id().page_no());
+			if (get_block) {
+				ut_a(page_is_comp(get_block->frame)
+				     == page_is_comp(block->frame));
+				ut_a(btr_page_get_prev(get_block->frame)
+				     == block->page.id().page_no());
+			}
 #endif /* UNIV_BTR_DEBUG */
 			if (spatial) {
 				cursor->rtr_info->tree_blocks[

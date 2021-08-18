@@ -3445,6 +3445,11 @@ static void mysql_stmt_execute_common(THD *thd,
                                        stmt_id == LAST_STMT_ID, read_types))
   {
     my_error(ER_MALFORMED_PACKET, MYF(0));
+    /*
+      Let's set the thd->query_string so the audit plugin
+      can report the executed query that failed.
+    */
+    thd->set_query_inner(stmt->query_string);
     DBUG_VOID_RETURN;
   }
 
