@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2021, MariaDB Corporation.
+   Copyright (c) 2009, 2020, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1946,7 +1946,7 @@ int ha_rollback_trans(THD *thd, bool all)
   if (thd->is_error())
   {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
-                thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
+                thd->thread_id, all?"TRUE":"FALSE", WSREP_QUERY(thd),
                 thd->get_stmt_da()->message(), is_real_trans);
   }
   (void) wsrep_after_rollback(thd, all);

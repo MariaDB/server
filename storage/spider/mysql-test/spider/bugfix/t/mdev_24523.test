@@ -1,0 +1,66 @@
+--source ../include/mdev_24523_init.inc
+--echo
+--echo this test is for MDEV-24523
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+--disable_ps_protocol
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_ps_protocol
+--enable_query_log
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+  i INT,
+  j JSON,
+  PRIMARY KEY(i)
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+eval CREATE TABLE tbl_a (
+  i INT,
+  j JSON,
+  PRIMARY KEY(i)
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+--enable_query_log
+INSERT INTO tbl_a VALUES (1, '{ "a": 1, "b": [2, 3]}');
+
+--echo
+--echo test 1
+
+--connection master_1
+UPDATE tbl_a SET j = JSON_REPLACE(j, '$.a', 10, '$.c', '[1, 2]');
+SELECT * FROM tbl_a;
+TRUNCATE TABLE tbl_a;
+INSERT INTO tbl_a VALUES (1, '{ "a": 1, "b": [2, 3]}');
+UPDATE tbl_a SET j = JSON_REPLACE(j, '$.a', 10, '$.b', '[1, 2]');
+SELECT * FROM tbl_a;
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--enable_warnings
+--source ../include/mdev_24523_deinit.inc
+--echo
+--echo end of test

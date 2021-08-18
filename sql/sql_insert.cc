@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2016, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2021, MariaDB Corporation
+   Copyright (c) 2010, 2019, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -4782,7 +4782,7 @@ bool select_create::send_eof()
       {
         WSREP_DEBUG("select_create commit failed, thd: %llu err: %s %s",
                     thd->thread_id,
-                    wsrep_thd_transaction_state_str(thd), wsrep_thd_query(thd));
+                    wsrep_thd_transaction_state_str(thd), WSREP_QUERY(thd));
         mysql_mutex_unlock(&thd->LOCK_thd_data);
         abort_result_set();
         DBUG_RETURN(true);

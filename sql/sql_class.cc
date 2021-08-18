@@ -5228,8 +5228,8 @@ extern "C" bool thd_is_strict_mode(const MYSQL_THD thd)
 */
 void thd_get_query_start_data(THD *thd, char *buf)
 {
-  LEX_CSTRING field_name;
-  Field_timestampf f((uchar *)buf, NULL, 0, Field::NONE, &field_name, NULL, 6);
+  Field_timestampf f((uchar *)buf, nullptr, 0, Field::NONE, &empty_clex_str,
+                     nullptr, 6);
   f.store_TIME(thd->query_start(), thd->query_start_sec_part());
 }
 

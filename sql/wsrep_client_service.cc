@@ -1,4 +1,4 @@
-/* Copyright 2018-2021 Codership Oy <info@codership.com>
+/* Copyright 2018 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -109,14 +109,14 @@ int Wsrep_client_service::prepare_data_for_replication()
                   "affected rows: %llu, "
                   "changed tables: %d, "
                   "sql_log_bin: %d",
-                  wsrep_thd_query(m_thd),
+                  WSREP_QUERY(m_thd),
                   m_thd->get_stmt_da()->affected_rows(),
                   stmt_has_updated_trans_table(m_thd),
                   m_thd->variables.sql_log_bin);
     }
     else
     {
-      WSREP_DEBUG("empty rbr buffer, query: %s", wsrep_thd_query(m_thd));
+      WSREP_DEBUG("empty rbr buffer, query: %s", WSREP_QUERY(m_thd));
     }
   }
   DBUG_RETURN(0);

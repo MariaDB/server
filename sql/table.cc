@@ -5297,12 +5297,12 @@ void TABLE::reset_item_list(List<Item> *item_list, uint skip) const
     buffer	buffer for md5 writing
 */
 
-void  TABLE_LIST::calc_md5(const char *buffer)
+void  TABLE_LIST::calc_md5(char *buffer)
 {
   uchar digest[16];
   compute_md5_hash(digest, select_stmt.str,
                    select_stmt.length);
-  sprintf((char *) buffer,
+  sprintf(buffer,
 	    "%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x%02x",
 	    digest[0], digest[1], digest[2], digest[3],
 	    digest[4], digest[5], digest[6], digest[7],

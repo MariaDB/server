@@ -93,7 +93,15 @@ check_pid_and_port()
         else
             local filter='([^[:space:]]+[[:space:]]+){4}[^[:space:]]+'
             if [ $sockstat_available -eq 1 ]; then
-                port_info=$(sockstat -p "$port" 2>/dev/null | \
+                local opts='-p'
+                if [ "$OS" = 'FreeBSD' ]; then
+                    # sockstat on FreeBSD requires the "-s" option
+                    # to display the connection state:
+                    opts='-sp'
+                    # in addition, sockstat produces an additional column:
+                    filter='([^[:space:]]+[[:space:]]+){5}[^[:space:]]+'
+                fi
+                port_info=$(sockstat "$opts" "$port" 2>/dev/null | \
                     grep -E '[[:space:]]LISTEN' | grep -o -E "$filter")
             else
                 port_info=$(ss -nlpH "( sport = :$port )" 2>/dev/null | \
@@ -388,7 +396,7 @@ EOF
         # Use deltaxfer only for WAN
         inv=$(basename "$0")
         WHOLE_FILE_OPT=""
-        if [ "${inv%wsrep_sst_rsync_wan*}" != "$inv" ]; then
+        if [ "${inv%wsrep_sst_rsync_wan*}" = "$inv" ]; then
             WHOLE_FILE_OPT="--whole-file"
         fi
 

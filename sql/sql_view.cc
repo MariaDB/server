@@ -837,7 +837,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
        if ((view->md5.str= (char *)thd->alloc(32 + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
-    view->calc_md5(view->md5.str);
+    view->calc_md5(const_cast<char*>(view->md5.str));
     view->md5.length= 32;
   }
   view->mariadb_version= MYSQL_VERSION_ID;

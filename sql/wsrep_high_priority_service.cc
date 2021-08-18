@@ -1,4 +1,4 @@
-/* Copyright 2018-2021 Codership Oy <info@codership.com>
+/* Copyright 2018 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -379,16 +379,6 @@ int Wsrep_high_priority_service::apply_toi(const wsrep::ws_meta& ws_meta,
   WSREP_DEBUG("Wsrep_high_priority_service::apply_toi: %lld",
               client_state.toi_meta().seqno().get());
 
-  DBUG_EXECUTE_IF("sync.wsrep_apply_toi",
-                  {
-                    const char act[]=
-                      "now "
-                      "SIGNAL sync.wsrep_apply_toi_reached "
-                      "WAIT_FOR signal.wsrep_apply_toi";
-                    DBUG_ASSERT(!debug_sync_set_action(thd,
-                                                       STRING_WITH_LEN(act)));
-                  };);
-
   int ret= wsrep_apply_events(thd, m_rli, data.data(), data.size());
   if (ret != 0 || thd->wsrep_has_ignored_error)
   {
@@ -437,15 +427,6 @@ int Wsrep_high_priority_service::log_dummy_write_set(const wsrep::ws_handle& ws_
   DBUG_PRINT("info",
              ("Wsrep_high_priority_service::log_dummy_write_set: seqno=%lld",
               ws_meta.seqno().get()));
-  DBUG_EXECUTE_IF("sync.wsrep_log_dummy_write_set",
-                  {
-                    const char act[]=
-                      "now "
-                      "SIGNAL sync.wsrep_log_dummy_write_set_reached ";
-                    DBUG_ASSERT(!debug_sync_set_action(m_thd,
-                                                       STRING_WITH_LEN(act)));
-                  };);
-
   if (ws_meta.ordered())
   {
     wsrep::client_state& cs(m_thd->wsrep_cs());
@@ -677,7 +658,7 @@ Wsrep_replayer_service::~Wsrep_replayer_service()
     DBUG_ASSERT(0);
     WSREP_ERROR("trx_replay failed for: %d, schema: %s, query: %s",
                 m_replay_status,
-                orig_thd->db.str, wsrep_thd_query(orig_thd));
+                orig_thd->db.str, WSREP_QUERY(orig_thd));
     unireg_abort(1);
   }
 }

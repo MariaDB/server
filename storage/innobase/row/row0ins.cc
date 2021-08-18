@@ -1666,23 +1666,6 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
-			if (check_table->versioned()) {
-				bool history_row = false;
-
-				if (check_index->is_primary()) {
-					history_row = check_index->
-						vers_history_row(rec, offsets);
-				} else if (check_index->
-					vers_history_row(rec, history_row))
-				{
-					break;
-				}
-
-				if (history_row) {
-					continue;
-				}
-			}
-
 			if (rec_get_deleted_flag(rec,
 						 rec_offs_comp(offsets))) {
 				/* In delete-marked records, DB_TRX_ID must
@@ -1704,6 +1687,23 @@ row_ins_check_foreign_constraint(
 					goto end_scan;
 				}
 			} else {
+				if (check_table->versioned()) {
+					bool history_row = false;
+
+					if (check_index->is_primary()) {
+						history_row = check_index->
+							vers_history_row(rec,
+									 offsets);
+					} else if (check_index->
+						vers_history_row(rec,
+								 history_row)) {
+						break;
+					}
+
+					if (history_row) {
+						continue;
+					}
+				}
 				/* Found a matching record. Lock only
 				a record because we can allow inserts
 				into gaps */
