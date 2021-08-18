@@ -689,9 +689,7 @@ dberr_t FetchIndexRootPages::operator()(buf_block_t* block) UNIV_NOTHROW
 
 	const page_t*	page = get_frame(block);
 
-	index_id_t	id = btr_page_get_index_id(page);
-
-	m_index.m_id = id;
+	m_index.m_id = btr_page_get_index_id(page);
 	m_index.m_page_no = block->page.id.page_no();
 
 	/* Check that the tablespace flags match the table flags. */
@@ -1886,11 +1884,14 @@ PageConverter::update_index_page(
 
 	if (is_free(block->page.id.page_no())) {
 		return(DB_SUCCESS);
-	} else if ((id = btr_page_get_index_id(page)) != m_index->m_id && !m_cfg->m_missing) {
-
+	} else if ((id = btr_page_get_index_id(page)) != m_index->m_id) {
 		row_index_t*	index = find_index(id);
 
 		if (UNIV_UNLIKELY(!index)) {
+			if (m_cfg->m_missing) {
+				return DB_SUCCESS;
+			}
+
 			ib::error() << "Page for tablespace " << m_space
 				<< " is index page with id " << id
 				<< " but that index is not found from"
