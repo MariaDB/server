@@ -7956,6 +7956,11 @@ int ha_partition::handle_ordered_next(uchar *buf, bool is_next_same)
       DBUG_PRINT("info", ("m_mrr_range_current->id: %u",
                           m_mrr_range_current->id));
       memcpy(rec_buf, table->record[0], m_rec_length);
+      if (table->s->blob_fields)
+      {
+        Ordered_blob_storage **storage= *((Ordered_blob_storage ***) part_rec_buf_ptr);
+        swap_blobs(rec_buf, storage, false);
+      }
       if (((PARTITION_KEY_MULTI_RANGE *) m_range_info[part_id])->id !=
           m_mrr_range_current->id)
       {
