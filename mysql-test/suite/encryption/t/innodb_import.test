@@ -16,6 +16,7 @@ UNLOCK TABLES;
 ALTER TABLE t2 IMPORT TABLESPACE;
 
 ALTER TABLE t2 DROP KEY idx;
+--replace_regex /opening '.*\/test\//opening '.\/test\//
 ALTER TABLE t2 IMPORT TABLESPACE;
 SELECT * FROM t2;
 DROP TABLE t1, t2;
