@@ -11939,7 +11939,7 @@ foreign_push_index_error(trx_t* trx, const char* operation,
 			trx, DB_CANNOT_ADD_CONSTRAINT, create_name,
 			"%s table %s with foreign key %s constraint"
 			" failed. Field type or character set for column '%s' "
-			"does not mach referenced column '%s'.",
+			"does not match referenced column '%s'.",
 			operation, create_name, fk_text, columns[err_col],
 			col_name);
 		return;
