@@ -1912,7 +1912,6 @@ struct dict_table_t {
 	determine whether we can evict the table from the dictionary cache.
 	It is protected by lock_sys->mutex. */
 	ulint					n_rec_locks;
-
 private:
 	/** Count of how many handles are opened to this table. Dropping of the
 	table is NOT allowed until this count gets to zero. MySQL does NOT

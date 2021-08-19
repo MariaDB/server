@@ -1960,7 +1960,6 @@ dict_table_remove_from_cache_low(
 		UT_DELETE(table->vc_templ);
 	}
 
-	mysql_mutex_destroy(&table->autoinc_mutex);
 #ifdef BTR_CUR_HASH_ADAPT
 	if (UNIV_UNLIKELY(UT_LIST_GET_LEN(table->freed_indexes) != 0)) {
 		if (table->fts) {
@@ -1975,6 +1974,7 @@ dict_table_remove_from_cache_low(
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
+	mysql_mutex_destroy(&table->autoinc_mutex);
 	dict_mem_table_free(table);
 }
 
