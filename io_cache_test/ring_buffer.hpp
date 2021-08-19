@@ -471,9 +471,35 @@ int RingBuffer::_flush_io_buffer(int not_released) {
   return 0;
 }
 int RingBuffer::read_slot(uchar *To, size_t Count) {
+  size_t left_length = 0, length, max_length;
+  my_off_t pos_in_file;
+  int error;
+
+  if (_read_pos + Count <= _read_end)
+  {
+    memcpy(To, _read_pos, Count);
+    _read_pos+= Count;
+    return 0;
+  }
+
+  if(_read_pos != _read_end)
+  {
+    left_length= (size_t) (_read_end - _read_pos);
+    DBUG_ASSERT(Count > left_length);
+    memcpy(To, _read_pos, left_length);
+    To+=left_length;
+    Count-=left_length;
+  }
+
   mysql_mutex_lock(&_read_lock);
   mysql_rwlock_rdlock(&flush_rw_lock);
+  length= _end_of_file - _pos_in_file;
+  if (length) {
 
+  }
+  else {
+
+  }
 
   mysql_rwlock_unlock(&flush_rw_lock);
   mysql_mutex_unlock(&_read_lock);
