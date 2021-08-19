@@ -15,7 +15,6 @@ public:
 
   RingBuffer(char* filename, size_t cachesize);
   int read(uchar *To, size_t Count);
-  WriteState write(uchar *From, size_t Count);
   int write_slot(uchar *From, size_t Count);
   int read_slot(uchar *To, size_t Count);
   ~RingBuffer();
@@ -198,63 +197,6 @@ private:
 
   int _read_append(uchar* To, size_t Count, my_off_t pos_in_file);
 };
-
-RingBuffer::WriteState RingBuffer::write(uchar *From, size_t Count) {
-  size_t rest_length;
-  const uchar* saved_buffer;
-  uchar* saved_write_pos;
-
-  mysql_mutex_lock(&_buffer_lock);
-  saved_buffer = From;
-  rest_length= (size_t) (_write_end - _write_pos);
-  if(Count <= rest_length)
-    goto end;
-
-  From += rest_length;
-  Count -= rest_length;
-  saved_write_pos = _write_pos;
-  _write_pos += rest_length;
-  mysql_mutex_unlock(&_buffer_lock);
-  memcpy(saved_write_pos, saved_buffer, rest_length);
-
-/*
-  if(_flush_io_buffer())
-    return ERR_FLUSH;
-*/
-  mysql_mutex_lock(&_buffer_lock);
-  if (Count >= _buffer_length)
-  {
-    if (mysql_file_write(_file, From, Count, MY_NABP))
-    {
-      mysql_mutex_unlock(&_buffer_lock);
-      _error= -1;
-      return ERR_FILE_WRITE;
-    }
-
-    From+=Count;
-    ;
-    _end_of_file+=Count;
-  }
-  saved_buffer = From;
-  end:
-  saved_write_pos = _write_new_pos;
-  _write_new_pos+=Count;
-  mysql_mutex_unlock(&_buffer_lock);
-  memcpy(saved_write_pos, saved_buffer, Count);
-
-
-  mysql_mutex_lock(&_mutex_writer);
-  while(saved_write_pos != _write_pos)
-    mysql_cond_wait(&_cond_writer, &_mutex_writer);
-  mysql_mutex_unlock(&_mutex_writer);
-
-  mysql_mutex_lock(&_buffer_lock);
-  _write_pos = _write_new_pos;
-  mysql_mutex_unlock(&_buffer_lock);
-  mysql_cond_signal(&_cond_writer);
-
-  return SUCSECC;
-}
 
 int RingBuffer::write_slot(uchar* From, size_t Count) {
   int slot_id = slot_acquire(From, Count);
