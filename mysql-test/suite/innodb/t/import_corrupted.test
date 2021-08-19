@@ -64,5 +64,6 @@ ALTER TABLE t2 IMPORT TABLESPACE;
 
 DROP TABLE t2;
 
+--remove_file $MYSQLD_DATADIR/test/t2.ibd
 --remove_file $MYSQLD_DATADIR/test/tmp.ibd
 --remove_file $MYSQLD_DATADIR/test/tmp.cfg
