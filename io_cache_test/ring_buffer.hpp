@@ -198,6 +198,8 @@ private:
   int _read_append(uchar* To, size_t Count, my_off_t pos_in_file);
 
   int _read_append_slot(uchar* To, size_t Count);
+
+  int _fill_read_buffer_from_append();
 };
 
 int RingBuffer::write_slot(uchar* From, size_t Count) {
@@ -508,6 +510,58 @@ int RingBuffer::read_slot(uchar *To, size_t Count) {
   return 0;
 }
 int RingBuffer::_read_append_slot(uchar *To, size_t Count) {
+  size_t length;
+
+  if(Count > _total_size)
+    return -1; // error: buffer size less than needed
+
+  if(_write_pos > _append_read_pos) {
+    memcpy(To, _append_read_pos, Count);
+    _append_read_pos += Count;
+    _total_size -= Count;
+    _fill_read_buffer_from_append();
+    return 0;
+  }
+  else {
+    length = _write_end - _append_read_pos;
+    memcpy(To, _append_read_pos, length);
+    To += length;
+    _total_size -= length;
+
+    length = _write_pos - _write_buffer;
+    memcpy(To, _write_buffer, length);
+    _total_size -= length;
+    _append_read_pos = _write_buffer + length;
+    _fill_read_buffer_from_append();
+  }
+
+  return 0;
+}
+int RingBuffer::_fill_read_buffer_from_append() {
+  size_t transfer_len, length;
+  if(!_total_size)
+    return -1; // error?
+
+  if(_write_pos > _append_read_pos) {
+    /* _total_size is updated before memcpy() completed in write method, so we can't use this value, need calculate actual */
+    memcpy(_buffer, _append_read_pos,
+           transfer_len = (size_t) (_write_pos - _append_read_pos));
+
+  }
+  else {
+    length = _write_end - _append_read_pos;
+    memcpy(_buffer, _append_read_pos, length);
+    transfer_len = length;
+
+    length = _write_pos - _write_buffer;
+    memcpy(_buffer + transfer_len, _write_buffer, length);
+    transfer_len += length;
+  }
+
+  _read_pos = _buffer;
+  _read_end = _buffer + transfer_len;
+  _append_read_pos = _write_pos;
+  _total_size -= transfer_len;
 
   return 0;
 }
