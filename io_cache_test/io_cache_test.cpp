@@ -10,8 +10,10 @@ uchar *buff_to;
 pthread_barrier_t barrier;
 
 void *read_to_cache(void *) {
-  for (int i= 0; i < 32; ++i)
-    ;//cache->read(buff_to + (i * 255), 255);
+  pthread_barrier_wait(&barrier);
+  for (int i= 0; i < 32; ++i) {
+    cache->read_slot(buff_to + (i * 255), 255);
+  }
   return NULL;
 }
 
@@ -36,7 +38,7 @@ int main() {
   int args[8];
 
 
-  pthread_barrier_init(&barrier, NULL, thread_write_count);
+  pthread_barrier_init(&barrier, NULL, thread_write_count + 1);
   {
     std::ofstream off;
     off.open("tandom.txt");
