@@ -1,5 +1,6 @@
 --source include/have_innodb.inc
--- source include/have_example_key_management_plugin.inc
+--source include/have_example_key_management_plugin.inc
+--source include/innodb_checksum_algorithm.inc
 --echo #
 --echo # MDEV-26131 SEGV in ha_innobase::discard_or_import_tablespace
 --echo #

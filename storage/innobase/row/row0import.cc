@@ -665,7 +665,7 @@ struct FetchIndexRootPages : public AbstractCallback {
 	@param block	Block to use for IO
 	@retval DB_SUCCESS or error code */
 	dberr_t run(const fil_iterator_t& iter,
-		    buf_block_t* block) UNIV_NOTHROW;
+		    buf_block_t* block) UNIV_NOTHROW override;
 
 	/** Called for each block as it is read from the file.
 	@param block block to convert, it is not from the buffer pool.
@@ -839,7 +839,8 @@ public:
 		}
 	}
 
-	dberr_t run(const fil_iterator_t& iter, buf_block_t* block) UNIV_NOTHROW
+	dberr_t run(const fil_iterator_t& iter,
+		    buf_block_t* block) UNIV_NOTHROW override
 	{
 		return fil_iterate(iter, block, *this);
 	}
@@ -3448,6 +3449,8 @@ dberr_t FetchIndexRootPages::run(const fil_iterator_t& iter,
 #endif
     srv_page_size;
   byte* page_compress_buf = static_cast<byte*>(malloc(buf_size));
+  const bool full_crc32 = fil_space_t::full_crc32(m_space_flags);
+  bool skip_checksum_check = false;
   ut_ad(!srv_read_only_mode);
 
   if (!page_compress_buf)
@@ -3486,15 +3489,18 @@ page_corrupted:
     goto func_exit;
   }
 
-  page_compressed= fil_page_is_compressed_encrypted(readptr) ||
-    fil_page_is_compressed(readptr);
+  page_compressed=
+    (full_crc32 && fil_space_t::is_compressed(m_space_flags) &&
+     buf_page_is_compressed(readptr, m_space_flags)) ||
+    (fil_page_is_compressed_encrypted(readptr) ||
+     fil_page_is_compressed(readptr));
 
   if (page_compressed && block->page.zip.data)
     goto page_corrupted;
 
   if (encrypted)
   {
-    if (!fil_space_verify_crypt_checksum(readptr, zip_size))
+    if (!buf_page_verify_crypt_checksum(readptr, m_space_flags))
       goto page_corrupted;
 
     if (!fil_space_decrypt(get_space_id(), iter.crypt_data, readptr,
@@ -3503,15 +3509,21 @@ page_corrupted:
       goto func_exit;
   }
 
+  /* For full_crc32 format, skip checksum check
+  after decryption. */
+  skip_checksum_check= full_crc32 && encrypted;
+
   if (page_compressed)
   {
-    ulint compress_length= fil_page_decompress(page_compress_buf, readptr,
+    ulint compress_length= fil_page_decompress(page_compress_buf,
+                                               readptr,
                                                m_space_flags);
     ut_ad(compress_length != srv_page_size);
     if (compress_length == 0)
       goto page_corrupted;
   }
-  else if (buf_page_is_corrupted(false, readptr, m_space_flags))
+  else if (!skip_checksum_check
+           && buf_page_is_corrupted(false, readptr, m_space_flags))
     goto page_corrupted;
 
   err= this->operator()(block);

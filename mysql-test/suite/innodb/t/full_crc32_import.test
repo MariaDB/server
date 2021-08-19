@@ -134,6 +134,7 @@ EOF
 ALTER TABLE t1 IMPORT TABLESPACE;
 --enable_warnings
 ALTER TABLE t1 DROP INDEX idx1;
+--replace_regex /opening '.*\/test\//opening '.\/test\//
 ALTER TABLE t1 IMPORT TABLESPACE;
 --disable_warnings
 SHOW CREATE TABLE t1;
