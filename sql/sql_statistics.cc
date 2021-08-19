@@ -1564,9 +1564,9 @@ int Histogram_json::find_bucket(Field *field, const uchar *endpoint)
     mid_val = histogram_bounds[mid];
 
     int res = field->key_cmp((uchar*) mid_val.data(), endpoint);
-    min_bucket_index = mid;
     if (res < 0) {
       low = mid + 1;
+      min_bucket_index = mid;
     } else if (res > 0) {
       high = mid - 1;
     } else {
@@ -1574,6 +1574,9 @@ int Histogram_json::find_bucket(Field *field, const uchar *endpoint)
       break;
     }
   }
+
+  if (min_bucket_index == -1)
+    min_bucket_index = high;
   return min_bucket_index;
 }
 
