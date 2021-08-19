@@ -584,8 +584,7 @@ bool buf_is_zeroes(span<const byte> buf)
 /** Check if a page is corrupt.
 @param[in]	check_lsn	whether the LSN should be checked
 @param[in]	read_buf	database page
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	space		tablespace
+@param[in]	fsp_flags	tablespace flags
 @return whether the page is corrupted */
 bool
 buf_page_is_corrupted(
@@ -2654,6 +2653,10 @@ lookup:
 				if (set) {
 					return NULL;
 				}
+			}
+
+			if (local_err == DB_IO_ERROR) {
+				return NULL;
 			}
 
 			ib::fatal() << "Unable to read page " << page_id

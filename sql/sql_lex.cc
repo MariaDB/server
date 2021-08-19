@@ -3562,7 +3562,7 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
     prepared statement
   */
   Query_arena *arena= thd->stmt_arena;
-  const uint n_elems= (n_sum_items +
+  const size_t n_elems= (n_sum_items +
                        n_child_sum_items +
                        item_list.elements +
                        select_n_reserved +
@@ -3570,7 +3570,8 @@ bool st_select_lex::setup_ref_array(THD *thd, uint order_group_num)
                        select_n_where_fields +
                        order_group_num +
                        hidden_bit_fields +
-                       fields_in_window_functions) * 5;
+                       fields_in_window_functions) * (size_t) 5;
+  DBUG_ASSERT(n_elems % 5 == 0);
   if (!ref_pointer_array.is_null())
   {
     /*

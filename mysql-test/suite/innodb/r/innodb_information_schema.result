@@ -45,7 +45,7 @@ trx_last_foreign_key_error	varchar(256)	YES		NULL
 trx_is_read_only	int(1)	NO		0	
 trx_autocommit_non_locking	int(1)	NO		0	
 trx_state	trx_weight	trx_tables_in_use	trx_tables_locked	trx_rows_locked	trx_rows_modified	trx_concurrency_tickets	trx_isolation_level	trx_unique_checks	trx_foreign_key_checks
-RUNNING	3	0	1	5	1	0	REPEATABLE READ	1	1
+RUNNING	3	0	1	6	1	0	REPEATABLE READ	1	1
 trx_isolation_level	trx_unique_checks	trx_foreign_key_checks
 SERIALIZABLE	0	0
 trx_state	trx_isolation_level	trx_last_foreign_key_error

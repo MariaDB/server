@@ -689,8 +689,9 @@ btr_validate_index(
 @param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
-			   mtr_t* mtr);
+dberr_t btr_level_list_remove(const buf_block_t& block,
+                              const dict_index_t& index, mtr_t* mtr)
+  MY_ATTRIBUTE((warn_unused_result));
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the

@@ -525,9 +525,9 @@ public:
   {
     static LEX_CSTRING json_set=    {STRING_WITH_LEN("json_set") };
     static LEX_CSTRING json_insert= {STRING_WITH_LEN("json_insert") };
-    static LEX_CSTRING json_update= {STRING_WITH_LEN("json_update") };
+    static LEX_CSTRING json_replace= {STRING_WITH_LEN("json_replace") };
     return (mode_insert ?
-            (mode_replace ? json_set : json_insert) : json_update);
+            (mode_replace ? json_set : json_insert) : json_replace);
   }
   Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_json_insert>(thd, this); }

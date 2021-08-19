@@ -3450,7 +3450,7 @@ next_file:
 		if (err == ERROR_NO_MORE_FILES) {
 			status = 1;
 		} else {
-			msg("readdir_next_file in %s returned %lu", dir, err);
+			msg("FindNextFile in %s returned %lu", dirname, err);
 			status = -1;
 		}
 	}

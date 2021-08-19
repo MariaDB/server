@@ -480,7 +480,6 @@ void
 pars_info_bind_id(
 /*=============*/
 	pars_info_t*		info,	/*!< in: info struct */
-	ibool			copy_name,/* in: make a copy of name if TRUE */
 	const char*		name,	/*!< in: name */
 	const char*		id);	/*!< in: id */
 /****************************************************************//**
@@ -525,15 +524,6 @@ pars_info_bind_ull_literal(
 	const char*		name,	/*!< in: name */
 	const ib_uint64_t*	val)	/*!< in: value */
 	MY_ATTRIBUTE((nonnull));
-
-/****************************************************************//**
-Add bound id. */
-void
-pars_info_add_id(
-/*=============*/
-	pars_info_t*	info,		/*!< in: info struct */
-	const char*	name,		/*!< in: name */
-	const char*	id);		/*!< in: id */
 
 /****************************************************************//**
 Get bound literal with the given name.
