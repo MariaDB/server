@@ -1214,7 +1214,7 @@ TP_connection_generic *get_event(worker_thread_t *current_thread,
       non-blocking event poll, i.e with timeout = 0.
       If this returns events, pick one
     */
-    if (!oversubscribed)
+    if (!oversubscribed && !threadpool_dedicated_listener)
     {
       native_event ev[MAX_EVENTS];
       int cnt = io_poll_wait(thread_group->pollfd, ev, MAX_EVENTS, 0);
