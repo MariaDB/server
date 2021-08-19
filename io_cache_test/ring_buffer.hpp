@@ -17,7 +17,6 @@ public:
   int read(uchar *To, size_t Count);
   WriteState write(uchar *From, size_t Count);
   int write_slot(uchar *From, size_t Count);
-  int read_slot(uchar *To, size_t Count);
   ~RingBuffer();
 
 private:
@@ -186,6 +185,9 @@ private:
 
   /* To sync on writers into buffer. */
   mysql_mutex_t _mutex_writer;
+
+  /* For single reader */
+  mysql_mutex_t _read_lock;
 
   size_t _read_length;
 
@@ -447,6 +449,7 @@ RingBuffer::RingBuffer(char* filename, size_t cachesize)
   _error = 0;
 
   _pos_in_file = 0;
+  mysql_mutex_init(key_IO_CACHE_append_buffer_lock, &_read_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
                    &_buffer_lock, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_IO_CACHE_SHARE_cond_writer, &_cond_writer, 0);
@@ -460,6 +463,7 @@ RingBuffer::~RingBuffer() {
     _flush_io_buffer(-1);
   }
   my_free(_buffer);
+  mysql_mutex_destroy(&_read_lock);
   mysql_mutex_destroy(&_buffer_lock);
   mysql_cond_destroy(&_cond_writer);
   mysql_mutex_destroy(&_mutex_writer);
@@ -521,8 +525,5 @@ int RingBuffer::_flush_io_buffer(int not_released) {
   }
   //mysql_mutex_unlock(&_buffer_lock);
 
-  return 0;
-}
-int RingBuffer::read_slot(uchar *To, size_t Count) {
   return 0;
 }
