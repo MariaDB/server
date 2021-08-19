@@ -196,6 +196,8 @@ private:
   int _flush_io_buffer(int not_release);
 
   int _read_append(uchar* To, size_t Count, my_off_t pos_in_file);
+
+  int _read_append_slot(uchar* To, size_t Count);
 };
 
 int RingBuffer::write_slot(uchar* From, size_t Count) {
@@ -503,5 +505,9 @@ int RingBuffer::read_slot(uchar *To, size_t Count) {
 
   mysql_rwlock_unlock(&flush_rw_lock);
   mysql_mutex_unlock(&_read_lock);
+  return 0;
+}
+int RingBuffer::_read_append_slot(uchar *To, size_t Count) {
+
   return 0;
 }
