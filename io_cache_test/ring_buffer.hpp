@@ -17,6 +17,7 @@ public:
   int read(uchar *To, size_t Count);
   WriteState write(uchar *From, size_t Count);
   int write_slot(uchar *From, size_t Count);
+  int read_slot(uchar *To, size_t Count);
   ~RingBuffer();
 
 private:
@@ -525,5 +526,8 @@ int RingBuffer::_flush_io_buffer(int not_released) {
   }
   //mysql_mutex_unlock(&_buffer_lock);
 
+  return 0;
+}
+int RingBuffer::read_slot(uchar *To, size_t Count) {
   return 0;
 }
