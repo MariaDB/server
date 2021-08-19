@@ -180,6 +180,7 @@ connect  conn_client,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
 SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
 INSERT INTO t1 VALUES (7, REPEAT("x", 4100));
 connect  conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_1,;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
 SET DEBUG_SYNC= "commit_before_update_binlog_end_pos SIGNAL con3_ready WAIT_FOR con1_go";
 INSERT INTO t1 VALUES (8, REPEAT("x", 4100));
 connection server_1;
