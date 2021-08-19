@@ -49,6 +49,7 @@ Created 10/25/1995 Heikki Tuuri
 #include "os0event.h"
 #include "sync0sync.h"
 #include "buf0flu.h"
+#include "log.h"
 #ifdef UNIV_LINUX
 # include <sys/types.h>
 # include <sys/sysmacros.h>
@@ -3217,14 +3218,17 @@ func_exit:
 
 /** Report information about an invalid page access. */
 ATTRIBUTE_COLD
-static std::string fil_invalid_page_access_msg(const char *name,
-                                               os_offset_t offset, ulint len,
-                                               bool is_read)
+static void fil_invalid_page_access_msg(bool fatal, const char *name,
+                                        os_offset_t offset, ulint len,
+                                        bool is_read)
 {
-  std::stringstream ss;
-  ss << "Trying to " << (is_read ? "read " : "write ") << len << " bytes at "
-     << offset << " outside the bounds of the file: " << name;
-  return ss.str();
+  sql_print_error("%s%s %zu bytes at " UINT64PF
+                  " outside the bounds of the file: %s",
+                  fatal ? "[FATAL] InnoDB: " : "InnoDB: ",
+                  is_read ? "Trying to read" : "Trying to write",
+                  len, offset, name);
+  if (fatal)
+    abort();
 }
 
 /** Update the data structures on write completion */
@@ -3280,6 +3284,7 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 	}
 
 	ulint p = static_cast<ulint>(offset >> srv_page_size_shift);
+	bool fatal;
 
 	if (UNIV_LIKELY_NULL(UT_LIST_GET_NEXT(chain, node))) {
 		ut_ad(this == fil_system.sys_space
@@ -3294,9 +3299,13 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 					release();
 					return {DB_ERROR, nullptr};
 				}
-				ib::fatal()
-					<< fil_invalid_page_access_msg(name,
-						offset, len, type.is_read());
+
+				fatal = true;
+fail:
+				fil_invalid_page_access_msg(fatal, node->name,
+							    offset, len,
+							    type.is_read());
+				return {DB_IO_ERROR, nullptr};
 			}
 		}
 
@@ -3304,25 +3313,17 @@ fil_io_t fil_space_t::io(const IORequest &type, os_offset_t offset, size_t len,
 	}
 
 	if (UNIV_UNLIKELY(node->size <= p)) {
+		release();
+
 		if (type.type == IORequest::READ_ASYNC) {
-			release();
 			/* If we can tolerate the non-existent pages, we
 			should return with DB_ERROR and let caller decide
 			what to do. */
 			return {DB_ERROR, nullptr};
 		}
 
-		if (node->space->purpose == FIL_TYPE_IMPORT) {
-			release();
-			ib::error() << fil_invalid_page_access_msg(
-				node->name, offset, len, type.is_read());
-
-
-			return {DB_IO_ERROR, nullptr};
-		}
-
-		ib::fatal() << fil_invalid_page_access_msg(
-			node->name, offset, len, type.is_read());
+		fatal = node->space->purpose != FIL_TYPE_IMPORT;
+		goto fail;
 	}
 
 	dberr_t err;
