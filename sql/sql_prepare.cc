@@ -5588,7 +5588,6 @@ Ed_connection::store_result_set()
 
 class Protocol_local : public Protocol_text
 {
-  THD *new_thd;
 public:
   struct st_mysql_data *cur_data;
   struct st_mysql_data *first_data;
@@ -5598,33 +5597,13 @@ public:
   char **next_field;
   MYSQL_FIELD *next_mysql_field;
   MEM_ROOT *alloc;
-
-  my_bool qc_save;
-  Reprepare_observer *save_reprepare_observer;
+  THD *new_thd;
 
   Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
     Protocol_text(thd_arg, prealloc),
-      new_thd(new_thd_arg), cur_data(0), first_data(0),
-      data_tail(&first_data), alloc(0)
-  {
-    if (!new_thd)
-    {
-      qc_save= thd->query_cache_is_applicable;
-      thd->query_cache_is_applicable= 0;
-      save_reprepare_observer= thd->m_reprepare_observer;
-      thd->m_reprepare_observer= nullptr;
-    }
-  }
-  ~Protocol_local()
-  {
-    if (new_thd)
-      delete new_thd;
-    else
-    {
-      thd->query_cache_is_applicable= qc_save;
-      thd->m_reprepare_observer= save_reprepare_observer;
-    }
-  }
+    cur_data(0), first_data(0), data_tail(&first_data), alloc(0),
+    new_thd(new_thd_arg)
+  {}
  
 protected:
   bool net_store_data(const uchar *from, size_t length);
@@ -6221,9 +6200,13 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   sql_text.length= arg_length;
   {
     Ed_connection con(p->thd);
+    THD *thd_orig= current_thd;
+    set_current_thd(p->thd);
+    p->thd->thread_stack= (char*) &sql_text;
     result= con.execute_direct(p, sql_text);
     if (skip_check)
       result= 0;
+    set_current_thd(thd_orig);
   }
   p->cur_data= 0;
 
@@ -6299,7 +6282,10 @@ static void loc_flush_use_result(MYSQL *mysql, my_bool)
 static void loc_on_close_free(MYSQL *mysql)
 {
   Protocol_local *p= (Protocol_local *) mysql->thd;
+  THD *thd= p->new_thd;
   delete p;
+  if (thd)
+    delete thd;
   my_free(mysql->info_buffer);
   mysql->info_buffer= 0;
 }
@@ -6322,8 +6308,8 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
     const char *host, const char *user, const char *db,
     unsigned long clientflag)
 {
-  THD *thd= current_thd;
-  THD *new_thd= NULL;
+  THD *thd_orig= current_thd;
+  THD *new_thd;
   DBUG_ENTER("mysql_real_connect_local");
 
   /* Test whether we're already connected */
@@ -6344,73 +6330,31 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
   if (!user || !user[0])
     user=mysql->options.user;
 
-//  mysql->user= my_strdup(PSI_INSTRUMENT_ME, user, MYF(0));
   mysql->user= NULL;
-
 
   mysql->info_buffer= (char *) my_malloc(PSI_INSTRUMENT_ME,
                                          MYSQL_ERRMSG_SIZE, MYF(0));
-  if (!thd)
+  if (!thd_orig || thd_orig->lock)
   {
     new_thd= new THD(0);
-    new_thd->thread_stack= (char*) &thd;
+    new_thd->thread_stack= (char*) &thd_orig;
     new_thd->store_globals();
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;
     new_thd->variables.wsrep_on= 0;
     bzero((char*) &new_thd->net, sizeof(new_thd->net));
-    thd= new_thd;
+    set_current_thd(thd_orig);
+    thd_orig= new_thd;
   }
+  else
+    new_thd= NULL;
 
-  mysql->thd= new Protocol_local(thd, new_thd, 0);
-  //mysql->thd= create_embedded_thd(client_flag);
-
-  //init_embedded_mysql(mysql, client_flag);
-
-  //if (mysql_init_character_set(mysql))
-  //  goto error;
-
-  //if (check_embedded_connection(mysql, db))
-  //  goto error;
-
+  mysql->thd= new Protocol_local(thd_orig, new_thd, 0);
   mysql->server_status= SERVER_STATUS_AUTOCOMMIT;
 
-  //if (mysql->options.init_commands)
-  //{
-  //  DYNAMIC_ARRAY *init_commands= mysql->options.init_commands;
-  //  char **ptr= (char**)init_commands->buffer;
-  //  char **end= ptr + init_commands->elements;
-//
-  //  for (; ptr<end; ptr++)
-  //  {
-  //    MYSQL_RES *res;
-  //    if (mysql_query(mysql,*ptr))
-  //      goto error;
-  //    if (mysql->fields)
-  //    {
-  //      if (!(res= (*mysql->methods->use_result)(mysql)))
-  //        goto error;
-  //      mysql_free_result(res);
-  //          }
-  //  }
-  //}
 
   DBUG_PRINT("exit",("Mysql handler: %p", mysql));
   DBUG_RETURN(mysql);
-
-//error:
-  DBUG_PRINT("error",("message: %u (%s)",
-                      mysql->net.last_errno,
-                      mysql->net.last_error));
-  {
-    /* Free alloced memory */
-    my_bool free_me=mysql->free_me;
-    free_old_query(mysql); 
-    mysql->free_me=0;
-    mysql_close(mysql);
-    mysql->free_me=free_me;
-  }
-  DBUG_RETURN(0);
 }
 
 
@@ -6449,7 +6393,7 @@ extern "C" int execute_sql_command(const char *command,
   sql_text.str= (char *) command;
   sql_text.length= strlen(command);
   {
-    Protocol_local p(thd, 0, 0);
+    Protocol_local p(thd, new_thd, 0);
     Ed_connection con(thd);
     result= con.execute_direct(&p, sql_text);
     if (!result && p.first_data)

@@ -14,37 +14,20 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#define PLUGIN_VERSION 0x100
+#define PLUGIN_VERSION 0x10000
 #define PLUGIN_STR_VERSION "1.0.0"
 
 #define _my_thread_var loc_thread_var
 
 #include <my_config.h>
-#include <assert.h>
+//#include <assert.h>
 #include <my_global.h>
-#include <my_base.h>
-#include <typelib.h>
-//#include <mysql_com.h>  /* for enum enum_server_command */
+//#include <my_base.h>
+//#include <typelib.h>
 #include <mysql/plugin.h>
 #include <mysql/plugin_audit.h>
-//#include <string.h>
 #include <mysql.h>
 
-
-LEX_STRING * thd_query_string (MYSQL_THD thd);
-unsigned long long thd_query_id(const MYSQL_THD thd);
-size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
-const char *thd_user_name(MYSQL_THD thd);
-const char *thd_client_host(MYSQL_THD thd);
-const char *thd_client_ip(MYSQL_THD thd);
-LEX_CSTRING *thd_current_db(MYSQL_THD thd);
-int thd_current_status(MYSQL_THD thd);
-enum enum_server_command thd_current_command(MYSQL_THD thd);
-
-int maria_compare_hostname(const char *wild_host, long wild_ip, long ip_mask,
-                         const char *host, const char *ip);
-void maria_update_hostname(const char **wild_host, long *wild_ip, long *ip_mask,
-                         const char *host);
 
 /* Status variables for SHOW STATUS */
 static long test_passed= 0;
@@ -66,11 +49,6 @@ static struct st_mysql_sys_var* test_sql_vars[]=
 };
 
 
-extern int execute_sql_command(const char *command,
-                                   char *hosts, char *names, char *filters);
-
-
-
 static int do_tests()
 {
   MYSQL *mysql;
@@ -79,8 +57,7 @@ static int do_tests()
   if (mysql_real_connect_local(mysql, NULL, NULL, NULL, 0) == NULL)
     return 1;
 
-  if (mysql_real_query(mysql,
-        STRING_WITH_LEN("select 'plugin', name, dl from mysql.plugin")))
+  if (mysql_real_query(mysql, STRING_WITH_LEN("select * from mysql.user")))
     return 1;
 
   if (!(res= mysql_store_result(mysql)))
