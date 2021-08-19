@@ -40,6 +40,9 @@ IF(HAVE_PAM_APPL_H AND HAVE_GETGROUPLIST)
     TARGET_LINK_LIBRARIES(auth_pam_tool pam)
     INSTALL(CODE "EXECUTE_PROCESS(
                      COMMAND chmod u=rwx,g=,o= auth_pam_tool_dir
+                     WORKING_DIRECTORY \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${INSTALL_PLUGINDIR}/)"
+                   COMPONENT Server)
+    INSTALL(CODE "EXECUTE_PROCESS(
                      COMMAND chmod u=rwxs,g=rx,o=rx auth_pam_tool_dir/auth_pam_tool
                      WORKING_DIRECTORY \$ENV{DESTDIR}\${CMAKE_INSTALL_PREFIX}/${INSTALL_PLUGINDIR}/)"
                    COMPONENT Server)
