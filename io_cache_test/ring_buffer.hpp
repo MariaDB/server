@@ -471,5 +471,11 @@ int RingBuffer::_flush_io_buffer(int not_released) {
   return 0;
 }
 int RingBuffer::read_slot(uchar *To, size_t Count) {
+  mysql_mutex_lock(&_read_lock);
+  mysql_rwlock_rdlock(&flush_rw_lock);
+
+
+  mysql_rwlock_unlock(&flush_rw_lock);
+  mysql_mutex_unlock(&_read_lock);
   return 0;
 }
