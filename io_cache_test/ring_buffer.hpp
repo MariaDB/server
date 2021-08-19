@@ -475,7 +475,7 @@ int RingBuffer::_flush_io_buffer(int not_released) {
   return 0;
 }
 int RingBuffer::read_slot(uchar *To, size_t Count) {
-  size_t left_length = 0, length, max_length;
+  size_t left_length = 0, length, read_file_length;
   my_off_t pos_in_file;
   int error;
 
@@ -498,12 +498,37 @@ int RingBuffer::read_slot(uchar *To, size_t Count) {
   mysql_mutex_lock(&_read_lock);
   mysql_rwlock_rdlock(&flush_rw_lock);
   length= _end_of_file - _pos_in_file;
-  if (length) {
-
+  if (!length) {
+    _read_append_slot(To, Count);
+    mysql_rwlock_unlock(&flush_rw_lock);
+    mysql_mutex_unlock(&_read_lock);
+    return 0;
   }
-  else {
-
+  if(mysql_file_seek(_file, _pos_in_file, MY_SEEK_SET, MYF(0)) ==
+        MY_FILEPOS_ERROR){
+    mysql_rwlock_unlock(&flush_rw_lock);
+    mysql_mutex_unlock(&_read_lock);
+    return -1; // error while seeking
   }
+
+  read_file_length= length < _read_length? length : _read_length;
+
+  length = mysql_file_read(_file, _buffer, read_file_length, MYF(0));
+
+  if(length >= Count) {
+    mysql_rwlock_unlock(&flush_rw_lock);
+    _read_pos=_buffer+Count;
+    _read_end=_buffer+length;
+    memcpy(To, _buffer, Count);
+    _pos_in_file += Count;
+    mysql_mutex_unlock(&_read_lock);
+    return 0;
+  }
+  memcpy(To, _buffer, Count);
+  Count -= length;
+  To += length;
+  _pos_in_file += Count;
+  _read_append_slot(To, Count);
 
   mysql_rwlock_unlock(&flush_rw_lock);
   mysql_mutex_unlock(&_read_lock);
