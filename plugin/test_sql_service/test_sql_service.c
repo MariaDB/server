@@ -17,14 +17,9 @@
 #define PLUGIN_VERSION 0x10000
 #define PLUGIN_STR_VERSION "1.0.0"
 
-#define _my_thread_var loc_thread_var
-
 #include <my_config.h>
-//#include <assert.h>
 #include <my_global.h>
-//#include <my_base.h>
-//#include <typelib.h>
-#include <mysql/plugin.h>
+#include <my_base.h>
 #include <mysql/plugin_audit.h>
 #include <mysql.h>
 
