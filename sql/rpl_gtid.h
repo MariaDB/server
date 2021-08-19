@@ -374,6 +374,7 @@ struct slave_connection_state
   bool is_pos_reached();
 };
 
+//class gtid_index_hash;
 
 extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,
                                             bool *first);

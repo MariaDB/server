@@ -18,6 +18,12 @@
 /* Definitions for MariaDB global transaction ID (GTID). */
 
 #include "mariadb.h"
+#include "my_alloc.h"
+#include "my_global.h"
+#include "my_sys.h"
+#include "mysql/psi/psi_base.h"
+#include "mysql/psi/psi_memory.h"
+#include "sql_array.h"
 #include "sql_priv.h"
 #include "unireg.h"
 #include "mariadb.h"

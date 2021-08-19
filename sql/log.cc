@@ -26,6 +26,8 @@
 */
 
 #include "mariadb.h"		/* NO_EMBEDDED_ACCESS_CHECKS */
+#include "mysql/psi/psi_base.h"
+#include "sql_array.h"
 #include "sql_priv.h"
 #include "log.h"
 #include "sql_base.h"                           // open_log_table
@@ -520,6 +522,133 @@ void Log_event_writer::set_incident()
   cache_data->set_incident();
 }
 
+class gtid_index : public Sql_alloc
+{
+  MEM_ROOT *mem_root;
+  uint32 domain_id;
+  uint32 seq_no_modulus;
+  class gtid_index_elem:public Sql_alloc
+  {
+    ulong seq_no;
+    ulong file_pos;
+    //Mostly we will no require this
+    Dynamic_array<ulong> file_pos_array;
+  public:
+    gtid_index_elem(ulong seq_no_, ulong file_pos_): seq_no(seq_no_),
+                file_pos(file_pos_), file_pos_array(PSI_INSTRUMENT_MEM) 
+    {}
+    ulong get_seq_no()
+    {
+      return seq_no;
+    }
+    ulong get_file_pos()
+    {
+      return file_pos;
+    }
+  };
+public:
+  gtid_index(MEM_ROOT *mem_root_, uint32 domain_id_, uint32 seq_no_modulus_= 1):
+             mem_root(mem_root_), domain_id(domain_id_),
+             seq_no_modulus(seq_no_modulus_)
+  {
+    data= new Dynamic_array<gtid_index_elem *>(mem_root);
+  }
+  Dynamic_array<gtid_index_elem *> *data;
+  
+  void insert(ulong seq_no, ulong file_pos)
+  {
+    if(!(seq_no % seq_no_modulus))
+      data->append_val(new (mem_root) gtid_index_elem(seq_no, file_pos));
+  }
+  
+  /*
+    We will return the closest cached seq_no.
+    After that the caller is supposed to seek into binlog file till it finds
+    the relevant gtid_seq_no.
+  */
+  ulong find(ulong seq_no)
+  {
+    if(!data->elements())
+      return 0;
+    //binary search
+    uint64 lo= 0, hi= data->elements() - 1;
+    if(seq_no % seq_no_modulus)
+      seq_no-= seq_no % seq_no_modulus;
+
+    while(lo <= hi)
+    {
+      ulong mid= lo + (hi - lo)/2;
+      ulong mid_seq_no= data->at(mid)->get_seq_no();
+      if(mid_seq_no == seq_no)
+        break;
+      if(mid_seq_no > seq_no)
+        hi= mid - 1;
+      else
+        lo= mid + 1;
+    }
+    return data->at(lo)->get_file_pos();
+  }
+
+  void fwrite()
+  {
+
+  }
+
+  void fread()
+  {
+
+  }
+};
+
+class gtid_index_hash : public Sql_alloc
+{
+  MEM_ROOT *mem_root;
+  HASH hash;
+  struct entry: public Sql_alloc
+  {
+    uint32 domain_id;
+    uint32 index;
+    entry(uint32 domain_id_, uint32 index_):domain_id(domain_id_), index(index_)
+    {}
+  };
+  Dynamic_array<gtid_index *> arr;
+public:
+  gtid_index_hash(MEM_ROOT *mem_root_):mem_root(mem_root_),
+  arr(mem_root)
+  {
+    my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
+               offsetof(entry, domain_id), sizeof(uint32), NULL, my_free,
+               HASH_UNIQUE);
+  };
+  void insert(rpl_gtid &gtid, ulong file_pos)
+  {
+    entry *e;
+    if((e= (entry *) my_hash_search(&hash,
+                           (const uchar *)(&gtid.domain_id), 0)))
+    {
+      arr.at(e->index)->insert(gtid.seq_no, file_pos);
+    }
+    else
+    {
+      entry *e= new(mem_root) entry(gtid.domain_id, (uint32)arr.size());
+      my_hash_insert(&hash, (uchar *)e); 
+      arr.append_val(new(mem_root) gtid_index(mem_root, gtid.domain_id));
+    }
+  }
+
+  ulong find(rpl_gtid &gtid)
+  {
+    entry *e;
+    if((e= (entry *) my_hash_search(&hash,
+                           (const uchar *)(&gtid.domain_id), 0)))
+    {
+      return arr.at(e->index)->find(gtid.seq_no);
+    }
+    return 0;
+  }
+};
+
+gtid_index_hash *gtid_indexes;
 
 class binlog_cache_mngr {
 public:
@@ -6273,6 +6402,7 @@ MYSQL_BIN_LOG::write_gtid_event(THD *thd, bool standalone,
     err= rpl_global_gtid_binlog_state.update_with_next_gtid(domain_id,
                                                             local_server_id, &gtid);
     seq_no= gtid.seq_no;
+    gtid_indexes->insert(gtid, my_b_safe_tell(&this->log_file));
   }
   if (err)
     DBUG_RETURN(true);
@@ -10339,6 +10469,8 @@ binlog_background_thread(void *arg __attribute__((unused)))
   binlog_background_thread_started= true;
   mysql_cond_signal(&mysql_bin_log.COND_binlog_background_thread_end);
   mysql_mutex_unlock(&mysql_bin_log.LOCK_binlog_background_thread);
+
+  gtid_indexes= new(thd->mem_root) gtid_index_hash(thd->mem_root);
 
   for (;;)
   {

@@ -2107,6 +2107,7 @@ err:
   return info->error;
 }
 
+//extern gtid_index_hash *gtid_indexes;
 static int init_binlog_sender(binlog_send_info *info,
                               LOG_INFO *linfo,
                               const char *log_ident,
@@ -2210,6 +2211,7 @@ static int init_binlog_sender(binlog_send_info *info,
     }
 
     /* start from beginning of binlog file */
+    //gtid_indexes->insert(info->gtid_state, 1);
     *pos = 4;
   }
   else
