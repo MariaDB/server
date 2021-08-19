@@ -595,6 +595,7 @@ static size_t fil_page_decompress_for_non_full_crc32(byte *tmp_buf, byte *buf)
 /** Decompress a page that may be subject to page_compressed compression.
 @param[in,out]	tmp_buf		temporary buffer (of innodb_page_size)
 @param[in,out]	buf		possibly compressed page buffer
+@param[in]	flags		tablespace flags
 @return size of the compressed data
 @retval	0		if decompression failed
 @retval	srv_page_size	if the page was not compressed */

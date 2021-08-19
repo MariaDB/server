@@ -1,6 +1,7 @@
 call mtr.add_suppression("Can.t init tc log");
 call mtr.add_suppression("Aborting");
 SET @@global.max_binlog_size= 4096;
+SET @@global.sync_binlog= 1;
 RESET MASTER;
 FLUSH LOGS;
 CREATE TABLE ti (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
@@ -13,11 +14,11 @@ master-bin.000001	#
 master-bin.000002	#
 INSERT INTO ti VALUES(1,"I am gonna survive");
 INSERT INTO tm VALUES(1,"me too!");
-SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL master1_ready WAIT_FOR con1_go";
+SET DEBUG_SYNC= "commit_after_release_LOCK_after_binlog_sync SIGNAL master1_ready WAIT_FOR master1_go_never_arrives";
 INSERT INTO ti VALUES (2, REPEAT("x", 4100));
 connect master2,localhost,root,,;
 SET DEBUG_SYNC= "now WAIT_FOR master1_ready";
-SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT_FOR master2_go";
+SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL master2_ready WAIT_FOR master2_go_never_arrives";
 INSERT INTO ti VALUES (3, "not gonna survive");
 connection default;
 SET DEBUG_SYNC= "now WAIT_FOR master2_ready";
@@ -35,7 +36,7 @@ connection default;
 # Kill the server
 disconnect master1;
 disconnect master2;
-# restart: --rpl-semi-sync-slave-enabled=1
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
 FOUND 1 /truncated binlog file:.*master.*000002/ in mysqld.1.err
 "One record should be present in table"
 SELECT * FROM ti;
@@ -50,4 +51,5 @@ SELECT @@global.gtid_binlog_pos;
 0-1-4
 # Cleanup
 DROP TABLE ti;
+SET @@global.sync_binlog= default;
 # End of the tests

@@ -1010,7 +1010,13 @@ check_port()
         lsof -Pnl -i ":$port" 2>/dev/null | \
         grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*\\(LISTEN\\)" && rc=0
     elif [ $sockstat_available -ne 0 ]; then
-        sockstat -p "$port" 2>/dev/null | \
+        local opts='-p'
+        if [ "$OS" = 'FreeBSD' ]; then
+            # sockstat on FreeBSD requires the "-s" option
+            # to display the connection state:
+            opts='-sp'
+        fi
+        sockstat "$opts" "$port" 2>/dev/null | \
         grep -q -E "[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*[[:space:]]LISTEN" && rc=0
     elif [ $ss_available -ne 0 ]; then
         ss -nlpH "( sport = :$port )" 2>/dev/null | \

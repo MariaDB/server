@@ -676,6 +676,11 @@ public:
   my_off_t last_commit_pos_offset;
   ulong current_binlog_id;
 
+  /*
+    Tracks the number of times that the master has been reset
+  */
+  Atomic_counter<uint64> reset_master_count;
+
   MYSQL_BIN_LOG(uint *sync_period);
   /*
     note that there's no destructor ~MYSQL_BIN_LOG() !
@@ -893,6 +898,7 @@ public:
   inline mysql_mutex_t* get_log_lock() { return &LOCK_log; }
   inline mysql_cond_t* get_bin_log_cond() { return &COND_bin_log_updated; }
   inline IO_CACHE* get_log_file() { return &log_file; }
+  inline uint64 get_reset_master_count() { return reset_master_count; }
 
   inline void lock_index() { mysql_mutex_lock(&LOCK_index);}
   inline void unlock_index() { mysql_mutex_unlock(&LOCK_index);}

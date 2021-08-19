@@ -38,11 +38,6 @@ else
     NUMJOBS = 1
 endif
 
-# RocksDB cannot build on 32-bit platforms
-ifeq (32,$(DEB_HOST_ARCH_BITS))
-    CMAKEFLAGS += -DPLUGIN_ROCKSDB=NO
-endif
-
 # Cross building requires stack direction instruction
 ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
     ifneq (,$(filter $(DEB_HOST_ARCH_CPU),alpha amd64 arm arm64 i386 ia64 m68k mips64el mipsel powerpc ppc64 ppc64el riscv64 s390x sh4 sparc64))
@@ -57,14 +52,6 @@ endif
 # See https://packages.debian.org/search?searchon=names&keywords=libpmem-dev
 ifneq (,$(filter $(DEB_HOST_ARCH_CPU),amd64 arm64 ppc64el))
 		CMAKEFLAGS += -DWITH_PMEM=yes
-endif
-
-# Add extra flag to avoid WolfSSL code crashing the entire mariadbd on s390x. This
-# can be removed once upstream has made the code s390x compatible, see
-# https://jira.mariadb.org/browse/MDEV-21705 and
-# https://github.com/wolfSSL/wolfssl/issues/2828
-ifeq ($(DEB_HOST_ARCH),s390x)
-    CFLAGS += -DWC_NO_CACHE_RESISTANT
 endif
 
 # Add support for verbose builds
@@ -85,15 +72,25 @@ ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
 	dpkg-architecture -a$(DEB_BUILD_ARCH) -f -c dh_auto_configure --builddirectory=builddir-native
 	dh_auto_build --builddirectory=builddir-native -- import_executables
 endif
+
+	# ColumnStore is part of the build
+ifneq (32,$(DEB_HOST_ARCH_BITS))
+	# Take the files and part of control from MCS directory
+	cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
+	# Don't include twice
+	grep -q '^Package: mariadb-plugin-columnstore$$' debian/control || \
+	( echo && cat storage/columnstore/columnstore/debian/control ) >> debian/control
+endif
+
 	echo "server:Version=$(DEB_VERSION)" >> debian/substvars
 
-	# Don't build ColumnStore as part of the native build, only build it when
-	# triggered by autobake-deb.sh. Saves build time and disk space.
+	# RocksDB and Column Store cannot build on 32-bit platforms
 	PATH=$${MYSQL_BUILD_PATH:-"/usr/lib/ccache:/usr/local/bin:/usr/bin:/bin"} \
 	    NO_UPDATE_BUILD_VERSION=1 \
 	    dh_auto_configure --builddirectory=$(BUILDDIR) -- \
 	    -DCMAKE_BUILD_TYPE=RelWithDebInfo \
 	    $(CMAKEFLAGS) \
+	    $(if $(findstring $(DEB_HOST_ARCH_BITS),32),-DPLUGIN_ROCKSDB=NO -DPLUGIN_COLUMNSTORE=NO) \
 	    $(if $(filter $(DEB_BUILD_ARCH),$(DEB_HOST_ARCH)),,-DIMPORT_EXECUTABLES=$(CURDIR)/builddir-native/import_executables.cmake) \
 	    -DCOMPILATION_COMMENT="mariadb.org binary distribution" \
 	    -DMYSQL_SERVER_SUFFIX="-$(DEB_VERSION_REVISION)" \
@@ -102,7 +99,6 @@ endif
 	    -DBUILD_CONFIG=mysql_release \
 	    -DCONC_DEFAULT_CHARSET=utf8mb4 \
 	    -DPLUGIN_AWS_KEY_MANAGEMENT=NO \
-	    -DPLUGIN_COLUMNSTORE=NO \
 	    -DIGNORE_AIO_CHECK=YES \
 	    -DWITH_URING=yes \
 	    -DDEB=$(DEB_VENDOR)

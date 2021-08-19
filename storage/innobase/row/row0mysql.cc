@@ -73,25 +73,6 @@ Created 9/17/2000 Heikki Tuuri
 #endif
 
 /*******************************************************************//**
-Determine if the given name is a name reserved for MySQL system tables.
-@return TRUE if name is a MySQL system table name */
-static
-ibool
-row_mysql_is_system_table(
-/*======================*/
-	const char*	name)
-{
-	if (strncmp(name, "mysql/", 6) != 0) {
-
-		return(FALSE);
-	}
-
-	return(0 == strcmp(name + 6, "host")
-	       || 0 == strcmp(name + 6, "user")
-	       || 0 == strcmp(name + 6, "db"));
-}
-
-/*******************************************************************//**
 Delays an INSERT, DELETE or UPDATE operation if the purge is lagging. */
 static
 void
@@ -2207,29 +2188,16 @@ row_create_table_for_mysql(
 
 	DBUG_EXECUTE_IF(
 		"ib_create_table_fail_at_start_of_row_create_table_for_mysql",
-		goto err_exit;
+		dict_mem_table_free(table); return DB_ERROR;
 	);
 
-	trx->op_info = "creating table";
-
-	if (row_mysql_is_system_table(table->name.m_name)) {
-
-		ib::error() << "Trying to create a MariaDB system table "
-			<< table->name << " of type InnoDB. MariaDB system"
-			" tables must be of the MyISAM type!";
-
-err_exit:
-		dict_mem_table_free(table);
-
-		trx->op_info = "";
-
-		return(DB_ERROR);
-	}
-
 	if (!dict_sys.sys_tables_exist()) {
-		ib::error() << "Some InnoDB system tables are missing";
-		goto err_exit;
+		sql_print_error("InnoDB: Some system tables are missing");
+		dict_mem_table_free(table);
+		return DB_ERROR;
 	}
+
+	trx->op_info = "creating table";
 
 	trx_start_if_not_started_xa(trx, true);
 
@@ -2770,14 +2738,6 @@ row_rename_table_for_mysql(
 
 	if (high_level_read_only) {
 		return(DB_READ_ONLY);
-
-	} else if (row_mysql_is_system_table(new_name)) {
-
-		ib::error() << "Trying to create a MariaDB system table "
-			<< new_name << " of type InnoDB. MariaDB system tables"
-			" must be of the MyISAM type!";
-
-		goto funct_exit;
 	}
 
 	trx->op_info = "renaming table";
