@@ -165,7 +165,8 @@ get_keys()
     fi
 
     if [ -z "$ekey" -a ! -r "$ekeyfile" ]; then
-        wsrep_log_error "FATAL: Either key or keyfile must be readable"
+        wsrep_log_error "FATAL: Either key must be specified " \
+                        "or keyfile must be readable"
         exit 3
     fi
 
@@ -450,9 +451,30 @@ encgroups='--mysqld|sst|xtrabackup'
 
 check_server_ssl_config()
 {
-    tcert=$(parse_cnf "$encgroups" 'ssl-ca')
-    tpem=$(parse_cnf "$encgroups" 'ssl-cert')
-    tkey=$(parse_cnf "$encgroups" 'ssl-key')
+    # backward-compatible behavior:
+    tcert=$(parse_cnf 'sst' 'tca')
+    tpem=$(parse_cnf 'sst' 'tcert')
+    tkey=$(parse_cnf 'sst' 'tkey')
+    # reading new ssl configuration options:
+    local tcert2=$(parse_cnf "$encgroups" 'ssl-ca')
+    local tpem2=$(parse_cnf "$encgroups" 'ssl-cert')
+    local tkey2=$(parse_cnf "$encgroups" 'ssl-key')
+    # if there are no old options, then we take new ones:
+    if [ -z "$tcert" -a -z "$tpem" -a -z "$tkey" ]; then
+        tcert="$tcert2"
+        tpem="$tpem2"
+        tkey="$tkey2"
+    # checking for presence of the new-style SSL configuration:
+    elif [ -n "$tcert2" -o -n "$tpem2" -o -n "$tkey2" ]; then
+        if [ "$tcert" != "$tcert2" -o \
+             "$tpem"  != "$tpem2"  -o \
+             "$tkey"  != "$tkey2" ]
+        then
+            wsrep_log_info "new ssl configuration options (ssl-ca, ssl-cert " \
+                           "and ssl-key) are ignored by SST due to presence " \
+                           "of the tca, tcert and/or tkey in the [sst] section"
+        fi
+    fi
 }
 
 read_cnf()
@@ -465,18 +487,10 @@ read_cnf()
 
     if [ $encrypt -eq 0 -o $encrypt -ge 2 ]
     then
-        if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]
-        then
-            tcert=$(parse_cnf 'sst' 'tca')
-            tpem=$(parse_cnf 'sst' 'tcert')
-            tkey=$(parse_cnf 'sst' 'tkey')
+        if [ "$tmode" != 'DISABLED' -o $encrypt -ge 2 ]; then
+            check_server_ssl_config
         fi
         if [ "$tmode" != 'DISABLED' ]; then
-            # backward-incompatible behavior
-            if [ -z "$tpem" -a -z "$tkey" -a -z "$tcert" ]; then
-                # no old-style SSL config in [sst]
-                check_server_ssl_config
-            fi
             if [ 0 -eq $encrypt -a -n "$tpem" -a -n "$tkey" ]
             then
                 encrypt=3 # enable cert/key SSL encyption
@@ -491,7 +505,11 @@ read_cnf()
         ealgo=$(parse_cnf "$encgroups" 'encrypt-algo')
         eformat=$(parse_cnf "$encgroups" 'encrypt-format' 'xbcrypt')
         ekey=$(parse_cnf "$encgroups" 'encrypt-key')
-        ekeyfile=$(parse_cnf "$encgroups" 'encrypt-key-file')
+        # The keyfile should be read only when the key
+        # is not specified or empty:
+        if [ -z "$ekey" ]; then
+            ekeyfile=$(parse_cnf "$encgroups" 'encrypt-key-file')
+        fi
     fi
 
     wsrep_log_info "SSL configuration: CA='$tcert', CERT='$tpem'," \
