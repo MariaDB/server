@@ -1988,8 +1988,16 @@ public:
       column->store_field_value((uchar *) elem, col_length);
       StringBuffer<MAX_FIELD_WIDTH> val;
       column->val_str(&val);
-      bucket_bounds.emplace_back(val.c_ptr());
+      auto it = bucket_bounds.begin();
+      bucket_bounds.insert(it+curr_bucket, val.c_ptr());
       curr_bucket++;
+      while (curr_bucket != hist_width &&
+             count > bucket_capacity * (curr_bucket + 1))
+      {
+        auto it = bucket_bounds.begin();
+        bucket_bounds.insert(it+curr_bucket, bucket_bounds[curr_bucket-1]);
+        curr_bucket++;
+      }
     }
     return 0;
   }

@@ -1,0 +1,21 @@
+--source include/have_sequence.inc
+create table users (
+  city varchar(100)
+);
+insert into users select 'Moscow' from seq_1_to_99;
+insert into users select 'Helsinki' from seq_1_to_2;
+
+analyze table users persistent for all;
+select hex(histogram) from mysql.column_stats where table_name='users';
+explain extended select * from users where city = 'Moscow';
+analyze select * from users where city = 'Moscow';
+
+delete from mysql.column_stats where table_name='users';
+
+set histogram_type=json;
+set histogram_size=10;
+
+analyze table users persistent for all;
+select histogram from mysql.column_stats where table_name='users';
+explain extended select * from users where city = 'Moscow';
+analyze select * from users where city = 'Moscow';
