@@ -2168,24 +2168,26 @@ static bool has_validation_plugins()
                         MariaDB_PASSWORD_VALIDATION_PLUGIN, NULL);
 }
 
-struct validation_data { const LEX_CSTRING *user, *password; };
+struct validation_data { const LEX_CSTRING *user, *password, *host; };
 
 static my_bool do_validate(THD *, plugin_ref plugin, void *arg)
 {
   struct validation_data *data= (struct validation_data *)arg;
   struct st_mariadb_password_validation *handler=
     (st_mariadb_password_validation *)plugin_decl(plugin)->info;
-  return handler->validate_password(data->user, data->password);
+  return handler->validate_password(data->user, data->password, data->host);
 }
 
 
 static bool validate_password(THD *thd, const LEX_CSTRING &user,
+                              const LEX_CSTRING &host,
                               const LEX_CSTRING &pwtext, bool has_hash)
 {
   if (pwtext.length || !has_hash)
   {
     struct validation_data data= { &user,
-                                   pwtext.str ? &pwtext : &empty_clex_str };
+                                   pwtext.str ? &pwtext : &empty_clex_str,
+                                   &host };
     if (plugin_foreach(NULL, do_validate,
                        MariaDB_PASSWORD_VALIDATION_PLUGIN, &data))
     {
@@ -2239,6 +2241,7 @@ static int set_user_salt(ACL_USER::AUTH *auth, plugin_ref plugin)
   not loaded, if the auth_string is invalid, if the password is not applicable
 */
 static int set_user_auth(THD *thd, const LEX_CSTRING &user,
+                         const LEX_CSTRING &host,
                          ACL_USER::AUTH *auth, const LEX_CSTRING &pwtext)
 {
   const char *plugin_name= auth->plugin.str;
@@ -2264,7 +2267,7 @@ static int set_user_auth(THD *thd, const LEX_CSTRING &user,
   }
 
   if (info->hash_password &&
-      validate_password(thd, user, pwtext, auth->auth_string.length))
+      validate_password(thd, user, host, pwtext, auth->auth_string.length))
   {
     res= ER_NOT_VALID_PASSWORD;
     goto end;
@@ -3373,7 +3376,10 @@ static int acl_user_update(THD *thd, ACL_USER *acl_user, uint nauth,
       acl_user->auth[i].auth_string= safe_lexcstrdup_root(&acl_memroot, auth->auth_str);
       if (fix_user_plugin_ptr(acl_user->auth + i))
         acl_user->auth[i].plugin= safe_lexcstrdup_root(&acl_memroot, auth->plugin);
-      if (set_user_auth(thd, acl_user->user, acl_user->auth + i, auth->pwtext))
+      LEX_CSTRING host= { acl_user->host.hostname ,
+                          acl_user->hostname_length};
+      if (set_user_auth(thd, acl_user->user, host,
+                        acl_user->auth + i, auth->pwtext))
         return 1;
     }
   }
@@ -3976,7 +3982,8 @@ bool change_password(THD *thd, LEX_USER *user)
   {
     auth= acl_user->auth[i];
     auth.auth_string= safe_lexcstrdup_root(&acl_memroot, user->auth->auth_str);
-    int r= set_user_auth(thd, user->user, &auth, user->auth->pwtext);
+    int r= set_user_auth(thd, user->user, user->host,
+                         &auth, user->auth->pwtext);
     if (r == ER_SET_PASSWORD_AUTH_PLUGIN)
       password_plugin= auth.plugin.str;
     else if (r)
