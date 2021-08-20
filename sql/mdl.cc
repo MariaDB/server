@@ -1,5 +1,5 @@
 /* Copyright (c) 2007, 2012, Oracle and/or its affiliates.
-   Copyright (c) 2020, MariaDB
+   Copyright (c) 2020, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2303,6 +2303,20 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
     my_error(ER_LOCK_WAIT_TIMEOUT, MYF(0));
     DBUG_RETURN(TRUE);
   }
+
+#ifdef WITH_WSREP
+  if (WSREP(get_thd()))
+  {
+    THD* requester= get_thd();
+    bool requester_toi= wsrep_thd_is_toi(requester) || wsrep_thd_is_applying(requester);
+    WSREP_DEBUG("::acquire_lock is TOI %d for %s", requester_toi,
+                wsrep_thd_query(requester));
+    if (requester_toi)
+      THD_STAGE_INFO(requester, stage_waiting_ddl);
+    else
+      THD_STAGE_INFO(requester, stage_waiting_isolation);
+  }
+#endif /* WITH_WSREP */
 
   lock->m_waiting.add_ticket(ticket);
 

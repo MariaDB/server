@@ -9183,6 +9183,14 @@ PSI_stage_info stage_starting= { 0, "starting", 0};
 PSI_stage_info stage_waiting_for_flush= { 0, "Waiting for non trans tables to be flushed", 0};
 PSI_stage_info stage_waiting_for_ddl= { 0, "Waiting for DDLs", 0};
 
+#ifdef WITH_WSREP
+// Aditional Galera thread states
+PSI_stage_info stage_waiting_isolation= { 0, "Waiting to execute in isolation", 0};
+PSI_stage_info stage_waiting_certification= {0, "Waiting for certification", 0};
+PSI_stage_info stage_waiting_ddl= {0, "Waiting for TOI DDL", 0};
+PSI_stage_info stage_waiting_flow= {0, "Waiting for flow control", 0};
+#endif /* WITH_WSREP */
+
 PSI_memory_key key_memory_DATE_TIME_FORMAT;
 PSI_memory_key key_memory_DDL_LOG_MEMORY_ENTRY;
 PSI_memory_key key_memory_Event_queue_element_for_exec_names;
@@ -9402,6 +9410,13 @@ PSI_stage_info *all_server_stages[]=
   & stage_reading_semi_sync_ack,
   & stage_waiting_for_deadlock_kill,
   & stage_starting
+#ifdef WITH_WSREP
+  ,
+  & stage_waiting_isolation,
+  & stage_waiting_certification,
+  & stage_waiting_ddl,
+  & stage_waiting_flow
+#endif /* WITH_WSREP */
 };
 
 PSI_socket_key key_socket_tcpip, key_socket_unix, key_socket_client_connection;

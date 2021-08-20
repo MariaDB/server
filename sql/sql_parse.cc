@@ -6126,7 +6126,12 @@ finish:
   thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
 
   if (wsrep_thd_is_toi(thd) || wsrep_thd_is_in_rsu(thd))
+  {
+    WSREP_DEBUG("mysql_execute_command for %s", wsrep_thd_query(thd));
+    THD_STAGE_INFO(thd, stage_waiting_isolation);
     wsrep_to_isolation_end(thd);
+  }
+
   /*
     Force release of transactional locks if not in active MST and wsrep is on.
   */
@@ -7890,7 +7895,8 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
                     });
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
-                    thd->wsrep_retry_counter, wsrep_thd_query(thd));
+                    thd->wsrep_retry_counter,
+                    wsrep_thd_query(thd));
         wsrep_prepare_for_autocommit_retry(thd, rawbuf, length, parser_state);
         if (thd->lex->explain)
           delete_explain_query(thd->lex);

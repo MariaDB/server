@@ -836,10 +836,11 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
       return true;
     }
   } else {
+    THD_STAGE_INFO(thd, stage_waiting_flow);
     ret= Wsrep_server_state::instance().provider().resync();
     if (ret != WSREP_OK) {
       WSREP_WARN ("SET resync failed %d for schema: %s, query: %s", ret,
-                  thd->get_db(), thd->query());
+                  thd->get_db(), wsrep_thd_query(thd));
       my_error (ER_CANNOT_USER, MYF(0), "'resync'", thd->query());
       return true;
     }

@@ -5059,7 +5059,8 @@ bool select_create::send_eof()
       {
         WSREP_DEBUG("select_create commit failed, thd: %llu err: %s %s",
                     thd->thread_id,
-                    wsrep_thd_transaction_state_str(thd), wsrep_thd_query(thd));
+                    wsrep_thd_transaction_state_str(thd),
+                    wsrep_thd_query(thd));
         mysql_mutex_unlock(&thd->LOCK_thd_data);
         abort_result_set();
         DBUG_RETURN(true);

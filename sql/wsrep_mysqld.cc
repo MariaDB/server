@@ -2552,6 +2552,8 @@ static int wsrep_TOI_begin(THD *thd, const char *db, const char *table,
   }
 
   thd_proc_info(thd, "acquiring total order isolation");
+  WSREP_DEBUG("wsrep_TOI_begin for %s", wsrep_thd_query(thd));
+  THD_STAGE_INFO(thd, stage_waiting_isolation);
 
   wsrep::client_state& cs(thd->wsrep_cs());
 
@@ -2894,39 +2896,49 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                                const MDL_ticket *ticket,
                                const MDL_key *key)
 {
-  /* Fallback to the non-wsrep behaviour */
-  if (!WSREP_ON) return;
-
   THD *request_thd= requestor_ctx->get_thd();
   THD *granted_thd= ticket->get_ctx()->get_thd();
+
+  /* Fallback to the non-wsrep behaviour */
+  if (!WSREP(request_thd)) return;
 
   const char* schema= key->db_name();
   int schema_len= key->db_name_length();
 
   mysql_mutex_lock(&request_thd->LOCK_thd_data);
-  if (wsrep_thd_is_toi(request_thd) ||
-      wsrep_thd_is_applying(request_thd)) {
 
+  if (wsrep_thd_is_toi(request_thd) ||
+      wsrep_thd_is_applying(request_thd))
+  {
+    WSREP_DEBUG("wsrep_handle_mdl_conflict request TOI/APPLY for %s",
+                wsrep_thd_query(request_thd));
+    THD_STAGE_INFO(request_thd, stage_waiting_isolation);
     mysql_mutex_unlock(&request_thd->LOCK_thd_data);
     WSREP_MDL_LOG(DEBUG, "MDL conflict ", schema, schema_len,
                   request_thd, granted_thd);
     ticket->wsrep_report(wsrep_debug);
 
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
+
     if (wsrep_thd_is_toi(granted_thd) ||
         wsrep_thd_is_applying(granted_thd))
     {
       if (wsrep_thd_is_aborting(granted_thd))
       {
-        WSREP_DEBUG("BF thread waiting for SR in aborting state");
+        WSREP_DEBUG("BF thread waiting for SR in aborting state for %s",
+                    wsrep_thd_query(request_thd));
+        THD_STAGE_INFO(request_thd, stage_waiting_isolation);
         ticket->wsrep_report(wsrep_debug);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       }
       else if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
-        WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR", 
+        WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR",
                       schema, schema_len, request_thd, granted_thd);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+        WSREP_DEBUG("wsrep_handle_mdl_conflict DDL vs SR for %s",
+                    wsrep_thd_query(request_thd));
+        THD_STAGE_INFO(request_thd, stage_waiting_isolation);
         wsrep_abort_thd(request_thd, granted_thd, 1);
       }
       else
@@ -2941,14 +2953,18 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     else if (granted_thd->lex->sql_command == SQLCOM_FLUSH ||
              granted_thd->mdl_context.has_explicit_locks())
     {
-      WSREP_DEBUG("BF thread waiting for FLUSH");
+      WSREP_DEBUG("BF thread waiting for FLUSH for %s",
+                  wsrep_thd_query(request_thd));
+      THD_STAGE_INFO(request_thd, stage_waiting_ddl);
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {
-      WSREP_DEBUG("DROP caused BF abort, conf %s",
-                  wsrep_thd_transaction_state_str(granted_thd));
+      WSREP_DEBUG("DROP caused BF abort, conf %s for %s",
+                  wsrep_thd_transaction_state_str(granted_thd),
+                  wsrep_thd_query(request_thd));
+      THD_STAGE_INFO(request_thd, stage_waiting_isolation);
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       wsrep_abort_thd(request_thd, granted_thd, 1);
@@ -2957,7 +2973,11 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     {
       WSREP_MDL_LOG(DEBUG, "MDL conflict-> BF abort", schema, schema_len,
                     request_thd, granted_thd);
+      WSREP_DEBUG("wsrep_handle_mdl_conflict -> BF abort for %s",
+                  wsrep_thd_query(request_thd));
+      THD_STAGE_INFO(request_thd, stage_waiting_isolation);
       ticket->wsrep_report(wsrep_debug);
+
       if (granted_thd->wsrep_trx().active())
       {
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
@@ -2970,14 +2990,16 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
           thd is BF, BF abort and wait.
         */
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+
         if (wsrep_thd_is_BF(request_thd, FALSE))
         {
           ha_abort_transaction(request_thd, granted_thd, TRUE);
         }
         else
         {
-	  WSREP_MDL_LOG(INFO, "MDL unknown BF-BF conflict", schema, schema_len,
-                      request_thd, granted_thd);
+	  WSREP_MDL_LOG(INFO, "MDL unknown BF-BF conflict",
+                        schema, schema_len,
+                        request_thd, granted_thd);
 	  ticket->wsrep_report(true);
 	  unireg_abort(1);
         }

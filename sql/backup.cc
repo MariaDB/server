@@ -1,4 +1,4 @@
-/* Copyright (c) 2018, 2020, MariaDB Corporation.
+/* Copyright (c) 2018, 2021, MariaDB Corporation.
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
    the Free Software Foundation; version 2 of the License.
@@ -381,6 +381,9 @@ bool backup_end(THD *thd)
     if (WSREP_NNULL(thd) && thd->wsrep_desynced_backup_stage)
     {
       Wsrep_server_state &server_state= Wsrep_server_state::instance();
+      THD_STAGE_INFO(thd, stage_waiting_flow);
+      WSREP_DEBUG("backup_end: waiting for flow control for %s",
+                  wsrep_thd_query(thd));
       server_state.resume_and_resync();
       thd->wsrep_desynced_backup_stage= false;
     }
