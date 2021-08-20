@@ -5185,7 +5185,7 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
   {
     ut_ad(trx->mysql_thd == thd);
 #ifdef WITH_WSREP
-    if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
+    if (wsrep_thd_is_aborting(thd) || trx->lock.was_chosen_as_wsrep_victim)
       /* if victim has been signaled by BF thread and/or aborting is already
       progressing, following query aborting is not necessary any more.
       Also, BF thread should own trx mutex for the victim. */
@@ -18704,6 +18704,7 @@ wsrep_innobase_kill_one_trx(
 	trx_t* bf_trx= thd_to_trx(bf_thd);
 	DBUG_ASSERT(wsrep_on(bf_thd));
 
+        wsrep_thd_LOCK(thd);
 	WSREP_LOG_CONFLICT(bf_thd, thd, TRUE);
 
 	WSREP_DEBUG("Aborter %s trx_id: " TRX_ID_FMT " thread: %ld "
@@ -18739,7 +18740,10 @@ wsrep_innobase_kill_one_trx(
 	  DBUG_VOID_RETURN;
 	}
 
-	if (wsrep_thd_bf_abort(bf_thd, thd, signal))
+        wsrep_thd_UNLOCK(thd);
+        DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
+
+        if (wsrep_thd_bf_abort(bf_thd, thd, signal))
 	{
 		lock_t*  wait_lock = victim_trx->lock.wait_lock;
 		if (wait_lock) {
