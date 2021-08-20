@@ -24,10 +24,13 @@ then
   # build less verbose
   # MCOL-4149: ColumnStore builds are so slow and big that they must be skipped on
   # both Travis-CI and Gitlab-CI
-  sed -e '/Add support for verbose builds/,/^$/d' \
-      -e '/ColumnStore is part of the build/,/^$/d' \
-      -e 's|$(CMAKEFLAGS)|$(CMAKEFLAGS) -DPLUGIN_COLUMNSTORE=NO|' \
+   sed -e 's|$(CMAKEFLAGS)|$(CMAKEFLAGS) -DPLUGIN_COLUMNSTORE=NO|' \
 	  -i debian/rules
+elif [ -d storage/columnstore/columnstore/debian ]
+then
+  cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
+  echo >> debian/control
+  cat storage/columnstore/columnstore/debian/control >> debian/control
 fi
 
 # Don't build or try to put files in a package for selected plugins and components on Travis-CI
