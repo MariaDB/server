@@ -110,14 +110,12 @@ private:
   int _fill_read_buffer_from_append();
 };
 
-RingBuffer::RingBuffer(char* filename, size_t cachesize)
-{
+RingBuffer::RingBuffer(char* filename, size_t cachesize) {
   _total_size = 0;
   sem_init(&semaphore, 0, count_thread_for_slots);
   mysql_rwlock_init(0, &flush_rw_lock);
   _file = my_open(filename,O_CREAT | O_RDWR,MYF(MY_WME));
-  if (_file >= 0)
-  {
+  if (_file >= 0) {
     my_off_t pos;
     pos= mysql_file_tell(_file, MYF(0));
     assert(pos != (my_off_t) -1);
@@ -130,18 +128,18 @@ RingBuffer::RingBuffer(char* filename, size_t cachesize)
 
 
   // Retry allocating memory in smaller blocks until we get one
-  for (;;)
-  {
+  for (;;) {
     size_t buffer_block;
 
     buffer_block= cachesize * 2;
 
-    if ((_buffer= (uchar*) my_malloc(key_memory_IO_CACHE, buffer_block, (myf) MY_WME)) != 0)
-    {
+    if ((_buffer= (uchar*) my_malloc(key_memory_IO_CACHE,
+                                      buffer_block, (myf) MY_WME)) != 0) {
       _write_buffer= _buffer + cachesize;
       _alloced_buffer= buffer_block;
-      break;					// Enough memory found
+      break;	// Enough memory found
     }
+
     // Try with less memory
     cachesize= (cachesize*3/4);
   }
@@ -159,7 +157,8 @@ RingBuffer::RingBuffer(char* filename, size_t cachesize)
   _error = 0;
 
   _pos_in_file = 0;
-  mysql_mutex_init(key_IO_CACHE_append_buffer_lock, &_read_lock, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
+                   &_read_lock, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
                    &_buffer_lock, MY_MUTEX_INIT_FAST);
 }
@@ -167,9 +166,8 @@ RingBuffer::~RingBuffer() {
   sem_destroy(&semaphore);
   mysql_rwlock_destroy(&flush_rw_lock);
   if (_file != -1) /* File doesn't exist */
-  {
     _flush_io_buffer(-1);
-  }
+
   my_free(_buffer);
   mysql_mutex_destroy(&_read_lock);
   mysql_mutex_destroy(&_buffer_lock);
@@ -295,14 +293,10 @@ int RingBuffer::write_slot(uchar* From, size_t Count) {
 int RingBuffer::_flush_io_buffer(int not_released) {
   size_t length;
 
-
   if (_file == -1)
     return _error= -1;
 
-  //mysql_mutex_lock(&_buffer_lock);
-
-  if (_total_size)
-  {
+  if (_total_size) {
     if(_write_pos <= _append_read_pos) {
       length = _write_end - _append_read_pos;
       if (mysql_file_write(_file, _append_read_pos, length, MY_NABP))
@@ -317,7 +311,6 @@ int RingBuffer::_flush_io_buffer(int not_released) {
         _error= -1;
     }
 
-
     _end_of_file+= _total_size;
     _write_new_pos = _append_read_pos= _write_buffer;
 
@@ -325,11 +318,8 @@ int RingBuffer::_flush_io_buffer(int not_released) {
 
     _write_pos= _write_buffer;
     _total_size = 0;
-    //++info->disk_writes;
-    //mysql_mutex_unlock(&_buffer_lock);
 
-    for (int i = 0; i < count_thread_for_slots; i++)
-    {
+    for (int i = 0; i < count_thread_for_slots; i++) {
       if(i == not_released)
         continue;
       if(!_slots[i].vacant)
@@ -345,7 +335,6 @@ int RingBuffer::_flush_io_buffer(int not_released) {
 
     return _error;
   }
-  //mysql_mutex_unlock(&_buffer_lock);
 
   return 0;
 }
@@ -353,15 +342,13 @@ int RingBuffer::read_slot(uchar *To, size_t Count) {
   size_t left_length, length, read_file_length;
   int error;
 
-  if (_read_pos + Count <= _read_end)
-  {
+  if (_read_pos + Count <= _read_end) {
     memcpy(To, _read_pos, Count);
     _read_pos+= Count;
     return 0;
   }
 
-  if(_read_pos != _read_end)
-  {
+  if(_read_pos != _read_end) {
     left_length= (size_t) (_read_end - _read_pos);
     DBUG_ASSERT(Count > left_length);
     memcpy(To, _read_pos, left_length);
@@ -399,13 +386,13 @@ int RingBuffer::read_slot(uchar *To, size_t Count) {
     mysql_mutex_unlock(&_read_lock);
     return 0;
   }
+
   memcpy(To, _buffer, Count);
   Count -= length;
   To += length;
   _pos_in_file += length;
   mysql_rwlock_unlock(&flush_rw_lock);
   _read_append_slot(To, Count);
-
 
   mysql_mutex_unlock(&_read_lock);
   return 0;
@@ -450,7 +437,6 @@ int RingBuffer::_fill_read_buffer_from_append() {
     /* _total_size is updated before memcpy() completed in write method, so we can't use this value, need calculate actual */
     memcpy(_buffer, _append_read_pos,
            transfer_len = (size_t) (_write_pos - _append_read_pos));
-
   }
   else {
     length = _write_end - _append_read_pos;
