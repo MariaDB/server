@@ -4,15 +4,8 @@
 #include <semaphore.h>
 #include <atomic>
 
-class RingBuffer
-{
+class RingBuffer {
 public:
-  enum WriteState{
-    SUCSECC,
-    ERR_FLUSH,
-    ERR_FILE_WRITE
-  };
-
   RingBuffer(char* filename, size_t cachesize);
   int write_slot(uchar *From, size_t Count);
   int read_slot(uchar *To, size_t Count);
@@ -22,20 +15,31 @@ private:
 
   struct cache_slot_t {
     std::atomic<bool> vacant{true};
+
     volatile bool finished = false;
+
     volatile int next = -1;
+
     uchar* pos_write_first = nullptr;
+
+    /* For wrapping case in curricular write buffer*/
     uchar* pos_write_second = nullptr;
+
     uchar* pos_end = nullptr;
 
     volatile size_t count_first = 0;
+
     volatile size_t count_second = 0;
   };
+
   static const int count_thread_for_slots = 4;
+
   cache_slot_t _slots[count_thread_for_slots];
 
+  /* Semaphore for predict overflow */
   sem_t semaphore;
 
+  /* Last used slot */
   int last_slot = -1;
 
   mysql_rwlock_t flush_rw_lock;
@@ -44,12 +48,15 @@ private:
 
   bool _slot_release(int slot_id);
 
+  /* Size of allocated space in slots */
   size_t _total_size;
 
+  /* File descriptor */
   File _file;
 
   /* buffer writes */
   uchar *_write_buffer;
+
   /* Points to the current read position in the write buffer. */
   uchar *_append_read_pos;
 
@@ -61,34 +68,33 @@ private:
 
   /* Offset in file corresponding to the first byte of uchar* buffer. */
   my_off_t _pos_in_file;
+
   /*
     Maximum of the actual end of file and
     the position represented by read_end.
   */
   my_off_t _end_of_file;
+
   /* Points to current read position in the buffer */
   uchar *_read_pos;
+
   /* the non-inclusive boundary in the buffer for the currently valid read */
   uchar *_read_end;
 
   /* read buffer */
   uchar *_buffer;
 
-  int _seek_not_done;
-
+  /* Length of read and write buffers */
   size_t _alloced_buffer;
 
+  /* Length of buffer (write or read) */
   size_t _buffer_length;
 
+  /* Point to place for new readers, while previous not done */
   uchar *_write_new_pos;
 
+  /* Main buffer lock */
   mysql_mutex_t _buffer_lock;
-
-  /* For a synchronized writer. */
-  mysql_cond_t _cond_writer;
-
-  /* To sync on writers into buffer. */
-  mysql_mutex_t _mutex_writer;
 
   /* For single reader */
   mysql_mutex_t _read_lock;
@@ -103,6 +109,72 @@ private:
 
   int _fill_read_buffer_from_append();
 };
+
+RingBuffer::RingBuffer(char* filename, size_t cachesize)
+{
+  _total_size = 0;
+  sem_init(&semaphore, 0, count_thread_for_slots);
+  mysql_rwlock_init(0, &flush_rw_lock);
+  _file = my_open(filename,O_CREAT | O_RDWR,MYF(MY_WME));
+  if (_file >= 0)
+  {
+    my_off_t pos;
+    pos= mysql_file_tell(_file, MYF(0));
+    assert(pos != (my_off_t) -1);
+  }
+
+
+  // Calculate end of file to avoid allocating oversized buffers
+  _end_of_file= mysql_file_seek(_file, 0L, MY_SEEK_END, MYF(0));
+  // Need to reset seek_not_done now that we just did a seek.
+
+
+  // Retry allocating memory in smaller blocks until we get one
+  for (;;)
+  {
+    size_t buffer_block;
+
+    buffer_block= cachesize * 2;
+
+    if ((_buffer= (uchar*) my_malloc(key_memory_IO_CACHE, buffer_block, (myf) MY_WME)) != 0)
+    {
+      _write_buffer= _buffer + cachesize;
+      _alloced_buffer= buffer_block;
+      break;					// Enough memory found
+    }
+    // Try with less memory
+    cachesize= (cachesize*3/4);
+  }
+  _read_length = cachesize;
+
+  _buffer_length = cachesize;
+  _read_pos = _buffer;
+  _append_read_pos = _write_pos = _write_buffer;
+  _write_end = _write_buffer + _buffer_length;
+
+  _read_end = _buffer;
+
+  _write_new_pos = _write_pos;
+
+  _error = 0;
+
+  _pos_in_file = 0;
+  mysql_mutex_init(key_IO_CACHE_append_buffer_lock, &_read_lock, MY_MUTEX_INIT_FAST);
+  mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
+                   &_buffer_lock, MY_MUTEX_INIT_FAST);
+}
+RingBuffer::~RingBuffer() {
+  sem_destroy(&semaphore);
+  mysql_rwlock_destroy(&flush_rw_lock);
+  if (_file != -1) /* File doesn't exist */
+  {
+    _flush_io_buffer(-1);
+  }
+  my_free(_buffer);
+  mysql_mutex_destroy(&_read_lock);
+  mysql_mutex_destroy(&_buffer_lock);
+  my_close(_file, MYF(MY_WME));
+}
 
 int RingBuffer::_slot_acquire(uchar *&From, size_t &Count) {
   sem_wait(&semaphore);
@@ -218,77 +290,6 @@ int RingBuffer::write_slot(uchar* From, size_t Count) {
 
   _slot_release(slot_id);
   return 0;
-}
-
-RingBuffer::RingBuffer(char* filename, size_t cachesize)
-{
-  _total_size = 0;
-  sem_init(&semaphore, 0, count_thread_for_slots);
-  mysql_rwlock_init(0, &flush_rw_lock);
-  _file = my_open(filename,O_CREAT | O_RDWR,MYF(MY_WME));
-  if (_file >= 0)
-  {
-    my_off_t pos;
-    pos= mysql_file_tell(_file, MYF(0));
-    assert(pos != (my_off_t) -1);
-  }
-
-
-  // Calculate end of file to avoid allocating oversized buffers
-  _end_of_file= mysql_file_seek(_file, 0L, MY_SEEK_END, MYF(0));
-  // Need to reset seek_not_done now that we just did a seek.
-  _seek_not_done= 0;
-
-
-  // Retry allocating memory in smaller blocks until we get one
-  for (;;)
-  {
-    size_t buffer_block;
-
-    buffer_block= cachesize * 2;
-
-    if ((_buffer= (uchar*) my_malloc(key_memory_IO_CACHE, buffer_block, (myf) MY_WME)) != 0)
-    {
-      _write_buffer= _buffer + cachesize;
-      _alloced_buffer= buffer_block;
-      break;					// Enough memory found
-    }
-    // Try with less memory
-    cachesize= (cachesize*3/4);
-  }
-  _read_length = cachesize;
-
-  _buffer_length = cachesize;
-  _read_pos = _buffer;
-  _append_read_pos = _write_pos = _write_buffer;
-  _write_end = _write_buffer + _buffer_length;
-
-  _read_end = _buffer;
-
-  _write_new_pos = _write_pos;
-
-  _error = 0;
-
-  _pos_in_file = 0;
-  mysql_mutex_init(key_IO_CACHE_append_buffer_lock, &_read_lock, MY_MUTEX_INIT_FAST);
-  mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
-                   &_buffer_lock, MY_MUTEX_INIT_FAST);
-  mysql_cond_init(key_IO_CACHE_SHARE_cond_writer, &_cond_writer, 0);
-  mysql_mutex_init(key_IO_CACHE_SHARE_mutex, &_mutex_writer, MY_MUTEX_INIT_FAST);
-}
-RingBuffer::~RingBuffer() {
-  sem_destroy(&semaphore);
-  mysql_rwlock_destroy(&flush_rw_lock);
-  if (_file != -1) /* File doesn't exist */
-  {
-    _flush_io_buffer(-1);
-  }
-  my_free(_buffer);
-  mysql_mutex_destroy(&_read_lock);
-  mysql_mutex_destroy(&_buffer_lock);
-  mysql_cond_destroy(&_cond_writer);
-  mysql_mutex_destroy(&_mutex_writer);
-  my_close(_file, MYF(MY_WME));
 }
 
 int RingBuffer::_flush_io_buffer(int not_released) {
@@ -416,9 +417,6 @@ int RingBuffer::_read_append_slot(uchar *To, size_t Count) {
     mysql_mutex_unlock(&_buffer_lock);
     return -1; // error: buffer size less than needed
   }
-
-
-
   if(_write_pos > _append_read_pos || (Count <= (size_t) (_write_end - _append_read_pos))) {
     memcpy(To, _append_read_pos, Count);
     _append_read_pos += Count;
