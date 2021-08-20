@@ -1685,13 +1685,18 @@ static int wsrep_TOI_begin(THD *thd, const char *db_, const char *table_,
   case SQLCOM_DROP_TABLE:
     buf_err= wsrep_drop_table_query(thd, &buf, &buf_len);
     break;
-  case SQLCOM_CREATE_ROLE:
+  case SQLCOM_KILL:
+    WSREP_DEBUG("KILL as TOI: %s", thd->query());
+    buf_err= wsrep_to_buf_helper(thd, thd->query(), thd->query_length(),
+                                 &buf, &buf_len);
+    break;
+ case SQLCOM_CREATE_ROLE:
     if (sp_process_definer(thd))
     {
       WSREP_WARN("Failed to set CREATE ROLE definer for TOI.");
     }
     /* fallthrough */
-  default:
+   default:
     buf_err= wsrep_to_buf_helper(thd, thd->query(), thd->query_length(),
                                  &buf, &buf_len);
     break;

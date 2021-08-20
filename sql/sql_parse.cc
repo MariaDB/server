@@ -9157,6 +9157,18 @@ static
 void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 {
   uint error;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    WSREP_DEBUG("sql_kill called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  }
+#endif /* WITH_WSREP */
   if (likely(!(error= kill_one_thread(thd, id, state, type))))
   {
     if (!thd->killed)
@@ -9166,6 +9178,11 @@ void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
   }
   else
     my_error(error, MYF(0), id);
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  my_error(ER_CANNOT_USER, MYF(0), id);
+#endif /* WITH_WSREP */
 }
 
 
@@ -9174,6 +9191,18 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    WSREP_DEBUG("sql_kill_user called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  }
+#endif /* WITH_WSREP */
   if (likely(!(error= kill_threads_for_user(thd, user, state, &rows))))
     my_ok(thd, rows);
   else
@@ -9184,6 +9213,11 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     */
     my_error(error, MYF(0), user->host.str, user->user.str);
   }
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  my_error(ER_CANNOT_USER, MYF(0), user);
+#endif /* WITH_WSREP */
 }
 
 
