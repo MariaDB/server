@@ -20,28 +20,19 @@ public:
 
 private:
 
-  struct cache_slot {
+  struct cache_slot_t {
     std::atomic<bool> vacant{true};
-    mysql_mutex_t vacant_lock;
     volatile bool finished = false;
     volatile int next = -1;
     uchar* pos_write_first = nullptr;
     uchar* pos_write_second = nullptr;
     uchar* pos_end = nullptr;
 
-    size_t count_first = 0;
-    size_t count_second = 0;
-
-    cache_slot() {
-      mysql_mutex_init(key_IO_CACHE_append_buffer_lock,
-                       &vacant_lock, MY_MUTEX_INIT_FAST);
-    }
-    ~cache_slot() {
-      mysql_mutex_destroy(&vacant_lock);
-    }
+    volatile size_t count_first = 0;
+    volatile size_t count_second = 0;
   };
   static const int count_thread_for_slots = 4;
-  cache_slot _slots[count_thread_for_slots];
+  cache_slot_t _slots[count_thread_for_slots];
 
   sem_t semaphore;
 
