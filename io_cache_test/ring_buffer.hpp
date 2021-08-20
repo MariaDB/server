@@ -64,20 +64,30 @@ private:
 
 
     if(Count > (_buffer_length - _total_size)) {
-      size_t rest_length_to_right_border = _write_end - _write_new_pos;
-      memcpy(_write_new_pos, From, rest_length_to_right_border);
-      _total_size += rest_length_to_right_border;
-      Count -= rest_length_to_right_border;
-      From += rest_length_to_right_border;
-      _write_pos += rest_length_to_right_border;
 
-      size_t rest_length_to_read_border = _append_read_pos - _write_buffer;
-      memcpy(_write_buffer, From, rest_length_to_read_border);
-      _total_size += rest_length_to_read_border;
-      Count -= rest_length_to_read_border;
-      From += rest_length_to_read_border;
-      _write_pos = _write_buffer + rest_length_to_read_border;
+      if(_write_new_pos < _append_read_pos) {
+        size_t rest_length = _append_read_pos - _write_new_pos;
+        memcpy(_write_new_pos, From, rest_length);
+        _total_size += rest_length;
+        Count -= rest_length;
+        From += rest_length;
+        _write_pos = _write_new_pos + rest_length;
+      }
+      else {
+        size_t rest_length_to_right_border = _write_end - _write_new_pos;
+        memcpy(_write_new_pos, From, rest_length_to_right_border);
+        _total_size += rest_length_to_right_border;
+        Count -= rest_length_to_right_border;
+        From += rest_length_to_right_border;
+        _write_pos += rest_length_to_right_border;
 
+        size_t rest_length_to_read_border = _append_read_pos - _write_buffer;
+        memcpy(_write_buffer, From, rest_length_to_read_border);
+        _total_size += rest_length_to_read_border;
+        Count -= rest_length_to_read_border;
+        From += rest_length_to_read_border;
+        _write_pos = _write_buffer + rest_length_to_read_border;
+      }
       mysql_rwlock_wrlock(&flush_rw_lock);
       _flush_io_buffer(i);
       mysql_rwlock_unlock(&flush_rw_lock);
@@ -92,7 +102,12 @@ private:
 
     _slots[i].pos_write_first= _write_new_pos;
 
-    size_t rest_length_to_right_border = _write_end - _write_new_pos;
+    size_t rest_length_to_right_border;
+    if(_write_new_pos < _append_read_pos)
+      rest_length_to_right_border = _append_read_pos - _write_new_pos;
+    else
+      rest_length_to_right_border = _write_end - _write_new_pos;
+
     if(Count > rest_length_to_right_border) {
       _slots[i].count_first = rest_length_to_right_border;
       _slots[i].pos_write_second = _write_buffer;
@@ -104,6 +119,7 @@ private:
       _slots[i].count_first = Count;
       _slots[i].pos_end = (_write_new_pos += Count);
     }
+
     _total_size += Count;
     mysql_mutex_unlock(&_buffer_lock);
     return i;
