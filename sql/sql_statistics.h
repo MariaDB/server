@@ -169,7 +169,8 @@ public:
 
   virtual void set_size(ulonglong sz)=0;
 
-  virtual double point_selectivity(double pos, double avg_selection)=0;
+  virtual double point_selectivity(Field *field, key_range *min_endp,
+                                   key_range *max_endp, double avg_selection)=0;
 
   virtual double range_selectivity(Field *field, key_range *min_endp,
                                        key_range *max_endp)=0;
@@ -333,7 +334,8 @@ public:
   /*
     Estimate selectivity of "col=const" using a histogram
   */
-  double point_selectivity(double pos, double avg_sel) override;
+  double point_selectivity(Field *field, key_range *min_endp,
+                           key_range *max_endp, double avg_sel) override;
 };
 
 class Histogram_json : public Histogram_base
@@ -385,7 +387,7 @@ public:
 
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size) override;
 
-  bool is_available() override {return get_width() > 0 /*&& get_values()*/; }
+  bool is_available() override {return true; }
 
   bool is_usable(THD *thd) override
   {
@@ -397,11 +399,9 @@ public:
 
   uchar *get_values() override { return (uchar *) values; }
 
-  double point_selectivity(double pos, double avg_selection) override {return 0.5;}
+  double point_selectivity(Field *field, key_range *min_endp,
+                           key_range *max_endp, double avg_selection) override;
 
-  /*
-    GSOC-TODO: This function should eventually replace point_selectivity(). See its code for more details.
-  */
   double range_selectivity(Field *field, key_range *min_endp,
                                        key_range *max_endp) override;
 

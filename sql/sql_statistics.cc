@@ -1452,6 +1452,11 @@ double pos_in_interval_through_strxfrm(Field *field,
 }
 
 
+double Histogram_json::point_selectivity(Field *field, key_range *min_endp,
+                                           key_range *max_endp, double avg_sel)
+{
+  return 0.5;
+}
 /*
   @param field  The table field histogram is for.  We don't care about the
                  field's current value, we only need its virtual functions to 
@@ -4320,12 +4325,8 @@ double get_column_range_cardinality(Field *field,
         Histogram_base *hist = col_stats->histogram_;
         if (hist && hist->is_usable(thd))
         {
-          store_key_image_to_rec(field, (uchar *) min_endp->key,
-                                 field->key_length());
-          double pos= field->pos_in_interval(col_stats->min_value,
-                                             col_stats->max_value);
           res= col_non_nulls * 
-	       hist->point_selectivity(pos,
+	       hist->point_selectivity(field, min_endp, max_endp,
                                        avg_frequency / col_non_nulls);
         }
       }
@@ -4356,8 +4357,11 @@ double get_column_range_cardinality(Field *field,
 /*
   Estimate selectivity of "col=const" using a histogram
   
-  @param pos      Position of the "const" between column's min_value and 
-                  max_value.  This is a number in [0..1] range.
+  @param field - the field to estimate its selectivity.
+
+  @param min_endp, max_endp - Specifies the left and right bounds. For point selectivity,
+  they are both equal.
+
   @param avg_sel  Average selectivity of condition "col=const" in this table.
                   It is calcuated as (#non_null_values / #distinct_values).
   
@@ -4386,9 +4390,15 @@ double get_column_range_cardinality(Field *field,
       value.
 */
 
-double Histogram_binary::point_selectivity(double pos, double avg_sel)
+double Histogram_binary::point_selectivity(Field *field, key_range *min_endp,
+                                           key_range *max_endp, double avg_sel)
 {
   double sel;
+  Column_statistics *col_stats= field->read_stats;
+  store_key_image_to_rec(field, (uchar *) min_endp->key,
+                         field->key_length());
+  double pos= field->pos_in_interval(col_stats->min_value,
+                                     col_stats->max_value);
   /* Find the bucket that contains the value 'pos'. */
   uint min= find_bucket(pos, TRUE);
   uint pos_value= (uint) (pos * prec_factor());
