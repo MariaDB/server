@@ -234,6 +234,8 @@
 #define OPTIMIZER_SWITCH_USE_ROWID_FILTER          (1ULL << 33)
 #define OPTIMIZER_SWITCH_COND_PUSHDOWN_FROM_HAVING (1ULL << 34)
 #define OPTIMIZER_SWITCH_NOT_NULL_RANGE_SCAN       (1ULL << 35)
+#define OPTIMIZER_SWITCH_REORDER                   (1ULL << 36)
+
 
 #define OPTIMIZER_SWITCH_DEFAULT   (OPTIMIZER_SWITCH_INDEX_MERGE | \
                                     OPTIMIZER_SWITCH_INDEX_MERGE_UNION | \
@@ -253,6 +255,7 @@
                                     OPTIMIZER_SWITCH_JOIN_CACHE_INCREMENTAL | \
                                     OPTIMIZER_SWITCH_JOIN_CACHE_HASHED | \
                                     OPTIMIZER_SWITCH_JOIN_CACHE_BKA | \
+                                    OPTIMIZER_SWITCH_REORDER | \
                                     OPTIMIZER_SWITCH_SUBQUERY_CACHE | \
                                     OPTIMIZER_SWITCH_SEMIJOIN | \
                                     OPTIMIZER_SWITCH_FIRSTMATCH | \

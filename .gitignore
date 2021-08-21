@@ -11,7 +11,12 @@
 *.mri
 *.mri.tpl
 .gdb_history
-.vs/
+/.vs/
+/.cproject
+/.project
+/.settings/
+/BUILD/
+/build*/
 errmsg.sys
 typescript
 _CPack_Packages

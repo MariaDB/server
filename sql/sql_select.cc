@@ -2558,7 +2558,14 @@ int JOIN::optimize_stage2()
     (void) mysql_unlock_some_tables(thd, table, const_tables,
                                     GET_LOCK_SKIP_SEQUENCES);
   }
-  if (!conds && outer_join)
+
+  if (conds)
+  {
+    if (optimizer_flag(thd, OPTIMIZER_SWITCH_REORDER))
+    {
+    }
+  }
+  else if (outer_join)
   {
     /* Handle the case where we have an OUTER JOIN without a WHERE */
     conds= (Item*) Item_true;
