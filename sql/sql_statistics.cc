@@ -1452,10 +1452,37 @@ double pos_in_interval_through_strxfrm(Field *field,
 }
 
 
-double Histogram_json::point_selectivity(Field *field, key_range *min_endp,
-                                           key_range *max_endp, double avg_sel)
+double Histogram_json::point_selectivity(Field *field, key_range *endpoint, double avg_sel)
 {
-  return 0.5;
+  double sel;
+  store_key_image_to_rec(field, (uchar *) endpoint->key,
+                         field->key_length());
+  const uchar *min_key = endpoint->key;
+  if (field->real_maybe_null())
+    min_key++;
+  uint min_idx= find_bucket(field, min_key);
+
+  uint max_idx= min_idx;
+
+  // find how many buckets this value occupies
+  while ((max_idx + 1 < get_width() ) &&
+         (field->key_cmp((uchar *)histogram_bounds[max_idx + 1].data(), min_key) == 0)) {
+    max_idx++;
+  }
+
+  //todo: do we need to account for zero value-length similarly to binary histograms.
+
+  if (max_idx > min_idx)
+  {
+    // value spans multiple buckets
+    double bucket_sel= 1.0/(get_width() + 1);
+    sel= bucket_sel * (max_idx - min_idx + 1);
+  } else
+  {
+    // the value fits within a single bucket
+    sel = MIN(avg_sel, get_width());
+  }
+  return sel;
 }
 /*
   @param field  The table field histogram is for.  We don't care about the
@@ -1572,11 +1599,8 @@ int Histogram_json::find_bucket(Field *field, const uchar *endpoint)
     if (res < 0) {
       low = mid + 1;
       min_bucket_index = mid;
-    } else if (res > 0) {
+    } else if (res >= 0) {
       high = mid - 1;
-    } else {
-      //todo: endpoint is on a bucket boundary
-      break;
     }
   }
 
@@ -4326,7 +4350,7 @@ double get_column_range_cardinality(Field *field,
         if (hist && hist->is_usable(thd))
         {
           res= col_non_nulls * 
-	       hist->point_selectivity(field, min_endp, max_endp,
+	       hist->point_selectivity(field, min_endp,
                                        avg_frequency / col_non_nulls);
         }
       }
@@ -4390,8 +4414,7 @@ double get_column_range_cardinality(Field *field,
       value.
 */
 
-double Histogram_binary::point_selectivity(Field *field, key_range *min_endp,
-                                           key_range *max_endp, double avg_sel)
+double Histogram_binary::point_selectivity(Field *field, key_range *min_endp, double avg_sel)
 {
   double sel;
   Column_statistics *col_stats= field->read_stats;

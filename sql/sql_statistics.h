@@ -169,8 +169,7 @@ public:
 
   virtual void set_size(ulonglong sz)=0;
 
-  virtual double point_selectivity(Field *field, key_range *min_endp,
-                                   key_range *max_endp, double avg_selection)=0;
+  virtual double point_selectivity(Field *field, key_range *endpoint, double avg_selection)=0;
 
   virtual double range_selectivity(Field *field, key_range *min_endp,
                                        key_range *max_endp)=0;
@@ -334,8 +333,7 @@ public:
   /*
     Estimate selectivity of "col=const" using a histogram
   */
-  double point_selectivity(Field *field, key_range *min_endp,
-                           key_range *max_endp, double avg_sel) override;
+  double point_selectivity(Field *field, key_range *endpoint, double avg_sel) override;
 };
 
 class Histogram_json : public Histogram_base
@@ -399,8 +397,7 @@ public:
 
   uchar *get_values() override { return (uchar *) values; }
 
-  double point_selectivity(Field *field, key_range *min_endp,
-                           key_range *max_endp, double avg_selection) override;
+  double point_selectivity(Field *field, key_range *endpoint, double avg_selection) override;
 
   double range_selectivity(Field *field, key_range *min_endp,
                                        key_range *max_endp) override;
