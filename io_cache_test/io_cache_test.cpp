@@ -18,6 +18,8 @@ void *read_to_cache(void *) {
 }
 
 void *write_to_cache(void *args) {
+  struct st_my_thread_var thdvar;
+  set_mysys_var(&thdvar);
   pthread_barrier_wait(&barrier);
   int *v_args= (int *) args;
   for (int i= v_args[0]; i < v_args[1]; ++i)
