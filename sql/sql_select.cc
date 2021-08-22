@@ -3278,13 +3278,12 @@ bool JOIN::make_aggr_tables_info()
       /*
         Check if the storage engine can intercept the query.
 
-        JOIN::optimize_stage2() might convert DISTINCT into GROUP BY and then
-        optimize away GROUP BY (group_list). In such a case, we need to notify
-        a storage engine supporting a group by handler of the existence of the
-        original DISTINCT. Thus, we set select_distinct || group_optimized_away
-        to Query::distinct.
+        The query optimizer might optimize away aggregation functins or DISTINCT.
+        In such a cage, we need to notify a storage engine supporting a group by
+        handler of the existence of the original explicit or implicit grouping.
+        Thus, we set select_distinct || implicit_grouping to Query::distinct.
       */
-      Query query= {&all_fields, select_distinct || group_optimized_away, tables_list,
+      Query query= {&all_fields, select_distinct || implicit_grouping, tables_list,
                     conds, group_list, order ? order : group_list, having};
       group_by_handler *gbh= ht->create_group_by(thd, &query);
 
