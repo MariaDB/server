@@ -1470,8 +1470,6 @@ double Histogram_json::point_selectivity(Field *field, key_range *endpoint, doub
     max_idx++;
   }
 
-  //todo: do we need to account for zero value-length similarly to binary histograms.
-
   if (max_idx > min_idx)
   {
     // value spans multiple buckets
@@ -1480,7 +1478,7 @@ double Histogram_json::point_selectivity(Field *field, key_range *endpoint, doub
   } else
   {
     // the value fits within a single bucket
-    sel = MIN(avg_sel, get_width());
+    sel = MY_MIN(avg_sel, (1.0/get_width()));
   }
   return sel;
 }
@@ -1494,7 +1492,7 @@ double Histogram_json::point_selectivity(Field *field, key_range *endpoint, doub
 double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
                                              key_range *max_endp)
 {
-  fprintf(stderr, "Histogram_json::range_selectivity\n");
+  //fprintf(stderr, "Histogram_json::range_selectivity\n");
   double min = 0.0, max = 1.0;
   double width = 1.0/(int)histogram_bounds.size();
   if (min_endp)
@@ -1529,8 +1527,8 @@ double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
     }
 
     min = min_bucket_idx * (width) + min_sel * (width);
-    fprintf(stderr, "min pos_in_interval =%g\n", min_sel);
-    fprintf(stderr, "min =%g\n", min);
+    //fprintf(stderr, "min pos_in_interval =%g\n", min_sel);
+    //fprintf(stderr, "min =%g\n", min);
   }
   if (max_endp)
   {
@@ -1562,13 +1560,13 @@ double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
     }
 
     max = min_bucket_idx * (width) + max_sel * (width);
-    fprintf(stderr, "max pos_in_interval =%g\n", max_sel);
-    fprintf(stderr, "max =%g\n", max);
+    //fprintf(stderr, "max pos_in_interval =%g\n", max_sel);
+    //fprintf(stderr, "max =%g\n", max);
   }
 
   double sel = max - min;
-  fprintf(stderr, "final selection = %g\n", sel);
-  fprintf(stderr, "Histogram_json::range_selectivity ends\n");
+  //fprintf(stderr, "final selection = %g\n", sel);
+  //fprintf(stderr, "Histogram_json::range_selectivity ends\n");
   return sel;
 }
 
@@ -4504,7 +4502,6 @@ double Histogram_binary::range_selectivity(Field *field,
                                                key_range *min_endp,
                                                key_range *max_endp)
 {
-  fprintf(stderr, "Histogram_binary::range_selectivity\n");
   double sel, min_mp_pos, max_mp_pos;
   Column_statistics *col_stats= field->read_stats;
 
@@ -4527,8 +4524,6 @@ double Histogram_binary::range_selectivity(Field *field,
   else
     max_mp_pos= 1.0;
 
-  // GSOC-todo: previously it was if (hist && hist->is_usable) - I wonder in what cases
-  // (hist) would be null and if it makes sense to handle that case now.
   if (is_usable(field->table->in_use))
   {
     double bucket_sel= 1.0 / (get_width() + 1);
@@ -4536,19 +4531,18 @@ double Histogram_binary::range_selectivity(Field *field,
     uint max= find_bucket(max_mp_pos, FALSE);
     sel= bucket_sel * (max - min + 1);
 
-    fprintf(stderr, "bucket_sel =%g\n", bucket_sel);
+    /*fprintf(stderr, "bucket_sel =%g\n", bucket_sel);
     fprintf(stderr, "min pos_in_interval =%g\n", min_mp_pos);
     fprintf(stderr, "max pos_in_interval =%g\n", max_mp_pos);
     fprintf(stderr, "min =%d\n", min);
-    fprintf(stderr, "max =%d\n", max);
+    fprintf(stderr, "max =%d\n", max);*/
   }
   else
   {
-    /* GSOC-todo: figure how to handle the else case below for Histogram_json*/
     sel= (max_mp_pos - min_mp_pos);
   }
-  fprintf(stderr, "final sel =%g\n", sel);
-  fprintf(stderr, "Histogram_binary::range_selectivity ends\n");
+  /*fprintf(stderr, "final sel =%g\n", sel);
+  fprintf(stderr, "Histogram_binary::range_selectivity ends\n");*/
   return sel;
 }
 
