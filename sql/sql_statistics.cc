@@ -1992,6 +1992,7 @@ public:
 class Histogram_builder_json : public Histogram_builder
 {
   std::vector<std::string> bucket_bounds;
+  bool got_first_value = false;
 
 public:
   Histogram_builder_json(Field *col, uint col_len, ha_rows rows)
@@ -2021,7 +2022,7 @@ public:
       while (curr_bucket != hist_width &&
              count > bucket_capacity * (curr_bucket + 1))
       {
-        auto it = bucket_bounds.begin();
+        it = bucket_bounds.begin();
         bucket_bounds.insert(it+curr_bucket, bucket_bounds[curr_bucket-1]);
         curr_bucket++;
       }
