@@ -541,6 +541,10 @@ String *Item_func_decode_histogram::val_str(String *str)
   str->length(0);
   char numbuf[32];
   const uchar *p= (uchar*)res->c_ptr_safe();
+  if (type == JSON)
+  {
+    return res;
+  }
   for (i= 0; i < res->length(); i++)
   {
     double val;

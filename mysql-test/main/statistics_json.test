@@ -1,9 +1,13 @@
---source include/have_stat_tables.inc
---source include/have_sequence.inc
---source include/analyze-format.inc
 --echo #
 --echo # Test that we can store JSON arrays in histogram field mysql.column_stats when histogram_type=JSON
 --echo #
+
+let $histogram_type_override='JSON';
+--source statistics.test
+
+--source include/have_stat_tables.inc
+--source include/have_sequence.inc
+--source include/analyze-format.inc
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
@@ -14,22 +18,31 @@ set @save_histogram_size=@@histogram_size;
 create table ten(a int primary key);
 insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
 
+set histogram_size=100;
+set histogram_type='double_prec_hb';
 create table t1_bin (a varchar(255));
 insert into t1_bin select concat('a-', a) from ten;
-
-set histogram_size=100;
 analyze table t1_bin persistent for all;
 select hex(histogram) from mysql.column_stats where table_name='t1_bin';
 explain extended select * from t1_bin where a between 'a-3a' and 'zzzzzzzzz';
 analyze select * from t1_bin where a between 'a-3a' and 'zzzzzzzzz';
 
+set histogram_type=json;
 create table t1_json (a varchar(255));
 insert into t1_json select concat('a-', a) from ten;
-set histogram_type=json;
 analyze table t1_json persistent for all;
 select * from mysql.column_stats where table_name='t1_json';
 explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 analyze select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
+explain extended select * from t1_json where a < 'b-1a';
+analyze select * from t1_json where a > 'zzzzzzzzz';
+
+# test different valid JSON strings that are invalid histograms.
+UPDATE mysql.column_stats SET histogram='["a-1", "a-2", {"a": "b"}, "a-3"]' WHERE table_name='t1_json';
+FLUSH TABLES;
+--error ER_JSON_HISTOGRAM_PARSE_FAILED
+explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
+
 
 --source include/have_sequence.inc
 create table users (
@@ -42,93 +55,15 @@ set histogram_type=json;
 analyze table users persistent for all;
 explain extended select * from users where city = 'Moscow';
 analyze select * from users where city = 'Moscow';
-
 explain extended select * from users where city = 'Helsinki';
 analyze select * from users where city = 'helsinki';
-
+explain extended select * from users where city < 'Lagos';
 
 drop table t1_bin;
 drop table t1_json;
 drop table users;
 
-CREATE TABLE t1 (
-    a int NOT NULL PRIMARY KEY,
-    b varchar(32),
-    c char(16),
-    d date,
-    e double,
-    f bit(3),
-    INDEX idx1 (b, e),
-    INDEX idx2 (c, d),
-    INDEX idx3 (d),
-    INDEX idx4 (e, b, d)
-);
-
---disable_result_log
-
-INSERT INTO t1 VALUES
-  (0, NULL, NULL, NULL, NULL, NULL),
-  (7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'dddddddd', '1990-05-15', 0.1, b'100'),
-  (17, 'vvvvvvvvvvvvv', 'aaaa', '1989-03-12', 0.01, b'101'),
-  (1, 'vvvvvvvvvvvvv', NULL, '1989-03-12', 0.01, b'100'),
-  (12, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.112, b'001'),
-  (23, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.1, b'100'),
-  (8, 'vvvvvvvvvvvvv', 'aaaa', '1999-07-23', 0.1, b'100'),
-  (22, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'aaaa', '1989-03-12', 0.112, b'001'),
-  (31, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'aaaa', '1999-07-23', 0.01, b'001'),
-  (10, NULL, 'aaaa', NULL, 0.01, b'010'),
-  (5, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.1, b'100'),
-  (15, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.1, b'010'),
-  (30, NULL, 'bbbbbb', NULL, NULL, b'100'),
-  (38, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, NULL, NULL),
-  (18, 'zzzzzzzzzzzzzzzzzz', 'ccccccccc', '1990-05-15', 0.01, b'010'),
-  (9, 'yyy', 'bbbbbb', '1998-08-28', 0.01, NULL),
-  (29, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.012, b'010'),
-  (3, 'yyy', 'dddddddd',  '1990-05-15', 0.112, b'010'),
-  (39, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, 0.01, b'100'),
-  (14, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.1, b'100'),
-  (40, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', '1989-03-12', NULL, NULL),
-  (44, NULL, 'aaaa', '1989-03-12', NULL, b'010'),
-  (19, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.012, b'011'),
-  (21, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.112, b'100'),
-  (45, NULL, NULL, '1989-03-12', NULL, b'011'),
-  (2, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'ccccccccc', '1990-05-15', 0.1, b'001'),
-  (35, 'yyy', 'aaaa', '1990-05-15', 0.05, b'011'),
-  (4, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.01, b'101'),
-  (47, NULL, 'aaaa', '1990-05-15', 0.05, b'010'),
-  (42, NULL, 'ccccccccc', '1989-03-12', 0.01, b'010'),
-  (32, NULL, 'bbbbbb', '1990-05-15', 0.01, b'011'),
-  (49, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'aaaa', '1990-05-15', NULL, NULL),
-  (43, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'bbbbbb', '1990-05-15', NULL, b'100'),
-  (37, 'yyy', NULL, '1989-03-12', 0.05, b'011'),
-  (41, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.05, NULL),
-  (34, 'yyy', NULL, NULL, NULL, NULL),
-  (33, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.05, b'011'),
-  (24,  'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1990-05-15', 0.01,  b'101'),
-  (11, 'yyy', 'ccccccccc', '1999-07-23', 0.1, NULL),
-  (25, 'zzzzzzzzzzzzzzzzzz', 'bbb', '1989-03-12', 0.01,  b'101');
---enable_result_log
-
-SET histogram_type='JSON';
-set histogram_size=25;
-
-ANALYZE TABLE t1 persistent for all;
-SELECT * FROM mysql.table_stats;
-SELECT * FROM mysql.column_stats;
-SELECT * FROM mysql.index_stats;
-SELECT COUNT(*) FROM t1;
-
-explain extended select * from t1 where a between '20' and '70';
-analyze select * from t1 where a between '20' and '70';
-
-# test different valid JSON strings that are invalid histograms.
-UPDATE mysql.column_stats SET histogram='["1", {"a": "b"}, "2"]' WHERE table_name='t1';
-FLUSH TABLES;
---error ER_JSON_HISTOGRAM_PARSE_FAILED
-explain extended select * from t1 where a between '20' and '70';
-
 DELETE FROM mysql.column_stats;
-DROP TABLE t1;
 
 create schema world;
 use world;
@@ -150,6 +85,8 @@ ANALYZE TABLE Country, City, CountryLanguage persistent for all;
 SELECT column_name, min_value, max_value, hist_size, hist_type, histogram FROM mysql.column_stats;
 explain extended select * from Country where 'Code' between 'BBC' and 'GGG';
 analyze select * from Country where 'Code' between 'BBC' and 'GGG';
+explain extended select * from Country where 'Code' < 'BBC';
+analyze select * from Country where 'Code' < 'BBC';
 
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
