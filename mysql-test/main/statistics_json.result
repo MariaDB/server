@@ -1,14 +1,2305 @@
 #
 # Test that we can store JSON arrays in histogram field mysql.column_stats when histogram_type=JSON
 #
+set @SINGLE_PREC_TYPE='single_prec_hb';
+set @DOUBLE_PREC_TYPE='double_prec_hb';
+set @DEFAULT_HIST_TYPE=@@histogram_type;
+set @SINGLE_PREC_TYPE='JSON';
+set @DOUBLE_PREC_TYPE='JSON';
+set @DEFAULT_HIST_TYPE='JSON';
+drop table if exists t1,t2;
+set @save_use_stat_tables=@@use_stat_tables;
+set @save_histogram_size=@@global.histogram_size;
+set @@global.histogram_size=0,@@local.histogram_size=0;
+set @save_hist_type=@DEFAULT_HIST_TYPE;
+set histogram_type=@SINGLE_PREC_TYPE;
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+set use_stat_tables='preferably';
+CREATE TABLE t1 (
+a int NOT NULL PRIMARY KEY,
+b varchar(32),
+c char(16),
+d date,
+e double,
+f bit(3),
+INDEX idx1 (b, e), 
+INDEX idx2 (c, d),
+INDEX idx3 (d),
+INDEX idx4 (e, b, d)
+) ENGINE= MYISAM;
+INSERT INTO t1 VALUES
+(0, NULL, NULL, NULL, NULL, NULL),
+(7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'dddddddd', '1990-05-15', 0.1, b'100'),
+(17, 'vvvvvvvvvvvvv', 'aaaa', '1989-03-12', 0.01, b'101'),
+(1, 'vvvvvvvvvvvvv', NULL, '1989-03-12', 0.01, b'100'),
+(12, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.112, b'001'),
+(23, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.1, b'100'),
+(8, 'vvvvvvvvvvvvv', 'aaaa', '1999-07-23', 0.1, b'100'),
+(22, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'aaaa', '1989-03-12', 0.112, b'001'),
+(31, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'aaaa', '1999-07-23', 0.01, b'001'),
+(10, NULL, 'aaaa', NULL, 0.01, b'010'),
+(5, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.1, b'100'),
+(15, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.1, b'010'),
+(30, NULL, 'bbbbbb', NULL, NULL, b'100'),
+(38, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, NULL, NULL),
+(18, 'zzzzzzzzzzzzzzzzzz', 'ccccccccc', '1990-05-15', 0.01, b'010'),
+(9, 'yyy', 'bbbbbb', '1998-08-28', 0.01, NULL),
+(29, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.012, b'010'),
+(3, 'yyy', 'dddddddd',  '1990-05-15', 0.112, b'010'),
+(39, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, 0.01, b'100'),
+(14, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.1, b'100'),
+(40, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', '1989-03-12', NULL, NULL),
+(44, NULL, 'aaaa', '1989-03-12', NULL, b'010'),
+(19, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.012, b'011'),
+(21, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.112, b'100'),
+(45, NULL, NULL, '1989-03-12', NULL, b'011'),
+(2, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'ccccccccc', '1990-05-15', 0.1, b'001'),
+(35, 'yyy', 'aaaa', '1990-05-15', 0.05, b'011'),
+(4, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.01, b'101'),
+(47, NULL, 'aaaa', '1990-05-15', 0.05, b'010'),
+(42, NULL, 'ccccccccc', '1989-03-12', 0.01, b'010'),
+(32, NULL, 'bbbbbb', '1990-05-15', 0.01, b'011'),
+(49, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'aaaa', '1990-05-15', NULL, NULL),
+(43, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'bbbbbb', '1990-05-15', NULL, b'100'),
+(37, 'yyy', NULL, '1989-03-12', 0.05, b'011'),
+(41, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.05, NULL),
+(34, 'yyy', NULL, NULL, NULL, NULL),
+(33, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.05, b'011'),
+(24,  'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1990-05-15', 0.01,  b'101'),
+(11, 'yyy', 'ccccccccc', '1999-07-23', 0.1, NULL),
+(25, 'zzzzzzzzzzzzzzzzzz', 'bbb', '1989-03-12', 0.01,  b'101');
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+40
+SELECT * FROM mysql.column_stats
+WHERE db_name='test' AND table_name='t1' AND column_name='a';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+SELECT MIN(t1.a), MAX(t1.a), 
+(SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.a)",
+(SELECT COUNT(t1.a) FROM t1) /
+(SELECT COUNT(DISTINCT t1.a) FROM t1) AS "AVG_FREQUENCY(t1.a)"
+FROM t1;
+MIN(t1.a)	MAX(t1.a)	NULLS_RATIO(t1.a)	AVG_FREQUENCY(t1.a)
+0	49	0.2000	1.0000
+SELECT * FROM mysql.column_stats
+WHERE db_name='test' AND table_name='t1' AND column_name='b';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+SELECT MIN(t1.b), MAX(t1.b), 
+(SELECT COUNT(*) FROM t1 WHERE t1.b IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.b)",
+(SELECT COUNT(t1.b) FROM t1) /
+(SELECT COUNT(DISTINCT t1.b) FROM t1) AS "AVG_FREQUENCY(t1.b)"
+FROM t1;
+MIN(t1.b)	MAX(t1.b)	NULLS_RATIO(t1.b)	AVG_FREQUENCY(t1.b)
+vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000
+SELECT * FROM mysql.column_stats 
+WHERE db_name='test' AND table_name='t1' AND column_name='c';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+SELECT MIN(t1.c), MAX(t1.c), 
+(SELECT COUNT(*) FROM t1 WHERE t1.c IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.c)",
+(SELECT COUNT(t1.c) FROM t1) /
+(SELECT COUNT(DISTINCT t1.c) FROM t1) AS "AVG_FREQUENCY(t1.c)"
+FROM t1;
+MIN(t1.c)	MAX(t1.c)	NULLS_RATIO(t1.c)	AVG_FREQUENCY(t1.c)
+aaaa	dddddddd	0.1250	7.0000
+SELECT * FROM mysql.column_stats
+WHERE db_name='test' AND table_name='t1' AND column_name='d';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+SELECT MIN(t1.d), MAX(t1.d), 
+(SELECT COUNT(*) FROM t1 WHERE t1.d IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.d)",
+(SELECT COUNT(t1.d) FROM t1) /
+(SELECT COUNT(DISTINCT t1.d) FROM t1) AS "AVG_FREQUENCY(t1.d)"
+FROM t1;
+MIN(t1.d)	MAX(t1.d)	NULLS_RATIO(t1.d)	AVG_FREQUENCY(t1.d)
+1989-03-12	1999-07-23	0.1500	8.5000
+SELECT * FROM mysql.column_stats
+WHERE db_name='test' AND table_name='t1' AND column_name='e';
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+SELECT MIN(t1.e), MAX(t1.e), 
+(SELECT COUNT(*) FROM t1 WHERE t1.e IS NULL) /
+(SELECT COUNT(*) FROM t1) AS "NULLS_RATIO(t1.e)",
+(SELECT COUNT(t1.e) FROM t1) /
+(SELECT COUNT(DISTINCT t1.e) FROM t1) AS "AVG_FREQUENCY(t1.e)"
+FROM t1;
+MIN(t1.e)	MAX(t1.e)	NULLS_RATIO(t1.e)	AVG_FREQUENCY(t1.e)
+0.01	0.112	0.2250	6.2000
+SELECT * FROM mysql.index_stats
+WHERE db_name='test' AND table_name='t1' AND index_name='idx1';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+SELECT 
+(SELECT COUNT(*) FROM t1 WHERE t1.b IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.b) FROM t1 WHERE t1.b IS NOT NULL)
+AS 'ARITY 1',
+(SELECT COUNT(*) FROM t1 WHERE t1.b IS NOT NULL AND t1.e IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.b, t1.e) FROM t1
+WHERE t1.b IS NOT NULL AND t1.e IS NOT NULL) 
+AS 'ARITY 2';
+ARITY 1	ARITY 2
+6.4000	1.6875
+SELECT * FROM mysql.index_stats
+WHERE db_name='test' AND table_name='t1' AND index_name='idx2';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+SELECT 
+(SELECT COUNT(*) FROM t1 WHERE t1.c IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.c) FROM t1 WHERE t1.c IS NOT NULL) 
+AS 'ARITY 1',
+(SELECT COUNT(*) FROM t1 WHERE t1.c IS NOT NULL AND t1.d IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.c, t1.d) FROM t1
+WHERE t1.c IS NOT NULL AND t1.d IS NOT NULL)
+AS 'ARITY 2';
+ARITY 1	ARITY 2
+7.0000	2.3846
+SELECT * FROM mysql.index_stats
+WHERE db_name='test' AND table_name='t1' AND index_name='idx3';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx3	1	8.5000
+SELECT 
+(SELECT COUNT(*) FROM t1 WHERE t1.d IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.d) FROM t1 WHERE t1.d IS NOT NULL)
+AS 'ARITY 1';
+ARITY 1
+8.5000
+SELECT * FROM mysql.index_stats
+WHERE db_name='test' AND table_name='t1' AND index_name='idx4';
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+SELECT 
+(SELECT COUNT(*) FROM t1 WHERE t1.e IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.e) FROM t1 WHERE t1.e IS NOT NULL)
+AS 'ARITY 1',
+(SELECT COUNT(*) FROM t1 WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL) /
+(SELECT COUNT(DISTINCT t1.e, t1.b) FROM t1
+WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL)
+AS 'ARITY 2',
+(SELECT COUNT(*) FROM t1
+WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL) /  
+(SELECT COUNT(DISTINCT t1.e, t1.b, t1.d) FROM t1
+WHERE t1.e IS NOT NULL AND t1.b IS NOT NULL AND t1.d IS NOT NULL)
+AS 'ARITY 3';
+ARITY 1	ARITY 2	ARITY 3
+6.2000	1.6875	1.1304
+DELETE FROM mysql.column_stats;
+set histogram_size=4;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+SELECT db_name, table_name, column_name,
+min_value, max_value,
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	0	49	0.0000	1.0000	4	JSON	5B0A20202239222C0A2020223139222C0A2020223331222C0A2020223430220A5D
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	4	JSON	5B0A20202276767676767676767676767676222C0A20202277777777777777777777777777777777777777777777777777777777222C0A202022797979222C0A2020227A7A7A7A7A7A7A7A7A7A7A7A7A7A7A7A7A7A220A5D
+test	t1	c	aaaa	dddddddd	0.1250	7.0000	4	JSON	5B0A20202261616161222C0A202022626262626262222C0A202022636363636363636363222C0A2020226464646464646464220A5D
+test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	4	JSON	5B0A202022313938392D30332D3132222C0A202022313939302D30352D3135222C0A202022313939302D30352D3135222C0A202022313939392D30372D3233220A5D
+test	t1	e	0.01	0.112	0.2250	6.2000	4	JSON	5B0A202022302E3031222C0A202022302E303132222C0A202022302E3035222C0A202022302E31220A5D
+test	t1	f	1	5	0.2000	6.4000	4	JSON	5B0A20202202222C0A20202203222C0A20202204222C0A20202204220A5D
+DELETE FROM mysql.column_stats;
+set histogram_size=8;
+set histogram_type=@DOUBLE_PREC_TYPE;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+SELECT db_name, table_name, column_name,
+min_value, max_value,
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	0	49	0.0000	1.0000	8	JSON	5B0A20202234222C0A20202239222C0A2020223135222C0A2020223231222C0A2020223239222C0A2020223333222C0A2020223339222C0A2020223433220A5D
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	6.4000	8	JSON	5B0A20202276767676767676767676767676222C0A20202276767676767676767676767676222C0A20202277777777777777777777777777777777777777777777777777777777222C0A20202277777777777777777777777777777777777777777777777777777777222C0A2020227878787878787878787878787878787878787878787878787878222C0A202022797979222C0A202022797979222C0A2020227A7A7A7A7A7A7A7A7A7A7A7A7A7A7A7A7A7A220A5D
+test	t1	c	aaaa	dddddddd	0.1250	7.0000	8	JSON	5B0A20202261616161222C0A20202261616161222C0A202022626262626262222C0A202022626262626262222C0A202022636363636363636363222C0A202022636363636363636363222C0A2020226464646464646464222C0A2020226464646464646464220A5D
+test	t1	d	1989-03-12	1999-07-23	0.1500	8.5000	8	JSON	5B0A202022313938392D30332D3132222C0A202022313938392D30332D3132222C0A202022313939302D30352D3135222C0A202022313939302D30352D3135222C0A202022313939302D30352D3135222C0A202022313939302D30352D3135222C0A202022313939392D30372D3233222C0A202022313939392D30372D3233220A5D
+test	t1	e	0.01	0.112	0.2250	6.2000	8	JSON	5B0A202022302E3031222C0A202022302E3031222C0A202022302E3031222C0A202022302E303132222C0A202022302E3035222C0A202022302E31222C0A202022302E31222C0A202022302E313132220A5D
+test	t1	f	1	5	0.2000	6.4000	8	JSON	5B0A20202201222C0A20202202222C0A20202202222C0A20202203222C0A20202203222C0A20202204222C0A20202204222C0A20202205220A5D
+DELETE FROM mysql.column_stats;
+set histogram_size= 0;
+set histogram_type=@SINGLE_PREC_TYPE;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+CREATE TABLE t3 (
+a int NOT NULL PRIMARY KEY,
+b varchar(32),
+c char(16),
+INDEX idx (c)
+) ENGINE=MYISAM;
+INSERT INTO t3 VALUES
+(0, NULL, NULL),
+(7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'dddddddd'),
+(17, 'vvvvvvvvvvvvv', 'aaaa'),
+(1, 'vvvvvvvvvvvvv', NULL),
+(12, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd'),
+(23, 'vvvvvvvvvvvvv', 'dddddddd'),
+(8, 'vvvvvvvvvvvvv', 'aaaa'),
+(22, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'aaaa'),
+(31, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'aaaa'),
+(10, NULL, 'aaaa'),
+(5, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd'),
+(15, 'vvvvvvvvvvvvv', 'ccccccccc'),
+(30, NULL, 'bbbbbb'),
+(38, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb'),
+(18, 'zzzzzzzzzzzzzzzzzz', 'ccccccccc'),
+(9, 'yyy', 'bbbbbb'),
+(29, 'vvvvvvvvvvvvv', 'dddddddd');
+ANALYZE TABLE t3;
+Table	Op	Msg_type	Msg_text
+test.t3	analyze	status	Engine-independent statistics collected
+test.t3	analyze	status	OK
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+test	t3	17
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+test	t3	a	0	38	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000	0	NULL	NULL
+test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+test	t3	PRIMARY	1	1.0000
+test	t3	idx	1	3.7500
+ALTER TABLE t1 RENAME TO s1;
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	s1	40
+test	t3	17
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	s1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	s1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	s1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	s1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	s1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	s1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+test	t3	a	0	38	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000	0	NULL	NULL
+test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	s1	PRIMARY	1	1.0000
+test	s1	idx1	1	6.4000
+test	s1	idx1	2	1.6875
+test	s1	idx2	1	7.0000
+test	s1	idx2	2	2.3846
+test	s1	idx3	1	8.5000
+test	s1	idx4	1	6.2000
+test	s1	idx4	2	1.6875
+test	s1	idx4	3	1.1304
+test	t3	PRIMARY	1	1.0000
+test	t3	idx	1	3.7500
+RENAME TABLE s1 TO t1;
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+test	t3	17
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+test	t3	a	0	38	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t3	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.1765	18.0714	2.8000	0	NULL	NULL
+test	t3	c	aaaa	dddddddd	0.1176	6.4000	3.7500	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+test	t3	PRIMARY	1	1.0000
+test	t3	idx	1	3.7500
+DROP TABLE t3;
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+CREATE TEMPORARY TABLE t0 (
+a int NOT NULL PRIMARY KEY,
+b varchar(32)
+);
+INSERT INTO t0 SELECT a,b FROM t1;
+ALTER TABLE t1 CHANGE COLUMN b x varchar(32), 
+CHANGE COLUMN e y double;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `x` varchar(32) DEFAULT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `y` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`x`,`y`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`y`,`x`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+test	t1	x	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	y	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+ALTER TABLE t1 CHANGE COLUMN x b varchar(32), 
+CHANGE COLUMN y e double;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(32) DEFAULT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`b`,`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`e`,`b`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+ALTER TABLE t1 RENAME TO s1, CHANGE COLUMN b x varchar(32);
+SHOW CREATE TABLE s1;
+Table	Create Table
+s1	CREATE TABLE `s1` (
+  `a` int(11) NOT NULL,
+  `x` varchar(32) DEFAULT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`x`,`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`e`,`x`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	s1	40
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	s1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	s1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	s1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	s1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	s1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+test	s1	x	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	s1	PRIMARY	1	1.0000
+test	s1	idx1	1	6.4000
+test	s1	idx1	2	1.6875
+test	s1	idx2	1	7.0000
+test	s1	idx2	2	2.3846
+test	s1	idx3	1	8.5000
+test	s1	idx4	1	6.2000
+test	s1	idx4	2	1.6875
+test	s1	idx4	3	1.1304
+ALTER TABLE s1 RENAME TO t1, CHANGE COLUMN x b varchar(32);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(32) DEFAULT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`b`,`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`e`,`b`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `x` varchar(30) DEFAULT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`x`,`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`e`,`x`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(32) DEFAULT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`b`,`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`e`,`b`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx4);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/save_column_stats'
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
+  FROM mysql.column_stats WHERE column_name='b';
+SELECT * INTO OUTFILE 'MYSQLTEST_VARDIR/tmp/save_index_stats'
+  FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n'
+  FROM mysql.index_stats WHERE index_name IN ('idx1', 'idx4');
+ALTER TABLE t1 CHANGE COLUMN b x varchar(30);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `x` varchar(30) DEFAULT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`x`,`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`e`,`x`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+ALTER TABLE t1 CHANGE COLUMN x b varchar(32);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `b` varchar(32) DEFAULT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`b`,`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`e`,`b`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_column_stats'
+  INTO TABLE mysql.column_stats
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
+LOAD DATA INFILE 'MYSQLTEST_VARDIR/tmp/save_index_stats'
+  INTO TABLE mysql.index_stats
+FIELDS TERMINATED BY ',' OPTIONALLY ENCLOSED BY '"' LINES TERMINATED BY '\n';
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+ALTER TABLE t1 DROP COLUMN b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`e`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+DROP INDEX idx2 ON t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx1` (`e`),
+  KEY `idx3` (`d`),
+  KEY `idx4` (`e`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx3	1	8.5000
+DROP INDEX idx1 ON t1;
+DROP INDEX idx4 ON t1;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx3` (`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+ALTER TABLE t1 ADD COLUMN b varchar(32);
+CREATE INDEX idx1 ON t1(b, e);
+CREATE INDEX idx2 ON t1(c, d);
+CREATE INDEX idx4 ON t1(e, b, d);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  `b` varchar(32) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx3` (`d`),
+  KEY `idx1` (`b`,`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx4` (`e`,`b`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx3	1	8.5000
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	NULL	NULL	1.0000	NULL	NULL	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	NULL
+test	t1	idx1	2	NULL
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	NULL
+test	t1	idx4	3	NULL
+UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+ALTER TABLE t1 DROP COLUMN b,
+DROP INDEX idx1, DROP INDEX idx2, DROP INDEX idx4;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx3` (`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx3	1	8.5000
+ALTER TABLE t1 ADD COLUMN b varchar(32);
+ALTER TABLE t1 
+ADD INDEX idx1 (b, e), ADD INDEX idx2 (c, d), ADD INDEX idx4 (e, b, d);
+UPDATE t1 SET b=(SELECT b FROM t0 WHERE t0.a= t1.a);
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) NOT NULL,
+  `c` char(16) DEFAULT NULL,
+  `d` date DEFAULT NULL,
+  `e` double DEFAULT NULL,
+  `f` bit(3) DEFAULT NULL,
+  `b` varchar(32) DEFAULT NULL,
+  PRIMARY KEY (`a`),
+  KEY `idx3` (`d`),
+  KEY `idx1` (`b`,`e`),
+  KEY `idx2` (`c`,`d`),
+  KEY `idx4` (`e`,`b`,`d`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx3	1	8.5000
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES(idx1, idx2, idx4);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(c,e,b) INDEXES(idx2,idx4);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+DELETE FROM mysql.index_stats WHERE table_name='t1' AND index_name='primary';
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS() INDEXES(primary);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 ENGINE=InnoDB;
+INSERT INTO t2 SELECT * FROM t1;
+set optimizer_switch='extended_keys=off';
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+test	t2	40
+SELECT * FROM mysql.column_stats ORDER BY column_name, table_name;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t2	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t2	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t2	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t2	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t2	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+test	t2	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t2	PRIMARY	1	1.0000
+test	t1	idx1	1	6.4000
+test	t2	idx1	1	6.4000
+test	t1	idx1	2	1.6875
+test	t2	idx1	2	1.6875
+test	t1	idx2	1	7.0000
+test	t2	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t2	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t2	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t2	idx4	1	6.2000
+test	t1	idx4	2	1.6875
+test	t2	idx4	2	1.6875
+test	t1	idx4	3	1.1304
+test	t2	idx4	3	1.1304
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+set optimizer_switch='extended_keys=on';
+ANALYZE TABLE t2;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t2	40
+SELECT * FROM mysql.column_stats ORDER BY column_name;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t2	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t2	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	0	NULL	NULL
+test	t2	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t2	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t2	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t2	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	PRIMARY	1	1.0000
+test	t2	idx1	1	6.4000
+test	t2	idx1	2	1.6875
+test	t2	idx1	3	1.0000
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
+test	t2	idx3	1	8.5000
+test	t2	idx3	2	1.0000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	1.6875
+test	t2	idx4	3	1.1304
+test	t2	idx4	4	1.0000
+ALTER TABLE t2 DROP PRIMARY KEY, DROP INDEX idx1;
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx3	1	8.5000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	1.6875
+test	t2	idx4	3	1.1304
+UPDATE t2 SET b=0 WHERE b IS NULL;
+ALTER TABLE t2 ADD PRIMARY KEY (a,b);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx3	1	8.5000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	1.6875
+test	t2	idx4	3	1.1304
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	PRIMARY	1	1.0000
+test	t2	PRIMARY	2	1.0000
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
+test	t2	idx2	4	1.0000
+test	t2	idx3	1	8.5000
+test	t2	idx3	2	1.0000
+test	t2	idx3	3	1.0000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	1.7222
+test	t2	idx4	3	1.1154
+test	t2	idx4	4	1.0000
+ALTER TABLE t2 CHANGE COLUMN b b varchar(30);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx3	1	8.5000
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	PRIMARY	1	1.0000
+test	t2	PRIMARY	2	1.0000
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
+test	t2	idx2	4	1.0000
+test	t2	idx3	1	8.5000
+test	t2	idx3	2	1.0000
+test	t2	idx3	3	1.0000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	1.7222
+test	t2	idx4	3	1.1154
+test	t2	idx4	4	1.0000
+ALTER TABLE t2 CHANGE COLUMN b b varchar(32);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	PRIMARY	1	1.0000
+test	t2	PRIMARY	2	1.0000
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
+test	t2	idx2	4	1.0000
+test	t2	idx3	1	8.5000
+test	t2	idx3	2	1.0000
+test	t2	idx3	3	1.0000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	1.7222
+test	t2	idx4	3	1.1154
+test	t2	idx4	4	1.0000
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS ALL INDEXES ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	PRIMARY	1	1.0000
+test	t2	PRIMARY	2	1.0000
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
+test	t2	idx2	4	1.0000
+test	t2	idx3	1	8.5000
+test	t2	idx3	2	1.0000
+test	t2	idx3	3	1.0000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	1.7222
+test	t2	idx4	3	1.1154
+test	t2	idx4	4	1.0000
+ALTER TABLE t2 DROP COLUMN b, DROP PRIMARY KEY, ADD PRIMARY KEY(a);
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx3	1	8.5000
+ANALYZE TABLE t2 PERSISTENT FOR COLUMNS() INDEXES ALL;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+SELECT * FROM mysql.index_stats ORDER BY index_name, prefix_arity, table_name;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	PRIMARY	1	1.0000
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
+test	t2	idx3	1	8.5000
+test	t2	idx3	2	1.0000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	2.2308
+test	t2	idx4	3	1.0000
+set optimizer_switch='extended_keys=off';
+ALTER TABLE t1
+DROP INDEX idx1,
+DROP INDEX idx4;
+ALTER TABLE t1
+MODIFY COLUMN b text,
+ADD INDEX idx1 (b(4), e), 
+ADD INDEX idx4 (e, b(4), d);
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t2	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t2	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t2	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t2	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t2	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t2	PRIMARY	1	1.0000
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
+test	t2	idx3	1	8.5000
+test	t2	idx3	2	1.0000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	2.2308
+test	t2	idx4	3	1.0000
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	OK
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+test	t2	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t2	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t2	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t2	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t2	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	NULL
+test	t1	idx1	2	NULL
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	NULL
+test	t1	idx4	3	NULL
+test	t2	PRIMARY	1	1.0000
+test	t2	idx2	1	7.0000
+test	t2	idx2	2	2.3846
+test	t2	idx2	3	1.0000
+test	t2	idx3	1	8.5000
+test	t2	idx3	2	1.0000
+test	t2	idx4	1	6.2000
+test	t2	idx4	2	2.2308
+test	t2	idx4	3	1.0000
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+ANALYZE TABLE mysql.column_stats PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+mysql.column_stats	analyze	error	Invalid argument
+ANALYZE TABLE mysql.column_stats;
+Table	Op	Msg_type	Msg_text
+mysql.column_stats	analyze	status	OK
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+set use_stat_tables='never';
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	Table is already up to date
+SELECT * FROM mysql.table_stats;
+db_name	table_name	cardinality
+test	t1	40
+SELECT * FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
+test	t1	a	0	49	0.0000	4.0000	1.0000	0	NULL	NULL
+test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	0	NULL	NULL
+test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	0	NULL	NULL
+test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	0	NULL	NULL
+test	t1	f	1	5	0.2000	1.0000	6.4000	0	NULL	NULL
+SELECT * FROM mysql.index_stats;
+db_name	table_name	index_name	prefix_arity	avg_frequency
+test	t1	PRIMARY	1	1.0000
+test	t1	idx1	1	NULL
+test	t1	idx1	2	NULL
+test	t1	idx2	1	7.0000
+test	t1	idx2	2	2.3846
+test	t1	idx3	1	8.5000
+test	t1	idx4	1	6.2000
+test	t1	idx4	2	NULL
+test	t1	idx4	3	NULL
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+ANALYZE TABLE t1 PERSISTENT FOR COLUMNS(b) INDEXES();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	Table is already up to date
+ANALYZE TABLE t1 PERSISTENT FOR columns(a,b) INDEXES();
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	Table is already up to date
+ANALYZE TABLE t1 PERSISTENT FOR columns(b) indexes(idx2);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	Warning	Engine-independent statistics are not collected for column 'b'
+test.t1	analyze	status	Table is already up to date
+ANALYZE TABLE t1 PERSISTENT FOR columns() indexes(idx2);
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+DROP TABLE t1,t2;
+set names utf8;
+CREATE DATABASE world;
+use world;
+CREATE TABLE Country (
+Code char(3) NOT NULL default '',
+Name char(52) NOT NULL default '',
+SurfaceArea float(10,2) NOT NULL default '0.00',
+Population int(11) NOT NULL default '0',
+Capital int(11) default NULL,
+PRIMARY KEY  (Code),
+UNIQUE INDEX (Name)
+) CHARACTER SET utf8 COLLATE utf8_bin;
+CREATE TABLE City (
+ID int(11) NOT NULL auto_increment,
+Name char(35) NOT NULL default '',
+Country char(3) NOT NULL default '',
+Population int(11) NOT NULL default '0',
+PRIMARY KEY  (ID),
+INDEX (Population),
+INDEX (Country) 
+) CHARACTER SET utf8 COLLATE utf8_bin;
+CREATE TABLE CountryLanguage (
+Country char(3) NOT NULL default '',
+Language char(30) NOT NULL default '',
+Percentage float(3,1) NOT NULL default '0.0',
+PRIMARY KEY  (Country, Language),
+INDEX (Percentage)
+) CHARACTER SET utf8 COLLATE utf8_bin;
+set use_stat_tables='preferably';
+ANALYZE TABLE Country, City, CountryLanguage;
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+FROM mysql.table_stats;
+UPPER(db_name)	UPPER(table_name)	cardinality
+WORLD	CITY	4079
+WORLD	COUNTRY	239
+WORLD	COUNTRYLANGUAGE	984
+SELECT UPPER(db_name), UPPER(table_name), 
+column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+FROM mysql.column_stats;
+UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+WORLD	CITY	Country	ABW	ZWE	0.0000	3.0000	17.5819
+WORLD	CITY	ID	1	4079	0.0000	4.0000	1.0000
+WORLD	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+WORLD	CITY	Population	42	10500000	0.0000	4.0000	1.0467
+WORLD	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
+WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
+WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
+WORLD	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+WORLD	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
+WORLD	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+WORLD	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+SELECT UPPER(db_name), UPPER(table_name),
+index_name, prefix_arity, avg_frequency
+FROM mysql.index_stats;
+UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
+WORLD	CITY	Country	1	17.5819
+WORLD	CITY	PRIMARY	1	1.0000
+WORLD	CITY	Population	1	1.0467
+WORLD	COUNTRY	Name	1	1.0000
+WORLD	COUNTRY	PRIMARY	1	1.0000
+WORLD	COUNTRYLANGUAGE	PRIMARY	1	4.2232
+WORLD	COUNTRYLANGUAGE	PRIMARY	2	1.0000
+WORLD	COUNTRYLANGUAGE	Percentage	1	2.7640
+use test;
+set use_stat_tables='never';
+CREATE DATABASE world_innodb;
+use world_innodb;
+CREATE TABLE Country (
+Code char(3) NOT NULL default '',
+Name char(52) NOT NULL default '',
+SurfaceArea float(10,2) NOT NULL default '0.00',
+Population int(11) NOT NULL default '0',
+Capital int(11) default NULL,
+PRIMARY KEY  (Code),
+UNIQUE INDEX (Name)
+) CHARACTER SET utf8 COLLATE utf8_bin;
+CREATE TABLE City (
+ID int(11) NOT NULL auto_increment,
+Name char(35) NOT NULL default '',
+Country char(3) NOT NULL default '',
+Population int(11) NOT NULL default '0',
+PRIMARY KEY  (ID),
+INDEX (Population),
+INDEX (Country) 
+) CHARACTER SET utf8 COLLATE utf8_bin;
+CREATE TABLE CountryLanguage (
+Country char(3) NOT NULL default '',
+Language char(30) NOT NULL default '',
+Percentage float(3,1) NOT NULL default '0.0',
+PRIMARY KEY  (Country, Language),
+INDEX (Percentage)
+) CHARACTER SET utf8 COLLATE utf8_bin;
+ALTER TABLE Country ENGINE=InnoDB;
+ALTER TABLE City ENGINE=InnoDB;
+ALTER TABLE CountryLanguage ENGINE=InnoDB;
+set use_stat_tables='preferably';
+ANALYZE TABLE Country, City, CountryLanguage;
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+FROM mysql.table_stats;
+UPPER(db_name)	UPPER(table_name)	cardinality
+WORLD	CITY	4079
+WORLD	COUNTRY	239
+WORLD	COUNTRYLANGUAGE	984
+WORLD_INNODB	CITY	4079
+WORLD_INNODB	COUNTRY	239
+WORLD_INNODB	COUNTRYLANGUAGE	984
+SELECT UPPER(db_name), UPPER(table_name), 
+column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+FROM mysql.column_stats;
+UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+WORLD	CITY	Country	ABW	ZWE	0.0000	3.0000	17.5819
+WORLD	CITY	ID	1	4079	0.0000	4.0000	1.0000
+WORLD	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+WORLD	CITY	Population	42	10500000	0.0000	4.0000	1.0467
+WORLD	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
+WORLD	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
+WORLD	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
+WORLD	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+WORLD	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
+WORLD	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+WORLD	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+WORLD_INNODB	CITY	Country	ABW	ZWE	0.0000	3.0000	17.5819
+WORLD_INNODB	CITY	ID	1	4079	0.0000	4.0000	1.0000
+WORLD_INNODB	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+WORLD_INNODB	CITY	Population	42	10500000	0.0000	4.0000	1.0467
+WORLD_INNODB	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
+WORLD_INNODB	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
+WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD_INNODB	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
+WORLD_INNODB	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+WORLD_INNODB	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
+WORLD_INNODB	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+WORLD_INNODB	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+SELECT UPPER(db_name), UPPER(table_name),
+index_name, prefix_arity, avg_frequency
+FROM mysql.index_stats;
+UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
+WORLD	CITY	Country	1	17.5819
+WORLD	CITY	PRIMARY	1	1.0000
+WORLD	CITY	Population	1	1.0467
+WORLD	COUNTRY	Name	1	1.0000
+WORLD	COUNTRY	PRIMARY	1	1.0000
+WORLD	COUNTRYLANGUAGE	PRIMARY	1	4.2232
+WORLD	COUNTRYLANGUAGE	PRIMARY	2	1.0000
+WORLD	COUNTRYLANGUAGE	Percentage	1	2.7640
+WORLD_INNODB	CITY	Country	1	17.5819
+WORLD_INNODB	CITY	PRIMARY	1	1.0000
+WORLD_INNODB	CITY	Population	1	1.0467
+WORLD_INNODB	COUNTRY	Name	1	1.0000
+WORLD_INNODB	COUNTRY	PRIMARY	1	1.0000
+WORLD_INNODB	COUNTRYLANGUAGE	PRIMARY	1	4.2232
+WORLD_INNODB	COUNTRYLANGUAGE	PRIMARY	2	1.0000
+WORLD_INNODB	COUNTRYLANGUAGE	Percentage	1	2.7640
+use world;
+set use_stat_tables='preferably';
+set histogram_size=100;
+set histogram_type=@SINGLE_PREC_TYPE;
+ANALYZE TABLE CountryLanguage;
+set histogram_size=254;
+set histogram_type=@DOUBLE_PREC_TYPE;
+ANALYZE TABLE City;
+FLUSH TABLES;
+select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='COUNTRYLANGUAGE' and UPPER(column_name) = 'PERCENTAGE';;
+UPPER(db_name)	WORLD
+UPPER(table_name)	COUNTRYLANGUAGE
+UPPER(column_name)	PERCENTAGE
+min_value	0.0
+max_value	99.9
+nulls_ratio	0.0000
+avg_length	4.0000
+avg_frequency	2.7640
+hist_size	100
+hist_type	JSON
+hex(histogram)	5B0A202022302E30222C0A202022302E30222C0A202022302E30222C0A202022302E30222C0A202022302E30222C0A202022302E30222C0A202022302E31222C0A202022302E31222C0A202022302E32222C0A202022302E32222C0A202022302E33222C0A202022302E33222C0A202022302E34222C0A202022302E34222C0A202022302E34222C0A202022302E35222C0A202022302E35222C0A202022302E36222C0A202022302E36222C0A202022302E37222C0A202022302E37222C0A202022302E38222C0A202022302E39222C0A202022312E31222C0A202022312E32222C0A202022312E33222C0A202022312E34222C0A202022312E34222C0A202022312E36222C0A202022312E36222C0A202022312E37222C0A202022312E39222C0A202022322E30222C0A202022322E32222C0A202022322E32222C0A202022322E33222C0A202022322E35222C0A202022322E36222C0A202022322E38222C0A202022322E39222C0A202022332E31222C0A202022332E32222C0A202022332E34222C0A202022332E36222C0A202022332E38222C0A202022342E30222C0A202022342E33222C0A202022342E35222C0A202022342E38222C0A202022352E31222C0A202022352E34222C0A202022352E37222C0A202022352E38222C0A202022362E31222C0A202022362E34222C0A202022362E38222C0A202022372E32222C0A202022372E35222C0A202022372E37222C0A202022382E31222C0A202022382E35222C0A202022382E38222C0A202022392E31222C0A202022392E35222C0A20202231302E31222C0A20202231302E38222C0A20202231312E33222C0A20202231322E30222C0A20202231322E36222C0A20202231332E35222C0A20202231342E32222C0A20202231362E31222C0A20202231362E38222C0A20202231382E31222C0A20202232302E30222C0A20202232312E36222C0A20202232332E34222C0A20202232382E33222C0A20202233312E37222C0A20202233342E31222C0A20202233372E35222C0A20202234312E39222C0A20202234362E34222C0A20202235302E37222C0A20202235352E31222C0A20202236302E34222C0A20202236352E36222C0A20202237322E36222C0A20202237372E31222C0A20202238312E32222C0A20202238352E36222C0A20202238372E37222C0A20202238392E39222C0A20202239322E31222C0A20202239342E32222C0A20202239352E39222C0A20202239372E33222C0A20202239382E31222C0A20202239392E30222C0A20202239392E39220A5D
+decode_histogram(hist_type,histogram)	[
+  "0.0",
+  "0.0",
+  "0.0",
+  "0.0",
+  "0.0",
+  "0.0",
+  "0.1",
+  "0.1",
+  "0.2",
+  "0.2",
+  "0.3",
+  "0.3",
+  "0.4",
+  "0.4",
+  "0.4",
+  "0.5",
+  "0.5",
+  "0.6",
+  "0.6",
+  "0.7",
+  "0.7",
+  "0.8",
+  "0.9",
+  "1.1",
+  "1.2",
+  "1.3",
+  "1.4",
+  "1.4",
+  "1.6",
+  "1.6",
+  "1.7",
+  "1.9",
+  "2.0",
+  "2.2",
+  "2.2",
+  "2.3",
+  "2.5",
+  "2.6",
+  "2.8",
+  "2.9",
+  "3.1",
+  "3.2",
+  "3.4",
+  "3.6",
+  "3.8",
+  "4.0",
+  "4.3",
+  "4.5",
+  "4.8",
+  "5.1",
+  "5.4",
+  "5.7",
+  "5.8",
+  "6.1",
+  "6.4",
+  "6.8",
+  "7.2",
+  "7.5",
+  "7.7",
+  "8.1",
+  "8.5",
+  "8.8",
+  "9.1",
+  "9.5",
+  "10.1",
+  "10.8",
+  "11.3",
+  "12.0",
+  "12.6",
+  "13.5",
+  "14.2",
+  "16.1",
+  "16.8",
+  "18.1",
+  "20.0",
+  "21.6",
+  "23.4",
+  "28.3",
+  "31.7",
+  "34.1",
+  "37.5",
+  "41.9",
+  "46.4",
+  "50.7",
+  "55.1",
+  "60.4",
+  "65.6",
+  "72.6",
+  "77.1",
+  "81.2",
+  "85.6",
+  "87.7",
+  "89.9",
+  "92.1",
+  "94.2",
+  "95.9",
+  "97.3",
+  "98.1",
+  "99.0",
+  "99.9"
+]
+select UPPER(db_name),UPPER(table_name),UPPER(column_name),min_value,max_value,nulls_ratio,avg_length,avg_frequency,hist_size,hist_type,hex(histogram),decode_histogram(hist_type,histogram) from mysql.column_stats where UPPER(db_name)='WORLD' and UPPER(table_name)='CITY' and UPPER(column_name) = 'POPULATION';;
+UPPER(db_name)	WORLD
+UPPER(table_name)	CITY
+UPPER(column_name)	POPULATION
+min_value	42
+max_value	10500000
+nulls_ratio	0.0000
+avg_length	4.0000
+avg_frequency	1.0467
+hist_size	254
+hist_type	JSON
+hex(histogram)	5B0A20202231343338222C0A20202235303535222C0A2020223133303030222C0A2020223235383838222C0A2020223530363939222C0A2020223839303533222C0A2020223839333838222C0A2020223839383831222C0A2020223930313131222C0A2020223930363031222C0A2020223930393531222C0A2020223931323030222C0A2020223931373737222C0A2020223932323234222C0A2020223932353833222C0A2020223932393838222C0A2020223933333030222C0A2020223933383138222C0A2020223934313030222C0A2020223934363030222C0A2020223934393334222C0A2020223935343030222C0A2020223935393333222C0A2020223936323931222C0A2020223936383030222C0A2020223937313030222C0A2020223937343531222C0A2020223938303830222C0A2020223938333432222C0A2020223938373831222C0A2020223939333637222C0A2020223939373939222C0A202022313030313138222C0A202022313030343738222C0A202022313030383837222C0A202022313031323035222C0A202022313031353734222C0A202022313031393834222C0A202022313032323934222C0A202022313032363831222C0A202022313033313731222C0A202022313033353434222C0A202022313033393834222C0A202022313034373030222C0A202022313035313139222C0A202022313035363930222C0A202022313036303031222C0A202022313036343134222C0A202022313037303030222C0A202022313037333239222C0A202022313037373631222C0A202022313038313030222C0A202022313038353734222C0A202022313039313231222C0A202022313039353030222C0A202022313039393635222C0A202022313130333838222C0A202022313131313030222C0A202022313131373532222C0A202022313132333735222C0A202022313133303830222C0A202022313133383030222C0A202022313134323333222C0A202022313134383736222C0A202022313135353332222C0A202022313136313738222C0A202022313136363935222C0A202022313137323237222C0A202022313137383635222C0A202022313138373138222C0A202022313139323833222C0A202022313139373936222C0A202022313230323635222C0A202022313231303030222C0A202022313231363030222C0A202022313231393534222C0A202022313232373035222C0A202022313233333539222C0A202022313233383635222C0A202022313234323037222C0A202022313234373335222C0A202022313235323535222C0A202022313235373636222C0A202022313236323832222C0A202022313236383230222C0A202022313237323232222C0A202022313237383031222C0A202022313238333030222C0A202022313239333030222C0A202022313330303030222C0A202022313331303030222C0A202022313331373137222C0A202022313332343535222C0A202022313333313036222C0A202022313333363432222C0A202022313334303337222C0A202022313335303130222C0A202022313336323136222C0A202022313337303238222C0A202022313337373736222C0A202022313338343138222C0A202022313339323833222C0A202022313430303330222C0A202022313430383030222C0A202022313432303434222C0A202022313432363539222C0A202022313433373236222C0A202022313434353832222C0A202022313435383030222C0A202022313436343339222C0A202022313437353233222C0A202022313438313035222C0A202022313439313436222C0A202022313530313030222C0A202022313531303630222C0A202022313532343432222C0A202022313533333634222C0A202022313534393830222C0A202022313535383030222C0A202022313537333030222C0A202022313538333335222C0A202022313539363332222C0A202022313631313631222C0A202022313632333030222C0A202022313633383439222C0A202022313634373437222C0A202022313636343637222C0A202022313637343631222C0A202022313639333030222C0A202022313730343238222C0A202022313731353332222C0A202022313732373031222C0A202022313733383935222C0A202022313734393835222C0A202022313736353736222C0A202022313738313832222C0A202022313739323038222C0A202022313830323130222C0A202022313831383035222C0A202022313833313030222C0A202022313834303631222C0A202022313835343031222C0A202022313836393030222C0A202022313838333434222C0A202022313839353639222C0A202022313930393035222C0A202022313933303035222C0A202022313934333030222C0A202022313935353030222C0A202022313937323534222C0A202022313939303030222C0A202022323030393031222C0A202022323032313334222C0A202022323033373933222C0A202022323036313538222C0A202022323037353838222C0A202022323130303638222C0A202022323132393736222C0A202022323134393530222C0A202022323136373335222C0A202022323138343437222C0A202022323231303030222C0A202022323232353138222C0A202022323234383837222C0A202022323237363537222C0A202022323239343235222C0A202022323333303431222C0A202022323336303030222C0A202022323339313234222C0A202022323431363439222C0A202022323433373432222C0A202022323435373732222C0A202022323438323435222C0A202022323532333836222C0A202022323534383432222C0A202022323537383132222C0A202022323632303030222C0A202022323634303831222C0A202022323636323831222C0A202022323730323531222C0A202022323732393638222C0A202022323736343231222C0A202022323739333430222C0A202022323832393431222C0A202022323836393030222C0A202022323931303030222C0A202022323934303536222C0A202022323938393030222C0A202022333031323736222C0A202022333034343737222C0A202022333039373530222C0A202022333133353330222C0A202022333137363030222C0A202022333232323637222C0A202022333236333939222C0A202022333330323736222C0A202022333334353633222C0A202022333339313331222C0A202022333432373338222C0A202022333439323436222C0A202022333533363332222C0A202022333539313437222C0A202022333632343730222C0A202022333636353439222C0A202022333732383430222C0A202022333830373535222C0A202022333835323031222C0A202022333932383330222C0A202022343030393937222C0A202022343039313030222C0A202022343136393838222C0A202022343231353839222C0A202022343238353232222C0A202022343335393634222C0A202022343433373237222C0A202022343532393736222C0A202022343631303030222C0A202022343639373335222C0A202022343736383030222C0A202022343833313535222C0A202022343933343039222C0A202022353038383939222C0A202022353139373933222C0A202022353239393030222C0A202022353430383238222C0A202022353633363632222C0A202022353830303030222C0A202022353934353031222C0A202022363136373030222C0A202022363336373635222C0A202022363536393235222C0A202022363830333332222C0A202022373033353932222C0A202022373335313637222C0A202022373634393032222C0A202022373937373335222C0A202022383330303030222C0A202022383737323339222C0A202022393430353839222C0A202022393933343030222C0A20202231303432373430222C0A20202231313030303030222C0A20202231313536313030222C0A20202231323137383138222C0A20202231333030393737222C0A20202231333932383630222C0A20202231353137353530222C0A20202231363832303030222C0A20202231393639383638222C0A20202232313534333736222C0A20202232353935363734222C0A20202232393634363338222C0A20202234323536333030222C0A20202236373538383435220A5D
+decode_histogram(hist_type,histogram)	[
+  "1438",
+  "5055",
+  "13000",
+  "25888",
+  "50699",
+  "89053",
+  "89388",
+  "89881",
+  "90111",
+  "90601",
+  "90951",
+  "91200",
+  "91777",
+  "92224",
+  "92583",
+  "92988",
+  "93300",
+  "93818",
+  "94100",
+  "94600",
+  "94934",
+  "95400",
+  "95933",
+  "96291",
+  "96800",
+  "97100",
+  "97451",
+  "98080",
+  "98342",
+  "98781",
+  "99367",
+  "99799",
+  "100118",
+  "100478",
+  "100887",
+  "101205",
+  "101574",
+  "101984",
+  "102294",
+  "102681",
+  "103171",
+  "103544",
+  "103984",
+  "104700",
+  "105119",
+  "105690",
+  "106001",
+  "106414",
+  "107000",
+  "107329",
+  "107761",
+  "108100",
+  "108574",
+  "109121",
+  "109500",
+  "109965",
+  "110388",
+  "111100",
+  "111752",
+  "112375",
+  "113080",
+  "113800",
+  "114233",
+  "114876",
+  "115532",
+  "116178",
+  "116695",
+  "117227",
+  "117865",
+  "118718",
+  "119283",
+  "119796",
+  "120265",
+  "121000",
+  "121600",
+  "121954",
+  "122705",
+  "123359",
+  "123865",
+  "124207",
+  "124735",
+  "125255",
+  "125766",
+  "126282",
+  "126820",
+  "127222",
+  "127801",
+  "128300",
+  "129300",
+  "130000",
+  "131000",
+  "131717",
+  "132455",
+  "133106",
+  "133642",
+  "134037",
+  "135010",
+  "136216",
+  "137028",
+  "137776",
+  "138418",
+  "139283",
+  "140030",
+  "140800",
+  "142044",
+  "142659",
+  "143726",
+  "144582",
+  "145800",
+  "146439",
+  "147523",
+  "148105",
+  "149146",
+  "150100",
+  "151060",
+  "152442",
+  "153364",
+  "154980",
+  "155800",
+  "157300",
+  "158335",
+  "159632",
+  "161161",
+  "162300",
+  "163849",
+  "164747",
+  "166467",
+  "167461",
+  "169300",
+  "170428",
+  "171532",
+  "172701",
+  "173895",
+  "174985",
+  "176576",
+  "178182",
+  "179208",
+  "180210",
+  "181805",
+  "183100",
+  "184061",
+  "185401",
+  "186900",
+  "188344",
+  "189569",
+  "190905",
+  "193005",
+  "194300",
+  "195500",
+  "197254",
+  "199000",
+  "200901",
+  "202134",
+  "203793",
+  "206158",
+  "207588",
+  "210068",
+  "212976",
+  "214950",
+  "216735",
+  "218447",
+  "221000",
+  "222518",
+  "224887",
+  "227657",
+  "229425",
+  "233041",
+  "236000",
+  "239124",
+  "241649",
+  "243742",
+  "245772",
+  "248245",
+  "252386",
+  "254842",
+  "257812",
+  "262000",
+  "264081",
+  "266281",
+  "270251",
+  "272968",
+  "276421",
+  "279340",
+  "282941",
+  "286900",
+  "291000",
+  "294056",
+  "298900",
+  "301276",
+  "304477",
+  "309750",
+  "313530",
+  "317600",
+  "322267",
+  "326399",
+  "330276",
+  "334563",
+  "339131",
+  "342738",
+  "349246",
+  "353632",
+  "359147",
+  "362470",
+  "366549",
+  "372840",
+  "380755",
+  "385201",
+  "392830",
+  "400997",
+  "409100",
+  "416988",
+  "421589",
+  "428522",
+  "435964",
+  "443727",
+  "452976",
+  "461000",
+  "469735",
+  "476800",
+  "483155",
+  "493409",
+  "508899",
+  "519793",
+  "529900",
+  "540828",
+  "563662",
+  "580000",
+  "594501",
+  "616700",
+  "636765",
+  "656925",
+  "680332",
+  "703592",
+  "735167",
+  "764902",
+  "797735",
+  "830000",
+  "877239",
+  "940589",
+  "993400",
+  "1042740",
+  "1100000",
+  "1156100",
+  "1217818",
+  "1300977",
+  "1392860",
+  "1517550",
+  "1682000",
+  "1969868",
+  "2154376",
+  "2595674",
+  "2964638",
+  "4256300",
+  "6758845"
+]
+set histogram_type=@SINGLE_PREC_TYPE;
+set histogram_size=0;
+use test;
+DROP DATABASE world;
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+FROM mysql.table_stats;
+UPPER(db_name)	UPPER(table_name)	cardinality
+WORLD_INNODB	CITY	4079
+WORLD_INNODB	COUNTRY	239
+WORLD_INNODB	COUNTRYLANGUAGE	984
+SELECT UPPER(db_name), UPPER(table_name), 
+column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+FROM mysql.column_stats;
+UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+WORLD_INNODB	CITY	Country	ABW	ZWE	0.0000	3.0000	17.5819
+WORLD_INNODB	CITY	ID	1	4079	0.0000	4.0000	1.0000
+WORLD_INNODB	CITY	Name	A Coruña (La Coruña)	Ürgenc	0.0000	8.6416	1.0195
+WORLD_INNODB	CITY	Population	42	10500000	0.0000	4.0000	1.0467
+WORLD_INNODB	COUNTRY	Capital	1	4074	0.0293	4.0000	1.0000
+WORLD_INNODB	COUNTRY	Code	ABW	ZWE	0.0000	3.0000	1.0000
+WORLD_INNODB	COUNTRY	Name	Afghanistan	Zimbabwe	0.0000	10.1088	1.0000
+WORLD_INNODB	COUNTRY	Population	0	1277558000	0.0000	4.0000	1.0575
+WORLD_INNODB	COUNTRY	SurfaceArea	0.40	17075400.00	0.0000	4.0000	1.0042
+WORLD_INNODB	COUNTRYLANGUAGE	Country	ABW	ZWE	0.0000	3.0000	4.2232
+WORLD_INNODB	COUNTRYLANGUAGE	Language	Abhyasi	[South]Mande	0.0000	7.1778	2.1532
+WORLD_INNODB	COUNTRYLANGUAGE	Percentage	0.0	99.9	0.0000	4.0000	2.7640
+SELECT UPPER(db_name), UPPER(table_name),
+index_name, prefix_arity, avg_frequency
+FROM mysql.index_stats;
+UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
+WORLD_INNODB	CITY	Country	1	17.5819
+WORLD_INNODB	CITY	PRIMARY	1	1.0000
+WORLD_INNODB	CITY	Population	1	1.0467
+WORLD_INNODB	COUNTRY	Name	1	1.0000
+WORLD_INNODB	COUNTRY	PRIMARY	1	1.0000
+WORLD_INNODB	COUNTRYLANGUAGE	PRIMARY	1	4.2232
+WORLD_INNODB	COUNTRYLANGUAGE	PRIMARY	2	1.0000
+WORLD_INNODB	COUNTRYLANGUAGE	Percentage	1	2.7640
+DROP DATABASE world_innodb;
+SELECT UPPER(db_name), UPPER(table_name), cardinality
+FROM mysql.table_stats;
+UPPER(db_name)	UPPER(table_name)	cardinality
+SELECT UPPER(db_name), UPPER(table_name), 
+column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency
+FROM mysql.column_stats;
+UPPER(db_name)	UPPER(table_name)	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency
+SELECT UPPER(db_name), UPPER(table_name),
+index_name, prefix_arity, avg_frequency
+FROM mysql.index_stats;
+UPPER(db_name)	UPPER(table_name)	index_name	prefix_arity	avg_frequency
+DELETE FROM mysql.table_stats;
+DELETE FROM mysql.column_stats;
+DELETE FROM mysql.index_stats;
+#
+# Bug mdev-4357: empty string as a value of the HIST_SIZE column 
+#                from mysql.column_stats
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3);
+set histogram_size=10;
+analyze table t1  persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select db_name, table_name, column_name,
+min_value, max_value,
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	1	3	0.0000	1.0000	10	JSON	5B0A20202231222C0A20202231222C0A20202231222C0A20202232222C0A20202232222C0A20202232222C0A20202232222C0A20202233222C0A20202233222C0A20202233220A5D
+set histogram_size=default;
+drop table t1;
+#
+# Bug mdev-4359: wrong setting of the HIST_SIZE column 
+# (see also mdev-4357)         from mysql.column_stats
+#
+create table t1 ( a int);
+insert into t1 values (1),(2),(3),(4),(5);
+set histogram_size=10;
+set histogram_type=@DOUBLE_PREC_TYPE;
+show variables like 'histogram%';
+Variable_name	Value
+histogram_size	10
+histogram_type	JSON
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select db_name, table_name, column_name,
+min_value, max_value,
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	1	5	0.0000	1.0000	10	JSON	5B0A20202231222C0A20202231222C0A20202232222C0A20202232222C0A20202233222C0A20202233222C0A20202234222C0A20202234222C0A20202235222C0A20202235220A5D
+set histogram_size=0;
+set histogram_type=@SINGLE_PREC_TYPE;
+drop table t1;
+#
+# Bug mdev-4369: histogram for a column with many distinct values 
+#
+CREATE TABLE t1 (id int);
+CREATE TABLE t2 (id int);
+INSERT INTO t1 (id) VALUES (1), (1), (1),(1);
+INSERT INTO t1 (id) SELECT id FROM t1;
+INSERT INTO t1 SELECT id+1 FROM t1;
+INSERT INTO t1 SELECT id+2 FROM t1;
+INSERT INTO t1 SELECT id+4 FROM t1;
+INSERT INTO t1 SELECT id+8 FROM t1;
+INSERT INTO t1 SELECT id+16 FROM t1;
+INSERT INTO t1 SELECT id+32 FROM t1;
+INSERT INTO t1 SELECT id+64 FROM t1;
+INSERT INTO t1 SELECT id+128 FROM t1;
+INSERT INTO t1 SELECT id+256 FROM t1;
+INSERT INTO t1 SELECT id+512 FROM t1;
+INSERT INTO t2 SELECT id FROM t1 ORDER BY id*rand();
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+8192
+SELECT COUNT(DISTINCT id) FROM t2;
+COUNT(DISTINCT id)
+1024
+set @@tmp_table_size=1024*16;
+set @@max_heap_table_size=1024*16;
+set histogram_size=63;
+analyze table t2 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t2	analyze	status	Engine-independent statistics collected
+test.t2	analyze	status	OK
+select db_name, table_name, column_name,
+min_value, max_value,
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t2	id	1	1024	0.0000	8.0000	63	JSON	5B0A2020223137222C0A2020223333222C0A2020223439222C0A2020223635222C0A2020223831222C0A2020223937222C0A202022313133222C0A202022313239222C0A202022313435222C0A202022313631222C0A202022313737222C0A202022313933222C0A202022323039222C0A202022323235222C0A202022323431222C0A202022323537222C0A202022323733222C0A202022323839222C0A202022333035222C0A202022333231222C0A202022333337222C0A202022333533222C0A202022333639222C0A202022333835222C0A202022343031222C0A202022343137222C0A202022343333222C0A202022343439222C0A202022343635222C0A202022343831222C0A202022343937222C0A202022353133222C0A202022353239222C0A202022353435222C0A202022353631222C0A202022353737222C0A202022353933222C0A202022363039222C0A202022363235222C0A202022363431222C0A202022363537222C0A202022363733222C0A202022363839222C0A202022373035222C0A202022373231222C0A202022373337222C0A202022373533222C0A202022373639222C0A202022373835222C0A202022383031222C0A202022383137222C0A202022383333222C0A202022383439222C0A202022383635222C0A202022383831222C0A202022383937222C0A202022393133222C0A202022393239222C0A202022393435222C0A202022393631222C0A202022393737222C0A202022393933222C0A20202231303039220A5D
+set histogram_size=0;
+drop table t1, t2;
+set use_stat_tables=@save_use_stat_tables;
+#
+# Bug MDEV-7383: min/max value for a column not utf8 compatible
+#
+create table t1 (a varchar(100)) engine=MyISAM;
+insert into t1 values(unhex('D879626AF872675F73E662F8'));
+analyze table t1 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+show warnings;
+Level	Code	Message
+select db_name, table_name, column_name,
+HEX(min_value), HEX(max_value),
+nulls_ratio, avg_frequency,
+hist_size, hist_type, HEX(histogram)
+FROM mysql.column_stats;
+db_name	table_name	column_name	HEX(min_value)	HEX(max_value)	nulls_ratio	avg_frequency	hist_size	hist_type	HEX(histogram)
+test	t1	a	D879626AF872675F73E662F8	D879626AF872675F73E662F8	0.0000	1.0000	0	NULL	NULL
+drop table t1;
+#
+# MDEB-9744: session optimizer_use_condition_selectivity=5 causing SQL Error (1918):
+# Encountered illegal value '' when converting to DECIMAL
+#
+set @save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=3, use_stat_tables=preferably;
+create table t1 (id int(10),cost decimal(9,2)) engine=innodb;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+create temporary table t2  (id int);
+insert into t2 (id) select id from t1 where cost > 0;
+select * from t2;
+id
+set use_stat_tables=@save_use_stat_tables;
+set optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+drop table t1,t2;
+#
+# MDEV-16507: statistics for temporary tables should not be used
+#
+SET
+@save_optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+SET @@use_stat_tables = preferably ;
+SET @@optimizer_use_condition_selectivity = 4;
+CREATE TABLE t1 (
+TIMESTAMP TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+ON UPDATE CURRENT_TIMESTAMP
+);
+SET @had_t1_table= @@warning_count != 0;
+CREATE TEMPORARY TABLE tmp_t1 LIKE t1;
+INSERT INTO tmp_t1 VALUES (now());
+INSERT INTO t1 SELECT * FROM tmp_t1 WHERE @had_t1_table=0;
+DROP TABLE t1;
+SET
+use_stat_tables=@save_use_stat_tables;
+SET
+optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+# End of 10.0 tests
+#
+# MDEV-9590: Always print "Engine-independent statistic" warnings and
+# might be filtering columns unintentionally from engines
+#
+set use_stat_tables='NEVER';
+create table t1 (test blob);
+show variables like 'use_stat_tables';
+Variable_name	Value
+use_stat_tables	NEVER
+analyze table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Table is already up to date
+drop table t1;
+#
+# MDEV-10435 crash with bad stat tables
+#
+set use_stat_tables='preferably';
+call mtr.add_suppression("Column count of mysql.table_stats is wrong. Expected 3, found 1. The table is probably corrupted");
+rename table mysql.table_stats to test.table_stats;
+flush tables;
+create table t1 (a int);
+rename table t1 to t2, t3 to t4;
+ERROR 42S02: Table 'test.t3' doesn't exist
+drop table t1;
+rename table test.table_stats to mysql.table_stats;
+rename table mysql.table_stats to test.table_stats;
+create table mysql.table_stats (a int);
+flush tables;
+create table t1 (a int);
+rename table t1 to t2, t3 to t4;
+ERROR 42S02: Table 'test.t3' doesn't exist
+drop table t1, mysql.table_stats;
+rename table test.table_stats to mysql.table_stats;
+#
+# MDEV-19334: bool is_eits_usable(Field*): Assertion `field->table->stats_is_read' failed.
+#
+create temporary table t1(a int);
+insert into t1 values (1),(2),(3);
+set use_stat_tables=preferably;
+set @optimizer_use_condition_selectivity= @@optimizer_use_condition_selectivity;
+set optimizer_use_condition_selectivity=4;
+select * from t1 where a >= 2;
+a
+2
+3
+drop table t1;
+set @@optimizer_use_condition_selectivity= @save_optimizer_use_condition_selectivity;
+set use_stat_tables=@save_use_stat_tables;
+#
+# Start of 10.2 tests
+#
+#
+# MDEV-10134 Add full support for DEFAULT
+#
+#
+# End of 10.2 tests
+#
+set histogram_size=@save_histogram_size, histogram_type=@save_hist_type;
+#
+# Start of 10.4 tests
+#
+#
+# Test analyze_sample_percentage system variable.
+#
+set @save_use_stat_tables=@@use_stat_tables;
+set @save_analyze_sample_percentage=@@analyze_sample_percentage;
+set session rand_seed1=42;
+set session rand_seed2=62;
+set use_stat_tables=PREFERABLY;
+set histogram_size=10;
+CREATE TABLE t1 (id int);
+INSERT INTO t1 (id) VALUES (1), (1), (1), (1), (1), (1), (1);
+INSERT INTO t1 (id) SELECT id FROM t1;
+INSERT INTO t1 SELECT id+1 FROM t1;
+INSERT INTO t1 SELECT id+2 FROM t1;
+INSERT INTO t1 SELECT id+4 FROM t1;
+INSERT INTO t1 SELECT id+8 FROM t1;
+INSERT INTO t1 SELECT id+16 FROM t1;
+INSERT INTO t1 SELECT id+32 FROM t1;
+INSERT INTO t1 SELECT id+64 FROM t1;
+INSERT INTO t1 SELECT id+128 FROM t1;
+INSERT INTO t1 SELECT id+256 FROM t1;
+INSERT INTO t1 SELECT id+512 FROM t1;
+INSERT INTO t1 SELECT id+1024 FROM t1;
+INSERT INTO t1 SELECT id+2048 FROM t1;
+INSERT INTO t1 SELECT id+4096 FROM t1;
+INSERT INTO t1 SELECT id+9192 FROM t1;
+#
+# This query will should show a full table scan analysis.
+#
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	DECODE_HISTOGRAM(hist_type, histogram)
+t1	id	1	17384	0.0000	4.0000	14.0000	[
+  "1490",
+  "2979",
+  "4469",
+  "5958",
+  "7448",
+  "9937",
+  "11427",
+  "12916",
+  "14406",
+  "15895"
+]
+set analyze_sample_percentage=0.1;
+#
+# This query will show an innacurate avg_frequency value.
+#
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	DECODE_HISTOGRAM(hist_type, histogram)
+t1	id	111	17026	0.0000	4.0000	10.4739	[
+  "832",
+  "2446",
+  "3422",
+  "5411",
+  "6687",
+  "9390",
+  "10738",
+  "12738",
+  "14365",
+  "15411"
+]
+#
+# This query will show a better avg_frequency value.
+#
+set analyze_sample_percentage=25;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	DECODE_HISTOGRAM(hist_type, histogram)
+t1	id	1	17384	0.0000	4.0000	14.0401	[
+  "1478",
+  "2954",
+  "4441",
+  "5894",
+  "7397",
+  "9888",
+  "11391",
+  "12895",
+  "14370",
+  "15880"
+]
+set analyze_sample_percentage=0;
+#
+# Test self adjusting sampling level.
+#
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	DECODE_HISTOGRAM(hist_type, histogram)
+t1	id	1	17384	0.0000	4.0000	13.9812	[
+  "1500",
+  "3009",
+  "4501",
+  "5997",
+  "7493",
+  "9981",
+  "11456",
+  "12932",
+  "14408",
+  "15903"
+]
+#
+# Test record estimation is working properly.
+#
+select count(*) from t1;
+count(*)
+229376
+explain select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	229060	
+set analyze_sample_percentage=100;
+ANALYZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	Table is already up to date
+select table_name, column_name, min_value, max_value, nulls_ratio, avg_length, avg_frequency,
+DECODE_HISTOGRAM(hist_type, histogram)
+from mysql.column_stats;
+table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	DECODE_HISTOGRAM(hist_type, histogram)
+t1	id	1	17384	0.0000	4.0000	14.0000	[
+  "1490",
+  "2979",
+  "4469",
+  "5958",
+  "7448",
+  "9937",
+  "11427",
+  "12916",
+  "14406",
+  "15895"
+]
+explain select * from t1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	229376	
+drop table t1;
+set analyze_sample_percentage=@save_analyze_sample_percentage;
+set histogram_size=@save_histogram_size;
+set use_stat_tables=@save_use_stat_tables;
+set @@global.histogram_size=@save_histogram_size;
 drop table if exists t1;
 set @save_histogram_type=@@histogram_type;
 set @save_histogram_size=@@histogram_size;
 create table ten(a int primary key);
 insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
+set histogram_size=100;
+set histogram_type='double_prec_hb';
 create table t1_bin (a varchar(255));
 insert into t1_bin select concat('a-', a) from ten;
-set histogram_size=100;
 analyze table t1_bin persistent for all;
 Table	Op	Msg_type	Msg_text
 test.t1_bin	analyze	status	Engine-independent statistics collected
@@ -24,9 +2315,9 @@ Note	1003	select `test`.`t1_bin`.`a` AS `a` from `test`.`t1_bin` where `test`.`t
 analyze select * from t1_bin where a between 'a-3a' and 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1_bin	ALL	NULL	NULL	NULL	NULL	10	10.00	58.82	60.00	Using where
+set histogram_type=json;
 create table t1_json (a varchar(255));
 insert into t1_json select concat('a-', a) from ten;
-set histogram_type=json;
 analyze table t1_json persistent for all;
 Table	Op	Msg_type	Msg_text
 test.t1_json	analyze	status	Engine-independent statistics collected
@@ -143,6 +2434,18 @@ Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.
 analyze select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	60.87	60.00	Using where
+explain extended select * from t1_json where a < 'b-1a';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+Warnings:
+Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` < 'b-1a'
+analyze select * from t1_json where a > 'zzzzzzzzz';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+UPDATE mysql.column_stats SET histogram='["a-1", "a-2", {"a": "b"}, "a-3"]' WHERE table_name='t1_json';
+FLUSH TABLES;
+explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
+ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '1'.
 create table users (
 city varchar(100)
 );
@@ -170,263 +2473,15 @@ Note	1003	select `test`.`users`.`city` AS `city` from `test`.`users` where `test
 analyze select * from users where city = 'helsinki';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	users	ALL	NULL	NULL	NULL	NULL	101	101.00	2.00	1.98	Using where
+explain extended select * from users where city < 'Lagos';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	users	ALL	NULL	NULL	NULL	NULL	101	50.00	Using where
+Warnings:
+Note	1003	select `test`.`users`.`city` AS `city` from `test`.`users` where `test`.`users`.`city` < 'Lagos'
 drop table t1_bin;
 drop table t1_json;
 drop table users;
-CREATE TABLE t1 (
-a int NOT NULL PRIMARY KEY,
-b varchar(32),
-c char(16),
-d date,
-e double,
-f bit(3),
-INDEX idx1 (b, e),
-INDEX idx2 (c, d),
-INDEX idx3 (d),
-INDEX idx4 (e, b, d)
-);
-INSERT INTO t1 VALUES
-(0, NULL, NULL, NULL, NULL, NULL),
-(7, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'dddddddd', '1990-05-15', 0.1, b'100'),
-(17, 'vvvvvvvvvvvvv', 'aaaa', '1989-03-12', 0.01, b'101'),
-(1, 'vvvvvvvvvvvvv', NULL, '1989-03-12', 0.01, b'100'),
-(12, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.112, b'001'),
-(23, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.1, b'100'),
-(8, 'vvvvvvvvvvvvv', 'aaaa', '1999-07-23', 0.1, b'100'),
-(22, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'aaaa', '1989-03-12', 0.112, b'001'),
-(31, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'aaaa', '1999-07-23', 0.01, b'001'),
-(10, NULL, 'aaaa', NULL, 0.01, b'010'),
-(5, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1999-07-23', 0.1, b'100'),
-(15, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.1, b'010'),
-(30, NULL, 'bbbbbb', NULL, NULL, b'100'),
-(38, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, NULL, NULL),
-(18, 'zzzzzzzzzzzzzzzzzz', 'ccccccccc', '1990-05-15', 0.01, b'010'),
-(9, 'yyy', 'bbbbbb', '1998-08-28', 0.01, NULL),
-(29, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.012, b'010'),
-(3, 'yyy', 'dddddddd',  '1990-05-15', 0.112, b'010'),
-(39, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', NULL, 0.01, b'100'),
-(14, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.1, b'100'),
-(40, 'zzzzzzzzzzzzzzzzzz', 'bbbbbb', '1989-03-12', NULL, NULL),
-(44, NULL, 'aaaa', '1989-03-12', NULL, b'010'),
-(19, 'vvvvvvvvvvvvv', 'ccccccccc', '1990-05-15', 0.012, b'011'),
-(21, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.112, b'100'),
-(45, NULL, NULL, '1989-03-12', NULL, b'011'),
-(2, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'ccccccccc', '1990-05-15', 0.1, b'001'),
-(35, 'yyy', 'aaaa', '1990-05-15', 0.05, b'011'),
-(4, 'vvvvvvvvvvvvv', 'dddddddd', '1999-07-23', 0.01, b'101'),
-(47, NULL, 'aaaa', '1990-05-15', 0.05, b'010'),
-(42, NULL, 'ccccccccc', '1989-03-12', 0.01, b'010'),
-(32, NULL, 'bbbbbb', '1990-05-15', 0.01, b'011'),
-(49, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'aaaa', '1990-05-15', NULL, NULL),
-(43, 'wwwwwwwwwwwwwwwwwwwwwwwwwwww' , 'bbbbbb', '1990-05-15', NULL, b'100'),
-(37, 'yyy', NULL, '1989-03-12', 0.05, b'011'),
-(41, 'xxxxxxxxxxxxxxxxxxxxxxxxxx', 'ccccccccc', '1990-05-15', 0.05, NULL),
-(34, 'yyy', NULL, NULL, NULL, NULL),
-(33, 'zzzzzzzzzzzzzzzzzz', 'dddddddd', '1989-03-12', 0.05, b'011'),
-(24,  'wwwwwwwwwwwwwwwwwwwwwwwwwwww', 'dddddddd', '1990-05-15', 0.01,  b'101'),
-(11, 'yyy', 'ccccccccc', '1999-07-23', 0.1, NULL),
-(25, 'zzzzzzzzzzzzzzzzzz', 'bbb', '1989-03-12', 0.01,  b'101');
-SET histogram_type='JSON';
-set histogram_size=25;
-ANALYZE TABLE t1 persistent for all;
-Table	Op	Msg_type	Msg_text
-test.t1	analyze	status	Engine-independent statistics collected
-test.t1	analyze	status	OK
-SELECT * FROM mysql.table_stats;
-db_name	table_name	cardinality
-test	t1	40
-SELECT * FROM mysql.column_stats;
-db_name	table_name	column_name	min_value	max_value	nulls_ratio	avg_length	avg_frequency	hist_size	hist_type	histogram
-test	t1	a	0	49	0.0000	4.0000	1.0000	25	JSON	[
-  "1",
-  "3",
-  "4",
-  "7",
-  "8",
-  "10",
-  "11",
-  "14",
-  "15",
-  "18",
-  "19",
-  "22",
-  "24",
-  "25",
-  "30",
-  "31",
-  "33",
-  "34",
-  "37",
-  "38",
-  "40",
-  "41",
-  "43",
-  "44",
-  "47"
-]
-test	t1	b	vvvvvvvvvvvvv	zzzzzzzzzzzzzzzzzz	0.2000	17.1250	6.4000	25	JSON	[
-  "vvvvvvvvvvvvv",
-  "vvvvvvvvvvvvv",
-  "vvvvvvvvvvvvv",
-  "vvvvvvvvvvvvv",
-  "vvvvvvvvvvvvv",
-  "vvvvvvvvvvvvv",
-  "wwwwwwwwwwwwwwwwwwwwwwwwwwww",
-  "wwwwwwwwwwwwwwwwwwwwwwwwwwww",
-  "wwwwwwwwwwwwwwwwwwwwwwwwwwww",
-  "wwwwwwwwwwwwwwwwwwwwwwwwwwww",
-  "wwwwwwwwwwwwwwwwwwwwwwwwwwww",
-  "wwwwwwwwwwwwwwwwwwwwwwwwwwww",
-  "xxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "xxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "xxxxxxxxxxxxxxxxxxxxxxxxxx",
-  "yyy",
-  "yyy",
-  "yyy",
-  "yyy",
-  "yyy",
-  "zzzzzzzzzzzzzzzzzz",
-  "zzzzzzzzzzzzzzzzzz",
-  "zzzzzzzzzzzzzzzzzz",
-  "zzzzzzzzzzzzzzzzzz",
-  "zzzzzzzzzzzzzzzzzz"
-]
-test	t1	c	aaaa	dddddddd	0.1250	6.6571	7.0000	25	JSON	[
-  "aaaa",
-  "aaaa",
-  "aaaa",
-  "aaaa",
-  "aaaa",
-  "aaaa",
-  "bbb",
-  "bbbbbb",
-  "bbbbbb",
-  "bbbbbb",
-  "bbbbbb",
-  "bbbbbb",
-  "ccccccccc",
-  "ccccccccc",
-  "ccccccccc",
-  "ccccccccc",
-  "ccccccccc",
-  "ccccccccc",
-  "dddddddd",
-  "dddddddd",
-  "dddddddd",
-  "dddddddd",
-  "dddddddd",
-  "dddddddd",
-  "dddddddd"
-]
-test	t1	d	1989-03-12	1999-07-23	0.1500	3.0000	8.5000	25	JSON	[
-  "1989-03-12",
-  "1989-03-12",
-  "1989-03-12",
-  "1989-03-12",
-  "1989-03-12",
-  "1989-03-12",
-  "1989-03-12",
-  "1989-03-12",
-  "1990-05-15",
-  "1990-05-15",
-  "1990-05-15",
-  "1990-05-15",
-  "1990-05-15",
-  "1990-05-15",
-  "1990-05-15",
-  "1990-05-15",
-  "1990-05-15",
-  "1990-05-15",
-  "1990-05-15",
-  "1999-07-23",
-  "1999-07-23",
-  "1999-07-23",
-  "1999-07-23",
-  "1999-07-23",
-  "1999-07-23"
-]
-test	t1	e	0.01	0.112	0.2250	8.0000	6.2000	25	JSON	[
-  "0.01",
-  "0.01",
-  "0.01",
-  "0.01",
-  "0.01",
-  "0.01",
-  "0.01",
-  "0.01",
-  "0.01",
-  "0.01",
-  "0.012",
-  "0.05",
-  "0.05",
-  "0.05",
-  "0.05",
-  "0.1",
-  "0.1",
-  "0.1",
-  "0.1",
-  "0.1",
-  "0.1",
-  "0.1",
-  "0.112",
-  "0.112",
-  "0.112"
-]
-test	t1	f	1	5	0.2000	1.0000	6.4000	25	JSON	[
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  "",
-  ""
-]
-SELECT * FROM mysql.index_stats;
-db_name	table_name	index_name	prefix_arity	avg_frequency
-test	t1	PRIMARY	1	1.0000
-test	t1	idx1	1	6.4000
-test	t1	idx1	2	1.6875
-test	t1	idx2	1	7.0000
-test	t1	idx2	2	2.3846
-test	t1	idx3	1	8.5000
-test	t1	idx4	1	6.2000
-test	t1	idx4	2	1.6875
-test	t1	idx4	3	1.1304
-SELECT COUNT(*) FROM t1;
-COUNT(*)
-40
-explain extended select * from t1 where a between '20' and '70';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	40	57.50	Using where
-Warnings:
-Note	1003	select `test`.`t1`.`a` AS `a`,`test`.`t1`.`b` AS `b`,`test`.`t1`.`c` AS `c`,`test`.`t1`.`d` AS `d`,`test`.`t1`.`e` AS `e`,`test`.`t1`.`f` AS `f` from `test`.`t1` where `test`.`t1`.`a` between '20' and '70'
-analyze select * from t1 where a between '20' and '70';
-id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1	ALL	PRIMARY	NULL	NULL	NULL	40	40.00	57.50	57.50	Using where
-UPDATE mysql.column_stats SET histogram='["1", {"a": "b"}, "2"]' WHERE table_name='t1';
-FLUSH TABLES;
-explain extended select * from t1 where a between '20' and '70';
-ERROR HY000: Failed to parse histogram, encountered JSON_TYPE '1'.
 DELETE FROM mysql.column_stats;
-DROP TABLE t1;
 create schema world;
 use world;
 set histogram_type='JSON';
@@ -498,7 +2553,7 @@ Name	Afghanistan	Zimbabwe	50	JSON	[
   "Chile",
   "Colombia",
   "Costa Rica",
-  "CÃ´te dÂ’Ivoire",
+  "Côte dIvoire",
   "Dominican Republic",
   "Equatorial Guinea",
   "Faroe Islands",
@@ -746,7 +2801,7 @@ ID	1	4079	50	JSON	[
   "3920",
   "4000"
 ]
-Name	A CoruÃ±a (La CoruÃ±a)	Ã…rhus	50	JSON	[
+Name	A Coruña (La Coruña)	Ürgenc	50	JSON	[
   "Allentown",
   "Araguari",
   "Bahtim",
@@ -763,7 +2818,7 @@ Name	A CoruÃ±a (La CoruÃ±a)	Ã…rhus	50	JSON	[
   "Gebze",
   "Guangyuan",
   "Hangzhou",
-  "Hradec KrÃ¡lovÃ©",
+  "Hradec Králové",
   "Inazawa",
   "Jalib al-Shuyukh",
   "Jubayl",
@@ -785,14 +2840,14 @@ Name	A CoruÃ±a (La CoruÃ±a)	Ã…rhus	50	JSON	[
   "Quezon",
   "Rishra",
   "Salem",
-  "Sancti-SpÃ­ritus",
+  "Sancti-Spíritus",
   "Sekondi-Takoradi",
   "Silao",
   "Stoke-on-Trent",
   "Taegu",
   "Teheran",
   "Tomsk",
-  "TÃ¢rgu Mures",
+  "Târgu Mures",
   "Varginha",
   "Weifang",
   "Yangjiang",
@@ -1066,6 +3121,14 @@ Note	1003	select `world`.`Country`.`Code` AS `Code`,`world`.`Country`.`Name` AS 
 analyze select * from Country where 'Code' between 'BBC' and 'GGG';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	100.00	100.00	
+explain extended select * from Country where 'Code' < 'BBC';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
+Warnings:
+Note	1003	select `world`.`Country`.`Code` AS `Code`,`world`.`Country`.`Name` AS `Name`,`world`.`Country`.`SurfaceArea` AS `SurfaceArea`,`world`.`Country`.`Population` AS `Population`,`world`.`Country`.`Capital` AS `Capital` from `world`.`Country` where 0
+analyze select * from Country where 'Code' < 'BBC';
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	Impossible WHERE
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 DROP SCHEMA world;
