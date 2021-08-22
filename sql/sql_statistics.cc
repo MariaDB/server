@@ -4364,10 +4364,37 @@ double get_column_range_cardinality(Field *field,
   {
     if (col_stats->min_max_values_are_provided())
     {
-      Histogram_base *hist = col_stats->histogram_;
-      double sel= hist->range_selectivity(field, min_endp, max_endp);
+      Histogram_base *hist= col_stats->histogram_;
+      double sel;
+      if (hist && hist->is_usable(thd))
+      {
+        sel= hist->range_selectivity(field, min_endp, max_endp);
+        set_if_bigger(res, col_stats->get_avg_frequency());
+      } else
+      {
+        double min_mp_pos, max_mp_pos;
+        if (min_endp && !(field->null_ptr && min_endp->key[0]))
+        {
+          store_key_image_to_rec(field, (uchar *) min_endp->key,
+                                 field->key_length());
+          min_mp_pos=
+              field->pos_in_interval(col_stats->min_value, col_stats->max_value);
+        }
+        else
+          min_mp_pos= 0.0;
+        if (max_endp)
+        {
+          store_key_image_to_rec(field, (uchar *) max_endp->key,
+                                 field->key_length());
+          max_mp_pos=
+              field->pos_in_interval(col_stats->min_value, col_stats->max_value);
+        }
+        else
+          max_mp_pos= 1.0;
+
+        sel = (max_mp_pos - min_mp_pos);
+      }
       res= col_non_nulls * sel;
-      set_if_bigger(res, col_stats->get_avg_frequency());
     }
     else
       res= col_non_nulls;
@@ -4525,23 +4552,16 @@ double Histogram_binary::range_selectivity(Field *field,
   else
     max_mp_pos= 1.0;
 
-  if (is_usable(field->table->in_use))
-  {
-    double bucket_sel= 1.0 / (get_width() + 1);
-    uint min= find_bucket(min_mp_pos, TRUE);
-    uint max= find_bucket(max_mp_pos, FALSE);
-    sel= bucket_sel * (max - min + 1);
+  double bucket_sel= 1.0 / (get_width() + 1);
+  uint min= find_bucket(min_mp_pos, TRUE);
+  uint max= find_bucket(max_mp_pos, FALSE);
+  sel= bucket_sel * (max - min + 1);
 
-    /*fprintf(stderr, "bucket_sel =%g\n", bucket_sel);
-    fprintf(stderr, "min pos_in_interval =%g\n", min_mp_pos);
-    fprintf(stderr, "max pos_in_interval =%g\n", max_mp_pos);
-    fprintf(stderr, "min =%d\n", min);
-    fprintf(stderr, "max =%d\n", max);*/
-  }
-  else
-  {
-    sel= (max_mp_pos - min_mp_pos);
-  }
+  /*fprintf(stderr, "bucket_sel =%g\n", bucket_sel);
+  fprintf(stderr, "min pos_in_interval =%g\n", min_mp_pos);
+  fprintf(stderr, "max pos_in_interval =%g\n", max_mp_pos);
+  fprintf(stderr, "min =%d\n", min);
+  fprintf(stderr, "max =%d\n", max);*/
   /*fprintf(stderr, "final sel =%g\n", sel);
   fprintf(stderr, "Histogram_binary::range_selectivity ends\n");*/
   return sel;

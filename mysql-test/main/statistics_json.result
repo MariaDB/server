@@ -2441,7 +2441,7 @@ Warnings:
 Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` < 'b-1a'
 analyze select * from t1_json where a > 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	10.00	0.00	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	0.00	0.00	Using where
 UPDATE mysql.column_stats SET histogram='["a-1", "a-2", {"a": "b"}, "a-3"]' WHERE table_name='t1_json';
 FLUSH TABLES;
 explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
@@ -2475,7 +2475,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 1	SIMPLE	users	ALL	NULL	NULL	NULL	NULL	101	101.00	2.00	1.98	Using where
 explain extended select * from users where city < 'Lagos';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	users	ALL	NULL	NULL	NULL	NULL	101	50.00	Using where
+1	SIMPLE	users	ALL	NULL	NULL	NULL	NULL	101	3.58	Using where
 Warnings:
 Note	1003	select `test`.`users`.`city` AS `city` from `test`.`users` where `test`.`users`.`city` < 'Lagos'
 drop table t1_bin;
