@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2562,7 +2562,7 @@ struct TABLE_LIST
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
-  void calc_md5(const char *buffer);
+  void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
   bool create_field_translation(THD *thd);
   bool setup_underlying(THD *thd);
