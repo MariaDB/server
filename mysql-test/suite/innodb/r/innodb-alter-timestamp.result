@@ -139,3 +139,15 @@ ALTER TABLE t1 ADD f3 DATE NOT NULL, ALGORITHM=INPLACE;
 ERROR 0A000: ALGORITHM=INPLACE is not supported for this operation. Try ALGORITHM=COPY
 DROP TABLE t1;
 disconnect purge_control;
+#
+# MDEV-26458 SIGSEGV in innobase_table_is_empty() on ALTER TABLE
+#
+CREATE TABLE t(a INT PRIMARY KEY) ENGINE=InnoDB;
+ALTER TABLE t DISCARD TABLESPACE;
+SET sql_mode='NO_ZERO_DATE';
+ALTER TABLE t ADD c DATE NOT NULL;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t`
+SET sql_mode=DEFAULT;
+DROP TABLE t;
+# End of 10.3 tests
