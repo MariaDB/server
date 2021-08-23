@@ -253,15 +253,7 @@ ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
 {
   ut_ad(index->freed());
   dict_table_t *table= index->table;
-  bool non_exist_table= (table->id == 0);
-
-  if (non_exist_table)
-  {
-    /* autoinc_mutex should be acquired to avoid the race condition
-    in case of multiple threads accessing the evicted table
-    or dropped table. */
-    mysql_mutex_lock(&table->autoinc_mutex);
-  }
+  mysql_mutex_lock(&table->autoinc_mutex);
 
   /* Perform the skipped steps of dict_index_remove_from_cache_low(). */
   UT_LIST_REMOVE(table->freed_indexes, index);
@@ -271,15 +263,14 @@ ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
   if (!UT_LIST_GET_LEN(table->freed_indexes) &&
       !UT_LIST_GET_LEN(table->indexes))
   {
-    ut_ad(non_exist_table);
+    ut_ad(!table->id);
     mysql_mutex_unlock(&table->autoinc_mutex);
     mysql_mutex_destroy(&table->autoinc_mutex);
     dict_mem_table_free(table);
     return;
   }
 
-  if (non_exist_table)
-    mysql_mutex_unlock(&table->autoinc_mutex);
+  mysql_mutex_unlock(&table->autoinc_mutex);
 }
 
 /** Clear the adaptive hash index on all pages in the buffer pool. */

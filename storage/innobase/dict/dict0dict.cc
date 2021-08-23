@@ -2,7 +2,7 @@
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
 Copyright (c) 2012, Facebook Inc.
-Copyright (c) 2013, 2020, MariaDB Corporation.
+Copyright (c) 2013, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -1258,6 +1258,7 @@ dict_index_t *dict_index_t::clone_if_needed()
     return this;
   dict_index_t *prev= UT_LIST_GET_PREV(indexes, this);
 
+  mysql_mutex_lock(&table->autoinc_mutex);
   UT_LIST_REMOVE(table->indexes, this);
   UT_LIST_ADD_LAST(table->freed_indexes, this);
   dict_index_t *index= clone();
@@ -1266,6 +1267,7 @@ dict_index_t *dict_index_t::clone_if_needed()
     UT_LIST_INSERT_AFTER(table->indexes, prev, index);
   else
     UT_LIST_ADD_FIRST(table->indexes, index);
+  mysql_mutex_unlock(&table->autoinc_mutex);
   return index;
 }
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -1961,15 +1963,21 @@ dict_table_remove_from_cache_low(
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (UNIV_UNLIKELY(UT_LIST_GET_LEN(table->freed_indexes) != 0)) {
-		if (table->fts) {
-			fts_optimize_remove_table(table);
-			fts_free(table);
-			table->fts = NULL;
-		}
+	if (table->fts) {
+		fts_optimize_remove_table(table);
+		fts_free(table);
+		table->fts = NULL;
+	}
 
-		table->vc_templ = NULL;
-		table->id = 0;
+	mysql_mutex_lock(&table->autoinc_mutex);
+
+	ulint freed = UT_LIST_GET_LEN(table->freed_indexes);
+
+	table->vc_templ = NULL;
+	table->id = 0;
+	mysql_mutex_unlock(&table->autoinc_mutex);
+
+	if (UNIV_UNLIKELY(freed != 0)) {
 		return;
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -2244,8 +2252,10 @@ dict_index_remove_from_cache_low(
 	zero. See also: dict_table_can_be_evicted() */
 
 	if (index->n_ahi_pages()) {
+		mysql_mutex_lock(&table->autoinc_mutex);
 		index->set_freed();
 		UT_LIST_ADD_LAST(table->freed_indexes, index);
+		mysql_mutex_unlock(&table->autoinc_mutex);
 		return;
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
