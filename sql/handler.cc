@@ -7564,6 +7564,12 @@ bool Vers_parse_info::check_sys_fields(const Lex_table_name &table_name,
       row_end= f;
   }
 
+  if (!row_start || !row_end)
+  {
+    my_error(ER_VERS_PERIOD_COLUMNS, MYF(0), as_row.start.str, as_row.end.str);
+    return true;
+  }
+
   if (!can_native ||
       !row_start->is_some_bigint() ||
       !row_end->is_some_bigint())
