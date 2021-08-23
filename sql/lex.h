@@ -110,6 +110,7 @@ SYMBOL symbols[] = {
   { "CHAIN",		SYM(CHAIN_SYM)},
   { "CHANGE",		SYM(CHANGE)},
   { "CHANGED",		SYM(CHANGED)},
+  { "CHANNEL",		SYM(CHANNEL_SYM)},
   { "CHAR",		SYM(CHAR_SYM)},
   { "CHARACTER",	SYM(CHAR_SYM)},
   { "CHARSET",		SYM(CHARSET)},

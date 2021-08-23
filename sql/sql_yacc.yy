@@ -778,6 +778,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  CATALOG_NAME_SYM              /* SQL-2003-N */
 %token  <kwd>  CHAIN_SYM                     /* SQL-2003-N */
 %token  <kwd>  CHANGED
+%token  <kwd>  CHANNEL_SYM
 %token  <kwd>  CHARSET
 %token  <kwd>  CHECKPOINT_SYM
 %token  <kwd>  CHECKSUM_SYM
@@ -2076,6 +2077,7 @@ change:
             Lex->sql_command = SQLCOM_CHANGE_MASTER;
           }
           master_defs
+          optional_for_channel
           {}
         ;
 
@@ -2306,6 +2308,34 @@ connection_name:
 #endif
          }
          ;
+
+optional_for_channel:
+        /* empty */
+          {
+            /*do nothing */
+          }
+        | for_channel
+
+        ;
+
+for_channel:
+        FOR_SYM CHANNEL_SYM TEXT_STRING_sys
+        {
+          if (Lex->mi.connection_name.str != NULL)
+          {
+            my_yyabort_error((ER_WRONG_ARGUMENTS, MYF(0), "CONNECTION_NAME AND FOR CHANNEL CAN NOT BE SPECIFIED AT THE SAME TIME)"));
+          }
+          else
+          {
+            Lex->mi.connection_name= $3;
+#ifdef HAVE_REPLICATION
+           if (unlikely(check_master_connection_name(&$3)))
+              my_yyabort_error((ER_WRONG_ARGUMENTS, MYF(0), "MASTER_CONNECTION_NAME"));
+#endif
+          }
+
+          }
+          ;
 
 /* create a table */
 
@@ -8030,7 +8060,7 @@ opt_to:
         ;
 
 slave:
-          START_SYM SLAVE optional_connection_name slave_thread_opts
+          START_SYM SLAVE optional_connection_name slave_thread_opts optional_for_channel
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_START;
@@ -8047,7 +8077,7 @@ slave:
             /* If you change this code don't forget to update STOP SLAVE too */
           }
           {}
-        | STOP_SYM SLAVE optional_connection_name slave_thread_opts
+        | STOP_SYM SLAVE optional_connection_name slave_thread_opts optional_for_channel
           {
             LEX *lex=Lex;
             lex->sql_command = SQLCOM_SLAVE_STOP;
@@ -13931,7 +13961,8 @@ show_param:
             LEX *lex= Lex;
             lex->sql_command= SQLCOM_SHOW_RELAYLOG_EVENTS;
           }
-          opt_global_limit_clause
+          opt_global_limit_clause optional_for_channel
+          { }
         | keys_or_index from_or_in table_ident opt_db opt_where_clause
           {
             LEX *lex= Lex;
@@ -14076,16 +14107,7 @@ show_param:
               MYSQL_YYABORT;
             Lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
           }
-        | SLAVE STATUS_SYM
-          {
-            LEX *lex= thd->lex;
-            lex->mi.connection_name= null_clex_str;
-            if (!(lex->m_sql_cmd= new (thd->mem_root)
-                  Sql_cmd_show_slave_status()))
-              MYSQL_YYABORT;
-            lex->sql_command = SQLCOM_SHOW_SLAVE_STAT;
-          }
-        | SLAVE connection_name STATUS_SYM
+        | SLAVE optional_connection_name STATUS_SYM optional_for_channel
           {
             if (!(Lex->m_sql_cmd= new (thd->mem_root)
                   Sql_cmd_show_slave_status()))
@@ -14470,7 +14492,7 @@ flush_option:
           { Lex->type|= REFRESH_SLOW_LOG; }
         | BINARY LOGS_SYM opt_delete_gtid_domain
           { Lex->type|= REFRESH_BINARY_LOG; }
-        | RELAY LOGS_SYM optional_connection_name
+        | RELAY LOGS_SYM optional_connection_name optional_for_channel
           {
             LEX *lex= Lex;
             if (unlikely(lex->type & REFRESH_RELAY_LOG))
@@ -14621,7 +14643,8 @@ reset_options:
 reset_option:
           SLAVE               { Lex->type|= REFRESH_SLAVE; }
           optional_connection_name
-          slave_reset_options { }
+          slave_reset_options optional_for_channel
+          { }
         | MASTER_SYM
           {
              Lex->type|= REFRESH_MASTER;
@@ -15918,6 +15941,7 @@ keyword_sp_var_and_label:
         | CASCADED
         | CATALOG_NAME_SYM
         | CHAIN_SYM
+        | CHANNEL_SYM
         | CHANGED
         | CIPHER_SYM
         | CLIENT_SYM
