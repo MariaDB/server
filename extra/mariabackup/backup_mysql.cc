@@ -922,8 +922,6 @@ bool lock_tables(MYSQL *connection)
 
   xb_mysql_query(connection, "BACKUP STAGE START", true);
   DBUG_MARIABACKUP_EVENT("after_backup_stage_start", {});
-  // xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
-  // xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
   xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
   DBUG_MARIABACKUP_EVENT("after_backup_stage_block_commit", {});
   /* Set the maximum supported session value for
