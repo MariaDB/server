@@ -1329,6 +1329,7 @@ dict_index_t *dict_index_t::clone_if_needed()
     return this;
   dict_index_t *prev= UT_LIST_GET_PREV(indexes, this);
 
+  table->autoinc_mutex.lock();
   UT_LIST_REMOVE(table->indexes, this);
   UT_LIST_ADD_LAST(table->freed_indexes, this);
   dict_index_t *index= clone();
@@ -1337,6 +1338,7 @@ dict_index_t *dict_index_t::clone_if_needed()
     UT_LIST_INSERT_AFTER(table->indexes, prev, index);
   else
     UT_LIST_ADD_FIRST(table->indexes, index);
+  table->autoinc_mutex.unlock();
   return index;
 }
 #endif /* BTR_CUR_HASH_ADAPT */
@@ -1979,26 +1981,32 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		UT_DELETE(table->vc_templ);
 	}
 
-	table->autoinc_mutex.~mutex();
-
 	if (keep) {
+		table->autoinc_mutex.~mutex();
 		return;
 	}
 
 #ifdef BTR_CUR_HASH_ADAPT
-	if (UNIV_UNLIKELY(UT_LIST_GET_LEN(table->freed_indexes) != 0)) {
-		if (table->fts) {
-			fts_optimize_remove_table(table);
-			fts_free(table);
-			table->fts = NULL;
-		}
+	if (table->fts) {
+		fts_optimize_remove_table(table);
+		fts_free(table);
+		table->fts = NULL;
+	}
 
-		table->vc_templ = NULL;
-		table->id = 0;
+	table->autoinc_mutex.lock();
+
+	ulint freed = UT_LIST_GET_LEN(table->freed_indexes);
+
+	table->vc_templ = NULL;
+	table->id = 0;
+	table->autoinc_mutex.unlock();
+
+	if (UNIV_UNLIKELY(freed != 0)) {
 		return;
 	}
 #endif /* BTR_CUR_HASH_ADAPT */
 
+	table->autoinc_mutex.~mutex();
 	dict_mem_table_free(table);
 }
 
@@ -2217,8 +2225,10 @@ dict_index_remove_from_cache_low(
 	zero. See also: dict_table_can_be_evicted() */
 
 	if (index->n_ahi_pages()) {
+		table->autoinc_mutex.lock();
 		index->set_freed();
 		UT_LIST_ADD_LAST(table->freed_indexes, index);
+		table->autoinc_mutex.unlock();
 		return;
 	}
 #endif /* BTR_CUR_HASH_ADAPT */

@@ -924,8 +924,6 @@ bool lock_tables(MYSQL *connection)
   }
 
   xb_mysql_query(connection, "BACKUP STAGE START", true);
-  // xb_mysql_query(connection, "BACKUP STAGE FLUSH", true);
-  // xb_mysql_query(connection, "BACKUP STAGE BLOCK_DDL", true);
   xb_mysql_query(connection, "BACKUP STAGE BLOCK_COMMIT", true);
   /* Set the maximum supported session value for
   lock_wait_timeout to prevent unnecessary timeouts when the

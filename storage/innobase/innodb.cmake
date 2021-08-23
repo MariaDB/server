@@ -139,11 +139,6 @@ ENDIF()
 
 CHECK_FUNCTION_EXISTS(vasprintf  HAVE_VASPRINTF)
 
-CHECK_CXX_SOURCE_COMPILES("struct t1{ int a; char *b; }; struct t1 c= { .a=1, .b=0 }; main() { }" HAVE_C99_INITIALIZERS)
-IF(HAVE_C99_INITIALIZERS)
-  ADD_DEFINITIONS(-DHAVE_C99_INITIALIZERS)
-ENDIF()
-
 SET(MUTEXTYPE "event" CACHE STRING "Mutex type: event, sys or futex")
 
 IF(MUTEXTYPE MATCHES "event")

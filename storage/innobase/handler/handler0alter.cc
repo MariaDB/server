@@ -2192,6 +2192,7 @@ innodb_instant_alter_column_allowed_reason:
 	/* '0000-00-00' value isn't allowed for datetime datatype
 	for newly added column when table is not empty */
 	if (ha_alter_info->error_if_not_empty
+	    && m_prebuilt->table->space
 	    && !innobase_table_is_empty(m_prebuilt->table)) {
 		DBUG_RETURN(HA_ALTER_INPLACE_NOT_SUPPORTED);
 	}
