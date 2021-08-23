@@ -385,7 +385,7 @@ public:
   bool check_duplicate_master_info(LEX_CSTRING *connection_name,
                                    const char *host, uint port);
   bool add_master_info(Master_info *mi, bool write_to_file);
-  bool remove_master_info(Master_info *mi);
+  bool remove_master_info(Master_info *mi, bool clear_log_files);
   Master_info *get_master_info(const LEX_CSTRING *connection_name,
                                Sql_condition::enum_warning_level warning);
   bool start_all_slaves(THD *thd);

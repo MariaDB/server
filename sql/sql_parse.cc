@@ -4137,7 +4137,7 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
         If new master was not added, we still need to free mi.
       */
       if (master_info_added)
-        master_info_index->remove_master_info(mi);
+        master_info_index->remove_master_info(mi, 1);
       else
         delete mi;
     }

@@ -1453,10 +1453,31 @@ bool Master_info_index::add_master_info(Master_info *mi, bool write_to_file)
    atomic
 */
 
-bool Master_info_index::remove_master_info(Master_info *mi)
+bool Master_info_index::remove_master_info(Master_info *mi, bool clear_log_files)
 {
+  char tmp_name[FN_REFLEN];
   DBUG_ENTER("remove_master_info");
   mysql_mutex_assert_owner(&LOCK_active_mi);
+
+  if (clear_log_files)
+  {
+    /* This code is only executed when change_master() failes to create a new master info */
+
+    // Delete any temporary relay log files that could have been created by change_master()
+    mi->rli.relay_log.reset_logs(current_thd, 0, (rpl_gtid*) 0, 0, 0);
+    /* Delete master-'connection'.info */
+    create_logfile_name_with_suffix(tmp_name,
+                                    sizeof(tmp_name),
+                                    master_info_file, 0,
+                                    &mi->cmp_connection_name);
+    my_delete(tmp_name, MYF(0));
+    /* Delete relay-log-'connection'.info */
+    create_logfile_name_with_suffix(tmp_name,
+                                    sizeof(tmp_name),
+                                    relay_log_info_file, 0,
+                                    &mi->cmp_connection_name);
+    my_delete(tmp_name, MYF(0));
+  }
 
   // Delete Master_info and rewrite others to file
   if (!my_hash_delete(&master_info_hash, (uchar*) mi))
