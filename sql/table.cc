@@ -2059,9 +2059,9 @@ int TABLE_SHARE::init_from_binary_frm_image(THD *thd, bool write,
     if (versioned)
     {
       if (i == row_start_field)
-        flags|= VERS_SYS_START_FLAG;
+        flags|= VERS_ROW_START;
       else if (i == row_end_field)
-        flags|= VERS_SYS_END_FLAG;
+        flags|= VERS_ROW_END;
 
       if (flags & VERS_SYSTEM_FIELD)
       {
