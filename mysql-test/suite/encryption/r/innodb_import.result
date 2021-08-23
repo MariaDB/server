@@ -1,0 +1,22 @@
+#
+# MDEV-26131 SEGV in ha_innobase::discard_or_import_tablespace
+#
+CREATE TABLE t1(f1 int,f2 text)ENGINE=InnoDB;
+INSERT INTO t1 VALUES(1, "InnoDB");
+CREATE TABLE t2 LIKE t1;
+ALTER TABLE t2 ADD KEY idx (f2(13));
+ALTER TABLE t2 DISCARD TABLESPACE;
+FLUSH TABLES t1 FOR EXPORT;
+UNLOCK TABLES;
+ALTER TABLE t2 IMPORT TABLESPACE;
+ERROR HY000: Internal error: Drop all secondary indexes before importing table test/t2 when .cfg file is missing.
+ALTER TABLE t2 DROP KEY idx;
+Warnings:
+Warning	1814	Tablespace has been discarded for table `t2`
+ALTER TABLE t2 IMPORT TABLESPACE;
+Warnings:
+Warning	1810	IO Read error: (2, No such file or directory) Error opening './test/t2.cfg', will attempt to import without schema verification
+SELECT * FROM t2;
+f1	f2
+1	InnoDB
+DROP TABLE t1, t2;

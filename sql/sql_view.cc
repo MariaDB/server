@@ -1,5 +1,5 @@
 /* Copyright (c) 2004, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2011, 2016, MariaDB Corporation
+   Copyright (c) 2011, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -837,7 +837,7 @@ int mariadb_fix_view(THD *thd, TABLE_LIST *view, bool wrong_checksum,
        if ((view->md5.str= (char *)thd->alloc(32 + 1)) == NULL)
          DBUG_RETURN(HA_ADMIN_FAILED);
     }
-    view->calc_md5(view->md5.str);
+    view->calc_md5(const_cast<char*>(view->md5.str));
     view->md5.length= 32;
   }
   view->mariadb_version= MYSQL_VERSION_ID;

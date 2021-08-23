@@ -100,25 +100,6 @@ static ib_mutex_t row_drop_list_mutex;
 /** Flag: has row_mysql_drop_list been initialized? */
 static bool row_mysql_drop_list_inited;
 
-/*******************************************************************//**
-Determine if the given name is a name reserved for MySQL system tables.
-@return TRUE if name is a MySQL system table name */
-static
-ibool
-row_mysql_is_system_table(
-/*======================*/
-	const char*	name)
-{
-	if (strncmp(name, "mysql/", 6) != 0) {
-
-		return(FALSE);
-	}
-
-	return(0 == strcmp(name + 6, "host")
-	       || 0 == strcmp(name + 6, "user")
-	       || 0 == strcmp(name + 6, "db"));
-}
-
 #ifdef UNIV_DEBUG
 /** Wait for the background drop list to become empty. */
 void
@@ -2374,25 +2355,12 @@ row_create_table_for_mysql(
 
 	DBUG_EXECUTE_IF(
 		"ib_create_table_fail_at_start_of_row_create_table_for_mysql",
-		goto err_exit;
+		dict_mem_table_free(table);
+		trx->op_info = "";
+		return DB_ERROR;
 	);
 
 	trx->op_info = "creating table";
-
-	if (row_mysql_is_system_table(table->name.m_name)) {
-
-		ib::error() << "Trying to create a MySQL system table "
-			<< table->name << " of type InnoDB. MySQL system"
-			" tables must be of the MyISAM type!";
-#ifndef DBUG_OFF
-err_exit:
-#endif /* !DBUG_OFF */
-		dict_mem_table_free(table);
-
-		trx->op_info = "";
-
-		return(DB_ERROR);
-	}
 
 	trx_start_if_not_started_xa(trx, true);
 
@@ -4196,14 +4164,6 @@ row_rename_table_for_mysql(
 
 	if (high_level_read_only) {
 		return(DB_READ_ONLY);
-
-	} else if (row_mysql_is_system_table(new_name)) {
-
-		ib::error() << "Trying to create a MySQL system table "
-			<< new_name << " of type InnoDB. MySQL system tables"
-			" must be of the MyISAM type!";
-
-		goto funct_exit;
 	}
 
 	trx->op_info = "renaming table";

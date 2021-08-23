@@ -3237,7 +3237,7 @@ func_exit:
 @param[in,out]	page		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void
+dberr_t
 btr_level_list_remove_func(
 	ulint			space,
 	ulint			zip_size,
@@ -3280,6 +3280,10 @@ btr_level_list_remove_func(
 				page_id_t(space, next_page_no), zip_size,
 				RW_X_LATCH, index, mtr);
 
+		if (!next_block) {
+			return DB_ERROR;
+		}
+
 		page_t*		next_page
 			= buf_block_get_frame(next_block);
 #ifdef UNIV_BTR_DEBUG
@@ -3292,6 +3296,8 @@ btr_level_list_remove_func(
 				  buf_block_get_page_zip(next_block),
 				  prev_page_no, mtr);
 	}
+
+	return DB_SUCCESS;
 }
 
 /****************************************************************//**
@@ -3777,8 +3783,11 @@ retry:
 		btr_search_drop_page_hash_index(block);
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(index->table->space_id,
-				      zip_size, page, index, mtr);
+		if (DB_SUCCESS != btr_level_list_remove(index->table->space_id,
+							zip_size, page, index,
+							mtr)) {
+			goto err_exit;
+		}
 
 		if (dict_index_is_spatial(index)) {
 			rec_t*  my_rec = father_cursor.page_cur.rec;
@@ -3907,8 +3916,11 @@ retry:
 #endif /* UNIV_BTR_DEBUG */
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(index->table->space_id,
-				      zip_size, page, index, mtr);
+		if (DB_SUCCESS != btr_level_list_remove(index->table->space_id,
+							zip_size, page, index,
+							mtr)) {
+			goto err_exit;
+		}
 
 		ut_ad(btr_node_ptr_get_child_page_no(
 			btr_cur_get_rec(&father_cursor), offsets)
@@ -4313,8 +4325,8 @@ btr_discard_page(
 	}
 
 	/* Remove the page from the level list */
-	btr_level_list_remove(index->table->space_id, zip_size,
-			      page, index, mtr);
+	ut_a(DB_SUCCESS == btr_level_list_remove(index->table->space_id,
+						 zip_size, page, index, mtr));
 
 #ifdef UNIV_ZIP_DEBUG
 	{
