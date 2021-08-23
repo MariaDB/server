@@ -19308,7 +19308,6 @@ static void test_mdev23519()
                           opt_unix_socket, CLIENT_MULTI_RESULTS))
     DIE("mysql_real_connect failed");
 
-  rc= mysql_query(mysql, "drop table if exists fears");
   rc= mysql_query(mysql, "create table fears("\
                   "`FearID` int(11) DEFAULT NULL,"\
                   "`Fear` varchar(50) DEFAULT NULL"\
@@ -19326,6 +19325,8 @@ static void test_mdev23519()
   DIE_UNLESS(strcmp(result->fields->org_name, "Fear") == 0 && strcmp(result->fields->name, "Fears_Fear") == 0);
 
   mysql_free_result(result);
+  rc= mysql_query(mysql, "drop table fears");
+
   mysql_close(my);
 
   DBUG_VOID_RETURN;

@@ -6392,7 +6392,7 @@ void Item_field::make_send_field(THD *thd, Send_field *tmp_field)
   {
     DBUG_ASSERT(name.length == strlen(name.str));
     tmp_field->col_name= name;		// Use user supplied name
-    if(orig_field_name.str && cmp(name, orig_field_name) != 0)
+    if(orig_field_name.str)
     {
       tmp_field->org_col_name= orig_field_name;
     }
