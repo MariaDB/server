@@ -266,7 +266,7 @@ static TypelibBuffer<4> isolation_level_values_typelib(isolation_level_values);
 namespace Show {
 
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_trx */
-static ST_FIELD_INFO	innodb_trx_fields_info[] =
+static ST_FIELD_INFO innodb_trx_fields_info[]=
 {
 #define IDX_TRX_ID		0
   Column("trx_id", ULonglong(), NOT_NULL),
@@ -518,49 +518,49 @@ struct st_maria_plugin	i_s_innodb_trx =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_TRX"),
+	"INNODB_TRX",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB transactions"),
+	"InnoDB transactions",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_trx_init),
+	innodb_trx_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 static const LEX_CSTRING lock_mode_values[] =
@@ -588,7 +588,7 @@ static TypelibBuffer<2> lock_type_values_typelib(lock_type_values);
 
 namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_locks */
-static ST_FIELD_INFO	innodb_locks_fields_info[] =
+static ST_FIELD_INFO innodb_locks_fields_info[]=
 {
 #define IDX_LOCK_ID		0
   Column("lock_id",     Varchar(TRX_I_S_LOCK_ID_MAX_LEN + 1),  NOT_NULL),
@@ -733,55 +733,55 @@ struct st_maria_plugin	i_s_innodb_locks =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_LOCKS"),
+	"INNODB_LOCKS",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB conflicting locks"),
+	"InnoDB conflicting locks",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_locks_init),
+	innodb_locks_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 
 namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_lock_waits */
-static ST_FIELD_INFO	innodb_lock_waits_fields_info[] =
+static ST_FIELD_INFO innodb_lock_waits_fields_info[]=
 {
 #define IDX_REQUESTING_TRX_ID	0
   Column("requesting_trx_id", ULonglong(), NOT_NULL),
@@ -887,49 +887,49 @@ struct st_maria_plugin	i_s_innodb_lock_waits =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_LOCK_WAITS"),
+	"INNODB_LOCK_WAITS",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB which lock is blocking which"),
+	"InnoDB which lock is blocking which",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_lock_waits_init),
+	innodb_lock_waits_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 /*******************************************************************//**
@@ -1033,7 +1033,7 @@ trx_i_s_common_fill_table(
 
 namespace Show {
 /* Fields of the dynamic table information_schema.innodb_cmp. */
-static ST_FIELD_INFO	i_s_cmp_fields_info[] =
+static ST_FIELD_INFO i_s_cmp_fields_info[] =
 {
   Column("page_size",      SLong(5),NOT_NULL, "Compressed Page Size"),
   Column("compress_ops",   SLong(), NOT_NULL, "Total Number of Compressions"),
@@ -1175,99 +1175,99 @@ struct st_maria_plugin	i_s_innodb_cmp =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_CMP"),
+	"INNODB_CMP",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "Statistics for the InnoDB compression"),
+	"Statistics for the InnoDB compression",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_cmp_init),
+	i_s_cmp_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 struct st_maria_plugin	i_s_innodb_cmp_reset =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_CMP_RESET"),
+	"INNODB_CMP_RESET",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "Statistics for the InnoDB compression;"
-		   " reset cumulated counts"),
+	"Statistics for the InnoDB compression;"
+		   " reset cumulated counts",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_cmp_reset_init),
+	i_s_cmp_reset_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 
@@ -1275,7 +1275,7 @@ namespace Show {
 /* Fields of the dynamic tables
 information_schema.innodb_cmp_per_index and
 information_schema.innodb_cmp_per_index_reset. */
-static ST_FIELD_INFO	i_s_cmp_per_index_fields_info[] =
+static ST_FIELD_INFO i_s_cmp_per_index_fields_info[]=
 {
 #define IDX_DATABASE_NAME	0
   Column("database_name",   Varchar(NAME_CHAR_LEN), NOT_NULL),
@@ -1481,105 +1481,105 @@ struct st_maria_plugin	i_s_innodb_cmp_per_index =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_CMP_PER_INDEX"),
+	"INNODB_CMP_PER_INDEX",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "Statistics for the InnoDB compression (per index)"),
+	"Statistics for the InnoDB compression (per index)",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_cmp_per_index_init),
+	i_s_cmp_per_index_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 struct st_maria_plugin	i_s_innodb_cmp_per_index_reset =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_CMP_PER_INDEX_RESET"),
+	"INNODB_CMP_PER_INDEX_RESET",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "Statistics for the InnoDB compression (per index);"
-		   " reset cumulated counts"),
+	"Statistics for the InnoDB compression (per index);"
+		   " reset cumulated counts",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_cmp_per_index_reset_init),
+	i_s_cmp_per_index_reset_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 
 namespace Show {
 /* Fields of the dynamic table information_schema.innodb_cmpmem. */
-static ST_FIELD_INFO	i_s_cmpmem_fields_info[] =
+static ST_FIELD_INFO i_s_cmpmem_fields_info[] =
 {
   Column("page_size",           SLong(5), NOT_NULL, "Buddy Block Size"),
   Column("buffer_pool_instance", SLong(), NOT_NULL, "Buffer Pool Id"),
@@ -1726,99 +1726,99 @@ struct st_maria_plugin	i_s_innodb_cmpmem =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_CMPMEM"),
+	"INNODB_CMPMEM",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "Statistics for the InnoDB compressed buffer pool"),
+	"Statistics for the InnoDB compressed buffer pool",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_cmpmem_init),
+	i_s_cmpmem_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 struct st_maria_plugin	i_s_innodb_cmpmem_reset =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_CMPMEM_RESET"),
+	"INNODB_CMPMEM_RESET",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "Statistics for the InnoDB compressed buffer pool;"
-		   " reset cumulated counts"),
+	"Statistics for the InnoDB compressed buffer pool;"
+		   " reset cumulated counts",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_cmpmem_reset_init),
+	i_s_cmpmem_reset_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 
@@ -1835,7 +1835,7 @@ static TypelibBuffer<5> metric_type_values_typelib(metric_type_values);
 
 namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_metrics */
-static ST_FIELD_INFO	innodb_metrics_fields_info[] =
+static ST_FIELD_INFO innodb_metrics_fields_info[]=
 {
 #define	METRIC_NAME		0
   Column("NAME",            Varchar(NAME_LEN + 1),       NOT_NULL),
@@ -2208,54 +2208,54 @@ struct st_maria_plugin	i_s_innodb_metrics =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_METRICS"),
+	"INNODB_METRICS",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB Metrics Info"),
+	"InnoDB Metrics Info",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_metrics_init),
+	innodb_metrics_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.innodb_ft_default_stopword */
-static ST_FIELD_INFO	i_s_stopword_fields_info[] =
+static ST_FIELD_INFO i_s_stopword_fields_info[]=
 {
 #define STOPWORD_VALUE	0
   Column("value", Varchar(TRX_ID_MAX_LEN + 1), NOT_NULL),
@@ -2317,55 +2317,55 @@ struct st_maria_plugin	i_s_innodb_ft_default_stopword =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_FT_DEFAULT_STOPWORD"),
+	"INNODB_FT_DEFAULT_STOPWORD",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "Default stopword list for InnoDB Full Text Search"),
+	"Default stopword list for InnoDB Full Text Search",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_stopword_init),
+	i_s_stopword_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_FT_DELETED
 INFORMATION_SCHEMA.INNODB_FT_BEING_DELETED */
-static ST_FIELD_INFO	i_s_fts_doc_fields_info[] =
+static ST_FIELD_INFO i_s_fts_doc_fields_info[]=
 {
 #define	I_S_FTS_DOC_ID			0
   Column("DOC_ID", ULonglong(), NOT_NULL),
@@ -2486,49 +2486,49 @@ struct st_maria_plugin	i_s_innodb_ft_deleted =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_FT_DELETED"),
+	"INNODB_FT_DELETED",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "INNODB AUXILIARY FTS DELETED TABLE"),
+	"INNODB AUXILIARY FTS DELETED TABLE",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_fts_deleted_init),
+	i_s_fts_deleted_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 /*******************************************************************//**
@@ -2569,56 +2569,56 @@ struct st_maria_plugin	i_s_innodb_ft_being_deleted =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_FT_BEING_DELETED"),
+	"INNODB_FT_BEING_DELETED",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "INNODB AUXILIARY FTS BEING DELETED TABLE"),
+	"INNODB AUXILIARY FTS BEING DELETED TABLE",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_fts_being_deleted_init),
+	i_s_fts_being_deleted_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 
 namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_FT_INDEX_CACHED and
 INFORMATION_SCHEMA.INNODB_FT_INDEX_TABLE */
-static ST_FIELD_INFO	i_s_fts_index_fields_info[] =
+static ST_FIELD_INFO i_s_fts_index_fields_info[]=
 {
 #define	I_S_FTS_WORD			0
   Column("WORD",         Varchar(FTS_MAX_WORD_LEN + 1), NOT_NULL),
@@ -2834,49 +2834,49 @@ struct st_maria_plugin	i_s_innodb_ft_index_cache =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_FT_INDEX_CACHE"),
+	"INNODB_FT_INDEX_CACHE",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "INNODB AUXILIARY FTS INDEX CACHED"),
+	"INNODB AUXILIARY FTS INDEX CACHED",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_fts_index_cache_init),
+	i_s_fts_index_cache_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 /*******************************************************************//**
@@ -3267,55 +3267,55 @@ struct st_maria_plugin	i_s_innodb_ft_index_table =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_FT_INDEX_TABLE"),
+	"INNODB_FT_INDEX_TABLE",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "INNODB AUXILIARY FTS INDEX TABLE"),
+	"INNODB AUXILIARY FTS INDEX TABLE",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_fts_index_table_init),
+	i_s_fts_index_table_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 
 namespace Show {
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_FT_CONFIG */
-static ST_FIELD_INFO	i_s_fts_config_fields_info[] =
+static ST_FIELD_INFO i_s_fts_config_fields_info[]=
 {
 #define	FTS_CONFIG_KEY			0
   Column("KEY",   Varchar(NAME_LEN + 1),  NOT_NULL),
@@ -3460,54 +3460,54 @@ struct st_maria_plugin	i_s_innodb_ft_config =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_FT_CONFIG"),
+	"INNODB_FT_CONFIG",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "INNODB AUXILIARY FTS CONFIG TABLE"),
+	"INNODB AUXILIARY FTS CONFIG TABLE",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_fts_config_init),
+	i_s_fts_config_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_STATS. */
-static ST_FIELD_INFO	i_s_innodb_buffer_stats_fields_info[] =
+static ST_FIELD_INFO i_s_innodb_buffer_stats_fields_info[]=
 {
 #define IDX_BUF_STATS_POOL_ID		0
   Column("POOL_ID", ULong(), NOT_NULL),
@@ -3760,49 +3760,49 @@ struct st_maria_plugin	i_s_innodb_buffer_stats =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_BUFFER_POOL_STATS"),
+	"INNODB_BUFFER_POOL_STATS",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB Buffer Pool Statistics Information "),
+	"InnoDB Buffer Pool Statistics Information ",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_innodb_buffer_pool_stats_init),
+	i_s_innodb_buffer_pool_stats_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 /** These must correspond to the first values of buf_page_state */
@@ -3829,7 +3829,7 @@ static TypelibBuffer<4> io_values_typelib(io_values);
 
 namespace Show {
 /* Fields of the dynamic table INNODB_BUFFER_POOL_PAGE. */
-static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
+static ST_FIELD_INFO i_s_innodb_buffer_page_fields_info[]=
 {
 #define IDX_BUFFER_POOL_ID		0
   Column("POOL_ID", ULong(), NOT_NULL),
@@ -3856,7 +3856,6 @@ static ST_FIELD_INFO	i_s_innodb_buffer_page_fields_info[] =
 #define IDX_BUFFER_PAGE_HASHED		7
   Column("IS_HASHED", SLong(1), NOT_NULL),
 #endif /* BTR_CUR_HASH_ADAPT */
-
 #define IDX_BUFFER_PAGE_NEWEST_MOD	7 + I_S_AHI
   Column("NEWEST_MODIFICATION", ULonglong(), NOT_NULL),
 
@@ -4293,53 +4292,53 @@ struct st_maria_plugin	i_s_innodb_buffer_page =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_BUFFER_PAGE"),
+	"INNODB_BUFFER_PAGE",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB Buffer Page Information"),
+	"InnoDB Buffer Page Information",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_innodb_buffer_page_init),
+	i_s_innodb_buffer_page_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
-static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
+static ST_FIELD_INFO i_s_innodb_buf_page_lru_fields_info[] =
 {
 #define IDX_BUF_LRU_POOL_ID		0
   Column("POOL_ID", ULong(), NOT_NULL),
@@ -4366,7 +4365,6 @@ static ST_FIELD_INFO	i_s_innodb_buf_page_lru_fields_info[] =
 #define IDX_BUF_LRU_PAGE_HASHED		7
   Column("IS_HASHED", SLong(1), NOT_NULL),
 #endif /* BTR_CUR_HASH_ADAPT */
-
 #define IDX_BUF_LRU_PAGE_NEWEST_MOD	7 + I_S_AHI
   Column("NEWEST_MODIFICATION",ULonglong(), NOT_NULL),
 
@@ -4636,49 +4634,49 @@ struct st_maria_plugin	i_s_innodb_buffer_page_lru =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_BUFFER_PAGE_LRU"),
+	"INNODB_BUFFER_PAGE_LRU",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB Buffer Page in LRU"),
+	"InnoDB Buffer Page in LRU",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, i_s_innodb_buffer_page_lru_init),
+	i_s_innodb_buffer_page_lru_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 /*******************************************************************//**
@@ -4714,7 +4712,7 @@ static TypelibBuffer<2> space_type_values_typelib(space_type_values);
 namespace Show {
 /**  SYS_TABLES  ***************************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.SYS_TABLES */
-static ST_FIELD_INFO	innodb_sys_tables_fields_info[] =
+static ST_FIELD_INFO innodb_sys_tables_fields_info[]=
 {
 #define SYS_TABLES_ID			0
   Column("TABLE_ID", ULonglong(), NOT_NULL),
@@ -4924,55 +4922,55 @@ struct st_maria_plugin	i_s_innodb_sys_tables =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_TABLES"),
+	"INNODB_SYS_TABLES",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB SYS_TABLES"),
+	"InnoDB SYS_TABLES",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_tables_init),
+	innodb_sys_tables_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /**  SYS_TABLESTATS  ***********************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.SYS_TABLESTATS */
-static ST_FIELD_INFO	innodb_sys_tablestats_fields_info[] =
+static ST_FIELD_INFO innodb_sys_tablestats_fields_info[]=
 {
 #define SYS_TABLESTATS_ID		0
   Column("TABLE_ID", ULonglong(), NOT_NULL),
@@ -5168,55 +5166,55 @@ struct st_maria_plugin	i_s_innodb_sys_tablestats =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_TABLESTATS"),
+	"INNODB_SYS_TABLESTATS",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB SYS_TABLESTATS"),
+	"InnoDB SYS_TABLESTATS",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_tablestats_init),
+	innodb_sys_tablestats_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /**  SYS_INDEXES  **************************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.SYS_INDEXES */
-static ST_FIELD_INFO	innodb_sysindex_fields_info[] =
+static ST_FIELD_INFO innodb_sysindex_fields_info[]=
 {
 #define SYS_INDEX_ID		0
   Column("INDEX_ID", ULonglong(), NOT_NULL),
@@ -5407,55 +5405,55 @@ struct st_maria_plugin	i_s_innodb_sys_indexes =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_INDEXES"),
+	"INNODB_SYS_INDEXES",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB SYS_INDEXES"),
+	"InnoDB SYS_INDEXES",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_indexes_init),
+	innodb_sys_indexes_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /**  SYS_COLUMNS  **************************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_COLUMNS */
-static ST_FIELD_INFO	innodb_sys_columns_fields_info[] =
+static ST_FIELD_INFO innodb_sys_columns_fields_info[]=
 {
 #define SYS_COLUMN_TABLE_ID		0
   Column("TABLE_ID", ULonglong(), NOT_NULL),
@@ -5619,55 +5617,55 @@ struct st_maria_plugin	i_s_innodb_sys_columns =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_COLUMNS"),
+	"INNODB_SYS_COLUMNS",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB SYS_COLUMNS"),
+	"InnoDB SYS_COLUMNS",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_columns_init),
+	innodb_sys_columns_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /**  SYS_VIRTUAL **************************************************/
 /** Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_VIRTUAL */
-static ST_FIELD_INFO	innodb_sys_virtual_fields_info[] =
+static ST_FIELD_INFO innodb_sys_virtual_fields_info[]=
 {
 #define SYS_VIRTUAL_TABLE_ID		0
   Column("TABLE_ID", ULonglong(), NOT_NULL),
@@ -5806,56 +5804,56 @@ struct st_maria_plugin	i_s_innodb_sys_virtual =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_VIRTUAL"),
+	"INNODB_SYS_VIRTUAL",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB SYS_VIRTUAL"),
+	"InnoDB SYS_VIRTUAL",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_virtual_init),
+	innodb_sys_virtual_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
 	/* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+	MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 
 namespace Show {
 /**  SYS_FIELDS  ***************************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_FIELDS */
-static ST_FIELD_INFO	innodb_sys_fields_fields_info[] =
+static ST_FIELD_INFO innodb_sys_fields_fields_info[]=
 {
 #define SYS_FIELD_INDEX_ID	0
   Column("INDEX_ID", ULonglong(), NOT_NULL),
@@ -6001,55 +5999,55 @@ struct st_maria_plugin	i_s_innodb_sys_fields =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_FIELDS"),
+	"INNODB_SYS_FIELDS",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB SYS_FIELDS"),
+	"InnoDB SYS_FIELDS",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_fields_init),
+	innodb_sys_fields_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /**  SYS_FOREIGN        ********************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_FOREIGN */
-static ST_FIELD_INFO	innodb_sys_foreign_fields_info[] =
+static ST_FIELD_INFO innodb_sys_foreign_fields_info[]=
 {
 #define SYS_FOREIGN_ID		0
   Column("ID", Varchar(NAME_LEN + 1), NOT_NULL),
@@ -6197,55 +6195,55 @@ struct st_maria_plugin	i_s_innodb_sys_foreign =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_FOREIGN"),
+	"INNODB_SYS_FOREIGN",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB SYS_FOREIGN"),
+	"InnoDB SYS_FOREIGN",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_foreign_init),
+	innodb_sys_foreign_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /**  SYS_FOREIGN_COLS   ********************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_FOREIGN_COLS */
-static ST_FIELD_INFO	innodb_sys_foreign_cols_fields_info[] =
+static ST_FIELD_INFO innodb_sys_foreign_cols_fields_info[]=
 {
 #define SYS_FOREIGN_COL_ID		0
   Column("ID", Varchar(NAME_LEN + 1), NOT_NULL),
@@ -6393,55 +6391,55 @@ struct st_maria_plugin	i_s_innodb_sys_foreign_cols =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_FOREIGN_COLS"),
+	"INNODB_SYS_FOREIGN_COLS",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB SYS_FOREIGN_COLS"),
+	"InnoDB SYS_FOREIGN_COLS",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_foreign_cols_init),
+	innodb_sys_foreign_cols_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /**  SYS_TABLESPACES    ********************************************/
 /* Fields of the dynamic table INFORMATION_SCHEMA.INNODB_SYS_TABLESPACES */
-static ST_FIELD_INFO	innodb_sys_tablespaces_fields_info[] =
+static ST_FIELD_INFO innodb_sys_tablespaces_fields_info[]=
 {
 #define SYS_TABLESPACES_SPACE		0
   Column("SPACE", ULong(), NOT_NULL),
@@ -6610,55 +6608,55 @@ struct st_maria_plugin	i_s_innodb_sys_tablespaces =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_SYS_TABLESPACES"),
+	"INNODB_SYS_TABLESPACES",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, plugin_author),
+	plugin_author,
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB tablespaces"),
+	"InnoDB tablespaces",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_GPL),
+	PLUGIN_LICENSE_GPL,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_sys_tablespaces_init),
+	innodb_sys_tablespaces_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
         /* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-        STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE),
+	INNODB_VERSION_STR,
+        MariaDB_PLUGIN_MATURITY_STABLE,
 };
 
 namespace Show {
 /**  TABLESPACES_ENCRYPTION    ********************************************/
 /* Fields of the table INFORMATION_SCHEMA.INNODB_TABLESPACES_ENCRYPTION */
-static ST_FIELD_INFO	innodb_tablespaces_encryption_fields_info[] =
+static ST_FIELD_INFO innodb_tablespaces_encryption_fields_info[]=
 {
 #define TABLESPACES_ENCRYPTION_SPACE	0
   Column("SPACE", ULong(), NOT_NULL),
@@ -6837,47 +6835,47 @@ struct st_maria_plugin	i_s_innodb_tablespaces_encryption =
 {
 	/* the plugin type (a MYSQL_XXX_PLUGIN value) */
 	/* int */
-	STRUCT_FLD(type, MYSQL_INFORMATION_SCHEMA_PLUGIN),
+	MYSQL_INFORMATION_SCHEMA_PLUGIN,
 
 	/* pointer to type-specific plugin descriptor */
 	/* void* */
-	STRUCT_FLD(info, &i_s_info),
+	&i_s_info,
 
 	/* plugin name */
 	/* const char* */
-	STRUCT_FLD(name, "INNODB_TABLESPACES_ENCRYPTION"),
+	"INNODB_TABLESPACES_ENCRYPTION",
 
 	/* plugin author (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(author, "Google Inc"),
+	"Google Inc",
 
 	/* general descriptive text (for SHOW PLUGINS) */
 	/* const char* */
-	STRUCT_FLD(descr, "InnoDB TABLESPACES_ENCRYPTION"),
+	"InnoDB TABLESPACES_ENCRYPTION",
 
 	/* the plugin license (PLUGIN_LICENSE_XXX) */
 	/* int */
-	STRUCT_FLD(license, PLUGIN_LICENSE_BSD),
+	PLUGIN_LICENSE_BSD,
 
 	/* the function to invoke when plugin is loaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(init, innodb_tablespaces_encryption_init),
+	innodb_tablespaces_encryption_init,
 
 	/* the function to invoke when plugin is unloaded */
 	/* int (*)(void*); */
-	STRUCT_FLD(deinit, i_s_common_deinit),
+	i_s_common_deinit,
 
 	/* plugin version (for SHOW PLUGINS) */
 	/* unsigned int */
-	STRUCT_FLD(version, INNODB_VERSION_SHORT),
+	INNODB_VERSION_SHORT,
 
 	/* struct st_mysql_show_var* */
-	STRUCT_FLD(status_vars, NULL),
+	NULL,
 
 	/* struct st_mysql_sys_var** */
-	STRUCT_FLD(system_vars, NULL),
+	NULL,
 
 	/* Maria extension */
-	STRUCT_FLD(version_info, INNODB_VERSION_STR),
-	STRUCT_FLD(maturity, MariaDB_PLUGIN_MATURITY_STABLE)
+	INNODB_VERSION_STR,
+	MariaDB_PLUGIN_MATURITY_STABLE
 };

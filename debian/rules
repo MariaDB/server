@@ -73,15 +73,6 @@ ifneq ($(DEB_BUILD_ARCH),$(DEB_HOST_ARCH))
 	dh_auto_build --builddirectory=builddir-native -- import_executables
 endif
 
-	# ColumnStore is part of the build
-ifneq (32,$(DEB_HOST_ARCH_BITS))
-	# Take the files and part of control from MCS directory
-	cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
-	# Don't include twice
-	grep -q '^Package: mariadb-plugin-columnstore$$' debian/control || \
-	( echo && cat storage/columnstore/columnstore/debian/control ) >> debian/control
-endif
-
 	echo "server:Version=$(DEB_VERSION)" >> debian/substvars
 
 	# RocksDB and Column Store cannot build on 32-bit platforms

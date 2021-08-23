@@ -51,6 +51,7 @@ if ($case == 3)
   SET DEBUG_SYNC= "commit_before_get_LOCK_commit_ordered SIGNAL con1_ready WAIT_FOR con1_go";
   --send_eval $query_to_crash
   --connect (conn_client_3,127.0.0.1,root,,test,$SERVER_MYPORT_1,)
+  SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
   # use the same signal with $query_to_crash
   SET DEBUG_SYNC= "commit_before_update_binlog_end_pos SIGNAL con3_ready WAIT_FOR con1_go";
   --send_eval $query2_to_crash
