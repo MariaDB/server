@@ -7692,7 +7692,7 @@ my_decimal *Field_varstring::val_decimal(my_decimal *decimal_value)
 #ifdef HAVE_valgrind
 void Field_varstring::mark_unused_memory_as_defined()
 {
-  uint used_length= get_length();
+  uint used_length __attribute__((unused)) = get_length();
   MEM_MAKE_DEFINED(get_data() + used_length, field_length - used_length);
 }
 #endif
