@@ -1,0 +1,187 @@
+--- alter_partition.result
++++ alter_partition,ib.reject
+@@ -1,4 +1,4 @@
+-set @@default_storage_engine=MyISAM;
++set @@default_storage_engine=InnoDB;
+ # Crash recovery
+ create or replace procedure prepare_table()
+ begin
+@@ -13,12 +13,9 @@
+ end $
+ # QUERY: ALTER TABLE t1 EXTRACT PARTITION p1 AS TABLE tp1
+ # CRASH POINT: ddl_log_create_before_create_frm
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -34,12 +31,9 @@
+ 12
+ 22
+ # CRASH POINT: ddl_log_alter_partition_after_create_frm
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -55,12 +49,9 @@
+ 12
+ 22
+ # CRASH POINT: ddl_log_alter_partition_after_write_frm
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -76,12 +67,9 @@
+ 12
+ 22
+ # CRASH POINT: crash_extract_partition_1
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -97,12 +85,9 @@
+ 12
+ 22
+ # CRASH POINT: crash_extract_partition_2
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -118,12 +103,9 @@
+ 12
+ 22
+ # CRASH POINT: crash_extract_partition_3
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -139,12 +121,9 @@
+ 12
+ 22
+ # CRASH POINT: crash_extract_partition_4
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -160,12 +139,9 @@
+ 12
+ 22
+ # CRASH POINT: crash_extract_partition_5
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -181,12 +157,9 @@
+ 12
+ 22
+ # CRASH POINT: crash_extract_partition_6
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -202,12 +175,9 @@
+ 12
+ 22
+ # CRASH POINT: crash_extract_partition_7
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#p1.MYD
+-t1#P#p1.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#p1.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+ Table	Create Table
+@@ -223,15 +193,12 @@
+ 12
+ 22
+ # CRASH POINT: crash_extract_partition_8
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp1.MYD
+-tp1.MYI
+ tp1.frm
++tp1.ibd
+ #sql-backup-t1.frm
+ #sql-backup-t1.par
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 EXTRACT PARTITION p1 AS TABLE tp1

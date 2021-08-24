@@ -1,9 +1,8 @@
-#
-# General errors with ALTER TABLE and partitions that doesn't have to be run
-# on all engines
-#
-
+# Permissions don't work with embedded
+--source include/not_embedded.inc
 --source include/have_partition.inc
+--source include/lcase_names.inc
+--source suite/parts/inc/engines.inc
 
 #
 # MDEV-22649 SIGSEGV in ha_partition::create_partitioning_metadata on ALTER
@@ -38,3 +37,207 @@ CREATE TABLE t2 (i INT);
 ALTER TABLE v1 EXCHANGE PARTITION p2 WITH TABLE t2 ;
 DROP VIEW v1;
 DROP TABLE t1, t2;
+
+--echo #
+--echo # MDEV-22166 MIGRATE PARTITION: move out partition into a table
+--echo #
+
+# TODO:
+#
+# EXTRACT is keyword, now table names cannot be called like that
+# Rename EXTRACT to EXPORT or something else?
+
+create or replace table t1 (x int);
+--error ER_PARTITION_MGMT_ON_NONPARTITIONED
+alter table t1 extract partition p1 as table tp1;
+
+create or replace table t1 (x int)
+partition by hash(x) partitions 2;
+--error ER_ONLY_ON_RANGE_LIST_PARTITION
+alter table t1 extract partition p1 as table tp1;
+
+create or replace table t1 (x int)
+partition by key(x) partitions 2;
+--error ER_ONLY_ON_RANGE_LIST_PARTITION
+alter table t1 extract partition p1 as table tp1;
+
+create or replace table t1 (x int)
+partition by range(x)
+subpartition by hash(x) subpartitions 3 (
+  partition p1 values less than (10),
+  partition pn values less than maxvalue);
+--error ER_PARTITION_EXTRACT_SUBPARTITIONED
+alter table t1 extract partition p1 as table p1;
+--error ER_DROP_PARTITION_NON_EXISTENT
+alter table t1 extract partition p1sp0 as table p1;
+
+create or replace table t1 (x int)
+partition by range(x) (
+  partition p1 values less than (10));
+--error ER_DROP_LAST_PARTITION
+alter table t1 extract partition p1 as table tp1;
+
+--error ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
+create or replace temporary table t1 (x int)
+partition by range(x) (
+  partition p0 values less than (10),
+  partition pn values less than maxvalue);
+
+if ($MTR_COMBINATION_RANGE)
+{
+  create or replace table t1 (x int)
+  partition by range(x) (
+    partition p1 values less than (10),
+    partition p2 values less than (20),
+    partition p3 values less than (30),
+    partition p4 values less than (40),
+    partition p5 values less than (50),
+    partition pn values less than maxvalue);
+}
+
+if ($MTR_COMBINATION_LIST)
+{
+  create or replace table t1 (x int)
+  partition by list(x) (
+    partition p1 values in (2, 3, 4),
+    partition p2 values in (12, 13, 14),
+    partition p3 values in (22, 23, 24),
+    partition p4 values in (32, 33, 34),
+    partition p5 values in (42, 43, 44),
+    partition pn values in (52, 53, 54));
+}
+
+insert into t1 values (2), (12), (22), (32), (42), (52);
+
+create or replace table tp2 (y int);
+insert tp2 values (88);
+# Multiple ALTER PARTITION statements are not possible
+--error ER_PARSE_ERROR
+alter table t1 extract partition p2 as table tp2, drop partition p3;
+# TODO: probably no need in such specific codes, should be ER_PARTITION_NON_EXISTENT
+--error ER_DROP_PARTITION_NON_EXISTENT
+alter table t1 extract partition p00 as table tp00;
+# Better error here is ER_DROP_PARTITION_NON_EXISTENT,
+# but mysql_alter_table() works checks new table before anything else.
+# So, looks like no big reason to change anything here.
+--error ER_TABLE_EXISTS_ERROR
+alter table t1 extract partition p00 as table tp2;
+--error ER_TABLE_EXISTS_ERROR
+alter table t1 extract partition p2 as table tp2;
+--delimiter $
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
+create trigger tr1 before update on t1 for each row
+begin
+  alter table t1 extract partition p2 as table tp2;
+end$
+--error ER_COMMIT_NOT_ALLOWED_IN_SF_OR_TRG
+create function f1() returns int
+begin
+  alter table t1 extract partition p2 as table tp2;
+end$
+--delimiter ;
+select * from tp2;
+drop table tp2;
+alter table t1 extract partition p2 as table tp2;
+
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table tp2;
+select * from tp2;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+
+--error ER_BAD_DB_ERROR
+alter table t1 extract partition p3 as table inexistent.tp3;
+create database EXISTENT;
+alter table t1 extract partition p3 as table EXISTENT.TP3;
+
+# The only way to put `` into var...
+--let $tp3=`select '`TP3`'`
+if ($MTR_COMBINATION_LCASE1)
+{
+  --let $tp3= `select '`tp3`'`
+}
+--replace_result $engine X ' PAGE_CHECKSUM=1' '' $tp3 `TP3`-ok
+show create table EXISTENT.TP3;
+select * from EXISTENT.TP3 order by x;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+
+--echo # LOCK TABLES
+lock tables t1 write;
+alter table t1 extract partition p4 as table tp4;
+# TODO: lock table tp4 in ALTER TABLE, otherwise there is no
+# guarantee in data consistency between t1 and tp4
+--error ER_TABLE_NOT_LOCKED
+show create table tp4;
+
+unlock tables;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table tp4;
+select * from tp4;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+
+--echo # PS
+prepare stmt from 'alter table t1 extract partition p5 as table tp5';
+execute stmt;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table tp5;
+select * from tp5;
+--replace_result $engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+drop table tp5;
+--error ER_DROP_PARTITION_NON_EXISTENT
+execute stmt;
+--error ER_DROP_PARTITION_NON_EXISTENT
+execute stmt;
+drop prepare stmt;
+
+--echo # Privileges
+create user alan;
+grant usage on *.* to alan;
+grant create, insert, drop on test.* to alan;
+--connect alan,localhost,alan,,test
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 extract partition p1 as table tp1;
+--connection default
+revoke all on test.* from alan;
+grant create, insert, alter on test.* to alan;
+--connection alan
+use test;
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 extract partition p1 as table tp1;
+--connection default
+revoke all on test.* from alan;
+grant create, drop, alter on test.* to alan;
+--connection alan
+use test;
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 extract partition p1 as table tp1;
+--connection default
+revoke all on test.* from alan;
+grant insert, drop, alter on test.* to alan;
+--connection alan
+use test;
+show grants for current_user;
+--error ER_TABLEACCESS_DENIED_ERROR
+alter table t1 extract partition p1 as table tp1;
+--connection default
+grant create, insert, drop, alter on test.* to alan;
+--connection alan
+use test;
+show grants for current_user;
+alter table t1 extract partition p1 as table tp1;
+--disconnect alan
+--connection default
+
+drop database EXISTENT;
+drop user alan;
+drop tables t1, tp1, tp2, tp4;

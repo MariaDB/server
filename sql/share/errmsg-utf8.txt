@@ -7992,3 +7992,5 @@ ER_REMOVED_ORPHAN_TRIGGER
         eng "Dropped orphan trigger '%-.64s', originally created for table: '%-.192s'"
 ER_STORAGE_ENGINE_DISABLED
         eng "Storage engine %s is disabled"
+ER_PARTITION_EXTRACT_SUBPARTITIONED
+        eng "EXTRACT PARTITION is not supported for subpartitioned table."

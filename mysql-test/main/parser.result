@@ -43,7 +43,7 @@ drop table DATE_SUB;
 create table EXTRACT(a int);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'EXTRACT(a int)' at line 1
 create table EXTRACT (a int);
-drop table EXTRACT;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'EXTRACT (a int)' at line 1
 create table GROUP_CONCAT(a int);
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'GROUP_CONCAT(a int)' at line 1
 create table GROUP_CONCAT (a int);

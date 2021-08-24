@@ -1081,4 +1081,203 @@ drop tables t1;
 --echo # End of 10.5 tests
 --echo #
 
+--echo #
+--echo # MDEV-22166 MIGRATE PARTITION: move out partition into a table
+--echo #
+create or replace table t1 (x int)
+with system versioning
+partition by range(x) (
+  partition p1 values less than (10),
+  partition p2 values less than (20),
+  partition p3 values less than (30),
+  partition p4 values less than (40),
+  partition p5 values less than (50),
+  partition pn values less than maxvalue);
+
+insert into t1 values (2), (12), (22), (32), (42), (52);
+update t1 set x= x + 1;
+
+alter table t1 extract partition p2 as table tp2;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp2;
+select * from tp2;
+select * from tp2 for system_time all order by x;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+select * from t1 for system_time all order by x;
+
+--echo # SP
+create or replace procedure sp()
+alter table t1 extract partition p3 as table tp3;
+call sp;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp3;
+select * from tp3;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+drop table tp3;
+--error ER_DROP_PARTITION_NON_EXISTENT
+call sp;
+--error ER_DROP_PARTITION_NON_EXISTENT
+call sp;
+drop procedure sp;
+
+--echo # LOCK TABLES, PS, SP
+create or replace procedure sp()
+alter table t1 extract partition p4 as table tp4;
+lock tables t1 write;
+prepare stmt from 'call sp';
+execute stmt;
+
+# TODO: don't unlock here (see above TODO)
+unlock tables;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp4;
+select * from tp4;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+drop table tp4;
+lock tables t1 write;
+--error ER_DROP_PARTITION_NON_EXISTENT
+execute stmt;
+--error ER_DROP_PARTITION_NON_EXISTENT
+call sp;
+drop prepare stmt;
+unlock tables;
+drop procedure sp;
+unlock tables;
+
+drop tables t1, tp2;
+
+--echo # System-versioned tables (SYSTEM_TIME LIMIT)
+
+create or replace table t1 (
+  x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning
+partition by system_time limit 1 partitions 4;
+
+insert into t1 values (2), (12), (22);
+update t1 set x= x + 1 where x = 2;
+update t1 set x= x + 1 where x = 12;
+update t1 set x= x + 1 where x = 22;
+
+select * from t1 partition (p1);
+--error ER_VERS_WRONG_PARTS
+alter table t1 extract partition pn as table tp1;
+alter table t1 extract partition p1 as table tp1;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp1;
+select * from tp1;
+select * from tp1 for system_time all;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1 order by x;
+select * from t1 for system_time all order by x;
+
+drop tables t1, tp1;
+
+--echo # System-versioned tables (SYSTEM_TIME INTERVAL)
+
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (
+  x int,
+  row_start timestamp(6) as row start invisible,
+  row_end timestamp(6) as row end invisible,
+  period for system_time(row_start, row_end)
+) with system versioning
+partition by system_time interval 1 hour partitions 4;
+
+insert into t1 values (2), (12), (22);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set x= x + 1 where x = 2;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1 where x = 12;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1 where x = 22;
+
+select * from t1 partition (p0);
+select * from t1 partition (p1);
+select * from t1 partition (p2);
+--error ER_VERS_DROP_PARTITION_INTERVAL
+alter table t1 extract partition p1 as table tp1;
+alter table t1 extract partition p0 as table tp0;
+alter table t1 extract partition p1 as table tp1;
+--error ER_VERS_WRONG_PARTS
+alter table t1 extract partition p2 as table tp2;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp0;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp1;
+select * from tp0;
+select * from tp1;
+select * from tp0 for system_time all;
+select * from tp1 for system_time all;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+select * from t1;
+select * from t1 for system_time all order by x;
+
+drop tables t1, tp0, tp1;
+
+--echo # System-versioned tables (implicit)
+
+create or replace table t1(x int) with system versioning
+partition by system_time limit 1 partitions 3;
+
+alter table t1 extract partition p1 as table tp1;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp1;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+
+drop tables t1, tp1;
+
+if (!$MTR_COMBINATION_HEAP)
+{
+--echo # Complex table
+create or replace table t1 (
+  x int primary key auto_increment,
+  t timestamp(6) default '2001-11-11 11:11:11',
+  b blob(4096) compressed null,
+  c varchar(1033) character set utf8 not null,
+  u int,
+  unique key (x, u),
+  m enum('a', 'b', 'c') not null default 'a' comment 'absolute',
+  i1 tinyint, i2 smallint, i3 bigint,
+  index three(i1, i2, i3),
+  v1 timestamp(6) generated always as (t + interval 1 day),
+  v2 timestamp(6) generated always as (t + interval 1 month) stored,
+  s timestamp(6) as row start,
+  e timestamp(6) as row end,
+  period for system_time (s, e),
+  ps date, pe date,
+  period for app_time (ps, pe),
+  constraint check_constr check (u > -1))
+with system versioning default charset=ucs2
+partition by range(x) (
+  partition p0 values less than (10),
+  partition p1 values less than (20),
+  partition pn values less than maxvalue);
+
+alter table t1 extract partition p1 as table tp1;
+
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table tp1;
+--replace_result $default_engine X ' PAGE_CHECKSUM=1' ''
+show create table t1;
+
+drop tables t1, tp1;
+}
+
 --source suite/versioning/common_finish.inc

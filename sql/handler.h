@@ -824,6 +824,7 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 #define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
 // Set for REORGANIZE PARTITION
 #define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
+#define ALTER_PARTITION_EXTRACT    (1ULL << 13)
 
 /*
   This is master database for most of system tables. However there

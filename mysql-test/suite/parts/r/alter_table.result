@@ -28,3 +28,239 @@ ALTER TABLE v1 EXCHANGE PARTITION p2 WITH TABLE t2 ;
 ERROR 42000: Can't open table
 DROP VIEW v1;
 DROP TABLE t1, t2;
+#
+# MDEV-22166 MIGRATE PARTITION: move out partition into a table
+#
+create or replace table t1 (x int);
+alter table t1 extract partition p1 as table tp1;
+ERROR HY000: Partition management on a not partitioned table is not possible
+create or replace table t1 (x int)
+partition by hash(x) partitions 2;
+alter table t1 extract partition p1 as table tp1;
+ERROR HY000: EXTRACT PARTITION can only be used on RANGE/LIST partitions
+create or replace table t1 (x int)
+partition by key(x) partitions 2;
+alter table t1 extract partition p1 as table tp1;
+ERROR HY000: EXTRACT PARTITION can only be used on RANGE/LIST partitions
+create or replace table t1 (x int)
+partition by range(x)
+subpartition by hash(x) subpartitions 3 (
+partition p1 values less than (10),
+partition pn values less than maxvalue);
+alter table t1 extract partition p1 as table p1;
+ERROR HY000: EXTRACT PARTITION is not supported for subpartitioned table.
+alter table t1 extract partition p1sp0 as table p1;
+ERROR HY000: Error in list of partitions to EXTRACT
+create or replace table t1 (x int)
+partition by range(x) (
+partition p1 values less than (10));
+alter table t1 extract partition p1 as table tp1;
+ERROR HY000: Cannot remove all partitions, use DROP TABLE instead
+create or replace temporary table t1 (x int)
+partition by range(x) (
+partition p0 values less than (10),
+partition pn values less than maxvalue);
+ERROR HY000: Partitioned tables do not support CREATE TEMPORARY TABLE
+create or replace table t1 (x int)
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+create or replace table tp2 (y int);
+insert tp2 values (88);
+alter table t1 extract partition p2 as table tp2, drop partition p3;
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near ' drop partition p3' at line 1
+alter table t1 extract partition p00 as table tp00;
+ERROR HY000: Error in list of partitions to EXTRACT
+alter table t1 extract partition p00 as table tp2;
+ERROR 42S01: Table 'tp2' already exists
+alter table t1 extract partition p2 as table tp2;
+ERROR 42S01: Table 'tp2' already exists
+create trigger tr1 before update on t1 for each row
+begin
+alter table t1 extract partition p2 as table tp2;
+end$
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+create function f1() returns int
+begin
+alter table t1 extract partition p2 as table tp2;
+end$
+ERROR HY000: Explicit or implicit commit is not allowed in stored function or trigger
+select * from tp2;
+y
+88
+drop table tp2;
+alter table t1 extract partition p2 as table tp2;
+show create table tp2;
+Table	Create Table
+tp2	CREATE TABLE `tp2` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1
+select * from tp2;
+x
+12
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = X,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+2
+22
+32
+42
+52
+alter table t1 extract partition p3 as table inexistent.tp3;
+ERROR 42000: Unknown database 'inexistent'
+create database EXISTENT;
+alter table t1 extract partition p3 as table EXISTENT.TP3;
+show create table EXISTENT.TP3;
+Table	Create Table
+TP3	CREATE TABLE `TP3`-ok (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1
+select * from EXISTENT.TP3 order by x;
+x
+22
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+2
+32
+42
+52
+# LOCK TABLES
+lock tables t1 write;
+alter table t1 extract partition p4 as table tp4;
+show create table tp4;
+ERROR HY000: Table 'tp4' was not locked with LOCK TABLES
+unlock tables;
+show create table tp4;
+Table	Create Table
+tp4	CREATE TABLE `tp4` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1
+select * from tp4;
+x
+32
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+2
+42
+52
+# PS
+prepare stmt from 'alter table t1 extract partition p5 as table tp5';
+execute stmt;
+show create table tp5;
+Table	Create Table
+tp5	CREATE TABLE `tp5` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1
+select * from tp5;
+x
+42
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+2
+52
+drop table tp5;
+execute stmt;
+ERROR HY000: Error in list of partitions to EXTRACT
+execute stmt;
+ERROR HY000: Error in list of partitions to EXTRACT
+drop prepare stmt;
+# Privileges
+create user alan;
+grant usage on *.* to alan;
+grant create, insert, drop on test.* to alan;
+connect alan,localhost,alan,,test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT INSERT, CREATE, DROP ON `test`.* TO `alan`@`%`
+alter table t1 extract partition p1 as table tp1;
+ERROR 42000: ALTER command denied to user 'alan'@'localhost' for table 't1'
+connection default;
+revoke all on test.* from alan;
+grant create, insert, alter on test.* to alan;
+connection alan;
+use test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT INSERT, CREATE, ALTER ON `test`.* TO `alan`@`%`
+alter table t1 extract partition p1 as table tp1;
+ERROR 42000: DROP command denied to user 'alan'@'localhost' for table 't1'
+connection default;
+revoke all on test.* from alan;
+grant create, drop, alter on test.* to alan;
+connection alan;
+use test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT CREATE, DROP, ALTER ON `test`.* TO `alan`@`%`
+alter table t1 extract partition p1 as table tp1;
+ERROR 42000: INSERT command denied to user 'alan'@'localhost' for table 'tp1'
+connection default;
+revoke all on test.* from alan;
+grant insert, drop, alter on test.* to alan;
+connection alan;
+use test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT INSERT, DROP, ALTER ON `test`.* TO `alan`@`%`
+alter table t1 extract partition p1 as table tp1;
+ERROR 42000: CREATE command denied to user 'alan'@'localhost' for table 'tp1'
+connection default;
+grant create, insert, drop, alter on test.* to alan;
+connection alan;
+use test;
+show grants for current_user;
+Grants for alan@%
+GRANT USAGE ON *.* TO `alan`@`%`
+GRANT INSERT, CREATE, DROP, ALTER ON `test`.* TO `alan`@`%`
+alter table t1 extract partition p1 as table tp1;
+disconnect alan;
+connection default;
+drop database EXISTENT;
+drop user alan;
+drop tables t1, tp1, tp2, tp4;

@@ -50,3 +50,63 @@ let $crash_statement= ALTER TABLE t1 EXCHANGE PARTITION p0 WITH TABLE t2;
 --source suite/parts/inc/partition_crash_exchange.inc
 let $fail_statement= $crash_statement;
 --source suite/parts/inc/partition_fail_exchange.inc
+
+--echo #
+--echo # MDEV-22166 MIGRATE PARTITION: move out partition into a table
+--echo #
+let $create_statement= create or replace table t1 (x int primary key)
+  partition by range(x) (
+    partition p1 values less than (10),
+    partition p2 values less than (20),
+    partition p3 values less than (30),
+    partition p4 values less than (40),
+    partition p5 values less than (50),
+    partition pn values less than maxvalue);
+
+let $insert_statement= insert into t1 values (2), (12), (22), (32), (42), (52);
+let $fail_statement= alter table t1 extract partition p2 as table tp2;
+
+set @save_dbug=@@debug_dbug;
+set session debug_dbug="+d,fail_create_before_create_frm";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_alter_partition_after_write_frm";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,error_extract_partition_00";
+--source suite/parts/inc/partition_fail.inc
+#set session debug_dbug=@save_dbug;
+#set session debug_dbug="+d,fail_extract_partition_01";
+#--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_extract_partition_1";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_extract_partition_2";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_extract_partition_3";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_extract_partition_4";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_extract_partition_5";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_extract_partition_6";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_extract_partition_7";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_extract_partition_8";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_extract_partition_9";
+--echo # Already finished DDL logging, so tp2 now exists:
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+show create table tp2;
+select * from tp2;
+drop table tp2;

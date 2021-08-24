@@ -1260,3 +1260,367 @@ drop tables t1;
 #
 # End of 10.5 tests
 #
+#
+# MDEV-22166 MIGRATE PARTITION: move out partition into a table
+#
+create or replace table t1 (x int)
+with system versioning
+partition by range(x) (
+partition p1 values less than (10),
+partition p2 values less than (20),
+partition p3 values less than (30),
+partition p4 values less than (40),
+partition p5 values less than (50),
+partition pn values less than maxvalue);
+insert into t1 values (2), (12), (22), (32), (42), (52);
+update t1 set x= x + 1;
+alter table t1 extract partition p2 as table tp2;
+show create table tp2;
+Table	Create Table
+tp2	CREATE TABLE `tp2` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from tp2;
+x
+13
+select * from tp2 for system_time all order by x;
+x
+12
+13
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p3` VALUES LESS THAN (30) ENGINE = X,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+3
+23
+33
+43
+53
+select * from t1 for system_time all order by x;
+x
+2
+3
+22
+23
+32
+33
+42
+43
+52
+53
+# SP
+create or replace procedure sp()
+alter table t1 extract partition p3 as table tp3;
+call sp;
+show create table tp3;
+Table	Create Table
+tp3	CREATE TABLE `tp3` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from tp3;
+x
+23
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p4` VALUES LESS THAN (40) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+3
+33
+43
+53
+drop table tp3;
+call sp;
+ERROR HY000: Error in list of partitions to EXTRACT
+call sp;
+ERROR HY000: Error in list of partitions to EXTRACT
+drop procedure sp;
+# LOCK TABLES, PS, SP
+create or replace procedure sp()
+alter table t1 extract partition p4 as table tp4;
+lock tables t1 write;
+prepare stmt from 'call sp';
+execute stmt;
+unlock tables;
+show create table tp4;
+Table	Create Table
+tp4	CREATE TABLE `tp4` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from tp4;
+x
+33
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY RANGE (`x`)
+(PARTITION `p1` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `p5` VALUES LESS THAN (50) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+select * from t1 order by x;
+x
+3
+43
+53
+drop table tp4;
+lock tables t1 write;
+execute stmt;
+ERROR HY000: Error in list of partitions to EXTRACT
+call sp;
+ERROR HY000: Error in list of partitions to EXTRACT
+drop prepare stmt;
+unlock tables;
+drop procedure sp;
+unlock tables;
+drop tables t1, tp2;
+# System-versioned tables (SYSTEM_TIME LIMIT)
+create or replace table t1 (
+x int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning
+partition by system_time limit 1 partitions 4;
+insert into t1 values (2), (12), (22);
+update t1 set x= x + 1 where x = 2;
+update t1 set x= x + 1 where x = 12;
+update t1 set x= x + 1 where x = 22;
+select * from t1 partition (p1);
+x
+12
+alter table t1 extract partition pn as table tp1;
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+alter table t1 extract partition p1 as table tp1;
+show create table tp1;
+Table	Create Table
+tp1	CREATE TABLE `tp1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from tp1;
+x
+select * from tp1 for system_time all;
+x
+12
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1
+(PARTITION `p0` HISTORY ENGINE = X,
+ PARTITION `p2` HISTORY ENGINE = X,
+ PARTITION `pn` CURRENT ENGINE = X)
+select * from t1 order by x;
+x
+3
+13
+23
+select * from t1 for system_time all order by x;
+x
+2
+3
+13
+22
+23
+drop tables t1, tp1;
+# System-versioned tables (SYSTEM_TIME INTERVAL)
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (
+x int,
+row_start timestamp(6) as row start invisible,
+row_end timestamp(6) as row end invisible,
+period for system_time(row_start, row_end)
+) with system versioning
+partition by system_time interval 1 hour partitions 4;
+insert into t1 values (2), (12), (22);
+set timestamp= unix_timestamp('2000-01-01 00:00:01');
+update t1 set x= x + 1 where x = 2;
+set timestamp= unix_timestamp('2000-01-01 01:00:00');
+update t1 set x= x + 1 where x = 12;
+set timestamp= unix_timestamp('2000-01-01 02:00:00');
+update t1 set x= x + 1 where x = 22;
+select * from t1 partition (p0);
+x
+2
+select * from t1 partition (p1);
+x
+12
+select * from t1 partition (p2);
+x
+22
+alter table t1 extract partition p1 as table tp1;
+ERROR HY000: Can only drop oldest partitions when rotating by INTERVAL
+alter table t1 extract partition p0 as table tp0;
+alter table t1 extract partition p1 as table tp1;
+alter table t1 extract partition p2 as table tp2;
+ERROR HY000: Wrong partitions for `t1`: must have at least one HISTORY and exactly one last CURRENT
+show create table tp0;
+Table	Create Table
+tp0	CREATE TABLE `tp0` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+show create table tp1;
+Table	Create Table
+tp1	CREATE TABLE `tp1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+select * from tp0;
+x
+select * from tp1;
+x
+select * from tp0 for system_time all;
+x
+2
+select * from tp1 for system_time all;
+x
+12
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL,
+  `row_start` timestamp(6) GENERATED ALWAYS AS ROW START INVISIBLE,
+  `row_end` timestamp(6) GENERATED ALWAYS AS ROW END INVISIBLE,
+  PERIOD FOR SYSTEM_TIME (`row_start`, `row_end`)
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME INTERVAL 1 HOUR STARTS TIMESTAMP'2000-01-01 02:00:00'
+(PARTITION `p2` HISTORY ENGINE = X,
+ PARTITION `pn` CURRENT ENGINE = X)
+select * from t1;
+x
+3
+13
+23
+select * from t1 for system_time all order by x;
+x
+3
+13
+22
+23
+drop tables t1, tp0, tp1;
+# System-versioned tables (implicit)
+create or replace table t1(x int) with system versioning
+partition by system_time limit 1 partitions 3;
+alter table t1 extract partition p1 as table tp1;
+show create table tp1;
+Table	Create Table
+tp1	CREATE TABLE `tp1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) DEFAULT NULL
+) ENGINE=X DEFAULT CHARSET=latin1 WITH SYSTEM VERSIONING
+ PARTITION BY SYSTEM_TIME LIMIT 1
+(PARTITION `p0` HISTORY ENGINE = X,
+ PARTITION `pn` CURRENT ENGINE = X)
+drop tables t1, tp1;
+# Complex table
+create or replace table t1 (
+x int primary key auto_increment,
+t timestamp(6) default '2001-11-11 11:11:11',
+b blob(4096) compressed null,
+c varchar(1033) character set utf8 not null,
+u int,
+unique key (x, u),
+m enum('a', 'b', 'c') not null default 'a' comment 'absolute',
+i1 tinyint, i2 smallint, i3 bigint,
+index three(i1, i2, i3),
+v1 timestamp(6) generated always as (t + interval 1 day),
+v2 timestamp(6) generated always as (t + interval 1 month) stored,
+s timestamp(6) as row start,
+e timestamp(6) as row end,
+period for system_time (s, e),
+ps date, pe date,
+period for app_time (ps, pe),
+constraint check_constr check (u > -1))
+with system versioning default charset=ucs2
+partition by range(x) (
+partition p0 values less than (10),
+partition p1 values less than (20),
+partition pn values less than maxvalue);
+alter table t1 extract partition p1 as table tp1;
+show create table tp1;
+Table	Create Table
+tp1	CREATE TABLE `tp1` (
+  `x` int(11) NOT NULL AUTO_INCREMENT,
+  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
+  `u` int(11) DEFAULT NULL,
+  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+  `i1` tinyint(4) DEFAULT NULL,
+  `i2` smallint(6) DEFAULT NULL,
+  `i3` bigint(20) DEFAULT NULL,
+  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `ps` date NOT NULL,
+  `pe` date NOT NULL,
+  PERIOD FOR `app_time` (`ps`, `pe`),
+  PRIMARY KEY (`x`,`e`),
+  UNIQUE KEY `x` (`x`,`u`,`e`),
+  KEY `three` (`i1`,`i2`,`i3`),
+  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+  CONSTRAINT `check_constr` CHECK (`u` > -1)
+) ENGINE=X DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` int(11) NOT NULL AUTO_INCREMENT,
+  `t` timestamp(6) NOT NULL DEFAULT '2001-11-11 11:11:11.000000',
+  `b` blob /*!100301 COMPRESSED*/ DEFAULT NULL,
+  `c` varchar(1033) CHARACTER SET utf8mb3 NOT NULL,
+  `u` int(11) DEFAULT NULL,
+  `m` enum('a','b','c') NOT NULL DEFAULT 'a' COMMENT 'absolute',
+  `i1` tinyint(4) DEFAULT NULL,
+  `i2` smallint(6) DEFAULT NULL,
+  `i3` bigint(20) DEFAULT NULL,
+  `v1` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 day) VIRTUAL,
+  `v2` timestamp(6) GENERATED ALWAYS AS (`t` + interval 1 month) STORED,
+  `s` timestamp(6) GENERATED ALWAYS AS ROW START,
+  `e` timestamp(6) GENERATED ALWAYS AS ROW END,
+  `ps` date NOT NULL,
+  `pe` date NOT NULL,
+  PERIOD FOR `app_time` (`ps`, `pe`),
+  PRIMARY KEY (`x`,`e`),
+  UNIQUE KEY `x` (`x`,`u`,`e`),
+  KEY `three` (`i1`,`i2`,`i3`),
+  PERIOD FOR SYSTEM_TIME (`s`, `e`),
+  CONSTRAINT `check_constr` CHECK (`u` > -1)
+) ENGINE=X DEFAULT CHARSET=ucs2 WITH SYSTEM VERSIONING
+ PARTITION BY RANGE (`x`)
+(PARTITION `p0` VALUES LESS THAN (10) ENGINE = X,
+ PARTITION `pn` VALUES LESS THAN MAXVALUE ENGINE = X)
+drop tables t1, tp1;

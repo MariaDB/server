@@ -1299,7 +1299,7 @@ bool Query_log_event::write()
   if (thd && thd->binlog_xid)
   {
     *start++= Q_XID;
-    int8store(start, thd->query_id);
+    int8store(start, thd->binlog_xid);
     start+= 8;
   }
 

@@ -74,8 +74,8 @@ drop table DATE_SUB;
 
 --error ER_PARSE_ERROR
 create table EXTRACT(a int);
+--error ER_PARSE_ERROR
 create table EXTRACT (a int);
-drop table EXTRACT;
 
 --error ER_PARSE_ERROR
 create table GROUP_CONCAT(a int);
