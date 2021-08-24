@@ -3,6 +3,8 @@ include/master-slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -94,6 +96,8 @@ include/start_slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -185,6 +189,8 @@ include/start_slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -315,6 +321,8 @@ include/start_slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;
@@ -406,6 +414,8 @@ include/start_slave.inc
 connection slave;
 stop slave;
 change master to master_use_gtid= current_pos;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
 SET GLOBAL slave_parallel_threads=4;
 set global slave_parallel_mode=optimistic;
 set global gtid_strict_mode=1;

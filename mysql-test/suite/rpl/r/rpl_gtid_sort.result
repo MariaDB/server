@@ -59,6 +59,8 @@ Variable_name	Value
 gtid_binlog_state	
 CHANGE MASTER TO master_host = '127.0.0.1', master_port = MASTER_PORT,
 MASTER_USE_GTID=CURRENT_POS;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
 include/start_slave.inc
 SHOW VARIABLES LIKE 'gtid_binlog_pos';
 Variable_name	Value
