@@ -5,6 +5,8 @@ SET GLOBAL LOG_WARNINGS=2;
 connection slave;
 include/stop_slave.inc
 CHANGE MASTER TO MASTER_USE_GTID=current_pos;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
 include/start_slave.inc
 connection master;
 "Test Case 1: Start binlog_dump to slave_server(#), pos(master-bin.000001, ###), using_gtid(1), gtid('')"

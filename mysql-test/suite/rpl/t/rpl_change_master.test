@@ -108,4 +108,10 @@ CHANGE MASTER TO MASTER_USER='root', MASTER_SSL=0, MASTER_SSL_CA='', MASTER_SSL_
   MASTER_SSL_KEY='', MASTER_SSL_CRL='', MASTER_SSL_CRLPATH='';
 CHANGE MASTER TO MASTER_USER='root', MASTER_PASSWORD='', MASTER_SSL=0;
 
+
+# MDEV-20122: With MASTER_USE_GTID=current_pos, slave's I/O thread only checks gtid_current_pos when thread is first started
+--echo "Usage of CURRENT_POS in CHANGE MASTER  MASTER_USE_GTID is dreprecated.
+CHANGE MASTER TO MASTER_USE_GTID=CURRENT_POS;
+CHANGE MASTER TO MASTER_USE_GTID=SLAVE_POS;
+
 --source include/rpl_end.inc

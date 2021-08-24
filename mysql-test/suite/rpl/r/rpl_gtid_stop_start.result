@@ -8,6 +8,8 @@ include/stop_slave.inc
 Master_Log_File = 'master-bin.000001'
 Using_Gtid = 'No'
 CHANGE MASTER TO master_use_gtid=current_pos;
+Warnings:
+Warning	1681	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
 FLUSH LOGS;
 connection server_1;
 FLUSH LOGS;

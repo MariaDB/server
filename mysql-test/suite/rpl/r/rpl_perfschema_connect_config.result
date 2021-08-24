@@ -87,6 +87,8 @@ include/assert.inc [Value returned by SSS and PS table for Using_Gtid should be 
 change master to
 master_user = 'root',
 master_use_gtid= CURRENT_POS;
+Warnings:
+Warning	####	'master_use_gtid=current_pos' is deprecated and will be removed in a future release
 include/assert.inc [Value returned by SSS and PS table for Using_Gtid should be same.]
 
 # 3) Test for Auto_position= SLAVE_POS
