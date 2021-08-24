@@ -5018,8 +5018,13 @@ part_def_list:
         | part_def_list ',' part_definition {}
         ;
 
+opt_partition:
+          /* empty */
+          | PARTITION_SYM
+          ;
+
 part_definition:
-          PARTITION_SYM
+          opt_partition
           {
             partition_info *part_info= Lex->part_info;
             partition_element *p_elem= new (thd->mem_root) partition_element();
