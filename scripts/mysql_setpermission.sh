@@ -283,7 +283,6 @@ sub addall {
        $sth = $dbh->do("REVOKE ALL ON $db.* FROM \'$user\'\@\'$host\'") || die $dbh->errstr;
     }
     }
-  $dbh->do("FLUSH PRIVILEGES") || print STDERR "Can't flush privileges\n";
   print "Everything is inserted and mysql privileges have been reloaded.\n\n";
 }
 
