@@ -1992,7 +1992,6 @@ public:
 class Histogram_builder_json : public Histogram_builder
 {
   std::vector<std::string> bucket_bounds;
-  bool got_first_value = false;
 
 public:
   Histogram_builder_json(Field *col, uint col_len, ha_rows rows)

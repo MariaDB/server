@@ -2,6 +2,9 @@
 --echo # Test that we can store JSON arrays in histogram field mysql.column_stats when histogram_type=JSON
 --echo #
 
+set @save_histogram_type=@@histogram_type;
+set @save_histogram_size=@@histogram_size;
+
 let $histogram_type_override='JSON';
 --source statistics.test
 
@@ -11,9 +14,6 @@ let $histogram_type_override='JSON';
 --disable_warnings
 drop table if exists t1;
 --enable_warnings
-
-set @save_histogram_type=@@histogram_type;
-set @save_histogram_size=@@histogram_size;
 
 create table ten(a int primary key);
 insert into ten values (0),(1),(2),(3),(4),(5),(6),(7),(8),(9);
@@ -63,6 +63,7 @@ analyze select * from users where city < 'Lagos';
 drop table t1_bin;
 drop table t1_json;
 drop table users;
+drop table ten;
 
 DELETE FROM mysql.column_stats;
 
@@ -89,7 +90,7 @@ analyze select * from Country where 'Code' between 'BBC' and 'GGG';
 explain extended select * from Country where 'Code' < 'BBC';
 analyze select * from Country where 'Code' < 'BBC';
 
+DROP SCHEMA world;
+
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
-
-DROP SCHEMA world;
