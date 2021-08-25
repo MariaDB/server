@@ -273,17 +273,9 @@ public:
 
 class Item_func_natural_sort_key : public Item_str_func
 {
-  my_wc_t m_decimal_separator;
-  static constexpr my_wc_t DECIMAL_SEP_UNDEFINED=ULONG_MAX-1;
-  static constexpr my_wc_t DECIMAL_SEP_NONE= ULONG_MAX;
-
 public:
   Item_func_natural_sort_key(THD *thd, Item *a)
-      : Item_str_func(thd, a), m_decimal_separator(DECIMAL_SEP_NONE){}
-
-  Item_func_natural_sort_key(THD *thd, Item *a, Item *b)
-      : Item_str_func(thd, a, b), m_decimal_separator(DECIMAL_SEP_UNDEFINED){}
-  my_wc_t decimal_separator();
+      : Item_str_func(thd, a){};
   String *val_str(String *) override;
   LEX_CSTRING func_name_cstring() const override
   {

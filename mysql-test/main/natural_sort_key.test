@@ -29,36 +29,11 @@ CREATE TABLE t2 AS SELECT c, NATURAL_SORT_KEY(c) FROM t1 WHERE 0;
 SHOW CREATE TABLE t2;
 DROP TABLE t1,t2;
 
-#Show encoding of numbers, including fractions, and leading whitespace.
-SELECT RPAD(val,21,' ') value , RPAD(NATURAL_SORT_KEY(val),26,' ') sortkey , LENGTH(NATURAL_SORT_KEY(val)) - LENGTH(val) encoding_overhead
+#Show encoding of numbers, with some leading whitespace.
+SELECT RPAD(val,28,' ') value , RPAD(NATURAL_SORT_KEY(val),35,' ') sortkey , LENGTH(NATURAL_SORT_KEY(val)) - LENGTH(val) encoding_overhead
 FROM
 (
 SELECT 0 val
-UNION  VALUES ('0.0'),('0.1'), ('0,15'),('1.001'),('1.002'),('1.010'),('1.02'),('1.1'),('1.3'),('1'),('01'),('0001')
-UNION  SELECT CONCAT('1',repeat('0',seq)) FROM seq_1_to_20
+UNION  VALUES ('1'),('01'),('0001')
+UNION  SELECT CONCAT('1',repeat('0',seq)) FROM seq_1_to_27
 ) AS numbers ORDER BY sortkey;
-
---echo # Disable fractions handling by passing NULL as second parameter to NATURAL_SORT_KEY
-SELECT val value
-FROM
-(
-SELECT 0 val
-UNION  VALUES ('0.1'),('1.001'),('1.002'),('1.010'),('1.02'),('1.1'),('1.3'),('1'), ('0,1'),('1,001'),('1,002'),('1,010'),('1,02'),('1,1'),('1,3'),('1'))
-AS numbers ORDER BY NATURAL_SORT_KEY(val, NULL);
-
---echo # Use ',' as decimal separator for NATURAL_SORT_KEY
-SELECT val value, NATURAL_SORT_KEY(val,',') sortkey
-FROM
-(
-SELECT 0 val
-UNION  VALUES ('0,1'),('1,001'),('1,002'),('1,010'),('1,02'),('1,1'),('1,3'),('1'))
-AS numbers ORDER BY sortkey;
-
---echo # Use '.' as decimal separator for NATURAL_SORT_KEY
-SELECT val value,NATURAL_SORT_KEY(val,'.') sortkey
-FROM
-(
-SELECT 0 val
-UNION  VALUES ('0.1'),('1.001'),('1.002'),('1.010'),('1.02'),('1.1'),('1.3'),('1'))
-AS numbers ORDER BY  sortkey;
-SET NAMES DEFAULT;
