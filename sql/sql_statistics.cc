@@ -1603,7 +1603,7 @@ int Histogram_json::find_bucket(Field *field, const uchar *endpoint)
   }
 
   if (min_bucket_index == -1)
-    min_bucket_index = high;
+    min_bucket_index = low;
   return min_bucket_index;
 }
 

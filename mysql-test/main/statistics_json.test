@@ -58,6 +58,7 @@ analyze select * from users where city = 'Moscow';
 explain extended select * from users where city = 'Helsinki';
 analyze select * from users where city = 'helsinki';
 explain extended select * from users where city < 'Lagos';
+analyze select * from users where city < 'Lagos';
 
 drop table t1_bin;
 drop table t1_json;
