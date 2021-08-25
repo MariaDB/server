@@ -871,14 +871,15 @@ static void trx_purge_rseg_get_next_history_log(
 
 	trx_no = mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
 	ut_ad(mach_read_from_2(log_hdr + TRX_UNDO_NEEDS_PURGE) <= 1);
+	const byte needs_purge = log_hdr[TRX_UNDO_NEEDS_PURGE + 1];
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	mutex_enter(&purge_sys.rseg->mutex);
 
 	purge_sys.rseg->last_page_no = prev_log_addr.page;
 	purge_sys.rseg->set_last_commit(prev_log_addr.boffset, trx_no);
-	purge_sys.rseg->needs_purge = log_hdr[TRX_UNDO_NEEDS_PURGE + 1] != 0;
+	purge_sys.rseg->needs_purge = needs_purge != 0;
 
 	/* Purge can also produce events, however these are already ordered
 	in the rollback segment and any user generated event will be greater
