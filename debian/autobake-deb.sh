@@ -17,29 +17,20 @@ set -e
 # building the deb packages here.
 export DEB_BUILD_OPTIONS="nocheck $DEB_BUILD_OPTIONS"
 
-# Take the files and part of control from MCS directory
-if [[ -d storage/columnstore/columnstore/debian ]]
-then
-  cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
-  echo >> debian/control
-  cat storage/columnstore/columnstore/debian/control >> debian/control
-
-  # ColumnStore is explicitly disabled in the native build, so allow it now
-  # when build it when triggered by autobake-deb.sh
-  sed '/-DPLUGIN_COLUMNSTORE=NO/d' -i debian/rules
-fi
-
 # General CI optimizations to keep build output smaller
 if [[ $TRAVIS ]] || [[ $GITLAB_CI ]]
 then
   # On both Travis and Gitlab the output log must stay under 4MB so make the
   # build less verbose
-  sed '/Add support for verbose builds/,/^$/d' -i debian/rules
-
   # MCOL-4149: ColumnStore builds are so slow and big that they must be skipped on
   # both Travis-CI and Gitlab-CI
-  sed 's|$(CMAKEFLAGS)|$(CMAKEFLAGS) -DPLUGIN_COLUMNSTORE=NO|' -i debian/rules
-  sed "/Package: mariadb-plugin-columnstore/,/^$/d" -i debian/control
+   sed -e 's|$(CMAKEFLAGS)|$(CMAKEFLAGS) -DPLUGIN_COLUMNSTORE=NO|' \
+	  -i debian/rules
+elif [ -d storage/columnstore/columnstore/debian ]
+then
+  cp -v storage/columnstore/columnstore/debian/mariadb-plugin-columnstore.* debian/
+  echo >> debian/control
+  cat storage/columnstore/columnstore/debian/control >> debian/control
 fi
 
 # Don't build or try to put files in a package for selected plugins and components on Travis-CI

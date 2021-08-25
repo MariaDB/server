@@ -3396,7 +3396,7 @@ MYSQL_BIN_LOG::MYSQL_BIN_LOG(uint *sync_period)
    checksum_alg_reset(BINLOG_CHECKSUM_ALG_UNDEF),
    relay_log_checksum_alg(BINLOG_CHECKSUM_ALG_UNDEF),
    description_event_for_exec(0), description_event_for_queue(0),
-   current_binlog_id(0)
+   current_binlog_id(0), reset_master_count(0)
 {
   /*
     We don't want to initialize locks here as such initialization depends on
@@ -4489,6 +4489,7 @@ err:
     }
     mysql_cond_broadcast(&COND_xid_list);
     reset_master_pending--;
+    reset_master_count++;
     mysql_mutex_unlock(&LOCK_xid_list);
   }
 
@@ -8316,6 +8317,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     }
     else
     {
+      DEBUG_SYNC(leader->thd, "commit_before_update_binlog_end_pos");
       bool any_error= false;
 
       mysql_mutex_assert_not_owner(&LOCK_prepare_ordered);

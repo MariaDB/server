@@ -499,7 +499,7 @@ fts_index_fetch_nodes(
 
 		fts_get_table_name(fts_table, table_name);
 
-		pars_info_bind_id(info, true, "table_name", table_name);
+		pars_info_bind_id(info, "table_name", table_name);
 	}
 
 	pars_info_bind_function(info, "my_func", fetch->read_record, fetch);
@@ -828,7 +828,7 @@ fts_index_fetch_words(
 			info, "word", word->f_str, word->f_len);
 
 		fts_get_table_name(&optim->fts_index_table, table_name);
-		pars_info_bind_id(info, true, "table_name", table_name);
+		pars_info_bind_id(info, "table_name", table_name);
 
 		graph = fts_parse_sql(
 			&optim->fts_index_table,
@@ -984,7 +984,7 @@ fts_table_fetch_doc_ids(
 	pars_info_bind_function(info, "my_func", fts_fetch_doc_ids, doc_ids);
 
 	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		fts_table,
@@ -1445,7 +1445,7 @@ fts_optimize_write_word(
 
 	fts_table->suffix = fts_get_suffix(selected);
 	fts_get_table_name(fts_table, table_name);
-	pars_info_bind_id(info, true, "table_name", table_name);
+	pars_info_bind_id(info, "table_name", table_name);
 
 	graph = fts_parse_sql(
 		fts_table,
@@ -2037,11 +2037,11 @@ fts_optimize_purge_deleted_doc_ids(
 	used in the fts_delete_doc_ids_sql */
 	optim->fts_common_table.suffix = fts_common_tables[3];
 	fts_get_table_name(&optim->fts_common_table, deleted);
-	pars_info_bind_id(info, true, fts_common_tables[3], deleted);
+	pars_info_bind_id(info, fts_common_tables[3], deleted);
 
 	optim->fts_common_table.suffix = fts_common_tables[4];
 	fts_get_table_name(&optim->fts_common_table, deleted_cache);
-	pars_info_bind_id(info, true, fts_common_tables[4], deleted_cache);
+	pars_info_bind_id(info, fts_common_tables[4], deleted_cache);
 
 	graph = fts_parse_sql(NULL, info, fts_delete_doc_ids_sql);
 
@@ -2094,12 +2094,11 @@ fts_optimize_purge_deleted_doc_id_snapshot(
 	used in the fts_end_delete_sql */
 	optim->fts_common_table.suffix = fts_common_tables[0];
 	fts_get_table_name(&optim->fts_common_table, being_deleted);
-	pars_info_bind_id(info, true, fts_common_tables[0], being_deleted);
+	pars_info_bind_id(info, fts_common_tables[0], being_deleted);
 
 	optim->fts_common_table.suffix = fts_common_tables[1];
 	fts_get_table_name(&optim->fts_common_table, being_deleted_cache);
-	pars_info_bind_id(info, true, fts_common_tables[1],
-			  being_deleted_cache);
+	pars_info_bind_id(info, fts_common_tables[1], being_deleted_cache);
 
 	/* Delete the doc ids that were copied to delete pending state at
 	the start of optimize. */
@@ -2155,20 +2154,19 @@ fts_optimize_create_deleted_doc_id_snapshot(
 	used in the fts_init_delete_sql */
 	optim->fts_common_table.suffix = fts_common_tables[0];
 	fts_get_table_name(&optim->fts_common_table, being_deleted);
-	pars_info_bind_id(info, true, fts_common_tables[0], being_deleted);
+	pars_info_bind_id(info, fts_common_tables[0], being_deleted);
 
 	optim->fts_common_table.suffix = fts_common_tables[3];
 	fts_get_table_name(&optim->fts_common_table, deleted);
-	pars_info_bind_id(info, true, fts_common_tables[3], deleted);
+	pars_info_bind_id(info, fts_common_tables[3], deleted);
 
 	optim->fts_common_table.suffix = fts_common_tables[1];
 	fts_get_table_name(&optim->fts_common_table, being_deleted_cache);
-	pars_info_bind_id(info, true, fts_common_tables[1],
-			  being_deleted_cache);
+	pars_info_bind_id(info, fts_common_tables[1], being_deleted_cache);
 
 	optim->fts_common_table.suffix = fts_common_tables[4];
 	fts_get_table_name(&optim->fts_common_table, deleted_cache);
-	pars_info_bind_id(info, true, fts_common_tables[4], deleted_cache);
+	pars_info_bind_id(info, fts_common_tables[4], deleted_cache);
 
 	/* Move doc_ids that are to be deleted to state being deleted. */
 	graph = fts_parse_sql(NULL, info, fts_init_delete_sql);
@@ -3005,6 +3003,8 @@ fts_optimize_shutdown()
 @param[in]	table	table to be synced */
 void fts_sync_during_ddl(dict_table_t* table)
 {
+  if (!fts_optimize_wq)
+    return;
   mysql_mutex_lock(&fts_optimize_wq->mutex);
   const auto sync_message= table->fts->sync_message;
   mysql_mutex_unlock(&fts_optimize_wq->mutex);

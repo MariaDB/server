@@ -802,17 +802,20 @@ void wsrep_init_globals()
 {
   wsrep_gtid_server.domain_id= wsrep_gtid_domain_id;
   wsrep_init_sidno(Wsrep_server_state::instance().connected_gtid().id());
-  wsrep_init_gtid();
   /* Recover last written wsrep gtid */
+  wsrep_init_gtid();
   if (wsrep_new_cluster)
   {
-    wsrep_server_gtid_t gtid= {wsrep_gtid_server.domain_id,
-                               wsrep_gtid_server.server_id, 0};
-    wsrep_get_binlog_gtid_seqno(gtid);
-    wsrep_gtid_server.seqno(gtid.seqno);
+    /* Start with provided domain_id & server_id found in configuration */
+    wsrep_server_gtid_t new_gtid;
+    new_gtid.domain_id= wsrep_gtid_domain_id;
+    new_gtid.server_id= global_system_variables.server_id;
+    new_gtid.seqno= 0;
+    /* Try to search for domain_id and server_id combination in binlog if found continue from last seqno */
+    wsrep_get_binlog_gtid_seqno(new_gtid);
+    wsrep_gtid_server.gtid(new_gtid);
   }
   wsrep_init_schema();
-
   if (WSREP_ON)
   {
     Wsrep_server_state::instance().initialized();

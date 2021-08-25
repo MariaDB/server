@@ -35,7 +35,10 @@ public:
 #ifdef _WIN32
   HANDLE pipe;
   CONNECT(HANDLE pipe_arg): pipe(pipe_arg), vio_type(VIO_TYPE_NAMEDPIPE),
-    scheduler(thread_scheduler), thread_id(0), prior_thr_create_utime(0) {}
+    scheduler(thread_scheduler), thread_id(0), prior_thr_create_utime(0)
+  {
+    count++;
+  }
 #endif
   enum enum_vio_type vio_type;
   scheduler_functions *scheduler;

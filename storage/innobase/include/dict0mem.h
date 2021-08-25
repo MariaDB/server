@@ -2133,7 +2133,8 @@ public:
 	UT_LIST_BASE_NODE_T(dict_index_t)	indexes;
 #ifdef BTR_CUR_HASH_ADAPT
 	/** List of detached indexes that are waiting to be freed along with
-	the last adaptive hash index entry */
+	the last adaptive hash index entry.
+	Protected by autoinc_mutex (sic!) */
 	UT_LIST_BASE_NODE_T(dict_index_t)	freed_indexes;
 #endif /* BTR_CUR_HASH_ADAPT */
 
@@ -2285,7 +2286,7 @@ public:
 	from a select. */
 	lock_t*					autoinc_lock;
 
-  /** Mutex protecting autoinc. */
+  /** Mutex protecting autoinc and freed_indexes. */
   srw_mutex autoinc_mutex;
 private:
   /** Mutex protecting locks on this table. */
@@ -2334,7 +2335,6 @@ public:
   lock_sys.assert_locked(page_id) and trx->mutex_is_owner() hold.
   @see trx_lock_t::trx_locks */
   Atomic_counter<uint32_t> n_rec_locks;
-
 private:
   /** Count of how many handles are opened to this table. Dropping of the
   table is NOT allowed until this count gets to zero. MySQL does NOT

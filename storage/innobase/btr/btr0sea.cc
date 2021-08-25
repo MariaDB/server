@@ -205,6 +205,8 @@ ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
 {
   ut_ad(index->freed());
   dict_table_t *table= index->table;
+  table->autoinc_mutex.wr_lock();
+
   /* Perform the skipped steps of dict_index_remove_from_cache_low(). */
   UT_LIST_REMOVE(table->freed_indexes, index);
   index->lock.free();
@@ -213,9 +215,14 @@ ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
   if (!UT_LIST_GET_LEN(table->freed_indexes) &&
       !UT_LIST_GET_LEN(table->indexes))
   {
-    ut_ad(table->id == 0);
+    ut_ad(!table->id);
+    table->autoinc_mutex.wr_unlock();
+    table->autoinc_mutex.destroy();
     dict_mem_table_free(table);
+    return;
   }
+
+  table->autoinc_mutex.wr_unlock();
 }
 
 /** Disable the adaptive hash search system and empty the index. */

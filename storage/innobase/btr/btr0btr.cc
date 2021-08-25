@@ -3119,8 +3119,8 @@ func_exit:
 @param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
-			   mtr_t* mtr)
+dberr_t btr_level_list_remove(const buf_block_t& block,
+                              const dict_index_t& index, mtr_t* mtr)
 {
 	ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(block.zip_size() == index.table->space->zip_size());
@@ -3152,6 +3152,10 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 		buf_block_t*	next_block = btr_block_get(
 			index, next_page_no, RW_X_LATCH, page_is_leaf(page),
 			mtr);
+
+		if (!next_block) {
+			return DB_ERROR;
+		}
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
 		static_assert(FIL_PAGE_PREV % 4 == 0, "alignment");
@@ -3162,6 +3166,8 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 
 		btr_page_set_prev(next_block, prev_page_no, mtr);
 	}
+
+	return DB_SUCCESS;
 }
 
 /*************************************************************//**
@@ -3537,7 +3543,9 @@ retry:
 		btr_search_drop_page_hash_index(block);
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(*block, *index, mtr);
+		if (DB_SUCCESS != btr_level_list_remove(*block, *index, mtr)) {
+			goto err_exit;
+		}
 
 		const page_id_t id{block->page.id()};
 
@@ -3662,7 +3670,9 @@ retry:
 #endif /* UNIV_BTR_DEBUG */
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(*block, *index, mtr);
+		if (DB_SUCCESS != btr_level_list_remove(*block, *index, mtr)) {
+			goto err_exit;
+		}
 
 		ut_ad(btr_node_ptr_get_child_page_no(
 			      btr_cur_get_rec(&father_cursor), offsets)
@@ -4040,7 +4050,7 @@ btr_discard_page(
 	}
 
 	/* Remove the page from the level list */
-	btr_level_list_remove(*block, *index, mtr);
+	ut_a(DB_SUCCESS == btr_level_list_remove(*block, *index, mtr));
 
 #ifdef UNIV_ZIP_DEBUG
 	{

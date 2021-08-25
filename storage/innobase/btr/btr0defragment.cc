@@ -400,7 +400,8 @@ btr_defragment_merge_pages(
 		const page_id_t from{from_block->page.id()};
 		lock_update_merge_left(*to_block, orig_pred, from);
 		btr_search_drop_page_hash_index(from_block);
-		btr_level_list_remove(*from_block, *index, mtr);
+		ut_a(DB_SUCCESS == btr_level_list_remove(*from_block, *index,
+							 mtr));
 		btr_page_get_father(index, from_block, mtr, &parent);
 		btr_cur_node_ptr_delete(&parent, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
