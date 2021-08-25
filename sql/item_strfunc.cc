@@ -5294,212 +5294,264 @@ String *Item_temptable_rowid::val_str(String *str)
 }
 
 /**
-  Here is how we generate a key suitable for lexicographic comparison
-  from a numeric string (representing positive number).
+  Helper routine to encode length prefix
+  in natsort_encode_numeric_string().
 
-  We prepend variable length prefix, that only encodes string length
-  The longer the string, the lexicographically larger is the prefix.
+  The idea is so that bigger input numbers correspond
+  lexicographically bigger output strings.
 
-  Rules for generating prefix is following.
+  Note, that in real use the number would typically
+  small, as it only computes variable *length prefixes*.
 
-  1. Small length (1 to 9)
-   Prefix is single char  '0' + length -1
-   This gives the range '0' - '8'
-  2. Medium length(10 to 18)
-   Prefix is 2 chars - concat('9', '0'+length-10)'
-   This gives range '90'-'98'
-  3. Large length(19)
-   Prefix is "990"
-  4. Huge length (20 to 2^32-1)
-   Prefix stars with '99', then log10 of the length is added as char
-   then the number itself is added
-   The range is '99120' - '9994294967295'
+  @param[in] n - the number
+  @param[in] s - output buffer (should be at least 26 bytes large)
+
+  @return - length of encoding
+
+  Here is how encoding works
+
+  - n is from 0 to 8
+   Output string calculated as '0'+n (range '0' - '8')
+
+  - n is from 9 to 17
+    Output calculated as concat('9', '0' + n -9)'
+    Output range: '90'-'98'
+
+   -n is from 18 to 26
+    Output calculated as concat('99', '0' + n -18)'
+    Output range '990'-'998'
+
+  - n is from 28 to SIZE_T_MAX
+    Output starts with '999',
+    then log10(n) is encoded as 2-digit decimal number
+    then the number itself is added.
+    Example : for 28 key is concat('999', '01' , '28')
+    i.e '9990128'
+
+    Key legth is 5 + ceil(log10(n))
+
+   Output range is
+     (64bit)'9990128' - '9991918446744073709551615'
+     (32bit)'9990128' - '999094294967295'
 */
 
-#define NATSORT_BUFSIZE 16
-static size_t natsort_num2str(size_t n, char *s)
+/* Largest length of encoded string.*/
+#define NATSORT_BUFSIZE 26
+static size_t natsort_encode_length(size_t n, char *s)
 {
-  if (n < 10)
+  if (n < 27)
   {
-    s[0]= '0' + (char)n -1;
-    return 1;
+    size_t n_nines= n / 9;
+    if (n_nines)
+      memset(s, '9', n_nines);
+    s[n_nines]= char(n % 9 + '0');
+    s[n_nines + 1]= 0;
+    return n_nines + 1;
   }
 
-  if (n < 19)
-  {
-    s[0]= '9';
-    s[1]= '0'+ (char)n- 10;
-    return 2;
-  }
-
-  if (n == 19)
-  {
-    s[0]= '9';
-    s[1]= '9';
-    s[2]= '0';
-    return 3;
-  }
-
-  /* Here, n > 19*/
-  s[0]= '9';
-  s[1]= '9';
+  memset(s, '9', 3);
   size_t log10n= 0;
-  for (size_t tmp= n/10; tmp; tmp /= 10)
+  for (size_t tmp= n / 10; tmp; tmp/= 10)
     log10n++;
-  DBUG_ASSERT(log10n && log10n < 10);
-  s[2]='0' + (char)log10n;
-  return ll2str(n,s+3,10,0) - s;
+  s[3]= '0' + (char) (log10n / 10);
+  s[4]= '0' + (char) (log10n % 10);
+  return longlong10_to_str(n, s + 5, 10) - s;
+}
+
+enum class NATSORT_ERR
+{
+  SUCCESS= 0,
+  KEY_TOO_LARGE= 1,
+  ALLOC_ERROR= 2
+};
+
+/*
+   Encode numeric string for natural sorting.
+
+   @param[in] in - start of the numeric string
+   skipping leading zeros
+
+   @param[in] n_digits - length of the string,
+   in characters, not counting leading zeros.
+
+   @param[in] n_lead_zeros - leading zeros count.
+
+   @param[out] out - String to write to.
+
+   Note:
+   Special case, where there are only leading zeros
+   n_digits == 0 and n_leading_zeros > 0
+   will treated as-if in = "0", n_digits = 1, n_leading_zeros
+   is decremented.
+
+   The resulting encoding of the numeric string is then
+
+   CONCAT(natsort_encode_length(n_digits), in,
+   natsort_encode_length(n_leading_zeros))
+*/
+static NATSORT_ERR natsort_encode_numeric_string(const char *in,
+                                                 size_t n_digits,
+                                                 size_t n_leading_zeros,
+                                                 String *out)
+{
+  char buf[NATSORT_BUFSIZE];
+  DBUG_ASSERT(in);
+  DBUG_ASSERT(n_digits);
+
+  if (out->append(buf, natsort_encode_length(n_digits - 1, buf)))
+    return NATSORT_ERR::ALLOC_ERROR;
+
+  if (out->append(in, n_digits))
+    return NATSORT_ERR::ALLOC_ERROR;
+
+  if (out->append(buf, natsort_encode_length(n_leading_zeros, buf)))
+    return NATSORT_ERR::ALLOC_ERROR;
+
+  return NATSORT_ERR::SUCCESS;
+}
+
+/*
+  Calculate max size of the natsort key.
+
+  A digit expands to 3 chars - length_prefix, the digit, lead_zero_cnt(0)
+
+  With even length L=2N, the largest key corresponds to input string
+  in form REPEAT('<letter><digit>',N) and the length of a key is
+  3N + N = 4*N = 2*L
+
+  With odd input length L=2*N+1, largest key corresponds to
+  CONCAT(<digit>,REPEAT('<letter><digit>', N)
+  with key length is 3 + 4*N = 2*L+1
+*/
+static size_t natsort_max_key_size(size_t input_size)
+{
+  return input_size * 2 + input_size % 2;
 }
 
 /**
   Convert a string to natural sort key.
   @param[in]   in - input string
-  @param[out]  s  - output string
+  @param[out]  out - output string
 
   We assume that memory is preallocated for the output
   string, so that appends do not fail.
-
-  The lead zeros count, if positive, is stored after
-  the numeric string.
-
-  Fractional parts are stored and compared as strings.
-  Even if they have numbers in them, they should just
-  be compared as strings.
 */
-static void to_natsort_key(const String *in, String *s, my_wc_t decimal_sep)
+static NATSORT_ERR to_natsort_key(const String *in, String *out,
+                                  size_t max_key_size= (size_t) -1)
 {
-  CHARSET_INFO *cs= in->charset();
-  uchar *pos= (uchar *) in->ptr();
-  uchar *end= pos + in->length();
-  size_t num_len= 0;
-  size_t leading_zeros= 0;
-  uchar *num_start= nullptr;
-  bool in_fraction= false;
-  size_t fraction_len=0;
+  size_t n_digits= 0;
+  size_t n_lead_zeros= 0;
+  size_t num_start;
 
-  for (;;)
+  for (size_t pos= 0;; pos++)
   {
-    my_wc_t c= 0;
-    int charlen= cs->mb_wc(&c, pos, end);
-    bool is_digit= charlen >= 1 && (c >= '0' && c <= '9');
-
-    if (!is_digit && (num_start || leading_zeros))
+    char c= pos < in->length() ? (*in)[pos] : 0;
+    bool is_digit= (c >= '0' && c <= '9');
+    if (!is_digit && (n_digits || n_lead_zeros))
     {
-      /*
-         Handle end of digits run.
-
-         Write prefix, natsort_num2str(length) is without leading zeros
-         Write numeric value, without leading zeros
-         If there were leading zeros, write variable length suffix
-      */
-      char buf[NATSORT_BUFSIZE];
-      if (!num_len)
+      /* Handle end of digits run.*/
+      if (!n_digits)
       {
-        // number was zeros only
-        leading_zeros--;
-        num_len= 1;
+        /*We only have zeros.*/
+        n_lead_zeros--;
+        num_start= pos - 1;
+        n_digits= 1;
       }
+      NATSORT_ERR err= natsort_encode_numeric_string(
+          in->ptr() + num_start, n_digits, n_lead_zeros, out);
+      if (err != NATSORT_ERR::SUCCESS)
+        return err;
 
-      s->append(buf, natsort_num2str(num_len, buf));
-      if (!num_start)
-        s->append('0');
-      else
-        s->append((const char *) num_start, pos - num_start, cs);
-
-      if (leading_zeros)
-        s->append(buf, natsort_num2str(leading_zeros, buf));
+      if (out->length() > max_key_size)
+        return NATSORT_ERR::KEY_TOO_LARGE;
 
       /* Reset state.*/
-      num_len= 0;
-      num_start= nullptr;
-      leading_zeros= 0;
-      in_fraction= c == decimal_sep;
-      fraction_len= 0;
+      n_digits= 0;
+      num_start= size_t(-1);
+      n_lead_zeros= 0;
     }
 
-    if (charlen < 1)
+    if (pos == in->length())
       break;
 
-    if (is_digit && !in_fraction)
+    if (!is_digit)
     {
-      /* Do not count leading zeros in num_len, and num_pos */
-      if (c != '0' || num_len)
-      {
-        num_len++;
-        if (!num_start)
-          num_start= pos;
-      }
-      else
-        leading_zeros++;
+      if (out->append(c))
+        return NATSORT_ERR::KEY_TOO_LARGE;
     }
-    else
-    {
-      /* Append a non-digit, or fractional part of the number (handling the same as string) */
-      s->append((const char *) pos, charlen);
-      if (in_fraction)
-      {
-        if (!is_digit && fraction_len)
-          in_fraction= false;
-        fraction_len++;
-      }
-    }
-    pos+= charlen;
+    else if (c == '0' && !n_digits)
+      n_lead_zeros++;
+    else if (!n_digits++)
+      num_start= pos;
+
+    if (out->length() + n_digits > max_key_size)
+      return NATSORT_ERR::KEY_TOO_LARGE;
   }
+  return NATSORT_ERR::SUCCESS;
 }
 
-
-String *Item_func_natural_sort_key::val_str(String *s)
+String *Item_func_natural_sort_key::val_str(String *out)
 {
   if (args[0]->is_null())
   {
     null_value= true;
     return nullptr;
   }
-
+  NATSORT_ERR err= NATSORT_ERR::SUCCESS;
   String *in= args[0]->val_str();
   CHARSET_INFO *cs= in->charset();
   ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
-  size_t reserve_length= (size_t) in->length() + in->length() / 2 + 2;
-  if (s->alloc((uint32)reserve_length))
-    goto error_exit;
-  s->length(0);
-  s->set_charset(cs);
-
-  to_natsort_key(in, s, decimal_separator());
-
-  DBUG_ASSERT(s->length() < reserve_length);
-
-  if (s->length() > max_allowed_packet)
+  size_t reserve_length= std::max(natsort_max_key_size(in->length()),
+                                  (size_t) max_allowed_packet);
+  uint errs;
+  String tmp;
+  /*
+    to_natsort_key() only support charsets where digits are represented by
+    a single byte in range 0x30-0x39. Almost everything is OK, just utf16/32
+    won't do. Full ASCII compatibility is not required, so that SJIS and SWE7
+    are fine.
+  */
+  if (cs->mbminlen != 1)
   {
-    push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
-                        ER_WARN_ALLOWED_PACKET_OVERFLOWED,
-                        ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
-                        max_allowed_packet);
+    if (!tmp.copy(in, &my_charset_utf8mb4_bin, &errs))
+      goto error_exit;
+    in= &tmp;
+  }
+
+  if (out->alloc((uint32) reserve_length))
+  {
+    err= NATSORT_ERR::ALLOC_ERROR;
     goto error_exit;
   }
-  return s;
+  out->length(0);
+  out->set_charset(in->charset());
+
+  err= to_natsort_key(in, out, max_allowed_packet / cs->mbminlen);
+
+  if (err != NATSORT_ERR::SUCCESS)
+  {
+    if (err == NATSORT_ERR::KEY_TOO_LARGE)
+    {
+      push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
+                          ER_WARN_ALLOWED_PACKET_OVERFLOWED,
+                          ER(ER_WARN_ALLOWED_PACKET_OVERFLOWED), func_name(),
+                          max_allowed_packet);
+    }
+    goto error_exit;
+  }
+
+  if (cs->mbminlen != 1)
+  {
+    /* output string is now utf8, convert to input charset.*/
+    if (tmp.copy(out, cs, &errs) || out->copy(tmp))
+      goto error_exit;
+  }
+
+  return out;
 
 error_exit:
-  null_value=true;
+  null_value= true;
   return nullptr;
-}
-
-
-my_wc_t Item_func_natural_sort_key::decimal_separator()
-{
-  if (m_decimal_separator != DECIMAL_SEP_UNDEFINED)
-    return m_decimal_separator;
-
-  DBUG_ASSERT(arg_count > 1);
-  String *s= args[1]->val_str();
-  if (s && s->length())
-  {
-    my_wc_t c;
-    if (s->charset()->mb_wc(&c, (const uchar *) s->ptr(),
-                        (const uchar *) s->end()))
-      return c;
-  }
-  return DECIMAL_SEP_NONE;
 }
 
 bool Item_func_natural_sort_key::fix_length_and_dec(void)
@@ -5507,15 +5559,13 @@ bool Item_func_natural_sort_key::fix_length_and_dec(void)
   if (agg_arg_charsets_for_string_result(collation, args, 1))
     return true;
   DBUG_ASSERT(collation.collation != NULL);
-  uint32 max_clen= args[0]->max_char_length();
-  fix_char_length(max_clen + max_clen/2 + ((max_clen <= 3)?1:0));
-  set_maybe_null();
+  uint32 max_char_len=
+      (uint32) natsort_max_key_size(args[0]->max_char_length());
+  fix_char_length(max_char_len);
 
-  if (arg_count> 1 && args[1]->can_eval_in_optimize())
-  {
-    /* Initialize decimal separator */
-    m_decimal_separator= decimal_separator();
-  }
+  set_maybe_null(args[0]->maybe_null() ||
+                 max_char_len * collation.collation->mbmaxlen >
+                     current_thd->variables.max_allowed_packet);
   return false;
 }
 

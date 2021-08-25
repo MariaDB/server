@@ -1622,11 +1622,10 @@ protected:
   virtual ~Create_func_name_const() {}
 };
 
-class Create_func_natural_sort_key : public Create_native_func
+class Create_func_natural_sort_key : public Create_func_arg1
 {
 public:
-  virtual Item *create_native(THD *thd, LEX_CSTRING *name,
-                List<Item> *item_list) override;
+  virtual Item *create_1_arg(THD *thd, Item *arg1) override;
   static Create_func_natural_sort_key s_singleton;
 protected:
   Create_func_natural_sort_key() {}
@@ -4654,33 +4653,9 @@ Create_func_md5::create_1_arg(THD *thd, Item *arg1)
 
 Create_func_natural_sort_key Create_func_natural_sort_key::s_singleton;
 
-Item *Create_func_natural_sort_key::create_native(THD *thd, LEX_CSTRING *name,
-                                                  List<Item> *item_list)
+Item *Create_func_natural_sort_key::create_1_arg(THD *thd, Item* arg1)
 {
-  Item *func= NULL;
-  int arg_count= 0;
-
-  if (item_list != NULL)
-    arg_count= item_list->elements;
-
-  Item *param_1, *param_2;
-
-  switch (arg_count)
-  {
-    case 1:
-      param_1= item_list->pop();
-      func= new (thd->mem_root) Item_func_natural_sort_key(thd, param_1);
-      break;
-    case 2:
-      param_1= item_list->pop();
-      param_2= item_list->pop();
-      func= new (thd->mem_root) Item_func_natural_sort_key(thd, param_1, param_2);
-      break;
-    default:
-      my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
-      break;
-  }
-  return func;
+  return new (thd->mem_root) Item_func_natural_sort_key(thd, arg1);
 }
 
 Create_func_monthname Create_func_monthname::s_singleton;
