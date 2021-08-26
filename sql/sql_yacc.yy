@@ -7662,6 +7662,7 @@ add_partition_rule:
           }
           add_part_extra
           {}
+          opt_from_table
         ;
 
 add_part_extra:
@@ -7674,6 +7675,26 @@ add_part_extra:
         | PARTITIONS_SYM real_ulong_num
           {
             Lex->part_info->num_parts= $2;
+          }
+        ;
+
+opt_from_table:
+          /* empty */
+        | FROM TABLE_SYM table_ident
+          {
+            LEX *lex= Lex;
+            /*
+              Turn off the bit ALTER_PARTITION_ADD set formerly on handling
+              the rule add_partition_rule: and turn on the bit
+              ALTER_PARTITION_ADD_FROM_TABLE since they are mutual exclusive
+            */
+            lex->alter_info.partition_flags&= ~ALTER_PARTITION_ADD;
+            lex->alter_info.partition_flags|= ALTER_PARTITION_ADD_FROM_TABLE;
+            if (!lex->first_select_lex()->
+                  add_table_to_list(thd, $3, nullptr, 0,
+                                    TL_READ_NO_INSERT,
+                                    MDL_SHARED_NO_WRITE))
+              MYSQL_YYABORT;
           }
         ;
 
