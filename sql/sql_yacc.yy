@@ -7607,27 +7607,27 @@ alter_commands:
         | EXCHANGE_SYM PARTITION_SYM alt_part_name_item
           WITH TABLE_SYM table_ident have_partitioning
           {
-            if (Lex->stmt_alter_table_exchange_partition($6))
+            if (Lex->stmt_alter_table($6))
               MYSQL_YYABORT;
+            if (!Lex->first_select_lex()->add_table_to_list(thd, $6, NULL,
+                                                            TL_OPTION_UPDATING,
+                                                            TL_READ_NO_INSERT,
+                                                            MDL_SHARED_NO_WRITE))
+              MYSQL_YYABORT;
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table_exchange_partition();
+            if (unlikely(Lex->m_sql_cmd == NULL))
+              MYSQL_YYABORT;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_EXCHANGE;
           }
         | EXTRACT_SYM PARTITION_SYM alt_part_name_item
           AS TABLE_SYM table_ident have_partitioning
           {
-            LEX *lex= Lex;
-            lex->first_select_lex()->db= $6->db;
-            if (lex->first_select_lex()->db.str == NULL &&
-                lex->copy_db_to(&lex->first_select_lex()->db))
+            if (Lex->stmt_alter_table($6))
               MYSQL_YYABORT;
-            if (unlikely(check_table_name($6->table.str,$6->table.length,
-                                          FALSE)) ||
-                ($6->db.str && unlikely(check_db_name((LEX_STRING*) &$6->db))))
-              my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), $6->table.str));
-            lex->name= $6->table;
-
-            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
-            if (unlikely(lex->m_sql_cmd == NULL))
+            Lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
+            if (unlikely(Lex->m_sql_cmd == NULL))
               MYSQL_YYABORT;
-            lex->alter_info.partition_flags|= ALTER_PARTITION_EXTRACT;
+            Lex->alter_info.partition_flags|= ALTER_PARTITION_EXTRACT;
           }
         ;
 
@@ -7877,17 +7877,9 @@ alter_list_item:
           }
         | RENAME opt_to table_ident
           {
-            LEX *lex=Lex;
-            lex->first_select_lex()->db= $3->db;
-            if (lex->first_select_lex()->db.str == NULL &&
-                lex->copy_db_to(&lex->first_select_lex()->db))
+            if (Lex->stmt_alter_table($3))
               MYSQL_YYABORT;
-            if (unlikely(check_table_name($3->table.str,$3->table.length,
-                                          FALSE)) ||
-                ($3->db.str && unlikely(check_db_name((LEX_STRING*) &$3->db))))
-              my_yyabort_error((ER_WRONG_TABLE_NAME, MYF(0), $3->table.str));
-            lex->name= $3->table;
-            lex->alter_info.flags|= ALTER_RENAME;
+            Lex->alter_info.flags|= ALTER_RENAME;
           }
         | RENAME COLUMN_SYM opt_if_exists_table_element ident TO_SYM ident
           {

@@ -11234,23 +11234,23 @@ void LEX::stmt_deallocate_prepare(const Lex_ident_sys_st &ident)
 }
 
 
-bool LEX::stmt_alter_table_exchange_partition(Table_ident *table)
+bool LEX::stmt_alter_table(Table_ident *t)
 {
   DBUG_ASSERT(sql_command == SQLCOM_ALTER_TABLE);
-  first_select_lex()->db= table->db;
+  DBUG_ASSERT(!m_sql_cmd);
+  first_select_lex()->db= t->db;
   if (first_select_lex()->db.str == NULL &&
       copy_db_to(&first_select_lex()->db))
     return true;
-  name= table->table;
-  alter_info.partition_flags|= ALTER_PARTITION_EXCHANGE;
-  if (!first_select_lex()->add_table_to_list(thd, table, NULL,
-                                             TL_OPTION_UPDATING,
-                                             TL_READ_NO_INSERT,
-                                             MDL_SHARED_NO_WRITE))
+  if (unlikely(check_table_name(t->table.str, t->table.length,
+                                false)) ||
+      (t->db.str && unlikely(check_db_name((LEX_STRING*) &t->db))))
+  {
+    my_error(ER_WRONG_TABLE_NAME, MYF(0), t->table.str);
     return true;
-  DBUG_ASSERT(!m_sql_cmd);
-  m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table_exchange_partition();
-  return m_sql_cmd == NULL;
+  }
+  name= t->table;
+  return false;
 }
 
 
