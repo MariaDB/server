@@ -259,6 +259,8 @@ Alter_table_ctx::Alter_table_ctx()
     tables_opened(0),
     db(null_clex_str), table_name(null_clex_str), alias(null_clex_str),
     new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
+    storage_engine_partitioned(false),
+    tmp_storage_engine_name_partitioned(false),
     fk_error_if_delete_row(false), fk_error_id(NULL),
     fk_error_table(NULL),
     tmp_table(false)
@@ -277,6 +279,7 @@ Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
   : implicit_default_value_error_field(NULL), error_if_not_empty(false),
     tables_opened(tables_opened_arg),
     new_db(*new_db_arg), new_name(*new_name_arg),
+    tmp_storage_engine_name_partitioned(false),
     fk_error_if_delete_row(false), fk_error_id(NULL),
     fk_error_table(NULL),
     tmp_table(false)
