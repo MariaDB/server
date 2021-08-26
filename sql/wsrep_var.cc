@@ -1,4 +1,4 @@
-/* Copyright 2008-2015 Codership Oy <http://www.codership.com>
+/* Copyright 2008-2021 Codership Oy <http://www.codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -831,7 +831,7 @@ bool wsrep_desync_check (sys_var *self, THD* thd, set_var* var)
     ret= Wsrep_server_state::instance().provider().desync();
     if (ret) {
       WSREP_WARN ("SET desync failed %d for schema: %s, query: %s", ret,
-                  thd->db.str, WSREP_QUERY(thd));
+                  thd->db.str, wsrep_thd_query(thd));
       my_error (ER_CANNOT_USER, MYF(0), "'desync'", thd->query());
       return true;
     }

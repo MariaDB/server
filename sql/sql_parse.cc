@@ -7890,7 +7890,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
                     });
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
-                    thd->wsrep_retry_counter, WSREP_QUERY(thd));
+                    thd->wsrep_retry_counter, wsrep_thd_query(thd));
         wsrep_prepare_for_autocommit_retry(thd, rawbuf, length, parser_state);
         if (thd->lex->explain)
           delete_explain_query(thd->lex);
@@ -7904,7 +7904,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                     is_autocommit,
                     thd->wsrep_retry_counter,
                     thd->variables.wsrep_retry_autocommit,
-                    WSREP_QUERY(thd));
+                    wsrep_thd_query(thd));
         my_error(ER_LOCK_DEADLOCK, MYF(0));
         thd->reset_kill_query();
         thd->wsrep_retry_counter= 0;             //  reset

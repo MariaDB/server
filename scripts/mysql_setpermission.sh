@@ -105,11 +105,15 @@ else {
 
 if ($opt_socket and -S $opt_socket)
 {
-    $dsn .= "${prefix}_socket=$opt_socket";
+  $dsn .= "${prefix}_socket=$opt_socket";
 }
 else
 {
-  $dsn .= "host=$sqlhost;port=$opt_port";
+  $dsn .= "host=$sqlhost";
+  if ($sqlhost ne "localhost")
+  {
+    $dsn .= ";port=$opt_port";
+  }
 }
 
 # make the connection to MariaDB
