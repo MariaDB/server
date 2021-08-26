@@ -2187,7 +2187,7 @@ int ha_rollback_trans(THD *thd, bool all)
   if (thd->is_error())
   {
     WSREP_DEBUG("ha_rollback_trans(%lld, %s) rolled back: %s: %s; is_real %d",
-                thd->thread_id, all?"TRUE":"FALSE", WSREP_QUERY(thd),
+                thd->thread_id, all?"TRUE":"FALSE", wsrep_thd_query(thd),
                 thd->get_stmt_da()->message(), is_real_trans);
   }
   (void) wsrep_after_rollback(thd, all);

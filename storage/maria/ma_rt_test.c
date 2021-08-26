@@ -133,7 +133,6 @@ static int run_test(const char *filename)
   int key_length=8;
   int null_fields=0;
   int nrecords=sizeof(rt_data)/(sizeof(double)*4);/* 40 */
-  int rec_length=0;
   int uniques=0;
   int i, max_i;
   int error;
@@ -154,7 +153,6 @@ static int run_test(const char *filename)
 
   recinfo[0].type=FIELD_NORMAL;
   recinfo[0].length=1; /* For NULL bits */
-  rec_length=1;
 
   /* Define 2*ndims columns for coordinates*/
 
@@ -162,7 +160,6 @@ static int run_test(const char *filename)
   {
     recinfo[i].type=FIELD_NORMAL;
     recinfo[i].length=key_length;
-    rec_length+=key_length;
   }
 
   /* Define a key with 2*ndims segments */
