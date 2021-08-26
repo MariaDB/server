@@ -261,7 +261,7 @@ Alter_table_ctx::Alter_table_ctx()
     new_db(null_clex_str), new_name(null_clex_str), new_alias(null_clex_str),
     fk_error_if_delete_row(false), fk_error_id(NULL),
     fk_error_table(NULL),
-    tmp_table(false), ddl_log_state(NULL)
+    tmp_table(false)
 {
 }
 
@@ -273,14 +273,13 @@ Alter_table_ctx::Alter_table_ctx()
 Alter_table_ctx::Alter_table_ctx(THD *thd, TABLE_LIST *table_list,
                                  uint tables_opened_arg,
                                  const LEX_CSTRING *new_db_arg,
-                                 const LEX_CSTRING *new_name_arg,
-                                 DDL_LOG_STATE *ddl_log_state_arg)
+                                 const LEX_CSTRING *new_name_arg)
   : implicit_default_value_error_field(NULL), error_if_not_empty(false),
     tables_opened(tables_opened_arg),
     new_db(*new_db_arg), new_name(*new_name_arg),
     fk_error_if_delete_row(false), fk_error_id(NULL),
     fk_error_table(NULL),
-    tmp_table(false), ddl_log_state(ddl_log_state_arg)
+    tmp_table(false)
 {
   /*
     Assign members db, table_name, new_db and new_name

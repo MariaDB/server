@@ -9728,8 +9728,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                   };);
 #endif // WITH_WSREP
 
-  Alter_table_ctx alter_ctx(thd, table_list, tables_opened, new_db, new_name,
-                            &ddl_log_state);
+  Alter_table_ctx alter_ctx(thd, table_list, tables_opened, new_db, new_name);
   mdl_ticket= table->mdl_ticket;
 
   /*
