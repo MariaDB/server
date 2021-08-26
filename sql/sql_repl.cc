@@ -1302,7 +1302,8 @@ end:
 */
 static const char *
 gtid_find_binlog_file(slave_connection_state *state, char *out_name,
-                      slave_connection_state *until_gtid_state)
+                      slave_connection_state *until_gtid_state,
+                      rpl_gtid *out_gtid)
 {
   MEM_ROOT memroot;
   binlog_file_entry *list;
@@ -1375,6 +1376,9 @@ gtid_find_binlog_file(slave_connection_state *state, char *out_name,
         for (i= 0; i < glev->count; ++i)
         {
           const rpl_gtid *gtid= state->find(glev->list[i].domain_id);
+          out_gtid->domain_id= gtid->domain_id;
+          out_gtid->server_id= gtid->server_id;
+          out_gtid->seq_no= gtid->seq_no;
           if (!gtid)
           {
             /*
@@ -2107,7 +2111,7 @@ err:
   return info->error;
 }
 
-//extern gtid_index_hash *gtid_indexes;
+extern gtid_index_hash *gtid_indexes;
 static int init_binlog_sender(binlog_send_info *info,
                               LOG_INFO *linfo,
                               const char *log_ident,
@@ -2202,17 +2206,16 @@ static int init_binlog_sender(binlog_send_info *info,
       info->error= error;
       return 1;
     }
+    rpl_gtid gtid= rpl_gtid{0, 0, 0};
     if ((info->errmsg= gtid_find_binlog_file(&info->gtid_state,
                                              search_file_name,
-                                             info->until_gtid_state)))
+                                             info->until_gtid_state, &gtid)))
     {
       info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
       return 1;
     }
 
-    /* start from beginning of binlog file */
-    //gtid_indexes->insert(info->gtid_state, 1);
-    *pos = 4;
+    *pos= gtid_indexes->find(gtid);
   }
   else
   {

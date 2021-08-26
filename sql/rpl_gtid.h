@@ -18,6 +18,7 @@
 
 #include "hash.h"
 #include "queues.h"
+#include "sql_array.h"
 #include <atomic>
 
 /* Definitions for MariaDB global transaction ID (GTID). */
@@ -381,5 +382,137 @@ extern bool rpl_slave_state_tostring_helper(String *dest, const rpl_gtid *gtid,
 extern int gtid_check_rpl_slave_state_table(TABLE *table);
 extern rpl_gtid *gtid_parse_string_to_list(const char *p, size_t len,
                                            uint32 *out_len);
+
+class gtid_index : public Sql_alloc
+{
+  MEM_ROOT *mem_root;
+  uint32 domain_id;
+  uint32 seq_no_modulus;
+  IO_CACHE *curr_file;
+  class gtid_index_elem:public Sql_alloc
+  {
+    ulong seq_no;
+    ulong file_pos;
+    //Mostly we will no require this
+    Dynamic_array<ulong> file_pos_array;
+  public:
+    gtid_index_elem(ulong seq_no_, ulong file_pos_): seq_no(seq_no_),
+                file_pos(file_pos_), file_pos_array(PSI_INSTRUMENT_MEM) 
+    {}
+    ulong get_seq_no()
+    {
+      return seq_no;
+    }
+    ulong get_file_pos()
+    {
+      return file_pos;
+    }
+  };
+public:
+  gtid_index(MEM_ROOT *mem_root_, uint32 domain_id_, uint32 seq_no_modulus_= 1,
+             IO_CACHE *file):
+             mem_root(mem_root_), domain_id(domain_id_),
+             seq_no_modulus(seq_no_modulus_), curr_file(file)
+  {
+    data= new Dynamic_array<gtid_index_elem *>(mem_root);
+  }
+  Dynamic_array<gtid_index_elem *> *data;
+  
+  void insert(ulong seq_no, ulong file_pos)
+  {
+    if(!(seq_no % seq_no_modulus))
+    {
+      data->append_val(new (mem_root) gtid_index_elem(seq_no, file_pos));
+      fwrite(seq_no, file_pos);
+    }
+  }
+  
+  /*
+    We will return the closest cached seq_no.
+    After that the caller is supposed to seek into binlog file till it finds
+    the relevant gtid_seq_no.
+  */
+  ulong find(ulong seq_no)
+  {
+    if(!data->elements())
+      return 0;
+    //binary search
+    uint64 lo= 0, hi= data->elements() - 1;
+    if(seq_no % seq_no_modulus)
+      seq_no-= seq_no % seq_no_modulus;
+
+    while(lo < hi)
+    {
+      ulong mid= lo + (hi - lo)/2;
+      ulong mid_seq_no= data->at(mid)->get_seq_no();
+      if(mid_seq_no == seq_no)
+        return data->at(mid)->get_file_pos();
+      if(mid_seq_no > seq_no)
+        hi= mid - 1;
+      else
+        lo= mid + 1;
+    }
+    return data->at(lo)->get_file_pos();
+  }
+
+  void fwrite()
+  {
+
+  }
+
+  void fread()
+  {
+
+  }
+};
+
+class gtid_index_hash : public Sql_alloc
+{
+  MEM_ROOT *mem_root;
+  HASH hash;
+  struct entry: public Sql_alloc
+  {
+    uint32 domain_id;
+    uint32 index;
+    entry(uint32 domain_id_, uint32 index_):domain_id(domain_id_), index(index_)
+    {}
+  };
+  Dynamic_array<gtid_index *> arr;
+public:
+  gtid_index_hash(MEM_ROOT *mem_root_):mem_root(mem_root_),
+  arr(mem_root)
+  {
+    my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
+               offsetof(entry, domain_id), sizeof(uint32), NULL, my_free,
+               HASH_UNIQUE);
+  };
+  void insert(rpl_gtid &gtid, ulong file_pos)
+  {
+    entry *e;
+    if((e= (entry *) my_hash_search(&hash,
+                           (const uchar *)(&gtid.domain_id), 0)))
+    {
+      arr.at(e->index)->insert(gtid.seq_no, file_pos);
+    }
+    else
+    {
+      entry *e= new(mem_root) entry(gtid.domain_id, (uint32)arr.size());
+      my_hash_insert(&hash, (uchar *)e); 
+      arr.append_val(new(mem_root) gtid_index(mem_root, gtid.domain_id));
+    }
+  }
+
+  ulong find(rpl_gtid &gtid)
+  {
+    entry *e;
+    if((e= (entry *) my_hash_search(&hash,
+                           (const uchar *)(&gtid.domain_id), 0)))
+    {
+      return arr.at(e->index)->find(gtid.seq_no);
+    }
+    return 0;
+  }
+};
+
 
 #endif  /* RPL_GTID_H */
