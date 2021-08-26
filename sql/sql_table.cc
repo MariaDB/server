@@ -9728,8 +9728,7 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
                   };);
 #endif // WITH_WSREP
 
-  Alter_table_ctx alter_ctx(thd, table_list, tables_opened, new_db, new_name,
-                            &ddl_log_state);
+  Alter_table_ctx alter_ctx(thd, table_list, tables_opened, new_db, new_name);
   mdl_ticket= table->mdl_ticket;
 
   /*
@@ -10147,9 +10146,7 @@ do_continue:;
 
     // In-place execution of ALTER TABLE for partitioning.
     DBUG_RETURN(fast_alter_partition_table(thd, table, alter_info, &alter_ctx,
-                                           create_info, table_list,
-                                           &alter_ctx.db,
-                                           &alter_ctx.table_name));
+                                           create_info, table_list));
   }
 #endif
 

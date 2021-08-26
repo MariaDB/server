@@ -247,8 +247,7 @@ public:
   Alter_table_ctx();
 
   Alter_table_ctx(THD *thd, TABLE_LIST *table_list, uint tables_opened_arg,
-                  const LEX_CSTRING *new_db_arg, const LEX_CSTRING *new_name_arg,
-                  DDL_LOG_STATE *ddl_log_state_arg);
+                  const LEX_CSTRING *new_db_arg, const LEX_CSTRING *new_name_arg);
 
   /**
      @return true if the table is moved to another database or a new table
@@ -347,8 +346,6 @@ public:
   const char   *fk_error_table;
   /** Indicates that we are altering temporary table */
   bool tmp_table;
-
-  DDL_LOG_STATE *ddl_log_state;
 
 private:
   char new_filename[FN_REFLEN + 1];

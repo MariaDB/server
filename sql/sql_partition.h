@@ -259,9 +259,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                                 Alter_info *alter_info,
                                 Alter_table_ctx *alter_ctx,
                                 HA_CREATE_INFO *create_info,
-                                TABLE_LIST *table_list,
-                                const LEX_CSTRING *db,
-                                const LEX_CSTRING *table_name);
+                                TABLE_LIST *table_list);
 bool set_part_state(Alter_info *alter_info, partition_info *tab_part_info,
                     enum partition_state part_state);
 uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,

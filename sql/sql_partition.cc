@@ -7220,9 +7220,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                                 Alter_info *alter_info,
                                 Alter_table_ctx *alter_ctx,
                                 HA_CREATE_INFO *create_info,
-                                TABLE_LIST *table_list,
-                                const LEX_CSTRING *db,
-                                const LEX_CSTRING *table_name)
+                                TABLE_LIST *table_list)
 {
   /*
     TODO: Partitioning atomic DDL refactoring.
@@ -7260,8 +7258,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   lpt->table= table;
   lpt->key_info_buffer= 0;
   lpt->key_count= 0;
-  lpt->db= *db;
-  lpt->table_name= *table_name;
+  lpt->db= alter_ctx->db;
+  lpt->table_name= alter_ctx->table_name;
   lpt->org_tabledef_version= table->s->tabledef_version;
   lpt->copied= 0;
   lpt->deleted= 0;

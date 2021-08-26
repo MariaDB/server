@@ -32,7 +32,9 @@ if ($MTR_COMBINATION_MIX)
   --skip same as stmt
 }
 
+--disable_query_log
 --eval set @@default_storage_engine=$default_engine
+--enable_query_log
 
 --echo # Crash recovery
 
@@ -122,6 +124,7 @@ while ($r < $statement_count)
       --echo # No crash!
     }
     # Check which tables still exists
+    --replace_result MAI MYI MAD MYD
     --list_files $MYSQLD_DATADIR/test t*
     --replace_regex /backup-\d+/backup/
     --list_files $MYSQLD_DATADIR/test *sql*

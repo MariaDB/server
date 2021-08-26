@@ -1,4 +1,3 @@
-set @@default_storage_engine=MyISAM;
 # Crash recovery
 create or replace procedure prepare_table()
 begin
