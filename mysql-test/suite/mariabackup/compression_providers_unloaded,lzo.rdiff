@@ -1,5 +1,5 @@
---- suite/mariabackup/compression_providers_unloaded.result	2021-08-26 14:55:39.977252937 +0200
-+++ suite/mariabackup/compression_providers_unloaded.reject	2021-08-26 14:57:36.150259141 +0200
+--- suite/mariabackup/compression_providers_unloaded.result
++++ suite/mariabackup/compression_providers_unloaded.reject
 @@ -1,8 +1,8 @@
  #
 -# Testing mariabackup with bzip2 compression

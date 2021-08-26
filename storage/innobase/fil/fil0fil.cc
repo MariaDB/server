@@ -239,21 +239,9 @@ fil_space_t *fil_space_get(uint32_t id)
   return space;
 }
 
-/** Validate the compression algorithm for full crc32 format.
-@param[in]	space	tablespace object
-@return whether the compression algorithm support */
-static bool fil_comp_algo_validate(const fil_space_t* space)
-{
-	if (!space->full_crc32()) {
-		return true;
-	}
-
-	DBUG_EXECUTE_IF("fil_comp_algo_validate_fail",
-			return false;);
-
-	return fil_comp_algo_loaded(space->get_compression_algo());
-}
-
+/** Check if the compression algorithm is loaded
+@param[in]	comp_algo ulint compression algorithm
+@return whether the compression algorithm is loaded */
 bool fil_comp_algo_loaded(ulint comp_algo)
 {
 	switch (comp_algo) {
@@ -373,9 +361,31 @@ static bool fil_node_open_file_low(fil_node_t *node)
     return false;
   }
 
+  ulint comp_algo = node->space->get_compression_algo();
+  bool comp_algo_invalid = !fil_comp_algo_loaded(comp_algo);
+  bool dbug_fil_comp_algo_validate_fail = false;
+  DBUG_EXECUTE_IF("fil_comp_algo_validate_fail",
+  		dbug_fil_comp_algo_validate_fail = true;);
+
   if (node->size);
-  else if (!node->read_page0() || !fil_comp_algo_validate(node->space))
+  else if (
+    !node->read_page0() ||
+
+    // validate compression algorithm for full crc32 format
+    node->space->full_crc32() ||
+
+    // check if compression algorithm is invalid
+    comp_algo_invalid ||
+
+    // force if debug flag is set
+    dbug_fil_comp_algo_validate_fail
+  )
   {
+    if (comp_algo_invalid && comp_algo <= PAGE_ALGORITHM_LAST)
+      ib::warn() << "'" << node->name << "' is compressed with "
+        << page_compression_algorithms[comp_algo]
+        << ", which is not currently loaded.";
+
     os_file_close(node->handle);
     node->handle= OS_FILE_CLOSED;
     return false;
