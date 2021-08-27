@@ -32,7 +32,8 @@ static const size_t IN6_ADDR_NUM_WORDS= IN6_ADDR_SIZE / 2;
 static const uint IN6_ADDR_MAX_CHAR_LENGTH= 8 * 4 + 7;
 
 #include "sql_type_fixedbin.h"
-typedef FixedBinTypeBundle<IN6_ADDR_SIZE, IN6_ADDR_MAX_CHAR_LENGTH> Inet6Bundle;
+typedef FixedBinImpl<IN6_ADDR_SIZE, IN6_ADDR_MAX_CHAR_LENGTH> Inet6;
+typedef FixedBinTypeBundle<Inet6> Inet6Bundle;
 
 /***********************************************************************/
 

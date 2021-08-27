@@ -18,7 +18,7 @@
 #include "item_uuidfunc.h"
 #include "sql_type_uuid.h"
 
-class UUID_generated : public UUIDBundle::Fbt
+class UUID_generated : public UUID
 {
 public:
   UUID_generated() { my_uuid((uchar *) m_buffer); }

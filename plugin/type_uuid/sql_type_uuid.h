@@ -17,6 +17,7 @@
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
 #include "sql_type_fixedbin.h"
-typedef FixedBinTypeBundle<MY_UUID_SIZE, MY_UUID_STRING_LENGTH> UUIDBundle;
+typedef FixedBinImpl<MY_UUID_SIZE, MY_UUID_STRING_LENGTH> UUID;
+typedef FixedBinTypeBundle<UUID> UUIDBundle;
 
 #endif // SQL_TYPE_UUID_INCLUDED

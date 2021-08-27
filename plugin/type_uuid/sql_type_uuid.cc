@@ -43,7 +43,7 @@ static bool get_digit(char ch, uint *val)
 
 
 template<>
-bool UUIDBundle::Fbt::ascii_to_fbt(const char *str, size_t str_length)
+bool UUID::ascii_to_fbt(const char *str, size_t str_length)
 {
   if (str_length < 32 || str_length > 3 * binary_length() - 1)
     return true;
@@ -72,7 +72,7 @@ err:
 }
 
 template<>
-size_t UUIDBundle::Fbt::to_string(char *dst, size_t dstsize) const
+size_t UUID::to_string(char *dst, size_t dstsize) const
 {
   my_uuid2str((const uchar *) m_buffer, dst, 1);
   return MY_UUID_STRING_LENGTH;
@@ -80,7 +80,7 @@ size_t UUIDBundle::Fbt::to_string(char *dst, size_t dstsize) const
 
 
 template<>
-const Name &UUIDBundle::Type_handler_fbt::default_value() const
+const Name &UUID::default_value()
 {
   static Name def(STRING_WITH_LEN("00000000-0000-0000-0000-000000000000"));
   return def;
