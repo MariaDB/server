@@ -193,7 +193,7 @@ TABLE_FIELD_TYPE column_stat_fields[COLUMN_STAT_N_FIELDS] =
   },
   {
     { STRING_WITH_LEN("hist_type") },
-    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON')") },
+    { STRING_WITH_LEN("enum('SINGLE_PREC_HB','DOUBLE_PREC_HB','JSON_HB')") },
     { STRING_WITH_LEN("utf8mb3") }
   },
   {
@@ -1234,7 +1234,7 @@ public:
       case DOUBLE_PREC_HB:
         hist = new (mem_root) Histogram_binary();
         break;
-      case JSON:
+      case JSON_HB:
         hist = new (mem_root) Histogram_json();
         break;
       default:
@@ -2046,7 +2046,7 @@ public:
 Histogram_base *create_histogram(Histogram_type hist_type)
 {
   // assumes the caller already checked for invalid histograms
-  if (hist_type == JSON)
+  if (hist_type == JSON_HB)
     return new Histogram_json;
   else
     return new Histogram_binary;
@@ -2207,7 +2207,7 @@ public:
   */
   void walk_tree_with_histogram(ha_rows rows)
   {
-    if (table_field->collected_stats->histogram_->get_type() == JSON)
+    if (table_field->collected_stats->histogram_->get_type() == JSON_HB)
     {
       Histogram_builder_json hist_builder(table_field, tree_key_length, rows);
       tree->walk(table_field->table, json_histogram_build_walk,
@@ -2915,7 +2915,7 @@ Histogram_base * get_histogram_by_type(MEM_ROOT *mem_root, Histogram_type hist_t
   case SINGLE_PREC_HB:
   case DOUBLE_PREC_HB:
     return new Histogram_binary();
-  case JSON:
+  case JSON_HB:
     return new Histogram_json();
   default:
     DBUG_ASSERT(0);
