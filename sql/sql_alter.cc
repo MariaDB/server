@@ -441,6 +441,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
   */
   if ((alter_info.partition_flags & ALTER_PARTITION_DROP) ||
       (alter_info.partition_flags & ALTER_PARTITION_EXTRACT) ||
+      (alter_info.partition_flags & ALTER_PARTITION_ADD_FROM_TABLE) ||
       (alter_info.flags & ALTER_RENAME))
     priv_needed|= DROP_ACL;
 

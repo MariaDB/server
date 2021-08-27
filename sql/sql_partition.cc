@@ -4864,7 +4864,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
        ALTER_PARTITION_COALESCE |
        ALTER_PARTITION_REORGANIZE |
        ALTER_PARTITION_TABLE_REORG |
-       ALTER_PARTITION_REBUILD))
+       ALTER_PARTITION_REBUILD |
+       ALTER_PARTITION_ADD_FROM_TABLE))
   {
     /*
       You can't add column when we are doing alter related to partition
@@ -5068,7 +5069,8 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         goto err;
       }
     }
-    if (alter_info->partition_flags & ALTER_PARTITION_ADD)
+    if ((alter_info->partition_flags & ALTER_PARTITION_ADD) ||
+        (alter_info->partition_flags & ALTER_PARTITION_ADD_FROM_TABLE))
     {
       if (*fast_alter_table && thd->locked_tables_mode)
       {
@@ -7194,6 +7196,9 @@ bool log_partition_alter_to_ddl_log(ALTER_PARTITION_PARAM_TYPE *lpt)
 }
 
 
+extern bool check_table_fit_new_partition(ALTER_PARTITION_PARAM_TYPE *lpt);
+
+extern bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt);
 
 /**
   Actually perform the change requested by ALTER TABLE of partitions
@@ -7471,6 +7476,60 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
     }
     if (alter_partition_lock_handling(lpt))
       goto err;
+  }
+  else if ((alter_info->partition_flags & ALTER_PARTITION_ADD_FROM_TABLE))
+  {
+    TABLE *table_from= table_list->next_local->table;
+
+    if (write_log_drop_shadow_frm(lpt) ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_1") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_1") ||
+        mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_2") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_2") ||
+        wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
+        wait_while_table_is_used(thd, table_from,
+                                 HA_EXTRA_PREPARE_FOR_RENAME) ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_3") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_3") ||
+        write_log_add_change_partition(lpt) ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_4") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_4") ||
+        mysql_change_partitions(lpt) ||
+        check_table_fit_new_partition(lpt) ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_5") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_5") ||
+        alter_close_table(lpt) ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_6") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_6") ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_7") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_7") ||
+
+        move_table_to_partition(lpt) ||
+
+        write_log_rename_frm(lpt) ||
+        (action_completed= TRUE, FALSE) ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_8") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_8") ||
+        (frm_install= TRUE, FALSE) ||
+        mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
+        log_partition_alter_to_ddl_log(lpt) ||
+        (frm_install= FALSE, FALSE) ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_9") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_9") ||
+        (write_log_completed(lpt, FALSE), FALSE) ||
+        ((!thd->lex->no_write_to_binlog) &&
+            (write_bin_log(thd, FALSE,
+                           thd->query(), thd->query_length()), FALSE)) ||
+                           ERROR_INJECT_CRASH("crash_add_partition_from_10") ||
+                           ERROR_INJECT_ERROR("fail_add_partition_from_10"))
+    {
+      handle_alter_part_error(lpt, action_completed, FALSE, frm_install);
+      goto err;
+    }
+    if (alter_partition_lock_handling(lpt))
+      goto err;
+
   }
   else if ((alter_info->partition_flags & ALTER_PARTITION_ADD) &&
            (part_info->part_type == RANGE_PARTITION ||

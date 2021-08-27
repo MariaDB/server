@@ -15,7 +15,9 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
+#include <memory>                           // unique_ptr
 #include "mariadb.h"
+#include "scope.h"                          // scope_exit
 #include "sql_parse.h"                      // check_one_table_access
                                             // check_merge_table_access
                                             // check_one_table_access
@@ -986,6 +988,244 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   query_cache_invalidate3(thd, first_table, FALSE);
 
   DBUG_RETURN(error);
+}
+
+
+/**
+  Check that definition of a table specified in the clause FROM of
+  the statement ALTER TABLE <tablename> ADD PARTITION ... FROM <from_table>
+  fit with definition of a partition being added and every row stored in
+  the table <from_table> conform with partition's expression. On return from
+  the function an actual name of a file corresponding to the partition
+  is stored in the buffer  part_file_name_buf.
+
+  @param lpt  Structure containing parameters required for checking
+  @param[in,out] part_file_name_buf  Buffer for storing a partition name
+  @param part_file_name_buf_sz  Size of buffer for storing a partition name
+  @param part_file_name_len  Length of partition prefix stored in the buffer
+                             on invocation of function
+
+  @return false on success, true on error
+*/
+
+bool check_table_fit_new_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
+{
+  TABLE *table_to= lpt->table_list->table;
+  TABLE *table_from= lpt->table_list->next_local->table;
+
+  DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                                  table_to->s->db.str,
+                                                  table_to->s->table_name.str,
+                                                  MDL_EXCLUSIVE));
+
+  DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+                                                  table_from->s->db.str,
+                                                  table_from->s->table_name.str,
+                                                  MDL_EXCLUSIVE));
+
+  uint32 new_part_id;
+  partition_element *part_elem;
+  const char* partition_name=
+    lpt->thd->lex->part_info->curr_part_elem->partition_name;
+
+  part_elem= table_to->part_info->get_part_elem(partition_name,
+                                                nullptr, 0, &new_part_id);
+  if (unlikely(!part_elem))
+    return true;
+
+  if (unlikely(new_part_id == NOT_A_PARTITION_ID))
+  {
+    DBUG_ASSERT(table_to->part_info->is_sub_partitioned());
+    my_error(ER_PARTITION_INSTEAD_OF_SUBPARTITION, MYF(0));
+    return true;
+  }
+
+  return
+    check_exchange_partition(table_from, table_to) ||
+    compare_table_with_partition(lpt->thd, table_from, table_to,
+                                 part_elem, new_part_id) ||
+    verify_data_with_partition(table_from, table_to,
+                               new_part_id);
+}
+
+
+/**
+ * Execute a ddl log entry and release a memory allocated for it
+ *
+ * @param log_entry  ddl_log entry to update
+ * @param exec_log_entry   ddl_log entry to release
+ */
+static void finalize_ddl_log_entry(DDL_LOG_MEMORY_ENTRY *log_entry,
+                                   DDL_LOG_MEMORY_ENTRY **exec_log_entry)
+{
+  (void) ddl_log_execute_entry(current_thd, log_entry->entry_pos);
+  mysql_mutex_lock(&LOCK_gdl);
+  /* mark the execute log entry done */
+  (void) ddl_log_disable_execute_entry(exec_log_entry);
+  /* release the execute log entry */
+  ddl_log_release_memory_entry(*exec_log_entry);
+  /* release the action log entry */
+  ddl_log_release_memory_entry(log_entry);
+  mysql_mutex_unlock(&LOCK_gdl);
+}
+
+
+/**
+  Move a table specified by the clause FROM <table_name> of the statement
+  ALTER TABLE ... ADD PARTITION ... FROM <table_name> to the new partition.
+
+  @param lpt  A structure containing parameters regarding to the statement
+              ALTER TABLE ... ADD PARTITION ...
+  @param part_file_name  a file name of the partition being added
+
+  @return false on success, true on error
+*/
+
+bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
+{
+  char part_file_name[2*FN_REFLEN+1];
+  const char *path= lpt->table->s->path.str;
+  const char *partition_name=
+    lpt->thd->lex->part_info->curr_part_elem->partition_name;
+
+  if (create_partition_name(part_file_name, sizeof(part_file_name),
+                            path, partition_name,
+                            NORMAL_PART_NAME, false))
+    return true;
+
+  char from_file_name[FN_REFLEN+1];
+  build_table_filename(from_file_name,
+                       sizeof(from_file_name),
+                       lpt->table_list->next_local->db.str,
+                       lpt->table_list->next_local->table_name.str,
+                       "", 0);
+
+  handler *file_ptr=
+      get_new_handler(nullptr, lpt->thd->mem_root,
+                      lpt->table_list->next_local->table->file->ht);
+  if (unlikely(!file_ptr))
+    return true;
+
+  /*
+    Install the guard object to delete a pointer to the class handler on return
+    from this function.
+  */
+  std::unique_ptr<handler> file(file_ptr);
+
+  DDL_LOG_ENTRY move_entry;
+  DDL_LOG_MEMORY_ENTRY *log_entry= nullptr;
+  DDL_LOG_MEMORY_ENTRY *exec_log_entry= nullptr;
+
+  bzero(&move_entry, sizeof(move_entry));
+  move_entry.action_type=  DDL_LOG_RENAME_ACTION;
+  lex_string_set(&move_entry.name, part_file_name);
+  lex_string_set(&move_entry.from_name, from_file_name);
+  lex_string_set(&move_entry.handler_name,
+                 ha_resolve_storage_engine_name(
+                   lpt->table_list->next_local->table->file->ht));
+  move_entry.phase= EXCH_PHASE_NAME_TO_TEMP;
+
+  mysql_mutex_lock(&LOCK_gdl);
+
+  /*
+    Install the guard object to release LOCK_gdl on any return from the current
+    function that could be happened before this lock explicitly released
+  */
+  auto lock_gdl_unlocker = make_scope_exit(
+    []() {
+      mysql_mutex_unlock(&LOCK_gdl);
+    }
+  );
+  DBUG_EXECUTE_IF("move_partition_fail_1", return true;);
+  DBUG_EXECUTE_IF("move_partition_abort_1", DBUG_SUICIDE(););
+  if (unlikely(ddl_log_write_entry(&move_entry, &log_entry)))
+  {
+    my_error(ER_DDL_LOG_ERROR, MYF(0));
+    return true;
+  }
+
+  DBUG_EXECUTE_IF("move_partition_fail_2",
+                  ddl_log_release_memory_entry(log_entry); return true;);
+  DBUG_EXECUTE_IF("move_partition_abort_2", DBUG_SUICIDE(););
+  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos,
+                                           &exec_log_entry)))
+  {
+    my_error(ER_DDL_LOG_ERROR, MYF(0));
+    ddl_log_release_memory_entry(log_entry);
+    return true;
+  }
+
+  mysql_mutex_unlock(&LOCK_gdl);
+  /*
+    Since the global mutex LOCK_gd has just been release, turn off
+    its guard object to avoid double releasing of the lock.
+  */
+  lock_gdl_unlocker.release();
+
+  /*
+    Install the guard object to finalize ddl log entry on return from
+    the current function
+  */
+  auto ddl_lock_finalizer = make_scope_exit(
+    [log_entry, &exec_log_entry]()
+    {
+      finalize_ddl_log_entry(log_entry, &exec_log_entry);
+    }
+  );
+
+  DBUG_EXECUTE_IF("move_partition_fail_3",
+                  my_error(ER_ERROR_ON_RENAME, MYF(0),
+                           from_file_name, part_file_name, 0);
+                  return true;);
+  DBUG_EXECUTE_IF("move_partition_abort_3", DBUG_SUICIDE(););
+
+  if (unlikely(file->delete_table(part_file_name)))
+  {
+    my_error(ER_ERROR_ON_RENAME, MYF(0), from_file_name,
+             part_file_name, my_errno);
+    return true;
+  }
+
+  DBUG_EXECUTE_IF("move_partition_fail_4",
+                  my_error(ER_DDL_LOG_ERROR, MYF(0));
+                  return true;);
+  DBUG_EXECUTE_IF("move_partition_abort_4", DBUG_SUICIDE(););
+
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
+  {
+    my_error(ER_DDL_LOG_ERROR, MYF(0));
+    return true;
+  }
+
+  DBUG_EXECUTE_IF("move_partition_fail_5",
+                  my_error(ER_ERROR_ON_RENAME, MYF(0),
+                           from_file_name, part_file_name, 0);
+                  return true;);
+  DBUG_EXECUTE_IF("move_partition_abort_5", DBUG_SUICIDE(););
+  if (unlikely(file->ha_rename_table(from_file_name, part_file_name)))
+  {
+    my_error(ER_ERROR_ON_RENAME, MYF(0), from_file_name,
+             part_file_name, my_errno);
+    return true;
+  }
+
+  DBUG_EXECUTE_IF("move_partition_fail_6",
+                  my_error(ER_DDL_LOG_ERROR, MYF(0));
+                  return true;);
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
+  {
+    my_error(ER_DDL_LOG_ERROR, MYF(0));
+    return true;
+  }
+
+  /* The move is complete and ddl_log is deactivated */
+  DBUG_EXECUTE_IF("exchange_partition_fail_9",
+                  my_error(ER_DDL_LOG_ERROR, MYF(0));
+                  return true;);
+  DBUG_EXECUTE_IF("exchange_partition_abort_9", DBUG_SUICIDE(););
+
+  /* all OK */
+  return false;
 }
 
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
