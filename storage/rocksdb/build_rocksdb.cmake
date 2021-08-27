@@ -35,10 +35,11 @@ endif()
 # Optional compression libraries.
 
 include(CheckFunctionExists)
-macro(check_lib package var)
+macro(check_lib package)
   SET(WITH_ROCKSDB_${package} AUTO CACHE STRING
         "Build RocksDB  with ${package} compression. Possible values are 'ON', 'OFF', 'AUTO' and default is 'AUTO'")
 
+  STRING(TOUPPER ${package} var)
   IF (NOT ${WITH_ROCKSDB_${package}} STREQUAL "OFF")
     FIND_PACKAGE(${package} QUIET)
     SET(HAVE_ROCKSDB_${package} TRUE)
@@ -56,8 +57,7 @@ macro(check_lib package var)
 
   IF(${${package}_VALID})
     MESSAGE_ONCE(rocksdb_${package} "Found ${package}: ${${var}_LIBRARIES}")
-    STRING(TOUPPER ${package} PACKAGE_NAME)
-    add_definitions(-D${PACKAGE_NAME})
+    add_definitions(-D${var})
     include_directories(${${var}_INCLUDE_DIR})
     list(APPEND THIRDPARTY_LIBS ${${var}_LIBRARIES})
   ELSEIF(${${package}_FOUND})
@@ -73,10 +73,10 @@ macro(check_lib package var)
   endif()
 endmacro()
 
-check_lib(LZ4    LZ4)
-check_lib(BZip2  BZIP2) # in built FindBZip2 violates convention
-check_lib(Snappy Snappy)
-check_lib(ZSTD   ZSTD ZDICT_trainFromBuffer)
+check_lib(LZ4)
+check_lib(BZip2)
+check_lib(Snappy)
+check_lib(ZSTD ZDICT_trainFromBuffer)
 
 add_definitions(-DZLIB)
 list(APPEND THIRDPARTY_LIBS ${ZLIB_LIBRARY})
