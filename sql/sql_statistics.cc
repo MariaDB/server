@@ -1179,14 +1179,17 @@ public:
             table_field->read_stats->set_avg_frequency(stat_field->val_real());
             break;
           case COLUMN_STAT_HIST_SIZE:
-            //TODO: ignore this. The size is a part of histogram!
-            //table_field->read_stats->histogram.set_size(stat_field->val_int());
+            /*
+              Ignore the contents of mysql.column_stats.hist_size. We take the
+              size from the mysql.column_stats.histogram column, itself.
+            */
             break;            
           case COLUMN_STAT_HIST_TYPE:
-            // TODO: save this next to histogram.
-            // For some reason, the histogram itself is read in
-            //   read_histograms_for_table
             {
+              /*
+                Save the histogram type. The histogram itself will be read in
+                read_histograms_for_table().
+              */
               Histogram_type hist_type= (Histogram_type) (stat_field->val_int() -
                                                           1);
               table_field->read_stats->histogram_type_on_disk= hist_type;
@@ -1247,21 +1250,24 @@ public:
         table_field->read_stats->histogram_= hist;
         return hist;
       }
-      //memcpy(table_field->read_stats->histogram_.get_values(),
-      //       val.ptr(), table_field->read_stats->histogram.get_size());
     }
     return NULL;
   }
 };
 
-bool Histogram_binary::parse(MEM_ROOT *mem_root, Field *, Histogram_type type_arg, const uchar *ptr_arg, uint size_arg)
+bool Histogram_binary::parse(MEM_ROOT *mem_root, Field *,
+                             Histogram_type type_arg,
+                             const uchar *ptr_arg, uint size_arg)
 {
   // Just copy the data
   size = (uint8) size_arg;
   type = type_arg;
-  values = (uchar*)alloc_root(mem_root, size_arg);
-  memcpy(values, ptr_arg, size_arg);
-  return false;
+  if ((values = (uchar*)alloc_root(mem_root, size_arg)))
+  {
+    memcpy(values, ptr_arg, size_arg);
+    return false;
+  }
+  return true;
 }
 
 /*
@@ -1269,7 +1275,7 @@ bool Histogram_binary::parse(MEM_ROOT *mem_root, Field *, Histogram_type type_ar
 */
 void Histogram_binary::serialize(Field *field)
 {
-    field->store((char*)get_values(), get_size(), &my_charset_bin);
+  field->store((char*)values, size, &my_charset_bin);
 }
 
 void Histogram_binary::init_for_collection(MEM_ROOT *mem_root,
@@ -1282,20 +1288,32 @@ void Histogram_binary::init_for_collection(MEM_ROOT *mem_root,
 }
 
 
-void Histogram_json::init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size_arg)
+void Histogram_json::init_for_collection(MEM_ROOT *mem_root,
+                                         Histogram_type htype_arg,
+                                         ulonglong size_arg)
 {
   type= htype_arg;
-  values = (uchar*)alloc_root(mem_root, size_arg);
-  size = (uint8) size_arg;
+  //values_ = (uchar*)alloc_root(mem_root, size_arg);
+  size= (uint8) size_arg;
 }
 
-bool Histogram_json::parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg, const uchar *ptr, uint size_arg)
+
+/*
+  @brief
+    Parse the histogram from its on-disk representation
+
+*/
+
+bool Histogram_json::parse(MEM_ROOT *mem_root, Field *field,
+                           Histogram_type type_arg, const uchar *ptr,
+                           uint size_arg)
 {
   DBUG_ENTER("Histogram_json::parse");
   size = (uint8) size_arg;
   type = type_arg;
   const char *json = (char *)ptr;
   int vt;
+  std::vector<std::string> hist_buckets_text;
   bool result = json_get_array_items(json, json + strlen(json), &vt, hist_buckets_text);
   if (!result)
   {
@@ -1482,6 +1500,8 @@ double Histogram_json::point_selectivity(Field *field, key_range *endpoint, doub
   }
   return sel;
 }
+
+
 /*
   @param field  The table field histogram is for.  We don't care about the
                  field's current value, we only need its virtual functions to 
@@ -1492,14 +1512,13 @@ double Histogram_json::point_selectivity(Field *field, key_range *endpoint, doub
 double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
                                              key_range *max_endp)
 {
-  //fprintf(stderr, "Histogram_json::range_selectivity\n");
   double min = 0.0, max = 1.0;
   double width = 1.0/(int)histogram_bounds.size();
   if (min_endp)
   {
     double min_sel = 0.0;
     const uchar *min_key= min_endp->key;
-    // TODO: also, properly handle SQL NULLs.
+    // GSOC-TODO: properly handle SQL NULLs.
     // in this test patch, we just assume the values are not SQL NULLs.
     if (field->real_maybe_null())
       min_key++;
@@ -1573,8 +1592,7 @@ double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
 
 void Histogram_json::serialize(Field *field)
 {
-  field->store((char*)get_values(), strlen((char*)get_values()),
-               &my_charset_bin);
+  field->store((char*)json_text, strlen((char*)json_text), &my_charset_bin);
 }
 
 int Histogram_json::find_bucket(Field *field, const uchar *endpoint)
@@ -1583,7 +1601,7 @@ int Histogram_json::find_bucket(Field *field, const uchar *endpoint)
   int high = (int)histogram_bounds.size()-1;
   int mid;
   int min_bucket_index = -1;
-  std::string mid_val;
+  std::string mid_val; // GSOC-todo: don't copy strings
 
   while(low <= high) {
     // c++ gives us the floor of integer divisions by default, below we get the ceiling (round-up).
@@ -2037,9 +2055,9 @@ public:
       writer->add_str(value.c_str());
     }
     writer->end_array();
-    histogram->set_size(bucket_bounds.size());
     Binary_string *json_string = (Binary_string *) writer->output.get_string();
-    ((Histogram_json *)histogram)->set_values((uchar *) json_string->c_ptr());
+    Histogram_json *hist= (Histogram_json*)histogram;
+    hist->set_json_text(bucket_bounds.size(), (uchar *) json_string->c_ptr());
   }
 };
 
@@ -2207,6 +2225,7 @@ public:
   */
   void walk_tree_with_histogram(ha_rows rows)
   {
+    // GSOC-TODO: is below a meaningful difference:
     if (table_field->collected_stats->histogram_->get_type() == JSON_HB)
     {
       Histogram_builder_json hist_builder(table_field, tree_key_length, rows);
@@ -2680,11 +2699,6 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
     if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
     {
       column_stats->histogram_ = NULL;
-      /*
-      column_stats->histogram.set_size(hist_size);
-      column_stats->histogram.set_type(hist_type);
-      column_stats->histogram.set_values(histogram);
-      histogram+= hist_size;*/
       (*field_ptr)->collected_stats= column_stats++;
     }
   }
@@ -2950,9 +2964,9 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, doubl
   }
   if (count_distinct)
   {
-    //uint hist_size= count_distinct->get_hist_size();
     uint hist_size= current_thd->variables.histogram_size;
-    Histogram_type hist_type= (Histogram_type) (current_thd->variables.histogram_type);
+    Histogram_type hist_type= 
+      (Histogram_type) (current_thd->variables.histogram_type);
     bool have_histogram= false;
     if (hist_size != 0 && hist_type != INVALID_HISTOGRAM)
     {
@@ -3001,12 +3015,11 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, doubl
     }
     else
       have_histogram= false ; // TODO: need this?
-    //histogram.set_size(hist_size);
+
     set_not_null(COLUMN_STAT_HIST_SIZE);
     if (have_histogram && distincts)
     {
       set_not_null(COLUMN_STAT_HIST_TYPE);
-      //histogram.set_values(count_distinct->get_histogram());
       histogram_= count_distinct->get_histogram();
       set_not_null(COLUMN_STAT_HISTOGRAM);
     } 

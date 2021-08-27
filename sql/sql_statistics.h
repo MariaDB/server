@@ -157,22 +157,17 @@ public:
 
   virtual uint get_width()=0;
 
-  virtual void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size)=0;
+  virtual void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
+                                   ulonglong size)=0;
 
   virtual bool is_available()=0;
 
   virtual bool is_usable(THD *thd)=0;
 
-  virtual void set_values(uchar * values)=0;
-
-  virtual uchar *get_values()=0;
-
-  virtual void set_size(ulonglong sz)=0;
-
-  virtual double point_selectivity(Field *field, key_range *endpoint, double avg_selection)=0;
-
+  virtual double point_selectivity(Field *field, key_range *endpoint,
+                                   double avg_selection)=0;
   virtual double range_selectivity(Field *field, key_range *min_endp,
-                                       key_range *max_endp)=0;
+                                   key_range *max_endp)=0;
 
   // Legacy: return the size of the histogram on disk.
   // This will be stored in mysql.column_stats.hist_size column.
@@ -180,6 +175,11 @@ public:
   virtual uint get_size()=0;
   virtual ~Histogram_base()= default;
 };
+
+
+/*
+  A Height-balanced histogram that stores numeric fractions
+*/
 
 class Histogram_binary : public Histogram_base
 {
@@ -274,17 +274,12 @@ private:
     return i;
   }
 
-  uchar *get_values() override { return (uchar *) values; }
 public:
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size) override;
 
-  // Note: these two are used only for saving the JSON text:
-  void set_values (uchar *vals) override { values= (uchar *) vals; }
-  void set_size (ulonglong sz) override { size= (uint8) sz; }
-
   uint get_size() override {return (uint)size;}
 
-  bool is_available() override { return get_size() > 0 && get_values(); }
+  bool is_available() override { return get_size() > 0 && (values!=NULL); }
 
   /*
     This function checks that histograms should be usable only when
@@ -328,58 +323,57 @@ public:
   }
 
   double range_selectivity(Field *field, key_range *min_endp,
-                               key_range *max_endp) override;
-  
+                           key_range *max_endp) override;
+
   /*
     Estimate selectivity of "col=const" using a histogram
   */
-  double point_selectivity(Field *field, key_range *endpoint, double avg_sel) override;
+  double point_selectivity(Field *field, key_range *endpoint,
+                           double avg_sel) override;
 };
+
+
+/*
+  An equi-height histogram which stores real values for bucket bounds.
+*/
 
 class Histogram_json : public Histogram_base
 {
 private:
   Histogram_type type;
   uint8 size; /* Number of elements in the histogram*/
-
-  /*
-    GSOC-TODO: This is used for storing collected JSON text. Rename it
-    accordingly.
-  */
-  uchar *values;
-
-  // List of values in string form.
-  /* 
-    GSOC-TODO: We don't need to save this. It can be a local variable in
-    parse().
-    Eventually we should get rid of this at all, as we can convert the
-    endpoints and add them to histogram_bounds as soon as we've read them.
-  */
-  std::vector<std::string> hist_buckets_text;
   
+  /* Collection-time only: collected histogram in the JSON form. */
+  uchar *json_text;
+
   // Array of histogram bucket endpoints in KeyTupleFormat.
   std::vector<std::string> histogram_bounds;
 
 public:
   bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
-            const uchar *ptr, uint size) override;
+             const uchar *ptr, uint size) override;
 
   void serialize(Field *field) override;
 
   // returns number of buckets in the histogram
   uint get_width() override
   {
-      return size;
-  };
+    return size;
+  }
 
   Histogram_type get_type() override
   {
     return JSON_HB;
   }
 
-  void set_size (ulonglong sz) override {size = (uint8) sz; }
+  void set_json_text(ulonglong sz, uchar *json_text_arg)
+  {
+    size = (uint8) sz;
+    json_text= json_text_arg;
+  }
 
-  uint get_size() override {
+  uint get_size() override
+  {
     return size;
   }
 
@@ -393,15 +387,10 @@ public:
            is_available();
   }
 
-  void set_values (uchar *vals) override { values= (uchar *) vals; }
-
-  uchar *get_values() override { return (uchar *) values; }
-
-  double point_selectivity(Field *field, key_range *endpoint, double avg_selection) override;
-
+  double point_selectivity(Field *field, key_range *endpoint,
+                           double avg_selection) override;
   double range_selectivity(Field *field, key_range *min_endp,
-                                       key_range *max_endp) override;
-
+                           key_range *max_endp) override;
   /*
    * Returns the index of the biggest histogram value that is smaller than endpoint
    */
