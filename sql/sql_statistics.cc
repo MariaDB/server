@@ -4369,8 +4369,8 @@ double get_column_range_cardinality(Field *field,
       if (hist && hist->is_usable(thd))
       {
         sel= hist->range_selectivity(field, min_endp, max_endp);
-        set_if_bigger(res, col_stats->get_avg_frequency());
-      } else
+      }
+      else
       {
         double min_mp_pos, max_mp_pos;
         if (min_endp && !(field->null_ptr && min_endp->key[0]))
@@ -4395,6 +4395,7 @@ double get_column_range_cardinality(Field *field,
         sel = (max_mp_pos - min_mp_pos);
       }
       res= col_non_nulls * sel;
+      set_if_bigger(res, col_stats->get_avg_frequency());
     }
     else
       res= col_non_nulls;
