@@ -1010,23 +1010,24 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
 
 bool check_table_fit_new_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
+  THD *thd= lpt->thd;
   TABLE *table_to= lpt->table_list->table;
   TABLE *table_from= lpt->table_list->next_local->table;
 
-  DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
                                                   table_to->s->db.str,
                                                   table_to->s->table_name.str,
                                                   MDL_EXCLUSIVE));
 
-  DBUG_ASSERT(lpt->thd->mdl_context.is_lock_owner(MDL_key::TABLE,
+  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
                                                   table_from->s->db.str,
                                                   table_from->s->table_name.str,
                                                   MDL_EXCLUSIVE));
 
   uint32 new_part_id;
   partition_element *part_elem;
-  const char* partition_name=
-    lpt->thd->lex->part_info->curr_part_elem->partition_name;
+  // FIXME: really?
+  const char* partition_name= thd->lex->part_info->curr_part_elem->partition_name;
 
   part_elem= table_to->part_info->get_part_elem(partition_name,
                                                 nullptr, 0, &new_part_id);
@@ -1040,21 +1041,74 @@ bool check_table_fit_new_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     return true;
   }
 
-  return
-    check_exchange_partition(table_from, table_to) ||
-    compare_table_with_partition(lpt->thd, table_from, table_to,
-                                 part_elem, new_part_id) ||
-    verify_data_with_partition(table_from, table_to,
-                               new_part_id);
+  {
+    // FIXME: this block should be in prep_alter_part_table(). Metadata compare
+    // does not require MDL_EXCLUSIVE. Make proper variables.
+    bool metadata_equal;
+    TABLE *table= table_from;
+    TABLE *part_table= table_to;
+    partition_info *part_info= part_table->part_info;
+    HA_CREATE_INFO &part_create_info= *lpt->create_info;
+    Alter_info &part_alter_info= *lpt->alter_info;
+
+    handlerton *db_type= part_create_info.db_type;
+    part_create_info.db_type= part_info->default_engine_type;
+
+    if (mysql_compare_tables(table, &part_alter_info, &part_create_info,
+                            &metadata_equal))
+
+    {
+      part_create_info.db_type= db_type;
+      my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
+      return true;
+    }
+
+    part_create_info.db_type= db_type;
+
+    DEBUG_SYNC(thd, "swap_partition_after_compare_tables");
+    if (!metadata_equal)
+    {
+      my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
+      return true;
+    }
+    DBUG_ASSERT(table->s->db_create_options ==
+                part_table->s->db_create_options);
+    DBUG_ASSERT(table->s->db_options_in_use ==
+                part_table->s->db_options_in_use);
+
+    if (table->s->avg_row_length != part_create_info.avg_row_length)
+    {
+      my_error(ER_PARTITION_EXCHANGE_DIFFERENT_OPTION, MYF(0),
+              "AVG_ROW_LENGTH");
+      return true;
+    }
+
+    if (table->s->db_create_options != part_create_info.table_options)
+    {
+      my_error(ER_PARTITION_EXCHANGE_DIFFERENT_OPTION, MYF(0),
+              "TABLE OPTION");
+      return true;
+    }
+
+    if (table->s->table_charset != part_table->s->table_charset)
+    {
+      my_error(ER_PARTITION_EXCHANGE_DIFFERENT_OPTION, MYF(0),
+              "CHARACTER SET");
+      return true;
+    }
+  }
+
+
+  if (verify_data_with_partition(table_from, table_to, new_part_id))
+  {
+    return true;
+  }
+
+  return false;
 }
 
 
-/**
- * Execute a ddl log entry and release a memory allocated for it
- *
- * @param log_entry  ddl_log entry to update
- * @param exec_log_entry   ddl_log entry to release
- */
+// FIXME: replace with ddl_log_complete()
 static void finalize_ddl_log_entry(DDL_LOG_MEMORY_ENTRY *log_entry,
                                    DDL_LOG_MEMORY_ENTRY **exec_log_entry)
 {

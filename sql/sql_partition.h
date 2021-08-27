@@ -286,6 +286,9 @@ bool write_log_replace_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
                             uint next_entry,
                             const char *from_path,
                             const char *to_path);
+
+bool check_table_fit_new_partition(ALTER_PARTITION_PARAM_TYPE *lpt);
+
 #else
 #define partition_key_modified(X,Y) 0
 #endif

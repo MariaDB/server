@@ -5112,6 +5112,10 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
                   ER_PARTITION_DEFAULT_ERROR), MYF(0));
         goto err;
       }
+
+      // FIXME: ALTER_PARTITION_ADD_FROM_TABLE is not compatible with HASH_PARTITION.
+      // Throw error, add test case.
+
       if (num_new_partitions == 0)
       {
         my_error(ER_ADD_PARTITION_NO_NEW_PARTITION, MYF(0));
@@ -7196,8 +7200,6 @@ bool log_partition_alter_to_ddl_log(ALTER_PARTITION_PARAM_TYPE *lpt)
 }
 
 
-extern bool check_table_fit_new_partition(ALTER_PARTITION_PARAM_TYPE *lpt);
-
 extern bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt);
 
 /**
@@ -7490,13 +7492,13 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
         wait_while_table_is_used(thd, table_from,
                                  HA_EXTRA_PREPARE_FOR_RENAME) ||
+        check_table_fit_new_partition(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_from_3") ||
         ERROR_INJECT_ERROR("fail_add_partition_from_3") ||
         write_log_add_change_partition(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_from_4") ||
         ERROR_INJECT_ERROR("fail_add_partition_from_4") ||
         mysql_change_partitions(lpt) ||
-        check_table_fit_new_partition(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_from_5") ||
         ERROR_INJECT_ERROR("fail_add_partition_from_5") ||
         alter_close_table(lpt) ||
@@ -7535,6 +7537,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
            (part_info->part_type == RANGE_PARTITION ||
             part_info->part_type == LIST_PARTITION))
   {
+    DBUG_ASSERT(!(alter_info->partition_flags & ALTER_PARTITION_ADD_FROM_TABLE));
     /*
       ADD RANGE/LIST PARTITIONS
       In this case there are no tuples removed and no tuples are added.

@@ -7688,7 +7688,9 @@ opt_from_table:
               the rule add_partition_rule: and turn on the bit
               ALTER_PARTITION_ADD_FROM_TABLE since they are mutual exclusive
             */
-            lex->alter_info.partition_flags&= ~ALTER_PARTITION_ADD;
+            // FIXME: either don't remove this flag or add ALTER_PARTITION_ADD_FROM_TABLE
+            // to *every* check with ALTER_PARTITION_ADD!
+//             lex->alter_info.partition_flags&= ~ALTER_PARTITION_ADD;
             lex->alter_info.partition_flags|= ALTER_PARTITION_ADD_FROM_TABLE;
             if (!lex->first_select_lex()->
                   add_table_to_list(thd, $3, nullptr, 0,
