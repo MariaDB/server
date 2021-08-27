@@ -44,7 +44,7 @@ enum enum_histogram_type
 {
   SINGLE_PREC_HB,
   DOUBLE_PREC_HB,
-  JSON,
+  JSON_HB,
   INVALID_HISTOGRAM
 } Histogram_type;
 
@@ -374,7 +374,7 @@ public:
 
   Histogram_type get_type() override
   {
-    return JSON;
+    return JSON_HB;
   }
 
   void set_size (ulonglong sz) override {size = (uint8) sz; }

@@ -2,7 +2,7 @@
 --echo # Test that we can store JSON arrays in histogram field mysql.column_stats when histogram_type=JSON
 --echo #
 
-let $histogram_type_override='JSON';
+let $histogram_type_override='JSON_HB';
 --source statistics.test
 
 --source include/have_stat_tables.inc
@@ -27,7 +27,7 @@ select hex(histogram) from mysql.column_stats where table_name='t1_bin';
 explain extended select * from t1_bin where a between 'a-3a' and 'zzzzzzzzz';
 analyze select * from t1_bin where a between 'a-3a' and 'zzzzzzzzz';
 
-set histogram_type=json;
+set histogram_type=json_hb;
 create table t1_json (a varchar(255));
 insert into t1_json select concat('a-', a) from ten;
 analyze table t1_json persistent for all;
@@ -51,7 +51,7 @@ create table users (
 set histogram_size=50;
 insert into users select 'Moscow' from seq_1_to_99;
 insert into users select 'Helsinki' from seq_1_to_2;
-set histogram_type=json;
+set histogram_type=json_hb;
 analyze table users persistent for all;
 explain extended select * from users where city = 'Moscow';
 analyze select * from users where city = 'Moscow';
@@ -76,7 +76,7 @@ use world;
 --enable_result_log
 --enable_query_log
 
-set histogram_type='JSON';
+set histogram_type='JSON_HB';
 set histogram_size=50;
 --disable_result_log
 ANALYZE TABLE Country, City, CountryLanguage persistent for all;

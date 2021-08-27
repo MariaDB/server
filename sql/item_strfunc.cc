@@ -503,7 +503,7 @@ err:
 
 
 const char *histogram_types[] =
-    {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", "JSON", 0};
+    {"SINGLE_PREC_HB", "DOUBLE_PREC_HB", "JSON_HB", 0};
 static TYPELIB histogram_types_typelib=
   { array_elements(histogram_types),
     "histogram_types",
@@ -533,6 +533,13 @@ String *Item_func_decode_histogram::val_str(String *str)
     null_value= 1;
     return 0;
   }
+
+  if (type == JSON_HB)
+  {
+    // It's a JSON histogram. Return it as-is.
+    return res;
+  }
+
   if (type == DOUBLE_PREC_HB && res->length() % 2 != 0)
     res->length(res->length() - 1); // one byte is unused
 
@@ -541,10 +548,6 @@ String *Item_func_decode_histogram::val_str(String *str)
   str->length(0);
   char numbuf[32];
   const uchar *p= (uchar*)res->c_ptr_safe();
-  if (type == JSON)
-  {
-    return res;
-  }
   for (i= 0; i < res->length(); i++)
   {
     double val;
