@@ -7,6 +7,6 @@ IF (BZIP2_FOUND)
 
   INCLUDE_DIRECTORIES(${BZIP2_INCLUDE_DIRS})
 
-  MYSQL_ADD_PLUGIN(provider_bzip2 plugin.c MODULE_OUTPUT_NAME provider_bzip2
-    COMPONENT provider-bzip2 LINK_LIBRARIES ${BZIP2_LIBRARIES} CONFIG provider_bzip2.cnf)
+  MYSQL_ADD_PLUGIN(provider_bzip2 plugin.c COMPONENT provider-bzip2
+    LINK_LIBRARIES ${BZIP2_LIBRARIES} CONFIG provider_bzip2.cnf)
 ENDIF()

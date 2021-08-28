@@ -7,6 +7,6 @@ IF (LIBLZMA_FOUND)
 
   INCLUDE_DIRECTORIES(${LIBLZMA_INCLUDE_DIRS})
 
-  MYSQL_ADD_PLUGIN(provider_lzma plugin.c MODULE_OUTPUT_NAME provider_lzma
-    COMPONENT provider-lzma LINK_LIBRARIES ${LIBLZMA_LIBRARIES} CONFIG provider_lzma.cnf)
+  MYSQL_ADD_PLUGIN(provider_lzma plugin.c COMPONENT provider-lzma
+    LINK_LIBRARIES ${LIBLZMA_LIBRARIES} CONFIG provider_lzma.cnf)
 ENDIF()

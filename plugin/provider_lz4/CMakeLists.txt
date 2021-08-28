@@ -7,6 +7,6 @@ IF (LZ4_FOUND)
 
   INCLUDE_DIRECTORIES(${LZ4_INCLUDE_DIRS})
 
-  MYSQL_ADD_PLUGIN(provider_lz4 plugin.c MODULE_OUTPUT_NAME provider_lz4
-    COMPONENT provider-lz4 LINK_LIBRARIES ${LZ4_LIBRARIES} CONFIG provider_lz4.cnf)
+  MYSQL_ADD_PLUGIN(provider_lz4 plugin.c COMPONENT provider-lz4
+    LINK_LIBRARIES ${LZ4_LIBRARIES} CONFIG provider_lz4.cnf)
 ENDIF()
