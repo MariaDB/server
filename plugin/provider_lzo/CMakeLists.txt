@@ -8,5 +8,5 @@ IF (LZO_FOUND)
   INCLUDE_DIRECTORIES(${LZO_INCLUDE_DIRS})
 
   MYSQL_ADD_PLUGIN(provider_lzo plugin.c MODULE_OUTPUT_NAME provider_lzo
-    COMPONENT provider_lzo LINK_LIBRARIES ${LZO_LIBRARIES} CONFIG provider_lzo.cnf)
+    COMPONENT provider-lzo LINK_LIBRARIES ${LZO_LIBRARIES} CONFIG provider_lzo.cnf)
 ENDIF()

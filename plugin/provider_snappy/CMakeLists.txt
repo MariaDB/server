@@ -8,5 +8,5 @@ IF (SNAPPY_FOUND)
   INCLUDE_DIRECTORIES(${SNAPPY_INCLUDE_DIRS})
 
   MYSQL_ADD_PLUGIN(provider_snappy plugin.c MODULE_OUTPUT_NAME provider_snappy
-    COMPONENT provider_snappy LINK_LIBRARIES ${SNAPPY_LIBRARIES} CONFIG provider_snappy.cnf)
+    COMPONENT provider-snappy LINK_LIBRARIES ${SNAPPY_LIBRARIES} CONFIG provider_snappy.cnf)
 ENDIF()
