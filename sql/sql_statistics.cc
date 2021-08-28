@@ -1292,8 +1292,7 @@ void Histogram_json::init_for_collection(MEM_ROOT *mem_root,
                                          Histogram_type htype_arg,
                                          ulonglong size_arg)
 {
-  type= htype_arg;
-  //values_ = (uchar*)alloc_root(mem_root, size_arg);
+  DBUG_ASSERT(htype_arg == JSON_HB);
   size= (uint8) size_arg;
 }
 
@@ -1302,6 +1301,9 @@ void Histogram_json::init_for_collection(MEM_ROOT *mem_root,
   @brief
     Parse the histogram from its on-disk representation
 
+  @return
+     false  OK
+     True   Error
 */
 
 bool Histogram_json::parse(MEM_ROOT *mem_root, Field *field,
@@ -1309,8 +1311,8 @@ bool Histogram_json::parse(MEM_ROOT *mem_root, Field *field,
                            uint size_arg)
 {
   DBUG_ENTER("Histogram_json::parse");
+  DBUG_ASSERT(type_arg == JSON_HB);
   size = (uint8) size_arg;
-  type = type_arg;
   const char *json = (char *)ptr;
   int vt;
   std::vector<std::string> hist_buckets_text;
@@ -1594,6 +1596,7 @@ void Histogram_json::serialize(Field *field)
 {
   field->store((char*)json_text, strlen((char*)json_text), &my_charset_bin);
 }
+
 
 int Histogram_json::find_bucket(Field *field, const uchar *endpoint)
 {
@@ -2061,14 +2064,21 @@ public:
   }
 };
 
+
 Histogram_base *create_histogram(Histogram_type hist_type)
 {
-  // assumes the caller already checked for invalid histograms
-  if (hist_type == JSON_HB)
-    return new Histogram_json;
-  else
-    return new Histogram_binary;
+  switch (hist_type) {
+  case SINGLE_PREC_HB:
+  case DOUBLE_PREC_HB:
+    return new Histogram_binary();
+  case JSON_HB:
+    return new Histogram_json();
+  default:
+    DBUG_ASSERT(0);
+  }
+  return NULL;
 }
+
 
 bool json_get_array_items(const char *json, const char *json_end, int *value_type, std::vector<std::string> &container) {
   json_engine_t je;
@@ -2254,16 +2264,6 @@ public:
   {
     return distincts_single_occurence;
   }
-
-  /*
-    @brief
-    Get the size of the histogram in bytes built for table_field
-  */
-  /*
-  uint get_hist_size()
-  {
-    return table_field->collected_stats->histogram.get_size();
-  }*/
 
   /*
     @brief
@@ -2916,27 +2916,6 @@ bool Column_statistics_collected::add()
   return err;
 }
 
-
-/* 
-  Create an empty Histogram object from histogram_type.
-
-  Note: it is not yet clear whether collection-time histogram should be the same 
-  as lookup-time histogram. At the moment, they are.
-*/
-
-Histogram_base * get_histogram_by_type(MEM_ROOT *mem_root, Histogram_type hist_type) {
-  switch (hist_type) {
-  case SINGLE_PREC_HB:
-  case DOUBLE_PREC_HB:
-    return new Histogram_binary();
-  case JSON_HB:
-    return new Histogram_json();
-  default:
-    DBUG_ASSERT(0);
-  }
-  return NULL;
-};
-
 /**
   @brief
   Get the results of aggregation when collecting the statistics on a column
@@ -3488,7 +3467,6 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
    
   /* Read statistics from the statistical table column_stats */
   stat_table= stat_tables[COLUMN_STAT].table;
-  //ulong total_hist_size= 0;
   bool have_histograms= false;
   Column_stat column_stat(stat_table, table);
   for (field_ptr= table_share->field; *field_ptr; field_ptr++)
@@ -3496,7 +3474,6 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     table_field= *field_ptr;
     column_stat.set_key_fields(table_field);
     column_stat.get_stat_values();
-    //total_hist_size+= table_field->read_stats->histogram.get_size();
     if (table_field->read_stats->histogram_type_on_disk != INVALID_HISTOGRAM)
       have_histograms= true;
   }
