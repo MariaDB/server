@@ -17,6 +17,8 @@
 #define SQL_STATISTICS_H
 
 #include <vector>
+#include <string>
+
 /*
   For COMPLEMENTARY_FOR_QUERIES and PREFERABLY_FOR_QUERIES they are
   similar to the COMPLEMENTARY and PREFERABLY respectively except that
@@ -279,7 +281,7 @@ public:
 
   uint get_size() override {return (uint)size;}
 
-  bool is_available() override { return get_size() > 0 && (values!=NULL); }
+  bool is_available() override { return (values!=NULL); }
 
   /*
     This function checks that histograms should be usable only when
@@ -335,13 +337,17 @@ public:
 
 /*
   An equi-height histogram which stores real values for bucket bounds.
+
+  Handles @@histogram_type=JSON_HB
+
+  On-disk format is JSON:
+   (TODO description)
 */
 
 class Histogram_json : public Histogram_base
 {
 private:
-  Histogram_type type;
-  uint8 size; /* Number of elements in the histogram*/
+  uint8 size; /* Number of elements in the histogram */
   
   /* Collection-time only: collected histogram in the JSON form. */
   uchar *json_text;
@@ -414,7 +420,6 @@ public:
 
   /* Array of records per key for index prefixes */
   ulonglong *idx_avg_frequency;
-  //uchar *histograms;                /* Sequence of histograms       */
 };
 
 
