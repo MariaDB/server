@@ -1,3 +1,4 @@
+call mtr.add_suppression("Background Page read failed to read or decrypt");
 #
 # Testing mariabackup with bzip2 compression
 #

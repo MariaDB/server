@@ -1,4 +1,5 @@
 let $alg = $MTR_COMBINATIONS;
+call mtr.add_suppression("Background Page read failed to read or decrypt");
 
 if (`select count(*) = 0 from information_schema.plugins where plugin_name = 'provider_$alg' and plugin_status='active'`)
 {
