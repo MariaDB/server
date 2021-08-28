@@ -1261,23 +1261,16 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
     remove_status_vars(show_vars);
   }
 
-  if (plugin_type_deinitialize[plugin->plugin->type])
+  plugin_type_init deinit= plugin_type_deinitialize[plugin->plugin->type];
+  if (!deinit)
+    deinit= (plugin_type_init)(plugin->plugin->deinit);
+
+  if (deinit && deinit(plugin))
   {
-    if ((*plugin_type_deinitialize[plugin->plugin->type])(plugin))
-    {
-      sql_print_error("Plugin '%s' of type %s failed deinitialization",
-                      plugin->name.str, plugin_type_names[plugin->plugin->type].str);
-    }
+    sql_print_error("Plugin '%s' of type %s failed deinitialization",
+                    plugin->name.str, plugin_type_names[plugin->plugin->type].str);
   }
-  else if (plugin->plugin->deinit)
-  {
-    DBUG_PRINT("info", ("Deinitializing plugin: '%s'", plugin->name.str));
-    if (plugin->plugin->deinit(plugin))
-    {
-      DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                             plugin->name.str));
-    }
-  }
+
   plugin->state= PLUGIN_IS_UNINITIALIZED;
 
   if (ref_check && plugin->ref_count)
@@ -1339,7 +1332,7 @@ static void reap_plugins(void)
 
   list= reap;
   while ((plugin= *(--list)))
-      plugin_deinitialize(plugin, true);
+    plugin_deinitialize(plugin, true);
 
   mysql_mutex_lock(&LOCK_plugin);
 
@@ -2352,7 +2345,7 @@ static bool do_uninstall(THD *thd, TABLE *table, const LEX_CSTRING *name)
       of the delete from the plugin table, so that it is not replicated in
       row based mode.
     */
-    table->file->row_logging= 0;                // No logging    
+    table->file->row_logging= 0;                // No logging
     error= table->file->ha_delete_row(table->record[0]);
     if (unlikely(error))
     {
@@ -4407,7 +4400,7 @@ int thd_setspecific(MYSQL_THD thd, MYSQL_THD_KEY_T key, void *value)
   DBUG_ASSERT(key != INVALID_THD_KEY);
   if (key == INVALID_THD_KEY || (!thd && !(thd= current_thd)))
     return EINVAL;
-  
+
   memcpy(intern_sys_var_ptr(thd, key, true), &value, sizeof(void*));
   return 0;
 }
