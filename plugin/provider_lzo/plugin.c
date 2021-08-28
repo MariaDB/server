@@ -31,7 +31,7 @@ static int init(void* h)
 
 struct st_mysql_daemon info= { MYSQL_DAEMON_INTERFACE_VERSION  };
 
-maria_declare_plugin(lzo)
+maria_declare_plugin(provider_lzo)
 {
   MYSQL_DAEMON_PLUGIN,
   &info,
