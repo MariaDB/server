@@ -18,25 +18,25 @@ extern "C" {
 
 #define LZO1X_1_15_MEM_COMPRESS ((unsigned int) (32768L * ((unsigned) sizeof(unsigned char *))))
 
-typedef unsigned long lzo_uint;
+typedef size_t lzo_uint;
 
 #define lzo1x_1_15_compress(...)   provider_service_lzo->lzo1x_1_15_compress_ptr   (__VA_ARGS__)
 #define lzo1x_decompress_safe(...) provider_service_lzo->lzo1x_decompress_safe_ptr (__VA_ARGS__)
 #endif
 
-#define DEFINE_lzo1x_1_15_compress(NAME) NAME(  \
-    const unsigned char *src,                   \
-    unsigned long src_len,                      \
-    unsigned char *dst,                         \
-    unsigned long *dst_len,                     \
-    void *wrkmem                                \
+#define DEFINE_lzo1x_1_15_compress(NAME) NAME(   \
+    const unsigned char *src,                    \
+    lzo_uint src_len,                            \
+    unsigned char *dst,                          \
+    lzo_uint *dst_len,                           \
+    void *wrkmem                                 \
 )
 
 #define DEFINE_lzo1x_decompress_safe(NAME) NAME( \
     const unsigned char *src,                    \
-    unsigned long src_len,                       \
+    lzo_uint src_len,                            \
     unsigned char *dst,                          \
-    unsigned long *dst_len,                      \
+    lzo_uint *dst_len,                           \
     void *wrkmem                                 \
 )
 
