@@ -37,6 +37,8 @@ analyze select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 explain extended select * from t1_json where a < 'b-1a';
 analyze select * from t1_json where a > 'zzzzzzzzz';
 
+drop table ten;
+
 # test different valid JSON strings that are invalid histograms.
 UPDATE mysql.column_stats SET histogram='["a-1", "a-2", {"a": "b"}, "a-3"]' WHERE table_name='t1_json';
 FLUSH TABLES;
@@ -45,23 +47,23 @@ explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 
 
 --source include/have_sequence.inc
-create table users (
+create table t2 (
   city varchar(100)
 );
 set histogram_size=50;
-insert into users select 'Moscow' from seq_1_to_99;
-insert into users select 'Helsinki' from seq_1_to_2;
+insert into t2 select 'Moscow' from seq_1_to_99;
+insert into t2 select 'Helsinki' from seq_1_to_2;
 set histogram_type=json_hb;
-analyze table users persistent for all;
-explain extended select * from users where city = 'Moscow';
-analyze select * from users where city = 'Moscow';
-explain extended select * from users where city = 'Helsinki';
-analyze select * from users where city = 'helsinki';
-explain extended select * from users where city < 'Lagos';
+analyze table t2 persistent for all;
+explain extended select * from t2 where city = 'Moscow';
+analyze select * from t2 where city = 'Moscow';
+explain extended select * from t2 where city = 'Helsinki';
+analyze select * from t2 where city = 'helsinki';
+explain extended select * from t2 where city < 'Lagos';
 
 drop table t1_bin;
 drop table t1_json;
-drop table users;
+drop table t2;
 
 DELETE FROM mysql.column_stats;
 

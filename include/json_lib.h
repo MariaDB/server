@@ -283,12 +283,13 @@ int json_key_matches(json_engine_t *je, json_string_t *k);
 int json_read_value(json_engine_t *j);
 
 /*
- * json_smart_read_value() reads parses a scalar value and value length from the json engine,
- * and copies them into `value` and `value_length` respectively.
- * It should only be called when the json_engine state is JST_VALUE.
- * If it encounters a non-scalar value (say object or array) before getting to value_len,
- * such value is also read and copied into value.
- */
+  json_smart_read_value() reads a JSON value. Pointer to value is stored in
+  *value and its length in *value_len.
+
+  if the value is non a scalar, it returns pointers to its JSON
+  representation.
+  The function should only be called when je->state==JST_VALUE.
+*/
 enum json_types json_smart_read_value(json_engine_t *je, const char **value, int *value_len);
 
 /*

@@ -1123,6 +1123,7 @@ public:
   void get_stat_values()
   {
     table_field->read_stats->set_all_nulls();
+    // default: hist_type=NULL means there's no histogram
     table_field->read_stats->histogram_type_on_disk= INVALID_HISTOGRAM;
 
     if (table_field->read_stats->min_value)
@@ -1196,7 +1197,10 @@ public:
               break;
             }
           case COLUMN_STAT_HISTOGRAM:
-            //TODO: if stat_field->length() == 0 then histogram_type_on_disk is set to INVALID_HISTOGRAM
+            /*
+              Do nothing here: we take the histogram length from the 'histogram'
+              column itself
+            */
             break;
           }
         }
@@ -1245,7 +1249,7 @@ public:
       }
       if (!hist->parse(mem_root, table_field,
                        table_field->read_stats->histogram_type_on_disk, 
-                       (const uchar*)val.ptr(), val.length()))
+                       val.ptr(), val.length()))
       {
         table_field->read_stats->histogram_= hist;
         return hist;
@@ -1255,19 +1259,19 @@ public:
   }
 };
 
-bool Histogram_binary::parse(MEM_ROOT *mem_root, Field *,
-                             Histogram_type type_arg,
-                             const uchar *ptr_arg, uint size_arg)
+
+bool Histogram_binary::parse(MEM_ROOT *mem_root, Field*,
+                             Histogram_type type_arg, const char *hist_data,
+                             size_t hist_data_len)
 {
-  // Just copy the data
-  size = (uint8) size_arg;
-  type = type_arg;
-  if ((values = (uchar*)alloc_root(mem_root, size_arg)))
-  {
-    memcpy(values, ptr_arg, size_arg);
-    return false;
-  }
-  return true;
+  /* On-disk an in-memory formats are the same. Just copy the data. */
+  type= type_arg;
+  size= (uint8) hist_data_len; // 'size' holds the size of histogram in bytes
+  if (!(values= (uchar*)alloc_root(mem_root, hist_data_len)))
+    return true;
+
+  memcpy(values, hist_data, hist_data_len);
+  return false;
 }
 
 /*
@@ -1307,39 +1311,81 @@ void Histogram_json::init_for_collection(MEM_ROOT *mem_root,
 */
 
 bool Histogram_json::parse(MEM_ROOT *mem_root, Field *field,
-                           Histogram_type type_arg, const uchar *ptr,
-                           uint size_arg)
+                           Histogram_type type_arg, const char *hist_data,
+                           size_t hist_data_len)
 {
   DBUG_ENTER("Histogram_json::parse");
   DBUG_ASSERT(type_arg == JSON_HB);
-  size = (uint8) size_arg;
-  const char *json = (char *)ptr;
-  int vt;
-  std::vector<std::string> hist_buckets_text;
-  bool result = json_get_array_items(json, json + strlen(json), &vt, hist_buckets_text);
-  if (!result)
-  {
-    my_error(ER_JSON_HISTOGRAM_PARSE_FAILED, MYF(0), vt);
-    DBUG_RETURN(true);
-  }
-  size= hist_buckets_text.size();
+  const char *err;
+  json_engine_t je;
+  json_string_t key_name;
 
-  /*
-    Convert the text based array into a data structure that allows lookups and
-    estimates
-  */
-  for (auto &s : hist_buckets_text)
-  {
-    field->store_text(s.data(), s.size(), &my_charset_bin);
+  json_scan_start(&je, &my_charset_utf8mb4_bin,
+                  (const uchar*)hist_data,
+                  (const uchar*)hist_data+hist_data_len);
 
-    // Get the value in "truncated key tuple format" here:
-    uchar buf[MAX_KEY_LENGTH];
-    uint len_to_copy= field->key_length();
-    uint bytes= field->get_key_image(buf, len_to_copy, Field::itRAW);
-    histogram_bounds.push_back(std::string((char*)buf, bytes));
+  if (json_read_value(&je) || je.value_type != JSON_VALUE_OBJECT)
+  {
+    err= "Root JSON element must be a JSON object";
+    goto error;
   }
 
+  json_string_set_str(&key_name, (const uchar*)JSON_NAME,
+                      (const uchar*)JSON_NAME + strlen(JSON_NAME));
+  json_string_set_cs(&key_name, system_charset_info);
+
+  if (json_scan_next(&je) || je.state != JST_KEY ||
+      !json_key_matches(&je, &key_name))
+  {
+    err= "The first key in the object must be histogram_hb_v1";
+    goto error;
+  }
+
+  // The value must be a JSON array
+  if (json_read_value(&je) || (je.value_type != JSON_VALUE_ARRAY))
+  {
+    err= "A JSON array expected";
+    goto error;
+  }
+
+  // Read the array
+  while (!json_scan_next(&je))
+  {
+    switch(je.state)
+    {
+      case JST_VALUE:
+      {
+        const char *val;
+        int val_len;
+        json_smart_read_value(&je, &val, &val_len);
+        if (je.value_type != JSON_VALUE_STRING &&
+            je.value_type != JSON_VALUE_NUMBER &&
+            je.value_type != JSON_VALUE_TRUE &&
+            je.value_type != JSON_VALUE_FALSE)
+        {
+          err= "Scalar value expected";
+          goto error;
+        }
+        uchar buf[MAX_KEY_LENGTH];
+        uint len_to_copy= field->key_length();
+        field->store_text(val, val_len, &my_charset_bin);
+        uint bytes= field->get_key_image(buf, len_to_copy, Field::itRAW);
+        histogram_bounds.push_back(std::string((char*)buf, bytes));
+        // TODO: Should we also compare this endpoint with the previous
+        // to verify that the ordering is right?
+        break;
+      }
+      case JST_ARRAY_END:
+        break;
+    }
+  }
+  size= histogram_bounds.size();
   DBUG_RETURN(false);
+
+error:
+  my_error(ER_JSON_HISTOGRAM_PARSE_FAILED, MYF(0), err,
+           je.s.c_str - (const uchar*)hist_data);
+  DBUG_RETURN(true);
 }
 
 
@@ -1347,7 +1393,7 @@ static
 void store_key_image_to_rec_no_null(Field *field, uchar *ptr) {
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table,
                                     &field->table->write_set);
-  field->set_key_image(ptr, field->key_length()); 
+  field->set_key_image(ptr, field->key_length());
   dbug_tmp_restore_column_map(&field->table->write_set, old_map);
 }
 
@@ -1506,9 +1552,9 @@ double Histogram_json::point_selectivity(Field *field, key_range *endpoint, doub
 
 /*
   @param field  The table field histogram is for.  We don't care about the
-                 field's current value, we only need its virtual functions to 
+                 field's current value, we only need its virtual functions to
                  perform various operations
-  
+
   @param min_endp, max_endp - this specifies the range.
 */
 double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
@@ -1594,7 +1640,7 @@ double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
 
 void Histogram_json::serialize(Field *field)
 {
-  field->store((char*)json_text, strlen((char*)json_text), &my_charset_bin);
+  field->store(json_text.data(), json_text.size(), &my_charset_bin);
 }
 
 
@@ -2052,13 +2098,16 @@ public:
   }
 
   void build_json_from_histogram() {
-    Json_writer *writer = new Json_writer();
-    writer->start_array();
+    Json_writer writer;
+    writer.start_object();
+    writer.add_member(Histogram_json::JSON_NAME).start_array();
+
     for(auto& value: bucket_bounds) {
-      writer->add_str(value.c_str());
+      writer.add_str(value.c_str());
     }
-    writer->end_array();
-    Binary_string *json_string = (Binary_string *) writer->output.get_string();
+    writer.end_array();
+    writer.end_object();
+    Binary_string *json_string = (Binary_string *) writer.output.get_string();
     Histogram_json *hist= (Histogram_json*)histogram;
     hist->set_json_text(bucket_bounds.size(), (uchar *) json_string->c_ptr());
   }
@@ -2079,42 +2128,6 @@ Histogram_base *create_histogram(Histogram_type hist_type)
   return NULL;
 }
 
-
-bool json_get_array_items(const char *json, const char *json_end, int *value_type, std::vector<std::string> &container) {
-  json_engine_t je;
-  int vl;
-  const char *v;
-
-  json_scan_start(&je, &my_charset_utf8mb4_bin, (const uchar *)json, (const uchar *)json_end);
-
-  if (json_read_value(&je) || (*value_type = je.value_type) != JSON_VALUE_ARRAY)
-  {
-    return false;
-  }
-
-  std::string val;
-  while(!json_scan_next(&je))
-  {
-    switch(je.state)
-    {
-    case JST_VALUE:
-      *value_type = json_smart_read_value(&je, &v, &vl);
-      if (je.value_type != JSON_VALUE_STRING &&
-          je.value_type != JSON_VALUE_NUMBER &&
-          je.value_type != JSON_VALUE_TRUE &&
-          je.value_type != JSON_VALUE_FALSE)
-      {
-        return false;
-      }
-      val = std::string(v, vl);
-      container.emplace_back(val);
-      break;
-    case JST_ARRAY_END:
-      break;
-    }
-  }
-  return true;
-}
 
 C_MODE_START
 

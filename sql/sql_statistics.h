@@ -152,7 +152,7 @@ class Histogram_base : public Sql_alloc
 {
 public:
   virtual bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
-                     const uchar *ptr, uint size)= 0;
+                     const char *hist_data, size_t hist_data_len)= 0;
   virtual void serialize(Field *to_field)= 0;
 
   virtual Histogram_type get_type()=0;
@@ -187,7 +187,7 @@ class Histogram_binary : public Histogram_base
 {
 public:
   bool parse(MEM_ROOT *mem_root, Field *, Histogram_type type_arg, 
-             const uchar *ptr_arg, uint size_arg) override;
+             const char *hist_data, size_t hist_data_len) override;
   void serialize(Field *to_field) override;
 
   Histogram_type get_type() override { return type; }
@@ -350,14 +350,16 @@ private:
   uint8 size; /* Number of elements in the histogram */
   
   /* Collection-time only: collected histogram in the JSON form. */
-  uchar *json_text;
+  std::string json_text;
 
   // Array of histogram bucket endpoints in KeyTupleFormat.
   std::vector<std::string> histogram_bounds;
 
 public:
+  static constexpr const char* JSON_NAME="histogram_hb_v1";
+
   bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
-             const uchar *ptr, uint size) override;
+             const char *hist_data, size_t hist_data_len) override;
 
   void serialize(Field *field) override;
 
@@ -375,7 +377,8 @@ public:
   void set_json_text(ulonglong sz, uchar *json_text_arg)
   {
     size = (uint8) sz;
-    json_text= json_text_arg;
+    json_text.assign((const char*)json_text_arg, 
+                     strlen((const char*)json_text_arg));
   }
 
   uint get_size() override
@@ -481,8 +484,9 @@ private:
   ulonglong avg_frequency;
 
 public:
-
+  /* Histogram type as specified in mysql.column_stats.hist_type */
   Histogram_type histogram_type_on_disk;
+
   Histogram_base *histogram_;
 
   uint32 no_values_provided_bitmap()
