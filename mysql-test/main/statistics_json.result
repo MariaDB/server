@@ -2444,15 +2444,15 @@ test	t1_json	a	a-0	a-9	0.0000	3.0000	1.0000	100	JSON_HB	{
 }
 explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	60.87	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	59.87	Using where
 Warnings:
 Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` between 'a-3a' and 'zzzzzzzzz'
 analyze select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	60.87	60.00	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	59.87	60.00	Using where
 explain extended select * from t1_json where a < 'b-1a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	100.00	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	99.00	Using where
 Warnings:
 Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` < 'b-1a'
 analyze select * from t1_json where a > 'zzzzzzzzz';
@@ -2476,12 +2476,12 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain extended select * from t2 where city = 'Moscow';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	98.04	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	96.08	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`city` AS `city` from `test`.`t2` where `test`.`t2`.`city` = 'Moscow'
 analyze select * from t2 where city = 'Moscow';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	101.00	98.04	98.02	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	101.00	96.08	98.02	Using where
 explain extended select * from t2 where city = 'Helsinki';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	2.00	Using where

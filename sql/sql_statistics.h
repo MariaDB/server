@@ -400,10 +400,8 @@ public:
                            double avg_selection) override;
   double range_selectivity(Field *field, key_range *min_endp,
                            key_range *max_endp) override;
-  /*
-   * Returns the index of the biggest histogram value that is smaller than endpoint
-   */
-  int find_bucket(Field *field, const uchar *endpoint);
+private:
+  int find_bucket(Field *field, const uchar *lookup_val, bool equal_is_less);
 };
 
 class Columns_statistics;

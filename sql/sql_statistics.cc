@@ -63,16 +63,7 @@
   equal to "never".
 */
 
-/*
-   * json_get_array_items expects a JSON array as argument,
-   * and pushes the elements of the array into the `container` vector.
-   * It only works if all the elements in the original JSON array
-   * are scalar values (i.e., strings, numbers, true or false),
-   * else, the JSON type encountered is stored in value_type and the function returns false.
-   */
-bool json_get_array_items(const char *json, const char *json_end, int *value_type, std::vector<std::string> &container);
-
-Histogram_base *create_histogram(Histogram_type hist_type);
+Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type);
 
 /* Currently there are only 3 persistent statistical tables */
 static const uint STATISTICS_TABLES= 3;
@@ -1235,18 +1226,9 @@ public:
       Field *stat_field= stat_table->field[fldno];
       table_field->read_stats->set_not_null(fldno);
       stat_field->val_str(&val);
-      switch (table_field->read_stats->histogram_type_on_disk)
-      {
-      case SINGLE_PREC_HB:
-      case DOUBLE_PREC_HB:
-        hist = new (mem_root) Histogram_binary();
-        break;
-      case JSON_HB:
-        hist = new (mem_root) Histogram_json();
-        break;
-      default:
+      hist= create_histogram(mem_root, table_field->read_stats->histogram_type_on_disk);
+      if (!hist)
         return NULL;
-      }
       if (!hist->parse(mem_root, table_field,
                        table_field->read_stats->histogram_type_on_disk, 
                        val.ptr(), val.length()))
@@ -1415,7 +1397,6 @@ double pos_in_interval_through_val_real(Field *field,
                                       uchar *max_val, 
                                       uchar *midpoint_val)
 {
-
   // For each passed value: unpack it into Field's current value. Then, we can
   // get the value as double.
 
@@ -1526,114 +1507,105 @@ double Histogram_json::point_selectivity(Field *field, key_range *endpoint, doub
   const uchar *min_key = endpoint->key;
   if (field->real_maybe_null())
     min_key++;
-  uint min_idx= find_bucket(field, min_key);
+  uint min_idx= find_bucket(field, min_key, false);
 
-  uint max_idx= min_idx;
-
+  uint max_idx= find_bucket(field, min_key, true);
+#if 0
   // find how many buckets this value occupies
   while ((max_idx + 1 < get_width() ) &&
          (field->key_cmp((uchar *)histogram_bounds[max_idx + 1].data(), min_key) == 0)) {
     max_idx++;
   }
-
+#endif
   if (max_idx > min_idx)
   {
     // value spans multiple buckets
     double bucket_sel= 1.0/(get_width() + 1);
     sel= bucket_sel * (max_idx - min_idx + 1);
-  } else
+  }
+  else
   {
     // the value fits within a single bucket
-    sel = MY_MIN(avg_sel, (1.0/get_width()));
+    sel = MY_MIN(avg_sel, 1.0/get_width());
   }
   return sel;
 }
 
 
 /*
-  @param field  The table field histogram is for.  We don't care about the
-                 field's current value, we only need its virtual functions to
-                 perform various operations
+  @param field    The table field histogram is for.  We don't care about the
+                  field's current value, we only need its virtual functions to
+                  perform various operations
 
-  @param min_endp, max_endp - this specifies the range.
+  @param min_endp Left endpoint, or NULL if there is none
+  @param max_endp Right endpoint, or NULL if there is none
 */
 double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
-                                             key_range *max_endp)
+                                         key_range *max_endp)
 {
-  double min = 0.0, max = 1.0;
-  double width = 1.0/(int)histogram_bounds.size();
-  if (min_endp)
+  double min, max;
+  double width= 1.0 / histogram_bounds.size();
+
+  if (min_endp && !(field->null_ptr && min_endp->key[0]))
   {
-    double min_sel = 0.0;
+    bool exclusive_endp= (min_endp->flag == HA_READ_AFTER_KEY)? true: false;
     const uchar *min_key= min_endp->key;
-    // GSOC-TODO: properly handle SQL NULLs.
-    // in this test patch, we just assume the values are not SQL NULLs.
     if (field->real_maybe_null())
       min_key++;
 
-    int min_bucket_idx, max_bucket_idx;
-    min_bucket_idx= find_bucket(field, min_key);
-    std::string min_bucket, max_bucket;
-
-    max_bucket_idx= min_bucket_idx + 1;
-    if (min_bucket_idx != -1)
+    // Find the leftmost bucket that contains the lookup value.
+    // (If the lookup value is to the left of all buckets, find bucket #0)
+    int idx= find_bucket(field, min_key, exclusive_endp);
+    double min_sel;
     {
-      min_bucket= histogram_bounds[min_bucket_idx];
-      max_bucket= (max_bucket_idx < (int) histogram_bounds.size())
-                      ? histogram_bounds[max_bucket_idx]
-                      : "";
-
+      std::string &left= histogram_bounds[idx];
+      std::string &right= histogram_bounds[idx+1];
       if (field->pos_through_val_str())
         min_sel= pos_in_interval_through_strxfrm(
-            field, (uchar *) min_bucket.data(), (uchar *) max_bucket.data(),
-            (uchar *) min_key);
+            field, (uchar*) left.data(), (uchar*) right.data(),
+            (uchar*) min_key);
       else
         min_sel= pos_in_interval_through_val_real(
-            field, (uchar *) min_bucket.data(), (uchar *) max_bucket.data(),
-            (uchar *) min_key);
+            field, (uchar *) left.data(), (uchar*) right.data(),
+            (uchar*) min_key);
     }
 
-    min = min_bucket_idx * (width) + min_sel * (width);
-    //fprintf(stderr, "min pos_in_interval =%g\n", min_sel);
-    //fprintf(stderr, "min =%g\n", min);
+    min= idx*width + min_sel*width;
   }
+  else
+    min= 0.0;
+
   if (max_endp)
   {
-    double max_sel = 1.0;
+    // The right endpoint cannot be NULL
+    DBUG_ASSERT(!(field->null_ptr && max_endp->key[0]));
+    bool inclusive_endp= (max_endp->flag == HA_READ_AFTER_KEY)? true: false;
     const uchar *max_key= max_endp->key;
     if (field->real_maybe_null())
       max_key++;
 
-    int min_bucket_idx, max_bucket_idx;
-    min_bucket_idx= find_bucket(field, max_key);
-    std::string min_bucket, max_bucket;
-
-    max_bucket_idx= min_bucket_idx + 1;
-    if (min_bucket_idx != -1)
+    int idx= find_bucket(field, max_key, inclusive_endp);
+    double max_sel;
     {
-      min_bucket= histogram_bounds[min_bucket_idx];
-      max_bucket= (max_bucket_idx < (int) histogram_bounds.size())
-                  ? histogram_bounds[max_bucket_idx]
-                  : "";
+      std::string &left= histogram_bounds[idx];
+      std::string &right= histogram_bounds[idx+1];
 
       if (field->pos_through_val_str())
         max_sel= pos_in_interval_through_strxfrm(
-            field, (uchar *) min_bucket.data(), (uchar *) max_bucket.data(),
+            field, (uchar *) left.data(), (uchar *) right.data(),
             (uchar *) max_key);
       else
         max_sel= pos_in_interval_through_val_real(
-            field, (uchar *) min_bucket.data(), (uchar *) max_bucket.data(),
+            field, (uchar *) left.data(), (uchar *) right.data(),
             (uchar *) max_key);
     }
 
-    max = min_bucket_idx * (width) + max_sel * (width);
-    //fprintf(stderr, "max pos_in_interval =%g\n", max_sel);
-    //fprintf(stderr, "max =%g\n", max);
+    max= idx*width + max_sel*width;
   }
+  else
+    max= 1.0;
 
   double sel = max - min;
-  //fprintf(stderr, "final selection = %g\n", sel);
-  //fprintf(stderr, "Histogram_json::range_selectivity ends\n");
   return sel;
 }
 
@@ -1644,34 +1616,33 @@ void Histogram_json::serialize(Field *field)
 }
 
 
-int Histogram_json::find_bucket(Field *field, const uchar *endpoint)
+/*
+  Find the histogram bucket that contains the value.
+
+  @param equal_is_less Controls what to do if a histogram bound is equal to the
+                       lookup_val.
+*/
+
+int Histogram_json::find_bucket(Field *field, const uchar *lookup_val,
+                                bool equal_is_less)
 {
-  int low = 0;
-  int high = (int)histogram_bounds.size()-1;
-  int mid;
-  int min_bucket_index = -1;
-  std::string mid_val; // GSOC-todo: don't copy strings
+  int low= 0;
+  int high= histogram_bounds.size() - 1;
+  int middle;
 
-  while(low <= high) {
-    // c++ gives us the floor of integer divisions by default, below we get the ceiling (round-up).
-    // it works but it doesn't feel so readable, maybe we could make improvements?
-    int sum = (low+high);
-    mid = sum/2 + (sum % 2 != 0);
-
-    mid_val = histogram_bounds[mid];
-
-    int res = field->key_cmp((uchar*) mid_val.data(), endpoint);
-    if (res < 0) {
-      low = mid + 1;
-      min_bucket_index = mid;
-    } else if (res >= 0) {
-      high = mid - 1;
-    }
+  while (low + 1 < high)
+  {
+    middle= (low + high) / 2;
+    int res= field->key_cmp((uchar*)histogram_bounds[middle].data(), lookup_val);
+    if (!res)
+      res= equal_is_less? -1: 1;
+    if (res < 0)
+      low= middle;
+    else //res > 0
+      high= middle;
   }
 
-  if (min_bucket_index == -1)
-    min_bucket_index = high;
-  return min_bucket_index;
+  return low;
 }
 
 /*
@@ -2114,14 +2085,14 @@ public:
 };
 
 
-Histogram_base *create_histogram(Histogram_type hist_type)
+Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type)
 {
   switch (hist_type) {
   case SINGLE_PREC_HB:
   case DOUBLE_PREC_HB:
-    return new Histogram_binary();
+    return new (mem_root) Histogram_binary();
   case JSON_HB:
-    return new Histogram_json();
+    return new (mem_root) Histogram_json();
   default:
     DBUG_ASSERT(0);
   }
@@ -2963,7 +2934,7 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, doubl
     if (hist_size != 0 && hist_type != INVALID_HISTOGRAM)
     {
       have_histogram= true;
-      histogram_= create_histogram(hist_type);
+      histogram_= create_histogram(mem_root, hist_type);
       histogram_->init_for_collection(mem_root, hist_type, hist_size);
     }
 
@@ -4530,9 +4501,10 @@ double Histogram_binary::point_selectivity(Field *field, key_range *min_endp, do
   return sel;
 }
 
+
 double Histogram_binary::range_selectivity(Field *field,
-                                               key_range *min_endp,
-                                               key_range *max_endp)
+                                           key_range *min_endp,
+                                           key_range *max_endp)
 {
   double sel, min_mp_pos, max_mp_pos;
   Column_statistics *col_stats= field->read_stats;
@@ -4561,13 +4533,6 @@ double Histogram_binary::range_selectivity(Field *field,
   uint max= find_bucket(max_mp_pos, FALSE);
   sel= bucket_sel * (max - min + 1);
 
-  /*fprintf(stderr, "bucket_sel =%g\n", bucket_sel);
-  fprintf(stderr, "min pos_in_interval =%g\n", min_mp_pos);
-  fprintf(stderr, "max pos_in_interval =%g\n", max_mp_pos);
-  fprintf(stderr, "min =%d\n", min);
-  fprintf(stderr, "max =%d\n", max);*/
-  /*fprintf(stderr, "final sel =%g\n", sel);
-  fprintf(stderr, "Histogram_binary::range_selectivity ends\n");*/
   return sel;
 }
 
