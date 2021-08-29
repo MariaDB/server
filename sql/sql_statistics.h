@@ -125,6 +125,7 @@ int read_statistics_for_tables(THD *thd, TABLE_LIST *tables);
 int collect_statistics_for_table(THD *thd, TABLE *table);
 void delete_stat_values_for_table_share(TABLE_SHARE *table_share);
 int alloc_statistics_for_table(THD *thd, TABLE *table);
+void free_statistics_for_table(THD *thd, TABLE *table);
 int update_statistics_for_table(THD *thd, TABLE *table);
 int delete_statistics_for_table(THD *thd, const LEX_CSTRING *db, const LEX_CSTRING *tab);
 int delete_statistics_for_column(THD *thd, TABLE *tab, Field *col);
@@ -176,6 +177,15 @@ public:
   // Newer, JSON-based histograms may return 0.
   virtual uint get_size()=0;
   virtual ~Histogram_base()= default;
+
+
+  Histogram_base() : owner(NULL) {}
+  THD *get_owner() { return owner; }
+  void set_owner(THD *thd) { owner=thd; }
+private:
+  // Owner is a thread that *exclusively* owns this histogram (and so can
+  // delete it at any time)
+  THD *owner;
 };
 
 

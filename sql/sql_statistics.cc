@@ -63,7 +63,8 @@
   equal to "never".
 */
 
-Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type);
+Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type,
+                                 THD *owner);
 
 /* Currently there are only 3 persistent statistical tables */
 static const uint STATISTICS_TABLES= 3;
@@ -1222,15 +1223,16 @@ public:
       char buff[MAX_FIELD_WIDTH];
       String val(buff, sizeof(buff), &my_charset_bin);
       uint fldno= COLUMN_STAT_HISTOGRAM;
-      Histogram_base *hist;
       Field *stat_field= stat_table->field[fldno];
       table_field->read_stats->set_not_null(fldno);
       stat_field->val_str(&val);
-      hist= create_histogram(mem_root, table_field->read_stats->histogram_type_on_disk);
-      if (!hist)
+      Histogram_type hist_type=
+        table_field->read_stats->histogram_type_on_disk;
+
+      Histogram_base *hist;
+      if (!(hist= create_histogram(mem_root, hist_type, NULL)))
         return NULL;
-      if (!hist->parse(mem_root, table_field,
-                       table_field->read_stats->histogram_type_on_disk, 
+      if (!hist->parse(mem_root, table_field, hist_type,
                        val.ptr(), val.length()))
       {
         table_field->read_stats->histogram_= hist;
@@ -2085,18 +2087,25 @@ public:
 };
 
 
-Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type)
+Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type,
+                                 THD *owner)
 {
+  Histogram_base *res= NULL;
   switch (hist_type) {
   case SINGLE_PREC_HB:
   case DOUBLE_PREC_HB:
-    return new (mem_root) Histogram_binary();
+    res= new (mem_root) Histogram_binary();
+    break;
   case JSON_HB:
-    return new (mem_root) Histogram_json();
+    res= new (mem_root) Histogram_json();
+    break;
   default:
     DBUG_ASSERT(0);
   }
-  return NULL;
+
+  if (res)
+    res->set_owner(owner);
+  return res;
 }
 
 
@@ -2691,6 +2700,25 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   DBUG_RETURN(0);
 }
 
+/*
+  Free the "local" statistics for table.
+  We only free the statistics that is not on MEM_ROOT and needs to be
+  explicitly freed.
+*/
+void free_statistics_for_table(THD *thd, TABLE *table)
+{
+  for (Field **field_ptr= table->field; *field_ptr; field_ptr++)
+  {
+    // Only delete the histograms that are exclusivly owned by this thread
+    if ((*field_ptr)->collected_stats &&
+        (*field_ptr)->collected_stats->histogram_ &&
+        (*field_ptr)->collected_stats->histogram_->get_owner() == thd)
+    {
+      delete (*field_ptr)->collected_stats->histogram_;
+      (*field_ptr)->collected_stats->histogram_= NULL;
+    }
+  }
+}
 
 /**
   @brief 
@@ -2921,7 +2949,7 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, doubl
     if (hist_size != 0 && hist_type != INVALID_HISTOGRAM)
     {
       have_histogram= true;
-      histogram_= create_histogram(mem_root, hist_type);
+      histogram_= create_histogram(mem_root, hist_type, current_thd);
       histogram_->init_for_collection(mem_root, hist_type, hist_size);
     }
 
