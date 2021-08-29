@@ -2654,27 +2654,14 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   uint key_parts= table->s->ext_key_parts;
   ulonglong *idx_avg_frequency= (ulonglong*) alloc_root(&table->mem_root,
                                                sizeof(ulonglong) * key_parts);
-/*
-  uint hist_size= thd->variables.histogram_size;
-  Histogram_type hist_type= (Histogram_type) (thd->variables.histogram_type);
-  uchar *histogram= NULL;
-  if (hist_size > 0)
-  {
-    if ((histogram= (uchar *) alloc_root(&table->mem_root,
-                                         hist_size * columns)))
-      bzero(histogram, hist_size * columns);
 
-  }
-*/
   if (!table_stats || !column_stats || !index_stats || !idx_avg_frequency)
-    //|| (hist_size && !histogram))
     DBUG_RETURN(1);
 
   table->collected_stats= table_stats;
   table_stats->column_stats= column_stats;
   table_stats->index_stats= index_stats;
   table_stats->idx_avg_frequency= idx_avg_frequency;
-  //table_stats->histograms= histogram;
   
   memset(column_stats, 0, sizeof(Column_statistics) * columns);
 
@@ -2977,7 +2964,7 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, doubl
       set_not_null(COLUMN_STAT_AVG_FREQUENCY);
     }
     else
-      have_histogram= false ; // TODO: need this?
+      have_histogram= false;
 
     set_not_null(COLUMN_STAT_HIST_SIZE);
     if (have_histogram && distincts)
@@ -3557,6 +3544,9 @@ void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
       delete column_stats->max_value;
       column_stats->max_value= NULL;
     }
+
+    delete column_stats->histogram_;
+    column_stats->histogram_=NULL;
   }
 }
 
@@ -3599,7 +3589,7 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   DBUG_ENTER("read_histograms_for_table");
   
-  // histograms-todo: why do we use synchronization here, when we load 
+  // histograms-todo: why do we use synchronization here, when we load
   //  histogram for the TABLE object, not TABLE_SHARE?
   //  is it because of the use of stats_cb->mem_root?
   if (stats_cb->start_histograms_load())
@@ -3613,21 +3603,16 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       DBUG_RETURN(1);
     }
     */
-    //memset(histogram, 0, stats_cb->total_hist_size);
 
     Column_stat column_stat(stat_tables[COLUMN_STAT].table, table);
     for (Field **field_ptr= table->s->field; *field_ptr; field_ptr++)
     {
       Field *table_field= *field_ptr;
-      //if (uint hist_size= table_field->read_stats->histogram.get_size())
       if (table_field->read_stats->histogram_type_on_disk != INVALID_HISTOGRAM)
       {
         column_stat.set_key_fields(table_field);
-        //table_field->read_stats->histogram.set_values(histogram);
-
         table_field->read_stats->histogram_=
           column_stat.load_histogram(&stats_cb->mem_root);
-        //histogram+= hist_size;
       }
     }
     stats_cb->end_histograms_load();
