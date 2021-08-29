@@ -1265,13 +1265,8 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   if (!deinit)
     deinit= (plugin_type_init)(plugin->plugin->deinit);
 
-  if (deinit && deinit(plugin))
-  {
-    sql_print_error("Plugin '%s' of type %s failed deinitialization",
-                    plugin->name.str, plugin_type_names[plugin->plugin->type].str);
-  }
-
-  plugin->state= PLUGIN_IS_UNINITIALIZED;
+  if (!deinit || !deinit(plugin))
+    plugin->state= PLUGIN_IS_UNINITIALIZED; // free to unload
 
   if (ref_check && plugin->ref_count)
     sql_print_error("Plugin '%s' has ref_count=%d after deinitialization.",
@@ -1279,10 +1274,13 @@ static void plugin_deinitialize(struct st_plugin_int *plugin, bool ref_check)
   plugin_variables_deinit(plugin);
 }
 
-static void plugin_del(struct st_plugin_int *plugin)
+static void plugin_del(struct st_plugin_int *plugin, uint del_mask)
 {
   DBUG_ENTER("plugin_del");
   mysql_mutex_assert_owner(&LOCK_plugin);
+  del_mask|= PLUGIN_IS_UNINITIALIZED | PLUGIN_IS_DISABLED; // always use these
+  if (!(plugin->state & del_mask))
+    DBUG_VOID_RETURN;
   /* Free allocated strings before deleting the plugin. */
   plugin_vars_free_values(plugin->system_vars);
   restore_ptr_backup(plugin->nbackups, plugin->ptr_backup);
@@ -1337,7 +1335,7 @@ static void reap_plugins(void)
   mysql_mutex_lock(&LOCK_plugin);
 
   while ((plugin= *(--reap)))
-    plugin_del(plugin);
+    plugin_del(plugin, 0);
 
   my_afree(reap);
 }
@@ -1775,7 +1773,7 @@ int plugin_init(int *argc, char **argv, int flags)
       reaped_mandatory_plugin= TRUE;
     plugin_deinitialize(plugin_ptr, true);
     mysql_mutex_lock(&LOCK_plugin);
-    plugin_del(plugin_ptr);
+    plugin_del(plugin_ptr, 0);
   }
 
   mysql_mutex_unlock(&LOCK_plugin);
@@ -2063,12 +2061,14 @@ void plugin_shutdown(void)
     plugins= (struct st_plugin_int **) my_alloca(sizeof(void*) * (count+1));
 
     /*
-      If we have any plugins which did not die cleanly, we force shutdown
+      If we have any plugins which did not die cleanly, we force shutdown.
+      Don't re-deinit() plugins that failed deinit() earlier (already dying)
     */
     for (i= 0; i < count; i++)
     {
       plugins[i]= *dynamic_element(&plugin_array, i, struct st_plugin_int **);
-      /* change the state to ensure no reaping races */
+      if (plugins[i]->state == PLUGIN_IS_DYING)
+        plugins[i]->state= PLUGIN_IS_UNINITIALIZED;
       if (plugins[i]->state == PLUGIN_IS_DELETED)
         plugins[i]->state= PLUGIN_IS_DYING;
     }
@@ -2104,9 +2104,7 @@ void plugin_shutdown(void)
       if (plugins[i]->ref_count)
         sql_print_error("Plugin '%s' has ref_count=%d after shutdown.",
                         plugins[i]->name.str, plugins[i]->ref_count);
-      if (plugins[i]->state & PLUGIN_IS_UNINITIALIZED ||
-          plugins[i]->state & PLUGIN_IS_DISABLED)
-        plugin_del(plugins[i]);
+      plugin_del(plugins[i], PLUGIN_IS_DYING);
     }
 
     /*

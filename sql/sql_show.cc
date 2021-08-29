@@ -9811,23 +9811,17 @@ int initialize_schema_table(st_plugin_int *plugin)
 
 int finalize_schema_table(st_plugin_int *plugin)
 {
+  int deinit_status= 0;
   ST_SCHEMA_TABLE *schema_table= (ST_SCHEMA_TABLE *)plugin->data;
   DBUG_ENTER("finalize_schema_table");
 
   if (schema_table)
   {
     if (plugin->plugin->deinit)
-    {
-      DBUG_PRINT("info", ("Deinitializing plugin: '%s'", plugin->name.str));
-      if (plugin->plugin->deinit(NULL))
-      {
-        DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                               plugin->name.str));
-      }
-    }
+      deinit_status= plugin->plugin->deinit(NULL);
     my_free(schema_table);
   }
-  DBUG_RETURN(0);
+  DBUG_RETURN(deinit_status);
 }
 
 

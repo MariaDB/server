@@ -581,6 +581,7 @@ static int hton_drop_table(handlerton *hton, const char *path)
 
 int ha_finalize_handlerton(st_plugin_int *plugin)
 {
+  int deinit_status= 0;
   handlerton *hton= (handlerton *)plugin->data;
   DBUG_ENTER("ha_finalize_handlerton");
 
@@ -595,18 +596,7 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
     hton->panic(hton, HA_PANIC_CLOSE);
 
   if (plugin->plugin->deinit)
-  {
-    /*
-      Today we have no defined/special behavior for uninstalling
-      engine plugins.
-    */
-    DBUG_PRINT("info", ("Deinitializing plugin: '%s'", plugin->name.str));
-    if (plugin->plugin->deinit(NULL))
-    {
-      DBUG_PRINT("warning", ("Plugin '%s' deinit function returned error.",
-                             plugin->name.str));
-    }
-  }
+    deinit_status= plugin->plugin->deinit(NULL);
 
   free_sysvar_table_options(hton);
   update_discovery_counters(hton, -1);
@@ -627,7 +617,7 @@ int ha_finalize_handlerton(st_plugin_int *plugin)
   my_free(hton);
 
  end:
-  DBUG_RETURN(0);
+  DBUG_RETURN(deinit_status);
 }
 
 
