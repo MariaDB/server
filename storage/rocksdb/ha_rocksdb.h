@@ -1064,8 +1064,6 @@ std::string rdb_corruption_marker_file_name();
 
 const int MYROCKS_MARIADB_PLUGIN_MATURITY_LEVEL= MariaDB_PLUGIN_MATURITY_STABLE;
 
-extern bool prevent_myrocks_loading;
-
 void sql_print_verbose_info(const char *format, ...);
 
 }  // namespace myrocks
