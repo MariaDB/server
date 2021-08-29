@@ -35,6 +35,11 @@ static int init(void* h)
   return 0;
 }
 
+static int deinit(void *h)
+{
+  return 1; /* don't unload me */
+}
+
 struct st_mysql_daemon info= { MYSQL_DAEMON_INTERFACE_VERSION  };
 
 maria_declare_plugin(provider_bzip2)
@@ -46,7 +51,7 @@ maria_declare_plugin(provider_bzip2)
   "BZip2 compression provider",
   PLUGIN_LICENSE_GPL,
   init,
-  NULL,
+  deinit,
   0x0100,
   NULL,
   NULL,
