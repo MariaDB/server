@@ -231,6 +231,9 @@ static my_bool show_plugins(THD *thd, plugin_ref plugin,
   case PLUGIN_IS_DISABLED:
     table->field[2]->store(STRING_WITH_LEN("DISABLED"), cs);
     break;
+  case PLUGIN_IS_DYING:
+    table->field[2]->store(STRING_WITH_LEN("INACTIVE"), cs);
+    break;
   case PLUGIN_IS_FREED: // filtered in fill_plugins, used in fill_all_plugins
     table->field[2]->store(STRING_WITH_LEN("NOT INSTALLED"), cs);
     break;
@@ -324,7 +327,7 @@ int fill_plugins(THD *thd, TABLE_LIST *tables, COND *cond)
   TABLE *table= tables->table;
 
   if (plugin_foreach_with_mask(thd, show_plugins, MYSQL_ANY_PLUGIN,
-                               ~(PLUGIN_IS_FREED | PLUGIN_IS_DYING), table))
+                               ~PLUGIN_IS_FREED, table))
     DBUG_RETURN(1);
 
   DBUG_RETURN(0);
