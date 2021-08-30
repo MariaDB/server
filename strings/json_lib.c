@@ -2028,6 +2028,7 @@ enum json_types json_get_object_nkey(const char *js __attribute__((unused)),
   return JSV_NOTHING;
 }
 
+
 /** Check if json is valid (well-formed)
 
   @retval 0 - success, json is well-formed
