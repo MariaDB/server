@@ -244,18 +244,19 @@ create table t1 (a int) partition by range (a) (partition p0 values less than (1
 alter table t1 add partition (partition p2 values less than (400)) from table tp1;
 show create table t1;
 # FIXME: something is wrong with FRM rename
+--error ER_NO_SUCH_TABLE
 show create table tp1;
 select * from t1;
 drop table t1;
 
 --echo # Check that ADD PARTITION FROM TABLE can't be specified for partition method
 --echo # other than RANGE or LIST
-CREATE TABLE t1_1 (a INT);
-INSERT INTO t1_1 VALUES (10), (20), (30);
-CREATE TABLE t1 (a INT) PARTITION BY HASH (a) (PARTITION p0 VALUES LESS THAN (100));
+CREATE TABLE tp1 (a INT);
+INSERT INTO tp1 VALUES (10), (20), (30);
+CREATE TABLE t1 (a INT) PARTITION BY HASH (a) PARTITIONS 2;
 --error ER_PARTITION_METHOD_NOT_COMPATIBLE_WITH_ADD_FROM_TABLE
-ALTER TABLE t1 ADD PARTITION (PARTITION p2) FROM TABLE tp1;
+ALTER TABLE t1 ADD PARTITION (PARTITION p1) FROM TABLE tp1;
 
-DROP TABLE t1, t1_1;
+DROP TABLE t1, tp1;
 
 --echo # End of tests for MDEV-22165
