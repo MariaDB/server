@@ -7994,3 +7994,5 @@ ER_STORAGE_ENGINE_DISABLED
         eng "Storage engine %s is disabled"
 ER_PARTITION_EXTRACT_SUBPARTITIONED
         eng "EXTRACT PARTITION is not supported for subpartitioned table."
+ER_PARTITION_METHOD_NOT_COMPATIBLE_WITH_ADD_FROM_TABLE
+        eng "ADD PARTITION FROM TABLE is not compatible with %s table partition method"

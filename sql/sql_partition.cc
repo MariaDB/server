@@ -5113,9 +5113,19 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         goto err;
       }
 
-      // FIXME: ALTER_PARTITION_ADD_FROM_TABLE is not compatible with HASH_PARTITION.
-      // Throw error, add test case.
-
+      /*
+        ALTER TABLE ... ADD PARTITION ... FROM TABLE is not compatible with
+        partition methods other RANGE and LIST.
+      */
+      if ((alter_info->partition_flags & ALTER_PARTITION_ADD_FROM_TABLE) &&
+          tab_part_info->part_type != RANGE_PARTITION &&
+          tab_part_info->part_type != LIST_PARTITION)
+      {
+        my_error(ER_PARTITION_METHOD_NOT_COMPATIBLE_WITH_ADD_FROM_TABLE,
+                 MYF(0), (tab_part_info->part_type == HASH_PARTITION ?
+                            "HASH": "VERSIONING"));
+        goto err;
+      }
       if (num_new_partitions == 0)
       {
         my_error(ER_ADD_PARTITION_NO_NEW_PARTITION, MYF(0));
@@ -7501,11 +7511,6 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         mysql_change_partitions(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_from_5") ||
         ERROR_INJECT_ERROR("fail_add_partition_from_5") ||
-        alter_close_table(lpt) ||
-        ERROR_INJECT_CRASH("crash_add_partition_from_6") ||
-        ERROR_INJECT_ERROR("fail_add_partition_from_6") ||
-        ERROR_INJECT_CRASH("crash_add_partition_from_7") ||
-        ERROR_INJECT_ERROR("fail_add_partition_from_7") ||
 
         move_table_to_partition(lpt) ||
 

@@ -1233,6 +1233,11 @@ bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
                   return true;);
   DBUG_EXECUTE_IF("move_partition_abort_3", DBUG_SUICIDE(););
 
+  close_all_tables_for_name(lpt->thd, lpt->table_list->next_local->table->s,
+                            HA_EXTRA_PREPARE_FOR_RENAME, nullptr);
+  close_all_tables_for_name(lpt->thd, lpt->table_list->table->s,
+                            HA_EXTRA_PREPARE_FOR_DROP, nullptr);
+
   if (unlikely(file->delete_table(part_file_name)))
   {
     my_error(ER_ERROR_ON_RENAME, MYF(0), from_file_name,
