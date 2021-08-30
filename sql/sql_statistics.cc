@@ -2057,7 +2057,7 @@ public:
       StringBuffer<MAX_FIELD_WIDTH> val;
       column->val_str(&val);
       auto it = bucket_bounds.begin();
-      bucket_bounds.insert(it+curr_bucket, val.c_ptr());
+      bucket_bounds.insert(it+curr_bucket, std::string(val.ptr(), val.length()));
       curr_bucket++;
       while (curr_bucket != hist_width &&
              count > bucket_capacity * (curr_bucket + 1))
