@@ -48,20 +48,38 @@ static int do_tests()
 {
   MYSQL *mysql;
   MYSQL_RES *res;
+  int result= 1;
+
   mysql= mysql_init(NULL);
   if (mysql_real_connect_local(mysql, NULL, NULL, NULL, 0) == NULL)
     return 1;
 
-  if (mysql_real_query(mysql, STRING_WITH_LEN("select * from mysql.user")))
-    return 1;
+  if (mysql_real_query(mysql,
+        STRING_WITH_LEN("CREATE TABLE test.ts_table"
+          " ( hash varbinary(512),"
+          " time timestamp default current_time,"
+          " primary key (hash), index tm (time) )")))
+    goto exit;
+
+  if (mysql_real_query(mysql, STRING_WITH_LEN("INSERT INTO test.ts_table VALUES('1234567890', NULL)")))
+    goto exit;
+
+  if (mysql_real_query(mysql, STRING_WITH_LEN("select * from test.ts_table")))
+    goto exit;
 
   if (!(res= mysql_store_result(mysql)))
-    return 1;
+    goto exit;
 
   mysql_free_result(res);
+
+  if (mysql_real_query(mysql, STRING_WITH_LEN("DROP TABLE test.ts_table")))
+    goto exit;
+
+  result= 0;
+exit:
   mysql_close(mysql);
 
-  return 0;
+  return result;
 }
  
 
