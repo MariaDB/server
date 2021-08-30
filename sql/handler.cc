@@ -8210,7 +8210,7 @@ static Create_field *vers_init_sys_field(THD *thd, const char *field_name, int f
     f->set_handler(&type_handler_timestamp2);
     f->length= MAX_DATETIME_PRECISION;
   }
-  f->invisible= DBUG_EVALUATE_IF("sysvers_show", VISIBLE, INVISIBLE_SYSTEM);
+  f->invisible= DBUG_IF("sysvers_show") ? VISIBLE : INVISIBLE_SYSTEM;
 
   if (f->check(thd))
     return NULL;
@@ -8356,7 +8356,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (DBUG_EVALUATE_IF("sysvers_force", 0, share->tmp_table))
+  if (DBUG_FALSE_IF("sysvers_force") && share->tmp_table)
   {
     my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
     return true;

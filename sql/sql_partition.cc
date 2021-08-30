@@ -6163,7 +6163,7 @@ static bool alter_partition_extract(ALTER_PARTITION_PARAM_TYPE *lpt)
       DBUG_ASSERT(thd->is_error());
       return true;
     }
-    if (DBUG_TRUE_IF("error_extract_partition_00") ||
+    if (DBUG_IF("error_extract_partition_00") ||
         unlikely(error= file->ha_rename_table(from_name, to_name)))
     {
       my_error(ER_ERROR_ON_RENAME, MYF(0), from_name, to_name, my_errno);
