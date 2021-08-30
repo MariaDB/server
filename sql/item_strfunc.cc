@@ -5376,7 +5376,13 @@ enum class NATSORT_ERR
 
    @param[in] n_lead_zeros - leading zeros count.
 
-   @param[out] out - String to write to.
+   @param[out] out - String to write to. The string should
+   have enough preallocated space to fit the encoded key.
+
+   @return
+     NATSORT_ERR::SUCCESS  - success
+     NATSORT_ERR::KEY_TOO_LARGE  - out string does not have enough
+     space left to accomodate the key.
 
    Note:
    Special case, where there are only leading zeros
@@ -5398,15 +5404,19 @@ static NATSORT_ERR natsort_encode_numeric_string(const char *in,
   DBUG_ASSERT(in);
   DBUG_ASSERT(n_digits);
 
-  if (out->append(buf, natsort_encode_length(n_digits - 1, buf)))
-    return NATSORT_ERR::ALLOC_ERROR;
+  size_t len;
+  len= natsort_encode_length(n_digits - 1, buf);
 
-  if (out->append(in, n_digits))
-    return NATSORT_ERR::ALLOC_ERROR;
+  if (out->length() + len + n_digits > out->alloced_length())
+    return NATSORT_ERR::KEY_TOO_LARGE;
 
-  if (out->append(buf, natsort_encode_length(n_leading_zeros, buf)))
-    return NATSORT_ERR::ALLOC_ERROR;
+  out->append(buf, len);
+  out->append(in, n_digits);
 
+  len= natsort_encode_length(n_leading_zeros, buf);
+  if (out->length() + len > out->alloced_length())
+    return NATSORT_ERR::KEY_TOO_LARGE;
+  out->append(buf, len);
   return NATSORT_ERR::SUCCESS;
 }
 
@@ -5432,16 +5442,26 @@ static size_t natsort_max_key_size(size_t input_size)
   Convert a string to natural sort key.
   @param[in]   in - input string
   @param[out]  out - output string
-
-  We assume that memory is preallocated for the output
-  string, so that appends do not fail.
+  @param[in]   max_key_size - the maximum size of the output
+               key, in bytes.
+  @return NATSORT_ERR::SUCCESS - successful completion
+          NATSORT_ERR::ALLOC_ERROR - memory allocation error
+          NATSORT_ERR::KEY_TOO_LARGE - resulting key would exceed max_key_size
 */
 static NATSORT_ERR to_natsort_key(const String *in, String *out,
-                                  size_t max_key_size= (size_t) -1)
+                                  size_t max_key_size)
 {
   size_t n_digits= 0;
   size_t n_lead_zeros= 0;
   size_t num_start;
+  size_t reserve_length= std::min(natsort_max_key_size(in->length()),
+                                  max_key_size);
+
+  out->length(0);
+  out->set_charset(in->charset());
+
+  if (out->alloc((uint32) reserve_length))
+    return NATSORT_ERR::ALLOC_ERROR;
 
   for (size_t pos= 0;; pos++)
   {
@@ -5462,9 +5482,6 @@ static NATSORT_ERR to_natsort_key(const String *in, String *out,
       if (err != NATSORT_ERR::SUCCESS)
         return err;
 
-      if (out->length() > max_key_size)
-        return NATSORT_ERR::KEY_TOO_LARGE;
-
       /* Reset state.*/
       n_digits= 0;
       num_start= size_t(-1);
@@ -5476,16 +5493,14 @@ static NATSORT_ERR to_natsort_key(const String *in, String *out,
 
     if (!is_digit)
     {
-      if (out->append(c))
+      if (out->length() == max_key_size)
         return NATSORT_ERR::KEY_TOO_LARGE;
+      out->append(c);
     }
     else if (c == '0' && !n_digits)
       n_lead_zeros++;
     else if (!n_digits++)
       num_start= pos;
-
-    if (out->length() + n_digits > max_key_size)
-      return NATSORT_ERR::KEY_TOO_LARGE;
   }
   return NATSORT_ERR::SUCCESS;
 }
@@ -5501,8 +5516,6 @@ String *Item_func_natural_sort_key::val_str(String *out)
   String *in= args[0]->val_str();
   CHARSET_INFO *cs= in->charset();
   ulong max_allowed_packet= current_thd->variables.max_allowed_packet;
-  size_t reserve_length= std::max(natsort_max_key_size(in->length()),
-                                  (size_t) max_allowed_packet);
   uint errs;
   String tmp;
   /*
@@ -5517,14 +5530,6 @@ String *Item_func_natural_sort_key::val_str(String *out)
       goto error_exit;
     in= &tmp;
   }
-
-  if (out->alloc((uint32) reserve_length))
-  {
-    err= NATSORT_ERR::ALLOC_ERROR;
-    goto error_exit;
-  }
-  out->length(0);
-  out->set_charset(in->charset());
 
   err= to_natsort_key(in, out, max_allowed_packet / cs->mbminlen);
 

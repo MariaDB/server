@@ -9,6 +9,7 @@ SELECT '' c WHERE 0 UNION VALUES('a10'),('a9'),('a1000'), ('a0'),('b'),('b0') OR
 
 #Test that max packet overflow produces NULL plus warning
 SELECT NATURAL_SORT_KEY(repeat('a1',@@max_allowed_packet/2-1));
+SELECT NATURAL_SORT_KEY(repeat('1',@@max_allowed_packet-1));
 
 #Test with virtual(index only) key
 CREATE TABLE t1(
@@ -37,3 +38,13 @@ SELECT 0 val
 UNION  VALUES ('1'),('01'),('0001')
 UNION  SELECT CONCAT('1',repeat('0',seq)) FROM seq_1_to_27
 ) AS numbers ORDER BY sortkey;
+
+
+#Test that sort order with leading zeros (lead zeros sort larger)
+SELECT val
+FROM
+(
+SELECT 0 val WHERE 0
+UNION  VALUES ('1/'),('01'),('1a')
+) AS strings ORDER BY NATURAL_SORT_KEY(val);
+
