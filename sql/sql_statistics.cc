@@ -2915,6 +2915,7 @@ bool Column_statistics_collected::add()
   return err;
 }
 
+
 /**
   @brief
   Get the results of aggregation when collecting the statistics on a column
@@ -3617,9 +3618,6 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   DBUG_ENTER("read_histograms_for_table");
   
-  // histograms-todo: why do we use synchronization here, when we load
-  //  histogram for the TABLE object, not TABLE_SHARE?
-  //  is it because of the use of stats_cb->mem_root?
   if (stats_cb->start_histograms_load())
   {
     //uchar *histogram= (uchar *) alloc_root(&stats_cb->mem_root,
