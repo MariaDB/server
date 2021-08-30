@@ -7511,6 +7511,11 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         mysql_change_partitions(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_from_5") ||
         ERROR_INJECT_ERROR("fail_add_partition_from_5") ||
+        alter_close_table(lpt) ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_6") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_6") ||
+        ERROR_INJECT_CRASH("crash_add_partition_from_7") ||
+        ERROR_INJECT_ERROR("fail_add_partition_from_7") ||
 
         move_table_to_partition(lpt) ||
 

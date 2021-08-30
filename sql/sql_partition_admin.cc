@@ -1138,9 +1138,16 @@ static void finalize_ddl_log_entry(DDL_LOG_MEMORY_ENTRY *log_entry,
 bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   char part_file_name[2*FN_REFLEN+1];
-  const char *path= lpt->table->s->path.str;
+  THD *thd= lpt->thd;
+  const char *path= lpt->table_list->table->s->path.str;
+  TABLE_LIST *table_from= lpt->table_list->next_local;
+  LEX_CSTRING &path_from= table_from->table->s->path;
+  char frm_from[FN_REFLEN + 1];
+  memcpy(frm_from, LEX_STRING_WITH_LEN(path_from));
+  strmov(frm_from + path_from.length, reg_ext);
+
   const char *partition_name=
-    lpt->thd->lex->part_info->curr_part_elem->partition_name;
+    thd->lex->part_info->curr_part_elem->partition_name;
 
   if (create_partition_name(part_file_name, sizeof(part_file_name),
                             path, partition_name,
@@ -1148,15 +1155,16 @@ bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     return true;
 
   char from_file_name[FN_REFLEN+1];
+
   build_table_filename(from_file_name,
                        sizeof(from_file_name),
-                       lpt->table_list->next_local->db.str,
-                       lpt->table_list->next_local->table_name.str,
+                       table_from->db.str,
+                       table_from->table_name.str,
                        "", 0);
 
   handler *file_ptr=
-      get_new_handler(nullptr, lpt->thd->mem_root,
-                      lpt->table_list->next_local->table->file->ht);
+      get_new_handler(nullptr, thd->mem_root,
+                      table_from->table->file->ht);
   if (unlikely(!file_ptr))
     return true;
 
@@ -1176,7 +1184,7 @@ bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   lex_string_set(&move_entry.from_name, from_file_name);
   lex_string_set(&move_entry.handler_name,
                  ha_resolve_storage_engine_name(
-                   lpt->table_list->next_local->table->file->ht));
+                   table_from->table->file->ht));
   move_entry.phase= EXCH_PHASE_NAME_TO_TEMP;
 
   mysql_mutex_lock(&LOCK_gdl);
@@ -1233,11 +1241,7 @@ bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
                   return true;);
   DBUG_EXECUTE_IF("move_partition_abort_3", DBUG_SUICIDE(););
 
-  close_all_tables_for_name(lpt->thd, lpt->table_list->next_local->table->s,
-                            HA_EXTRA_PREPARE_FOR_RENAME, nullptr);
-  close_all_tables_for_name(lpt->thd, lpt->table_list->table->s,
-                            HA_EXTRA_PREPARE_FOR_DROP, nullptr);
-
+  // FIXME: Is that needed?
   if (unlikely(file->delete_table(part_file_name)))
   {
     my_error(ER_ERROR_ON_RENAME, MYF(0), from_file_name,
@@ -1261,6 +1265,10 @@ bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
                            from_file_name, part_file_name, 0);
                   return true;);
   DBUG_EXECUTE_IF("move_partition_abort_5", DBUG_SUICIDE(););
+
+  close_all_tables_for_name(thd, table_from->table->s,
+                            HA_EXTRA_PREPARE_FOR_RENAME, nullptr);
+
   if (unlikely(file->ha_rename_table(from_file_name, part_file_name)))
   {
     my_error(ER_ERROR_ON_RENAME, MYF(0), from_file_name,
@@ -1274,6 +1282,13 @@ bool move_table_to_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
   {
     my_error(ER_DDL_LOG_ERROR, MYF(0));
+    return true;
+  }
+
+  if (mysql_file_delete(key_file_frm, frm_from,
+                        MYF(MY_WME | MY_IGNORE_ENOENT)))
+  {
+    // FIXME: error
     return true;
   }
 
