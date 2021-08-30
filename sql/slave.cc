@@ -2329,11 +2329,11 @@ past_checksum:
   /* Announce MariaDB slave capabilities. */
   DBUG_EXECUTE_IF("simulate_slave_capability_none", goto after_set_capability;);
   {
-    int rc= DBUG_EVALUATE_IF("simulate_slave_capability_old_53",
+    int rc= DBUG_IF("simulate_slave_capability_old_53") ?
         mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
-                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ANNOTATE))),
+                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_ANNOTATE))) :
         mysql_real_query(mysql, STRING_WITH_LEN("SET @mariadb_slave_capability="
-                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE))));
+                         STRINGIFY_ARG(MARIA_SLAVE_CAPABILITY_MINE)));
     if (unlikely(rc))
     {
       err_code= mysql_errno(mysql);
@@ -4663,7 +4663,7 @@ pthread_handler_t handle_slave_io(void *arg)
   }
 
   thd->variables.wsrep_on= 0;
-  if (DBUG_EVALUATE_IF("failed_slave_start", 1, 0)
+  if (DBUG_IF("failed_slave_start")
       || repl_semisync_slave.slave_start(mi))
   {
     mi->report(ERROR_LEVEL, ER_SLAVE_FATAL_ERROR, NULL,
@@ -4939,7 +4939,7 @@ Stopping slave I/O thread due to out-of-memory error from master");
           (!repl_semisync_slave.get_slave_enabled() ||
            (!(mi->semi_ack & SEMI_SYNC_SLAVE_DELAY_SYNC) ||
             (mi->semi_ack & (SEMI_SYNC_NEED_ACK)))) &&
-          (DBUG_EVALUATE_IF("failed_flush_master_info", 1, 0) ||
+          (DBUG_IF("failed_flush_master_info") ||
            flush_master_info(mi, TRUE, TRUE)))
       {
         sql_print_error("Failed to flush master info file");

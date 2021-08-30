@@ -2974,7 +2974,7 @@ int MYSQL_BIN_LOG::generate_new_name(char *new_name, const char *log_name,
   fn_format(new_name, log_name, mysql_data_home, "", 4);
   if (!fn_ext(log_name)[0])
   {
-    if (DBUG_EVALUATE_IF("binlog_inject_new_name_error", TRUE, FALSE) ||
+    if (DBUG_IF("binlog_inject_new_name_error") ||
         unlikely(find_uniq_filename(new_name, next_log_number,
                                     &last_used_log_number)))
     {
@@ -3544,7 +3544,7 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
                      mysql_file_seek(index_file_nr, 0L, MY_SEEK_END, MYF(0)),
                                      0, MYF(MY_WME | MY_WAIT_IF_FULL),
                                      m_key_file_log_index_cache) ||
-      DBUG_EVALUATE_IF("fault_injection_openning_index", 1, 0))
+      DBUG_IF("fault_injection_openning_index"))
   {
     /*
       TODO: all operations creating/deleting the index file or a log, should
@@ -3570,7 +3570,7 @@ bool MYSQL_BIN_LOG::open_index_file(const char *index_file_name_arg,
       open_purge_index_file(FALSE) ||
       purge_index_entry(NULL, NULL, need_mutex) ||
       close_purge_index_file() ||
-      DBUG_EVALUATE_IF("fault_injection_recovering_index", 1, 0))
+      DBUG_IF("fault_injection_recovering_index"))
   {
     sql_print_error("MYSQL_BIN_LOG::open_index_file failed to sync the index "
                     "file.");
@@ -3638,7 +3638,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
   if (open_purge_index_file(TRUE) ||
       register_create_index_entry(log_file_name) ||
       sync_purge_index_file() ||
-      DBUG_EVALUATE_IF("fault_injection_registering_index", 1, 0))
+      DBUG_IF("fault_injection_registering_index"))
   {
     /**
         TODO:
@@ -3919,7 +3919,7 @@ bool MYSQL_BIN_LOG::open(const char *log_name,
         As this is a new log file, we write the file name to the index
         file. As every time we write to the index file, we sync it.
       */
-      if (DBUG_EVALUATE_IF("fault_injection_updating_index", 1, 0) ||
+      if (DBUG_IF("fault_injection_updating_index") ||
           my_b_write(&index_file, (uchar*) log_file_name,
                      strlen(log_file_name)) ||
           my_b_write(&index_file, (uchar*) "\n", 1) ||
@@ -5331,8 +5331,8 @@ int MYSQL_BIN_LOG::new_file_impl()
       r.checksum_alg= relay_log_checksum_alg;
     DBUG_ASSERT(!is_relay_log ||
                 relay_log_checksum_alg != BINLOG_CHECKSUM_ALG_UNDEF);
-    if (DBUG_EVALUATE_IF("fault_injection_new_file_rotate_event",
-                         (error= close_on_error= TRUE), FALSE) ||
+    if ((DBUG_IF("fault_injection_new_file_rotate_event") &&
+                         (error= close_on_error= TRUE)) ||
         (error= write_event(&r)))
     {
       DBUG_EXECUTE_IF("fault_injection_new_file_rotate_event", errno= 2;);
@@ -6726,7 +6726,7 @@ bool MYSQL_BIN_LOG::write(Log_event *event_info, my_bool *with_annotate)
       Write the event.
     */
     if (write_event(event_info, cache_data, file) ||
-        DBUG_EVALUATE_IF("injecting_fault_writing", 1, 0))
+        DBUG_IF("injecting_fault_writing"))
       goto err;
 
     error= 0;
@@ -8483,7 +8483,7 @@ MYSQL_BIN_LOG::trx_group_commit_leader(group_commit_entry *leader)
     DEBUG_SYNC(leader->thd, "commit_loop_entry_commit_ordered");
     ++num_commits;
     if (current->cache_mngr->using_xa && likely(!current->error) &&
-        DBUG_EVALUATE_IF("skip_commit_ordered", 0, 1))
+        !DBUG_IF("skip_commit_ordered"))
       run_commit_ordered(current->thd, current->all);
     current->thd->wakeup_subsequent_commits(current->error);
 

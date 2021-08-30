@@ -63,7 +63,7 @@ int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
 
   if (rpl_semi_sync_slave_status)
   {
-    if (DBUG_FALSE_IF("semislave_corrupt_log")
+    if (!DBUG_IF("semislave_corrupt_log")
         && header[0] == k_packet_magic_num)
     {
       semi_sync_need_reply  = (header[1] & k_packet_flag_sync);

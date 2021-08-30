@@ -5778,7 +5778,7 @@ versioning_option:
           {
             if (unlikely(Lex->create_info.options & HA_LEX_CREATE_TMP_TABLE))
             {
-              if (DBUG_EVALUATE_IF("sysvers_force", 0, 1))
+              if (!DBUG_IF("sysvers_force"))
               {
                 my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
                 MYSQL_YYABORT;

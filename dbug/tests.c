@@ -75,7 +75,7 @@ int main (int argc __attribute__((unused)),
     fprintf(DBUG_FILE, "=> evaluate: %s\n",
             DBUG_EVALUATE("evaluate", "ON", "OFF"));
     fprintf(DBUG_FILE, "=> evaluate_if: %s\n",
-            DBUG_EVALUATE_IF("evaluate_if", "ON", "OFF"));
+            (DBUG_IF("evaluate_if") ? "ON" : "OFF"));
     DBUG_EXECUTE_IF("pop",  DBUG_POP(); );
     {
       char s[1000] __attribute__((unused));

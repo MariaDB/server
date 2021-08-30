@@ -1532,7 +1532,7 @@ static my_bool kill_thread_phase_1(THD *thd, void *)
   if (thd->slave_thread || thd->is_binlog_dump_thread())
     return 0;
 
-  if (DBUG_EVALUATE_IF("only_kill_system_threads", !thd->system_thread, 0))
+  if (DBUG_IF("only_kill_system_threads") ? !thd->system_thread : 0)
     return 0;
   thd->awake(KILL_SERVER_HARD);
   return 0;

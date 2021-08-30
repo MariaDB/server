@@ -1591,7 +1591,7 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 
       if (param.from_table_hton == view_pseudo_hton ||
           param.from_table_hton->flags & HTON_EXPENSIVE_RENAME ||
-          DBUG_EVALUATE_IF("ddl_log_expensive_rename", true, false))
+          DBUG_IF("ddl_log_expensive_rename"))
       {
         ddl_log_state_create= NULL;
       }
@@ -3338,7 +3338,7 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       }
       if (sql_field->invisible > INVISIBLE_USER &&
           !(sql_field->flags & VERS_SYSTEM_FIELD) &&
-          !key->invisible && DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
+          !key->invisible && !DBUG_IF("test_invisible_index"))
       {
         my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
         DBUG_RETURN(TRUE);

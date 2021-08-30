@@ -84,7 +84,7 @@ void *my_malloc(PSI_memory_key key, size_t size, myf my_flags)
   /* We have to align size as we store MY_THREAD_SPECIFIC flag in the LSB */
   size= ALIGN_SIZE(size);
 
-  if (DBUG_EVALUATE_IF("simulate_out_of_memory", 1, 0))
+  if (DBUG_IF("simulate_out_of_memory"))
     mh= NULL;
   else
     mh= (my_memory_header*) sf_malloc(size + HEADER_SIZE, my_flags);

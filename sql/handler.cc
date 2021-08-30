@@ -8356,7 +8356,7 @@ bool Vers_parse_info::fix_alter_info(THD *thd, Alter_info *alter_info,
   if (!need_check(alter_info) && !share->versioned)
     return false;
 
-  if (DBUG_FALSE_IF("sysvers_force") && share->tmp_table)
+  if (!DBUG_IF("sysvers_force") && share->tmp_table)
   {
     my_error(ER_VERS_NOT_SUPPORTED, MYF(0), "CREATE TEMPORARY TABLE");
     return true;
