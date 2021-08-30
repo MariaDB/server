@@ -15,6 +15,11 @@ NATURAL_SORT_KEY(repeat('a1',@@max_allowed_packet/2-1))
 NULL
 Warnings:
 Warning	1301	Result of natural_sort_key() was larger than max_allowed_packet (16777216) - truncated
+SELECT NATURAL_SORT_KEY(repeat('1',@@max_allowed_packet-1));
+NATURAL_SORT_KEY(repeat('1',@@max_allowed_packet-1))
+NULL
+Warnings:
+Warning	1301	Result of natural_sort_key() was larger than max_allowed_packet (16777216) - truncated
 CREATE TABLE t1(
 c VARCHAR(30) CHARACTER SET latin1 COLLATE latin1_bin,
 k VARCHAR(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (NATURAL_SORT_KEY(CONVERT(c USING utf8mb4))) INVISIBLE,
@@ -106,3 +111,13 @@ value	sortkey	encoding_overhead
 10000000000000000000000000  	997100000000000000000000000000     	4
 100000000000000000000000000 	9981000000000000000000000000000    	4
 1000000000000000000000000000	99901271000000000000000000000000000	8
+SELECT val
+FROM
+(
+SELECT 0 val WHERE 0
+UNION  VALUES ('1/'),('01'),('1a')
+) AS strings ORDER BY NATURAL_SORT_KEY(val);
+val
+1/
+1a
+01
