@@ -395,6 +395,17 @@ public:
 
   void set_values (uchar *vals) override { values= (uchar *) vals; }
 
+  /*
+   * Similar to set_values, but will first reallocate memory for values.
+   * With json histograms, we rarely know the size until the histogram json structures
+   * have been processed, as a result, the existing allocation for values (usually from init_for_collection)
+   * might be insufficient
+  */
+  void set_values(MEM_ROOT *mem_root, const char *vals) {
+    values = (uchar*)alloc_root(mem_root, strlen(vals)+1);
+    strcpy((char *)values, vals);
+  }
+
   uchar *get_values() override { return (uchar *) values; }
 
   double point_selectivity(Field *field, key_range *endpoint, double avg_selection) override;

@@ -1508,13 +1508,15 @@ double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
     min_bucket_idx= find_bucket(field, min_key);
     std::string min_bucket, max_bucket;
 
-    max_bucket_idx= min_bucket_idx + 1;
+    if (min_bucket_idx == (int)histogram_bounds.size()-1)
+      max_bucket_idx = min_bucket_idx;
+    else
+      max_bucket_idx = min_bucket_idx+1;
+
     if (min_bucket_idx != -1)
     {
       min_bucket= histogram_bounds[min_bucket_idx];
-      max_bucket= (max_bucket_idx < (int) histogram_bounds.size())
-                      ? histogram_bounds[max_bucket_idx]
-                      : "";
+      max_bucket= histogram_bounds[max_bucket_idx];
 
       if (field->pos_through_val_str())
         min_sel= pos_in_interval_through_strxfrm(
@@ -2029,7 +2031,7 @@ public:
     return 0;
   }
 
-  void build_json_from_histogram() {
+  void build_json_from_histogram(MEM_ROOT *mem_root) {
     Json_writer *writer = new Json_writer();
     writer->start_array();
     for(auto& value: bucket_bounds) {
@@ -2038,7 +2040,10 @@ public:
     writer->end_array();
     histogram->set_size(bucket_bounds.size());
     Binary_string *json_string = (Binary_string *) writer->output.get_string();
-    ((Histogram_json *)histogram)->set_values((uchar *) json_string->c_ptr());
+    ((Histogram_json *)histogram)->set_values(mem_root, json_string->c_ptr());
+
+    delete writer;
+    writer = nullptr;
   }
 };
 
@@ -2206,23 +2211,21 @@ public:
   */
   void walk_tree_with_histogram(ha_rows rows)
   {
-    if (table_field->collected_stats->histogram_->get_type() == JSON)
-    {
-      Histogram_builder_json hist_builder(table_field, tree_key_length, rows);
-      tree->walk(table_field->table, json_histogram_build_walk,
-                 (void *) &hist_builder);
-      hist_builder.build_json_from_histogram();
-      distincts= hist_builder.get_count_distinct();
-      distincts_single_occurence= hist_builder.get_count_single_occurence();
-    }
-    else
-    {
       Histogram_builder hist_builder(table_field, tree_key_length, rows);
       tree->walk(table_field->table, histogram_build_walk,
                  (void *) &hist_builder);
       distincts= hist_builder.get_count_distinct();
       distincts_single_occurence= hist_builder.get_count_single_occurence();
-    }
+  }
+
+  void walk_tree_with_histogram_json(MEM_ROOT *mem_root, ha_rows rows)
+  {
+    Histogram_builder_json hist_builder(table_field, tree_key_length, rows);
+    tree->walk(table_field->table, json_histogram_build_walk,
+               (void *) &hist_builder);
+    hist_builder.build_json_from_histogram(mem_root);
+    distincts= hist_builder.get_count_distinct();
+    distincts_single_occurence= hist_builder.get_count_single_occurence();
   }
 
   ulonglong get_count_distinct()
@@ -2962,9 +2965,15 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, doubl
 
     /* Compute cardinality statistics and optionally histogram. */
     if (!have_histogram)
+    {
       count_distinct->walk_tree();
-    else
+    } else if (hist_type == JSON)
+    {
+      count_distinct->walk_tree_with_histogram_json(mem_root, rows - nulls);
+    } else
+    {
       count_distinct->walk_tree_with_histogram(rows - nulls);
+    }
 
     ulonglong distincts= count_distinct->get_count_distinct();
     ulonglong distincts_single_occurence=
