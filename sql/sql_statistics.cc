@@ -3620,16 +3620,6 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
   
   if (stats_cb->start_histograms_load())
   {
-    //uchar *histogram= (uchar *) alloc_root(&stats_cb->mem_root,
-    //                                       stats_cb->total_hist_size);
-    /*
-    if (!histogram)
-    {
-      stats_cb->abort_histograms_load();
-      DBUG_RETURN(1);
-    }
-    */
-
     Column_stat column_stat(stat_tables[COLUMN_STAT].table, table);
     for (Field **field_ptr= table->s->field; *field_ptr; field_ptr++)
     {
@@ -4393,10 +4383,9 @@ double get_column_range_cardinality(Field *field,
 /*
   Estimate selectivity of "col=const" using a histogram
   
-  @param field - the field to estimate its selectivity.
+  @param field    the field to estimate its selectivity.
 
-  @param min_endp, max_endp - Specifies the left and right bounds. For point selectivity,
-  they are both equal.
+  @param endpoint The constant
 
   @param avg_sel  Average selectivity of condition "col=const" in this table.
                   It is calcuated as (#non_null_values / #distinct_values).
@@ -4426,11 +4415,12 @@ double get_column_range_cardinality(Field *field,
       value.
 */
 
-double Histogram_binary::point_selectivity(Field *field, key_range *min_endp, double avg_sel)
+double Histogram_binary::point_selectivity(Field *field, key_range *endpoint,
+                                           double avg_sel)
 {
   double sel;
   Column_statistics *col_stats= field->read_stats;
-  store_key_image_to_rec(field, (uchar *) min_endp->key,
+  store_key_image_to_rec(field, (uchar *) endpoint->key,
                          field->key_length());
   double pos= field->pos_in_interval(col_stats->min_value,
                                      col_stats->max_value);

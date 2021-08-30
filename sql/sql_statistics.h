@@ -195,26 +195,6 @@ private:
 
 class Histogram_binary : public Histogram_base
 {
-public:
-  bool parse(MEM_ROOT *mem_root, Field *, Histogram_type type_arg, 
-             const char *hist_data, size_t hist_data_len) override;
-  void serialize(Field *to_field) override;
-
-  Histogram_type get_type() override { return type; }
-
-  uint get_width() override
-  {
-    switch (type) {
-    case SINGLE_PREC_HB:
-      return size;
-    case DOUBLE_PREC_HB:
-      return size / 2;
-    default:
-      DBUG_ASSERT(0);
-    }
-    return 0;
-  }
-
 private:
   Histogram_type type;
   uint8 size; /* Size of values array, in bytes */
@@ -233,6 +213,20 @@ private:
     return 1;
   }
 
+public:
+  uint get_width() override
+  {
+    switch (type) {
+    case SINGLE_PREC_HB:
+      return size;
+    case DOUBLE_PREC_HB:
+      return size / 2;
+    default:
+      DBUG_ASSERT(0);
+    }
+    return 0;
+  }
+private:
   uint get_value(uint i)
   {
     DBUG_ASSERT(i < get_width());
@@ -287,9 +281,15 @@ private:
   }
 
 public:
-  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size) override;
-
   uint get_size() override {return (uint)size;}
+
+  Histogram_type get_type() override { return type; }
+
+  bool parse(MEM_ROOT *mem_root, Field *, Histogram_type type_arg,
+             const char *hist_data, size_t hist_data_len) override;
+  void serialize(Field *to_field) override;
+  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
+                           ulonglong size) override;
 
   bool is_available() override { return (values!=NULL); }
 
