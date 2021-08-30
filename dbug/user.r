@@ -785,18 +785,20 @@ EX:\fC
 .br
          DBUG_EVALUATE\ ("info", "ON", "OFF"));\fR
 .SP 1
-.LI DBUG_EVALUATE_IF\ 
-Works like DBUG_EVALUATE macro, but the second argument is
-.B not
-evaluated, if the keyword is not explicitly listed in
-the 'd' flag. Like DBUG_EXECUTE_IF this could be used to conditionally execute
+.LI DBUG_IF\
+Returns
+.B 1
+if the keyword is explicitly listed in
+the 'd' flag. Otherwise returns
+.B 0
+Like DBUG_EXECUTE_IF this could be used to conditionally execute
 "dangerous" actions.
 .SP 1
 EX:\fC
 .br
     if (prepare_transaction () ||
 .br
-        DBUG_EVALUATE ("crashme", (DBUG_ABORT(), 0), 0) ||
+        (DBUG_IF("crashme") && (DBUG_ABORT(), 0)) ||
 .br
         commit_transaction () )\fR
 .SP 1

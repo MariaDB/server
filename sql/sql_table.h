@@ -21,9 +21,9 @@
 #include "m_string.h"                           // LEX_CUSTRING
 
 #define ERROR_INJECT_CRASH(code) \
-  DBUG_EVALUATE_IF(code, (DBUG_SUICIDE(), 0), 0)
+  (DBUG_IF(code) && (DBUG_SUICIDE(), 0))
 #define ERROR_INJECT_ERROR(code) \
-  DBUG_EVALUATE_IF(code, (my_error(ER_UNKNOWN_ERROR, MYF(0)), TRUE), 0)
+  (DBUG_IF(code) && (my_error(ER_UNKNOWN_ERROR, MYF(0)), 1))
 
 class Alter_info;
 class Alter_table_ctx;
