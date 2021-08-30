@@ -1861,10 +1861,13 @@ static bool srv_task_execute()
 	return false;
 }
 
+static void purge_create_background_thds(int );
+
 std::mutex purge_thread_count_mtx;
 void srv_update_purge_thread_count(uint n)
 {
 	std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
+	purge_create_background_thds(n);
 	srv_n_purge_threads = n;
 	srv_purge_thread_count_changed = 1;
 }
@@ -1959,15 +1962,25 @@ static std::list<THD*> purge_thds;
 static std::mutex purge_thd_mutex;
 extern void* thd_attach_thd(THD*);
 extern void thd_detach_thd(void *);
+static int n_purge_thds;
+
+/* Ensure  that we have at least n background THDs for purge */
+static void purge_create_background_thds(int n)
+{
+	THD *thd= current_thd;
+	std::unique_lock<std::mutex> lk(purge_thd_mutex);
+	while (n_purge_thds < n)
+	{
+		purge_thds.push_back(innobase_create_background_thd("InnoDB purge worker"));
+		n_purge_thds++;
+	}
+	set_current_thd(thd);
+}
 
 static THD *acquire_thd(void **ctx)
 {
 	std::unique_lock<std::mutex> lk(purge_thd_mutex);
-	if (purge_thds.empty()) {
-		THD* thd = current_thd;
-		purge_thds.push_back(innobase_create_background_thd("InnoDB purge worker"));
-		set_current_thd(thd);
-	}
+	ut_a(!purge_thds.empty());
 	THD* thd = purge_thds.front();
 	purge_thds.pop_front();
 	lk.unlock();
@@ -2068,6 +2081,7 @@ static void purge_coordinator_callback(void*)
 
 void srv_init_purge_tasks()
 {
+  purge_create_background_thds(srv_n_purge_threads);
   purge_coordinator_timer= srv_thread_pool->create_timer
     (purge_coordinator_timer_callback, nullptr);
 }
@@ -2078,11 +2092,13 @@ static void srv_shutdown_purge_tasks()
   delete purge_coordinator_timer;
   purge_coordinator_timer= nullptr;
   purge_worker_task.wait();
+  std::unique_lock<std::mutex> lk(purge_thd_mutex);
   while (!purge_thds.empty())
   {
     innobase_destroy_background_thd(purge_thds.front());
     purge_thds.pop_front();
   }
+  n_purge_thds= 0;
 }
 
 /**********************************************************************//**
@@ -2123,7 +2139,8 @@ ulint srv_get_task_queue_length()
 void srv_purge_shutdown()
 {
 	if (purge_sys.enabled()) {
-		srv_update_purge_thread_count(innodb_purge_threads_MAX);
+		if (!srv_fast_shutdown)
+			srv_update_purge_thread_count(innodb_purge_threads_MAX);
 		while(!srv_purge_should_exit()) {
 			ut_a(!purge_sys.paused());
 			srv_wake_purge_thread_if_not_active();
