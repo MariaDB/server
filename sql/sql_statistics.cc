@@ -1959,7 +1959,9 @@ public:
 
 /*
   Histogram_builder is a helper class that is used to build histograms
-  for columns
+  for columns.
+
+  Do not create directly, call Histogram->get_builder(...);
 */
 
 class Histogram_builder
@@ -2027,7 +2029,16 @@ public:
     }
     return 0;
   }
+  virtual void finalize(){}
 };
+
+
+Histogram_builder *Histogram_binary::create_builder(Field *col, uint col_len,
+                                                    ha_rows rows)
+{
+  return new Histogram_builder(col, col_len, rows);
+}
+
 
 class Histogram_builder_json : public Histogram_builder
 {
@@ -2036,13 +2047,14 @@ class Histogram_builder_json : public Histogram_builder
 
 public:
   Histogram_builder_json(Field *col, uint col_len, ha_rows rows)
-  : Histogram_builder(col, col_len, rows)
-  {
-    bucket_bounds = {};
-  }
+  : Histogram_builder(col, col_len, rows) {}
 
   ~Histogram_builder_json() override = default;
 
+  /*
+    Add data to the histogram. Adding Element elem which encountered elem_cnt
+    times.
+  */
   int next(void *elem, element_count elem_cnt) override
   {
     count_distinct++;
@@ -2053,24 +2065,26 @@ public:
       return 0;
     if (count > bucket_capacity * (curr_bucket + 1))
     {
-      column->store_field_value((uchar *) elem, col_length);
+      column->store_field_value((uchar*) elem, col_length);
       StringBuffer<MAX_FIELD_WIDTH> val;
       column->val_str(&val);
-      auto it = bucket_bounds.begin();
-      bucket_bounds.insert(it+curr_bucket, std::string(val.ptr(), val.length()));
+      bucket_bounds.push_back(std::string(val.ptr(), val.length()));
       curr_bucket++;
       while (curr_bucket != hist_width &&
              count > bucket_capacity * (curr_bucket + 1))
       {
-        it = bucket_bounds.begin();
-        bucket_bounds.insert(it+curr_bucket, bucket_bounds[curr_bucket-1]);
+        bucket_bounds.push_back(std::string(val.ptr(), val.length()));
         curr_bucket++;
       }
     }
     return 0;
   }
 
-  void build_json_from_histogram() {
+  /*
+    Finalize the creation of histogram
+  */
+  void finalize() override
+  {
     Json_writer writer;
     writer.start_object();
     writer.add_member(Histogram_json::JSON_NAME).start_array();
@@ -2085,6 +2099,15 @@ public:
     hist->set_json_text(bucket_bounds.size(), (uchar *) json_string->c_ptr());
   }
 };
+
+
+Histogram_builder *Histogram_json::create_builder(Field *col, uint col_len,
+                                                  ha_rows rows)
+{
+  return new Histogram_builder_json(col, col_len, rows);
+}
+
+
 
 
 Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type,
@@ -2111,18 +2134,11 @@ Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type,
 
 C_MODE_START
 
-int histogram_build_walk(void *elem, element_count elem_cnt, void *arg)
+static int histogram_build_walk(void *elem, element_count elem_cnt, void *arg)
 {
   Histogram_builder *hist_builder= (Histogram_builder *) arg;
   return hist_builder->next(elem, elem_cnt);
 }
-
-int json_histogram_build_walk(void *elem, element_count elem_cnt, void *arg)
-{
-  Histogram_builder_json *hist_builder= (Histogram_builder_json *) arg;
-  return hist_builder->next(elem, elem_cnt);
-}
-
 
 
 static int count_distinct_single_occurence_walk(void *elem,
@@ -2228,24 +2244,16 @@ public:
   */
   void walk_tree_with_histogram(ha_rows rows)
   {
-    // GSOC-TODO: is below a meaningful difference:
-    if (table_field->collected_stats->histogram_->get_type() == JSON_HB)
-    {
-      Histogram_builder_json hist_builder(table_field, tree_key_length, rows);
-      tree->walk(table_field->table, json_histogram_build_walk,
-                 (void *) &hist_builder);
-      hist_builder.build_json_from_histogram();
-      distincts= hist_builder.get_count_distinct();
-      distincts_single_occurence= hist_builder.get_count_single_occurence();
-    }
-    else
-    {
-      Histogram_builder hist_builder(table_field, tree_key_length, rows);
-      tree->walk(table_field->table, histogram_build_walk,
-                 (void *) &hist_builder);
-      distincts= hist_builder.get_count_distinct();
-      distincts_single_occurence= hist_builder.get_count_single_occurence();
-    }
+    Histogram_base *hist= table_field->collected_stats->histogram_;
+    Histogram_builder *hist_builder=
+       hist->create_builder(table_field, tree_key_length, rows);
+
+    tree->walk(table_field->table, histogram_build_walk,
+               (void *) hist_builder);
+    hist_builder->finalize();
+    distincts= hist_builder->get_count_distinct();
+    distincts_single_occurence= hist_builder->get_count_single_occurence();
+    delete hist_builder;
   }
 
   ulonglong get_count_distinct()

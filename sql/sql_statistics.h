@@ -146,6 +146,8 @@ double get_column_range_cardinality(Field *field,
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table);
 bool is_eits_usable(Field* field);
 
+class Histogram_builder;
+
 /*
   Common base for all histograms
 */
@@ -159,6 +161,9 @@ public:
   virtual Histogram_type get_type()=0;
 
   virtual uint get_width()=0;
+
+  virtual Histogram_builder *create_builder(Field *col, uint col_len,
+                                            ha_rows rows)=0;
 
   virtual void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                                    ulonglong size)=0;
@@ -290,6 +295,8 @@ public:
   void serialize(Field *to_field) override;
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                            ulonglong size) override;
+  Histogram_builder *create_builder(Field *col, uint col_len,
+                                    ha_rows rows) override;
 
   bool is_available() override { return (values!=NULL); }
 
@@ -372,6 +379,9 @@ public:
              const char *hist_data, size_t hist_data_len) override;
 
   void serialize(Field *field) override;
+
+  Histogram_builder *create_builder(Field *col, uint col_len,
+                                    ha_rows rows) override;
 
   // returns number of buckets in the histogram
   uint get_width() override
