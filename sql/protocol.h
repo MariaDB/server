@@ -114,6 +114,10 @@ public:
   { return store_longlong((longlong) from, 1); }
   inline bool store(String *str)
   { return store((char*) str->ptr(), str->length(), str->charset()); }
+  inline bool store(const LEX_CSTRING *from, CHARSET_INFO *cs)
+  {
+    return store(from->str, from->length, cs);
+  }
 
   virtual bool prepare_for_send(uint num_columns)
   {

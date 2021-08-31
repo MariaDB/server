@@ -34,6 +34,31 @@ insert into t1 values (1,1);
 update t1 set b=100 where a=1;
 --error ER_OPEN_AS_READONLY
 delete from t1 where a>10;
+
+
+--echo #
+--echo # Analyze, repair, optimize and check table
+--echo #
+
+set @@use_stat_tables='never';
+truncate mysql.table_stats;
+--replace_result $database database
+check table t1;
+--replace_result $database database
+analyze table t1;
+--replace_result $database database
+analyze table t1 persistent for all;
+--replace_result $database database
+repair table t1;
+--replace_result $database database
+optimize table t1;
+--replace_result $database database
+select * from mysql.table_stats;
+
+--echo #
+--echo # Converting table back to Aria
+--echo #
+
 alter table t1 engine=aria;
 show create table t1;
 select * from t1 limit 10;

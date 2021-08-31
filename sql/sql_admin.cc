@@ -32,6 +32,9 @@
 #include "sql_admin.h"
 #include "sql_statistics.h"
 #include "wsrep_mysqld.h"
+
+const LEX_CSTRING msg_status= {STRING_WITH_LEN("status")};
+
 /* Prepare, run and cleanup for mysql_recreate_table() */
 
 static bool admin_recreate_table(THD *thd, TABLE_LIST *table_list)
@@ -472,6 +475,21 @@ static bool wsrep_toi_replication(THD *thd, TABLE_LIST *tables)
 }
 #endif /* WITH_WSREP */
 
+
+static void send_read_only_warning(THD *thd, const LEX_CSTRING *msg_status,
+                                   const LEX_CSTRING *table_name)
+{
+  Protocol *protocol= thd->protocol;
+  char buf[MYSQL_ERRMSG_SIZE];
+  size_t length;
+  length= my_snprintf(buf, sizeof(buf),
+                      ER_THD(thd, ER_OPEN_AS_READONLY),
+                      table_name->str);
+  protocol->store(msg_status, system_charset_info);
+  protocol->store(buf, length, system_charset_info);
+}
+
+
 /*
   RETURN VALUES
     FALSE Message sent to net (admin operation went ok)
@@ -555,7 +573,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
   for (table= tables; table; table= table->next_local)
   {
-    char table_name[SAFE_NAME_LEN*2+2];
+    char table_name_buff[SAFE_NAME_LEN*2+2];
+    LEX_CSTRING table_name= { table_name_buff, 0};
     const char *db= table->db.str;
     bool fatal_error=0;
     bool open_error;
@@ -565,7 +584,8 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
     DBUG_PRINT("admin", ("table: '%s'.'%s'", db, table->table_name.str));
     DEBUG_SYNC(thd, "admin_command_kill_before_modify");
 
-    strxmov(table_name, db, ".", table->table_name.str, NullS);
+    table_name.length= strxmov(table_name_buff, db, ".", table->table_name.str,
+                               NullS) - table_name_buff;
     thd->open_options|= extra_open_options;
     table->lock_type= lock_type;
     /*
@@ -651,12 +671,12 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
             size_t length;
             DBUG_PRINT("admin", ("sending non existent partition error"));
             protocol->prepare_for_resend();
-            protocol->store(table_name, system_charset_info);
+            protocol->store(&table_name, system_charset_info);
             protocol->store(operator_name, system_charset_info);
             protocol->store(STRING_WITH_LEN("error"), system_charset_info);
             length= my_snprintf(buff, sizeof(buff),
                                 ER_THD(thd, ER_DROP_PARTITION_NON_EXISTENT),
-                                table_name);
+                                table_name.str);
             protocol->store(buff, length, system_charset_info);
             if(protocol->write())
               goto err;
@@ -732,20 +752,17 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       goto send_result;
     }
 
-    if ((table->table->db_stat & HA_READ_ONLY) && open_for_modify)
+    if ((table->table->db_stat & HA_READ_ONLY) && open_for_modify &&
+        operator_func != &handler::ha_analyze)
     {
       /* purecov: begin inspected */
-      char buff[FN_REFLEN + MYSQL_ERRMSG_SIZE];
-      size_t length;
       enum_sql_command save_sql_command= lex->sql_command;
+      LEX_CSTRING error_clex_str= { STRING_WITH_LEN("error") };
       DBUG_PRINT("admin", ("sending error message"));
       protocol->prepare_for_resend();
-      protocol->store(table_name, system_charset_info);
+      protocol->store(&table_name, system_charset_info);
       protocol->store(operator_name, system_charset_info);
-      protocol->store(STRING_WITH_LEN("error"), system_charset_info);
-      length= my_snprintf(buff, sizeof(buff), ER_THD(thd, ER_OPEN_AS_READONLY),
-                          table_name);
-      protocol->store(buff, length, system_charset_info);
+      send_read_only_warning(thd, &error_clex_str, &table_name);
       trans_commit_stmt(thd);
       trans_commit(thd);
       close_thread_tables(thd);
@@ -800,7 +817,7 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       /* purecov: begin inspected */
       DBUG_PRINT("admin", ("sending crashed warning"));
       protocol->prepare_for_resend();
-      protocol->store(table_name, system_charset_info);
+      protocol->store(&table_name, system_charset_info);
       protocol->store(operator_name, system_charset_info);
       protocol->store(STRING_WITH_LEN("warning"), system_charset_info);
       protocol->store(STRING_WITH_LEN("Table is marked as crashed"),
@@ -871,6 +888,15 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
 
     if (compl_result_code == HA_ADMIN_OK && collect_eis)
     {
+      if (result_code == HA_ERR_TABLE_READONLY)
+      {
+        protocol->prepare_for_resend();
+        protocol->store(&table_name, system_charset_info);
+        protocol->store(operator_name, system_charset_info);
+        send_read_only_warning(thd, &msg_status, &table_name);
+        (void) protocol->write();
+        result_code= HA_ADMIN_OK;
+      }
       /*
         Here we close and reopen table in read mode because operation of
         collecting statistics is long and it will be better do not block
@@ -978,9 +1004,9 @@ static bool mysql_admin_table(THD* thd, TABLE_LIST* tables,
       else
       {
         protocol->prepare_for_resend();
-        protocol->store(table_name, system_charset_info); 
+        protocol->store(&table_name, system_charset_info);
         protocol->store(operator_name, system_charset_info);
-        protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+        protocol->store(&msg_status, system_charset_info);
 	protocol->store(STRING_WITH_LEN("Engine-independent statistics collected"), 
                         system_charset_info);
         if (protocol->write())
@@ -1007,7 +1033,7 @@ send_result:
       while ((err= it++))
       {
         protocol->prepare_for_resend();
-        protocol->store(table_name, system_charset_info);
+        protocol->store(&table_name, system_charset_info);
         protocol->store((char*) operator_name, system_charset_info);
         protocol->store(warning_level_names[err->get_level()].str,
                         warning_level_names[err->get_level()].length,
@@ -1019,7 +1045,7 @@ send_result:
       thd->get_stmt_da()->clear_warning_info(thd->query_id);
     }
     protocol->prepare_for_resend();
-    protocol->store(table_name, system_charset_info);
+    protocol->store(&table_name, system_charset_info);
     protocol->store(operator_name, system_charset_info);
 
 send_result_message:
@@ -1042,32 +1068,32 @@ send_result_message:
         char buf[MYSQL_ERRMSG_SIZE];
         size_t length= my_snprintf(buf, sizeof(buf),
                                    ER_THD(thd, ER_BAD_TABLE_ERROR),
-                                   table_name);
+                                   table_name.str);
         protocol->store(STRING_WITH_LEN("note"), system_charset_info);
         protocol->store(buf, length, system_charset_info);
       }
       break;
 
     case HA_ADMIN_OK:
-      protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+      protocol->store(&msg_status, system_charset_info);
       protocol->store(STRING_WITH_LEN("OK"), system_charset_info);
       break;
 
     case HA_ADMIN_FAILED:
-      protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+      protocol->store(&msg_status, system_charset_info);
       protocol->store(STRING_WITH_LEN("Operation failed"),
                       system_charset_info);
       break;
 
     case HA_ADMIN_REJECT:
-      protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+      protocol->store(&msg_status, system_charset_info);
       protocol->store(STRING_WITH_LEN("Operation need committed state"),
                       system_charset_info);
       open_for_modify= FALSE;
       break;
 
     case HA_ADMIN_ALREADY_DONE:
-      protocol->store(STRING_WITH_LEN("status"), system_charset_info);
+      protocol->store(&msg_status, system_charset_info);
       protocol->store(STRING_WITH_LEN("Table is already up to date"),
                       system_charset_info);
       break;
@@ -1147,7 +1173,7 @@ send_result_message:
       }
       /* Start a new row for the final status row */
       protocol->prepare_for_resend();
-      protocol->store(table_name, system_charset_info);
+      protocol->store(&table_name, system_charset_info);
       protocol->store(operator_name, system_charset_info);
       if (result_code) // either mysql_recreate_table or analyze failed
       {
@@ -1168,7 +1194,7 @@ send_result_message:
               goto err;
             /* Start off another row for HA_ADMIN_FAILED */
             protocol->prepare_for_resend();
-            protocol->store(table_name, system_charset_info);
+            protocol->store(&table_name, system_charset_info);
             protocol->store(operator_name, system_charset_info);
           }
           thd->clear_error();
@@ -1212,7 +1238,11 @@ send_result_message:
       fatal_error=1;
       break;
     }
-
+    case HA_ERR_TABLE_READONLY:
+    {
+      send_read_only_warning(thd, &msg_status, &table_name);
+      break;
+    }
     default:				// Probably HA_ADMIN_INTERNAL_ERROR
       {
         char buf[MYSQL_ERRMSG_SIZE];

@@ -46,7 +46,7 @@ public:
   }
   int check(THD *, HA_CHECK_OPT *) override
   {
-    DBUG_ENTER("delete_row");
+    DBUG_ENTER("check");
     DBUG_RETURN(HA_ERR_TABLE_READONLY);
   }
   int analyze(THD *, HA_CHECK_OPT *) override
