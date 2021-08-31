@@ -1826,7 +1826,7 @@ void pfs_register_socket_v1(const char *category,
   @sa PSI_v1::init_mutex.
 */
 PSI_mutex*
-pfs_init_mutex_v1(PSI_mutex_key key, const void *identity)
+pfs_init_mutex_v1(PSI_mutex_key key, void *identity)
 {
   INIT_BODY_V1(mutex, key, identity);
 }
@@ -1849,7 +1849,7 @@ void pfs_destroy_mutex_v1(PSI_mutex* mutex)
   @sa PSI_v1::init_rwlock.
 */
 PSI_rwlock*
-pfs_init_rwlock_v1(PSI_rwlock_key key, const void *identity)
+pfs_init_rwlock_v1(PSI_rwlock_key key, void *identity)
 {
   INIT_BODY_V1(rwlock, key, identity);
 }
@@ -1872,7 +1872,7 @@ void pfs_destroy_rwlock_v1(PSI_rwlock* rwlock)
   @sa PSI_v1::init_cond.
 */
 PSI_cond*
-pfs_init_cond_v1(PSI_cond_key key, const void *identity)
+pfs_init_cond_v1(PSI_cond_key key, void *identity)
 {
   INIT_BODY_V1(cond, key, identity);
 }
