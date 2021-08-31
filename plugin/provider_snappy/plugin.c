@@ -37,7 +37,7 @@ static int deinit(void *h)
   return 1; /* don't unload me */
 }
 
-struct st_mysql_daemon info= { MYSQL_DAEMON_INTERFACE_VERSION  };
+static struct st_mysql_daemon info= { MYSQL_DAEMON_INTERFACE_VERSION  };
 
 maria_declare_plugin(provider_snappy)
 {
