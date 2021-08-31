@@ -8,6 +8,7 @@ call mtr.add_suppression("InnoDB: Operating system error number");
 call mtr.add_suppression("InnoDB: The error means");
 call mtr.add_suppression("InnoDB: Cannot open datafile .*t1\\.ibd");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for test/t1 ");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
 FLUSH TABLES;
 SET SESSION innodb_strict_mode=1;
 CREATE TABLE t1 (c1 INT) ENGINE = Innodb

@@ -1,4 +1,6 @@
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 DROP DATABASE IF EXISTS dbt3_s001;
 CREATE DATABASE dbt3_s001;
 use dbt3_s001;
@@ -2144,13 +2146,14 @@ a	b
 drop table t1;
 SET @@optimizer_switch=@save_optimizer_switch;
 set @@use_stat_tables=@save_use_stat_tables;
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;
 #
 # MDEV-18755: possible RORI-plan and possible plan with range filter
 #
 create table t1 (
 pk int not null primary key, f1 varchar(10), f2 varchar(30), a int(10),
 key (f1), key (f2)
-) engine=innodb;
+) engine=innodb stats_persistent=0;
 insert into t1 values
 (2,'a','a',2),(3,'a','a',null),(4,'a','a',55),(5,'a','a',4),(6,'a','a',0),
 (7,'a','a',1),(8,'a','a',4),(9,'a','a',null),(10,'a','a',0),(11,'a','a',0),
@@ -2513,7 +2516,7 @@ timestamp timestamp NOT NULL DEFAULT current_timestamp(),
 PRIMARY KEY (id),
 KEY ixEventWhoisDomainDomain (domain),
 KEY ixEventWhoisDomainTimestamp (timestamp)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB STATS_PERSISTENT=0 DEFAULT CHARSET=utf8;
 INSERT INTO t1 (
 id, domain, registrant_name, registrant_organization, registrant_street1,
 registrant_street2, registrant_street3, registrant_street4, registrant_street5,

@@ -1,6 +1,8 @@
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 set @save_optimizer_switch_for_selectivity_test=@@optimizer_switch;
 set optimizer_switch='extended_keys=on';
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 drop table if exists t0,t1,t2,t3;
 select @@global.use_stat_tables;
 @@global.use_stat_tables
@@ -2153,3 +2155,4 @@ set use_stat_tables= @tmp_ust;
 set optimizer_use_condition_selectivity= @tmp_oucs;
 set @@global.histogram_size=@save_histogram_size;
 SET SESSION DEFAULT_STORAGE_ENGINE=DEFAULT;
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

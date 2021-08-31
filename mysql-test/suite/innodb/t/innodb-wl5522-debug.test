@@ -28,6 +28,7 @@ call mtr.add_suppression("InnoDB: Page 0 at offset 0 looks corrupted in file");
 call mtr.add_suppression("InnoDB: Page for tablespace ");
 call mtr.add_suppression("InnoDB: Invalid FSP_SPACE_FLAGS=");
 call mtr.add_suppression("InnoDB: Unknown index id .* on page");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
 FLUSH TABLES;
 
 let MYSQLD_DATADIR =`SELECT @@datadir`;

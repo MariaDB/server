@@ -65,6 +65,7 @@ set DEBUG_SYNC="now WAIT_FOR default_signal";
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 disconnect con1;
+--replace_column 7 #
 SHOW KEYS FROM t1;
 DROP TABLE t1;
 remove_files_wildcard $datadir/test #sql-*.frm;

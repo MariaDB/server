@@ -1,6 +1,6 @@
 select @@global.innodb_stats_persistent;
 @@global.innodb_stats_persistent
-0
+1
 set global innodb_defragment_stats_accuracy = 20;
 CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(256), KEY SECOND(a, b))
 ENGINE=INNODB;
@@ -116,7 +116,6 @@ select count(stat_value) > 0 from mysql.innodb_index_stats where table_name = 't
 count(stat_value) > 0
 1
 # Clean up
-ALTER TABLE t2 STATS_PERSISTENT=1;
 DROP TABLE t2;
 select * from mysql.innodb_index_stats where table_name = 't2';
 database_name	table_name	index_name	last_update	stat_name	stat_value	sample_size	stat_description

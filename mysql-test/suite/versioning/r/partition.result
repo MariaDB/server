@@ -1,3 +1,5 @@
+SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 call mtr.add_suppression("need more HISTORY partitions");
 set system_versioning_alter_history=keep;
 # Check conventional partitioning on temporal tables
@@ -1281,3 +1283,5 @@ drop tables t1;
 #
 # End of 10.5 tests
 #
+SET GLOBAL innodb_stats_persistent=@save_persistent;
+# End of 10.6 tests

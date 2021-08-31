@@ -38,7 +38,7 @@ connect (stop_purge,localhost,root,,);
 START TRANSACTION WITH CONSISTENT SNAPSHOT;
 connection default;
 
-create table t1 (f1 int primary key, f2 blob) engine=innodb;
+create table t1 (f1 int primary key, f2 blob) engine=innodb stats_persistent=0;
 
 start transaction;
 insert into t1 values(1, repeat('#',12));

@@ -2,6 +2,9 @@
 -- source suite/versioning/common.inc
 -- source suite/versioning/engines.inc
 
+SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
+
 call mtr.add_suppression("need more HISTORY partitions");
 
 --enable_prepare_warnings
@@ -1101,5 +1104,9 @@ drop tables t1;
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+SET GLOBAL innodb_stats_persistent=@save_persistent;
+
+--echo # End of 10.6 tests
 
 --source suite/versioning/common_finish.inc

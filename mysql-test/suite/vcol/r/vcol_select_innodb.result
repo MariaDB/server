@@ -1,4 +1,6 @@
 SET @@session.default_storage_engine = 'InnoDB';
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 create table t1 (a int,
 b int as (-a),
 c int as (-a) persistent,
@@ -265,3 +267,4 @@ NULL
 explain select sum(c) from t1 group by b;
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	5	Using temporary; Using filesort
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

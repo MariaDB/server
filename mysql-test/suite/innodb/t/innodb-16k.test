@@ -4,6 +4,8 @@
 --source include/have_innodb_16k.inc
 
 call mtr.add_suppression("InnoDB: Cannot add field .* in table");
+SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
+SET GLOBAL innodb_purge_rseg_truncate_frequency=1;
 
 let $MYSQLD_DATADIR= `select @@datadir`;
 
@@ -183,11 +185,13 @@ INSERT INTO t2 VALUES ('jejdkrun87'),('adfd72nh9k'),
 CREATE TABLE t1(a int, b blob, c text, d text NOT NULL)
 ENGINE=innodb DEFAULT CHARSET=utf8;
 INSERT INTO t1
-SELECT a,LEFT(REPEAT(d,100*a),65535),REPEAT(d,20*a),d FROM t2,t3;
+SELECT a,LEFT(REPEAT(d,100*a),65535),REPEAT(d,20*a),d FROM t2,t3
+ORDER BY a,d;
 DROP TABLE t2, t3;
 SELECT COUNT(*) FROM t1 WHERE a=44;
 SELECT a,
-LENGTH(b),b=LEFT(REPEAT(d,100*a),65535),LENGTH(c),c=REPEAT(d,20*a),d FROM t1;
+LENGTH(b),b=LEFT(REPEAT(d,100*a),65535),LENGTH(c),c=REPEAT(d,20*a),d FROM t1
+ORDER BY a,d;
 
 # in-place alter table should trigger ER_PRIMARY_CANT_HAVE_NULL
 --error ER_DUP_ENTRY
@@ -200,7 +204,8 @@ CHECK TABLE t1;
 ALTER TABLE t1 ADD PRIMARY KEY (a,b(255),c(255)), ADD KEY (b(767));
 SELECT COUNT(*) FROM t1 WHERE a=44;
 SELECT a,
-LENGTH(b), b=LEFT(REPEAT(d,100*a), 65535),LENGTH(c), c=REPEAT(d,20*a), d FROM t1;
+LENGTH(b), b=LEFT(REPEAT(d,100*a), 65535),LENGTH(c), c=REPEAT(d,20*a), d FROM t1
+ORDER BY a,d;
 SHOW CREATE TABLE t1;
 CHECK TABLE t1;
 DROP TABLE t1;
@@ -450,13 +455,11 @@ ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
 
 INSERT INTO t1 VALUES(REPEAT('A',512)),(REPEAT('B',512));
 
+--source include/wait_all_purged.inc
+
 DROP TABLE t1;
-
-# The tests that uses these tables required the purge thread to run.
-# Just in case it has not by now, provide a 10 second wait.
-
---sleep 10
-
 DROP TABLE t1_purge, t2_purge, t3_purge, t4_purge;
 DROP TABLE tlong;
 DROP TABLE tlong2;
+
+SET GLOBAL innodb_purge_rseg_truncate_frequency=@save_frequency;

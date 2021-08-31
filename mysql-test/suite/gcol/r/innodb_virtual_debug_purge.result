@@ -2,6 +2,8 @@ set default_storage_engine=innodb;
 set @old_dbug=@@global.debug_dbug;
 SET @saved_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
+SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
 CREATE TABLE `t` (
 `a` BLOB,
 `b` BLOB,
@@ -206,3 +208,4 @@ connection default;
 DROP TABLE t1, t2;
 set debug_sync=reset;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @saved_frequency;
+SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;
