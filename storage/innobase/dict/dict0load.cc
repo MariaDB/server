@@ -509,7 +509,7 @@ dict_sys_tables_rec_check(
 	const byte*	field;
 	ulint		len;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	if (rec_get_deleted_flag(rec, 0)) {
 		return("delete-marked record in SYS_TABLES");
@@ -828,7 +828,7 @@ static ulint dict_check_sys_tables()
 
 	DBUG_ENTER("dict_check_sys_tables");
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	mtr_start(&mtr);
 
@@ -934,7 +934,7 @@ void dict_check_tablespaces_and_store_max_id()
 
 	DBUG_ENTER("dict_check_tablespaces_and_store_max_id");
 
-	dict_sys_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	/* Initialize the max space_id from sys header */
 	mtr.start();
@@ -949,7 +949,7 @@ void dict_check_tablespaces_and_store_max_id()
 	max_space_id = dict_check_sys_tables();
 	fil_set_max_space_id_if_bigger(max_space_id);
 
-	dict_sys_unlock();
+	dict_sys.unlock();
 
 	DBUG_VOID_RETURN;
 }
@@ -1237,7 +1237,7 @@ dict_load_columns(
 	mtr_t		mtr;
 	ulint		n_skipped = 0;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	mtr_start(&mtr);
 
@@ -1351,7 +1351,7 @@ dict_load_virtual_one_col(
 	mtr_t		mtr;
 	ulint		skipped = 0;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	if (v_col->num_base == 0) {
 		return;
@@ -1581,7 +1581,7 @@ dict_load_fields(
 	mtr_t		mtr;
 	dberr_t		error;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	mtr_start(&mtr);
 
@@ -1811,7 +1811,7 @@ dict_load_indexes(
 	mtr_t		mtr;
 	dberr_t		error = DB_SUCCESS;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	mtr_start(&mtr);
 
@@ -2122,7 +2122,7 @@ dict_save_data_dir_path(
 	dict_table_t*	table,		/*!< in/out: table */
 	const char*	filepath)	/*!< in: filepath of tablespace */
 {
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.frozen());
 	ut_a(DICT_TF_HAS_DATA_DIR(table->flags));
 
 	ut_a(!table->data_dir_path);
@@ -2145,20 +2145,17 @@ dict_save_data_dir_path(
 	}
 }
 
-/** Make sure the data_dir_path is saved in dict_table_t if needed.
-@param[in]	table		Table object
-@param[in]	dict_mutex_own	true if dict_sys.mutex is owned already */
-void
-dict_get_and_save_data_dir_path(
-	dict_table_t*	table,
-	bool		dict_mutex_own)
+/** Make sure the data_file_name is saved in dict_table_t if needed.
+@param[in,out]	table		Table object
+@param[in]	dict_locked	dict_sys.frozen() */
+void dict_get_and_save_data_dir_path(dict_table_t* table, bool dict_locked)
 {
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space || table->space->id == table->space_id);
 
 	if (!table->data_dir_path && table->space_id && table->space) {
-		if (!dict_mutex_own) {
-			dict_sys.mutex_lock();
+		if (!dict_locked) {
+			dict_sys.freeze(SRW_LOCK_CALL);
 		}
 
 		table->flags |= 1 << DICT_TF_POS_DATA_DIR
@@ -2176,8 +2173,8 @@ dict_get_and_save_data_dir_path(
 				& ((1U << DICT_TF_BITS) - 1);
 		}
 
-		if (!dict_mutex_own) {
-			dict_sys.mutex_unlock();
+		if (!dict_locked) {
+			dict_sys.unfreeze();
 		}
 	}
 }
@@ -2288,7 +2285,7 @@ static dict_table_t *dict_load_table_one(const span<const char> &name,
 	DBUG_PRINT("dict_load_table_one",
 		   ("table: %.*s", name.size(), name.data()));
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	heap = mem_heap_create(32000);
 
@@ -2544,10 +2541,10 @@ dict_load_table_on_id(
 	ulint		len;
 	mtr_t		mtr;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	/* NOTE that the operation of this function is protected by
-	the dictionary mutex, and therefore no deadlocks can occur
+	dict_sys.latch, and therefore no deadlocks can occur
 	with other dictionary operations. */
 
 	mtr.start();
@@ -2627,7 +2624,7 @@ dict_load_sys_table(
 {
 	mem_heap_t*	heap;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	heap = mem_heap_create(1000);
 
@@ -2662,7 +2659,7 @@ dict_load_foreign_cols(
 	mtr_t		mtr;
 	size_t		id_len;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	id_len = strlen(foreign->id);
 
@@ -2804,7 +2801,7 @@ dict_load_foreign(
 	DBUG_PRINT("dict_load_foreign",
 		   ("id: '%s', check_recursive: %d", id, check_recursive));
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	id_len = strlen(id);
 
@@ -2977,7 +2974,7 @@ dict_load_foreigns(
 
 	DBUG_ENTER("dict_load_foreigns");
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	if (!dict_sys.sys_foreign || !dict_sys.sys_foreign_cols) {
 		if (ignore_err & DICT_ERR_IGNORE_FK_NOKEY) {

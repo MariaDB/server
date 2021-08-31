@@ -343,7 +343,7 @@ dict_build_table_def_step(
 	que_thr_t*	thr,	/*!< in: query thread */
 	tab_node_t*	node)	/*!< in: table create node */
 {
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 	dict_table_t*	table = node->table;
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
@@ -403,7 +403,7 @@ dict_build_v_col_def_step(
 Based on an index object, this function builds the entry to be inserted
 in the SYS_INDEXES system table.
 @return the tuple which should be inserted */
-static
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dtuple_t*
 dict_create_sys_indexes_tuple(
 /*==========================*/
@@ -416,7 +416,7 @@ dict_create_sys_indexes_tuple(
 	dfield_t*	dfield;
 	byte*		ptr;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 	ut_ad(index);
 	ut_ad(index->table->space || !UT_LIST_GET_LEN(index->table->indexes)
 	      || index->table->file_unreadable);
@@ -646,7 +646,7 @@ dict_build_index_def_step(
 	dtuple_t*	row;
 	trx_t*		trx;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	trx = thr_get_trx(thr);
 
@@ -691,7 +691,7 @@ dict_build_index_def(
 	dict_index_t*		index,	/*!< in/out: index */
 	trx_t*			trx)	/*!< in/out: InnoDB transaction handle */
 {
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
@@ -734,7 +734,7 @@ dict_create_index_tree_step(
 	dict_index_t*	index;
 	dtuple_t*	search_tuple;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	index = node->index;
 
@@ -803,7 +803,7 @@ dict_create_index_tree_in_mem(
 {
 	mtr_t		mtr;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 	ut_ad(!(index->type & DICT_FTS));
 
 	mtr_start(&mtr);
@@ -833,7 +833,7 @@ uint32_t dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, mtr_t *mtr)
 {
   rec_t *rec= btr_pcur_get_rec(pcur);
 
-  ut_d(if (trx) dict_sys.assert_locked());
+  ut_ad(!trx || dict_sys.locked());
   ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
   btr_pcur_store_position(pcur, mtr);
 
@@ -995,7 +995,7 @@ dict_create_table_step(
 	trx_t*		trx;
 
 	ut_ad(thr);
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	trx = thr_get_trx(thr);
 
@@ -1171,7 +1171,7 @@ dict_create_index_step(
 	trx_t*		trx;
 
 	ut_ad(thr);
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	trx = thr_get_trx(thr);
 
@@ -1319,7 +1319,7 @@ bool dict_sys_t::load_sys_tables()
 {
   ut_ad(!srv_any_background_activity());
   bool mismatch= false;
-  mutex_lock();
+  lock(SRW_LOCK_CALL);
   if (!(sys_foreign= load_table(SYS_TABLE[SYS_FOREIGN],
                                 DICT_ERR_IGNORE_FK_NOKEY)));
   else if (UT_LIST_GET_LEN(sys_foreign->indexes) == 3 &&
@@ -1354,7 +1354,7 @@ bool dict_sys_t::load_sys_tables()
     mismatch= true;
     ib::error() << "Invalid definition of SYS_VIRTUAL";
   }
-  mutex_unlock();
+  unlock();
   return mismatch;
 }
 
@@ -1453,13 +1453,13 @@ err_exit:
   trx->free();
   srv_file_per_table= srv_file_per_table_backup;
 
-  mutex_lock();
+  lock(SRW_LOCK_CALL);
   if (sys_foreign);
   else if (!(sys_foreign= load_table(SYS_TABLE[SYS_FOREIGN])))
   {
     tablename= SYS_TABLE[SYS_FOREIGN].data();
 load_fail:
-    mutex_unlock();
+    unlock();
     ib::error() << "Failed to CREATE TABLE " << tablename;
     return DB_TABLE_NOT_FOUND;
   }
@@ -1484,7 +1484,7 @@ load_fail:
   else
     prevent_eviction(sys_virtual);
 
-  mutex_unlock();
+  unlock();
   return DB_SUCCESS;
 }
 
@@ -1877,7 +1877,7 @@ dict_create_add_foreigns_to_dictionary(
 	const dict_table_t*	table,
 	trx_t*			trx)
 {
-  dict_sys.assert_locked();
+  ut_ad(dict_sys.locked());
 
   if (!dict_sys.sys_foreign)
   {

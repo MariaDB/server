@@ -146,8 +146,6 @@ schedule new estimates for table and index statistics to be calculated.
 void dict_stats_update_if_needed_func(dict_table_t *table)
 #endif
 {
-	dict_sys.assert_not_locked();
-
 	if (UNIV_UNLIKELY(!table->stat_initialized)) {
 		/* The table may have been evicted from dict_sys
 		and reloaded internally by InnoDB for FOREIGN KEY
@@ -258,7 +256,7 @@ dict_stats_recalc_pool_del(
 	const dict_table_t*	table)	/*!< in: table to remove */
 {
 	ut_ad(!srv_read_only_mode);
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.frozen());
 
 	mysql_mutex_lock(&recalc_pool_mutex);
 
@@ -280,23 +278,13 @@ dict_stats_recalc_pool_del(
 
 /*****************************************************************//**
 Wait until background stats thread has stopped using the specified table.
-The caller must have locked the data dictionary using
-row_mysql_lock_data_dictionary() and this function may unlock it temporarily
-and restore the lock before it exits.
 The background stats thread is guaranteed not to start using the specified
-table after this function returns and before the caller unlocks the data
-dictionary because it sets the BG_STAT_IN_PROGRESS bit in table->stats_bg_flag
-under dict_sys.mutex. */
-void
-dict_stats_wait_bg_to_stop_using_table(
-/*===================================*/
-	dict_table_t*	table,	/*!< in/out: table */
-	trx_t*		trx)	/*!< in/out: transaction to use for
-				unlocking/locking the data dict */
+table after this function returns and before the caller releases
+dict_sys.latch. */
+void dict_stats_wait_bg_to_stop_using_table(dict_table_t *table)
 {
-	while (!dict_stats_stop_bg(table)) {
-		DICT_BG_YIELD(trx);
-	}
+  while (!dict_stats_stop_bg(table))
+    DICT_BG_YIELD;
 }
 
 /*****************************************************************//**
@@ -347,7 +335,7 @@ next_table_id:
 
 	dict_table_t*	table;
 
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	table = dict_table_open_on_id(table_id, TRUE, DICT_TABLE_OP_NORMAL);
 
@@ -362,13 +350,13 @@ next_table_id:
 	if (!table->is_accessible()) {
 		dict_table_close(table, TRUE, FALSE);
 no_table:
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 		goto next_table_id;
 	}
 
 	table->stats_bg_flag |= BG_STAT_IN_PROGRESS;
 
-	dict_sys.mutex_unlock();
+	dict_sys.unlock();
 
 	/* time() could be expensive, the current function
 	is called once every time a table has been changed more than 10% and
@@ -393,13 +381,13 @@ no_table:
 		ret = true;
 	}
 
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	table->stats_bg_flag = BG_STAT_NONE;
 
 	dict_table_close(table, TRUE, FALSE);
 
-	dict_sys.mutex_unlock();
+	dict_sys.unlock();
 	return ret;
 }
 

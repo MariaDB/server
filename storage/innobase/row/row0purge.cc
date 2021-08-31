@@ -114,11 +114,11 @@ row_purge_remove_clust_if_poss_low(
 	if (table_id) {
 retry:
 		purge_sys.check_stop_FTS();
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 		table = dict_table_open_on_id(
 			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 		if (!table) {
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		} else if (table->n_rec_locks) {
 			for (dict_index_t* ind = UT_LIST_GET_FIRST(
 				     table->indexes); ind;
@@ -142,7 +142,7 @@ removed:
 close_and_exit:
 		if (table) {
 			dict_table_close(table, true, false);
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		}
 		return success;
 	}
@@ -172,7 +172,7 @@ close_and_exit:
 					table->space = nullptr;
 					table->file_unreadable = true;
 				}
-				dict_sys.mutex_unlock();
+				dict_sys.unlock();
 				table = nullptr;
 			}
 			f = fil_delete_tablespace(space_id);
@@ -182,7 +182,7 @@ close_and_exit:
 
 		if (table) {
 			dict_table_close(table, true, false);
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 			table = nullptr;
 		}
 

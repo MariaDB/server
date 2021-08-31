@@ -3846,7 +3846,7 @@ released:
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
   if (to_evict.empty())
     return;
-  dict_sys.mutex_lock();
+  dict_sys.lock(SRW_LOCK_CALL);
   LockMutexGuard g{SRW_LOCK_CALL};
   for (const table_id_t id : to_evict)
   {
@@ -3854,7 +3854,7 @@ released:
       if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
         dict_sys.remove(table, true);
   }
-  dict_sys.mutex_unlock();
+  dict_sys.unlock();
 #endif
 }
 

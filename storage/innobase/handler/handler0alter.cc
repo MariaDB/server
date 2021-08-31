@@ -486,7 +486,7 @@ inline bool dict_table_t::instant_column(const dict_table_t& table,
 	DBUG_ASSERT(table.n_cols + table.n_dropped() >= n_cols + n_dropped());
 	DBUG_ASSERT(!table.persistent_autoinc
 		    || persistent_autoinc == table.persistent_autoinc);
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	{
 		const char* end = table.col_names;
@@ -731,7 +731,7 @@ inline void dict_table_t::rollback_instant(
 	const char*	old_v_col_names,
 	const ulint*	col_map)
 {
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	if (cols == old_cols) {
 		/* Alter fails before instant operation happens.
@@ -2639,7 +2639,7 @@ innobase_init_foreign(
 	ulint		referenced_num_field)	/*!< in: number of referenced
 						columns */
 {
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
         if (constraint_name) {
                 ulint   db_len;
@@ -3043,7 +3043,7 @@ innobase_get_foreign_key_info(
 
 		add_fk[num_fk] = dict_mem_foreign_create();
 
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 
 		referenced_table_name = dict_get_referenced_table(
 			table->name.m_name,
@@ -3059,11 +3059,9 @@ innobase_get_foreign_key_info(
 				referenced_table = NULL;);
 
 		if (!referenced_table && trx->check_foreigns) {
-			dict_sys.mutex_unlock();
 			my_error(ER_FK_CANNOT_OPEN_PARENT,
 				 MYF(0), fk_key->ref_table.str);
-
-			goto err_exit;
+			goto err_exit_unlock;
 		}
 
 		if (fk_key->ref_columns.elements > 0) {
@@ -3092,12 +3090,11 @@ innobase_get_foreign_key_info(
 				/* Check whether there exist such
 				index in the the index create clause */
 				if (!referenced_index) {
-					dict_sys.mutex_unlock();
 					my_error(ER_FK_NO_INDEX_PARENT, MYF(0),
 						 fk_key->name.str
 						 ? fk_key->name.str : "",
 						 fk_key->ref_table.str);
-					goto err_exit;
+					goto err_exit_unlock;
 				}
 			} else {
 				ut_a(!trx->check_foreigns);
@@ -3107,10 +3104,9 @@ innobase_get_foreign_key_info(
 		} else {
 			/* Not possible to add a foreign key without a
 			referenced column */
-			dict_sys.mutex_unlock();
 			my_error(ER_CANNOT_ADD_FOREIGN, MYF(0),
 				 fk_key->ref_table.str);
-			goto err_exit;
+			goto err_exit_unlock;
 		}
 
 		if (!innobase_init_foreign(
@@ -3119,15 +3115,14 @@ innobase_get_foreign_key_info(
 			    num_col, referenced_table_name,
 			    referenced_table, referenced_index,
 			    referenced_column_names, referenced_num_col)) {
-			dict_sys.mutex_unlock();
 			my_error(
 				ER_DUP_CONSTRAINT_NAME,
 				MYF(0),
                                 "FOREIGN KEY", add_fk[num_fk]->id);
-			goto err_exit;
+			goto err_exit_unlock;
 		}
 
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 
 		correct_option = innobase_set_foreign_key_option(
 			add_fk[num_fk], fk_key);
@@ -3158,6 +3153,8 @@ innobase_get_foreign_key_info(
 	*n_add_fk = num_fk;
 
 	DBUG_RETURN(true);
+err_exit_unlock:
+	dict_sys.unlock();
 err_exit:
 	for (ulint i = 0; i <= num_fk; i++) {
 		if (add_fk[i]) {
@@ -4073,7 +4070,7 @@ online_retry_drop_indexes_low(
 	dict_table_t*	table,	/*!< in/out: table */
 	trx_t*		trx)	/*!< in/out: transaction */
 {
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 	ut_ad(trx->dict_operation);
 
@@ -4129,9 +4126,9 @@ online_retry_drop_indexes(
 		trx->free();
 	}
 
-	ut_d(dict_sys.mutex_lock());
+	ut_d(dict_sys.freeze(SRW_LOCK_CALL));
 	ut_d(dict_table_check_for_dup_indexes(table, CHECK_ALL_COMPLETE));
-	ut_d(dict_sys.mutex_unlock());
+	ut_d(dict_sys.unfreeze());
 	ut_ad(!table->drop_aborted);
 }
 
@@ -4212,7 +4209,7 @@ innobase_check_foreigns_low(
 	bool			drop)
 {
 	dict_foreign_t*	foreign;
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	/* Check if any FOREIGN KEY constraints are defined on this
 	column. */
@@ -4811,7 +4808,7 @@ innobase_update_gis_column_type(
 
 	DBUG_ASSERT(trx->dict_operation);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	info = pars_info_create();
 
@@ -6327,7 +6324,7 @@ acquire_lock:
 	at least until checking ut_ad(user_table->n_ref_count == 1) below.
 	XXX what may happen if bg stats opens the table after we
 	have unlocked data dictionary below? */
-	dict_stats_wait_bg_to_stop_using_table(user_table, ctx->trx);
+	dict_stats_wait_bg_to_stop_using_table(user_table);
 	ut_d(stats_wait = true);
 
 	online_retry_drop_indexes_low(ctx->new_table, ctx->trx);
@@ -7056,7 +7053,7 @@ error_handling_drop_uncached:
 	if (fts_index) {
 		ut_ad(ctx->trx->dict_operation);
 		ut_ad(ctx->trx->dict_operation_lock_mode == RW_X_LATCH);
-		ut_d(dict_sys.assert_locked());
+		ut_ad(dict_sys.locked());
 
 		DICT_TF2_FLAG_SET(ctx->new_table, DICT_TF2_FTS);
 		if (ctx->need_rebuild()) {
@@ -7342,7 +7339,7 @@ rename_index_try(
 	trx_t*			trx)
 {
 	DBUG_ENTER("rename_index_try");
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
 
 	pars_info_t*	pinfo;
@@ -7400,7 +7397,7 @@ void
 innobase_rename_index_cache(dict_index_t* index, const char* new_name)
 {
 	DBUG_ENTER("innobase_rename_index_cache");
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	size_t	old_name_len = strlen(index->name);
 	size_t	new_name_len = strlen(new_name);
@@ -7559,10 +7556,10 @@ ha_innobase::prepare_inplace_alter_table(
 	}
 #endif /* UNIV_DEBUG */
 
-	ut_d(dict_sys.mutex_lock());
+	ut_d(dict_sys.freeze(SRW_LOCK_CALL));
 	ut_d(dict_table_check_for_dup_indexes(
 		     m_prebuilt->table, CHECK_ABORTED_OK));
-	ut_d(dict_sys.mutex_unlock());
+	ut_d(dict_sys.unfreeze());
 
 	if (!(ha_alter_info->handler_flags & ~INNOBASE_INPLACE_IGNORE)) {
 		/* Nothing to do */
@@ -8507,10 +8504,10 @@ oom:
 		KEY*	dup_key;
 	all_done:
 	case DB_SUCCESS:
-		ut_d(dict_sys.mutex_lock());
+		ut_d(dict_sys.freeze(SRW_LOCK_CALL));
 		ut_d(dict_table_check_for_dup_indexes(
 			     m_prebuilt->table, CHECK_PARTIAL_OK));
-		ut_d(dict_sys.mutex_unlock());
+		ut_d(dict_sys.unfreeze());
 		/* prebuilt->table->n_ref_count can be anything here,
 		given that we hold at most a shared lock on the table. */
 		goto ok_exit;
@@ -8571,7 +8568,7 @@ innobase_online_rebuild_log_free(
 	dict_table_t*	table)
 {
 	dict_index_t* clust_index = dict_table_get_first_index(table);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 	clust_index->lock.x_lock(SRW_LOCK_CALL);
 
 	if (clust_index->online_log) {
@@ -8776,10 +8773,10 @@ inline bool rollback_inplace_alter_table(Alter_inplace_info *ha_alter_info,
       purge_sys.resume_FTS();
     if (ctx->old_table->fts)
     {
-      dict_sys.mutex_lock();
+      dict_sys.lock(SRW_LOCK_CALL);
       ut_ad(fts_check_cached_index(ctx->old_table));
       fts_optimize_add_table(ctx->old_table);
-      dict_sys.mutex_unlock();
+      dict_sys.unlock();
     }
     goto free_and_exit;
   }
@@ -8850,7 +8847,7 @@ innobase_drop_foreign_try(
 
 	DBUG_ASSERT(trx->dict_operation);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	/* Drop the constraint from the data dictionary. */
 	static const char sql[] =
@@ -8906,7 +8903,7 @@ innobase_rename_column_try(
 
 	DBUG_ASSERT(trx->dict_operation);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	if (ctx.need_rebuild()) {
 		goto rename_foreign;
@@ -9224,7 +9221,7 @@ innobase_rename_or_enlarge_column_try(
 
 	DBUG_ASSERT(trx->dict_operation);
 	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	ulint n_base;
 
@@ -9650,7 +9647,7 @@ innobase_update_foreign_cache(
 
 	DBUG_ENTER("innobase_update_foreign_cache");
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	user_table = ctx->old_table;
 
@@ -10958,7 +10955,7 @@ lock_fail:
 			break;
 		}
 
-		DICT_BG_YIELD(trx);
+		DICT_BG_YIELD;
 	}
 
 	/* Apply the changes to the data dictionary tables, for all

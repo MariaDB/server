@@ -1026,8 +1026,7 @@ struct dict_index_t {
 				/*!< enum online_index_status.
 				Transitions from ONLINE_INDEX_COMPLETE (to
 				ONLINE_INDEX_CREATION) are protected
-				by dict_sys.latch and
-				dict_sys.mutex. Other changes are
+				by dict_sys.latch. Other changes are
 				protected by index->lock. */
 	unsigned	uncommitted:1;
 				/*!< a flag that is set for secondary indexes
@@ -1935,7 +1934,7 @@ struct dict_table_t {
 	inline size_t get_overflow_field_local_len() const;
 
 	/** Parse the table file name into table name and database name.
-	@tparam		dict_locked	whether dict_sys.mutex is being held
+	@tparam		dict_locked	whether dict_sys.lock() was called
 	@param[in,out]	db_name		database name buffer
 	@param[in,out]	tbl_name	table name buffer
 	@param[out]	db_name_len	database name length
@@ -2178,7 +2177,7 @@ public:
 	dict_foreign_set			referenced_set;
 
 	/** Statistics for query optimization. Mostly protected by
-	dict_sys.mutex. @{ */
+	dict_sys.latch and stats_mutex_lock(). @{ */
 
 	/** TRUE if statistics have been calculated the first time after
 	database startup or table creation. */
@@ -2260,7 +2259,7 @@ public:
 
 	/** The state of the background stats thread wrt this table.
 	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys.mutex. Dirty reads are possible. */
+	Writes are covered by dict_sys.latch and stats_mutex_lock(). */
 	byte					stats_bg_flag;
 
 	bool		stats_error_printed;

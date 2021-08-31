@@ -1335,12 +1335,12 @@ i_s_cmp_per_index_fill_low(
 	RETURN_IF_INNODB_NOT_STARTED(tables->schema_table_name.str);
 
 	/* Create a snapshot of the stats so we do not bump into lock
-	order violations with dict_sys.mutex below. */
+	order violations with dict_sys.latch below. */
 	mysql_mutex_lock(&page_zip_stat_per_index_mutex);
 	page_zip_stat_per_index_t		snap (page_zip_stat_per_index);
 	mysql_mutex_unlock(&page_zip_stat_per_index_mutex);
 
-	dict_sys.mutex_lock();
+	dict_sys.freeze(SRW_LOCK_CALL);
 
 	page_zip_stat_per_index_t::iterator	iter;
 	ulint					i;
@@ -1393,18 +1393,18 @@ i_s_cmp_per_index_fill_low(
 			status = 1;
 			break;
 		}
-		/* Release and reacquire the dict mutex to allow other
+		/* Release and reacquire the dict_sys.latch to allow other
 		threads to proceed. This could eventually result in the
 		contents of INFORMATION_SCHEMA.innodb_cmp_per_index being
 		inconsistent, but it is an acceptable compromise. */
 		if (i == 1000) {
-			dict_sys.mutex_unlock();
+			dict_sys.unfreeze();
 			i = 0;
-			dict_sys.mutex_lock();
+			dict_sys.freeze(SRW_LOCK_CALL);
 		}
 	}
 
-	dict_sys.mutex_unlock();
+	dict_sys.unfreeze();
 
 	if (reset) {
 		page_zip_reset_stat_per_index();
@@ -3973,7 +3973,7 @@ i_s_innodb_buffer_page_fill(
 		if (page_info->page_type == I_S_PAGE_TYPE_INDEX) {
 			bool ret = false;
 
-			dict_sys.mutex_lock();
+			dict_sys.freeze(SRW_LOCK_CALL);
 
 			const dict_index_t* index =
 				dict_index_get_if_in_cache_low(
@@ -3998,7 +3998,7 @@ i_s_innodb_buffer_page_fill(
 						system_charset_info);
 			}
 
-			dict_sys.mutex_unlock();
+			dict_sys.unfreeze();
 
 			OK(ret);
 
@@ -4476,7 +4476,7 @@ i_s_innodb_buf_page_lru_fill(
 		if (page_info->page_type == I_S_PAGE_TYPE_INDEX) {
 			bool ret = false;
 
-			dict_sys.mutex_lock();
+			dict_sys.freeze(SRW_LOCK_CALL);
 
 			const dict_index_t* index =
 				dict_index_get_if_in_cache_low(
@@ -4501,7 +4501,7 @@ i_s_innodb_buf_page_lru_fill(
 						system_charset_info);
 			}
 
-			dict_sys.mutex_unlock();
+			dict_sys.unfreeze();
 
 			OK(ret);
 
@@ -4854,8 +4854,8 @@ i_s_sys_tables_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	dict_sys.mutex_lock();
-	mtr_start(&mtr);
+	mtr.start();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	for (const rec_t *rec = dict_startscan_system(&pcur, &mtr,
 						      dict_sys.sys_tables);
@@ -4871,7 +4871,7 @@ i_s_sys_tables_fill_table(
 		information from SYS_TABLES row */
 		err_msg = i_s_sys_tables_rec(pcur, rec, &table_rec);
 		mtr.commit();
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_tables(thd, table_rec,
@@ -4887,12 +4887,12 @@ i_s_sys_tables_fill_table(
 		}
 
 		/* Get the next record */
-		dict_sys.mutex_lock();
 		mtr.start();
+		dict_sys.lock(SRW_LOCK_CALL);
 	}
 
 	mtr.commit();
-	dict_sys.mutex_unlock();
+	dict_sys.unlock();
 
 	DBUG_RETURN(0);
 }
@@ -5129,7 +5129,6 @@ i_s_sys_tables_fill_table_stats(
 		/* Get the next record */
 		mtr.start();
 		dict_sys.lock(SRW_LOCK_CALL);
-
 		if (table_rec) {
 			dict_sys.allow_eviction(table_rec);
 		}
@@ -5331,7 +5330,7 @@ i_s_sys_indexes_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 	mtr_start(&mtr);
 
 	/* Start scan the SYS_INDEXES table */
@@ -5352,8 +5351,8 @@ i_s_sys_indexes_fill_table(
 			rec, DICT_FLD__SYS_INDEXES__SPACE, &space_id);
 		space_id = space_id == 4 ? mach_read_from_4(field)
 			: ULINT_UNDEFINED;
-		mtr_commit(&mtr);
-		dict_sys.mutex_unlock();
+		mtr.commit();
+		dict_sys.unlock();
 
 		if (!err_msg) {
 			if (int err = i_s_dict_fill_sys_indexes(
@@ -5371,13 +5370,13 @@ i_s_sys_indexes_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		dict_sys.mutex_lock();
-		mtr_start(&mtr);
+		mtr.start();
+		dict_sys.lock(SRW_LOCK_CALL);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	dict_sys.mutex_unlock();
+	mtr.commit();
+	dict_sys.unlock();
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -5550,8 +5549,8 @@ i_s_sys_columns_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	dict_sys.mutex_lock();
-	mtr_start(&mtr);
+	mtr.start();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_columns);
 
@@ -5567,8 +5566,8 @@ i_s_sys_columns_fill_table(
 						       &table_id, &col_name,
 						       &nth_v_col);
 
-		mtr_commit(&mtr);
-		dict_sys.mutex_unlock();
+		mtr.commit();
+		dict_sys.unlock();
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_columns(thd, table_id, col_name,
@@ -5583,17 +5582,18 @@ i_s_sys_columns_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		dict_sys.mutex_lock();
-		mtr_start(&mtr);
+		mtr.start();
+		dict_sys.lock(SRW_LOCK_CALL);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	dict_sys.mutex_unlock();
+	mtr.commit();
+	dict_sys.unlock();
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
 }
+
 /*******************************************************************//**
 Bind the dynamic table INFORMATION_SCHEMA.innodb_sys_columns
 @return 0 on success */
@@ -5743,8 +5743,8 @@ i_s_sys_virtual_fill_table(
 		DBUG_RETURN(0);
 	}
 
-	dict_sys.mutex_lock();
-	mtr_start(&mtr);
+	mtr.start();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_virtual);
 
@@ -5758,8 +5758,8 @@ i_s_sys_virtual_fill_table(
 						       &table_id, &pos,
 						       &base_pos);
 
-		mtr_commit(&mtr);
-		dict_sys.mutex_unlock();
+		mtr.commit();
+		dict_sys.unlock();
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_virtual(thd, table_id, pos, base_pos,
@@ -5771,13 +5771,13 @@ i_s_sys_virtual_fill_table(
 		}
 
 		/* Get the next record */
-		dict_sys.mutex_lock();
-		mtr_start(&mtr);
+		mtr.start();
+		dict_sys.lock(SRW_LOCK_CALL);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	dict_sys.mutex_unlock();
+	mtr.commit();
+	dict_sys.unlock();
 
 	DBUG_RETURN(0);
 }
@@ -5929,13 +5929,13 @@ i_s_sys_fields_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	dict_sys.mutex_lock();
-	mtr_start(&mtr);
+	mtr.start();
 
 	/* will save last index id so that we know whether we move to
 	the next index. This is used to calculate prefix length */
 	last_id = 0;
 
+	dict_sys.lock(SRW_LOCK_CALL);
 	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_fields);
 
 	while (rec) {
@@ -5949,8 +5949,8 @@ i_s_sys_fields_fill_table(
 		err_msg = dict_process_sys_fields_rec(heap, rec, &field_rec,
 						      &pos, &index_id, last_id);
 
-		mtr_commit(&mtr);
-		dict_sys.mutex_unlock();
+		mtr.commit();
+		dict_sys.unlock();
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_fields(thd, index_id, &field_rec,
@@ -5965,13 +5965,13 @@ i_s_sys_fields_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		dict_sys.mutex_lock();
-		mtr_start(&mtr);
+		mtr.start();
+		dict_sys.lock(SRW_LOCK_CALL);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	dict_sys.mutex_unlock();
+	mtr.commit();
+	dict_sys.unlock();
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -6132,8 +6132,8 @@ i_s_sys_foreign_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	dict_sys.mutex_lock();
-	mtr_start(&mtr);
+	mtr.start();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_foreign);
 
@@ -6145,8 +6145,8 @@ i_s_sys_foreign_fill_table(
 		a SYS_FOREIGN row */
 		err_msg = dict_process_sys_foreign_rec(heap, rec, &foreign_rec);
 
-		mtr_commit(&mtr);
-		dict_sys.mutex_unlock();
+		mtr.commit();
+		dict_sys.unlock();
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_foreign(thd, &foreign_rec,
@@ -6160,13 +6160,13 @@ i_s_sys_foreign_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		mtr_start(&mtr);
-		dict_sys.mutex_lock();
+		mtr.start();
+		dict_sys.lock(SRW_LOCK_CALL);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	dict_sys.mutex_unlock();
+	mtr.commit();
+	dict_sys.unlock();
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);
@@ -6325,8 +6325,8 @@ i_s_sys_foreign_cols_fill_table(
 	}
 
 	heap = mem_heap_create(1000);
-	dict_sys.mutex_lock();
-	mtr_start(&mtr);
+	mtr.start();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_foreign_cols);
 
@@ -6341,8 +6341,8 @@ i_s_sys_foreign_cols_fill_table(
 		err_msg = dict_process_sys_foreign_col_rec(
 			heap, rec, &name, &for_col_name, &ref_col_name, &pos);
 
-		mtr_commit(&mtr);
-		dict_sys.mutex_unlock();
+		mtr.commit();
+		dict_sys.unlock();
 
 		if (!err_msg) {
 			i_s_dict_fill_sys_foreign_cols(
@@ -6357,13 +6357,13 @@ i_s_sys_foreign_cols_fill_table(
 		mem_heap_empty(heap);
 
 		/* Get the next record */
-		dict_sys.mutex_lock();
-		mtr_start(&mtr);
+		mtr.start();
+		dict_sys.lock(SRW_LOCK_CALL);
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	dict_sys.mutex_unlock();
+	mtr.commit();
+	dict_sys.unlock();
 	mem_heap_free(heap);
 
 	DBUG_RETURN(0);

@@ -78,7 +78,7 @@ before transaction commit and must be rolled back explicitly are as follows:
 @return error code */
 dberr_t trx_t::drop_table_foreign(const table_name_t &name)
 {
-  ut_d(dict_sys.assert_locked());
+  ut_ad(dict_sys.locked());
   ut_ad(state == TRX_STATE_ACTIVE);
   ut_ad(dict_operation);
   ut_ad(dict_operation_lock_mode == RW_X_LATCH);
@@ -116,7 +116,7 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
 @return error code */
 dberr_t trx_t::drop_table_statistics(const table_name_t &name)
 {
-  ut_d(dict_sys.assert_locked());
+  ut_ad(dict_sys.locked());
   ut_ad(dict_operation_lock_mode == RW_X_LATCH);
 
   if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB) ||
@@ -143,7 +143,7 @@ dberr_t trx_t::drop_table_statistics(const table_name_t &name)
 @return error code */
 dberr_t trx_t::drop_table(const dict_table_t &table)
 {
-  ut_d(dict_sys.assert_locked());
+  ut_ad(dict_sys.locked());
   ut_ad(state == TRX_STATE_ACTIVE);
   ut_ad(dict_operation);
   ut_ad(dict_operation_lock_mode == RW_X_LATCH);
@@ -235,7 +235,7 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
   commit_persist();
   if (dict_operation)
   {
-    dict_sys.assert_locked();
+    ut_ad(dict_sys.locked());
     for (const auto &p : mod_tables)
     {
       if (p.second.is_dropped())

@@ -503,7 +503,6 @@ static mysql_pfs_key_t	pending_checkpoint_mutex_key;
 # ifdef UNIV_PFS_MUTEX
 mysql_pfs_key_t	buf_pool_mutex_key;
 mysql_pfs_key_t	dict_foreign_err_mutex_key;
-mysql_pfs_key_t	dict_sys_mutex_key;
 mysql_pfs_key_t	fil_system_mutex_key;
 mysql_pfs_key_t	flush_list_mutex_key;
 mysql_pfs_key_t	fts_cache_mutex_key;
@@ -545,7 +544,6 @@ static PSI_mutex_info all_innodb_mutexes[] = {
 	PSI_KEY(pending_checkpoint_mutex),
 	PSI_KEY(buf_pool_mutex),
 	PSI_KEY(dict_foreign_err_mutex),
-	PSI_KEY(dict_sys_mutex),
 	PSI_KEY(recalc_pool_mutex),
 	PSI_KEY(fil_system_mutex),
 	PSI_KEY(flush_list_mutex),
@@ -5497,7 +5495,7 @@ is done when the table first opened.
 @param[in,out]	s_templ		InnoDB template structure
 @param[in]	add_v		new virtual columns added along with
 				add index call
-@param[in]	locked		true if dict_sys mutex is held */
+@param[in]	locked		true if dict_sys.latch is held */
 void
 innobase_build_v_templ(
 	const TABLE*		table,
@@ -5520,12 +5518,18 @@ innobase_build_v_templ(
 	ut_ad(n_v_col > 0);
 
 	if (!locked) {
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 	}
+
+#if 0
+	/* This does not (need to) hold for ctx->new_table in
+	alter_rebuild_apply_log() */
+	ut_ad(dict_sys.locked());
+#endif
 
 	if (s_templ->vtempl) {
 		if (!locked) {
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		}
 		DBUG_VOID_RETURN;
 	}
@@ -5631,7 +5635,7 @@ innobase_build_v_templ(
 	}
 
 	if (!locked) {
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 	}
 
 	s_templ->db_name = table->s->db.str;
@@ -5919,7 +5923,7 @@ ha_innobase::open(const char* name, int, uint)
 	key_used_on_scan = m_primary_key;
 
 	if (ib_table->n_v_cols) {
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 		if (ib_table->vc_templ == NULL) {
 			ib_table->vc_templ = UT_NEW_NOKEY(dict_vcol_templ_t());
 			innobase_build_v_templ(
@@ -5927,7 +5931,7 @@ ha_innobase::open(const char* name, int, uint)
 				true);
 		}
 
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 	}
 
 	if (!check_index_consistency(table, ib_table)) {
@@ -9853,7 +9857,7 @@ wsrep_append_foreign_key(
 		foreign->referenced_table : foreign->foreign_table)) {
 		WSREP_DEBUG("pulling %s table into cache",
 			    (referenced) ? "referenced" : "foreign");
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 
 		if (referenced) {
 			foreign->referenced_table =
@@ -9888,7 +9892,7 @@ wsrep_append_foreign_key(
 						TRUE, FALSE);
 			}
 		}
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 	}
 
 	if ( !((referenced) ?
@@ -13016,9 +13020,9 @@ create_table_info_t::create_table_update_dict()
 			DBUG_RETURN(-1);
 		}
 
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 		fts_optimize_add_table(innobase_table);
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 	}
 
 	if (const Field* ai = m_form->found_next_number_field) {
@@ -13277,12 +13281,12 @@ ha_innobase::discard_or_import_tablespace(
 	btr_cur_instant_init(). */
 	table_id_t id = m_prebuilt->table->id;
 	ut_ad(id);
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 	dict_table_close(m_prebuilt->table, TRUE, FALSE);
 	dict_sys.remove(m_prebuilt->table);
 	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
 						  DICT_TABLE_OP_NORMAL);
-	dict_sys.mutex_unlock();
+	dict_sys.unlock();
 	if (!m_prebuilt->table) {
 		err = DB_TABLE_NOT_FOUND;
 	} else {
@@ -13673,7 +13677,7 @@ int ha_innobase::truncate()
 	}
 
 	row_mysql_lock_data_dictionary(trx);
-	dict_stats_wait_bg_to_stop_using_table(ib_table, trx);
+	dict_stats_wait_bg_to_stop_using_table(ib_table);
 	/* Wait for purge threads to stop using the table. */
 	for (uint n = 15; ib_table->get_ref_count() > 1; ) {
 		if (!--n) {
@@ -14303,8 +14307,6 @@ ha_innobase::info_low(
 
 	DEBUG_SYNC_C("ha_innobase_info_low");
 
-	dict_sys.assert_not_locked();
-
 	/* If we are forcing recovery at a high level, we will suppress
 	statistics calculation on tables, because that may crash the
 	server if an index is badly corrupted. */
@@ -14335,13 +14337,11 @@ ha_innobase::info_low(
 			if (dict_stats_is_persistent_enabled(ib_table)) {
 
 				if (is_analyze) {
-					row_mysql_lock_data_dictionary(
-						m_prebuilt->trx);
+					dict_sys.lock(SRW_LOCK_CALL);
 					dict_stats_recalc_pool_del(ib_table);
 					dict_stats_wait_bg_to_stop_using_table(
-						ib_table, m_prebuilt->trx);
-					row_mysql_unlock_data_dictionary(
-						m_prebuilt->trx);
+						ib_table);
+					dict_sys.unlock();
 					opt = DICT_STATS_RECALC_PERSISTENT;
 				} else {
 					/* This is e.g. 'SHOW INDEXES', fetch
@@ -14355,10 +14355,12 @@ ha_innobase::info_low(
 			ret = dict_stats_update(ib_table, opt);
 
 			if (opt == DICT_STATS_RECALC_PERSISTENT) {
-				dict_sys.mutex_lock();
+				dict_sys.freeze(SRW_LOCK_CALL);
+				ib_table->stats_mutex_lock();
 				ib_table->stats_bg_flag
 					&= byte(~BG_STAT_SHOULD_QUIT);
-				dict_sys.mutex_unlock();
+				ib_table->stats_mutex_unlock();
+				dict_sys.unfreeze();
 			}
 
 			if (ret != DB_SUCCESS) {
@@ -15160,10 +15162,7 @@ get_foreign_key_info(
 	/* Load referenced table to update FK referenced key name. */
 	if (foreign->referenced_table == NULL) {
 
-		dict_table_t*	ref_table;
-
-		dict_sys.assert_locked();
-		ref_table = dict_table_open_on_name(
+		dict_table_t*	ref_table = dict_table_open_on_name(
 			foreign->referenced_table_name_lookup,
 			TRUE, FALSE, DICT_ERR_IGNORE_NONE);
 
@@ -15217,7 +15216,7 @@ ha_innobase::get_foreign_key_list(
 
 	m_prebuilt->trx->op_info = "getting list of foreign keys";
 
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	for (dict_foreign_set::iterator it
 		= m_prebuilt->table->foreign_set.begin();
@@ -15234,7 +15233,7 @@ ha_innobase::get_foreign_key_list(
 		}
 	}
 
-	dict_sys.mutex_unlock();
+	dict_sys.unlock();
 
 	m_prebuilt->trx->op_info = "";
 
@@ -15255,7 +15254,7 @@ ha_innobase::get_parent_foreign_key_list(
 
 	m_prebuilt->trx->op_info = "getting list of referencing foreign keys";
 
-	dict_sys.mutex_lock();
+	dict_sys.freeze(SRW_LOCK_CALL);
 
 	for (dict_foreign_set::iterator it
 		= m_prebuilt->table->referenced_set.begin();
@@ -15272,7 +15271,7 @@ ha_innobase::get_parent_foreign_key_list(
 		}
 	}
 
-	dict_sys.mutex_unlock();
+	dict_sys.unfreeze();
 
 	m_prebuilt->trx->op_info = "";
 
@@ -19803,9 +19802,8 @@ TABLE* innobase_init_vc_templ(dict_table_t* table)
 		DBUG_RETURN(NULL);
 	}
 
-	dict_sys.mutex_lock();
-	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL, true);
-	dict_sys.mutex_unlock();
+	innobase_build_v_templ(mysql_table, table, table->vc_templ, NULL,
+			       false);
 	DBUG_RETURN(mysql_table);
 }
 

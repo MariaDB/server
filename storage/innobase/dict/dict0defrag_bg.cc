@@ -145,7 +145,7 @@ dict_stats_defrag_pool_del(
 {
 	ut_a((table && !index) || (!table && index));
 	ut_ad(!srv_read_only_mode);
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.frozen());
 
 	mysql_mutex_lock(&defrag_pool_mutex);
 
@@ -170,45 +170,34 @@ dict_stats_defrag_pool_del(
 /*****************************************************************//**
 Get the first index that has been added for updating persistent defrag
 stats and eventually save its stats. */
-static
-void
-dict_stats_process_entry_from_defrag_pool()
+static void dict_stats_process_entry_from_defrag_pool()
 {
-	table_id_t	table_id;
-	index_id_t	index_id;
+  table_id_t	table_id;
+  index_id_t	index_id;
 
-	ut_ad(!srv_read_only_mode);
+  ut_ad(!srv_read_only_mode);
 
-	/* pop the first index from the auto defrag pool */
-	if (!dict_stats_defrag_pool_get(&table_id, &index_id)) {
-		/* no index in defrag pool */
-		return;
-	}
+  /* pop the first index from the auto defrag pool */
+  if (!dict_stats_defrag_pool_get(&table_id, &index_id))
+    /* no index in defrag pool */
+    return;
 
-	dict_table_t*	table;
+  dict_sys.freeze(SRW_LOCK_CALL);
 
-	dict_sys.mutex_lock();
-
-	/* If the table is no longer cached, we've already lost the in
-	memory stats so there's nothing really to write to disk. */
-	table = dict_table_open_on_id(table_id, TRUE,
-				      DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
-
-	dict_index_t* index = table && !table->corrupted
-		? dict_table_find_index_on_id(table, index_id)
-		: NULL;
-
-	if (!index || index->is_corrupted()) {
-		if (table) {
-			dict_table_close(table, TRUE, FALSE);
-		}
-		dict_sys.mutex_unlock();
-		return;
-	}
-
-	dict_sys.mutex_unlock();
-	dict_stats_save_defrag_stats(index);
-	dict_table_close(table, FALSE, FALSE);
+  /* If the table is no longer cached, we've already lost the in
+  memory stats so there's nothing really to write to disk. */
+  dict_table_t *table= dict_sys.find_table(table_id);
+  dict_index_t *index= table && table->corrupted
+    ? nullptr : dict_table_find_index_on_id(table, index_id);
+  const bool save= index && !index->is_corrupted();
+  if (save)
+    table->acquire();
+  dict_sys.unfreeze();
+  if (save)
+  {
+    dict_stats_save_defrag_stats(index);
+    table->release();
+  }
 }
 
 /*****************************************************************//**
@@ -237,7 +226,7 @@ dict_stats_save_defrag_summary(
 		return DB_SUCCESS;
 	}
 
-	dict_sys_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	ret = dict_stats_save_index_stat(index, time(NULL), "n_pages_freed",
 					 index->stat_defrag_n_pages_freed,
@@ -246,7 +235,7 @@ dict_stats_save_defrag_summary(
 					 " last defragmentation run.",
 					 NULL);
 
-	dict_sys_unlock();
+	dict_sys.unlock();
 
 	return (ret);
 }
@@ -331,7 +320,7 @@ dict_stats_save_defrag_stats(
 		return DB_SUCCESS;
 	}
 
-	dict_sys_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 	ret = dict_stats_save_index_stat(index, now, "n_page_split",
 					 index->stat_defrag_n_page_split,
 					 NULL,
@@ -361,6 +350,6 @@ dict_stats_save_defrag_stats(
 		NULL);
 
 end:
-	dict_sys_unlock();
+	dict_sys.unlock();
 	return ret;
 }

@@ -159,6 +159,7 @@ const  fts_index_selector_t fts_index_selector[] = {
 
 /** Default config values for FTS indexes on a table. */
 static const char* fts_config_table_insert_values_sql =
+	"PROCEDURE P() IS\n"
 	"BEGIN\n"
 	"\n"
 	"INSERT INTO $config_table VALUES('"
@@ -174,7 +175,8 @@ static const char* fts_config_table_insert_values_sql =
 		FTS_TOTAL_DELETED_COUNT "', '0');\n"
 	"" /* Note: 0 == FTS_TABLE_STATE_RUNNING */
 	"INSERT INTO $config_table VALUES ('"
-		FTS_TABLE_STATE "', '0');\n";
+		FTS_TABLE_STATE "', '0');\n"
+	"END;\n";
 
 /** FTS tokenize parmameter for plugin parser */
 struct fts_tokenize_param_t {
@@ -185,9 +187,9 @@ struct fts_tokenize_param_t {
 /** Free a query graph */
 void fts_que_graph_free(que_t *graph)
 {
-  dict_sys.mutex_lock();
+  dict_sys.lock(SRW_LOCK_CALL);
   que_graph_free(graph);
-  dict_sys.mutex_unlock();
+  dict_sys.unlock();
 }
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
@@ -455,7 +457,7 @@ fts_load_user_stopword(
 	fts_stopword_t*	stopword_info)		/*!< in: Stopword info */
 {
 	if (!fts->dict_locked) {
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 	}
 
 	/* Validate the user table existence in the right format */
@@ -464,7 +466,7 @@ fts_load_user_stopword(
 	if (!stopword_info->charset) {
 cleanup:
 		if (!fts->dict_locked) {
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		}
 
 		return ret;
@@ -489,8 +491,9 @@ cleanup:
 	pars_info_bind_function(info, "my_func", fts_read_stopword,
 				stopword_info);
 
-	que_t* graph = fts_parse_sql_no_dict_lock(
+	que_t* graph = pars_sql(
 		info,
+		"PROCEDURE P() IS\n"
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
 		" SELECT value"
@@ -504,7 +507,8 @@ cleanup:
 		"    EXIT;\n"
 		"  END IF;\n"
 		"END LOOP;\n"
-		"CLOSE c;");
+		"CLOSE c;"
+		"END;\n");
 
 	for (;;) {
 		dberr_t error = fts_eval_sql(trx, graph);
@@ -882,7 +886,7 @@ fts_drop_index(
 }
 
 /****************************************************************//**
-Free the query graph but check whether dict_sys.mutex is already
+Free the query graph but check whether dict_sys.latch is already
 held */
 void
 fts_que_graph_free_check_lock(
@@ -904,15 +908,15 @@ fts_que_graph_free_check_lock(
 	}
 
 	if (!has_dict) {
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 	}
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	que_graph_free(graph);
 
 	if (!has_dict) {
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 	}
 }
 
@@ -1551,19 +1555,19 @@ static dberr_t fts_lock_table(trx_t *trx, const char *table_name)
   {
     dberr_t err= lock_table_for_trx(table, trx, LOCK_X);
     /* Wait for purge threads to stop using the table. */
-    dict_sys.mutex_lock();
+    dict_sys.freeze(SRW_LOCK_CALL);
     for (uint n= 15; table->get_ref_count() > 1; )
     {
-      dict_sys.mutex_unlock();
+      dict_sys.unfreeze();
       if (!--n)
       {
         err= DB_LOCK_WAIT_TIMEOUT;
         goto fail;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
-      dict_sys.mutex_lock();
+      dict_sys.freeze(SRW_LOCK_CALL);
     }
-    dict_sys.mutex_unlock();
+    dict_sys.unfreeze();
 fail:
     table->release();
     return err;
@@ -1905,7 +1909,7 @@ fts_create_common_tables(
 	fts_get_table_name(&fts_table, fts_name, true);
 	pars_info_bind_id(info, "config_table", fts_name);
 
-	graph = fts_parse_sql_no_dict_lock(
+	graph = pars_sql(
 		info, fts_config_table_insert_values_sql);
 
 	error = fts_eval_sql(trx, graph);
@@ -2049,8 +2053,7 @@ fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 		dict_table_t*	new_table;
 
 		/* Create the FTS auxiliary tables that are specific
-		to an FTS index. We need to preserve the table_id %s
-		which fts_parse_sql_no_dict_lock() will fill in for us. */
+		to an FTS index. */
 		fts_table.suffix = fts_get_suffix(i);
 
 		new_table = fts_create_one_index_table(
@@ -6038,8 +6041,6 @@ fts_init_index(
 	fts_cache_t*    cache = table->fts->cache;
 	bool		need_init = false;
 
-	dict_sys.assert_not_locked();
-
 	/* First check cache->get_docs is initialized */
 	if (!has_cache_lock) {
 		mysql_mutex_lock(&cache->lock);
@@ -6103,9 +6104,9 @@ func_exit:
 	}
 
 	if (need_init) {
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 		/* Register the table with the optimize thread. */
 		fts_optimize_add_table(table);
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 	}
 }

@@ -182,7 +182,7 @@ restart:
 					lock_release_on_rollback(node->trx,
 								 table);
 					if (!dict_locked) {
-						dict_sys.mutex_lock();
+						dict_sys.lock(SRW_LOCK_CALL);
 					}
 					if (table->release()) {
 						dict_sys.remove(table);
@@ -192,7 +192,7 @@ restart:
 						table->file_unreadable = true;
 					}
 					if (!dict_locked) {
-						dict_sys.mutex_unlock();
+						dict_sys.unlock();
 					}
 					table = nullptr;
 					if (!mdl_ticket);
@@ -432,9 +432,9 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		dict_sys.mutex_lock();
+		dict_sys.freeze(SRW_LOCK_CALL);
 		node->table = dict_sys.acquire_temporary_table(table_id);
-		dict_sys.mutex_unlock();
+		dict_sys.unfreeze();
 	} else {
 		node->table = dict_sys.acquire_temporary_table(table_id);
 	}
@@ -642,21 +642,19 @@ row_undo_ins(
 
 		log_free_check();
 
-		if (node->table->id == DICT_INDEXES_ID) {
-			ut_ad(!node->table->is_temporary());
-			if (!dict_locked) {
-				dict_sys.mutex_lock();
-			}
+		if (!dict_locked && node->table->id == DICT_INDEXES_ID) {
+			dict_sys.lock(SRW_LOCK_CALL);
 			err = row_undo_ins_remove_clust_rec(node);
-			if (!dict_locked) {
-				dict_sys.mutex_unlock();
-			}
+			dict_sys.unlock();
 		} else {
+			ut_ad(node->table->id != DICT_INDEXES_ID
+			      || !node->table->is_temporary());
 			err = row_undo_ins_remove_clust_rec(node);
 		}
 
 		if (err == DB_SUCCESS && node->table->stat_initialized) {
-			/* Not protected by dict_sys.mutex for
+			/* Not protected by dict_sys.latch
+			or table->stats_mutex_lock() for
 			performance reasons, we would rather get garbage
 			in stat_n_rows (which is just an estimate anyway)
 			than protecting the following code with a latch. */
@@ -665,7 +663,7 @@ row_undo_ins(
 			/* Do not attempt to update statistics when
 			executing ROLLBACK in the InnoDB SQL
 			interpreter, because in that case we would
-			already be holding dict_sys.mutex, which
+			already be holding dict_sys.latch, which
 			would be acquired when updating statistics. */
 			if (!dict_locked) {
 				dict_stats_update_if_needed(node->table,

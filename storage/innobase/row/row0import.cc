@@ -1446,8 +1446,6 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 			" the tablespace has " << m_n_indexes << " indexes";
 	}
 
-	dict_sys.mutex_lock();
-
 	ulint	i = 0;
 	dberr_t	err = DB_SUCCESS;
 
@@ -1486,8 +1484,6 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 				cfg_index[i++].m_page_no);
 		}
 	}
-
-	dict_sys.mutex_unlock();
 
 	return(err);
 }
@@ -4211,8 +4207,6 @@ row_import_for_mysql(
 	}
 
 	/* Open the tablespace so that we can access via the buffer pool.
-	We set the 2nd param (fix_dict = true) here because we already
-	have locked dict_sys.latch and dict_sys.mutex.
 	The tablespace is initially opened as a temporary one, because
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */

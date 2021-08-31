@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 2011, 2018, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -135,7 +135,7 @@ fts_eval_sql(
 /** Construct the name of an internal FTS table for the given table.
 @param[in]	fts_table	metadata on fulltext-indexed table
 @param[out]	table_name	a name up to MAX_FULL_NAME_LEN
-@param[in]	dict_locked	whether dict_sys.mutex is being held */
+@param[in]	dict_locked	whether dict_sys.latch is being held */
 void fts_get_table_name(const fts_table_t* fts_table, char* table_name,
 			bool dict_locked = false)
 	MY_ATTRIBUTE((nonnull));
@@ -294,16 +294,6 @@ fts_trx_table_id_cmp(
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 #define fts_sql_commit(trx) trx_commit_for_mysql(trx)
 #define fts_sql_rollback(trx) (trx)->rollback()
-/******************************************************************//**
-Parse an SQL string. %s is replaced with the table's id. Don't acquire
-the dict mutex
-@return query graph */
-que_t*
-fts_parse_sql_no_dict_lock(
-/*=======================*/
-	pars_info_t*	info,		/*!< in: parser info */
-	const char*	sql)		/*!< in: SQL string to evaluate */
-	MY_ATTRIBUTE((nonnull(2), malloc, warn_unused_result));
 /******************************************************************//**
 Get value from config table. The caller must ensure that enough
 space is allocated for value to hold the column contents
@@ -469,12 +459,6 @@ fts_get_table_id(
 					FTS_AUX_MIN_TABLE_ID_LENGTH bytes
 					long */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-/** Construct the name of an internal FTS table for the given table.
-@param[in]	fts_table	metadata on fulltext-indexed table
-@param[in]	dict_locked	whether dict_sys.mutex is being held
-@return	the prefix, must be freed with ut_free() */
-char* fts_get_table_name_prefix(const fts_table_t* fts_table)
-	MY_ATTRIBUTE((nonnull, malloc, warn_unused_result));
 /******************************************************************//**
 Add node positions. */
 void

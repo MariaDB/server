@@ -3040,9 +3040,7 @@ row_ins_sec_index_entry_low(
 			if (!index->is_committed()) {
 				ut_ad(!thr_get_trx(thr)
 				      ->dict_operation_lock_mode);
-				dict_sys.mutex_lock();
-				dict_set_corrupted_index_cache_only(index);
-				dict_sys.mutex_unlock();
+				index->type |= DICT_CORRUPT;
 				/* Do not return any error to the
 				caller. The duplicate will be reported
 				by ALTER TABLE or CREATE UNIQUE INDEX.
