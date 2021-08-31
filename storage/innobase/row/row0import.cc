@@ -3505,11 +3505,11 @@ static dberr_t fil_iterate(
 	ulint			n_bytes = iter.n_io_buffers * size;
 
 	const ulint buf_size = srv_page_size +
-		(provider_service_lzo->is_loaded)?
+		((provider_service_lzo->is_loaded)?
 			LZO1X_1_15_MEM_COMPRESS
 			:(provider_service_snappy->is_loaded)?
 				snappy_max_compressed_length(srv_page_size)
-				:0
+				:0)
 	;
 
 	byte* page_compress_buf = static_cast<byte*>(malloc(buf_size));
