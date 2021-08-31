@@ -357,7 +357,7 @@ public:
 class Histogram_json : public Histogram_base
 {
 private:
-  uint8 size; /* Number of elements in the histogram */
+  size_t size; /* Number of elements in the histogram */
   
   /* Collection-time only: collected histogram in the JSON form. */
   std::string json_text;
@@ -376,7 +376,7 @@ public:
   // returns number of buckets in the histogram
   uint get_width() override
   {
-    return size;
+    return (uint)size;
   }
 
   Histogram_type get_type() override
