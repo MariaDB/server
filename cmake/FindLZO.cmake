@@ -1,0 +1,9 @@
+find_path(LZO_INCLUDE_DIRS NAMES lzo/lzo1x.h)
+find_library(LZO_LIBRARIES NAMES lzo2)
+
+include(FindPackageHandleStandardArgs)
+FIND_PACKAGE_HANDLE_STANDARD_ARGS(
+    LZO DEFAULT_MSG
+    LZO_LIBRARIES LZO_INCLUDE_DIRS)
+
+mark_as_advanced(LZO_INCLUDE_DIRS LZO_LIBRARIES)
