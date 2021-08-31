@@ -41,7 +41,6 @@ drop table mysql.column_stats;
 alter table t3 rename mysql.column_stats;
 --echo # Run mysql_upgrade
 
---echo $MYSQL_UPGRADE
 --exec $MYSQL_UPGRADE --upgrade-system-tables  --force --silent 2>&1 
 
 let $MYSQLD_DATADIR= `select @@datadir`;

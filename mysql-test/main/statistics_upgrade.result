@@ -33,7 +33,6 @@ insert into t4 select * from t3;
 drop table mysql.column_stats;
 alter table t3 rename mysql.column_stats;
 # Run mysql_upgrade
-/optane/dev-git2/10.7-gsoc/client/mysql_upgrade --defaults-file=/optane/dev-git2/10.7-gsoc/mysql-test/var/my.cnf
 mysql.innodb_index_stats
 Error    : Unknown storage engine 'InnoDB'
 error    : Corrupt
