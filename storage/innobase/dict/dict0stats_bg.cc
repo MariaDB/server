@@ -31,6 +31,7 @@ Created Apr 25, 2012 Vasil Dimov
 #include "row0mysql.h"
 #include "srv0start.h"
 #include "fil0fil.h"
+#include "mysqld.h"
 #ifdef WITH_WSREP
 # include "trx0trx.h"
 # include "mysql/service_wsrep.h"
