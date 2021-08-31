@@ -108,19 +108,17 @@ row_purge_remove_clust_if_poss_low(
 	dict_index_t* index = dict_table_get_first_index(node->table);
 	table_id_t table_id = 0;
 	index_id_t index_id = 0;
-	MDL_ticket* mdl_ticket = nullptr;
 	dict_table_t *table = nullptr;
 	pfs_os_file_t f = OS_FILE_CLOSED;
 
 	if (table_id) {
 retry:
 		purge_sys.check_stop_FTS();
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 		table = dict_table_open_on_id(
-			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
-			node->purge_thd, &mdl_ticket);
+			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
 		if (!table) {
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		} else if (table->n_rec_locks) {
 			for (dict_index_t* ind = UT_LIST_GET_FIRST(
 				     table->indexes); ind;
@@ -143,9 +141,8 @@ removed:
 		mtr.commit();
 close_and_exit:
 		if (table) {
-			dict_table_close(table, true, false,
-					 node->purge_thd, mdl_ticket);
-			dict_sys.mutex_unlock();
+			dict_table_close(table, true);
+			dict_sys.unlock();
 		}
 		return success;
 	}
@@ -175,16 +172,8 @@ close_and_exit:
 					table->space = nullptr;
 					table->file_unreadable = true;
 				}
+				dict_sys.unlock();
 				table = nullptr;
-				dict_sys.mutex_unlock();
-				if (!mdl_ticket);
-				else if (MDL_context* mdl_context =
-					 static_cast<MDL_context*>(
-						 thd_mdl_context(node->
-								 purge_thd))) {
-					mdl_context->release_lock(mdl_ticket);
-					mdl_ticket = nullptr;
-				}
 			}
 			f = fil_delete_tablespace(space_id);
 		}
@@ -192,9 +181,8 @@ close_and_exit:
 		mtr.commit();
 
 		if (table) {
-			dict_table_close(table, true, false,
-					 node->purge_thd, mdl_ticket);
-			dict_sys.mutex_unlock();
+			dict_table_close(table, true);
+			dict_sys.unlock();
 			table = nullptr;
 		}
 

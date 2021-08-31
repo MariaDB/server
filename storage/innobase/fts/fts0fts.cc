@@ -159,6 +159,7 @@ const  fts_index_selector_t fts_index_selector[] = {
 
 /** Default config values for FTS indexes on a table. */
 static const char* fts_config_table_insert_values_sql =
+	"PROCEDURE P() IS\n"
 	"BEGIN\n"
 	"\n"
 	"INSERT INTO $config_table VALUES('"
@@ -174,21 +175,14 @@ static const char* fts_config_table_insert_values_sql =
 		FTS_TOTAL_DELETED_COUNT "', '0');\n"
 	"" /* Note: 0 == FTS_TABLE_STATE_RUNNING */
 	"INSERT INTO $config_table VALUES ('"
-		FTS_TABLE_STATE "', '0');\n";
+		FTS_TABLE_STATE "', '0');\n"
+	"END;\n";
 
 /** FTS tokenize parmameter for plugin parser */
 struct fts_tokenize_param_t {
 	fts_doc_t*	result_doc;	/*!< Result doc for tokens */
 	ulint		add_pos;	/*!< Added position for tokens */
 };
-
-/** Free a query graph */
-void fts_que_graph_free(que_t *graph)
-{
-  dict_sys.mutex_lock();
-  que_graph_free(graph);
-  dict_sys.mutex_unlock();
-}
 
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
@@ -455,7 +449,7 @@ fts_load_user_stopword(
 	fts_stopword_t*	stopword_info)		/*!< in: Stopword info */
 {
 	if (!fts->dict_locked) {
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 	}
 
 	/* Validate the user table existence in the right format */
@@ -464,7 +458,7 @@ fts_load_user_stopword(
 	if (!stopword_info->charset) {
 cleanup:
 		if (!fts->dict_locked) {
-			dict_sys.mutex_unlock();
+			dict_sys.unlock();
 		}
 
 		return ret;
@@ -489,8 +483,9 @@ cleanup:
 	pars_info_bind_function(info, "my_func", fts_read_stopword,
 				stopword_info);
 
-	que_t* graph = fts_parse_sql_no_dict_lock(
+	que_t* graph = pars_sql(
 		info,
+		"PROCEDURE P() IS\n"
 		"DECLARE FUNCTION my_func;\n"
 		"DECLARE CURSOR c IS"
 		" SELECT value"
@@ -504,7 +499,8 @@ cleanup:
 		"    EXIT;\n"
 		"  END IF;\n"
 		"END LOOP;\n"
-		"CLOSE c;");
+		"CLOSE c;"
+		"END;\n");
 
 	for (;;) {
 		dberr_t error = fts_eval_sql(trx, graph);
@@ -882,41 +878,6 @@ fts_drop_index(
 }
 
 /****************************************************************//**
-Free the query graph but check whether dict_sys.mutex is already
-held */
-void
-fts_que_graph_free_check_lock(
-/*==========================*/
-	fts_table_t*		fts_table,	/*!< in: FTS table */
-	const fts_index_cache_t*index_cache,	/*!< in: FTS index cache */
-	que_t*			graph)		/*!< in: query graph */
-{
-	bool	has_dict = FALSE;
-
-	if (fts_table && fts_table->table) {
-		ut_ad(fts_table->table->fts);
-
-		has_dict = fts_table->table->fts->dict_locked;
-	} else if (index_cache) {
-		ut_ad(index_cache->index->table->fts);
-
-		has_dict = index_cache->index->table->fts->dict_locked;
-	}
-
-	if (!has_dict) {
-		dict_sys.mutex_lock();
-	}
-
-	dict_sys.assert_locked();
-
-	que_graph_free(graph);
-
-	if (!has_dict) {
-		dict_sys.mutex_unlock();
-	}
-}
-
-/****************************************************************//**
 Create an FTS index cache. */
 CHARSET_INFO*
 fts_index_get_charset(
@@ -1063,18 +1024,14 @@ fts_cache_clear(
 
 			if (index_cache->ins_graph[j] != NULL) {
 
-				fts_que_graph_free_check_lock(
-					NULL, index_cache,
-					index_cache->ins_graph[j]);
+				que_graph_free(index_cache->ins_graph[j]);
 
 				index_cache->ins_graph[j] = NULL;
 			}
 
 			if (index_cache->sel_graph[j] != NULL) {
 
-				fts_que_graph_free_check_lock(
-					NULL, index_cache,
-					index_cache->sel_graph[j]);
+				que_graph_free(index_cache->sel_graph[j]);
 
 				index_cache->sel_graph[j] = NULL;
 			}
@@ -1414,7 +1371,7 @@ fts_cache_add_doc(
 @retval DB_FAIL     if the table did not exist */
 static dberr_t fts_drop_table(trx_t *trx, const char *table_name, bool rename)
 {
-  if (dict_table_t *table= dict_table_open_on_name(table_name, TRUE, FALSE,
+  if (dict_table_t *table= dict_table_open_on_name(table_name, true,
                                                    DICT_ERR_IGNORE_DROP))
   {
     table->release();
@@ -1546,24 +1503,20 @@ static dberr_t fts_lock_table(trx_t *trx, const char *table_name)
 {
   ut_ad(purge_sys.must_wait_FTS());
 
-  if (dict_table_t *table= dict_table_open_on_name(table_name, false, false,
+  if (dict_table_t *table= dict_table_open_on_name(table_name, false,
                                                    DICT_ERR_IGNORE_DROP))
   {
     dberr_t err= lock_table_for_trx(table, trx, LOCK_X);
     /* Wait for purge threads to stop using the table. */
-    dict_sys.mutex_lock();
     for (uint n= 15; table->get_ref_count() > 1; )
     {
-      dict_sys.mutex_unlock();
       if (!--n)
       {
         err= DB_LOCK_WAIT_TIMEOUT;
         goto fail;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
-      dict_sys.mutex_lock();
     }
-    dict_sys.mutex_unlock();
 fail:
     table->release();
     return err;
@@ -1636,8 +1589,7 @@ dberr_t fts_lock_tables(trx_t *trx, const dict_table_t &table)
 }
 
 /** Drops the common ancillary tables needed for supporting an FTS index
-on the given table. row_mysql_lock_data_dictionary must have been called
-before this.
+on the given table.
 @param trx          transaction to drop fts common table
 @param fts_table    table with an FTS index
 @param rename       whether to rename before dropping
@@ -1696,8 +1648,7 @@ dberr_t fts_drop_index_tables(trx_t *trx, const dict_index_t &index)
 
 /****************************************************************//**
 Drops FTS ancillary tables needed for supporting an FTS index
-on the given table. row_mysql_lock_data_dictionary must have been called
-before this.
+on the given table.
 @return DB_SUCCESS or error code */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
@@ -1838,8 +1789,7 @@ fts_create_one_common_table(
 }
 
 /** Creates the common auxiliary tables needed for supporting an FTS index
-on the given table. row_mysql_lock_data_dictionary must have been called
-before this.
+on the given table.
 The following tables are created.
 CREATE TABLE $FTS_PREFIX_DELETED
 	(doc_id BIGINT UNSIGNED, UNIQUE CLUSTERED INDEX on doc_id)
@@ -1905,7 +1855,7 @@ fts_create_common_tables(
 	fts_get_table_name(&fts_table, fts_name, true);
 	pars_info_bind_id(info, "config_table", fts_name);
 
-	graph = fts_parse_sql_no_dict_lock(
+	graph = pars_sql(
 		info, fts_config_table_insert_values_sql);
 
 	error = fts_eval_sql(trx, graph);
@@ -2017,8 +1967,7 @@ fts_create_one_index_table(
 }
 
 /** Creates the column specific ancillary tables needed for supporting an
-FTS index on the given table. row_mysql_lock_data_dictionary must have
-been called before this.
+FTS index on the given table.
 
 All FTS AUX Index tables have the following schema.
 CREAT TABLE $FTS_PREFIX_INDEX_[1-6](
@@ -2049,8 +1998,7 @@ fts_create_index_tables(trx_t* trx, const dict_index_t* index, table_id_t id)
 		dict_table_t*	new_table;
 
 		/* Create the FTS auxiliary tables that are specific
-		to an FTS index. We need to preserve the table_id %s
-		which fts_parse_sql_no_dict_lock() will fill in for us. */
+		to an FTS index. */
 		fts_table.suffix = fts_get_suffix(i);
 
 		new_table = fts_create_one_index_table(
@@ -2605,7 +2553,7 @@ retry:
 
 	error = fts_eval_sql(trx, graph);
 
-	fts_que_graph_free_check_lock(&fts_table, NULL, graph);
+	que_graph_free(graph);
 
 	// FIXME: We need to retry deadlock errors
 	if (error != DB_SUCCESS) {
@@ -2721,7 +2669,7 @@ fts_update_sync_doc_id(
 
 	error = fts_eval_sql(trx, graph);
 
-	fts_que_graph_free_check_lock(&fts_table, NULL, graph);
+	que_graph_free(graph);
 
 	if (local_trx) {
 		if (UNIV_LIKELY(error == DB_SUCCESS)) {
@@ -2798,7 +2746,6 @@ fts_delete(
 {
 	que_t*		graph;
 	fts_table_t	fts_table;
-	dberr_t		error = DB_SUCCESS;
 	doc_id_t	write_doc_id;
 	dict_table_t*	table = ftt->table;
 	doc_id_t	doc_id = row->doc_id;
@@ -2809,7 +2756,7 @@ fts_delete(
 	/* we do not index Documents whose Doc ID value is 0 */
 	if (doc_id == FTS_NULL_DOC_ID) {
 		ut_ad(!DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID));
-		return(error);
+		return DB_SUCCESS;
 	}
 
 	ut_a(row->state == FTS_DELETE || row->state == FTS_MODIFY);
@@ -2844,29 +2791,20 @@ fts_delete(
 	}
 
 	/* Note the deleted document for OPTIMIZE to purge. */
-	if (error == DB_SUCCESS) {
-		char	table_name[MAX_FULL_NAME_LEN];
+	char	table_name[MAX_FULL_NAME_LEN];
 
-		trx->op_info = "adding doc id to FTS DELETED";
+	trx->op_info = "adding doc id to FTS DELETED";
 
-		info->graph_owns_us = TRUE;
+	fts_table.suffix = "DELETED";
 
-		fts_table.suffix = "DELETED";
+	fts_get_table_name(&fts_table, table_name);
+	pars_info_bind_id(info, "deleted", table_name);
 
-		fts_get_table_name(&fts_table, table_name);
-		pars_info_bind_id(info, "deleted", table_name);
+	graph = fts_parse_sql(&fts_table, info,
+			      "BEGIN INSERT INTO $deleted VALUES (:doc_id);");
 
-		graph = fts_parse_sql(
-			&fts_table,
-			info,
-			"BEGIN INSERT INTO $deleted VALUES (:doc_id);");
-
-		error = fts_eval_sql(trx, graph);
-
-		fts_que_graph_free(graph);
-	} else {
-		pars_info_free(info);
-	}
+	dberr_t error = fts_eval_sql(trx, graph);
+	que_graph_free(graph);
 
 	/* Increment the total deleted count, this is used to calculate the
 	number of documents indexed. */
@@ -3738,7 +3676,7 @@ fts_doc_fetch_by_doc_id(
 	trx->free();
 
 	if (!get_doc) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 
 	return(error);
@@ -3867,7 +3805,7 @@ fts_sync_add_deleted_cache(
 		error = fts_eval_sql(sync->trx, graph);
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -4135,7 +4073,7 @@ fts_sync_commit(
 	}
 
 	/* Avoid assertion in trx_t::free(). */
-	trx->dict_operation_lock_mode = 0;
+	trx->dict_operation_lock_mode = false;
 	trx->free();
 
 	return(error);
@@ -4166,18 +4104,14 @@ fts_sync_rollback(
 
 			if (index_cache->ins_graph[j] != NULL) {
 
-				fts_que_graph_free_check_lock(
-					NULL, index_cache,
-					index_cache->ins_graph[j]);
+				que_graph_free(index_cache->ins_graph[j]);
 
 				index_cache->ins_graph[j] = NULL;
 			}
 
 			if (index_cache->sel_graph[j] != NULL) {
 
-				fts_que_graph_free_check_lock(
-					NULL, index_cache,
-					index_cache->sel_graph[j]);
+				que_graph_free(index_cache->sel_graph[j]);
 
 				index_cache->sel_graph[j] = NULL;
 			}
@@ -4189,7 +4123,7 @@ fts_sync_rollback(
 	fts_sql_rollback(trx);
 
 	/* Avoid assertion in trx_t::free(). */
-	trx->dict_operation_lock_mode = 0;
+	trx->dict_operation_lock_mode = false;
 	trx->free();
 }
 
@@ -4741,7 +4675,7 @@ fts_get_docs_clear(
 
 			ut_a(get_doc->index_cache);
 
-			fts_que_graph_free(get_doc->get_document_graph);
+			que_graph_free(get_doc->get_document_graph);
 			get_doc->get_document_graph = NULL;
 		}
 	}
@@ -4889,7 +4823,7 @@ fts_get_rows_count(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	trx->free();
 
@@ -4989,7 +4923,7 @@ fts_savepoint_free(
 
 		/* The default savepoint name must be NULL. */
 		if (ftt->docs_added_graph) {
-			fts_que_graph_free(ftt->docs_added_graph);
+			que_graph_free(ftt->docs_added_graph);
 		}
 
 		/* NOTE: We are responsible for free'ing the node */
@@ -6038,8 +5972,6 @@ fts_init_index(
 	fts_cache_t*    cache = table->fts->cache;
 	bool		need_init = false;
 
-	dict_sys.assert_not_locked();
-
 	/* First check cache->get_docs is initialized */
 	if (!has_cache_lock) {
 		mysql_mutex_lock(&cache->lock);
@@ -6103,9 +6035,9 @@ func_exit:
 	}
 
 	if (need_init) {
-		dict_sys.mutex_lock();
+		dict_sys.lock(SRW_LOCK_CALL);
 		/* Register the table with the optimize thread. */
 		fts_optimize_add_table(table);
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 	}
 }

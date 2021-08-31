@@ -5,6 +5,9 @@ if (`SELECT $PS_PROTOCOL != 0`)
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
 
+SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
+
 set time_zone="+00:00";
 set default_storage_engine=innodb;
 create or replace table dept (
@@ -230,3 +233,5 @@ select * from (select * from emp natural join addr) for system_time all as t;
 drop table emp;
 drop table dept;
 drop table addr;
+
+SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;

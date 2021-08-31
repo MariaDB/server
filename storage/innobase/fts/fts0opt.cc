@@ -892,7 +892,7 @@ fts_index_fetch_words(
 			}
 		}
 
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 
 		/* Check if max word to fetch is exceeded */
 		if (optim->zip->n_words >= n_words) {
@@ -1005,7 +1005,7 @@ fts_table_fetch_doc_ids(
 
 	error = fts_eval_sql(trx, graph);
 	fts_sql_commit(trx);
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	if (error == DB_SUCCESS) {
 		ib_vector_sort(doc_ids->doc_ids, fts_doc_id_cmp);
@@ -1459,7 +1459,7 @@ fts_optimize_write_word(
 			" when deleting a word from the FTS index.";
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 	graph = NULL;
 
 	/* Even if the operation needs to be rolled back and redone,
@@ -1491,7 +1491,7 @@ fts_optimize_write_word(
 	}
 
 	if (graph != NULL) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 
 	return(error);
@@ -1603,8 +1603,21 @@ fts_optimize_create(
 	optim->fts_index_table.table = table;
 
 	/* The common prefix for all this parent table's aux tables. */
-	optim->name_prefix = fts_get_table_name_prefix(
-		&optim->fts_common_table);
+	char table_id[FTS_AUX_MIN_TABLE_ID_LENGTH];
+	const size_t table_id_len = 1
+		+ size_t(fts_get_table_id(&optim->fts_common_table, table_id));
+	dict_sys.freeze(SRW_LOCK_CALL);
+	/* Include the separator as well. */
+	const size_t dbname_len = table->name.dblen() + 1;
+	ut_ad(dbname_len > 1);
+	const size_t prefix_name_len = dbname_len + 4 + table_id_len;
+	char* prefix_name = static_cast<char*>(
+		ut_malloc_nokey(prefix_name_len));
+	memcpy(prefix_name, table->name.m_name, dbname_len);
+	dict_sys.unfreeze();
+	memcpy(prefix_name + dbname_len, "FTS_", 4);
+	memcpy(prefix_name + dbname_len + 4, table_id, table_id_len);
+	optim->name_prefix =prefix_name;
 
 	return(optim);
 }
@@ -1816,7 +1829,7 @@ fts_optimize_words(
 						charset, word->f_str,
 						word->f_len)
 					  && graph) {
-					fts_que_graph_free(graph);
+					que_graph_free(graph);
 					graph = NULL;
 				}
 			}
@@ -1835,7 +1848,7 @@ fts_optimize_words(
 	}
 
 	if (graph != NULL) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 }
 
@@ -2068,7 +2081,7 @@ fts_optimize_purge_deleted_doc_ids(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2105,7 +2118,7 @@ fts_optimize_purge_deleted_doc_id_snapshot(
 	graph = fts_parse_sql(NULL, info, fts_end_delete_sql);
 
 	error = fts_eval_sql(optim->trx, graph);
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2173,7 +2186,7 @@ fts_optimize_create_deleted_doc_id_snapshot(
 
 	error = fts_eval_sql(optim->trx, graph);
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	if (error != DB_SUCCESS) {
 		fts_sql_rollback(optim->trx);
@@ -2589,7 +2602,6 @@ fts_optimize_remove_table(
 
   if (table->fts->in_queue)
   {
-    dict_sys.assert_not_locked();
     fts_msg_t *msg= fts_optimize_create_msg(FTS_MSG_DEL_TABLE, nullptr);
     pthread_cond_t cond;
     pthread_cond_init(&cond, nullptr);
@@ -2786,7 +2798,7 @@ static void fts_optimize_sync_table(dict_table_t *table,
 		  std::this_thread::sleep_for(std::chrono::seconds(6)););
 
   if (mdl_ticket)
-    dict_table_close(sync_table, false, false, fts_opt_thd, mdl_ticket);
+    dict_table_close(sync_table, false, fts_opt_thd, mdl_ticket);
 }
 
 /**********************************************************************//**
@@ -2937,7 +2949,7 @@ fts_optimize_init(void)
 	/* Add fts tables to fts_slots which could be skipped
 	during dict_load_table_one() because fts_optimize_thread
 	wasn't even started. */
-	dict_sys.mutex_lock();
+	dict_sys.freeze(SRW_LOCK_CALL);
 	for (dict_table_t* table = UT_LIST_GET_FIRST(dict_sys.table_LRU);
 	     table != NULL;
 	     table = UT_LIST_GET_NEXT(table_LRU, table)) {
@@ -2952,7 +2964,7 @@ fts_optimize_init(void)
 		fts_optimize_new_table(table);
 		table->fts->in_queue = true;
 	}
-	dict_sys.mutex_unlock();
+	dict_sys.unfreeze();
 
 	pthread_cond_init(&fts_opt_shutdown_cond, nullptr);
 	last_check_sync_time = time(NULL);
@@ -2966,13 +2978,13 @@ fts_optimize_shutdown()
 
 	/* If there is an ongoing activity on dictionary, such as
 	srv_master_evict_from_table_cache(), wait for it */
-	dict_sys.mutex_lock();
+	dict_sys.freeze(SRW_LOCK_CALL);
 	mysql_mutex_lock(&fts_optimize_wq->mutex);
 	/* Tells FTS optimizer system that we are exiting from
 	optimizer thread, message send their after will not be
 	processed */
 	fts_opt_start_shutdown = true;
-	dict_sys.mutex_unlock();
+	dict_sys.unfreeze();
 
 	/* We tell the OPTIMIZE thread to switch to state done, we
 	can't delete the work queue here because the add thread needs

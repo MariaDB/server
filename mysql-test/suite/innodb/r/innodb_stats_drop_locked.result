@@ -26,6 +26,7 @@ innodb_stats_drop_locked
 innodb_stats_drop_locked
 innodb_stats_drop_locked
 connect  con1,localhost,root,,;
+SET innodb_lock_wait_timeout=1;
 ALTER TABLE innodb_stats_drop_locked DROP INDEX c_key;
 ERROR HY000: Lock wait timeout exceeded; try restarting transaction
 SHOW CREATE TABLE innodb_stats_drop_locked;

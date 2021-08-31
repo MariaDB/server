@@ -145,7 +145,7 @@ INSERT INTO gis_point VALUES
 (ST_PointFromText('POINT(32.1234 64.2468)'), ST_PointFromText('POINT(-1 -1)'));
 
 -- echo 'The ORDER BY for spatial index will use filesort'
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 

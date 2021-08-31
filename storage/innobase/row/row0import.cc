@@ -40,6 +40,7 @@ Created 2012-02-08 by Sunny Bains.
 #include "row0quiesce.h"
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
+#include "lock0lock.h"
 #ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
 #endif
@@ -1439,8 +1440,6 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 			" the tablespace has " << m_n_indexes << " indexes";
 	}
 
-	dict_sys.mutex_lock();
-
 	ulint	i = 0;
 	dberr_t	err = DB_SUCCESS;
 
@@ -1478,8 +1477,6 @@ row_import::set_root_by_heuristic() UNIV_NOTHROW
 			index->page = cfg_index[i++].m_page_no;
 		}
 	}
-
-	dict_sys.mutex_unlock();
 
 	return(err);
 }
@@ -2187,11 +2184,8 @@ dberr_t
 row_import_cleanup(
 /*===============*/
 	row_prebuilt_t*	prebuilt,	/*!< in/out: prebuilt from handler */
-	trx_t*		trx,		/*!< in/out: transaction for import */
 	dberr_t		err)		/*!< in: error code */
 {
-	ut_a(prebuilt->trx != trx);
-
 	if (err != DB_SUCCESS) {
 		dict_table_t* table = prebuilt->table;
 		table->file_unreadable = true;
@@ -2205,10 +2199,6 @@ row_import_cleanup(
 		ib::info() << "Discarding tablespace of table "
 			   << table->name << ": " << err;
 
-		if (!trx->dict_operation_lock_mode) {
-			row_mysql_lock_data_dictionary(trx);
-		}
-
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 		     index;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
@@ -2216,15 +2206,13 @@ row_import_cleanup(
 		}
 	}
 
-	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
-
 	DBUG_EXECUTE_IF("ib_import_before_commit_crash", DBUG_SUICIDE(););
 
-	trx_commit_for_mysql(trx);
+	prebuilt->trx->commit();
 
-	row_mysql_unlock_data_dictionary(trx);
-
-	trx->free();
+	if (prebuilt->trx->dict_operation_lock_mode) {
+		row_mysql_unlock_data_dictionary(prebuilt->trx);
+	}
 
 	prebuilt->trx->op_info = "";
 
@@ -2242,10 +2230,9 @@ dberr_t
 row_import_error(
 /*=============*/
 	row_prebuilt_t*	prebuilt,	/*!< in/out: prebuilt from handler */
-	trx_t*		trx,		/*!< in/out: transaction for import */
 	dberr_t		err)		/*!< in: error code */
 {
-	if (!trx_is_interrupted(trx)) {
+	if (!trx_is_interrupted(prebuilt->trx)) {
 		char	table_name[MAX_FULL_NAME_LEN + 1];
 
 		innobase_format_name(
@@ -2253,12 +2240,12 @@ row_import_error(
 			prebuilt->table->name.m_name);
 
 		ib_senderrf(
-			trx->mysql_thd, IB_LOG_LEVEL_WARN,
+			prebuilt->trx->mysql_thd, IB_LOG_LEVEL_WARN,
 			ER_INNODB_IMPORT_ERROR,
 			table_name, (ulong) err, ut_strerr(err));
 	}
 
-	return(row_import_cleanup(prebuilt, trx, err));
+	return row_import_cleanup(prebuilt, err);
 }
 
 /*****************************************************************//**
@@ -3339,7 +3326,7 @@ dberr_t row_import_update_discarded_flag(trx_t* trx, table_id_t table_id,
 	pars_info_bind_function(
 		info, "my_func", row_import_set_discarded, &discard);
 
-	dberr_t	err = que_eval_sql(info, sql, false, trx);
+	dberr_t	err = que_eval_sql(info, sql, trx);
 
 	ut_a(discard.n_recs == 1);
 	ut_a(discard.flags2 != ULINT32_UNDEFINED);
@@ -4002,9 +3989,9 @@ row_import_for_mysql(
 	row_prebuilt_t*	prebuilt)	/*!< in: prebuilt struct in MySQL */
 {
 	dberr_t		err;
-	trx_t*		trx;
 	ib_uint64_t	autoinc = 0;
 	char*		filepath = NULL;
+	trx_t*		trx = prebuilt->trx;
 
 	/* The caller assured that this is not read_only_mode and that no
 	temorary tablespace is being imported. */
@@ -4013,21 +4000,11 @@ row_import_for_mysql(
 
 	ut_ad(table->space_id);
 	ut_ad(table->space_id < SRV_SPACE_ID_UPPER_BOUND);
-	ut_ad(prebuilt->trx);
+	ut_ad(trx);
+	ut_ad(trx->state == TRX_STATE_ACTIVE);
 	ut_ad(!table->is_readable());
 
 	ibuf_delete_for_discarded_space(table->space_id);
-
-	trx_start_if_not_started(prebuilt->trx, true);
-
-	trx = trx_create();
-
-	trx->dict_operation = true;
-
-	trx_start_if_not_started(trx, true);
-
-	/* So that we can send error messages to the user. */
-	trx->mysql_thd = prebuilt->trx->mysql_thd;
 
 	/* Assign an undo segment for the transaction, so that the
 	transaction will be recovered after a crash. */
@@ -4043,21 +4020,19 @@ row_import_for_mysql(
 	DBUG_EXECUTE_IF("ib_import_undo_assign_failure",
 			err = DB_TOO_MANY_CONCURRENT_TRXS;);
 
-	if (err != DB_SUCCESS) {
-
-		return(row_import_cleanup(prebuilt, trx, err));
-
-	} else if (trx->rsegs.m_redo.undo == 0) {
-
+	if (err == DB_SUCCESS && !trx->has_logged_persistent()) {
 		err = DB_TOO_MANY_CONCURRENT_TRXS;
-		return(row_import_cleanup(prebuilt, trx, err));
+	}
+	if (err != DB_SUCCESS) {
+		return row_import_cleanup(prebuilt, err);
 	}
 
-	prebuilt->trx->op_info = "read meta-data file";
+	trx->op_info = "read meta-data file";
 
 	row_import	cfg;
+	THD* thd = trx->mysql_thd;
 
-	err = row_import_read_cfg(table, trx->mysql_thd, cfg);
+	err = row_import_read_cfg(table, thd, cfg);
 
 	/* Check if the table column definitions match the contents
 	of the config file. */
@@ -4067,7 +4042,7 @@ row_import_for_mysql(
 		/* We have a schema file, try and match it with our
 		data dictionary. */
 
-		err = cfg.match_schema(trx->mysql_thd);
+		err = cfg.match_schema(thd);
 
 		/* Update index->page and SYS_INDEXES.PAGE_NO to match the
 		B-tree root page numbers in the tablespace. Use the index
@@ -4091,13 +4066,13 @@ row_import_for_mysql(
 		cfg.m_zip_size = 0;
 
 		if (UT_LIST_GET_LEN(table->indexes) > 1) {
-			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INTERNAL_ERROR,
 				"Drop all secondary indexes before importing "
 				"table %s when .cfg file is missing.",
 				table->name.m_name);
 			err = DB_ERROR;
-			return row_import_error(prebuilt, trx, err);
+			return row_import_error(prebuilt, err);
 		}
 
 		FetchIndexRootPages	fetchIndexRootPages(table, trx);
@@ -4121,10 +4096,10 @@ row_import_for_mysql(
 	}
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
-	prebuilt->trx->op_info = "importing tablespace";
+	trx->op_info = "importing tablespace";
 
 	ib::info() << "Phase I - Update all pages";
 
@@ -4166,16 +4141,14 @@ row_import_for_mysql(
 
 		if (err != DB_DECRYPTION_FAILED) {
 
-			ib_errf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+			ib_errf(thd, IB_LOG_LEVEL_ERROR,
 				ER_INTERNAL_ERROR,
 			"Cannot reset LSNs in table %s : %s",
 				table_name, ut_strerr(err));
 		}
 
-		return(row_import_cleanup(prebuilt, trx, err));
+		return row_import_cleanup(prebuilt, err);
 	}
-
-	row_mysql_lock_data_dictionary(trx);
 
 	/* If the table is stored in a remote tablespace, we need to
 	determine that filepath from the link file and system tables.
@@ -4198,13 +4171,10 @@ row_import_for_mysql(
 	);
 
 	if (filepath == NULL) {
-		row_mysql_unlock_data_dictionary(trx);
-		return(row_import_cleanup(prebuilt, trx, DB_OUT_OF_MEMORY));
+		return row_import_cleanup(prebuilt, DB_OUT_OF_MEMORY);
 	}
 
 	/* Open the tablespace so that we can access via the buffer pool.
-	We set the 2nd param (fix_dict = true) here because we already
-	have locked dict_sys.latch and dict_sys.mutex.
 	The tablespace is initially opened as a temporary one, because
 	we will not be writing any redo log for it before we have invoked
 	fil_space_t::set_imported() to declare it a persistent tablespace. */
@@ -4218,27 +4188,21 @@ row_import_for_mysql(
 			err = DB_TABLESPACE_NOT_FOUND; table->space = NULL;);
 
 	if (!table->space) {
-		row_mysql_unlock_data_dictionary(trx);
-
-		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
+		ib_senderrf(thd, IB_LOG_LEVEL_ERROR,
 			ER_GET_ERRMSG,
 			err, ut_strerr(err), filepath);
-
-		ut_free(filepath);
-
-		return(row_import_cleanup(prebuilt, trx, err));
 	}
-
-	row_mysql_unlock_data_dictionary(trx);
 
 	ut_free(filepath);
 
-	err = ibuf_check_bitmap_on_import(trx, table->space);
+	if (err == DB_SUCCESS) {
+		err = ibuf_check_bitmap_on_import(trx, table->space);
+	}
 
 	DBUG_EXECUTE_IF("ib_import_check_bitmap_failure", err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_cleanup(prebuilt, trx, err));
+		return row_import_cleanup(prebuilt, err);
 	}
 
 	/* The first index must always be the clustered index. */
@@ -4246,7 +4210,7 @@ row_import_for_mysql(
 	dict_index_t*	index = dict_table_get_first_index(table);
 
 	if (!dict_index_is_clust(index)) {
-		return(row_import_error(prebuilt, trx, DB_CORRUPTION));
+		return row_import_error(prebuilt, DB_CORRUPTION);
 	}
 
 	/* Update the Btree segment headers for index node and
@@ -4258,7 +4222,7 @@ row_import_for_mysql(
 			err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	} else if (cfg.requires_purge(index->name)) {
 
 		/* Purge any delete-marked records that couldn't be
@@ -4277,7 +4241,7 @@ row_import_for_mysql(
 	DBUG_EXECUTE_IF("ib_import_cluster_failure", err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
 	/* For secondary indexes, purge any records that couldn't be purged
@@ -4290,7 +4254,7 @@ row_import_for_mysql(
 			err = DB_CORRUPTION;);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
 	/* Ensure that the next available DB_ROW_ID is not smaller than
@@ -4329,13 +4293,13 @@ row_import_for_mysql(
 	err = row_import_update_index_root(trx, table, false);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
 	err = row_import_update_discarded_flag(trx, table->id, false);
 
 	if (err != DB_SUCCESS) {
-		return(row_import_error(prebuilt, trx, err));
+		return row_import_error(prebuilt, err);
 	}
 
 	table->file_unreadable = false;
@@ -4351,5 +4315,5 @@ row_import_for_mysql(
 		btr_write_autoinc(dict_table_get_first_index(table), autoinc);
 	}
 
-	return(row_import_cleanup(prebuilt, trx, err));
+	return row_import_cleanup(prebuilt, err);
 }

@@ -203,7 +203,7 @@ INSERT INTO c ( col_time_nokey,col_datetime_nokey,col_varchar_nokey) values
 ('16:21:18.052408','2001-11-08 21:02:12.009395', 'x'),
 ('18:56:33.027423','2003-04-01 00:00:00', 'i');
 
---replace_column 10 x 11 x
+--replace_column 9 x 10 x
 EXPLAIN SELECT
 outr.col_time_key AS x
 FROM c as outr

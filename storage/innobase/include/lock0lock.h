@@ -221,6 +221,17 @@ state was stored on the infimum of a page.
 whose infimum stored the lock state; lock bits are reset on the infimum */
 void lock_rec_restore_from_page_infimum(const buf_block_t &block,
 					const rec_t *rec, page_id_t donator);
+
+/**
+Create a table lock, without checking for deadlocks or lock compatibility.
+@param table      table on which the lock is created
+@param type_mode  lock type and mode
+@param trx        transaction
+@param c_lock     conflicting lock
+@return the created lock object */
+lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
+                          lock_t *c_lock= nullptr);
+
 /*********************************************************************//**
 Checks if locks of other transactions prevent an immediate insert of
 a record. If they do, first tests if the query thread should anyway
@@ -392,6 +403,12 @@ lock_table_for_trx(
 	trx_t*		trx,
 	enum lock_mode	mode)
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
+
+/** Exclusively lock the data dictionary tables.
+@param trx  dictionary transaction
+@return error code
+@retval DB_SUCCESS on success */
+dberr_t lock_sys_tables(trx_t *trx);
 
 /*************************************************************//**
 Removes a granted record lock of a transaction from the queue and grants

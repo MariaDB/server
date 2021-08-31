@@ -1,6 +1,6 @@
 select @@global.innodb_stats_persistent;
 @@global.innodb_stats_persistent
-0
+1
 set global innodb_defragment_stats_accuracy = 20;
 CREATE TABLE t1(a INT PRIMARY KEY, b VARCHAR(256), KEY SECOND(a, b))
 ENGINE=INNODB;

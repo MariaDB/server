@@ -1297,7 +1297,7 @@ void srv_monitor_task(void*)
 			    || waited == threshold / 2
 			    || waited == threshold / 4 * 3) {
 				ib::warn() << "Long wait (" << waited
-					   << " seconds) for dict_sys.mutex";
+					   << " seconds) for dict_sys.latch";
 			}
 		}
 	}
@@ -1371,8 +1371,6 @@ void purge_sys_t::stop_SYS()
 /** Stop purge during FLUSH TABLES FOR EXPORT */
 void purge_sys_t::stop()
 {
-  dict_sys.assert_not_locked();
-
   for (;;)
   {
     latch.wr_lock(SRW_LOCK_CALL);
@@ -1974,7 +1972,7 @@ ulint srv_get_task_queue_length()
 void srv_purge_shutdown()
 {
 	if (purge_sys.enabled()) {
-		if (!srv_fast_shutdown)
+		if (!srv_fast_shutdown && !opt_bootstrap)
 			srv_update_purge_thread_count(innodb_purge_threads_MAX);
 		while(!srv_purge_should_exit()) {
 			ut_a(!purge_sys.paused());

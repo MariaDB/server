@@ -25,11 +25,10 @@ Created Jan 06, 2010 Vasil Dimov
 *******************************************************/
 
 #include "dict0stats.h"
-#include "ut0ut.h"
-#include "ut0rnd.h"
 #include "dyn0buf.h"
 #include "row0sel.h"
 #include "trx0trx.h"
+#include "lock0lock.h"
 #include "pars0pars.h"
 #include <mysql_com.h>
 #include "log.h"
@@ -142,7 +141,7 @@ typedef ut_allocator<std::pair<const char* const, dict_index_t*> >
 typedef std::map<const char*, dict_index_t*, ut_strcmp_functor,
 		index_map_t_allocator>	index_map_t;
 
-inline bool dict_table_t::is_stats_table() const
+bool dict_table_t::is_stats_table() const
 {
   return !strcmp(name.m_name, TABLE_STATS_NAME) ||
          !strcmp(name.m_name, INDEX_STATS_NAME);
@@ -326,7 +325,6 @@ static bool innodb_index_stats_not_found_reported;
 Checks whether a table exists and whether it has the given structure.
 The table must have the same number of columns with the same names and
 types. The order of the columns does not matter.
-The caller must own the dictionary mutex.
 dict_table_schema_check() @{
 @return DB_SUCCESS if the table exists and contains the necessary columns */
 static
@@ -478,21 +476,16 @@ dict_table_schema_check(
 Checks whether the persistent statistics storage exists and that all
 tables have the proper structure.
 @return true if exists and all tables are ok */
-static
-bool
-dict_stats_persistent_storage_check(
-/*================================*/
-	bool	caller_has_dict_sys_mutex)	/*!< in: true if the caller
-						owns dict_sys.mutex */
+static bool dict_stats_persistent_storage_check(bool dict_already_locked)
 {
 	char		errstr[512];
 	dberr_t		ret;
 
-	if (!caller_has_dict_sys_mutex) {
-		dict_sys.mutex_lock();
+	if (!dict_already_locked) {
+		dict_sys.lock(SRW_LOCK_CALL);
 	}
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	/* first check table_stats */
 	ret = dict_table_schema_check(&table_stats_schema, errstr,
@@ -503,8 +496,8 @@ dict_stats_persistent_storage_check(
 					      sizeof(errstr));
 	}
 
-	if (!caller_has_dict_sys_mutex) {
-		dict_sys.mutex_unlock();
+	if (!dict_already_locked) {
+		dict_sys.unlock();
 	}
 
 	if (ret != DB_SUCCESS && ret != DB_STATS_DO_NOT_EXIST) {
@@ -523,14 +516,12 @@ This function will free the pinfo object.
 @param[in,out]	pinfo	pinfo to pass to que_eval_sql() must already
 have any literals bound to it
 @param[in]	sql	SQL string to execute
-@param[in,out]	trx	in case of NULL the function will allocate and
-free the trx object. If it is not NULL then it will be rolled back
-only in the case of error, but not freed.
+@param[in,out]	trx	transaction
 @return DB_SUCCESS or error code */
 static
 dberr_t dict_stats_exec_sql(pars_info_t *pinfo, const char* sql, trx_t *trx)
 {
-  ut_d(dict_sys.assert_locked());
+  ut_ad(dict_sys.locked());
 
   if (!dict_stats_persistent_storage_check(true))
   {
@@ -538,22 +529,7 @@ dberr_t dict_stats_exec_sql(pars_info_t *pinfo, const char* sql, trx_t *trx)
     return DB_STATS_DO_NOT_EXIST;
   }
 
-  if (trx)
-    return que_eval_sql(pinfo, sql, FALSE, trx);
-
-  trx= trx_create();
-  trx_start_internal(trx);
-
-  trx->dict_operation_lock_mode= RW_X_LATCH;
-  dberr_t err= que_eval_sql(pinfo, sql, FALSE, trx);
-
-  if (err == DB_SUCCESS)
-    trx->commit();
-  else
-    trx->rollback();
-  trx->dict_operation_lock_mode= 0;
-  trx->free();
-  return err;
+  return que_eval_sql(pinfo, sql, trx);
 }
 
 /*********************************************************************//**
@@ -863,9 +839,6 @@ dict_stats_assert_initialized(
 	MEM_CHECK_DEFINED(&table->stat_modified_counter,
 			  sizeof table->stat_modified_counter);
 
-	MEM_CHECK_DEFINED(&table->stats_bg_flag,
-			  sizeof table->stats_bg_flag);
-
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
@@ -1014,7 +987,7 @@ dict_table_t*
 dict_stats_snapshot_create(
 	dict_table_t*	table)
 {
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	dict_stats_assert_initialized(table);
 
@@ -1033,9 +1006,8 @@ dict_stats_snapshot_create(
 	t->stat_persistent = table->stat_persistent;
 	t->stats_auto_recalc = table->stats_auto_recalc;
 	t->stats_sample_pages = table->stats_sample_pages;
-	t->stats_bg_flag = table->stats_bg_flag;
 
-	dict_sys.mutex_unlock();
+	dict_sys.unlock();
 
 	return(t);
 }
@@ -1074,14 +1046,13 @@ dict_stats_update_transient_for_index(
 		Initialize some bogus index cardinality
 		statistics, so that the data can be queried in
 		various means, also via secondary indexes. */
+dummy_empty:
 		index->table->stats_mutex_lock();
 		dict_stats_empty_index(index, false);
 		index->table->stats_mutex_unlock();
 #if defined UNIV_DEBUG || defined UNIV_IBUF_DEBUG
 	} else if (ibuf_debug && !dict_index_is_clust(index)) {
-		index->table->stats_mutex_lock();
-		dict_stats_empty_index(index, false);
-		index->table->stats_mutex_unlock();
+		goto dummy_empty;
 #endif /* UNIV_DEBUG || UNIV_IBUF_DEBUG */
 	} else {
 		mtr_t	mtr;
@@ -1102,10 +1073,7 @@ dict_stats_update_transient_for_index(
 
 		switch (size) {
 		case ULINT_UNDEFINED:
-			index->table->stats_mutex_lock();
-			dict_stats_empty_index(index, false);
-			index->table->stats_mutex_unlock();
-			return;
+			goto dummy_empty;
 		case 0:
 			/* The root node of the tree is a leaf */
 			size = 1;
@@ -2524,21 +2492,20 @@ dict_stats_update_persistent(
 			continue;
 		}
 
-		if (!(table->stats_bg_flag & BG_STAT_SHOULD_QUIT)) {
-			table->stats_mutex_unlock();
-			stats = dict_stats_analyze_index(index);
-			table->stats_mutex_lock();
+		table->stats_mutex_unlock();
+		stats = dict_stats_analyze_index(index);
+		table->stats_mutex_lock();
 
-			index->stat_index_size = stats.index_size;
-			index->stat_n_leaf_pages = stats.n_leaf_pages;
-			for (size_t i = 0; i < stats.stats.size(); ++i) {
-				index->stat_n_diff_key_vals[i]
-					= stats.stats[i].n_diff_key_vals;
-				index->stat_n_sample_sizes[i]
-					= stats.stats[i].n_sample_sizes;
-				index->stat_n_non_null_key_vals[i]
-					= stats.stats[i].n_non_null_key_vals;
-			}
+		index->stat_index_size = stats.index_size;
+		index->stat_n_leaf_pages = stats.n_leaf_pages;
+
+		for (size_t i = 0; i < stats.stats.size(); ++i) {
+			index->stat_n_diff_key_vals[i]
+				= stats.stats[i].n_diff_key_vals;
+			index->stat_n_sample_sizes[i]
+				= stats.stats[i].n_sample_sizes;
+			index->stat_n_non_null_key_vals[i]
+				= stats.stats[i].n_non_null_key_vals;
 		}
 
 		table->stat_sum_of_other_index_sizes
@@ -2567,9 +2534,7 @@ storage.
 @param[in]	stat_value		value of the stat
 @param[in]	sample_size		n pages sampled or NULL
 @param[in]	stat_description	description of the stat
-@param[in,out]	trx			in case of NULL the function will
-allocate and free the trx object. If it is not NULL then it will be
-rolled back only in the case of error, but not freed.
+@param[in,out]	trx			transaction
 @return DB_SUCCESS or error code */
 dberr_t
 dict_stats_save_index_stat(
@@ -2586,7 +2551,7 @@ dict_stats_save_index_stat(
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	dict_fs2utf8(index->table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
@@ -2700,8 +2665,6 @@ dict_stats_save(
 	const index_id_t*	only_for_index)
 {
 	pars_info_t*	pinfo;
-	dberr_t		ret;
-	dict_table_t*	table;
 	char		db_utf8[MAX_DB_UTF8_LEN];
 	char		table_utf8[MAX_TABLE_UTF8_LEN];
 
@@ -2713,16 +2676,59 @@ dict_stats_save(
 		return (dict_stats_report_error(table_orig));
 	}
 
-	table = dict_stats_snapshot_create(table_orig);
+	THD* thd = current_thd;
+	MDL_ticket *mdl_table = nullptr, *mdl_index = nullptr;
+	dict_table_t* table_stats = dict_table_open_on_name(
+		TABLE_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
+	if (table_stats) {
+		dict_sys.freeze(SRW_LOCK_CALL);
+		table_stats = dict_acquire_mdl_shared<false>(table_stats, thd,
+							     &mdl_table);
+		dict_sys.unfreeze();
+	}
+	if (!table_stats
+	    || strcmp(table_stats->name.m_name, TABLE_STATS_NAME)) {
+release_and_exit:
+		if (table_stats) {
+			dict_table_close(table_stats, false, thd, mdl_table);
+		}
+		return DB_STATS_DO_NOT_EXIST;
+	}
+
+	dict_table_t* index_stats = dict_table_open_on_name(
+		INDEX_STATS_NAME, false, DICT_ERR_IGNORE_NONE);
+	if (index_stats) {
+		dict_sys.freeze(SRW_LOCK_CALL);
+		index_stats = dict_acquire_mdl_shared<false>(index_stats, thd,
+							     &mdl_index);
+		dict_sys.unfreeze();
+	}
+	if (!index_stats) {
+		goto release_and_exit;
+	}
+	if (strcmp(index_stats->name.m_name, INDEX_STATS_NAME)) {
+		dict_table_close(index_stats, false, thd, mdl_index);
+		goto release_and_exit;
+	}
+
+	dict_table_t* table = dict_stats_snapshot_create(table_orig);
 
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
-
 	const time_t now = time(NULL);
 	trx_t*	trx = trx_create();
+	trx->mysql_thd = thd;
 	trx_start_internal(trx);
-	trx->dict_operation_lock_mode = RW_X_LATCH;
-	dict_sys_lock();
+	dberr_t ret = trx->read_only
+		? DB_READ_ONLY
+		: lock_table_for_trx(table_stats, trx, LOCK_X);
+	if (ret == DB_SUCCESS) {
+		ret = lock_table_for_trx(index_stats, trx, LOCK_X);
+	}
+	if (ret != DB_SUCCESS) {
+		trx->commit();
+		goto unlocked_free_and_exit;
+	}
 
 	pinfo = pars_info_create();
 
@@ -2734,6 +2740,9 @@ dict_stats_save(
 		table->stat_clustered_index_size);
 	pars_info_add_ull_literal(pinfo, "sum_of_other_index_sizes",
 		table->stat_sum_of_other_index_sizes);
+
+	dict_sys.lock(SRW_LOCK_CALL);
+	trx->dict_operation_lock_mode = true;
 
 	ret = dict_stats_exec_sql(
 		pinfo,
@@ -2763,10 +2772,13 @@ dict_stats_save(
 rollback_and_exit:
 		trx->rollback();
 free_and_exit:
-		trx->dict_operation_lock_mode = 0;
-		dict_sys_unlock();
+		trx->dict_operation_lock_mode = false;
+		dict_sys.unlock();
+unlocked_free_and_exit:
 		trx->free();
 		dict_stats_snapshot_free(table);
+		dict_table_close(table_stats, false, thd, mdl_table);
+		dict_table_close(index_stats, false, thd, mdl_index);
 		return ret;
 	}
 
@@ -3237,13 +3249,7 @@ dict_stats_fetch_from_ps(
 
 	trx = trx_create();
 
-	/* Use 'read-uncommitted' so that the SELECTs we execute
-	do not get blocked in case some user has locked the rows we
-	are SELECTing */
-
-	trx->isolation_level = TRX_ISO_READ_UNCOMMITTED;
-
-	trx_start_internal(trx);
+	trx_start_internal_read_only(trx);
 
 	dict_fs2utf8(table->name.m_name, db_utf8, sizeof(db_utf8),
 		     table_utf8, sizeof(table_utf8));
@@ -3265,7 +3271,7 @@ dict_stats_fetch_from_ps(
 			        "fetch_index_stats_step",
 			        dict_stats_fetch_index_stats_step,
 			        &index_fetch_arg);
-
+	dict_sys.lock(SRW_LOCK_CALL); /* FIXME: remove this */
 	ret = que_eval_sql(pinfo,
 			   "PROCEDURE FETCH_STATS () IS\n"
 			   "found INT;\n"
@@ -3319,9 +3325,9 @@ dict_stats_fetch_from_ps(
 			   "END LOOP;\n"
 			   "CLOSE index_stats_cur;\n"
 
-			   "END;",
-			   TRUE, trx);
+			   "END;", trx);
 	/* pinfo is freed by que_eval_sql() */
+	dict_sys.unlock();
 
 	trx_commit_for_mysql(trx);
 
@@ -3634,7 +3640,7 @@ dberr_t dict_stats_delete_from_table_stats(const char *database_name,
 {
 	pars_info_t*	pinfo;
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	pinfo = pars_info_create();
 
@@ -3654,14 +3660,14 @@ dberr_t dict_stats_delete_from_table_stats(const char *database_name,
 /** Execute DELETE FROM mysql.innodb_index_stats
 @param database_name  database name
 @param table_name     table name
-@param trx            transaction (nullptr=start and commit a new one)
+@param trx            transaction
 @return DB_SUCCESS or error code */
 dberr_t dict_stats_delete_from_index_stats(const char *database_name,
                                            const char *table_name, trx_t *trx)
 {
 	pars_info_t*	pinfo;
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	pinfo = pars_info_create();
 
@@ -3682,7 +3688,7 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 @param database_name  database name
 @param table_name     table name
 @param index_name     name of the index
-@param trx            transaction (nullptr=start and commit a new one)
+@param trx            transaction
 @return DB_SUCCESS or error code */
 dberr_t dict_stats_delete_from_index_stats(const char *database_name,
                                            const char *table_name,
@@ -3690,7 +3696,7 @@ dberr_t dict_stats_delete_from_index_stats(const char *database_name,
 {
 	pars_info_t*	pinfo;
 
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	pinfo = pars_info_create();
 
