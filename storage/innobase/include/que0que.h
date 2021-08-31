@@ -207,9 +207,6 @@ que_eval_sql(
 /*=========*/
 	pars_info_t*	info,	/*!< in: info struct, or NULL */
 	const char*	sql,	/*!< in: SQL string */
-	bool		lock_dict,
-				/*!< in: whether to acquire/release
-				dict_sys.latch around call to pars_sql(). */
 	trx_t*		trx);	/*!< in: trx */
 
 /**********************************************************************//**

@@ -2209,10 +2209,6 @@ row_import_cleanup(
 		ib::info() << "Discarding tablespace of table "
 			   << table->name << ": " << err;
 
-		if (!trx->dict_operation_lock_mode) {
-			row_mysql_lock_data_dictionary(trx);
-		}
-
 		for (dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 		     index;
 		     index = UT_LIST_GET_NEXT(indexes, index)) {
@@ -2220,13 +2216,13 @@ row_import_cleanup(
 		}
 	}
 
-	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
-
 	DBUG_EXECUTE_IF("ib_import_before_commit_crash", DBUG_SUICIDE(););
 
 	trx_commit_for_mysql(trx);
 
-	row_mysql_unlock_data_dictionary(trx);
+	if (trx->dict_operation_lock_mode) {
+		row_mysql_unlock_data_dictionary(trx);
+	}
 
 	trx->free();
 
@@ -3343,7 +3339,7 @@ dberr_t row_import_update_discarded_flag(trx_t* trx, table_id_t table_id,
 	pars_info_bind_function(
 		info, "my_func", row_import_set_discarded, &discard);
 
-	dberr_t	err = que_eval_sql(info, sql, false, trx);
+	dberr_t	err = que_eval_sql(info, sql, trx);
 
 	ut_a(discard.n_recs == 1);
 	ut_a(discard.flags2 != ULINT32_UNDEFINED);
@@ -4179,8 +4175,6 @@ row_import_for_mysql(
 		return(row_import_cleanup(prebuilt, trx, err));
 	}
 
-	row_mysql_lock_data_dictionary(trx);
-
 	/* If the table is stored in a remote tablespace, we need to
 	determine that filepath from the link file and system tables.
 	Find the space ID in SYS_TABLES since this is an ALTER TABLE. */
@@ -4202,7 +4196,6 @@ row_import_for_mysql(
 	);
 
 	if (filepath == NULL) {
-		row_mysql_unlock_data_dictionary(trx);
 		return(row_import_cleanup(prebuilt, trx, DB_OUT_OF_MEMORY));
 	}
 
@@ -4222,22 +4215,16 @@ row_import_for_mysql(
 			err = DB_TABLESPACE_NOT_FOUND; table->space = NULL;);
 
 	if (!table->space) {
-		row_mysql_unlock_data_dictionary(trx);
-
 		ib_senderrf(trx->mysql_thd, IB_LOG_LEVEL_ERROR,
 			ER_GET_ERRMSG,
 			err, ut_strerr(err), filepath);
-
-		ut_free(filepath);
-
-		return(row_import_cleanup(prebuilt, trx, err));
 	}
-
-	row_mysql_unlock_data_dictionary(trx);
 
 	ut_free(filepath);
 
-	err = ibuf_check_bitmap_on_import(trx, table->space);
+	if (err == DB_SUCCESS) {
+		err = ibuf_check_bitmap_on_import(trx, table->space);
+	}
 
 	DBUG_EXECUTE_IF("ib_import_check_bitmap_failure", err = DB_CORRUPTION;);
 

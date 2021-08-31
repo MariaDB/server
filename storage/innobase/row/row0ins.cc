@@ -1950,8 +1950,8 @@ row_ins_check_foreign_constraints(
 			err = row_ins_check_foreign_constraint(
 				TRUE, foreign, table, ref_tuple, thr);
 
-			if (ref_table != NULL) {
-				dict_table_close(ref_table, FALSE, FALSE);
+			if (ref_table) {
+				dict_table_close(ref_table);
 			}
 		}
 	}

@@ -1339,7 +1339,7 @@ static void innodb_drop_database(handlerton*, char *path)
 
   trx_t *trx= innobase_trx_allocate(current_thd);
 retry:
-  row_mysql_lock_data_dictionary(trx);
+  dict_sys.lock(SRW_LOCK_CALL);
 
   for (auto i= dict_sys.table_id_hash.n_cells; i--; )
   {
@@ -1350,7 +1350,7 @@ retry:
       if (!strncmp(table->name.m_name, namebuf, len) &&
           !dict_stats_stop_bg(table))
       {
-        row_mysql_unlock_data_dictionary(trx);
+        dict_sys.unlock();
         std::this_thread::sleep_for(std::chrono::milliseconds(250));
         goto retry;
       }
@@ -1385,6 +1385,7 @@ retry:
     }
   }
 
+  trx->dict_operation_lock_mode= RW_X_LATCH;
   trx_start_for_ddl(trx);
   uint errors= 0;
   char db[NAME_LEN + 1];
@@ -1467,7 +1468,7 @@ retry:
                             ? innodb_drop_database_fk
                             : innodb_drop_database_ignore_fk, &report);
     pars_info_add_str_literal(pinfo, "db", namebuf);
-    err= que_eval_sql(pinfo, drop_database, false, trx);
+    err= que_eval_sql(pinfo, drop_database, trx);
     if (err == DB_SUCCESS && report.violated)
       err= DB_CANNOT_DROP_CONSTRAINT;
   }
@@ -1940,7 +1941,7 @@ static int innodb_check_version(handlerton *hton, const char *path,
   {
     const trx_id_t trx_id= table->def_trx_id;
     DBUG_ASSERT(trx_id <= create_id);
-    dict_table_close(table, false, false);
+    dict_table_close(table);
     DBUG_PRINT("info", ("create_id: %llu  trx_id: %llu", create_id, trx_id));
     DBUG_RETURN(create_id != trx_id);
   }
@@ -3197,7 +3198,7 @@ static bool innobase_query_caching_table_check(
 
 	bool allow = innobase_query_caching_table_check_low(table, trx);
 
-	dict_table_close(table, FALSE, FALSE);
+	dict_table_close(table);
 
 	if (allow) {
 		/* If the isolation level is high, assign a read view for the
@@ -5858,7 +5859,7 @@ ha_innobase::open(const char* name, int, uint)
 		or force recovery can still use it, but not others. */
 		ib_table->file_unreadable = true;
 		ib_table->corrupted = true;
-		dict_table_close(ib_table, FALSE, FALSE);
+		ib_table->release();
 		set_my_errno(ENOENT);
 		DBUG_RETURN(HA_ERR_CRASHED_ON_USAGE);
 	}
@@ -5905,7 +5906,7 @@ ha_innobase::open(const char* name, int, uint)
 				ret_err = HA_ERR_DECRYPTION_FAILED;
 			}
 
-			dict_table_close(ib_table, FALSE, FALSE);
+			ib_table->release();
 			DBUG_RETURN(ret_err);
 		}
 	}
@@ -6219,7 +6220,7 @@ ha_innobase::close()
 {
 	DBUG_ENTER("ha_innobase::close");
 
-	row_prebuilt_free(m_prebuilt, FALSE);
+	row_prebuilt_free(m_prebuilt);
 
 	if (m_upd_buf != NULL) {
 		ut_ad(m_upd_buf_size != 0);
@@ -13016,7 +13017,7 @@ create_table_info_t::create_table_update_dict()
 	/* Load server stopword into FTS cache */
 	if (m_flags2 & DICT_TF2_FTS) {
 		if (!innobase_fts_load_stopword(innobase_table, NULL, m_thd)) {
-			dict_table_close(innobase_table, FALSE, FALSE);
+			innobase_table->release();
 			DBUG_RETURN(-1);
 		}
 
@@ -13067,7 +13068,7 @@ create_table_info_t::create_table_update_dict()
 
 	innobase_parse_hint_from_comment(m_thd, innobase_table, m_form->s);
 
-	dict_table_close(innobase_table, FALSE, FALSE);
+	dict_table_close(innobase_table);
 	DBUG_RETURN(0);
 }
 
@@ -13217,10 +13218,8 @@ ha_innobase::discard_or_import_tablespace(
 	trx_start_if_not_started(m_prebuilt->trx, true);
 
 	/* Obtain an exclusive lock on the table. */
-	dberr_t	err = row_mysql_lock_table(
-		m_prebuilt->trx, m_prebuilt->table, LOCK_X,
-		discard ? "setting table lock for DISCARD TABLESPACE"
-			: "setting table lock for IMPORT TABLESPACE");
+	dberr_t	err = lock_table_for_trx(m_prebuilt->table,
+					 m_prebuilt->trx, LOCK_X);
 
 	if (err != DB_SUCCESS) {
 		/* unable to lock the table: do nothing */
@@ -13282,7 +13281,7 @@ ha_innobase::discard_or_import_tablespace(
 	table_id_t id = m_prebuilt->table->id;
 	ut_ad(id);
 	dict_sys.lock(SRW_LOCK_CALL);
-	dict_table_close(m_prebuilt->table, TRUE, FALSE);
+	m_prebuilt->table->release();
 	dict_sys.remove(m_prebuilt->table);
 	m_prebuilt->table = dict_table_open_on_id(id, TRUE,
 						  DICT_TABLE_OP_NORMAL);
@@ -13627,7 +13626,7 @@ int ha_innobase::truncate()
 		info.options|= HA_LEX_CREATE_TMP_TABLE;
 		btr_drop_temporary_table(*ib_table);
 		m_prebuilt->table = nullptr;
-		row_prebuilt_free(m_prebuilt, false);
+		row_prebuilt_free(m_prebuilt);
 		m_prebuilt = nullptr;
 		my_free(m_upd_buf);
 		m_upd_buf = nullptr;
@@ -13742,7 +13741,7 @@ reload:
 				m_prebuilt->stored_select_lock_type
 					= stored_lock;
 				m_prebuilt->table->update_time = update_time;
-				row_prebuilt_free(prebuilt, false);
+				row_prebuilt_free(prebuilt);
 				my_free(upd_buf);
 			} else {
 				/* Revert to the old table. */
@@ -14837,8 +14836,7 @@ ha_innobase::check(
 		index = dict_table_get_first_index(m_prebuilt->table);
 
 		if (!index->is_corrupted()) {
-			dict_set_corrupted(
-				index, m_prebuilt->trx, "CHECK TABLE");
+			dict_set_corrupted(index, "CHECK TABLE", false);
 		}
 
 		push_warning_printf(m_user_thd,
@@ -14919,9 +14917,9 @@ ha_innobase::check(
 			"dict_set_index_corrupted",
 			if (!index->is_primary()) {
 				m_prebuilt->index_usable = FALSE;
-				// row_mysql_lock_data_dictionary(m_prebuilt->trx);
-				dict_set_corrupted(index, m_prebuilt->trx, "dict_set_index_corrupted");
-				// row_mysql_unlock_data_dictionary(m_prebuilt->trx);
+				dict_set_corrupted(index,
+						   "dict_set_index_corrupted",
+						   false);
 			});
 
 		if (UNIV_UNLIKELY(!m_prebuilt->index_usable)) {
@@ -14983,8 +14981,8 @@ ha_innobase::check(
 				" index %s is corrupted.",
 				index->name());
 			is_ok = false;
-			dict_set_corrupted(
-				index, m_prebuilt->trx, "CHECK TABLE-check index");
+			dict_set_corrupted(index, "CHECK TABLE-check index",
+					   false);
 		}
 
 
@@ -14999,9 +14997,8 @@ ha_innobase::check(
 				" entries, should be " ULINTPF ".",
 				index->name(), n_rows, n_rows_in_table);
 			is_ok = false;
-			dict_set_corrupted(
-				index, m_prebuilt->trx,
-				"CHECK TABLE; Wrong count");
+			dict_set_corrupted(index, "CHECK TABLE; Wrong count",
+					   false);
 		}
 	}
 
@@ -17103,7 +17100,7 @@ static int innodb_ft_aux_table_validate(THD *thd, st_mysql_sys_var*,
 			    table_name, FALSE, TRUE, DICT_ERR_IGNORE_NONE)) {
 			const table_id_t id = dict_table_has_fts_index(table)
 				? table->id : 0;
-			dict_table_close(table, FALSE, FALSE);
+			dict_table_close(table);
 			if (id) {
 				innodb_ft_aux_table_id = id;
 				if (table_name == buf) {

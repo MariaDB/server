@@ -1403,7 +1403,7 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
                         " ON SYS_FOREIGN (FOR_NAME);\n"
                         "CREATE INDEX REF_IND"
                         " ON SYS_FOREIGN (REF_NAME);\n"
-                        "END;\n", false, trx);
+                        "END;\n", trx);
     if (UNIV_UNLIKELY(error != DB_SUCCESS))
     {
       tablename= SYS_TABLE[SYS_FOREIGN].data();
@@ -1425,7 +1425,7 @@ err_exit:
                         " FOR_COL_NAME CHAR, REF_COL_NAME CHAR);\n"
                         "CREATE UNIQUE CLUSTERED INDEX ID_IND"
                         " ON SYS_FOREIGN_COLS (ID, POS);\n"
-                        "END;\n", false, trx);
+                        "END;\n", trx);
     if (UNIV_UNLIKELY(error != DB_SUCCESS))
     {
       tablename= SYS_TABLE[SYS_FOREIGN_COLS].data();
@@ -1440,7 +1440,7 @@ err_exit:
                         "SYS_VIRTUAL(TABLE_ID BIGINT,POS INT,BASE_POS INT);\n"
                         "CREATE UNIQUE CLUSTERED INDEX BASE_IDX"
                         " ON SYS_VIRTUAL(TABLE_ID, POS, BASE_POS);\n"
-                        "END;\n", false, trx);
+                        "END;\n", trx);
     if (UNIV_UNLIKELY(error != DB_SUCCESS))
     {
       tablename= SYS_TABLE[SYS_VIRTUAL].data();
@@ -1504,7 +1504,7 @@ dict_foreign_eval_sql(
 	dberr_t	error;
 	FILE*	ef	= dict_foreign_err_file;
 
-	error = que_eval_sql(info, sql, FALSE, trx);
+	error = que_eval_sql(info, sql, trx);
 
 	if (error == DB_DUPLICATE_KEY) {
 		mysql_mutex_lock(&dict_foreign_err_mutex);

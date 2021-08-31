@@ -108,7 +108,7 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
                       "  DELETE FROM SYS_FOREIGN WHERE ID=fid;\n"
                       "END LOOP;\n"
                       "CLOSE fk;\n"
-                      "END;\n", FALSE, this);
+                      "END;\n", this);
 }
 
 /** Try to drop the statistics for a persistent table.
@@ -182,7 +182,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
                                   "BEGIN\n"
                                   "DELETE FROM SYS_VIRTUAL"
                                   " WHERE TABLE_ID=:id;\n"
-                                  "END;\n", FALSE, this))
+                                  "END;\n", this))
       return err;
   }
 
@@ -224,7 +224,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
                       "END LOOP;\n"
                       "CLOSE idx;\n"
 
-                      "END;\n", FALSE, this);
+                      "END;\n", this);
 }
 
 /** Commit the transaction, possibly after drop_table().

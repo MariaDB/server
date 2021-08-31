@@ -667,8 +667,6 @@ row_quiesce_set_state(
 
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 
-	row_mysql_lock_data_dictionary(trx);
-
 	for (dict_index_t* index = dict_table_get_next_index(clust_index);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
@@ -697,8 +695,6 @@ row_quiesce_set_state(
 	     index = dict_table_get_next_index(index)) {
 		index->lock.x_unlock();
 	}
-
-	row_mysql_unlock_data_dictionary(trx);
 
 	return(DB_SUCCESS);
 }

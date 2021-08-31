@@ -182,13 +182,8 @@ row_create_prebuilt(
 	dict_table_t*	table,		/*!< in: Innobase table handle */
 	ulint		mysql_row_len);	/*!< in: length in bytes of a row in
 					the MySQL format */
-/********************************************************************//**
-Free a prebuilt struct for a MySQL table handle. */
-void
-row_prebuilt_free(
-/*==============*/
-	row_prebuilt_t*	prebuilt,	/*!< in, own: prebuilt struct */
-	ibool		dict_locked);	/*!< in: TRUE=data dictionary locked */
+/** Free a prebuilt struct for a TABLE handle. */
+void row_prebuilt_free(row_prebuilt_t *prebuilt);
 /*********************************************************************//**
 Updates the transaction pointers in query graphs stored in the prebuilt
 struct. */
@@ -361,18 +356,6 @@ row_create_index_for_mysql(
 	fil_encryption_t mode,	/*!< in: encryption mode */
 	uint32_t	key_id)	/*!< in: encryption key_id */
 	MY_ATTRIBUTE((warn_unused_result));
-
-/*********************************************************************//**
-Sets an exclusive lock on a table.
-@return error code or DB_SUCCESS */
-dberr_t
-row_mysql_lock_table(
-/*=================*/
-	trx_t*		trx,		/*!< in/out: transaction */
-	dict_table_t*	table,		/*!< in: table to lock */
-	enum lock_mode	mode,		/*!< in: LOCK_X or LOCK_S */
-	const char*	op_info)	/*!< in: string for trx->op_info */
-	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
 Discards the tablespace of a table which stored in an .ibd file. Discarding

@@ -3685,7 +3685,7 @@ row_merge_drop_index_dict(
 	info = pars_info_create();
 	pars_info_add_ull_literal(info, "indexid", index_id);
 	trx->op_info = "dropping index from dictionary";
-	error = que_eval_sql(info, sql, FALSE, trx);
+	error = que_eval_sql(info, sql, trx);
 
 	if (error != DB_SUCCESS) {
 		/* Even though we ensure that DDL transactions are WAIT
@@ -3754,7 +3754,7 @@ row_merge_drop_indexes_dict(
 	info = pars_info_create();
 	pars_info_add_ull_literal(info, "tableid", table_id);
 	trx->op_info = "dropping indexes";
-	error = que_eval_sql(info, sql, FALSE, trx);
+	error = que_eval_sql(info, sql, trx);
 
 	switch (error) {
 	case DB_SUCCESS:
@@ -4036,7 +4036,7 @@ static ibool row_merge_drop_fts(void *node, void *trx)
               (mach_read_from_8(static_cast<const byte*>(index_id->data))));
      auto pinfo= pars_info_create();
      pars_info_add_str_literal(pinfo, "name", buf);
-     que_eval_sql(pinfo, sql, false, static_cast<trx_t*>(trx));
+     que_eval_sql(pinfo, sql, static_cast<trx_t*>(trx));
    }
 
    return true;
@@ -4106,7 +4106,7 @@ void row_merge_drop_temp_indexes()
 	pars_info_t* pinfo = pars_info_create();
 	pars_info_bind_function(pinfo, "drop_fts", row_merge_drop_fts, trx);
 
-	if (dberr_t error = que_eval_sql(pinfo, sql, FALSE, trx)) {
+	if (dberr_t error = que_eval_sql(pinfo, sql, trx)) {
 		/* Even though we ensure that DDL transactions are WAIT
 		and DEADLOCK free, we could encounter other errors e.g.,
 		DB_TOO_MANY_CONCURRENT_TRXS. */
@@ -4254,7 +4254,7 @@ row_merge_rename_index_to_add(
 	pars_info_add_ull_literal(info, "tableid", table_id);
 	pars_info_add_ull_literal(info, "indexid", index_id);
 
-	err = que_eval_sql(info, rename_index, FALSE, trx);
+	err = que_eval_sql(info, rename_index, trx);
 
 	if (err != DB_SUCCESS) {
 		/* Even though we ensure that DDL transactions are WAIT

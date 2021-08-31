@@ -348,7 +348,7 @@ next_table_id:
 	ut_ad(!table->is_temporary());
 
 	if (!table->is_accessible()) {
-		dict_table_close(table, TRUE, FALSE);
+		table->release();
 no_table:
 		dict_sys.unlock();
 		goto next_table_id;
@@ -382,12 +382,10 @@ no_table:
 	}
 
 	dict_sys.lock(SRW_LOCK_CALL);
-
 	table->stats_bg_flag = BG_STAT_NONE;
-
 	dict_table_close(table, TRUE, FALSE);
-
 	dict_sys.unlock();
+
 	return ret;
 }
 

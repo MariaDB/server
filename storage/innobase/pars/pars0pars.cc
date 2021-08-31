@@ -2051,25 +2051,11 @@ pars_info_create(void)
 
 	heap = mem_heap_create(512);
 
-	info = static_cast<pars_info_t*>(mem_heap_alloc(heap, sizeof(*info)));
+	info = static_cast<pars_info_t*>(mem_heap_zalloc(heap, sizeof(*info)));
 
 	info->heap = heap;
-	info->funcs = NULL;
-	info->bound_lits = NULL;
-	info->bound_ids = NULL;
-	info->graph_owns_us = TRUE;
 
 	return(info);
-}
-
-/****************************************************************//**
-Free info struct and everything it contains. */
-void
-pars_info_free(
-/*===========*/
-	pars_info_t*	info)	/*!< in, own: info struct */
-{
-	mem_heap_free(info->heap);
 }
 
 /****************************************************************//**

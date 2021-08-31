@@ -152,6 +152,9 @@ dict_table_open_on_id(table_id_t table_id, bool dict_locked,
                       MDL_ticket **mdl= nullptr)
   MY_ATTRIBUTE((warn_unused_result));
 
+/** Decrement the count of open handles */
+void dict_table_close(dict_table_t *table);
+
 /** Decrements the count of open handles of a table.
 @param[in,out]	table		table
 @param[in]	dict_locked	data dictionary locked
@@ -1695,16 +1698,13 @@ dict_table_is_corrupted(
 	const dict_table_t*	table)	/*!< in: table */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
-/**********************************************************************//**
-Flags an index and table corrupted both in the data dictionary cache
-and in the system table SYS_INDEXES. */
-void
-dict_set_corrupted(
-/*===============*/
-	dict_index_t*	index,	/*!< in/out: index */
-	trx_t*		trx,	/*!< in/out: transaction */
-	const char*	ctx)	/*!< in: context */
-	ATTRIBUTE_COLD __attribute__((nonnull));
+/** Flag an index and table corrupted both in the data dictionary cache
+and in the system table SYS_INDEXES.
+@param index       index to be flagged as corrupted
+@param ctx         context (for error log reporting)
+@param dict_locked whether dict_sys.latch is held in exclusive mode */
+void dict_set_corrupted(dict_index_t *index, const char *ctx, bool dict_locked)
+  ATTRIBUTE_COLD __attribute__((nonnull));
 
 /** Flags an index corrupted in the data dictionary cache only. This
 is used mostly to mark a corrupted index when index's own dictionary

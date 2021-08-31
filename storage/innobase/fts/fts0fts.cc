@@ -1593,8 +1593,7 @@ dberr_t fts_lock_tables(trx_t *trx, const dict_table_t &table)
 }
 
 /** Drops the common ancillary tables needed for supporting an FTS index
-on the given table. row_mysql_lock_data_dictionary must have been called
-before this.
+on the given table.
 @param trx          transaction to drop fts common table
 @param fts_table    table with an FTS index
 @param rename       whether to rename before dropping
@@ -1653,8 +1652,7 @@ dberr_t fts_drop_index_tables(trx_t *trx, const dict_index_t &index)
 
 /****************************************************************//**
 Drops FTS ancillary tables needed for supporting an FTS index
-on the given table. row_mysql_lock_data_dictionary must have been called
-before this.
+on the given table.
 @return DB_SUCCESS or error code */
 static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dberr_t
@@ -1795,8 +1793,7 @@ fts_create_one_common_table(
 }
 
 /** Creates the common auxiliary tables needed for supporting an FTS index
-on the given table. row_mysql_lock_data_dictionary must have been called
-before this.
+on the given table.
 The following tables are created.
 CREATE TABLE $FTS_PREFIX_DELETED
 	(doc_id BIGINT UNSIGNED, UNIQUE CLUSTERED INDEX on doc_id)
@@ -1974,8 +1971,7 @@ fts_create_one_index_table(
 }
 
 /** Creates the column specific ancillary tables needed for supporting an
-FTS index on the given table. row_mysql_lock_data_dictionary must have
-been called before this.
+FTS index on the given table.
 
 All FTS AUX Index tables have the following schema.
 CREAT TABLE $FTS_PREFIX_INDEX_[1-6](
@@ -2754,7 +2750,6 @@ fts_delete(
 {
 	que_t*		graph;
 	fts_table_t	fts_table;
-	dberr_t		error = DB_SUCCESS;
 	doc_id_t	write_doc_id;
 	dict_table_t*	table = ftt->table;
 	doc_id_t	doc_id = row->doc_id;
@@ -2765,7 +2760,7 @@ fts_delete(
 	/* we do not index Documents whose Doc ID value is 0 */
 	if (doc_id == FTS_NULL_DOC_ID) {
 		ut_ad(!DICT_TF2_FLAG_IS_SET(table, DICT_TF2_FTS_HAS_DOC_ID));
-		return(error);
+		return DB_SUCCESS;
 	}
 
 	ut_a(row->state == FTS_DELETE || row->state == FTS_MODIFY);
@@ -2800,29 +2795,20 @@ fts_delete(
 	}
 
 	/* Note the deleted document for OPTIMIZE to purge. */
-	if (error == DB_SUCCESS) {
-		char	table_name[MAX_FULL_NAME_LEN];
+	char	table_name[MAX_FULL_NAME_LEN];
 
-		trx->op_info = "adding doc id to FTS DELETED";
+	trx->op_info = "adding doc id to FTS DELETED";
 
-		info->graph_owns_us = TRUE;
+	fts_table.suffix = "DELETED";
 
-		fts_table.suffix = "DELETED";
+	fts_get_table_name(&fts_table, table_name);
+	pars_info_bind_id(info, "deleted", table_name);
 
-		fts_get_table_name(&fts_table, table_name);
-		pars_info_bind_id(info, "deleted", table_name);
+	graph = fts_parse_sql(&fts_table, info,
+			      "BEGIN INSERT INTO $deleted VALUES (:doc_id);");
 
-		graph = fts_parse_sql(
-			&fts_table,
-			info,
-			"BEGIN INSERT INTO $deleted VALUES (:doc_id);");
-
-		error = fts_eval_sql(trx, graph);
-
-		que_graph_free(graph);
-	} else {
-		pars_info_free(info);
-	}
+	dberr_t error = fts_eval_sql(trx, graph);
+	que_graph_free(graph);
 
 	/* Increment the total deleted count, this is used to calculate the
 	number of documents indexed. */

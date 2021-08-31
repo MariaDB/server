@@ -435,7 +435,7 @@ que_graph_free(
 		sym_tab_free_private(graph->sym_tab);
 	}
 
-	if (graph->info && graph->info->graph_owns_us) {
+	if (graph->info) {
 		pars_info_free(graph->info);
 	}
 
@@ -748,9 +748,6 @@ que_eval_sql(
 /*=========*/
 	pars_info_t*	info,	/*!< in: info struct, or NULL */
 	const char*	sql,	/*!< in: SQL string */
-	bool		lock_dict,
-				/*!< in: whether to acquire/release
-				dict_sys.latch around call to pars_sql(). */
 	trx_t*		trx)	/*!< in: trx */
 {
 	que_thr_t*	thr;
@@ -761,15 +758,7 @@ que_eval_sql(
 
 	ut_a(trx->error_state == DB_SUCCESS);
 
-	if (lock_dict) {
-		dict_sys.lock(SRW_LOCK_CALL);
-	}
-
 	graph = pars_sql(info, sql);
-
-	if (lock_dict) {
-		dict_sys.unlock();
-	}
 
 	graph->trx = trx;
 	trx->graph = NULL;
@@ -778,15 +767,7 @@ que_eval_sql(
 
 	que_run_threads(thr);
 
-	if (lock_dict) {
-		dict_sys.lock(SRW_LOCK_CALL);
-	}
-
 	que_graph_free(graph);
-
-	if (lock_dict) {
-		dict_sys.unlock();
-	}
 
 	DBUG_RETURN(trx->error_state);
 }
