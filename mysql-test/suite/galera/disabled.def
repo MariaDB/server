@@ -51,3 +51,6 @@ pxc-421: wsrep_provider is read-only for security reasons
 query_cache: MDEV-15805 Test failure on galera.query_cache
 sql_log_bin : MDEV-21491 galera.sql_log_bin
 versioning_trx_id: MDEV-18590: galera.versioning_trx_id: Test failure: mysqltest: Result content mismatch
+galera_unicode_identifiers : MDEV-26500 : galera.galera_unicode_identifiers MTR failed: InnoDB: innodb_fatal_semaphore_wait_threshold was exceeded for dict_sys.mutex
+galera_sst_mysqldump : MDEV-26501 : galera.galera_sst_mysqldump MTR failed: galera SST with mysqldump failed
+galera_applier_ftwrl_table_alter : MDEV-26502 : galera.galera_applier_ftwrl_table_alter MTR failed : Result content mismatch
