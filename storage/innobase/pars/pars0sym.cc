@@ -67,8 +67,6 @@ sym_tab_free_private(
 	sym_node_t*	sym;
 	func_node_t*	func;
 
-	ut_ad(dict_sys.locked());
-
 	for (sym = UT_LIST_GET_FIRST(sym_tab->sym_list);
 	     sym != NULL;
 	     sym = UT_LIST_GET_NEXT(sym_list, sym)) {
@@ -76,8 +74,7 @@ sym_tab_free_private(
 		/* Close the tables opened in pars_retrieve_table_def(). */
 
 		if (sym->token_type == SYM_TABLE_REF_COUNTED) {
-
-			dict_table_close(sym->table, TRUE, FALSE);
+			sym->table->release();
 
 			sym->table = NULL;
 			sym->resolved = FALSE;

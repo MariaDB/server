@@ -377,9 +377,6 @@ extern ulong		fts_min_token_size;
 need a sync to free some memory */
 extern bool		fts_need_sync;
 
-/** Free a query graph */
-void fts_que_graph_free(que_t *graph);
-
 /******************************************************************//**
 Create a FTS cache. */
 fts_cache_t*
@@ -739,16 +736,6 @@ FTS auxiliary INDEX table and clear the cache at the end.
 @param[in]	wait		whether to wait for existing sync to finish
 @return DB_SUCCESS on success, error code on failure. */
 dberr_t fts_sync_table(dict_table_t* table, bool wait = true);
-
-/****************************************************************//**
-Free the query graph but check whether dict_sys.latch is already
-held */
-void
-fts_que_graph_free_check_lock(
-/*==========================*/
-	fts_table_t*		fts_table,	/*!< in: FTS table */
-	const fts_index_cache_t*index_cache,	/*!< in: FTS index cache */
-	que_t*			graph);		/*!< in: query graph */
 
 /****************************************************************//**
 Create an FTS index cache. */

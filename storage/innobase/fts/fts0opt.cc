@@ -892,7 +892,7 @@ fts_index_fetch_words(
 			}
 		}
 
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 
 		/* Check if max word to fetch is exceeded */
 		if (optim->zip->n_words >= n_words) {
@@ -1005,7 +1005,7 @@ fts_table_fetch_doc_ids(
 
 	error = fts_eval_sql(trx, graph);
 	fts_sql_commit(trx);
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	if (error == DB_SUCCESS) {
 		ib_vector_sort(doc_ids->doc_ids, fts_doc_id_cmp);
@@ -1459,7 +1459,7 @@ fts_optimize_write_word(
 			" when deleting a word from the FTS index.";
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 	graph = NULL;
 
 	/* Even if the operation needs to be rolled back and redone,
@@ -1491,7 +1491,7 @@ fts_optimize_write_word(
 	}
 
 	if (graph != NULL) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 
 	return(error);
@@ -1829,7 +1829,7 @@ fts_optimize_words(
 						charset, word->f_str,
 						word->f_len)
 					  && graph) {
-					fts_que_graph_free(graph);
+					que_graph_free(graph);
 					graph = NULL;
 				}
 			}
@@ -1848,7 +1848,7 @@ fts_optimize_words(
 	}
 
 	if (graph != NULL) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 }
 
@@ -2081,7 +2081,7 @@ fts_optimize_purge_deleted_doc_ids(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2118,7 +2118,7 @@ fts_optimize_purge_deleted_doc_id_snapshot(
 	graph = fts_parse_sql(NULL, info, fts_end_delete_sql);
 
 	error = fts_eval_sql(optim->trx, graph);
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -2186,7 +2186,7 @@ fts_optimize_create_deleted_doc_id_snapshot(
 
 	error = fts_eval_sql(optim->trx, graph);
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	if (error != DB_SUCCESS) {
 		fts_sql_rollback(optim->trx);

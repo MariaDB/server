@@ -2964,7 +2964,7 @@ i_s_fts_index_table_fill_selected(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	trx->free();
 

@@ -184,14 +184,6 @@ struct fts_tokenize_param_t {
 	ulint		add_pos;	/*!< Added position for tokens */
 };
 
-/** Free a query graph */
-void fts_que_graph_free(que_t *graph)
-{
-  dict_sys.lock(SRW_LOCK_CALL);
-  que_graph_free(graph);
-  dict_sys.unlock();
-}
-
 /** Run SYNC on the table, i.e., write out data from the cache to the
 FTS auxiliary INDEX table and clear the cache at the end.
 @param[in,out]	sync		sync state
@@ -886,41 +878,6 @@ fts_drop_index(
 }
 
 /****************************************************************//**
-Free the query graph but check whether dict_sys.latch is already
-held */
-void
-fts_que_graph_free_check_lock(
-/*==========================*/
-	fts_table_t*		fts_table,	/*!< in: FTS table */
-	const fts_index_cache_t*index_cache,	/*!< in: FTS index cache */
-	que_t*			graph)		/*!< in: query graph */
-{
-	bool	has_dict = FALSE;
-
-	if (fts_table && fts_table->table) {
-		ut_ad(fts_table->table->fts);
-
-		has_dict = fts_table->table->fts->dict_locked;
-	} else if (index_cache) {
-		ut_ad(index_cache->index->table->fts);
-
-		has_dict = index_cache->index->table->fts->dict_locked;
-	}
-
-	if (!has_dict) {
-		dict_sys.lock(SRW_LOCK_CALL);
-	}
-
-	ut_ad(dict_sys.locked());
-
-	que_graph_free(graph);
-
-	if (!has_dict) {
-		dict_sys.unlock();
-	}
-}
-
-/****************************************************************//**
 Create an FTS index cache. */
 CHARSET_INFO*
 fts_index_get_charset(
@@ -1067,18 +1024,14 @@ fts_cache_clear(
 
 			if (index_cache->ins_graph[j] != NULL) {
 
-				fts_que_graph_free_check_lock(
-					NULL, index_cache,
-					index_cache->ins_graph[j]);
+				que_graph_free(index_cache->ins_graph[j]);
 
 				index_cache->ins_graph[j] = NULL;
 			}
 
 			if (index_cache->sel_graph[j] != NULL) {
 
-				fts_que_graph_free_check_lock(
-					NULL, index_cache,
-					index_cache->sel_graph[j]);
+				que_graph_free(index_cache->sel_graph[j]);
 
 				index_cache->sel_graph[j] = NULL;
 			}
@@ -2608,7 +2561,7 @@ retry:
 
 	error = fts_eval_sql(trx, graph);
 
-	fts_que_graph_free_check_lock(&fts_table, NULL, graph);
+	que_graph_free(graph);
 
 	// FIXME: We need to retry deadlock errors
 	if (error != DB_SUCCESS) {
@@ -2724,7 +2677,7 @@ fts_update_sync_doc_id(
 
 	error = fts_eval_sql(trx, graph);
 
-	fts_que_graph_free_check_lock(&fts_table, NULL, graph);
+	que_graph_free(graph);
 
 	if (local_trx) {
 		if (UNIV_LIKELY(error == DB_SUCCESS)) {
@@ -2866,7 +2819,7 @@ fts_delete(
 
 		error = fts_eval_sql(trx, graph);
 
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	} else {
 		pars_info_free(info);
 	}
@@ -3741,7 +3694,7 @@ fts_doc_fetch_by_doc_id(
 	trx->free();
 
 	if (!get_doc) {
-		fts_que_graph_free(graph);
+		que_graph_free(graph);
 	}
 
 	return(error);
@@ -3870,7 +3823,7 @@ fts_sync_add_deleted_cache(
 		error = fts_eval_sql(sync->trx, graph);
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	return(error);
 }
@@ -4169,18 +4122,14 @@ fts_sync_rollback(
 
 			if (index_cache->ins_graph[j] != NULL) {
 
-				fts_que_graph_free_check_lock(
-					NULL, index_cache,
-					index_cache->ins_graph[j]);
+				que_graph_free(index_cache->ins_graph[j]);
 
 				index_cache->ins_graph[j] = NULL;
 			}
 
 			if (index_cache->sel_graph[j] != NULL) {
 
-				fts_que_graph_free_check_lock(
-					NULL, index_cache,
-					index_cache->sel_graph[j]);
+				que_graph_free(index_cache->sel_graph[j]);
 
 				index_cache->sel_graph[j] = NULL;
 			}
@@ -4744,7 +4693,7 @@ fts_get_docs_clear(
 
 			ut_a(get_doc->index_cache);
 
-			fts_que_graph_free(get_doc->get_document_graph);
+			que_graph_free(get_doc->get_document_graph);
 			get_doc->get_document_graph = NULL;
 		}
 	}
@@ -4892,7 +4841,7 @@ fts_get_rows_count(
 		}
 	}
 
-	fts_que_graph_free(graph);
+	que_graph_free(graph);
 
 	trx->free();
 
@@ -4992,7 +4941,7 @@ fts_savepoint_free(
 
 		/* The default savepoint name must be NULL. */
 		if (ftt->docs_added_graph) {
-			fts_que_graph_free(ftt->docs_added_graph);
+			que_graph_free(ftt->docs_added_graph);
 		}
 
 		/* NOTE: We are responsible for free'ing the node */
