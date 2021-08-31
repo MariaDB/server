@@ -5898,5 +5898,12 @@ ulonglong TABLE::vers_start_id() const
   return static_cast<ulonglong>(vers_start_field()->val_int());
 }
 
+double pos_in_interval_for_string(CHARSET_INFO *cset,
+                                  const uchar *midp_val, uint32 midp_len,
+                                  const uchar *min_val,  uint32 min_len,
+                                  const uchar *max_val,  uint32 max_len);
+
+double pos_in_interval_for_double(double midp_val,
+                                  double min_val, double max_val);
 
 #endif /* FIELD_INCLUDED */

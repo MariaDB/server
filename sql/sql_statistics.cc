@@ -1373,134 +1373,6 @@ error:
 }
 
 
-static
-void store_key_image_to_rec_no_null(Field *field, uchar *ptr) {
-  MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table,
-                                    &field->table->write_set);
-  field->set_key_image(ptr, field->key_length());
-  dbug_tmp_restore_column_map(&field->table->write_set, old_map);
-}
-
-/*
-  GSOC-TODO:
-  This is our replacement for Field::pos_in_interval_val_real
-
-  We take midpoint_val and an interval [min_val, max_val], and return 
-  a number between 0.0 and 1.0 which specifies how close midpoint_val is 
-  to one of the bounds.
-  
-  @param field  Field object. We don't care about the field's current value
-                (actually, we overwrite it). We need it for its virtual
-                functions.
-                
-*/  
-double pos_in_interval_through_val_real(Field *field, 
-                                      uchar* min_val, 
-                                      uchar *max_val, 
-                                      uchar *midpoint_val)
-{
-  // For each passed value: unpack it into Field's current value. Then, we can
-  // get the value as double.
-
-  store_key_image_to_rec_no_null(field, min_val);
-  double min_val_real= field->val_real();
-  
-  store_key_image_to_rec_no_null(field, max_val);
-  double max_val_real= field->val_real();
-
-  store_key_image_to_rec_no_null(field, midpoint_val);
-  double midpoint_val_real= field->val_real();
-
-   // The code below is a copy of logic from Field::pos_in_interval_val_real:
-  double n, d;
-  n= midpoint_val_real - min_val_real;
-  if (n < 0)
-    return 0.0;
-  d= max_val_real - min_val_real;
-  if (d <= 0)
-    return 1.0;
-  return MY_MIN(n/d, 1.0);
-}
-
-// Copy-paste:
-static
-inline ulonglong char_prefix_to_ulonglong(uchar *src)
-{
-  uint sz= sizeof(ulonglong);
-  for (uint i= 0; i < sz/2; i++)
-  {
-    uchar tmp= src[i];
-    src[i]= src[sz-1-i];
-    src[sz-1-i]= tmp;
-  }
-  return uint8korr(src); 
-}
-
-// copy-paste:
-static inline double safe_substract(ulonglong a, ulonglong b)
-{
-  return (a > b)? double(a - b) : -double(b - a);
-}
-
-/*
-  GSOC-TODO: 
-  This is our replacement for Field::pos_in_interval_val_str
-
-  We take midpoint_val and an interval [min_val, max_val], and return 
-  a number between 0.0 and 1.0 which specifies how close midpoint_val is 
-  to one of the bounds.
-
-  @param field  Field object. We don't care about the field's current value
-                (actually, we overwrite it). We need it for its virtual
-                functions.
-
-  @TODO
-  Instead of copying the pos_in_interval_val_str(), we should do better:
-  if all three passed values have a common prefix, skip it.
-  This will make the returned value more precise.
-
-*/
-
-double pos_in_interval_through_strxfrm(Field *field, 
-                                       uchar *min_val, 
-                                       uchar *max_val, 
-                                       uchar *midpoint_val)
-{
-  // The code below is a copy of logic from Field::pos_in_interval_val_str
-  uchar mp_prefix[sizeof(ulonglong)];
-  uchar minp_prefix[sizeof(ulonglong)];
-  uchar maxp_prefix[sizeof(ulonglong)];
-  ulonglong mp, minp, maxp;
-
-  uint min_len= uint2korr(min_val);
-  uint max_len= uint2korr(max_val);
-  uint midpoint_len= uint2korr(midpoint_val);
-
-  auto cset= field->charset();
-
-  cset->strnxfrm(mp_prefix, sizeof(mp),
-                 midpoint_val + HA_KEY_BLOB_LENGTH,
-                 midpoint_len);
-  cset->strnxfrm(minp_prefix, sizeof(minp),
-                 min_val + HA_KEY_BLOB_LENGTH,
-                 min_len);
-  cset->strnxfrm(maxp_prefix, sizeof(maxp),
-                 max_val + HA_KEY_BLOB_LENGTH,
-                 max_len);
-  mp= char_prefix_to_ulonglong(mp_prefix);
-  minp= char_prefix_to_ulonglong(minp_prefix);
-  maxp= char_prefix_to_ulonglong(maxp_prefix);
-  double n, d;
-  n= safe_substract(mp, minp);
-  if (n < 0)
-    return 0.0;
-  d= safe_substract(maxp, minp);
-  if (d <= 0)
-    return 1.0;
-  return MY_MIN(n/d, 1.0);
-}
-
-
 double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
                                             double avg_sel)
 {
@@ -1535,6 +1407,51 @@ double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
 }
 
 
+static
+void store_key_image_to_rec_no_null(Field *field, const uchar *ptr)
+{
+  MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table,
+                                    &field->table->write_set);
+  field->set_key_image(ptr, field->key_length());
+  dbug_tmp_restore_column_map(&field->table->write_set, old_map);
+}
+
+
+static
+double position_in_interval(Field *field, const  uchar *key,
+                            const std::string& left, const std::string& right)
+{
+  double res;
+  if (field->pos_through_val_str())
+  {
+    uint32 min_len= uint2korr(left.data());
+    uint32 max_len= uint2korr(right.data());
+    uint32 midp_len= uint2korr(key);
+
+    res= pos_in_interval_for_string(field->charset(),
+           key + HA_KEY_BLOB_LENGTH,
+           midp_len,
+           (const uchar*)left.data() + HA_KEY_BLOB_LENGTH,
+           min_len,
+           (const uchar*)right.data() + HA_KEY_BLOB_LENGTH,
+           max_len);
+  }
+  else
+  {
+    store_key_image_to_rec_no_null(field, (const uchar*)left.data());
+    double min_val_real= field->val_real();
+    
+    store_key_image_to_rec_no_null(field, (const uchar*)right.data());
+    double max_val_real= field->val_real();
+
+    store_key_image_to_rec_no_null(field, key);
+    double midp_val_real= field->val_real();
+
+    res= pos_in_interval_for_double(midp_val_real, min_val_real, max_val_real);
+  }
+  return res;
+}
+
 /*
   @param field    The table field histogram is for.  We don't care about the
                   field's current value, we only need its virtual functions to
@@ -1559,20 +1476,9 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
     // Find the leftmost bucket that contains the lookup value.
     // (If the lookup value is to the left of all buckets, find bucket #0)
     int idx= find_bucket(field, min_key, exclusive_endp);
-    double min_sel;
-    {
-      std::string &left= histogram_bounds[idx];
-      std::string &right= histogram_bounds[idx+1];
-      if (field->pos_through_val_str())
-        min_sel= pos_in_interval_through_strxfrm(
-            field, (uchar*) left.data(), (uchar*) right.data(),
-            (uchar*) min_key);
-      else
-        min_sel= pos_in_interval_through_val_real(
-            field, (uchar *) left.data(), (uchar*) right.data(),
-            (uchar*) min_key);
-    }
-
+    double min_sel= position_in_interval(field, (const uchar*)min_key,
+                                         histogram_bounds[idx],
+                                         histogram_bounds[idx+1]);
     min= idx*width + min_sel*width;
   }
   else
@@ -1588,21 +1494,9 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
       max_key++;
 
     int idx= find_bucket(field, max_key, inclusive_endp);
-    double max_sel;
-    {
-      std::string &left= histogram_bounds[idx];
-      std::string &right= histogram_bounds[idx+1];
-
-      if (field->pos_through_val_str())
-        max_sel= pos_in_interval_through_strxfrm(
-            field, (uchar *) left.data(), (uchar *) right.data(),
-            (uchar *) max_key);
-      else
-        max_sel= pos_in_interval_through_val_real(
-            field, (uchar *) left.data(), (uchar *) right.data(),
-            (uchar *) max_key);
-    }
-
+    double max_sel= position_in_interval(field, (const uchar*)max_key,
+                                         histogram_bounds[idx],
+                                         histogram_bounds[idx+1]);
     max= idx*width + max_sel*width;
   }
   else
