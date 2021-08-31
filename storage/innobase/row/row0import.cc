@@ -41,12 +41,8 @@ Created 2012-02-08 by Sunny Bains.
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
 #include "lock0lock.h"
-#ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
-#endif
-#ifdef HAVE_SNAPPY
 #include "snappy-c.h"
-#endif
 
 #include <vector>
 
@@ -3495,13 +3491,14 @@ static dberr_t fil_iterate(
 	const ulint		size = callback.physical_size();
 	ulint			n_bytes = iter.n_io_buffers * size;
 
-	const ulint buf_size = srv_page_size
-#ifdef HAVE_LZO
-		+ LZO1X_1_15_MEM_COMPRESS
-#elif defined HAVE_SNAPPY
-		+ snappy_max_compressed_length(srv_page_size)
-#endif
-		;
+	const ulint buf_size = srv_page_size +
+		((provider_service_lzo->is_loaded)?
+			LZO1X_1_15_MEM_COMPRESS
+			:(provider_service_snappy->is_loaded)?
+				snappy_max_compressed_length(srv_page_size)
+				:0)
+	;
+
 	byte* page_compress_buf = static_cast<byte*>(malloc(buf_size));
 	ut_ad(!srv_read_only_mode);
 

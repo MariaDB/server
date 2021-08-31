@@ -44,3 +44,8 @@
 #define VERSION_wsrep                   0x0500
 #define VERSION_json                    0x0100
 #define VERSION_thd_mdl                 0x0100
+#define VERSION_provider_bzip2          0x0100
+#define VERSION_provider_lz4            0x0100
+#define VERSION_provider_lzma           0x0100
+#define VERSION_provider_lzo            0x0100
+#define VERSION_provider_snappy         0x0100

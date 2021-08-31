@@ -54,6 +54,12 @@ Created 10/25/1995 Heikki Tuuri
 # include <dirent.h>
 #endif
 
+#include "lz4.h"
+#include "lzo/lzo1x.h"
+#include "lzma.h"
+#include "bzlib.h"
+#include "snappy-c.h"
+
 /** Try to close a file to adhere to the innodb_open_files limit.
 @param print_info   whether to diagnose why a file cannot be closed
 @return whether a file was closed */
@@ -233,38 +239,30 @@ fil_space_t *fil_space_get(uint32_t id)
   return space;
 }
 
-/** Validate the compression algorithm for full crc32 format.
-@param[in]	space	tablespace object
-@return whether the compression algorithm support */
-static bool fil_comp_algo_validate(const fil_space_t* space)
+/** Check if the compression algorithm is loaded
+@param[in]	comp_algo ulint compression algorithm
+@return whether the compression algorithm is loaded */
+bool fil_comp_algo_loaded(ulint comp_algo)
 {
-	if (!space->full_crc32()) {
-		return true;
-	}
-
-	DBUG_EXECUTE_IF("fil_comp_algo_validate_fail",
-			return false;);
-
-	ulint	comp_algo = space->get_compression_algo();
 	switch (comp_algo) {
 	case PAGE_UNCOMPRESSED:
 	case PAGE_ZLIB_ALGORITHM:
-#ifdef HAVE_LZ4
-	case PAGE_LZ4_ALGORITHM:
-#endif /* HAVE_LZ4 */
-#ifdef HAVE_LZO
-	case PAGE_LZO_ALGORITHM:
-#endif /* HAVE_LZO */
-#ifdef HAVE_LZMA
-	case PAGE_LZMA_ALGORITHM:
-#endif /* HAVE_LZMA */
-#ifdef HAVE_BZIP2
-	case PAGE_BZIP2_ALGORITHM:
-#endif /* HAVE_BZIP2 */
-#ifdef HAVE_SNAPPY
-	case PAGE_SNAPPY_ALGORITHM:
-#endif /* HAVE_SNAPPY */
 		return true;
+
+	case PAGE_LZ4_ALGORITHM:
+		return provider_service_lz4->is_loaded;
+
+	case PAGE_LZO_ALGORITHM:
+		return provider_service_lzo->is_loaded;
+
+	case PAGE_LZMA_ALGORITHM:
+		return provider_service_lzma->is_loaded;
+
+	case PAGE_BZIP2_ALGORITHM:
+		return provider_service_bzip2->is_loaded;
+
+	case PAGE_SNAPPY_ALGORITHM:
+		return provider_service_snappy->is_loaded;
 	}
 
 	return false;
@@ -363,9 +361,26 @@ static bool fil_node_open_file_low(fil_node_t *node)
     return false;
   }
 
+  ulint comp_algo = node->space->get_compression_algo();
+  bool comp_algo_invalid = false;
+
   if (node->size);
-  else if (!node->read_page0() || !fil_comp_algo_validate(node->space))
+  else if (!node->read_page0() ||
+            // validate compression algorithm for full crc32 format
+            (node->space->full_crc32() &&
+             (comp_algo_invalid = !fil_comp_algo_loaded(comp_algo))))
   {
+    if (comp_algo_invalid)
+    {
+      if (comp_algo <= PAGE_ALGORITHM_LAST)
+        ib::warn() << "'" << node->name << "' is compressed with "
+                   << page_compression_algorithms[comp_algo]
+                   << ", which is not currently loaded";
+      else
+        ib::warn() << "'" << node->name << "' is compressed with "
+                   << "invalid algorithm: " << comp_algo;
+    }
+
     os_file_close(node->handle);
     node->handle= OS_FILE_CLOSED;
     return false;

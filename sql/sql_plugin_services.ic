@@ -215,7 +215,7 @@ static struct my_print_error_service_st my_print_error_handler=
   my_printv_error
 };
 
-struct json_service_st json_handler=
+static struct json_service_st json_handler=
 {
   json_type,
   json_get_array_item,
@@ -229,6 +229,76 @@ static struct thd_mdl_service_st thd_mdl_handler=
 {
   thd_mdl_context
 };
+
+#define DEFINE_warning_function(name, ret) {                                \
+  static query_id_t last_query_id= -1;                                      \
+  THD *thd= current_thd;                                                    \
+  if(thd && thd->query_id != last_query_id)                                 \
+  {                                                                         \
+    my_error(ER_PROVIDER_NOT_LOADED, MYF(ME_ERROR_LOG|ME_WARNING), name);   \
+    last_query_id= thd->query_id;                                           \
+  }                                                                         \
+  return ret;                                                               \
+}
+
+#include <providers/lzma.h>
+static struct provider_service_lzma_st provider_handler_lzma=
+{
+  DEFINE_lzma_stream_buffer_decode([]) DEFINE_warning_function("LZMA compression", LZMA_PROG_ERROR),
+  DEFINE_lzma_easy_buffer_encode([])   DEFINE_warning_function("LZMA compression", LZMA_PROG_ERROR),
+
+  false // .is_loaded
+};
+struct provider_service_lzma_st *provider_service_lzma= &provider_handler_lzma;
+
+#include <providers/lzo/lzo1x.h>
+static struct provider_service_lzo_st provider_handler_lzo=
+{
+  DEFINE_lzo1x_1_15_compress([])   DEFINE_warning_function("LZO compression", LZO_E_INTERNAL_ERROR),
+  DEFINE_lzo1x_decompress_safe([]) DEFINE_warning_function("LZO compression", LZO_E_INTERNAL_ERROR),
+
+  false // .is_loaded
+};
+struct provider_service_lzo_st *provider_service_lzo= &provider_handler_lzo;
+
+#include <providers/bzlib.h>
+static struct provider_service_bzip2_st provider_handler_bzip2=
+{
+  DEFINE_BZ2_bzBuffToBuffCompress([])   DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzBuffToBuffDecompress([]) DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzCompress([])             DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzCompressEnd([])          DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzCompressInit([])         DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzDecompress([])           DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzDecompressEnd([])        DEFINE_warning_function("BZip2 compression", -1),
+  DEFINE_BZ2_bzDecompressInit([])       DEFINE_warning_function("BZip2 compression", -1),
+
+  false // .is_loaded
+};
+struct provider_service_bzip2_st *provider_service_bzip2= &provider_handler_bzip2;
+
+#include <providers/snappy-c.h>
+static struct provider_service_snappy_st provider_handler_snappy=
+{
+  DEFINE_snappy_max_compressed_length([]) -> size_t DEFINE_warning_function("Snappy compression", 0),
+  DEFINE_snappy_compress([])            DEFINE_warning_function("Snappy compression", SNAPPY_INVALID_INPUT),
+  DEFINE_snappy_uncompressed_length([]) DEFINE_warning_function("Snappy compression", SNAPPY_INVALID_INPUT),
+  DEFINE_snappy_uncompress([])          DEFINE_warning_function("Snappy compression", SNAPPY_INVALID_INPUT),
+
+  false // .is_loaded
+};
+struct provider_service_snappy_st *provider_service_snappy= &provider_handler_snappy;
+
+#include <providers/lz4.h>
+static struct provider_service_lz4_st provider_handler_lz4=
+{
+  DEFINE_LZ4_compressBound([])    DEFINE_warning_function("LZ4 compression", 0),
+  DEFINE_LZ4_compress_default([]) DEFINE_warning_function("LZ4 compression", 0),
+  DEFINE_LZ4_decompress_safe([])  DEFINE_warning_function("LZ4 compression", -1),
+
+  false // .is_loaded
+};
+struct provider_service_lz4_st *provider_service_lz4= &provider_handler_lz4;
 
 static struct st_service_ref list_of_services[]=
 {
@@ -254,5 +324,10 @@ static struct st_service_ref list_of_services[]=
   { "thd_wait_service",            VERSION_thd_wait,            &thd_wait_handler },
   { "wsrep_service",               VERSION_wsrep,               &wsrep_handler },
   { "json_service",                VERSION_json,                &json_handler },
-  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler }
+  { "thd_mdl_service",             VERSION_thd_mdl,             &thd_mdl_handler },
+  { "provider_service_bzip2",      VERSION_provider_bzip2,      &provider_handler_bzip2 },
+  { "provider_service_lz4",        VERSION_provider_lz4,        &provider_handler_lz4 },
+  { "provider_service_lzma",       VERSION_provider_lzma,       &provider_handler_lzma },
+  { "provider_service_lzo",        VERSION_provider_lzo,        &provider_handler_lzo },
+  { "provider_service_snappy",     VERSION_provider_snappy,     &provider_handler_snappy }
 };

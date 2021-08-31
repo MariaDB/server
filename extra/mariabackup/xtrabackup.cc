@@ -3309,7 +3309,8 @@ static void xb_load_single_table_tablespace(const char *dirname,
 			0, false, false);
 		node->deferred= defer;
 		mysql_mutex_lock(&fil_system.mutex);
-		space->read_page0();
+		if (!space->read_page0())
+                  err= DB_CANNOT_OPEN_FILE;
 		mysql_mutex_unlock(&fil_system.mutex);
 
 		if (srv_operation == SRV_OPERATION_RESTORE_DELTA

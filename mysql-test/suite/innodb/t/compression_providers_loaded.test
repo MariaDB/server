@@ -1,0 +1,18 @@
+let $alg = $MTR_COMBINATIONS;
+
+if (`SELECT COUNT(*) = 0 FROM information_schema.plugins WHERE plugin_name = "provider_$alg" AND plugin_status = "active"`)
+{
+  skip Needs provider_$alg plugin;
+}
+
+--echo #
+--echo # Testing unloaded compression provider: $alg
+--echo #
+
+--echo # Innodb_have_$alg reflects that the provider is loaded
+eval SHOW GLOBAL STATUS WHERE Variable_name = "Innodb_have_$alg";
+
+--echo # Innodb_compression_algorithm can be set to $alg
+let $innodb_compression_algorithm_orig = `SELECT @@Innodb_compression_algorithm`;
+eval SET GLOBAL Innodb_compression_algorithm = $alg;
+eval SET GLOBAL Innodb_compression_algorithm = $innodb_compression_algorithm_orig;

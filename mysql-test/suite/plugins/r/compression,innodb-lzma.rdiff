@@ -1,0 +1,22 @@
+--- suite/plugins/r/compression.result
++++ suite/plugins/r/compression.reject
+@@ -1,8 +1,8 @@
+ #
+-# Testing bzip2 compression provider with innodb
++# Testing lzma compression provider with innodb
+ #
+ call mtr.add_suppression("MariaDB tried to use the .+ compression, but its provider plugin is not loaded");
+-set global innodb_compression_algorithm = bzip2;
++set global innodb_compression_algorithm = lzma;
+ call mtr.add_suppression("InnoDB: Background Page read failed to read or decrypt \\[page id: space=\\d+, page number=\\d+\\]");
+ call mtr.add_suppression("InnoDB: Table `test`.`t1` is compressed with (\\w+) \\(\\d\\), which is not currently loaded. Please load the '\\1' provider plugin to open the table.");
+ create table t1 (a int, b text ) engine = innodb page_compressed = 1;
+@@ -14,7 +14,7 @@
+ 0	abcabcabc	300
+ 1	defdefdef	3000
+ 2	ghighighi	30000
+-# restart: --disable-provider-bzip2
++# restart: --disable-provider-lzma
+ select a, left(b, 9), length(b) from t1;
+ ERROR 42S02: Table 'test.t1' doesn't exist in engine
+ drop table t1;

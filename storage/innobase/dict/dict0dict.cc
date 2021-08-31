@@ -1037,8 +1037,17 @@ dict_table_open_on_name(
       if (!(ignore_err & ~DICT_ERR_IGNORE_FK_NOKEY) &&
           !table->is_readable() && table->corrupted)
       {
-        ib::error() << "Table " << table->name
-                    << " is corrupted. Please drop the table and recreate.";
+        ulint algo = table->space->get_compression_algo();
+        if (algo <= PAGE_ALGORITHM_LAST && !fil_comp_algo_loaded(algo)) {
+          ib::error() << "Table " << table->name << " is compressed with "
+                << page_compression_algorithms[algo]
+                << ", which is not currently loaded. Please load the "
+                << page_compression_algorithms[algo]
+                << " provider plugin to open the table";
+        } else {
+          ib::error() << "Table " << table->name
+                      << " is corrupted. Please drop the table and recreate.";
+	}
         dict_sys.unfreeze();
         DBUG_RETURN(nullptr);
       }

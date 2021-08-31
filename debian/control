@@ -18,6 +18,7 @@ Build-Depends: bison,
                libboost-regex-dev [amd64],
                libboost-system-dev [amd64],
                libboost-thread-dev [amd64],
+               libbz2-dev,
                libcrack2-dev (>= 2.9.0),
                libcurl4-openssl-dev | libcurl4-dev,
                libedit-dev,
@@ -26,6 +27,8 @@ Build-Depends: bison,
                libjudy-dev,
                libkrb5-dev,
                liblz4-dev,
+               liblzma-dev,
+               liblzo2-dev,
                libncurses5-dev (>= 5.0-6~),
                libncurses5-dev:native (>= 5.0-6~),
                libnuma-dev [linux-any],
@@ -933,6 +936,41 @@ Description: CrackLib Password Validation Plugin for MariaDB
  sufficiently secure (as defined by cracklib) user passwords in MariaDB.
  .
  Install and configure this to enforce stronger passwords for MariaDB users.
+
+Package: mariadb-plugin-provider-bzip2
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: BZip2 compression support in the server and storage engines
+
+Package: mariadb-plugin-provider-lz4
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: LZ4 compression support in the server and storage engines
+
+Package: mariadb-plugin-provider-lzma
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: LZMA compression support in the server and storage engines
+
+Package: mariadb-plugin-provider-lzo
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: LZO compression support in the server and storage engines
+
+Package: mariadb-plugin-provider-snappy
+Architecture: any
+Depends: mariadb-server-10.7,
+         ${misc:Depends},
+         ${shlibs:Depends}
+Description: Snappy compression support in the server and storage engines
 
 Package: mariadb-test
 Architecture: any

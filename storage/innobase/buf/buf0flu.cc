@@ -40,11 +40,8 @@ Created 11/11/1995 Heikki Tuuri
 #include "log0crypt.h"
 #include "srv0mon.h"
 #include "fil0pagecompress.h"
-#ifdef HAVE_LZO
-# include "lzo/lzo1x.h"
-#elif defined HAVE_SNAPPY
-# include "snappy-c.h"
-#endif
+#include "lzo/lzo1x.h"
+#include "snappy-c.h"
 
 /** Number of pages flushed via LRU. Protected by buf_pool.mutex.
 Also included in buf_flush_page_count. */
@@ -576,11 +573,10 @@ static void buf_tmp_reserve_compression_buf(buf_tmp_buffer_t* slot)
   /* Both Snappy and LZO compression methods require that the output
   buffer be bigger than input buffer. Adjust the allocated size. */
   ulint size= srv_page_size;
-#ifdef HAVE_LZO
-  size+= LZO1X_1_15_MEM_COMPRESS;
-#elif defined HAVE_SNAPPY
-  size= snappy_max_compressed_length(size);
-#endif
+  if (provider_service_lzo->is_loaded)
+    size+= LZO1X_1_15_MEM_COMPRESS;
+  else if (provider_service_snappy->is_loaded)
+    size= snappy_max_compressed_length(size);
   slot->comp_buf= static_cast<byte*>(aligned_malloc(size, srv_page_size));
 }
 
