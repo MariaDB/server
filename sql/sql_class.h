@@ -4408,11 +4408,8 @@ public:
         for any CTE references.
       */
       if (!lex->with_cte_resolution)
-      {
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-        return TRUE;
-      }
-      return FALSE;
+      return TRUE;
     }
 
     to->str= strmake(db.str, db.length);
