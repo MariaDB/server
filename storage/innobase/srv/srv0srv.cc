@@ -1972,7 +1972,7 @@ ulint srv_get_task_queue_length()
 void srv_purge_shutdown()
 {
 	if (purge_sys.enabled()) {
-		if (!srv_fast_shutdown)
+		if (!srv_fast_shutdown && !opt_bootstrap)
 			srv_update_purge_thread_count(innodb_purge_threads_MAX);
 		while(!srv_purge_should_exit()) {
 			ut_a(!purge_sys.paused());
