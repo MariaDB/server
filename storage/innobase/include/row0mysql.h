@@ -300,30 +300,24 @@ row_update_cascade_for_mysql(
                                 or set null operation */
         dict_table_t*   table)  /*!< in: table where we do the operation */
         MY_ATTRIBUTE((nonnull, warn_unused_result));
-/*********************************************************************//**
-Locks the data dictionary exclusively for performing a table create or other
-data dictionary modification operation. */
-void
-row_mysql_lock_data_dictionary_func(
-/*================================*/
-#ifdef UNIV_PFS_RWLOCK
-	const char*	file,	/*!< in: file name */
-	unsigned	line,	/*!< in: line number */
-#endif
-	trx_t*		trx);	/*!< in/out: transaction */
-#ifdef UNIV_PFS_RWLOCK
-#define row_mysql_lock_data_dictionary(trx)				\
-	row_mysql_lock_data_dictionary_func(__FILE__, __LINE__, trx)
-#else
-#define row_mysql_lock_data_dictionary row_mysql_lock_data_dictionary_func
-#endif
 
-/*********************************************************************//**
-Unlocks the data dictionary exclusive lock. */
-void
-row_mysql_unlock_data_dictionary(
-/*=============================*/
-	trx_t*	trx);	/*!< in/out: transaction */
+/** Lock the data dictionary cache exclusively. */
+#define row_mysql_lock_data_dictionary(trx)			\
+	do {							\
+		ut_ad(!trx->dict_operation_lock_mode);		\
+		dict_sys.lock(SRW_LOCK_CALL);			\
+		trx->dict_operation_lock_mode = true;		\
+	} while (0)
+
+/** Unlock the data dictionary. */
+#define row_mysql_unlock_data_dictionary(trx)			\
+	do {							\
+		ut_ad(!lock_trx_has_sys_table_locks(trx));	\
+		ut_ad(trx->dict_operation_lock_mode);		\
+		trx->dict_operation_lock_mode = false;		\
+		dict_sys.unlock();				\
+	} while (0)
+
 /*********************************************************************//**
 Creates a table for MySQL. On failure the transaction will be rolled back
 and the 'table' object will be freed.

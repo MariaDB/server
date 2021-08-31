@@ -141,7 +141,7 @@ removed:
 		mtr.commit();
 close_and_exit:
 		if (table) {
-			dict_table_close(table, true, false);
+			dict_table_close(table, true);
 			dict_sys.unlock();
 		}
 		return success;
@@ -181,7 +181,7 @@ close_and_exit:
 		mtr.commit();
 
 		if (table) {
-			dict_table_close(table, true, false);
+			dict_table_close(table, true);
 			dict_sys.unlock();
 			table = nullptr;
 		}

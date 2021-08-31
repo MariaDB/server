@@ -82,6 +82,8 @@ select count(stat_value) > 0 from mysql.innodb_index_stats where table_name = 't
 select count(stat_value) > 0 from mysql.innodb_index_stats where table_name = 't2' and  stat_name in ('n_leaf_pages_defrag');
 
 --echo # Clean up
+# DROP TABLE will not touch persistent statistics if the table has none!
+ALTER TABLE t2 STATS_PERSISTENT=1;
 DROP TABLE t2;
 
 select * from mysql.innodb_index_stats where table_name = 't2';

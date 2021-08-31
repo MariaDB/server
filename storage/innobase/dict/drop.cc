@@ -81,7 +81,7 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
   ut_ad(dict_sys.locked());
   ut_ad(state == TRX_STATE_ACTIVE);
   ut_ad(dict_operation);
-  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
+  ut_ad(dict_operation_lock_mode);
 
   if (!dict_sys.sys_foreign || !dict_sys.sys_foreign_cols)
     return DB_SUCCESS;
@@ -117,7 +117,7 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
 dberr_t trx_t::drop_table_statistics(const table_name_t &name)
 {
   ut_ad(dict_sys.locked());
-  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
+  ut_ad(dict_operation_lock_mode);
 
   if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB) ||
       !strcmp(name.m_name, TABLE_STATS_NAME) ||
@@ -146,7 +146,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
   ut_ad(dict_sys.locked());
   ut_ad(state == TRX_STATE_ACTIVE);
   ut_ad(dict_operation);
-  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
+  ut_ad(dict_operation_lock_mode);
   ut_ad(!table.is_temporary());
   ut_ad(!(table.stats_bg_flag & BG_STAT_IN_PROGRESS));
   /* The table must be exclusively locked by this transaction. */

@@ -766,7 +766,7 @@ pars_retrieve_table_def(
 		sym_node->token_type = SYM_TABLE_REF_COUNTED;
 
 		sym_node->table = dict_table_open_on_name(
-			sym_node->name, TRUE, FALSE, DICT_ERR_IGNORE_NONE);
+			sym_node->name, true, DICT_ERR_IGNORE_NONE);
 
 		ut_a(sym_node->table != NULL);
 	}

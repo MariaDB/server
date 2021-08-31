@@ -23,6 +23,8 @@ WHERE table_name='innodb_stats_drop_locked'
 FOR UPDATE;
 
 -- connect (con1,localhost,root,,)
+SET innodb_lock_wait_timeout=1;
+
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE innodb_stats_drop_locked DROP INDEX c_key;
 

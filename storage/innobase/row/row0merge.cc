@@ -3678,7 +3678,7 @@ row_merge_drop_index_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 	ut_ad(dict_sys.locked());
 
@@ -3704,6 +3704,7 @@ row_merge_drop_index_dict(
 Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
 because the transaction will not be committed. */
+static
 void
 row_merge_drop_indexes_dict(
 /*========================*/
@@ -3740,7 +3741,7 @@ row_merge_drop_indexes_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 	ut_ad(dict_sys.locked());
 
@@ -3813,7 +3814,7 @@ row_merge_drop_indexes(
 	dict_index_t*	next_index;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 	ut_ad(dict_sys.locked());
 
@@ -3829,18 +3830,10 @@ row_merge_drop_indexes(
 	handle to the table be waiting for the next statement to execute,
 	or waiting for a meta-data lock.
 
-	A concurrent purge will be prevented by dict_sys.latch. */
+	A concurrent purge will be prevented by MDL. */
 
 	if (!locked && (table->get_ref_count() > 1
 			|| table->has_lock_other_than(alter_trx))) {
-		/* We will have to drop the indexes later, when the
-		table is guaranteed to be no longer in use.  Mark the
-		indexes as incomplete and corrupted, so that other
-		threads will stop using them.  Let dict_table_close()
-		or crash recovery or the next invocation of
-		prepare_inplace_alter_table() take care of dropping
-		the indexes. */
-
 		while ((index = dict_table_get_next_index(index)) != NULL) {
 			ut_ad(!dict_index_is_clust(index));
 
@@ -4094,7 +4087,10 @@ void row_merge_drop_temp_indexes()
 	indexes, so that the data dictionary information can be checked
 	when accessing the tablename.ibd files. */
 	trx_t* trx = trx_create();
+	trx_start_for_ddl(trx);
 	trx->op_info = "dropping partially created indexes";
+	dberr_t error = lock_sys_tables(trx);
+
 	row_mysql_lock_data_dictionary(trx);
 	/* Ensure that this transaction will be rolled back and locks
 	will be released, if the server gets killed before the commit
@@ -4105,8 +4101,11 @@ void row_merge_drop_temp_indexes()
 
 	pars_info_t* pinfo = pars_info_create();
 	pars_info_bind_function(pinfo, "drop_fts", row_merge_drop_fts, trx);
+	if (error == DB_SUCCESS) {
+		error = que_eval_sql(pinfo, sql, trx);
+	}
 
-	if (dberr_t error = que_eval_sql(pinfo, sql, trx)) {
+	if (error) {
 		/* Even though we ensure that DDL transactions are WAIT
 		and DEADLOCK free, we could encounter other errors e.g.,
 		DB_TOO_MANY_CONCURRENT_TRXS. */
@@ -4246,7 +4245,7 @@ row_merge_rename_index_to_add(
 		"WHERE TABLE_ID = :tableid AND ID = :indexid;\n"
 		"END;\n";
 
-	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 
 	trx->op_info = "renaming index to add";

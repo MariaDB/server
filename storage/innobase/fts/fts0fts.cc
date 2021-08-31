@@ -1371,7 +1371,7 @@ fts_cache_add_doc(
 @retval DB_FAIL     if the table did not exist */
 static dberr_t fts_drop_table(trx_t *trx, const char *table_name, bool rename)
 {
-  if (dict_table_t *table= dict_table_open_on_name(table_name, TRUE, FALSE,
+  if (dict_table_t *table= dict_table_open_on_name(table_name, true,
                                                    DICT_ERR_IGNORE_DROP))
   {
     table->release();
@@ -1503,24 +1503,20 @@ static dberr_t fts_lock_table(trx_t *trx, const char *table_name)
 {
   ut_ad(purge_sys.must_wait_FTS());
 
-  if (dict_table_t *table= dict_table_open_on_name(table_name, false, false,
+  if (dict_table_t *table= dict_table_open_on_name(table_name, false,
                                                    DICT_ERR_IGNORE_DROP))
   {
     dberr_t err= lock_table_for_trx(table, trx, LOCK_X);
     /* Wait for purge threads to stop using the table. */
-    dict_sys.freeze(SRW_LOCK_CALL);
     for (uint n= 15; table->get_ref_count() > 1; )
     {
-      dict_sys.unfreeze();
       if (!--n)
       {
         err= DB_LOCK_WAIT_TIMEOUT;
         goto fail;
       }
       std::this_thread::sleep_for(std::chrono::milliseconds(50));
-      dict_sys.freeze(SRW_LOCK_CALL);
     }
-    dict_sys.unfreeze();
 fail:
     table->release();
     return err;
@@ -4077,7 +4073,7 @@ fts_sync_commit(
 	}
 
 	/* Avoid assertion in trx_t::free(). */
-	trx->dict_operation_lock_mode = 0;
+	trx->dict_operation_lock_mode = false;
 	trx->free();
 
 	return(error);
@@ -4127,7 +4123,7 @@ fts_sync_rollback(
 	fts_sql_rollback(trx);
 
 	/* Avoid assertion in trx_t::free(). */
-	trx->dict_operation_lock_mode = 0;
+	trx->dict_operation_lock_mode = false;
 	trx->free();
 }
 

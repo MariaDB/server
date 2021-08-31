@@ -174,7 +174,7 @@ struct TrxFactory {
 		trx->rw_trx_hash_pins = 0;
 		trx_init(trx);
 
-		trx->dict_operation_lock_mode = 0;
+		trx->dict_operation_lock_mode = false;
 
 		trx->detailed_error = reinterpret_cast<char*>(
 			ut_zalloc_nokey(MAX_DETAILED_ERROR_LEN));
@@ -215,7 +215,7 @@ struct TrxFactory {
 
 		ut_a(trx->lock.wait_lock == NULL);
 		ut_a(trx->lock.wait_thr == NULL);
-		ut_a(trx->dict_operation_lock_mode == 0);
+		ut_a(!trx->dict_operation_lock_mode);
 
 		if (trx->lock.lock_heap != NULL) {
 			mem_heap_free(trx->lock.lock_heap);
@@ -1114,7 +1114,7 @@ trx_finalize_for_fts(
 	trx->fts_trx = NULL;
 }
 
-extern "C" MYSQL_THD thd_increment_pending_ops();
+
 extern "C" void thd_decrement_pending_ops(MYSQL_THD);
 
 
@@ -1123,11 +1123,11 @@ extern "C" void thd_decrement_pending_ops(MYSQL_THD);
 /*
   If required, initiates write and optionally flush of the log to
   disk
-  @param[in] lsn - lsn up to which logs are to be flushed.
-  @param[in] trx_state - if trx_state is PREPARED, the function will
+  @param lsn   LSN up to which logs are to be flushed.
+  @param trx   transaction; if trx->state is PREPARED, the function will
   also wait for the flush to complete.
 */
-static void trx_flush_log_if_needed_low(lsn_t lsn, trx_state_t trx_state)
+static void trx_flush_log_if_needed_low(lsn_t lsn, const trx_t *trx)
 {
   if (!srv_flush_log_at_trx_commit)
     return;
@@ -1138,25 +1138,23 @@ static void trx_flush_log_if_needed_low(lsn_t lsn, trx_state_t trx_state)
   const bool flush= srv_file_flush_method != SRV_NOSYNC &&
     (srv_flush_log_at_trx_commit & 1);
 
-  if (trx_state == TRX_STATE_PREPARED)
+  if (trx->state == TRX_STATE_PREPARED)
   {
     /* XA, which is used with binlog as well.
     Be conservative, use synchronous wait.*/
+sync:
     log_write_up_to(lsn, flush);
     return;
   }
 
   completion_callback cb;
-  if ((cb.m_param = thd_increment_pending_ops()))
+  if ((cb.m_param = innodb_thd_increment_pending_ops(trx->mysql_thd)))
   {
     cb.m_callback = (void (*)(void *)) thd_decrement_pending_ops;
     log_write_up_to(lsn, flush, false, &cb);
   }
   else
-  {
-    /* No THD, synchronous write */
-    log_write_up_to(lsn, flush);
-  }
+    goto sync;
 }
 
 /**********************************************************************//**
@@ -1171,7 +1169,7 @@ trx_flush_log_if_needed(
 	trx_t*	trx)	/*!< in/out: transaction */
 {
 	trx->op_info = "flushing log";
-	trx_flush_log_if_needed_low(lsn,trx->state);
+	trx_flush_log_if_needed_low(lsn, trx);
 	trx->op_info = "";
 }
 

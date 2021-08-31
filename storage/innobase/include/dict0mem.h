@@ -2375,7 +2375,7 @@ public:
 
   /** @return whether the name is
   mysql.innodb_index_stats or mysql.innodb_table_stats */
-  inline bool is_stats_table() const;
+  bool is_stats_table() const;
 
   /** Create metadata.
   @param name     table name

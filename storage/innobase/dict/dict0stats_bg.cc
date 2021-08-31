@@ -383,7 +383,7 @@ no_table:
 
 	dict_sys.lock(SRW_LOCK_CALL);
 	table->stats_bg_flag = BG_STAT_NONE;
-	dict_table_close(table, TRUE, FALSE);
+	dict_table_close(table, true);
 	dict_sys.unlock();
 
 	return ret;
@@ -409,8 +409,12 @@ static std::mutex dict_stats_mutex;
 
 static void dict_stats_func(void*)
 {
-	while (dict_stats_process_entry_from_recalc_pool()) {}
-	dict_defrag_process_entries_from_defrag_pool();
+  THD *thd= innobase_create_background_thd("InnoDB statistics");
+  set_current_thd(thd);
+  while (dict_stats_process_entry_from_recalc_pool()) {}
+  dict_defrag_process_entries_from_defrag_pool();
+  set_current_thd(nullptr);
+  innobase_destroy_background_thd(thd);
 }
 
 

@@ -249,7 +249,7 @@ row_upd_check_references_constraints(
 
 				ref_table = dict_table_open_on_name(
 					foreign->foreign_table_name_lookup,
-					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+					false, DICT_ERR_IGNORE_NONE);
 			}
 
 			err = row_ins_check_foreign_constraint(
@@ -332,7 +332,7 @@ wsrep_row_upd_check_foreign_constraints(
 				foreign->referenced_table =
 					dict_table_open_on_name(
 					  foreign->referenced_table_name_lookup,
-					  FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+					  false, DICT_ERR_IGNORE_NONE);
 				opened = (foreign->referenced_table) ? TRUE : FALSE;
 			}
 

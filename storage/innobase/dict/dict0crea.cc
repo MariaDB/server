@@ -33,6 +33,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "mach0data.h"
 #include "dict0boot.h"
 #include "dict0dict.h"
+#include "lock0lock.h"
 #include "que0que.h"
 #include "row0ins.h"
 #include "row0mysql.h"
@@ -653,7 +654,7 @@ dict_build_index_def_step(
 	index = node->index;
 
 	table = dict_table_open_on_name(
-		node->table_name, TRUE, FALSE, DICT_ERR_IGNORE_DROP);
+		node->table_name, true, DICT_ERR_IGNORE_DROP);
 
 	if (!table) {
 		return DB_TABLE_NOT_FOUND;
@@ -1377,7 +1378,18 @@ dberr_t dict_sys_t::create_or_check_sys_tables()
     return DB_SUCCESS;
 
   trx_t *trx= trx_create();
-  trx->dict_operation= true;
+  trx_start_for_ddl(trx);
+
+  {
+    LockMutexGuard g{SRW_LOCK_CALL};
+    trx->mutex_lock();
+    lock_table_create(dict_sys.sys_tables, LOCK_X, trx);
+    lock_table_create(dict_sys.sys_columns, LOCK_X, trx);
+    lock_table_create(dict_sys.sys_indexes, LOCK_X, trx);
+    lock_table_create(dict_sys.sys_fields, LOCK_X, trx);
+    trx->mutex_unlock();
+  }
+
   row_mysql_lock_data_dictionary(trx);
 
   /* NOTE: when designing InnoDB's foreign key support in 2001, Heikki Tuuri

@@ -209,110 +209,26 @@ dict_remove_db_name(
 	return(s + 1);
 }
 
-/** Open a persistent table.
-@param[in]	table_id	persistent table identifier
-@param[in]	ignore_err	errors to ignore
-@param[in]	cached_only	whether to skip loading
-@return persistent table
-@retval	NULL if not found */
-static dict_table_t* dict_table_open_on_id_low(
-	table_id_t		table_id,
-	dict_err_ignore_t	ignore_err,
-	bool			cached_only)
-{
-	dict_table_t* table = dict_sys.find_table(table_id);
-
-	if (!table && !cached_only) {
-		table = dict_load_table_on_id(table_id, ignore_err);
-	}
-
-	return table;
-}
-
-/**********************************************************************//**
-Try to drop any indexes after an aborted index creation.
-This can also be after a server kill during DROP INDEX. */
-static
-void
-dict_table_try_drop_aborted(
-/*========================*/
-	dict_table_t*	table,		/*!< in: table, or NULL if it
-					needs to be looked up again */
-	table_id_t	table_id,	/*!< in: table identifier */
-	uint32_t	ref_count)	/*!< in: expected table->n_ref_count */
-{
-	trx_t*		trx;
-
-	trx = trx_create();
-	trx->op_info = "try to drop any indexes after an aborted index creation";
-	row_mysql_lock_data_dictionary(trx);
-	trx->dict_operation = true;
-
-	if (table == NULL) {
-		table = dict_table_open_on_id_low(
-			table_id, DICT_ERR_IGNORE_FK_NOKEY, FALSE);
-	} else {
-		ut_ad(table->id == table_id);
-	}
-
-	if (table && table->get_ref_count() == ref_count && table->drop_aborted
-	    && !UT_LIST_GET_FIRST(table->locks)) {
-		/* Silence a debug assertion in row_merge_drop_indexes(). */
-		ut_d(table->acquire());
-		row_merge_drop_indexes(trx, table, true);
-		ut_d(table->release());
-		ut_ad(table->get_ref_count() == ref_count);
-		trx_commit_for_mysql(trx);
-	}
-
-	row_mysql_unlock_data_dictionary(trx);
-	trx->free();
-}
-
-/**********************************************************************//**
-When opening a table,
-try to drop any indexes after an aborted index creation.
-Invoke dict_sys.unlock(). */
-static
-void
-dict_table_try_drop_aborted_and_unlock(
-	dict_table_t*	table,		/*!< in: table (may be NULL) */
-	ibool		try_drop)	/*!< in: FALSE if should try to
-					drop indexes whose online creation
-					was aborted */
-{
-	if (try_drop
-	    && table != NULL
-	    && table->drop_aborted
-	    && table->get_ref_count() == 1
-	    && dict_table_get_first_index(table)) {
-
-		/* Attempt to drop the indexes whose online creation
-		was aborted. */
-		table_id_t	table_id = table->id;
-
-		dict_sys.unlock();
-
-		dict_table_try_drop_aborted(table, table_id, 1);
-	} else {
-		dict_sys.unlock();
-	}
-}
-
 /** Decrement the count of open handles */
 void dict_table_close(dict_table_t *table)
 {
-  if (dict_stats_is_persistent_enabled(table) &&
+  if (table->get_ref_count() == 1 &&
+      dict_stats_is_persistent_enabled(table) &&
       strchr(table->name.m_name, '/'))
   {
-    dict_sys.freeze(SRW_LOCK_CALL);
+    /* It looks like we are closing the last handle. The user could
+    have executed FLUSH TABLES in order to have the statistics reloaded
+    from the InnoDB persistent statistics tables. We must acquire
+    exclusive dict_sys.latch to prevent a race condition with another
+    thread concurrently acquiring a handle on the table. */
+    dict_sys.lock(SRW_LOCK_CALL);
     if (table->release())
     {
       table->stats_mutex_lock();
       dict_stats_deinit(table);
       table->stats_mutex_unlock();
     }
-    dict_sys.unfreeze();
+    dict_sys.unlock();
   }
   else
     table->release();
@@ -320,9 +236,7 @@ void dict_table_close(dict_table_t *table)
 
 /** Decrements the count of open handles of a table.
 @param[in,out]	table		table
-@param[in]	dict_locked	data dictionary locked
-@param[in]	try_drop	try to drop any orphan indexes after
-				an aborted online index creation
+@param[in]	dict_locked	whether dict_sys.latch is being held
 @param[in]	thd		thread to release MDL
 @param[in]	mdl		metadata lock or NULL if the thread
 				is a foreground one. */
@@ -330,57 +244,32 @@ void
 dict_table_close(
 	dict_table_t*	table,
 	bool		dict_locked,
-	bool		try_drop,
 	THD*		thd,
 	MDL_ticket*	mdl)
 {
-	if (!dict_locked) {
-		dict_sys.lock(SRW_LOCK_CALL);
-	}
+  if (!dict_locked)
+    dict_table_close(table);
+  else
+  {
+    if (table->release() && dict_stats_is_persistent_enabled(table) &&
+	strchr(table->name.m_name, '/'))
+    {
+      /* Force persistent stats re-read upon next open of the table so
+      that FLUSH TABLE can be used to forcibly fetch stats from disk if
+      they have been manually modified. */
+      table->stats_mutex_lock();
+      dict_stats_deinit(table);
+      table->stats_mutex_unlock();
+    }
 
-	ut_ad(dict_sys.locked());
-	ut_a(table->get_ref_count() > 0);
+    ut_ad(dict_lru_validate());
+    ut_ad(dict_sys.find(table));
+  }
 
-	const bool last_handle = table->release();
-
-	/* Force persistent stats re-read upon next open of the table
-	so that FLUSH TABLE can be used to forcibly fetch stats from disk
-	if they have been manually modified. We reset table->stat_initialized
-	only if table reference count is 0 because we do not want too frequent
-	stats re-reads (e.g. in other cases than FLUSH TABLE). */
-	if (last_handle
-	    && dict_stats_is_persistent_enabled(table)
-	    && strchr(table->name.m_name, '/')) {
-
-		table->stats_mutex_lock();
-		dict_stats_deinit(table);
-		table->stats_mutex_unlock();
-	}
-
-	ut_ad(dict_lru_validate());
-	ut_ad(dict_sys.find(table));
-
-	if (!dict_locked) {
-		table_id_t	table_id	= table->id;
-		const bool	drop_aborted	= last_handle && try_drop
-			&& table->drop_aborted
-			&& dict_table_get_first_index(table);
-
-		dict_sys.unlock();
-
-		/* dict_table_try_drop_aborted() can generate undo logs.
-		So it should be avoided after shutdown of background
-		threads */
-		if (drop_aborted && !srv_undo_sources) {
-			dict_table_try_drop_aborted(NULL, table_id, 0);
-		}
-	}
-
-	if (!thd || !mdl) {
-	} else if (MDL_context *mdl_context= static_cast<MDL_context*>(
-			   thd_mdl_context(thd))) {
-		mdl_context->release_lock(mdl);
-	}
+  if (!thd || !mdl);
+  else if (MDL_context *mdl_context= static_cast<MDL_context*>
+           (thd_mdl_context(thd)))
+    mdl_context->release_lock(mdl);
 }
 
 /** Check if the table has a given (non_virtual) column.
@@ -1117,22 +1006,20 @@ ATTRIBUTE_NOINLINE void dict_sys_t::unfreeze()
 #endif /* UNIV_PFS_RWLOCK */
 
 /**********************************************************************//**
-Returns a table object and increment its open handle count.
+Returns a table object and increments its open handle count.
 NOTE! This is a high-level function to be used mainly from outside the
-'dict' module. Inside this directory dict_table_get_low
+'dict' directory. Inside this directory dict_table_get_low
 is usually the appropriate function.
-@return table, NULL if does not exist */
+@param[in] table_name Table name
+@param[in] dict_locked whether dict_sys.latch is being held exclusively
+@param[in] ignore_err error to be ignored when loading the table
+@return table
+@retval nullptr if does not exist */
 dict_table_t*
 dict_table_open_on_name(
-/*====================*/
-	const char*	table_name,	/*!< in: table name */
-	ibool		dict_locked,	/*!< in: TRUE=data dictionary locked */
-	ibool		try_drop,	/*!< in: TRUE=try to drop any orphan
-					indexes after an aborted online
-					index creation */
-	dict_err_ignore_t
-			ignore_err)	/*!< in: error to be ignored when
-					loading a table definition */
+	const char*		table_name,
+	bool			dict_locked,
+	dict_err_ignore_t	ignore_err)
 {
   dict_table_t *table;
   DBUG_ENTER("dict_table_open_on_name");
@@ -1183,7 +1070,7 @@ dict_table_open_on_name(
 
   ut_ad(dict_lru_validate());
   if (!dict_locked)
-    dict_table_try_drop_aborted_and_unlock(table, try_drop);
+    dict_sys.unlock();
 
   DBUG_RETURN(table);
 }
@@ -1977,23 +1864,6 @@ void dict_sys_t::remove(dict_table_t* table, bool lru, bool keep)
 		UT_LIST_REMOVE(table_LRU, table);
 	} else {
 		UT_LIST_REMOVE(table_non_LRU, table);
-	}
-
-	if (lru && table->drop_aborted) {
-		/* When evicting the table definition,
-		drop the orphan indexes from the data dictionary
-		and free the index pages. */
-		trx_t* trx = trx_create();
-
-		ut_ad(dict_sys.locked());
-		/* Mimic row_mysql_lock_data_dictionary(). */
-		trx->dict_operation_lock_mode = RW_X_LATCH;
-
-		trx->dict_operation = true;
-		row_merge_drop_indexes_dict(trx, table->id);
-		trx_commit_for_mysql(trx);
-		trx->dict_operation_lock_mode = 0;
-		trx->free();
 	}
 
 	/* Free virtual column template if any */
