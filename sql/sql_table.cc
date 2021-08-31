@@ -10081,8 +10081,9 @@ do_continue:;
 
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   {
-    if (prep_alter_part_table(thd, table, alter_info, create_info,
-                              &partition_changed, &fast_alter_partition))
+    if (prep_alter_part_table(thd, table_list, alter_info, create_info,
+                              &partition_changed, &fast_alter_partition,
+                              alter_ctx))
     {
       DBUG_RETURN(true);
     }

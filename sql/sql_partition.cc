@@ -4775,6 +4775,120 @@ static void check_datadir_altered_for_innodb(THD *thd,
 }
 
 
+/**
+  Fill in the C structure ALTER_PARTITION_PARAM_TYPE with parameters
+  further used for handling the ALTER TABLE statement.
+
+  @param[in]     thd          Thread object
+  @param[in,out] lpt          Structure containing parameters required for
+                              handling of the statement ALTER TABLE
+  @param[in]     tables       Table object
+  @param[in]     alter_info   Alter information
+  @param[in]     create_info  Create info for ALTER TABLE
+  @param[in]     alter_ctx    ALTER TABLE runtime context
+
+  @return  pointer to the initialized structure ALTER_PARTITION_PARAM_TYPE
+*/
+
+static ALTER_PARTITION_PARAM_TYPE* fill_in_alter_partition_param(
+  THD *thd,
+  ALTER_PARTITION_PARAM_TYPE *lpt,
+  TABLE_LIST *tables,
+  Alter_info *alter_info,
+  HA_CREATE_INFO *create_info,
+  const Alter_table_ctx &alter_ctx)
+{
+  TABLE *table= tables->table;
+
+  lpt->thd= thd;
+  lpt->table_list= tables;
+  lpt->part_info= tables->table->part_info;
+  lpt->alter_info= alter_info;
+  lpt->create_info= create_info;
+  lpt->db_options= create_info->table_options_with_row_type();
+  lpt->table= table;
+  lpt->key_info_buffer= nullptr;
+  lpt->key_count= 0;
+  lpt->db= alter_ctx.db;
+  lpt->table_name= alter_ctx.table_name;
+  lpt->org_tabledef_version= table->s->tabledef_version;
+  lpt->copied= 0;
+  lpt->deleted= 0;
+  lpt->pack_frm_data= nullptr;
+  lpt->pack_frm_len= 0;
+
+  return lpt;
+}
+
+
+/**
+  Check whether metadata of a partitioned table and a being moved to partition
+  are equal
+
+  @para[in, out] lpt  Struct containing parameters required for handling of
+                    the statement ALTER TABLE
+
+  @return false on ok (tables metadata are equal),
+          true on error (tables metadata are different)
+*/
+
+static bool compare_tables_metadata(ALTER_PARTITION_PARAM_TYPE *lpt)
+{
+  TABLE *part_table= lpt->table_list->table;
+  TABLE *table= lpt->table_list->next_local->table;
+  bool metadata_equal;
+  HA_CREATE_INFO *part_create_info= lpt->create_info;
+
+  handlerton *db_type= part_create_info->db_type;
+  part_create_info->db_type= part_table->part_info->default_engine_type;
+
+  if (mysql_compare_tables(table, lpt->alter_info, part_create_info,
+                          &metadata_equal))
+
+  {
+    part_create_info->db_type= db_type;
+    my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
+    return true;
+  }
+
+  part_create_info->db_type= db_type;
+
+  DEBUG_SYNC(lpt->thd, "swap_partition_after_compare_tables");
+  if (!metadata_equal)
+  {
+    my_error(ER_TABLES_DIFFERENT_METADATA, MYF(0));
+    return true;
+  }
+  DBUG_ASSERT(table->s->db_create_options ==
+              part_table->s->db_create_options);
+  DBUG_ASSERT(table->s->db_options_in_use ==
+              part_table->s->db_options_in_use);
+
+  if (table->s->avg_row_length != part_create_info->avg_row_length)
+  {
+    my_error(ER_PARTITION_EXCHANGE_DIFFERENT_OPTION, MYF(0),
+            "AVG_ROW_LENGTH");
+    return true;
+  }
+
+  if (table->s->db_create_options != part_create_info->table_options)
+  {
+    my_error(ER_PARTITION_EXCHANGE_DIFFERENT_OPTION, MYF(0),
+            "TABLE OPTION");
+    return true;
+  }
+
+  if (table->s->table_charset != part_table->s->table_charset)
+  {
+    my_error(ER_PARTITION_EXCHANGE_DIFFERENT_OPTION, MYF(0),
+            "CHARACTER SET");
+    return true;
+  }
+
+  return false;
+}
+
+
 /*
   Prepare for ALTER TABLE of partition structure
 
@@ -4801,11 +4915,13 @@ static void check_datadir_altered_for_innodb(THD *thd,
     change patterns.
 */
 
-uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
+uint prep_alter_part_table(THD *thd, TABLE_LIST *tables, Alter_info *alter_info,
                            HA_CREATE_INFO *create_info,
                            bool *partition_changed,
-                           bool *fast_alter_table)
+                           bool *fast_alter_table,
+                           const Alter_table_ctx &alter_ctx)
 {
+  TABLE *table= tables->table;
   DBUG_ENTER("prep_alter_part_table");
 
   /* Foreign keys on partitioned tables are not supported, waits for WL#148 */
@@ -5113,18 +5229,28 @@ uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
         goto err;
       }
 
-      /*
-        ALTER TABLE ... ADD PARTITION ... FROM TABLE is not compatible with
-        partition methods other RANGE and LIST.
-      */
-      if ((alter_info->partition_flags & ALTER_PARTITION_ADD_FROM_TABLE) &&
-          tab_part_info->part_type != RANGE_PARTITION &&
-          tab_part_info->part_type != LIST_PARTITION)
+      if ((alter_info->partition_flags & ALTER_PARTITION_ADD_FROM_TABLE))
       {
-        my_error(ER_PARTITION_METHOD_NOT_COMPATIBLE_WITH_ADD_FROM_TABLE,
-                 MYF(0), (tab_part_info->part_type == HASH_PARTITION ?
+        if (tab_part_info->part_type != RANGE_PARTITION &&
+            tab_part_info->part_type != LIST_PARTITION)
+        {
+          /*
+            ALTER TABLE ... ADD PARTITION ... FROM TABLE is not compatible with
+            partition methods other RANGE and LIST.
+          */
+          my_error(ER_PARTITION_METHOD_NOT_COMPATIBLE_WITH_ADD_FROM_TABLE,
+                   MYF(0), (tab_part_info->part_type == HASH_PARTITION ?
                             "HASH": "VERSIONING"));
-        goto err;
+          goto err;
+        }
+
+        ALTER_PARTITION_PARAM_TYPE lpt_obj;
+        ALTER_PARTITION_PARAM_TYPE *lpt=
+          fill_in_alter_partition_param(thd, &lpt_obj, tables,
+                                        alter_info, create_info, alter_ctx);
+
+        if (compare_tables_metadata(lpt))
+          goto err;
       }
       if (num_new_partitions == 0)
       {
@@ -7254,10 +7380,6 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
     This requires mysql_write_frm() refactoring (see comment there).
   */
 
-  /* Set-up struct used to write frm files */
-  partition_info *part_info;
-  ALTER_PARTITION_PARAM_TYPE lpt_obj;
-  ALTER_PARTITION_PARAM_TYPE *lpt= &lpt_obj;
   bool action_completed= FALSE;
   bool frm_install= FALSE;
   MDL_ticket *mdl_ticket= table->mdl_ticket;
@@ -7265,25 +7387,12 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   ulonglong save_option_bits= thd->variables.option_bits;
   DBUG_ENTER("fast_alter_partition_table");
   DBUG_ASSERT(table->needs_reopen());
-
-  part_info= table->part_info;
-  lpt->thd= thd;
-  lpt->table_list= table_list;
-  lpt->part_info= part_info;
-  lpt->alter_info= alter_info;
+  /* Set-up struct used to write frm files */
+  ALTER_PARTITION_PARAM_TYPE lpt_obj;
+  ALTER_PARTITION_PARAM_TYPE *lpt=
+    fill_in_alter_partition_param(thd, &lpt_obj, table_list,
+                                  alter_info, create_info, *alter_ctx);
   lpt->alter_ctx= alter_ctx;
-  lpt->create_info= create_info;
-  lpt->db_options= create_info->table_options_with_row_type();
-  lpt->table= table;
-  lpt->key_info_buffer= 0;
-  lpt->key_count= 0;
-  lpt->db= *db;
-  lpt->table_name= *table_name;
-  lpt->org_tabledef_version= table->s->tabledef_version;
-  lpt->copied= 0;
-  lpt->deleted= 0;
-  lpt->pack_frm_data= NULL;
-  lpt->pack_frm_len= 0;
 
   /* Add IF EXISTS to binlog if shared table */
   if (table->file->partition_ht()->flags & HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
@@ -7502,7 +7611,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
         wait_while_table_is_used(thd, table_from,
                                  HA_EXTRA_PREPARE_FOR_RENAME) ||
-        check_table_fit_new_partition(lpt) ||
+
         ERROR_INJECT_CRASH("crash_add_partition_from_3") ||
         ERROR_INJECT_ERROR("fail_add_partition_from_3") ||
         write_log_add_change_partition(lpt) ||
@@ -7514,11 +7623,9 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         alter_close_table(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_from_6") ||
         ERROR_INJECT_ERROR("fail_add_partition_from_6") ||
+        move_table_to_partition(lpt) ||
         ERROR_INJECT_CRASH("crash_add_partition_from_7") ||
         ERROR_INJECT_ERROR("fail_add_partition_from_7") ||
-
-        move_table_to_partition(lpt) ||
-
         write_log_rename_frm(lpt) ||
         (action_completed= TRUE, FALSE) ||
         ERROR_INJECT_CRASH("crash_add_partition_from_8") ||
@@ -7544,8 +7651,8 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
 
   }
   else if ((alter_info->partition_flags & ALTER_PARTITION_ADD) &&
-           (part_info->part_type == RANGE_PARTITION ||
-            part_info->part_type == LIST_PARTITION))
+           (lpt->part_info->part_type == RANGE_PARTITION ||
+            lpt->part_info->part_type == LIST_PARTITION))
   {
     DBUG_ASSERT(!(alter_info->partition_flags & ALTER_PARTITION_ADD_FROM_TABLE));
     /*
