@@ -39,54 +39,9 @@ extern mysql_pfs_key_t	recalc_pool_mutex_key;
 extern my_bool		innodb_dict_stats_disabled_debug;
 #endif /* UNIV_DEBUG */
 
-/*****************************************************************//**
-Delete a given table from the auto recalc pool.
-dict_stats_recalc_pool_del() */
-void
-dict_stats_recalc_pool_del(
-/*=======================*/
-	const dict_table_t*	table);	/*!< in: table to remove */
-
-/** Yield the data dictionary latch when waiting
-for the background thread to stop accessing a table.
-@param trx	transaction holding the data dictionary locks */
-#define DICT_BG_YIELD	do {	\
-	dict_sys.unlock();	\
-	std::this_thread::sleep_for(std::chrono::milliseconds(250));	\
-	dict_sys.lock(SRW_LOCK_CALL); \
-} while (0)
-
-/*****************************************************************//**
-Request the background collection of statistics to stop for a table.
-@retval true when no background process is active
-@retval false when it is not safe to modify the table definition */
-UNIV_INLINE
-bool
-dict_stats_stop_bg(
-/*===============*/
-	dict_table_t*	table)	/*!< in/out: table */
-{
-	ut_ad(!srv_read_only_mode);
-	ut_ad(dict_sys.locked());
-
-	if (!(table->stats_bg_flag & BG_STAT_IN_PROGRESS)) {
-		return(true);
-	}
-
-	/* In dict_stats_update_persistent() this flag is being read
-	while holding the mutex, not dict_sys.latch. */
-	table->stats_mutex_lock();
-	table->stats_bg_flag |= BG_STAT_SHOULD_QUIT;
-	table->stats_mutex_unlock();
-	return(false);
-}
-
-/*****************************************************************//**
-Wait until background stats thread has stopped using the specified table.
-The background stats thread is guaranteed not to start using the specified
-table after this function returns and before the caller releases
-dict_sys.latch. */
-void dict_stats_wait_bg_to_stop_using_table(dict_table_t *table);
+/** Delete a table from the auto recalc pool, and ensure that
+no statistics are being updated on it. */
+void dict_stats_recalc_pool_del(table_id_t id, bool have_mdl_exclusive);
 
 /*****************************************************************//**
 Initialize global variables needed for the operation of dict_stats_thread().

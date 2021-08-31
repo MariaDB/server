@@ -6212,7 +6212,6 @@ prepare_inplace_alter_table_dict(
 	create_table_info_t info(ctx->prebuilt->trx->mysql_thd, altered_table,
 				 ha_alter_info->create_info, NULL, NULL,
 				 srv_file_per_table);
-	ut_d(bool stats_wait = false);
 
 	/* The primary index would be rebuilt if a FTS Doc ID
 	column is to be added, and the primary index definition
@@ -6280,16 +6279,6 @@ acquire_lock:
 
 	row_mysql_lock_data_dictionary(ctx->trx);
 	dict_locked = true;
-
-	/* Wait for background stats processing to stop using the table that
-	we are going to alter. We know bg stats will not start using it again
-	until we are holding the data dict locked and we are holding it here
-	at least until checking ut_ad(user_table->n_ref_count == 1) below.
-	XXX what may happen if bg stats opens the table after we
-	have unlocked data dictionary below? */
-	dict_stats_wait_bg_to_stop_using_table(user_table);
-	ut_d(stats_wait = true);
-
 	online_retry_drop_indexes_low(ctx->new_table, ctx->trx);
 
 	ut_d(dict_table_check_for_dup_indexes(
@@ -7175,10 +7164,10 @@ error_handled:
 		}
 	}
 
-	/* n_ref_count must be 1, because purge cannot
+	/* n_ref_count must be 1, because background threads cannot
 	be executing on this very table as we are
 	holding MDL_EXCLUSIVE. */
-	ut_ad(!stats_wait || ctx->online || user_table->get_ref_count() == 1);
+	ut_ad(ctx->online || user_table->get_ref_count() == 1);
 
 	if (new_clustered) {
 		online_retry_drop_indexes_low(user_table, ctx->trx);
@@ -10972,35 +10961,6 @@ lock_fail:
 	}
 
 	row_mysql_lock_data_dictionary(trx);
-
-	/* Prevent the background statistics collection from accessing
-	the tables. */
-	for (;;) {
-		bool	retry = false;
-
-		for (inplace_alter_handler_ctx** pctx = ctx_array;
-		     *pctx; pctx++) {
-			ha_innobase_inplace_ctx*	ctx
-				= static_cast<ha_innobase_inplace_ctx*>(*pctx);
-
-			DBUG_ASSERT(new_clustered == ctx->need_rebuild());
-
-			if (new_clustered
-			    && !dict_stats_stop_bg(ctx->old_table)) {
-				retry = true;
-			}
-
-			if (!dict_stats_stop_bg(ctx->new_table)) {
-				retry = true;
-			}
-		}
-
-		if (!retry) {
-			break;
-		}
-
-		DICT_BG_YIELD;
-	}
 
 	/* Apply the changes to the data dictionary tables, for all
 	partitions. */

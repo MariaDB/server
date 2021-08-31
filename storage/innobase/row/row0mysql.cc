@@ -2517,8 +2517,6 @@ rollback:
   }
 
   row_mysql_lock_data_dictionary(trx);
-  dict_stats_wait_bg_to_stop_using_table(table);
-
   trx->op_info = "discarding tablespace";
   trx->dict_operation= true;
 
@@ -2528,7 +2526,6 @@ rollback:
   err= row_discard_tablespace_foreign_key_checks(trx, table);
   if (err != DB_SUCCESS)
   {
-    table->stats_bg_flag= BG_STAT_NONE;
     row_mysql_unlock_data_dictionary(trx);
     goto rollback;
   }

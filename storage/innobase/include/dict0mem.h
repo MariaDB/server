@@ -2244,24 +2244,6 @@ public:
 	any latch, because this is only used for heuristics. */
 	ib_uint64_t				stat_modified_counter;
 
-	/** Background stats thread is not working on this table. */
-	#define BG_STAT_NONE			0
-
-	/** Set in 'stats_bg_flag' when the background stats code is working
-	on this table. The DROP TABLE code waits for this to be cleared before
-	proceeding. */
-	#define BG_STAT_IN_PROGRESS		(1 << 0)
-
-	/** Set in 'stats_bg_flag' when DROP TABLE starts waiting on
-	BG_STAT_IN_PROGRESS to be cleared. The background stats thread will
-	detect this and will eventually quit sooner. */
-	#define BG_STAT_SHOULD_QUIT		(1 << 1)
-
-	/** The state of the background stats thread wrt this table.
-	See BG_STAT_NONE, BG_STAT_IN_PROGRESS and BG_STAT_SHOULD_QUIT.
-	Writes are covered by dict_sys.latch and stats_mutex_lock(). */
-	byte					stats_bg_flag;
-
 	bool		stats_error_printed;
 				/*!< Has persistent stats error beein
 				already printed for this table ? */

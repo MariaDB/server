@@ -839,9 +839,6 @@ dict_stats_assert_initialized(
 	MEM_CHECK_DEFINED(&table->stat_modified_counter,
 			  sizeof table->stat_modified_counter);
 
-	MEM_CHECK_DEFINED(&table->stats_bg_flag,
-			  sizeof table->stats_bg_flag);
-
 	for (dict_index_t* index = dict_table_get_first_index(table);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
@@ -1009,7 +1006,6 @@ dict_stats_snapshot_create(
 	t->stat_persistent = table->stat_persistent;
 	t->stats_auto_recalc = table->stats_auto_recalc;
 	t->stats_sample_pages = table->stats_sample_pages;
-	t->stats_bg_flag = table->stats_bg_flag;
 
 	dict_sys.unlock();
 
@@ -2496,21 +2492,20 @@ dict_stats_update_persistent(
 			continue;
 		}
 
-		if (!(table->stats_bg_flag & BG_STAT_SHOULD_QUIT)) {
-			table->stats_mutex_unlock();
-			stats = dict_stats_analyze_index(index);
-			table->stats_mutex_lock();
+		table->stats_mutex_unlock();
+		stats = dict_stats_analyze_index(index);
+		table->stats_mutex_lock();
 
-			index->stat_index_size = stats.index_size;
-			index->stat_n_leaf_pages = stats.n_leaf_pages;
-			for (size_t i = 0; i < stats.stats.size(); ++i) {
-				index->stat_n_diff_key_vals[i]
-					= stats.stats[i].n_diff_key_vals;
-				index->stat_n_sample_sizes[i]
-					= stats.stats[i].n_sample_sizes;
-				index->stat_n_non_null_key_vals[i]
-					= stats.stats[i].n_non_null_key_vals;
-			}
+		index->stat_index_size = stats.index_size;
+		index->stat_n_leaf_pages = stats.n_leaf_pages;
+
+		for (size_t i = 0; i < stats.stats.size(); ++i) {
+			index->stat_n_diff_key_vals[i]
+				= stats.stats[i].n_diff_key_vals;
+			index->stat_n_sample_sizes[i]
+				= stats.stats[i].n_sample_sizes;
+			index->stat_n_non_null_key_vals[i]
+				= stats.stats[i].n_non_null_key_vals;
 		}
 
 		table->stat_sum_of_other_index_sizes
