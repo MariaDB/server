@@ -356,12 +356,9 @@ public:
   An equi-height histogram which stores real values for bucket bounds.
 
   Handles @@histogram_type=JSON_HB
-
-  On-disk format is JSON:
-   (TODO description)
 */
 
-class Histogram_json : public Histogram_base
+class Histogram_json_hb : public Histogram_base
 {
 private:
   size_t size; /* Number of elements in the histogram */
@@ -505,7 +502,7 @@ public:
   /* Histogram type as specified in mysql.column_stats.hist_type */
   Histogram_type histogram_type_on_disk;
 
-  Histogram_base *histogram_;
+  Histogram_base *histogram;
 
   uint32 no_values_provided_bitmap()
   {

@@ -1073,18 +1073,18 @@ public:
         case COLUMN_STAT_HIST_SIZE:
           // Note: this is dumb. the histogram size is stored with the
           // histogram!
-          stat_field->store(stats->histogram_? 
-                              stats->histogram_->get_size() : 0);
+          stat_field->store(stats->histogram?
+                              stats->histogram->get_size() : 0);
           break;
         case COLUMN_STAT_HIST_TYPE:
-          if (stats->histogram_)
-            stat_field->store(stats->histogram_->get_type() + 1);
+          if (stats->histogram)
+            stat_field->store(stats->histogram->get_type() + 1);
           else
             stat_field->set_null();
           break;
         case COLUMN_STAT_HISTOGRAM:
-          if (stats->histogram_)
-            stats->histogram_->serialize(stat_field);
+          if (stats->histogram)
+            stats->histogram->serialize(stat_field);
           else
             stat_field->set_null();
           break;
@@ -1235,7 +1235,7 @@ public:
       if (!hist->parse(mem_root, table_field, hist_type,
                        val.ptr(), val.length()))
       {
-        table_field->read_stats->histogram_= hist;
+        table_field->read_stats->histogram= hist;
         return hist;
       }
     }
@@ -1276,9 +1276,9 @@ void Histogram_binary::init_for_collection(MEM_ROOT *mem_root,
 }
 
 
-void Histogram_json::init_for_collection(MEM_ROOT *mem_root,
-                                         Histogram_type htype_arg,
-                                         ulonglong size_arg)
+void Histogram_json_hb::init_for_collection(MEM_ROOT *mem_root,
+                                            Histogram_type htype_arg,
+                                            ulonglong size_arg)
 {
   DBUG_ASSERT(htype_arg == JSON_HB);
   size= (uint8) size_arg;
@@ -1294,11 +1294,11 @@ void Histogram_json::init_for_collection(MEM_ROOT *mem_root,
      True   Error
 */
 
-bool Histogram_json::parse(MEM_ROOT *mem_root, Field *field,
-                           Histogram_type type_arg, const char *hist_data,
-                           size_t hist_data_len)
+bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
+                              Histogram_type type_arg, const char *hist_data,
+                              size_t hist_data_len)
 {
-  DBUG_ENTER("Histogram_json::parse");
+  DBUG_ENTER("Histogram_json_hb::parse");
   DBUG_ASSERT(type_arg == JSON_HB);
   const char *err;
   json_engine_t je;
@@ -1501,7 +1501,8 @@ double pos_in_interval_through_strxfrm(Field *field,
 }
 
 
-double Histogram_json::point_selectivity(Field *field, key_range *endpoint, double avg_sel)
+double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
+                                            double avg_sel)
 {
   double sel;
   store_key_image_to_rec(field, (uchar *) endpoint->key,
@@ -1542,8 +1543,8 @@ double Histogram_json::point_selectivity(Field *field, key_range *endpoint, doub
   @param min_endp Left endpoint, or NULL if there is none
   @param max_endp Right endpoint, or NULL if there is none
 */
-double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
-                                         key_range *max_endp)
+double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
+                                            key_range *max_endp)
 {
   double min, max;
   double width= 1.0 / histogram_bounds.size();
@@ -1612,7 +1613,7 @@ double Histogram_json::range_selectivity(Field *field, key_range *min_endp,
 }
 
 
-void Histogram_json::serialize(Field *field)
+void Histogram_json_hb::serialize(Field *field)
 {
   field->store(json_text.data(), json_text.size(), &my_charset_bin);
 }
@@ -1625,8 +1626,8 @@ void Histogram_json::serialize(Field *field)
                        lookup_val.
 */
 
-int Histogram_json::find_bucket(Field *field, const uchar *lookup_val,
-                                bool equal_is_less)
+int Histogram_json_hb::find_bucket(Field *field, const uchar *lookup_val,
+                                   bool equal_is_less)
 {
   int low= 0;
   int high= histogram_bounds.size() - 1;
@@ -1987,7 +1988,7 @@ public:
     Column_statistics *col_stats= col->collected_stats;
     min_value= col_stats->min_value;
     max_value= col_stats->max_value;
-    histogram= col_stats->histogram_;
+    histogram= col_stats->histogram;
     hist_width= histogram->get_width();
     bucket_capacity= (double) records / (hist_width + 1);
     curr_bucket= 0;
@@ -2087,7 +2088,7 @@ public:
   {
     Json_writer writer;
     writer.start_object();
-    writer.add_member(Histogram_json::JSON_NAME).start_array();
+    writer.add_member(Histogram_json_hb::JSON_NAME).start_array();
 
     for(auto& value: bucket_bounds) {
       writer.add_str(value.c_str());
@@ -2095,14 +2096,14 @@ public:
     writer.end_array();
     writer.end_object();
     Binary_string *json_string = (Binary_string *) writer.output.get_string();
-    Histogram_json *hist= (Histogram_json*)histogram;
+    Histogram_json_hb *hist= (Histogram_json_hb*)histogram;
     hist->set_json_text(bucket_bounds.size(), (uchar *) json_string->c_ptr());
   }
 };
 
 
-Histogram_builder *Histogram_json::create_builder(Field *col, uint col_len,
-                                                  ha_rows rows)
+Histogram_builder *Histogram_json_hb::create_builder(Field *col, uint col_len,
+                                                     ha_rows rows)
 {
   return new Histogram_builder_json(col, col_len, rows);
 }
@@ -2120,7 +2121,7 @@ Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type,
     res= new (mem_root) Histogram_binary();
     break;
   case JSON_HB:
-    res= new (mem_root) Histogram_json();
+    res= new (mem_root) Histogram_json_hb();
     break;
   default:
     DBUG_ASSERT(0);
@@ -2244,7 +2245,7 @@ public:
   */
   void walk_tree_with_histogram(ha_rows rows)
   {
-    Histogram_base *hist= table_field->collected_stats->histogram_;
+    Histogram_base *hist= table_field->collected_stats->histogram;
     Histogram_builder *hist_builder=
        hist->create_builder(table_field, tree_key_length, rows);
 
@@ -2272,7 +2273,7 @@ public:
   */
   Histogram_base *get_histogram()
   {
-    return table_field->collected_stats->histogram_;
+    return table_field->collected_stats->histogram;
   }
 
 };
@@ -2686,7 +2687,7 @@ int alloc_statistics_for_table(THD* thd, TABLE *table)
   {
     if (bitmap_is_set(table->read_set, (*field_ptr)->field_index))
     {
-      column_stats->histogram_ = NULL;
+      column_stats->histogram = NULL;
       (*field_ptr)->collected_stats= column_stats++;
     }
   }
@@ -2719,11 +2720,11 @@ void free_statistics_for_table(THD *thd, TABLE *table)
   {
     // Only delete the histograms that are exclusivly owned by this thread
     if ((*field_ptr)->collected_stats &&
-        (*field_ptr)->collected_stats->histogram_ &&
-        (*field_ptr)->collected_stats->histogram_->get_owner() == thd)
+        (*field_ptr)->collected_stats->histogram &&
+        (*field_ptr)->collected_stats->histogram->get_owner() == thd)
     {
-      delete (*field_ptr)->collected_stats->histogram_;
-      (*field_ptr)->collected_stats->histogram_= NULL;
+      delete (*field_ptr)->collected_stats->histogram;
+      (*field_ptr)->collected_stats->histogram= NULL;
     }
   }
 }
@@ -2958,8 +2959,8 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, doubl
     if (hist_size != 0 && hist_type != INVALID_HISTOGRAM)
     {
       have_histogram= true;
-      histogram_= create_histogram(mem_root, hist_type, current_thd);
-      histogram_->init_for_collection(mem_root, hist_type, hist_size);
+      histogram= create_histogram(mem_root, hist_type, current_thd);
+      histogram->init_for_collection(mem_root, hist_type, hist_size);
     }
 
     /* Compute cardinality statistics and optionally histogram. */
@@ -3007,7 +3008,7 @@ void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, doubl
     if (have_histogram && distincts)
     {
       set_not_null(COLUMN_STAT_HIST_TYPE);
-      histogram_= count_distinct->get_histogram();
+      histogram= count_distinct->get_histogram();
       set_not_null(COLUMN_STAT_HISTOGRAM);
     } 
     delete count_distinct;
@@ -3582,8 +3583,8 @@ void delete_stat_values_for_table_share(TABLE_SHARE *table_share)
       column_stats->max_value= NULL;
     }
 
-    delete column_stats->histogram_;
-    column_stats->histogram_=NULL;
+    delete column_stats->histogram;
+    column_stats->histogram=NULL;
   }
 }
 
@@ -3635,7 +3636,7 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
       if (table_field->read_stats->histogram_type_on_disk != INVALID_HISTOGRAM)
       {
         column_stat.set_key_fields(table_field);
-        table_field->read_stats->histogram_=
+        table_field->read_stats->histogram=
           column_stat.load_histogram(&stats_cb->mem_root);
       }
     }
@@ -4328,7 +4329,7 @@ double get_column_range_cardinality(Field *field,
       if (avg_frequency > 1.0 + 0.000001 && 
           col_stats->min_max_values_are_provided())
       {
-        Histogram_base *hist = col_stats->histogram_;
+        Histogram_base *hist = col_stats->histogram;
         if (hist && hist->is_usable(thd))
         {
           res= col_non_nulls * 
@@ -4347,7 +4348,7 @@ double get_column_range_cardinality(Field *field,
   {
     if (col_stats->min_max_values_are_provided())
     {
-      Histogram_base *hist= col_stats->histogram_;
+      Histogram_base *hist= col_stats->histogram;
       double sel;
       if (hist && hist->is_usable(thd))
       {
