@@ -1496,7 +1496,7 @@ static void register_socket_v1(const char *category,
   @sa PSI_v1::init_mutex.
 */
 static PSI_mutex*
-init_mutex_v1(PSI_mutex_key key, const void *identity)
+init_mutex_v1(PSI_mutex_key key, void *identity)
 {
   INIT_BODY_V1(mutex, key, identity);
 }
@@ -1519,7 +1519,7 @@ static void destroy_mutex_v1(PSI_mutex* mutex)
   @sa PSI_v1::init_rwlock.
 */
 static PSI_rwlock*
-init_rwlock_v1(PSI_rwlock_key key, const void *identity)
+init_rwlock_v1(PSI_rwlock_key key, void *identity)
 {
   INIT_BODY_V1(rwlock, key, identity);
 }
@@ -1542,7 +1542,7 @@ static void destroy_rwlock_v1(PSI_rwlock* rwlock)
   @sa PSI_v1::init_cond.
 */
 static PSI_cond*
-init_cond_v1(PSI_cond_key key, const void *identity)
+init_cond_v1(PSI_cond_key key, void *identity)
 {
   INIT_BODY_V1(cond, key, identity);
 }

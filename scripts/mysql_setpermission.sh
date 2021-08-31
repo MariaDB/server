@@ -52,6 +52,7 @@ use strict;
 use vars qw($dbh $sth $hostname $opt_user $opt_password $opt_help $opt_host
 	    $opt_socket $opt_port $host $version);
 
+my $sqlport = "";
 my $sqlhost = "";
 my $user = "";
 
@@ -84,9 +85,13 @@ if ($opt_password eq '')
   print "\n";
 }
 
+# Using port argument with 'localhost' will cause an error
+if ($sqlhost ne "localhost") {
+  $sqlport = ":port=$opt_port";
+}
 
 # make the connection to MariaDB
-$dbh= DBI->connect("DBI:mysql:mysql:host=$sqlhost:port=$opt_port:mysql_socket=$opt_socket",$opt_user,$opt_password, {PrintError => 0}) ||
+$dbh= DBI->connect("DBI:mysql:mysql:host=$sqlhost$sqlport:mysql_socket=$opt_socket",$opt_user,$opt_password, {PrintError => 0}) ||
   die("Can't make a connection to the mysql server.\n The error: $DBI::errstr");
 
 # the start of the program
@@ -278,7 +283,6 @@ sub addall {
        $sth = $dbh->do("REVOKE ALL ON $db.* FROM \'$user\'\@\'$host\'") || die $dbh->errstr;
     }
     }
-  $dbh->do("FLUSH PRIVILEGES") || print STDERR "Can't flush privileges\n";
   print "Everything is inserted and mysql privileges have been reloaded.\n\n";
 }
 

@@ -3402,7 +3402,7 @@ static void xb_load_single_table_tablespace(const char *dirname,
 	delete file;
 
 	if (err != DB_SUCCESS && xtrabackup_backup && !is_empty_file) {
-		die("Failed to not validate first page of the file %s, error %d",name, (int)err);
+		die("Failed to validate first page of the file %s, error %d",name, (int)err);
 	}
 
 	ut_free(name);
