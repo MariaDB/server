@@ -1967,7 +1967,7 @@ public:
 
 class Histogram_builder
 {
-public:
+protected:
   Field *column;           /* table field for which the histogram is built */
   uint col_length;         /* size of this field                           */
   ha_rows records;         /* number of records the histogram is built for */
@@ -1982,6 +1982,7 @@ public:
   /* number of distinct values that occured only once  */
   ulonglong count_distinct_single_occurence;
 
+public:
   Histogram_builder(Field *col, uint col_len, ha_rows rows)
     : column(col), col_length(col_len), records(rows)
   {
@@ -2934,7 +2935,8 @@ bool Column_statistics_collected::add()
 */
 
 inline
-void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows, double sample_fraction)
+void Column_statistics_collected::finish(MEM_ROOT *mem_root, ha_rows rows,
+                                         double sample_fraction)
 {
   double val;
 
@@ -3486,7 +3488,7 @@ int read_statistics_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
     if (table_field->read_stats->histogram_type_on_disk != INVALID_HISTOGRAM)
       have_histograms= true;
   }
-  table_share->stats_cb.total_hist_size= have_histograms? 1:0; // total_hist_size
+  table_share->stats_cb.have_histograms= have_histograms;
 
   /* Read statistics from the statistical table index_stats */
   stat_table= stat_tables[INDEX_STAT].table;
@@ -3626,7 +3628,7 @@ int read_histograms_for_table(THD *thd, TABLE *table, TABLE_LIST *stat_tables)
 {
   TABLE_STATISTICS_CB *stats_cb= &table->s->stats_cb;
   DBUG_ENTER("read_histograms_for_table");
-  
+
   if (stats_cb->start_histograms_load())
   {
     Column_stat column_stat(stat_tables[COLUMN_STAT].table, table);
@@ -4547,7 +4549,7 @@ double Histogram_binary::range_selectivity(Field *field,
 }
 
 /*
-Check whether the table is one of the persistent statistical tables.
+  Check whether the table is one of the persistent statistical tables.
 */
 bool is_stat_table(const LEX_CSTRING *db, LEX_CSTRING *table)
 {
