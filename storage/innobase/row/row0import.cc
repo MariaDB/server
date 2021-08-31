@@ -41,12 +41,8 @@ Created 2012-02-08 by Sunny Bains.
 #include "fil0pagecompress.h"
 #include "trx0undo.h"
 #include "lock0lock.h"
-#ifdef HAVE_LZO
 #include "lzo/lzo1x.h"
-#endif
-#ifdef HAVE_SNAPPY
 #include "snappy-c.h"
-#endif
 
 #include "scope.h"
 
@@ -3113,13 +3109,11 @@ static dberr_t decrypt_decompress(fil_space_crypt_t *space_crypt,
 
 static size_t get_buf_size()
 {
-  return srv_page_size
-#ifdef HAVE_LZO
-         + LZO1X_1_15_MEM_COMPRESS
-#elif defined HAVE_SNAPPY
-         + snappy_max_compressed_length(srv_page_size)
-#endif
-      ;
+  return srv_page_size + (
+           provider_service_lzo->is_loaded ? LZO1X_1_15_MEM_COMPRESS :
+           provider_service_snappy->is_loaded ? snappy_max_compressed_length(srv_page_size) :
+           0
+         );
 }
 
 /* find, parse instant metadata, performing variaous checks,
