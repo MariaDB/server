@@ -5095,9 +5095,8 @@ i_s_sys_tables_fill_table_stats(
 		DBUG_RETURN(0);
 	}
 
-	dict_sys.freeze();
-	dict_sys.mutex_lock();
-	mtr_start(&mtr);
+	mtr.start();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	rec = dict_startscan_system(&pcur, &mtr, dict_sys.sys_tables);
 
@@ -5110,33 +5109,36 @@ i_s_sys_tables_fill_table_stats(
 		this SYS_TABLES record */
 		err_msg = i_s_sys_tables_rec(pcur, nullptr, &table_rec);
 
-		ulint ref_count = table_rec ? table_rec->get_ref_count() : 0;
-		dict_sys.mutex_unlock();
-
-		if (table_rec != NULL) {
-			ut_ad(err_msg == NULL);
+		if (UNIV_LIKELY(!err_msg)) {
+			bool evictable = dict_sys.prevent_eviction(table_rec);
+			ulint ref_count = table_rec->get_ref_count();
+			dict_sys.unlock();
 			i_s_dict_fill_sys_tablestats(thd, table_rec, ref_count,
 						     tables->table);
+			if (!evictable) {
+				table_rec = nullptr;
+			}
 		} else {
-			ut_ad(err_msg != NULL);
+			ut_ad(!table_rec);
+			dict_sys.unlock();
 			push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
 					    ER_CANT_FIND_SYSTEM_REC, "%s",
 					    err_msg);
 		}
 
-		dict_sys.unfreeze();
-
 		/* Get the next record */
-		dict_sys.freeze();
-		dict_sys.mutex_lock();
+		mtr.start();
+		dict_sys.lock(SRW_LOCK_CALL);
 
-		mtr_start(&mtr);
+		if (table_rec) {
+			dict_sys.allow_eviction(table_rec);
+		}
+
 		rec = dict_getnext_system(&pcur, &mtr);
 	}
 
-	mtr_commit(&mtr);
-	dict_sys.mutex_unlock();
-	dict_sys.unfreeze();
+	mtr.commit();
+	dict_sys.unlock();
 
 	DBUG_RETURN(0);
 }
