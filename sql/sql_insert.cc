@@ -1402,7 +1402,7 @@ static bool check_view_insertability(THD * thd, TABLE_LIST *view)
 
   DBUG_ASSERT(view->table != 0 && view->field_translation != 0);
 
-  (void) my_bitmap_init(&used_fields, used_fields_buff, table->s->fields, 0);
+  (void) my_bitmap_init(&used_fields, used_fields_buff, table->s->fields);
   bitmap_clear_all(&used_fields);
 
   view->contain_auto_increment= 0;
@@ -2774,7 +2774,7 @@ TABLE *Delayed_insert::get_local_table(THD* client_thd)
     my_bitmap_init(&copy->has_value_set,
                    (my_bitmap_map*) (bitmap +
                                      bitmaps_used*share->column_bitmap_size),
-                   share->fields, FALSE);
+                   share->fields);
   }
   copy->tmp_set.bitmap= 0;                      // To catch errors
   bzero((char*) bitmap, share->column_bitmap_size * bitmaps_used);
@@ -5059,7 +5059,7 @@ bool select_create::send_eof()
       {
         WSREP_DEBUG("select_create commit failed, thd: %llu err: %s %s",
                     thd->thread_id,
-                    wsrep_thd_transaction_state_str(thd), WSREP_QUERY(thd));
+                    wsrep_thd_transaction_state_str(thd), wsrep_thd_query(thd));
         mysql_mutex_unlock(&thd->LOCK_thd_data);
         abort_result_set();
         DBUG_RETURN(true);

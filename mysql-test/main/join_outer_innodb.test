@@ -4,6 +4,8 @@
 
 --source include/have_innodb.inc
 --source include/default_optimizer_switch.inc
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 
 #
 # Test for bug #17164: ORed FALSE blocked conversion of outer join into join
@@ -391,3 +393,4 @@ COMMIT;
 SET TRANSACTION ISOLATION LEVEL REPEATABLE READ;
 DROP TABLE t1,t2;
 
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

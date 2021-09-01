@@ -207,6 +207,14 @@ but can be used for comparison.
 */
 extern "C" unsigned long long thd_start_utime(const MYSQL_THD thd);
 
+
+/**
+  Indicate the start of an async operation in a foreground thread.
+@param thd          current_thd
+@return thd
+@retval nullptr   if this is not a foreground thread */
+THD *innodb_thd_increment_pending_ops(THD *thd);
+
 /** Determines the current SQL statement.
 Thread unsafe, can only be called from the thread owning the THD.
 @param[in]	thd	MySQL thread handle
@@ -242,7 +250,7 @@ const char *thd_innodb_tmpdir(THD *thd);
 /******************************************************************//**
 Returns the lock wait timeout for the current connection.
 @return the lock wait timeout, in seconds */
-uint
+uint&
 thd_lock_wait_timeout(
 /*==================*/
 	THD*	thd);	/*!< in: thread handle, or NULL to query

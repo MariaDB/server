@@ -397,7 +397,7 @@ class ha_rocksdb : public my_core::handler {
     current lookup to be covered. If the bitmap field is null, that means this
     index does not cover the current lookup for any record.
    */
-  MY_BITMAP m_lookup_bitmap = {nullptr, nullptr, nullptr, 0, 0};
+  MY_BITMAP m_lookup_bitmap = {nullptr, nullptr, 0, 0};
 
   int alloc_key_buffers(const TABLE *const table_arg,
                         const Rdb_tbl_def *const tbl_def_arg,

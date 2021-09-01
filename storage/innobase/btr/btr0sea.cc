@@ -230,12 +230,12 @@ void btr_search_disable()
 {
 	dict_table_t*	table;
 
-	dict_sys.mutex_lock();
+	dict_sys.freeze(SRW_LOCK_CALL);
 
 	btr_search_x_lock_all();
 
 	if (!btr_search_enabled) {
-		dict_sys.mutex_unlock();
+		dict_sys.unfreeze();
 		btr_search_x_unlock_all();
 		return;
 	}
@@ -256,7 +256,7 @@ void btr_search_disable()
 		btr_search_disable_ref_count(table);
 	}
 
-	dict_sys.mutex_unlock();
+	dict_sys.unfreeze();
 
 	/* Set all block->index = NULL. */
 	buf_pool.clear_hash_index();
@@ -1263,7 +1263,7 @@ retry:
 	ut_ad(page_is_leaf(block->frame));
 
 	/* We must not dereference block->index here, because it could be freed
-	if (index->table->n_ref_count == 0).
+	if (!index->table->get_ref_count() && !dict_sys.frozen()).
 	Determine the ahi_slot based on the block contents. */
 
 	const index_id_t	index_id
@@ -1436,10 +1436,8 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 			/* In all our callers, the table handle should
 			be open, or we should be in the process of
 			dropping the table (preventing eviction). */
-#ifdef SAFE_MUTEX
 			DBUG_ASSERT(block->index->table->get_ref_count()
-				    || dict_sys.mutex_is_locked());
-#endif /* SAFE_MUTEX */
+				    || dict_sys.locked());
 			btr_search_drop_page_hash_index(block);
 		}
 	}

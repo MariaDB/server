@@ -53,12 +53,9 @@ We also scan the biggest space id, and store it to fil_system. */
 void dict_check_tablespaces_and_store_max_id();
 
 /** Make sure the data_file_name is saved in dict_table_t if needed.
-@param[in]	table		Table object
-@param[in]	dict_mutex_own	true if dict_sys.mutex is owned already */
-void
-dict_get_and_save_data_dir_path(
-	dict_table_t*	table,
-	bool		dict_mutex_own);
+@param[in,out]	table		Table object
+@param[in]	dict_locked	dict_sys.frozen() */
+void dict_get_and_save_data_dir_path(dict_table_t* table, bool dict_locked);
 
 /***********************************************************************//**
 Loads a table object based on the table id.

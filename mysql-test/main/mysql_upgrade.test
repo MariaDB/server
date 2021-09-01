@@ -367,7 +367,7 @@ rename table mysql.global_priv_bak to mysql.global_priv;
 --echo #
 
 # The warning appears during mysql_upgrade, before the schema becomes consistent
-call mtr.add_suppression("innodb_table_stats has length mismatch in the column name table_name");
+call mtr.add_suppression("innodb_(table|index)_stats has length mismatch in the column name table_name");
 # This comes from opening 10.6 sys.host_summary view that uses sys.format_time function,
 # on still inconsistent mysql.proc, in older versions
 call mtr.add_suppression("Column count of mysql.proc is wrong. Expected 21, found 20.");

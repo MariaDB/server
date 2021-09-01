@@ -36,6 +36,7 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "srv0start.h"
+#include "mysqld.h"
 
 #include <list>
 
@@ -614,6 +615,9 @@ The state (current item) is stored in function parameter.
 */
 static void btr_defragment_chunk(void*)
 {
+	THD *thd = innobase_create_background_thd("InnoDB defragment");
+	set_current_thd(thd);
+
 	btr_defragment_item_t* item = nullptr;
 	mtr_t		mtr;
 
@@ -622,7 +626,11 @@ static void btr_defragment_chunk(void*)
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 		if (!item) {
 			if (btr_defragment_wq.empty()) {
+release_and_exit:
 				mysql_mutex_unlock(&btr_defragment_mutex);
+func_exit:
+				set_current_thd(nullptr);
+				innobase_destroy_background_thd(thd);
 				return;
 			}
 			item = *btr_defragment_wq.begin();
@@ -651,7 +659,7 @@ processed:
 			int sleep_ms = (int)((srv_defragment_interval - elapsed) / 1000 / 1000);
 			if (sleep_ms) {
 				btr_defragment_timer->set_time(sleep_ms, 0);
-				return;
+				goto func_exit;
 			}
 		}
 		log_free_check();
@@ -693,7 +701,8 @@ processed:
 					    << " index " << index->name()
 					    << " failed with error " << err;
 			} else {
-				err = dict_stats_save_defrag_summary(index);
+				err = dict_stats_save_defrag_summary(index,
+								     thd);
 
 				if (err != DB_SUCCESS) {
 					ib::error() << "Saving defragmentation summary for table "
@@ -711,5 +720,5 @@ processed:
 		}
 	}
 
-	mysql_mutex_unlock(&btr_defragment_mutex);
+	goto release_and_exit;
 }

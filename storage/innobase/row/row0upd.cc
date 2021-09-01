@@ -162,7 +162,7 @@ wsrep_row_upd_index_is_foreign(
   /* No MDL protects dereferencing the members of table->foreign_set. */
   const bool no_lock= !trx->dict_operation_lock_mode;
   if (no_lock)
-    dict_sys.freeze();
+    dict_sys.freeze(SRW_LOCK_CALL);
 
   auto end= table->foreign_set.end();
   const bool is_referenced= end !=
@@ -249,14 +249,14 @@ row_upd_check_references_constraints(
 
 				ref_table = dict_table_open_on_name(
 					foreign->foreign_table_name_lookup,
-					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+					false, DICT_ERR_IGNORE_NONE);
 			}
 
 			err = row_ins_check_foreign_constraint(
 				FALSE, foreign, table, entry, thr);
 
-			if (ref_table != NULL) {
-				dict_table_close(ref_table, FALSE, FALSE);
+			if (ref_table) {
+				dict_table_close(ref_table);
 			}
 
 			if (err != DB_SUCCESS) {
@@ -332,7 +332,7 @@ wsrep_row_upd_check_foreign_constraints(
 				foreign->referenced_table =
 					dict_table_open_on_name(
 					  foreign->referenced_table_name_lookup,
-					  FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+					  false, DICT_ERR_IGNORE_NONE);
 				opened = (foreign->referenced_table) ? TRUE : FALSE;
 			}
 
@@ -345,8 +345,8 @@ wsrep_row_upd_check_foreign_constraints(
 				TRUE, foreign, table, entry, thr);
 
 			if (foreign->referenced_table) {
-				if (opened == TRUE) {
-					dict_table_close(foreign->referenced_table, FALSE, FALSE);
+				if (opened) {
+					dict_table_close(foreign->referenced_table);
 					opened = FALSE;
 				}
 			}

@@ -11,6 +11,8 @@ SAVEPOINT sp;
 INSERT INTO t1 (pk) VALUES (1);
 ROLLBACK TO SAVEPOINT sp;
 connection default;
+SET @save_timeout=@@lock_wait_timeout;
+SET @save_innodb_timeout=@@innodb_lock_wait_timeout;
 SET lock_wait_timeout=0;
 SET innodb_lock_wait_timeout=0;
 ALTER TABLE t1 PARTITION BY HASH(pk);
@@ -24,6 +26,8 @@ t1	CREATE TABLE `t1` (
 connection con1;
 COMMIT;
 connection default;
+SET lock_wait_timeout=@save_timeout;
+SET innodb_lock_wait_timeout=@save_innodb_timeout;
 ALTER TABLE t2 PARTITION BY HASH(pk);
 disconnect con1;
 connection default;

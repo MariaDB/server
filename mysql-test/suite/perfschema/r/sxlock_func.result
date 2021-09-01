@@ -35,10 +35,10 @@ SELECT DISTINCT event_name FROM performance_schema.events_waits_history_long
 WHERE event_name LIKE 'wait/synch/rwlock/innodb/%'
 AND event_name NOT IN
 ('wait/synch/rwlock/innodb/btr_search_latch',
+'wait/synch/rwlock/innodb/dict_operation_lock',
 'wait/synch/rwlock/innodb/trx_purge_latch')
 ORDER BY event_name;
 event_name
-wait/synch/rwlock/innodb/dict_operation_lock
 wait/synch/rwlock/innodb/fil_space_latch
 wait/synch/rwlock/innodb/lock_latch
 SELECT event_name FROM performance_schema.events_waits_history_long

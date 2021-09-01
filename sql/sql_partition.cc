@@ -525,7 +525,7 @@ static bool create_full_part_field_array(THD *thd, TABLE *table,
     goto end;
   }
   if (unlikely(my_bitmap_init(&part_info->full_part_field_set, bitmap_buf,
-                              table->s->fields, FALSE)))
+                              table->s->fields)))
   {
     result= TRUE;
     goto end;
@@ -1100,10 +1100,10 @@ static bool set_up_partition_bitmaps(THD *thd, partition_info *part_info)
                                       bitmap_bytes * 2))))
     DBUG_RETURN(TRUE);
 
-  my_bitmap_init(&part_info->read_partitions, bitmap_buf, bitmap_bits, FALSE);
+  my_bitmap_init(&part_info->read_partitions, bitmap_buf, bitmap_bits);
   /* Use the second half of the allocated buffer for lock_partitions */
   my_bitmap_init(&part_info->lock_partitions, bitmap_buf + (bitmap_bytes / 4),
-              bitmap_bits, FALSE);
+              bitmap_bits);
   part_info->bitmaps_are_initialized= TRUE;
   part_info->set_partition_bitmaps(NULL);
   DBUG_RETURN(FALSE);

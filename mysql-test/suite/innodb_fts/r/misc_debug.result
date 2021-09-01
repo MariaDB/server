@@ -55,6 +55,7 @@ DROP TABLE t1;
 # MDEV-25663 Double free of transaction during TRUNCATE
 #
 call mtr.add_suppression("InnoDB: \\(Too many concurrent transactions\\)");
+call mtr.add_suppression("InnoDB: Cannot save table statistics for table `test`\\.`t1`: Too many concurrent transactions");
 CREATE TABLE t1 (b CHAR(12), FULLTEXT KEY(b)) engine=InnoDB;
 SET debug_dbug='+d,ib_create_table_fail_too_many_trx';
 TRUNCATE t1;

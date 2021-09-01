@@ -31,7 +31,7 @@ INSERT INTO gis_point VALUES
 (ST_PointFromText('POINT(100.32374832 101.23741821)'), ST_PointFromText('POINT(200.32247328 101.86728201)')),
 (ST_PointFromText('POINT(100.32374832 101.23741821)'), ST_PointFromText('POINT(100.32374832 101.98527111)'));
 
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point GROUP BY p1, p2;
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point GROUP BY p1, p2;
 
@@ -196,7 +196,7 @@ DROP TABLE t1;
 --echo #
 --echo # Test when the POINT is on B-TREE
 --echo #
-CREATE TABLE gis_point(fid INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, p POINT, KEY(p)) ENGINE=InnoDB;
+CREATE TABLE gis_point(fid INTEGER NOT NULL PRIMARY KEY AUTO_INCREMENT, p POINT, KEY(p)) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 INSERT INTO gis_point VALUES
 (101, ST_PointFromText('POINT(10 10)')),
@@ -216,7 +216,7 @@ INSERT INTO gis_point VALUES
 (206, ST_PointFromWKB(ST_AsWKB(ST_PointFromText('POINT(103.43718640 105.248206478)'))));
 
 -- echo 'The ORDER BY will use filesort'
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT ST_AsText(p) FROM gis_point ORDER BY p;
 SELECT ST_AsText(p) FROM gis_point ORDER BY p;
 
@@ -640,7 +640,7 @@ ALTER TABLE gis_point ENGINE InnoDB;
 CHECK TABLE gis_point;
 
 -- echo The ORDER BY for spatial index will use filesort
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 SELECT ST_AsText(p1), ST_AsText(p2) FROM gis_point ORDER BY p1, p2;
 
@@ -766,7 +766,7 @@ ST_GeomFromText('POLYGON((10 30, 30 40, 40 50, 40 30, 30 20, 10 30))'));
 
 SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
 
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN UPDATE t1 SET p = ST_GeomFromText('POINT(30 30)') WHERE p = ST_GeomFromText('POINT(20 20)');
 UPDATE t1 SET p = ST_GeomFromText('POINT(30 30)') WHERE p = ST_GeomFromText('POINT(20 20)');
 
@@ -807,7 +807,7 @@ SELECT a, ST_AsText(p), ST_AsText(l), ST_AsText(g) FROM t1;
 ALTER TABLE t1 DROP PRIMARY KEY;
 ALTER TABLE t1 ADD PRIMARY KEY(p);
 
---replace_column 10 #
+--replace_column 9 #
 EXPLAIN SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(30 30)');
 SELECT a, ST_AsText(p) FROM t1 WHERE a = 2 AND p = ST_GeomFromText('POINT(30 30)');
 

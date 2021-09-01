@@ -3537,31 +3537,31 @@ bool ha_partition::init_partition_bitmaps()
   DBUG_ENTER("ha_partition::init_partition_bitmaps");
 
   /* Initialize the bitmap we use to minimize ha_start_bulk_insert calls */
-  if (my_bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1, FALSE))
+  if (my_bitmap_init(&m_bulk_insert_started, NULL, m_tot_parts + 1))
     DBUG_RETURN(true);
 
   /* Initialize the bitmap we use to keep track of locked partitions */
-  if (my_bitmap_init(&m_locked_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_locked_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
   /*
     Initialize the bitmap we use to keep track of partitions which may have
     something to reset in ha_reset().
   */
-  if (my_bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_partitions_to_reset, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
   /*
     Initialize the bitmap we use to keep track of partitions which returned
     HA_ERR_KEY_NOT_FOUND from index_read_map.
   */
-  if (my_bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_key_not_found_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
-  if (bitmap_init(&m_mrr_used_partitions, NULL, m_tot_parts, TRUE))
+  if (my_bitmap_init(&m_mrr_used_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
-  if (my_bitmap_init(&m_opened_partitions, NULL, m_tot_parts, FALSE))
+  if (my_bitmap_init(&m_opened_partitions, NULL, m_tot_parts))
     DBUG_RETURN(true);
 
   m_file_sample= NULL;

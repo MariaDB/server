@@ -90,11 +90,8 @@ dict_defrag_process_entries_from_defrag_pool();
 /*********************************************************************//**
 Save defragmentation result.
 @return DB_SUCCESS or error code */
-dberr_t
-dict_stats_save_defrag_summary(
-/*============================*/
-	dict_index_t*	index)	/*!< in: index */
-	MY_ATTRIBUTE((warn_unused_result));
+dberr_t dict_stats_save_defrag_summary(dict_index_t *index, THD *thd)
+	MY_ATTRIBUTE((nonnull, warn_unused_result));
 
 /*********************************************************************//**
 Save defragmentation stats for a given index.

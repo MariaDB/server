@@ -1944,14 +1944,14 @@ row_ins_check_foreign_constraints(
 
 				ref_table = dict_table_open_on_name(
 					foreign->referenced_table_name_lookup,
-					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+					false, DICT_ERR_IGNORE_NONE);
 			}
 
 			err = row_ins_check_foreign_constraint(
 				TRUE, foreign, table, ref_tuple, thr);
 
-			if (ref_table != NULL) {
-				dict_table_close(ref_table, FALSE, FALSE);
+			if (ref_table) {
+				dict_table_close(ref_table);
 			}
 		}
 	}
@@ -3040,9 +3040,7 @@ row_ins_sec_index_entry_low(
 			if (!index->is_committed()) {
 				ut_ad(!thr_get_trx(thr)
 				      ->dict_operation_lock_mode);
-				dict_sys.mutex_lock();
-				dict_set_corrupted_index_cache_only(index);
-				dict_sys.mutex_unlock();
+				index->type |= DICT_CORRUPT;
 				/* Do not return any error to the
 				caller. The duplicate will be reported
 				by ALTER TABLE or CREATE UNIQUE INDEX.

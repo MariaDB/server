@@ -2,7 +2,13 @@
 
 SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
+
 --source rowid_filter.test
+
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;
+
 --source include/have_sequence.inc
 
 --echo #
@@ -12,7 +18,7 @@ SET SESSION DEFAULT_STORAGE_ENGINE='InnoDB';
 create table t1 (
   pk int not null primary key, f1 varchar(10), f2 varchar(30), a int(10),
   key (f1), key (f2)
-) engine=innodb;
+) engine=innodb stats_persistent=0;
 
 insert into t1 values
   (2,'a','a',2),(3,'a','a',null),(4,'a','a',55),(5,'a','a',4),(6,'a','a',0),
@@ -265,7 +271,7 @@ CREATE TABLE t1 (
   PRIMARY KEY (id),
   KEY ixEventWhoisDomainDomain (domain),
   KEY ixEventWhoisDomainTimestamp (timestamp)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB STATS_PERSISTENT=0 DEFAULT CHARSET=utf8;
 
 INSERT INTO t1 (
 id, domain, registrant_name, registrant_organization, registrant_street1,

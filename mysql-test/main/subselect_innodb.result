@@ -1,6 +1,7 @@
 set @subselect_innodb_tmp=@@optimizer_switch;
 set optimizer_switch='mrr=on,mrr_sort_keys=on,index_condition_pushdown=on';
-drop table if exists t1,t2,t3;
+SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
 CREATE TABLE t1
 (
 FOLDERID VARCHAR(32)BINARY NOT NULL
@@ -663,3 +664,4 @@ execute stmt;
 a	b
 drop table t1,t2;
 # End of 10.4 tests
+SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;

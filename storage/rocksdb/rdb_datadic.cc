@@ -1102,12 +1102,12 @@ size_t Rdb_key_def::get_unpack_header_size(char tag) {
  */
 void Rdb_key_def::get_lookup_bitmap(const TABLE *table, MY_BITMAP *map) const {
   DBUG_ASSERT(map->bitmap == nullptr);
-  bitmap_init(map, nullptr, MAX_REF_PARTS, false);
+  my_bitmap_init(map, nullptr, MAX_REF_PARTS);
   uint curr_bitmap_pos = 0;
 
   // Indicates which columns in the read set might be covered.
   MY_BITMAP maybe_covered_bitmap;
-  bitmap_init(&maybe_covered_bitmap, nullptr, table->read_set->n_bits, false);
+  my_bitmap_init(&maybe_covered_bitmap, nullptr, table->read_set->n_bits);
 
   for (uint i = 0; i < m_key_parts; i++) {
     if (table_has_hidden_pk(table) && i + 1 == m_key_parts) {
@@ -1135,8 +1135,8 @@ void Rdb_key_def::get_lookup_bitmap(const TABLE *table, MY_BITMAP *map) const {
           }
           curr_bitmap_pos++;
         } else {
-          bitmap_free(&maybe_covered_bitmap);
-          bitmap_free(map);
+          my_bitmap_free(&maybe_covered_bitmap);
+          my_bitmap_free(map);
           return;
         }
         break;
@@ -1144,8 +1144,8 @@ void Rdb_key_def::get_lookup_bitmap(const TABLE *table, MY_BITMAP *map) const {
       // know this lookup will never be covered.
       default:
         if (bitmap_is_set(table->read_set, field->field_index)) {
-          bitmap_free(&maybe_covered_bitmap);
-          bitmap_free(map);
+          my_bitmap_free(&maybe_covered_bitmap);
+          my_bitmap_free(map);
           return;
         }
         break;
@@ -1155,9 +1155,9 @@ void Rdb_key_def::get_lookup_bitmap(const TABLE *table, MY_BITMAP *map) const {
   // If there are columns which are not covered in the read set, the lookup
   // can't be covered.
   if (!bitmap_cmp(table->read_set, &maybe_covered_bitmap)) {
-    bitmap_free(map);
+    my_bitmap_free(map);
   }
-  bitmap_free(&maybe_covered_bitmap);
+  my_bitmap_free(&maybe_covered_bitmap);
 }
 
 /*
@@ -1187,7 +1187,7 @@ bool Rdb_key_def::covers_lookup(const rocksdb::Slice *const unpack_info,
 
   MY_BITMAP covered_bitmap;
   my_bitmap_map covered_bits;
-  bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS, false);
+  my_bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS);
   covered_bits = rdb_netbuf_to_uint16((const uchar *)unpack_header +
                                       sizeof(RDB_UNPACK_COVERED_DATA_TAG) +
                                       RDB_UNPACK_COVERED_DATA_LEN_SIZE);
@@ -1356,7 +1356,7 @@ uint Rdb_key_def::pack_record(const TABLE *const tbl, uchar *const pack_buffer,
   MY_BITMAP covered_bitmap;
   my_bitmap_map covered_bits;
   uint curr_bitmap_pos = 0;
-  bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS, false);
+  my_bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS);
 
   for (uint i = 0; i < n_key_parts; i++) {
     // Fill hidden pk id into the last key part for secondary keys for tables
@@ -1661,7 +1661,7 @@ int Rdb_key_def::unpack_record(TABLE *const table, uchar *const buf,
   bool has_covered_bitmap =
       has_unpack_info && (unpack_header[0] == RDB_UNPACK_COVERED_DATA_TAG);
   if (has_covered_bitmap) {
-    bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS, false);
+    my_bitmap_init(&covered_bitmap, &covered_bits, MAX_REF_PARTS);
     covered_bits = rdb_netbuf_to_uint16((const uchar *)unpack_header +
                                         sizeof(RDB_UNPACK_COVERED_DATA_TAG) +
                                         RDB_UNPACK_COVERED_DATA_LEN_SIZE);

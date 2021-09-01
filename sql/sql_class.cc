@@ -5017,13 +5017,9 @@ void reset_thd(MYSQL_THD thd)
   guarantees, in other words, server can't send OK packet
   before modified data is durable in redo log.
 */
-extern "C" MYSQL_THD thd_increment_pending_ops(void)
+extern "C" void thd_increment_pending_ops(MYSQL_THD thd)
 {
-  THD *thd = current_thd;
-  if (!thd)
-    return NULL;
   thd->async_state.inc_pending_ops();
-  return thd;
 }
 
 /**

@@ -73,12 +73,11 @@ row_undo_ins_remove_clust_rec(
 	dict_index_t*	index	= node->pcur.btr_cur.index;
 	bool		online;
 	table_id_t table_id = 0;
-	const bool dict_locked = node->trx->dict_operation_lock_mode
-		== RW_X_LATCH;
+	const bool dict_locked = node->trx->dict_operation_lock_mode;
 restart:
 	MDL_ticket* mdl_ticket = nullptr;
 	ut_ad(!table_id || dict_locked
-	      || node->trx->dict_operation_lock_mode == 0);
+	      || !node->trx->dict_operation_lock_mode);
 	dict_table_t *table = table_id
 		? dict_table_open_on_id(table_id, dict_locked,
 					DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
@@ -147,8 +146,7 @@ restart:
 			completed. At this point, any corresponding operation
 			to the metadata record will have been rolled back. */
 			ut_ad(!online);
-			ut_ad(node->trx->dict_operation_lock_mode
-			      == RW_X_LATCH);
+			ut_ad(node->trx->dict_operation_lock_mode);
 			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 			if (rec_get_n_fields_old(rec)
 			    != DICT_NUM_FIELDS__SYS_COLUMNS
@@ -162,8 +160,7 @@ restart:
 			break;
 		case DICT_INDEXES_ID:
 			ut_ad(!online);
-			ut_ad(node->trx->dict_operation_lock_mode
-			      == RW_X_LATCH);
+			ut_ad(node->trx->dict_operation_lock_mode);
 			ut_ad(node->rec_type == TRX_UNDO_INSERT_REC);
 			if (!table_id) {
 				table_id = mach_read_from_8(rec);
@@ -182,7 +179,7 @@ restart:
 					lock_release_on_rollback(node->trx,
 								 table);
 					if (!dict_locked) {
-						dict_sys.mutex_lock();
+						dict_sys.lock(SRW_LOCK_CALL);
 					}
 					if (table->release()) {
 						dict_sys.remove(table);
@@ -192,7 +189,7 @@ restart:
 						table->file_unreadable = true;
 					}
 					if (!dict_locked) {
-						dict_sys.mutex_unlock();
+						dict_sys.unlock();
 					}
 					table = nullptr;
 					if (!mdl_ticket);
@@ -272,7 +269,7 @@ func_exit:
 	btr_pcur_commit_specify_mtr(&node->pcur, &mtr);
 
 	if (UNIV_LIKELY_NULL(table)) {
-		dict_table_close(table, dict_locked, false,
+		dict_table_close(table, dict_locked,
 				 node->trx->mysql_thd, mdl_ticket);
 	}
 
@@ -432,9 +429,9 @@ static bool row_undo_ins_parse_undo_rec(undo_node_t* node, bool dict_locked)
 		node->table = dict_table_open_on_id(table_id, dict_locked,
 						    DICT_TABLE_OP_NORMAL);
 	} else if (!dict_locked) {
-		dict_sys.mutex_lock();
+		dict_sys.freeze(SRW_LOCK_CALL);
 		node->table = dict_sys.acquire_temporary_table(table_id);
-		dict_sys.mutex_unlock();
+		dict_sys.unfreeze();
 	} else {
 		node->table = dict_sys.acquire_temporary_table(table_id);
 	}
@@ -486,7 +483,7 @@ close_table:
 		would probably be better to just drop all temporary
 		tables (and temporary undo log records) of the current
 		connection, instead of doing this rollback. */
-		dict_table_close(node->table, dict_locked, FALSE);
+		dict_table_close(node->table, dict_locked);
 		node->table = NULL;
 		return false;
 	} else {
@@ -610,7 +607,7 @@ row_undo_ins(
 	que_thr_t*	thr)	/*!< in: query thread */
 {
 	dberr_t	err;
-	bool dict_locked = node->trx->dict_operation_lock_mode == RW_X_LATCH;
+	const bool dict_locked = node->trx->dict_operation_lock_mode;
 
 	if (!row_undo_ins_parse_undo_rec(node, dict_locked)) {
 		return DB_SUCCESS;
@@ -642,21 +639,19 @@ row_undo_ins(
 
 		log_free_check();
 
-		if (node->table->id == DICT_INDEXES_ID) {
-			ut_ad(!node->table->is_temporary());
-			if (!dict_locked) {
-				dict_sys.mutex_lock();
-			}
+		if (!dict_locked && node->table->id == DICT_INDEXES_ID) {
+			dict_sys.lock(SRW_LOCK_CALL);
 			err = row_undo_ins_remove_clust_rec(node);
-			if (!dict_locked) {
-				dict_sys.mutex_unlock();
-			}
+			dict_sys.unlock();
 		} else {
+			ut_ad(node->table->id != DICT_INDEXES_ID
+			      || !node->table->is_temporary());
 			err = row_undo_ins_remove_clust_rec(node);
 		}
 
 		if (err == DB_SUCCESS && node->table->stat_initialized) {
-			/* Not protected by dict_sys.mutex for
+			/* Not protected by dict_sys.latch
+			or table->stats_mutex_lock() for
 			performance reasons, we would rather get garbage
 			in stat_n_rows (which is just an estimate anyway)
 			than protecting the following code with a latch. */
@@ -665,7 +660,7 @@ row_undo_ins(
 			/* Do not attempt to update statistics when
 			executing ROLLBACK in the InnoDB SQL
 			interpreter, because in that case we would
-			already be holding dict_sys.mutex, which
+			already be holding dict_sys.latch, which
 			would be acquired when updating statistics. */
 			if (!dict_locked) {
 				dict_stats_update_if_needed(node->table,
@@ -685,7 +680,7 @@ row_undo_ins(
 		break;
 	}
 
-	dict_table_close(node->table, dict_locked, FALSE);
+	dict_table_close(node->table, dict_locked);
 
 	node->table = NULL;
 

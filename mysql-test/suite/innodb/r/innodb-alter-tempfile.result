@@ -45,7 +45,7 @@ set DEBUG_SYNC="now WAIT_FOR default_signal";
 disconnect con1;
 SHOW KEYS FROM t1;
 Table	Non_unique	Key_name	Seq_in_index	Column_name	Collation	Cardinality	Sub_part	Packed	Null	Index_type	Comment	Index_comment	Ignored
-t1	1	f1	1	f1	A	2	NULL	NULL		BTREE			NO
+t1	1	f1	1	f1	A	#	NULL	NULL		BTREE			NO
 DROP TABLE t1;
 #
 # MDEV-25503 InnoDB hangs on startup during recovery

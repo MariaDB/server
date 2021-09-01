@@ -100,7 +100,9 @@ extern CHARSET_INFO *error_message_charset_info;
 
 extern CHARSET_INFO *character_set_filesystem;
 
-extern MY_BITMAP temp_pool;
+void temp_pool_clear_bit(uint bit);
+uint temp_pool_set_next();
+
 extern bool opt_large_files;
 extern bool opt_update_log, opt_bin_log, opt_error_log, opt_bin_log_compress; 
 extern uint opt_bin_log_compress_min_len;

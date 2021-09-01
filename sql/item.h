@@ -2647,7 +2647,7 @@ public:
   
   bool depends_only_on(table_map view_map) 
   { return marker & MARKER_FULL_EXTRACTION; }
-  int get_extraction_flag()
+  int get_extraction_flag() const
   { return marker & MARKER_EXTRACTION_MASK; }
   void set_extraction_flag(int16 flags)
   {
@@ -4433,6 +4433,8 @@ public:
   virtual void top_level_item() override {}
   void set_join_tab_idx(uint8 join_tab_idx_arg) override
   { DBUG_ASSERT(0); }
+
+  void cleanup() override {}
 };
 
 /* The following variablese are stored in a read only segment */

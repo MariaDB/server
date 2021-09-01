@@ -1,0 +1,32 @@
+--source include/not_embedded.inc
+--source suite/versioning/common.inc
+
+--echo #
+--echo # MDEV-16355 Add option for mysqldump to read data as of specific timestamp from system-versioned tables
+--echo #
+create or replace table t1 (x int) with system versioning;
+set timestamp=unix_timestamp('1990-01-01 00:00');
+insert t1 (x) values (1),(2),(3);
+set timestamp=unix_timestamp('1990-08-03 00:00');
+delete from t1 where x=1;
+set timestamp=unix_timestamp('1991-01-02 00:00');
+delete from t1 where x=2;
+set timestamp=default;
+
+--echo #MYSQL_DUMP --compact test
+--exec $MYSQL_DUMP --compact test
+--echo #MYSQL_DUMP --compact --as-of="1990-01-02 00:00" test
+--exec $MYSQL_DUMP --compact --as-of="1990-01-02 00:00" test
+--echo #MYSQL_DUMP --compact --as-of="1990-08-02 00:00" --databases test
+--exec $MYSQL_DUMP --compact --as-of="1990-08-02 00:00" --databases test
+--echo #MYSQL_DUMP --compact --as-of="1990-08-04 00:00" test t1
+--exec $MYSQL_DUMP --compact --as-of="1990-08-04 00:00" test t1
+## Forged query protection
+--echo #MYSQL_DUMP --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
+--replace_result mysqldump.exe mysqldump
+--error 1
+--exec $MYSQL_DUMP --compact --as-of="1990-08-04 00:00' where 'abc" test 2>&1
+
+drop tables t1;
+
+--source suite/versioning/common_finish.inc

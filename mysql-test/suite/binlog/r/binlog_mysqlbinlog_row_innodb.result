@@ -1,3 +1,5 @@
+SET @save_stats_auto_recalc=@@GLOBAL.innodb_stats_auto_recalc;
+SET GLOBAL innodb_stats_auto_recalc=OFF;
 set sql_mode="";
 SET NAMES 'utf8';
 #
@@ -6372,3 +6374,4 @@ ROLLBACK /* added by mysqlbinlog */;
 # Cleanup.
 #
 DROP TABLE t1;
+SET GLOBAL innodb_stats_auto_recalc=@save_stats_auto_recalc;

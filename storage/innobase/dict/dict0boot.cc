@@ -225,7 +225,7 @@ dict_boot(void)
 
 	heap = mem_heap_create(450);
 
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	/* Get the dictionary header */
 	const byte* dict_hdr = &dict_hdr_get(&mtr)->frame[DICT_HDR];
@@ -413,10 +413,10 @@ dict_boot(void)
 		dict_load_sys_table(dict_sys.sys_columns);
 		dict_load_sys_table(dict_sys.sys_indexes);
 		dict_load_sys_table(dict_sys.sys_fields);
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 		dict_sys.load_sys_tables();
 	} else {
-		dict_sys.mutex_unlock();
+		dict_sys.unlock();
 	}
 
 	return(err);

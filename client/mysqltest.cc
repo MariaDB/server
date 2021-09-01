@@ -1464,8 +1464,18 @@ void free_used_memory()
 }
 
 
+#ifdef EMBEDDED_LIBRARY
+void ha_pre_shutdown();
+#endif
+
+
 ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code)
 {
+#ifdef EMBEDDED_LIBRARY
+  if (server_initialized)
+    ha_pre_shutdown();
+#endif
+
   free_used_memory();
 
   /* Only call mysql_server_end if mysql_server_init has been called */

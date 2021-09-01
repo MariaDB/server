@@ -854,14 +854,16 @@ static void trx_purge_rseg_get_next_history_log(
 
 	trx_no = mach_read_from_8(log_hdr + TRX_UNDO_TRX_NO);
 	ut_ad(mach_read_from_2(log_hdr + TRX_UNDO_NEEDS_PURGE) <= 1);
+	const byte needs_purge = log_hdr[TRX_UNDO_NEEDS_PURGE + 1];
 
-	mtr_commit(&mtr);
+	mtr.commit();
 
 	purge_sys.rseg->latch.wr_lock();
 
 	purge_sys.rseg->last_page_no = prev_log_addr.page;
 	purge_sys.rseg->set_last_commit(prev_log_addr.boffset, trx_no);
-	if (log_hdr[TRX_UNDO_NEEDS_PURGE + 1]) {
+
+	if (needs_purge) {
 		purge_sys.rseg->set_needs_purge();
 	} else {
 		purge_sys.rseg->clear_needs_purge();

@@ -6,6 +6,9 @@ if (`SELECT $PS_PROTOCOL != 0`)
 --source suite/versioning/common.inc
 --source include/default_optimizer_switch.inc
 
+SET @saved_stats_persistent = @@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
+
 --enable_prepare_warnings
 # test_01
 
@@ -481,5 +484,7 @@ drop tables x, x_p;
 
 call verify_trt_dummy(34);
 --disable_prepare_warnings
+
+SET GLOBAL innodb_stats_persistent = @saved_stats_persistent;
 
 -- source suite/versioning/common_finish.inc

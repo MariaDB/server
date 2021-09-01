@@ -1,4 +1,4 @@
-create table t1 (old_c1 integer, old_c2 integer,c1 integer, c2 integer, c3 integer) engine=InnoDb;
+create table t1 (old_c1 integer, old_c2 integer,c1 integer, c2 integer, c3 integer) engine=InnoDB STATS_PERSISTENT=0;
 create view v1 as select * from t1 where c2=2;
 create trigger trg_t1 before update on t1 for each row
 begin

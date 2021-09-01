@@ -5225,8 +5225,7 @@ Rows_log_event::Rows_log_event(THD *thd_arg, TABLE *tbl_arg, ulong tid,
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols,
                           m_width <= sizeof(m_bitbuf)*8 ? m_bitbuf : NULL,
-                          m_width,
-                          false)))
+                          m_width)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))
@@ -8281,8 +8280,7 @@ void Update_rows_log_event::init(MY_BITMAP const *cols)
   /* if my_bitmap_init fails, caught in is_valid() */
   if (likely(!my_bitmap_init(&m_cols_ai,
                           m_width <= sizeof(m_bitbuf_ai)*8 ? m_bitbuf_ai : NULL,
-                          m_width,
-                          false)))
+                          m_width)))
   {
     /* Cols can be zero if this is a dummy binrows event */
     if (likely(cols != NULL))

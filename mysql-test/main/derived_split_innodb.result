@@ -1,3 +1,5 @@
+SET @save_innodb_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 #
 # MDEV-16917: do not use splitting for derived with join cache
 #
@@ -241,3 +243,4 @@ set optimizer_switch='split_materialized=default';
 set use_stat_tables=default;
 set optimizer_use_condition_selectivity=default;
 # End of 10.3 tests
+SET GLOBAL innodb_stats_persistent=@save_innodb_stats_persistent;

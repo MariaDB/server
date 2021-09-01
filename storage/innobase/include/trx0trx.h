@@ -122,11 +122,18 @@ void trx_start_internal_low(trx_t *trx, bool read_write);
 	(t)->start_file = __FILE__;				\
 	trx_start_internal_low(t, true);			\
 	} while (false)
+#define trx_start_internal_read_only(t)				\
+	do {							\
+	(t)->start_line = __LINE__;				\
+	(t)->start_file = __FILE__;				\
+	trx_start_internal_low(t, false);			\
+	} while (false)
 #else
 #define trx_start_if_not_started(t, rw)				\
 	trx_start_if_not_started_low((t), rw)
 
 #define trx_start_internal(t) trx_start_internal_low(t, true)
+#define trx_start_internal_read_only(t) trx_start_internal_low(t, false)
 
 #define trx_start_if_not_started_xa(t, rw)			\
 	trx_start_if_not_started_xa_low((t), (rw))
@@ -725,11 +732,9 @@ public:
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
 	bool		dict_operation;	/**< whether this modifies InnoDB
 					data dictionary */
-	ib_uint32_t	dict_operation_lock_mode;
-					/*!< 0, RW_S_LATCH, or RW_X_LATCH:
-					the latch mode trx currently holds
-					on dict_sys.latch. Protected
-					by dict_sys.latch. */
+	/** whether dict_sys.latch is held exclusively; protected by
+	dict_sys.latch */
+	bool dict_operation_lock_mode;
 
 	/** wall-clock time of the latest transition to TRX_STATE_ACTIVE;
 	used for diagnostic purposes only */

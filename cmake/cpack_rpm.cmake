@@ -35,7 +35,7 @@ SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
 SET(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
 SET(CPACK_RPM_PACKAGE_VERSION ${CPACK_PACKAGE_VERSION})
 IF(CMAKE_VERSION VERSION_LESS "3.6.0")
-  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${CPACK_RPM_PACKAGE_VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
+  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${SERVER_VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
 ELSE()
   SET(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
   OPTION(CPACK_RPM_DEBUGINFO_PACKAGE "" ON)
@@ -82,7 +82,7 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %filter_provides_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
 %filter_requires_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
 %filter_from_provides /perl(\\\\(mtr\\\\|My::\\\\)/d
-%filter_from_requires /\\\\(liblzma\\\\)\\\\|\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
+%filter_from_requires /\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
 %filter_setup
 }
 ")

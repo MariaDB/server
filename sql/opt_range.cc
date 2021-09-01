@@ -1308,7 +1308,7 @@ QUICK_RANGE_SELECT::QUICK_RANGE_SELECT(THD *thd, TABLE *table, uint key_nr,
     *create_error= 1;
   }
   else
-    my_bitmap_init(&column_bitmap, bitmap, head->s->fields, FALSE);
+    my_bitmap_init(&column_bitmap, bitmap, head->s->fields);
   DBUG_VOID_RETURN;
 }
 
@@ -2577,7 +2577,7 @@ static int fill_used_fields_bitmap(PARAM *param)
   param->fields_bitmap_size= table->s->column_bitmap_size;
   if (!(tmp= (my_bitmap_map*) alloc_root(param->mem_root,
                                   param->fields_bitmap_size)) ||
-      my_bitmap_init(&param->needed_fields, tmp, table->s->fields, FALSE))
+      my_bitmap_init(&param->needed_fields, tmp, table->s->fields))
     return 1;
 
   bitmap_copy(&param->needed_fields, table->read_set);
@@ -3347,7 +3347,7 @@ bool calculate_cond_selectivity_for_table(THD *thd, TABLE *table, Item **cond)
   my_bitmap_map* buf;
   if (!(buf= (my_bitmap_map*)thd->alloc(table->s->column_bitmap_size)))
     DBUG_RETURN(TRUE);
-  my_bitmap_init(&handled_columns, buf, table->s->fields, FALSE);
+  my_bitmap_init(&handled_columns, buf, table->s->fields);
 
   /*
     Calculate the selectivity of the range conditions supported by indexes.
@@ -4137,7 +4137,7 @@ static int find_used_partitions_imerge_list(PART_PRUNE_PARAM *ppar,
     */
     return find_used_partitions_imerge(ppar, merges.head());
   }
-  my_bitmap_init(&all_merges, bitmap_buf, n_bits, FALSE);
+  my_bitmap_init(&all_merges, bitmap_buf, n_bits);
   bitmap_set_prefix(&all_merges, n_bits);
 
   List_iterator<SEL_IMERGE> it(merges);
@@ -4793,8 +4793,7 @@ static bool create_partition_index_description(PART_PRUNE_PARAM *ppar)
     uint32 bufsize= bitmap_buffer_size(ppar->part_info->num_subparts);
     if (!(buf= (my_bitmap_map*) alloc_root(alloc, bufsize)))
       return TRUE;
-    my_bitmap_init(&ppar->subparts_bitmap, buf, ppar->part_info->num_subparts,
-                FALSE);
+    my_bitmap_init(&ppar->subparts_bitmap, buf, ppar->part_info->num_subparts);
   }
   range_par->key_parts= key_part;
   Field **field= (ppar->part_fields)? part_info->part_field_array :
@@ -5620,7 +5619,7 @@ bool create_fields_bitmap(PARAM *param, MY_BITMAP *fields_bitmap)
   if (!(bitmap_buf= (my_bitmap_map *) alloc_root(param->mem_root,
                                                  param->fields_bitmap_size)))
     return TRUE;
-  if (my_bitmap_init(fields_bitmap, bitmap_buf, param->table->s->fields, FALSE))
+  if (my_bitmap_init(fields_bitmap, bitmap_buf, param->table->s->fields))
     return TRUE;
   
   return FALSE;
@@ -6532,7 +6531,7 @@ ROR_SCAN_INFO *make_ror_scan(const PARAM *param, int idx, SEL_ARG *sel_arg)
     DBUG_RETURN(NULL);
 
   if (my_bitmap_init(&ror_scan->covered_fields, bitmap_buf,
-                  param->table->s->fields, FALSE))
+                  param->table->s->fields))
     DBUG_RETURN(NULL);
   bitmap_clear_all(&ror_scan->covered_fields);
 
@@ -6649,8 +6648,7 @@ ROR_INTERSECT_INFO* ror_intersect_init(const PARAM *param)
   if (!(buf= (my_bitmap_map*) alloc_root(param->mem_root,
                                          param->fields_bitmap_size)))
     return NULL;
-  if (my_bitmap_init(&info->covered_fields, buf, param->table->s->fields,
-                  FALSE))
+  if (my_bitmap_init(&info->covered_fields, buf, param->table->s->fields))
     return NULL;
   info->is_covering= FALSE;
   info->index_scan_costs= 0.0;
@@ -7295,7 +7293,7 @@ TRP_ROR_INTERSECT *get_best_covering_ror_intersect(PARAM *param,
                                                param->fields_bitmap_size);
   if (!covered_fields->bitmap ||
       my_bitmap_init(covered_fields, covered_fields->bitmap,
-                  param->table->s->fields, FALSE))
+                  param->table->s->fields))
     DBUG_RETURN(0);
   bitmap_clear_all(covered_fields);
 

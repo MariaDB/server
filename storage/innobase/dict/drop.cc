@@ -59,7 +59,6 @@ that would cause the InnoDB to hang or to intentionally crash.
 (d) The only changes to the data dictionary cache that are performed
 before transaction commit and must be rolled back explicitly are as follows:
 (d1) fts_optimize_add_table() to undo fts_optimize_remove_table()
-(d2) stats_bg_flag= BG_STAT_NONE to undo dict_stats_stop_bg()
 */
 
 #include "trx0purge.h"
@@ -78,10 +77,10 @@ before transaction commit and must be rolled back explicitly are as follows:
 @return error code */
 dberr_t trx_t::drop_table_foreign(const table_name_t &name)
 {
-  ut_d(dict_sys.assert_locked());
+  ut_ad(dict_sys.locked());
   ut_ad(state == TRX_STATE_ACTIVE);
   ut_ad(dict_operation);
-  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
+  ut_ad(dict_operation_lock_mode);
 
   if (!dict_sys.sys_foreign || !dict_sys.sys_foreign_cols)
     return DB_SUCCESS;
@@ -108,7 +107,7 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
                       "  DELETE FROM SYS_FOREIGN WHERE ID=fid;\n"
                       "END LOOP;\n"
                       "CLOSE fk;\n"
-                      "END;\n", FALSE, this);
+                      "END;\n", this);
 }
 
 /** Try to drop the statistics for a persistent table.
@@ -116,8 +115,8 @@ dberr_t trx_t::drop_table_foreign(const table_name_t &name)
 @return error code */
 dberr_t trx_t::drop_table_statistics(const table_name_t &name)
 {
-  ut_d(dict_sys.assert_locked());
-  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
+  ut_ad(dict_sys.locked());
+  ut_ad(dict_operation_lock_mode);
 
   if (strstr(name.m_name, "/" TEMP_FILE_PREFIX_INNODB) ||
       !strcmp(name.m_name, TABLE_STATS_NAME) ||
@@ -143,12 +142,11 @@ dberr_t trx_t::drop_table_statistics(const table_name_t &name)
 @return error code */
 dberr_t trx_t::drop_table(const dict_table_t &table)
 {
-  ut_d(dict_sys.assert_locked());
+  ut_ad(dict_sys.locked());
   ut_ad(state == TRX_STATE_ACTIVE);
   ut_ad(dict_operation);
-  ut_ad(dict_operation_lock_mode == RW_X_LATCH);
+  ut_ad(dict_operation_lock_mode);
   ut_ad(!table.is_temporary());
-  ut_ad(!(table.stats_bg_flag & BG_STAT_IN_PROGRESS));
   /* The table must be exclusively locked by this transaction. */
   ut_ad(table.get_ref_count() <= 1);
   ut_ad(table.n_lock_x_or_s == 1);
@@ -182,7 +180,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
                                   "BEGIN\n"
                                   "DELETE FROM SYS_VIRTUAL"
                                   " WHERE TABLE_ID=:id;\n"
-                                  "END;\n", FALSE, this))
+                                  "END;\n", this))
       return err;
   }
 
@@ -224,7 +222,7 @@ dberr_t trx_t::drop_table(const dict_table_t &table)
                       "END LOOP;\n"
                       "CLOSE idx;\n"
 
-                      "END;\n", FALSE, this);
+                      "END;\n", this);
 }
 
 /** Commit the transaction, possibly after drop_table().
@@ -235,13 +233,13 @@ void trx_t::commit(std::vector<pfs_os_file_t> &deleted)
   commit_persist();
   if (dict_operation)
   {
-    dict_sys.assert_locked();
+    ut_ad(dict_sys.locked());
     for (const auto &p : mod_tables)
     {
       if (p.second.is_dropped())
       {
         dict_table_t *table= p.first;
-        dict_stats_recalc_pool_del(table);
+        dict_stats_recalc_pool_del(table->id, true);
         dict_stats_defrag_pool_del(table, nullptr);
         if (btr_defragment_active)
           btr_defragment_remove_table(table);

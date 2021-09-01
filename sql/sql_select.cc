@@ -18543,20 +18543,19 @@ setup_tmp_table_column_bitmaps(TABLE *table, uchar *bitmaps, uint field_count)
 
   DBUG_ASSERT(table->s->virtual_fields == 0);
 
-  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
-              FALSE);
+  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count);
   bitmaps+= bitmap_size;
   my_bitmap_init(&table->tmp_set,
-                 (my_bitmap_map*) bitmaps, field_count, FALSE);
+                 (my_bitmap_map*) bitmaps, field_count);
   bitmaps+= bitmap_size;
   my_bitmap_init(&table->eq_join_set,
-                 (my_bitmap_map*) bitmaps, field_count, FALSE);
+                 (my_bitmap_map*) bitmaps, field_count);
   bitmaps+= bitmap_size;
   my_bitmap_init(&table->cond_set,
-                 (my_bitmap_map*) bitmaps, field_count, FALSE);
+                 (my_bitmap_map*) bitmaps, field_count);
   bitmaps+= bitmap_size;
   my_bitmap_init(&table->has_value_set,
-                 (my_bitmap_map*) bitmaps, field_count, FALSE);
+                 (my_bitmap_map*) bitmaps, field_count);
   /* write_set and all_set are copies of read_set */
   table->def_write_set= table->def_read_set;
   table->s->all_set= table->def_read_set;
@@ -18679,7 +18678,7 @@ TABLE *Create_tmp_table::start(THD *thd,
               (ulong) m_rows_limit, MY_TEST(m_group)));
 
   if (use_temp_pool && !(test_flags & TEST_KEEP_TMP_TABLES))
-    m_temp_pool_slot = bitmap_lock_set_next(&temp_pool);
+    m_temp_pool_slot = temp_pool_set_next();
 
   if (m_temp_pool_slot != MY_BIT_NONE) // we got a slot
     sprintf(path, "%s-%s-%lx-%i", tmp_file_prefix, param->tmp_name,
@@ -19589,7 +19588,7 @@ void Create_tmp_table::cleanup_on_failure(THD *thd, TABLE *table)
   if (table)
     free_tmp_table(thd, table);
   if (m_temp_pool_slot != MY_BIT_NONE)
-    bitmap_lock_clear_bit(&temp_pool, m_temp_pool_slot);
+    temp_pool_clear_bit(m_temp_pool_slot);
 }
 
 
@@ -20354,7 +20353,7 @@ free_tmp_table(THD *thd, TABLE *entry)
     (*ptr)->free();
 
   if (entry->temp_pool_slot != MY_BIT_NONE)
-    bitmap_lock_clear_bit(&temp_pool, entry->temp_pool_slot);
+    temp_pool_clear_bit(entry->temp_pool_slot);
 
   plugin_unlock(0, entry->s->db_plugin);
   entry->alias.free();

@@ -8217,8 +8217,7 @@ TABLE *create_schema_table(THD *thd, TABLE_LIST *table_list)
     DBUG_RETURN(0);
   my_bitmap_map* bitmaps=
     (my_bitmap_map*) thd->alloc(bitmap_buffer_size(field_count));
-  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count,
-              FALSE);
+  my_bitmap_init(&table->def_read_set, (my_bitmap_map*) bitmaps, field_count);
   table->read_set= &table->def_read_set;
   bitmap_clear_all(table->read_set);
   table_list->schema_table_param= tmp_table_param;

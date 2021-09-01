@@ -788,7 +788,7 @@ bool init_slave_skip_errors(const char* arg)
   if (!arg || !*arg)                            // No errors defined
     goto end;
 
-  if (unlikely(my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR,0)))
+  if (my_bitmap_init(&slave_error_mask,0,MAX_SLAVE_ERROR))
     DBUG_RETURN(1);
 
   use_slave_mask= 1;

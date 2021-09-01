@@ -271,7 +271,7 @@ static void prepare_record_for_error_message(int error, TABLE *table)
     DBUG_VOID_RETURN;
 
   /* Create unique_map with all fields used by that index. */
-  my_bitmap_init(&unique_map, unique_map_buf, table->s->fields, FALSE);
+  my_bitmap_init(&unique_map, unique_map_buf, table->s->fields);
   table->mark_index_columns(keynr, &unique_map);
 
   /* Subtract read_set and write_set. */

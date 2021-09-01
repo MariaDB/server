@@ -140,19 +140,21 @@ dict_stats_update(
 /** Execute DELETE FROM mysql.innodb_table_stats
 @param database_name  database name
 @param table_name     table name
-@param trx            transaction (nullptr=start and commit a new one)
+@param trx            transaction
 @return DB_SUCCESS or error code */
 dberr_t dict_stats_delete_from_table_stats(const char *database_name,
                                            const char *table_name,
-                                           trx_t *trx= nullptr);
+                                           trx_t *trx)
+  MY_ATTRIBUTE((nonnull));
 /** Execute DELETE FROM mysql.innodb_index_stats
 @param database_name  database name
 @param table_name     table name
-@param trx            transaction (nullptr=start and commit a new one)
+@param trx            transaction
 @return DB_SUCCESS or error code */
 dberr_t dict_stats_delete_from_index_stats(const char *database_name,
                                            const char *table_name,
-                                           trx_t *trx= nullptr);
+                                           trx_t *trx)
+  MY_ATTRIBUTE((nonnull));
 /** Execute DELETE FROM mysql.innodb_index_stats
 @param database_name  database name
 @param table_name     table name
@@ -203,9 +205,7 @@ storage.
 @param[in]	stat_value		value of the stat
 @param[in]	sample_size		n pages sampled or NULL
 @param[in]	stat_description	description of the stat
-@param[in,out]	trx			in case of NULL the function will
-allocate and free the trx object. If it is not NULL then it will be
-rolled back only in the case of error, but not freed.
+@param[in,out]	trx			transaction
 @return DB_SUCCESS or error code */
 dberr_t
 dict_stats_save_index_stat(
@@ -215,7 +215,8 @@ dict_stats_save_index_stat(
 	ib_uint64_t	stat_value,
 	ib_uint64_t*	sample_size,
 	const char*	stat_description,
-	trx_t*		trx);
+	trx_t*		trx)
+	MY_ATTRIBUTE((nonnull(1, 3, 6, 7)));
 
 /** Report an error if updating table statistics failed because
 .ibd file is missing, table decryption failed or table is corrupted.
