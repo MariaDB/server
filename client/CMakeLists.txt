@@ -83,7 +83,7 @@ TARGET_LINK_LIBRARIES(mysqlslap ${CLIENT_LIB})
 
 # "WIN32" also covers 64 bit. "echo" is used in some files below "mysql-test/".
 IF(WIN32)
-  MYSQL_ADD_EXECUTABLE(echo echo.c COMPONENT Junk)
+  MYSQL_ADD_EXECUTABLE(echo echo.c COMPONENT Test)
 ENDIF(WIN32)
 
 # async_example is just a code example, do not install it.
