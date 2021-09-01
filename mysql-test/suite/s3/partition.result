@@ -64,7 +64,7 @@ count(*)
 6
 ALTER TABLE t2 CHECK PARTITION p3;
 Table	Op	Msg_type	Msg_text
-s3.t2	check	status	Table 's3.t2' is read only
+s3.t2	check	status	OK
 SELECT count(*) FROM t2;
 count(*)
 6
