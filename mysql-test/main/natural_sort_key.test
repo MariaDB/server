@@ -1,25 +1,21 @@
---source include/have_innodb.inc
 --source include/have_sequence.inc
 
 SET NAMES utf8mb4;
 SELECT NATURAL_SORT_KEY(NULL);
 
-# Sort without tables
-SELECT '' c WHERE 0 UNION VALUES('a10'),('a9'),('a1000'), ('a0'),('b'),('b0') ORDER BY NATURAL_SORT_KEY(c);
-
 #Test that max packet overflow produces NULL plus warning
 SELECT NATURAL_SORT_KEY(repeat('a1',@@max_allowed_packet/2-1));
 SELECT NATURAL_SORT_KEY(repeat('1',@@max_allowed_packet-1));
 
-#Test with virtual(index only) key
+#Test with virtual
 CREATE TABLE t1(
   c VARCHAR(30) CHARACTER SET latin1 COLLATE latin1_bin,
-  k VARCHAR(45) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (NATURAL_SORT_KEY(CONVERT(c USING utf8mb4))) INVISIBLE,
-  KEY(k,c)) ENGINE=InnoDB;
+  k VARCHAR(60) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci AS (NATURAL_SORT_KEY(CONVERT(c USING utf8mb4))) VIRTUAL INVISIBLE);
+
 INSERT INTO t1 values
  ('A1'),('a1'),('A100'),('a100'),('A2'),('ä2'),('a2'),('A99'),
  ('äb'),('B1'),('B100'),('B9'),('C'),('100');
-EXPLAIN SELECT c FROM t1 ORDER BY k,c;
+
 -- echo #Natural sort order.
 # We sort by 2 colums, for stable sort,as we do not currenly have a case and accent insensitive Unicode collation.
 SELECT c FROM t1 ORDER BY k,c;
@@ -30,21 +26,63 @@ CREATE TABLE t2 AS SELECT c, NATURAL_SORT_KEY(c) FROM t1 WHERE 0;
 SHOW CREATE TABLE t2;
 DROP TABLE t1,t2;
 
-#Show encoding of numbers, with some leading whitespace.
-SELECT RPAD(val,28,' ') value , RPAD(NATURAL_SORT_KEY(val),35,' ') sortkey , LENGTH(NATURAL_SORT_KEY(val)) - LENGTH(val) encoding_overhead
+#Virtual STORED is temporarily disabled
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+CREATE TABLE t1(c VARCHAR(1), k VARCHAR(2) AS (NATURAL_SORT_KEY(c)) STORED);
+
+#Show encoding of numbers.
+SELECT RPAD(val,28,' ') value , RPAD(NATURAL_SORT_KEY(val),36,' ') sortkey , LENGTH(NATURAL_SORT_KEY(val)) - LENGTH(val) encoding_overhead
 FROM
 (
-SELECT 0 val
-UNION  VALUES ('1'),('01'),('0001')
+SELECT '0' val
+UNION  SELECT seq FROM seq_1_to_9
 UNION  SELECT CONCAT('1',repeat('0',seq)) FROM seq_1_to_27
 ) AS numbers ORDER BY sortkey;
 
+# leading zeros ignored
+SELECT natural_sort_key('1') = natural_sort_key('0001');
+SELECT natural_sort_key('1.1') = natural_sort_key('1.00001');
 
-#Test that sort order with leading zeros (lead zeros sort larger)
-SELECT val
-FROM
-(
-SELECT 0 val WHERE 0
-UNION  VALUES ('1/'),('01'),('1a')
-) AS strings ORDER BY NATURAL_SORT_KEY(val);
+# Some examples from https://github.com/sourcefrog/natsort/
+# words
+SELECT RPAD(val,20,' ') value, NATURAL_SORT_KEY(val) FROM
+(SELECT '' val WHERE 0 UNION VALUES
+('fred'),
+('pic2'),
+('pic100a'),
+('pic120'),
+('pic121'),
+('jane'),
+('tom'),
+('pic02a'),
+('pic3'),
+('pic4'),
+('1-20'),
+('pic100'),
+('pic02000'),
+('10-20'),
+('1-02'),
+('1-2'),
+('pic01'),
+('pic02'),
+('pic 6'),
+('pic   7'),
+('pic 5'),
+('pic05'),
+('pic 5 '),
+('pic 5 something'),
+('pic 4 else'),
+('2000-1-10'),
+('1999-12-25'),
+('1999-3-3'),
+('2000-3-23'),
+('2000-1-2'),
+('100.200.300.400'),
+('100.50.60.70'),
+('100.8.9.0'),
+('a1b1'),
+('a01b2'),
+('a1b2'),
+('a01b3')
+)AS data ORDER BY 2,1;
 

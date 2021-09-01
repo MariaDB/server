@@ -287,6 +287,8 @@ public:
   {
     return get_item_copy<Item_func_natural_sort_key>(thd, this);
   }
+
+  bool check_vcol_func_processor(void *arg) override;
 };
 
 class Item_func_concat :public Item_str_func

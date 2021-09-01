@@ -5304,7 +5304,7 @@ String *Item_temptable_rowid::val_str(String *str)
   small, as it only computes variable *length prefixes*.
 
   @param[in] n - the number
-  @param[in] s - output buffer (should be at least 26 bytes large)
+  @param[in] s - output string
 
   @return - length of encoding
 
@@ -5321,14 +5321,14 @@ String *Item_temptable_rowid::val_str(String *str)
     Output calculated as concat('99', '0' + n -18)'
     Output range '990'-'998'
 
-  - n is from 28 to SIZE_T_MAX
+  - n is from 27 to SIZE_T_MAX
     Output starts with '999',
     then log10(n) is encoded as 2-digit decimal number
     then the number itself is added.
     Example : for 28 key is concat('999', '01' , '28')
     i.e '9990128'
 
-    Key legth is 5 + ceil(log10(n))
+    Key length is 5 + ceil(log10(n))
 
    Output range is
      (64bit)'9990128' - '9991918446744073709551615'
@@ -5336,26 +5336,28 @@ String *Item_temptable_rowid::val_str(String *str)
 */
 
 /* Largest length of encoded string.*/
-#define NATSORT_BUFSIZE 26
-static size_t natsort_encode_length(size_t n, char *s)
+static size_t natsort_encode_length_max(size_t n)
+{
+  return (n < 27) ? n/9+1 : 26;
+}
+
+static void natsort_encode_length(size_t n, String* out)
 {
   if (n < 27)
   {
-    size_t n_nines= n / 9;
-    if (n_nines)
-      memset(s, '9', n_nines);
-    s[n_nines]= char(n % 9 + '0');
-    s[n_nines + 1]= 0;
-    return n_nines + 1;
+    if (n >= 9)
+      out->fill(out->length() + n/9,'9');
+    out->append(char(n % 9 + '0'));
+    return;
   }
 
-  memset(s, '9', 3);
   size_t log10n= 0;
   for (size_t tmp= n / 10; tmp; tmp/= 10)
     log10n++;
-  s[3]= '0' + (char) (log10n / 10);
-  s[4]= '0' + (char) (log10n % 10);
-  return longlong10_to_str(n, s + 5, 10) - s;
+  out->fill(out->length() + 3, '9');
+  out->append('0' + (char) (log10n / 10));
+  out->append('0' + (char) (log10n % 10));
+  out->append_ulonglong(n);
 }
 
 enum class NATSORT_ERR
@@ -5374,8 +5376,6 @@ enum class NATSORT_ERR
    @param[in] n_digits - length of the string,
    in characters, not counting leading zeros.
 
-   @param[in] n_lead_zeros - leading zeros count.
-
    @param[out] out - String to write to. The string should
    have enough preallocated space to fit the encoded key.
 
@@ -5384,58 +5384,43 @@ enum class NATSORT_ERR
      NATSORT_ERR::KEY_TOO_LARGE  - out string does not have enough
      space left to accomodate the key.
 
-   Note:
-   Special case, where there are only leading zeros
-   n_digits == 0 and n_leading_zeros > 0
-   will treated as-if in = "0", n_digits = 1, n_leading_zeros
-   is decremented.
 
    The resulting encoding of the numeric string is then
 
-   CONCAT(natsort_encode_length(n_digits), in,
-   natsort_encode_length(n_leading_zeros))
+   CONCAT(natsort_encode_length(n_digits), in)
 */
 static NATSORT_ERR natsort_encode_numeric_string(const char *in,
                                                  size_t n_digits,
-                                                 size_t n_leading_zeros,
                                                  String *out)
 {
-  char buf[NATSORT_BUFSIZE];
   DBUG_ASSERT(in);
   DBUG_ASSERT(n_digits);
 
-  size_t len;
-  len= natsort_encode_length(n_digits - 1, buf);
-
-  if (out->length() + len + n_digits > out->alloced_length())
+  if (out->length() + natsort_encode_length_max(n_digits - 1) + n_digits >
+      out->alloced_length())
     return NATSORT_ERR::KEY_TOO_LARGE;
 
-  out->append(buf, len);
+  natsort_encode_length(n_digits - 1, out);
   out->append(in, n_digits);
-
-  len= natsort_encode_length(n_leading_zeros, buf);
-  if (out->length() + len > out->alloced_length())
-    return NATSORT_ERR::KEY_TOO_LARGE;
-  out->append(buf, len);
   return NATSORT_ERR::SUCCESS;
 }
 
 /*
   Calculate max size of the natsort key.
 
-  A digit expands to 3 chars - length_prefix, the digit, lead_zero_cnt(0)
+  A digit in string expands to 2 chars  length_prefix , and  the digit
 
   With even length L=2N, the largest key corresponds to input string
-  in form REPEAT('<letter><digit>',N) and the length of a key is
-  3N + N = 4*N = 2*L
+  in form REPEAT(<digit><letter>,N) and the length of a key is
+  2N + N = 3N
 
-  With odd input length L=2*N+1, largest key corresponds to
-  CONCAT(<digit>,REPEAT('<letter><digit>', N)
-  with key length is 3 + 4*N = 2*L+1
+  With odd input length L=2N+1, largest key is built by appending
+  a digit at the end, with key length 3N+2
+
 */
 static size_t natsort_max_key_size(size_t input_size)
 {
-  return input_size * 2 + input_size % 2;
+  return input_size + (input_size + 1)/2 ;
 }
 
 /**
@@ -5454,8 +5439,8 @@ static NATSORT_ERR to_natsort_key(const String *in, String *out,
   size_t n_digits= 0;
   size_t n_lead_zeros= 0;
   size_t num_start;
-  size_t reserve_length= std::min(natsort_max_key_size(in->length()),
-                                  max_key_size);
+  size_t reserve_length= std::min(
+      natsort_max_key_size(in->length()) + MAX_BIGINT_WIDTH + 2, max_key_size);
 
   out->length(0);
   out->set_charset(in->charset());
@@ -5478,7 +5463,7 @@ static NATSORT_ERR to_natsort_key(const String *in, String *out,
         n_digits= 1;
       }
       NATSORT_ERR err= natsort_encode_numeric_string(
-          in->ptr() + num_start, n_digits, n_lead_zeros, out);
+          in->ptr() + num_start, n_digits, out);
       if (err != NATSORT_ERR::SUCCESS)
         return err;
 
@@ -5572,6 +5557,16 @@ bool Item_func_natural_sort_key::fix_length_and_dec(void)
                  max_char_len * collation.collation->mbmaxlen >
                      current_thd->variables.max_allowed_packet);
   return false;
+}
+
+/**
+  Disable use in stored virtual functions. Temporarily(?), until
+  the encoding is stable.
+*/
+bool Item_func_natural_sort_key::check_vcol_func_processor(void *arg)
+{
+  return mark_unsupported_function(func_name(), "()", arg,
+                                   VCOL_NON_DETERMINISTIC);
 }
 
 #ifdef WITH_WSREP
