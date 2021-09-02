@@ -6285,7 +6285,10 @@ static void loc_on_close_free(MYSQL *mysql)
   THD *thd= p->new_thd;
   delete p;
   if (thd)
+  {
     delete thd;
+    local_connection_thread_count--;
+  }
   my_free(mysql->info_buffer);
   mysql->info_buffer= 0;
 }
@@ -6303,6 +6306,8 @@ static MYSQL_METHODS local_methods=
   loc_on_close_free                            /* on_close_free */
 };
 
+
+Atomic_counter<uint32_t> local_connection_thread_count;
 
 extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
     const char *host, const char *user, const char *db,
@@ -6337,6 +6342,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
   if (!thd_orig || thd_orig->lock)
   {
     new_thd= new THD(0);
+    local_connection_thread_count++;
     new_thd->thread_stack= (char*) &thd_orig;
     new_thd->store_globals();
     new_thd->security_ctx->skip_grants();

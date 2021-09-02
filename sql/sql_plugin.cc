@@ -3619,7 +3619,13 @@ bool sys_var_pluginvar::global_update(THD *thd, set_var *var)
   if (!var->value)
     src= var_def_ptr(plugin_var);
 
+  if (plugin_var->flags & PLUGIN_VAR_NO_LOCK)
+    mysql_mutex_unlock(&LOCK_global_system_variables);
+
   plugin_var->update(thd, plugin_var, tgt, src);
+
+  if (plugin_var->flags & PLUGIN_VAR_NO_LOCK)
+    mysql_mutex_lock(&LOCK_global_system_variables);
   return false;
 }
 

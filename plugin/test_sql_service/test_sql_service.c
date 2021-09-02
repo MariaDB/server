@@ -35,44 +35,61 @@ static struct st_mysql_show_var test_sql_status[]=
 static my_bool do_test= TRUE;
 static void run_test(MYSQL_THD thd, struct st_mysql_sys_var *var,
                      void *var_ptr, const void *save);
-static MYSQL_SYSVAR_BOOL(run_test, do_test, PLUGIN_VAR_OPCMDARG,
-           "Perform the test now.", NULL, run_test, FALSE);
+static MYSQL_SYSVAR_BOOL(run_test, do_test,
+                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_NO_LOCK,
+                         "Perform the test now.", NULL, run_test, FALSE);
 static struct st_mysql_sys_var* test_sql_vars[]=
 {
   MYSQL_SYSVAR(run_test),
   NULL
 };
 
+static MYSQL *global_mysql;
 
-static int do_tests()
+
+static int run_queries(MYSQL *mysql)
 {
-  MYSQL *mysql;
   MYSQL_RES *res;
-  int result= 1;
-
-  mysql= mysql_init(NULL);
-  if (mysql_real_connect_local(mysql, NULL, NULL, NULL, 0) == NULL)
-    return 1;
 
   if (mysql_real_query(mysql,
         STRING_WITH_LEN("CREATE TABLE test.ts_table"
           " ( hash varbinary(512),"
           " time timestamp default current_time,"
           " primary key (hash), index tm (time) )")))
-    goto exit;
+    return 1;
 
-  if (mysql_real_query(mysql, STRING_WITH_LEN("INSERT INTO test.ts_table VALUES('1234567890', NULL)")))
-    goto exit;
+  if (mysql_real_query(mysql,
+       STRING_WITH_LEN("INSERT INTO test.ts_table VALUES('1234567890', NULL)")))
+    return 1;
 
   if (mysql_real_query(mysql, STRING_WITH_LEN("select * from test.ts_table")))
-    goto exit;
+    return 1;
 
   if (!(res= mysql_store_result(mysql)))
-    goto exit;
+    return 1;
 
   mysql_free_result(res);
 
   if (mysql_real_query(mysql, STRING_WITH_LEN("DROP TABLE test.ts_table")))
+    return 1;
+
+  return 0;
+}
+
+
+static int do_tests()
+{
+  MYSQL *mysql;
+  int result= 1;
+
+  mysql= mysql_init(NULL);
+  if (mysql_real_connect_local(mysql, NULL, NULL, NULL, 0) == NULL)
+    return 1;
+
+  if (run_queries(mysql))
+    goto exit;
+
+  if (run_queries(global_mysql))
     goto exit;
 
   result= 0;
@@ -93,7 +110,7 @@ static void run_test(MYSQL_THD thd  __attribute__((unused)),
                      void *var_ptr  __attribute__((unused)),
                      const void *save  __attribute__((unused)))
 {
-  test_passed= do_tests();
+  test_passed= (do_tests() == 0);
 }
 
 
@@ -101,8 +118,16 @@ static int init_done= 0;
 
 static int test_sql_service_plugin_init(void *p __attribute__((unused)))
 {
+  global_mysql= mysql_init(NULL);
+
+  if (!global_mysql ||
+      mysql_real_connect_local(global_mysql, NULL, NULL, NULL, 0) == NULL)
+    return 1;
+
   init_done= 1;
-  do_tests();
+
+  test_passed= (do_tests() == 0);
+
   return 0;
 }
 
@@ -111,6 +136,8 @@ static int test_sql_service_plugin_deinit(void *p __attribute__((unused)))
 {
   if (!init_done)
     return 0;
+
+  mysql_close(global_mysql);
 
   return 0;
 }

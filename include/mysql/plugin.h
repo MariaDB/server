@@ -235,6 +235,12 @@ typedef int (*mysql_show_var_func)(MYSQL_THD, struct st_mysql_show_var*, void *,
 #define PLUGIN_VAR_OPCMDARG     0x2000 /* Argument optional for cmd line */
 #define PLUGIN_VAR_MEMALLOC     0x8000 /* String needs memory allocated */
 
+/*
+  Do not set the write lock when updated.
+  Required if the update function uses the SQL service.
+*/
+#define PLUGIN_VAR_NO_LOCK      0x10000
+
 struct st_mysql_sys_var;
 struct st_mysql_value;
 
@@ -286,7 +292,8 @@ typedef void (*mysql_var_update_func)(MYSQL_THD thd,
 #define PLUGIN_VAR_MASK \
         (PLUGIN_VAR_READONLY | PLUGIN_VAR_NOSYSVAR | \
          PLUGIN_VAR_NOCMDOPT | PLUGIN_VAR_NOCMDARG | \
-         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_RQCMDARG | PLUGIN_VAR_MEMALLOC)
+         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_RQCMDARG | \
+         PLUGIN_VAR_MEMALLOC | PLUGIN_VAR_NO_LOCK)
 
 #define MYSQL_PLUGIN_VAR_HEADER \
   int flags;                    \
