@@ -1238,7 +1238,7 @@ bool make_backup_name(THD *thd, TABLE_LIST *orig, TABLE_LIST *res)
 
   size_t len= my_snprintf(res_name, sizeof(res_name) - 1,
                           backup_file_prefix "%lx-%llx", current_pid,
-                          thd->thread_id, orig->table_name.str);
+                          thd->thread_id);
 
   LEX_CSTRING n= { res_name, len };
   res->init_one_table(&orig->db, &n, &n, TL_WRITE);
@@ -1326,7 +1326,6 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
 {
   TABLE_LIST *table;
   char path[FN_REFLEN + 1];
-  LEX_CSTRING alias= null_clex_str;
   LEX_CUSTRING version;
   LEX_CSTRING partition_engine_name= {NULL, 0};
   StringBuffer<160> unknown_tables(system_charset_info);
@@ -1532,10 +1531,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
       DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE, db.str,
                                                  table_name.str, MDL_SHARED));
 
-      alias= (lower_case_table_names == 2) ? table->alias : table_name;
       /* remove .frm file and engine files */
       path_length= build_table_filename(path, sizeof(path) - 1, db.str,
-                                        alias.str, reg_ext, 0);
+                                        table_name.str, reg_ext, 0);
       path_end= path + path_length - reg_ext_length;
     } /* if (!drop_temporary) */
 
@@ -1606,10 +1604,9 @@ int mysql_rm_table_no_locks(THD *thd, TABLE_LIST *tables,
         }
         debug_crash_here("ddl_log_replace_after_rename_table");
         table_name= t.table_name;
-        alias= (lower_case_table_names == 2) ? table->alias : table_name;
         /* remove .frm file and engine files */
         path_length= build_table_filename(path, sizeof(path) - 1, db.str,
-                                          alias.str, reg_ext, 0);
+                                          table_name.str, reg_ext, 0);
         path_end= path + path_length - reg_ext_length;
         lex_string_set3(&cpath, path, (size_t) (path_end - path));
       } /* else !(param.from_table_hton->flags & HTON_EXPENSIVE_RENAME) */
