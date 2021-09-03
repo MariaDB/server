@@ -1,0 +1,29 @@
+#
+# Purpose:
+#   This test ensures that memory leak errors do no print when mariadb-binlog is
+# incorrectly invoked with flashback on for a log written to with MINIMAL used
+# for binlog_row_image.
+#
+# References:
+#   MDEV-23746: Warnings about memory lost after using --flashback server option
+#               with binlog_row_image="minimal"
+#
+
+--source include/have_binlog_format_row.inc
+--source include/have_innodb.inc
+
+set binlog_row_image="minimal";
+
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 values (1,1), (2,2), (3,3);
+
+reset master;
+replace into t1 values (3,5);
+flush logs;
+
+let $MYSQLD_DATADIR= `select @@datadir`;
+--echo MYSQL_BINLOG -B MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/f1.sql
+--error 1
+--exec $MYSQL_BINLOG -B $MYSQLD_DATADIR/master-bin.000001 > $MYSQLTEST_VARDIR/tmp/f1.sql
+
+drop table t1;

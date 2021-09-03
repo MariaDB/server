@@ -3213,6 +3213,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
                                          (const uchar*) "", TRUE)))
       {
         fprintf(stderr, "\nError row length: %zu\n", length1);
+        sf_leaking_memory= 1;
         exit(1);
       }
     value+= length1;
@@ -3222,6 +3223,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
     {
       fprintf(stderr, "\nError: Out of memory. "
               "Could not exchange to flashback event.\n");
+      sf_leaking_memory= 1;
       exit(1);
     }
     memcpy(swap_buff1, start_pos, length1);
@@ -3236,6 +3238,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
                                            (const uchar*) "", TRUE)))
       {
         fprintf(stderr, "\nError row length: %zu\n", length2);
+        sf_leaking_memory= 1;
         exit(1);
       }
       value+= length2;
@@ -3245,6 +3248,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
       {
         fprintf(stderr, "\nError: Out of memory. "
                 "Could not exchange to flashback event.\n");
+        sf_leaking_memory= 1;
         exit(1);
       }
       memcpy(swap_buff2, start_pos + length1, length2); // WHERE part
@@ -3267,6 +3271,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
     {
       fprintf(stderr, "\nError: Out of memory. "
               "Could not push flashback event into array.\n");
+      sf_leaking_memory= 1;
       exit(1);
     }
   }

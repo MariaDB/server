@@ -1,0 +1,8 @@
+set binlog_row_image="minimal";
+create table t1 (a int primary key, b int) engine=innodb;
+insert into t1 values (1,1), (2,2), (3,3);
+reset master;
+replace into t1 values (3,5);
+flush logs;
+MYSQL_BINLOG -B MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/f1.sql
+drop table t1;
