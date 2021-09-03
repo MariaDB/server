@@ -3646,8 +3646,7 @@ void do_remove_file(struct st_command *command)
 void do_remove_files_wildcard(struct st_command *command)
 {
   int error= 0, sys_errno= 0;
-  uint i;
-  size_t directory_length;
+  size_t i, directory_length;
   MY_DIR *dir_info;
   FILEINFO *file;
   char dir_separator[2];
@@ -3686,7 +3685,7 @@ void do_remove_files_wildcard(struct st_command *command)
   /* Set default wild chars for wild_compare, is changed in embedded mode */
   set_wild_chars(1);
   
-  for (i= 0; i < (uint) dir_info->number_of_files; i++)
+  for (i= 0; i < dir_info->number_of_files; i++)
   {
     file= dir_info->dir_entry + i;
     /* Remove only regular files, i.e. no directories etc. */
@@ -3960,7 +3959,7 @@ void do_rmdir(struct st_command *command)
 static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
                           const DYNAMIC_STRING *ds_wild)
 {
-  uint i;
+  size_t i;
   MY_DIR *dir_info;
   FILEINFO *file;
   DBUG_ENTER("get_list_files");
@@ -3969,7 +3968,7 @@ static int get_list_files(DYNAMIC_STRING *ds, const DYNAMIC_STRING *ds_dirname,
   if (!(dir_info= my_dir(ds_dirname->str, MYF(MY_WANT_SORT))))
     DBUG_RETURN(1);
   set_wild_chars(1);
-  for (i= 0; i < (uint) dir_info->number_of_files; i++)
+  for (i= 0; i < dir_info->number_of_files; i++)
   {
     file= dir_info->dir_entry + i;
     if (ds_wild && ds_wild->length &&

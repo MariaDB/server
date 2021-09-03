@@ -561,7 +561,7 @@ public:
   { return m_flags & MODIFIES_DATA; }
 
   inline uint instructions()
-  { return m_instr.elements; }
+  { return (uint)m_instr.elements; }
 
   inline sp_instr *
   last_instruction()

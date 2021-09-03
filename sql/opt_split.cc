@@ -704,7 +704,7 @@ double spl_postjoin_oper_cost(THD *thd, double join_record_count, uint rec_len)
 void JOIN::add_keyuses_for_splitting()
 {
   uint i;
-  uint idx;
+  size_t idx;
   KEYUSE_EXT *keyuse_ext;
   KEYUSE_EXT keyuse_ext_end;
   double oper_cost;

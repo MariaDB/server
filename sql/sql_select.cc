@@ -12453,9 +12453,9 @@ static
 bool generate_derived_keys(DYNAMIC_ARRAY *keyuse_array)
 {
   KEYUSE *keyuse= dynamic_element(keyuse_array, 0, KEYUSE*);
-  uint elements= keyuse_array->elements;
+  size_t elements= keyuse_array->elements;
   TABLE *prev_table= 0;
-  for (uint i= 0; i < elements; i++, keyuse++)
+  for (size_t i= 0; i < elements; i++, keyuse++)
   {
     if (!keyuse->table)
       break;
@@ -28529,7 +28529,7 @@ JOIN::reoptimize(Item *added_where, table_map join_tables,
 {
   DYNAMIC_ARRAY added_keyuse;
   SARGABLE_PARAM *sargables= 0; /* Used only as a dummy parameter. */
-  uint org_keyuse_elements;
+  size_t org_keyuse_elements;
 
   /* Re-run the REF optimizer to take into account the new conditions. */
   if (update_ref_and_keys(thd, &added_keyuse, join_tab, table_count, added_where,

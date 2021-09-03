@@ -12608,10 +12608,10 @@ int QUICK_RANGE_SELECT::reset()
 
   if (!mrr_buf_desc)
     empty_buf.buffer= empty_buf.buffer_end= empty_buf.end_of_used_area= NULL;
- 
-  error= file->multi_range_read_init(&seq_funcs, (void*)this, ranges.elements,
-                                     mrr_flags, mrr_buf_desc? mrr_buf_desc: 
-                                                              &empty_buf);
+
+  error= file->multi_range_read_init(&seq_funcs, (void*)this,
+                                     (uint)ranges.elements, mrr_flags,
+                                     mrr_buf_desc? mrr_buf_desc: &empty_buf);
 err:
   /* Restore bitmaps set on entry */
   if (in_ror_merged_scan)
@@ -12723,7 +12723,7 @@ int QUICK_RANGE_SELECT::get_next_prefix(uint prefix_length,
       }
     }
 
-    uint count= ranges.elements - (uint)(cur_range - (QUICK_RANGE**) ranges.buffer);
+    size_t count= ranges.elements - (size_t)(cur_range - (QUICK_RANGE**) ranges.buffer);
     if (count == 0)
     {
       /* Ranges have already been used up before. None is left for read. */
@@ -12768,7 +12768,7 @@ int QUICK_RANGE_SELECT_GEOM::get_next()
 	DBUG_RETURN(result);
     }
 
-    uint count= ranges.elements - (uint)(cur_range - (QUICK_RANGE**) ranges.buffer);
+    size_t count= ranges.elements - (size_t)(cur_range - (QUICK_RANGE**) ranges.buffer);
     if (count == 0)
     {
       /* Ranges have already been used up before. None is left for read. */
@@ -12809,9 +12809,9 @@ int QUICK_RANGE_SELECT_GEOM::get_next()
 bool QUICK_RANGE_SELECT::row_in_ranges()
 {
   QUICK_RANGE *res;
-  uint min= 0;
-  uint max= ranges.elements - 1;
-  uint mid= (max + min)/2;
+  size_t min= 0;
+  size_t max= ranges.elements - 1;
+  size_t mid= (max + min)/2;
 
   while (min != max)
   {
@@ -15797,7 +15797,7 @@ int QUICK_GROUP_MIN_MAX_SELECT::next_max_in_range()
 
   DBUG_ASSERT(min_max_ranges.elements > 0);
 
-  for (uint range_idx= min_max_ranges.elements; range_idx > 0; range_idx--)
+  for (size_t range_idx= min_max_ranges.elements; range_idx > 0; range_idx--)
   { /* Search from the right-most range to the left. */
     get_dynamic(&min_max_ranges, (uchar*)&cur_range, range_idx - 1);
 
@@ -16343,7 +16343,7 @@ void QUICK_GROUP_MIN_MAX_SELECT::dbug_dump(int indent, bool verbose)
   }
   if (min_max_ranges.elements > 0)
   {
-    fprintf(DBUG_FILE, "%*susing %d quick_ranges for MIN/MAX:\n",
+    fprintf(DBUG_FILE, "%*susing %zu quick_ranges for MIN/MAX:\n",
             indent, "", min_max_ranges.elements);
   }
 }
