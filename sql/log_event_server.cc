@@ -470,7 +470,7 @@ static void cleanup_load_tmpdir(LEX_CSTRING *connection_name)
 {
   MY_DIR *dirp;
   FILEINFO *file;
-  uint i;
+  size_t i;
   char dir[FN_REFLEN], fname[FN_REFLEN];
   char prefbuf[31 + MAX_CONNECTION_NAME* MAX_FILENAME_MBWIDTH + 1];
   DBUG_ENTER("cleanup_load_tmpdir");
@@ -491,7 +491,7 @@ static void cleanup_load_tmpdir(LEX_CSTRING *connection_name)
   load_data_tmp_prefix(prefbuf, connection_name);
   DBUG_PRINT("enter", ("dir: '%s'  prefix: '%s'", dir, prefbuf));
 
-  for (i=0 ; i < (uint)dirp->number_of_files; i++)
+  for (i=0 ; i < dirp->number_of_files; i++)
   {
     file=dirp->dir_entry+i;
     if (is_prefix(file->name, prefbuf))

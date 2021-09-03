@@ -456,7 +456,7 @@ static int item_val_real(struct st_mysql_value *value, double *buf)
 
 static struct st_plugin_dl *plugin_dl_find(const LEX_CSTRING *dl)
 {
-  uint i;
+  size_t i;
   struct st_plugin_dl *tmp;
   DBUG_ENTER("plugin_dl_find");
   for (i= 0; i < plugin_dl_array.elements; i++)
@@ -473,7 +473,7 @@ static struct st_plugin_dl *plugin_dl_find(const LEX_CSTRING *dl)
 
 static st_plugin_dl *plugin_dl_insert_or_reuse(struct st_plugin_dl *plugin_dl)
 {
-  uint i;
+  size_t i;
   struct st_plugin_dl *tmp;
   DBUG_ENTER("plugin_dl_insert_or_reuse");
   for (i= 0; i < plugin_dl_array.elements; i++)
@@ -1080,7 +1080,7 @@ plugin_ref plugin_lock_by_name(THD *thd, const LEX_CSTRING *name, int type)
 
 static st_plugin_int *plugin_insert_or_reuse(struct st_plugin_int *plugin)
 {
-  uint i;
+  size_t i;
   struct st_plugin_int *tmp;
   DBUG_ENTER("plugin_insert_or_reuse");
   for (i= 0; i < plugin_array.elements; i++)
@@ -1309,7 +1309,7 @@ static void plugin_del(struct st_plugin_int *plugin)
 
 static void reap_plugins(void)
 {
-  uint count;
+  size_t count;
   struct st_plugin_int *plugin, **reap, **list;
 
   mysql_mutex_assert_owner(&LOCK_plugin);
@@ -1353,7 +1353,7 @@ static void reap_plugins(void)
 
 static void intern_plugin_unlock(LEX *lex, plugin_ref plugin)
 {
-  int i;
+  ssize_t i;
   st_plugin_int *pi;
   DBUG_ENTER("intern_plugin_unlock");
 
@@ -1419,7 +1419,7 @@ void plugin_unlock(THD *thd, plugin_ref plugin)
 }
 
 
-void plugin_unlock_list(THD *thd, plugin_ref *list, uint count)
+void plugin_unlock_list(THD *thd, plugin_ref *list, size_t count)
 {
   LEX *lex= thd ? thd->lex : 0;
   DBUG_ENTER("plugin_unlock_list");
@@ -1592,7 +1592,7 @@ static void init_plugin_psi_keys(void) {}
 */
 int plugin_init(int *argc, char **argv, int flags)
 {
-  uint i;
+  size_t i;
   struct st_maria_plugin **builtins;
   struct st_maria_plugin *plugin;
   struct st_plugin_int tmp, *plugin_ptr, **reap;
@@ -2023,7 +2023,7 @@ error:
 
 void plugin_shutdown(void)
 {
-  uint i, count= plugin_array.elements;
+  size_t i, count= plugin_array.elements;
   struct st_plugin_int **plugins, *plugin;
   struct st_plugin_dl **dl;
   DBUG_ENTER("plugin_shutdown");
@@ -2467,7 +2467,7 @@ wsrep_error_label:
 bool plugin_foreach_with_mask(THD *thd, plugin_foreach_func *func,
                        int type, uint state_mask, void *arg)
 {
-  uint idx, total= 0;
+  size_t idx, total= 0;
   struct st_plugin_int *plugin;
   plugin_ref *plugins;
   my_bool res= FALSE;
@@ -3318,7 +3318,7 @@ static void cleanup_variables(struct system_variables *vars)
 
 void plugin_thdvar_cleanup(THD *thd)
 {
-  uint idx;
+  size_t idx;
   plugin_ref *list;
   DBUG_ENTER("plugin_thdvar_cleanup");
 
@@ -4302,7 +4302,7 @@ void add_plugin_options(DYNAMIC_ARRAY *options, MEM_ROOT *mem_root)
   if (!initialized)
     return;
 
-  for (uint idx= 0; idx < plugin_array.elements; idx++)
+  for (size_t idx= 0; idx < plugin_array.elements; idx++)
   {
     p= *dynamic_element(&plugin_array, idx, struct st_plugin_int **);
 

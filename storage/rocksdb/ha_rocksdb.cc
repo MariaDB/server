@@ -702,7 +702,7 @@ static int rmdir_force(const char *dir) {
   if (!dir_info)
     return 1;
 
-  for (uint i = 0; i < dir_info->number_of_files; i++) {
+  for (size_t i = 0; i < dir_info->number_of_files; i++) {
     FILEINFO *file = dir_info->dir_entry + i;
 
     strxnmov(path, sizeof(path), dir, sep, file->name, NULL);

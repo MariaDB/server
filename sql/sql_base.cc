@@ -8934,7 +8934,7 @@ fill_record_n_invoke_before_triggers(THD *thd, TABLE *table, Field **ptr,
 
 my_bool mysql_rm_tmp_tables(void)
 {
-  uint i, idx;
+  size_t i, idx;
   char	path[FN_REFLEN], *tmpdir, path_copy[FN_REFLEN];
   MY_DIR *dirp;
   FILEINFO *file;
@@ -8956,7 +8956,7 @@ my_bool mysql_rm_tmp_tables(void)
 
     /* Remove all SQLxxx tables from directory */
 
-    for (idx=0 ; idx < (uint) dirp->number_of_files ; idx++)
+    for (idx=0 ; idx < dirp->number_of_files ; idx++)
     {
       file=dirp->dir_entry+idx;
 

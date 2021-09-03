@@ -3618,14 +3618,14 @@ static void init_check_host(void)
                       (my_hash_get_key) check_get_key, 0, 0);
   if (!allow_all_hosts)
   {
-    for (uint i=0 ; i < acl_users.elements ; i++)
+    for (size_t i=0 ; i < acl_users.elements ; i++)
     {
       ACL_USER *acl_user=dynamic_element(&acl_users,i,ACL_USER*);
       if (strchr(acl_user->host.hostname,wild_many) ||
 	  strchr(acl_user->host.hostname,wild_one) ||
 	  acl_user->host.ip_mask)
       {						// Has wildcard
-	uint j;
+	size_t j;
 	for (j=0 ; j < acl_wild_hosts.elements ; j++)
 	{					// Check if host already exists
 	  acl_host_and_ip *acl=dynamic_element(&acl_wild_hosts,j,
@@ -3744,7 +3744,7 @@ static bool add_role_user_mapping(const char *uname, const char *hname,
 static void remove_ptr_from_dynarray(DYNAMIC_ARRAY *array, void *ptr)
 {
   bool found __attribute__((unused))= false;
-  for (uint i= 0; i < array->elements; i++)
+  for (size_t i= 0; i < array->elements; i++)
   {
     if (ptr == *dynamic_element(array, i, void**))
     {
@@ -3793,7 +3793,7 @@ static void rebuild_role_grants(void)
   /*
     Reset every user's and role's role_grants array
   */
-  for (uint i=0; i < acl_users.elements; i++) {
+  for (size_t i=0; i < acl_users.elements; i++) {
     ACL_USER *user= dynamic_element(&acl_users, i, ACL_USER *);
     reset_dynamic(&user->role_grants);
   }
@@ -3819,7 +3819,7 @@ bool acl_check_host(const char *host, const char *ip)
     mysql_mutex_unlock(&acl_cache->lock);
     return 0;					// Found host
   }
-  for (uint i=0 ; i < acl_wild_hosts.elements ; i++)
+  for (size_t i=0 ; i < acl_wild_hosts.elements ; i++)
   {
     acl_host_and_ip *acl=dynamic_element(&acl_wild_hosts,i,acl_host_and_ip*);
     if (compare_hostname(acl, host, ip))
@@ -5022,7 +5022,7 @@ acl_update_proxy_user(ACL_PROXY_USER *new_value, bool is_revoke)
   mysql_mutex_assert_owner(&acl_cache->lock);
 
   DBUG_ENTER("acl_update_proxy_user");
-  for (uint i= 0; i < acl_proxy_users.elements; i++)
+  for (size_t i= 0; i < acl_proxy_users.elements; i++)
   {
     ACL_PROXY_USER *acl_user=
       dynamic_element(&acl_proxy_users, i, ACL_PROXY_USER *);
@@ -6294,7 +6294,7 @@ static int traverse_role_graph_impl(ACL_USER_BASE *user, void *context,
 
 end:
   /* Cleanup */
-  for (uint i= 0; i < to_clear.elements(); i++)
+  for (size_t i= 0; i < to_clear.elements(); i++)
   {
     ACL_USER_BASE *current= to_clear.at(i);
     DBUG_ASSERT(current->flags & (ROLE_EXPLORED | ROLE_ON_STACK | ROLE_OPENED));
@@ -6362,7 +6362,7 @@ static bool merge_role_global_privileges(ACL_ROLE *grantee)
 
   DBUG_EXECUTE_IF("role_merge_stats", role_global_merges++;);
 
-  for (uint i= 0; i < grantee->role_grants.elements; i++)
+  for (size_t i= 0; i < grantee->role_grants.elements; i++)
   {
     ACL_ROLE *r= *dynamic_element(&grantee->role_grants, i, ACL_ROLE**);
     grantee->access|= r->access;
@@ -6501,8 +6501,8 @@ static bool merge_role_db_privileges(ACL_ROLE *grantee, const char *dbname,
   if (update_flags & 4)
   {
     // Remove elements marked for deletion.
-    uint count= 0;
-    for(uint i= 0; i < acl_dbs.elements(); i++)
+    size_t count= 0;
+    for(size_t i= 0; i < acl_dbs.elements(); i++)
     {
       ACL_DB *acl_db= &acl_dbs.at(i);
       if (acl_db->sort)
@@ -6865,7 +6865,7 @@ static int merge_role_privileges(ACL_ROLE *role __attribute__((unused)),
   if (data->what != PRIVS_TO_MERGE::GLOBAL)
   {
     role_hash.insert(grantee);
-    for (uint i= 0; i < grantee->role_grants.elements; i++)
+    for (size_t i= 0; i < grantee->role_grants.elements; i++)
       role_hash.insert(*dynamic_element(&grantee->role_grants, i, ACL_ROLE**));
   }
 
@@ -9440,7 +9440,7 @@ static bool show_role_grants(THD *thd, const char *hostname,
                              ACL_USER_BASE *acl_entry,
                              char *buff, size_t buffsize)
 {
-  uint counter;
+  size_t counter;
   Protocol *protocol= thd->protocol;
   LEX_CSTRING host= {const_cast<char*>(hostname), strlen(hostname)};
 
@@ -9553,7 +9553,7 @@ static bool show_database_privileges(THD *thd, const char *username,
   privilege_t want_access(NO_ACL);
   Protocol *protocol= thd->protocol;
 
-  for (uint i=0 ; i < acl_dbs.elements() ; i++)
+  for (size_t i=0 ; i < acl_dbs.elements() ; i++)
   {
     const char *user, *host;
 
@@ -10245,14 +10245,14 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
       propagate_role_grants(acl_role, PRIVS_TO_MERGE::ALL);
 
       // delete the role from cross-reference arrays
-      for (uint i=0; i < acl_role->role_grants.elements; i++)
+      for (size_t i=0; i < acl_role->role_grants.elements; i++)
       {
         ACL_ROLE *grant= *dynamic_element(&acl_role->role_grants,
                                           i, ACL_ROLE**);
         remove_ptr_from_dynarray(&grant->parent_grantee, acl_role);
       }
 
-      for (uint i=0; i < acl_role->parent_grantee.elements; i++)
+      for (size_t i=0; i < acl_role->parent_grantee.elements; i++)
       {
         ACL_USER_BASE *grantee= *dynamic_element(&acl_role->parent_grantee,
                                                  i, ACL_USER_BASE**);
@@ -10273,7 +10273,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
   /* Get the number of elements in the in-memory structure. */
   switch (struct_no) {
   case USER_ACL:
-    elements= acl_users.elements;
+    elements= int(acl_users.elements);
     break;
   case DB_ACL:
     elements= int(acl_dbs.elements());
@@ -10299,7 +10299,7 @@ static int handle_grant_struct(enum enum_acl_lists struct_no, bool drop,
     elements= grant_name_hash->records;
     break;
   case PROXY_USERS_ACL:
-    elements= acl_proxy_users.elements;
+    elements= int(acl_proxy_users.elements);
     break;
   case ROLES_MAPPINGS_HASH:
     roles_mappings_hash= &acl_roles_mappings;
