@@ -76,8 +76,8 @@ my_hash_value_type my_hash_sort(CHARSET_INFO *cs, const uchar *key,
     @retval 1 failure
 */
 my_bool
-my_hash_init2(PSI_memory_key psi_key, HASH *hash, uint growth_size,
-              CHARSET_INFO *charset, ulong size, size_t key_offset,
+my_hash_init2(PSI_memory_key psi_key, HASH *hash, size_t growth_size,
+              CHARSET_INFO *charset, size_t size, size_t key_offset,
               size_t key_length, my_hash_get_key get_key,
               my_hash_function hash_function,
               void (*free_element)(void*), uint flags)

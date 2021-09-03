@@ -1184,7 +1184,7 @@ void Rows_log_event::change_to_flashback_event(PRINT_EVENT_INFO *print_event_inf
   }
 
   /* Copying rows from the end to the begining into event */
-  for (uint i= rows_arr.elements; i > 0; --i)
+  for (size_t i= rows_arr.elements; i > 0; --i)
   {
     LEX_STRING *one_row= dynamic_element(&rows_arr, i - 1, LEX_STRING*);
 

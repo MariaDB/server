@@ -709,7 +709,7 @@ bool Unique::merge(TABLE *table, uchar *buff, size_t buff_size,
 {
   IO_CACHE *outfile= &sort.io_cache;
   Merge_chunk *file_ptr= (Merge_chunk*) file_ptrs.buffer;
-  uint maxbuffer= file_ptrs.elements - 1;
+  uint maxbuffer= (uint)file_ptrs.elements - 1;
   my_off_t save_pos;
   bool error= 1;
   Sort_param sort_param; 

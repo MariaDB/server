@@ -598,7 +598,7 @@ static int deadlock_search(struct deadlock_arg *arg, WT_THD *blocker,
 {
   WT_RESOURCE *rc, *volatile *shared_ptr= &blocker->waiting_for;
   WT_THD *cursor;
-  uint i;
+  size_t i;
   int ret= WT_OK;
   DBUG_ENTER("deadlock_search");
   DBUG_PRINT("wt", ("enter: thd=%s, blocker=%s, depth=%u",
