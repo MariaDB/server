@@ -910,9 +910,10 @@ public:
   int handled_errors;
   int unhandled_errors;
   int first_error;
+  bool only_ignore_non_existing_errors;
 
   ddl_log_error_handler() : handled_errors(0), unhandled_errors(0),
-                            first_error(0)
+                            first_error(0), only_ignore_non_existing_errors(0)
   {}
 
   bool handle_condition(THD *thd,
@@ -923,8 +924,10 @@ public:
                         Sql_condition ** cond_hdl)
   {
     *cond_hdl= NULL;
-    if (non_existing_table_error(sql_errno) || sql_errno == EE_LINK ||
-        sql_errno == EE_DELETE || sql_errno == ER_TRG_NO_DEFINER)
+    if (non_existing_table_error(sql_errno) ||
+        (!only_ignore_non_existing_errors &&
+         (sql_errno == EE_LINK ||
+          sql_errno == EE_DELETE || sql_errno == ER_TRG_NO_DEFINER)))
     {
       handled_errors++;
       return TRUE;
@@ -936,7 +939,6 @@ public:
       unhandled_errors++;
     return FALSE;
   }
-
   bool safely_trapped_errors()
   {
     return (handled_errors > 0 && unhandled_errors == 0);
@@ -1537,7 +1539,10 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
     case DDL_DROP_PHASE_TABLE:
       if (hton)
       {
-        if ((error= hton->drop_table(hton, path.str)))
+        no_such_table_handler.only_ignore_non_existing_errors= 1;
+        error= hton->drop_table(hton, path.str);
+        no_such_table_handler.only_ignore_non_existing_errors= 0;
+        if (error)
         {
           if (!non_existing_table_error(error))
             break;
@@ -2285,6 +2290,7 @@ static int ddl_log_execute_action(THD *thd, MEM_ROOT *mem_root,
 
 end:
   delete file;
+  /* We are only interested in errors that where not ignored */
   if ((error= (no_such_table_handler.unhandled_errors > 0)))
     my_errno= no_such_table_handler.first_error;
   thd->pop_internal_handler();
