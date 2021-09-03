@@ -380,7 +380,10 @@ get_transfer()
                     exit 22
                 fi
                 verify_ca_matches_cert "$tcert" "$tpem"
-                if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
+                if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
+                    # Joiners should not define common names for cert compatibility
+                    CN_option=""
+                elif [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
                     CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
                 elif [ $encrypt -eq 4 ]; then
                     CN_option=",commonname=''"
