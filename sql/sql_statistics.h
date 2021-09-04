@@ -403,7 +403,8 @@ public:
     return size;
   }
 
-  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg, ulonglong size) override;
+  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
+                           ulonglong size) override;
 
   bool is_available() override {return true; }
 
