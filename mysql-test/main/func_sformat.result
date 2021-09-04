@@ -1,4 +1,7 @@
 #
+# MDEV-25015 Custom formatting of strings in MariaDB queries
+#
+#
 # Normal Test Cases
 #
 select sformat('string test');
@@ -109,7 +112,7 @@ select sformat('R={ }', 42);
 sformat('R={ }', 42)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid format string
+Warning	4183	SFORMAT error: invalid format string
 select sformat(NULL, 'Null', 'Test');
 sformat(NULL, 'Null', 'Test')
 NULL
@@ -123,17 +126,17 @@ select sformat('My { Test');
 sformat('My { Test')
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid format string
+Warning	4183	SFORMAT error: invalid format string
 select sformat('Test { {');
 sformat('Test { {')
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid format string
+Warning	4183	SFORMAT error: invalid format string
 select sformat('A{}C{}E{}', 'B', 'D');
 sformat('A{}C{}E{}', 'B', 'D')
 NULL
 Warnings:
-Warning	4183	Wrong format exception: argument not found
+Warning	4183	SFORMAT error: argument not found
 select sformat();
 ERROR 42000: Incorrect parameter count in the call to native function 'sformat'
 #
@@ -149,7 +152,7 @@ string: xyz, number: 123
 NULL
 Test case Print -> -32
 Warnings:
-Warning	4183	Wrong format exception: argument not found
+Warning	4183	SFORMAT error: argument not found
 drop table t1;
 create table t2 (param1 FLOAT, param2 SMALLINT, param3 CHAR, param4 DATE);
 insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29')),
@@ -313,77 +316,77 @@ select sformat('Test {:c}', 'word');
 sformat('Test {:c}', 'word')
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid type specifier
+Warning	4183	SFORMAT error: invalid type specifier
 select sformat('Test {one} {two} {three}', 1, 2, 3);
 sformat('Test {one} {two} {three}', 1, 2, 3)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: argument not found
+Warning	4183	SFORMAT error: argument not found
 select sformat('Number {:{<}', 8);
 sformat('Number {:{<}', 8)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid fill character '{'
+Warning	4183	SFORMAT error: invalid fill character '{'
 select sformat('Number {:10000000000}', 5);
 sformat('Number {:10000000000}', 5)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: number is too big
+Warning	4183	SFORMAT error: number is too big
 select sformat('1={1} 2={2} 0={0}', 0, 1);
 sformat('1={1} 2={2} 0={0}', 0, 1)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: argument not found
+Warning	4183	SFORMAT error: argument not found
 select sformat('Number {:.2d}', 42);
 sformat('Number {:.2d}', 42)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: precision not allowed for this argument type
+Warning	4183	SFORMAT error: precision not allowed for this argument type
 select sformat('You scored {:.0%}', 0.25);
 sformat('You scored {:.0%}', 0.25)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid type specifier
+Warning	4183	SFORMAT error: invalid type specifier
 select sformat('You scored {:%}', 0.25);
 sformat('You scored {:%}', 0.25)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid type specifier
+Warning	4183	SFORMAT error: invalid type specifier
 select sformat('The price is {:f} dollars.', 45);
 sformat('The price is {:f} dollars.', 45)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid type specifier
+Warning	4183	SFORMAT error: invalid type specifier
 select sformat('The price is {:.2f} dollars.', 45);
 sformat('The price is {:.2f} dollars.', 45)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: precision not allowed for this argument type
+Warning	4183	SFORMAT error: precision not allowed for this argument type
 select sformat('We have {:E} chickens.', 5);
 sformat('We have {:E} chickens.', 5)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid type specifier
+Warning	4183	SFORMAT error: invalid type specifier
 select sformat('We have {:e} chickens.', 5);
 sformat('We have {:e} chickens.', 5)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid type specifier
+Warning	4183	SFORMAT error: invalid type specifier
 select sformat('The universe is {:,} years old.', 13800000000);
 sformat('The universe is {:,} years old.', 13800000000)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid type specifier
+Warning	4183	SFORMAT error: invalid type specifier
 select sformat('The universe is {:_} years old.', 13800000000);
 sformat('The universe is {:_} years old.', 13800000000)
 NULL
 Warnings:
-Warning	4183	Wrong format exception: invalid type specifier
+Warning	4183	SFORMAT error: invalid type specifier
 select sformat('String {:-}', 'hello');
 sformat('String {:-}', 'hello')
 NULL
 Warnings:
-Warning	4183	Wrong format exception: format specifier requires numeric argument
+Warning	4183	SFORMAT error: format specifier requires numeric argument
 #
 # Table Format Test Cases
 #
@@ -406,71 +409,3 @@ select a, sformat('{:.15f}', a) from t2;
 a	sformat('{:.15f}', a)
 3.141592653589793	3.141592653589793
 drop table t2;
-#
-# Table Test Cases
-#
-create table t1 (param1 text, param2 text, param3 int);
-insert into  t1 values ('string: {}, number: {}', 'xyz', 123),
-('something {} went {} wrong {}', 'foo', 0),
-('Test case {} -> {}', 'Print', -32);
-select sformat(param1, param2, param3) from t1;
-sformat(param1, param2, param3)
-string: xyz, number: 123
-NULL
-Test case Print -> -32
-Warnings:
-Warning	4183	Wrong format exception: argument not found
-drop table t1;
-create table t2 (param1 FLOAT, param2 SMALLINT, param3 CHAR, param4 DATE);
-insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29')),
-(0.0005,  5, 'B', DATE('2020-6-29')),
-(5.5555, -5, 'C', DATE('200629')),
-(-9,     -9, 'D', DATE('20*06*29'));
-select sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t2;
-sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4)
-p1 0.0025 p2 25 p3 A p4 2020-06-29
-p1 0.0005 p2 5 p3 B p4 2020-06-29
-p1 5.5555 p2 -5 p3 C p4 2020-06-29
-p1 -9.0000 p2 -9 p3 D p4 2020-06-29
-drop table t2;
-set names utf8;
-create table t3 (format_str   text character set 'latin1',
-first_param  text character set 'utf8',
-second_param text character set 'latin1');
-insert into t3 values ('test 1 {} {}', UNHEX('C3A5'), UNHEX('E5'));
-select sformat(format_str, first_param, second_param) from t3;
-sformat(format_str, first_param, second_param)
-test 1 å å
-select HEX(sformat(format_str, first_param, second_param)) from t3;
-HEX(sformat(format_str, first_param, second_param))
-74657374203120C3A520C3A5
-drop table t3;
-set names latin1;
-create table t4 (p1 bit(8), p2 boolean, p3 DECIMAL, p4 TIMESTAMP);
-insert into t4 values (42, TRUE,  42, '2021-08-18 16:50:07'),
-(24, FALSE, 24, '0000-00-00 00:00:00');
-select sformat('{}: {} {} {} {}', 'Data', p1, p2, p3, p4) from t4;
-sformat('{}: {} {} {} {}', 'Data', p1, p2, p3, p4)
-Data: 42 1 42 2021-08-18 16:50:07
-Data: 24 0 24 0000-00-00 00:00:00
-drop table t4;
-set names utf8;
-create table t5 (param text character SET utf8 COLLATE utf8_general_ci);
-insert into t5 values (UNHEX('C3A5')),(UNHEX('C5BB')),(UNHEX('e0b1bb')),
-(UNHEX('C38A')), (NULL);
-select sformat('{}', param) from t5;
-sformat('{}', param)
-å
-Ż
-౻
-Ê
-NULL
-select HEX(sformat('{}', param)) from t5;
-HEX(sformat('{}', param))
-C3A5
-C5BB
-E0B1BB
-C38A
-NULL
-drop table t5;
-set names latin1;

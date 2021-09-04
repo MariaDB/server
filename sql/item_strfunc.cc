@@ -1308,55 +1308,54 @@ bool Item_func_replace::fix_length_and_dec()
 bool Item_func_sformat::fix_length_and_dec()
 {
   ulonglong char_length= 0;
-  
+
   if (agg_arg_charsets_for_string_result(collation, args, arg_count))
     return TRUE;
-  
+
   for (uint i=0 ; i < arg_count ; i++)
     char_length+= args[i]->max_char_length();
-  
+
   fix_char_length_ulonglong(char_length);
   return FALSE;
 }
 
 /*
- * SFORMAT(format_string, ...)
- * This function receives a formatting specification string and N parameters
- * (N >= 0), and it returns string formatted using the rules the user passed 
- * in the specification. It uses fmtlib (https://fmt.dev/).
- */
+  SFORMAT(format_string, ...)
+  This function receives a formatting specification string and N parameters
+  (N >= 0), and it returns string formatted using the rules the user passed
+  in the specification. It uses fmtlib (https://fmt.dev/).
+*/
 String *Item_func_sformat::val_str(String *res)
 {
   DBUG_ASSERT(fixed());
-  uint                          carg=    1;
   using                         ctx=     fmt::format_context;
   String                       *fmt_arg= NULL;
   String                       *parg=    NULL;
   String                       *val_arg= NULL;
   fmt::format_args::format_arg *vargs=   NULL;
-  
+
   null_value= true;
   if (!(fmt_arg= args[0]->val_str(res)))
     return NULL;
-  
+
   if (!(vargs= new fmt::format_args::format_arg[arg_count - 1]))
     return NULL;
-  
+
   if (!(val_arg= new String[arg_count - 1]))
   {
     delete [] vargs;
     return NULL;
   }
-  
+
   /* Creates the array of arguments for vformat */
-  while (carg < arg_count)
+  for (uint carg= 1; carg < arg_count; carg++)
   {
     switch (args[carg]->result_type())
     {
     case INT_RESULT:
       vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_int());
       break;
-    case DECIMAL_RESULT:
+    case DECIMAL_RESULT: // TODO
     case REAL_RESULT:
       vargs[carg-1]= fmt::detail::make_arg<ctx>(args[carg]->val_real());
       break;
@@ -1372,32 +1371,32 @@ String *Item_func_sformat::val_str(String *res)
       else
         vargs[carg-1]= fmt::detail::make_arg<ctx>(parg->c_ptr_safe());
       break;
+    case TIME_RESULT: // TODO
+    case ROW_RESULT: // TODO
     default:
       DBUG_ASSERT(0);
       delete [] vargs;
       delete [] val_arg;
       return NULL;
     }
-    carg++;
   }
-  
+
   null_value= false;
   /* Create the string output  */
   try
   {
     auto text = fmt::vformat(fmt_arg->c_ptr_safe(),
                              fmt::format_args(vargs, arg_count-1));
-    res->set("", 0, collation.collation);
+    res->length(0);
+    res->set_charset(collation.collation);
     res->append(text.c_str(), text.size());
   }
   catch (const fmt::format_error &ex)
   {
     THD *thd= current_thd;
-    push_warning_printf(thd,
-                        Sql_condition::WARN_LEVEL_WARN,
-                        WARN_WRONG_FMTLIB_FORMAT,
-                        ER_THD(thd, WARN_WRONG_FMTLIB_FORMAT),
-                        ex.what());
+    push_warning_printf(thd, Sql_condition::WARN_LEVEL_WARN,
+                        WARN_SFORMAT_ERROR,
+                        ER_THD(thd, WARN_SFORMAT_ERROR), ex.what());
     null_value= true;
   }
   delete [] vargs;

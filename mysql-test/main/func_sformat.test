@@ -1,3 +1,7 @@
+echo #;
+echo # MDEV-25015 Custom formatting of strings in MariaDB queries;
+echo #;
+
 # Description
 # -----------
 # Test cases for the sformat function
@@ -61,9 +65,9 @@ select sformat(NULL);
 select sformat('My { Test');
 select sformat('Test { {');
 select sformat('A{}C{}E{}', 'B', 'D');
---error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT;
 select sformat();
---error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT;
 echo #;
 echo # Table Test Cases;
 echo #;
@@ -179,46 +183,3 @@ create table t2 (a double);
 insert into t2 values (3.14159265358979323846);
 select a, sformat('{:.15f}', a) from t2;
 drop table t2;
-
-echo #;
-echo # Table Test Cases;
-echo #;
-create table t1 (param1 text, param2 text, param3 int);
-insert into  t1 values ('string: {}, number: {}', 'xyz', 123),
-                       ('something {} went {} wrong {}', 'foo', 0),
-                       ('Test case {} -> {}', 'Print', -32);
-select sformat(param1, param2, param3) from t1;
-drop table t1;
-
-create table t2 (param1 FLOAT, param2 SMALLINT, param3 CHAR, param4 DATE);
-insert into t2 values (0.0025, 25, 'A', DATE('2020-06-29')),
-                      (0.0005,  5, 'B', DATE('2020-6-29')),
-                      (5.5555, -5, 'C', DATE('200629')),
-                      (-9,     -9, 'D', DATE('20*06*29'));
-select sformat('p1 {:.4f} p2 {} p3 {} p4 {}', param1, param2, param3, param4) from t2;
-drop table t2;
-
-set names utf8;
-create table t3 (format_str   text character set 'latin1',
-                 first_param  text character set 'utf8',
-                 second_param text character set 'latin1');
-insert into t3 values ('test 1 {} {}', UNHEX('C3A5'), UNHEX('E5'));
-select sformat(format_str, first_param, second_param) from t3;
-select HEX(sformat(format_str, first_param, second_param)) from t3;
-drop table t3;
-set names latin1;
-
-create table t4 (p1 bit(8), p2 boolean, p3 DECIMAL, p4 TIMESTAMP);
-insert into t4 values (42, TRUE,  42, '2021-08-18 16:50:07'),
-                      (24, FALSE, 24, '0000-00-00 00:00:00');
-select sformat('{}: {} {} {} {}', 'Data', p1, p2, p3, p4) from t4;
-drop table t4;
-
-set names utf8;
-create table t5 (param text character SET utf8 COLLATE utf8_general_ci);
-insert into t5 values (UNHEX('C3A5')),(UNHEX('C5BB')),(UNHEX('e0b1bb')),
-                      (UNHEX('C38A')), (NULL);
-select sformat('{}', param) from t5;
-select HEX(sformat('{}', param)) from t5;
-drop table t5;
-set names latin1;

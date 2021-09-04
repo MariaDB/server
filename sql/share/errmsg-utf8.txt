@@ -7992,5 +7992,5 @@ ER_REMOVED_ORPHAN_TRIGGER
         eng "Dropped orphan trigger '%-.64s', originally created for table: '%-.192s'"
 ER_STORAGE_ENGINE_DISABLED
         eng "Storage engine %s is disabled"
-WARN_WRONG_FMTLIB_FORMAT
-        eng "Wrong format exception: %-.64s"
+WARN_SFORMAT_ERROR
+        eng "SFORMAT error: %s"

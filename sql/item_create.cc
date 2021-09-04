@@ -5027,16 +5027,16 @@ Create_func_sformat::create_native(THD *thd, LEX_CSTRING *name,
                                   List<Item> *item_list)
 {
   int arg_count= 0;
-  
+
   if (item_list != NULL)
     arg_count= item_list->elements;
-  
+
   if (unlikely(arg_count < 1))
   {
     my_error(ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT, MYF(0), name->str);
     return NULL;
   }
-  
+
   return new (thd->mem_root) Item_func_sformat(thd, *item_list);
 }
 
