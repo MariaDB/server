@@ -151,6 +151,7 @@ SET (SQL_SOURCE
                sql_analyze_stmt.cc
                sql_join_cache.cc
                create_options.cc multi_range_read.cc
+               opt_histogram_json.cc
                opt_index_cond_pushdown.cc opt_subselect.cc
                opt_table_elimination.cc sql_expression_cache.cc
                gcalc_slicescan.cc gcalc_tools.cc
