@@ -85,10 +85,8 @@ ANALYZE TABLE Country, City, CountryLanguage persistent for all;
 --enable_result_log
 
 SELECT column_name, min_value, max_value, hist_size, hist_type, histogram FROM mysql.column_stats;
-explain extended select * from Country where 'Code' between 'BBC' and 'GGG';
-analyze select * from Country where 'Code' between 'BBC' and 'GGG';
-explain extended select * from Country where 'Code' < 'BBC';
-analyze select * from Country where 'Code' < 'BBC';
+analyze select * from Country use index () where Code between 'BBC' and 'GGG';
+analyze select * from Country use index () where Code < 'BBC';
 
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
