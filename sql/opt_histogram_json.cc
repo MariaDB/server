@@ -372,7 +372,7 @@ int Histogram_json_hb::find_bucket(Field *field, const uchar *lookup_val,
                                    bool equal_is_less)
 {
   int low= 0;
-  int high= histogram_bounds.size() - 1;
+  int high= (int)histogram_bounds.size() - 1;
   int middle;
 
   while (low + 1 < high)
