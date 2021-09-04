@@ -61,7 +61,7 @@ public:
   */
   uint get_size() override
   {
-    return size;
+    return (uint)size;
   }
 
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
