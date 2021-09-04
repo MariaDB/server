@@ -69,14 +69,6 @@ public:
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                            ulonglong size) override;
 
-  bool is_available() override {return true; }
-
-  bool is_usable(THD *thd) override
-  {
-    return thd->variables.optimizer_use_condition_selectivity > 3 &&
-           is_available();
-  }
-
   double point_selectivity(Field *field, key_range *endpoint,
                            double avg_selection) override;
   double range_selectivity(Field *field, key_range *min_endp,
@@ -84,7 +76,7 @@ public:
 
   void set_json_text(ulonglong sz, uchar *json_text_arg)
   {
-    size = (uint8) sz;
+    size= (size_t) sz;
     json_text.assign((const char*)json_text_arg,
                      strlen((const char*)json_text_arg));
   }

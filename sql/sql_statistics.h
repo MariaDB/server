@@ -175,9 +175,15 @@ public:
   virtual Histogram_builder *create_builder(Field *col, uint col_len,
                                             ha_rows rows)=0;
 
-  virtual bool is_available()=0;
+  /*
+    This function checks that histograms should be usable only when
+      1) the level of optimizer_use_condition_selectivity > 3
+  */
+  bool is_usable(THD *thd)
+  {
+    return thd->variables.optimizer_use_condition_selectivity > 3;
+  }
 
-  virtual bool is_usable(THD *thd)=0;
 
   virtual double point_selectivity(Field *field, key_range *endpoint,
                                    double avg_selection)=0;
@@ -311,19 +317,6 @@ public:
                            ulonglong size) override;
   Histogram_builder *create_builder(Field *col, uint col_len,
                                     ha_rows rows) override;
-
-  bool is_available() override { return (values!=NULL); }
-
-  /*
-    This function checks that histograms should be usable only when
-      1) the level of optimizer_use_condition_selectivity > 3
-      2) histograms have been collected
-  */
-  bool is_usable(THD *thd) override
-  {
-    return thd->variables.optimizer_use_condition_selectivity > 3 &&
-           is_available();
-  }
 
   void set_value(uint i, double val)
   {

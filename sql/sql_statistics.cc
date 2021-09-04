@@ -1271,7 +1271,7 @@ void Histogram_binary::init_for_collection(MEM_ROOT *mem_root,
                                            ulonglong size_arg)
 {
   type= htype_arg;
-  values = (uchar*)alloc_root(mem_root, size_arg);
+  values= (uchar*)alloc_root(mem_root, (size_t)size_arg);
   size= (uint8) size_arg;
 }
 
