@@ -9,6 +9,7 @@ let count_sessions= 1;
 source include/wait_until_count_sessions.inc;
 
 install plugin test_sql_service soname 'test_sql_service';
+show status like 'test_sql_service%';
 
 set global test_sql_service_run_test= 1;
 show status like 'test_sql_service%';

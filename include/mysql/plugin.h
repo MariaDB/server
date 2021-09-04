@@ -77,7 +77,7 @@ typedef struct st_mysql_xid MYSQL_XID;
 #define MYSQL_PLUGIN_INTERFACE_VERSION 0x0104
 
 /* MariaDB plugin interface version */
-#define MARIA_PLUGIN_INTERFACE_VERSION 0x010e
+#define MARIA_PLUGIN_INTERFACE_VERSION 0x010f
 
 /*
   The allowable types of plugins
@@ -778,13 +778,6 @@ void thd_set_ha_data(MYSQL_THD thd, const struct handlerton *hton,
   coordinator is used, meaning a single storage engine and no binary log.
 */
 void thd_wakeup_subsequent_commits(MYSQL_THD thd, int wakeup_error);
-
-#ifdef MYSQL_SERVER
-struct st_mysql;
-struct st_mysql *mysql_real_connect_local(struct st_mysql *mysql,
-    const char *host, const char *user, const char *db,
-    unsigned long clientflag);
-#endif
 
 #ifdef __cplusplus
 }

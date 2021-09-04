@@ -5581,7 +5581,6 @@ Ed_connection::store_result_set()
   return ed_result_set;
 }
 
-#ifndef EMBEDDED_LIBRARY
 
 #include <mysql.h>
 #include "../libmysqld/embedded_priv.h"
@@ -6304,6 +6303,16 @@ static MYSQL_METHODS local_methods=
   loc_flush_use_result,                        /* flush_use_result */
   NULL,                                        /* read_change_user_result */
   loc_on_close_free                            /* on_close_free */
+#ifdef EMBEDDED_LIBRARY
+  ,NULL,                                       /* list_fields */
+  NULL,                                        /* read_prepare_result */
+  NULL,                                        /* stmt_execute */
+  NULL,                                        /* read_binary_rows */
+  NULL,                                        /* unbuffered_fetch */
+  NULL,                                        /* read_statistics */
+  NULL,                                        /* next_result */
+  NULL                                         /* read_rows_from_cursor */
+#endif
 };
 
 
@@ -6441,4 +6450,3 @@ extern "C" int execute_sql_command(const char *command,
   return result;
 }
 
-#endif /*!EMBEDDED_LIBRARY*/

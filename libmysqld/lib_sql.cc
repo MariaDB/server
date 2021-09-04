@@ -465,7 +465,7 @@ static void emb_on_close_free(MYSQL *mysql)
   mysql->info_buffer= 0;
   if (mysql->thd)
   {
-    emn_free_embedded_thd(mysql);
+    free_embedded_thd(mysql);
     mysql->thd= 0;
   }
 }

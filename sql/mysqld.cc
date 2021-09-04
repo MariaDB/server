@@ -1525,6 +1525,7 @@ static void delete_pid_file(myf flags);
 static void end_ssl();
 
 
+#ifndef EMBEDDED_LIBRARY
 extern Atomic_counter<uint32_t> local_connection_thread_count;
 
 uint THD_count::connection_thd_count()
@@ -1535,7 +1536,6 @@ uint THD_count::connection_thd_count()
 }
 
 
-#ifndef EMBEDDED_LIBRARY
 /****************************************************************************
 ** Code to end mysqld
 ****************************************************************************/

@@ -15,7 +15,7 @@
 
 
 #define PLUGIN_VERSION 0x10000
-#define PLUGIN_STR_VERSION "1.0.0"
+#define PLUGIN_STR_VERSION "1.0"
 
 #include <my_config.h>
 #include <my_global.h>
