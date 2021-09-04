@@ -133,6 +133,7 @@ static const uint PARAMETER_FLAG_UNSIGNED= 128U << 8;
 #include "wsrep_trans_observer.h"
 #endif /* WITH_WSREP */
 #include "xa.h"           // xa_recover_get_fields
+#include "sql_audit.h"    // mysql_audit_release
 
 /**
   A result class used to send cursor rows using the binary protocol.
@@ -6203,6 +6204,8 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
     set_current_thd(p->thd);
     p->thd->thread_stack= (char*) &sql_text;
     result= con.execute_direct(p, sql_text);
+    if (p->new_thd)
+      mysql_audit_release(p->new_thd);
     if (skip_check)
       result= 0;
     set_current_thd(thd_orig);
@@ -6357,6 +6360,12 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
     new_thd->security_ctx->skip_grants();
     new_thd->query_cache_is_applicable= 0;
     new_thd->variables.wsrep_on= 0;
+    /*
+      TOSO: decide if we should turn the auditing off
+      for such threads.
+      We can do it like this:
+        new_thd->audit_class_mask[0]= ~0;
+    */
     bzero((char*) &new_thd->net, sizeof(new_thd->net));
     set_current_thd(thd_orig);
     thd_orig= new_thd;

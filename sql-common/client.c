@@ -3319,7 +3319,7 @@ static void mysql_close_free(MYSQL *mysql)
   my_free(mysql->user);
   my_free(mysql->passwd);
   my_free(mysql->db);
-  if (mysql->methods->on_close_free)
+  if (mysql->methods && mysql->methods->on_close_free)
     (*mysql->methods->on_close_free)(mysql);
   /* Clear pointers for better safety */
   mysql->host_info= mysql->user= mysql->passwd= mysql->db= 0;
