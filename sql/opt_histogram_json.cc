@@ -126,7 +126,7 @@ void Histogram_json_hb::init_for_collection(MEM_ROOT *mem_root,
                                             ulonglong size_arg)
 {
   DBUG_ASSERT(htype_arg == JSON_HB);
-  size= (uint8) size_arg;
+  size= (size_t)size_arg;
 }
 
 
