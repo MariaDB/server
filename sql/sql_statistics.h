@@ -162,11 +162,18 @@ public:
 
   virtual uint get_width()=0;
 
-  virtual Histogram_builder *create_builder(Field *col, uint col_len,
-                                            ha_rows rows)=0;
-
+  /*
+    The creation-time workflow is:
+     * create a histogram
+     * init_for_collection()
+     * create_builder()
+     * feed the data to the builder
+     * serialize();
+  */
   virtual void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
                                    ulonglong size)=0;
+  virtual Histogram_builder *create_builder(Field *col, uint col_len,
+                                            ha_rows rows)=0;
 
   virtual bool is_available()=0;
 
@@ -177,19 +184,26 @@ public:
   virtual double range_selectivity(Field *field, key_range *min_endp,
                                    key_range *max_endp)=0;
 
-  // Legacy: return the size of the histogram on disk.
-  // This will be stored in mysql.column_stats.hist_size column.
-  // Newer, JSON-based histograms may return 0.
+  /*
+    Legacy: return the size of the histogram on disk.
+
+    This will be stored in mysql.column_stats.hist_size column.
+    The value is not really needed as one can look at
+    LENGTH(mysql.column_stats.histogram) directly.
+  */
   virtual uint get_size()=0;
   virtual ~Histogram_base()= default;
 
-
   Histogram_base() : owner(NULL) {}
+
+  /*
+    Memory management: a histogram may be (exclusively) "owned" by a particular
+    thread (done for histograms that are being collected).  By default, a
+    histogram has owner==NULL and is not owned by any particular thread.
+  */
   THD *get_owner() { return owner; }
   void set_owner(THD *thd) { owner=thd; }
 private:
-  // Owner is a thread that *exclusively* owns this histogram (and so can
-  // delete it at any time)
   THD *owner;
 };
 
@@ -353,74 +367,71 @@ public:
 
 
 /*
-  An equi-height histogram which stores real values for bucket bounds.
-
-  Handles @@histogram_type=JSON_HB
+  This is used to collect the the basic statistics from a Unique object:
+   - count of values
+   - count of distinct values
+   - count of distinct values that have occurred only once
 */
 
-class Histogram_json_hb : public Histogram_base
+class Basic_stats_collector
 {
-private:
-  size_t size; /* Number of elements in the histogram */
-  
-  /* Collection-time only: collected histogram in the JSON form. */
-  std::string json_text;
-
-  // Array of histogram bucket endpoints in KeyTupleFormat.
-  std::vector<std::string> histogram_bounds;
+  ulonglong count;         /* number of values retrieved                   */
+  ulonglong count_distinct;    /* number of distinct values retrieved      */
+  /* number of distinct values that occured only once  */
+  ulonglong count_distinct_single_occurence;
 
 public:
-  static constexpr const char* JSON_NAME="histogram_hb_v1";
-
-  bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
-             const char *hist_data, size_t hist_data_len) override;
-
-  void serialize(Field *field) override;
-
-  Histogram_builder *create_builder(Field *col, uint col_len,
-                                    ha_rows rows) override;
-
-  // returns number of buckets in the histogram
-  uint get_width() override
+  Basic_stats_collector()
   {
-    return (uint)size;
+    count= 0;
+    count_distinct= 0;
+    count_distinct_single_occurence= 0;
   }
 
-  Histogram_type get_type() override
+  ulonglong get_count_distinct() const { return count_distinct; }
+  ulonglong get_count_single_occurence() const
   {
-    return JSON_HB;
+    return count_distinct_single_occurence;
   }
+  ulonglong get_count() const { return count; }
 
-  void set_json_text(ulonglong sz, uchar *json_text_arg)
+  void next(void *elem, element_count elem_cnt)
   {
-    size = (uint8) sz;
-    json_text.assign((const char*)json_text_arg, 
-                     strlen((const char*)json_text_arg));
+    count_distinct++;
+    if (elem_cnt == 1)
+      count_distinct_single_occurence++;
+    count+= elem_cnt;
   }
-
-  uint get_size() override
-  {
-    return size;
-  }
-
-  void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
-                           ulonglong size) override;
-
-  bool is_available() override {return true; }
-
-  bool is_usable(THD *thd) override
-  {
-    return thd->variables.optimizer_use_condition_selectivity > 3 &&
-           is_available();
-  }
-
-  double point_selectivity(Field *field, key_range *endpoint,
-                           double avg_selection) override;
-  double range_selectivity(Field *field, key_range *min_endp,
-                           key_range *max_endp) override;
-private:
-  int find_bucket(Field *field, const uchar *lookup_val, bool equal_is_less);
 };
+
+
+/*
+  Histogram_builder is a helper class that is used to build histograms
+  for columns.
+
+  Do not create directly, call Histogram->get_builder(...);
+*/
+
+class Histogram_builder
+{
+protected:
+  Field *column;           /* table field for which the histogram is built */
+  uint col_length;         /* size of this field                           */
+  ha_rows records;         /* number of records the histogram is built for */
+
+  Histogram_builder(Field *col, uint col_len, ha_rows rows) :
+    column(col), col_length(col_len), records(rows)
+  {}
+
+public:
+  // A histogram builder will also collect the counters
+  Basic_stats_collector counters;
+
+  virtual int next(void *elem, element_count elem_cnt)=0;
+  virtual void finalize()=0;
+  virtual ~Histogram_builder(){}
+};
+
 
 class Columns_statistics;
 class Index_statistics;
