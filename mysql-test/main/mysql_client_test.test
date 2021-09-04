@@ -1,7 +1,5 @@
 # This test should work in embedded server after we fix mysqltest
 -- source include/not_embedded.inc
-# need to have the dynamic loading turned on for the client plugin tests
---source include/have_plugin_auth.inc
 
 # Run test with default character set
 --source include/default_charset.inc

@@ -19203,6 +19203,9 @@ static void test_bug11766854()
   struct st_mysql_client_plugin *plugin;
 
   DBUG_ENTER("test_bug11766854");
+  if (!getenv("QA_AUTH_CLIENT_SO"))
+    DBUG_VOID_RETURN;
+
   myheader("test_bug11766854");
 
   plugin= mysql_load_plugin(mysql, "foo", -1, 0);
