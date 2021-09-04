@@ -1363,7 +1363,8 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
         break;
     }
   }
-  size= histogram_bounds.size();
+  // n_buckets = n_bounds - 1 :
+  size= histogram_bounds.size()-1;
   DBUG_RETURN(false);
 
 error:
@@ -1852,6 +1853,45 @@ public:
   }
 };
 
+
+/*
+  This is used to collect the the basic statistics from a Unique object:
+   - count of values
+   - count of distinct values
+   - count of distinct values that have occurred only once
+*/
+
+class Basic_stats_collector
+{
+  ulonglong count;         /* number of values retrieved                   */
+  ulonglong count_distinct;    /* number of distinct values retrieved      */
+  /* number of distinct values that occured only once  */
+  ulonglong count_distinct_single_occurence;
+
+public:
+  Basic_stats_collector()
+  {
+    count= 0;
+    count_distinct= 0;
+    count_distinct_single_occurence= 0;
+  }
+
+  ulonglong get_count_distinct() const { return count_distinct; }
+  ulonglong get_count_single_occurence() const
+  {
+    return count_distinct_single_occurence;
+  }
+  ulonglong get_count() const { return count; }
+
+  void next(void *elem, element_count elem_cnt)
+  {
+    count_distinct++;
+    if (elem_cnt == 1)
+      count_distinct_single_occurence++;
+    count+= elem_cnt;
+  }
+};
+
 /*
   Histogram_builder is a helper class that is used to build histograms
   for columns.
@@ -1865,87 +1905,95 @@ protected:
   Field *column;           /* table field for which the histogram is built */
   uint col_length;         /* size of this field                           */
   ha_rows records;         /* number of records the histogram is built for */
+
+  Histogram_builder(Field *col, uint col_len, ha_rows rows) :
+    column(col), col_length(col_len), records(rows)
+  {}
+
+public:
+  // A histogram builder will also collect the counters
+  Basic_stats_collector counters;
+
+  virtual int next(void *elem, element_count elem_cnt)=0;
+  virtual void finalize()=0;
+  virtual ~Histogram_builder(){}
+};
+
+
+class Histogram_binary_builder : public Histogram_builder
+{
   Field *min_value;        /* pointer to the minimal value for the field   */
   Field *max_value;        /* pointer to the maximal value for the field   */
-  Histogram_base *histogram;    /* the histogram location                       */
+  Histogram_binary *histogram;  /* the histogram location                  */
   uint hist_width;         /* the number of points in the histogram        */
   double bucket_capacity;  /* number of rows in a bucket of the histogram  */ 
   uint curr_bucket;        /* number of the current bucket to be built     */
-  ulonglong count;         /* number of values retrieved                   */
-  ulonglong count_distinct;    /* number of distinct values retrieved      */
-  /* number of distinct values that occured only once  */
-  ulonglong count_distinct_single_occurence;
 
 public:
-  Histogram_builder(Field *col, uint col_len, ha_rows rows)
-    : column(col), col_length(col_len), records(rows)
+  Histogram_binary_builder(Field *col, uint col_len, ha_rows rows)
+    : Histogram_builder(col, col_len, rows)
   {
     Column_statistics *col_stats= col->collected_stats;
     min_value= col_stats->min_value;
     max_value= col_stats->max_value;
-    histogram= col_stats->histogram;
+    histogram= (Histogram_binary*)col_stats->histogram;
     hist_width= histogram->get_width();
     bucket_capacity= (double) records / (hist_width + 1);
     curr_bucket= 0;
-    count= 0;
-    count_distinct= 0;
-    count_distinct_single_occurence= 0;
   }
 
-  Histogram_builder() = default;
-
-  virtual ~Histogram_builder() = default;
-
-  ulonglong get_count_distinct() const { return count_distinct; }
-  ulonglong get_count_single_occurence() const
+  int next(void *elem, element_count elem_cnt) override
   {
-    return count_distinct_single_occurence;
-  }
-
-  virtual int next(void *elem, element_count elem_cnt)
-  {
-    count_distinct++;
-    if (elem_cnt == 1)
-      count_distinct_single_occurence++;
-    count+= elem_cnt;
+    counters.next(elem, elem_cnt);
+    ulonglong count= counters.get_count();
     if (curr_bucket == hist_width)
       return 0;
     if (count > bucket_capacity * (curr_bucket + 1))
     {
       column->store_field_value((uchar *) elem, col_length);
-      ((Histogram_binary *)histogram)->set_value(curr_bucket,
+      histogram->set_value(curr_bucket,
                            column->pos_in_interval(min_value, max_value));
       curr_bucket++;
       while (curr_bucket != hist_width &&
              count > bucket_capacity * (curr_bucket + 1))
       {
-        ((Histogram_binary *)histogram)->set_prev_value(curr_bucket);
+        histogram->set_prev_value(curr_bucket);
         curr_bucket++;
       }
     }
     return 0;
   }
-  virtual void finalize(){}
+  void finalize() override {}
 };
 
 
 Histogram_builder *Histogram_binary::create_builder(Field *col, uint col_len,
                                                     ha_rows rows)
 {
-  return new Histogram_builder(col, col_len, rows);
+  return new Histogram_binary_builder(col, col_len, rows);
 }
 
 
-class Histogram_builder_json : public Histogram_builder
+class Histogram_json_builder : public Histogram_builder
 {
+  Histogram_json_hb *histogram;
+  uint hist_width;         /* the number of points in the histogram        */
+  double bucket_capacity;  /* number of rows in a bucket of the histogram  */
+  uint curr_bucket;        /* number of the current bucket to be built     */
+
   std::vector<std::string> bucket_bounds;
-  bool got_first_value = false;
-
+  bool first_value= true;
 public:
-  Histogram_builder_json(Field *col, uint col_len, ha_rows rows)
-  : Histogram_builder(col, col_len, rows) {}
+  Histogram_json_builder(Field *col, uint col_len, ha_rows rows)
+    : Histogram_builder(col, col_len, rows)
+  {
+    histogram= (Histogram_json_hb*)col->collected_stats->histogram;
+    bucket_capacity= (double)records / histogram->get_width();
+    hist_width= histogram->get_width();
+    curr_bucket= 0;
+  }
 
-  ~Histogram_builder_json() override = default;
+  ~Histogram_json_builder() override = default;
 
   /*
     Add data to the histogram. Adding Element elem which encountered elem_cnt
@@ -1953,18 +2001,27 @@ public:
   */
   int next(void *elem, element_count elem_cnt) override
   {
-    count_distinct++;
-    if (elem_cnt == 1)
-      count_distinct_single_occurence++;
-    count+= elem_cnt;
+    counters.next(elem, elem_cnt);
+    ulonglong count= counters.get_count();
+
     if (curr_bucket == hist_width)
       return 0;
+    if (first_value)
+    {
+      first_value= false;
+      column->store_field_value((uchar*) elem, col_length);
+      StringBuffer<MAX_FIELD_WIDTH> val;
+      column->val_str(&val);
+      bucket_bounds.push_back(std::string(val.ptr(), val.length()));
+    }
+
     if (count > bucket_capacity * (curr_bucket + 1))
     {
       column->store_field_value((uchar*) elem, col_length);
       StringBuffer<MAX_FIELD_WIDTH> val;
       column->val_str(&val);
-      bucket_bounds.push_back(std::string(val.ptr(), val.length()));
+      bucket_bounds.emplace_back(val.ptr(), val.length());
+
       curr_bucket++;
       while (curr_bucket != hist_width &&
              count > bucket_capacity * (curr_bucket + 1))
@@ -1972,6 +2029,14 @@ public:
         bucket_bounds.push_back(std::string(val.ptr(), val.length()));
         curr_bucket++;
       }
+    }
+
+    if (records == count && bucket_bounds.size() == hist_width)
+    {
+      column->store_field_value((uchar*) elem, col_length);
+      StringBuffer<MAX_FIELD_WIDTH> val;
+      column->val_str(&val);
+      bucket_bounds.push_back(std::string(val.ptr(), val.length()));
     }
     return 0;
   }
@@ -1991,8 +2056,8 @@ public:
     writer.end_array();
     writer.end_object();
     Binary_string *json_string = (Binary_string *) writer.output.get_string();
-    Histogram_json_hb *hist= (Histogram_json_hb*)histogram;
-    hist->set_json_text(bucket_bounds.size(), (uchar *) json_string->c_ptr());
+    histogram->set_json_text(bucket_bounds.size()-1,
+                             (uchar *) json_string->c_ptr());
   }
 };
 
@@ -2000,10 +2065,8 @@ public:
 Histogram_builder *Histogram_json_hb::create_builder(Field *col, uint col_len,
                                                      ha_rows rows)
 {
-  return new Histogram_builder_json(col, col_len, rows);
+  return new Histogram_json_builder(col, col_len, rows);
 }
-
-
 
 
 Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type,
@@ -2036,13 +2099,10 @@ static int histogram_build_walk(void *elem, element_count elem_cnt, void *arg)
   return hist_builder->next(elem, elem_cnt);
 }
 
-
-static int count_distinct_single_occurence_walk(void *elem,
-                                                element_count count, void *arg)
+int basic_stats_collector_walk(void *elem, element_count count,
+                               void *arg)
 {
-  ((ulonglong*)arg)[0]+= 1;
-  if (count == 1)
-    ((ulonglong*)arg)[1]+= 1;
+  ((Basic_stats_collector*)arg)->next(elem, count);
   return 0;
 }
 
@@ -2127,11 +2187,11 @@ public:
   */
   void walk_tree()
   {
-    ulonglong counts[2] = {0, 0};
-    tree->walk(table_field->table,
-               count_distinct_single_occurence_walk, counts);
-    distincts= counts[0];
-    distincts_single_occurence= counts[1];
+    Basic_stats_collector stats_collector;
+    tree->walk(table_field->table, basic_stats_collector_walk,
+               (void*)&stats_collector );
+    distincts= stats_collector.get_count_distinct();
+    distincts_single_occurence= stats_collector.get_count_single_occurence();
   }
 
   /*
@@ -2147,8 +2207,9 @@ public:
     tree->walk(table_field->table, histogram_build_walk,
                (void *) hist_builder);
     hist_builder->finalize();
-    distincts= hist_builder->get_count_distinct();
-    distincts_single_occurence= hist_builder->get_count_single_occurence();
+    distincts= hist_builder->counters.get_count_distinct();
+    distincts_single_occurence= hist_builder->counters.
+                                  get_count_single_occurence();
     delete hist_builder;
   }
 
