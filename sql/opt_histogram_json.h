@@ -56,14 +56,12 @@ public:
 
   /*
     @brief
-      Legacy: this returns the size of the histogram on disk.
-
-    @detail
-      This is only called at collection time when json_text is non-empty.
+      This used to be the size of the histogram on disk, which was redundant
+      (one can check the size directly). Return the number of buckets instead.
   */
   uint get_size() override
   {
-    return json_text.size();
+    return size;
   }
 
   void init_for_collection(MEM_ROOT *mem_root, Histogram_type htype_arg,
