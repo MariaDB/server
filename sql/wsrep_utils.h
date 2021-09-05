@@ -27,14 +27,7 @@ class node_status
 public:
   node_status() : status(wsrep::server_state::s_disconnected) {}
   void set(enum wsrep::server_state::state new_status,
-           const wsrep::view* view= 0)
-  {
-    if (status != new_status || 0 != view)
-    {
-      wsrep_notify_status(new_status, view);
-      status= new_status;
-    }
-  }
+           const wsrep::view* view= 0);
   enum wsrep::server_state::state get() const { return status; }
 private:
   enum wsrep::server_state::state status;
