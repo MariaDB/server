@@ -17,6 +17,7 @@
 #include "sql_plugin.h"                         /* wsrep_plugins_pre_init() */
 #include "my_global.h"
 #include "wsrep_server_state.h"
+#include "wsrep_status.h"
 
 #include "mariadb.h"
 #include <mysqld.h>
@@ -82,6 +83,7 @@ const char *wsrep_start_position;
 const char *wsrep_data_home_dir;
 const char *wsrep_dbug_option;
 const char *wsrep_notify_cmd;
+const char *wsrep_status_file;
 
 ulong   wsrep_debug;                            // Debug level logging
 my_bool wsrep_convert_LOCK_to_trx;              // Convert locking sessions to trx
@@ -764,6 +766,8 @@ int wsrep_init_server()
   wsrep::log::logger_fn(wsrep_log_cb);
   try
   {
+    Wsrep_status::init_once(wsrep_status_file);
+
     std::string server_name;
     std::string server_id;
     std::string node_address;
@@ -832,6 +836,7 @@ void wsrep_deinit_server()
 {
   wsrep_deinit_schema();
   Wsrep_server_state::destroy();
+  Wsrep_status::destroy();
 }
 
 int wsrep_init()

@@ -62,6 +62,7 @@
 #include "wsrep_mysqld.h"
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h"
+#include "wsrep_status.h"
 #endif /* WITH_WSREP */
 
 #ifdef HAVE_REPLICATION
@@ -9283,6 +9284,16 @@ static void print_buffer_to_file(enum loglevel level, const char *buffer,
           (int) length, buffer);
 
   fflush(stderr);
+
+#ifdef WITH_WSREP
+  if (level <= WARNING_LEVEL)
+  {
+    wsrep::reporter::log_level const lvl = (level <= ERROR_LEVEL ?
+                                            wsrep::reporter::error :
+                                            wsrep::reporter::warning);
+    Wsrep_status::report_log_msg(lvl, tag, tag_length, buffer, length, skr);
+  }
+#endif /* WITH_WSREP */
 
   mysql_mutex_unlock(&LOCK_error_log);
   DBUG_VOID_RETURN;

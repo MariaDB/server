@@ -5984,6 +5984,11 @@ static Sys_var_charptr Sys_wsrep_notify_cmd(
        READ_ONLY GLOBAL_VAR(wsrep_notify_cmd), CMD_LINE(REQUIRED_ARG),
        DEFAULT(""));
 
+static Sys_var_charptr_fscs Sys_wsrep_status_file(
+       "wsrep_status_file", "wsrep status output filename",
+       READ_ONLY GLOBAL_VAR(wsrep_status_file), CMD_LINE(REQUIRED_ARG),
+       DEFAULT(""));
+
 static Sys_var_mybool Sys_wsrep_certify_nonPK(
        "wsrep_certify_nonPK", "Certify tables with no primary key",
        GLOBAL_VAR(wsrep_certify_nonPK), 

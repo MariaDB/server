@@ -22,6 +22,7 @@ IF(WITH_WSREP AND NOT EMBEDDED_LIBRARY)
     wsrep_server_service.cc
     wsrep_storage_service.cc
     wsrep_server_state.cc
+    wsrep_status.cc
     wsrep_utils.cc
     wsrep_xid.cc
     wsrep_check_opts.cc
