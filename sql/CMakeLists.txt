@@ -208,7 +208,7 @@ MAYBE_DISABLE_IPO(sql)
 DTRACE_INSTRUMENT(sql)
 TARGET_LINK_LIBRARIES(sql
   mysys mysys_ssl dbug strings vio pcre2-8
-  tpool fmt
+  tpool
   ${LIBWRAP} ${LIBCRYPT} ${CMAKE_DL_LIBS} ${CMAKE_THREAD_LIBS_INIT}
   ${SSL_LIBRARIES}
   ${LIBSYSTEMD})
@@ -390,6 +390,10 @@ ADD_CUSTOM_TARGET(
         ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.cc
         ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.cc
 )
+
+IF(TARGET libfmt)
+  ADD_DEPENDENCIES(GenServerSource libfmt)
+ENDIF()
 
 IF(WIN32 OR HAVE_DLOPEN AND NOT DISABLE_SHARED)
   ADD_LIBRARY(udf_example MODULE udf_example.c udf_example.def)
