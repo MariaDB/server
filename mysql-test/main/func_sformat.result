@@ -417,3 +417,23 @@ sformat('{:p}', '50')
 NULL
 Warnings:
 Warning	4183	SFORMAT error: invalid type specifier
+#
+# ucs2 test
+#
+select sformat('={}=', _ucs2 x'006100620063');
+sformat('={}=', _ucs2 x'006100620063')
+=abc=
+set names utf8;
+select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442');
+sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442')
+=тест=
+select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442'));
+hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442'))
+003D0442043504410442003D
+create table t1 as select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') as x;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `x` varchar(8) CHARACTER SET ucs2 DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;

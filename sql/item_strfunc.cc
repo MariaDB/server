@@ -1311,7 +1311,20 @@ bool Item_func_sformat::fix_length_and_dec()
 {
   ulonglong char_length= 0;
 
-  if (agg_arg_charsets_for_string_result(collation, args, arg_count))
+  uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
+              MY_COLL_ALLOW_COERCIBLE_CONV |
+              MY_COLL_ALLOW_NUMERIC_CONV;
+
+  if (Type_std_attributes::agg_item_collations(collation, func_name_cstring(),
+        args, arg_count, flags, 1))
+    return TRUE;
+
+  DTCollation c= collation;
+  if (c.collation->mbminlen > 1)
+    c.collation= &my_charset_utf8mb4_bin;
+
+  if (Type_std_attributes::agg_item_set_converter(c, func_name_cstring(), args,
+                                                  arg_count, flags, 1))
     return TRUE;
 
   for (uint i=0 ; i < arg_count ; i++)
@@ -1406,7 +1419,7 @@ String *Item_func_sformat::val_str(String *res)
                              fmt::format_args(vargs, arg_count-1));
     res->length(0);
     res->set_charset(collation.collation);
-    res->append(text.c_str(), text.size());
+    res->append(text.c_str(), text.size(), fmt_arg->charset());
   }
   catch (const fmt::format_error &ex)
   {
