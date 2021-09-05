@@ -991,65 +991,6 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
 }
 
 
-/**
-  Check that definition of a table specified in the clause FROM of
-  the statement ALTER TABLE <tablename> ADD PARTITION ... FROM <from_table>
-  fit with definition of a partition being added and every row stored in
-  the table <from_table> conform with partition's expression. On return from
-  the function an actual name of a file corresponding to the partition
-  is stored in the buffer  part_file_name_buf.
-
-  @param lpt  Structure containing parameters required for checking
-  @param[in,out] part_file_name_buf  Buffer for storing a partition name
-  @param part_file_name_buf_sz  Size of buffer for storing a partition name
-  @param part_file_name_len  Length of partition prefix stored in the buffer
-                             on invocation of function
-
-  @return false on success, true on error
-*/
-
-bool check_table_fit_new_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
-{
-  THD *thd= lpt->thd;
-  TABLE *table_to= lpt->table_list->table;
-  TABLE *table_from= lpt->table_list->next_local->table;
-
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                                  table_to->s->db.str,
-                                                  table_to->s->table_name.str,
-                                                  MDL_EXCLUSIVE));
-
-  DBUG_ASSERT(thd->mdl_context.is_lock_owner(MDL_key::TABLE,
-                                                  table_from->s->db.str,
-                                                  table_from->s->table_name.str,
-                                                  MDL_EXCLUSIVE));
-
-  uint32 new_part_id;
-  partition_element *part_elem;
-  // FIXME: really?
-  const char* partition_name= thd->lex->part_info->curr_part_elem->partition_name;
-
-  part_elem= table_to->part_info->get_part_elem(partition_name,
-                                                nullptr, 0, &new_part_id);
-  if (unlikely(!part_elem))
-    return true;
-
-  if (unlikely(new_part_id == NOT_A_PARTITION_ID))
-  {
-    DBUG_ASSERT(table_to->part_info->is_sub_partitioned());
-    my_error(ER_PARTITION_INSTEAD_OF_SUBPARTITION, MYF(0));
-    return true;
-  }
-
-  if (verify_data_with_partition(table_from, table_to, new_part_id))
-  {
-    return true;
-  }
-
-  return false;
-}
-
-
 // FIXME: replace with ddl_log_complete()
 static void finalize_ddl_log_entry(DDL_LOG_MEMORY_ENTRY *log_entry,
                                    DDL_LOG_MEMORY_ENTRY **exec_log_entry)

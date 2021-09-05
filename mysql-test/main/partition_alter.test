@@ -249,14 +249,38 @@ show create table tp1;
 select * from t1;
 drop table t1;
 
+--echo #
 --echo # Check that ADD PARTITION FROM TABLE can't be specified for partition method
 --echo # other than RANGE or LIST
+--echo #
 CREATE TABLE tp1 (a INT);
 INSERT INTO tp1 VALUES (10), (20), (30);
 CREATE TABLE t1 (a INT) PARTITION BY HASH (a) PARTITIONS 2;
 --error ER_PARTITION_METHOD_NOT_COMPATIBLE_WITH_ADD_FROM_TABLE
-ALTER TABLE t1 ADD PARTITION (PARTITION p1) FROM TABLE tp1;
+ALTER TABLE t1 ADD PARTITION (PARTITION p3) FROM TABLE tp1;
 
+DROP TABLE t1, tp1;
+
+--echo #
+--echo # Check that a table having structure different than the base table
+--echo # can't be specified as a source table in ADD PARTITION FROM TABLE
+--echo #
+CREATE TABLE tp1 (a INT, b INT);
+INSERT INTO tp1 VALUES (10, 10);
+CREATE TABLE t1 (a INT) PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (100));
+--error ER_TABLES_DIFFERENT_METADATA
+ALTER TABLE t1 ADD PARTITION (PARTITION p1 VALUES LESS THAN (200)) FROM TABLE tp1;
+DROP TABLE t1, tp1;
+
+--echo #
+--echo # Check that adding a partition from a table, some records of which are outside
+--echo # the range of values speicified in partition definition, results in error
+--echo #
+CREATE TABLE tp1 (a INT);
+INSERT INTO tp1 VALUES (110), (120), (230);
+CREATE TABLE t1 (a INT) PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (100));
+--error ER_NO_PARTITION_FOR_GIVEN_VALUE
+ALTER TABLE t1 ADD PARTITION (PARTITION p1 VALUES LESS THAN (200)) FROM TABLE tp1;
 DROP TABLE t1, tp1;
 
 --echo # End of tests for MDEV-22165

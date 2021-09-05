@@ -288,12 +288,34 @@ a
 150
 170
 drop table t1;
+#
 # Check that ADD PARTITION FROM TABLE can't be specified for partition method
 # other than RANGE or LIST
+#
 CREATE TABLE tp1 (a INT);
 INSERT INTO tp1 VALUES (10), (20), (30);
 CREATE TABLE t1 (a INT) PARTITION BY HASH (a) PARTITIONS 2;
-ALTER TABLE t1 ADD PARTITION (PARTITION p1) FROM TABLE tp1;
+ALTER TABLE t1 ADD PARTITION (PARTITION p3) FROM TABLE tp1;
 ERROR HY000: ADD PARTITION FROM TABLE is not compatible with HASH table partition method
+DROP TABLE t1, tp1;
+#
+# Check that a table having structure different than the base table
+# can't be specified as a source table in ADD PARTITION FROM TABLE
+#
+CREATE TABLE tp1 (a INT, b INT);
+INSERT INTO tp1 VALUES (10, 10);
+CREATE TABLE t1 (a INT) PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (100));
+ALTER TABLE t1 ADD PARTITION (PARTITION p1 VALUES LESS THAN (200)) FROM TABLE tp1;
+ERROR HY000: Tables have different definitions
+DROP TABLE t1, tp1;
+#
+# Check that adding a partition from a table, some records of which are outside
+# the range of values speicified in partition definition, results in error
+#
+CREATE TABLE tp1 (a INT);
+INSERT INTO tp1 VALUES (110), (120), (230);
+CREATE TABLE t1 (a INT) PARTITION BY RANGE (a) (PARTITION p0 VALUES LESS THAN (100));
+ALTER TABLE t1 ADD PARTITION (PARTITION p1 VALUES LESS THAN (200)) FROM TABLE tp1;
+ERROR HY000: Table has no partition for value 0
 DROP TABLE t1, tp1;
 # End of tests for MDEV-22165
