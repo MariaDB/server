@@ -2336,11 +2336,13 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   mysql_prlock_unlock(&lock->m_rwlock);
 
+#ifdef HAVE_PSI_INTERFACE
   PSI_metadata_locker_state state __attribute__((unused));
   PSI_metadata_locker *locker= NULL;
 
   if (ticket->m_psi != NULL)
     locker= PSI_CALL_start_metadata_wait(&state, ticket->m_psi, __FILE__, __LINE__);
+#endif
 
   will_wait_for(ticket);
 
@@ -2387,8 +2389,10 @@ MDL_context::acquire_lock(MDL_request *mdl_request, double lock_wait_timeout)
 
   done_waiting_for();
 
+#ifdef HAVE_PSI_INTERFACE
   if (locker != NULL)
     PSI_CALL_end_metadata_wait(locker, 0);
+#endif
 
   if (wait_status != MDL_wait::GRANTED)
   {

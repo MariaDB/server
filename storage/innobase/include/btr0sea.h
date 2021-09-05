@@ -243,9 +243,19 @@ struct btr_search_sys_t
     /** memory heap for table */
     mem_heap_t *heap;
 
+#ifdef _MSC_VER
+#pragma warning(push)
+// nonstandard extension - zero sized array, if perfschema is not compiled
+#pragma warning(disable : 4200)
+#endif
+
     char pad[(CPU_LEVEL1_DCACHE_LINESIZE - sizeof(srw_lock) -
               sizeof(hash_table_t) - sizeof(mem_heap_t)) &
              (CPU_LEVEL1_DCACHE_LINESIZE - 1)];
+
+#ifdef _MSC_VER
+#pragma warning(pop)
+#endif
 
     void init()
     {
