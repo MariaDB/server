@@ -4915,13 +4915,11 @@ static bool compare_tables_metadata(ALTER_PARTITION_PARAM_TYPE *lpt)
     change patterns.
 */
 
-uint prep_alter_part_table(THD *thd, TABLE_LIST *tables, Alter_info *alter_info,
+uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
                            HA_CREATE_INFO *create_info,
                            bool *partition_changed,
-                           bool *fast_alter_table,
-                           const Alter_table_ctx &alter_ctx)
+                           bool *fast_alter_table)
 {
-  TABLE *table= tables->table;
   DBUG_ENTER("prep_alter_part_table");
 
   /* Foreign keys on partitioned tables are not supported, waits for WL#148 */

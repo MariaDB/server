@@ -264,11 +264,10 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
                                 const LEX_CSTRING *table_name);
 bool set_part_state(Alter_info *alter_info, partition_info *tab_part_info,
                     enum partition_state part_state);
-uint prep_alter_part_table(THD *thd, TABLE_LIST *tables, Alter_info *alter_info,
+uint prep_alter_part_table(THD *thd, TABLE *table, Alter_info *alter_info,
                            HA_CREATE_INFO *create_info,
                            bool *partition_changed,
-                           bool *fast_alter_table,
-                           const Alter_table_ctx &alter_ctx);
+                           bool *fast_alter_table);
 char *generate_partition_syntax(THD *thd, partition_info *part_info,
                                 uint *buf_length,
                                 bool show_partition_options,
