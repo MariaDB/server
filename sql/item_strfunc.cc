@@ -56,7 +56,9 @@ C_MODE_END
 #include "sql_statistics.h"
 
 /* fmtlib include (https://fmt.dev/). */
-#include "fmt/format.h"
+#define FMT_STATIC_THOUSANDS_SEPARATOR ','
+#define FMT_HEADER_ONLY 1
+#include "fmt/format-inl.h"
 
 size_t username_char_length= USERNAME_CHAR_LENGTH;
 

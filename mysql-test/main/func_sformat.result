@@ -212,7 +212,7 @@ set names latin1;
 #
 select sformat('Num {:L}', 13800000000);
 sformat('Num {:L}', 13800000000)
-Num 13800000000
+Num 13,800,000,000
 select sformat('Num [{:20}]', 42);
 sformat('Num [{:20}]', 42)
 Num [                  42]
