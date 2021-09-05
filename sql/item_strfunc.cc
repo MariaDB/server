@@ -1320,6 +1320,21 @@ bool Item_func_sformat::fix_length_and_dec()
 }
 
 /*
+  allow fmt to take String arguments directly.
+  Inherit from string_view, so all string formatting works.
+  but {:p} doesn't, because it's not char*, not a pointer.
+*/
+namespace fmt {
+  template <> struct formatter<String>: formatter<string_view> {
+    template <typename FormatContext>
+    auto format(String c, FormatContext& ctx) -> decltype(ctx.out()) {
+      string_view name = { c.ptr(), c.length() };
+      return formatter<string_view>::format(name, ctx);
+    };
+  };
+};
+
+/*
   SFORMAT(format_string, ...)
   This function receives a formatting specification string and N parameters
   (N >= 0), and it returns string formatted using the rules the user passed
@@ -1369,7 +1384,7 @@ String *Item_func_sformat::val_str(String *res)
       if (parg->length() == 1)
         vargs[carg-1]= fmt::detail::make_arg<ctx>(parg->ptr()[0]);
       else
-        vargs[carg-1]= fmt::detail::make_arg<ctx>(parg->c_ptr_safe());
+        vargs[carg-1]= fmt::detail::make_arg<ctx>(*parg);
       break;
     case TIME_RESULT: // TODO
     case ROW_RESULT: // TODO

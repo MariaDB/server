@@ -409,3 +409,11 @@ select a, sformat('{:.15f}', a) from t2;
 a	sformat('{:.15f}', a)
 3.141592653589793	3.141592653589793
 drop table t2;
+#
+# Unsupported/disabled features
+#
+select sformat('{:p}', '50');
+sformat('{:p}', '50')
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
