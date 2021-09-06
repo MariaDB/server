@@ -224,12 +224,7 @@ static LEX_STRING spider_init_queries[] = {
   {C_STRING_WITH_LEN(
     "create procedure mysql.spider_fix_system_tables()"
     "begin"
-    "  select substring_index(substring_index(version(), '-', 2), '-', -1)"
-    "    into @server_name;"
-    "  if @server_name regexp '^[0-9]+$' then"
-    "    select substring_index(substring_index(version(), '-', 3), '-', -1)"
-    "      into @server_name;"
-    "  end if;"
+    "  select 'MariaDB' into @server_name;"
     "  select substring_index(version(), '.', 1)"
     "    into @server_major_version;"
     "  select substring_index(substring_index(version(), '.', 2), '.', -1)"
