@@ -4049,13 +4049,13 @@ Execute_sql_statement(LEX_STRING sql_text)
   executions without having to cleanup/reset THD in between.
 */
 
-bool
-Execute_sql_statement::execute_server_code(THD *thd)
+static bool execute_server_code(THD *thd,
+                                const char *sql_text, size_t sql_len)
 {
   PSI_statement_locker *parent_locker;
   bool error;
 
-  if (alloc_query(thd, m_sql_text.str, m_sql_text.length))
+  if (alloc_query(thd, sql_text, sql_len))
     return TRUE;
 
   Parser_state parser_state;
@@ -4079,7 +4079,7 @@ Execute_sql_statement::execute_server_code(THD *thd)
 
   /* report error issued during command execution */
   if (likely(error == 0) && thd->spcont == NULL)
-    general_log_write(thd, COM_STMT_EXECUTE,
+    general_log_write(thd, COM_QUERY,
                       thd->query(), thd->query_length());
 
 end:
@@ -4088,6 +4088,11 @@ end:
   lex_end(thd->lex);
 
   return error;
+}
+
+bool Execute_sql_statement::execute_server_code(THD *thd)
+{
+  return ::execute_server_code(thd, m_sql_text.str, m_sql_text.length);
 }
 
 /***************************************************************************
@@ -6155,7 +6160,6 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
                      const uchar *arg, ulong arg_length, my_bool skip_check,
                      MYSQL_STMT *stmt)
 {
-  MYSQL_LEX_STRING sql_text;
   my_bool result= 1;
   Protocol_local *p= (Protocol_local *) mysql->thd;
   NET *net= &mysql->net;
@@ -6196,20 +6200,28 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
     arg_length= header_length;
   }
 
-  sql_text.str= (char *) arg;
-  sql_text.length= arg_length;
+  if (p->new_thd)
   {
-    Ed_connection con(p->thd);
     THD *thd_orig= current_thd;
     set_current_thd(p->thd);
-    p->thd->thread_stack= (char*) &sql_text;
-    result= con.execute_direct(p, sql_text);
-    if (p->new_thd)
-      mysql_audit_release(p->new_thd);
-    if (skip_check)
-      result= 0;
+    p->thd->thread_stack= (char*) &result;
+    result= execute_server_code(p->thd, (const char *)arg, arg_length);
+    p->thd->cleanup_after_query();
+    mysql_audit_release(p->thd);
+    p->end_statement();
     set_current_thd(thd_orig);
   }
+  else
+  {
+    Ed_connection con(p->thd);
+    MYSQL_LEX_STRING sql_text;
+    DBUG_ASSERT(current_thd == p->thd);
+    sql_text.str= (char *) arg;
+    sql_text.length= arg_length;
+    result= con.execute_direct(p, sql_text);
+  }
+  if (skip_check)
+    result= 0;
   p->cur_data= 0;
 
 end:
@@ -6327,6 +6339,7 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
 {
   THD *thd_orig= current_thd;
   THD *new_thd;
+  Protocol_local *p;
   DBUG_ENTER("mysql_real_connect_local");
 
   /* Test whether we're already connected */
@@ -6353,6 +6366,15 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
                                          MYSQL_ERRMSG_SIZE, MYF(0));
   if (!thd_orig || thd_orig->lock)
   {
+    /*
+      When we start with the empty current_thd (that happens when plugins
+      are loaded during the server start) or when some tables are locked
+      with the current_thd already (that happens when INSTALL PLUGIN
+      calls the plugin_init or with queries), we create the new THD for
+      the local connection. So queries with this MYSQL will be run with
+      it rather than the current THD.
+    */
+
     new_thd= new THD(0);
     local_connection_thread_count++;
     new_thd->thread_stack= (char*) &thd_orig;
@@ -6373,89 +6395,15 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql,
   else
     new_thd= NULL;
 
-  mysql->thd= new Protocol_local(thd_orig, new_thd, 0);
+  p= new Protocol_local(thd_orig, new_thd, 0);
+  if (new_thd)
+    new_thd->protocol= p;
+
+  mysql->thd= p;
   mysql->server_status= SERVER_STATUS_AUTOCOMMIT;
 
 
   DBUG_PRINT("exit",("Mysql handler: %p", mysql));
   DBUG_RETURN(mysql);
-}
-
-
-extern "C" int execute_sql_command(const char *command,
-                                   char *hosts, char *names, char *filters)
-{
-  MYSQL_LEX_STRING sql_text;
-  THD *thd= current_thd;
-  THD *new_thd= 0;
-  int result;
-  my_bool qc_save= 0;
-  Reprepare_observer *save_reprepare_observer= nullptr;
-
-  if (!thd)
-  {
-    new_thd= new THD(0);
-    new_thd->thread_stack= (char*) &sql_text;
-    new_thd->store_globals();
-    new_thd->security_ctx->skip_grants();
-    new_thd->query_cache_is_applicable= 0;
-    new_thd->variables.wsrep_on= 0;
-    bzero((char*) &new_thd->net, sizeof(new_thd->net));
-    thd= new_thd;
-  }
-  else
-  {
-    if (thd->lock)
-      /* Doesn't work if the thread opened/locked tables already. */
-      return 2;
-
-    qc_save= thd->query_cache_is_applicable;
-    thd->query_cache_is_applicable= 0;
-    save_reprepare_observer= thd->m_reprepare_observer;
-    thd->m_reprepare_observer= nullptr;
-  }
-  sql_text.str= (char *) command;
-  sql_text.length= strlen(command);
-  {
-    Protocol_local p(thd, new_thd, 0);
-    Ed_connection con(thd);
-    result= con.execute_direct(&p, sql_text);
-    if (!result && p.first_data)
-    {
-      int nr= (int) p.first_data->rows;
-      MYSQL_ROWS *rows= p.first_data->data;
-
-      while (nr--)
-      {
-        strcpy(hosts, rows->data[0]);
-        hosts+= strlen(hosts) + 1;
-        strcpy(names, rows->data[1]);
-        names+= strlen(names) + 1;
-        if (filters)
-        {
-          strcpy(filters, rows->data[2]);
-          filters+= strlen(filters) + 1;
-        }
-        rows= rows->next;
-      }
-    }
-    if (p.first_data)
-    {
-      if (p.alloc)
-        free_root(p.alloc, MYF(0));
-      my_free(p.first_data);
-    }
-  }
-
-  if (new_thd)
-    delete new_thd;
-  else
-  {
-    thd->query_cache_is_applicable= qc_save;
-    thd->m_reprepare_observer= save_reprepare_observer;
-  }
-
-  *hosts= 0;
-  return result;
 }
 

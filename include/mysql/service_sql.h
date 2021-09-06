@@ -31,6 +31,8 @@
      mysql_errno
      mysql_error
      mysql_real_query
+     mysql_affected_rows
+     mysql_num_rows
      mysql_store_result
      mysql_free_result
      mysql_fetch_row
@@ -54,6 +56,8 @@ extern struct sql_service_st {
   const char * STDCALL (*mysql_error)(MYSQL *mysql);
   int STDCALL (*mysql_real_query)(MYSQL *mysql, const char *q,
                                   unsigned long length);
+  my_ulonglong STDCALL (*mysql_affected_rows)(MYSQL *mysql);
+  my_ulonglong STDCALL (*mysql_num_rows)(MYSQL_RES *res);
   MYSQL_RES * STDCALL (*mysql_store_result)(MYSQL *mysql);
   void STDCALL (*mysql_free_result)(MYSQL_RES *result);
   MYSQL_ROW STDCALL (*mysql_fetch_row)(MYSQL_RES *result);
@@ -68,6 +72,8 @@ extern struct sql_service_st {
 #define mysql_errno(M) sql_service->mysql_errno(M)
 #define mysql_error(M) sql_service->mysql_error(M)
 #define mysql_real_query sql_service->mysql_real_query
+#define mysql_affected_rows sql_service->mysql_affected_rows
+#define mysql_num_rows sql_service->mysql_num_rows
 #define mysql_store_result sql_service->mysql_store_result
 #define mysql_free_result sql_service->mysql_free_result
 #define mysql_fetch_row sql_service->mysql_fetch_row

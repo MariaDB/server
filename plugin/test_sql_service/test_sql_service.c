@@ -14,8 +14,8 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#define PLUGIN_VERSION 0x10000
-#define PLUGIN_STR_VERSION "1.0"
+#define PLUGIN_VERSION 0x20000
+#define PLUGIN_STR_VERSION "2.0"
 
 #include <my_config.h>
 #include <my_global.h>
@@ -26,21 +26,47 @@
 
 /* Status variables for SHOW STATUS */
 static long test_passed= 0;
+static char *sql_text_local, *sql_text_global;
+static char qwe_res[1024]= "";
+
 static struct st_mysql_show_var test_sql_status[]=
 {
   {"test_sql_service_passed", (char *)&test_passed, SHOW_LONG},
+  {"test_sql_query_result", qwe_res, SHOW_CHAR},
   {0,0,0}
 };
 
 static my_bool do_test= TRUE;
-static void run_test(MYSQL_THD thd, struct st_mysql_sys_var *var,
-                     void *var_ptr, const void *save);
+static int run_test(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
+                    struct st_mysql_value *value);
+static int run_sql_local(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
+                         struct st_mysql_value *value);
+static int run_sql_global(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
+                          struct st_mysql_value *value);
+
+static void noop_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                        void *var_ptr, const void *save);
+
 static MYSQL_SYSVAR_BOOL(run_test, do_test,
-                         PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_NO_LOCK,
-                         "Perform the test now.", NULL, run_test, FALSE);
+                         PLUGIN_VAR_OPCMDARG,
+                         "Perform the test now.",
+                         run_test, NULL, FALSE);
+
+static MYSQL_SYSVAR_STR(execute_sql_local, sql_text_local,
+                        PLUGIN_VAR_OPCMDARG,
+                        "Create the new local connection, execute SQL statement with it.",
+                        run_sql_local, noop_update, FALSE);
+
+static MYSQL_SYSVAR_STR(execute_sql_global, sql_text_global,
+                        PLUGIN_VAR_OPCMDARG,
+                        "Execute SQL statement using the global connection.",
+                        run_sql_global, noop_update, FALSE);
+
 static struct st_mysql_sys_var* test_sql_vars[]=
 {
   MYSQL_SYSVAR(run_test),
+  MYSQL_SYSVAR(execute_sql_local),
+  MYSQL_SYSVAR(execute_sql_global),
   NULL
 };
 
@@ -105,12 +131,87 @@ void auditing(MYSQL_THD thd, unsigned int event_class, const void *ev)
 }
 
 
-static void run_test(MYSQL_THD thd  __attribute__((unused)),
-                     struct st_mysql_sys_var *var  __attribute__((unused)),
-                     void *var_ptr  __attribute__((unused)),
-                     const void *save  __attribute__((unused)))
+static int run_test(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
+                    struct st_mysql_value *value)
 {
-  test_passed= (do_tests() == 0);
+  return (test_passed= (do_tests() == 0)) == 0;
+}
+
+
+static int run_sql(MYSQL *mysql, void *save, struct st_mysql_value *value)
+{
+  const char *str;
+  int len= 0;
+  MYSQL_RES *res;
+
+  str= value->val_str(value, NULL, &len);
+
+  if (mysql_real_query(mysql, str, len))
+  {
+    if (mysql_error(mysql)[0])
+    {
+      my_snprintf(qwe_res, sizeof(qwe_res), "Error %d returned. %s",
+          mysql_errno(mysql), mysql_error(mysql));
+      return 0;
+    }
+
+    return 1;
+  }
+
+  if ((res= mysql_store_result(mysql)))
+  {
+    my_snprintf(qwe_res, sizeof(qwe_res), "Query returned %lld rows.",
+        mysql_num_rows(res));
+    mysql_free_result(res);
+  }
+  else
+  {
+    if (mysql_error(mysql)[0])
+    {
+      my_snprintf(qwe_res, sizeof(qwe_res), "Error %d returned. %s",
+          mysql_errno(mysql), mysql_error(mysql));
+    }
+    else
+      my_snprintf(qwe_res, sizeof(qwe_res), "Query affected %lld rows.",
+          mysql_affected_rows(mysql));
+  }
+
+  return 0;
+}
+
+
+static void noop_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
+                        void *var_ptr, const void *save)
+{
+  sql_text_local= sql_text_global= qwe_res;
+}
+
+static int run_sql_local(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
+                         struct st_mysql_value *value)
+{
+  MYSQL *mysql;
+  int result= 1;
+
+  mysql= mysql_init(NULL);
+  if (mysql_real_connect_local(mysql, NULL, NULL, NULL, 0) == NULL)
+    return 1;
+
+  if (run_sql(mysql, save, value))
+    goto exit;
+
+  result= 0;
+
+exit:
+  mysql_close(mysql);
+
+  return result;
+}
+
+
+static int run_sql_global(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
+                          struct st_mysql_value *value)
+{
+  return run_sql(global_mysql, save, value);
 }
 
 

@@ -238,6 +238,8 @@ struct sql_service_st sql_service_handler=
   mysql_errno,
   mysql_error,
   mysql_real_query,
+  mysql_affected_rows,
+  mysql_num_rows,
   mysql_store_result,
   mysql_free_result,
   mysql_fetch_row,
