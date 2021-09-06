@@ -2043,3 +2043,36 @@ constraint a foreign key (id) references t1  (id)
 alter table t1 change id id2 int;
 drop table t2;
 drop table t1;
+#
+# MDEV-25951 MariaDB crash after ALTER TABLE convert to utf8mb4
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a VARCHAR(32), KEY (a(7))) ENGINE=INNODB DEFAULT CHARSET=UTF8;
+INSERT INTO t1 VALUES (1, 'a1'), (2, 'a1');
+ALTER TABLE t1
+CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci,
+ADD UNIQUE INDEX test_key (a);
+ERROR 23000: Duplicate entry 'a1' for key 'test_key'
+ALTER TABLE t1 CONVERT TO CHARACTER SET UTF8MB4 COLLATE UTF8MB4_UNICODE_520_CI;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1;
+id	a
+1	a1
+2	a1
+DROP TABLE t1;
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(32), KEY (a(7))) ENGINE=INNODB DEFAULT CHARSET=UTF8;
+INSERT INTO t1 VALUES (1, 'a1'), (2, 'a1');
+ALTER TABLE t1
+CONVERT TO CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_520_ci,
+ADD UNIQUE INDEX test_key (a);
+ERROR 23000: Duplicate entry 'a1' for key 'test_key'
+ALTER TABLE t1 CONVERT TO CHARACTER SET UTF8MB4 COLLATE UTF8MB4_UNICODE_520_CI;
+CHECK TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	check	status	OK
+SELECT * FROM t1;
+id	a
+1	a1
+2	a1
+DROP TABLE t1;

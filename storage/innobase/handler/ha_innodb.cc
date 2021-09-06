@@ -11351,6 +11351,8 @@ create_index(
 			prefix_len = 0;
 		}
 
+		ut_ad(prefix_len % field->charset()->mbmaxlen == 0);
+
 		field_lengths[i] = key_part->length;
 
 		if (!key_part->field->stored_in_db()) {
