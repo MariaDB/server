@@ -1278,6 +1278,7 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
   if (!file || !param) return HA_ADMIN_INTERNAL_ERROR;
 
   unmap_file(file);
+  register_handler(file);
   maria_chk_init(param);
   param->thd= thd;
   param->op_name= "check";
@@ -1333,14 +1334,18 @@ int ha_maria::check(THD * thd, HA_CHECK_OPT * check_opt)
     {
       ulonglong old_testflag= param->testflag;
       param->testflag |= T_MEDIUM;
-      if (!(error= init_io_cache(&param->read_cache, file->dfile.file,
-                                 my_default_record_cache_size, READ_CACHE,
-                                 share->pack.header_length, 1, MYF(MY_WME))))
-      {
+
+      /* BLOCK_RECORD does not need a cache as it is using the page cache */
+      if (file->s->data_file_type != BLOCK_RECORD)
+        error= init_io_cache(&param->read_cache, file->dfile.file,
+                             my_default_record_cache_size, READ_CACHE,
+                             share->pack.header_length, 1, MYF(MY_WME));
+      if (!error)
         error= maria_chk_data_link(param, file,
                                    MY_TEST(param->testflag & T_EXTEND));
+
+      if (file->s->data_file_type != BLOCK_RECORD)
         end_io_cache(&param->read_cache);
-      }
       param->testflag= old_testflag;
     }
   }

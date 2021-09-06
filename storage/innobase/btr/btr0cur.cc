@@ -3344,11 +3344,11 @@ static void btr_cur_prefetch_siblings(const buf_block_t *block,
   if (prev == FIL_NULL);
   else if (space->acquire())
     buf_read_page_background(space, page_id_t(space->id, prev),
-                             block->zip_size(), false);
+                             block->zip_size());
   if (next == FIL_NULL);
   else if (space->acquire())
     buf_read_page_background(space, page_id_t(space->id, next),
-                             block->zip_size(), false);
+                             block->zip_size());
 }
 
 /*************************************************************//**
