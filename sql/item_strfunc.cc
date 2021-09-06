@@ -1306,9 +1306,22 @@ bool Item_func_replace::fix_length_and_dec()
   return FALSE;
 }
 
+/*
+  this is done in the constructor to be in the same memroot as
+  the item itself
+*/
+Item_func_sformat::Item_func_sformat(THD *thd, List<Item> &list)
+  : Item_str_func(thd, list)
+{
+  val_arg= new (thd->mem_root) String[arg_count];
+}
+
 
 bool Item_func_sformat::fix_length_and_dec()
 {
+  if (!val_arg)
+    return TRUE;
+
   ulonglong char_length= 0;
 
   uint flags= MY_COLL_ALLOW_SUPERSET_CONV |
@@ -1361,7 +1374,6 @@ String *Item_func_sformat::val_str(String *res)
   using                         ctx=     fmt::format_context;
   String                       *fmt_arg= NULL;
   String                       *parg=    NULL;
-  String                       *val_arg= NULL;
   fmt::format_args::format_arg *vargs=   NULL;
 
   null_value= true;
@@ -1370,12 +1382,6 @@ String *Item_func_sformat::val_str(String *res)
 
   if (!(vargs= new fmt::format_args::format_arg[arg_count - 1]))
     return NULL;
-
-  if (!(val_arg= new String[arg_count - 1]))
-  {
-    delete [] vargs;
-    return NULL;
-  }
 
   /* Creates the array of arguments for vformat */
   for (uint carg= 1; carg < arg_count; carg++)
@@ -1393,7 +1399,6 @@ String *Item_func_sformat::val_str(String *res)
       if (!(parg= args[carg]->val_str(&val_arg[carg-1])))
       {
         delete [] vargs;
-        delete [] val_arg;
         return NULL;
       }
       if (parg->length() == 1)
@@ -1406,7 +1411,6 @@ String *Item_func_sformat::val_str(String *res)
     default:
       DBUG_ASSERT(0);
       delete [] vargs;
-      delete [] val_arg;
       return NULL;
     }
   }
@@ -1430,7 +1434,6 @@ String *Item_func_sformat::val_str(String *res)
     null_value= true;
   }
   delete [] vargs;
-  delete [] val_arg;
   return null_value ? NULL : res;
 }
 

@@ -199,3 +199,11 @@ select hex(sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442'));
 create table t1 as select sformat(_ucs2 x'003D007B007D003D', _ucs2 x'0442043504410442') as x;
 show create table t1;
 drop table t1;
+
+
+echo #;
+echo # ps parameters;
+echo #;
+prepare s from 'select sformat("={:d}=", ?)';
+execute s using 100;
+execute s using 'abc';

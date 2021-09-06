@@ -437,3 +437,15 @@ t1	CREATE TABLE `t1` (
   `x` varchar(8) CHARACTER SET ucs2 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
+#
+# ps parameters
+#
+prepare s from 'select sformat("={:d}=", ?)';
+execute s using 100;
+sformat("={:d}=", ?)
+=100=
+execute s using 'abc';
+sformat("={:d}=", ?)
+NULL
+Warnings:
+Warning	4183	SFORMAT error: invalid type specifier
