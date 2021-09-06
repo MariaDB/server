@@ -84,7 +84,7 @@ struct MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) trx_rseg_t
   /** tablespace containing the rollback segment; constant after init() */
   fil_space_t *space;
   /** latch protecting everything except page_no, space */
-  srw_lock_low latch;
+  srw_spin_lock_low latch;
   /** rollback segment header page number; constant after init() */
   uint32_t page_no;
   /** length of the TRX_RSEG_HISTORY list (number of transactions) */

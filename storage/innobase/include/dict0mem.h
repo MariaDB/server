@@ -2268,10 +2268,10 @@ public:
 	lock_t*					autoinc_lock;
 
   /** Mutex protecting autoinc and freed_indexes. */
-  srw_mutex autoinc_mutex;
+  srw_spin_mutex autoinc_mutex;
 private:
   /** Mutex protecting locks on this table. */
-  srw_mutex lock_mutex;
+  srw_spin_mutex lock_mutex;
 #ifdef UNIV_DEBUG
   /** The owner of lock_mutex (0 if none) */
   Atomic_relaxed<os_thread_id_t> lock_mutex_owner{0};
