@@ -20,6 +20,21 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srv0srv.h"
 #include "my_cpu.h"
 
+/** @return the parameter for srw_pause() */
+static inline unsigned srw_pause_delay()
+{
+  return my_cpu_relax_multiplier / 4 * srv_spin_wait_delay;
+}
+
+/** Pause the CPU for some time, with no memory accesses. */
+static inline void srw_pause(unsigned delay)
+{
+  HMT_low();
+  while (delay--)
+    MY_RELAX_CPU();
+  HMT_medium();
+}
+
 #ifdef SUX_LOCK_GENERIC
 void ssux_lock_low::init()
 {
@@ -90,15 +105,17 @@ void ssux_lock_low::read_lock(uint32_t l)
       pthread_mutex_unlock(&mutex);
       continue;
     }
-    else
-      for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
-      {
-        ut_delay(srv_spin_wait_delay);
-        if (read_trylock<true>(l))
-          return;
-        else if (l == WRITER_WAITING)
-          goto wake_writer;
-      }
+
+    const unsigned delay= srw_pause_delay();
+
+    for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+    {
+      srw_pause(delay);
+      if (read_trylock<true>(l))
+        return;
+      else if (l == WRITER_WAITING)
+        goto wake_writer;
+    }
 
     readers_wait(l);
   }
@@ -128,14 +145,18 @@ void ssux_lock_low::update_lock(uint32_t l)
       continue;
     }
     else
+    {
+      const unsigned delay= srw_pause_delay();
+
       for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
       {
-        ut_delay(srv_spin_wait_delay);
+        srw_pause(delay);
         if (update_trylock(l))
           return;
         else if ((l | UPDATER) == (UPDATER | WRITER_WAITING))
           goto wake_writer;
       }
+    }
 
     readers_wait(l);
   }
@@ -146,6 +167,8 @@ void ssux_lock_low::update_lock(uint32_t l)
 @param holding_u  whether we already hold u_lock() */
 void ssux_lock_low::write_lock(bool holding_u)
 {
+  const unsigned delay= srw_pause_delay();
+
   for (;;)
   {
     uint32_t l= write_lock_wait_start();
@@ -157,7 +180,7 @@ void ssux_lock_low::write_lock(bool holding_u)
         return;
       if (!(l & WRITER_WAITING))
         l= write_lock_wait_start();
-      ut_delay(srv_spin_wait_delay);
+      srw_pause(delay);
     }
 
     const uint32_t e= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
@@ -233,6 +256,9 @@ void ssux_lock_low::wake() { SRW_FUTEX(&readers, WAKE, 1); }
 void srw_mutex::wait_and_lock()
 {
   uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);
+
+  const unsigned delay= srw_pause_delay();
+
   for (auto spin= srv_n_spin_wait_rounds;;)
   {
     DBUG_ASSERT(~HOLDER & lk);
@@ -244,7 +270,7 @@ void srw_mutex::wait_and_lock()
       if (!(lk & HOLDER))
         goto acquired;
     }
-    ut_delay(srv_spin_wait_delay);
+    srw_pause(delay);
     if (!--spin)
       break;
   }
