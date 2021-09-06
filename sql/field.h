@@ -1514,11 +1514,20 @@ public:
     if (null_ptr)
       null_ptr=ADD_TO_PTR(null_ptr,ptr_diff,uchar*);
   }
+
+  /*
+    Copy the Field's value to buff. The value will be in table->record[]
+    format.
+  */
   void get_image(uchar *buff, uint length, CHARSET_INFO *cs) const
   { get_image(buff, length, ptr, cs); }
   virtual void get_image(uchar *buff, uint length,
                          const uchar *ptr_arg, CHARSET_INFO *cs) const
     { memcpy(buff,ptr_arg,length); }
+
+  /*
+    Set Field's value to the value in *buf.
+  */
   virtual void set_image(const uchar *buff,uint length, CHARSET_INFO *cs)
     { memcpy(ptr,buff,length); }
 

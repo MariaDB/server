@@ -220,43 +220,48 @@ error:
 
 
 static
-void store_key_image_to_rec_no_null(Field *field, const uchar *ptr)
+void store_key_image_to_rec_no_null(Field *field, const char *ptr, uint len)
 {
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table,
                                     &field->table->write_set);
-  field->set_key_image(ptr, field->key_length());
+  field->set_key_image((const uchar*)ptr, len);
   dbug_tmp_restore_column_map(&field->table->write_set, old_map);
 }
 
 
 static
-double position_in_interval(Field *field, const  uchar *key,
+double position_in_interval(Field *field, const  uchar *key, uint key_len,
                             const std::string& left, const std::string& right)
 {
   double res;
   if (field->pos_through_val_str())
   {
-    uint32 min_len= uint2korr(left.data());
-    uint32 max_len= uint2korr(right.data());
-    uint32 midp_len= uint2korr(key);
+    StringBuffer<64> buf1, buf2, buf3;
+    String empty_buf1, empty_buf2, empty_buf3;
+
+    store_key_image_to_rec_no_null(field, left.data(), left.size());
+    String *min_str= field->val_str(&buf1, &empty_buf1);
+
+    store_key_image_to_rec_no_null(field, right.data(), right.size());
+    String *max_str= field->val_str(&buf2, &empty_buf2);
+
+    store_key_image_to_rec_no_null(field, (const char*)key, key_len);
+    String *midp_str= field->val_str(&buf3, &empty_buf3);
 
     res= pos_in_interval_for_string(field->charset(),
-           key + HA_KEY_BLOB_LENGTH,
-           midp_len,
-           (const uchar*)left.data() + HA_KEY_BLOB_LENGTH,
-           min_len,
-           (const uchar*)right.data() + HA_KEY_BLOB_LENGTH,
-           max_len);
+           (const uchar*)midp_str->ptr(), midp_str->length(),
+           (const uchar*)min_str->ptr(), min_str->length(),
+           (const uchar*)max_str->ptr(), max_str->length());
   }
   else
   {
-    store_key_image_to_rec_no_null(field, (const uchar*)left.data());
+    store_key_image_to_rec_no_null(field, left.data(), field->key_length());
     double min_val_real= field->val_real();
     
-    store_key_image_to_rec_no_null(field, (const uchar*)right.data());
+    store_key_image_to_rec_no_null(field, right.data(), field->key_length());
     double max_val_real= field->val_real();
 
-    store_key_image_to_rec_no_null(field, key);
+    store_key_image_to_rec_no_null(field, (const char*)key, field->key_length());
     double midp_val_real= field->val_real();
 
     res= pos_in_interval_for_double(midp_val_real, min_val_real, max_val_real);
@@ -318,13 +323,17 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
   {
     bool exclusive_endp= (min_endp->flag == HA_READ_AFTER_KEY)? true: false;
     const uchar *min_key= min_endp->key;
+    uint min_key_len= min_endp->length;
     if (field->real_maybe_null())
+    {
       min_key++;
+      min_key_len--;
+    }
 
     // Find the leftmost bucket that contains the lookup value.
     // (If the lookup value is to the left of all buckets, find bucket #0)
     int idx= find_bucket(field, min_key, exclusive_endp);
-    double min_sel= position_in_interval(field, (const uchar*)min_key,
+    double min_sel= position_in_interval(field, min_key, min_key_len,
                                          histogram_bounds[idx],
                                          histogram_bounds[idx+1]);
     min= idx*width + min_sel*width;
@@ -338,11 +347,15 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
     DBUG_ASSERT(!(field->null_ptr && max_endp->key[0]));
     bool inclusive_endp= (max_endp->flag == HA_READ_AFTER_KEY)? true: false;
     const uchar *max_key= max_endp->key;
+    uint max_key_len= max_endp->length;
     if (field->real_maybe_null())
+    {
       max_key++;
+      max_key_len--;
+    }
 
     int idx= find_bucket(field, max_key, inclusive_endp);
-    double max_sel= position_in_interval(field, (const uchar*)max_key,
+    double max_sel= position_in_interval(field, max_key, max_key_len,
                                          histogram_bounds[idx],
                                          histogram_bounds[idx+1]);
     max= idx*width + max_sel*width;
