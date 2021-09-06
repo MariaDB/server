@@ -49,12 +49,15 @@ SET DEBUG_SYNC= 'RESET';
 CREATE DATABASE test2;
 CREATE TABLE t1(a INT) ENGINE=InnoDB;
 
+connect (con1,localhost,root,,);
+BACKUP STAGE START;
+
+--connection default
 SET DEBUG_SYNC='alter_opened_table SIGNAL ready WAIT_FOR go';
 send ALTER TABLE t1 RENAME TO test2.t1;
 
-connect (con1,localhost,root,,);
+--connection con1
 SET DEBUG_SYNC='now WAIT_FOR ready';
-BACKUP STAGE START;
 SET DEBUG_SYNC='mdl_acquire_lock_wait SIGNAL ready1';
 send BACKUP STAGE BLOCK_DDL;
 

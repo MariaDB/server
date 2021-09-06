@@ -14,7 +14,7 @@
 #include "sql_class.h"
 #include "table.h"
 #include "field.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <stdlib.h>
 #include <stdio.h>
 #if defined(__BORLANDC__)
@@ -285,7 +285,7 @@ PQRYRES TabColumns(PGLOBAL g, THD *thd, const char *db,
     crp->Kdata->SetValue((fmt) ? fmt : (char*) "", i);
 
     crp = crp->Next;                       // New (charset)
-    fld = (char *)fp->charset()->name;
+    fld = (char *)fp->charset()->coll_name.str;
     crp->Kdata->SetValue(fld, i);
 
     // Add this item

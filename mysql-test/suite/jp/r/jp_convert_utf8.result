@@ -132,7 +132,7 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ２`;
 ＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ・	ＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ・
 ｐｑｒｓｔｕｖｗｘｙｚ・・・・・・・・・	ｐｑｒｓｔｕｖｗｘｙｚ・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xEFBCBC to 'ujis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xEFBCBC to 'ujis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ucs2) FROM `Ｔ２`;
 Ｃ１	CONVERT(`Ｃ１` using ucs2)
 θικλμνξοπρστυφχψω・・・	θικλμνξοπρστυφχψω・・・
@@ -270,7 +270,7 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using sjis) FROM `Ｔ２`;
 ＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ・	ＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ・
 ｐｑｒｓｔｕｖｗｘｙｚ・・・・・・・・・	ｐｑｒｓｔｕｖｗｘｙｚ・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xEFBCBC to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xEFBCBC to 'sjis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ３`;
 Ｃ１	CONVERT(`Ｃ１` using ujis)
 êěėēęǵĝğ・ġĥíìïîǐ・īįĩ	êěėēęǵĝğ・ġĥíìïîǐ・īįĩ
@@ -314,7 +314,7 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ３`;
 齗齘齚齝齞齨齩齭齮齯齰齱齳齵齺齽龏龐龑龒	齗齘齚齝齞齨齩齭齮齯齰齱齳齵齺齽龏龐龑龒
 龔龖龗龞龡龢龣龥・・・・・・・・・・・・	龔龖龗龞龡龢龣龥・・・・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xEFBD9E to 'ujis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xEFBD9E to 'ujis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ucs2) FROM `Ｔ３`;
 Ｃ１	CONVERT(`Ｃ１` using ucs2)
 êěėēęǵĝğ・ġĥíìïîǐ・īįĩ	êěėēęǵĝğ・ġĥíìïîǐ・īįĩ
@@ -400,37 +400,37 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using sjis) FROM `Ｔ３`;
 齗齘齚齝齞齨齩齭齮齯齰齱齳齵齺齽龏龐龑龒	????????????????????
 龔龖龗龞龡龢龣龥・・・・・・・・・・・・	????????・・・・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xC3AA to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC38A to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC4B4 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC4B5 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC59A to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC59B to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC795 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC796 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC2A4 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC582 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xD088 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC381 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC3A1 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC386 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCB9B to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCEAC to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xD192 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCE86 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC3A6 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xD082 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC2BA to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCB98 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4B882 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BBB8 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4B99A to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4BBA1 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4BC99 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4BD9F to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BCAB to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BD97 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BE94 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC3AA to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC38A to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC4B4 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC4B5 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC59A to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC59B to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC795 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC796 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC2A4 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC582 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xD088 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC381 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC3A1 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC386 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCB9B to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCEAC to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xD192 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCE86 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC3A6 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xD082 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC2BA to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCB98 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4B882 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BBB8 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4B99A to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4BBA1 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4BC99 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4BD9F to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BCAB to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BD97 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BE94 to 'sjis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ４`;
 Ｃ１	CONVERT(`Ｃ１` using ujis)
  !"#$%&'()*+,-./	 !"#$%&'()*+,-./
@@ -536,7 +536,7 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ５`;
 ＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ・	ＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ・
 ｐｑｒｓｔｕｖｗｘｙｚ・・・・・・・・・	ｐｑｒｓｔｕｖｗｘｙｚ・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xEFBCBC to 'ujis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xEFBCBC to 'ujis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ucs2) FROM `Ｔ５`;
 Ｃ１	CONVERT(`Ｃ１` using ucs2)
 θικλμνξοπρστυφχψω・・・	θικλμνξοπρστυφχψω・・・
@@ -674,7 +674,7 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using sjis) FROM `Ｔ５`;
 ＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ・	ＨＩＪＫＬＭＮＯＰＱＲＳＴＵＶＷＸＹＺ・
 ｐｑｒｓｔｕｖｗｘｙｚ・・・・・・・・・	ｐｑｒｓｔｕｖｗｘｙｚ・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xEFBCBC to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xEFBCBC to 'sjis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ６`;
 Ｃ１	CONVERT(`Ｃ１` using ujis)
 êěėēęǵĝğ・ġĥíìïîǐ・īįĩ	êěėēęǵĝğ・ġĥíìïîǐ・īįĩ
@@ -718,7 +718,7 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ６`;
 齗齘齚齝齞齨齩齭齮齯齰齱齳齵齺齽龏龐龑龒	齗齘齚齝齞齨齩齭齮齯齰齱齳齵齺齽龏龐龑龒
 龔龖龗龞龡龢龣龥・・・・・・・・・・・・	龔龖龗龞龡龢龣龥・・・・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xEFBD9E to 'ujis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xEFBD9E to 'ujis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ucs2) FROM `Ｔ６`;
 Ｃ１	CONVERT(`Ｃ１` using ucs2)
 êěėēęǵĝğ・ġĥíìïîǐ・īįĩ	êěėēęǵĝğ・ġĥíìïîǐ・īįĩ
@@ -804,37 +804,37 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using sjis) FROM `Ｔ６`;
 齗齘齚齝齞齨齩齭齮齯齰齱齳齵齺齽龏龐龑龒	????????????????????
 龔龖龗龞龡龢龣龥・・・・・・・・・・・・	????????・・・・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xC3AA to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC38A to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC4B4 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC4B5 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC59A to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC59B to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC795 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC796 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC2A4 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC582 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xD088 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC381 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC3A1 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC386 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCB9B to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCEAC to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xD192 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCE86 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC3A6 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xD082 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC2BA to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCB98 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4B882 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BBB8 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4B99A to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4BBA1 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4BC99 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4BD9F to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BCAB to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BD97 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BE94 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC3AA to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC38A to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC4B4 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC4B5 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC59A to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC59B to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC795 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC796 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC2A4 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC582 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xD088 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC381 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC3A1 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC386 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCB9B to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCEAC to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xD192 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCE86 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC3A6 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xD082 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC2BA to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCB98 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4B882 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BBB8 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4B99A to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4BBA1 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4BC99 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4BD9F to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BCAB to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BD97 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BE94 to 'sjis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ７`;
 Ｃ１	CONVERT(`Ｃ１` using ujis)
  !"#$%&'()*+,-./	 !"#$%&'()*+,-./
@@ -940,7 +940,7 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ８`;
 ・・・・・・・・・・・・・・・・・・・・	・・・・・・・・・・・・・・・・・・・・
 ・・・・・・・・・・・・・・・・・・・・	・・・・・・・・・・・・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xEFBCBC to 'ujis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xEFBCBC to 'ujis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ucs2) FROM `Ｔ８`;
 Ｃ１	CONVERT(`Ｃ１` using ucs2)
 　　、。，．・：；？！゛゜´｀¨＾￣＿ヽ	　　、。，．・：；？！゛゜´｀¨＾￣＿ヽ
@@ -1078,7 +1078,7 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using sjis) FROM `Ｔ８`;
 ・・・・・・・・・・・・・・・・・・・・	・・・・・・・・・・・・・・・・・・・・
 ・・・・・・・・・・・・・・・・・・・・	・・・・・・・・・・・・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xEFBCBC to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xEFBCBC to 'sjis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ９`;
 Ｃ１	CONVERT(`Ｃ１` using ujis)
 ・・・・・・・・・・・・・・・˘ˇ¸˙˝	・・・・・・・・・・・・・・・˘ˇ¸˙˝
@@ -1122,7 +1122,7 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using ujis) FROM `Ｔ９`;
 龔龖龗龞龡龢龣龥・・・・・・・・・・・・	龔龖龗龞龡龢龣龥・・・・・・・・・・・・
 ・・・・・・・・・・・・・・・・・・・・	・・・・・・・・・・・・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xEFBD9E to 'ujis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xEFBD9E to 'ujis'
 SELECT `Ｃ１`, CONVERT(`Ｃ１` using ucs2) FROM `Ｔ９`;
 Ｃ１	CONVERT(`Ｃ１` using ucs2)
 ・・・・・・・・・・・・・・・˘ˇ¸˙˝	・・・・・・・・・・・・・・・˘ˇ¸˙˝
@@ -1208,37 +1208,37 @@ SELECT `Ｃ１`, CONVERT(`Ｃ１` using sjis) FROM `Ｔ９`;
 龔龖龗龞龡龢龣龥・・・・・・・・・・・・	????????・・・・・・・・・・・・
 ・・・・・・・・・・・・・・・・・・・・	・・・・・・・・・・・・・・・・・・・・
 Warnings:
-Warning	1977	Cannot convert 'utf8' character 0xCB98 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCB9B to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC2BA to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC2A4 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCE86 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xCEAC to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xD082 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xD088 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xD192 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC386 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC3A6 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC582 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC381 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC38A to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC4B4 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC59A to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC795 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC3A1 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC3AA to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC4B5 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC59B to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xC796 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4B882 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4B99A to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4BBA1 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4BC99 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE4BD9F to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BBB8 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BCAB to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BD97 to 'sjis'
-Warning	1977	Cannot convert 'utf8' character 0xE9BE94 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCB98 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCB9B to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC2BA to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC2A4 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCE86 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xCEAC to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xD082 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xD088 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xD192 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC386 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC3A6 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC582 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC381 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC38A to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC4B4 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC59A to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC795 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC3A1 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC3AA to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC4B5 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC59B to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xC796 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4B882 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4B99A to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4BBA1 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4BC99 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE4BD9F to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BBB8 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BCAB to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BD97 to 'sjis'
+Warning	1977	Cannot convert 'utf8mb3' character 0xE9BE94 to 'sjis'
 drop table `Ｔ１`;
 drop table `Ｔ２`;
 drop table `Ｔ３`;

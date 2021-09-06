@@ -205,8 +205,9 @@ bool Type_collection_geometry::init(Type_handler_data *data)
 }
 
 
-bool Type_handler_geometry::check_type_geom_or_binary(const char *opname,
-                                                      const Item *item)
+bool Type_handler_geometry::
+check_type_geom_or_binary(const LEX_CSTRING &opname,
+                          const Item *item)
 {
   const Type_handler *handler= item->type_handler();
   if (handler->type_handler_for_comparison() == &type_handler_geometry ||
@@ -214,14 +215,15 @@ bool Type_handler_geometry::check_type_geom_or_binary(const char *opname,
        item->collation.collation == &my_charset_bin))
     return false;
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           handler->name().ptr(), opname);
+           handler->name().ptr(), opname.str);
   return true;
 }
 
 
-bool Type_handler_geometry::check_types_geom_or_binary(const char *opname,
-                                                       Item* const *args,
-                                                       uint start, uint end)
+bool Type_handler_geometry::
+check_types_geom_or_binary(const LEX_CSTRING &opname,
+                           Item* const *args,
+                           uint start, uint end)
 {
   for (uint i= start; i < end ; i++)
   {
@@ -491,7 +493,7 @@ Field *Type_handler_geometry::make_table_field(MEM_ROOT *root,
 
 bool Type_handler_geometry::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &func_name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -501,7 +503,7 @@ bool Type_handler_geometry::
   func->unsigned_flag= false;
   func->decimals= 0;
   func->max_length= (uint32) UINT_MAX32;
-  func->set_maybe_null(true);
+  func->set_type_maybe_null(true);
   return false;
 }
 
@@ -509,14 +511,16 @@ bool Type_handler_geometry::
 bool Type_handler_geometry::
        Item_sum_sum_fix_length_and_dec(Item_sum_sum *item) const
 {
-  return Item_func_or_sum_illegal_param("sum");
+  LEX_CSTRING name= {STRING_WITH_LEN("sum") };
+  return Item_func_or_sum_illegal_param(name);
 }
 
 
 bool Type_handler_geometry::
        Item_sum_avg_fix_length_and_dec(Item_sum_avg *item) const
 {
-  return Item_func_or_sum_illegal_param("avg");
+  LEX_CSTRING name= {STRING_WITH_LEN("avg") };
+  return Item_func_or_sum_illegal_param(name);
 }
 
 
@@ -841,8 +845,6 @@ int Field_geom::store(const char *from, size_t length, CHARSET_INFO *cs)
     bzero(ptr, Field_blob::pack_length());
   else
   {
-    if (from == Geometry::bad_geometry_data.ptr())
-      goto err;
     // Check given WKB
     uint32 wkb_type;
     if (length < SRID_SIZE + WKB_HEADER_SIZE + 4)

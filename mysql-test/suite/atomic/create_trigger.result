@@ -1,0 +1,324 @@
+RESET MASTER;
+"engine: aria  crash point: ddl_log_create_before_create_trigger  position: 1"
+"engine: aria  crash point: ddl_log_create_before_create_trigger  position: 2"
+t1.TRG
+t1_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+"engine: aria  crash point: ddl_log_create_before_create_trigger  position: 3"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end
+"engine: aria  crash point: ddl_log_create_after_create_trigger  position: 1"
+"engine: aria  crash point: ddl_log_create_after_create_trigger  position: 2"
+t1.TRG
+t1_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+"engine: aria  crash point: ddl_log_create_after_create_trigger  position: 3"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end
+"engine: aria  crash point: definition_file_after_create  position: 1"
+"engine: aria  crash point: definition_file_after_create  position: 2"
+"engine: aria  crash point: definition_file_after_create  position: 3"
+t1.TRG
+t1_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+"engine: aria  crash point: ddl_log_drop_before_binlog  position: 1"
+"engine: aria  crash point: ddl_log_drop_before_binlog  position: 2"
+t1.TRG
+t1_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+"engine: aria  crash point: ddl_log_drop_before_binlog  position: 3"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end
+"engine: aria  crash point: ddl_log_drop_after_binlog  position: 1"
+t1.TRG
+t1_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+"engine: aria  crash point: ddl_log_drop_after_binlog  position: 2"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end
+"engine: aria  crash point: ddl_log_drop_after_binlog  position: 3"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 3000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 3000;
+end if;
+end
+"engine: aria  crash point: ddl_log_drop_before_delete_tmp  position: 1"
+t1.TRG
+t1_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+"engine: aria  crash point: ddl_log_drop_before_delete_tmp  position: 2"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end
+"engine: aria  crash point: ddl_log_drop_before_delete_tmp  position: 3"
+t1.TRG
+t1_trg.TRN
+t2_trg.TRN
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t1_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+Trigger	sql_mode	SQL Original Statement	character_set_client	collation_connection	Database Collation	Created
+t2_trg	STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION	CREATE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 3000;
+end if;
+end	latin1	latin1_swedish_ci	latin1_swedish_ci	#
+master-bin.000001	#	Query	#	#	use `test`; CREATE DEFINER=`root`@`localhost` TRIGGER t1_trg before insert on t1 for each row
+begin
+if isnull(new.a) then
+set new.a:= 1000;
+end if;
+end
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 2000;
+end if;
+end
+master-bin.000001	#	Query	#	#	use `test`; CREATE OR REPLACE DEFINER=`root`@`localhost` TRIGGER t2_trg before insert on t1 for each row
+begin
+if isnull(new.b) then
+set new.b:= 3000;
+end if;
+end

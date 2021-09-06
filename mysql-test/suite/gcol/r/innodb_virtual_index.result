@@ -262,3 +262,51 @@ CHECK TABLE t1;
 Table	Op	Msg_type	Msg_text
 test.t1	check	status	OK
 DROP TABLE t1;
+#
+# MDEV-25872 InnoDB: Assertion failure in row_merge_read_clustered_index
+#	upon ALTER on table with indexed virtual columns
+#
+CREATE TABLE t1 (
+id BIGINT AUTO_INCREMENT PRIMARY KEY,
+a INT,
+va INT ZEROFILL AS (a) VIRTUAL,
+b TIMESTAMP,
+c CHAR(204),
+vc CHAR(8),
+KEY(vc,c(64),b,va)
+) ENGINE=InnoDB CHARACTER SET utf32;
+INSERT INTO t1 (id) SELECT NULL FROM seq_1_to_75;
+INSERT IGNORE INTO t1 (id, a) VALUES (NULL, -1);
+Warnings:
+Warning	1264	Out of range value for column 'va' at row 1
+ALTER TABLE t1 FORCE;
+ERROR 22003: Out of range value for column 'va' at row 1
+DROP TABLE t1;
+#
+# MDEV-24713 Assertion `dict_table_is_comp(index->table)' failed
+#		in row_merge_buf_add()
+#
+CREATE TABLE t1 (id INT PRIMARY KEY, a CHAR(3),
+b CHAR(8) AS (a) VIRTUAL, KEY(b))
+ROW_FORMAT=REDUNDANT ENGINE=InnoDB
+CHARACTER SET utf8;
+INSERT INTO t1 (id,a) VALUES (1,'foo');
+OPTIMIZE TABLE t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1	optimize	status	OK
+DROP TABLE t1;
+#
+# MDEV-20154 Assertion `len <= col->len || ((col->mtype) == 5
+# || (col->mtype) == 14)' failed in row_merge_buf_add
+#
+CREATE TABLE t1 (
+a VARCHAR(2500),
+b VARCHAR(2499) AS (a) VIRTUAL
+) ENGINE=InnoDB;
+INSERT INTO t1 (a) VALUES ('foo');
+ALTER TABLE t1 MODIFY a VARCHAR(2600), ALGORITHM=INPLACE;
+ALTER TABLE t1 ADD KEY (b), ALGORITHM=INPLACE;
+# Cleanup
+DROP TABLE t1;
+# End of 10.2 tests

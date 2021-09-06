@@ -1,0 +1,63 @@
+--source include/have_innodb.inc
+
+# This test file is for testing killing of queries that are under LOCK TABLES
+
+--echo #
+--echo # MDEV-17749 Kill during LOCK TABLE ; ALTER TABLE causes assert
+--echo #
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+--connect (con1,localhost,root,,test)
+LOCK TABLE t1 WRITE;
+--let $conid= `SELECT CONNECTION_ID()`
+--send ALTER TABLE t1 ADD COLUMN b INT
+--connection default
+--disable_query_log
+--echo Killing connection
+eval KILL $conid;
+--enable_query_log
+--connection con1
+--disable_warnings
+--error 0,2006,2013,ER_CONNECTION_KILLED
+reap;
+--enable_warnings
+--connection default
+--disconnect con1
+DROP TABLE t1;
+
+CREATE TABLE t1 (a INT) ENGINE=InnoDB;
+CREATE TABLE t2 (a INT) ENGINE=InnoDB;
+--connect (con1,localhost,root,,test)
+LOCK TABLE t1 WRITE, t2 WRITE;
+--let $conid= `SELECT CONNECTION_ID()`
+--send ALTER TABLE t1 ADD COLUMN b INT
+--connection default
+--disable_query_log
+--echo Killing connection
+eval KILL $conid;
+--enable_query_log
+--connection con1
+--disable_warnings
+--error 0,2006,2013,ER_CONNECTION_KILLED
+reap;
+--enable_warnings
+--connection default
+--disconnect con1
+DROP TABLE t1, t2;
+
+# Similar test for CREATE TRIGGER, which also failed
+
+CREATE TABLE t1 (id int(11)) ENGINE=InnoDB;
+LOCK TABLES t1 WRITE;
+SET max_statement_time= 0.0001;
+--error 0,1969
+--disable_warnings
+CREATE TRIGGER tr16 AFTER UPDATE ON t1 FOR EACH ROW INSERT INTO t1 VALUES (1);
+--enable_warnings
+SET max_statement_time= default;
+DROP TRIGGER IF EXISTS trg16;
+DROP TABLE t1;
+ 
+--echo #
+--echo # End of 10.3 tests
+--echo #

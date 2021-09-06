@@ -24,20 +24,25 @@ class Item_func_sysconst_test :public Item_func_sysconst
 {
 public:
   Item_func_sysconst_test(THD *thd): Item_func_sysconst(thd) {}
-  String *val_str(String *str)
+  String *val_str(String *str) override
   {
     null_value= str->copy(STRING_WITH_LEN("sysconst_test"), system_charset_info);
     return null_value ? NULL : str;
   }
-  bool fix_length_and_dec()
+  bool fix_length_and_dec() override
   {
     max_length= MAX_FIELD_NAME * system_charset_info->mbmaxlen;
-    maybe_null= true;
+    set_maybe_null();
     return false;
   }
-  const char *func_name() const { return "sysconst_test"; }
-  const char *fully_qualified_func_name() const { return "sysconst_test()"; }
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("sysconst_test") };
+    return name;
+  }
+  const char *fully_qualified_func_name() const override
+  { return "sysconst_test()"; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_sysconst_test>(thd, this); }
 };
 

@@ -369,7 +369,7 @@ void Field::do_field_string(Copy_field *copy)
   res.length(0U);
 
   copy->from_field->val_str(&res);
-  copy->to_field->store(res.c_ptr_quick(), res.length(), res.charset());
+  copy->to_field->store(res.ptr(), res.length(), res.charset());
 }
 
 
@@ -385,14 +385,14 @@ void Field_enum::do_field_enum(Copy_field *copy)
 static void do_field_varbinary_pre50(Copy_field *copy)
 {
   char buff[MAX_FIELD_WIDTH];
-  copy->tmp.set_quick(buff,sizeof(buff),copy->tmp.charset());
+  copy->tmp.set_buffer_if_not_allocated(buff,sizeof(buff),copy->tmp.charset());
   copy->from_field->val_str(&copy->tmp);
 
   /* Use the same function as in 4.1 to trim trailing spaces */
-  size_t length= my_lengthsp_8bit(&my_charset_bin, copy->tmp.c_ptr_quick(),
+  size_t length= my_lengthsp_8bit(&my_charset_bin, copy->tmp.ptr(),
                                 copy->from_field->field_length);
 
-  copy->to_field->store(copy->tmp.c_ptr_quick(), length,
+  copy->to_field->store(copy->tmp.ptr(), length,
                         copy->tmp.charset());
 }
 

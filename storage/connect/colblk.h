@@ -38,7 +38,8 @@ class DllExport COLBLK : public XOBJECT {
   virtual PTDB    GetTo_Tdb(void) {return To_Tdb;}
   virtual int     GetClustered(void) {return 0;}
   virtual int     IsClustered(void) {return FALSE;}
-	virtual PSZ     GetJpath(PGLOBAL g, bool proj) {return NULL;}
+  virtual bool    Stringify(void) {return FALSE;}
+  virtual PSZ     GetJpath(PGLOBAL g, bool proj) {return NULL;}
 					PCOL    GetNext(void) {return Next;}
           PSZ     GetName(void) {return Name;}
           int     GetIndex(void) {return Index;}

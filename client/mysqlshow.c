@@ -247,7 +247,7 @@ static struct my_option my_long_options[] =
    &opt_mysql_port,
    &opt_mysql_port, 0, GET_UINT, REQUIRED_ARG, 0, 0, 0, 0, 0,
    0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -336,7 +336,7 @@ get_one_option(const struct my_option *opt, const char *argument,
       tty_password=1;
     break;
   case 'W':
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
 
     /* Prioritize pipe if explicit via command line */

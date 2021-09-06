@@ -1,0 +1,140 @@
+--source include/have_debug.inc
+--source include/have_sequence.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+#
+# Testing of atomic create table with crashes in a lot of different places
+#
+# We test both statement based logging and row logging as CREATE ... SELECT
+# works a bit differently depending on the logging format
+# First engine will use row logging and second engine will use statement
+# based logging
+#
+
+--disable_query_log
+call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+--enable_query_log
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+if ($engine_count == "")
+{
+  let $engine_count=2;
+  let $engines='myisam','innodb';
+}
+
+let $crash_count=9;
+let $crash_points='ddl_log_create_before_create_frm', 'storage_engine_middle_of_create', 'ddl_log_create_before_create_table', 'ddl_log_create_after_create_table', 'ddl_log_create_after_drop', 'ddl_log_create_before_binlog', 'ddl_log_create_after_prepare_eof', 'ddl_log_create_after_binlog', 'ddl_log_create_log_complete';
+
+let $statement_count=6;
+let $statements='CREATE TABLE t1 (a int)',
+                'CREATE OR REPLACE TABLE t2 (a int)',
+                'CREATE TABLE t1 LIKE const_table',
+                'CREATE OR REPLACE TABLE t2 LIKE const_table',
+                'CREATE TABLE t1 SELECT * from t2',
+                'CREATE OR REPLACE TABLE t2 SELECT * from const_table';
+
+create table const_table (a int, b int) engine=myisam;
+insert into const_table values (1,1),(2,2);
+flush tables;
+
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+let $keep_include_silent=1;
+let $grep_script=CREATE|DROP;
+--disable_query_log
+
+while ($e < $engine_count)
+{
+  inc $e;
+  let $engine=`select ELT($e, $engines)`;
+  let $default_engine=$engine;
+  let $extra_option=;
+
+  if ($engine == "aria")
+  {
+    let $extra_option=transactional=1;
+  }
+  if ($engine == "aria_notrans")
+  {
+    let $default_engine="aria";
+    let $extra_option=transactional=0;
+  }
+  --echo engine: $engine
+
+  let $r=0;
+  while ($r < $statement_count)
+  {
+    inc $r;
+    let $statement=`select ELT($r, $statements)`;
+    --echo query: $statement
+
+    let $c=0;
+    while ($c < $crash_count)
+    {
+      inc $c;
+      let $crash=`select ELT($c, $crash_points)`;
+
+      --eval set @@default_storage_engine=$default_engine
+      create or replace table t2 select * from seq_1_to_2;
+      flush tables;
+
+      if ($e == 1)
+      {
+        --source include/set_binlog_format_row.sql
+      }
+      if ($e == 2)
+      {
+        --source include/set_binlog_format_statement.sql
+      }
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+      --echo crash point: $crash
+      --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+      --disable_reconnect
+      --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=1
+      let $errno=0;
+      --error 0,2013
+      --eval $statement;
+      let $error=$errno;
+      --enable_reconnect
+      --source include/wait_until_connected_again.inc
+      --disable_query_log
+      --eval set @@debug_dbug="$old_debug"
+
+      if ($error == 0)
+      {
+        echo "No crash!";
+      }
+      # Check which tables still exists
+      --list_files $MYSQLD_DATADIR/test t*
+      --list_files $MYSQLD_DATADIR/test *sql*
+
+      --let $binlog_file=$start_binlog_file
+      --let $binlog_output_name=master-bin.000001
+      --source include/show_binlog_events.inc
+      if ($error)
+      {
+        --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+        --let $binlog_output_name=master-bin.000002
+        if ($binlog_file != $start_binlog_file)
+        {
+          --source include/show_binlog_events.inc
+        }
+      }
+      # Drop the tables. The warnings will show what was dropped
+      --disable_warnings
+      drop table if exists t1,t2;
+      --enable_warnings
+    }
+  }
+}
+drop table if exists t1,t2,const_table;
+
+--enable_query_log

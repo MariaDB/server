@@ -455,8 +455,9 @@ ibuf_init_at_db_start(void)
 	mtr.commit();
 
 	ibuf.index = dict_mem_index_create(
-		dict_mem_table_create("innodb_change_buffer",
-				      fil_system.sys_space, 1, 0, 0, 0),
+		dict_table_t::create(
+			{C_STRING_WITH_LEN("innodb_change_buffer")},
+			fil_system.sys_space, 1, 0, 0, 0),
 		"CLUST_IND",
 		DICT_CLUSTERED | DICT_IBUF, 1);
 	ibuf.index->id = DICT_IBUF_ID_MIN + IBUF_SPACE_ID;
@@ -1266,8 +1267,9 @@ ibuf_dummy_index_create(
 	dict_table_t*	table;
 	dict_index_t*	index;
 
-	table = dict_mem_table_create("IBUF_DUMMY", NULL, n, 0,
-				      comp ? DICT_TF_COMPACT : 0, 0);
+	table = dict_table_t::create({C_STRING_WITH_LEN("IBUF_DUMMY")},
+				     nullptr, n, 0,
+				     comp ? DICT_TF_COMPACT : 0, 0);
 
 	index = dict_mem_index_create(table, "IBUF_DUMMY", 0, n);
 
@@ -2249,9 +2251,11 @@ bool ibuf_delete_rec(const page_id_t page_id, btr_pcur_t* pcur,
 static void ibuf_read_merge_pages(const uint32_t* space_ids,
 				  const uint32_t* page_nos, ulint n_stored)
 {
+#ifndef DBUG_OFF
 	mem_heap_t* heap = mem_heap_create(512);
 	ulint dops[IBUF_OP_COUNT];
 	memset(dops, 0, sizeof(dops));
+#endif
 
 	for (ulint i = 0; i < n_stored; i++) {
 		const ulint space_id = space_ids[i];
@@ -2284,6 +2288,28 @@ tablespace_deleted:
 				goto tablespace_deleted;
 			}
 		}
+#ifndef DBUG_OFF
+		DBUG_EXECUTE_IF("ibuf_merge_corruption", goto work_around;);
+		continue;
+
+		/* The following code works around a hang when the
+		change buffer is corrupted, likely due to the race
+		condition in crash recovery that was fixed in
+		MDEV-24449. But, it also introduces corruption by
+		itself in the following scenario:
+
+		(1) We merged buffered changes in buf_page_get_gen()
+		(2) We committed the mini-transaction
+		(3) Redo log and the page with the merged changes is written
+		(4) A write completion callback thread evicts the page.
+		(5) Other threads buffer changes for that page.
+		(6) We will wrongly discard those newly buffered changes below.
+
+		This code will be available in debug builds, so that
+		users may try to fix a shutdown hang that occurs due
+		to a corrupted change buffer. */
+
+work_around:
 		/* Prevent an infinite loop, by removing entries from
 		the change buffer also in the case the bitmap bits were
 		wrongly clear even though buffered changes exist. */
@@ -2330,10 +2356,13 @@ done:
 		ibuf_mtr_commit(&mtr);
 		btr_pcur_close(&pcur);
 		mem_heap_empty(heap);
+#endif
 	}
 
+#ifndef DBUG_OFF
 	ibuf_add_ops(ibuf.n_discarded_ops, dops);
 	mem_heap_free(heap);
+#endif
 }
 
 /*********************************************************************//**
@@ -4151,6 +4180,10 @@ subsequently was dropped.
 void ibuf_merge_or_delete_for_page(buf_block_t *block, const page_id_t page_id,
                                    ulint zip_size)
 {
+	if (trx_sys_hdr_page(page_id)) {
+		return;
+	}
+
 	btr_pcur_t	pcur;
 #ifdef UNIV_IBUF_DEBUG
 	ulint		volume			= 0;
@@ -4165,11 +4198,8 @@ void ibuf_merge_or_delete_for_page(buf_block_t *block, const page_id_t page_id,
 	ut_ad(!block || page_id == block->page.id());
 	ut_ad(!block || block->page.state() == BUF_BLOCK_FILE_PAGE);
 	ut_ad(!block || block->page.status == buf_page_t::NORMAL);
-
-	if (trx_sys_hdr_page(page_id)
-	    || fsp_is_system_temporary(page_id.space())) {
-		return;
-	}
+	ut_ad(!trx_sys_hdr_page(page_id));
+	ut_ad(page_id < page_id_t(SRV_SPACE_ID_UPPER_BOUND, 0));
 
 	const ulint physical_size = zip_size ? zip_size : srv_page_size;
 

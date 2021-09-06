@@ -60,7 +60,7 @@ struct config {
   conf_param *find(const String& key) const;
   conf_param *find(const char *key) const;
   String get_str(const String& key, const String& def =
-    String("", &my_charset_bin)) const;
+    String("", 0, &my_charset_bin)) const;
   String get_str(const char *key, const char *def = "") const;
   long long get_int(const String& key, long long def = 0) const;
   long long get_int(const char *key, long long def = 0) const;

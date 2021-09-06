@@ -721,7 +721,7 @@ primary key (a)
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(112) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `a` varchar(112) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
@@ -736,7 +736,7 @@ b int not null, primary key (a)
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(12) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -752,7 +752,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` int(11) NOT NULL,
-  `a` varchar(12) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `c` int(1) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -765,7 +765,7 @@ show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
   `b` int(11) DEFAULT NULL,
-  `a` varchar(12) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `c` int(1) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -777,7 +777,7 @@ b int not null, primary key (a)
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(12) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -789,7 +789,7 @@ b int not null, primary key (a)
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(12) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL,
+  `a` varchar(12) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL,
   `b` int(11) NOT NULL,
   PRIMARY KEY (`a`)
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
@@ -1089,7 +1089,7 @@ t1	CREATE TABLE `t1` (
   `QUERY_ID` bigint(4) NOT NULL DEFAULT 0,
   `INFO_BINARY` blob DEFAULT NULL,
   `TID` bigint(4) NOT NULL DEFAULT 0
-)  DEFAULT CHARSET=utf8
+)  DEFAULT CHARSET=utf8mb3
 drop table t1;
 create temporary table t1 like information_schema.processlist;
 show create table t1;
@@ -1113,7 +1113,7 @@ t1	CREATE TEMPORARY TABLE `t1` (
   `QUERY_ID` bigint(4) NOT NULL DEFAULT 0,
   `INFO_BINARY` blob DEFAULT NULL,
   `TID` bigint(4) NOT NULL DEFAULT 0
-)  DEFAULT CHARSET=utf8
+)  DEFAULT CHARSET=utf8mb3
 drop table t1;
 create table t1 like information_schema.character_sets;
 show create table t1;
@@ -1123,7 +1123,7 @@ t1	CREATE TABLE `t1` (
   `DEFAULT_COLLATE_NAME` varchar(32) NOT NULL DEFAULT '',
   `DESCRIPTION` varchar(60) NOT NULL DEFAULT '',
   `MAXLEN` bigint(3) NOT NULL DEFAULT 0
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 drop table t1;
 
 # --

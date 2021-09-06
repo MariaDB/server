@@ -589,7 +589,7 @@ static my_thread_id pagecache_thread_id;
   ((uint) (((char*)(h)-(char *) p->hash_link_root)/                           \
            sizeof(PAGECACHE_HASH_LINK)))
 
-#if (defined(PAGECACHE_TIMEOUT) && !defined(__WIN__)) || defined(PAGECACHE_DEBUG)
+#if (defined(PAGECACHE_TIMEOUT) && !defined(_WIN32)) || defined(PAGECACHE_DEBUG)
 static int pagecache_pthread_cond_wait(mysql_cond_t *cond,
                                       mysql_mutex_t *mutex);
 #else
@@ -5561,7 +5561,7 @@ static void pagecache_dump(PAGECACHE *pagecache)
 
 #endif /* defined(PAGECACHE_TIMEOUT) */
 
-#if defined(PAGECACHE_TIMEOUT) && !defined(__WIN__)
+#if defined(PAGECACHE_TIMEOUT) && !defined(_WIN32)
 
 
 static int pagecache_pthread_cond_wait(mysql_cond_t *cond,
@@ -5623,7 +5623,7 @@ static int pagecache_pthread_cond_wait(mysql_cond_t *cond,
   return rc;
 }
 #endif
-#endif /* defined(PAGECACHE_TIMEOUT) && !defined(__WIN__) */
+#endif /* defined(PAGECACHE_TIMEOUT) && !defined(_WIN32) */
 
 
 #if defined(PAGECACHE_DEBUG)

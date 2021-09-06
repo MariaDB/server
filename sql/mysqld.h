@@ -116,7 +116,6 @@ extern bool opt_ignore_builtin_innodb;
 extern my_bool opt_character_set_client_handshake;
 extern my_bool debug_assert_on_not_freed_memory;
 extern MYSQL_PLUGIN_IMPORT bool volatile abort_loop;
-extern Atomic_counter<uint> connection_count;
 extern my_bool opt_safe_user_create;
 extern my_bool opt_safe_show_db, opt_local_infile, opt_myisam_use_mmap;
 extern my_bool opt_slave_compressed_protocol, use_temp_pool;
@@ -192,7 +191,8 @@ enum vers_system_time_t
 struct vers_asof_timestamp_t
 {
   ulong type;
-  MYSQL_TIME ltime;
+  my_time_t unix_time;
+  ulong second_part;
 };
 
 enum vers_alter_history_enum
@@ -207,7 +207,7 @@ extern MYSQL_PLUGIN_IMPORT char glob_hostname[FN_REFLEN];
 extern char mysql_home[FN_REFLEN];
 extern char pidfile_name[FN_REFLEN], system_time_zone[30], *opt_init_file;
 extern char default_logfile_name[FN_REFLEN];
-extern char log_error_file[FN_REFLEN], *opt_tc_log_file;
+extern char log_error_file[FN_REFLEN], *opt_tc_log_file, *opt_ddl_recovery_file;
 extern const double log_10[309];
 extern ulonglong keybuff_size;
 extern ulonglong thd_startup_options;
@@ -268,6 +268,8 @@ extern MYSQL_PLUGIN_IMPORT const char  *my_localhost;
 extern MYSQL_PLUGIN_IMPORT const char **errmesg;			/* Error messages */
 extern const char *myisam_recover_options_str;
 extern const LEX_CSTRING in_left_expr_name, in_additional_cond, in_having_cond;
+extern const LEX_CSTRING NULL_clex_str;
+extern const LEX_CSTRING error_clex_str;
 extern SHOW_VAR status_vars[];
 extern struct system_variables max_system_variables;
 extern struct system_status_var global_status_var;
@@ -394,7 +396,7 @@ extern PSI_file_key key_file_binlog, key_file_binlog_cache,
   key_file_loadfile, key_file_log_event_data, key_file_log_event_info,
   key_file_master_info, key_file_misc, key_file_partition_ddl_log,
   key_file_pid, key_file_relay_log_info, key_file_send_file, key_file_tclog,
-  key_file_trg, key_file_trn, key_file_init;
+  key_file_trg, key_file_trn, key_file_init, key_file_log_ddl;
 extern PSI_file_key key_file_query_log, key_file_slow_log;
 extern PSI_file_key key_file_relaylog, key_file_relaylog_index,
                     key_file_relaylog_cache, key_file_relaylog_index_cache;
@@ -638,7 +640,9 @@ extern PSI_stage_info stage_upgrading_lock;
 extern PSI_stage_info stage_user_lock;
 extern PSI_stage_info stage_user_sleep;
 extern PSI_stage_info stage_verifying_table;
+extern PSI_stage_info stage_waiting_for_ddl;
 extern PSI_stage_info stage_waiting_for_delay_list;
+extern PSI_stage_info stage_waiting_for_flush;
 extern PSI_stage_info stage_waiting_for_gtid_to_be_written_to_binary_log;
 extern PSI_stage_info stage_waiting_for_handler_insert;
 extern PSI_stage_info stage_waiting_for_handler_lock;
@@ -696,7 +700,7 @@ void init_sql_statement_info();
 void init_com_statement_info();
 #endif /* HAVE_PSI_STATEMENT_INTERFACE */
 
-#ifndef __WIN__
+#ifndef _WIN32
 extern pthread_t signal_thread;
 #endif
 
@@ -709,7 +713,7 @@ extern struct st_VioSSLFd * ssl_acceptor_fd;
  */
 extern my_bool opt_large_pages;
 extern uint opt_large_page_size;
-extern char lc_messages_dir[FN_REFLEN];
+extern MYSQL_PLUGIN_IMPORT char lc_messages_dir[FN_REFLEN];
 extern char *lc_messages_dir_ptr, *log_error_file_ptr;
 extern MYSQL_PLUGIN_IMPORT char reg_ext[FN_EXTLEN];
 extern MYSQL_PLUGIN_IMPORT uint reg_ext_length;
@@ -742,7 +746,7 @@ extern mysql_mutex_t
        LOCK_error_log, LOCK_delayed_insert, LOCK_short_uuid_generator,
        LOCK_delayed_status, LOCK_delayed_create, LOCK_crypt, LOCK_timezone,
        LOCK_active_mi, LOCK_manager, LOCK_user_conn,
-       LOCK_prepared_stmt_count, LOCK_error_messages;
+       LOCK_prepared_stmt_count, LOCK_error_messages,  LOCK_backup_log;
 extern MYSQL_PLUGIN_IMPORT mysql_mutex_t LOCK_global_system_variables;
 extern mysql_rwlock_t LOCK_all_status_vars;
 extern mysql_mutex_t LOCK_start_thread;
@@ -757,7 +761,6 @@ extern mysql_rwlock_t LOCK_ssl_refresh;
 extern mysql_prlock_t LOCK_system_variables_hash;
 extern mysql_cond_t COND_start_thread;
 extern mysql_cond_t COND_manager;
-extern Atomic_counter<uint32_t> thread_count;
 
 extern my_bool opt_use_ssl;
 extern char *opt_ssl_ca, *opt_ssl_capath, *opt_ssl_cert, *opt_ssl_cipher,

@@ -24,7 +24,7 @@
 static const char *load_default_groups[]= { "aria_read_log",0 };
 static void get_options(int *argc,char * * *argv);
 #ifndef DBUG_OFF
-#if defined(__WIN__)
+#if defined(_WIN32)
 const char *default_dbug_option= "d:t:O,\\aria_read_log.trace";
 #else
 const char *default_dbug_option= "d:t:o,/tmp/aria_read_log.trace";
@@ -273,7 +273,7 @@ static struct my_option my_long_options[] =
    0, 0, 0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   {"tmpdir", 't', "Path for temporary files. Multiple paths can be specified, "
    "separated by "
-#if defined( __WIN__) || defined(__NETWARE__)
+#if defined( _WIN32)
    "semicolon (;)"
 #else
    "colon (:)"

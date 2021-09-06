@@ -1,6 +1,6 @@
 call mtr.add_suppression("InnoDB: Warning: allocated tablespace .*, old maximum was");
 call mtr.add_suppression("table .* does not exist in the InnoDB internal");
-call mtr.add_suppression("InnoDB: Warning: MySQL is trying to drop table ");
+call mtr.add_suppression("InnoDB: Warning: MariaDB is trying to drop table ");
 # Test failure recovery in fast_alter_partition_table.
 #
 # Bug#53676: Unexpected errors and possible table corruption on

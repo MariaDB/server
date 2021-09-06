@@ -26,9 +26,9 @@ SHOW local STATUS LIKE 'com_select';
 --echo # Test if charset changes after reset (utf8)
 connect(utf8_conn,localhost,root,,,,,CHARSET=utf8);
 connection utf8_conn;
-SELECT IF(@@character_set_client='utf8','OK', 'FAIL') AS RESULT;
+SELECT IF(@@character_set_client='utf8mb3','OK', 'FAIL') AS RESULT;
 --reset_connection
-SELECT IF(@@character_set_client='utf8','OK', 'FAIL') AS RESULT;
+SELECT IF(@@character_set_client='utf8mb3','OK', 'FAIL') AS RESULT;
 disconnect utf8_conn;
 
 --echo # Test if charset changes after reset (latin1)

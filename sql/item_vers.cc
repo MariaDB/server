@@ -29,14 +29,14 @@
 bool Item_func_history::val_bool()
 {
   Item_field *f= static_cast<Item_field *>(args[0]);
-  DBUG_ASSERT(f->fixed);
+  DBUG_ASSERT(f->fixed());
   DBUG_ASSERT(f->field->flags & VERS_SYS_END_FLAG);
   return !f->field->is_max();
 }
 
 void Item_func_history::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   args[0]->print(str, query_type);
   str->append(')');

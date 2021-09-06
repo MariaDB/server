@@ -17,7 +17,7 @@
 #include "mysys_priv.h"
 #include <m_string.h>
 
-#ifdef __WIN__
+#ifdef _WIN32
 
 /*
   Check a file or path for accessability.
@@ -46,7 +46,7 @@ int my_access(const char *path, int amode)
   return 0;
 }
 
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 
 /*
@@ -150,7 +150,7 @@ int check_if_legal_tablename(const char *name)
 }
 
 
-#ifdef __WIN__
+#ifdef _WIN32
 /**
   Checks if the drive letter supplied is valid or not. Valid drive
   letters are A to Z, both lower case and upper case.
@@ -217,10 +217,9 @@ my_bool is_filename_allowed(const char *name __attribute__((unused)),
   }
   return TRUE;
 } /* is_filename_allowed */
-#endif  /* __WIN__ */
+#endif  /* _WIN32 */
 
-#if defined(__WIN__) || defined(__EMX__)
-
+#if defined(_WIN32)
 
 /*
   Check if a path will access a reserved file name that may cause problems
@@ -265,4 +264,4 @@ int check_if_legal_filename(const char *path)
   DBUG_RETURN(0);
 }
 
-#endif /* defined(__WIN__) || defined(__EMX__) */
+#endif /* defined(_WIN32) */

@@ -1,5 +1,5 @@
 /************* tabbson C++ Program Source Code File (.CPP) *************/
-/* PROGRAM NAME: tabbson     Version 1.1                               */
+/* PROGRAM NAME: tabbson     Version 1.2                               */
 /*  (C) Copyright to the author Olivier BERTRAND          2020 - 2021  */
 /*  This program are the BSON class DB execution routines.             */
 /***********************************************************************/
@@ -53,6 +53,7 @@ USETEMP UseTemp(void);
 bool    JsonAllPath(void);
 int     GetDefaultDepth(void);
 char   *GetJsonNull(void);
+bool    Stringified(PCSZ, char*);
 
 /***********************************************************************/
 /* BSONColumns: construct the result blocks containing the description */
@@ -173,7 +174,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   lvl = GetIntegerTableOption(g, topt, "Depth", lvl);
   sep = GetStringTableOption(g, topt, "Separator", ".");
   sz = GetIntegerTableOption(g, topt, "Jsize", 1024);
-  limit = GetIntegerTableOption(g, topt, "Limit", 10);
+  limit = GetIntegerTableOption(g, topt, "Limit", 50);
   strfy = GetStringTableOption(g, topt, "Stringify", NULL);
 
   /*********************************************************************/
@@ -193,7 +194,11 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
   if (!(tdp->Database = SetPath(g, db)))
     return 0;
 
-  tdp->Objname = GetStringTableOption(g, topt, "Object", NULL);
+  if ((tdp->Objname = GetStringTableOption(g, topt, "Object", NULL))) {
+    if (*tdp->Objname == '$') tdp->Objname++;
+    if (*tdp->Objname == '.') tdp->Objname++;
+  } // endif Objname
+
   tdp->Base = GetIntegerTableOption(g, topt, "Base", 0) ? 1 : 0;
   tdp->Pretty = GetIntegerTableOption(g, topt, "Pretty", 2);
   tdp->Xcol = GetStringTableOption(g, topt, "Expand", NULL);
@@ -218,8 +223,7 @@ int BSONDISC::GetColumns(PGLOBAL g, PCSZ db, PCSZ dsn, PTOS topt)
 
   if (tdp->Uri) {
 #if defined(JAVA_SUPPORT) || defined(CMGO_SUPPORT)
-    tdp->Collname = GetStringTableOption(g, topt, "Name", NULL);
-    tdp->Collname = GetStringTableOption(g, topt, "Tabname", tdp->Collname);
+    tdp->Collname = GetStringTableOption(g, topt, "Tabname", NULL);
     tdp->Schema = GetStringTableOption(g, topt, "Dbname", "test");
     tdp->Options = (PSZ)GetStringTableOption(g, topt, "Colist", "all");
     tdp->Pipe = GetBooleanTableOption(g, topt, "Pipeline", false);
@@ -433,7 +437,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
     jcol.Type = TYPE_UNKNOWN;
     jcol.Len = jcol.Scale = 0;
     jcol.Cbn = true;
-  } else  if (j < lvl && !(strfy && !stricmp(strfy, colname))) {
+  } else  if (j < lvl && !Stringified(strfy, colname)) {
     if (!fmt[bf])
       strcat(fmt, colname);
 
@@ -504,7 +508,7 @@ bool BSONDISC::Find(PGLOBAL g, PBVAL jvp, PCSZ key, int j)
     } // endswitch Type
 
   } else if (lvl >= 0) {
-    if (strfy && !stricmp(strfy, colname)) {
+    if (Stringified(strfy, colname)) {
       if (!fmt[bf])
         strcat(fmt, colname);
 
@@ -604,32 +608,50 @@ void BSONDISC::AddColumn(PGLOBAL g)
 /***********************************************************************/
 PBVAL BTUTIL::FindRow(PGLOBAL g)
 {
-  char *p, *objpath;
+  char *p, *objpath = PlugDup(g, Tp->Objname);
+  char *sep = (char*)(Tp->Sep == ':' ? ":[" : ".[");
+  bool  bp = false, b = false;
   PBVAL jsp = Tp->Row;
   PBVAL val = NULL;
 
-  for (objpath = PlugDup(g, Tp->Objname); jsp && objpath; objpath = p) {
-    if ((p = strchr(objpath, Tp->Sep)))
+  for (; jsp && objpath; objpath = p, bp = b) {
+    if ((p = strpbrk(objpath + 1, sep))) {
+      b = (*p == '[');
       *p++ = 0;
+    } // endif p
 
-    if (*objpath != '[' && !IsNum(objpath)) { // objpass is a key
+    if (!bp && *objpath != '[' && !IsNum(objpath)) { // objpass is a key
       val = (jsp->Type == TYPE_JOB) ?
         GetKeyValue(jsp, objpath) : NULL;
     } else {
-      if (*objpath == '[') {
-        if (objpath[strlen(objpath) - 1] == ']')
-          objpath++;
-        else
+      if (bp || *objpath == '[') {                   // Old style
+        if (objpath[strlen(objpath) - 1] != ']') {
+          sprintf(g->Message, "Invalid Table path %s", Tp->Objname);
           return NULL;
-      } // endif [
+        } else if (!bp)
+          objpath++;
+
+      } // endif bp
 
       val = (jsp->Type == TYPE_JAR) ?
-        GetArrayValue(GetArray(jsp), atoi(objpath) - Tp->B) : NULL;
+        GetArrayValue(jsp, atoi(objpath) - Tp->B) : NULL;
     } // endif objpath
 
       //  jsp = (val) ? val->GetJson() : NULL;
     jsp = val;
   } // endfor objpath
+
+  if (jsp && jsp->Type != TYPE_JOB) {
+    if (jsp->Type == TYPE_JAR) {
+      jsp = GetArrayValue(jsp, Tp->B);
+
+      if (jsp->Type != TYPE_JOB)
+        jsp = NULL;
+
+    } else
+      jsp = NULL;
+
+  } // endif Type
 
   return jsp;
 } // end of FindRow
@@ -654,17 +676,22 @@ PBVAL BTUTIL::MakeTopTree(PGLOBAL g, int type)
   if (Tp->Objname) {
     if (!Tp->Row) {
       // Parse and allocate Objpath item(s)
-      char* p;
-      char *objpath = PlugDup(g, Tp->Objname);
+      char *p, *objpath = PlugDup(g, Tp->Objname);
+      char *sep = (char*)(Tp->Sep == ':' ? ":[" : ".[");
       int   i;
+      bool  bp = false, b = false;
       PBVAL objp = NULL;
       PBVAL arp = NULL;
 
-      for (; objpath; objpath = p) {
-        if ((p = strchr(objpath, Tp->Sep)))
+      for (; objpath; objpath = p, bp = b) {
+        if ((p = strpbrk(objpath + 1, sep))) {
+          b = (*p == '[');
           *p++ = 0;
+        } // endif p
 
-        if (*objpath != '[' && !IsNum(objpath)) {
+
+        if (!bp && *objpath != '[' && !IsNum(objpath)) {
+          // objpass is a key
           objp = NewVal(TYPE_JOB);
 
           if (!top)
@@ -676,15 +703,15 @@ PBVAL BTUTIL::MakeTopTree(PGLOBAL g, int type)
           val = NewVal();
           SetKeyValue(objp, MOF(val), objpath);
         } else {
-          if (*objpath == '[') {
+          if (bp || *objpath == '[') {
             // Old style
             if (objpath[strlen(objpath) - 1] != ']') {
               sprintf(g->Message, "Invalid Table path %s", Tp->Objname);
               return NULL;
-            } else
+            } else if (!bp)
               objpath++;
 
-          } // endif objpath
+          } // endif bp
 
           if (!top)
             top = NewVal(TYPE_JAR);
@@ -756,10 +783,16 @@ void BCUTIL::SetJsonValue(PGLOBAL g, PVAL vp, PBVAL jvp)
           break;
         case TYPE_DATE:
           if (jvp->Type == TYPE_STRG) {
-            if (!((DTVAL*)vp)->IsFormatted())
-              ((DTVAL*)vp)->SetFormat(g, "YYYY-MM-DDThh:mm:ssZ", 20, 0);
+            PSZ dat = GetString(jvp);
 
-            vp->SetValue_psz(GetString(jvp));
+            if (!IsNum(dat)) {
+              if (!((DTVAL*)vp)->IsFormatted())
+                ((DTVAL*)vp)->SetFormat(g, "YYYY-MM-DDThh:mm:ssZ", 20, 0);
+
+              vp->SetValue_psz(dat);
+            } else
+              vp->SetValue(atoi(dat));
+
           } else
             vp->SetValue(GetInteger(jvp));
 
@@ -1157,10 +1190,15 @@ bool BSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
   G = g;
   Schema = GetStringCatInfo(g, "DBname", Schema);
   Jmode = (JMODE)GetIntCatInfo("Jmode", MODE_OBJECT);
-  Objname = GetStringCatInfo(g, "Object", NULL);
+
+  if ((Objname = GetStringCatInfo(g, "Object", NULL))) {
+    if (*Objname == '$') Objname++;
+    if (*Objname == '.') Objname++;
+  } // endif Objname
+
   Xcol = GetStringCatInfo(g, "Expand", NULL);
   Pretty = GetIntCatInfo("Pretty", 2);
-  Limit = GetIntCatInfo("Limit", 10);
+  Limit = GetIntCatInfo("Limit", 50);
   Base = GetIntCatInfo("Base", 0) ? 1 : 0;
   Sep = *GetStringCatInfo(g, "Separator", ".");
   Accept = GetBoolCatInfo("Accept", false);
@@ -1171,7 +1209,7 @@ bool BSONDEF::DefineAM(PGLOBAL g, LPCSTR am, int poff)
     Collname = GetStringCatInfo(g, "Name",
       (Catfunc & (FNC_TABLE | FNC_COL)) ? NULL : Name);
     Collname = GetStringCatInfo(g, "Tabname", Collname);
-    Options = GetStringCatInfo(g, "Colist", NULL);
+    Options = GetStringCatInfo(g, "Colist", Xcol ? "all" : NULL);
     Filter = GetStringCatInfo(g, "Filter", NULL);
     Pipe = GetBoolCatInfo("Pipeline", false);
     Driver = GetStringCatInfo(g, "Driver", NULL);
@@ -1215,7 +1253,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
 
     if (Lrecl) {
       // Allocate the parse work memory
-      G = PlugInit(NULL, (size_t)Lrecl * (Pretty < 0 ? 2 : 4));
+      G = PlugInit(NULL, (size_t)Lrecl * (Pretty < 0 ? 3 : 5));
     } else {
       strcpy(g->Message, "LRECL is not defined");
       return NULL;
@@ -1249,6 +1287,7 @@ PTDB BSONDEF::GetTable(PGLOBAL g, MODE m)
 #endif  // !MONGO_SUPPORT
       } // endif Driver
 
+      Pretty = 4;   // Not a file
     } else if (Zipped) {
 #if defined(ZIP_SUPPORT)
       if (m == MODE_READ || m == MODE_ANY || m == MODE_ALTER) {
@@ -1454,7 +1493,7 @@ int TDBBSN::EstimatedLength(void)
 } // end of Estimated Length
 
 /***********************************************************************/
-/*  OpenDB: Data Base open routine for JSN access method.              */
+/*  OpenDB: Data Base open routine for BSN access method.              */
 /***********************************************************************/
 bool TDBBSN::OpenDB(PGLOBAL g)
 {
@@ -1676,6 +1715,7 @@ BSONCOL::BSONCOL(PGLOBAL g, PCOLDEF cdp, PTDB tdbp, PCOL cprec, int i)
   Xpd = false;
   Parsed = false;
   Warned = false;
+  Sgfy = false;
 } // end of BSONCOL constructor
 
 /***********************************************************************/
@@ -1695,6 +1735,7 @@ BSONCOL::BSONCOL(BSONCOL* col1, PTDB tdbp) : DOSCOL(col1, tdbp)
   Xpd = col1->Xpd;
   Parsed = col1->Parsed;
   Warned = col1->Warned;
+  Sgfy = col1->Sgfy;
 } // end of BSONCOL copy constructor
 
 /***********************************************************************/
@@ -1933,6 +1974,10 @@ bool BSONCOL::ParseJpath(PGLOBAL g)
       // Analyse intermediate array processing
       if (SetArrayOptions(g, p, i, Nodes[i - 1].Key))
         return true;
+      else if (Xpd && Tbp->Mode == MODE_DELETE) {
+        strcpy(g->Message, "Cannot delete expanded columns");
+        return true;
+      } // endif Xpd
 
     } else if (*p == '*') {
       // Return JSON
@@ -1966,8 +2011,10 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
       if (*p1 == '$') p1++;
       if (*p1 == '.') p1++;
       mgopath = PlugDup(g, p1);
-    } else
+    } else {
+      Sgfy = true;
       return NULL;
+    } // endif
 
     for (p1 = p2 = mgopath; *p1; p1++)
     {
@@ -2006,6 +2053,7 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
       case '*':
         if (*(p2 - 1) == '.' && !*(p1 + 1)) {
           p2--;              // Suppress last :*
+          Sgfy = true;
           break;
         } // endif p2
         /* fall through */
@@ -2014,6 +2062,10 @@ PSZ BSONCOL::GetJpath(PGLOBAL g, bool proj)
         break;
       } // endswitch p1;
     }
+
+    if (*(p2 - 1) == '.')
+      p2--;
+
     *p2 = 0;
     return mgopath;
   } else
@@ -2230,8 +2282,6 @@ int TDBBSON::MakeDocument(PGLOBAL g)
     return RC_FX;
 
   if ((objpath = PlugDup(g, Objname))) {
-    if (*objpath == '$') objpath++;
-    if (*objpath == '.') objpath++;
     p1 = (*objpath == '[') ? objpath++ : NULL;
 
     /*********************************************************************/

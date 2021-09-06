@@ -1297,6 +1297,8 @@ size_t _ma_rec_unpack(register MARIA_HA *info, register uchar *to, uchar *from,
         if (from+length > from_end)
           goto err;
         memcpy(to+pack_length, from, length);
+        MEM_UNDEFINED(to+pack_length + length,
+                      column_length - length - pack_length);
         from+= length;
         min_pack_length--;
         continue;

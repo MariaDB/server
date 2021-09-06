@@ -77,9 +77,9 @@
 #include "sql_audit.h"
 #include "sql_derived.h"                        // mysql_handle_derived
 #include "sql_prepare.h"
+#include "debug_sync.h"                         // DEBUG_SYNC
+#include "debug.h"                              // debug_crash_here
 #include <my_bit.h>
-
-#include "debug_sync.h"
 
 #ifdef WITH_WSREP
 #include "wsrep_trans_observer.h" /* wsrep_start_transction() */
@@ -642,7 +642,7 @@ static int
 create_insert_stmt_from_insert_delayed(THD *thd, String *buf)
 {
   /* Make a copy of thd->query() and then remove the "DELAYED" keyword */
-  if (buf->append(thd->query()) ||
+  if (buf->append(thd->query(), thd->query_length()) ||
       buf->replace(thd->lex->keyword_delayed_begin_offset,
                    thd->lex->keyword_delayed_end_offset -
                    thd->lex->keyword_delayed_begin_offset, NULL, 0))
@@ -709,7 +709,8 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   List_item *values;
   Name_resolution_context *context;
   Name_resolution_context_state ctx_state;
-  SELECT_LEX   *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
+  SELECT_LEX *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
+  unsigned char *readbuff= NULL;
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
@@ -786,7 +787,25 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   /* Prepares LEX::returing_list if it is not empty */
   if (returning)
+  {
     result->prepare(returning->item_list, NULL);
+    if (thd->is_bulk_op())
+    {
+      /*
+        It is RETURNING which needs network buffer to write result set and
+        it is array binfing which need network buffer to read parameters.
+        So we allocate yet another network buffer.
+        The old buffer will be freed at the end of operation.
+      */
+      DBUG_ASSERT(thd->protocol == &thd->protocol_binary);
+      readbuff= thd->net.buff; // old buffer
+      if (net_allocate_new_packet(&thd->net, thd, MYF(MY_THREAD_SPECIFIC)))
+      {
+        readbuff= NULL; // failure, net_allocate_new_packet keeps old buffer
+        goto abort;
+      }
+    }
+  }
 
   context= &thd->lex->first_select_lex()->context;
   /*
@@ -968,11 +987,16 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   */
   if (returning &&
       result->send_result_set_metadata(returning->item_list,
-                                Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
+                                       Protocol::SEND_NUM_ROWS |
+                                       Protocol::SEND_EOF))
     goto values_loop_end;
 
   THD_STAGE_INFO(thd, stage_update);
   thd->decide_logging_format_low(table);
+  fix_rownum_pointers(thd, thd->lex->current_select, &info.accepted_rows);
+  if (returning)
+    fix_rownum_pointers(thd, thd->lex->returning(), &info.accepted_rows);
+
   do
   {
     DBUG_PRINT("info", ("iteration %llu", iteration));
@@ -1099,6 +1123,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
       error= write_record(thd, table, &info, result);
       if (unlikely(error))
         break;
+      info.accepted_rows++;
       thd->get_stmt_da()->inc_current_row_for_warning();
     }
     its.rewind();
@@ -1316,7 +1341,8 @@ values_loop_end:
     thd->lex->current_select->save_leaf_tables(thd);
     thd->lex->current_select->first_cond_optimization= 0;
   }
-
+  if (readbuff)
+    my_free(readbuff);
   DBUG_RETURN(FALSE);
 
 abort:
@@ -1330,6 +1356,8 @@ abort:
   if (!joins_freed)
     free_underlaid_joins(thd, thd->lex->first_select_lex());
   thd->abort_on_warning= 0;
+  if (readbuff)
+    my_free(readbuff);
   DBUG_RETURN(retval);
 }
 
@@ -2134,8 +2162,11 @@ ok:
     autoinc values (generated inside the handler::ha_write()) and
     values updated in ON DUPLICATE KEY UPDATE.
   */
-  if (sink && sink->send_data(thd->lex->returning()->item_list) < 0)
-    trg_error= 1;
+  if (sink)
+  {
+    if (sink->send_data(thd->lex->returning()->item_list) < 0)
+      trg_error= 1;
+  }
 
 after_trg_or_ignored_err:
   if (key)
@@ -2968,8 +2999,8 @@ public:
 };
 
 
-bool Delayed_prelocking_strategy::
-handle_table(THD *thd, Query_tables_list *prelocking_ctx,
+bool Delayed_prelocking_strategy::handle_table(THD *thd,
+             Query_tables_list *prelocking_ctx,
              TABLE_LIST *table_list, bool *need_prelocking)
 {
   DBUG_ASSERT(table_list->lock_type == TL_WRITE_DELAYED);
@@ -2983,10 +3014,9 @@ handle_table(THD *thd, Query_tables_list *prelocking_ctx,
 }
 
 
-bool Delayed_prelocking_strategy::
-handle_routine(THD *thd, Query_tables_list *prelocking_ctx,
-               Sroutine_hash_entry *rt, sp_head *sp,
-               bool *need_prelocking)
+bool Delayed_prelocking_strategy::handle_routine(THD *thd,
+               Query_tables_list *prelocking_ctx, Sroutine_hash_entry *rt,
+               sp_head *sp, bool *need_prelocking)
 {
   /* LEX used by the delayed insert thread has no routines. */
   DBUG_ASSERT(0);
@@ -4366,7 +4396,8 @@ Field *Item::create_field_for_create_select(MEM_ROOT *root, TABLE *table)
 */
 
 TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
-                                      MYSQL_LOCK **lock, TABLEOP_HOOKS *hooks)
+                                              MYSQL_LOCK **lock,
+                                              TABLEOP_HOOKS *hooks)
 {
   TABLE tmp_table;		// Used during 'Create_field()'
   TABLE_SHARE share;
@@ -4424,7 +4455,7 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     if (!cr_field)
       DBUG_RETURN(NULL);
 
-    if (item->maybe_null)
+    if (item->maybe_null())
       cr_field->flags &= ~NOT_NULL_FLAG;
     alter_info->create_list.push_back(cr_field, thd->mem_root);
   }
@@ -4464,7 +4495,8 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
     open_table().
   */
 
-  if (!mysql_create_table_no_lock(thd, &create_table->db,
+  if (!mysql_create_table_no_lock(thd, &ddl_log_state_create, &ddl_log_state_rm,
+                                  &create_table->db,
                                   &create_table->table_name,
                                   create_info, alter_info, NULL,
                                   select_field_count, create_table))
@@ -4523,6 +4555,8 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
   {
     if (likely(!thd->is_error()))             // CREATE ... IF NOT EXISTS
       my_ok(thd);                             //   succeed, but did nothing
+    ddl_log_complete(&ddl_log_state_rm);
+    ddl_log_complete(&ddl_log_state_create);
     DBUG_RETURN(NULL);
   }
 
@@ -4561,7 +4595,9 @@ TABLE *select_create::create_table_from_items(THD *thd, List<Item> *items,
       *lock= 0;
     }
     drop_open_table(thd, table, &create_table->db, &create_table->table_name);
-    DBUG_RETURN(0);
+    ddl_log_complete(&ddl_log_state_rm);
+    ddl_log_complete(&ddl_log_state_create);
+    DBUG_RETURN(NULL);
     /* purecov: end */
   }
   table->s->table_creation_was_logged= save_table_creation_was_logged;
@@ -4662,8 +4698,20 @@ select_create::prepare(List<Item> &_values, SELECT_LEX_UNIT *u)
   }
 
   if (!(table= create_table_from_items(thd, &values, &extra_lock, hook_ptr)))
+  {
+    if (create_info->or_replace())
+    {
+      /* Original table was deleted. We have to log it */
+      log_drop_table(thd, &create_table->db, &create_table->table_name,
+                     &create_info->org_storage_engine_name,
+                     create_info->db_type == partition_hton,
+                     &create_info->org_tabledef_version,
+                     thd->lex->tmp_table());
+    }
+
     /* abort() deletes table */
     DBUG_RETURN(-1);
+  }
 
   if (create_info->tmp_table())
   {
@@ -4864,12 +4912,12 @@ bool binlog_drop_table(THD *thd, TABLE *table)
   if (!thd->binlog_table_should_be_logged(&table->s->db))
     return 0;
 
-  query.append("DROP ");
+  query.append(STRING_WITH_LEN("DROP "));
   if (table->s->tmp_table)
-    query.append("TEMPORARY ");
-  query.append("TABLE IF EXISTS ");
+    query.append(STRING_WITH_LEN("TEMPORARY "));
+  query.append(STRING_WITH_LEN("TABLE IF EXISTS "));
   append_identifier(thd, &query, &table->s->db);
-  query.append(".");
+  query.append('.');
   append_identifier(thd, &query, &table->s->table_name);
 
   return thd->binlog_query(THD::STMT_QUERY_TYPE,
@@ -4903,11 +4951,30 @@ bool select_create::send_eof()
   if (thd->slave_thread)
     thd->variables.binlog_annotate_row_events= 0;
 
+  debug_crash_here("ddl_log_create_before_binlog");
+
+  /*
+    In case of crash, we have to add DROP TABLE to the binary log as
+    the CREATE TABLE will already be logged if we are not using row based
+    replication.
+  */
+  if (!thd->is_current_stmt_binlog_format_row())
+  {
+    if (ddl_log_state_create.is_active())       // Not temporary table
+      ddl_log_update_phase(&ddl_log_state_create, DDL_CREATE_TABLE_PHASE_LOG);
+    /*
+      We can ignore if we replaced an old table as ddl_log_state_create will
+      now handle the logging of the drop if needed.
+    */
+    ddl_log_complete(&ddl_log_state_rm);
+  }
+
   if (prepare_eof())
   {
     abort_result_set();
     DBUG_RETURN(true);
   }
+  debug_crash_here("ddl_log_create_after_prepare_eof");
 
   if (table->s->tmp_table)
   {
@@ -4974,9 +5041,15 @@ bool select_create::send_eof()
       thd->get_stmt_da()->set_overwrite_status(true);
     }
 #endif /* WITH_WSREP */
+    thd->binlog_xid= thd->query_id;
+    /* Remember xid's for the case of row based logging */
+    ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
+    ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
     trans_commit_stmt(thd);
     if (!(thd->variables.option_bits & OPTION_GTID_BEGIN))
       trans_commit_implicit(thd);
+    thd->binlog_xid= 0;
+
 #ifdef WITH_WSREP
     if (WSREP(thd))
     {
@@ -4986,7 +5059,7 @@ bool select_create::send_eof()
       {
         WSREP_DEBUG("select_create commit failed, thd: %llu err: %s %s",
                     thd->thread_id,
-                    wsrep_thd_transaction_state_str(thd), WSREP_QUERY(thd));
+                    wsrep_thd_transaction_state_str(thd), wsrep_thd_query(thd));
         mysql_mutex_unlock(&thd->LOCK_thd_data);
         abort_result_set();
         DBUG_RETURN(true);
@@ -4994,7 +5067,30 @@ bool select_create::send_eof()
       mysql_mutex_unlock(&thd->LOCK_thd_data);
     }
 #endif /* WITH_WSREP */
+
+    /* Log query to ddl log */
+    backup_log_info ddl_log;
+    bzero(&ddl_log, sizeof(ddl_log));
+    ddl_log.query= { C_STRING_WITH_LEN("CREATE") };
+    if ((ddl_log.org_partitioned= (create_info->db_type == partition_hton)))
+      ddl_log.org_storage_engine_name= create_info->new_storage_engine_name;
+    else
+      lex_string_set(&ddl_log.org_storage_engine_name,
+                     ha_resolve_storage_engine_name(create_info->db_type));
+    ddl_log.org_database=   create_table->db;
+    ddl_log.org_table=      create_table->table_name;
+    ddl_log.org_table_id=   create_info->tabledef_version;
+    backup_log_ddl(&ddl_log);
   }
+  /*
+    If are using statement based replication the table will be deleted here
+    in case of a crash as we can't use xid to check if the query was logged
+    (as the query was logged before commit!)
+  */
+  debug_crash_here("ddl_log_create_after_binlog");
+  ddl_log_complete(&ddl_log_state_rm);
+  ddl_log_complete(&ddl_log_state_create);
+  debug_crash_here("ddl_log_create_log_complete");
 
   /*
     exit_done must only be set after last potential call to
@@ -5105,15 +5201,43 @@ void select_create::abort_result_set()
 
     drop_open_table(thd, table, &create_table->db, &create_table->table_name);
     table=0;                                    // Safety
-    if (thd->log_current_statement && mysql_bin_log.is_open())
+    if (thd->log_current_statement)
     {
-      /* Remove logging of drop, create + insert rows */
-      binlog_reset_cache(thd);
-      /* Original table was deleted. We have to log it */
-      if (table_creation_was_logged)
-        log_drop_table(thd, &create_table->db, &create_table->table_name,
-                       tmp_table);
+      if (mysql_bin_log.is_open())
+      {
+        /* Remove logging of drop, create + insert rows */
+        binlog_reset_cache(thd);
+        /* Original table was deleted. We have to log it */
+        if (table_creation_was_logged)
+        {
+          thd->binlog_xid= thd->query_id;
+          ddl_log_update_xid(&ddl_log_state_create, thd->binlog_xid);
+          ddl_log_update_xid(&ddl_log_state_rm, thd->binlog_xid);
+          debug_crash_here("ddl_log_create_before_binlog");
+          log_drop_table(thd, &create_table->db, &create_table->table_name,
+                         &create_info->org_storage_engine_name,
+                         create_info->db_type == partition_hton,
+                         &create_info->tabledef_version,
+                         tmp_table);
+          debug_crash_here("ddl_log_create_after_binlog");
+          thd->binlog_xid= 0;
+        }
+      }
+      else if (!tmp_table)
+      {
+        backup_log_info ddl_log;
+        bzero(&ddl_log, sizeof(ddl_log));
+        ddl_log.query= { C_STRING_WITH_LEN("DROP_AFTER_CREATE") };
+        ddl_log.org_partitioned= (create_info->db_type == partition_hton);
+        ddl_log.org_storage_engine_name= create_info->org_storage_engine_name;
+        ddl_log.org_database=     create_table->db;
+        ddl_log.org_table=        create_table->table_name;
+        ddl_log.org_table_id=     create_info->tabledef_version;
+        backup_log_ddl(&ddl_log);
+      }
     }
   }
+  ddl_log_complete(&ddl_log_state_rm);
+  ddl_log_complete(&ddl_log_state_create);
   DBUG_VOID_RETURN;
 }

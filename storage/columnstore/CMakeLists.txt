@@ -4,6 +4,8 @@ if("NO" STREQUAL "${PLUGIN_COLUMNSTORE}")
   return()
 endif()
 
+add_definitions(-DBOOST_BIND_GLOBAL_PLACEHOLDERS)
+
 # this does everything, gets the var from the correct scope, appends new
 # values, sets in the correct scope
 macro(APPEND_FOR_CPACK V)

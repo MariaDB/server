@@ -16,9 +16,9 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_general_nopad_ci';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8_general_nopad_ci NOT NULL,
+  `a` varchar(10) COLLATE utf8mb3_general_nopad_ci NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_general_nopad_ci
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_general_nopad_ci
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
 SELECT HEX(a), a FROM t1 ORDER BY a;
 HEX(a)	a
@@ -153,9 +153,9 @@ CREATE TABLE t1 (a VARCHAR(10) PRIMARY KEY) COLLATE 'utf8_nopad_bin';
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(10) COLLATE utf8_nopad_bin NOT NULL,
+  `a` varchar(10) COLLATE utf8mb3_nopad_bin NOT NULL,
   PRIMARY KEY (`a`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_nopad_bin
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_nopad_bin
 INSERT INTO t1 VALUES ('abc'),('abc  '),(' a'),(' a '),('a   ');
 SELECT HEX(a), a FROM t1 ORDER BY a;
 HEX(a)	a

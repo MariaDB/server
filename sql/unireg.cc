@@ -133,8 +133,9 @@ static uchar *extra2_write_index_properties(uchar *pos, const KEY *keyinfo,
   return pos;
 }
 
-static uint16
-get_fieldno_by_name(HA_CREATE_INFO *create_info, List<Create_field> &create_fields,
+static field_index_t
+get_fieldno_by_name(HA_CREATE_INFO *create_info,
+                    List<Create_field> &create_fields,
                     const Lex_ident &field_name)
 {
   List_iterator<Create_field> it(create_fields);
@@ -142,17 +143,17 @@ get_fieldno_by_name(HA_CREATE_INFO *create_info, List<Create_field> &create_fiel
 
   DBUG_ASSERT(field_name);
 
-  for (unsigned field_no = 0; (sql_field = it++); ++field_no)
+  for (field_index_t field_no= 0; (sql_field = it++); ++field_no)
   {
     if (field_name.streq(sql_field->field_name))
     {
-      DBUG_ASSERT(field_no <= uint16(~0U));
-      return uint16(field_no);
+      DBUG_ASSERT(field_no < NO_CACHED_FIELD_INDEX);
+      return field_no;
     }
   }
 
   DBUG_ASSERT(0); /* Not Reachable */
-  return 0;
+  return NO_CACHED_FIELD_INDEX;
 }
 
 static inline
@@ -869,7 +870,7 @@ static bool pack_header(THD *thd, uchar *forminfo,
       as auto-update field.
     */
     if (field->real_field_type() == MYSQL_TYPE_TIMESTAMP &&
-        MTYP_TYPENR(field->unireg_check) != Field::NONE &&
+        field->unireg_check != Field::NONE &&
 	!time_stamp_pos)
       time_stamp_pos= (uint) field->offset+ (uint) data_offset + 1;
     length=field->pack_length;

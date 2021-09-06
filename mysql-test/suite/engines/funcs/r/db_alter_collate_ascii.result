@@ -97,40 +97,40 @@ armscii8_general_ci	armscii8	32	Yes	#	#
 armscii8_bin	armscii8	64		#	#
 armscii8_general_nopad_ci	armscii8	1056		#	#
 armscii8_nopad_bin	armscii8	1088		#	#
-utf8_general_ci	utf8	33	Yes	#	#
-utf8_bin	utf8	83		#	#
-utf8_unicode_ci	utf8	192		#	#
-utf8_icelandic_ci	utf8	193		#	#
-utf8_latvian_ci	utf8	194		#	#
-utf8_romanian_ci	utf8	195		#	#
-utf8_slovenian_ci	utf8	196		#	#
-utf8_polish_ci	utf8	197		#	#
-utf8_estonian_ci	utf8	198		#	#
-utf8_spanish_ci	utf8	199		#	#
-utf8_swedish_ci	utf8	200		#	#
-utf8_turkish_ci	utf8	201		#	#
-utf8_czech_ci	utf8	202		#	#
-utf8_danish_ci	utf8	203		#	#
-utf8_lithuanian_ci	utf8	204		#	#
-utf8_slovak_ci	utf8	205		#	#
-utf8_spanish2_ci	utf8	206		#	#
-utf8_roman_ci	utf8	207		#	#
-utf8_persian_ci	utf8	208		#	#
-utf8_esperanto_ci	utf8	209		#	#
-utf8_hungarian_ci	utf8	210		#	#
-utf8_sinhala_ci	utf8	211		#	#
-utf8_german2_ci	utf8	212		#	#
-utf8_croatian_mysql561_ci	utf8	213		#	#
-utf8_unicode_520_ci	utf8	214		#	#
-utf8_vietnamese_ci	utf8	215		#	#
-utf8_general_mysql500_ci	utf8	223		#	#
-utf8_croatian_ci	utf8	576		#	#
-utf8_myanmar_ci	utf8	577		#	#
-utf8_thai_520_w2	utf8	578		#	#
-utf8_general_nopad_ci	utf8	1057		#	#
-utf8_nopad_bin	utf8	1107		#	#
-utf8_unicode_nopad_ci	utf8	1216		#	#
-utf8_unicode_520_nopad_ci	utf8	1238		#	#
+utf8mb3_general_ci	utf8mb3	33	Yes	#	#
+utf8mb3_bin	utf8mb3	83		#	#
+utf8mb3_unicode_ci	utf8mb3	192		#	#
+utf8mb3_icelandic_ci	utf8mb3	193		#	#
+utf8mb3_latvian_ci	utf8mb3	194		#	#
+utf8mb3_romanian_ci	utf8mb3	195		#	#
+utf8mb3_slovenian_ci	utf8mb3	196		#	#
+utf8mb3_polish_ci	utf8mb3	197		#	#
+utf8mb3_estonian_ci	utf8mb3	198		#	#
+utf8mb3_spanish_ci	utf8mb3	199		#	#
+utf8mb3_swedish_ci	utf8mb3	200		#	#
+utf8mb3_turkish_ci	utf8mb3	201		#	#
+utf8mb3_czech_ci	utf8mb3	202		#	#
+utf8mb3_danish_ci	utf8mb3	203		#	#
+utf8mb3_lithuanian_ci	utf8mb3	204		#	#
+utf8mb3_slovak_ci	utf8mb3	205		#	#
+utf8mb3_spanish2_ci	utf8mb3	206		#	#
+utf8mb3_roman_ci	utf8mb3	207		#	#
+utf8mb3_persian_ci	utf8mb3	208		#	#
+utf8mb3_esperanto_ci	utf8mb3	209		#	#
+utf8mb3_hungarian_ci	utf8mb3	210		#	#
+utf8mb3_sinhala_ci	utf8mb3	211		#	#
+utf8mb3_german2_ci	utf8mb3	212		#	#
+utf8mb3_croatian_mysql561_ci	utf8mb3	213		#	#
+utf8mb3_unicode_520_ci	utf8mb3	214		#	#
+utf8mb3_vietnamese_ci	utf8mb3	215		#	#
+utf8mb3_general_mysql500_ci	utf8mb3	223		#	#
+utf8mb3_croatian_ci	utf8mb3	576		#	#
+utf8mb3_myanmar_ci	utf8mb3	577		#	#
+utf8mb3_thai_520_w2	utf8mb3	578		#	#
+utf8mb3_general_nopad_ci	utf8mb3	1057		#	#
+utf8mb3_nopad_bin	utf8mb3	1107		#	#
+utf8mb3_unicode_nopad_ci	utf8mb3	1216		#	#
+utf8mb3_unicode_520_nopad_ci	utf8mb3	1238		#	#
 ucs2_general_ci	ucs2	35	Yes	#	#
 ucs2_bin	ucs2	90		#	#
 ucs2_unicode_ci	ucs2	128		#	#
@@ -327,167 +327,167 @@ CREATE DATABASE d9 DEFAULT CHARACTER SET ascii;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 ALTER DATABASE d9   COLLATE ascii_bin;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_bin	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 DROP DATABASE d9;
 CREATE DATABASE d9 DEFAULT CHARACTER SET ascii;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 ALTER DATABASE d9 DEFAULT COLLATE ascii_bin;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_bin	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 DROP DATABASE d9;
 CREATE DATABASE d9 DEFAULT CHARACTER SET ascii;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 ALTER DATABASE d9   COLLATE ascii_general_ci;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 DROP DATABASE d9;
 CREATE DATABASE d9 DEFAULT CHARACTER SET ascii;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 ALTER DATABASE d9 DEFAULT COLLATE ascii_general_ci;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 DROP DATABASE d9;
 CREATE DATABASE d9 DEFAULT CHARACTER SET ascii;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 ALTER SCHEMA d9   COLLATE ascii_bin;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_bin	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 DROP DATABASE d9;
 CREATE DATABASE d9 DEFAULT CHARACTER SET ascii;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 ALTER SCHEMA d9 DEFAULT COLLATE ascii_bin;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_bin	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 DROP DATABASE d9;
 CREATE DATABASE d9 DEFAULT CHARACTER SET ascii;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 ALTER SCHEMA d9   COLLATE ascii_general_ci;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 DROP DATABASE d9;
 CREATE DATABASE d9 DEFAULT CHARACTER SET ascii;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 ALTER SCHEMA d9 DEFAULT COLLATE ascii_general_ci;
 SELECT * FROM INFORMATION_SCHEMA.SCHEMATA ORDER BY SCHEMA_NAME;
 CATALOG_NAME	SCHEMA_NAME	DEFAULT_CHARACTER_SET_NAME	DEFAULT_COLLATION_NAME	SQL_PATH	SCHEMA_COMMENT
 def	d9	ascii	ascii_general_ci	NULL	
-def	information_schema	utf8	utf8_general_ci	NULL	
+def	information_schema	utf8mb3	utf8mb3_general_ci	NULL	
 def	mtr	latin1	latin1_swedish_ci	NULL	
 def	mysql	latin1	latin1_swedish_ci	NULL	
-def	performance_schema	utf8	utf8_general_ci	NULL	
-def	sys	utf8	utf8_general_ci	NULL	
+def	performance_schema	utf8mb3	utf8mb3_general_ci	NULL	
+def	sys	utf8mb3	utf8mb3_general_ci	NULL	
 def	test	latin1	latin1_swedish_ci	NULL	
 DROP DATABASE d9;

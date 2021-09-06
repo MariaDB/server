@@ -2,7 +2,6 @@
 call mtr.add_suppression("InnoDB: New log files created");
 call mtr.add_suppression("InnoDB: Operating system error number .* in a file operation");
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
-call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself, InnoDB does not create them");
 call mtr.add_suppression("InnoDB: Ignoring tablespace for `test`\\.`t21` because it could not be opened");
 call mtr.add_suppression("InnoDB: Cannot open datafile for read-only: ");
 call mtr.add_suppression("Table .* in the InnoDB data dictionary has tablespace id .*, but tablespace with that id or name does not exist");
@@ -61,6 +60,7 @@ ALTER TABLE t21 FORCE, ALGORITHM=INPLACE;
 exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables-exclude=test.t21" --target-dir=$targetdir;
 --enable_result_log
 --list_files $targetdir/test *.ibd
+--list_files $targetdir/test *.new
 
 --echo # Prepare the full backup
 --disable_result_log

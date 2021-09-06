@@ -1519,9 +1519,10 @@ gtid_state_from_pos(const char *name, uint32 offset,
         goto end;
       }
 
-      current_checksum_alg= get_checksum_alg(packet.ptr(), packet.length());
+      current_checksum_alg= get_checksum_alg((uchar*) packet.ptr(),
+                                             packet.length());
       found_format_description_event= true;
-      if (unlikely(!(tmp= new Format_description_log_event(packet.ptr(),
+      if (unlikely(!(tmp= new Format_description_log_event((uchar*) packet.ptr(),
                                                            packet.length(),
                                                            fdev))))
       {
@@ -1539,7 +1540,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
       {
         sele_len -= BINLOG_CHECKSUM_LEN;
       }
-      Start_encryption_log_event sele(packet.ptr(), sele_len, fdev);
+      Start_encryption_log_event sele((uchar*) packet.ptr(), sele_len, fdev);
       if (fdev->start_decryption(&sele))
       {
         errormsg= "Could not start decryption of binlog.";
@@ -1596,7 +1597,7 @@ gtid_state_from_pos(const char *name, uint32 offset,
     {
       rpl_gtid gtid;
       uchar flags2;
-      if (unlikely(Gtid_log_event::peek(packet.ptr(), packet.length(),
+      if (unlikely(Gtid_log_event::peek((uchar*) packet.ptr(), packet.length(),
                                         current_checksum_alg, &gtid.domain_id,
                                         &gtid.server_id, &gtid.seq_no, &flags2,
                                         fdev)))
@@ -1682,9 +1683,9 @@ is_until_reached(binlog_send_info *info, ulong *ev_offset,
     if (event_type != XID_EVENT && event_type != XA_PREPARE_LOG_EVENT &&
         (event_type != QUERY_EVENT ||    /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
          !Query_log_event::peek_is_commit_rollback
-               (info->packet->ptr()+*ev_offset,
-                info->packet->length()-*ev_offset,
-                info->current_checksum_alg)))
+         ((uchar*) info->packet->ptr() + *ev_offset,
+          info->packet->length() - *ev_offset,
+          info->current_checksum_alg)))
       return false;
     break;
   }
@@ -1762,7 +1763,7 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
       rpl_gtid event_gtid;
 
       if (ev_offset > len ||
-          Gtid_log_event::peek(packet->ptr()+ev_offset, len - ev_offset,
+          Gtid_log_event::peek((uchar*) packet->ptr()+ev_offset, len - ev_offset,
                                current_checksum_alg,
                                &event_gtid.domain_id, &event_gtid.server_id,
                                &event_gtid.seq_no, &flags2, info->fdev))
@@ -1916,7 +1917,8 @@ send_event_to_slave(binlog_send_info *info, Log_event_type event_type,
   case GTID_SKIP_TRANSACTION:
     if (event_type == XID_EVENT || event_type == XA_PREPARE_LOG_EVENT ||
         (event_type == QUERY_EVENT && /* QUERY_COMPRESSED_EVENT would never be commmit or rollback */
-         Query_log_event::peek_is_commit_rollback(packet->ptr() + ev_offset,
+         Query_log_event::peek_is_commit_rollback((uchar*) packet->ptr() +
+                                                  ev_offset,
                                                   len - ev_offset,
                                                   current_checksum_alg)))
       info->gtid_skip_group= GTID_SKIP_NOT;
@@ -2153,7 +2155,7 @@ static int init_binlog_sender(binlog_send_info *info,
         "Start binlog_dump to slave_server(%lu), pos(%s, %lu), "
         "using_gtid(%d), gtid('%s')", thd->variables.server_id,
         log_ident, (ulong)*pos, info->using_gtid_state,
-        connect_gtid_state.c_ptr_quick());
+        connect_gtid_state.c_ptr_safe());
   }
 
 #ifndef DBUG_OFF
@@ -2176,7 +2178,7 @@ static int init_binlog_sender(binlog_send_info *info,
   const char *name=search_file_name;
   if (info->using_gtid_state)
   {
-    if (info->gtid_state.load(connect_gtid_state.c_ptr_quick(),
+    if (info->gtid_state.load(connect_gtid_state.ptr(),
                              connect_gtid_state.length()))
     {
       info->errmsg= "Out of memory or malformed slave request when obtaining "
@@ -2185,7 +2187,7 @@ static int init_binlog_sender(binlog_send_info *info,
       return 1;
     }
     if (info->until_gtid_state &&
-        info->until_gtid_state->load(slave_until_gtid_str.c_ptr_quick(),
+        info->until_gtid_state->load(slave_until_gtid_str.ptr(),
                                     slave_until_gtid_str.length()))
     {
       info->errmsg= "Out of memory or malformed slave request when "
@@ -2320,7 +2322,8 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     DBUG_RETURN(1);
   }
 
-  info->current_checksum_alg= get_checksum_alg(packet->ptr() + ev_offset,
+  info->current_checksum_alg= get_checksum_alg((uchar*) packet->ptr() +
+                                               ev_offset,
                                                packet->length() - ev_offset);
 
   DBUG_ASSERT(info->current_checksum_alg == BINLOG_CHECKSUM_ALG_OFF ||
@@ -2345,7 +2348,7 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
     ev_len-= BINLOG_CHECKSUM_LEN;
 
   Format_description_log_event *tmp;
-  if (!(tmp= new Format_description_log_event(packet->ptr() + ev_offset,
+  if (!(tmp= new Format_description_log_event((uchar*) packet->ptr() + ev_offset,
                                               ev_len, info->fdev)))
   {
     info->error= ER_MASTER_FATAL_ERROR_READING_BINLOG;
@@ -2437,7 +2440,8 @@ static int send_format_descriptor_event(binlog_send_info *info, IO_CACHE *log,
   if (event_type == START_ENCRYPTION_EVENT)
   {
     Start_encryption_log_event *sele= (Start_encryption_log_event *)
-      Log_event::read_log_event(packet->ptr() + ev_offset, packet->length()
+      Log_event::read_log_event((uchar*) packet->ptr() + ev_offset,
+                                packet->length()
                                 - ev_offset, &info->errmsg, info->fdev,
                                 BINLOG_CHECKSUM_ALG_OFF);
     if (!sele)
@@ -2824,6 +2828,12 @@ static int send_one_binlog_file(binlog_send_info *info,
      */
     if (send_events(info, log, linfo, end_pos))
       return 1;
+    DBUG_EXECUTE_IF("Notify_binlog_EOF",
+                    {
+                      const char act[]= "now signal eof_reached";
+                      DBUG_ASSERT(!debug_sync_set_action(current_thd,
+                                                         STRING_WITH_LEN(act)));
+                    };);
   }
 
   return 1;
@@ -4323,7 +4333,9 @@ bool show_binlog_info(THD* thd)
     LOG_INFO li;
     mysql_bin_log.get_current_log(&li);
     size_t dir_len = dirname_length(li.log_file_name);
-    protocol->store(li.log_file_name + dir_len, &my_charset_bin);
+    const char *base= li.log_file_name + dir_len;
+
+    protocol->store(base, strlen(base), &my_charset_bin);
     protocol->store((ulonglong) li.pos);
     protocol->store(binlog_filter->get_do_db());
     protocol->store(binlog_filter->get_ignore_db());
@@ -4375,6 +4387,7 @@ bool show_binlogs(THD* thd)
   Protocol *protocol= thd->protocol;
   uint retry_count= 0;
   size_t cur_dir_len;
+  uint64 expected_reset_masters;
   DBUG_ENTER("show_binlogs");
 
   if (!mysql_bin_log.is_open())
@@ -4399,6 +4412,7 @@ retry:
   mysql_mutex_lock(mysql_bin_log.get_log_lock());
   mysql_bin_log.lock_index();
   mysql_bin_log.raw_get_current_log(&cur);
+  expected_reset_masters= mysql_bin_log.get_reset_master_count();
   mysql_mutex_unlock(mysql_bin_log.get_log_lock());
   
   /* The following call unlocks lock_index */
@@ -4418,6 +4432,16 @@ retry:
     /* Skip directory name as we shouldn't include this in the result */
     cur_link->name.str+=    dir_len;
     cur_link->name.length-= dir_len;
+
+    if (mysql_bin_log.get_reset_master_count() > expected_reset_masters)
+    {
+      /*
+        Reset master was called after we cached filenames.
+        Reinitialize the cache.
+      */
+      free_root(&mem_root, MYF(MY_MARK_BLOCKS_FREE));
+      goto retry;
+    }
 
     if (!(strncmp(fname+dir_len, cur.log_file_name+cur_dir_len, length)))
       cur_link->size= cur.pos;  /* The active log, use the active position */

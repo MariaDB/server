@@ -477,11 +477,11 @@ c1	c2	c3	c4	c5
 show create table t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `c1` varchar(2) CHARACTER SET utf8 NOT NULL,
-  `c2` varchar(2) CHARACTER SET utf8 NOT NULL,
-  `c3` varchar(2) CHARACTER SET utf8 NOT NULL,
-  `c4` varchar(2) CHARACTER SET utf8 NOT NULL,
-  `c5` varchar(2) CHARACTER SET utf8 NOT NULL
+  `c1` varchar(2) CHARACTER SET utf8mb3 NOT NULL,
+  `c2` varchar(2) CHARACTER SET utf8mb3 NOT NULL,
+  `c3` varchar(2) CHARACTER SET utf8mb3 NOT NULL,
+  `c4` varchar(2) CHARACTER SET utf8mb3 NOT NULL,
+  `c5` varchar(2) CHARACTER SET utf8mb3 NOT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 drop table t1;
 create table t1 (a binary(4), b char(4) character set koi8r);
@@ -822,13 +822,13 @@ collation(cast("a" as char(10) binary))
 latin1_bin
 select collation(cast("a" as char(10) charset utf8 binary));
 collation(cast("a" as char(10) charset utf8 binary))
-utf8_bin
+utf8mb3_bin
 select collation(cast("a" as char(10) ascii binary));
 collation(cast("a" as char(10) ascii binary))
 latin1_bin
 select collation(cast("a" as char(10) binary charset utf8));
 collation(cast("a" as char(10) binary charset utf8))
-utf8_bin
+utf8mb3_bin
 select collation(cast("a" as char(10) binary ascii));
 collation(cast("a" as char(10) binary ascii))
 latin1_bin
@@ -1239,14 +1239,14 @@ DECLARE a VARCHAR(30) CHARACTER SET utf8;
 SET a=CAST(_utf8 0xD18F AS CHAR(1) CHARACTER SET latin1);
 END;
 $$
-ERROR HY000: Cannot convert 'utf8' character 0xD18F to 'latin1'
+ERROR HY000: Cannot convert 'utf8mb3' character 0xD18F to 'latin1'
 # Conversion problems still escalate warnings to errors (with right truncation)
 BEGIN NOT ATOMIC
 DECLARE a VARCHAR(30) CHARACTER SET utf8;
 SET a=CAST(_utf8 0xD18FD18F AS CHAR(1) CHARACTER SET latin1);
 END;
 $$
-ERROR HY000: Cannot convert 'utf8' character 0xD18F to 'latin1'
+ERROR HY000: Cannot convert 'utf8mb3' character 0xD18F to 'latin1'
 # CAST(number AS CHAR) escalates warnings to errors on truncation
 CREATE OR REPLACE TABLE t1 (a VARCHAR(10));
 INSERT INTO t1 VALUES (CAST(123 AS CHAR(1)));

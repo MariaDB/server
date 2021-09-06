@@ -93,7 +93,7 @@ INSERT INTO t1(c_char) VALUES("1");
 #         TINYTEXT CHARSET latin1 COLLATE latin1_swedish_ci,
 #         TEXT CHARSET latin1 COLLATE latin1_swedish_ci,
 #         MEDIUMTEXT CHARSET latin1 COLLATE latin1_swedish_ci,
-#         LONGTEXT CHARSET utf8 COLLATE utf8_general_ci)
+#         LONGTEXT CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
 RESET MASTER;
 SET GLOBAL binlog_row_metadata = FULL;
 INSERT INTO t1(c_char) VALUES("1");
@@ -102,7 +102,7 @@ INSERT INTO t1(c_char) VALUES("1");
 #         `c_tinytext` TINYTEXT CHARSET latin1 COLLATE latin1_swedish_ci,
 #         `c_text` TEXT CHARSET latin1 COLLATE latin1_swedish_ci,
 #         `c_mediumtext` MEDIUMTEXT CHARSET latin1 COLLATE latin1_swedish_ci,
-#         `c_longtext` LONGTEXT CHARSET utf8 COLLATE utf8_general_ci)
+#         `c_longtext` LONGTEXT CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
 DROP TABLE t1;
 RESET MASTER;
 #
@@ -126,9 +126,9 @@ CREATE TABLE t1(c_char_utf8 CHAR(10) CHARSET utf8,
 c_varchar_utf8 VARCHAR(10) CHARSET utf8,
 c_text_utf8 TEXT CHARSET utf8);
 INSERT INTO t1 VALUES("1", "2", "3");
-# Columns(`c_char_utf8` CHAR(10) CHARSET utf8 COLLATE utf8_general_ci,
-#         `c_varchar_utf8` VARCHAR(10) CHARSET utf8 COLLATE utf8_general_ci,
-#         `c_text_utf8` TEXT CHARSET utf8 COLLATE utf8_general_ci)
+# Columns(`c_char_utf8` CHAR(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci,
+#         `c_varchar_utf8` VARCHAR(10) CHARSET utf8mb3 COLLATE utf8mb3_general_ci,
+#         `c_text_utf8` TEXT CHARSET utf8mb3 COLLATE utf8mb3_general_ci)
 DROP TABLE t1;
 RESET MASTER;
 CREATE TABLE t1(c_utf8mb4_520 CHAR(10) CHARSET utf8mb4 COLLATE utf8mb4_unicode_ci,

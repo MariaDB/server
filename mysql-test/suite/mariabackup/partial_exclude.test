@@ -27,6 +27,7 @@ exec $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup "--tables-ex
 --enable_result_log
 
 # check that only t1 table is in backup (t2 is excluded)
+list_files $targetdir/test *.new;
 list_files $targetdir/test *.ibd;
 # check that db2 database is not in the backup (excluded)
 --error 1

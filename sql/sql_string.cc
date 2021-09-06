@@ -37,15 +37,15 @@ bool Binary_string::real_alloc(size_t length)
   DBUG_ASSERT(arg_length > length);
   if (arg_length <= length)
     return TRUE;                                 /* Overflow */
+  DBUG_ASSERT(length < UINT_MAX32);              // cast to uint32 is safe
   str_length=0;
   if (Alloced_length < arg_length)
   {
-    free();
-    if (!(Ptr=(char*) my_malloc(PSI_INSTRUMENT_ME,
+    free_buffer();
+    if (!(Ptr=(char*) my_malloc(STRING_PSI_MEMORY_KEY,
                                 arg_length,MYF(MY_WME | (thread_specific ?
                                                 MY_THREAD_SPECIFIC : 0)))))
       return TRUE;
-    DBUG_ASSERT(length < UINT_MAX32);
     Alloced_length=(uint32) arg_length;
     alloced=1;
   }
@@ -55,7 +55,8 @@ bool Binary_string::real_alloc(size_t length)
 
 
 /**
-   Allocates a new buffer on the heap for this String.
+   Allocates a new buffer on the heap for this String if current buffer is
+   smaller.
 
    - If the String's internal buffer is privately owned and heap allocated,
      one of the following is performed.
@@ -70,7 +71,8 @@ bool Binary_string::real_alloc(size_t length)
      will be allocated and the string copied accoring to its length, as found
      in String::length().
  
-   For C compatibility, the new string buffer is null terminated.
+   For C compatibility, the new string buffer is null terminated if it was
+   allocated.
 
    @param alloc_length The requested string size in characters, excluding any
    null terminator.
@@ -81,9 +83,10 @@ bool Binary_string::real_alloc(size_t length)
 
    @retval true An error occurred when attempting to allocate memory.
 */
+
 bool Binary_string::realloc_raw(size_t alloc_length)
 {
-  if (Alloced_length <= alloc_length)
+  if (Alloced_length < alloc_length)
   {
     char *new_ptr;
     uint32 len= ALIGN_SIZE(alloc_length+1);
@@ -92,13 +95,13 @@ bool Binary_string::realloc_raw(size_t alloc_length)
       return TRUE;                                 /* Overflow */
     if (alloced)
     {
-      if (!(new_ptr= (char*) my_realloc(PSI_INSTRUMENT_ME, Ptr,len,
+      if (!(new_ptr= (char*) my_realloc(STRING_PSI_MEMORY_KEY, Ptr,len,
                                         MYF(MY_WME |
                                             (thread_specific ?
                                              MY_THREAD_SPECIFIC : 0)))))
         return TRUE;				// Signal error
     }
-    else if ((new_ptr= (char*) my_malloc(PSI_INSTRUMENT_ME, len,
+    else if ((new_ptr= (char*) my_malloc(STRING_PSI_MEMORY_KEY, len,
                                          MYF(MY_WME |
                                              (thread_specific ?
                                               MY_THREAD_SPECIFIC : 0)))))
@@ -118,9 +121,14 @@ bool Binary_string::realloc_raw(size_t alloc_length)
   return FALSE;
 }
 
+
 bool String::set_int(longlong num, bool unsigned_flag, CHARSET_INFO *cs)
 {
-  uint l=20*cs->mbmaxlen+1;
+  /*
+    This allocates a few bytes extra in the unlikely case that cs->mb_maxlen
+    > 1, but we can live with that
+  */
+  uint l= LONGLONG_BUFFER_SIZE * cs->mbmaxlen;
   int base= unsigned_flag ? 10 : -10;
 
   if (alloc(l))
@@ -155,8 +163,9 @@ static inline void APPEND_HEX(char *&to, uchar value)
 }
 
 
-void Static_binary_string::qs_append_hex(const char *str, uint32 len)
+void Binary_string::qs_append_hex(const char *str, uint32 len)
 {
+  ASSERT_LENGTH(len*2);
   const char *str_end= str + len;
   for (char *to= Ptr + str_length ; str < str_end; str++)
     APPEND_HEX(to, (uchar) *str);
@@ -235,7 +244,7 @@ bool Binary_string::copy()
 */
 bool Binary_string::copy(const Binary_string &str)
 {
-  if (alloc(str.str_length))
+  if (alloc(str.str_length+1))
     return TRUE;
   if ((str_length=str.str_length))
     bmove(Ptr,str.Ptr,str_length);		// May be overlapping
@@ -246,7 +255,7 @@ bool Binary_string::copy(const Binary_string &str)
 bool Binary_string::copy(const char *str, size_t arg_length)
 {
   DBUG_ASSERT(arg_length < UINT_MAX32);
-  if (alloc(arg_length))
+  if (alloc(arg_length+1))
     return TRUE;
   if (Ptr == str && arg_length == uint32(str_length))
   {
@@ -272,7 +281,7 @@ bool Binary_string::copy(const char *str, size_t arg_length)
 bool Binary_string::copy_or_move(const char *str, size_t arg_length)
 {
   DBUG_ASSERT(arg_length < UINT_MAX32);
-  if (alloc(arg_length))
+  if (alloc(arg_length+1))
     return TRUE;
   if ((str_length=uint32(arg_length)))
     memmove(Ptr,str,arg_length);
@@ -494,16 +503,17 @@ bool String::set_ascii(const char *str, size_t arg_length)
 
 /* This is used by mysql.cc */
 
-bool Binary_string::fill(uint32 max_length,char fill_char)
+bool Binary_string::fill(size_t max_length,char fill_char)
 {
+  DBUG_ASSERT(max_length < UINT_MAX32); // cast to uint32 is safe
   if (str_length > max_length)
-    Ptr[str_length=max_length]=0;
+    Ptr[str_length= (uint32) max_length]=0;
   else
   {
     if (realloc(max_length))
       return TRUE;
     bfill(Ptr+str_length,max_length-str_length,fill_char);
-    str_length=max_length;
+    str_length= (uint32) max_length;
   }
   return FALSE;
 }
@@ -521,7 +531,7 @@ void String::strip_sp()
 
 bool String::append(const char *s,size_t size)
 {
-  DBUG_ASSERT(size <= UINT_MAX32);
+  DBUG_ASSERT(size <= UINT_MAX32);              // cast to uint32 is safe
   uint32 arg_length= (uint32) size;
   if (!arg_length)
     return FALSE;
@@ -656,7 +666,7 @@ bool String::append_with_prefill(const char *s,uint32 arg_length,
 }
 
 
-int Static_binary_string::strstr(const Static_binary_string &s, uint32 offset)
+int Binary_string::strstr(const Binary_string &s, uint32 offset)
 {
   if (s.length()+offset <= str_length)
   {
@@ -687,7 +697,7 @@ skip:
 ** Search string from end. Offset is offset to the end of string
 */
 
-int Static_binary_string::strrstr(const Static_binary_string &s, uint32 offset)
+int Binary_string::strrstr(const Binary_string &s, uint32 offset)
 {
   if (s.length() <= offset && offset <= str_length)
   {
@@ -757,38 +767,43 @@ int Binary_string::reserve(size_t space_needed, size_t grow_by)
   return FALSE;
 }
 
-void Static_binary_string::qs_append(const char *str, size_t len)
+void Binary_string::qs_append(const char *str, size_t len)
 {
+  ASSERT_LENGTH(len);
   memcpy(Ptr + str_length, str, len + 1);
   str_length += (uint32)len;
 }
 
-void Static_binary_string::qs_append(double d)
+void Binary_string::qs_append(double d)
 {
   char *buff = Ptr + str_length;
-  str_length+= (uint32) my_gcvt(d, MY_GCVT_ARG_DOUBLE, FLOATING_POINT_BUFFER - 1, buff,
-                       NULL);
+  size_t length= my_gcvt(d, MY_GCVT_ARG_DOUBLE, FLOATING_POINT_BUFFER - 1,
+                         buff, NULL);
+  ASSERT_LENGTH(length);
+  str_length+= (uint32) length;
 }
 
-void Static_binary_string::qs_append(const double *d)
+void Binary_string::qs_append(const double *d)
 {
   double ld;
   float8get(ld, (const char*) d);
   qs_append(ld);
 }
 
-void Static_binary_string::qs_append(int i)
+void Binary_string::qs_append(int i)
 {
   char *buff= Ptr + str_length;
   char *end= int10_to_str(i, buff, -10);
-  str_length+= (int) (end-buff);
+  ASSERT_LENGTH((size_t) (end-buff));
+  str_length+= (uint32) (end-buff);
 }
 
-void Static_binary_string::qs_append(ulonglong i)
+void Binary_string::qs_append(ulonglong i)
 {
   char *buff= Ptr + str_length;
   char *end= longlong10_to_str(i, buff, 10);
-  str_length+= (int) (end-buff);
+  ASSERT_LENGTH((size_t) (end-buff));
+  str_length+= (uint32) (end-buff);
 }
 
 
@@ -833,10 +848,9 @@ bool Binary_string::copy_printable_hhhh(CHARSET_INFO *to_cs,
 */
 
 
-int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
+int sortcmp(const Binary_string *s, const Binary_string *t, CHARSET_INFO *cs)
 {
- return cs->strnncollsp(s->ptr(), s->length(),
-                        t->ptr(), t->length());
+ return cs->strnncollsp(s->ptr(), s->length(), t->ptr(), t->length());
 }
 
 
@@ -858,7 +872,7 @@ int sortcmp(const String *s,const String *t, CHARSET_INFO *cs)
 */
 
 
-int stringcmp(const String *s,const String *t)
+int stringcmp(const Binary_string *s, const Binary_string *t)
 {
   uint32 s_len=s->length(),t_len=t->length(),len=MY_MIN(s_len,t_len);
   int cmp= len ? memcmp(s->ptr(), t->ptr(), len) : 0;
@@ -1104,7 +1118,8 @@ uint
 String_copier::well_formed_copy(CHARSET_INFO *to_cs,
                                 char *to, size_t to_length,
                                 CHARSET_INFO *from_cs,
-                                const char *from, size_t from_length, size_t nchars)
+                                const char *from, size_t from_length,
+                                size_t nchars)
 {
   if ((to_cs == &my_charset_bin) || 
       (from_cs == &my_charset_bin) ||
@@ -1251,24 +1266,16 @@ bool String::append_semi_hex(const char *s, uint len, CHARSET_INFO *cs)
   return false;
 }
 
+
 // Shrink the buffer, but only if it is allocated on the heap.
 void Binary_string::shrink(size_t arg_length)
 {
-    if (!is_alloced())
-        return;
-    if (ALIGN_SIZE(arg_length + 1) < Alloced_length)
-    {
-        char* new_ptr;
-        if (!(new_ptr = (char*)my_realloc(STRING_PSI_MEMORY_KEY, Ptr, arg_length,
-            MYF(thread_specific ? MY_THREAD_SPECIFIC : 0))))
-        {
-            Alloced_length = 0;
-            real_alloc(arg_length);
-        }
-        else
-        {
-            Ptr = new_ptr;
-            Alloced_length = (uint32)arg_length;
-        }
-    }
+  if (is_alloced() && ALIGN_SIZE(arg_length + 1) < Alloced_length)
+  {
+    /* my_realloc() can't fail as new buffer is less than the original one */
+    Ptr= (char*) my_realloc(STRING_PSI_MEMORY_KEY, Ptr, arg_length,
+                            MYF(thread_specific ?
+                                MY_THREAD_SPECIFIC : 0));
+    Alloced_length= (uint32) arg_length;
+  }
 }

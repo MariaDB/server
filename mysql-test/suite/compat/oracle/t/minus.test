@@ -1,0 +1,44 @@
+CREATE TABLE tx1 (c1 int, c2 varchar(30));
+CREATE TABLE tx2 (c1 int, c2 varchar(30));
+CREATE TABLE tx3 (c1 int, c2 varchar(30));
+INSERT INTO tx1 VALUES (1, 'jim');
+INSERT INTO tx1 VALUES (2, 'menny');
+INSERT INTO tx1 VALUES (3, 'linda');
+
+INSERT INTO tx2 VALUES (1, 'jim');
+INSERT INTO tx2 VALUES (2, 'kris');
+INSERT INTO tx2 VALUES (3, 'shory');
+
+INSERT INTO tx3 VALUES (1, 'jim');
+INSERT INTO tx3 VALUES (2, 'kris');
+INSERT INTO tx3 VALUES (3, 'linda');
+
+--echo #
+--echo # test when sql_mode is not oracle
+--echo #
+
+SELECT c2 FROM tx1 EXCEPT SELECT c2 from tx2;
+--error 1064
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2;
+
+# MINUS should not be a reserved word
+create table MINUS (a int);
+drop table MINUS;
+
+--echo #
+--echo # test when sql_mode is oracle
+--echo #
+
+SET sql_mode=ORACLE;
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2;
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2 MINUS SELECT c2 from tx3;
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2 EXCEPT SELECT c2 from tx3;
+SELECT c2 FROM tx1 MINUS SELECT c2 from tx2 UNION SELECT c2 from tx3;
+
+# MINUS should be a reserved word
+--error ER_PARSE_ERROR
+create table MINUS (a int);
+
+DROP TABLE tx1;
+DROP TABLE tx2;
+DROP TABLE tx3;

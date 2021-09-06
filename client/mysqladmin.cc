@@ -175,7 +175,7 @@ static struct my_option my_long_options[] =
   {"password", 'p',
    "Password to use when connecting to server. If password is not given it's asked from the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -278,7 +278,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     option_silent++;
     break;
   case 'W':
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
 
     /* Prioritize pipe if explicit via command line */
@@ -616,13 +616,13 @@ static my_bool sql_connect(MYSQL *mysql, uint wait)
 	if (mysql_errno(mysql) == CR_CONNECTION_ERROR)
 	{
 	  fprintf(stderr,
-		  "Check that mysqld is running and that the socket: '%s' exists!\n",
+		  "Check that mariadbd is running and that the socket: '%s' exists!\n",
 		  unix_port ? unix_port : mysql_unix_port);
 	}
 	else if (mysql_errno(mysql) == CR_CONN_HOST_ERROR ||
 		 mysql_errno(mysql) == CR_UNKNOWN_HOST)
 	{
-	  fprintf(stderr,"Check that mysqld is running on %s",host);
+	  fprintf(stderr,"Check that mariadbd is running on %s",host);
 	  fprintf(stderr," and that the port is %d.\n",
 		  tcp_port ? tcp_port: mysql_port);
 	  fprintf(stderr,"You can check this by doing 'telnet %s %d'\n",
@@ -1153,7 +1153,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
       {
         bool old= (find_type(argv[0], &command_typelib, FIND_TYPE_BASIC) ==
                    ADMIN_OLD_PASSWORD);
-#ifdef __WIN__
+#ifdef _WIN32
         size_t pw_len= strlen(typed_password);
         if (pw_len > 1 && typed_password[0] == '\'' &&
             typed_password[pw_len-1] == '\'')
@@ -1225,7 +1225,7 @@ static int execute_commands(MYSQL *mysql,int argc, char **argv)
 	    because we can't perfectly find out the host
 	   */
 	  my_printf_error(0,"\n"
-			  "You cannot use 'password' command as mysqld runs\n"
+			  "You cannot use 'password' command as mariadbd runs\n"
 			  " with grant tables disabled (was started with"
 			  " --skip-grant-tables).\n"
 			  "Use: \"mysqladmin flush-privileges password '*'\""
@@ -1326,7 +1326,7 @@ password_done:
 	}
 	else
 	{
-	  my_printf_error(0,"mysqld doesn't answer to ping, error: '%s'",
+	  my_printf_error(0,"mariadbd doesn't answer to ping, error: '%s'",
 			  error_flags, mysql_error(mysql));
 	  return -1;
 	}

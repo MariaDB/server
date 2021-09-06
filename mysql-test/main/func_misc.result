@@ -23,6 +23,17 @@ hex(inet_aton('127.1.1'))
 select length(uuid()), charset(uuid()), length(unhex(replace(uuid(),_utf8'-',_utf8'')));
 length(uuid())	charset(uuid())	length(unhex(replace(uuid(),_utf8'-',_utf8'')))
 36	latin1	16
+select length(sys_guid()) = length(uuid()) -2;
+length(sys_guid()) = length(uuid()) -2
+0
+select sys_guid() != sys_guid();
+sys_guid() != sys_guid()
+1
+explain extended select uuid() = "", sys_guid() = "";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	SIMPLE	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+Warnings:
+Note	1003	select uuid() = '' AS `uuid() = ""`,sys_guid() = '' AS `sys_guid() = ""`
 set @a= uuid_short();
 set @b= uuid_short();
 select @b - @a;

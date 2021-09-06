@@ -505,6 +505,8 @@ class Rdb_key_def {
     MAX_INDEX_ID = 7,
     DDL_CREATE_INDEX_ONGOING = 8,
     AUTO_INC = 9,
+    // MariaDB: 10 through 12 are already taken in upstream
+    TABLE_VERSION = 20, // MariaDB: table version record
     END_DICT_INDEX_ID = 255
   };
 

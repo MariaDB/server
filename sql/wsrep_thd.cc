@@ -340,11 +340,20 @@ int wsrep_abort_thd(THD *bf_thd_ptr, THD *victim_thd_ptr, my_bool signal)
   DBUG_RETURN(1);
 }
 
-bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
+bool wsrep_bf_abort(THD* bf_thd, THD* victim_thd)
 {
   WSREP_LOG_THD(bf_thd, "BF aborter before");
   WSREP_LOG_THD(victim_thd, "victim before");
-  wsrep::seqno bf_seqno(bf_thd->wsrep_trx().ws_meta().seqno());
+
+  DBUG_EXECUTE_IF("sync.wsrep_bf_abort",
+                  {
+                    const char act[]=
+                      "now "
+                      "SIGNAL sync.wsrep_bf_abort_reached "
+                      "WAIT_FOR signal.wsrep_bf_abort";
+                    DBUG_ASSERT(!debug_sync_set_action(bf_thd,
+                                                       STRING_WITH_LEN(act)));
+                  };);
 
   if (WSREP(victim_thd) && !victim_thd->wsrep_trx().active())
   {
@@ -368,6 +377,8 @@ bool wsrep_bf_abort(const THD* bf_thd, THD* victim_thd)
   }
 
   bool ret;
+  wsrep::seqno bf_seqno(bf_thd->wsrep_trx().ws_meta().seqno());
+
   if (wsrep_thd_is_toi(bf_thd))
   {
     ret= victim_thd->wsrep_cs().total_order_bf_abort(bf_seqno);

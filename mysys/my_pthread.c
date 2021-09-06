@@ -90,7 +90,7 @@ struct tm *gmtime_r(const time_t *clock, struct tm *res)
 ** Author: Gary Wisniewski <garyw@spidereye.com.au>, much modified by Monty
 ****************************************************************************/
 
-#if !defined(HAVE_SIGWAIT) && !defined(sigwait) && !defined(__WIN__) && !defined(HAVE_rts_threads)
+#if !defined(HAVE_SIGWAIT) && !defined(sigwait) && !defined(_WIN32) && !defined(HAVE_rts_threads)
 
 #if !defined(DONT_USE_SIGSUSPEND)
 

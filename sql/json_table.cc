@@ -900,20 +900,26 @@ int Json_table_column::print(THD *thd, Field **f, String *str)
   switch (m_column_type)
   {
   case FOR_ORDINALITY:
-    if (str->append("FOR ORDINALITY"))
+    if (str->append(STRING_WITH_LEN("FOR ORDINALITY")))
       return 1;
     break;
   case EXISTS_PATH:
   case PATH:
+  {
+    static const LEX_CSTRING path= { STRING_WITH_LEN(" PATH ") };
+    static const LEX_CSTRING exists_path= { STRING_WITH_LEN(" EXISTS PATH ") };
+
     (*f)->sql_type(column_type);
 
     if (str->append(column_type) ||
         ((*f)->has_charset() && m_explicit_cs &&
-           (str->append(" CHARSET ") || str->append(m_explicit_cs->csname))) ||
-        str->append(m_column_type == PATH ? " PATH " : " EXISTS PATH ") ||
+         (str->append(STRING_WITH_LEN(" CHARSET ")) ||
+          str->append(&m_explicit_cs->cs_name))) ||
+        str->append(m_column_type == PATH ? &path : &exists_path) ||
         print_path(str, &m_path))
       return 1;
     break;
+  }
   };
 
   if (m_on_empty.print("EMPTY", str) ||
@@ -977,7 +983,7 @@ int Json_table_column::On_response::respond(Json_table_column *jc, Field *f,
 
 int Json_table_column::On_response::print(const char *name, String *str) const
 {
-  const char *resp;
+  LEX_CSTRING resp;
   const LEX_CSTRING *ds= NULL;
   if (m_response == Json_table_column::RESPONSE_NOT_SPECIFIED)
     return 0;
@@ -985,29 +991,28 @@ int Json_table_column::On_response::print(const char *name, String *str) const
   switch (m_response)
   {
     case Json_table_column::RESPONSE_NULL:
-      resp= "NULL";
+      lex_string_set3(&resp, STRING_WITH_LEN("NULL"));
       break;
     case Json_table_column::RESPONSE_ERROR:
-      resp= "ERROR";
+      lex_string_set3(&resp, STRING_WITH_LEN("ERROR"));
       break;
     case Json_table_column::RESPONSE_DEFAULT:
     {
-      resp= "DEFAULT";
+      lex_string_set3(&resp, STRING_WITH_LEN("DEFAULT"));
       ds= &m_default;
       break;
     }
     default:
-      resp= NULL;
+      lex_string_set3(&resp, "", 0);
       DBUG_ASSERT(FALSE); /* should never happen. */
   }
 
-  return
-    (str->append(' ') || str->append(resp)  ||
-    (ds && (str->append(" '") ||
-            str->append_for_single_quote(ds->str, ds->length) ||
-            str->append('\''))) ||
-    str->append(" ON ") ||
-    str->append(name));
+  return (str->append(' ') || str->append(resp)  ||
+          (ds && (str->append(STRING_WITH_LEN(" '")) ||
+                  str->append_for_single_quote(ds->str, ds->length) ||
+                  str->append('\''))) ||
+          str->append(STRING_WITH_LEN(" ON ")) ||
+          str->append(name, strlen(name)));
 }
 
 
@@ -1178,7 +1183,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
   Json_table_column *jc= *last_column;
   bool first_column= TRUE;
 
-  if (str->append("COLUMNS ("))
+  if (str->append(STRING_WITH_LEN("COLUMNS (")))
     return 1;
 
   /* loop while jc belongs to the current or nested paths. */
@@ -1187,7 +1192,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
   {
     if (first_column)
       first_column= FALSE;
-    else if (str->append(", "))
+    else if (str->append(STRING_WITH_LEN(", ")))
       return 1;
 
     if (jc->m_nest == c_path)
@@ -1200,7 +1205,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
     else
     {
       DBUG_ASSERT(column_in_this_or_nested(c_nested, jc));
-      if (str->append("NESTED PATH ") ||
+      if (str->append(STRING_WITH_LEN("NESTED PATH ")) ||
           print_path(str, &jc->m_nest->m_path) ||
           str->append(' ') ||
           c_nested->print(thd, f, str, it, &jc))
@@ -1209,7 +1214,7 @@ int Json_table_nested_path::print(THD *thd, Field ***f, String *str,
     }
   }
 
-  if (str->append(")"))
+  if (str->append(STRING_WITH_LEN(")")))
     return 1;
 
   *last_column= jc;
@@ -1235,12 +1240,12 @@ int Table_function_json_table::print(THD *thd, TABLE_LIST *sql_table,
 
   DBUG_ENTER("Table_function_json_table::print");
 
-  if (str->append("JSON_TABLE("))
+  if (str->append(STRING_WITH_LEN("JSON_TABLE(")))
     DBUG_RETURN(TRUE);
 
   m_json->print(str, query_type);
 
-  if (str->append(", ") ||
+  if (str->append(STRING_WITH_LEN(", ")) ||
       print_path(str, &m_nested_path.m_path) ||
       str->append(' ') ||
       m_nested_path.print(thd, &f_list, str, jc_i, &jc) ||

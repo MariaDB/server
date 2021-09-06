@@ -26,12 +26,8 @@
 #include "ma_crypt.h"
 #include "s3_func.h"
 
-#if defined(MSDOS) || defined(__WIN__)
-#ifdef __WIN__
+#ifdef _WIN32
 #include <fcntl.h>
-#else
-#include <process.h>			/* Prototype for getpid */
-#endif
 #endif
 
 static void setup_key_functions(MARIA_KEYDEF *keyinfo);
@@ -562,7 +558,7 @@ MARIA_HA *maria_open(const char *name, int mode, uint open_flags,
       case the uuid will be set in _ma_mark_file_changed().
     */
     if (born_transactional &&
-        ((share->state.create_trid > trnman_get_max_trid() &&
+        ((share->state.create_trid > max_trid_in_system() &&
          !maria_in_recovery) ||
          ((share->state.changed & STATE_NOT_MOVABLE) &&
           ((!(open_flags & HA_OPEN_IGNORE_MOVED_STATE) &&

@@ -96,9 +96,9 @@ static MYSQL_THDVAR_ENUM(stats_method, PLUGIN_VAR_RQCMDARG,
   "and NULLS_IGNORED", NULL, NULL,
   MI_STATS_METHOD_NULLS_NOT_EQUAL, &myisam_stats_method_typelib);
 
-const char *MI_CHECK_INFO= "info";
-const char *MI_CHECK_WARNING= "warning";
-const char *MI_CHECK_ERROR= "error";
+const LEX_CSTRING MI_CHECK_INFO= { STRING_WITH_LEN("info") };
+const LEX_CSTRING MI_CHECK_WARNING= { STRING_WITH_LEN("warning") };
+const LEX_CSTRING MI_CHECK_ERROR= { STRING_WITH_LEN("error") };
 
 #ifndef DBUG_OFF
 /**
@@ -135,13 +135,13 @@ static handler *myisam_create_handler(handlerton *hton,
 }
 
 
-static void mi_check_print(HA_CHECK *param, const char* msg_type,
+static void mi_check_print(HA_CHECK *param, const LEX_CSTRING* msg_type,
                            const char *msgbuf)
 {
-  if (msg_type == MI_CHECK_INFO)
+  if (msg_type == &MI_CHECK_INFO)
     sql_print_information("%s.%s: %s", param->db_name, param->table_name,
                           msgbuf);
-  else if (msg_type == MI_CHECK_WARNING)
+  else if (msg_type == &MI_CHECK_WARNING)
     sql_print_warning("%s.%s: %s", param->db_name, param->table_name,
                       msgbuf);
   else
@@ -150,7 +150,7 @@ static void mi_check_print(HA_CHECK *param, const char* msg_type,
 
 // collect errors printed by mi_check routines
 
-static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
+static void mi_check_print_msg(HA_CHECK *param,	const LEX_CSTRING *msg_type,
 			       const char *fmt, va_list args)
 {
   THD* thd = (THD*)param->thd;
@@ -165,7 +165,7 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
   msg_length= my_vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
   msgbuf[sizeof(msgbuf) - 1] = 0; // healthy paranoia
 
-  DBUG_PRINT(msg_type,("message: %s",msgbuf));
+  DBUG_PRINT(msg_type->str,("message: %s",msgbuf));
 
   if (!thd->vio_ok())
   {
@@ -177,9 +177,9 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
 			 T_AUTO_REPAIR))
   {
     myf flag= 0;
-    if (msg_type == MI_CHECK_INFO)
+    if (msg_type == &MI_CHECK_INFO)
       flag= ME_NOTE;
-    else if (msg_type == MI_CHECK_WARNING)
+    else if (msg_type == &MI_CHECK_WARNING)
       flag= ME_WARNING;
     my_message(ER_NOT_KEYFILE, msgbuf, MYF(flag));
     if (thd->variables.log_warnings > 2 && ! thd->log_all_errors)
@@ -201,7 +201,7 @@ static void mi_check_print_msg(HA_CHECK *param,	const char* msg_type,
 
   protocol->prepare_for_resend();
   protocol->store(name, length, system_charset_info);
-  protocol->store(param->op_name, system_charset_info);
+  protocol->store(param->op_name, strlen(param->op_name), system_charset_info);
   protocol->store(msg_type, system_charset_info);
   protocol->store(msgbuf, msg_length, system_charset_info);
   if (protocol->write())
@@ -615,7 +615,7 @@ void mi_check_print_error(HA_CHECK *param, const char *fmt,...)
     return;
   va_list args;
   va_start(args, fmt);
-  mi_check_print_msg(param, MI_CHECK_ERROR, fmt, args);
+  mi_check_print_msg(param, &MI_CHECK_ERROR, fmt, args);
   va_end(args);
 }
 
@@ -623,7 +623,7 @@ void mi_check_print_info(HA_CHECK *param, const char *fmt,...)
 {
   va_list args;
   va_start(args, fmt);
-  mi_check_print_msg(param, MI_CHECK_INFO, fmt, args);
+  mi_check_print_msg(param, &MI_CHECK_INFO, fmt, args);
   param->note_printed= 1;
   va_end(args);
 }
@@ -634,7 +634,7 @@ void mi_check_print_warning(HA_CHECK *param, const char *fmt,...)
   param->out_flag|= O_DATA_LOST;
   va_list args;
   va_start(args, fmt);
-  mi_check_print_msg(param, MI_CHECK_WARNING, fmt, args);
+  mi_check_print_msg(param, &MI_CHECK_WARNING, fmt, args);
   va_end(args);
 }
 

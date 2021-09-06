@@ -47,14 +47,14 @@ bool Item_geometry_func::fix_length_and_dec()
   collation.set(&my_charset_bin);
   decimals=0;
   max_length= (uint32) UINT_MAX32;
-  maybe_null= 1;
+  set_maybe_null();
   return FALSE;
 }
 
 
 String *Item_func_geometry_from_text::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_buffer buffer;
   String arg_val;
   String *wkt= args[0]->val_str_ascii(&arg_val);
@@ -81,7 +81,7 @@ String *Item_func_geometry_from_text::val_str(String *str)
 
 String *Item_func_geometry_from_wkb::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *wkb;
   Geometry_buffer buffer;
@@ -100,12 +100,12 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
     srid= (uint32)args[1]->val_int();
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
   {
     null_value= TRUE;                           /* purecov: inspected */
     return 0;                                   /* purecov: inspected */
   }
-  str->length(0);
   str->q_append(srid);
   if ((null_value= 
         (args[0]->null_value ||
@@ -117,7 +117,7 @@ String *Item_func_geometry_from_wkb::val_str(String *str)
 
 String *Item_func_geometry_from_json::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_buffer buffer;
   String *js= args[0]->val_str_ascii(&tmp_js);
   uint32 srid= 0;
@@ -144,9 +144,9 @@ String *Item_func_geometry_from_json::val_str(String *str)
     srid= (uint32)args[2]->val_int();
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     return 0;
-  str->length(0);
   str->q_append(srid);
 
   json_scan_start(&je, js->charset(), (const uchar *) js->ptr(),
@@ -193,7 +193,7 @@ String *Item_func_geometry_from_json::val_str(String *str)
 
 String *Item_func_as_wkt::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -218,14 +218,14 @@ bool Item_func_as_wkt::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length= (uint32) UINT_MAX32;
-  maybe_null= 1;
+  set_maybe_null();
   return FALSE;
 }
 
 
 String *Item_func_as_wkb::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -245,14 +245,14 @@ bool Item_func_as_geojson::fix_length_and_dec()
 {
   collation.set(default_charset(), DERIVATION_COERCIBLE, MY_REPERTOIRE_ASCII);
   max_length=MAX_BLOB_WIDTH;
-  maybe_null= 1;
+  set_maybe_null();
   return FALSE;
 }
 
 
 String *Item_func_as_geojson::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   uint max_dec= FLOATING_POINT_DECIMALS;
@@ -293,7 +293,7 @@ String *Item_func_as_geojson::val_str_ascii(String *str)
       goto error;
   }
 
-  if ((geom->as_json(str, max_dec, &dummy) || str->append("}", 1)))
+  if ((geom->as_json(str, max_dec, &dummy) || str->append('}')))
       goto error;
 
   return str;
@@ -306,7 +306,7 @@ error:
 
 String *Item_func_geometry_type::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(str);
   Geometry_buffer buffer;
   Geometry *geom= NULL;
@@ -325,7 +325,7 @@ String *Item_func_geometry_type::val_str_ascii(String *str)
 
 String *Item_func_envelope::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -437,7 +437,7 @@ int Item_func_boundary::Transporter::start_collection(int n_objects)
 String *Item_func_boundary::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_boundary::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
 
@@ -456,9 +456,9 @@ String *Item_func_boundary::val_str(String *str_value)
     goto mem_error;
 
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -475,7 +475,7 @@ mem_error:
 
 String *Item_func_centroid::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -487,9 +487,9 @@ String *Item_func_centroid::val_str(String *str)
     return 0;
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     return 0;
-  str->length(0);
   srid= uint4korr(swkb->ptr());
   str->q_append(srid);
 
@@ -536,7 +536,7 @@ String *Item_func_convexhull::val_str(String *str_value)
   Gcalc_heap::Info *cur_pi;
   
   DBUG_ENTER("Item_func_convexhull::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(&tmp_value);
 
   if ((null_value=
@@ -616,9 +616,9 @@ String *Item_func_convexhull::val_str(String *str_value)
 
 build_result:
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -645,7 +645,7 @@ String *Item_func_convexhull::val_str(String *str_value)
   ch_node *left_first, *left_cur, *right_first, *right_cur;
   
   DBUG_ENTER("Item_func_convexhull::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(&tmp_value);
 
   if ((null_value=
@@ -762,9 +762,9 @@ skip_point:;
 
 build_result:
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -786,7 +786,7 @@ mem_error:
 
 String *Item_func_spatial_decomp::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   Geometry_buffer buffer;
@@ -800,9 +800,9 @@ String *Item_func_spatial_decomp::val_str(String *str)
 
   srid= uint4korr(swkb->ptr());
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     goto err;
-  str->length(0);
   str->q_append(srid);
   switch (decomp_func) {
     case SP_STARTPOINT:
@@ -833,7 +833,7 @@ err:
 
 String *Item_func_spatial_decomp_n::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_val;
   String *swkb= args[0]->val_str(&arg_val);
   long n= (long) args[1]->val_int();
@@ -847,10 +847,10 @@ String *Item_func_spatial_decomp_n::val_str(String *str)
     return 0;
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     goto err;
   srid= uint4korr(swkb->ptr());
-  str->length(0);
   str->q_append(srid);
   switch (decomp_func_n)
   {
@@ -892,7 +892,7 @@ err:
 
 String *Item_func_point::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double x= args[0]->val_real();
   double y= args[1]->val_real();
   uint32 srid= 0;
@@ -925,7 +925,7 @@ String *Item_func_point::val_str(String *str)
 
 String *Item_func_spatial_collection::val_str(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String arg_value;
   uint i;
   uint32 srid= 0;
@@ -1127,35 +1127,35 @@ Item_func_spatial_rel::get_mm_leaf(RANGE_OPT_PARAM *param,
 }
 
 
-const char *Item_func_spatial_mbr_rel::func_name() const 
+LEX_CSTRING Item_func_spatial_mbr_rel::func_name_cstring() const
 { 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
-      return "mbrcontains";
+      return { STRING_WITH_LEN("mbrcontains") };
     case SP_WITHIN_FUNC:
-      return "mbrwithin";
+      return { STRING_WITH_LEN("mbrwithin") } ;
     case SP_EQUALS_FUNC:
-      return "mbrequals";
+      return { STRING_WITH_LEN("mbrequals") };
     case SP_DISJOINT_FUNC:
-      return "mbrdisjoint";
+      return { STRING_WITH_LEN("mbrdisjoint") };
     case SP_INTERSECTS_FUNC:
-      return "mbrintersects";
+      return { STRING_WITH_LEN("mbrintersects") };
     case SP_TOUCHES_FUNC:
-      return "mbrtouches";
+      return { STRING_WITH_LEN("mbrtouches") };
     case SP_CROSSES_FUNC:
-      return "mbrcrosses";
+      return { STRING_WITH_LEN("mbrcrosses") };
     case SP_OVERLAPS_FUNC:
-      return "mbroverlaps";
+      return { STRING_WITH_LEN("mbroverlaps") };
     default:
       DBUG_ASSERT(0);  // Should never happened
-      return "mbrsp_unknown"; 
+      return { STRING_WITH_LEN("mbrsp_unknown") };
   }
 }
 
 
 longlong Item_func_spatial_mbr_rel::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *res1= args[0]->val_str(&tmp_value1);
   String *res2= args[1]->val_str(&tmp_value2);
   Geometry_buffer buffer1, buffer2;
@@ -1198,28 +1198,28 @@ longlong Item_func_spatial_mbr_rel::val_int()
 }
 
 
-const char *Item_func_spatial_precise_rel::func_name() const 
+LEX_CSTRING Item_func_spatial_precise_rel::func_name_cstring() const
 { 
   switch (spatial_rel) {
     case SP_CONTAINS_FUNC:
-      return "st_contains";
+      return { STRING_WITH_LEN("st_contains") };
     case SP_WITHIN_FUNC:
-      return "st_within";
+      return { STRING_WITH_LEN("st_within") };
     case SP_EQUALS_FUNC:
-      return "st_equals";
+      return { STRING_WITH_LEN("st_equals") };
     case SP_DISJOINT_FUNC:
-      return "st_disjoint";
+      return { STRING_WITH_LEN("st_disjoint") };
     case SP_INTERSECTS_FUNC:
-      return "st_intersects";
+      return { STRING_WITH_LEN("st_intersects") };
     case SP_TOUCHES_FUNC:
-      return "st_touches";
+      return { STRING_WITH_LEN("st_touches") };
     case SP_CROSSES_FUNC:
-      return "st_crosses";
+      return { STRING_WITH_LEN("st_crosses") };
     case SP_OVERLAPS_FUNC:
-      return "st_overlaps";
+      return { STRING_WITH_LEN("st_overlaps") } ;
     default:
       DBUG_ASSERT(0);  // Should never happened
-      return "sp_unknown"; 
+      return { STRING_WITH_LEN("sp_unknown") };
   }
 }
 
@@ -1364,7 +1364,7 @@ public:
 longlong Item_func_spatial_relate::val_int()
 {
   DBUG_ENTER("Item_func_spatial_relate::val_int");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   int result= 0;
 
@@ -1401,7 +1401,7 @@ exit:
 longlong Item_func_spatial_precise_rel::val_int()
 {
   DBUG_ENTER("Item_func_spatial_precise_rel::val_int");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   int result= 0;
   uint shape_a, shape_b;
@@ -1538,7 +1538,7 @@ Item_func_spatial_operation::~Item_func_spatial_operation()
 String *Item_func_spatial_operation::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_spatial_operation::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Geometry_ptr_with_buffer_and_mbr g1, g2;
   uint32 srid= 0;
   Gcalc_operation_transporter trn(&func, &collector);
@@ -1575,9 +1575,9 @@ String *Item_func_spatial_operation::val_str(String *str_value)
 
 
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto exit;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&g1.buffer, str_value, res_receiver))
@@ -1591,20 +1591,20 @@ exit:
 }
 
 
-const char *Item_func_spatial_operation::func_name() const
+LEX_CSTRING Item_func_spatial_operation::func_name_cstring() const
 { 
   switch (spatial_op) {
     case Gcalc_function::op_intersection:
-      return "st_intersection";
+      return { STRING_WITH_LEN("st_intersection") };
     case Gcalc_function::op_difference:
-      return "st_difference";
+      return { STRING_WITH_LEN("st_difference") };
     case Gcalc_function::op_union:
-      return "st_union";
+      return { STRING_WITH_LEN("st_union") };
     case Gcalc_function::op_symdifference:
-      return "st_symdifference";
+      return { STRING_WITH_LEN("st_symdifference") };
     default:
       DBUG_ASSERT(0);  // Should never happen
-      return "sp_unknown"; 
+      return { STRING_WITH_LEN("sp_unknown") };
   }
 }
 
@@ -1990,7 +1990,7 @@ int Item_func_buffer::Transporter::complete_ring()
 String *Item_func_buffer::val_str(String *str_value)
 {
   DBUG_ENTER("Item_func_buffer::val_str");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *obj= args[0]->val_str(str_value);
   double dist= args[1]->val_real();
   Geometry_buffer buffer;
@@ -2045,9 +2045,9 @@ String *Item_func_buffer::val_str(String *str_value)
 
 return_empty_result:
   str_value->set_charset(&my_charset_bin);
+  str_value->length(0);
   if (str_value->reserve(SRID_SIZE, 512))
     goto mem_error;
-  str_value->length(0);
   str_value->q_append(srid);
 
   if (!Geometry::create_from_opresult(&buffer, str_value, res_receiver))
@@ -2065,7 +2065,7 @@ mem_error:
 
 longlong Item_func_isempty::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
@@ -2087,7 +2087,7 @@ longlong Item_func_issimple::val_int()
   const char *c_end;
 
   DBUG_ENTER("Item_func_issimple::val_int");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   
   null_value= 0;
   if ((args[0]->null_value ||
@@ -2150,7 +2150,7 @@ mem_error:
 
 longlong Item_func_isclosed::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
@@ -2174,7 +2174,7 @@ longlong Item_func_isclosed::val_int()
 longlong Item_func_isring::val_int()
 {
   /* It's actually a combination of two functions - IsClosed and IsSimple */
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String tmp;
   String *swkb= args[0]->val_str(&tmp);
   Geometry_buffer buffer;
@@ -2205,7 +2205,7 @@ longlong Item_func_isring::val_int()
 
 longlong Item_func_dimension::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 dim= 0;				// In case of error
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2222,7 +2222,7 @@ longlong Item_func_dimension::val_int()
 
 longlong Item_func_numinteriorring::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 num= 0;				// In case of error
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2238,7 +2238,7 @@ longlong Item_func_numinteriorring::val_int()
 
 longlong Item_func_numgeometries::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 num= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2254,7 +2254,7 @@ longlong Item_func_numgeometries::val_int()
 
 longlong Item_func_numpoints::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint32 num= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2271,7 +2271,7 @@ longlong Item_func_numpoints::val_int()
 
 double Item_func_x::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0.0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2287,7 +2287,7 @@ double Item_func_x::val_real()
 
 double Item_func_y::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2303,7 +2303,7 @@ double Item_func_y::val_real()
 
 double Item_func_area::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2319,7 +2319,7 @@ double Item_func_area::val_real()
 
 double Item_func_glength::val_real()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   double res= 0;				// In case of errors
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
@@ -2336,7 +2336,7 @@ double Item_func_glength::val_real()
 
 longlong Item_func_srid::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *swkb= args[0]->val_str(&value);
   Geometry_buffer buffer;
   
@@ -2363,7 +2363,7 @@ double Item_func_distance::val_real()
   Gcalc_operation_transporter trn(&func, &collector);
 
   DBUG_ENTER("Item_func_distance::val_real");
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *res1= args[0]->val_str(&tmp_value1);
   String *res2= args[1]->val_str(&tmp_value2);
   Geometry_buffer buffer1, buffer2;
@@ -2660,9 +2660,6 @@ double Item_func_sphere_distance::spherical_distance_points(Geometry *g1,
 String *Item_func_pointonsurface::val_str(String *str)
 {
   Gcalc_operation_transporter trn(&func, &collector);
-
-  DBUG_ENTER("Item_func_pointonsurface::val_str");
-  DBUG_ASSERT(fixed == 1);
   String *res= args[0]->val_str(&tmp_value);
   Geometry_buffer buffer;
   Geometry *g;
@@ -2672,6 +2669,8 @@ String *Item_func_pointonsurface::val_str(String *str)
   String *result= 0;
   const Gcalc_scan_iterator::point *pprev= NULL;
   uint32 srid;
+  DBUG_ENTER("Item_func_pointonsurface::val_str");
+  DBUG_ASSERT(fixed());
 
   null_value= 1;
   if ((args[0]->null_value ||
@@ -2738,10 +2737,10 @@ String *Item_func_pointonsurface::val_str(String *str)
     goto exit;
 
   str->set_charset(&my_charset_bin);
+  str->length(0);
   if (str->reserve(SRID_SIZE, 512))
     goto mem_error;
 
-  str->length(0);
   srid= uint4korr(res->ptr());
   str->q_append(srid);
 

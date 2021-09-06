@@ -1,3 +1,5 @@
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
 select 0 + b'1';
 0 + b'1'
 1
@@ -34,7 +36,6 @@ select 0 + b'1111111111111111';
 select 0 + b'1000000000000001';
 0 + b'1000000000000001'
 32769
-drop table if exists t1;
 create table t1 (a bit(65)) engine=innodb;
 ERROR 42000: Display width out of range for 'a' (max = 64)
 create table t1 (a bit(0)) engine=innodb;
@@ -422,3 +423,4 @@ hex(f1)	hex(f2)
 0	0
 0	0
 drop table t1;
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

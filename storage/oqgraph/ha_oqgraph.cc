@@ -80,6 +80,8 @@ static my_bool g_allow_create_integer_latch = FALSE;
 
 using namespace open_query;
 
+static const LEX_CSTRING empty_lex_cstring= {"", 0};
+
 // Table of varchar latch operations.
 // In the future this needs to be refactactored to live somewhere else
 struct oqgraph_latch_op_table { const char *key; int latch; };
@@ -149,12 +151,13 @@ static handler* oqgraph_create_handler(handlerton *hton, TABLE_SHARE *table,
 "           KEY (latch, destid, origid) USING HASH       "\
 "         )                                              "
 
-#define append_opt(NAME,VAL)                                    \
-  if (share->option_struct->VAL)                                \
-  {                                                             \
-    sql.append(STRING_WITH_LEN(" " NAME "='"));                  \
-    sql.append_for_single_quote(share->option_struct->VAL);     \
-    sql.append('\'');                                           \
+#define append_opt(NAME,VAL)                              \
+  if (share->option_struct->VAL)                          \
+  {                                                       \
+    const char *val= share->option_struct->VAL;           \
+    sql.append(STRING_WITH_LEN(" " NAME "='"));           \
+    sql.append_for_single_quote(val, strlen(val));        \
+    sql.append('\'');                                     \
   }
 
 int oqgraph_discover_table_structure(handlerton *hton, THD* thd,
@@ -162,7 +165,6 @@ int oqgraph_discover_table_structure(handlerton *hton, THD* thd,
 {
   StringBuffer<1024> sql(system_charset_info);
   sql.copy(STRING_WITH_LEN(OQGRAPH_CREATE_TABLE), system_charset_info);
-
   append_opt("data_table", table_name);
   append_opt("origid", origid);
   append_opt("destid", destid);
@@ -623,7 +625,7 @@ int ha_oqgraph::open(const char *name, int mode, uint test_if_locked)
   }
 
   if (enum open_frm_error err= open_table_from_share(thd, share,
-                                                     &empty_clex_str,
+                                                     &empty_lex_cstring,
                             (uint) (HA_OPEN_KEYFILE | HA_TRY_READ_ONLY),
                             EXTRA_RECORD,
                             thd->open_options, edges, FALSE))

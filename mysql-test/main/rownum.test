@@ -1,0 +1,565 @@
+--source include/have_sequence.inc
+#
+# Test of basic rownum() functionallity
+# Test are done with Aria to ensure that row order is stable
+#
+
+CREATE OR REPLACE TABLE t1(a int, b int) engine=aria;
+CREATE OR REPLACE TABLE t2(a int, b int) engine=aria;
+insert into t1 values (1,10),(2,20),(3,30);
+insert into t2 values (2,21),(3,31),(4,41);
+
+--echo #
+--echo # Simple selects
+--echo #
+
+select a,b,rownum() from t1;
+select a,b,rownum() from t1 where rownum() < 2;
+select a,b from t1 where rownum() <= 2;
+select a,b from t1 where rownum() > 2;
+
+--echo #
+--echo # Subqueries
+--echo #
+
+select t1.a,rownum(),t3.a,t3.t2_rownum from t1, (select t2.a,rownum() as t2_rownum from t2 where rownum() <=2) t3;
+select t1.a, (select t2.b from t2 where t1.a=t2.a and rownum() <= 1) 'b' from t1;
+select t1.a, t3.a from t1, (select * from t2 where rownum() <= 2) t3;
+select * from (select tt.*,rownum() as id from (select * from t1) tt) t3 where id>2;
+
+--echo #
+--echo # Joins
+--echo #
+
+select t1.a,t1.b,t2.a,t2.b,rownum() from t1,t2 where rownum() <= 4;
+select *,rownum() from t1,t2 where t1.a=t2.a and rownum()<=2;
+select * from t1 left join t2 on (t2.a=t1.a and rownum()=0);
+select * from t1 left join t2 on (t2.a=t1.a and rownum()>1);
+select * from t1 left join t2 on (t2.a=t1.a and rownum()<1);
+select * from t1 left join t2 on (t2.a=t1.a and rownum()=1);
+select * from t1 left join t2 on (t2.a=t1.a and rownum()>=1);
+
+--echo #
+--echo # Union
+--echo #
+
+select * from t1 where rownum() <=2 union select * from t2 where rownum()<= 1;
+
+--echo #
+--echo # Order by
+--echo #
+
+select * from t1 where rownum() <= 2 order by a desc;
+explain select * from t1 where rownum() <= 2 order by a desc;
+select t1.a,t1.b,rownum() from t1 where rownum() <= 2 order by a desc;
+explain select t1.a,t1.b,rownum() from t1 where rownum() <= 2 order by a desc;
+select *,rownum() from t1,t2;
+select *,rownum() from t1,t2 order by t2.a desc, t1.a desc;
+select * from (select * from t1 order by a desc) as t where rownum() <= 2;
+select * from t1,t2 where t1.a=t2.a and rownum()<=2 order by t1.a,t2.a;
+
+--echo #
+--echo # Having
+--echo #
+
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having r <= 2;
+select * from t1 having rownum() <= 2;
+select t1.a, sum(t1.b), rownum() from t1 group by t1.a;
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having r <= 2;
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having rownum() <= 2;
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having r <= 2 order by a desc;
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having rownum() <= 2 order by a desc;
+
+--echo #
+--echo # Sum functions
+--echo #
+
+select max(rownum()),min(rownum()) from t1;
+select sum(rownum()),avg(rownum()) from t1;
+
+--echo #
+--echo # Group by
+--echo #
+
+select t1.a,sum(t1.b) from t1 where rownum() < 2 group by t1.a;
+select t1.a,sum(t2.b) from t1 JOIN t2 ON (t1.a=t2.a) where rownum() <= 2 group by t1.a;
+select * from (select t1.a,sum(t2.b) from t1 JOIN t2 ON (t1.a=t2.a) group by t1.a) as t where rownum() <= 1;
+select t1.a,sum(rownum()),count(*) from t1 where rownum() <= 2 group by t1.a;
+select * from (select t1.a,sum(t1.b) from t1 group by t1.a) as t3 where rownum() < 2;
+
+create table t3 (a int) engine=myisam;
+insert into t3 values (3),(5),(5),(3);
+select a, max(rownum()) from t3 group by a;
+drop table t3;
+
+CREATE TABLE t3 (
+  a int(11) DEFAULT NULL,
+  b varchar(1024) DEFAULT NULL
+);
+insert into t3 select mod(seq*3,20)+1, repeat(char(33+mod(seq,90)),mod(seq,10)*100) from seq_1_to_23;
+SELECT sq.a,length(sq.f) FROM (SELECT a, GROUP_CONCAT(b,b) AS f FROM t3 GROUP BY a ORDER BY a desc) as sq WHERE ROWNUM() <= 10;
+drop table t3;
+
+--echo #
+--echo # Prepared statements
+--echo #
+
+PREPARE stmt1 from "select a,b,rownum() from t1 where rownum() <= 2";
+execute stmt1;
+execute stmt1;
+deallocate prepare stmt1;
+
+--echo #
+--echo # Views
+--echo #
+
+create view v1 as select t1.a,rownum() from t1;
+select * from v1;
+select t1.a,v1.* from t1,v1 where t1.a=v1.a;
+drop view v1;
+
+CREATE TABLE t3 (a INT);
+INSERT INTO t3 VALUES (1),(2),(3);
+CREATE VIEW v1 AS SELECT a FROM t3 WHERE ROWNUM() <= 2;
+SELECT * FROM v1;
+drop view v1;
+drop table t3;
+
+--echo #
+--echo # Reserved words
+--echo #
+
+create table t4 (a int, rownum int);
+insert into t4 (a,rownum) values (1,2);
+select t4.a,t4.rownum from t4;
+drop table t4;
+
+--echo #
+--echo # Test Oracle mode
+--echo #
+
+set SQL_MODE=ORACLE;
+select t1.a,rownum from t1 where rownum<=2;
+select t1.a,rownum() from t1 where rownum()<=2;
+--error ER_PARSE_ERROR
+create table t4 (a int, rownum int);
+
+DELIMITER |;
+DECLARE
+   CURSOR c_cursor
+   IS select a,b,rownum from t1 where rownum <= 2;
+   v_a  t1.a%TYPE;
+   v_b  t1.b%TYPE;
+   v_rn t1.a%TYPE;
+BEGIN
+  OPEN c_cursor;
+  FETCH c_cursor INTO v_a, v_b, v_rn;
+  WHILE c_cursor%FOUND LOOP
+     SELECT concat(v_a,'--',v_b,'--',v_rn);
+     FETCH c_cursor INTO v_a, v_b, v_rn;
+  END LOOP;
+  CLOSE c_cursor;
+END;|
+DELIMITER ;|
+
+select a, rownum from t1 group by a, rownum having rownum < 3;
+select a, rownum as r from t1 group by a, rownum having r < 3;
+select a, rownum from t1 group by a, rownum having "rownum" < 3;
+select a, rownum from t1 group by a, rownum having rownum < 3 order by a desc;
+select a, rownum as r from t1 group by a, rownum having r < 3 order by a desc;
+select a, rownum from t1 group by a, rownum having "rownum" < 3 order by a desc;
+
+set SQL_MODE=DEFAULT;
+
+--echo # Cleanup
+
+drop table t1,t2;
+
+--echo #
+--echo # INSERT
+--echo #
+
+create table t1 (a int not null primary key, b int);
+insert into t1 values (1,rownum()),(2,rownum()),(3,rownum());
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # INSERT DELAYED
+--echo #
+
+create table t1 (a int not null primary key, b int);
+insert delayed into t1 values (1,rownum()),(2,rownum()),(3,rownum());
+let $wait_condition= SELECT COUNT(*)=3 FROM t1;
+source include/wait_condition.inc;
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # INSERT IGNORED
+--echo #
+
+create table t1 (a int not null primary key, b int);
+# with VALUES
+insert ignore into t1 values (1,rownum()),(2,rownum()),(2,rownum()),(3,rownum());
+select * from t1;
+delete from t1;
+# with SELECT
+insert ignore into t1 select * from (values (1,rownum()),(2,rownum()),(2,rownum()),(3,rownum())) t;
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # INSERT ... RETURNING
+--echo #
+
+create or replace table t1 (a int);
+insert into t1 values (1),(2) returning a, rownum();
+drop table t1;
+
+--echo #
+--echo # UPDATE
+--echo #
+
+create table t1 (a int not null primary key, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+update t1 set b=0;
+update t1 set b=rownum()+1;
+select * from t1;
+
+update t1 set b=0;
+update t1 set b=rownum() where a < 10 and rownum() < 2;
+select * from t1;
+drop table t1;
+
+create table t1 (a int);
+insert into t1 values (10),(20),(30);
+update t1 set a = rownum();
+select * from t1;
+update t1 set a = rownum();
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # DELETE
+--echo #
+
+create table t1 (a int not null primary key, b int);
+insert into t1 values (1,1),(2,0),(3,0);
+delete from t1 where a < 10 and rownum() < 2;
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # MULTI-TABLE-DELETE
+--echo #
+
+create table t1 (a int not null primary key);
+insert into t1 values (1),(2),(3);
+create table t2 (a int not null primary key);
+insert into t2 values (1),(2),(3);
+
+delete t1,t2 from t1,t2 where t1.a=t2.a and rownum() <= 2;
+select * from t1;
+select * from t2;
+drop table t1,t2;
+
+--echo #
+--echo # MULTI-TABLE-UPDATE
+
+CREATE TABLE t1 (ID INT);
+CREATE TABLE t2 (ID INT,
+  s1 TEXT, s2 TEXT, s3 VARCHAR(10), s4 TEXT, s5 VARCHAR(10));
+
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1,'test', 'test', 'test', 'test', 'test'),
+                      (2,'test', 'test', 'test', 'test', 'test');
+
+SELECT * FROM t1 LEFT JOIN t2 USING(ID);
+UPDATE t1 LEFT JOIN t2 USING(ID) SET s1 = 'changed';
+select * from t2;
+update t2 set s1="";
+UPDATE t1 LEFT JOIN t2 USING(ID) SET s1 = 'changed' where rownum() <=1;
+select * from t2;
+drop table t1,t2;
+
+--echo #
+--echo # LOAD DATA
+--echo #
+
+create table t1 (a int, b int, c int);
+load data infile '../../std_data/loaddata7.dat' into table t1 fields terminated by ',' lines terminated by "\r\n" (a,b) set c=rownum();
+select * from t1;
+drop table t1;
+
+--echo #
+--echo # LIMIT OPTIMIZATION
+--echo #
+
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_100;
+
+flush status;
+select * from t1 where rownum() <= 3;
+show status like "Rows_read";
+flush status;
+select * from t1 where rownum() <= 4 and rownum() <= 3;
+show status like "Rows_read";
+flush status;
+select * from t1 where rownum() < 4 and a > 10;
+show status like "Rows_read";
+flush status;
+select * from t1 where 3 >= rownum();
+show status like "Rows_read";
+flush status;
+select * from t1 where 4 > rownum() and a > 20;
+show status like "Rows_read";
+flush status;
+select * from t1 where rownum() = 1 and a > 10;
+show status like "Rows_read";
+flush status;
+select * from t1 where a > 30 && 1 = rownum();
+show status like "Rows_read";
+flush status;
+
+--echo # No limit optimization
+
+select * from t1 where rownum() > 10;
+show status like "Rows_read";
+flush status;
+select * from t1 where 10 < rownum();
+show status like "Rows_read";
+flush status;
+select * from t1 where rownum() >= 10;
+show status like "Rows_read";
+flush status;
+select * from t1 where 10 < rownum();
+show status like "Rows_read";
+flush status;
+select * from t1 where 10 <= rownum();
+show status like "Rows_read";
+flush status;
+select * from t1 where 2 = rownum();
+show status like "Rows_read";
+flush status;
+select * from t1 where rownum() = 2;
+show status like "Rows_read";
+flush status;
+select * from t1 where rownum() <= 0;
+show status like "Rows_read";
+flush status;
+select *,rownum() from t1 where rownum() < 10 limit 4, 4;
+show status like "Rows_read";
+flush status;
+select * from t1 where rownum() < 10 order by a;
+show status like "Rows_read";
+flush status;
+
+
+--echo # rownum and limit
+
+select * from t1 where rownum() < 4 limit 10;
+show status like "Rows_read";
+flush status;
+select * from t1 where rownum() < 10 limit 4;
+show status like "Rows_read";
+
+drop table t1;
+
+--echo #
+--echo # Rownum examples from Woqutech
+--echo #
+
+set SQL_MODE=ORACLE;
+create table t1 (c1 int ,c2 varchar(20)) engine=myisam;
+insert into t1 values (1, 'aaa'),(2, 'bbb'),(3, 'ccc'),(4, 'ddd'),(5, 'eee');
+update t1 set c2 = 'xxx' where rownum = 2;
+select * from t1 where c2='xxx';
+update t1 set c2 = 'xxx' where  rownum < 3;
+select * from t1 where c2='xxx';
+delete from t1 where rownum = 2;
+select count(*) from t1;
+delete from t1 where rownum < 3;
+select count(*) from t1;
+delete from t1 where c1=rownum ;
+select count(*) from t1;
+delete from t1 where c1=rownum+2 ;
+select count(*) from t1;
+set SQL_MODE=DEFAULT;
+drop table t1;
+
+--echo #
+--echo # Rownum() used in not supported places (returns 0 or gives an error)
+--echo #
+
+set @a=rownum();
+select @a;
+
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+create or replace table t (a int, b int as (rownum()) virtual);
+
+create table t1 (a int);
+insert into t1 values (3),(1),(5),(8),(4);
+handler t1 open;
+--error ER_GENERATED_COLUMN_FUNCTION_IS_NOT_ALLOWED
+handler t1 read next where rownum() < 1;
+handler t1 close;
+drop table t1;
+
+# rownum() executed in a function will be run in the function context.
+
+create table t1 (a int not null primary key, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+create function f() returns int return rownum();
+select a, rownum(), f() from t1;
+drop function f;
+drop table t1;
+
+# rownum() executed in a trigger will be run in the function context.
+
+create or replace table t1 (a int, r int);
+create trigger tr before update on t1 for each row set NEW.r = rownum();
+insert into t1 (a) values (1),(2);
+select * from t1;
+update t1 set a=a+10;
+select * from t1;
+drop trigger tr;
+drop table t1;
+
+--echo #
+--echo # LIMIT optimisation
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1),(2),(3),(4),(5);
+
+let $query=
+select * from (select a from t1 where a < 1000) as tt where rownum() <= 2;
+flush status;
+eval $query;
+show status like "Rows_read";
+eval explain extended $query;
+eval prepare stmt from "$query";
+flush status;
+execute stmt;
+show status like "Rows_read";
+flush status;
+execute stmt;
+show status like "Rows_read";
+deallocate prepare stmt;
+
+
+let $query=
+select * from (select a from t1 where a < 1000 group by a) as tt where rownum() <= 2;
+flush status;
+eval $query;
+show status like "Rows_read";
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $query=
+select * from (select a from t1 where a < 1000 group by a order by 1) as tt where rownum() <= 2;
+flush status;
+eval $query;
+show status like "Rows_read";
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $query=
+select * from (select a from t1 where a < 1000 union select 10) as tt where rownum() <= 2;
+flush status;
+eval $query;
+show status like "Rows_read";
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # Other limit
+
+let $query=
+select * from (select a from t1 where a < 1000 group by a order by 1 limit 1) as tt where rownum() <= 2;
+eval $query;
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # Other limit less
+
+let $query=
+select * from (select a from t1 where a < 1000 group by a order by 1 limit 10) as tt where rownum() <= 2;
+eval $query;
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+let $query=
+select * from (select a from t1 where a < 1000 union select 10 limit 1) as tt where rownum() <= 2;
+eval $query;
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # < rownum
+
+let $query=
+select * from (select a from t1 where a < 1000) as tt where rownum() < 2;
+eval $query;
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # Simple expression
+
+let $query=
+select * from (select a from t1 where a < 1000) as tt where rownum() <= 1+1;
+eval $query;
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # Simple expression reversed
+
+let $query=
+select * from (select a from t1 where a < 1000) as tt where  1+1 >= rownum();
+eval $query;
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+--echo # expensive (no opt)
+
+let $query=
+select * from (select a from t1 where a < 1000) as tt where  (select max(a) from t1) >= rownum();
+eval $query;
+eval explain extended $query;
+eval prepare stmt from "$query";
+execute stmt;
+execute stmt;
+deallocate prepare stmt;
+
+drop table t1;
+
+--echo #
+--echo # Table value constructors
+--echo #
+values ("first row"),("next row is 3"),(rownum()),("next row is 5"),(rownum());

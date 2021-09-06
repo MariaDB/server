@@ -254,6 +254,7 @@ int spider_reset_conn_setted_parameter(
   conn->sql_log_off = spider_param_remote_sql_log_off();
   conn->wait_timeout = spider_param_remote_wait_timeout(thd);
   conn->sql_mode = full_sql_mode + 1;
+  myf utf8_flag= thd->get_utf8_flag();
   if (thd && spider_param_remote_time_zone())
   {
     int tz_length = strlen(spider_param_remote_time_zone());
@@ -267,8 +268,8 @@ int spider_reset_conn_setted_parameter(
   if (spider_param_remote_access_charset())
   {
     if (!(conn->access_charset =
-      get_charset_by_csname(spider_param_remote_access_charset(),
-        MY_CS_PRIMARY, MYF(MY_WME))))
+        get_charset_by_csname(spider_param_remote_access_charset(),
+        MY_CS_PRIMARY, MYF(utf8_flag | MY_WME))))
       DBUG_RETURN(ER_UNKNOWN_CHARACTER_SET);
   } else
     conn->access_charset = NULL;

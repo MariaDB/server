@@ -525,26 +525,6 @@ void fil_space_t::modify_check(const mtr_t& mtr) const
 }
 #endif
 
-/**********************************************************************//**
-Writes the space id and flags to a tablespace header.  The flags contain
-row type, physical/compressed page size, and logical/uncompressed page
-size of the tablespace. */
-void
-fsp_header_init_fields(
-/*===================*/
-	page_t*	page,		/*!< in/out: first page in the space */
-	ulint	space_id,	/*!< in: space id */
-	ulint	flags)		/*!< in: tablespace flags (FSP_SPACE_FLAGS) */
-{
-	flags &= ~FSP_FLAGS_MEM_MASK;
-	ut_a(fil_space_t::is_valid_flags(flags, space_id));
-
-	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_ID + page,
-			space_id);
-	mach_write_to_4(FSP_HEADER_OFFSET + FSP_SPACE_FLAGS + page,
-			flags);
-}
-
 /** Initialize a tablespace header.
 @param[in,out]	space	tablespace
 @param[in]	size	current size in blocks
@@ -2396,7 +2376,6 @@ fsp_reserve_free_extents(
 	uint32_t	n_pages)
 {
 	ulint		reserve;
-	size_t		total_reserved = 0;
 
 	ut_ad(mtr);
 	*n_reserved = n_ext;
@@ -2485,8 +2464,7 @@ try_again:
 		return(true);
 	}
 try_to_extend:
-	if (ulint n = fsp_try_extend_data_file(space, header, mtr)) {
-		total_reserved += n;
+	if (fsp_try_extend_data_file(space, header, mtr)) {
 		goto try_again;
 	}
 

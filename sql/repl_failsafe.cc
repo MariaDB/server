@@ -183,11 +183,11 @@ static my_bool show_slave_hosts_callback(THD *thd, Protocol *protocol)
   {
     protocol->prepare_for_resend();
     protocol->store(si->server_id);
-    protocol->store(si->host, &my_charset_bin);
+    protocol->store(si->host, strlen(si->host), &my_charset_bin);
     if (opt_show_slave_auth_info)
     {
-      protocol->store(si->user, &my_charset_bin);
-      protocol->store(si->password, &my_charset_bin);
+      protocol->store(si->user, safe_strlen(si->user), &my_charset_bin);
+      protocol->store(si->password, safe_strlen(si->password), &my_charset_bin);
     }
     protocol->store((uint32) si->port);
     protocol->store(si->master_id);

@@ -116,7 +116,7 @@ Event_creation_ctx::load_from_db(THD *thd,
 
   bool invalid_creation_ctx= FALSE;
 
-  if (load_charset(event_mem_root,
+  if (load_charset(thd, event_mem_root,
                    event_tbl->field[ET_FIELD_CHARACTER_SET_CLIENT],
                    thd->variables.character_set_client,
                    &client_cs))
@@ -129,7 +129,7 @@ Event_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(event_mem_root,
+  if (load_collation(thd, event_mem_root,
                      event_tbl->field[ET_FIELD_COLLATION_CONNECTION],
                      thd->variables.collation_connection,
                      &connection_cl))
@@ -142,7 +142,7 @@ Event_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(event_mem_root,
+  if (load_collation(thd, event_mem_root,
                      event_tbl->field[ET_FIELD_DB_COLLATION],
                      NULL,
                      &db_cl))
@@ -293,7 +293,7 @@ Event_basic::load_string_fields(Field **fields, ...)
 bool
 Event_basic::load_time_zone(THD *thd, const LEX_CSTRING *tz_name)
 {
-  String str(tz_name->str, &my_charset_latin1);
+  String str(tz_name->str, strlen(tz_name->str), &my_charset_latin1);
   time_zone= my_tz_find(thd, &str);
 
   return (time_zone == NULL);
@@ -1545,7 +1545,9 @@ end:
 
       if (sql_command_set)
       {
-        WSREP_TO_ISOLATION_END;
+#ifdef WITH_WSREP
+	wsrep_to_isolation_end(thd);
+#endif
         thd->lex->sql_command = sql_command_save;
       }
 

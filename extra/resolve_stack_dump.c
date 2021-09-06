@@ -177,7 +177,7 @@ static void open_files()
   /* if name not given, assume stdin*/
 
   if (!sym_fname)
-    die("Please run nm --numeric-sort on mysqld binary that produced stack \
+    die("Please run nm --numeric-sort on mariadbd binary that produced stack \
 trace dump and specify the path to it with -s or --symbols-file");
   if (!(fp_sym = my_fopen(sym_fname, O_RDONLY, MYF(MY_WME))))
     die("Could not open %s", sym_fname);

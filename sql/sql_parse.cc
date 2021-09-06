@@ -98,8 +98,6 @@
 
 #include "my_json_writer.h" 
 
-#define PRIV_LOCK_TABLES (SELECT_ACL | LOCK_TABLES_ACL)
-
 #define FLAGSTR(V,F) ((V)&(F)?#F" ":"")
 
 #ifdef WITH_ARIA_STORAGE_ENGINE
@@ -1672,7 +1670,8 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
                command != COM_PING &&
                command != COM_QUIT &&
                command != COM_STMT_PREPARE &&
-               command != COM_STMT_EXECUTE))
+               command != COM_STMT_EXECUTE &&
+               command != COM_STMT_CLOSE))
   {
     my_error(ER_MUST_CHANGE_PASSWORD, MYF(0));
     goto dispatch_end;
@@ -2260,11 +2259,10 @@ dispatch_command_return dispatch_command(enum enum_server_command command, THD *
     size_t length=
 #endif
     my_snprintf(buff, buff_len - 1,
-                        "Uptime: %lu  Threads: %d  Questions: %lu  "
+                        "Uptime: %lu  Threads: %u  Questions: %lu  "
                         "Slow queries: %lu  Opens: %lu  "
                         "Open tables: %u  Queries per second avg: %u.%03u",
-                        uptime,
-                        (int) thread_count, (ulong) thd->query_id,
+                        uptime, THD_count::value(), (ulong) thd->query_id,
                         current_global_status_var->long_query_count,
                         current_global_status_var->opened_tables,
                         tc_records(),
@@ -2418,7 +2416,18 @@ resume:
 
   thd->update_all_stats();
 
-  log_slow_statement(thd);
+  /*
+    Write to slow query log only those statements that received via the text
+    protocol except the EXECUTE statement. The reason we do that way is
+    that for statements received via binary protocol and for the EXECUTE
+    statement, the slow statements have been already written to slow query log
+    inside the method Prepared_statement::execute().
+  */
+  if(command == COM_QUERY &&
+     thd->lex->sql_command != SQLCOM_EXECUTE)
+    log_slow_statement(thd);
+  else
+    delete_explain_query(thd->lex);
 
   THD_STAGE_INFO(thd, stage_cleaning_up);
   thd->reset_query();
@@ -3432,7 +3441,7 @@ bool run_set_statement_if_requested(THD *thd, LEX *lex)
 */
 
 int
-mysql_execute_command(THD *thd)
+mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
 {
   int res= 0;
   int  up_result= 0;
@@ -3519,9 +3528,6 @@ mysql_execute_command(THD *thd)
     if (all_tables)
       thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
   }
-
-  if (check_dependencies_in_with_clauses(thd->lex->with_clauses_list))
-    DBUG_RETURN(1);
 
 #ifdef HAVE_REPLICATION
   if (unlikely(thd->slave_thread))
@@ -3814,7 +3820,7 @@ mysql_execute_command(THD *thd)
 
 #ifdef WITH_WSREP
   /* Check wsrep_mode rules before command execution. */
-  if (WSREP(thd) &&
+  if (WSREP_NNULL(thd) &&
       wsrep_thd_is_local(thd) && !wsrep_check_mode_before_cmd_execute(thd))
     goto error;
 
@@ -4930,7 +4936,7 @@ mysql_execute_command(THD *thd)
       {
         if (!lex->tmp_table() &&
            (!thd->is_current_stmt_binlog_format_row() ||
-	    !thd->find_temporary_table(table)))
+	    !is_temporary_table(table)))
         {
           WSREP_TO_ISOLATION_BEGIN(NULL, NULL, all_tables);
           break;
@@ -5262,7 +5268,7 @@ mysql_execute_command(THD *thd)
 
   } while (0);
   /* Don't do it, if we are inside a SP */
-  if (!thd->spcont)
+  if (!thd->spcont && !is_called_from_prepared_stmt)
   {
     sp_head::destroy(lex->sphead);
     lex->sphead= NULL;
@@ -5660,6 +5666,11 @@ mysql_execute_command(THD *thd)
     /* Begin transaction with the same isolation level. */
     if (tx_chain)
     {
+#ifdef WITH_WSREP
+      /* If there are pending changes after rollback we should clear them */
+      if (wsrep_on(thd) && wsrep_has_changes(thd))
+        wsrep_after_statement(thd);
+#endif
       if (trans_begin(thd))
         goto error;
     }
@@ -6114,7 +6125,8 @@ finish:
 #ifdef WITH_WSREP
   thd->wsrep_consistency_check= NO_CONSISTENCY_CHECK;
 
-  WSREP_TO_ISOLATION_END;
+  if (wsrep_thd_is_toi(thd) || wsrep_thd_is_in_rsu(thd))
+    wsrep_to_isolation_end(thd);
   /*
     Force release of transactional locks if not in active MST and wsrep is on.
   */
@@ -7878,7 +7890,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                       DBUG_ASSERT(!debug_sync_set_action(thd, STRING_WITH_LEN(act)));
                     });
         WSREP_DEBUG("wsrep retrying AC query: %lu  %s",
-                    thd->wsrep_retry_counter, WSREP_QUERY(thd));
+                    thd->wsrep_retry_counter, wsrep_thd_query(thd));
         wsrep_prepare_for_autocommit_retry(thd, rawbuf, length, parser_state);
         if (thd->lex->explain)
           delete_explain_query(thd->lex);
@@ -7892,7 +7904,7 @@ static bool wsrep_mysql_parse(THD *thd, char *rawbuf, uint length,
                     is_autocommit,
                     thd->wsrep_retry_counter,
                     thd->variables.wsrep_retry_autocommit,
-                    WSREP_QUERY(thd));
+                    wsrep_thd_query(thd));
         my_error(ER_LOCK_DEADLOCK, MYF(0));
         thd->reset_kill_query();
         thd->wsrep_retry_counter= 0;             //  reset
@@ -8211,7 +8223,7 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     ptr->is_fqtn= TRUE;
     ptr->db= table->db;
   }
-  else if (lex->copy_db_to(&ptr->db))
+  else if (!lex->with_cte_resolution && lex->copy_db_to(&ptr->db))
     DBUG_RETURN(0);
   else
     ptr->is_fqtn= FALSE;
@@ -8226,9 +8238,11 @@ TABLE_LIST *st_select_lex::add_table_to_list(THD *thd,
     if (ptr->db.length && ptr->db.str != any_db.str)
       ptr->db.length= my_casedn_str(files_charset_info, (char*) ptr->db.str);
   }
-      
+
   ptr->table_name= table->table;
-  ptr->lock_type=   lock_type;
+  ptr->lock_type= lock_type;
+  ptr->mdl_type= mdl_type;
+  ptr->table_options= table_options;
   ptr->updating=    MY_TEST(table_options & TL_OPTION_UPDATING);
   /* TODO: remove TL_OPTION_FORCE_INDEX as it looks like it's not used */
   ptr->force_index= MY_TEST(table_options & TL_OPTION_FORCE_INDEX);
@@ -8915,8 +8929,10 @@ void st_select_lex::set_lock_for_tables(thr_lock_type lock_type, bool for_update
     tables->lock_type= lock_type;
     tables->skip_locked= skip_locked;
     tables->updating=  for_update;
-    tables->mdl_request.set_type((lock_type >= TL_FIRST_WRITE) ?
-                                 MDL_SHARED_WRITE : MDL_SHARED_READ);
+
+    if (tables->db.length)
+      tables->mdl_request.set_type((lock_type >= TL_FIRST_WRITE) ?
+                                   MDL_SHARED_WRITE : MDL_SHARED_READ);
   }
   DBUG_VOID_RETURN;
 }
@@ -10302,8 +10318,8 @@ bool check_host_name(LEX_CSTRING *str)
 }
 
 
-extern int MYSQLparse(THD *thd); // from sql_yacc.cc
-extern int ORAparse(THD *thd);   // from sql_yacc_ora.cc
+extern int MYSQLparse(THD *thd); // from yy_mariadb.cc
+extern int ORAparse(THD *thd);   // from yy_oracle.cc
 
 
 /**
@@ -10362,10 +10378,8 @@ bool parse_sql(THD *thd, Parser_state *parser_state,
 
   /* Parse the query. */
 
-  bool mysql_parse_status=
-         ((thd->variables.sql_mode & MODE_ORACLE) ?
-          ORAparse(thd) :
-          MYSQLparse(thd)) != 0;
+  bool mysql_parse_status= thd->variables.sql_mode & MODE_ORACLE
+                           ? ORAparse(thd) : MYSQLparse(thd);
   DBUG_ASSERT(opt_bootstrap || mysql_parse_status ||
               thd->lex->select_stack_top == 0);
   thd->lex->current_select= thd->lex->first_select_lex();
@@ -10443,7 +10457,8 @@ merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
   {
     if (!my_charset_same(cs, cl))
     {
-      my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl->name, cs->csname);
+      my_error(ER_COLLATION_CHARSET_MISMATCH, MYF(0), cl->coll_name.str,
+               cs->cs_name.str);
       return NULL;
     }
     return cl;
@@ -10455,8 +10470,11 @@ merge_charset_and_collation(CHARSET_INFO *cs, CHARSET_INFO *cl)
 */
 CHARSET_INFO *find_bin_collation(CHARSET_INFO *cs)
 {
-  const char *csname= cs->csname;
-  cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(0));
+  const char *csname= cs->cs_name.str;
+  THD *thd= current_thd;
+  myf utf8_flag= thd->get_utf8_flag();
+
+  cs= get_charset_by_csname(csname, MY_CS_BINSORT, MYF(utf8_flag));
   if (!cs)
   {
     char tmp[65];

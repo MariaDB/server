@@ -1,5 +1,6 @@
 --source include/not_windows.inc
 --source include/not_embedded.inc
+--source include/not_aix.inc
 
 SET @global=@@global.thread_pool_idle_timeout;
 

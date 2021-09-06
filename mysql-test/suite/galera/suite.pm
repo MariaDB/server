@@ -65,11 +65,19 @@ push @::global_suppressions,
      qr|WSREP: Sending JOIN failed: -107 \(Transport endpoint is not connected\). Will retry in new primary component.|,
      qr|WSREP: Trying to continue unpaused monitor|,
      qr|WSREP: Wait for gtid returned error 3 while waiting for prior transactions to commit before setting position|,
+     qr|WSREP: Failed to report last committed|,
    );
+
+sub which($) { return `sh -c "command -v $_[0]"` }
 
 sub skip_combinations {
   my %skip = ();
-  $skip{'include/have_mariabackup.inc'} = 'Need ss' unless `ss -V`;
+  $skip{'include/have_mariabackup.inc'} = 'Need socket statistics utility'
+            unless which("lsof") || which("sockstat") || which("ss");
+  $skip{'include/have_stunnel.inc'} = "Need 'stunnel' utility"
+            unless which("stunnel");
+  $skip{'include/have_qpress.inc'} = "Need 'qpress' utility"
+            unless which("qpress");
   %skip;
 }
 

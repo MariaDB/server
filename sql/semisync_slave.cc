@@ -52,10 +52,10 @@ int Repl_semi_sync_slave::init_object()
   return result;
 }
 
-int Repl_semi_sync_slave::slave_read_sync_header(const char *header,
+int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
                                                  unsigned long total_len,
                                                  int  *semi_flags,
-                                                 const char **payload,
+                                                 const uchar **payload,
                                                  unsigned long *payload_len)
 {
   int read_res = 0;
@@ -64,7 +64,7 @@ int Repl_semi_sync_slave::slave_read_sync_header(const char *header,
   if (rpl_semi_sync_slave_status)
   {
     if (DBUG_EVALUATE_IF("semislave_corrupt_log", 0, 1)
-        && (unsigned char)(header[0]) == k_packet_magic_num)
+        && header[0] == k_packet_magic_num)
     {
       semi_sync_need_reply  = (header[1] & k_packet_flag_sync);
       *payload_len = total_len - 2;

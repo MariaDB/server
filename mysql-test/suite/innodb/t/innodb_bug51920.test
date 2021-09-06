@@ -22,9 +22,11 @@ let $wait_condition =
   WHERE INFO="UPDATE bug51920 SET i=2";
 -- source include/wait_condition.inc
 
+--enable_prepare_warnings
 SELECT ID FROM INFORMATION_SCHEMA.PROCESSLIST
 WHERE INFO="UPDATE bug51920 SET i=2"
 INTO @thread_id;
+--disable_prepare_warnings
 
 KILL @thread_id;
 let $wait_condition =

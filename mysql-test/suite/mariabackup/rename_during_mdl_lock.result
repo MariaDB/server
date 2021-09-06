@@ -1,4 +1,5 @@
 CREATE TABLE t1(i int) ENGINE INNODB;
+set global innodb_log_checkpoint_now = 1;
 # xtrabackup prepare
 # shutdown server
 # remove datadir

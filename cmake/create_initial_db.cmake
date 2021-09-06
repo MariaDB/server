@@ -15,6 +15,10 @@
 
 # This script creates initial database for packaging on Windows
 # Force Visual Studio to output to stdout
+
+# This script can be run with "make initial_database" or
+# "cmake --build .--target initial_database"
+
 IF(ENV{VS_UNICODE_OUTPUT})
  SET ($ENV{VS_UNICODE_OUTPUT})
 ENDIF()

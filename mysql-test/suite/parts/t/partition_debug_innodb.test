@@ -57,7 +57,7 @@ call mtr.add_suppression("InnoDB: Warning: allocated tablespace .*, old maximum 
 # If there is a crash or failure between the ddl_log is written and the
 # operation is completed, mysql will try to drop a not yet created partition
 call mtr.add_suppression("InnoDB: Error: table .* does not exist in the InnoDB internal");
-call mtr.add_suppression("InnoDB: Warning: MySQL is trying to drop table ");
+call mtr.add_suppression("InnoDB: Warning: MariaDB is trying to drop table ");
 call mtr.add_suppression("table .* does not exist in the InnoDB internal");
 
 

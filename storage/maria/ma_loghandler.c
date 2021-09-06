@@ -29,7 +29,7 @@
   Also there is no need to flush filesystem changes ,i.e to sync()
   directories.
 */
-#ifdef __WIN__
+#ifdef _WIN32
 #define sync_dir(A,B) 0
 #else
 #define sync_dir(A,B) mysql_file_sync(A,B)
@@ -3673,7 +3673,7 @@ my_bool translog_init_with_table(const char *directory,
 
   /* Directory to store files */
   unpack_dirname(log_descriptor.directory, directory);
-#ifndef __WIN__
+#ifndef _WIN32
   if ((log_descriptor.directory_fd= my_open(log_descriptor.directory,
                                             O_RDONLY, MYF(MY_WME))) < 0)
   {
@@ -9062,13 +9062,21 @@ static void dump_header_page(uchar *buff)
 {
   LOGHANDLER_FILE_INFO desc;
   char strbuff[21];
+  struct tm tmp_tm;
+  time_t header_time;
+
   translog_interpret_file_header(&desc, buff);
+  header_time= desc.timestamp/1000000ULL;
+  localtime_r(&header_time, &tmp_tm);
+
   printf("  This can be header page:\n"
-         "    Timestamp: %s\n"
+         "    Timestamp: %04d.%02d.%02d %02d.%02d.%02d  (%s)\n"
          "    Aria log version: %lu\n"
          "    Server version: %lu\n"
          "    Server id %lu\n"
          "    Page size %lu\n",
+         tmp_tm.tm_year+1900, tmp_tm.tm_mon+1, tmp_tm.tm_mday,
+         tmp_tm.tm_hour, tmp_tm.tm_min, tmp_tm.tm_sec,
          llstr(desc.timestamp, strbuff),
          desc.maria_version,
          desc.mysql_version,
@@ -9325,6 +9333,7 @@ void dump_page(uchar *buffer, File handler)
               sizeof(maria_trans_file_magic)) == 0)
   {
     dump_header_page(buffer);
+    return;
   }
   dump_datapage(buffer, handler);
 }

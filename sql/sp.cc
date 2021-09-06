@@ -122,12 +122,12 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("db") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("type") },
@@ -137,7 +137,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("specific_name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("language") },
@@ -178,7 +178,7 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("definer") },
     { STRING_WITH_LEN("varchar(") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("created") },
@@ -208,22 +208,22 @@ TABLE_FIELD_TYPE proc_table_fields[MYSQL_PROC_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("comment") },
     { STRING_WITH_LEN("text") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("character_set_client") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("collation_connection") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("body_utf8") },
@@ -285,12 +285,14 @@ private:
   Stored_routine_creation_ctx implementation.
 **************************************************************************/
 
-bool load_charset(MEM_ROOT *mem_root,
+bool load_charset(THD *thd,
+                  MEM_ROOT *mem_root,
                   Field *field,
                   CHARSET_INFO *dflt_cs,
                   CHARSET_INFO **cs)
 {
   LEX_CSTRING cs_name;
+  myf utf8_flag= thd->get_utf8_flag();
 
   if (field->val_str_nopad(mem_root, &cs_name))
   {
@@ -299,7 +301,7 @@ bool load_charset(MEM_ROOT *mem_root,
   }
 
   DBUG_ASSERT(cs_name.str[cs_name.length] == 0);
-  *cs= get_charset_by_csname(cs_name.str, MY_CS_PRIMARY, MYF(0));
+  *cs= get_charset_by_csname(cs_name.str, MY_CS_PRIMARY, MYF(utf8_flag));
 
   if (*cs == NULL)
   {
@@ -312,7 +314,7 @@ bool load_charset(MEM_ROOT *mem_root,
 
 /*************************************************************************/
 
-bool load_collation(MEM_ROOT *mem_root,
+bool load_collation(THD *thd, MEM_ROOT *mem_root,
                     Field *field,
                     CHARSET_INFO *dflt_cl,
                     CHARSET_INFO **cl)
@@ -324,9 +326,10 @@ bool load_collation(MEM_ROOT *mem_root,
     *cl= dflt_cl;
     return TRUE;
   }
+  myf utf8_flag= thd->get_utf8_flag();
 
   DBUG_ASSERT(cl_name.str[cl_name.length] == 0);
-  *cl= get_charset_by_name(cl_name.str, MYF(0));
+  *cl= get_charset_by_name(cl_name.str, MYF(utf8_flag));
 
   if (*cl == NULL)
   {
@@ -355,7 +358,7 @@ Stored_routine_creation_ctx::load_from_db(THD *thd,
 
   bool invalid_creation_ctx= FALSE;
 
-  if (load_charset(thd->mem_root,
+  if (load_charset(thd, thd->mem_root,
                    proc_tbl->field[MYSQL_PROC_FIELD_CHARACTER_SET_CLIENT],
                    thd->variables.character_set_client,
                    &client_cs))
@@ -368,7 +371,7 @@ Stored_routine_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(thd->mem_root,
+  if (load_collation(thd,thd->mem_root,
                      proc_tbl->field[MYSQL_PROC_FIELD_COLLATION_CONNECTION],
                      thd->variables.collation_connection,
                      &connection_cl))
@@ -381,7 +384,7 @@ Stored_routine_creation_ctx::load_from_db(THD *thd,
     invalid_creation_ctx= TRUE;
   }
 
-  if (load_collation(thd->mem_root,
+  if (load_collation(thd,thd->mem_root,
                      proc_tbl->field[MYSQL_PROC_FIELD_DB_COLLATION],
                      NULL,
                      &db_cl))
@@ -957,6 +960,7 @@ Sp_handler::db_load_routine(THD *thd, const Database_qualified_name *name,
   newlex.current_select= NULL;
 
   defstr.set_charset(creation_ctx->get_client_cs());
+  defstr.set_thread_specific();
 
   /*
     We have to add DEFINER clause and provide proper routine characterstics in
@@ -1073,11 +1077,11 @@ sp_returns_type(THD *thd, String &result, const sp_head *sp)
   if (field->has_charset())
   {
     result.append(STRING_WITH_LEN(" CHARSET "));
-    result.append(field->charset()->csname);
+    result.append(field->charset()->cs_name);
     if (!(field->charset()->state & MY_CS_PRIMARY))
     {
       result.append(STRING_WITH_LEN(" COLLATE "));
-      result.append(field->charset()->name);
+      result.append(field->charset()->coll_name);
     }
   }
 
@@ -1201,10 +1205,9 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
   TABLE *table;
   char definer_buf[USER_HOST_BUFF_SIZE];
   LEX_CSTRING definer;
-  sql_mode_t saved_mode= thd->variables.sql_mode;
-
+  sql_mode_t org_sql_mode= thd->variables.sql_mode;
+  enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
   CHARSET_INFO *db_cs= get_default_db_collation(thd, sp->m_db.str);
-
   bool store_failed= FALSE;
   DBUG_ENTER("sp_create_routine");
   DBUG_PRINT("enter", ("type: %s  name: %.*s",
@@ -1237,8 +1240,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
   /* Reset sql_mode during data dictionary operations. */
   thd->variables.sql_mode= 0;
-
-  Check_level_instant_set check_level_save(thd, CHECK_FIELD_WARN);
+  thd->count_cuted_fields= CHECK_FIELD_WARN;
 
   if (!(table= open_proc_table_for_update(thd)))
   {
@@ -1386,7 +1388,7 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
     store_failed= store_failed ||
       table->field[MYSQL_PROC_FIELD_SQL_MODE]->
-        store((longlong)saved_mode, TRUE);
+        store((longlong) org_sql_mode, TRUE);
 
     if (sp->comment().str)
     {
@@ -1423,22 +1425,19 @@ Sp_handler::sp_create_routine(THD *thd, const sp_head *sp) const
 
     table->field[MYSQL_PROC_FIELD_CHARACTER_SET_CLIENT]->set_notnull();
     store_failed= store_failed ||
-      table->field[MYSQL_PROC_FIELD_CHARACTER_SET_CLIENT]->store(
-        thd->charset()->csname,
-        strlen(thd->charset()->csname),
-        system_charset_info);
+      table->field[MYSQL_PROC_FIELD_CHARACTER_SET_CLIENT]->
+      store(&thd->charset()->cs_name, system_charset_info);
 
     table->field[MYSQL_PROC_FIELD_COLLATION_CONNECTION]->set_notnull();
     store_failed= store_failed ||
-      table->field[MYSQL_PROC_FIELD_COLLATION_CONNECTION]->store(
-        thd->variables.collation_connection->name,
-        strlen(thd->variables.collation_connection->name),
-        system_charset_info);
+      table->field[MYSQL_PROC_FIELD_COLLATION_CONNECTION]->
+      store(&thd->variables.collation_connection->coll_name,
+            system_charset_info);
 
     table->field[MYSQL_PROC_FIELD_DB_COLLATION]->set_notnull();
     store_failed= store_failed ||
-      table->field[MYSQL_PROC_FIELD_DB_COLLATION]->store(
-        db_cs->name, strlen(db_cs->name), system_charset_info);
+      table->field[MYSQL_PROC_FIELD_DB_COLLATION]->
+      store(&db_cs->coll_name, system_charset_info);
 
     table->field[MYSQL_PROC_FIELD_BODY_UTF8]->set_notnull();
     store_failed= store_failed ||
@@ -1477,13 +1476,13 @@ log:
                        sp->chistics(),
                        thd->lex->definer[0],
                        thd->lex->create_info,
-                       saved_mode))
+                       org_sql_mode))
     {
       my_error(ER_OUT_OF_RESOURCES, MYF(0));
       goto done;
     }
     /* restore sql_mode when binloging */
-    thd->variables.sql_mode= saved_mode;
+    thd->variables.sql_mode= org_sql_mode;
     /* Such a statement can always go directly to binlog, no trans cache */
     if (thd->binlog_query(THD::STMT_QUERY_TYPE,
                           log_query.ptr(), log_query.length(),
@@ -1492,12 +1491,12 @@ log:
       my_error(ER_ERROR_ON_WRITE, MYF(0), "binary log", -1);
       goto done;
     }
-    thd->variables.sql_mode= 0;
   }
   ret= FALSE;
 
 done:
-  thd->variables.sql_mode= saved_mode;
+  thd->variables.sql_mode= org_sql_mode;
+  thd->count_cuted_fields= org_count_cuted_fields;
   DBUG_ASSERT(!thd->is_current_stmt_binlog_format_row());
   DBUG_RETURN(ret);
 }
@@ -1550,7 +1549,7 @@ Sp_handler_package::show_create_sp(THD *thd, String *buf,
      buf->append(STRING_WITH_LEN("OR REPLACE "))) ||
     append_definer(thd, buf, &definer.user, &definer.host) ||
     buf->append(type_lex_cstring()) ||
-    buf->append(" ", 1) ||
+    buf->append(' ') ||
     (ddl_options.if_not_exists() &&
      buf->append(STRING_WITH_LEN("IF NOT EXISTS "))) ||
     (db.length > 0 &&
@@ -1558,7 +1557,7 @@ Sp_handler_package::show_create_sp(THD *thd, String *buf,
       buf->append('.'))) ||
     append_identifier(thd, buf, name.str, name.length) ||
     append_package_chistics(buf, chistics) ||
-    buf->append(" ", 1) ||
+    buf->append(' ') ||
     buf->append(body.str, body.length);
   return rc;
 }

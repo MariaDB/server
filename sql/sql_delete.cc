@@ -42,6 +42,7 @@
 #include "uniques.h"
 #include "sql_derived.h"                        // mysql_handle_derived
                                                 // end_read_record
+#include "sql_insert.h"          // fix_rownum_pointers
 #include "sql_partition.h"       // make_used_partitions_str
 
 #define MEM_STRIP_BUF_SIZE ((size_t) thd->variables.sortbuff_size)
@@ -364,6 +365,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   table->map=1;
   query_plan.select_lex= thd->lex->first_select_lex();
   query_plan.table= table;
+
+  thd->lex->promote_select_describe_flag_if_needed();
 
   if (mysql_prepare_delete(thd, table_list, &conds, &delete_while_scanning))
     DBUG_RETURN(TRUE);
@@ -706,7 +709,12 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
       !table->prepare_triggers_for_delete_stmt_or_event())
     will_batch= !table->file->start_bulk_delete();
 
-  if (returning)
+  /*
+    thd->get_stmt_da()->is_set() means first iteration of prepared statement
+    with array binding operation execution (non optimized so it is not
+    INSERT)
+  */
+  if (returning && !thd->get_stmt_da()->is_set())
   {
     if (result->send_result_set_metadata(returning->item_list,
                                 Protocol::SEND_NUM_ROWS | Protocol::SEND_EOF))
@@ -779,6 +787,8 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
   DBUG_ASSERT(table->file->inited != handler::NONE);
 
   THD_STAGE_INFO(thd, stage_updating);
+  fix_rownum_pointers(thd, thd->lex->current_select, &deleted);
+
   while (likely(!(error=info.read_record())) && likely(!thd->killed) &&
          likely(!thd->is_error()))
   {

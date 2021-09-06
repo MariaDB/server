@@ -1,0 +1,128 @@
+--source include/have_debug.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+#
+# Testing of atomic drop with crashes in a lot of different places
+# We also test having the tables in different databases
+#
+
+call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+create database test2;
+
+let $engine_count=1;
+let $engines='aria';
+
+let $crash_count=7;
+let $crash_points='ddl_log_drop_before_delete_table', 'ddl_log_drop_after_delete_table', 'ddl_log_drop_before_drop_trigger', 'ddl_log_drop_before_drop_trigger2', 'ddl_log_drop_after_drop_trigger', 'ddl_log_drop_before_binlog', 'ddl_log_drop_after_binlog';
+
+# Number of drops in the tested statement
+let $drops=3;
+
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+let $keep_include_silent=1;
+let $grep_script=DROP TABLE;
+--disable_query_log
+
+while ($e < $engine_count)
+{
+  inc $e;
+  let $engine=`select ELT($e, $engines)`;
+  let $default_engine=$engine;
+  let $extra_option=;
+
+  if ($engine == "aria")
+  {
+    let $extra_option=transactional=1;
+  }
+  if ($engine == "aria_notrans")
+  {
+    let $default_engine="aria";
+    let $extra_option=transactional=0;
+  }
+
+  let $c=0;
+  while ($c < $crash_count)
+  {
+    inc $c;
+    let $crash=`select ELT($c, $crash_points)`;
+    let $r=0;
+    while ($r < $drops)
+    {
+      inc $r;
+     --eval set @@default_storage_engine=$default_engine
+     --eval create table t1 (a int not null) $extra_option;
+     --eval create table test2.t2 (b int not null) $extra_option;
+      create sequence ts;
+      insert into t1 values(1);
+      insert into test2.t2 values(2);
+      flush tables;
+
+      delimiter |;
+      create trigger t1_trg before insert on t1 for each row
+      begin
+        if isnull(new.a) then
+          set new.a:= 1000;
+        end if;
+      end|
+      create trigger test2.t2_trg before insert on test2.t2 for each row
+      begin
+        if isnull(new.b) then
+          set new.b:= 2000;
+        end if;
+      end|
+      delimiter ;|
+
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+      echo "engine: $engine  crash point: $crash  position: $r";
+      --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+      --disable_reconnect
+      --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=$r
+      let $errno=0;
+      --error 0,2013
+      drop table t1,test2.t2,ts;
+      let $error=$errno;
+      --enable_reconnect
+      --source include/wait_until_connected_again.inc
+      --disable_query_log
+      --eval set @@debug_dbug="$old_debug"
+
+      if ($error == 0)
+      {
+        echo "No crash!";
+      }
+      # Check which tables still exists
+      --list_files $MYSQLD_DATADIR/test t*
+      --list_files $MYSQLD_DATADIR/test2 t*
+
+      --let $binlog_file=$start_binlog_file
+      --let $binlog_output_name=master-bin.000001
+      --source include/show_binlog_events.inc
+      if ($error)
+      {
+        --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+        --let $binlog_output_name=master-bin.000002
+        if ($binlog_file != $start_binlog_file)
+        {
+          --source include/show_binlog_events.inc
+        }
+      }
+      # Really drop the tables. The warnings will show what was dropped
+      --disable_warnings
+      drop table if exists t1,test2.t2,ts;
+      --enable_warnings
+    }
+  }
+}
+drop table if exists t1,test2.t2,ts;
+drop database test2;
+--enable_query_log

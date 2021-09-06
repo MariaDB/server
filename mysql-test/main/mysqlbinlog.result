@@ -878,8 +878,19 @@ ROLLBACK /* added by mysqlbinlog */;
 /*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
 End of 5.0 tests
 End of 5.1 tests
-# Expect deprecation warning.
-# Expect deprecation warning again.
+#
+# Expect error for invalid --base64-output argument value.
+# MYSQL_BINLOG std_data/master-bin.000001 --base64-output=always 2>&1
+Unknown option to base64-output: always
+Alternatives are: 'NEVER','AUTO','UNSPEC','DECODE-ROWS'
+#
+# Expect error for incomplete --base64-output argument.
+# MYSQL_BINLOG  std_data/master-bin.000001 --base64-output 2>&1
+mysqlbinlog: option '--base64-output' requires an argument
+#
+# Ensure --base64-output=auto outputs the same result as unspecified
+# MYSQL_BINLOG -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_nob64spec.out
+# MYSQL_BINLOG --base64-output=auto -v MYSQLD_DATADIR/master-bin.000001 > MYSQLTEST_VARDIR/tmp/mysqlbinlog_b64auto.out
 RESET MASTER;
 CREATE DATABASE test1;
 USE test1;
@@ -959,7 +970,7 @@ AAAAAAAAAAAAAAAAAAAgrgJSFzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 #       b1  61 62 6c 65 20 74 65 73  74 2e 74 31 20 28 69 64  |able test.t1 (id|
 #       c1  20 69 6e 74 20 6e 6f 74  20 6e 75 6c 6c 29        | int not null)|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907364/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -983,7 +994,7 @@ create table test.t1 (id int not null)
 #      116  6e 74 6f 20 74 65 73 74  2e 74 31 20 28 69 64 29  |nto test.t1 (id)|
 #      126  20 76 61 6c 75 65 73 20  28 31 29                 | values (1)|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907366/*!*/;
 insert into test.t1 (id) values (1)
 /*!*/;
@@ -998,7 +1009,7 @@ insert into test.t1 (id) values (1)
 #      168  04 08 00 08 00 08 00 00  64 72 6f 70 20 74 61 62  |........drop tab|
 #      178  6c 65 20 74 65 73 74 2e  74 31                    |le test.t1|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907368/*!*/;
 drop table test.t1
 /*!*/;
@@ -1042,7 +1053,7 @@ AAAAAAAAAAAAAAAAAAA/rQJSGzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 #       b5  61 62 6c 65 20 74 65 73  74 2e 74 31 20 28 69 64  |able test.t1 (id|
 #       c5  20 69 6e 74 20 6e 6f 74  20 6e 75 6c 6c 29        | int not null)|
 #
-# Event: 	Query	thread_id=1	exec_time=1	error_code=0
+# Event: 	Query	thread_id=1	exec_time=1	error_code=0	xid=0
 SET TIMESTAMP=1375907141/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -1066,7 +1077,7 @@ create table test.t1 (id int not null)
 #      11e  6e 74 6f 20 74 65 73 74  2e 74 31 20 28 69 64 29  |nto test.t1 (id)|
 #      12e  20 76 61 6c 75 65 73 20  28 31 29                 | values (1)|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907144/*!*/;
 insert into test.t1 (id) values (1)
 /*!*/;
@@ -1081,7 +1092,7 @@ insert into test.t1 (id) values (1)
 #      174  04 08 00 08 00 08 00 00  64 72 6f 70 20 74 61 62  |........drop tab|
 #      184  6c 65 20 74 65 73 74 2e  74 31                    |le test.t1|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907148/*!*/;
 drop table test.t1
 /*!*/;
@@ -1125,7 +1136,7 @@ AAAAAAAAAAAAAAAAAAAnrAJSHzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 #       b9  61 62 6c 65 20 74 65 73  74 2e 74 31 20 28 69 64  |able test.t1 (id|
 #       c9  20 69 6e 74 20 6e 6f 74  20 6e 75 6c 6c 29        | int not null)|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375906879/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -1149,7 +1160,7 @@ create table test.t1 (id int not null)
 #      126  6e 74 6f 20 74 65 73 74  2e 74 31 20 28 69 64 29  |nto test.t1 (id)|
 #      136  20 76 61 6c 75 65 73 20  28 31 29                 | values (1)|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375906891/*!*/;
 insert into test.t1 (id) values (1)
 /*!*/;
@@ -1164,7 +1175,7 @@ insert into test.t1 (id) values (1)
 #      180  04 08 00 08 00 08 00 00  64 72 6f 70 20 74 61 62  |........drop tab|
 #      190  6c 65 20 74 65 73 74 2e  74 31                    |le test.t1|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375906901/*!*/;
 drop table test.t1
 /*!*/;
@@ -1208,7 +1219,7 @@ AAAAAAAAAAAAAAAAAABbsAJSEzgNAAgAEgAEBAQEEgAAUwAEGggAAAAICAgC
 #       ad  61 62 6c 65 20 74 65 73  74 2e 74 31 20 28 69 64  |able test.t1 (id|
 #       bd  20 69 6e 74 20 6e 6f 74  20 6e 75 6c 6c 29        | int not null)|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907933/*!*/;
 SET @@session.pseudo_thread_id=1/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=1, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -1232,7 +1243,7 @@ create table test.t1 (id int not null)
 #      10e  6e 74 6f 20 74 65 73 74  2e 74 31 20 28 69 64 29  |nto test.t1 (id)|
 #      11e  20 76 61 6c 75 65 73 20  28 31 29                 | values (1)|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907935/*!*/;
 insert into test.t1 (id) values (1)
 /*!*/;
@@ -1247,7 +1258,7 @@ insert into test.t1 (id) values (1)
 #      15c  04 08 00 08 00 08 00 00  64 72 6f 70 20 74 61 62  |........drop tab|
 #      16c  6c 65 20 74 65 73 74 2e  74 31                    |le test.t1|
 #
-# Event: 	Query	thread_id=1	exec_time=0	error_code=0
+# Event: 	Query	thread_id=1	exec_time=0	error_code=0	xid=0
 SET TIMESTAMP=1375907937/*!*/;
 drop table test.t1
 /*!*/;

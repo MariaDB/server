@@ -47,8 +47,7 @@ class Cached_item;
 /* base class for subselects */
 
 class Item_subselect :public Item_result_field,
-                      protected Used_tables_and_const_cache,
-                      protected With_sum_func_cache
+                      protected Used_tables_and_const_cache
 {
   /*
     Set to TRUE if the value is assigned for the subselect
@@ -192,9 +191,6 @@ public:
     return null_value;
   }
   bool fix_fields(THD *thd, Item **ref) override;
-  bool with_subquery() const override { DBUG_ASSERT(fixed); return true; }
-  bool with_sum_func() const override { return m_with_sum_func; }
-  With_sum_func_cache* get_with_sum_func_cache() override { return this; }
   bool mark_as_dependent(THD *thd, st_select_lex *select, Item *item);
   void fix_after_pullout(st_select_lex *new_parent, Item **ref,
                          bool merge) override;
@@ -308,29 +304,30 @@ public:
   Item_singlerow_subselect(THD *thd_arg): Item_subselect(thd_arg), value(0), row (0)
   {}
 
-  void cleanup();
-  subs_type substype() { return SINGLEROW_SUBS; }
+  void cleanup() override;
+  subs_type substype() override { return SINGLEROW_SUBS; }
 
-  void reset();
-  void no_rows_in_result();
-  bool select_transformer(JOIN *join);
+  void reset() override;
+  void no_rows_in_result() override;
+  bool select_transformer(JOIN *join) override;
   void store(uint i, Item* item);
-  double val_real();
-  longlong val_int ();
-  String *val_str (String *);
-  bool val_native(THD *thd, Native *);
-  my_decimal *val_decimal(my_decimal *);
-  bool val_bool();
-  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate);
-  const Type_handler *type_handler() const;
-  bool fix_length_and_dec();
+  double val_real() override;
+  longlong val_int() override;
+  String *val_str(String *) override;
+  bool val_native(THD *thd, Native *) override;
+  my_decimal *val_decimal(my_decimal *) override;
+  bool val_bool() override;
+  bool get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate) override;
+  const Type_handler *type_handler() const override;
+  bool fix_length_and_dec() override;
 
-  uint cols() const;
-  Item* element_index(uint i) { return reinterpret_cast<Item*>(row[i]); }
-  Item** addr(uint i) { return (Item**)row + i; }
-  bool check_cols(uint c);
-  bool null_inside();
-  void bring_value();
+  uint cols() const override;
+  Item* element_index(uint i) override
+  { return reinterpret_cast<Item*>(row[i]); }
+  Item** addr(uint i) override { return (Item**)row + i; }
+  bool check_cols(uint c) override;
+  bool null_inside() override;
+  void bring_value() override;
 
   /**
     This method is used to implement a special case of semantic tree
@@ -346,7 +343,7 @@ public:
   */
   st_select_lex* invalidate_and_restore_select_lex();
 
-  Item* expr_cache_insert_transformer(THD *thd, uchar *unused);
+  Item* expr_cache_insert_transformer(THD *thd, uchar *unused) override;
 
   friend class select_singlerow_subselect;
 };
@@ -361,12 +358,12 @@ protected:
 public:
   Item_maxmin_subselect(THD *thd, Item_subselect *parent,
 			st_select_lex *select_lex, bool max);
-  virtual void print(String *str, enum_query_type query_type);
-  void cleanup();
+  void print(String *str, enum_query_type query_type) override;
+  void cleanup() override;
   bool any_value() { return was_values; }
   void register_value() { was_values= TRUE; }
-  void reset_value_registration() { was_values= FALSE; }
-  void no_rows_in_result();
+  void reset_value_registration() override { was_values= FALSE; }
+  void no_rows_in_result() override;
 };
 
 /* exists subselect */
@@ -671,7 +668,7 @@ public:
 
   void disable_cond_guard_for_const_null_left_expr(int i)
   {
-    if (left_expr->const_item() && !left_expr->is_expensive())
+    if (left_expr->can_eval_in_optimize())
     {
       if (left_expr->element_index(i)->is_null())
         set_cond_guard_var(i,FALSE);
@@ -994,7 +991,10 @@ public:
   subselect_uniquesubquery_engine(THD *thd_arg, st_join_table *tab_arg,
 				  Item_in_subselect *subs, Item *where)
     :subselect_engine(subs, 0), tab(tab_arg), cond(where)
-  { DBUG_ASSERT(subs); }
+  {
+    thd= thd_arg;
+    DBUG_ASSERT(subs);
+  }
   ~subselect_uniquesubquery_engine();
   void cleanup();
   int prepare(THD *);
@@ -1411,7 +1411,8 @@ protected:
 protected:
   virtual bool partial_match()= 0;
 public:
-  subselect_partial_match_engine(subselect_uniquesubquery_engine *engine_arg,
+  subselect_partial_match_engine(THD *thd,
+                                 subselect_uniquesubquery_engine *engine_arg,
                                  TABLE *tmp_table_arg, Item_subselect *item_arg,
                                  select_result_interceptor *result_arg,
                                  List<Item> *equi_join_conds_arg,
@@ -1505,7 +1506,8 @@ protected:
   bool exists_complementing_null_row(MY_BITMAP *keys_to_complement);
   bool partial_match();
 public:
-  subselect_rowid_merge_engine(subselect_uniquesubquery_engine *engine_arg,
+  subselect_rowid_merge_engine(THD *thd,
+                               subselect_uniquesubquery_engine *engine_arg,
                                TABLE *tmp_table_arg, uint merge_keys_count_arg,
                                bool has_covering_null_row_arg,
                                bool has_covering_null_columns_arg,
@@ -1513,7 +1515,7 @@ public:
                                Item_subselect *item_arg,
                                select_result_interceptor *result_arg,
                                List<Item> *equi_join_conds_arg)
-    :subselect_partial_match_engine(engine_arg, tmp_table_arg,
+    :subselect_partial_match_engine(thd, engine_arg, tmp_table_arg,
                                     item_arg, result_arg, equi_join_conds_arg,
                                     has_covering_null_row_arg,
                                     has_covering_null_columns_arg,
@@ -1532,7 +1534,8 @@ class subselect_table_scan_engine: public subselect_partial_match_engine
 protected:
   bool partial_match();
 public:
-  subselect_table_scan_engine(subselect_uniquesubquery_engine *engine_arg,
+  subselect_table_scan_engine(THD *thd,
+                              subselect_uniquesubquery_engine *engine_arg,
                               TABLE *tmp_table_arg, Item_subselect *item_arg,
                               select_result_interceptor *result_arg,
                               List<Item> *equi_join_conds_arg,

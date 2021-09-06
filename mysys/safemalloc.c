@@ -39,8 +39,12 @@ static pthread_mutex_t sf_mutex;
 static int init_done= 0;
 
 #ifndef SF_REMEMBER_FRAMES
+#ifdef USE_MYSYS_NEW
+#define SF_REMEMBER_FRAMES 14
+#else
 #define SF_REMEMBER_FRAMES 8
-#endif
+#endif /* USE_MYSYS_NEW */
+#endif /* SF_REMEMBER_FRAMES */
 
 /* ignore the first two frames (sf_malloc itself, and my_malloc) */
 #define SF_FRAMES_SKIP          2
@@ -74,6 +78,7 @@ static void  *sf_min_adress= (void*) (intptr)~0ULL,
 static struct st_irem *sf_malloc_root = 0;
 
 #define MAGICSTART      0x14235296      /* A magic value for underrun key */
+#define MAGICEND        0x12345678      /* Value for freed block */
 
 #define MAGICEND0       0x68            /* Magic values for overrun keys  */
 #define MAGICEND1       0x34            /*              "                 */
@@ -251,6 +256,7 @@ static void print_stack(void **frame)
 static void free_memory(void *ptr)
 {
   struct st_irem *irem= (struct st_irem *)ptr - 1;
+  size_t end_offset;
 
   if ((irem->flags & MY_THREAD_SPECIFIC) && irem->thread_id &&
       irem->thread_id != sf_malloc_dbug_id())
@@ -262,6 +268,14 @@ static void free_memory(void *ptr)
   }
 
   pthread_mutex_lock(&sf_mutex);
+  /* Protect against double free at same time */
+  if (irem->marker != MAGICSTART)
+  {
+    pthread_mutex_unlock(&sf_mutex);            /* Allow stack trace alloc mem */
+    DBUG_ASSERT(irem->marker == MAGICSTART);    /* Crash */
+    pthread_mutex_lock(&sf_mutex);              /* Impossible, but safer */
+  }
+
   /* Remove this structure from the linked list */
   if (irem->prev)
     irem->prev->next= irem->next;
@@ -273,10 +287,13 @@ static void free_memory(void *ptr)
 
   /* Handle the statistics */
   sf_malloc_count--;
+
+  irem->marker= MAGICEND;                       /* Double free detection */
   pthread_mutex_unlock(&sf_mutex);
 
-  /* only trash the data and magic values, but keep the stack trace */
-  TRASH_FREE((uchar*)(irem + 1) - 4, irem->datasize + 8);
+  /* Trash the data and magic values, but keep the stack trace */
+  end_offset= sizeof(*irem) - ((char*) &irem->marker - (char*) irem);
+  TRASH_FREE((uchar*)(irem + 1) - end_offset, irem->datasize + 4 + end_offset);
   free(irem);
   return;
 }

@@ -435,6 +435,26 @@ UPDATE t1 SET col1 = 2;
 UPDATE t1 SET col7 = DEFAULT;
 UPDATE t1 SET col8 = DEFAULT;
 DROP TABLE t1;
+Bug#20797344: WL#8149: ALLOCATED SPACE FOR INDEXED BLOB VGC CAN BE
+OVERWRITTEN FOR UPDATE
+#
+CREATE TABLE t (a varchar(100), b blob,
+c blob GENERATED ALWAYS AS (concat(a,b)) VIRTUAL,
+d blob GENERATED ALWAYS AS (b) VIRTUAL,
+e int(11) GENERATED ALWAYS AS (10) VIRTUAL,
+h int(11) NOT NULL, PRIMARY KEY (h), key(c(20)));
+INSERT INTO t(a,b,h) VALUES('aaaaaaa','1111111', 11);
+INSERT INTO t(a,b,h) VALUES('bbbbbbb','2222222', 22);
+SELECT c FROM t;
+c
+aaaaaaa1111111
+bbbbbbb2222222
+UPDATE t SET a='ccccccc';
+SELECT c FROM t;
+c
+ccccccc1111111
+ccccccc2222222
+DROP TABLE t;
 # Bug#21081742: ASSERTION !TABLE || (!TABLE->WRITE_SET ||
 # BITMAP_IS_SET(TABLE->WRITE_SET
 #
@@ -490,6 +510,21 @@ UPDATE t t1, t t2 SET t2.y = 1, t1.x = 2;
 SELECT * FROM t;
 x	y	gc
 2	1	3
+DROP TABLE t;
+CREATE TABLE t (
+x INT, y INT, gc INT GENERATED ALWAYS AS (x+1), KEY (x,gc)
+);
+INSERT INTO t VALUES ();
+UPDATE t t1, t t2 SET t1.x = 1, t2.y = 2;
+SELECT * FROM t;
+x	y	gc
+1	2	2
+SELECT gc FROM t;
+gc
+2
+CHECK TABLE t;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
 DROP TABLE t;
 # stored
 CREATE TABLE C (
@@ -552,6 +587,100 @@ SELECT * from C;
 col_varchar_nokey	col_varchar_key
 a	aa
 DROP TABLE C;
+# virtual, indexed
+CREATE TABLE C (
+col_varchar_nokey VARCHAR(1),
+col_varchar_key VARCHAR(2) GENERATED ALWAYS AS
+(CONCAT(col_varchar_nokey, col_varchar_nokey)) VIRTUAL,
+KEY (col_varchar_key, col_varchar_nokey)
+);
+INSERT INTO C (col_varchar_nokey) VALUES ('c');
+EXPLAIN UPDATE C AS OUTR1, C AS OUTR2
+SET OUTR1.`col_varchar_nokey` = 'f',
+OUTR2.`col_varchar_nokey` = "a";
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	OUTR1	ALL	NULL	NULL	NULL	NULL	1	
+1	SIMPLE	OUTR2	ALL	NULL	NULL	NULL	NULL	1	
+UPDATE C AS OUTR1, C AS OUTR2
+SET OUTR1.`col_varchar_nokey` = 'f',
+OUTR2.`col_varchar_nokey` = "a";
+SELECT * from C;
+col_varchar_nokey	col_varchar_key
+a	aa
+DROP TABLE C;
+#
+# Bug #21530366 CRASH/ASSERTION, CORRUPTION WITH INDEXES +
+#               VIRTUAL COLUMNS, BLOB
+#
+CREATE TABLE t (
+a INTEGER,
+b BLOB GENERATED ALWAYS AS (a) VIRTUAL,
+INDEX (b(57))
+);
+INSERT INTO t (a) VALUES (9);
+UPDATE t SET a = 10;
+DELETE FROM t WHERE a = 10;
+DROP TABLE t;
+# Bug#21807818: Generated columns not updated with empty insert list
+CREATE TABLE t (
+a BLOB GENERATED ALWAYS AS ('') VIRTUAL,
+b TIMESTAMP(4) GENERATED ALWAYS AS ('') VIRTUAL,
+KEY (a(183),b)
+);
+ERROR HY000: Function or expression '''' cannot be used in the GENERATED ALWAYS AS clause of `b`
+CREATE TABLE t (
+a BLOB GENERATED ALWAYS AS ('') VIRTUAL,
+b TIMESTAMP(4) GENERATED ALWAYS AS ('') VIRTUAL
+);
+INSERT IGNORE INTO t VALUES(), (), ();
+DELETE IGNORE FROM t;
+DROP TABLE t;
+#
+# Bug#22195458:GCOLS: ASSERTION 0 AND CORRUPTION...
+#
+CREATE TABLE t (
+a INT,
+b YEAR GENERATED ALWAYS AS ('a') VIRTUAL,
+c YEAR GENERATED ALWAYS AS ('aaaa') VIRTUAL,
+b1 YEAR GENERATED ALWAYS AS ('a') STORED,
+c1 YEAR GENERATED ALWAYS AS ('aaaa') STORED,
+UNIQUE(b),
+UNIQUE(b1)
+);
+INSERT IGNORE INTO t VALUES();
+SELECT b from t;
+b
+0000
+SELECT b1 from t;
+b1
+0000
+SELECT * from t;
+a	b	c	b1	c1
+NULL	0000	0000	0000	0000
+DELETE FROM t;
+CHECK TABLE t EXTENDED;
+Table	Op	Msg_type	Msg_text
+test.t	check	status	OK
+DROP TABLE t;
+# Bug#22195364:GCOLS: FAILING ASSERTION:
+#              DFIELD_IS_NULL(DFIELD2) || DFIELD2->DATA
+CREATE TABLE t (
+a INT,
+c BLOB GENERATED ALWAYS AS ('') VIRTUAL,
+UNIQUE KEY(c(1),a)
+);
+INSERT INTO t(a) VALUES(1) ON DUPLICATE KEY UPDATE a=2;
+SELECT * FROM t;
+a	c
+1	
+INSERT INTO t(a) VALUES(1) ON DUPLICATE KEY UPDATE a=2;
+SELECT * FROM t;
+a	c
+2	
+SELECT GROUP_CONCAT(c ORDER BY c) FROM t;
+GROUP_CONCAT(c ORDER BY c)
+
+DROP TABLE t;
 #Bug#21929967:GCOLS:GCOL VALUE CHANGES WHEN SESSION CHANGES SQL_MODE
 CREATE TABLE t(c1 INT GENERATED ALWAYS AS (1) VIRTUAL,
 c2 INT GENERATED ALWAYS AS(2) STORED);
@@ -593,6 +722,98 @@ i1	i2
 5	10
 5	10
 DROP TABLE t1,t2;
+#
+# Bug#22070021 GCOL:ASSERTION `!TABLE || (!TABLE->WRITE_SET ||
+#              BITMAP_IS_SET(TABLE->WRITE_SET,
+#
+CREATE TABLE t1(
+c1 INT,
+c2 INT GENERATED ALWAYS AS (c1 + c1) VIRTUAL,
+KEY(c2)
+);
+INSERT INTO t1(c1) VALUES(0);
+DELETE O1.* FROM t1 AS O1, t1 AS O2;
+SELECT * FROM t1;
+c1	c2
+DROP TABLE t1;
+#
+# Bug#21944199 SIMPLE DELETE QUERY CAUSES INNODB: FAILING ASSERTION: 0
+#              & DATA CORRUPTION
+#
+CREATE TEMPORARY TABLE t1 (
+a INTEGER NOT NULL,
+b INTEGER GENERATED ALWAYS AS (a+1) VIRTUAL
+);
+INSERT INTO t1 (a) VALUES (0), (0), (0);
+ALTER TABLE t1 ADD INDEX idx (b);
+DELETE FROM t1;
+DROP TEMPORARY TABLE t1;
+#
+# Original test case from MDEV-17890
+#
+CREATE TABLE t1 (
+pk BIGINT AUTO_INCREMENT,
+b BIT(15),
+v BIT(10) AS (b) VIRTUAL,
+PRIMARY KEY(pk),
+UNIQUE(v)
+);
+INSERT IGNORE INTO t1 (b) VALUES (b'101110001110100'),(b'011101');
+Warnings:
+Warning	1264	Out of range value for column 'v' at row 1
+SELECT pk, b INTO OUTFILE 'load.data' FROM t1;
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
+ERROR 22001: Data too long for column 'v' at row 1
+DROP TABLE t1;
+#
+# MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+#
+CREATE TABLE t1 (
+id INT NOT NULL AUTO_INCREMENT,
+f ENUM('a','b','c'),
+v ENUM('a','b','c') AS (f),
+KEY(v,id)
+) ENGINE=MyISAM;
+INSERT INTO t1 (f) VALUES ('a'),('b');
+INSERT IGNORE INTO t1 SELECT * FROM t1;
+Warnings:
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
+DROP TABLE t1;
+CREATE TABLE t1 (
+id INT NOT NULL AUTO_INCREMENT,
+f ENUM('a','b','c'),
+v ENUM('a','b','c') AS (f),
+KEY(v,id)
+) ENGINE=MyISAM;
+INSERT INTO t1 (f) VALUES ('a'),('b');
+INSERT IGNORE INTO t1 SELECT * FROM t1;
+Warnings:
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
+Warning	1906	The value specified for generated column 'v' in table 't1' has been ignored
+DROP TABLE t1;
+#
+# MDEV-23597 Assertion `marked_for_read()' failed while evaluating DEFAULT
+#
+CREATE TABLE t1 (a INT UNIQUE, b INT DEFAULT (c+1), c int);
+INSERT INTO t1 VALUES (1,1,1);
+UPDATE t1 SET b=DEFAULT;
+SELECT * from t1;
+a	b	c
+1	2	1
+REPLACE t1 VALUES(1,1,1);
+INSERT INTO t1 VALUES (1,1,1) ON DUPLICATE KEY UPDATE b= DEFAULT;
+SELECT * from t1;
+a	b	c
+1	2	1
+REPLACE t1 VALUES(1,1,1);
+CREATE TABLE t2 (a INT, b INT DEFAULT (c+1), c int);
+INSERT INTO t2 VALUES (5,5,5);
+UPDATE t1 join t2 set t1.b= DEFAULT, t2.b= DEFAULT;
+SELECT * from t1, t2;
+a	b	c	a	b	c
+1	2	1	5	6	5
+DROP TABLE t1, t2;
 DROP VIEW  IF EXISTS v1,v2;
 DROP TABLE IF EXISTS t1,t2,t3;
 DROP PROCEDURE IF EXISTS p1;

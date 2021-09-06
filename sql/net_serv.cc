@@ -92,7 +92,7 @@ static void inline MYSQL_SERVER_my_error(...) {}
   the client should have a bigger max_allowed_packet.
 */
 
-#if defined(__WIN__) || !defined(MYSQL_SERVER)
+#if defined(_WIN32) || !defined(MYSQL_SERVER)
   /* The following is because alarms doesn't work on windows. */
 #ifndef NO_ALARM
 #define NO_ALARM
@@ -167,7 +167,7 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   {
     /* For perl DBI/DBD. */
     net->fd= vio_fd(vio);
-#if defined(MYSQL_SERVER) && !defined(__WIN__)
+#if defined(MYSQL_SERVER) && !defined(_WIN32)
     if (!(test_flags & TEST_BLOCKING))
     {
       my_bool old_mode;
@@ -179,14 +179,26 @@ my_bool my_net_init(NET *net, Vio *vio, void *thd, uint my_flags)
   DBUG_RETURN(0);
 }
 
+
+/**
+  Allocate and assign new net buffer
+
+  @note In case of error the old buffer left
+
+  @retval TRUE error
+  @retval FALSE success
+*/
+
 my_bool net_allocate_new_packet(NET *net, void *thd, uint my_flags)
 {
+  uchar *tmp;
   DBUG_ENTER("net_allocate_new_packet");
-  if (!(net->buff=(uchar*) my_malloc(key_memory_NET_buff,
-                                     (size_t) net->max_packet +
-				     NET_HEADER_SIZE + COMP_HEADER_SIZE + 1,
-				     MYF(MY_WME | my_flags))))
+  if (!(tmp= (uchar*) my_malloc(key_memory_NET_buff,
+                                (size_t) net->max_packet +
+				NET_HEADER_SIZE + COMP_HEADER_SIZE + 1,
+				MYF(MY_WME | my_flags))))
     DBUG_RETURN(1);
+  net->buff= tmp;
   net->buff_end=net->buff+net->max_packet;
   net->write_pos=net->read_pos = net->buff;
   DBUG_RETURN(0);
@@ -279,7 +291,7 @@ static int net_data_is_ready(my_socket sd)
   struct timeval tv;
   int res;
 
-#ifndef __WIN__
+#ifndef _WIN32
   /* Windows uses an _array_ of 64 fd's as default, so it's safe */
   if (sd >= FD_SETSIZE)
     return -1;
@@ -710,7 +722,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
     if ((long) (length= vio_write(net->vio,pos,(size_t) (end-pos))) <= 0)
     {
       my_bool interrupted = vio_should_retry(net->vio);
-#if !defined(__WIN__)
+#if !defined(_WIN32)
       if ((interrupted || length == 0) && !thr_alarm_in_use(&alarmed))
       {
         if (!thr_alarm(&alarmed, net->write_timeout, &alarm_buff))
@@ -733,7 +745,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
 	}
       }
       else
-#endif /* !defined(__WIN__) */
+#endif /* !defined(_WIN32) */
 	if (thr_alarm_in_use(&alarmed) && !thr_got_alarm(&alarmed) &&
 	    interrupted)
       {
@@ -758,7 +770,7 @@ net_real_write(NET *net,const uchar *packet, size_t len)
     pos+=length;
     update_statistics(thd_increment_bytes_sent(net->thd, length));
   }
-#ifndef __WIN__
+#ifndef _WIN32
  end:
 #endif
 #ifdef HAVE_COMPRESS
@@ -1005,7 +1017,7 @@ retry:
             goto end;
           }
 
-#if !defined(__WIN__) && defined(MYSQL_SERVER)
+#if !defined(_WIN32) && defined(MYSQL_SERVER)
 	  /*
 	    We got an error that there was no data on the socket. We now set up
 	    an alarm to not 'read forever', change the socket to the blocking
@@ -1037,7 +1049,7 @@ retry:
 	      continue;
 	    }
 	  }
-#endif /* (!defined(__WIN__) && defined(MYSQL_SERVER) */
+#endif /* (!defined(_WIN32) && defined(MYSQL_SERVER) */
 	  if (thr_alarm_in_use(&alarmed) && !thr_got_alarm(&alarmed) &&
 	      interrupted)
 	  {					/* Probably in MIT threads */

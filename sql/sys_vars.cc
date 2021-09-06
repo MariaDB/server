@@ -512,11 +512,10 @@ static Sys_var_charptr_fscs Sys_my_bind_addr(
        READ_ONLY GLOBAL_VAR(my_bind_addr_str), CMD_LINE(REQUIRED_ARG),
        DEFAULT(0));
 
-const char *Sys_var_vers_asof::asof_keywords[]= {"DEFAULT", NULL};
 static Sys_var_vers_asof Sys_vers_asof_timestamp(
        "system_versioning_asof", "Default value for the FOR SYSTEM_TIME AS OF clause",
        SESSION_VAR(vers_asof_timestamp.type), NO_CMD_LINE,
-       Sys_var_vers_asof::asof_keywords, DEFAULT(SYSTEM_TIME_UNSPECIFIED));
+       DEFAULT(SYSTEM_TIME_UNSPECIFIED));
 
 static const char *vers_alter_history_keywords[]= {"ERROR", "KEEP", NullS};
 static Sys_var_enum Sys_vers_alter_history(
@@ -759,9 +758,10 @@ static bool check_charset(sys_var *self, THD *thd, set_var *var)
     else
     {
       ErrConvString err(res); /* Get utf8 '\0' terminated string */
+      myf utf8_flag= thd->get_utf8_flag();
       if (!(var->save_result.ptr= get_charset_by_csname(err.ptr(),
-                                                         MY_CS_PRIMARY,
-                                                         MYF(0))) &&
+                                                             MY_CS_PRIMARY,
+                                                             MYF(utf8_flag))) &&
           !(var->save_result.ptr= get_old_charset_by_name(err.ptr())))
       {
         my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), err.ptr());
@@ -788,12 +788,12 @@ static Sys_var_struct Sys_character_set_system(
        "character_set_system", "The character set used by the server "
        "for storing identifiers",
        READ_ONLY GLOBAL_VAR(system_charset_info), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, csname), DEFAULT(0));
+       offsetof(CHARSET_INFO, cs_name.str), DEFAULT(0));
 
 static Sys_var_struct Sys_character_set_server(
        "character_set_server", "The default character set",
        SESSION_VAR(collation_server), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
+       offsetof(CHARSET_INFO, cs_name.str), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_charset_not_null));
 
 static bool check_charset_db(sys_var *self, THD *thd, set_var *var)
@@ -808,7 +808,7 @@ static Sys_var_struct Sys_character_set_database(
        "character_set_database",
        "The character set used by the default database",
        SESSION_VAR(collation_database), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
+       offsetof(CHARSET_INFO, cs_name.str), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_charset_db));
 
 static bool check_cs_client(sys_var *self, THD *thd, set_var *var)
@@ -832,7 +832,7 @@ static Sys_var_struct Sys_character_set_client(
        "character_set_client", "The character set for statements "
        "that arrive from the client",
        NO_SET_STMT SESSION_VAR(character_set_client), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
+       offsetof(CHARSET_INFO, cs_name.str), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_cs_client),
        ON_UPDATE(fix_thd_charset));
 // for check changing
@@ -843,7 +843,7 @@ static Sys_var_struct Sys_character_set_connection(
        "literals that do not have a character set introducer and for "
        "number-to-string conversion",
        NO_SET_STMT SESSION_VAR(collation_connection), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
+       offsetof(CHARSET_INFO, cs_name.str), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_charset_not_null),
        ON_UPDATE(fix_thd_charset));
 // for check changing
@@ -853,7 +853,7 @@ static Sys_var_struct Sys_character_set_results(
        "character_set_results", "The character set used for returning "
        "query results to the client",
        SESSION_VAR(character_set_results), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, csname), DEFAULT(&default_charset_info),
+       offsetof(CHARSET_INFO, cs_name.str), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_charset));
 // for check changing
 export sys_var *Sys_character_set_results_ptr= &Sys_character_set_results;
@@ -861,7 +861,7 @@ export sys_var *Sys_character_set_results_ptr= &Sys_character_set_results;
 static Sys_var_struct Sys_character_set_filesystem(
        "character_set_filesystem", "The filesystem character set",
        NO_SET_STMT SESSION_VAR(character_set_filesystem), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, csname), DEFAULT(&character_set_filesystem),
+       offsetof(CHARSET_INFO, cs_name.str), DEFAULT(&character_set_filesystem),
        NO_MUTEX_GUARD, NOT_IN_BINLOG, ON_CHECK(check_charset_not_null),
        ON_UPDATE(fix_thd_charset));
 
@@ -875,7 +875,7 @@ static bool check_collation_not_null(sys_var *self, THD *thd, set_var *var)
 {
   if (!var->value)
     return false;
-
+  myf utf8_flag= thd->get_utf8_flag();
   char buff[STRING_BUFFER_USUAL_SIZE];
   if (var->value->result_type() == STRING_RESULT)
   {
@@ -885,7 +885,7 @@ static bool check_collation_not_null(sys_var *self, THD *thd, set_var *var)
     else
     {
       ErrConvString err(res); /* Get utf8 '\0'-terminated string */
-      if (!(var->save_result.ptr= get_charset_by_name(err.ptr(), MYF(0))))
+      if (!(var->save_result.ptr= get_charset_by_name(err.ptr(), MYF(utf8_flag))))
       {
         my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
         return true;
@@ -907,7 +907,7 @@ static Sys_var_struct Sys_collation_connection(
        "collation_connection", "The collation of the connection "
        "character set",
        NO_SET_STMT SESSION_VAR(collation_connection), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, name), DEFAULT(&default_charset_info),
+       offsetof(CHARSET_INFO, coll_name.str), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_collation_not_null),
        ON_UPDATE(fix_thd_charset));
 
@@ -923,13 +923,13 @@ static Sys_var_struct Sys_collation_database(
        "collation_database", "The collation of the database "
        "character set",
        SESSION_VAR(collation_database), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, name), DEFAULT(&default_charset_info),
+       offsetof(CHARSET_INFO, coll_name.str), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_collation_db));
 
 static Sys_var_struct Sys_collation_server(
        "collation_server", "The server default collation",
        SESSION_VAR(collation_server), NO_CMD_LINE,
-       offsetof(CHARSET_INFO, name), DEFAULT(&default_charset_info),
+       offsetof(CHARSET_INFO, coll_name.str), DEFAULT(&default_charset_info),
        NO_MUTEX_GUARD, IN_BINLOG, ON_CHECK(check_collation_not_null));
 
 static Sys_var_uint Sys_column_compression_threshold(
@@ -1175,7 +1175,7 @@ static Sys_var_on_access_global<Sys_var_double,
 Sys_expire_logs_days(
        "expire_logs_days",
        "If non-zero, binary logs will be purged after expire_logs_days "
-       "days; It and binlog_expire_logs_seconds are aliases, such that "
+       "days; It and binlog_expire_logs_seconds are linked, such that "
        "changes in one are converted into the other, presentable as a "
        "decimal value with 1/1000000 of the day precision; possible "
        "purges happen at startup and at binary log rotation",
@@ -1190,11 +1190,11 @@ Sys_binlog_expire_logs_seconds(
        "binlog_expire_logs_seconds",
        "If non-zero, binary logs will be purged after "
        "binlog_expire_logs_seconds seconds; It and expire_logs_days are "
-       "aliases, such that changes in one are converted into the other. "
+       "linked, such that changes in one are converted into the other. "
        "Possible purges happen at startup and at binary log rotation.",
        GLOBAL_VAR(binlog_expire_logs_seconds),
        CMD_LINE(REQUIRED_ARG, OPT_BINLOG_EXPIRE_LOGS_SECONDS),
-       VALID_RANGE(0, 0xFFFFFFFF), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
+       VALID_RANGE(0, 8553600), DEFAULT(0), BLOCK_SIZE(1), NO_MUTEX_GUARD,
        NOT_IN_BINLOG, ON_CHECK(0), ON_UPDATE(copy_to_expire_logs_days));
 
 static Sys_var_mybool Sys_flush(
@@ -1875,8 +1875,9 @@ static Sys_var_gtid_binlog_pos Sys_gtid_binlog_pos(
        READ_ONLY GLOBAL_VAR(opt_gtid_binlog_pos_dummy), NO_CMD_LINE);
 
 
-uchar *
-Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_binlog_pos::global_value_ptr(THD *thd,
+                                          const LEX_CSTRING *base) const
 {
   char buf[128];
   String str(buf, sizeof(buf), system_charset_info);
@@ -1903,8 +1904,9 @@ static Sys_var_gtid_current_pos Sys_gtid_current_pos(
        READ_ONLY GLOBAL_VAR(opt_gtid_current_pos_dummy), NO_CMD_LINE);
 
 
-uchar *
-Sys_var_gtid_current_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_current_pos::global_value_ptr(THD *thd,
+                                           const LEX_CSTRING *base) const
 {
   String str;
   char *p;
@@ -1984,8 +1986,9 @@ Sys_var_gtid_slave_pos::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
-Sys_var_gtid_slave_pos::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_slave_pos::global_value_ptr(THD *thd,
+                                         const LEX_CSTRING *base) const
 {
   String str;
   char *p;
@@ -2108,8 +2111,9 @@ Sys_var_gtid_binlog_state::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
-Sys_var_gtid_binlog_state::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_gtid_binlog_state::global_value_ptr(THD *thd,
+                                            const LEX_CSTRING *base) const
 {
   char buf[512];
   String str(buf, sizeof(buf), system_charset_info);
@@ -2143,8 +2147,8 @@ static Sys_var_last_gtid Sys_last_gtid(
 export sys_var *Sys_last_gtid_ptr= &Sys_last_gtid; // for check changing
 
 
-uchar *
-Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *
+Sys_var_last_gtid::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   char buf[10+1+10+1+20+1];
   String str(buf, sizeof(buf), system_charset_info);
@@ -2318,9 +2322,10 @@ Sys_var_slave_parallel_mode::global_update(THD *thd, set_var *var)
 }
 
 
-uchar *
+const uchar *
 Sys_var_slave_parallel_mode::global_value_ptr(THD *thd,
-                                              const LEX_CSTRING *base_name)
+                                              const
+                                              LEX_CSTRING *base_name) const
 {
   Master_info *mi;
   enum_slave_parallel_mode val=
@@ -3030,7 +3035,7 @@ static Sys_var_ulonglong Sys_thread_stack(
 static Sys_var_charptr_fscs Sys_tmpdir(
        "tmpdir", "Path for temporary files. Several paths may "
        "be specified, separated by a "
-#if defined(__WIN__)
+#if defined(_WIN32)
        "semicolon (;)"
 #else
        "colon (:)"
@@ -3726,6 +3731,7 @@ static const char *old_mode_names[]=
   "NO_DUP_KEY_WARNINGS_WITH_IGNORE",
   "NO_PROGRESS_INFO",
   "ZERO_DATE_TIME_CAST",
+  "UTF8_IS_UTF8MB3",
   0
 };
 
@@ -3737,7 +3743,7 @@ static Sys_var_set Sys_old_behavior(
        "old_mode",
        "Used to emulate old behavior from earlier MariaDB or MySQL versions",
        SESSION_VAR(old_behavior), CMD_LINE(REQUIRED_ARG),
-       old_mode_names, DEFAULT(0));
+       old_mode_names, DEFAULT(OLD_MODE_UTF8_IS_UTF8MB3));
 
 #if defined(HAVE_OPENSSL) && !defined(EMBEDDED_LIBRARY)
 #define SSL_OPT(X) CMD_LINE(REQUIRED_ARG,X)
@@ -5315,8 +5321,9 @@ bool Sys_var_rpl_filter::set_filter_value(const char *value, Master_info *mi)
   return status;
 }
 
-uchar *Sys_var_rpl_filter::global_value_ptr(THD *thd,
-                                            const LEX_CSTRING *base_name)
+const uchar *
+Sys_var_rpl_filter::global_value_ptr(THD *thd,
+                                     const LEX_CSTRING *base_name) const
 {
   char buf[256];
   String tmp(buf, sizeof(buf), &my_charset_bin);
@@ -5436,7 +5443,7 @@ Sys_slave_net_timeout(
 */
 
 ulonglong Sys_var_multi_source_ulonglong::
-get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset)
+get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const
 {
   Master_info *mi;
   ulonglong res= 0;                                  // Default value

@@ -49,7 +49,7 @@ static bool fk_info_append_fields(THD *thd, String *str,
   while ((field= it++))
   {
     res|= append_identifier(thd, str, field);
-    res|= str->append(", ");
+    res|= str->append(STRING_WITH_LEN(", "));
   }
 
   str->chop();
@@ -81,17 +81,17 @@ static const char *fk_info_str(THD *thd, FOREIGN_KEY_INFO *fk_info)
   */
 
   res|= append_identifier(thd, &str, fk_info->foreign_db);
-  res|= str.append(".");
+  res|= str.append('.');
   res|= append_identifier(thd, &str, fk_info->foreign_table);
-  res|= str.append(", CONSTRAINT ");
+  res|= str.append(STRING_WITH_LEN(", CONSTRAINT "));
   res|= append_identifier(thd, &str, fk_info->foreign_id);
-  res|= str.append(" FOREIGN KEY (");
+  res|= str.append(STRING_WITH_LEN(" FOREIGN KEY ("));
   res|= fk_info_append_fields(thd, &str, &fk_info->foreign_fields);
-  res|= str.append(") REFERENCES ");
+  res|= str.append(STRING_WITH_LEN(") REFERENCES "));
   res|= append_identifier(thd, &str, fk_info->referenced_db);
-  res|= str.append(".");
+  res|= str.append('.');
   res|= append_identifier(thd, &str, fk_info->referenced_table);
-  res|= str.append(" (");
+  res|= str.append(STRING_WITH_LEN(" ("));
   res|= fk_info_append_fields(thd, &str, &fk_info->referenced_fields);
   res|= str.append(')');
 
@@ -192,6 +192,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
 {
   int error= 0;
   uint flags= 0;
+  TABLE *table;
   DBUG_ENTER("Sql_cmd_truncate_table::handler_truncate");
 
   /*
@@ -235,10 +236,41 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
     if (fk_truncate_illegal_if_parent(thd, table_ref->table))
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
 
-  error= table_ref->table->file->ha_truncate();
+  table= table_ref->table;
+
+  if ((table->file->ht->flags & HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE) &&
+      !is_tmp_table)
+  {
+    if (wait_while_table_is_used(thd, table, HA_EXTRA_FORCE_REOPEN))
+      DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
+    /*
+      Get rid of all TABLE instances belonging to this thread
+      except one to be used for TRUNCATE
+    */
+    close_all_tables_for_name(thd, table->s,
+			      HA_EXTRA_NOT_USED,
+                              table);
+  }
+
+  error= table->file->ha_truncate();
+
+  if (!is_tmp_table && !error)
+  {
+    backup_log_info ddl_log;
+    bzero(&ddl_log, sizeof(ddl_log));
+    ddl_log.query= { C_STRING_WITH_LEN("TRUNCATE") };
+    ddl_log.org_partitioned=  table->file->partition_engine();
+    lex_string_set(&ddl_log.org_storage_engine_name,
+                   table->file->real_table_type());
+    ddl_log.org_database=     table->s->db;
+    ddl_log.org_table=        table->s->table_name;
+    ddl_log.org_table_id=     table->s->tabledef_version;
+    backup_log_ddl(&ddl_log);
+  }
+
   if (unlikely(error))
   {
-    table_ref->table->file->print_error(error, MYF(0));
+    table->file->print_error(error, MYF(0));
     /*
       If truncate method is not implemented then we don't binlog the
       statement. If truncation has failed in a transactional engine then also
@@ -246,7 +278,7 @@ Sql_cmd_truncate_table::handler_truncate(THD *thd, TABLE_LIST *table_ref,
       inspite of errors.
      */
     if (error == HA_ERR_WRONG_COMMAND ||
-        table_ref->table->file->has_transactions_and_rollback())
+        table->file->has_transactions_and_rollback())
       DBUG_RETURN(TRUNCATE_FAILED_SKIP_BINLOG);
     else
       DBUG_RETURN(TRUNCATE_FAILED_BUT_BINLOG);
@@ -349,8 +381,8 @@ bool Sql_cmd_truncate_table::lock_table(THD *thd, TABLE_LIST *table_ref,
     }
   }
 
-  *hton_can_recreate= !sequence
-                      && ha_check_storage_engine_flag(hton, HTON_CAN_RECREATE);
+  *hton_can_recreate= (!sequence &&
+                       ha_check_storage_engine_flag(hton, HTON_CAN_RECREATE));
 
   if (versioned)
   {
@@ -479,10 +511,11 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
       if (error == TRUNCATE_OK && thd->locked_tables_mode &&
           (table_ref->table->file->ht->flags &
-           HTON_REQUIRES_CLOSE_AFTER_TRUNCATE))
+           (HTON_REQUIRES_CLOSE_AFTER_TRUNCATE |
+            HTON_TRUNCATE_REQUIRES_EXCLUSIVE_USE)))
       {
         thd->locked_tables_list.mark_table_for_reopen(thd, table_ref->table);
-        if (unlikely(thd->locked_tables_list.reopen_tables(thd, true)))
+        if (unlikely(thd->locked_tables_list.reopen_tables(thd, false)))
           thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
       }
 

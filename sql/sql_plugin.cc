@@ -313,14 +313,14 @@ public:
   sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
                     st_plugin_int *p, st_mysql_sys_var *plugin_var_arg);
   sys_var_pluginvar *cast_pluginvar() { return this; }
-  uchar* real_value_ptr(THD *thd, enum_var_type type);
-  TYPELIB* plugin_var_typelib(void);
-  uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base);
-  uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base)
+  uchar* real_value_ptr(THD *thd, enum_var_type type) const;
+  TYPELIB* plugin_var_typelib(void) const;
+  const uchar* do_value_ptr(THD *thd, enum_var_type type, const LEX_CSTRING *base) const;
+  const uchar* session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_SESSION, base); }
-  uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base)
+  const uchar* global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   { return do_value_ptr(thd, OPT_GLOBAL, base); }
-  uchar *default_value_ptr(THD *thd)
+  const uchar *default_value_ptr(THD *thd) const
   { return do_value_ptr(thd, OPT_DEFAULT, 0); }
   bool do_check(THD *thd, set_var *var);
   virtual void session_save_default(THD *thd, set_var *var) {}
@@ -404,12 +404,16 @@ static int item_value_type(struct st_mysql_value *value)
 static const char *item_val_str(struct st_mysql_value *value,
                                 char *buffer, int *length)
 {
-  String str(buffer, *length, system_charset_info), *res;
+  size_t org_length= *length;
+  String str(buffer, org_length, system_charset_info), *res;
   if (!(res= ((st_item_value_holder*)value)->item->val_str(&str)))
     return NULL;
   *length= res->length();
-  if (res->c_ptr_quick() == buffer)
+  if (res->ptr() == buffer && res->length() < org_length)
+  {
+    buffer[res->length()]= 0;
     return buffer;
+  }
 
   /*
     Lets be nice and create a temporary string since the
@@ -1720,7 +1724,8 @@ int plugin_init(int *argc, char **argv, int flags)
   {
     char path[FN_REFLEN + 1];
     build_table_filename(path, sizeof(path) - 1, "mysql", "plugin", reg_ext, 0);
-    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name);
+    Table_type ttype= dd_frm_type(0, path, &plugin_table_engine_name,
+                                  NULL, NULL);
     if (ttype != TABLE_TYPE_NORMAL)
       plugin_table_engine_name=empty_clex_str;
   }
@@ -1954,7 +1959,7 @@ static bool plugin_load_list(MEM_ROOT *tmp_root, const char *list)
       list= NULL; /* terminate the loop */
       /* fall through */
     case ';':
-#ifndef __WIN__
+#ifndef _WIN32
     case ':':     /* can't use this as delimiter as it may be drive letter */
 #endif
       p[-1]= 0;
@@ -3423,7 +3428,7 @@ sys_var_pluginvar::sys_var_pluginvar(sys_var_chain *chain, const char *name_arg,
   plugin_opt_set_limits(&option, pv);
 }
 
-uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type)
+uchar* sys_var_pluginvar::real_value_ptr(THD *thd, enum_var_type type) const
 {
   if (type == OPT_DEFAULT)
   {
@@ -3497,7 +3502,7 @@ bool sys_var_pluginvar::session_is_default(THD *thd)
 }
 
 
-TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
+TYPELIB* sys_var_pluginvar::plugin_var_typelib(void) const
 {
   switch (plugin_var->flags & (PLUGIN_VAR_TYPEMASK | PLUGIN_VAR_THDLOCAL)) {
   case PLUGIN_VAR_ENUM:
@@ -3515,12 +3520,10 @@ TYPELIB* sys_var_pluginvar::plugin_var_typelib(void)
 }
 
 
-uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
-                                       const LEX_CSTRING *base)
+const uchar* sys_var_pluginvar::do_value_ptr(THD *thd, enum_var_type type,
+                                             const LEX_CSTRING *base) const
 {
-  uchar* result;
-
-  result= real_value_ptr(thd, type);
+  const uchar* result= real_value_ptr(thd, type);
 
   if ((plugin_var->flags & PLUGIN_VAR_TYPEMASK) == PLUGIN_VAR_ENUM)
     result= (uchar*) get_type(plugin_var_typelib(), *(ulong*)result);

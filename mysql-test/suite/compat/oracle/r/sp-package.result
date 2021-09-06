@@ -34,7 +34,6 @@ ERROR HY000: Incorrect usage of OR REPLACE and IF NOT EXISTS
 # PACKAGE and PS
 #
 PREPARE stmt FROM 'CREATE PACKAGE test2 AS FUNCTION f1 RETURN INT; END test2';
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 CREATE PACKAGE test2 AS
 FUNCTION f1 RETURN INT;
 END;
@@ -42,7 +41,6 @@ $$
 PREPARE stmt FROM 'CREATE PACKAGE BODY test2 AS'
                   '  FUNCTION f1 RETURN INT AS BEGIN RETURN 10; END;'
                   'END test2';
-ERROR HY000: This command is not supported in the prepared statement protocol yet
 DROP PACKAGE test2;
 #
 # Package and READ ONLY transactions

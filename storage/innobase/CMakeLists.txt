@@ -48,6 +48,7 @@ SET(INNOBASE_SOURCES
 	dict/dict0stats.cc
 	dict/dict0stats_bg.cc
 	dict/dict0defrag_bg.cc
+	dict/drop.cc
 	eval/eval0eval.cc
 	eval/eval0proc.cc
 	fil/fil0fil.cc
@@ -115,8 +116,6 @@ SET(INNOBASE_SOURCES
 	include/dict0mem.ic
 	include/dict0pagecompress.h
 	include/dict0pagecompress.ic
-	include/dict0priv.h
-	include/dict0priv.ic
 	include/dict0stats.h
 	include/dict0stats.ic
 	include/dict0stats_bg.h
@@ -337,7 +336,7 @@ SET(INNOBASE_SOURCES
 	ut/ut0wqueue.cc)
 
 OPTION(WITH_PMEM "Support redo log in persistent memory" OFF)
-FIND_PACKAGE(PMEM QUIET)
+FIND_PACKAGE(PMEM)
 IF(PMEM_FOUND)
   INCLUDE_DIRECTORIES(${PMEM_INCLUDES})
   ADD_COMPILE_FLAGS(log/log0log.cc COMPILE_FLAGS "-DHAVE_PMEM")

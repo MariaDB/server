@@ -236,13 +236,13 @@ Phase 7/7: Running 'FLUSH PRIVILEGES'
 OK
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8	utf8_general_ci
+v1	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
 show create view v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`a` AS `a` from `t1`	utf8	utf8_general_ci
+v2	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
 show create view v3;
 View	Create View	character_set_client	collation_connection
-v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`a` AS `a` from `t1`	utf8	utf8_general_ci
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
 set sql_log_bin=1;
 REPAIR VIEW v1,v2;
 Table	Op	Msg_type	Msg_text
@@ -303,13 +303,13 @@ flush tables;
 create algorithm=temptable view v4 as select a from t1;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8	utf8_general_ci
+v1	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
 show create view v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`a` AS `a` from `t1`	utf8	utf8_general_ci
+v2	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
 show create view v3;
 View	Create View	character_set_client	collation_connection
-v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`a` AS `a` from `t1`	utf8	utf8_general_ci
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
 show create view v4;
 View	Create View	character_set_client	collation_connection
 v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci
@@ -489,13 +489,13 @@ OK
 flush tables;
 show create view v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8	utf8_general_ci
+v1	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
 show create view v2;
 View	Create View	character_set_client	collation_connection
-v2	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`a` AS `a` from `t1`	utf8	utf8_general_ci
+v2	CREATE ALGORITHM=MERGE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v2` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
 show create view v3;
 View	Create View	character_set_client	collation_connection
-v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`a` AS `a` from `t1`	utf8	utf8_general_ci
+v3	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v3` AS select `t1`.`a` AS `a` from `t1`	utf8mb3	utf8mb3_general_ci
 show create view v4;
 View	Create View	character_set_client	collation_connection
 v4	CREATE ALGORITHM=TEMPTABLE DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v4` AS select `t1`.`a` AS `a` from `t1`	latin1	latin1_swedish_ci

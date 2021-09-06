@@ -36,6 +36,9 @@ class Index_statistics;
 
 class THD;
 
+/* Array index type for table.field[] */
+typedef uint16 field_index_t;
+
 typedef struct st_date_time_format {
   uchar positions[8];
   char  time_separator;			/* Separator between hour and minute */
@@ -82,10 +85,10 @@ typedef struct st_key_part_info {	/* Info about a key part */
   */
   uint16 store_length;
   uint16 key_type;
-  uint16 fieldnr;                       /* Fieldnr begins counting from 1 */
+  field_index_t fieldnr;                /* Fieldnr begins counting from 1 */
   uint16 key_part_flag;                 /* 0 or HA_REVERSE_SORT */
   uint8 type;
-  uint8 null_bit;			/* Position to null_bit */
+  uint8 null_bit;                       /* Position to null_bit */
 } KEY_PART_INFO ;
 
 class engine_option_value;
@@ -534,7 +537,8 @@ public:
     OPT_OR_REPLACE= 16,                // CREATE OR REPLACE TABLE
     OPT_OR_REPLACE_SLAVE_GENERATED= 32,// REPLACE was added on slave, it was
                                        // not in the original query on master.
-    OPT_IF_EXISTS= 64
+    OPT_IF_EXISTS= 64,
+    OPT_CREATE_SELECT= 128             // CREATE ... SELECT
   };
 
 private:
@@ -562,6 +566,8 @@ public:
   { return m_options & OPT_OR_REPLACE_SLAVE_GENERATED; }
   bool like() const { return m_options & OPT_LIKE; }
   bool if_exists() const { return m_options & OPT_IF_EXISTS; }
+  bool is_create_select() const { return m_options & OPT_CREATE_SELECT; }
+
   void add(const DDL_options_st::Options other)
   {
     m_options= (Options) ((uint) m_options | (uint) other);

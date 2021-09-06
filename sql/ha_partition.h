@@ -21,8 +21,19 @@
 #include "sql_partition.h"      /* part_id_range, partition_element */
 #include "queues.h"             /* QUEUE */
 
-#define PARTITION_BYTES_IN_POS 2
+struct Ordered_blob_storage
+{
+  String blob;
+  bool set_read_value;
+  Ordered_blob_storage() : set_read_value(false)
+  {}
+};
+
 #define PAR_EXT ".par"
+#define PARTITION_BYTES_IN_POS 2
+#define ORDERED_PART_NUM_OFFSET sizeof(Ordered_blob_storage **)
+#define ORDERED_REC_OFFSET (ORDERED_PART_NUM_OFFSET + PARTITION_BYTES_IN_POS)
+
 
 /** Struct used for partition_name_hash */
 typedef struct st_part_name_def
@@ -98,12 +109,14 @@ public:
   */
   bool partition_name_hash_initialized;
   HASH partition_name_hash;
+  const char *partition_engine_name;
   /** Storage for each partitions Handler_share */
   Parts_share_refs partitions_share_refs;
   Partition_share()
     : auto_inc_initialized(false),
     next_auto_inc_val(0),
     partition_name_hash_initialized(false),
+    partition_engine_name(NULL),
     partition_names(NULL)
   {
     mysql_mutex_init(key_partition_auto_inc_mutex,
@@ -269,7 +282,7 @@ typedef struct st_partition_part_key_multi_range_hld
 extern "C" int cmp_key_part_id(void *key_p, uchar *ref1, uchar *ref2);
 extern "C" int cmp_key_rowid_part_id(void *ptr, uchar *ref1, uchar *ref2);
 
-class ha_partition :public handler
+class ha_partition final :public handler
 {
 private:
   enum partition_index_scan_type
@@ -467,7 +480,7 @@ public:
   }
   Partition_share *get_part_share() { return part_share; }
   handler *clone(const char *name, MEM_ROOT *mem_root) override;
-  virtual void set_part_info(partition_info *part_info) override
+  void set_part_info(partition_info *part_info) override
   {
      m_part_info= part_info;
      m_is_sub_partitioned= part_info->is_sub_partitioned();
@@ -525,10 +538,6 @@ public:
     Meta data routines to CREATE, DROP, RENAME table and often used at
     ALTER TABLE (update_create_info used from ALTER TABLE and SHOW ..).
 
-    update_table_comment is used in SHOW TABLE commands to provide a
-    chance for the handler to add any interesting comments to the table
-    comments not provided by the users comment.
-
     create_partitioning_metadata is called before opening a new handler object
     with openfrm to call create. It is used to create any local handler
     object needed in opening the object in openfrm
@@ -544,7 +553,6 @@ public:
     override;
   bool check_if_updates_are_ignored(const char *op) const override;
   void update_create_info(HA_CREATE_INFO *create_info) override;
-  char *update_table_comment(const char *comment) override;
   int change_partitions(HA_CREATE_INFO *create_info, const char *path,
                         ulonglong * const copied, ulonglong * const deleted,
                         const uchar *pack_frm_data, size_t pack_frm_len)
@@ -938,6 +946,7 @@ private:
   int handle_ordered_next(uchar * buf, bool next_same);
   int handle_ordered_prev(uchar * buf);
   void return_top_record(uchar * buf);
+  void swap_blobs(uchar* rec_buf, Ordered_blob_storage ** storage, bool restore);
 public:
   /*
     -------------------------------------------------------------------------
@@ -1071,6 +1080,8 @@ public:
   */
   const char *index_type(uint inx) override;
 
+  /* The name of the table type that will be used for display purposes */
+  const char *real_table_type() const override;
   /* The name of the row type used for the underlying tables. */
   enum row_type get_row_type() const override;
 
@@ -1596,6 +1607,7 @@ public:
     return h;
   }
 
+  bool partition_engine() override { return 1;}
   ha_rows part_records(partition_element *part_elem)
   {
     DBUG_ASSERT(m_part_info);

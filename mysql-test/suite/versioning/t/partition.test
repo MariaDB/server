@@ -2,7 +2,12 @@
 -- source suite/versioning/common.inc
 -- source suite/versioning/engines.inc
 
+SET @save_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
+
 call mtr.add_suppression("need more HISTORY partitions");
+
+--enable_prepare_warnings
 
 set system_versioning_alter_history=keep;
 --echo # Check conventional partitioning on temporal tables
@@ -993,6 +998,27 @@ alter table t1 partition by system_time (partition pn current);
 # Cleanup
 drop table t1;
 
+--echo #
+--echo # MDEV-22247 History partition overflow leads to wrong SELECT result
+--echo #
+set timestamp= unix_timestamp('2000-01-01 00:00:00');
+create or replace table t1 (x int) with system versioning
+partition by system_time interval 1 hour
+(partition p0 history, partition p1 history, partition pn current);
+
+insert into t1 values (0);
+update t1 set x= x + 1;
+
+set timestamp= unix_timestamp('2000-01-01 02:00:01');
+update t1 set x= x + 1;
+
+select *, row_start, row_end from t1 for system_time as of '2000-01-01 02:00:00';
+--replace_column 10 #
+explain partitions select * from t1 for system_time as of '2000-01-01 02:00:00';
+--replace_column 5 # 10 # 11 #
+explain partitions select * from t1;
+drop table t1;
+
 --echo # End of 10.3 tests
 
 --echo #
@@ -1073,8 +1099,14 @@ show create table t1;
 
 drop tables t1;
 
+--disable_prepare_warnings
+
 --echo #
 --echo # End of 10.5 tests
 --echo #
+
+SET GLOBAL innodb_stats_persistent=@save_persistent;
+
+--echo # End of 10.6 tests
 
 --source suite/versioning/common_finish.inc

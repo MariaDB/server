@@ -16,6 +16,6 @@ platform: x64
 test_script:
   - set PATH=C:\Strawberry\perl\bin;%PATH%;C:\Program Files (x86)\Windows Kits\10\Debuggers\x64
   - cd %APPVEYOR_BUILD_FOLDER%\win_build\mysql-test
-  - perl mysql-test-run.pl --force --max-test-fail=10 --parallel=4 --testcase-timeout=10 --skip-test-list=unstable-tests --suite=main
+  - perl mysql-test-run.pl --force --max-test-fail=10 --parallel=4 --testcase-timeout=10 --suite=main
 
 image: Visual Studio 2019

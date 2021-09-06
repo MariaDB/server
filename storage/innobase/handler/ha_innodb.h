@@ -59,6 +59,10 @@ public:
 	ha_innobase(handlerton* hton, TABLE_SHARE* table_arg);
 	~ha_innobase() override;
 
+	/** @return the transaction that last modified the table definition
+	@see dict_table_t::def_trx_id */
+	ulonglong table_version() const override;
+
 	/** Get the row type from the storage engine.  If this method returns
 	ROW_TYPE_NOT_USED, the information in HA_CREATE_INFO should be used. */
         enum row_type get_row_type() const override;
@@ -200,8 +204,6 @@ public:
 		TABLE*			form,
 		HA_CREATE_INFO*		create_info) override;
 
-	inline int delete_table(const char* name, enum_sql_command sqlcom);
-
 	int truncate() override;
 
 	int delete_table(const char *name) override;
@@ -209,7 +211,6 @@ public:
 	int rename_table(const char* from, const char* to) override;
 	inline int defragment_table();
 	int check(THD* thd, HA_CHECK_OPT* check_opt) override;
-	char* update_table_comment(const char* comment) override;
 
 	inline void reload_statistics();
 
@@ -451,7 +452,6 @@ protected:
 	dberr_t innobase_lock_autoinc();
 	ulonglong innobase_peek_autoinc();
 	dberr_t innobase_set_max_autoinc(ulonglong auto_inc);
-	dberr_t innobase_reset_autoinc(ulonglong auto_inc);
 
 	/** Resets a query execution 'template'.
 	@see build_template() */
@@ -534,14 +534,6 @@ extern "C" {
 @retval 0 the user thread is not running a non-transactional update
 @retval 1 the user thread is running a non-transactional update */
 int thd_non_transactional_update(const MYSQL_THD thd);
-
-/** Get high resolution timestamp for the current query start time.
-The timestamp is not anchored to any specific point in time,
-but can be used for comparison.
-@param thd user thread
-@retval timestamp in microseconds precision
-*/
-unsigned long long thd_start_utime(const MYSQL_THD thd);
 
 /** Get the user thread's binary logging format
 @param thd user thread
@@ -714,25 +706,8 @@ public:
 	const char* table_name() const
 	{ return(m_table_name); }
 
-	/** @return whether the table needs to be dropped on rollback */
-	bool drop_before_rollback() const { return m_drop_before_rollback; }
-
 	THD* thd() const
 	{ return(m_thd); }
-
-	/** Normalizes a table name string.
-	A normalized name consists of the database name catenated to '/' and
-	table name. An example: test/mytable. On Windows normalization puts
-	both the database name and the table name always to lower case if
-	"set_lower_case" is set to true.
-	@param[in,out]	norm_name	Buffer to return the normalized name in.
-	@param[in]	name		Table name string.
-	@param[in]	set_lower_case	True if we want to set name to lower
-					case. */
-	static void normalize_table_name_low(
-		char*           norm_name,
-		const char*     name,
-		ibool           set_lower_case);
 
 private:
 	/** Parses the table name into normal name and either temp path or
@@ -763,8 +738,6 @@ private:
 	char*		m_table_name;
 	/** Table */
 	dict_table_t*	m_table;
-	/** Whether the table needs to be dropped before rollback */
-	bool		m_drop_before_rollback;
 
 	/** Remote path (DATA DIRECTORY) or zero length-string */
 	char*		m_remote_path;
@@ -867,15 +840,6 @@ innodb_base_col_setup_for_stored(
 /** whether this is a stored generated column */
 #define innobase_is_s_fld(field) ((field)->vcol_info && (field)->stored_in_db())
 
-/** Always normalize table name to lower case on Windows */
-#ifdef _WIN32
-#define normalize_table_name(norm_name, name)           \
-	create_table_info_t::normalize_table_name_low(norm_name, name, TRUE)
-#else
-#define normalize_table_name(norm_name, name)           \
-	create_table_info_t::normalize_table_name_low(norm_name, name, FALSE)
-#endif /* _WIN32 */
-
 /** Converts a search mode flag understood by MySQL to a flag understood
 by InnoDB.
 @param[in]	find_flag	MySQL search mode flag.
@@ -944,10 +908,8 @@ innodb_col_no(const Field* field)
 /********************************************************************//**
 Helper function to push frm mismatch error to error log and
 if needed to sql-layer. */
-UNIV_INTERN
 void
 ib_push_frm_error(
-/*==============*/
 	THD*		thd,		/*!< in: MySQL thd */
 	dict_table_t*	ib_table,	/*!< in: InnoDB table */
 	TABLE*		table,		/*!< in: MySQL table */

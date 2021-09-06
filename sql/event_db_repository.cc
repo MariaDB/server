@@ -43,12 +43,12 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("db") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("name") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("body") },
@@ -58,7 +58,7 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("definer") },
     { STRING_WITH_LEN("varchar(") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("execute_at") },
@@ -131,7 +131,7 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("comment") },
     { STRING_WITH_LEN("char(64)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("originator") },
@@ -146,17 +146,17 @@ const TABLE_FIELD_TYPE event_table_fields[ET_FIELD_COUNT] =
   {
     { STRING_WITH_LEN("character_set_client") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("collation_connection") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("db_collation") },
     { STRING_WITH_LEN("char(32)") },
-    { STRING_WITH_LEN("utf8") }
+    { STRING_WITH_LEN("utf8mb3") }
   },
   {
     { STRING_WITH_LEN("body_utf8") },
@@ -341,31 +341,27 @@ mysql_event_fill_row(THD *thd,
   }
 
   fields[ET_FIELD_CHARACTER_SET_CLIENT]->set_notnull();
-  rs|= fields[ET_FIELD_CHARACTER_SET_CLIENT]->store(
-    thd->variables.character_set_client->csname,
-    strlen(thd->variables.character_set_client->csname),
-    system_charset_info);
+  rs|= fields[ET_FIELD_CHARACTER_SET_CLIENT]->
+    store(&thd->variables.character_set_client->cs_name,
+          system_charset_info);
 
   fields[ET_FIELD_COLLATION_CONNECTION]->set_notnull();
-  rs|= fields[ET_FIELD_COLLATION_CONNECTION]->store(
-    thd->variables.collation_connection->name,
-    strlen(thd->variables.collation_connection->name),
-    system_charset_info);
+  rs|= fields[ET_FIELD_COLLATION_CONNECTION]->
+    store(&thd->variables.collation_connection->coll_name,
+          system_charset_info);
 
   {
     CHARSET_INFO *db_cl= get_default_db_collation(thd, et->dbname.str);
 
     fields[ET_FIELD_DB_COLLATION]->set_notnull();
-    rs|= fields[ET_FIELD_DB_COLLATION]->store(db_cl->name,
-                                              strlen(db_cl->name),
+    rs|= fields[ET_FIELD_DB_COLLATION]->store(&db_cl->coll_name,
                                               system_charset_info);
   }
 
   if (et->body_changed)
   {
     fields[ET_FIELD_BODY_UTF8]->set_notnull();
-    rs|= fields[ET_FIELD_BODY_UTF8]->store(sp->m_body_utf8.str,
-                                           sp->m_body_utf8.length,
+    rs|= fields[ET_FIELD_BODY_UTF8]->store(&sp->m_body_utf8,
                                            system_charset_info);
   }
 

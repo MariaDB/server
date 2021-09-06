@@ -1097,6 +1097,19 @@ static void lock_reset_lock_and_trx_wait(lock_t *lock)
   lock->type_mode&= ~LOCK_WAIT;
 }
 
+#ifdef UNIV_DEBUG
+/** Check transaction state */
+static void check_trx_state(const trx_t *trx)
+{
+  ut_ad(!trx->auto_commit || trx->will_lock);
+  const auto state= trx->state;
+  ut_ad(state == TRX_STATE_ACTIVE ||
+        state == TRX_STATE_PREPARED_RECOVERED ||
+        state == TRX_STATE_PREPARED ||
+        state == TRX_STATE_COMMITTED_IN_MEMORY);
+}
+#endif
+
 /** Create a new record lock and inserts it to the lock queue,
 without checking for deadlocks or conflicts.
 @param[in]	c_lock		conflicting lock
@@ -1127,7 +1140,7 @@ lock_rec_create_low(
 	ut_ad(dict_index_is_clust(index) || !dict_index_is_online_ddl(index));
 	ut_ad(!(type_mode & LOCK_TABLE));
 	ut_ad(trx->state != TRX_STATE_NOT_STARTED);
-	ut_ad(!trx_is_autocommit_non_locking(trx));
+	ut_ad(!trx->is_autocommit_non_locking());
 
 	/* If rec is the supremum record, then we reset the gap and
 	LOCK_REC_NOT_GAP bits, as all locks on the supremum are
@@ -1251,16 +1264,7 @@ lock_rec_enqueue_waiting(
 
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(trx->mutex_is_owner());
-
-	if (UNIV_UNLIKELY(trx->dict_operation)) {
-		ib::error() << "A record lock wait happens in a dictionary"
-			" operation. index "
-			<< index->name
-			<< " of table "
-			<< index->table->name
-			<< ". " << BUG_REPORT_MSG;
-		ut_ad(0);
-	}
+	ut_ad(!trx->dict_operation_lock_mode);
 
 	if (trx->mysql_thd && thd_lock_wait_timeout(trx->mysql_thd) == 0) {
 		trx->error_state = DB_LOCK_WAIT_TIMEOUT;
@@ -1481,6 +1485,12 @@ lock_rec_lock(
                      static_cast<lock_mode>(LOCK_MODE_MASK & mode)))
     return DB_SUCCESS;
 
+  /* During CREATE TABLE, we will write to newly created FTS_*_CONFIG
+  on which no lock has been created yet. */
+  ut_ad(!trx->dict_operation_lock_mode ||
+        (strstr(index->table->name.m_name, "/FTS_") &&
+         strstr(index->table->name.m_name, "_CONFIG") + sizeof("_CONFIG") ==
+         index->table->name.m_name + strlen(index->table->name.m_name) + 1));
   MONITOR_ATOMIC_INC(MONITOR_NUM_RECLOCK_REQ);
   const page_id_t id{block->page.id()};
   LockGuard g{lock_sys.rec_hash, id};
@@ -1640,8 +1650,10 @@ func_exit:
       lock_sys.wr_unlock();
       return;
     }
+    ut_ad(wait_lock->is_waiting());
   }
-  ut_ad(wait_lock->is_waiting());
+  else if (!wait_lock->is_waiting())
+    goto func_exit;
   ut_ad(!(wait_lock->type_mode & LOCK_AUTO_INC));
 
   if (wait_lock->is_table())
@@ -1689,10 +1701,8 @@ dberr_t lock_wait(que_thr_t *thr)
   /* InnoDB system transactions may use the global value of
   innodb_lock_wait_timeout, because trx->mysql_thd == NULL. */
   const ulong innodb_lock_wait_timeout= trx_lock_wait_timeout_get(trx);
-  const bool no_timeout= innodb_lock_wait_timeout > 100000000;
   const my_hrtime_t suspend_time= my_hrtime_coarse();
-  ut_ad(!trx->dict_operation_lock_mode ||
-        trx->dict_operation_lock_mode == RW_S_LATCH);
+  ut_ad(!trx->dict_operation_lock_mode);
 
   /* The wait_lock can be cleared by another thread in lock_grant(),
   lock_rec_cancel(), or lock_cancel_waiting_and_release(). But, a wait
@@ -1727,9 +1737,7 @@ dberr_t lock_wait(que_thr_t *thr)
 
   trx->lock.suspend_time= suspend_time;
 
-  const auto had_dict_lock= trx->dict_operation_lock_mode;
-  if (had_dict_lock) /* Release foreign key check latch */
-    row_mysql_unfreeze_data_dictionary(trx);
+  ut_ad(!trx->dict_operation_lock_mode);
 
   IF_WSREP(if (trx->is_wsrep()) lock_wait_wsrep(trx),);
 
@@ -1748,6 +1756,14 @@ dberr_t lock_wait(que_thr_t *thr)
   timespec abstime;
   set_timespec_time_nsec(abstime, suspend_time.val * 1000);
   abstime.MY_tv_sec+= innodb_lock_wait_timeout;
+  /* Dictionary transactions must wait be immune to lock wait timeouts
+  for locks on data dictionary tables. Here we check only for
+  SYS_TABLES, SYS_COLUMNS, SYS_INDEXES, SYS_FIELDS. Locks on further
+  tables SYS_FOREIGN, SYS_FOREIGN_COLS, SYS_VIRTUAL will only be
+  acquired while holding an exclusive lock on one of the 4 tables. */
+  const bool no_timeout= innodb_lock_wait_timeout >= 100000000 ||
+    ((type_mode & LOCK_TABLE) &&
+     wait_lock->un_member.tab_lock.table->id <= DICT_FIELDS_ID);
   thd_wait_begin(trx->mysql_thd, (type_mode & LOCK_TABLE)
                  ? THD_WAIT_TABLE_LOCK : THD_WAIT_ROW_LOCK);
   dberr_t error_state= DB_SUCCESS;
@@ -1794,7 +1810,10 @@ dberr_t lock_wait(que_thr_t *thr)
       break;
     default:
       ut_ad(error_state != DB_LOCK_WAIT_TIMEOUT);
-      if (trx_is_interrupted(trx))
+      /* Dictionary transactions must ignore KILL, because they could
+      be executed as part of a multi-transaction DDL operation,
+      such as rollback_inplace_alter_table() or ha_innobase::delete_table(). */
+      if (!trx->dict_operation && trx_is_interrupted(trx))
         /* innobase_kill_query() can only set trx->error_state=DB_INTERRUPTED
         for any transaction that is attached to a connection. */
         error_state= DB_INTERRUPTED;
@@ -1825,9 +1844,6 @@ end_wait:
   mysql_mutex_unlock(&lock_sys.wait_mutex);
   thd_wait_end(trx->mysql_thd);
 
-  if (had_dict_lock)
-    row_mysql_freeze_data_dictionary(trx);
-
   trx->error_state= error_state;
   return error_state;
 }
@@ -1838,11 +1854,15 @@ static void lock_wait_end(trx_t *trx)
 {
   mysql_mutex_assert_owner(&lock_sys.wait_mutex);
   ut_ad(trx->mutex_is_owner());
-  ut_ad(trx->state == TRX_STATE_ACTIVE);
+  ut_d(const auto state= trx->state);
+  ut_ad(state == TRX_STATE_ACTIVE || state == TRX_STATE_PREPARED);
   ut_ad(trx->lock.wait_thr);
 
   if (trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~1)))
+  {
+    ut_ad(state == TRX_STATE_ACTIVE);
     trx->error_state= DB_DEADLOCK;
+  }
 
   trx->lock.wait_thr= nullptr;
   pthread_cond_signal(&trx->lock.cond);
@@ -3062,20 +3082,15 @@ void lock_rec_restore_from_page_infimum(const buf_block_t &block,
 
 /*========================= TABLE LOCKS ==============================*/
 
-/*********************************************************************//**
-Creates a table lock object and adds it as the last in the lock queue
-of the table. Does NOT check for deadlocks or lock compatibility.
-@return own: new lock object */
-UNIV_INLINE
-lock_t*
-lock_table_create(
-/*==============*/
-	dict_table_t*	table,	/*!< in/out: database table
-				in dictionary cache */
-	unsigned	type_mode,/*!< in: lock mode possibly ORed with
-				LOCK_WAIT */
-	trx_t*		trx,	/*!< in: trx */
-	lock_t*		c_lock)	/*!< in: conflicting lock */
+/**
+Create a table lock, without checking for deadlocks or lock compatibility.
+@param table      table on which the lock is created
+@param type_mode  lock type and mode
+@param trx        transaction
+@param c_lock     conflicting lock
+@return the created lock object */
+lock_t *lock_table_create(dict_table_t *table, unsigned type_mode, trx_t *trx,
+                          lock_t *c_lock)
 {
 	lock_t*		lock;
 
@@ -3083,7 +3098,13 @@ lock_table_create(
 	ut_ad(trx->mutex_is_owner());
 	ut_ad(!trx->is_wsrep() || lock_sys.is_writer());
 	ut_ad(trx->state == TRX_STATE_ACTIVE || trx->is_recovered);
-	ut_ad(!trx_is_autocommit_non_locking(trx));
+	ut_ad(!trx->is_autocommit_non_locking());
+	/* During CREATE TABLE, we will write to newly created FTS_*_CONFIG
+	on which no lock has been created yet. */
+	ut_ad(!trx->dict_operation_lock_mode
+	      || (strstr(table->name.m_name, "/FTS_")
+		  && strstr(table->name.m_name, "_CONFIG") + sizeof("_CONFIG")
+		  == table->name.m_name + strlen(table->name.m_name) + 1));
 
 	switch (LOCK_MODE_MASK & type_mode) {
 	case LOCK_AUTO_INC:
@@ -3300,13 +3321,7 @@ lock_table_enqueue_waiting(
 
 	trx_t* trx = thr_get_trx(thr);
 	ut_ad(trx->mutex_is_owner());
-
-	if (UNIV_UNLIKELY(trx->dict_operation)) {
-		ib::error() << "A table lock wait happens in a dictionary"
-			" operation. Table " << table->name
-			<< ". " << BUG_REPORT_MSG;
-		ut_ad(0);
-	}
+	ut_ad(!trx->dict_operation_lock_mode);
 
 #ifdef WITH_WSREP
 	if (trx->is_wsrep() && trx->lock.was_chosen_as_deadlock_victim) {
@@ -3468,7 +3483,7 @@ void lock_table_resurrect(dict_table_t *table, trx_t *trx, lock_mode mode)
     ut_ad(!lock_table_other_has_incompatible(trx, LOCK_WAIT, table, mode));
 
     trx->mutex_lock();
-    lock_table_create(table, mode, trx, nullptr);
+    lock_table_create(table, mode, trx);
   }
   trx->mutex_unlock();
 }
@@ -3607,6 +3622,28 @@ run_again:
 	trx->op_info = "";
 
 	return(err);
+}
+
+/** Exclusively lock the data dictionary tables.
+@param trx  dictionary transaction
+@return error code
+@retval DB_SUCCESS on success */
+dberr_t lock_sys_tables(trx_t *trx)
+{
+  dberr_t err;
+  if (!(err= lock_table_for_trx(dict_sys.sys_tables, trx, LOCK_X)) &&
+      !(err= lock_table_for_trx(dict_sys.sys_columns, trx, LOCK_X)) &&
+      !(err= lock_table_for_trx(dict_sys.sys_indexes, trx, LOCK_X)) &&
+      !(err= lock_table_for_trx(dict_sys.sys_fields, trx, LOCK_X)))
+  {
+    if (dict_sys.sys_foreign)
+      err= lock_table_for_trx(dict_sys.sys_foreign, trx, LOCK_X);
+    if (!err && dict_sys.sys_foreign_cols)
+      err= lock_table_for_trx(dict_sys.sys_foreign_cols, trx, LOCK_X);
+    if (!err && dict_sys.sys_virtual)
+      err= lock_table_for_trx(dict_sys.sys_virtual, trx, LOCK_X);
+  }
+  return err;
 }
 
 /*=========================== LOCK RELEASE ==============================*/
@@ -3775,11 +3812,7 @@ void lock_release(trx_t *trx)
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
   std::set<table_id_t> to_evict;
   if (innodb_evict_tables_on_commit_debug && !trx->is_recovered)
-# if 1 /* if dict_stats_exec_sql() were not playing dirty tricks */
-    if (!dict_sys.mutex_is_locked())
-# else /* this would be more proper way to do it */
-    if (!trx->dict_operation_lock_mode && !trx->dict_operation)
-# endif
+    if (!!trx->dict_operation)
       for (const auto& p: trx->mod_tables)
         if (!p.first->is_temporary())
           to_evict.emplace(p.first->id);
@@ -3840,16 +3873,46 @@ released:
 #if defined SAFE_MUTEX && defined UNIV_DEBUG
   if (to_evict.empty())
     return;
-  dict_sys.mutex_lock();
+  dict_sys.lock(SRW_LOCK_CALL);
   LockMutexGuard g{SRW_LOCK_CALL};
   for (const table_id_t id : to_evict)
   {
-    if (dict_table_t *table= dict_sys.get_table(id))
+    if (dict_table_t *table= dict_sys.find_table(id))
       if (!table->get_ref_count() && !UT_LIST_GET_LEN(table->locks))
         dict_sys.remove(table, true);
   }
-  dict_sys.mutex_unlock();
+  dict_sys.unlock();
 #endif
+}
+
+/** Release locks on a table whose creation is being rolled back */
+ATTRIBUTE_COLD void lock_release_on_rollback(trx_t *trx, dict_table_t *table)
+{
+  trx->mod_tables.erase(table);
+
+  lock_sys.wr_lock(SRW_LOCK_CALL);
+  trx->mutex_lock();
+
+  for (lock_t *next, *lock= UT_LIST_GET_FIRST(table->locks); lock; lock= next)
+  {
+    next= UT_LIST_GET_NEXT(un_member.tab_lock.locks, lock);
+    ut_ad(lock->trx == trx);
+    UT_LIST_REMOVE(trx->lock.trx_locks, lock);
+    ut_list_remove(table->locks, lock, TableLockGetNode());
+  }
+
+  for (lock_t *p, *lock= UT_LIST_GET_LAST(trx->lock.trx_locks); lock; lock= p)
+  {
+    p= UT_LIST_GET_PREV(trx_locks, lock);
+    ut_ad(lock->trx == trx);
+    if (lock->is_table())
+      ut_ad(lock->un_member.tab_lock.table != table);
+    else if (lock->index->table == table)
+      lock_rec_dequeue_from_page(lock, false);
+  }
+
+  lock_sys.wr_unlock();
+  trx->mutex_unlock();
 }
 
 /*********************************************************************//**
@@ -4094,13 +4157,13 @@ lock_print_info_summary(
 		"Purge done for trx's n:o < " TRX_ID_FMT
 		" undo n:o < " TRX_ID_FMT " state: %s\n"
 		"History list length %u\n",
-		purge_sys.tail.trx_no(),
+		purge_sys.tail.trx_no,
 		purge_sys.tail.undo_no,
 		purge_sys.enabled()
 		? (purge_sys.running() ? "running"
 		   : purge_sys.paused() ? "stopped" : "running but idle")
 		: "disabled",
-		uint32_t{trx_sys.rseg_history_len});
+		trx_sys.history_size());
 
 #ifdef PRINT_NUM_OF_LOCK_STRUCTS
 	fprintf(file,
@@ -4334,7 +4397,8 @@ lock_rec_queue_validate(
 			ut_ad(!index || lock->index == index);
 
 			lock->trx->mutex_lock();
-			ut_ad(!trx_is_ac_nl_ro(lock->trx));
+			ut_ad(!lock->trx->read_only
+			      || !lock->trx->is_autocommit_non_locking());
 			ut_ad(trx_state_eq(lock->trx,
 					   TRX_STATE_COMMITTED_IN_MEMORY)
 			      || !lock->is_waiting()
@@ -4420,8 +4484,8 @@ func_exit:
 	for (lock = lock_sys_t::get_first(cell, id, heap_no);
 	     lock != NULL;
 	     lock = lock_rec_get_next_const(heap_no, lock)) {
-
-		ut_ad(!trx_is_ac_nl_ro(lock->trx));
+		ut_ad(!lock->trx->read_only
+		      || !lock->trx->is_autocommit_non_locking());
 		ut_ad(!page_rec_is_metadata(rec));
 
 		if (index) {
@@ -4497,7 +4561,8 @@ loop:
 		}
 	}
 
-	ut_ad(!trx_is_ac_nl_ro(lock->trx));
+	ut_ad(!lock->trx->read_only
+	      || !lock->trx->is_autocommit_non_locking());
 
 	/* Only validate the record queues when this thread is not
 	holding a tablespace latch. */
@@ -4560,7 +4625,8 @@ lock_rec_validate(
 	     lock != NULL;
 	     lock = static_cast<const lock_t*>(HASH_GET_NEXT(hash, lock))) {
 
-		ut_ad(!trx_is_ac_nl_ro(lock->trx));
+		ut_ad(!lock->trx->read_only
+		      || !lock->trx->is_autocommit_non_locking());
 		ut_ad(!lock->is_table());
 
 		page_id_t current(lock->un_member.rec_lock.page_id);
@@ -5166,16 +5232,18 @@ lock_sec_rec_read_check_and_lock(
 	if the max trx id for the page >= min trx id for the trx list or a
 	database recovery is running. */
 
-	if (!page_rec_is_supremum(rec)
+	trx_t *trx = thr_get_trx(thr);
+	if (!lock_table_has(trx, index->table, LOCK_X)
+	    && !page_rec_is_supremum(rec)
 	    && page_get_max_trx_id(block->frame) >= trx_sys.get_min_trx_id()
 	    && lock_rec_convert_impl_to_expl(thr_get_trx(thr), id, rec,
-					     index, offsets)) {
+					     index, offsets)
+	    && gap_mode == LOCK_REC_NOT_GAP) {
 		/* We already hold an implicit exclusive lock. */
 		return DB_SUCCESS;
 	}
 
 #ifdef WITH_WSREP
-	trx_t *trx= thr_get_trx(thr);
 	/* If transaction scanning an unique secondary key is wsrep
 	high priority thread (brute force) this scanning may involve
 	GAP-locking in the index. As this locking happens also when
@@ -5228,9 +5296,6 @@ lock_clust_rec_read_check_and_lock(
 					LOCK_REC_NOT_GAP */
 	que_thr_t*		thr)	/*!< in: query thread */
 {
-	dberr_t	err;
-	ulint	heap_no;
-
 	ut_ad(dict_index_is_clust(index));
 	ut_ad(block->frame == page_align(rec));
 	ut_ad(page_rec_is_user_rec(rec) || page_rec_is_supremum(rec));
@@ -5249,17 +5314,19 @@ lock_clust_rec_read_check_and_lock(
 
 	const page_id_t id{block->page.id()};
 
-	heap_no = page_rec_get_heap_no(rec);
+	ulint heap_no = page_rec_get_heap_no(rec);
 
-	if (heap_no != PAGE_HEAP_NO_SUPREMUM
-	    && lock_rec_convert_impl_to_expl(thr_get_trx(thr), id, rec,
-					     index, offsets)) {
+	trx_t *trx = thr_get_trx(thr);
+	if (!lock_table_has(trx, index->table, LOCK_X)
+	    && heap_no != PAGE_HEAP_NO_SUPREMUM
+	    && lock_rec_convert_impl_to_expl(trx, id, rec, index, offsets)
+	    && gap_mode == LOCK_REC_NOT_GAP) {
 		/* We already hold an implicit exclusive lock. */
 		return DB_SUCCESS;
 	}
 
-	err = lock_rec_lock(false, gap_mode | mode,
-			    block, heap_no, index, thr);
+	dberr_t err = lock_rec_lock(false, gap_mode | mode,
+				    block, heap_no, index, thr);
 
 	ut_ad(lock_rec_queue_validate(false, id, rec, index, offsets));
 
@@ -5491,8 +5558,14 @@ void lock_sys_t::cancel(trx_t *trx)
   mysql_mutex_lock(&lock_sys.wait_mutex);
   if (lock_t *lock= trx->lock.wait_lock)
   {
-    trx->error_state= DB_INTERRUPTED;
-    cancel(trx, lock, false);
+    /* Dictionary transactions must be immune to KILL, because they
+    may be executed as part of a multi-transaction DDL operation, such
+    as rollback_inplace_alter_table() or ha_innobase::delete_table(). */
+    if (!trx->dict_operation)
+    {
+      trx->error_state= DB_INTERRUPTED;
+      cancel(trx, lock, false);
+    }
   }
   lock_sys.deadlock_check();
   mysql_mutex_unlock(&lock_sys.wait_mutex);
@@ -6004,13 +6077,9 @@ void lock_sys_t::deadlock_check()
     wr_unlock();
 }
 
-
-/*************************************************************//**
-Updates the lock table when a page is split and merged to
-two pages. */
-UNIV_INTERN
-void
-lock_update_split_and_merge(
+/** Update the locks when a page is split and merged to two pages,
+in defragmentation. */
+void lock_update_split_and_merge(
 	const buf_block_t* left_block,	/*!< in: left page to which merged */
 	const rec_t* orig_pred,		/*!< in: original predecessor of
 					supremum on the left page before merge*/

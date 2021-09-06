@@ -248,6 +248,8 @@ enum rec_leaf_format {
 in ROW_FORMAT=COMPACT,DYNAMIC,COMPRESSED.
 This is a special case of rec_init_offsets() and rec_get_offsets_func().
 @tparam	mblob	whether the record includes a metadata BLOB
+@tparam	redundant_temp	whether the record belongs to a temporary file
+			of a ROW_FORMAT=REDUNDANT table
 @param[in]	rec	leaf-page record
 @param[in]	index	the index that the record belongs in
 @param[in]	n_core	number of core fields (index->n_core_fields)
@@ -255,7 +257,7 @@ This is a special case of rec_init_offsets() and rec_get_offsets_func().
 			NULL to refer to index->fields[].col->def_val
 @param[in,out]	offsets	offsets, with valid rec_offs_n_fields(offsets)
 @param[in]	format	record format */
-template<bool mblob = false>
+template<bool mblob = false, bool redundant_temp = false>
 static inline
 void
 rec_init_offsets_comp_ordinary(
@@ -286,7 +288,9 @@ rec_init_offsets_comp_ordinary(
 	const unsigned n_core_null_bytes = UNIV_UNLIKELY(index->n_core_fields
 							 != n_core)
 		? UT_BITS_IN_BYTES(unsigned(index->get_n_nullable(n_core)))
-		: index->n_core_null_bytes;
+		: (redundant_temp
+		   ? UT_BITS_IN_BYTES(index->n_nullable)
+		   : index->n_core_null_bytes);
 
 	if (mblob) {
 		ut_ad(index->table->instant);
@@ -1121,8 +1125,8 @@ rec_get_nth_field_offs_old(
 }
 
 /** Determine the size of a data tuple prefix in ROW_FORMAT=COMPACT.
-@tparam	mblob	        whether the record includes a metadata BLOB
-@tparam redundant_temp  whether to use the ROW_FORMAT=REDUNDANT format
+@tparam	mblob		whether the record includes a metadata BLOB
+@tparam redundant_temp	whether to use the ROW_FORMAT=REDUNDANT format
 @param[in]	index		record descriptor; dict_table_is_comp()
 				is assumed to hold, even if it doesn't
 @param[in]	dfield		array of data fields
@@ -1169,7 +1173,9 @@ rec_get_converted_size_comp_prefix_low(
 						  - n_core_fields);
 	} else {
 		ut_ad(n_fields <= n_core_fields);
-		extra_size += index->n_core_null_bytes;
+		extra_size += redundant_temp
+			? UT_BITS_IN_BYTES(index->n_nullable)
+			: index->n_core_null_bytes;
 	}
 
 	ulint data_size = 0;
@@ -1811,10 +1817,19 @@ rec_init_offsets_temp(
 	if it was emptied during an ALTER TABLE operation. */
 	ut_ad(index->n_core_fields == n_core || !index->is_instant());
 	ut_ad(index->n_core_fields >= n_core);
-	rec_init_offsets_comp_ordinary(rec, index, offsets, n_core, def_val,
-				       status == REC_STATUS_INSTANT
-				       ? REC_LEAF_TEMP_INSTANT
-				       : REC_LEAF_TEMP);
+	if (index->table->not_redundant()) {
+		rec_init_offsets_comp_ordinary(
+			rec, index, offsets, n_core, def_val,
+			status == REC_STATUS_INSTANT
+			? REC_LEAF_TEMP_INSTANT
+			: REC_LEAF_TEMP);
+	} else {
+		rec_init_offsets_comp_ordinary<false, true>(
+			rec, index, offsets, n_core, def_val,
+			status == REC_STATUS_INSTANT
+			? REC_LEAF_TEMP_INSTANT
+			: REC_LEAF_TEMP);
+	}
 }
 
 /** Determine the offset to each field in temporary file.
@@ -1829,9 +1844,15 @@ rec_init_offsets_temp(
 	rec_offs*		offsets)
 {
 	ut_ad(!index->is_instant());
-	rec_init_offsets_comp_ordinary(rec, index, offsets,
-				       index->n_core_fields, NULL,
-				       REC_LEAF_TEMP);
+	if (index->table->not_redundant()) {
+		rec_init_offsets_comp_ordinary(
+			rec, index, offsets,
+			index->n_core_fields, NULL, REC_LEAF_TEMP);
+	} else {
+		rec_init_offsets_comp_ordinary<false, true>(
+			rec, index, offsets,
+			index->n_core_fields, NULL, REC_LEAF_TEMP);
+	}
 }
 
 /** Convert a data tuple prefix to the temporary file format.

@@ -1,7 +1,7 @@
 /************ CMgoConn C++ Functions Source Code File (.CPP) ***********/
-/*  Name: CMgoConn.CPP  Version 1.0                                    */
+/*  Name: CMgoConn.CPP  Version 1.1                                    */
 /*                                                                     */
-/*  (C) Copyright to the author Olivier BERTRAND          2017         */
+/*  (C) Copyright to the author Olivier BERTRAND          2017 - 2021  */
 /*                                                                     */
 /*  This file contains the MongoDB C connection classes functions.     */
 /***********************************************************************/
@@ -24,8 +24,9 @@
 
 bool CMgoConn::IsInit = false;
 
-bool IsNum(PSZ s);
+bool IsArray(PSZ s);
 bool MakeSelector(PGLOBAL g, PFIL fp, PSTRG s);
+int  GetDefaultPrec(void);
 
 /* --------------------------- Class INCOL --------------------------- */
 
@@ -47,12 +48,13 @@ void INCOL::AddCol(PGLOBAL g, PCOL colp, char *jp)
 				break;
 
 		if (!kp) {
-			icp = new(g) INCOL(IsNum(p));
+			icp = new(g) INCOL();
 			kcp = (PKC)PlugSubAlloc(g, NULL, sizeof(KEYCOL));
 			kcp->Next = NULL;
 			kcp->Incolp = icp;
 			kcp->Colp = NULL;
 			kcp->Key = PlugDup(g, jp);
+			kcp->Array = IsArray(p);
 
 			if (Klist) {
 				for (kp = Klist; kp->Next; kp = kp->Next);
@@ -73,6 +75,7 @@ void INCOL::AddCol(PGLOBAL g, PCOL colp, char *jp)
 		kcp->Incolp = NULL;
 		kcp->Colp = colp;
 		kcp->Key = jp;
+		kcp->Array = IsArray(jp);
 
 		if (Klist) {
 			for (kp = Klist; kp->Next; kp = kp->Next);
@@ -120,11 +123,12 @@ CMgoConn::CMgoConn(PGLOBAL g, PCPARM pcg)
 {
 	Pcg = pcg;
 	Uri = NULL;
-	Pool = NULL;
+//Pool = NULL;
 	Client = NULL;
 	Database = NULL;
 	Collection = NULL;
 	Cursor = NULL;
+	Document = NULL;
 	Query = NULL;
 	Opts = NULL;
 	Fpc = NULL;
@@ -157,24 +161,26 @@ bool CMgoConn::Connect(PGLOBAL g)
 	}	// endif name
 
 	if (!IsInit)
-#if defined(__WIN__)
+#if defined(_WIN32)
 		__try {
 		  mongo_init(true);
 	  } __except (EXCEPTION_EXECUTE_HANDLER) {
 		  strcpy(g->Message, "Cannot load MongoDB C driver");
 		  return true;
 	  }	// end try/except
-#else   // !__WIN__
+#else   // !_WIN32
 		mongo_init(true);
-#endif  // !__WIN__
+#endif  // !_WIN32
 
-	Uri = mongoc_uri_new(Pcg->Uristr);
+	Uri = mongoc_uri_new_with_error(Pcg->Uristr, &Error);
 
 	if (!Uri) {
-		sprintf(g->Message, "Failed to parse URI: \"%s\"", Pcg->Uristr);
+		sprintf(g->Message, "Failed to parse URI: \"%s\" Msg: %s",
+			Pcg->Uristr, Error.message);
 		return true;
 	}	// endif Uri
 
+#if 0
 	// Create a new client pool instance
 	Pool = mongoc_client_pool_new(Uri);
 	mongoc_client_pool_set_error_api(Pool, 2);
@@ -185,13 +191,24 @@ bool CMgoConn::Connect(PGLOBAL g)
 
 	// Create a new client instance
 	Client = mongoc_client_pool_pop(Pool);
+#else
+	// Create a new client instance
+	Client = mongoc_client_new_from_uri (Uri);
 
 	if (!Client) {
 		sprintf(g->Message, "Failed to get Client");
 		return true;
 	}	// endif Client
 
-	// Get a handle on the collection Coll_name
+	// Register the application name so we can track it in the profile logs
+	// on the server. This can also be done from the URI (see other examples).
+	mongoc_client_set_appname (Client, "Connect");
+
+	// Get a handle on the database
+	// Database = mongoc_client_get_database (Client, Pcg->Db_name);
+#endif // 0
+
+	// Get a handle on the collection
 	Collection = mongoc_client_get_collection(Client, Pcg->Db_name, Pcg->Coll_name);
 
 	if (!Collection) {
@@ -228,8 +245,8 @@ bool CMgoConn::Connect(PGLOBAL g)
 int CMgoConn::CollSize(PGLOBAL g)
 {
 	int         cnt;
-	bson_t     *query;
-	const char *jf = NULL;
+	bson_t* query;
+	const char* jf = NULL;
 
 	if (Pcg->Pipe)
 		return 10;
@@ -237,7 +254,7 @@ int CMgoConn::CollSize(PGLOBAL g)
 		jf = Pcg->Filter;
 
 	if (jf) {
-		query = bson_new_from_json((const uint8_t *)jf, -1, &Error);
+		query = bson_new_from_json((const uint8_t*)jf, -1, &Error);
 
 		if (!query) {
 			htrc("Wrong filter: %s", Error.message);
@@ -247,8 +264,17 @@ int CMgoConn::CollSize(PGLOBAL g)
 	} else
 		query = bson_new();
 
+#if defined(DEVELOPMENT)
+	if (jf)
+		cnt = (int)mongoc_collection_count_documents(Collection,
+			query, NULL, NULL, NULL, &Error);
+	else
+		cnt = (int)mongoc_collection_estimated_document_count(
+			Collection, NULL, NULL, NULL, &Error);
+#else
 	cnt = (int)mongoc_collection_count(Collection,
-		         MONGOC_QUERY_NONE, query, 0, 0, NULL, &Error);
+		MONGOC_QUERY_NONE, query, 0, 0, NULL, &Error);
+#endif
 
 	if (cnt < 0) {
 		htrc("Collection count: %s", Error.message);
@@ -260,30 +286,91 @@ int CMgoConn::CollSize(PGLOBAL g)
 } // end of CollSize
 
 /***********************************************************************/
-/*  OpenDB: Data Base open routine for MONGO access method.            */
+/*  Project: make the projection avoid path collision.                 */
+/***********************************************************************/
+void CMgoConn::Project(PGLOBAL g, PSTRG s)
+{
+	bool   m, b = false;
+	size_t n;
+	PSZ    path;
+	PCOL   cp;
+	PTDB   tp = Pcg->Tdbp;
+	PTHP   hp, php = NULL, * nphp = &php;
+
+	for (cp = tp->GetColumns(); cp; cp = cp->GetNext()) {
+		path = cp->GetJpath(g, true);
+
+		// Resolve path collision
+		for (hp = php; hp; hp = hp->Next) {
+			if (strlen(path) < strlen(hp->Path)) {
+				n = strlen(path);
+				m = true;
+			} else {
+				n = strlen(hp->Path);
+				m = false;
+			} // endif path
+
+			if (!strncmp(path, hp->Path, n))
+				break;
+
+		}	// endfor hp
+
+		if (!hp) {
+			// New path
+			hp = (PTHP)PlugSubAlloc(g, NULL, sizeof(PTH));
+			hp->Path = path;
+			hp->Name = cp->GetName();
+			hp->Next = NULL;
+			*nphp = hp;
+			nphp = &hp->Next;
+		} else if (m)  // Smaller path must replace longer one
+			hp->Path = path;
+
+	} // endfor cp
+
+	for (hp = php; hp; hp = hp->Next) {
+		if (b)
+			s->Append(",\"");
+		else
+			b = true;
+
+		if (*hp->Path == '{') {
+			// This is a Mongo defined column
+			s->Append(hp->Name);
+			s->Append("\":");
+			s->Append(hp->Path);
+		} else {
+			s->Append(hp->Path);
+			s->Append("\":1");
+		}	// endif Path
+
+	} // endfor hp
+
+} // end of Project
+
+/***********************************************************************/
+/*  MakeCursor: make the cursor used to retrieve documents.            */
 /***********************************************************************/
 bool CMgoConn::MakeCursor(PGLOBAL g)
 {
 	const char *p;
-	bool  id, b = false, all = false;
+	bool  id, all = false;
 	PCSZ  options = Pcg->Options;
 	PTDB  tp = Pcg->Tdbp;
 	PCOL  cp;
 	PSTRG s = NULL;
 	PFIL  filp = tp->GetFilter();
 
-	id = (tp->GetMode() != MODE_READ);
+	id = (tp->GetMode() == MODE_UPDATE || tp->GetMode() == MODE_DELETE);
 
 	if (options && !stricmp(options, "all")) {
 		options = NULL;
 		all = true;
-	} // endif Options
-
-	for (cp = tp->GetColumns(); cp; cp = cp->GetNext())
-		if (!strcmp(cp->GetName(), "_id"))
-			id = true;
-		else if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*") && !options)
+	} else for (cp = tp->GetColumns(); cp && !all; cp = cp->GetNext())
+		if (cp->GetFmt() && !strcmp(cp->GetFmt(), "*") && !options)
 			all = true;
+		else if (!id)
+			id = !strcmp(cp->GetFmt() ? cp->GetFmt() : cp->GetName(), "_id");
 
 	if (Pcg->Pipe) {
 		if (trace(1))
@@ -311,23 +398,14 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 			tp->SetFilter(NULL);   // Not needed anymore
 		} // endif To_Filter
 
-		if (!all && tp->GetColumns()) {
+		if (tp->GetColumns() && !strstr(s->GetStr(), "$project")) {
 			// Project list
 			s->Append(",{\"$project\":{\"");
 
 			if (!id)
 				s->Append("_id\":0,\"");
 
-			for (cp = tp->GetColumns(); cp; cp = cp->GetNext()) {
-				if (b)
-					s->Append(",\"");
-				else
-					b = true;
-
-				s->Append(cp->GetJpath(g, true));
-				s->Append("\":1");
-			} // endfor cp
-
+			Project(g, s);
 			s->Append("}}");
 		} // endif all
 
@@ -377,7 +455,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 
 				if (MakeSelector(g, filp, s)) {
 					strcpy(g->Message, "Failed making selector");
-					return NULL;
+					return true;
 				}	// endif Selector
 
 				tp->SetFilter(NULL);   // Not needed anymore
@@ -391,7 +469,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 
 			if (!Query) {
 				sprintf(g->Message, "Wrong filter: %s", Error.message);
-				return NULL;
+				return true;
 			}	// endif Query
 
 		} else
@@ -413,16 +491,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 				if (!id)
 					s->Append("_id\":0,\"");
 
-				for (cp = tp->GetColumns(); cp; cp = cp->GetNext()) {
-					if (b)
-						s->Append(",\"");
-					else
-						b = true;
-
-					s->Append(cp->GetJpath(g, true));
-					s->Append("\":1");
-				} // endfor cp
-
+				Project(g, s);
 				s->Append("}}");
 				s->Resize(s->GetLength() + 1);
 				p = s->GetStr();
@@ -435,7 +504,7 @@ bool CMgoConn::MakeCursor(PGLOBAL g)
 
 			if (!Opts) {
 				sprintf(g->Message, "Wrong options: %s", Error.message);
-				return NULL;
+				return true;
 			} // endif Opts
 
 		} // endif all
@@ -495,44 +564,54 @@ void CMgoConn::ShowDocument(bson_iter_t *iter, const bson_t *doc, const char *k)
 			key = bson_iter_key(iter);
 			htrc("Found element key: \"%s\"\n", key);
 
-			if (BSON_ITER_HOLDS_UTF8(iter))
-				htrc("%s.%s=\"%s\"\n", k, key, bson_iter_utf8(iter, NULL));
-			else if (BSON_ITER_HOLDS_INT32(iter))
-				htrc("%s.%s=%d\n", k, key, bson_iter_int32(iter));
-			else if (BSON_ITER_HOLDS_INT64(iter))
-				htrc("%s.%s=%lld\n", k, key, bson_iter_int64(iter));
-			else if (BSON_ITER_HOLDS_DOUBLE(iter))
-				htrc("%s.%s=%g\n", k, key, bson_iter_double(iter));
-			else if (BSON_ITER_HOLDS_DATE_TIME(iter))
-				htrc("%s.%s=date(%lld)\n", k, key, bson_iter_date_time(iter));
-			else if (BSON_ITER_HOLDS_OID(iter)) {
-				char str[25];
+			switch (bson_iter_type(iter)) {
+				case BSON_TYPE_UTF8:
+					htrc("%s.%s=\"%s\"\n", k, key, bson_iter_utf8(iter, NULL));
+					break;
+				case BSON_TYPE_INT32:
+					htrc("%s.%s=%d\n", k, key, bson_iter_int32(iter));
+					break;
+				case BSON_TYPE_INT64:
+					htrc("%s.%s=%lld\n", k, key, bson_iter_int64(iter));
+					break;
+				case BSON_TYPE_DOUBLE:
+					htrc("%s.%s=%g\n", k, key, bson_iter_double(iter));
+					break;
+				case BSON_TYPE_DATE_TIME:
+					htrc("%s.%s=date(%lld)\n", k, key, bson_iter_date_time(iter));
+					break;
+				case BSON_TYPE_OID: {
+					char str[25];
 
-				bson_oid_to_string(bson_iter_oid(iter), str);
-				htrc("%s.%s=%s\n", k, key, str);
-			} else if (BSON_ITER_HOLDS_DECIMAL128(iter)) {
-				char             *str = NULL;
-				bson_decimal128_t dec;
+					bson_oid_to_string(bson_iter_oid(iter), str);
+					htrc("%s.%s=%s\n", k, key, str);
+				} break;
+				case BSON_TYPE_DECIMAL128: {
+					char str[BSON_DECIMAL128_STRING];
+					bson_decimal128_t dec;
 
-				bson_iter_decimal128(iter, &dec);
-				bson_decimal128_to_string(&dec, str);
-				htrc("%s.%s=%s\n", k, key, str);
-			} else if (BSON_ITER_HOLDS_DOCUMENT(iter)) {
-				bson_iter_t child;
+					bson_iter_decimal128(iter, &dec);
+					bson_decimal128_to_string(&dec, str);
+					htrc("%s.%s=%s\n", k, key, str);
+				} break;
+				case BSON_TYPE_DOCUMENT: {
+					bson_iter_t child;
 
-				if (bson_iter_recurse(iter, &child))
-					ShowDocument(&child, NULL, key);
+					if (bson_iter_recurse(iter, &child))
+						ShowDocument(&child, NULL, key);
 
-			} else if (BSON_ITER_HOLDS_ARRAY(iter)) {
-				bson_t				*arr;
-				bson_iter_t    itar;
-				const uint8_t *data = NULL;
-				uint32_t       len = 0;
+				} break;
+				case BSON_TYPE_ARRAY: {
+					bson_t* arr;
+					bson_iter_t    itar;
+					const uint8_t* data = NULL;
+					uint32_t       len = 0;
 
-				bson_iter_array(iter, &len, &data);
-				arr = bson_new_from_data(data, len);
-				ShowDocument(&itar, arr, key);
-			}	// endif's
+					bson_iter_array(iter, &len, &data);
+					arr = bson_new_from_data(data, len);
+					ShowDocument(&itar, arr, key);
+				} break;
+			}	// endswitch iter
 
 		}	// endwhile bson_iter_next
 
@@ -545,7 +624,7 @@ void CMgoConn::ShowDocument(bson_iter_t *iter, const bson_t *doc, const char *k)
 /***********************************************************************/
 void CMgoConn::MakeColumnGroups(PGLOBAL g)
 {
-	Fpc = new(g) INCOL(false);
+	Fpc = new(g) INCOL();
 
 	for (PCOL colp = Pcg->Tdbp->GetColumns(); colp; colp = colp->GetNext())
 		if (!colp->IsSpecial())
@@ -560,7 +639,7 @@ bool CMgoConn::DocWrite(PGLOBAL g, PINCOL icp)
 {
 	for (PKC kp = icp->Klist; kp; kp = kp->Next)
 		if (kp->Incolp) {
-			bool isdoc = !kp->Incolp->Array;
+			bool isdoc = !kp->Array;
 
 			if (isdoc)
 				BSON_APPEND_DOCUMENT_BEGIN(icp->Child, kp->Key, kp->Incolp->Child);
@@ -582,7 +661,7 @@ bool CMgoConn::DocWrite(PGLOBAL g, PINCOL icp)
 } // end of DocWrite
 
 /***********************************************************************/
-/*  WriteDB: Data Base write routine for DOS access method.            */
+/*  WriteDB: Data Base write routine for CMGO access method.           */
 /***********************************************************************/
 int CMgoConn::Write(PGLOBAL g)
 {
@@ -590,22 +669,45 @@ int CMgoConn::Write(PGLOBAL g)
 	PTDB tp = Pcg->Tdbp;
 
 	if (tp->GetMode() == MODE_INSERT) {
-  	Fpc->Init();
+		if (!Pcg->Line) {
+			Fpc->Init();
 
-		if (DocWrite(g, Fpc))
-			return RC_FX;
+			if (DocWrite(g, Fpc))
+				return RC_FX;
 
-		if (trace(2)) {
-			char *str = bson_as_json(Fpc->Child, NULL);
-			htrc("Inserting: %s\n", str);
-			bson_free(str);
-		} // endif trace
+			if (trace(2)) {
+				char* str = bson_as_json(Fpc->Child, NULL);
+				htrc("Inserting: %s\n", str);
+				bson_free(str);
+			} // endif trace
 
-		if (!mongoc_collection_insert(Collection, MONGOC_INSERT_NONE,
-			Fpc->Child, NULL, &Error)) {
-			sprintf(g->Message, "Mongo insert: %s", Error.message);
-			rc = RC_FX;
-		} // endif insert
+			if (!mongoc_collection_insert(Collection, MONGOC_INSERT_NONE,
+				                            Fpc->Child, NULL, &Error)) {
+				sprintf(g->Message, "Mongo insert: %s", Error.message);
+				rc = RC_FX;
+			} // endif insert
+
+		} else {
+			const uint8_t* val = (const uint8_t*)Pcg->Line;
+			bson_t* doc = bson_new_from_json(val, -1, &Error);
+
+			if (doc && trace(2)) {
+				char* str = bson_as_json(doc, NULL);
+				htrc("Inserting: %s\n", str);
+				bson_free(str);
+			} // endif trace
+
+			if (!doc) {
+				sprintf(g->Message, "bson_new_from_json: %s", Error.message);
+				rc = RC_FX;
+			}	else if (!mongoc_collection_insert(Collection,
+				         MONGOC_INSERT_NONE, doc, NULL, &Error)) {
+				sprintf(g->Message, "Mongo insert: %s", Error.message);
+				bson_destroy(doc);
+				rc = RC_FX;
+			} // endif insert
+
+		} // endif Line
 
 	} else {
 		bool        b = false;
@@ -614,19 +716,26 @@ int CMgoConn::Write(PGLOBAL g)
 
 		bson_iter_init(&iter, Document);
 
-		if (bson_iter_find(&iter, "_id")) {
-			if (BSON_ITER_HOLDS_OID(&iter))
-				b = BSON_APPEND_OID(query, "_id", bson_iter_oid(&iter));
-			else if (BSON_ITER_HOLDS_INT32(&iter))
-				b = BSON_APPEND_INT32(query, "_id", bson_iter_int32(&iter));
-			else if (BSON_ITER_HOLDS_INT64(&iter))
-				b = BSON_APPEND_INT64(query, "_id", bson_iter_int64(&iter));
-			else if (BSON_ITER_HOLDS_DOUBLE(&iter))
-				b = BSON_APPEND_DOUBLE(query, "_id", bson_iter_double(&iter));
-			else if (BSON_ITER_HOLDS_UTF8(&iter))
-				b = BSON_APPEND_UTF8(query, "_id", bson_iter_utf8(&iter, NULL));
-
-		} // endif iter
+		if (bson_iter_find(&iter, "_id"))
+			switch (bson_iter_type(&iter)) {
+				case BSON_TYPE_OID:
+					b = BSON_APPEND_OID(query, "_id", bson_iter_oid(&iter));
+					break;
+				case BSON_TYPE_UTF8:
+					b = BSON_APPEND_UTF8(query, "_id", bson_iter_utf8(&iter, NULL));
+					break;
+				case BSON_TYPE_INT32:
+					b = BSON_APPEND_INT32(query, "_id", bson_iter_int32(&iter));
+					break;
+				case BSON_TYPE_INT64:
+					b = BSON_APPEND_INT64(query, "_id", bson_iter_int64(&iter));
+					break;
+				case BSON_TYPE_DOUBLE:
+					b = BSON_APPEND_DOUBLE(query, "_id", bson_iter_double(&iter));
+					break;
+				default:
+					break;
+			} // endswitch iter
 
 		if (b) {
 			if (trace(2)) {
@@ -708,8 +817,9 @@ void CMgoConn::Close(void)
 	if (Opts) bson_destroy(Opts);
 	if (Cursor)	mongoc_cursor_destroy(Cursor);
 	if (Collection) mongoc_collection_destroy(Collection);
-	if (Client) mongoc_client_pool_push(Pool, Client);
-	if (Pool) mongoc_client_pool_destroy(Pool);
+//if (Client) mongoc_client_pool_push(Pool, Client);
+//if (Pool) mongoc_client_pool_destroy(Pool);
+	if (Client) mongoc_client_destroy(Client);
 	if (Uri) mongoc_uri_destroy(Uri);
 	if (Fpc) Fpc->Destroy();
 	if (fp) fp->Count = 0;
@@ -720,23 +830,51 @@ void CMgoConn::Close(void)
 /***********************************************************************/
 char *CMgoConn::Mini(PGLOBAL g, PCOL colp, const bson_t *bson, bool b)
 {
-	char *s, *str = NULL;
-	char *Mbuf = (char*)PlugSubAlloc(g, NULL, colp->GetLength() + 1);
-	int   i, k = 0;
-	bool  ok = true;
+	char  *s, *str = NULL;
+	char  *Mbuf = (char*)PlugSubAlloc(g, NULL, (size_t)colp->GetLength() + 1);
+	int    i, j = 0, k = 0, n = 0, m = GetDefaultPrec();
+	bool   ok = true, dbl = false;
+	double d;
+	size_t len;
 
 	if (b)
-		s = str = bson_array_as_json(bson, NULL);
+		s = str = bson_array_as_json(bson, &len);
 	else
-		s = str = bson_as_json(bson, NULL);
+		s = str = bson_as_json(bson, &len);
+
+	if (len > (size_t)colp->GetLength()) {
+		sprintf(g->Message, "Value too long for column %s", colp->GetName());
+		bson_free(str);
+		throw (int)TYPE_AM_MGO;
+	}	// endif len
 
 	for (i = 0; i < colp->GetLength() && s[i]; i++) {
 		switch (s[i]) {
 			case ' ':
 				if (ok) continue;
+				break;
 			case '"':
 				ok = !ok;
+				break;
+			case '.':
+				if (j) dbl = true;
+				break;
 			default:
+				if (ok) {
+					if (isdigit(s[i])) {
+						if (!j) j = k;
+						if (dbl) n++;
+					} else if (dbl && n > m) {
+						Mbuf[k] = 0;
+						d = atof(Mbuf + j);
+						n = sprintf(Mbuf + j, "%.*f", m, d);
+						k = j + n;
+						j = n = 0;
+					} else if (j)
+						j = n = 0;
+
+				} // endif ok
+
 				break;
 		} // endswitch s[i]
 
@@ -744,11 +882,6 @@ char *CMgoConn::Mini(PGLOBAL g, PCOL colp, const bson_t *bson, bool b)
 	} // endfor i
 
 	bson_free(str);
-
-	if (i >= colp->GetLength()) {
-		sprintf(g->Message, "Value too long for column %s", colp->GetName());
-		throw (int)TYPE_AM_MGO;
-	}	// endif i
 
 	Mbuf[k] = 0;
 	return Mbuf;
@@ -759,97 +892,103 @@ char *CMgoConn::Mini(PGLOBAL g, PCOL colp, const bson_t *bson, bool b)
 /***********************************************************************/
 void CMgoConn::GetColumnValue(PGLOBAL g, PCOL colp)
 {
-	char *jpath = colp->GetJpath(g, false);
-	PVAL  value = colp->GetValue();
+	char       *jpath = colp->GetJpath(g, false);
+	bool        b = false;
+	PVAL        value = colp->GetValue();
+	bson_iter_t Iter;				    // Used to retrieve column value
+	bson_iter_t Desc;				    // Descendant iter
 
-	if (!strcmp(jpath, "*")) {
+	if (*jpath == '{')
+		jpath = colp->GetName();  // This is a Mongo defined column
+	
+	if (!*jpath || !strcmp(jpath, "*")) {
 		value->SetValue_psz(Mini(g, colp, Document, false));
 	} else if (bson_iter_init(&Iter, Document) &&
 		         bson_iter_find_descendant(&Iter, jpath, &Desc)) {
-		if (BSON_ITER_HOLDS_UTF8(&Desc))
-			value->SetValue_psz((PSZ)bson_iter_utf8(&Desc, NULL));
-		else if (BSON_ITER_HOLDS_INT32(&Desc))
-			value->SetValue(bson_iter_int32(&Desc));
-		else if (BSON_ITER_HOLDS_INT64(&Desc))
-			value->SetValue(bson_iter_int64(&Desc));
-		else if (BSON_ITER_HOLDS_DOUBLE(&Desc))
-			value->SetValue(bson_iter_double(&Desc));
-		else if (BSON_ITER_HOLDS_DATE_TIME(&Desc))
-			value->SetValue(bson_iter_date_time(&Desc) / 1000);
-		else if (BSON_ITER_HOLDS_BOOL(&Desc)) {
-			bool b = bson_iter_bool(&Desc);
+		switch (bson_iter_type(&Desc)) {
+			case BSON_TYPE_UTF8:
+				value->SetValue_psz((PSZ)bson_iter_utf8(&Desc, NULL));
+				break;
+			case BSON_TYPE_INT32:
+				value->SetValue(bson_iter_int32(&Desc));
+				break;
+			case BSON_TYPE_INT64:
+				value->SetValue(bson_iter_int64(&Desc));
+				break;
+			case BSON_TYPE_DOUBLE:
+				value->SetValue(bson_iter_double(&Desc));
+				break;
+			case BSON_TYPE_DATE_TIME:
+				value->SetValue(bson_iter_date_time(&Desc) / 1000);
+				break;
+			case BSON_TYPE_BOOL:
+				b = bson_iter_bool(&Desc);
 
-			if (value->IsTypeNum())
-				value->SetValue(b ? 1 : 0);
-			else
-				value->SetValue_psz(b ? "true" : "false");
+				if (value->IsTypeNum())
+					value->SetValue(b ? 1 : 0);
+				else
+					value->SetValue_psz(b ? "true" : "false");
 
-		} else if (BSON_ITER_HOLDS_OID(&Desc)) {
-			char str[25];
+				break;
+			case BSON_TYPE_OID: {
+				char str[25];
 
-			bson_oid_to_string(bson_iter_oid(&Desc), str);
-			value->SetValue_psz(str);
-		} else if (BSON_ITER_HOLDS_NULL(&Iter)) {
-			// Apparently this does not work...
-			value->Reset();
-			value->SetNull(true);
-		} else if (BSON_ITER_HOLDS_DECIMAL128(&Desc)) {
-			char *str = NULL;
-			bson_decimal128_t dec;
+				bson_oid_to_string(bson_iter_oid(&Desc), str);
+				value->SetValue_psz(str);
+			}	break;
+			case BSON_TYPE_ARRAY:
+				b = true;
+				// passthru
+			case BSON_TYPE_DOCUMENT:
+			{	 // All this because MongoDB can return the wrong type
+				int            i = 0;
+				const uint8_t *data = NULL;
+				uint32_t       len = 0;
 
-			bson_iter_decimal128(&Desc, &dec);
-			bson_decimal128_to_string(&dec, str);
-			value->SetValue_psz(str);
-			bson_free(str);
-		} else if (BSON_ITER_HOLDS_DOCUMENT(&Iter)) {
-			bson_t				*doc;
-			const uint8_t *data = NULL;
-			uint32_t       len = 0;
+				for (; i < 2; i++) {
+					if (b) // Try array first
+						bson_iter_array(&Desc, &len, &data);
+					else
+						bson_iter_document(&Desc, &len, &data);
 
-			bson_iter_document(&Desc, &len, &data);
+					if (!data) {
+						len = 0;
+						b = !b;
+					} else
+						break;
 
-			if (data) {
-				doc = bson_new_from_data(data, len);
-				value->SetValue_psz(Mini(g, colp, doc, false));
-				bson_destroy(doc);
-			} else {
-				// ... but we can come here in case of NULL!
-				value->Reset();
-				value->SetNull(true);
-			} // endif data
-
-		} else if (BSON_ITER_HOLDS_ARRAY(&Iter)) {
-			bson_t				*arr;
-			const uint8_t *data = NULL;
-			uint32_t       len = 0;
-
-			bson_iter_array(&Desc, &len, &data);
-
-			if (data) {
-				arr = bson_new_from_data(data, len);
-				value->SetValue_psz(Mini(g, colp, arr, true));
-				bson_destroy(arr);
-			} else {
-				// This is a bug in returning the wrong type
-				// This fix is only for document items
-				bson_t *doc;
-
-				bson_iter_document(&Desc, &len, &data);
+				} // endfor i
 
 				if (data) {
-					doc = bson_new_from_data(data, len);
-					value->SetValue_psz(Mini(g, colp, doc, false));
+					bson_t *doc = bson_new_from_data(data, len);
+
+					value->SetValue_psz(Mini(g, colp, doc, b));
 					bson_destroy(doc);
 				} else {
 					// ... or we can also come here in case of NULL!
 					value->Reset();
 					value->SetNull(true);
-				}	// endif data
+				} // endif data
 
-			} // endif data
+			} break;
+			case BSON_TYPE_NULL:
+				// Apparently this does not work...
+				value->Reset();
+				value->SetNull(true);
+				break;
+			case BSON_TYPE_DECIMAL128: {
+				char str[BSON_DECIMAL128_STRING];
+				bson_decimal128_t dec;
 
-		} else
-			value->Reset();
+				bson_iter_decimal128(&Desc, &dec);
+				bson_decimal128_to_string(&dec, str);
+				value->SetValue_psz(str);
+//			bson_free(str);
+			} break;
+			default:
+				value->Reset();
+				break;
+		} // endswitch Desc
 
 	} else {
 		// Field does not exist
@@ -868,14 +1007,35 @@ bool CMgoConn::AddValue(PGLOBAL g, PCOL colp, bson_t *doc, char *key, bool upd)
 	PVAL value = colp->GetValue();
 
 	if (value->IsNull()) {
-		if (upd)
+//		if (upd)
 			rc = BSON_APPEND_NULL(doc, key);
-		else
-			return false;
+//		else
+//			return false;
 
 	} else switch (colp->GetResultType()) {
 		case TYPE_STRING:
-			rc = BSON_APPEND_UTF8(doc, key, value->GetCharValue());
+			if (colp->Stringify()) {
+				const uint8_t *val = (const uint8_t*)value->GetCharValue();
+				bson_t        *bsn = bson_new_from_json(val, -1, &Error);
+
+				if (!bsn) {
+					sprintf (g->Message, "AddValue: %s", Error.message);
+					return true;
+				} else if (*key) {
+					if (*val == '[')
+						rc = BSON_APPEND_ARRAY(doc, key, bsn);
+					else
+						rc = BSON_APPEND_DOCUMENT(doc, key, bsn);
+
+				} else {
+					bson_copy_to (bsn, doc);
+					rc = true;
+				} // endif's
+
+				bson_free(bsn);
+			}	else
+				rc = BSON_APPEND_UTF8(doc, key, value->GetCharValue());
+
 			break;
 		case TYPE_INT:
 		case TYPE_SHORT:

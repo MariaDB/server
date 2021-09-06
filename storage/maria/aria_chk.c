@@ -505,7 +505,7 @@ static void usage(void)
 		      maria_chk very silent.\n\
   -t, --tmpdir=path   Path for temporary files. Multiple paths can be\n\
                       specified, separated by ");
-#if defined( __WIN__) || defined(__NETWARE__)
+#if defined( _WIN32)
    printf("semicolon (;)");
 #else
    printf("colon (:)");
@@ -986,7 +986,7 @@ static void get_options(register int *argc,register char ***argv)
 
   if (set_collation_name)
     if (!(set_collation= get_charset_by_name(set_collation_name,
-                                             MYF(MY_WME))))
+                                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
       my_exit(1);
 
   if (maria_data_root != default_log_dir && opt_log_dir == default_log_dir)

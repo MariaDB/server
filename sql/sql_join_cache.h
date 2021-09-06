@@ -206,11 +206,14 @@ protected:
 
   /* 
     This flag indicates that records written into the join buffer contain
-    a match flag field. The flag must be set by the init method.
+    a match flag field.
+    This is set to true for the first inner table of an outer join or a
+    semi-join.
+    The flag must be set by the init method.
     Currently any implementation of the virtial init method calls
     the function JOIN_CACHE::calc_record_fields() to set this flag.
   */
-  bool with_match_flag; 
+  bool with_match_flag;
   /*
     This flag indicates that any record is prepended with the length of the
     record which allows us to skip the record or part of it without reading.

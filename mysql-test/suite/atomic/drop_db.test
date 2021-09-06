@@ -1,0 +1,121 @@
+--source include/have_debug.inc
+--source include/have_innodb.inc
+--source include/have_log_bin.inc
+--source include/not_valgrind.inc
+
+#
+# Testing of atomic DROP DATABASE with crashes in a lot of different places
+#
+
+call mtr.add_suppression("InnoDB: .* does not exist in the InnoDB internal");
+# Speed up wait_until_connected_again.inc
+let NO_WSREP=1;
+RESET MASTER;
+let $MYSQLD_DATADIR= `SELECT @@datadir`;
+
+let $engine_count=2;
+let $engines='aria','innodb';
+
+let $crash_count=10;
+let $crash_points='ddl_log_drop_before_delete_table','ddl_log_drop_after_drop_tables','ddl_log_drop_before_ha_drop_database','ddl_log_drop_before_drop_db_routines','ddl_log_drop_after_drop_db_routines','ddl_log_drop_before_drop_option_file','ddl_log_drop_before_drop_dir','ddl_log_drop_after_drop_dir','ddl_log_drop_before_binlog','ddl_log_drop_after_binlog';
+
+let $old_debug=`select @@debug_dbug`;
+
+let $e=0;
+let $keep_include_silent=1;
+let $grep_script=DROP;
+--disable_query_log
+
+while ($e < $engine_count)
+{
+  inc $e;
+  let $engine=`select ELT($e, $engines)`;
+  let $default_engine=$engine;
+  let $extra_option=;
+
+  if ($engine == "aria")
+  {
+    let $extra_option=transactional=1;
+  }
+  if ($engine == "aria_notrans")
+  {
+    let $default_engine="aria";
+    let $extra_option=transactional=0;
+  }
+
+  # Number of tables that should be dropped (we try to crash after each drop)
+  let $drops=3;
+
+  let $c=0;
+  while ($c < $crash_count)
+  {
+    inc $c;
+    let $crash=`select ELT($c, $crash_points)`;
+    let $r=0;
+    while ($r < $drops)
+    {
+      inc $r;
+      create database test2;
+      use test2;
+      --eval set @@default_storage_engine=$default_engine;
+      --eval create table t1 (a int not null) $extra_option;
+      create view t1v as select * from t1;
+      --eval create table t2 (b int not null) $extra_option;
+      create procedure foo()
+        insert into test.t1 values (42);
+
+      flush tables;
+      use test;
+
+      FLUSH BINARY LOGS;
+      --let $start_binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+
+      echo "engine: $engine  crash point: $crash  position: $r";
+      --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
+      --disable_reconnect
+      --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=$r
+      let $errno=0;
+      --error 0,2013
+      DROP DATABASE test2;
+      let $error=$errno;
+      --enable_reconnect
+      --source include/wait_until_connected_again.inc
+      --disable_query_log
+      --eval set @@debug_dbug="$old_debug"
+
+      if ($error == 0)
+      {
+        echo "No crash!";
+      }
+      use test;
+      # Check which tables still exists
+      --error 0,1
+      --list_files $MYSQLD_DATADIR/test2 t*
+      --error 0,ER_SP_DOES_NOT_EXIST
+      show create procedure test2.foo;
+
+      --let $binlog_file=$start_binlog_file
+      --let $binlog_output_name=master-bin.000001
+      --source include/show_binlog_events.inc
+      if ($error)
+      {
+        --let $binlog_file= query_get_value(SHOW MASTER STATUS, File, 1)
+        --let $binlog_output_name=master-bin.000002
+        if ($binlog_file != $start_binlog_file)
+        {
+          --source include/show_binlog_events.inc
+        }
+      }
+      # Really drop the tables. The warnings will show what was dropped
+      --disable_warnings
+      --error 0, ER_DB_DROP_EXISTS
+      DROP DATABASE test2;
+      --enable_warnings
+    }
+    # We only need to test drops for all tables for the first crash point
+    let $drops=1;
+  }
+}
+drop database if exists test2;
+
+--enable_query_log

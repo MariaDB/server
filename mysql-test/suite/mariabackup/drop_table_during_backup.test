@@ -6,6 +6,8 @@ CREATE TABLE t3 (i int) ENGINE=INNODB;
 CREATE TABLE t4 (i int) ENGINE=INNODB;
 CREATE TABLE t5 (i int) ENGINE=INNODB;
 
+set global innodb_log_checkpoint_now=1;
+
 --let before_copy_test_t1=DROP TABLE test.t1
 --let after_copy_test_t2=DROP TABLE test.t2;
 # MDEV-18185, drop + rename combination

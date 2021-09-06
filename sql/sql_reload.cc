@@ -24,6 +24,7 @@
 #include "sql_connect.h" // reset_mqh
 #include "thread_cache.h"
 #include "sql_base.h"    // close_cached_tables
+#include "sql_parse.h"   // check_single_table_access
 #include "sql_db.h"      // my_dbopt_cleanup
 #include "hostname.h"    // hostname_cache_refresh
 #include "sql_repl.h"    // reset_master, reset_slave
@@ -586,27 +587,28 @@ bool flush_tables_with_read_lock(THD *thd, TABLE_LIST *all_tables)
                            &lock_tables_prelocking_strategy))
     goto error_reset_bits;
 
-  if (thd->lex->type & REFRESH_FOR_EXPORT)
+  if (thd->lex->type & (REFRESH_FOR_EXPORT|REFRESH_READ_LOCK))
   {
-    // Check if all storage engines support FOR EXPORT.
     for (TABLE_LIST *table_list= all_tables; table_list;
          table_list= table_list->next_global)
     {
-      if (!(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
+      if (table_list->belong_to_view &&
+          check_single_table_access(thd, PRIV_LOCK_TABLES, table_list, FALSE))
+      {
+        table_list->hide_view_error(thd);
+        goto error_reset_bits;
+      }
+      if (table_list->is_view_or_derived())
+        continue;
+      if (thd->lex->type & REFRESH_FOR_EXPORT &&
+          !(table_list->table->file->ha_table_flags() & HA_CAN_EXPORT))
       {
         my_error(ER_ILLEGAL_HA, MYF(0),table_list->table->file->table_type(),
                  table_list->db.str, table_list->table_name.str);
         goto error_reset_bits;
       }
-    }
-  }
-
-  if (thd->lex->type & REFRESH_READ_LOCK)
-  {
-    for (auto table_list= all_tables; table_list;
-         table_list= table_list->next_global)
-    {
-      if (table_list->table->file->extra(HA_EXTRA_FLUSH))
+      if (thd->lex->type & REFRESH_READ_LOCK &&
+          table_list->table->file->extra(HA_EXTRA_FLUSH))
         goto error_reset_bits;
     }
   }

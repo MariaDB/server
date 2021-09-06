@@ -400,7 +400,7 @@ static long keycache_thread_id;
 #define HASH_LINK_NUMBER(h)                                                   \
   ((uint) (((char*)(h)-(char *) keycache->hash_link_root)/sizeof(HASH_LINK)))
 
-#if (defined(KEYCACHE_TIMEOUT) && !defined(__WIN__)) || defined(KEYCACHE_DEBUG)
+#if (defined(KEYCACHE_TIMEOUT) && !defined(_WIN32)) || defined(KEYCACHE_DEBUG)
 static int keycache_pthread_cond_wait(mysql_cond_t *cond,
                                       mysql_mutex_t *mutex);
 #else
@@ -4674,7 +4674,7 @@ static void keycache_dump(SIMPLE_KEY_CACHE_CB *keycache)
 
 #endif /* defined(KEYCACHE_TIMEOUT) */
 
-#if defined(KEYCACHE_TIMEOUT) && !defined(__WIN__)
+#if defined(KEYCACHE_TIMEOUT) && !defined(_WIN32)
 
 
 static int keycache_pthread_cond_wait(mysql_cond_t *cond,
@@ -4736,7 +4736,7 @@ static int keycache_pthread_cond_wait(mysql_cond_t *cond,
   return rc;
 }
 #endif
-#endif /* defined(KEYCACHE_TIMEOUT) && !defined(__WIN__) */
+#endif /* defined(KEYCACHE_TIMEOUT) && !defined(_WIN32) */
 
 #if defined(KEYCACHE_DEBUG)
 

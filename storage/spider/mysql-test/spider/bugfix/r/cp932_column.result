@@ -45,12 +45,12 @@ UPDATE tbl_a SET txt_cp932 = 'íÜçë' WHERE pkey = 2;
 SET NAMES utf8;
 connection child2_1;
 SET NAMES cp932;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%update %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%update %');
 argument
 insert into `auto_test_remote`.`tbl_a`(`pkey`,`txt_utf8`,`txt_cp932`)values(10,'',_cp932'\\x92\\x86\\x8D\\x91')
 insert high_priority into `auto_test_remote`.`tbl_a`(`pkey`,`txt_utf8`,`txt_cp932`)values(0,'',_cp932'') on duplicate key update `txt_cp932` = _cp932'\x92\x86\x8D\x91'
 update `auto_test_remote`.`tbl_a` set `txt_cp932` = _cp932'\x92\x86\x8D\x91' where (`pkey` = 2)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%insert %' OR argument LIKE '%update %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND (argument LIKE '%insert %' OR argument LIKE '%update %')
 SELECT pkey, txt_utf8, txt_cp932 FROM tbl_a ORDER BY pkey;
 pkey	txt_utf8	txt_cp932
 0		íÜçë

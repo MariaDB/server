@@ -211,7 +211,7 @@ class WorkerThread(threading.Thread):
     self.con = None
     SECONDS_BETWEEN_RETRY = 10
     attempts = 1
-    logging.info("Attempting to connect to MySQL Server")
+    logging.info("Attempting to connect to MariaDB Server")
     while not self.con and timeout > 0 and not TEST_STOP:
       try:
         self.con = MySQLdb.connect(user=OPTIONS.user, host=OPTIONS.host,
@@ -271,7 +271,7 @@ class ReaperWorker(WorkerThread):
         time.sleep(1)
         continue
       if self.reconnect():
-        raise Exception("Unable to connect to MySQL server")
+        raise Exception("Unable to connect to MariaDB server")
       logging.info('killing server...')
       with open(OPTIONS.expect_file, 'w+') as expect_file:
         expect_file.write('restart')
@@ -296,7 +296,7 @@ class PopulateWorker(WorkerThread):
 
   def runme(self):
     if self.reconnect():
-      raise Exception("Unable to connect to MySQL server")
+      raise Exception("Unable to connect to MariaDB server")
 
     stmt = None
     for i in xrange(self.start_id, self.start_id + self.num_to_add):
@@ -714,7 +714,7 @@ class LoadGenWorker(WorkerThread):
 
     self.start_time = time.time()
     if self.reconnect():
-      raise Exception("Unable to connect to MySQL server")
+      raise Exception("Unable to connect to MariaDB server")
 
     self.populate_id_map()
     self.verify_data()
@@ -736,7 +736,7 @@ class LoadGenWorker(WorkerThread):
         if not is_connection_error(e):
           raise e
         if self.reconnect():
-          raise Exception("Unable to connect to MySQL server")
+          raise Exception("Unable to connect to MariaDB server")
         reconnected = True
     return
 
@@ -858,7 +858,7 @@ class CheckerWorker(WorkerThread):
 
     self.start_time = time.time()
     if self.reconnect():
-      raise Exception("Unable to connect to MySQL server")
+      raise Exception("Unable to connect to MariaDB server")
     logging.info("Starting checker")
 
     while not TEST_STOP:
@@ -879,7 +879,7 @@ class CheckerWorker(WorkerThread):
         if not is_connection_error(e):
           raise e
         if self.reconnect():
-          raise Exception("Unable to reconnect to MySQL server")
+          raise Exception("Unable to reconnect to MariaDB server")
 
 if  __name__ == '__main__':
   parser = argparse.ArgumentParser(description='Concurrent load generator.')

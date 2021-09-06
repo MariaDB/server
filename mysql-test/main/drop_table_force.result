@@ -77,7 +77,6 @@ drop table t1;
 ERROR 42S02: Unknown table 'test.t1'
 show warnings;
 Level	Code	Message
-Error	29	File './test/t1.MAD' not found (Errcode: 2 "No such file or directory")
 Error	1051	Unknown table 'test.t1'
 db.opt
 create table t2(a int) engine=aria;

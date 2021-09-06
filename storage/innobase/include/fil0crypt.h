@@ -1,6 +1,6 @@
 /*****************************************************************************
 Copyright (C) 2013, 2015, Google Inc. All Rights Reserved.
-Copyright (c) 2015, 2020, MariaDB Corporation.
+Copyright (c) 2015, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -172,12 +172,6 @@ struct fil_space_crypt_t : st_encryption_scheme
 		return (encryption == FIL_ENCRYPTION_OFF);
 	}
 
-	/** Fill crypt data information to the give page.
-	It should be called during ibd file creation.
-	@param[in]	flags	tablespace flags
-	@param[in,out]	page	first page of the tablespace */
-	void fill_page0(ulint flags, byte* page);
-
 	/** Write encryption metadata to the first page.
 	@param[in,out]	block	first page of the tablespace
 	@param[in,out]	mtr	mini-transaction */
@@ -222,17 +216,11 @@ struct fil_crypt_stat_t
   ulint estimated_iops= 0;
 };
 
-/*********************************************************************
-Init space crypt */
-UNIV_INTERN
-void
-fil_space_crypt_init();
+/** Init space crypt */
+void fil_space_crypt_init();
 
-/*********************************************************************
-Cleanup space crypt */
-UNIV_INTERN
-void
-fil_space_crypt_cleanup();
+/** Cleanup space crypt */
+void fil_space_crypt_cleanup();
 
 /**
 Create a fil_space_crypt_t object
@@ -242,22 +230,11 @@ Create a fil_space_crypt_t object
 
 @param[in]	key_id		Encryption key id
 @return crypt object */
-UNIV_INTERN
 fil_space_crypt_t*
 fil_space_create_crypt_data(
 	fil_encryption_t	encrypt_mode,
 	uint			key_id)
 	MY_ATTRIBUTE((warn_unused_result));
-
-/******************************************************************
-Merge fil_space_crypt_t object
-@param[in,out]	dst		Destination cryp data
-@param[in]	src		Source crypt data */
-UNIV_INTERN
-void
-fil_space_merge_crypt_data(
-	fil_space_crypt_t* dst,
-	const fil_space_crypt_t* src);
 
 /** Initialize encryption parameters from a tablespace header page.
 @param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
@@ -270,10 +247,7 @@ fil_space_crypt_t* fil_space_read_crypt_data(ulint zip_size, const byte* page)
 /**
 Free a crypt data object
 @param[in,out] crypt_data	crypt data to be freed */
-UNIV_INTERN
-void
-fil_space_destroy_crypt_data(
-	fil_space_crypt_t **crypt_data);
+void fil_space_destroy_crypt_data(fil_space_crypt_t **crypt_data);
 
 /** Amend encryption information from redo log.
 @param[in]	space	tablespace
@@ -289,7 +263,6 @@ void fil_crypt_parse(fil_space_t* space, const byte* data);
 @param[in,out]		dst_frame		Output buffer
 @param[in]		use_full_checksum	full crc32 algo is used
 @return encrypted buffer or NULL */
-UNIV_INTERN
 byte*
 fil_encrypt_buf(
 	fil_space_crypt_t*	crypt_data,
@@ -316,7 +289,6 @@ byte* fil_space_encrypt(
 	byte*		dst_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
-
 /** Decrypt a page.
 @param]in]	space_id		space id
 @param[in]	crypt_data		crypt_data
@@ -326,7 +298,6 @@ byte* fil_space_encrypt(
 @param[in,out]	src_frame		Page to decrypt
 @param[out]	err			DB_SUCCESS or DB_DECRYPTION_FAILED
 @return true if page decrypted, false if not.*/
-UNIV_INTERN
 bool
 fil_space_decrypt(
 	ulint			space_id,
@@ -344,7 +315,6 @@ Decrypt a page
 @param[in,out]	src_frame		Page to decrypt
 @return decrypted page, or original not encrypted page if decryption is
 not needed.*/
-UNIV_INTERN
 byte*
 fil_space_decrypt(
 	const fil_space_t* space,
@@ -352,39 +322,20 @@ fil_space_decrypt(
 	byte*		src_frame)
 	MY_ATTRIBUTE((warn_unused_result));
 
-/**
-Calculate post encryption checksum
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	dst_frame	Block where checksum is calculated
-@return page checksum
-not needed. */
-uint32_t
-fil_crypt_calculate_checksum(ulint zip_size, const byte* dst_frame)
-	MY_ATTRIBUTE((warn_unused_result));
-
 /*********************************************************************
 Adjust thread count for key rotation
 @param[in]	enw_cnt		Number of threads to be used */
-UNIV_INTERN
-void
-fil_crypt_set_thread_cnt(
-	uint	new_cnt);
+void fil_crypt_set_thread_cnt(const uint new_cnt);
 
 /*********************************************************************
 Adjust max key age
 @param[in]	val		New max key age */
-UNIV_INTERN
-void
-fil_crypt_set_rotate_key_age(
-	uint	val);
+void fil_crypt_set_rotate_key_age(uint val);
 
 /*********************************************************************
 Adjust rotation iops
 @param[in]	val		New max roation iops */
-UNIV_INTERN
-void
-fil_crypt_set_rotation_iops(
-	uint val);
+void fil_crypt_set_rotation_iops(uint val);
 
 /*********************************************************************
 Adjust encrypt tables
@@ -393,30 +344,22 @@ void fil_crypt_set_encrypt_tables(ulong val);
 
 /*********************************************************************
 Init threads for key rotation */
-UNIV_INTERN
-void
-fil_crypt_threads_init();
+void fil_crypt_threads_init();
 
 /*********************************************************************
 Clean up key rotation threads resources */
-UNIV_INTERN
-void
-fil_crypt_threads_cleanup();
+void fil_crypt_threads_cleanup();
 
 /*********************************************************************
 Wait for crypt threads to stop accessing space
 @param[in]	space		Tablespace */
-UNIV_INTERN
-void
-fil_space_crypt_close_tablespace(
-	const fil_space_t*	space);
+void fil_space_crypt_close_tablespace(const fil_space_t *space);
 
 /*********************************************************************
 Get crypt status for a space (used by information_schema)
 @param[in]	space		Tablespace
 @param[out]	status		Crypt status
 return 0 if crypt data present */
-UNIV_INTERN
 void
 fil_space_crypt_get_status(
 	const fil_space_t*			space,
@@ -425,10 +368,7 @@ fil_space_crypt_get_status(
 /*********************************************************************
 Return crypt statistics
 @param[out]	stat		Crypt statistics */
-UNIV_INTERN
-void
-fil_crypt_total_stat(
-	fil_crypt_stat_t *stat);
+void fil_crypt_total_stat(fil_crypt_stat_t *stat);
 
 #include "fil0crypt.ic"
 #endif /* !UNIV_INNOCHECKSUM */
@@ -446,5 +386,11 @@ encrypted, or corrupted.
 @return true if page is encrypted AND OK, false otherwise */
 bool fil_space_verify_crypt_checksum(const byte* page, ulint zip_size)
 	MY_ATTRIBUTE((warn_unused_result));
+
+/** Add the tablespace to the rotation list if
+innodb_encrypt_rotate_key_age is 0 or encryption plugin does
+not do key version rotation
+@return whether the tablespace should be added to rotation list */
+bool fil_crypt_must_default_encrypt();
 
 #endif /* fil0crypt_h */

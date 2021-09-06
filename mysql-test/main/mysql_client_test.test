@@ -36,6 +36,10 @@ echo ok;
 --echo # ------------------------------------
 --cat_file $MYSQL_TMP_DIR/test_wl4435.out.log
 --echo # ------------------------------------
+--echo # cat MYSQL_TMP_DIR/test_mdev26145.out.log
+--echo # ------------------------------------
+--cat_file $MYSQL_TMP_DIR/test_mdev26145.out.log
+--echo # ------------------------------------
 --echo
 
 --echo

@@ -1,0 +1,39 @@
+--source include/have_debug.inc
+
+create or replace table t1 (a int primary key, b int, c int, key(b),key(c)) engine=myisam;
+insert into t1 (a) values(1);
+
+set debug_sync='RESET';
+connect (con1, localhost, root,,);
+connect (con2, localhost, root,,);
+connection default;
+
+backup stage start;
+backup stage flush;
+select * from t1;
+set debug_sync='after_purge_tables SIGNAL parked WAIT_FOR go';
+set debug_sync='before_tc_release_table SIGNAL parked2 WAIT_FOR go2';
+--send backup stage BLOCK_DDL
+--connection con1
+set debug_sync='now WAIT_FOR parked';
+select * from t1;
+set debug_sync='now SIGNAL go';
+set debug_sync='now WAIT_FOR parked2';
+set debug_sync='before_wait_for_refs SIGNAL waiting WAIT_FOR go2';
+--send drop table t1;
+--connection con2
+set debug_sync='now WAIT_FOR waiting';
+set debug_sync='now SIGNAL go2';
+
+# Write out show processlist if the debug sync point times out
+let $wait_condition= select count(*)=0 from information_schema.processlist where state like "%debug%";
+source include/wait_condition.inc;
+
+--connection default
+--reap
+--connection con1
+--reap
+connection default;
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';

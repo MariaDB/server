@@ -201,7 +201,7 @@ DWORD win_aiosocket::begin_read()
   else
   {
     /* Do async read (named pipe) */
-    if (ReadFile(m_handle, buf.buf, buf.len, 0, &m_overlapped))
+    if (!ReadFile(m_handle, buf.buf, buf.len, 0, &m_overlapped))
       err= GetLastError();
   }
 

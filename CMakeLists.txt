@@ -123,11 +123,13 @@ FOREACH(_base
   ENDIF()
 ENDFOREACH()
 
+IF(NOT RPM AND NOT DEB)
 FOREACH(tool gtar tar)
  STRING(TOUPPER ${tool}  TOOL)
  FIND_PROGRAM(${TOOL}_EXECUTABLE ${tool} DOC "path to the executable")
  MARK_AS_ADVANCED(${TOOL}_EXECUTABLE)
 ENDFOREACH()
+ENDIF()
 
 FIND_PACKAGE(Git)
 
@@ -151,6 +153,7 @@ IF (NOT CPACK_GENERATOR)
   ENDIF(WIN32) 
 ENDIF(NOT CPACK_GENERATOR)
 
+INCLUDE(FeatureSummary)
 INCLUDE(misc)
 INCLUDE(mysql_version)
 INCLUDE(cpack_source_ignore_files)
@@ -269,7 +272,7 @@ SET(CMAKE_C_FLAGS_DEBUG "${CMAKE_C_FLAGS_DEBUG} -DENABLED_DEBUG_SYNC")
  
 OPTION(ENABLE_GCOV "Enable gcov (debug, Linux builds only)" OFF)
 IF (ENABLE_GCOV)
-  MY_CHECK_AND_SET_COMPILER_FLAG("-fprofile-arcs -ftest-coverage -lgcov" DEBUG)
+  MY_CHECK_AND_SET_COMPILER_FLAG("-DHAVE_gcov -fprofile-arcs -ftest-coverage -lgcov" DEBUG)
 ENDIF()
 
 OPTION(WITHOUT_PACKED_SORT_KEYS "disable packed sort keys"  OFF)
@@ -362,7 +365,8 @@ ENDIF()
 # Run platform tests
 INCLUDE(configure.cmake)
 
-# force -DUSE_MYSYS_NEW unless already done by HAVE_CXX_NEW
+# Use mysys/my_new.cc if '#include <new>'  doesn't work.
+# One can also specify -DUSE_MYSYS_NEW explicitly, see mysys/my_new.cc
 IF(NOT HAVE_CXX_NEW)
   ADD_DEFINITIONS(-DUSE_MYSYS_NEW)
 ENDIF()
@@ -446,12 +450,15 @@ ADD_SUBDIRECTORY(sql/share)
 IF(NOT WITHOUT_SERVER)
   ADD_SUBDIRECTORY(tests)
   ADD_SUBDIRECTORY(sql)
-  OPTION (WITH_EMBEDDED_SERVER "Compile MySQL with embedded server" OFF)
-  IF(WITH_EMBEDDED_SERVER) 
-   ADD_SUBDIRECTORY(libmysqld)
-   ADD_SUBDIRECTORY(libmysqld/examples)
-   ADD_SUBDIRECTORY(unittest/embedded)
+  OPTION (WITH_EMBEDDED_SERVER "Compile MariaDB with embedded server" OFF)
+  IF(WITH_EMBEDDED_SERVER)
+    ADD_SUBDIRECTORY(libmysqld)
+    ADD_SUBDIRECTORY(libmysqld/examples)
+    ADD_SUBDIRECTORY(unittest/embedded)
   ENDIF(WITH_EMBEDDED_SERVER)
+  IF(NOT WIN32)
+    ADD_FEATURE_INFO(EMBEDDED_SERVER WITH_EMBEDDED_SERVER "Embedded MariaDB Server Library")
+  ENDIF()
 
   ADD_SUBDIRECTORY(mysql-test)
   ADD_SUBDIRECTORY(mysql-test/lib/My/SafeProcess)
@@ -543,6 +550,13 @@ IF(WIN32 AND SIGNCODE)
   # Configure post-install script for authenticode signing
   CONFIGURE_FILE(${PROJECT_SOURCE_DIR}/cmake/sign.cmake.in sign.cmake @ONLY)
   INSTALL(SCRIPT ${PROJECT_BINARY_DIR}/sign.cmake)
+ENDIF()
+
+FEATURE_SUMMARY(WHAT ALL FATAL_ON_MISSING_REQUIRED_PACKAGES VAR MARIADB_FEATURE_SUMMARY)
+
+OPTION(FEATURE_SUMMARY "Print feature summary at the end of configure step" ON)
+IF (FEATURE_SUMMARY)
+  MESSAGE_ONCE(SUMMARY "${MARIADB_FEATURE_SUMMARY}")
 ENDIF()
 
 IF(NON_DISTRIBUTABLE_WARNING)

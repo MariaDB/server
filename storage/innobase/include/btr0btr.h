@@ -337,9 +337,9 @@ btr_create(
 void btr_free_if_exists(fil_space_t *space, uint32_t page,
                         index_id_t index_id, mtr_t *mtr);
 
-/** Free an index tree in a temporary tablespace.
-@param[in]	page_id		root page id */
-void btr_free(const page_id_t page_id);
+/** Drop a temporary table
+@param table   temporary table */
+void btr_drop_temporary_table(const dict_table_t &table);
 
 /** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
 @param[in,out]	index	clustered index
@@ -558,20 +558,6 @@ btr_get_size(
 	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
 				is s-latched */
 	MY_ATTRIBUTE((warn_unused_result));
-/**************************************************************//**
-Gets the number of reserved and used pages in a B-tree.
-@return	number of pages reserved, or ULINT_UNDEFINED if the index
-is unavailable */
-UNIV_INTERN
-ulint
-btr_get_size_and_reserved(
-/*======================*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
-	ulint*		used,	/*!< out: number of pages used (<= reserved) */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
-				is s-latched */
-	__attribute__((nonnull));
 
 /**************************************************************//**
 Allocates a new file page to be used in an index tree. NOTE: we assume
@@ -703,17 +689,16 @@ btr_validate_index(
 @param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
-			   mtr_t* mtr);
+dberr_t btr_level_list_remove(const buf_block_t& block,
+                              const dict_index_t& index, mtr_t* mtr)
+  MY_ATTRIBUTE((warn_unused_result));
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the
 father page, thus reducing the tree height.
 @return father block */
-UNIV_INTERN
 buf_block_t*
 btr_lift_page_up(
-/*=============*/
 	dict_index_t*	index,	/*!< in: index tree */
 	buf_block_t*	block,	/*!< in: page which is the only on its level;
 				must not be empty: use

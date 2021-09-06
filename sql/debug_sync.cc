@@ -201,13 +201,12 @@ void debug_sync_end(void)
 
     /* Print statistics. */
     {
-      char llbuff[22];
-      sql_print_information("Debug sync points hit:                   %22s",
-                            llstr(debug_sync_global.dsp_hits, llbuff));
-      sql_print_information("Debug sync points executed:              %22s",
-                            llstr(debug_sync_global.dsp_executed, llbuff));
-      sql_print_information("Debug sync points max active per thread: %22s",
-                            llstr(debug_sync_global.dsp_max_active, llbuff));
+      sql_print_information("Debug sync points hit:                   %lld",
+                            debug_sync_global.dsp_hits);
+      sql_print_information("Debug sync points executed:              %lld",
+                            debug_sync_global.dsp_executed);
+      sql_print_information("Debug sync points max active per thread: %lld",
+                            debug_sync_global.dsp_max_active);
     }
   }
 
@@ -995,6 +994,15 @@ static char *debug_sync_number(ulong *number_p, char *actstrptr,
   @note
     The input string needs to be ASCII NUL ('\0') terminated. We split
     nul-terminated tokens in it without copy.
+
+  @note
+    The current implementation does not support two 'now SIGNAL xxx' commands
+    in a row for multiple threads as the first one can get lost while
+    the waiting threads are sleeping on mysql_cond_timedwait().
+    One reason for this is that the signal name is stored in a global variable
+    that is overwritten.  A better way would be to store all signals in
+    an array together with a 'time' when the signal was sent. This array
+    should be checked on broadcast.
 
   @see the function comment of debug_sync_token() for more constraints
     for the string.

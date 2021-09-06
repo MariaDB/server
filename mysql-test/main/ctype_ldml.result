@@ -6,9 +6,9 @@ set names utf8;
 show variables like 'character_sets_dir%';
 Variable_name	Value
 character_sets_dir	MYSQL_TEST_DIR/std_data/ldml/
-show collation like 'utf8_phone_ci';
+show collation like 'utf8mb3_phone_ci';
 Collation	Charset	Id	Default	Compiled	Sortlen
-utf8_phone_ci	utf8	352			8
+utf8mb3_phone_ci	utf8mb3	352			8
 CREATE TABLE t1 (
 name VARCHAR(64),
 phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
@@ -35,9 +35,9 @@ SELECT * FROM t1 WHERE phone='7 9 1 2 8 0 0 8 0 0 1';
 name	phone
 Bar	+7-912-800-80-01
 DROP TABLE t1;
-show collation like 'utf8_test_ci';
+show collation like 'utf8mb3_test_ci';
 Collation	Charset	Id	Default	Compiled	Sortlen
-utf8_test_ci	utf8	353			8
+utf8mb3_test_ci	utf8mb3	353			8
 create table t1 (c1 char(1) character set utf8 collate utf8_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -470,34 +470,34 @@ latin1_test	latin1	331			1
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
 latin1_swedish_nopad2_ci	latin1	334			1
-utf8_bengali_standard_ci	utf8	336			8
-utf8_bengali_traditional_ci	utf8	337			8
-utf8_implicit_weights_ci	utf8	338			8
-utf8_phone_ci	utf8	352			8
-utf8_test_ci	utf8	353			8
-utf8_5624_1	utf8	354			8
-utf8_5624_2	utf8	355			8
-utf8_5624_3	utf8	356			8
-utf8_5624_4	utf8	357			8
+utf8mb3_bengali_standard_ci	utf8mb3	336			8
+utf8mb3_bengali_traditional_ci	utf8mb3	337			8
+utf8mb3_implicit_weights_ci	utf8mb3	338			8
+utf8mb3_phone_ci	utf8mb3	352			8
+utf8mb3_test_ci	utf8mb3	353			8
+utf8mb3_5624_1	utf8mb3	354			8
+utf8mb3_5624_2	utf8mb3	355			8
+utf8mb3_5624_3	utf8mb3	356			8
+utf8mb3_5624_4	utf8mb3	357			8
 ucs2_test_ci	ucs2	358			8
 ucs2_vn_ci	ucs2	359			8
 ucs2_5624_1	ucs2	360			8
-utf8_5624_5	utf8	368			8
-utf8_5624_5_bad	utf8	369			8
-utf8_czech_test_w2	utf8	370			4
-utf8_czech_test_nopad_w2	utf8	371			4
-utf8_czech_test_bad_w2	utf8	372			4
+utf8mb3_5624_5	utf8mb3	368			8
+utf8mb3_5624_5_bad	utf8mb3	369			8
+utf8mb3_czech_test_w2	utf8mb3	370			4
+utf8mb3_czech_test_nopad_w2	utf8mb3	371			4
+utf8mb3_czech_test_bad_w2	utf8mb3	372			4
 utf32_test_ci	utf32	391			8
-utf8_maxuserid_ci	utf8	2047			8
+utf8mb3_maxuserid_ci	utf8mb3	2047			8
 show collation like '%test%';
 Collation	Charset	Id	Default	Compiled	Sortlen
 latin1_test	latin1	331			1
 latin1_test2	latin1	332			1
 latin1_test2_cs	latin1	333			1
-utf8_test_ci	utf8	353			8
-utf8_czech_test_w2	utf8	370			4
-utf8_czech_test_nopad_w2	utf8	371			4
-utf8_czech_test_bad_w2	utf8	372			4
+utf8mb3_test_ci	utf8mb3	353			8
+utf8mb3_czech_test_w2	utf8mb3	370			4
+utf8mb3_czech_test_nopad_w2	utf8mb3	371			4
+utf8mb3_czech_test_bad_w2	utf8mb3	372			4
 ucs2_test_ci	ucs2	358			8
 utf8mb4_test_ci	utf8mb4	326			8
 utf8mb4_test_400_ci	utf8mb4	328			8
@@ -524,9 +524,9 @@ a
 b
 DROP TABLE t1;
 SET NAMES utf8 COLLATE utf8_phone_ci;
-SHOW COLLATION LIKE 'utf8_phone_ci';
+show collation like 'utf8mb3_phone_ci';
 Collation	Charset	Id	Default	Compiled	Sortlen
-utf8_phone_ci	utf8	352			8
+utf8mb3_phone_ci	utf8mb3	352			8
 SET NAMES utf8;
 SELECT hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci));
 hex(weight_string(_utf8mb4'a' collate utf8mb4_test_400_ci))

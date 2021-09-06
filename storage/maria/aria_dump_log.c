@@ -19,7 +19,7 @@ extern void translog_example_table_init();
 static const char *load_default_groups[]= { "aria_dump_log",0 };
 static void get_options(int *argc,char * * *argv);
 #ifndef DBUG_OFF
-#if defined(__WIN__)
+#if defined(_WIN32)
 const char *default_dbug_option= "d:t:i:O,\\aria_dump_log.trace";
 #else
 const char *default_dbug_option= "d:t:i:o,/tmp/aria_dump_log.trace";

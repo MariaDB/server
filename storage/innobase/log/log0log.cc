@@ -216,6 +216,8 @@ void log_t::create()
   log_block_set_first_rec_group(buf, LOG_BLOCK_HDR_SIZE);
 
   buf_free= LOG_BLOCK_HDR_SIZE;
+  checkpoint_buf= static_cast<byte*>
+    (aligned_malloc(OS_FILE_LOG_BLOCK_SIZE, OS_FILE_LOG_BLOCK_SIZE));
 }
 
 mapped_file_t::~mapped_file_t() noexcept
@@ -458,8 +460,8 @@ void log_t::file::write_header_durable(lsn_t lsn)
   ut_ad(log_sys.log.format == log_t::FORMAT_10_5 ||
         log_sys.log.format == log_t::FORMAT_ENC_10_5);
 
-  // man 2 open suggests this buffer to be aligned by 512 for O_DIRECT
-  MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE) byte buf[OS_FILE_LOG_BLOCK_SIZE] = {0};
+  byte *buf= log_sys.checkpoint_buf;
+  memset_aligned<OS_FILE_LOG_BLOCK_SIZE>(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
 
   mach_write_to_4(buf + LOG_HEADER_FORMAT, log_sys.log.format);
   mach_write_to_4(buf + LOG_HEADER_SUBFORMAT, log_sys.log.subformat);
@@ -472,7 +474,7 @@ void log_t::file::write_header_durable(lsn_t lsn)
 
   DBUG_PRINT("ib_log", ("write " LSN_PF, lsn));
 
-  log_sys.log.write(0, buf);
+  log_sys.log.write(0, {buf, OS_FILE_LOG_BLOCK_SIZE});
   if (!log_sys.log.writes_are_durable())
     log_sys.log.flush();
 }
@@ -791,6 +793,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
 {
   ut_ad(!srv_read_only_mode);
   ut_ad(!rotate_key || flush_to_disk);
+  ut_ad(lsn != LSN_MAX);
 
   if (recv_no_ibuf_operations)
   {
@@ -801,12 +804,10 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
   }
 
   if (flush_to_disk &&
-    flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
-  {
+      flush_lock.acquire(lsn, callback) != group_commit_lock::ACQUIRED)
     return;
-  }
 
-  if (write_lock.acquire(lsn, flush_to_disk?0:callback) ==
+  if (write_lock.acquire(lsn, flush_to_disk ? nullptr : callback) ==
       group_commit_lock::ACQUIRED)
   {
     mysql_mutex_lock(&log_sys.mutex);
@@ -820,9 +821,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
   }
 
   if (!flush_to_disk)
-  {
     return;
-  }
 
   /* Flush the highest written lsn.*/
   auto flush_lsn = write_lock.value();
@@ -831,6 +830,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key,
   flush_lock.release(flush_lsn);
 
   log_flush_notify(flush_lsn);
+  DBUG_EXECUTE_IF("crash_after_log_write_upto", DBUG_SUICIDE(););
 }
 
 /** write to the log file up to the last log entry.
@@ -880,7 +880,7 @@ ATTRIBUTE_COLD void log_write_checkpoint_info(lsn_t end_lsn)
 			      log_sys.next_checkpoint_lsn));
 
 	byte* buf = log_sys.checkpoint_buf;
-	memset(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
+	memset_aligned<OS_FILE_LOG_BLOCK_SIZE>(buf, 0, OS_FILE_LOG_BLOCK_SIZE);
 
 	mach_write_to_8(buf + LOG_CHECKPOINT_NO, log_sys.next_checkpoint_no);
 	mach_write_to_8(buf + LOG_CHECKPOINT_LSN, log_sys.next_checkpoint_lsn);
@@ -1279,18 +1279,21 @@ void log_t::close()
 {
   ut_ad(this == &log_sys);
   if (!is_initialised()) return;
-  m_initialised = false;
+  m_initialised= false;
   log.close();
 
   ut_free_dodump(buf, srv_log_buffer_size);
-  buf = NULL;
+  buf= nullptr;
   ut_free_dodump(flush_buf, srv_log_buffer_size);
-  flush_buf = NULL;
+  flush_buf= nullptr;
 
   mysql_mutex_destroy(&mutex);
   mysql_mutex_destroy(&flush_order_mutex);
 
   recv_sys.close();
+
+  aligned_free(checkpoint_buf);
+  checkpoint_buf= nullptr;
 }
 
 std::string get_log_file_path(const char *filename)

@@ -207,7 +207,7 @@ void mysql_client_binlog_statement(THD* thd)
   int err;
   Relay_log_info *rli;
   rpl_group_info *rgi;
-  char *buf= NULL;
+  uchar *buf= NULL;
   size_t coded_len= 0, decoded_len= 0;
 
   rli= thd->rli_fake;
@@ -243,7 +243,7 @@ void mysql_client_binlog_statement(THD* thd)
   }
 
   decoded_len= my_base64_needed_decoded_length((int)coded_len);
-  if (!(buf= (char *) my_malloc(key_memory_binlog_statement_buffer,
+  if (!(buf= (uchar *) my_malloc(key_memory_binlog_statement_buffer,
                                 decoded_len, MYF(MY_WME))))
   {
     my_error(ER_OUTOFMEMORY, MYF(ME_FATAL), 1);
@@ -299,7 +299,7 @@ void mysql_client_binlog_statement(THD* thd)
       Now we start to read events of the buffer, until there are no
       more.
     */
-    for (char *bufptr= buf ; bytes_decoded > 0 ; )
+    for (uchar *bufptr= buf ; bytes_decoded > 0 ; )
     {
       /*
         Checking that the first event in the buffer is not truncated.
@@ -354,8 +354,28 @@ void mysql_client_binlog_statement(THD* thd)
         (ev->flags & LOG_EVENT_SKIP_REPLICATION_F ?
          OPTION_SKIP_REPLICATION : 0);
 
-      err= ev->apply_event(rgi);
+      {
+        /*
+          For conventional statements thd->lex points to thd->main_lex, that is
+          thd->lex == &thd->main_lex. On the other hand, for prepared statement
+          thd->lex points to the LEX object explicitly allocated for execution
+          of the prepared statement and in this case thd->lex != &thd->main_lex.
+          On handling the BINLOG statement, invocation of ev->apply_event(rgi)
+          initiates the following sequence of calls
+            Rows_log_event::do_apply_event -> THD::reset_for_next_command
+          Since the method THD::reset_for_next_command() contains assert
+            DBUG_ASSERT(lex == &main_lex)
+          this sequence of calls results in crash when a binlog event is
+          applied in PS mode. So, reset the current lex temporary to point to
+          thd->main_lex before running ev->apply_event() and restore its
+          original value on return.
+        */
+        LEX *backup_lex;
 
+        thd->backup_and_reset_current_lex(&backup_lex);
+        err= ev->apply_event(rgi);
+        thd->restore_current_lex(backup_lex);
+      }
       thd->variables.option_bits=
         (thd->variables.option_bits & ~OPTION_SKIP_REPLICATION) |
         save_skip_replication;

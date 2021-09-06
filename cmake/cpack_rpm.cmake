@@ -35,7 +35,7 @@ SET(CPACK_COMPONENTS_ALL Server ManPagesServer IniFiles Server_Scripts
 SET(CPACK_RPM_PACKAGE_NAME ${CPACK_PACKAGE_NAME})
 SET(CPACK_RPM_PACKAGE_VERSION ${CPACK_PACKAGE_VERSION})
 IF(CMAKE_VERSION VERSION_LESS "3.6.0")
-  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${CPACK_RPM_PACKAGE_VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
+  SET(CPACK_PACKAGE_FILE_NAME "${CPACK_RPM_PACKAGE_NAME}-${SERVER_VERSION}-${RPM}-${CMAKE_SYSTEM_PROCESSOR}")
 ELSE()
   SET(CPACK_RPM_FILE_NAME "RPM-DEFAULT")
   OPTION(CPACK_RPM_DEBUGINFO_PACKAGE "" ON)
@@ -82,7 +82,7 @@ SET(CPACK_RPM_SPEC_MORE_DEFINE "
 %filter_provides_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
 %filter_requires_in \\\\.\\\\(test\\\\|result\\\\|h\\\\|cc\\\\|c\\\\|inc\\\\|opt\\\\|ic\\\\|cnf\\\\|rdiff\\\\|cpp\\\\)$
 %filter_from_provides /perl(\\\\(mtr\\\\|My::\\\\)/d
-%filter_from_requires /\\\\(liblzma\\\\)\\\\|\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
+%filter_from_requires /\\\\(perl(\\\\(.*mtr\\\\|My::\\\\|.*HandlerSocket\\\\|Mysql\\\\)\\\\)/d
 %filter_setup
 }
 ")
@@ -125,12 +125,14 @@ SET(ignored
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8"
-  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man1*"
-  "%ignore ${CMAKE_INSTALL_PREFIX}/share/man/man8*"
   "%ignore ${CMAKE_INSTALL_PREFIX}/share/pkgconfig"
   )
 
-SET(CPACK_RPM_server_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
+SET(CPACK_RPM_server_USER_FILELIST
+    ${ignored}
+    "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*"
+    "%config(noreplace) ${INSTALL_SYSCONFDIR}/logrotate.d/mysql"
+    )
 SET(CPACK_RPM_common_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONFDIR}/my.cnf")
 SET(CPACK_RPM_shared_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
 SET(CPACK_RPM_client_USER_FILELIST ${ignored} "%config(noreplace) ${INSTALL_SYSCONF2DIR}/*")
@@ -154,6 +156,9 @@ SETA(CPACK_RPM_client_PACKAGE_PROVIDES
   "mysql-client")
 SETA(CPACK_RPM_client_PACKAGE_CONFLICTS
   "MariaDB-server < 10.6.0")
+
+SETA(CPACK_RPM_common_PACKAGE_CONFLICTS
+  "MariaDB-server < 10.6.1")
 
 SETA(CPACK_RPM_devel_PACKAGE_OBSOLETES
   "MySQL-devel")
@@ -179,7 +184,7 @@ SETA(CPACK_RPM_test_PACKAGE_PROVIDES
   "MySQL-test")
 
 SETA(CPACK_RPM_server_PACKAGE_REQUIRES
-  "${CPACK_RPM_PACKAGE_REQUIRES}"
+  "MariaDB-common >= 10.6.1"
   "MariaDB-client")
 
 IF(WITH_WSREP)

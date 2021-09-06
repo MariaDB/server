@@ -74,7 +74,7 @@ enum scheduler_types
 
 void one_thread_per_connection_scheduler(scheduler_functions *func,
     ulong *arg_max_connections, Atomic_counter<uint> *arg_connection_count);
-void one_thread_scheduler(scheduler_functions *func);
+void one_thread_scheduler(scheduler_functions *func, Atomic_counter<uint> *arg_connection_count);
 
 extern void scheduler_init();
 extern void post_kill_notification(THD *);

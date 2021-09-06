@@ -47,6 +47,10 @@ void my_dbopt_cleanup(void);
 const char *normalize_db_name(const char *db, char *buffer,
                               size_t buffer_size);
 
+void drop_database_objects(THD *thd, const LEX_CSTRING *path,
+                           const LEX_CSTRING *db,
+                           bool rm_mysql_schema);
+my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
 #define MY_DB_OPT_FILE "db.opt"
 
 #endif /* SQL_DB_INCLUDED */

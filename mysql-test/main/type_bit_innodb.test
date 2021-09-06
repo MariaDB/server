@@ -1,4 +1,7 @@
 --source include/have_innodb.inc
+SET @save_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent=0;
+
 #
 # testing of the BIT column type
 #
@@ -15,10 +18,6 @@ select 0 + b'10000001';
 select 0 + b'1000000000000000';
 select 0 + b'1111111111111111';
 select 0 + b'1000000000000001';
-
---disable_warnings
-drop table if exists t1;
---enable_warnings
 
 --error 1439
 create table t1 (a bit(65)) engine=innodb;
@@ -157,3 +156,5 @@ insert into t1 (f1) values (default);
 insert into t1 values (b'',b''),('','');
 select hex(f1), hex(f2) from t1;
 drop table t1;
+
+SET GLOBAL innodb_stats_persistent=@save_stats_persistent;

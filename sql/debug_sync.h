@@ -52,5 +52,4 @@ static inline void debug_sync_reset_thread(THD *thd) {}
 static inline bool debug_sync_set_action(THD *, const char *, size_t)
 { return false; }
 #endif /* defined(ENABLED_DEBUG_SYNC) */
-
 #endif /* DEBUG_SYNC_INCLUDED */

@@ -1,0 +1,24 @@
+--source include/have_partition.inc
+--source include/have_rocksdb.inc
+--source include/not_embedded.inc
+
+#
+# Test that dynmaic loaded storage engines also works with partition and logging
+# This is will access code in dd_frm_type() that is not acccessed by other tests
+#
+
+connect (con1,localhost,root,,);
+BACKUP STAGE START;
+connection default;
+
+--echo # Test partition engine read from .frm
+CREATE TABLE t220 (a INT) ENGINE ROCKSDB PARTITION BY KEY(a) PARTITIONS 2;
+DROP TABLE t220;
+
+--source include/print_ddl_log.inc
+
+--echo #
+--echo # Cleanup
+--echo #
+
+disconnect con1;

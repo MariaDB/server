@@ -46,10 +46,10 @@ SET debug_sync='now SIGNAL go2';
 # the cluster as there is new FTRL that is still pausing it.
 UNLOCK TABLES;
 SHOW CREATE TABLE t1;
-set debug_sync= 'RESET';
 
 --connection node_2a
 --reap
+set debug_sync= 'RESET';
 UNLOCK TABLES;
 
 SET SESSION wsrep_sync_wait = DEFAULT;

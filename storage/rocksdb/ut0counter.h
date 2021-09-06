@@ -28,7 +28,7 @@ Created 2012/04/12 by Sunny Bains
 /** Default number of slots to use in ib_counter_t */
 #define IB_N_SLOTS		64
 
-#ifdef __WIN__
+#ifdef _WIN32
 #define get_curr_thread_id() GetCurrentThreadId()
 #else
 #define get_curr_thread_id() pthread_self()

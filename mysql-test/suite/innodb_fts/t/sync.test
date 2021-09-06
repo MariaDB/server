@@ -170,3 +170,17 @@ SET GLOBAL innodb_ft_aux_table=default;
 SELECT * FROM t1 WHERE MATCH(title) AGAINST ('mysql database good');
 
 DROP TABLE t1;
+
+--echo #
+--echo # MDEV-26273 InnoDB fts DDL fails when
+--echo # innodb_force_recovery is set to 2
+--echo #
+
+let $restart_parameters=--innodb_force_recovery=2;
+--source include/restart_mysqld.inc
+CREATE TABLE t1 (FTS_DOC_ID BIGINT UNSIGNED KEY,
+                 f1 CHAR(200)) ENGINE=InnoDB;
+ALTER TABLE t1 ADD FULLTEXT INDEX(f1);
+DROP TABLE t1;
+let $restart_parameters=;
+--source include/restart_mysqld.inc

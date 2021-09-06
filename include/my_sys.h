@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2010, 2020, MariaDB Corporation.
+   Copyright (c) 2010, 2021, MariaDB Corporation.
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -74,6 +74,12 @@ C_MODE_START
 #define MY_SHORT_WAIT	64U	/* my_lock() don't wait if can't lock */
 #define MY_FORCE_LOCK   128U    /* use my_lock() even if disable_locking */
 #define MY_NO_WAIT      256U	/* my_lock() don't wait at all */
+#define MY_NO_REGISTER  8196U   /* my_open(), no malloc for file name */
+/*
+  If old_mode is UTF8_IS_UTF8MB3, then pass this flag. It mean utf8 is
+  alias for utf8mb3. Otherwise utf8 is alias for utf8mb4.
+*/
+#define MY_UTF8_IS_UTF8MB3 1024U
 /*
   init_dynamic_array() has init buffer; Internal flag, not to be used by
   caller.
@@ -179,8 +185,10 @@ extern BOOL my_obtain_privilege(LPCSTR lpPrivilege);
 void my_init_atomic_write(void);
 #ifdef __linux__
 my_bool my_test_if_atomic_write(File handle, int pagesize);
+my_bool my_test_if_thinly_provisioned(File handle);
 #else
-#define my_test_if_atomic_write(A, B) 0
+# define my_test_if_atomic_write(A, B)      0
+# define my_test_if_thinly_provisioned(A)   0
 #endif /* __linux__ */
 extern my_bool my_may_have_atomic_write;
 
@@ -270,7 +278,8 @@ LPSECURITY_ATTRIBUTES my_win_file_secattr();
 extern my_bool my_use_symdir;
 
 extern ulong	my_default_record_cache_size;
-extern my_bool  my_disable_locking, my_disable_async_io,
+extern MYSQL_PLUGIN_IMPORT my_bool my_disable_locking;
+extern my_bool  my_disable_async_io,
                 my_disable_flush_key_blocks, my_disable_symlinks;
 extern my_bool my_disable_sync, my_disable_copystat_in_redel;
 extern char	wild_many,wild_one,wild_prefix;
@@ -1012,18 +1021,20 @@ int my_msync(int, void *, size_t, int);
 
 #define MY_UUID_SIZE 16
 #define MY_UUID_STRING_LENGTH (8+1+4+1+4+1+4+1+12)
+#define MY_UUID_ORACLE_STRING_LENGTH (8+4+4+4+12)
 
 void my_uuid_init(ulong seed1, ulong seed2);
 void my_uuid(uchar *guid);
 void my_uuid2str(const uchar *guid, char *s);
+void my_uuid2str_oracle(const uchar *guid, char *s);
 void my_uuid_end(void);
 
 const char *my_dlerror(const char *dlpath);
 
 /* character sets */
 extern void my_charset_loader_init_mysys(MY_CHARSET_LOADER *loader);
-extern uint get_charset_number(const char *cs_name, uint cs_flags);
-extern uint get_collation_number(const char *name);
+extern uint get_charset_number(const char *cs_name, uint cs_flags, myf flags);
+extern uint get_collation_number(const char *name,myf flags);
 extern const char *get_charset_name(uint cs_number);
 
 extern CHARSET_INFO *get_charset(uint cs_number, myf flags);
@@ -1037,22 +1048,25 @@ extern CHARSET_INFO *my_charset_get_by_name(MY_CHARSET_LOADER *loader,
                                             uint cs_flags, myf my_flags);
 extern my_bool resolve_charset(const char *cs_name,
                                CHARSET_INFO *default_cs,
-                               CHARSET_INFO **cs);
+                               CHARSET_INFO **cs,
+                               myf flags);
 extern my_bool resolve_collation(const char *cl_name,
                                  CHARSET_INFO *default_cl,
-                                 CHARSET_INFO **cl);
+                                 CHARSET_INFO **cl,
+                                 myf my_flags);
 extern void free_charsets(void);
 extern char *get_charsets_dir(char *buf);
 static inline my_bool my_charset_same(CHARSET_INFO *cs1, CHARSET_INFO *cs2)
 {
-  return (cs1->csname == cs2->csname);
+  return (cs1->cs_name.str == cs2->cs_name.str);
 }
 extern my_bool init_compiled_charsets(myf flags);
 extern void add_compiled_collation(struct charset_info_st *cs);
 extern void add_compiled_extra_collation(struct charset_info_st *cs);
 extern size_t escape_string_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
-                                      const char *from, size_t length);
+                                      const char *from, size_t length,
+                                      my_bool *overflow);
 extern char *get_tty_password(const char *opt_message);
 #ifdef _WIN32
 #define BACKSLASH_MBTAIL
@@ -1062,7 +1076,8 @@ extern CHARSET_INFO *fs_character_set(void);
 extern const char *my_default_csname(void);
 extern size_t escape_quotes_for_mysql(CHARSET_INFO *charset_info,
                                       char *to, size_t to_length,
-                                      const char *from, size_t length);
+                                      const char *from, size_t length,
+                                      my_bool *overflow);
 
 extern void thd_increment_bytes_sent(void *thd, size_t length);
 extern void thd_increment_bytes_received(void *thd, size_t length);

@@ -85,7 +85,7 @@ w_findispmon05u	CREATE TABLE `w_findispmon05u` (
   KEY `atpkey` (`f5atpkey`),
   KEY `inatkey` (`f5atzo05`,`pos`),
   KEY `pos` (`pos`,`f5atzo05`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3
 DROP TABLE `w_findispmon05u`;
 CREATE TABLE t (
 a INT NOT NULL,

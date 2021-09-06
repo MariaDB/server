@@ -805,7 +805,7 @@ Rpl_filter::db_rule_ent_list_to_str(String* str, I_List<i_string>* list)
 
   while ((s= it++))
   {
-    str->append(s->ptr);
+    str->append(s->ptr, strlen(s->ptr));
     str->append(',');
   }
 

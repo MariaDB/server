@@ -597,6 +597,7 @@ void Protocol::end_statement()
                       thd->get_stmt_da()->get_sqlstate());
     break;
   case Diagnostics_area::DA_EOF:
+  case Diagnostics_area::DA_EOF_BULK:
     error= send_eof(thd->server_status,
                     thd->get_stmt_da()->statement_warn_count());
     break;
@@ -1135,7 +1136,8 @@ static bool should_send_column_info(THD* thd, List<Item>* list, uint flags)
   auto cmd= thd->get_command();
 #endif
 
-  DBUG_ASSERT(cmd == COM_STMT_EXECUTE || cmd == COM_STMT_PREPARE);
+  DBUG_ASSERT(cmd == COM_STMT_EXECUTE || cmd == COM_STMT_PREPARE
+              || cmd == COM_STMT_BULK_EXECUTE);
   DBUG_ASSERT(cmd != COM_STMT_PREPARE || !column_info_state.initialized);
 
   bool ret= metadata_columns_changed(column_info_state, thd, *list);
@@ -1316,18 +1318,12 @@ bool Protocol_text::store_field_metadata_for_list_fields(const THD *thd,
 bool Protocol::send_result_set_row(List<Item> *row_items)
 {
   List_iterator_fast<Item> it(*row_items);
-
+  ValueBuffer<MAX_FIELD_WIDTH> value_buffer;
   DBUG_ENTER("Protocol::send_result_set_row");
 
   for (Item *item= it++; item; item= it++)
   {
-    /*
-      ValueBuffer::m_string can be altered during Item::send().
-      It's important to declare value_buffer inside the loop,
-      to have ValueBuffer::m_string point to ValueBuffer::buffer
-      on every iteration.
-    */
-    ValueBuffer<MAX_FIELD_WIDTH> value_buffer;
+    value_buffer.reset_buffer();
     if (item->send(this, &value_buffer))
     {
       // If we're out of memory, reclaim some, to help us recover.
@@ -1344,9 +1340,9 @@ bool Protocol::send_result_set_row(List<Item> *row_items)
 
 
 /**
-  Send \\0 end terminated string.
+  Send \\0 end terminated string or NULL
 
-  @param from	NullS or \\0 terminated string
+  @param from    NullS or \\0 terminated string
 
   @note
     In most cases one should use store(from, length) instead of this function
@@ -1357,12 +1353,11 @@ bool Protocol::send_result_set_row(List<Item> *row_items)
     1		error
 */
 
-bool Protocol::store(const char *from, CHARSET_INFO *cs)
+bool Protocol::store_string_or_null(const char *from, CHARSET_INFO *cs)
 {
   if (!from)
     return store_null();
-  size_t length= strlen(from);
-  return store(from, length, cs);
+  return store(from, strlen(from), cs);
 }
 
 
@@ -1381,7 +1376,7 @@ bool Protocol::store(I_List<i_string>* str_list)
   tmp.length(0);
   while ((s=it++))
   {
-    tmp.append(s->ptr);
+    tmp.append(s->ptr, strlen(s->ptr));
     tmp.append(',');
   }
   if ((len= tmp.length()))
@@ -1596,7 +1591,7 @@ bool Protocol_text::store(Field *field)
 }
 
 
-bool Protocol_text::store(MYSQL_TIME *tm, int decimals)
+bool Protocol_text::store_datetime(MYSQL_TIME *tm, int decimals)
 {
 #ifndef DBUG_OFF
   DBUG_ASSERT(valid_handler(field_pos, PROTOCOL_SEND_DATETIME));
@@ -1814,7 +1809,7 @@ bool Protocol_binary::store(Field *field)
 }
 
 
-bool Protocol_binary::store(MYSQL_TIME *tm, int decimals)
+bool Protocol_binary::store_datetime(MYSQL_TIME *tm, int decimals)
 {
   char buff[12],*pos;
   uint length;
@@ -1848,7 +1843,7 @@ bool Protocol_binary::store_date(MYSQL_TIME *tm)
 {
   tm->hour= tm->minute= tm->second=0;
   tm->second_part= 0;
-  return Protocol_binary::store(tm, 0);
+  return Protocol_binary::store_datetime(tm, 0);
 }
 
 

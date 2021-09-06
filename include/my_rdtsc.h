@@ -130,8 +130,10 @@ static inline ulonglong my_timer_cycles(void)
 {
 # if __has_builtin(__builtin_readcyclecounter) && !defined (__aarch64__)
   return __builtin_readcyclecounter();
-# elif defined _WIN32 || defined __i386__ || defined __x86_64__
+# elif defined _M_IX86  || defined _M_X64  || defined __i386__ || defined __x86_64__
   return __rdtsc();
+#elif defined _M_ARM64
+  return _ReadStatusReg(ARM64_CNTVCT);
 # elif defined(__INTEL_COMPILER) && defined(__ia64__) && defined(HAVE_IA64INTRIN_H)
   return (ulonglong) __getReg(_IA64_REG_AR_ITC); /* (3116) */
 #elif defined(__GNUC__) && defined(__ia64__)

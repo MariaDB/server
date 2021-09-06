@@ -23,7 +23,7 @@
 /*  Include relevant MariaDB header file.                              */
 /***********************************************************************/
 #include "my_global.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 //#include <windows.h>
 #else
 #include "osutil.h"

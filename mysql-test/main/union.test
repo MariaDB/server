@@ -93,6 +93,7 @@ select 1 as a,(select a union select a);
 SELECT @a:=1 UNION SELECT @a:=@a+1;
 --error 1054
 (SELECT 1) UNION (SELECT 2) ORDER BY (SELECT a);
+--sorted_result
 (SELECT 1,3) UNION (SELECT 2,1) ORDER BY (SELECT 2);
 
 #
@@ -986,7 +987,9 @@ DROP TABLE t1;
 (select 1) union (select 1 into @var);
 --error ER_PARSE_ERROR
 (select 2) union (select 1 into @var);
+--enable_prepare_warnings
 (select 1) union (select 1) into @var;
+--disable_prepare_warnings
 --error ER_TOO_MANY_ROWS
 (select 2) union (select 1) into @var;
 
@@ -1114,9 +1117,11 @@ SELECT a FROM t1 UNION SELECT a INTO @v FROM t1;
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file5' FROM t1;
 --error ER_PARSE_ERROR
 SELECT a FROM t1 UNION SELECT a INTO OUTFILE 'union.out.file6' FROM t1;
+--enable_prepare_warnings
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO @v ;
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file5';
 SELECT a FROM t1 UNION SELECT a FROM t1 INTO OUTFILE 'union.out.file6';
+--disable_prepare_warnings
 --error ER_PARSE_ERROR
 SELECT a INTO @v FROM t1 UNION SELECT a FROM t1;
 --error ER_PARSE_ERROR
@@ -1882,6 +1887,31 @@ SELECT CAST(1 AS UNSIGNED) UNION ALL SELECT CAST(1 AS SIGNED);
 
 --disable_metadata
 --enable_ps_protocol
+
+--echo #
+--echo # MDEV-24511 null field is created with CREATE..SELECT
+--echo #
+
+set @save_default_storage_engine=@@default_storage_engine;
+SET @@default_storage_engine=MEMORY;
+
+CREATE TABLE t1 SELECT NULL UNION SELECT NULL;
+--error ER_KEY_COLUMN_DOES_NOT_EXITS
+ALTER TABLE t1 ADD INDEX (`PRIMARY`);
+
+CREATE TABLE t2 SELECT NULL;
+SHOW CREATE TABLE t2;
+
+CREATE TABLE t3 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t3;
+
+CREATE OR REPLACE TABLE t4 SELECT NULL UNION SELECT NULL;
+SHOW CREATE TABLE t4;
+ALTER TABLE t4 ADD INDEX (`NULL`);
+
+DROP TABLE t1, t2, t3, t4;
+
+set @@default_storage_engine=@save_default_storage_engine;
 
 --echo #
 --echo # End of 10.3 tests

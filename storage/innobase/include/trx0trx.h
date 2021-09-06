@@ -38,7 +38,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "ilist.h"
 
 #include <vector>
-#include <set>
 
 // Forward declaration
 struct mtr_t;
@@ -79,7 +78,7 @@ void trx_free_at_shutdown(trx_t *trx);
 void trx_disconnect_prepared(trx_t *trx);
 
 /** Initialize (resurrect) transactions at startup. */
-void trx_lists_init_at_db_start();
+dberr_t trx_lists_init_at_db_start();
 
 /*************************************************************//**
 Starts the transaction if it is not yet started. */
@@ -96,18 +95,11 @@ trx_start_if_not_started_low(
 	trx_t*	trx,		/*!< in/out: transaction */
 	bool	read_write);	/*!< in: true if read write transaction */
 
-/*************************************************************//**
-Starts a transaction for internal processing. */
-void
-trx_start_internal_low(
-/*===================*/
-	trx_t*	trx);		/*!< in/out: transaction */
-
-/** Starts a read-only transaction for internal processing.
-@param[in,out] trx	transaction to be started */
-void
-trx_start_internal_read_only_low(
-	trx_t*	trx);
+/**
+Start a transaction for internal processing.
+@param trx          transaction
+@param read_write   whether writes may be performed */
+void trx_start_internal_low(trx_t *trx, bool read_write);
 
 #ifdef UNIV_DEBUG
 #define trx_start_if_not_started_xa(t, rw)			\
@@ -128,24 +120,20 @@ trx_start_internal_read_only_low(
 	do {							\
 	(t)->start_line = __LINE__;				\
 	(t)->start_file = __FILE__;				\
-	trx_start_internal_low((t));				\
+	trx_start_internal_low(t, true);			\
 	} while (false)
-
 #define trx_start_internal_read_only(t)				\
 	do {							\
 	(t)->start_line = __LINE__;				\
 	(t)->start_file = __FILE__;				\
-	trx_start_internal_read_only_low(t);			\
+	trx_start_internal_low(t, false);			\
 	} while (false)
 #else
 #define trx_start_if_not_started(t, rw)				\
 	trx_start_if_not_started_low((t), rw)
 
-#define trx_start_internal(t)					\
-	trx_start_internal_low((t))
-
-#define trx_start_internal_read_only(t)				\
-	trx_start_internal_read_only_low(t)
+#define trx_start_internal(t) trx_start_internal_low(t, true)
+#define trx_start_internal_read_only(t) trx_start_internal_low(t, false)
 
 #define trx_start_if_not_started_xa(t, rw)			\
 	trx_start_if_not_started_xa_low((t), (rw))
@@ -332,64 +320,6 @@ from innodb_lock_wait_timeout via trx_t::mysql_thd.
 	 ? thd_lock_wait_timeout((t)->mysql_thd)			\
 	 : 0)
 
-/**
-Determine if the transaction is a non-locking autocommit select
-(implied read-only).
-@param t transaction
-@return true if non-locking autocommit select transaction. */
-#define trx_is_autocommit_non_locking(t)				\
-((t)->auto_commit && (t)->will_lock == 0)
-
-/**
-Determine if the transaction is a non-locking autocommit select
-with an explicit check for the read-only status.
-@param t transaction
-@return true if non-locking autocommit read-only transaction. */
-#define trx_is_ac_nl_ro(t)						\
-((t)->read_only && trx_is_autocommit_non_locking((t)))
-
-/**
-Check transaction state */
-#define check_trx_state(t) do {						\
-	ut_ad(!trx_is_autocommit_non_locking((t)));			\
-	switch ((t)->state) {						\
-	case TRX_STATE_PREPARED:					\
-	case TRX_STATE_PREPARED_RECOVERED:				\
-	case TRX_STATE_ACTIVE:						\
-	case TRX_STATE_COMMITTED_IN_MEMORY:				\
-		continue;						\
-	case TRX_STATE_NOT_STARTED:					\
-		break;							\
-	}								\
-	ut_error;							\
-} while (0)
-
-#ifdef UNIV_DEBUG
-/*******************************************************************//**
-Assert that an autocommit non-locking select cannot be in the
-rw_trx_hash and that it is a read-only transaction.
-The transaction must have mysql_thd assigned. */
-# define assert_trx_nonlocking_or_in_list(t)				\
-	do {								\
-		if (trx_is_autocommit_non_locking(t)) {			\
-			trx_state_t	t_state = (t)->state;		\
-			ut_ad((t)->read_only);				\
-			ut_ad(!(t)->is_recovered);			\
-			ut_ad((t)->mysql_thd);				\
-			ut_ad(t_state == TRX_STATE_NOT_STARTED		\
-			      || t_state == TRX_STATE_ACTIVE);		\
-		} else {						\
-			check_trx_state(t);				\
-		}							\
-	} while (0)
-#else /* UNIV_DEBUG */
-/*******************************************************************//**
-Assert that an autocommit non-locking slect cannot be in the
-rw_trx_hash and that it is a read-only transaction.
-The transaction must have mysql_thd assigned. */
-# define assert_trx_nonlocking_or_in_list(trx) ((void)0)
-#endif /* UNIV_DEBUG */
-
 typedef std::vector<ib_lock_t*, ut_allocator<ib_lock_t*> >	lock_list;
 
 /** The locks and state of an active transaction. Protected by
@@ -470,7 +400,8 @@ class trx_mod_table_time_t
 
   /** First modification of the table, possibly ORed with BULK */
   undo_no_t first;
-  /** First modification of a system versioned column (or NONE) */
+  /** First modification of a system versioned column
+  (NONE= no versioning, BULK= the table was dropped) */
   undo_no_t first_versioned= NONE;
 public:
   /** Constructor
@@ -485,15 +416,24 @@ public:
   { auto f= first & LIMIT; return f <= first_versioned && f <= rows; }
 #endif /* UNIV_DEBUG */
   /** @return if versioned columns were modified */
-  bool is_versioned() const { return first_versioned != NONE; }
+  bool is_versioned() const { return (~first_versioned & LIMIT) != 0; }
+  /** @return if the table was dropped */
+  bool is_dropped() const { return first_versioned == BULK; }
 
   /** After writing an undo log record, set is_versioned() if needed
   @param rows   number of modified rows so far */
   void set_versioned(undo_no_t rows)
   {
-    ut_ad(!is_versioned());
+    ut_ad(first_versioned == NONE);
     first_versioned= rows;
     ut_ad(valid(rows));
+  }
+
+  /** After writing an undo log record, note that the table will be dropped */
+  void set_dropped()
+  {
+    ut_ad(first_versioned == NONE);
+    first_versioned= BULK;
   }
 
   /** Notify the start of a bulk insert operation */
@@ -578,10 +518,6 @@ struct trx_undo_ptr_t {
 					yet */
 	trx_undo_t*	undo;		/*!< pointer to the undo log, or
 					NULL if nothing logged yet */
-	trx_undo_t*     old_insert;	/*!< pointer to recovered
-					insert undo log, or NULL if no
-					INSERT transactions were
-					recovered from old-format undo logs */
 };
 
 /** An instance of temporary rollback segment. */
@@ -796,11 +732,9 @@ public:
 	ulint		duplicates;	/*!< TRX_DUP_IGNORE | TRX_DUP_REPLACE */
 	bool		dict_operation;	/**< whether this modifies InnoDB
 					data dictionary */
-	ib_uint32_t	dict_operation_lock_mode;
-					/*!< 0, RW_S_LATCH, or RW_X_LATCH:
-					the latch mode trx currently holds
-					on dict_sys.latch. Protected
-					by dict_sys.latch. */
+	/** whether dict_sys.latch is held exclusively; protected by
+	dict_sys.latch */
+	bool dict_operation_lock_mode;
 
 	/** wall-clock time of the latest transition to TRX_STATE_ACTIVE;
 	used for diagnostic purposes only */
@@ -882,16 +816,15 @@ public:
 	/*------------------------------*/
 	bool		read_only;	/*!< true if transaction is flagged
 					as a READ-ONLY transaction.
-					if auto_commit && will_lock == 0
+					if auto_commit && !will_lock
 					then it will be handled as a
 					AC-NL-RO-SELECT (Auto Commit Non-Locking
 					Read Only Select). A read only
 					transaction will not be assigned an
 					UNDO log. */
 	bool		auto_commit;	/*!< true if it is an autocommit */
-	ib_uint32_t	will_lock;	/*!< Will acquire some locks. Increment
-					each time we determine that a lock will
-					be acquired by the MySQL layer. */
+	bool		will_lock;	/*!< set to inform trx_start_low() that
+					the transaction may acquire locks */
 	/*------------------------------*/
 	fts_trx_t*	fts_trx;	/*!< FTS information, or NULL if
 					transaction hasn't modified tables
@@ -902,18 +835,12 @@ public:
 					count of tables being flushed. */
 
 	/*------------------------------*/
-	bool		internal;	/*!< true if it is a system/internal
-					transaction background task. This
-					includes DDL transactions too.  Such
-					transactions are always treated as
-					read-write. */
-	/*------------------------------*/
 #ifdef UNIV_DEBUG
 	unsigned	start_line;	/*!< Track where it was started from */
 	const char*	start_file;	/*!< Filename where it was started */
 #endif /* UNIV_DEBUG */
 
-	XID*		xid;		/*!< X/Open XA transaction
+	XID		xid;		/*!< X/Open XA transaction
 					identification to identify a
 					transaction branch */
 	trx_mod_tables_t mod_tables;	/*!< List of tables that were modified
@@ -937,13 +864,6 @@ public:
 		return(has_logged_persistent() || rsegs.m_noredo.undo);
 	}
 
-	/** @return whether any undo log has been generated or
-	recovered */
-	bool has_logged_or_recovered() const
-	{
-		return(has_logged() || rsegs.m_redo.old_insert);
-	}
-
 	/** @return rollback segment for modifying temporary tables */
 	trx_rseg_t* get_temp_rseg()
 	{
@@ -962,8 +882,9 @@ public:
   inline void release_locks();
 
   /** Evict a table definition due to the rollback of ALTER TABLE.
-  @param[in]	table_id	table identifier */
-  void evict_table(table_id_t table_id);
+  @param table_id   table identifier
+  @param reset_only whether to only reset dict_table_t::def_trx_id */
+  void evict_table(table_id_t table_id, bool reset_only= false);
 
   /** Initiate rollback.
   @param savept     savepoint to which to roll back
@@ -981,12 +902,34 @@ private:
   inline void commit_tables();
   /** Mark a transaction committed in the main memory data structures. */
   inline void commit_in_memory(const mtr_t *mtr);
+  /** Write log for committing the transaction. */
+  void commit_persist();
+  /** Clean up the transaction after commit_in_memory() */
+  void commit_cleanup();
   /** Commit the transaction in a mini-transaction.
   @param mtr  mini-transaction (if there are any persistent modifications) */
   void commit_low(mtr_t *mtr= nullptr);
 public:
   /** Commit the transaction. */
   void commit();
+
+
+  /** Try to drop a persistent table.
+  @param table       persistent table
+  @param fk          whether to drop FOREIGN KEY metadata
+  @return error code */
+  dberr_t drop_table(const dict_table_t &table);
+  /** Try to drop the foreign key constraints for a persistent table.
+  @param name        name of persistent table
+  @return error code */
+  dberr_t drop_table_foreign(const table_name_t &name);
+  /** Try to drop the statistics for a persistent table.
+  @param name        name of persistent table
+  @return error code */
+  dberr_t drop_table_statistics(const table_name_t &name);
+  /** Commit the transaction, possibly after drop_table().
+  @param deleted   handles of data files that were deleted */
+  void commit(std::vector<pfs_os_file_t> &deleted);
 
 
   /** Discard all savepoints */
@@ -1022,7 +965,7 @@ public:
   }
 
   /** @return whether the table has lock on
-  mysql.innodb_table_stats and mysql.innodb_index_stats */
+  mysql.innodb_table_stats or mysql.innodb_index_stats */
   bool has_stats_table_lock() const;
 
   /** Free the memory to trx_pools */
@@ -1061,6 +1004,9 @@ public:
     if (it != mod_tables.end())
       it->second.end_bulk_insert();
   }
+
+  /** @return whether this is a non-locking autocommit transaction */
+  bool is_autocommit_non_locking() const { return auto_commit && !will_lock; }
 
   /** This has to be invoked on SAVEPOINT or at the start of a statement.
   Even if TRX_UNDO_EMPTY records were written for any table to cover an

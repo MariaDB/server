@@ -267,24 +267,21 @@ Datafile::read_first_page(bool read_only_mode)
 			IORequestReadPartial, m_handle, m_first_page, 0,
 			page_size, &n_read);
 
-		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
-
-			page_size >>= 1;
-
-		} else if (err == DB_SUCCESS) {
-
+		if (err == DB_SUCCESS) {
 			ut_a(n_read == page_size);
-
 			break;
+		}
 
+		if (err == DB_IO_ERROR && n_read == 0) {
+			break;
+		}
+		if (err == DB_IO_ERROR && n_read >= UNIV_PAGE_SIZE_MIN) {
+			page_size >>= 1;
 		} else if (srv_operation == SRV_OPERATION_BACKUP) {
 			break;
 		} else {
-
-			ib::error()
-				<< "Cannot read first page of '"
-				<< m_filepath << "' "
-				<< err;
+			ib::info() << "Cannot read first page of '"
+				<< m_filepath << "': " << err;
 			break;
 		}
 	}
@@ -424,6 +421,9 @@ Datafile::validate_for_recovery()
 				" the first 64 pages.";
 			return(err);
 		}
+		if (m_space_id == ULINT_UNDEFINED) {
+			return DB_SUCCESS; /* empty file */
+		}
 
 		if (restore_from_doublewrite()) {
 			return(DB_CORRUPTION);
@@ -467,11 +467,18 @@ dberr_t Datafile::validate_first_page(lsn_t *flush_lsn)
 
 	if (error_txt != NULL) {
 err_exit:
+		free_first_page();
+
+		if (recv_recovery_is_on()
+		    || srv_operation == SRV_OPERATION_BACKUP) {
+			m_defer= true;
+			return DB_SUCCESS;
+		}
+
 		ib::info() << error_txt << " in datafile: " << m_filepath
 			<< ", Space ID:" << m_space_id  << ", Flags: "
 			<< m_flags;
 		m_is_valid = false;
-		free_first_page();
 		return(DB_CORRUPTION);
 	}
 
@@ -500,13 +507,18 @@ err_exit:
 	ulint logical_size = fil_space_t::logical_size(m_flags);
 
 	if (srv_page_size != logical_size) {
+		free_first_page();
+		if (recv_recovery_is_on()
+		    || srv_operation == SRV_OPERATION_BACKUP) {
+			m_defer= true;
+			return DB_SUCCESS;
+		}
 		/* Logical size must be innodb_page_size. */
 		ib::error()
 			<< "Data file '" << m_filepath << "' uses page size "
 			<< logical_size << ", but the innodb_page_size"
 			" start-up parameter is "
 			<< srv_page_size;
-		free_first_page();
 		return(DB_ERROR);
 	}
 
@@ -535,8 +547,16 @@ err_exit:
 		fil_node_t* node = UT_LIST_GET_FIRST(space->chain);
 
 		if (node && !strcmp(m_filepath, node->name)) {
+ok_exit:
 			mysql_mutex_unlock(&fil_system.mutex);
 			return DB_SUCCESS;
+		}
+
+		if (!m_space_id
+		    && (recv_recovery_is_on()
+			|| srv_operation == SRV_OPERATION_BACKUP)) {
+			m_defer= true;
+			goto ok_exit;
 		}
 
 		/* Make sure the space_id has not already been opened. */
@@ -574,6 +594,10 @@ Datafile::find_space_id()
 	ut_ad(m_handle != OS_FILE_CLOSED);
 
 	file_size = os_file_get_size(m_handle);
+
+	if (!file_size) {
+		return DB_SUCCESS;
+	}
 
 	if (file_size == (os_offset_t) -1) {
 		ib::error() << "Could not get file size of datafile '"
@@ -781,10 +805,12 @@ static char *read_link_file(const char *link_filepath)
     {
       /* Trim whitespace from end of filepath */
       len--;
-      while (filepath[len] >= 0 && filepath[len] <= 0x20)
+      while (static_cast<byte>(filepath[len]) <= 0x20)
+      {
+        if (!len)
+          return nullptr;
         filepath[len--]= 0;
-      if (!*filepath)
-        return nullptr;
+      }
       /* Ensure that the last 2 path separators are forward slashes,
       because elsewhere we are assuming that tablespace file names end
       in "/databasename/tablename.ibd". */
@@ -813,7 +839,7 @@ open that file, and read the contents into m_filepath.
 @param name   table name
 @return filepath()
 @retval nullptr  if the .isl file does not exist or cannot be read */
-const char *RemoteDatafile::open_link_file(const table_name_t &name)
+const char *RemoteDatafile::open_link_file(const fil_space_t::name_type name)
 {
   if (!m_link_filepath)
     m_link_filepath= fil_make_filepath(nullptr, name, ISL, false);

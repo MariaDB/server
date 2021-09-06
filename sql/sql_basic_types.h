@@ -150,9 +150,11 @@ public:
   explicit time_round_mode_t(ulonglong mode)
    :m_mode((value_t) mode)
   {
+#ifdef MYSQL_SERVER
     DBUG_ASSERT(mode == FRAC_NONE ||
                 mode == FRAC_TRUNCATE ||
                 mode == FRAC_ROUND);
+#endif
   }
   // Conversion operators
   explicit operator ulonglong() const

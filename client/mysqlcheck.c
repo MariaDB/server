@@ -165,7 +165,7 @@ static struct my_option my_long_options[] =
    "When using ANALYZE TABLE use the PERSISTENT FOR ALL option.",
    &opt_persistent_all, &opt_persistent_all, 0, GET_BOOL, NO_ARG,
    0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -355,7 +355,7 @@ get_one_option(const struct my_option *opt,
     opt_upgrade= 1;
     break;
   case 'W':
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
 
     /* Prioritize pipe if explicit via command line */
@@ -497,7 +497,8 @@ static int get_options(int *argc, char ***argv)
   if (!strcmp(default_charset, MYSQL_AUTODETECT_CHARSET_NAME))
     default_charset= (char *)my_default_csname();
 
-  if (!get_charset_by_csname(default_charset, MY_CS_PRIMARY, MYF(MY_WME)))
+  if (!get_charset_by_csname(default_charset, MY_CS_PRIMARY,
+                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME)))
   {
     printf("Unsupported character set: %s\n", default_charset);
     DBUG_RETURN(1);

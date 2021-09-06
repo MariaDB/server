@@ -135,7 +135,7 @@ File my_register_filename(File fd, const char *FileName, enum file_type
   if ((int) fd >= MY_FILE_MIN)
   {
     my_atomic_add32_explicit(&my_file_opened, 1, MY_MEMORY_ORDER_RELAXED);
-    if ((uint) fd >= my_file_limit)
+    if ((uint) fd >= my_file_limit || (MyFlags & MY_NO_REGISTER))
       DBUG_RETURN(fd);
     my_file_info[fd].name = my_strdup(key_memory_my_file_info, FileName, MyFlags);
     statistic_increment(my_file_total_opened,&THR_LOCK_open);

@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -27,7 +27,7 @@ Created 3/26/1996 Heikki Tuuri
 #ifndef trx0purge_h
 #define trx0purge_h
 
-#include "trx0rseg.h"
+#include "trx0sys.h"
 #include "que0types.h"
 #include "srw_lock.h"
 
@@ -61,20 +61,17 @@ public:
 	typedef trx_rsegs_t::iterator iterator;
 	typedef trx_rsegs_t::const_iterator const_iterator;
 
-	/** Default constructor */
 	TrxUndoRsegs() {}
+
 	/** Constructor */
 	TrxUndoRsegs(trx_rseg_t& rseg)
-		: m_commit(rseg.last_commit), m_rsegs(1, &rseg) {}
+		: trx_no(rseg.last_trx_no()), m_rsegs(1, &rseg) {}
 	/** Constructor */
 	TrxUndoRsegs(trx_id_t trx_no, trx_rseg_t& rseg)
-		: m_commit(trx_no << 1), m_rsegs(1, &rseg) {}
-
-	/** @return the transaction commit identifier */
-	trx_id_t trx_no() const { return m_commit >> 1; }
+		: trx_no(trx_no), m_rsegs(1, &rseg) {}
 
 	bool operator!=(const TrxUndoRsegs& other) const
-	{ return m_commit != other.m_commit; }
+	{ return trx_no != other.trx_no; }
 	bool empty() const { return m_rsegs.empty(); }
 	void erase(iterator& it) { m_rsegs.erase(it); }
 	iterator begin() { return(m_rsegs.begin()); }
@@ -88,14 +85,14 @@ public:
 	@return true if elem1 > elem2 else false.*/
 	bool operator()(const TrxUndoRsegs& lhs, const TrxUndoRsegs& rhs)
 	{
-		return(lhs.m_commit > rhs.m_commit);
+		return(lhs.trx_no > rhs.trx_no);
 	}
 
+	/** Copy of trx_rseg_t::last_trx_no() */
+	trx_id_t trx_no= 0;
 private:
-	/** Copy trx_rseg_t::last_commit */
-	trx_id_t		m_commit;
 	/** Rollback segments of a transaction, scheduled for purge. */
-	trx_rsegs_t		m_rsegs;
+	trx_rsegs_t m_rsegs{};
 };
 
 typedef std::priority_queue<
@@ -127,15 +124,19 @@ private:
 class purge_sys_t
 {
 public:
-	/** latch protecting view, m_enabled */
-	MY_ALIGNED(CACHE_LINE_SIZE) mutable srw_lock latch;
+  /** latch protecting view, m_enabled */
+  MY_ALIGNED(CACHE_LINE_SIZE) mutable srw_lock latch;
 private:
-	/** The purge will not remove undo logs which are >= this view */
-	ReadViewBase	view;
-	/** whether purge is enabled; protected by latch and std::atomic */
-	std::atomic<bool>		m_enabled;
-	/** number of pending stop() calls without resume() */
-	Atomic_counter<int32_t>		m_paused;
+  /** The purge will not remove undo logs which are >= this view */
+  ReadViewBase view;
+  /** whether purge is enabled; protected by latch and std::atomic */
+  std::atomic<bool> m_enabled;
+  /** number of pending stop() calls without resume() */
+  Atomic_counter<uint32_t> m_paused;
+  /** number of stop_SYS() calls without resume_SYS() */
+  Atomic_counter<uint32_t> m_SYS_paused;
+  /** number of stop_FTS() calls without resume_FTS() */
+  Atomic_counter<uint32_t> m_FTS_paused;
 public:
 	que_t*		query;		/*!< The query graph which will do the
 					parallelized purge operation */
@@ -145,17 +146,13 @@ public:
 	{
 		bool operator<=(const iterator& other) const
 		{
-			if (commit < other.commit) return true;
-			if (commit > other.commit) return false;
+			if (trx_no < other.trx_no) return true;
+			if (trx_no > other.trx_no) return false;
 			return undo_no <= other.undo_no;
 		}
 
-		/** @return the commit number of the transaction */
-		trx_id_t trx_no() const { return commit >> 1; }
-		void reset_trx_no(trx_id_t trx_no) { commit = trx_no << 1; }
-
-		/** 2 * trx_t::no + old_insert of the committed transaction */
-		trx_id_t	commit;
+		/** trx_t::no of the committed transaction */
+		trx_id_t	trx_no;
 		/** The record number within the committed transaction's undo
 		log, increasing, purged from from 0 onwards */
 		undo_no_t	undo_no;
@@ -241,10 +238,33 @@ public:
 
   /** @return whether the purge tasks are active */
   bool running() const;
-  /** Stop purge during FLUSH TABLES FOR EXPORT */
+  /** Stop purge during FLUSH TABLES FOR EXPORT. */
   void stop();
   /** Resume purge at UNLOCK TABLES after FLUSH TABLES FOR EXPORT */
   void resume();
+
+private:
+  void wait_SYS();
+  void wait_FTS();
+public:
+  /** Suspend purge in data dictionary tables */
+  void stop_SYS();
+  /** Resume purge in data dictionary tables */
+  static void resume_SYS(void *);
+  /** @return whether stop_SYS() is in effect */
+  bool must_wait_SYS() const { return m_SYS_paused; }
+  /** check stop_SYS() */
+  void check_stop_SYS() { if (must_wait_SYS()) wait_SYS(); }
+
+  /** Pause purge during a DDL operation that could drop FTS_ tables. */
+  void stop_FTS() { m_FTS_paused++; }
+  /** Resume purge after stop_FTS(). */
+  void resume_FTS() { ut_d(const auto p=) m_FTS_paused--; ut_ad(p); }
+  /** @return whether stop_SYS() is in effect */
+  bool must_wait_FTS() const { return m_FTS_paused; }
+  /** check stop_SYS() */
+  void check_stop_FTS() { if (must_wait_FTS()) wait_FTS(); }
+
   /** A wrapper around ReadView::changes_visible(). */
   bool changes_visible(trx_id_t id, const table_name_t &name) const
   {

@@ -592,9 +592,15 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
       Let's use only one of the lists.
     */
     if (!win_spec1->name() && win_spec2->name())
+    {
+      win_spec1->save_partition_list= win_spec1->partition_list;
       win_spec1->partition_list= win_spec2->partition_list;
+    }
     else
+    {
+      win_spec2->save_partition_list= win_spec2->partition_list;
       win_spec2->partition_list= win_spec1->partition_list;
+    }
 
     cmp= compare_order_lists(win_spec1->order_list,
                              win_spec2->order_list);
@@ -607,9 +613,15 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
        Let's use only one of the lists.
     */
     if (!win_spec1->name() && win_spec2->name())
+    {
+      win_spec1->save_order_list= win_spec2->order_list;
       win_spec1->order_list= win_spec2->order_list;
+    }
     else
+    {
+      win_spec1->save_order_list= win_spec2->order_list;
       win_spec2->order_list= win_spec1->order_list;
+    }
 
     cmp= compare_window_frames(win_spec1->window_frame,
                                win_spec2->window_frame);
@@ -640,10 +652,6 @@ int compare_window_funcs_by_window_specs(Item_window_func *win_func1,
 }
 
 
-#define  SORTORDER_CHANGE_FLAG    1
-#define  PARTITION_CHANGE_FLAG    2
-#define  FRAME_CHANGE_FLAG        4
-
 typedef int (*Item_window_func_cmp)(Item_window_func *f1,
                                     Item_window_func *f2,
                                     void *arg); 
@@ -673,15 +681,15 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
 
   List_iterator_fast<Item_window_func> it(*win_func_list);
   Item_window_func *prev= it++;
-  prev->marker= SORTORDER_CHANGE_FLAG |
-                PARTITION_CHANGE_FLAG |
-                FRAME_CHANGE_FLAG;
+  prev->marker= (MARKER_SORTORDER_CHANGE |
+                 MARKER_PARTITION_CHANGE |
+                 MARKER_FRAME_CHANGE);
   Item_window_func *curr;
   while ((curr= it++))
   {
     Window_spec *win_spec_prev= prev->window_spec;
     Window_spec *win_spec_curr= curr->window_spec;
-    curr->marker= 0;
+    curr->marker= MARKER_UNUSED;
     if (!(win_spec_prev->partition_list == win_spec_curr->partition_list &&
           win_spec_prev->order_list == win_spec_curr->order_list))
     {
@@ -693,17 +701,17 @@ void order_window_funcs_by_window_specs(List<Item_window_func> *win_func_list)
         cmp= compare_window_spec_joined_lists(win_spec_prev, win_spec_curr);
       if (!(CMP_LT_C <= cmp && cmp <= CMP_GT_C))
       {
-        curr->marker= SORTORDER_CHANGE_FLAG |
-                      PARTITION_CHANGE_FLAG |
-                      FRAME_CHANGE_FLAG;
+        curr->marker= (MARKER_SORTORDER_CHANGE |
+                       MARKER_PARTITION_CHANGE |
+                       MARKER_FRAME_CHANGE);
       }
       else if (win_spec_prev->partition_list != win_spec_curr->partition_list)
       {
-        curr->marker|= PARTITION_CHANGE_FLAG | FRAME_CHANGE_FLAG;
+        curr->marker|= MARKER_PARTITION_CHANGE | MARKER_FRAME_CHANGE;
       }
     }
     else if (win_spec_prev->window_frame != win_spec_curr->window_frame)
-      curr->marker|= FRAME_CHANGE_FLAG;
+      curr->marker|= MARKER_FRAME_CHANGE;
 
     prev= curr;
   }
@@ -2497,7 +2505,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
       cursor_manager->add_cursor(current_row_pos);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       bool negative_offset= item_sum->sum_func() == Item_sum::LAG_FUNC;
       fc= new Frame_positional_cursor(*current_row_pos,
                                       *top_bound, *bottom_bound,
@@ -2513,7 +2521,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
       offset_item->fix_fields(thd, &offset_item);
       fc= new Frame_positional_cursor(*top_bound,
@@ -2529,7 +2537,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       Item *offset_item= new (thd->mem_root) Item_int(thd, 0);
       offset_item->fix_fields(thd, &offset_item);
       fc= new Frame_positional_cursor(*bottom_bound,
@@ -2545,7 +2553,7 @@ void add_special_frame_cursors(THD *thd, Cursor_manager *cursor_manager,
       Frame_cursor *top_bound= get_frame_cursor(thd, spec, true);
       cursor_manager->add_cursor(bottom_bound);
       cursor_manager->add_cursor(top_bound);
-      DBUG_ASSERT(item_sum->fixed);
+      DBUG_ASSERT(item_sum->fixed());
       Item *int_item= new (thd->mem_root) Item_int(thd, 1);
       Item *offset_func= new (thd->mem_root)
                               Item_func_minus(thd, item_sum->get_arg(1),
@@ -2734,7 +2742,7 @@ bool save_window_function_values(List<Item_window_func>& window_functions,
   Item *func;
   for (; (func = *func_ptr) ; func_ptr++)
   {
-    if (func->with_window_func && func->type() != Item::WINDOW_FUNC_ITEM)
+    if (func->with_window_func() && func->type() != Item::WINDOW_FUNC_ITEM)
       func->save_in_result_field(true);
   }
 
@@ -2964,7 +2972,8 @@ bool Window_func_runner::exec(THD *thd, TABLE *tbl, SORT_INFO *filesort_result)
     win_func->set_phase_to_computation();
     // TODO(cvicentiu) Setting the aggregator should probably be done during
     // setup of Window_funcs_sort.
-    win_func->window_func()->set_aggregator(Aggregator::SIMPLE_AGGREGATOR);
+    win_func->window_func()->set_aggregator(thd,
+                                            Aggregator::SIMPLE_AGGREGATOR);
   }
   it.rewind();
 
@@ -3037,11 +3046,11 @@ bool Window_funcs_sort::setup(THD *thd, SQL_SELECT *sel,
       return true;
     it++;
     win_func= it.peek();
-  } while (win_func && !(win_func->marker & SORTORDER_CHANGE_FLAG));
+  } while (win_func && !(win_func->marker & MARKER_SORTORDER_CHANGE));
 
   /*
     The sort criteria must be taken from the last win_func in the group of
-    adjacent win_funcs that do not have SORTORDER_CHANGE_FLAG. This is
+    adjacent win_funcs that do not have MARKER_SORTORDER_CHANGE. This is
     because the sort order must be the most specific sorting criteria defined
     within the window function group. This ensures that we sort the table
     in a way that the result is valid for all window functions belonging to

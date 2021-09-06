@@ -150,9 +150,9 @@ bool Item_splocal::append_value_for_log(THD *thd, String *str)
   Item *item= this_item();
   String *str_value= item->type_handler()->print_item_value(thd, item,
                                                             &str_value_holder);
-  return str_value ?
-         str->append(*str_value) :
-         str->append(STRING_WITH_LEN("NULL"));
+  return (str_value ?
+          str->append(*str_value) :
+          str->append(NULL_clex_str));
 }
 
 
@@ -166,7 +166,7 @@ bool Item_splocal_row_field::append_for_log(THD *thd, String *str)
 
   if (str->append(STRING_WITH_LEN(" NAME_CONST('")) ||
       str->append(&m_name) ||
-      str->append(".") ||
+      str->append('.') ||
       str->append(&m_field_name) ||
       str->append(STRING_WITH_LEN("',")))
     return true;
@@ -2077,7 +2077,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
   for (arg_no= 0; arg_no < argcount; arg_no++)
   {
     /* Arguments must be fixed in Item_func_sp::fix_fields */
-    DBUG_ASSERT(argp[arg_no]->is_fixed());
+    DBUG_ASSERT(argp[arg_no]->fixed());
 
     if ((err_status= (*func_ctx)->set_parameter(thd, arg_no, &(argp[arg_no]))))
       goto err_with_cleanup;
@@ -2117,7 +2117,7 @@ sp_head::execute_function(THD *thd, Item **argp, uint argcount,
       if (str_value)
         binlog_buf.append(*str_value);
       else
-        binlog_buf.append(STRING_WITH_LEN("NULL"));
+        binlog_buf.append(NULL_clex_str);
     }
     binlog_buf.append(')');
   }
@@ -2994,7 +2994,7 @@ sp_head::show_create_routine_get_fields(THD *thd, const Sp_handler *sph,
 
     Item_empty_string *stmt_fld=
       new (mem_root) Item_empty_string(thd, col3_caption, 1024);
-    stmt_fld->maybe_null= TRUE;
+    stmt_fld->set_maybe_null();
 
     fields->push_back(stmt_fld, mem_root);
   }
@@ -3070,7 +3070,7 @@ sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
       new (mem_root) Item_empty_string(thd, col3_caption,
                             (uint)MY_MAX(m_defstr.length, 1024));
 
-    stmt_fld->maybe_null= TRUE;
+    stmt_fld->set_maybe_null();
 
     fields.push_back(stmt_fld, thd->mem_root);
   }
@@ -3110,9 +3110,12 @@ sp_head::show_create_routine(THD *thd, const Sp_handler *sph)
     protocol->store_null();
 
 
-  protocol->store(m_creation_ctx->get_client_cs()->csname, system_charset_info);
-  protocol->store(m_creation_ctx->get_connection_cl()->name, system_charset_info);
-  protocol->store(m_creation_ctx->get_db_cl()->name, system_charset_info);
+  protocol->store(&m_creation_ctx->get_client_cs()->cs_name,
+                  system_charset_info);
+  protocol->store(&m_creation_ctx->get_connection_cl()->coll_name,
+                  system_charset_info);
+  protocol->store(&m_creation_ctx->get_db_cl()->coll_name,
+                  system_charset_info);
 
   err_status= protocol->write();
 
@@ -3489,8 +3492,7 @@ sp_lex_keeper::reset_lex_and_exec_core(THD *thd, uint *nextp,
   Json_writer_object trace_command(thd);
   Json_writer_array trace_command_steps(thd, "steps");
   if (open_tables)
-    res= check_dependencies_in_with_clauses(m_lex->with_clauses_list) ||
-         instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
+    res= instr->exec_open_and_lock_tables(thd, m_lex->query_tables);
 
   if (likely(!res))
   {
@@ -4203,7 +4205,8 @@ sp_instr_freturn::print(String *str)
   if (str->reserve(1024+8+32)) // Add some for the expr. too
     return;
   str->qs_append(STRING_WITH_LEN("freturn "));
-  str->qs_append(m_type_handler->name().ptr());
+  LEX_CSTRING name= m_type_handler->name().lex_cstring();
+  str->qs_append(&name);
   str->qs_append(' ');
   m_value->print(str, enum_query_type(QT_ORDINARY |
                                       QT_ITEM_ORIGINAL_FUNC_NULLIF));

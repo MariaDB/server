@@ -42,8 +42,9 @@ public:
   Item_geometry_func(THD *thd, Item *a, Item *b, Item *c):
     Item_str_func(thd, a, b, c) {}
   Item_geometry_func(THD *thd, List<Item> &list): Item_str_func(thd, list) {}
-  bool fix_length_and_dec();
-  const Type_handler *type_handler() const { return &type_handler_geometry; }
+  bool fix_length_and_dec() override;
+  const Type_handler *type_handler() const override
+  { return &type_handler_geometry; }
 };
 
 
@@ -54,10 +55,10 @@ class Item_real_func_args_geometry: public Item_real_func
 {
 protected:
   String value;
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count == 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_type_geom_or_binary(func_name_cstring(),
                                                             args[0]);
   }
 public:
@@ -71,10 +72,10 @@ public:
 */
 class Item_long_func_args_geometry: public Item_long_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count == 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_type_geom_or_binary(func_name_cstring(),
                                                             args[0]);
   }
 protected:
@@ -92,10 +93,10 @@ class Item_bool_func_args_geometry: public Item_bool_func
 {
 protected:
   String value;
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count == 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_type_geom_or_binary(func_name_cstring(),
                                                             args[0]);
   }
 public:
@@ -110,10 +111,10 @@ public:
 class Item_str_ascii_func_args_geometry: public Item_str_ascii_func
 {
 protected:
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count >= 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_type_geom_or_binary(func_name_cstring(),
                                                             args[0]);
   }
 public:
@@ -132,10 +133,10 @@ public:
 class Item_binary_func_args_geometry: public Item_str_func
 {
 protected:
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count >= 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_type_geom_or_binary(func_name_cstring(),
                                                             args[0]);
   }
 public:
@@ -150,10 +151,10 @@ public:
 class Item_geometry_func_args_geometry: public Item_geometry_func
 {
 protected:
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count >= 1);
-    return Type_handler_geometry::check_type_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_type_geom_or_binary(func_name_cstring(),
                                                             args[0]);
   }
 public:
@@ -170,10 +171,10 @@ public:
 class Item_real_func_args_geometry_geometry: public Item_real_func
 {
 protected:
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count >= 2);
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_types_geom_or_binary(func_name_cstring(),
                                                              args, 0, 2);
   }
 public:
@@ -189,10 +190,10 @@ class Item_bool_func_args_geometry_geometry: public Item_bool_func
 {
 protected:
   String value;
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count >= 2);
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_types_geom_or_binary(func_name_cstring(),
                                                              args, 0, 2);
   }
 public:
@@ -203,36 +204,44 @@ public:
 
 class Item_func_geometry_from_text: public Item_geometry_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   {
-    return args[0]->check_type_general_purpose_string(func_name()) ||
+    return args[0]->check_type_general_purpose_string(func_name_cstring()) ||
            check_argument_types_can_return_int(1, MY_MIN(2, arg_count));
   }
 public:
   Item_func_geometry_from_text(THD *thd, Item *a): Item_geometry_func(thd, a) {}
   Item_func_geometry_from_text(THD *thd, Item *a, Item *srid):
     Item_geometry_func(thd, a, srid) {}
-  const char *func_name() const { return "st_geometryfromtext"; }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_geometryfromtext") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_geometry_from_text>(thd, this); }
 };
 
 class Item_func_geometry_from_wkb: public Item_geometry_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     return
-      Type_handler_geometry::check_type_geom_or_binary(func_name(), args[0]) ||
+      Type_handler_geometry::check_type_geom_or_binary(func_name_cstring(), args[0]) ||
       check_argument_types_can_return_int(1, MY_MIN(2, arg_count));
   }
 public:
   Item_func_geometry_from_wkb(THD *thd, Item *a): Item_geometry_func(thd, a) {}
   Item_func_geometry_from_wkb(THD *thd, Item *a, Item *srid):
     Item_geometry_func(thd, a, srid) {}
-  const char *func_name() const { return "st_geometryfromwkb"; }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_geometryfromwkb") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_geometry_from_wkb>(thd, this); }
 };
 
@@ -240,10 +249,10 @@ public:
 class Item_func_geometry_from_json: public Item_geometry_func
 {
   String tmp_js;
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     // TODO: check with Alexey, for better args[1] and args[2] type control
-    return args[0]->check_type_general_purpose_string(func_name()) ||
+    return args[0]->check_type_general_purpose_string(func_name_cstring()) ||
            check_argument_types_traditional_scalar(1, MY_MIN(3, arg_count));
   }
 public:
@@ -252,9 +261,13 @@ public:
     Item_geometry_func(thd, js, opt) {}
   Item_func_geometry_from_json(THD *thd, Item *js, Item *opt, Item *srid):
     Item_geometry_func(thd, js, opt, srid) {}
-  const char *func_name() const { return "st_geomfromgeojson"; }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_geomfromgeojson") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_geometry_from_json>(thd, this); }
 };
 
@@ -264,10 +277,14 @@ class Item_func_as_wkt: public Item_str_ascii_func_args_geometry
 public:
   Item_func_as_wkt(THD *thd, Item *a)
    :Item_str_ascii_func_args_geometry(thd, a) {}
-  const char *func_name() const { return "st_astext"; }
-  String *val_str_ascii(String *);
-  bool fix_length_and_dec();
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_astext") };
+    return name;
+  }
+  String *val_str_ascii(String *) override;
+  bool fix_length_and_dec() override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_as_wkt>(thd, this); }
 };
 
@@ -276,25 +293,30 @@ class Item_func_as_wkb: public Item_binary_func_args_geometry
 public:
   Item_func_as_wkb(THD *thd, Item *a)
    :Item_binary_func_args_geometry(thd, a) {}
-  const char *func_name() const { return "st_aswkb"; }
-  String *val_str(String *);
-  const Type_handler *type_handler() const { return &type_handler_long_blob; }
-  bool fix_length_and_dec()
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_aswkb") };
+    return name;
+  }
+  String *val_str(String *) override;
+  const Type_handler *type_handler() const override
+  { return &type_handler_long_blob; }
+  bool fix_length_and_dec() override
   {
     collation.set(&my_charset_bin);
     decimals=0;
     max_length= (uint32) UINT_MAX32;
-    maybe_null= 1;
+    set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_as_wkb>(thd, this); }
 };
 
 
 class Item_func_as_geojson: public Item_str_ascii_func_args_geometry
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     // TODO: check with Alexey, for better args[1] and args[2] type control
     return Item_str_ascii_func_args_geometry::check_arguments() ||
@@ -307,10 +329,14 @@ public:
    :Item_str_ascii_func_args_geometry(thd, js, max_dec_digits) {}
   Item_func_as_geojson(THD *thd, Item *js, Item *max_dec_digits, Item *opt)
    :Item_str_ascii_func_args_geometry(thd, js, max_dec_digits, opt) {}
-  const char *func_name() const { return "st_asgeojson"; }
-  bool fix_length_and_dec();
-  String *val_str_ascii(String *);
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_asgeojson") };
+    return name;
+  }
+  bool fix_length_and_dec() override;
+  String *val_str_ascii(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_as_geojson>(thd, this); }
 };
 
@@ -320,16 +346,20 @@ class Item_func_geometry_type: public Item_str_ascii_func_args_geometry
 public:
   Item_func_geometry_type(THD *thd, Item *a)
    :Item_str_ascii_func_args_geometry(thd, a) {}
-  String *val_str_ascii(String *);
-  const char *func_name() const { return "st_geometrytype"; }
-  bool fix_length_and_dec()
+  String *val_str_ascii(String *) override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_geometrytype") };
+    return name;
+  }
+  bool fix_length_and_dec() override
   {
     // "GeometryCollection" is the longest
     fix_length_and_charset(20, default_charset());
-    maybe_null= 1;
+    set_maybe_null();
     return FALSE;
   };
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_geometry_type>(thd, this); }
 };
 
@@ -362,9 +392,13 @@ public:
    :Item_geometry_func_args_geometry(thd, a),
     res_heap(8192, sizeof(ch_node))
     {}
-  const char *func_name() const { return "st_convexhull"; }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_convexhull") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_convexhull>(thd, this); }
 };
 
@@ -374,13 +408,17 @@ class Item_func_centroid: public Item_geometry_func_args_geometry
 public:
   Item_func_centroid(THD *thd, Item *a)
    :Item_geometry_func_args_geometry(thd, a) {}
-  const char *func_name() const { return "st_centroid"; }
-  String *val_str(String *);
-  const Type_handler *type_handler() const
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_centroid") };
+    return name;
+  }
+  String *val_str(String *) override;
+  const Type_handler *type_handler() const override
   {
     return &type_handler_point;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_centroid>(thd, this); }
 };
 
@@ -389,13 +427,17 @@ class Item_func_envelope: public Item_geometry_func_args_geometry
 public:
   Item_func_envelope(THD *thd, Item *a)
    :Item_geometry_func_args_geometry(thd, a) {}
-  const char *func_name() const { return "st_envelope"; }
-  String *val_str(String *);
-  const Type_handler *type_handler() const
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_envelope") };
+    return name;
+  }
+  String *val_str(String *) override;
+  const Type_handler *type_handler() const override
   {
     return &type_handler_polygon;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_envelope>(thd, this); }
 };
 
@@ -427,28 +469,36 @@ class Item_func_boundary: public Item_geometry_func_args_geometry
 public:
   Item_func_boundary(THD *thd, Item *a)
    :Item_geometry_func_args_geometry(thd, a) {}
-  const char *func_name() const { return "st_boundary"; }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_boundary") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_boundary>(thd, this); }
 };
 
 
 class Item_func_point: public Item_geometry_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   { return check_argument_types_can_return_real(0, 2); }
 public:
   Item_func_point(THD *thd, Item *a, Item *b): Item_geometry_func(thd, a, b) {}
   Item_func_point(THD *thd, Item *a, Item *b, Item *srid):
     Item_geometry_func(thd, a, b, srid) {}
-  const char *func_name() const { return "point"; }
-  String *val_str(String *);
-  const Type_handler *type_handler() const
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("point") };
+    return name;
+  }
+  String *val_str(String *) override;
+  const Type_handler *type_handler() const override
   {
     return &type_handler_point;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_point>(thd, this); }
 };
 
@@ -458,64 +508,71 @@ class Item_func_spatial_decomp: public Item_geometry_func_args_geometry
 public:
   Item_func_spatial_decomp(THD *thd, Item *a, Item_func::Functype ft):
     Item_geometry_func_args_geometry(thd, a) { decomp_func = ft; }
-  const char *func_name() const 
+  LEX_CSTRING func_name_cstring() const override
   { 
-    switch (decomp_func)
-    {
+    static LEX_CSTRING startpoint= {STRING_WITH_LEN("st_startpoint") };
+    static LEX_CSTRING endpoint= {STRING_WITH_LEN("st_endpoint") };
+    static LEX_CSTRING exteriorring= {STRING_WITH_LEN("st_exteriorring") };
+    static LEX_CSTRING unknown= {STRING_WITH_LEN("spatial_decomp_unknown") };
+    switch (decomp_func) {
       case SP_STARTPOINT:
-        return "st_startpoint";
+        return startpoint;
       case SP_ENDPOINT:
-        return "st_endpoint";
+        return endpoint;
       case SP_EXTERIORRING:
-        return "st_exteriorring";
+        return exteriorring;
       default:
 	DBUG_ASSERT(0);  // Should never happened
-        return "spatial_decomp_unknown"; 
+        return unknown;
     }
   }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_spatial_decomp>(thd, this); }
 };
 
 class Item_func_spatial_decomp_n: public Item_geometry_func_args_geometry
 {
   enum Functype decomp_func_n;
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     return Item_geometry_func_args_geometry::check_arguments() ||
-           args[1]->check_type_can_return_int(func_name());
+           args[1]->check_type_can_return_int(func_name_cstring());
   }
 public:
   Item_func_spatial_decomp_n(THD *thd, Item *a, Item *b, Item_func::Functype ft)
    :Item_geometry_func_args_geometry(thd, a, b),
     decomp_func_n(ft)
   { }
-  const char *func_name() const 
+  LEX_CSTRING func_name_cstring() const override
   { 
-    switch (decomp_func_n)
-    {
+    static LEX_CSTRING pointn= {STRING_WITH_LEN("st_pointn") };
+    static LEX_CSTRING geometryn= {STRING_WITH_LEN("st_geometryn") };
+    static LEX_CSTRING interiorringn= {STRING_WITH_LEN("st_interiorringn") };
+    static LEX_CSTRING unknown= {STRING_WITH_LEN("spatial_decomp_unknown") };
+
+    switch (decomp_func_n) {
       case SP_POINTN:
-        return "st_pointn";
+        return pointn;
       case SP_GEOMETRYN:
-        return "st_geometryn";
+        return geometryn;
       case SP_INTERIORRINGN:
-        return "st_interiorringn";
+        return interiorringn;
       default:
 	DBUG_ASSERT(0);  // Should never happened
-        return "spatial_decomp_n_unknown"; 
+        return unknown;
     }
   }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_spatial_decomp_n>(thd, this); }
 };
 
 class Item_func_spatial_collection: public Item_geometry_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   {
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(), args,
+    return Type_handler_geometry::check_types_geom_or_binary(func_name_cstring(), args,
                                                              0, arg_count);
   }
   enum Geometry::wkbType coll_type; 
@@ -528,14 +585,14 @@ public:
     coll_type=ct;
     item_type=it;
   }
-  String *val_str(String *);
-  bool fix_length_and_dec()
+  String *val_str(String *) override;
+  bool fix_length_and_dec() override
   {
     if (Item_geometry_func::fix_length_and_dec())
       return TRUE;
     for (unsigned int i= 0; i < arg_count; ++i)
     {
-      if (args[i]->is_fixed() && args[i]->field_type() != MYSQL_TYPE_GEOMETRY)
+      if (args[i]->fixed() && args[i]->field_type() != MYSQL_TYPE_GEOMETRY)
       {
         String str;
         args[i]->print(&str, QT_NO_DATA_EXPANSION);
@@ -558,12 +615,16 @@ public:
                                  Geometry::wkb_geometrycollection,
                                  Geometry::wkb_point)
   { }
-  const Type_handler *type_handler() const
+  const Type_handler *type_handler() const override
   {
     return &type_handler_geometrycollection;
   }
-  const char *func_name() const { return "geometrycollection"; }
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("geometrycollection") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_geometrycollection>(thd, this); }
 };
 
@@ -576,9 +637,14 @@ public:
                                  Geometry::wkb_linestring,
                                  Geometry::wkb_point)
   { }
-  const Type_handler *type_handler() const { return &type_handler_linestring; }
-  const char *func_name() const { return "linestring"; }
-  Item *get_copy(THD *thd)
+  const Type_handler *type_handler() const override
+  { return &type_handler_linestring; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("linestring") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_linestring>(thd, this); }
 };
 
@@ -591,9 +657,14 @@ public:
                                  Geometry::wkb_polygon,
                                  Geometry::wkb_linestring)
   { }
-  const Type_handler *type_handler() const { return &type_handler_polygon; }
-  const char *func_name() const { return "polygon"; }
-  Item *get_copy(THD *thd)
+  const Type_handler *type_handler() const override
+  { return &type_handler_polygon; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("polygon") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_polygon>(thd, this); }
 };
 
@@ -606,12 +677,16 @@ public:
                                  Geometry::wkb_multilinestring,
                                  Geometry::wkb_linestring)
   { }
-  const Type_handler *type_handler() const
+  const Type_handler *type_handler() const override
   {
     return &type_handler_multilinestring;
   }
-  const char *func_name() const { return "multilinestring"; }
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("multilinestring") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_multilinestring>(thd, this); }
 };
 
@@ -624,12 +699,16 @@ public:
                                  Geometry::wkb_multipoint,
                                  Geometry::wkb_point)
   { }
-  const Type_handler *type_handler() const
+  const Type_handler *type_handler() const override
   {
     return &type_handler_multipoint;
   }
-  const char *func_name() const { return "multipoint"; }
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("multipoint") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_multipoint>(thd, this); }
 };
 
@@ -642,12 +721,16 @@ public:
                                  Geometry::wkb_multipolygon,
                                  Geometry::wkb_polygon)
   { }
-  const Type_handler *type_handler() const
+  const Type_handler *type_handler() const override
   {
     return &type_handler_multipolygon;
   }
-  const char *func_name() const { return "multipolygon"; }
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("multipolygon") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_multipolygon>(thd, this); }
 };
 
@@ -664,21 +747,21 @@ protected:
   String tmp_value1, tmp_value2;
   SEL_ARG *get_mm_leaf(RANGE_OPT_PARAM *param, Field *field,
                        KEY_PART *key_part,
-                       Item_func::Functype type, Item *value);
-  bool check_arguments() const
+                       Item_func::Functype type, Item *value) override;
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count >= 2);
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_types_geom_or_binary(func_name_cstring(),
                                                              args, 0, 2);
   }
 public:
   Item_func_spatial_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
     Item_bool_func2_with_rev(thd, a, b), spatial_rel(sp_rel)
   {
-    maybe_null= true;
+    set_maybe_null();
   }
-  enum Functype functype() const { return spatial_rel; }
-  enum Functype rev_functype() const
+  enum Functype functype() const override { return spatial_rel; }
+  enum Functype rev_functype() const override
   {
     switch (spatial_rel)
     {
@@ -690,16 +773,16 @@ public:
         return spatial_rel;
     }
   }
-  bool is_null() { (void) val_int(); return null_value; }
+  bool is_null() override { (void) val_int(); return null_value; }
   void add_key_fields(JOIN *join, KEY_FIELD **key_fields,
                       uint *and_level, table_map usable_tables,
-                      SARGABLE_PARAM **sargables)
+                      SARGABLE_PARAM **sargables) override
   {
     return add_key_fields_optimize_op(join, key_fields, and_level,
                                       usable_tables, sargables, false);
   }
-  bool need_parentheses_in_default() { return false; }
-  Item *build_clone(THD *thd) { return 0; }
+  bool need_parentheses_in_default() override { return false; }
+  Item *build_clone(THD *thd) override { return 0; }
 };
 
 
@@ -709,9 +792,9 @@ public:
   Item_func_spatial_mbr_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
     Item_func_spatial_rel(thd, a, b, sp_rel)
   { }
-  longlong val_int();
-  const char *func_name() const;
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_spatial_mbr_rel>(thd, this); }
 };
 
@@ -725,9 +808,9 @@ public:
   Item_func_spatial_precise_rel(THD *thd, Item *a, Item *b, enum Functype sp_rel):
     Item_func_spatial_rel(thd, a, b, sp_rel), collector()
   { }
-  longlong val_int();
-  const char *func_name() const;
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_spatial_precise_rel>(thd, this); }
 };
 
@@ -738,19 +821,23 @@ class Item_func_spatial_relate: public Item_bool_func_args_geometry_geometry
   Gcalc_scan_iterator scan_it;
   Gcalc_function func;
   String tmp_value1, tmp_value2, tmp_matrix;
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     return Item_bool_func_args_geometry_geometry::check_arguments() ||
-           args[2]->check_type_general_purpose_string(func_name());
+           args[2]->check_type_general_purpose_string(func_name_cstring());
   }
 public:
   Item_func_spatial_relate(THD *thd, Item *a, Item *b, Item *matrix):
     Item_bool_func_args_geometry_geometry(thd, a, b, matrix)
   { }
-  longlong val_int();
-  const char *func_name() const { return "st_relate"; }
-  bool need_parentheses_in_default() { return false; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_relate") };
+    return name;
+  }
+  bool need_parentheses_in_default() override { return false; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_spatial_relate>(thd, this); }
 };
 
@@ -759,12 +846,12 @@ public:
   Spatial operations
 */
 
-class Item_func_spatial_operation: public Item_geometry_func
+class Item_func_spatial_operation final: public Item_geometry_func
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     DBUG_ASSERT(arg_count >= 2);
-    return Type_handler_geometry::check_types_geom_or_binary(func_name(),
+    return Type_handler_geometry::check_types_geom_or_binary(func_name_cstring(),
                                                              args, 0, 2);
   }
 public:
@@ -781,23 +868,23 @@ public:
     Item_geometry_func(thd, a, b), spatial_op(sp_op)
   {}
   virtual ~Item_func_spatial_operation();
-  String *val_str(String *);
-  const char *func_name() const;
-  virtual inline void print(String *str, enum_query_type query_type)
+  String *val_str(String *) override;
+  LEX_CSTRING func_name_cstring() const override;
+  void print(String *str, enum_query_type query_type) override
   {
     Item_func::print(str, query_type);
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_spatial_operation>(thd, this); }
 };
 
 
-class Item_func_buffer: public Item_geometry_func_args_geometry
+class Item_func_buffer final : public Item_geometry_func_args_geometry
 {
-  bool check_arguments() const
+  bool check_arguments() const override
   {
     return Item_geometry_func_args_geometry::check_arguments() ||
-           args[1]->check_type_can_return_real(func_name());
+           args[1]->check_type_can_return_real(func_name_cstring());
   }
 protected:
   class Transporter : public Gcalc_operation_transporter
@@ -842,9 +929,13 @@ protected:
 public:
   Item_func_buffer(THD *thd, Item *obj, Item *distance)
    :Item_geometry_func_args_geometry(thd, obj, distance) {}
-  const char *func_name() const { return "st_buffer"; }
-  String *val_str(String *);
-  Item *get_copy(THD *thd)
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_buffer") };
+    return name;
+  }
+  String *val_str(String *) override;
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_buffer>(thd, this); }
 };
 
@@ -854,11 +945,16 @@ class Item_func_isempty: public Item_bool_func_args_geometry
 public:
   Item_func_isempty(THD *thd, Item *a)
    :Item_bool_func_args_geometry(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "st_isempty"; }
-  bool fix_length_and_dec() { maybe_null= 1; return FALSE; }
-  bool need_parentheses_in_default() { return false; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_isempty") };
+    return name;
+  }
+  bool fix_length_and_dec() override
+  { set_maybe_null(); return FALSE; }
+  bool need_parentheses_in_default() override { return false; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_isempty>(thd, this); }
 };
 
@@ -871,11 +967,15 @@ class Item_func_issimple: public Item_long_func_args_geometry
 public:
   Item_func_issimple(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "st_issimple"; }
-  bool fix_length_and_dec() { decimals=0; max_length=2; return FALSE; }
-  uint decimal_precision() const { return 1; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_issimple") };
+    return name;
+  }
+  bool fix_length_and_dec() override { decimals=0; max_length=2; return FALSE; }
+  decimal_digits_t decimal_precision() const override { return 1; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_issimple>(thd, this); }
 };
 
@@ -884,11 +984,15 @@ class Item_func_isclosed: public Item_long_func_args_geometry
 public:
   Item_func_isclosed(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "st_isclosed"; }
-  bool fix_length_and_dec() { decimals=0; max_length=2; return FALSE; }
-  uint decimal_precision() const { return 1; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_isclosed") };
+    return name;
+  }
+  bool fix_length_and_dec() override { decimals=0; max_length=2; return FALSE; }
+  decimal_digits_t decimal_precision() const override { return 1; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_isclosed>(thd, this); }
 };
 
@@ -896,9 +1000,13 @@ class Item_func_isring: public Item_func_issimple
 {
 public:
   Item_func_isring(THD *thd, Item *a): Item_func_issimple(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "st_isring"; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_isring") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_isring>(thd, this); }
 };
 
@@ -907,10 +1015,15 @@ class Item_func_dimension: public Item_long_func_args_geometry
 public:
   Item_func_dimension(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "st_dimension"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_dimension") };
+    return name;
+  }
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_dimension>(thd, this); }
 };
 
@@ -919,16 +1032,20 @@ class Item_func_x: public Item_real_func_args_geometry
 {
 public:
   Item_func_x(THD *thd, Item *a): Item_real_func_args_geometry(thd, a) {}
-  double val_real();
-  const char *func_name() const { return "st_x"; }
-  bool fix_length_and_dec()
+  double val_real() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_x") };
+    return name;
+  }
+  bool fix_length_and_dec() override
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    maybe_null= 1;
+    set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_x>(thd, this); }
 };
 
@@ -937,16 +1054,20 @@ class Item_func_y: public Item_real_func_args_geometry
 {
 public:
   Item_func_y(THD *thd, Item *a): Item_real_func_args_geometry(thd, a) {}
-  double val_real();
-  const char *func_name() const { return "st_y"; }
-  bool fix_length_and_dec()
+  double val_real() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_y") };
+    return name;
+  }
+  bool fix_length_and_dec() override
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    maybe_null= 1;
+    set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_y>(thd, this); }
 };
 
@@ -956,10 +1077,15 @@ class Item_func_numgeometries: public Item_long_func_args_geometry
 public:
   Item_func_numgeometries(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "st_numgeometries"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_numgeometries") };
+    return name;
+  }
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_numgeometries>(thd, this); }
 };
 
@@ -969,10 +1095,15 @@ class Item_func_numinteriorring: public Item_long_func_args_geometry
 public:
   Item_func_numinteriorring(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "st_numinteriorrings"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_numinteriorrings") };
+    return name;
+  }
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_numinteriorring>(thd, this); }
 };
 
@@ -982,10 +1113,15 @@ class Item_func_numpoints: public Item_long_func_args_geometry
 public:
   Item_func_numpoints(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "st_numpoints"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_numpoints") };
+    return name;
+  }
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_numpoints>(thd, this); }
 };
 
@@ -994,16 +1130,20 @@ class Item_func_area: public Item_real_func_args_geometry
 {
 public:
   Item_func_area(THD *thd, Item *a): Item_real_func_args_geometry(thd, a) {}
-  double val_real();
-  const char *func_name() const { return "st_area"; }
-  bool fix_length_and_dec()
+  double val_real() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_area") };
+    return name;
+  }
+  bool fix_length_and_dec() override
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    maybe_null= 1;
+    set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_area>(thd, this); }
 };
 
@@ -1014,16 +1154,20 @@ class Item_func_glength: public Item_real_func_args_geometry
 public:
   Item_func_glength(THD *thd, Item *a)
    :Item_real_func_args_geometry(thd, a) {}
-  double val_real();
-  const char *func_name() const { return "st_length"; }
-  bool fix_length_and_dec()
+  double val_real() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_length") };
+    return name;
+  }
+  bool fix_length_and_dec() override
   {
     if (Item_real_func::fix_length_and_dec())
       return TRUE;
-    maybe_null= 1;
+    set_maybe_null();
     return FALSE;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_glength>(thd, this); }
 };
 
@@ -1033,10 +1177,15 @@ class Item_func_srid: public Item_long_func_args_geometry
 public:
   Item_func_srid(THD *thd, Item *a)
    :Item_long_func_args_geometry(thd, a) {}
-  longlong val_int();
-  const char *func_name() const { return "srid"; }
-  bool fix_length_and_dec() { max_length= 10; maybe_null= 1; return FALSE; }
-  Item *get_copy(THD *thd)
+  longlong val_int() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("srid") };
+    return name;
+  }
+  bool fix_length_and_dec() override
+  { max_length= 10; set_maybe_null(); return FALSE; }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_srid>(thd, this); }
 };
 
@@ -1051,9 +1200,13 @@ class Item_func_distance: public Item_real_func_args_geometry_geometry
 public:
   Item_func_distance(THD *thd, Item *a, Item *b)
    :Item_real_func_args_geometry_geometry(thd, a, b) {}
-  double val_real();
-  const char *func_name() const { return "st_distance"; }
-  Item *get_copy(THD *thd)
+  double val_real() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_distance") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_distance>(thd, this); }
 };
 
@@ -1065,9 +1218,13 @@ class Item_func_sphere_distance: public Item_real_func
 public:
   Item_func_sphere_distance(THD *thd, List<Item> &list):
     Item_real_func(thd, list) {}
-  double val_real();
-  const char *func_name() const { return "st_distance_sphere"; }
-  Item *get_copy(THD *thd)
+  double val_real() override;
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_distance_sphere") };
+    return name;
+  }
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_sphere_distance>(thd, this); }
 };
 
@@ -1081,13 +1238,17 @@ class Item_func_pointonsurface: public Item_geometry_func_args_geometry
 public:
   Item_func_pointonsurface(THD *thd, Item *a)
    :Item_geometry_func_args_geometry(thd, a) {}
-  const char *func_name() const { return "st_pointonsurface"; }
-  String *val_str(String *);
-  const Type_handler *type_handler() const
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_pointonsurface") };
+    return name;
+  }
+  String *val_str(String *) override;
+  const Type_handler *type_handler() const override
   {
     return &type_handler_point;
   }
-  Item *get_copy(THD *thd)
+  Item *get_copy(THD *thd) override
   { return get_item_copy<Item_func_pointonsurface>(thd, this); }
 };
 
@@ -1098,14 +1259,18 @@ class Item_func_gis_debug: public Item_long_func
   public:
     Item_func_gis_debug(THD *thd, Item *a): Item_long_func(thd, a)
     { null_value= false; }
-    bool fix_length_and_dec() { fix_char_length(10); return FALSE; }
-    const char *func_name() const  { return "st_gis_debug"; }
-    longlong val_int();
-    bool check_vcol_func_processor(void *arg)
+    bool fix_length_and_dec() override { fix_char_length(10); return FALSE; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("st_gis_debug") };
+    return name;
+  }
+    longlong val_int() override;
+    bool check_vcol_func_processor(void *arg) override
     {
       return mark_unsupported_function(func_name(), "()", arg, VCOL_IMPOSSIBLE);
     }
-    Item *get_copy(THD *thd)
+    Item *get_copy(THD *thd) override
     { return get_item_copy<Item_func_gis_debug>(thd, this); }
 };
 #endif

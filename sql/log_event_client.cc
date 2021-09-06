@@ -1587,7 +1587,7 @@ bool Log_event::print_base64(IO_CACHE* file,
                              PRINT_EVENT_INFO* print_event_info,
                              bool do_print_encoded)
 {
-  uchar *ptr= (uchar *)temp_buf;
+  uchar *ptr= temp_buf;
   uint32 size= uint4korr(ptr + EVENT_LEN_OFFSET);
   DBUG_ENTER("Log_event::print_base64");
 
@@ -1602,31 +1602,31 @@ bool Log_event::print_base64(IO_CACHE* file,
     switch (ev_type) {
       case WRITE_ROWS_EVENT:
         ptr[EVENT_TYPE_OFFSET]= DELETE_ROWS_EVENT;
-        ev= new Delete_rows_log_event((const char*) ptr, tmp_size,
+        ev= new Delete_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case WRITE_ROWS_EVENT_V1:
         ptr[EVENT_TYPE_OFFSET]= DELETE_ROWS_EVENT_V1;
-        ev= new Delete_rows_log_event((const char*) ptr, tmp_size,
+        ev= new Delete_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case DELETE_ROWS_EVENT:
         ptr[EVENT_TYPE_OFFSET]= WRITE_ROWS_EVENT;
-        ev= new Write_rows_log_event((const char*) ptr, tmp_size,
+        ev= new Write_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case DELETE_ROWS_EVENT_V1:
         ptr[EVENT_TYPE_OFFSET]= WRITE_ROWS_EVENT_V1;
-        ev= new Write_rows_log_event((const char*) ptr, tmp_size,
+        ev= new Write_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
       case UPDATE_ROWS_EVENT:
       case UPDATE_ROWS_EVENT_V1:
-        ev= new Update_rows_log_event((const char*) ptr, tmp_size,
+        ev= new Update_rows_log_event(ptr, tmp_size,
                                        glob_description_event);
         ev->change_to_flashback_event(print_event_info, ptr, ev_type);
         break;
@@ -1673,7 +1673,7 @@ bool Log_event::print_base64(IO_CACHE* file,
     case TABLE_MAP_EVENT:
     {
       Table_map_log_event *map; 
-      map= new Table_map_log_event((const char*) ptr, size, 
+      map= new Table_map_log_event(ptr, size, 
                                    glob_description_event);
 #ifdef WHEN_FLASHBACK_REVIEW_READY
       if (need_flashback_review)
@@ -1688,42 +1688,42 @@ bool Log_event::print_base64(IO_CACHE* file,
     case WRITE_ROWS_EVENT:
     case WRITE_ROWS_EVENT_V1:
     {
-      ev= new Write_rows_log_event((const char*) ptr, size,
+      ev= new Write_rows_log_event(ptr, size,
                                    glob_description_event);
       break;
     }
     case DELETE_ROWS_EVENT:
     case DELETE_ROWS_EVENT_V1:
     {
-      ev= new Delete_rows_log_event((const char*) ptr, size,
+      ev= new Delete_rows_log_event(ptr, size,
                                     glob_description_event);
       break;
     }
     case UPDATE_ROWS_EVENT:
     case UPDATE_ROWS_EVENT_V1:
     {
-      ev= new Update_rows_log_event((const char*) ptr, size,
+      ev= new Update_rows_log_event(ptr, size,
                                     glob_description_event);
       break;
     }
     case WRITE_ROWS_COMPRESSED_EVENT:
     case WRITE_ROWS_COMPRESSED_EVENT_V1:
     {
-      ev= new Write_rows_compressed_log_event((const char*) ptr, size,
+      ev= new Write_rows_compressed_log_event(ptr, size,
                                               glob_description_event);
       break;
     }
     case UPDATE_ROWS_COMPRESSED_EVENT:
     case UPDATE_ROWS_COMPRESSED_EVENT_V1:
     {
-      ev= new Update_rows_compressed_log_event((const char*) ptr, size,
+      ev= new Update_rows_compressed_log_event(ptr, size,
                                                glob_description_event);
       break;
       }
     case DELETE_ROWS_COMPRESSED_EVENT:
     case DELETE_ROWS_COMPRESSED_EVENT_V1:
     {
-      ev= new Delete_rows_compressed_log_event((const char*) ptr, size,
+      ev= new Delete_rows_compressed_log_event(ptr, size,
                                                glob_description_event);
       break;
     }
@@ -1820,9 +1820,10 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
   {
     if (print_header(file, print_event_info, FALSE) ||
         my_b_printf(file,
-                    "\t%s\tthread_id=%lu\texec_time=%lu\terror_code=%d\n",
+                    "\t%s\tthread_id=%lu\texec_time=%lu\terror_code=%d"
+                    "\txid=%lu\n",
                     get_type_str(), (ulong) thread_id, (ulong) exec_time,
-                    error_code))
+                    error_code, (ulong) xid))
       goto err;
   }
 
@@ -1951,7 +1952,7 @@ bool Query_log_event::print_query_header(IO_CACHE* file,
     {
       /* for mysql client */
       if (my_b_printf(file, "/*!\\C %s */%s\n",
-                      cs_info->csname, print_event_info->delimiter))
+                      cs_info->cs_name.str, print_event_info->delimiter))
         goto err;
     }
     if (my_b_printf(file,"SET "
@@ -2502,7 +2503,7 @@ bool User_var_log_event::print(FILE* file, PRINT_EVENT_INFO* print_event_info)
       }
       else
         error= my_b_printf(&cache, ":=_%s %s COLLATE `%s`%s\n",
-                           cs->csname, hex_str, cs->name,
+                           cs->cs_name.str, hex_str, cs->coll_name.str,
                            print_event_info->delimiter);
       my_free(hex_str);
       if (unlikely(error))
@@ -3103,7 +3104,8 @@ int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
   // Create new temp_buf
   ulong event_cur_len= uint4korr(temp_buf + EVENT_LEN_OFFSET);
   ulong event_new_len= event_cur_len + len_diff;
-  char* new_temp_buf= (char*) my_malloc(PSI_NOT_INSTRUMENTED, event_new_len, MYF(MY_WME));
+  uchar* new_temp_buf= (uchar*) my_malloc(PSI_NOT_INSTRUMENTED, event_new_len,
+                                          MYF(MY_WME));
 
   if (!new_temp_buf)
   {
@@ -3114,7 +3116,7 @@ int Table_map_log_event::rewrite_db(const char* new_db, size_t new_len,
   }
 
   // Rewrite temp_buf
-  char* ptr= new_temp_buf;
+  uchar *ptr= new_temp_buf;
   size_t cnt= 0;
 
   // Copy header and change event length
@@ -3563,7 +3565,8 @@ void Table_map_log_event::print_columns(IO_CACHE *file,
     // Print column character set, except in text columns with binary collation
     if (cs != NULL &&
         (is_enum_or_set_type(real_type) || cs->number != my_charset_bin.number))
-      my_b_printf(file, " CHARSET %s COLLATE %s", cs->csname, cs->name);
+      my_b_printf(file, " CHARSET %s COLLATE %s", cs->cs_name.str,
+                  cs->coll_name.str);
     if (i != m_colcnt - 1) my_b_printf(file, ",\n#         ");
   }
   my_b_printf(file, ")");
@@ -3611,12 +3614,13 @@ bool Write_rows_log_event::print(FILE *file, PRINT_EVENT_INFO* print_event_info)
 bool Write_rows_compressed_log_event::print(FILE *file,
                                             PRINT_EVENT_INFO* print_event_info)
 {
-  char *new_buf;
+  uchar *new_buf;
   ulong len;
   bool is_malloc = false;
   if(!row_log_event_uncompress(glob_description_event,
                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc, &new_buf, &len))
+                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc,
+                               &new_buf, &len))
   {
     free_temp_buf();
     register_temp_buf(new_buf, true);
@@ -3647,12 +3651,13 @@ bool Delete_rows_log_event::print(FILE *file,
 bool Delete_rows_compressed_log_event::print(FILE *file,
                                              PRINT_EVENT_INFO* print_event_info)
 {
-  char *new_buf;
+  uchar *new_buf;
   ulong len;
   bool is_malloc = false;
   if(!row_log_event_uncompress(glob_description_event,
                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc, &new_buf, &len))
+                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc,
+                               &new_buf, &len))
   {
     free_temp_buf();
     register_temp_buf(new_buf, true);
@@ -3683,12 +3688,13 @@ bool
 Update_rows_compressed_log_event::print(FILE *file,
                                         PRINT_EVENT_INFO *print_event_info)
 {
-  char *new_buf;
+  uchar *new_buf;
   ulong len;
   bool is_malloc= false;
   if(!row_log_event_uncompress(glob_description_event,
                                checksum_alg == BINLOG_CHECKSUM_ALG_CRC32,
-                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc, &new_buf, &len))
+                               temp_buf, UINT_MAX32, NULL, 0, &is_malloc,
+                               &new_buf, &len))
   {
     free_temp_buf();
     register_temp_buf(new_buf, true);

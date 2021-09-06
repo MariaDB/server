@@ -108,7 +108,7 @@ uint	buf_LRU_old_threshold_ms;
 
 /** Remove bpage from buf_pool.LRU and buf_pool.page_hash.
 
-If bpage->state() == BUF_BLOCK_ZIP_PAGE && !bpage->oldest_modification(),
+If bpage->state() == BUF_BLOCK_ZIP_PAGE && bpage->oldest_modification() <= 1,
 the object will be freed.
 
 @param bpage      buffer block
@@ -242,8 +242,8 @@ static bool buf_LRU_free_from_common_LRU_list(ulint limit)
 		buf_pool.lru_scan_itr.set(prev);
 
 		const auto accessed = bpage->is_accessed();
-		if (!bpage->oldest_modification()
-		    && buf_LRU_free_page(bpage, true)) {
+
+		if (buf_LRU_free_page(bpage, true)) {
 			if (!accessed) {
 				/* Keep track of pages that are evicted without
 				ever being accessed. This gives us a measure of
@@ -401,7 +401,7 @@ we put it to free list to be used.
 
 @param have_mutex  whether buf_pool.mutex is already being held
 @return the free control block, in state BUF_BLOCK_MEMORY */
-buf_block_t* buf_LRU_get_free_block(bool have_mutex)
+buf_block_t *buf_LRU_get_free_block(bool have_mutex)
 {
 	ulint		n_iterations	= 0;
 	ulint		flush_failures	= 0;
@@ -413,6 +413,7 @@ buf_block_t* buf_LRU_get_free_block(bool have_mutex)
 	mysql_mutex_lock(&buf_pool.mutex);
 got_mutex:
 	buf_LRU_check_size_of_non_data_objects();
+	buf_block_t* block;
 
 	DBUG_EXECUTE_IF("ib_lru_force_no_free_page",
 		if (!buf_lru_free_blocks_error_printed) {
@@ -421,7 +422,8 @@ got_mutex:
 
 retry:
 	/* If there is a block in the free list, take it */
-	if (buf_block_t* block = buf_LRU_get_free_only()) {
+	if ((block = buf_LRU_get_free_only()) != nullptr) {
+got_block:
 		if (!have_mutex) {
 			mysql_mutex_unlock(&buf_pool.mutex);
 		}
@@ -446,11 +448,20 @@ retry:
 		buf_pool.try_LRU_scan = false;
 	}
 
+	for (;;) {
+		if ((block = buf_LRU_get_free_only()) != nullptr) {
+			goto got_block;
+		}
+		if (!buf_pool.n_flush_LRU_) {
+			break;
+		}
+		my_cond_wait(&buf_pool.done_free, &buf_pool.mutex.m_mutex);
+	}
+
 #ifndef DBUG_OFF
 not_found:
 #endif
 	mysql_mutex_unlock(&buf_pool.mutex);
-	buf_flush_wait_batch_end_acquiring_mutex(true);
 
 	if (n_iterations > 20 && !buf_lru_free_blocks_error_printed
 	    && srv_buf_pool_old_size == srv_buf_pool_size) {
@@ -477,17 +488,15 @@ not_found:
 	}
 
 	/* No free block was found: try to flush the LRU list.
-	This call will flush one page from the LRU and put it on the
-	free list. That means that the free block is up for grabs for
-	all user threads.
+	The freed blocks will be up for grabs for all threads.
 
-	TODO: A more elegant way would have been to return the freed
+	TODO: A more elegant way would have been to return one freed
 	up block to the caller here but the code that deals with
-	removing the block from page_hash and LRU_list is fairly
+	removing the block from buf_pool.page_hash and buf_pool.LRU is fairly
 	involved (particularly in case of ROW_FORMAT=COMPRESSED pages). We
 	can do that in a separate patch sometime in future. */
 
-	if (!buf_flush_lists(innodb_lru_flush_size, 0)) {
+	if (!buf_flush_LRU(innodb_lru_flush_size)) {
 		MONITOR_INC(MONITOR_LRU_SINGLE_FLUSH_FAILURE_COUNT);
 		++flush_failures;
 	}
@@ -801,20 +810,33 @@ bool buf_LRU_free_page(buf_page_t *bpage, bool zip)
 	const ulint fold = id.fold();
 	page_hash_latch* hash_lock = buf_pool.page_hash.lock_get(fold);
 	hash_lock->write_lock();
+	lsn_t oldest_modification = bpage->oldest_modification_acquire();
 
 	if (UNIV_UNLIKELY(!bpage->can_relocate())) {
 		/* Do not free buffer fixed and I/O-fixed blocks. */
 		goto func_exit;
 	}
 
+	if (oldest_modification == 1) {
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
+		oldest_modification = bpage->oldest_modification();
+		if (oldest_modification) {
+			ut_ad(oldest_modification == 1);
+			buf_pool.delete_from_flush_list(bpage);
+		}
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+		ut_ad(!bpage->oldest_modification());
+		oldest_modification = 0;
+	}
+
 	if (zip || !bpage->zip.data) {
 		/* This would completely free the block. */
 		/* Do not completely free dirty blocks. */
 
-		if (bpage->oldest_modification()) {
+		if (oldest_modification) {
 			goto func_exit;
 		}
-	} else if (bpage->oldest_modification()
+	} else if (oldest_modification
 		   && bpage->state() != BUF_BLOCK_FILE_PAGE) {
 func_exit:
 		hash_lock->write_unlock();
@@ -823,6 +845,7 @@ func_exit:
 	} else if (bpage->state() == BUF_BLOCK_FILE_PAGE) {
 		b = buf_page_alloc_descriptor();
 		ut_a(b);
+		mysql_mutex_lock(&buf_pool.flush_list_mutex);
 		new (b) buf_page_t(*bpage);
 		b->set_state(BUF_BLOCK_ZIP_PAGE);
 	}
@@ -837,6 +860,8 @@ func_exit:
 	ut_ad(bpage->can_relocate());
 
 	if (!buf_LRU_block_remove_hashed(bpage, id, hash_lock, zip)) {
+		ut_ad(!b);
+		mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
 		return(true);
 	}
 
@@ -849,8 +874,6 @@ func_exit:
 
 	if (UNIV_LIKELY_NULL(b)) {
 		buf_page_t*	prev_b	= UT_LIST_GET_PREV(LRU, b);
-
-		hash_lock->write_lock();
 
 		ut_ad(!buf_pool.page_hash_get_low(id, fold));
 		ut_ad(b->zip_size());
@@ -918,6 +941,7 @@ func_exit:
 		}
 
 		buf_flush_relocate_on_flush_list(bpage, b);
+		mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
 		bpage->zip.data = nullptr;
 
@@ -927,6 +951,8 @@ func_exit:
 		decompressing the block while we release
 		hash_lock. */
 		b->set_io_fix(BUF_IO_PIN);
+		hash_lock->write_unlock();
+	} else if (!zip) {
 		hash_lock->write_unlock();
 	}
 
@@ -1014,6 +1040,7 @@ buf_LRU_block_free_non_file_page(
 	} else {
 		UT_LIST_ADD_FIRST(buf_pool.free, &block->page);
 		ut_d(block->page.in_free_list = true);
+		pthread_cond_signal(&buf_pool.done_free);
 	}
 
 	MEM_NOACCESS(block->frame, srv_page_size);
@@ -1159,6 +1186,10 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		MEM_UNDEFINED(((buf_block_t*) bpage)->frame, srv_page_size);
 		bpage->set_state(BUF_BLOCK_REMOVE_HASH);
 
+		if (!zip) {
+			return true;
+		}
+
 		/* Question: If we release hash_lock here
 		then what protects us against:
 		1) Some other thread buffer fixing this page
@@ -1180,7 +1211,7 @@ static bool buf_LRU_block_remove_hashed(buf_page_t *bpage, const page_id_t id,
 		page_hash. */
 		hash_lock->write_unlock();
 
-		if (zip && bpage->zip.data) {
+		if (bpage->zip.data) {
 			/* Free the compressed page. */
 			void*	data = bpage->zip.data;
 			bpage->zip.data = NULL;

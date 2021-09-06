@@ -404,12 +404,12 @@ void mtr_t::commit()
   {
     ut_ad(!srv_read_only_mode || m_log_mode == MTR_LOG_NO_REDO);
 
-    std::pair<lsn_t,bool> lsns;
+    std::pair<lsn_t,page_flush_ahead> lsns;
 
     if (const ulint len= prepare_write())
       lsns= finish_write(len);
     else
-      lsns= { m_commit_lsn, false };
+      lsns= { m_commit_lsn, PAGE_FLUSH_NO };
 
     if (m_made_dirty)
       mysql_mutex_lock(&log_sys.flush_order_mutex);
@@ -449,8 +449,8 @@ void mtr_t::commit()
 
     m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
 
-    if (lsns.second)
-      buf_flush_ahead(m_commit_lsn);
+    if (UNIV_UNLIKELY(lsns.second != PAGE_FLUSH_NO))
+      buf_flush_ahead(m_commit_lsn, lsns.second == PAGE_FLUSH_SYNC);
 
     if (m_made_dirty)
       srv_stats.log_write_requests.inc();
@@ -702,7 +702,7 @@ static lsn_t log_reserve_and_open(size_t len)
     DEBUG_SYNC_C("log_buf_size_exceeded");
 
     /* Not enough free space, do a write of the log buffer */
-    log_sys.initiate_write(false);
+    log_write_up_to(log_sys.get_lsn(), false);
 
     srv_stats.log_waits.inc();
 
@@ -767,7 +767,7 @@ static void log_write_low(const void *str, size_t size)
 
 /** Close the log at mini-transaction commit.
 @return whether buffer pool flushing is needed */
-static bool log_close(lsn_t lsn)
+static mtr_t::page_flush_ahead log_close(lsn_t lsn)
 {
   mysql_mutex_assert_owner(&log_sys.mutex);
   ut_ad(lsn == log_sys.get_lsn());
@@ -790,7 +790,9 @@ static bool log_close(lsn_t lsn)
 
   const lsn_t checkpoint_age= lsn - log_sys.last_checkpoint_lsn;
 
-  if (UNIV_UNLIKELY(checkpoint_age >= log_sys.log_capacity))
+  if (UNIV_UNLIKELY(checkpoint_age >= log_sys.log_capacity) &&
+      /* silence message on create_log_file() after the log had been deleted */
+      checkpoint_age != lsn)
   {
     time_t t= time(nullptr);
     if (!log_close_warned || difftime(t, log_close_warn_time) > 15)
@@ -799,15 +801,17 @@ static bool log_close(lsn_t lsn)
       log_close_warn_time= t;
 
       ib::error() << "The age of the last checkpoint is " << checkpoint_age
-		  << ", which exceeds the log capacity "
-		  << log_sys.log_capacity << ".";
+                  << ", which exceeds the log capacity "
+                  << log_sys.log_capacity << ".";
     }
   }
+  else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_modified_age_async))
+    return mtr_t::PAGE_FLUSH_NO;
   else if (UNIV_LIKELY(checkpoint_age <= log_sys.max_checkpoint_age))
-    return false;
+    return mtr_t::PAGE_FLUSH_ASYNC;
 
   log_sys.set_check_flush_or_checkpoint();
-  return true;
+  return mtr_t::PAGE_FLUSH_SYNC;
 }
 
 /** Write the block contents to the REDO log */
@@ -871,8 +875,8 @@ inline ulint mtr_t::prepare_write()
 
 /** Append the redo log records to the redo log buffer.
 @param len   number of bytes to write
-@return {start_lsn,flush_ahead_lsn} */
-inline std::pair<lsn_t,bool> mtr_t::finish_write(ulint len)
+@return {start_lsn,flush_ahead} */
+inline std::pair<lsn_t,mtr_t::page_flush_ahead> mtr_t::finish_write(ulint len)
 {
 	ut_ad(m_log_mode == MTR_LOG_ALL);
 	mysql_mutex_assert_owner(&log_sys.mutex);
@@ -888,19 +892,19 @@ inline std::pair<lsn_t,bool> mtr_t::finish_write(ulint len)
 		m_commit_lsn = log_reserve_and_write_fast(front->begin(), len,
 							  &start_lsn);
 
-		if (m_commit_lsn) {
-			return std::make_pair(start_lsn, false);
+		if (!m_commit_lsn) {
+			goto piecewise;
 		}
+	} else {
+piecewise:
+		/* Open the database log for log_write_low */
+		start_lsn = log_reserve_and_open(len);
+		mtr_write_log write_log;
+		m_log.for_each_block(write_log);
+		m_commit_lsn = log_sys.get_lsn();
 	}
-
-	/* Open the database log for log_write_low */
-	start_lsn = log_reserve_and_open(len);
-
-	mtr_write_log write_log;
-	m_log.for_each_block(write_log);
-	m_commit_lsn = log_sys.get_lsn();
-	bool flush = log_close(m_commit_lsn);
-	DBUG_EXECUTE_IF("ib_log_flush_ahead", flush=true;);
+	page_flush_ahead flush= log_close(m_commit_lsn);
+	DBUG_EXECUTE_IF("ib_log_flush_ahead", flush = PAGE_FLUSH_SYNC;);
 
 	return std::make_pair(start_lsn, flush);
 }

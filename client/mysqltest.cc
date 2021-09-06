@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2013, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -89,6 +89,8 @@ static my_bool non_blocking_api_enabled= 0;
 #define QUERY_REAP_FLAG  2
 
 #define QUERY_PRINT_ORIGINAL_FLAG 4
+
+#define CLOSED_CONNECTION "-closed_connection-"
 
 #ifndef HAVE_SETENV
 static int setenv(const char *name, const char *value, int overwrite);
@@ -1462,8 +1464,18 @@ void free_used_memory()
 }
 
 
+#ifdef EMBEDDED_LIBRARY
+void ha_pre_shutdown();
+#endif
+
+
 ATTRIBUTE_NORETURN static void cleanup_and_exit(int exit_code)
 {
+#ifdef EMBEDDED_LIBRARY
+  if (server_initialized)
+    ha_pre_shutdown();
+#endif
+
   free_used_memory();
 
   /* Only call mysql_server_end if mysql_server_init has been called */
@@ -4968,7 +4980,8 @@ void do_set_charset(struct st_command *command)
   if(*p)
     *p++= 0;
   command->last_argument= p;
-  charset_info= get_charset_by_csname(charset_name,MY_CS_PRIMARY,MYF(MY_WME));
+  charset_info= get_charset_by_csname(charset_name,MY_CS_PRIMARY,
+                                       MYF(MY_WME | MY_UTF8_IS_UTF8MB3));
   if (!charset_info)
     abort_not_supported_test("Test requires charset '%s'", charset_name);
 }
@@ -5582,11 +5595,13 @@ void do_close_connection(struct st_command *command)
   my_free(con->name);
 
   /*
-    When the connection is closed set name to "-closed_connection-"
+    When the connection is closed set name to CLOSED_CONNECTION
     to make it possible to reuse the connection name.
   */
-  if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, "-closed_connection-", MYF(MY_WME))))
+  if (!(con->name = my_strdup(PSI_NOT_INSTRUMENTED, CLOSED_CONNECTION,
+                              MYF(MY_WME))))
     die("Out of memory");
+  con->name_len= sizeof(CLOSED_CONNECTION)-1;
 
   if (con == cur_con)
   {
@@ -5989,7 +6004,7 @@ void do_connect(struct st_command *command)
     con_slot= next_con;
   else
   {
-    if (!(con_slot= find_connection_by_name("-closed_connection-")))
+    if (!(con_slot= find_connection_by_name(CLOSED_CONNECTION)))
       die("Connection limit exhausted, you can have max %d connections",
           opt_max_connections);
     my_free(con_slot->name);
@@ -6009,7 +6024,7 @@ void do_connect(struct st_command *command)
   if (opt_compress || con_compress)
     mysql_options(con_slot->mysql, MYSQL_OPT_COMPRESS, NullS);
   mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_NAME,
-                csname?csname: charset_info->csname);
+                csname ? csname : charset_info->cs_name.str);
   if (opt_charsets_dir)
     mysql_options(con_slot->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
@@ -8095,8 +8110,9 @@ void handle_error(struct st_command *command,
                   const char *err_sqlstate, DYNAMIC_STRING *ds)
 {
   int i;
-
   DBUG_ENTER("handle_error");
+
+  var_set_int("$errno", err_errno);
 
   command->used_replace= 1;
   if (command->require_file)
@@ -8108,7 +8124,8 @@ void handle_error(struct st_command *command,
     */
     if (err_errno == CR_SERVER_LOST ||
         err_errno == CR_SERVER_GONE_ERROR)
-      die("require query '%s' failed: %d: %s", command->query,
+      die("require query '%s' failed: %s (%d): %s", command->query,
+          get_errname_from_code(err_errno),
           err_errno, err_error);
 
     /* Abort the run of this test, pass the failed query as reason */
@@ -8118,7 +8135,9 @@ void handle_error(struct st_command *command,
 
   if (command->abort_on_error)
   {
-    report_or_die("query '%s' failed: %d: %s", command->query, err_errno,
+    report_or_die("query '%s' failed: %s (%d): %s", command->query,
+                  get_errname_from_code(err_errno),
+                  err_errno,
                   err_error);
     DBUG_VOID_RETURN;
   }
@@ -8167,9 +8186,12 @@ void handle_error(struct st_command *command,
   if (command->expected_errors.count > 0)
   {
     if (command->expected_errors.err[0].type == ERR_ERRNO)
-      report_or_die("query '%s' failed with wrong errno %d: '%s', instead of "
-                    "%d...",
-                    command->query, err_errno, err_error,
+      report_or_die("query '%s' failed with wrong errno %s (%d): '%s', "
+                    "instead of %s (%d)...",
+                    command->query,
+                    get_errname_from_code(err_errno),
+                    err_errno, err_error,
+                    get_errname_from_code(command->expected_errors.err[0].code.errnum),
                     command->expected_errors.err[0].code.errnum);
     else
       report_or_die("query '%s' failed with wrong sqlstate %s: '%s', "
@@ -8202,8 +8224,11 @@ void handle_no_error(struct st_command *command)
       command->expected_errors.err[0].code.errnum != 0)
   {
     /* Error code we wanted was != 0, i.e. not an expected success */
-    report_or_die("query '%s' succeeded - should have failed with errno %d...",
-                  command->query, command->expected_errors.err[0].code.errnum);
+    report_or_die("query '%s' succeeded - should have failed with error "
+                  "%s (%d)...",
+                  command->query,
+                  get_errname_from_code(command->expected_errors.err[0].code.errnum),
+                  command->expected_errors.err[0].code.errnum);
   }
   else if (command->expected_errors.err[0].type == ERR_SQLSTATE &&
            strcmp(command->expected_errors.err[0].code.sqlstate,"00000") != 0)
@@ -8282,7 +8307,7 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     Get the warnings from mysql_stmt_prepare and keep them in a
     separate string
   */
-  if (!disable_warnings)
+  if (!disable_warnings && prepare_warnings_enabled)
     append_warnings(&ds_prepare_warnings, mysql);
 
   /*
@@ -8313,117 +8338,125 @@ void run_query_stmt(struct st_connection *cn, struct st_command *command,
     goto end;
   }
 
-  /*
-    When running in cursor_protocol get the warnings from execute here
-    and keep them in a separate string for later.
-  */
-  if (cursor_protocol_enabled && !disable_warnings)
-    append_warnings(&ds_execute_warnings, mysql);
-
-  /*
-    We instruct that we want to update the "max_length" field in
-    mysql_stmt_store_result(), this is our only way to know how much
-    buffer to allocate for result data
-  */
-  {
-    my_bool one= 1;
-    if (mysql_stmt_attr_set(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (void*) &one))
-      die("mysql_stmt_attr_set(STMT_ATTR_UPDATE_MAX_LENGTH) failed': %d %s",
-          mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
-  }
-
-  /*
-    If we got here the statement succeeded and was expected to do so,
-    get data. Note that this can still give errors found during execution!
-    Store the result of the query if if will return any fields
-  */
-  if (mysql_stmt_field_count(stmt) && mysql_stmt_store_result(stmt))
-  {
-    handle_error(command, mysql_stmt_errno(stmt),
-                 mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
-    goto end;
-  }
-
-  /* If we got here the statement was both executed and read successfully */
-  handle_no_error(command);
-  if (!disable_result_log)
+  int err;
+  do
   {
     /*
-      Not all statements creates a result set. If there is one we can
-      now create another normal result set that contains the meta
-      data. This set can be handled almost like any other non prepared
-      statement result set.
+      When running in cursor_protocol get the warnings from execute here
+      and keep them in a separate string for later.
     */
-    if ((res= mysql_stmt_result_metadata(stmt)) != NULL)
+    if (cursor_protocol_enabled && !disable_warnings)
+      append_warnings(&ds_execute_warnings, mysql);
+
+    /*
+      We instruct that we want to update the "max_length" field in
+      mysql_stmt_store_result(), this is our only way to know how much
+      buffer to allocate for result data
+    */
     {
-      /* Take the column count from meta info */
-      MYSQL_FIELD *fields= mysql_fetch_fields(res);
-      uint num_fields= mysql_num_fields(res);
-
-      if (display_metadata)
-        append_metadata(ds, fields, num_fields);
-
-      if (!display_result_vertically)
-        append_table_headings(ds, fields, num_fields);
-
-      append_stmt_result(ds, stmt, fields, num_fields);
-
-      mysql_free_result(res);     /* Free normal result set with meta data */
-
-      /*
-        Normally, if there is a result set, we do not show warnings from the
-        prepare phase. This is because some warnings are generated both during
-        prepare and execute; this would generate different warning output
-        between normal and ps-protocol test runs.
-
-        The --enable_prepare_warnings command can be used to change this so
-        that warnings from both the prepare and execute phase are shown.
-      */
-      if (!disable_warnings && !prepare_warnings_enabled)
-        dynstr_set(&ds_prepare_warnings, NULL);
-    }
-    else
-    {
-      /*
-	This is a query without resultset
-      */
+      my_bool one= 1;
+      if (mysql_stmt_attr_set(stmt, STMT_ATTR_UPDATE_MAX_LENGTH, (void*) &one))
+        die("mysql_stmt_attr_set(STMT_ATTR_UPDATE_MAX_LENGTH) failed': %d %s",
+            mysql_stmt_errno(stmt), mysql_stmt_error(stmt));
     }
 
     /*
-      Fetch info before fetching warnings, since it will be reset
-      otherwise.
+      If we got here the statement succeeded and was expected to do so,
+      get data. Note that this can still give errors found during execution!
+      Store the result of the query if if will return any fields
     */
-    if (!disable_info)
-      append_info(ds, mysql_stmt_affected_rows(stmt), mysql_info(mysql));
-
-    if (display_session_track_info)
-      append_session_track_info(ds, mysql);
-
-
-    if (!disable_warnings)
+    if (mysql_stmt_field_count(stmt) && mysql_stmt_store_result(stmt))
     {
-      /* Get the warnings from execute */
+      handle_error(command, mysql_stmt_errno(stmt),
+                   mysql_stmt_error(stmt), mysql_stmt_sqlstate(stmt), ds);
+      goto end;
+    }
 
-      /* Append warnings to ds - if there are any */
-      if (append_warnings(&ds_execute_warnings, mysql) ||
-          ds_execute_warnings.length ||
-          ds_prepare_warnings.length ||
-          ds_warnings->length)
+    if (!disable_result_log)
+    {
+      /*
+        Not all statements creates a result set. If there is one we can
+        now create another normal result set that contains the meta
+        data. This set can be handled almost like any other non prepared
+        statement result set.
+      */
+      if ((res= mysql_stmt_result_metadata(stmt)) != NULL)
       {
-        dynstr_append_mem(ds, "Warnings:\n", 10);
-        if (ds_warnings->length)
-          dynstr_append_mem(ds, ds_warnings->str,
-                            ds_warnings->length);
-        if (ds_prepare_warnings.length)
-          dynstr_append_mem(ds, ds_prepare_warnings.str,
-                            ds_prepare_warnings.length);
-        if (ds_execute_warnings.length)
-          dynstr_append_mem(ds, ds_execute_warnings.str,
-                            ds_execute_warnings.length);
+        /* Take the column count from meta info */
+        MYSQL_FIELD *fields= mysql_fetch_fields(res);
+        uint num_fields= mysql_num_fields(res);
+
+        if (display_metadata)
+          append_metadata(ds, fields, num_fields);
+
+        if (!display_result_vertically)
+          append_table_headings(ds, fields, num_fields);
+
+        append_stmt_result(ds, stmt, fields, num_fields);
+
+        mysql_free_result(res);     /* Free normal result set with meta data */
+
+        /*
+          Normally, if there is a result set, we do not show warnings from the
+          prepare phase. This is because some warnings are generated both during
+          prepare and execute; this would generate different warning output
+          between normal and ps-protocol test runs.
+
+          The --enable_prepare_warnings command can be used to change this so
+          that warnings from both the prepare and execute phase are shown.
+        */
+        if (!disable_warnings && !prepare_warnings_enabled)
+          dynstr_set(&ds_prepare_warnings, NULL);
+      }
+      else
+      {
+        /*
+          This is a query without resultset
+        */
+      }
+
+      /*
+        Fetch info before fetching warnings, since it will be reset
+        otherwise.
+      */
+      if (!disable_info)
+        append_info(ds, mysql_stmt_affected_rows(stmt), mysql_info(mysql));
+
+      if (display_session_track_info)
+        append_session_track_info(ds, mysql);
+
+
+      if (!disable_warnings && !mysql_more_results(stmt->mysql))
+      {
+        /* Get the warnings from execute */
+
+        /* Append warnings to ds - if there are any */
+        if (append_warnings(&ds_execute_warnings, mysql) ||
+            ds_execute_warnings.length ||
+            ds_prepare_warnings.length ||
+            ds_warnings->length)
+        {
+          dynstr_append_mem(ds, "Warnings:\n", 10);
+          if (ds_warnings->length)
+            dynstr_append_mem(ds, ds_warnings->str,
+                              ds_warnings->length);
+          if (ds_prepare_warnings.length)
+            dynstr_append_mem(ds, ds_prepare_warnings.str,
+                              ds_prepare_warnings.length);
+          if (ds_execute_warnings.length)
+            dynstr_append_mem(ds, ds_execute_warnings.str,
+                              ds_execute_warnings.length);
+        }
       }
     }
-  }
+  } while ( !(err= mysql_stmt_next_result(stmt)));
 
+  if (err > 0)
+    /* We got an error from mysql_next_result, maybe expected */
+    handle_error(command, mysql_errno(mysql), mysql_error(mysql),
+                 mysql_sqlstate(mysql), ds);
+  else
+    handle_no_error(command);
 end:
   if (!disable_warnings)
   {
@@ -8600,7 +8633,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   log_file.flush();
   dynstr_set(&ds_res, 0);
 
-  if (view_protocol_enabled &&
+  if (view_protocol_enabled && mysql &&
       complete_query &&
       match_re(&view_re, query))
   {
@@ -8646,7 +8679,7 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
     dynstr_free(&query_str);
   }
 
-  if (sp_protocol_enabled &&
+  if (sp_protocol_enabled && mysql &&
       complete_query &&
       match_re(&sp_re, query))
   {
@@ -8709,7 +8742,13 @@ void run_query(struct st_connection *cn, struct st_command *command, int flags)
   */
   if (ps_protocol_enabled &&
       complete_query &&
-      match_re(&ps_re, query))
+      /*
+        Check that a statement is not one of PREPARE FROM, EXECUTE,
+        DEALLOCATE PREPARE (possibly prefixed with the 'SET STATEMENT ... FOR'
+        clause. These statement shouldn't be run using prepared statement C API.
+        All other statements can be run using prepared statement C API.
+      */
+      !match_re(&ps_re, query))
     run_query_stmt(cn, command, query, query_len, ds, &ds_warnings);
   else
     run_query_normal(cn, command, flags, query, query_len,
@@ -8783,10 +8822,30 @@ void init_re_comp(regex_t *re, const char* str)
 void init_re(void)
 {
   /*
-    Filter for queries that can be run using the
-    MySQL Prepared Statements C API
-  */
+   * Prior to the task MDEV-16708 a value of the string ps_re_str contained
+   * a regular expression to match statements that SHOULD BE run in PS mode.
+   * The task MDEV-16708 modifies interpretation of this regular expression
+   * and now it is used for matching statements that SHOULDN'T be run in
+   * PS mode. These statement are PREPARE FROM, EXECUTE, DEALLOCATE PREPARE
+   * possibly prefixed with the clause SET STATEMENT ... FOR
+   */
   const char *ps_re_str =
+      "^("
+      "[[:space:]]*PREPARE[[:space:]]|"
+      "[[:space:]]*EXECUTE[[:space:]]|"
+      "[[:space:]]*DEALLOCATE[[:space:]]+PREPARE[[:space:]]|"
+      "[[:space:]]*DROP[[:space:]]+PREPARE[[:space:]]|"
+      "(SET[[:space:]]+STATEMENT[[:space:]]+.+[[:space:]]+FOR[[:space:]]+)?"
+      "EXECUTE[[:space:]]+|"
+      "(SET[[:space:]]+STATEMENT[[:space:]]+.+[[:space:]]+FOR[[:space:]]+)?"
+      "PREPARE[[:space:]]+"
+      ")";
+
+  /*
+    Filter for queries that can be run using the
+    Stored procedures
+  */
+  const char *sp_re_str =
     "^("
     "[[:space:]]*ALTER[[:space:]]+SEQUENCE[[:space:]]|"
     "[[:space:]]*ALTER[[:space:]]+TABLE[[:space:]]|"
@@ -8838,12 +8897,6 @@ void init_re(void)
     "[[:space:]]*UNINSTALL[[:space:]]+|"
     "[[:space:]]*UPDATE[[:space:]]"
     ")";
-
-  /*
-    Filter for queries that can be run using the
-    Stored procedures
-  */
-  const char *sp_re_str =ps_re_str;
 
   /*
     Filter for queries that can be run as views
@@ -9009,7 +9062,7 @@ static void dump_backtrace(void)
   struct st_connection *conn= cur_con;
 
   fprintf(stderr, "read_command_buf (%p): ", read_command_buf);
-  my_safe_print_str(read_command_buf, sizeof(read_command_buf));
+  fprintf(stderr, "%.*s\n", (int)read_command_buflen, read_command_buf);
   fputc('\n', stderr);
 
   if (conn)
@@ -9258,7 +9311,7 @@ int main(int argc, char **argv)
   if (opt_compress)
     mysql_options(con->mysql,MYSQL_OPT_COMPRESS,NullS);
   mysql_options(con->mysql, MYSQL_SET_CHARSET_NAME,
-                charset_info->csname);
+                charset_info->cs_name.str);
   if (opt_charsets_dir)
     mysql_options(con->mysql, MYSQL_SET_CHARSET_DIR,
                   opt_charsets_dir);
@@ -9693,10 +9746,28 @@ int main(int argc, char **argv)
           report_or_die("Parsing is already enabled");
         break;
       case Q_DIE:
+      {
+        char message[160];
+        const char *msg;
+        DYNAMIC_STRING ds_echo;
+
+        if (command->first_argument[0])
+        {
+          /* Evaluate variables in the message */
+          init_dynamic_string(&ds_echo, "", command->query_len, 256);
+          do_eval(&ds_echo, command->first_argument, command->end, FALSE);
+          strmake(message, ds_echo.str, MY_MIN(sizeof(message)-1,
+                                               ds_echo.length));
+          dynstr_free(&ds_echo);
+          msg= message;
+        }
+        else
+          msg= "Explicit --die command executed";
+
         /* Abort test with error code and error message */
-        die("%s", command->first_argument[0] ? command->first_argument :
-            "Explicit --die command executed");
+        die("%s", msg);
         break;
+      }
       case Q_EXIT:
         /* Stop processing any more commands */
         abort_flag= 1;

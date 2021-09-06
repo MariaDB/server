@@ -86,8 +86,7 @@ static int user_variables_fill(THD *thd, TABLE_LIST *tables, COND *cond)
 
     if (var->charset())
     {
-      field[3]->store(var->charset()->csname, strlen(var->charset()->csname),
-                      system_charset_info);
+      field[3]->store(&var->charset()->cs_name, system_charset_info);
       field[3]->set_notnull();
     }
     else

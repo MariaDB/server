@@ -36,6 +36,7 @@ Modified 30/07/2014 Jan Lindström jan.lindstrom@mariadb.com
 #include "ibuf0ibuf.h"
 #include "lock0lock.h"
 #include "srv0start.h"
+#include "mysqld.h"
 
 #include <list>
 
@@ -220,10 +221,7 @@ btr_defragment_remove_table(
 /*********************************************************************//**
 Check whether we should save defragmentation statistics to persistent storage.
 Currently we save the stats to persistent storage every 100 updates. */
-UNIV_INTERN
-void
-btr_defragment_save_defrag_stats_if_needed(
-	dict_index_t*	index)	/*!< in: index */
+void btr_defragment_save_defrag_stats_if_needed(dict_index_t *index)
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
 	    && index->table->space_id != 0 // do not track system tables
@@ -240,7 +238,7 @@ Main defragment functionalities used by defragment thread.*/
 Calculate number of records from beginning of block that can
 fit into size_limit
 @return number of records */
-UNIV_INTERN
+static
 ulint
 btr_defragment_calc_n_recs_for_size(
 	buf_block_t* block,	/*!< in: B-tree page */
@@ -403,7 +401,8 @@ btr_defragment_merge_pages(
 		const page_id_t from{from_block->page.id()};
 		lock_update_merge_left(*to_block, orig_pred, from);
 		btr_search_drop_page_hash_index(from_block);
-		btr_level_list_remove(*from_block, *index, mtr);
+		ut_a(DB_SUCCESS == btr_level_list_remove(*from_block, *index,
+							 mtr));
 		btr_page_get_father(index, from_block, mtr, &parent);
 		btr_cur_node_ptr_delete(&parent, mtr);
 		/* btr_blob_dbg_remove(from_page, index,
@@ -616,6 +615,9 @@ The state (current item) is stored in function parameter.
 */
 static void btr_defragment_chunk(void*)
 {
+	THD *thd = innobase_create_background_thd("InnoDB defragment");
+	set_current_thd(thd);
+
 	btr_defragment_item_t* item = nullptr;
 	mtr_t		mtr;
 
@@ -624,7 +626,11 @@ static void btr_defragment_chunk(void*)
 	while (srv_shutdown_state == SRV_SHUTDOWN_NONE) {
 		if (!item) {
 			if (btr_defragment_wq.empty()) {
+release_and_exit:
 				mysql_mutex_unlock(&btr_defragment_mutex);
+func_exit:
+				set_current_thd(nullptr);
+				innobase_destroy_background_thd(thd);
 				return;
 			}
 			item = *btr_defragment_wq.begin();
@@ -653,7 +659,7 @@ processed:
 			int sleep_ms = (int)((srv_defragment_interval - elapsed) / 1000 / 1000);
 			if (sleep_ms) {
 				btr_defragment_timer->set_time(sleep_ms, 0);
-				return;
+				goto func_exit;
 			}
 		}
 		log_free_check();
@@ -695,7 +701,8 @@ processed:
 					    << " index " << index->name()
 					    << " failed with error " << err;
 			} else {
-				err = dict_stats_save_defrag_summary(index);
+				err = dict_stats_save_defrag_summary(index,
+								     thd);
 
 				if (err != DB_SUCCESS) {
 					ib::error() << "Saving defragmentation summary for table "
@@ -713,5 +720,5 @@ processed:
 		}
 	}
 
-	mysql_mutex_unlock(&btr_defragment_mutex);
+	goto release_and_exit;
 }

@@ -27,7 +27,7 @@ Created 3/26/1996 Heikki Tuuri
 #pragma once
 #include "buf0buf.h"
 #include "fil0fil.h"
-#include "trx0types.h"
+#include "trx0rseg.h"
 #include "mem0mem.h"
 #include "mtr0mtr.h"
 #include "ut0byte.h"
@@ -35,9 +35,6 @@ Created 3/26/1996 Heikki Tuuri
 #include "read0types.h"
 #include "page0types.h"
 #include "trx0trx.h"
-#ifdef WITH_WSREP
-#include "trx0xa.h"
-#endif /* WITH_WSREP */
 #include "ilist.h"
 #include "my_cpu.h"
 
@@ -157,13 +154,6 @@ from older MySQL or MariaDB versions. */
 					/*!< the start of the array of
 					rollback segment specification
 					slots */
-/*------------------------------------------------------------- @} */
-
-/** The number of rollback segments; rollback segment id must fit in
-the 7 bits reserved for it in DB_ROLL_PTR. */
-#define	TRX_SYS_N_RSEGS			128
-/** Maximum number of undo tablespaces (not counting the system tablespace) */
-#define TRX_SYS_MAX_UNDO_SPACES		(TRX_SYS_N_RSEGS - 1)
 
 /* Rollback segment specification slot offsets */
 
@@ -514,7 +504,7 @@ class rw_trx_hash_t
   static void validate_element(trx_t *trx)
   {
     ut_ad(!trx->read_only || !trx->rsegs.m_redo.rseg);
-    ut_ad(!trx_is_autocommit_non_locking(trx));
+    ut_ad(!trx->is_autocommit_non_locking());
     /* trx->state can be anything except TRX_STATE_NOT_STARTED */
     ut_d(trx->mutex_lock());
     ut_ad(trx_state_eq(trx, TRX_STATE_ACTIVE) ||
@@ -871,26 +861,14 @@ class trx_sys_t
   bool m_initialised;
 
 public:
-  /**
-    TRX_RSEG_HISTORY list length (number of committed transactions to purge)
-  */
-  MY_ALIGNED(CACHE_LINE_SIZE) Atomic_counter<uint32_t> rseg_history_len;
-
   /** List of all transactions. */
   thread_safe_trx_ilist_t trx_list;
 
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	/** Temporary rollback segments */
-	trx_rseg_t*	temp_rsegs[TRX_SYS_N_RSEGS];
+  /** Temporary rollback segments */
+  trx_rseg_t temp_rsegs[TRX_SYS_N_RSEGS];
 
-	MY_ALIGNED(CACHE_LINE_SIZE)
-	trx_rseg_t*	rseg_array[TRX_SYS_N_RSEGS];
-					/*!< Pointer array to rollback
-					segments; NULL if slot not in use;
-					created and destroyed in
-					single-threaded mode; not protected
-					by any mutex, because it is read-only
-					during multi-threaded operation */
+  /** Persistent rollback segments; space==nullptr if slot not in use */
+  trx_rseg_t rseg_array[TRX_SYS_N_RSEGS];
 
   /**
     Lock-free hash of in memory read-write transactions.
@@ -920,6 +898,32 @@ public:
   */
 
   trx_sys_t(): m_initialised(false) {}
+
+
+  /**
+    @return TRX_RSEG_HISTORY length (number of committed transactions to purge)
+  */
+  uint32_t history_size();
+
+
+  /**
+    Check whether history_size() exceeds a specified number.
+    @param threshold   number of committed transactions
+    @return whether TRX_RSEG_HISTORY length exceeds the threshold
+  */
+  bool history_exceeds(uint32_t threshold);
+
+
+  /**
+    @return approximate history_size(), without latch protection
+  */
+  TPOOL_SUPPRESS_TSAN uint32_t history_size_approx() const;
+
+
+  /**
+    @return whether history_size() is nonzero (with some race condition)
+  */
+  TPOOL_SUPPRESS_TSAN bool history_exists();
 
 
   /**
@@ -1043,7 +1047,7 @@ public:
   }
 
 
-  bool is_initialised() { return m_initialised; }
+  bool is_initialised() const { return m_initialised; }
 
 
   /** Initialise the transaction subsystem. */
@@ -1054,6 +1058,22 @@ public:
 
   /** @return total number of active (non-prepared) transactions */
   ulint any_active_transactions();
+
+
+  /**
+    Determine the rollback segment identifier.
+
+    @param rseg        rollback segment
+    @param persistent  whether the rollback segment is persistent
+    @return the rollback segment identifier
+  */
+  unsigned rseg_id(const trx_rseg_t *rseg, bool persistent) const
+  {
+    const trx_rseg_t *array= persistent ? rseg_array : temp_rsegs;
+    ut_ad(rseg >= array);
+    ut_ad(rseg < &array[TRX_SYS_N_RSEGS]);
+    return static_cast<unsigned>(rseg - array);
+  }
 
 
   /**

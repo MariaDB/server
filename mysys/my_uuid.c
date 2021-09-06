@@ -236,6 +236,17 @@ void my_uuid2str(const uchar *guid, char *s)
   }
 }
 
+void my_uuid2str_oracle(const uchar *guid, char *s)
+{
+  int i;
+  for (i=0; i < MY_UUID_SIZE; i++)
+  {
+    *s++= _dig_vec_upper[guid[i] >>4];
+    *s++= _dig_vec_upper[guid[i] & 15];
+  }
+}
+
+
 void my_uuid_end()
 {
   if (my_uuid_inited)

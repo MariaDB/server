@@ -15,6 +15,11 @@
 # Tests that require multibyte character sets, which are not always available,
 #   go into separate files (e.g. sp-ucs2.test)
 
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Need regular protocol but ps-protocol was specified
+}
+
 --source include/default_charset.inc
 set @save_character_set_client=@@character_set_client;
 set @save_userstat=@@global.userstat, @@global.userstat= 0;
@@ -7366,12 +7371,6 @@ DROP PROCEDURE p1;
 # Bug#25411 (trigger code truncated)
 #
 
---disable_warnings
-drop procedure if exists proc_25411_a;
-drop procedure if exists proc_25411_b;
-drop procedure if exists proc_25411_c;
---enable_warnings
-
 delimiter $$;
 
 create procedure proc_25411_a()
@@ -7412,7 +7411,7 @@ show create procedure proc_25411_a;
 call proc_25411_a();
 
 show create procedure proc_25411_b;
-select name, param_list, body from mysql.proc where name like "%25411%";
+select name, param_list, body from mysql.proc where name like "%25411%" order by name;
 call proc_25411_b(10, 20);
 
 show create procedure proc_25411_c;

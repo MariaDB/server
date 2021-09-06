@@ -11,7 +11,7 @@
 # This test is slow on buildbot.
 --source include/big_test.inc
 
-CREATE TABLE t (a INT) ENGINE=INNODB;
+CREATE TABLE t (a INT) ENGINE=INNODB STATS_PERSISTENT=0;
 
 SELECT update_time FROM information_schema.tables WHERE table_name = 't';
 

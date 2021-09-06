@@ -1,7 +1,7 @@
 #ifndef TABLE_INCLUDED
 #define TABLE_INCLUDED
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -366,7 +366,7 @@ enum enum_vcol_update_mode
 
 /* Field visibility enums */
 
-enum field_visibility_t {
+enum __attribute__((packed)) field_visibility_t {
   VISIBLE= 0,
   INVISIBLE_USER,
   /* automatically added by the server. Can be queried explicitly
@@ -892,8 +892,8 @@ struct TABLE_SHARE
   */
   struct period_info_t
   {
-    uint16 start_fieldno;
-    uint16 end_fieldno;
+    field_index_t start_fieldno;
+    field_index_t end_fieldno;
     Lex_ident name;
     Lex_ident constr_name;
     uint unique_keys;
@@ -1549,8 +1549,9 @@ public:
   MY_BITMAP *prepare_for_keyread(uint index, MY_BITMAP *map);
   MY_BITMAP *prepare_for_keyread(uint index)
   { return prepare_for_keyread(index, &tmp_set); }
-  void mark_columns_used_by_index(uint index, MY_BITMAP *map);
-  void mark_columns_used_by_index_no_reset(uint index, MY_BITMAP *map);
+  void mark_index_columns(uint index, MY_BITMAP *bitmap);
+  void mark_index_columns_no_reset(uint index, MY_BITMAP *bitmap);
+  void mark_index_columns_for_read(uint index);
   void restore_column_maps_after_keyread(MY_BITMAP *backup);
   void mark_auto_increment_column(void);
   void mark_columns_needed_for_update(void);
@@ -1611,6 +1612,8 @@ public:
   {
     m_needs_reopen= value;
   }
+
+  bool init_expr_arena(MEM_ROOT *mem_root);
 
   bool alloc_keys(uint key_count);
   bool check_tmp_key(uint key, uint key_parts,
@@ -1909,14 +1912,14 @@ class IS_table_read_plan;
 constexpr uint frm_fieldno_size= 2;
 /** number of bytes used by key position number in frm */
 constexpr uint frm_keyno_size= 2;
-static inline uint16 read_frm_fieldno(const uchar *data)
+static inline field_index_t read_frm_fieldno(const uchar *data)
 { return uint2korr(data); }
-static inline void store_frm_fieldno(uchar *data, uint16 fieldno)
+static inline void store_frm_fieldno(uchar *data, field_index_t fieldno)
 { int2store(data, fieldno); }
 static inline uint16 read_frm_keyno(const uchar *data)
 { return uint2korr(data); }
-static inline void store_frm_keyno(uchar *data, uint16 fieldno)
-{ int2store(data, fieldno); }
+static inline void store_frm_keyno(uchar *data, uint16 keyno)
+{ int2store(data, keyno); }
 static inline size_t extra2_str_size(size_t len)
 { return (len > 255 ? 3 : 1) + len; }
 
@@ -2116,6 +2119,29 @@ struct vers_select_conds_t
 
 struct LEX;
 class Index_hint;
+
+/*
+  @struct TABLE_CHAIN
+  @brief Subchain of global chain of table references
+
+  The structure contains a pointer to the address of the next_global
+  pointer to the first TABLE_LIST objectof the subchain and the address
+  of the next_global pointer to the element right after the last
+  TABLE_LIST object of the subchain.  For an empty subchain both pointers
+  have the same value.
+*/
+
+struct TABLE_CHAIN
+{
+  TABLE_CHAIN() {}
+
+  TABLE_LIST **start_pos;
+  TABLE_LIST ** end_pos;
+
+  void set_start_pos(TABLE_LIST **pos) { start_pos= pos; }
+  void set_end_pos(TABLE_LIST **pos) { end_pos= pos; }
+};
+
 struct TABLE_LIST
 {
   TABLE_LIST() {}                          /* Remove gcc warning */
@@ -2451,6 +2477,20 @@ struct TABLE_LIST
   /* call back function for asking handler about caching in query cache */
   qc_engine_callback callback_func;
   thr_lock_type lock_type;
+
+  /*
+    Two fields below are set during parsing this table reference in the cases
+    when the table reference can be potentially a reference to a CTE table.
+    In this cases the fact that the reference is a reference to a CTE or not
+    will be ascertained at the very end of parsing of the query when referencies
+    to CTE are resolved. For references to CTE and to derived tables no mdl
+    requests are needed while for other table references they are. If a request
+    is possibly postponed the info that allows to issue this request must be
+    saved in 'mdl_type' and 'table_options'.
+  */
+  enum_mdl_type mdl_type;
+  ulong         table_options;
+
   uint		outer_join;		/* Which join type */
   uint		shared;			/* Used in multi-upd */
   bool          updatable;		/* VIEW/TABLE can be updated now */
@@ -2596,7 +2636,7 @@ struct TABLE_LIST
   List<String> *partition_names;
 #endif /* WITH_PARTITION_STORAGE_ENGINE */
 
-  void calc_md5(const char *buffer);
+  void calc_md5(char *buffer);
   int view_check_option(THD *thd, bool ignore_failure);
   bool create_field_translation(THD *thd);
   bool setup_underlying(THD *thd);

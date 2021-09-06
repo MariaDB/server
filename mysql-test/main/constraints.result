@@ -99,7 +99,7 @@ long_enough_name	CREATE TABLE `long_enough_name` (
   `f2` int(11) NOT NULL,
   `f3` int(11) DEFAULT NULL,
   `f4` timestamp NOT NULL DEFAULT current_timestamp(),
-  `f5` varchar(32) CHARACTER SET utf8 COLLATE utf8_bin NOT NULL DEFAULT 'foo',
+  `f5` varchar(32) CHARACTER SET utf8mb3 COLLATE utf8mb3_bin NOT NULL DEFAULT 'foo',
   `f6` smallint(6) NOT NULL DEFAULT 1,
   `f7` int(11) DEFAULT NULL,
   PRIMARY KEY (`pk`),

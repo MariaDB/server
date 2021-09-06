@@ -45,6 +45,7 @@ C_MODE_END
 #include "key.h"
 #include "log.h"
 #include "sql_parse.h"
+#include "debug.h"
 
 /*
   Note that in future versions, only *transactional* Maria tables can
@@ -390,9 +391,9 @@ static void init_aria_psi_keys(void)
 #define init_aria_psi_keys() /* no-op */
 #endif /* HAVE_PSI_INTERFACE */
 
-const char *MA_CHECK_INFO= "info";
-const char *MA_CHECK_WARNING= "warning";
-const char *MA_CHECK_ERROR= "error";
+const LEX_CSTRING MA_CHECK_INFO= { STRING_WITH_LEN("info") };
+const LEX_CSTRING MA_CHECK_WARNING= { STRING_WITH_LEN("warning") };
+const LEX_CSTRING MA_CHECK_ERROR= { STRING_WITH_LEN("error") };
 
 /*****************************************************************************
 ** MARIA tables
@@ -406,13 +407,13 @@ static handler *maria_create_handler(handlerton *hton,
 }
 
 
-static void _ma_check_print(HA_CHECK *param, const char* msg_type,
+static void _ma_check_print(HA_CHECK *param, const LEX_CSTRING *msg_type,
                             const char *msgbuf)
 {
-  if (msg_type == MA_CHECK_INFO)
+  if (msg_type == &MA_CHECK_INFO)
     sql_print_information("%s.%s: %s", param->db_name, param->table_name,
                           msgbuf);
-  else if (msg_type == MA_CHECK_WARNING)
+  else if (msg_type == &MA_CHECK_WARNING)
     sql_print_warning("%s.%s: %s", param->db_name, param->table_name,
                       msgbuf);
   else
@@ -422,7 +423,7 @@ static void _ma_check_print(HA_CHECK *param, const char* msg_type,
 
 // collect errors printed by maria_check routines
 
-static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
+static void _ma_check_print_msg(HA_CHECK *param, const LEX_CSTRING *msg_type,
                                 const char *fmt, va_list args)
 {
   THD *thd= (THD *) param->thd;
@@ -437,7 +438,7 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
   msg_length= my_vsnprintf(msgbuf, sizeof(msgbuf), fmt, args);
   msgbuf[sizeof(msgbuf) - 1]= 0;                // healthy paranoia
 
-  DBUG_PRINT(msg_type, ("message: %s", msgbuf));
+  DBUG_PRINT(msg_type->str, ("message: %s", msgbuf));
 
   if (!thd->vio_ok())
   {
@@ -449,9 +450,9 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
       (T_CREATE_MISSING_KEYS | T_SAFE_REPAIR | T_AUTO_REPAIR))
   {
     myf flag= 0;
-    if (msg_type == MA_CHECK_INFO)
+    if (msg_type == &MA_CHECK_INFO)
       flag= ME_NOTE;
-    else if (msg_type == MA_CHECK_WARNING)
+    else if (msg_type == &MA_CHECK_WARNING)
       flag= ME_WARNING;
     my_message(ER_NOT_KEYFILE, msgbuf, MYF(flag));
     if (thd->variables.log_warnings > 2)
@@ -470,9 +471,9 @@ static void _ma_check_print_msg(HA_CHECK *param, const char *msg_type,
   */
   protocol->prepare_for_resend();
   protocol->store(name, (uint)length, system_charset_info);
-  protocol->store(param->op_name, system_charset_info);
+  protocol->store(param->op_name, strlen(param->op_name), system_charset_info);
   protocol->store(msg_type, system_charset_info);
-  protocol->store(msgbuf, (uint)msg_length, system_charset_info);
+  protocol->store(msgbuf, msg_length, system_charset_info);
   if (protocol->write())
     sql_print_error("Failed on my_net_write, writing to stderr instead: %s.%s: %s\n",
                     param->db_name, param->table_name, msgbuf);
@@ -910,7 +911,7 @@ void _ma_check_print_error(HA_CHECK *param, const char *fmt, ...)
   if (param->testflag & T_SUPPRESS_ERR_HANDLING)
     DBUG_VOID_RETURN;
   va_start(args, fmt);
-  _ma_check_print_msg(param, MA_CHECK_ERROR, fmt, args);
+  _ma_check_print_msg(param, &MA_CHECK_ERROR, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -921,7 +922,7 @@ void _ma_check_print_info(HA_CHECK *param, const char *fmt, ...)
   va_list args;
   DBUG_ENTER("_ma_check_print_info");
   va_start(args, fmt);
-  _ma_check_print_msg(param, MA_CHECK_INFO, fmt, args);
+  _ma_check_print_msg(param, &MA_CHECK_INFO, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -934,7 +935,7 @@ void _ma_check_print_warning(HA_CHECK *param, const char *fmt, ...)
   param->warning_printed++;
   param->out_flag |= O_DATA_LOST;
   va_start(args, fmt);
-  _ma_check_print_msg(param, MA_CHECK_WARNING, fmt, args);
+  _ma_check_print_msg(param, &MA_CHECK_WARNING, fmt, args);
   va_end(args);
   DBUG_VOID_RETURN;
 }
@@ -994,6 +995,13 @@ static int maria_create_trn_for_mysql(MARIA_HA *info)
 my_bool ma_killed_in_mariadb(MARIA_HA *info)
 {
   return (((TABLE*) (info->external_ref))->in_use->killed != 0);
+}
+
+void maria_debug_crash_here(const char *keyword)
+{
+#ifndef DBUG_OFF
+  debug_crash_here(keyword);
+#endif /* DBUG_OFF */
 }
 
 } /* extern "C" */
@@ -2306,6 +2314,7 @@ int ha_maria::end_bulk_insert()
                                                BULK_INSERT_SINGLE_UNDO_AND_NO_REPAIR)))
       first_error= first_error ? first_error : error;
     bulk_insert_single_undo= BULK_INSERT_NONE;  // Safety
+    log_not_redoable_operation("BULK_INSERT");
   }
   can_enable_indexes= 0;
   DBUG_RETURN(first_error);
@@ -3794,6 +3803,7 @@ static int ha_maria_init(void *p)
                       HTON_TRANSACTIONAL_AND_NON_TRANSACTIONAL);
   bzero(maria_log_pagecache, sizeof(*maria_log_pagecache));
   maria_tmpdir= &mysql_tmpdir_list;             /* For REDO */
+  ma_debug_crash_here= maria_debug_crash_here;
 
   if (!aria_readonly)
     res= maria_upgrade();
@@ -4197,6 +4207,26 @@ int ha_maria::find_unique_row(uchar *record, uint constrain_no)
   }
   return rc;
 }
+
+
+/**
+   Check if a table needs to be repaired
+*/
+
+int ha_maria::check_for_upgrade(HA_CHECK_OPT *check)
+{
+  if (table->s->mysql_version && table->s->mysql_version <= 100509 &&
+      (file->s->base.extra_options & MA_EXTRA_OPTIONS_ENCRYPTED))
+  {
+    /*
+      Encrypted tables before 10.5.9 had a bug where LSN was not
+      stored on the pages. These must be repaired!
+    */
+    return HA_ADMIN_NEEDS_ALTER;
+  }
+  return HA_ADMIN_OK;
+}
+
 
 struct st_mysql_storage_engine maria_storage_engine=
 { MYSQL_HANDLERTON_INTERFACE_VERSION };

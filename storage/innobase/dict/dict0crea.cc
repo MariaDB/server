@@ -33,6 +33,7 @@ Created 1/8/1996 Heikki Tuuri
 #include "mach0data.h"
 #include "dict0boot.h"
 #include "dict0dict.h"
+#include "lock0lock.h"
 #include "que0que.h"
 #include "row0ins.h"
 #include "row0mysql.h"
@@ -41,9 +42,9 @@ Created 1/8/1996 Heikki Tuuri
 #include "trx0rseg.h"
 #include "trx0undo.h"
 #include "ut0vec.h"
-#include "dict0priv.h"
 #include "fts0priv.h"
 #include "srv0start.h"
+#include "log.h"
 
 /*****************************************************************//**
 Based on a table object, this function builds the entry to be inserted
@@ -343,7 +344,7 @@ dict_build_table_def_step(
 	que_thr_t*	thr,	/*!< in: query thread */
 	tab_node_t*	node)	/*!< in: table create node */
 {
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 	dict_table_t*	table = node->table;
 	ut_ad(!table->is_temporary());
 	ut_ad(!table->space);
@@ -403,7 +404,7 @@ dict_build_v_col_def_step(
 Based on an index object, this function builds the entry to be inserted
 in the SYS_INDEXES system table.
 @return the tuple which should be inserted */
-static
+static MY_ATTRIBUTE((nonnull, warn_unused_result))
 dtuple_t*
 dict_create_sys_indexes_tuple(
 /*==========================*/
@@ -416,7 +417,7 @@ dict_create_sys_indexes_tuple(
 	dfield_t*	dfield;
 	byte*		ptr;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 	ut_ad(index);
 	ut_ad(index->table->space || !UT_LIST_GET_LEN(index->table->indexes)
 	      || index->table->file_unreadable);
@@ -646,14 +647,14 @@ dict_build_index_def_step(
 	dtuple_t*	row;
 	trx_t*		trx;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	trx = thr_get_trx(thr);
 
 	index = node->index;
 
 	table = dict_table_open_on_name(
-		node->table_name, TRUE, FALSE, DICT_ERR_IGNORE_DROP);
+		node->table_name, true, DICT_ERR_IGNORE_DROP);
 
 	if (!table) {
 		return DB_TABLE_NOT_FOUND;
@@ -691,7 +692,7 @@ dict_build_index_def(
 	dict_index_t*		index,	/*!< in/out: index */
 	trx_t*			trx)	/*!< in/out: InnoDB transaction handle */
 {
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	ut_ad((UT_LIST_GET_LEN(table->indexes) > 0)
 	      || dict_index_is_clust(index));
@@ -734,7 +735,7 @@ dict_create_index_tree_step(
 	dict_index_t*	index;
 	dtuple_t*	search_tuple;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	index = node->index;
 
@@ -803,7 +804,7 @@ dict_create_index_tree_in_mem(
 {
 	mtr_t		mtr;
 
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 	ut_ad(!(index->type & DICT_FTS));
 
 	mtr_start(&mtr);
@@ -826,14 +827,14 @@ dict_create_index_tree_in_mem(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
-@param[in,out]	table	table that the record belongs to
-@param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, dict_table_t *table,
-                          mtr_t *mtr)
+@param[in,out]	mtr	mini-transaction
+@return tablespace ID to drop (if this is the clustered index)
+@retval 0 if no tablespace is to be dropped */
+uint32_t dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, mtr_t *mtr)
 {
   rec_t *rec= btr_pcur_get_rec(pcur);
 
-  ut_d(if (trx) dict_sys.assert_locked());
+  ut_ad(!trx || dict_sys.locked());
   ut_ad(!dict_table_is_comp(dict_sys.sys_indexes));
   btr_pcur_store_position(pcur, mtr);
 
@@ -846,7 +847,7 @@ void dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, dict_table_t *table,
   {
 rec_corrupted:
     ib::error() << "Corrupted SYS_INDEXES record";
-    return;
+    return 0;
   }
 
   if (rec_get_1byte_offs_flag(rec))
@@ -875,14 +876,9 @@ rec_corrupted:
   ut_ad(root_page_no == FIL_NULL || space_id <= SRV_SPACE_ID_UPPER_BOUND);
 
   if (space_id && (type & DICT_CLUSTERED))
-  {
-    if (table && table->space_id == space_id)
-      table->space= nullptr;
-    else
-      ut_ad(!table);
-    fil_delete_tablespace(space_id, true);
-  }
-  else if (root_page_no == FIL_NULL)
+    return space_id;
+
+  if (root_page_no == FIL_NULL)
     /* The tree has already been freed */;
   else if (fil_space_t*s= fil_space_t::get(space_id))
   {
@@ -898,6 +894,8 @@ rec_corrupted:
     }
     s->release();
   }
+
+  return 0;
 }
 
 /*********************************************************************//**
@@ -998,7 +996,7 @@ dict_create_table_step(
 	trx_t*		trx;
 
 	ut_ad(thr);
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	trx = thr_get_trx(thr);
 
@@ -1174,7 +1172,7 @@ dict_create_index_step(
 	trx_t*		trx;
 
 	ut_ad(thr);
-	dict_sys.assert_locked();
+	ut_ad(dict_sys.locked());
 
 	trx = thr_get_trx(thr);
 
@@ -1318,292 +1316,188 @@ function_exit:
 	return(thr);
 }
 
-/****************************************************************//**
-Check whether a system table exists.  Additionally, if it exists,
-move it to the non-LRU end of the table LRU list.  This is only used
-for system tables that can be upgraded or added to an older database,
-which include SYS_FOREIGN and SYS_FOREIGN_COLS.
-@return DB_SUCCESS if the sys table exists, DB_CORRUPTION if it exists
-but is not current, DB_TABLE_NOT_FOUND if it does not exist*/
-static
-dberr_t
-dict_check_if_system_table_exists(
-/*==============================*/
-	const char*	tablename,	/*!< in: name of table */
-	ulint		num_fields,	/*!< in: number of fields */
-	ulint		num_indexes)	/*!< in: number of indexes */
+bool dict_sys_t::load_sys_tables()
 {
-	dict_table_t*	sys_table;
-	dberr_t		error = DB_SUCCESS;
-
-	ut_ad(!srv_any_background_activity());
-
-	dict_sys.mutex_lock();
-
-	sys_table = dict_table_get_low(tablename);
-
-	if (sys_table == NULL) {
-		error = DB_TABLE_NOT_FOUND;
-
-	} else if (UT_LIST_GET_LEN(sys_table->indexes) != num_indexes
-		   || sys_table->n_cols != num_fields) {
-		error = DB_CORRUPTION;
-
-	} else {
-		/* This table has already been created, and it is OK.
-		Ensure that it can't be evicted from the table LRU cache. */
-
-		dict_table_prevent_eviction(sys_table);
-	}
-
-	dict_sys.mutex_unlock();
-
-	return(error);
+  ut_ad(!srv_any_background_activity());
+  bool mismatch= false;
+  lock(SRW_LOCK_CALL);
+  if (!(sys_foreign= load_table(SYS_TABLE[SYS_FOREIGN],
+                                DICT_ERR_IGNORE_FK_NOKEY)));
+  else if (UT_LIST_GET_LEN(sys_foreign->indexes) == 3 &&
+           sys_foreign->n_cols == DICT_NUM_COLS__SYS_FOREIGN + DATA_N_SYS_COLS)
+    prevent_eviction(sys_foreign);
+  else
+  {
+    sys_foreign= nullptr;
+    mismatch= true;
+    ib::error() << "Invalid definition of SYS_FOREIGN";
+  }
+  if (!(sys_foreign_cols= load_table(SYS_TABLE[SYS_FOREIGN_COLS],
+                                     DICT_ERR_IGNORE_FK_NOKEY)));
+  else if (UT_LIST_GET_LEN(sys_foreign_cols->indexes) == 1 &&
+           sys_foreign_cols->n_cols ==
+           DICT_NUM_COLS__SYS_FOREIGN_COLS + DATA_N_SYS_COLS)
+    prevent_eviction(sys_foreign_cols);
+  else
+  {
+    sys_foreign_cols= nullptr;
+    mismatch= true;
+    ib::error() << "Invalid definition of SYS_FOREIGN_COLS";
+  }
+  if (!(sys_virtual= load_table(SYS_TABLE[SYS_VIRTUAL],
+                                DICT_ERR_IGNORE_FK_NOKEY)));
+  else if (UT_LIST_GET_LEN(sys_virtual->indexes) == 1 &&
+           sys_virtual->n_cols == DICT_NUM_COLS__SYS_VIRTUAL + DATA_N_SYS_COLS)
+    prevent_eviction(sys_virtual);
+  else
+  {
+    sys_virtual= nullptr;
+    mismatch= true;
+    ib::error() << "Invalid definition of SYS_VIRTUAL";
+  }
+  unlock();
+  return mismatch;
 }
 
-/****************************************************************//**
-Creates the foreign key constraints system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_foreign_constraint_tables(void)
-/*================================================*/
+dberr_t dict_sys_t::create_or_check_sys_tables()
 {
-	trx_t*		trx;
-	my_bool		srv_file_per_table_backup;
-	dberr_t		err;
-	dberr_t		sys_foreign_err;
-	dberr_t		sys_foreign_cols_err;
+  if (sys_tables_exist())
+    return DB_SUCCESS;
 
-	ut_ad(!srv_any_background_activity());
+  if (srv_read_only_mode || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO)
+    return DB_READ_ONLY;
 
-	/* Note: The master thread has not been started at this point. */
+  if (load_sys_tables())
+  {
+    ib::info() << "Set innodb_read_only=1 or innodb_force_recovery=3"
+                  " to start up";
+    return DB_CORRUPTION;
+  }
 
+  if (sys_tables_exist())
+    return DB_SUCCESS;
 
-	sys_foreign_err = dict_check_if_system_table_exists(
-		"SYS_FOREIGN", DICT_NUM_FIELDS__SYS_FOREIGN + 1, 3);
-	sys_foreign_cols_err = dict_check_if_system_table_exists(
-		"SYS_FOREIGN_COLS", DICT_NUM_FIELDS__SYS_FOREIGN_COLS + 1, 1);
+  trx_t *trx= trx_create();
+  trx_start_for_ddl(trx);
 
-	if (sys_foreign_err == DB_SUCCESS
-	    && sys_foreign_cols_err == DB_SUCCESS) {
-		return(DB_SUCCESS);
-	}
+  {
+    LockMutexGuard g{SRW_LOCK_CALL};
+    trx->mutex_lock();
+    lock_table_create(dict_sys.sys_tables, LOCK_X, trx);
+    lock_table_create(dict_sys.sys_columns, LOCK_X, trx);
+    lock_table_create(dict_sys.sys_indexes, LOCK_X, trx);
+    lock_table_create(dict_sys.sys_fields, LOCK_X, trx);
+    trx->mutex_unlock();
+  }
 
-	if (srv_read_only_mode
-	    || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
-		return(DB_READ_ONLY);
-	}
+  row_mysql_lock_data_dictionary(trx);
 
-	trx = trx_create();
+  /* NOTE: when designing InnoDB's foreign key support in 2001, Heikki Tuuri
+  made a mistake and defined table names and the foreign key id to be of type
+  CHAR (internally, really VARCHAR). The type should have been VARBINARY. */
 
-	trx->dict_operation = true;
+  /* System tables are always created inside the system tablespace. */
+  const auto srv_file_per_table_backup= srv_file_per_table;
+  srv_file_per_table= 0;
+  dberr_t error;
+  const char *tablename;
 
-	trx->op_info = "creating foreign key sys tables";
+  if (!sys_foreign)
+  {
+    error= que_eval_sql(nullptr, "PROCEDURE CREATE_FOREIGN() IS\n"
+                        "BEGIN\n"
+                        "CREATE TABLE\n"
+                        "SYS_FOREIGN(ID CHAR, FOR_NAME CHAR,"
+                        " REF_NAME CHAR, N_COLS INT);\n"
+                        "CREATE UNIQUE CLUSTERED INDEX ID_IND"
+                        " ON SYS_FOREIGN (ID);\n"
+                        "CREATE INDEX FOR_IND"
+                        " ON SYS_FOREIGN (FOR_NAME);\n"
+                        "CREATE INDEX REF_IND"
+                        " ON SYS_FOREIGN (REF_NAME);\n"
+                        "END;\n", trx);
+    if (UNIV_UNLIKELY(error != DB_SUCCESS))
+    {
+      tablename= SYS_TABLE[SYS_FOREIGN].data();
+err_exit:
+      ib::error() << "Creation of " << tablename << " failed: " << error;
+      trx->rollback();
+      row_mysql_unlock_data_dictionary(trx);
+      trx->free();
+      srv_file_per_table= srv_file_per_table_backup;
+      return error;
+    }
+  }
+  if (!sys_foreign_cols)
+  {
+    error= que_eval_sql(nullptr, "PROCEDURE CREATE_FOREIGN_COLS() IS\n"
+                        "BEGIN\n"
+                        "CREATE TABLE\n"
+                        "SYS_FOREIGN_COLS(ID CHAR, POS INT,"
+                        " FOR_COL_NAME CHAR, REF_COL_NAME CHAR);\n"
+                        "CREATE UNIQUE CLUSTERED INDEX ID_IND"
+                        " ON SYS_FOREIGN_COLS (ID, POS);\n"
+                        "END;\n", trx);
+    if (UNIV_UNLIKELY(error != DB_SUCCESS))
+    {
+      tablename= SYS_TABLE[SYS_FOREIGN_COLS].data();
+      goto err_exit;
+    }
+  }
+  if (!sys_virtual)
+  {
+    error= que_eval_sql(nullptr, "PROCEDURE CREATE_VIRTUAL() IS\n"
+                        "BEGIN\n"
+                        "CREATE TABLE\n"
+                        "SYS_VIRTUAL(TABLE_ID BIGINT,POS INT,BASE_POS INT);\n"
+                        "CREATE UNIQUE CLUSTERED INDEX BASE_IDX"
+                        " ON SYS_VIRTUAL(TABLE_ID, POS, BASE_POS);\n"
+                        "END;\n", trx);
+    if (UNIV_UNLIKELY(error != DB_SUCCESS))
+    {
+      tablename= SYS_TABLE[SYS_VIRTUAL].data();
+      goto err_exit;
+    }
+  }
 
-	row_mysql_lock_data_dictionary(trx);
+  trx->commit();
+  row_mysql_unlock_data_dictionary(trx);
+  trx->free();
+  srv_file_per_table= srv_file_per_table_backup;
 
-	DBUG_EXECUTE_IF(
-		"create_and_drop_garbage",
-		err = que_eval_sql(
-			NULL,
-			"PROCEDURE CREATE_GARBAGE_TABLE_PROC () IS\n"
-			"BEGIN\n"
-			"CREATE TABLE\n"
-			"\"test/#sql-ib-garbage\"(ID CHAR);\n"
-			"CREATE UNIQUE CLUSTERED INDEX PRIMARY"
-			" ON \"test/#sql-ib-garbage\"(ID);\n"
-			"END;\n", FALSE, trx);
-		ut_ad(err == DB_SUCCESS);
-		row_drop_table_for_mysql("test/#sql-ib-garbage", trx,
-					 SQLCOM_DROP_DB, true););
+  lock(SRW_LOCK_CALL);
+  if (sys_foreign);
+  else if (!(sys_foreign= load_table(SYS_TABLE[SYS_FOREIGN])))
+  {
+    tablename= SYS_TABLE[SYS_FOREIGN].data();
+load_fail:
+    unlock();
+    ib::error() << "Failed to CREATE TABLE " << tablename;
+    return DB_TABLE_NOT_FOUND;
+  }
+  else
+    prevent_eviction(sys_foreign);
 
-	/* Check which incomplete table definition to drop. */
+  if (sys_foreign_cols);
+  else if (!(sys_foreign_cols= load_table(SYS_TABLE[SYS_FOREIGN_COLS])))
+  {
+    tablename= SYS_TABLE[SYS_FOREIGN_COLS].data();
+    goto load_fail;
+  }
+  else
+    prevent_eviction(sys_foreign_cols);
 
-	if (sys_foreign_err == DB_CORRUPTION) {
-		row_drop_table_after_create_fail("SYS_FOREIGN", trx);
-	}
+  if (sys_virtual);
+  else if (!(sys_virtual= load_table(SYS_TABLE[SYS_VIRTUAL])))
+  {
+    tablename= SYS_TABLE[SYS_VIRTUAL].data();
+    goto load_fail;
+  }
+  else
+    prevent_eviction(sys_virtual);
 
-	if (sys_foreign_cols_err == DB_CORRUPTION) {
-		row_drop_table_after_create_fail("SYS_FOREIGN_COLS", trx);
-	}
-
-	ib::info() << "Creating foreign key constraint system tables.";
-
-	/* NOTE: in dict_load_foreigns we use the fact that
-	there are 2 secondary indexes on SYS_FOREIGN, and they
-	are defined just like below */
-
-	/* NOTE: when designing InnoDB's foreign key support in 2001, we made
-	an error and made the table names and the foreign key id of type
-	'CHAR' (internally, really a VARCHAR). We should have made the type
-	VARBINARY, like in other InnoDB system tables, to get a clean
-	design. */
-
-	srv_file_per_table_backup = srv_file_per_table;
-
-	/* We always want SYSTEM tables to be created inside the system
-	tablespace. */
-
-	srv_file_per_table = 0;
-
-	err = que_eval_sql(
-		NULL,
-		"PROCEDURE CREATE_FOREIGN_SYS_TABLES_PROC () IS\n"
-		"BEGIN\n"
-		"CREATE TABLE\n"
-		"SYS_FOREIGN(ID CHAR, FOR_NAME CHAR,"
-		" REF_NAME CHAR, N_COLS INT);\n"
-		"CREATE UNIQUE CLUSTERED INDEX ID_IND"
-		" ON SYS_FOREIGN (ID);\n"
-		"CREATE INDEX FOR_IND"
-		" ON SYS_FOREIGN (FOR_NAME);\n"
-		"CREATE INDEX REF_IND"
-		" ON SYS_FOREIGN (REF_NAME);\n"
-		"CREATE TABLE\n"
-		"SYS_FOREIGN_COLS(ID CHAR, POS INT,"
-		" FOR_COL_NAME CHAR, REF_COL_NAME CHAR);\n"
-		"CREATE UNIQUE CLUSTERED INDEX ID_IND"
-		" ON SYS_FOREIGN_COLS (ID, POS);\n"
-		"END;\n",
-		FALSE, trx);
-
-	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-		ib::error() << "Creation of SYS_FOREIGN and SYS_FOREIGN_COLS"
-			" failed: " << err << ". Tablespace is"
-			" full. Dropping incompletely created tables.";
-
-		ut_ad(err == DB_OUT_OF_FILE_SPACE
-		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
-
-		row_drop_table_after_create_fail("SYS_FOREIGN", trx);
-		row_drop_table_after_create_fail("SYS_FOREIGN_COLS", trx);
-
-		if (err == DB_OUT_OF_FILE_SPACE) {
-			err = DB_MUST_GET_MORE_FILE_SPACE;
-		}
-	}
-
-	trx_commit_for_mysql(trx);
-
-	row_mysql_unlock_data_dictionary(trx);
-
-	trx->free();
-
-	srv_file_per_table = srv_file_per_table_backup;
-
-	/* Note: The master thread has not been started at this point. */
-	/* Confirm and move to the non-LRU part of the table LRU list. */
-	sys_foreign_err = dict_check_if_system_table_exists(
-		"SYS_FOREIGN", DICT_NUM_FIELDS__SYS_FOREIGN + 1, 3);
-	ut_a(sys_foreign_err == DB_SUCCESS);
-
-	sys_foreign_cols_err = dict_check_if_system_table_exists(
-		"SYS_FOREIGN_COLS", DICT_NUM_FIELDS__SYS_FOREIGN_COLS + 1, 1);
-	ut_a(sys_foreign_cols_err == DB_SUCCESS);
-
-	return(err);
-}
-
-/** Creates the virtual column system table (SYS_VIRTUAL) inside InnoDB
-at server bootstrap or server start if the table is not found or is
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_sys_virtual()
-{
-	trx_t*		trx;
-	my_bool		srv_file_per_table_backup;
-	dberr_t		err;
-
-	ut_ad(!srv_any_background_activity());
-
-	/* Note: The master thread has not been started at this point. */
-	err = dict_check_if_system_table_exists(
-		"SYS_VIRTUAL", DICT_NUM_FIELDS__SYS_VIRTUAL + 1, 1);
-
-	if (err == DB_SUCCESS) {
-		dict_sys.mutex_lock();
-		dict_sys.sys_virtual = dict_table_get_low("SYS_VIRTUAL");
-		dict_sys.mutex_unlock();
-		return(DB_SUCCESS);
-	}
-
-	if (srv_read_only_mode
-	    || srv_force_recovery >= SRV_FORCE_NO_TRX_UNDO) {
-		return(DB_READ_ONLY);
-	}
-
-	trx = trx_create();
-
-	trx->dict_operation = true;
-
-	trx->op_info = "creating sys_virtual tables";
-
-	row_mysql_lock_data_dictionary(trx);
-
-	/* Check which incomplete table definition to drop. */
-
-	if (err == DB_CORRUPTION) {
-		row_drop_table_after_create_fail("SYS_VIRTUAL", trx);
-	}
-
-	ib::info() << "Creating sys_virtual system tables.";
-
-	srv_file_per_table_backup = srv_file_per_table;
-
-	/* We always want SYSTEM tables to be created inside the system
-	tablespace. */
-
-	srv_file_per_table = 0;
-
-	err = que_eval_sql(
-		NULL,
-		"PROCEDURE CREATE_SYS_VIRTUAL_TABLES_PROC () IS\n"
-		"BEGIN\n"
-		"CREATE TABLE\n"
-		"SYS_VIRTUAL(TABLE_ID BIGINT, POS INT,"
-		" BASE_POS INT);\n"
-		"CREATE UNIQUE CLUSTERED INDEX BASE_IDX"
-		" ON SYS_VIRTUAL(TABLE_ID, POS, BASE_POS);\n"
-		"END;\n",
-		FALSE, trx);
-
-	if (UNIV_UNLIKELY(err != DB_SUCCESS)) {
-		ib::error() << "Creation of SYS_VIRTUAL"
-			" failed: " << err << ". Tablespace is"
-			" full or too many transactions."
-			" Dropping incompletely created tables.";
-
-		ut_ad(err == DB_OUT_OF_FILE_SPACE
-		      || err == DB_TOO_MANY_CONCURRENT_TRXS);
-
-		row_drop_table_after_create_fail("SYS_VIRTUAL", trx);
-
-		if (err == DB_OUT_OF_FILE_SPACE) {
-			err = DB_MUST_GET_MORE_FILE_SPACE;
-		}
-	}
-
-	trx_commit_for_mysql(trx);
-
-	row_mysql_unlock_data_dictionary(trx);
-
-	trx->free();
-
-	srv_file_per_table = srv_file_per_table_backup;
-
-	/* Note: The master thread has not been started at this point. */
-	/* Confirm and move to the non-LRU part of the table LRU list. */
-	dberr_t sys_virtual_err = dict_check_if_system_table_exists(
-		"SYS_VIRTUAL", DICT_NUM_FIELDS__SYS_VIRTUAL + 1, 1);
-	ut_a(sys_virtual_err == DB_SUCCESS);
-	dict_sys.mutex_lock();
-	dict_sys.sys_virtual = dict_table_get_low("SYS_VIRTUAL");
-	dict_sys.mutex_unlock();
-
-	return(err);
+  unlock();
+  return DB_SUCCESS;
 }
 
 /****************************************************************//**
@@ -1622,7 +1516,7 @@ dict_foreign_eval_sql(
 	dberr_t	error;
 	FILE*	ef	= dict_foreign_err_file;
 
-	error = que_eval_sql(info, sql, FALSE, trx);
+	error = que_eval_sql(info, sql, trx);
 
 	if (error == DB_DUPLICATE_KEY) {
 		mysql_mutex_lock(&dict_foreign_err_mutex);
@@ -1638,7 +1532,7 @@ dict_foreign_eval_sql(
 		      "in front of the user-defined constraint name.)\n"
 		      "Note that InnoDB's FOREIGN KEY system tables store\n"
 		      "constraint names as case-insensitive, with the\n"
-		      "MySQL standard latin1_swedish_ci collation. If you\n"
+		      "MariaDB standard latin1_swedish_ci collation. If you\n"
 		      "create tables or databases whose names differ only in\n"
 		      "the character case, then collisions in constraint\n"
 		      "names can occur. Workaround: name your constraints\n"
@@ -1660,7 +1554,7 @@ dict_foreign_eval_sql(
 		      " for table ", ef);
 		ut_print_name(ef, trx, name);
 		fputs(".\n"
-		      "See the MySQL .err log in the datadir"
+		      "See the MariaDB .err log in the datadir"
 		      " for more information.\n", ef);
 		mysql_mutex_unlock(&dict_foreign_err_mutex);
 
@@ -1710,7 +1604,7 @@ dict_create_add_foreign_field_to_dictionary(
 /********************************************************************//**
 Construct foreign key constraint defintion from data dictionary information.
 */
-UNIV_INTERN
+static
 char*
 dict_foreign_def_get(
 /*=================*/
@@ -1995,35 +1889,19 @@ dict_create_add_foreigns_to_dictionary(
 	const dict_table_t*	table,
 	trx_t*			trx)
 {
-	dict_foreign_t*	foreign;
-	dberr_t		error;
+  ut_ad(dict_sys.locked());
 
-	dict_sys.assert_locked();
+  if (!dict_sys.sys_foreign)
+  {
+    sql_print_error("InnoDB: Table SYS_FOREIGN not found"
+                    " in internal data dictionary");
+    return DB_ERROR;
+  }
 
-	if (NULL == dict_table_get_low("SYS_FOREIGN")) {
+  for (auto fk : local_fk_set)
+    if (dberr_t error=
+        dict_create_add_foreign_to_dictionary(table->name.m_name, fk, trx))
+      return error;
 
-		ib::error() << "Table SYS_FOREIGN not found"
-			" in internal data dictionary";
-
-		return(DB_ERROR);
-	}
-
-	error = DB_SUCCESS;
-
-	for (dict_foreign_set::const_iterator it = local_fk_set.begin();
-	     it != local_fk_set.end();
-	     ++it) {
-
-		foreign = *it;
-		ut_ad(foreign->id != NULL);
-
-		error = dict_create_add_foreign_to_dictionary(
-			table->name.m_name, foreign, trx);
-
-		if (error != DB_SUCCESS) {
-			break;
-		}
-	}
-
-	return error;
+  return DB_SUCCESS;
 }

@@ -1747,12 +1747,14 @@ mysql_set_character_set_with_default_collation(MYSQL *mysql)
     charsets_dir=mysql->options.charset_dir;
 
   if ((mysql->charset= get_charset_by_csname(mysql->options.charset_name,
-                                             MY_CS_PRIMARY, MYF(MY_WME))))
+                                             MY_CS_PRIMARY, MYF(MY_WME|
+                                                                MY_UTF8_IS_UTF8MB3))))
   {
     /* Try to set compiled default collation when it's possible. */
     CHARSET_INFO *collation;
     if ((collation= 
-         get_charset_by_name(MYSQL_DEFAULT_COLLATION_NAME, MYF(MY_WME))) &&
+         get_charset_by_name(MYSQL_DEFAULT_COLLATION_NAME, MYF(MY_UTF8_IS_UTF8MB3 |
+                                                               MY_WME))) &&
                              my_charset_same(mysql->charset, collation))
     {
       mysql->charset= collation;
@@ -3217,7 +3219,7 @@ my_bool mysql_reconnect(MYSQL *mysql)
     strmov(mysql->net.sqlstate, tmp_mysql.net.sqlstate);
     DBUG_RETURN(1);
   }
-  if (mysql_set_character_set(&tmp_mysql, mysql->charset->csname))
+  if (mysql_set_character_set(&tmp_mysql, mysql->charset->cs_name.str))
   {
     DBUG_PRINT("error", ("mysql_set_character_set() failed"));
     bzero((char*) &tmp_mysql.options,sizeof(tmp_mysql.options));
@@ -4095,7 +4097,7 @@ int STDCALL mysql_set_character_set(MYSQL *mysql, const char *cs_name)
     charsets_dir= mysql->options.charset_dir;
 
   if (strlen(cs_name) < MY_CS_NAME_SIZE &&
-     (cs= get_charset_by_csname(cs_name, MY_CS_PRIMARY, MYF(0))))
+     (cs= get_charset_by_csname(cs_name, MY_CS_PRIMARY, MYF(MY_UTF8_IS_UTF8MB3))))
   {
     char buff[MY_CS_NAME_SIZE + 10];
     charsets_dir= save_csdir;

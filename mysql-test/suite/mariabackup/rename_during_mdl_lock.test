@@ -2,6 +2,7 @@
 let $targetdir=$MYSQLTEST_VARDIR/tmp/backup;
 mkdir $targetdir;
 CREATE TABLE t1(i int) ENGINE INNODB;
+set global innodb_log_checkpoint_now = 1;
 exec  $XTRABACKUP --defaults-file=$MYSQLTEST_VARDIR/my.cnf  --backup  --target-dir=$targetdir  --lock-ddl-per-table --dbug=+d,rename_during_mdl_lock_table;
 
 echo # xtrabackup prepare;

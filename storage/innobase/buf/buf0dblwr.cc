@@ -356,7 +356,7 @@ void buf_dblwr_t::recover()
 
     if (recv_sys.scanned_lsn < lsn)
     {
-      ib::warn() << "Ignoring a doublewrite copy of page " << page_id
+      ib::info() << "Ignoring a doublewrite copy of page " << page_id
                  << " with future log sequence number " << lsn;
       continue;
     }
@@ -669,6 +669,12 @@ void buf_dblwr_t::flush_buffered_writes_completed(const IORequest &request)
       ut_d(buf_dblwr_check_page_lsn(*bpage, static_cast<const byte*>(frame)));
     }
 
+    const lsn_t lsn= mach_read_from_8(my_assume_aligned<8>
+                                      (FIL_PAGE_LSN +
+                                       static_cast<const byte*>(frame)));
+    ut_ad(lsn);
+    ut_ad(lsn >= bpage->oldest_modification());
+    log_write_up_to(lsn, true);
     e.request.node->space->io(e.request, bpage->physical_offset(), e_size,
                               frame, bpage);
   }
@@ -682,7 +688,6 @@ void buf_dblwr_t::flush_buffered_writes()
 {
   if (!is_initialised() || !srv_use_doublewrite_buf)
   {
-    os_aio_wait_until_no_pending_writes();
     fil_flush_file_spaces();
     return;
   }
@@ -706,6 +711,7 @@ void buf_dblwr_t::add_to_batch(const IORequest &request, size_t size)
   ut_ad(request.bpage);
   ut_ad(request.bpage->in_file());
   ut_ad(request.node);
+  ut_ad(request.node->space->purpose == FIL_TYPE_TABLESPACE);
   ut_ad(request.node->space->id == request.bpage->id().space());
   ut_ad(request.node->space->referenced());
   ut_ad(!srv_read_only_mode);

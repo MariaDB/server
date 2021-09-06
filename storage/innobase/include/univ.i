@@ -56,16 +56,6 @@ component, i.e. we show M.N.P as M.N */
 (time in seconds) */
 #define INNODB_EXTEND_TIMEOUT_INTERVAL 30
 
-#ifdef MYSQL_DYNAMIC_PLUGIN
-/* In the dynamic plugin, redefine some externally visible symbols
-in order not to conflict with the symbols of a builtin InnoDB. */
-
-/* Rename all C++ classes that contain virtual functions, because we
-have not figured out how to apply the visibility=hidden attribute to
-the virtual method table (vtable) in GCC 3. */
-# define ha_innobase ha_innodb
-#endif /* MYSQL_DYNAMIC_PLUGIN */
-
 #if defined(_WIN32)
 # include <windows.h>
 #endif /* _WIN32 */
@@ -205,16 +195,6 @@ using the call command. */
 #define UNIV_LIGHT_MEM_DEBUG			/* light memory debugging */
 
 // #define UNIV_SQL_DEBUG
-
-/* Linkage specifier for non-static InnoDB symbols (variables and functions)
-that are only referenced from within InnoDB, not from MySQL. We disable the
-GCC visibility directive on all Sun operating systems because there is no
-easy way to get it to work. See http://bugs.mysql.com/bug.php?id=52263. */
-#if defined(__GNUC__) && (__GNUC__ >= 4) && !defined(sun) || defined(__INTEL_COMPILER)
-# define UNIV_INTERN __attribute__((visibility ("hidden")))
-#else
-# define UNIV_INTERN
-#endif
 
 #ifndef MY_ATTRIBUTE
 #if defined(__GNUC__)
@@ -507,14 +487,21 @@ it is read or written. */
 #  define UNIV_PREFETCH_RW(addr) ((void) 0)
 # endif /* COMPILER_HINTS */
 
-# elif defined __WIN__ && defined COMPILER_HINTS
-# include <xmmintrin.h>
+# elif defined _MSC_VER && defined COMPILER_HINTS
 # define UNIV_EXPECT(expr,value) (expr)
 # define UNIV_LIKELY_NULL(expr) (expr)
-// __MM_HINT_T0 - (temporal data)
-// prefetch data into all levels of the cache hierarchy.
-# define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
-# define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# if defined _M_IX86 || defined _M_X64
+   // __MM_HINT_T0 - (temporal data)
+   // prefetch data into all levels of the cache hierarchy.
+#  define UNIV_PREFETCH_R(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+#  define UNIV_PREFETCH_RW(addr) _mm_prefetch((char *) addr, _MM_HINT_T0)
+# elif defined _M_ARM64
+#  define UNIV_PREFETCH_R(addr) __prefetch(addr)
+#  define UNIV_PREFETCH_RW(addr) __prefetch(addr)
+# else
+#  define UNIV_PREFETCH_R ((void) 0)
+#  define  UNIV_PREFETCH_RW(addr) ((void) 0)
+# endif
 #else
 /* Dummy versions of the macros */
 # define UNIV_EXPECT(expr,value) (expr)
@@ -550,7 +537,6 @@ typedef unsigned int mysql_pfs_key_t;
 # ifdef UNIV_PFS_MUTEX
 extern mysql_pfs_key_t buf_pool_mutex_key;
 extern mysql_pfs_key_t dict_foreign_err_mutex_key;
-extern mysql_pfs_key_t dict_sys_mutex_key;
 extern mysql_pfs_key_t fil_system_mutex_key;
 extern mysql_pfs_key_t flush_list_mutex_key;
 extern mysql_pfs_key_t fts_cache_mutex_key;

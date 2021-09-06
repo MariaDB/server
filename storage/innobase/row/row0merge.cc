@@ -515,7 +515,9 @@ row_merge_buf_add(
 	DBUG_ENTER("row_merge_buf_add");
 
 	if (buf->n_tuples >= buf->max_tuples) {
-		DBUG_RETURN(0);
+error:
+		n_row_added = 0;
+		goto end;
 	}
 
 	DBUG_EXECUTE_IF(
@@ -682,7 +684,10 @@ row_merge_buf_add(
 				continue;
 			}
 
-			if (field->len != UNIV_SQL_NULL
+			/* innobase_get_computed_value() sets the
+			length of the virtual column field. */
+			if (v_col == NULL
+			    && field->len != UNIV_SQL_NULL
 			    && col->mtype == DATA_MYSQL
 			    && col->len != field->len) {
 				if (conv_heap != NULL) {
@@ -838,11 +843,6 @@ end:
         if (vcol_storage.innobase_record)
 		innobase_free_row_for_vcol(&vcol_storage);
 	DBUG_RETURN(n_row_added);
-
-error:
-        if (vcol_storage.innobase_record)
-		innobase_free_row_for_vcol(&vcol_storage);
-        DBUG_RETURN(0);
 }
 
 /*************************************************************//**
@@ -1110,10 +1110,8 @@ Write a merge block to the file system.
 @return whether the request was completed successfully
 @retval	false	on error
 @retval	true	on success */
-UNIV_INTERN
 bool
 row_merge_write(
-/*============*/
 	const pfs_os_file_t&	fd,			/*!< in: file descriptor */
 	ulint		offset,			/*!< in: offset where to write,
 						in number of row_merge_block_t elements */
@@ -2687,16 +2685,18 @@ write_buffers:
 						new_table, psort_info, row, ext,
 						&doc_id, conv_heap,
 						&err, &v_heap, eval_table, trx)))) {
-					/* An empty buffer should have enough
-					room for at least one record. */
-					ut_error;
+                                        /* An empty buffer should have enough
+                                        room for at least one record. */
+					ut_ad(err == DB_COMPUTE_VALUE_FAILED
+					      || err == DB_OUT_OF_MEMORY
+					      || err == DB_TOO_BIG_RECORD);
+				} else if (err == DB_SUCCESS) {
+					file->n_rec += rows_added;
+					continue;
 				}
 
-				if (err != DB_SUCCESS) {
-					break;
-				}
-
-				file->n_rec += rows_added;
+				trx->error_key_num = i;
+				break;
 			}
 		}
 
@@ -3678,14 +3678,14 @@ row_merge_drop_index_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	info = pars_info_create();
 	pars_info_add_ull_literal(info, "indexid", index_id);
 	trx->op_info = "dropping index from dictionary";
-	error = que_eval_sql(info, sql, FALSE, trx);
+	error = que_eval_sql(info, sql, trx);
 
 	if (error != DB_SUCCESS) {
 		/* Even though we ensure that DDL transactions are WAIT
@@ -3704,6 +3704,7 @@ row_merge_drop_index_dict(
 Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
 because the transaction will not be committed. */
+static
 void
 row_merge_drop_indexes_dict(
 /*========================*/
@@ -3740,9 +3741,9 @@ row_merge_drop_indexes_dict(
 	pars_info_t*	info;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	/* It is possible that table->n_ref_count > 1 when
 	locked=TRUE. In this case, all code that should have an open
@@ -3754,7 +3755,7 @@ row_merge_drop_indexes_dict(
 	info = pars_info_create();
 	pars_info_add_ull_literal(info, "tableid", table_id);
 	trx->op_info = "dropping indexes";
-	error = que_eval_sql(info, sql, FALSE, trx);
+	error = que_eval_sql(info, sql, trx);
 
 	switch (error) {
 	case DB_SUCCESS:
@@ -3789,7 +3790,7 @@ static void row_merge_drop_fulltext_indexes(trx_t *trx, dict_table_t *table)
       return;
 
   fts_optimize_remove_table(table);
-  fts_drop_tables(trx, table);
+  fts_drop_tables(trx, *table);
   fts_free(table);
   DICT_TF2_FLAG_UNSET(table, DICT_TF2_FTS);
 }
@@ -3813,9 +3814,9 @@ row_merge_drop_indexes(
 	dict_index_t*	next_index;
 
 	ut_ad(!srv_read_only_mode);
-	ut_ad(trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
-	ut_d(dict_sys.assert_locked());
+	ut_ad(dict_sys.locked());
 
 	index = dict_table_get_first_index(table);
 	ut_ad(dict_index_is_clust(index));
@@ -3829,18 +3830,10 @@ row_merge_drop_indexes(
 	handle to the table be waiting for the next statement to execute,
 	or waiting for a meta-data lock.
 
-	A concurrent purge will be prevented by dict_sys.latch. */
+	A concurrent purge will be prevented by MDL. */
 
 	if (!locked && (table->get_ref_count() > 1
 			|| table->has_lock_other_than(alter_trx))) {
-		/* We will have to drop the indexes later, when the
-		table is guaranteed to be no longer in use.  Mark the
-		indexes as incomplete and corrupted, so that other
-		threads will stop using them.  Let dict_table_close()
-		or crash recovery or the next invocation of
-		prepare_inplace_alter_table() take care of dropping
-		the indexes. */
-
 		while ((index = dict_table_get_next_index(index)) != NULL) {
 			ut_ad(!dict_index_is_clust(index));
 
@@ -3900,7 +3893,7 @@ row_merge_drop_indexes(
 				index->lock.x_unlock();
 
 				DEBUG_SYNC_C("merge_drop_index_after_abort");
-				/* covered by dict_sys.mutex */
+				/* covered by dict_sys.latch */
 				MONITOR_INC(MONITOR_BACKGROUND_DROP_INDEX);
 				/* fall through */
 			case ONLINE_INDEX_ABORTED:
@@ -3967,7 +3960,7 @@ row_merge_drop_indexes(
 				break;
 			case ONLINE_INDEX_ABORTED:
 			case ONLINE_INDEX_ABORTED_DROPPED:
-				/* covered by dict_sys.mutex */
+				/* covered by dict_sys.latch */
 				MONITOR_DEC(MONITOR_BACKGROUND_DROP_INDEX);
 			}
 
@@ -4036,7 +4029,7 @@ static ibool row_merge_drop_fts(void *node, void *trx)
               (mach_read_from_8(static_cast<const byte*>(index_id->data))));
      auto pinfo= pars_info_create();
      pars_info_add_str_literal(pinfo, "name", buf);
-     que_eval_sql(pinfo, sql, false, static_cast<trx_t*>(trx));
+     que_eval_sql(pinfo, sql, static_cast<trx_t*>(trx));
    }
 
    return true;
@@ -4094,7 +4087,10 @@ void row_merge_drop_temp_indexes()
 	indexes, so that the data dictionary information can be checked
 	when accessing the tablename.ibd files. */
 	trx_t* trx = trx_create();
+	trx_start_for_ddl(trx);
 	trx->op_info = "dropping partially created indexes";
+	dberr_t error = lock_sys_tables(trx);
+
 	row_mysql_lock_data_dictionary(trx);
 	/* Ensure that this transaction will be rolled back and locks
 	will be released, if the server gets killed before the commit
@@ -4105,8 +4101,11 @@ void row_merge_drop_temp_indexes()
 
 	pars_info_t* pinfo = pars_info_create();
 	pars_info_bind_function(pinfo, "drop_fts", row_merge_drop_fts, trx);
+	if (error == DB_SUCCESS) {
+		error = que_eval_sql(pinfo, sql, trx);
+	}
 
-	if (dberr_t error = que_eval_sql(pinfo, sql, FALSE, trx)) {
+	if (error) {
 		/* Even though we ensure that DDL transactions are WAIT
 		and DEADLOCK free, we could encounter other errors e.g.,
 		DB_TOO_MANY_CONCURRENT_TRXS. */
@@ -4246,7 +4245,7 @@ row_merge_rename_index_to_add(
 		"WHERE TABLE_ID = :tableid AND ID = :indexid;\n"
 		"END;\n";
 
-	ut_a(trx->dict_operation_lock_mode == RW_X_LATCH);
+	ut_ad(trx->dict_operation_lock_mode);
 	ut_ad(trx->dict_operation);
 
 	trx->op_info = "renaming index to add";
@@ -4254,7 +4253,7 @@ row_merge_rename_index_to_add(
 	pars_info_add_ull_literal(info, "tableid", table_id);
 	pars_info_add_ull_literal(info, "indexid", index_id);
 
-	err = que_eval_sql(info, rename_index, FALSE, trx);
+	err = que_eval_sql(info, rename_index, trx);
 
 	if (err != DB_SUCCESS) {
 		/* Even though we ensure that DDL transactions are WAIT

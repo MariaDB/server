@@ -96,7 +96,7 @@
 #define ER_SPIDER_ALTER_BEFORE_UNLOCK_NUM 12622
 #define ER_SPIDER_ALTER_BEFORE_UNLOCK_STR "Can't use this operation before executing 'unlock tables'"
 #define ER_SPIDER_REMOTE_SERVER_GONE_AWAY_NUM 12701
-#define ER_SPIDER_REMOTE_SERVER_GONE_AWAY_STR "Remote MySQL server has gone away"
+#define ER_SPIDER_REMOTE_SERVER_GONE_AWAY_STR "Remote MariaDB server has gone away"
 #define ER_SPIDER_REMOTE_SERVER_GONE_AWAY_LEN (sizeof(ER_SPIDER_REMOTE_SERVER_GONE_AWAY_STR) - 1)
 #define ER_SPIDER_REMOTE_TABLE_NOT_FOUND_NUM 12702
 #define ER_SPIDER_REMOTE_TABLE_NOT_FOUND_STR "Remote table '%s.%s' is not found"

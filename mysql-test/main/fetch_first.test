@@ -1042,3 +1042,13 @@ SELECT SQL_BUFFER_RESULT 1 AS f FROM t1 ORDER BY f FETCH NEXT 2 ROW WITH TIES;
 SELECT 1 AS f FROM t1 ORDER BY f FETCH NEXT 2 ROW WITH TIES;
 
 drop table t1;
+
+--echo #
+--echo # MDEV-25481: Memory leak upon query WITH TIES involving a blob
+--echo #
+CREATE TABLE t (a TEXT);
+INSERT INTO t VALUES ('foo'),('bar');
+SELECT a FROM t ORDER BY a FETCH FIRST 2 ROWS WITH TIES;
+
+# Cleanup
+DROP TABLE t;

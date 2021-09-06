@@ -22,7 +22,7 @@ connection con1;
 --echo #
 
 call mtr.add_suppression("Got an error from thread_id=.*ha_myisam.cc:");
-call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
+call mtr.add_suppression("MariaDB thread id .*, query id .* localhost.*root Checking table");
 call mtr.add_suppression(" '\..test.t1'");
 
 set @save_table_open_cache=@@table_open_cache;

@@ -18,7 +18,7 @@ SELECT 1;
 
 # Confirm that transfer was SSL-encrypted
 --let $assert_text = Using openssl based encryption with socat
---let $assert_select = Using openssl based encryption with socat: with key and c
+--let $assert_select = Using openssl based encryption with socat: with key and crt
 --let $assert_count = 1
 --let $assert_file = $MYSQLTEST_VARDIR/log/mysqld.1.err
 --let $assert_only_after = CURRENT_TEST

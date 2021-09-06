@@ -1,4 +1,9 @@
+if(Java_JAVA_EXECUTABLE)
+  set(JAVA_FOUND TRUE)
+  return()
+endif()
 if(DEFINED Java_JAVA_EXECUTABLE)
+  set(JAVA_FOUND FALSE)
   return()
 endif()
 

@@ -247,6 +247,7 @@ CALL comment();
 CALL comment;
 DROP PROCEDURE comment;
 
+enable_prepare_warnings;
 DELIMITER /;
 CREATE FUNCTION comment RETURN INT COMMENT 'test' AS
 BEGIN
@@ -254,7 +255,6 @@ BEGIN
 END;
 /
 DELIMITER ;/
-enable_prepare_warnings;
 SELECT test.comment() FROM DUAL;
 disable_prepare_warnings;
 DROP FUNCTION comment;
@@ -570,8 +570,8 @@ call p1(1,2);
 
 drop procedure p1;
 
-delimiter //;
 set sql_mode=ORACLE;
+delimiter //;
 create or replace procedure p1(id int, dt int) as
 begin
   while (1)
@@ -652,4 +652,76 @@ SELECT CAST(1 AS BEGIN);
 
 --echo #
 --echo # End of 10.5 tests
+--echo #
+
+
+--echo #
+--echo # Start of 10.6 tests
+--echo #
+
+--echo #
+--echo # MDEV-19682 sql_mode="oracle" does not support sysdate
+--echo #
+
+# SYSDATE is not deterministic. Let's use LIKE and equality.
+# The main point here is only to check that SYSDATE
+# gets parsed without parentheses. The actial value is not important.
+SELECT sysdate LIKE '____-__-__ __:__:__';
+SELECT sysdate = sysdate();
+SELECT sysdate = sysdate(0);
+
+--error ER_PARSE_ERROR
+CREATE DATABASE sysdate;
+
+--error ER_PARSE_ERROR
+CREATE TABLE sysdate (a INT);
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (sysdate INT);
+
+--error ER_PARSE_ERROR
+CREATE TABLE t1 (a sysdate);
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION sysdate RETURN INT AS
+BEGIN
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+CREATE FUNCTION sysdate() RETURN INT AS
+BEGIN
+  RETURN 1;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+DECLARE
+  sysdate INT := 10;
+BEGIN
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+DELIMITER $$;
+--error ER_PARSE_ERROR
+BEGIN
+<<sysdate>>
+  NULL;
+END;
+$$
+DELIMITER ;$$
+
+
+--echo #
+--echo # End of 10.6 tests
 --echo #

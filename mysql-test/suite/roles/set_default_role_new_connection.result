@@ -23,7 +23,7 @@ Grants for test_user@localhost
 GRANT `test_role` TO `test_user`@`localhost`
 GRANT USAGE ON *.* TO `test_user`@`localhost`
 GRANT SELECT ON *.* TO `test_role`
-SET DEFAULT ROLE test_role FOR 'test_user'@'localhost'
+SET DEFAULT ROLE `test_role` FOR `test_user`@`localhost`
 select user, host, default_role from mysql.user where user = 'test_user';
 User	Host	default_role
 test_user	localhost	test_role
@@ -52,7 +52,7 @@ Grants for test_user@localhost
 GRANT `test_role` TO `test_user`@`localhost`
 GRANT USAGE ON *.* TO `test_user`@`localhost`
 GRANT SELECT ON *.* TO `test_role`
-SET DEFAULT ROLE test_role FOR 'test_user'@'localhost'
+SET DEFAULT ROLE `test_role` FOR `test_user`@`localhost`
 select user, host, default_role from mysql.user where user = 'test_user';
 User	Host	default_role
 test_user	localhost	test_role

@@ -486,8 +486,6 @@ row_quiesce_table_has_fts_index(
 {
 	bool			exists = false;
 
-	dict_sys.mutex_lock();
-
 	for (const dict_index_t* index = UT_LIST_GET_FIRST(table->indexes);
 	     index != 0;
 	     index = UT_LIST_GET_NEXT(indexes, index)) {
@@ -497,8 +495,6 @@ row_quiesce_table_has_fts_index(
 			break;
 		}
 	}
-
-	dict_sys.mutex_unlock();
 
 	return(exists);
 }
@@ -536,7 +532,7 @@ row_quiesce_table_start(
 		}
 	}
 
-	while (buf_flush_dirty_pages(table->space_id)) {
+	while (buf_flush_list_space(table->space)) {
 		if (trx_is_interrupted(trx)) {
 			goto aborted;
 		}
@@ -671,8 +667,6 @@ row_quiesce_set_state(
 
 	dict_index_t* clust_index = dict_table_get_first_index(table);
 
-	row_mysql_lock_data_dictionary(trx);
-
 	for (dict_index_t* index = dict_table_get_next_index(clust_index);
 	     index != NULL;
 	     index = dict_table_get_next_index(index)) {
@@ -701,8 +695,6 @@ row_quiesce_set_state(
 	     index = dict_table_get_next_index(index)) {
 		index->lock.x_unlock();
 	}
-
-	row_mysql_unlock_data_dictionary(trx);
 
 	return(DB_SUCCESS);
 }

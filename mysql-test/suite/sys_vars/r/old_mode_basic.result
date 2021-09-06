@@ -1,22 +1,22 @@
 SET @global_start_value = @@global.old_mode;
 SELECT @global_start_value;
 @global_start_value
-
+UTF8_IS_UTF8MB3
 SET @session_start_value = @@session.old_mode;
 SELECT @session_start_value;
 @session_start_value
-
+UTF8_IS_UTF8MB3
 '#--------------------FN_DYNVARS_152_01------------------------#'
 SET @@global.old_mode = "NO_PROGRESS_INFO";
 SET @@global.old_mode = DEFAULT;
 SELECT @@global.old_mode;
 @@global.old_mode
-
+UTF8_IS_UTF8MB3
 SET @@session.old_mode = "NO_PROGRESS_INFO";
 SET @@session.old_mode = DEFAULT;
 SELECT @@session.old_mode;
 @@session.old_mode
-
+UTF8_IS_UTF8MB3
 '#---------------------FN_DYNVARS_152_02-------------------------#'
 SET @@global.old_mode = NULL;
 ERROR 42000: Variable 'old_mode' can't be set to the value of 'NULL'
@@ -114,8 +114,8 @@ SET @@global.old_mode = 4;
 SELECT @@global.old_mode;
 @@global.old_mode
 ZERO_DATE_TIME_CAST
-SET @@global.old_mode = 8;
-ERROR 42000: Variable 'old_mode' can't be set to the value of '8'
+SET @@global.old_mode = 16;
+ERROR 42000: Variable 'old_mode' can't be set to the value of '16'
 SELECT @@global.old_mode;
 @@global.old_mode
 ZERO_DATE_TIME_CAST
@@ -167,8 +167,100 @@ NO_PROGRESS_INFO
 SET @@global.old_mode = @global_start_value;
 SELECT @@global.old_mode;
 @@global.old_mode
-
+UTF8_IS_UTF8MB3
 SET @@session.old_mode = @session_start_value;
 SELECT @@session.old_mode;
 @@session.old_mode
-
+UTF8_IS_UTF8MB3
+#
+# Beginning of 10.6 test
+#
+# MDEV-8334: Rename utf8 to utf8mb3
+#
+# Save and display old values
+SET @save_old_mode = @@OLD_MODE;
+SET @save_character_set_server = @@character_set_server;
+SET @save_character_set_client = @@character_set_client;
+SET @save_character_set_results = @@character_set_results;
+SET @save_character_set_connection = @@character_set_connection;
+SET @save_character_set_filesystem = @@character_set_filesystem;
+SET @save_character_set_database = @@character_set_database;
+SET @save_collation_connection = @@collation_connection;
+SET @save_collation_server = @@collation_server;
+SET @save_collation_database = @@collation_database;
+SELECT @@OLD_MODE;
+@@OLD_MODE
+UTF8_IS_UTF8MB3
+SELECT @@character_set_server,@@character_set_client,@@character_set_results,
+@@character_set_connection, @@character_set_filesystem, @@character_set_database,
+@@collation_connection, @@collation_server, @@collation_database;
+@@character_set_server	@@character_set_client	@@character_set_results	@@character_set_connection	@@character_set_filesystem	@@character_set_database	@@collation_connection	@@collation_server	@@collation_database
+latin1	latin1	latin1	latin1	binary	latin1	latin1_swedish_ci	latin1_swedish_ci	latin1_swedish_ci
+#
+# UTF8MB3 alias for UTF8
+#
+SET @@character_set_server = utf8;
+SET @@character_set_client = utf8;
+SET @@character_set_results = utf8;
+SET @@character_set_connection = utf8;
+SET @@character_set_filesystem = utf8;
+SET @@character_set_database = utf8;
+SET @@collation_connection = utf8_general_ci;
+SET @@collation_server = utf8_unicode_ci;
+SET @@collation_database = utf8_bin;
+SELECT @@character_set_server, @@character_set_client, @@character_set_results,
+@@character_set_connection, @@character_set_filesystem, @@character_set_database,
+@@collation_connection, @@collation_server, @@collation_database;
+@@character_set_server	@@character_set_client	@@character_set_results	@@character_set_connection	@@character_set_filesystem	@@character_set_database	@@collation_connection	@@collation_server	@@collation_database
+utf8mb3	utf8mb3	utf8mb3	utf8mb3	utf8mb3	utf8mb3	utf8mb3_general_ci	utf8mb3_unicode_ci	utf8mb3_bin
+CREATE DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_general_ci';
+ALTER DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_unicode_ci';
+CREATE TABLE tb1 (id1 INT) CHARACTER SET 'utf8' COLLATE 'utf8_bin';
+SHOW CREATE TABLE tb1;
+Table	Create Table
+tb1	CREATE TABLE `tb1` (
+  `id1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin
+DROP TABLE tb1;
+DROP DATABASE db1;
+#
+# UTF8MB4 is alias for UTF8
+#
+SET @@OLD_MODE=0;
+SET @@character_set_server = utf8;
+SET @@character_set_client = utf8;
+SET @@character_set_results = utf8;
+SET @@character_set_connection = utf8;
+SET @@character_set_filesystem = utf8;
+SET @@character_set_database = utf8;
+SET @@collation_connection = utf8_general_ci;
+SET @@collation_server = utf8_unicode_ci;
+SET @@collation_database = utf8_bin;
+SELECT @@character_set_server, @@character_set_client, @@character_set_results,
+@@character_set_connection, @@character_set_filesystem, @@character_set_database,
+@@collation_connection, @@collation_server, @@collation_database;
+@@character_set_server	@@character_set_client	@@character_set_results	@@character_set_connection	@@character_set_filesystem	@@character_set_database	@@collation_connection	@@collation_server	@@collation_database
+utf8mb4	utf8mb4	utf8mb4	utf8mb4	utf8mb4	utf8mb4	utf8mb4_general_ci	utf8mb4_unicode_ci	utf8mb4_bin
+CREATE DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_general_ci';
+ALTER DATABASE db1 CHARACTER SET = 'utf8' COLLATE = 'utf8_unicode_ci';
+CREATE TABLE tb1 (id1 INT) CHARACTER SET 'utf8' COLLATE 'utf8_bin';
+SHOW CREATE TABLE tb1;
+Table	Create Table
+tb1	CREATE TABLE `tb1` (
+  `id1` int(11) DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_bin
+DROP TABLE tb1;
+DROP DATABASE db1;
+SET @@OLD_MODE = @save_old_mode;
+SET @@character_set_server = @save_character_set_server;
+SET @@character_set_client = @save_character_set_client;
+SET @@character_set_results = @save_character_set_results;
+SET @@character_set_connection = @save_character_set_connection;
+SET @@character_set_filesystem = @save_character_set_filesystem;
+SET @@character_set_database = @save_character_set_database;
+SET @@collation_connection = @save_collation_connection;
+SET @@collation_server = @save_collation_server;
+SET @@collation_database = @save_collation_database;
+#
+# End of 10.6 test
+#

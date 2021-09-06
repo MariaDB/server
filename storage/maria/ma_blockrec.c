@@ -4912,9 +4912,11 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
     case FIELD_VARCHAR:
     {
       ulong length;
+      uint pack_length __attribute__((unused));
       if (column->length <= 256)
       {
         length= (uint) (uchar) (*field_pos++= *field_length_data++);
+        pack_length= 1;
       }
       else
       {
@@ -4923,14 +4925,16 @@ int _ma_read_block_record2(MARIA_HA *info, uchar *record,
         field_pos[1]= field_length_data[1];
         field_pos+= 2;
         field_length_data+= 2;
+        pack_length= 2;
       }
 #ifdef SANITY_CHECKS
-      if (length > column->length)
+      if (length > column->length - pack_length)
         goto err;
 #endif
       if (read_long_data(info, field_pos, length, &extent, &data,
                          &end_of_data))
         DBUG_RETURN(my_errno);
+      MEM_UNDEFINED(field_pos + length, column->length - length - pack_length);
       break;
     }
     case FIELD_BLOB:

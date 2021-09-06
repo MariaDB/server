@@ -315,7 +315,7 @@ parse_arguments `"$print_defaults" $defaults $defaults_group_suffix --mysqld mys
 
 parse_arguments PICK-ARGS-FROM-ARGV "$@"
 
-rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mysqld"
+rel_mysqld="$dirname0/@INSTALL_SBINDIR@/mariadbd"
 
 # Configure paths to support files
 if test -n "$srcdir"
@@ -338,11 +338,11 @@ then
     cannot_find_file resolveip @resolveip_locations@
     exit 1
   fi
-  mysqld=`find_in_dirs mysqld @mysqld_locations@`
+  mysqld=`find_in_dirs mariadbd @mysqld_locations@`
   if test -z "$mysqld"
   then
-    cannot_find_file mysqld @mysqld_locations@
-    exit 1
+      cannot_find_file mariadbd @mysqld_locations@
+      exit 1
   fi
   langdir=`find_in_dirs --dir errmsg.sys @errmsg_locations@`
   if test -z "$langdir"
@@ -360,7 +360,7 @@ then
   plugindir=`find_in_dirs --dir auth_pam.so $basedir/lib*/plugin $basedir/lib*/mysql/plugin $basedir/lib/*/mariadb19/plugin`
   pamtooldir=$plugindir
 # relative from where the script was run for a relocatable install
-elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mysqld"
+elif test -n "$dirname0" -a -x "$rel_mysqld" -a ! "$rel_mysqld" -ef "@sbindir@/mariadbd"
 then
   basedir="$dirname0"
   bindir="$basedir/@INSTALL_BINDIR@"
@@ -374,7 +374,7 @@ else
   basedir="@prefix@"
   bindir="@bindir@"
   resolveip="$bindir/resolveip"
-  mysqld="@sbindir@/mysqld"
+  mysqld="@sbindir@/mariadbd"
   srcpkgdatadir="@pkgdatadir@"
   buildpkgdatadir="@pkgdatadir@"
   plugindir="@pkgplugindir@"
@@ -580,7 +580,7 @@ else
   echo
   echo "    shell> $mysqld --skip-grant-tables --general-log &"
   echo
-  echo "and use the command line tool $bindir/mysql"
+  echo "and use the command line tool $bindir/mariadb"
   echo "to connect to the mysql database and look at the grant tables:"
   echo
   echo "    shell> $bindir/mysql -u root mysql"
@@ -612,12 +612,8 @@ then
     echo
     echo
     echo "PLEASE REMEMBER TO SET A PASSWORD FOR THE MariaDB root USER !"
-    echo "To do so, start the server, then issue the following commands:"
+    echo "To do so, start the server, then issue the following command:"
     echo
-    echo "'$bindir/mysqladmin' -u root password 'new-password'"
-    echo "'$bindir/mysqladmin' -u root -h $hostname password 'new-password'"
-    echo
-    echo "Alternatively you can run:"
     echo "'$bindir/mysql_secure_installation'"
     echo
     echo "which will also give you the option of removing the test"

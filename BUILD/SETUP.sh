@@ -32,6 +32,7 @@ Usage: $0 [-h|-n] [configure-options]
   -n, --just-print        Don't actually run any commands; just print them.
   -c, --just-configure    Stop after running configure.
                           Combined with --just-print shows configure options.
+  --just-clean            Clean up compilation files and update sub modules
   --extra-configs=xxx     Add this to configure options
   --extra-flags=xxx       Add this C and CXX flags
   --extra-cflags=xxx      Add this to C flags
@@ -71,6 +72,8 @@ parse_options()
       just_configure=1;;
     -n | --just-print | --print)
       just_print=1;;
+    --just-clean)
+    just_clean=1;;
     --verbose)
       verbose_make=1;;
     -h | --help)
@@ -94,6 +97,7 @@ fi
 
 prefix="/usr/local/mysql"
 just_print=
+just_clean=
 just_configure=
 warning_mode=
 maintainer_mode=
@@ -270,13 +274,7 @@ fi
 # As cmake doesn't like CC and CXX with a space, use symlinks from
 # /usr/lib64/ccache if they exits.
 
-if test "$USING_GCOV" != "1"
-then
-  # Not using gcov; Safe to use ccache
-  CCACHE_GCOV_VERSION_ENABLED=1
-fi
-
-if ccache -V > /dev/null 2>&1 && test "$CCACHE_GCOV_VERSION_ENABLED" = "1"
+if ccache -V > /dev/null 2>&1 && test "$CCACHE_DISABLE" != "1" && test "$CC" = "gcc"
 then
     if test -x /usr/lib64/ccache/gcc
     then

@@ -1,6 +1,6 @@
 /*
    Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -1500,7 +1500,7 @@ bool Field::make_empty_rec_store_default_value(THD *thd, Item *item)
 Field_num::Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
                      uchar null_bit_arg, utype unireg_check_arg,
                      const LEX_CSTRING *field_name_arg,
-                     uint8 dec_arg, bool zero_arg, bool unsigned_arg)
+                     decimal_digits_t dec_arg, bool zero_arg, bool unsigned_arg)
   :Field(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
          unireg_check_arg, field_name_arg),
   dec(dec_arg),zerofill(zero_arg),unsigned_flag(unsigned_arg)
@@ -1836,12 +1836,12 @@ String *Field::val_int_as_str(String *val_buffer, bool unsigned_val)
 Field::Field(uchar *ptr_arg,uint32 length_arg,uchar *null_ptr_arg,
 	     uchar null_bit_arg,
 	     utype unireg_check_arg, const LEX_CSTRING *field_name_arg)
-  :ptr(ptr_arg), invisible(VISIBLE),
+  :ptr(ptr_arg),
   null_ptr(null_ptr_arg), table(0), orig_table(0),
   table_name(0), field_name(*field_name_arg), option_list(0),
   option_struct(0), key_start(0), part_of_key(0),
   part_of_key_not_clustered(0), part_of_sortkey(0),
-  unireg_check(unireg_check_arg), field_length(length_arg),
+  unireg_check(unireg_check_arg), invisible(VISIBLE), field_length(length_arg),
   null_bit(null_bit_arg), is_created_from_null_item(FALSE),
   read_stats(NULL), collected_stats(0), vcol_info(0), check_constraint(0),
   default_value(0)
@@ -1891,8 +1891,7 @@ void Field::copy_from_tmp(int row_offset)
 
 bool Field::send(Protocol *protocol)
 {
-  char buff[MAX_FIELD_WIDTH];
-  String tmp(buff,sizeof(buff),charset());
+  StringBuffer<MAX_FIELD_WIDTH> tmp(charset());
   val_str(&tmp);
   return protocol->store(tmp.ptr(), tmp.length(), tmp.charset());
 }
@@ -3293,10 +3292,11 @@ Field *Field_decimal::make_new_field(MEM_ROOT *root, TABLE *new_table,
 ** Field_new_decimal
 ****************************************************************************/
 
-static uint get_decimal_precision(uint len, uint8 dec, bool unsigned_val)
+static decimal_digits_t get_decimal_precision(uint len, decimal_digits_t dec,
+                                              bool unsigned_val)
 {
   uint precision= my_decimal_length_to_precision(len, dec, unsigned_val);
-  return MY_MIN(precision, DECIMAL_MAX_PRECISION);
+  return (decimal_digits_t) MY_MIN(precision, DECIMAL_MAX_PRECISION);
 }
 
 Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
@@ -3304,7 +3304,7 @@ Field_new_decimal::Field_new_decimal(uchar *ptr_arg,
                                      uchar null_bit_arg,
                                      enum utype unireg_check_arg,
                                      const LEX_CSTRING *field_name_arg,
-                                     uint8 dec_arg,bool zero_arg,
+                                     decimal_digits_t dec_arg,bool zero_arg,
                                      bool unsigned_arg)
   :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
              unireg_check_arg, field_name_arg, dec_arg, zero_arg, unsigned_arg)
@@ -4833,7 +4833,7 @@ int Field_double::store(longlong nr, bool unsigned_val)
     1   Value was truncated
 */
 
-int truncate_double(double *nr, uint field_length, uint dec,
+int truncate_double(double *nr, uint field_length, decimal_digits_t dec,
                     bool unsigned_flag, double max_value)
 {
   int error= 0;
@@ -5459,7 +5459,7 @@ bool Field_timestamp0::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp0::get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, 0);
+  return protocol->store_datetime(&ltime, 0);
 }
 
 
@@ -5619,7 +5619,7 @@ bool Field_timestamp_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   Field_timestamp::get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, dec);
+  return protocol->store_datetime(&ltime, dec);
 }
 
 
@@ -6411,6 +6411,7 @@ bool Field_timef::val_native(Native *to)
 int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
 {
   DBUG_ASSERT(marked_for_write_or_computed());
+  THD *thd= get_thd();
   char *end;
   int error;
   longlong nr= cs->strntoull10rnd(from, len, 0, &end, &error);
@@ -6422,7 +6423,14 @@ int Field_year::store(const char *from, size_t len,CHARSET_INFO *cs)
     set_warning(ER_WARN_DATA_OUT_OF_RANGE, 1);
     return 1;
   }
-  if (get_thd()->count_cuted_fields > CHECK_FIELD_EXPRESSION &&
+
+  if (thd->count_cuted_fields <= CHECK_FIELD_EXPRESSION && error == MY_ERRNO_EDOM)
+  {
+    *ptr= 0;
+    return 1;
+  }
+
+  if (thd->count_cuted_fields > CHECK_FIELD_EXPRESSION && 
       (error= check_int(cs, from, len, end, error)))
   {
     if (unlikely(error == 1)  /* empty or incorrect string */)
@@ -6750,7 +6758,7 @@ String *Field_newdate::val_str(String *val_buffer,
 			       String *val_ptr __attribute__((unused)))
 {
   DBUG_ASSERT(marked_for_read());
-  val_buffer->alloc(field_length);
+  val_buffer->alloc(field_length+1);
   val_buffer->length(field_length);
   uint32 tmp=(uint32) uint3korr(ptr);
   int part;
@@ -6906,7 +6914,7 @@ bool Field_datetime0::send(Protocol *protocol)
 {
   MYSQL_TIME tm;
   Field_datetime0::get_date(&tm, date_mode_t(0));
-  return protocol->store(&tm, 0);
+  return protocol->store_datetime(&tm, 0);
 }
 
 
@@ -6922,7 +6930,7 @@ longlong Field_datetime0::val_int(void)
 String *Field_datetime0::val_str(String *val_buffer,
                                  String *val_ptr __attribute__((unused)))
 {
-  val_buffer->alloc(field_length);
+  val_buffer->alloc(field_length+1);
   val_buffer->length(field_length);
 
   DBUG_ASSERT(marked_for_read());
@@ -7034,7 +7042,7 @@ bool Field_datetime_with_dec::send(Protocol *protocol)
 {
   MYSQL_TIME ltime;
   get_date(&ltime, date_mode_t(0));
-  return protocol->store(&ltime, dec);
+  return protocol->store_datetime(&ltime, dec);
 }
 
 
@@ -7599,7 +7607,7 @@ void Field_string::sql_rpl_type(String *res) const
                                       res->alloced_length(),
                                       "char(%u octets) character set %s",
                                       field_length,
-                                      charset()->csname);
+                                      charset()->cs_name.str);
     res->length(length);
   }
   else
@@ -7867,9 +7875,22 @@ bool Field_varstring::send(Protocol *protocol)
 
 
 #ifdef HAVE_MEM_CHECK
+
+/*
+  Mark the unused part of the varstring as defined.
+
+  This function is only used be Unique when calculating statistics.
+
+  The marking is needed as we write the whole tree to disk in case of
+  overflows.  For using or comparing values the undefined value part
+  is never used. We could also use bzero() here, but it would be
+  slower in production environments.
+  This function is tested by main.stat_tables-enospc
+*/
+
 void Field_varstring::mark_unused_memory_as_defined()
 {
-  uint used_length= get_length();
+  uint used_length __attribute__((unused)) = get_length();
   MEM_MAKE_DEFINED(get_data() + used_length, field_length - used_length);
 }
 #endif
@@ -8048,7 +8069,7 @@ void Field_varstring::sql_rpl_type(String *res) const
                                       res->alloced_length(),
                                       "varchar(%u octets) character set %s",
                                       field_length,
-                                      charset()->csname);
+                                      charset()->cs_name.str);
     res->length(length);
   }
   else
@@ -8616,6 +8637,7 @@ int Field_blob::store(const char *from,size_t length,CHARSET_INFO *cs)
   rc= well_formed_copy_with_check((char*) value.ptr(), (uint) new_length,
                                   cs, from, length,
                                   length, true, &copy_len);
+  value.length(copy_len);
   Field_blob::store_length(copy_len);
   bmove(ptr+packlength,(uchar*) &tmp,sizeof(char*));
 
@@ -9381,16 +9403,6 @@ String *Field_set::val_str(String *val_buffer,
   ulonglong tmp=(ulonglong) Field_enum::val_int();
   uint bitnr=0;
 
-  /*
-    Some callers expect *val_buffer to contain the result,
-    so we assign to it, rather than doing 'return &empty_set_string.
-  */
-  *val_buffer= empty_set_string;
-  if (tmp == 0)
-  {
-    return val_buffer;
-  }
-
   val_buffer->set_charset(field_charset());
   val_buffer->length(0);
 
@@ -9400,8 +9412,7 @@ String *Field_set::val_str(String *val_buffer,
     {
       if (val_buffer->length())
 	val_buffer->append(&field_separator, 1, &my_charset_latin1);
-      String str(typelib->type_names[bitnr],
-		 typelib->type_lengths[bitnr],
+      String str(typelib->type_names[bitnr], typelib->type_lengths[bitnr],
 		 field_charset());
       val_buffer->append(str);
     }
@@ -10402,7 +10413,8 @@ void Column_definition::create_length_to_internal_length_bit()
 void Column_definition::create_length_to_internal_length_newdecimal()
 {
   DBUG_ASSERT(length < UINT_MAX32);
-  uint prec= get_decimal_precision((uint)length, decimals, flags & UNSIGNED_FLAG);
+  decimal_digit_t prec= get_decimal_precision((uint)length, decimals,
+                                              flags & UNSIGNED_FLAG);
   pack_length= my_decimal_get_binary_size(prec, decimals);
 }
 
@@ -10738,24 +10750,24 @@ bool Field_vers_trx_id::test_if_equality_guarantees_uniqueness(const Item* item)
 
 Column_definition_attributes::Column_definition_attributes(const Field *field)
  :length(field->character_octet_length() / field->charset()->mbmaxlen),
-  decimals(field->decimals()),
-  unireg_check(field->unireg_check),
   interval(NULL),
   charset(field->charset()), // May be NULL ptr
   srid(0),
-  pack_flag(0)
+  pack_flag(0),
+  decimals(field->decimals()),
+  unireg_check(field->unireg_check)
 {}
 
 
 Column_definition_attributes::
   Column_definition_attributes(const Type_all_attributes &attr)
  :length(attr.max_length),
-  decimals(attr.decimals),
-  unireg_check(Field::NONE),
   interval(attr.get_typelib()),
   charset(attr.collation.collation),
   srid(0),
-  pack_flag(attr.unsigned_flag ? 0 : FIELDFLAG_DECIMAL)
+  pack_flag(attr.unsigned_flag ? 0 : FIELDFLAG_DECIMAL),
+  decimals(attr.decimals),
+  unireg_check(Field::NONE)
 {}
 
 
@@ -11359,7 +11371,7 @@ Field::print_key_part_value(String *out, const uchar* key, uint32 length)
     */
     if (*key)
     {
-      out->append(STRING_WITH_LEN("NULL"));
+      out->append(NULL_clex_str);
       return;
     }
     null_byte++;  // Skip null byte

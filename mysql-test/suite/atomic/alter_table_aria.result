@@ -1,0 +1,1741 @@
+create database test2;
+RESET MASTER;
+
+engine: aria
+
+
+query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+crash point: ddl_log_alter_before_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_delete_backup
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+crash point: ddl_log_alter_after_drop_original_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new"
+
+query: ALTER TABLE t1 COMMENT "new"
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+"No crash!"
+crash point: ddl_log_alter_after_prepare_inplace
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
+crash point: ddl_log_alter_after_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_backup_log
+"No crash!"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+"No crash!"
+crash point: ddl_log_alter_before_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_delete_backup
+"No crash!"
+crash point: ddl_log_alter_after_drop_original_table
+"No crash!"
+
+query: ALTER TABLE t1 change column a c int COMMENT "new"
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+"No crash!"
+crash point: ddl_log_alter_after_prepare_inplace
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
+crash point: ddl_log_alter_after_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_backup_log
+"No crash!"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+"No crash!"
+crash point: ddl_log_alter_before_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_delete_backup
+"No crash!"
+crash point: ddl_log_alter_after_drop_original_table
+"No crash!"
+
+query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_log
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_to_backup
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_to_backup_log
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+crash point: ddl_log_alter_before_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+crash point: ddl_log_alter_after_delete_backup
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+crash point: ddl_log_alter_after_drop_original_table
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2
+
+query: ALTER TABLE t1 disable keys
+
+crash point: ddl_log_alter_after_create_frm
+"No crash!"
+crash point: ddl_log_alter_after_create_table
+"No crash!"
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+"No crash!"
+crash point: ddl_log_alter_after_log
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_backup
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_backup_log
+"No crash!"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+"No crash!"
+crash point: ddl_log_alter_before_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_delete_backup
+"No crash!"
+crash point: ddl_log_alter_after_drop_original_table
+"No crash!"
+
+query: ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+crash point: ddl_log_alter_before_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_delete_backup
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+crash point: ddl_log_alter_after_drop_original_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, ALGORITHM=copy, COMMENT "new"
+
+query: ALTER TABLE t1 rename t2
+
+crash point: ddl_log_alter_after_create_frm
+"No crash!"
+crash point: ddl_log_alter_after_create_table
+"No crash!"
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+"No crash!"
+crash point: ddl_log_alter_after_log
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_backup
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_backup_log
+"No crash!"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+"No crash!"
+crash point: ddl_log_alter_before_rename_triggers
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_rename_triggers
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_delete_backup
+"No crash!"
+crash point: ddl_log_alter_after_drop_original_table
+"No crash!"
+
+query: ALTER TABLE t1 COMMENT "new", rename t2
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+"No crash!"
+crash point: ddl_log_alter_after_prepare_inplace
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_copy
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+crash point: ddl_log_alter_after_log
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_to_backup
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_backup_log
+"No crash!"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+"No crash!"
+crash point: ddl_log_alter_before_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename t2
+crash point: ddl_log_alter_after_delete_backup
+"No crash!"
+crash point: ddl_log_alter_after_drop_original_table
+"No crash!"
+
+query: ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+"No crash!"
+crash point: ddl_log_alter_after_prepare_inplace
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_copy
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+crash point: ddl_log_alter_after_log
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_to_backup
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_backup_log
+"No crash!"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+"No crash!"
+crash point: ddl_log_alter_before_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+crash point: ddl_log_alter_after_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", rename t2
+crash point: ddl_log_alter_after_delete_backup
+"No crash!"
+crash point: ddl_log_alter_after_drop_original_table
+"No crash!"
+
+query: ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_log
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup_log
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
+crash point: ddl_log_alter_before_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_delete_backup
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
+crash point: ddl_log_alter_after_drop_original_table
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ENGINE=myisam, COMMENT "new"
+
+query: ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_log
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
+crash point: ddl_log_alter_after_rename_to_backup
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
+crash point: ddl_log_alter_after_rename_to_backup_log
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
+crash point: ddl_log_alter_before_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_delete_backup
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
+crash point: ddl_log_alter_after_drop_original_table
+t1.MYD
+t1.MYI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `c` int(11) DEFAULT NULL COMMENT 'new',
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 change column a c int COMMENT "new", engine=myisam
+
+query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_log
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
+crash point: ddl_log_alter_after_rename_to_backup
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
+crash point: ddl_log_alter_after_rename_to_backup_log
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
+crash point: ddl_log_alter_before_rename_triggers
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
+crash point: ddl_log_alter_after_rename_triggers
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
+crash point: ddl_log_alter_after_delete_backup
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
+crash point: ddl_log_alter_after_drop_original_table
+t2.MYD
+t2.MYI
+t2.frm
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename t2, engine=myisam
+
+query: ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_log
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_after_rename_to_backup
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_after_rename_to_backup_log
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_before_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_after_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_after_delete_backup
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_after_drop_original_table
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD COLUMN c INT, COMMENT "new", rename test2.t2
+
+query: ALTER TABLE t1 COMMENT "new", rename test2.t2
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+"No crash!"
+crash point: ddl_log_alter_after_prepare_inplace
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_after_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_after_rename_to_backup
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_backup_log
+"No crash!"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+"No crash!"
+crash point: ddl_log_alter_before_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_after_rename_triggers
+t2.MAD
+t2.MAI
+t2.frm
+"Table is in test2"
+Table	Create Table
+t2	CREATE TABLE `t2` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 COMMENT "new", rename test2.t2
+crash point: ddl_log_alter_after_delete_backup
+"No crash!"
+crash point: ddl_log_alter_after_drop_original_table
+"No crash!"
+
+query: ALTER TABLE t1 ADD key(b), COMMENT "new"
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+crash point: ddl_log_alter_after_rename_to_backup_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+crash point: ddl_log_alter_before_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_delete_backup
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+crash point: ddl_log_alter_after_drop_original_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`),
+  KEY `b` (`b`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1 COMMENT='new'
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 ADD key(b), COMMENT "new"
+
+query: ALTER TABLE t1 DROP INDEX a
+
+crash point: ddl_log_alter_after_create_frm
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_create_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_prepare_inplace
+"No crash!"
+crash point: ddl_log_alter_after_copy
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  KEY `a` (`a`)
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+crash point: ddl_log_alter_after_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
+crash point: ddl_log_alter_after_rename_to_backup
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
+crash point: ddl_log_alter_after_rename_to_backup_log
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
+crash point: ddl_log_alter_rename_frm
+"No crash!"
+crash point: ddl_log_alter_after_rename_to_original
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
+crash point: ddl_log_alter_before_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_rename_triggers
+"No crash!"
+crash point: ddl_log_alter_after_delete_backup
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a
+crash point: ddl_log_alter_after_drop_original_table
+t1.MAD
+t1.MAI
+t1.frm
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=Aria DEFAULT CHARSET=latin1 PAGE_CHECKSUM=1
+count(*)
+2
+master-bin.000002	#	Query	#	#	use `test`; ALTER TABLE t1 DROP INDEX a

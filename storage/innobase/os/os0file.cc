@@ -335,6 +335,10 @@ os_file_lock(
 	int		fd,
 	const char*	name)
 {
+	if (my_disable_locking) {
+		return 0;
+	}
+
 	struct flock lk;
 
 	lk.l_type = F_WRLCK;
@@ -351,7 +355,7 @@ os_file_lock(
 
 			ib::info()
 				<< "Check that you do not already have"
-				" another mysqld process using the"
+				" another mariadbd process using the"
 				" same InnoDB data or log files.";
 		}
 
@@ -820,23 +824,13 @@ os_file_get_last_error_low(
 			<< " in a file operation.";
 
 		if (err == ENOENT) {
-
 			ib::error()
 				<< "The error means the system"
 				" cannot find the path specified.";
-
-			if (srv_is_being_started) {
-
-				ib::error()
-					<< "If you are installing InnoDB,"
-					" remember that you must create"
-					" directories yourself, InnoDB"
-					" does not create them.";
-			}
 		} else if (err == EACCES) {
 
 			ib::error()
-				<< "The error means mysqld does not have"
+				<< "The error means mariadbd does not have"
 				" the access rights to the directory.";
 
 		} else {
@@ -1166,136 +1160,6 @@ os_file_create_directory(
 	return(true);
 }
 
-/**
-The os_file_opendir() function opens a directory stream corresponding to the
-directory named by the dirname argument. The directory stream is positioned
-at the first entry. In both Unix and Windows we automatically skip the '.'
-and '..' items at the start of the directory listing.
-@param[in]	dirname		directory name; it must not contain a trailing
-				'\' or '/'
-@param[in]	is_fatal	true if we should treat an error as a fatal
-				error; if we try to open symlinks then we do
-				not wish a fatal error if it happens not to be
-				a directory
-@return directory stream, NULL if error */
-os_file_dir_t
-os_file_opendir(
-	const char*	dirname,
-	bool		error_is_fatal)
-{
-	os_file_dir_t		dir;
-	dir = opendir(dirname);
-
-	if (dir == NULL && error_is_fatal) {
-		os_file_handle_error(dirname, "opendir");
-	}
-
-	return(dir);
-}
-
-/** Closes a directory stream.
-@param[in]	dir		directory stream
-@return 0 if success, -1 if failure */
-int
-os_file_closedir(
-	os_file_dir_t	dir)
-{
-	int	ret = closedir(dir);
-
-	if (ret != 0) {
-		os_file_handle_error_no_exit(NULL, "closedir", false);
-	}
-
-	return(ret);
-}
-
-/** This function returns information of the next file in the directory. We jump
-over the '.' and '..' entries in the directory.
-@param[in]	dirname		directory name or path
-@param[in]	dir		directory stream
-@param[out]	info		buffer where the info is returned
-@return 0 if ok, -1 if error, 1 if at the end of the directory */
-int
-os_file_readdir_next_file(
-	const char*	dirname,
-	os_file_dir_t	dir,
-	os_file_stat_t*	info)
-{
-	struct dirent*	ent;
-	char*		full_path;
-	int		ret;
-	struct stat	statinfo;
-
-next_file:
-
-	ent = readdir(dir);
-
-	if (ent == NULL) {
-
-		return(1);
-	}
-
-	ut_a(strlen(ent->d_name) < OS_FILE_MAX_PATH);
-
-	if (strcmp(ent->d_name, ".") == 0 || strcmp(ent->d_name, "..") == 0) {
-
-		goto next_file;
-	}
-
-	strcpy(info->name, ent->d_name);
-
-	full_path = static_cast<char*>(
-		ut_malloc_nokey(strlen(dirname) + strlen(ent->d_name) + 10));
-	if (!full_path) {
-		return -1;
-	}
-
-	sprintf(full_path, "%s/%s", dirname, ent->d_name);
-
-	ret = stat(full_path, &statinfo);
-
-	if (ret) {
-
-		if (errno == ENOENT) {
-			/* readdir() returned a file that does not exist,
-			it must have been deleted in the meantime. Do what
-			would have happened if the file was deleted before
-			readdir() - ignore and go to the next entry.
-			If this is the last entry then info->name will still
-			contain the name of the deleted file when this
-			function returns, but this is not an issue since the
-			caller shouldn't be looking at info when end of
-			directory is returned. */
-
-			ut_free(full_path);
-
-			goto next_file;
-		}
-
-		os_file_handle_error_no_exit(full_path, "stat", false);
-
-		ut_free(full_path);
-
-		return(-1);
-	}
-
-	info->size = statinfo.st_size;
-
-	if (S_ISDIR(statinfo.st_mode)) {
-		info->type = OS_FILE_TYPE_DIR;
-	} else if (S_ISLNK(statinfo.st_mode)) {
-		info->type = OS_FILE_TYPE_LINK;
-	} else if (S_ISREG(statinfo.st_mode)) {
-		info->type = OS_FILE_TYPE_FILE;
-	} else {
-		info->type = OS_FILE_TYPE_UNKNOWN;
-	}
-
-	ut_free(full_path);
-
-	return(0);
-}
-
 /** NOTE! Use the corresponding macro os_file_create(), not directly
 this function!
 Opens an existing file or creates a new.
@@ -1622,8 +1486,7 @@ os_file_rename_func(
 
 	/* New path must not exist. */
 	ut_ad(os_file_status(newpath, &exists, &type));
-	/* MDEV-25506 FIXME: Remove the strstr() */
-	ut_ad(!exists || strstr(oldpath, "/" TEMP_FILE_PREFIX_INNODB));
+	ut_ad(!exists);
 
 	/* Old path must exist. */
 	ut_ad(os_file_status(oldpath, &exists, &type));
@@ -1970,18 +1833,10 @@ os_file_get_last_error_low(
 				<< "The error means the system"
 				" cannot find the path specified.";
 
-			if (srv_is_being_started) {
-				ib::error()
-					<< "If you are installing InnoDB,"
-					" remember that you must create"
-					" directories yourself, InnoDB"
-					" does not create them.";
-			}
-
 		} else if (err == ERROR_ACCESS_DENIED) {
 
 			ib::error()
-				<< "The error means mysqld does not have"
+				<< "The error means mariadbd does not have"
 				" the access rights to"
 				" the directory. It may also be"
 				" you have created a subdirectory"
@@ -1995,7 +1850,7 @@ os_file_get_last_error_low(
 				" is using InnoDB's files."
 				" This might be a backup or antivirus"
 				" software or another instance"
-				" of MySQL."
+				" of MariaDB."
 				" Please close it to get rid of this error.";
 
 		} else if (err == ERROR_WORKING_SET_QUOTA
@@ -2201,154 +2056,6 @@ os_file_create_directory(
 	}
 
 	return(true);
-}
-
-/** The os_file_opendir() function opens a directory stream corresponding to the
-directory named by the dirname argument. The directory stream is positioned
-at the first entry. In both Unix and Windows we automatically skip the '.'
-and '..' items at the start of the directory listing.
-@param[in]	dirname		directory name; it must not contain a trailing
-				'\' or '/'
-@param[in]	is_fatal	true if we should treat an error as a fatal
-				error; if we try to open symlinks then we do
-				not wish a fatal error if it happens not to
-				be a directory
-@return directory stream, NULL if error */
-os_file_dir_t
-os_file_opendir(
-	const char*	dirname,
-	bool		error_is_fatal)
-{
-	os_file_dir_t		dir;
-	LPWIN32_FIND_DATA	lpFindFileData;
-	char			path[OS_FILE_MAX_PATH + 3];
-
-	ut_a(strlen(dirname) < OS_FILE_MAX_PATH);
-
-	strcpy(path, dirname);
-	strcpy(path + strlen(path), "\\*");
-
-	/* Note that in Windows opening the 'directory stream' also retrieves
-	the first entry in the directory. Since it is '.', that is no problem,
-	as we will skip over the '.' and '..' entries anyway. */
-
-	lpFindFileData = static_cast<LPWIN32_FIND_DATA>(
-		ut_malloc_nokey(sizeof(WIN32_FIND_DATA)));
-
-	dir = FindFirstFile((LPCTSTR) path, lpFindFileData);
-
-	ut_free(lpFindFileData);
-
-	if (dir == INVALID_HANDLE_VALUE) {
-
-		if (error_is_fatal) {
-			os_file_handle_error(dirname, "opendir");
-		}
-
-		return(NULL);
-	}
-
-	return(dir);
-}
-
-/** Closes a directory stream.
-@param[in]	dir	directory stream
-@return 0 if success, -1 if failure */
-int
-os_file_closedir(
-	os_file_dir_t	dir)
-{
-	BOOL		ret;
-
-	ret = FindClose(dir);
-
-	if (!ret) {
-		os_file_handle_error_no_exit(NULL, "closedir", false);
-
-		return(-1);
-	}
-
-	return(0);
-}
-
-/** This function returns information of the next file in the directory. We
-jump over the '.' and '..' entries in the directory.
-@param[in]	dirname		directory name or path
-@param[in]	dir		directory stream
-@param[out]	info		buffer where the info is returned
-@return 0 if ok, -1 if error, 1 if at the end of the directory */
-int
-os_file_readdir_next_file(
-	const char*	dirname,
-	os_file_dir_t	dir,
-	os_file_stat_t*	info)
-{
-	BOOL		ret;
-	int		status;
-	WIN32_FIND_DATA	find_data;
-
-next_file:
-
-	ret = FindNextFile(dir, &find_data);
-
-	if (ret > 0) {
-
-		const char* name;
-
-		name = static_cast<const char*>(find_data.cFileName);
-
-		ut_a(strlen(name) < OS_FILE_MAX_PATH);
-
-		if (strcmp(name, ".") == 0 || strcmp(name, "..") == 0) {
-
-			goto next_file;
-		}
-
-		strcpy(info->name, name);
-
-		info->size = find_data.nFileSizeHigh;
-		info->size <<= 32;
-		info->size |= find_data.nFileSizeLow;
-
-		if (find_data.dwFileAttributes
-		    & FILE_ATTRIBUTE_REPARSE_POINT) {
-
-			/* TODO: test Windows symlinks */
-			/* TODO: MySQL has apparently its own symlink
-			implementation in Windows, dbname.sym can
-			redirect a database directory:
-			REFMAN "windows-symbolic-links.html" */
-
-			info->type = OS_FILE_TYPE_LINK;
-
-		} else if (find_data.dwFileAttributes
-			   & FILE_ATTRIBUTE_DIRECTORY) {
-
-			info->type = OS_FILE_TYPE_DIR;
-
-		} else {
-
-			/* It is probably safest to assume that all other
-			file types are normal. Better to check them rather
-			than blindly skip them. */
-
-			info->type = OS_FILE_TYPE_FILE;
-		}
-
-		status = 0;
-
-	} else if (GetLastError() == ERROR_NO_MORE_FILES) {
-
-		status = 1;
-
-	} else {
-
-		os_file_handle_error_no_exit(NULL, "readdir_next_file", false);
-
-		status = -1;
-	}
-
-	return(status);
 }
 
 /** Check that IO of specific size is possible for the file
@@ -2831,8 +2538,7 @@ os_file_rename_func(
 
 	/* New path must not exist. */
 	ut_ad(os_file_status(newpath, &exists, &type));
-	/* MDEV-25506 FIXME: Remove the strstr() */
-	ut_ad(!exists || strstr(oldpath, "/" TEMP_FILE_PREFIX_INNODB));
+	ut_ad(!exists);
 
 	/* Old path must exist. */
 	ut_ad(os_file_status(oldpath, &exists, &type));
@@ -3531,7 +3237,7 @@ os_file_set_nocache(
 /** Check if the file system supports sparse files.
 @param fh	file handle
 @return true if the file system supports sparse files */
-IF_WIN(static,) bool os_is_sparse_file_supported(os_file_t fh)
+static bool os_is_sparse_file_supported(os_file_t fh)
 {
 #ifdef _WIN32
 	FILE_ATTRIBUTE_TAG_INFO info;
@@ -3590,6 +3296,8 @@ os_file_set_size(
 
 fallback:
 #else
+	struct stat statbuf;
+
 	if (is_sparse) {
 		bool success = !ftruncate(file, size);
 		if (!success) {
@@ -3603,10 +3311,17 @@ fallback:
 # ifdef HAVE_POSIX_FALLOCATE
 	int err;
 	do {
-		os_offset_t current_size = os_file_get_size(file);
-		err = current_size >= size
-			? 0 : posix_fallocate(file, current_size,
+		if (fstat(file, &statbuf)) {
+			err = errno;
+		} else {
+			os_offset_t current_size = statbuf.st_size;
+			if (current_size >= size) {
+				return true;
+			}
+			current_size &= ~os_offset_t(statbuf.st_blksize - 1);
+			err = posix_fallocate(file, current_size,
 					      size - current_size);
+		}
 	} while (err == EINTR
 		 && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED);
 
@@ -3629,6 +3344,27 @@ fallback:
 # endif /* HAVE_POSIX_ALLOCATE */
 #endif /* _WIN32*/
 
+#ifdef _WIN32
+	os_offset_t	current_size = os_file_get_size(file);
+	FILE_STORAGE_INFO info;
+	if (GetFileInformationByHandleEx(file, FileStorageInfo, &info,
+					 sizeof info)) {
+		if (info.LogicalBytesPerSector) {
+			current_size &= ~os_offset_t(info.LogicalBytesPerSector
+						     - 1);
+		}
+	}
+#else
+	if (fstat(file, &statbuf)) {
+		return false;
+	}
+	os_offset_t current_size = statbuf.st_size
+		& ~os_offset_t(statbuf.st_blksize - 1);
+#endif
+	if (current_size >= size) {
+		return true;
+	}
+
 	/* Write up to 1 megabyte at a time. */
 	ulint	buf_size = ut_min(ulint(64),
 				  ulint(size >> srv_page_size_shift))
@@ -3639,8 +3375,6 @@ fallback:
 							srv_page_size));
 	/* Write buffer full of zeros */
 	memset(buf, 0, buf_size);
-
-	os_offset_t	current_size = os_file_get_size(file);
 
 	while (current_size < size
 	       && srv_shutdown_state <= SRV_SHUTDOWN_INITIATED) {
@@ -3793,24 +3527,23 @@ dberr_t IORequest::punch_hole(os_offset_t off, ulint len) const
 
 	/* Check does file system support punching holes for this
 	tablespace. */
-	if (!node->space->punch_hole) {
+	if (!node->punch_hole) {
 		return DB_IO_NO_PUNCH_HOLE;
 	}
 
 	dberr_t err = os_file_punch_hole(node->handle, off, trim_len);
 
-	if (err == DB_SUCCESS) {
+	switch (err) {
+	case DB_SUCCESS:
 		srv_stats.page_compressed_trim_op.inc();
-	} else {
-		/* If punch hole is not supported,
-		set space so that it is not used. */
-		if (err == DB_IO_NO_PUNCH_HOLE) {
-			node->space->punch_hole = false;
-			err = DB_SUCCESS;
-		}
+		return err;
+	case DB_IO_NO_PUNCH_HOLE:
+		node->punch_hole = false;
+		err = DB_SUCCESS;
+		/* fall through */
+	default:
+		return err;
 	}
-
-	return (err);
 }
 
 /** This function returns information about the specified file
@@ -4073,8 +3806,8 @@ static void os_aio_wait_until_no_pending_writes_low()
      tpool::tpool_wait_end();
 }
 
-/** Waits until there are no pending writes. There can
-be other, synchronous, pending writes. */
+/** Wait until there are no pending asynchronous writes.
+Only used on FLUSH TABLES...FOR EXPORT. */
 void os_aio_wait_until_no_pending_writes()
 {
   os_aio_wait_until_no_pending_writes_low();
@@ -4399,191 +4132,163 @@ static bool is_file_on_ssd(char *file_path)
 
 #endif
 
-/** Determine some file metadata when creating or reading the file.
-@param	file	the file that is being created, or OS_FILE_CLOSED */
 void fil_node_t::find_metadata(os_file_t file
 #ifndef _WIN32
-			       , struct stat* statbuf
+                               , bool create, struct stat *statbuf
 #endif
-			       )
+                               )
 {
-	if (file == OS_FILE_CLOSED) {
-		file = handle;
-		ut_ad(is_open());
-	}
+  if (!is_open())
+  {
+    handle= file;
+    ut_ad(is_open());
+  }
 
-#ifdef _WIN32 /* FIXME: make this unconditional */
-	if (space->punch_hole) {
-		space->punch_hole = os_is_sparse_file_supported(file);
-	}
-#endif
+  if (!space->is_compressed())
+    punch_hole= 0;
+  else if (my_test_if_thinly_provisioned(file))
+    punch_hole= 2;
+  else
+    punch_hole= IF_WIN(, !create ||) os_is_sparse_file_supported(file);
 
-	/*
-	For the temporary tablespace and during the
-	non-redo-logged adjustments in
-	IMPORT TABLESPACE, we do not care about
-	the atomicity of writes.
-
-	Atomic writes is supported if the file can be used
-	with atomic_writes (not log file), O_DIRECT is
-	used (tested in ha_innodb.cc) and the file is
-	device and file system that supports atomic writes
-	for the given block size.
-	*/
-	space->atomic_write_supported = space->purpose == FIL_TYPE_TEMPORARY
-		|| space->purpose == FIL_TYPE_IMPORT;
 #ifdef _WIN32
-	on_ssd = is_file_on_ssd(name);
-	FILE_STORAGE_INFO info;
-	if (GetFileInformationByHandleEx(
-		file, FileStorageInfo, &info, sizeof(info))) {
-		block_size = info.PhysicalBytesPerSectorForAtomicity;
-	} else {
-		block_size = 512;
-	}
+  on_ssd= is_file_on_ssd(name);
+  FILE_STORAGE_INFO info;
+  if (GetFileInformationByHandleEx(file, FileStorageInfo, &info, sizeof info))
+    block_size= info.PhysicalBytesPerSectorForAtomicity;
+  else
+    block_size= 512;
 #else
-	struct stat sbuf;
-	if (!statbuf && !fstat(file, &sbuf)) {
-		statbuf = &sbuf;
-	}
-	if (statbuf) {
-		block_size = statbuf->st_blksize;
-	}
-	on_ssd = space->atomic_write_supported
+  struct stat sbuf;
+  if (!statbuf && !fstat(file, &sbuf))
+    statbuf= &sbuf;
+  if (statbuf)
+    block_size= statbuf->st_blksize;
 # ifdef UNIV_LINUX
-		|| (statbuf && fil_system.is_ssd(statbuf->st_dev))
+  on_ssd= statbuf && fil_system.is_ssd(statbuf->st_dev);
 # endif
-		;
 #endif
-	if (!space->atomic_write_supported) {
-		space->atomic_write_supported = atomic_write
-			&& srv_use_atomic_writes
-#ifndef _WIN32
-			&& my_test_if_atomic_write(file,
-						   space->physical_size())
-#else
-			/* On Windows, all single sector writes are atomic,
-			as per WriteFile() documentation on MSDN.
-			We also require SSD for atomic writes, eventhough
-			technically it is not necessary- the reason is that
-			on hard disks, we still want the benefit from
-			(non-atomic) neighbor page flushing in the buffer
-			pool code. */
-			&& srv_page_size == block_size
-			&& on_ssd
-#endif
-			;
-	}
+
+  if (space->purpose != FIL_TYPE_TABLESPACE)
+  {
+    /* For temporary tablespace or during IMPORT TABLESPACE, we
+    disable neighbour flushing and do not care about atomicity. */
+    on_ssd= true;
+    atomic_write= true;
+  }
+  else
+    /* On Windows, all single sector writes are atomic, as per
+    WriteFile() documentation on MSDN. */
+    atomic_write= srv_use_atomic_writes &&
+      IF_WIN(srv_page_size == block_size,
+	     my_test_if_atomic_write(file, space->physical_size()));
 }
 
 /** Read the first page of a data file.
 @return	whether the page was found valid */
 bool fil_node_t::read_page0()
 {
-	mysql_mutex_assert_owner(&fil_system.mutex);
-	const unsigned psize = space->physical_size();
+  mysql_mutex_assert_owner(&fil_system.mutex);
+  const unsigned psize= space->physical_size();
 #ifndef _WIN32
-	struct stat statbuf;
-	if (fstat(handle, &statbuf)) {
-		return false;
-	}
-	os_offset_t size_bytes = statbuf.st_size;
+  struct stat statbuf;
+  if (fstat(handle, &statbuf))
+    return false;
+  os_offset_t size_bytes= statbuf.st_size;
 #else
-	os_offset_t size_bytes = os_file_get_size(handle);
-	ut_a(size_bytes != (os_offset_t) -1);
+  os_offset_t size_bytes= os_file_get_size(handle);
+  ut_a(size_bytes != (os_offset_t) -1);
 #endif
-	const uint32_t min_size = FIL_IBD_FILE_INITIAL_SIZE * psize;
+  const uint32_t min_size= FIL_IBD_FILE_INITIAL_SIZE * psize;
 
-	if (size_bytes < min_size) {
-		ib::error() << "The size of the file " << name
-			    << " is only " << size_bytes
-			    << " bytes, should be at least " << min_size;
-		return false;
-	}
+  if (size_bytes < min_size)
+  {
+    ib::error() << "The size of the file " << name
+      << " is only " << size_bytes
+      << " bytes, should be at least " << min_size;
+    return false;
+  }
 
-	page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
-	if (os_file_read(IORequestRead, handle, page, 0, psize)
-	    != DB_SUCCESS) {
-		ib::error() << "Unable to read first page of file " << name;
+  if (!deferred)
+  {
+    page_t *page= static_cast<byte*>(aligned_malloc(psize, psize));
+    if (os_file_read(IORequestRead, handle, page, 0, psize)
+        != DB_SUCCESS)
+    {
+      ib::error() << "Unable to read first page of file " << name;
 corrupted:
-		aligned_free(page);
-		return false;
-	}
+      aligned_free(page);
+      return false;
+    }
 
-	const ulint space_id = memcmp_aligned<2>(
-		FIL_PAGE_SPACE_ID + page,
-		FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
-		? ULINT_UNDEFINED
-		: mach_read_from_4(FIL_PAGE_SPACE_ID + page);
-	ulint flags = fsp_header_get_flags(page);
-	const uint32_t size = fsp_header_get_field(page, FSP_SIZE);
-	const uint32_t free_limit = fsp_header_get_field(page, FSP_FREE_LIMIT);
-	const uint32_t free_len = flst_get_len(FSP_HEADER_OFFSET + FSP_FREE
-					       + page);
-	if (!fil_space_t::is_valid_flags(flags, space->id)) {
-		ulint cflags = fsp_flags_convert_from_101(flags);
-		if (cflags == ULINT_UNDEFINED) {
+    const ulint space_id= memcmp_aligned<2>
+      (FIL_PAGE_SPACE_ID + page,
+       FSP_HEADER_OFFSET + FSP_SPACE_ID + page, 4)
+      ? ULINT_UNDEFINED
+      : mach_read_from_4(FIL_PAGE_SPACE_ID + page);
+    ulint flags= fsp_header_get_flags(page);
+    const uint32_t size= fsp_header_get_field(page, FSP_SIZE);
+    const uint32_t free_limit= fsp_header_get_field(page, FSP_FREE_LIMIT);
+    const uint32_t free_len= flst_get_len(FSP_HEADER_OFFSET + FSP_FREE + page);
+    if (!fil_space_t::is_valid_flags(flags, space->id))
+    {
+      ulint cflags= fsp_flags_convert_from_101(flags);
+      if (cflags == ULINT_UNDEFINED)
+      {
 invalid:
-			ib::error()
-				<< "Expected tablespace flags "
-				<< ib::hex(space->flags)
-				<< " but found " << ib::hex(flags)
-				<< " in the file " << name;
-			goto corrupted;
-		}
+        ib::error() << "Expected tablespace flags "
+          << ib::hex(space->flags)
+          << " but found " << ib::hex(flags)
+          << " in the file " << name;
+        goto corrupted;
+      }
 
-		ulint cf = cflags & ~FSP_FLAGS_MEM_MASK;
-		ulint sf = space->flags & ~FSP_FLAGS_MEM_MASK;
+      ulint cf= cflags & ~FSP_FLAGS_MEM_MASK;
+      ulint sf= space->flags & ~FSP_FLAGS_MEM_MASK;
 
-		if (!fil_space_t::is_flags_equal(cf, sf)
-		    && !fil_space_t::is_flags_equal(sf, cf)) {
-			goto invalid;
-		}
+      if (!fil_space_t::is_flags_equal(cf, sf) &&
+          !fil_space_t::is_flags_equal(sf, cf))
+        goto invalid;
+      flags= cflags;
+    }
 
-		flags = cflags;
-	}
+    ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
 
-	ut_ad(!(flags & FSP_FLAGS_MEM_MASK));
+    /* Try to read crypt_data from page 0 if it is not yet read. */
+    if (!space->crypt_data)
+      space->crypt_data= fil_space_read_crypt_data(
+        fil_space_t::zip_size(flags), page);
+    aligned_free(page);
 
-	/* Try to read crypt_data from page 0 if it is not yet read. */
-	if (!space->crypt_data) {
-		space->crypt_data = fil_space_read_crypt_data(
-			fil_space_t::zip_size(flags), page);
-	}
-	aligned_free(page);
+    if (UNIV_UNLIKELY(space_id != space->id))
+    {
+      ib::error() << "Expected tablespace id " << space->id
+        << " but found " << space_id
+        << " in the file " << name;
+      return false;
+    }
 
-	if (UNIV_UNLIKELY(space_id != space->id)) {
-		ib::error() << "Expected tablespace id " << space->id
-			<< " but found " << space_id
-			<< " in the file " << name;
-		return false;
-	}
+    space->flags= (space->flags & FSP_FLAGS_MEM_MASK) | flags;
+    ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
+    ut_ad(space->free_len == 0 || space->free_len == free_len);
+    space->size_in_header= size;
+    space->free_limit= free_limit;
+    space->free_len= free_len;
+  }
 
-#ifdef UNIV_LINUX
-	find_metadata(handle, &statbuf);
-#else
-	find_metadata();
-#endif
-	/* Truncate the size to a multiple of extent size. */
-	ulint	mask = psize * FSP_EXTENT_SIZE - 1;
+  IF_WIN(find_metadata(), find_metadata(handle, false, &statbuf));
+  /* Truncate the size to a multiple of extent size. */
+  ulint	mask= psize * FSP_EXTENT_SIZE - 1;
 
-	if (size_bytes <= mask) {
-		/* .ibd files start smaller than an
-		extent size. Do not truncate valid data. */
-	} else {
-		size_bytes &= ~os_offset_t(mask);
-	}
+  if (size_bytes <= mask);
+    /* .ibd files start smaller than an
+    extent size. Do not truncate valid data. */
+  else
+    size_bytes&= ~os_offset_t(mask);
 
-	space->flags = (space->flags & FSP_FLAGS_MEM_MASK) | flags;
-
-	space->punch_hole = space->is_compressed();
-	this->size = uint32_t(size_bytes / psize);
-	space->set_sizes(this->size);
-	ut_ad(space->free_limit == 0 || space->free_limit == free_limit);
-	ut_ad(space->free_len == 0 || space->free_len == free_len);
-	space->size_in_header = size;
-	space->free_limit = free_limit;
-	space->free_len = free_len;
-	return true;
+  this->size= uint32_t(size_bytes / psize);
+  space->set_sizes(this->size);
+  return true;
 }
+
 #endif /* !UNIV_INNOCHECKSUM */

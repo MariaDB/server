@@ -17,9 +17,9 @@
 #ifndef _my_dbug_h
 #define _my_dbug_h
 
-#ifndef __WIN__
+#ifndef _WIN32
 #include <signal.h>
-#endif  /* not __WIN__ */
+#endif
 
 #ifdef  __cplusplus
 extern "C" {
@@ -134,7 +134,7 @@ extern int (*dbug_sanity)(void);
 #define DBUG_FREE_CODE_STATE(arg) dbug_free_code_state(arg)
 #undef DBUG_ASSERT_AS_PRINTF
 
-#ifndef __WIN__
+#ifndef _WIN32
 #define DBUG_ABORT()                    (_db_flush_(), abort())
 #else
 /*
@@ -156,12 +156,12 @@ extern int (*dbug_sanity)(void);
   An alternative would be to use _exit(EXIT_FAILURE),
   but then valgrind would report lots of memory leaks.
  */
-#ifdef __WIN__
+#ifdef _WIN32
 #define DBUG_SUICIDE() DBUG_ABORT()
 #else
 extern void _db_suicide_(void);
 #define DBUG_SUICIDE() (_db_flush_(), _db_suicide_())
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 
 #else                                           /* No debugger */
 

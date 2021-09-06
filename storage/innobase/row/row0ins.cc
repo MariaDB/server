@@ -934,8 +934,8 @@ row_ins_foreign_fill_virtual(
 		upd_field = update->fields + n_diff;
 
 		upd_field->old_v_val = static_cast<dfield_t*>(
-				mem_heap_alloc(cascade->heap,
-					sizeof *upd_field->old_v_val));
+			mem_heap_alloc(update->heap,
+				       sizeof *upd_field->old_v_val));
 
 		dfield_copy(upd_field->old_v_val, vfield);
 
@@ -1342,16 +1342,6 @@ row_ins_foreign_check_on_constraint(
 	err = row_update_cascade_for_mysql(thr, cascade,
 					   foreign->foreign_table);
 
-	/* Release the data dictionary latch for a while, so that we do not
-	starve other threads from doing CREATE TABLE etc. if we have a huge
-	cascaded operation running. */
-
-	row_mysql_unfreeze_data_dictionary(thr_get_trx(thr));
-
-	DEBUG_SYNC_C("innodb_dml_cascade_dict_unfreeze");
-
-	row_mysql_freeze_data_dictionary(thr_get_trx(thr));
-
 	mtr_start(mtr);
 
 	/* Restore pcur position */
@@ -1667,23 +1657,6 @@ row_ins_check_foreign_constraint(
 		cmp = cmp_dtuple_rec(entry, rec, offsets);
 
 		if (cmp == 0) {
-			if (check_table->versioned()) {
-				bool history_row = false;
-
-				if (check_index->is_primary()) {
-					history_row = check_index->
-						vers_history_row(rec, offsets);
-				} else if (check_index->
-					vers_history_row(rec, history_row))
-				{
-					break;
-				}
-
-				if (history_row) {
-					continue;
-				}
-			}
-
 			if (rec_get_deleted_flag(rec,
 						 rec_offs_comp(offsets))) {
 				/* In delete-marked records, DB_TRX_ID must
@@ -1705,6 +1678,23 @@ row_ins_check_foreign_constraint(
 					goto end_scan;
 				}
 			} else {
+				if (check_table->versioned()) {
+					bool history_row = false;
+
+					if (check_index->is_primary()) {
+						history_row = check_index->
+							vers_history_row(rec,
+									 offsets);
+					} else if (check_index->
+						vers_history_row(rec,
+								 history_row)) {
+						break;
+					}
+
+					if (history_row) {
+						continue;
+					}
+				}
 				/* Found a matching record. Lock only
 				a record because we can allow inserts
 				into gaps */
@@ -1830,16 +1820,12 @@ do_possible_lock_wait:
 
 		thr->lock_state = QUE_THR_LOCK_ROW;
 
-		check_table->inc_fk_checks();
-
 		err = lock_wait(thr);
 
 		thr->lock_state = QUE_THR_LOCK_NOLOCK;
 
-		check_table->dec_fk_checks();
-
 		if (err != DB_SUCCESS) {
-		} else if (check_table->to_be_dropped) {
+		} else if (check_table->name.is_temporary()) {
 			err = DB_LOCK_WAIT_TIMEOUT;
 		} else {
 			err = DB_LOCK_WAIT;
@@ -1912,13 +1898,9 @@ row_ins_check_foreign_constraints(
 {
 	dict_foreign_t*	foreign;
 	dberr_t		err = DB_SUCCESS;
-	trx_t*		trx;
-	ibool		got_s_lock	= FALSE;
 	mem_heap_t*	heap = NULL;
 
 	DBUG_ASSERT(index->is_primary() == pk);
-
-	trx = thr_get_trx(thr);
 
 	DEBUG_SYNC_C_IF_THD(thr_get_trx(thr)->mysql_thd,
 			    "foreign_constraint_check_for_ins");
@@ -1962,37 +1944,14 @@ row_ins_check_foreign_constraints(
 
 				ref_table = dict_table_open_on_name(
 					foreign->referenced_table_name_lookup,
-					FALSE, FALSE, DICT_ERR_IGNORE_NONE);
+					false, DICT_ERR_IGNORE_NONE);
 			}
-
-			if (0 == trx->dict_operation_lock_mode) {
-				got_s_lock = TRUE;
-
-				row_mysql_freeze_data_dictionary(trx);
-			}
-
-			if (referenced_table) {
-				foreign->foreign_table->inc_fk_checks();
-			}
-
-			/* NOTE that if the thread ends up waiting for a lock
-			we will release dict_sys.latch temporarily!
-			But the counter on the table protects the referenced
-			table from being dropped while the check is running. */
 
 			err = row_ins_check_foreign_constraint(
 				TRUE, foreign, table, ref_tuple, thr);
 
-			if (referenced_table) {
-				foreign->foreign_table->dec_fk_checks();
-			}
-
-			if (got_s_lock) {
-				row_mysql_unfreeze_data_dictionary(trx);
-			}
-
-			if (ref_table != NULL) {
-				dict_table_close(ref_table, FALSE, FALSE);
+			if (ref_table) {
+				dict_table_close(ref_table);
 			}
 		}
 	}
@@ -2666,7 +2625,7 @@ commit_exit:
 	    && page_is_empty(block->frame)
 	    && !entry->is_metadata() && !trx->duplicates
 	    && !trx->check_unique_secondary && !trx->check_foreigns
-	    && !trx->dict_operation && !trx->internal
+	    && !trx->dict_operation
 	    && block->page.id().page_no() == index->page
 	    && !index->table->skip_alter_undo
 	    && !index->table->n_rec_locks
@@ -3081,9 +3040,7 @@ row_ins_sec_index_entry_low(
 			if (!index->is_committed()) {
 				ut_ad(!thr_get_trx(thr)
 				      ->dict_operation_lock_mode);
-				dict_sys.mutex_lock();
-				dict_set_corrupted_index_cache_only(index);
-				dict_sys.mutex_unlock();
+				index->type |= DICT_CORRUPT;
 				/* Do not return any error to the
 				caller. The duplicate will be reported
 				by ALTER TABLE or CREATE UNIQUE INDEX.
@@ -3476,7 +3433,6 @@ row_ins_index_entry_set_vals(
 				field->len = UNIV_SQL_NULL;
 				field->type.prtype = DATA_BINARY_TYPE;
 			} else {
-				ut_ad(col->len <= sizeof field_ref_zero);
 				ut_ad(ind_field->fixed_len <= col->len);
 				dfield_set_data(field, field_ref_zero,
 						ind_field->fixed_len);

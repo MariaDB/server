@@ -37,7 +37,7 @@ let $CHILD2_1_CREATE_TABLES2=
 let $CHILD2_1_SELECT_TABLES=
   SELECT pkey, dt FROM tbl_b ORDER BY pkey;
 let $CHILD2_1_SELECT_ARGUMENT1=
-  SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+  SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 --connection master_1
 set @old_spider_direct_dup_insert= @@spider_direct_dup_insert;
 set session spider_direct_dup_insert= 1;

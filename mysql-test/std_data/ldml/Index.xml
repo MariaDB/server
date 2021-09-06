@@ -1,7 +1,7 @@
 <charsets>
 
-  <charset name="utf8">
-    <collation name="utf8_phone_ci" id="352">
+  <charset name="utf8mb3">
+    <collation name="utf8mb3_phone_ci" id="352">
       <rules>
         <reset>\u0000</reset>
           <i>\u0020</i> <!-- space -->
@@ -11,14 +11,14 @@
           <i>\u002D</i> <!-- hyphen -->
       </rules>
     </collation>
-    <collation name="utf8_test_ci" id="353">
+    <collation name="utf8mb3_test_ci" id="353">
       <rules>
         <reset>a</reset>
         <i>b</i>
       </rules>
     </collation>
 
-    <collation name="utf8_5624_1" id="354">
+    <collation name="utf8mb3_5624_1" id="354">
       <rules>
         <!-- long contractions and expansions -->
         <reset>12345</reset><q>012345</q><q>12345</q>
@@ -85,28 +85,28 @@
     </collation>
 
     <!-- some unsupported tags -->
-    <collation name="utf8_5624_2" id="355">
+    <collation name="utf8mb3_5624_2" id="355">
       <settings strength="tertiary"/>
       <rules>
       </rules>
     </collation>
 
     <!-- reset before primary ignorable -->
-    <collation name="utf8_5624_3" id="356">
+    <collation name="utf8mb3_5624_3" id="356">
       <rules>
         <reset before="primary"><first_secondary_ignorable/></reset><p>lb-fsi</p>
       </rules>
     </collation>
 
     <!-- \u without hex digits -->
-    <collation name="utf8_5624_4" id="357">
+    <collation name="utf8mb3_5624_4" id="357">
       <rules>
         <reset>\u</reset><i>x</i>
       </rules>
     </collation>
 
     <!-- shift after using expansion -->
-    <collation name="utf8_5624_5" id="368" shift-after-method="expand">
+    <collation name="utf8mb3_5624_5" id="368" shift-after-method="expand">
       <rules>
         <!--
            Put small basic Latin letters between 0 and 1.
@@ -121,7 +121,7 @@
       </rules>
     </collation>
 
-    <collation name="utf8_5624_5_bad" id="369" shift-after-method="expand">
+    <collation name="utf8mb3_5624_5_bad" id="369" shift-after-method="expand">
       <rules>
       <reset>a-a4</reset><p>xxx04</p>
       <reset>a-aa5</reset><p>xxx05</p>
@@ -133,14 +133,14 @@
       </rules>
     </collation>
 
-   <collation name="utf8_hugeid_ci" id="2047000000">
+   <collation name="utf8mb3_hugeid_ci" id="2047000000">
       <rules>
         <reset>a</reset>
         <s>b</s>
       </rules>
    </collation>
 
-    <collation name="utf8_maxuserid_ci" id="2047" version="4.0.0">
+    <collation name="utf8mb3_maxuserid_ci" id="2047" version="4.0.0">
       <rules>
         <reset>a</reset>
         <s>b</s>
@@ -379,8 +379,8 @@
     </collation>
   </charset>
 
-  <charset name="utf8">
-    <collation name="utf8_bengali_standard_ci" id="336">
+  <charset name="utf8mb3">
+    <collation name="utf8mb3_bengali_standard_ci" id="336">
       <rules>
         <reset>\u9FA</reset>
         <p>\u9F8</p>
@@ -467,7 +467,7 @@
       </rules>
     </collation>
 
-    <collation name="utf8_bengali_traditional_ci" id="337">
+    <collation name="utf8mb3_bengali_traditional_ci" id="337">
       <rules>
         <reset>\u994</reset>
         <p>\u982</p>
@@ -1164,7 +1164,7 @@
       </rules>
     </collation>
 
-   <collation name="utf8_implicit_weights_ci" id="338">
+   <collation name="utf8mb3_implicit_weights_ci" id="338">
       <rules>
         <reset>\u3400</reset><i>b</i>
         <reset>a</reset><i>\u3561</i>
@@ -1174,7 +1174,7 @@
       </rules>
    </collation>
 
-    <collation name="utf8_czech_test_w2" id="370" version="5.2.0">
+    <collation name="utf8mb3_czech_test_w2" id="370" version="5.2.0">
       <settings strength="2"/>
       <rules>
         <reset>C</reset><p>\u010D</p><t>\u010C</t>
@@ -1185,7 +1185,7 @@
       </rules>
     </collation>
 
-    <collation name="utf8_czech_test_nopad_w2" id="371" version="5.2.0" flag="nopad">
+    <collation name="utf8mb3_czech_test_nopad_w2" id="371" version="5.2.0" flag="nopad">
       <settings strength="2"/>
       <rules>
         <reset>C</reset><p>\u010D</p><t>\u010C</t>
@@ -1202,7 +1202,7 @@
        Unicode-4.0.0 does not have information about the secondary weight level.
        The version="5.2.0" collation attribute was forgotten in this definition.
     -->
-    <collation name="utf8_czech_test_bad_w2" id="372">
+    <collation name="utf8mb3_czech_test_bad_w2" id="372">
       <settings strength="2"/>
       <rules>
         <reset>C</reset><p>\u010D</p><t>\u010C</t>

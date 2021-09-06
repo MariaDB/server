@@ -46,10 +46,10 @@ Rows matched: 3  Changed: 2  Warnings: 0
 
 Bye
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%update %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %';
 argument
 update `auto_test_remote`.`tbl_a` set `tm` = _latin1'12:00:00' where (`skey` = 0)
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%update %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%update %'
 SELECT skey, dt, tm FROM tbl_a ORDER BY skey;
 skey	dt	tm
 0	2012-01-01	12:00:00

@@ -126,5 +126,5 @@ SELECT column_comment,char_length(column_comment) FROM information_schema.column
 column_comment	char_length(column_comment)
 set names utf8;
 create table t1 (x int comment 'a’');
-ERROR HY000: Invalid utf8 character string: 'a'
+ERROR HY000: Invalid utf8mb3 character string: 'a'
 set names latin1;

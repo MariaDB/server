@@ -214,24 +214,6 @@ select name, max_count, min_count, count,
 	max_count_reset, min_count_reset, count_reset,
 	if(enabled,'enabled','disabled') status
 from information_schema.innodb_metrics
-where name = "metadata_table_handles_opened";
-
-# Test counter "metadata_table_handles_closed",
-# create index will close the old handle
-set global innodb_monitor_enable = metadata_table_handles_closed;
-
-create index idx on monitor_test(col);
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
-where name = "metadata_table_handles_closed";
-
-select name, max_count, min_count, count,
-	max_count_reset, min_count_reset, count_reset,
-	if(enabled,'enabled','disabled') status
-from information_schema.innodb_metrics
 where name like "metadata%";
 
 # Reset counters only in "module_metadata" module
@@ -268,7 +250,7 @@ select name, max_count, min_count, count,
 	max_count_reset, min_count_reset, count_reset,
 	if(enabled,'enabled','disabled') status
 from information_schema.innodb_metrics
-where name like "trx_rollbacks" or name like "trx_active_transactions";
+where name='trx_rollbacks';
 
 set global innodb_monitor_disable = module_trx;
 
@@ -412,7 +394,7 @@ set global innodb_monitor_reset_all = default;
 --echo # Bug#22576241 SETTING INNODB_MONITOR_ENABLE TO ALL DOES NOT ENABLE ALL
 --echo # MONITORS
 --echo #
-CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB;
+CREATE TABLE t1 (a INT PRIMARY KEY) ENGINE=InnoDB STATS_PERSISTENT=0;
 
 let $innodb_monitor_enable = `SELECT @@innodb_monitor_enable`;
 

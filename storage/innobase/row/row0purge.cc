@@ -48,6 +48,7 @@ Created 3/14/1997 Heikki Tuuri
 #include "handler.h"
 #include "ha_innodb.h"
 #include "fil0fil.h"
+#include <mysql/service_thd_mdl.h>
 
 /*************************************************************************
 IMPORTANT NOTE: Any operation that generates redo MUST check that there
@@ -107,14 +108,18 @@ row_purge_remove_clust_if_poss_low(
 	dict_index_t* index = dict_table_get_first_index(node->table);
 	table_id_t table_id = 0;
 	index_id_t index_id = 0;
-	MDL_ticket* mdl_ticket = nullptr;
 	dict_table_t *table = nullptr;
-retry:
+	pfs_os_file_t f = OS_FILE_CLOSED;
+
 	if (table_id) {
+retry:
+		purge_sys.check_stop_FTS();
+		dict_sys.lock(SRW_LOCK_CALL);
 		table = dict_table_open_on_id(
-			table_id, false, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
-			node->purge_thd, &mdl_ticket);
-		if (table && table->n_rec_locks) {
+			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
+		if (!table) {
+			dict_sys.unlock();
+		} else if (table->n_rec_locks) {
 			for (dict_index_t* ind = UT_LIST_GET_FIRST(
 				     table->indexes); ind;
 			     ind = UT_LIST_GET_NEXT(indexes, ind)) {
@@ -128,16 +133,18 @@ retry:
 	mtr.start();
 	index->set_modified(mtr);
 	log_free_check();
+	bool success = true;
 
 	if (!row_purge_reposition_pcur(mode, node, &mtr)) {
 		/* The record was already removed. */
 removed:
 		mtr.commit();
+close_and_exit:
 		if (table) {
-			dict_table_close(table, false, false,
-					 node->purge_thd, mdl_ticket);
+			dict_table_close(table, true);
+			dict_sys.unlock();
 		}
-		return true;
+		return success;
 	}
 
 	if (node->table->id == DICT_INDEXES_ID) {
@@ -155,8 +162,31 @@ removed:
 			}
 			ut_ad("corrupted SYS_INDEXES record" == 0);
 		}
-		dict_drop_index_tree(&node->pcur, nullptr, table, &mtr);
+
+		if (const uint32_t space_id = dict_drop_index_tree(
+			    &node->pcur, nullptr, &mtr)) {
+			if (table) {
+				if (table->release()) {
+					dict_sys.remove(table);
+				} else if (table->space_id == space_id) {
+					table->space = nullptr;
+					table->file_unreadable = true;
+				}
+				dict_sys.unlock();
+				table = nullptr;
+			}
+			f = fil_delete_tablespace(space_id);
+		}
+
 		mtr.commit();
+
+		if (table) {
+			dict_table_close(table, true);
+			dict_sys.unlock();
+			table = nullptr;
+		}
+
+		purge_sys.check_stop_SYS();
 		mtr.start();
 		index->set_modified(mtr);
 
@@ -172,7 +202,6 @@ removed:
 	rec_offs* offsets = rec_get_offsets(rec, index, offsets_,
 					    index->n_core_fields,
 					    ULINT_UNDEFINED, &heap);
-	bool success = true;
 
 	if (node->roll_ptr != row_get_rec_roll_ptr(rec, index, offsets)) {
 		/* Someone else has modified the record later: do not remove */
@@ -217,12 +246,7 @@ func_exit:
 		mtr_commit(&mtr);
 	}
 
-	if (UNIV_LIKELY_NULL(table)) {
-		dict_table_close(table, false, false, node->purge_thd,
-				 mdl_ticket);
-	}
-
-	return(success);
+	goto close_and_exit;
 }
 
 /***********************************************************//**
@@ -699,12 +723,25 @@ row_purge_del_mark(
 	return(row_purge_remove_clust_if_poss(node));
 }
 
+void purge_sys_t::wait_SYS()
+{
+  while (must_wait_SYS())
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+
+void purge_sys_t::wait_FTS()
+{
+  while (must_wait_FTS())
+    std::this_thread::sleep_for(std::chrono::seconds(1));
+}
+
 /** Reset DB_TRX_ID, DB_ROLL_PTR of a clustered index record
 whose old history can no longer be observed.
 @param[in,out]	node	purge node
 @param[in,out]	mtr	mini-transaction (will be started and committed) */
 static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 {
+retry:
 	/* Reset DB_TRX_ID, DB_ROLL_PTR for old records. */
 	mtr->start();
 
@@ -740,6 +777,17 @@ static void row_purge_reset_trx_id(purge_node_t* node, mtr_t* mtr)
 			ut_ad(!rec_get_deleted_flag(
 					rec, rec_offs_comp(offsets))
 			      || rec_is_alter_metadata(rec, *index));
+			switch (node->table->id) {
+			case DICT_TABLES_ID:
+			case DICT_COLUMNS_ID:
+			case DICT_INDEXES_ID:
+				if (purge_sys.must_wait_SYS()) {
+					mtr->commit();
+					purge_sys.check_stop_SYS();
+					goto retry;
+				}
+			}
+
 			DBUG_LOG("purge", "reset DB_TRX_ID="
 				 << ib::hex(row_get_rec_trx_id(
 						    rec, index, offsets)));
@@ -833,7 +881,6 @@ skip_secondaries:
 			= upd_get_nth_field(node->update, i);
 
 		if (dfield_is_ext(&ufield->new_val)) {
-			trx_rseg_t*	rseg;
 			buf_block_t*	block;
 			byte*		data_field;
 			bool		is_insert;
@@ -858,11 +905,8 @@ skip_secondaries:
 						 &is_insert, &rseg_id,
 						 &page_no, &offset);
 
-			rseg = trx_sys.rseg_array[rseg_id];
-
-			ut_a(rseg != NULL);
-			ut_ad(rseg->id == rseg_id);
-			ut_ad(rseg->is_persistent());
+			const trx_rseg_t &rseg = trx_sys.rseg_array[rseg_id];
+			ut_ad(rseg.is_persistent());
 
 			mtr.start();
 
@@ -885,7 +929,7 @@ skip_secondaries:
 			btr_root_get(index, &mtr);
 
 			block = buf_page_get(
-				page_id_t(rseg->space->id, page_no),
+				page_id_t(rseg.space->id, page_no),
 				0, RW_X_LATCH, &mtr);
 
 			data_field = buf_block_get_frame(block)
@@ -982,15 +1026,23 @@ row_purge_parse_undo_rec(
 	}
 
 try_again:
+	purge_sys.check_stop_FTS();
+
 	node->table = dict_table_open_on_id(
 		table_id, false, DICT_TABLE_OP_NORMAL, node->purge_thd,
 		&node->mdl_ticket);
 
-	if (node->table == NULL || node->table->name.is_temporary()) {
+	if (!node->table) {
 		/* The table has been dropped: no need to do purge and
 		release mdl happened as a part of open process itself */
 		goto err_exit;
 	}
+
+	/* FIXME: We are acquiring exclusive dict_sys.latch only to
+	avoid increased wait times in
+	trx_purge_get_next_rec() and trx_purge_truncate_history(). */
+	dict_sys.lock(SRW_LOCK_CALL);
+	dict_sys.unlock();
 
 already_locked:
 	ut_ad(!node->table->is_temporary());
@@ -1008,7 +1060,7 @@ already_locked:
 		if (!mysqld_server_started) {
 
 			node->close_table();
-			if (srv_shutdown_state > SRV_SHUTDOWN_INITIATED) {
+			if (srv_shutdown_state > SRV_SHUTDOWN_NONE) {
 				return(false);
 			}
 			std::this_thread::sleep_for(std::chrono::seconds(1));

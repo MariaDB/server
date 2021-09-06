@@ -902,6 +902,7 @@ TrID trnman_get_min_safe_trid()
 TrID trnman_get_max_trid()
 {
   TrID id;
+  /* Check if trnman has been initalized */
   if (short_trid_to_active_trn == NULL)
     return 0;
   mysql_mutex_lock(&LOCK_trn_list);

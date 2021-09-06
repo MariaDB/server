@@ -1,3 +1,12 @@
+if(PMEM_LIBRARIES)
+  set(PMEM_FOUND TRUE)
+  return()
+endif()
+if(DEFINED PMEM_LIBRARIES)
+  set(PMEM_FOUND FALSE)
+  return()
+endif()
+
 find_path(PMEM_INCLUDE_DIR NAMES libpmem.h)
 find_library(PMEM_LIBRARIES NAMES pmem)
 

@@ -31,9 +31,9 @@ ${SSL_INTERNAL_INCLUDE_DIRS}
 
 SET(GEN_SOURCES
 ${CMAKE_BINARY_DIR}/sql/sql_yacc.hh 
-${CMAKE_BINARY_DIR}/sql/sql_yacc.cc
-${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.hh
-${CMAKE_BINARY_DIR}/sql/sql_yacc_ora.cc
+${CMAKE_BINARY_DIR}/sql/yy_mariadb.cc
+${CMAKE_BINARY_DIR}/sql/yy_oracle.hh
+${CMAKE_BINARY_DIR}/sql/yy_oracle.cc
 ${CMAKE_BINARY_DIR}/sql/lex_hash.h 
 )
 
@@ -78,7 +78,8 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_binlog.cc ../sql/sql_manager.cc
            ../sql/sql_parse.cc ../sql/sql_bootstrap.cc
            ../sql/sql_partition.cc ../sql/sql_plugin.cc 
-           ../sql/debug_sync.cc ../sql/opt_table_elimination.cc
+           ../sql/debug_sync.cc ../sql/debug.cc
+           ../sql/opt_table_elimination.cc
            ../sql/sql_prepare.cc ../sql/sql_rename.cc ../sql/sql_repl.cc 
            ../sql/sql_select.cc ../sql/sql_servers.cc
            ../sql/group_by_handler.cc ../sql/derived_handler.cc
@@ -86,6 +87,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/sql_show.cc ../sql/sql_state.c 
            ../sql/sql_statistics.cc ../sql/sql_string.cc
            ../sql/sql_tablespace.cc ../sql/sql_table.cc ../sql/sql_test.cc
+           ../sql/ddl_log.cc
            ../sql/sql_trigger.cc ../sql/sql_udf.cc ../sql/sql_union.cc
            ../sql/sql_update.cc ../sql/sql_view.cc ../sql/sql_profile.cc
            ../sql/gcalc_tools.cc ../sql/gcalc_slicescan.cc

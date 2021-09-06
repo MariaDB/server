@@ -139,10 +139,10 @@
 //#include "reldef.h"
 #include "tabcol.h"
 #include "xindex.h"
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <io.h>
 #include "tabwmi.h"
-#endif   // __WIN__
+#endif   // _WIN32
 #include "connect.h"
 #include "user_connect.h"
 #include "ha_connect.h"
@@ -167,16 +167,16 @@
 #define SZCONV     1024							// Default converted text size
 #define SZWORK 67108864             // Default work area size 64M
 #define SZWMIN  4194304             // Minimum work area size  4M
-#define JSONMAX      10             // JSON Default max grp size
+#define JSONMAX      50             // JSON Default max grp size
 
 extern "C" {
        char version[]= "Version 1.07.0002 March 22, 2021";
-#if defined(__WIN__)
+#if defined(_WIN32)
        char compver[]= "Version 1.07.0002 " __DATE__ " "  __TIME__;
        static char slash= '\\';
-#else   // !__WIN__
+#else   // !_WIN32
        static char slash= '/';
-#endif  // !__WIN__
+#endif  // !_WIN32
 } // extern "C"
 
 #if MYSQL_VERSION_ID > 100200
@@ -288,15 +288,14 @@ static int connect_assisted_discovery(handlerton *hton, THD* thd,
 /****************************************************************************/
 static char *strz(PGLOBAL g, LEX_CSTRING &ls)
 {
-  char *str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
-
-  /*
-    ls.str can be NULL, for example when called with
-    create_info->connect_string
-  */
-  if (ls.str)
+  char* str= NULL;
+  
+  if (ls.str) {
+    str= (char*)PlugSubAlloc(g, NULL, ls.length + 1);
     memcpy(str, ls.str, ls.length);
-  str[ls.length]= 0;
+    str[ls.length] = 0;
+  } // endif str
+
   return str;
 } // end of strz
 
@@ -511,7 +510,7 @@ char *GetJsonNull(void)
 int GetDefaultDepth(void) {return THDVAR(current_thd, default_depth);}
 int GetDefaultPrec(void) {return THDVAR(current_thd, default_prec);}
 uint GetJsonGrpSize(void)
-  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 10;}
+  {return connect_hton ? THDVAR(current_thd, json_grp_size) : 50;}
 size_t GetWorkSize(void) {return (size_t)THDVAR(current_thd, work_size);}
 void SetWorkSize(size_t) 
 {
@@ -805,11 +804,11 @@ static int connect_init_func(void *p)
   }
 #endif   // 0 (LINUX)
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   sql_print_information("CONNECT: %s", compver);
-#else   // !__WIN__
+#else   // !_WIN32
   sql_print_information("CONNECT: %s", version);
-#endif  // !__WIN__
+#endif  // !_WIN32
 	pthread_mutex_init(&parmut, NULL);
 	pthread_mutex_init(&usrmut, NULL);
 	pthread_mutex_init(&tblmut, NULL);
@@ -867,9 +866,9 @@ int connect_done_func(void *)
 	JAVAConn::ResetJVM();
 #endif // JAVA_SUPPORT
 
-#if	!defined(__WIN__)
+#if	!defined(_WIN32)
 	PROFILE_End();
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 	pthread_mutex_lock(&usrmut);
 	for (pc= user_connect::to_users; pc; pc= pn) {
@@ -943,11 +942,11 @@ ha_connect::ha_connect(handlerton *hton, TABLE_SHARE *table_arg)
   xp= (table) ? GetUser(ha_thd(), NULL) : NULL;
   if (xp)
     xp->SetHandler(this);
-#if defined(__WIN__)
+#if defined(_WIN32)
   datapath= ".\\";
-#else   // !__WIN__
+#else   // !_WIN32
   datapath= "./";
-#endif  // !__WIN__
+#endif  // !_WIN32
   tdbp= NULL;
   sdvalin1= sdvalin2= sdvalin3= sdvalin4= NULL;
   sdvalout= NULL;
@@ -1443,7 +1442,7 @@ PCSZ ha_connect::GetStringOption(PCSZ opname, PCSZ sdef)
                                      : table->s->table_charset;
 
     if (chif)
-      opval= (char*)chif->csname;
+      opval= (char*)chif->cs_name.str;
 
   } else
     opval= GetStringTableOption(xp->g, options, opname, NULL);
@@ -1607,7 +1606,7 @@ void *ha_connect::GetColumnOption(PGLOBAL g, void *field, PCOLINFO pcf)
 
   // Now get column information
   pcf->Name= (char*)fp->field_name.str;
-	chset = (char*)fp->charset()->name;
+  chset= (char*)fp->charset()->coll_name.str;
 
   if (fop && fop->special) {
     pcf->Fieldfmt= (char*)fop->special;
@@ -2586,11 +2585,9 @@ bool ha_connect::MakeKeyWhere(PGLOBAL g, PSTRG qry, OPVAL vop, char q,
 				qry->Append('\'');
 
 			if (kpart->key_part_flag & HA_VAR_LENGTH_PART) {
-				String varchar;
-				uint   var_length= uint2korr(ptr);
-
-				varchar.set_quick((char*)ptr + HA_KEY_BLOB_LENGTH,
-					var_length, &my_charset_bin);
+                                 uint   var_length= uint2korr(ptr);
+                                 String varchar((char*) ptr + HA_KEY_BLOB_LENGTH,
+                                         var_length, &my_charset_bin);
 				qry->Append(varchar.ptr(), varchar.length(), nq);
 			}	else {
 				char   strbuff[MAX_FIELD_WIDTH];
@@ -3480,11 +3477,11 @@ bool ha_connect::get_error_message(int error, String* buf)
 
 		if (trace(1))
 			htrc("GEM(%d): %s\n", error, g->Message);
-
-		buf->append(ErrConvString(g->Message, strlen(g->Message),
-			&my_charset_latin1).ptr());
+                buf->append(ErrConvString(g->Message,
+                                          strlen(g->Message),
+                                          &my_charset_latin1).lex_cstring());
 	} else
-    buf->append("Cannot retrieve error message");
+                buf->append(STRING_WITH_LEN("Cannot retrieve error message"));
 
   DBUG_RETURN(false);
 } // end of get_error_message
@@ -4550,11 +4547,11 @@ static bool checkPrivileges(THD *thd, TABTYPE type, PTOS options,
  					strcpy(dbpath, mysql_real_data_home);
 
 					if (db)
-#if defined(__WIN__)
+#if defined(_WIN32)
 						strcat(strcat(dbpath, db), "\\");
-#else   // !__WIN__
+#else   // !_WIN32
 						strcat(strcat(dbpath, db), "/");
-#endif  // !__WIN__
+#endif  // !_WIN32
 
 					(void)fn_format(path, options->filename, dbpath, "",
 						MY_RELATIVE_PATH | MY_UNPACK_FILENAME);
@@ -5422,10 +5419,10 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 	bool q, error = false;
 	const char* type = PLGtoMYSQLtype(typ, dbf, var);
 
-	error |= sql->append('`');
-	error |= sql->append(field_name);
-	error |= sql->append("` ");
-	error |= sql->append(type);
+	error|= sql->append('`');
+	error|= sql->append(field_name, strlen(field_name));
+	error|= sql->append(STRING_WITH_LEN("` "));
+	error|= sql->append(type, strlen(type));
 
 	if (typ == TYPE_STRING ||
 		(len && typ != TYPE_DATE && (typ != TYPE_DOUBLE || dec >= 0))) {
@@ -5446,20 +5443,20 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 	} // endif len
 
 	if (v == 'U')
-		error |= sql->append(" UNSIGNED");
+          error |= sql->append(STRING_WITH_LEN(" UNSIGNED"));
 	else if (v == 'Z')
-		error |= sql->append(" ZEROFILL");
+          error |= sql->append(STRING_WITH_LEN(" ZEROFILL"));
 
 	if (key && *key) {
-		error |= sql->append(" ");
-		error |= sql->append(key);
+		error |= sql->append(' ');
+		error |= sql->append(key, strlen(key));
 	} // endif key
 
 	if (tm)
 		error |= sql->append(STRING_WITH_LEN(" NOT NULL"), system_charset_info);
 
 	if (dft && *dft) {
-		error |= sql->append(" DEFAULT ");
+          error |= sql->append(STRING_WITH_LEN(" DEFAULT "));
 
 		if (typ == TYPE_DATE)
 			q = (strspn(dft, "0123456789 -:/") == strlen(dft));
@@ -5467,41 +5464,40 @@ static bool add_field(String* sql, TABTYPE ttp, const char* field_name, int typ,
 			q = !IsTypeNum(typ);
 
 		if (q) {
-			error |= sql->append("'");
+			error |= sql->append(STRING_WITH_LEN("'"));
 			error |= sql->append_for_single_quote(dft, strlen(dft));
-			error |= sql->append("'");
+			error |= sql->append('\'');
 		} else
-			error |= sql->append(dft);
+			error |= sql->append(dft, strlen(dft));
 
 	} // endif dft
 
 	if (xtra && *xtra) {
-		error |= sql->append(" ");
-		error |= sql->append(xtra);
+		error |= sql->append(' ');
+		error |= sql->append(xtra, strlen(xtra));
 	} // endif rem
 
 	if (rem && *rem) {
-		error |= sql->append(" COMMENT '");
+		error |= sql->append(STRING_WITH_LEN(" COMMENT '"));
 		error |= sql->append_for_single_quote(rem, strlen(rem));
-		error |= sql->append("'");
+		error |= sql->append(STRING_WITH_LEN("'"));
 	} // endif rem
 
 	if (fmt && *fmt) {
 		switch (ttp) {
-		case TAB_JSON: error |= sql->append(" JPATH='"); break;
-#if defined(BSON_SUPPORT)
-    case TAB_BSON: error |= sql->append(" JPATH='"); break;
-#endif   // BSON_SUPPORT
-    case TAB_XML:  error |= sql->append(" XPATH='"); break;
-		default:	     error |= sql->append(" FIELD_FORMAT='");
+                case TAB_MONGO:
+                case TAB_BSON:
+		case TAB_JSON: error |= sql->append(STRING_WITH_LEN(" JPATH='")); break;
+                case TAB_XML:  error |= sql->append(STRING_WITH_LEN(" XPATH='")); break;
+		default:       error |= sql->append(STRING_WITH_LEN(" FIELD_FORMAT='"));
 		} // endswitch ttp
 
 		error |= sql->append_for_single_quote(fmt, strlen(fmt));
-		error |= sql->append("'");
+		error |= sql->append('\'');
 	} // endif flag
 
 	if (flag) {
-		error |= sql->append(" FLAG=");
+		error |= sql->append(STRING_WITH_LEN(" FLAG="));
 		error |= sql->append_ulonglong(flag);
 	} // endif flag
 
@@ -5537,7 +5533,7 @@ static int init_table_share(THD* thd,
 
         if (vull != opt->def_value) {
           oom|= sql->append(' ');
-          oom|= sql->append(opt->name);
+          oom|= sql->append(opt->name, strlen(opt->name));
           oom|= sql->append('=');
           oom|= sql->append_ulonglong(vull);
           } // endif vull
@@ -5548,8 +5544,8 @@ static int init_table_share(THD* thd,
 
         if (vstr) {
           oom|= sql->append(' ');
-          oom|= sql->append(opt->name);
-          oom|= sql->append("='");
+          oom|= sql->append(opt->name, strlen(opt->name));
+          oom|= sql->append(STRING_WITH_LEN("='"));
           oom|= sql->append_for_single_quote(vstr, strlen(vstr));
           oom|= sql->append('\'');
           } // endif vstr
@@ -5560,9 +5556,12 @@ static int init_table_share(THD* thd,
 
         if (vull != opt->def_value) {
           oom|= sql->append(' ');
-          oom|= sql->append(opt->name);
+          oom|= sql->append(opt->name, strlen(opt->name));
           oom|= sql->append('=');
-          oom|= sql->append(vull ? "YES" : "NO");
+          if (vull)
+            oom|= sql->append("YES", 3);
+          else
+            oom|= sql->append("NO", 2);
           } // endif vull
 
         break;
@@ -5577,7 +5576,7 @@ static int init_table_share(THD* thd,
 
   if (create_info->connect_string.length) {
     oom|= sql->append(' ');
-    oom|= sql->append("CONNECTION='");
+    oom|= sql->append(STRING_WITH_LEN("CONNECTION='"));
     oom|= sql->append_for_single_quote(create_info->connect_string.str,
                                        create_info->connect_string.length);
     oom|= sql->append('\'');
@@ -5589,8 +5588,8 @@ static int init_table_share(THD* thd,
 
   if (create_info->default_table_charset) {
     oom|= sql->append(' ');
-    oom|= sql->append("CHARSET=");
-    oom|= sql->append(create_info->default_table_charset->csname);
+    oom|= sql->append(STRING_WITH_LEN("CHARSET="));
+    oom|= sql->append(create_info->default_table_charset->cs_name);
 
     if (oom)
       return HA_ERR_OUT_OF_MEM;
@@ -5625,9 +5624,9 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 	PCSZ     user, fn, db, host, pwd, sep, tbl, src;
 	PCSZ     col, ocl, rnk, pic, fcl, skc, zfn;
 	char    *tab, *dsn, *shm, *dpath, *url;
-#if defined(__WIN__)
+#if defined(_WIN32)
 	PCSZ     nsp= NULL, cls= NULL;
-#endif   // __WIN__
+#endif   // _WIN32
 //int      hdr, mxe;
 	int      port= 0, mxr __attribute__((unused)) = 0, rc= 0, mul= 0;
 //PCSZ     tabtyp= NULL;
@@ -5643,7 +5642,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #endif   // JAVA_SUPPORT
   uint     tm, fnc= FNC_NO, supfnc= (FNC_NO | FNC_COL);
   bool     bif, ok= false, dbf= false;
-  TABTYPE  ttp= TAB_UNDEF;
+  TABTYPE  ttp= TAB_UNDEF, ttr=TAB_UNDEF;
   PQRYRES  qrp= NULL;
   PCOLRES  crp;
   PCONNECT xp= NULL;
@@ -5686,10 +5685,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
     skc= GetListOption(g, "skipcol", topt->oplist, NULL);
     rnk= GetListOption(g, "rankcol", topt->oplist, NULL);
     pwd= GetListOption(g, "password", topt->oplist);
-#if defined(__WIN__)
+#if defined(_WIN32)
     nsp= GetListOption(g, "namespace", topt->oplist);
     cls= GetListOption(g, "class", topt->oplist);
-#endif   // __WIN__
+#endif   // _WIN32
     port= atoi(GetListOption(g, "port", topt->oplist, "0"));
 #if defined(ODBC_SUPPORT)
 //	tabtyp= GetListOption(g, "Tabtype", topt->oplist, NULL);
@@ -5723,7 +5722,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 			topt->type= (src) ? "MYSQL" : (tab) ? "PROXY" : "DOS";
 			ttp= GetTypeID(topt->type);
 			sprintf(g->Message, "No table_type. Was set to %s", topt->type);
-			push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
+			push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
 		} else if (ttp == TAB_NIY) {
 			sprintf(g->Message, "Unsupported table type %s", topt->type);
 			rc= HA_ERR_INTERNAL_ERROR;
@@ -5731,13 +5730,13 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
 		} else if (topt->http) {
       if (ttp == TAB_UNDEF) {
-        topt->type = "JSON";
-        ttp= GetTypeID(topt->type);
-        sprintf(g->Message, "No table_type. Was set to %s", topt->type);
-        push_warning(thd, Sql_condition::WARN_LEVEL_WARN, 0, g->Message);
-      } // endif ttp
+        ttr= TAB_JSON;
+        strcpy(g->Message, "No table_type. Was set to JSON");
+        push_warning(thd, Sql_condition::WARN_LEVEL_NOTE, 0, g->Message);
+      } else
+        ttr= ttp;
 
-      switch (ttp) {
+      switch (ttr) {
 				case TAB_JSON:
 #if defined(BSON_SUPPORT)
         case TAB_BSON:
@@ -5920,11 +5919,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 					ok= false;
 
 				break;
-#if defined(__WIN__)
+#if defined(_WIN32)
 			case TAB_WMI:
 				ok= true;
 				break;
-#endif   // __WIN__
+#endif   // _WIN32
 			case TAB_PIVOT:
 				supfnc= FNC_NO;
                                 // fall through
@@ -5957,9 +5956,10 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				if (!fn && !zfn && !mul && !dsn)
 					sprintf(g->Message, "Missing %s file name", topt->type);
-				else
-					ok= true;
+				else if (dsn && !topt->tabname)
+          topt->tabname= tab;
 
+				ok= true;
 				break;
 #if defined(JAVA_SUPPORT)
 			case TAB_MONGO:
@@ -5972,7 +5972,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 #if defined(REST_SUPPORT)
 			case TAB_REST:
 				if (!topt->http)
-					sprintf(g->Message, "Missing %s HTTP address", topt->type);
+					strcpy(g->Message, "Missing REST HTTP option");
 				else
 					ok = true;
 
@@ -6088,11 +6088,11 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 				case TAB_CSV:
 					qrp= CSVColumns(g, dpath, topt, fnc == FNC_COL);
 					break;
-#if defined(__WIN__)
+#if defined(_WIN32)
 				case TAB_WMI:
 					qrp= WMIColumns(g, nsp, cls, fnc == FNC_COL);
 					break;
-#endif   // __WIN__
+#endif   // _WIN32
 				case TAB_PRX:
 				case TAB_TBL:
 				case TAB_XCL:
@@ -6192,7 +6192,7 @@ static int connect_assisted_discovery(handlerton *, THD* thd,
 
 				// Restore language type
 				if (ttp == TAB_REST)
-          ttp = GetTypeID(topt->type);
+          ttp = ttr;
 
 				for (i= 0; !rc && i < qrp->Nblin; i++) {
 					typ= len= prec= dec= flg= 0;
@@ -6460,6 +6460,7 @@ int ha_connect::create(const char *name, TABLE *table_arg,
   TABLE  *st= table;                       // Probably unuseful
   THD    *thd= ha_thd();
   LEX_CSTRING cnc = table_arg->s->connect_string;
+  myf utf8_flag= thd->get_utf8_flag();
 #if defined(WITH_PARTITION_STORAGE_ENGINE)
   partition_info *part_info= table_arg->part_info;
 #else		// !WITH_PARTITION_STORAGE_ENGINE
@@ -6519,7 +6520,8 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     const CHARSET_INFO *data_charset;
 
     if (!(data_charset= get_charset_by_csname(options->data_charset,
-                                              MY_CS_PRIMARY, MYF(0)))) {
+                                                    MY_CS_PRIMARY,
+                                                     MYF(utf8_flag)))) {
       my_error(ER_UNKNOWN_CHARACTER_SET, MYF(0), options->data_charset);
       DBUG_RETURN(HA_ERR_INTERNAL_ERROR);
       } // endif charset
@@ -6622,11 +6624,11 @@ int ha_connect::create(const char *name, TABLE *table_arg,
     // on Windows and libxml2 otherwise
     switch (toupper(*xsup)) {
       case '*':
-#if defined(__WIN__)
+#if defined(_WIN32)
         dom= true;
-#else   // !__WIN__
+#else   // !_WIN32
         dom= false;
-#endif  // !__WIN__
+#endif  // !_WIN32
         break;
       case 'M':
       case 'D':
@@ -7009,11 +7011,11 @@ bool ha_connect::FileExists(const char *fn, bool bf)
     int   n;
     struct stat info;
 
-#if defined(__WIN__)
+#if defined(_WIN32)
     s= "\\";
-#else   // !__WIN__
+#else   // !_WIN32
     s= "/";
-#endif  // !__WIN__
+#endif  // !_WIN32
     if (IsPartitioned()) {
       sprintf(tfn, fn, GetPartName());
 
@@ -7530,7 +7532,7 @@ maria_declare_plugin(connect)
   0x0107,                                       /* version number (1.07) */
   NULL,                                         /* status variables */
   connect_system_variables,                     /* system variables */
-  "1.07.0002",                                  /* string version */
+  "1.07.0003",                                  /* string version */
 	MariaDB_PLUGIN_MATURITY_STABLE                /* maturity */
 }
 maria_declare_plugin_end;

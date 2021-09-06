@@ -183,6 +183,22 @@ public:
   into the TABLE_LIST::table_function.
   Then the ha_json_table instance is created based on it in
   the create_table_for_function().
+
+  == Replication: whether JSON_TABLE is deterministic ==
+
+  In sql_yacc.yy, we set BINLOG_STMT_UNSAFE_SYSTEM_FUNCTION whenever
+  JSON_TABLE is used. The reasoning behind this is as follows:
+
+  In the current MariaDB code, evaluation of JSON_TABLE is deterministic,
+  that is, for a given input string JSON_TABLE will always produce the same
+  set of rows in the same order.  However one can think of JSON documents
+  that one can consider indentical which will produce different output.
+  In order to be feature-proof and withstand changes like:
+  - sorting JSON object members by name (like MySQL does)
+  - changing the way duplicate object members are handled
+  we mark the function as SBR-unsafe.
+  (If there is ever an issue with this, marking the function as SBR-safe
+   is a non-intrusive change we will always be able to make)
 */
 
 class Table_function_json_table : public Sql_alloc

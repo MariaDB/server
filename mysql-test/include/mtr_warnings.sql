@@ -141,7 +141,7 @@ INSERT INTO global_suppressions VALUES
  ("You have an error in your SQL syntax"),
  ("deprecated"),
  ("description of time zone"),
- ("equal MySQL server ids"),
+ ("equal MariaDB server ids"),
  ("error .*connecting to master"),
  ("error reading log entry"),
  ("lower_case_table_names is set"),
@@ -176,7 +176,7 @@ INSERT INTO global_suppressions VALUES
  ("Restore: The grant .* was skipped because the user does not exist"),
  ("The path specified for the variable .* is not a directory or cannot be written:"),
  ("Master server does not support or not configured semi-sync replication, fallback to asynchronous"),
- (": The MySQL server is running with the --secure-backup-file-priv option so it cannot execute this statement"),
+ (": The MariaDB server is running with the --secure-backup-file-priv option so it cannot execute this statement"),
  ("Slave: Unknown table 't1' error.* 1051"),
 
  /* Maria storage engine dependent tests */

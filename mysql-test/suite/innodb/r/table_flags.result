@@ -122,8 +122,8 @@ a
 42
 SHOW CREATE TABLE tp;
 ERROR 42S02: Table 'test.tp' doesn't exist in engine
-FOUND 5 /InnoDB: Table `test`.`t[cp]` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649/ in mysqld.1.err
-FOUND 2 /InnoDB: Table `test`\.`tr` in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=65 SYS_TABLES\.MIX_LEN=4294967295\b/ in mysqld.1.err
+FOUND 5 /InnoDB: Table test/t[cp] in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=(129|289|3873|1232[13]) SYS_TABLES\.N_COLS=2147483649/ in mysqld.1.err
+FOUND 2 /InnoDB: Table test/tr in InnoDB data dictionary contains invalid flags\. SYS_TABLES\.TYPE=65 SYS_TABLES\.MIX_LEN=4294967295\b/ in mysqld.1.err
 Restoring SYS_TABLES clustered index root page (8)
 # restart: with restart_parameters
 SHOW CREATE TABLE tr;

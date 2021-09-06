@@ -729,6 +729,49 @@ static int sst_append_env_var(wsp::env&   env,
   return -env.error();
 }
 
+#ifdef _WIN32
+/*
+  Space, single quote, ampersand, backquote, I/O redirection
+  characters, caret, all brackets, plus, exclamation and comma
+  characters require text to be enclosed in double quotes:
+*/
+#define IS_SPECIAL(c) \
+  (isspace(c) || c == '\'' || c == '&' || c == '`' || c == '|' || \
+                 c ==  '>' || c == '<' || c == ';' || c == '^' || \
+                 c ==  '[' || c == ']' || c == '{' || c == '}' || \
+                 c ==  '(' || c == ')' || c == '+' || c == '!' || \
+                 c ==  ',')
+/*
+  Inside values, equals character are interpreted as special
+  character and requires quotation:
+*/
+#define IS_SPECIAL_V(c) (IS_SPECIAL(c) || c == '=')
+/*
+  Double quotation mark and percent characters require escaping:
+*/
+#define IS_REQ_ESCAPING(c) (c == '""' || c == '%')
+#else
+/*
+  Space, single quote, ampersand, backquote, and I/O redirection
+  characters require text to be enclosed in double quotes. The
+  semicolon is used to separate shell commands, so it must be
+  enclosed in double quotes as well:
+*/
+#define IS_SPECIAL(c) \
+  (isspace(c) || c == '\'' || c == '&' || c == '`' || c == '|' || \
+                 c ==  '>' || c == '<' || c == ';')
+/*
+  Inside values, characters are interpreted as in parameter names:
+*/
+#define IS_SPECIAL_V(c) IS_SPECIAL(c)
+/*
+  Double quotation mark and backslash characters require
+  backslash prefixing, the dollar symbol is used to substitute
+  a variable value, therefore it also requires escaping:
+*/
+#define IS_REQ_ESCAPING(c) (c == '"' || c == '\\' || c == '$')
+#endif
+
 static size_t estimate_cmd_len (bool* extra_args)
 {
   /*
@@ -753,22 +796,16 @@ static size_t estimate_cmd_len (bool* extra_args)
       char c;
       while ((c = *arg++) != 0)
       {
-        /*
-          Space, single quote, ampersand, and I/O redirection characters
-          require text to be enclosed in double quotes:
-        */
-        if (isspace(c) || c == '\'' || c == '&' || c == '|' ||
-#ifdef __WIN__
-                          c == '>'  || c == '<')
-#else
-        /*
-          The semicolon is used to separate shell commands, so it must be
-          enclosed in double quotes as well:
-        */
-                          c == '>'  || c == '<' || c == ';')
-#endif
+        if (IS_SPECIAL(c))
         {
           quotation= true;
+        }
+        else if (IS_REQ_ESCAPING(c))
+        {
+          cmd_len++;
+#ifdef _WIN32
+          quotation= true;
+#endif
         }
         /*
           If the equals symbol is encountered, then we need to separately
@@ -788,57 +825,19 @@ static size_t estimate_cmd_len (bool* extra_args)
           }
           while ((c = *arg++) != 0)
           {
-            /*
-              Space, single quote, ampersand, and I/O redirection characters
-              require text to be enclosed in double quotes:
-            */
-            if (isspace(c) || c == '\'' || c == '&' || c == '|' ||
-#ifdef __WIN__
-                              c == '>'  || c == '<')
-#else
-            /*
-              The semicolon is used to separate shell commands, so it must be
-              enclosed in double quotes as well:
-            */
-                              c == '>'  || c == '<' || c == ';')
-#endif
+            if (IS_SPECIAL_V(c))
             {
               quotation= true;
             }
-            /*
-              Double quotation mark or backslash symbol requires backslash
-              prefixing:
-            */
-#ifdef __WIN__
-            else if (c == '"' || c == '\\')
-#else
-            /*
-              The dollar symbol is used to substitute a variable, therefore
-              it also requires escaping:
-            */
-            else if (c == '"' || c == '\\' || c == '$')
-#endif
+            else if (IS_REQ_ESCAPING(c))
             {
               cmd_len++;
+#ifdef _WIN32
+              quotation= true;
+#endif
             }
           }
           break;
-        }
-        /*
-          Double quotation mark or backslash symbol requires backslash
-          prefixing:
-        */
-#ifdef __WIN__
-        else if (c == '"' || c == '\\')
-#else
-        /*
-          The dollar symbol is used to substitute a variable, therefore
-          it also requires escaping:
-        */
-        else if (c == '"' || c == '\\' || c == '$')
-#endif
-        {
-          cmd_len++;
         }
       }
       /* Perhaps we need to quote the entire argument or its right part: */
@@ -882,22 +881,16 @@ static void copy_orig_argv (char* cmd_str)
       char c;
       while ((c = *arg_scan++) != 0)
       {
-        /*
-          Space, single quote, ampersand, and I/O redirection characters
-          require text to be enclosed in double quotes:
-        */
-        if (isspace(c) || c == '\'' || c == '&' || c == '|' ||
-#ifdef __WIN__
-                          c == '>'  || c == '<')
-#else
-        /*
-          The semicolon is used to separate shell commands, so it must be
-          enclosed in double quotes as well:
-        */
-                          c == '>'  || c == '<' || c == ';')
-#endif
+        if (IS_SPECIAL(c))
         {
           quotation= true;
+        }
+        else if (IS_REQ_ESCAPING(c))
+        {
+          plain= false;
+#ifdef _WIN32
+          quotation= true;
+#endif
         }
         /*
           If the equals symbol is encountered, then we need to separately
@@ -933,13 +926,13 @@ static void copy_orig_argv (char* cmd_str)
               while (m)
               {
                 c = *arg++;
-#ifdef __WIN__
-                if (c == '"' || c == '\\')
-#else
-                if (c == '"' || c == '\\' || c == '$')
-#endif
+                if (IS_REQ_ESCAPING(c))
                 {
+#ifdef _WIN32
+                  *cmd_str++ = c;
+#else
                   *cmd_str++ = '\\';
+#endif
                 }
                 *cmd_str++ = c;
                 m--;
@@ -968,57 +961,19 @@ static void copy_orig_argv (char* cmd_str)
           /* Let's deal with the left side of the expression: */
           while ((c = *arg_scan++) != 0)
           {
-            /*
-              Space, single quote, ampersand, and I/O redirection characters
-              require text to be enclosed in double quotes:
-            */
-            if (isspace(c) || c == '\'' || c == '&' || c == '|' ||
-#ifdef __WIN__
-                              c == '>'  || c == '<')
-#else
-            /*
-              The semicolon is used to separate shell commands, so it must be
-              enclosed in double quotes as well:
-            */
-                              c == '>'  || c == '<' || c == ';')
-#endif
+            if (IS_SPECIAL_V(c))
             {
               quotation= true;
             }
-            /*
-              Double quotation mark or backslash symbol requires backslash
-              prefixing:
-            */
-#ifdef __WIN__
-            else if (c == '"' || c == '\\')
-#else
-            /*
-              The dollar symbol is used to substitute a variable, therefore
-              it also requires escaping:
-            */
-            else if (c == '"' || c == '\\' || c == '$')
-#endif
+            else if (IS_REQ_ESCAPING(c))
             {
               plain= false;
+#ifdef _WIN32
+              quotation= true;
+#endif
             }
           }
           break;
-        }
-        /*
-          Double quotation mark or backslash symbol requires backslash
-          prefixing:
-        */
-#ifdef __WIN__
-        else if (c == '"' || c == '\\')
-#else
-        /*
-          The dollar symbol is used to substitute a variable, therefore
-          it also requires escaping:
-        */
-        else if (c == '"' || c == '\\' || c == '$')
-#endif
-        {
-          plain= false;
         }
       }
       if (n)
@@ -1042,13 +997,13 @@ static void copy_orig_argv (char* cmd_str)
         {
           while ((c = *arg++) != 0)
           {
-#ifdef __WIN__
-            if (c == '"' || c == '\\')
-#else
-            if (c == '"' || c == '\\' || c == '$')
-#endif
+            if (IS_REQ_ESCAPING(c))
             {
+#ifdef _WIN32
+              *cmd_str++ = c;
+#else
               *cmd_str++ = '\\';
+#endif
             }
             *cmd_str++ = c;
           }
@@ -1100,6 +1055,8 @@ static ssize_t sst_prepare_other (const char*  method,
   {
     WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
                 ret);
+    if (binlog_opt_val) my_free(binlog_opt_val);
+    return ret;
   }
 
   make_wsrep_defaults_file();
@@ -1117,6 +1074,7 @@ static ssize_t sst_prepare_other (const char*  method,
                  wsrep_defaults_file,
                  (int)getpid(),
                  binlog_opt_val, binlog_index_opt_val);
+
   my_free(binlog_opt_val);
   my_free(binlog_index_opt_val);
 
@@ -1571,10 +1529,10 @@ static int sst_flush_tables(THD* thd)
   if (!is_supported_parser_charset(current_charset))
   {
       /* Do not use non-supported parser character sets */
-      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->cs_name.str);
       thd->variables.character_set_client= &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
-                 my_charset_latin1.csname);
+                 my_charset_latin1.cs_name.str);
   }
 
   if (run_sql_command(thd, "FLUSH TABLES WITH READ LOCK"))
@@ -1673,10 +1631,10 @@ static void sst_disallow_writes (THD* thd, bool yes)
   if (!is_supported_parser_charset(current_charset))
   {
       /* Do not use non-supported parser character sets */
-      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->csname);
+      WSREP_WARN("Current client character set is non-supported parser character set: %s", current_charset->cs_name.str);
       thd->variables.character_set_client= &my_charset_latin1;
       WSREP_WARN("For SST temporally setting character set to : %s",
-                 my_charset_latin1.csname);
+                 my_charset_latin1.cs_name.str);
   }
 
   snprintf (query_str, query_max, "SET GLOBAL innodb_disallow_writes=%d",
@@ -1845,6 +1803,8 @@ static int sst_donate_other (const char*        method,
   {
     WSREP_ERROR("sst_prepare_other(): generate_binlog_index_opt_val() failed %d",
                 ret);
+    if (binlog_opt_val) my_free(binlog_opt_val);
+    return ret;
   }
 
   make_wsrep_defaults_file();

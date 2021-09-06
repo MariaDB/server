@@ -4,6 +4,9 @@ SET @save_opt= @@GLOBAL.innodb_prefix_index_cluster_optimization;
 set global innodb_prefix_index_cluster_optimization = ON;
 show variables like 'innodb_prefix_index_cluster_optimization';
 
+SET @save_innodb_stats_persistent=@@GLOBAL.innodb_stats_persistent;
+SET GLOBAL innodb_stats_persistent = OFF;
+
 --echo # Create a table with a large varchar field that we index the prefix
 --echo # of and ensure we only trigger cluster lookups when we expect it.
 create table prefixinno (
@@ -717,3 +720,4 @@ AND path IN ( '/fondsinvesteringer/', '/' );
 DROP TABLE wp_blogs;
 
 SET GLOBAL innodb_prefix_index_cluster_optimization = @save_opt;
+SET GLOBAL innodb_stats_persistent = @save_innodb_stats_persistent;

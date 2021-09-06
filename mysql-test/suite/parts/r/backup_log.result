@@ -1,0 +1,278 @@
+connect  con1,localhost,root,,;
+BACKUP STAGE START;
+connection default;
+#
+# Testing with normal tables
+#
+create table t1 (a int) engine=myisam PARTITION BY HASH(a) PARTITIONS 2;
+insert into t1 values (1),(2);
+alter table t1 add column b int;
+alter table t1 rename as t2;
+rename table t2 to t1;
+truncate table t1;
+repair table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	repair	status	OK
+optimize table t1;
+Table	Op	Msg_type	Msg_text
+test.t1	optimize	status	OK
+drop table t1;
+create table t1_innodb (a int) engine=innodb PARTITION BY HASH(a) PARTITIONS 2;
+insert into t1_innodb values (1),(2);
+alter table t1_innodb add column b int;
+alter table t1_innodb rename as t2_innodb;
+rename table t2_innodb to t1_innodb;
+truncate table t1_innodb;
+repair table t1_innodb;
+Table	Op	Msg_type	Msg_text
+test.t1_innodb	repair	status	OK
+optimize table t1_innodb;
+Table	Op	Msg_type	Msg_text
+test.t1_innodb	optimize	note	Table does not support optimize, doing recreate + analyze instead
+test.t1_innodb	optimize	status	OK
+drop table t1_innodb;
+#
+# Testing with temporary tables (should not be logged)
+#
+create temporary table tmp_t10 (a int) engine=myisam;
+alter table tmp_t10 add column b int;
+alter table tmp_t10 rename as tmp_t11;
+rename table tmp_t11 to tmp_t10;
+truncate table tmp_t10;
+drop table tmp_t10;
+#
+# Testing with mix of normal and temporary tables
+#
+create temporary table tmp_t20 (a int);
+create table t20 (a int) PARTITION BY HASH(a) PARTITIONS 2;
+drop table tmp_t20,t20;
+create temporary table tmp_t21 (a int);
+create table t21 (a int) PARTITION BY HASH(a) PARTITIONS 2;
+drop temporary table if exists tmp_t21,t21;
+Warnings:
+Note	1051	Unknown table 'test.t21'
+drop table if exists tmp_t21,t21;
+Warnings:
+Note	1051	Unknown table 'test.tmp_t21'
+#
+# Testing create select
+#
+create table t30 (a int) PARTITION BY HASH(a) PARTITIONS 2;
+insert into t30 values (1),(1);
+create table t31 (a int primary key) PARTITION BY HASH(a) PARTITIONS 2 select * from t30 limit 1;
+create or replace table t31 select * from t30 limit 1;
+create or replace temporary table t30_dup select * from t30 limit 1;
+create or replace table t31 (a int primary key) PARTITION BY HASH(a) PARTITIONS 2 select * from t30;
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+create table t32 (a int) PARTITION BY HASH(a) PARTITIONS 2;
+drop table if exists t30,t31,t32,tmp_t30;
+Warnings:
+Note	1051	Unknown table 'test.t31,test.tmp_t30'
+#
+# Testing create LIKE
+#
+create table t40 (a int) engine=myisam PARTITION BY HASH(a) PARTITIONS 2;
+create table t41 (a int, b int) engine=innodb PARTITION BY HASH(a) PARTITIONS 2;
+create table t42 like t40;
+create or replace table t42 like t41;
+show create table t42;
+Table	Create Table
+t42	CREATE TABLE `t42` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+ PARTITION BY HASH (`a`)
+PARTITIONS 2
+drop table t40, t41, t42;
+#
+# Testing rename
+#
+create table t50 (a int) PARTITION BY HASH(a) PARTITIONS 2;
+create table t51 (a int, b int) PARTITION BY HASH(a) PARTITIONS 2;
+rename table t50 to t52, t51 to t53;
+rename table t52 to tmp, t53 to t52, tmp to t53;
+drop table t52,t53;
+#
+# Testing enable/disable keys
+#
+CREATE TABLE t60 (a int(10), index(a) ) ENGINE=Aria PARTITION BY HASH(a) PARTITIONS 2;
+INSERT INTO t60 VALUES(1),(2),(3);
+ALTER TABLE t60 DISABLE KEYS;
+INSERT INTO t60 VALUES(4),(5),(6);
+ALTER TABLE t60 ENABLE KEYS;
+DROP TABLE t60;
+CREATE TEMPORARY TABLE t61 (i int(10), index(i) ) ENGINE=Aria;
+INSERT INTO t61 VALUES(1),(2),(3);
+ALTER TABLE t61 DISABLE KEYS;
+DROP TABLE t61;
+#
+# Testing load data
+#
+create table t70 (a date, b date, c date not null, d date) engine=aria PARTITION BY HASH(YEAR(a)) PARTITIONS 2;
+load data infile '../../std_data/loaddata1.dat' ignore into table t70 fields terminated by ',';
+load data infile '../../std_data/loaddata1.dat' ignore into table t70 fields terminated by ',';
+truncate table t70;
+lock table t70 write;
+load data infile '../../std_data/loaddata1.dat' ignore into table t70 fields terminated by ',';
+load data infile '../../std_data/loaddata1.dat' ignore into table t70 fields terminated by ',';
+unlock tables;
+create table t71 (a date, b date, c date not null, d date) engine=aria PARTITION BY HASH(YEAR(a)) PARTITIONS 2;
+lock tables t71 write, t70 read;
+insert into t71 select * from t70;
+unlock tables;
+drop table t70,t71;
+#
+# Testing strange table names
+#
+create table `t 1` (a int) PARTITION BY HASH(a) PARTITIONS 2;
+drop table `t 1`;
+#
+# Testing views and triggers
+#
+create table t80 (a int, b int) engine=myisam PARTITION BY HASH(a) PARTITIONS 2;
+create view v1 as select * from t80;
+create trigger trg before insert on t80 for each row set @b:=1;
+drop trigger trg;
+drop view v1;
+drop table t80;
+#
+# Testing alter to a new storage engine
+#
+create table t85 (a int primary key, b int) engine=myisam PARTITION BY HASH(a) PARTITIONS 2;
+alter table t85 engine=innodb;
+drop table t85;
+#
+# Testing backup ddl log for partitioned tables
+#
+CREATE TABLE t200(a INT, b INT) ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1;
+INSERT INTO t200 VALUES (5, 5), (15, 15), (25, 25);
+ALTER TABLE t200 PARTITION BY RANGE( a ) (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30)
+);
+CREATE TABLE t210(a INT, b INT) ENGINE ARIA TRANSACTIONAL = 1 PAGE_CHECKSUM = 1;
+#TODO: echange partitions have not logged yet
+ALTER TABLE t200 EXCHANGE PARTITION p2 WITH TABLE t210;
+ALTER TABLE t200 DROP PARTITION p0;
+ALTER TABLE t200 ADD PARTITION (PARTITION p3 VALUES LESS THAN (40));
+ALTER TABLE t200
+REORGANIZE PARTITION p3 INTO (
+PARTITION n0 VALUES LESS THAN (35),
+PARTITION n1 VALUES LESS THAN (45)
+);
+ALTER TABLE t200 PARTITION BY KEY(a) PARTITIONS 2;
+ALTER TABLE t200 PARTITION BY HASH(a) PARTITIONS 8;
+ALTER TABLE t200 COALESCE PARTITION 4;
+ALTER TABLE t200
+PARTITION BY RANGE (b)
+SUBPARTITION BY KEY (a)
+SUBPARTITIONS 2 (
+PARTITION p0 VALUES LESS THAN (10),
+PARTITION p1 VALUES LESS THAN (20),
+PARTITION p2 VALUES LESS THAN (30),
+PARTITION p3 VALUES LESS THAN (MAXVALUE)
+);
+ALTER TABLE t200 REMOVE PARTITIONING;
+DROP TABLE t200, t210;
+# Test for the case when TDC contains TABLE_SHARE object for the
+# certain table, but the table is not opened
+CREATE TABLE t220(a INT) ENGINE ARIA PARTITION BY HASH(a) PARTITIONS 2;
+SELECT VERSION FROM INFORMATION_SCHEMA.tables WHERE
+TABLE_SCHEMA = 'test' AND TABLE_NAME = 't220';
+DROP TABLE t220;
+#
+# Reading backup ddl log file
+#
+CREATE,MyISAM,1,test,t1,id: 1,,0,,,
+ALTER,MyISAM,1,test,t1,id: 1,MyISAM,1,test,t1,id: 2
+RENAME,MyISAM,1,test,t1,id: 2,MyISAM,1,test,t2,id: 2
+RENAME,MyISAM,1,test,t2,id: 2,MyISAM,1,test,t1,id: 2
+TRUNCATE,MyISAM,1,test,t1,id: 2,,0,,,
+repair,MyISAM,1,test,t1,id: 2,,0,,,
+optimize,MyISAM,1,test,t1,id: 2,,0,,,
+DROP,MyISAM,1,test,t1,id: 2,,0,,,
+CREATE,InnoDB,1,test,t1_innodb,id: 3,,0,,,
+ALTER,InnoDB,1,test,t1_innodb,id: 3,InnoDB,1,test,t1_innodb,id: 4
+RENAME,InnoDB,1,test,t1_innodb,id: 4,InnoDB,1,test,t2_innodb,id: 4
+RENAME,InnoDB,1,test,t2_innodb,id: 4,InnoDB,1,test,t1_innodb,id: 4
+TRUNCATE,InnoDB,1,test,t1_innodb,id: 4,,0,,,
+repair,InnoDB,1,test,t1_innodb,id: 4,,0,,,
+ALTER,InnoDB,1,test,t1_innodb,id: 4,InnoDB,1,test,t1_innodb,id: 5
+DROP,InnoDB,1,test,t1_innodb,id: 5,,0,,,
+CREATE,MyISAM,1,test,t20,id: 6,,0,,,
+DROP,MyISAM,1,test,t20,id: 6,,0,,,
+CREATE,MyISAM,1,test,t21,id: 7,,0,,,
+DROP,MyISAM,1,test,t21,id: 7,,0,,,
+CREATE,MyISAM,1,test,t30,id: 8,,0,,,
+CREATE,MyISAM,1,test,t31,id: 9,,0,,,
+DROP,MyISAM,1,test,t31,id: 9,,0,,,
+CREATE,MyISAM,0,test,t31,id: 10,,0,,,
+DROP,MyISAM,0,test,t31,id: 10,,0,,,
+DROP_AFTER_CREATE,MyISAM,1,test,t31,id: 11,,0,,,
+CREATE,MyISAM,1,test,t32,id: 12,,0,,,
+DROP,MyISAM,1,test,t30,id: 8,,0,,,
+DROP,MyISAM,1,test,t32,id: 12,,0,,,
+CREATE,MyISAM,1,test,t40,id: 13,,0,,,
+CREATE,InnoDB,1,test,t41,id: 14,,0,,,
+CREATE,partition,0,test,t42,id: 15,,0,,,
+DROP,MyISAM,1,test,t42,id: 15,,0,,,
+CREATE,partition,0,test,t42,id: 16,,0,,,
+DROP,MyISAM,1,test,t40,id: 13,,0,,,
+DROP,InnoDB,1,test,t41,id: 14,,0,,,
+DROP,InnoDB,1,test,t42,id: 16,,0,,,
+CREATE,MyISAM,1,test,t50,id: 17,,0,,,
+CREATE,MyISAM,1,test,t51,id: 18,,0,,,
+RENAME,MyISAM,1,test,t50,id: 17,MyISAM,1,test,t52,id: 17
+RENAME,MyISAM,1,test,t51,id: 18,MyISAM,1,test,t53,id: 18
+RENAME,MyISAM,1,test,t52,id: 17,MyISAM,1,test,tmp,id: 17
+RENAME,MyISAM,1,test,t53,id: 18,MyISAM,1,test,t52,id: 18
+RENAME,MyISAM,1,test,tmp,id: 17,MyISAM,1,test,t53,id: 17
+DROP,MyISAM,1,test,t52,id: 18,,0,,,
+DROP,MyISAM,1,test,t53,id: 17,,0,,,
+CREATE,Aria,1,test,t60,id: 19,,0,,,
+CHANGE_INDEX,Aria,1,test,t60,id: 19,,0,,,
+CHANGE_INDEX,Aria,1,test,t60,id: 19,,0,,,
+DROP,Aria,1,test,t60,id: 19,,0,,,
+CREATE,Aria,1,test,t70,id: 20,,0,,,
+BULK_INSERT,Aria,1,test,t70,id: 20,,0,,,
+BULK_INSERT,Aria,1,test,t70,id: 20,,0,,,
+TRUNCATE,Aria,1,test,t70,id: 20,,0,,,
+BULK_INSERT,Aria,1,test,t70,id: 20,,0,,,
+BULK_INSERT,Aria,1,test,t70,id: 20,,0,,,
+CREATE,Aria,1,test,t71,id: 21,,0,,,
+BULK_INSERT,Aria,1,test,t71,id: 21,,0,,,
+BULK_INSERT,Aria,1,test,t71,id: 21,,0,,,
+DROP,Aria,1,test,t70,id: 20,,0,,,
+DROP,Aria,1,test,t71,id: 21,,0,,,
+CREATE,MyISAM,1,test,t@00201,id: 22,,0,,,
+DROP,MyISAM,1,test,t@00201,id: 22,,0,,,
+CREATE,MyISAM,1,test,t80,id: 23,,0,,,
+CREATE,VIEW,0,test,v1,,,0,,,
+CREATE,TRIGGER,0,test,trg,,,0,,,
+DROP,TRIGGER,0,test,trg,,,0,,,
+DROP,VIEW,0,test,v1,,,0,,,
+DROP,MyISAM,1,test,t80,id: 23,,0,,,
+CREATE,MyISAM,1,test,t85,id: 24,,0,,,
+ALTER,MyISAM,1,test,t85,id: 24,InnoDB,1,test,t85,id: 25
+DROP,InnoDB,1,test,t85,id: 25,,0,,,
+CREATE,Aria,0,test,t200,id: 26,,0,,,
+ALTER,Aria,0,test,t200,id: 26,Aria,1,test,t200,id: 27
+CREATE,Aria,0,test,t210,id: 28,,0,,,
+EXCHANGE_PARTITION,Aria,1,test,t200,id: 27,Aria,0,test,t210,id: 28
+ALTER,Aria,1,test,t200,id: 27,Aria,1,test,t200,id: 29
+ALTER,Aria,1,test,t200,id: 29,Aria,1,test,t200,id: 30
+ALTER,Aria,1,test,t200,id: 30,Aria,1,test,t200,id: 31
+ALTER,Aria,1,test,t200,id: 31,Aria,1,test,t200,id: 32
+ALTER,Aria,1,test,t200,id: 32,Aria,1,test,t200,id: 33
+ALTER,Aria,1,test,t200,id: 33,Aria,1,test,t200,id: 34
+ALTER,Aria,1,test,t200,id: 34,Aria,1,test,t200,id: 35
+ALTER,Aria,1,test,t200,id: 35,Aria,0,test,t200,id: 36
+DROP,Aria,0,test,t200,id: 36,,0,,,
+DROP,Aria,0,test,t210,id: 28,,0,,,
+CREATE,Aria,1,test,t220,id: 37,,0,,,
+DROP,Aria,1,test,t220,id: 37,,0,,,
+#
+# Cleanup
+#
+disconnect con1;

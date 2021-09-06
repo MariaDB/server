@@ -145,17 +145,6 @@ row_merge_dup_report(
 	const dfield_t*		entry)	/*!< in: duplicate index entry */
 	MY_ATTRIBUTE((nonnull));
 
-/*********************************************************************//**
-Drop indexes that were created before an error occurred.
-The data dictionary must have been locked exclusively by the caller,
-because the transaction will not be committed. */
-void
-row_merge_drop_indexes_dict(
-/*========================*/
-	trx_t*		trx,	/*!< in/out: dictionary transaction */
-	table_id_t	table_id)/*!< in: table identifier */
-	MY_ATTRIBUTE((nonnull));
-
 /** Drop indexes that were created before an error occurred.
 The data dictionary must have been locked exclusively by the caller,
 because the transaction will not be committed.
@@ -302,10 +291,8 @@ Write a merge block to the file system.
 @return whether the request was completed successfully
 @retval	false	on error
 @retval	true	on success */
-UNIV_INTERN
 bool
 row_merge_write(
-/*============*/
 	const pfs_os_file_t&	fd,	/*!< in: file descriptor */
 	ulint		offset,	/*!< in: offset where to write,
 				in number of row_merge_block_t elements */

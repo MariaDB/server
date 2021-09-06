@@ -619,3 +619,15 @@ ERROR 42S02: Unknown table 'test.t2'
 #
 # End of 10.5 tests
 #
+#
+# Record that temporary table locks are always WRITE locks
+#
+CREATE TEMPORARY TABLE t1 (a INT);
+LOCK TABLE t1 READ;
+TRUNCATE TABLE t1;
+TRUNCATE TABLE t1;
+UNLOCK TABLES;
+DROP TABLE t1;
+#
+# End of 10.6 tests
+#

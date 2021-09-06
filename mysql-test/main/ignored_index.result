@@ -479,3 +479,52 @@ t1	CREATE TABLE `t1` (
   KEY `a` (`a`) IGNORED
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TABLE t1;
+#
+#  MDEV-25078, part #2: allow IF EXISTS
+#
+create table t1 (a int, b int, c int, key(a), key(b), key(c));
+alter table t1 alter key if exists no_such_key ignored;
+Warnings:
+Note	1176	Key 'no_such_key' doesn't exist in table 't1'
+alter table t1 alter key if exists a ignored;
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`) IGNORED,
+  KEY `b` (`b`),
+  KEY `c` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1
+alter key if exists no_such_key ignored,
+alter key if exists c ignored ;
+Warnings:
+Note	1176	Key 'no_such_key' doesn't exist in table 't1'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`) IGNORED,
+  KEY `b` (`b`),
+  KEY `c` (`c`) IGNORED
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+alter table t1 
+alter key if exists no_such_key not ignored, 
+alter key if exists c not ignored ;
+Warnings:
+Note	1176	Key 'no_such_key' doesn't exist in table 't1'
+show create table t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `a` int(11) DEFAULT NULL,
+  `b` int(11) DEFAULT NULL,
+  `c` int(11) DEFAULT NULL,
+  KEY `a` (`a`) IGNORED,
+  KEY `b` (`b`),
+  KEY `c` (`c`)
+) ENGINE=MyISAM DEFAULT CHARSET=latin1
+drop table t1;

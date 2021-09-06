@@ -2688,6 +2688,7 @@ DROP TABLE t1, t2;
 # (Problems with --defaults-extra-file option)
 #
 --port=1234
+--port=1234
 #
 # Test of fix to Bug#12597 mysqldump dumps triggers wrongly
 #
@@ -3726,7 +3727,7 @@ CREATE TEMPORARY TABLE `TABLES` (
   `TABLE_COMMENT` varchar(2048) NOT NULL DEFAULT '',
   `MAX_INDEX_LENGTH` bigint(21) unsigned DEFAULT NULL,
   `TEMPORARY` varchar(1) DEFAULT NULL
-) ENGINE=MEMORY DEFAULT CHARSET=utf8;
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 #
 # Bug#19745 mysqldump --xml produces invalid xml
@@ -4719,8 +4720,8 @@ ALTER DATABASE `test-database` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `test` (
-  `c1` varchar(10) COLLATE utf8_unicode_ci DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8 COLLATE=utf8_unicode_ci;
+  `c1` varchar(10) COLLATE utf8mb3_unicode_ci DEFAULT NULL
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_unicode_ci;
 /*!40101 SET character_set_client = @saved_cs_client */;
 ALTER DATABASE `test-database` CHARACTER SET latin1 COLLATE latin1_swedish_ci ;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
@@ -4739,7 +4740,7 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
-ALTER DATABASE `test-database` CHARACTER SET utf8 COLLATE utf8_unicode_ci ;
+ALTER DATABASE `test-database` CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci ;
 DROP DATABASE `test-database`;
 USE test;
 #
@@ -5177,7 +5178,7 @@ RETURN CONCAT(']]>, ', c1, '!');
 <mysqldump xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance">
 <database name="BUG52792">
 	<routines>
-		<routine Function="straße" sql_mode="" character_set_client="utf8" collation_connection="utf8_general_ci" Database_Collation="latin1_swedish_ci">
+		<routine Function="straße" sql_mode="" character_set_client="utf8mb3" collation_connection="utf8mb3_general_ci" Database_Collation="latin1_swedish_ci">
 <![CDATA[
 CREATE DEFINER=`root`@`localhost` FUNCTION `straße`(c1 CHAR(20)) RETURNS char(50) CHARSET latin1
     DETERMINISTIC
@@ -5284,7 +5285,7 @@ general_log	CREATE TABLE `general_log` (
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log'
 SHOW CREATE TABLE mysql.slow_log;
 Table	Create Table
 slow_log	CREATE TABLE `slow_log` (
@@ -5301,7 +5302,7 @@ slow_log	CREATE TABLE `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log'
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log'
 SET @@global.log_output=       @old_log_output_state;
 SET @@global.slow_query_log=   @old_slow_query_log_state;
 SET @@global.general_log=      @old_general_log_state;
@@ -5383,11 +5384,11 @@ SHOW TRIGGERS FROM bug25717383;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 trig
 one	INSERT	tab
-one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
 SHOW EVENTS FROM bug25717383;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 bug25717383	event
-one	root@localhost	SYSTEM	ONE TIME	#	NULL	NULL	NULL	NULL	ENABLED	1	utf8	utf8_general_ci	latin1_swedish_ci
+one	root@localhost	SYSTEM	ONE TIME	#	NULL	NULL	NULL	NULL	ENABLED	1	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
 SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES
 WHERE ROUTINE_SCHEMA='bug25717383' AND ROUTINE_TYPE= 'PROCEDURE'
        ORDER BY ROUTINE_NAME;
@@ -5404,11 +5405,11 @@ SHOW TRIGGERS FROM bug25717383;
 Trigger	Event	Table	Statement	Timing	Created	sql_mode	Definer	character_set_client	collation_connection	Database Collation
 trig
 one	INSERT	tab
-one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8	utf8_general_ci	latin1_swedish_ci
+one	SET NEW.a = 1	BEFORE	#		root@localhost	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
 SHOW EVENTS FROM bug25717383;
 Db	Name	Definer	Time zone	Type	Execute at	Interval value	Interval field	Starts	Ends	Status	Originator	character_set_client	collation_connection	Database Collation
 bug25717383	event
-one	root@localhost	SYSTEM	ONE TIME	#	NULL	NULL	NULL	NULL	ENABLED	1	utf8	utf8_general_ci	latin1_swedish_ci
+one	root@localhost	SYSTEM	ONE TIME	#	NULL	NULL	NULL	NULL	ENABLED	1	utf8mb3	utf8mb3_general_ci	latin1_swedish_ci
 SELECT ROUTINE_NAME FROM INFORMATION_SCHEMA.ROUTINES
 WHERE ROUTINE_SCHEMA='bug25717383' AND ROUTINE_TYPE= 'PROCEDURE'
        ORDER BY ROUTINE_NAME;
@@ -5432,9 +5433,9 @@ ALTER DATABASE `a\"'``b` CHARACTER SET latin1 COLLATE latin1_swedish_ci ;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8 */ ;
-/*!50003 SET character_set_results = utf8 */ ;
-/*!50003 SET collation_connection  = utf8_general_ci */ ;
+/*!50003 SET character_set_client  = utf8mb3 */ ;
+/*!50003 SET character_set_results = utf8mb3 */ ;
+/*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 DELIMITER ;;
@@ -5445,7 +5446,7 @@ DELIMITER ;
 /*!50003 SET character_set_client  = @saved_cs_client */ ;
 /*!50003 SET character_set_results = @saved_cs_results */ ;
 /*!50003 SET collation_connection  = @saved_col_connection */ ;
-ALTER DATABASE `a\"'``b` CHARACTER SET utf8 COLLATE utf8_general_ci ;
+ALTER DATABASE `a\"'``b` CHARACTER SET utf8mb3 COLLATE utf8mb3_general_ci ;
 DROP DATABASE `a\"'``b`;
 use test;
 #
@@ -5477,21 +5478,21 @@ CREATE VIEW nonunique_table_view_name AS SELECT 1;
 ##################################################
 # --compact --databases db1 db2
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 */;
 
 USE `db1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `basetable` (
   `id` smallint(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `basetable` VALUES (5),(6);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_name` (
   `i3` smallint(6) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8 INSERT_METHOD=LAST UNION=(`basetable`);
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb3 INSERT_METHOD=LAST UNION=(`basetable`);
 /*!40101 SET character_set_client = @saved_cs_client */;
 SET @saved_cs_client     = @@character_set_client;
 SET character_set_client = utf8;
@@ -5500,7 +5501,7 @@ SET character_set_client = utf8;
 ) ENGINE=MyISAM */;
 SET character_set_client = @saved_cs_client;
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8mb3 */;
 
 USE `db2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -5508,14 +5509,14 @@ USE `db2`;
 CREATE TABLE `nonunique_table_name` (
   `i1` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `i1` (`i1`)
-) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_name` VALUES (1),(2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_view_name` (
   `i2` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
 
@@ -5524,9 +5525,9 @@ USE `db1`;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8 */;
-/*!50001 SET character_set_results     = utf8 */;
-/*!50001 SET collation_connection      = utf8_general_ci */;
+/*!50001 SET character_set_client      = utf8mb3 */;
+/*!50001 SET character_set_results     = utf8mb3 */;
+/*!50001 SET collation_connection      = utf8mb3_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `nonunique_table_view_name` AS select 1 AS `1` */;
@@ -5544,21 +5545,21 @@ USE `db2`;
 CREATE TABLE `nonunique_table_name` (
   `i1` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `i1` (`i1`)
-) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_name` VALUES (1),(2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_view_name` (
   `i2` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
 
 ##################################################
 # --compact --delayed-insert --no-data-med=0 --databases db2 db1
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db2` /*!40100 DEFAULT CHARACTER SET utf8mb3 */;
 
 USE `db2`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
@@ -5566,32 +5567,32 @@ USE `db2`;
 CREATE TABLE `nonunique_table_name` (
   `i1` bigint(20) unsigned NOT NULL AUTO_INCREMENT,
   UNIQUE KEY `i1` (`i1`)
-) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8;
+) ENGINE=MEMORY AUTO_INCREMENT=3 DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT  DELAYED INTO `nonunique_table_name` VALUES (1),(2);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_view_name` (
   `i2` int(11) DEFAULT NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_view_name` VALUES (3),(4);
 
-CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8 */;
+CREATE DATABASE /*!32312 IF NOT EXISTS*/ `db1` /*!40100 DEFAULT CHARACTER SET utf8mb3 */;
 
 USE `db1`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `basetable` (
   `id` smallint(6) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8;
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3;
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT  DELAYED INTO `basetable` VALUES (5),(6);
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `nonunique_table_name` (
   `i3` smallint(6) DEFAULT NULL
-) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8 INSERT_METHOD=LAST UNION=(`basetable`);
+) ENGINE=MRG_MyISAM DEFAULT CHARSET=utf8mb3 INSERT_METHOD=LAST UNION=(`basetable`);
 /*!40101 SET character_set_client = @saved_cs_client */;
 INSERT INTO `nonunique_table_name` VALUES (5),(6);
 SET @saved_cs_client     = @@character_set_client;
@@ -5608,9 +5609,9 @@ USE `db1`;
 /*!50001 SET @saved_cs_client          = @@character_set_client */;
 /*!50001 SET @saved_cs_results         = @@character_set_results */;
 /*!50001 SET @saved_col_connection     = @@collation_connection */;
-/*!50001 SET character_set_client      = utf8 */;
-/*!50001 SET character_set_results     = utf8 */;
-/*!50001 SET collation_connection      = utf8_general_ci */;
+/*!50001 SET character_set_client      = utf8mb3 */;
+/*!50001 SET character_set_results     = utf8mb3 */;
+/*!50001 SET collation_connection      = utf8mb3_general_ci */;
 /*!50001 CREATE ALGORITHM=UNDEFINED */
 /*!50013 DEFINER=`root`@`localhost` SQL SECURITY DEFINER */
 /*!50001 VIEW `nonunique_table_view_name` AS select 1 AS `1` */;
@@ -5697,9 +5698,9 @@ USE `test`;
 /*!50003 SET @saved_cs_client      = @@character_set_client */ ;
 /*!50003 SET @saved_cs_results     = @@character_set_results */ ;
 /*!50003 SET @saved_col_connection = @@collation_connection */ ;
-/*!50003 SET character_set_client  = utf8 */ ;
-/*!50003 SET character_set_results = utf8 */ ;
-/*!50003 SET collation_connection  = utf8_general_ci */ ;
+/*!50003 SET character_set_client  = utf8mb3 */ ;
+/*!50003 SET character_set_results = utf8mb3 */ ;
+/*!50003 SET collation_connection  = utf8mb3_general_ci */ ;
 /*!50003 SET @saved_sql_mode       = @@sql_mode */ ;
 /*!50003 SET sql_mode              = '' */ ;
 /*!50032 DROP TRIGGER IF EXISTS tt1_t1 */;
@@ -5743,29 +5744,29 @@ DROP TABLE IF EXISTS `innodb_index_stats`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `innodb_index_stats` (
-  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
-  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
-  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
   `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `stat_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `stat_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
   `stat_value` bigint(20) unsigned NOT NULL,
   `sample_size` bigint(20) unsigned DEFAULT NULL,
-  `stat_description` varchar(1024) COLLATE utf8_bin NOT NULL,
+  `stat_description` varchar(1024) COLLATE utf8mb3_bin NOT NULL,
   PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 DROP TABLE IF EXISTS `innodb_table_stats`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `innodb_table_stats` (
-  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
-  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
   `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `n_rows` bigint(20) unsigned NOT NULL,
   `clustered_index_size` bigint(20) unsigned NOT NULL,
   `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
   PRIMARY KEY (`database_name`,`table_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -5776,7 +5777,7 @@ CREATE TABLE IF NOT EXISTS `general_log` (
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -5794,7 +5795,7 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -5803,12 +5804,12 @@ CREATE TABLE IF NOT EXISTS `transaction_registry` (
   `commit_id` bigint(20) unsigned NOT NULL,
   `begin_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   `commit_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `isolation_level` enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE') COLLATE utf8_bin NOT NULL,
+  `isolation_level` enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE') COLLATE utf8mb3_bin NOT NULL,
   PRIMARY KEY (`transaction_id`),
   UNIQUE KEY `commit_id` (`commit_id`),
   KEY `begin_timestamp` (`begin_timestamp`),
   KEY `commit_timestamp` (`commit_timestamp`,`transaction_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -5838,16 +5839,16 @@ DROP TABLE IF EXISTS `innodb_index_stats`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `innodb_index_stats` (
-  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
-  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
-  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
   `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `stat_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `stat_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
   `stat_value` bigint(20) unsigned NOT NULL,
   `sample_size` bigint(20) unsigned DEFAULT NULL,
-  `stat_description` varchar(1024) COLLATE utf8_bin NOT NULL,
+  `stat_description` varchar(1024) COLLATE utf8mb3_bin NOT NULL,
   PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 LOCK TABLES `innodb_index_stats` WRITE;
@@ -5858,14 +5859,14 @@ DROP TABLE IF EXISTS `innodb_table_stats`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `innodb_table_stats` (
-  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
-  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
   `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `n_rows` bigint(20) unsigned NOT NULL,
   `clustered_index_size` bigint(20) unsigned NOT NULL,
   `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
   PRIMARY KEY (`database_name`,`table_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 LOCK TABLES `innodb_table_stats` WRITE;
@@ -5881,7 +5882,7 @@ CREATE TABLE IF NOT EXISTS `general_log` (
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -5899,7 +5900,7 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -5908,12 +5909,12 @@ CREATE TABLE IF NOT EXISTS `transaction_registry` (
   `commit_id` bigint(20) unsigned NOT NULL,
   `begin_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   `commit_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `isolation_level` enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE') COLLATE utf8_bin NOT NULL,
+  `isolation_level` enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE') COLLATE utf8mb3_bin NOT NULL,
   PRIMARY KEY (`transaction_id`),
   UNIQUE KEY `commit_id` (`commit_id`),
   KEY `begin_timestamp` (`begin_timestamp`),
   KEY `commit_timestamp` (`commit_timestamp`,`transaction_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 
@@ -5943,16 +5944,16 @@ DROP TABLE IF EXISTS `innodb_index_stats`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `innodb_index_stats` (
-  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
-  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
-  `index_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
+  `index_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
   `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
-  `stat_name` varchar(64) COLLATE utf8_bin NOT NULL,
+  `stat_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
   `stat_value` bigint(20) unsigned NOT NULL,
   `sample_size` bigint(20) unsigned DEFAULT NULL,
-  `stat_description` varchar(1024) COLLATE utf8_bin NOT NULL,
+  `stat_description` varchar(1024) COLLATE utf8mb3_bin NOT NULL,
   PRIMARY KEY (`database_name`,`table_name`,`index_name`,`stat_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 LOCK TABLES `innodb_index_stats` WRITE;
@@ -5963,14 +5964,14 @@ DROP TABLE IF EXISTS `innodb_table_stats`;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
 CREATE TABLE `innodb_table_stats` (
-  `database_name` varchar(64) COLLATE utf8_bin NOT NULL,
-  `table_name` varchar(199) COLLATE utf8_bin NOT NULL,
+  `database_name` varchar(64) COLLATE utf8mb3_bin NOT NULL,
+  `table_name` varchar(199) COLLATE utf8mb3_bin NOT NULL,
   `last_update` timestamp NOT NULL DEFAULT current_timestamp() ON UPDATE current_timestamp(),
   `n_rows` bigint(20) unsigned NOT NULL,
   `clustered_index_size` bigint(20) unsigned NOT NULL,
   `sum_of_other_index_sizes` bigint(20) unsigned NOT NULL,
   PRIMARY KEY (`database_name`,`table_name`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 LOCK TABLES `innodb_table_stats` WRITE;
@@ -5986,7 +5987,7 @@ CREATE TABLE IF NOT EXISTS `general_log` (
   `server_id` int(10) unsigned NOT NULL,
   `command_type` varchar(64) NOT NULL,
   `argument` mediumtext NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='General log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='General log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -6004,7 +6005,7 @@ CREATE TABLE IF NOT EXISTS `slow_log` (
   `sql_text` mediumtext NOT NULL,
   `thread_id` bigint(21) unsigned NOT NULL,
   `rows_affected` int(11) NOT NULL
-) ENGINE=CSV DEFAULT CHARSET=utf8 COMMENT='Slow log';
+) ENGINE=CSV DEFAULT CHARSET=utf8mb3 COMMENT='Slow log';
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40101 SET @saved_cs_client     = @@character_set_client */;
 /*!40101 SET character_set_client = utf8 */;
@@ -6013,12 +6014,12 @@ CREATE TABLE IF NOT EXISTS `transaction_registry` (
   `commit_id` bigint(20) unsigned NOT NULL,
   `begin_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
   `commit_timestamp` timestamp(6) NOT NULL DEFAULT '0000-00-00 00:00:00.000000',
-  `isolation_level` enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE') COLLATE utf8_bin NOT NULL,
+  `isolation_level` enum('READ-UNCOMMITTED','READ-COMMITTED','REPEATABLE-READ','SERIALIZABLE') COLLATE utf8mb3_bin NOT NULL,
   PRIMARY KEY (`transaction_id`),
   UNIQUE KEY `commit_id` (`commit_id`),
   KEY `begin_timestamp` (`begin_timestamp`),
   KEY `commit_timestamp` (`commit_timestamp`,`transaction_id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8 COLLATE=utf8_bin STATS_PERSISTENT=0;
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 COLLATE=utf8mb3_bin STATS_PERSISTENT=0;
 /*!40101 SET character_set_client = @saved_cs_client */;
 /*!40103 SET TIME_ZONE=@OLD_TIME_ZONE */;
 

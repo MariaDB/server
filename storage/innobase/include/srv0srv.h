@@ -430,6 +430,9 @@ enum srv_operation_mode {
 /** Current mode of operation */
 extern enum srv_operation_mode srv_operation;
 
+/** whether this is the server's first start after mariabackup --prepare */
+extern bool srv_start_after_restore;
+
 extern my_bool	srv_print_innodb_monitor;
 extern my_bool	srv_print_innodb_lock_monitor;
 extern ibool	srv_print_verbose_log;
@@ -697,6 +700,10 @@ void srv_master_thread_enable();
 
 /** Status variables to be passed to MySQL */
 struct export_var_t{
+#ifdef BTR_CUR_HASH_ADAPT
+	ulint innodb_ahi_hit;
+	ulint innodb_ahi_miss;
+#endif /* BTR_CUR_HASH_ADAPT */
 	char  innodb_buffer_pool_dump_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool dump status */
 	char  innodb_buffer_pool_load_status[OS_FILE_MAX_PATH + 128];/*!< Buf pool load status */
 	char  innodb_buffer_pool_resize_status[512];/*!< Buf pool resize status */
@@ -749,9 +756,6 @@ struct export_var_t{
 	ulint innodb_os_log_fsyncs;		/*!< n_log_flushes */
 	ulint innodb_os_log_pending_writes;	/*!< srv_os_log_pending_writes */
 	ulint innodb_os_log_pending_fsyncs;	/*!< n_pending_log_flushes */
-	ulint innodb_pages_created;		/*!< buf_pool.stat.n_pages_created */
-	ulint innodb_pages_read;		/*!< buf_pool.stat.n_pages_read*/
-	ulint innodb_pages_written;		/*!< buf_pool.stat.n_pages_written */
 	ulint innodb_row_lock_waits;		/*!< srv_n_lock_wait_count */
 	ulint innodb_row_lock_current_waits;	/*!< srv_n_lock_wait_current_count */
 	int64_t innodb_row_lock_time;		/*!< srv_n_lock_wait_time

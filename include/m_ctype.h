@@ -22,6 +22,7 @@
 #define _m_ctype_h
 
 #include <my_attribute.h>
+#include <m_string.h>
 
 enum loglevel {
    ERROR_LEVEL=       0,
@@ -79,6 +80,7 @@ typedef const struct my_collation_handler_st MY_COLLATION_HANDLER;
 typedef const struct unicase_info_st MY_UNICASE_INFO;
 typedef const struct uni_ctype_st MY_UNI_CTYPE;
 typedef const struct my_uni_idx_st MY_UNI_IDX;
+typedef uint16 decimal_digits_t;
 
 typedef struct unicase_info_char_st
 {
@@ -568,8 +570,8 @@ struct charset_info_st
   uint      primary_number;
   uint      binary_number;
   uint      state;
-  const char *csname;
-  const char *name;
+  LEX_CSTRING cs_name;
+  LEX_CSTRING coll_name;
   const char *comment;
   const char *tailoring;
   const uchar *m_ctype;
@@ -1182,7 +1184,7 @@ extern struct charset_info_st my_charset_utf8mb4_general_nopad_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_ci;
 extern struct charset_info_st my_charset_utf8mb4_unicode_nopad_ci;
 
-#define MY_UTF8MB3                 "utf8"
+#define MY_UTF8MB3                 "utf8mb3"
 #define MY_UTF8MB4                 "utf8mb4"
 
 my_bool my_cs_have_contractions(CHARSET_INFO *cs);

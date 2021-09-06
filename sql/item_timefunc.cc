@@ -59,7 +59,6 @@
 /** Day number for Dec 31st, 9999. */
 #define MAX_DAY_NUMBER 3652424L
 
-
 Func_handler_date_add_interval_datetime_arg0_time
   func_handler_date_add_interval_datetime_arg0_time;
 
@@ -788,7 +787,7 @@ static bool get_interval_info(const char *str, size_t length,CHARSET_INFO *cs,
 
 longlong Item_func_period_add::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   ulong period=(ulong) args[0]->val_int();
   int months=(int) args[1]->val_int();
 
@@ -803,7 +802,7 @@ longlong Item_func_period_add::val_int()
 
 longlong Item_func_period_diff::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   ulong period1=(ulong) args[0]->val_int();
   ulong period2=(ulong) args[1]->val_int();
 
@@ -817,7 +816,7 @@ longlong Item_func_period_diff::val_int()
 
 longlong Item_func_to_days::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
   return (null_value= !d.is_valid_datetime()) ? 0 : d.daynr();
@@ -827,7 +826,7 @@ longlong Item_func_to_days::val_int()
 longlong Item_func_to_seconds::val_int_endpoint(bool left_endp,
                                                 bool *incl_endp)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   // val_int_endpoint() is called only if args[0] is a temporal Item_field
   Datetime_from_temporal dt(current_thd, args[0], TIME_FUZZY_DATES);
   if ((null_value= !dt.is_valid_datetime()))
@@ -845,7 +844,7 @@ longlong Item_func_to_seconds::val_int_endpoint(bool left_endp,
 
 longlong Item_func_to_seconds::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   /*
     Unlike val_int_endpoint(), we cannot use Datetime_from_temporal here.
@@ -895,7 +894,7 @@ enum_monotonicity_info Item_func_to_seconds::get_monotonicity_info() const
 
 longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   // val_int_endpoint() is only called if args[0] is a temporal Item_field
   Datetime_from_temporal dt(current_thd, args[0], TIME_CONV_NONE);
   longlong res;
@@ -949,7 +948,7 @@ longlong Item_func_to_days::val_int_endpoint(bool left_endp, bool *incl_endp)
 
 longlong Item_func_dayofyear::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
   return (null_value= !d.is_valid_datetime()) ? 0 : d.dayofyear();
@@ -957,7 +956,7 @@ longlong Item_func_dayofyear::val_int()
 
 longlong Item_func_dayofmonth::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Datetime d(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
   return (null_value= !d.is_valid_datetime()) ? 0 : d.get_mysql_time()->day;
@@ -965,7 +964,7 @@ longlong Item_func_dayofmonth::val_int()
 
 longlong Item_func_month::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Datetime d(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
   return (null_value= !d.is_valid_datetime()) ? 0 : d.get_mysql_time()->month;
@@ -976,18 +975,18 @@ bool Item_func_monthname::fix_length_and_dec()
 {
   THD* thd= current_thd;
   CHARSET_INFO *cs= thd->variables.collation_connection;
-  locale= thd->variables.lc_time_names;  
+  locale= thd->variables.lc_time_names;
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_month_name_length * collation.collation->mbmaxlen;
-  maybe_null=1;
+  set_maybe_null();
   return FALSE;
 }
 
 
 String* Item_func_monthname::val_str(String* str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   const char *month_name;
   uint err;
   THD *thd= current_thd;
@@ -1008,7 +1007,7 @@ String* Item_func_monthname::val_str(String* str)
 
 longlong Item_func_quarter::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Datetime d(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
   return (null_value= !d.is_valid_datetime()) ? 0 : d.quarter();
@@ -1016,7 +1015,7 @@ longlong Item_func_quarter::val_int()
 
 longlong Item_func_hour::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Time tm(thd, args[0], Time::Options_for_cast(thd));
   return (null_value= !tm.is_valid_time()) ? 0 : tm.get_mysql_time()->hour;
@@ -1024,7 +1023,7 @@ longlong Item_func_hour::val_int()
 
 longlong Item_func_minute::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Time tm(thd, args[0], Time::Options_for_cast(thd));
   return (null_value= !tm.is_valid_time()) ? 0 : tm.get_mysql_time()->minute;
@@ -1035,7 +1034,7 @@ longlong Item_func_minute::val_int()
 */
 longlong Item_func_second::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Time tm(thd, args[0], Time::Options_for_cast(thd));
   return (null_value= !tm.is_valid_time()) ? 0 : tm.get_mysql_time()->second;
@@ -1083,7 +1082,7 @@ uint week_mode(uint mode)
 
 longlong Item_func_week::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   uint week_format;
   THD *thd= current_thd;
   Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
@@ -1099,7 +1098,7 @@ longlong Item_func_week::val_int()
 
 longlong Item_func_yearweek::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Datetime d(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
   return (null_value= !d.is_valid_datetime()) ? 0 :
@@ -1109,7 +1108,7 @@ longlong Item_func_yearweek::val_int()
 
 longlong Item_func_weekday::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Datetime dt(thd, args[0], Datetime::Options(TIME_NO_ZEROS, thd));
   if ((null_value= !dt.is_valid_datetime()))
@@ -1125,14 +1124,14 @@ bool Item_func_dayname::fix_length_and_dec()
   collation.set(cs, DERIVATION_COERCIBLE, locale->repertoire());
   decimals=0;
   max_length= locale->max_day_name_length * collation.collation->mbmaxlen;
-  maybe_null=1;
+  set_maybe_null();
   return FALSE;
 }
 
 
 String* Item_func_dayname::val_str(String* str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   const char *day_name;
   uint err;
   THD *thd= current_thd;
@@ -1150,7 +1149,7 @@ String* Item_func_dayname::val_str(String* str)
 
 longlong Item_func_year::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Datetime d(thd, args[0], Datetime::Options(TIME_CONV_NONE, thd));
   return (null_value= !d.is_valid_datetime()) ? 0 : d.get_mysql_time()->year;
@@ -1183,7 +1182,7 @@ enum_monotonicity_info Item_func_year::get_monotonicity_info() const
 
 longlong Item_func_year::val_int_endpoint(bool left_endp, bool *incl_endp)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   // val_int_endpoint() is cally only if args[0] is a temporal Item_field
   Datetime_from_temporal dt(current_thd, args[0], TIME_CONV_NONE);
   if ((null_value= !dt.is_valid_datetime()))
@@ -1216,7 +1215,7 @@ longlong Item_func_year::val_int_endpoint(bool left_endp, bool *incl_endp)
 bool Item_func_unix_timestamp::get_timestamp_value(my_time_t *seconds,
                                                    ulong *second_part)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   if (args[0]->type() == FIELD_ITEM)
   {						// Optimize timestamp field
     Field *field=((Item_field*) args[0])->field;
@@ -1276,7 +1275,7 @@ enum_monotonicity_info Item_func_unix_timestamp::get_monotonicity_info() const
 
 longlong Item_func_unix_timestamp::val_int_endpoint(bool left_endp, bool *incl_endp)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   DBUG_ASSERT(arg_count == 1 &&
               args[0]->type() == Item::FIELD_ITEM &&
               args[0]->field_type() == MYSQL_TYPE_TIMESTAMP);
@@ -1291,7 +1290,7 @@ longlong Item_func_unix_timestamp::val_int_endpoint(bool left_endp, bool *incl_e
 
 longlong Item_func_time_to_sec::int_op()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Time tm(thd, args[0], Time::Options_for_cast(thd));
   return ((null_value= !tm.is_valid_time())) ? 0 : tm.to_seconds();
@@ -1300,7 +1299,7 @@ longlong Item_func_time_to_sec::int_op()
 
 my_decimal *Item_func_time_to_sec::decimal_op(my_decimal* buf)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Time tm(thd, args[0], Time::Options_for_cast(thd));
   if ((null_value= !tm.is_valid_time()))
@@ -1575,7 +1574,7 @@ bool Item_func_curtime::get_date(THD *thd, MYSQL_TIME *res,
 
 void Item_func_curtime::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   if (decimals)
     str->append_ulonglong(decimals);
@@ -1637,7 +1636,7 @@ bool Item_func_now::fix_fields(THD *thd, Item **items)
 
 void Item_func_now::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
   if (decimals)
     str->append_ulonglong(decimals);
@@ -1726,7 +1725,7 @@ bool Item_func_sysdate_local::get_date(THD *thd, MYSQL_TIME *res,
 
 bool Item_func_sec_to_time::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   VSec9 sec(thd, args[0], "seconds", LONGLONG_MAX);
   if ((null_value= sec.is_null()))
     return true;
@@ -1774,7 +1773,7 @@ bool Item_func_date_format::fix_length_and_dec()
                    collation.collation->mbmaxlen;
     set_if_smaller(max_length,MAX_BLOB_WIDTH);
   }
-  maybe_null=1;					// If wrong date
+  set_maybe_null(); // If wrong date
   return FALSE;
 }
 
@@ -1888,7 +1887,7 @@ String *Item_func_date_format::val_str(String *str)
   MYSQL_TIME l_time;
   uint size;
   const MY_LOCALE *lc= 0;
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   date_conv_mode_t mode= is_time_format ? TIME_TIME_ONLY : TIME_CONV_NONE;
   THD *thd= current_thd;
 
@@ -1927,6 +1926,812 @@ null_date:
   return 0;
 }
 
+/*
+  Oracle has many formatting models, we list all but only part of them
+  are implemented, because some models depend on oracle functions
+  which mariadb is not supported.
+
+  Models for datetime, used by TO_CHAR/TO_DATE. Normal format characters are
+  stored as short integer < 128, while format characters are stored as a
+  integer > 128
+*/
+
+enum enum_tochar_formats
+{
+  FMT_BASE= 128,
+  FMT_AD,
+  FMT_AD_DOT,
+  FMT_AM,
+  FMT_AM_DOT,
+  FMT_BC,
+  FMT_BC_DOT,
+  FMT_CC,
+  FMT_SCC,
+  FMT_D,
+  FMT_DAY,
+  FMT_DD,
+  FMT_DDD,
+  FMT_DL,
+  FMT_DS,
+  FMT_DY,
+  FMT_E,
+  FMT_EE,
+  FMT_FF,
+  FMT_FM,
+  FMT_FX,
+  FMT_HH,
+  FMT_HH12,
+  FMT_HH24,
+  FMT_IW,
+  FMT_I,
+  FMT_IY,
+  FMT_IYY,
+  FMT_IYYY,
+  FMT_J,
+  FMT_MI,
+  FMT_MM,
+  FMT_MON,
+  FMT_MONTH,
+  FMT_PM,
+  FMT_PM_DOT,
+  FMT_RM,
+  FMT_RR,
+  FMT_RRRR,
+  FMT_SS,
+  FMT_SSSSSS,
+  FMT_TS,
+  FMT_TZD,
+  FMT_TZH,
+  FMT_TZM,
+  FMT_TZR,
+  FMT_W,
+  FMT_WW,
+  FMT_X,
+  FMT_Y,
+  FMT_YY,
+  FMT_YYY,
+  FMT_YYYY,
+  FMT_YYYY_COMMA,
+  FMT_YEAR,
+  FMT_SYYYY,
+  FMT_SYEAR
+};
+
+/**
+   Flip 'quotation_flag' if we found a quote (") character.
+
+   @param cftm             Character or FMT... format descriptor
+   @param quotation_flag   Points to 'true' if we are inside a quoted string
+
+   @return true  If we are inside a quoted string or if we found a '"' character
+   @return false Otherwise
+*/
+
+static inline bool check_quotation(uint16 cfmt, bool *quotation_flag)
+{
+  if (cfmt == '"')
+  {
+    *quotation_flag= !*quotation_flag;
+    return true;
+  }
+  return *quotation_flag;
+}
+
+#define INVALID_CHARACTER(x) (((x) >= 'A' && (x) <= 'Z') ||((x) >= '0' && (x) <= '9') || (x) >= 127 || ((x) < 32))
+
+
+/**
+  Special characters are directly output in the result
+
+  @return 0  If found not acceptable character
+  @return #  Number of copied characters
+*/
+
+static uint parse_special(char cfmt, const char *ptr, const char *end,
+                         uint16 *array)
+{
+  int offset= 0;
+  char tmp1;
+
+  /* Non-printable character and Multibyte encoded characters */
+  if (INVALID_CHARACTER(cfmt))
+    return 0;
+
+  /*
+   * '&' with text is used for variable input, but '&' with other
+   * special charaters like '|'. '*' is used as separator
+   */
+  if (cfmt == '&' && ptr + 1 < end)
+  {
+    tmp1= my_toupper(system_charset_info, *(ptr+1));
+    if (tmp1 >= 'A' && tmp1 <= 'Z')
+      return 0;
+  }
+
+  do {
+    /*
+      Continuously store the special characters in fmt_array until non-special
+      characters appear
+     */
+    *array++= (uint16) (uchar) *ptr++;
+    offset++;
+    if (ptr == end)
+      break;
+    tmp1= my_toupper(system_charset_info, *ptr);
+  } while (!INVALID_CHARACTER(tmp1) && tmp1 != '"');
+  return offset;
+}
+
+
+/**
+  Parse the format string, convert it to an compact array and calculate the
+  length of output string
+
+  @param format   Format string
+  @param fmt_len  Function will store max length of formated date string here
+
+  @return 0 ok. fmt_len is updated
+  @return 1 error.  In this case 'warning_string' is set to error message
+*/
+
+bool Item_func_tochar::parse_format_string(const String *format, uint *fmt_len)
+{
+  const char *ptr, *end;
+  uint16 *tmp_fmt= fmt_array;
+  uint tmp_len= 0;
+  int offset= 0;
+  bool quotation_flag= false;
+
+  ptr= format->ptr();
+  end= ptr + format->length();
+
+  if (format->length() > MAX_DATETIME_FORMAT_MODEL_LEN)
+  {
+    warning_message.append(STRING_WITH_LEN("datetime format string is too "
+                                           "long"));
+    return 1;
+  }
+
+  for (; ptr < end; ptr++, tmp_fmt++)
+  {
+    uint ulen;
+    char cfmt, next_char;
+
+    cfmt= my_toupper(system_charset_info, *ptr);
+
+    /*
+      Oracle datetime format support text in double quotation marks like
+      'YYYY"abc"MM"xyz"DD', When this happens, store the text and quotation
+      marks, and use the text as a separator in make_date_time_oracle.
+
+      NOTE: the quotation mark is not print in return value. for example:
+      select TO_CHAR(sysdate, 'YYYY"abc"MM"xyzDD"') will return 2021abc01xyz11
+     */
+    if (check_quotation(cfmt, &quotation_flag))
+    {
+      *tmp_fmt= *ptr;
+      tmp_len+= 1;
+      continue;
+    }
+
+    switch (cfmt) {
+    case 'A':                                   // AD/A.D./AM/A.M.
+      if (ptr+1 >= end)
+        goto error;
+      next_char= my_toupper(system_charset_info, *(ptr+1));
+      if (next_char == 'D')
+      {
+        *tmp_fmt= FMT_AD;
+        ptr+= 1;
+        tmp_len+= 2;
+      }
+      else if (next_char == 'M')
+      {
+        *tmp_fmt= FMT_AM;
+        ptr+= 1;
+        tmp_len+= 2;
+      }
+      else if (next_char == '.' && ptr+3 < end && *(ptr+3) == '.')
+      {
+        if (my_toupper(system_charset_info, *(ptr+2)) == 'D')
+        {
+          *tmp_fmt= FMT_AD_DOT;
+          ptr+= 3;
+          tmp_len+= 4;
+        }
+        else if (my_toupper(system_charset_info, *(ptr+2)) == 'M')
+        {
+          *tmp_fmt= FMT_AM_DOT;
+          ptr+= 3;
+          tmp_len+= 4;
+        }
+        else
+          goto error;
+      }
+      else
+        goto error;
+      break;
+    case 'B':                                     // BC and B.C
+      if (ptr+1 >= end)
+        goto error;
+      next_char= my_toupper(system_charset_info, *(ptr+1));
+      if (next_char == 'C')
+      {
+        *tmp_fmt= FMT_BC;
+        ptr+= 1;
+        tmp_len+= 2;
+      }
+      else if (next_char == '.' && ptr+3 < end &&
+               my_toupper(system_charset_info, *(ptr+2)) == 'C' &&
+               *(ptr+3) == '.')
+      {
+        *tmp_fmt= FMT_BC_DOT;
+        ptr+= 3;
+        tmp_len+= 4;
+      }
+      else
+        goto error;
+      break;
+    case 'P':                                   // PM or P.M.
+      next_char= my_toupper(system_charset_info, *(ptr+1));
+      if (next_char == 'M')
+      {
+        *tmp_fmt= FMT_PM;
+        ptr+= 1;
+        tmp_len+= 2;
+      }
+      else if (next_char == '.' &&
+               my_toupper(system_charset_info, *(ptr+2)) == 'M' &&
+               my_toupper(system_charset_info, *(ptr+3)) == '.')
+      {
+        *tmp_fmt= FMT_PM_DOT;
+        ptr+= 3;
+        tmp_len+= 4;
+      }
+      else
+        goto error;
+      break;
+    case 'Y':                                   // Y, YY, YYY o YYYYY
+      if (ptr + 1 == end || my_toupper(system_charset_info, *(ptr+1)) != 'Y')
+      {
+        *tmp_fmt= FMT_Y;
+        tmp_len+= 1;
+        break;
+      }
+      if (ptr + 2 == end ||
+          my_toupper(system_charset_info, *(ptr+2)) != 'Y') /* YY */
+      {
+        *tmp_fmt= FMT_YY;
+        ulen= 2;
+      }
+      else
+      {
+        if (ptr + 3 < end && my_toupper(system_charset_info, *(ptr+3)) == 'Y')
+        {
+          *tmp_fmt= FMT_YYYY;
+          ulen= 4;
+        }
+        else
+        {
+          *tmp_fmt= FMT_YYY;
+          ulen= 3;
+        }
+      }
+      ptr+= ulen-1;
+      tmp_len+= ulen;
+      break;
+
+    case 'R':                                   // RR or RRRR
+      if (ptr + 1 == end || my_toupper(system_charset_info, *(ptr+1)) != 'R')
+        goto error;
+
+      if (ptr + 2 == end || my_toupper(system_charset_info, *(ptr+2)) != 'R')
+      {
+        *tmp_fmt= FMT_RR;
+        ulen= 2;
+      }
+      else
+      {
+        if (ptr + 3 >= end || my_toupper(system_charset_info, *(ptr+3)) != 'R')
+          goto error;
+        *tmp_fmt= FMT_RRRR;
+        ulen= 4;
+      }
+      ptr+= ulen-1;
+      tmp_len+= ulen;
+      break;
+    case 'M':
+    {
+      char tmp1;
+      if (ptr + 1 >= end)
+        goto error;
+
+      tmp1= my_toupper(system_charset_info, *(ptr+1));
+      if (tmp1 == 'M')
+      {
+        *tmp_fmt= FMT_MM;
+        tmp_len+= 2;
+        ptr+= 1;
+      }
+      else if (tmp1 == 'I')
+      {
+        *tmp_fmt= FMT_MI;
+        tmp_len+= 2;
+        ptr+= 1;
+      }
+      else if (tmp1 == 'O')
+      {
+        if (ptr + 2 >= end)
+          goto error;
+        char tmp2= my_toupper(system_charset_info, *(ptr+2));
+        if (tmp2 != 'N')
+          goto error;
+
+        if (ptr + 4 >= end ||
+            my_toupper(system_charset_info, *(ptr+3)) != 'T' ||
+            my_toupper(system_charset_info, *(ptr+4)) != 'H')
+        {
+          *tmp_fmt= FMT_MON;
+          tmp_len+= 3;
+          ptr+= 2;
+        }
+        else
+        {
+          *tmp_fmt= FMT_MONTH;
+          tmp_len+= (locale->max_month_name_length *
+                     my_charset_utf8mb3_bin.mbmaxlen);
+          ptr+= 4;
+        }
+      }
+      else
+        goto error;
+    }
+    break;
+    case 'D':                                   // DD, DY, or DAY
+    {
+      if (ptr + 1 >= end)
+        goto error;
+      char tmp1= my_toupper(system_charset_info, *(ptr+1));
+
+      if (tmp1 == 'D')
+      {
+        *tmp_fmt= FMT_DD;
+        tmp_len+= 2;
+      }
+      else if (tmp1 == 'Y')
+      {
+        *tmp_fmt= FMT_DY;
+        tmp_len+= 3;
+      }
+      else if (tmp1 == 'A')                     // DAY
+      {
+        if (ptr + 2 == end || my_toupper(system_charset_info, *(ptr+2)) != 'Y')
+          goto error;
+        *tmp_fmt= FMT_DAY;
+        tmp_len+= locale->max_day_name_length * my_charset_utf8mb3_bin.mbmaxlen;
+        ptr+= 1;
+      }
+      else
+        goto error;
+      ptr+= 1;
+    }
+    break;
+    case 'H':                                   // HH, HH12 or HH23
+    {
+      char tmp1, tmp2, tmp3;
+      if (ptr + 1 >= end)
+        goto error;
+      tmp1= my_toupper(system_charset_info, *(ptr+1));
+
+      if (tmp1 != 'H')
+        goto error;
+
+      if (ptr+3 >= end)
+      {
+        *tmp_fmt= FMT_HH;
+        ptr+= 1;
+      }
+      else
+      {
+        tmp2= *(ptr+2);
+        tmp3= *(ptr+3);
+
+        if (tmp2 == '1' && tmp3 == '2')
+        {
+          *tmp_fmt= FMT_HH12;
+          ptr+= 3;
+        }
+        else if (tmp2 == '2' && tmp3 == '4')
+        {
+          *tmp_fmt= FMT_HH24;
+          ptr+= 3;
+        }
+        else
+        {
+          *tmp_fmt= FMT_HH;
+          ptr+= 1;
+        }
+      }
+      tmp_len+= 2;
+      break;
+    }
+    case 'S':                                   // SS
+      if (ptr + 1 == end || my_toupper(system_charset_info, *(ptr+1)) != 'S')
+        goto error;
+
+      *tmp_fmt= FMT_SS;
+      tmp_len+= 2;
+      ptr+= 1;
+      break;
+    case '|':
+      /*
+        If only one '|' just ignore it, else append others, for example:
+        TO_CHAR('2000-11-05', 'YYYY|MM||||DD') --> 200011|||05
+      */
+      if (ptr + 1 == end || *(ptr+1) != '|')
+      {
+        tmp_fmt--;
+        break;
+      }
+      ptr++;                                    // Skip first '|'
+      do
+      {
+        *tmp_fmt++= *ptr++;
+        tmp_len++;
+      } while ((ptr < end) && *ptr == '|');
+      ptr--;                                    // Fix ptr for above for loop
+      tmp_fmt--;
+      break;
+
+    default:
+      offset= parse_special(cfmt, ptr, end, tmp_fmt);
+      if (!offset)
+        goto error;
+      /* ptr++ is in the for loop, so we must move ptr to offset-1 */
+      ptr+= (offset-1);
+      tmp_fmt+= (offset-1);
+      tmp_len+= offset;
+      break;
+    }
+  }
+  *fmt_len= tmp_len;
+  *tmp_fmt= 0;
+  return 0;
+
+error:
+  warning_message.append(STRING_WITH_LEN("date format not recognized at "));
+  warning_message.append(ptr, MY_MIN(8, end- ptr));
+  return 1;
+}
+
+
+static inline bool append_val(int val, int size, String *str)
+{
+  ulong len= 0;
+  char intbuff[15];
+
+  len= (ulong) (int10_to_str(val, intbuff, 10) - intbuff);
+  return str->append_with_prefill(intbuff, len, size, '0');
+}
+
+
+static bool make_date_time_oracle(const uint16 *fmt_array,
+                                  const MYSQL_TIME *l_time,
+                                  const MY_LOCALE *locale,
+                                  String *str)
+{
+  bool quotation_flag= false;
+  const uint16 *ptr= fmt_array;
+  uint hours_i;
+  uint weekday;
+
+  str->length(0);
+
+  while (*ptr)
+  {
+    if (check_quotation(*ptr, &quotation_flag))
+    {
+      /* don't display '"' in the result, so if it is '"', skip it */
+      if (*ptr != '"')
+      {
+        DBUG_ASSERT(*ptr <= 255);
+        str->append((char) *ptr);
+      }
+      ptr++;
+      continue;
+    }
+
+    switch (*ptr) {
+
+    case FMT_AM:
+    case FMT_PM:
+      if (l_time->hour > 11)
+        str->append("PM", 2);
+      else
+        str->append("AM", 2);
+      break;
+
+    case FMT_AM_DOT:
+    case FMT_PM_DOT:
+      if (l_time->hour > 11)
+        str->append(STRING_WITH_LEN("P.M."));
+      else
+        str->append(STRING_WITH_LEN("A.M."));
+      break;
+
+    case FMT_AD:
+    case FMT_BC:
+      if (l_time->year > 0)
+        str->append(STRING_WITH_LEN("AD"));
+      else
+        str->append(STRING_WITH_LEN("BC"));
+      break;
+
+    case FMT_AD_DOT:
+    case FMT_BC_DOT:
+      if (l_time->year > 0)
+        str->append(STRING_WITH_LEN("A.D."));
+      else
+        str->append(STRING_WITH_LEN("B.C."));
+      break;
+
+    case FMT_Y:
+      if (append_val(l_time->year%10, 1, str))
+        goto err_exit;
+      break;
+
+    case FMT_YY:
+    case FMT_RR:
+      if (append_val(l_time->year%100, 2, str))
+        goto err_exit;
+      break;
+
+    case FMT_YYY:
+      if (append_val(l_time->year%1000, 3, str))
+        goto err_exit;
+      break;
+
+    case FMT_YYYY:
+    case FMT_RRRR:
+      if (append_val(l_time->year, 4, str))
+        goto err_exit;
+      break;
+
+    case FMT_MM:
+      if (append_val(l_time->month, 2, str))
+        goto err_exit;
+      break;
+
+    case FMT_MON:
+      {
+        if (l_time->month == 0)
+        {
+          str->append("00", 2);
+        }
+        else
+        {
+          const char *month_name= (locale->ab_month_names->
+                                   type_names[l_time->month-1]);
+          size_t m_len= strlen(month_name);
+          str->append(month_name, m_len, system_charset_info);
+        }
+      }
+      break;
+
+    case FMT_MONTH:
+      {
+        if (l_time->month == 0)
+        {
+          str->append("00", 2);
+        }
+        else
+        {
+          const char *month_name= (locale->month_names->
+                                   type_names[l_time->month-1]);
+          size_t month_byte_len= strlen(month_name);
+          size_t month_char_len;
+          str->append(month_name, month_byte_len, system_charset_info);
+          month_char_len= my_numchars_mb(&my_charset_utf8mb3_general_ci,
+                                         month_name, month_name +
+                                         month_byte_len);
+          if (str->fill(str->length() + locale->max_month_name_length -
+                        month_char_len, ' '))
+            goto err_exit;
+        }
+      }
+      break;
+
+    case FMT_DD:
+      if (append_val(l_time->day, 2, str))
+        goto err_exit;
+      break;
+
+    case FMT_DY:
+      {
+        if (l_time->day == 0)
+          str->append("00", 2);
+        else
+        {
+          weekday= calc_weekday(calc_daynr(l_time->year,l_time->month,
+                                          l_time->day), 0);
+          const char *day_name= locale->ab_day_names->type_names[weekday];
+          str->append(day_name, strlen(day_name), system_charset_info);
+        }
+      }
+      break;
+
+    case FMT_DAY:
+      {
+        if (l_time->day == 0)
+          str->append("00", 2, system_charset_info);
+        else
+        {
+          const char *day_name;
+          size_t day_byte_len, day_char_len;
+          weekday=calc_weekday(calc_daynr(l_time->year,l_time->month,
+                                          l_time->day), 0);
+          day_name= locale->day_names->type_names[weekday];
+          day_byte_len= strlen(day_name);
+          str->append(day_name, day_byte_len, system_charset_info);
+          day_char_len= my_numchars_mb(&my_charset_utf8mb3_general_ci,
+                                       day_name, day_name + day_byte_len);
+          if (str->fill(str->length() + locale->max_day_name_length -
+                        day_char_len, ' '))
+            goto err_exit;
+        }
+      }
+      break;
+
+    case FMT_HH12:
+    case FMT_HH:
+      hours_i= (l_time->hour%24 + 11)%12+1;
+      if (append_val(hours_i, 2, str))
+        goto err_exit;
+      break;
+
+    case FMT_HH24:
+      if (append_val(l_time->hour, 2, str))
+        goto err_exit;
+      break;
+
+    case FMT_MI:
+      if (append_val(l_time->minute, 2, str))
+        goto err_exit;
+      break;
+
+    case FMT_SS:
+      if (append_val(l_time->second, 2, str))
+        goto err_exit;
+      break;
+
+    default:
+      str->append((char) *ptr);
+    }
+
+    ptr++;
+  };
+  return false;
+
+err_exit:
+  return true;
+}
+
+
+bool Item_func_tochar::fix_length_and_dec()
+{
+  thd= current_thd;
+  CHARSET_INFO *cs= thd->variables.collation_connection;
+  Item *arg1= args[1]->this_item();
+  my_repertoire_t repertoire= arg1->collation.repertoire;
+  StringBuffer<STRING_BUFFER_USUAL_SIZE> buffer;
+  String *str;
+
+  locale= thd->variables.lc_time_names;
+  if (!thd->variables.lc_time_names->is_ascii)
+    repertoire|= MY_REPERTOIRE_EXTENDED;
+  collation.set(cs, arg1->collation.derivation, repertoire);
+
+  /* first argument must be datetime or string */
+  enum_field_types arg0_mysql_type= args[0]->field_type();
+
+  max_length= 0;
+  switch (arg0_mysql_type) {
+  case MYSQL_TYPE_TIME:
+  case MYSQL_TYPE_DATE:
+  case MYSQL_TYPE_DATETIME:
+  case MYSQL_TYPE_TIMESTAMP:
+  case MYSQL_TYPE_VARCHAR:
+  case MYSQL_TYPE_STRING:
+    break;
+  default:
+  {
+    my_printf_error(ER_STD_INVALID_ARGUMENT,
+                    ER(ER_STD_INVALID_ARGUMENT),
+                    MYF(0),
+                    "data type of first argument must be type "
+                    "date/datetime/time or string",
+                    func_name());
+    return TRUE;
+  }
+  }
+  if (args[1]->basic_const_item() && (str= args[1]->val_str(&buffer)))
+  {
+    uint ulen;
+    fixed_length= 1;
+    if (parse_format_string(str, &ulen))
+    {
+      my_printf_error(ER_STD_INVALID_ARGUMENT,
+                      ER(ER_STD_INVALID_ARGUMENT),
+                      MYF(0),
+                      warning_message.c_ptr(),
+                      func_name());
+      return TRUE;
+    }
+    max_length= (uint32) (ulen * collation.collation->mbmaxlen);
+  }
+  else
+  {
+    fixed_length= 0;
+    max_length= (uint32) MY_MIN(arg1->max_length * 10 *
+                                collation.collation->mbmaxlen,
+                                MAX_BLOB_WIDTH);
+  }
+  set_maybe_null();
+  return FALSE;
+}
+
+
+String *Item_func_tochar::val_str(String* str)
+ {
+  StringBuffer<64> format_buffer;
+  String *format;
+  MYSQL_TIME l_time;
+  const MY_LOCALE *lc= locale;
+  date_conv_mode_t mode= TIME_CONV_NONE;
+  size_t max_result_length= max_length;
+
+  if (warning_message.length())
+    goto null_date;
+
+  if ((null_value= args[0]->get_date(thd, &l_time,
+                                     Temporal::Options(mode, thd))))
+    return 0;
+
+  if (!fixed_length)
+  {
+    uint ulen;
+    if (!(format= args[1]->val_str(&format_buffer)) || !format->length() ||
+        parse_format_string(format, &ulen))
+      goto null_date;
+    max_result_length= ((size_t) ulen) * collation.collation->mbmaxlen;
+  }
+
+  if (str->alloc(max_result_length))
+    goto null_date;
+
+  /* Create the result string */
+  str->set_charset(collation.collation);
+  if (!make_date_time_oracle(fmt_array, &l_time, lc, str))
+    return str;
+
+null_date:
+
+  if (warning_message.length())
+  {
+    push_warning_printf(thd,
+                        Sql_condition::WARN_LEVEL_WARN,
+                        ER_STD_INVALID_ARGUMENT,
+                        ER_THD(thd, ER_STD_INVALID_ARGUMENT),
+                        warning_message.c_ptr(),
+                        func_name());
+    if (!fixed_length)
+      warning_message.length(0);
+  }
+
+  null_value= 1;
+  return 0;
+}
+
 
 bool Item_func_from_unixtime::fix_length_and_dec()
 {
@@ -1937,7 +2742,7 @@ bool Item_func_from_unixtime::fix_length_and_dec()
     Type_temporal_attributes_not_fixed_dec(MAX_DATETIME_WIDTH,
                                            args[0]->decimals, false),
     DTCollation_numeric());
-  maybe_null= true;
+  set_maybe_null();
   return FALSE;
 }
 
@@ -2064,7 +2869,7 @@ bool Item_date_add_interval::fix_length_and_dec()
   {
     set_func_handler(&func_handler_date_add_interval_string);
   }
-  maybe_null= true;
+  set_maybe_null();
   return m_func_handler->fix_length_and_dec(this);
 }
 
@@ -2109,16 +2914,19 @@ static const char *interval_names[]=
 void Item_date_add_interval::print(String *str, enum_query_type query_type)
 {
   args[0]->print_parenthesised(str, query_type, INTERVAL_PRECEDENCE);
-  str->append(date_sub_interval?" - interval ":" + interval ");
+  static LEX_CSTRING minus_interval= { STRING_WITH_LEN(" - interval ") };
+  static LEX_CSTRING plus_interval=  { STRING_WITH_LEN(" + interval ") };
+  LEX_CSTRING *tmp= date_sub_interval ? &minus_interval : &plus_interval;
+  str->append(tmp);
   args[1]->print(str, query_type);
   str->append(' ');
-  str->append(interval_names[int_type]);
+  str->append(interval_names[int_type], strlen(interval_names[int_type]));
 }
 
 void Item_extract::print(String *str, enum_query_type query_type)
 {
   str->append(STRING_WITH_LEN("extract("));
-  str->append(interval_names[int_type]);
+  str->append(interval_names[int_type], strlen(interval_names[int_type]));
   str->append(STRING_WITH_LEN(" from "));
   args[0]->print(str, query_type);
   str->append(')');
@@ -2141,7 +2949,7 @@ bool Item_extract::check_arguments() const
 
 bool Item_extract::fix_length_and_dec()
 {
-  maybe_null=1;					// If wrong date
+  set_maybe_null(); // If wrong date
   uint32 daylen= args[0]->cmp_type() == TIME_RESULT ? 2 :
                  TIME_MAX_INTERVAL_DAY_CHAR_LENGTH;
   switch (int_type) {
@@ -2182,7 +2990,7 @@ uint Extract_source::week(THD *thd) const
 
 longlong Item_extract::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Extract_source dt(thd, args[0], m_date_mode);
   if ((null_value= !dt.is_valid_extract_source()))
@@ -2260,7 +3068,8 @@ void Item_func::print_cast_temporal(String *str, enum_query_type query_type)
   if (decimals && decimals != NOT_FIXED_DEC)
   {
     str->append('(');
-    str->append(llstr(decimals, buf));
+    size_t length= (size_t) (longlong10_to_str(decimals, buf, -10) - buf);
+    str->append(buf, length);
     str->append(')');
   }
   str->append(')');
@@ -2274,18 +3083,16 @@ void Item_char_typecast::print(String *str, enum_query_type query_type)
   str->append(STRING_WITH_LEN(" as char"));
   if (cast_length != ~0U)
   {
+    char buf[20];
+    size_t length= (size_t) (longlong10_to_str(cast_length, buf, 10) - buf);
     str->append('(');
-    char buffer[20];
-    // my_charset_bin is good enough for numbers
-    String st(buffer, sizeof(buffer), &my_charset_bin);
-    st.set(static_cast<ulonglong>(cast_length), &my_charset_bin);
-    str->append(st);
+    str->append(buf, length);
     str->append(')');
   }
   if (cast_cs)
   {
     str->append(STRING_WITH_LEN(" charset "));
-    str->append(cast_cs->csname);
+    str->append(cast_cs->cs_name);
   }
   str->append(')');
 }
@@ -2356,7 +3163,7 @@ uint Item_char_typecast::adjusted_length_with_warn(uint length)
 
 String *Item_char_typecast::val_str_generic(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   String *res;
 
   if (has_explicit_length())
@@ -2412,7 +3219,7 @@ end:
 
 String *Item_char_typecast::val_str_binary_from_native(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   DBUG_ASSERT(cast_cs == &my_charset_bin);
   NativeBuffer<STRING_BUFFER_USUAL_SIZE> native;
 
@@ -2504,7 +3311,8 @@ Item_char_typecast::fix_length_and_dec_native_to_binary(uint32 octet_length)
 {
   collation.set(&my_charset_bin, DERIVATION_IMPLICIT);
   max_length= has_explicit_length() ? (uint32) cast_length : octet_length;
-  maybe_null|= current_thd->is_strict_mode();
+  if (current_thd->is_strict_mode())
+    set_maybe_null();
 }
 
 
@@ -2549,7 +3357,8 @@ void Item_char_typecast::fix_length_and_dec_internal(CHARSET_INFO *from_cs)
                  args[0]->collation.collation->mbmaxlen));
   max_length= char_length * cast_cs->mbmaxlen;
   // Add NULL-ability in strict mode. See Item_str_func::fix_fields()
-  maybe_null= maybe_null || current_thd->is_strict_mode();
+  if (current_thd->is_strict_mode())
+    set_maybe_null();
 }
 
 
@@ -2610,7 +3419,7 @@ Sql_mode_dependency Item_datetime_typecast::value_depends_on_sql_mode() const
 
 bool Item_func_makedate::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   long year, days, daynr=  (long) args[1]->val_int();
 
   VYear vyear(args[0]);
@@ -2673,7 +3482,7 @@ bool Item_func_add_time::fix_length_and_dec()
                                 &func_handler_add_time_string_sub);
   }
 
-  maybe_null= true;
+  set_maybe_null();
   return m_func_handler->fix_length_and_dec(this);
 }
 
@@ -2688,7 +3497,7 @@ bool Item_func_add_time::fix_length_and_dec()
 
 bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   int l_sign= 1;
   MYSQL_TIME l_time1,l_time2,l_time3;
   ErrConvTime str(&l_time3);
@@ -2721,7 +3530,7 @@ bool Item_func_timediff::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 
 bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzydate)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   Longlong_hybrid hour(args[0]->val_int(), args[0]->unsigned_flag);
   longlong minute= args[1]->val_int();
   VSec9 sec(thd, args[2], "seconds", 59);
@@ -2762,7 +3571,7 @@ bool Item_func_maketime::get_date(THD *thd, MYSQL_TIME *ltime, date_mode_t fuzzy
 
 longlong Item_func_microsecond::val_int()
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   THD *thd= current_thd;
   Time tm(thd, args[0], Time::Options_for_cast(thd));
   return ((null_value= !tm.is_valid_time())) ?
@@ -2880,7 +3689,7 @@ null_date:
 
 void Item_func_timestamp_diff::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
 
   switch (int_type) {
@@ -2926,7 +3735,7 @@ void Item_func_timestamp_diff::print(String *str, enum_query_type query_type)
 
 String *Item_func_get_format::val_str_ascii(String *str)
 {
-  DBUG_ASSERT(fixed == 1);
+  DBUG_ASSERT(fixed());
   const char *format_name;
   KNOWN_DATE_TIME_FORMAT *format;
   String *val= args[0]->val_str_ascii(str);
@@ -2959,7 +3768,7 @@ String *Item_func_get_format::val_str_ascii(String *str)
 
 void Item_func_get_format::print(String *str, enum_query_type query_type)
 {
-  str->append(func_name());
+  str->append(func_name_cstring());
   str->append('(');
 
   switch (type) {
@@ -3059,7 +3868,7 @@ bool Item_func_str_to_date::fix_length_and_dec()
   if (collation.collation->mbminlen > 1)
     internal_charset= &my_charset_utf8mb4_general_ci;
 
-  maybe_null= true;
+  set_maybe_null();
   set_func_handler(&func_handler_str_to_date_datetime_usec);
 
   if ((const_item= args[1]->const_item()))

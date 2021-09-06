@@ -36,9 +36,10 @@ void Item_row::illegal_method_call(const char *method)
 
 bool Item_row::fix_fields(THD *thd, Item **ref)
 {
-  DBUG_ASSERT(fixed == 0);
+  DBUG_ASSERT(fixed() == 0);
   null_value= 0;
-  maybe_null= 0;
+  base_flags&= ~item_base_t::MAYBE_NULL;
+
   Item **arg, **arg_end;
   for (arg= args, arg_end= args + arg_count; arg != arg_end ; arg++)
   {
@@ -60,14 +61,10 @@ bool Item_row::fix_fields(THD *thd, Item **ref)
           with_null|= 1;
       }
     }
-    maybe_null|= item->maybe_null;
-    join_with_sum_func(item);
-    with_window_func = with_window_func || item->with_window_func;
-    with_field= with_field || item->with_field;
-    m_with_subquery|= item->with_subquery();
-    with_param|= item->with_param;
+    base_flags|= (item->base_flags & item_base_t::MAYBE_NULL);
+    with_flags|= item->with_flags;
   }
-  fixed= 1;
+  base_flags|= item_base_t::FIXED;
   return FALSE;
 }
 

@@ -84,11 +84,6 @@ savepoint. */
 #define mtr_block_x_latch_at_savepoint(m, s, b)				\
 				(m)->x_latch_at_savepoint((s), (b))
 
-/** Check if a mini-transaction is dirtying a clean page.
-@param b	block being x-fixed
-@return true if the mtr is dirtying a clean page. */
-#define mtr_block_dirtied(b)	mtr_t::is_block_dirtied((b))
-
 /** Mini-transaction memo stack slot. */
 struct mtr_memo_slot_t {
 	/** pointer to the object */
@@ -588,6 +583,17 @@ public:
   @return number of buffer count added by this mtr */
   uint32_t get_fix_count(const buf_block_t *block) const;
 
+  /** type of page flushing is needed during commit() */
+  enum page_flush_ahead
+  {
+    /** no need to trigger page cleaner */
+    PAGE_FLUSH_NO= 0,
+    /** asynchronous flushing is needed */
+    PAGE_FLUSH_ASYNC,
+    /** furious flushing is needed */
+    PAGE_FLUSH_SYNC
+  };
+
 private:
   /** Log a write of a byte string to a page.
   @param block   buffer page
@@ -621,7 +627,7 @@ private:
   /** Append the redo log records to the redo log buffer.
   @param len   number of bytes to write
   @return {start_lsn,flush_ahead} */
-  inline std::pair<lsn_t,bool> finish_write(ulint len);
+  inline std::pair<lsn_t,page_flush_ahead> finish_write(ulint len);
 
   /** Release the resources */
   inline void release_resources();

@@ -1,0 +1,32 @@
+create or replace table t1 (a int primary key, b int, c int, key(b),key(c)) engine=myisam;
+insert into t1 (a) values(1);
+set debug_sync='RESET';
+connect  con1, localhost, root,,;
+connect  con2, localhost, root,,;
+connection default;
+backup stage start;
+backup stage flush;
+select * from t1;
+a	b	c
+1	NULL	NULL
+set debug_sync='after_purge_tables SIGNAL parked WAIT_FOR go';
+set debug_sync='before_tc_release_table SIGNAL parked2 WAIT_FOR go2';
+backup stage BLOCK_DDL;
+connection con1;
+set debug_sync='now WAIT_FOR parked';
+select * from t1;
+a	b	c
+1	NULL	NULL
+set debug_sync='now SIGNAL go';
+set debug_sync='now WAIT_FOR parked2';
+set debug_sync='before_wait_for_refs SIGNAL waiting WAIT_FOR go2';
+drop table t1;;
+connection con2;
+set debug_sync='now WAIT_FOR waiting';
+set debug_sync='now SIGNAL go2';
+connection default;
+connection con1;
+connection default;
+disconnect con1;
+disconnect con2;
+set debug_sync='RESET';

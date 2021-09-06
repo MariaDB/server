@@ -295,16 +295,16 @@ create view v1 as select 1;
 create view v2 as select * from t1;
 create view v3 as select * from v2;
 flush table v1, v2, v3 with read lock;
-ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
+unlock tables;
 flush table v1 with read lock;
-ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
+unlock tables;
 flush table v2 with read lock;
-ERROR HY000: 'test.v2' is not of type 'BASE TABLE'
+unlock tables;
 flush table v3 with read lock;
-ERROR HY000: 'test.v3' is not of type 'BASE TABLE'
+unlock tables;
 create temporary table v1 (a int);
 flush table v1 with read lock;
-ERROR HY000: 'test.v1' is not of type 'BASE TABLE'
+unlock tables;
 drop view v1;
 create table v1 (a int);
 flush table v1 with read lock;
@@ -556,9 +556,107 @@ UNLOCK TABLES;
 DROP VIEW v1;
 DROP TABLE t1;
 #
+# MDEV-15888 Implement FLUSH TABLES tbl_name [, tbl_name] ... WITH READ LOCK for views.
+#
+create table t1 (a int);
+insert into t1 values (1), (2), (3);
+create view v1 as select * from t1;
+create view v2 as select * from v1;
+flush table v1 with read lock;
+connect con1, localhost, root;
+insert into v1 values (4);
+connection default;
+# Wait until INSERT starts to wait for FTWRL to go away.
+select * from t1;
+a
+1
+2
+3
+unlock tables;
+connection con1;
+connection default;
+select * from t1;
+a
+1
+2
+3
+4
+flush table v2 with read lock;
+connection con1;
+insert into t1 values (5);
+connection default;
+# Wait until INSERT starts to wait for FTWRL to go away.
+select * from t1;
+a
+1
+2
+3
+4
+unlock tables;
+connection con1;
+connection default;
+select * from t1;
+a
+1
+2
+3
+4
+5
+drop view v1, v2;
+drop table t1;
+disconnect con1;
+#
+# MDEV-25837 Assertion `thd->locked_tables_mode == LTM_NONE' failed in Locked_tables_list::init_locked_tables.
+#
+CREATE FUNCTION f() RETURNS INTEGER RETURN 1;
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT 2 FROM t WHERE f() < 3;
+FLUSH TABLE v WITH READ LOCK;
+UNLOCK TABLES;
+DROP VIEW v;
+DROP FUNCTION f;
+DROP TABLE t;
+#
 # Test FLUSH THREADS
 #
+set @save_thread_cache_size=@@global.thread_cache_size;
+set @@global.thread_cache_size=0;
 flush threads;
 show status like "Threads_cached";
 Variable_name	Value
 Threads_cached	0
+set @@global.thread_cache_size=@save_thread_cache_size;
+#
+# MDEV-25906: SIGSEGV in flush_tables_with_read_lock on FTWRL or FTFE | SIGSEGV in ha_maria::extra
+#
+CREATE VIEW v0 AS SELECT 1;
+CREATE VIEW v1 AS SELECT 1 FROM (SELECT 1) AS d;
+CREATE VIEW v2 AS SELECT * FROM v1;
+FLUSH TABLE v0 WITH READ LOCK;
+DROP VIEW v0;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v1 WITH READ LOCK;
+DROP VIEW v1;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v2 WITH READ LOCK;
+DROP VIEW v2;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v0 FOR EXPORT;
+DROP VIEW v0;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v1 FOR EXPORT;
+DROP VIEW v1;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+FLUSH TABLE v2 FOR EXPORT;
+DROP VIEW v2;
+ERROR HY000: Can't execute the given command because you have active locked tables or an active transaction
+UNLOCK TABLES;
+DROP VIEW v2, v1, v0;
+#
+# End of 10.6 tests
+#

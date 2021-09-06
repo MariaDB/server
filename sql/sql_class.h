@@ -39,7 +39,7 @@
 #include "thr_lock.h"       /* thr_lock_type, THR_LOCK_DATA, THR_LOCK_INFO */
 #include "thr_timer.h"
 #include "thr_malloc.h"
-#include "log_slow.h"      /* LOG_SLOW_DISABLE_... */
+#include "log_slow.h"       /* LOG_SLOW_DISABLE_... */
 #include <my_tree.h>
 #include "sql_digest_stream.h"            // sql_digest_state
 #include <mysql/psi/mysql_stage.h>
@@ -50,6 +50,7 @@
 #include "session_tracker.h"
 #include "backup.h"
 #include "xa.h"
+#include "ddl_log.h"                            /* DDL_LOG_STATE */
 
 extern "C"
 void set_thd_stage_info(void *thd,
@@ -189,6 +190,7 @@ enum enum_binlog_row_image {
 #define OLD_MODE_NO_DUP_KEY_WARNINGS_WITH_IGNORE	(1 << 0)
 #define OLD_MODE_NO_PROGRESS_INFO			(1 << 1)
 #define OLD_MODE_ZERO_DATE_TIME_CAST                    (1 << 2)
+#define OLD_MODE_UTF8_IS_UTF8MB3      (1 << 3)
 
 extern char internal_table_name[2];
 extern char empty_c_string[1];
@@ -197,6 +199,7 @@ extern MYSQL_PLUGIN_IMPORT const char **errmesg;
 extern "C" LEX_STRING * thd_query_string (MYSQL_THD thd);
 extern "C" unsigned long long thd_query_id(const MYSQL_THD thd);
 extern "C" size_t thd_query_safe(MYSQL_THD thd, char *buf, size_t buflen);
+extern "C" const char *thd_priv_user(MYSQL_THD thd,  size_t *length);
 extern "C" const char *thd_priv_host(MYSQL_THD thd,  size_t *length);
 extern "C" const char *thd_user_name(MYSQL_THD thd);
 extern "C" const char *thd_client_host(MYSQL_THD thd);
@@ -263,10 +266,12 @@ typedef struct st_user_var_events
       was actually changed or not.
 */
 typedef struct st_copy_info {
-  ha_rows records; /**< Number of processed records */
-  ha_rows deleted; /**< Number of deleted records */
-  ha_rows updated; /**< Number of updated records */
-  ha_rows copied;  /**< Number of copied records */
+  ha_rows records;        /**< Number of processed records */
+  ha_rows deleted;        /**< Number of deleted records */
+  ha_rows updated;        /**< Number of updated records */
+  ha_rows copied;         /**< Number of copied records */
+  ha_rows accepted_rows;  /**< Number of accepted original rows
+                             (same as number of rows in RETURNING) */
   ha_rows error_count;
   ha_rows touched; /* Number of touched records */
   enum enum_duplicates handle_duplicates;
@@ -386,13 +391,14 @@ public:
 class Alter_index_ignorability: public Sql_alloc
 {
 public:
-  Alter_index_ignorability(const char *name, bool is_ignored) :
-    m_name(name), m_is_ignored(is_ignored)
+  Alter_index_ignorability(const char *name, bool is_ignored, bool if_exists) :
+    m_name(name), m_is_ignored(is_ignored), m_if_exists(if_exists)
   {
     assert(name != NULL);
   }
 
   const char *name() const { return m_name; }
+  bool if_exists() const { return m_if_exists; }
 
   /* The ignorability after the operation is performed. */
   bool is_ignored() const { return m_is_ignored; }
@@ -402,6 +408,7 @@ public:
 private:
   const char *m_name;
   bool m_is_ignored;
+  bool m_if_exists;
 };
 
 
@@ -1054,13 +1061,14 @@ static inline void update_global_memory_status(int64 size)
   @retval         Pointter to CHARSET_INFO with the given name on success
 */
 static inline CHARSET_INFO *
-mysqld_collation_get_by_name(const char *name,
+mysqld_collation_get_by_name(const char *name, myf utf8_flag,
                              CHARSET_INFO *name_cs= system_charset_info)
 {
   CHARSET_INFO *cs;
   MY_CHARSET_LOADER loader;
   my_charset_loader_init_mysys(&loader);
-  if (!(cs= my_collation_get_by_name(&loader, name, MYF(0))))
+
+  if (!(cs= my_collation_get_by_name(&loader, name, MYF(utf8_flag))))
   {
     ErrConvString err(name, name_cs);
     my_error(ER_UNKNOWN_COLLATION, MYF(0), err.ptr());
@@ -1074,7 +1082,7 @@ mysqld_collation_get_by_name(const char *name,
 
 static inline bool is_supported_parser_charset(CHARSET_INFO *cs)
 {
-  return MY_TEST(cs->mbminlen == 1);
+  return MY_TEST(cs->mbminlen == 1 && cs->number != 17 /* filename */);
 }
 
 /** THD registry */
@@ -1108,6 +1116,23 @@ public:
     return res;
   }
   static THD_list_iterator *iterator();
+};
+
+/**
+  A counter of THDs
+
+  It must be specified as a first base class of THD, so that increment is
+  done before any other THD constructors and decrement - after any other THD
+  destructors.
+
+  Destructor unblocks close_conneciton() if there are no more THD's left.
+*/
+struct THD_count
+{
+  static Atomic_counter<uint32_t> count;
+  static uint value() { return static_cast<uint>(count); }
+  THD_count() { count++; }
+  ~THD_count() { count--; }
 };
 
 #ifdef MYSQL_SERVER
@@ -1205,7 +1230,7 @@ public:
 
   void free_items();
   /* Close the active state associated with execution of this statement */
-  virtual void cleanup_stmt();
+  virtual void cleanup_stmt(bool /*restore_set_statement_vars*/);
 };
 
 
@@ -2008,6 +2033,25 @@ private:
 };
 
 
+class Turn_errors_to_warnings_handler : public Internal_error_handler
+{
+public:
+  Turn_errors_to_warnings_handler() {}
+  bool handle_condition(THD *thd,
+                        uint sql_errno,
+                        const char* sqlstate,
+                        Sql_condition::enum_warning_level *level,
+                        const char* msg,
+                        Sql_condition ** cond_hdl)
+  {
+    *cond_hdl= NULL;
+    if (*level == Sql_condition::WARN_LEVEL_ERROR)
+      *level= Sql_condition::WARN_LEVEL_WARN;
+    return(0);
+  }
+};
+
+
 /**
   Tables that were locked with LOCK TABLES statement.
 
@@ -2333,21 +2377,6 @@ public:
 };
 
 /**
-  A wrapper around thread_count.
-
-  It must be specified as a first base class of THD, so that increment is
-  done before any other THD constructors and decrement - after any other THD
-  destructors.
-
-  Destructor unblocks close_conneciton() if there are no more THD's left.
-*/
-struct THD_count
-{
-  THD_count() { thread_count++; }
-  ~THD_count() { thread_count--; }
-};
-
-/**
   Support structure for asynchronous group commit, or more generally
   any asynchronous operation that needs to finish before server writes
   response to client.
@@ -2502,7 +2531,7 @@ struct thd_async_state
   }
 };
 
-extern "C" MYSQL_THD thd_increment_pending_ops(void);
+extern "C" void thd_increment_pending_ops(MYSQL_THD);
 extern "C" void thd_decrement_pending_ops(MYSQL_THD);
 
 
@@ -2835,6 +2864,11 @@ public:
 
 #ifndef MYSQL_CLIENT
   binlog_cache_mngr *  binlog_setup_trx_data();
+  /*
+    If set, tell binlog to store the value as query 'xid' in the next
+    Query_log_event
+  */
+  ulonglong binlog_xid;
 
   /*
     Public interface to write RBR events to the binlog
@@ -3021,7 +3055,7 @@ public:
   } default_transaction, *transaction;
   Global_read_lock global_read_lock;
   Field      *dup_field;
-#ifndef __WIN__
+#ifndef _WIN32
   sigset_t signals;
 #endif
 #ifdef SIGNAL_WITH_VIO_CLOSE
@@ -3376,6 +3410,9 @@ public:
   uint	     server_status,open_options;
   enum enum_thread_type system_thread;
   enum backup_stages current_backup_stage;
+#ifdef WITH_WSREP
+  bool wsrep_desynced_backup_stage;
+#endif /* WITH_WSREP */
   /*
     Current or next transaction isolation level.
     When a connection is established, the value is taken from
@@ -4625,15 +4662,9 @@ public:
         to resolve all CTE names as we don't need this message to be thrown
         for any CTE references.
       */
-      if (!lex->with_clauses_list)
-      {
+      if (!lex->with_cte_resolution)
         my_message(ER_NO_DB_ERROR, ER(ER_NO_DB_ERROR), MYF(0));
-        return TRUE;
-      }
-      /* This will allow to throw an error later for non-CTE references */
-      to->str= NULL;
-      to->length= 0;
-      return FALSE;
+      return TRUE;
     }
 
     to->str= strmake(db.str, db.length);
@@ -5382,9 +5413,9 @@ public:
     transaction->all.m_unsafe_rollback_flags|=
       (transaction->stmt.m_unsafe_rollback_flags &
        (THD_TRANS::DID_WAIT | THD_TRANS::CREATED_TEMP_TABLE |
-        THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL));
+        THD_TRANS::DROPPED_TEMP_TABLE | THD_TRANS::DID_DDL |
+        THD_TRANS::EXECUTED_TABLE_ADMIN_CMD));
   }
-
 
   uint get_net_wait_timeout()
   {
@@ -5436,6 +5467,41 @@ public:
   Item *sp_prepare_func_item(Item **it_addr, uint cols= 1);
   bool sp_eval_expr(Field *result_field, Item **expr_item_ptr);
 
+  bool sql_parser(LEX *old_lex, LEX *lex,
+                  char *str, uint str_len, bool stmt_prepare_mode);
+
+  myf get_utf8_flag() const
+  {
+    return (variables.old_behavior & OLD_MODE_UTF8_IS_UTF8MB3 ?
+            MY_UTF8_IS_UTF8MB3 : 0);
+  }
+
+  /**
+    Save current lex to the output parameter and reset it to point to
+    main_lex. This method is called from mysql_client_binlog_statement()
+    to temporary
+
+    @param[out] backup_lex  original value of current lex
+  */
+
+  void backup_and_reset_current_lex(LEX **backup_lex)
+  {
+    *backup_lex= lex;
+    lex= &main_lex;
+  }
+
+
+  /**
+    Restore current lex to its original value it had before calling the method
+    backup_and_reset_current_lex().
+
+    @param backup_lex  original value of current lex
+  */
+
+  void restore_current_lex(LEX *backup_lex)
+  {
+    lex= backup_lex;
+  }
 };
 
 
@@ -6012,6 +6078,7 @@ class select_create: public select_insert {
   MYSQL_LOCK **m_plock;
   bool       exit_done;
   TMP_TABLE_SHARE *saved_tmp_table_share;
+  DDL_LOG_STATE ddl_log_state_create, ddl_log_state_rm;
 
 public:
   select_create(THD *thd_arg, TABLE_LIST *table_arg,
@@ -6027,7 +6094,10 @@ public:
     alter_info(alter_info_arg),
     m_plock(NULL), exit_done(0),
     saved_tmp_table_share(0)
-    {}
+    {
+      bzero(&ddl_log_state_create, sizeof(ddl_log_state_create));
+      bzero(&ddl_log_state_rm, sizeof(ddl_log_state_rm));
+    }
   int prepare(List<Item> &list, SELECT_LEX_UNIT *u);
 
   void store_values(List<Item> &values);
@@ -6977,7 +7047,8 @@ public:
   ~my_var_sp() { }
   bool set(THD *thd, Item *val);
   my_var_sp *get_my_var_sp() { return this; }
-  const Type_handler *type_handler() const { return m_type_handler; }
+  const Type_handler *type_handler() const
+  { return m_type_handler; }
   sp_rcontext *get_rcontext(sp_rcontext *local_ctx) const;
 };
 
@@ -7550,10 +7621,10 @@ public:
   ErrConvDQName(const Database_qualified_name *name)
    :m_name(name)
   { }
-  const char *ptr() const
+  LEX_CSTRING lex_cstring() const override
   {
-    m_name->make_qname(err_buffer, sizeof(err_buffer));
-    return err_buffer;
+    size_t length= m_name->make_qname(err_buffer, sizeof(err_buffer));
+    return {err_buffer, length};
   }
 };
 
@@ -7570,10 +7641,10 @@ public:
     m_maybe_null(false)
   { }
 
-  void set_maybe_null(bool maybe_null_arg) { m_maybe_null= maybe_null_arg; }
+  void set_type_maybe_null(bool maybe_null_arg) { m_maybe_null= maybe_null_arg; }
   bool get_maybe_null() const { return m_maybe_null; }
 
-  uint decimal_precision() const
+  decimal_digits_t decimal_precision() const
   {
     /*
       Type_holder is not used directly to create fields, so
@@ -7596,11 +7667,12 @@ public:
 
   bool aggregate_attributes(THD *thd)
   {
+    static LEX_CSTRING union_name= { STRING_WITH_LEN("UNION") };
     for (uint i= 0; i < arg_count; i++)
-      m_maybe_null|= args[i]->maybe_null;
+      m_maybe_null|= args[i]->maybe_null();
     return
        type_handler()->Item_hybrid_func_fix_attributes(thd,
-                                                       "UNION", this, this,
+                                                       union_name, this, this,
                                                        args, arg_count);
   }
 };

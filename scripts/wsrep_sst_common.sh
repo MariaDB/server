@@ -1,5 +1,5 @@
-# Copyright (C) 2012-2015 Codership Oy
 # Copyright (C) 2017-2021 MariaDB
+# Copyright (C) 2012-2015 Codership Oy
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -29,7 +29,9 @@ WSREP_SST_OPT_USER="${WSREP_SST_OPT_USER:-}"
 WSREP_SST_OPT_PSWD="${WSREP_SST_OPT_PSWD:-}"
 WSREP_SST_OPT_REMOTE_AUTH="${WSREP_SST_OPT_REMOTE_AUTH:-}"
 WSREP_SST_OPT_DEFAULT=""
+WSREP_SST_OPT_DEFAULTS=""
 WSREP_SST_OPT_EXTRA_DEFAULT=""
+WSREP_SST_OPT_EXTRA_DEFAULTS=""
 WSREP_SST_OPT_SUFFIX_DEFAULT=""
 WSREP_SST_OPT_SUFFIX_VALUE=""
 WSREP_SST_OPT_MYSQLD=""
@@ -51,7 +53,7 @@ case "$1" in
         #
         # Break address string into host:port/path parts
         #
-        case "${WSREP_SST_OPT_ADDR}" in
+        case "$WSREP_SST_OPT_ADDR" in
         \[*)
             # IPv6
             # Remove the starting and ending square brackets, if present:
@@ -81,7 +83,7 @@ case "$1" in
         # up to "/" (if present):
         WSREP_SST_OPT_ADDR_PORT="${remain%%/*}"
         # If the "/" character is present, then the path is not empty:
-        if [ "${remain#*/}" != "${remain}" ]; then
+        if [ "${remain#*/}" != "$remain" ]; then
             # This operation removes everything up to the "/" character,
             # effectively removing the port number from the string:
             readonly WSREP_SST_OPT_PATH="${remain#*/}"
@@ -89,10 +91,10 @@ case "$1" in
             readonly WSREP_SST_OPT_PATH=""
         fi
         # The rest of the string is the same as the path (for now):
-        remain="${WSREP_SST_OPT_PATH}"
+        remain="$WSREP_SST_OPT_PATH"
         # If there is one more "/" in the string, then everything before
         # it will be the module name, otherwise the module name is empty:
-        if [ "${remain%%/*}" != "${remain}" ]; then
+        if [ "${remain%%/*}" != "$remain" ]; then
             # This operation removes the tail after the very first
             # occurrence of the "/" character (inclusively):
             readonly WSREP_SST_OPT_MODULE="${remain%%/*}"
@@ -103,7 +105,7 @@ case "$1" in
         remain="${WSREP_SST_OPT_PATH#*/}"
         # If the rest of the string does not match the original, then there
         # was something else besides the module name:
-        if [ "$remain" != "${WSREP_SST_OPT_PATH}" ]; then
+        if [ "$remain" != "$WSREP_SST_OPT_PATH" ]; then
             # Extract the part that matches the LSN by removing all
             # characters starting from the very first "/":
             readonly WSREP_SST_OPT_LSN="${remain%%/*}"
@@ -113,7 +115,7 @@ case "$1" in
             # If the remainder does not match the original string,
             # then there is something else (the version number in
             # our case):
-            if [ "$remain" != "${WSREP_SST_OPT_LSN}" ]; then
+            if [ "$remain" != "$WSREP_SST_OPT_LSN" ]; then
                 # Let's extract the version number by removing the tail
                 # after the very first occurence of the "/" character
                 # (inclusively):
@@ -152,10 +154,12 @@ case "$1" in
         ;;
     '--defaults-file')
         readonly WSREP_SST_OPT_DEFAULT="$1=$2"
+        readonly WSREP_SST_OPT_DEFAULTS="$1='$2'"
         shift
         ;;
     '--defaults-extra-file')
         readonly WSREP_SST_OPT_EXTRA_DEFAULT="$1=$2"
+        readonly WSREP_SST_OPT_EXTRA_DEFAULTS="$1='$2'"
         shift
         ;;
     '--defaults-group-suffix')
@@ -240,44 +244,108 @@ case "$1" in
         original_cmd=""
         shift
         while [ $# -gt 0 ]; do
-           # check if the argument is the short option
-           # (starting with "-" instead of "--"):
-           if [ "${1#--}" = "$1" -a "${1#-}" != "$1" ]; then
-               option="${1#-}"
-               value=""
-               # check that the option value follows the name,
-               # without a space:
-               if [ ${#option} -gt 1 ]; then
-                   # let's separate the first character as the option name,
-                   # and the subsequent characters consider its value:
-                   value="${1#-?}"
-                   option="${1%$value}"
-               # check that the option name consists of one letter
-               # and there are the following arguments:
-               elif [ ${#option} -eq 1 -a $# -gt 1 ]; then
-                   # if the next argument does not start with a "-" character,
-                   # then this is the value of the current option:
-                   if [ "${2#-}" = "$2" ]; then
-                       value="$2"
+           lname="${1#--}"
+           # "--" is interpreted as the end of the list of options:
+           if [ -z "$lname" ]; then
+               shift
+               if [ $# -gt 0 ]; then
+                   # copy "--" to the output string:
+                   original_cmd="$original_cmd --"
+                   # All other arguments must be copied unchanged:
+                   while [ $# -gt 0 ]; do
+                       original_cmd="$original_cmd '$1'"
                        shift
+                   done
+               fi
+               break;
+           fi
+           # Make sure the argument does not start with "--", otherwise it
+           # is a long option, which is processed after this "if":
+           if [ "$lname" = "$1" ]; then
+               # Check if the argument is the short option or the short
+               # options list, starting with "-":
+               options="${1#-}"
+               if [ "$options" != "$1" -a -n "$options" ]; then
+                   slist=""
+                   while [ -n "$options" ]; do
+                       # Let's separate the first character as the current
+                       # option name:
+                       if [ -n "$BASH_VERSION" ]; then
+                           option="${options:0:1}"
+                       else
+                           # If it's not bash, then we need to use slow
+                           # external utilities:
+                           option=$(echo "$options" | cut -c1-1)
+                       fi
+                       # And the subsequent characters consider option value:
+                       value=""
+                       if [ ${#options} -gt 0 ]; then
+                           value="${options#?}"
+                       fi
+                       # Check for options without argument:
+                       if [ "$option" != '?' -a \
+                            "$option" != 'a' -a \
+                            "$option" != 's' -a \
+                            "$option" != 'v' ]
+                       then
+                           # If the option value is absent, then check
+                           # the following argument:
+                           if [ -z "$value" -a $# -gt 1 ]; then
+                               # if the next argument does not start with
+                               # the "-" character, then next argument is
+                               # the current option value:
+                               if [ "${2#-}" = "$2" ]; then
+                                   shift
+                                   value="$1"
+                               fi
+                           fi
+                           if [ $option = 'h' ]; then
+                               if [ -z "$WSREP_SST_OPT_DATA" ]; then
+                                   MYSQLD_OPT_DATADIR="${value%/}"
+                               fi
+                           elif [ $option != 'u' -a \
+                                  $option != 'P' ]
+                           then
+                               if [ -z "$value" ]; then
+                                   slist="$slist$option"
+                               elif [ -z "$slist" ]; then
+                                   slist="$option '$value'"
+                               else
+                                   slist="$slist -$option '$value'"
+                               fi
+                           fi
+                           break
+
+                       else
+                           slist="$slist$option"
+                       fi
+                       options="$value"
+                   done
+                   if [ -n "$slist" ]; then
+                       original_cmd="$original_cmd -$slist"
                    fi
+               elif [ -z "$options" ]; then
+                   # We found an equal sign without any characters after it:
+                   original_cmd="$original_cmd -"
+               else
+                   # We found a value that does not start with a minus -
+                   # it is a positional argument or the value of previous
+                   # option. Copy it to output string (as is):
+                   original_cmd="$original_cmd '$1'"
                fi
                shift
-               if [ "$option" = 'h' ]; then
-                   if [ -z "$WSREP_SST_OPT_DATA" ]; then
-                       MYSQLD_OPT_DATADIR="${value%/}"
-                   fi
-               elif [ "$option" != 'u' -a \
-                      "$option" != 'P' ]; then
-                   if [ -z "$original_cmd" ]; then
-                       original_cmd="'-$option$value'"
-                   else
-                       original_cmd="$original_cmd '-$option$value'"
-                   fi
-               fi
                continue;
            fi
+           # Now we are sure that we are working with an option
+           # that has a "long" name, so remove all characters after
+           # the first equal sign:
            option="${1%%=*}"
+           # The "--loose-" prefix should not affect the recognition
+           # of the option name:
+           if [ "${option#--loose-}" != "$option" ]; then
+               option="--${option#--loose-}"
+           fi
+           # Some options just need to be removed from the list:
            if [ "$option" != '--defaults-file' -a \
                 "$option" != '--defaults-extra-file' -a \
                 "$option" != '--defaults-group-suffix' -a \
@@ -340,22 +408,17 @@ case "$1" in
                        ;;
                esac
                if [ $skip_mysqld_arg -eq 0 ]; then
-                   if [ -z "$original_cmd" ]; then
-                       original_cmd="'$1'"
-                   else
-                       original_cmd="$original_cmd '$1'"
-                   fi
+                   original_cmd="$original_cmd '$1'"
                fi
-            fi
-            shift
+           fi
+           shift
         done
-        WSREP_SST_OPT_MYSQLD="$original_cmd"
+        WSREP_SST_OPT_MYSQLD="${original_cmd# *}"
         break
         ;;
-    *) # must be command
-       # usage
-       # exit 1
-       ;;
+    *) # Must be command usage
+        # exit 1
+        ;;
 esac
 shift
 done
@@ -393,7 +456,7 @@ if [ -n "${MYSQLD_OPT_LOG_BASENAME:-}" -a \
 fi
 
 # If the --log-bin option is present without a value, then
-# setting WSREP_SST_OPT_BINLOG by using other arguments:
+# set WSREP_SST_OPT_BINLOG value using other arguments:
 if [ -z "$WSREP_SST_OPT_BINLOG" -a -n "${MYSQLD_OPT_LOG_BIN+x}" ]; then
     if [ -n "$WSREP_SST_OPT_LOG_BASENAME" ]; then
         # If the WSREP_SST_OPT_BINLOG variable is not set, but
@@ -486,9 +549,9 @@ get_binlog()
                 # the "-bin" suffix:
                 readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_LOG_BASENAME-bin.index"
             else
-                # If the base name not specified, then we take
-                # the default name:
-                readonly WSREP_SST_OPT_BINLOG_INDEX='mysql-bin.index'
+                # the default name (note that base of this name
+                # is already defined above):
+                readonly WSREP_SST_OPT_BINLOG_INDEX="$WSREP_SST_OPT_BINLOG.index"
             fi
         fi
     fi
@@ -535,21 +598,45 @@ readonly WSREP_SST_OPT_ADDR_PORT
 
 # try to use my_print_defaults, mysql and mysqldump that come with the sources
 # (for MTR suite)
-SCRIPTS_DIR="$(cd $(dirname "$0"); pwd -P)"
+script_binary=$(dirname "$0")
+SCRIPTS_DIR=$(cd "$script_binary"; pwd -P)
 EXTRA_DIR="$SCRIPTS_DIR/../extra"
 CLIENT_DIR="$SCRIPTS_DIR/../client"
 
-if [ -x "$CLIENT_DIR/mysql" ]; then
-    MYSQL_CLIENT="$CLIENT_DIR/mysql"
+if [ -x "$CLIENT_DIR/mariadb" ]; then
+    MYSQL_CLIENT="$CLIENT_DIR/mariadb"
 else
-    MYSQL_CLIENT="$(command -v mysql)"
+    MYSQL_CLIENT="$(command -v mariadb)"
 fi
 
-if [ -x "$CLIENT_DIR/mysqldump" ]; then
-    MYSQLDUMP="$CLIENT_DIR/mysqldump"
+if [ -x "$CLIENT_DIR/mariadb-dump" ]; then
+    MYSQLDUMP="$CLIENT_DIR/mariadb-dump"
 else
-    MYSQLDUMP="$(command -v mysqldump)"
+    MYSQLDUMP="$(command -v mariadb-dump)"
 fi
+
+wsrep_log()
+{
+    # echo everything to stderr so that it gets into common error log
+    # deliberately made to look different from the rest of the log
+    local readonly tst="$(date +%Y%m%d\ %H:%M:%S.%N | cut -b -21)"
+    echo "WSREP_SST: $* ($tst)" >&2
+}
+
+wsrep_log_error()
+{
+    wsrep_log "[ERROR] $*"
+}
+
+wsrep_log_warning()
+{
+    wsrep_log "[WARNING] $*"
+}
+
+wsrep_log_info()
+{
+    wsrep_log "[INFO] $*"
+}
 
 if [ -x "$SCRIPTS_DIR/my_print_defaults" ]; then
     MY_PRINT_DEFAULTS="$SCRIPTS_DIR/my_print_defaults"
@@ -557,18 +644,25 @@ elif [ -x "$EXTRA_DIR/my_print_defaults" ]; then
     MY_PRINT_DEFAULTS="$EXTRA_DIR/my_print_defaults"
 else
     MY_PRINT_DEFAULTS="$(command -v my_print_defaults)"
+    if [ -z "$MY_PRINT_DEFAULTS" ]; then
+        wsrep_log_error "my_print_defaults not found in path"
+        exit 2
+    fi
 fi
 
+readonly MY_PRINT_DEFAULTS
+
+wsrep_defaults="$WSREP_SST_OPT_DEFAULTS"
+wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_EXTRA_DEFAULTS"
+wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_SUFFIX_DEFAULT"
+
+readonly WSREP_SST_OPT_CONF="$wsrep_defaults"
+
 wsrep_defaults="$WSREP_SST_OPT_DEFAULT"
-if [ -n "$wsrep_defaults" ]; then
-    wsrep_defaults="$wsrep_defaults "
-fi
-wsrep_defaults="$wsrep_defaults$WSREP_SST_OPT_EXTRA_DEFAULT"
-if [ -n "$wsrep_defaults" ]; then
-    wsrep_defaults="$wsrep_defaults "
-fi
-readonly WSREP_SST_OPT_CONF="$wsrep_defaults$WSREP_SST_OPT_SUFFIX_DEFAULT"
-readonly MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
+wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_EXTRA_DEFAULT"
+wsrep_defaults="$wsrep_defaults${wsrep_defaults:+ }$WSREP_SST_OPT_SUFFIX_DEFAULT"
+
+readonly WSREP_SST_OPT_CONF_UNQUOTED="$wsrep_defaults"
 
 #
 # User can specify mariabackup specific settings that will be used during sst
@@ -581,30 +675,53 @@ readonly MY_PRINT_DEFAULTS="$MY_PRINT_DEFAULTS $WSREP_SST_OPT_CONF"
 #
 parse_cnf()
 {
-    local group="$1"
+    local groups="$1"
     local var="$2"
     local reval=""
 
-    # normalize the variable names specified in cnf file (user can use _ or - for example log-bin or log_bin)
-    # then search for needed variable
-    # finally get the variable value (if variables has been specified multiple time use the last value only)
+    # normalize the variable names specified in the .cnf file
+    # (user can use '_' or '-', for example, log-bin or log_bin),
+    # then search for the last instance of the desired variable
+    # and finally get the value of that variable (if the variable
+    # was specified several times - we use only its last instance):
 
-    if [ "$group" = '--mysqld' -o \
-         "$group" = 'mysqld' ]; then
-       if [ -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
-           reval=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk 'BEGIN {OFS=FS="="} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}')
-       fi
-    fi
+    local pattern='BEGIN {OFS=FS="="} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}'
 
-    if [ -z "$reval" ]; then
-        reval=$($MY_PRINT_DEFAULTS "$group" | awk 'BEGIN {OFS=FS="="} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") lastval=substr($0,length($1)+2)} END {print lastval}')
-    fi
+    while [ -n "$groups" ]; do
+        # Remove the largest suffix starting with the '|' character:
+        local group="${groups%%\|*}"
+        # Remove the remainder (the group name) from the rest
+        # of the groups list (as if it were a prefix):
+        groups="${groups#$group}"
+        groups="${groups#\|}"
+        # If the group name is the same as the "mysqld" without "--" prefix,
+        # then try to use it together with the group suffix:
+        if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
+            reval=$("$MY_PRINT_DEFAULTS" \
+                    ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+                    ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+                    ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+                    "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
+            if [ -n "$reval" ]; then
+                break
+            fi
+        fi
+        # Let's try to use the group name as it is:
+        reval=$("$MY_PRINT_DEFAULTS" \
+                ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+                ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+                ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+                "$group" | awk "$pattern")
+        if [ -n "$reval" ]; then
+            break
+        fi
+    done
 
-    # use default if we haven't found a value
+    # Use default if we haven't found a value:
     if [ -z "$reval" ]; then
         [ -n "${3:-}" ] && reval="$3"
     fi
-    echo $reval
+    echo "$reval"
 }
 
 #
@@ -615,18 +732,45 @@ parse_cnf()
 #
 in_config()
 {
-    local group="$1"
+    local groups="$1"
     local var="$2"
     local found=0
-    if [ "$group" = '--mysqld' -o \
-         "$group" = 'mysqld' ]; then
-       if [ -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
-           found=$($MY_PRINT_DEFAULTS "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk 'BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}')
-       fi
-    fi
-    if [ $found -eq 0 ]; then
-        found=$($MY_PRINT_DEFAULTS "$group" | awk 'BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}')
-    fi
+
+    # normalize the variable names specified in the .cnf file
+    # (user can use '_' or '-', for example, log-bin or log_bin),
+    # then search for the last instance(s) of the desired variable:
+
+    local pattern='BEGIN {OFS=FS="="; found=0} {sub(/^--loose/,"-",$0); gsub(/_/,"-",$1); if ($1=="--'"$var"'") found=1} END {print found}'
+
+    while [ -n "$groups" ]; do
+        # Remove the largest suffix starting with the '|' character:
+        local group="${groups%%\|*}"
+        # Remove the remainder (the group name) from the rest
+        # of the groups list (as if it were a prefix):
+        groups="${groups#$group}"
+        groups="${groups#\|}"
+        # If the group name is the same as the "mysqld" without "--" prefix,
+        # then try to use it together with the group suffix:
+        if [ "$group" = 'mysqld' -a -n "$WSREP_SST_OPT_SUFFIX_VALUE" ]; then
+            found=$("$MY_PRINT_DEFAULTS" \
+                    ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+                    ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+                    ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+                    "mysqld$WSREP_SST_OPT_SUFFIX_VALUE" | awk "$pattern")
+            if [ $found -ne 0 ]; then
+                break
+            fi
+        fi
+        # Let's try to use the group name as it is:
+        found=$($MY_PRINT_DEFAULTS \
+                ${WSREP_SST_OPT_DEFAULT:+"$WSREP_SST_OPT_DEFAULT"} \
+                ${WSREP_SST_OPT_EXTRA_DEFAULT:+"$WSREP_SST_OPT_EXTRA_DEFAULT"} \
+                ${WSREP_SST_OPT_SUFFIX_DEFAULT:+"$WSREP_SST_OPT_SUFFIX_DEFAULT"} \
+                "$group" | awk "$pattern")
+        if [ $found -ne 0 ]; then
+            break
+        fi
+    done
     echo $found
 }
 
@@ -703,39 +847,17 @@ else
     SST_PROGRESS_FILE=""
 fi
 
-wsrep_log()
-{
-    # echo everything to stderr so that it gets into common error log
-    # deliberately made to look different from the rest of the log
-    local readonly tst="$(date +%Y%m%d\ %H:%M:%S.%N | cut -b -21)"
-    echo "WSREP_SST: $* ($tst)" >&2
-}
-
-wsrep_log_error()
-{
-    wsrep_log "[ERROR] $*"
-}
-
-wsrep_log_warning()
-{
-    wsrep_log "[WARNING] $*"
-}
-
-wsrep_log_info()
-{
-    wsrep_log "[INFO] $*"
-}
-
 wsrep_cleanup_progress_file()
 {
-    [ -n "$SST_PROGRESS_FILE" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null || true
+    [ -n "$SST_PROGRESS_FILE" -a \
+      -f "$SST_PROGRESS_FILE" ] && rm -f "$SST_PROGRESS_FILE" 2>/dev/null || true
 }
 
 wsrep_check_program()
 {
     local prog="$1"
     local cmd=$(command -v "$prog")
-    if [ ! -x "$cmd" ]; then
+    if [ -z "$cmd" ]; then
         echo "'$prog' not found in PATH"
         return 2 # no such file or directory
     fi
@@ -747,7 +869,7 @@ wsrep_check_programs()
 
     while [ $# -gt 0 ]
     do
-        wsrep_check_program $1 || ret=$?
+        wsrep_check_program "$1" || ret=$?
         shift
     done
 
@@ -771,16 +893,18 @@ get_openssl()
     fi
     # Let's look for openssl:
     OPENSSL_BINARY="$(command -v openssl)"
-    if [ ! -x "$OPENSSL_BINARY" ]; then
+    if [ -z "$OPENSSL_BINARY" ]; then
         OPENSSL_BINARY='/usr/bin/openssl'
-        if [ ! -x "$OPENSSL_BINARY" ]; then
+        if [ -z "$OPENSSL_BINARY" ]; then
             OPENSSL_BINARY=""
         fi
     fi
     readonly OPENSSL_BINARY
 }
 
+#
 # Generate a string equivalent to 16 random bytes
+#
 wsrep_gen_secret()
 {
     get_openssl
@@ -791,5 +915,371 @@ wsrep_gen_secret()
         printf "%04x%04x%04x%04x%04x%04x%04x%04x" \
                 $RANDOM $RANDOM $RANDOM $RANDOM   \
                 $RANDOM $RANDOM $RANDOM $RANDOM
+    fi
+}
+
+#
+# Checking if the address passed to us is local.
+# If the second parameter is nonzero, then this function
+# does not check for matches with local domain names:
+#
+is_local_ip()
+{
+    # Rapid recognition of the most common cases:
+    [ "$1" = '127.0.0.1' -o \
+      "$1" = '127.0.0.2' -o \
+      "$1" = 'localhost' -o \
+      "$1" = '[::1]' ] && return 0
+    # If the address starts with "127." this is probably a local
+    # address, but we need to clarify what follows this prefix:
+    if [ "${1#127.}" != "$1" ]; then
+        # All 127.0.0.0/8 addresses are local:
+        if echo "$1" | grep -q -E '^127\.[0-9]+\.[0-9]+\.[0-9]+$'; then
+            return 0
+        fi
+    fi
+    # If the second parameter is nonzero, then we will skip
+    # the domain name check:
+    if [ "${2:-0}" -eq 0 ]; then
+       # We consider all the names of a given host to be local addresses:
+       [ "$1" = "$(hostname -s)" -o \
+         "$1" = "$(hostname -f)" -o \
+         "$1" = "$(hostname -d)" ] && return 0
+    fi
+    # Now let's check if the given address is assigned to
+    # one of the network cards:
+    local ip_util="$(command -v ip)"
+    if [ -n "$ip_util" ]; then
+        # ip address show ouput format is " inet[6] <address>/<mask>":
+        "$ip_util" address show \
+             | grep -E "^[[:space:]]*inet.? [^[:space:]]+/" -o \
+             | grep -F " $1/" >/dev/null && return 0
+    else
+        local ifconfig_util="$(command -v ifconfig)"
+        if [ -n "$ifconfig_util" ]; then
+            # ifconfig output format is " inet[6] <address> ...":
+            "$ifconfig_util" \
+                 | grep -E "^[[:space:]]*inet.? [^[:space:]]+ " -o \
+                 | grep -F " $1 " >/dev/null && return 0
+        fi
+    fi
+    return 1
+}
+
+check_sockets_utils()
+{
+    lsof_available=0
+    sockstat_available=0
+    ss_available=0
+
+    [ -n "$(command -v lsof)" ] && lsof_available=1
+    [ -n "$(command -v sockstat)" ] && sockstat_available=1
+    [ -n "$(command -v ss)" ] && ss_available=1
+
+    if [ $lsof_available -eq 0 -a \
+         $sockstat_available -eq 0 -a \
+         $ss_available -eq 0 ]
+    then
+        wsrep_log_error "Neither lsof, nor sockstat or ss tool was found in " \
+                        "the PATH. Make sure you have it installed."
+        exit 2 # ENOENT
+    fi
+}
+
+#
+# Check if the port is in the "listen" state.
+# The first parameter is the PID of the process that should
+# listen on the port - if it is not known, you can specify
+# an empty string or zero.
+# The second parameter is the port number.
+# The third parameter is a list of the names of utilities
+# (via "|") that can listen on this port during the state
+# transfer.
+#
+check_port()
+{
+    local pid="$1"
+    local port="$2"
+    local utils="$3"
+
+    [ -z "$pid" ] || [ $pid -eq 0 ] && pid='[0-9]+'
+
+    local rc=1
+
+    if [ $lsof_available -ne 0 ]; then
+        lsof -Pnl -i ":$port" 2>/dev/null | \
+        grep -q -E "^($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*\\(LISTEN\\)" && rc=0
+    elif [ $sockstat_available -ne 0 ]; then
+        local opts='-p'
+        if [ "$OS" = 'FreeBSD' ]; then
+            # sockstat on FreeBSD requires the "-s" option
+            # to display the connection state:
+            opts='-sp'
+        fi
+        sockstat "$opts" "$port" 2>/dev/null | \
+        grep -q -E "[[:space:]]+($utils)[^[:space:]]*[[:space:]]+$pid[[:space:]].*[[:space:]]LISTEN" && rc=0
+    elif [ $ss_available -ne 0 ]; then
+        ss -nlpH "( sport = :$port )" 2>/dev/null | \
+        grep -q -E "users:\\(.*\\(\"($utils)[^[:space:]]*\"[^)]*,pid=$pid(,[^)]*)?\\)" && rc=0
+    else
+        wsrep_log_error "unknown sockets utility"
+        exit 2 # ENOENT
+    fi
+
+    return $rc
+}
+
+#
+# If the ssl_dhparams variable is already set, uses that as a source
+# of dh parameters for OpenSSL. Otherwise, looks for dhparams.pem in
+# the datadir, and creates it there if it can't find the file.
+#
+check_for_dhparams()
+{
+    ssl_dhparams="$DATA/dhparams.pem"
+    if [ ! -r "$ssl_dhparams" ]; then
+        get_openssl
+        if [ -n "$OPENSSL_BINARY" ]; then
+            wsrep_log_info "Could not find dhparams file, creating $ssl_dhparams"
+            if ! "$OPENSSL_BINARY" dhparam -out "$ssl_dhparams" 2048 >/dev/null 2>&1
+            then
+                wsrep_log_error "******** ERROR *****************************************"
+                wsrep_log_error "* Could not create the dhparams.pem file with OpenSSL. *"
+                wsrep_log_error "********************************************************"
+                ssl_dhparams=""
+             fi
+        else
+            # Rollback: if openssl is not installed, then use
+            # the default parameters:
+            ssl_dhparams=""
+        fi
+    fi
+}
+
+#
+# Verifies that the CA file verifies the certificate.
+# Doing this here lets us generate better error messages.
+#
+# 1st param: path to the CA file.
+# 2nd param: path to the certificate.
+#
+verify_ca_matches_cert()
+{
+    local ca_path="$1"
+    local cert_path="$2"
+
+    # If the openssl utility is not installed, then
+    # we will not do this certificate check:
+    get_openssl
+    if [ -z "$OPENSSL_BINARY" ]; then
+        return
+    fi
+
+    if ! "$OPENSSL_BINARY" verify -verbose -CAfile "$ca_path" "$cert_path" >/dev/null 2>&1
+    then
+        wsrep_log_error "******** FATAL ERROR ********************************************"
+        wsrep_log_error "* The certifcate and CA (certificate authority) do not match.   *"
+        wsrep_log_error "* It does not appear that the certificate was issued by the CA. *"
+        wsrep_log_error "* Please check your certificate and CA files.                   *"
+        wsrep_log_error "*****************************************************************"
+        exit 22
+    fi
+}
+
+#
+# Verifies that the certificate matches the private key.
+# Doing this will save us having to wait for a timeout that would
+# otherwise occur.
+#
+# 1st param: path to the certificate.
+# 2nd param: path to the private key.
+#
+verify_cert_matches_key()
+{
+    local cert_path="$1"
+    local key_path="$2"
+
+    # If the diff utility is not installed, then
+    # we will not do this certificate check:
+    if [ -z "$(command -v diff)" ]; then
+        return
+    fi
+
+    # If the openssl utility is not installed, then
+    # we will not do this certificate check:
+    get_openssl
+    if [ -z "$OPENSSL_BINARY" ]; then
+        return
+    fi
+
+    # Generate the public key from the cert and the key.
+    # They should match (otherwise we can't create an SSL connection).
+    if ! diff <("$OPENSSL_BINARY" x509 -in "$cert_path" -pubkey -noout 2>/dev/null) \
+              <("$OPENSSL_BINARY" pkey -in "$key_path" -pubout 2>/dev/null) >/dev/null 2>&1
+    then
+        wsrep_log_error "******************* FATAL ERROR ****************"
+        wsrep_log_error "* The certifcate and private key do not match. *"
+        wsrep_log_error "* Please check your certificate and key files. *"
+        wsrep_log_error "************************************************"
+        exit 22
+    fi
+}
+
+#
+# Compares two version strings.
+# The first parameter is the version to be checked;
+# The second parameter is the minimum version required;
+# Returns 1 (failure) if $1 >= $2, 0 (success) otherwise.
+#
+check_for_version()
+{
+    y1="${1#*.}"
+    [ "$y1" = "$1" ] && y1=""
+    z1=${y1#*.}
+    [ "$z1" = "$y1" ] && z1=""
+    x1="${1%%.*}"
+    y1="${y1%%.*}"
+    z1="${z1%%.*}"
+    [ -z "$y1" ] && y1=0
+    [ -z "$z1" ] && z1=0
+    y2="${2#*.}"
+    [ "$y2" = "$2" ] && y2=""
+    z2="${y2#*.}"
+    [ "$z2" = "$y2" ] && z2=""
+    x2="${2%%.*}"
+    y2="${y2%%.*}"
+    z2="${z2%%.*}"
+    [ -z "$y2" ] && y2=0
+    [ -z "$z2" ] && z2=0
+    [ $x1 -lt $x2 ] && return 1
+    [ $x1 -gt $x2 ] && return 0
+    [ $y1 -lt $y2 ] && return 1
+    [ $y1 -gt $y2 ] && return 0
+    [ $z1 -lt $z2 ] && return 1
+    return 0
+}
+
+trim_string()
+{
+    if [ -n "$BASH_VERSION" ]; then
+        local pattern="[![:space:]${2:-}]"
+        local x="${1#*$pattern}"
+        local z=${#1}
+        x=${#x}
+        if [ $x -ne $z ]; then
+            local y="${1%$pattern*}"
+            y=${#y}
+            x=$(( z-x-1 ))
+            y=$(( y-x+1 ))
+            printf '%s' "${1:$x:$y}"
+        else
+            printf ''
+        fi
+    else
+        local pattern="[[:space:]${2:-}]"
+        echo "$1" | sed -E "s/^$pattern+|$pattern+\$//g"
+    fi
+}
+
+#
+# Check whether process is still running.
+# The first parameter contains the name of the PID file.
+# The second parameter is the flag of the need to delete
+# the PID file.
+# If the second parameter is not zero and not empty,
+# then if the process terminates, the corresponding
+# PID file will be deleted.
+# This function also sets the CHECK_PID variable to zero
+# if the process has already exited, or writes the PID
+# of the process there if it is still running.
+#
+check_pid()
+{
+    local pid_file="$1"
+    if [ -r "$pid_file" ]; then
+        local pid=$(cat "$pid_file" 2>/dev/null)
+        if [ -n "$pid" ]; then
+            if [ $pid -ne 0 ]; then
+                if ps -p "$pid" >/dev/null 2>&1; then
+                    CHECK_PID=$pid
+                    return 0
+                fi
+            fi
+        fi
+        local remove=${2:-0}
+        if [ $remove -eq 1 ]; then
+            rm -f "$pid_file"
+        fi
+    fi
+    CHECK_PID=0
+    return 1
+}
+
+#
+# Checking that the process with the specified PID is still
+# running and killing it in this case by sending SIGTERM
+# (using the "kill" operation).
+# The first parameter contains PID of the process.
+# The second and third parameters (both optional) are the names
+# of the PID and the configuration files, which should be removed
+# after the process ends.
+# If the first parameter (PID of the process) is zero, then
+# the function immediately deletes the PID and the configuration
+# files (if specified), without any additional checks.
+#
+cleanup_pid()
+{
+    local pid=$1
+    local pid_file="${2:-}"
+    local config="${3:-}"
+
+    if [ $pid -ne 0 ]; then
+        if ps -p $pid >/dev/null 2>&1; then
+            if kill $pid >/dev/null 2>&1; then
+                sleep 0.5
+                local round=0
+                local force=0
+                while ps -p $pid >/dev/null 2>&1; do
+                   sleep 1
+                   round=$(( round+1 ))
+                   if [ $round -eq 16 ]; then
+                       if [ $force -eq 0 ]; then
+                           round=8
+                           force=1
+                           kill -9 $pid >/dev/null 2>&1
+                           sleep 0.5
+                       else
+                           return 1
+                       fi
+                   fi
+                done
+            elif ps -p $pid >/dev/null 2>&1; then
+                wsrep_log_warning "Unable to kill PID=$pid ($pid_file)"
+                return 1
+            fi
+        fi
+    fi
+
+    [ -n "$pid_file" ] && [ -f "$pid_file" ] && rm -f "$pid_file"
+    [ -n "$config" ]   && [ -f "$config" ]   && rm -f "$config"
+
+    return 0
+}
+
+nproc=""
+
+get_proc()
+{
+    if [ -z "$nproc" ]; then
+        set +e
+        if [ "$OS" = 'Linux' ]; then
+            nproc=$(grep -c processor /proc/cpuinfo 2>/dev/null)
+        elif [ "$OS" = 'Darwin' -o "$OS" = 'FreeBSD' ]; then
+            nproc=$(sysctl -n hw.ncpu)
+        fi
+        if [ -z "$nproc" ] || [ $nproc -eq 0 ]; then
+            nproc=1
+        fi
+        set -e
     fi
 }

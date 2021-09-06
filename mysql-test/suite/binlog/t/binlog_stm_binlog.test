@@ -1,6 +1,6 @@
 -- source include/not_embedded.inc
 -- source include/have_binlog_format_mixed.inc
-let collation=utf8_unicode_ci;
+let collation=utf8mb3_unicode_ci;
 --source include/have_collation.inc
 
 # REQUIREMENT

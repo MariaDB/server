@@ -371,7 +371,7 @@ Diagnostics_area::set_eof_status(THD *thd)
 {
   DBUG_ENTER("set_eof_status");
   /* Only allowed to report eof if has not yet reported an error */
-  DBUG_ASSERT(! is_set());
+  DBUG_ASSERT(!is_set() || (m_status == DA_EOF_BULK && is_bulk_op()));
   /*
     In production, refuse to overwrite an error or a custom response
     with an EOF packet.
@@ -384,11 +384,23 @@ Diagnostics_area::set_eof_status(THD *thd)
     number of warnings, since they are not available to the client
     anyway.
   */
-  m_statement_warn_count= (thd->spcont ?
-                           0 :
-                           current_statement_warn_count());
+  if (m_status == DA_EOF_BULK)
+  {
+    if (!thd->spcont)
+      m_statement_warn_count+= current_statement_warn_count();
+  }
+  else
+  {
+    if (thd->spcont)
+    {
+      m_statement_warn_count= 0;
+      m_affected_rows= 0;
+    }
+    else
+      m_statement_warn_count= current_statement_warn_count();
+    m_status= (is_bulk_op() ? DA_EOF_BULK : DA_EOF);
+  }
 
-  m_status= DA_EOF;
   DBUG_VOID_RETURN;
 }
 
@@ -864,11 +876,11 @@ extern "C" int my_wc_mb_utf8_null_terminated(CHARSET_INFO *cs,
    @param from_cs     charset from convert
  
    @retval
-   result string
+   result string length
 */
 
-char *err_conv(char *buff, uint to_length, const char *from,
-               uint from_length, CHARSET_INFO *from_cs)
+size_t err_conv(char *buff, uint to_length, const char *from,
+                uint from_length, CHARSET_INFO *from_cs)
 {
   char *to= buff;
   const char *from_start= from;
@@ -919,7 +931,7 @@ char *err_conv(char *buff, uint to_length, const char *from,
                                &errors);
     to[res]= 0;
   }
-  return buff;
+  return res;
 }
 
 

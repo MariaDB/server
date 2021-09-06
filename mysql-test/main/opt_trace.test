@@ -1,5 +1,6 @@
 --source include/not_embedded.inc
 --source include/have_sequence.inc
+--source include/protocol.inc
 SELECT table_name, column_name FROM information_schema.columns where table_name="OPTIMIZER_TRACE";
 show variables like 'optimizer_trace';
 set optimizer_trace="enabled=on";
@@ -263,12 +264,14 @@ begin
   return a;
 end|
 
+--enable_prepare_warnings
 create function f2(a int) returns int
 begin
   declare a int default 0;
   select count(*) from t2 into a;
   return a;
 end|
+--disable_prepare_warnings
 
 delimiter ;|
 set optimizer_trace='enabled=on';

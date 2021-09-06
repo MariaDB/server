@@ -176,11 +176,11 @@ bool fill_record_n_invoke_before_triggers(THD *thd, TABLE *table,
 bool insert_fields(THD *thd, Name_resolution_context *context,
 		   const char *db_name, const char *table_name,
                    List_iterator<Item> *it, bool any_privileges,
-                   uint *hidden_bit_fields);
+                   uint *hidden_bit_fields, bool returning_field);
 void make_leaves_list(THD *thd, List<TABLE_LIST> &list, TABLE_LIST *tables,
                       bool full_table_list, TABLE_LIST *boundary);
 int setup_wild(THD *thd, TABLE_LIST *tables, List<Item> &fields,
-	       List<Item> *sum_func_list, SELECT_LEX *sl);
+	       List<Item> *sum_func_list, SELECT_LEX *sl, bool returning_field);
 int setup_returning_fields(THD* thd, TABLE_LIST* table_list);
 bool setup_fields(THD *thd, Ref_ptr_array ref_pointer_array,
                   List<Item> &item, enum_column_usage column_usage,
@@ -205,11 +205,11 @@ find_field_in_table_ref(THD *thd, TABLE_LIST *table_list,
                         const char *table_name,
                         ignored_tables_list_t ignored_tables,
                         Item **ref, bool check_privileges, bool allow_rowid,
-                        uint *cached_field_index_ptr,
+                        field_index_t *cached_field_index_ptr,
                         bool register_tree_change, TABLE_LIST **actual_table);
 Field *
 find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
-                    bool allow_rowid, uint *cached_field_index_ptr);
+                    bool allow_rowid, field_index_t *cached_field_index_ptr);
 Field *
 find_field_in_table_sef(TABLE *table, const char *name);
 Item ** find_item_in_list(Item *item, List<Item> &items, uint *counter,

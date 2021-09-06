@@ -224,7 +224,6 @@ script:
   - cd mysql-test
   - travis_wait 30 ./mtr --force --max-test-fail=20 --parallel=4 --testcase-timeout=${TEST_CASE_TIMEOUT}
          --suite=${MYSQL_TEST_SUITES}
-         --skip-test-list=unstable-tests
          --skip-test=binlog.binlog_unsafe
 
 after_script:

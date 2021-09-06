@@ -30,7 +30,7 @@ extern "C" {
 #define EXTERNC
 #endif /* __cplusplus */ 
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 typedef CRITICAL_SECTION pthread_mutex_t;
 typedef DWORD		 pthread_t;
 typedef struct thread_attr {
@@ -277,7 +277,7 @@ struct tm *gmtime_r(const time_t *clock, struct tm *res);
 #define HAVE_PTHREAD_KILL 1
 #endif
 
-#endif /* defined(__WIN__) */
+#endif /* defined(_WIN32) */
 
 #if defined(HPUX10) && !defined(DONT_REMAP_PTHREAD_FUNCTIONS)
 #undef pthread_cond_timedwait

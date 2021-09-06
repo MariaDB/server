@@ -44,6 +44,7 @@
 #include "ma_rt_index.h"
 #include "ma_blockrec.h"
 #include "trnman.h"
+#include "ma_trnman.h"
 #include "ma_key_recover.h"
 #include <my_check_opt.h>
 #include <my_stack_alloc.h>
@@ -94,7 +95,6 @@ static void report_keypage_fault(HA_CHECK *param, MARIA_HA *info,
 static my_bool create_new_data_handle(MARIA_SORT_PARAM *param, File new_file);
 static my_bool _ma_flush_table_files_before_swap(HA_CHECK *param,
                                                  MARIA_HA *info);
-static TrID max_trid_in_system(void);
 static void _ma_check_print_not_visible_error(HA_CHECK *param, TrID used_trid);
 void retry_if_quick(MARIA_SORT_PARAM *param, int error);
 static void print_bitmap_description(MARIA_SHARE *share,
@@ -125,6 +125,7 @@ void maria_chk_init(HA_CHECK *param)
   param->max_stage= 1;
   param->stack_end_ptr= &my_thread_var->stack_ends_here;
   param->max_allowed_lsn= (LSN) ~0ULL;
+  param->malloc_flags= MY_THREAD_SPECIFIC;
 }
 
 
@@ -2122,7 +2123,8 @@ int maria_chk_data_link(HA_CHECK *param, MARIA_HA *info, my_bool extend)
   }
 
   if (!(record= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
-                                   share->base.default_rec_buff_size, MYF(0))))
+                                   share->base.default_rec_buff_size,
+                                   MYF(param->malloc_flags))))
   {
     _ma_check_print_error(param,"Not enough memory for record");
     DBUG_RETURN(-1);
@@ -2756,9 +2758,11 @@ int maria_repair(HA_CHECK *param, register MARIA_HA *info,
 
   if (!(sort_param.record=
         (uchar *) my_malloc(PSI_INSTRUMENT_ME, (uint)
-                            share->base.default_rec_buff_size, MYF(0))) ||
+                            share->base.default_rec_buff_size,
+                            MYF(param->malloc_flags))) ||
       _ma_alloc_buffer(&sort_param.rec_buff, &sort_param.rec_buff_size,
-                       share->base.default_rec_buff_size, MYF(0)))
+                       share->base.default_rec_buff_size,
+                       MYF(param->malloc_flags)))
   {
     _ma_check_print_error(param, "Not enough memory for extra record");
     goto err;
@@ -3413,6 +3417,9 @@ static my_bool maria_zerofill_index(HA_CHECK *param, MARIA_HA *info,
   my_bool zero_lsn= (share->base.born_transactional &&
                      !(param->testflag & T_ZEROFILL_KEEP_LSN));
   int error= 1;
+  enum pagecache_page_type page_type= (share->base.born_transactional ?
+                                       PAGECACHE_LSN_PAGE :
+                                       PAGECACHE_PLAIN_PAGE);
   DBUG_ENTER("maria_zerofill_index");
 
   if (!(param->testflag & T_SILENT))
@@ -3427,7 +3434,7 @@ static my_bool maria_zerofill_index(HA_CHECK *param, MARIA_HA *info,
     if (!(buff= pagecache_read(share->pagecache,
                                &share->kfile, page,
                                DFLT_INIT_HITS, 0,
-                               PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
+                               page_type, PAGECACHE_LOCK_WRITE,
                                &page_link.link)))
     {
       pagecache_unlock_by_link(share->pagecache, page_link.link,
@@ -3504,6 +3511,9 @@ static my_bool maria_zerofill_data(HA_CHECK *param, MARIA_HA *info,
   uint block_size= share->block_size;
   MARIA_FILE_BITMAP *bitmap= &share->bitmap;
   my_bool zero_lsn= !(param->testflag & T_ZEROFILL_KEEP_LSN), error;
+  enum pagecache_page_type read_page_type= (share->base.born_transactional ?
+                                            PAGECACHE_LSN_PAGE :
+                                            PAGECACHE_PLAIN_PAGE);
   DBUG_ENTER("maria_zerofill_data");
 
   /* This works only with BLOCK_RECORD files */
@@ -3527,7 +3537,7 @@ static my_bool maria_zerofill_data(HA_CHECK *param, MARIA_HA *info,
     if (!(buff= pagecache_read(share->pagecache,
                                &info->dfile,
                                page, 1, 0,
-                               PAGECACHE_PLAIN_PAGE, PAGECACHE_LOCK_WRITE,
+                               read_page_type, PAGECACHE_LOCK_WRITE,
                                &page_link.link)))
     {
       _ma_check_print_error(param,
@@ -3703,7 +3713,8 @@ int maria_filecopy(HA_CHECK *param, File to,File from,my_off_t start,
   DBUG_ENTER("maria_filecopy");
 
   buff_length=(ulong) MY_MIN(param->write_buffer_length,length);
-  if (!(buff=my_malloc(PSI_INSTRUMENT_ME, buff_length, MYF(0))))
+  if (!(buff=my_malloc(PSI_INSTRUMENT_ME, buff_length,
+                       MYF(param->malloc_flags))))
   {
     buff=tmp_buff; buff_length=IO_SIZE;
   }
@@ -3849,9 +3860,10 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
   if (!(sort_param.record=
         (uchar*) my_malloc(PSI_INSTRUMENT_ME,
                            (size_t) share->base.default_rec_buff_size,
-                           MYF(0))) ||
+                           MYF(param->malloc_flags))) ||
       _ma_alloc_buffer(&sort_param.rec_buff, &sort_param.rec_buff_size,
-                       share->base.default_rec_buff_size, MYF(0)))
+                       share->base.default_rec_buff_size,
+                       MYF(param->malloc_flags)))
   {
     _ma_check_print_error(param, "Not enough memory for extra record");
     goto err;
@@ -3868,7 +3880,8 @@ int maria_repair_by_sort(HA_CHECK *param, register MARIA_HA *info,
 
   param->read_cache.end_of_file= sort_info.filelength;
   sort_param.wordlist=NULL;
-  init_alloc_root(PSI_INSTRUMENT_ME, &sort_param.wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0,
+  init_alloc_root(PSI_INSTRUMENT_ME, &sort_param.wordroot,
+                  FTPARSER_MEMROOT_ALLOC_SIZE, 0,
                   MYF(param->malloc_flags));
 
   sort_param.key_cmp=sort_key_cmp;
@@ -4280,7 +4293,7 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
 			const char * name, my_bool rep_quick)
 {
   int got_error;
-  uint i,key, total_key_length, istep;
+  uint i,key, istep;
   ha_rows start_records;
   my_off_t new_header_length,del;
   File new_file;
@@ -4437,12 +4450,14 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
   if (!(sort_param=(MARIA_SORT_PARAM *)
         my_malloc(PSI_INSTRUMENT_ME, (uint) share->base.keys *
 		  (sizeof(MARIA_SORT_PARAM) + share->base.pack_reclength),
-		  MYF(MY_ZEROFILL))))
+		  MYF(MY_ZEROFILL | param->malloc_flags))))
   {
     _ma_check_print_error(param,"Not enough memory for key!");
     goto err;
   }
-  total_key_length=0;
+#ifdef USING_SECOND_APPROACH
+  uint total_key_length=0;
+#endif
   rec_per_key_part= param->new_rec_per_key_part;
   share->state.state.records=share->state.state.del=share->state.split=0;
   share->state.state.empty=0;
@@ -4494,7 +4509,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
     sort_param[i].record= (((uchar *)(sort_param+share->base.keys))+
                           (share->base.pack_reclength * i));
     if (_ma_alloc_buffer(&sort_param[i].rec_buff, &sort_param[i].rec_buff_size,
-                         share->base.default_rec_buff_size, MYF(0)))
+                         share->base.default_rec_buff_size,
+                         MYF(param->malloc_flags)))
     {
       _ma_check_print_error(param,"Not enough memory!");
       goto err;
@@ -4511,7 +4527,9 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
       if (keyseg->flag & HA_NULL_PART)
         sort_param[i].key_length++;
     }
+#ifdef USING_SECOND_APPROACH
     total_key_length+=sort_param[i].key_length;
+#endif
 
     if (sort_param[i].keyinfo->flag & HA_FULLTEXT)
     {
@@ -4519,7 +4537,8 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
         (FT_MAX_WORD_LEN_FOR_SORT *
          sort_param[i].keyinfo->seg->charset->mbmaxlen);
       sort_param[i].key_length+=ft_max_word_len_for_sort-HA_FT_MAXBYTELEN;
-      init_alloc_root(PSI_INSTRUMENT_ME, &sort_param[i].wordroot, FTPARSER_MEMROOT_ALLOC_SIZE, 0,
+      init_alloc_root(PSI_INSTRUMENT_ME, &sort_param[i].wordroot,
+                      FTPARSER_MEMROOT_ALLOC_SIZE, 0,
                       MYF(param->malloc_flags));
     }
   }
@@ -4554,6 +4573,13 @@ int maria_repair_parallel(HA_CHECK *param, register MARIA_HA *info,
   (void) pthread_attr_setdetachstate(&thr_attr,PTHREAD_CREATE_DETACHED);
   (void) my_setstacksize(&thr_attr, (size_t)my_thread_stack_size);
 
+  /*
+    We cannot mark future memory allocations as thread specific when
+    doing parallel repair as we don't have a THD for each thread. Sharing the
+    same THD this would requre mutex locks around mallocs/reallocs to ensure
+    that two threads does not use the same THD at once.
+  */
+  param->malloc_flags= 0;
   for (i=0 ; i < sort_info.total_keys ; i++)
   {
     /*
@@ -5226,7 +5252,8 @@ static int sort_get_next_record(MARIA_SORT_PARAM *sort_param)
 	    if (_ma_alloc_buffer(&sort_param->rec_buff,
                                  &sort_param->rec_buff_size,
                                  block_info.rec_len +
-                                 share->base.extra_rec_buff_size, MYF(0)))
+                                 share->base.extra_rec_buff_size,
+                                 MYF(param->malloc_flags)))
 
 	    {
 	      if (param->max_record_length >= block_info.rec_len)
@@ -5503,9 +5530,11 @@ int _ma_sort_write_record(MARIA_SORT_PARAM *sort_param)
 	  MARIA_DYN_DELETE_BLOCK_HEADER;
 	if (sort_info->buff_length < reclength)
 	{
-	  if (!(sort_info->buff=my_realloc(PSI_INSTRUMENT_ME, sort_info->buff, (uint) reclength,
-					   MYF(MY_FREE_ON_ERROR |
-					       MY_ALLOW_ZERO_PTR))))
+	  if (!(sort_info->buff= my_realloc(PSI_INSTRUMENT_ME, sort_info->buff,
+                                            (uint) reclength,
+                                            MYF(MY_FREE_ON_ERROR |
+                                                MY_ALLOW_ZERO_PTR |
+                                                param->malloc_flags))))
 	    DBUG_RETURN(1);
 	  sort_info->buff_length=reclength;
 	}
@@ -5733,8 +5762,12 @@ static int sort_maria_ft_key_write(MARIA_SORT_PARAM *sort_param,
          share->rec_reflength) &&
         (share->options &
           (HA_OPTION_PACK_RECORD | HA_OPTION_COMPRESS_RECORD)))
-      ft_buf= (MA_SORT_FT_BUF *)my_malloc(PSI_INSTRUMENT_ME, sort_param->keyinfo->block_length +
-                                       sizeof(MA_SORT_FT_BUF), MYF(MY_WME));
+      ft_buf= (MA_SORT_FT_BUF *)my_malloc(PSI_INSTRUMENT_ME,
+                                          sort_param->keyinfo->block_length +
+                                          sizeof(MA_SORT_FT_BUF),
+                                          MYF(MY_WME |
+                                              sort_param->sort_info->param->
+                                              malloc_flags));
 
     if (!ft_buf)
     {
@@ -6059,8 +6092,10 @@ static MA_SORT_KEY_BLOCKS *alloc_key_blocks(HA_CHECK *param, uint blocks,
   MA_SORT_KEY_BLOCKS *block;
   DBUG_ENTER("alloc_key_blocks");
 
-  if (!(block= (MA_SORT_KEY_BLOCKS*) my_malloc(PSI_INSTRUMENT_ME,
-                         (sizeof(MA_SORT_KEY_BLOCKS)+buffer_length+IO_SIZE)*blocks, MYF(0))))
+  if (!(block= (MA_SORT_KEY_BLOCKS*)
+        my_malloc(PSI_INSTRUMENT_ME,
+                  (sizeof(MA_SORT_KEY_BLOCKS)+buffer_length+IO_SIZE)*blocks,
+                  MYF(param->malloc_flags))))
   {
     _ma_check_print_error(param,"Not enough memory for sort-key-blocks");
     return(0);
@@ -6392,8 +6427,9 @@ void _ma_update_auto_increment_key(HA_CHECK *param, MARIA_HA *info,
     We have to use an allocated buffer instead of info->rec_buff as
     _ma_put_key_in_record() may use info->rec_buff
   */
-  if (!(record= (uchar*) my_malloc(PSI_INSTRUMENT_ME, (size_t) share->base.default_rec_buff_size,
-                                   MYF(0))))
+  if (!(record= (uchar*) my_malloc(PSI_INSTRUMENT_ME,
+                                   (size_t) share->base.default_rec_buff_size,
+                                   MYF(param->malloc_flags))))
   {
     _ma_check_print_error(param,"Not enough memory for extra record");
     DBUG_VOID_RETURN;
@@ -6987,24 +7023,6 @@ static void report_keypage_fault(HA_CHECK *param, MARIA_HA *info,
 }
 
 
-/**
-  When we want to check a table, we verify that the transaction ids of rows
-  and keys are not bigger than the biggest id generated by Maria so far, which
-  is returned by the function below.
-
-  @note If control file is not open, 0 may be returned; to not confuse
-  this with a valid max trid of 0, the caller should notice that it failed to
-  open the control file (ma_control_file_inited() can serve for that).
-*/
-
-static TrID max_trid_in_system(void)
-{
-  TrID id= trnman_get_max_trid(); /* 0 if transac manager not initialized */
-  /* 'id' may be far bigger, if last shutdown is old */
-  return MY_MAX(id, max_trid_in_control_file);
-}
-
-
 static void _ma_check_print_not_visible_error(HA_CHECK *param, TrID used_trid)
 {
   char buff[22], buff2[22];
@@ -7055,7 +7073,8 @@ static void print_bitmap_description(MARIA_SHARE *share,
                                      pgcache_page_no_t page,
                                      uchar *bitmap_data)
 {
-  char *tmp= my_malloc(PSI_INSTRUMENT_ME, MAX_BITMAP_INFO_LENGTH, MYF(MY_WME));
+  char *tmp= my_malloc(PSI_INSTRUMENT_ME, MAX_BITMAP_INFO_LENGTH,
+                       MYF(MY_WME | MY_THREADSAFE));
   if (!tmp)
     return;
   _ma_get_bitmap_description(&share->bitmap, bitmap_data, page, tmp);

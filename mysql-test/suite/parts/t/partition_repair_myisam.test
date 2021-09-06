@@ -4,7 +4,7 @@
 --disable_query_log
 drop table if exists t1_will_crash;
 call mtr.add_suppression("Got an error from thread_id=.*ha_myisam.cc:");
-call mtr.add_suppression("MySQL thread id .*, query id .* localhost.*root Checking table");
+call mtr.add_suppression("MariaDB thread id .*, query id .* localhost.*root Checking table");
 call mtr.add_suppression("is marked as crashed and should be repaired");
 
 --enable_query_log

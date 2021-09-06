@@ -28,6 +28,7 @@ class sp_name;
 class Query_tables_list;
 struct TABLE_LIST;
 class Query_tables_list;
+typedef struct st_ddl_log_state DDL_LOG_STATE;
 
 /** Event on which trigger is invoked. */
 enum trg_event_type
@@ -75,6 +76,30 @@ struct st_trg_execution_order
     CREATE TRIGGER statement.
   */
   LEX_CSTRING anchor_trigger_name;
+};
+
+
+/*
+  Parameter to change_table_name_in_triggers()
+*/
+
+class TRIGGER_RENAME_PARAM
+{
+public:
+  TABLE table;
+  bool upgrading50to51;
+  bool got_error;
+
+  TRIGGER_RENAME_PARAM()
+  {
+    upgrading50to51= got_error= 0;
+    table.reset();
+  }
+  ~TRIGGER_RENAME_PARAM()
+  {
+    reset();
+  }
+  void reset();
 };
 
 
@@ -219,8 +244,12 @@ public:
   }
   ~Table_triggers_list();
 
-  bool create_trigger(THD *thd, TABLE_LIST *table, String *stmt_query);
-  bool drop_trigger(THD *thd, TABLE_LIST *table, String *stmt_query);
+  bool create_trigger(THD *thd, TABLE_LIST *table, String *stmt_query,
+                      DDL_LOG_STATE *ddl_log_state,
+                      DDL_LOG_STATE *ddl_log_state_tmp_file);
+  bool drop_trigger(THD *thd, TABLE_LIST *table,
+                    LEX_CSTRING *sp_name,
+                    String *stmt_query, DDL_LOG_STATE *ddl_log_state);
   bool process_triggers(THD *thd, trg_event_type event,
                         trg_action_time_type time_type,
                         bool old_row_is_record1);
@@ -232,7 +261,14 @@ public:
                            TABLE *table, bool names_only);
   static bool drop_all_triggers(THD *thd, const LEX_CSTRING *db,
                                 const LEX_CSTRING *table_name, myf MyFlags);
-  static bool change_table_name(THD *thd, const LEX_CSTRING *db,
+  static bool prepare_for_rename(THD *thd, TRIGGER_RENAME_PARAM *param,
+                                 const LEX_CSTRING *db,
+                                 const LEX_CSTRING *old_alias,
+                                 const LEX_CSTRING *old_table,
+                                 const LEX_CSTRING *new_db,
+                                 const LEX_CSTRING *new_table);
+  static bool change_table_name(THD *thd, TRIGGER_RENAME_PARAM *param,
+                                const LEX_CSTRING *db,
                                 const LEX_CSTRING *old_alias,
                                 const LEX_CSTRING *old_table,
                                 const LEX_CSTRING *new_db,
@@ -310,6 +346,7 @@ private:
   }
 };
 
+
 bool add_table_for_trigger(THD *thd,
                            const sp_name *trg_name,
                            bool continue_if_not_exist,
@@ -324,6 +361,8 @@ bool load_table_name_for_trigger(THD *thd,
                                  const LEX_CSTRING *trn_path,
                                  LEX_CSTRING *tbl_name);
 bool mysql_create_or_drop_trigger(THD *thd, TABLE_LIST *tables, bool create);
+bool rm_trigname_file(char *path, const LEX_CSTRING *db,
+                      const LEX_CSTRING *trigger_name, myf MyFlags);
 
 extern const char * const TRG_EXT;
 extern const char * const TRN_EXT;

@@ -40,13 +40,14 @@
 #include "events.h"
 #include "sql_handler.h"
 #include "sql_statistics.h"
+#include "ddl_log.h"                     // ddl_log functions
 #include <my_dir.h>
 #include <m_ctype.h>
 #include "log.h"
-#ifdef __WIN__
+#ifdef _WIN32
 #include <direct.h>
 #endif
-#include "debug_sync.h"
+#include "debug.h"                       // debug_crash_here
 
 #define MAX_DROP_TABLE_Q_LEN      1024
 
@@ -58,7 +59,7 @@ static bool find_db_tables_and_rm_known_files(THD *, MY_DIR *, const char *,
                                               const char *, TABLE_LIST **);
 
 long mysql_rm_arc_files(THD *thd, MY_DIR *dirp, const char *org_path);
-static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
+my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error);
 static void mysql_change_db_impl(THD *thd,
                                  LEX_CSTRING *new_db_name,
                                  privilege_t new_db_access,
@@ -506,9 +507,9 @@ static bool write_db_opt(THD *thd, const char *path,
   {
     ulong length;
     length= (ulong) (strxnmov(buf, sizeof(buf)-1, "default-character-set=",
-                              create->default_table_charset->csname,
+                              create->default_table_charset->cs_name.str,
                               "\ndefault-collation=",
-                              create->default_table_charset->name,
+                              create->default_table_charset->coll_name.str,
                               "\n", NullS) - buf);
 
     if (create->schema_comment)
@@ -547,6 +548,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
   DBUG_ENTER("load_db_opt");
   bool error=1;
   size_t nbytes;
+  myf utf8_flag= thd->get_utf8_flag();
 
   bzero((char*) create,sizeof(*create));
   create->default_table_charset= thd->variables.collation_server;
@@ -583,9 +585,9 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
            default-collation commands.
         */
         if (!(create->default_table_charset=
-        get_charset_by_csname(pos+1, MY_CS_PRIMARY, MYF(0))) &&
+        get_charset_by_csname(pos+1, MY_CS_PRIMARY, MYF(utf8_flag))) &&
             !(create->default_table_charset=
-              get_charset_by_name(pos+1, MYF(0))))
+              get_charset_by_name(pos+1, MYF(utf8_flag))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
           sql_print_error(ER_THD(thd, ER_UNKNOWN_CHARACTER_SET),pos+1);
@@ -594,8 +596,7 @@ bool load_db_opt(THD *thd, const char *path, Schema_specification_st *create)
       }
       else if (!strncmp(buf,"default-collation", (pos-buf)))
       {
-        if (!(create->default_table_charset= get_charset_by_name(pos+1,
-                                                           MYF(0))))
+        if (!(create->default_table_charset= get_charset_by_name(pos+1, MYF(utf8_flag))))
         {
           sql_print_error("Error while loading database options: '%s':",path);
           sql_print_error(ER_THD(thd, ER_UNKNOWN_COLLATION),pos+1);
@@ -788,7 +789,6 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
     DBUG_RETURN(-1);
   }
 
-
   if (my_mkdir(path, 0777, MYF(0)) < 0)
   {
     my_error(ER_CANT_CREATE_DB, MYF(0), db->str, my_errno);
@@ -813,6 +813,14 @@ mysql_create_db_internal(THD *thd, const LEX_CSTRING *db,
     */
     thd->clear_error();
   }
+
+  /* Log command to ddl log */
+  backup_log_info ddl_log;
+  bzero(&ddl_log, sizeof(ddl_log));
+  ddl_log.query=                   { C_STRING_WITH_LEN("CREATE") };
+  ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("DATABASE") };
+  ddl_log.org_database=     *db;
+  backup_log_ddl(&ddl_log);
 
 not_silent:
   if (!silent)
@@ -897,6 +905,14 @@ mysql_alter_db_internal(THD *thd, const LEX_CSTRING *db,
     thd->variables.collation_database= thd->db_charset;
   }
 
+  /* Log command to ddl log */
+  backup_log_info ddl_log;
+  bzero(&ddl_log, sizeof(ddl_log));
+  ddl_log.query=                   { C_STRING_WITH_LEN("ALTER") };
+  ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("DATABASE") };
+  ddl_log.org_database=     *db;
+  backup_log_ddl(&ddl_log);
+
   if (mysql_bin_log.is_open())
   {
     int errcode= query_error_code(thd, TRUE); 
@@ -952,6 +968,56 @@ bool mysql_alter_db(THD *thd, const LEX_CSTRING *db,
 
 
 /**
+   Drop database objects
+
+   @param thd              THD object
+   @param path             Path to database (for ha_drop_database)
+   @param db               Normalized database name
+   @param rm_mysql_schema  If the schema is 'mysql', in which case we don't
+                           log the query to binary log or delete related
+                           routines or events.
+*/
+
+void drop_database_objects(THD *thd, const LEX_CSTRING *path,
+                           const LEX_CSTRING *db,
+                           bool rm_mysql_schema)
+{
+  debug_crash_here("ddl_log_drop_before_ha_drop_database");
+
+  ha_drop_database(path->str);
+
+  /*
+    We temporarily disable the binary log while dropping the objects
+    in the database. Since the DROP DATABASE statement is always
+    replicated as a statement, execution of it will drop all objects
+    in the database on the slave as well, so there is no need to
+    replicate the removal of the individual objects in the database
+    as well.
+
+    This is more of a safety precaution, since normally no objects
+    should be dropped while the database is being cleaned, but in
+    the event that a change in the code to remove other objects is
+    made, these drops should still not be logged.
+  */
+
+  debug_crash_here("ddl_log_drop_before_drop_db_routines");
+
+  query_cache_invalidate1(thd, db->str);
+
+  if (!rm_mysql_schema)
+  {
+    tmp_disable_binlog(thd);
+    (void) sp_drop_db_routines(thd, db->str); /* @todo Do not ignore errors */
+#ifdef HAVE_EVENT_SCHEDULER
+    Events::drop_schema_events(thd, db->str);
+#endif
+    reenable_binlog(thd);
+  }
+  debug_crash_here("ddl_log_drop_after_drop_db_routines");
+}
+
+
+/**
   Drop all tables, routines and events in a database and the database itself.
 
   @param  thd        Thread handle
@@ -967,41 +1033,31 @@ bool mysql_alter_db(THD *thd, const LEX_CSTRING *db,
 */
 
 static bool
-mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists, bool silent)
+mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists,
+                     bool silent)
 {
   ulong deleted_tables= 0;
   bool error= true, rm_mysql_schema;
   char	path[FN_REFLEN + 16];
   MY_DIR *dirp;
-  uint length;
+  uint path_length;
   TABLE_LIST *tables= NULL;
   TABLE_LIST *table;
+  DDL_LOG_STATE ddl_log_state;
   Drop_table_error_handler err_handler;
+  LEX_CSTRING rm_db;
+  char db_tmp[SAFE_NAME_LEN+1];
+  const char *dbnorm;
   DBUG_ENTER("mysql_rm_db");
 
-  char db_tmp[SAFE_NAME_LEN+1];
-  const char *dbnorm= normalize_db_name(db->str, db_tmp, sizeof(db_tmp));
+  dbnorm= normalize_db_name(db->str, db_tmp, sizeof(db_tmp));
+  lex_string_set(&rm_db, dbnorm);
+  bzero(&ddl_log_state, sizeof(ddl_log_state));
 
   if (lock_schema_name(thd, dbnorm))
     DBUG_RETURN(true);
 
-  length= build_table_filename(path, sizeof(path) - 1, db->str, "", "", 0);
-  strmov(path+length, MY_DB_OPT_FILE);		// Append db option file name
-  del_dbopt(path);				// Remove dboption hash entry
-  /*
-     Now remove the db.opt file.
-     The 'find_db_tables_and_rm_known_files' doesn't remove this file
-     if there exists a table with the name 'db', so let's just do it
-     separately. We know this file exists and needs to be deleted anyway.
-  */
-  if (mysql_file_delete_with_symlink(key_file_misc, path, "", MYF(0)) &&
-      my_errno != ENOENT)
-  {
-    my_error(EE_DELETE, MYF(0), path, my_errno);
-    DBUG_RETURN(true);
-  }
-    
-  path[length]= '\0';				// Remove file name
+  path_length= build_table_filename(path, sizeof(path) - 1, db->str, "", "", 0);
 
   /* See if the directory exists */
   if (!(dirp= my_dir(path,MYF(MY_DONT_SORT))))
@@ -1052,7 +1108,10 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists, bool silen
     }
   }
 
-  /* mysql_ha_rm_tables() requires a non-null TABLE_LIST. */
+  /*
+    Close active HANDLER's for tables in the database.
+    Note that mysql_ha_rm_tables() requires a non-null TABLE_LIST.
+  */
   if (tables)
     mysql_ha_rm_tables(thd, tables);
 
@@ -1062,44 +1121,59 @@ mysql_rm_db_internal(THD *thd, const LEX_CSTRING *db, bool if_exists, bool silen
   thd->push_internal_handler(&err_handler);
   if (!thd->killed &&
       !(tables &&
-        mysql_rm_table_no_locks(thd, tables, true, false, true, false, true,
-                                false)))
+        mysql_rm_table_no_locks(thd, tables, &rm_db, &ddl_log_state, true, false,
+                                true, false, true, false)))
   {
+    debug_crash_here("ddl_log_drop_after_drop_tables");
+
+    LEX_CSTRING cpath{ path, path_length};
+    ddl_log_drop_db(thd, &ddl_log_state, &rm_db, &cpath);
+
+    drop_database_objects(thd, &cpath, &rm_db, rm_mysql_schema);
+
     /*
-      We temporarily disable the binary log while dropping the objects
-      in the database. Since the DROP DATABASE statement is always
-      replicated as a statement, execution of it will drop all objects
-      in the database on the slave as well, so there is no need to
-      replicate the removal of the individual objects in the database
-      as well.
-
-      This is more of a safety precaution, since normally no objects
-      should be dropped while the database is being cleaned, but in
-      the event that a change in the code to remove other objects is
-      made, these drops should still not be logged.
+      Now remove the db.opt file.
+      The 'find_db_tables_and_rm_known_files' doesn't remove this file
+      if there exists a table with the name 'db', so let's just do it
+      separately. We know this file exists and needs to be deleted anyway.
     */
-
-    ha_drop_database(path);
-    tmp_disable_binlog(thd);
-    query_cache_invalidate1(thd, dbnorm);
-    if (!rm_mysql_schema)
+    debug_crash_here("ddl_log_drop_before_drop_option_file");
+    strmov(path+path_length, MY_DB_OPT_FILE);   // Append db option file name
+    if (mysql_file_delete_with_symlink(key_file_misc, path, "", MYF(0)) &&
+        my_errno != ENOENT)
     {
-      (void) sp_drop_db_routines(thd, dbnorm); /* @todo Do not ignore errors */
-#ifdef HAVE_EVENT_SCHEDULER
-      Events::drop_schema_events(thd, dbnorm);
-#endif
+      thd->pop_internal_handler();
+      my_error(EE_DELETE, MYF(0), path, my_errno);
+      error= true;
+      ddl_log_complete(&ddl_log_state);
+      goto end;
     }
-    reenable_binlog(thd);
+    del_dbopt(path);				// Remove dboption hash entry
+    path[path_length]= '\0';				// Remove file name
 
     /*
       If the directory is a symbolic link, remove the link first, then
       remove the directory the symbolic link pointed at
     */
+    debug_crash_here("ddl_log_drop_before_drop_dir");
     error= rm_dir_w_symlink(path, true);
+    debug_crash_here("ddl_log_drop_after_drop_dir");
   }
+
   thd->pop_internal_handler();
 
 update_binlog:
+  if (likely(!error))
+  {
+    /* Log command to ddl log */
+    backup_log_info ddl_log;
+    bzero(&ddl_log, sizeof(ddl_log));
+    ddl_log.query=                   { C_STRING_WITH_LEN("DROP") };
+    ddl_log.org_storage_engine_name= { C_STRING_WITH_LEN("DATABASE") };
+    ddl_log.org_database=     *db;
+    backup_log_ddl(&ddl_log);
+  }
+
   if (!silent && likely(!error))
   {
     const char *query;
@@ -1112,6 +1186,7 @@ update_binlog:
     if (mysql_bin_log.is_open())
     {
       int errcode= query_error_code(thd, TRUE);
+      int res;
       Query_log_event qinfo(thd, query, query_length, FALSE, TRUE,
 			    /* suppress_use */ TRUE, errcode);
       /*
@@ -1126,7 +1201,14 @@ update_binlog:
         These DDL methods and logging are protected with the exclusive
         metadata lock on the schema.
       */
-      if (mysql_bin_log.write(&qinfo))
+      debug_crash_here("ddl_log_drop_before_binlog");
+      thd->binlog_xid= thd->query_id;
+      ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+      res= mysql_bin_log.write(&qinfo);
+      thd->binlog_xid= 0;
+      debug_crash_here("ddl_log_drop_after_binlog");
+
+      if (res)
       {
         error= true;
         goto exit;
@@ -1176,13 +1258,21 @@ update_binlog:
       *query_pos++ = ',';
     }
 
-    if (query_pos != query_data_start)
+    if (query_pos != query_data_start)          // If database was not empty
     {
+      int res;
       /*
         These DDL methods and logging are protected with the exclusive
         metadata lock on the schema.
       */
-      if (write_to_binlog(thd, query, (uint)(query_pos -1 - query), db->str, db->length))
+      debug_crash_here("ddl_log_drop_before_binlog");
+      thd->binlog_xid= thd->query_id;
+      ddl_log_update_xid(&ddl_log_state, thd->binlog_xid);
+      res= write_to_binlog(thd, query, (uint)(query_pos -1 - query), db->str,
+                           db->length);
+      thd->binlog_xid= 0;
+      debug_crash_here("ddl_log_drop_after_binlog");
+      if (res)
       {
         error= true;
         goto exit;
@@ -1191,6 +1281,7 @@ update_binlog:
   }
 
 exit:
+  ddl_log_complete(&ddl_log_state);
   /*
     If this database was the client's selected database, we silently
     change the client's selected database to nothing (to have an empty
@@ -1202,6 +1293,7 @@ exit:
     mysql_change_db_impl(thd, NULL, NO_ACL, thd->variables.collation_server);
     thd->session_tracker.current_schema.mark_as_changed(thd);
   }
+end:
   my_dirend(dirp);
   DBUG_RETURN(error);
 }
@@ -1332,22 +1424,24 @@ static bool find_db_tables_and_rm_known_files(THD *thd, MY_DIR *dirp,
     1 ERROR
 */
 
-static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error)
+my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error)
 {
   char tmp_path[FN_REFLEN], *pos;
   char *path= tmp_path;
   DBUG_ENTER("rm_dir_w_symlink");
   unpack_filename(tmp_path, org_path);
-#ifdef HAVE_READLINK
-  int error;
-  char tmp2_path[FN_REFLEN];
 
-  /* Remove end FN_LIBCHAR as this causes problem on Linux in readlink */
+  /* Remove end FN_LIBCHAR as this causes problem on Linux and OS/2 */
   pos= strend(path);
   if (pos > path && pos[-1] == FN_LIBCHAR)
     *--pos=0;
 
-  if (unlikely((error= my_readlink(tmp2_path, path, MYF(MY_WME))) < 0))
+#ifdef HAVE_READLINK
+  int error;
+  char tmp2_path[FN_REFLEN];
+
+  if (unlikely((error= my_readlink(tmp2_path, path,
+                                   MYF(send_error ? MY_WME : 0))) < 0))
     DBUG_RETURN(1);
   if (likely(!error))
   {
@@ -1359,11 +1453,7 @@ static my_bool rm_dir_w_symlink(const char *org_path, my_bool send_error)
     path= tmp2_path;
   }
 #endif
-  /* Remove last FN_LIBCHAR to not cause a problem on OS/2 */
-  pos= strend(path);
 
-  if (pos > path && pos[-1] == FN_LIBCHAR)
-    *--pos=0;
   if (unlikely(my_rmdir(path) < 0 && send_error))
   {
     my_error(ER_DB_DROP_RMDIR, MYF(0), path, errno);

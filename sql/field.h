@@ -472,7 +472,7 @@ struct ha_field_option_struct;
 
 struct st_cache_field;
 int field_conv(Field *to,Field *from);
-int truncate_double(double *nr, uint field_length, uint dec,
+int truncate_double(double *nr, uint field_length, decimal_digits_t dec,
                     bool unsigned_flag, double max_value);
 
 inline uint get_enum_pack_length(int elements)
@@ -648,76 +648,76 @@ public:
      SIGN_UNSIGNED,
      SIGN_NOT_APPLICABLE // for non-numeric types
    };
-   uchar m_type_code;     // according to Field::binlog_type()
   /**
      Retrieve the field metadata for fields.
   */
-   uint16 m_metadata;
-   uint8 m_metadata_size;
-   binlog_sign_t m_signedness;
    CHARSET_INFO *m_cs; // NULL if not relevant
    TYPELIB *m_enum_typelib; // NULL if not relevant
    TYPELIB *m_set_typelib; // NULL if not relevant
+   binlog_sign_t m_signedness;
+   uint16 m_metadata;
+   uint8 m_metadata_size;
+   uchar m_type_code;     // according to Field::binlog_type()
    uchar m_geom_type; // Non-geometry fields can return 0
+
    Binlog_type_info(uchar type_code,
                     uint16 metadata,
                     uint8 metadata_size)
-    :m_type_code(type_code),
-     m_metadata(metadata),
-     m_metadata_size(metadata_size),
-     m_signedness(SIGN_NOT_APPLICABLE),
-     m_cs(NULL),
+    :m_cs(NULL),
      m_enum_typelib(NULL),
      m_set_typelib(NULL),
+     m_signedness(SIGN_NOT_APPLICABLE),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_type_code(type_code),
      m_geom_type(0)
     {};
    Binlog_type_info(uchar type_code, uint16 metadata,
                    uint8 metadata_size,
                    binlog_sign_t signedness)
-    :m_type_code(type_code),
-     m_metadata(metadata),
-     m_metadata_size(metadata_size),
-     m_signedness(signedness),
-     m_cs(NULL),
+    : m_cs(NULL),
      m_enum_typelib(NULL),
      m_set_typelib(NULL),
+     m_signedness(signedness),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_type_code(type_code),
      m_geom_type(0)
     {};
    Binlog_type_info(uchar type_code, uint16 metadata,
-                   uint8 metadata_size,
-                   CHARSET_INFO *cs)
-    :m_type_code(type_code),
-     m_metadata(metadata),
-     m_metadata_size(metadata_size),
-     m_signedness(SIGN_NOT_APPLICABLE),
-     m_cs(cs),
+                   uint8 metadata_size, CHARSET_INFO *cs)
+    :m_cs(cs),
      m_enum_typelib(NULL),
      m_set_typelib(NULL),
+     m_signedness(SIGN_NOT_APPLICABLE),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_type_code(type_code),
      m_geom_type(0)
     {};
    Binlog_type_info(uchar type_code, uint16 metadata,
                    uint8 metadata_size,
                    CHARSET_INFO *cs,
                    TYPELIB *t_enum, TYPELIB *t_set)
-    :m_type_code(type_code),
-     m_metadata(metadata),
-     m_metadata_size(metadata_size),
-     m_signedness(SIGN_NOT_APPLICABLE),
-     m_cs(cs),
+    :m_cs(cs),
      m_enum_typelib(t_enum),
      m_set_typelib(t_set),
+     m_signedness(SIGN_NOT_APPLICABLE),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_type_code(type_code),
      m_geom_type(0)
     {};
    Binlog_type_info(uchar type_code, uint16 metadata,
                    uint8 metadata_size, CHARSET_INFO *cs,
                    uchar geom_type)
-    :m_type_code(type_code),
-     m_metadata(metadata),
-     m_metadata_size(metadata_size),
-     m_signedness(SIGN_NOT_APPLICABLE),
-     m_cs(cs),
+    :m_cs(cs),
      m_enum_typelib(NULL),
      m_set_typelib(NULL),
+     m_signedness(SIGN_NOT_APPLICABLE),
+     m_metadata(metadata),
+     m_metadata_size(metadata_size),
+     m_type_code(type_code),
      m_geom_type(geom_type)
     {};
   static void *operator new(size_t size, MEM_ROOT *mem_root) throw ()
@@ -781,7 +781,6 @@ public:
 
   uchar		*ptr;			// Position to field in record
 
-  field_visibility_t invisible;
   /**
      Byte where the @c NULL bit is stored inside a record. If this Field is a
      @c NOT @c NULL field, this member is @c NULL.
@@ -816,7 +815,7 @@ public:
     in more clean way with transition to new text based .frm format.
     See also comment for Field_timestamp::Field_timestamp().
   */
-  enum utype  {
+  enum __attribute__((packed)) utype  {
     NONE=0,
     NEXT_NUMBER=15,             // AUTO_INCREMENT
     TIMESTAMP_OLD_FIELD=18,     // TIMESTAMP created before 4.1.3
@@ -827,11 +826,13 @@ public:
     };
   enum imagetype { itRAW, itMBR};
 
-  utype		unireg_check;
-  uint32	field_length;		// Length of field
-  uint32	flags;
-  uint16        field_index;            // field number in fields array
-  uchar		null_bit;		// Bit used to test null bit
+  utype	unireg_check;
+  field_visibility_t invisible;
+  uint32        field_length;          // Length of field
+  uint32        flags;
+  field_index_t field_index;           // field number in fields array
+  uchar null_bit;                      // Bit used to test null bit
+
   /**
      If true, this field was created in create_tmp_field_from_item from a NULL
      value. This means that the type of the field is just a guess, and the type
@@ -1197,7 +1198,7 @@ public:
   virtual uint16 key_part_flag() const { return 0; }
   virtual uint16 key_part_length_bytes() const { return 0; }
   virtual uint32 key_length() const { return pack_length(); }
-  virtual const Type_handler *type_handler() const= 0;
+  virtual const Type_handler *type_handler() const = 0;
   virtual enum_field_types type() const
   {
     return type_handler()->field_type();
@@ -1327,7 +1328,7 @@ public:
   {
      memcpy(ptr, val, len);
   }
-  virtual uint decimals() const { return 0; }
+  virtual decimal_digits_t decimals() const { return 0; }
   virtual Information_schema_numeric_attributes
             information_schema_numeric_attributes() const
   {
@@ -2015,12 +2016,12 @@ protected:
                                  protocol_send_type_t send_type);
 
 public:
-  const uint8 dec;
+  const decimal_digits_t dec;
   bool zerofill,unsigned_flag;	// Purify cannot handle bit fields
   Field_num(uchar *ptr_arg,uint32 len_arg, uchar *null_ptr_arg,
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const LEX_CSTRING *field_name_arg,
-            uint8 dec_arg, bool zero_arg, bool unsigned_arg);
+            decimal_digits_t dec_arg, bool zero_arg, bool unsigned_arg);
   CHARSET_INFO *charset() const override
   {
     return DTCollation_numeric::singleton().collation;
@@ -2040,7 +2041,7 @@ public:
   void add_zerofill_and_unsigned(String &res) const;
   friend class Create_field;
   void make_send_field(Send_field *) override;
-  uint decimals() const override { return (uint) dec; }
+  decimal_digits_t decimals() const override { return dec; }
   uint size_of() const override { return sizeof(*this); }
   bool eq_def(const Field *field) const override;
   Copy_func *get_copy_func(const Field *from) const override
@@ -2090,7 +2091,8 @@ public:
 	    uchar null_bit_arg, utype unireg_check_arg,
 	    const LEX_CSTRING *field_name_arg,
 	    const DTCollation &collation);
-  uint decimals() const override { return is_created_from_null_item ? 0 : NOT_FIXED_DEC; }
+  decimal_digits_t decimals() const override
+  { return is_created_from_null_item ? 0 : NOT_FIXED_DEC; }
   int  save_in_field(Field *to) override { return save_in_field_str(to); }
   bool memcpy_field_possible(const Field *from) const override
   {
@@ -2238,7 +2240,7 @@ public:
   Field_real(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
              uchar null_bit_arg, utype unireg_check_arg,
              const LEX_CSTRING *field_name_arg,
-             uint8 dec_arg, bool zero_arg, bool unsigned_arg)
+             decimal_digits_t dec_arg, bool zero_arg, bool unsigned_arg)
     :Field_num(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
                field_name_arg, dec_arg, zero_arg, unsigned_arg),
     not_fixed(dec_arg >= FLOATING_POINT_DECIMALS)
@@ -2290,7 +2292,7 @@ public:
   Field_decimal(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 		uchar null_bit_arg,
 		enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-		uint8 dec_arg,bool zero_arg,bool unsigned_arg)
+		decimal_digits_t dec_arg, bool zero_arg,bool unsigned_arg)
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
@@ -2334,8 +2336,8 @@ public:
 class Field_new_decimal final :public Field_num {
 public:
   /* The maximum number of decimal digits can be stored */
-  uint precision;
-  uint bin_size;
+  decimal_digits_t precision;
+  uint32 bin_size;
   /*
     Constructors take max_length of the field as a parameter - not the
     precision as the number of decimal digits allowed.
@@ -2346,7 +2348,7 @@ public:
                     uchar null_bit_arg,
                     enum utype unireg_check_arg,
                     const LEX_CSTRING *field_name_arg,
-                    uint8 dec_arg, bool zero_arg, bool unsigned_arg);
+                    decimal_digits_t dec_arg, bool zero_arg, bool unsigned_arg);
   const Type_handler *type_handler() const override
   { return &type_handler_newdecimal; }
   enum ha_base_keytype key_type() const override { return HA_KEYTYPE_BINARY; }
@@ -2421,7 +2423,7 @@ public:
     return Information_schema_numeric_attributes(precision, dec);
   }
   uint size_of() const override { return sizeof *this; }
-  uint32 pack_length() const override { return (uint32) bin_size; }
+  uint32 pack_length() const override { return bin_size; }
   uint pack_length_from_metadata(uint field_metadata) const override;
   uint row_pack_length() const override { return pack_length(); }
   bool compatible_field_size(uint field_metadata, const Relay_log_info *rli,
@@ -2828,7 +2830,7 @@ public:
   Field_float(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	      uchar null_bit_arg,
 	      enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-              uint8 dec_arg,bool zero_arg,bool unsigned_arg)
+              decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg)
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
@@ -2837,7 +2839,7 @@ public:
         dec_arg= NOT_FIXED_DEC;
     }
   Field_float(uint32 len_arg, bool maybe_null_arg,
-              const LEX_CSTRING *field_name_arg, uint8 dec_arg)
+              const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "": 0, (uint) 0,
                 NONE, field_name_arg, dec_arg, 0, 0)
     {
@@ -2876,7 +2878,7 @@ public:
   Field_double(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
 	       uchar null_bit_arg,
 	       enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	       uint8 dec_arg,bool zero_arg,bool unsigned_arg)
+	       decimal_digits_t dec_arg,bool zero_arg,bool unsigned_arg)
     :Field_real(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
                 unireg_check_arg, field_name_arg,
                 dec_arg, zero_arg, unsigned_arg)
@@ -2885,7 +2887,7 @@ public:
         dec_arg= NOT_FIXED_DEC;
     }
   Field_double(uint32 len_arg, bool maybe_null_arg,
-               const LEX_CSTRING *field_name_arg, uint8 dec_arg)
+               const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
                 NONE, field_name_arg, dec_arg, 0, 0)
     {
@@ -2894,7 +2896,7 @@ public:
     }
   Field_double(uint32 len_arg, bool maybe_null_arg,
                const LEX_CSTRING *field_name_arg,
-	       uint8 dec_arg, bool not_fixed_arg)
+	       decimal_digits_t dec_arg, bool not_fixed_arg)
     :Field_real((uchar*) 0, len_arg, maybe_null_arg ? (uchar*) "" : 0, (uint) 0,
                 NONE, field_name_arg, dec_arg, 0, 0)
     {
@@ -3249,21 +3251,22 @@ public:
 */
 class Field_timestamp_with_dec :public Field_timestamp {
 protected:
-  uint dec;
+  decimal_digits_t dec;
 public:
   Field_timestamp_with_dec(uchar *ptr_arg,
                            uchar *null_ptr_arg, uchar null_bit_arg,
                            enum utype unireg_check_arg,
                            const LEX_CSTRING *field_name_arg,
-                           TABLE_SHARE *share, uint dec_arg) :
+                           TABLE_SHARE *share, decimal_digits_t dec_arg) :
   Field_timestamp(ptr_arg,
-                  MAX_DATETIME_WIDTH + dec_arg + MY_TEST(dec_arg), null_ptr_arg,
+                  MAX_DATETIME_WIDTH + dec_arg + MY_TEST(dec_arg),
+                  null_ptr_arg,
                   null_bit_arg, unireg_check_arg, field_name_arg, share),
   dec(dec_arg)
   {
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   }
-  uint decimals() const override { return dec; }
+  decimal_digits_t decimals() const override { return dec; }
   enum ha_base_keytype key_type() const override { return HA_KEYTYPE_BINARY; }
   uchar *pack(uchar *to, const uchar *from, uint max_length) override
   { return Field::pack(to, from, max_length); }
@@ -3294,7 +3297,7 @@ public:
                         uchar *null_ptr_arg, uchar null_bit_arg,
                         enum utype unireg_check_arg,
                         const LEX_CSTRING *field_name_arg,
-                        TABLE_SHARE *share, uint dec_arg) :
+                        TABLE_SHARE *share, decimal_digits_t dec_arg) :
   Field_timestamp_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
                            unireg_check_arg, field_name_arg, share, dec_arg)
   {
@@ -3323,7 +3326,7 @@ public:
                    uchar *null_ptr_arg, uchar null_bit_arg,
                    enum utype unireg_check_arg,
                    const LEX_CSTRING *field_name_arg,
-                   TABLE_SHARE *share, uint dec_arg) :
+                   TABLE_SHARE *share, decimal_digits_t dec_arg) :
     Field_timestamp_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
                              unireg_check_arg, field_name_arg, share, dec_arg)
     {}
@@ -3619,19 +3622,19 @@ public:
 */
 class Field_time_with_dec :public Field_time {
 protected:
-  uint dec;
+  decimal_digits_t dec;
 public:
   Field_time_with_dec(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
                       enum utype unireg_check_arg,
                       const LEX_CSTRING *field_name_arg,
-                      uint dec_arg)
+                      decimal_digits_t dec_arg)
     :Field_time(ptr_arg, MIN_TIME_WIDTH + dec_arg + MY_TEST(dec_arg),
                 null_ptr_arg, null_bit_arg, unireg_check_arg, field_name_arg),
      dec(dec_arg)
   {
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   }
-  uint decimals() const override { return dec; }
+  decimal_digits_t decimals() const override { return dec; }
   enum ha_base_keytype key_type() const override { return HA_KEYTYPE_BINARY; }
   longlong val_int() override;
   double val_real() override;
@@ -3647,8 +3650,9 @@ class Field_time_hires final :public Field_time_with_dec {
   void store_TIME(const MYSQL_TIME *) override;
 public:
   Field_time_hires(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
-             enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-             uint dec_arg)
+                   enum utype unireg_check_arg,
+                   const LEX_CSTRING *field_name_arg,
+                   decimal_digits_t dec_arg)
     :Field_time_with_dec(ptr_arg, null_ptr_arg,
                          null_bit_arg, unireg_check_arg, field_name_arg,
                          dec_arg)
@@ -3679,8 +3683,8 @@ class Field_timef final :public Field_time_with_dec {
   void store_TIME(const MYSQL_TIME *ltime) override;
 public:
   Field_timef(uchar *ptr_arg, uchar *null_ptr_arg, uchar null_bit_arg,
-             enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-             uint dec_arg)
+              enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
+              decimal_digits_t dec_arg)
     :Field_time_with_dec(ptr_arg, null_ptr_arg,
                          null_bit_arg, unireg_check_arg, field_name_arg,
                          dec_arg)
@@ -3818,18 +3822,18 @@ public:
 */
 class Field_datetime_with_dec :public Field_datetime {
 protected:
-  uint dec;
+  decimal_digits_t dec;
 public:
   Field_datetime_with_dec(uchar *ptr_arg, uchar *null_ptr_arg,
                           uchar null_bit_arg, enum utype unireg_check_arg,
-                          const LEX_CSTRING *field_name_arg, uint dec_arg)
+                          const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
     :Field_datetime(ptr_arg, MAX_DATETIME_WIDTH + dec_arg + MY_TEST(dec_arg),
                     null_ptr_arg, null_bit_arg, unireg_check_arg,
                     field_name_arg), dec(dec_arg)
   {
     DBUG_ASSERT(dec <= TIME_SECOND_PART_DIGITS);
   }
-  uint decimals() const override final { return dec; }
+  decimal_digits_t decimals() const override final { return dec; }
   enum ha_base_keytype key_type() const override final { return HA_KEYTYPE_BINARY; }
   void make_send_field(Send_field *field) override final;
   bool send(Protocol *protocol) override final;
@@ -3859,7 +3863,7 @@ class Field_datetime_hires final :public Field_datetime_with_dec {
 public:
   Field_datetime_hires(uchar *ptr_arg, uchar *null_ptr_arg,
                        uchar null_bit_arg, enum utype unireg_check_arg,
-                       const LEX_CSTRING *field_name_arg, uint dec_arg)
+                       const LEX_CSTRING *field_name_arg, decimal_digits_t dec_arg)
     :Field_datetime_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
                              unireg_check_arg, field_name_arg, dec_arg)
   {
@@ -3890,7 +3894,7 @@ class Field_datetimef final :public Field_datetime_with_dec {
 public:
   Field_datetimef(uchar *ptr_arg, uchar *null_ptr_arg,
                   uchar null_bit_arg, enum utype unireg_check_arg,
-                  const LEX_CSTRING *field_name_arg, uint dec_arg)
+                  const LEX_CSTRING *field_name_arg,  decimal_digits_t dec_arg)
     :Field_datetime_with_dec(ptr_arg, null_ptr_arg, null_bit_arg,
                              unireg_check_arg, field_name_arg, dec_arg)
   {}
@@ -3934,7 +3938,7 @@ static inline Field_timestamp *
 new_Field_timestamp(MEM_ROOT *root,uchar *ptr, uchar *null_ptr, uchar null_bit,
                     enum Field::utype unireg_check,
                     const LEX_CSTRING *field_name,
-                    TABLE_SHARE *share, uint dec)
+                    TABLE_SHARE *share, decimal_digits_t dec)
 {
   if (dec==0)
     return new (root)
@@ -3950,7 +3954,7 @@ new_Field_timestamp(MEM_ROOT *root,uchar *ptr, uchar *null_ptr, uchar null_bit,
 static inline Field_time *
 new_Field_time(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
                enum Field::utype unireg_check, const LEX_CSTRING *field_name,
-               uint dec)
+               decimal_digits_t dec)
 {
   if (dec == 0)
     return new (root)
@@ -3965,7 +3969,7 @@ new_Field_time(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
 static inline Field_datetime *
 new_Field_datetime(MEM_ROOT *root, uchar *ptr, uchar *null_ptr, uchar null_bit,
                    enum Field::utype unireg_check,
-                   const LEX_CSTRING *field_name, uint dec)
+                   const LEX_CSTRING *field_name, decimal_digits_t dec)
 {
   if (dec == 0)
     return new (root)
@@ -4151,7 +4155,7 @@ public:
   {
     return (uint32) field_length + sort_suffix_length();
   }
-  virtual uint32 sort_suffix_length() const override
+  uint32 sort_suffix_length() const override
   {
     return (field_charset() == &my_charset_bin ? length_bytes : 0);
   }
@@ -4501,7 +4505,7 @@ public:
   uint32 sort_length() const override;
   uint32 sort_suffix_length() const override;
   uint32 value_length() override { return get_length(); }
-  virtual uint32 max_data_length() const override
+  uint32 max_data_length() const override
   {
     return (uint32) (((ulonglong) 1 << (packlength*8)) -1);
   }
@@ -4557,7 +4561,13 @@ public:
                        uchar *new_ptr, uint32 length,
                        uchar *new_null_ptr, uint new_null_bit) override;
   void sql_type(String &str) const override;
-  inline bool copy()
+  /**
+     Copy blob buffer into internal storage "value" and update record pointer.
+
+     @retval true     Memory allocation error
+     @retval false    Success
+  */
+  bool copy()
   {
     uchar *tmp= get_ptr();
     if (value.copy((char*) tmp, get_length(), charset()))
@@ -4568,6 +4578,33 @@ public:
     tmp=(uchar*) value.ptr();
     memcpy(ptr+packlength, &tmp, sizeof(char*));
     return 0;
+  }
+  void swap(String &inout, bool set_read_value)
+  {
+    if (set_read_value)
+      read_value.swap(inout);
+    else
+      value.swap(inout);
+  }
+  /**
+     Return pointer to blob cache or NULL if not cached.
+  */
+  String * cached(bool *set_read_value)
+  {
+    char *tmp= (char *) get_ptr();
+    if (!value.is_empty() && tmp == value.ptr())
+    {
+      *set_read_value= false;
+      return &value;
+    }
+
+    if (!read_value.is_empty() && tmp == read_value.ptr())
+    {
+      *set_read_value= true;
+      return &read_value;
+    }
+
+    return NULL;
   }
   /* store value for the duration of the current read record */
   inline void swap_value_and_read_value()
@@ -4768,7 +4805,7 @@ public:
   bool has_charset() const override { return true; }
   /* enum and set are sorted as integers */
   CHARSET_INFO *sort_charset() const override { return &my_charset_bin; }
-  uint decimals() const override { return 0; }
+  decimal_digits_t decimals() const override { return 0; }
   const TYPELIB *get_typelib() const override { return typelib; }
 
   uchar *pack(uchar *to, const uchar *from, uint max_length) override;
@@ -4801,15 +4838,11 @@ private:
 class Field_set final :public Field_enum {
 public:
   Field_set(uchar *ptr_arg, uint32 len_arg, uchar *null_ptr_arg,
-	    uchar null_bit_arg,
-	    enum utype unireg_check_arg, const LEX_CSTRING *field_name_arg,
-	    uint32 packlength_arg,
+	    uchar null_bit_arg, enum utype unireg_check_arg,
+            const LEX_CSTRING *field_name_arg, uint32 packlength_arg,
 	    const TYPELIB *typelib_arg, const DTCollation &collation)
-    :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg,
-		    unireg_check_arg, field_name_arg,
-                packlength_arg,
-                typelib_arg, collation),
-      empty_set_string("", 0, collation.collation)
+    :Field_enum(ptr_arg, len_arg, null_ptr_arg, null_bit_arg, unireg_check_arg,
+                field_name_arg, packlength_arg, typelib_arg, collation)
     {
       flags=(flags & ~ENUM_FLAG) | SET_FLAG;
     }
@@ -4832,8 +4865,6 @@ public:
   { return &type_handler_set; }
   bool has_charset() const override { return true; }
   Binlog_type_info binlog_type_info() const override;
-private:
-  const String empty_set_string;
 };
 
 
@@ -5104,20 +5135,20 @@ public:
     max number of characters.
   */
   ulonglong length;
-  uint decimals;
-  Field::utype unireg_check;
-  const TYPELIB *interval;            // Which interval to use
+  const TYPELIB *interval;
   CHARSET_INFO *charset;
   uint32 srid;
-  uint pack_flag;
+  uint32 pack_flag;
+  decimal_digits_t decimals;
+  Field::utype unireg_check;
   Column_definition_attributes()
    :length(0),
-    decimals(0),
-    unireg_check(Field::NONE),
     interval(NULL),
     charset(&my_charset_bin),
     srid(0),
-    pack_flag(0)
+    pack_flag(0),
+    decimals(0),
+    unireg_check(Field::NONE)
   { }
   Column_definition_attributes(const Field *field);
   Column_definition_attributes(const Type_all_attributes &attr);
@@ -5661,7 +5692,8 @@ public:
   LEX_CSTRING table_name, org_table_name;
   LEX_CSTRING col_name, org_col_name;
   ulong length;
-  uint flags, decimals;
+  uint flags;
+  decimal_digits_t decimals;
   Send_field(Field *field)
   {
     field->make_send_field(this);

@@ -45,6 +45,7 @@ my %debuggers = (
     script => 'set args {args} < {input}',
   },
   ddd => {
+    interactive => 1,
     options => '--command {script} {exe}',
     script => 'set args {args} < {input}',
   },
@@ -53,9 +54,11 @@ my %debuggers = (
     options => '-c "stop in main; run {exe} {args} < {input}"',
   },
   devenv => {
+    interactive => 1,
     options => '/debugexe {exe} {args}',
   },
   windbg => {
+    interactive => 1,
     options => '{exe} {args}',
   },
   lldb => {
@@ -74,7 +77,7 @@ my %debuggers = (
     options => '-f -o {log} {exe} {args}',
   },
   rr => {
-    options => '_RR_TRACE_DIR={log} rr record {exe} {args} --loose-skip-innodb-use-native-aio',
+    options => '_RR_TRACE_DIR={log} rr record {exe} {args} --loose-skip-innodb-use-native-aio --loose-innodb-flush-method=fsync',
     run => 'env',
     pre => sub {
       ::mtr_error('rr requires kernel.perf_event_paranoid <= 1')
@@ -139,7 +142,7 @@ sub do_args($$$$$) {
   my $v = $debuggers{$k};
 
   # on windows mtr args are quoted (for system), otherwise not (for exec)
-  sub quote($) { $_[0] =~ / / ? "\"$_[0]\"" : $_[0] }
+  sub quote($) { $_[0] =~ /[; ]/ ? "\"$_[0]\"" : $_[0] }
   sub unquote($) { $_[0] =~ s/^"(.*)"$/$1/; $_[0] }
   sub quote_from_mtr($) { IS_WINDOWS() ? $_[0] : quote($_[0]) }
   sub unquote_for_mtr($) { IS_WINDOWS() ? $_[0] : unquote($_[0]) }
@@ -190,11 +193,15 @@ sub fix_options(@) {
 
 sub pre_setup() {
   my $used;
+  my $interactive;
   for my $k (keys %debuggers) {
     for my $opt ($k, "manual-$k", "boot-$k", "client-$k") {
       if ($opt_vals{$opt})
       {
         $used = 1;
+        $interactive ||= ($debuggers{$k}->{interactive} ||
+                          $debuggers{$k}->{term} ||
+                          ($opt =~ /^manual-/));
         if ($debuggers{$k}->{pre}) {
           $debuggers{$k}->{pre}->();
           delete $debuggers{$k}->{pre};
@@ -209,10 +216,10 @@ sub pre_setup() {
 
     $::opt_retry= 1;
     $::opt_retry_failure= 1;
-    $::opt_testcase_timeout= 7 * 24 * 60; # in minutes
-    $::opt_suite_timeout= 7 * 24 * 60;    # in minutes
-    $::opt_shutdown_timeout= 24 * 60 *60; # in seconds
-    $::opt_start_timeout= 24 * 60 * 60;   # in seconds
+    $::opt_testcase_timeout= ($interactive ? 24 : 4) * 60;      # in minutes
+    $::opt_suite_timeout= 24 * 60;                              # in minutes
+    $::opt_shutdown_timeout= ($interactive ? 24 * 60 : 3) * 60; # in seconds
+    $::opt_start_timeout= $::opt_shutdown_timeout;              # in seconds
   }
 }
 

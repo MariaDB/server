@@ -233,7 +233,7 @@ static int run_command(char* cmd, const char *mode)
 }
 
 
-#ifdef __WIN__
+#ifdef _WIN32
 /**
   Check to see if there are spaces in a path.
   
@@ -329,7 +329,7 @@ static int get_default_values()
     if ((error= make_tempfile(defaults_file, "txt")))
       goto exit;
 
-#ifdef __WIN__
+#ifdef _WIN32
     {
       char *format_str= 0;
   
@@ -860,7 +860,7 @@ static int process_options(int argc, char *argv[], char *operation)
       memset(buff, 0, sizeof(buff));
       
       strncpy(buff, opt_basedir, sizeof(buff) - 1);
-#ifdef __WIN__
+#ifdef _WIN32
       strncat(buff, "/", sizeof(buff) - strlen(buff) - 1);
 #else
       strncat(buff, FN_DIRSEP, sizeof(buff) - strlen(buff) - 1);
@@ -947,7 +947,7 @@ static int check_access()
   }
   if (opt_mysqld && (error= my_access(opt_mysqld, F_OK)))
   {
-    fprintf(stderr, "ERROR: Cannot access mysqld path '%s'.\n",
+    fprintf(stderr, "ERROR: Cannot access mariadbd path '%s'.\n",
             opt_mysqld);
     goto exit;
   }
@@ -1175,7 +1175,7 @@ static int bootstrap_server(char *server_path, char *bootstrap_file)
   char bootstrap_cmd[FN_REFLEN];
   int error= 0;
 
-#ifdef __WIN__
+#ifdef _WIN32
   char *format_str= 0;
   const char *verbose_str= NULL;
    

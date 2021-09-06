@@ -17,7 +17,7 @@
 /***********************************************************************/
 #include "my_global.h"
 #include "table.h"       // MySQL table definitions
-#if defined(__WIN__)
+#if defined(_WIN32)
 #if defined(__BORLANDC__)
 #define __MFC_COMPAT__                   // To define min/max as macro
 #endif

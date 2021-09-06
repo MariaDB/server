@@ -606,52 +606,6 @@ btr_get_size(
 }
 
 /**************************************************************//**
-Gets the number of reserved and used pages in a B-tree.
-@return	number of pages reserved, or ULINT_UNDEFINED if the index
-is unavailable */
-UNIV_INTERN
-ulint
-btr_get_size_and_reserved(
-/*======================*/
-	dict_index_t*	index,	/*!< in: index */
-	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
-	ulint*		used,	/*!< out: number of pages used (<= reserved) */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
-				is s-latched */
-{
-	ulint		dummy;
-
-	ut_ad(mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
-	ut_a(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
-
-	if (index->page == FIL_NULL
-	    || dict_index_is_online_ddl(index)
-	    || !index->is_committed()
-	    || !index->table->space) {
-		return(ULINT_UNDEFINED);
-	}
-
-	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr);
-	*used = 0;
-	if (!root) {
-		return ULINT_UNDEFINED;
-	}
-
-	mtr->x_lock_space(index->table->space);
-
-	ulint n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
-					+ root->frame, used, mtr);
-	if (flag == BTR_TOTAL_SIZE) {
-		n += fseg_n_reserved_pages(*root,
-					   PAGE_HEADER + PAGE_BTR_SEG_TOP
-					   + root->frame, &dummy, mtr);
-		*used += dummy;
-	}
-
-	return(n);
-}
-
-/**************************************************************//**
 Frees a page used in an ibuf tree. Puts the page to the free list of the
 ibuf tree. */
 static
@@ -1242,21 +1196,29 @@ void btr_free_if_exists(fil_space_t *space, uint32_t page,
   }
 }
 
-/** Free an index tree in a temporary tablespace.
-@param[in]	page_id		root page id */
-void btr_free(const page_id_t page_id)
+/** Drop a temporary table
+@param table   temporary table */
+void btr_drop_temporary_table(const dict_table_t &table)
 {
-	mtr_t		mtr;
-	mtr.start();
-	mtr.set_log_mode(MTR_LOG_NO_REDO);
-
-	buf_block_t*	block = buf_page_get(page_id, 0, RW_X_LATCH, &mtr);
-
-	if (block) {
-		btr_free_but_not_root(block, MTR_LOG_NO_REDO);
-		btr_free_root(block, &mtr);
-	}
-	mtr.commit();
+  ut_ad(table.is_temporary());
+  ut_ad(table.space == fil_system.temp_space);
+  mtr_t mtr;
+  mtr.start();
+  for (const dict_index_t *index= table.indexes.start; index;
+       index= dict_table_get_next_index(index))
+  {
+    if (buf_block_t *block= buf_page_get_low({SRV_TMP_SPACE_ID, index->page}, 0,
+                                             RW_X_LATCH, nullptr, BUF_GET, &mtr,
+                                             nullptr, false))
+    {
+      btr_free_but_not_root(block, MTR_LOG_NO_REDO);
+      mtr.set_log_mode(MTR_LOG_NO_REDO);
+      btr_free_root(block, &mtr);
+      mtr.commit();
+      mtr.start();
+    }
+  }
+  mtr.commit();
 }
 
 /** Read the last used AUTO_INCREMENT value from PAGE_ROOT_AUTO_INC.
@@ -3157,8 +3119,8 @@ func_exit:
 @param[in]	block		page to remove
 @param[in]	index		index tree
 @param[in,out]	mtr		mini-transaction */
-void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
-			   mtr_t* mtr)
+dberr_t btr_level_list_remove(const buf_block_t& block,
+                              const dict_index_t& index, mtr_t* mtr)
 {
 	ut_ad(mtr->memo_contains_flagged(&block, MTR_MEMO_PAGE_X_FIX));
 	ut_ad(block.zip_size() == index.table->space->zip_size());
@@ -3190,6 +3152,10 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 		buf_block_t*	next_block = btr_block_get(
 			index, next_page_no, RW_X_LATCH, page_is_leaf(page),
 			mtr);
+
+		if (!next_block) {
+			return DB_ERROR;
+		}
 #ifdef UNIV_BTR_DEBUG
 		ut_a(page_is_comp(next_block->frame) == page_is_comp(page));
 		static_assert(FIL_PAGE_PREV % 4 == 0, "alignment");
@@ -3200,16 +3166,16 @@ void btr_level_list_remove(const buf_block_t& block, const dict_index_t& index,
 
 		btr_page_set_prev(next_block, prev_page_no, mtr);
 	}
+
+	return DB_SUCCESS;
 }
 
 /*************************************************************//**
 If page is the only on its level, this function moves its records to the
 father page, thus reducing the tree height.
 @return father block */
-UNIV_INTERN
 buf_block_t*
 btr_lift_page_up(
-/*=============*/
 	dict_index_t*	index,	/*!< in: index tree */
 	buf_block_t*	block,	/*!< in: page which is the only on its level;
 				must not be empty: use
@@ -3577,7 +3543,9 @@ retry:
 		btr_search_drop_page_hash_index(block);
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(*block, *index, mtr);
+		if (DB_SUCCESS != btr_level_list_remove(*block, *index, mtr)) {
+			goto err_exit;
+		}
 
 		const page_id_t id{block->page.id()};
 
@@ -3702,7 +3670,9 @@ retry:
 #endif /* UNIV_BTR_DEBUG */
 
 		/* Remove the page from the level list */
-		btr_level_list_remove(*block, *index, mtr);
+		if (DB_SUCCESS != btr_level_list_remove(*block, *index, mtr)) {
+			goto err_exit;
+		}
 
 		ut_ad(btr_node_ptr_get_child_page_no(
 			      btr_cur_get_rec(&father_cursor), offsets)
@@ -4080,7 +4050,7 @@ btr_discard_page(
 	}
 
 	/* Remove the page from the level list */
-	btr_level_list_remove(*block, *index, mtr);
+	ut_a(DB_SUCCESS == btr_level_list_remove(*block, *index, mtr));
 
 #ifdef UNIV_ZIP_DEBUG
 	{

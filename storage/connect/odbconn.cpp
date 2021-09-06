@@ -11,7 +11,7 @@
 /***********************************************************************/
 #include <my_global.h>
 #include <m_string.h>
-#if defined(__WIN__)
+#if defined(_WIN32)
 //nclude <io.h>
 //nclude <fcntl.h>
 #include <direct.h>                      // for getcwd
@@ -45,13 +45,13 @@
 #include "osutil.h"
 
 
-#if defined(__WIN__)
+#if defined(_WIN32)
 /***********************************************************************/
 /*  For dynamic load of ODBC32.DLL                                     */
 /***********************************************************************/
 #pragma comment(lib, "odbc32.lib")
 extern "C" HINSTANCE s_hModule;           // Saved module handle
-#endif // __WIN__
+#endif // _WIN32
 
 TYPCONV GetTypeConv();
 int GetConvSize();
@@ -1283,15 +1283,15 @@ bool ODBConn::DriverConnect(DWORD Options)
   SWORD   nResult;
   PUCHAR  ConnOut = (PUCHAR)PlugSubAlloc(m_G, NULL, MAX_CONNECT_LEN);
   UWORD   wConnectOption = SQL_DRIVER_COMPLETE;
-#if defined(__WIN__)
+#if defined(_WIN32)
   HWND    hWndTop = GetForegroundWindow();
   HWND    hWnd = GetParent(hWndTop);
 
   if (hWnd == NULL)
     hWnd = GetDesktopWindow();
-#else   // !__WIN__
+#else   // !_WIN32
   HWND    hWnd = (HWND)1;
-#endif  // !__WIN__
+#endif  // !_WIN32
 
     wConnectOption = SQL_DRIVER_NOPROMPT;
 //else if (Options & forceOdbcDialog)
@@ -1301,10 +1301,10 @@ bool ODBConn::DriverConnect(DWORD Options)
                         SQL_NTS, ConnOut, MAX_CONNECT_LEN,
                         &nResult, wConnectOption);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   if (hWndTop)
     EnableWindow(hWndTop, true);
-#endif   // __WIN__
+#endif   // _WIN32
 
   // If user hit 'Cancel'
   if (rc == SQL_NO_DATA_FOUND) {

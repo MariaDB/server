@@ -99,7 +99,7 @@ public:
   bool send_result_set_row(List<Item> *row_items);
 
   bool store(I_List<i_string> *str_list);
-  bool store(const char *from, CHARSET_INFO *cs);
+  bool store_string_or_null(const char *from, CHARSET_INFO *cs);
   bool store_warning(const char *from, size_t length);
   String *storage_packet() { return packet; }
   inline void free() { packet->free(); }
@@ -114,6 +114,10 @@ public:
   { return store_longlong((longlong) from, 1); }
   inline bool store(String *str)
   { return store((char*) str->ptr(), str->length(), str->charset()); }
+  inline bool store(const LEX_CSTRING *from, CHARSET_INFO *cs)
+  {
+    return store(from->str, from->length, cs);
+  }
 
   virtual bool prepare_for_send(uint num_columns)
   {
@@ -134,7 +138,7 @@ public:
                          CHARSET_INFO *fromcs, CHARSET_INFO *tocs)=0;
   virtual bool store_float(float from, uint32 decimals)=0;
   virtual bool store_double(double from, uint32 decimals)=0;
-  virtual bool store(MYSQL_TIME *time, int decimals)=0;
+  virtual bool store_datetime(MYSQL_TIME *time, int decimals)=0;
   virtual bool store_date(MYSQL_TIME *time)=0;
   virtual bool store_time(MYSQL_TIME *time, int decimals)=0;
   virtual bool store(Field *field)=0;
@@ -184,10 +188,6 @@ public:
   bool net_send_error(THD *thd, uint sql_errno, const char *err,
                       const char* sqlstate);
   void end_statement();
-
-  friend int send_answer_1(Protocol *protocol, String *s1, String *s2,
-                           String *s3);
-  friend int send_header_2(Protocol *protocol, bool for_category);
 };
 
 
@@ -213,7 +213,7 @@ public:
   bool store_decimal(const my_decimal *) override;
   bool store_str(const char *from, size_t length,
                  CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
-  bool store(MYSQL_TIME *time, int decimals) override;
+  bool store_datetime(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
   bool store_float(float nr, uint32 decimals) override;
@@ -261,7 +261,7 @@ public:
   bool store_decimal(const my_decimal *) override;
   bool store_str(const char *from, size_t length,
                  CHARSET_INFO *fromcs, CHARSET_INFO *tocs) override;
-  bool store(MYSQL_TIME *time, int decimals) override;
+  bool store_datetime(MYSQL_TIME *time, int decimals) override;
   bool store_date(MYSQL_TIME *time) override;
   bool store_time(MYSQL_TIME *time, int decimals) override;
   bool store_float(float nr, uint32 decimals) override;
@@ -312,7 +312,7 @@ public:
   {
     return false;
   }
-  bool store(MYSQL_TIME *, int) override { return false; }
+  bool store_datetime(MYSQL_TIME *, int) override { return false; }
   bool store_date(MYSQL_TIME *) override { return false; }
   bool store_time(MYSQL_TIME *, int) override { return false; }
   bool store_float(float, uint32) override { return false; }

@@ -46,7 +46,7 @@ my_decimal *Item_proc_string::val_decimal(my_decimal *decimal_value)
 {
   if (null_value)
     return 0;
-  string2my_decimal(E_DEC_FATAL_ERROR, &str_value, decimal_value);
+  string2my_decimal(E_DEC_FATAL_ERROR, &value, decimal_value);
   return (decimal_value);
 }
 

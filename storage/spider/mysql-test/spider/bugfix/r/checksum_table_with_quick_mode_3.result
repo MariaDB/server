@@ -44,10 +44,10 @@ CHECKSUM TABLE tbl_a EXTENDED;
 Table	Checksum
 auto_test_local.tbl_a	1061386331
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%checksum %';
 argument
 checksum table `auto_test_remote`.`tbl_a` extended
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%checksum %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%checksum %'
 SELECT pkey FROM tbl_a ORDER BY pkey;
 pkey
 0

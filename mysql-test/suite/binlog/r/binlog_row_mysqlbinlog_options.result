@@ -47,7 +47,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 use `new_test1`/*!*/;
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -81,7 +81,7 @@ START TRANSACTION
 ###   @2=2 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 2
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -89,7 +89,7 @@ COMMIT
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-3 ddl
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 use `test2`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 CREATE TABLE t2 (a INT)
@@ -114,7 +114,7 @@ START TRANSACTION
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 2
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -136,7 +136,7 @@ START TRANSACTION
 ###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -145,7 +145,7 @@ COMMIT
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
 # at #
 use `new_test3`/*!*/;
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE TABLE t3 (a INT)
 /*!*/;
@@ -169,7 +169,7 @@ START TRANSACTION
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 2
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -191,7 +191,7 @@ START TRANSACTION
 ###   @2=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -230,7 +230,7 @@ START TRANSACTION
 ###   @2=6 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 5
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -251,7 +251,7 @@ START TRANSACTION
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -288,7 +288,7 @@ ROLLBACK/*!*/;
 /*!100001 SET @@session.gtid_seq_no=1*//*!*/;
 # at #
 use `new_test1`/*!*/;
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
@@ -322,7 +322,7 @@ START TRANSACTION
 ###   @2=2 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 2
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -330,7 +330,7 @@ COMMIT
 #010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	GTID 0-1-3 ddl
 /*!100001 SET @@session.gtid_seq_no=3*//*!*/;
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 use `test2`/*!*/;
 SET TIMESTAMP=1000000000/*!*/;
 CREATE TABLE t2 (a INT)
@@ -355,7 +355,7 @@ START TRANSACTION
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 2
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -377,7 +377,7 @@ START TRANSACTION
 ###   @2=1 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -386,7 +386,7 @@ COMMIT
 /*!100001 SET @@session.gtid_seq_no=6*//*!*/;
 # at #
 use `new_test3`/*!*/;
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 CREATE TABLE t3 (a INT)
 /*!*/;
@@ -410,7 +410,7 @@ START TRANSACTION
 ###   @1=2 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 2
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -432,7 +432,7 @@ START TRANSACTION
 ###   @2=3 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -471,7 +471,7 @@ START TRANSACTION
 ###   @2=6 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 5
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;
@@ -492,7 +492,7 @@ START TRANSACTION
 ###   @1=1 /* INT meta=0 nullable=1 is_null=0 */
 # Number of rows: 1
 # at #
-#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#010909  4:46:40 server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=1000000000/*!*/;
 COMMIT
 /*!*/;

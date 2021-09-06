@@ -1,5 +1,5 @@
 --- page_size.result
-+++ page_size,8k.result
++++ page_size,8k.reject
 @@ -3,7 +3,7 @@
  SELECT variable_value FROM information_schema.global_status
  WHERE LOWER(variable_name) = 'innodb_page_size';
@@ -309,7 +309,7 @@
 -  `d` text NOT NULL,
 -  PRIMARY KEY (`a`,`b`(255),`c`(255)),
 -  KEY `b` (`b`(767))
--) ENGINE=InnoDB DEFAULT CHARSET=utf8 STATS_PERSISTENT=0
+-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb3 STATS_PERSISTENT=0
 -CHECK TABLE t1;
 -Table	Op	Msg_type	Msg_text
 -test.t1	check	status	OK
@@ -387,7 +387,7 @@
    KEY `t1t` (`t`(767)),
    KEY `t1u` (`u`(767)),
    KEY `t1ut` (`u`(767),`t`(767)),
-@@ -568,14 +397,14 @@
+@@ -572,14 +401,14 @@
  PRIMARY KEY (c(767),d(767)))
  ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
  Warnings:
@@ -404,7 +404,7 @@
  DROP TABLE t1;
  CREATE TABLE t1(
  c text NOT NULL, d text NOT NULL,
-@@ -585,7 +414,7 @@
+@@ -589,7 +418,7 @@
  CREATE TABLE t1(c text, PRIMARY KEY (c(440)))
  ENGINE=InnoDB ROW_FORMAT=COMPRESSED KEY_BLOCK_SIZE=1 CHARSET=ASCII;
  Warnings:

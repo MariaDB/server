@@ -31,17 +31,17 @@ latin2	NULL
 SET sql_mode=@mode;
 SELECT N'',CHARSET(N''), N'x', CHARSET(N'x');
 NULL	CHARSET(N'')	x	CHARSET(N'x')
-NULL	utf8	x	utf8
+NULL	utf8mb3	x	utf8mb3
 SELECT CHARSET(NULLIF(N'',N'')),NULLIF(N'',N'');
 CHARSET(NULLIF(N'',N''))	NULLIF(N'',N'')
-utf8	NULL
+utf8mb3	NULL
 SET sql_mode=default;
 SELECT N'',CHARSET(N''), N'x', CHARSET(N'x');
 	CHARSET(N'')	x	CHARSET(N'x')
-	utf8	x	utf8
+	utf8mb3	x	utf8mb3
 SELECT CHARSET(NULLIF(N'',N'')),NULLIF(N'',N'');
 CHARSET(NULLIF(N'',N''))	NULLIF(N'',N'')
-utf8	NULL
+utf8mb3	NULL
 #
 # Test CHARSET prefix litteral
 #
@@ -98,7 +98,7 @@ NULL	CHARSET(_latin1'' '' '')
 NULL	latin1
 SELECT N'' '' '',CHARSET(N'' '' '');
 NULL	CHARSET(N'' '' '')
-NULL	utf8
+NULL	utf8mb3
 #
 # UNION - implicit group by
 #

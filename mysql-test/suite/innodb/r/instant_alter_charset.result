@@ -2025,7 +2025,7 @@ ENGINE=InnoDB;
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(2) CHARACTER SET utf8 COLLATE utf8_unicode_ci NOT NULL,
+  `a` varchar(2) CHARACTER SET utf8mb3 COLLATE utf8mb3_unicode_ci NOT NULL,
   PRIMARY KEY (`a`(1))
 ) ENGINE=InnoDB DEFAULT CHARSET=latin1
 ALTER TABLE t1 MODIFY a VARCHAR(2)

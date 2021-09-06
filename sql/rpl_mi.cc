@@ -1224,17 +1224,15 @@ bool Master_info_index::init_all_master_info()
 
   if (!err_num) // No Error on read Master_info
   {
-    if (global_system_variables.log_warnings > 1)
+    if (global_system_variables.log_warnings > 2)
       sql_print_information("Reading of all Master_info entries succeeded");
     DBUG_RETURN(0);
   }
-  if (succ_num) // Have some Error and some Success
-  {
-    sql_print_warning("Reading of some Master_info entries failed");
-    DBUG_RETURN(1);
-  }
 
-  sql_print_error("Reading of all Master_info entries failed!");
+  if (succ_num) // Have some Error and some Success
+    sql_print_warning("Reading of some Master_info entries failed");
+  else
+    sql_print_error("Reading of all Master_info entries failed!");
   DBUG_RETURN(1);
 
 error:
@@ -1431,7 +1429,7 @@ bool Master_info_index::add_master_info(Master_info *mi, bool write_to_file)
   if (unlikely(abort_loop) ||
       !my_hash_insert(&master_info_hash, (uchar*) mi))
   {
-    if (global_system_variables.log_warnings > 1)
+    if (global_system_variables.log_warnings > 2)
       sql_print_information("Added new Master_info '%.*s' to hash table",
                             (int) mi->connection_name.length,
                             mi->connection_name.str);
@@ -1971,14 +1969,15 @@ void prot_store_ids(THD *thd, DYNAMIC_ARRAY *ids)
         break the loop whenever remained space could not fit
         ellipses on the next cycle
       */
-      sprintf(dbuff + cur_len, "...");
+      cur_len+= sprintf(dbuff + cur_len, "...");
       break;
     }
-    cur_len += sprintf(buff + cur_len, "%s", dbuff);
+    cur_len+= sprintf(buff + cur_len, "%s", dbuff);
   }
-  thd->protocol->store(buff, &my_charset_bin);
+  thd->protocol->store(buff, cur_len, &my_charset_bin);
   return;
 }
+
 
 bool Master_info_index::flush_all_relay_logs()
 {

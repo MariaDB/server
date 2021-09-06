@@ -566,7 +566,7 @@ typedef struct st_join_table {
   }
   bool is_first_inner_for_outer_join()
   {
-    return first_inner && first_inner == this;
+    return first_inner == this;
   }
   bool use_match_flag()
   {
@@ -1238,7 +1238,7 @@ public:
   table_map outer_join;
   /* Bitmap of tables used in the select list items */
   table_map select_list_used_tables;
-  ha_rows  send_records,found_records,join_examined_rows;
+  ha_rows  send_records,found_records,join_examined_rows, accepted_rows;
 
   /*
     LIMIT for the JOIN operation. When not using aggregation or DISITNCT, this 
@@ -1398,6 +1398,11 @@ public:
     GROUP/ORDER BY.
   */
   bool simple_order, simple_group;
+  /*
+    Set to 1 if any field in field list has RAND_TABLE set. For example if
+    if one uses RAND() or ROWNUM() in field list
+  */
+  bool rand_table_in_field_list;
 
   /*
     ordered_index_usage is set if an ordered index access
@@ -1541,97 +1546,7 @@ public:
   }
 
   void init(THD *thd_arg, List<Item> &fields_arg, ulonglong select_options_arg,
-       select_result *result_arg)
-  {
-    join_tab= 0;
-    table= 0;
-    table_count= 0;
-    top_join_tab_count= 0;
-    const_tables= 0;
-    const_table_map= found_const_table_map= 0;
-    aggr_tables= 0;
-    eliminated_tables= 0;
-    join_list= 0;
-    implicit_grouping= FALSE;
-    sort_and_group= 0;
-    first_record= 0;
-    do_send_rows= 1;
-    duplicate_rows= send_records= 0;
-    found_records= 0;
-    fetch_limit= HA_POS_ERROR;
-    thd= thd_arg;
-    sum_funcs= sum_funcs2= 0;
-    procedure= 0;
-    having= tmp_having= having_history= 0;
-    having_is_correlated= false;
-    group_list_for_estimates= 0;
-    select_options= select_options_arg;
-    result= result_arg;
-    lock= thd_arg->lock;
-    select_lex= 0; //for safety
-    select_distinct= MY_TEST(select_options & SELECT_DISTINCT);
-    no_order= 0;
-    simple_order= 0;
-    simple_group= 0;
-    ordered_index_usage= ordered_index_void;
-    need_distinct= 0;
-    skip_sort_order= 0;
-    with_two_phase_optimization= 0;
-    save_qep= 0;
-    spl_opt_info= 0;
-    ext_keyuses_for_splitting= 0;
-    spl_opt_info= 0;
-    need_tmp= 0;
-    hidden_group_fields= 0; /*safety*/
-    error= 0;
-    select= 0;
-    return_tab= 0;
-    ref_ptrs.reset();
-    items0.reset();
-    items1.reset();
-    items2.reset();
-    items3.reset();
-    zero_result_cause= 0;
-    optimization_state= JOIN::NOT_OPTIMIZED;
-    have_query_plan= QEP_NOT_PRESENT_YET;
-    initialized= 0;
-    cleaned= 0;
-    cond_equal= 0;
-    having_equal= 0;
-    exec_const_cond= 0;
-    group_optimized_away= 0;
-    no_rows_in_result_called= 0;
-    positions= best_positions= 0;
-    pushdown_query= 0;
-    original_join_tab= 0;
-    explain= NULL;
-    tmp_table_keep_current_rowid= 0;
-
-    all_fields= fields_arg;
-    if (&fields_list != &fields_arg)      /* Avoid valgrind-warning */
-      fields_list= fields_arg;
-    non_agg_fields.empty();
-    bzero((char*) &keyuse,sizeof(keyuse));
-    having_value= Item::COND_UNDEF;
-    tmp_table_param.init();
-    tmp_table_param.end_write_records= HA_POS_ERROR;
-    rollup.state= ROLLUP::STATE_NONE;
-
-    no_const_tables= FALSE;
-    first_select= sub_select;
-    set_group_rpa= false;
-    group_sent= 0;
-
-    outer_ref_cond= pseudo_bits_cond= NULL;
-    in_to_exists_where= NULL;
-    in_to_exists_having= NULL;
-    emb_sjm_nest= NULL;
-    sjm_lookup_tables= 0;
-    sjm_scan_tables= 0;
-    is_orig_degenerated= false;
-
-    with_ties_order_count= 0;
-  }
+            select_result *result_arg);
 
   /* True if the plan guarantees that it will be returned zero or one row */
   bool only_const_tables()  { return const_tables == table_count; }
@@ -1816,6 +1731,9 @@ public:
   void make_notnull_conds_for_range_scans();
 
   bool transform_in_predicates_into_in_subq(THD *thd);
+
+  bool optimize_upper_rownum_func();
+
 private:
   /**
     Create a temporary table to be used for processing DISTINCT/ORDER
@@ -1921,15 +1839,17 @@ public:
     @details this function makes sure truncation warnings when preparing the
     key buffers don't end up as errors (because of an enclosing INSERT/UPDATE).
   */
-  enum store_key_result copy()
+  enum store_key_result copy(THD *thd)
   {
     enum store_key_result result;
-    THD *thd= to_field->table->in_use;
-    Check_level_instant_set check_level_save(thd, CHECK_FIELD_IGNORE);
-    Sql_mode_save sql_mode(thd);
+    enum_check_fields org_count_cuted_fields= thd->count_cuted_fields;
+    sql_mode_t org_sql_mode= thd->variables.sql_mode;
     thd->variables.sql_mode&= ~(MODE_NO_ZERO_IN_DATE | MODE_NO_ZERO_DATE);
     thd->variables.sql_mode|= MODE_INVALID_DATES;
+    thd->count_cuted_fields= CHECK_FIELD_IGNORE;
     result= copy_inner();
+    thd->count_cuted_fields= org_count_cuted_fields;
+    thd->variables.sql_mode= org_sql_mode;
     return result;
   }
 
@@ -1960,8 +1880,8 @@ class store_key_field: public store_key
     }
   }  
 
-  enum Type type() const { return FIELD_STORE_KEY; }
-  const char *name() const { return field_name; }
+  enum Type type() const override { return FIELD_STORE_KEY; }
+  const char *name() const override { return field_name; }
 
   void change_source_field(Item_field *fld_item)
   {
@@ -1970,7 +1890,7 @@ class store_key_field: public store_key
   }
 
  protected: 
-  enum store_key_result copy_inner()
+  enum store_key_result copy_inner() override
   {
     TABLE *table= copy_field.to_field->table;
     MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
@@ -2005,7 +1925,7 @@ public:
   store_key_item(THD *thd, Field *to_field_arg, uchar *ptr,
                  uchar *null_ptr_arg, uint length, Item *item_arg, bool val)
     :store_key(thd, to_field_arg, ptr,
-	       null_ptr_arg ? null_ptr_arg : item_arg->maybe_null ?
+	       null_ptr_arg ? null_ptr_arg : item_arg->maybe_null() ?
 	       &err : (uchar*) 0, length), item(item_arg), use_value(val)
   {}
   store_key_item(store_key &arg, Item *new_item, bool val)
@@ -2013,11 +1933,11 @@ public:
   {}
 
 
-  enum Type type() const { return ITEM_STORE_KEY; }
-  const char *name() const { return "func"; }
+  enum Type type() const override { return ITEM_STORE_KEY; }
+  const char *name() const  override { return "func"; }
 
  protected:  
-  enum store_key_result copy_inner()
+  enum store_key_result copy_inner() override
   {
     TABLE *table= to_field->table;
     MY_BITMAP *old_map= dbug_tmp_use_all_columns(table,
@@ -2058,7 +1978,7 @@ public:
 		       uchar *null_ptr_arg, uint length,
 		       Item *item_arg)
     :store_key_item(thd, to_field_arg, ptr,
-		    null_ptr_arg ? null_ptr_arg : item_arg->maybe_null ?
+		    null_ptr_arg ? null_ptr_arg : item_arg->maybe_null() ?
 		    &err : (uchar*) 0, length, item_arg, FALSE), inited(0)
   {
   }
@@ -2066,12 +1986,12 @@ public:
     :store_key_item(arg, new_item, FALSE), inited(0)
   {}
 
-  enum Type type() const { return CONST_ITEM_STORE_KEY; }
-  const char *name() const { return "const"; }
-  bool store_key_is_const() { return true; }
+  enum Type type() const override { return CONST_ITEM_STORE_KEY; }
+  const char *name() const  override { return "const"; }
+  bool store_key_is_const() override { return true; }
 
 protected:  
-  enum store_key_result copy_inner()
+  enum store_key_result copy_inner() override
   {
     int res;
     if (!inited)

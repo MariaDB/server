@@ -161,7 +161,7 @@ protected:
   Old_rows_log_event(THD*, TABLE*, ulong table_id,
                      MY_BITMAP const *cols, bool is_transactional);
 #endif
-  Old_rows_log_event(const char *row_data, uint event_len,
+  Old_rows_log_event(const uchar *row_data, uint event_len,
                      Log_event_type event_type,
                      const Format_description_log_event *description_event);
 
@@ -363,7 +363,7 @@ public:
                            MY_BITMAP const *cols, bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
-  Write_rows_log_event_old(const char *buf, uint event_len,
+  Write_rows_log_event_old(const uchar *buf, uint event_len,
                            const Format_description_log_event *description_event);
 #endif
 #if !defined(MYSQL_CLIENT) 
@@ -436,7 +436,7 @@ public:
 #endif
 
 #ifdef HAVE_REPLICATION
-  Update_rows_log_event_old(const char *buf, uint event_len,
+  Update_rows_log_event_old(const uchar *buf, uint event_len,
                             const Format_description_log_event *description_event);
 #endif
 
@@ -511,7 +511,7 @@ public:
                             MY_BITMAP const *cols, bool is_transactional);
 #endif
 #ifdef HAVE_REPLICATION
-  Delete_rows_log_event_old(const char *buf, uint event_len,
+  Delete_rows_log_event_old(const uchar *buf, uint event_len,
                             const Format_description_log_event *description_event);
 #endif
 #if !defined(MYSQL_CLIENT) 

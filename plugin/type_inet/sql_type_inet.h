@@ -402,19 +402,19 @@ public:
   bool can_return_time() const override { return false; }
   bool convert_to_binary_using_val_native() const override { return true; }
 
-  uint Item_time_precision(THD *thd, Item *item) const override
+  decimal_digits_t  Item_time_precision(THD *thd, Item *item) const override
   {
     return 0;
   }
-  uint Item_datetime_precision(THD *thd, Item *item) const override
+  decimal_digits_t Item_datetime_precision(THD *thd, Item *item) const override
   {
     return 0;
   }
-  uint Item_decimal_scale(const Item *item) const override
+  decimal_digits_t Item_decimal_scale(const Item *item) const override
   {
     return 0;
   }
-  uint Item_decimal_precision(const Item *item) const override
+  decimal_digits_t  Item_decimal_precision(const Item *item) const override
   {
     /*
       This will be needed if we ever allow cast from INET6 to DECIMAL.
@@ -429,7 +429,7 @@ public:
     Returns how many digits a divisor adds into a division result.
     See Item::divisor_precision_increment() in item.h for more comments.
   */
-  uint Item_divisor_precision_increment(const Item *) const override
+  decimal_digits_t Item_divisor_precision_increment(const Item *) const override
   {
     return 0;
   }
@@ -697,9 +697,9 @@ public:
     DBUG_ASSERT(b.length() == Inet6::binary_length());
     return memcmp(a.ptr(), b.ptr(), Inet6::binary_length());
   }
-  bool set_comparator_func(Arg_comparator *cmp) const override
+  bool set_comparator_func(THD *thd, Arg_comparator *cmp) const override
   {
-    return cmp->set_cmp_func_native();
+    return cmp->set_cmp_func_native(thd);
   }
   bool Item_const_eq(const Item_const *a, const Item_const *b,
                              bool binary_cmp) const override
@@ -714,7 +714,7 @@ public:
     return !na.is_null() && !nb.is_null() && !na.cmp(nb);
   }
   bool Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *h,
                                        Type_all_attributes *attr,
                                        Item **items,
@@ -736,7 +736,7 @@ public:
     {
       if (Inet6::fix_fields_maybe_null_on_conversion_to_inet6(items[i]))
       {
-        attr->set_maybe_null(true);
+        attr->set_type_maybe_null(true);
         break;
       }
     }
@@ -747,7 +747,7 @@ public:
                                         Item **items,
                                         uint nitems) const override
   {
-    return Item_hybrid_func_fix_attributes(thd, func->func_name(),
+    return Item_hybrid_func_fix_attributes(thd, func->func_name_cstring(),
                                            func, func, items, nitems);
 
   }

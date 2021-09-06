@@ -1,5 +1,4 @@
 [mysqld.2]
-plugin-maturity = gamma
 plugin-load-add=@ENV.HA_S3_SO
 s3=ON
 s3-slave-ignore-updates=1

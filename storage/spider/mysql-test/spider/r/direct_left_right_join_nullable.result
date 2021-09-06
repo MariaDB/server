@@ -85,10 +85,10 @@ NULL	NULL	NULL	3
 2	b	2000-01-02 00:00:00	2
 1	a	2000-01-01 00:00:00	1
 connection child2_1;
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %';
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %';
 argument
 select t0.`a` `a`,t2.`b` `b`,t2.`c` `c`,t3.`a` `a` from `auto_test_remote`.`ta_r_no_idx` t3 left join (`auto_test_remote`.`ta_r_auto_inc` t2 join `auto_test_remote`.`ta_r_3` t1 join `auto_test_remote`.`ta_r` t0) on ((t2.`b` = t3.`b`) and (t2.`c` = t1.`c`) and (t0.`a` = t1.`a`) and (t1.`a` is not null)) where 1 order by t3.`a` desc
-SELECT argument FROM mysql.general_log WHERE argument LIKE '%select %'
+SELECT argument FROM mysql.general_log WHERE command_type != 'Execute' AND argument LIKE '%select %'
 SELECT a, b, date_format(c, '%Y-%m-%d %H:%i:%s') FROM ta_r ORDER BY a;
 a	b	date_format(c, '%Y-%m-%d %H:%i:%s')
 1	a	2000-01-01 00:00:00

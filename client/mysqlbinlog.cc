@@ -114,7 +114,7 @@ static void warning(const char *format, ...) ATTRIBUTE_FORMAT(printf, 1, 2);
 static bool one_database=0, one_table=0, to_last_remote_log= 0, disable_log_bin= 0;
 static bool opt_hexdump= 0, opt_version= 0;
 const char *base64_output_mode_names[]=
-{"NEVER", "AUTO", "ALWAYS", "UNSPEC", "DECODE-ROWS", NullS};
+{"NEVER", "AUTO", "UNSPEC", "DECODE-ROWS", NullS};
 TYPELIB base64_output_mode_typelib=
   { array_elements(base64_output_mode_names) - 1, "",
     base64_output_mode_names, NULL };
@@ -216,7 +216,7 @@ Log_event* read_remote_annotate_event(uchar* net_buf, ulong event_len,
   memcpy(event_buf, net_buf, event_len);
   event_buf[event_len]= 0;
 
-  if (!(event= Log_event::read_log_event((const char*) event_buf, event_len,
+  if (!(event= Log_event::read_log_event(event_buf, event_len,
                                          error_msg, glob_description_event,
                                          opt_verify_binlog_checksum)))
   {
@@ -227,7 +227,7 @@ Log_event* read_remote_annotate_event(uchar* net_buf, ulong event_len,
     Ensure the event->temp_buf is pointing to the allocated buffer.
     (TRUE = free temp_buf on the event deletion)
   */
-  event->register_temp_buf((char*)event_buf, TRUE);
+  event->register_temp_buf(event_buf, TRUE);
 
   return event;
 }
@@ -512,8 +512,7 @@ Exit_status Load_log_processor::load_old_format_file(NET* net,
       error("Illegal length of packet read from net.");
       return ERROR_STOP;
     }
-    if (my_write(file, (uchar*) net->read_pos, 
-		 (uint) packet_len, MYF(MY_WME|MY_NABP)))
+    if (my_write(file, net->read_pos, (uint) packet_len, MYF(MY_WME|MY_NABP)))
       return ERROR_STOP;
   }
   
@@ -836,53 +835,6 @@ static bool shall_skip_table(const char *log_tblname)
          strcmp(log_tblname, table);
 }
 
-
-/**
-  Prints the given event in base64 format.
-
-  The header is printed to the head cache and the body is printed to
-  the body cache of the print_event_info structure.  This allows all
-  base64 events corresponding to the same statement to be joined into
-  one BINLOG statement.
-
-  @param[in] ev Log_event to print.
-  @param[in,out] result_file FILE to which the output will be written.
-  @param[in,out] print_event_info Parameters and context state
-  determining how to print.
-
-  @retval ERROR_STOP An error occurred - the program should terminate.
-  @retval OK_CONTINUE No error, the program should continue.
-*/
-static Exit_status
-write_event_header_and_base64(Log_event *ev, FILE *result_file,
-                              PRINT_EVENT_INFO *print_event_info)
-{
-  IO_CACHE *head= &print_event_info->head_cache;
-  IO_CACHE *body= &print_event_info->body_cache;
-  DBUG_ENTER("write_event_header_and_base64");
-
-  /* Write header and base64 output to cache */
-  if (ev->print_header(head, print_event_info, FALSE))
-    DBUG_RETURN(ERROR_STOP);
-
-  DBUG_ASSERT(print_event_info->base64_output_mode == BASE64_OUTPUT_ALWAYS);
-
-  if (ev->print_base64(body, print_event_info,
-                       print_event_info->base64_output_mode !=
-                       BASE64_OUTPUT_DECODE_ROWS))
-    DBUG_RETURN(ERROR_STOP);
-
-  /* Read data from cache and write to result file */
-  if (copy_event_cache_to_file_and_reinit(head, result_file) ||
-      copy_event_cache_to_file_and_reinit(body, result_file))
-  {
-    error("Error writing event to file.");
-    DBUG_RETURN(ERROR_STOP);
-  }
-  DBUG_RETURN(OK_CONTINUE);
-}
-
-
 static bool print_base64(PRINT_EVENT_INFO *print_event_info, Log_event *ev)
 {
   /*
@@ -1134,19 +1086,9 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
         qe->flags|= LOG_EVENT_SUPPRESS_USE_F;
       }
       print_use_stmt(print_event_info, qe);
-      if (opt_base64_output_mode == BASE64_OUTPUT_ALWAYS)
-      {
-        if ((retval= write_event_header_and_base64(ev, result_file,
-                                                   print_event_info)) !=
-            OK_CONTINUE)
-          goto end;
-      }
-      else
-      {
-        print_skip_replication_statement(print_event_info, ev);
-        if (ev->print(result_file, print_event_info))
-          goto err;
-      }
+      print_skip_replication_statement(print_event_info, ev);
+      if (ev->print(result_file, print_event_info))
+        goto err;
       if (head->error == -1)
         goto err;
       break;
@@ -1170,19 +1112,9 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
 	filename and use LOCAL), prepared in the 'case EXEC_LOAD_EVENT' 
 	below.
       */
-      if (opt_base64_output_mode == BASE64_OUTPUT_ALWAYS)
-      {
-        if ((retval= write_event_header_and_base64(ce, result_file,
-                                                   print_event_info)) !=
-            OK_CONTINUE)
-          goto end;
-      }
-      else
-      {
-        print_skip_replication_statement(print_event_info, ev);
-        if (ce->print(result_file, print_event_info, TRUE))
-          goto err;
-      }
+      print_skip_replication_statement(print_event_info, ev);
+      if (ce->print(result_file, print_event_info, TRUE))
+        goto err;
       // If this binlog is not 3.23 ; why this test??
       if (glob_description_event->binlog_version >= 3)
       {
@@ -1270,7 +1202,7 @@ Exit_status process_event(PRINT_EVENT_INFO *print_event_info, Log_event *ev,
           (glob_description_event->flags & LOG_EVENT_BINLOG_IN_USE_F))
       {
         error("Attempting to dump binlog '%s', which was not closed properly. "
-              "Most probably, mysqld is still writing it, or it crashed. "
+              "Most probably, mariadbd is still writing it, or it crashed. "
               "Rerun with --force-if-open to ignore this problem.", logname);
         DBUG_RETURN(ERROR_STOP);
       }
@@ -1583,18 +1515,18 @@ static struct my_option my_options[] =
   {"base64-output", OPT_BASE64_OUTPUT_MODE,
     /* 'unspec' is not mentioned because it is just a placeholder. */
    "Determine when the output statements should be base64-encoded BINLOG "
-   "statements: 'never' doesn't print binlog row events and should not be "
-   "used when directing output to a MariaDB master; "
+   "statements: "
+   "‘never’ neither prints base64 encodings nor verbose event data, and "
+   "will exit on error if a row-based event is found. "
    "'decode-rows' decodes row events into commented SQL statements if the "
-   "--verbose option is also given; "
-   "'auto' prints base64 only when necessary (i.e., for row-based events and "
-   "format description events); "
-   "'always' prints base64 whenever possible. "
-   "--base64-output with no 'name' argument is equivalent to "
-   "--base64-output=always and is also deprecated.  If no "
-   "--base64-output[=name] option is given at all, the default is 'auto'.",
+   "--verbose option is also given. "
+   "‘auto’ outputs base64 encoded entries for row-based and format "
+   "description events. "
+   "If no option is given at all, the default is ‘auto', and is "
+   "consequently the only option that should be used when row-format events "
+   "are processed for re-execution.",
    &opt_base64_output_mode_str, &opt_base64_output_mode_str,
-   0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
+   0, GET_STR, REQUIRED_ARG, 0, 0, 0, 0, 0, 0},
   /*
     mysqlbinlog needs charsets knowledge, to be able to convert a charset
     number found in binlog to a charset name (to be able to print things
@@ -2038,20 +1970,15 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     stop_datetime= convert_str_to_timestamp(stop_datetime_str);
     break;
   case OPT_BASE64_OUTPUT_MODE:
-    if (argument == NULL)
-      opt_base64_output_mode= BASE64_OUTPUT_ALWAYS;
-    else
-    {
-      int val;
+    int val;
 
-      if ((val= find_type_with_warning(argument, &base64_output_mode_typelib,
-                                       opt->name)) <= 0)
-      {
-        sf_leaking_memory= 1; /* no memory leak reports here */
-        die();
-      }
-      opt_base64_output_mode= (enum_base64_output_mode) (val - 1);
+    if ((val= find_type_with_warning(argument, &base64_output_mode_typelib,
+                                     opt->name)) <= 0)
+    {
+      sf_leaking_memory= 1; /* no memory leak reports here */
+      die();
     }
+    opt_base64_output_mode= (enum_base64_output_mode)(val - 1);
     break;
   case OPT_REWRITE_DB:    // db_from->db_to
   {
@@ -2422,7 +2349,7 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
   }
   else
   {
-    if (!(ev= Log_event::read_log_event((const char*) net->read_pos + 1 ,
+    if (!(ev= Log_event::read_log_event(net->read_pos + 1 ,
                                         *len - 1, &error_msg,
                                         glob_description_event,
                                         opt_verify_binlog_checksum)))
@@ -2434,7 +2361,7 @@ static Exit_status handle_event_text_mode(PRINT_EVENT_INFO *print_event_info,
       If reading from a remote host, ensure the temp_buf for the
       Log_event class is pointing to the incoming stream.
     */
-    ev->register_temp_buf((char *) net->read_pos + 1, FALSE);
+    ev->register_temp_buf(net->read_pos + 1, FALSE);
   }
 
   Log_event_type type= ev->get_type_code();
@@ -2535,7 +2462,7 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
                                          const char* logname, uint logname_len)
 {
   const char *error_msg;
-  const unsigned char *read_pos= mysql->net.read_pos + 1;
+  const uchar *read_pos= mysql->net.read_pos + 1;
   Log_event_type type;
   DBUG_ENTER("handle_event_raw_mode");
   DBUG_ASSERT(opt_raw_mode && remote_opt);
@@ -2548,7 +2475,7 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
   if (type == ROTATE_EVENT || type == FORMAT_DESCRIPTION_EVENT)
   {
     Log_event *ev;
-    if (!(ev= Log_event::read_log_event((const char*) read_pos ,
+    if (!(ev= Log_event::read_log_event(read_pos ,
                                         *len - 1, &error_msg,
                                         glob_description_event,
                                         opt_verify_binlog_checksum)))
@@ -2561,7 +2488,7 @@ static Exit_status handle_event_raw_mode(PRINT_EVENT_INFO *print_event_info,
       If reading from a remote host, ensure the temp_buf for the
       Log_event class is pointing to the incoming stream.
     */
-    ev->register_temp_buf((char *) read_pos, FALSE);
+    ev->register_temp_buf(const_cast<uchar*>(read_pos), FALSE);
 
     if (type == ROTATE_EVENT)
     {
@@ -2901,8 +2828,7 @@ static Exit_status check_header(IO_CACHE* file,
                 (ulonglong)tmp_pos);
           return ERROR_STOP;
         }
-        if (opt_base64_output_mode == BASE64_OUTPUT_AUTO
-            || opt_base64_output_mode == BASE64_OUTPUT_ALWAYS)
+        if (opt_base64_output_mode == BASE64_OUTPUT_AUTO)
         {
           /*
             process_event will delete *description_event and set it to
@@ -2992,7 +2918,7 @@ static Exit_status dump_local_log_entries(PRINT_EVENT_INFO *print_event_info,
       stdin in binary mode. Errors on setting this mode result in 
       halting the function and printing an error message to stderr.
     */
-#if defined (__WIN__) || defined(_WIN64)
+#if defined (_WIN32)
     if (_setmode(fileno(stdin), O_BINARY) == -1)
     {
       error("Could not set binary mode on stdin.");

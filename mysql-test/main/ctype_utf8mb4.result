@@ -1849,7 +1849,7 @@ character_set_database	latin1
 character_set_filesystem	binary
 character_set_results	utf8mb4
 character_set_server	latin1
-character_set_system	utf8
+character_set_system	utf8mb3
 SET @@character_set_server=@save_character_set_server;
 CREATE DATABASE crashtest DEFAULT CHARACTER SET utf8mb4 COLLATE utf8mb4_bin;
 USE crashtest;
@@ -2066,7 +2066,7 @@ select concat(a, if(b>10, N'x', N'y')) from t1;
 concat(a, if(b>10, N'x', N'y'))
 ay
 select concat(a, if(b>10, N'Ã¦', N'ÃŸ')) from t1;
-ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (latin1_swedish_ci,IMPLICIT) and (utf8mb3_general_ci,COERCIBLE) for operation 'concat'
 drop table t1;
 set names utf8mb4;
 create table t1 (a varchar(10) character set latin1, b int);
@@ -2553,7 +2553,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `u_decimal` int(11) NOT NULL,
   `utf8mb4_encoding` varchar(10) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3
 SELECT u_decimal,hex(utf8mb4_encoding),utf8mb4_encoding FROM t1;
 u_decimal	hex(utf8mb4_encoding)	utf8mb4_encoding
 119040	3F	?
@@ -2586,7 +2586,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `u_decimal` int(11) NOT NULL,
   `utf8mb3_encoding` varchar(10) NOT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
 u_decimal	hex(utf8mb3_encoding)
 42856	EA9DA8
@@ -2598,7 +2598,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `u_decimal` int(11) NOT NULL,
   `utf8mb4_encoding` varchar(10) DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3
 SELECT u_decimal,hex(utf8mb4_encoding) FROM t1;
 u_decimal	hex(utf8mb4_encoding)
 119040	3F
@@ -2619,7 +2619,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `u_decimal` int(11) NOT NULL,
   `utf8mb4_encoding` varchar(10) CHARACTER SET utf8mb4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3
 SELECT u_decimal,hex(utf8mb4_encoding) FROM t1;
 u_decimal	hex(utf8mb4_encoding)
 119040	3F
@@ -2640,7 +2640,7 @@ Table	Create Table
 t2	CREATE TABLE `t2` (
   `u_decimal` int(11) NOT NULL,
   `utf8mb3_encoding` varchar(10) CHARACTER SET utf8mb4 DEFAULT NULL
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3
 SELECT u_decimal,hex(utf8mb3_encoding) FROM t2;
 u_decimal	hex(utf8mb3_encoding)
 42856	EA9DA8
@@ -2686,7 +2686,7 @@ SHOW CREATE TABLE t3;
 Table	Create Table
 t3	CREATE TEMPORARY TABLE `t3` (
   `utf8mb4` varchar(10) CHARACTER SET utf8mb4 NOT NULL,
-  `utf8mb3` varchar(10) CHARACTER SET utf8 NOT NULL,
+  `utf8mb3` varchar(10) CHARACTER SET utf8mb3 NOT NULL,
   `concat(utf8mb4,utf8mb3)` varchar(20) CHARACTER SET utf8mb4 DEFAULT NULL
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 DROP TEMPORARY TABLE t3;
@@ -2706,9 +2706,9 @@ DROP TABLE t2;
 CREATE TABLE t1 (utf8mb4 VARCHAR(10) CHARACTER SET utf8mb4);
 INSERT INTO t1 VALUES (x'f48fbfbf');
 SELECT CONCAT(utf8mb4, _utf8 '¿') FROM t1;
-ERROR HY000: Illegal mix of collations (utf8mb4_general_ci,IMPLICIT) and (utf8_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (utf8mb4_general_ci,IMPLICIT) and (utf8mb3_general_ci,COERCIBLE) for operation 'concat'
 SELECT CONCAT('a', _utf8 '¿') FROM t1;
-ERROR HY000: Illegal mix of collations (utf8mb4_general_ci,COERCIBLE) and (utf8_general_ci,COERCIBLE) for operation 'concat'
+ERROR HY000: Illegal mix of collations (utf8mb4_general_ci,COERCIBLE) and (utf8mb3_general_ci,COERCIBLE) for operation 'concat'
 DROP TABLE t1;
 #
 # Bug#51675 Server crashes on inserting 4 byte char.
@@ -2733,7 +2733,7 @@ t1	CREATE TABLE `t1` (
   `subject` varchar(255) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `p` varchar(255) DEFAULT NULL,
   KEY `subject` (`subject`(250))
-) ENGINE=MyISAM DEFAULT CHARSET=utf8
+) ENGINE=MyISAM DEFAULT CHARSET=utf8mb3
 INSERT INTO t1(subject) VALUES ('abcd');
 INSERT INTO t1(subject) VALUES(x'f0909080');
 DROP TABLE t1;

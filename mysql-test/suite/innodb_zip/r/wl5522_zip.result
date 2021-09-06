@@ -1,4 +1,5 @@
 call mtr.add_suppression("InnoDB: Unable to import tablespace .* because it already exists.  Please DISCARD the tablespace before IMPORT\\.");
+call mtr.add_suppression("InnoDB: Cannot save statistics for table `test`\\.`t1` because the \\.ibd file is missing");
 SET SESSION innodb_strict_mode=1;
 CREATE TABLE t1
 (a INT AUTO_INCREMENT PRIMARY KEY,

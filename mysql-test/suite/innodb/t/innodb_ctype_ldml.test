@@ -24,7 +24,7 @@ set names utf8;
 --replace_result $MYSQL_TEST_DIR MYSQL_TEST_DIR
 show variables like 'character_sets_dir%';
 
-show collation like 'utf8_phone_ci';
+show collation like 'utf8mb3_phone_ci';
 CREATE TABLE t1 (
  name VARCHAR(64),
  phone VARCHAR(64) CHARACTER SET utf8 COLLATE utf8_phone_ci
@@ -40,7 +40,7 @@ SELECT * FROM t1 WHERE phone='79128008001';
 SELECT * FROM t1 WHERE phone='7 9 1 2 8 0 0 8 0 0 1';
 DROP TABLE t1;
 
-show collation like 'utf8_test_ci';
+show collation like 'utf8mb3_test_ci';
 create table t1 (c1 char(1) character set utf8 collate utf8_test_ci);
 insert into t1 values ('a');
 select * from t1 where c1='b';
@@ -200,7 +200,7 @@ DROP TABLE t1;
 # Bug#47756 Setting 2byte collation ID with 'set names' crashes the server
 #
 SET NAMES utf8 COLLATE utf8_phone_ci;
-SHOW COLLATION LIKE 'utf8_phone_ci';
+show collation like 'utf8mb3_phone_ci';
 SET NAMES utf8;
 
 # make sure utf8mb4_test_400_ci is Unicode-4.0.0 based

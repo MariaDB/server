@@ -231,12 +231,12 @@ bool sys_var::update(THD *thd, set_var *var)
   }
 }
 
-uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *sys_var::session_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return session_var_ptr(thd);
 }
 
-uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base)
+const uchar *sys_var::global_value_ptr(THD *thd, const LEX_CSTRING *base) const
 {
   return global_var_ptr();
 }
@@ -269,8 +269,8 @@ bool sys_var::check(THD *thd, set_var *var)
   return false;
 }
 
-uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
-                          const LEX_CSTRING *base)
+const uchar *sys_var::value_ptr(THD *thd, enum_var_type type,
+                                const LEX_CSTRING *base) const
 {
   DBUG_ASSERT(base);
   if (type == OPT_GLOBAL || scope() == GLOBAL)
@@ -533,7 +533,6 @@ static my_old_conv old_conv[]=
 CHARSET_INFO *get_old_charset_by_name(const char *name)
 {
   my_old_conv *conv;
-
   for (conv= old_conv; conv->old_name; conv++)
   {
     if (!my_strcasecmp(&my_charset_latin1, name, conv->old_name))
@@ -826,15 +825,20 @@ int set_var::check(THD *thd)
 */
 int set_var::light_check(THD *thd)
 {
+  if (var->is_readonly())
+  {
+    my_error(ER_INCORRECT_GLOBAL_LOCAL_VAR, MYF(0), var->name.str, "read only");
+    return -1;
+  }
   if (var->check_type(type))
   {
     int err= type == OPT_GLOBAL ? ER_LOCAL_VARIABLE : ER_GLOBAL_VARIABLE;
     my_error(err, MYF(0), var->name.str);
     return -1;
   }
-  if (type == OPT_GLOBAL &&
-      check_global_access(thd, PRIV_SET_GLOBAL_SYSTEM_VARIABLE))
-    return 1;
+
+  if (type == OPT_GLOBAL && var->on_check_access_global(thd))
+      return 1;
 
   if (value && value->fix_fields_if_needed_for_scalar(thd, &value))
     return -1;
@@ -1034,7 +1038,7 @@ int set_var_collation_client::check(THD *thd)
   if (!is_supported_parser_charset(character_set_client))
   {
     my_error(ER_WRONG_VALUE_FOR_VAR, MYF(0), "character_set_client",
-             character_set_client->csname);
+             character_set_client->cs_name.str);
     return 1;
   }
   return 0;
@@ -1063,7 +1067,7 @@ int set_var_collation_client::update(THD *thd)
  INFORMATION_SCHEMA.SYSTEM_VARIABLES
 *****************************************************************************/
 static void store_value_ptr(Field *field, sys_var *var, String *str,
-                            uchar *value_ptr)
+                            const uchar *value_ptr)
 {
   field->set_notnull();
   str= var->val_str_nolock(str, field->table->in_use, value_ptr);
@@ -1133,8 +1137,8 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     fields[3]->store(origin->str, origin->length, scs);
 
     // DEFAULT_VALUE
-    uchar *def= var->is_readonly() && var->option.id < 0
-                ? 0 : var->default_value_ptr(thd);
+    const uchar *def= var->is_readonly() && var->option.id < 0
+                      ? 0 : var->default_value_ptr(thd);
     if (def)
       store_value_ptr(fields[4], var, &strbuf, def);
 
@@ -1219,12 +1223,14 @@ int fill_sysvars(THD *thd, TABLE_LIST *tables, COND *cond)
     {
       uint i;
       strbuf.length(0);
-      for (i=0; i + 1 < tl->count; i++)
+      for (i=0; i < tl->count; i++)
       {
-        strbuf.append(tl->type_names[i]);
+        const char *name= tl->type_names[i];
+        strbuf.append(name, strlen(name));
         strbuf.append(',');
       }
-      strbuf.append(tl->type_names[i]);
+      if (!strbuf.is_empty())
+        strbuf.chop();
       fields[11]->set_notnull();
       fields[11]->store(strbuf.ptr(), strbuf.length(), scs);
     }

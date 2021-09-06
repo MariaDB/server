@@ -2349,7 +2349,7 @@ NULL	NULL	1
 -1	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select convert(`t1_values`.`my_varbinary_1000` using utf8) AS `CONVERT(my_varbinary_1000 USING utf8)`,`t1_values`.`my_varbinary_1000` AS `my_varbinary_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select convert(`t1_values`.`my_varbinary_1000` using utf8mb3) AS `CONVERT(my_varbinary_1000 USING utf8)`,`t1_values`.`my_varbinary_1000` AS `my_varbinary_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
 WHERE select_id = 98 OR select_id IS NULL) order by id;
@@ -2375,7 +2375,7 @@ NULL	NULL	1
 -1	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select convert(`t1_values`.`my_binary_30` using utf8) AS `CONVERT(my_binary_30 USING utf8)`,`t1_values`.`my_binary_30` AS `my_binary_30`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select convert(`t1_values`.`my_binary_30` using utf8mb3) AS `CONVERT(my_binary_30 USING utf8)`,`t1_values`.`my_binary_30` AS `my_binary_30`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
 WHERE select_id = 97 OR select_id IS NULL) order by id;
@@ -2401,7 +2401,7 @@ NULL	NULL	1
 -1	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select convert(`t1_values`.`my_varchar_1000` using utf8) AS `CONVERT(my_varchar_1000 USING utf8)`,`t1_values`.`my_varchar_1000` AS `my_varchar_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select convert(`t1_values`.`my_varchar_1000` using utf8mb3) AS `CONVERT(my_varchar_1000 USING utf8)`,`t1_values`.`my_varchar_1000` AS `my_varchar_1000`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
 WHERE select_id = 96 OR select_id IS NULL) order by id;
@@ -2427,7 +2427,7 @@ NULL	NULL	1
 -1	-1	5
 SHOW CREATE VIEW v1;
 View	Create View	character_set_client	collation_connection
-v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select convert(`t1_values`.`my_char_30` using utf8) AS `CONVERT(my_char_30 USING utf8)`,`t1_values`.`my_char_30` AS `my_char_30`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
+v1	CREATE ALGORITHM=UNDEFINED DEFINER=`root`@`localhost` SQL SECURITY DEFINER VIEW `v1` AS select convert(`t1_values`.`my_char_30` using utf8mb3) AS `CONVERT(my_char_30 USING utf8)`,`t1_values`.`my_char_30` AS `my_char_30`,`t1_values`.`id` AS `id` from `t1_values`	latin1	latin1_swedish_ci
 SELECT v1.* FROM v1
 WHERE v1.id IN (SELECT id FROM t1_values
 WHERE select_id = 95 OR select_id IS NULL) order by id;

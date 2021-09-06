@@ -17,7 +17,7 @@ source include/have_debug.inc;
 call mtr.add_suppression('Attempting backtrace');
 call mtr.add_suppression('MYSQL_BIN_LOG::purge_logs failed to process registered files that would be purged.');
 call mtr.add_suppression('MYSQL_BIN_LOG::open failed to sync the index file');
-call mtr.add_suppression('Turning logging off for the whole duration of the MySQL server process.');
+call mtr.add_suppression('Turning logging off for the whole duration of the MariaDB server process.');
 call mtr.add_suppression('Could not use .*');
 call mtr.add_suppression('MYSQL_BIN_LOG::purge_logs failed to clean registers before purging logs.');
 flush tables;

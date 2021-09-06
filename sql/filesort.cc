@@ -93,14 +93,16 @@ static uint32 read_keypart_length(const uchar *from, uint bytes)
 
 // @param sortlen  [Maximum] length of the sort key
 void Sort_param::init_for_filesort(uint sortlen, TABLE *table,
-                                   ha_rows maxrows, bool sort_positions)
+                                   ha_rows maxrows, Filesort *filesort)
 {
   DBUG_ASSERT(addon_fields == NULL);
 
   sort_length= sortlen;
   ref_length= table->file->ref_length;
+  accepted_rows= filesort->accepted_rows;
+
   if (!(table->file->ha_table_flags() & HA_FAST_KEY_READ) &&
-      !table->fulltext_searched && !sort_positions)
+      !table->fulltext_searched && !filesort->sort_positions)
   {
     /* 
       Get the descriptors of all fields whose values are appended 
@@ -196,16 +198,15 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   size_t memory_available= (size_t)thd->variables.sortbuff_size;
   uint maxbuffer;
   Merge_chunk *buffpek;
-  ha_rows num_rows= HA_POS_ERROR;
+  ha_rows num_rows= HA_POS_ERROR, not_used=0;
   IO_CACHE tempfile, buffpek_pointers, *outfile; 
   Sort_param param;
   bool allow_packing_for_sortkeys;
   Bounded_queue<uchar, uchar> pq;
   SQL_SELECT *const select= filesort->select;
   ha_rows max_rows= filesort->limit;
-  uint s_length= 0;
+  uint s_length= 0, sort_len;
   Sort_keys *sort_keys;
-
   DBUG_ENTER("filesort");
 
   if (!(sort_keys= filesort->make_sortorder(thd, join, first_table_bit)))
@@ -247,9 +248,10 @@ SORT_INFO *filesort(THD *thd, TABLE *table, Filesort *filesort,
   sort->found_rows= HA_POS_ERROR;
 
   param.sort_keys= sort_keys;
-  uint sort_len= sortlength(thd, sort_keys, &allow_packing_for_sortkeys);
-
-  param.init_for_filesort(sort_len, table, max_rows, filesort->sort_positions);
+  sort_len= sortlength(thd, sort_keys, &allow_packing_for_sortkeys);
+  param.init_for_filesort(sort_len, table, max_rows, filesort);
+  if (!param.accepted_rows)
+    param.accepted_rows= &not_used;
 
   param.set_all_read_bits= filesort->set_all_read_bits;
   param.unpack= filesort->unpack;
@@ -668,24 +670,25 @@ const char* dbug_print_table_row(TABLE *table)
 
   output.length(0);
   output.append(table->alias);
-  output.append("(");
+  output.append('(');
   bool first= true;
 
   for (pfield= table->field; *pfield ; pfield++)
   {
+    const LEX_CSTRING *name;
     if (table->read_set && !bitmap_is_set(table->read_set, (*pfield)->field_index))
       continue;
     
     if (first)
       first= false;
     else
-      output.append(",");
+      output.append(',');
 
-    output.append((*pfield)->field_name.str ?
-                  (*pfield)->field_name.str: "NULL");
+    name= (*pfield)->field_name.str ? &(*pfield)->field_name: &NULL_clex_str;
+    output.append(name);
   }
 
-  output.append(")=(");
+  output.append(STRING_WITH_LEN(")=("));
 
   first= true;
   for (pfield= table->field; *pfield ; pfield++)
@@ -698,10 +701,10 @@ const char* dbug_print_table_row(TABLE *table)
     if (first)
       first= false;
     else
-      output.append(",");
+      output.append(',');
 
     if (field->is_null())
-      output.append("NULL");
+      output.append(&NULL_clex_str);
     else
     {
       if (field->type() == MYSQL_TYPE_BIT)
@@ -711,9 +714,18 @@ const char* dbug_print_table_row(TABLE *table)
       output.append(tmp.ptr(), tmp.length());
     }
   }
-  output.append(")");
+  output.append(')');
   
   return output.c_ptr_safe();
+}
+
+
+const char* dbug_print_row(TABLE *table, uchar *rec)
+{
+  table->move_fields(table->field, rec, table->record[0]);
+  const char* ret= dbug_print_table_row(table);
+  table->move_fields(table->field, table->record[0], rec);
+  return ret;
 }
 
 
@@ -970,6 +982,7 @@ static ha_rows find_all_keys(THD *thd, Sort_param *param, SQL_SELECT *select,
         idx++;
       }
       num_records++;
+      (*param->accepted_rows)++;
     }
 
     /* It does not make sense to read more keys in case of a fatal error */
@@ -1109,7 +1122,7 @@ Type_handler_string_result::make_sort_key_part(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   CHARSET_INFO *cs= item->collation.collation;
-  bool maybe_null= item->maybe_null;
+  bool maybe_null= item->maybe_null();
 
   if (maybe_null)
     *to++= 1;
@@ -1179,7 +1192,7 @@ Type_handler_int_result::make_sort_key_part(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   longlong value= item->val_int_result();
-  make_sort_key_longlong(to, item->maybe_null, item->null_value,
+  make_sort_key_longlong(to, item->maybe_null(), item->null_value,
                          item->unsigned_flag, value);
 }
 
@@ -1195,13 +1208,13 @@ Type_handler_temporal_result::make_sort_key_part(uchar *to, Item *item,
   static const Temporal::Options opt(TIME_INVALID_DATES, TIME_FRAC_NONE);
   if (item->get_date_result(current_thd, &buf, opt))
   {
-    DBUG_ASSERT(item->maybe_null);
+    DBUG_ASSERT(item->maybe_null());
     DBUG_ASSERT(item->null_value);
-    make_sort_key_longlong(to, item->maybe_null, true,
+    make_sort_key_longlong(to, item->maybe_null(), true,
                            item->unsigned_flag, 0);
   }
   else
-    make_sort_key_longlong(to, item->maybe_null, false,
+    make_sort_key_longlong(to, item->maybe_null(), false,
                            item->unsigned_flag, pack_time(&buf));
 }
 
@@ -1217,11 +1230,11 @@ Type_handler_timestamp_common::make_sort_key_part(uchar *to, Item *item,
   if (native.is_null() || native.is_zero_datetime())
   {
     // NULL or '0000-00-00 00:00:00'
-    bzero(to, item->maybe_null ? binlen + 1 : binlen);
+    bzero(to, item->maybe_null() ? binlen + 1 : binlen);
   }
   else
   {
-    if (item->maybe_null)
+    if (item->maybe_null())
       *to++= 1;
     if (native.length() != binlen)
     {
@@ -1305,7 +1318,7 @@ Type_handler_decimal_result::make_sort_key_part(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   my_decimal dec_buf, *dec_val= item->val_decimal_result(&dec_buf);
-  if (item->maybe_null)
+  if (item->maybe_null())
   {
     if (item->null_value)
     {
@@ -1325,7 +1338,7 @@ Type_handler_real_result::make_sort_key_part(uchar *to, Item *item,
                                              Sort_param *param) const
 {
   double value= item->val_result();
-  if (item->maybe_null)
+  if (item->maybe_null())
   {
     if (item->null_value)
     {
@@ -2262,7 +2275,7 @@ sortlength(THD *thd, Sort_keys *sort_keys, bool *allow_packing_for_sortkeys)
                                             thd->variables.max_sort_length));
       }
 
-      if ((sortorder->maybe_null= sortorder->item->maybe_null))
+      if ((sortorder->maybe_null= sortorder->item->maybe_null()))
         nullable_cols++;				// Place for NULL marker
     }
     if (sortorder->is_variable_sized())
@@ -2565,7 +2578,7 @@ Type_handler_string_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   CHARSET_INFO *cs= item->collation.collation;
-  bool maybe_null= item->maybe_null;
+  bool maybe_null= item->maybe_null();
 
   if (maybe_null)
     *to++= 1;
@@ -2604,7 +2617,7 @@ Type_handler_int_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   longlong value= item->val_int_result();
-  return make_packed_sort_key_longlong(to, item->maybe_null,
+  return make_packed_sort_key_longlong(to, item->maybe_null(),
                                        item->null_value, item->unsigned_flag,
                                        value, sort_field);
 }
@@ -2616,7 +2629,7 @@ Type_handler_decimal_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   my_decimal dec_buf, *dec_val= item->val_decimal_result(&dec_buf);
-  if (item->maybe_null)
+  if (item->maybe_null())
   {
     if (item->null_value)
     {
@@ -2638,7 +2651,7 @@ Type_handler_real_result::make_packed_sort_key_part(uchar *to, Item *item,
                                             Sort_param *param) const
 {
   double value= item->val_result();
-  if (item->maybe_null)
+  if (item->maybe_null())
   {
     if (item->null_value)
     {
@@ -2664,12 +2677,12 @@ Type_handler_temporal_result::make_packed_sort_key_part(uchar *to, Item *item,
   static const Temporal::Options opt(TIME_INVALID_DATES, TIME_FRAC_NONE);
   if (item->get_date_result(current_thd, &buf, opt))
   {
-    DBUG_ASSERT(item->maybe_null);
+    DBUG_ASSERT(item->maybe_null());
     DBUG_ASSERT(item->null_value);
-    return make_packed_sort_key_longlong(to, item->maybe_null, true,
+    return make_packed_sort_key_longlong(to, item->maybe_null(), true,
                                          item->unsigned_flag, 0, sort_field);
   }
-  return make_packed_sort_key_longlong(to, item->maybe_null, false,
+  return make_packed_sort_key_longlong(to, item->maybe_null(), false,
                                        item->unsigned_flag, pack_time(&buf),
                                        sort_field);
 }
@@ -2686,7 +2699,7 @@ Type_handler_timestamp_common::make_packed_sort_key_part(uchar *to, Item *item,
   if (native.is_null() || native.is_zero_datetime())
   {
     // NULL or '0000-00-00 00:00:00'
-    if (item->maybe_null)
+    if (item->maybe_null())
     {
       *to++=0;
       return 0;
@@ -2699,7 +2712,7 @@ Type_handler_timestamp_common::make_packed_sort_key_part(uchar *to, Item *item,
   }
   else
   {
-    if (item->maybe_null)
+    if (item->maybe_null())
       *to++= 1;
     if (native.length() != binlen)
     {
@@ -3023,7 +3036,7 @@ static uint make_sortkey(Sort_param *param, uchar *to)
       sort_field->item->type_handler()->make_sort_key_part(to,
                                                            sort_field->item,
                                                            sort_field, param);
-      if ((maybe_null= sort_field->item->maybe_null))
+      if ((maybe_null= sort_field->item->maybe_null()))
         to++;
     }
 
@@ -3076,7 +3089,7 @@ static uint make_packed_sortkey(Sort_param *param, uchar *to)
       length= item->type_handler()->make_packed_sort_key_part(to, item,
                                                               sort_field,
                                                               param);
-      if ((maybe_null= sort_field->item->maybe_null))
+      if ((maybe_null= sort_field->item->maybe_null()))
         to++;
     }
     to+= length;

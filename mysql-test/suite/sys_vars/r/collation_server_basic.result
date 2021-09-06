@@ -18,7 +18,7 @@ ERROR 42S22: Unknown column 'collation_server' in 'field list'
 SET collation_server=utf8_unicode_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_unicode_ci
+utf8mb3_unicode_ci
 SET session collation_server=utf8_unicode_ci;
 SELECT session collation_server;
 ERROR 42S22: Unknown column 'session' in 'field list'
@@ -40,14 +40,14 @@ SELECT @@global.collation_server = @global_start_value;
 SET @@session.collation_server = utf8_polish_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_polish_ci
+utf8mb3_polish_ci
 SET @@global.collation_server = latin7_general_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
 latin7_general_ci
 SELECT @@session.collation_server AS res_is_utf8_polish_ci;
 res_is_utf8_polish_ci
-utf8_polish_ci
+utf8mb3_polish_ci
 SET @@session.collation_server = latin7_bin;
 SELECT @@session.collation_server;
 @@session.collation_server
@@ -288,91 +288,91 @@ armscii8_bin
 SET @@session.collation_server = utf8_general_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_general_ci
+utf8mb3_general_ci
 SET @@session.collation_server = utf8_bin;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_bin
+utf8mb3_bin
 SET @@session.collation_server = utf8_unicode_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_unicode_ci
+utf8mb3_unicode_ci
 SET @@session.collation_server = utf8_icelandic_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_icelandic_ci
+utf8mb3_icelandic_ci
 SET @@session.collation_server = utf8_latvian_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_latvian_ci
+utf8mb3_latvian_ci
 SET @@session.collation_server = utf8_romanian_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_romanian_ci
+utf8mb3_romanian_ci
 SET @@session.collation_server = utf8_slovenian_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_slovenian_ci
+utf8mb3_slovenian_ci
 SET @@session.collation_server = utf8_polish_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_polish_ci
+utf8mb3_polish_ci
 SET @@session.collation_server = utf8_estonian_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_estonian_ci
+utf8mb3_estonian_ci
 SET @@session.collation_server = utf8_spanish_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_spanish_ci
+utf8mb3_spanish_ci
 SET @@session.collation_server = utf8_swedish_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_swedish_ci
+utf8mb3_swedish_ci
 SET @@session.collation_server = utf8_turkish_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_turkish_ci
+utf8mb3_turkish_ci
 SET @@session.collation_server = utf8_czech_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_czech_ci
+utf8mb3_czech_ci
 SET @@session.collation_server = utf8_danish_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_danish_ci
+utf8mb3_danish_ci
 SET @@session.collation_server = utf8_lithuanian_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_lithuanian_ci
+utf8mb3_lithuanian_ci
 SET @@session.collation_server = utf8_slovak_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_slovak_ci
+utf8mb3_slovak_ci
 SET @@session.collation_server = utf8_spanish2_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_spanish2_ci
+utf8mb3_spanish2_ci
 SET @@session.collation_server = utf8_roman_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_roman_ci
+utf8mb3_roman_ci
 SET @@session.collation_server = utf8_persian_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_persian_ci
+utf8mb3_persian_ci
 SET @@session.collation_server = utf8_esperanto_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_esperanto_ci
+utf8mb3_esperanto_ci
 SET @@session.collation_server = utf8_hungarian_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_hungarian_ci
+utf8mb3_hungarian_ci
 SET @@session.collation_server = utf8_thai_520_w2;
 SELECT @@session.collation_server;
 @@session.collation_server
-utf8_thai_520_w2
+utf8mb3_thai_520_w2
 SET @@session.collation_server = ucs2_general_ci;
 SELECT @@session.collation_server;
 @@session.collation_server
@@ -801,91 +801,91 @@ armscii8_bin
 SET @@global.collation_server = utf8_general_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_general_ci
+utf8mb3_general_ci
 SET @@global.collation_server = utf8_bin;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_bin
+utf8mb3_bin
 SET @@global.collation_server = utf8_unicode_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_unicode_ci
+utf8mb3_unicode_ci
 SET @@global.collation_server = utf8_icelandic_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_icelandic_ci
+utf8mb3_icelandic_ci
 SET @@global.collation_server = utf8_latvian_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_latvian_ci
+utf8mb3_latvian_ci
 SET @@global.collation_server = utf8_romanian_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_romanian_ci
+utf8mb3_romanian_ci
 SET @@global.collation_server = utf8_slovenian_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_slovenian_ci
+utf8mb3_slovenian_ci
 SET @@global.collation_server = utf8_polish_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_polish_ci
+utf8mb3_polish_ci
 SET @@global.collation_server = utf8_estonian_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_estonian_ci
+utf8mb3_estonian_ci
 SET @@global.collation_server = utf8_spanish_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_spanish_ci
+utf8mb3_spanish_ci
 SET @@global.collation_server = utf8_swedish_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_swedish_ci
+utf8mb3_swedish_ci
 SET @@global.collation_server = utf8_turkish_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_turkish_ci
+utf8mb3_turkish_ci
 SET @@global.collation_server = utf8_czech_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_czech_ci
+utf8mb3_czech_ci
 SET @@global.collation_server = utf8_danish_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_danish_ci
+utf8mb3_danish_ci
 SET @@global.collation_server = utf8_lithuanian_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_lithuanian_ci
+utf8mb3_lithuanian_ci
 SET @@global.collation_server = utf8_slovak_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_slovak_ci
+utf8mb3_slovak_ci
 SET @@global.collation_server = utf8_spanish2_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_spanish2_ci
+utf8mb3_spanish2_ci
 SET @@global.collation_server = utf8_roman_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_roman_ci
+utf8mb3_roman_ci
 SET @@global.collation_server = utf8_persian_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_persian_ci
+utf8mb3_persian_ci
 SET @@global.collation_server = utf8_esperanto_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_esperanto_ci
+utf8mb3_esperanto_ci
 SET @@global.collation_server = utf8_hungarian_ci;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_hungarian_ci
+utf8mb3_hungarian_ci
 SET @@global.collation_server = utf8_thai_520_w2;
 SELECT @@global.collation_server;
 @@global.collation_server
-utf8_thai_520_w2
+utf8mb3_thai_520_w2
 SET @@global.collation_server = ucs2_general_ci;
 SELECT @@global.collation_server;
 @@global.collation_server

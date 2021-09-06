@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2015, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2018, 2020, MariaDB Corporation.
+Copyright (c) 2018, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -221,7 +221,7 @@ void ReadView::open(trx_t *trx)
   else if (likely(!srv_read_only_mode))
   {
     m_creator_trx_id= trx->id;
-    if (trx_is_autocommit_non_locking(trx) && empty() &&
+    if (trx->is_autocommit_non_locking() && empty() &&
         low_limit_id() == trx_sys.get_max_trx_id())
       m_open.store(true, std::memory_order_relaxed);
     else

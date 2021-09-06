@@ -11,7 +11,6 @@ call mtr.add_suppression("Plugin 'InnoDB' init function returned error");
 call mtr.add_suppression("Plugin 'InnoDB' registration as a STORAGE ENGINE failed");
 call mtr.add_suppression("InnoDB: Operating system error number \d+ in a file operation");
 call mtr.add_suppression("InnoDB: The error means the system cannot find the path specified");
-call mtr.add_suppression("InnoDB: If you are installing InnoDB, remember that you must create directories yourself");
 call mtr.add_suppression("InnoDB: File .path.to.non-existent.ib_logfile101: 'create' returned OS error \d+");
 call mtr.add_suppression("InnoDB: Cannot create .path.to.non-existent.ib_logfile101");
 call mtr.add_suppression("InnoDB: The data file '.*ibdata1' was not found but one of the other data files '.*ibdata2' exists");

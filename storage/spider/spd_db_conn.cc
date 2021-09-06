@@ -929,7 +929,7 @@ int spider_db_set_names_internal(
     ) {
       if (
         spider_db_before_query(conn, need_mon) ||
-        conn->db_conn->set_character_set(share->access_charset->csname)
+        conn->db_conn->set_character_set(share->access_charset->cs_name.str)
       ) {
         DBUG_RETURN(spider_db_errorno(conn));
       }
@@ -2033,12 +2033,20 @@ int spider_db_append_key_where_internal(
           case HA_READ_AFTER_KEY:
             if (sql_kind == SPIDER_SQL_KIND_SQL)
             {
+              const char* op_str;
+              uint32 op_len;
+              if (start_key_part_map == 1) {
+                op_str = SPIDER_SQL_GT_STR;
+                op_len = SPIDER_SQL_GT_LEN;
+              } else {
+                op_str = SPIDER_SQL_GTEQUAL_STR;
+                op_len = SPIDER_SQL_GTEQUAL_LEN;
+              }
               if (str->reserve(store_length + key_name_length +
-                /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
-                SPIDER_SQL_GT_LEN))
+                /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + op_len))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               dbton_share->append_column_name(str, field->field_index);
-              str->q_append(SPIDER_SQL_GT_STR, SPIDER_SQL_GT_LEN);
+              str->q_append(op_str, op_len);
               if (spider_dbton[dbton_id].db_util->
                 append_column_value(spider, str, field, ptr,
                   share->access_charset))
@@ -2106,12 +2114,20 @@ int spider_db_append_key_where_internal(
             result_list->desc_flg = TRUE;
             if (sql_kind == SPIDER_SQL_KIND_SQL)
             {
+              const char* op_str;
+              uint32 op_len;
+              if (start_key_part_map == 1) {
+                op_str = SPIDER_SQL_LT_STR;
+                op_len = SPIDER_SQL_LT_LEN;
+              } else {
+                op_str = SPIDER_SQL_LTEQUAL_STR;
+                op_len = SPIDER_SQL_LTEQUAL_LEN;
+              }
               if (str->reserve(store_length + key_name_length +
-                /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
-                SPIDER_SQL_LT_LEN))
+                /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + op_len))
                 DBUG_RETURN(HA_ERR_OUT_OF_MEM);
               dbton_share->append_column_name(str, field->field_index);
-              str->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
+              str->q_append(op_str, op_len);
               if (spider_dbton[dbton_id].db_util->
                 append_column_value(spider, str, field, ptr,
                   share->access_charset))
@@ -2524,12 +2540,20 @@ int spider_db_append_key_where_internal(
             case HA_READ_BEFORE_KEY:
               if (sql_kind == SPIDER_SQL_KIND_SQL)
               {
+                const char* op_str;
+                uint32 op_len;
+                if (end_key_part_map == 1) {
+                  op_str = SPIDER_SQL_LT_STR;
+                  op_len = SPIDER_SQL_LT_LEN;
+                } else {
+                  op_str = SPIDER_SQL_LTEQUAL_STR;
+                  op_len = SPIDER_SQL_LTEQUAL_LEN;
+                }
                 if (str->reserve(store_length + key_name_length +
-                  /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 +
-                  SPIDER_SQL_LT_LEN))
+                  /* SPIDER_SQL_NAME_QUOTE_LEN */ 2 + op_len))
                   DBUG_RETURN(HA_ERR_OUT_OF_MEM);
                 dbton_share->append_column_name(str, field->field_index);
-                str->q_append(SPIDER_SQL_LT_STR, SPIDER_SQL_LT_LEN);
+                str->q_append(op_str, op_len);
                 if (spider_dbton[dbton_id].db_util->
                   append_column_value(spider, str, field, ptr,
                     share->access_charset))
@@ -2730,8 +2754,8 @@ int spider_db_append_charset_name_before_string(
   spider_string *str,
   CHARSET_INFO *cs
 ) {
-  const char *csname = cs->csname;
-  uint csname_length = strlen(csname);
+  const char *csname = cs->cs_name.str;
+  uint csname_length = cs->cs_name.length;
   DBUG_ENTER("spider_db_append_charset_name_before_string");
   if (str->reserve(SPIDER_SQL_UNDERSCORE_LEN + csname_length))
   {
@@ -3089,7 +3113,7 @@ int spider_db_fetch_row(
   Time_zone *saved_time_zone = thd->variables.time_zone;
   DBUG_ENTER("spider_db_fetch_row");
   DBUG_PRINT("info", ("spider field_name %s", SPIDER_field_name_str(field)));
-  DBUG_PRINT("info", ("spider fieldcharset %s", field->charset()->csname));
+  DBUG_PRINT("info", ("spider fieldcharset %s", field->charset()->cs_name.str));
 
   thd->variables.time_zone = UTC;
 
@@ -9694,8 +9718,8 @@ int spider_db_open_item_cond(
   int error_num = 0;
   List_iterator_fast<Item> lif(*(item_cond->argument_list()));
   Item *item;
-  char *func_name = NULL;
-  int func_name_length = 0, restart_pos = 0;
+  LEX_CSTRING func_name= {0,0};
+  int restart_pos = 0;
   DBUG_ENTER("spider_db_open_item_cond");
   if (str)
   {
@@ -9731,15 +9755,13 @@ restart_first:
     if (str)
     {
       restart_pos = str->length();
-      if (!func_name)
-      {
-        func_name = (char*) item_cond->func_name();
-        func_name_length = strlen(func_name);
-      }
-      if (str->reserve(func_name_length + SPIDER_SQL_SPACE_LEN * 2))
+      if (!func_name.str)
+        func_name= item_cond->func_name_cstring();
+
+      if (str->reserve(func_name.length + SPIDER_SQL_SPACE_LEN * 2))
         DBUG_RETURN(HA_ERR_OUT_OF_MEM);
       str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
-      str->q_append(func_name, func_name_length);
+      str->q_append(func_name.str, func_name.length);
       str->q_append(SPIDER_SQL_SPACE_STR, SPIDER_SQL_SPACE_LEN);
     }
 
@@ -11307,7 +11329,7 @@ int spider_db_udf_direct_sql_set_names(
       if (
         (
           spider_db_before_query(conn, &need_mon) ||
-          conn->db_conn->set_character_set(trx->udf_access_charset->csname)
+          conn->db_conn->set_character_set(trx->udf_access_charset->cs_name.str)
         ) &&
         (error_num = spider_db_errorno(conn))
       ) {

@@ -657,12 +657,13 @@ extern "C" uchar* sp_sroutine_key(const uchar *ptr, size_t *plen,
 */
 TABLE *open_proc_table_for_read(THD *thd);
 
-bool load_charset(MEM_ROOT *mem_root,
+bool load_charset(THD *thd,
+                  MEM_ROOT *mem_root,
                   Field *field,
                   CHARSET_INFO *dflt_cs,
                   CHARSET_INFO **cs);
 
-bool load_collation(MEM_ROOT *mem_root,
+bool load_collation(THD *thd,MEM_ROOT *mem_root,
                     Field *field,
                     CHARSET_INFO *dflt_cl,
                     CHARSET_INFO **cl);

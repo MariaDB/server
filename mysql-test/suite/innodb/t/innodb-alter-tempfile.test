@@ -40,8 +40,6 @@ SET debug_dbug='+d,innodb_alter_commit_crash_before_commit';
 --error 2013
 ALTER TABLE t1 ADD PRIMARY KEY (f2, f1);
 
-remove_files_wildcard $datadir/test #sql-*.frm;
-
 --source include/start_mysqld.inc
 
 show create table t1;
@@ -67,6 +65,7 @@ set DEBUG_SYNC="now WAIT_FOR default_signal";
 --let $shutdown_timeout=0
 --source include/restart_mysqld.inc
 disconnect con1;
+--replace_column 7 #
 SHOW KEYS FROM t1;
 DROP TABLE t1;
 remove_files_wildcard $datadir/test #sql-*.frm;

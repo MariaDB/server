@@ -205,6 +205,8 @@ ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
 {
   ut_ad(index->freed());
   dict_table_t *table= index->table;
+  table->autoinc_mutex.wr_lock();
+
   /* Perform the skipped steps of dict_index_remove_from_cache_low(). */
   UT_LIST_REMOVE(table->freed_indexes, index);
   index->lock.free();
@@ -213,9 +215,14 @@ ATTRIBUTE_COLD static void btr_search_lazy_free(dict_index_t *index)
   if (!UT_LIST_GET_LEN(table->freed_indexes) &&
       !UT_LIST_GET_LEN(table->indexes))
   {
-    ut_ad(table->id == 0);
+    ut_ad(!table->id);
+    table->autoinc_mutex.wr_unlock();
+    table->autoinc_mutex.destroy();
     dict_mem_table_free(table);
+    return;
   }
+
+  table->autoinc_mutex.wr_unlock();
 }
 
 /** Disable the adaptive hash search system and empty the index. */
@@ -223,12 +230,12 @@ void btr_search_disable()
 {
 	dict_table_t*	table;
 
-	dict_sys.mutex_lock();
+	dict_sys.freeze(SRW_LOCK_CALL);
 
 	btr_search_x_lock_all();
 
 	if (!btr_search_enabled) {
-		dict_sys.mutex_unlock();
+		dict_sys.unfreeze();
 		btr_search_x_unlock_all();
 		return;
 	}
@@ -249,7 +256,7 @@ void btr_search_disable()
 		btr_search_disable_ref_count(table);
 	}
 
-	dict_sys.mutex_unlock();
+	dict_sys.unfreeze();
 
 	/* Set all block->index = NULL. */
 	buf_pool.clear_hash_index();
@@ -293,11 +300,7 @@ is NOT protected by any semaphore, to save CPU time! Do not assume its fields
 are consistent.
 @param[in,out]	info	search info
 @param[in]	cursor	cursor which was just positioned */
-static
-void
-btr_search_info_update_hash(
-	btr_search_t*	info,
-	btr_cur_t*	cursor)
+static void btr_search_info_update_hash(btr_search_t *info, btr_cur_t *cursor)
 {
 	dict_index_t*	index = cursor->index;
 	int		cmp;
@@ -1260,7 +1263,7 @@ retry:
 	ut_ad(page_is_leaf(block->frame));
 
 	/* We must not dereference block->index here, because it could be freed
-	if (index->table->n_ref_count == 0).
+	if (!index->table->get_ref_count() && !dict_sys.frozen()).
 	Determine the ahi_slot based on the block contents. */
 
 	const index_id_t	index_id
@@ -1280,7 +1283,6 @@ retry:
 
 	assert_block_ahi_valid(block);
 
-
 	if (!index || !btr_search_enabled) {
 		if (is_freed) {
 			part->latch.wr_unlock();
@@ -1290,9 +1292,7 @@ retry:
 		return;
 	}
 
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	ut_ad(!index->disable_ahi);
-#endif
+	ut_ad(!index->table->is_temporary());
 	ut_ad(btr_search_enabled);
 
 	ut_ad(block->page.id().space() == index->table->space_id);
@@ -1436,10 +1436,8 @@ void btr_search_drop_page_hash_when_freed(const page_id_t page_id)
 			/* In all our callers, the table handle should
 			be open, or we should be in the process of
 			dropping the table (preventing eviction). */
-#ifdef SAFE_MUTEX
 			DBUG_ASSERT(block->index->table->get_ref_count()
-				    || dict_sys.mutex_is_locked());
-#endif /* SAFE_MUTEX */
+				    || dict_sys.locked());
 			btr_search_drop_page_hash_index(block);
 		}
 	}
@@ -1479,9 +1477,8 @@ btr_search_build_page_hash_index(
 	rec_offs	offsets_[REC_OFFS_NORMAL_SIZE];
 	rec_offs*	offsets		= offsets_;
 
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	if (index->disable_ahi) return;
-#endif
+	ut_ad(!index->table->is_temporary());
+
 	if (!btr_search_enabled) {
 		return;
 	}
@@ -1661,8 +1658,7 @@ exit_func:
 /** Updates the search info.
 @param[in,out]	info	search info
 @param[in,out]	cursor	cursor which was just positioned */
-void
-btr_search_info_update_slow(btr_search_t* info, btr_cur_t* cursor)
+void btr_search_info_update_slow(btr_search_t *info, btr_cur_t *cursor)
 {
 	srw_lock*	ahi_latch = &btr_search_sys.get_part(*cursor->index)
 		->latch;
@@ -1779,7 +1775,7 @@ drop_exit:
 /** Updates the page hash index when a single record is deleted from a page.
 @param[in]	cursor	cursor which was positioned on the record to delete
 			using btr_cur_search_, the record is not yet deleted.*/
-void btr_search_update_hash_on_delete(btr_cur_t* cursor)
+void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 {
 	buf_block_t*	block;
 	const rec_t*	rec;
@@ -1790,9 +1786,6 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 	rec_offs_init(offsets_);
 
 	ut_ad(page_is_leaf(btr_cur_get_page(cursor)));
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	if (cursor->index->disable_ahi) return;
-#endif
 
 	if (!btr_search_enabled) {
 		return;
@@ -1809,6 +1802,8 @@ void btr_search_update_hash_on_delete(btr_cur_t* cursor)
 
 		return;
 	}
+
+	ut_ad(!cursor->index->table->is_temporary());
 
 	if (index != cursor->index) {
 		btr_search_drop_page_hash_index(block);
@@ -1864,9 +1859,7 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 	rec_t*		rec;
 
 	ut_ad(ahi_latch == &btr_search_sys.get_part(*cursor->index)->latch);
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	if (cursor->index->disable_ahi) return;
-#endif
+
 	if (!btr_search_enabled) {
 		return;
 	}
@@ -1883,6 +1876,8 @@ void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
 
 		return;
 	}
+
+	ut_ad(!cursor->index->table->is_temporary());
 
 	if (index != cursor->index) {
 		ut_ad(index->id == cursor->index->id);
@@ -1949,9 +1944,7 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 
 	ut_ad(ahi_latch == &btr_search_sys.get_part(*cursor->index)->latch);
 	ut_ad(page_is_leaf(btr_cur_get_page(cursor)));
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	if (cursor->index->disable_ahi) return;
-#endif
+
 	if (!btr_search_enabled) {
 		return;
 	}
@@ -1973,9 +1966,8 @@ void btr_search_update_hash_on_insert(btr_cur_t *cursor,
 
 	rec = btr_cur_get_rec(cursor);
 
-#ifdef MYSQL_INDEX_DISABLE_AHI
-	ut_a(!index->disable_ahi);
-#endif
+	ut_ad(!cursor->index->table->is_temporary());
+
 	if (index != cursor->index) {
 		ut_ad(index->id == cursor->index->id);
 		btr_search_drop_page_hash_index(block);

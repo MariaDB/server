@@ -101,11 +101,11 @@ dict_create_index_tree(
 /** Drop the index tree associated with a row in SYS_INDEXES table.
 @param[in,out]	pcur	persistent cursor on rec
 @param[in,out]	trx	dictionary transaction
-@param[in,out]	table	table that the record belongs to
-@param[in,out]	mtr	mini-transaction */
-void dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, dict_table_t *table,
-                          mtr_t *mtr)
-	MY_ATTRIBUTE((nonnull(1,4)));
+@param[in,out]	mtr	mini-transaction
+@return tablespace ID to drop (if this is the clustered index)
+@retval 0 if no tablespace is to be dropped */
+uint32_t dict_drop_index_tree(btr_pcur_t *pcur, trx_t *trx, mtr_t *mtr)
+  MY_ATTRIBUTE((nonnull(1,3), warn_unused_result));
 
 /***************************************************************//**
 Creates an index tree for the index if it is not a member of a cluster.
@@ -116,15 +116,6 @@ dict_create_index_tree_in_mem(
 /*==========================*/
 	dict_index_t*	index,		/*!< in/out: index */
 	const trx_t*	trx);		/*!< in: InnoDB transaction handle */
-
-/****************************************************************//**
-Creates the foreign key constraints system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_foreign_constraint_tables(void);
-/*================================================*/
 
 /********************************************************************//**
 Generate a foreign key constraint name when it was not named by the user.
@@ -171,13 +162,6 @@ dict_foreigns_has_s_base_col(
 	const dict_foreign_set&	local_fk_set,
 	const dict_table_t*	table);
 
-/** Creates the virtual column system tables inside InnoDB
-at server bootstrap or server start if they are not found or are
-not of the right form.
-@return DB_SUCCESS or error code */
-dberr_t
-dict_create_or_check_sys_virtual();
-
 /********************************************************************//**
 Add a foreign key definition to the data dictionary tables.
 @return error code or DB_SUCCESS */
@@ -188,16 +172,6 @@ dict_create_add_foreign_to_dictionary(
 	const dict_foreign_t*	foreign,/*!< in: foreign key */
 	trx_t*			trx)	/*!< in/out: dictionary transaction */
 	MY_ATTRIBUTE((nonnull, warn_unused_result));
-
-/********************************************************************//**
-Construct foreign key constraint defintion from data dictionary information.
-*/
-UNIV_INTERN
-char*
-dict_foreign_def_get(
-/*=================*/
-	dict_foreign_t*	foreign,/*!< in: foreign */
-	trx_t*		trx);	/*!< in: trx */
 
 /* Table create node structure */
 struct tab_node_t{

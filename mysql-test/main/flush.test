@@ -377,17 +377,17 @@ create view v1 as select 1;
 create view v2 as select * from t1;
 create view v3 as select * from v2;
 
---error ER_WRONG_OBJECT
 flush table v1, v2, v3 with read lock;
---error ER_WRONG_OBJECT
+unlock tables;
 flush table v1 with read lock;
---error ER_WRONG_OBJECT
+unlock tables;
 flush table v2 with read lock;
---error ER_WRONG_OBJECT
+unlock tables;
 flush table v3 with read lock;
+unlock tables;
 create temporary table v1 (a int);
---error ER_WRONG_OBJECT
 flush table v1 with read lock;
+unlock tables;
 drop view v1;
 create table v1 (a int);
 flush table v1 with read lock;
@@ -670,8 +670,116 @@ DROP VIEW v1;
 DROP TABLE t1;
 
 --echo #
+--echo # MDEV-15888 Implement FLUSH TABLES tbl_name [, tbl_name] ... WITH READ LOCK for views.
+--echo #
+
+create table t1 (a int);
+insert into t1 values (1), (2), (3);
+create view v1 as select * from t1;
+create view v2 as select * from v1;
+
+flush table v1 with read lock;
+connect(con1, localhost, root);
+--send insert into v1 values (4)
+--sleep 1
+connection default;
+--echo # Wait until INSERT starts to wait for FTWRL to go away.
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = "Waiting for table metadata lock"
+  and info = "insert into v1 values (4)";
+--source include/wait_condition.inc
+select * from t1;
+unlock tables;
+
+connection con1;
+reap;
+
+connection default;
+select * from t1;
+
+flush table v2 with read lock;
+connection con1;
+--send insert into t1 values (5)
+--sleep 1
+connection default;
+--echo # Wait until INSERT starts to wait for FTWRL to go away.
+let $wait_condition=
+  select count(*) = 1 from information_schema.processlist
+  where state = "Waiting for table metadata lock"
+  and info = "insert into t1 values (5)";
+--source include/wait_condition.inc
+select * from t1;
+unlock tables;
+
+connection con1;
+reap;
+
+connection default;
+select * from t1;
+
+drop view v1, v2;
+drop table t1;
+disconnect con1;
+
+--echo #
+--echo # MDEV-25837 Assertion `thd->locked_tables_mode == LTM_NONE' failed in Locked_tables_list::init_locked_tables.
+--echo #
+
+CREATE FUNCTION f() RETURNS INTEGER RETURN 1;
+CREATE TABLE t (a INT);
+CREATE VIEW v AS SELECT 2 FROM t WHERE f() < 3;
+FLUSH TABLE v WITH READ LOCK;
+ 
+UNLOCK TABLES;
+DROP VIEW v;
+DROP FUNCTION f;
+DROP TABLE t;
+
+--echo #
 --echo # Test FLUSH THREADS
 --echo #
 
+set @save_thread_cache_size=@@global.thread_cache_size;
+set @@global.thread_cache_size=0;
 flush threads;
 show status like "Threads_cached";
+set @@global.thread_cache_size=@save_thread_cache_size;
+
+--echo #
+--echo # MDEV-25906: SIGSEGV in flush_tables_with_read_lock on FTWRL or FTFE | SIGSEGV in ha_maria::extra
+--echo #
+CREATE VIEW v0 AS SELECT 1;
+CREATE VIEW v1 AS SELECT 1 FROM (SELECT 1) AS d;
+CREATE VIEW v2 AS SELECT * FROM v1;
+
+FLUSH TABLE v0 WITH READ LOCK;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v0;
+UNLOCK TABLES;
+FLUSH TABLE v1 WITH READ LOCK;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v1;
+UNLOCK TABLES;
+FLUSH TABLE v2 WITH READ LOCK;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v2;
+UNLOCK TABLES;
+
+FLUSH TABLE v0 FOR EXPORT;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v0;
+UNLOCK TABLES;
+FLUSH TABLE v1 FOR EXPORT;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v1;
+UNLOCK TABLES;
+FLUSH TABLE v2 FOR EXPORT;
+--error ER_LOCK_OR_ACTIVE_TRANSACTION
+DROP VIEW v2;
+UNLOCK TABLES;
+DROP VIEW v2, v1, v0;
+
+--echo #
+--echo # End of 10.6 tests
+--echo #

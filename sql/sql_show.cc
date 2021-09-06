@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2015, Oracle and/or its affiliates.
-   Copyright (c) 2009, 2020, MariaDB
+   Copyright (c) 2009, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -66,6 +66,18 @@
 #include "opt_trace.h"
 #include "my_cpu.h"
 
+
+#include "lex_symbol.h"
+#define KEYWORD_SIZE 64
+
+extern SYMBOL symbols[];
+extern size_t symbols_length;
+
+extern SYMBOL sql_functions[];
+extern size_t sql_functions_length;
+
+extern Native_func_registry_array native_func_registry_array;
+
 enum enum_i_s_events_fields
 {
   ISE_EVENT_CATALOG= 0,
@@ -108,6 +120,10 @@ static const LEX_CSTRING trg_event_type_names[]=
   { STRING_WITH_LEN("DELETE") }
 };
 
+
+LEX_CSTRING DATA_clex_str= { STRING_WITH_LEN("DATA") };
+LEX_CSTRING INDEX_clex_str= { STRING_WITH_LEN("INDEX") };
+
 #ifndef NO_EMBEDDED_ACCESS_CHECKS
 static const char *grant_names[]={
   "select","insert","update","delete","create","drop","reload","shutdown",
@@ -119,7 +135,12 @@ static TYPELIB grant_types = { sizeof(grant_names)/sizeof(char **),
 #endif
 
 /* Match the values of enum ha_choice */
-static const char *ha_choice_values[] = {"", "0", "1"};
+static const LEX_CSTRING ha_choice_values[]=
+{
+  { STRING_WITH_LEN("") },
+  { STRING_WITH_LEN("0") },
+  { STRING_WITH_LEN("1") }
+};
 
 static void store_key_options(THD *, String *, TABLE *, KEY *);
 
@@ -396,9 +417,11 @@ bool mysqld_show_authors(THD *thd)
   for (authors= show_table_authors; authors->name; authors++)
   {
     protocol->prepare_for_resend();
-    protocol->store(authors->name, system_charset_info);
-    protocol->store(authors->location, system_charset_info);
-    protocol->store(authors->comment, system_charset_info);
+    protocol->store(authors->name, strlen(authors->name), system_charset_info);
+    protocol->store(authors->location, strlen(authors->location),
+                    system_charset_info);
+    protocol->store(authors->comment, strlen(authors->comment),
+                    system_charset_info);
     if (protocol->write())
       DBUG_RETURN(TRUE);
   }
@@ -435,9 +458,12 @@ bool mysqld_show_contributors(THD *thd)
   for (contributors= show_table_contributors; contributors->name; contributors++)
   {
     protocol->prepare_for_resend();
-    protocol->store(contributors->name, system_charset_info);
-    protocol->store(contributors->location, system_charset_info);
-    protocol->store(contributors->comment, system_charset_info);
+    protocol->store(contributors->name, strlen(contributors->name),
+                    system_charset_info);
+    protocol->store(contributors->location, strlen(contributors->location),
+                    system_charset_info);
+    protocol->store(contributors->comment, strlen(contributors->comment),
+                    system_charset_info);
     if (protocol->write())
       DBUG_RETURN(TRUE);
   }
@@ -528,9 +554,12 @@ bool mysqld_show_privileges(THD *thd)
   for (privilege= sys_privileges; privilege->privilege ; privilege++)
   {
     protocol->prepare_for_resend();
-    protocol->store(privilege->privilege, system_charset_info);
-    protocol->store(privilege->context, system_charset_info);
-    protocol->store(privilege->comment, system_charset_info);
+    protocol->store(privilege->privilege, strlen(privilege->privilege),
+                    system_charset_info);
+    protocol->store(privilege->context, strlen(privilege->context),
+                    system_charset_info);
+    protocol->store(privilege->comment, strlen(privilege->comment),
+                    system_charset_info);
     if (protocol->write())
       DBUG_RETURN(TRUE);
   }
@@ -1298,28 +1327,32 @@ mysqld_show_create(THD *thd, TABLE_LIST *table_list)
 
   protocol->prepare_for_resend();
   if (table_list->view)
-    protocol->store(table_list->view_name.str, system_charset_info);
+    protocol->store(&table_list->view_name, system_charset_info);
   else
   {
     if (table_list->schema_table)
-      protocol->store(table_list->schema_table->table_name, system_charset_info);
+      protocol->store(table_list->schema_table->table_name,
+                      strlen(table_list->schema_table->table_name),
+                      system_charset_info);
     else
-      protocol->store(table_list->table->alias.c_ptr(), system_charset_info);
+      protocol->store(table_list->table->alias.ptr(),
+                      table_list->table->alias.length(),
+                      system_charset_info);
   }
 
   if (table_list->view)
   {
-    protocol->store(buffer.ptr(), buffer.length(),
-                    table_list->view_creation_ctx->get_client_cs());
+    buffer.set_charset(table_list->view_creation_ctx->get_client_cs());
+    protocol->store(&buffer);
 
-    protocol->store(table_list->view_creation_ctx->get_client_cs()->csname,
+    protocol->store(&table_list->view_creation_ctx->get_client_cs()->cs_name,
                     system_charset_info);
 
-    protocol->store(table_list->view_creation_ctx->get_connection_cl()->name,
-                    system_charset_info);
+    protocol->store(&table_list->view_creation_ctx->get_connection_cl()->
+                    coll_name, system_charset_info);
   }
   else
-    protocol->store(buffer.ptr(), buffer.length(), buffer.charset());
+    protocol->store(&buffer);
 
   if (protocol->write())
     goto exit;
@@ -1419,11 +1452,11 @@ bool mysqld_show_create_db(THD *thd, LEX_CSTRING *dbname,
   {
     buffer.append(STRING_WITH_LEN(" /*!40100"));
     buffer.append(STRING_WITH_LEN(" DEFAULT CHARACTER SET "));
-    buffer.append(create.default_table_charset->csname);
+    buffer.append(create.default_table_charset->cs_name);
     if (!(create.default_table_charset->state & MY_CS_PRIMARY))
     {
       buffer.append(STRING_WITH_LEN(" COLLATE "));
-      buffer.append(create.default_table_charset->name);
+      buffer.append(create.default_table_charset->coll_name);
     }
     buffer.append(STRING_WITH_LEN(" */"));
   }
@@ -1621,7 +1654,7 @@ int get_quote_char_for_identifier(THD *thd, const char *name, size_t length)
 
 /* Append directory name (if exists) to CREATE INFO */
 
-static void append_directory(THD *thd, String *packet, const char *dir_type,
+static void append_directory(THD *thd, String *packet, LEX_CSTRING *dir_type,
 			     const char *filename)
 {
   if (filename && !(thd->variables.sql_mode & MODE_NO_DIR_IN_CREATE))
@@ -1630,7 +1663,7 @@ static void append_directory(THD *thd, String *packet, const char *dir_type,
     packet->append(' ');
     packet->append(dir_type);
     packet->append(STRING_WITH_LEN(" DIRECTORY='"));
-#ifdef __WIN__
+#ifdef _WIN32
     /* Convert \ to / to be able to create table on unix */
     char *winfilename= (char*) thd->memdup(filename, length);
     char *pos, *end;
@@ -1879,11 +1912,11 @@ static void add_table_options(THD *thd, TABLE *table,
         (create_info_arg->used_fields & HA_CREATE_USED_DEFAULT_CHARSET))
     {
       packet->append(STRING_WITH_LEN(" DEFAULT CHARSET="));
-      packet->append(share->table_charset->csname);
+      packet->append(share->table_charset->cs_name);
       if (!(share->table_charset->state & MY_CS_PRIMARY))
       {
         packet->append(STRING_WITH_LEN(" COLLATE="));
-        packet->append(table->s->table_charset->name);
+        packet->append(table->s->table_charset->coll_name);
       }
     }
   }
@@ -1930,19 +1963,19 @@ static void add_table_options(THD *thd, TABLE *table,
   if (create_info.page_checksum != HA_CHOICE_UNDEF)
   {
     packet->append(STRING_WITH_LEN(" PAGE_CHECKSUM="));
-    packet->append(ha_choice_values[create_info.page_checksum], 1);
+    packet->append(ha_choice_values[create_info.page_checksum]);
   }
   if (create_info.options & HA_OPTION_DELAY_KEY_WRITE)
     packet->append(STRING_WITH_LEN(" DELAY_KEY_WRITE=1"));
   if (create_info.row_type != ROW_TYPE_DEFAULT)
   {
     packet->append(STRING_WITH_LEN(" ROW_FORMAT="));
-    packet->append(ha_row_type[(uint) create_info.row_type]);
+    packet->append(&ha_row_type[(uint) create_info.row_type]);
   }
   if (share->transactional != HA_CHOICE_UNDEF)
   {
     packet->append(STRING_WITH_LEN(" TRANSACTIONAL="));
-    packet->append(ha_choice_values[(uint) share->transactional], 1);
+    packet->append(ha_choice_values[(uint) share->transactional]);
   }
   if (share->table_type == TABLE_TYPE_SEQUENCE)
     packet->append(STRING_WITH_LEN(" SEQUENCE=1"));
@@ -1966,8 +1999,8 @@ end_options:
   }
   append_create_options(thd, packet, share->option_list, check_options,
                         hton->table_options);
-  append_directory(thd, packet, "DATA",  create_info.data_file_name);
-  append_directory(thd, packet, "INDEX", create_info.index_file_name);
+  append_directory(thd, packet, &DATA_clex_str,  create_info.data_file_name);
+  append_directory(thd, packet, &INDEX_clex_str, create_info.index_file_name);
 }
 
 static void append_period(THD *thd, String *packet, const LEX_CSTRING &start,
@@ -2165,7 +2198,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       if (field->charset() != share->table_charset)
       {
 	packet->append(STRING_WITH_LEN(" CHARACTER SET "));
-	packet->append(field->charset()->csname);
+	packet->append(field->charset()->cs_name);
       }
       /*
 	For string types dump collation name only if
@@ -2179,7 +2212,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
            field->charset() != field->vcol_info->expr->collation.collation))
       {
 	packet->append(STRING_WITH_LEN(" COLLATE "));
-	packet->append(field->charset()->name);
+	packet->append(field->charset()->coll_name);
       }
     }
 
@@ -2287,7 +2320,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
     bool found_primary=0;
     packet->append(STRING_WITH_LEN(",\n  "));
 
-    if (i == primary_key && !strcmp(key_info->name.str, primary_key_name))
+    if (i == primary_key && !strcmp(key_info->name.str, primary_key_name.str))
     {
       found_primary=1;
       /*
@@ -2389,6 +2422,7 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
   /* Add table level check constraints */
   if (share->table_check_constraints)
   {
+    StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
     for (uint i= share->field_check_constraints;
          i < share->table_check_constraints ; i++)
     {
@@ -2397,7 +2431,8 @@ int show_create_table_ex(THD *thd, TABLE_LIST *table_list,
       if (share->period.constr_name.streq(check->name))
         continue;
 
-      StringBuffer<MAX_FIELD_WIDTH> str(&my_charset_utf8mb4_general_ci);
+      str.set_buffer_if_not_allocated(&my_charset_utf8mb4_general_ci);
+      str.length(0);                            // Print appends to str
       check->print(&str);
 
       packet->append(STRING_WITH_LEN(",\n  "));
@@ -2865,7 +2900,7 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   field_list.push_back(field=new (mem_root)
                        Item_empty_string(thd, "db", NAME_CHAR_LEN),
                        mem_root);
-  field->maybe_null=1;
+  field->set_maybe_null();;
   field_list.push_back(new (mem_root) Item_empty_string(thd, "Command", 16),
                        mem_root);
   field_list.push_back(field= new (mem_root)
@@ -2875,18 +2910,18 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
   field_list.push_back(field=new (mem_root)
                        Item_empty_string(thd, "State", 30),
                        mem_root);
-  field->maybe_null=1;
+  field->set_maybe_null();;
   field_list.push_back(field=new (mem_root)
                        Item_empty_string(thd, "Info", arg.max_query_length),
                        mem_root);
-  field->maybe_null=1;
+  field->set_maybe_null();;
   if (!thd->variables.old_mode &&
       !(thd->variables.old_behavior & OLD_MODE_NO_PROGRESS_INFO))
   {
     field_list.push_back(field= new (mem_root)
                          Item_float(thd, "Progress", 0.0, 3, 7),
                          mem_root);
-    field->maybe_null= 0;
+    field->base_flags&= ~item_base_t::MAYBE_NULL;
   }
   if (protocol->send_result_set_metadata(&field_list,
                                          Protocol::SEND_NUM_ROWS |
@@ -2900,22 +2935,23 @@ void mysqld_list_processes(THD *thd,const char *user, bool verbose)
 
   ulonglong now= microsecond_interval_timer();
 
-  while (auto thd_info= arg.thread_infos.get())
+  while (thread_info *thd_info= arg.thread_infos.get())
   {
     protocol->prepare_for_resend();
     protocol->store(thd_info->thread_id);
-    protocol->store(thd_info->user, system_charset_info);
-    protocol->store(thd_info->host, system_charset_info);
-    protocol->store(thd_info->db, system_charset_info);
+    protocol->store(thd_info->user, strlen(thd_info->user), system_charset_info);
+    protocol->store(thd_info->host, strlen(thd_info->host), system_charset_info);
+    protocol->store_string_or_null(thd_info->db, system_charset_info);
     if (thd_info->proc_info)
-      protocol->store(thd_info->proc_info, system_charset_info);
+      protocol->store(thd_info->proc_info, strlen(thd_info->proc_info),
+                      system_charset_info);
     else
-      protocol->store(command_name[thd_info->command].str, system_charset_info);
+      protocol->store(&command_name[thd_info->command], system_charset_info);
     if (thd_info->start_time && now > thd_info->start_time)
       protocol->store_long((now - thd_info->start_time) / HRTIME_RESOLUTION);
     else
       protocol->store_null();
-    protocol->store(thd_info->state_info, system_charset_info);
+    protocol->store_string_or_null(thd_info->state_info, system_charset_info);
     if (thd_info->query_string.length())
       protocol->store(thd_info->query_string.str(),
                       thd_info->query_string.length(),
@@ -3014,14 +3050,16 @@ int select_result_text_buffer::append_row(List<Item> &items, bool send_names)
       rows.push_back(row, thd->mem_root))
     return true;
 
+  StringBuffer<32> buf;
+
   while ((item= it++))
   {
     DBUG_ASSERT(column < n_columns);
-    StringBuffer<32> buf;
     const char *data_ptr; 
     char *ptr;
     size_t data_len;
 
+    buf.set_buffer_if_not_allocated(&my_charset_bin);
     if (send_names)
     {
       DBUG_ASSERT(strlen(item->name.str) == item->name.length);
@@ -3058,19 +3096,19 @@ void select_result_text_buffer::save_to(String *res)
 {
   List_iterator<char*> it(rows);
   char **row;
-  res->append("#\n");
+  res->append(STRING_WITH_LEN("#\n"));
   while ((row= it++))
   {
-    res->append("# explain: ");
+    res->append(STRING_WITH_LEN("# explain: "));
     for (int i=0; i < n_columns; i++)
     {
       if (i)
         res->append('\t');
-      res->append(row[i]);
+      res->append(row[i], strlen(row[i]));
     }
-    res->append("\n");
+    res->append('\n');
   }
-  res->append("#\n");
+  res->append(STRING_WITH_LEN("#\n"));
 }
 
 
@@ -3522,6 +3560,30 @@ ulonglong get_status_vars_version(void)
 }
 
 /**
+  A union holding a pointer to a type that can be referred by a status variable.
+ */
+union Any_pointer {
+  const void *as_void;
+  const uchar *as_uchar;
+  const char *as_char;
+  const char ** as_charptr;
+  const double *as_double;
+  const int * as_int;
+  const uint * as_uint;
+  const long *as_long;
+  const longlong *as_longlong;
+  const bool *as_bool;
+  const my_bool *as_my_bool;
+  const sys_var *as_sys_var;
+  const system_status_var *as_system_status_var;
+  const ha_rows *as_ha_rows;
+  const LEX_STRING *as_lex_cstring;
+  const SHOW_COMP_OPTION *as_show_comp_options;
+  intptr as_intptr;
+  Atomic_counter<uint32_t>* as_atomic_counter;
+};
+
+/**
   @brief Returns the value of a system or a status variable.
 
   @param thd         [in]     The handle of the current THD.
@@ -3544,16 +3606,18 @@ const char* get_one_variable(THD *thd,
                              const CHARSET_INFO **charset, char *buff,
                              size_t *length)
 {
-  void *value= variable->value;
+  Any_pointer value, status_var_value;
+  value.as_void= variable->value;
+  status_var_value.as_system_status_var= status_var;
   const char *pos= buff;
   const char *end= buff;
 
 
   if (show_type == SHOW_SYS)
   {
-    sys_var *var= (sys_var *) value;
+    const sys_var *var= value.as_sys_var;
     show_type= var->show_type();
-    value= var->value_ptr(thd, value_type, &null_clex_str);
+    value.as_uchar= var->value_ptr(thd, value_type, &null_clex_str);
     *charset= var->charset(thd);
   }
 
@@ -3563,72 +3627,71 @@ const char* get_one_variable(THD *thd,
   */
   switch (show_type) {
   case SHOW_DOUBLE_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_DOUBLE:
     /* 6 is the default precision for '%f' in sprintf() */
-    end= buff + my_fcvt(*(double *) value, 6, buff, NULL);
+    end= buff + my_fcvt(*value.as_double, 6, buff, NULL);
     break;
   case SHOW_LONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONG:
   case SHOW_LONG_NOFLUSH: // the difference lies in refresh_status()
 #ifndef _WIN64
   case SHOW_SIZE_T:
 #endif
-    end= int10_to_str(*(long*) value, buff, 10);
+    end= int10_to_str(*value.as_long, buff, 10);
     break;
   case SHOW_LONGLONG_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_ULONGLONG:
 #ifdef _WIN64
   case SHOW_SIZE_T:
 #endif
-    end= longlong10_to_str(*(longlong*) value, buff, 10);
+    end= longlong10_to_str(*value.as_longlong, buff, 10);
     break;
   case SHOW_HA_ROWS:
-    end= longlong10_to_str((longlong) *(ha_rows*) value, buff, 10);
+    end= longlong10_to_str((longlong) *value.as_ha_rows, buff, 10);
     break;
   case SHOW_BOOL:
-    end= strmov(buff, *(bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_bool ? "ON" : "OFF");
     break;
   case SHOW_MY_BOOL:
-    end= strmov(buff, *(my_bool*) value ? "ON" : "OFF");
+    end= strmov(buff, *value.as_my_bool ? "ON" : "OFF");
     break;
   case SHOW_UINT32_STATUS:
-    value= ((char *) status_var + (intptr) value);
+    value.as_char= status_var_value.as_char + value.as_intptr;
     /* fall through */
   case SHOW_UINT:
-    end= int10_to_str((long) *(uint*) value, buff, 10);
+    end= int10_to_str((long) *value.as_uint, buff, 10);
     break;
   case SHOW_SINT:
-    end= int10_to_str((long) *(int*) value, buff, -10);
+    end= int10_to_str((long) *value.as_int, buff, -10);
     break;
   case SHOW_SLONG:
-    end= int10_to_str(*(long*) value, buff, -10);
+    end= int10_to_str(*value.as_long, buff, -10);
     break;
   case SHOW_SLONGLONG:
-    end= longlong10_to_str(*(longlong*) value, buff, -10);
+    end= longlong10_to_str(*value.as_longlong, buff, -10);
     break;
   case SHOW_HAVE:
     {
-      SHOW_COMP_OPTION tmp= *(SHOW_COMP_OPTION*) value;
-      pos= show_comp_option_name[(int) tmp];
+      pos= show_comp_option_name[(int) *value.as_show_comp_options];
       end= strend(pos);
       break;
     }
   case SHOW_CHAR:
     {
-      if (!(pos= (char*)value))
+      if (!(pos= value.as_char))
         pos= "";
       end= strend(pos);
       break;
     }
   case SHOW_CHAR_PTR:
     {
-      if (!(pos= *(char**) value))
+      if (!(pos= *value.as_charptr))
         pos= "";
 
       end= strend(pos);
@@ -3636,17 +3699,14 @@ const char* get_one_variable(THD *thd,
     }
   case SHOW_LEX_STRING:
     {
-      LEX_STRING *ls=(LEX_STRING*)value;
-      if (!(pos= ls->str))
+      if (!(pos= value.as_lex_cstring->str))
         end= pos= "";
       else
-        end= pos + ls->length;
+        end= pos + value.as_lex_cstring->length;
       break;
     }
   case SHOW_ATOMIC_COUNTER_UINT32_T:
-    end= int10_to_str(
-           static_cast<long>(*static_cast<Atomic_counter<uint32_t>*>(value)),
-           buff, 10);
+    end= int10_to_str(static_cast<long>(*value.as_atomic_counter), buff, 10);
     break;
   case SHOW_UNDEF:
     break;                                        // Return empty string
@@ -4489,7 +4549,7 @@ static void get_table_engine_for_i_s(THD *thd, char *buf, TABLE_LIST *tl,
     char path[FN_REFLEN];
     build_table_filename(path, sizeof(path) - 1,
                          db->str, table->str, reg_ext, 0);
-    if (dd_frm_type(thd, path, &engine_name) == TABLE_TYPE_NORMAL)
+    if (dd_frm_type(thd, path, &engine_name, NULL, NULL) == TABLE_TYPE_NORMAL)
       tl->option= engine_name.str;
   }
 }
@@ -4709,7 +4769,9 @@ static int fill_schema_table_names(THD *thd, TABLE_LIST *tables,
     CHARSET_INFO *cs= system_charset_info;
     handlerton *hton;
     bool is_sequence;
-    if (ha_table_exists(thd, db_name, table_name, &hton, &is_sequence))
+
+    if (ha_table_exists(thd, db_name, table_name, NULL, NULL,
+                        &hton, &is_sequence))
     {
       if (hton == view_pseudo_hton)
         table->field[3]->store(STRING_WITH_LEN("VIEW"), cs);
@@ -5282,9 +5344,9 @@ bool store_schema_schemata(THD* thd, TABLE *table, LEX_CSTRING *db_name,
 {
   restore_record(table, s->default_values);
   table->field[0]->store(STRING_WITH_LEN("def"), system_charset_info);
-  table->field[1]->store(db_name->str, db_name->length, system_charset_info);
-  table->field[2]->store(cs->csname, strlen(cs->csname), system_charset_info);
-  table->field[3]->store(cs->name, strlen(cs->name), system_charset_info);
+  table->field[1]->store(db_name, system_charset_info);
+  table->field[2]->store(&cs->cs_name, system_charset_info);
+  table->field[3]->store(&cs->coll_name, system_charset_info);
   if (schema_comment)
     table->field[5]->store(schema_comment->str, schema_comment->length,
                            system_charset_info);
@@ -5514,7 +5576,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     if (share->page_checksum != HA_CHOICE_UNDEF)
     {
       str.qs_append(STRING_WITH_LEN(" page_checksum="));
-      str.qs_append(ha_choice_values[(uint) share->page_checksum]);
+      str.qs_append(&ha_choice_values[(uint) share->page_checksum]);
     }
 
     if (share->db_create_options & HA_OPTION_DELAY_KEY_WRITE)
@@ -5523,7 +5585,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
     if (share->row_type != ROW_TYPE_DEFAULT)
     {
       str.qs_append(STRING_WITH_LEN(" row_format="));
-      str.qs_append(ha_row_type[(uint) share->row_type]);
+      str.qs_append(&ha_row_type[(uint) share->row_type]);
     }
 
     if (share->key_block_size)
@@ -5555,7 +5617,7 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
                  HA_CHOICE_NO : HA_CHOICE_YES);
 
       str.qs_append(STRING_WITH_LEN(" transactional="));
-      str.qs_append(ha_choice_values[choice]);
+      str.qs_append(&ha_choice_values[choice]);
     }
     append_create_options(thd, &str, share->option_list, false, 0);
 
@@ -5564,20 +5626,22 @@ static int get_schema_tables_record(THD *thd, TABLE_LIST *tables,
       HA_CREATE_INFO create_info;
       create_info.init();
       file->update_create_info(&create_info);
-      append_directory(thd, &str, "DATA", create_info.data_file_name);
-      append_directory(thd, &str, "INDEX", create_info.index_file_name);
+      append_directory(thd, &str, &DATA_clex_str, create_info.data_file_name);
+      append_directory(thd, &str, &INDEX_clex_str, create_info.index_file_name);
     }
 
     if (str.length())
       table->field[19]->store(str.ptr()+1, str.length()-1, cs);
 
-    tmp_buff= (share->table_charset ?
-               share->table_charset->name : "default");
-
-    table->field[17]->store(tmp_buff, strlen(tmp_buff), cs);
+    LEX_CSTRING tmp_str;
+    if (share->table_charset)
+      tmp_str= share->table_charset->coll_name;
+    else
+      tmp_str= { STRING_WITH_LEN("default") };
+    table->field[17]->store(&tmp_str, cs);
 
     if (share->comment.str)
-      table->field[20]->store(share->comment.str, share->comment.length, cs);
+      table->field[20]->store(&share->comment, cs);
 
     /* Collect table info from the storage engine  */
 
@@ -5798,12 +5862,10 @@ static void store_column_type(TABLE *table, Field *field, CHARSET_INFO *cs,
   if (field->has_charset())
   {
     /* CHARACTER_SET_NAME column*/
-    tmp_buff= field->charset()->csname;
-    table->field[offset + 6]->store(tmp_buff, strlen(tmp_buff), cs);
+    table->field[offset + 6]->store(&field->charset()->cs_name, cs);
     table->field[offset + 6]->set_notnull();
     /* COLLATION_NAME column */
-    tmp_buff= field->charset()->name;
-    table->field[offset + 7]->store(tmp_buff, strlen(tmp_buff), cs);
+    table->field[offset + 7]->store(&field->charset()->coll_name, cs);
     table->field[offset + 7]->set_notnull();
   }
 }
@@ -6090,12 +6152,12 @@ int fill_schema_charsets(THD *thd, TABLE_LIST *tables, COND *cond)
         (tmp_cs->state & MY_CS_AVAILABLE) &&
         !(tmp_cs->state & MY_CS_HIDDEN) &&
         !(wild && wild[0] &&
-	  wild_case_compare(scs, tmp_cs->csname,wild)))
+	  wild_case_compare(scs, tmp_cs->cs_name.str,wild)))
     {
       const char *comment;
       restore_record(table, s->default_values);
-      table->field[0]->store(tmp_cs->csname, strlen(tmp_cs->csname), scs);
-      table->field[1]->store(tmp_cs->name, strlen(tmp_cs->name), scs);
+      table->field[0]->store(&tmp_cs->cs_name, scs);
+      table->field[1]->store(&tmp_cs->coll_name, scs);
       comment= tmp_cs->comment ? tmp_cs->comment : "";
       table->field[2]->store(comment, strlen(comment), scs);
       table->field[3]->store((longlong) tmp_cs->mbmaxlen, TRUE);
@@ -6207,12 +6269,13 @@ int fill_schema_collation(THD *thd, TABLE_LIST *tables, COND *cond)
           !my_charset_same(tmp_cs, tmp_cl))
 	continue;
       if (!(wild && wild[0] &&
-	  wild_case_compare(scs, tmp_cl->name,wild)))
+	  wild_case_compare(scs, tmp_cl->coll_name.str, wild)))
       {
 	const char *tmp_buff;
 	restore_record(table, s->default_values);
-	table->field[0]->store(tmp_cl->name, strlen(tmp_cl->name), scs);
-        table->field[1]->store(tmp_cl->csname , strlen(tmp_cl->csname), scs);
+	table->field[0]->store(tmp_cl->coll_name.str, tmp_cl->coll_name.length,
+                               scs);
+        table->field[1]->store(&tmp_cl->cs_name, scs);
         table->field[2]->store((longlong) tmp_cl->number, TRUE);
         tmp_buff= (tmp_cl->state & MY_CS_PRIMARY) ? "Yes" : "";
 	table->field[3]->store(tmp_buff, strlen(tmp_buff), scs);
@@ -6252,8 +6315,8 @@ int fill_schema_coll_charset_app(THD *thd, TABLE_LIST *tables, COND *cond)
           !my_charset_same(tmp_cs,tmp_cl))
 	continue;
       restore_record(table, s->default_values);
-      table->field[0]->store(tmp_cl->name, strlen(tmp_cl->name), scs);
-      table->field[1]->store(tmp_cl->csname , strlen(tmp_cl->csname), scs);
+      table->field[0]->store(&tmp_cl->coll_name, scs);
+      table->field[1]->store(&tmp_cl->cs_name, scs);
       if (schema_table_store_record(thd, table))
         return 1;
     }
@@ -6656,6 +6719,16 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       LEX_CSTRING unknown= {STRING_WITH_LEN("?unknown field?") };
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
+        if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
+            DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+        {
+          /*
+            NOTE: we will get SEQ_IN_INDEX gap inside the result if this key_part
+            is not last (currently not possible). Though nothing is wrong with
+            that probably.
+          */
+          continue;
+        }
         restore_record(table, s->default_values);
         table->field[0]->store(STRING_WITH_LEN("def"), cs);
         table->field[1]->store(db_name->str, db_name->length, cs);
@@ -6856,15 +6929,10 @@ static int get_schema_views_record(THD *thd, TABLE_LIST *tables,
     else
       table->field[7]->store(STRING_WITH_LEN("INVOKER"), cs);
 
-    table->field[8]->store(tables->view_creation_ctx->get_client_cs()->csname,
-                           strlen(tables->view_creation_ctx->
-                                  get_client_cs()->csname), cs);
-
-    table->field[9]->store(tables->view_creation_ctx->
-                           get_connection_cl()->name,
-                           strlen(tables->view_creation_ctx->
-                                  get_connection_cl()->name), cs);
-
+    table->field[8]->store(&tables->view_creation_ctx->get_client_cs()->cs_name,
+                           cs);
+    table->field[9]->store(&tables->view_creation_ctx->
+                           get_connection_cl()->coll_name, cs);
     table->field[10]->store(view_algorithm(tables), cs);
 
     if (schema_table_store_record(thd, table))
@@ -6978,7 +7046,7 @@ static int get_schema_constraints_record(THD *thd, TABLE_LIST *tables,
       if (i != primary_key && !(key_info->flags & HA_NOSAME))
         continue;
 
-      if (i == primary_key && !strcmp(key_info->name.str, primary_key_name))
+      if (i == primary_key && !strcmp(key_info->name.str, primary_key_name.str))
       {
         if (store_constraints(thd, table, db_name, table_name,
                               key_info->name.str, key_info->name.length,
@@ -7067,12 +7135,9 @@ static bool store_trigger(THD *thd, Trigger *trigger,
   sql_mode_string_representation(thd, trigger->sql_mode, &sql_mode_rep);
   table->field[17]->store(sql_mode_rep.str, sql_mode_rep.length, cs);
   table->field[18]->store(definer_buffer.str, definer_buffer.length, cs);
-  table->field[19]->store(trigger->client_cs_name.str,
-                          trigger->client_cs_name.length, cs);
-  table->field[20]->store(trigger->connection_cl_name.str,
-                          trigger->connection_cl_name.length, cs);
-  table->field[21]->store(trigger->db_cl_name.str,
-                          trigger->db_cl_name.length, cs);
+  table->field[19]->store(&trigger->client_cs_name, cs);
+  table->field[20]->store(&trigger->connection_cl_name, cs);
+  table->field[21]->store(&trigger->db_cl_name, cs);
 
   return schema_table_store_record(thd, table);
 }
@@ -7247,7 +7312,7 @@ static void collect_partition_expr(THD *thd, List<const char> &field_list,
   {
     append_identifier(thd, str, field_str, strlen(field_str));
     if (--no_fields != 0)
-      str->append(",");
+      str->append(',');
   }
   return;
 }
@@ -7340,7 +7405,7 @@ static int get_partition_column_description(THD *thd, partition_info *part_info,
     if (col_val->max_value)
       tmp_str.append(STRING_WITH_LEN("MAXVALUE"));
     else if (col_val->null_value)
-      tmp_str.append("NULL");
+      tmp_str.append(NULL_clex_str);
     else
     {
       Item *item= col_val->item_expression;
@@ -7353,7 +7418,7 @@ static int get_partition_column_description(THD *thd, partition_info *part_info,
       tmp_str.append(val);
     }
     if (i != num_elements - 1)
-      tmp_str.append(",");
+      tmp_str.append(',');
   }
   DBUG_RETURN(0);
 }
@@ -7514,9 +7579,9 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
         tmp_res.length(0);
         if (part_elem->has_null_value)
         {
-          tmp_str.append(STRING_WITH_LEN("NULL"));
+          tmp_str.append(NULL_clex_str);
           if (num_items > 0)
-            tmp_str.append(",");
+            tmp_str.append(',');
         }
         while ((list_value= list_val_it++))
         {
@@ -7528,7 +7593,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
                                                  tmp_str))
               DBUG_RETURN(1);
             if (part_info->part_field_list.elements > 1U)
-              tmp_str.append(")");
+              tmp_str.append(')');
           }
           else
           {
@@ -7539,7 +7604,7 @@ static int get_schema_partitions_record(THD *thd, TABLE_LIST *tables,
             tmp_str.append(tmp_res);
           }
           if (--num_items != 0)
-            tmp_str.append(",");
+            tmp_str.append(',');
         }
         table->field[11]->store(tmp_str.ptr(), tmp_str.length(), cs);
         table->field[11]->set_notnull();
@@ -7759,22 +7824,15 @@ copy_event_to_schema_table(THD *thd, TABLE *sch_table, TABLE *event_table)
                       store(et.comment.str, et.comment.length, scs);
 
   sch_table->field[ISE_CLIENT_CS]->set_notnull();
-  sch_table->field[ISE_CLIENT_CS]->store(
-    et.creation_ctx->get_client_cs()->csname,
-    strlen(et.creation_ctx->get_client_cs()->csname),
-    scs);
-
+  sch_table->field[ISE_CLIENT_CS]->store(&et.creation_ctx->get_client_cs()->
+                                         cs_name, scs);
   sch_table->field[ISE_CONNECTION_CL]->set_notnull();
-  sch_table->field[ISE_CONNECTION_CL]->store(
-    et.creation_ctx->get_connection_cl()->name,
-    strlen(et.creation_ctx->get_connection_cl()->name),
-    scs);
-
+  sch_table->field[ISE_CONNECTION_CL]->store(&et.creation_ctx->
+                                             get_connection_cl()->coll_name,
+                                             scs);
   sch_table->field[ISE_DB_CL]->set_notnull();
-  sch_table->field[ISE_DB_CL]->store(
-    et.creation_ctx->get_db_cl()->name,
-    strlen(et.creation_ctx->get_db_cl()->name),
-    scs);
+  sch_table->field[ISE_DB_CL]->store(&et.creation_ctx->get_db_cl()->coll_name,
+                                     scs);
 
   if (schema_table_store_record(thd, sch_table))
     DBUG_RETURN(1);
@@ -7844,6 +7902,58 @@ int fill_variables(THD *thd, TABLE_LIST *tables, COND *cond)
                          upper_case_names, partial_cond);
   mysql_prlock_unlock(&LOCK_system_variables_hash);
   DBUG_RETURN(res);
+}
+
+int add_symbol_to_table(const char* name, TABLE* table){
+  DBUG_ENTER("add_symbol_to_table");
+
+  size_t length= strlen(name);
+
+  // If you've added a new SQL keyword longer than KEYWORD_SIZE,
+  // please increase the defined max length
+  DBUG_ASSERT(length < KEYWORD_SIZE);
+
+  restore_record(table, s->default_values);
+  table->field[0]->set_notnull();
+  table->field[0]->store(name, length,
+                         system_charset_info);
+  if (schema_table_store_record(table->in_use, table))
+    DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
+}
+
+int fill_i_s_keywords(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_i_s_keywords");
+
+  TABLE *table= tables->table;
+
+  for (uint i= 0; i < symbols_length; i++){
+    const char *name= symbols[i].name;
+    if (add_symbol_to_table(name, table))
+      DBUG_RETURN(1);
+  }
+
+  DBUG_RETURN(0);
+}
+
+int fill_i_s_sql_functions(THD *thd, TABLE_LIST *tables, COND *cond)
+{
+  DBUG_ENTER("fill_i_s_sql_functions");
+
+  TABLE *table= tables->table;
+
+  for (uint i= 0; i < sql_functions_length; i++)
+    if (add_symbol_to_table(sql_functions[i].name, table))
+      DBUG_RETURN(1);
+
+  for (uint i= 0; i < native_func_registry_array.count(); i++)
+    if (add_symbol_to_table(native_func_registry_array.element(i).name.str,
+                            table))
+      DBUG_RETURN(1);
+
+  DBUG_RETURN(0);
 }
 
 
@@ -8174,7 +8284,7 @@ int make_schemata_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
     if (lex->wild && lex->wild->ptr())
     {
       buffer.append(STRING_WITH_LEN(" ("));
-      buffer.append(lex->wild->ptr());
+      buffer.append(*lex->wild);
       buffer.append(')');
     }
     field->set_name(thd, &buffer);
@@ -8198,7 +8308,7 @@ int make_table_names_old_format(THD *thd, ST_SCHEMA_TABLE *schema_table)
   if (lex->wild && lex->wild->ptr())
   {
     buffer.append(STRING_WITH_LEN(" ("));
-    buffer.append(lex->wild->ptr());
+    buffer.append(*lex->wild);
     buffer.append(')');
   }
   Item_field *field= new (thd->mem_root) Item_field(thd, context, field_name);
@@ -8997,6 +9107,18 @@ ST_FIELD_INFO enabled_roles_fields_info[]=
   CEnd()
 };
 
+ST_FIELD_INFO keywords_field_info[]=
+{
+  Column("WORD", Varchar(KEYWORD_SIZE), NULLABLE),
+  CEnd()
+};
+
+ST_FIELD_INFO sql_functions_field_info[]=
+{
+  Column("FUNCTION", Varchar(KEYWORD_SIZE), NULLABLE),
+  CEnd()
+};
+
 
 ST_FIELD_INFO engines_fields_info[]=
 {
@@ -9576,6 +9698,8 @@ ST_SCHEMA_TABLE schema_tables[]=
    fill_status, make_old_format, 0, 0, -1, 0, 0},
   {"GLOBAL_VARIABLES", Show::variables_fields_info, 0,
    fill_variables, make_old_format, 0, 0, -1, 0, 0},
+  {"KEYWORDS", Show::keywords_field_info, 0,
+   fill_i_s_keywords, 0, 0, -1, -1, 0, 0},
   {"KEY_CACHES", Show::keycache_fields_info, 0,
    fill_key_cache_tables, 0, 0, -1,-1, 0, 0},
   {"KEY_COLUMN_USAGE", Show::key_column_usage_fields_info, 0,
@@ -9613,6 +9737,8 @@ ST_SCHEMA_TABLE schema_tables[]=
   {"STATISTICS", Show::stat_fields_info, 0,
    get_all_tables, make_old_format, get_schema_stat_record, 1, 2, 0,
    OPEN_TABLE_ONLY|OPTIMIZE_I_S_TABLE},
+  {"SQL_FUNCTIONS", Show::sql_functions_field_info, 0,
+   fill_i_s_sql_functions, 0, 0, -1, -1, 0, 0},
   {"SYSTEM_VARIABLES", Show::sysvars_fields_info, 0,
    fill_sysvars, make_old_format, 0, 0, -1, 0, 0},
   {"TABLES", Show::tables_fields_info, 0,
@@ -9743,8 +9869,9 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
   sql_mode_string_representation(thd, trigger->sql_mode, &trg_sql_mode_str);
 
   /* Resolve trigger client character set. */
-
-  if (resolve_charset(trigger->client_cs_name.str, NULL, &trg_client_cs))
+  myf utf8_flag= thd->get_utf8_flag();
+  if (resolve_charset(trigger->client_cs_name.str, NULL, &trg_client_cs,
+                      MYF(utf8_flag)))
     return TRUE;
 
   /* Send header. */
@@ -9766,7 +9893,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
                                        (uint)MY_MAX(trg_sql_original_stmt.length,
                                               1024));
 
-    stmt_fld->maybe_null= TRUE;
+    stmt_fld->set_maybe_null();
 
     fields.push_back(stmt_fld, mem_root);
   }
@@ -9813,17 +9940,11 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
            trg_sql_original_stmt.length,
            trg_client_cs);
 
-  p->store(trigger->client_cs_name.str,
-           trigger->client_cs_name.length,
-           system_charset_info);
+  p->store(&trigger->client_cs_name, system_charset_info);
 
-  p->store(trigger->connection_cl_name.str,
-           trigger->connection_cl_name.length,
-           system_charset_info);
+  p->store(&trigger->connection_cl_name, system_charset_info);
 
-  p->store(trigger->db_cl_name.str,
-           trigger->db_cl_name.length,
-           system_charset_info);
+  p->store(&trigger->db_cl_name, system_charset_info);
 
   if (trigger->create_time)
   {
@@ -9831,7 +9952,7 @@ static bool show_create_trigger_impl(THD *thd, Trigger *trigger)
     thd->variables.time_zone->gmt_sec_to_TIME(&timestamp,
                                               (my_time_t)(trigger->create_time/100));
     timestamp.second_part= (trigger->create_time % 100) * 10000;
-    p->store(&timestamp, 2);
+    p->store_datetime(&timestamp, 2);
   }
   else
     p->store_null();
@@ -10067,7 +10188,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   size_t len;
 
   len= my_snprintf(header, sizeof(header),
-                   "MySQL thread id %u, OS thread handle %lu, query id %llu",
+                   "MariaDB thread id %u, OS thread handle %lu, query id %llu",
                    (uint)thd->thread_id, (ulong) thd->real_id, (ulonglong) thd->query_id);
   str.length(0);
   str.append(header, len);
@@ -10075,19 +10196,19 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   if (sctx->host)
   {
     str.append(' ');
-    str.append(sctx->host);
+    str.append(sctx->host, strlen(sctx->host));
   }
 
   if (sctx->ip)
   {
     str.append(' ');
-    str.append(sctx->ip);
+    str.append(sctx->ip, strlen(sctx->ip));
   }
 
   if (sctx->user)
   {
     str.append(' ');
-    str.append(sctx->user);
+    str.append(sctx->user, strlen(sctx->user));
   }
 
   /* Don't wait if LOCK_thd_data is used as this could cause a deadlock */
@@ -10096,7 +10217,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
     if (const char *info= thread_state_info(thd))
     {
       str.append(' ');
-      str.append(info);
+      str.append(info, strlen(info));
     }
 
     if (thd->query())
@@ -10120,7 +10241,7 @@ char *thd_get_error_context_description(THD *thd, char *buffer,
   */
   DBUG_ASSERT(buffer != NULL);
   length= MY_MIN(str.length(), length-1);
-  memcpy(buffer, str.c_ptr_quick(), length);
+  memcpy(buffer, str.ptr(), length);
   /* Make sure that the new string is null terminated */
   buffer[length]= '\0';
   return buffer;

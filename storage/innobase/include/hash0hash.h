@@ -32,7 +32,6 @@ struct hash_table_t;
 struct hash_cell_t{
 	void*	node;	/*!< hash chain node, NULL if none */
 };
-typedef void*	hash_node_t;
 
 /*******************************************************************//**
 Inserts a struct to a hash table. */

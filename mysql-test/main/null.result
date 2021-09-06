@@ -1660,7 +1660,7 @@ EXPLAIN EXTENDED SELECT NULLIF(a,_utf8'a' COLLATE utf8_bin) IS NULL AS expr FROM
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	2	100.00	
 Warnings:
-Note	1003	select (case when convert(`test`.`t1`.`a` using utf8) = _utf8'a' collate utf8_bin then NULL else `test`.`t1`.`a` end) is null AS `expr` from `test`.`t1`
+Note	1003	select (case when convert(`test`.`t1`.`a` using utf8mb3) = _utf8mb3'a' collate utf8mb3_bin then NULL else `test`.`t1`.`a` end) is null AS `expr` from `test`.`t1`
 DROP TABLE t1;
 #
 # MDEV-8740 Wrong result for SELECT..WHERE year_field=10 AND NULLIF(year_field,2011.1)='2011'

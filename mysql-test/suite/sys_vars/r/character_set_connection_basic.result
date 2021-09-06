@@ -19,7 +19,7 @@ ERROR 42S22: Unknown column 'character_set_connection' in 'field list'
 SET character_set_connection=utf8;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
-utf8
+utf8mb3
 SET session character_set_connection=utf8;
 SELECT session character_set_connection;
 ERROR 42S22: Unknown column 'session' in 'field list'
@@ -41,14 +41,14 @@ SELECT @@global.character_set_connection = @global_start_value;
 SET @@session.character_set_connection = utf8;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
-utf8
+utf8mb3
 SET @@global.character_set_connection = latin2;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
 latin2
 SELECT @@session.character_set_connection AS res_is_utf8;
 res_is_utf8
-utf8
+utf8mb3
 SET @@session.character_set_connection = latin5;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
@@ -158,7 +158,7 @@ armscii8
 SET @@session.character_set_connection = utf8;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
-utf8
+utf8mb3
 SET @@session.character_set_connection = ucs2;
 SELECT @@session.character_set_connection;
 @@session.character_set_connection
@@ -303,7 +303,7 @@ armscii8
 SET @@global.character_set_connection = utf8;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
-utf8
+utf8mb3
 SET @@global.character_set_connection = ucs2;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
@@ -364,15 +364,15 @@ eucjpms
 SET @@character_set_connection = UTF8;
 SELECT @@character_set_connection;
 @@character_set_connection
-utf8
+utf8mb3
 SET @@character_set_connection = utf8;
 SELECT @@character_set_connection;
 @@character_set_connection
-utf8
+utf8mb3
 SET @@global.character_set_connection = uTf8;
 SELECT @@global.character_set_connection;
 @@global.character_set_connection
-utf8
+utf8mb3
 '#--------------------FN_DYNVARS_011_09-------------------------#'
 SET @@character_set_connection = 1;
 SELECT @@character_set_connection;

@@ -364,10 +364,6 @@ ut_strerr(
 		return("Cluster not found");
 	case DB_TABLE_NOT_FOUND:
 		return("Table not found");
-	case DB_MUST_GET_MORE_FILE_SPACE:
-		return("More file space needed");
-	case DB_TABLE_IS_BEING_USED:
-		return("Table is being used");
 	case DB_TOO_BIG_RECORD:
 		return("Record too big");
 	case DB_TOO_BIG_INDEX_COL:
@@ -432,8 +428,6 @@ ut_strerr(
 		return("End of index");
 	case DB_IO_ERROR:
 		return("I/O error");
-	case DB_TABLE_IN_FK_CHECK:
-		return("Table is being used in foreign key check");
 	case DB_NOT_FOUND:
 		return("not found");
 	case DB_ONLINE_LOG_TOO_BIG:

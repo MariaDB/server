@@ -1,0 +1,226 @@
+##############################################################
+# testcase for TO_CHAR() function for oracle
+# Part of MDEV-20017 Implement TO_CHAR() Oracle compatible function
+##############################################################
+
+# Save sql_mode
+set @save_sql_mode=@@sql_mode;
+
+--echo #
+--echo # test for datetime
+--echo #
+
+CREATE TABLE t_to_char1(c0 int, c1 date, c2 time, c3 datetime);
+
+INSERT INTO t_to_char1 VALUES (1, '1000-1-1', '00:00:00', '1000-1-1 00:00:00');
+INSERT INTO t_to_char1 VALUES (2, '9999-12-31', '23:59:59', '9999-12-31 23:59:59');
+INSERT INTO t_to_char1 VALUES (3, '2021-01-03', '08:30:00', '2021-01-03 08:30:00');
+INSERT INTO t_to_char1 VALUES (4, '2021-07-03', '18:30:00', '2021-07-03 18:30:00');
+
+CREATE TABLE t_to_char2(c1 timestamp);
+INSERT INTO t_to_char2 VALUES ('1980-01-11 04:50:39');
+INSERT INTO t_to_char2 VALUES ('2000-11-11 12:50:00');
+INSERT INTO t_to_char2 VALUES ('2030-11-11 18:20:10');
+
+# test for timestamp
+SELECT TO_CHAR(c1, 'YYYY-MM-DD') FROM t_to_char2;
+SELECT TO_CHAR(c1, 'HH24-MI-SS') FROM t_to_char2;
+
+# test full output format
+--echo #
+--echo # test YYYY/YY/MM/DD/HH/HH24/MI/SS
+--echo #
+SELECT TO_CHAR(c1, 'YYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'YY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'yyyy-mm-dd') AS C1, TO_CHAR(c2, 'hh:mi:ss') AS C2, TO_CHAR(c3, 'yy-mm-dd hh24:mi:ss') AS C3 FROM t_to_char1;
+
+--echo #
+--echo # test YYY/Y/MON/DD/DY/HH/HH12/MI/SS
+--echo #
+SELECT TO_CHAR(c1, 'YYY-MON-DD') AS C1, TO_CHAR(c2, 'HH12:MI:SS') AS C2, TO_CHAR(c3, 'Y-MONTH-DY HH:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'yyy-Mon-Dd') AS C1, TO_CHAR(c2, 'Hh12:mi:Ss') AS C2, TO_CHAR(c3, 'y-Month-Dy Hh:Mi:Ss') AS C3 FROM t_to_char1;
+
+--echo #
+--echo # test RRRR/RR/DAY
+--echo #
+SELECT TO_CHAR(c1, 'RRRR-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'RRRR-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'RR-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'YY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'Rrrr-Mm-Dd') AS C1, TO_CHAR(c2, 'hh:mi:ss') AS C2, TO_CHAR(c3, 'Rrrr-mm-dd Hh24:mi:ss') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'rr-mm-dd') AS C1, TO_CHAR(c2, 'hh:mi:ss') AS C2, TO_CHAR(c3, 'yy-mm-dd hh24:Mi:ss') AS C3 FROM t_to_char1;
+
+--echo #
+--echo # test AD/A.D./BC/B.C./AM/A.M./PM/P.M.
+--echo #
+SELECT TO_CHAR(c1, 'ADYYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'AD.YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'ADYYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'AD.YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'BCYYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'BCYYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'B.C.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'B.C.YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'bcyyyy-mm-dd') AS C1, TO_CHAR(c2, 'hh:mi:ss') AS C2, TO_CHAR(c3, 'BcYYyy-MM-DD Hh24:mi:sS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'b.c.yyyy-mm-dd') AS C1, TO_CHAR(c2, 'hh:mI:Ss') AS C2, TO_CHAR(c3, 'b.C.Yyyy-Mm-dd hH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'PMHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD P.M.HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'pmHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD p.m.HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'AMHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD A.m.HH24:MI:SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'A.D.YYYY-MM-DD') AS C1, TO_CHAR(c2, 'amHH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD a.M.HH24:MI:SS') AS C3 FROM t_to_char1;
+
+--echo #
+--echo # test format without order
+--echo #
+SELECT TO_CHAR(c1, 'MM-YYYY-DD') AS C1, TO_CHAR(c2, 'HH:SS:MI') AS C2, TO_CHAR(c3, 'DD-YY-MM MI:SS:HH24') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'yyy-Dd-Mon') AS C1, TO_CHAR(c2, 'mi:Hh12:Ss') AS C2, TO_CHAR(c3, 'Ss:Hh:Mi Dy-y-Month') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'Dd-Mm-Rrrr') AS C1, TO_CHAR(c2, 'ss:hh:mi') AS C2, TO_CHAR(c3, 'ss:Rrrr-hh24-dd mon:mi') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'YYYYA.D.-MM-DD') AS C1, TO_CHAR(c2, 'HH:MI:SS') AS C2, TO_CHAR(c3, 'A.D..YYYY-MM-DD HH24:MI:SS') AS C3 FROM t_to_char1;
+
+--echo #
+--echo # test for special characters
+--echo #
+SELECT TO_CHAR(c1, 'YYYYMMDD') AS C1, TO_CHAR(c2, 'HHMISS') AS C2, TO_CHAR(c3, 'YYMMDDHH24MISS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'YYYY!!MM@DD') AS C1, TO_CHAR(c2, 'HH#MI$SS') AS C2, TO_CHAR(c3, 'YY%MM^DD*HH24(MI)SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'YYYY_MM+DD') AS C1, TO_CHAR(c2, 'HH=MI{SS') AS C2, TO_CHAR(c3, 'YY}MMDDHH24MISS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'YYYY,MM.DD') AS C1, TO_CHAR(c2, 'HH/MI;SS') AS C2, TO_CHAR(c3, 'YY>MM<DD]HH24[MI\SS') AS C3 FROM t_to_char1;
+SELECT TO_CHAR(c1, 'YYYY||||MM|DD') AS C1, TO_CHAR(c2, 'HH&|MI|&|SS') AS C2, TO_CHAR(c3, 'YY&&&\\MM|&&|DD HH24|| MI&||"abx"|SS') AS C3 FROM t_to_char1;
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR(c1, 'YYYY&MM-DD') FROM t_to_char1 where c0=1;
+SELECT TO_CHAR(c1, 'YYYY"abx"MM"bsz"DD') AS C1 FROM t_to_char1;
+
+--echo #
+--echo # test for other locale
+--echo #
+SET character_set_client='utf8';
+SET character_set_connection='utf8';
+SET character_set_results='utf8';
+SET lc_time_names='zh_TW';
+SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
+SET lc_time_names='de_DE';
+SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
+SET lc_time_names='en_US';
+SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
+SET lc_time_names='zh_CN';
+SELECT TO_CHAR(c1, 'YYYY-MON-DAY') FROM t_to_char1;
+
+--echo #
+--echo # test for invalid format
+--echo #
+
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR(c1, 'YYYYaxMON-DAY') FROM t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR(c1, 'YYYY\nMON-DAY') FROM t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR(c1, 'YYYY\rMON-DAY') FROM t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR(c1, 'YYYY分隔MON-DAY') FROM t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR(c1, 'YYYY-分隔MON-DAY') FROM t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+select to_char(c3, 'YYYYxDDD') from t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+select to_char(c3, 'YYYY&DDD') from t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+select to_char(c3, 'xxYYYY-DD') from t_to_char1 where c0 = 1;
+
+SET character_set_client='latin1';
+SET character_set_connection='latin1';
+SET character_set_results='latin1';
+--echo #
+--echo # test for unusual format
+--echo #
+select to_char(c3, 'YYYYYYYYYYYYYYY') from t_to_char1;
+select to_char(c3, 'YYYYYYYYYYYYYYYDDDDDD') from t_to_char1;
+
+--echo #
+--echo # oracle max length is 144
+--echo #
+
+--error ER_STD_INVALID_ARGUMENT
+select to_char(c3, 'YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY') from t_to_char1 where c0 = 1;
+CREATE TABLE t_f(c1 varchar(150));
+insert into t_f values('YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-DD');
+select to_char('2000-11-11', c1) from t_f;
+DROP TABLE t_f;
+select to_char(c3, 'YYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYYY-DD-MM') from t_to_char1 where c0 = 1;
+
+--echo #
+--echo # now only support two parameter.
+--echo #
+select to_char(c3) from t_to_char1 where c0 =1;
+select to_char(c3, "YYYY-MM-DD HH:MI:SS") from t_to_char1 where c0 =1;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select to_char(c3, "YYYY-MM-DD HH:MI:SS", "zh_CN") from t_to_char1 where c0 = 1;
+--error ER_WRONG_PARAMCOUNT_TO_NATIVE_FCT
+select to_char(c3, "YYYY-MM-DD HH:MI:SS", "NLS_DATE_LANGUAGE = zh_CN") from t_to_char1 where c0 = 1;
+
+--echo #
+--echo # oracle support format but mariadb does not support
+--echo #
+--error ER_STD_INVALID_ARGUMENT
+select to_char(c3, 'DDD') from t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+select to_char(c3, 'D') from t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+select to_char(c3, 'DS') from t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+select to_char(c3, 'IY') from t_to_char1 where c0 = 1;
+--error ER_STD_INVALID_ARGUMENT
+select to_char(c3, 'IYYY') from t_to_char1 where c0 = 1;
+
+--echo #
+--echo # test for first argument data type
+--echo # 
+--error ER_STD_INVALID_ARGUMENT
+select to_char(1, 'yyyy');
+--error ER_STD_INVALID_ARGUMENT
+select to_char(1.1, 'yyyy');
+CREATE TABLE t_a(c1 int, c2 float, c3 decimal, c4 char(20), c5 varchar(20), c6 nchar(20), c7 nvarchar(20));
+insert into t_a VALUES (1, 3.2, 2002.02, '2000-11-11', '2000-11-11', '2000-11-11', '2000-11-11');
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR(c1, 'YYYY') from t_a;
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR(c2, 'YYYY') from t_a;
+--error ER_STD_INVALID_ARGUMENT
+SELECT TO_CHAR(c3, 'YYYY') from t_a;
+SELECT TO_CHAR(c4, 'YYYY') from t_a;
+SELECT TO_CHAR(c5, 'YYYY') from t_a;
+SELECT TO_CHAR(c6, 'YYYY') from t_a;
+SELECT TO_CHAR(c7, 'YYYY') from t_a;
+DROP TABLE t_a;
+
+CREATE TABLE t_b(c0 int, c1 char(20), c2 varchar(20), c3 nchar(20), c4 nvarchar(20));
+INSERT INTO t_b VALUES (1111, 'YYYY-MM-DD', 'YYYY-MM-DD', 'YYYY-MM-DD', 'YYYY-MM-DD');
+SELECT TO_CHAR('2000-11-11', c0) FROM t_b;
+SELECT TO_CHAR('2000-11-11', c1) FROM t_b;
+SELECT TO_CHAR('2000-11-11', c2) FROM t_b;
+SELECT TO_CHAR('2000-11-11', c3) FROM t_b;
+SELECT TO_CHAR('2000-11-11', c4) FROM t_b;
+DROP TABLE t_b;
+
+EXPLAIN EXTENDED SELECT TO_CHAR(c1, 'YYYY-MM-DD') FROM t_to_char1;
+
+--echo #
+--echo # test for time type with date format string
+--echo #
+SELECT TO_CHAR(c2, 'YYYY-MM-DD HH:MI:SS') from t_to_char1;
+SELECT TO_CHAR(c2, 'YYYY-MON-DY HH:MI:SS') from t_to_char1;
+SELECT TO_CHAR(c2, 'MON-YYYY-DY HH:MI:SS') from t_to_char1;
+SELECT TO_CHAR(c2, 'YYYY-MONTH-DAY HH:MI:SS') from t_to_char1;
+
+DROP TABLE t_to_char1;
+DROP TABLE t_to_char2;
+
+
+--echo #
+--echo # Test strict mode
+--echo #
+
+create table t1 (a datetime, b int, f varchar(30)) engine=myisam;
+insert into t1 values ("2021-01-24 19:22:10", 2014, "YYYY-MM-DD");
+insert into t1 values ("2021-01-24 19:22:10", 2014, "YYYY-MQ-DD");
+create table t2 (a varchar(30)) engine=myisam;
+insert into t2 select to_char(a,f) from t1;
+set @@sql_mode="STRICT_ALL_TABLES";
+--error ER_STD_INVALID_ARGUMENT
+insert into t2 select to_char(a,f) from t1;
+select * from t2;
+drop table t1,t2;
+set @local.sql_mode=@sql_mode;
+

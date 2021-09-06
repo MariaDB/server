@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (c) 1996, 2016, Oracle and/or its affiliates. All Rights Reserved.
-Copyright (c) 2017, 2020, MariaDB Corporation.
+Copyright (c) 2017, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -39,20 +39,6 @@ Created 4/24/1996 Heikki Tuuri
 /** A stack of table names related through foreign key constraints */
 typedef std::deque<const char*, ut_allocator<const char*> >	dict_names_t;
 
-/** enum that defines all system table IDs. @see SYSTEM_TABLE_NAME[] */
-enum dict_system_id_t {
-	SYS_TABLES = 0,
-	SYS_INDEXES,
-	SYS_COLUMNS,
-	SYS_FIELDS,
-	SYS_FOREIGN,
-	SYS_FOREIGN_COLS,
-	SYS_VIRTUAL,
-
-	/* This must be last item. Defines the number of system tables. */
-	SYS_NUM_SYSTEM_TABLES
-};
-
 /** Check each tablespace found in the data dictionary.
 Then look at each table defined in SYS_TABLES that has a space_id > 0
 to find all the file-per-table tablespaces.
@@ -66,34 +52,10 @@ was needed and force_recovery is not set.
 We also scan the biggest space id, and store it to fil_system. */
 void dict_check_tablespaces_and_store_max_id();
 
-/********************************************************************//**
-Finds the first table name in the given database.
-@return own: table name, NULL if does not exist; the caller must free
-the memory in the string! */
-char*
-dict_get_first_table_name_in_db(
-/*============================*/
-	const char*	name);	/*!< in: database name which ends to '/' */
-
 /** Make sure the data_file_name is saved in dict_table_t if needed.
-@param[in]	table		Table object
-@param[in]	dict_mutex_own	true if dict_sys.mutex is owned already */
-void
-dict_get_and_save_data_dir_path(
-	dict_table_t*	table,
-	bool		dict_mutex_own);
-
-/** Loads a table definition and also all its index definitions, and also
-the cluster definition if the table is a member in a cluster. Also loads
-all foreign key constraints where the foreign key is in the table or where
-a foreign key references columns in this table.
-@param[in]	name		Table name in the dbname/tablename format
-@param[in]	ignore_err	Error to be ignored when loading
-				table and its index definition
-@return table, NULL if does not exist; if the table is stored in an
-.ibd file, but the file does not exist, then we set the file_unreadable
-flag in the table object we return. */
-dict_table_t* dict_load_table(const char* name, dict_err_ignore_t ignore_err);
+@param[in,out]	table		Table object
+@param[in]	dict_locked	dict_sys.frozen() */
+void dict_get_and_save_data_dir_path(dict_table_t* table, bool dict_locked);
 
 /***********************************************************************//**
 Loads a table object based on the table id.
@@ -149,7 +111,7 @@ dict_startscan_system(
 	btr_pcur_t*	pcur,		/*!< out: persistent cursor to
 					the record */
 	mtr_t*		mtr,		/*!< in: the mini-transaction */
-	dict_system_id_t system_id);	/*!< in: which system table to open */
+	dict_table_t*	table);		/*!< in: system table */
 /********************************************************************//**
 This function get the next system table record as we scan the table.
 @return the record if found, NULL if end of scan. */
@@ -159,19 +121,18 @@ dict_getnext_system(
 	btr_pcur_t*	pcur,		/*!< in/out: persistent cursor
 					to the record */
 	mtr_t*		mtr);		/*!< in: the mini-transaction */
-/********************************************************************//**
-This function processes one SYS_TABLES record and populate the dict_table_t
-struct for the table.
-@return error message, or NULL on success */
-const char*
-dict_process_sys_tables_rec_and_mtr_commit(
-/*=======================================*/
-	mem_heap_t*	heap,		/*!< in: temporary memory heap */
-	const rec_t*	rec,		/*!< in: SYS_TABLES record */
-	dict_table_t**	table,		/*!< out: dict_table_t to fill */
-	bool		cached,		/*!< in: whether to load from cache */
-	mtr_t*		mtr);		/*!< in/out: mini-transaction,
-					will be committed */
+
+/** Load a table definition from a SYS_TABLES record to dict_table_t.
+Do not load any columns or indexes.
+@param[in]	name		Table name
+@param[in]	rec		SYS_TABLES record
+@param[out,own]	table		table, or nullptr
+@return	error message
+@retval	nullptr on success */
+const char *dict_load_table_low(const span<const char> &name,
+                                const rec_t *rec, dict_table_t **table)
+  MY_ATTRIBUTE((nonnull, warn_unused_result));
+
 /********************************************************************//**
 This function parses a SYS_INDEXES record and populate a dict_index_t
 structure with the information from the record. For detail information

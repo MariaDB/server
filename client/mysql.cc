@@ -88,7 +88,7 @@ extern "C" {
 #endif /* defined(HAVE_CURSES_H) && defined(HAVE_TERM_H) */
 
 #undef bcmp				// Fix problem with new readline
-#if defined(__WIN__)
+#if defined(_WIN32)
 #include <conio.h>
 #else
 #include <readline.h>
@@ -1587,7 +1587,7 @@ static struct my_option my_long_options[] =
   {"password", 'p',
    "Password to use when connecting to server. If password is not given it's asked from the tty.",
    0, 0, 0, GET_STR, OPT_ARG, 0, 0, 0, 0, 0, 0},
-#ifdef __WIN__
+#ifdef _WIN32
   {"pipe", 'W', "Use named pipes to connect to server.", 0, 0, 0, GET_NO_ARG,
    NO_ARG, 0, 0, 0, 0, 0, 0},
 #endif
@@ -1893,7 +1893,7 @@ get_one_option(const struct my_option *opt, const char *argument, const char *fi
     set_if_bigger(opt_silent,1);                         // more silent
     break;
   case 'W':
-#ifdef __WIN__
+#ifdef _WIN32
     opt_protocol = MYSQL_PROTOCOL_PIPE;
     opt_protocol_type= "pipe";
 
@@ -2026,7 +2026,7 @@ static int get_options(int argc, char **argv)
 
 static int read_and_execute(bool interactive)
 {
-#if defined(__WIN__)
+#if defined(_WIN32)
   String tmpbuf;
   String buffer;
 #endif
@@ -2062,13 +2062,14 @@ static int read_and_execute(bool interactive)
         {
           status.exit_status= 1;
           String msg;
-          msg.append("ASCII '\\0' appeared in the statement, but this is not "
-                     "allowed unless option --binary-mode is enabled and mysql is "
-                     "run in non-interactive mode. Set --binary-mode to 1 if ASCII "
-                     "'\\0' is expected. Query: '");
+          msg.append(STRING_WITH_LEN(
+          "ASCII '\\0' appeared in the statement, but this is not "
+          "allowed unless option --binary-mode is enabled and mysql is "
+          "run in non-interactive mode. Set --binary-mode to 1 if ASCII "
+          "'\\0' is expected. Query: '"));
           msg.append(glob_buffer);
-          msg.append(line);
-          msg.append("'.");
+          msg.append(line, strlen(line));
+          msg.append(STRING_WITH_LEN("'."));
           put_info(msg.c_ptr(), INFO_ERROR);
           break;
         }
@@ -2105,7 +2106,7 @@ static int read_and_execute(bool interactive)
       if (opt_outfile && glob_buffer.is_empty())
 	fflush(OUTFILE);
 
-#if defined(__WIN__)
+#if defined(_WIN32)
       tee_fputs(prompt, stdout);
       if (!tmpbuf.is_alloced())
         tmpbuf.alloc(65535);
@@ -2138,7 +2139,7 @@ static int read_and_execute(bool interactive)
       if (line)
         free(line);
       line= readline(prompt);
-#endif /* defined(__WIN__) */
+#endif /* defined(_WIN32) */
 
       /*
         When Ctrl+d or Ctrl+z is pressed, the line may be NULL on some OS
@@ -2193,7 +2194,7 @@ static int read_and_execute(bool interactive)
     }
   }
 
-#if defined(__WIN__)
+#if defined(_WIN32)
   buffer.free();
   tmpbuf.free();
 #else
@@ -2462,8 +2463,9 @@ static bool add_line(String &buffer, char *line, size_t line_length,
                                  my_isspace(charset_info, pos[2]))))
       {
         // Add trailing single line comments to this statement
-        buffer.append(pos);
-        pos+= strlen(pos);
+        size_t length= strlen(pos);
+        buffer.append(pos, length);
+        pos+= length;
       }
 
       pos--;
@@ -2509,7 +2511,7 @@ static bool add_line(String &buffer, char *line, size_t line_length,
       {
         bool started_with_nothing= !buffer.length();
 
-        buffer.append(pos);
+        buffer.append(pos, strlen(pos));
 
         /*
           A single-line comment by itself gets sent immediately so that
@@ -2667,7 +2669,7 @@ static void fix_history(String *final_command)
 	 not in string, change to space
 	 if in string, leave it alone 
       */
-      fixed_buffer.append(str_char == '\0' ? " " : "\n");
+      fixed_buffer.append(str_char == '\0' ? ' ' : '\n');
       total_lines++;
       break;
     case '\\':
@@ -3239,12 +3241,13 @@ com_charset(String *buffer __attribute__((unused)), char *line)
     return put_info("Usage: \\C charset_name | charset charset_name", 
 		    INFO_ERROR, 0);
   }
-  new_cs= get_charset_by_csname(param, MY_CS_PRIMARY, MYF(MY_WME));
+  new_cs= get_charset_by_csname(param, MY_CS_PRIMARY,
+                                MYF(MY_UTF8_IS_UTF8MB3 | MY_WME));
   if (new_cs)
   {
     charset_info= new_cs;
-    mysql_set_character_set(&mysql, charset_info->csname);
-    default_charset= (char *)charset_info->csname;
+    mysql_set_character_set(&mysql, charset_info->cs_name.str);
+    default_charset= (char *)charset_info->cs_name.str;
     put_info("Charset changed", INFO_INFO);
   }
   else put_info("Charset is not found", INFO_INFO);
@@ -3312,7 +3315,8 @@ com_go(String *buffer,char *line __attribute__((unused)))
 #ifdef HAVE_READLINE
   if (status.add_to_history) 
   {  
-    buffer->append(vertical ? "\\G" : delimiter);
+    const char *delim= vertical ? "\\G" : delimiter;
+    buffer->append(delim, strlen(delim));
     /* Append final command onto history */
     fix_history(buffer);
   }
@@ -4732,6 +4736,8 @@ static int
 sql_real_connect(char *host,char *database,char *user,char *password,
 		 uint silent)
 {
+  const char *charset_name;
+
   if (connected)
   {
     connected= 0;
@@ -4779,13 +4785,17 @@ sql_real_connect(char *host,char *database,char *user,char *password,
     return -1;					// Retryable
   }
 
-  if (!(charset_info= get_charset_by_name(mysql.charset->name, MYF(0))))
+  charset_name= IF_EMBEDDED(mysql.charset->coll_name.str,
+                            mysql.charset->name);
+  charset_info= get_charset_by_name(charset_name, MYF(MY_UTF8_IS_UTF8MB3));
+  if (!charset_info)
   {
-    put_info("Unknown default character set", INFO_ERROR);
+    char buff[128];
+    my_snprintf(buff, sizeof(buff)-1,
+                "Unknown default character set %s", charset_name);
+    put_info(buff, INFO_ERROR);
     return 1;
   }
-
-  
   connected=1;
 #ifndef EMBEDDED_LIBRARY
   mysql_options(&mysql, MYSQL_OPT_RECONNECT, &debug_info_flag);
@@ -4924,8 +4934,9 @@ com_status(String *buffer __attribute__((unused)),
   else
   {
     /* Probably pre-4.1 server */
-    tee_fprintf(stdout, "Client characterset:\t%s\n", charset_info->csname);
-    tee_fprintf(stdout, "Server characterset:\t%s\n", mysql.charset->csname);
+    tee_fprintf(stdout, "Client characterset:\t%s\n", charset_info->cs_name.str);
+    tee_fprintf(stdout, "Server characterset:\t%s\n",
+                mysql_character_set_name(&mysql));
   }
 
 #ifndef EMBEDDED_LIBRARY
@@ -5226,20 +5237,27 @@ static const char *construct_prompt()
 	add_int_to_prompt(++prompt_counter);
 	break;
       case 'v':
-	if (connected)
-	  processed_prompt.append(mysql_get_server_info(&mysql));
-	else
-	  processed_prompt.append("not_connected");
+      {
+        const char *info= (connected ?
+                           mysql_get_server_info(&mysql) :
+                           "not_connected");
+        processed_prompt.append(info, strlen(info));
 	break;
+      }
       case 'd':
-	processed_prompt.append(current_db ? current_db : "(none)");
-	break;
-      case 'N':
-        if (connected)
-          processed_prompt.append(mysql_get_server_name(&mysql));
-        else
-          processed_prompt.append("unknown");
+      {
+        const char *db= current_db ? current_db : "(none)";
+        processed_prompt.append(db, strlen(db));
         break;
+      }
+      case 'N':
+      {
+        const char *name= (connected ?
+                           mysql_get_server_name(&mysql) :
+                           "unknown");
+        processed_prompt.append(name, strlen(name));
+        break;
+      }
       case 'h':
       case 'H':
       {
@@ -5248,16 +5266,20 @@ static const char *construct_prompt()
         if (strstr(prompt, "Localhost") || strstr(prompt, "localhost "))
         {
           if (*c == 'h')
-            processed_prompt.append("localhost");
+            processed_prompt.append(STRING_WITH_LEN("localhost"));
           else
           {
             static char hostname[FN_REFLEN];
-            if (hostname[0])
-              processed_prompt.append(hostname);
+            static size_t hostname_length;
+            if (hostname_length)
+              processed_prompt.append(hostname, hostname_length);
             else if (gethostname(hostname, sizeof(hostname)) == 0)
-              processed_prompt.append(hostname);
+            {
+              hostname_length= strlen(hostname);
+              processed_prompt.append(hostname, hostname_length);
+            }
             else
-              processed_prompt.append("gethostname(2) failed");
+              processed_prompt.append(STRING_WITH_LEN("gethostname(2) failed"));
           }
         }
         else
@@ -5272,38 +5294,47 @@ static const char *construct_prompt()
 #ifndef EMBEDDED_LIBRARY
 	if (!connected)
 	{
-	  processed_prompt.append("not_connected");
+	  processed_prompt.append(STRING_WITH_LEN("not_connected"));
 	  break;
 	}
 
 	const char *host_info = mysql_get_host_info(&mysql);
 	if (strstr(host_info, "memory")) 
 	{
-		processed_prompt.append( mysql.host );
+          processed_prompt.append( mysql.host, strlen(mysql.host));
 	}
 	else if (strstr(host_info,"TCP/IP") ||
 	    !mysql.unix_socket)
 	  add_int_to_prompt(mysql.port);
 	else
 	{
-	  char *pos=strrchr(mysql.unix_socket,'/');
- 	  processed_prompt.append(pos ? pos+1 : mysql.unix_socket);
+          char *pos= strrchr(mysql.unix_socket,'/');
+          const char *tmp= pos ? pos+1 : mysql.unix_socket;
+          processed_prompt.append(tmp, strlen(tmp));
 	}
 #endif
       }
 	break;
       case 'U':
+      {
+        const char *name;
 	if (!full_username)
 	  init_username();
-        processed_prompt.append(full_username ? full_username :
-                                (current_user ?  current_user : "(unknown)"));
+        name= (full_username ? full_username :
+               (current_user ?  current_user : "(unknown)"));
+        processed_prompt.append(name, strlen(name));
 	break;
+      }
       case 'u':
+      {
+        const char *name;
 	if (!full_username)
 	  init_username();
-        processed_prompt.append(part_username ? part_username :
-                                (current_user ?  current_user : "(unknown)"));
+        name= (part_username ? part_username :
+               (current_user ?  current_user : "(unknown)"));
+        processed_prompt.append(name, strlen(name));
 	break;
+      }
       case PROMPT_CHAR:
 	processed_prompt.append(PROMPT_CHAR);
 	break;
@@ -5344,29 +5375,39 @@ static const char *construct_prompt()
 	add_int_to_prompt(t->tm_year+1900);
 	break;
       case 'D':
+      {
 	char* dateTime;
+        const char *tmp;
 	dateTime = ctime(&lclock);
-	processed_prompt.append(strtok(dateTime,"\n"));
+        tmp= strtok(dateTime,"\n");
+	processed_prompt.append(tmp, strlen(tmp));
 	break;
+      }
       case 's':
 	if (t->tm_sec < 10)
 	  processed_prompt.append('0');
 	add_int_to_prompt(t->tm_sec);
 	break;
       case 'w':
-	processed_prompt.append(day_names[t->tm_wday]);
-	break;
+      {
+        const char *name= day_names[t->tm_wday];
+        processed_prompt.append(name, strlen(name));
+        break;
+      }
       case 'P':
-	processed_prompt.append(t->tm_hour < 12 ? "am" : "pm");
+	processed_prompt.append(t->tm_hour < 12 ? "am" : "pm", 2);
 	break;
       case 'o':
 	add_int_to_prompt(t->tm_mon+1);
 	break;
       case 'O':
-	processed_prompt.append(month_names[t->tm_mon]);
+      {
+        const char *name= month_names[t->tm_mon];
+        processed_prompt.append(name, strlen(name));
 	break;
+      }
       case '\'':
-	processed_prompt.append("'");
+	processed_prompt.append('\'');
 	break;
       case '"':
 	processed_prompt.append('"');
@@ -5378,10 +5419,10 @@ static const char *construct_prompt()
 	processed_prompt.append('\t');
 	break;
       case 'l':
-	processed_prompt.append(delimiter_str);
+	processed_prompt.append(delimiter_str, strlen(delimiter_str));
 	break;
       default:
-	processed_prompt.append(c);
+	processed_prompt.append(*c);
       }
     }
   }
@@ -5393,8 +5434,8 @@ static const char *construct_prompt()
 static void add_int_to_prompt(int toadd)
 {
   char buffer[16];
-  int10_to_str(toadd,buffer,10);
-  processed_prompt.append(buffer);
+  size_t length= (size_t) (int10_to_str(toadd,buffer,10) - buffer);
+  processed_prompt.append(buffer, length);
 }
 
 static void init_username()

@@ -1,4 +1,4 @@
-languages czech=cze latin2, danish=dan latin1, dutch=nla latin1, english=eng latin1, estonian=est latin7, french=fre latin1, german=ger latin1, greek=greek greek, hungarian=hun latin2, italian=ita latin1, japanese=jpn ujis, korean=kor euckr, norwegian-ny=norwegian-ny latin1, norwegian=nor latin1, polish=pol latin2, portuguese=por latin1, romanian=rum latin2, russian=rus koi8r, serbian=serbian cp1250, slovak=slo latin2, spanish=spa latin1, swedish=swe latin1, ukrainian=ukr koi8u, bulgarian=bgn cp1251, hindi=hindi utf8;
+languages czech=cze latin2, danish=dan latin1, dutch=nla latin1, english=eng latin1, estonian=est latin7, french=fre latin1, german=ger latin1, greek=greek greek, hungarian=hun latin2, italian=ita latin1, japanese=jpn ujis, korean=kor euckr, norwegian-ny=norwegian-ny latin1, norwegian=nor latin1, polish=pol latin2, portuguese=por latin1, romanian=rum latin2, russian=rus koi8r, serbian=serbian cp1250, slovak=slo latin2, spanish=spa latin1, swedish=swe latin1, ukrainian=ukr koi8u, bulgarian=bgn cp1251, hindi=hindi utf8mb3;
 
 default-language eng
 
@@ -6636,8 +6636,8 @@ ER_BINLOG_UNSAFE_CREATE_SELECT_AUTOINC
 ER_BINLOG_UNSAFE_INSERT_TWO_KEYS
   eng "INSERT... ON DUPLICATE KEY UPDATE  on a table with more than one UNIQUE KEY is unsafe"
 
-ER_TABLE_IN_FK_CHECK
-  eng "Table is being used in foreign key check"
+ER_UNUSED_28
+  eng "You should never see it"
 
 ER_UNUSED_1
   eng "You should never see it"
@@ -7988,3 +7988,7 @@ ER_JSON_TABLE_MULTIPLE_MATCHES
         eng "Can't store multiple matches of the path in the column '%s' of JSON_TABLE '%s'."
 ER_WITH_TIES_NEEDS_ORDER
         eng "FETCH ... WITH TIES requires ORDER BY clause to be present"
+ER_REMOVED_ORPHAN_TRIGGER
+        eng "Dropped orphan trigger '%-.64s', originally created for table: '%-.192s'"
+ER_STORAGE_ENGINE_DISABLED
+        eng "Storage engine %s is disabled"

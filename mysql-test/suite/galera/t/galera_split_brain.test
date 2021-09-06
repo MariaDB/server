@@ -22,7 +22,8 @@ call mtr.add_suppression("WSREP: TO isolation failed for: ");
 --source include/kill_galera.inc
 
 --connection node_1
---error ER_LOCK_DEADLOCK
+SET SESSION lock_wait_timeout= 3;
+--error ER_LOCK_WAIT_TIMEOUT
 CREATE TABLE t1 (f1 INTEGER) ENGINE=InnoDB;
 
 # Reset the master and restart the slave so that post-test checks can run

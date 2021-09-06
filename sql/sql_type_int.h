@@ -77,23 +77,27 @@ public:
   }
   Longlong_null operator<<(const Longlong_null &llshift) const
   {
+    ulonglong res;
+    uint shift;
     if (is_null() || llshift.is_null())
       return Longlong_null();
-    uint shift= (uint) llshift.value();
-    ulonglong res= (shift < sizeof(longlong) * 8)
-      ? ((ulonglong) value()) << shift
-      : 0;
+    shift= (uint) llshift.value();
+    res= 0;
+    if (shift < sizeof(longlong) * 8)
+      res= ((ulonglong) value()) << shift;
     return Longlong_null((longlong) res);
   }
   Longlong_null operator>>(const Longlong_null &llshift) const
   {
+    ulonglong res;
+    uint shift;
     if (is_null() || llshift.is_null())
       return Longlong_null();
-    uint shift= (uint) llshift.value();
-    ulonglong res= (shift < sizeof(longlong) * 8)
-      ? ((ulonglong) value()) >> shift
-      : 0;
-    return Longlong_null((longlong) res);
+    shift= (uint) llshift.value();
+    res= 0;
+    if (shift < sizeof(longlong) * 8)
+      res= ((ulonglong) value()) >> shift;
+    return Longlong_null(res);
   }
   Longlong_null bit_count() const
   {

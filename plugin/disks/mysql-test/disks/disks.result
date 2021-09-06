@@ -6,7 +6,7 @@ DISKS	CREATE TEMPORARY TABLE `DISKS` (
   `Total` bigint(32) NOT NULL DEFAULT 0,
   `Used` bigint(32) NOT NULL DEFAULT 0,
   `Available` bigint(32) NOT NULL DEFAULT 0
-) ENGINE=MEMORY DEFAULT CHARSET=utf8
+) ENGINE=MEMORY DEFAULT CHARSET=utf8mb3
 select sum(Total) > sum(Available), sum(Total)>sum(Used) from information_schema.disks;
 sum(Total) > sum(Available)	sum(Total)>sum(Used)
 1	1

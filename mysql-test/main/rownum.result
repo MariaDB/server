@@ -1,0 +1,986 @@
+CREATE OR REPLACE TABLE t1(a int, b int) engine=aria;
+CREATE OR REPLACE TABLE t2(a int, b int) engine=aria;
+insert into t1 values (1,10),(2,20),(3,30);
+insert into t2 values (2,21),(3,31),(4,41);
+#
+# Simple selects
+#
+select a,b,rownum() from t1;
+a	b	rownum()
+1	10	1
+2	20	2
+3	30	3
+select a,b,rownum() from t1 where rownum() < 2;
+a	b	rownum()
+1	10	1
+select a,b from t1 where rownum() <= 2;
+a	b
+1	10
+2	20
+select a,b from t1 where rownum() > 2;
+a	b
+#
+# Subqueries
+#
+select t1.a,rownum(),t3.a,t3.t2_rownum from t1, (select t2.a,rownum() as t2_rownum from t2 where rownum() <=2) t3;
+a	rownum()	a	t2_rownum
+1	1	2	1
+1	2	3	2
+2	3	2	1
+2	4	3	2
+3	5	2	1
+3	6	3	2
+select t1.a, (select t2.b from t2 where t1.a=t2.a and rownum() <= 1) 'b' from t1;
+a	b
+1	NULL
+2	21
+3	31
+select t1.a, t3.a from t1, (select * from t2 where rownum() <= 2) t3;
+a	a
+1	2
+1	3
+2	2
+2	3
+3	2
+3	3
+select * from (select tt.*,rownum() as id from (select * from t1) tt) t3 where id>2;
+a	b	id
+3	30	3
+#
+# Joins
+#
+select t1.a,t1.b,t2.a,t2.b,rownum() from t1,t2 where rownum() <= 4;
+a	b	a	b	rownum()
+1	10	2	21	1
+2	20	2	21	2
+3	30	2	21	3
+1	10	3	31	4
+select *,rownum() from t1,t2 where t1.a=t2.a and rownum()<=2;
+a	b	a	b	rownum()
+2	20	2	21	1
+3	30	3	31	2
+select * from t1 left join t2 on (t2.a=t1.a and rownum()=0);
+a	b	a	b
+1	10	NULL	NULL
+2	20	NULL	NULL
+3	30	NULL	NULL
+select * from t1 left join t2 on (t2.a=t1.a and rownum()>1);
+a	b	a	b
+1	10	NULL	NULL
+2	20	NULL	NULL
+3	30	NULL	NULL
+select * from t1 left join t2 on (t2.a=t1.a and rownum()<1);
+a	b	a	b
+1	10	NULL	NULL
+2	20	NULL	NULL
+3	30	NULL	NULL
+select * from t1 left join t2 on (t2.a=t1.a and rownum()=1);
+a	b	a	b
+2	20	2	21
+1	10	NULL	NULL
+3	30	NULL	NULL
+select * from t1 left join t2 on (t2.a=t1.a and rownum()>=1);
+a	b	a	b
+2	20	2	21
+3	30	3	31
+1	10	NULL	NULL
+#
+# Union
+#
+select * from t1 where rownum() <=2 union select * from t2 where rownum()<= 1;
+a	b
+1	10
+2	20
+2	21
+#
+# Order by
+#
+select * from t1 where rownum() <= 2 order by a desc;
+a	b
+2	20
+1	10
+explain select * from t1 where rownum() <= 2 order by a desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using filesort
+select t1.a,t1.b,rownum() from t1 where rownum() <= 2 order by a desc;
+a	b	rownum()
+2	20	2
+1	10	1
+explain select t1.a,t1.b,rownum() from t1 where rownum() <= 2 order by a desc;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	Extra
+1	SIMPLE	t1	ALL	NULL	NULL	NULL	NULL	3	Using where; Using temporary; Using filesort
+select *,rownum() from t1,t2;
+a	b	a	b	rownum()
+1	10	2	21	1
+2	20	2	21	2
+3	30	2	21	3
+1	10	3	31	4
+2	20	3	31	5
+3	30	3	31	6
+1	10	4	41	7
+2	20	4	41	8
+3	30	4	41	9
+select *,rownum() from t1,t2 order by t2.a desc, t1.a desc;
+a	b	a	b	rownum()
+3	30	4	41	9
+2	20	4	41	8
+1	10	4	41	7
+3	30	3	31	6
+2	20	3	31	5
+1	10	3	31	4
+3	30	2	21	3
+2	20	2	21	2
+1	10	2	21	1
+select * from (select * from t1 order by a desc) as t where rownum() <= 2;
+a	b
+3	30
+2	20
+select * from t1,t2 where t1.a=t2.a and rownum()<=2 order by t1.a,t2.a;
+a	b	a	b
+2	20	2	21
+3	30	3	31
+#
+# Having
+#
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having r <= 2;
+a	sum(t1.b)	r
+1	10	1
+2	20	2
+select * from t1 having rownum() <= 2;
+a	b
+1	10
+2	20
+select t1.a, sum(t1.b), rownum() from t1 group by t1.a;
+a	sum(t1.b)	rownum()
+1	10	1
+2	20	2
+3	30	3
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having r <= 2;
+a	sum(t1.b)	r
+1	10	1
+2	20	2
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having rownum() <= 2;
+a	sum(t1.b)	r
+1	10	1
+2	20	2
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having r <= 2 order by a desc;
+a	sum(t1.b)	r
+2	20	2
+1	10	1
+select t1.a, sum(t1.b), rownum() as 'r' from t1 group by t1.a having rownum() <= 2 order by a desc;
+a	sum(t1.b)	r
+2	20	2
+1	10	1
+#
+# Sum functions
+#
+select max(rownum()),min(rownum()) from t1;
+max(rownum())	min(rownum())
+3	1
+select sum(rownum()),avg(rownum()) from t1;
+sum(rownum())	avg(rownum())
+6	2.0000
+#
+# Group by
+#
+select t1.a,sum(t1.b) from t1 where rownum() < 2 group by t1.a;
+a	sum(t1.b)
+1	10
+select t1.a,sum(t2.b) from t1 JOIN t2 ON (t1.a=t2.a) where rownum() <= 2 group by t1.a;
+a	sum(t2.b)
+2	21
+3	31
+select * from (select t1.a,sum(t2.b) from t1 JOIN t2 ON (t1.a=t2.a) group by t1.a) as t where rownum() <= 1;
+a	sum(t2.b)
+2	21
+select t1.a,sum(rownum()),count(*) from t1 where rownum() <= 2 group by t1.a;
+a	sum(rownum())	count(*)
+1	1	1
+2	2	1
+select * from (select t1.a,sum(t1.b) from t1 group by t1.a) as t3 where rownum() < 2;
+a	sum(t1.b)
+1	10
+create table t3 (a int) engine=myisam;
+insert into t3 values (3),(5),(5),(3);
+select a, max(rownum()) from t3 group by a;
+a	max(rownum())
+3	4
+5	3
+drop table t3;
+CREATE TABLE t3 (
+a int(11) DEFAULT NULL,
+b varchar(1024) DEFAULT NULL
+);
+insert into t3 select mod(seq*3,20)+1, repeat(char(33+mod(seq,90)),mod(seq,10)*100) from seq_1_to_23;
+SELECT sq.a,length(sq.f) FROM (SELECT a, GROUP_CONCAT(b,b) AS f FROM t3 GROUP BY a ORDER BY a desc) as sq WHERE ROWNUM() <= 10;
+a	length(sq.f)
+20	600
+19	1200
+18	1800
+17	400
+16	1000
+15	1600
+14	200
+13	800
+12	1400
+11	0
+drop table t3;
+#
+# Prepared statements
+#
+PREPARE stmt1 from "select a,b,rownum() from t1 where rownum() <= 2";
+execute stmt1;
+a	b	rownum()
+1	10	1
+2	20	2
+execute stmt1;
+a	b	rownum()
+1	10	1
+2	20	2
+deallocate prepare stmt1;
+#
+# Views
+#
+create view v1 as select t1.a,rownum() from t1;
+select * from v1;
+a	rownum()
+1	1
+2	2
+3	3
+select t1.a,v1.* from t1,v1 where t1.a=v1.a;
+a	a	rownum()
+1	1	1
+2	2	2
+3	3	3
+drop view v1;
+CREATE TABLE t3 (a INT);
+INSERT INTO t3 VALUES (1),(2),(3);
+CREATE VIEW v1 AS SELECT a FROM t3 WHERE ROWNUM() <= 2;
+SELECT * FROM v1;
+a
+1
+2
+drop view v1;
+drop table t3;
+#
+# Reserved words
+#
+create table t4 (a int, rownum int);
+insert into t4 (a,rownum) values (1,2);
+select t4.a,t4.rownum from t4;
+a	rownum
+1	2
+drop table t4;
+#
+# Test Oracle mode
+#
+set SQL_MODE=ORACLE;
+select t1.a,rownum from t1 where rownum<=2;
+a	rownum
+1	1
+2	2
+select t1.a,rownum() from t1 where rownum()<=2;
+a	rownum()
+1	1
+2	2
+create table t4 (a int, rownum int);
+ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 'rownum int)' at line 1
+DECLARE
+CURSOR c_cursor
+IS select a,b,rownum from t1 where rownum <= 2;
+v_a  t1.a%TYPE;
+v_b  t1.b%TYPE;
+v_rn t1.a%TYPE;
+BEGIN
+OPEN c_cursor;
+FETCH c_cursor INTO v_a, v_b, v_rn;
+WHILE c_cursor%FOUND LOOP
+SELECT concat(v_a,'--',v_b,'--',v_rn);
+FETCH c_cursor INTO v_a, v_b, v_rn;
+END LOOP;
+CLOSE c_cursor;
+END;|
+concat(v_a,'--',v_b,'--',v_rn)
+1--10--1
+concat(v_a,'--',v_b,'--',v_rn)
+2--20--2
+select a, rownum from t1 group by a, rownum having rownum < 3;
+a	rownum
+1	1
+2	2
+select a, rownum as r from t1 group by a, rownum having r < 3;
+a	r
+1	1
+2	2
+select a, rownum from t1 group by a, rownum having "rownum" < 3;
+a	rownum
+1	1
+2	2
+select a, rownum from t1 group by a, rownum having rownum < 3 order by a desc;
+a	rownum
+2	2
+1	1
+select a, rownum as r from t1 group by a, rownum having r < 3 order by a desc;
+a	r
+2	2
+1	1
+select a, rownum from t1 group by a, rownum having "rownum" < 3 order by a desc;
+a	rownum
+2	2
+1	1
+set SQL_MODE=DEFAULT;
+# Cleanup
+drop table t1,t2;
+#
+# INSERT
+#
+create table t1 (a int not null primary key, b int);
+insert into t1 values (1,rownum()),(2,rownum()),(3,rownum());
+select * from t1;
+a	b
+1	1
+2	2
+3	3
+drop table t1;
+#
+# INSERT DELAYED
+#
+create table t1 (a int not null primary key, b int);
+insert delayed into t1 values (1,rownum()),(2,rownum()),(3,rownum());
+select * from t1;
+a	b
+1	1
+2	2
+3	3
+drop table t1;
+#
+# INSERT IGNORED
+#
+create table t1 (a int not null primary key, b int);
+insert ignore into t1 values (1,rownum()),(2,rownum()),(2,rownum()),(3,rownum());
+Warnings:
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+select * from t1;
+a	b
+1	1
+2	2
+3	4
+delete from t1;
+insert ignore into t1 select * from (values (1,rownum()),(2,rownum()),(2,rownum()),(3,rownum())) t;
+Warnings:
+Warning	1062	Duplicate entry '2' for key 'PRIMARY'
+select * from t1;
+a	b
+1	1
+2	2
+3	4
+drop table t1;
+#
+# INSERT ... RETURNING
+#
+create or replace table t1 (a int);
+insert into t1 values (1),(2) returning a, rownum();
+a	rownum()
+1	1
+2	2
+drop table t1;
+#
+# UPDATE
+#
+create table t1 (a int not null primary key, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+update t1 set b=0;
+update t1 set b=rownum()+1;
+select * from t1;
+a	b
+1	2
+2	3
+3	4
+update t1 set b=0;
+update t1 set b=rownum() where a < 10 and rownum() < 2;
+select * from t1;
+a	b
+1	1
+2	0
+3	0
+drop table t1;
+create table t1 (a int);
+insert into t1 values (10),(20),(30);
+update t1 set a = rownum();
+select * from t1;
+a
+1
+2
+3
+update t1 set a = rownum();
+select * from t1;
+a
+1
+2
+3
+drop table t1;
+#
+# DELETE
+#
+create table t1 (a int not null primary key, b int);
+insert into t1 values (1,1),(2,0),(3,0);
+delete from t1 where a < 10 and rownum() < 2;
+select * from t1;
+a	b
+2	0
+3	0
+drop table t1;
+#
+# MULTI-TABLE-DELETE
+#
+create table t1 (a int not null primary key);
+insert into t1 values (1),(2),(3);
+create table t2 (a int not null primary key);
+insert into t2 values (1),(2),(3);
+delete t1,t2 from t1,t2 where t1.a=t2.a and rownum() <= 2;
+select * from t1;
+a
+3
+select * from t2;
+a
+3
+drop table t1,t2;
+#
+# MULTI-TABLE-UPDATE
+CREATE TABLE t1 (ID INT);
+CREATE TABLE t2 (ID INT,
+s1 TEXT, s2 TEXT, s3 VARCHAR(10), s4 TEXT, s5 VARCHAR(10));
+INSERT INTO t1 VALUES (1),(2);
+INSERT INTO t2 VALUES (1,'test', 'test', 'test', 'test', 'test'),
+(2,'test', 'test', 'test', 'test', 'test');
+SELECT * FROM t1 LEFT JOIN t2 USING(ID);
+ID	s1	s2	s3	s4	s5
+1	test	test	test	test	test
+2	test	test	test	test	test
+UPDATE t1 LEFT JOIN t2 USING(ID) SET s1 = 'changed';
+select * from t2;
+ID	s1	s2	s3	s4	s5
+1	changed	test	test	test	test
+2	changed	test	test	test	test
+update t2 set s1="";
+UPDATE t1 LEFT JOIN t2 USING(ID) SET s1 = 'changed' where rownum() <=1;
+select * from t2;
+ID	s1	s2	s3	s4	s5
+1	changed	test	test	test	test
+2		test	test	test	test
+drop table t1,t2;
+#
+# LOAD DATA
+#
+create table t1 (a int, b int, c int);
+load data infile '../../std_data/loaddata7.dat' into table t1 fields terminated by ',' lines terminated by "\r\n" (a,b) set c=rownum();
+select * from t1;
+a	b	c
+2	2	1
+3	3	2
+4	4	3
+5	5	4
+6	6	5
+drop table t1;
+#
+# LIMIT OPTIMIZATION
+#
+create table t1 (a int);
+insert into t1 select seq from seq_1_to_100;
+flush status;
+select * from t1 where rownum() <= 3;
+a
+1
+2
+3
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	3
+flush status;
+select * from t1 where rownum() <= 4 and rownum() <= 3;
+a
+1
+2
+3
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	3
+flush status;
+select * from t1 where rownum() < 4 and a > 10;
+a
+11
+12
+13
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	13
+flush status;
+select * from t1 where 3 >= rownum();
+a
+1
+2
+3
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	3
+flush status;
+select * from t1 where 4 > rownum() and a > 20;
+a
+21
+22
+23
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	23
+flush status;
+select * from t1 where rownum() = 1 and a > 10;
+a
+11
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	11
+flush status;
+select * from t1 where a > 30 && 1 = rownum();
+a
+31
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	31
+flush status;
+# No limit optimization
+select * from t1 where rownum() > 10;
+a
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	100
+flush status;
+select * from t1 where 10 < rownum();
+a
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	100
+flush status;
+select * from t1 where rownum() >= 10;
+a
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	100
+flush status;
+select * from t1 where 10 < rownum();
+a
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	100
+flush status;
+select * from t1 where 10 <= rownum();
+a
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	100
+flush status;
+select * from t1 where 2 = rownum();
+a
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	100
+flush status;
+select * from t1 where rownum() = 2;
+a
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	100
+flush status;
+select * from t1 where rownum() <= 0;
+a
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	100
+flush status;
+select *,rownum() from t1 where rownum() < 10 limit 4, 4;
+a	rownum()
+5	5
+6	6
+7	7
+8	8
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	8
+flush status;
+select * from t1 where rownum() < 10 order by a;
+a
+1
+2
+3
+4
+5
+6
+7
+8
+9
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	100
+flush status;
+# rownum and limit
+select * from t1 where rownum() < 4 limit 10;
+a
+1
+2
+3
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	3
+flush status;
+select * from t1 where rownum() < 10 limit 4;
+a
+1
+2
+3
+4
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	4
+drop table t1;
+#
+# Rownum examples from Woqutech
+#
+set SQL_MODE=ORACLE;
+create table t1 (c1 int ,c2 varchar(20)) engine=myisam;
+insert into t1 values (1, 'aaa'),(2, 'bbb'),(3, 'ccc'),(4, 'ddd'),(5, 'eee');
+update t1 set c2 = 'xxx' where rownum = 2;
+select * from t1 where c2='xxx';
+c1	c2
+update t1 set c2 = 'xxx' where  rownum < 3;
+select * from t1 where c2='xxx';
+c1	c2
+1	xxx
+2	xxx
+delete from t1 where rownum = 2;
+select count(*) from t1;
+count(*)
+5
+delete from t1 where rownum < 3;
+select count(*) from t1;
+count(*)
+3
+delete from t1 where c1=rownum ;
+select count(*) from t1;
+count(*)
+3
+delete from t1 where c1=rownum+2 ;
+select count(*) from t1;
+count(*)
+0
+set SQL_MODE=DEFAULT;
+drop table t1;
+#
+# Rownum() used in not supported places (returns 0 or gives an error)
+#
+set @a=rownum();
+select @a;
+@a
+0
+create or replace table t (a int, b int as (rownum()) virtual);
+ERROR HY000: Function or expression 'rownum()' cannot be used in the GENERATED ALWAYS AS clause of `b`
+create table t1 (a int);
+insert into t1 values (3),(1),(5),(8),(4);
+handler t1 open;
+handler t1 read next where rownum() < 1;
+ERROR HY000: Function or expression 'rownum()' cannot be used in the WHERE clause of `HANDLER`
+handler t1 close;
+drop table t1;
+create table t1 (a int not null primary key, b int);
+insert into t1 values (1,1),(2,2),(3,3);
+create function f() returns int return rownum();
+select a, rownum(), f() from t1;
+a	rownum()	f()
+1	1	0
+2	2	0
+3	3	0
+drop function f;
+drop table t1;
+create or replace table t1 (a int, r int);
+create trigger tr before update on t1 for each row set NEW.r = rownum();
+insert into t1 (a) values (1),(2);
+select * from t1;
+a	r
+1	NULL
+2	NULL
+update t1 set a=a+10;
+select * from t1;
+a	r
+11	0
+12	0
+drop trigger tr;
+drop table t1;
+#
+# LIMIT optimisation
+#
+create table t1 (a int);
+insert into t1 values (1),(2),(3),(4),(5);
+flush status;
+select * from (select a from t1 where a < 1000) as tt where rownum() <= 2;
+a
+1
+2
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	2
+explain extended select * from (select a from t1 where a < 1000) as tt where rownum() <= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 2) `tt` where rownum() <= 2 limit 2
+prepare stmt from "select * from (select a from t1 where a < 1000) as tt where rownum() <= 2";
+flush status;
+execute stmt;
+a
+1
+2
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	2
+flush status;
+execute stmt;
+a
+1
+2
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	2
+deallocate prepare stmt;
+flush status;
+select * from (select a from t1 where a < 1000 group by a) as tt where rownum() <= 2;
+a
+1
+2
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	5
+explain extended select * from (select a from t1 where a < 1000 group by a) as tt where rownum() <= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 group by `test`.`t1`.`a` limit 2) `tt` where rownum() <= 2 limit 2
+prepare stmt from "select * from (select a from t1 where a < 1000 group by a) as tt where rownum() <= 2";
+execute stmt;
+a
+1
+2
+execute stmt;
+a
+1
+2
+deallocate prepare stmt;
+flush status;
+select * from (select a from t1 where a < 1000 group by a order by 1) as tt where rownum() <= 2;
+a
+1
+2
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	5
+explain extended select * from (select a from t1 where a < 1000 group by a order by 1) as tt where rownum() <= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 group by `test`.`t1`.`a` order by 1 limit 2) `tt` where rownum() <= 2 limit 2
+prepare stmt from "select * from (select a from t1 where a < 1000 group by a order by 1) as tt where rownum() <= 2";
+execute stmt;
+a
+1
+2
+execute stmt;
+a
+1
+2
+deallocate prepare stmt;
+flush status;
+select * from (select a from t1 where a < 1000 union select 10) as tt where rownum() <= 2;
+a
+1
+2
+show status like "Rows_read";
+Variable_name	Value
+Rows_read	5
+explain extended select * from (select a from t1 where a < 1000 union select 10) as tt where rownum() <= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 union /* select#3 */ select 10 AS `10` limit 2) `tt` where rownum() <= 2 limit 2
+prepare stmt from "select * from (select a from t1 where a < 1000 union select 10) as tt where rownum() <= 2";
+execute stmt;
+a
+1
+2
+execute stmt;
+a
+1
+2
+deallocate prepare stmt;
+# Other limit
+select * from (select a from t1 where a < 1000 group by a order by 1 limit 1) as tt where rownum() <= 2;
+a
+1
+explain extended select * from (select a from t1 where a < 1000 group by a order by 1 limit 1) as tt where rownum() <= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 group by `test`.`t1`.`a` order by 1 limit 1) `tt` where rownum() <= 2 limit 2
+prepare stmt from "select * from (select a from t1 where a < 1000 group by a order by 1 limit 1) as tt where rownum() <= 2";
+execute stmt;
+a
+1
+execute stmt;
+a
+1
+deallocate prepare stmt;
+# Other limit less
+select * from (select a from t1 where a < 1000 group by a order by 1 limit 10) as tt where rownum() <= 2;
+a
+1
+2
+explain extended select * from (select a from t1 where a < 1000 group by a order by 1 limit 10) as tt where rownum() <= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where; Using temporary; Using filesort
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 group by `test`.`t1`.`a` order by 1 limit 2) `tt` where rownum() <= 2 limit 2
+prepare stmt from "select * from (select a from t1 where a < 1000 group by a order by 1 limit 10) as tt where rownum() <= 2";
+execute stmt;
+a
+1
+2
+execute stmt;
+a
+1
+2
+deallocate prepare stmt;
+select * from (select a from t1 where a < 1000 union select 10 limit 1) as tt where rownum() <= 2;
+a
+1
+explain extended select * from (select a from t1 where a < 1000 union select 10 limit 1) as tt where rownum() <= 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+3	UNION	NULL	NULL	NULL	NULL	NULL	NULL	NULL	NULL	No tables used
+NULL	UNION RESULT	<union2,3>	ALL	NULL	NULL	NULL	NULL	NULL	NULL	
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 union /* select#3 */ select 10 AS `10` limit 1) `tt` where rownum() <= 2 limit 2
+prepare stmt from "select * from (select a from t1 where a < 1000 union select 10 limit 1) as tt where rownum() <= 2";
+execute stmt;
+a
+1
+execute stmt;
+a
+1
+deallocate prepare stmt;
+# < rownum
+select * from (select a from t1 where a < 1000) as tt where rownum() < 2;
+a
+1
+explain extended select * from (select a from t1 where a < 1000) as tt where rownum() < 2;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 1) `tt` where rownum() < 2 limit 1
+prepare stmt from "select * from (select a from t1 where a < 1000) as tt where rownum() < 2";
+execute stmt;
+a
+1
+execute stmt;
+a
+1
+deallocate prepare stmt;
+# Simple expression
+select * from (select a from t1 where a < 1000) as tt where rownum() <= 1+1;
+a
+1
+2
+explain extended select * from (select a from t1 where a < 1000) as tt where rownum() <= 1+1;
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 2) `tt` where rownum() <= <cache>(1 + 1) limit 2
+prepare stmt from "select * from (select a from t1 where a < 1000) as tt where rownum() <= 1+1";
+execute stmt;
+a
+1
+2
+execute stmt;
+a
+1
+2
+deallocate prepare stmt;
+# Simple expression reversed
+select * from (select a from t1 where a < 1000) as tt where  1+1 >= rownum();
+a
+1
+2
+explain extended select * from (select a from t1 where a < 1000) as tt where  1+1 >= rownum();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	2	100.00	Using where
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 2) `tt` where <cache>(1 + 1) >= rownum() limit 2
+prepare stmt from "select * from (select a from t1 where a < 1000) as tt where  1+1 >= rownum()";
+execute stmt;
+a
+1
+2
+execute stmt;
+a
+1
+2
+deallocate prepare stmt;
+# expensive (no opt)
+select * from (select a from t1 where a < 1000) as tt where  (select max(a) from t1) >= rownum();
+a
+1
+2
+3
+4
+5
+explain extended select * from (select a from t1 where a < 1000) as tt where  (select max(a) from t1) >= rownum();
+id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
+1	PRIMARY	<derived2>	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+3	SUBQUERY	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	
+2	DERIVED	t1	ALL	NULL	NULL	NULL	NULL	5	100.00	Using where
+Warnings:
+Note	1003	/* select#1 */ select `tt`.`a` AS `a` from (/* select#2 */ select `test`.`t1`.`a` AS `a` from `test`.`t1` where `test`.`t1`.`a` < 1000 limit 5) `tt` where (/* select#3 */ select max(`test`.`t1`.`a`) from `test`.`t1`) >= rownum() limit 5
+prepare stmt from "select * from (select a from t1 where a < 1000) as tt where  (select max(a) from t1) >= rownum()";
+execute stmt;
+a
+1
+2
+3
+4
+5
+execute stmt;
+a
+1
+2
+3
+4
+5
+deallocate prepare stmt;
+drop table t1;
+#
+# Table value constructors
+#
+values ("first row"),("next row is 3"),(rownum()),("next row is 5"),(rownum());
+first row
+first row
+next row is 3
+3
+next row is 5
+5

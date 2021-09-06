@@ -32,6 +32,7 @@
 #ifdef HAVE_CHARSET_euckr
 
 const char charset_name_euckr[]= "euckr";
+#define charset_name_euckr_length  sizeof(charset_name_euckr)-1
 
 static const uchar ctype_euc_kr[257] =
 {
@@ -10055,8 +10056,8 @@ struct charset_info_st my_charset_euckr_korean_ci=
 {
     19,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_PRIMARY,	/* state      */
-    charset_name_euckr,		/* cs name    */
-    "euckr_korean_ci",	/* name */
+    { charset_name_euckr, charset_name_euckr_length }, /* cs name    */
+    { STRING_WITH_LEN("euckr_korean_ci") },            /* name */
     "",			/* comment    */
     NULL,		/* tailoring */
     ctype_euc_kr,
@@ -10088,8 +10089,8 @@ struct charset_info_st my_charset_euckr_bin=
 {
     85,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_BINSORT,	/* state      */
-    charset_name_euckr,		/* cs name    */
-    "euckr_bin",	/* name */
+    { charset_name_euckr, charset_name_euckr_length },	 /* cs name    */
+    { STRING_WITH_LEN("euckr_bin") },	/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
     ctype_euc_kr,
@@ -10121,8 +10122,8 @@ struct charset_info_st my_charset_euckr_korean_nopad_ci=
 {
     MY_NOPAD_ID(19),0,0,/* number     */
     MY_CS_COMPILED|MY_CS_NOPAD, /* state */
-    charset_name_euckr,            /* cs name    */
-    "euckr_korean_nopad_ci",  /* name */
+    { charset_name_euckr, charset_name_euckr_length },      /* cs name    */
+    { STRING_WITH_LEN("euckr_korean_nopad_ci") },  /* name */
     "",                 /* comment    */
     NULL,               /* tailoring  */
     ctype_euc_kr,
@@ -10154,8 +10155,8 @@ struct charset_info_st my_charset_euckr_nopad_bin=
 {
     MY_NOPAD_ID(85),0,0,/* number        */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NOPAD, /* state */
-    charset_name_euckr,            /* cs name       */
-    "euckr_nopad_bin",  /* name          */
+    { charset_name_euckr, charset_name_euckr_length },    /* cs name       */
+    { STRING_WITH_LEN("euckr_nopad_bin") },               /* name          */
     "",                 /* comment       */
     NULL,               /* tailoring     */
     ctype_euc_kr,

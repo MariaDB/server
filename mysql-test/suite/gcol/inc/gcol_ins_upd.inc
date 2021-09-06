@@ -613,4 +613,78 @@ DELETE FROM t1;
 
 DROP TEMPORARY TABLE t1;
 
+--echo #
+--echo # Original test case from MDEV-17890
+--echo #
+
+CREATE TABLE t1 (
+  pk BIGINT AUTO_INCREMENT,
+  b BIT(15),
+  v BIT(10) AS (b) VIRTUAL,
+  PRIMARY KEY(pk),
+  UNIQUE(v)
+);
+
+INSERT IGNORE INTO t1 (b) VALUES (b'101110001110100'),(b'011101');
+SELECT pk, b INTO OUTFILE 'load.data' FROM t1;
+--error ER_DATA_TOO_LONG
+LOAD DATA INFILE 'load.data' REPLACE INTO TABLE t1 (pk, b);
+
+# Cleanup
+DROP TABLE t1;
+--let $datadir= `SELECT @@datadir`
+--remove_file $datadir/test/load.data
+
+
+--echo #
+--echo # MDEV-18166 ASSERT_COLUMN_MARKED_FOR_READ failed on tables with vcols
+--echo #
+
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT,
+  f ENUM('a','b','c'),
+  v ENUM('a','b','c') AS (f),
+  KEY(v,id)
+) ENGINE=MyISAM;
+INSERT INTO t1 (f) VALUES ('a'),('b');
+INSERT IGNORE INTO t1 SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+
+
+CREATE TABLE t1 (
+  id INT NOT NULL AUTO_INCREMENT,
+  f ENUM('a','b','c'),
+  v ENUM('a','b','c') AS (f),
+  KEY(v,id)
+) ENGINE=MyISAM;
+INSERT INTO t1 (f) VALUES ('a'),('b');
+INSERT IGNORE INTO t1 SELECT * FROM t1;
+
+# Cleanup
+DROP TABLE t1;
+
 }
+
+--echo #
+--echo # MDEV-23597 Assertion `marked_for_read()' failed while evaluating DEFAULT
+--echo #
+
+CREATE TABLE t1 (a INT UNIQUE, b INT DEFAULT (c+1), c int);
+INSERT INTO t1 VALUES (1,1,1);
+UPDATE t1 SET b=DEFAULT;
+SELECT * from t1;
+
+REPLACE t1 VALUES(1,1,1);
+INSERT INTO t1 VALUES (1,1,1) ON DUPLICATE KEY UPDATE b= DEFAULT;
+SELECT * from t1;
+
+REPLACE t1 VALUES(1,1,1);
+CREATE TABLE t2 (a INT, b INT DEFAULT (c+1), c int);
+INSERT INTO t2 VALUES (5,5,5);
+UPDATE t1 join t2 set t1.b= DEFAULT, t2.b= DEFAULT;
+SELECT * from t1, t2;
+
+DROP TABLE t1, t2;
+

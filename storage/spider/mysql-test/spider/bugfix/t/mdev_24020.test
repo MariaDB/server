@@ -1,0 +1,90 @@
+--source ../include/mdev_24020_init.inc
+--echo
+--echo this test is for MDEV-24020
+--echo
+--echo drop and create databases
+
+--connection master_1
+--disable_warnings
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+
+--connection child2_1
+CREATE DATABASE auto_test_remote;
+USE auto_test_remote;
+--enable_warnings
+
+--echo
+--echo create table and insert
+
+--connection child2_1
+--disable_query_log
+--disable_ps_protocol
+echo CHILD2_1_CREATE_TABLES;
+eval $CHILD2_1_CREATE_TABLES;
+--enable_ps_protocol
+--enable_query_log
+
+--connection master_1
+--disable_query_log
+echo CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(30),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+eval CREATE TABLE tbl_a (
+  a INT,
+  b VARCHAR(30),
+  PRIMARY KEY(a)
+) $MASTER_1_ENGINE $MASTER_1_COMMENT_P_2_1;
+--enable_query_log
+INSERT INTO tbl_a VALUES(10000, "  abcd   ");
+INSERT INTO tbl_a VALUES(10001, "  abcd   ");
+INSERT INTO tbl_a VALUES(10002, "  abcd   ");
+INSERT INTO tbl_a VALUES(10003, "[[[abcd][[");
+INSERT INTO tbl_a VALUES(10004, "[[[abcd][[");
+INSERT INTO tbl_a VALUES(10005, "[[[abcd][[");
+INSERT INTO tbl_a VALUES(10006, "[[[abcd]]");
+INSERT INTO tbl_a VALUES(10007, "[[[abcd]]");
+INSERT INTO tbl_a VALUES(10008, "[[[abcd]]");
+INSERT INTO tbl_a VALUES(10009, "[[[**abcd****]]");
+
+--echo
+--echo test 1
+
+--connection master_1
+UPDATE tbl_a SET b = trim(b) WHERE a = 10000;
+SELECT * FROM tbl_a WHERE a = 10000;
+UPDATE tbl_a SET b = ltrim(b) WHERE a = 10001;
+SELECT * FROM tbl_a WHERE a = 10001;
+UPDATE tbl_a SET b = rtrim(b) WHERE a = 10002;
+SELECT * FROM tbl_a WHERE a = 10002;
+UPDATE tbl_a SET b = trim(BOTH '[' FROM b) WHERE a = 10003;
+SELECT * FROM tbl_a WHERE a = 10003;
+UPDATE tbl_a SET b = trim(LEADING '[' FROM b) WHERE a = 10004;
+SELECT * FROM tbl_a WHERE a = 10004;
+UPDATE tbl_a SET b = trim(TRAILING '[' FROM b) WHERE a = 10005;
+SELECT * FROM tbl_a WHERE a = 10005;
+UPDATE tbl_a SET b = trim(LEADING '[' FROM trim(TRAILING ']' FROM b)) WHERE a = 10006;
+SELECT * FROM tbl_a WHERE a = 10006;
+UPDATE tbl_a SET b = trim(TRAILING '[' FROM trim(LEADING ']' FROM b)) WHERE a = 10007;
+SELECT * FROM tbl_a WHERE a = 10007;
+UPDATE tbl_a SET b = trim(TRAILING ']' FROM trim(LEADING '[' FROM b)) WHERE a = 10008;
+SELECT * FROM tbl_a WHERE a = 10008;
+UPDATE tbl_a SET b = trim(BOTH '*' FROM trim(TRAILING ']' FROM trim(LEADING '[' FROM b))) WHERE a = 10009;
+SELECT * FROM tbl_a WHERE a = 10009;
+
+--echo
+--echo deinit
+--disable_warnings
+
+--connection master_1
+DROP DATABASE IF EXISTS auto_test_local;
+
+--connection child2_1
+DROP DATABASE IF EXISTS auto_test_remote;
+
+--enable_warnings
+--source ../include/mdev_24020_deinit.inc
+--echo
+--echo end of test

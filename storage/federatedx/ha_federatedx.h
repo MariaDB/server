@@ -104,7 +104,7 @@ typedef struct st_federatedx_share {
   /*
     the primary select query to be used in rnd_init
   */
-  char *select_query;
+  LEX_CSTRING select_query;
   /*
     remote host info, parse_url supplies
   */
@@ -258,7 +258,6 @@ public:
   void stmt_autocommit();
 };
 
-
 /*
   Class definition for the storage engine
 */
@@ -296,8 +295,7 @@ private:
                              bool records_in_range, bool eq_range);
   int stash_remote_error();
 
-  federatedx_txn *get_txn(THD *thd, bool no_create= FALSE);
-
+  static federatedx_txn *get_txn(THD *thd, bool no_create= FALSE);
   static int disconnect(handlerton *hton, MYSQL_THD thd);
   static int savepoint_set(handlerton *hton, MYSQL_THD thd, void *sv);
   static int savepoint_rollback(handlerton *hton, MYSQL_THD thd, void *sv);

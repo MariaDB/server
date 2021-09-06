@@ -90,14 +90,14 @@ DELIMITER /*!*/;
 /*!100001 SET @@session.server_id=#*//*!*/;
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 use `test`/*!*/;
 SET TIMESTAMP=XXX/*!*/;
 SET @@session.pseudo_thread_id=#/*!*/;
 SET @@session.foreign_key_checks=1, @@session.sql_auto_is_null=0, @@session.unique_checks=1, @@session.autocommit=1, @@session.check_constraint_checks=1, @@session.sql_if_exists=0/*!*/;
 SET @@session.sql_mode=1411383296/*!*/;
 SET @@session.auto_increment_increment=1, @@session.auto_increment_offset=1/*!*/;
-/*!\C utf8 *//*!*/;
+/*!\C utf8mb3 *//*!*/;
 SET @@session.character_set_client=X,@@session.collation_connection=X,@@session.collation_server=X/*!*/;
 SET @@session.lc_time_names=0/*!*/;
 SET @@session.collation_database=DEFAULT/*!*/;
@@ -109,12 +109,12 @@ CREATE TABLE t1 (a VARCHAR(10) CHARACTER SET utf8)
 START TRANSACTION
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 INSERT INTO t1 VALUES ('ä(i1)')
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
@@ -124,12 +124,12 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 INSERT INTO t1 VALUES ('ä(i2)')
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
@@ -139,12 +139,12 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 INSERT INTO t1 VALUES ('ä(i3)')
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
@@ -154,12 +154,12 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 INSERT INTO t1 VALUES ('ä(p1)')
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
@@ -169,12 +169,12 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 INSERT INTO t1 VALUES ('ä(p2)')
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
@@ -184,12 +184,12 @@ COMMIT
 START TRANSACTION
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 INSERT INTO t1 VALUES ('ä(p3)')
 /*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 COMMIT
 /*!*/;
@@ -197,7 +197,7 @@ COMMIT
 #YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	GTID #-#-# ddl
 /*!100001 SET @@session.gtid_seq_no=#*//*!*/;
 # at #
-#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0
+#YYMMDD HH:MM:SS server id #  end_log_pos # CRC32 XXX 	Query	thread_id=#	exec_time=#	error_code=0	xid=<xid>
 SET TIMESTAMP=XXX/*!*/;
 DROP TABLE `t1` /* generated by server */
 /*!*/;

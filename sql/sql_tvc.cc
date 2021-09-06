@@ -212,7 +212,7 @@ bool get_type_attributes_for_tvc(THD *thd,
     Item *item;
     for (uint holder_pos= 0 ; (item= it++); holder_pos++)
     {
-      DBUG_ASSERT(item->is_fixed());
+      DBUG_ASSERT(item->fixed());
       holders[holder_pos].add_argument(item);
     }
   }
@@ -433,6 +433,8 @@ bool table_value_constr::exec(SELECT_LEX *sl)
   {
     DBUG_RETURN(true);
   }
+
+  fix_rownum_pointers(sl->parent_lex->thd, sl, &send_records);
 
   while ((elem= li++))
   {

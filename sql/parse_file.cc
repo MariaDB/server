@@ -24,7 +24,9 @@
 #include "sql_priv.h"
 #include "parse_file.h"
 #include "unireg.h"                            // CREATE_MODE
-#include "sql_table.h"                        // build_table_filename
+#include "sql_table.h"                         // build_table_filename
+#include "debug.h"
+#include <mysys_err.h>                         // EE_WRITE
 #include <m_ctype.h>
 #include <my_dir.h>
 
@@ -245,7 +247,6 @@ write_parameter(IO_CACHE *file, const uchar* base, File_option *parameter)
     TRUE    error
 */
 
-
 my_bool
 sql_create_definition_file(const LEX_CSTRING *dir,
                            const LEX_CSTRING *file_name,
@@ -287,6 +288,8 @@ sql_create_definition_file(const LEX_CSTRING *dir,
     DBUG_RETURN(TRUE);
   }
 
+  debug_crash_here("definition_file_after_create");
+
   if (init_io_cache(&file, handler, 0, WRITE_CACHE, 0L, 0, MYF(MY_WME)))
     goto err_w_file;
 
@@ -294,6 +297,9 @@ sql_create_definition_file(const LEX_CSTRING *dir,
   if (my_b_write(&file, (const uchar *)STRING_WITH_LEN("TYPE=")) ||
       my_b_write(&file, (const uchar *)type->str, type->length) ||
       my_b_write(&file, (const uchar *)STRING_WITH_LEN("\n")))
+    goto err_w_cache;
+
+  if (debug_simulate_error("definition_file_simulate_write_error", EE_WRITE))
     goto err_w_cache;
 
   // write parameters to temporary file
@@ -337,8 +343,51 @@ err_w_cache:
   end_io_cache(&file);
 err_w_file:
   mysql_file_close(handler, MYF(MY_WME));
+  mysql_file_delete(key_file_fileparser, path, MYF(MY_WME));
   DBUG_RETURN(TRUE);
 }
+
+
+/*
+  Make a copy of a definition file with '-' added to the name
+
+  @param org_name   Original file name
+  @param new_name   Pointer to a buff of FN_REFLEN. Will be updated to name of
+                    backup file
+  @return 0 ok
+  @return 1 error
+*/
+
+int sql_backup_definition_file(const LEX_CSTRING *org_name,
+                               LEX_CSTRING *new_name)
+{
+  char *new_name_buff= (char*) new_name->str;
+  new_name->length= org_name->length+1;
+
+  memcpy(new_name_buff, org_name->str, org_name->length+1);
+  new_name_buff[org_name->length]= '-';
+  new_name_buff[org_name->length+1]= 0;
+  return my_copy(org_name->str, new_name->str, MYF(MY_WME));
+}
+
+/*
+  Restore copy of a definition file
+
+  @param org_name   Name of backup file (ending with '-' or '~')
+
+  @return 0 ok
+  @return 1 error
+*/
+
+int sql_restore_definition_file(const LEX_CSTRING *name)
+{
+  char new_name[FN_REFLEN+1];
+  memcpy(new_name, name->str, name->length-1);
+  new_name[name->length-1]= 0;
+  return mysql_file_rename(key_file_fileparser, name->str, new_name,
+                           MYF(MY_WME));
+}
+
 
 /**
   Renames a frm file (including backups) in same schema.

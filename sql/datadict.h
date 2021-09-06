@@ -38,11 +38,13 @@ enum Table_type
   To check whether it's an frm of a view, use dd_frm_is_view().
 */
 
-enum Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name);
+enum Table_type dd_frm_type(THD *thd, char *path, LEX_CSTRING *engine_name,
+                            LEX_CSTRING *partition_engine_name,
+                            LEX_CUSTRING *table_version);
 
 static inline bool dd_frm_is_view(THD *thd, char *path)
 {
-  return dd_frm_type(thd, path, NULL) == TABLE_TYPE_VIEW;
+  return dd_frm_type(thd, path, NULL, NULL, NULL) == TABLE_TYPE_VIEW;
 }
 
 bool dd_recreate_table(THD *thd, const char *db, const char *table_name);

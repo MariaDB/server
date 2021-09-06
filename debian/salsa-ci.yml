@@ -62,9 +62,6 @@ build i386:
   image: $SALSA_CI_IMAGES_BASE_I386
   variables:
     ARCH: 'i386'
-  except:
-    variables:
-      - $SALSA_CI_DISABLE_BUILD_PACKAGE_I386 =~ /^(1|yes|true)$/
 
 build native deb:
   extends: .build-package
@@ -566,8 +563,6 @@ mysql-8.0 Sid to mariadb-10.6 upgrade:
   except:
     variables:
       - $CI_COMMIT_TAG != null && $SALSA_CI_ENABLE_PIPELINE_ON_TAGS !~ /^(1|yes|true)$/
-  # Installation often fails (not a MariaDB reason), so do not require this test to pass
-  allow_failure: true
 
 # Upgrading from MySQL 8.0 with datadir in place is not possible. Users need to do a data dump.
 # The Debian maintainer scripts detect this situation and simply moves old datadir aside and start fresh.
@@ -622,12 +617,12 @@ mariadb.org-10.5 to mariadb-10.6 upgrade:
     - curl -sS https://mariadb.org/mariadb_release_signing_key.asc -o /etc/apt/trusted.gpg.d/mariadb.asc
     - echo 'deb http://mirror.one.com/mariadb/repo/10.5/debian sid main' > /etc/apt/sources.list.d/mariadb.list
     - apt-get update
-    # The 10.5.9 relase is missing mariadb-plugin-columnstore, define all other packages but it to avoid hitting the error:
+    # The 10.5.9 release is missing mariadb-plugin-columnstore, define all other packages but it to avoid hitting the error:
     #   The following packages have unmet dependencies:
     #   mariadb-plugin-columnstore : Depends: mariadb-server-10.5 (= 1:10.5.8+maria~sid) but 1:10.5.9+maria~sid is to be installed
     - apt-get install -y libmariadb3 'libmariadb-*' 'libmariadbd*' 'mariadb-c*' 'mariadb-b*' 'mariadb-s*' 'mariadb-t*' 'mariadb-plugin-con*' 'mariadb-plugin-cr*' 'mariadb-plugin-g*' 'mariadb-plugin-m*' 'mariadb-plugin-o*' 'mariadb-plugin-s*'
     # Once 10.5.10 is out, revert back to:
-    # Package libmariadbclient-dev from mariadb.org conficts with libmariadb-dev in Sid, so cannot use wildcard that would include it
+    # Package libmariadbclient-dev from mariadb.org conflicts with libmariadb-dev in Sid, so cannot use wildcard that would include it
     #- apt-get install -y 'mariadb*' libmariadb3 'libmariadb-*' 'libmariadbd*'
     - *test-verify-initial
     # Install MariaDB built in this commit
@@ -737,8 +732,8 @@ mariadb.org-10.2 to mariadb-10.6 upgrade:
     # prepending with --defaults-file=/etc/mysql/debian.cnf is needed in upstream 5.5–10.3
     - mysql --defaults-file=/etc/mysql/debian.cnf --skip-column-names -e "SELECT @@version, @@version_comment"
     - echo 'SHOW DATABASES;' | mysql --defaults-file=/etc/mysql/debian.cnf
-    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT Host,User,plugin,authentication_string FROM user;" mysql
-    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM plugin;" mysql
+    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM mysql.global_priv; SHOW CREATE USER root@localhost; SHOW CREATE USER 'mariadb.sys'@localhost"
+    - mysql --defaults-file=/etc/mysql/debian.cnf -e "SELECT * FROM mysql.plugin; SHOW PLUGINS"
     - *test-install
     - service mysql status
     - sleep 5 # Give the mysql_upgrade a bit of time to complete before querying the server

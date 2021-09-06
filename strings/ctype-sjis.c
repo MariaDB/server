@@ -23,6 +23,7 @@
 #ifdef HAVE_CHARSET_sjis
 
 const char charset_name_sjis[]= "sjis";
+#define charset_name_sjis_length (sizeof(charset_name_sjis)-1)
 
 /*
  * This comment is parsed by configure to create ctype.c,
@@ -34153,8 +34154,8 @@ struct charset_info_st my_charset_sjis_japanese_ci=
 {
     13,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_PRIMARY|MY_CS_STRNXFRM|MY_CS_NONASCII,	/* state */
-    charset_name_sjis,		/* cs name    */
-    "sjis_japanese_ci",	/* name */
+    { charset_name_sjis, charset_name_sjis_length }, /* cs name    */
+    { STRING_WITH_LEN("sjis_japanese_ci") },	     /* name */
     "",			/* comment    */
     NULL,		/* tailoring */
     ctype_sjis,
@@ -34185,8 +34186,8 @@ struct charset_info_st my_charset_sjis_bin=
 {
     88,0,0,		/* number */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NONASCII, /* state  */
-    charset_name_sjis,		/* cs name    */
-    "sjis_bin",		/* name */
+    { charset_name_sjis, charset_name_sjis_length }, /* cs name    */
+    { STRING_WITH_LEN("sjis_bin") },		/* name */
     "",			/* comment    */
     NULL,		/* tailoring */
     ctype_sjis,
@@ -34218,8 +34219,8 @@ struct charset_info_st my_charset_sjis_japanese_nopad_ci=
 {
     MY_NOPAD_ID(13),0,0, /* number           */
     MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_NONASCII|MY_CS_NOPAD, /* state */
-    charset_name_sjis,              /* cs name          */
-    "sjis_japanese_nopad_ci", /* name        */
+    { charset_name_sjis, charset_name_sjis_length }, /* cs name    */
+    { STRING_WITH_LEN("sjis_japanese_nopad_ci") }, /* name        */
     "",                  /* comment          */
     NULL,                /* tailoring        */
     ctype_sjis,
@@ -34250,8 +34251,8 @@ struct charset_info_st my_charset_sjis_nopad_bin=
 {
     MY_NOPAD_ID(88),0,0, /* number           */
     MY_CS_COMPILED|MY_CS_BINSORT|MY_CS_NONASCII|MY_CS_NOPAD, /* state */
-    charset_name_sjis,              /* cs name          */
-    "sjis_nopad_bin",    /* name             */
+    { charset_name_sjis, charset_name_sjis_length }, /* cs name    */
+    { STRING_WITH_LEN("sjis_nopad_bin") },    /* name             */
     "",                  /* comment          */
     NULL,                /* tailoring        */
     ctype_sjis,

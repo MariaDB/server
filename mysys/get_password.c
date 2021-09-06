@@ -29,7 +29,7 @@
 #include <pwd.h>
 #endif /* HAVE_PWD_H */
 #else /* ! HAVE_GETPASS */
-#ifndef __WIN__
+#ifndef _WIN32
 #include <sys/ioctl.h>
 #ifdef HAVE_TERMIOS_H				/* For tty-password */
 #include	<termios.h>
@@ -49,14 +49,14 @@
 #endif
 #else
 #include <conio.h>
-#endif /* __WIN__ */
+#endif /* _WIN32 */
 #endif /* HAVE_GETPASS */
 
 #ifdef HAVE_GETPASSPHRASE			/* For Solaris */
 #define getpass(A) getpassphrase(A)
 #endif
 
-#ifdef __WIN__
+#ifdef _WIN32
 /* were just going to fake it here and get input from
    the keyboard */
 
@@ -204,4 +204,4 @@ char *get_tty_password(const char *opt_message)
   DBUG_RETURN(my_strdup(PSI_INSTRUMENT_ME, buff, MYF(MY_FAE)));
 }
 
-#endif /*__WIN__*/
+#endif /*_WIN32*/

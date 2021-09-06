@@ -96,45 +96,41 @@ void dict_hdr_flush_row_id(row_id_t id)
   mtr.commit();
 }
 
-/*****************************************************************//**
-Creates the file page for the dictionary header. This function is
-called only at the database creation.
-@return TRUE if succeed */
-static
-ibool
-dict_hdr_create(
-/*============*/
-	mtr_t*	mtr)	/*!< in: mtr */
+/** Create the DICT_HDR page on database initialization.
+@return whether the operation failed */
+static bool dict_hdr_create()
 {
 	buf_block_t*	block;
 	ulint		root_page_no;
 
-	ut_ad(mtr);
+	bool fail = false;
+	mtr_t mtr;
+	mtr.start();
 	compile_time_assert(DICT_HDR_SPACE == 0);
 
 	/* Create the dictionary header file block in a new, allocated file
 	segment in the system tablespace */
 	block = fseg_create(fil_system.sys_space,
-			    DICT_HDR + DICT_HDR_FSEG_HEADER, mtr);
+			    DICT_HDR + DICT_HDR_FSEG_HEADER, &mtr);
 
 	ut_a(block->page.id() == page_id_t(DICT_HDR_SPACE, DICT_HDR_PAGE_NO));
 
-	buf_block_t* d = dict_hdr_get(mtr);
+	buf_block_t* d = dict_hdr_get(&mtr);
 
 	/* Start counting row, table, index, and tree ids from
 	DICT_HDR_FIRST_ID */
-	mtr->write<8>(*d, DICT_HDR + DICT_HDR_ROW_ID + d->frame,
-		      DICT_HDR_FIRST_ID);
-	mtr->write<8>(*d, DICT_HDR + DICT_HDR_TABLE_ID + d->frame,
-		      DICT_HDR_FIRST_ID);
-	mtr->write<8>(*d, DICT_HDR + DICT_HDR_INDEX_ID + d->frame,
-		      DICT_HDR_FIRST_ID);
+	mtr.write<8>(*d, DICT_HDR + DICT_HDR_ROW_ID + d->frame,
+		     DICT_HDR_FIRST_ID);
+	mtr.write<8>(*d, DICT_HDR + DICT_HDR_TABLE_ID + d->frame,
+		     DICT_HDR_FIRST_ID);
+	mtr.write<8>(*d, DICT_HDR + DICT_HDR_INDEX_ID + d->frame,
+		     DICT_HDR_FIRST_ID);
 
 	ut_ad(!mach_read_from_4(DICT_HDR + DICT_HDR_MAX_SPACE_ID + d->frame));
 
 	/* Obsolete, but we must initialize it anyway. */
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_MIX_ID_LOW + d->frame,
-		      DICT_HDR_FIRST_ID);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_MIX_ID_LOW + d->frame,
+		     DICT_HDR_FIRST_ID);
 
 	/* Create the B-tree roots for the clustered indexes of the basic
 	system tables */
@@ -142,59 +138,55 @@ dict_hdr_create(
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLES_ID,
-				  nullptr, mtr);
+				  nullptr, &mtr);
 	if (root_page_no == FIL_NULL) {
-
-		return(FALSE);
+failed:
+		fail = true;
+		goto func_exit;
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_TABLES + d->frame, root_page_no);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_TABLES + d->frame, root_page_no);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_UNIQUE,
 				  fil_system.sys_space, DICT_TABLE_IDS_ID,
-				  nullptr, mtr);
+				  nullptr, &mtr);
 	if (root_page_no == FIL_NULL) {
-
-		return(FALSE);
+		goto failed;
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_TABLE_IDS + d->frame,
-		      root_page_no);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_TABLE_IDS + d->frame,
+		     root_page_no);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_COLUMNS_ID,
-				  nullptr, mtr);
+				  nullptr, &mtr);
 	if (root_page_no == FIL_NULL) {
-
-		return(FALSE);
+		goto failed;
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_COLUMNS + d->frame,
-		      root_page_no);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_COLUMNS + d->frame,
+		     root_page_no);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_INDEXES_ID,
-				  nullptr, mtr);
+				  nullptr, &mtr);
 	if (root_page_no == FIL_NULL) {
-
-		return(FALSE);
+		goto failed;
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_INDEXES + d->frame,
-		      root_page_no);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_INDEXES + d->frame, root_page_no);
 	/*--------------------------*/
 	root_page_no = btr_create(DICT_CLUSTERED | DICT_UNIQUE,
 				  fil_system.sys_space, DICT_FIELDS_ID,
-				  nullptr, mtr);
+				  nullptr, &mtr);
 	if (root_page_no == FIL_NULL) {
-
-		return(FALSE);
+		goto failed;
 	}
 
-	mtr->write<4>(*d, DICT_HDR + DICT_HDR_FIELDS + d->frame, root_page_no);
-	/*--------------------------*/
-
-	return(TRUE);
+	mtr.write<4>(*d, DICT_HDR + DICT_HDR_FIELDS + d->frame, root_page_no);
+func_exit:
+	mtr.commit();
+	return fail;
 }
 
 /*****************************************************************//**
@@ -210,23 +202,21 @@ dict_boot(void)
 	mem_heap_t*	heap;
 	mtr_t		mtr;
 
-	/* Be sure these constants do not ever change.  To avoid bloat,
-	only check the *NUM_FIELDS* in each table */
-
-	ut_ad(DICT_NUM_COLS__SYS_TABLES == 8);
-	ut_ad(DICT_NUM_FIELDS__SYS_TABLES == 10);
-	ut_ad(DICT_NUM_FIELDS__SYS_TABLE_IDS == 2);
-	ut_ad(DICT_NUM_COLS__SYS_COLUMNS == 7);
-	ut_ad(DICT_NUM_FIELDS__SYS_COLUMNS == 9);
-	ut_ad(DICT_NUM_COLS__SYS_INDEXES == 8);
-	ut_ad(DICT_NUM_FIELDS__SYS_INDEXES == 10);
-	ut_ad(DICT_NUM_COLS__SYS_FIELDS == 3);
-	ut_ad(DICT_NUM_FIELDS__SYS_FIELDS == 5);
-	ut_ad(DICT_NUM_COLS__SYS_FOREIGN == 4);
-	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN == 6);
-	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_FOR_NAME == 2);
-	ut_ad(DICT_NUM_COLS__SYS_FOREIGN_COLS == 4);
-	ut_ad(DICT_NUM_FIELDS__SYS_FOREIGN_COLS == 6);
+	static_assert(DICT_NUM_COLS__SYS_TABLES == 8, "compatibility");
+	static_assert(DICT_NUM_FIELDS__SYS_TABLES == 10, "compatibility");
+	static_assert(DICT_NUM_FIELDS__SYS_TABLE_IDS == 2, "compatibility");
+	static_assert(DICT_NUM_COLS__SYS_COLUMNS == 7, "compatibility");
+	static_assert(DICT_NUM_FIELDS__SYS_COLUMNS == 9, "compatibility");
+	static_assert(DICT_NUM_COLS__SYS_INDEXES == 8, "compatibility");
+	static_assert(DICT_NUM_FIELDS__SYS_INDEXES == 10, "compatibility");
+	static_assert(DICT_NUM_COLS__SYS_FIELDS == 3, "compatibility");
+	static_assert(DICT_NUM_FIELDS__SYS_FIELDS == 5, "compatibility");
+	static_assert(DICT_NUM_COLS__SYS_FOREIGN == 4, "compatibility");
+	static_assert(DICT_NUM_FIELDS__SYS_FOREIGN == 6, "compatibility");
+	static_assert(DICT_NUM_FIELDS__SYS_FOREIGN_FOR_NAME == 2,
+		      "compatibility");
+	static_assert(DICT_NUM_COLS__SYS_FOREIGN_COLS == 4, "compatibility");
+	static_assert(DICT_NUM_FIELDS__SYS_FOREIGN_COLS == 6, "compatibility");
 
 	mtr_start(&mtr);
 
@@ -235,7 +225,7 @@ dict_boot(void)
 
 	heap = mem_heap_create(450);
 
-	dict_sys.mutex_lock();
+	dict_sys.lock(SRW_LOCK_CALL);
 
 	/* Get the dictionary header */
 	const byte* dict_hdr = &dict_hdr_get(&mtr)->frame[DICT_HDR];
@@ -260,9 +250,9 @@ dict_boot(void)
 	/* Insert into the dictionary cache the descriptions of the basic
 	system tables */
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_TABLES", fil_system.sys_space,
-				      8, 0, 0, 0);
-
+	table = dict_table_t::create(dict_sys.SYS_TABLE[dict_sys.SYS_TABLES],
+				     fil_system.sys_space,
+				     DICT_NUM_COLS__SYS_TABLES, 0, 0, 0);
 	dict_mem_table_add_col(table, heap, "NAME", DATA_BINARY, 0,
 			       MAX_FULL_NAME_LEN);
 	dict_mem_table_add_col(table, heap, "ID", DATA_BINARY, 0, 8);
@@ -308,9 +298,9 @@ dict_boot(void)
 	ut_a(error == DB_SUCCESS);
 
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_COLUMNS", fil_system.sys_space,
-				      7, 0, 0, 0);
-
+	table = dict_table_t::create(dict_sys.SYS_TABLE[dict_sys.SYS_COLUMNS],
+				     fil_system.sys_space,
+				     DICT_NUM_COLS__SYS_COLUMNS, 0, 0, 0);
 	dict_mem_table_add_col(table, heap, "TABLE_ID", DATA_BINARY, 0, 8);
 	dict_mem_table_add_col(table, heap, "POS", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "NAME", DATA_BINARY, 0, 0);
@@ -341,8 +331,9 @@ dict_boot(void)
 		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
 
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_INDEXES", fil_system.sys_space,
-				      DICT_NUM_COLS__SYS_INDEXES, 0, 0, 0);
+	table = dict_table_t::create(dict_sys.SYS_TABLE[dict_sys.SYS_INDEXES],
+				     fil_system.sys_space,
+				     DICT_NUM_COLS__SYS_INDEXES, 0, 0, 0);
 
 	dict_mem_table_add_col(table, heap, "TABLE_ID", DATA_BINARY, 0, 8);
 	dict_mem_table_add_col(table, heap, "ID", DATA_BINARY, 0, 8);
@@ -383,9 +374,9 @@ dict_boot(void)
 		UT_BITS_IN_BYTES(unsigned(table->indexes.start->n_nullable)));
 
 	/*-------------------------*/
-	table = dict_mem_table_create("SYS_FIELDS", fil_system.sys_space,
-				      3, 0, 0, 0);
-
+	table = dict_table_t::create(dict_sys.SYS_TABLE[dict_sys.SYS_FIELDS],
+				     fil_system.sys_space,
+				     DICT_NUM_COLS__SYS_FIELDS, 0, 0, 0);
 	dict_mem_table_add_col(table, heap, "INDEX_ID", DATA_BINARY, 0, 8);
 	dict_mem_table_add_col(table, heap, "POS", DATA_INT, 0, 4);
 	dict_mem_table_add_col(table, heap, "COL_NAME", DATA_BINARY, 0, 0);
@@ -413,10 +404,6 @@ dict_boot(void)
 
 	mtr_commit(&mtr);
 
-	/*-------------------------*/
-
-	/* Initialize the insert buffer table and index for each tablespace */
-
 	dberr_t	err = ibuf_init_at_db_start();
 
 	if (err == DB_SUCCESS) {
@@ -426,44 +413,19 @@ dict_boot(void)
 		dict_load_sys_table(dict_sys.sys_columns);
 		dict_load_sys_table(dict_sys.sys_indexes);
 		dict_load_sys_table(dict_sys.sys_fields);
+		dict_sys.unlock();
+		dict_sys.load_sys_tables();
+	} else {
+		dict_sys.unlock();
 	}
 
-	dict_sys.mutex_unlock();
-
 	return(err);
-}
-
-/*****************************************************************//**
-Inserts the basic system table data into themselves in the database
-creation. */
-static
-void
-dict_insert_initial_data(void)
-/*==========================*/
-{
-	/* Does nothing yet */
 }
 
 /*****************************************************************//**
 Creates and initializes the data dictionary at the server bootstrap.
 @return DB_SUCCESS or error code. */
-dberr_t
-dict_create(void)
-/*=============*/
+dberr_t dict_create()
 {
-	mtr_t	mtr;
-
-	mtr_start(&mtr);
-
-	dict_hdr_create(&mtr);
-
-	mtr_commit(&mtr);
-
-	dberr_t	err = dict_boot();
-
-	if (err == DB_SUCCESS) {
-		dict_insert_initial_data();
-	}
-
-	return(err);
+  return dict_hdr_create() ? DB_ERROR : dict_boot();
 }

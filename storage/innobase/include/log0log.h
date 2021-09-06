@@ -77,7 +77,7 @@ log_reserve_and_write_fast(
 Checks if there is need for a log buffer flush or a new checkpoint, and does
 this if yes. Any database operation should call this when it has modified
 more than about 4 pages. NOTE that this function may only be called when the
-OS thread owns no synchronization objects except the dictionary mutex. */
+OS thread owns no synchronization objects except dict_sys.latch. */
 UNIV_INLINE
 void
 log_free_check(void);
@@ -623,9 +623,8 @@ public:
 					/*!< number of currently pending
 					checkpoint writes */
 
-	/** buffer for checkpoint header */
-	MY_ALIGNED(OS_FILE_LOG_BLOCK_SIZE)
-	byte		checkpoint_buf[OS_FILE_LOG_BLOCK_SIZE];
+  /** buffer for checkpoint header */
+  byte *checkpoint_buf;
 	/* @} */
 
 private:
@@ -705,15 +704,6 @@ public:
 
   /** Shut down the redo log subsystem. */
   void close();
-
-  /** Initiate a write of the log buffer to the file if needed.
-  @param flush  whether to initiate a durable write */
-  inline void initiate_write(bool flush)
-  {
-    const lsn_t lsn= get_lsn();
-    if (!flush || get_flushed_lsn() < lsn)
-      log_write_up_to(lsn, flush);
-  }
 };
 
 /** Redo log system */

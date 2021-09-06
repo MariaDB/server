@@ -725,7 +725,7 @@ uint Interval_DDhhmmssff::fsp(THD *thd, Item *item)
   case STRING_RESULT:
     break;
   }
-  if (!item->const_item() || item->is_expensive())
+  if (!item->can_eval_in_optimize())
     return TIME_SECOND_PART_DIGITS;
   Status st;
   Interval_DDhhmmssff it(thd, &st, false/*no warnings*/, item, UINT_MAX32,
@@ -1089,6 +1089,13 @@ Datetime::Datetime(THD *thd, int *warn, const MYSQL_TIME *from,
   DBUG_ASSERT(is_valid_value_slow());
 }
 
+Datetime::Datetime(my_time_t unix_time, ulong second_part_arg,
+                   const Time_zone* time_zone)
+{
+  time_zone->gmt_sec_to_TIME(this, unix_time);
+  second_part= second_part_arg;
+}
+
 
 bool Temporal::datetime_add_nanoseconds_or_invalidate(THD *thd, int *warn, ulong nsec)
 {
@@ -1179,9 +1186,9 @@ Datetime_truncation_not_needed::Datetime_truncation_not_needed(THD *thd, Item *i
 
 /********************************************************************/
 
-uint Type_numeric_attributes::find_max_decimals(Item **item, uint nitems)
+decimal_digits_t Type_numeric_attributes::find_max_decimals(Item **item, uint nitems)
 {
-  uint res= 0;
+  decimal_digits_t res= 0;
   for (uint i= 0; i < nitems; i++)
     set_if_bigger(res, item[i]->decimals);
   return res;
@@ -1218,9 +1225,10 @@ uint32 Type_numeric_attributes::find_max_octet_length(Item **item, uint nitems)
 }
 
 
-int Type_numeric_attributes::find_max_decimal_int_part(Item **item, uint nitems)
+decimal_digits_t Type_numeric_attributes::
+find_max_decimal_int_part(Item **item, uint nitems)
 {
-  int max_int_part= 0;
+  decimal_digits_t max_int_part= 0;
   for (uint i=0 ; i < nitems ; i++)
     set_if_bigger(max_int_part, item[i]->decimal_int_part());
   return max_int_part;
@@ -1237,11 +1245,12 @@ Type_numeric_attributes::aggregate_numeric_attributes_decimal(Item **item,
                                                               uint nitems,
                                                               bool unsigned_arg)
 {
-  int max_int_part= find_max_decimal_int_part(item, nitems);
+  decimal_digits_t max_int_part= find_max_decimal_int_part(item, nitems);
   decimals= find_max_decimals(item, nitems);
-  int precision= MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
+  decimal_digits_t precision= (decimal_digits_t)
+    MY_MIN(max_int_part + decimals, DECIMAL_MAX_PRECISION);
   max_length= my_decimal_precision_to_length_no_truncation(precision,
-                                                           (uint8) decimals,
+                                                           decimals,
                                                            unsigned_flag);
 }
 
@@ -1292,8 +1301,9 @@ Type_numeric_attributes::aggregate_numeric_attributes_real(Item **items,
 
   @retval            False on success, true on error.
 */
-bool Type_std_attributes::aggregate_attributes_string(const char *func_name,
-                                                      Item **items, uint nitems)
+bool Type_std_attributes::
+aggregate_attributes_string(const LEX_CSTRING &func_name,
+                            Item **items, uint nitems)
 {
   if (agg_arg_charsets_for_string_result(collation, func_name,
                                          items, nitems, 1))
@@ -1422,10 +1432,10 @@ CHARSET_INFO *Type_handler::charset_for_protocol(const Item *item) const
 
 
 bool
-Type_handler::Item_func_or_sum_illegal_param(const char *funcname) const
+Type_handler::Item_func_or_sum_illegal_param(const LEX_CSTRING &funcname) const
 {
   my_error(ER_ILLEGAL_PARAMETER_DATA_TYPE_FOR_OPERATION, MYF(0),
-           name().ptr(), funcname);
+           name().ptr(), funcname.str);
   return true;
 }
 
@@ -1433,7 +1443,7 @@ Type_handler::Item_func_or_sum_illegal_param(const char *funcname) const
 bool
 Type_handler::Item_func_or_sum_illegal_param(const Item_func_or_sum *it) const
 {
-  return Item_func_or_sum_illegal_param(it->func_name());
+  return Item_func_or_sum_illegal_param(it->func_name_cstring());
 }
 
 
@@ -1829,10 +1839,9 @@ Type_handler::bit_and_int_mixture_handler(uint max_char_length)
   @retval true  - on error
 */
 
-bool
-Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
-                                                     Item **items, uint nitems,
-                                                     bool treat_bit_as_number)
+bool Type_handler_hybrid_field_type::
+aggregate_for_result(const LEX_CSTRING &funcname, Item **items, uint nitems,
+                     bool treat_bit_as_number)
 {
   bool bit_and_non_bit_mixture_found= false;
   uint32 max_display_length;
@@ -1860,7 +1869,7 @@ Type_handler_hybrid_field_type::aggregate_for_result(const char *funcname,
     if (aggregate_for_result(cur))
     {
       my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-               type_handler()->name().ptr(), cur->name().ptr(), funcname);
+               type_handler()->name().ptr(), cur->name().ptr(), funcname.str);
       return true;
     }
   }
@@ -2049,7 +2058,7 @@ Type_collection_std::aggregate_for_min_max(const Type_handler *ha,
 
 
 bool
-Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
+Type_handler_hybrid_field_type::aggregate_for_min_max(const LEX_CSTRING &funcname,
                                                       Item **items, uint nitems)
 {
   bool bit_and_non_bit_mixture_found= false;
@@ -2065,7 +2074,7 @@ Type_handler_hybrid_field_type::aggregate_for_min_max(const char *funcname,
     if (aggregate_for_min_max(cur))
     {
       my_error(ER_ILLEGAL_PARAMETER_DATA_TYPES2_FOR_OPERATION, MYF(0),
-               type_handler()->name().ptr(), cur->name().ptr(), funcname);
+               type_handler()->name().ptr(), cur->name().ptr(), funcname.str);
       return true;
     }
   }
@@ -2246,8 +2255,8 @@ Type_handler::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
 {
   return new(mem_root)
          Field_double(NULL, item->max_length,
-                      (uchar *) (item->maybe_null ? "" : 0),
-                      item->maybe_null ? 1 : 0, Field::NONE,
+                      (uchar *) (item->maybe_null() ? "" : 0),
+                      item->maybe_null() ? 1 : 0, Field::NONE,
                       &item->name, (uint8) item->decimals,
                       0, item->unsigned_flag);
 }
@@ -2260,8 +2269,8 @@ Type_handler_float::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
 {
   return new(mem_root)
          Field_float(NULL, item->max_length,
-                     (uchar *) (item->maybe_null ? "" : 0),
-                     item->maybe_null ? 1 : 0, Field::NONE,
+                     (uchar *) (item->maybe_null() ? "" : 0),
+                     item->maybe_null() ? 1 : 0, Field::NONE,
                      &item->name, (uint8) item->decimals,
                      0, item->unsigned_flag);
 }
@@ -2276,8 +2285,8 @@ Type_handler_decimal_result::make_num_distinct_aggregator_field(
   DBUG_ASSERT(item->decimals <= DECIMAL_MAX_SCALE);
   return new (mem_root)
          Field_new_decimal(NULL, item->max_length,
-                           (uchar *) (item->maybe_null ? "" : 0),
-                           item->maybe_null ? 1 : 0, Field::NONE,
+                           (uchar *) (item->maybe_null() ? "" : 0),
+                           item->maybe_null() ? 1 : 0, Field::NONE,
                            &item->name, (uint8) item->decimals,
                            0, item->unsigned_flag);
 }
@@ -2294,8 +2303,8 @@ Type_handler_int_result::make_num_distinct_aggregator_field(MEM_ROOT *mem_root,
   */
   return new(mem_root)
          Field_longlong(NULL, item->max_length,
-                        (uchar *) (item->maybe_null ? "" : 0),
-                        item->maybe_null ? 1 : 0, Field::NONE,
+                        (uchar *) (item->maybe_null() ? "" : 0),
+                        item->maybe_null() ? 1 : 0, Field::NONE,
                         &item->name, 0, item->unsigned_flag);
 }
 
@@ -4345,46 +4354,54 @@ int Type_handler_int_result::Item_save_in_field(Item *item, Field *field,
 
 /***********************************************************************/
 
-bool Type_handler_row::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_row::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_row();
+  return cmp->set_cmp_func_row(thd);
 }
 
-bool Type_handler_int_result::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_int_result::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_int();
+  return cmp->set_cmp_func_int(thd);
 }
 
-bool Type_handler_real_result::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_real_result::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_real();
+  return cmp->set_cmp_func_real(thd);
 }
 
-bool Type_handler_decimal_result::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_decimal_result::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_decimal();
+  return cmp->set_cmp_func_decimal(thd);
 }
 
-bool Type_handler_string_result::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_string_result::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_string();
+  return cmp->set_cmp_func_string(thd);
 }
 
-bool Type_handler_time_common::set_comparator_func(Arg_comparator *cmp) const
+bool Type_handler_time_common::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_time();
+  return cmp->set_cmp_func_time(thd);
 }
 
 bool
-Type_handler_temporal_with_date::set_comparator_func(Arg_comparator *cmp) const
+Type_handler_temporal_with_date::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_datetime();
+  return cmp->set_cmp_func_datetime(thd);
 }
 
 bool
-Type_handler_timestamp_common::set_comparator_func(Arg_comparator *cmp) const
+Type_handler_timestamp_common::
+set_comparator_func(THD *thd, Arg_comparator *cmp) const
 {
-  return cmp->set_cmp_func_native();
+  return cmp->set_cmp_func_native(thd);
 }
 
 
@@ -4569,7 +4586,7 @@ Type_handler_timestamp_common::create_item_copy(THD *thd, Item *item) const
 
 bool Type_handler_int_result::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4595,7 +4612,7 @@ bool Type_handler_int_result::
 
 bool Type_handler_real_result::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4607,7 +4624,7 @@ bool Type_handler_real_result::
 
 bool Type_handler_decimal_result::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4620,7 +4637,7 @@ bool Type_handler_decimal_result::
 
 bool Type_handler_string_result::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &func_name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4636,7 +4653,7 @@ bool Type_handler_string_result::
 */
 bool Type_handler_typelib::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &func_name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4668,7 +4685,7 @@ bool Type_handler_typelib::
 
 bool Type_handler_blob_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &func_name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4682,7 +4699,7 @@ bool Type_handler_blob_common::
 
 bool Type_handler_date_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4694,7 +4711,7 @@ bool Type_handler_date_common::
 
 bool Type_handler_time_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4706,7 +4723,7 @@ bool Type_handler_time_common::
 
 bool Type_handler_datetime_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4718,7 +4735,7 @@ bool Type_handler_datetime_common::
 
 bool Type_handler_timestamp_common::
        Item_hybrid_func_fix_attributes(THD *thd,
-                                       const char *func_name,
+                                       const LEX_CSTRING &name,
                                        Type_handler_hybrid_field_type *handler,
                                        Type_all_attributes *func,
                                        Item **items, uint nitems) const
@@ -4738,7 +4755,7 @@ bool Type_handler::
     with aggregating for CASE-alike functions (e.g. COALESCE)
     for the majority of data type handlers.
   */
-  return Item_hybrid_func_fix_attributes(thd, func->func_name(),
+  return Item_hybrid_func_fix_attributes(thd, func->func_name_cstring(),
                                          func, func, items, nitems);
 }
 
@@ -4759,7 +4776,7 @@ bool Type_handler_temporal_result::
     set_if_bigger(func->decimals, deci);
   }
 
-  if (rc || func->maybe_null)
+  if (rc || func->maybe_null())
     return rc;
   /*
     LEAST/GREATES(non-temporal, temporal) can return NULL.
@@ -4782,7 +4799,8 @@ bool Type_handler_temporal_result::
       continue; // No conversion.
     if (ha->cmp_type() != TIME_RESULT)
     {
-      func->maybe_null= true; // Conversion from non-temporal is not safe
+      // Conversion from non-temporal is not safe
+      func->set_maybe_null();
       break;
     }
     timestamp_type tf= hf->mysql_timestamp_type();
@@ -4833,7 +4851,7 @@ bool Type_handler_temporal_result::
     DBUG_ASSERT(hf->field_type() == MYSQL_TYPE_DATETIME);
     if (!(thd->variables.old_behavior & OLD_MODE_ZERO_DATE_TIME_CAST))
       continue;
-    func->maybe_null= true;
+    func->set_maybe_null();
     break;
   }
   return rc;
@@ -4845,10 +4863,11 @@ bool Type_handler_date_common::
                                         Item **items, uint nitems) const
 {
   func->fix_attributes_date();
-  if (func->maybe_null)
+  if (func->maybe_null())
     return false;
   /*
-    We cannot trust the generic maybe_null value calculated during fix_fields().
+    We cannot trust the generic maybe_null value calculated during
+    fix_fields().
     If a conversion from non-temoral types to DATE happens,
     then the result can be NULL (even if all arguments are not NULL).
   */
@@ -4856,7 +4875,7 @@ bool Type_handler_date_common::
   {
     if (items[i]->type_handler()->cmp_type() != TIME_RESULT)
     {
-      func->maybe_null= true;
+      func->set_maybe_null();
       break;
     }
   }
@@ -6197,9 +6216,9 @@ String *Type_handler_row::
     if (tmp)
       str->append(*tmp);
     else
-      str->append(STRING_WITH_LEN("NULL"));
+      str->append(NULL_clex_str);
   }
-  str->append(STRING_WITH_LEN(")"));
+  str->append(')');
   return str;
 }
 
@@ -6221,13 +6240,13 @@ String *Type_handler::
   CHARSET_INFO *cs= thd->variables.character_set_client;
 
   buf.append('_');
-  buf.append(result->charset()->csname);
+  buf.append(result->charset()->cs_name);
   if (cs->escape_with_backslash_is_dangerous)
     buf.append(' ');
   append_query_string(cs, &buf, result->ptr(), result->length(),
                      thd->variables.sql_mode & MODE_NO_BACKSLASH_ESCAPES);
-  buf.append(" COLLATE '");
-  buf.append(item->collation.collation->name);
+  buf.append(STRING_WITH_LEN(" COLLATE '"));
+  buf.append(item->collation.collation->coll_name);
   buf.append('\'');
   str->copy(buf);
 
@@ -6738,7 +6757,7 @@ bool Type_handler::
             item->arguments()[0]->time_precision(current_thd) :
             item->decimals;
   item->fix_attributes_temporal(MIN_TIME_WIDTH, dec);
-  item->maybe_null= true;
+  item->set_maybe_null();
   return false;
 }
 
@@ -6747,7 +6766,7 @@ bool Type_handler::
        Item_date_typecast_fix_length_and_dec(Item_date_typecast *item) const
 {
   item->fix_attributes_temporal(MAX_DATE_WIDTH, 0);
-  item->maybe_null= true;
+  item->set_maybe_null();
   return false;
 }
 
@@ -6760,7 +6779,7 @@ bool Type_handler::
             item->arguments()[0]->datetime_precision(current_thd) :
             item->decimals;
   item->fix_attributes_temporal(MAX_DATETIME_WIDTH, dec);
-  item->maybe_null= true;
+  item->set_maybe_null();
   return false;
 }
 
@@ -7030,25 +7049,25 @@ const Vers_type_handler* Type_handler_blob_common::vers() const
 
 /***************************************************************************/
 
-uint Type_handler::Item_time_precision(THD *thd, Item *item) const
+decimal_digits_t Type_handler::Item_time_precision(THD *thd, Item *item) const
 {
   return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 
-uint Type_handler::Item_datetime_precision(THD *thd, Item *item) const
+decimal_digits_t Type_handler::Item_datetime_precision(THD *thd, Item *item) const
 {
   return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 
-uint Type_handler_string_result::Item_temporal_precision(THD *thd, Item *item,
-                                                         bool is_time) const
+decimal_digits_t Type_handler_string_result::
+Item_temporal_precision(THD *thd, Item *item, bool is_time) const
 {
   StringBuffer<64> buf;
   String *tmp;
   MYSQL_TIME_STATUS status;
-  DBUG_ASSERT(item->is_fixed());
+  DBUG_ASSERT(item->fixed());
   // Nanosecond rounding is not needed here, for performance purposes
   if ((tmp= item->val_str(&buf)) &&
       (is_time ?
@@ -7059,34 +7078,34 @@ uint Type_handler_string_result::Item_temporal_precision(THD *thd, Item *item,
        Datetime(thd, &status, tmp->ptr(), tmp->length(), tmp->charset(),
                 Datetime::Options(TIME_FUZZY_DATES, TIME_FRAC_TRUNCATE)).
          is_valid_datetime()))
-    return MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
-  return MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+    return (decimal_digits_t) MY_MIN(status.precision, TIME_SECOND_PART_DIGITS);
+  return (decimal_digits_t) MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
 }
 
 /***************************************************************************/
 
-uint Type_handler::Item_decimal_scale(const Item *item) const
+decimal_digits_t Type_handler::Item_decimal_scale(const Item *item) const
 {
-  return item->decimals < NOT_FIXED_DEC ?
-         item->decimals :
-         MY_MIN(item->max_length, DECIMAL_MAX_SCALE);
+  return (item->decimals < NOT_FIXED_DEC ?
+          item->decimals :
+          (decimal_digits_t) MY_MIN(item->max_length, DECIMAL_MAX_SCALE));
 }
 
-uint Type_handler_temporal_result::
-       Item_decimal_scale_with_seconds(const Item *item) const
+decimal_digits_t Type_handler_temporal_result::
+Item_decimal_scale_with_seconds(const Item *item) const
 {
-  return item->decimals < NOT_FIXED_DEC ?
-         item->decimals :
-         TIME_SECOND_PART_DIGITS;
+  return (item->decimals < NOT_FIXED_DEC ?
+          item->decimals :
+          TIME_SECOND_PART_DIGITS);
 }
 
-uint Type_handler::Item_divisor_precision_increment(const Item *item) const
+decimal_digits_t Type_handler::Item_divisor_precision_increment(const Item *item) const
 {
   return item->decimals;
 }
 
-uint Type_handler_temporal_result::
-       Item_divisor_precision_increment_with_seconds(const Item *item) const
+decimal_digits_t Type_handler_temporal_result::
+Item_divisor_precision_increment_with_seconds(const Item *item) const
 {
   return item->decimals <  NOT_FIXED_DEC ?
          item->decimals :
@@ -7095,7 +7114,7 @@ uint Type_handler_temporal_result::
 
 /***************************************************************************/
 
-uint Type_handler_string_result::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_string_result::Item_decimal_precision(const Item *item) const
 {
   uint res= item->max_char_length();
   /*
@@ -7104,49 +7123,51 @@ uint Type_handler_string_result::Item_decimal_precision(const Item *item) const
     INT(0) or DECIMAL(0,0) when converting NULL or empty strings to INT/DECIMAL:
       CREATE TABLE t1 AS SELECT CONVERT(NULL,SIGNED) AS a;
   */
-  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
+  return res ? (decimal_digits_t) MY_MIN(res, DECIMAL_MAX_PRECISION) : (decimal_digits_t) 1;
 }
 
-uint Type_handler_real_result::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_real_result::Item_decimal_precision(const Item *item) const
 {
   uint res= item->max_char_length();
-  return res ? MY_MIN(res, DECIMAL_MAX_PRECISION) : 1;
+  return res ? (decimal_digits_t) MY_MIN(res, DECIMAL_MAX_PRECISION) : (decimal_digits_t) 1;
 }
 
-uint Type_handler_decimal_result::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_decimal_result::Item_decimal_precision(const Item *item) const
 {
   uint prec= my_decimal_length_to_precision(item->max_char_length(),
                                             item->decimals,
                                             item->unsigned_flag);
-  return MY_MIN(prec, DECIMAL_MAX_PRECISION);
+  return (decimal_digits_t) MY_MIN(prec, DECIMAL_MAX_PRECISION);
 }
 
-uint Type_handler_int_result::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_int_result::Item_decimal_precision(const Item *item) const
 {
  uint prec= my_decimal_length_to_precision(item->max_char_length(),
                                            item->decimals,
                                            item->unsigned_flag);
- return MY_MIN(prec, DECIMAL_MAX_PRECISION);
+ return (decimal_digits_t) MY_MIN(prec, DECIMAL_MAX_PRECISION);
 }
 
-uint Type_handler_time_common::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_time_common::Item_decimal_precision(const Item *item) const
 {
-  return 7 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  return (decimal_digits_t) (7 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS));
 }
 
-uint Type_handler_date_common::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_date_common::Item_decimal_precision(const Item *item) const
 {
   return 8;
 }
 
-uint Type_handler_datetime_common::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_datetime_common::
+Item_decimal_precision(const Item *item) const
 {
-  return 14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  return (decimal_digits_t) (14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS));
 }
 
-uint Type_handler_timestamp_common::Item_decimal_precision(const Item *item) const
+decimal_digits_t Type_handler_timestamp_common::
+Item_decimal_precision(const Item *item) const
 {
-  return 14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS);
+  return (decimal_digits_t) (14 + MY_MIN(item->decimals, TIME_SECOND_PART_DIGITS));
 }
 
 /***************************************************************************/
@@ -7508,7 +7529,7 @@ bool Type_handler::Item_send_timestamp(Item *item,
   if (native.is_null())
     return protocol->store_null();
   native.to_TIME(protocol->thd, &buf->value.m_time);
-  return protocol->store(&buf->value.m_time, item->decimals);
+  return protocol->store_datetime(&buf->value.m_time, item->decimals);
 }
 
 
@@ -7518,7 +7539,7 @@ bool Type_handler::
   item->get_date(protocol->thd, &buf->value.m_time,
                  Datetime::Options(protocol->thd));
   if (!item->null_value)
-    return protocol->store(&buf->value.m_time, item->decimals);
+    return protocol->store_datetime(&buf->value.m_time, item->decimals);
   return protocol->store_null();
 }
 
@@ -7681,7 +7702,7 @@ static void wrong_precision_error(uint errcode, Item *a,
 */
 
 bool get_length_and_scale(ulonglong length, ulonglong decimals,
-                          uint *out_length, uint *out_decimals,
+                          uint *out_length, decimal_digits_t *out_decimals,
                           uint max_precision, uint max_scale,
                           Item *a)
 {
@@ -7696,7 +7717,7 @@ bool get_length_and_scale(ulonglong length, ulonglong decimals,
     return 1;
   }
 
-  *out_decimals=  (uint) decimals;
+  *out_decimals=  (decimal_digits_t)  decimals;
   my_decimal_trim(&length, out_decimals);
   *out_length=  (uint) length;
   
@@ -7764,7 +7785,8 @@ Item *Type_handler_decimal_result::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
 {
-  uint len, dec;
+  uint len;
+  decimal_digits_t dec;
   if (get_length_and_scale(attr.length(), attr.decimals(), &len, &dec,
                            DECIMAL_MAX_PRECISION, DECIMAL_MAX_SCALE, item))
     return NULL;
@@ -7776,7 +7798,8 @@ Item *Type_handler_double::
         create_typecast_item(THD *thd, Item *item,
                              const Type_cast_attributes &attr) const
 {
-  uint len, dec;
+  uint len;
+  decimal_digits_t dec;
   if (!attr.length_specified())
     return new (thd->mem_root) Item_double_typecast(thd, item,
                                                     DBL_DIG + 7,
@@ -8738,7 +8761,7 @@ bool Type_handler_string_result::Item_eq_value(THD *thd,
 
 /***************************************************************************/
 
-bool Type_handler_string_result::union_element_finalize(const Item * item) const
+bool Type_handler_string_result::union_element_finalize(Item_type_holder* item) const
 {
   if (item->collation.derivation == DERIVATION_NONE)
   {
@@ -9034,6 +9057,12 @@ Type_handler_timestamp_common::Item_val_native_with_conversion(THD *thd,
     TIME_to_native(thd, &ltime, to, item->datetime_precision(thd));
 }
 
+bool Type_handler_null::union_element_finalize(Item_type_holder *item) const
+{
+  item->set_handler(&type_handler_string);
+  return false;
+}
+
 
 bool
 Type_handler_timestamp_common::Item_val_native_with_conversion_result(THD *thd,
@@ -9203,7 +9232,7 @@ bool Type_handler::Column_definition_data_type_info_image(Binary_string *to,
   // Have *some* columns write type info (let's use string fields as an example)
   DBUG_EXECUTE_IF("frm_data_type_info_emulate",
                   if (cmp_type() == STRING_RESULT)
-                    return to->append("x", 1) ||
+                    return to->append_char('x') ||
                            to->append(name().lex_cstring()););
   if (type_collection() != &type_collection_std)
     return to->append(name().lex_cstring());
@@ -9252,7 +9281,7 @@ Type_handler_general_purpose_int::partition_field_append_value(
                                             const
 {
   DBUG_ASSERT(item_expr->cmp_type() == INT_RESULT);
-  StringBuffer<21> tmp;
+  StringBuffer<LONGLONG_BUFFER_SIZE> tmp;
   longlong value= item_expr->val_int();
   tmp.set(value, system_charset_info);
   return str->append(tmp);
@@ -9323,7 +9352,7 @@ bool Type_handler::partition_field_append_value(
   String *res;
 
   if (!(res= item_expr->val_str(&buf)))
-    return str->append(STRING_WITH_LEN("NULL"), system_charset_info);
+    return str->append(NULL_clex_str, system_charset_info);
 
   if (!res->length())
     return str->append(STRING_WITH_LEN("''"), system_charset_info);
@@ -9364,33 +9393,27 @@ LEX_CSTRING Charset::collation_specific_name() const
     for character sets and collations, so a collation
     name not necessarily starts with the character set name.
   */
-  LEX_CSTRING retval;
-  size_t csname_length= strlen(m_charset->csname);
-  if (strncmp(m_charset->name, m_charset->csname, csname_length))
-  {
-    retval.str= NULL;
-    retval.length= 0;
-    return retval;
-  }
-  const char *ptr= m_charset->name + csname_length;
-  retval.str= ptr;
-  retval.length= strlen(ptr);
-  return retval;
+  size_t cs_name_length= m_charset->cs_name.length;
+  if (strncmp(m_charset->coll_name.str, m_charset->cs_name.str,
+              cs_name_length))
+    return {NULL, 0};
+  const char *ptr= m_charset->coll_name.str + cs_name_length;
+  return {ptr, m_charset->coll_name.length - cs_name_length };
 }
 
 
 bool
 Charset::encoding_allows_reinterpret_as(const CHARSET_INFO *cs) const
 {
-  if (!strcmp(m_charset->csname, cs->csname))
+  if (my_charset_same(m_charset, cs))
     return true;
 
-  if (!strcmp(m_charset->csname, MY_UTF8MB3) &&
-      !strcmp(cs->csname, MY_UTF8MB4))
+  if (!strcmp(m_charset->cs_name.str, MY_UTF8MB3) &&
+      !strcmp(cs->cs_name.str, MY_UTF8MB4))
     return true;
 
   /*
-    Originally we allowed here instat ALTER for ASCII-to-LATIN1
+    Originally we allowed here instant ALTER for ASCII-to-LATIN1
     and UCS2-to-UTF16, but this was wrong:
     - MariaDB's ascii is not a subset for 8-bit character sets
       like latin1, because it allows storing bytes 0x80..0xFF as

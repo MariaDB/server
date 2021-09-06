@@ -1,0 +1,191 @@
+call mtr.add_suppression("Can.t init tc log");
+call mtr.add_suppression("Aborting");
+SET @@global.sync_binlog= 1;
+CREATE TABLE t1 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=Innodb;
+CREATE TABLE t2 (a INT PRIMARY KEY, b MEDIUMTEXT) ENGINE=rocksdb;
+#
+#
+# Case "A" : "neither engine committed => rollback & binlog truncate"
+#
+RESET MASTER;
+FLUSH LOGS;
+SET GLOBAL max_binlog_size= 4096;
+connect con1,localhost,root,,;
+List of binary logs before rotation
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+INSERT INTO t1 VALUES (1, REPEAT("x", 1));
+INSERT INTO t2 VALUES (1, REPEAT("x", 1));
+BEGIN;
+INSERT INTO t2 VALUES (2, REPEAT("x", 4100));
+INSERT INTO t1 VALUES (2, REPEAT("x", 4100));
+SET DEBUG_SYNC= "commit_after_release_LOCK_log SIGNAL con1_ready WAIT_FOR signal_no_signal";
+COMMIT;
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+List of binary logs after rotation
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+# restart the server with --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+# the server is restarted
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+connection default;
+#
+# *** Summary: 1 row should be present in both tables; binlog is truncated; number of binlogs at reconnect - 3:
+#
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+1
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+1
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-2
+SELECT @@GLOBAL.gtid_binlog_pos;
+@@GLOBAL.gtid_binlog_pos
+0-1-2
+List of binary logs at the end of the tests
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+# ***
+DELETE FROM t1;
+DELETE FROM t2;
+disconnect con1;
+#
+Proof of the truncated binlog file is readable (two transactions must be seen):
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=1*/;
+/*!40019 SET @@session.max_insert_delayed_threads=0*/;
+/*!50003 SET @OLD_COMPLETION_TYPE=@@COMPLETION_TYPE,COMPLETION_TYPE=0*/;
+DELIMITER /*!*/;
+START TRANSACTION
+/*!*/;
+COMMIT/*!*/;
+START TRANSACTION
+/*!*/;
+COMMIT/*!*/;
+DELIMITER ;
+# End of log file
+ROLLBACK /* added by mysqlbinlog */;
+/*!50003 SET COMPLETION_TYPE=@OLD_COMPLETION_TYPE*/;
+/*!50530 SET @@SESSION.PSEUDO_SLAVE_MODE=0*/;
+#
+#
+# Case "B" : "one engine has committed its transaction branch"
+#
+RESET MASTER;
+FLUSH LOGS;
+SET GLOBAL max_binlog_size= 4096;
+connect con1,localhost,root,,;
+List of binary logs before rotation
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+INSERT INTO t1 VALUES (1, REPEAT("x", 1));
+INSERT INTO t2 VALUES (1, REPEAT("x", 1));
+SET GLOBAL debug_dbug="d,enable_log_write_upto_crash";
+BEGIN;
+INSERT INTO t2 VALUES (2, REPEAT("x", 4100));
+INSERT INTO t1 VALUES (2, REPEAT("x", 4100));
+COMMIT;
+connection default;
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+connection default;
+#
+# *** Summary: 2 rows should be present in both tables; no binlog truncation; one extra binlog file compare with A; number of binlogs at reconnect - 4:
+#
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+2
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-3
+SELECT @@GLOBAL.gtid_binlog_pos;
+@@GLOBAL.gtid_binlog_pos
+0-1-3
+List of binary logs at the end of the tests
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+# ***
+DELETE FROM t1;
+DELETE FROM t2;
+disconnect con1;
+#
+#
+#
+# Case "C" : "both engines have committed its transaction branch"
+#
+RESET MASTER;
+FLUSH LOGS;
+SET GLOBAL max_binlog_size= 4096;
+connect con1,localhost,root,,;
+List of binary logs before rotation
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+INSERT INTO t1 VALUES (1, REPEAT("x", 1));
+INSERT INTO t2 VALUES (1, REPEAT("x", 1));
+BEGIN;
+INSERT INTO t2 VALUES (2, REPEAT("x", 4100));
+INSERT INTO t1 VALUES (2, REPEAT("x", 4100));
+SET DEBUG_SYNC= "commit_after_run_commit_ordered SIGNAL con1_ready WAIT_FOR signal_no_signal";
+COMMIT;
+connection default;
+SET DEBUG_SYNC= "now WAIT_FOR con1_ready";
+List of binary logs after rotation
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+# restart the server with --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+# the server is restarted
+# restart: --rpl-semi-sync-slave-enabled=1 --sync-binlog=1
+connection default;
+#
+# *** Summary: 2 rows should be present in both tables; no binlog truncation; the same # of binlog files as in B; number of binlogs at reconnect - 4:
+#
+SELECT COUNT(*) FROM t1;
+COUNT(*)
+2
+SELECT COUNT(*) FROM t2;
+COUNT(*)
+2
+SELECT @@GLOBAL.gtid_binlog_state;
+@@GLOBAL.gtid_binlog_state
+0-1-3
+SELECT @@GLOBAL.gtid_binlog_pos;
+@@GLOBAL.gtid_binlog_pos
+0-1-3
+List of binary logs at the end of the tests
+show binary logs;
+Log_name	File_size
+master-bin.000001	#
+master-bin.000002	#
+master-bin.000003	#
+master-bin.000004	#
+# ***
+DELETE FROM t1;
+DELETE FROM t2;
+disconnect con1;
+#
+DROP TABLE t1, t2;
+SET @@global.sync_binlog= default;
+# End of the tests

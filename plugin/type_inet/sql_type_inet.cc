@@ -510,7 +510,7 @@ size_t Inet6::to_string(char *dst, size_t dstsize) const
 
 bool Inet6::fix_fields_maybe_null_on_conversion_to_inet6(Item *item)
 {
-  if (item->maybe_null)
+  if (item->maybe_null())
     return true;
   if (item->type_handler() == &type_handler_inet6)
     return false;
@@ -601,9 +601,9 @@ public:
     DBUG_ASSERT(!tmp->m_null_value);
     return m_native.cmp(tmp->m_native);
   }
-  cmp_item *make_same() override
+  cmp_item *make_same(THD *thd) override
   {
-    return new cmp_item_inet6();
+    return new (thd->mem_root) cmp_item_inet6();
   }
 };
 
@@ -1044,7 +1044,11 @@ public:
     Item_typecast_inet6 *cast= (Item_typecast_inet6*) item;
     return args[0]->eq(cast->args[0], binary_cmp);
   }
-  const char *func_name() const override { return "cast_as_inet6"; }
+  LEX_CSTRING func_name_cstring() const override
+  {
+    static LEX_CSTRING name= {STRING_WITH_LEN("cast_as_inet6") };
+    return name;
+  }
   void print(String *str, enum_query_type query_type) override
   {
     str->append(STRING_WITH_LEN("cast("));
@@ -1055,7 +1059,7 @@ public:
   {
     Type_std_attributes::operator=(Type_std_attributes_inet6());
     if (Inet6::fix_fields_maybe_null_on_conversion_to_inet6(args[0]))
-      maybe_null= true;
+      set_maybe_null();
     return false;
   }
   String *val_str(String *to) override
@@ -1212,7 +1216,7 @@ public:
   {
     StringBufferInet6 tmp;
     m_value.to_string(&tmp);
-    str->append("INET6'");
+    str->append(STRING_WITH_LEN("INET6'"));
     str->append(tmp);
     str->append('\'');
   }
@@ -1338,15 +1342,13 @@ Type_handler_inet6::character_or_binary_string_to_native(THD *thd,
   Inet6_null tmp(*str);
   if (tmp.is_null())
     thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                  name().ptr(),
-                                  ErrConvString(str).ptr());
+                                  name().ptr(), ErrConvString(str).ptr());
   return tmp.is_null() || tmp.to_native(to);
 }
 
 
 bool
-Type_handler_inet6::Item_save_in_value(THD *thd,
-                                       Item *item,
+Type_handler_inet6::Item_save_in_value(THD *thd, Item *item,
                                        st_value *value) const
 {
   value->m_type= DYN_COL_STRING;
@@ -1362,8 +1364,7 @@ Type_handler_inet6::Item_save_in_value(THD *thd,
           FROM t1;
       */
       thd->push_warning_wrong_value(Sql_condition::WARN_LEVEL_WARN,
-                                    name().ptr(),
-                                    ErrConvString(str).ptr());
+                                    name().ptr(), ErrConvString(str).ptr());
       value->m_type= DYN_COL_NULL;
       return true;
     }
@@ -1388,7 +1389,7 @@ void Type_handler_inet6::make_sort_key_part(uchar *to, Item *item,
   DBUG_ASSERT(item->type_handler() == this);
   NativeBufferInet6 tmp;
   item->val_native_result(current_thd, &tmp);
-  if (item->maybe_null)
+  if (item->maybe_null())
   {
     if (item->null_value)
     {
@@ -1411,7 +1412,7 @@ Type_handler_inet6::make_packed_sort_key_part(uchar *to, Item *item,
   DBUG_ASSERT(item->type_handler() == this);
   NativeBufferInet6 tmp;
   item->val_native_result(current_thd, &tmp);
-  if (item->maybe_null)
+  if (item->maybe_null())
   {
     if (item->null_value)
     {

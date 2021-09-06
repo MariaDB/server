@@ -356,7 +356,7 @@ static void usage(void)
   -?, --help          Display this help and exit.\n\
   -t, --tmpdir=path   Path for temporary files. Multiple paths can be\n\
                       specified, separated by ");
-#if defined( __WIN__)
+#if defined( _WIN32)
    printf("semicolon (;)");
 #else
    printf("colon (:)");
@@ -794,7 +794,7 @@ static void get_options(register int *argc,register char ***argv)
 
   if (set_collation_name)
     if (!(set_collation= get_charset_by_name(set_collation_name,
-                                             MYF(MY_WME))))
+                                             MYF(MY_UTF8_IS_UTF8MB3 | MY_WME))))
       exit(1);
 
   myisam_block_size=(uint) 1 << my_bit_log2_uint64(opt_myisam_block_size);

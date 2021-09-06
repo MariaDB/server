@@ -44,6 +44,8 @@
 
 #include "wsrep_mysqld.h"
 
+#include "scope.h"  // scope_exit
+
 extern "C" int _my_b_net_read(IO_CACHE *info, uchar *Buffer, size_t Count);
 
 class XML_TAG {
@@ -51,11 +53,11 @@ public:
   int level;
   String field;
   String value;
-  XML_TAG(int l, String f, String v);
+  XML_TAG(int l, const String &f, const String &v);
 };
 
 
-XML_TAG::XML_TAG(int l, String f, String v)
+XML_TAG::XML_TAG(int l, const String &f, const String &v)
 {
   level= l;
   field.append(f);
@@ -444,6 +446,12 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   if (check_duplic_insert_without_overlaps(thd, table, handle_duplicates) != 0)
     DBUG_RETURN(true);
 
+  auto scope_cleaner = make_scope_exit(
+    [&fields_vars]() {
+      fields_vars.empty();
+    }
+  );
+
   if (!fields_vars.elements)
   {
     Field_iterator_table_ref field_iterator;
@@ -471,6 +479,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
   }
   else
   {						// Part field list
+    scope_cleaner.release();
     /* TODO: use this conds for 'WITH CHECK OPTIONS' */
     if (setup_fields(thd, Ref_ptr_array(),
                      fields_vars, MARK_COLUMNS_WRITE, 0, NULL, 0) ||
@@ -567,7 +576,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
       DBUG_RETURN(TRUE);
     }
 
-#if !defined(__WIN__) && ! defined(__NETWARE__)
+#if !defined(_WIN32)
     MY_STAT stat_info;
     if (!my_stat(name, &stat_info, MYF(MY_WME)))
       DBUG_RETURN(TRUE);
@@ -660,6 +669,7 @@ int mysql_load(THD *thd, const sql_exchange *ex, TABLE_LIST *table_list,
     }
     table->file->prepare_for_insert(create_lookup_handler);
     thd_progress_init(thd, 2);
+    fix_rownum_pointers(thd, thd->lex->current_select, &info.copied);
     if (table_list->table->validate_default_values_of_unset_fields(thd))
     {
       read_info.error= true;
@@ -867,7 +877,7 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
      */
     qualify_db= db_arg;
   }
-  lle.print_query(thd, FALSE, (const char *) ex->cs?ex->cs->csname:NULL,
+  lle.print_query(thd, FALSE, (const char*) ex->cs ? ex->cs->cs_name.str : NULL,
                   &query_str, &fname_start, &fname_end, qualify_db);
 
   /*
@@ -877,18 +887,18 @@ static bool write_execute_load_query_log_event(THD *thd, const sql_exchange* ex,
   {
     List_iterator<Item>  li(thd->lex->field_list);
 
-    query_str.append(" (");
+    query_str.append(STRING_WITH_LEN(" ("));
     n= 0;
 
     while ((item= li++))
     {
       if (n++)
-        query_str.append(", ");
+        query_str.append(STRING_WITH_LEN(", "));
       const Load_data_outvar *var= item->get_load_data_outvar();
       DBUG_ASSERT(var);
       var->load_data_print_for_log_event(thd, &query_str);
     }
-    query_str.append(")");
+    query_str.append(')');
   }
 
   if (!thd->lex->update_list.is_empty())

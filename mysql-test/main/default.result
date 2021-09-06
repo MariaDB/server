@@ -901,7 +901,7 @@ CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT(_utf8 0x41) NOT NULL);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(2) NOT NULL DEFAULT concat(_utf8'A')
+  `a` varchar(2) NOT NULL DEFAULT concat(_utf8mb3'A')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT * FROM t1;
@@ -912,7 +912,7 @@ CREATE TABLE t1 (a VARCHAR(2) DEFAULT CONCAT(_utf8 X'41') NOT NULL);
 SHOW CREATE TABLE t1;
 Table	Create Table
 t1	CREATE TABLE `t1` (
-  `a` varchar(2) NOT NULL DEFAULT concat(_utf8'A')
+  `a` varchar(2) NOT NULL DEFAULT concat(_utf8mb3'A')
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 VALUES (DEFAULT);
 SELECT * FROM t1;
@@ -2232,7 +2232,7 @@ Table	Create Table
 t1	CREATE TABLE `t1` (
   `a` varchar(10) DEFAULT NULL,
   `b` varchar(10) CHARACTER SET latin1 COLLATE latin1_bin DEFAULT `a`,
-  `c` varchar(10) CHARACTER SET utf8 DEFAULT convert(`a` using utf8),
+  `c` varchar(10) CHARACTER SET utf8mb3 DEFAULT convert(`a` using utf8mb3),
   `d` varbinary(10) DEFAULT (cast(`a` as char charset binary))
 ) ENGINE=MyISAM DEFAULT CHARSET=latin1
 INSERT INTO t1 (a) VALUES ('a');

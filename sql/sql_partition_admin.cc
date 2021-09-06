@@ -32,6 +32,7 @@
 #include "ha_partition.h"                   // ha_partition
 #endif
 #include "sql_base.h"                       // open_and_lock_tables
+#include "ddl_log.h"
 
 #ifndef WITH_PARTITION_STORAGE_ENGINE
 
@@ -354,13 +355,14 @@ static bool exchange_name_with_ddl_log(THD *thd,
     DBUG_RETURN(TRUE);
 
   /* prepare the action entry */
+  bzero(&exchange_entry, sizeof(exchange_entry));
   exchange_entry.entry_type=   DDL_LOG_ENTRY_CODE;
   exchange_entry.action_type=  DDL_LOG_EXCHANGE_ACTION;
-  exchange_entry.next_entry=   0;
-  exchange_entry.name=         name;
-  exchange_entry.from_name=    from_name;
-  exchange_entry.tmp_name=     tmp_name;
-  exchange_entry.handler_name= ha_resolve_storage_engine_name(ht);
+  lex_string_set(&exchange_entry.name,         name);
+  lex_string_set(&exchange_entry.from_name,    from_name);
+  lex_string_set(&exchange_entry.tmp_name,     tmp_name);
+  lex_string_set(&exchange_entry.handler_name,
+                 ha_resolve_storage_engine_name(ht));
   exchange_entry.phase=        EXCH_PHASE_NAME_TO_TEMP;
 
   mysql_mutex_lock(&LOCK_gdl);
@@ -371,13 +373,13 @@ static bool exchange_name_with_ddl_log(THD *thd,
   */
   DBUG_EXECUTE_IF("exchange_partition_fail_1", goto err_no_action_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_1", DBUG_SUICIDE(););
-  if (unlikely(write_ddl_log_entry(&exchange_entry, &log_entry)))
+  if (unlikely(ddl_log_write_entry(&exchange_entry, &log_entry)))
     goto err_no_action_written;
 
   DBUG_EXECUTE_IF("exchange_partition_fail_2", goto err_no_execute_written;);
   DBUG_EXECUTE_IF("exchange_partition_abort_2", DBUG_SUICIDE(););
-  if (unlikely(write_execute_ddl_log_entry(log_entry->entry_pos, FALSE,
-                                            &exec_log_entry)))
+  if (unlikely(ddl_log_write_execute_entry(log_entry->entry_pos,
+                                           &exec_log_entry)))
     goto err_no_execute_written;
   /* ddl_log is written and synced */
 
@@ -403,7 +405,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   }
   DBUG_EXECUTE_IF("exchange_partition_fail_4", goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_4", DBUG_SUICIDE(););
-  if (unlikely(deactivate_ddl_log_entry(log_entry->entry_pos)))
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
     goto err_rename;
 
   /* call rename table from partition to table */
@@ -420,7 +422,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   }
   DBUG_EXECUTE_IF("exchange_partition_fail_6", goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_6", DBUG_SUICIDE(););
-  if (unlikely(deactivate_ddl_log_entry(log_entry->entry_pos)))
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
     goto err_rename;
 
   /* call rename table from tmp-nam to partition */
@@ -437,7 +439,7 @@ static bool exchange_name_with_ddl_log(THD *thd,
   }
   DBUG_EXECUTE_IF("exchange_partition_fail_8", goto err_rename;);
   DBUG_EXECUTE_IF("exchange_partition_abort_8", DBUG_SUICIDE(););
-  if (unlikely(deactivate_ddl_log_entry(log_entry->entry_pos)))
+  if (unlikely(ddl_log_increment_phase(log_entry->entry_pos)))
     goto err_rename;
 
   /* The exchange is complete and ddl_log is deactivated */
@@ -453,15 +455,15 @@ err_rename:
     will log to the error log about the failures...
   */
   /* execute the ddl log entry to revert the renames */
-  (void) execute_ddl_log_entry(current_thd, log_entry->entry_pos);
+  (void) ddl_log_execute_entry(current_thd, log_entry->entry_pos);
   mysql_mutex_lock(&LOCK_gdl);
   /* mark the execute log entry done */
-  (void) write_execute_ddl_log_entry(0, TRUE, &exec_log_entry);
+  (void) ddl_log_disable_execute_entry(&exec_log_entry);
   /* release the execute log entry */
-  (void) release_ddl_log_memory_entry(exec_log_entry);
+  (void) ddl_log_release_memory_entry(exec_log_entry);
 err_no_execute_written:
   /* release the action log entry */
-  (void) release_ddl_log_memory_entry(log_entry);
+  (void) ddl_log_release_memory_entry(log_entry);
 err_no_action_written:
   mysql_mutex_unlock(&LOCK_gdl);
   delete file;
@@ -505,6 +507,16 @@ bool Sql_cmd_alter_table_exchange_partition::
   char part_file_name[2*FN_REFLEN+1];
   char swap_file_name[FN_REFLEN+1];
   char temp_file_name[FN_REFLEN+1];
+  char part_table_name[NAME_LEN + 1];
+  char part_db[NAME_LEN + 1];
+  char swap_table_name[NAME_LEN + 1];
+  char swap_db[NAME_LEN + 1];
+  uchar part_tabledef_version[MY_UUID_SIZE];
+  uchar swap_tabledef_version[MY_UUID_SIZE];
+
+  backup_log_info ddl_log;
+  bzero(&ddl_log, sizeof(ddl_log));
+
   uint swap_part_id;
   uint part_file_name_len;
   Alter_table_prelocking_strategy alter_prelocking_strategy;
@@ -574,6 +586,35 @@ bool Sql_cmd_alter_table_exchange_partition::
       HTON_TABLE_MAY_NOT_EXIST_ON_SLAVE)
     force_if_exists= 1;
 
+  ddl_log.org_table.str= part_table_name;
+  DBUG_ASSERT(part_table->s->table_name.length <= NAME_LEN);
+  ddl_log.org_table.length= part_table->s->table_name.length;
+  strmake(part_table_name, part_table->s->table_name.str, NAME_LEN);
+
+  ddl_log.org_database.str= part_db;
+  DBUG_ASSERT(part_table->s->db.length <= NAME_LEN);
+  ddl_log.org_database.length= part_table->s->db.length;
+  strmake(part_db, part_table->s->db.str, NAME_LEN);
+
+  ddl_log.new_table.str= swap_table_name;
+  DBUG_ASSERT(swap_table->s->table_name.length <= NAME_LEN);
+  ddl_log.new_table.length= swap_table->s->table_name.length;
+  strmake(swap_table_name, swap_table->s->table_name.str, NAME_LEN);
+
+  ddl_log.new_database.str= swap_db;
+  DBUG_ASSERT(swap_table->s->db.length <= NAME_LEN);
+  ddl_log.new_database.length= swap_table->s->db.length;
+  strmake(swap_db, swap_table->s->db.str, NAME_LEN);
+
+  memcpy(part_tabledef_version, part_table->s->tabledef_version.str,
+         MY_UUID_SIZE);
+  ddl_log.org_table_id.str= part_tabledef_version;
+  ddl_log.org_table_id.length= MY_UUID_SIZE;
+  memcpy(swap_tabledef_version, swap_table->s->tabledef_version.str,
+         MY_UUID_SIZE);
+  ddl_log.new_table_id.str= swap_tabledef_version;
+  ddl_log.new_table_id.length= MY_UUID_SIZE;
+
   /* set lock pruning on first table */
   partition_name= alter_info->partition_names.head();
   if (unlikely(table_list->table->part_info->
@@ -583,7 +624,6 @@ bool Sql_cmd_alter_table_exchange_partition::
 
   if (unlikely(lock_tables(thd, table_list, table_counter, 0)))
     DBUG_RETURN(true);
-
 
   table_hton= swap_table->file->ht;
 
@@ -687,6 +727,15 @@ bool Sql_cmd_alter_table_exchange_partition::
     */
     (void) exchange_name_with_ddl_log(thd, part_file_name, swap_file_name,
                                       temp_file_name, table_hton);
+  }
+  else
+  {
+    ddl_log.query= { C_STRING_WITH_LEN("EXCHANGE_PARTITION") };
+    ddl_log.org_partitioned= true;
+    ddl_log.new_partitioned= false;
+    ddl_log.org_storage_engine_name= *hton_name(table_hton);
+    ddl_log.new_storage_engine_name= *hton_name(table_hton);
+    backup_log_ddl(&ddl_log);
   }
   thd->variables.option_bits= save_option_bits;
 
@@ -870,7 +919,7 @@ bool Sql_cmd_alter_table_truncate_partition::execute(THD *thd)
   {
     const char *partition_name= partition_names_it++;
     String *str_partition_name= new (thd->mem_root)
-                                  String(partition_name, system_charset_info);
+      String(partition_name, strlen(partition_name), system_charset_info);
     if (!str_partition_name)
       DBUG_RETURN(true);
     partition_names_list.push_back(str_partition_name, thd->mem_root);

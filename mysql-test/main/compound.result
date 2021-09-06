@@ -101,7 +101,7 @@ t1
 t2
 t3
 t4
-set @a=0;
+set @a=0|
 repeat
 set @a = @a + 1;
 until @a > 5
@@ -154,7 +154,7 @@ master-bin.000001	#	Query	#	#	use `test`; insert t1 values( NAME_CONST('a',4)+3)
 master-bin.000001	#	Query	#	#	COMMIT
 drop function fn|
 drop table t1|
-set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION";
+set @@sql_mode="STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION"|
 begin not atomic select @@sql_mode; end|
 @@sql_mode
 STRICT_TRANS_TABLES,ERROR_FOR_DIVISION_BY_ZERO,NO_AUTO_CREATE_USER,NO_ENGINE_SUBSTITUTION

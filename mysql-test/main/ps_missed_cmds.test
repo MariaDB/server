@@ -1,0 +1,634 @@
+--source include/have_innodb.inc
+
+if (`SELECT $PS_PROTOCOL != 0`)
+{
+   --skip Need regular protocol but ps-protocol was specified
+}
+
+SET @save_storage_engine= @@default_storage_engine;
+SET default_storage_engine= InnoDB;
+
+--echo #
+--echo # MDEV-16708: Unsupported commands for prepared statements
+--echo #
+
+--echo # Disable ps-protocol explicitly in order to test support of
+--echo # prepared statements for use case when statements passed
+--echo # to the server via text client-server protocol (in contrast
+--echo # with binary protocol used in the test file
+--echo # ps_missed_cmds_bin_prot.test)
+--disable_ps_protocol
+
+--echo # Test case 1: Check that the statement 'LOAD DATA' is supported
+--echo # by prepared statements
+
+--echo # First, set up environment for use by the 'LOAD DATA' statement
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+COMMIT;
+SELECT * INTO OUTFILE 'load.data' FROM t1;
+
+PREPARE stmt_1 FROM "LOAD DATA INFILE 'load.data' INTO TABLE t1";
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'LOAD DATA' statement
+--echo # were damaged.
+EXECUTE stmt_1;
+SELECT * FROM t1;
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+DROP TABLE t1;
+--let $datadir= `select @@datadir`
+--remove_file $datadir/test/load.data
+
+--echo # Test case 2: Check that the 'LOCK TABLE', 'UNLOCK TABLES' statements
+--echo # are supported by prepared statements
+CREATE TABLE t1 (a INT);
+
+PREPARE stmt_1 FROM "LOCK TABLE t1 READ";
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'LOCK TABLE READ'
+--echo # statement were damaged.
+EXECUTE stmt_1;
+
+PREPARE stmt_1 FROM "UNLOCK TABLE";
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'UNLOCK TABLE' statement
+--echo # were damaged.
+EXECUTE stmt_1;
+
+PREPARE stmt_1 FROM "LOCK TABLE t1 WRITE";
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'LOCK TABLE WRITE'
+--echo # statement were damaged.
+EXECUTE stmt_1;
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+UNLOCK TABLE;
+DROP TABLE t1;
+
+--echo # Test case 3: Check that the 'USE' statement is supported by
+--echo # prepared statements
+
+CREATE DATABASE mdev_16708_db;
+PREPARE stmt_1 FROM 'USE mdev_16708_db';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'USE' statement
+--echo # were damaged.
+EXECUTE stmt_1;
+
+--echo # Check that the current database has been changed
+SELECT DATABASE();
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+USE test;
+DROP DATABASE mdev_16708_db;
+
+--echo # Test case 4: Check that the 'ALTER DATABASE' statement is supported
+--echo # by prepared statements
+CREATE DATABASE mdev_16708_db;
+PREPARE stmt_1 FROM "ALTER DATABASE mdev_16708_db COMMENT 'New comment'";
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'ALTER DATABASE' statement
+--echo # were damaged.
+EXECUTE stmt_1;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+USE test;
+DROP DATABASE mdev_16708_db;
+
+--echo # Test case 5: Check that the 'CREATE FUNCTION/ALTER FUNCTION/
+--echo # DROP FUNCTION' statements are supported by prepared statements
+PREPARE stmt_1 FROM 'CREATE FUNCTION f1() RETURNS INT RETURN 1';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'CREATE FUNCTION'
+--echo # statement were damaged. The second attempt to execute the prepared
+--echo # statement stmt_1 results in error ER_SP_ALREADY_EXISTS since
+--echo # the stored function f() has been created on first run of stmt1.
+--error ER_SP_ALREADY_EXISTS
+EXECUTE stmt_1;
+
+PREPARE stmt_1 FROM 'ALTER FUNCTION f1 SQL SECURITY INVOKER';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'ALTER FUNCTION'
+--echo # statement were damaged.
+EXECUTE stmt_1;
+
+PREPARE stmt_1 FROM 'DROP FUNCTION f1';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling 'DROP FUNCTION' statement
+--echo # were damaged. The second attempt to run 'DROP FUNCTION f1' using
+--echo # prepared statement expectedly results in issuing the error
+--echo # ER_SP_DOES_NOT_EXIST since the stored function was dropped on first
+--echo # executuon of the prepared statement stmt_1.
+--error ER_SP_DOES_NOT_EXIST
+EXECUTE stmt_1;
+
+--echo # Test case 6: Check that the 'CHECK TABLE' statement is supported
+--echo # by prepared statements
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM 'CHECK TABLE t1';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'CHECK TABLE' statement
+--echo # were damaged.
+EXECUTE stmt_1;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+DROP TABLE t1;
+
+--echo # Test case 7: Check that the BEGIN/SAVEPOINT/RELEASE SAVEPOINT
+--echo # statements are supported by prepared statements
+
+--echo # Set up environmentr for the test case
+CREATE TABLE t1 (a INT);
+
+PREPARE stmt_1 FROM 'BEGIN';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'BEGIN' statement
+--echo # were damaged.
+EXECUTE stmt_1;
+
+INSERT INTO t1 VALUES (1);
+--echo # Run 'SAVEPOINT s1' using prepared statements
+PREPARE stmt_2 FROM 'SAVEPOINT s1';
+EXECUTE stmt_2;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'SAVEPOINT' statement
+--echo # were damaged.
+EXECUTE stmt_2;
+
+INSERT INTO t1 VALUES (2);
+--echo # Expected rows: '1' and '2'
+SELECT * FROM t1;
+--echo # Rollback the last row inserted ('2')
+ROLLBACK TO SAVEPOINT s1;
+--echo # Expected output from t1 after transaction has been rolled back
+--echo # to the savepoint is '1'. If it is case then the statement SAVEPOINT
+--echo # was handled successfully with prepared statement
+SELECT * FROM t1;
+
+PREPARE stmt_3 FROM 'RELEASE SAVEPOINT s1';
+EXECUTE stmt_3;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'RELEASE' statement
+--echo # were damaged. The second attempt to release the same savepoint
+--echo # expectedly lead to error 'SAVEPOINT s1 does not exist'
+--echo # that's just ignored.
+--error ER_SP_DOES_NOT_EXIST
+EXECUTE stmt_3;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+DROP TABLE t1;
+
+--echo # Test case 8: Check that the 'PURGE BINARY LOGS BEFORE' statement
+--echo # is supported by prepared statements
+PREPARE stmt_1 FROM "PURGE BINARY LOGS BEFORE '2020-11-17'";
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'PURGE BINARY LOGS BEFORE'
+--echo # statement were damaged.
+EXECUTE stmt_1;
+
+--echo # Check that the 'PURGE BINARY LOGS TO' statement is supported by
+--echo # prepared statements
+PREPARE stmt_1 FROM "PURGE BINARY LOGS TO 'mariadb-bin.000063'";
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'PURGE BINARY LOGS TO'
+--echo # statement were damaged.
+EXECUTE stmt_1;
+
+--echo # Test case 9: Check that the 'HANDLER OPEN/HANDLER READ/
+--echo # HANDLER CLOSE' statements are supported by prepared statements
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+INSERT INTO t1 VALUES (1);
+COMMIT;
+
+PREPARE stmt_1 FROM 'HANDLER t1 OPEN';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'HANDLER OPEN'
+--echo # statement were damaged. Execution of this statement the second
+--echo # time expectedly results in emitting the error ER_NONUNIQ_TABLE.
+--echo # The same error is issued in case the statement 'HANDLER t1 OPEN' is
+--echo # executed twice using a regular statement.
+--error ER_NONUNIQ_TABLE
+EXECUTE stmt_1;
+
+PREPARE stmt_2 FROM 'HANDLER t1 READ FIRST';
+PREPARE stmt_3 FROM 'HANDLER t1 READ NEXT';
+PREPARE stmt_4 FROM 'HANDLER t1 CLOSE';
+
+EXECUTE stmt_2;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'HANDLER READ FIRST'
+--echo # statement were damaged.
+EXECUTE stmt_2;
+
+EXECUTE stmt_3;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'HANDLER READ NEXT'
+--echo # statement were damaged.
+EXECUTE stmt_3;
+
+EXECUTE stmt_4;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'HANDLER CLOSE'
+--echo # statement were damaged. Execution of this statement the second
+--echo # time results in emitting the error ER_UNKNOWN_TABLE. The same error
+--echo # is issued in case the statement 'HANDLER t1 CLOSE' executed twice
+--echo # using a regular statement.
+--error ER_UNKNOWN_TABLE
+EXECUTE stmt_4;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+DEALLOCATE PREPARE stmt_4;
+DROP TABLE t1;
+
+--echo # Test case 10: Check that the HELP statement
+--echo # is supported by prepared statements
+PREPARE stmt_1 FROM "HELP `UPDATE`";
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'HELP' statement
+--echo # were damaged.
+
+EXECUTE stmt_1;
+
+--echo # Test case 11: Check that the 'CREATE PROCEDURE' statement
+--echo # is supported by prepared statements
+PREPARE stmt_1 FROM 'CREATE PROCEDURE p1() SET @a=1';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'CREATE PROCEDURE'
+--echo # statement were damaged. Execution of this statement the second
+--echo # time expectedly results in emitting the error ER_SP_ALREADY_EXISTS.
+--echo # The same error is issued in case the 'HANDLER t1 OPEN' statement
+--echo # is executed twice using a regular statement.
+--error ER_SP_ALREADY_EXISTS
+EXECUTE stmt_1;
+
+--echo # Test case 12: Check that the 'ALTER PROCEDURE' statement is supported
+--echo # by prepared statements.
+# This test case relies on artefacts of the test case 11 (the procedure p1)
+
+PREPARE stmt_1 FROM 'ALTER PROCEDURE p1 SQL SECURITY INVOKER';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'ALTER PROCEDURE'
+--echo # statement were damaged.
+EXECUTE stmt_1;
+
+--echo # Test case 13: Check that the 'DROP PROCEDURE' statement is supported
+--echo # by prepared statements.
+# This test case relies on artefacts of the test case 11 (the procedure p1)
+PREPARE stmt_1 FROM 'DROP PROCEDURE p1';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'DROP PROCEDURE' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error ER_SP_DOES_NOT_EXIST.
+
+--error ER_SP_DOES_NOT_EXIST
+EXECUTE stmt_1;
+
+--echo # Test case 14: Check that the 'CALL' statement is supported
+--echo # by prepared statements.
+
+CREATE PROCEDURE p1() SET @a=1;
+PREPARE stmt_1 FROM 'CALL p1()';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'CALL' statement
+--echo # were damaged.
+EXECUTE stmt_1;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+DROP PROCEDURE p1;
+
+--echo # Test case 15: Check that the 'CREATE VIEW' statement can be executed
+--echo # as a prepared statement.
+--echo # Create environment for the test case
+CREATE TABLE t1 (a INT);
+INSERT INTO t1 VALUES (1);
+COMMIT;
+
+PREPARE stmt_1 FROM 'CREATE VIEW v1 AS SELECT * FROM t1';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'CREATE VIEW'
+--echo # statement were damaged. The second execution of the prepared
+--echo # statement stmt_1 results in error ER_TABLE_EXISTS_ERROR since
+--echo # the view v1 does already exist. It is expected behaviour.
+
+--error ER_TABLE_EXISTS_ERROR
+EXECUTE stmt_1;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+
+DROP VIEW v1;
+DROP TABLE t1;
+
+--echo # Test case 16: Check that the 'CREATE TRIGGER' statement can be executed
+--echo # as a prepared statement.
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM 'CREATE TRIGGER trg1 BEFORE INSERT ON t1 FOR EACH ROW SET @a=1';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'CREATE VIEW' statement
+--echo # were damaged. The second execution of the prepared statement stmt_1
+--echo # results in error ER_TRG_ALREADY_EXISTS since the trigger trg1 does
+--echo # already exist. It is expected behaviour.
+--error ER_TRG_ALREADY_EXISTS
+EXECUTE stmt_1;
+
+--echo # Test case 17: Check that the 'DROP TRIGGER' statement can be executed
+--echo # as a prepared statement.
+--echo # This test relies on presence of the trigger trg1 created by
+--echo # the test case 16.
+PREPARE stmt_1 FROM 'DROP TRIGGER trg1';
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'DROP TRIGGER' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error ER_TRG_DOES_NOT_EXIST.
+--error ER_TRG_DOES_NOT_EXIST
+EXECUTE stmt_1;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+DROP TABLE t1;
+
+--echo # Test case 18: Check that XA related SQL statements can be executed
+--echo # as prepared statements.
+--echo # Create the table t1 used by XA transaction.
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM "XA START 'xid1'";
+PREPARE stmt_2 FROM "XA END 'xid1'";
+PREPARE stmt_3 FROM "XA PREPARE 'xid1'";
+PREPARE stmt_4 FROM "XA RECOVER";
+PREPARE stmt_5 FROM "XA COMMIT 'xid1'";
+PREPARE stmt_6 FROM "XA ROLLBACK 'xid1'";
+
+--echo # Start a new XA transaction
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'XA START' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error XAER_RMFAIL since there is active
+--echo # XA transaction that has just been already.
+--error ER_XAER_RMFAIL
+EXECUTE stmt_1;
+
+INSERT INTO t1 VALUES (1);
+
+--echo # End the current XA transaction
+EXECUTE stmt_2;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'XA END' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error XAER_RMFAIL since the XA transaction
+--echo # with XID 'xid1' has been already ended.
+--error ER_XAER_RMFAIL
+EXECUTE stmt_2;
+
+--echo # Prepare the current XA transaction for finalization
+EXECUTE stmt_3;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'XA END' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error XAER_RMFAIL since the XA transaction
+--echo # with XID 'xid1' has been already ended.
+--error ER_XAER_RMFAIL
+EXECUTE stmt_3;
+
+--echo # Run XA RECOVER as a prepared statement
+EXECUTE stmt_4;
+--echo # And execute it yet another time to check that no internal structures
+--echo # used for handling the statement 'XA RECOVER' were damaged.
+EXECUTE stmt_4;
+
+--echo # Commit the current XA transaction
+EXECUTE stmt_5;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'XA COMMIT' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error XAER_NOTA since the XA transaction
+--echo # with XID 'xid1' has been finalized and no more exists.
+--error ER_XAER_NOTA
+EXECUTE stmt_5;
+
+--echo # Query the table t1 to check that it contains a record inserted by
+--echo # the XA transaction just finished.
+SELECT * FROM t1;
+
+--echo # Using prepared statements start a new XA transaction, INSERT a row
+--echo # into the table t1, prepare the XA transaction and rollback it.
+--echo # This use case is similar to precedence one except it does rollback
+--echo # XA transaction instead commit it. Therefore every prepared statement
+--echo # is executed only once except the last XA ROLLBACK.
+
+--echo # Start a new XA transaction
+EXECUTE stmt_1;
+
+INSERT INTO t1 VALUES (1);
+
+--echo # End the current XA transaction
+EXECUTE stmt_2;
+
+--echo # Prepare the current XA transaction for finalization
+EXECUTE stmt_3;
+
+--echo # Rolback the current XA transaction
+EXECUTE stmt_6;
+
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the statement 'XA ROLLBACK'
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error XAER_NOTA since the XA transaction
+--echo # with XID 'xid1' has been finalized and no more exists.
+--error ER_XAER_NOTA
+EXECUTE stmt_6;
+
+--echo # Clean up
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+DEALLOCATE PREPARE stmt_4;
+DEALLOCATE PREPARE stmt_5;
+DEALLOCATE PREPARE stmt_6;
+
+--echo # Test case 19: Check that the  CREATE SERVER/ALTER SERVER/DROP SERVER
+--echo # statements can be executed as prepared statements.
+
+PREPARE stmt_1 FROM "CREATE SERVER s FOREIGN DATA WRAPPER mysql OPTIONS (USER 'u1', HOST '127.0.0.1')";
+PREPARE stmt_2 FROM "ALTER SERVER s OPTIONS (USER 'u2')";
+PREPARE stmt_3 FROM "DROP SERVER s";
+
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'CREATE SERVER' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error ER_FOREIGN_SERVER_EXISTS
+--echo # since a server with same has just been created.
+--error ER_FOREIGN_SERVER_EXISTS
+EXECUTE stmt_1;
+
+EXECUTE stmt_2;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'ALTER SERVER' statement
+--echo # were damaged.
+EXECUTE stmt_2;
+
+EXECUTE stmt_3;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'DROP SERVER' statement
+--echo # were damaged. Execution of this statement the second time expectedly
+--echo # results in emitting the error ER_FOREIGN_SERVER_DOESNT_EXIST
+--echo # since the server with same has just been dropped.
+--error ER_FOREIGN_SERVER_DOESNT_EXIST
+EXECUTE stmt_3;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+
+--echo # Test case 21: Check that the SIGNAL and RESIGNAL statements
+--echo # can be executed as a prepared statement
+PREPARE stmt_1 FROM "SIGNAL SQLSTATE '45000' SET MYSQL_ERRNO=30001, MESSAGE_TEXT='Hello, world!'";
+--error 30001
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'SIGNAL' statement
+--echo # were damaged.
+--error 30001
+EXECUTE stmt_1;
+
+PREPARE stmt_1 FROM 'RESIGNAL SET MYSQL_ERRNO = 5';
+--error ER_RESIGNAL_WITHOUT_ACTIVE_HANDLER
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'RESIGNAL' statement
+--echo # were damaged.
+--error ER_RESIGNAL_WITHOUT_ACTIVE_HANDLER
+EXECUTE stmt_1;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+
+--echo # Test case 23: Check the 'GET DIAGNOSTICS' statement
+--echo # can be executed as a prepared statement
+PREPARE stmt_1 FROM 'GET DIAGNOSTICS CONDITION 1 @sqlstate = RETURNED_SQLSTATE, @errno = MYSQL_ERRNO, @text = MESSAGE_TEXT';
+
+--echo # Query from non existent table to fill the diagnostics area
+--echo # with information
+--error ER_NO_SUCH_TABLE
+SELECT * FROM non_existent_table_1;
+EXECUTE stmt_1;
+--echo # Check that information from diagnostics area has been retrieved
+SELECT @sqlstate, @errno, @text;
+
+--error ER_NO_SUCH_TABLE
+SELECT * FROM non_existent_table_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the
+--echo # 'GET DIAGNOSTICS CONDITION' statement were damaged.
+EXECUTE stmt_1;
+
+--echo # Clean up
+DEALLOCATE PREPARE stmt_1;
+
+--echo # Test case 24: Check the statements 'BACKUP'/'BACKUP UNLOCK'
+--echo # can be executed as a prepared statement
+CREATE TABLE t1 (a INT);
+PREPARE stmt_1 FROM 'BACKUP LOCK t1';
+PREPARE stmt_2 FROM 'BACKUP UNLOCK';
+
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'BACKUP LOCK'
+--echo # statement were damaged.
+EXECUTE stmt_1;
+
+EXECUTE stmt_2;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'BACKUP UNLOCK'
+--echo # statement were damaged.
+EXECUTE stmt_2;
+
+--echo # Clean up
+DROP TABLE t1;
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+
+--echo # Test Test case 25: Check the statements 'CREATE/ALTER/DROP TABLEPSPACE'
+--echo # can be executed as a prepared statement
+
+PREPARE stmt_1 FROM "CREATE TABLESPACE ts1 ADD DATAFILE 'ts1.ibd' ENGINE=InnoDB";
+PREPARE stmt_2 FROM "ALTER TABLESPACE ts1 ADD DATAFILE 'ts1_1.ibd' ENGINE=InnoDB";
+PREPARE stmt_3 FROM "DROP TABLESPACE ts1 ENGINE=InnoDB";
+
+# Since MariaDB supports for tablespaces only on syntax level disable warnings
+# before run CREATE/ALTER/DROP TABLESPACE statements in order to exclude
+# the following in result output
+#   Warning 1478 Table storage engine 'InnoDB' does not support the create option 'TABLESPACE
+--disable_warnings
+
+EXECUTE stmt_1;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'CREATE TABLESPACE'
+--echo # statement were damaged.
+# Since the 'CREATE TABLESPACE' statement is supported by MariaDB on syntax
+# level only the second invocation of the CREATE TABLESPACE statement for
+# the same tablespace name doesn't lead to error.
+EXECUTE stmt_1;
+
+EXECUTE stmt_2;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'ALTER TABLESPACE'
+--echo # statement were damaged.
+EXECUTE stmt_2;
+
+EXECUTE stmt_3;
+--echo # Execute the same prepared statement the second time to check that
+--echo # no internal structures used for handling the 'DROP TABLESPACE'
+--echo # statement were damaged.
+
+# Since the 'DROP TABLESPACE' statement is supported by MariaDB on syntax
+# level only the second invocation of the DROP TABLESPACE statement for
+# the same tablespace name doesn't lead to an error that tablespace
+# doesn't exist.
+EXECUTE stmt_3;
+
+--enable_warnings
+
+DEALLOCATE PREPARE stmt_1;
+DEALLOCATE PREPARE stmt_2;
+DEALLOCATE PREPARE stmt_3;
+
+--enable_ps_protocol
+SET default_storage_engine= @save_storage_engine;
