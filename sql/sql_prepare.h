@@ -351,4 +351,6 @@ private:
   size_t m_column_count; /* TODO: change to point to metadata */
 };
 
+extern Atomic_counter<uint32_t> local_connection_thread_count;
+
 #endif // SQL_PREPARE_H
