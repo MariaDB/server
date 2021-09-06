@@ -36,7 +36,8 @@ public:
 /** Futex-based mutex */
 class srw_mutex final
 {
-  /** The lock word, containing HOLDER and a count of waiters */
+  /** The lock word, containing HOLDER + 1 if the lock is being held,
+  plus the number of waiters */
   std::atomic<uint32_t> lock;
   /** Identifies that the lock is being held */
   static constexpr uint32_t HOLDER= 1U << 31;
@@ -62,7 +63,7 @@ public:
   bool wr_lock_try()
   {
     uint32_t lk= 0;
-    return lock.compare_exchange_strong(lk, HOLDER,
+    return lock.compare_exchange_strong(lk, HOLDER + 1,
                                         std::memory_order_acquire,
                                         std::memory_order_relaxed);
   }
@@ -70,8 +71,8 @@ public:
   void wr_lock() { if (!wr_lock_try()) wait_and_lock(); }
   void wr_unlock()
   {
-    const uint32_t lk= lock.fetch_and(~HOLDER, std::memory_order_release);
-    if (lk != HOLDER)
+    const uint32_t lk= lock.fetch_sub(HOLDER + 1, std::memory_order_release);
+    if (lk != HOLDER + 1)
     {
       DBUG_ASSERT(lk & HOLDER);
       wake();
