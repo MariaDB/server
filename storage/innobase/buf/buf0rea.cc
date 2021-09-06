@@ -501,14 +501,13 @@ an exclusive lock on the buffer frame. The flag is cleared and the x-lock
 released by the i/o-handler thread.
 @param[in,out]	space		tablespace
 @param[in]	page_id		page id
-@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0
-@param[in]	sync		true if synchronous aio is desired */
+@param[in]	zip_size	ROW_FORMAT=COMPRESSED page size, or 0 */
 void buf_read_page_background(fil_space_t *space, const page_id_t page_id,
-			      ulint zip_size, bool sync)
+                              ulint zip_size)
 {
 	dberr_t		err;
 
-	if (buf_read_page_low(&err, space, sync, BUF_READ_ANY_PAGE,
+	if (buf_read_page_low(&err, space, false, BUF_READ_ANY_PAGE,
 			      page_id, zip_size, false)) {
 		srv_stats.buf_pool_reads.add(1);
 	}
