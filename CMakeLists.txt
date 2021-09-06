@@ -33,22 +33,11 @@ PROJECT(MySQL)
 # in RPM's:
 
 #set(CPACK_RPM_SPEC_MORE_DEFINE "%define __spec_install_post /bin/true")
-
-IF(POLICY CMP0022)
-  CMAKE_POLICY(SET CMP0022 NEW)
-ENDIF()
-IF(POLICY CMP0048)
-  CMAKE_POLICY(SET CMP0048 NEW)
-ENDIF()
-IF(POLICY CMP0054)
-  CMAKE_POLICY(SET CMP0054 NEW)
-ENDIF()
-IF(POLICY CMP0075)
-  CMAKE_POLICY(SET CMP0075 NEW)
-ENDIF()
-IF(POLICY CMP0069)
- CMAKE_POLICY(SET CMP0069 NEW)
-ENDIF()
+FOREACH(p CMP0022 CMP0046 CMP0040 CMP0048 CMP0054 CMP0075 CMP0069)
+  IF(POLICY ${p})
+    CMAKE_POLICY(SET ${p} NEW)
+  ENDIF()
+ENDFOREACH()
 
 MESSAGE(STATUS "Running cmake version ${CMAKE_VERSION}")
 
@@ -562,4 +551,42 @@ ENDIF()
 IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
 You have linked MariaDB with ${NON_DISTRIBUTABLE_WARNING} libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with the Free Software Foundation.")
+ENDIF()
+
+IF(NOT WITHOUT_SERVER)
+  # Define target for minimal mtr-testable build
+  ADD_CUSTOM_TARGET(minbuild)
+  ADD_DEPENDENCIES(minbuild
+   aria_chk
+   aria_pack
+   mariadb
+   mariadb-admin
+   mariadb-binlog
+   mariadb-check
+   mariadb-client-test
+   mariadb-conv
+   mariadb-dump
+   mariadb-import
+   mariadb-plugin
+   mariadb-show
+   mariadb-slap
+   mariadb-test
+   mariadb-tzinfo-to-sql
+   mariadb-upgrade
+   mariadbd
+   my_print_defaults
+   my_safe_process
+   myisam_ftdump
+   myisamchk
+   myisamlog
+   myisampack
+   perror
+   replace)
+  IF(WIN32)
+    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
+  ENDIF()
+  ADD_CUSTOM_TARGET(smoketest
+    COMMAND perl ./mysql-test-run.pl main.1st
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/mysql-test)
+  ADD_DEPENDENCIES(smoketest minbuild)
 ENDIF()

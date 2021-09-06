@@ -125,7 +125,7 @@ class purge_sys_t
 {
 public:
   /** latch protecting view, m_enabled */
-  MY_ALIGNED(CACHE_LINE_SIZE) mutable srw_lock latch;
+  MY_ALIGNED(CACHE_LINE_SIZE) mutable srw_spin_lock latch;
 private:
   /** The purge will not remove undo logs which are >= this view */
   ReadViewBase view;

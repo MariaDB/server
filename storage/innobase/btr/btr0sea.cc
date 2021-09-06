@@ -1015,7 +1015,7 @@ btr_search_guess_on_hash(
 	ulint		mode,
 	ulint		latch_mode,
 	btr_cur_t*	cursor,
-	srw_lock*	ahi_latch,
+	srw_spin_lock*	ahi_latch,
 	mtr_t*		mtr)
 {
 	ulint		fold;
@@ -1460,7 +1460,7 @@ void
 btr_search_build_page_hash_index(
 	dict_index_t*	index,
 	buf_block_t*	block,
-	srw_lock*	ahi_latch,
+	srw_spin_lock*	ahi_latch,
 	uint16_t	n_fields,
 	uint16_t	n_bytes,
 	bool		left_side)
@@ -1660,7 +1660,7 @@ exit_func:
 @param[in,out]	cursor	cursor which was just positioned */
 void btr_search_info_update_slow(btr_search_t *info, btr_cur_t *cursor)
 {
-	srw_lock*	ahi_latch = &btr_search_sys.get_part(*cursor->index)
+	srw_spin_lock*	ahi_latch = &btr_search_sys.get_part(*cursor->index)
 		->latch;
 	buf_block_t*	block = btr_cur_get_block(cursor);
 
@@ -1727,7 +1727,7 @@ btr_search_move_or_delete_hash_entries(
 	assert_block_ahi_valid(block);
 	assert_block_ahi_valid(new_block);
 
-	srw_lock* ahi_latch = index
+	srw_spin_lock* ahi_latch = index
 		? &btr_search_sys.get_part(*index)->latch
 		: nullptr;
 
@@ -1852,7 +1852,7 @@ void btr_search_update_hash_on_delete(btr_cur_t *cursor)
 			inserted next to the cursor.
 @param[in]	ahi_latch	the adaptive hash index latch */
 void btr_search_update_hash_node_on_insert(btr_cur_t *cursor,
-                                           srw_lock *ahi_latch)
+                                           srw_spin_lock *ahi_latch)
 {
 	buf_block_t*	block;
 	dict_index_t*	index;
@@ -1925,7 +1925,7 @@ func_exit:
 				to the cursor
 @param[in]	ahi_latch	the adaptive hash index latch */
 void btr_search_update_hash_on_insert(btr_cur_t *cursor,
-                                      srw_lock *ahi_latch)
+                                      srw_spin_lock *ahi_latch)
 {
 	buf_block_t*	block;
 	dict_index_t*	index;

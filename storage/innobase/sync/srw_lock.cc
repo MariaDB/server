@@ -20,8 +20,24 @@ this program; if not, write to the Free Software Foundation, Inc.,
 #include "srv0srv.h"
 #include "my_cpu.h"
 
+/** @return the parameter for srw_pause() */
+static inline unsigned srw_pause_delay()
+{
+  return my_cpu_relax_multiplier / 4 * srv_spin_wait_delay;
+}
+
+/** Pause the CPU for some time, with no memory accesses. */
+static inline void srw_pause(unsigned delay)
+{
+  HMT_low();
+  while (delay--)
+    MY_RELAX_CPU();
+  HMT_medium();
+}
+
 #ifdef SUX_LOCK_GENERIC
-void ssux_lock_low::init()
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::init()
 {
   DBUG_ASSERT(!is_locked_or_waiting());
   pthread_mutex_init(&mutex, nullptr);
@@ -29,7 +45,8 @@ void ssux_lock_low::init()
   pthread_cond_init(&cond_exclusive, nullptr);
 }
 
-void ssux_lock_low::destroy()
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::destroy()
 {
   DBUG_ASSERT(!is_locked_or_waiting());
   pthread_mutex_destroy(&mutex);
@@ -37,7 +54,8 @@ void ssux_lock_low::destroy()
   pthread_cond_destroy(&cond_exclusive);
 }
 
-inline void ssux_lock_low::writer_wait(uint32_t l)
+template<bool spinloop>
+inline void ssux_lock_impl<spinloop>::writer_wait(uint32_t l)
 {
   pthread_mutex_lock(&mutex);
   while (value() == l)
@@ -45,7 +63,8 @@ inline void ssux_lock_low::writer_wait(uint32_t l)
   pthread_mutex_unlock(&mutex);
 }
 
-inline void ssux_lock_low::readers_wait(uint32_t l)
+template<bool spinloop>
+inline void ssux_lock_impl<spinloop>::readers_wait(uint32_t l)
 {
   pthread_mutex_lock(&mutex);
   while (value() == l)
@@ -53,7 +72,8 @@ inline void ssux_lock_low::readers_wait(uint32_t l)
   pthread_mutex_unlock(&mutex);
 }
 
-inline void ssux_lock_low::wake()
+template<bool spinloop>
+inline void ssux_lock_impl<spinloop>::wake()
 {
   pthread_mutex_lock(&mutex);
   uint32_t l= value();
@@ -70,7 +90,8 @@ inline void ssux_lock_low::wake()
 
 /** Wait for a read lock.
 @param lock word value from a failed read_trylock() */
-void ssux_lock_low::read_lock(uint32_t l)
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::read_lock(uint32_t l)
 {
   do
   {
@@ -90,15 +111,19 @@ void ssux_lock_low::read_lock(uint32_t l)
       pthread_mutex_unlock(&mutex);
       continue;
     }
-    else
+    else if (spinloop)
+    {
+      const unsigned delay= srw_pause_delay();
+
       for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
       {
-        ut_delay(srv_spin_wait_delay);
+        srw_pause(delay);
         if (read_trylock<true>(l))
           return;
         else if (l == WRITER_WAITING)
           goto wake_writer;
       }
+    }
 
     readers_wait(l);
   }
@@ -107,7 +132,8 @@ void ssux_lock_low::read_lock(uint32_t l)
 
 /** Wait for an update lock.
 @param lock word value from a failed update_trylock() */
-void ssux_lock_low::update_lock(uint32_t l)
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::update_lock(uint32_t l)
 {
   do
   {
@@ -127,15 +153,19 @@ void ssux_lock_low::update_lock(uint32_t l)
       pthread_mutex_unlock(&mutex);
       continue;
     }
-    else
+    else if (spinloop)
+    {
+      const unsigned delay= srw_pause_delay();
+
       for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
       {
-        ut_delay(srv_spin_wait_delay);
+        srw_pause(delay);
         if (update_trylock(l))
           return;
         else if ((l | UPDATER) == (UPDATER | WRITER_WAITING))
           goto wake_writer;
       }
+    }
 
     readers_wait(l);
   }
@@ -144,21 +174,12 @@ void ssux_lock_low::update_lock(uint32_t l)
 
 /** Wait for a write lock after a failed write_trylock() or upgrade_trylock()
 @param holding_u  whether we already hold u_lock() */
-void ssux_lock_low::write_lock(bool holding_u)
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::write_lock(bool holding_u)
 {
   for (;;)
   {
     uint32_t l= write_lock_wait_start();
-    /* We are the first writer to be granted the lock. Spin for a while. */
-    for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
-    {
-      l= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
-      if (write_lock_wait_try(l))
-        return;
-      if (!(l & WRITER_WAITING))
-        l= write_lock_wait_start();
-      ut_delay(srv_spin_wait_delay);
-    }
 
     const uint32_t e= holding_u ? WRITER_WAITING | UPDATER : WRITER_WAITING;
     l= e;
@@ -190,21 +211,34 @@ void ssux_lock_low::write_lock(bool holding_u)
   }
 }
 
-void ssux_lock_low::rd_unlock() { if (read_unlock()) wake(); }
-void ssux_lock_low::u_unlock() { update_unlock(); wake(); }
-void ssux_lock_low::wr_unlock() { write_unlock(); wake(); }
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::rd_unlock() { if (read_unlock()) wake(); }
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::u_unlock() { update_unlock(); wake(); }
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::wr_unlock() { write_unlock(); wake(); }
+
+template void ssux_lock_impl<false>::init();
+template void ssux_lock_impl<false>::destroy();
+template void ssux_lock_impl<false>::rd_unlock();
+template void ssux_lock_impl<false>::u_unlock();
+template void ssux_lock_impl<false>::wr_unlock();
 #else /* SUX_LOCK_GENERIC */
 static_assert(4 == sizeof(rw_lock), "ABI");
 # ifdef _WIN32
 #  include <synchapi.h>
 
-inline void srw_mutex::wait(uint32_t lk)
+template<bool spinloop>
+inline void srw_mutex_impl<spinloop>::wait(uint32_t lk)
 { WaitOnAddress(&lock, &lk, 4, INFINITE); }
-void srw_mutex::wake() { WakeByAddressSingle(&lock); }
+template<bool spinloop>
+void srw_mutex_impl<spinloop>::wake() { WakeByAddressSingle(&lock); }
 
-inline void ssux_lock_low::wait(uint32_t lk)
+template<bool spinloop>
+inline void ssux_lock_impl<spinloop>::wait(uint32_t lk)
 { WaitOnAddress(&readers, &lk, 4, INFINITE); }
-void ssux_lock_low::wake() { WakeByAddressSingle(&readers); }
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::wake() { WakeByAddressSingle(&readers); }
 
 # else
 #  ifdef __linux__
@@ -221,49 +255,93 @@ void ssux_lock_low::wake() { WakeByAddressSingle(&readers); }
 #   error "no futex support"
 #  endif
 
-inline void srw_mutex::wait(uint32_t lk) { SRW_FUTEX(&lock, WAIT, lk); }
-void srw_mutex::wake() { SRW_FUTEX(&lock, WAKE, 1); }
+template<bool spinloop>
+inline void srw_mutex_impl<spinloop>::wait(uint32_t lk)
+{ SRW_FUTEX(&lock, WAIT, lk); }
+template<bool spinloop>
+void srw_mutex_impl<spinloop>::wake() { SRW_FUTEX(&lock, WAKE, 1); }
 
-inline void ssux_lock_low::wait(uint32_t lk) { SRW_FUTEX(&readers, WAIT, lk); }
-void ssux_lock_low::wake() { SRW_FUTEX(&readers, WAKE, 1); }
+template<bool spinloop>
+inline void ssux_lock_impl<spinloop>::wait(uint32_t lk)
+{ SRW_FUTEX(&readers, WAIT, lk); }
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::wake() { SRW_FUTEX(&readers, WAKE, 1); }
 
 # endif
 
+template void srw_mutex_impl<false>::wake();
+template void ssux_lock_impl<false>::wake();
+template void srw_mutex_impl<true>::wake();
+template void ssux_lock_impl<true>::wake();
 
-void srw_mutex::wait_and_lock()
+template<>
+void srw_mutex_impl<true>::wait_and_lock()
 {
   uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);
-  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+
+  const unsigned delay= srw_pause_delay();
+
+  for (auto spin= srv_n_spin_wait_rounds;;)
   {
-    lk&= ~HOLDER;
-    DBUG_ASSERT(lk);
-    while (!lock.compare_exchange_weak(lk, HOLDER | (lk - 1),
-                                       std::memory_order_acquire,
-                                       std::memory_order_relaxed))
-      if (lk & HOLDER)
-        goto occupied;
-    return;
-occupied:
-    ut_delay(srv_spin_wait_delay);
+    DBUG_ASSERT(~HOLDER & lk);
+    if (lk & HOLDER)
+      lk= lock.load(std::memory_order_relaxed);
+    else
+    {
+      lk= lock.fetch_or(HOLDER, std::memory_order_relaxed);
+      if (!(lk & HOLDER))
+        goto acquired;
+    }
+    srw_pause(delay);
+    if (!--spin)
+      break;
   }
 
-  for (;;)
+  for (;; wait(lk))
   {
-    lk= lock.load(std::memory_order_relaxed);
-    while (!(lk & HOLDER))
+    if (lk & HOLDER)
     {
+      lk= lock.load(std::memory_order_relaxed);
+      if (lk & HOLDER)
+        continue;
+    }
+    lk= lock.fetch_or(HOLDER, std::memory_order_relaxed);
+    if (!(lk & HOLDER))
+    {
+acquired:
       DBUG_ASSERT(lk);
-      if (lock.compare_exchange_weak(lk, HOLDER | (lk - 1),
-                                     std::memory_order_acquire,
-                                     std::memory_order_relaxed))
-        return;
+      std::atomic_thread_fence(std::memory_order_acquire);
+      return;
     }
     DBUG_ASSERT(lk > HOLDER);
-    wait(lk);
   }
 }
 
-void ssux_lock_low::wr_wait(uint32_t lk)
+template<>
+void srw_mutex_impl<false>::wait_and_lock()
+{
+  uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);
+  for (;; wait(lk))
+  {
+    if (lk & HOLDER)
+    {
+      lk= lock.load(std::memory_order_relaxed);
+      if (lk & HOLDER)
+        continue;
+    }
+    lk= lock.fetch_or(HOLDER, std::memory_order_relaxed);
+    if (!(lk & HOLDER))
+    {
+      DBUG_ASSERT(lk);
+      std::atomic_thread_fence(std::memory_order_acquire);
+      return;
+    }
+    DBUG_ASSERT(lk > HOLDER);
+  }
+}
+
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::wr_wait(uint32_t lk)
 {
   DBUG_ASSERT(writer.is_locked());
   DBUG_ASSERT(lk);
@@ -278,7 +356,11 @@ void ssux_lock_low::wr_wait(uint32_t lk)
   while (lk != WRITER);
 }
 
-void ssux_lock_low::rd_wait()
+template void ssux_lock_impl<true>::wr_wait(uint32_t);
+template void ssux_lock_impl<false>::wr_wait(uint32_t);
+
+template<bool spinloop>
+void ssux_lock_impl<spinloop>::rd_wait()
 {
   for (;;)
   {
@@ -297,10 +379,22 @@ void ssux_lock_low::rd_wait()
   }
   writer.wr_unlock();
 }
+
+template void ssux_lock_impl<true>::rd_wait();
+template void ssux_lock_impl<false>::rd_wait();
 #endif /* SUX_LOCK_GENERIC */
 
 #ifdef UNIV_PFS_RWLOCK
-void srw_lock::psi_rd_lock(const char *file, unsigned line)
+# if defined _WIN32 || defined SUX_LOCK_GENERIC
+#  define void_srw_lock void srw_lock_impl
+# else
+#  define void_srw_lock template<bool spinloop> void srw_lock_impl<spinloop>
+template void srw_lock_impl<false>::psi_rd_lock(const char*, unsigned);
+template void srw_lock_impl<false>::psi_wr_lock(const char*, unsigned);
+template void srw_lock_impl<true>::psi_rd_lock(const char*, unsigned);
+template void srw_lock_impl<true>::psi_wr_lock(const char*, unsigned);
+# endif
+void_srw_lock::psi_rd_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   const bool nowait= lock.rd_lock_try();
@@ -316,7 +410,7 @@ void srw_lock::psi_rd_lock(const char *file, unsigned line)
     lock.rd_lock();
 }
 
-void srw_lock::psi_wr_lock(const char *file, unsigned line)
+void_srw_lock::psi_wr_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   const bool nowait= lock.wr_lock_try();
@@ -396,7 +490,7 @@ void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
   DBUG_ASSERT(lock.writer.is_locked());
   uint32_t lk= 1;
   const bool nowait=
-    lock.readers.compare_exchange_strong(lk, ssux_lock_low::WRITER,
+    lock.readers.compare_exchange_strong(lk, ssux_lock_impl<false>::WRITER,
                                          std::memory_order_acquire,
                                          std::memory_order_relaxed);
   if (PSI_rwlock_locker *locker= PSI_RWLOCK_CALL(start_rwlock_wrwait)
@@ -412,4 +506,14 @@ void ssux_lock::psi_u_wr_upgrade(const char *file, unsigned line)
   else if (!nowait)
     lock.u_wr_upgrade();
 }
+#else /* UNIV_PFS_RWLOCK */
+template void ssux_lock_impl<false>::rd_lock();
+# ifdef SUX_LOCK_GENERIC
+template void ssux_lock_impl<false>::write_lock(bool);
+template void ssux_lock_impl<false>::update_lock(uint32_t);
+# else
+template void ssux_lock_impl<false>::rd_unlock();
+template void ssux_lock_impl<false>::u_unlock();
+template void ssux_lock_impl<false>::wr_unlock();
+# endif
 #endif /* UNIV_PFS_RWLOCK */

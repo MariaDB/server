@@ -565,7 +565,7 @@ public:
 private:
   /** mutex protecting state and some of lock
   (some are protected by lock_sys.latch) */
-  srw_mutex mutex;
+  srw_spin_mutex mutex;
 #ifdef UNIV_DEBUG
   /** The owner of mutex (0 if none); protected by mutex */
   std::atomic<os_thread_id_t> mutex_owner{0};

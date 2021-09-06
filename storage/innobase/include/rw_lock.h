@@ -124,8 +124,8 @@ protected:
     }
     DBUG_ASSERT((l & ~WRITER_WAITING) == UPDATER);
     /* Any thread that had set WRITER_WAITING will eventually be woken
-    up by ssux_lock_low::x_unlock() or ssux_lock_low::u_unlock()
-    (not ssux_lock_low::wr_u_downgrade() to keep the code simple). */
+    up by ssux_lock_impl::x_unlock() or ssux_lock_impl::u_unlock()
+    (not ssux_lock_impl::wr_u_downgrade() to keep the code simple). */
     return true;
   }
   /** Downgrade an exclusive lock to an update lock. */

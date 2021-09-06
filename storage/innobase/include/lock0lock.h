@@ -584,7 +584,7 @@ class lock_sys_t
 #else
   {
   private:
-    srw_lock_low lock;
+    srw_spin_lock_low lock;
   public:
     /** Try to acquire a lock */
     bool try_acquire() { return lock.wr_lock_try(); }
@@ -666,7 +666,7 @@ private:
   bool m_initialised;
 
   /** mutex proteting the locks */
-  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_lock latch;
+  MY_ALIGNED(CPU_LEVEL1_DCACHE_LINESIZE) srw_spin_lock latch;
 #ifdef UNIV_DEBUG
   /** The owner of exclusive latch (0 if none); protected by latch */
   std::atomic<os_thread_id_t> writer{0};
