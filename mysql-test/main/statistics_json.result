@@ -2452,12 +2452,12 @@ test	t1_json	a	a-0	a-9	0.0000	3.0000	1.0000	100	JSON_HB	{
 }
 explain extended select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	60.27	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	59.41	Using where
 Warnings:
 Note	1003	select `test`.`t1_json`.`a` AS `a` from `test`.`t1_json` where `test`.`t1_json`.`a` between 'a-3a' and 'zzzzzzzzz'
 analyze select * from t1_json where a between 'a-3a' and 'zzzzzzzzz';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	60.27	60.00	Using where
+1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	10.00	59.41	60.00	Using where
 explain extended select * from t1_json where a < 'b-1a';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t1_json	ALL	NULL	NULL	NULL	NULL	10	99.01	Using where
@@ -3179,7 +3179,7 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	25.49	25.52	Using where
 analyze select * from Country use index () where Code < 'BBC';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	5.88	7.11	Using where
+1	SIMPLE	Country	ALL	NULL	NULL	NULL	NULL	239	239.00	7.84	7.11	Using where
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 DROP SCHEMA world;
