@@ -683,7 +683,7 @@ buf_load()
 		}
 
 		space->reacquire();
-		buf_read_page_background(space, dump[i], zip_size, true);
+		buf_read_page_background(space, dump[i], zip_size);
 
 		if (buf_load_abort_flag) {
 			if (space) {

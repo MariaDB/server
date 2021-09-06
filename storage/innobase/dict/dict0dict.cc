@@ -225,7 +225,8 @@ void dict_table_close(dict_table_t *table)
     if (table->release())
     {
       table->stats_mutex_lock();
-      dict_stats_deinit(table);
+      if (table->get_ref_count() == 0)
+        dict_stats_deinit(table);
       table->stats_mutex_unlock();
     }
     dict_sys.unlock();
@@ -258,7 +259,8 @@ dict_table_close(
       that FLUSH TABLE can be used to forcibly fetch stats from disk if
       they have been manually modified. */
       table->stats_mutex_lock();
-      dict_stats_deinit(table);
+      if (table->get_ref_count() == 0)
+        dict_stats_deinit(table);
       table->stats_mutex_unlock();
     }
 

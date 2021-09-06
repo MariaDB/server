@@ -175,16 +175,13 @@ dict_stats_deinit(
 	dict_table_t*	table)	/*!< in/out: table */
 {
 	ut_ad(table->stats_mutex_is_owner());
+	ut_ad(table->get_ref_count() == 0);
 
-	ut_a(table->get_ref_count() == 0);
-
+#ifdef HAVE_valgrind
 	if (!table->stat_initialized) {
 		return;
 	}
 
-	table->stat_initialized = FALSE;
-
-#ifdef HAVE_valgrind
 	MEM_UNDEFINED(&table->stat_n_rows, sizeof table->stat_n_rows);
 	MEM_UNDEFINED(&table->stat_clustered_index_size,
 		      sizeof table->stat_clustered_index_size);
@@ -218,4 +215,5 @@ dict_stats_deinit(
 			sizeof(index->stat_n_leaf_pages));
 	}
 #endif /* HAVE_valgrind */
+	table->stat_initialized = FALSE;
 }

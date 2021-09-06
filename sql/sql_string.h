@@ -643,7 +643,7 @@ public:
       Ptr[str_length]=0;
       return Ptr;
     }
-    (void) realloc(str_length+1);               /* This will add end \0 */
+    (void) realloc(str_length);               /* This will add end \0 */
     return Ptr;
   }
   /*
@@ -666,7 +666,7 @@ public:
     if (Ptr && str_length < Alloced_length)
       Ptr[str_length]=0;
     else
-      (void) realloc(str_length + 1);
+      (void) realloc(str_length);
     return Ptr;
   }
 

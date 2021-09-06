@@ -2501,6 +2501,13 @@ extern "C" int thd_is_slave(const MYSQL_THD thd);
 # define thd_is_slave(thd) 0
 #endif
 
+#if defined __aarch64__&&defined __GNUC__&&__GNUC__==4&&!defined __clang__
+/* Avoid GCC 4.8.5 internal compiler error due to srw_mutex::wr_unlock().
+We would only need this for row_ins_clust_index_entry_low(),
+but GCC 4.8.5 does not support pop_options. */
+# pragma GCC optimize ("no-expensive-optimizations")
+#endif
+
 /***************************************************************//**
 Tries to insert an entry into a clustered index, ignoring foreign key
 constraints. If a record with the same unique key is found, the other

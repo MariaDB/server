@@ -282,7 +282,7 @@ void page_hash_latch::read_lock_wait()
   /* First, try busy spinning for a while. */
   for (auto spin= srv_n_spin_wait_rounds; spin--; )
   {
-    ut_delay(srv_spin_wait_delay);
+    LF_BACKOFF();
     if (read_trylock())
       return;
   }
@@ -301,7 +301,7 @@ void page_hash_latch::write_lock_wait()
   {
     if (write_lock_poll())
       return;
-    ut_delay(srv_spin_wait_delay);
+    LF_BACKOFF();
   }
 
   /* Fall back to yielding to other threads. */

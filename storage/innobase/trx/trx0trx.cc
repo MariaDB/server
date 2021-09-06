@@ -1275,7 +1275,7 @@ inline void trx_t::commit_in_memory(const mtr_t *mtr)
       /* Wait for any implicit-to-explicit lock conversions to cease,
       so that there will be no race condition in lock_release(). */
       while (UNIV_UNLIKELY(is_referenced()))
-        ut_delay(srv_spin_wait_delay);
+        LF_BACKOFF();
     }
     else
       ut_ad(read_only || !rsegs.m_redo.rseg);

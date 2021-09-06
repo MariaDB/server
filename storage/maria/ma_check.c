@@ -414,6 +414,12 @@ int maria_chk_size(HA_CHECK *param, register MARIA_HA *info)
   char buff[22],buff2[22];
   DBUG_ENTER("maria_chk_size");
 
+  if (info->s3)
+  {
+    /* We cannot check file sizes for S3 */
+    DBUG_RETURN(0);
+  }
+
   if (!(param->testflag & T_SILENT))
     puts("- check file-size");
 
