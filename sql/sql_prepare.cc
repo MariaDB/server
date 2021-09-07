@@ -4859,7 +4859,11 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   Statement stmt_backup;
   bool error;
   Query_arena *save_stmt_arena= thd->stmt_arena;
+  my_time_t save_query_start= thd->query_start();
+  ulong save_query_sec= thd->start_time_sec_part;
+
   Item_change_list save_change_list;
+
   thd->Item_change_list::move_elements_to(&save_change_list);
 
   state= STMT_CONVENTIONAL_EXECUTION;
@@ -4867,6 +4871,7 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   if (!(lex= new (mem_root) st_lex_local))
     return TRUE;
 
+  thd->set_time();
   thd->set_n_backup_statement(this, &stmt_backup);
   thd->set_n_backup_active_arena(this, &stmt_backup);
   thd->stmt_arena= this;
@@ -4880,6 +4885,7 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   thd->stmt_arena= save_stmt_arena;
 
   save_change_list.move_elements_to(thd);
+  thd->force_set_time(save_query_start, save_query_sec);
 
   /* Items and memory will freed in destructor */
 
@@ -6209,6 +6215,7 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
     THD *thd_orig= current_thd;
     set_current_thd(p->thd);
     p->thd->thread_stack= (char*) &result;
+    p->thd->set_time();
     result= execute_server_code(p->thd, (const char *)arg, arg_length);
     p->thd->cleanup_after_query();
     mysql_audit_release(p->thd);
