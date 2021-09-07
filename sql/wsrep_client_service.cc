@@ -193,6 +193,7 @@ cleanup:
 int Wsrep_client_service::remove_fragments()
 {
   DBUG_ENTER("Wsrep_client_service::remove_fragments");
+  DEBUG_SYNC(m_thd, "wsrep_before_fragment_removal");
   if (wsrep_schema->remove_fragments(m_thd,
                                      Wsrep_server_state::instance().id(),
                                      m_thd->wsrep_trx().id(),
