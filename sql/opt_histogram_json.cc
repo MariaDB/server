@@ -220,11 +220,11 @@ error:
 
 
 static
-void store_key_image_to_rec_no_null(Field *field, const char *ptr, uint len)
+void store_key_image_to_rec_no_null(Field *field, const char *ptr, size_t len)
 {
   MY_BITMAP *old_map= dbug_tmp_use_all_columns(field->table,
                                     &field->table->write_set);
-  field->set_key_image((const uchar*)ptr, len);
+  field->set_key_image((const uchar*)ptr, (uint)len);
   dbug_tmp_restore_column_map(&field->table->write_set, old_map);
 }
 
