@@ -1116,6 +1116,10 @@ Only used on FLUSH TABLES...FOR EXPORT. */
 void os_aio_wait_until_no_pending_writes();
 
 
+/** Wait until there are no pending asynchronous reads. */
+void os_aio_wait_until_no_pending_reads();
+
+
 /** Prints info of the aio arrays.
 @param[in/out]	file		file where to print */
 void

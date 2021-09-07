@@ -715,6 +715,10 @@ buf_load()
 
 	ut_free(dump);
 
+	if (i == dump_n) {
+		os_aio_wait_until_no_pending_reads();
+	}
+
 	ut_sprintf_timestamp(now);
 
 	if (i == dump_n) {
