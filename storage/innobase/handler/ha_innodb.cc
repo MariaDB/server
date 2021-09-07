@@ -6635,7 +6635,8 @@ wsrep_innobase_mysql_sort(
 
 		// Note that strnxfrm may change length of string
 		tmp_length= charset->coll->strnxfrmlen(charset, str_length);
-		tmp_length= ut_max(str_length, tmp_length) + 1;
+		tmp_length= tmp_length * charset->mbmaxlen;
+		tmp_length= ut_max(str_length, tmp_length) + charset->mbmaxlen;
 		tmp_str= static_cast<uchar *>(ut_malloc_nokey(tmp_length));
 		ut_ad(str_length <= tmp_length);
 		memcpy(tmp_str, str, str_length);
