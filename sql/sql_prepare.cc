@@ -4054,6 +4054,8 @@ static bool execute_server_code(THD *thd,
 {
   PSI_statement_locker *parent_locker;
   bool error;
+  query_id_t save_query_id= thd->query_id;
+  query_id_t next_id= next_query_id();
 
   if (alloc_query(thd, sql_text, sql_len))
     return TRUE;
@@ -4062,6 +4064,7 @@ static bool execute_server_code(THD *thd,
   if (parser_state.init(thd, thd->query(), thd->query_length()))
     return TRUE;
 
+  thd->query_id= next_id;
   parser_state.m_lip.multi_statements= FALSE;
   lex_start(thd);
 
@@ -4084,6 +4087,7 @@ static bool execute_server_code(THD *thd,
 
 end:
   thd->lex->restore_set_statement_var();
+  thd->query_id= save_query_id;
   delete_explain_query(thd->lex);
   lex_end(thd->lex);
 
