@@ -3817,7 +3817,15 @@ void os_aio_wait_until_no_pending_writes()
 /** Wait until all pending asynchronous reads have completed. */
 void os_aio_wait_until_no_pending_reads()
 {
+  const auto notify_wait= read_slots->pending_io_count();
+
+  if (notify_wait)
+    tpool::tpool_wait_begin();
+
   read_slots->wait();
+
+  if (notify_wait)
+    tpool::tpool_wait_end();
 }
 
 /** Request a read or write.
