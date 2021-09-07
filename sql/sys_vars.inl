@@ -2378,6 +2378,17 @@ class Sys_var_multi_source_ulonglong :public Sys_var_ulonglong
 { 
   ptrdiff_t master_info_offset;
   on_multi_source_update_function update_multi_source_variable_func;
+  ulonglong get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset,
+                                            bool lock_global) const;
+  const uchar *get_value_ptr(THD *thd, const LEX_CSTRING *base,
+                             bool lock_global) const
+  {
+    ulonglong *tmp, res;
+    tmp= (ulonglong*) (((uchar*)&(thd->variables)) + offset);
+    res= get_master_info_ulonglong_value(thd, master_info_offset, lock_global);
+    *tmp= res;
+    return (uchar*) tmp;
+  }
 public:
   Sys_var_multi_source_ulonglong(const char *name_arg,
                              const char *comment, int flag_args,
@@ -2407,17 +2418,12 @@ public:
   }
   const uchar *session_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
-    ulonglong *tmp, res;
-    tmp= (ulonglong*) (((uchar*)&(thd->variables)) + offset);
-    res= get_master_info_ulonglong_value(thd, master_info_offset);
-    *tmp= res;
-    return (uchar*) tmp;
+    return get_value_ptr(thd, base, false);
   }
   const uchar *global_value_ptr(THD *thd, const LEX_CSTRING *base) const
   {
-    return session_value_ptr(thd, base);
+    return get_value_ptr(thd, base, true);
   }
-  ulonglong get_master_info_ulonglong_value(THD *thd, ptrdiff_t offset) const;
   bool update_variable(THD *thd, Master_info *mi)
   {
     return update_multi_source_variable_func(this, thd, mi);
