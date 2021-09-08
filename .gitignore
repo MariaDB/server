@@ -197,6 +197,7 @@ sql/lex_token.h
 sql/gen_lex_token
 sql/gen_lex_hash
 sql/lex_hash.h
+sql/myskel.m4
 sql/mysql_tzinfo_to_sql
 sql/mysqld
 sql/sql_builtin.cc

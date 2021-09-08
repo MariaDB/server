@@ -3,7 +3,7 @@
 # to refer to the original sql_yacc.yy
 #
 m4_define([b4_syncline],
-[b4_sync_start([$1], m4_bpatsubst([$2],[yy_[a-z]+\.yy],sql_yacc.yy))[]dnl
+[b4_sync_start([$1], m4_bpatsubst([$2],[@CMAKE_CURRENT_BINARY_DIR@/yy_[a-z]+\.yy],@CMAKE_CURRENT_SOURCE_DIR@/sql_yacc.yy))[]dnl
 
 ])
 
