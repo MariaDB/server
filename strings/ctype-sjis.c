@@ -34026,6 +34026,7 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_sjis[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
@@ -34033,6 +34034,7 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -34041,6 +34043,7 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_sjis[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
@@ -34049,6 +34052,7 @@ my_wc_to_printable_sjis(CHARSET_INFO *cs, my_wc_t wc,
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (sjiscode(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 

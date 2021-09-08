@@ -6343,6 +6343,7 @@ my_mb_wc_gb2312(CHARSET_INFO *cs  __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gb2312code(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -6357,6 +6358,7 @@ my_mb_wc_gb2312(CHARSET_INFO *cs  __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gb2312_nopad_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gb2312code(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 

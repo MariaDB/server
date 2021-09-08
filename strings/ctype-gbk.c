@@ -10624,6 +10624,7 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gbkcode(x,y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -10639,6 +10640,7 @@ my_mb_wc_gbk(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _gbk_nopad_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (gbkcode(x,y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 

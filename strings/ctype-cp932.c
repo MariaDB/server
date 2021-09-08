@@ -34638,6 +34638,7 @@ size_t my_numcells_cp932(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_cp932[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (cp932code(x, y))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
@@ -34645,6 +34646,7 @@ size_t my_numcells_cp932(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (cp932code(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -34653,6 +34655,7 @@ size_t my_numcells_cp932(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) sort_order_cp932[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (cp932code(x, y))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
@@ -34661,6 +34664,7 @@ size_t my_numcells_cp932(CHARSET_INFO *cs __attribute__((unused)),
 #define WEIGHT_PAD_SPACE     (256 * (int) ' ')
 #define WEIGHT_MB1(x)        (256 * (int) (uchar) (x))
 #define WEIGHT_MB2(x,y)      (cp932code(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 

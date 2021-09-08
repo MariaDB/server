@@ -9931,12 +9931,14 @@ my_mb_wc_euc_kr(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_korean_ci
 #define WEIGHT_MB1(x)        (sort_order_euc_kr[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (euckrcode(x, y))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (euckrcode(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -9944,6 +9946,7 @@ my_mb_wc_euc_kr(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_korean_nopad_ci
 #define WEIGHT_MB1(x)        (sort_order_euc_kr[(uchar) (x)])
 #define WEIGHT_MB2(x,y)      (euckrcode(x, y))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
@@ -9951,6 +9954,7 @@ my_mb_wc_euc_kr(CHARSET_INFO *cs __attribute__((unused)),
 #define MY_FUNCTION_NAME(x)   my_ ## x ## _euckr_nopad_bin
 #define WEIGHT_MB1(x)        ((uchar) (x))
 #define WEIGHT_MB2(x,y)      (euckrcode(x, y))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 

@@ -210,6 +210,7 @@ static const uchar sort_order_ujis[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
@@ -219,6 +220,7 @@ static const uchar sort_order_ujis[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
@@ -229,6 +231,7 @@ static const uchar sort_order_ujis[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#define STRCOLL_MB7_TOUPPER
 #include "strcoll.ic"
 
 
@@ -239,6 +242,7 @@ static const uchar sort_order_ujis[]=
 #define WEIGHT_MB2(x,y)      ((((uint) (uchar)(x)) << 16) | \
                              (((uint) (uchar) (y)) <<  8))
 #define WEIGHT_MB3(x,y,z)    (WEIGHT_MB2(x,y) | ((uint) (uchar) z))
+#define STRCOLL_MB7_BIN
 #include "strcoll.ic"
 
 
