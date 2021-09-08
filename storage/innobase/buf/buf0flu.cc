@@ -57,7 +57,7 @@ ulint buf_lru_freed_page_count;
 ulint buf_flush_page_count;
 
 /** Flag indicating if the page_cleaner is in active state. */
-bool buf_page_cleaner_is_active;
+Atomic_relaxed<bool> buf_page_cleaner_is_active;
 
 /** Factor for scan length to determine n_pages for intended oldest LSN
 progress */
