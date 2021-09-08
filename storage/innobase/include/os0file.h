@@ -264,7 +264,7 @@ constexpr ulint OS_AIO_N_PENDING_IOS_PER_THREAD= 256;
 
 extern Atomic_counter<ulint> os_n_file_reads;
 extern ulint	os_n_file_writes;
-extern ulint	os_n_fsyncs;
+extern Atomic_counter<size_t> os_n_fsyncs;
 
 /* File types for directory entry data type */
 
