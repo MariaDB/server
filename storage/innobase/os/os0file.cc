@@ -80,6 +80,7 @@ Created 10/21/1995 Heikki Tuuri
 
 #include <thread>
 #include <chrono>
+#include <memory>
 
 /* Per-IO operation environment*/
 class io_slots
@@ -133,8 +134,8 @@ public:
 	}
 };
 
-static io_slots *read_slots;
-static io_slots *write_slots;
+static std::unique_ptr<io_slots> read_slots;
+static std::unique_ptr<io_slots> write_slots;
 
 /** Number of retries for partial I/O's */
 constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
@@ -3744,6 +3745,10 @@ int os_aio_init()
   int max_read_events= int(srv_n_read_io_threads *
                            OS_AIO_N_PENDING_IOS_PER_THREAD);
   int max_events= max_read_events + max_write_events;
+
+  read_slots.reset(new io_slots(max_read_events, srv_n_read_io_threads));
+  write_slots.reset(new io_slots(max_write_events, srv_n_write_io_threads));
+
   int ret;
 #if LINUX_NATIVE_AIO
   if (srv_use_native_aio && !is_linux_native_aio_supported())
@@ -3774,11 +3779,12 @@ disable:
   }
 #endif
 
-  if (!ret)
+  if (ret)
   {
-    read_slots= new io_slots(max_read_events, srv_n_read_io_threads);
-    write_slots= new io_slots(max_write_events, srv_n_write_io_threads);
+    read_slots.reset();
+    write_slots.reset();
   }
+
   return ret;
 }
 
@@ -3786,10 +3792,8 @@ disable:
 void os_aio_free()
 {
   srv_thread_pool->disable_aio();
-  delete read_slots;
-  delete write_slots;
-  read_slots= nullptr;
-  write_slots= nullptr;
+  read_slots.reset();
+  write_slots.reset();
 }
 
 /** Wait until there are no pending asynchronous writes. */
@@ -3879,7 +3883,7 @@ func_exit:
 	}
 
 	compile_time_assert(sizeof(IORequest) <= tpool::MAX_AIO_USERDATA_LEN);
-	io_slots* slots= type.is_read() ? read_slots : write_slots;
+	io_slots* slots= type.is_read() ? read_slots.get() : write_slots.get();
 	tpool::aiocb* cb = slots->acquire();
 
 	cb->m_buffer = buf;
