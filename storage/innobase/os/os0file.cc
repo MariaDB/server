@@ -157,7 +157,7 @@ static ulint	os_innodb_umask	= 0;
 
 Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
-ulint	os_n_file_writes;
+Atomic_counter<size_t> os_n_file_writes;
 Atomic_counter<size_t> os_n_fsyncs;
 static ulint	os_n_file_reads_old;
 static ulint	os_n_file_writes_old;
@@ -3924,12 +3924,11 @@ os_aio_print(FILE*	file)
 	fprintf(file,
 		"Pending flushes (fsync) log: " ULINTPF
 		"; buffer pool: " ULINTPF "\n"
-		ULINTPF " OS file reads, "
-		ULINTPF " OS file writes, %zu OS fsyncs\n",
+		ULINTPF " OS file reads, %zu OS file writes, %zu OS fsyncs\n",
 		log_sys.get_pending_flushes(),
 		ulint{fil_n_pending_tablespace_flushes},
 		ulint{os_n_file_reads},
-		os_n_file_writes,
+		static_cast<size_t>(os_n_file_writes),
 		static_cast<size_t>(os_n_fsyncs));
 
 	const ulint n_reads = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
