@@ -335,7 +335,7 @@ my_bool			buf_disable_resize_buffer_pool_debug = TRUE;
 
 /** This is used to insert validation operations in execution
 in the debug version */
-static ulint buf_dbg_counter;
+static Atomic_counter<size_t> buf_dbg_counter;
 #endif /* UNIV_DEBUG */
 
 /** Macro to determine whether the read of write counter is used depending
