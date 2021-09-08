@@ -45,23 +45,23 @@ extern "C" {
 #endif
 
 extern struct sql_service_st {
-  MYSQL * STDCALL (*mysql_init)(MYSQL *mysql);
+  MYSQL *(STDCALL *mysql_init)(MYSQL *mysql);
   MYSQL *(*mysql_real_connect_local)(MYSQL *mysql,
     const char *host, const char *user, const char *db,
     unsigned long clientflag);
-  MYSQL * STDCALL (*mysql_real_connect)(MYSQL *mysql, const char *host,
+  MYSQL *(STDCALL *mysql_real_connect)(MYSQL *mysql, const char *host,
       const char *user, const char *passwd, const char *db, unsigned int port,
       const char *unix_socket, unsigned long clientflag);
-  unsigned int STDCALL (*mysql_errno)(MYSQL *mysql);
-  const char * STDCALL (*mysql_error)(MYSQL *mysql);
-  int STDCALL (*mysql_real_query)(MYSQL *mysql, const char *q,
+  unsigned int(STDCALL *mysql_errno)(MYSQL *mysql);
+  const char *(STDCALL *mysql_error)(MYSQL *mysql);
+  int (STDCALL *mysql_real_query)(MYSQL *mysql, const char *q,
                                   unsigned long length);
-  my_ulonglong STDCALL (*mysql_affected_rows)(MYSQL *mysql);
-  my_ulonglong STDCALL (*mysql_num_rows)(MYSQL_RES *res);
-  MYSQL_RES * STDCALL (*mysql_store_result)(MYSQL *mysql);
-  void STDCALL (*mysql_free_result)(MYSQL_RES *result);
-  MYSQL_ROW STDCALL (*mysql_fetch_row)(MYSQL_RES *result);
-  void STDCALL (*mysql_close)(MYSQL *sock);
+  my_ulonglong (STDCALL *mysql_affected_rows)(MYSQL *mysql);
+  my_ulonglong (STDCALL *mysql_num_rows)(MYSQL_RES *res);
+  MYSQL_RES *(STDCALL *mysql_store_result)(MYSQL *mysql);
+  void (STDCALL *mysql_free_result)(MYSQL_RES *result);
+  MYSQL_ROW (STDCALL *mysql_fetch_row)(MYSQL_RES *result);
+  void (STDCALL *mysql_close)(MYSQL *sock);
 } *sql_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
