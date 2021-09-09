@@ -262,10 +262,8 @@ Alter_table_ctx::Alter_table_ctx()
     storage_engine_partitioned(false),
     tmp_storage_engine_name_partitioned(false),
     fk_error_if_delete_row(false), fk_error_id(NULL),
-    fk_error_table(NULL)
-#ifdef DBUG_ASSERT_EXISTS
-    , tmp_table(false)
-#endif
+    fk_error_table(NULL),
+    tmp_table(false)
 {
 }
 
@@ -442,6 +440,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     as for RENAME TO, as being done by SQLCOM_RENAME_TABLE
   */
   if ((alter_info.partition_flags & ALTER_PARTITION_DROP) ||
+      (alter_info.partition_flags & ALTER_PARTITION_CONVERT_OUT) ||
       (alter_info.flags & ALTER_RENAME))
     priv_needed|= DROP_ACL;
 

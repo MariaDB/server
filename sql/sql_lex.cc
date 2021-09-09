@@ -11255,6 +11255,26 @@ bool LEX::stmt_alter_table_exchange_partition(Table_ident *table)
 }
 
 
+bool LEX::stmt_alter_table(Table_ident *table)
+{
+  DBUG_ASSERT(sql_command == SQLCOM_ALTER_TABLE);
+  DBUG_ASSERT(!m_sql_cmd);
+  first_select_lex()->db= table->db;
+  if (first_select_lex()->db.str == NULL &&
+      copy_db_to(&first_select_lex()->db))
+    return true;
+  if (unlikely(check_table_name(table->table.str, table->table.length,
+                                false)) ||
+      (table->db.str && unlikely(check_db_name((LEX_STRING*) &table->db))))
+  {
+    my_error(ER_WRONG_TABLE_NAME, MYF(0), table->table.str);
+    return true;
+  }
+  name= table->table;
+  return false;
+}
+
+
 void LEX::stmt_purge_to(const LEX_CSTRING &to)
 {
   type= 0;
