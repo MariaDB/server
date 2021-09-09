@@ -55,3 +55,8 @@ select count(*) from information_schema.columns
 
 select (@count_object_columns - @count_object_unsigned) = 0;
 
+# Confirm that all columns have comments
+#
+select count(*) from information_schema.columns
+   where table_schema="performance_schema"
+   and (column_comment is null or column_comment = '');

@@ -2183,7 +2183,7 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
       push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
                           ER_BINLOG_CANT_DELETE_GTID_DOMAIN,
                           "The gtid domain being deleted ('%lu') is not in "
-                          "the current binlog state", *ptr_domain_id);
+                          "the current binlog state", (unsigned long) *ptr_domain_id);
       continue;
     }
 
