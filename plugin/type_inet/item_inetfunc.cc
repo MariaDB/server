@@ -221,23 +221,6 @@ longlong Item_func_is_ipv4::val_int()
   return !tmp.is_null() && !Inet4_null(*tmp.string()).is_null();
 }
 
-class IP6 : public Inet6Bundle::Fbt
-{
-public:
-  IP6(Item* arg) : Inet6Bundle::Fbt(arg) {}
-  bool is_v4compat() const
-  {
-    static_assert(sizeof(in6_addr) == IN6_ADDR_SIZE, "unexpected in6_addr size");
-    return IN6_IS_ADDR_V4COMPAT((struct in6_addr *) m_buffer);
-  }
-  bool is_v4mapped() const
-  {
-    static_assert(sizeof(in6_addr) == IN6_ADDR_SIZE, "unexpected in6_addr size");
-    return IN6_IS_ADDR_V4MAPPED((struct in6_addr *) m_buffer);
-  }
-};
-
-
 /**
   Checks if the passed string represents an IPv6-address.
 */
@@ -255,7 +238,7 @@ longlong Item_func_is_ipv6::val_int()
 
 longlong Item_func_is_ipv4_compat::val_int()
 {
-  IP6 ip6(args[0]);
+  Inet6Bundle::Fbt ip6(args[0]);
   return !ip6.is_null() && ip6.is_v4compat();
 }
 
@@ -266,6 +249,6 @@ longlong Item_func_is_ipv4_compat::val_int()
 
 longlong Item_func_is_ipv4_mapped::val_int()
 {
-  IP6 ip6(args[0]);
+  Inet6Bundle::Fbt ip6(args[0]);
   return !ip6.is_null() && ip6.is_v4mapped();
 }

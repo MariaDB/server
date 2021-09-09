@@ -23,9 +23,7 @@
   Examples are INET6 and UUID types.
 */
 
-#define MYSQL_SERVER
 #include "sql_class.h" // THD, SORT_FIELD_ATTR
-#include "opt_range.h" // SEL_ARG, null_element
 
 /***********************************************************************/
 template<size_t NATIVE_LEN, size_t MAX_CHAR_LEN>
@@ -133,6 +131,9 @@ public:
     return memcmp(m_buffer, other.m_buffer, sizeof(m_buffer));
   }
 };
+
+#ifdef MYSQL_SERVER
+#include "opt_range.h" // SEL_ARG, null_element
 
 template<class FbtImpl>
 class FixedBinTypeBundle
@@ -1837,4 +1838,5 @@ public:
   }
 };
 
+#endif
 #endif /* SQL_TYPE_FIXEDBIN_H */

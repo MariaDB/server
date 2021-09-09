@@ -31,8 +31,26 @@ static const size_t IN6_ADDR_NUM_WORDS= IN6_ADDR_SIZE / 2;
 */
 static const uint IN6_ADDR_MAX_CHAR_LENGTH= 8 * 4 + 7;
 
+#define MYSQL_SERVER
 #include "sql_type_fixedbin.h"
-typedef FixedBinImpl<IN6_ADDR_SIZE, IN6_ADDR_MAX_CHAR_LENGTH> Inet6;
+typedef FixedBinImpl<IN6_ADDR_SIZE, IN6_ADDR_MAX_CHAR_LENGTH> Inet6_int;
+
+class Inet6: public Inet6_int
+{
+  using Inet6_int::Inet6_int;
+  public:
+  bool is_v4compat() const
+  {
+    static_assert(sizeof(in6_addr) == IN6_ADDR_SIZE, "unexpected in6_addr size");
+    return IN6_IS_ADDR_V4COMPAT((struct in6_addr *) m_buffer);
+  }
+  bool is_v4mapped() const
+  {
+    static_assert(sizeof(in6_addr) == IN6_ADDR_SIZE, "unexpected in6_addr size");
+    return IN6_IS_ADDR_V4MAPPED((struct in6_addr *) m_buffer);
+  }
+};
+
 typedef FixedBinTypeBundle<Inet6> Inet6Bundle;
 
 /***********************************************************************/
