@@ -1,3 +1,5 @@
+connection node_2;
+connection node_1;
 create table p (i varchar(100) primary key, j int) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 create table c1 (i int primary key auto_increment, j varchar(100), k int,  key(j), constraint fk1 foreign key (j) references p(i)) ENGINE=InnoDB DEFAULT CHARSET=utf8;
 create table c2 (i int primary key auto_increment, j varchar(100), k int,  key(j), constraint fk2 foreign key (j) references p(i)) ENGINE=InnoDB DEFAULT CHARSET=utf8;
