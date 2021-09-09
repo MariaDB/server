@@ -1720,7 +1720,7 @@ ER_TOO_LONG_KEY 42000 S1009
         spa "Declaracion de clave demasiado larga. La maxima longitud de clave es %d"
         swe "För lång nyckel. Högsta tillåtna nyckellängd är %d"
         ukr "Зазначений ключ задовгий. Найбільша довжина ключа %d байтів"
-ER_KEY_COLUMN_DOES_NOT_EXITS 42000 S1009
+ER_KEY_COLUMN_DOES_NOT_EXIST 42000 S1009
         cze "Klíčový sloupec '%-.192s' v tabulce neexistuje"
         dan "Nøglefeltet '%-.192s' eksisterer ikke i tabellen"
         nla "Zoeksleutel kolom '%-.192s' bestaat niet in tabel"

@@ -184,8 +184,8 @@ log_block_convert_lsn_to_no(
 	lsn_t	lsn)	/*!< in: lsn of a byte within the block */
 {
 	return(((ulint) (lsn / OS_FILE_LOG_BLOCK_SIZE) &
-		DBUG_EVALUATE_IF("innodb_small_log_block_no_limit",
-			0xFUL, 0x3FFFFFFFUL)) + 1);
+		(DBUG_IF("innodb_small_log_block_no_limit")
+			? 0xFUL : 0x3FFFFFFFUL)) + 1);
 }
 
 /** Calculate the CRC-32C checksum of a log block.

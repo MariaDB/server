@@ -1969,7 +1969,7 @@ show create table t1;
 drop table t1;
 
 create table t1 (a int, b int, c int, unique(a,b));
---error ER_KEY_COLUMN_DOES_NOT_EXITS
+--error ER_KEY_COLUMN_DOES_NOT_EXIST
 alter table t1 drop column a;
 alter table t1 drop column a, drop index a;
 show create table t1;

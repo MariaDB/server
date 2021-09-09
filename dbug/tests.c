@@ -13,6 +13,17 @@ char *push1=0;
 #include <my_pthread.h>
 #include <string.h>
 
+
+#ifndef DBUG_OFF
+#define DBUG_EVALUATE(keyword,a1,a2) \
+        (_db_keyword_(0,(keyword), 0) ? (a1) : (a2))
+#define DBUG_EVALUATE_IF(keyword,a1,a2) \
+        (_db_keyword_(0,(keyword), 1) ? (a1) : (a2))
+#else
+#define DBUG_EVALUATE(keyword,a1,a2) (a2)
+#define DBUG_EVALUATE_IF(keyword,a1,a2) (a2)
+#endif
+
 const char *func3()
 {
   DBUG_ENTER("func3");

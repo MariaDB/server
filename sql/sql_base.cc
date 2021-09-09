@@ -6045,7 +6045,7 @@ find_field_in_table(THD *thd, TABLE *table, const char *name, size_t length,
   if (field)
   {
     if (field->invisible == INVISIBLE_FULL &&
-        DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+        !DBUG_IF("test_completely_invisible"))
       DBUG_RETURN((Field*)0);
 
     if (field->invisible == INVISIBLE_SYSTEM &&
