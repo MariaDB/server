@@ -6717,7 +6717,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
     for (uint i=0 ; i < show_table->s->keys ; i++,key_info++)
     {
       if ((key_info->flags & HA_INVISIBLE_KEY) &&
-          DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
+          !DBUG_IF("test_invisible_index"))
         continue;
       KEY_PART_INFO *key_part= key_info->key_part;
       LEX_CSTRING *str;
@@ -6725,7 +6725,7 @@ static int get_schema_stat_record(THD *thd, TABLE_LIST *tables,
       for (uint j=0 ; j < key_info->user_defined_key_parts ; j++,key_part++)
       {
         if (key_part->field->invisible >= INVISIBLE_SYSTEM &&
-            DBUG_EVALUATE_IF("test_completely_invisible", 0, 1))
+            !DBUG_IF("test_completely_invisible"))
         {
           /*
             NOTE: we will get SEQ_IN_INDEX gap inside the result if this key_part

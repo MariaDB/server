@@ -802,7 +802,7 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #ifdef WITH_PARTITION_STORAGE_ENGINE
         lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
                                                           CHF_DELETE_FLAG) ||
-        ddl_log_increment_phase(part_info->frm_log_entry->entry_pos) ||
+        ddl_log_increment_phase(part_info->main_entry->entry_pos) ||
         (ddl_log_sync(), FALSE) ||
         mysql_file_rename(key_file_frm,
                           shadow_frm_name, frm_name, MYF(MY_WME)) ||
@@ -850,8 +850,8 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 
 err:
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-    ddl_log_increment_phase(part_info->frm_log_entry->entry_pos);
-    part_info->frm_log_entry= NULL;
+    ddl_log_increment_phase(part_info->main_entry->entry_pos);
+    part_info->main_entry= NULL;
     (void) ddl_log_sync();
 #endif
     ;
@@ -2758,8 +2758,6 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
     */
     if (sql_field->stored_in_db())
       record_offset+= sql_field->pack_length;
-    if (sql_field->flags & VERS_SYSTEM_FIELD)
-      continue;
   }
   /* Update virtual fields' offset and give error if
      All fields are invisible */
@@ -3110,14 +3108,14 @@ mysql_prepare_create_table(THD *thd, HA_CREATE_INFO *create_info,
       if (!sql_field || (sql_field->invisible > INVISIBLE_USER &&
                          !column->generated))
       {
-	my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
+	my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
 	DBUG_RETURN(TRUE);
       }
       if (sql_field->invisible > INVISIBLE_USER &&
           !(sql_field->flags & VERS_SYSTEM_FIELD) &&
-          !key->invisible && DBUG_EVALUATE_IF("test_invisible_index", 0, 1))
+          !key->invisible && !DBUG_IF("test_invisible_index"))
       {
-        my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), column->field_name.str);
+        my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), column->field_name.str);
         DBUG_RETURN(TRUE);
       }
       while ((dup_column= cols2++) != column)
@@ -6017,9 +6015,8 @@ remove_key:
         if (!part_elem)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_DROP_PARTITION_NON_EXISTENT,
-                              ER_THD(thd, ER_DROP_PARTITION_NON_EXISTENT),
-                              "DROP");
+                              ER_PARTITION_DOES_NOT_EXIST,
+                              ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
           names_it.remove();
         }
       }
@@ -8310,7 +8307,7 @@ mysql_prepare_alter_table(THD *thd, TABLE *table,
           key_type= Key::UNIQUE;
         if (dropped_key_part)
         {
-          my_error(ER_KEY_COLUMN_DOES_NOT_EXITS, MYF(0), dropped_key_part);
+          my_error(ER_KEY_COLUMN_DOES_NOT_EXIST, MYF(0), dropped_key_part);
           if (long_hash_key)
           {
             key_info->algorithm= HA_KEY_ALG_LONG_HASH;

@@ -78,9 +78,9 @@ using std::min;
 #include "ha_partition.h"
 
 #define ERROR_INJECT_CRASH(code) \
-  DBUG_EVALUATE_IF(code, (DBUG_SUICIDE(), 0), 0)
+  (DBUG_IF(code) && (DBUG_SUICIDE(), 0))
 #define ERROR_INJECT_ERROR(code) \
-  DBUG_EVALUATE_IF(code, (my_error(ER_UNKNOWN_ERROR, MYF(0)), TRUE), 0)
+  (DBUG_IF(code) && (my_error(ER_UNKNOWN_ERROR, MYF(0)), 1))
 
 /*
   Partition related functions declarations and some static constants;
@@ -5446,6 +5446,7 @@ that are reorganised.
         my_error(ER_ROW_IS_REFERENCED, MYF(0));
         goto err;
       }
+      /* NOTE: num_parts is used in generate_partition_syntax() */
       tab_part_info->num_parts-= num_parts_dropped;
     }
     else if (alter_info->partition_flags & ALTER_PARTITION_REBUILD)
@@ -5454,7 +5455,7 @@ that are reorganised.
                                 tab_part_info->default_engine_type);
       if (set_part_state(alter_info, tab_part_info, PART_CHANGED))
       {
-        my_error(ER_DROP_PARTITION_NON_EXISTENT, MYF(0), "REBUILD");
+        my_error(ER_PARTITION_DOES_NOT_EXIST, MYF(0));
         goto err;
       }
       if (!(*fast_alter_table))
@@ -5730,7 +5731,7 @@ the generated partition syntax in a correct manner.
         } while (++part_count < tab_part_info->num_parts);
         if (drop_count != num_parts_reorged)
         {
-          my_error(ER_DROP_PARTITION_NON_EXISTENT, MYF(0), "REORGANIZE");
+          my_error(ER_PARTITION_DOES_NOT_EXIST, MYF(0));
           goto err;
         }
         tab_part_info->num_parts= check_total_partitions;
@@ -6112,8 +6113,6 @@ static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
   char path[FN_REFLEN+1];
   partition_info *part_info= lpt->table->part_info;
   List_iterator<partition_element> part_it(part_info->partitions);
-  uint i= 0;
-  uint remove_count= 0;
   int error;
   DBUG_ENTER("mysql_drop_partitions");
 
@@ -6128,34 +6127,7 @@ static bool mysql_drop_partitions(ALTER_PARTITION_PARAM_TYPE *lpt)
     lpt->table->file->print_error(error, MYF(0));
     DBUG_RETURN(TRUE);
   }
-  do
-  {
-    partition_element *part_elem= part_it++;
-    if (part_elem->part_state == PART_IS_DROPPED)
-    {
-      part_it.remove();
-      remove_count++;
-    }
-  } while (++i < part_info->num_parts);
-  part_info->num_parts-= remove_count;
   DBUG_RETURN(FALSE);
-}
-
-
-/*
-  Insert log entry into list
-  SYNOPSIS
-    insert_part_info_log_entry_list()
-    log_entry
-  RETURN VALUES
-    NONE
-*/
-
-static void insert_part_info_log_entry_list(partition_info *part_info,
-                                            DDL_LOG_MEMORY_ENTRY *log_entry)
-{
-  log_entry->next_active_log_entry= part_info->first_log_entry;
-  part_info->first_log_entry= log_entry;
 }
 
 
@@ -6183,50 +6155,80 @@ static void release_part_info_log_entries(DDL_LOG_MEMORY_ENTRY *log_entry)
 
 
 /*
-  Log an delete/rename frm file
+  Log an delete frm file
   SYNOPSIS
-    write_log_replace_delete_frm()
+    write_log_delete_frm()
     lpt                            Struct for parameters
-    next_entry                     Next reference to use in log record
-    from_path                      Name to rename from
-    to_path                        Name to rename to
-    replace_flag                   TRUE if replace, else delete
+    to_path                        Name to delete
   RETURN VALUES
     TRUE                           Error
     FALSE                          Success
   DESCRIPTION
-    Support routine that writes a replace or delete of an frm file into the
+    Support routine that writes a delete of an frm file into the
     ddl log. It also inserts an entry that keeps track of used space into
     the partition info object
 */
 
-static bool write_log_replace_delete_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                         uint next_entry,
-                                         const char *from_path,
-                                         const char *to_path,
-                                         bool replace_flag)
+static bool write_log_delete_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
+                                 const char *to_path)
 {
   DDL_LOG_ENTRY ddl_log_entry;
   DDL_LOG_MEMORY_ENTRY *log_entry;
-  DBUG_ENTER("write_log_replace_delete_frm");
-
+  DBUG_ENTER("write_log_delete_frm");
   bzero(&ddl_log_entry, sizeof(ddl_log_entry));
-  if (replace_flag)
-    ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
-  else
-    ddl_log_entry.action_type= DDL_LOG_DELETE_ACTION;
-  ddl_log_entry.next_entry= next_entry;
+  ddl_log_entry.action_type= DDL_LOG_DELETE_ACTION;
+  ddl_log_entry.next_entry= 0;
   lex_string_set(&ddl_log_entry.handler_name, reg_ext);
   lex_string_set(&ddl_log_entry.name, to_path);
 
-  if (replace_flag)
-    lex_string_set(&ddl_log_entry.from_name, from_path);
   if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
   {
-    DBUG_RETURN(TRUE);
+    DBUG_RETURN(true);
   }
-  insert_part_info_log_entry_list(lpt->part_info, log_entry);
-  DBUG_RETURN(FALSE);
+  ddl_log_add_entry(lpt->part_info, log_entry);
+  DBUG_RETURN(false);
+}
+
+
+/*
+  Log an rename frm file
+  SYNOPSIS
+    write_log_replace_frm()
+    lpt                            Struct for parameters
+    next_entry                     Next reference to use in log record
+    from_path                      Name to rename from
+    to_path                        Name to rename to
+  RETURN VALUES
+    TRUE                           Error
+    FALSE                          Success
+  DESCRIPTION
+    Support routine that writes a replace of an frm file into the
+    ddl log. It also inserts an entry that keeps track of used space into
+    the partition info object
+*/
+
+static bool write_log_replace_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
+                                  uint next_entry,
+                                  const char *from_path,
+                                  const char *to_path)
+{
+  DDL_LOG_ENTRY ddl_log_entry;
+  DDL_LOG_MEMORY_ENTRY *log_entry;
+  DBUG_ENTER("write_log_replace_frm");
+
+  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
+  ddl_log_entry.action_type= DDL_LOG_REPLACE_ACTION;
+  ddl_log_entry.next_entry= next_entry;
+  lex_string_set(&ddl_log_entry.handler_name, reg_ext);
+  lex_string_set(&ddl_log_entry.name, to_path);
+  lex_string_set(&ddl_log_entry.from_name, from_path);
+
+  if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
+  {
+    DBUG_RETURN(true);
+  }
+  ddl_log_add_entry(lpt->part_info, log_entry);
+  DBUG_RETURN(false);
 }
 
 
@@ -6305,7 +6307,7 @@ static bool write_log_changed_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
 
           *next_entry= log_entry->entry_pos;
           sub_elem->log_entry= log_entry;
-          insert_part_info_log_entry_list(part_info, log_entry);
+          ddl_log_add_entry(part_info, log_entry);
         } while (++j < num_subparts);
       }
       else
@@ -6332,7 +6334,7 @@ static bool write_log_changed_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
         }
         *next_entry= log_entry->entry_pos;
         part_elem->log_entry= log_entry;
-        insert_part_info_log_entry_list(part_info, log_entry);
+        ddl_log_add_entry(part_info, log_entry);
       }
     }
   } while (++i < num_elements);
@@ -6410,7 +6412,7 @@ static bool write_log_dropped_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
           }
           *next_entry= log_entry->entry_pos;
           sub_elem->log_entry= log_entry;
-          insert_part_info_log_entry_list(part_info, log_entry);
+          ddl_log_add_entry(part_info, log_entry);
         } while (++j < num_subparts);
       }
       else
@@ -6429,29 +6431,11 @@ static bool write_log_dropped_partitions(ALTER_PARTITION_PARAM_TYPE *lpt,
         }
         *next_entry= log_entry->entry_pos;
         part_elem->log_entry= log_entry;
-        insert_part_info_log_entry_list(part_info, log_entry);
+        ddl_log_add_entry(part_info, log_entry);
       }
     }
   }
   DBUG_RETURN(FALSE);
-}
-
-
-/*
-  Set execute log entry in ddl log for this partitioned table
-  SYNOPSIS
-    set_part_info_exec_log_entry()
-    part_info                      Partition info object
-    exec_log_entry                 Log entry
-  RETURN VALUES
-    NONE
-*/
-
-static void set_part_info_exec_log_entry(partition_info *part_info,
-                                         DDL_LOG_MEMORY_ENTRY *exec_log_entry)
-{
-  part_info->exec_log_entry= exec_log_entry;
-  exec_log_entry->next_active_log_entry= NULL;
 }
 
 
@@ -6475,27 +6459,24 @@ static bool write_log_drop_shadow_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   partition_info *part_info= lpt->part_info;
   DDL_LOG_MEMORY_ENTRY *log_entry;
-  DDL_LOG_MEMORY_ENTRY *exec_log_entry= NULL;
   char shadow_path[FN_REFLEN + 1];
   DBUG_ENTER("write_log_drop_shadow_frm");
 
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
-  if (write_log_replace_delete_frm(lpt, 0UL, NULL,
-                                  (const char*)shadow_path, FALSE))
+  if (write_log_delete_frm(lpt, (const char*)shadow_path))
     goto error;
-  log_entry= part_info->first_log_entry;
+  log_entry= part_info->list;
   if (ddl_log_write_execute_entry(log_entry->entry_pos,
-                                  &exec_log_entry))
+                                  &part_info->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
-  set_part_info_exec_log_entry(part_info, exec_log_entry);
   DBUG_RETURN(FALSE);
 
 error:
-  release_part_info_log_entries(part_info->first_log_entry);
+  release_part_info_log_entries(part_info->list);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->first_log_entry= NULL;
+  part_info->list= NULL;
   my_error(ER_DDL_LOG_ERROR, MYF(0));
   DBUG_RETURN(TRUE);
 }
@@ -6518,20 +6499,20 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   partition_info *part_info= lpt->part_info;
   DDL_LOG_MEMORY_ENTRY *log_entry;
-  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->exec_log_entry;
+  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->execute_entry;
   char path[FN_REFLEN + 1];
   char shadow_path[FN_REFLEN + 1];
-  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->first_log_entry;
+  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->list;
   DBUG_ENTER("write_log_rename_frm");
 
-  part_info->first_log_entry= NULL;
+  part_info->list= NULL;
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
-  if (write_log_replace_delete_frm(lpt, 0UL, shadow_path, path, TRUE))
+  if (write_log_replace_frm(lpt, 0UL, shadow_path, path))
     goto error;
-  log_entry= part_info->first_log_entry;
-  part_info->frm_log_entry= log_entry;
+  log_entry= part_info->list;
+  part_info->main_entry= log_entry;
   if (ddl_log_write_execute_entry(log_entry->entry_pos,
                                   &exec_log_entry))
     goto error;
@@ -6540,10 +6521,10 @@ static bool write_log_rename_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_RETURN(FALSE);
 
 error:
-  release_part_info_log_entries(part_info->first_log_entry);
+  release_part_info_log_entries(part_info->list);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->first_log_entry= old_first_log_entry;
-  part_info->frm_log_entry= NULL;
+  part_info->list= old_first_log_entry;
+  part_info->main_entry= NULL;
   my_error(ER_DDL_LOG_ERROR, MYF(0));
   DBUG_RETURN(TRUE);
 }
@@ -6568,25 +6549,25 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   partition_info *part_info= lpt->part_info;
   DDL_LOG_MEMORY_ENTRY *log_entry;
-  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->exec_log_entry;
+  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->execute_entry;
   char tmp_path[FN_REFLEN + 1];
   char path[FN_REFLEN + 1];
   uint next_entry= 0;
-  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->first_log_entry;
+  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->list;
   DBUG_ENTER("write_log_drop_partition");
 
-  part_info->first_log_entry= NULL;
+  part_info->list= NULL;
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   build_table_shadow_filename(tmp_path, sizeof(tmp_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
   if (write_log_dropped_partitions(lpt, &next_entry, (const char*)path,
                                    FALSE))
     goto error;
-  if (write_log_replace_delete_frm(lpt, next_entry, (const char*)tmp_path,
-                                  (const char*)path, TRUE))
+  if (write_log_replace_frm(lpt, next_entry, (const char*)tmp_path,
+                            (const char*)path))
     goto error;
-  log_entry= part_info->first_log_entry;
-  part_info->frm_log_entry= log_entry;
+  log_entry= part_info->list;
+  part_info->main_entry= log_entry;
   if (ddl_log_write_execute_entry(log_entry->entry_pos,
                                   &exec_log_entry))
     goto error;
@@ -6595,10 +6576,10 @@ static bool write_log_drop_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_RETURN(FALSE);
 
 error:
-  release_part_info_log_entries(part_info->first_log_entry);
+  release_part_info_log_entries(part_info->list);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->first_log_entry= old_first_log_entry;
-  part_info->frm_log_entry= NULL;
+  part_info->list= old_first_log_entry;
+  part_info->main_entry= NULL;
   my_error(ER_DDL_LOG_ERROR, MYF(0));
   DBUG_RETURN(TRUE);
 }
@@ -6625,11 +6606,10 @@ static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   partition_info *part_info= lpt->part_info;
   DDL_LOG_MEMORY_ENTRY *log_entry;
-  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->exec_log_entry;
   char tmp_path[FN_REFLEN + 1];
   char path[FN_REFLEN + 1];
   uint next_entry= 0;
-  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->first_log_entry;
+  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->list;
   /* write_log_drop_shadow_frm(lpt) must have been run first */
   DBUG_ASSERT(old_first_log_entry);
   DBUG_ENTER("write_log_add_change_partition");
@@ -6644,20 +6624,18 @@ static bool write_log_add_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   if (write_log_dropped_partitions(lpt, &next_entry, (const char*)path,
                                    FALSE))
     goto error;
-  log_entry= part_info->first_log_entry;
+  log_entry= part_info->list;
 
   if (ddl_log_write_execute_entry(log_entry->entry_pos,
-                                  /* Reuse the old execute ddl_log_entry */
-                                  &exec_log_entry))
+                                  &part_info->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
-  set_part_info_exec_log_entry(part_info, exec_log_entry);
   DBUG_RETURN(FALSE);
 
 error:
-  release_part_info_log_entries(part_info->first_log_entry);
+  release_part_info_log_entries(part_info->list);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->first_log_entry= old_first_log_entry;
+  part_info->list= old_first_log_entry;
   my_error(ER_DDL_LOG_ERROR, MYF(0));
   DBUG_RETURN(TRUE);
 }
@@ -6689,10 +6667,10 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
 {
   partition_info *part_info= lpt->part_info;
   DDL_LOG_MEMORY_ENTRY *log_entry;
-  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->exec_log_entry;
+  DDL_LOG_MEMORY_ENTRY *exec_log_entry= part_info->execute_entry;
   char path[FN_REFLEN + 1];
   char shadow_path[FN_REFLEN + 1];
-  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->first_log_entry;
+  DDL_LOG_MEMORY_ENTRY *old_first_log_entry= part_info->list;
   uint next_entry= 0;
   DBUG_ENTER("write_log_final_change_partition");
 
@@ -6700,7 +6678,7 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
     Do not link any previous log entry.
     Replace the revert operations with forced retry operations.
   */
-  part_info->first_log_entry= NULL;
+  part_info->list= NULL;
   build_table_filename(path, sizeof(path) - 1, lpt->db.str, lpt->table_name.str, "", 0);
   build_table_shadow_filename(shadow_path, sizeof(shadow_path) - 1, lpt);
   mysql_mutex_lock(&LOCK_gdl);
@@ -6710,10 +6688,10 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
                                    lpt->alter_info->partition_flags &
                                    ALTER_PARTITION_REORGANIZE))
     goto error;
-  if (write_log_replace_delete_frm(lpt, next_entry, shadow_path, path, TRUE))
+  if (write_log_replace_frm(lpt, next_entry, shadow_path, path))
     goto error;
-  log_entry= part_info->first_log_entry;
-  part_info->frm_log_entry= log_entry;
+  log_entry= part_info->list;
+  part_info->main_entry= log_entry;
   /* Overwrite the revert execute log entry with this retry execute entry */
   if (ddl_log_write_execute_entry(log_entry->entry_pos,
                                   &exec_log_entry))
@@ -6723,10 +6701,10 @@ static bool write_log_final_change_partition(ALTER_PARTITION_PARAM_TYPE *lpt)
   DBUG_RETURN(FALSE);
 
 error:
-  release_part_info_log_entries(part_info->first_log_entry);
+  release_part_info_log_entries(part_info->list);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->first_log_entry= old_first_log_entry;
-  part_info->frm_log_entry= NULL;
+  part_info->list= old_first_log_entry;
+  part_info->main_entry= NULL;
   my_error(ER_DDL_LOG_ERROR, MYF(0));
   DBUG_RETURN(TRUE);
 }
@@ -6747,7 +6725,7 @@ static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
                                 bool dont_crash)
 {
   partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry= part_info->exec_log_entry;
+  DDL_LOG_MEMORY_ENTRY *log_entry= part_info->execute_entry;
   DBUG_ENTER("write_log_completed");
 
   DBUG_ASSERT(log_entry);
@@ -6763,11 +6741,11 @@ static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
     */
     ;
   }
-  release_part_info_log_entries(part_info->first_log_entry);
-  release_part_info_log_entries(part_info->exec_log_entry);
+  release_part_info_log_entries(part_info->list);
+  release_part_info_log_entries(part_info->execute_entry);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->exec_log_entry= NULL;
-  part_info->first_log_entry= NULL;
+  part_info->execute_entry= NULL;
+  part_info->list= NULL;
   DBUG_VOID_RETURN;
 }
 
@@ -6784,11 +6762,11 @@ static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
 static void release_log_entries(partition_info *part_info)
 {
   mysql_mutex_lock(&LOCK_gdl);
-  release_part_info_log_entries(part_info->first_log_entry);
-  release_part_info_log_entries(part_info->exec_log_entry);
+  release_part_info_log_entries(part_info->list);
+  release_part_info_log_entries(part_info->execute_entry);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->first_log_entry= NULL;
-  part_info->exec_log_entry= NULL;
+  part_info->list= NULL;
+  part_info->execute_entry= NULL;
 }
 
 
@@ -6901,8 +6879,8 @@ static void handle_alter_part_error(ALTER_PARTITION_PARAM_TYPE *lpt,
     close_all_tables_for_name(thd, table->s, HA_EXTRA_NOT_USED, NULL);
   }
 
-  if (part_info->first_log_entry &&
-      ddl_log_execute_entry(thd, part_info->first_log_entry->entry_pos))
+  if (part_info->list &&
+      ddl_log_execute_entry(thd, part_info->list->entry_pos))
   {
     /*
       We couldn't recover from error, most likely manual interaction

@@ -231,7 +231,7 @@ partition by system_time limit 2 partitions 3;
 --replace_result $default_engine DEFAULT_ENGINE
 show create table t1;
 
---error ER_DROP_PARTITION_NON_EXISTENT
+--error ER_PARTITION_DOES_NOT_EXIST
 alter table t1 drop partition non_existent;
 
 insert into t1 values (1), (2), (3), (4), (5), (6);
@@ -1086,6 +1086,7 @@ drop tables t1;
 --echo #
 --echo # MDEV-22155 ALTER add default history partitions name clash on non-default partitions
 --echo #
+set timestamp= default;
 create or replace table t1 (x int) with system versioning
 partition by system_time limit 1
 (partition p2 history, partition p8 history, partition pn current);

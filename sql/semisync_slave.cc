@@ -63,7 +63,7 @@ int Repl_semi_sync_slave::slave_read_sync_header(const uchar *header,
 
   if (rpl_semi_sync_slave_status)
   {
-    if (DBUG_EVALUATE_IF("semislave_corrupt_log", 0, 1)
+    if (!DBUG_IF("semislave_corrupt_log")
         && header[0] == k_packet_magic_num)
     {
       semi_sync_need_reply  = (header[1] & k_packet_flag_sync);
@@ -140,7 +140,7 @@ void Repl_semi_sync_slave::kill_connection(MYSQL *mysql)
 
   bool ret= (!mysql_real_connect(kill_mysql, mysql->host,
             mysql->user, mysql->passwd,0, mysql->port, mysql->unix_socket, 0));
-  if (DBUG_EVALUATE_IF("semisync_slave_failed_kill", 1, 0) || ret)
+  if (DBUG_IF("semisync_slave_failed_kill") || ret)
   {
     sql_print_information("cannot connect to master to kill slave io_thread's "
                           "connection");
@@ -172,8 +172,7 @@ int Repl_semi_sync_slave::request_transmit(Master_info *mi)
   }
 
   row= mysql_fetch_row(res);
-  if (DBUG_EVALUATE_IF("master_not_support_semisync", 1, 0)
-      || !row)
+  if (DBUG_IF("master_not_support_semisync") || !row)
   {
     /* Master does not support semi-sync */
     sql_print_warning("Master server does not support semi-sync, "
@@ -234,7 +233,7 @@ int Repl_semi_sync_slave::slave_reply(Master_info *mi)
                              name_len + REPLY_BINLOG_NAME_OFFSET);
     if (!reply_res)
     {
-      reply_res = DBUG_EVALUATE_IF("semislave_failed_net_flush", 1, net_flush(net));
+      reply_res = (DBUG_IF("semislave_failed_net_flush") || net_flush(net));
       if (reply_res)
         sql_print_error("Semi-sync slave net_flush() reply failed");
       rpl_semi_sync_slave_send_ack++;
