@@ -5903,10 +5903,8 @@ ER_PARTITION_MGMT_ON_NONPARTITIONED
         swe "Partitioneringskommando på en opartitionerad tabell är inte möjligt"
 ER_FEATURE_NOT_SUPPORTED_WITH_PARTITIONING
         eng "Partitioned tables do not support %s"
-ER_DROP_PARTITION_NON_EXISTENT
-        eng "Error in list of partitions to %-.64s"
-        ger "Fehler in der Partitionsliste bei %-.64s"
-        swe "Fel i listan av partitioner att %-.64s"
+ER_PARTITION_DOES_NOT_EXIST
+        eng "Wrong partition name or partition list"
 ER_DROP_LAST_PARTITION
         eng "Cannot remove all partitions, use DROP TABLE instead"
         ger "Es lassen sich nicht sämtliche Partitionen löschen, benutzen Sie statt dessen DROP TABLE"
@@ -7992,3 +7990,5 @@ ER_REMOVED_ORPHAN_TRIGGER
         eng "Dropped orphan trigger '%-.64s', originally created for table: '%-.192s'"
 ER_STORAGE_ENGINE_DISABLED
         eng "Storage engine %s is disabled"
+ER_PARTITION_CONVERT_SUBPARTITIONED
+        eng "Convert partition is not supported for subpartitioned table."

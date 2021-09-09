@@ -667,10 +667,12 @@ void build_lower_case_table_filename(char *buff, size_t bufflen,
 */
 
 uint build_table_shadow_filename(char *buff, size_t bufflen, 
-                                 ALTER_PARTITION_PARAM_TYPE *lpt)
+                                 ALTER_PARTITION_PARAM_TYPE *lpt,
+                                 bool backup)
 {
   char tmp_name[FN_REFLEN];
-  my_snprintf(tmp_name, sizeof (tmp_name), "%s-shadow-%lx-%s", tmp_file_prefix,
+  my_snprintf(tmp_name, sizeof (tmp_name), "%s-%s-%lx-%s", tmp_file_prefix,
+              backup ? "backup" : "shadow",
               (ulong) current_thd->thread_id, lpt->table_name.str);
   return build_table_filename(buff, bufflen, lpt->db.str, tmp_name, "",
                               FN_IS_TMP);
@@ -704,6 +706,11 @@ uint build_table_shadow_filename(char *buff, size_t bufflen,
     tables since it only handles partitioned data if it exists.
 */
 
+
+/*
+  TODO: Partitioning atomic DDL refactoring: WFRM_WRITE_SHADOW and
+  WFRM_WRITE_EXTRACTED should be merged with create_table_impl(frm_only == true).
+*/
 bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 {
   /*
@@ -715,10 +722,13 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
   char path[FN_REFLEN+1];
   char shadow_path[FN_REFLEN+1];
   char shadow_frm_name[FN_REFLEN+1];
+  char bak_path[FN_REFLEN+1];
+  char bak_frm_name[FN_REFLEN+1];
   char frm_name[FN_REFLEN+1];
 #ifdef WITH_PARTITION_STORAGE_ENGINE
   char *part_syntax_buf;
   uint syntax_len;
+  partition_info *part_info= lpt->part_info;
 #endif
   DBUG_ENTER("mysql_write_frm");
 
@@ -777,6 +787,98 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       goto end;
     }
   }
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+  if (flags & WFRM_WRITE_CONVERTED_TO)
+  {
+    THD *thd= lpt->thd;
+    Alter_table_ctx *alter_ctx= lpt->alter_ctx;
+    HA_CREATE_INFO *create_info= lpt->create_info;
+
+    LEX_CSTRING new_path= { alter_ctx->get_new_path(), 0 };
+    partition_info *work_part_info= thd->work_part_info;
+    handlerton *db_type= create_info->db_type;
+    DBUG_ASSERT(lpt->table->part_info);
+    DBUG_ASSERT(lpt->table->part_info == part_info);
+    handler *file= ((ha_partition *)(lpt->table->file))->get_child_handlers()[0];
+    DBUG_ASSERT(file);
+    new_path.length= strlen(new_path.str);
+    strxnmov(frm_name, sizeof(frm_name) - 1, new_path.str, reg_ext, NullS);
+    create_info->alias= alter_ctx->table_name;
+    thd->work_part_info= NULL;
+    create_info->db_type= work_part_info->default_engine_type;
+    /* NOTE: partitioned temporary tables are not supported. */
+    DBUG_ASSERT(!create_info->tmp_table());
+    if (ddl_log_create_table(thd, part_info, create_info->db_type, &new_path,
+                             &alter_ctx->new_db, &alter_ctx->new_name, true) ||
+        ERROR_INJECT_ERROR("fail_create_before_create_frm"))
+      DBUG_RETURN(TRUE);
+
+    debug_crash_here("ddl_log_create_before_create_frm");
+    if (mysql_prepare_create_table(thd, create_info, lpt->alter_info,
+                                   &lpt->db_options, file,
+                                   &lpt->key_info_buffer, &lpt->key_count,
+                                   C_ALTER_TABLE, alter_ctx->new_db,
+                                   alter_ctx->new_name))
+      DBUG_RETURN(TRUE);
+
+    lpt->create_info->table_options= lpt->db_options;
+    LEX_CUSTRING frm= build_frm_image(thd, alter_ctx->new_name, create_info,
+                                      lpt->alter_info->create_list,
+                                      lpt->key_count, lpt->key_info_buffer,
+                                      file);
+    if (unlikely(!frm.str))
+      DBUG_RETURN(TRUE);
+
+    thd->work_part_info= work_part_info;
+    create_info->db_type= db_type;
+
+    debug_crash_here("ddl_log_alter_partition_after_create_frm");
+
+    error= writefile(frm_name, alter_ctx->new_db.str, alter_ctx->new_name.str,
+                     create_info->tmp_table(), frm.str, frm.length);
+    my_free((void *) frm.str);
+    if (unlikely(error) || ERROR_INJECT_ERROR("fail_alter_partition_after_write_frm"))
+    {
+      mysql_file_delete(key_file_frm, frm_name, MYF(0));
+      DBUG_RETURN(TRUE);
+    }
+
+    debug_crash_here("ddl_log_alter_partition_after_write_frm");
+    DBUG_RETURN(false);
+  }
+  if (flags & WFRM_BACKUP_ORIGINAL)
+  {
+    build_table_filename(path, sizeof(path) - 1, lpt->db.str,
+                         lpt->table_name.str, "", 0);
+    strxnmov(frm_name, sizeof(frm_name), path, reg_ext, NullS);
+
+    build_table_shadow_filename(bak_path, sizeof(bak_path) - 1, lpt, true);
+    strxmov(bak_frm_name, bak_path, reg_ext, NullS);
+
+    DDL_LOG_MEMORY_ENTRY *main_entry= part_info->main_entry;
+    mysql_mutex_lock(&LOCK_gdl);
+    if (write_log_replace_frm(lpt, part_info->list->entry_pos,
+                              (const char*) bak_path,
+                              (const char*) path) ||
+        ddl_log_write_execute_entry(part_info->list->entry_pos,
+                                    &part_info->execute_entry))
+    {
+      mysql_mutex_unlock(&LOCK_gdl);
+      DBUG_RETURN(TRUE);
+    }
+    mysql_mutex_unlock(&LOCK_gdl);
+    part_info->main_entry= main_entry;
+    if (mysql_file_rename(key_file_frm, frm_name, bak_frm_name, MYF(MY_WME)))
+      DBUG_RETURN(TRUE);
+    if (lpt->table->file->ha_create_partitioning_metadata(bak_path, path,
+                                                          CHF_RENAME_FLAG))
+      DBUG_RETURN(TRUE);
+  }
+#else /* !WITH_PARTITION_STORAGE_ENGINE */
+  DBUG_ASSERT(!(flags & WFRM_WRITE_EXTRACTED));
+  DBUG_ASSERT(!(flags & WFRM_BACKUP_ORIGINAL));
+  DBUG_ASSERT(!(flags & WFRM_DROP_BACKUP));
+#endif /* !WITH_PARTITION_STORAGE_ENGINE */
   if (flags & WFRM_INSTALL_SHADOW)
   {
 #ifdef WITH_PARTITION_STORAGE_ENGINE
@@ -798,20 +900,25 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
       completing this we write a new phase to the log entry that will
       deactivate it.
     */
-    if (mysql_file_delete(key_file_frm, frm_name, MYF(MY_WME)) ||
+    if (!(flags & WFRM_BACKUP_ORIGINAL) && (
+        mysql_file_delete(key_file_frm, frm_name, MYF(MY_WME))
 #ifdef WITH_PARTITION_STORAGE_ENGINE
-        lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
+        || lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
                                                           CHF_DELETE_FLAG) ||
         ddl_log_increment_phase(part_info->main_entry->entry_pos) ||
-        (ddl_log_sync(), FALSE) ||
-        mysql_file_rename(key_file_frm,
-                          shadow_frm_name, frm_name, MYF(MY_WME)) ||
-        lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
-                                                          CHF_RENAME_FLAG))
-#else
-        mysql_file_rename(key_file_frm,
-                          shadow_frm_name, frm_name, MYF(MY_WME)))
+        (ddl_log_sync(), FALSE)
 #endif
+      ))
+    {
+      error= 1;
+      goto err;
+    }
+    if (mysql_file_rename(key_file_frm, shadow_frm_name, frm_name, MYF(MY_WME))
+#ifdef WITH_PARTITION_STORAGE_ENGINE
+        || lpt->table->file->ha_create_partitioning_metadata(path, shadow_path,
+                                                          CHF_RENAME_FLAG)
+#endif
+      )
     {
       error= 1;
       goto err;
@@ -4162,7 +4269,6 @@ err:
   @retval -1 table existed but IF NOT EXISTS was used
 */
 
-static
 int create_table_impl(THD *thd,
                       DDL_LOG_STATE *ddl_log_state_create,
                       DDL_LOG_STATE *ddl_log_state_rm,
@@ -6016,9 +6122,8 @@ remove_key:
         if (!part_elem)
         {
           push_warning_printf(thd, Sql_condition::WARN_LEVEL_NOTE,
-                              ER_DROP_PARTITION_NON_EXISTENT,
-                              ER_THD(thd, ER_DROP_PARTITION_NON_EXISTENT),
-                              "DROP");
+                              ER_PARTITION_DOES_NOT_EXIST,
+                              ER_THD(thd, ER_PARTITION_DOES_NOT_EXIST));
           names_it.remove();
         }
       }
@@ -9894,10 +9999,8 @@ do_continue:;
     }
 
     // In-place execution of ALTER TABLE for partitioning.
-    DBUG_RETURN(fast_alter_partition_table(thd, table, alter_info,
-                                           create_info, table_list,
-                                           &alter_ctx.db,
-                                           &alter_ctx.table_name));
+    DBUG_RETURN(fast_alter_partition_table(thd, table, alter_info, &alter_ctx,
+                                           create_info, table_list));
   }
 #endif
 

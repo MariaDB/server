@@ -13,21 +13,11 @@ char *push1=0;
 #include <my_pthread.h>
 #include <string.h>
 
-
-#ifndef DBUG_OFF
-#define DBUG_EVALUATE(keyword,a1,a2) \
-        (_db_keyword_(0,(keyword), 0) ? (a1) : (a2))
-#define DBUG_EVALUATE_IF(keyword,a1,a2) \
-        (_db_keyword_(0,(keyword), 1) ? (a1) : (a2))
-#else
-#define DBUG_EVALUATE(keyword,a1,a2) (a2)
-#define DBUG_EVALUATE_IF(keyword,a1,a2) (a2)
-#endif
-
 const char *func3()
 {
   DBUG_ENTER("func3");
-  DBUG_RETURN(DBUG_EVALUATE("ret3", "ok", "ko"));
+  DBUG_EXECUTE("ret3", DBUG_RETURN("ok"););
+  DBUG_RETURN("ko");
 }
 
 void func2()
@@ -83,10 +73,8 @@ int main (int argc __attribute__((unused)),
     DBUG_EXECUTE_IF("push",  DBUG_PUSH("+t"); );
     DBUG_EXECUTE("execute", fprintf(DBUG_FILE, "=> execute\n"); );
     DBUG_EXECUTE_IF("set",  DBUG_SET("+F"); );
-    fprintf(DBUG_FILE, "=> evaluate: %s\n",
-            DBUG_EVALUATE("evaluate", "ON", "OFF"));
     fprintf(DBUG_FILE, "=> evaluate_if: %s\n",
-            DBUG_EVALUATE_IF("evaluate_if", "ON", "OFF"));
+            (DBUG_IF("evaluate_if") ? "ON": "OFF"));
     DBUG_EXECUTE_IF("pop",  DBUG_POP(); );
     {
       char s[1000] __attribute__((unused));
