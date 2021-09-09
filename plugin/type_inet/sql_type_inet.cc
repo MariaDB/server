@@ -383,7 +383,7 @@ size_t Inet4::to_string(char *dst, size_t dstsize) const
 */
 
 template<>
-size_t Inet6::to_string(char *dst, size_t dstsize) const
+size_t Inet6::fbt_to_ascii(char *dst, size_t dstsize) const
 {
   struct Region
   {

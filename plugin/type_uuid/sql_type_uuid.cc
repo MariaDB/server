@@ -72,7 +72,7 @@ err:
 }
 
 template<>
-size_t UUID::to_string(char *dst, size_t dstsize) const
+size_t UUID::fbt_to_ascii(char *dst, size_t dstsize) const
 {
   my_uuid2str((const uchar *) m_buffer, dst, 1);
   return MY_UUID_STRING_LENGTH;

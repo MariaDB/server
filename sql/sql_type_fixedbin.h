@@ -58,8 +58,8 @@ protected:
   FixedBinImpl() { }
 
   bool ascii_to_fbt(const char *str, size_t str_length); // TODO
+  size_t fbt_to_ascii(char *dst, size_t dstsize) const; // TODO
 public:
-  size_t to_string(char *dst, size_t dstsize) const; // TODO
   static const Name &default_value(); // TODO
 
   static constexpr uint binary_length() { return NATIVE_LEN; }
@@ -87,6 +87,10 @@ public:
   bool to_native(Native *to) const
   {
     return to->copy(m_buffer, sizeof(m_buffer));
+  }
+  size_t to_string(char *dst, size_t dstsize) const
+  {
+    return fbt_to_ascii(dst, dstsize);
   }
   bool to_string(String *to) const
   {
