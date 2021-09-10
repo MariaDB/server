@@ -61,9 +61,6 @@ class Histogram_json_hb : public Histogram_base
     // value is in this bucket.
     std::string start_value;
 
-    // The right endpoint. It is non-inclusive, except for the last bucket.
-    std::string *end_value;
-
     // Cumulative fraction: The fraction of table rows that fall into this
     //  and preceding buckets.
     double cum_fract;
@@ -125,6 +122,7 @@ public:
 
 private:
   double get_left_fract(int idx);
+  std::string& get_end_value(int idx);
   int find_bucket(Field *field, const uchar *lookup_val, bool equal_is_less);
 };
 
