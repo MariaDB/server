@@ -13,10 +13,12 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02111-1301 USA */
 
-#if defined(MYSQL_SERVER) && !defined MYSQL_SERVICE_SQL
+#ifndef MYSQL_SERVICE_SQL
 #define MYSQL_SERVICE_SQL
 
+#ifndef MYSQL_ABI_CHECK
 #include <mysql.h>
+#endif
 
 /**
   @file
@@ -45,39 +47,39 @@ extern "C" {
 #endif
 
 extern struct sql_service_st {
-  MYSQL *(STDCALL *mysql_init)(MYSQL *mysql);
-  MYSQL *(*mysql_real_connect_local)(MYSQL *mysql,
+  MYSQL *(STDCALL *mysql_init_func)(MYSQL *mysql);
+  MYSQL *(*mysql_real_connect_local_func)(MYSQL *mysql,
     const char *host, const char *user, const char *db,
     unsigned long clientflag);
-  MYSQL *(STDCALL *mysql_real_connect)(MYSQL *mysql, const char *host,
+  MYSQL *(STDCALL *mysql_real_connect_func)(MYSQL *mysql, const char *host,
       const char *user, const char *passwd, const char *db, unsigned int port,
       const char *unix_socket, unsigned long clientflag);
-  unsigned int(STDCALL *mysql_errno)(MYSQL *mysql);
-  const char *(STDCALL *mysql_error)(MYSQL *mysql);
-  int (STDCALL *mysql_real_query)(MYSQL *mysql, const char *q,
+  unsigned int(STDCALL *mysql_errno_func)(MYSQL *mysql);
+  const char *(STDCALL *mysql_error_func)(MYSQL *mysql);
+  int (STDCALL *mysql_real_query_func)(MYSQL *mysql, const char *q,
                                   unsigned long length);
-  my_ulonglong (STDCALL *mysql_affected_rows)(MYSQL *mysql);
-  my_ulonglong (STDCALL *mysql_num_rows)(MYSQL_RES *res);
-  MYSQL_RES *(STDCALL *mysql_store_result)(MYSQL *mysql);
-  void (STDCALL *mysql_free_result)(MYSQL_RES *result);
-  MYSQL_ROW (STDCALL *mysql_fetch_row)(MYSQL_RES *result);
-  void (STDCALL *mysql_close)(MYSQL *sock);
+  my_ulonglong (STDCALL *mysql_affected_rows_func)(MYSQL *mysql);
+  my_ulonglong (STDCALL *mysql_num_rows_func)(MYSQL_RES *res);
+  MYSQL_RES *(STDCALL *mysql_store_result_func)(MYSQL *mysql);
+  void (STDCALL *mysql_free_result_func)(MYSQL_RES *result);
+  MYSQL_ROW (STDCALL *mysql_fetch_row_func)(MYSQL_RES *result);
+  void (STDCALL *mysql_close_func)(MYSQL *mysql);
 } *sql_service;
 
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
-#define mysql_init sql_service->mysql_init
-#define mysql_real_connect_local sql_service->mysql_real_connect_local
-#define mysql_real_connect sql_service->mysql_real_connect
-#define mysql_errno(M) sql_service->mysql_errno(M)
-#define mysql_error(M) sql_service->mysql_error(M)
-#define mysql_real_query sql_service->mysql_real_query
-#define mysql_affected_rows sql_service->mysql_affected_rows
-#define mysql_num_rows sql_service->mysql_num_rows
-#define mysql_store_result sql_service->mysql_store_result
-#define mysql_free_result sql_service->mysql_free_result
-#define mysql_fetch_row sql_service->mysql_fetch_row
-#define mysql_close sql_service->mysql_close
+#define mysql_init(M) sql_service->mysql_init_func(M)
+#define mysql_real_connect_local(M,H,U,D,F) sql_service->mysql_real_connect_local_func(M,H,U,D,F)
+#define mysql_real_connect(M,H,U,PW,D,P,S,F) sql_service->mysql_real_connect_func(M,H,U,PW,D,P,S,F)
+#define mysql_errno(M) sql_service->mysql_errno_func(M)
+#define mysql_error(M) sql_service->mysql_error_func(M)
+#define mysql_real_query sql_service->mysql_real_query_func
+#define mysql_affected_rows(M) sql_service->mysql_affected_rows_func(M)
+#define mysql_num_rows(R) sql_service->mysql_num_rows_func(R)
+#define mysql_store_result(M) sql_service->mysql_store_result_func(M)
+#define mysql_free_result(R) sql_service->mysql_free_result_func(R)
+#define mysql_fetch_row(R) sql_service->mysql_fetch_row_func(R)
+#define mysql_close(M) sql_service->mysql_close_func(M)
 
 #else
 

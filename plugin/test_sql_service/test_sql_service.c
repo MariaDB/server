@@ -14,8 +14,7 @@
    Foundation, Inc., 51 Franklin Street, Fifth Floor, Boston, MA 02110-1335 USA */
 
 
-#define PLUGIN_VERSION 0x20000
-#define PLUGIN_STR_VERSION "2.0"
+#define PLUGIN_VERSION 0x200
 
 #include <my_config.h>
 #include <my_global.h>
@@ -266,8 +265,8 @@ maria_declare_plugin(test_sql_service)
   PLUGIN_VERSION,
   test_sql_status,
   test_sql_vars,
-  PLUGIN_STR_VERSION,
-  MariaDB_PLUGIN_MATURITY_STABLE
+  NULL,
+  MariaDB_PLUGIN_MATURITY_EXPERIMENTAL
 }
 maria_declare_plugin_end;
 

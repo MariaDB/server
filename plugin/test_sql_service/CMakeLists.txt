@@ -15,5 +15,4 @@
 
 SET(SOURCES test_sql_service.c)
 
-ADD_DEFINITIONS(-DMYSQL_SERVER)
 MYSQL_ADD_PLUGIN(test_sql_service  ${SOURCES} MODULE_ONLY)
