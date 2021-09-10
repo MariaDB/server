@@ -16,12 +16,8 @@
 
 #define PLUGIN_VERSION 0x200
 
-#include <my_config.h>
-#include <my_global.h>
-#include <my_base.h>
 #include <mysql/plugin_audit.h>
-#include <mysql.h>
-
+#define STRING_WITH_LEN(X) (X), ((size_t) (sizeof(X) - 1))
 
 /* Status variables for SHOW STATUS */
 static long test_passed= 0;
@@ -35,7 +31,7 @@ static struct st_mysql_show_var test_sql_status[]=
   {0,0,0}
 };
 
-static my_bool do_test= TRUE;
+static my_bool do_test= 1;
 static int run_test(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
                     struct st_mysql_value *value);
 static int run_sql_local(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save,
@@ -49,17 +45,17 @@ static void noop_update(MYSQL_THD thd, struct st_mysql_sys_var *var,
 static MYSQL_SYSVAR_BOOL(run_test, do_test,
                          PLUGIN_VAR_OPCMDARG,
                          "Perform the test now.",
-                         run_test, NULL, FALSE);
+                         run_test, NULL, 0);
 
 static MYSQL_SYSVAR_STR(execute_sql_local, sql_text_local,
                         PLUGIN_VAR_OPCMDARG,
                         "Create the new local connection, execute SQL statement with it.",
-                        run_sql_local, noop_update, FALSE);
+                        run_sql_local, noop_update, 0);
 
 static MYSQL_SYSVAR_STR(execute_sql_global, sql_text_global,
                         PLUGIN_VAR_OPCMDARG,
                         "Execute SQL statement using the global connection.",
-                        run_sql_global, noop_update, FALSE);
+                        run_sql_global, noop_update, 0);
 
 static struct st_mysql_sys_var* test_sql_vars[]=
 {
