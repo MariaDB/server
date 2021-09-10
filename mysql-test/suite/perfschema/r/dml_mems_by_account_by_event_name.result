@@ -25,7 +25,7 @@ LOCK TABLES performance_schema.memory_summary_by_account_by_event_name WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'memory_summary_by_account_by_event_name'
 UNLOCK TABLES;
 #
-# MDEV-25325 column_comment for performance_shcema tables
+# MDEV-25325 column_comment for performance_schema tables
 #
 select column_name, column_comment 
 from information_schema.columns 

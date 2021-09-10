@@ -88,7 +88,7 @@ SELECT FILE_NAME FROM performance_schema.file_instances WHERE FILE_NAME LIKE "%t
 FILE_NAME
 DROP DATABASE db_26152751;
 #
-# MDEV-25325 column_comment for performance_shcema tables
+# MDEV-25325 column_comment for performance_schema tables
 #
 select column_name, column_comment 
 from information_schema.columns 

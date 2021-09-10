@@ -55,9 +55,9 @@ table_threads::m_share=
                       "PARENT_THREAD_ID BIGINT unsigned comment 'THREAD_ID of the parent thread, if any. Subthreads can for example be spawned as a result of INSERT DELAYED statements.',"
                       "ROLE VARCHAR(64) comment 'Unused.',"
                       "INSTRUMENTED ENUM ('YES', 'NO') not null comment 'YES or NO for Whether the thread is instrumented or not. For foreground threads, the initial value is determined by whether there''s a user/host match in the setup_actors table. Subthreads are again matched, while for background threads, this will be set to YES by default. To monitor events that the thread executes, INSTRUMENTED must be YES and the thread_instrumentation consumer in the setup_consumers table must also be YES.',"
-                      "HISTORY ENUM ('YES', 'NO') not null,"
-                      "CONNECTION_TYPE VARCHAR(16),"
-                      "THREAD_OS_ID BIGINT unsigned)") },
+                      "HISTORY ENUM ('YES', 'NO') not null comment 'Whether to log historical events for the thread.',"
+                      "CONNECTION_TYPE VARCHAR(16) comment 'The protocol used to establish the connection, or NULL for background threads.',"
+                      "THREAD_OS_ID BIGINT unsigned comment 'The thread or task identifier as defined by the underlying operating system, if there is one.')") },
   false  /* perpetual */
 };
 

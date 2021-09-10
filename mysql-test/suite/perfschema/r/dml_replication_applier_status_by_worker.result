@@ -24,7 +24,7 @@ LOCK TABLES performance_schema.replication_applier_status_by_worker WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'replication_applier_status_by_worker'
 UNLOCK TABLES;
 #
-# MDEV-25325 column_comment for performance_shcema tables
+# MDEV-25325 column_comment for performance_schema tables
 #
 select column_name, column_comment 
 from information_schema.columns 

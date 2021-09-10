@@ -64,9 +64,9 @@ table_events_statements_current::m_share=
                       "DIGEST VARCHAR(32) comment 'Statement digest.',"
                       "DIGEST_TEXT LONGTEXT comment 'Statement digest text.',"
                       "CURRENT_SCHEMA VARCHAR(64) comment 'Statement''s default database for the statement, or NULL if there was none.',"
-                      "OBJECT_TYPE VARCHAR(64) comment 'Reserved, currently NULL',"
-                      "OBJECT_SCHEMA VARCHAR(64) comment 'Reserved, currently NULL',"
-                      "OBJECT_NAME VARCHAR(64) comment 'Reserved, currently NULL',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',"
+                      "OBJECT_NAME VARCHAR(64) comment 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Address in memory of the statement object.',"
                       "MYSQL_ERRNO INTEGER comment 'Error code. See MariaDB Error Codes for a full list.',"
                       "RETURNED_SQLSTATE VARCHAR(5) comment 'The SQLSTATE value.',"
@@ -89,9 +89,9 @@ table_events_statements_current::m_share=
                       "SORT_SCAN BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a full table scan.',"
                       "NO_INDEX_USED BIGINT unsigned not null comment '0 if the statement performed a table scan with an index, 1 if without an index.',"
                       "NO_GOOD_INDEX_USED BIGINT unsigned not null comment '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',"
-                      "NESTING_EVENT_ID BIGINT unsigned comment 'Reserved, currently NULL.',"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Reserved, currently NULL.',"
-                      "NESTING_EVENT_LEVEL INT)") },
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
+                      "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
   false  /* perpetual */
 };
 
@@ -122,9 +122,9 @@ table_events_statements_history::m_share=
                       "DIGEST VARCHAR(32) comment 'Statement digest.',"
                       "DIGEST_TEXT LONGTEXT comment 'Statement digest text.',"
                       "CURRENT_SCHEMA VARCHAR(64) comment 'Statement''s default database for the statement, or NULL if there was none.',"
-                      "OBJECT_TYPE VARCHAR(64) comment 'Reserved, currently NULL',"
-                      "OBJECT_SCHEMA VARCHAR(64) comment 'Reserved, currently NULL',"
-                      "OBJECT_NAME VARCHAR(64) comment 'Reserved, currently NULL',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',"
+                      "OBJECT_NAME VARCHAR(64) comment 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Address in memory of the statement object.',"
                       "MYSQL_ERRNO INTEGER comment 'Error code. See MariaDB Error Codes for a full list.',"
                       "RETURNED_SQLSTATE VARCHAR(5) comment 'The SQLSTATE value.',"
@@ -147,9 +147,9 @@ table_events_statements_history::m_share=
                       "SORT_SCAN BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a full table scan.',"
                       "NO_INDEX_USED BIGINT unsigned not null comment '0 if the statement performed a table scan with an index, 1 if without an index.',"
                       "NO_GOOD_INDEX_USED BIGINT unsigned not null comment '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',"
-                      "NESTING_EVENT_ID BIGINT unsigned comment 'Reserved, currently NULL.',"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Reserved, currently NULL.',"
-                      "NESTING_EVENT_LEVEL INT)") },
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
+                      "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
   false  /* perpetual */
 };
 
@@ -180,9 +180,9 @@ table_events_statements_history_long::m_share=
                       "DIGEST VARCHAR(32) comment 'Statement digest.',"
                       "DIGEST_TEXT LONGTEXT comment 'Statement digest text.',"
                       "CURRENT_SCHEMA VARCHAR(64) comment 'Statement''s default database for the statement, or NULL if there was none.',"
-                      "OBJECT_TYPE VARCHAR(64) comment 'Reserved, currently NULL',"
-                      "OBJECT_SCHEMA VARCHAR(64) comment 'Reserved, currently NULL',"
-                      "OBJECT_NAME VARCHAR(64) comment 'Reserved, currently NULL',"
+                      "OBJECT_TYPE VARCHAR(64) comment 'NULL for top level statements. The parent statement object type for nested statements (stored programs).',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'NULL for top level statements. The parent statement object schema for nested statements (stored programs).',"
+                      "OBJECT_NAME VARCHAR(64) comment 'NULL for top level statements. The parent statement object name for nested statements (stored programs).',"
                       "OBJECT_INSTANCE_BEGIN BIGINT unsigned comment 'Address in memory of the statement object.',"
                       "MYSQL_ERRNO INTEGER comment 'Error code. See MariaDB Error Codes for a full list.',"
                       "RETURNED_SQLSTATE VARCHAR(5) comment 'The SQLSTATE value.',"
@@ -205,9 +205,9 @@ table_events_statements_history_long::m_share=
                       "SORT_SCAN BIGINT unsigned not null comment 'Number of sorts performed by the statement which used a full table scan.',"
                       "NO_INDEX_USED BIGINT unsigned not null comment '0 if the statement performed a table scan with an index, 1 if without an index.',"
                       "NO_GOOD_INDEX_USED BIGINT unsigned not null comment '0 if a good index was found for the statement, 1 if no good index was found. See the Range checked for each record description in the EXPLAIN article.',"
-                      "NESTING_EVENT_ID BIGINT unsigned comment 'Reserved, currently NULL.',"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Reserved, currently NULL.',"
-                      "NESTING_EVENT_LEVEL INT)") },
+                      "NESTING_EVENT_ID BIGINT unsigned comment 'NULL for top level statements. The parent statement event id for nested statements (stored programs).',"
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'NULL for top level statements. The parent statement event type for nested statements (stored programs).',"
+                      "NESTING_EVENT_LEVEL INT comment '0 for top level statements. The parent statement level plus 1 for nested statements (stored programs).')") },
   false  /* perpetual */
 };
 

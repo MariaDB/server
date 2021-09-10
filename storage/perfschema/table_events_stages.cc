@@ -57,10 +57,10 @@ table_events_stages_current::m_share=
                       "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
                       "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
                       "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
-                      "WORK_COMPLETED BIGINT unsigned,"
-                      "WORK_ESTIMATED BIGINT unsigned,"
+                      "WORK_COMPLETED BIGINT unsigned comment 'The number of work units completed for the stage. NULL if the stage event progress is not instrumented.',"
+                      "WORK_ESTIMATED BIGINT unsigned comment 'The number of work units expected for the stage. NULL if the stage event progress is not instrumented.',"
                       "NESTING_EVENT_ID BIGINT unsigned comment 'EVENT_ID of event within which this event nests.',"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either statement, stage or wait.')") },
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either transaction, statement, stage or wait.')") },
   false  /* perpetual */
 };
 
@@ -86,10 +86,10 @@ table_events_stages_history::m_share=
                       "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
                       "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
                       "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
-                      "WORK_COMPLETED BIGINT unsigned,"
-                      "WORK_ESTIMATED BIGINT unsigned,"
+                      "WORK_COMPLETED BIGINT unsigned comment 'The number of work units completed for the stage. NULL if the stage event progress is not instrumented.',"
+                      "WORK_ESTIMATED BIGINT unsigned comment 'The number of work units expected for the stage. NULL if the stage event progress is not instrumented.',"
                       "NESTING_EVENT_ID BIGINT unsigned comment 'EVENT_ID of event within which this event nests.',"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either statement, stage or wait.')") },
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either transaction, statement, stage or wait.')") },
   false  /* perpetual */
 };
 
@@ -115,10 +115,10 @@ table_events_stages_history_long::m_share=
                       "TIMER_START BIGINT unsigned comment 'Value in picoseconds when the event timing started or NULL if timing is not collected.',"
                       "TIMER_END BIGINT unsigned comment 'Value in picoseconds when the event timing ended, or NULL if the event has not ended or timing is not collected.',"
                       "TIMER_WAIT BIGINT unsigned comment 'Value in picoseconds of the event''s duration or NULL if the event has not ended or timing is not collected.',"
-                      "WORK_COMPLETED BIGINT unsigned,"
-                      "WORK_ESTIMATED BIGINT unsigned,"
+                      "WORK_COMPLETED BIGINT unsigned comment 'The number of work units completed for the stage. NULL if the stage event progress is not instrumented.',"
+                      "WORK_ESTIMATED BIGINT unsigned comment 'The number of work units expected for the stage. NULL if the stage event progress is not instrumented.',"
                       "NESTING_EVENT_ID BIGINT unsigned comment 'EVENT_ID of event within which this event nests.',"
-                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either statement, stage or wait.')") },
+                      "NESTING_EVENT_TYPE ENUM('TRANSACTION', 'STATEMENT', 'STAGE', 'WAIT') comment 'Nesting event type. Either transaction, statement, stage or wait.')") },
   false  /* perpetual */
 };
 

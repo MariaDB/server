@@ -106,7 +106,7 @@ DROP DATABASE db_26152751;
 
 
 --echo #
---echo # MDEV-25325 column_comment for performance_shcema tables
+--echo # MDEV-25325 column_comment for performance_schema tables
 --echo #
 select column_name, column_comment 
 from information_schema.columns 

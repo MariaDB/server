@@ -53,8 +53,8 @@ table_setup_actors::m_share=
                       "HOST CHAR(" HOSTNAME_LENGTH_STR ") collate utf8_bin default '%' not null comment 'Host name, either a literal, or the % wildcard representing any host.',"
                       "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default '%' not null comment 'User name, either a literal or the % wildcard representing any name.',"
                       "ROLE CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default '%' not null comment 'Unused',"
-                      "ENABLED ENUM('YES', 'NO') not null default 'YES',"
-                      "HISTORY ENUM('YES', 'NO') not null default 'YES')") },
+                      "ENABLED ENUM('YES', 'NO') not null default 'YES' comment 'Whether to enable instrumentation for foreground threads matched by the row.',"
+                      "HISTORY ENUM('YES', 'NO') not null default 'YES' comment 'Whether to log historical events for foreground threads matched by the row.')") },
   false  /* perpetual */
 };
 

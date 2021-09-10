@@ -55,12 +55,12 @@ table_replication_applier_status_by_coordinator::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_status_by_coordinator("
-  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null,"
-  "THREAD_ID BIGINT UNSIGNED,"
-  "SERVICE_STATE ENUM('ON','OFF') not null,"
-  "LAST_ERROR_NUMBER INTEGER not null,"
-  "LAST_ERROR_MESSAGE VARCHAR(1024) not null,"
-  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null)") },
+  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null comment 'Replication channel name.',"
+  "THREAD_ID BIGINT UNSIGNED comment 'The SQL/coordinator thread ID.',"
+  "SERVICE_STATE ENUM('ON','OFF') not null comment 'ON (thread exists and is active or idle) or OFF (thread no longer exists).',"
+  "LAST_ERROR_NUMBER INTEGER not null comment 'Last error number that caused the SQL/coordinator thread to stop.',"
+  "LAST_ERROR_MESSAGE VARCHAR(1024) not null comment 'Last error message that caused the SQL/coordinator thread to stop.',"
+  "LAST_ERROR_TIMESTAMP TIMESTAMP(0) not null comment 'Timestamp that shows when the most recent SQL/coordinator error occured.')") },
   false  /* perpetual */
 };
 

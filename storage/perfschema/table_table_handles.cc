@@ -50,14 +50,14 @@ table_table_handles::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE table_handles("
-  "OBJECT_TYPE VARCHAR(64) not null,"
-  "OBJECT_SCHEMA VARCHAR(64) not null,"
-  "OBJECT_NAME VARCHAR(64) not null,"
-  "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-  "OWNER_THREAD_ID BIGINT unsigned,"
-  "OWNER_EVENT_ID BIGINT unsigned,"
-  "INTERNAL_LOCK VARCHAR(64),"
-  "EXTERNAL_LOCK VARCHAR(64))") },
+  "OBJECT_TYPE VARCHAR(64) not null comment 'The table opened by a table handle.',"
+  "OBJECT_SCHEMA VARCHAR(64) not null comment 'The schema that contains the object.',"
+  "OBJECT_NAME VARCHAR(64) not null comment 'The name of the instrumented object.',"
+  "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'The table handle address in memory.',"
+  "OWNER_THREAD_ID BIGINT unsigned comment 'The thread owning the table handle.',"
+  "OWNER_EVENT_ID BIGINT unsigned comment 'The event which caused the table handle to be opened.',"
+  "INTERNAL_LOCK VARCHAR(64) comment 'The table lock used at the SQL level.',"
+  "EXTERNAL_LOCK VARCHAR(64) comment 'The table lock used at the storage engine level.')") },
   false  /* perpetual */
 };
 

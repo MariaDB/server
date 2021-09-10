@@ -54,8 +54,8 @@ table_replication_applier_configuration::m_share=
   sizeof(pos_t), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE replication_applier_configuration("
-  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null,"
-  "DESIRED_DELAY INTEGER not null)") },
+  "CHANNEL_NAME CHAR(64) collate utf8_general_ci not null comment 'Replication channel name.',"
+  "DESIRED_DELAY INTEGER not null comment 'Desired replica delay functionality not supported by MariaDB. Always 0.')") },
   false  /* perpetual */
 };
 

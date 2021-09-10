@@ -112,5 +112,5 @@ column_name	column_comment
 HOST	Host name, either a literal, or the % wildcard representing any host.
 USER	User name, either a literal or the % wildcard representing any name.
 ROLE	Unused
-ENABLED	
-HISTORY	
+ENABLED	Whether to enable instrumentation for foreground threads matched by the row.
+HISTORY	Whether to log historical events for foreground threads matched by the row.
