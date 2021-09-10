@@ -23,12 +23,35 @@
 class Histogram_json_builder : public Histogram_builder
 {
   Histogram_json_hb *histogram;
-  uint hist_width;         /* the number of points in the histogram        */
-  double bucket_capacity;  /* number of rows in a bucket of the histogram  */
-  uint curr_bucket;        /* number of the current bucket to be built     */
+  /* Number of buckets in the histogram */
+  uint hist_width;
 
-  std::vector<std::string> bucket_bounds;
-  bool first_value= true;
+  /*
+    Number of rows that we intend to have in the bucket. That is, this is
+
+      n_rows_in_table / histo_width
+
+    Actual number of rows in the buckets we produce may vary because of
+    "popular values" and rounding.
+  */
+  longlong bucket_capacity;
+
+  /* Number of the buckets already collected */
+  uint n_buckets_collected;
+
+  /* Data about the bucket we are filling now */
+  struct CurBucket
+  {
+    /* Number of values in the bucket so far. */
+    longlong size;
+
+    /* Number of distinct values in the bucket */
+    int ndv;
+  };
+  CurBucket bucket;
+
+  /* Used to create the JSON representation of the histogram. */
+  Json_writer writer;
 public:
 
   Histogram_json_builder(Histogram_json_hb *hist, Field *col, uint col_len,
@@ -37,57 +60,159 @@ public:
   {
     bucket_capacity= (double)records / histogram->get_width();
     hist_width= histogram->get_width();
-    curr_bucket= 0;
+    n_buckets_collected= 0;
+    bucket.ndv= 0;
+    bucket.size= 0;
+
+    writer.start_object();
+    writer.add_member(Histogram_json_hb::JSON_NAME).start_array();
   }
 
   ~Histogram_json_builder() override = default;
 
+  bool bucket_is_empty() { return bucket.ndv == 0; }
+
+  /*
+    Flush the current bucket out (to JSON output), and set it to be empty.
+  */
+  void finalize_bucket()
+  {
+    double fract= (double) bucket.size / records;
+    writer.add_member("size").add_double(fract);
+    writer.add_member("ndv").add_ll(bucket.ndv);
+    writer.end_object();
+    n_buckets_collected++;
+
+    bucket.ndv= 0;
+    bucket.size= 0;
+  }
+
+  /*
+    Same as finalize_bucket() but also provide the bucket's end value.
+  */
+  void finalize_bucket_with_end_value(void *elem)
+  {
+    column->store_field_value((uchar*) elem, col_length);
+    StringBuffer<MAX_FIELD_WIDTH> val;
+    column->val_str(&val);
+    writer.add_member("end").add_str(val.c_ptr());
+    finalize_bucket();
+  }
+
+  /*
+    Write the first value group to the bucket.
+    @param elem  The value we are writing
+    @param cnt   The number of such values.
+  */
+  void start_bucket(void *elem, element_count cnt)
+  {
+    DBUG_ASSERT(bucket.size == 0);
+    column->store_field_value((uchar*) elem, col_length);
+    StringBuffer<MAX_FIELD_WIDTH> val;
+    column->val_str(&val);
+
+    writer.start_object();
+    writer.add_member("start").add_str(val.c_ptr());
+
+    bucket.ndv= 1;
+    bucket.size= cnt;
+  }
+
+  /*
+    Append a value group of cnt values.
+  */
+  void append_to_bucket(element_count cnt)
+  {
+    bucket.ndv++;
+    bucket.size += cnt;
+  }
+
   /*
     @brief
-      Add data to the histogram. This call adds elem_cnt rows, each
-      of which has value of *elem.
+      Add data to the histogram.
 
     @detail
-      Subsequent next() calls will add values that are greater than *elem.
+      The call signals to add a "value group" of elem_cnt rows, each of which
+      has the same value that is provided in *elem.
+
+      Subsequent next() calls will add values that are greater than the
+      current one.
+
+    @return
+      0 - OK
   */
   int next(void *elem, element_count elem_cnt) override
   {
     counters.next(elem, elem_cnt);
     ulonglong count= counters.get_count();
 
-    if (curr_bucket == hist_width)
-      return 0;
-    if (first_value)
+    /*
+      Ok, we've got a "value group" of elem_cnt identical values.
+
+      If we take the values from the value group and put them into
+      the current bucket, how many values will be left after we've
+      filled the bucket?
+    */
+    longlong overflow= bucket.size + elem_cnt - bucket_capacity;
+
+    /*
+      Case #1: This value group should be put into a separate bucket, if
+       A. It fills the current bucket and also fills the next bucket, OR
+       B. It fills the current bucket, which was empty.
+    */
+    if (overflow >= bucket_capacity || (bucket_is_empty() && overflow >= 0))
     {
-      first_value= false;
-      column->store_field_value((uchar*) elem, col_length);
-      StringBuffer<MAX_FIELD_WIDTH> val;
-      column->val_str(&val);
-      bucket_bounds.push_back(std::string(val.ptr(), val.length()));
+      // Finalize the current bucket
+      if (!bucket_is_empty())
+        finalize_bucket();
+
+      // Start/end the separate bucket for this value group.
+      start_bucket(elem, elem_cnt);
+      if (records == count)
+        finalize_bucket_with_end_value(elem);
+      else
+        finalize_bucket();
     }
-
-    if (count > bucket_capacity * (curr_bucket + 1))
+    else if (overflow >= 0)
     {
-      column->store_field_value((uchar*) elem, col_length);
-      StringBuffer<MAX_FIELD_WIDTH> val;
-      column->val_str(&val);
-      bucket_bounds.emplace_back(val.ptr(), val.length());
+      /*
+        Case #2: is when Case#1 doesn't hold, but we can still fill the
+        current bucket.
+      */
 
-      curr_bucket++;
-      while (curr_bucket != hist_width &&
-             count > bucket_capacity * (curr_bucket + 1))
+      // If the bucket was empty, it would have been case #1.
+      DBUG_ASSERT(!bucket_is_empty());
+
+      /*
+        Finalize the current bucket. Put there enough values to make it hold
+        bucket_capacity values.
+      */
+      append_to_bucket(bucket_capacity - bucket.size);
+      if (records == count && !overflow)
+        finalize_bucket_with_end_value(elem);
+      else
+        finalize_bucket();
+
+      if (overflow > 0)
       {
-        bucket_bounds.push_back(std::string(val.ptr(), val.length()));
-        curr_bucket++;
+        // Then, start the new bucket with the remaining values.
+        start_bucket(elem, overflow);
       }
     }
-
-    if (records == count && bucket_bounds.size() == hist_width)
+    else
     {
-      column->store_field_value((uchar*) elem, col_length);
-      StringBuffer<MAX_FIELD_WIDTH> val;
-      column->val_str(&val);
-      bucket_bounds.push_back(std::string(val.ptr(), val.length()));
+      // Case #3: there's not enough values to fill the current bucket.
+      if (bucket_is_empty())
+        start_bucket(elem, elem_cnt);
+      else
+        append_to_bucket(elem_cnt);
+    }
+
+    if (records == count)
+    {
+      // This is the final value group.
+      if (!bucket_is_empty())
+        finalize_bucket_with_end_value(elem);
     }
     return 0;
   }
@@ -98,17 +223,10 @@ public:
   */
   void finalize() override
   {
-    Json_writer writer;
-    writer.start_object();
-    writer.add_member(Histogram_json_hb::JSON_NAME).start_array();
-
-    for(auto& value: bucket_bounds) {
-      writer.add_str(value.c_str());
-    }
     writer.end_array();
     writer.end_object();
     Binary_string *json_string= (Binary_string *) writer.output.get_string();
-    histogram->set_json_text(bucket_bounds.size()-1,
+    histogram->set_json_text(n_buckets_collected,
                              (uchar *) json_string->c_ptr());
   }
 };
@@ -143,78 +261,132 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
                               Histogram_type type_arg, const char *hist_data,
                               size_t hist_data_len)
 {
+  const char *err;
   DBUG_ENTER("Histogram_json_hb::parse");
   DBUG_ASSERT(type_arg == JSON_HB);
-  const char *err;
-  json_engine_t je;
-  json_string_t key_name;
+  const char *obj1;
+  int obj1_len;
+  double cumulative_size= 0.0;
 
-  json_scan_start(&je, &my_charset_utf8mb4_bin,
-                  (const uchar*)hist_data,
-                  (const uchar*)hist_data+hist_data_len);
-
-  if (json_read_value(&je) || je.value_type != JSON_VALUE_OBJECT)
+  if (JSV_OBJECT != json_type(hist_data, hist_data + hist_data_len,
+                              &obj1, &obj1_len))
   {
     err= "Root JSON element must be a JSON object";
     goto error;
   }
 
-  json_string_set_str(&key_name, (const uchar*)JSON_NAME,
-                      (const uchar*)JSON_NAME + strlen(JSON_NAME));
-  json_string_set_cs(&key_name, system_charset_info);
-
-  if (json_scan_next(&je) || je.state != JST_KEY ||
-      !json_key_matches(&je, &key_name))
-  {
-    err= "The first key in the object must be histogram_hb_v1";
-    goto error;
-  }
-
-  // The value must be a JSON array
-  if (json_read_value(&je) || (je.value_type != JSON_VALUE_ARRAY))
+  const char *hist_array;
+  int hist_array_len;
+  if (JSV_ARRAY != json_get_object_key(obj1, obj1 + obj1_len,
+                                       "histogram_hb_v2", &hist_array,
+                                       &hist_array_len))
   {
     err= "A JSON array expected";
     goto error;
   }
 
-  // Read the array
-  while (!json_scan_next(&je))
+  for (int i= 0;; i++)
   {
-    switch(je.state)
+    const char *bucket_info;
+    int bucket_info_len;
+    enum json_types ret= json_get_array_item(hist_array, hist_array+hist_array_len,
+                                             i, &bucket_info,
+                                             &bucket_info_len);
+    if (ret == JSV_NOTHING)
+      break;
+    if (ret == JSV_BAD_JSON)
     {
-      case JST_VALUE:
-      {
-        const char *val;
-        int val_len;
-        json_smart_read_value(&je, &val, &val_len);
-        if (je.value_type != JSON_VALUE_STRING &&
-            je.value_type != JSON_VALUE_NUMBER &&
-            je.value_type != JSON_VALUE_TRUE &&
-            je.value_type != JSON_VALUE_FALSE)
-        {
-          err= "Scalar value expected";
-          goto error;
-        }
-        uchar buf[MAX_KEY_LENGTH];
-        uint len_to_copy= field->key_length();
-        field->store_text(val, val_len, &my_charset_bin);
-        uint bytes= field->get_key_image(buf, len_to_copy, Field::itRAW);
-        histogram_bounds.push_back(std::string((char*)buf, bytes));
-        // TODO: Should we also compare this endpoint with the previous
-        // to verify that the ordering is right?
-        break;
-      }
-      case JST_ARRAY_END:
-        break;
+      err= "JSON parse error";
+      goto error;
+    }
+    if (ret != JSV_OBJECT)
+    {
+      err= "Object expected";
+      goto error;
+    }
+
+    // Ok, now we are parsing the JSON object describing the bucket
+    // Read the "start" field.
+    const char *val;
+    int val_len;
+    ret= json_get_object_key(bucket_info, bucket_info+bucket_info_len,
+                             "start", &val, &val_len);
+    if (ret != JSV_STRING && ret != JSV_NUMBER)
+    {
+      err= ".start member must be present and be a scalar";
+      goto error;
+    }
+
+    // Read the "size" field.
+    const char *size;
+    int size_len;
+    ret= json_get_object_key(bucket_info, bucket_info+bucket_info_len,
+                             "size", &size, &size_len);
+    if (ret != JSV_NUMBER)
+    {
+      err= ".size member must be present and be a scalar";
+      goto error;
+    }
+
+    int conv_err;
+    char *size_end= (char*)size + size_len;
+    double size_d= my_strtod(size, &size_end, &conv_err);
+    if (conv_err)
+    {
+      err= ".size member must be a floating-point value";
+      goto error;
+    }
+    cumulative_size += size_d;
+
+    // Read the "ndv" field
+    const char *ndv;
+    int ndv_len;
+    ret= json_get_object_key(bucket_info, bucket_info+bucket_info_len,
+                             "ndv", &ndv, &ndv_len);
+    if (ret != JSV_NUMBER)
+    {
+      err= ".ndv member must be present and be a scalar";
+      goto error;
+    }
+    char *ndv_end= (char*)ndv + ndv_len;
+    longlong ndv_ll= my_strtoll10(ndv, &ndv_end, &conv_err);
+    if (conv_err)
+    {
+      err= ".ndv member must be an integer value";
+      goto error;
+    }
+
+    const char *end_val;
+    int end_val_len;
+    ret= json_get_object_key(bucket_info, bucket_info+bucket_info_len,
+                             "end", &end_val, &end_val_len);
+    if (ret != JSV_NOTHING && ret != JSV_STRING && ret !=JSV_NUMBER)
+    {
+      err= ".end member must be a scalar";
+      goto error;
+    }
+    if (ret != JSV_NOTHING)
+      last_bucket_end_endp.assign(end_val, end_val_len);
+
+    buckets.push_back({std::string(val, val_len), NULL, cumulative_size,
+                       ndv_ll});
+
+    if (buckets.size())
+    {
+      auto& prev_bucket= buckets[buckets.size()-1];
+      if (prev_bucket.ndv == 1)
+        prev_bucket.end_value= &prev_bucket.start_value;
+      else
+        prev_bucket.end_value= &buckets.back().start_value;
     }
   }
-  // n_buckets = n_bounds - 1 :
-  size= histogram_bounds.size()-1;
-  DBUG_RETURN(false);
+  buckets.back().end_value= &last_bucket_end_endp;
+  size= buckets.size();
 
+  DBUG_RETURN(false);
 error:
   my_error(ER_JSON_HISTOGRAM_PARSE_FAILED, MYF(0), err,
-           je.s.c_str - (const uchar*)hist_data);
+           12345);
   DBUG_RETURN(true);
 }
 
@@ -257,7 +429,7 @@ double position_in_interval(Field *field, const  uchar *key, uint key_len,
   {
     store_key_image_to_rec_no_null(field, left.data(), field->key_length());
     double min_val_real= field->val_real();
-    
+
     store_key_image_to_rec_no_null(field, right.data(), field->key_length());
     double max_val_real= field->val_real();
 
@@ -273,36 +445,43 @@ double position_in_interval(Field *field, const  uchar *key, uint key_len,
 double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
                                             double avg_sel)
 {
-  double sel;
-  store_key_image_to_rec(field, (uchar *) endpoint->key,
-                         field->key_length());
-  const uchar *min_key = endpoint->key;
+  const uchar *key = endpoint->key;
   if (field->real_maybe_null())
-    min_key++;
-  uint min_idx= find_bucket(field, min_key, false);
+    key++;
 
-  uint max_idx= find_bucket(field, min_key, true);
-#if 0
-  // find how many buckets this value occupies
-  while ((max_idx + 1 < get_width() ) &&
-         (field->key_cmp((uchar *)histogram_bounds[max_idx + 1].data(), min_key) == 0)) {
-    max_idx++;
-  }
-#endif
-  if (max_idx > min_idx)
+  // If the value is outside of the histogram's range, this will "clip" it to
+  // first or last bucket.
+  int idx= find_bucket(field, key, false);
+
+  double sel;
+
+  if (buckets[idx].ndv == 1 &&
+      field->key_cmp((uchar*)buckets[idx].start_value.data(), key))
   {
-    // value spans multiple buckets
-    double bucket_sel= 1.0/(get_width() + 1);
-    sel= bucket_sel * (max_idx - min_idx + 1);
+    // The bucket has a single value and it doesn't match! Use the global
+    // average.
+    sel= avg_sel;
   }
   else
   {
-    // the value fits within a single bucket
-    sel = MY_MIN(avg_sel, 1.0/get_width());
+    /*
+      We get here when:
+      * The bucket has one value and this is the value we are looking for.
+      * The bucket has multiple values. Then, assume
+    */
+    sel= (get_left_fract(idx) - buckets[idx].cum_fract) / buckets[idx].ndv;
   }
   return sel;
 }
 
+
+double Histogram_json_hb::get_left_fract(int idx)
+{
+  if (!idx)
+    return 0.0;
+  else
+    return buckets[idx-1].cum_fract;
+}
 
 /*
   @param field    The table field histogram is for.  We don't care about the
@@ -317,7 +496,6 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
                                             key_range *max_endp)
 {
   double min, max;
-  double width= 1.0 / histogram_bounds.size();
 
   if (min_endp && !(field->null_ptr && min_endp->key[0]))
   {
@@ -333,10 +511,12 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
     // Find the leftmost bucket that contains the lookup value.
     // (If the lookup value is to the left of all buckets, find bucket #0)
     int idx= find_bucket(field, min_key, exclusive_endp);
-    double min_sel= position_in_interval(field, min_key, min_key_len,
-                                         histogram_bounds[idx],
-                                         histogram_bounds[idx+1]);
-    min= idx*width + min_sel*width;
+    double left_fract= get_left_fract(idx);
+    double sel= position_in_interval(field, min_key, min_key_len,
+                                     buckets[idx].start_value,
+                                     *buckets[idx].end_value);
+
+    min= left_fract + sel * (buckets[idx].cum_fract - left_fract);
   }
   else
     min= 0.0;
@@ -355,10 +535,11 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
     }
 
     int idx= find_bucket(field, max_key, inclusive_endp);
-    double max_sel= position_in_interval(field, max_key, max_key_len,
-                                         histogram_bounds[idx],
-                                         histogram_bounds[idx+1]);
-    max= idx*width + max_sel*width;
+    double left_fract= get_left_fract(idx);
+    double sel= position_in_interval(field, max_key, max_key_len,
+                                     buckets[idx].start_value,
+                                     *buckets[idx].end_value);
+    max= left_fract + sel * (buckets[idx].cum_fract - left_fract);
   }
   else
     max= 1.0;
@@ -375,23 +556,35 @@ void Histogram_json_hb::serialize(Field *field)
 
 
 /*
-  Find the histogram bucket that contains the value.
+  Find the rightmost histogram bucket such that "lookup_val $GT start_value".
+
+  $GT is either '>' or '>=' depending on equal_is_less parameter.
 
   @param equal_is_less Controls what to do if a histogram bound is equal to the
                        lookup_val.
+
+  @detail
+    Possible cases:
+    1. The regular case: the value falls into some bucket.
+
+    2. The value is less than the minimum of the first bucket
+    3. The value is greater than the maximum of the last bucket
+      In these cases we "clip" to the first/last bucket.
+
+    4. The value hits the bucket boundary. Then, we need to know whether the
+       point of interest is to the left the constant, or to the right of it.
 */
 
 int Histogram_json_hb::find_bucket(Field *field, const uchar *lookup_val,
                                    bool equal_is_less)
 {
   int low= 0;
-  int high= (int)histogram_bounds.size() - 1;
-  int middle;
+  int high= (int)buckets.size() - 1;
 
   while (low + 1 < high)
   {
-    middle= (low + high) / 2;
-    int res= field->key_cmp((uchar*)histogram_bounds[middle].data(), lookup_val);
+    int middle= (low + high) / 2;
+    int res= field->key_cmp((uchar*)buckets[middle].start_value.data(), lookup_val);
     if (!res)
       res= equal_is_less? -1: 1;
     if (res < 0)

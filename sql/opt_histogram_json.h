@@ -20,6 +20,32 @@
   An equi-height histogram which stores real values for bucket bounds.
 
   Handles @@histogram_type=JSON_HB
+
+  Histogram format in JSON:
+
+  {
+    "histogram_hb_v2": [
+      { "start": "value", "size":nnn.nn, "ndv": nnn },
+      ...
+      { "start": "value", "size":nnn.nn, "ndv": nnn, "end": "value"}
+    ]
+  }
+
+  The histogram is an object with single member named "histogram_hb_v2".
+  The value of that member is an array of buckets.
+  Each bucket is an object with these members:
+    "start" - the first value in the bucket.
+    "size"  - fraction of table rows that is contained in the bucket.
+    "ndv"   - Number of Distinct Values in the bucket.
+    "end"   - Optionally, the last value in the bucket.
+
+  A bucket is a single-point bucket if it has ndv=1.
+
+  Most buckets have no "end" member: the bucket is assumed to contain all
+  values up to the "start" of the next bucket.
+
+  The exception is single-point buckets where last value is the same as the
+  first value.
 */
 
 class Histogram_json_hb : public Histogram_base
@@ -29,11 +55,29 @@ class Histogram_json_hb : public Histogram_base
   /* Collection-time only: collected histogram in the JSON form. */
   std::string json_text;
 
-  // Array of histogram bucket endpoints in KeyTupleFormat.
-  std::vector<std::string> histogram_bounds;
+  struct Bucket
+  {
+    // The left endpoint in KeyTupleFormat. The endpoint is inclusive, this
+    // value is in this bucket.
+    std::string start_value;
+
+    // The right endpoint. It is non-inclusive, except for the last bucket.
+    std::string *end_value;
+
+    // Cumulative fraction: The fraction of table rows that fall into this
+    //  and preceding buckets.
+    double cum_fract;
+
+    // Number of distinct values in the bucket.
+    longlong ndv;
+  };
+
+  std::vector<Bucket> buckets;
+
+  std::string last_bucket_end_endp;
 
 public:
-  static constexpr const char* JSON_NAME="histogram_hb_v1";
+  static constexpr const char* JSON_NAME="histogram_hb_v2";
 
   bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
              const char *hist_data, size_t hist_data_len) override;
@@ -80,6 +124,7 @@ public:
   }
 
 private:
+  double get_left_fract(int idx);
   int find_bucket(Field *field, const uchar *lookup_val, bool equal_is_less);
 };
 
