@@ -18,7 +18,7 @@
        SummaryCodepage='1252'
        Platform='@Platform@'/>
     
-    <Media Id='1' Cabinet='product.cab' EmbedCab='yes' CompressionLevel='high' />
+    <MediaTemplate EmbedCab="yes" MaximumUncompressedMediaSize="2" CompressionLevel="high"/>
 
     <!-- Upgrade -->
     <Upgrade Id="@CPACK_WIX_UPGRADE_CODE@">
