@@ -104,7 +104,7 @@ public:
     @param elem  The value we are writing
     @param cnt   The number of such values.
   */
-  void start_bucket(void *elem, element_count cnt)
+  void start_bucket(void *elem, longlong cnt)
   {
     DBUG_ASSERT(bucket.size == 0);
     column->store_field_value((uchar*) elem, col_length);
@@ -121,7 +121,7 @@ public:
   /*
     Append a value group of cnt values.
   */
-  void append_to_bucket(element_count cnt)
+  void append_to_bucket(longlong cnt)
   {
     bucket.ndv++;
     bucket.size += cnt;
@@ -141,7 +141,7 @@ public:
     @return
       0 - OK
   */
-  int next(void *elem, element_count elem_cnt) override
+  int next(void *elem, longlong elem_cnt) override
   {
     counters.next(elem, elem_cnt);
     ulonglong count= counters.get_count();
