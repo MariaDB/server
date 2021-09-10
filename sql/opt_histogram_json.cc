@@ -58,7 +58,7 @@ public:
                          ha_rows rows)
     : Histogram_builder(col, col_len, rows), histogram(hist)
   {
-    bucket_capacity= (double)records / histogram->get_width();
+    bucket_capacity= records / histogram->get_width();
     hist_width= histogram->get_width();
     n_buckets_collected= 0;
     bucket.ndv= 0;
