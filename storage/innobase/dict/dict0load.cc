@@ -2577,10 +2577,15 @@ corrupted:
 				goto func_exit;
 			}
 
-			for (uint i = 0; i < index->n_fields; i++) {
-				dict_field_t &f = index->fields[i];
-				ut_ad(f.col->mbmaxlen == 0
-				      || f.prefix_len % f.col->mbmaxlen == 0);
+			// The following assertion doesn't hold for FTS indexes
+			// as it may have prefix_len=1 with any charset
+			if (index->type != DICT_FTS) {
+				for (uint i = 0; i < index->n_fields; i++) {
+					dict_field_t &f = index->fields[i];
+					ut_ad(f.col->mbmaxlen == 0
+					      || f.prefix_len
+					      % f.col->mbmaxlen == 0);
+				}
 			}
 		}
 next_rec:
