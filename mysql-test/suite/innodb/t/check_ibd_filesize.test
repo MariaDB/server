@@ -46,6 +46,12 @@ perl;
 print "# bytes: ", (-s "$ENV{MYSQLD_DATADIR}/test/t1.ibd"), "\n";
 EOF
 INSERT INTO t1 SELECT seq,REPEAT('a',30000) FROM seq_1_to_20;
+# Ensure that the file will be extended with the last 1024-byte page
+# after the file was pre-extended in 4096-byte increments.
+--disable_query_log
+FLUSH TABLE t1 FOR EXPORT;
+UNLOCK TABLES;
+--enable_query_log
 perl;
 print "# bytes: ", (-s "$ENV{MYSQLD_DATADIR}/test/t1.ibd"), "\n";
 EOF
