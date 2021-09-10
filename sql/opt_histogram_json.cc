@@ -94,8 +94,8 @@ public:
   {
     column->store_field_value((uchar*) elem, col_length);
     StringBuffer<MAX_FIELD_WIDTH> val;
-    column->val_str(&val);
-    writer.add_member("end").add_str(val.c_ptr());
+    String *str= column->val_str(&val);
+    writer.add_member("end").add_str(str->c_ptr_safe());
     finalize_bucket();
   }
 
@@ -109,10 +109,10 @@ public:
     DBUG_ASSERT(bucket.size == 0);
     column->store_field_value((uchar*) elem, col_length);
     StringBuffer<MAX_FIELD_WIDTH> val;
-    column->val_str(&val);
+    String *str= column->val_str(&val);
 
     writer.start_object();
-    writer.add_member("start").add_str(val.c_ptr());
+    writer.add_member("start").add_str(str->c_ptr_safe());
 
     bucket.ndv= 1;
     bucket.size= cnt;
@@ -264,14 +264,17 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
   const char *err;
   DBUG_ENTER("Histogram_json_hb::parse");
   DBUG_ASSERT(type_arg == JSON_HB);
+  const char *err_pos= hist_data;
   const char *obj1;
   int obj1_len;
   double cumulative_size= 0.0;
+  size_t end_member_index= (size_t)-1;
 
   if (JSV_OBJECT != json_type(hist_data, hist_data + hist_data_len,
                               &obj1, &obj1_len))
   {
     err= "Root JSON element must be a JSON object";
+    err_pos= hist_data;
     goto error;
   }
 
@@ -281,6 +284,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
                                        "histogram_hb_v2", &hist_array,
                                        &hist_array_len))
   {
+    err_pos= obj1;
     err= "A JSON array expected";
     goto error;
   }
@@ -296,11 +300,13 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
       break;
     if (ret == JSV_BAD_JSON)
     {
+      err_pos= hist_array;
       err= "JSON parse error";
       goto error;
     }
     if (ret != JSV_OBJECT)
     {
+      err_pos= hist_array;
       err= "Object expected";
       goto error;
     }
@@ -313,6 +319,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
                              "start", &val, &val_len);
     if (ret != JSV_STRING && ret != JSV_NUMBER)
     {
+      err_pos= bucket_info;
       err= ".start member must be present and be a scalar";
       goto error;
     }
@@ -324,6 +331,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
                              "size", &size, &size_len);
     if (ret != JSV_NUMBER)
     {
+      err_pos= bucket_info;
       err= ".size member must be present and be a scalar";
       goto error;
     }
@@ -333,6 +341,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
     double size_d= my_strtod(size, &size_end, &conv_err);
     if (conv_err)
     {
+      err_pos= size;
       err= ".size member must be a floating-point value";
       goto error;
     }
@@ -345,6 +354,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
                              "ndv", &ndv, &ndv_len);
     if (ret != JSV_NUMBER)
     {
+      err_pos= bucket_info;
       err= ".ndv member must be present and be a scalar";
       goto error;
     }
@@ -352,41 +362,58 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
     longlong ndv_ll= my_strtoll10(ndv, &ndv_end, &conv_err);
     if (conv_err)
     {
+      err_pos= ndv;
       err= ".ndv member must be an integer value";
       goto error;
     }
 
+
+    uchar buf[MAX_KEY_LENGTH];
+    uint len_to_copy= field->key_length();
+    field->store_text(val, val_len, &my_charset_bin);
+    uint bytes= field->get_key_image(buf, len_to_copy, Field::itRAW);
+
+    buckets.push_back({std::string((char*)buf, bytes), cumulative_size,
+                       ndv_ll});
+
+    // Read the "end" field
     const char *end_val;
     int end_val_len;
     ret= json_get_object_key(bucket_info, bucket_info+bucket_info_len,
                              "end", &end_val, &end_val_len);
     if (ret != JSV_NOTHING && ret != JSV_STRING && ret !=JSV_NUMBER)
     {
+      err_pos= bucket_info;
       err= ".end member must be a scalar";
       goto error;
     }
     if (ret != JSV_NOTHING)
-      last_bucket_end_endp.assign(end_val, end_val_len);
-
-    buckets.push_back({std::string(val, val_len), NULL, cumulative_size,
-                       ndv_ll});
-
-    if (buckets.size())
     {
-      auto& prev_bucket= buckets[buckets.size()-1];
-      if (prev_bucket.ndv == 1)
-        prev_bucket.end_value= &prev_bucket.start_value;
-      else
-        prev_bucket.end_value= &buckets.back().start_value;
+      field->store_text(end_val, end_val_len, &my_charset_bin);
+      uint bytes= field->get_key_image(buf, len_to_copy, Field::itRAW);
+      last_bucket_end_endp.assign((char*)buf, bytes);
+      if (end_member_index == (size_t)-1)
+        end_member_index= buckets.size();
     }
   }
-  buckets.back().end_value= &last_bucket_end_endp;
   size= buckets.size();
+
+  if (end_member_index != buckets.size())
+  {
+    err= ".end must be present in the last bucket and only there";
+    err_pos= hist_data;
+    goto error;
+  }
+  if (!buckets.size())
+  {
+    err= ".end member is allowed only in last bucket";
+    err_pos= hist_data;
+    goto error;
+  }
 
   DBUG_RETURN(false);
 error:
-  my_error(ER_JSON_HISTOGRAM_PARSE_FAILED, MYF(0), err,
-           12345);
+  my_error(ER_JSON_HISTOGRAM_PARSE_FAILED, MYF(0), err, err_pos - hist_data);
   DBUG_RETURN(true);
 }
 
@@ -469,7 +496,7 @@ double Histogram_json_hb::point_selectivity(Field *field, key_range *endpoint,
       * The bucket has one value and this is the value we are looking for.
       * The bucket has multiple values. Then, assume
     */
-    sel= (get_left_fract(idx) - buckets[idx].cum_fract) / buckets[idx].ndv;
+    sel= (buckets[idx].cum_fract - get_left_fract(idx)) / buckets[idx].ndv;
   }
   return sel;
 }
@@ -481,6 +508,14 @@ double Histogram_json_hb::get_left_fract(int idx)
     return 0.0;
   else
     return buckets[idx-1].cum_fract;
+}
+
+std::string& Histogram_json_hb::get_end_value(int idx)
+{
+  if (idx == (int)buckets.size()-1)
+    return last_bucket_end_endp;
+  else
+    return buckets[idx+1].start_value;
 }
 
 /*
@@ -514,7 +549,7 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
     double left_fract= get_left_fract(idx);
     double sel= position_in_interval(field, min_key, min_key_len,
                                      buckets[idx].start_value,
-                                     *buckets[idx].end_value);
+                                     get_end_value(idx));
 
     min= left_fract + sel * (buckets[idx].cum_fract - left_fract);
   }
@@ -538,7 +573,7 @@ double Histogram_json_hb::range_selectivity(Field *field, key_range *min_endp,
     double left_fract= get_left_fract(idx);
     double sel= position_in_interval(field, max_key, max_key_len,
                                      buckets[idx].start_value,
-                                     *buckets[idx].end_value);
+                                     get_end_value(idx));
     max= left_fract + sel * (buckets[idx].cum_fract - left_fract);
   }
   else
