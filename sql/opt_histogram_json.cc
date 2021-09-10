@@ -141,7 +141,7 @@ public:
     @return
       0 - OK
   */
-  int next(void *elem, longlong elem_cnt) override
+  int next(void *elem, element_count elem_cnt) override
   {
     counters.next(elem, elem_cnt);
     ulonglong count= counters.get_count();
