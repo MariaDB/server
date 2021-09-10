@@ -104,7 +104,7 @@ static int do_tests()
   int result= 1;
 
   mysql= mysql_init(NULL);
-  if (mysql_real_connect_local(mysql, NULL, NULL, NULL, 0) == NULL)
+  if (mysql_real_connect_local(mysql) == NULL)
     return 1;
 
   if (run_queries(mysql))
@@ -188,7 +188,7 @@ static int run_sql_local(MYSQL_THD thd, struct st_mysql_sys_var *var, void *save
   int result= 1;
 
   mysql= mysql_init(NULL);
-  if (mysql_real_connect_local(mysql, NULL, NULL, NULL, 0) == NULL)
+  if (mysql_real_connect_local(mysql) == NULL)
     return 1;
 
   if (run_sql(mysql, save, value))
@@ -217,7 +217,7 @@ static int test_sql_service_plugin_init(void *p __attribute__((unused)))
   global_mysql= mysql_init(NULL);
 
   if (!global_mysql ||
-      mysql_real_connect_local(global_mysql, NULL, NULL, NULL, 0) == NULL)
+      mysql_real_connect_local(global_mysql) == NULL)
     return 1;
 
   init_done= 1;

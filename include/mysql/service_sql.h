@@ -48,9 +48,7 @@ extern "C" {
 
 extern struct sql_service_st {
   MYSQL *(STDCALL *mysql_init_func)(MYSQL *mysql);
-  MYSQL *(*mysql_real_connect_local_func)(MYSQL *mysql,
-    const char *host, const char *user, const char *db,
-    unsigned long clientflag);
+  MYSQL *(*mysql_real_connect_local_func)(MYSQL *mysql);
   MYSQL *(STDCALL *mysql_real_connect_func)(MYSQL *mysql, const char *host,
       const char *user, const char *passwd, const char *db, unsigned int port,
       const char *unix_socket, unsigned long clientflag);
@@ -69,7 +67,7 @@ extern struct sql_service_st {
 #ifdef MYSQL_DYNAMIC_PLUGIN
 
 #define mysql_init(M) sql_service->mysql_init_func(M)
-#define mysql_real_connect_local(M,H,U,D,F) sql_service->mysql_real_connect_local_func(M,H,U,D,F)
+#define mysql_real_connect_local(M) sql_service->mysql_real_connect_local_func(M)
 #define mysql_real_connect(M,H,U,PW,D,P,S,F) sql_service->mysql_real_connect_func(M,H,U,PW,D,P,S,F)
 #define mysql_errno(M) sql_service->mysql_errno_func(M)
 #define mysql_error(M) sql_service->mysql_error_func(M)
@@ -83,9 +81,14 @@ extern struct sql_service_st {
 
 #else
 
-MYSQL *mysql_real_connect_local(MYSQL *mysql,
-    const char *host, const char *user, const char *db,
-    unsigned long clientflag);
+/*
+  Establishes the connection to the 'local' server that started the plugin.
+  Like the mysql_real_connect() does for the remote server.
+  The established connection has no user/host associated to it,
+  neither it has the current db, so the queries should have
+  database/table name specified.
+*/
+MYSQL *mysql_real_connect_local(MYSQL *mysql);
 
 /* The rest of the function declarations mest be taken from the mysql.h */
 
