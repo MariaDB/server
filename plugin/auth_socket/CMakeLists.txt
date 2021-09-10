@@ -14,6 +14,10 @@
 # along with this program; if not, write to the Free Software
 # Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA
 
+IF(WIN32)
+  RETURN()
+ENDIF()
+
 CHECK_CXX_SOURCE_COMPILES(
 "#define _GNU_SOURCE
 #include <sys/socket.h>
