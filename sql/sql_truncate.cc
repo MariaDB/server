@@ -462,10 +462,9 @@ bool Sql_cmd_truncate_table::truncate_table(THD *thd, TABLE_LIST *table_ref)
 
       if (thd->locked_tables_mode && thd->locked_tables_list.reopen_tables(thd, false))
       {
-        thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
-        error=1;
+          thd->locked_tables_list.unlink_all_closed_tables(thd, NULL, 0);
+          error= 1;
       }
-
       /* No need to binlog a failed truncate-by-recreate. */
       binlog_stmt= !error;
     }

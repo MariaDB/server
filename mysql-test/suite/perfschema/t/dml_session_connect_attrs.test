@@ -1,3 +1,5 @@
+# Tests for PERFORMANCE_SCHEMA
+
 --source include/not_embedded.inc
 --source include/have_perfschema.inc
 
@@ -36,3 +38,10 @@ UNLOCK TABLES;
 -- error ER_TABLEACCESS_DENIED_ERROR
 LOCK TABLES performance_schema.session_connect_attrs WRITE;
 UNLOCK TABLES;
+
+--echo #
+--echo # MDEV-25325 column_comment for performance_schema tables
+--echo #
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='session_connect_attrs';

@@ -49,14 +49,14 @@ table_os_global_by_type::m_share=
   sizeof(pos_os_global_by_type),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE objects_summary_global_by_type("
-                      "OBJECT_TYPE VARCHAR(64),"
-                      "OBJECT_SCHEMA VARCHAR(64),"
-                      "OBJECT_NAME VARCHAR(64),"
-                      "COUNT_STAR BIGINT unsigned not null,"
-                      "SUM_TIMER_WAIT BIGINT unsigned not null,"
-                      "MIN_TIMER_WAIT BIGINT unsigned not null,"
-                      "AVG_TIMER_WAIT BIGINT unsigned not null,"
-                      "MAX_TIMER_WAIT BIGINT unsigned not null)") },
+                      "OBJECT_TYPE VARCHAR(64) comment 'Groups records together with OBJECT_SCHEMA and OBJECT_NAME.',"
+                      "OBJECT_SCHEMA VARCHAR(64) comment 'Groups records together with OBJECT_TYPE and OBJECT_NAME.',"
+                      "OBJECT_NAME VARCHAR(64) comment 'Groups records together with OBJECT_SCHEMA and OBJECT_TYPE.',"
+                      "COUNT_STAR BIGINT unsigned not null comment 'Number of summarized events',"
+                      "SUM_TIMER_WAIT BIGINT unsigned not null comment 'Total wait time of the summarized events that are timed.',"
+                      "MIN_TIMER_WAIT BIGINT unsigned not null comment 'Minimum wait time of the summarized events that are timed.',"
+                      "AVG_TIMER_WAIT BIGINT unsigned not null comment 'Average wait time of the summarized events that are timed.',"
+                      "MAX_TIMER_WAIT BIGINT unsigned not null comment 'Maximum wait time of the summarized events that are timed.')") },
   false  /* perpetual */
 };
 

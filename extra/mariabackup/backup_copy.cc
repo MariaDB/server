@@ -195,6 +195,8 @@ datadir_iter_new(const char *path, bool skip_first_level = true)
 	datadir_iter_t *it;
 
 	it = static_cast<datadir_iter_t *>(malloc(sizeof(datadir_iter_t)));
+	if (!it)
+		goto error;
 	memset(it, 0, sizeof(datadir_iter_t));
 
 	pthread_mutex_init(&it->mutex, NULL);
