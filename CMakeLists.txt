@@ -556,3 +556,40 @@ IF(NON_DISTRIBUTABLE_WARNING)
   MESSAGE(WARNING "
 You have linked MariaDB with ${NON_DISTRIBUTABLE_WARNING} libraries!  You may not distribute the resulting binary. If you do, you will put yourself into a legal problem with the Free Software Foundation.")
 ENDIF()
+
+IF(NOT WITHOUT_SERVER)
+  # Define target for minimal mtr-testable build
+  ADD_CUSTOM_TARGET(minbuild)
+  ADD_DEPENDENCIES(minbuild
+   aria_chk
+   aria_pack
+   mysql
+   mysqladmin
+   mysqlbinlog
+   mysqlcheck
+   mysql_client_test
+   mysqldump
+   mysqlimport
+   mysql_plugin
+   mysqlshow
+   mysqlslap
+   mysqltest
+   mysql_tzinfo_to_sql
+   mysql_upgrade
+   mysqld
+   my_print_defaults
+   my_safe_process
+   myisam_ftdump
+   myisamchk
+   myisamlog
+   myisampack
+   perror
+   replace)
+  IF(WIN32)
+    ADD_DEPENDENCIES(minbuild echo my_safe_kill)
+  ENDIF()
+  ADD_CUSTOM_TARGET(smoketest
+    COMMAND perl ./mysql-test-run.pl main.1st
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}/mysql-test)
+  ADD_DEPENDENCIES(smoketest minbuild)
+ENDIF()
