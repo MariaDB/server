@@ -113,11 +113,11 @@ public:
   double range_selectivity(Field *field, key_range *min_endp,
                            key_range *max_endp) override;
 
-  void set_json_text(ulonglong sz, uchar *json_text_arg)
+  void set_json_text(ulonglong sz, const char *json_text_arg,
+                     size_t json_text_len)
   {
     size= (size_t) sz;
-    json_text.assign((const char*)json_text_arg,
-                     strlen((const char*)json_text_arg));
+    json_text.assign(json_text_arg, json_text_len);
   }
 
 private:

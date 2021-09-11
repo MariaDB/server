@@ -7397,3 +7397,51 @@ id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_f
 set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 DROP SCHEMA world;
+use test;
+create table t10 (
+a varchar(10)
+);
+#
+# Histograms are not collected for empty tables:
+#
+analyze table t10 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t10	analyze	status	Engine-independent statistics collected
+test.t10	analyze	status	Table is already up to date
+select histogram
+from mysql.column_stats where table_name='t10' and db_name=database();
+histogram
+NULL
+#
+# Try with n_buckets > n_rows
+#
+insert into t10 values ('Berlin'),('Paris'),('Rome');
+set histogram_size=10, histogram_type='json_hb';
+analyze table t10 persistent for all;
+Table	Op	Msg_type	Msg_text
+test.t10	analyze	status	Engine-independent statistics collected
+test.t10	analyze	status	OK
+select histogram
+from mysql.column_stats where table_name='t10' and db_name=database();
+histogram
+{
+  "histogram_hb_v2": [
+    {
+      "start": "Berlin",
+      "size": 0.333333333,
+      "ndv": 1
+    },
+    {
+      "start": "Paris",
+      "size": 0.333333333,
+      "ndv": 1
+    },
+    {
+      "start": "Rome",
+      "end": "Rome",
+      "size": 0.333333333,
+      "ndv": 1
+    }
+  ]
+}
+drop table t10;

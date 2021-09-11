@@ -149,3 +149,26 @@ set histogram_type=@save_histogram_type;
 set histogram_size=@save_histogram_size;
 
 DROP SCHEMA world;
+use test;
+
+create table t10 (
+  a varchar(10)
+);
+
+--echo #
+--echo # Histograms are not collected for empty tables:
+--echo #
+analyze table t10 persistent for all;
+select histogram
+from mysql.column_stats where table_name='t10' and db_name=database();
+
+--echo #
+--echo # Try with n_buckets > n_rows
+--echo #
+insert into t10 values ('Berlin'),('Paris'),('Rome');
+set histogram_size=10, histogram_type='json_hb';
+analyze table t10 persistent for all;
+select histogram
+from mysql.column_stats where table_name='t10' and db_name=database();
+
+drop table t10;
