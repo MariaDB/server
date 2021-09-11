@@ -425,6 +425,7 @@ IF(MSVC)
   # Temporarily disable "conversion from size_t .."
   IF(CMAKE_SIZEOF_VOID_P EQUAL 8)
     SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4267")
+    SET(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} /wd4267")
   ENDIF()
   SET(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /wd4996")
   string(REPLACE "/permissive-" "" CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
