@@ -578,10 +578,15 @@ fil_space_extend_must_retry(
 
 	const unsigned	page_size = space->physical_size();
 
-	/* Datafile::read_first_page() expects srv_page_size bytes.
-	fil_node_t::read_page0() expects at least 4 * srv_page_size bytes.*/
+	/* Datafile::read_first_page() expects innodb_page_size bytes.
+	fil_node_t::read_page0() expects at least 4 * innodb_page_size bytes.
+	os_file_set_size() expects multiples of 4096 bytes.
+	For ROW_FORMAT=COMPRESSED tables using 1024-byte or 2048-byte
+	pages, we will preallocate up to an integer multiple of 4096 bytes,
+	and let normal writes append 1024, 2048, or 3072 bytes to the file. */
 	os_offset_t new_size = std::max(
-		os_offset_t(size - file_start_page_no) * page_size,
+		(os_offset_t(size - file_start_page_no) * page_size)
+		& ~os_offset_t(4095),
 		os_offset_t(FIL_IBD_FILE_INITIAL_SIZE << srv_page_size_shift));
 
 	*success = os_file_set_size(node->name, node->handle, new_size,

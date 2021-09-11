@@ -2571,6 +2571,7 @@ corrupted:
 				goto func_exit;
 			}
 
+#ifdef UNIV_DEBUG
 			// The following assertion doesn't hold for FTS indexes
 			// as it may have prefix_len=1 with any charset
 			if (index->type != DICT_FTS) {
@@ -2581,6 +2582,7 @@ corrupted:
 					      % f.col->mbmaxlen == 0);
 				}
 			}
+#endif /* UNIV_DEBUG */
 		}
 next_rec:
 		btr_pcur_move_to_next_user_rec(&pcur, &mtr);
