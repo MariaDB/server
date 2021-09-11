@@ -18,3 +18,12 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.cond_instances WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'cond_instances'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='cond_instances';
+column_name	column_comment
+NAME	Client user name for the connection, or NULL if an internal thread.
+OBJECT_INSTANCE_BEGIN	Address in memory of the instrumented condition.

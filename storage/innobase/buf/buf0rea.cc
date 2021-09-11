@@ -53,6 +53,7 @@ that the block has been replaced with the real block.
 @param watch   sentinel */
 inline void buf_pool_t::watch_remove(buf_page_t *watch)
 {
+  mysql_mutex_assert_owner(&buf_pool.mutex);
   ut_ad(hash_lock_get(watch->id())->is_write_locked());
   ut_a(watch_is_sentinel(*watch));
   if (watch->buf_fix_count())
@@ -117,16 +118,10 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
 
   mysql_mutex_lock(&buf_pool.mutex);
 
-  /* We must acquire hash_lock this early to prevent
-  a race condition with buf_pool_t::watch_remove() */
-  page_hash_latch *hash_lock= buf_pool.page_hash.lock_get(fold);
-  hash_lock->write_lock();
-
   buf_page_t *hash_page= buf_pool.page_hash_get_low(page_id, fold);
   if (hash_page && !buf_pool.watch_is_sentinel(*hash_page))
   {
     /* The page is already in the buffer pool. */
-    hash_lock->write_unlock();
     if (block)
     {
       block->lock.x_unlock(true);
@@ -140,6 +135,9 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     bpage= &block->page;
 
     /* Insert into the hash table of file pages */
+    page_hash_latch *hash_lock= buf_pool.page_hash.lock_get(fold);
+    hash_lock->write_lock();
+
     if (hash_page)
     {
       /* Preserve the reference count. */
@@ -178,16 +176,12 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
   }
   else
   {
-    hash_lock->write_unlock();
-
     /* The compressed page must be allocated before the
     control block (bpage), in order to avoid the
     invocation of buf_buddy_relocate_block() on
     uninitialized data. */
     bool lru= false;
     void *data= buf_buddy_alloc(zip_size, &lru);
-
-    hash_lock->write_lock();
 
     /* If buf_buddy_alloc() allocated storage from the LRU list,
     it released and reacquired buf_pool.mutex.  Thus, we must
@@ -199,7 +193,6 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
       if (UNIV_UNLIKELY(hash_page && !buf_pool.watch_is_sentinel(*hash_page)))
       {
         /* The block was added by some other thread. */
-        hash_lock->write_unlock();
         buf_buddy_free(data, zip_size);
         goto func_exit;
       }
@@ -212,6 +205,9 @@ static buf_page_t* buf_page_init_for_read(ulint mode, const page_id_t page_id,
     bpage->zip.data = (page_zip_t*) data;
 
     bpage->init(BUF_BLOCK_ZIP_PAGE, page_id);
+
+    page_hash_latch *hash_lock= buf_pool.page_hash.lock_get(fold);
+    hash_lock->write_lock();
 
     if (hash_page)
     {

@@ -850,8 +850,8 @@ bool recv_sys_t::recover_deferred(recv_sys_t::map::iterator &p,
         !my_test_if_thinly_provisioned(node->handle);
 #endif
       if (!os_file_set_size(node->name, node->handle,
-                            size * fil_space_t::physical_size(flags),
-                            is_sparse))
+                            (size * fil_space_t::physical_size(flags)) &
+                            ~4095ULL, is_sparse))
       {
         space->release();
         goto fail;

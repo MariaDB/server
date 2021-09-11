@@ -1635,33 +1635,7 @@ public:
   /** Stop watching whether a page has been read in.
   watch_set(id) must have returned nullptr before.
   @param id   page identifier */
-  void watch_unset(const page_id_t id)
-  {
-    const ulint fold= id.fold();
-    page_hash_latch *hash_lock= page_hash.lock<true>(fold);
-    /* The page must exist because watch_set() increments buf_fix_count. */
-    buf_page_t *watch= page_hash_get_low(id, fold);
-    if (watch->unfix() == 0 && watch_is_sentinel(*watch))
-    {
-      /* The following is based on watch_remove(). */
-      ut_ad(watch->in_page_hash);
-      ut_d(watch->in_page_hash= false);
-      HASH_DELETE(buf_page_t, hash, &page_hash, fold, watch);
-      hash_lock->write_unlock();
-      // Now that the watch is detached from page_hash, release it to watch[].
-      mysql_mutex_lock(&mutex);
-      /* It is possible that watch_remove() already removed the watch. */
-      if (watch->id_ == id)
-      {
-        ut_ad(!watch->buf_fix_count());
-        ut_ad(watch->state() == BUF_BLOCK_ZIP_PAGE);
-        watch->set_state(BUF_BLOCK_NOT_USED);
-      }
-      mysql_mutex_unlock(&mutex);
-    }
-    else
-      hash_lock->write_unlock();
-  }
+  void watch_unset(const page_id_t id);
 
   /** Remove the sentinel block for the watch before replacing it with a
   real block. watch_unset() or watch_occurred() will notice

@@ -143,8 +143,8 @@ table_setup_consumers::m_share=
   sizeof(PFS_simple_index), /* ref length */
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_consumers("
-                      "NAME VARCHAR(64) not null,"
-                      "ENABLED ENUM ('YES', 'NO') not null)") },
+                      "NAME VARCHAR(64) not null comment 'Consumer name',"
+                      "ENABLED ENUM ('YES', 'NO') not null comment 'YES or NO for whether or not the consumer is enabled. You can modify this column to ensure that event information is added, or is not added.')") },
   false  /* perpetual */
 };
 

@@ -48,9 +48,9 @@ table_status_by_host::m_share=
   sizeof(pos_t),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE status_by_host("
-  "HOST CHAR(60) collate utf8_bin default null,"
-  "VARIABLE_NAME VARCHAR(64) not null,"
-  "VARIABLE_VALUE VARCHAR(1024))") },
+  "HOST CHAR(60) collate utf8_bin default null comment 'Host for which the status variable is reported.',"
+  "VARIABLE_NAME VARCHAR(64) not null comment 'Status variable name.',"
+  "VARIABLE_VALUE VARCHAR(1024) comment 'Aggregated status variable value.' )") },
   false  /* perpetual */
 };
 

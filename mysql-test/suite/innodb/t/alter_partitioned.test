@@ -24,6 +24,8 @@ SET lock_wait_timeout=0;
 SET innodb_lock_wait_timeout=0;
 --error ER_LOCK_WAIT_TIMEOUT
 ALTER TABLE t1 PARTITION BY HASH(pk);
+SET lock_wait_timeout=@save_timeout;
+SET innodb_lock_wait_timeout=@save_innodb_timeout;
 
 SHOW CREATE TABLE t1;
 --connection con1

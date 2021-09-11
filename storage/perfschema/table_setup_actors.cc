@@ -50,11 +50,11 @@ table_setup_actors::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_actors("
-                      "HOST CHAR(" HOSTNAME_LENGTH_STR ") collate utf8_bin default '%' not null,"
-                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default '%' not null,"
-                      "ROLE CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default '%' not null,"
-                      "ENABLED ENUM('YES', 'NO') not null default 'YES',"
-                      "HISTORY ENUM('YES', 'NO') not null default 'YES')") },
+                      "HOST CHAR(" HOSTNAME_LENGTH_STR ") collate utf8_bin default '%' not null comment 'Host name, either a literal, or the % wildcard representing any host.',"
+                      "USER CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default '%' not null comment 'User name, either a literal or the % wildcard representing any name.',"
+                      "ROLE CHAR(" USERNAME_CHAR_LENGTH_STR ") collate utf8_bin default '%' not null comment 'Unused',"
+                      "ENABLED ENUM('YES', 'NO') not null default 'YES' comment 'Whether to enable instrumentation for foreground threads matched by the row.',"
+                      "HISTORY ENUM('YES', 'NO') not null default 'YES' comment 'Whether to log historical events for foreground threads matched by the row.')") },
   false  /* perpetual */
 };
 

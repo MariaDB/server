@@ -6,6 +6,12 @@ build_script:
   # dump some system info
   - echo  processor='%PROCESSOR_IDENTIFIER%' , processor count= %NUMBER_OF_PROCESSORS%
   - cd %APPVEYOR_BUILD_FOLDER%
+  # Disable unneeded submodules for the faster build
+  - git config submodule.storage/columnstore/columnstore.update none
+  - git config submodule.storage/maria/libmarias3.update none
+  - git config submodule.storage/rocksdb/rocksdb.update none
+  - git config submodule.wsrep-lib.update none
+  # Build minimal configuration
   - mkdir _build
   - cd _build
   - set BUILD_TYPE=MinSizeRel

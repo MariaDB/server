@@ -80,6 +80,7 @@ Created 10/21/1995 Heikki Tuuri
 
 #include <thread>
 #include <chrono>
+#include <memory>
 
 /* Per-IO operation environment*/
 class io_slots
@@ -133,8 +134,8 @@ public:
 	}
 };
 
-static io_slots *read_slots;
-static io_slots *write_slots;
+static std::unique_ptr<io_slots> read_slots;
+static std::unique_ptr<io_slots> write_slots;
 
 /** Number of retries for partial I/O's */
 constexpr ulint NUM_RETRIES_ON_PARTIAL_IO = 10;
@@ -156,8 +157,8 @@ static ulint	os_innodb_umask	= 0;
 
 Atomic_counter<ulint> os_n_file_reads;
 static ulint	os_bytes_read_since_printout;
-ulint	os_n_file_writes;
-ulint	os_n_fsyncs;
+Atomic_counter<size_t> os_n_file_writes;
+Atomic_counter<size_t> os_n_fsyncs;
 static ulint	os_n_file_reads_old;
 static ulint	os_n_file_writes_old;
 static ulint	os_n_fsyncs_old;
@@ -3277,6 +3278,8 @@ os_file_set_size(
 	os_offset_t	size,
 	bool	is_sparse)
 {
+	ut_ad(!(size & 4095));
+
 #ifdef _WIN32
 	/* On Windows, changing file size works well and as expected for both
 	sparse and normal files.
@@ -3318,7 +3321,7 @@ fallback:
 			if (current_size >= size) {
 				return true;
 			}
-			current_size &= ~os_offset_t(statbuf.st_blksize - 1);
+			current_size &= ~4095ULL;
 			err = posix_fallocate(file, current_size,
 					      size - current_size);
 		}
@@ -3358,8 +3361,7 @@ fallback:
 	if (fstat(file, &statbuf)) {
 		return false;
 	}
-	os_offset_t current_size = statbuf.st_size
-		& ~os_offset_t(statbuf.st_blksize - 1);
+	os_offset_t current_size = statbuf.st_size & ~4095ULL;
 #endif
 	if (current_size >= size) {
 		return true;
@@ -3744,6 +3746,10 @@ int os_aio_init()
   int max_read_events= int(srv_n_read_io_threads *
                            OS_AIO_N_PENDING_IOS_PER_THREAD);
   int max_events= max_read_events + max_write_events;
+
+  read_slots.reset(new io_slots(max_read_events, srv_n_read_io_threads));
+  write_slots.reset(new io_slots(max_write_events, srv_n_write_io_threads));
+
   int ret;
 #if LINUX_NATIVE_AIO
   if (srv_use_native_aio && !is_linux_native_aio_supported())
@@ -3774,11 +3780,12 @@ disable:
   }
 #endif
 
-  if (!ret)
+  if (ret)
   {
-    read_slots= new io_slots(max_read_events, srv_n_read_io_threads);
-    write_slots= new io_slots(max_write_events, srv_n_write_io_threads);
+    read_slots.reset();
+    write_slots.reset();
   }
+
   return ret;
 }
 
@@ -3786,10 +3793,8 @@ disable:
 void os_aio_free()
 {
   srv_thread_pool->disable_aio();
-  delete read_slots;
-  delete write_slots;
-  read_slots= nullptr;
-  write_slots= nullptr;
+  read_slots.reset();
+  write_slots.reset();
 }
 
 /** Wait until there are no pending asynchronous writes. */
@@ -3879,7 +3884,7 @@ func_exit:
 	}
 
 	compile_time_assert(sizeof(IORequest) <= tpool::MAX_AIO_USERDATA_LEN);
-	io_slots* slots= type.is_read() ? read_slots : write_slots;
+	io_slots* slots= type.is_read() ? read_slots.get() : write_slots.get();
 	tpool::aiocb* cb = slots->acquire();
 
 	cb->m_buffer = buf;
@@ -3920,14 +3925,12 @@ os_aio_print(FILE*	file)
 	fprintf(file,
 		"Pending flushes (fsync) log: " ULINTPF
 		"; buffer pool: " ULINTPF "\n"
-		ULINTPF " OS file reads, "
-		ULINTPF " OS file writes, "
-		ULINTPF " OS fsyncs\n",
+		ULINTPF " OS file reads, %zu OS file writes, %zu OS fsyncs\n",
 		log_sys.get_pending_flushes(),
 		ulint{fil_n_pending_tablespace_flushes},
 		ulint{os_n_file_reads},
-		os_n_file_writes,
-		os_n_fsyncs);
+		static_cast<size_t>(os_n_file_writes),
+		static_cast<size_t>(os_n_fsyncs));
 
 	const ulint n_reads = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_READS));
 	const ulint n_writes = ulint(MONITOR_VALUE(MONITOR_OS_PENDING_WRITES));

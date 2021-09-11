@@ -49,9 +49,9 @@ table_status_by_user::m_share=
   sizeof(pos_t),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE status_by_user("
-  "USER CHAR(32) collate utf8_bin default null,"
-  "VARIABLE_NAME VARCHAR(64) not null,"
-  "VARIABLE_VALUE VARCHAR(1024))") },
+  "USER CHAR(32) collate utf8_bin default null comment 'User for which the status variable is reported.',"
+  "VARIABLE_NAME VARCHAR(64) not null comment 'Status variable name.',"
+  "VARIABLE_VALUE VARCHAR(1024) comment 'Aggregated status variable value.' )") },
   false  /* perpetual */
 };
 

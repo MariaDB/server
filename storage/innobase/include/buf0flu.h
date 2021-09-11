@@ -40,7 +40,7 @@ extern ulint buf_lru_flush_page_count;
 extern ulint buf_lru_freed_page_count;
 
 /** Flag indicating if the page_cleaner is in active state. */
-extern bool buf_page_cleaner_is_active;
+extern Atomic_relaxed<bool> buf_page_cleaner_is_active;
 
 #ifdef UNIV_DEBUG
 

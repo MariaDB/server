@@ -47,8 +47,8 @@ table_global_status::m_share=
   sizeof(pos_t),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE global_status("
-  "VARIABLE_NAME VARCHAR(64) not null,"
-  "VARIABLE_VALUE VARCHAR(1024))") },
+  "VARIABLE_NAME VARCHAR(64) not null comment 'The global status variable name.',"
+  "VARIABLE_VALUE VARCHAR(1024) comment 'The global status variable value.')") },
   true   /* perpetual */
 };
 

@@ -43,3 +43,18 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.objects_summary_global_by_type WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'objects_summary_global_by_type'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='objects_summary_global_by_type';
+column_name	column_comment
+OBJECT_TYPE	Groups records together with OBJECT_SCHEMA and OBJECT_NAME.
+OBJECT_SCHEMA	Groups records together with OBJECT_TYPE and OBJECT_NAME.
+OBJECT_NAME	Groups records together with OBJECT_SCHEMA and OBJECT_TYPE.
+COUNT_STAR	Number of summarized events
+SUM_TIMER_WAIT	Total wait time of the summarized events that are timed.
+MIN_TIMER_WAIT	Minimum wait time of the summarized events that are timed.
+AVG_TIMER_WAIT	Average wait time of the summarized events that are timed.
+MAX_TIMER_WAIT	Maximum wait time of the summarized events that are timed.

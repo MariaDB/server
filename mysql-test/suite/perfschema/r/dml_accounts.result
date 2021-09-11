@@ -23,3 +23,14 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.accounts WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'accounts'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='accounts';
+column_name	column_comment
+USER	The connection's client user name for the connection, or NULL if an internal thread.
+HOST	The connection client's host name, or NULL if an internal thread.
+CURRENT_CONNECTIONS	Current connections for the account.
+TOTAL_CONNECTIONS	Total connections for the account.

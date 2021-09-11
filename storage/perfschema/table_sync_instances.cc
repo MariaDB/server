@@ -50,9 +50,9 @@ table_mutex_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE mutex_instances("
-                      "NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "LOCKED_BY_THREAD_ID BIGINT unsigned)") },
+                      "NAME VARCHAR(128) not null comment 'Instrument name associated with the mutex.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Memory address of the instrumented mutex.',"
+                      "LOCKED_BY_THREAD_ID BIGINT unsigned comment 'The THREAD_ID of the locking thread if a thread has a mutex locked, otherwise NULL.')") },
   false  /* perpetual */
 };
 
@@ -198,10 +198,10 @@ table_rwlock_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE rwlock_instances("
-                      "NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null,"
-                      "WRITE_LOCKED_BY_THREAD_ID BIGINT unsigned,"
-                      "READ_LOCKED_BY_COUNT INTEGER unsigned not null)") },
+                      "NAME VARCHAR(128) not null comment 'Instrument name associated with the read write lock',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented lock',"
+                      "WRITE_LOCKED_BY_THREAD_ID BIGINT unsigned comment 'THREAD_ID of the locking thread if locked in write (exclusive) mode, otherwise NULL.',"
+                      "READ_LOCKED_BY_COUNT INTEGER unsigned not null comment 'Count of current read locks held')") },
   false  /* perpetual */
 };
 
@@ -354,8 +354,8 @@ table_cond_instances::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE cond_instances("
-                      "NAME VARCHAR(128) not null,"
-                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null)") },
+                      "NAME VARCHAR(128) not null comment 'Client user name for the connection, or NULL if an internal thread.',"
+                      "OBJECT_INSTANCE_BEGIN BIGINT unsigned not null comment 'Address in memory of the instrumented condition.')") },
   false  /* perpetual */
 };
 

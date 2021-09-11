@@ -18,3 +18,17 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.socket_instances WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'socket_instances'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='socket_instances';
+column_name	column_comment
+EVENT_NAME	NAME from the setup_instruments table, and the name of the wait/io/socket/* instrument that produced the event.
+OBJECT_INSTANCE_BEGIN	Memory address of the object.
+THREAD_ID	Thread identifier that the server assigns to each socket.
+SOCKET_ID	The socket's internal file handle.
+IP	Client IP address. Blank for Unix socket file, otherwise an IPv4 or IPv6 address. Together with the PORT identifies the connection.
+PORT	TCP/IP port number, from 0 to 65535. Together with the IP identifies the connection.
+STATE	Socket status, either IDLE if waiting to receive a request from a client, or ACTIVE
