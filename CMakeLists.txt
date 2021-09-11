@@ -572,20 +572,21 @@ IF(NOT WITHOUT_SERVER)
   ADD_DEPENDENCIES(minbuild
    aria_chk
    aria_pack
-   mysql
-   mysqladmin
-   mysqlbinlog
-   mysqlcheck
-   mysql_client_test
-   mysqldump
-   mysqlimport
-   mysql_plugin
-   mysqlshow
-   mysqlslap
-   mysqltest
-   mysql_tzinfo_to_sql
-   mysql_upgrade
-   mysqld
+   mariadb
+   mariadb-admin
+   mariadb-binlog
+   mariadb-check
+   mariadb-client-test
+   mariadb-conv
+   mariadb-dump
+   mariadb-import
+   mariadb-plugin
+   mariadb-show
+   mariadb-slap
+   mariadb-test
+   mariadb-tzinfo-to-sql
+   mariadb-upgrade
+   mariadbd
    my_print_defaults
    my_safe_process
    myisam_ftdump
@@ -595,7 +596,7 @@ IF(NOT WITHOUT_SERVER)
    perror
    replace)
   IF(WIN32)
-    ADD_DEPENDENCIES(minbuild echo my_safe_kill)
+    ADD_DEPENDENCIES(minbuild echo mariadb-install-db my_safe_kill)
   ENDIF()
   ADD_CUSTOM_TARGET(smoketest
     COMMAND perl ./mysql-test-run.pl main.1st
