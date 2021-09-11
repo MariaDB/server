@@ -1,0 +1,63 @@
+#
+# MDEV-25718 Assertion `transaction.is_streaming()' failed in
+#            void wsrep::transaction::adopt()
+#
+
+--source include/galera_cluster.inc
+--source include/have_debug_sync.inc
+
+CREATE TABLE t1 (f1 INTEGER PRIMARY KEY);
+
+#
+# Start a SR transaction and block it after it has replicated
+# a fragment. Notice the transaction is still in executing state.
+#
+--connection node_1
+SET SESSION wsrep_trx_fragment_size = 1;
+START TRANSACTION;
+SET debug_sync = "ha_write_row_end SIGNAL write_row_end WAIT_FOR write_row_continue";
+--send INSERT INTO t1 VALUES (1);
+
+--connect node_ctrl, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_ctrl
+SET debug_sync = "now WAIT_FOR write_row_end";
+SET GLOBAL debug_dbug = '+d,wsrep_streaming_rollback';
+
+#
+# Issue a conflicting DDL, that will block in streaming_rollback
+# sync point.
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+--connection node_1a
+--send TRUNCATE TABLE t1;
+
+--connection node_ctrl
+SET SESSION debug_sync = "now WAIT_FOR wsrep_streaming_rollback_reached";
+
+#
+# Let the INSERT continue. If bug is present will be able to go through
+# before_rollback() / streaming_rollback() and clear its streaming context,
+# which causes the assertion to trigger in BF aborter.
+#
+SET SESSION wsrep_sync_wait = 0;
+SET debug_sync = "now SIGNAL write_row_continue";
+
+# Let's give the INSERT some time, to make sure it does rollback
+--let $wait_condition = SELECT COUNT(*) = 1 FROM INFORMATION_SCHEMA.PROCESSLIST WHERE INFO = "INSERT INTO t1 VALUES (1)" AND STATE = "Freeing items";
+--source include/wait_condition.inc
+
+# Resume the DDL in streaming_rollback
+SET SESSION debug_sync = "now SIGNAL wsrep_streaming_rollback_continue";
+
+--connection node_1a
+--reap
+
+--connection node_1
+--error ER_LOCK_DEADLOCK
+--reap
+
+# Cleanup
+--connection node_ctrl
+SET GLOBAL debug_dbug = "";
+SET DEBUG_SYNC = 'RESET';
+DROP TABLE t1;

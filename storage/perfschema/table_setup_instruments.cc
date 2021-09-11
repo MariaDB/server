@@ -51,9 +51,9 @@ table_setup_instruments::m_share=
   sizeof(pos_setup_instruments),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE setup_instruments("
-                      "NAME VARCHAR(128) not null,"
-                      "ENABLED ENUM ('YES', 'NO') not null,"
-                      "TIMED ENUM ('YES', 'NO') not null)") },
+                      "NAME VARCHAR(128) not null comment 'Instrument name',"
+                      "ENABLED ENUM ('YES', 'NO') not null comment 'Whether or not the instrument is enabled. It can be disabled, and the instrument will produce no events.',"
+                      "TIMED ENUM ('YES', 'NO') not null comment 'Whether or not the instrument is timed. It can be set, but if disabled, events produced by the instrument will have NULL values for the corresponding TIMER_START, TIMER_END, and TIMER_WAIT values.')") },
   false  /* perpetual */
 };
 

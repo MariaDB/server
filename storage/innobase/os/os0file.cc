@@ -3278,6 +3278,8 @@ os_file_set_size(
 	os_offset_t	size,
 	bool	is_sparse)
 {
+	ut_ad(!(size & 4095));
+
 #ifdef _WIN32
 	/* On Windows, changing file size works well and as expected for both
 	sparse and normal files.
@@ -3319,7 +3321,7 @@ fallback:
 			if (current_size >= size) {
 				return true;
 			}
-			current_size &= ~os_offset_t(statbuf.st_blksize - 1);
+			current_size &= ~4095ULL;
 			err = posix_fallocate(file, current_size,
 					      size - current_size);
 		}
@@ -3359,8 +3361,7 @@ fallback:
 	if (fstat(file, &statbuf)) {
 		return false;
 	}
-	os_offset_t current_size = statbuf.st_size
-		& ~os_offset_t(statbuf.st_blksize - 1);
+	os_offset_t current_size = statbuf.st_size & ~4095ULL;
 #endif
 	if (current_size >= size) {
 		return true;

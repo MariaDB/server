@@ -201,28 +201,23 @@ SET sr.acct = sr.a1 + sr.a2 + sr.a3;
 # Review per-thread status counts
 #
 USE performance_schema;
-SELECT * FROM status_by_thread WHERE thread_id IN (@con1_id, @con2_id, @con3_id) AND variable_name IN ('handler_delete', 'handler_rollback') ORDER BY thread_id;
-THREAD_ID	VARIABLE_NAME	VARIABLE_VALUE
-thread_id	Handler_delete	1
-thread_id	Handler_rollback	1
-thread_id	Handler_delete	2
-thread_id	Handler_rollback	2
-thread_id	Handler_delete	3
-thread_id	Handler_rollback	3
 #
 # Verify expected counts for 'handler_delete' per thread
 # 
-SELECT *, IF (variable_value = 1,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con1_id AND variable_name IN ('handler_delete');
+SELECT *, IF (variable_value = 1,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con1_id AND variable_name IN ('handler_delete', 'handler_rollback');
 THREAD_ID	VARIABLE_NAME	VARIABLE_VALUE	Expected
-connect_1	Handler_delete	1	OK
+con_1	Handler_delete	1	OK
+con_1	Handler_rollback	1	OK
 #
-SELECT *, IF (variable_value = 2,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con2_id AND variable_name IN ('handler_delete');
+SELECT *, IF (variable_value = 2,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con2_id AND variable_name IN ('handler_delete', 'handler_rollback');
 THREAD_ID	VARIABLE_NAME	VARIABLE_VALUE	Expected
-connnect_2	Handler_delete	2	OK
+con_2	Handler_delete	2	OK
+con_2	Handler_rollback	2	OK
 #
-SELECT *, IF (variable_value = 3,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con3_id AND variable_name IN ('handler_delete');
+SELECT *, IF (variable_value = 3,'OK','ERROR') AS Expected FROM status_by_thread WHERE thread_id = @con3_id AND variable_name IN ('handler_delete', 'handler_rollback');
 THREAD_ID	VARIABLE_NAME	VARIABLE_VALUE	Expected
-connnect_3	Handler_delete	3	OK
+con_3	Handler_delete	3	OK
+con_3	Handler_rollback	3	OK
 #
 # STATUS_BY_THREAD vs. GLOBAL_STATUS
 #

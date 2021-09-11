@@ -51,18 +51,18 @@ table_mems_by_user_by_event_name::m_share=
   sizeof(PFS_simple_index),
   &m_table_lock,
   { C_STRING_WITH_LEN("CREATE TABLE memory_summary_by_user_by_event_name("
-  "USER CHAR(32) collate utf8_bin default null,"
-  "EVENT_NAME VARCHAR(128) not null,"
-  "COUNT_ALLOC BIGINT unsigned not null,"
-  "COUNT_FREE BIGINT unsigned not null,"
-  "SUM_NUMBER_OF_BYTES_ALLOC BIGINT unsigned not null,"
-  "SUM_NUMBER_OF_BYTES_FREE BIGINT unsigned not null,"
-  "LOW_COUNT_USED BIGINT not null,"
-  "CURRENT_COUNT_USED BIGINT not null,"
-  "HIGH_COUNT_USED BIGINT not null,"
-  "LOW_NUMBER_OF_BYTES_USED BIGINT not null,"
-  "CURRENT_NUMBER_OF_BYTES_USED BIGINT not null,"
-  "HIGH_NUMBER_OF_BYTES_USED BIGINT not null)")},
+  "USER CHAR(32) collate utf8_bin default null comment 'User portion of the account.',"
+  "EVENT_NAME VARCHAR(128) not null comment 'Event name.',"
+  "COUNT_ALLOC BIGINT unsigned not null comment 'Total number of allocations to memory.',"
+  "COUNT_FREE BIGINT unsigned not null comment 'Total number of attempts to free the allocated memory.',"
+  "SUM_NUMBER_OF_BYTES_ALLOC BIGINT unsigned not null comment 'Total number of bytes allocated.',"
+  "SUM_NUMBER_OF_BYTES_FREE BIGINT unsigned not null comment 'Total number of bytes freed',"
+  "LOW_COUNT_USED BIGINT not null comment 'Lowest number of allocated blocks (lowest value of CURRENT_COUNT_USED).',"
+  "CURRENT_COUNT_USED BIGINT not null comment 'Currently allocated blocks that have not been freed (COUNT_ALLOC minus COUNT_FREE).',"
+  "HIGH_COUNT_USED BIGINT not null comment 'Highest number of allocated blocks (highest value of CURRENT_COUNT_USED).',"
+  "LOW_NUMBER_OF_BYTES_USED BIGINT not null comment 'Lowest number of bytes used.',"
+  "CURRENT_NUMBER_OF_BYTES_USED BIGINT not null comment 'Current number of bytes used (total allocated minus total freed).',"
+  "HIGH_NUMBER_OF_BYTES_USED BIGINT not null comment 'Highest number of bytes used.')")},
   false  /* perpetual */
 };
 
