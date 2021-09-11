@@ -59,6 +59,8 @@ public:
     : Histogram_builder(col, col_len, rows), histogram(hist)
   {
     bucket_capacity= records / histogram->get_width();
+    if (bucket_capacity == 0)
+      bucket_capacity= 1;
     hist_width= histogram->get_width();
     n_buckets_collected= 0;
     bucket.ndv= 0;
@@ -227,7 +229,8 @@ public:
     writer.end_object();
     Binary_string *json_string= (Binary_string *) writer.output.get_string();
     histogram->set_json_text(n_buckets_collected,
-                             (uchar *) json_string->c_ptr());
+                             json_string->c_ptr(),
+                             (size_t)json_string->length());
   }
 };
 
