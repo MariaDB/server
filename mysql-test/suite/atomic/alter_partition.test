@@ -37,9 +37,9 @@ if ($MTR_COMBINATION_ROW)
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
 let $crash_count= 12;
-let $crash_points='ddl_log_create_before_create_frm',
-                  'ddl_log_alter_partition_after_create_frm',
-                  'ddl_log_alter_partition_after_write_frm',
+let $crash_points='crash_create_before_create_frm',
+                  'crash_alter_partition_after_create_frm',
+                  'crash_alter_partition_after_write_frm',
                   'crash_convert_partition_1',
                   'crash_convert_partition_2',
                   'crash_convert_partition_3',
@@ -104,7 +104,7 @@ while ($r < $statement_count)
     RESET MASTER;
     --exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.1.expect
     --disable_reconnect
-    --eval set @@debug_dbug="+d,$crash",@debug_crash_counter=1
+    --eval set @@debug_dbug="+d,$crash"
     let $errno=0;
     --error 0,2013
     --eval $statement;
