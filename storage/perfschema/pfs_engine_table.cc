@@ -226,7 +226,7 @@ bool PFS_table_context::is_item_set(ulong n)
 {
   ulong word= n / m_word_size;
   ulong bit= n % m_word_size;
-  return (m_map[word] & (1 << bit));
+  return (m_map[word] & (1UL << bit));
 }
 
 
