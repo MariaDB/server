@@ -11,7 +11,7 @@ insert into t1 values (2), (12), (22);
 flush tables;
 end $
 # QUERY: ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
-# CRASH: ddl_log_create_before_create_frm
+# CRASH: crash_create_before_create_frm
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -32,7 +32,7 @@ x
 2
 12
 22
-# CRASH: ddl_log_alter_partition_after_create_frm
+# CRASH: crash_alter_partition_after_create_frm
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD
@@ -53,7 +53,7 @@ x
 2
 12
 22
-# CRASH: ddl_log_alter_partition_after_write_frm
+# CRASH: crash_alter_partition_after_write_frm
 t1#P#p0.MYD
 t1#P#p0.MYI
 t1#P#p1.MYD

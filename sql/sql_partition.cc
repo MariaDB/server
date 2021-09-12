@@ -7382,38 +7382,29 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       to test if recovery is properly done.
     */
     if (write_log_drop_shadow_frm(lpt) ||
-        ERROR_INJECT_CRASH("crash_drop_partition_1") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_1") ||
+        ERROR_INJECT("drop_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
-        ERROR_INJECT_CRASH("crash_drop_partition_2") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_2") ||
+        ERROR_INJECT("drop_partition_2") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
-        ERROR_INJECT_CRASH("crash_drop_partition_3") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_3") ||
+        ERROR_INJECT("drop_partition_3") ||
         write_log_drop_partition(lpt) ||
         (action_completed= TRUE, FALSE) ||
-        ERROR_INJECT_CRASH("crash_drop_partition_4") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_4") ||
+        ERROR_INJECT("drop_partition_4") ||
         alter_close_table(lpt) ||
-        ERROR_INJECT_CRASH("crash_drop_partition_5") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_5") ||
-        ERROR_INJECT_CRASH("crash_drop_partition_6") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_6") ||
+        ERROR_INJECT("drop_partition_5") ||
+        ERROR_INJECT("drop_partition_6") ||
         (frm_install= TRUE, FALSE) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
         log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= FALSE, FALSE) ||
-        ERROR_INJECT_CRASH("crash_drop_partition_7") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_7") ||
+        ERROR_INJECT("drop_partition_7") ||
         mysql_drop_partitions(lpt) ||
-        ERROR_INJECT_CRASH("crash_drop_partition_8") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_8") ||
+        ERROR_INJECT("drop_partition_8") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ((!thd->lex->no_write_to_binlog) &&
          (write_bin_log(thd, FALSE,
                         thd->query(), thd->query_length()), FALSE)) ||
-        ERROR_INJECT_CRASH("crash_drop_partition_9") ||
-        ERROR_INJECT_ERROR("fail_drop_partition_9"))
+        ERROR_INJECT("drop_partition_9"))
     {
       handle_alter_part_error(lpt, action_completed, TRUE, frm_install);
       goto err;
@@ -7424,32 +7415,24 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   else if (alter_info->partition_flags & ALTER_PARTITION_CONVERT_OUT)
   {
     if (mysql_write_frm(lpt, WFRM_WRITE_CONVERTED_TO) ||
-        ERROR_INJECT_CRASH("crash_convert_partition_1") ||
-        ERROR_INJECT_ERROR("fail_convert_partition_1") ||
+        ERROR_INJECT("convert_partition_1") ||
         write_log_drop_shadow_frm(lpt) ||
-        ERROR_INJECT_CRASH("crash_convert_partition_2") ||
-        ERROR_INJECT_ERROR("fail_convert_partition_2") ||
+        ERROR_INJECT("convert_partition_2") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
-        ERROR_INJECT_CRASH("crash_convert_partition_3") ||
-        ERROR_INJECT_ERROR("fail_convert_partition_3") ||
+        ERROR_INJECT("convert_partition_3") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
-        ERROR_INJECT_CRASH("crash_convert_partition_4") ||
-        ERROR_INJECT_ERROR("fail_convert_partition_4") ||
+        ERROR_INJECT("convert_partition_4") ||
         write_log_convert_out_partition(lpt) ||
-        ERROR_INJECT_CRASH("crash_convert_partition_5") ||
-        ERROR_INJECT_ERROR("fail_convert_partition_5") ||
+        ERROR_INJECT("convert_partition_5") ||
         alter_close_table(lpt) ||
-        ERROR_INJECT_CRASH("crash_convert_partition_6") ||
-        ERROR_INJECT_ERROR("fail_convert_partition_6") ||
+        ERROR_INJECT("convert_partition_6") ||
         alter_partition_convert_out(lpt) ||
-        ERROR_INJECT_CRASH("crash_convert_partition_7") ||
-        ERROR_INJECT_ERROR("fail_convert_partition_7") ||
+        ERROR_INJECT("convert_partition_7") ||
         (frm_install= true, false) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW|WFRM_BACKUP_ORIGINAL) ||
         log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= false, false) ||
-        ERROR_INJECT_CRASH("crash_convert_partition_8") ||
-        ERROR_INJECT_ERROR("fail_convert_partition_8") ||
+        ERROR_INJECT("convert_partition_8") ||
         ((!thd->lex->no_write_to_binlog) &&
           ((thd->binlog_xid= thd->query_id),
            ddl_log_update_xid(lpt->part_info, thd->binlog_xid),
@@ -7470,8 +7453,7 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
 
         */
         write_log_drop_shadow_frm(lpt, WFRM_DROP_BACKUP) ||
-        ERROR_INJECT_CRASH("crash_convert_partition_9") ||
-        ERROR_INJECT_ERROR("fail_convert_partition_9"))
+        ERROR_INJECT("convert_partition_9"))
     {
       (void) ddl_log_revert(thd, lpt->part_info);
       handle_alter_part_error(lpt, true, true, frm_install);
@@ -7517,41 +7499,31 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       12)Complete query
     */
     if (write_log_drop_shadow_frm(lpt) ||
-        ERROR_INJECT_CRASH("crash_add_partition_1") ||
-        ERROR_INJECT_ERROR("fail_add_partition_1") ||
+        ERROR_INJECT("add_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
-        ERROR_INJECT_CRASH("crash_add_partition_2") ||
-        ERROR_INJECT_ERROR("fail_add_partition_2") ||
+        ERROR_INJECT("add_partition_2") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
-        ERROR_INJECT_CRASH("crash_add_partition_3") ||
-        ERROR_INJECT_ERROR("fail_add_partition_3") ||
+        ERROR_INJECT("add_partition_3") ||
         write_log_add_change_partition(lpt) ||
-        ERROR_INJECT_CRASH("crash_add_partition_4") ||
-        ERROR_INJECT_ERROR("fail_add_partition_4") ||
+        ERROR_INJECT("add_partition_4") ||
         mysql_change_partitions(lpt) ||
-        ERROR_INJECT_CRASH("crash_add_partition_5") ||
-        ERROR_INJECT_ERROR("fail_add_partition_5") ||
+        ERROR_INJECT("add_partition_5") ||
         alter_close_table(lpt) ||
-        ERROR_INJECT_CRASH("crash_add_partition_6") ||
-        ERROR_INJECT_ERROR("fail_add_partition_6") ||
-        ERROR_INJECT_CRASH("crash_add_partition_7") ||
-        ERROR_INJECT_ERROR("fail_add_partition_7") ||
+        ERROR_INJECT("add_partition_6") ||
+        ERROR_INJECT("add_partition_7") ||
         write_log_rename_frm(lpt) ||
         (action_completed= TRUE, FALSE) ||
-        ERROR_INJECT_CRASH("crash_add_partition_8") ||
-        ERROR_INJECT_ERROR("fail_add_partition_8") ||
+        ERROR_INJECT("add_partition_8") ||
         (frm_install= TRUE, FALSE) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
         log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= FALSE, FALSE) ||
-        ERROR_INJECT_CRASH("crash_add_partition_9") ||
-        ERROR_INJECT_ERROR("fail_add_partition_9") ||
+        ERROR_INJECT("add_partition_9") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ((!thd->lex->no_write_to_binlog) &&
          (write_bin_log(thd, FALSE,
                         thd->query(), thd->query_length()), FALSE)) ||
-        ERROR_INJECT_CRASH("crash_add_partition_10") ||
-        ERROR_INJECT_ERROR("fail_add_partition_10"))
+        ERROR_INJECT("add_partition_10"))
     {
       handle_alter_part_error(lpt, action_completed, FALSE, frm_install);
       goto err;
@@ -7616,47 +7588,35 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
       13) Complete query.
     */
     if (write_log_drop_shadow_frm(lpt) ||
-        ERROR_INJECT_CRASH("crash_change_partition_1") ||
-        ERROR_INJECT_ERROR("fail_change_partition_1") ||
+        ERROR_INJECT("change_partition_1") ||
         mysql_write_frm(lpt, WFRM_WRITE_SHADOW) ||
-        ERROR_INJECT_CRASH("crash_change_partition_2") ||
-        ERROR_INJECT_ERROR("fail_change_partition_2") ||
+        ERROR_INJECT("change_partition_2") ||
         write_log_add_change_partition(lpt) ||
-        ERROR_INJECT_CRASH("crash_change_partition_3") ||
-        ERROR_INJECT_ERROR("fail_change_partition_3") ||
+        ERROR_INJECT("change_partition_3") ||
         mysql_change_partitions(lpt) ||
-        ERROR_INJECT_CRASH("crash_change_partition_4") ||
-        ERROR_INJECT_ERROR("fail_change_partition_4") ||
+        ERROR_INJECT("change_partition_4") ||
         wait_while_table_is_used(thd, table, HA_EXTRA_NOT_USED) ||
-        ERROR_INJECT_CRASH("crash_change_partition_5") ||
-        ERROR_INJECT_ERROR("fail_change_partition_5") ||
+        ERROR_INJECT("change_partition_5") ||
         alter_close_table(lpt) ||
-        ERROR_INJECT_CRASH("crash_change_partition_6") ||
-        ERROR_INJECT_ERROR("fail_change_partition_6") ||
+        ERROR_INJECT("change_partition_6") ||
         write_log_final_change_partition(lpt) ||
         (action_completed= TRUE, FALSE) ||
-        ERROR_INJECT_CRASH("crash_change_partition_7") ||
-        ERROR_INJECT_ERROR("fail_change_partition_7") ||
-        ERROR_INJECT_CRASH("crash_change_partition_8") ||
-        ERROR_INJECT_ERROR("fail_change_partition_8") ||
+        ERROR_INJECT("change_partition_7") ||
+        ERROR_INJECT("change_partition_8") ||
         ((frm_install= TRUE), FALSE) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW) ||
         log_partition_alter_to_ddl_log(lpt) ||
         (frm_install= FALSE, FALSE) ||
-        ERROR_INJECT_CRASH("crash_change_partition_9") ||
-        ERROR_INJECT_ERROR("fail_change_partition_9") ||
+        ERROR_INJECT("change_partition_9") ||
         mysql_drop_partitions(lpt) ||
-        ERROR_INJECT_CRASH("crash_change_partition_10") ||
-        ERROR_INJECT_ERROR("fail_change_partition_10") ||
+        ERROR_INJECT("change_partition_10") ||
         mysql_rename_partitions(lpt) ||
-        ERROR_INJECT_CRASH("crash_change_partition_11") ||
-        ERROR_INJECT_ERROR("fail_change_partition_11") ||
+        ERROR_INJECT("change_partition_11") ||
         (write_log_completed(lpt, FALSE), FALSE) ||
         ((!thd->lex->no_write_to_binlog) &&
          (write_bin_log(thd, FALSE,
                         thd->query(), thd->query_length()), FALSE)) ||
-        ERROR_INJECT_CRASH("crash_change_partition_12") ||
-        ERROR_INJECT_ERROR("fail_change_partition_12"))
+        ERROR_INJECT("change_partition_12"))
     {
       handle_alter_part_error(lpt, action_completed, FALSE, frm_install);
       goto err;
