@@ -322,6 +322,14 @@ typedef struct st_mysql_res {
 } MYSQL_RES;
 
 
+/*
+  We should not define MYSQL_CLIENT when the mysql.h is included
+  by the server or server plugins.
+  Now it is important only for the SQL service to work so we rely on
+  the MYSQL_SERVICE_SQL to check we're compiling the server/plugin
+  related file.
+*/
+
 #if !defined(MYSQL_SERVICE_SQL) && !defined(MYSQL_CLIENT)
 #define MYSQL_CLIENT
 #endif

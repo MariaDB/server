@@ -212,8 +212,9 @@ static int run_sql_global(MYSQL_THD thd, struct st_mysql_sys_var *var, void *sav
 
 static int init_done= 0;
 
-static int test_sql_service_plugin_init(void *p __attribute__((unused)))
+static int test_sql_service_plugin_init(void *p)
 {
+  (void) p;
   global_mysql= mysql_init(NULL);
 
   if (!global_mysql ||
@@ -228,8 +229,9 @@ static int test_sql_service_plugin_init(void *p __attribute__((unused)))
 }
 
 
-static int test_sql_service_plugin_deinit(void *p __attribute__((unused)))
+static int test_sql_service_plugin_deinit(void *p)
 {
+  (void) p;
   if (!init_done)
     return 0;
 

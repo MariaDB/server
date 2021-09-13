@@ -46,6 +46,25 @@ set global test_sql_service_execute_sql_global= 'drop table test.t1';
 show status like 'test_sql_query_result';
 Variable_name	Value
 Test_sql_query_result	Error 1051 returned. Unknown table 'test.t1'
+create table t1 (id int, time timestamp);
+insert into t1 values (1, NULL), (2, NULL), (3, NULL), (4, NULL), (5, NULL);
+set global test_sql_service_execute_sql_global= 'select * FROM test.t1 WHERE time < DATE_SUB(NOW(), interval 5 minute)';
+show status like 'test_sql_query_result';
+Variable_name	Value
+Test_sql_query_result	Query returned 0 rows.
+set global test_sql_service_execute_sql_global= 'select * FROM test.t1 WHERE time <= NOW()';
+show status like 'test_sql_query_result';
+Variable_name	Value
+Test_sql_query_result	Query returned 5 rows.
+set global test_sql_service_execute_sql_local= 'select * FROM test.t1 WHERE time < DATE_SUB(NOW(), interval 5 minute)';
+show status like 'test_sql_query_result';
+Variable_name	Value
+Test_sql_query_result	Query returned 0 rows.
+set global test_sql_service_execute_sql_local= 'select * FROM test.t1 WHERE time <= NOW()';
+show status like 'test_sql_query_result';
+Variable_name	Value
+Test_sql_query_result	Query returned 5 rows.
+drop table t1;
 uninstall plugin test_sql_service;
 Warnings:
 Warning	1620	Plugin is busy and will be uninstalled on shutdown

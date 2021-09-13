@@ -4860,8 +4860,6 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   Statement stmt_backup;
   bool error;
   Query_arena *save_stmt_arena= thd->stmt_arena;
-  my_time_t save_query_start= thd->query_start();
-  ulong save_query_sec= thd->start_time_sec_part;
   Item_change_list save_change_list;
 
   thd->Item_change_list::move_elements_to(&save_change_list);
@@ -4871,7 +4869,6 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   if (!(lex= new (mem_root) st_lex_local))
     return TRUE;
 
-  thd->set_time();
   thd->set_n_backup_statement(this, &stmt_backup);
   thd->set_n_backup_active_arena(this, &stmt_backup);
   thd->stmt_arena= this;
@@ -4885,7 +4882,6 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   thd->stmt_arena= save_stmt_arena;
 
   save_change_list.move_elements_to(thd);
-  thd->force_set_time(save_query_start, save_query_sec);
 
   /* Items and memory will freed in destructor */
 
@@ -5613,6 +5609,7 @@ public:
   MYSQL_FIELD *next_mysql_field;
   MEM_ROOT *alloc;
   THD *new_thd;
+  Security_context empty_ctx;
 
   Protocol_local(THD *thd_arg, THD *new_thd_arg, ulong prealloc) :
     Protocol_text(thd_arg, prealloc),
@@ -6225,11 +6222,14 @@ loc_advanced_command(MYSQL *mysql, enum enum_server_command command,
   else
   {
     Ed_connection con(p->thd);
+    Security_context *ctx_orig= p->thd->security_ctx;
     MYSQL_LEX_STRING sql_text;
     DBUG_ASSERT(current_thd == p->thd);
     sql_text.str= (char *) arg;
     sql_text.length= arg_length;
+    p->thd->security_ctx= &p->empty_ctx;
     result= con.execute_direct(p, sql_text);
+    p->thd->security_ctx= ctx_orig;
   }
   if (skip_check)
     result= 0;
@@ -6397,6 +6397,11 @@ extern "C" MYSQL *mysql_real_connect_local(MYSQL *mysql)
   p= new Protocol_local(thd_orig, new_thd, 0);
   if (new_thd)
     new_thd->protocol= p;
+  else
+  {
+    p->empty_ctx.init();
+    p->empty_ctx.skip_grants();
+  }
 
   mysql->thd= p;
   mysql->server_status= SERVER_STATUS_AUTOCOMMIT;
