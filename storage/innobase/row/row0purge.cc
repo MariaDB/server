@@ -115,8 +115,7 @@ row_purge_remove_clust_if_poss_low(
 retry:
 		purge_sys.check_stop_FTS();
 		dict_sys.lock(SRW_LOCK_CALL);
-		table = dict_table_open_on_id(
-			table_id, true, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED);
+		table = dict_sys.find_table(table_id);
 		if (!table) {
 			dict_sys.unlock();
 		} else if (table->n_rec_locks) {
@@ -141,7 +140,6 @@ removed:
 		mtr.commit();
 close_and_exit:
 		if (table) {
-			dict_table_close(table, true);
 			dict_sys.unlock();
 		}
 		return success;
@@ -166,7 +164,7 @@ close_and_exit:
 		if (const uint32_t space_id = dict_drop_index_tree(
 			    &node->pcur, nullptr, &mtr)) {
 			if (table) {
-				if (table->release()) {
+				if (table->get_ref_count() == 0) {
 					dict_sys.remove(table);
 				} else if (table->space_id == space_id) {
 					table->space = nullptr;
@@ -181,7 +179,6 @@ close_and_exit:
 		mtr.commit();
 
 		if (table) {
-			dict_table_close(table, true);
 			dict_sys.unlock();
 			table = nullptr;
 		}
