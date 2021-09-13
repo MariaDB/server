@@ -272,6 +272,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
   int obj1_len;
   double cumulative_size= 0.0;
   size_t end_member_index= (size_t)-1;
+  StringBuffer<128> value_buf;
 
   if (JSV_OBJECT != json_type(hist_data, hist_data + hist_data_len,
                               &obj1, &obj1_len))
@@ -370,13 +371,12 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
       goto error;
     }
 
-
-    uchar buf[MAX_KEY_LENGTH];
     uint len_to_copy= field->key_length();
     field->store_text(val, val_len, &my_charset_bin);
-    uint bytes= field->get_key_image(buf, len_to_copy, Field::itRAW);
-
-    buckets.push_back({std::string((char*)buf, bytes), cumulative_size,
+    value_buf.alloc(field->pack_length());
+    uint bytes= field->get_key_image((uchar*)value_buf.ptr(), len_to_copy,
+                                     Field::itRAW);
+    buckets.push_back({std::string(value_buf.ptr(), bytes), cumulative_size,
                        ndv_ll});
 
     // Read the "end" field
@@ -393,8 +393,10 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
     if (ret != JSV_NOTHING)
     {
       field->store_text(end_val, end_val_len, &my_charset_bin);
-      uint bytes= field->get_key_image(buf, len_to_copy, Field::itRAW);
-      last_bucket_end_endp.assign((char*)buf, bytes);
+      value_buf.alloc(field->pack_length());
+      uint bytes= field->get_key_image((uchar*)value_buf.ptr(), len_to_copy,
+                                       Field::itRAW);
+      last_bucket_end_endp.assign(value_buf.ptr(), bytes);
       if (end_member_index == (size_t)-1)
         end_member_index= buckets.size();
     }
