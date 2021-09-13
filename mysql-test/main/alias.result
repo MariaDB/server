@@ -218,3 +218,22 @@ DELETE ZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZZ
 ERROR 42000: You have an error in your SQL syntax; check the manual that corresponds to your MariaDB server version for the right syntax to use near 't1 WHERE 1=1' at line 1
 connection default;
 disconnect c1;
+#
+# MDEV-23519
+#
+create or replace table t1 (a int);
+create or replace table t2 (b int);
+insert into t1 values(1),(2);
+insert into t2 values(1),(2);
+select t1.a as a1 from t1 as t1,t2 order by t2.b,t1.a;
+Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
+def	test	t1	t1	a	a1	3	11	1	Y	32768	0	63
+a1
+1
+2
+1
+2
+drop table t1,t2;
+#
+# End of 10.4 tests
+#

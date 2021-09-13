@@ -3503,6 +3503,7 @@ print_field_types(MYSQL_RES *result)
   while ((field = mysql_fetch_field(result)))
   {
     tee_fprintf(PAGER, "Field %3u:  `%s`\n"
+                       "Org_field:  `%s`\n"
                        "Catalog:    `%s`\n"
                        "Database:   `%s`\n"
                        "Table:      `%s`\n"
@@ -3514,8 +3515,8 @@ print_field_types(MYSQL_RES *result)
                        "Decimals:   %u\n"
                        "Flags:      %s\n\n",
                 ++i,
-                field->name, field->catalog, field->db, field->table,
-                field->org_table, fieldtype2str(field->type),
+                field->name, field->org_name, field->catalog, field->db,
+                field->table, field->org_table, fieldtype2str(field->type),
                 get_charset_name(field->charsetnr), field->charsetnr,
                 field->length, field->max_length, field->decimals,
                 fieldflags2str(field->flags));
