@@ -7445,3 +7445,18 @@ histogram
   ]
 }
 drop table t10;
+#
+#  MDEV-26590: Stack smashing/buffer overflow in Histogram_json_hb::parse upon UPDATE on table with long VARCHAR
+#
+CREATE TABLE t1 (b INT, a VARCHAR(3176));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+SET histogram_type= JSON_HB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+Table	Op	Msg_type	Msg_text
+test.t1	analyze	status	Engine-independent statistics collected
+test.t1	analyze	status	OK
+SELECT * FROM t1;
+b	a
+1	foo
+2	bar
+drop table t1;

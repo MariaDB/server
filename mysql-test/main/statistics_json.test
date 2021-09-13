@@ -170,5 +170,16 @@ set histogram_size=10, histogram_type='json_hb';
 analyze table t10 persistent for all;
 select histogram
 from mysql.column_stats where table_name='t10' and db_name=database();
-
 drop table t10;
+
+--echo #
+--echo #  MDEV-26590: Stack smashing/buffer overflow in Histogram_json_hb::parse upon UPDATE on table with long VARCHAR
+--echo #
+
+CREATE TABLE t1 (b INT, a VARCHAR(3176));
+INSERT INTO t1 VALUES (1,'foo'),(2,'bar');
+SET histogram_type= JSON_HB;
+ANALYZE TABLE t1 PERSISTENT FOR ALL;
+SELECT * FROM t1;
+drop table t1;
+
