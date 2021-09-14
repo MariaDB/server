@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2020, MariaDB Corporation.
+/* Copyright (C) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -311,7 +311,6 @@ public:
         return;
 
       m_callback(m_data);
-      dbug_execute_after_task_callback();
       m_running = false;
 
       if (m_pool && m_period)
