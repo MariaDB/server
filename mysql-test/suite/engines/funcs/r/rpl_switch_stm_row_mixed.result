@@ -41,16 +41,16 @@ select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
 ROW	ROW
 CREATE TABLE t1 (a varchar(100));
-prepare stmt1 from 'insert into t1 select concat(UUID(),?)';
+prepare stmt1 from 'insert into t1 select concat(SYS_GUID(),?)';
 set @string="emergency_1_";
 insert into t1 values("work_2_");
 execute stmt1 using @string;
 deallocate prepare stmt1;
 prepare stmt1 from 'insert into t1 select ?';
-insert into t1 values(concat(UUID(),"work_3_"));
+insert into t1 values(concat(SYS_GUID(),"work_3_"));
 execute stmt1 using @string;
 deallocate prepare stmt1;
-insert into t1 values(concat("for_4_",UUID()));
+insert into t1 values(concat("for_4_",SYS_GUID()));
 insert into t1 select "yesterday_5_";
 create temporary table tmp(a char(100));
 insert into tmp values("see_6_");
@@ -116,43 +116,43 @@ set binlog_format=default;
 select @@global.binlog_format, @@session.binlog_format;
 @@global.binlog_format	@@session.binlog_format
 MIXED	MIXED
-prepare stmt1 from 'insert into t1 select concat(UUID(),?)';
+prepare stmt1 from 'insert into t1 select concat(SYS_GUID(),?)';
 set @string="emergency_17_";
 insert into t1 values("work_18_");
 execute stmt1 using @string;
 deallocate prepare stmt1;
 prepare stmt1 from 'insert into t1 select ?';
-insert into t1 values(concat(UUID(),"work_19_"));
+insert into t1 values(concat(SYS_GUID(),"work_19_"));
 execute stmt1 using @string;
 deallocate prepare stmt1;
-insert into t1 values(concat("for_20_",UUID()));
+insert into t1 values(concat("for_20_",SYS_GUID()));
 insert into t1 select "yesterday_21_";
 prepare stmt1 from 'insert into t1 select ?';
-insert into t1 values(concat(UUID(),"work_22_"));
+insert into t1 values(concat(SYS_GUID(),"work_22_"));
 execute stmt1 using @string;
 deallocate prepare stmt1;
-insert into t1 values(concat("for_23_",UUID()));
+insert into t1 values(concat("for_23_",SYS_GUID()));
 insert into t1 select "yesterday_24_";
-create table t2 ENGINE=MyISAM select rpad(UUID(),100,' ');
-create table t3 select 1 union select UUID();
+create table t2 ENGINE=MyISAM select rpad(SYS_GUID(),100,' ');
+create table t3 select 1 union select SYS_GUID();
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
-create table t4 select * from t1 where 3 in (select 1 union select 2 union select UUID() union select 3);
+create table t4 select * from t1 where 3 in (select 1 union select 2 union select SYS_GUID() union select 3);
 SET STATEMENT sql_mode = 'NO_ENGINE_SUBSTITUTION' FOR
 create table t5 select * from t1 where 3 in (select 1 union select 2 union select curdate() union select 3);
 Warnings:
 Warning	1292	Truncated incorrect datetime value: '3'
-insert ignore into t5 select UUID() from t1 where 3 in (select 1 union select 2 union select 3 union select * from t4);
+insert ignore into t5 select SYS_GUID() from t1 where 3 in (select 1 union select 2 union select 3 union select * from t4);
 create procedure foo()
 begin
 insert into t1 values("work_25_");
-insert into t1 values(concat("for_26_",UUID()));
+insert into t1 values(concat("for_26_",SYS_GUID()));
 insert into t1 select "yesterday_27_";
 end|
 create procedure foo2()
 begin
-insert into t1 values(concat("emergency_28_",UUID()));
+insert into t1 values(concat("emergency_28_",SYS_GUID()));
 insert into t1 values("work_29_");
-insert into t1 values(concat("for_30_",UUID()));
+insert into t1 values(concat("for_30_",SYS_GUID()));
 set session binlog_format=row; # accepted for stored procs
 insert into t1 values("more work_31_");
 set session binlog_format=mixed;
@@ -171,7 +171,7 @@ end|
 call foo();
 call foo2();
 call foo4("hello");
-call foo4(UUID());
+call foo4(SYS_GUID());
 call foo4("world");
 select foo3();
 ERROR HY000: Cannot change the binary logging format inside a stored function or trigger
@@ -207,7 +207,7 @@ foo4()
 deallocate prepare stmt1;
 create function foo5() returns bigint unsigned
 begin
-insert into t2 select UUID();
+insert into t2 select SYS_GUID();
 return 100;
 end|
 select foo5();
@@ -229,18 +229,18 @@ end|
 select foo6("foo6_1_");
 foo6("foo6_1_")
 100
-select foo6(concat("foo6_2_",UUID()));
-foo6(concat("foo6_2_",UUID()))
+select foo6(concat("foo6_2_",SYS_GUID()));
+foo6(concat("foo6_2_",SYS_GUID()))
 100
-prepare stmt1 from 'select foo6(concat("foo6_3_",UUID()))';
+prepare stmt1 from 'select foo6(concat("foo6_3_",SYS_GUID()))';
 execute stmt1;
-foo6(concat("foo6_3_",UUID()))
+foo6(concat("foo6_3_",SYS_GUID()))
 100
 execute stmt1;
-foo6(concat("foo6_3_",UUID()))
+foo6(concat("foo6_3_",SYS_GUID()))
 100
 deallocate prepare stmt1;
-create view v1 as select uuid();
+create view v1 as select SYS_GUID();
 create table t11 (data varchar(255));
 insert into t11 select * from v1;
 insert into t11 select TABLE_NAME from INFORMATION_SCHEMA.TABLES where TABLE_SCHEMA='mysqltest1' and TABLE_NAME IN ('v1','t11');
@@ -250,11 +250,11 @@ execute stmt1;
 deallocate prepare stmt1;
 create trigger t11_bi before insert on t11 for each row
 begin
-set NEW.data = concat(NEW.data,UUID());
+set NEW.data = concat(NEW.data,SYS_GUID());
 end|
 insert into t11 values("try_560_");
 insert delayed into t2 values("delay_1_");
-insert delayed into t2 values(concat("delay_2_",UUID()));
+insert delayed into t2 values(concat("delay_2_",SYS_GUID()));
 insert delayed into t2 values("delay_6_");
 insert delayed into t2 values(rand());
 set @a=2.345;
@@ -356,7 +356,7 @@ alter table t1 modify a int, drop primary key;
 insert into t1 values(null,"try_57_");
 connection slave;
 connection master;
-CREATE TEMPORARY TABLE t15 SELECT UUID();
+CREATE TEMPORARY TABLE t15 SELECT SYS_GUID();
 create table t16 like t15;
 INSERT INTO t16 SELECT * FROM t15;
 insert into t16 values("try_65_");
@@ -427,7 +427,7 @@ DROP TABLE IF EXISTS t12;
 SET SESSION BINLOG_FORMAT=MIXED;
 CREATE TABLE t12 (data LONG);
 LOCK TABLES t12 WRITE;
-INSERT INTO t12 VALUES(UUID());
+INSERT INTO t12 VALUES(SYS_GUID());
 UNLOCK TABLES;
 connection slave;
 connection master;

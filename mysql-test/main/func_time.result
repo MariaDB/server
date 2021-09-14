@@ -2792,7 +2792,7 @@ SET sql_mode=DEFAULT;
 #
 # MDEV-13972 crash in Item_func_sec_to_time::get_date
 #
-DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(UUID()))));
+DO TO_DAYS(SEC_TO_TIME(TIME(CEILING(SYS_GUID()))));
 DO TO_DAYS(SEC_TO_TIME(MAKEDATE('',RAND(~('')))));
 Warnings:
 Warning	1292	Truncated incorrect DECIMAL value: ''

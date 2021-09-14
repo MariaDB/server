@@ -2319,7 +2319,7 @@ DROP TABLE t1;
 --echo #
 
 SET NAMES utf8 COLLATE utf8_unicode_ci;
-SELECT uuid()>'';
+SELECT sys_guid()>'';
 
 
 --echo #

@@ -18,26 +18,29 @@
 #include "item_uuidfunc.h"
 #include "sql_type_uuid.h"
 
-class UUID_generated : public UUIDBundle::Fbt
-{
-public:
-  UUID_generated() { my_uuid((uchar *) m_buffer); }
-  bool to_string(String *to, bool with_separators) const
-  {
-    if (to->alloc(max_char_length() + 1))
-      return true;
-    to->set_charset(system_charset_info);
-    to->length(MY_UUID_BARE_STRING_LENGTH + with_separators*MY_UUID_SEPARATORS);
-    my_uuid2str((const uchar *) m_buffer, (char *) to->ptr(), with_separators);
-    return false;
-  }
-};
-
-String *Item_func_uuid::val_str(String *str)
+String *Item_func_sys_guid::val_str(String *str)
 {
   DBUG_ASSERT(fixed());
-  if (!UUID_generated().to_string(str, with_separators))
-    return str;
-  str->set("", 0, collation.collation);
+  str->alloc(uuid_len()+1);
+  str->length(uuid_len());
+  str->set_charset(collation.collation);
+
+  uchar buf[MY_UUID_SIZE];
+  my_uuid(buf);
+  my_uuid2str(buf, const_cast<char*>(str->ptr()), with_dashes);
   return str;
+}
+
+const Type_handler *Item_func_uuid::type_handler() const
+{
+  return UUIDBundle::type_handler_fbt();
+}
+
+bool Item_func_uuid::val_native(THD *, Native *to)
+{
+  DBUG_ASSERT(fixed());
+  to->alloc(MY_UUID_SIZE);
+  to->length(MY_UUID_SIZE);
+  my_uuid((uchar*)to->ptr());
+  return 0;
 }
