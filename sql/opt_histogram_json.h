@@ -123,6 +123,6 @@ public:
 private:
   double get_left_fract(int idx);
   std::string& get_end_value(int idx);
-  int find_bucket(Field *field, const uchar *lookup_val, bool equal_is_less);
+  int find_bucket(Field *field, const uchar *lookup_val, bool *equal);
 };
 

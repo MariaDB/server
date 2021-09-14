@@ -182,4 +182,3 @@ SET histogram_type= JSON_HB;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 SELECT * FROM t1;
 drop table t1;
-
