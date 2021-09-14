@@ -18752,10 +18752,23 @@ static MYSQL_SYSVAR_ULONG(purge_batch_size, srv_purge_batch_size,
   1,			/* Minimum value */
   5000, 0);		/* Maximum value */
 
+extern void srv_update_purge_thread_count(uint n);
+
+static
+void
+innodb_purge_threads_update(THD*, struct st_mysql_sys_var*, void*, const void*save )
+{
+  srv_update_purge_thread_count(*static_cast<const uint*>(save));
+}
+
 static MYSQL_SYSVAR_UINT(purge_threads, srv_n_purge_threads,
-  PLUGIN_VAR_OPCMDARG | PLUGIN_VAR_READONLY,
+  PLUGIN_VAR_OPCMDARG,
   "Number of tasks for purging transaction history",
-  NULL, NULL, 4, 1, innodb_purge_threads_MAX, 0);
+  NULL, innodb_purge_threads_update,
+  4,			    /* Default setting */
+  1,			    /* Minimum value */
+  innodb_purge_threads_MAX, /* Maximum value */
+  0);
 
 static MYSQL_SYSVAR_UINT(fast_shutdown, srv_fast_shutdown,
   PLUGIN_VAR_OPCMDARG,

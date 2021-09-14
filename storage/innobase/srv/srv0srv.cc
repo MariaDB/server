@@ -1723,7 +1723,8 @@ std::mutex purge_thread_count_mtx;
 void srv_update_purge_thread_count(uint n)
 {
 	std::lock_guard<std::mutex> lk(purge_thread_count_mtx);
-	purge_create_background_thds(n);
+	ut_ad(n > 0);
+	ut_ad(n <= innodb_purge_threads_MAX);
 	srv_n_purge_threads = n;
 	srv_purge_thread_count_changed = 1;
 }
@@ -1964,7 +1965,7 @@ static void purge_coordinator_callback(void*)
 
 void srv_init_purge_tasks()
 {
-  purge_create_background_thds(srv_n_purge_threads);
+  purge_create_background_thds(innodb_purge_threads_MAX);
   purge_coordinator_timer= srv_thread_pool->create_timer
     (purge_coordinator_callback, nullptr);
 }
