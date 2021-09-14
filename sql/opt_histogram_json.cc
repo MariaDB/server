@@ -285,7 +285,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
   const char *hist_array;
   int hist_array_len;
   if (JSV_ARRAY != json_get_object_key(obj1, obj1 + obj1_len,
-                                       "histogram_hb_v2", &hist_array,
+                                       JSON_NAME, &hist_array,
                                        &hist_array_len))
   {
     err_pos= obj1;
