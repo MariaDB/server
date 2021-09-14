@@ -4093,12 +4093,12 @@ test.t2	analyze	status	Engine-independent statistics collected
 test.t2	analyze	status	OK
 explain extended select * from t2 where city = 'Moscow';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	50.00	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	98.02	Using where
 Warnings:
 Note	1003	select `test`.`t2`.`city` AS `city` from `test`.`t2` where `test`.`t2`.`city` = 'Moscow'
 analyze select * from t2 where city = 'Moscow';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	r_rows	filtered	r_filtered	Extra
-1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	101.00	50.00	98.02	Using where
+1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	101.00	98.02	98.02	Using where
 explain extended select * from t2 where city = 'Helsinki';
 id	select_type	table	type	possible_keys	key	key_len	ref	rows	filtered	Extra
 1	SIMPLE	t2	ALL	NULL	NULL	NULL	NULL	101	1.98	Using where
