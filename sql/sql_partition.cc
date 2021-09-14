@@ -67,7 +67,6 @@
 #include "opt_range.h"                  // store_key_image_to_rec
 #include "sql_alter.h"                  // Alter_table_ctx
 #include "sql_select.h"
-#include "sql_tablespace.h"             // check_tablespace_name
 #include "ddl_log.h"
 #include "tztime.h"                     // my_tz_OFFSET0
 
@@ -2215,8 +2214,6 @@ static int add_partition_options(String *str, partition_element *p_elem)
 {
   int err= 0;
 
-  if (p_elem->tablespace_name)
-    err+= add_keyword_string(str,"TABLESPACE", false, p_elem->tablespace_name);
   if (p_elem->nodegroup_id != UNDEF_NODEGROUP)
     err+= add_keyword_int(str,"NODEGROUP",(longlong)p_elem->nodegroup_id);
   if (p_elem->part_max_rows)
@@ -4714,8 +4711,6 @@ bool compare_partition_options(HA_CREATE_INFO *table_create_info,
     Note that there are not yet any engine supporting tablespace together
     with partitioning. TODO: when there are, add compare.
   */
-  if (part_elem->tablespace_name || table_create_info->tablespace)
-    option_diffs[errors++]= "TABLESPACE";
   if (part_elem->part_max_rows != table_create_info->max_rows)
     option_diffs[errors++]= "MAX_ROWS";
   if (part_elem->part_min_rows != table_create_info->min_rows)

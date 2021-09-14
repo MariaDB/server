@@ -94,9 +94,9 @@ SET (SQL_SOURCE
                filesort.cc gstream.cc
                signal_handler.cc
                handler.cc
-               hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc 
-               item_create.cc item_func.cc item_geofunc.cc item_row.cc 
-               item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc 
+               hostname.cc init.cc item.cc item_buff.cc item_cmpfunc.cc
+               item_create.cc item_func.cc item_geofunc.cc item_row.cc
+               item_strfunc.cc item_subselect.cc item_sum.cc item_timefunc.cc
                key.cc log.cc lock.cc
                log_event.cc log_event_server.cc
                rpl_record.cc rpl_reporting.cc
@@ -105,33 +105,33 @@ SET (SQL_SOURCE
                mysqld.cc net_serv.cc  keycaches.cc
                ../sql-common/client_plugin.c
                opt_range.cc opt_sum.cc
-               ../sql-common/pack.c parse_file.cc password.c procedure.cc 
+               ../sql-common/pack.c parse_file.cc password.c procedure.cc
                protocol.cc records.cc repl_failsafe.cc rpl_filter.cc
                session_tracker.cc
-               set_var.cc 
-               slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc 
-               sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc 
+               set_var.cc
+               slave.cc sp.cc sp_cache.cc sp_head.cc sp_pcontext.cc
+               sp_rcontext.cc spatial.cc sql_acl.cc sql_analyse.cc sql_base.cc
                sql_cache.cc sql_class.cc sql_client.cc sql_crypt.cc
                sql_cursor.cc sql_db.cc sql_delete.cc sql_derived.cc
-               sql_digest.cc sql_do.cc 
+               sql_digest.cc sql_do.cc
                sql_error.cc sql_handler.cc sql_get_diagnostics.cc
-               sql_help.cc sql_insert.cc sql_lex.cc 
+               sql_help.cc sql_insert.cc sql_lex.cc
                sql_list.cc sql_load.cc sql_manager.cc
                sql_parse.cc sql_bootstrap.cc
-               sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc 
+               sql_partition.cc sql_plugin.cc sql_prepare.cc sql_rename.cc
                debug_sync.cc debug.cc
                sql_repl.cc sql_select.cc sql_show.cc sql_state.c
                group_by_handler.cc derived_handler.cc select_handler.cc
                sql_statistics.cc sql_string.cc lex_string.h
                sql_table.cc sql_test.cc sql_trigger.cc sql_udf.cc sql_union.cc
                ddl_log.cc ddl_log.h
-               sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc 
-               sql_time.cc tztime.cc unireg.cc item_xmlfunc.cc 
+               sql_update.cc sql_view.cc strfunc.cc table.cc thr_malloc.cc
+               sql_time.cc tztime.cc unireg.cc item_xmlfunc.cc
                uniques.cc
                rpl_tblmap.cc sql_binlog.cc event_scheduler.cc
                event_data_objects.cc
-               event_queue.cc event_db_repository.cc 
-               sql_tablespace.cc events.cc ../sql-common/my_user.c 
+               event_queue.cc event_db_repository.cc
+               events.cc ../sql-common/my_user.c
                partition_info.cc rpl_utility.cc rpl_utility_server.cc
                rpl_injector.cc sql_locale.cc
                rpl_rli.cc rpl_mi.cc sql_servers.cc sql_audit.cc
@@ -175,7 +175,7 @@ SET (SQL_SOURCE
                ${GEN_SOURCES}
                ${MYSYS_LIBWRAP_SOURCE}
 )
-  
+
 IF ((CMAKE_SYSTEM_NAME MATCHES "Linux" OR
      CMAKE_SYSTEM_NAME MATCHES "SunOS" OR
      WIN32 OR
@@ -309,18 +309,18 @@ ENDIF()
 
 # On Solaris, some extra effort is required in order to get dtrace probes
 # from static libraries
-DTRACE_INSTRUMENT_STATIC_LIBS(mariadbd 
+DTRACE_INSTRUMENT_STATIC_LIBS(mariadbd
  "sql;mysys;mysys_ssl;${MYSQLD_STATIC_PLUGIN_LIBS}")
- 
+
 
 SET(WITH_MYSQLD_LDFLAGS "" CACHE STRING "Additional linker flags for mysqld")
 MARK_AS_ADVANCED(WITH_MYSQLD_LDFLAGS)
 IF(WITH_MYSQLD_LDFLAGS)
   GET_TARGET_PROPERTY(MYSQLD_LINK_FLAGS mariadbd LINK_FLAGS)
   IF(NOT MYSQLD_LINK_FLAGS)
-    SET(MYSQLD_LINK_FLAGS) 
-  ENDIF() 
-  SET_TARGET_PROPERTIES(mariadbd PROPERTIES LINK_FLAGS 
+    SET(MYSQLD_LINK_FLAGS)
+  ENDIF()
+  SET_TARGET_PROPERTIES(mariadbd PROPERTIES LINK_FLAGS
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
 
@@ -328,8 +328,8 @@ ENDIF()
 FIND_PACKAGE(BISON 2.4)
 
 
-# Handle out-of-source build from source package with possibly broken 
-# bison. Copy bison output to from source to build directory, if not already 
+# Handle out-of-source build from source package with possibly broken
+# bison. Copy bison output to from source to build directory, if not already
 # there
 IF (NOT BISON_FOUND)
   IF (NOT ${CMAKE_CURRENT_SOURCE_DIR} STREQUAL ${CMAKE_CURRENT_BINARY_DIR})
@@ -439,9 +439,9 @@ IF(TARGET mariadbd AND (NOT CMAKE_CROSSCOMPILING OR DEFINED CMAKE_CROSSCOMPILING
   ELSE()
     SET(ALL_ON_WINDOWS)
   ENDIF()
-  ADD_CUSTOM_TARGET(initial_database  
+  ADD_CUSTOM_TARGET(initial_database
     ${ALL_ON_WINDOWS}
-    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep	
+    DEPENDS ${CMAKE_CURRENT_BINARY_DIR}/initdb.dep
   )
 ENDIF()
 
@@ -450,7 +450,7 @@ IF(WIN32)
   FILE(TO_NATIVE_PATH ${my_bootstrap_sql} native_outfile)
 
   # Create bootstrapper SQL script
-  ADD_CUSTOM_COMMAND(OUTPUT    
+  ADD_CUSTOM_COMMAND(OUTPUT
     ${my_bootstrap_sql}
     COMMAND ${CMAKE_COMMAND} -E chdir ${CMAKE_BINARY_DIR}/scripts
     cmd /c copy mysql_system_tables.sql+mysql_system_tables_data.sql+fill_help_tables.sql+mysql_performance_tables.sql+mysql_test_db.sql+mysql_sys_schema.sql ${native_outfile}
@@ -473,7 +473,7 @@ IF(WIN32)
     DEPENDS comp_sql ${my_bootstrap_sql}
   )
 
-  MYSQL_ADD_EXECUTABLE(mariadb-install-db 
+  MYSQL_ADD_EXECUTABLE(mariadb-install-db
     mysql_install_db.cc
     ${CMAKE_CURRENT_BINARY_DIR}/mysql_bootstrap_sql.c
     COMPONENT Server

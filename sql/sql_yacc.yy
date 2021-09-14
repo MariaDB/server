@@ -1460,7 +1460,7 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
         field_options last_field_options
 
 %type <ulonglong_number>
-        ulonglong_num real_ulonglong_num size_number
+        ulonglong_num real_ulonglong_num
 
 %type <longlong_number>
         longlong_num
@@ -2577,14 +2577,6 @@ create:
             if (unlikely(Lex->set_command_with_check(SQLCOM_CREATE_ROLE,
                          $1 | $3)))
               MYSQL_YYABORT;
-          }
-        | CREATE LOGFILE_SYM GROUP_SYM logfile_group_info 
-          {
-            Lex->alter_tablespace_info->ts_cmd_type= CREATE_LOGFILE_GROUP;
-          }
-        | CREATE TABLESPACE tablespace_info
-          {
-            Lex->alter_tablespace_info->ts_cmd_type= CREATE_TABLESPACE;
           }
         | create_or_replace { Lex->set_command(SQLCOM_CREATE_SERVER, $1); }
           server_def
@@ -4334,350 +4326,6 @@ trg_event:
           | DELETE_SYM
             { Lex->trg_chistics.event= TRG_EVENT_DELETE; }
           ;
-/*
-  This part of the parser contains common code for all TABLESPACE
-  commands.
-  CREATE TABLESPACE name ...
-  ALTER TABLESPACE name CHANGE DATAFILE ...
-  ALTER TABLESPACE name ADD DATAFILE ...
-  ALTER TABLESPACE name access_mode
-  CREATE LOGFILE GROUP_SYM name ...
-  ALTER LOGFILE GROUP_SYM name ADD UNDOFILE ..
-  ALTER LOGFILE GROUP_SYM name ADD REDOFILE ..
-  DROP TABLESPACE name
-  DROP LOGFILE GROUP_SYM name
-*/
-change_tablespace_access:
-          tablespace_name
-          ts_access_mode
-        ;
-
-change_tablespace_info:
-          tablespace_name
-          CHANGE ts_datafile
-          change_ts_option_list
-        ;
-
-tablespace_info:
-          tablespace_name
-          ADD ts_datafile
-          opt_logfile_group_name
-          tablespace_option_list
-        ;
-
-opt_logfile_group_name:
-          /* empty */ {}
-        | USE_SYM LOGFILE_SYM GROUP_SYM ident
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->logfile_group_name= $4.str;
-          }
-        ;
-
-alter_tablespace_info:
-          tablespace_name
-          ADD ts_datafile
-          alter_tablespace_option_list
-          { 
-            Lex->alter_tablespace_info->ts_alter_tablespace_type= ALTER_TABLESPACE_ADD_FILE; 
-          }
-        | tablespace_name
-          DROP ts_datafile
-          alter_tablespace_option_list
-          { 
-            Lex->alter_tablespace_info->ts_alter_tablespace_type= ALTER_TABLESPACE_DROP_FILE; 
-          }
-        ;
-
-logfile_group_info:
-          logfile_group_name
-          add_log_file
-          logfile_group_option_list
-        ;
-
-alter_logfile_group_info:
-          logfile_group_name
-          add_log_file
-          alter_logfile_group_option_list
-        ;
-
-add_log_file:
-          ADD lg_undofile
-        | ADD lg_redofile
-        ;
-
-change_ts_option_list:
-          /* empty */ {}
-          change_ts_options
-        ;
-
-change_ts_options:
-          change_ts_option
-        | change_ts_options change_ts_option
-        | change_ts_options ',' change_ts_option
-        ;
-
-change_ts_option:
-          opt_ts_initial_size
-        | opt_ts_autoextend_size
-        | opt_ts_max_size
-        ;
-
-tablespace_option_list:
-        tablespace_options
-        ;
-
-tablespace_options:
-          tablespace_option
-        | tablespace_options tablespace_option
-        | tablespace_options ',' tablespace_option
-        ;
-
-tablespace_option:
-          opt_ts_initial_size
-        | opt_ts_autoextend_size
-        | opt_ts_max_size
-        | opt_ts_extent_size
-        | opt_ts_nodegroup
-        | opt_ts_engine
-        | ts_wait
-        | opt_ts_comment
-        ;
-
-alter_tablespace_option_list:
-        alter_tablespace_options
-        ;
-
-alter_tablespace_options:
-          alter_tablespace_option
-        | alter_tablespace_options alter_tablespace_option
-        | alter_tablespace_options ',' alter_tablespace_option
-        ;
-
-alter_tablespace_option:
-          opt_ts_initial_size
-        | opt_ts_autoextend_size
-        | opt_ts_max_size
-        | opt_ts_engine
-        | ts_wait
-        ;
-
-logfile_group_option_list:
-        logfile_group_options
-        ;
-
-logfile_group_options:
-          logfile_group_option
-        | logfile_group_options logfile_group_option
-        | logfile_group_options ',' logfile_group_option
-        ;
-
-logfile_group_option:
-          opt_ts_initial_size
-        | opt_ts_undo_buffer_size
-        | opt_ts_redo_buffer_size
-        | opt_ts_nodegroup
-        | opt_ts_engine
-        | ts_wait
-        | opt_ts_comment
-        ;
-
-alter_logfile_group_option_list:
-          alter_logfile_group_options
-        ;
-
-alter_logfile_group_options:
-          alter_logfile_group_option
-        | alter_logfile_group_options alter_logfile_group_option
-        | alter_logfile_group_options ',' alter_logfile_group_option
-        ;
-
-alter_logfile_group_option:
-          opt_ts_initial_size
-        | opt_ts_engine
-        | ts_wait
-        ;
-
-
-ts_datafile:
-          DATAFILE_SYM TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->data_file_name= $2.str;
-          }
-        ;
-
-lg_undofile:
-          UNDOFILE_SYM TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->undo_file_name= $2.str;
-          }
-        ;
-
-lg_redofile:
-          REDOFILE_SYM TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->redo_file_name= $2.str;
-          }
-        ;
-
-tablespace_name:
-          ident
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info= (new (thd->mem_root)
-                                         st_alter_tablespace());
-            if (unlikely(lex->alter_tablespace_info == NULL))
-              MYSQL_YYABORT;
-            lex->alter_tablespace_info->tablespace_name= $1.str;
-            lex->sql_command= SQLCOM_ALTER_TABLESPACE;
-          }
-        ;
-
-logfile_group_name:
-          ident
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info= (new (thd->mem_root)
-                                         st_alter_tablespace());
-            if (unlikely(lex->alter_tablespace_info == NULL))
-              MYSQL_YYABORT;
-            lex->alter_tablespace_info->logfile_group_name= $1.str;
-            lex->sql_command= SQLCOM_ALTER_TABLESPACE;
-          }
-        ;
-
-ts_access_mode:
-          READ_ONLY_SYM
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_access_mode= TS_READ_ONLY;
-          }
-        | READ_WRITE_SYM
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_access_mode= TS_READ_WRITE;
-          }
-        | NOT_SYM ACCESSIBLE_SYM
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_access_mode= TS_NOT_ACCESSIBLE;
-          }
-        ;
-
-opt_ts_initial_size:
-          INITIAL_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->initial_size= $3;
-          }
-        ;
-
-opt_ts_autoextend_size:
-          AUTOEXTEND_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->autoextend_size= $3;
-          }
-        ;
-
-opt_ts_max_size:
-          MAX_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->max_size= $3;
-          }
-        ;
-
-opt_ts_extent_size:
-          EXTENT_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->extent_size= $3;
-          }
-        ;
-
-opt_ts_undo_buffer_size:
-          UNDO_BUFFER_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->undo_buffer_size= $3;
-          }
-        ;
-
-opt_ts_redo_buffer_size:
-          REDO_BUFFER_SIZE_SYM opt_equal size_number
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->redo_buffer_size= $3;
-          }
-        ;
-
-opt_ts_nodegroup:
-          NODEGROUP_SYM opt_equal real_ulong_num
-          {
-            LEX *lex= Lex;
-            if (unlikely(lex->alter_tablespace_info->nodegroup_id != UNDEF_NODEGROUP))
-              my_yyabort_error((ER_FILEGROUP_OPTION_ONLY_ONCE,MYF(0),"NODEGROUP"));
-            lex->alter_tablespace_info->nodegroup_id= $3;
-          }
-        ;
-
-opt_ts_comment:
-          COMMENT_SYM opt_equal TEXT_STRING_sys
-          {
-            LEX *lex= Lex;
-            if (unlikely(lex->alter_tablespace_info->ts_comment != NULL))
-              my_yyabort_error((ER_FILEGROUP_OPTION_ONLY_ONCE,MYF(0),"COMMENT"));
-            lex->alter_tablespace_info->ts_comment= $3.str;
-          }
-        ;
-
-opt_ts_engine:
-          opt_storage ENGINE_SYM opt_equal storage_engines
-          {
-            LEX *lex= Lex;
-            if (unlikely(lex->alter_tablespace_info->storage_engine != NULL))
-              my_yyabort_error((ER_FILEGROUP_OPTION_ONLY_ONCE, MYF(0),
-                                "STORAGE ENGINE"));
-            lex->alter_tablespace_info->storage_engine= $4;
-          }
-        ;
-
-opt_ts_wait:
-          /* empty */
-        | ts_wait
-        ;
-
-ts_wait:
-          WAIT_SYM
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->wait_until_completed= TRUE;
-          }
-        | NO_WAIT_SYM
-          {
-            LEX *lex= Lex;
-            if (unlikely(!(lex->alter_tablespace_info->wait_until_completed)))
-              my_yyabort_error((ER_FILEGROUP_OPTION_ONLY_ONCE,MYF(0),"NO_WAIT"));
-            lex->alter_tablespace_info->wait_until_completed= FALSE;
-          }
-        ;
-
-size_number:
-          real_ulonglong_num { $$= $1;}
-        | IDENT_sys
-          {
-            if ($1.to_size_number(&$$))
-              MYSQL_YYABORT;
-          }
-        ;
-
-/*
-  End tablespace part
-*/
 
 create_body:
           create_field_list_parens
@@ -5395,7 +5043,7 @@ opt_part_option_list:
 
 opt_part_option:
           TABLESPACE opt_equal ident_or_text
-          { Lex->part_info->curr_part_elem->tablespace_name= $3.str; }
+          { /* Compatibility with MySQL */ }
         | opt_storage ENGINE_SYM opt_equal storage_engines
           {
             partition_info *part_info= Lex->part_info;
@@ -5734,7 +5382,7 @@ create_table_option:
             Lex->create_info.used_fields|= HA_CREATE_USED_INDEXDIR;
           }
         | TABLESPACE ident
-          {Lex->create_info.tablespace= $2.str;}
+          { /* Compatiblity with MySQL */ }
         | STORAGE_SYM DISK_SYM
           {Lex->create_info.storage_media= HA_SM_DISK;}
         | STORAGE_SYM MEMORY_SYM
@@ -7381,26 +7029,6 @@ alter:
             Lex->stmt_definition_end= (char*)YYLIP->get_cpp_ptr();
 
             Lex->pop_select(); //main select
-          }
-        | ALTER TABLESPACE alter_tablespace_info
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= ALTER_TABLESPACE;
-          }
-        | ALTER LOGFILE_SYM GROUP_SYM alter_logfile_group_info
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= ALTER_LOGFILE_GROUP;
-          }
-        | ALTER TABLESPACE change_tablespace_info
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= CHANGE_FILE_TABLESPACE;
-          }
-        | ALTER TABLESPACE change_tablespace_access
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= ALTER_ACCESS_MODE_TABLESPACE;
           }
         | ALTER SERVER_SYM ident_or_text
           {
@@ -13097,16 +12725,6 @@ drop:
             LEX *lex= Lex;
             lex->set_command(SQLCOM_DROP_TRIGGER, $3);
             lex->spname= $4;
-          }
-        | DROP TABLESPACE tablespace_name opt_ts_engine opt_ts_wait
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= DROP_TABLESPACE;
-          }
-        | DROP LOGFILE_SYM GROUP_SYM logfile_group_name opt_ts_engine opt_ts_wait
-          {
-            LEX *lex= Lex;
-            lex->alter_tablespace_info->ts_cmd_type= DROP_LOGFILE_GROUP;
           }
         | DROP SERVER_SYM opt_if_exists ident_or_text
           {

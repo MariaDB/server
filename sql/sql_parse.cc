@@ -54,7 +54,6 @@
                               // check_mqh,
                               // reset_mqh
 #include "sql_rename.h"       // mysql_rename_tables
-#include "sql_tablespace.h"   // mysql_alter_tablespace
 #include "hostname.h"         // hostname_cache_refresh
 #include "sql_test.h"         // mysql_print_status
 #include "sql_select.h"       // handle_select, mysql_select,
@@ -878,7 +877,6 @@ void init_update_queries(void)
   sql_command_flags[SQLCOM_ALTER_PROCEDURE]|=  CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_ALTER_FUNCTION]|=   CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_TRUNCATE]|=         CF_DISALLOW_IN_RO_TRANS;
-  sql_command_flags[SQLCOM_ALTER_TABLESPACE]|= CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_REPAIR]|=           CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_OPTIMIZE]|=         CF_DISALLOW_IN_RO_TRANS;
   sql_command_flags[SQLCOM_GRANT]|=            CF_DISALLOW_IN_RO_TRANS;
@@ -5888,12 +5886,6 @@ mysql_execute_command(THD *thd, bool is_called_from_prepared_stmt)
   }
   case SQLCOM_XA_RECOVER:
     res= mysql_xa_recover(thd);
-    break;
-  case SQLCOM_ALTER_TABLESPACE:
-    if (check_global_access(thd, CREATE_TABLESPACE_ACL))
-      break;
-    if (!(res= mysql_alter_tablespace(thd, lex->alter_tablespace_info)))
-      my_ok(thd);
     break;
   case SQLCOM_INSTALL_PLUGIN:
     if (! (res= mysql_install_plugin(thd, &thd->lex->comment,

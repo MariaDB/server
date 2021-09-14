@@ -290,7 +290,6 @@ class sp_pcontext;
 class sp_variable;
 class sp_expr_lex;
 class sp_assignment_lex;
-class st_alter_tablespace;
 class partition_info;
 class Event_parse_data;
 class set_var_base;
@@ -3519,12 +3518,6 @@ public:
   */
   engine_option_value *option_list_last;
 
-
-  /*
-    Reference to a struct that contains information in various commands
-    to add/create/drop/change table spaces.
-  */
-  st_alter_tablespace *alter_tablespace_info;
 
   /*
     The set of those tables whose fields are referenced in all subqueries

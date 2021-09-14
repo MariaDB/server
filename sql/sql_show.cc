@@ -7380,13 +7380,7 @@ static void store_schema_partitions_record(THD *thd, TABLE *schema_table,
       table->field[23]->store(STRING_WITH_LEN("default"), cs);
 
     table->field[24]->set_notnull();
-    if (part_elem->tablespace_name)
-      table->field[24]->store(part_elem->tablespace_name,
-                              strlen(part_elem->tablespace_name), cs);
-    else
-    {
-      table->field[24]->set_null();
-    }
+    table->field[24]->set_null();               // Tablespace
   }
   return;
 }

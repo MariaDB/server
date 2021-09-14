@@ -86,7 +86,7 @@ SET(SQL_EMBEDDED_SOURCES emb_qcache.cc libmysqld.c lib_sql.cc
            ../sql/select_handler.cc
            ../sql/sql_show.cc ../sql/sql_state.c 
            ../sql/sql_statistics.cc ../sql/sql_string.cc
-           ../sql/sql_tablespace.cc ../sql/sql_table.cc ../sql/sql_test.cc
+           ../sql/sql_table.cc ../sql/sql_test.cc
            ../sql/ddl_log.cc
            ../sql/sql_trigger.cc ../sql/sql_udf.cc ../sql/sql_union.cc
            ../sql/sql_update.cc ../sql/sql_view.cc ../sql/sql_profile.cc
