@@ -31,8 +31,8 @@
     ]
   }
 
-  The histogram is an object with single member named "histogram_hb_v2".
-  The value of that member is an array of buckets.
+  The histogram is an object with single member named Histogram_json_hb::
+  JSON_NAME. The value of that member is an array of buckets.
   Each bucket is an object with these members:
     "start" - the first value in the bucket.
     "size"  - fraction of table rows that is contained in the bucket.
