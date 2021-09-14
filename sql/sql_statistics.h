@@ -151,7 +151,7 @@ class Histogram_builder;
 /*
   Common base for all histograms
 */
-class Histogram_base : public Sql_alloc
+class Histogram_base
 {
 public:
   virtual bool parse(MEM_ROOT *mem_root, Field *field, Histogram_type type_arg,
