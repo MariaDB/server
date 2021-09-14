@@ -1238,6 +1238,8 @@ public:
         table_field->read_stats->histogram= hist;
         return hist;
       }
+      else
+        delete hist;
     }
     return NULL;
   }
@@ -1647,10 +1649,10 @@ Histogram_base *create_histogram(MEM_ROOT *mem_root, Histogram_type hist_type,
   switch (hist_type) {
   case SINGLE_PREC_HB:
   case DOUBLE_PREC_HB:
-    res= new (mem_root) Histogram_binary();
+    res= new Histogram_binary();
     break;
   case JSON_HB:
-    res= new (mem_root) Histogram_json_hb();
+    res= new Histogram_json_hb();
     break;
   default:
     DBUG_ASSERT(0);
