@@ -2924,7 +2924,7 @@ int fill_show_explain(THD *thd, TABLE_LIST *table, COND *cond)
   calling_user= (thd->security_ctx->master_access & PROCESS_ACL) ?  NullS :
                  thd->security_ctx->priv_user;
 
-  if ((tmp= find_thread_by_id(thread_id)))
+  if ((tmp= find_thread_by_id_nomutex(thread_id)))
   {
     Security_context *tmp_sctx= tmp->security_ctx;
     /*

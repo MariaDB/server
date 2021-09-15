@@ -3231,8 +3231,13 @@ public:
   void awake(killed_state state_to_set);
  
   /** Disconnect the associated communication endpoint. */
-  void disconnect();
-
+  inline void disconnect()
+  {
+    mysql_mutex_lock(&LOCK_thd_data);
+    disconnect_mutexed();
+    mysql_mutex_unlock(&LOCK_thd_data);
+  }
+  void disconnect_mutexed();
 
   /*
     Allows this thread to serve as a target for others to schedule Async 

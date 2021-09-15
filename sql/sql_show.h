@@ -140,6 +140,7 @@ const char* get_one_variable(THD *thd, const SHOW_VAR *variable,
 /* These functions were under INNODB_COMPATIBILITY_HOOKS */
 int get_quote_char_for_identifier(THD *thd, const char *name, uint length);
 THD *find_thread_by_id(longlong id, bool query_id= false);
+THD *find_thread_by_id_nomutex(longlong id, bool query_id= false);
 
 class select_result_explain_buffer;
 /*

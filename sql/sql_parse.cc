@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2017, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB
+   Copyright (c) 2008, 2021, MariaDB
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -2159,6 +2159,7 @@ bool dispatch_command(enum enum_server_command command, THD *thd,
     }
     DBUG_PRINT("quit",("Got shutdown command for level %u", level));
     general_log_print(thd, command, NullS);
+    DBUG_EXECUTE_IF("shutdown_unireg_abort", { unireg_abort(1); });
     my_eof(thd);
     kill_mysql(thd);
     error=TRUE;
@@ -8899,7 +8900,7 @@ void add_join_natural(TABLE_LIST *a, TABLE_LIST *b, List<String> *using_fields,
 THD *find_thread_by_id(longlong id, bool query_id)
 {
   THD *tmp;
-  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
+  mysql_mutex_assert_owner(&LOCK_thread_count);
   I_List_iterator<THD> it(threads);
   while ((tmp=it++))
   {
@@ -8911,10 +8912,17 @@ THD *find_thread_by_id(longlong id, bool query_id)
       break;
     }
   }
-  mysql_mutex_unlock(&LOCK_thread_count);
   return tmp;
 }
 
+THD* find_thread_by_id_nomutex(longlong id, bool query_id)
+{
+  THD *tmp;
+  mysql_mutex_lock(&LOCK_thread_count); // For unlink from list
+  tmp= find_thread_by_id(id, query_id);
+  mysql_mutex_unlock(&LOCK_thread_count);
+  return tmp;
+}
 
 /**
   kill one thread.
@@ -8936,7 +8944,7 @@ kill_one_thread(THD *thd, longlong id, killed_state kill_signal, killed_type typ
   DBUG_ENTER("kill_one_thread");
   DBUG_PRINT("enter", ("id: %lld  signal: %u", id, (uint) kill_signal));
 
-  if (id && (tmp= find_thread_by_id(id, type == KILL_TYPE_QUERY)))
+  if (id && (tmp= find_thread_by_id_nomutex(id, type == KILL_TYPE_QUERY)))
   {
     /*
       If we're SUPER, we can KILL anything, including system-threads.
@@ -9069,6 +9077,18 @@ static
 void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
 {
   uint error;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    WSREP_DEBUG("sql_kill called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  }
+#endif /* WITH_WSREP */
   if (!(error= kill_one_thread(thd, id, state, type)))
   {
     if (!thd->killed)
@@ -9078,6 +9098,11 @@ void sql_kill(THD *thd, longlong id, killed_state state, killed_type type)
   }
   else
     my_error(error, MYF(0), id);
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  my_error(ER_CANNOT_USER, MYF(0), wsrep_thd_query(thd));
+#endif /* WITH_WSREP */
 }
 
 
@@ -9086,6 +9111,18 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
 {
   uint error;
   ha_rows rows;
+#ifdef WITH_WSREP
+  if (WSREP(thd))
+  {
+    WSREP_DEBUG("sql_kill_user called");
+    if (thd->wsrep_applier)
+    {
+      WSREP_DEBUG("KILL in applying, bailing out here");
+      return;
+    }
+    WSREP_TO_ISOLATION_BEGIN(WSREP_MYSQL_DB, NULL, NULL)
+  }
+#endif /* WITH_WSREP */
   if (!(error= kill_threads_for_user(thd, user, state, &rows)))
     my_ok(thd, rows);
   else
@@ -9096,6 +9133,11 @@ void sql_kill_user(THD *thd, LEX_USER *user, killed_state state)
     */
     my_error(error, MYF(0), user->host.str, user->user.str);
   }
+#ifdef WITH_WSREP
+  return;
+ wsrep_error_label:
+  my_error(ER_CANNOT_USER, MYF(0), user->user.str);
+#endif /* WITH_WSREP */
 }
 
 

@@ -1240,7 +1240,8 @@ struct handlerton
      (*create_iterator)(handlerton *hton, enum handler_iterator_type type,
                         struct handler_iterator *fill_this_in);
    void (*abort_transaction)(handlerton *hton, THD *bf_thd,
-			    THD *victim_thd, my_bool signal);
+                             THD *victim_thd, my_bool signal,
+                             my_bool thread_list_locked);
    int (*set_checkpoint)(handlerton *hton, const XID* xid);
    int (*get_checkpoint)(handlerton *hton, XID* xid);
    void (*fake_trx_id)(handlerton *hton, THD *thd);
@@ -4354,7 +4355,8 @@ bool ha_rollback_to_savepoint_can_release_mdl(THD *thd);
 int ha_savepoint(THD *thd, SAVEPOINT *sv);
 int ha_release_savepoint(THD *thd, SAVEPOINT *sv);
 #ifdef WITH_WSREP
-int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal);
+int ha_abort_transaction(THD *bf_thd, THD *victim_thd,
+                         my_bool signal, my_bool thread_list_locked=FALSE);
 void ha_fake_trx_id(THD *thd);
 #else
 inline void ha_fake_trx_id(THD *thd) { }

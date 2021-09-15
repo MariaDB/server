@@ -1,0 +1,228 @@
+#
+# In this test we try to disconnect connection on some problematic
+# places in InnoDB wsrep kill
+#
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+--source include/have_debug_sync.inc
+
+--echo #
+--echo # Case 1: wsrep_abort_transaction after we have unlocked victim->thd->LOCK_thd_data
+--echo # i.e. wsrep_abort_victim_unlocked 
+
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+#
+# This will be victim transaction for bf kill
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+#
+# Set DEBUG_SYNC and send conflicting DDL that will be TOI (bf) and
+# cause bf_kill
+#
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET DEBUG_SYNC='wsrep_abort_victim_unlocked SIGNAL bf_kill WAIT_FOR bf_continue';
+--send ALTER TABLE t1 ADD UNIQUE KEY b1(b);
+#
+# Wait until we have reached the sync point
+#
+--connection node_1
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+#
+# Now disconnect victim
+#
+--connection node_1
+--disconnect node_1a
+#
+# Let bf_kill continue
+#
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+--connection node_1b
+--reap
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+--connection node_1
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+
+--disconnect node_1b
+
+--echo #
+--echo # Case 2: wsrep_abort_transaction after we have locked lock_sys
+--echo # i.e. wsrep_abort_lock_sys_locked
+
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+#
+# This will be victim transaction for bf kill
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+#
+# Set DEBUG_SYNC and send conflicting DDL that will be TOI (bf) and
+# cause bf_kill
+#
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET DEBUG_SYNC='wsrep_abort_lock_sys_locked SIGNAL bf_kill WAIT_FOR bf_continue';
+--send ALTER TABLE t1 ADD UNIQUE KEY b1(b);
+#
+# Wait until we have reached the sync point
+#
+--connection node_1
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+#
+# Now disconnect victim
+#
+--disconnect node_1a
+#
+# Let bf_kill continue
+#
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+--connection node_1b
+--reap
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+--connection node_1
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+
+--disconnect node_1b
+
+--echo #
+--echo # Case 3: wsrep_abort_transaction after we have obtained
+--echo # reference to victim transaction
+
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+#
+# This will be victim transaction for bf kill
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+#
+# Set DEBUG_SYNC and send conflicting DDL that will be TOI (bf) and
+# cause bf_kill
+#
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET DEBUG_SYNC='wsrep_abort_trx_referenced SIGNAL bf_kill WAIT_FOR bf_continue';
+--send ALTER TABLE t1 ADD UNIQUE KEY b1(b);
+#
+# Wait until we have reached the sync point
+#
+--connection node_1
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+#
+# Now disconnect victim
+#
+--disconnect node_1a
+#
+# Let bf_kill continue
+#
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+--connection node_1b
+--reap
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+--connection node_1
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+
+--disconnect node_1b
+
+--echo #
+--echo # Case 4: wsrep_abort_transaction after we have locked
+--echo # victim trx mutex i.e. wsrep_abort_trx_locked
+
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+
+#
+# This will be victim transaction for bf kill
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+#
+# Set DEBUG_SYNC and send conflicting DDL that will be TOI (bf) and
+# cause bf_kill
+#
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET DEBUG_SYNC='wsrep_abort_trx_locked SIGNAL bf_kill WAIT_FOR bf_continue';
+--send ALTER TABLE t1 ADD UNIQUE KEY b1(b);
+#
+# Wait until we have reached the sync point
+#
+--connection node_1
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+#
+# Now disconnect victim
+#
+--disconnect node_1a
+#
+# Let bf_kill continue
+#
+--connection node_1
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+--connection node_1b
+--reap
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+--connection node_1
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+
+--disconnect node_1b
+
+--echo #
+--echo # Case 5: wsrep_abort_transaction after we have used
+--echo # find_thread_by_id i.e. wsrep_abort_victim_locked
+
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+#
+# This will be victim transaction for bf kill
+#
+--connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+#
+# Set DEBUG_SYNC and send conflicting DDL that will be TOI (bf) and
+# cause bf_kill
+#
+--connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1
+SET DEBUG_SYNC='wsrep_abort_victim_locked SIGNAL bf_kill WAIT_FOR bf_continue';
+--send ALTER TABLE t1 ADD UNIQUE KEY b1(b);
+#
+# Wait until we have reached the sync point
+#
+--connection node_1
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+#
+# Now disconnect victim
+#
+--disconnect node_1a
+#
+# Let bf_kill continue
+#
+--connection node_1
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+--connection node_1b
+--reap
+SHOW CREATE TABLE t1;
+SELECT * FROM t1;
+
+--connection node_1
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+
+--disconnect node_1b
+
+

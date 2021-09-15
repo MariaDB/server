@@ -1,0 +1,183 @@
+#
+# Case 1: wsrep_abort_transaction after we have unlocked victim->thd->LOCK_thd_data
+# i.e. wsrep_abort_victim_unlocked 
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET DEBUG_SYNC='wsrep_abort_victim_unlocked SIGNAL bf_kill WAIT_FOR bf_continue';
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);;
+connection node_1;
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+connection node_1;
+disconnect node_1a;
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+connection node_1b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `b1` (`b`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+id	b
+1	1
+2	2
+3	3
+4	4
+5	5
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+disconnect node_1b;
+#
+# Case 2: wsrep_abort_transaction after we have locked lock_sys
+# i.e. wsrep_abort_lock_sys_locked
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET DEBUG_SYNC='wsrep_abort_lock_sys_locked SIGNAL bf_kill WAIT_FOR bf_continue';
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);;
+connection node_1;
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+disconnect node_1a;
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+connection node_1b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `b1` (`b`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+id	b
+1	1
+2	2
+3	3
+4	4
+5	5
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+disconnect node_1b;
+#
+# Case 3: wsrep_abort_transaction after we have obtained
+# reference to victim transaction
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET DEBUG_SYNC='wsrep_abort_trx_referenced SIGNAL bf_kill WAIT_FOR bf_continue';
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);;
+connection node_1;
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+disconnect node_1a;
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+connection node_1b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `b1` (`b`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+id	b
+1	1
+2	2
+3	3
+4	4
+5	5
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+disconnect node_1b;
+#
+# Case 4: wsrep_abort_transaction after we have locked
+# victim trx mutex i.e. wsrep_abort_trx_locked
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET DEBUG_SYNC='wsrep_abort_trx_locked SIGNAL bf_kill WAIT_FOR bf_continue';
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);;
+connection node_1;
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+disconnect node_1a;
+connection node_1;
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+connection node_1b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `b1` (`b`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+id	b
+1	1
+2	2
+3	3
+4	4
+5	5
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+disconnect node_1b;
+#
+# Case 5: wsrep_abort_transaction after we have used
+# find_thread_by_id i.e. wsrep_abort_victim_locked
+CREATE TABLE t1(id int not null primary key, b int,key(b)) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET DEBUG_SYNC='wsrep_abort_victim_locked SIGNAL bf_kill WAIT_FOR bf_continue';
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);;
+connection node_1;
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+disconnect node_1a;
+connection node_1;
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+connection node_1b;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `b1` (`b`),
+  KEY `b` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+id	b
+1	1
+2	2
+3	3
+4	4
+5	5
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+disconnect node_1b;

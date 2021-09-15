@@ -1,0 +1,79 @@
+--source include/galera_cluster.inc
+--source include/have_debug.inc
+
+--connection node_1
+CREATE TABLE t1(a int NOT NULL PRIMARY KEY AUTO_INCREMENT, b int, key(b)) ENGINE=innodb;
+CREATE TABLE t2(a int NOT NULL PRIMARY KEY AUTO_INCREMENT, b int, key(b)) ENGINE=innodb;
+CREATE TABLE t3(a int NOT NULL PRIMARY KEY AUTO_INCREMENT, b int, key(b)) ENGINE=innodb;
+CREATE TABLE t4(a int NOT NULL PRIMARY KEY AUTO_INCREMENT, b int, key(b)) ENGINE=innodb;
+CREATE TABLE t5(a int NOT NULL PRIMARY KEY AUTO_INCREMENT, b int, key(b)) ENGINE=innodb;
+INSERT INTO t1 values (NULL,1),(NULL,2),(NULL,3),(NULL,4),(NULL,5),(NULL,6);
+INSERT INTO t2 values (NULL,1),(NULL,2),(NULL,3),(NULL,4),(NULL,5),(NULL,6);
+INSERT INTO t3 values (NULL,1),(NULL,2),(NULL,3),(NULL,4),(NULL,5),(NULL,6);
+INSERT INTO t4 values (NULL,1),(NULL,2),(NULL,3),(NULL,4),(NULL,5),(NULL,6);
+INSERT INTO t5 values (NULL,1),(NULL,2),(NULL,3),(NULL,4),(NULL,5),(NULL,6);
+
+--connect node_2a, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2a
+BEGIN;
+UPDATE t1 SET b = b + 10 WHERE b between 2 and 5;
+
+--connect node_2b, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2b
+BEGIN;
+INSERT INTO t2 VALUES (NULL,7),(NULL,7),(NULL,7),(NULL,7),(NULL,7),(NULL,7),(NULL,7);
+
+--connect node_2c, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2c
+BEGIN;
+UPDATE t3 SET b = b + 10 WHERE b between 2 and 5;
+INSERT INTO t4 VALUES (NULL,7),(NULL,7),(NULL,7),(NULL,7),(NULL,7),(NULL,7),(NULL,7);
+
+--connect node_2d, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2d
+BEGIN;
+UPDATE t5 SET b = b + 10 WHERE b between 2 and 5;
+INSERT INTO t5 VALUES (NULL,7),(NULL,7),(NULL,7),(NULL,7),(NULL,7),(NULL,7),(NULL,7);
+DELETE FROM t5 WHERE b < 2;
+
+--connect node_2e, 127.0.0.1, root, , test, $NODE_MYPORT_2
+--connection node_2e
+--exec echo "wait" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+SET @@SESSION.debug_dbug = '+d,shutdown_unireg_abort';
+--send SHUTDOWN
+--reap
+
+--connection node_1
+--let $wait_condition = SELECT VARIABLE_VALUE = 1 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size'
+--source include/wait_condition.inc
+
+--connection node_2e
+#Restart the server
+--exec echo "restart" > $MYSQLTEST_VARDIR/tmp/mysqld.2.expect
+--enable_reconnect
+--source include/wait_until_connected_again.inc
+
+--connection node_2e
+--let $wait_condition = SELECT VARIABLE_VALUE = 2 FROM INFORMATION_SCHEMA.GLOBAL_STATUS WHERE VARIABLE_NAME = 'wsrep_cluster_size';
+--source include/wait_condition.inc
+
+SELECT * FROM t1;
+SELECT * FROM t2;
+SELECT * FROM t3;
+SELECT * FROM t4;
+SELECT * FROM t5;
+
+--connection node_1
+SELECT * FROM t1;
+SELECT * FROM t2;
+SELECT * FROM t3;
+SELECT * FROM t4;
+SELECT * FROM t5;
+
+DROP TABLE t1,t2,t3,t4,t5;
+
+--disconnect node_2a
+--disconnect node_2b
+--disconnect node_2c
+--disconnect node_2d
+--disconnect node_2e

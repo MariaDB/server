@@ -6307,12 +6307,15 @@ void handler::set_lock_type(enum thr_lock_type lock)
 
   @param bf_thd       brute force THD asking for the abort
   @param victim_thd   victim THD to be aborted
+  @param signal       should victim signaled
+  @param thread_list_locked is LOCK_thread_list locked
 
   @return
     always 0
 */
 
-int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
+int ha_abort_transaction(THD *bf_thd, THD *victim_thd,
+                         my_bool signal, my_bool thread_list_locked)
 {
   DBUG_ENTER("ha_abort_transaction");
   if (!WSREP(bf_thd) &&
@@ -6324,7 +6327,7 @@ int ha_abort_transaction(THD *bf_thd, THD *victim_thd, my_bool signal)
   handlerton *hton= installed_htons[DB_TYPE_INNODB];
   if (hton && hton->abort_transaction)
   {
-    hton->abort_transaction(hton, bf_thd, victim_thd, signal);
+    hton->abort_transaction(hton, bf_thd, victim_thd, signal, thread_list_locked);
   }
   else
   {

@@ -31,8 +31,7 @@ bool wsrep_create_appliers(long threads, bool thread_count_lock=false);
 void wsrep_create_rollbacker();
 
 int  wsrep_abort_thd(void *bf_thd_ptr, void *victim_thd_ptr,
-                                my_bool signal);
-
+                     my_bool signal, my_bool thread_list_locked=FALSE);
 /*
   PA = Parallel Applying (on the slave side)
 */
