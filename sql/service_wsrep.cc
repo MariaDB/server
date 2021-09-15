@@ -1,4 +1,4 @@
-/* Copyright 2018 Codership Oy <info@codership.com>
+/* Copyright 2018-2021 Codership Oy <info@codership.com>
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -29,12 +29,14 @@ extern "C" my_bool wsrep_on(const THD *thd)
 
 extern "C" void wsrep_thd_LOCK(const THD *thd)
 {
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
   mysql_mutex_lock(&thd->LOCK_thd_data);
 }
 
 extern "C" void wsrep_thd_UNLOCK(const THD *thd)
 {
   mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
 extern "C" void wsrep_thd_kill_LOCK(const THD *thd)
@@ -189,6 +191,9 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   DBUG_ASSERT(wsrep_thd_is_SR(victim_thd));
   if (!victim_thd || !wsrep_on(bf_thd)) return;
 
+  mysql_mutex_lock(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
+
   WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
               victim_thd->thread_id,
               victim_thd->wsrep_trx_id(),
@@ -209,6 +214,10 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   {
     wsrep_thd_self_abort(victim_thd);
   }
+
+  mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+
   if (bf_thd)
   {
     wsrep_store_threadvars(bf_thd);
@@ -219,7 +228,7 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
                                       my_bool signal)
 {
   mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
-  mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
   /*
     Send awake signal if victim was BF aborted or does not
@@ -228,22 +237,19 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
    */
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
-    mysql_mutex_lock(&victim_thd->LOCK_thd_data);
-
     if (victim_thd->wsrep_aborter && victim_thd->wsrep_aborter != bf_thd->thread_id)
     {
       WSREP_DEBUG("victim is killed already by %llu, skipping awake",
                   victim_thd->wsrep_aborter);
-      mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
       return false;
     }
 
     victim_thd->wsrep_aborter= bf_thd->thread_id;
     victim_thd->awake_no_mutex(KILL_QUERY);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-  } else {
-    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake");
   }
+  else
+    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake");
+
   return ret;
 }
 
@@ -268,13 +274,12 @@ extern "C" my_bool wsrep_thd_order_before(const THD *left, const THD *right)
 
 extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
 {
+  DBUG_ASSERT(thd);
   mysql_mutex_assert_owner(&thd->LOCK_thd_data);
-  if (thd != 0)
+  const wsrep::client_state& cs(thd->wsrep_cs());
+  const enum wsrep::transaction::state tx_state(cs.transaction().state());
+  switch (tx_state)
   {
-    const wsrep::client_state& cs(thd->wsrep_cs());
-    const enum wsrep::transaction::state tx_state(cs.transaction().state());
-    switch (tx_state)
-    {
     case wsrep::transaction::s_must_abort:
       return (cs.state() == wsrep::client_state::s_exec ||
               cs.state() == wsrep::client_state::s_result);
@@ -283,9 +288,7 @@ extern "C" my_bool wsrep_thd_is_aborting(const MYSQL_THD thd)
       return true;
     default:
       return false;
-    }
   }
-  return false;
 }
 
 static inline enum wsrep::key::type

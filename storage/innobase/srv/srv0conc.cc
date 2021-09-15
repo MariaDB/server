@@ -118,11 +118,15 @@ srv_conc_enter_innodb_with_atomics(
 	for (;;) {
 		ulint	sleep_in_us;
 #ifdef WITH_WSREP
-		if (trx->is_wsrep() && wsrep_thd_is_aborting(trx->mysql_thd)) {
-			if (UNIV_UNLIKELY(wsrep_debug)) {
-				ib::info() <<
-					"srv_conc_enter due to MUST_ABORT";
+		if (trx->is_wsrep()) {
+			wsrep_thd_LOCK(trx->mysql_thd);
+			if (wsrep_thd_is_aborting(trx->mysql_thd)) {
+				if (UNIV_UNLIKELY(wsrep_debug)) {
+						ib::info() <<
+						"srv_conc_enter due to MUST_ABORT";
+				}
 			}
+			wsrep_thd_UNLOCK(trx->mysql_thd);
 			srv_conc_force_enter_innodb(trx);
 			return;
 		}

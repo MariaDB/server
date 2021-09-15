@@ -75,7 +75,7 @@ enum enum_slave_parallel_mode {
 
 /* Function prototypes */
 void kill_mysql(THD *thd);
-void close_connection(THD *thd, uint sql_errno= 0);
+void close_connection(THD *thd, uint sql_errno= 0, my_bool locked=false);
 void handle_connection_in_main_thread(CONNECT *thd);
 void create_thread_to_handle_connection(CONNECT *connect);
 void unlink_thd(THD *thd);

@@ -2319,7 +2319,9 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                   request_thd, granted_thd);
     ticket->wsrep_report(wsrep_debug);
 
+    mysql_mutex_lock(&granted_thd->LOCK_thd_kill);
     mysql_mutex_lock(&granted_thd->LOCK_thd_data);
+
     if (wsrep_thd_is_toi(granted_thd) ||
         wsrep_thd_is_applying(granted_thd))
     {
@@ -2328,13 +2330,15 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
         WSREP_DEBUG("BF thread waiting for SR in aborting state");
         ticket->wsrep_report(wsrep_debug);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
       }
       else if (wsrep_thd_is_SR(granted_thd) && !wsrep_thd_is_SR(request_thd))
       {
-        WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR", 
+        WSREP_MDL_LOG(INFO, "MDL conflict, DDL vs SR",
                       schema, schema_len, request_thd, granted_thd);
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
         wsrep_abort_thd(request_thd, granted_thd, 1);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
       }
       else
       {
@@ -2342,6 +2346,7 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
                       request_thd, granted_thd);
         ticket->wsrep_report(true);
         mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
         unireg_abort(1);
       }
     }
@@ -2351,14 +2356,16 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
       WSREP_DEBUG("BF thread waiting for FLUSH");
       ticket->wsrep_report(wsrep_debug);
       mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
     }
     else if (request_thd->lex->sql_command == SQLCOM_DROP_TABLE)
     {
       WSREP_DEBUG("DROP caused BF abort, conf %s",
                   wsrep_thd_transaction_state_str(granted_thd));
       ticket->wsrep_report(wsrep_debug);
-      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
       wsrep_abort_thd(request_thd, granted_thd, 1);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+      mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
     }
     else
     {
@@ -2367,8 +2374,9 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
       ticket->wsrep_report(wsrep_debug);
       if (granted_thd->wsrep_trx().active())
       {
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
         wsrep_abort_thd(request_thd, granted_thd, 1);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+        mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
       }
       else
       {
@@ -2376,10 +2384,11 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
           Granted_thd is likely executing with wsrep_on=0. If the requesting
           thd is BF, BF abort and wait.
         */
-        mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
-        if (wsrep_thd_is_BF(request_thd, FALSE))
+        if (wsrep_thd_is_BF(request_thd, false))
         {
           ha_abort_transaction(request_thd, granted_thd, TRUE);
+          mysql_mutex_unlock(&granted_thd->LOCK_thd_data);
+          mysql_mutex_unlock(&granted_thd->LOCK_thd_kill);
         }
         else
         {
@@ -2392,15 +2401,15 @@ void wsrep_handle_mdl_conflict(MDL_context *requestor_ctx,
     }
   }
   else
-  {
     mysql_mutex_unlock(&request_thd->LOCK_thd_data);
-  }
 }
 
 /**/
 static bool abort_replicated(THD *thd)
 {
   bool ret_code= false;
+  mysql_mutex_assert_owner(&thd->LOCK_thd_data);
+  mysql_mutex_assert_owner(&thd->LOCK_thd_kill);
   if (thd->wsrep_trx().state() == wsrep::transaction::s_committing)
   {
     WSREP_DEBUG("aborting replicated trx: %llu", (ulonglong)(thd->real_id));
@@ -2412,29 +2421,35 @@ static bool abort_replicated(THD *thd)
 }
 
 /**/
-static inline bool is_client_connection(THD *thd)
+static inline my_bool is_client_connection(THD *thd, my_bool *sync)
 {
-  return (thd->wsrep_client_thread && thd->variables.wsrep_on);
-}
-
-static inline bool is_replaying_connection(THD *thd)
-{
-  bool ret;
-
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  ret=  (thd->wsrep_trx().state() == wsrep::transaction::s_replaying) ? true : false;
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  if (sync)
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+  my_bool ret= (thd->wsrep_client_thread && thd->variables.wsrep_on);
+  if (sync)
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
   return ret;
 }
 
-static inline bool is_committing_connection(THD *thd)
+static inline my_bool is_replaying_connection(THD *thd, my_bool *sync)
 {
-  bool ret;
+  if (sync)
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+  my_bool ret= ((thd->wsrep_trx().state() == wsrep::transaction::s_replaying) ? true : false);
+  if (sync)
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
 
-  mysql_mutex_lock(&thd->LOCK_thd_data);
-  ret=  (thd->wsrep_trx().state() == wsrep::transaction::s_committing) ? true : false;
-  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  return ret;
+}
+
+static inline my_bool is_committing_connection(THD *thd, my_bool *sync)
+{
+  if (sync)
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+  my_bool ret= ((thd->wsrep_trx().state() == wsrep::transaction::s_committing) ? true : false);
+  if (sync)
+    mysql_mutex_lock(&thd->LOCK_thd_data);
 
   return ret;
 }
@@ -2443,12 +2458,17 @@ static my_bool have_client_connections(THD *thd, void*)
 {
   DBUG_PRINT("quit",("Informing thread %lld that it's time to die",
                      (longlong) thd->thread_id));
-  if (is_client_connection(thd) && thd->killed == KILL_CONNECTION)
+  my_bool ret=false;
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  if (is_client_connection(thd, NULL) && thd->killed == KILL_CONNECTION)
   {
     (void)abort_replicated(thd);
-    return 1;
+    ret= true;
   }
-  return 0;
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
+  return ret;
 }
 
 static void wsrep_close_thread(THD *thd)
@@ -2460,59 +2480,72 @@ static void wsrep_close_thread(THD *thd)
   mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
-static my_bool have_committing_connections(THD *thd, void *)
+static my_bool have_committing_connections(THD *thd, my_bool *sync)
 {
-  return is_client_connection(thd) && is_committing_connection(thd) ? 1 : 0;
+  my_bool *need_sync= sync ? NULL : (my_bool *)thd;
+  if (sync)
+    mysql_mutex_lock(&thd->LOCK_thd_data);
+  my_bool ret= (is_client_connection(thd, need_sync) && is_committing_connection(thd, need_sync) ? 1 : 0);
+  if (sync)
+    mysql_mutex_unlock(&thd->LOCK_thd_data);
+  return ret;
 }
 
 int wsrep_wait_committing_connections_close(int wait_time)
 {
   int sleep_time= 100;
+  my_bool sync=true;
 
   WSREP_DEBUG("wait for committing transaction to close: %d sleep: %d", wait_time, sleep_time);
-  while (server_threads.iterate(have_committing_connections) && wait_time > 0)
+  while (server_threads.iterate(have_committing_connections, &sync) && wait_time > 0)
   {
     WSREP_DEBUG("wait for committing transaction to close: %d", wait_time);
     my_sleep(sleep_time);
     wait_time -= sleep_time;
   }
-  return server_threads.iterate(have_committing_connections);
+  return server_threads.iterate(have_committing_connections, &sync);
 }
 
 static my_bool kill_all_threads(THD *thd, THD *caller_thd)
 {
   DBUG_PRINT("quit", ("Informing thread %lld that it's time to die",
                       (longlong) thd->thread_id));
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
   /* We skip slave threads & scheduler on this first loop through. */
-  if (is_client_connection(thd) && thd != caller_thd)
+  if (is_client_connection(thd, NULL) && thd != caller_thd)
   {
-    if (is_replaying_connection(thd))
-      thd->set_killed(KILL_CONNECTION);
+	  if (is_replaying_connection(thd,NULL))
+      thd->set_killed_no_mutex(KILL_CONNECTION);
     else if (!abort_replicated(thd))
     {
       /* replicated transactions must be skipped */
       WSREP_DEBUG("closing connection %lld", (longlong) thd->thread_id);
       /* instead of wsrep_close_thread() we do now  soft kill by THD::awake */
-      thd->awake(KILL_CONNECTION);
+      thd->awake_no_mutex(KILL_CONNECTION);
     }
   }
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
   return 0;
 }
 
 static my_bool kill_remaining_threads(THD *thd, THD *caller_thd)
 {
-#ifndef __bsdi__				// Bug in BSDI kernel
-  if (is_client_connection(thd) &&
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
+  mysql_mutex_lock(&thd->LOCK_thd_data);
+  if (is_client_connection(thd,NULL) &&
       !abort_replicated(thd)    &&
-      !is_replaying_connection(thd) &&
+	  !is_replaying_connection(thd,NULL) &&
       thd_is_connection_alive(thd) &&
       thd != caller_thd)
   {
 
     WSREP_INFO("killing local connection: %lld", (longlong) thd->thread_id);
-    close_connection(thd);
+    close_connection(thd, true);
   }
-#endif
+  mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
   return 0;
 }
 
