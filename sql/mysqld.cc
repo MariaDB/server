@@ -2076,7 +2076,7 @@ static void clean_up_mutexes()
 ****************************************************************************/
 
 #ifdef EMBEDDED_LIBRARY
-void close_connection(THD *thd, uint sql_errno)
+void close_connection(THD *thd, uint sql_errno, my_bool locked)
 {
 }
 #else
@@ -2625,7 +2625,7 @@ static void network_init(void)
     For the connection that is doing shutdown, this is called twice
 */
 
-void close_connection(THD *thd, uint sql_errno)
+void close_connection(THD *thd, uint sql_errno, my_bool locked)
 {
   int lvl= (thd->main_security_ctx.user ? 3 : 1);
   DBUG_ENTER("close_connection");
@@ -2641,7 +2641,10 @@ void close_connection(THD *thd, uint sql_errno)
                                      "This connection closed normally without"
                                       " authentication"));
 
-  thd->disconnect();
+  if (locked)
+    thd->disconnect_mutexed();
+  else
+    thd->disconnect();
 
   MYSQL_CONNECTION_DONE((int) sql_errno, thd->thread_id);
 

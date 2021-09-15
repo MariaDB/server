@@ -4936,7 +4936,8 @@ static void innobase_kill_query(handlerton*, THD *thd, enum thd_kill_levels)
     ut_ad(trx->mysql_thd == thd);
     if (!trx->lock.wait_lock);
 #ifdef WITH_WSREP
-    else if (trx->is_wsrep() && wsrep_thd_is_aborting(thd))
+    else if (trx->is_wsrep() && (wsrep_thd_is_aborting(thd)
+	     || trx->lock.was_chosen_as_deadlock_victim.fetch_and(byte(~2))))
       /* if victim has been signaled by BF thread and/or aborting is already
       progressing, following query aborting is not necessary any more.
       Also, BF thread should own trx mutex for the victim. */;
@@ -18486,10 +18487,12 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
 {
   THD *bf_thd= bf_trx->mysql_thd;
 
+  /* Below function will lock THD::LOCK_thd_kill to protect victim
+  from concurrent delete or disconnect and THD::LOCK_thd_data
+  to protect from concurrent usage. */
   if (THD *vthd= find_thread_by_id(thd_id))
   {
     bool aborting= false;
-    wsrep_thd_LOCK(vthd);
     trx_t *vtrx= thd_to_trx(vthd);
     if (vtrx)
     {
@@ -18542,18 +18545,16 @@ void lock_wait_wsrep_kill(trx_t *bf_trx, ulong thd_id, trx_id_t trx_id)
       mysql_mutex_unlock(&lock_sys.wait_mutex);
       vtrx->mutex_unlock();
     }
-    wsrep_thd_UNLOCK(vthd);
+
     if (aborting)
     {
       /* if victim is waiting for some other lock, we have to cancel
          that waiting
       */
       lock_sys.cancel_lock_wait_for_trx(vtrx);
-
-      DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
       wsrep_thd_bf_abort(bf_thd, vthd, true);
     }
-    wsrep_thd_kill_UNLOCK(vthd);
+    wsrep_thd_UNLOCK(vthd);
   }
 }
 
@@ -18579,47 +18580,46 @@ wsrep_abort_transaction(
 	ut_ad(victim_thd);
 
 	trx_t* victim_trx= thd_to_trx(victim_thd);
+	trx_t* bf_trx= thd_to_trx(bf_thd);
 
-	WSREP_DEBUG("abort transaction: BF: %s victim: %s victim conf: %s",
-			wsrep_thd_query(bf_thd),
-			wsrep_thd_query(victim_thd),
-			wsrep_thd_transaction_state_str(victim_thd));
+	/* Here we should hold THD::LOCK_thd_data to protect
+	victim from concurrent usage and THD::LOCK_thd_kill
+	to protect from disconnect or delete. */
+	WSREP_DEBUG("wsrep_abort_transaction: BF:"
+		    " thread %ld client_state %s client_mode %s"
+		    " trx_state %s query %s trx " TRX_ID_FMT,
+		    thd_get_thread_id(bf_thd),
+		    wsrep_thd_client_state_str(bf_thd),
+		    wsrep_thd_client_mode_str(bf_thd),
+		    wsrep_thd_transaction_state_str(bf_thd),
+		    wsrep_thd_query(bf_thd),
+		    bf_trx ? bf_trx->id : 0);
+
+	WSREP_DEBUG("wsrep_abort_transaction: victim:"
+		    " thread %ld query_state %s conflict_state %s"
+		    " exec %s query %s trx " TRX_ID_FMT,
+		    thd_get_thread_id(victim_thd),
+		    wsrep_thd_client_state_str(victim_thd),
+		    wsrep_thd_client_mode_str(victim_thd),
+		    wsrep_thd_transaction_state_str(victim_thd),
+		    wsrep_thd_query(victim_thd),
+		    victim_trx ? victim_trx->id : 0);
 
 	if (victim_trx) {
+		WSREP_DEBUG("wsrep_abort_transaction: Victim thread %ld "
+			    "transaction " TRX_ID_FMT " trx_state %d",
+			    thd_get_thread_id(victim_thd),
+			    victim_trx->id,
+			    (int)victim_trx->state);
 		victim_trx->lock.was_chosen_as_deadlock_victim.fetch_or(2);
-
-		wsrep_thd_kill_LOCK(victim_thd);
-		wsrep_thd_LOCK(victim_thd);
-		bool aborting= !wsrep_thd_set_wsrep_aborter(bf_thd, victim_thd);
-		wsrep_thd_UNLOCK(victim_thd);
-		if (aborting) {
-			DEBUG_SYNC(bf_thd, "before_wsrep_thd_abort");
-			DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-					 {
-					   const char act[]=
-					     "now "
-					     "SIGNAL sync.before_wsrep_thd_abort_reached "
-					     "WAIT_FOR signal.before_wsrep_thd_abort";
-					   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-									      STRING_WITH_LEN(act)));
-					 };);
+		if (!wsrep_thd_set_wsrep_aborter(bf_thd, victim_thd))
 			wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
-		}
-		wsrep_thd_kill_UNLOCK(victim_thd);
 		DBUG_VOID_RETURN;
 	} else {
-		DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-				 {
-				   const char act[]=
-				     "now "
-				     "SIGNAL sync.before_wsrep_thd_abort_reached "
-				     "WAIT_FOR signal.before_wsrep_thd_abort";
-				   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-								      STRING_WITH_LEN(act)));
-				 };);
-		wsrep_thd_kill_LOCK(victim_thd);
+		WSREP_DEBUG("wsrep_abort_transaction: Victim thread %ld "
+			    "no transaction",
+			    thd_get_thread_id(victim_thd));
 		wsrep_thd_bf_abort(bf_thd, victim_thd, signal);
-		wsrep_thd_kill_UNLOCK(victim_thd);
 	}
 
 	DBUG_VOID_RETURN;
