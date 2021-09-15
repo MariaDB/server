@@ -4217,6 +4217,9 @@ void handler::print_error(int error, myf errflag)
   case HA_ERR_TABLE_IN_FK_CHECK:
     textno= ER_TABLE_IN_FK_CHECK;
     break;
+  case HA_ERR_COMMIT_ERROR:
+    textno= ER_ERROR_DURING_COMMIT;
+    break;
   default:
     {
       /* The error was "unknown" to this function.
