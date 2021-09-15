@@ -3510,6 +3510,7 @@ print_field_types(MYSQL_RES *result)
     BinaryStringBuffer<128> data_type_metadata_str;
     metadata.print_data_type_related_attributes(&data_type_metadata_str);
     tee_fprintf(PAGER, "Field %3u:  `%s`\n"
+                       "Org_field:  `%s`\n"
                        "Catalog:    `%s`\n"
                        "Database:   `%s`\n"
                        "Table:      `%s`\n"
@@ -3521,8 +3522,8 @@ print_field_types(MYSQL_RES *result)
                        "Decimals:   %u\n"
                        "Flags:      %s\n\n",
                 ++i,
-                field->name, field->catalog, field->db, field->table,
-                field->org_table, fieldtype2str(field->type),
+                field->name, field->org_name, field->catalog, field->db,
+                field->table, field->org_table, fieldtype2str(field->type),
                 data_type_metadata_str.length() ? " (" : "",
                 data_type_metadata_str.length(), data_type_metadata_str.ptr(),
                 data_type_metadata_str.length() ? ")" : "",

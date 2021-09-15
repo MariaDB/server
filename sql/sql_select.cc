@@ -18057,7 +18057,14 @@ Field *Item_sum::create_tmp_field(MEM_ROOT *root, bool group, TABLE *table)
 /**
   Create a temporary field for Item_field (or its descendant),
   either direct or referenced by an Item_ref.
+
+  param->modify_item is set when we create a field for an internal temporary
+  table. In this case we have to ensure the new field name is identical to
+  the original field name as the field will info will be sent to the client.
+  In other cases, the field name is set from orig_item or name if org_item is
+  not set.
 */
+
 Field *
 Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
                                              Item_ref *orig_item,
@@ -18065,6 +18072,10 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
 {
   DBUG_ASSERT(!is_result_field());
   Field *result;
+  LEX_CSTRING *new_name= (orig_item ? &orig_item->name :
+                          !param->modify_item() ? &name :
+                          &field->field_name);
+
   /*
     If item have to be able to store NULLs but underlaid field can't do it,
     create_tmp_field_from_field() can't be used for tmp field creation.
@@ -18083,8 +18094,7 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
     Record_addr rec(orig_item ? orig_item->maybe_null : maybe_null);
     const Type_handler *handler= type_handler()->
                                    type_handler_for_tmp_table(this);
-    result= handler->make_and_init_table_field(root,
-                                               orig_item ? &orig_item->name : &name,
+    result= handler->make_and_init_table_field(root, new_name,
                                                rec, *this, new_table);
   }
   else if (param->table_cant_handle_bit_fields() &&
@@ -18092,18 +18102,17 @@ Item_field::create_tmp_field_from_item_field(MEM_ROOT *root, TABLE *new_table,
   {
     const Type_handler *handler=
       Type_handler::type_handler_long_or_longlong(max_char_length(), true);
-    result= handler->make_and_init_table_field(root, &name,
+    result= handler->make_and_init_table_field(root, new_name,
                                                Record_addr(maybe_null),
                                                *this, new_table);
   }
   else
   {
-    LEX_CSTRING *tmp= orig_item ? &orig_item->name : &name;
     bool tmp_maybe_null= param->modify_item() ? maybe_null :
                                                 field->maybe_null();
     result= field->create_tmp_field(root, new_table, tmp_maybe_null);
-    if (result)
-      result->field_name= *tmp;
+    if (result && ! param->modify_item())
+      result->field_name= *new_name;
   }
   if (result && param->modify_item())
     result_field= result;
