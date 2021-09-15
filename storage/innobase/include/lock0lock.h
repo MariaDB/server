@@ -609,8 +609,9 @@ public:
 
     /** Number of array[] elements per hash_latch.
     Must be LATCH less than a power of 2. */
-    static constexpr size_t ELEMENTS_PER_LATCH= CPU_LEVEL1_DCACHE_LINESIZE /
-      sizeof(void*) - LATCH;
+    static constexpr size_t ELEMENTS_PER_LATCH= (64 / sizeof(void*)) - LATCH;
+    static constexpr size_t EMPTY_SLOTS_PER_LATCH=
+      ((CPU_LEVEL1_DCACHE_LINESIZE / 64) - 1) * (64 / sizeof(void*));
 
     /** number of payload elements in array[]. Protected by lock_sys.latch. */
     ulint n_cells;
@@ -632,9 +633,15 @@ public:
 
     /** @return the index of an array element */
     inline ulint calc_hash(ulint fold) const;
+
     /** @return raw array index converted to padded index */
     static ulint pad(ulint h)
-    { return LATCH + LATCH * (h / ELEMENTS_PER_LATCH) + h; }
+    {
+      ulint latches= LATCH * (h / ELEMENTS_PER_LATCH);
+      ulint empty_slots= (h / ELEMENTS_PER_LATCH) * EMPTY_SLOTS_PER_LATCH;
+      return LATCH + latches + empty_slots + h;
+    }
+
     /** Get a latch. */
     static hash_latch *latch(hash_cell_t *cell)
     {
