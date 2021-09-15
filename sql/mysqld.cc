@@ -5074,7 +5074,7 @@ static int init_server_components()
 
   tc_log= 0; // ha_initialize_handlerton() needs that
 
-  if (ddl_log_initialize())
+  if (!opt_abort && ddl_log_initialize())
     unireg_abort(1);
 
   if (plugin_init(&remaining_argc, remaining_argv,
