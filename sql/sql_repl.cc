@@ -1,5 +1,5 @@
 /* Copyright (c) 2000, 2018, Oracle and/or its affiliates.
-   Copyright (c) 2008, 2020, MariaDB Corporation
+   Copyright (c) 2008, 2021, MariaDB Corporation
 
    This program is free software; you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -3498,8 +3498,8 @@ static my_bool kill_callback(THD *thd, kill_callback_arg *arg)
       thd->variables.server_id == arg->slave_server_id)
   {
     arg->thd= thd;
-    mysql_mutex_lock(&thd->LOCK_thd_data);
     mysql_mutex_lock(&thd->LOCK_thd_kill);    // Lock from delete
+    mysql_mutex_lock(&thd->LOCK_thd_data);
     return 1;
   }
   return 0;

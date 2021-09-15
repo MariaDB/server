@@ -826,6 +826,7 @@ THD::THD(my_thread_id id, bool is_wsrep_applier)
   mysql_mutex_init(key_LOCK_wakeup_ready, &LOCK_wakeup_ready, MY_MUTEX_INIT_FAST);
   mysql_mutex_init(key_LOCK_thd_kill, &LOCK_thd_kill, MY_MUTEX_INIT_FAST);
   mysql_cond_init(key_COND_wakeup_ready, &COND_wakeup_ready, 0);
+  mysql_mutex_record_order(&LOCK_thd_kill, &LOCK_thd_data);
 
   /* Variables with default values */
   proc_info="login";
@@ -1998,13 +1999,13 @@ void THD::abort_current_cond_wait(bool force)
           the Vio might be disassociated concurrently.
 */
 
-void THD::disconnect()
+void THD::disconnect_mutexed()
 {
   Vio *vio= NULL;
 
-  set_killed(KILL_CONNECTION);
-
-  mysql_mutex_lock(&LOCK_thd_data);
+  mysql_mutex_assert_owner(&LOCK_thd_data);
+  mysql_mutex_assert_owner(&LOCK_thd_kill);
+  set_killed_no_mutex(KILL_CONNECTION);
 
 #ifdef SIGNAL_WITH_VIO_CLOSE
   /*
@@ -2020,8 +2021,6 @@ void THD::disconnect()
   if (net.vio != vio)
     vio_close(net.vio);
   net.thd= 0;                                   // Don't collect statistics
-
-  mysql_mutex_unlock(&LOCK_thd_data);
 }
 
 
@@ -2048,6 +2047,9 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
 
   if (needs_thr_lock_abort)
   {
+    /* Protect thread from concurrent disconnect and delete */
+    mysql_mutex_lock(&in_use->LOCK_thd_kill);
+    /* Protect thread from concurrent usage */
     mysql_mutex_lock(&in_use->LOCK_thd_data);
     /* If not already dying */
     if (in_use->killed != KILL_CONNECTION_HARD)
@@ -2064,11 +2066,20 @@ bool THD::notify_shared_lock(MDL_context_owner *ctx_in_use,
           thread can see those instances (e.g. see partitioning code).
         */
         if (!thd_table->needs_reopen())
-        {
           signalled|= mysql_lock_abort_for_thread(this, thd_table);
-        }
       }
+#ifdef WITH_WSREP
+      if (WSREP(this) && wsrep_thd_is_BF(this, false))
+      {
+        WSREP_DEBUG("notify_shared_lock: BF thread %llu query %s"
+                    " victim %llu query %s",
+                    this->real_id, wsrep_thd_query(this),
+                    in_use->real_id, wsrep_thd_query(in_use));
+        wsrep_abort_thd(this, in_use, false);
+      }
+#endif /* WITH_WSREP */
     }
+    mysql_mutex_unlock(&in_use->LOCK_thd_kill);
     mysql_mutex_unlock(&in_use->LOCK_thd_data);
   }
   DBUG_RETURN(signalled);

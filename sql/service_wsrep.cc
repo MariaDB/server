@@ -29,12 +29,14 @@ extern "C" my_bool wsrep_on(const THD *thd)
 
 extern "C" void wsrep_thd_LOCK(const THD *thd)
 {
+  mysql_mutex_lock(&thd->LOCK_thd_kill);
   mysql_mutex_lock(&thd->LOCK_thd_data);
 }
 
 extern "C" void wsrep_thd_UNLOCK(const THD *thd)
 {
   mysql_mutex_unlock(&thd->LOCK_thd_data);
+  mysql_mutex_unlock(&thd->LOCK_thd_kill);
 }
 
 extern "C" void wsrep_thd_kill_LOCK(const THD *thd)
@@ -188,6 +190,9 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   DBUG_ASSERT(wsrep_thd_is_SR(victim_thd));
   if (!victim_thd || !wsrep_on(bf_thd)) return;
 
+  mysql_mutex_lock(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_lock(&victim_thd->LOCK_thd_data);
+
   WSREP_DEBUG("handle rollback, for deadlock: thd %llu trx_id %" PRIu64 " frags %zu conf %s",
               victim_thd->thread_id,
               victim_thd->wsrep_trx_id(),
@@ -208,6 +213,10 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
   {
     wsrep_thd_self_abort(victim_thd);
   }
+
+  mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
+
   if (bf_thd)
   {
     wsrep_store_threadvars(bf_thd);
@@ -217,16 +226,8 @@ extern "C" void wsrep_handle_SR_rollback(THD *bf_thd,
 extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
                                       my_bool signal)
 {
-  DBUG_EXECUTE_IF("sync.before_wsrep_thd_abort",
-                 {
-                   const char act[]=
-                     "now "
-                     "SIGNAL sync.before_wsrep_thd_abort_reached "
-                     "WAIT_FOR signal.before_wsrep_thd_abort";
-                   DBUG_ASSERT(!debug_sync_set_action(bf_thd,
-                                                      STRING_WITH_LEN(act)));
-                 };);
-
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_kill);
+  mysql_mutex_assert_owner(&victim_thd->LOCK_thd_data);
   my_bool ret= wsrep_bf_abort(bf_thd, victim_thd);
   /*
     Send awake signal if victim was BF aborted or does not
@@ -235,26 +236,19 @@ extern "C" my_bool wsrep_thd_bf_abort(THD *bf_thd, THD *victim_thd,
    */
   if ((ret || !wsrep_on(victim_thd)) && signal)
   {
-    mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_data);
-    mysql_mutex_assert_not_owner(&victim_thd->LOCK_thd_kill);
-    mysql_mutex_lock(&victim_thd->LOCK_thd_data);
-
     if (victim_thd->wsrep_aborter && victim_thd->wsrep_aborter != bf_thd->thread_id)
     {
       WSREP_DEBUG("victim is killed already by %llu, skipping awake",
                   victim_thd->wsrep_aborter);
-      mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
       return false;
     }
 
-    mysql_mutex_lock(&victim_thd->LOCK_thd_kill);
     victim_thd->wsrep_aborter= bf_thd->thread_id;
     victim_thd->awake_no_mutex(KILL_QUERY);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_kill);
-    mysql_mutex_unlock(&victim_thd->LOCK_thd_data);
-  } else {
-    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake");
   }
+  else
+    WSREP_DEBUG("wsrep_thd_bf_abort skipped awake");
+
   return ret;
 }
 
