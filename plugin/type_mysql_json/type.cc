@@ -14,8 +14,8 @@
    along with this program; if not, write to the Free Software
    Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1335  USA */
 
-#include <mysql/plugin_data_type.h>
 #include <my_global.h>
+#include <mysql/plugin_data_type.h>
 #include <sql_type.h>
 #include <field.h>
 #include <mysqld_error.h>
