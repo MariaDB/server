@@ -699,7 +699,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   const bool was_insert_delayed= (table_list->lock_type ==  TL_WRITE_DELAYED);
   bool using_bulk_insert= 0;
   uint value_count;
-  ulong counter = 1;
   /* counter of iteration in bulk PS operation*/
   ulonglong iteration= 0;
   ulonglong id;
@@ -711,7 +710,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   Name_resolution_context_state ctx_state;
   SELECT_LEX *returning= thd->lex->has_returning() ? thd->lex->returning() : 0;
   unsigned char *readbuff= NULL;
-  thd->current_insert_index= 0;
 
 #ifndef EMBEDDED_LIBRARY
   char *query= thd->query();
@@ -831,10 +829,11 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
   while ((values= its++))
   {
-    thd->current_insert_index= ++counter;
+    thd->get_stmt_da()->inc_current_row_for_warning();
     if (values->elements != value_count)
     {
-      my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), counter);
+      my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0),
+               thd->get_stmt_da()->current_row_for_warning());
       goto abort;
     }
     if (setup_fields(thd, Ref_ptr_array(),
@@ -843,7 +842,7 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
     switch_to_nullable_trigger_fields(*values, table);
   }
   its.rewind ();
-  thd->current_insert_index= 0;
+  thd->get_stmt_da()->reset_current_row_for_warning();
  
   /* Restore the current context. */
   ctx_state.restore_state(context, table_list);
@@ -1010,7 +1009,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
 
     while ((values= its++))
     {
-      thd->current_insert_index++;
       if (fields.elements || !value_count)
       {
         /*
@@ -1134,7 +1132,6 @@ bool mysql_insert(THD *thd, TABLE_LIST *table_list,
   } while (bulk_parameters_iterations(thd));
 
 values_loop_end:
-  thd->current_insert_index= 0;
   free_underlaid_joins(thd, thd->lex->first_select_lex());
   joins_freed= TRUE;
 
@@ -1610,8 +1607,6 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
   bool res= 0;
   table_map map= 0;
   TABLE *table;
-  thd->current_insert_index= 1;
-
   DBUG_ENTER("mysql_prepare_insert");
   DBUG_PRINT("enter", ("table_list: %p  view: %d",
 		       table_list, (int) insert_into_view));
@@ -1665,7 +1660,6 @@ int mysql_prepare_insert(THD *thd, TABLE_LIST *table_list,
     if (!res)
       res= setup_fields(thd, Ref_ptr_array(),
                         update_values, MARK_COLUMNS_READ, 0, NULL, 0);
-    thd->current_insert_index= 0;
 
     if (!res && duplic == DUP_UPDATE)
     {

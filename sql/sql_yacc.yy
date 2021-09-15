@@ -12833,6 +12833,7 @@ insert:
           {
             Lex->sql_command= SQLCOM_INSERT;
             Lex->duplicates= DUP_ERROR;
+            thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
           }
           insert_start insert_lock_option opt_ignore opt_into insert_table
           {
@@ -12842,6 +12843,7 @@ insert:
           stmt_end
           {
             Lex->mark_first_table_as_inserting();
+            thd->get_stmt_da()->reset_current_row_for_warning();
           }
           ;
 
@@ -12850,6 +12852,7 @@ replace:
           {
             Lex->sql_command = SQLCOM_REPLACE;
             Lex->duplicates= DUP_REPLACE;
+            thd->get_stmt_da()->opt_clear_warning_info(thd->query_id);
           }
           insert_start replace_lock_option opt_into insert_table
           {
@@ -12859,6 +12862,7 @@ replace:
           stmt_end
           {
             Lex->mark_first_table_as_inserting();
+            thd->get_stmt_da()->reset_current_row_for_warning();
           }
           ;
 
@@ -12918,7 +12922,6 @@ insert_table:
             //lex->field_list.empty();
             lex->many_values.empty();
             lex->insert_list=0;
-            thd->current_insert_index= lex->many_values.elements+1;
           }
         ;
 
@@ -12928,14 +12931,11 @@ insert_field_spec:
         | SET
           {
             LEX *lex=Lex;
-            ulonglong saved_current_insert_index= thd->current_insert_index;
             if (unlikely(!(lex->insert_list= new (thd->mem_root) List_item)) ||
                 unlikely(lex->many_values.push_back(lex->insert_list,
                          thd->mem_root)))
               MYSQL_YYABORT;
             lex->current_select->parsing_place= NO_MATTER;
-            if (saved_current_insert_index < lex->many_values.elements)
-              thd->current_insert_index++;
           }
           ident_eq_list
         ;
@@ -13013,10 +13013,10 @@ no_braces:
           opt_values ')'
           {
             LEX *lex=Lex;
+            thd->get_stmt_da()->inc_current_row_for_warning();
             if (unlikely(lex->many_values.push_back(lex->insert_list,
                                                     thd->mem_root)))
               MYSQL_YYABORT;
-            thd->current_insert_index++;
           }
         ;
 
@@ -13029,10 +13029,10 @@ no_braces_with_names:
           opt_values_with_names ')'
           {
             LEX *lex=Lex;
+            thd->get_stmt_da()->inc_current_row_for_warning();
             if (unlikely(lex->many_values.push_back(lex->insert_list,
                                                     thd->mem_root)))
               MYSQL_YYABORT;
-            thd->current_insert_index++;
           }
         ;
 

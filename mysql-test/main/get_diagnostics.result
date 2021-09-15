@@ -1470,7 +1470,7 @@ ERROR 42000: Column 'id1' specified twice
 GET DIAGNOSTICS CONDITION 1 @var118= ERROR_INDEX;
 SELECT @var118;
 @var118
-0
+1
 CREATE FUNCTION f1() RETURNS INT
 BEGIN
 INSERT INTO t1 VALUES (1);
@@ -1481,38 +1481,38 @@ ERROR HY000: Can't update table 't1' in stored function/trigger because it is al
 GET DIAGNOSTICS CONDITION 1 @var119= ERROR_INDEX;
 SELECT @var119;
 @var119
-0
+2
 INSERT INTO t1 VALUES (1) RETURNING id2;
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var120= ERROR_INDEX;
 SELECT @var120;
 @var120
-0
+1
 INSERT INTO t1(id2) VALUES(1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var121= ERROR_INDEX;
 SELECT @var121;
 @var121
-0
+1
 INSERT INTO v VALUES(1,2);
 ERROR HY000: Can not insert into join view 'test.v' without fields list
 GET DIAGNOSTICS CONDITION 1 @var122= ERROR_INDEX;
 SELECT @var122;
 @var122
-0
+1
 INSERT INTO v(a,b) VALUES (1,2);
 ERROR HY000: Can not modify more than one base table through a join view 'test.v'
 GET DIAGNOSTICS CONDITION 1 @var123= ERROR_INDEX;
 SELECT @var123;
 @var123
-0
+1
 # REPLACE STATEMENT
 REPLACE INTO t1(id1, id1) VALUES (1,1);
 ERROR 42000: Column 'id1' specified twice
 GET DIAGNOSTICS CONDITION 1 @var124= ERROR_INDEX;
 SELECT @var124;
 @var124
-0
+1
 CREATE FUNCTION f2() RETURNS INT
 BEGIN
 REPLACE INTO t1 VALUES (1);
@@ -1523,31 +1523,31 @@ ERROR HY000: Can't update table 't1' in stored function/trigger because it is al
 GET DIAGNOSTICS CONDITION 1 @var125= ERROR_INDEX;
 SELECT @var125;
 @var125
-0
+2
 REPLACE INTO t1 VALUES (1) RETURNING id2;
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var126= ERROR_INDEX;
 SELECT @var126;
 @var126
-0
+1
 REPLACE INTO t1(id2) VALUES(1);
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var127= ERROR_INDEX;
 SELECT @var127;
 @var127
-0
+1
 REPLACE INTO v VALUES(1,2);
 ERROR HY000: Can not insert into join view 'test.v' without fields list
 GET DIAGNOSTICS CONDITION 1 @var128= ERROR_INDEX;
 SELECT @var128;
 @var128
-0
+1
 REPLACE INTO v(a,b) VALUES (1,2);
 ERROR HY000: Can not modify more than one base table through a join view 'test.v'
 GET DIAGNOSTICS CONDITION 1 @var129= ERROR_INDEX;
 SELECT @var129;
 @var129
-0
+1
 DROP TABLE t1,t2;
 DROP FUNCTION f1;
 DROP FUNCTION f2;

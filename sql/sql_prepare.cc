@@ -1314,7 +1314,6 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
   if ((values= its++))
   {
     uint value_count;
-    ulong counter= 0;
     Item *unused_conds= 0;
 
     if (table_list->table)
@@ -1338,20 +1337,20 @@ static bool mysql_test_insert_common(Prepared_statement *stmt,
                                                   table_list->table_name.str));
       goto error;
     }
-    thd->current_insert_index= 0;
     while ((values= its++))
     {
-      thd->current_insert_index= ++counter;
       if (values->elements != value_count)
       {
-        my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0), counter);
+        my_error(ER_WRONG_VALUE_COUNT_ON_ROW, MYF(0),
+                 thd->get_stmt_da()->current_row_for_warning());
         goto error;
       }
       if (setup_fields(thd, Ref_ptr_array(),
                        *values, COLUMNS_READ, 0, NULL, 0))
         goto error;
+      thd->get_stmt_da()->inc_current_row_for_warning();
     }
-    thd->current_insert_index= 0;
+    thd->get_stmt_da()->reset_current_row_for_warning();
   }
   DBUG_RETURN(FALSE);
 

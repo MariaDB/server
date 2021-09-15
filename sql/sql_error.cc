@@ -673,7 +673,7 @@ Sql_condition *Warning_info::push_warning(THD *thd,
         m_warn_list.elements() < thd->variables.max_error_count)
     {
       cond= new (& m_warn_root) Sql_condition(& m_warn_root, *value, msg,
-                                              thd->current_insert_index);
+                                              m_current_row_for_warning);
       if (cond)
         m_warn_list.push_back(cond);
     }

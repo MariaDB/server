@@ -419,7 +419,8 @@ bool Sql_cmd_resignal::execute(THD *thd)
     DBUG_RETURN(result);
   }
 
-  Sql_condition signaled_err(thd->mem_root, *signaled, signaled->message, 0);
+  Sql_condition signaled_err(thd->mem_root, *signaled, signaled->message,
+                             da->current_row_for_warning());
 
   if (m_cond)
   {

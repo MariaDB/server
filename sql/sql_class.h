@@ -5502,29 +5502,6 @@ public:
   {
     lex= backup_lex;
   }
-
-  /*
-    Stores the the processed record during INSERT/REPLACE. Used for assigning
-     value of error_index in case of warning or error.
-  */
-  ulonglong current_insert_index;
-
-  /*
-    Error may take place in prepare phase and it might not be because of
-    rows/values we are inserting into the table, it could be because of say
-    something like wrong field name. In such case we want to return 0
-    for error index.
-  */
-  ulonglong correct_error_index(uint error_no)
-  {
-    if (error_no == ER_FIELD_SPECIFIED_TWICE ||
-        error_no == ER_BAD_FIELD_ERROR ||
-        error_no == ER_VIEW_NO_INSERT_FIELD_LIST ||
-        error_no == ER_VIEW_MULTIUPDATE)
-      return 0;
-
-    return current_insert_index;
-  }
 };
 
 

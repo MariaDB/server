@@ -306,6 +306,8 @@ protected:
   /** SQL CURSOR_NAME condition item. */
   String m_cursor_name;
 
+  ulong m_error_index;
+
   Sql_condition_items()
    :m_class_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
     m_subclass_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
@@ -316,7 +318,8 @@ protected:
     m_schema_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
     m_table_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
     m_column_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_cursor_name((const char*) NULL, 0, & my_charset_utf8mb3_bin)
+    m_cursor_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
+    m_error_index(0)
   { }
 
   void clear()
@@ -331,6 +334,7 @@ protected:
     m_table_name.length(0);
     m_column_name.length(0);
     m_cursor_name.length(0);
+    m_error_index= 0;
   }
 };
 
@@ -396,7 +400,7 @@ private:
   */
   Sql_condition()
    :m_mem_root(NULL)
-  { error_index= 0; }
+  { }
 
   /**
     Complete the Sql_condition initialisation.
@@ -419,7 +423,6 @@ private:
    :m_mem_root(mem_root)
   {
     DBUG_ASSERT(mem_root != NULL);
-    error_index= 0;
   }
 
   Sql_condition(MEM_ROOT *mem_root, const Sql_user_condition_identity &ucid)
@@ -427,7 +430,6 @@ private:
     m_mem_root(mem_root)
   {
     DBUG_ASSERT(mem_root != NULL);
-    error_index= 0;
   }
   /**
     Constructor for a fixed message text.
@@ -436,18 +438,15 @@ private:
     @param level    - the error level for this condition
     @param msg      - the message text for this condition
   */
-  Sql_condition(MEM_ROOT *mem_root,
-                const Sql_condition_identity &value,
-                const char *msg,
-                ulonglong current_error_index)
-   :Sql_condition_identity(value),
-    m_mem_root(mem_root)
+  Sql_condition(MEM_ROOT *mem_root, const Sql_condition_identity &value,
+                const char *msg, ulong current_row_for_warning)
+   : Sql_condition_identity(value), m_mem_root(mem_root)
   {
     DBUG_ASSERT(mem_root != NULL);
     DBUG_ASSERT(value.get_sql_errno() != 0);
     DBUG_ASSERT(msg != NULL);
     set_builtin_message_text(msg);
-    error_index= current_error_index;
+    m_error_index= current_row_for_warning;
   }
 
   /** Destructor. */
@@ -501,9 +500,6 @@ private:
 
   /** Memory root to use to hold condition item values. */
   MEM_ROOT *m_mem_root;
-
-  /* Index of error for INSERT/REPLACE statement. */
-  ulonglong error_index;
 };
 
 ///////////////////////////////////////////////////////////////////////////

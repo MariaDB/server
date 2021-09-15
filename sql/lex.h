@@ -222,7 +222,7 @@ SYMBOL symbols[] = {
   { "ENUM",		SYM(ENUM)},
   { "ERROR",            SYM(ERROR_SYM)},
   { "ERRORS",		SYM(ERRORS)},
-  { "ERROR_INDEX", SYM(ERROR_INDEX_SYM)},
+  { "ERROR_INDEX",      SYM(ERROR_INDEX_SYM)},
   { "ESCAPE",		SYM(ESCAPE_SYM)},
   { "ESCAPED",		SYM(ESCAPED)},
   { "EVENT",		SYM(EVENT_SYM)},
