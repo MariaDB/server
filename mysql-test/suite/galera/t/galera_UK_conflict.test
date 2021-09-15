@@ -140,9 +140,13 @@ SELECT * FROM t1;
 # original state in node 1
 INSERT INTO t1 VALUES (7,7,7);
 INSERT INTO t1 VALUES (8,8,8);
+SELECT COUNT(*) FROM t1;
 SELECT * FROM t1;
 
 --connection node_1
+--let $wait_condition = SELECT COUNT(*) = 7 FROM t1
+--source include/wait_condition.inc
+SELECT COUNT(*) FROM t1;
 SELECT * FROM t1;
 
 DROP TABLE t1;
