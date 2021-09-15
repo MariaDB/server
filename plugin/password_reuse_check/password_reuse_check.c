@@ -103,7 +103,7 @@ static int create_table(MYSQL *mysql)
 static int run_query_with_table_creation(MYSQL *mysql, const char *query,
                                          size_t len)
 {
-  if (mysql_real_query(mysql, query, len))
+  if (mysql_real_query(mysql, query, (unsigned long) len))
   {
     unsigned int rc= mysql_errno(mysql);
     if (rc != ER_NO_SUCH_TABLE)
@@ -115,7 +115,7 @@ static int run_query_with_table_creation(MYSQL *mysql, const char *query,
     }
     if (create_table(mysql))
       return 1;
-    if (mysql_real_query(mysql, query, len))
+    if (mysql_real_query(mysql, query, (unsigned long) len))
     {
       report_sql_error(mysql);
       return 1;
