@@ -1481,7 +1481,7 @@ int ha_maria::repair(THD * thd, HA_CHECK_OPT *check_opt)
   param->testflag= ((check_opt->flags & ~(T_EXTEND)) |
                    T_SILENT | T_FORCE_CREATE | T_CALC_CHECKSUM |
                    (check_opt->flags & T_EXTEND ? T_REP : T_REP_BY_SORT));
-  param->sort_buffer_length= THDVAR(thd, sort_buffer_size);
+  param->orig_sort_buffer_length= THDVAR(thd, sort_buffer_size);
   param->backup_time= check_opt->start_time;
   start_records= file->state->records;
   old_proc_info= thd_proc_info(thd, "Checking table");
@@ -1552,7 +1552,7 @@ int ha_maria::zerofill(THD * thd, HA_CHECK_OPT *check_opt)
   param->thd= thd;
   param->op_name= "zerofill";
   param->testflag= check_opt->flags | T_SILENT | T_ZEROFILL;
-  param->sort_buffer_length= THDVAR(thd, sort_buffer_size);
+  param->orig_sort_buffer_length= THDVAR(thd, sort_buffer_size);
   param->db_name= table->s->db.str;
   param->table_name= table->alias.c_ptr();
 
@@ -1588,7 +1588,7 @@ int ha_maria::optimize(THD * thd, HA_CHECK_OPT *check_opt)
   param->op_name= "optimize";
   param->testflag= (check_opt->flags | T_SILENT | T_FORCE_CREATE |
                    T_REP_BY_SORT | T_STATISTICS | T_SORT_INDEX);
-  param->sort_buffer_length= THDVAR(thd, sort_buffer_size);
+  param->orig_sort_buffer_length= THDVAR(thd, sort_buffer_size);
   thd_progress_init(thd, 1);
   if ((error= repair(thd, param, 1)) && param->retry_repair)
   {
@@ -2056,7 +2056,7 @@ int ha_maria::enable_indexes(uint mode)
     }
 
     param->myf_rw &= ~MY_WAIT_IF_FULL;
-    param->sort_buffer_length= THDVAR(thd,sort_buffer_size);
+    param->orig_sort_buffer_length= THDVAR(thd,sort_buffer_size);
     param->stats_method= (enum_handler_stats_method)THDVAR(thd,stats_method);
     param->tmpdir= &mysql_tmpdir_list;
     if ((error= (repair(thd, param, 0) != HA_ADMIN_OK)) && param->retry_repair)
