@@ -1,0 +1,163 @@
+#
+# Case 1: We execute bf kill to wsrep_innobase_kill_one_trx
+# function just before wsrep_thd_LOCK(thd) call. Then we
+# try to kill victim transaction by KILL QUERY
+#
+CREATE TABLE t1(id int not null primary key, b int) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET DEBUG_SYNC='wsrep_before_BF_victim_lock SIGNAL bf_kill WAIT_FOR bf_continue';
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);;
+connection node_1;
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+connection node_1b;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `b1` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+id	b
+1	1
+2	2
+3	3
+4	4
+5	5
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_1c;
+#
+# Case 2: We execute bf kill to wsrep_innobase_kill_one_trx
+# function just after wsrep_thd_LOCK(thd) call. Then we
+# try to kill victim transaction by KILL QUERY
+#
+CREATE TABLE t1(id int not null primary key, b int) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET DEBUG_SYNC='wsrep_after_BF_victim_lock SIGNAL bf_kill WAIT_FOR bf_continue';
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);;
+connection node_1;
+SET DEBUG_SYNC='now WAIT_FOR bf_kill';
+connection node_1b;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `b1` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+id	b
+1	1
+2	2
+3	3
+4	4
+5	5
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+DROP TABLE t1;
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_1c;
+#
+# Case 3: Create victim transaction and try to send user KILL
+# from several threads
+#
+CREATE TABLE t1(id int not null primary key, b int) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_1d, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connection node_1b;
+connection node_1c;
+connection node_1d;
+connection node_1;
+disconnect node_1a;
+disconnect node_1b;
+disconnect node_1c;
+disconnect node_1d;
+DROP TABLE t1;
+#
+# Case 4: MDL-conflict, we execute ALTER until we hit gap in
+# wsrep_abort_transaction, while we are there we try to
+# manually KILL conflicting transaction (UPDATE) and
+# send conflicting transaction from other node to be executed
+# in this node by applier. As ALTER and KILL are TOI they
+# are not executed concurrently. Similarly UPDATE from other
+# node will wait for certification.
+#
+CREATE TABLE t1(id int not null primary key, b int) engine=innodb;
+INSERT INTO t1 values (1,1),(2,2),(3,3),(4,4),(5,5);
+connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+begin;
+update t1 set b = b * 10 where id between 2 and 4;
+connect node_1b, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+connect node_1c, 127.0.0.1, root, , test, $NODE_MYPORT_1;
+SET DEBUG_SYNC='wsrep_abort_victim_unlocked SIGNAL bf_kill_unlocked WAIT_FOR bf_continue';
+ALTER TABLE t1 ADD UNIQUE KEY b1(b);;
+connection node_1;
+SET DEBUG_SYNC='now WAIT_FOR bf_kill_unlocked';
+connection node_1b;
+connection node_2;
+update t1 set b = b + 1000 where id between 2 and 4;;
+connection node_1;
+SET DEBUG_SYNC='now SIGNAL bf_continue';
+connection node_1c;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `b1` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+id	b
+1	1
+5	5
+2	1002
+3	1003
+4	1004
+connection node_1b;
+connection node_1;
+SET DEBUG_SYNC= 'RESET';
+SELECT * FROM t1;
+id	b
+1	1
+5	5
+2	1002
+3	1003
+4	1004
+connection node_2;
+SHOW CREATE TABLE t1;
+Table	Create Table
+t1	CREATE TABLE `t1` (
+  `id` int(11) NOT NULL,
+  `b` int(11) DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  UNIQUE KEY `b1` (`b`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1
+SELECT * FROM t1;
+id	b
+1	1
+5	5
+2	1002
+3	1003
+4	1004
+DROP TABLE t1;
+disconnect node_1a;
+disconnect node_1c;
