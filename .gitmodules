@@ -1,6 +1,7 @@
 [submodule "libmariadb"]
 	path = libmariadb
 	url = https://code.devsnc.com/dev/sumo-mariadb-connector-c.git
+	branch = master
 [submodule "storage/rocksdb/rocksdb"]
 	path = storage/rocksdb/rocksdb
 	url = https://github.com/facebook/rocksdb.git
