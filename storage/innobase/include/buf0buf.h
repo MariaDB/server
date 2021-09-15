@@ -1726,10 +1726,15 @@ public:
   /** Hash table with singly-linked overflow lists. @see hash_table_t */
   struct page_hash_table
   {
+    static_assert(CPU_LEVEL1_DCACHE_LINESIZE >= 64, "less than 64 bytes");
+    static_assert(!(CPU_LEVEL1_DCACHE_LINESIZE & 63),
+      "not a multiple of 64 bytes");
+
     /** Number of array[] elements per page_hash_latch.
     Must be one less than a power of 2. */
-    static constexpr size_t ELEMENTS_PER_LATCH= CPU_LEVEL1_DCACHE_LINESIZE /
-      sizeof(void*) - 1;
+    static constexpr size_t ELEMENTS_PER_LATCH= 64 / sizeof(void*) - 1;
+    static constexpr size_t EMPTY_SLOTS_PER_LATCH=
+      ((CPU_LEVEL1_DCACHE_LINESIZE / 64) - 1) * (64 / sizeof(void*));
 
     /** number of payload elements in array[] */
     Atomic_relaxed<ulint> n_cells;
@@ -1746,7 +1751,12 @@ public:
     /** @return the index of an array element */
     ulint calc_hash(ulint fold) const { return calc_hash(fold, n_cells); }
     /** @return raw array index converted to padded index */
-    static ulint pad(ulint h) { return 1 + (h / ELEMENTS_PER_LATCH) + h; }
+    static ulint pad(ulint h)
+    {
+      ulint latches= h / ELEMENTS_PER_LATCH;
+      ulint empty_slots= latches * EMPTY_SLOTS_PER_LATCH;
+      return 1 + latches + empty_slots + h;
+    }
   private:
     /** @return the hash value before any ELEMENTS_PER_LATCH padding */
     static ulint hash(ulint fold, ulint n) { return ut_hash_ulint(fold, n); }
