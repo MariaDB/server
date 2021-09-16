@@ -2229,6 +2229,15 @@ furious_flush:
 unemployed:
       buf_flush_async_lsn= 0;
       buf_pool.page_cleaner_set_idle(true);
+
+      DBUG_EXECUTE_IF("ib_log_checkpoint_avoid", continue;);
+
+      mysql_mutex_unlock(&buf_pool.flush_list_mutex);
+
+      if (!recv_recovery_is_on() && srv_operation == SRV_OPERATION_NORMAL)
+        log_checkpoint();
+
+      mysql_mutex_lock(&buf_pool.flush_list_mutex);
       continue;
     }
 

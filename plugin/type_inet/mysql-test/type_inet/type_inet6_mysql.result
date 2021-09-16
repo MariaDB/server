@@ -1,5 +1,6 @@
 CREATE TABLE t1 (a INET6);
 Field   1:  `a`
+Org_field:  `a`
 Catalog:    `def`
 Database:   `test`
 Table:      `t1`
@@ -12,6 +13,7 @@ Decimals:   0
 Flags:      UNSIGNED BINARY 
 
 Field   2:  `b`
+Org_field:  ``
 Catalog:    `def`
 Database:   ``
 Table:      ``
@@ -24,6 +26,7 @@ Decimals:   0
 Flags:      NOT_NULL UNSIGNED 
 
 Field   3:  `c`
+Org_field:  ``
 Catalog:    `def`
 Database:   ``
 Table:      ``
