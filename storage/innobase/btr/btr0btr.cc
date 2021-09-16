@@ -219,7 +219,7 @@ btr_root_block_get(
 					or RW_X_LATCH */
 	mtr_t*			mtr)	/*!< in: mtr */
 {
-	if (!index->table || !index->table->space) {
+	if (!index->table || !index->table->space || index->page == FIL_NULL) {
 		return NULL;
 	}
 
@@ -259,6 +259,7 @@ btr_root_block_get(
 /**************************************************************//**
 Gets the root node of a tree and sx-latches it for segment access.
 @return root page, sx-latched */
+static
 page_t*
 btr_root_get(
 /*=========*/
@@ -578,10 +579,8 @@ btr_get_size(
 	      || mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
 	ut_ad(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
 
-	if (index->page == FIL_NULL
-	    || dict_index_is_online_ddl(index)
-	    || !index->is_committed()
-	    || !index->table->space) {
+	if (dict_index_is_online_ddl(index)
+	    || !index->is_committed()) {
 		return(ULINT_UNDEFINED);
 	}
 

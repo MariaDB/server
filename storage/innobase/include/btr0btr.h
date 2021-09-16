@@ -188,16 +188,6 @@ void btr_corruption_report(const buf_block_t* block,const dict_index_t* index);
 		btr_corruption_report(block, index)
 
 /**************************************************************//**
-Gets the root node of a tree and sx-latches it for segment access.
-@return root page, sx-latched */
-page_t*
-btr_root_get(
-/*=========*/
-	const dict_index_t*	index,	/*!< in: index tree */
-	mtr_t*			mtr)	/*!< in: mtr */
-	MY_ATTRIBUTE((nonnull));
-
-/**************************************************************//**
 Checks and adjusts the root node of a tree during IMPORT TABLESPACE.
 @return error code, or DB_SUCCESS */
 dberr_t

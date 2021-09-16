@@ -411,15 +411,15 @@ unreadable:
 		return DB_CORRUPTION;
 	}
 
-	page_t* root = btr_root_get(index, mtr);
+	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr);
 
-	if (!root || btr_cur_instant_root_init(index, root)) {
+	if (!root || btr_cur_instant_root_init(index, root->frame)) {
 		goto unreadable;
 	}
 
 	ut_ad(index->n_core_null_bytes != dict_index_t::NO_CORE_NULL_BYTES);
 
-	if (fil_page_get_type(root) == FIL_PAGE_INDEX) {
+	if (fil_page_get_type(root->frame) == FIL_PAGE_INDEX) {
 		ut_ad(!index->is_instant());
 		return DB_SUCCESS;
 	}

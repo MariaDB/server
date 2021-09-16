@@ -914,7 +914,7 @@ skip_secondaries:
 
 			index->set_modified(mtr);
 
-			/* NOTE: we must also acquire an X-latch to the
+			/* NOTE: we must also acquire a U latch to the
 			root page of the tree. We will need it when we
 			free pages from the tree. If the tree is of height 1,
 			the tree X-latch does NOT protect the root page,
@@ -923,7 +923,7 @@ skip_secondaries:
 			latching order if we would only later latch the
 			root page of such a tree! */
 
-			btr_root_get(index, &mtr);
+			btr_root_block_get(index, RW_SX_LATCH, &mtr);
 
 			block = buf_page_get(
 				page_id_t(rseg.space->id, page_no),
