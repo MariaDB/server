@@ -4860,6 +4860,7 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
   Statement stmt_backup;
   bool error;
   Query_arena *save_stmt_arena= thd->stmt_arena;
+  Reprepare_observer *save_reprepare_observer= thd->m_reprepare_observer;
   Item_change_list save_change_list;
 
   thd->Item_change_list::move_elements_to(&save_change_list);
@@ -4871,12 +4872,15 @@ Prepared_statement::execute_server_runnable(Server_runnable *server_runnable)
 
   thd->set_n_backup_statement(this, &stmt_backup);
   thd->set_n_backup_active_arena(this, &stmt_backup);
+
   thd->stmt_arena= this;
+  thd->m_reprepare_observer= 0;
 
   error= server_runnable->execute_server_code(thd);
 
   thd->cleanup_after_query();
 
+  thd->m_reprepare_observer= save_reprepare_observer;
   thd->restore_active_arena(this, &stmt_backup);
   thd->restore_backup_statement(this, &stmt_backup);
   thd->stmt_arena= save_stmt_arena;
