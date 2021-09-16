@@ -6908,19 +6908,13 @@ static const char *rdb_error_messages[] = {
     "Invalid table.",
     "Could not access RocksDB properties.",
     "File I/O error during merge/sort operation.",
-    "RocksDB status: not found.",
-    "RocksDB status: corruption.",
     "RocksDB status: invalid argument.",
     "RocksDB status: io error.",
-    "RocksDB status: no space.",
     "RocksDB status: merge in progress.",
     "RocksDB status: incomplete.",
     "RocksDB status: shutdown in progress.",
-    "RocksDB status: timed out.",
     "RocksDB status: aborted.",
-    "RocksDB status: lock limit reached.",
     "RocksDB status: busy.",
-    "RocksDB status: deadlock.",
     "RocksDB status: expired.",
     "RocksDB status: try again.",
 };
@@ -6929,23 +6923,10 @@ static_assert((sizeof(rdb_error_messages) / sizeof(rdb_error_messages[0])) ==
                   ((HA_ERR_ROCKSDB_LAST - HA_ERR_ROCKSDB_FIRST) + 1),
               "Number of error messages doesn't match number of error codes");
 
-//psergey-merge: do we need this in MariaDB: we have get_error_messages
-//below...
-#if 0
-static const char *rdb_get_error_message(int nr) {
-  return rdb_error_messages[nr - HA_ERR_ROCKSDB_FIRST];
-}
-#endif
-
 static const char **rdb_get_error_messages(int nr) { return rdb_error_messages; }
 
 bool ha_rocksdb::get_error_message(const int error, String *const buf) {
   DBUG_ENTER_FUNC();
-
-  static_assert(HA_ERR_ROCKSDB_LAST > HA_ERR_FIRST,
-                "HA_ERR_ROCKSDB_LAST > HA_ERR_FIRST");
-  static_assert(HA_ERR_ROCKSDB_LAST > HA_ERR_LAST,
-                "HA_ERR_ROCKSDB_LAST > HA_ERR_LAST");
 
   if (error == HA_ERR_LOCK_WAIT_TIMEOUT || error == HA_ERR_LOCK_DEADLOCK ||
       error == HA_ERR_ROCKSDB_STATUS_BUSY) {
