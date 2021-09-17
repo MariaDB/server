@@ -2389,8 +2389,9 @@ int wsrep_to_isolation_begin(THD *thd, const char *db_, const char *table_,
 {
   /*
     No isolation for applier or replaying threads.
-   */
-  if (!wsrep_thd_is_local(thd)) return 0;
+  */
+  if (!wsrep_thd_is_local(thd))
+    return 0;
 
   int ret= 0;
   mysql_mutex_lock(&thd->LOCK_thd_data);

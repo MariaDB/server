@@ -462,16 +462,17 @@ static bool wsrep_toi_replication(THD *thd, TABLE_LIST *tables)
   /* now TOI replication, with no locks held */
   if (keys.empty())
   {
-    WSREP_TO_ISOLATION_BEGIN_WRTCHK(NULL, NULL, tables);
-  } else {
-    WSREP_TO_ISOLATION_BEGIN_FK_TABLES(NULL, NULL, tables, &keys) {
+    if (!thd->lex->no_write_to_binlog &&
+	wsrep_to_isolation_begin(thd, NULL, NULL, tables))
       return true;
-    }
+  }
+  else
+  {
+    if (!thd->lex->no_write_to_binlog &&
+	wsrep_to_isolation_begin(thd, NULL, NULL, tables, NULL, &keys))
+      return true;
   }
   return false;
-
- wsrep_error_label:
-  return true;
 }
 #endif /* WITH_WSREP */
 

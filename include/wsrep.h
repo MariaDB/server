@@ -25,8 +25,6 @@
 #define DBUG_ASSERT_IF_WSREP(A) DBUG_ASSERT(A)
 
 #define WSREP_MYSQL_DB (char *)"mysql"
-#define WSREP_TO_ISOLATION_BEGIN_IF(db_, table_, table_list_)                 \
-  if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_))
 
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_)              \
   if (WSREP_ON && WSREP(thd) && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) \
@@ -58,10 +56,6 @@
   if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
          && wsrep_to_isolation_begin(thd, db_, table_, table_list_)) goto wsrep_error_label;
 
-#define WSREP_TO_ISOLATION_BEGIN_FK_TABLES(db_, table_, table_list_, fk_tables)    \
-  if (WSREP(thd) && !thd->lex->no_write_to_binlog                                   \
-      && wsrep_to_isolation_begin(thd, db_, table_, table_list_, NULL, fk_tables))
-
 #define WSREP_SYNC_WAIT(thd_, before_)                                  \
     { if (WSREP_CLIENT(thd_) &&                                         \
           wsrep_sync_wait(thd_, before_)) goto wsrep_error_label; }
@@ -76,7 +70,6 @@
 #define WSREP_ERROR(...)
 #define WSREP_TO_ISOLATION_BEGIN(db_, table_, table_list_) do { } while(0)
 #define WSREP_TO_ISOLATION_BEGIN_ALTER(db_, table_, table_list_, alter_info_, fk_tables_, create_info_)
-#define WSREP_TO_ISOLATION_BEGIN_FK_TABLES(db_, table_, table_list_, fk_tables_)
 #define WSREP_TO_ISOLATION_END
 #define WSREP_TO_ISOLATION_BEGIN_CREATE(db_, table_, table_list_, create_info_)
 #define WSREP_TO_ISOLATION_BEGIN_WRTCHK(db_, table_, table_list_)
