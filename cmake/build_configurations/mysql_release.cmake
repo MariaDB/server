@@ -19,6 +19,7 @@
 INCLUDE(CheckIncludeFiles)
 INCLUDE(CheckLibraryExists)
 INCLUDE(CheckTypeSize)
+INCLUDE(FindStatic)
 
 # XXX package_name.cmake uses this too, move it somewhere global
 CHECK_TYPE_SIZE("void *" SIZEOF_VOIDP)
@@ -131,6 +132,7 @@ ELSEIF(DEB)
   SET(WITH_INNODB_LZO OFF CACHE STRING "")
   SET(WITH_ROCKSDB_BZip2 OFF CACHE STRING "")
 ELSE()
+  SET(USE_STATIC_LIBS ON)
   SET(WITH_SSL bundled CACHE STRING "")
   SET(WITH_PCRE bundled CACHE STRING "")
   SET(WITH_ZLIB bundled CACHE STRING "")
@@ -160,33 +162,7 @@ ENDIF()
 IF(UNIX)
   SET(WITH_EXTRA_CHARSETS all CACHE STRING "")
   SET(PLUGIN_AUTH_PAM YES CACHE BOOL "")
-
-  IF(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    IF(NOT IGNORE_AIO_CHECK)
-      # Ensure aio is available on Linux (required by InnoDB)
-      CHECK_INCLUDE_FILES(libaio.h HAVE_LIBAIO_H)
-      CHECK_LIBRARY_EXISTS(aio io_queue_init "" HAVE_LIBAIO)
-      IF(NOT HAVE_LIBAIO_H OR NOT HAVE_LIBAIO)
-        UNSET(HAVE_LIBAIO_H CACHE)
-        UNSET(HAVE_LIBAIO CACHE)
-        MESSAGE(FATAL_ERROR "
-        aio is required on Linux, you need to install the required library:
-
-          Debian/Ubuntu:              apt-get install libaio-dev
-          RedHat/Fedora/Oracle Linux: yum install libaio-devel
-          SuSE:                       zypper install libaio-devel
-
-          If you really do not want it, pass -DIGNORE_AIO_CHECK=ON to cmake.
-        ")
-      ENDIF()
-
-      # Unfortunately, linking shared libmysqld with static aio
-      # does not work,  unless we add also dynamic one. This also means
-      # libmysqld.so will depend on libaio.so
-      #SET(LIBMYSQLD_SO_EXTRA_LIBS aio)
-    ENDIF()
-  ENDIF()
-
+  INCLUDE(FindAIO)
 ENDIF()
 
 # Compiler options
