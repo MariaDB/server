@@ -26188,6 +26188,17 @@ change_to_use_tmp_fields(THD *thd, Ref_ptr_array ref_pointer_array,
   for (uint i= 0; (item= it++); i++)
   {
     Field *field;
+    /*
+      SUM_FUNC_ITEM will be replaced by the calculated value which is
+      stored in the temporary table.
+      The first part of the following test is for items that are expressions
+      with SUM_FUNC_ITEMS, like 'sum(a)+1'. In this case we keep the original
+      item, which contain an Item_ref that points to the SUM_FUNC_ITEM that
+      will be replaced with a pointer to the calculated value.
+      The second test is for window functions. Window functions contains
+      only pointers to Item_refs, which will be adjusted to point to the
+      temporary table.
+    */
     enum Item::Type item_type= item->type();
     if ((item->with_sum_func() && item_type != Item::SUM_FUNC_ITEM) ||
        item->with_window_func())
