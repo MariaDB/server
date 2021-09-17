@@ -1,4 +1,4 @@
-/* Copyright (C) 2019, 2020, MariaDB Corporation.
+/* Copyright (C) 2019, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute itand /or modify
 it under the terms of the GNU General Public License as published by
@@ -183,18 +183,6 @@ public:
 class thread_pool;
 
 extern aio *create_simulated_aio(thread_pool *tp);
-
-#ifndef DBUG_OFF
-/*
-  This function is useful for debugging to make sure all mutexes are released
-  inside a task callback
-*/
-void set_after_task_callback(callback_func_np cb);
-void execute_after_task_callback();
-#define dbug_execute_after_task_callback() execute_after_task_callback()
-#else
-#define dbug_execute_after_task_callback() do{}while(0)
-#endif
 
 class thread_pool
 {

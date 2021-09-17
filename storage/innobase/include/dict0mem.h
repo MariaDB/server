@@ -2462,7 +2462,7 @@ inline void dict_index_t::clear_instant_alter()
 			      { return a.col->ind < b.col->ind; });
 	table->instant = NULL;
 	if (ai_col) {
-		auto a = std::find_if(begin, end,
+		auto a = std::find_if(fields, end,
 				      [ai_col](const dict_field_t& f)
 				      { return f.col == ai_col; });
 		table->persistent_autoinc = (a == end)

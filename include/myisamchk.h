@@ -87,7 +87,7 @@ typedef struct st_handler_check_param
   /* Following is used to check if rows are visible */
   ulonglong max_trid, max_found_trid;
   ulonglong not_visible_rows_found;
-  ulonglong sort_buffer_length;
+  ulonglong sort_buffer_length, orig_sort_buffer_length;
   ulonglong use_buffers;                        /* Used as param to getopt() */
   size_t read_buffer_length, write_buffer_length, sort_key_blocks;
   time_t backup_time;                           /* To sign backup files */

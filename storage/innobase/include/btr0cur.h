@@ -575,37 +575,6 @@ btr_estimate_n_rows_in_range(
         btr_pos_t*      range_start,
         btr_pos_t*      range_end);
 
-
-/** Statistics for one field of an index. */
-struct index_field_stats_t
-{
-  ib_uint64_t n_diff_key_vals;
-  ib_uint64_t n_sample_sizes;
-  ib_uint64_t n_non_null_key_vals;
-
-  index_field_stats_t(ib_uint64_t n_diff_key_vals= 0,
-                      ib_uint64_t n_sample_sizes= 0,
-                      ib_uint64_t n_non_null_key_vals= 0)
-      : n_diff_key_vals(n_diff_key_vals), n_sample_sizes(n_sample_sizes),
-        n_non_null_key_vals(n_non_null_key_vals)
-  {
-  }
-};
-
-/** Estimates the number of different key values in a given index, for
-each n-column prefix of the index where 1 <= n <= dict_index_get_n_unique(index).
-The estimates are stored in the array index->stat_n_diff_key_vals[] (indexed
-0..n_uniq-1) and the number of pages that were sampled is saved in
-index->stat_n_sample_sizes[].
-If innodb_stats_method is nulls_ignored, we also record the number of
-non-null values for each prefix and stored the estimates in
-array index->stat_n_non_null_key_vals.
-@param[in]	index	index
-@return stat vector if the index is available and we get the estimated numbers,
-empty vector if the index is unavailable. */
-std::vector<index_field_stats_t>
-btr_estimate_number_of_different_key_vals(dict_index_t* index);
-
 /** Gets the externally stored size of a record, in units of a database page.
 @param[in]	rec	record
 @param[in]	offsets	array returned by rec_get_offsets()

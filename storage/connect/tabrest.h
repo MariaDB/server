@@ -6,7 +6,7 @@
 #pragma once
 
 #if defined(_WIN32)
-#else // !__WIN__
+#else // !_WIN32
 #define stricmp strcasecmp
 #endif // !_WIN32
 

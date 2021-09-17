@@ -270,13 +270,7 @@ static int open_table(THD* thd,
   thd->lex->query_tables_own_last= 0;
 
   if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
-    if (thd->is_error()) {
-      WSREP_WARN("Can't lock table %s.%s : %d (%s)",
-                 schema_name->str, table_name->str,
-                 thd->get_stmt_da()->sql_errno(), thd->get_stmt_da()->message());
-    }
     close_thread_tables(thd);
-    my_error(ER_NO_SUCH_TABLE, MYF(0), schema_name->str, table_name->str);
     DBUG_RETURN(1);
   }
 
@@ -292,8 +286,15 @@ static int open_for_write(THD* thd, const char* table_name, TABLE** table) {
   LEX_CSTRING table_str= { table_name, strlen(table_name) };
   if (Wsrep_schema_impl::open_table(thd, &schema_str, &table_str, TL_WRITE,
                                     table)) {
-    WSREP_ERROR("Failed to open table %s.%s for writing",
-                schema_str.str, table_name);
+    // No need to log an error if the query was bf aborted,
+    // thd client will get ER_LOCK_DEADLOCK in the end.
+    const bool interrupted= thd->killed ||
+      (thd->is_error() &&
+       (thd->get_stmt_da()->sql_errno() == ER_QUERY_INTERRUPTED));
+    if (!interrupted) {
+      WSREP_ERROR("Failed to open table %s.%s for writing",
+                  schema_str.str, table_name);
+    }
     return 1;
   }
   empty_record(*table);

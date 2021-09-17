@@ -153,8 +153,10 @@ end:
 static int really_execute_checkpoint(void)
 {
   uint i, error= 0;
+  int error_errno= 0;
   /** @brief checkpoint_start_log_horizon will be stored there */
   char *ptr;
+  const char *error_place= 0;
   LEX_STRING record_pieces[4]; /**< only malloc-ed pieces */
   LSN min_page_rec_lsn, min_trn_rec_lsn, min_first_undo_lsn;
   TRANSLOG_ADDRESS checkpoint_start_log_horizon;
@@ -191,13 +193,19 @@ static int really_execute_checkpoint(void)
                                            &record_pieces[1],
                                            &min_trn_rec_lsn,
                                            &min_first_undo_lsn)))
+  {
+    error_place= "trnman_collect_transaction";
     goto err;
+  }
 
 
   /* STEP 3: fetch information about table files */
   if (unlikely(collect_tables(&record_pieces[2],
                               checkpoint_start_log_horizon)))
+  {
+    error_place= "collect_tables";
     goto err;
+  }
 
 
   /* STEP 4: fetch information about dirty pages */
@@ -211,7 +219,10 @@ static int really_execute_checkpoint(void)
   if (unlikely(pagecache_collect_changed_blocks_with_lsn(maria_pagecache,
                                                          &record_pieces[3],
                                                          &min_page_rec_lsn)))
+  {
+    error_place= "collect_pages";
     goto err;
+  }
 
 
   /* LAST STEP: now write the checkpoint log record */
@@ -240,7 +251,10 @@ static int really_execute_checkpoint(void)
                                        sizeof(log_array)/sizeof(log_array[0]),
                                        log_array, NULL, NULL) ||
                  translog_flush(lsn)))
+    {
+      error_place= "translog_write_record";
       goto err;
+    }
     translog_lock();
     /*
       This cannot be done as a inwrite_rec_hook of LOGREC_CHECKPOINT, because
@@ -251,6 +265,8 @@ static int really_execute_checkpoint(void)
                                                  max_trid_in_control_file,
                                                  recovery_failures)))
     {
+      error_place= "ma_control_file_write";
+      error_errno= my_errno;
       translog_unlock();
       goto err;
     }
@@ -287,7 +303,9 @@ static int really_execute_checkpoint(void)
 
 err:
   error= 1;
-  ma_message_no_user(0, "checkpoint failed");
+  my_printf_error(HA_ERR_GENERIC, "Aria engine: checkpoint failed at %s with "
+                  "error %d", MYF(ME_ERROR_LOG),
+                  error_place, (error_errno ? error_errno : my_errno));
   /* we were possibly not able to determine what pages to flush */
   pages_to_flush_before_next_checkpoint= 0;
 
