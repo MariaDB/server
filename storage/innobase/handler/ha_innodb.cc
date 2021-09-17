@@ -1689,7 +1689,10 @@ static inline void innobase_srv_conc_enter_innodb(row_prebuilt_t *prebuilt)
 	trx_t* trx = prebuilt->trx;
 
 #ifdef WITH_WSREP
-	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
+	if (global_system_variables.wsrep_on && 
+		(wsrep_thd_is_applying(trx->mysql_thd) || wsrep_thd_is_toi(trx->mysql_thd))) {
+			return;
+	}
 #endif /* WITH_WSREP */
 
 	if (srv_thread_concurrency) {
@@ -1725,7 +1728,10 @@ static inline void innobase_srv_conc_exit_innodb(row_prebuilt_t *prebuilt)
 	trx_t* trx = prebuilt->trx;
 
 #ifdef WITH_WSREP
-	if (trx->is_wsrep() && wsrep_thd_is_BF(trx->mysql_thd, FALSE)) return;
+	if (global_system_variables.wsrep_on && 
+		(wsrep_thd_is_applying(trx->mysql_thd) || wsrep_thd_is_toi(trx->mysql_thd))) {
+			return;
+	}
 #endif /* WITH_WSREP */
 
 	/* This is to avoid making an unnecessary function call. */
