@@ -33,7 +33,6 @@ galera_parallel_simple : MDEV-20318 galera.galera_parallel_simple fails
 galera_pc_ignore_sb : MDEV-20888 galera.galera_pc_ignore_sb
 galera_pc_recovery : MDEV-25199 cluster fails to start up
 galera_shutdown_nonprim : MDEV-21493 galera.galera_shutdown_nonprim
-galera_ssl_upgrade : MDEV-19950 Galera test failure on galera_ssl_upgrade
 galera_sst_mysqldump : MDEV-26501 : galera.galera_sst_mysqldump MTR failed: galera SST with mysqldump failed
 galera_toi_ddl_nonconflicting : MDEV-21518 galera.galera_toi_ddl_nonconflicting
 galera_toi_truncate : MDEV-22996 Hang on galera_toi_truncate test case
