@@ -118,13 +118,21 @@ srv_conc_enter_innodb_with_atomics(
 	for (;;) {
 		ulint	sleep_in_us;
 #ifdef WITH_WSREP
+		/* We need to take `thd->LOCK_thd_data` to check WSREP thread state */
+		if (trx->is_wsrep()) {
+			wsrep_thd_LOCK(trx->mysql_thd);
+		}
 		if (trx->is_wsrep() && wsrep_thd_is_aborting(trx->mysql_thd)) {
+			wsrep_thd_UNLOCK(trx->mysql_thd);
 			if (UNIV_UNLIKELY(wsrep_debug)) {
 				ib::info() <<
 					"srv_conc_enter due to MUST_ABORT";
 			}
 			srv_conc_force_enter_innodb(trx);
 			return;
+		}
+		if (trx->is_wsrep()) {
+			wsrep_thd_UNLOCK(trx->mysql_thd);
 		}
 #endif /* WITH_WSREP */
 
