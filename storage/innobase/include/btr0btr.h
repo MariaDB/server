@@ -196,18 +196,6 @@ btr_root_adjust_on_import(
 	const dict_index_t*	index)	/*!< in: index tree */
 	MY_ATTRIBUTE((warn_unused_result));
 
-/**************************************************************//**
-Gets the height of the B-tree (the level of the root, when the leaf
-level is assumed to be 0). The caller must hold an S or X latch on
-the index.
-@return tree height (level of the root) */
-ulint
-btr_height_get(
-/*===========*/
-	const dict_index_t*	index,	/*!< in: index tree */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-	MY_ATTRIBUTE((warn_unused_result));
-
 /** Get an index page and declare its latching order level.
 @param[in]	index	index tree
 @param[in]	page	page number
@@ -537,17 +525,6 @@ btr_discard_page(
 	btr_cur_t*	cursor,	/*!< in: cursor on the page to discard: not on
 				the root page */
 	mtr_t*		mtr);	/*!< in: mtr */
-/**************************************************************//**
-Gets the number of pages in a B-tree.
-@return number of pages, or ULINT_UNDEFINED if the index is unavailable */
-ulint
-btr_get_size(
-/*=========*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
-				is s-latched */
-	MY_ATTRIBUTE((warn_unused_result));
 
 /**************************************************************//**
 Allocates a new file page to be used in an index tree. NOTE: we assume
@@ -614,7 +591,6 @@ btr_root_block_get(
 	rw_lock_type_t		mode,	/*!< in: either RW_S_LATCH
 					or RW_X_LATCH */
 	mtr_t*			mtr);	/*!< in: mtr */
-
 /*************************************************************//**
 Reorganizes an index page.
 

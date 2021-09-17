@@ -274,38 +274,6 @@ btr_root_get(
 }
 
 /**************************************************************//**
-Gets the height of the B-tree (the level of the root, when the leaf
-level is assumed to be 0). The caller must hold an S or X latch on
-the index.
-@return tree height (level of the root) */
-ulint
-btr_height_get(
-/*===========*/
-	const dict_index_t*	index,	/*!< in: index tree */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction */
-{
-	ulint		height=0;
-	buf_block_t*	root_block;
-
-	ut_ad(srv_read_only_mode
-	      || mtr->memo_contains_flagged(&index->lock, MTR_MEMO_S_LOCK
-					    | MTR_MEMO_X_LOCK
-					    | MTR_MEMO_SX_LOCK));
-
-	/* S latches the page */
-	root_block = btr_root_block_get(index, RW_S_LATCH, mtr);
-
-	if (root_block) {
-		height = btr_page_get_level(buf_block_get_frame(root_block));
-
-		/* Release the S latch on the root page. */
-		mtr->memo_release(root_block, MTR_MEMO_PAGE_S_FIX);
-	}
-
-	return(height);
-}
-
-/**************************************************************//**
 Checks a file segment header within a B-tree root page and updates
 the segment header space id.
 @return TRUE if valid */
@@ -560,48 +528,6 @@ btr_page_alloc(
 
 	return btr_page_alloc_low(
 		index, hint_page_no, file_direction, level, mtr, init_mtr);
-}
-
-/**************************************************************//**
-Gets the number of pages in a B-tree.
-@return number of pages, or ULINT_UNDEFINED if the index is unavailable */
-ulint
-btr_get_size(
-/*=========*/
-	const dict_index_t*	index,	/*!< in: index */
-	ulint		flag,	/*!< in: BTR_N_LEAF_PAGES or BTR_TOTAL_SIZE */
-	mtr_t*		mtr)	/*!< in/out: mini-transaction where index
-				is s-latched */
-{
-	ulint		n=0;
-
-	ut_ad(srv_read_only_mode
-	      || mtr->memo_contains(index->lock, MTR_MEMO_S_LOCK));
-	ut_ad(flag == BTR_N_LEAF_PAGES || flag == BTR_TOTAL_SIZE);
-
-	if (dict_index_is_online_ddl(index)
-	    || !index->is_committed()) {
-		return(ULINT_UNDEFINED);
-	}
-
-	buf_block_t* root = btr_root_block_get(index, RW_SX_LATCH, mtr);
-	if (!root) {
-		return ULINT_UNDEFINED;
-	}
-	mtr->x_lock_space(index->table->space);
-	if (flag == BTR_N_LEAF_PAGES) {
-		fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_LEAF
-				      + root->frame, &n, mtr);
-	} else {
-		ulint dummy;
-		n = fseg_n_reserved_pages(*root, PAGE_HEADER + PAGE_BTR_SEG_TOP
-					  + root->frame, &dummy, mtr);
-		n += fseg_n_reserved_pages(*root,
-					   PAGE_HEADER + PAGE_BTR_SEG_LEAF
-					   + root->frame, &dummy, mtr);
-	}
-
-	return(n);
 }
 
 /**************************************************************//**
