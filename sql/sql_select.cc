@@ -17469,6 +17469,29 @@ optimize_cond(JOIN *join, COND *conds,
                           .add("resulting_condition", conds);
     }
     DBUG_EXECUTE("info",print_where(conds,"after remove", QT_ORDINARY););
+
+    Item_cond* item = (Item_cond*)conds;
+    if (item && item->type() == Item::COND_ITEM &&
+      ((item->functype() == Item_func::COND_AND_FUNC) || (item->functype() == Item_func::COND_OR_FUNC)))
+    {
+      List<Item> *cond_arg_list= item->argument_list();
+      uint elements_count = cond_arg_list->elements;
+      List_iterator<Item> it(*cond_arg_list);
+      Item* next_item;
+      uint i = 0;
+      while ((next_item= it++) && i < elements_count)
+      {
+        if (next_item->is_expensive())
+        {
+           /* move expensive conditions to the tail of the list */
+           cond_arg_list->push_back(next_item, thd->mem_root);
+           it.remove();
+        }
+        ++i;
+      }
+    }
+    DBUG_EXECUTE("info",print_where(conds,"after move expensive", QT_ORDINARY););
+
   }
   DBUG_RETURN(conds);
 }
