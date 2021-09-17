@@ -583,14 +583,18 @@ bool mysql_delete(THD *thd, TABLE_LIST *table_list, COND *conds,
     if (!table->check_virtual_columns_marked_for_read())
     {
       DBUG_PRINT("info", ("Trying direct delete"));
-      if (select && select->cond &&
-          (select->cond->used_tables() == table->map))
+      bool use_direct_delete= !select || !select->cond;
+      if (!use_direct_delete &&
+          (select->cond->used_tables() & ~RAND_TABLE_BIT) == table->map)
       {
         DBUG_ASSERT(!table->file->pushed_cond);
         if (!table->file->cond_push(select->cond))
+        {
+          use_direct_delete= TRUE;
           table->file->pushed_cond= select->cond;
+        }
       }
-      if (!table->file->direct_delete_rows_init())
+      if (use_direct_delete && !table->file->direct_delete_rows_init())
       {
         /* Direct deleting is supported */
         DBUG_PRINT("info", ("Using direct delete"));
