@@ -1,7 +1,7 @@
 /*****************************************************************************
 
 Copyright (C) 2012, 2014 Facebook, Inc. All Rights Reserved.
-Copyright (C) 2014, 2019, MariaDB Corporation.
+Copyright (C) 2014, 2021, MariaDB Corporation.
 
 This program is free software; you can redistribute it and/or modify it under
 the terms of the GNU General Public License as published by the Free Software
@@ -312,6 +312,7 @@ btr_defragment_save_defrag_stats_if_needed(
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
 	    && dict_index_get_space(index) != 0 // do not track system tables
+	    && !index->table->is_temporary()
 	    && index->stat_defrag_modified_counter
 	       >= srv_defragment_stats_accuracy) {
 		dict_stats_defrag_pool_add(index);
