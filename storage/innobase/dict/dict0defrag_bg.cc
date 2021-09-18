@@ -190,8 +190,8 @@ static void dict_stats_process_entry_from_defrag_pool()
   /* If the table is no longer cached, we've already lost the in
   memory stats so there's nothing really to write to disk. */
   dict_table_t *table= dict_sys.find_table(table_id);
-  dict_index_t *index= table && table->corrupted
-    ? nullptr : dict_table_find_index_on_id(table, index_id);
+  dict_index_t *index= table && !table->corrupted
+    ? dict_table_find_index_on_id(table, index_id) : nullptr;
   const bool save= index && !index->is_corrupted();
   if (save)
     table->acquire();
