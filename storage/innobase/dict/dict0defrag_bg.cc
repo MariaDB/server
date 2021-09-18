@@ -173,10 +173,10 @@ dict_stats_defrag_pool_del(
 /*****************************************************************//**
 Get the first index that has been added for updating persistent defrag
 stats and eventually save its stats. */
-static void dict_stats_process_entry_from_defrag_pool()
+static void dict_stats_process_entry_from_defrag_pool(THD *thd)
 {
-  table_id_t	table_id;
-  index_id_t	index_id;
+  table_id_t table_id;
+  index_id_t index_id;
 
   ut_ad(!srv_read_only_mode);
 
@@ -185,31 +185,28 @@ static void dict_stats_process_entry_from_defrag_pool()
     /* no index in defrag pool */
     return;
 
-  dict_sys.freeze(SRW_LOCK_CALL);
-
   /* If the table is no longer cached, we've already lost the in
   memory stats so there's nothing really to write to disk. */
-  dict_table_t *table= dict_sys.find_table(table_id);
-  dict_index_t *index= table && !table->corrupted
-    ? dict_table_find_index_on_id(table, index_id) : nullptr;
-  const bool save= index && !index->is_corrupted();
-  if (save)
-    table->acquire();
-  dict_sys.unfreeze();
-  if (save)
+  MDL_ticket *mdl= nullptr;
+  if (dict_table_t *table=
+      dict_table_open_on_id(table_id, false, DICT_TABLE_OP_OPEN_ONLY_IF_CACHED,
+                            thd, &mdl))
   {
-    dict_stats_save_defrag_stats(index);
-    table->release();
+    if (dict_index_t *index= !table->corrupted
+        ? dict_table_find_index_on_id(table, index_id) : nullptr)
+      if (!index->is_corrupted())
+        dict_stats_save_defrag_stats(index);
+    dict_table_close(table, false, thd, mdl);
   }
 }
 
 /**
 Get the first index that has been added for updating persistent defrag
 stats and eventually save its stats. */
-void dict_defrag_process_entries_from_defrag_pool()
+void dict_defrag_process_entries_from_defrag_pool(THD *thd)
 {
   while (!defrag_pool.empty())
-    dict_stats_process_entry_from_defrag_pool();
+    dict_stats_process_entry_from_defrag_pool(thd);
 }
 
 /*********************************************************************//**
