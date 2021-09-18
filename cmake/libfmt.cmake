@@ -28,12 +28,15 @@ MACRO (CHECK_LIBFMT)
      #include <fmt/format-inl.h>
      #include <iostream>
      int main() {
-       std::cout << fmt::format(\"The answer is {}.\", 42);
+       fmt::format_args::format_arg arg=
+         fmt::detail::make_arg<fmt::format_context>(42);
+         std::cout << fmt::vformat(\"The answer is {}.\",
+                                   fmt::format_args(&arg, 1));
      }" HAVE_SYSTEM_LIBFMT)
   ENDIF()
   IF(NOT HAVE_SYSTEM_LIBFMT OR WITH_LIBFMT STREQUAL "bundled")
     IF (WITH_LIBFMT STREQUAL "system")
-      MESSAGE(FATAL_ERROR "system libfmt library is not found")
+      MESSAGE(FATAL_ERROR "system libfmt library is not found or unusable")
     ENDIF()
     BUNDLE_LIBFMT()
   ELSE()
