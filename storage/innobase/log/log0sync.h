@@ -39,8 +39,11 @@ It has a state consisting of
 
 Operations supported on this semaphore
 
-1.acquire(num):
-- waits until current value exceeds num, or until lock is granted.
+1.acquire(num, callback):
+- if callback is not provided, waits until current value exceeds num,
+  or until lock is granted.
+- otherwise, does not wait (caller is informed about completion via callback)
+  may still acquire the lock though.
 
 - returns EXPIRED if current_value >= num,
   or ACQUIRED, if current_value < num and lock is granted.
@@ -49,6 +52,7 @@ Operations supported on this semaphore
 - releases lock
 - sets new current value to max(num,current_value)
 - releases some threads waiting in acquire()
+- executes some callbacks queued by acquire()
 
 3. value()
 - read current value
@@ -79,10 +83,11 @@ public:
   {
     ACQUIRED,
     EXPIRED,
-    CALLBACK_QUEUED
+    CALLBACK_QUEUED,
+    NOOP
   };
   lock_return_code acquire(value_type num, const completion_callback *cb);
-  void release(value_type num);
+  value_type release(value_type num);
   value_type value() const;
   value_type pending() const;
   void set_pending(value_type num);

@@ -162,7 +162,6 @@ struct group_commit_waiter_t
   lsn_t m_value=0;
   binary_semaphore m_sema{};
   group_commit_waiter_t* m_next= nullptr;
-  bool m_group_commit_leader=false;
 };
 
 group_commit_lock::group_commit_lock() :
@@ -191,20 +190,21 @@ thread_local group_commit_waiter_t thread_local_waiter;
 
 static inline void do_completion_callback(const completion_callback* cb)
 {
-  if (cb)
+  if (cb && cb->m_callback)
     cb->m_callback(cb->m_param);
 }
 
-group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, const completion_callback *callback)
+group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, const completion_callback *cb)
 {
   unsigned int spins = MAX_SPINS;
+  ut_ad(!cb || cb->m_callback || !cb->m_param);
 
   for(;;)
   {
     if (num <= value())
     {
       /* No need to wait.*/
-      do_completion_callback(callback);
+      do_completion_callback(cb);
       return lock_return_code::EXPIRED;
     }
 
@@ -220,42 +220,35 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
   }
 
   thread_local_waiter.m_value = num;
-  thread_local_waiter.m_group_commit_leader= false;
   std::unique_lock<std::mutex> lk(m_mtx, std::defer_lock);
   while (num > value())
   {
     lk.lock();
 
     /* Re-read current value after acquiring the lock*/
-    if (num <= value() &&
-       (!thread_local_waiter.m_group_commit_leader || m_lock))
+    if (num <= value() && m_lock)
     {
       lk.unlock();
-      do_completion_callback(callback);
-      thread_local_waiter.m_group_commit_leader=false;
+      do_completion_callback(cb);
       return lock_return_code::EXPIRED;
     }
-
-    thread_local_waiter.m_group_commit_leader= false;
     if (!m_lock)
     {
-      /* Take the lock, become group commit leader.*/
+      /* Take the lock, become new group commit leader.*/
       m_lock = true;
 #ifndef DBUG_OFF
       m_owner_id = std::this_thread::get_id();
 #endif
-      if (callback)
-        m_pending_callbacks.push_back({num,*callback});
+      if (cb && cb->m_callback)
+        m_pending_callbacks.push_back({num,*cb});
       return lock_return_code::ACQUIRED;
     }
 
-    if (callback && m_waiters_list)
+    if (cb)
     {
-      /*
-       We need to have at least one waiter,
-       so it can become the new group commit leader.
-      */
-      m_pending_callbacks.push_back({num, *callback});
+      if (!cb->m_callback)
+        return lock_return_code::NOOP;
+      m_pending_callbacks.push_back({num, *cb});
       return lock_return_code::CALLBACK_QUEUED;
     }
 
@@ -270,14 +263,15 @@ group_commit_lock::lock_return_code group_commit_lock::acquire(value_type num, c
     thd_wait_end(0);
 
   }
-  do_completion_callback(callback);
+  do_completion_callback(cb);
   return lock_return_code::EXPIRED;
 }
 
-void group_commit_lock::release(value_type num)
+group_commit_lock::value_type group_commit_lock::release(value_type num)
 {
   completion_callback callbacks[1000];
   size_t callback_count = 0;
+  value_type ret=0;
 
   std::unique_lock<std::mutex> lk(m_mtx);
   m_lock = false;
@@ -352,12 +346,15 @@ void group_commit_lock::release(value_type num)
       auto e= m_waiters_list;
       m_waiters_list= m_waiters_list->m_next;
       e->m_next= wakeup_list;
-      e->m_group_commit_leader= true;
       wakeup_list = e;
     }
-    else if (wakeup_list)
+    else if (!m_pending_callbacks.empty())
     {
-      wakeup_list->m_group_commit_leader=true;
+      /*
+       Inform caller there are pending async waiters left,
+       so it does something to wake them.
+      */
+      ret= m_pending_callbacks[0].first;
     }
   }
 
@@ -371,6 +368,7 @@ void group_commit_lock::release(value_type num)
     next= cur->m_next;
     cur->m_sema.wake();
   }
+  return ret;
 }
 
 #ifndef DBUG_OFF
