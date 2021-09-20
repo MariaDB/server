@@ -118,7 +118,7 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false,
 also to be flushed to disk. */
 void
 log_buffer_flush_to_disk(
-	bool sync = true);
+	bool sync = true, bool wait=true);
 
 /** Make a checkpoint */
 ATTRIBUTE_COLD void log_make_checkpoint();
@@ -379,9 +379,9 @@ public:
                          const char *new_path) noexcept= 0;
   virtual dberr_t close() noexcept= 0;
   virtual dberr_t read(os_offset_t offset, span<byte> buf) noexcept= 0;
-  virtual dberr_t write(const char *path, os_offset_t offset,
-                        span<const byte> buf) noexcept= 0;
+  virtual dberr_t write(const char *path, tpool::aiocb *cb, bool sync) noexcept= 0;
   virtual dberr_t flush() noexcept= 0;
+  virtual bool async_io_supported() const noexcept= 0;
 
   /** Durable writes doesn't require calling flush() */
   bool writes_are_durable() const noexcept { return m_durable_writes; }
@@ -405,9 +405,9 @@ public:
   dberr_t rename(const char *old_path, const char *new_path) noexcept final;
   dberr_t close() noexcept final;
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept final;
-  dberr_t write(const char *path, os_offset_t offset,
-                span<const byte> buf) noexcept final;
+  dberr_t write(const char *path, tpool::aiocb *cb, bool sync) noexcept final;
   dberr_t flush() noexcept final;
+  bool async_io_supported() const noexcept final {return true;}
 
 private:
   pfs_os_file_t m_fd{OS_FILE_CLOSED};
@@ -428,7 +428,8 @@ public:
   dberr_t close() noexcept;
   dberr_t read(os_offset_t offset, span<byte> buf) noexcept;
   bool writes_are_durable() const noexcept;
-  dberr_t write(os_offset_t offset, span<const byte> buf) noexcept;
+  bool async_io_supported() const noexcept;
+  dberr_t write(tpool::aiocb *cb, bool sync) noexcept;
   dberr_t flush() noexcept;
   void free()
   {
@@ -526,6 +527,20 @@ public:
     void read(os_offset_t offset, span<byte> buf);
     /** Tells whether writes require calling flush() */
     bool writes_are_durable() const noexcept;
+    /* Whether there is a AIO support.
+    False for memory mapped files , true for anything else.*/
+    bool async_io_supported() const noexcept;
+    /**  Perform async, or sync IO on file.
+    @param[in] cb - IO control block
+    @param[in] sync - true if synchronous IO should be used
+    @note cb can contain m_callback parameter, the function
+     that is called after IO is finished. This callback is also
+     executed in case of synchronous IO
+    */
+    void begin_write(tpool::aiocb *cb, bool sync);
+    /**Finish write on file, which was started with begin_write
+    This function mainly updates statistic counters */
+    void complete_write(tpool::aiocb* cb);
     /** writes buffer to log file
     @param[in]	offset		offset in log file
     @param[in]	buf		buffer from which to write */

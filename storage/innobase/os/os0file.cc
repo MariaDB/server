@@ -3911,6 +3911,28 @@ func_exit:
 	goto func_exit;
 }
 
+
+dberr_t os_file_submit_aio(pfs_os_file_t handle, const char *name, tpool::aiocb * cb)
+{
+  bool is_read= cb->m_opcode==tpool::aio_opcode::AIO_PREAD;
+#ifdef UNIV_PFS_IO
+  auto n= cb->m_len;
+  PSI_file_locker_state state;
+  PSI_file_locker *locker= nullptr;
+  register_pfs_file_io_begin(&state, locker, handle, n,
+      is_read?PSI_FILE_READ:PSI_FILE_WRITE,__FILE__, __LINE__);
+#endif
+  cb->m_fh= handle;
+  auto err= srv_thread_pool->submit_io(cb);
+  if (err)
+    os_file_handle_error(name, is_read? "aio read": "aio write");
+#ifdef UNIV_PFS_IO
+  register_pfs_file_io_end(locker, n);
+#endif
+  return err?DB_IO_ERROR:DB_SUCCESS;
+}
+
+
 /** Prints info of the aio arrays.
 @param[in,out]	file		file where to print */
 void

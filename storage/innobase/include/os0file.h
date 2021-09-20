@@ -1111,6 +1111,13 @@ void os_aio_free();
 @retval DB_IO_ERROR on I/O error */
 dberr_t os_aio(const IORequest &type, void *buf, os_offset_t offset, size_t n);
 
+/** Submit async IO to threadpool.
+
+A light wrapper of srv_thread_pool->submit_io, which adds
+PFS and error handling */
+dberr_t os_file_submit_aio(pfs_os_file_t handle, const char *name,
+                           tpool::aiocb *cb);
+
 /** Wait until there are no pending asynchronous writes.
 Only used on FLUSH TABLES...FOR EXPORT. */
 void os_aio_wait_until_no_pending_writes();
