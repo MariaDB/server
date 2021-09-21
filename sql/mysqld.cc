@@ -781,7 +781,7 @@ static struct my_option pfs_early_options[]=
     "Default startup value for the events_statements_current consumer.",
     &pfs_param.m_consumer_events_statements_current_enabled,
     &pfs_param.m_consumer_events_statements_current_enabled, 0, GET_BOOL,
-    OPT_ARG, FALSE, 0, 0, 0, 0, 0},
+    OPT_ARG, TRUE, 0, 0, 0, 0, 0},
   {"performance_schema_consumer_events_statements_history", 0,
     "Default startup value for the events_statements_history consumer.",
     &pfs_param.m_consumer_events_statements_history_enabled,

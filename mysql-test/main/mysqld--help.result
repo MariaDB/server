@@ -759,6 +759,7 @@ The following specify which files/extra groups are read (specified before remain
  --performance-schema-consumer-events-statements-current 
  Default startup value for the events_statements_current
  consumer.
+ (Defaults to on; use --skip-performance-schema-consumer-events-statements-current to disable.)
  --performance-schema-consumer-events-statements-history 
  Default startup value for the events_statements_history
  consumer.
@@ -1653,7 +1654,7 @@ performance-schema-accounts-size -1
 performance-schema-consumer-events-stages-current FALSE
 performance-schema-consumer-events-stages-history FALSE
 performance-schema-consumer-events-stages-history-long FALSE
-performance-schema-consumer-events-statements-current FALSE
+performance-schema-consumer-events-statements-current TRUE
 performance-schema-consumer-events-statements-history FALSE
 performance-schema-consumer-events-statements-history-long FALSE
 performance-schema-consumer-events-transactions-current FALSE
