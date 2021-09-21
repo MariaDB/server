@@ -3744,10 +3744,8 @@ int spider_check_trx_and_get_conn(
   }
   spider->wide_handler->trx = trx;
   spider->set_error_mode();
-  if (
-    spider->wide_handler->sql_command != SQLCOM_DROP_TABLE &&
-    spider->wide_handler->sql_command != SQLCOM_ALTER_TABLE
-  ) {
+  if (spider->wide_handler->sql_command != SQLCOM_DROP_TABLE)
+  {
     SPIDER_TRX_HA *trx_ha = spider_check_trx_ha(trx, spider);
     if (!trx_ha || trx_ha->wait_for_reusing)
       spider_trx_set_link_idx_for_all(spider);
