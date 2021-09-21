@@ -659,13 +659,13 @@ error_partition_handler_share_alloc:
 error_get_share:
   if (wide_handler_alloc)
   {
+    spider_free(spider_current_trx, wide_handler, MYF(0));
 #ifdef WITH_PARTITION_STORAGE_ENGINE
     if (pt_handler_share_handlers)
     {
       pt_handler_share_handlers[0]->wide_handler = NULL;
     }
 #endif
-    spider_free(spider_current_trx, wide_handler, MYF(0));
     spider->wide_handler = NULL;
     owner->wide_handler = NULL;
     owner->wide_handler_owner = FALSE;
