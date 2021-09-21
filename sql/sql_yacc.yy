@@ -70,6 +70,8 @@
 #ifdef _MSC_VER
 /* warning C4065: switch statement contains 'default' but no 'case' labels */
 #pragma warning (disable : 4065)
+#elif defined(__clang__) || defined(__GNUC__)
+#pragma GCC diagnostic ignored "-Wunused-label"
 #endif
 
 int yylex(void *yylval, void *yythd);
