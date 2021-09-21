@@ -71,6 +71,9 @@
 /* warning C4065: switch statement contains 'default' but no 'case' labels */
 #pragma warning (disable : 4065)
 #endif
+#ifdef __GNUC__
+#pragma GCC diagnostic ignored "-Wunused-label" /* yyexhaustedlab: */
+#endif
 
 int yylex(void *yylval, void *yythd);
 
