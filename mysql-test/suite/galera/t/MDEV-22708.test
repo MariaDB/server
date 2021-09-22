@@ -1,0 +1,14 @@
+--source include/galera_cluster.inc
+--source include/have_innodb.inc
+
+SET @wsrep_forced_binlog_format_saved = @@GLOBAL.wsrep_forced_binlog_format;
+SET @@GLOBAL.wsrep_forced_binlog_format = STATEMENT;
+
+CREATE TABLE t1(c INT PRIMARY KEY) ENGINE = MyISAM;
+
+INSERT DELAYED INTO t1 VALUES (1),(2),(3);
+SELECT SLEEP(1);
+
+DROP TABLE t1;
+
+SET @@GLOBAL.wsrep_forced_binlog_format = @wsrep_forced_binlog_format_saved;
