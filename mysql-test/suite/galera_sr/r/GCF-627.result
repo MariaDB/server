@@ -2,7 +2,6 @@ connection node_2;
 connection node_1;
 connection node_1;
 CREATE TABLE t1 (f1 INTEGER, f2 VARCHAR(10)) ENGINE=InnoDB;
-CREATE TABLE t2 (f1 INTEGER);
 SET SESSION wsrep_trx_fragment_size = 1;
 SET AUTOCOMMIT=OFF;
 START TRANSACTION;
@@ -16,9 +15,10 @@ connect node_1a, 127.0.0.1, root, , test, $NODE_MYPORT_1;
 INSERT INTO t1 VALUES (2);
 ERROR 42S02: Table 'test.t1' doesn't exist
 connection node_1;
-SELECT * FROM mysql.wsrep_streaming_log;
-node_uuid	trx_id	seqno	flags	frag
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
 connection node_2;
-SELECT * FROM mysql.wsrep_streaming_log;
-node_uuid	trx_id	seqno	flags	frag
-DROP TABLE t2;
+SELECT COUNT(*) FROM mysql.wsrep_streaming_log;
+COUNT(*)
+0
