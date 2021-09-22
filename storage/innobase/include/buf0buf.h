@@ -2232,9 +2232,7 @@ inline void buf_page_t::clear_oldest_modification()
 it from buf_pool.flush_list */
 inline void buf_page_t::clear_oldest_modification(bool temporary)
 {
-  mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
   ut_ad(temporary == fsp_is_system_temporary(id().space()));
-  ut_ad(io_fix_ == BUF_IO_WRITE);
   if (temporary)
   {
     ut_ad(oldest_modification() == 2);

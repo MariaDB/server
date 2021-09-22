@@ -459,15 +459,15 @@ void mtr_t::commit()
   release_resources();
 }
 
-#ifdef UNIV_DEBUG
-/** Check that all pages belong to a shrunk tablespace. */
+/** Shrink a tablespace. */
 struct Shrink
 {
-  const page_id_t low, high;
-  Shrink(const fil_space_t &space) :
-    low({space.id, 0}), high({space.id, space.size}) {}
+  /** the first non-existing page in the tablespace */
+  const page_id_t high;
 
-  bool operator()(const mtr_memo_slot_t *slot) const
+  Shrink(const fil_space_t &space) : high({space.id, space.size}) {}
+
+  bool operator()(mtr_memo_slot_t *slot) const
   {
     if (!slot->object)
       return true;
@@ -476,29 +476,31 @@ struct Shrink
       ut_ad("invalid type" == 0);
       return false;
     case MTR_MEMO_SPACE_X_LOCK:
-      ut_ad(low.space() == static_cast<fil_space_t*>(slot->object)->id);
+      ut_ad(high.space() == static_cast<fil_space_t*>(slot->object)->id);
       return true;
     case MTR_MEMO_PAGE_X_MODIFY:
     case MTR_MEMO_PAGE_SX_MODIFY:
     case MTR_MEMO_PAGE_X_FIX:
     case MTR_MEMO_PAGE_SX_FIX:
-      const auto &bpage= static_cast<buf_block_t*>(slot->object)->page;
+      auto &bpage= static_cast<buf_block_t*>(slot->object)->page;
+      ut_ad(bpage.io_fix() == BUF_IO_NONE);
       const auto id= bpage.id();
-      if (id == page_id_t{0, TRX_SYS_PAGE_NO})
+      if (id < high)
       {
-        ut_ad(srv_is_undo_tablespace(low.space()));
+        ut_ad(id.space() == high.space() ||
+              (id == page_id_t{0, TRX_SYS_PAGE_NO} &&
+               srv_is_undo_tablespace(high.space())));
         break;
       }
-      ut_ad(id >= low);
-      ut_ad(id < high);
+      ut_ad(id.space() == high.space());
       ut_ad(bpage.state() == BUF_BLOCK_FILE_PAGE);
-      ut_ad(bpage.oldest_modification() <= 1);
-      break;
+      if (bpage.oldest_modification() > 1)
+        bpage.clear_oldest_modification(false);
+      slot->type= static_cast<mtr_memo_type_t>(slot->type & ~MTR_MEMO_MODIFY);
     }
     return true;
   }
 };
-#endif
 
 /** Commit a mini-transaction that is shrinking a tablespace.
 @param space   tablespace that is being shrunk */
@@ -545,7 +547,7 @@ void mtr_t::commit_shrink(fil_space_t &space)
   else
     ut_ad(!m_freed_space);
 
-  ut_d(m_memo.for_each_block_in_reverse(CIterate<Shrink>{space}));
+  m_memo.for_each_block_in_reverse(CIterate<Shrink>{space});
 
   m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
                                    (ReleaseBlocks(start_lsn, m_commit_lsn,

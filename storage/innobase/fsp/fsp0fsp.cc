@@ -1054,11 +1054,36 @@ static
 buf_block_t*
 fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
 {
-  buf_block_t *free_block= buf_LRU_get_free_block(false);
-  buf_block_t *block= buf_page_create(space, static_cast<uint32_t>(offset),
-                                      space->zip_size(), mtr, free_block);
+  buf_block_t *block, *free_block;
+
+  if (UNIV_UNLIKELY(space->is_being_truncated))
+  {
+    const page_id_t page_id{space->id, offset};
+    const ulint fold= page_id.fold();
+    mysql_mutex_lock(&buf_pool.mutex);
+    block= reinterpret_cast<buf_block_t*>
+      (buf_pool.page_hash_get_low(page_id, fold));
+    if (block && block->page.oldest_modification() <= 1)
+      block= nullptr;
+    mysql_mutex_unlock(&buf_pool.mutex);
+
+    if (block)
+    {
+      ut_ad(block->page.buf_fix_count() >= 1);
+      ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
+      ut_ad(mtr->have_x_latch(*block));
+      free_block= block;
+      goto got_free_block;
+    }
+  }
+
+  free_block= buf_LRU_get_free_block(false);
+got_free_block:
+  block= buf_page_create(space, static_cast<uint32_t>(offset),
+                         space->zip_size(), mtr, free_block);
   if (UNIV_UNLIKELY(block != free_block))
     buf_pool.free_block(free_block);
+
   fsp_init_file_page(space, block, mtr);
   return block;
 }
@@ -1728,7 +1753,10 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 			goto funct_exit;
 		}
 
-		ut_ad(rw_lock_get_x_lock_count(&block->lock) == 1);
+		ut_d(const auto x = rw_lock_get_x_lock_count(&block->lock));
+		ut_ad(x > 0);
+		ut_ad(x == 1 || space->is_being_truncated);
+		ut_ad(x <= 2);
 		ut_ad(!fil_page_get_type(block->frame));
 		mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
 			      FIL_PAGE_TYPE_SYS);
