@@ -754,26 +754,10 @@ not_free:
 			rseg->needs_purge = false;
 		}
 
-		mtr.commit();
-		/* Write-ahead the redo log record. */
-		log_write_up_to(mtr.commit_lsn(), true);
+		mtr.commit_shrink(space);
 
-		/* Trim the file size. */
-		os_file_truncate(file->name, file->handle,
-				 os_offset_t(size) << srv_page_size_shift,
-				 true);
-
-		/* This is only executed by srv_purge_coordinator_thread. */
+		/* No mutex; this is only updated by the purge coordinator. */
 		export_vars.innodb_undo_truncations++;
-
-		/* In MDEV-8319 (10.5) we will PUNCH_HOLE the garbage
-		(with write-ahead logging). */
-		mutex_enter(&fil_system.mutex);
-		ut_ad(&space == purge_sys.truncate.current);
-		ut_ad(space.is_being_truncated);
-		purge_sys.truncate.current->set_stopping(false);
-		purge_sys.truncate.current->is_being_truncated = false;
-		mutex_exit(&fil_system.mutex);
 
 		if (purge_sys.rseg != NULL
 		    && purge_sys.rseg->last_page_no == FIL_NULL) {
@@ -806,6 +790,7 @@ not_free:
 
 		ib::info() << "Truncated " << file->name;
 		purge_sys.truncate.last = purge_sys.truncate.current;
+		ut_ad(&space == purge_sys.truncate.current);
 		purge_sys.truncate.current = NULL;
 	}
 }
