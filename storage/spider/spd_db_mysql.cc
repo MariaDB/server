@@ -6476,10 +6476,16 @@ int spider_db_mbase_util::open_item_func(
         separator_str_length = SPIDER_SQL_AND_LEN;
       }
       break;
+    case Item_func::FUNC_SP:
     case Item_func::UDF_FUNC:
       use_pushdown_udf = spider_param_use_pushdown_udf(spider->trx->thd,
         spider->share->use_pushdown_udf);
       if (!use_pushdown_udf)
+        /*
+          This is the default behavior because the remote nodes may deal with
+          the function in an unexpected way (e.g. not having the same
+          definition). Users can turn it on if they know what they are doing.
+        */
         DBUG_RETURN(ER_SPIDER_COND_SKIP_NUM);
       if (str)
       {

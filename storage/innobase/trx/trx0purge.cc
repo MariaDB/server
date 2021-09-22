@@ -597,7 +597,7 @@ static void trx_purge_truncate_history()
 			return;
 		}
 
-		const fil_space_t& space = *purge_sys.truncate.current;
+		fil_space_t& space = *purge_sys.truncate.current;
 		/* Undo tablespace always are a single file. */
 		ut_a(UT_LIST_GET_LEN(space.chain) == 1);
 		fil_node_t* file = UT_LIST_GET_FIRST(space.chain);
@@ -758,28 +758,11 @@ not_free:
 			rseg->needs_purge = false;
 		}
 
-		mtr.commit();
-		/* Write-ahead the redo log record. */
-		log_write_up_to(mtr.commit_lsn(), true);
-
-		/* Trim the file size. */
-		os_file_truncate(file->name, file->handle,
-				 os_offset_t(size) << srv_page_size_shift,
-				 true);
-
-		/* This is only executed by srv_purge_coordinator_thread. */
+		mtr.commit_shrink(space);
+		/* No mutex; this is only updated by the purge coordinator. */
 		export_vars.innodb_undo_truncations++;
 
-		/* In MDEV-8319 (10.5) we will PUNCH_HOLE the garbage
-		(with write-ahead logging). */
-		mutex_enter(&fil_system.mutex);
-		ut_ad(&space == purge_sys.truncate.current);
-		ut_ad(space.is_being_truncated);
-		purge_sys.truncate.current->set_stopping(false);
-		purge_sys.truncate.current->is_being_truncated = false;
-		mutex_exit(&fil_system.mutex);
-
-		if (purge_sys.rseg != NULL
+		if (purge_sys.rseg
 		    && purge_sys.rseg->last_page_no == FIL_NULL) {
 			/* If purge_sys.rseg is pointing to rseg that
 			was recently truncated then move to next rseg
