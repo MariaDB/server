@@ -76,7 +76,7 @@ int yylex(void *yylval, void *yythd);
 
 #define yyoverflow(A,B,C,D,E,F)               \
   {                                           \
-    ulong val= *(F);                          \
+    size_t val= *(F);                         \
     if (my_yyoverflow((B), (D), &val))        \
     {                                         \
       yyerror(thd, (char*) (A));              \
@@ -1024,7 +1024,7 @@ Virtual_column_info *add_virtual_expression(THD *thd, Item *expr)
 }
 
 %{
-bool my_yyoverflow(short **a, YYSTYPE **b, ulong *yystacksize);
+bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %}
 
 %pure-parser                                    /* We have threads */

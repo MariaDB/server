@@ -973,8 +973,10 @@ then
         tmpdir=$(parse_cnf "$encgroups" 'tmpdir')
         if [ -z "$tmpdir" ]; then
             xtmpdir="$(mktemp -d)"
-        else
+        elif [ "$OS" = 'Linux' ]; then
             xtmpdir=$(mktemp '-d' "--tmpdir=$tmpdir")
+        else
+            xtmpdir=$(TMPDIR="$tmpdir"; mktemp '-d')
         fi
 
         wsrep_log_info "Using '$xtmpdir' as xtrabackup temporary directory"

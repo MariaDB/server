@@ -7226,10 +7226,10 @@ bool check_stack_overrun(THD *thd, long margin,
 #define MY_YACC_INIT 1000			// Start with big alloc
 #define MY_YACC_MAX  32000			// Because of 'short'
 
-bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, ulong *yystacksize)
+bool my_yyoverflow(short **yyss, YYSTYPE **yyvs, size_t *yystacksize)
 {
   Yacc_state *state= & current_thd->m_parser_state->m_yacc;
-  ulong old_info=0;
+  size_t old_info=0;
   DBUG_ASSERT(state);
   if ((uint) *yystacksize >= MY_YACC_MAX)
     return 1;

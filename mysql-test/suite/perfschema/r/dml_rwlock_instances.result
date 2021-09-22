@@ -18,3 +18,14 @@ UNLOCK TABLES;
 LOCK TABLES performance_schema.rwlock_instances WRITE;
 ERROR 42000: SELECT, LOCK TABLES command denied to user 'root'@'localhost' for table 'rwlock_instances'
 UNLOCK TABLES;
+#
+# MDEV-25325 column_comment for performance_schema tables
+#
+select column_name, column_comment 
+from information_schema.columns 
+where table_schema='performance_schema' and table_name='rwlock_instances';
+column_name	column_comment
+NAME	Instrument name associated with the read write lock
+OBJECT_INSTANCE_BEGIN	Address in memory of the instrumented lock
+WRITE_LOCKED_BY_THREAD_ID	THREAD_ID of the locking thread if locked in write (exclusive) mode, otherwise NULL.
+READ_LOCKED_BY_COUNT	Count of current read locks held
