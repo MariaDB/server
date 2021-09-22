@@ -2271,7 +2271,9 @@ unemployed:
 
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-      if (!recv_recovery_is_on() && srv_operation == SRV_OPERATION_NORMAL)
+      if (!recv_recovery_is_on() &&
+          !srv_startup_is_before_trx_rollback_phase &&
+          srv_operation == SRV_OPERATION_NORMAL)
         log_checkpoint();
 
       mysql_mutex_lock(&buf_pool.flush_list_mutex);
