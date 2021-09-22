@@ -19045,26 +19045,33 @@ evaluate_join_record(JOIN *join, JOIN_TAB *join_tab,
           will be re-evaluated again. It could be fixed, but, probably,
           it's not worth doing now.
         */
-        if (tab->select_cond && !tab->select_cond->val_int())
+        if (tab->select_cond)
         {
-          /* The condition attached to table tab is false */
-          if (tab == join_tab)
+          const longlong res= tab->select_cond->val_int();
+          if (join->thd->is_error())
+            DBUG_RETURN(NESTED_LOOP_ERROR);
+
+          if (!res)
           {
-            found= 0;
-            if (not_exists_opt_is_applicable)
-              DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
-          }            
-          else
-          {
-            /*
-              Set a return point if rejected predicate is attached
-              not to the last table of the current nest level.
-            */
-            join->return_tab= tab;
-            if (not_exists_opt_is_applicable)
-              DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
+            /* The condition attached to table tab is false */
+            if (tab == join_tab)
+            {
+              found= 0;
+              if (not_exists_opt_is_applicable)
+                DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
+            }
             else
-              DBUG_RETURN(NESTED_LOOP_OK);
+            {
+              /*
+                Set a return point if rejected predicate is attached
+                not to the last table of the current nest level.
+              */
+              join->return_tab= tab;
+              if (not_exists_opt_is_applicable)
+                DBUG_RETURN(NESTED_LOOP_NO_MORE_ROWS);
+              else
+                DBUG_RETURN(NESTED_LOOP_OK);
+            }
           }
         }
       }
