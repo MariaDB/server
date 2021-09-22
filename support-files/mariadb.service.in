@@ -68,6 +68,17 @@ PermissionsStartOnly=true
 
 @SYSTEMD_EXECSTARTPRE@
 
+# Check if there is some problem that prevents to start
+# turn off with enviromenta variable:
+# MARIADB_DO_NOT_EXECSTARTPRE_CHECK=1
+#
+# This can be done with systemd service file by
+# adding file '/etc/systemd/system/mariadb.service.d/nocheck.conf'
+# with content:
+# [Service]
+# Environment=MARIADB_DO_NOT_EXECSTARTPRE_CHECK=1
+ExecStart=@bindir@/mariadb-execstartpre-check
+
 # Perform automatic wsrep recovery. When server is started without wsrep,
 # galera_recovery simply returns an empty string. In any case, however,
 # the script is not expected to return with a non-zero status.

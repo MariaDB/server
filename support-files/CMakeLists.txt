@@ -123,6 +123,11 @@ IF(UNIX)
             ${CMAKE_CURRENT_BINARY_DIR}/mariadb.service
             DESTINATION ${inst_location}/systemd COMPONENT SupportFiles)
 
+    CONFIGURE_FILE(mariadb-execstartpre-check.sh
+                   ${CMAKE_CURRENT_BINARY_DIR}/mariadb-execstartpre-check @ONLY)
+    INSTALL(PROGRAMS ${CMAKE_CURRENT_BINARY_DIR}/mariadb-execstartpre-check
+      DESTINATION ${bindir} COMPONENT Server_Scripts)
+
     # @ in directory name broken between CMake version 2.8.12.2 and 3.3
     # http://public.kitware.com/Bug/view.php?id=14782
     IF(NOT CMAKE_VERSION VERSION_LESS 3.3.0 OR NOT RPM)
