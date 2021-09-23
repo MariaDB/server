@@ -525,9 +525,6 @@ void mtr_t::commit_shrink(fil_space_t &space)
   /* Durably write the reduced FSP_SIZE before truncating the data file. */
   log_write_and_flush();
 
-  os_file_truncate(space.chain.start->name, space.chain.start->handle,
-                   os_offset_t{space.size} << srv_page_size_shift, true);
-
   if (m_freed_pages)
   {
     ut_ad(!m_freed_pages->empty());
@@ -562,6 +559,12 @@ void mtr_t::commit_shrink(fil_space_t &space)
   space.clear_stopping();
   space.is_being_truncated= false;
   mysql_mutex_unlock(&fil_system.mutex);
+
+  /* Truncate the file before releasing the space.latch. File extension
+  (and any allocation of pages beyond the current intended end of the file)
+  is covered by exclusive space.latch, which we are still holding here. */
+  os_file_truncate(space.chain.start->name, space.chain.start->handle,
+                   os_offset_t{space.size} << srv_page_size_shift, true);
 
   m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
   srv_stats.log_write_requests.inc();
