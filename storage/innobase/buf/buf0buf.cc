@@ -3390,6 +3390,7 @@ loop:
   /* Delete possible entries for the page from the insert buffer:
   such can exist if the page belonged to an index which was dropped */
   if (page_id < page_id_t{SRV_SPACE_ID_UPPER_BOUND, 0} &&
+      !srv_is_undo_tablespace(page_id.space()) &&
       !recv_recovery_is_on())
     ibuf_merge_or_delete_for_page(nullptr, page_id, zip_size);
 

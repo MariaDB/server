@@ -113,12 +113,16 @@ struct completion_callback;
 void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key = false,
   const completion_callback* cb=nullptr);
 
-/** write to the log file up to the last log entry.
-@param[in]	sync	whether we want the written log
-also to be flushed to disk. */
-void
-log_buffer_flush_to_disk(
-	bool sync = true);
+/** Write to the log file up to the last log entry.
+@param sync  whether to wait for a durable write to complete */
+void log_buffer_flush_to_disk(bool sync= true);
+
+
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush_prepare();
+
+/** Durably write the log up to log_sys.lsn() and release log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush();
 
 /** Make a checkpoint */
 ATTRIBUTE_COLD void log_make_checkpoint();

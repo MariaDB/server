@@ -564,7 +564,7 @@ void fsp_header_init(fil_space_t* space, uint32_t size, mtr_t* mtr)
 	in order to avoid optimizing away any unchanged most
 	significant bytes of FSP_SIZE. */
 	mtr->write<4,mtr_t::FORCED>(*block, FSP_HEADER_OFFSET + FSP_SIZE
-				   + block->frame, size);
+				    + block->frame, size);
 	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
 				    + block->frame));
 	if (auto f = space->flags & ~FSP_FLAGS_MEM_MASK) {
@@ -758,10 +758,12 @@ fsp_try_extend_data_file(fil_space_t *space, buf_block_t *header, mtr_t *mtr)
 		return(0);
 	}
 
-	/* We ignore any fragments of a full megabyte when storing the size
-	to the space header */
+	/* For the system tablespace, we ignore any fragments of a
+	full megabyte when storing the size to the space header */
 
-	space->size_in_header = ut_2pow_round(space->size, (1024 * 1024) / ps);
+	space->size_in_header = space->id
+		? space->size
+		: ut_2pow_round(space->size, (1024 * 1024) / ps);
 
 	/* recv_sys_t::parse() expects to find a WRITE record that
 	covers all 4 bytes. Therefore, we must specify mtr_t::FORCED
@@ -1045,11 +1047,36 @@ static
 buf_block_t*
 fsp_page_create(fil_space_t *space, page_no_t offset, mtr_t *mtr)
 {
-  buf_block_t *free_block= buf_LRU_get_free_block(false);
-  buf_block_t *block= buf_page_create(space, static_cast<uint32_t>(offset),
-                                      space->zip_size(), mtr, free_block);
+  buf_block_t *block, *free_block;
+
+  if (UNIV_UNLIKELY(space->is_being_truncated))
+  {
+    const page_id_t page_id{space->id, offset};
+    const ulint fold= page_id.fold();
+    mysql_mutex_lock(&buf_pool.mutex);
+    block= reinterpret_cast<buf_block_t*>
+      (buf_pool.page_hash_get_low(page_id, fold));
+    if (block && block->page.oldest_modification() <= 1)
+      block= nullptr;
+    mysql_mutex_unlock(&buf_pool.mutex);
+
+    if (block)
+    {
+      ut_ad(block->page.buf_fix_count() >= 1);
+      ut_ad(block->lock.x_lock_count() == 1);
+      ut_ad(mtr->have_x_latch(*block));
+      free_block= block;
+      goto got_free_block;
+    }
+  }
+
+  free_block= buf_LRU_get_free_block(false);
+got_free_block:
+  block= buf_page_create(space, static_cast<uint32_t>(offset),
+                         space->zip_size(), mtr, free_block);
   if (UNIV_UNLIKELY(block != free_block))
     buf_pool.free_block(free_block);
+
   fsp_init_file_page(space, block, mtr);
   return block;
 }
@@ -1753,7 +1780,10 @@ fseg_create(fil_space_t *space, ulint byte_offset, mtr_t *mtr,
 			goto funct_exit;
 		}
 
-		ut_ad(block->lock.not_recursive());
+		ut_d(const auto x = block->lock.x_lock_count());
+		ut_ad(x || block->lock.not_recursive());
+		ut_ad(x == 1 || space->is_being_truncated);
+		ut_ad(x <= 2);
 		ut_ad(!fil_page_get_type(block->frame));
 		mtr->write<1>(*block, FIL_PAGE_TYPE + 1 + block->frame,
 			      FIL_PAGE_TYPE_SYS);
@@ -2179,14 +2209,14 @@ take_hinted_page:
 		return(NULL);
 	}
 
-	if (space->size <= ret_page && !is_system_tablespace(space_id)) {
+	if (space->size <= ret_page && !is_predefined_tablespace(space_id)) {
 		/* It must be that we are extending a single-table
 		tablespace whose size is still < 64 pages */
 
 		if (ret_page >= FSP_EXTENT_SIZE) {
-			ib::error() << "Error (2): trying to extend"
-			" a single-table tablespace " << space_id
-			<< " by single page(s) though the"
+			ib::error() << "Trying to extend '"
+			<< space->chain.start->name
+			<< "' by single page(s) though the"
 			<< " space size " << space->size
 			<< ". Page no " << ret_page << ".";
 			ut_ad(!has_done_reservation);
