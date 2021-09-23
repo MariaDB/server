@@ -202,7 +202,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
 #endif
 
 #ifdef HAVE_CHARSET_cp1250
-  add_compiled_collation(&my_charset_cp1250_czech_ci);
+  add_compiled_collation(&my_charset_cp1250_czech_cs);
 #endif
 
 #ifdef HAVE_CHARSET_cp932
@@ -213,7 +213,7 @@ my_bool init_compiled_charsets(myf flags __attribute__((unused)))
 #endif
 
 #ifdef HAVE_CHARSET_latin2
-  add_compiled_collation(&my_charset_latin2_czech_ci);
+  add_compiled_collation(&my_charset_latin2_czech_cs);
 #endif
 
 #ifdef HAVE_CHARSET_eucjpms

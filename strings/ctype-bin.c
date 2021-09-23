@@ -22,6 +22,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-simple.h"
 
 const char charset_name_binary[]= "binary";
 #define charset_name_binary_length (sizeof(charset_name_binary)-1)
@@ -497,7 +498,9 @@ MY_COLLATION_HANDLER my_collation_8bit_bin_handler =
   my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_8bit_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_8bit_simple,
+  my_max_str_8bit_simple
 };
 
 
@@ -513,7 +516,9 @@ MY_COLLATION_HANDLER my_collation_8bit_nopad_bin_handler =
   my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_8bit_simple_nopad,
+  my_max_str_8bit_simple
 };
 
 
@@ -529,7 +534,9 @@ static MY_COLLATION_HANDLER my_collation_binary_handler =
   my_strcasecmp_bin,
   my_instr_bin,
   my_hash_sort_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_8bit_simple_nopad,
+  my_max_str_8bit_simple
 };
 
 

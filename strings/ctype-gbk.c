@@ -28,6 +28,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 
 #ifdef HAVE_CHARSET_gbk
 
@@ -10654,7 +10655,9 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_chinese_ci=
   my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -10670,7 +10673,9 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_bin=
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -10686,7 +10691,9 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_chinese_nopad_ci=
   my_strcasecmp_mb,
   my_instr_mb,
   my_hash_sort_simple_nopad,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -10702,7 +10709,9 @@ static MY_COLLATION_HANDLER my_collation_handler_gbk_nopad_bin=
   my_strcasecmp_mb_bin,
   my_instr_mb,
   my_hash_sort_mb_nopad_bin,
-  my_propagate_simple
+  my_propagate_simple,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 static MY_CHARSET_HANDLER my_charset_handler=

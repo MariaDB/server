@@ -35,6 +35,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-simple.h"
 #include "t_ctype.h"
 #include <my_sys.h>
 
@@ -862,7 +863,9 @@ static MY_COLLATION_HANDLER my_collation_ci_handler =
     my_strcasecmp_8bit,
     my_instr_simple,				/* QQ: To be fixed */
     my_hash_sort_simple,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_8bit_simple,
+    my_max_str_8bit_simple
 };
 
 static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
@@ -877,7 +880,9 @@ static MY_COLLATION_HANDLER my_collation_nopad_ci_handler =
     my_strcasecmp_8bit,
     my_instr_simple,				/* QQ: To be fixed */
     my_hash_sort_simple_nopad,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_8bit_simple_nopad,
+    my_max_str_8bit_simple
 };
 
 static MY_CHARSET_HANDLER my_charset_handler=
