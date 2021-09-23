@@ -149,6 +149,9 @@ ADD_DEPENDENCIES(sql_embedded GenError GenServerSource)
 IF(TARGET pcre2)
   ADD_DEPENDENCIES(sql_embedded pcre2)
 ENDIF()
+IF(TARGET libfmt)
+  ADD_DEPENDENCIES(sql_embedded libfmt)
+ENDIF()
 
 # On Windows, static embedded server library is called mysqlserver.lib
 # On Unix, it is libmysqld.a
@@ -402,4 +405,3 @@ IF(NOT DISABLE_SHARED)
     ENDIF()
   ENDIF()
 ENDIF()
-
