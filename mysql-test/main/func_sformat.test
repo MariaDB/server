@@ -118,7 +118,7 @@ select sformat('Num {:L}', 13800000000);
 select sformat('Num [{:20}]', 42);
 select sformat('Number: {:*^{}}', 4, 5);
 select sformat('{:02} - {:02} - {:02}', 1, 2, 3);
-select sformat('Character {:c}', 'h');
+select sformat('Character {:c}', 104);
 select sformat('String {:s}', 'hello');
 select sformat('Large {0:+010.4g}', 392.64);
 select sformat('Large {:g}', 392.65);
@@ -171,12 +171,12 @@ echo #;
 echo # Table Format Test Cases;
 echo #;
 create table t1 (pformat text, data1 FLOAT, data2 INT,
-                 data3 VARCHAR(30), data4 CHAR);
-insert into t1 values ('{:.2f} {: } |{:*^15}| {:c}',  1.11,  1, 'example I',   'A'),
-                      ('{:.1f} {:-} |{:^15}| {:c}',   -2.22, -2, 'example II',  'B'),
-                      ('{:.2f} {:+} |{:<15}| {:c}',    3.33,  3, 'example III', 'C'),
-                      ('{:.4f} {:d} |{:^15}| {:c}',   -4.44, -4, 'example IV',  'D');
-select sformat(pformat, data1, data2, data3, data4) from t1;
+                 data3 VARCHAR(30));
+insert into t1 values ('{:.2f} {: } |{:*^15}',  1.11,  1, 'example I'),
+                      ('{:.1f} {:-} |{:^15}',   -2.22, -2, 'example II'),
+                      ('{:.2f} {:+} |{:<15}',    3.33,  3, 'example III'),
+                      ('{:.4f} {:d} |{:^15}',   -4.44, -4, 'example IV');
+select sformat(pformat, data1, data2, data3) from t1;
 drop table t1;
 
 create table t2 (a double);

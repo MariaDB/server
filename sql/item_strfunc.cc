@@ -1401,10 +1401,7 @@ String *Item_func_sformat::val_str(String *res)
         delete [] vargs;
         return NULL;
       }
-      if (parg->length() == 1)
-        vargs[carg-1]= fmt::detail::make_arg<ctx>(parg->ptr()[0]);
-      else
-        vargs[carg-1]= fmt::detail::make_arg<ctx>(*parg);
+      vargs[carg-1]= fmt::detail::make_arg<ctx>(*parg);
       break;
     case TIME_RESULT: // TODO
     case ROW_RESULT: // TODO
