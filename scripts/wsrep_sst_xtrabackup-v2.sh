@@ -34,6 +34,7 @@ ssyslog=""
 ssystag=""
 BACKUP_PID=""
 tcert=""
+tpath=0
 tpem=""
 tkey=""
 tmode="DISABLED"
@@ -201,9 +202,10 @@ get_keys()
         if [ -z "$ekey" ]; then
             ecmd="xbcrypt --encrypt-algo='$ealgo' --encrypt-key-file='$ekeyfile'"
         else
-            wsrep_log_warning "Using the 'encrypt-key' option causes the encryption key"
-            wsrep_log_warning "to be set via the command-line and is considered insecure."
-            wsrep_log_warning "It is recommended to use the 'encrypt-key-file' option instead."
+            wsrep_log_warning \
+                "Using the 'encrypt-key' option causes the encryption key " \
+                "to be set via the command-line and is considered insecure. " \
+                "It is recommended to use the 'encrypt-key-file' option instead."
             ecmd="xbcrypt --encrypt-algo='$ealgo' --encrypt-key='$ekey'"
         fi
         if [ -n "$encrypt_threads" ]; then
@@ -341,63 +343,82 @@ get_transfer()
             fi
         fi
 
+        CN_option=",commonname=''"
+
         if [ $encrypt -eq 2 ]; then
             wsrep_log_info "Using openssl based encryption with socat: with crt and pem"
             if [ -z "$tpem" -o -z "$tcert" ]; then
-                wsrep_log_error "Both PEM and CRT files required"
+                wsrep_log_error \
+                    "Both PEM file and CRT file (or path) are required"
                 exit 22
             fi
             if [ ! -r "$tpem" -o ! -r "$tcert" ]; then
-                wsrep_log_error "Both PEM and CRT files must be readable"
+                wsrep_log_error \
+                    "Both PEM file and CRT file (or path) must be readable"
                 exit 22
             fi
-            verify_ca_matches_cert "$tcert" "$tpem"
-            tcmd="$tcmd,cert='$tpem',cafile='$tcert'$sockopt"
+            verify_ca_matches_cert "$tcert" "$tpem" $tpath
+            if [ $tpath -eq 0 ]; then
+                tcmd="$tcmd,cert='$tpem',cafile='$tcert'"
+            else
+                tcmd="$tcmd,cert='$tpem',capath='$tcert'"
+            fi
             stagemsg="$stagemsg-OpenSSL-Encrypted-2"
-            wsrep_log_info "$action with cert=$tpem, cafile=$tcert"
+            wsrep_log_info "$action with cert=$tpem, ca=$tcert"
         elif [ $encrypt -eq 3 -o $encrypt -eq 4 ]; then
             wsrep_log_info "Using openssl based encryption with socat: with key and crt"
             if [ -z "$tpem" -o -z "$tkey" ]; then
-                wsrep_log_error "Both certificate and key files required"
+                wsrep_log_error "Both certificate file (or path) " \
+                                "and key file are required"
                 exit 22
             fi
             if [ ! -r "$tpem" -o ! -r "$tkey" ]; then
-                wsrep_log_error "Both certificate and key files must be readable"
+                wsrep_log_error "Both certificate file (or path) " \
+                                "and key file must be readable"
                 exit 22
             fi
             verify_cert_matches_key "$tpem" "$tkey"
             stagemsg="$stagemsg-OpenSSL-Encrypted-3"
             if [ -z "$tcert" ]; then
                 if [ $encrypt -eq 4 ]; then
-                    wsrep_log_error "Peer certificate required if encrypt=4"
+                    wsrep_log_error \
+                        "Peer certificate file (or path) required if encrypt=4"
                     exit 22
                 fi
                 # no verification
-                tcmd="$tcmd,cert='$tpem',key='$tkey',verify=0$sockopt"
+                CN_option=""
+                tcmd="$tcmd,cert='$tpem',key='$tkey',verify=0"
                 wsrep_log_info "$action with cert=$tpem, key=$tkey, verify=0"
             else
                 # CA verification
                 if [ ! -r "$tcert" ]; then
-                    wsrep_log_error "Certificate file must be readable"
+                    wsrep_log_error "Certificate file or path must be readable"
                     exit 22
                 fi
-                verify_ca_matches_cert "$tcert" "$tpem"
+                verify_ca_matches_cert "$tcert" "$tpem" $tpath
                 if [ -n "$WSREP_SST_OPT_REMOTE_USER" ]; then
                     CN_option=",commonname='$WSREP_SST_OPT_REMOTE_USER'"
-                elif [ $encrypt -eq 4 ]; then
+                elif [ "$WSREP_SST_OPT_ROLE" = 'joiner' -o $encrypt -eq 4 ]
+                then
                     CN_option=",commonname=''"
                 elif is_local_ip "$WSREP_SST_OPT_HOST_UNESCAPED"; then
                     CN_option=',commonname=localhost'
                 else
                     CN_option=",commonname='$WSREP_SST_OPT_HOST_UNESCAPED'"
                 fi
-                tcmd="$tcmd,cert='$tpem',key='$tkey',cafile='$tcert'$CN_option$sockopt"
-                wsrep_log_info "$action with cert=$tpem, key=$tkey, cafile=$tcert"
+                if [ $tpath -eq 0 ]; then
+                    tcmd="$tcmd,cert='$tpem',key='$tkey',cafile='$tcert'"
+                else
+                    tcmd="$tcmd,cert='$tpem',key='$tkey',capath='$tcert'"
+                fi
+                wsrep_log_info "$action with cert=$tpem, key=$tkey, ca=$tcert"
             fi
         else
             wsrep_log_info "Unknown encryption mode: encrypt=$encrypt"
             exit 22
         fi
+
+        tcmd="$tcmd$CN_option$sockopt"
 
         if [ "$WSREP_SST_OPT_ROLE" = 'joiner' ]; then
             tcmd="$tcmd stdio"
@@ -474,6 +495,12 @@ check_server_ssl_config()
                            "and ssl-key) are ignored by SST due to presence " \
                            "of the tca, tcert and/or tkey in the [sst] section"
         fi
+    fi
+    if [ -n "$tcert" ]; then
+       tcert=$(trim_string "$tcert")
+       if [ "${tcert%/}" != "$tcert" ]; then
+           tpath=1
+       fi
     fi
 }
 
