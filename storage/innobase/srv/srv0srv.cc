@@ -2614,6 +2614,8 @@ static uint32_t srv_do_purge(ulint* n_total_purged
 			n_use_threads,
 			!(++count % srv_purge_rseg_truncate_frequency)
 			|| purge_sys.truncate.current
+			|| (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    && srv_fast_shutdown == 0)
 #ifdef UNIV_DEBUG
 			, slot
 #endif

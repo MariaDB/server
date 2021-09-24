@@ -715,7 +715,8 @@ not_free:
 
 			buf_block_t* rblock = trx_rseg_header_create(
 				purge_sys.truncate.current,
-				rseg->id, sys_header, &mtr);
+				rseg->id, trx_sys.get_max_trx_id(),
+				sys_header, &mtr);
 			ut_ad(rblock);
 			rseg->page_no = rblock
 				? rblock->page.id.page_no() : FIL_NULL;
