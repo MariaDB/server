@@ -3,6 +3,10 @@
 --source include/have_undo_tablespaces.inc
 --source include/have_sequence.inc
 
+--disable_query_log
+call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
+--enable_query_log
+
 SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
 SET @save_truncate = @@GLOBAL.innodb_undo_log_truncate;
 SET GLOBAL innodb_undo_log_truncate = 0;
@@ -45,18 +49,6 @@ connection default;
 drop table t1, t2;
 
 --source include/wait_all_purged.inc
-
-# Truncation will normally not occur with innodb_page_size=64k,
-# and occasionally not with innodb_page_size=32k,
-# because the undo log will not grow enough.
-# TODO: For some reason this does not occur on 4k either!
-if (`select @@innodb_page_size IN (8192,16384)`)
-{
-  let $wait_condition = (SELECT variable_value!=@trunc_start
-                         FROM information_schema.global_status
-                         WHERE variable_name = 'innodb_undo_truncations');
-  source include/wait_condition.inc;
-}
 
 SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
 SET GLOBAL innodb_undo_log_truncate = @save_truncate;
