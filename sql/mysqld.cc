@@ -2391,7 +2391,7 @@ static void clean_up_mutexes()
 static void set_ports()
 {
 }
-void close_connection(THD *thd, uint sql_errno, my_bool locked)
+void close_connection(THD *thd, uint sql_errno)
 {
 }
 #else
@@ -2867,7 +2867,7 @@ static void network_init(void)
     For the connection that is doing shutdown, this is called twice
 */
 
-void close_connection(THD *thd, uint sql_errno, my_bool locked)
+void close_connection(THD *thd, uint sql_errno)
 {
   DBUG_ENTER("close_connection");
 
@@ -2877,10 +2877,7 @@ void close_connection(THD *thd, uint sql_errno, my_bool locked)
   thd->print_aborted_warning(3, sql_errno ? ER_DEFAULT(sql_errno)
                                           : "CLOSE_CONNECTION");
 
-  if (locked)
-    thd->disconnect_mutexed();
-  else
-    thd->disconnect();
+  thd->disconnect();
 
   MYSQL_CONNECTION_DONE((int) sql_errno, thd->thread_id);
 
