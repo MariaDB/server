@@ -1177,7 +1177,7 @@ fsp_alloc_free_page(
 		/* It must be that we are extending a single-table tablespace
 		whose size is still < 64 pages */
 
-		ut_a(!is_system_tablespace(space_id));
+		ut_a(!is_predefined_tablespace(space_id));
 		if (page_no >= FSP_EXTENT_SIZE) {
 			ib::error() << "Trying to extend a single-table"
 				" tablespace " << space->name << " , by single"

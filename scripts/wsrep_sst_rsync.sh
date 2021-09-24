@@ -725,8 +725,10 @@ EOF
             tmpdir=$(parse_cnf '--mysqld|sst' 'tmpdir')
             if [ -z "$tmpdir" ]; then
                tmpfile="$(mktemp)"
-            else
+            elif [ "$OS" = 'Linux' ]; then
                tmpfile=$(mktemp "--tmpdir=$tmpdir")
+            else
+               tmpfile=$(TMPDIR="$tmpdir"; mktemp '-d')
             fi
 
             wsrep_log_info "Extracting binlog files:"
