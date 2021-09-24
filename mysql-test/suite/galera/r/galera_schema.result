@@ -1,0 +1,114 @@
+connection node_2;
+connection node_1;
+CREATE TABLE IF NOT EXISTS wsrep_cluster
+(
+cluster_uuid CHAR(36) PRIMARY KEY,
+view_id BIGINT NOT NULL,
+view_seqno BIGINT NOT NULL,
+protocol_version INT NOT NULL,
+capabilities INT NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS wsrep_cluster_members
+(
+node_uuid CHAR(36) PRIMARY KEY,
+cluster_uuid CHAR(36) NOT NULL,
+node_name CHAR(32) NOT NULL,
+node_incoming_address VARCHAR(256) NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS wsrep_cluster_members_history
+(
+node_uuid CHAR(36) PRIMARY KEY,
+cluster_uuid CHAR(36) NOT NULL,
+last_view_id BIGINT NOT NULL,
+last_view_seqno BIGINT NOT NULL,
+node_name CHAR(32) NOT NULL,
+node_incoming_address VARCHAR(256) NOT NULL
+) ENGINE=InnoDB;
+CREATE TABLE IF NOT EXISTS wsrep_streaming_log
+(
+node_uuid CHAR(36),
+trx_id BIGINT,
+seqno BIGINT,
+flags INT NOT NULL,
+frag LONGBLOB NOT NULL,
+PRIMARY KEY (node_uuid, trx_id, seqno)
+) ENGINE=InnoDB;
+DELETE FROM wsrep_cluster;
+DELETE FROM wsrep_cluster_members;
+ALTER TABLE wsrep_cluster STATS_PERSISTENT=0;
+ALTER TABLE wsrep_cluster_members STATS_PERSISTENT=0;
+ALTER TABLE wsrep_cluster_members_history STATS_PERSISTENT=0;
+ALTER TABLE wsrep_streaming_log STATS_PERSISTENT=0;
+SHOW CREATE TABLE wsrep_cluster;
+Table	Create Table
+wsrep_cluster	CREATE TABLE `wsrep_cluster` (
+  `cluster_uuid` char(36) NOT NULL,
+  `view_id` bigint(20) NOT NULL,
+  `view_seqno` bigint(20) NOT NULL,
+  `protocol_version` int(11) NOT NULL,
+  `capabilities` int(11) NOT NULL,
+  PRIMARY KEY (`cluster_uuid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
+SHOW CREATE TABLE wsrep_cluster_members;
+Table	Create Table
+wsrep_cluster_members	CREATE TABLE `wsrep_cluster_members` (
+  `node_uuid` char(36) NOT NULL,
+  `cluster_uuid` char(36) NOT NULL,
+  `node_name` char(32) NOT NULL,
+  `node_incoming_address` varchar(256) NOT NULL,
+  PRIMARY KEY (`node_uuid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
+SHOW CREATE TABLE wsrep_cluster_members_history;
+Table	Create Table
+wsrep_cluster_members_history	CREATE TABLE `wsrep_cluster_members_history` (
+  `node_uuid` char(36) NOT NULL,
+  `cluster_uuid` char(36) NOT NULL,
+  `last_view_id` bigint(20) NOT NULL,
+  `last_view_seqno` bigint(20) NOT NULL,
+  `node_name` char(32) NOT NULL,
+  `node_incoming_address` varchar(256) NOT NULL,
+  PRIMARY KEY (`node_uuid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
+SHOW CREATE TABLE wsrep_streaming_log;
+Table	Create Table
+wsrep_streaming_log	CREATE TABLE `wsrep_streaming_log` (
+  `node_uuid` char(36) NOT NULL,
+  `trx_id` bigint(20) NOT NULL,
+  `seqno` bigint(20) NOT NULL,
+  `flags` int(11) NOT NULL,
+  `frag` longblob NOT NULL,
+  PRIMARY KEY (`node_uuid`,`trx_id`,`seqno`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
+SHOW CREATE TABLE mysql.wsrep_cluster;
+Table	Create Table
+wsrep_cluster	CREATE TABLE `wsrep_cluster` (
+  `cluster_uuid` char(36) NOT NULL,
+  `view_id` bigint(20) NOT NULL,
+  `view_seqno` bigint(20) NOT NULL,
+  `protocol_version` int(11) NOT NULL,
+  `capabilities` int(11) NOT NULL,
+  PRIMARY KEY (`cluster_uuid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
+SHOW CREATE TABLE mysql.wsrep_cluster_members;
+Table	Create Table
+wsrep_cluster_members	CREATE TABLE `wsrep_cluster_members` (
+  `node_uuid` char(36) NOT NULL,
+  `cluster_uuid` char(36) NOT NULL,
+  `node_name` char(32) NOT NULL,
+  `node_incoming_address` varchar(256) NOT NULL,
+  PRIMARY KEY (`node_uuid`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
+SHOW CREATE TABLE mysql.wsrep_streaming_log;
+Table	Create Table
+wsrep_streaming_log	CREATE TABLE `wsrep_streaming_log` (
+  `node_uuid` char(36) NOT NULL,
+  `trx_id` bigint(20) NOT NULL,
+  `seqno` bigint(20) NOT NULL,
+  `flags` int(11) NOT NULL,
+  `frag` longblob NOT NULL,
+  PRIMARY KEY (`node_uuid`,`trx_id`,`seqno`)
+) ENGINE=InnoDB DEFAULT CHARSET=latin1 STATS_PERSISTENT=0
+DROP TABLE wsrep_cluster;
+DROP TABLE wsrep_cluster_members;
+DROP TABLE wsrep_cluster_members_history;
+DROP TABLE wsrep_streaming_log;

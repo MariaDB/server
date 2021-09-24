@@ -223,16 +223,16 @@ disconnect c1;
 #
 create or replace table t1 (a int);
 create or replace table t2 (b int);
-insert into t1 values(1<<30),(1<<29);
+insert into t1 values(111111111),(-2147483648);
 insert into t2 values(1),(2);
 select t1.a as a1 from t1 as t1,t2 order by t2.b,t1.a;
 Catalog	Database	Table	Table_alias	Column	Column_alias	Type	Length	Max length	Is_null	Flags	Decimals	Charsetnr
-def	test	t1	t1	a	a1	3	11	10	Y	32768	0	63
+def	test	t1	t1	a	a1	3	11	11	Y	32768	0	63
 a1
-536870912
-1073741824
-536870912
-1073741824
+-2147483648
+111111111
+-2147483648
+111111111
 drop table t1,t2;
 #
 # End of 10.4 tests

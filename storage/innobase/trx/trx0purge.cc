@@ -546,251 +546,255 @@ function is called, the caller must not have any latches on undo log pages!
 */
 static void trx_purge_truncate_history()
 {
-	ut_ad(purge_sys.head <= purge_sys.tail);
-	purge_sys_t::iterator& head = purge_sys.head.trx_no
-		? purge_sys.head : purge_sys.tail;
+  ut_ad(purge_sys.head <= purge_sys.tail);
+  purge_sys_t::iterator &head= purge_sys.head.trx_no
+    ? purge_sys.head : purge_sys.tail;
 
-	if (head.trx_no >= purge_sys.low_limit_no()) {
-		/* This is sometimes necessary. TODO: find out why. */
-		head.trx_no = purge_sys.low_limit_no();
-		head.undo_no = 0;
-	}
+  if (head.trx_no >= purge_sys.low_limit_no())
+  {
+    /* This is sometimes necessary. TODO: find out why. */
+    head.trx_no= purge_sys.low_limit_no();
+    head.undo_no= 0;
+  }
 
-	for (auto& rseg : trx_sys.rseg_array) {
-		if (rseg.space) {
-			trx_purge_truncate_rseg_history(rseg, head);
-		}
-	}
+  for (auto &rseg : trx_sys.rseg_array)
+    if (rseg.space)
+      trx_purge_truncate_rseg_history(rseg, head);
 
-	if (srv_undo_tablespaces_active < 2) {
-		return;
-	}
+  if (srv_undo_tablespaces_active < 2)
+    return;
 
-	while (srv_undo_log_truncate) {
-		if (!purge_sys.truncate.current) {
-			const ulint threshold = ulint(srv_max_undo_log_size
-						      >> srv_page_size_shift);
-			for (uint32_t i = purge_sys.truncate.last
-				     ? purge_sys.truncate.last->id
-				     - srv_undo_space_id_start
-				     : 0, j = i;; ) {
-				uint32_t space_id = srv_undo_space_id_start
-					+ i;
-				ut_ad(srv_is_undo_tablespace(space_id));
-				fil_space_t* space= fil_space_get(space_id);
+  while (srv_undo_log_truncate)
+  {
+    if (!purge_sys.truncate.current)
+    {
+      const ulint threshold=
+        ulint(srv_max_undo_log_size >> srv_page_size_shift);
+      for (uint32_t i= purge_sys.truncate.last
+           ? purge_sys.truncate.last->id - srv_undo_space_id_start : 0,
+           j= i;; )
+      {
+        const uint32_t space_id= srv_undo_space_id_start + i;
+        ut_ad(srv_is_undo_tablespace(space_id));
+        fil_space_t *space= fil_space_get(space_id);
+        ut_a(UT_LIST_GET_LEN(space->chain) == 1);
 
-				if (space && space->get_size() > threshold) {
-					purge_sys.truncate.current = space;
-					break;
-				}
+        if (space && space->get_size() > threshold)
+        {
+          purge_sys.truncate.current= space;
+          break;
+        }
 
-				++i;
-				i %= srv_undo_tablespaces_active;
-				if (i == j) {
-					break;
-				}
-			}
-		}
+        ++i;
+        i %= srv_undo_tablespaces_active;
+        if (i == j)
+          return;
+      }
+    }
 
-		if (!purge_sys.truncate.current) {
-			return;
-		}
+    fil_space_t &space= *purge_sys.truncate.current;
+    /* Undo tablespace always are a single file. */
+    fil_node_t *file= UT_LIST_GET_FIRST(space.chain);
+    /* The undo tablespace files are never closed. */
+    ut_ad(file->is_open());
 
-		fil_space_t& space = *purge_sys.truncate.current;
-		/* Undo tablespace always are a single file. */
-		ut_a(UT_LIST_GET_LEN(space.chain) == 1);
-		fil_node_t* file = UT_LIST_GET_FIRST(space.chain);
-		/* The undo tablespace files are never closed. */
-		ut_ad(file->is_open());
+    DBUG_LOG("undo", "marking for truncate: " << file->name);
 
-		DBUG_LOG("undo", "marking for truncate: " << file->name);
+    for (auto &rseg : trx_sys.rseg_array)
+      if (rseg.space == &space)
+        /* Once set, this rseg will not be allocated to subsequent
+        transactions, but we will wait for existing active
+        transactions to finish. */
+        rseg.set_skip_allocation();
 
-		for (auto& rseg : trx_sys.rseg_array) {
-			if (rseg.space == &space) {
-				/* Once set, this rseg will
-				not be allocated to subsequent
-				transactions, but we will wait
-				for existing active
-				transactions to finish. */
-				rseg.set_skip_allocation();
-			}
-		}
-
-		for (auto& rseg : trx_sys.rseg_array) {
-			if (rseg.space != &space) {
-				continue;
-			}
-			ut_ad(rseg.skip_allocation());
-			if (rseg.is_referenced()) {
-				return;
-			}
-			rseg.latch.rd_lock();
-			ut_ad(rseg.skip_allocation());
-			if (rseg.is_referenced()) {
+    for (auto &rseg : trx_sys.rseg_array)
+    {
+      if (rseg.space != &space)
+        continue;
+      rseg.latch.rd_lock();
+      ut_ad(rseg.skip_allocation());
+      if (rseg.is_referenced())
+      {
 not_free:
-				rseg.latch.rd_unlock();
-				return;
-			}
+        rseg.latch.rd_unlock();
+        return;
+      }
 
-			if (rseg.curr_size != 1) {
-				/* Check if all segments are
-				cached and safe to remove. */
-				ulint cached = 0;
+      if (rseg.curr_size != 1)
+      {
+        /* Check if all segments are cached and safe to remove. */
+        ulint cached= 0;
+        for (trx_undo_t *undo= UT_LIST_GET_FIRST(rseg.undo_cached); undo;
+             undo= UT_LIST_GET_NEXT(undo_list, undo))
+        {
+          if (head.trx_no < undo->trx_id)
+            goto not_free;
+          else
+            cached+= undo->size;
+        }
 
-				for (trx_undo_t* undo = UT_LIST_GET_FIRST(
-					     rseg.undo_cached);
-				     undo;
-				     undo = UT_LIST_GET_NEXT(undo_list,
-							     undo)) {
-					if (head.trx_no < undo->trx_id) {
-						goto not_free;
-					} else {
-						cached += undo->size;
-					}
-				}
+        ut_ad(rseg.curr_size > cached);
 
-				ut_ad(rseg.curr_size > cached);
+        if (rseg.curr_size > cached + 1)
+          goto not_free;
+      }
 
-				if (rseg.curr_size > cached + 1) {
-					goto not_free;
-				}
-			}
+      rseg.latch.rd_unlock();
+    }
 
-			rseg.latch.rd_unlock();
-		}
+    ib::info() << "Truncating " << file->name;
+    trx_purge_cleanse_purge_queue(space);
 
-		ib::info() << "Truncating " << file->name;
-		trx_purge_cleanse_purge_queue(space);
+    log_free_check();
 
-		/* Flush all to-be-discarded pages of the tablespace.
+    mtr_t mtr;
+    mtr.start();
+    mtr.x_lock_space(&space);
 
-		During truncation, we do not want any writes to the
-		to-be-discarded area, because we must set the space.size
-		early in order to have deterministic page allocation.
+    /* Lock all modified pages of the tablespace.
 
-		If a log checkpoint was completed at LSN earlier than our
-		mini-transaction commit and the server was killed, then
-		discarding the to-be-trimmed pages without flushing would
-		break crash recovery. So, we cannot avoid the write. */
-		while (buf_flush_list_space(&space));
+    During truncation, we do not want any writes to the file.
 
-		log_free_check();
+    If a log checkpoint was completed at LSN earlier than our
+    mini-transaction commit and the server was killed, then
+    discarding the to-be-trimmed pages without flushing would
+    break crash recovery. */
+    mysql_mutex_lock(&buf_pool.flush_list_mutex);
 
-		/* Re-initialize tablespace, in a single mini-transaction. */
-		mtr_t mtr;
-		const ulint size = SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
-		mtr.start();
-		mtr.x_lock_space(&space);
+    for (buf_page_t *bpage= UT_LIST_GET_LAST(buf_pool.flush_list); bpage; )
+    {
+      ut_ad(bpage->oldest_modification());
+      ut_ad(bpage->in_file());
 
-		/* Adjust the tablespace metadata. */
-		mysql_mutex_lock(&fil_system.mutex);
-		ut_d(bool stopped=) space.set_stopping();
-		ut_ad(!stopped);
-		space.is_being_truncated = true;
-		if (space.crypt_data) {
-			space.reacquire();
-			mysql_mutex_unlock(&fil_system.mutex);
-			fil_space_crypt_close_tablespace(&space);
-			space.release();
-		} else {
-			mysql_mutex_unlock(&fil_system.mutex);
-		}
+      buf_page_t *prev= UT_LIST_GET_PREV(list, bpage);
 
-		uint i = 60;
+      if (bpage->id().space() == space.id &&
+          bpage->oldest_modification() != 1)
+      {
+        ut_ad(bpage->state() == BUF_BLOCK_FILE_PAGE);
+        auto block= reinterpret_cast<buf_block_t*>(bpage);
+        block->fix();
+        buf_pool.flush_hp.set(prev);
+        mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-		while (space.referenced()) {
-			if (!--i) {
-				mtr.commit();
-				ib::error() << "Failed to freeze"
-					" UNDO tablespace "
-					    << file->name;
-				return;
-			}
+#ifdef BTR_CUR_HASH_ADAPT
+        ut_ad(!block->index); /* There is no AHI on undo tablespaces. */
+#endif
+        block->lock.x_lock();
+        mysql_mutex_lock(&buf_pool.flush_list_mutex);
+        ut_ad(bpage->io_fix() == BUF_IO_NONE);
 
-			std::this_thread::sleep_for(std::chrono::seconds(1));
-		}
+        if (bpage->oldest_modification() > 1)
+        {
+          bpage->clear_oldest_modification(false);
+          mtr.memo_push(block, MTR_MEMO_PAGE_X_FIX);
+        }
+        else
+        {
+          block->lock.x_unlock();
+          block->unfix();
+        }
 
-		/* Associate the undo tablespace with mtr.
-		During mtr::commit(), InnoDB can use the undo
-		tablespace object to clear all freed ranges */
-		mtr.set_named_space(&space);
-		mtr.trim_pages(page_id_t(space.id, size));
-		fsp_header_init(&space, size, &mtr);
-		mysql_mutex_lock(&fil_system.mutex);
-		space.size = file->size = size;
-		mysql_mutex_unlock(&fil_system.mutex);
+        if (prev != buf_pool.flush_hp.get())
+        {
+          /* Rescan, because we may have lost the position. */
+          bpage= UT_LIST_GET_LAST(buf_pool.flush_list);
+          continue;
+        }
+      }
 
-		buf_block_t* sys_header = trx_sysf_get(&mtr);
+      bpage= prev;
+    }
 
-		for (auto& rseg : trx_sys.rseg_array) {
-			if (rseg.space != &space) {
-				continue;
-			}
+    mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-			buf_block_t* rblock = trx_rseg_header_create(
-				purge_sys.truncate.current,
-				i, sys_header, &mtr);
-			ut_ad(rblock);
-			/* These were written by trx_rseg_header_create(). */
-			ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT
-						+ rblock->frame));
-			ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE
-						+ rblock->frame));
-			rseg.reinit(rblock
-				    ? rblock->page.id().page_no() : FIL_NULL);
-		}
+    /* Re-initialize tablespace, in a single mini-transaction. */
+    const ulint size= SRV_UNDO_TABLESPACE_SIZE_IN_PAGES;
 
-		mtr.commit();
-		/* Write-ahead the redo log record. */
-		log_write_up_to(mtr.commit_lsn(), true);
+    /* Adjust the tablespace metadata. */
+    mysql_mutex_lock(&fil_system.mutex);
+    space.set_stopping();
+    space.is_being_truncated= true;
+    if (space.crypt_data)
+    {
+      space.reacquire();
+      mysql_mutex_unlock(&fil_system.mutex);
+      fil_space_crypt_close_tablespace(&space);
+      space.release();
+    }
+    else
+      mysql_mutex_unlock(&fil_system.mutex);
 
-		/* Trim the file size. */
-		os_file_truncate(file->name, file->handle,
-				 os_offset_t(size) << srv_page_size_shift,
-				 true);
+    for (auto i= 6000; space.referenced();
+         std::this_thread::sleep_for(std::chrono::milliseconds(10)))
+    {
+      if (!--i)
+      {
+        mtr.commit();
+        ib::error() << "Failed to freeze UNDO tablespace " << file->name;
+        return;
+      }
+    }
 
-		/* This is only executed by srv_purge_coordinator_thread. */
-		export_vars.innodb_undo_truncations++;
+    /* Associate the undo tablespace with mtr.
+    During mtr::commit_shrink(), InnoDB can use the undo
+    tablespace object to clear all freed ranges */
+    mtr.set_named_space(&space);
+    mtr.trim_pages(page_id_t(space.id, size));
+    fsp_header_init(&space, size, &mtr);
+    mysql_mutex_lock(&fil_system.mutex);
+    space.size= file->size= size;
+    mysql_mutex_unlock(&fil_system.mutex);
 
-		/* In MDEV-8319 (10.5) we will PUNCH_HOLE the garbage
-		(with write-ahead logging). */
-		mysql_mutex_lock(&fil_system.mutex);
-		ut_ad(&space == purge_sys.truncate.current);
-		ut_ad(space.is_being_truncated);
-		purge_sys.truncate.current->clear_stopping();
-		purge_sys.truncate.current->is_being_truncated = false;
-		mysql_mutex_unlock(&fil_system.mutex);
+    buf_block_t *sys_header= trx_sysf_get(&mtr);
 
-		if (purge_sys.rseg != NULL
-		    && purge_sys.rseg->last_page_no == FIL_NULL) {
-			/* If purge_sys.rseg is pointing to rseg that
-			was recently truncated then move to next rseg
-			element.  Note: Ideally purge_sys.rseg should
-			be NULL because purge should complete
-			processing of all the records but there is
-			purge_batch_size that can force the purge loop
-			to exit before all the records are purged and
-			in this case purge_sys.rseg could point to a
-			valid rseg waiting for next purge cycle. */
-			purge_sys.next_stored = false;
-			purge_sys.rseg = NULL;
-		}
+    for (auto &rseg : trx_sys.rseg_array)
+    {
+      if (rseg.space != &space)
+        continue;
 
-		DBUG_EXECUTE_IF("ib_undo_trunc",
-				ib::info() << "ib_undo_trunc";
-				log_buffer_flush_to_disk();
-				DBUG_SUICIDE(););
+      buf_block_t *rblock= trx_rseg_header_create(&space,
+                                                  &rseg - trx_sys.rseg_array,
+                                                  trx_sys.get_max_trx_id(),
+                                                  sys_header, &mtr);
+      ut_ad(rblock);
+      /* These were written by trx_rseg_header_create(). */
+      ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_FORMAT + rblock->frame));
+      ut_ad(!mach_read_from_4(TRX_RSEG + TRX_RSEG_HISTORY_SIZE +
+                              rblock->frame));
+      rseg.reinit(rblock ? rblock->page.id().page_no() : FIL_NULL);
+    }
 
-		for (auto& rseg : trx_sys.rseg_array) {
-			if (rseg.space == &space) {
-				rseg.clear_skip_allocation();
-			}
-		}
+    mtr.commit_shrink(space);
 
-		ib::info() << "Truncated " << file->name;
-		purge_sys.truncate.last = purge_sys.truncate.current;
-		purge_sys.truncate.current = NULL;
-	}
+    /* No mutex; this is only updated by the purge coordinator. */
+    export_vars.innodb_undo_truncations++;
+
+    if (purge_sys.rseg && purge_sys.rseg->last_page_no == FIL_NULL)
+    {
+      /* If purge_sys.rseg is pointing to rseg that was recently
+      truncated then move to next rseg element.
+
+      Note: Ideally purge_sys.rseg should be NULL because purge should
+      complete processing of all the records but srv_purge_batch_size
+      can force the purge loop to exit before all the records are purged. */
+      purge_sys.rseg= nullptr;
+      purge_sys.next_stored= false;
+    }
+
+    DBUG_EXECUTE_IF("ib_undo_trunc", ib::info() << "ib_undo_trunc";
+                    log_buffer_flush_to_disk();
+                    DBUG_SUICIDE(););
+
+    for (auto &rseg : trx_sys.rseg_array)
+      if (rseg.space == &space)
+        rseg.clear_skip_allocation();
+
+    ib::info() << "Truncated " << file->name;
+    purge_sys.truncate.last= purge_sys.truncate.current;
+    ut_ad(&space == purge_sys.truncate.current);
+    purge_sys.truncate.current= nullptr;
+  }
 }
 
 /***********************************************************************//**

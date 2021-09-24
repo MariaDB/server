@@ -43,6 +43,7 @@ trx_rsegf_get(fil_space_t* space, uint32_t page_no, mtr_t* mtr);
 /** Create a rollback segment header.
 @param[in,out]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier
+@param[in]	max_trx_id	new value of TRX_RSEG_MAX_TRX_ID
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return the created rollback segment
@@ -51,6 +52,7 @@ buf_block_t*
 trx_rseg_header_create(
 	fil_space_t*	space,
 	ulint		rseg_id,
+	trx_id_t	max_trx_id,
 	buf_block_t*	sys_header,
 	mtr_t*		mtr);
 

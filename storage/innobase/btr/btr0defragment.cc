@@ -225,6 +225,7 @@ void btr_defragment_save_defrag_stats_if_needed(dict_index_t *index)
 {
 	if (srv_defragment_stats_accuracy != 0 // stats tracking disabled
 	    && index->table->space_id != 0 // do not track system tables
+	    && !index->table->is_temporary()
 	    && index->stat_defrag_modified_counter
 	       >= srv_defragment_stats_accuracy) {
 		dict_stats_defrag_pool_add(index);

@@ -245,6 +245,7 @@ ELSEIF(RPM MATCHES "(rhel|centos)8")
   ALTERNATIVE_NAME("server" "mariadb-server-utils")
   ALTERNATIVE_NAME("shared" "mariadb-connector-c" ${MARIADB_CONNECTOR_C_VERSION}-1)
   ALTERNATIVE_NAME("shared" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
+  ALTERNATIVE_NAME("devel" "mariadb-connector-c-devel" ${MARIADB_CONNECTOR_C_VERSION}-1)
   SETA(CPACK_RPM_client_PACKAGE_PROVIDES "mariadb-galera = 3:%{version}-%{release}")
   SETA(CPACK_RPM_common_PACKAGE_PROVIDES "mariadb-galera-common = 3:%{version}-%{release}")
   SETA(CPACK_RPM_common_PACKAGE_REQUIRES "MariaDB-shared")
@@ -257,6 +258,12 @@ ELSEIF(RPM MATCHES "sles")
     "mariadb-server = %{version}-%{release}"
   )
 ENDIF()
+
+# MDEV-24629, we need it outside of ELSIFs
+IF(RPM MATCHES "fedora3[234]")
+  ALTERNATIVE_NAME("common" "mariadb-connector-c-config" ${MARIADB_CONNECTOR_C_VERSION}-1)
+ENDIF()
+
 SET(PYTHON_SHEBANG "/usr/bin/python3" CACHE STRING "python shebang")
 
 # If we want to build build MariaDB-shared-compat,

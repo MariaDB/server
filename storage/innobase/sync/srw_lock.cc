@@ -223,6 +223,14 @@ template void ssux_lock_impl<false>::destroy();
 template void ssux_lock_impl<false>::rd_unlock();
 template void ssux_lock_impl<false>::u_unlock();
 template void ssux_lock_impl<false>::wr_unlock();
+template void ssux_lock_impl<true>::init();
+template void ssux_lock_impl<true>::destroy();
+template void ssux_lock_impl<true>::read_lock(uint32_t);
+template void ssux_lock_impl<true>::rd_unlock();
+template void ssux_lock_impl<true>::u_unlock();
+template void ssux_lock_impl<true>::wr_unlock();
+template void ssux_lock_impl<true>::write_lock(bool);
+template void ssux_lock_impl<true>::update_lock(uint32_t);
 #else /* SUX_LOCK_GENERIC */
 static_assert(4 == sizeof(rw_lock), "ABI");
 # ifdef _WIN32

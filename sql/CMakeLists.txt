@@ -1,5 +1,5 @@
 # Copyright (c) 2006, 2014, Oracle and/or its affiliates.
-# Copyright (c) 2010, 2020, MariaDB Corporation.
+# Copyright (c) 2010, 2021, MariaDB Corporation.
 #
 # This program is free software; you can redistribute it and/or modify
 # it under the terms of the GNU General Public License as published by
@@ -65,6 +65,8 @@ ADD_CUSTOM_COMMAND(
   DEPENDS gen_lex_token
 )
 
+FIND_PACKAGE(BISON 2.4)
+
 ADD_CUSTOM_COMMAND(
   OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy
          ${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy
@@ -72,6 +74,7 @@ ADD_CUSTOM_COMMAND(
    "-DOUT1=${CMAKE_CURRENT_BINARY_DIR}/yy_oracle.yy"
    "-DOUT2=${CMAKE_CURRENT_BINARY_DIR}/yy_mariadb.yy"
    "-DIN=${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy"
+    "-DBISON_VERSION=${BISON_VERSION}"
    -P ${CMAKE_CURRENT_SOURCE_DIR}/gen_yy_files.cmake
   COMMENT "Building yy_mariadb.yy and yy_oracle.yy from sql_yacc.yy"
   DEPENDS ${CMAKE_CURRENT_SOURCE_DIR}/sql_yacc.yy
@@ -323,9 +326,6 @@ IF(WITH_MYSQLD_LDFLAGS)
   SET_TARGET_PROPERTIES(mariadbd PROPERTIES LINK_FLAGS
      "${MYSQLD_LINK_FLAGS} ${WITH_MYSQLD_LDFLAGS}")
 ENDIF()
-
-
-FIND_PACKAGE(BISON 2.4)
 
 
 # Handle out-of-source build from source package with possibly broken

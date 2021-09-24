@@ -391,7 +391,7 @@ static void dict_stats_func(void*)
   THD *thd= innobase_create_background_thd("InnoDB statistics");
   set_current_thd(thd);
   while (dict_stats_process_entry_from_recalc_pool(thd)) {}
-  dict_defrag_process_entries_from_defrag_pool();
+  dict_defrag_process_entries_from_defrag_pool(thd);
   set_current_thd(nullptr);
   innobase_destroy_background_thd(thd);
 }

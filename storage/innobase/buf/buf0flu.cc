@@ -366,10 +366,12 @@ void buf_page_write_complete(const IORequest &request)
   const bool temp= fsp_is_system_temporary(bpage->id().space());
 
   mysql_mutex_lock(&buf_pool.mutex);
+  mysql_mutex_assert_not_owner(&buf_pool.flush_list_mutex);
   buf_pool.stat.n_pages_written++;
   /* While we do not need any mutex for clearing oldest_modification
   here, we hope that it will be in the same cache line with io_fix,
   whose changes must be protected by buf_pool.mutex. */
+  ut_ad(temp || bpage->oldest_modification() > 2);
   bpage->clear_oldest_modification(temp);
   ut_ad(bpage->io_fix() == BUF_IO_WRITE);
   bpage->set_io_fix(BUF_IO_NONE);
@@ -2234,7 +2236,9 @@ unemployed:
 
       mysql_mutex_unlock(&buf_pool.flush_list_mutex);
 
-      if (!recv_recovery_is_on() && srv_operation == SRV_OPERATION_NORMAL)
+      if (!recv_recovery_is_on() &&
+          !srv_startup_is_before_trx_rollback_phase &&
+          srv_operation == SRV_OPERATION_NORMAL)
         log_checkpoint();
 
       mysql_mutex_lock(&buf_pool.flush_list_mutex);

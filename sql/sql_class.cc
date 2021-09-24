@@ -4928,6 +4928,9 @@ MYSQL_THD create_background_thd()
   thd->set_command(COM_DAEMON);
   thd->system_thread= SYSTEM_THREAD_GENERIC;
   thd->security_ctx->host_or_ip= "";
+  thd->real_id= 0;
+  thd->thread_id= 0;
+  thd->query_id= 0;
   return thd;
 }
 

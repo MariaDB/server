@@ -98,6 +98,9 @@ public:
     ut_ad(recursive);
     return recursive == RECURSIVE_X || recursive == RECURSIVE_U;
   }
+
+  /** @return the number of X locks being held (by any thread) */
+  unsigned x_lock_count() const { return recursive & RECURSIVE_MAX; }
 #endif
 
   /** Acquire a recursive lock */
