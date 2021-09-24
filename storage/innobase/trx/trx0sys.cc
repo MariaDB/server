@@ -197,7 +197,7 @@ trx_sysf_create(
 	/* Create the first rollback segment in the SYSTEM tablespace */
 	slot_no = trx_sys_rseg_find_free(block);
 	buf_block_t* rblock = trx_rseg_header_create(fil_system.sys_space,
-						     slot_no, block, mtr);
+						     slot_no, 0, block, mtr);
 
 	ut_a(slot_no == TRX_SYS_SYSTEM_RSEG_ID);
 	ut_a(rblock->page.id.page_no() == FSP_FIRST_RSEG_PAGE_NO);

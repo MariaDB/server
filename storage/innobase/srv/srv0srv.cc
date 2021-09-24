@@ -2640,6 +2640,8 @@ static ulint srv_do_purge(ulint* n_total_purged
 		n_pages_purged = trx_purge(
 			n_use_threads,
 			(++count % rseg_truncate_frequency) == 0
+			|| (srv_shutdown_state != SRV_SHUTDOWN_NONE
+			    && srv_fast_shutdown == 0)
 #ifdef UNIV_DEBUG
 			, slot
 #endif

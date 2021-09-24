@@ -1029,6 +1029,8 @@ srv_undo_tablespaces_init(bool create_new_db)
 			return DB_CORRUPTION;
 		}
 
+		const trx_id_t max_trx_id = trx_sys.get_max_trx_id();
+
 		for (undo::undo_spaces_t::const_iterator it
 			     = undo::Truncate::s_fix_up_spaces.begin();
 		     it != undo::Truncate::s_fix_up_spaces.end();
@@ -1046,7 +1048,8 @@ srv_undo_tablespaces_init(bool create_new_db)
 				if (trx_sysf_rseg_get_space(sys_header, i)
 				    == *it) {
 					trx_rseg_header_create(
-						space, i, sys_header, &mtr);
+						space, i, max_trx_id,
+						sys_header, &mtr);
 				}
 			}
 

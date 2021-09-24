@@ -977,7 +977,8 @@ not_found:
 	for (ulint i = 0; i < undo_trunc->rsegs_size(); ++i) {
 		trx_rseg_t*	rseg = undo_trunc->get_ith_rseg(i);
 		buf_block_t* rblock = trx_rseg_header_create(
-			space, rseg->id, sys_header, &mtr);
+			space, rseg->id, trx_sys.get_max_trx_id(),
+			sys_header, &mtr);
 		ut_ad(rblock);
 		rseg->page_no = rblock ? rblock->page.id.page_no() : FIL_NULL;
 
