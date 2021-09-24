@@ -55,6 +55,7 @@ IF (WIN32)
     my_winerr.c
     my_winfile.c
     my_conio.c
+    my_minidump.cc
     my_win_popen.cc)
 ENDIF()
 
@@ -173,7 +174,7 @@ IF(HAVE_BFD_H)
 ENDIF(HAVE_BFD_H)
 
 IF (WIN32)
-  TARGET_LINK_LIBRARIES(mysys IPHLPAPI)  
+  TARGET_LINK_LIBRARIES(mysys iphlpapi dbghelp)
 ENDIF(WIN32)
 
 # Need explicit pthread for gcc -fsanitize=address

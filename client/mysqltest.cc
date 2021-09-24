@@ -72,10 +72,6 @@ static my_bool non_blocking_api_enabled= 0;
 #include "../tests/nonblock-wrappers.h"
 #endif
 
-/* Use cygwin for --exec and --system before 5.0 */
-#if MYSQL_VERSION_ID < 50000
-#define USE_CYGWIN
-#endif
 
 #define MAX_VAR_NAME_LENGTH    256
 #define MAX_COLUMNS            256
@@ -620,7 +616,6 @@ const char *get_errname_from_code (uint error_code);
 int multi_reg_replace(struct st_replace_regex* r,char* val);
 
 #ifdef _WIN32
-void free_tmp_sh_file();
 void free_win_path_patterns();
 #endif
 
@@ -1458,7 +1453,6 @@ void free_used_memory()
   free_re();
   my_free(read_command_buf);
 #ifdef _WIN32
-  free_tmp_sh_file();
   free_win_path_patterns();
 #endif
   DBUG_VOID_RETURN;
@@ -3190,33 +3184,6 @@ void do_source(struct st_command *command)
 }
 
 
-#if defined _WIN32
-
-#ifdef USE_CYGWIN
-/* Variables used for temporary sh files used for emulating Unix on Windows */
-char tmp_sh_name[64], tmp_sh_cmd[70];
-#endif
-
-void init_tmp_sh_file()
-{
-#ifdef USE_CYGWIN
-  /* Format a name for the tmp sh file that is unique for this process */
-  my_snprintf(tmp_sh_name, sizeof(tmp_sh_name), "tmp_%d.sh", getpid());
-  /* Format the command to execute in order to run the script */
-  my_snprintf(tmp_sh_cmd, sizeof(tmp_sh_cmd), "sh %s", tmp_sh_name);
-#endif
-}
-
-
-void free_tmp_sh_file()
-{
-#ifdef USE_CYGWIN
-  my_delete(tmp_sh_name, MYF(0));
-#endif
-}
-#endif
-
-
 static void init_builtin_echo(void)
 {
 #ifdef _WIN32
@@ -3332,14 +3299,12 @@ void do_exec(struct st_command *command)
   }
 
 #ifdef _WIN32
-#ifndef USE_CYGWIN
   /* Replace /dev/null with NUL */
   while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
     ;
   /* Replace "closed stdout" with non existing output fd */
   while(replace(&ds_cmd, ">&-", 3, ">&4", 3) == 0)
     ;
-#endif
 #endif
 
   if (disable_result_log)
@@ -3498,13 +3463,7 @@ int do_modify_var(struct st_command *command,
 
 int my_system(DYNAMIC_STRING* ds_cmd)
 {
-#if defined _WIN32 && defined USE_CYGWIN
-  /* Dump the command into a sh script file and execute with system */
-  str_to_file(tmp_sh_name, ds_cmd->str, ds_cmd->length);
-  return system(tmp_sh_cmd);
-#else
   return system(ds_cmd->str);
-#endif
 }
 
 
@@ -3538,11 +3497,9 @@ void do_system(struct st_command *command)
   do_eval(&ds_cmd, command->first_argument, command->end, !is_windows);
 
 #ifdef _WIN32
-#ifndef USE_CYGWIN
    /* Replace /dev/null with NUL */
    while(replace(&ds_cmd, "/dev/null", 9, "NUL", 3) == 0)
      ;
-#endif
 #endif
 
 
@@ -5012,13 +4969,34 @@ int query_get_string(MYSQL* mysql, const char* query,
 }
 
 
+#ifdef _WIN32
+#define SIGKILL 9
+#include <my_minidump.h>
 static int my_kill(int pid, int sig)
 {
-  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
-#ifdef _WIN32
-#define SIGKILL 9 /* ignored anyway, see below */
   HANDLE proc;
-  if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
+  if (sig == SIGABRT)
+  {
+    /*
+     Create a minidump. If process is being debugged, debug break
+     Otherwise, terminate.
+    */
+    verbose_msg("Aborting %d",pid);
+    my_create_minidump(pid,TRUE);
+    proc= OpenProcess(PROCESS_ALL_ACCESS, FALSE, pid);
+    if(!proc)
+      return -1;
+    BOOL debugger_present;
+    if (CheckRemoteDebuggerPresent(proc,&debugger_present) && debugger_present)
+    {
+      if (DebugBreakProcess(proc))
+      {
+        CloseHandle(proc);
+        return 0;
+      }
+    }
+  }
+  else if ((proc= OpenProcess(SYNCHRONIZE|PROCESS_TERMINATE, FALSE, pid)) == NULL)
     return -1;
   if (sig == 0)
   {
@@ -5029,12 +5007,30 @@ static int my_kill(int pid, int sig)
   (void)TerminateProcess(proc, 201);
   CloseHandle(proc);
   return 1;
-#else
-  return kill(pid, sig);
-#endif
 }
 
 
+/* Wait until process is gone, with timeout */
+static int wait_until_dead(int pid, int timeout)
+{
+  HANDLE proc= OpenProcess(SYNCHRONIZE, FALSE, pid);
+  if (!proc)
+    return 0; /* already dead */
+  DBUG_ASSERT(timeout >= 0);
+  DBUG_ASSERT(timeout <= UINT_MAX/1000);
+  DWORD wait_result= WaitForSingleObject(proc, (DWORD)timeout*1000);
+  CloseHandle(proc);
+  return (int)wait_result;
+}
+
+#else /* !_WIN32 */
+
+
+static int my_kill(int pid, int sig)
+{
+  DBUG_PRINT("info", ("Killing server, pid: %d", pid));
+  return kill(pid, sig);
+}
 
 /*
   Shutdown the server of current connection and
@@ -5069,6 +5065,7 @@ static int wait_until_dead(int pid, int timeout)
   }
   DBUG_RETURN(1);                               // Did not die
 }
+#endif /* _WIN32 */
 
 
 void do_shutdown_server(struct st_command *command)
@@ -9185,10 +9182,7 @@ int main(int argc, char **argv)
 
   init_builtin_echo();
 #ifdef _WIN32
-#ifndef USE_CYGWIN
   is_windows= 1;
-#endif
-  init_tmp_sh_file();
   init_win_path_patterns();
 #endif
 
