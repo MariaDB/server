@@ -1,0 +1,141 @@
+--disable_warnings
+--disable_query_log
+--disable_result_log
+--source test_init.inc
+--enable_result_log
+--enable_query_log
+
+--echo #
+--echo # MDEV-26545 Spider does not correctly handle UDF and stored function in where conds
+--echo #
+
+let $CHILD_CREATE_TABLE=
+  CREATE TABLE ta_r (
+    id INT NOT NULL,
+    a INT,
+    PRIMARY KEY(id)
+  ) $CHILD2_1_ENGINE $CHILD2_1_CHARSET;
+
+let $MASTER_CREATE_TABLE_OUTPUT=
+  CREATE TABLE ta_l (
+    id INT NOT NULL,
+    a INT,
+    PRIMARY KEY(id)
+  ) MASTER_1_ENGINE MASTER_1_CHARSET MASTER_1_COMMENT_2_1;
+
+let $MASTER_CREATE_TABLE=
+  CREATE TABLE ta_l (
+    id INT NOT NULL,
+    a INT,
+    PRIMARY KEY(id)
+  ) $MASTER_1_ENGINE $MASTER_1_CHARSET $MASTER_1_COMMENT_2_1;
+
+--echo
+--echo ##### enable general_log #####
+--connection child2_1
+SET @general_log_backup = @@global.general_log;
+SET @log_output_backup = @@global.log_output;
+SET @@global.general_log = 1;
+SET @@global.log_output = "TABLE";
+TRUNCATE TABLE mysql.general_log;
+
+--echo
+--echo ##### create databases #####
+--connection master_1
+CREATE DATABASE auto_test_local;
+USE auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  CREATE DATABASE auto_test_remote;
+  USE auto_test_remote;
+}
+
+--echo
+--echo ##### create tables #####
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  --disable_query_log
+  echo CHILD_CREATE_TABLE;
+  eval $CHILD_CREATE_TABLE;
+  --enable_query_log
+}
+
+--connection master_1
+--disable_query_log
+echo MASTER_CREATE_TABLE;
+echo $MASTER_CREATE_TABLE_OUTPUT;
+eval $MASTER_CREATE_TABLE;
+--enable_query_log
+
+INSERT INTO ta_l VALUES
+    (1, 11),
+    (2, 22),
+    (3, 33),
+    (4, 44),
+    (5, 55);
+
+--echo
+--echo ##### create functions #####
+--connection master_1
+DELIMITER //;
+CREATE FUNCTION `plusone`( param INT ) RETURNS INT
+BEGIN
+    RETURN param + 1;
+END //
+DELIMITER ;//
+
+--connection child2_1
+DELIMITER //;
+CREATE FUNCTION `plusone`( param INT ) RETURNS INT
+BEGIN
+    RETURN param + 1;
+END //
+DELIMITER ;//
+
+--echo
+--echo ########## spider_use_pushdown_udf=0 ##########
+--connection master_1
+SET @@spider_use_pushdown_udf = 0;
+--source udf_pushdown.inc
+
+--echo
+--echo ##### reset records #####
+--connection master_1
+TRUNCATE TABLE ta_l;
+INSERT INTO ta_l VALUES
+    (1, 11),
+    (2, 22),
+    (3, 33),
+    (4, 44),
+    (5, 55);
+
+--echo
+--echo ########## spider_use_pushdown_udf=1 ##########
+--connection master_1
+SET @@spider_use_pushdown_udf = 1;
+--source udf_pushdown.inc
+
+--echo
+--echo deinit
+--disable_warnings
+--connection master_1
+DROP FUNCTION `plusone`;
+DROP DATABASE IF EXISTS auto_test_local;
+if ($USE_CHILD_GROUP2)
+{
+  --connection child2_1
+  SET @@global.general_log = @general_log_backup;
+  SET @@global.log_output = @log_output_backup;
+  DROP FUNCTION `plusone`;
+  DROP DATABASE IF EXISTS auto_test_remote;
+}
+--disable_query_log
+--disable_result_log
+--source test_deinit.inc
+--enable_result_log
+--enable_query_log
+--enable_warnings
+--echo
+--echo end of test

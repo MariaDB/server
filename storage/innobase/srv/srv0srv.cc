@@ -1808,7 +1808,9 @@ fewer_threads:
     if (history_size &&
         trx_purge(n_use_threads,
                   !(++count % srv_purge_rseg_truncate_frequency) ||
-                  purge_sys.truncate.current))
+                  purge_sys.truncate.current ||
+                  (srv_shutdown_state != SRV_SHUTDOWN_NONE &&
+                   srv_fast_shutdown == 0)))
       continue;
 
     if (m_running == sigcount)

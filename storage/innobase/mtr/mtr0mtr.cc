@@ -461,6 +461,114 @@ void mtr_t::commit()
   release_resources();
 }
 
+/** Shrink a tablespace. */
+struct Shrink
+{
+  /** the first non-existing page in the tablespace */
+  const page_id_t high;
+
+  Shrink(const fil_space_t &space) : high({space.id, space.size}) {}
+
+  bool operator()(mtr_memo_slot_t *slot) const
+  {
+    if (!slot->object)
+      return true;
+    switch (slot->type) {
+    default:
+      ut_ad("invalid type" == 0);
+      return false;
+    case MTR_MEMO_SPACE_X_LOCK:
+      ut_ad(high.space() == static_cast<fil_space_t*>(slot->object)->id);
+      return true;
+    case MTR_MEMO_PAGE_X_MODIFY:
+    case MTR_MEMO_PAGE_SX_MODIFY:
+    case MTR_MEMO_PAGE_X_FIX:
+    case MTR_MEMO_PAGE_SX_FIX:
+      auto &bpage= static_cast<buf_block_t*>(slot->object)->page;
+      ut_ad(bpage.io_fix() == BUF_IO_NONE);
+      const auto id= bpage.id();
+      if (id < high)
+      {
+        ut_ad(id.space() == high.space() ||
+              (id == page_id_t{0, TRX_SYS_PAGE_NO} &&
+               srv_is_undo_tablespace(high.space())));
+        break;
+      }
+      ut_ad(id.space() == high.space());
+      ut_ad(bpage.state() == BUF_BLOCK_FILE_PAGE);
+      if (bpage.oldest_modification() > 1)
+        bpage.clear_oldest_modification(false);
+      slot->type= static_cast<mtr_memo_type_t>(slot->type & ~MTR_MEMO_MODIFY);
+    }
+    return true;
+  }
+};
+
+/** Commit a mini-transaction that is shrinking a tablespace.
+@param space   tablespace that is being shrunk */
+void mtr_t::commit_shrink(fil_space_t &space)
+{
+  ut_ad(is_active());
+  ut_ad(!is_inside_ibuf());
+  ut_ad(!high_level_read_only);
+  ut_ad(m_modifications);
+  ut_ad(m_made_dirty);
+  ut_ad(!recv_recovery_is_on());
+  ut_ad(m_log_mode == MTR_LOG_ALL);
+  ut_ad(UT_LIST_GET_LEN(space.chain) == 1);
+
+  log_write_and_flush_prepare();
+
+  const lsn_t start_lsn= finish_write(prepare_write()).first;
+
+  mysql_mutex_lock(&log_sys.flush_order_mutex);
+  /* Durably write the reduced FSP_SIZE before truncating the data file. */
+  log_write_and_flush();
+
+  os_file_truncate(space.chain.start->name, space.chain.start->handle,
+                   os_offset_t{space.size} << srv_page_size_shift, true);
+
+  if (m_freed_pages)
+  {
+    ut_ad(!m_freed_pages->empty());
+    ut_ad(m_freed_space == &space);
+    ut_ad(memo_contains(*m_freed_space));
+    ut_ad(is_named_space(m_freed_space));
+    m_freed_space->update_last_freed_lsn(m_commit_lsn);
+
+    if (!is_trim_pages())
+      for (const auto &range : *m_freed_pages)
+        m_freed_space->add_free_range(range);
+    else
+      m_freed_space->clear_freed_ranges();
+    delete m_freed_pages;
+    m_freed_pages= nullptr;
+    m_freed_space= nullptr;
+    /* mtr_t::start() will reset m_trim_pages */
+  }
+  else
+    ut_ad(!m_freed_space);
+
+  m_memo.for_each_block_in_reverse(CIterate<Shrink>{space});
+
+  m_memo.for_each_block_in_reverse(CIterate<const ReleaseBlocks>
+                                   (ReleaseBlocks(start_lsn, m_commit_lsn,
+                                                  m_memo)));
+  mysql_mutex_unlock(&log_sys.flush_order_mutex);
+
+  mysql_mutex_lock(&fil_system.mutex);
+  ut_ad(space.is_being_truncated);
+  ut_ad(space.is_stopping());
+  space.clear_stopping();
+  space.is_being_truncated= false;
+  mysql_mutex_unlock(&fil_system.mutex);
+
+  m_memo.for_each_block_in_reverse(CIterate<ReleaseLatches>());
+  srv_stats.log_write_requests.inc();
+
+  release_resources();
+}
+
 /** Commit a mini-transaction that did not modify any pages,
 but generated some redo log on a higher level, such as
 FILE_MODIFY records and an optional FILE_CHECKPOINT marker.
