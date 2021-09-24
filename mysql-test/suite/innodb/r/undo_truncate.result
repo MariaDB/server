@@ -1,10 +1,5 @@
-SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET @save_truncate = @@GLOBAL.innodb_undo_log_truncate;
 SET GLOBAL innodb_undo_log_truncate = 0;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-SET @trunc_start=
-(SELECT variable_value FROM information_schema.global_status
-WHERE variable_name = 'innodb_undo_truncations');
 create table t1(keyc int primary key, c char(100)) engine = innodb;
 create table t2(keyc int primary key, c char(100)) engine = innodb;
 connect  con1,localhost,root,,;
@@ -33,7 +28,6 @@ connection con2;
 commit;
 disconnect con2;
 connection default;
+set global innodb_fast_shutdown=0;
+# restart
 drop table t1, t2;
-InnoDB		0 transactions not purged
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
-SET GLOBAL innodb_undo_log_truncate = @save_truncate;

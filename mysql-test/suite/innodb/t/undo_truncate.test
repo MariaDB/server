@@ -1,20 +1,15 @@
 --source include/have_innodb.inc
 --source include/innodb_page_size.inc
 --source include/have_undo_tablespaces.inc
+--source include/not_embedded.inc
 --source include/have_sequence.inc
 
 --disable_query_log
 call mtr.add_suppression("InnoDB: Difficult to find free blocks in the buffer pool");
 --enable_query_log
 
-SET @save_frequency = @@GLOBAL.innodb_purge_rseg_truncate_frequency;
-SET @save_truncate = @@GLOBAL.innodb_undo_log_truncate;
 SET GLOBAL innodb_undo_log_truncate = 0;
 SET GLOBAL innodb_purge_rseg_truncate_frequency = 1;
-
-SET @trunc_start=
-(SELECT variable_value FROM information_schema.global_status
-WHERE variable_name = 'innodb_undo_truncations');
 
 #-----------------------------------------------------------------------------
 #
@@ -46,9 +41,20 @@ commit; disconnect con1;
 connection con2; commit; disconnect con2;
 
 connection default;
+
+--replace_regex /.*Trx id counter ([0-9]+).*/\1/
+let $trx_before= `SHOW ENGINE INNODB STATUS`;
+let $trx_before= `select substr('$trx_before',9)+2`;
+
+set global innodb_fast_shutdown=0;
+--source include/restart_mysqld.inc
+--replace_regex /.*Trx id counter ([0-9]+).*/\1/
+let $trx_after= `SHOW ENGINE INNODB STATUS`;
+let $trx_after= `select substr('$trx_after',9)`;
+
 drop table t1, t2;
 
---source include/wait_all_purged.inc
-
-SET GLOBAL innodb_purge_rseg_truncate_frequency = @save_frequency;
-SET GLOBAL innodb_undo_log_truncate = @save_truncate;
+if ($trx_before != $trx_after)
+{
+  echo Transaction sequence mismatch: $trx_before != $trx_after;
+}

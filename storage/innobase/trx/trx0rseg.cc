@@ -299,6 +299,7 @@ void trx_rseg_format_upgrade(buf_block_t *rseg_header, mtr_t *mtr)
 /** Create a rollback segment header.
 @param[in,out]	space		system, undo, or temporary tablespace
 @param[in]	rseg_id		rollback segment identifier
+@param[in]	max_trx_id	new value of TRX_RSEG_MAX_TRX_ID
 @param[in,out]	sys_header	the TRX_SYS page (NULL for temporary rseg)
 @param[in,out]	mtr		mini-transaction
 @return the created rollback segment
@@ -307,6 +308,7 @@ buf_block_t*
 trx_rseg_header_create(
 	fil_space_t*	space,
 	ulint		rseg_id,
+	trx_id_t	max_trx_id,
 	buf_block_t*	sys_header,
 	mtr_t*		mtr)
 {
@@ -329,9 +331,15 @@ trx_rseg_header_create(
 				    + block->frame));
 	ut_ad(0 == mach_read_from_4(TRX_RSEG_HISTORY_SIZE + TRX_RSEG
 				    + block->frame));
+	ut_ad(0 == mach_read_from_4(TRX_RSEG_MAX_TRX_ID + TRX_RSEG
+				    + block->frame));
 
 	/* Initialize the history list */
 	flst_init(block, TRX_RSEG_HISTORY + TRX_RSEG, mtr);
+
+	mtr->write<8,mtr_t::MAYBE_NOP>(*block,
+				       TRX_RSEG + TRX_RSEG_MAX_TRX_ID
+				       + block->frame, max_trx_id);
 
 	/* Reset the undo log slots */
 	mtr->memset(block, TRX_RSEG_UNDO_SLOTS + TRX_RSEG,
@@ -694,7 +702,7 @@ trx_rseg_create(ulint space_id)
 		ulint	rseg_id = trx_sys_rseg_find_free(sys_header);
 		if (buf_block_t* rblock = rseg_id == ULINT_UNDEFINED
 		    ? NULL
-		    : trx_rseg_header_create(space, rseg_id, sys_header,
+		    : trx_rseg_header_create(space, rseg_id, 0, sys_header,
 					     &mtr)) {
 			ut_ad(trx_sysf_rseg_get_space(sys_header, rseg_id)
 			      == space_id);
@@ -725,7 +733,7 @@ trx_temp_rseg_create()
 		mtr_x_lock_space(fil_system.temp_space, &mtr);
 
 		buf_block_t* rblock = trx_rseg_header_create(
-			fil_system.temp_space, i, NULL, &mtr);
+			fil_system.temp_space, i, 0, NULL, &mtr);
 		trx_rseg_t* rseg = trx_rseg_mem_create(
 			i, fil_system.temp_space, rblock->page.id().page_no());
 		ut_ad(!rseg->is_persistent());

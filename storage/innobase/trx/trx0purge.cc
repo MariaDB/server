@@ -749,7 +749,9 @@ not_free:
       ut_ad(rseg->is_persistent());
       ut_d(const auto old_page= rseg->page_no);
 
-      buf_block_t *rblock= trx_rseg_header_create(&space, i, sys_header, &mtr);
+      buf_block_t *rblock= trx_rseg_header_create(&space, i,
+                                                  trx_sys.get_max_trx_id(),
+                                                  sys_header, &mtr);
       ut_ad(rblock);
       rseg->page_no= rblock ? rblock->page.id().page_no() : FIL_NULL;
       ut_ad(old_page == rseg->page_no);
