@@ -614,6 +614,10 @@ void fix_win_paths(char *val, size_t len);
 const char *get_errname_from_code (uint error_code);
 int multi_reg_replace(struct st_replace_regex* r,char* val);
 
+#ifdef _WIN32
+void free_win_path_patterns();
+#endif
+
 
 /* For replace_column */
 static char *replace_column[MAX_COLUMNS];
@@ -1447,6 +1451,9 @@ void free_used_memory()
   free_root(&require_file_root, MYF(0));
   free_re();
   my_free(read_command_buf);
+#ifdef _WIN32
+  free_win_path_patterns();
+#endif
   DBUG_VOID_RETURN;
 }
 
@@ -9124,6 +9131,7 @@ int main(int argc, char **argv)
   init_builtin_echo();
 #ifdef _WIN32
   is_windows= 1;
+  init_win_path_patterns();
 #endif
 
   read_command_buf= (char*)my_malloc(read_command_buflen= 65536, MYF(MY_FAE));
