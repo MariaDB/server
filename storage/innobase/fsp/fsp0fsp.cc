@@ -586,7 +586,7 @@ void fsp_header_init(fil_space_t* space, uint32_t size, mtr_t* mtr)
 	in order to avoid optimizing away any unchanged most
 	significant bytes of FSP_SIZE. */
 	mtr->write<4,mtr_t::FORCED>(*block, FSP_HEADER_OFFSET + FSP_SIZE
-				   + block->frame, size);
+				    + block->frame, size);
 	ut_ad(0 == mach_read_from_4(FSP_HEADER_OFFSET + FSP_FREE_LIMIT
 				    + block->frame));
 	if (auto f = space->flags & ~FSP_FLAGS_MEM_MASK) {
@@ -780,10 +780,12 @@ fsp_try_extend_data_file(fil_space_t *space, buf_block_t *header, mtr_t *mtr)
 		return(0);
 	}
 
-	/* We ignore any fragments of a full megabyte when storing the size
-	to the space header */
+	/* For the system tablespace, we ignore any fragments of a
+	full megabyte when storing the size to the space header */
 
-	space->size_in_header = ut_2pow_round(space->size, (1024 * 1024) / ps);
+	space->size_in_header = space->id
+		? space->size
+		: ut_2pow_round(space->size, (1024 * 1024) / ps);
 
 	/* recv_sys_t::parse() expects to find a WRITE record that
 	covers all 4 bytes. Therefore, we must specify mtr_t::FORCED
@@ -2130,14 +2132,14 @@ take_hinted_page:
 		return(NULL);
 	}
 
-	if (space->size <= ret_page && !is_system_tablespace(space_id)) {
+	if (space->size <= ret_page && !is_predefined_tablespace(space_id)) {
 		/* It must be that we are extending a single-table
 		tablespace whose size is still < 64 pages */
 
 		if (ret_page >= FSP_EXTENT_SIZE) {
-			ib::error() << "Error (2): trying to extend"
-			" a single-table tablespace " << space_id
-			<< " by single page(s) though the"
+			ib::error() << "Trying to extend '"
+			<< space->chain.start->name
+			<< "' by single page(s) though the"
 			<< " space size " << space->size
 			<< ". Page no " << ret_page << ".";
 			ut_ad(!has_done_reservation);

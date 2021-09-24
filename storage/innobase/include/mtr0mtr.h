@@ -98,6 +98,10 @@ struct mtr_t {
   /** Commit the mini-transaction. */
   void commit();
 
+  /** Commit a mini-transaction that is shrinking a tablespace.
+  @param space   tablespace that is being shrunk */
+  ATTRIBUTE_COLD void commit_shrink(fil_space_t &space);
+
   /** Commit a mini-transaction that did not modify any pages,
   but generated some redo log on a higher level, such as
   FILE_MODIFY records and an optional FILE_CHECKPOINT marker.

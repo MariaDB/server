@@ -835,13 +835,39 @@ void log_write_up_to(lsn_t lsn, bool flush_to_disk, bool rotate_key)
   log_flush_notify(flush_lsn);
 }
 
-/** write to the log file up to the last log entry.
-@param[in]	sync	whether we want the written log
-also to be flushed to disk. */
+/** Write to the log file up to the last log entry.
+@param sync  whether to wait for a durable write to complete */
 void log_buffer_flush_to_disk(bool sync)
 {
   ut_ad(!srv_read_only_mode);
   log_write_up_to(log_sys.get_lsn(std::memory_order_acquire), sync);
+}
+
+/** Prepare to invoke log_write_and_flush(), before acquiring log_sys.mutex. */
+ATTRIBUTE_COLD void log_write_and_flush_prepare()
+{
+  mysql_mutex_assert_not_owner(&log_sys.mutex);
+
+  while (flush_lock.acquire(log_sys.get_lsn() + 1) !=
+         group_commit_lock::ACQUIRED);
+  while (write_lock.acquire(log_sys.get_lsn() + 1) !=
+         group_commit_lock::ACQUIRED);
+}
+
+/** Durably write the log and release log_sys.mutex */
+ATTRIBUTE_COLD void log_write_and_flush()
+{
+  ut_ad(!srv_read_only_mode);
+  auto lsn= log_sys.get_lsn();
+  write_lock.set_pending(lsn);
+  log_write(false);
+  ut_a(log_sys.write_lsn == lsn);
+  write_lock.release(lsn);
+
+  lsn= write_lock.value();
+  flush_lock.set_pending(lsn);
+  log_write_flush_to_disk_low(lsn);
+  flush_lock.release(lsn);
 }
 
 /********************************************************************
