@@ -663,7 +663,8 @@ void Warning_info::reserve_space(THD *thd, uint count)
 
 Sql_condition *Warning_info::push_warning(THD *thd,
                                           const Sql_condition_identity *value,
-                                          const char *msg)
+                                          const char *msg,
+                                          ulong current_row_number)
 {
   Sql_condition *cond= NULL;
 
@@ -673,7 +674,7 @@ Sql_condition *Warning_info::push_warning(THD *thd,
         m_warn_list.elements() < thd->variables.max_error_count)
     {
       cond= new (& m_warn_root) Sql_condition(& m_warn_root, *value, msg,
-                                              m_current_row_for_warning);
+                                              current_row_number);
       if (cond)
         m_warn_list.push_back(cond);
     }
@@ -689,7 +690,8 @@ Sql_condition *Warning_info::push_warning(THD *thd,
                                           const Sql_condition *sql_condition)
 {
   Sql_condition *new_condition= push_warning(thd, sql_condition,
-                                             sql_condition->get_message_text());
+                                             sql_condition->get_message_text(),
+                                             sql_condition->m_row_number);
 
   if (new_condition)
     new_condition->copy_opt_attributes(sql_condition);

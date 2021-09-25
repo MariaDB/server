@@ -748,7 +748,8 @@ private:
   */
   Sql_condition *push_warning(THD *thd,
                               const Sql_condition_identity *identity,
-                              const char* msg);
+                              const char* msg,
+                              ulong current_row_number);
 
   /**
     Add a new SQL-condition to the current list and increment the respective
@@ -1179,10 +1180,12 @@ public:
                               const char* sqlstate,
                               Sql_condition::enum_warning_level level,
                               const Sql_user_condition_identity &ucid,
-                              const char* msg)
+                              const char* msg,
+                              ulong current_row_number)
   {
     Sql_condition_identity tmp(sql_errno_arg, sqlstate, level, ucid);
-    return get_warning_info()->push_warning(thd, &tmp, msg);
+    return get_warning_info()->push_warning(thd, &tmp, msg,
+                                            current_row_number);
   }
 
   Sql_condition *push_warning(THD *thd,
@@ -1192,7 +1195,7 @@ public:
                               const char* msg)
   {
     return push_warning(thd, sqlerrno, sqlstate, level,
-                        Sql_user_condition_identity(), msg);
+                        Sql_user_condition_identity(), msg, 0);
   }
   void mark_sql_conditions_for_removal()
   { get_warning_info()->mark_sql_conditions_for_removal(); }

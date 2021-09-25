@@ -567,6 +567,8 @@ SYMBOL symbols[] = {
   { "ROWS",		SYM(ROWS_SYM)},
   { "ROWTYPE",          SYM(ROWTYPE_MARIADB_SYM)},
   { "ROW_COUNT",        SYM(ROW_COUNT_SYM)},
+  /** sql_function and condition_property_name for GET DIAGNOSTICS */
+  { "ROW_NUMBER",       SYM(ROW_NUMBER_SYM)},
   { "ROW_FORMAT",	SYM(ROW_FORMAT_SYM)},
   /** sql_function and condition_property_name for GET DIAGNOSTICS */
   { "ROW_NUMBER",	SYM(ROW_NUMBER_SYM)},

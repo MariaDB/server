@@ -1481,7 +1481,7 @@ ERROR HY000: Can't update table 't1' in stored function/trigger because it is al
 GET DIAGNOSTICS CONDITION 1 @var119= ROW_NUMBER;
 SELECT @var119;
 @var119
-2
+1
 INSERT INTO t1 VALUES (1) RETURNING id2;
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var120= ROW_NUMBER;
@@ -1523,7 +1523,7 @@ ERROR HY000: Can't update table 't1' in stored function/trigger because it is al
 GET DIAGNOSTICS CONDITION 1 @var125= ROW_NUMBER;
 SELECT @var125;
 @var125
-2
+1
 REPLACE INTO t1 VALUES (1) RETURNING id2;
 ERROR 42S22: Unknown column 'id2' in 'field list'
 GET DIAGNOSTICS CONDITION 1 @var126= ROW_NUMBER;
@@ -1552,3 +1552,59 @@ DROP TABLE t1,t2;
 DROP FUNCTION f1;
 DROP FUNCTION f2;
 DROP  VIEW v;
+#
+# MDEV-26606: ROW_NUMBER property value isn't passed from inside a
+# stored procedure
+#
+# Test 1: Without RESIGNAL
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY);
+CREATE OR REPLACE PROCEDURE sp(a INT) INSERT INTO t1 VALUES (2),(a);
+SET @num=null, @msg=null;
+INSERT INTO t1 VALUES(1);
+CALL sp(1);
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @num = ROW_NUMBER, @msg = MESSAGE_TEXT;
+SELECT @num, @msg;
+@num	@msg
+2	Duplicate entry '1' for key 'PRIMARY'
+DROP PROCEDURE sp;
+DROP TABLE t1;
+# Test 2: With RESIGNAL
+CREATE OR REPLACE TABLE t1 (pk INT PRIMARY KEY);
+CREATE OR REPLACE PROCEDURE sp(a INT)
+BEGIN
+DECLARE n INT;
+DECLARE m VARCHAR(255);
+DECLARE EXIT HANDLER FOR 1062
+BEGIN
+GET DIAGNOSTICS CONDITION 1 n = ROW_NUMBER, m = MESSAGE_TEXT;
+SELECT n, m;
+RESIGNAL;
+END;
+INSERT INTO t1 VALUES (2), (a);
+END |
+SET @num=null, @msg=null;
+INSERT INTO t1 VALUES (1);
+CALL sp(1);
+n	m
+2	Duplicate entry '1' for key 'PRIMARY'
+ERROR 23000: Duplicate entry '1' for key 'PRIMARY'
+GET DIAGNOSTICS CONDITION 1 @num = ROW_NUMBER, @msg = MESSAGE_TEXT;
+SELECT @num, @msg;
+@num	@msg
+2	Duplicate entry '1' for key 'PRIMARY'
+DROP PROCEDURE sp;
+DROP TABLE t1;
+# Checking more errors
+CREATE TABLE t1 (val1 TINYINT);
+CREATE PROCEDURE sp(a INT) INSERT INTO t1 VALUES (2),(a);
+INSERT INTO t1 VALUES(1);
+CALL sp(100000);
+Warnings:
+Warning	1264	Out of range value for column 'val1' at row 2
+GET DIAGNOSTICS CONDITION 1 @var1= ROW_NUMBER;
+SELECT @var1;
+@var1
+2
+DROP TABLE t1;
+DROP PROCEDURE sp;

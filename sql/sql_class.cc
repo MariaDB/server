@@ -1149,7 +1149,8 @@ Sql_condition* THD::raise_condition(uint sql_errno,
   if (likely(!(is_fatal_error && (sql_errno == EE_OUTOFMEMORY ||
                                   sql_errno == ER_OUTOFMEMORY))))
   {
-    cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg);
+    cond= da->push_warning(this, sql_errno, sqlstate, level, ucid, msg,
+                           da->current_row_for_warning());
   }
   DBUG_RETURN(cond);
 }
