@@ -505,6 +505,18 @@ private:
                                                sp_assignment_lex *param_lex,
                                                Item_args *parameters);
 
+  bool bind_input_param(THD *thd,
+                        Item *arg_item,
+                        uint arg_no,
+                        sp_rcontext *nctx,
+                        bool is_function);
+
+  bool bind_output_param(THD *thd,
+                         Item *arg_item,
+                         uint arg_no,
+                         sp_rcontext *octx,
+                         sp_rcontext *nctx);
+
 public:
   /**
     Generate a code for an "OPEN cursor" statement.
