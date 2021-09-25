@@ -8915,3 +8915,5 @@ ER_PROVIDER_NOT_LOADED
         eng "MariaDB tried to use the %s, but its provider plugin is not loaded"
 ER_JSON_HISTOGRAM_PARSE_FAILED
         eng "Failed to parse histogram for table %s.%s: %s at offset %d."
+ER_SF_OUT_INOUT_ARG_NOT_ALLOWED
+	eng "OUT or INOUT argument %d for function %s is not allowed here"

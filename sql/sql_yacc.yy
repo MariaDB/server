@@ -3063,20 +3063,6 @@ sp_param_name:
           }
         ;
 
-sp_param_name_and_type:
-          sp_param_name field_type
-          {
-            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name ROW_SYM row_type_body
-          {
-            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
-              MYSQL_YYABORT;
-          }
-        | sp_param_name_and_type_anchored
-        ;
-
 /* Stored PROCEDURE parameter declaration list */
 sp_pdparam_list:
           /* Empty */
@@ -18039,6 +18025,20 @@ sp_decl_variable_list_anchored:
           }
         ;
 
+sp_param_name_and_type:
+          sp_param_name field_type
+          {
+            if (unlikely(Lex->sp_param_fill_definition($$= $1, $2)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name ROW_SYM row_type_body
+          {
+            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $3)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name_and_type_anchored
+        ;
+
 sp_param_name_and_type_anchored:
           sp_param_name TYPE_SYM OF_SYM ident '.' ident
           {
@@ -18913,25 +18913,45 @@ sp_decl_variable_list_anchored:
           }
         ;
 
+sp_param_name_and_type:
+          sp_param_name sp_opt_inout field_type
+          {
+            $1->mode= $2;
+            if (unlikely(Lex->sp_param_fill_definition($$= $1, $3)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name sp_opt_inout ROW_SYM row_type_body
+          {
+            $1->mode= $2;
+            if (unlikely(Lex->sphead->spvar_fill_row(thd, $$= $1, $4)))
+              MYSQL_YYABORT;
+          }
+        | sp_param_name_and_type_anchored
+        ;
+
 sp_param_name_and_type_anchored:
-          sp_param_name sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+          sp_param_name sp_opt_inout sp_decl_ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
           {
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4)))
+            $1->mode= $2;
+            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $3, $5)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident '.' ident '.' ident PERCENT_ORACLE_SYM TYPE_SYM
           {
-            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $2, $4, $6)))
+            $1->mode= $2;
+            if (unlikely(Lex->sphead->spvar_fill_type_reference(thd, $$= $1, $3, $5, $7)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
-            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2)))
+            $1->mode= $2;
+            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $3)))
               MYSQL_YYABORT;
           }
-        | sp_param_name sp_decl_ident '.' ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
+        | sp_param_name sp_opt_inout sp_decl_ident '.' ident PERCENT_ORACLE_SYM ROWTYPE_ORACLE_SYM
           {
-            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $2, $4)))
+            $1->mode= $2;
+            if (unlikely(Lex->sphead->spvar_fill_table_rowtype_reference(thd, $$= $1, $3, $5)))
               MYSQL_YYABORT;
           }
         ;
