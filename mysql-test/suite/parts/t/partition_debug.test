@@ -104,6 +104,9 @@ set session debug_dbug="+d,fail_convert_partition_8";
 --source suite/parts/inc/partition_fail.inc
 set session debug_dbug=@save_dbug;
 set session debug_dbug="+d,fail_convert_partition_9";
+--source suite/parts/inc/partition_fail.inc
+set session debug_dbug=@save_dbug;
+set session debug_dbug="+d,fail_convert_partition_11";
 --echo # Already finished DDL logging, so tp2 now exists:
 --source suite/parts/inc/partition_fail.inc
 set session debug_dbug=@save_dbug;

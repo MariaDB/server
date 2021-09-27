@@ -36,7 +36,7 @@ if ($MTR_COMBINATION_ROW)
 
 let $MYSQLD_DATADIR= `SELECT @@datadir`;
 
-let $crash_count= 12;
+let $crash_count= 14;
 let $crash_points='crash_create_before_create_frm',
                   'crash_alter_partition_after_create_frm',
                   'crash_alter_partition_after_write_frm',
@@ -48,10 +48,12 @@ let $crash_points='crash_create_before_create_frm',
                   'crash_convert_partition_6',
                   'crash_convert_partition_7',
                   'crash_convert_partition_8',
-                  'crash_convert_partition_9';
+                  'crash_convert_partition_9',
+                  'crash_convert_partition_10',
+                  'crash_convert_partition_11';
 
 #let $crash_count= 1;
-#let $crash_points= 'crash_convert_partition_8';
+#let $crash_points= 'crash_convert_partition_10';
 
 let $statement_count= 1;
 let $statements= 'ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1';

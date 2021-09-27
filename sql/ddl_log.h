@@ -262,8 +262,14 @@ int ddl_log_execute_recovery();
 bool ddl_log_write_entry(DDL_LOG_ENTRY *ddl_log_entry,
                            DDL_LOG_MEMORY_ENTRY **active_entry);
 
+bool ddl_log_write_execute_entry(uint first_entry, uint cond_entry,
+                                 DDL_LOG_MEMORY_ENTRY** active_entry);
+inline
 bool ddl_log_write_execute_entry(uint first_entry,
-                                 DDL_LOG_MEMORY_ENTRY **active_entry);
+                                 DDL_LOG_MEMORY_ENTRY **active_entry)
+{
+  return ddl_log_write_execute_entry(first_entry, 0, active_entry);
+}
 bool ddl_log_disable_execute_entry(DDL_LOG_MEMORY_ENTRY **active_entry);
 
 void ddl_log_complete(DDL_LOG_STATE *ddl_log_state);
@@ -349,5 +355,6 @@ bool ddl_log_alter_table(THD *thd, DDL_LOG_STATE *ddl_state,
                          bool is_renamed);
 bool ddl_log_store_query(THD *thd, DDL_LOG_STATE *ddl_log_state,
                          const char *query, size_t length);
+bool ddl_log_delete_frm(DDL_LOG_STATE *ddl_state, const char *to_path);
 extern mysql_mutex_t LOCK_gdl;
 #endif /* DDL_LOG_INCLUDED */

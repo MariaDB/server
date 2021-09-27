@@ -6226,48 +6226,6 @@ static void release_part_info_log_entries(DDL_LOG_MEMORY_ENTRY *log_entry)
 
 
 /*
-  Log an delete frm file
-  SYNOPSIS
-    write_log_delete_frm()
-    lpt                            Struct for parameters
-    to_path                        Name to delete
-  RETURN VALUES
-    TRUE                           Error
-    FALSE                          Success
-  DESCRIPTION
-    Support routine that writes a delete of an frm file into the
-    ddl log. It also inserts an entry that keeps track of used space into
-    the partition info object
-*/
-
-
-/*
-  TODO: Partitioning atomic DDL refactoring: this should be replaced with
-        ddl_log_create_table().
-*/
-static bool write_log_delete_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                 const char *to_path)
-{
-  DDL_LOG_ENTRY ddl_log_entry;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
-  DBUG_ENTER("write_log_delete_frm");
-  bzero(&ddl_log_entry, sizeof(ddl_log_entry));
-  ddl_log_entry.action_type= DDL_LOG_DELETE_ACTION;
-  ddl_log_entry.next_entry= lpt->part_info->list ? lpt->part_info->list->entry_pos : 0;
-
-  lex_string_set(&ddl_log_entry.handler_name, reg_ext);
-  lex_string_set(&ddl_log_entry.name, to_path);
-
-  if (ddl_log_write_entry(&ddl_log_entry, &log_entry))
-  {
-    DBUG_RETURN(true);
-  }
-  ddl_log_add_entry(lpt->part_info, log_entry);
-  DBUG_RETURN(false);
-}
-
-
-/*
   Log an rename frm file
   SYNOPSIS
     write_log_replace_frm()
@@ -6541,11 +6499,10 @@ static bool write_log_convert_out_partition(ALTER_PARTITION_PARAM_TYPE *lpt,
   DDL_LOG_MEMORY_ENTRY *main_entry= lpt->part_info->main_entry;
   bool res= log_drop_or_convert_action(lpt, next_entry, path, from_name, false);
   /*
-    NOTE: main_entry is "drop shadow frm", we have to keep it like this,
-    because partitioning crash-safety disables it at install shadow FRM phase
-    That is not really needed though, because shadow frm is replaced with
-    backup frm so there is nothing to drop. But we avoid spurious action by
-    disabling it.
+    NOTE: main_entry is "drop shadow frm", we have to keep it like this
+    because partitioning crash-safety disables it at install shadow FRM phase.
+    This is needed to avoid spurious drop action when the shadow frm is replaced
+    by the backup frm and there is nothing to drop.
   */
   lpt->part_info->main_entry= main_entry;
   return res;
@@ -6556,10 +6513,9 @@ static bool write_log_convert_out_partition(ALTER_PARTITION_PARAM_TYPE *lpt,
   Write the log entry to ensure that the shadow frm file is removed at
   crash.
   SYNOPSIS
-    write_log_drop_shadow_frm()
+    write_log_drop_frm()
     lpt                      Struct containing parameters
-    install_frm              Should we log action to install shadow frm or should
-                             the action be to remove the shadow frm file.
+
   RETURN VALUES
     TRUE                     Error
     FALSE                    Success
@@ -6568,35 +6524,40 @@ static bool write_log_convert_out_partition(ALTER_PARTITION_PARAM_TYPE *lpt,
     file and its corresponding handler file.
 */
 
-static bool write_log_drop_shadow_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
-                                      uint flags= 0)
+static bool write_log_drop_frm(ALTER_PARTITION_PARAM_TYPE *lpt,
+                               DDL_LOG_STATE *drop_chain)
 {
-  partition_info *part_info= lpt->part_info;
-  DDL_LOG_MEMORY_ENTRY *log_entry;
   char path[FN_REFLEN + 1];
-  DBUG_ENTER("write_log_drop_shadow_frm");
-  const bool drop_backup= (flags & WFRM_DROP_BACKUP);
-
-  DBUG_ASSERT(!drop_backup || !part_info->is_active());
+  DBUG_ENTER("write_log_drop_frm");
+  const DDL_LOG_STATE *main_chain= lpt->part_info;
+  const bool drop_backup= (drop_chain != main_chain);
 
   build_table_shadow_filename(path, sizeof(path) - 1, lpt, drop_backup);
   mysql_mutex_lock(&LOCK_gdl);
-  if (write_log_delete_frm(lpt, (const char*)path))
+  if (ddl_log_delete_frm(drop_chain, (const char*)path))
     goto error;
 
-  log_entry= part_info->list;
-  if (ddl_log_write_execute_entry(log_entry->entry_pos,
-                                  &part_info->execute_entry))
+  if (ddl_log_write_execute_entry(drop_chain->list->entry_pos,
+                                  drop_backup ?
+                                    main_chain->execute_entry->entry_pos : 0,
+                                  &drop_chain->execute_entry))
     goto error;
   mysql_mutex_unlock(&LOCK_gdl);
   DBUG_RETURN(FALSE);
 
 error:
-  release_part_info_log_entries(part_info->list);
+  release_part_info_log_entries(drop_chain->list);
   mysql_mutex_unlock(&LOCK_gdl);
-  part_info->list= NULL;
+  drop_chain->list= NULL;
   my_error(ER_DDL_LOG_ERROR, MYF(0));
   DBUG_RETURN(TRUE);
+}
+
+
+static inline
+bool write_log_drop_shadow_frm(ALTER_PARTITION_PARAM_TYPE *lpt)
+{
+  return write_log_drop_frm(lpt, lpt->part_info);
 }
 
 
@@ -6910,6 +6871,10 @@ static void write_log_completed(ALTER_PARTITION_PARAM_TYPE *lpt,
      NONE
 */
 
+/*
+  TODO: Partitioning atomic DDL refactoring: this should be replaced with
+        ddl_log_release_entries().
+*/
 static void release_log_entries(partition_info *part_info)
 {
   mysql_mutex_lock(&LOCK_gdl);
@@ -7414,6 +7379,9 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
   }
   else if (alter_info->partition_flags & ALTER_PARTITION_CONVERT_OUT)
   {
+    DDL_LOG_STATE chain_drop_backup;
+    bzero(&chain_drop_backup, sizeof(chain_drop_backup));
+
     if (mysql_write_frm(lpt, WFRM_WRITE_CONVERTED_TO) ||
         ERROR_INJECT("convert_partition_1") ||
         write_log_drop_shadow_frm(lpt) ||
@@ -7428,40 +7396,27 @@ uint fast_alter_partition_table(THD *thd, TABLE *table,
         ERROR_INJECT("convert_partition_6") ||
         alter_partition_convert_out(lpt) ||
         ERROR_INJECT("convert_partition_7") ||
-        (frm_install= true, false) ||
+        write_log_drop_frm(lpt, &chain_drop_backup) ||
         mysql_write_frm(lpt, WFRM_INSTALL_SHADOW|WFRM_BACKUP_ORIGINAL) ||
         log_partition_alter_to_ddl_log(lpt) ||
-        (frm_install= false, false) ||
         ERROR_INJECT("convert_partition_8") ||
         ((!thd->lex->no_write_to_binlog) &&
           ((thd->binlog_xid= thd->query_id),
            ddl_log_update_xid(lpt->part_info, thd->binlog_xid),
            write_bin_log(thd, false, thd->query(), thd->query_length()),
            (thd->binlog_xid= 0))) ||
-        (ddl_log_complete(lpt->part_info), false) ||
-        /*
-          TODO:
-
-          1. Add DDL_LOG_EXECUTE_IF_CLOSED to ddl_log_entry_code.
-             Execute entry is executed only if another entry is active.
-             This requires ddl log file extension or store entry_pos into some
-             string field of execute entry: name, tmp_name, etc. These are
-             not used now for execute entry.
-          2. Log WFRM_DROP_BACKUP into separate "cleanup" chain and execute it
-             only if the main chain is closed. That must be logged before
-             WFRM_BACKUP_ORIGINAL is done.
-
-        */
-        write_log_drop_shadow_frm(lpt, WFRM_DROP_BACKUP) ||
         ERROR_INJECT("convert_partition_9"))
     {
+      ddl_log_complete(&chain_drop_backup);
       (void) ddl_log_revert(thd, lpt->part_info);
-      handle_alter_part_error(lpt, true, true, frm_install);
+      handle_alter_part_error(lpt, true, true, false);
       goto err;
     }
-    /* Drop backup frm */
-    (void) ddl_log_revert(thd, lpt->part_info);
-    if (alter_partition_lock_handling(lpt))
+    ddl_log_complete(lpt->part_info);
+    ERROR_INJECT("convert_partition_10");
+    (void) ddl_log_revert(thd, &chain_drop_backup);
+    if (alter_partition_lock_handling(lpt) ||
+        ERROR_INJECT("convert_partition_11"))
       goto err;
   }
   else if ((alter_info->partition_flags & ALTER_PARTITION_ADD) &&
