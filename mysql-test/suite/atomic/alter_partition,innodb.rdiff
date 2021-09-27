@@ -195,3 +195,41 @@
  master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
  Table	Create Table
  t1	CREATE TABLE `t1` (
+@@ -270,15 +234,12 @@
+ x
+ 12
+ # CRASH: crash_convert_partition_10
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp1.MYD
+-tp1.MYI
+ tp1.frm
++tp1.ibd
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
+ Table	Create Table
+ t1	CREATE TABLE `t1` (
+@@ -297,15 +258,12 @@
+ x
+ 12
+ # CRASH: crash_convert_partition_11
+-t1#P#p0.MYD
+-t1#P#p0.MYI
+-t1#P#pn.MYD
+-t1#P#pn.MYI
++t1#P#p0.ibd
++t1#P#pn.ibd
+ t1.frm
+ t1.par
+-tp1.MYD
+-tp1.MYI
+ tp1.frm
++tp1.ibd
+ master-bin.000001	#	Query	#	#	use `test`; ALTER TABLE t1 CONVERT PARTITION p1 TO TABLE tp1
+ Table	Create Table
+ t1	CREATE TABLE `t1` (

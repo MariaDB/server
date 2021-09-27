@@ -59,7 +59,6 @@ enum enum_explain_filename_mode
 #define WFRM_KEEP_SHARE 4
 #define WFRM_WRITE_CONVERTED_TO 8
 #define WFRM_BACKUP_ORIGINAL 16
-#define WFRM_DROP_BACKUP 32
 
 /* Flags for conversion functions. */
 static const uint FN_FROM_IS_TMP=  1 << 0;
