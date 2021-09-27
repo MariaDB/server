@@ -289,7 +289,14 @@ static int open_table(THD* thd,
                         NULL, lock_type);
   thd->lex->query_tables_own_last= 0;
 
-  if (!open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
+  // No need to open table if the query was bf aborted,
+  // thd client will get ER_LOCK_DEADLOCK in the end.
+  const bool interrupted= thd->killed ||
+       (thd->is_error() &&
+       (thd->get_stmt_da()->sql_errno() == ER_QUERY_INTERRUPTED));
+
+  if (interrupted ||
+      !open_n_lock_single_table(thd, &tables, tables.lock_type, flags)) {
     close_thread_tables(thd);
     DBUG_RETURN(1);
   }
