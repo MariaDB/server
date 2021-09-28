@@ -6045,8 +6045,10 @@ int st_select_lex_unit::save_union_explain_part2(Explain_query *output)
 bool LEX::is_partition_management() const
 {
   return (sql_command == SQLCOM_ALTER_TABLE &&
-          (alter_info.partition_flags ==  ALTER_PARTITION_ADD ||
-           alter_info.partition_flags ==  ALTER_PARTITION_REORGANIZE));
+          (alter_info.partition_flags & (ALTER_PARTITION_ADD |
+                                         ALTER_PARTITION_CONVERT_IN |
+                                         ALTER_PARTITION_CONVERT_OUT |
+                                         ALTER_PARTITION_REORGANIZE)));
 }
 
 

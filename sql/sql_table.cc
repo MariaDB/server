@@ -875,7 +875,6 @@ bool mysql_write_frm(ALTER_PARTITION_PARAM_TYPE *lpt, uint flags)
 #else /* !WITH_PARTITION_STORAGE_ENGINE */
   DBUG_ASSERT(!(flags & WFRM_WRITE_EXTRACTED));
   DBUG_ASSERT(!(flags & WFRM_BACKUP_ORIGINAL));
-  DBUG_ASSERT(!(flags & WFRM_DROP_BACKUP));
 #endif /* !WITH_PARTITION_STORAGE_ENGINE */
   if (flags & WFRM_INSTALL_SHADOW)
   {
@@ -9688,7 +9687,8 @@ bool mysql_alter_table(THD *thd, const LEX_CSTRING *new_db,
         Table maybe does not exist, but we got an exclusive lock
         on the name, now we can safely try to find out for sure.
       */
-      if (ha_table_exists(thd, &alter_ctx.new_db, &alter_ctx.new_name))
+      if (!(alter_info->partition_flags & ALTER_PARTITION_CONVERT_IN) &&
+          ha_table_exists(thd, &alter_ctx.new_db, &alter_ctx.new_name))
       {
         /* Table will be closed in do_command() */
         my_error(ER_TABLE_EXISTS_ERROR, MYF(0), alter_ctx.new_alias.str);

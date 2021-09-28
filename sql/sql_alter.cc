@@ -440,6 +440,7 @@ bool Sql_cmd_alter_table::execute(THD *thd)
     as for RENAME TO, as being done by SQLCOM_RENAME_TABLE
   */
   if ((alter_info.partition_flags & ALTER_PARTITION_DROP) ||
+      (alter_info.partition_flags & ALTER_PARTITION_CONVERT_IN) ||
       (alter_info.partition_flags & ALTER_PARTITION_CONVERT_OUT) ||
       (alter_info.flags & ALTER_RENAME))
     priv_needed|= DROP_ACL;

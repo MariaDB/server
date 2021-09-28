@@ -823,8 +823,9 @@ typedef bool Log_func(THD*, TABLE*, bool, const uchar*, const uchar*);
 // Set by Sql_cmd_alter_table_truncate_partition::execute()
 #define ALTER_PARTITION_TRUNCATE    (1ULL << 11)
 // Set for REORGANIZE PARTITION
-#define ALTER_PARTITION_TABLE_REORG           (1ULL << 12)
-#define ALTER_PARTITION_CONVERT_OUT    (1ULL << 13)
+#define ALTER_PARTITION_TABLE_REORG (1ULL << 12)
+#define ALTER_PARTITION_CONVERT_IN  (1ULL << 13)
+#define ALTER_PARTITION_CONVERT_OUT (1ULL << 14)
 
 /*
   This is master database for most of system tables. However there
