@@ -109,7 +109,7 @@ sub sleep_until_file_created ($$$$$) {
   my $proc=     shift;
   my $warn_seconds = shift;
   my $sleeptime= 10; # Milliseconds
-  my $loops= ($timeout * 10000) / $sleeptime;
+  my $loops= ($timeout * 1000) / $sleeptime;
   my $message_time= 60;
 
   for ( my $loop= 0; $loop <= $loops; $loop++ )
