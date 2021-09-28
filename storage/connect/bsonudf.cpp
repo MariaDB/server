@@ -3571,7 +3571,7 @@ char *bson_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 2, false, false, true)) {
-		JTYP  type;
+		JTYP  type= TYPE_JAR;
 		BJNX  bnx(g);
 		PBVAL jvp = NULL, top = NULL;
 		PBVAL jsp[2] = {NULL, NULL};
@@ -5722,7 +5722,7 @@ char *bbin_item_merge(UDF_INIT *initid, UDF_ARGS *args, char *result,
 	} // endif Xchk
 
 	if (!CheckMemory(g, initid, args, 2, false, false, true)) {
-		JTYP  type;
+		JTYP  type = TYPE_JAR;
 		BJNX  bnx(g);
 		PBVAL jvp = NULL, top = NULL;
 		PBVAL jsp[2] = {NULL, NULL};
