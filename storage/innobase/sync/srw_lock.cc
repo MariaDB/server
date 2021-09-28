@@ -36,6 +36,20 @@ static inline void srw_pause(unsigned delay)
 }
 
 #ifdef SUX_LOCK_GENERIC
+template<> void srw_mutex_impl<true>::wr_wait()
+{
+  const unsigned delay= srw_pause_delay();
+
+  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+  {
+    srw_pause(delay);
+    if (wr_lock_try())
+      return;
+  }
+
+  pthread_mutex_lock(&lock);
+}
+
 template<bool spinloop>
 void ssux_lock_impl<spinloop>::init()
 {
@@ -247,7 +261,6 @@ inline void ssux_lock_impl<spinloop>::wait(uint32_t lk)
 { WaitOnAddress(&readers, &lk, 4, INFINITE); }
 template<bool spinloop>
 void ssux_lock_impl<spinloop>::wake() { WakeByAddressSingle(&readers); }
-
 # else
 #  ifdef __linux__
 #   include <linux/futex.h>
@@ -435,17 +448,44 @@ template void ssux_lock_impl<true>::rd_wait();
 template void ssux_lock_impl<false>::rd_wait();
 #endif /* SUX_LOCK_GENERIC */
 
+#if defined _WIN32 || defined SUX_LOCK_GENERIC
+template<> void srw_lock_<true>::rd_wait()
+{
+  const unsigned delay= srw_pause_delay();
+
+  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+  {
+    srw_pause(delay);
+    if (rd_lock_try())
+      return;
+  }
+
+  IF_WIN(AcquireSRWLockShared(&lock), rw_rdlock(&lock));
+}
+
+template<> void srw_lock_<true>::wr_wait()
+{
+  const unsigned delay= srw_pause_delay();
+
+  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+  {
+    srw_pause(delay);
+    if (wr_lock_try())
+      return;
+  }
+
+  IF_WIN(AcquireSRWLockExclusive(&lock), rw_wrlock(&lock));
+}
+#endif
+
 #ifdef UNIV_PFS_RWLOCK
-# if defined _WIN32 || defined SUX_LOCK_GENERIC
-#  define void_srw_lock void srw_lock_impl
-# else
-#  define void_srw_lock template<bool spinloop> void srw_lock_impl<spinloop>
 template void srw_lock_impl<false>::psi_rd_lock(const char*, unsigned);
 template void srw_lock_impl<false>::psi_wr_lock(const char*, unsigned);
 template void srw_lock_impl<true>::psi_rd_lock(const char*, unsigned);
 template void srw_lock_impl<true>::psi_wr_lock(const char*, unsigned);
-# endif
-void_srw_lock::psi_rd_lock(const char *file, unsigned line)
+
+template<bool spinloop>
+void srw_lock_impl<spinloop>::psi_rd_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   const bool nowait= lock.rd_lock_try();
@@ -461,7 +501,8 @@ void_srw_lock::psi_rd_lock(const char *file, unsigned line)
     lock.rd_lock();
 }
 
-void_srw_lock::psi_wr_lock(const char *file, unsigned line)
+template<bool spinloop>
+void srw_lock_impl<spinloop>::psi_wr_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   const bool nowait= lock.wr_lock_try();
