@@ -2109,5 +2109,11 @@ CREATE OR REPLACE TABLE t1(i int);
 ALTER TABLE t1 ADD b CHAR(255) DEFAULT `aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa`;
 DROP TABLE t1;
 
+--echo #
+--echo # MDEV-18278 Misleading error message in error log upon failed table creation
+--echo #
+--error ER_EXPRESSION_REFERS_TO_UNINIT_FIELD
+create table t1 (a int as (a));
+show warnings;
 
 --echo # end of 10.2 test

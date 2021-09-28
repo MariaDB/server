@@ -1157,7 +1157,10 @@ bool parse_vcol_defs(THD *thd, MEM_ROOT *mem_root, TABLE *table,
     if (check_vcol_forward_refs(field, field->vcol_info) ||
         check_vcol_forward_refs(field, field->check_constraint) ||
         check_vcol_forward_refs(field, field->default_value))
+    {
+      *error_reported= true;
       goto end;
+    }
   }
 
   res=0;
