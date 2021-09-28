@@ -151,7 +151,7 @@ public:
   void wr_unlock();
 #else
   /** mutex for synchronization; held by U or X lock holders */
-  srw_mutex writer;
+  srw_mutex_impl<spinloop> writer;
   /** S or U holders, and WRITER flag for X holder or waiter */
   std::atomic<uint32_t> readers;
   /** indicates an X request; readers=WRITER indicates granted X lock */

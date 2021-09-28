@@ -417,7 +417,23 @@ void ssux_lock_impl<spinloop>::wr_wait(uint32_t lk)
   DBUG_ASSERT(writer.is_locked());
   DBUG_ASSERT(lk);
   DBUG_ASSERT(lk < WRITER);
+
+  if (spinloop)
+  {
+    const unsigned delay= srw_pause_delay();
+
+    for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+    {
+      srw_pause(delay);
+      lk= readers.load(std::memory_order_acquire);
+      if (lk == WRITER)
+        return;
+      DBUG_ASSERT(lk > WRITER);
+    }
+  }
+
   lk|= WRITER;
+
   do
   {
     DBUG_ASSERT(lk > WRITER);
