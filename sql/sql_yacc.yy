@@ -7285,6 +7285,43 @@ alter_commands:
               MYSQL_YYABORT;
             lex->alter_info.partition_flags|= ALTER_PARTITION_CONVERT_OUT;
           }
+        | CONVERT_SYM TABLE_SYM table_ident
+          {
+            LEX *lex= Lex;
+            if (!lex->first_select_lex()->add_table_to_list(thd, $3, nullptr, 0,
+                                                            TL_READ_NO_INSERT,
+                                                            MDL_SHARED_NO_WRITE))
+              MYSQL_YYABORT;
+
+            /*
+              This will appear as (new_db, new_name) in alter_ctx.
+              new_db will be IX-locked and new_name X-locked.
+            */
+            lex->first_select_lex()->db= $3->db;
+            lex->name= $3->table;
+            if (lex->first_select_lex()->db.str == NULL &&
+                lex->copy_db_to(&lex->first_select_lex()->db))
+              MYSQL_YYABORT;
+
+            lex->part_info= new (thd->mem_root) partition_info();
+            if (unlikely(!lex->part_info))
+              MYSQL_YYABORT;
+
+            lex->part_info->num_parts= 1;
+            /*
+              OR-ed with ALTER_PARTITION_ADD because too many checks of
+              ALTER_PARTITION_ADD required.
+            */
+            lex->alter_info.partition_flags|= ALTER_PARTITION_ADD |
+                                              ALTER_PARTITION_CONVERT_IN;
+          }
+          TO_SYM PARTITION_SYM part_definition
+          {
+            LEX *lex= Lex;
+            lex->m_sql_cmd= new (thd->mem_root) Sql_cmd_alter_table();
+            if (unlikely(lex->m_sql_cmd == NULL))
+              MYSQL_YYABORT;
+          }
         ;
 
 remove_partitioning:
