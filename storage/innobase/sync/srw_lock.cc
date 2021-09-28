@@ -294,57 +294,107 @@ void srw_mutex_impl<true>::wait_and_lock()
     DBUG_ASSERT(~HOLDER & lk);
     if (lk & HOLDER)
       lk= lock.load(std::memory_order_relaxed);
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+#elif defined _M_IX86||defined _M_X64||defined __i386__||defined __x86_64__
+    else if (lock.compare_exchange_weak(lk, lk | HOLDER,
+                                        std::memory_order_acquire,
+                                        std::memory_order_relaxed))
+      return;
+#else
+    else if (!((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) &
+               HOLDER))
+      goto acquired;
+#endif
     else
     {
-      lk= lock.fetch_or(HOLDER, std::memory_order_relaxed);
-      if (!(lk & HOLDER))
-        goto acquired;
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+      static_assert(HOLDER == (1U << 31), "compatibility");
+      __asm__ goto("lock btsl $31, %0\n\t"
+                   "jnc %l1" : : "m" (*this) : "cc", "memory" : acquired);
+      lk|= HOLDER;
+#endif
+      srw_pause(delay);
     }
-    srw_pause(delay);
     if (!--spin)
       break;
   }
 
-  for (;; wait(lk))
+  for (;;)
   {
+    DBUG_ASSERT(~HOLDER & lk);
     if (lk & HOLDER)
     {
+      wait(lk);
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+reload:
+#endif
       lk= lock.load(std::memory_order_relaxed);
-      if (lk & HOLDER)
-        continue;
     }
-    lk= lock.fetch_or(HOLDER, std::memory_order_relaxed);
-    if (!(lk & HOLDER))
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    else
+    {
+      static_assert(HOLDER == (1U << 31), "compatibility");
+      __asm__ goto("lock btsl $31, %0\n\t"
+                   "jc %l1" : : "m" (*this) : "cc", "memory" : reload);
+acquired:
+      std::atomic_thread_fence(std::memory_order_acquire);
+      return;
+    }
+#elif defined _M_IX86||defined _M_X64||defined __i386__||defined __x86_64__
+    else if (lock.compare_exchange_weak(lk, lk | HOLDER,
+                                        std::memory_order_acquire,
+                                        std::memory_order_relaxed))
+      return;
+#else
+    else if (!((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) &
+               HOLDER))
     {
 acquired:
       DBUG_ASSERT(lk);
       std::atomic_thread_fence(std::memory_order_acquire);
       return;
     }
-    DBUG_ASSERT(lk > HOLDER);
+#endif
   }
 }
 
 template<>
 void srw_mutex_impl<false>::wait_and_lock()
 {
-  uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);
-  for (;; wait(lk))
+  for (uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);;)
   {
+    DBUG_ASSERT(~HOLDER & lk);
     if (lk & HOLDER)
     {
+      wait(lk);
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+reload:
+#endif
       lk= lock.load(std::memory_order_relaxed);
-      if (lk & HOLDER)
-        continue;
     }
-    lk= lock.fetch_or(HOLDER, std::memory_order_relaxed);
-    if (!(lk & HOLDER))
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+    else
+    {
+      static_assert(HOLDER == (1U << 31), "compatibility");
+      __asm__ goto("lock btsl $31, %0\n\t"
+                   "jc %l1" : : "m" (*this) : "cc", "memory" : reload);
+      std::atomic_thread_fence(std::memory_order_acquire);
+      return;
+    }
+#elif defined _M_IX86||defined _M_X64||defined __i386__||defined __x86_64__
+    else if (lock.compare_exchange_weak(lk, lk | HOLDER,
+                                        std::memory_order_acquire,
+                                        std::memory_order_relaxed))
+      return;
+#else
+    else if (!((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) &
+               HOLDER))
     {
       DBUG_ASSERT(lk);
       std::atomic_thread_fence(std::memory_order_acquire);
       return;
     }
-    DBUG_ASSERT(lk > HOLDER);
+#endif
   }
 }
 
@@ -373,19 +423,12 @@ void ssux_lock_impl<spinloop>::rd_wait()
   for (;;)
   {
     writer.wr_lock();
-    uint32_t lk= readers.fetch_add(1, std::memory_order_acquire);
-    if (UNIV_UNLIKELY(lk == WRITER))
-    {
-      readers.fetch_sub(1, std::memory_order_relaxed);
-      wake();
-      writer.wr_unlock();
-      pthread_yield();
-      continue;
-    }
-    DBUG_ASSERT(!(lk & WRITER));
-    break;
+    bool acquired= rd_lock_try();
+    writer.wr_unlock();
+    if (acquired)
+      break;
+    std::this_thread::yield();
   }
-  writer.wr_unlock();
 }
 
 template void ssux_lock_impl<true>::rd_wait();
