@@ -299,4 +299,20 @@ disconnect con1;
 disconnect con2;
 connection default;
 DROP TABLE t1;
+#
+# Test NO_CLEAR_EVENT flag. The signal should still be visible after
+# the wait has completed succesfully.
+#
+SET DEBUG_SYNC= 'now SIGNAL s1';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+Variable_name	Value
+debug_sync	ON - current signals: 's1'
+SET DEBUG_SYNC= 'now WAIT_FOR s1 NO_CLEAR_EVENT';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+Variable_name	Value
+debug_sync	ON - current signals: 's1'
+SET DEBUG_SYNC= 'now WAIT_FOR s1';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+Variable_name	Value
+debug_sync	ON - current signals: ''
 SET DEBUG_SYNC= 'RESET';

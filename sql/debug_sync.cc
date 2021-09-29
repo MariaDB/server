@@ -48,6 +48,8 @@ struct st_debug_sync_action
   String        wait_for;               /* signal to wait for */
   String        sync_point;             /* sync point name */
   bool          need_sort;              /* if new action, array needs sort */
+  bool          clear_event;            /* do not clear signal when waited
+                                           for if false. */
 };
 
 /* Debug sync control. Referenced by THD. */
@@ -1253,6 +1255,7 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
     /* Set default for EXECUTE and TIMEOUT options. */
     action->execute= 1;
     action->timeout= opt_debug_sync_timeout;
+    action->clear_event= true;
 
     /* Get next token. If none follows, set action. */
     if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
@@ -1301,6 +1304,15 @@ static bool debug_sync_eval_action(THD *thd, char *action_str, char *action_end)
     /* Get next token. If none follows, set action. */
     if (!(ptr= debug_sync_token(&token, &token_length, ptr, action_end)))
       goto set_action;
+  }
+
+  /*
+    Try NO_CLEAR_EVENT.
+  */
+  if (!my_strcasecmp(system_charset_info, token, "NO_CLEAR_EVENT")) {
+    action->clear_event= false;
+    /* Get next token. If none follows, set action. */
+    if (!(ptr = debug_sync_token(&token, &token_length, ptr, action_end))) goto set_action;
   }
 
   /*
@@ -1591,8 +1603,10 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         }
         error= 0;
       }
-      // TODO conditional on clear-event
-      debug_sync_global.clear_signal(action->wait_for);
+
+      if (action->clear_event)
+        debug_sync_global.clear_signal(action->wait_for);
+
       DBUG_EXECUTE("debug_sync_exec",
                    if (thd->killed)
                      DBUG_PRINT("debug_sync_exec",

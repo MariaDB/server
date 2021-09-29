@@ -428,6 +428,17 @@ disconnect con2;
 connection default;
 DROP TABLE t1;
 
+--echo #
+--echo # Test NO_CLEAR_EVENT flag. The signal should still be visible after
+--echo # the wait has completed succesfully.
+--echo #
+SET DEBUG_SYNC= 'now SIGNAL s1';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+SET DEBUG_SYNC= 'now WAIT_FOR s1 NO_CLEAR_EVENT';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+SET DEBUG_SYNC= 'now WAIT_FOR s1';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+
 #
 # Cleanup after test case.
 # Otherwise signal would contain 'flushed' here,
