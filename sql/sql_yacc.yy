@@ -974,7 +974,6 @@ bool my_yyoverflow(short **a, YYSTYPE **b, size_t *yystacksize);
 %token  <kwd>  MUTEX_SYM
 %token  <kwd>  MYSQL_SYM
 %token  <kwd>  MYSQL_ERRNO_SYM
-%token  <kwd>  ERROR_INDEX_SYM
 %token  <kwd>  NAMES_SYM                     /* SQL-2003-N */
 %token  <kwd>  NAME_SYM                      /* SQL-2003-N */
 %token  <kwd>  NATIONAL_SYM                  /* SQL-2003-R */
@@ -3631,8 +3630,8 @@ condition_information_item_name:
           { $$= Condition_information_item::MYSQL_ERRNO; }
         | RETURNED_SQLSTATE_SYM
           { $$= Condition_information_item::RETURNED_SQLSTATE; }
-        | ERROR_INDEX_SYM
-          { $$= Condition_information_item::ERROR_INDEX; }
+        | ROW_NUMBER_SYM
+          { $$= Condition_information_item::ROW_NUMBER; }
         ;
 
 sp_decl_ident:
@@ -15664,7 +15663,6 @@ keyword_sp_var_and_label:
         | INVOKER_SYM
         | IMPORT
         | INDEXES
-        | ERROR_INDEX_SYM
         | INITIAL_SIZE_SYM
         | IO_SYM
         | IPC_SYM

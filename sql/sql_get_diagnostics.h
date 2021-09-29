@@ -255,7 +255,7 @@ public:
     MESSAGE_TEXT,
     MYSQL_ERRNO,
     RETURNED_SQLSTATE,
-    ERROR_INDEX
+    ROW_NUMBER
   };
 
   /**

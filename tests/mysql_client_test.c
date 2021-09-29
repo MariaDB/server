@@ -21580,7 +21580,7 @@ void test_mdev_10075()
 
   mysql_stmt_close(stmt);
 
-  rc= mysql_query(mysql, "GET DIAGNOSTICS CONDITION 1 @var1 = ERROR_INDEX");
+  rc= mysql_query(mysql, "GET DIAGNOSTICS CONDITION 1 @var1 = ROW_NUMBER");
   myquery(rc);
 
   rc= mysql_query(mysql, "SELECT @var1");

@@ -306,7 +306,8 @@ protected:
   /** SQL CURSOR_NAME condition item. */
   String m_cursor_name;
 
-  ulong m_error_index;
+  /** SQL ROW_NUMBER condition item. */
+  ulong m_row_number;
 
   Sql_condition_items()
    :m_class_origin((const char*) NULL, 0, & my_charset_utf8mb3_bin),
@@ -319,7 +320,7 @@ protected:
     m_table_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
     m_column_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
     m_cursor_name((const char*) NULL, 0, & my_charset_utf8mb3_bin),
-    m_error_index(0)
+    m_row_number(0)
   { }
 
   void clear()
@@ -334,7 +335,7 @@ protected:
     m_table_name.length(0);
     m_column_name.length(0);
     m_cursor_name.length(0);
-    m_error_index= 0;
+    m_row_number= 0;
   }
 };
 
@@ -446,7 +447,7 @@ private:
     DBUG_ASSERT(value.get_sql_errno() != 0);
     DBUG_ASSERT(msg != NULL);
     set_builtin_message_text(msg);
-    m_error_index= current_row_for_warning;
+    m_row_number= current_row_for_warning;
   }
 
   /** Destructor. */
