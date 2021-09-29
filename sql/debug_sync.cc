@@ -122,9 +122,9 @@ struct st_debug_sync_globals
     @retval false otherwise.
   */
 
-  inline bool is_signalled(const String &signal_name)
+  inline bool is_signalled(const char *signal_name, size_t length)
   {
-    return ds_signal_set.find(signal_name.ptr(), signal_name.length());
+    return ds_signal_set.find(signal_name, length);
   }
 
   void clear_signal(const String &signal_name)
@@ -140,21 +140,21 @@ struct st_debug_sync_globals
     DBUG_VOID_RETURN;
   }
 
-  bool set_signal(const String &signal_name)
+  bool set_signal(const char *signal_name, size_t length)
   {
     /* Need to check if the signal is already in the hash set, because
        Hash_set doesn't differentiate between OOM and key already in. */
-    if (is_signalled(signal_name))
+    if (is_signalled(signal_name, length))
       return FALSE;
     /* LEX_CSTRING and the string allocated with only one malloc. */
     LEX_CSTRING *s= (LEX_CSTRING *) my_malloc(PSI_NOT_INSTRUMENTED,
-                                              sizeof(LEX_CSTRING) +
-                                              signal_name.length() + 1, MYF(0));
+                                              sizeof(LEX_CSTRING) + length + 1,
+                                              MYF(0));
     char *str= (char *)(s + 1);
-    memcpy(str, signal_name.ptr(), signal_name.length());
-    str[signal_name.length()]= '\0';
+    memcpy(str, signal_name, length);
+    str[length]= '\0';
 
-    s->length= signal_name.length();
+    s->length= length;
     s->str= str;
     if (ds_signal_set.insert(s))
       return TRUE;
@@ -1522,7 +1522,23 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
 
     if (action->signal.length())
     {
-      if (debug_sync_global.set_signal(action->signal))
+      int offset= 0, pos;
+      bool error= false;
+
+      /* This loop covers all signals in the list except for the last one.
+         Split the signal string by commas and set a signal in the global
+         variable for each one. */
+      while (!error && (pos= action->signal.strstr(",", 1, offset)) > 0)
+      {
+        error= debug_sync_global.set_signal(action->signal.ptr() + offset,
+                                            pos - offset);
+        offset= pos + 1;
+      }
+
+      if (error ||
+          /* The last signal in the list. */
+          debug_sync_global.set_signal(action->signal.ptr() + offset,
+                                       action->signal.length() - offset))
       {
         /*
           Error is reported by my_malloc().
@@ -1578,8 +1594,9 @@ static void debug_sync_execute(THD *thd, st_debug_sync_action *action)
         The facility can become disabled when some thread cannot get
         the required dynamic memory allocated.
       */
-      while (!debug_sync_global.is_signalled(action->wait_for) &&
-             !(thd->killed & KILL_HARD_BIT)&&
+      while (!debug_sync_global.is_signalled(action->wait_for.ptr(),
+                                             action->wait_for.length()) &&
+             !(thd->killed & KILL_HARD_BIT) &&
              opt_debug_sync_timeout)
       {
         error= mysql_cond_timedwait(&debug_sync_global.ds_cond,

@@ -439,10 +439,13 @@ SHOW VARIABLES LIKE 'DEBUG_SYNC';
 SET DEBUG_SYNC= 'now WAIT_FOR s1';
 SHOW VARIABLES LIKE 'DEBUG_SYNC';
 
+SET DEBUG_SYNC= 'now SIGNAL s1,s2,s5,s7';
+SHOW VARIABLES LIKE 'DEBUG_SYNC';
+
+
 #
 # Cleanup after test case.
-# Otherwise signal would contain 'flushed' here,
-# which could confuse the next test.
+# Otherwise signal would confuse the next test.
 #
 SET DEBUG_SYNC= 'RESET';
 
