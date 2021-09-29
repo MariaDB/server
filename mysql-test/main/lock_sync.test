@@ -232,6 +232,8 @@ let $con_aux2= con2;
 let $table= t1;
 
 connection con1;
+set @save_dbug=@@debug_dbug;
+set debug_dbug="+d,cache_sp_in_show_create";
 --echo # Cache all functions used in the tests below so statements
 --echo # calling them won't need to open and lock mysql.proc table
 --echo # and we can assume that each statement locks its tables
@@ -257,6 +259,7 @@ show create function f14;
 show create function f15;
 show create function f16;
 show create function f17;
+set debug_dbug=@save_dbug;
 --enable_result_log
 connection default;
 

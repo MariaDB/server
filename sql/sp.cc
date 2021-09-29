@@ -1903,6 +1903,14 @@ Sp_handler::sp_show_create_routine(THD *thd,
     of the binary log or the query cache, which currently it does not.
   */
   sp_head *sp= 0;
+
+  DBUG_EXECUTE_IF("cache_sp_in_show_create",
+    /* Some tests need just need a way to cache SP without other side-effects.*/
+    sp_cache_routine(thd, name, false, &sp);
+    sp->show_create_routine(thd, this);
+    DBUG_RETURN(false);
+  );
+
   bool free_sp= db_find_routine(thd, name, &sp) == SP_OK;
   bool ret= !sp || sp->show_create_routine(thd, this);
   if (ret)
