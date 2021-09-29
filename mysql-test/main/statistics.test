@@ -187,12 +187,12 @@ DELETE FROM mysql.column_stats;
 set histogram_size=4;
 ANALYZE TABLE t1;
 
---sorted_result
 SELECT db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
-  FROM mysql.column_stats;
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
 
 DELETE FROM mysql.column_stats;
 
@@ -200,12 +200,12 @@ set histogram_size=8;
 set histogram_type=@DOUBLE_PREC_TYPE;
 ANALYZE TABLE t1;
 
---sorted_result
 SELECT db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
-  FROM mysql.column_stats;
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
 
 DELETE FROM mysql.column_stats;
 
@@ -718,8 +718,9 @@ analyze table t1  persistent for all;
 select db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
-  FROM mysql.column_stats;
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
 
 set histogram_size=default;
 
@@ -743,8 +744,9 @@ analyze table t1 persistent for all;
 select db_name, table_name, column_name,
        min_value, max_value,
        nulls_ratio, avg_frequency,
-       hist_size, hist_type, HEX(histogram)
-  FROM mysql.column_stats;
+       hist_size, hist_type, decode_histogram(hist_type,histogram)
+FROM mysql.column_stats
+ORDER BY db_name, table_name, column_name;
 
 set histogram_size=0;
 set histogram_type=@SINGLE_PREC_TYPE;

@@ -182,3 +182,14 @@ SET histogram_type= JSON_HB;
 ANALYZE TABLE t1 PERSISTENT FOR ALL;
 SELECT * FROM t1;
 drop table t1;
+
+--echo #
+--echo # MDEV-26711: Values in JSON histograms are not properly quoted
+--echo #
+create table t1 (a varchar(32));
+insert into t1 values ('this is "quoted" text');
+set histogram_type= JSON_HB;
+analyze table t1 persistent for all;
+select * from t1 where a = 'foo';
+drop table t1;
+

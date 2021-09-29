@@ -20,6 +20,73 @@
 #include "sql_statistics.h"
 #include "opt_histogram_json.h"
 
+
+/*
+  Un-escape a JSON string and save it into *out.
+*/
+
+static bool json_unescape_to_string(const char *val, int val_len, String* out)
+{
+  // Make sure 'out' has some memory allocated.
+  if (!out->alloced_length() && out->alloc(128))
+    return true;
+
+  while (1)
+  {
+    uchar *buf= (uchar*)out->ptr();
+    out->length(out->alloced_length());
+
+    int res= json_unescape(&my_charset_utf8mb4_bin,
+                           (const uchar*)val,
+                           (const uchar*)val + val_len,
+                           &my_charset_utf8mb4_bin,
+                           buf, buf + out->length());
+    if (res > 0)
+    {
+      out->length(res);
+      return false; // Ok
+    }
+
+    // We get here if the unescaped string didn't fit into memory.
+    if (out->alloc(out->alloced_length()*2))
+      return true;
+  }
+}
+
+
+/*
+  Escape a JSON string and save it into *out.
+*/
+
+static bool json_escape_to_string(const char *val, int val_len, String* out)
+{
+  // Make sure 'out' has some memory allocated.
+  if (!out->alloced_length() && out->alloc(128))
+    return true;
+
+  while (1)
+  {
+    uchar *buf= (uchar*)out->ptr();
+    out->length(out->alloced_length());
+
+    int res= json_escape(&my_charset_utf8mb4_bin,
+                         (const uchar*)val,
+                         (const uchar*)val + val_len,
+                         &my_charset_utf8mb4_bin,
+                         buf, buf + out->length());
+    if (res > 0)
+    {
+      out->length(res);
+      return false; // Ok
+    }
+
+    // We get here if the escaped string didn't fit into memory.
+    if (out->alloc(out->alloced_length()*2))
+      return true;
+  }
+}
+
+
 class Histogram_json_builder : public Histogram_builder
 {
   Histogram_json_hb *histogram;
@@ -72,6 +139,7 @@ public:
 
   ~Histogram_json_builder() override = default;
 
+private:
   bool bucket_is_empty() { return bucket.ndv == 0; }
 
   /*
@@ -92,13 +160,13 @@ public:
   /*
     Same as finalize_bucket() but also provide the bucket's end value.
   */
-  void finalize_bucket_with_end_value(void *elem)
+  bool finalize_bucket_with_end_value(void *elem)
   {
-    column->store_field_value((uchar*) elem, col_length);
-    StringBuffer<MAX_FIELD_WIDTH> val;
-    String *str= column->val_str(&val);
-    writer.add_member("end").add_str(str->c_ptr_safe());
+    writer.add_member("end");
+    if (append_column_value(elem))
+      return true;
     finalize_bucket();
+    return false;
   }
 
   /*
@@ -106,18 +174,38 @@ public:
     @param elem  The value we are writing
     @param cnt   The number of such values.
   */
-  void start_bucket(void *elem, longlong cnt)
+  bool start_bucket(void *elem, longlong cnt)
   {
     DBUG_ASSERT(bucket.size == 0);
-    column->store_field_value((uchar*) elem, col_length);
-    StringBuffer<MAX_FIELD_WIDTH> val;
-    String *str= column->val_str(&val);
-
     writer.start_object();
-    writer.add_member("start").add_str(str->c_ptr_safe());
+    writer.add_member("start");
+    if (append_column_value(elem))
+      return true;
 
     bucket.ndv= 1;
     bucket.size= cnt;
+    return false;
+  }
+
+  /*
+    Append the passed value into the JSON writer as string value
+  */
+  bool append_column_value(void *elem)
+  {
+    StringBuffer<MAX_FIELD_WIDTH> val;
+
+    // Get the text representation of the value
+    column->store_field_value((uchar*) elem, col_length);
+    String *str= column->val_str(&val);
+
+    // Escape the value for JSON
+    StringBuffer<MAX_FIELD_WIDTH> escaped_val;
+    if (json_escape_to_string(str->ptr(), str->length(), &escaped_val))
+      return true;
+
+    // Note: The Json_writer does NOT do escapes (perhaps this should change?)
+    writer.add_str(escaped_val.c_ptr_safe());
+    return false;
   }
 
   /*
@@ -129,6 +217,7 @@ public:
     bucket.size += cnt;
   }
 
+public:
   /*
     @brief
       Add data to the histogram.
@@ -169,9 +258,14 @@ public:
         finalize_bucket();
 
       // Start/end the separate bucket for this value group.
-      start_bucket(elem, elem_cnt);
+      if (start_bucket(elem, elem_cnt))
+        return 1; // OOM
+
       if (records == count)
-        finalize_bucket_with_end_value(elem);
+      {
+        if (finalize_bucket_with_end_value(elem))
+          return 1;
+      }
       else
         finalize_bucket();
     }
@@ -191,21 +285,28 @@ public:
       */
       append_to_bucket(bucket_capacity - bucket.size);
       if (records == count && !overflow)
-        finalize_bucket_with_end_value(elem);
+      {
+        if (finalize_bucket_with_end_value(elem))
+          return 1;
+      }
       else
         finalize_bucket();
 
       if (overflow > 0)
       {
         // Then, start the new bucket with the remaining values.
-        start_bucket(elem, overflow);
+        if (start_bucket(elem, overflow))
+          return 1;
       }
     }
     else
     {
       // Case #3: there's not enough values to fill the current bucket.
       if (bucket_is_empty())
-        start_bucket(elem, elem_cnt);
+      {
+        if (start_bucket(elem, elem_cnt))
+          return 1;
+      }
       else
         append_to_bucket(elem_cnt);
     }
@@ -273,6 +374,7 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
   double cumulative_size= 0.0;
   size_t end_member_index= (size_t)-1;
   StringBuffer<128> value_buf;
+  StringBuffer<128> unescape_buf;
 
   if (JSV_OBJECT != json_type(hist_data, hist_data + hist_data_len,
                               &obj1, &obj1_len))
@@ -372,7 +474,14 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
     }
 
     uint len_to_copy= field->key_length();
-    field->store_text(val, val_len, &my_charset_bin);
+    if (json_unescape_to_string(val, val_len, &unescape_buf))
+    {
+      err_pos= ndv;
+      err= "Out of memory";
+      goto error;
+    }
+    field->store_text(unescape_buf.ptr(), unescape_buf.length(),
+                      &my_charset_bin);
     value_buf.alloc(field->pack_length());
     uint bytes= field->get_key_image((uchar*)value_buf.ptr(), len_to_copy,
                                      Field::itRAW);
@@ -392,7 +501,14 @@ bool Histogram_json_hb::parse(MEM_ROOT *mem_root, Field *field,
     }
     if (ret != JSV_NOTHING)
     {
-      field->store_text(end_val, end_val_len, &my_charset_bin);
+      if (json_unescape_to_string(end_val, end_val_len, &unescape_buf))
+      {
+        err_pos= bucket_info;
+        err= "Out of memory";
+        goto error;
+      }
+      field->store_text(unescape_buf.ptr(), unescape_buf.length(),
+                        &my_charset_bin);
       value_buf.alloc(field->pack_length());
       uint bytes= field->get_key_image((uchar*)value_buf.ptr(), len_to_copy,
                                        Field::itRAW);
