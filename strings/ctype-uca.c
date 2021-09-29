@@ -35,6 +35,12 @@
 #include "strings_def.h"
 #include <m_ctype.h>
 
+typedef struct
+{
+  int weight;
+  uint nchars;
+} weight_and_nchars_t;
+
 #define  MY_CS_COMMON_UCA_FLAGS (MY_CS_COMPILED|MY_CS_STRNXFRM|MY_CS_UNICODE|MY_CS_NON1TO1)
 
 #define MY_UCA_CNT_FLAG_SIZE 4096
@@ -31450,6 +31456,21 @@ my_wmemcmp(my_wc_t *a, my_wc_t *b, size_t len)
 }
 
 
+/*
+  Return the number of characters in a contraction.
+*/
+static inline uint my_contraction_char_length(const MY_CONTRACTION *cnt)
+{
+  uint i;
+  for (i= 2; i < array_elements(cnt->ch); i++)
+  {
+    if (cnt->ch[i] == 0)
+      return i;
+  }
+  return array_elements(cnt->ch);
+}
+
+
 /**
   Check if a string is a contraction,
   and return its weight array on success.
@@ -31487,8 +31508,9 @@ my_uca_contraction_find(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
   a contraction part. Then try to find real contraction among the
   candidates, starting from the longest.
 
-  @param scanner  Pointer to UCA scanner
-  @param[OUT] *wc Where to store the scanned string
+  @param scanner         Pointer to UCA scanner
+  @param[OUT] *wc        Where to store the scanned string
+  @param max_char_length The longest contraction character length allowed
 
   @return         Weight array
   @retval         NULL - no contraction found
@@ -31496,7 +31518,8 @@ my_uca_contraction_find(const MY_CONTRACTIONS *list, my_wc_t *wc, size_t len)
 */
 
 static const MY_CONTRACTION *
-my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
+my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc,
+                                size_t max_char_length)
 {
   size_t clen= 1;
   int flag;
@@ -31505,7 +31528,7 @@ my_uca_scanner_contraction_find(my_uca_scanner *scanner, my_wc_t *wc)
 
   /* Scan all contraction candidates */
   for (s= scanner->sbeg, flag= MY_UCA_CNT_MID1;
-       clen < MY_UCA_MAX_CONTRACTION;
+       clen < max_char_length;
        flag<<= 1)
   {
     int mblen;
@@ -31582,11 +31605,14 @@ my_uca_previous_context_find(my_uca_scanner *scanner,
                    If wc[0] and the previous character make a previous context
                    pair, then wc[1] is set to the previous character.
 
+  @param max_char_length - the longest contraction character length allowed.
+
   @retval          NULL if could not find any contextual weights for wc[0]
   @retval          non null pointer - the address of MY_CONTRACTION found
 */
 static inline const MY_CONTRACTION *
-my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t *wc)
+my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t *wc,
+                           size_t max_char_length)
 {
   const MY_CONTRACTION *cnt;
   DBUG_ASSERT(scanner->level->contractions.nitems);
@@ -31614,7 +31640,7 @@ my_uca_context_weight_find(my_uca_scanner *scanner, my_wc_t *wc)
                                           wc[0]))
   {
     /* Check if w[0] starts a contraction */
-    if ((cnt= my_uca_scanner_contraction_find(scanner, wc)))
+    if ((cnt= my_uca_scanner_contraction_find(scanner, wc, max_char_length)))
       return cnt;
   }
   return NULL;

@@ -6362,6 +6362,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_ci=
   NULL,                 /* init */
   my_strnncoll_gb2312_chinese_ci,
   my_strnncollsp_gb2312_chinese_ci,
+  my_strnncollsp_nchars_gb2312_chinese_ci,
   my_strnxfrm_mb,       /* strnxfrm   */
   my_strnxfrmlen_simple,
   my_like_range_mb,     /* like_range */
@@ -6378,6 +6379,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_bin=
   NULL,	                /* init */
   my_strnncoll_gb2312_bin,
   my_strnncollsp_gb2312_bin,
+  my_strnncollsp_nchars_gb2312_bin,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -6394,6 +6396,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_chinese_nopad_ci=
   NULL,                 /* init */
   my_strnncoll_gb2312_chinese_ci,
   my_strnncollsp_gb2312_chinese_nopad_ci,
+  my_strnncollsp_nchars_gb2312_chinese_nopad_ci,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -6410,6 +6413,7 @@ static MY_COLLATION_HANDLER my_collation_handler_gb2312_nopad_bin=
   NULL,	                /* init */
   my_strnncoll_gb2312_bin,
   my_strnncollsp_gb2312_nopad_bin,
+  my_strnncollsp_nchars_gb2312_nopad_bin,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,

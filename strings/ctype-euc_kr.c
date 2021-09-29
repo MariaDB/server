@@ -9957,6 +9957,7 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_ci=
   NULL,                 /* init */
   my_strnncoll_euckr_korean_ci,
   my_strnncollsp_euckr_korean_ci,
+  my_strnncollsp_nchars_euckr_korean_ci,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -9973,6 +9974,7 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_bin=
   NULL,                 /* init */
   my_strnncoll_euckr_bin,
   my_strnncollsp_euckr_bin,
+  my_strnncollsp_nchars_euckr_bin,
   my_strnxfrm_mb,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -9989,6 +9991,7 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_korean_nopad_ci=
   NULL,                 /* init */
   my_strnncoll_euckr_korean_ci,
   my_strnncollsp_euckr_korean_nopad_ci,
+  my_strnncollsp_nchars_euckr_korean_nopad_ci,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,
@@ -10005,6 +10008,7 @@ static MY_COLLATION_HANDLER my_collation_handler_euckr_nopad_bin=
   NULL,                 /* init */
   my_strnncoll_euckr_bin,
   my_strnncollsp_euckr_nopad_bin,
+  my_strnncollsp_nchars_euckr_nopad_bin,
   my_strnxfrm_mb_nopad,
   my_strnxfrmlen_simple,
   my_like_range_mb,

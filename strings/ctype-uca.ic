@@ -35,108 +35,9 @@
 #error MY_UCA_COLL_INIT is not defined
 #endif
 
-
-static inline int
-MY_FUNCTION_NAME(scanner_next)(my_uca_scanner *scanner)
-{
-  /*
-    Check if the weights for the previous character have been
-    already fully scanned. If yes, then get the next character and
-    initialize wbeg and wlength to its weight string.
-  */
-
-  if (scanner->wbeg[0])      /* More weights left from the previous step: */
-    return *scanner->wbeg++; /* return the next weight from expansion     */
-
-  do
-  {
-    const uint16 *wpage;
-    my_wc_t wc[MY_UCA_MAX_CONTRACTION];
-    int mblen;
-
-    /* Get next character */
-#if MY_UCA_ASCII_OPTIMIZE
-    /* Get next ASCII character */
-    if (scanner->sbeg < scanner->send && scanner->sbeg[0] < 0x80)
-    {
-      wc[0]= scanner->sbeg[0];
-      scanner->sbeg+= 1;
-
-#if MY_UCA_COMPILE_CONTRACTIONS
-      if (my_uca_needs_context_handling(scanner->level, wc[0]))
-      {
-        const MY_CONTRACTION *cnt= my_uca_context_weight_find(scanner, wc);
-        if (cnt)
-          return cnt->weight[0];
-      }
-#endif
-
-      scanner->page= 0;
-      scanner->code= (int) wc[0];
-      scanner->wbeg= scanner->level->weights[0] + scanner->code * scanner->level->lengths[0];
-      if (scanner->wbeg[0])
-        return *scanner->wbeg++;
-      continue;
-    }
-    else
-#endif
-    /* Get next MB character */
-    if (((mblen= MY_MB_WC(scanner, wc, scanner->sbeg,
-                                       scanner->send)) <= 0))
-    {
-      if (scanner->sbeg >= scanner->send)
-        return -1; /* No more bytes, end of line reached */
-      /*
-        There are some more bytes left. Non-positive mb_len means that
-        we got an incomplete or a bad byte sequence. Consume mbminlen bytes.
-      */
-      if ((scanner->sbeg+= scanner->cs->mbminlen) > scanner->send)
-      {
-        /* For safety purposes don't go beyond the string range. */
-        scanner->sbeg= scanner->send;
-      }
-      /*
-        Treat every complete or incomplete mbminlen unit as a weight which is
-        greater than weight for any possible normal character.
-        0xFFFF is greater than any possible weight in the UCA weight table.
-      */
-      return 0xFFFF;
-    }
-
-    scanner->sbeg+= mblen;
-    if (wc[0] > scanner->level->maxchar)
-    {
-      /* Return 0xFFFD as weight for all characters outside BMP */
-      scanner->wbeg= nochar;
-      return 0xFFFD;
-    }
-
-#if MY_UCA_COMPILE_CONTRACTIONS
-    if (my_uca_needs_context_handling(scanner->level, wc[0]))
-    {
-      const MY_CONTRACTION *cnt= my_uca_context_weight_find(scanner, wc);
-      if (cnt)
-        return cnt->weight[0];
-    }
-#endif
-
-    /* Process single character */
-    scanner->page= wc[0] >> 8;
-    scanner->code= wc[0] & 0xFF;
-
-    /* If weight page for w[0] does not exist, then calculate algoritmically */
-    if (!(wpage= scanner->level->weights[scanner->page]))
-      return my_uca_scanner_next_implicit(scanner);
-
-    /* Calculate pointer to w[0]'s weight, using page and offset */
-    scanner->wbeg= wpage +
-                   scanner->code * scanner->level->lengths[scanner->page];
-  } while (!scanner->wbeg[0]); /* Skip ignorable characters */
-
-  return *scanner->wbeg++;
-}
-
-
+#include "ctype-uca-scanner_next.inl"
+#define SCANNER_NEXT_NCHARS
+#include "ctype-uca-scanner_next.inl"
 
 /*
   Compares two strings according to the collation
@@ -408,6 +309,173 @@ MY_FUNCTION_NAME(strnncollsp_nopad_multilevel)(CHARSET_INFO *cs,
   return 0;
 }
 
+
+/*
+  Scan the next weight and perform space padding
+  or trimming according to "nchars".
+*/
+static inline weight_and_nchars_t
+MY_FUNCTION_NAME(scanner_next_pad_trim)(my_uca_scanner *scanner,
+                                        size_t nchars,
+                                        uint *generated)
+{
+  weight_and_nchars_t res;
+  if (nchars > 0 ||
+      scanner->wbeg[0] /* Some weights from a previous expansion left */)
+  {
+    if ((res= MY_FUNCTION_NAME(scanner_next_with_nchars)(scanner,
+                                                         nchars)).weight < 0)
+    {
+      /*
+        We reached the end of the string, but the caller wants more weights.
+        Perform space padding.
+      */
+      res.weight= my_space_weight(scanner->level);
+      res.nchars= 1;
+      (*generated)++;
+    }
+    else if (res.nchars > nchars)
+    {
+      /*
+        We scanned the next collation element, but it does not fit into
+        the "nchars" limit. This is possible in case of:
+        - A contraction, e.g. Czech 'ch' with nchars=1
+        - A sequence of ignorable characters followed by non-ignorable ones,
+          e.g. CONCAT(x'00','a') with nchars=1.
+        Perform trimming.
+      */
+      res.weight= scanner->cs->state & MY_CS_NOPAD ?
+                  0 : my_space_weight(scanner->level);
+      res.nchars= (uint) nchars;
+      (*generated)++;
+    }
+  }
+  else
+  {
+    /* The caller wants nchars==0. Perform trimming. */
+    res.weight= scanner->cs->state & MY_CS_NOPAD ?
+                0 : my_space_weight(scanner->level);
+    res.nchars= 0;
+    (*generated)++;
+  }
+  return res;
+}
+
+
+static int
+MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(CHARSET_INFO *cs,
+                                              const MY_UCA_WEIGHT_LEVEL *level,
+                                              const uchar *s, size_t slen,
+                                              const uchar *t, size_t tlen,
+                                              size_t nchars)
+{
+  my_uca_scanner sscanner;
+  my_uca_scanner tscanner;
+  size_t s_nchars_left= nchars;
+  size_t t_nchars_left= nchars;
+
+  my_uca_scanner_init_any(&sscanner, cs, level, s, slen);
+  my_uca_scanner_init_any(&tscanner, cs, level, t, tlen);
+
+  for ( ; ; )
+  {
+    weight_and_nchars_t s_res;
+    weight_and_nchars_t t_res;
+    uint generated= 0;
+    int diff;
+
+    s_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&sscanner, s_nchars_left,
+                                                   &generated);
+    t_res= MY_FUNCTION_NAME(scanner_next_pad_trim)(&tscanner, t_nchars_left,
+                                                   &generated);
+    if ((diff= (s_res.weight - t_res.weight)))
+      return diff;
+
+    if (generated == 2)
+    {
+      if (cs->state & MY_CS_NOPAD)
+      {
+        /*
+          Both values are auto-generated. There's no real data any more.
+          We need to handle the remaining virtual trailing spaces.
+          The two strings still have s_nchars_left and t_nchars_left imaginary
+          trailing spaces at the end. If s_nchars_left != t_nchars_left,
+          the strings will be not equal in case of a NOPAD collation.
+
+          Example:
+          "B" is German "U+00DF LATIN SMALL LETTER SHARP S"
+          When we have these values in a
+          CHAR(3) CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_nopad_ci
+          column:
+          'B  '        (one character, two trailing spaces)
+          'ss '        (two characters, one trailing space)
+          The 'B  ' is greater than the 'ss '.
+          They are compared in the following steps:
+            1. 'B' == 'ss'
+            2. ' ' == ' '
+            3. ' ' >   ''
+
+          We need to emulate the same behavior in this function even if
+          it's called with strings 'B' and 'ss' (with space trimmed).
+          The side which has more remaining virtual spaces at the end
+          is greater.
+        */
+        if (s_nchars_left < t_nchars_left)
+          return -1;
+        if (s_nchars_left > t_nchars_left)
+          return +1;
+      }
+      return 0;
+    }
+
+    DBUG_ASSERT(s_nchars_left >= s_res.nchars);
+    DBUG_ASSERT(t_nchars_left >= t_res.nchars);
+    s_nchars_left-= s_res.nchars;
+    t_nchars_left-= t_res.nchars;
+  }
+
+  return 0;
+}
+
+
+/*
+  One-level collations.
+*/
+static int
+MY_FUNCTION_NAME(strnncollsp_nchars)(CHARSET_INFO *cs,
+                                     const uchar *s, size_t slen,
+                                     const uchar *t, size_t tlen,
+                                     size_t nchars)
+{
+  return MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(cs, &cs->uca->level[0],
+                                                       s, slen, t, tlen,
+                                                       nchars);
+}
+
+
+/*
+  Multi-level collations.
+*/
+static int
+MY_FUNCTION_NAME(strnncollsp_nchars_multilevel)(CHARSET_INFO *cs,
+                                                const uchar *s, size_t slen,
+                                                const uchar *t, size_t tlen,
+                                                size_t nchars)
+{
+  uint num_level= cs->levels_for_order;
+  uint i;
+  for (i= 0; i != num_level; i++)
+  {
+    int ret= MY_FUNCTION_NAME(strnncollsp_nchars_onelevel)(cs,
+                                                           &cs->uca->level[i],
+                                                           s, slen,
+                                                           t, tlen,
+                                                           nchars);
+    if (ret)
+       return ret;
+  }
+  return 0;
+}
 
 
 /*
@@ -752,6 +820,7 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler)=
   MY_UCA_COLL_INIT,
   MY_FUNCTION_NAME(strnncoll),
   MY_FUNCTION_NAME(strnncollsp),
+  MY_FUNCTION_NAME(strnncollsp_nchars),
   MY_FUNCTION_NAME(strnxfrm),
   my_strnxfrmlen_any_uca,
   MY_LIKE_RANGE,
@@ -773,6 +842,7 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad)=
   MY_UCA_COLL_INIT,
   MY_FUNCTION_NAME(strnncoll),
   MY_FUNCTION_NAME(strnncollsp_nopad),
+  MY_FUNCTION_NAME(strnncollsp_nchars),
   MY_FUNCTION_NAME(strnxfrm_nopad),
   my_strnxfrmlen_any_uca,
   MY_LIKE_RANGE,    /* my_like_range_mb or my_like_range_generic */
@@ -792,6 +862,7 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_multilevel)=
   MY_UCA_COLL_INIT,
   MY_FUNCTION_NAME(strnncoll_multilevel),
   MY_FUNCTION_NAME(strnncollsp_multilevel),
+  MY_FUNCTION_NAME(strnncollsp_nchars_multilevel),
   MY_FUNCTION_NAME(strnxfrm_multilevel),
   my_strnxfrmlen_any_uca_multilevel,
   MY_LIKE_RANGE,
@@ -811,6 +882,7 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad_multilevel)=
   MY_UCA_COLL_INIT,
   MY_FUNCTION_NAME(strnncoll_multilevel),
   MY_FUNCTION_NAME(strnncollsp_nopad_multilevel),
+  MY_FUNCTION_NAME(strnncollsp_nchars_multilevel),
   MY_FUNCTION_NAME(strnxfrm_multilevel),
   my_strnxfrmlen_any_uca_multilevel,
   MY_LIKE_RANGE,

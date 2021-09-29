@@ -287,6 +287,56 @@ MY_FUNCTION_NAME(strnncollsp)(CHARSET_INFO *cs __attribute__((unused)),
 }
 #endif
 
+
+/**
+  Compare two strings according to the collation,
+  with trailing space padding or trimming, according to "nchars".
+
+  @param cs          - the character set and collation
+  @param a           - the left string
+  @param a_length    - the length of the left string
+  @param b           - the right string
+  @param b_length    - the length of the right string
+  @param nchars      - compare this amount of characters only
+  @return            - the comparison result
+*/
+static int
+MY_FUNCTION_NAME(strnncollsp_nchars)(CHARSET_INFO *cs __attribute__((unused)),
+                                     const uchar *a, size_t a_length,
+                                     const uchar *b, size_t b_length,
+                                     size_t nchars)
+{
+  const uchar *a_end= a + a_length;
+  const uchar *b_end= b + b_length;
+  for ( ; nchars ; nchars--)
+  {
+    int a_weight, b_weight, res;
+    uint a_wlen= MY_FUNCTION_NAME(scan_weight)(&a_weight, a, a_end);
+    uint b_wlen= MY_FUNCTION_NAME(scan_weight)(&b_weight, b, b_end);
+
+    if ((res= (a_weight - b_weight)))
+    {
+      /* Got two different weights. See comments in strnncollsp above. */
+      return res;
+    }
+    if (!a_wlen && !b_wlen)
+    {
+      /* Got two auto-generated trailing spaces. */
+      DBUG_ASSERT(a == a_end);
+      DBUG_ASSERT(b == b_end);
+      return 0;
+    }
+    /*
+      At least one of the strings has not ended yet, continue comparison.
+    */
+    DBUG_ASSERT(a < a_end || b < b_end);
+    a+= a_wlen;
+    b+= b_wlen;
+  }
+  return 0;
+}
+
+
 #endif /* DEFINE_STRNNCOLL */
 
 

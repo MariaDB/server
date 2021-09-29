@@ -1210,3 +1210,32 @@ outp:
   copy_status->m_source_end_pos= from;
   return to - to_start;
 }
+
+
+int my_strnncollsp_nchars_generic(CHARSET_INFO *cs,
+                                  const uchar *str1, size_t len1,
+                                  const uchar *str2, size_t len2,
+                                  size_t nchars)
+{
+  int error;
+  len1= my_well_formed_length(cs, (const char *) str1,
+                                  (const char *) str1 + len1,
+                                  nchars, &error);
+  len2= my_well_formed_length(cs, (const char *) str2,
+                                  (const char *) str2 + len2,
+                                  nchars, &error);
+  DBUG_ASSERT((cs->state & MY_CS_NOPAD) == 0);
+  return cs->coll->strnncollsp(cs, str1, len1, str2, len2);
+}
+
+
+int my_strnncollsp_nchars_generic_8bit(CHARSET_INFO *cs,
+                                       const uchar *str1, size_t len1,
+                                       const uchar *str2, size_t len2,
+                                       size_t nchars)
+{
+  set_if_smaller(len1, nchars);
+  set_if_smaller(len2, nchars);
+  DBUG_ASSERT((cs->state & MY_CS_NOPAD) == 0);
+  return cs->coll->strnncollsp(cs, str1, len1, str2, len2);
+}
