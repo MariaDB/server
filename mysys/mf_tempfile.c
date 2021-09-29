@@ -125,8 +125,8 @@ File create_temp_file(char *to, const char *dir, const char *prefix,
                       S_IRUSR | S_IWUSR | S_IRGRP | S_IWGRP)) >= 0)
       {
         my_snprintf(to, FN_REFLEN, "%s/#sql/fd=%d", dir, file);
-        file=my_register_filename(file, to, FILE_BY_O_TMPFILE,
-                                  EE_CANTCREATEFILE, MyFlags);
+        file= my_register_filename(file, to, FILE_BY_O_TMPFILE,
+                                   EE_CANTCREATEFILE, MyFlags);
       }
       else if (errno == EOPNOTSUPP || errno == EINVAL)
       {
