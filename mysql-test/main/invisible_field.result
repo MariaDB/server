@@ -538,7 +538,7 @@ a	b
 insert into t2 values(1);
 select a,b from t2;
 a	b
-NULL	1
+12	1
 drop table t1,t2;
 create table t1 (a int invisible, b int, c int);
 create table t2 (a int, b int, d int);
@@ -622,4 +622,19 @@ drop table t1;
 #
 create table t1 (a int, b int invisible);
 insert delayed into t1 values (1);
+drop table t1;
+#
+# MDEV-25891 Computed default for INVISIBLE column is ignored in INSERT
+#
+create table t1(
+a int,
+x int default (a),
+y int default (a) invisible,
+z int default (33) invisible);
+insert into t1 values (1, default);
+insert into t1 (a) values (2);
+select a, x, y, z from t1;
+a	x	y	z
+1	1	1	33
+2	2	2	33
 drop table t1;
