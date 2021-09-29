@@ -11208,12 +11208,17 @@ int Rows_log_event::do_apply_event(rpl_group_info *rgi)
     }
 #endif /* WITH_WSREP && HAVE_QUERY_CACHE */
 
-  if (get_flags(STMT_END_F) && (error= rows_event_stmt_cleanup(rgi, thd)))
-    slave_rows_error_report(ERROR_LEVEL,
-                            thd->is_error() ? 0 : error,
-                            rgi, thd, table,
-                            get_type_str(),
-                            RPL_LOG_NAME, (ulong) log_pos);
+  if (get_flags(STMT_END_F))
+  {
+    if ((error= rows_event_stmt_cleanup(rgi, thd)))
+      slave_rows_error_report(ERROR_LEVEL,
+                              thd->is_error() ? 0 : error,
+                              rgi, thd, table,
+                              get_type_str(),
+                              RPL_LOG_NAME, (ulong) log_pos);
+    if (thd->slave_thread)
+      free_root(thd->mem_root, MYF(MY_KEEP_PREALLOC));
+  }
   DBUG_RETURN(error);
 
 err:
