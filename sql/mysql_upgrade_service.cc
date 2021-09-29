@@ -271,7 +271,7 @@ void stop_mysqld_service()
     }
 
     /*
-      Remeber initial state of the service, we will restore it on
+      Remember initial state of the service, we will restore it on
       exit.
     */
     if(initial_service_state == UINT_MAX)
@@ -492,8 +492,10 @@ int main(int argc, char **argv)
   CopyFile(service_properties.inifile, my_ini_bck, FALSE);
   upgrade_config_file(service_properties.inifile);
 
-  log("Phase %d/%d: Ensuring innodb slow shutdown%s", ++phase, max_phases,
-    old_mysqld_exe_exists?",this can take some time":"(skipped)");
+  bool do_start_stop_server = old_mysqld_exe_exists && initial_service_state != SERVICE_RUNNING;
+
+  log("Phase %d/%d: Start and stop server in the old version, to avoid crash recovery %s", ++phase, max_phases,
+    do_start_stop_server?",this can take some time":"(skipped)");
 
   char socket_param[FN_REFLEN];
   sprintf_s(socket_param, "--socket=mysql_upgrade_service_%u",
@@ -501,11 +503,11 @@ int main(int argc, char **argv)
 
   DWORD start_duration_ms = 0;
 
-  if (old_mysqld_exe_exists)
+  if (do_start_stop_server)
   {
-    /* Start/stop server with  --loose-innodb-fast-shutdown=0 */
+    /* Start/stop server with  --loose-innodb-fast-shutdown=1 */
     mysqld_process = (HANDLE)run_tool(P_NOWAIT, service_properties.mysqld_exe,
-      defaults_file_param, "--loose-innodb-fast-shutdown=0", "--skip-networking",
+      defaults_file_param, "--loose-innodb-fast-shutdown=1", "--skip-networking",
       "--enable-named-pipe", socket_param, "--skip-slave-start", NULL);
 
     if (mysqld_process == INVALID_HANDLE_VALUE)

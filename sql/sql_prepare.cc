@@ -3046,6 +3046,7 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
   }
   for (; sl; sl= sl->next_select_in_list())
   {
+    sl->parent_lex->in_sum_func= NULL;
     if (sl->changed_elements & TOUCHED_SEL_COND)
     {
       /* remove option which was put by mysql_explain_union() */
@@ -3180,7 +3181,6 @@ void reinit_stmt_before_use(THD *thd, LEX *lex)
     lex->result->set_thd(thd);
   }
   lex->allow_sum_func.clear_all();
-  lex->in_sum_func= NULL;
   DBUG_VOID_RETURN;
 }
 
