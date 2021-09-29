@@ -53,7 +53,7 @@ let $trx_after= `select substr('$trx_after',9)`;
 
 drop table t1, t2;
 
-if ($trx_before != $trx_after)
+if ($trx_before > $trx_after)
 {
-  echo Transaction sequence mismatch: $trx_before != $trx_after;
+  echo Transaction sequence mismatch: $trx_before > $trx_after;
 }
