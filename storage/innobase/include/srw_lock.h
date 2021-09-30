@@ -22,17 +22,24 @@ this program; if not, write to the Free Software Foundation, Inc.,
 
 #ifdef SUX_LOCK_GENERIC
 /** An exclusive-only variant of srw_lock */
-class srw_mutex final
+template<bool spinloop>
+class srw_mutex_impl final
 {
   pthread_mutex_t lock;
+  void wr_wait();
 public:
   void init() { pthread_mutex_init(&lock, nullptr); }
   void destroy() { pthread_mutex_destroy(&lock); }
-  void wr_lock() { pthread_mutex_lock(&lock); }
+  inline void wr_lock();
   void wr_unlock() { pthread_mutex_unlock(&lock); }
   bool wr_lock_try() { return !pthread_mutex_trylock(&lock); }
 };
-typedef srw_mutex srw_spin_mutex;
+
+template<> void srw_mutex_impl<true>::wr_wait();
+template<>
+inline void srw_mutex_impl<false>::wr_lock() { pthread_mutex_lock(&lock); }
+template<>
+inline void srw_mutex_impl<true>::wr_lock() { if (!wr_lock_try()) wr_wait(); }
 #else
 /** Futex-based mutex */
 template<bool spinloop>
@@ -81,15 +88,12 @@ public:
     }
   }
 };
+#endif
 
 typedef srw_mutex_impl<true> srw_spin_mutex;
 typedef srw_mutex_impl<false> srw_mutex;
-#endif
 
-# if defined _WIN32 || defined SUX_LOCK_GENERIC
-# else
-template<bool spinlock> class srw_lock_impl;
-#endif
+template<bool spinloop> class srw_lock_impl;
 
 /** Slim shared-update-exclusive lock with no recursion */
 template<bool spinloop>
@@ -147,7 +151,7 @@ public:
   void wr_unlock();
 #else
   /** mutex for synchronization; held by U or X lock holders */
-  srw_mutex writer;
+  srw_mutex_impl<spinloop> writer;
   /** S or U holders, and WRITER flag for X holder or waiter */
   std::atomic<uint32_t> readers;
   /** indicates an X request; readers=WRITER indicates granted X lock */
@@ -265,45 +269,54 @@ public:
 #endif
 };
 
-#ifdef _WIN32
+#if defined _WIN32 || defined SUX_LOCK_GENERIC
 /** Slim read-write lock */
-class srw_lock_low
+template<bool spinloop>
+class srw_lock_
 {
 # ifdef UNIV_PFS_RWLOCK
-  friend class srw_lock_impl;
+  friend srw_lock_impl<spinloop>;
 # endif
+# ifdef _WIN32
   SRWLOCK lock;
+# else
+  rw_lock_t lock;
+# endif
+
+  void rd_wait();
+  void wr_wait();
 public:
-  void init() {}
-  void destroy() {}
-  void rd_lock() { AcquireSRWLockShared(&lock); }
-  bool rd_lock_try() { return TryAcquireSRWLockShared(&lock); }
-  void rd_unlock() { ReleaseSRWLockShared(&lock); }
-  void wr_lock() { AcquireSRWLockExclusive(&lock); }
-  bool wr_lock_try() { return TryAcquireSRWLockExclusive(&lock); }
-  void wr_unlock() { ReleaseSRWLockExclusive(&lock); }
+  void init() { IF_WIN(,my_rwlock_init(&lock, nullptr)); }
+  void destroy() { IF_WIN(,rwlock_destroy(&lock)); }
+  inline void rd_lock();
+  inline void wr_lock();
+  bool rd_lock_try()
+  { return IF_WIN(TryAcquireSRWLockShared(&lock), !rw_tryrdlock(&lock)); }
+  void rd_unlock()
+  { IF_WIN(ReleaseSRWLockShared(&lock), rw_unlock(&lock)); }
+  bool wr_lock_try()
+  { return IF_WIN(TryAcquireSRWLockExclusive(&lock), !rw_trywrlock(&lock)); }
+  void wr_unlock()
+  { IF_WIN(ReleaseSRWLockExclusive(&lock), rw_unlock(&lock)); }
 };
 
-typedef srw_lock_low srw_spin_lock_low;
-#elif defined SUX_LOCK_GENERIC
-/** Slim read-write lock */
-class srw_lock_low
-{
-# ifdef UNIV_PFS_RWLOCK
-  friend class srw_lock_impl;
-# endif
-  rw_lock_t lock;
-public:
-  void init() { my_rwlock_init(&lock, nullptr); }
-  void destroy() { rwlock_destroy(&lock); }
-  void rd_lock() { rw_rdlock(&lock); }
-  bool rd_lock_try() { return !rw_tryrdlock(&lock); }
-  void rd_unlock() { rw_unlock(&lock); }
-  void wr_lock() { rw_wrlock(&lock); }
-  bool wr_lock_try() { return !rw_trywrlock(&lock); }
-  void wr_unlock() { rw_unlock(&lock); }
-};
-typedef srw_lock_low srw_spin_lock_low;
+template<> void srw_lock_<true>::rd_wait();
+template<> void srw_lock_<true>::wr_wait();
+
+template<>
+inline void srw_lock_<false>::rd_lock()
+{ IF_WIN(AcquireSRWLockShared(&lock), rw_rdlock(&lock)); }
+template<>
+inline void srw_lock_<false>::wr_lock()
+{ IF_WIN(AcquireSRWLockExclusive(&lock), rw_wrlock(&lock)); }
+
+template<>
+inline void srw_lock_<true>::rd_lock() { if (!rd_lock_try()) rd_wait(); }
+template<>
+inline void srw_lock_<true>::wr_lock() { if (!wr_lock_try()) wr_wait(); }
+
+typedef srw_lock_<false> srw_lock_low;
+typedef srw_lock_<true> srw_spin_lock_low;
 #else
 typedef ssux_lock_impl<false> srw_lock_low;
 typedef ssux_lock_impl<true> srw_spin_lock_low;
@@ -398,17 +411,14 @@ public:
 };
 
 /** Slim reader-writer lock with PERFORMANCE_SCHEMA instrumentation */
-# if defined _WIN32 || defined SUX_LOCK_GENERIC
-# else
-template<bool spinlock>
-# endif
+template<bool spinloop>
 class srw_lock_impl
 {
   PSI_rwlock *pfs_psi;
 # if defined _WIN32 || defined SUX_LOCK_GENERIC
-  srw_lock_low lock;
+  srw_lock_<spinloop> lock;
 # else
-  ssux_lock_impl<spinlock> lock;
+  ssux_lock_impl<spinloop> lock;
 # endif
 
   ATTRIBUTE_NOINLINE void psi_rd_lock(const char *file, unsigned line);
@@ -458,12 +468,7 @@ public:
   bool wr_lock_try() { return lock.wr_lock_try(); }
 };
 
-# if defined _WIN32 || defined SUX_LOCK_GENERIC
-typedef srw_lock_impl srw_lock;
-typedef srw_lock_impl srw_spin_lock;
-# else
 typedef srw_lock_impl<false> srw_lock;
 typedef srw_lock_impl<true> srw_spin_lock;
-# endif
 
 #endif

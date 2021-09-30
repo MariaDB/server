@@ -16,6 +16,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-mb.h"
 
 #ifdef USE_MB
 
@@ -637,6 +638,46 @@ my_hash_sort_mb_bin(CHARSET_INFO *cs __attribute__((unused)),
   */
   const uchar *end= skip_trailing_space(key, len);
   my_hash_sort_mb_nopad_bin(cs, key, end - key, nr1, nr2);
+}
+
+
+static inline size_t
+my_repeat_char_native(CHARSET_INFO *cs,
+                      uchar *dst, size_t dst_size, size_t nchars,
+                      my_wc_t native_code)
+{
+  uchar *dst0= dst;
+  uchar *dstend= dst + dst_size;
+  int chlen= my_ci_native_to_mb(cs, native_code, dst, dstend);
+  if (chlen < 1 /* Not enough space */ || !nchars)
+    return 0;
+  for (dst+= chlen, nchars--;
+       dst + chlen <= dstend && nchars > 0;
+       dst+= chlen, nchars--)
+    memcpy(dst, dst0, chlen);
+  return dst - dst0;
+}
+
+
+size_t my_min_str_mb_simple(CHARSET_INFO *cs,
+                            uchar *dst, size_t dst_size, size_t nchars)
+{
+  return my_repeat_char_native(cs, dst, dst_size, nchars, cs->min_sort_char);
+}
+
+
+size_t my_min_str_mb_simple_nopad(CHARSET_INFO *cs,
+                                  uchar *dst, size_t dst_size, size_t nchars)
+{
+  /* For NOPAD collations, the empty string is the smallest possible */
+  return 0;
+}
+
+
+size_t my_max_str_mb_simple(CHARSET_INFO *cs,
+                            uchar *dst, size_t dst_size, size_t nchars)
+{
+  return my_repeat_char_native(cs, dst, dst_size, nchars, cs->max_sort_char);
 }
 
 

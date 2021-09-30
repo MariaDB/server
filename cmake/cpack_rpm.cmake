@@ -1,5 +1,7 @@
 IF(RPM)
 
+MESSAGE(STATUS "CPackRPM building with RPM configuration: ${RPM}")
+
 SET(CPACK_GENERATOR "RPM")
 SET(CPACK_RPM_PACKAGE_DEBUG 1)
 SET(CPACK_PACKAGING_INSTALL_PREFIX ${CMAKE_INSTALL_PREFIX})
@@ -274,7 +276,7 @@ FILE(GLOB compat101 RELATIVE ${CMAKE_SOURCE_DIR}
     "${CMAKE_SOURCE_DIR}/../MariaDB-shared-10.1.*.rpm")
 IF(compat53 AND compat101)
   FOREACH(compat_rpm "${compat53}" "${compat101}")
-    MESSAGE("Using ${compat_rpm} to build MariaDB-compat")
+    MESSAGE(STATUS "Using ${compat_rpm} to build MariaDB-compat")
     INSTALL(CODE "EXECUTE_PROCESS(
                    COMMAND rpm2cpio ${CMAKE_SOURCE_DIR}/${compat_rpm}
                    COMMAND cpio --extract --make-directories */libmysqlclient*.so.* -

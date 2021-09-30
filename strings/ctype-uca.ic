@@ -15,6 +15,7 @@
   Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA 02110-1301 USA
 */
 
+#include "ctype-mb.h"
 
 #ifndef MY_FUNCTION_NAME
 #error MY_FUNCTION_NAME is not defined
@@ -759,7 +760,9 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler)=
   NULL,                                /* strcasecmp() */
   my_instr_mb,
   MY_FUNCTION_NAME(hash_sort),
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -780,7 +783,9 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad)=
   NULL,                                /* strcasecmp() */
   my_instr_mb,
   MY_FUNCTION_NAME(hash_sort_nopad),
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 
@@ -799,7 +804,9 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_multilevel)=
   NULL,                                /* strcasecmp() */
   my_instr_mb,
   MY_FUNCTION_NAME(hash_sort),
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple,
+  my_max_str_mb_simple
 };
 
 
@@ -818,7 +825,9 @@ MY_COLLATION_HANDLER MY_FUNCTION_NAME(collation_handler_nopad_multilevel)=
   NULL,                                /* strcasecmp() */
   my_instr_mb,
   MY_FUNCTION_NAME(hash_sort),
-  my_propagate_complex
+  my_propagate_complex,
+  my_min_str_mb_simple_nopad,
+  my_max_str_mb_simple
 };
 
 

@@ -16,6 +16,7 @@
 
 #include "strings_def.h"
 #include <m_ctype.h>
+#include "ctype-simple.h"
 #include "my_sys.h"  /* Needed for MY_ERRNO_ERANGE */
 #include <errno.h>
 
@@ -888,6 +889,35 @@ size_t my_longlong10_to_str_8bit(CHARSET_INFO *cs __attribute__((unused)),
 cnv:
   memcpy(dst, p, len);
   return len+sign;
+}
+
+
+size_t my_min_str_8bit_simple(CHARSET_INFO *cs,
+                              uchar *dst, size_t dst_size,
+                              size_t nchars)
+{
+  set_if_smaller(dst_size, nchars);
+  memset(dst, cs->min_sort_char, dst_size);
+  return dst_size;
+}
+
+
+size_t my_min_str_8bit_simple_nopad(CHARSET_INFO *cs,
+                                    uchar *dst, size_t dst_size,
+                                    size_t nchars)
+{
+  /* For NOPAD collations, the empty string is always the smallest */
+  return 0;
+}
+
+
+size_t my_max_str_8bit_simple(CHARSET_INFO *cs,
+                              uchar *dst, size_t dst_size,
+                              size_t nchars)
+{
+  set_if_smaller(dst_size, nchars);
+  memset(dst, cs->max_sort_char, dst_size);
+  return dst_size;
 }
 
 
@@ -2104,7 +2134,9 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_ci_handler =
     my_strcasecmp_8bit,
     my_instr_simple,
     my_hash_sort_simple,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_8bit_simple,
+    my_max_str_8bit_simple
 };
 
 
@@ -2120,5 +2152,7 @@ MY_COLLATION_HANDLER my_collation_8bit_simple_nopad_ci_handler =
     my_strcasecmp_8bit,
     my_instr_simple,
     my_hash_sort_simple_nopad,
-    my_propagate_simple
+    my_propagate_simple,
+    my_min_str_8bit_simple_nopad,
+    my_max_str_8bit_simple
 };

@@ -36,6 +36,20 @@ static inline void srw_pause(unsigned delay)
 }
 
 #ifdef SUX_LOCK_GENERIC
+template<> void srw_mutex_impl<true>::wr_wait()
+{
+  const unsigned delay= srw_pause_delay();
+
+  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+  {
+    srw_pause(delay);
+    if (wr_lock_try())
+      return;
+  }
+
+  pthread_mutex_lock(&lock);
+}
+
 template<bool spinloop>
 void ssux_lock_impl<spinloop>::init()
 {
@@ -247,7 +261,6 @@ inline void ssux_lock_impl<spinloop>::wait(uint32_t lk)
 { WaitOnAddress(&readers, &lk, 4, INFINITE); }
 template<bool spinloop>
 void ssux_lock_impl<spinloop>::wake() { WakeByAddressSingle(&readers); }
-
 # else
 #  ifdef __linux__
 #   include <linux/futex.h>
@@ -282,6 +295,35 @@ template void ssux_lock_impl<false>::wake();
 template void srw_mutex_impl<true>::wake();
 template void ssux_lock_impl<true>::wake();
 
+/*
+
+Unfortunately, compilers targeting IA-32 or AMD64 currently cannot
+translate the following single-bit operations into Intel 80386 instructions:
+
+     m.fetch_or(1<<b) & 1<<b       LOCK BTS b, m
+     m.fetch_and(~(1<<b)) & 1<<b   LOCK BTR b, m
+     m.fetch_xor(1<<b) & 1<<b      LOCK BTC b, m
+
+Hence, we will manually translate fetch_or() using GCC-style inline
+assembler code or a Microsoft intrinsic function.
+
+*/
+#if defined __GNUC__ && (defined __i386__ || defined __x86_64__)
+# define IF_FETCH_OR_GOTO(mem, bit, label)				\
+  __asm__ goto("lock btsl $" #bit ", %0\n\t"				\
+               "jc %l1" : : "m" (mem) : "cc", "memory" : label);
+# define IF_NOT_FETCH_OR_GOTO(mem, bit, label)				\
+  __asm__ goto("lock btsl $" #bit ", %0\n\t"				\
+               "jnc %l1" : : "m" (mem) : "cc", "memory" : label);
+#elif defined _MSC_VER && (defined _M_IX86 || defined _M_IX64)
+# define IF_FETCH_OR_GOTO(mem, bit, label)				\
+  if (_interlockedbittestandset(reinterpret_cast<volatile long*>(&mem), bit)) \
+    goto label;
+# define IF_NOT_FETCH_OR_GOTO(mem, bit, label)				\
+  if (!_interlockedbittestandset(reinterpret_cast<volatile long*>(&mem), bit))\
+    goto label;
+#endif
+
 template<>
 void srw_mutex_impl<true>::wait_and_lock()
 {
@@ -296,55 +338,75 @@ void srw_mutex_impl<true>::wait_and_lock()
       lk= lock.load(std::memory_order_relaxed);
     else
     {
-      lk= lock.fetch_or(HOLDER, std::memory_order_relaxed);
-      if (!(lk & HOLDER))
+#ifdef IF_NOT_FETCH_OR_GOTO
+      static_assert(HOLDER == (1U << 31), "compatibility");
+      IF_NOT_FETCH_OR_GOTO(*this, 31, acquired);
+      lk|= HOLDER;
+#else
+      if (!((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) & HOLDER))
         goto acquired;
+#endif
+      srw_pause(delay);
     }
-    srw_pause(delay);
     if (!--spin)
       break;
   }
 
-  for (;; wait(lk))
+  for (;;)
   {
+    DBUG_ASSERT(~HOLDER & lk);
     if (lk & HOLDER)
     {
+      wait(lk);
+#ifdef IF_FETCH_OR_GOTO
+reload:
+#endif
       lk= lock.load(std::memory_order_relaxed);
-      if (lk & HOLDER)
-        continue;
     }
-    lk= lock.fetch_or(HOLDER, std::memory_order_relaxed);
-    if (!(lk & HOLDER))
+    else
     {
-acquired:
+#ifdef IF_FETCH_OR_GOTO
+      static_assert(HOLDER == (1U << 31), "compatibility");
+      IF_FETCH_OR_GOTO(*this, 31, reload);
+#else
+      if ((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) & HOLDER)
+        continue;
       DBUG_ASSERT(lk);
+#endif
+acquired:
       std::atomic_thread_fence(std::memory_order_acquire);
       return;
     }
-    DBUG_ASSERT(lk > HOLDER);
   }
 }
 
 template<>
 void srw_mutex_impl<false>::wait_and_lock()
 {
-  uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);
-  for (;; wait(lk))
+  for (uint32_t lk= 1 + lock.fetch_add(1, std::memory_order_relaxed);;)
   {
+    DBUG_ASSERT(~HOLDER & lk);
     if (lk & HOLDER)
     {
+      wait(lk);
+#ifdef IF_FETCH_OR_GOTO
+reload:
+#endif
       lk= lock.load(std::memory_order_relaxed);
-      if (lk & HOLDER)
-        continue;
     }
-    lk= lock.fetch_or(HOLDER, std::memory_order_relaxed);
-    if (!(lk & HOLDER))
+    else
     {
+#ifdef IF_FETCH_OR_GOTO
+      static_assert(HOLDER == (1U << 31), "compatibility");
+      IF_FETCH_OR_GOTO(*this, 31, reload);
+#else
+      if ((lk= lock.fetch_or(HOLDER, std::memory_order_relaxed)) & HOLDER)
+        continue;
       DBUG_ASSERT(lk);
+#endif
       std::atomic_thread_fence(std::memory_order_acquire);
       return;
     }
-    DBUG_ASSERT(lk > HOLDER);
   }
 }
 
@@ -354,7 +416,23 @@ void ssux_lock_impl<spinloop>::wr_wait(uint32_t lk)
   DBUG_ASSERT(writer.is_locked());
   DBUG_ASSERT(lk);
   DBUG_ASSERT(lk < WRITER);
+
+  if (spinloop)
+  {
+    const unsigned delay= srw_pause_delay();
+
+    for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+    {
+      srw_pause(delay);
+      lk= readers.load(std::memory_order_acquire);
+      if (lk == WRITER)
+        return;
+      DBUG_ASSERT(lk > WRITER);
+    }
+  }
+
   lk|= WRITER;
+
   do
   {
     DBUG_ASSERT(lk > WRITER);
@@ -373,36 +451,55 @@ void ssux_lock_impl<spinloop>::rd_wait()
   for (;;)
   {
     writer.wr_lock();
-    uint32_t lk= readers.fetch_add(1, std::memory_order_acquire);
-    if (UNIV_UNLIKELY(lk == WRITER))
-    {
-      readers.fetch_sub(1, std::memory_order_relaxed);
-      wake();
-      writer.wr_unlock();
-      pthread_yield();
-      continue;
-    }
-    DBUG_ASSERT(!(lk & WRITER));
-    break;
+    bool acquired= rd_lock_try();
+    writer.wr_unlock();
+    if (acquired)
+      break;
   }
-  writer.wr_unlock();
 }
 
 template void ssux_lock_impl<true>::rd_wait();
 template void ssux_lock_impl<false>::rd_wait();
 #endif /* SUX_LOCK_GENERIC */
 
+#if defined _WIN32 || defined SUX_LOCK_GENERIC
+template<> void srw_lock_<true>::rd_wait()
+{
+  const unsigned delay= srw_pause_delay();
+
+  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+  {
+    srw_pause(delay);
+    if (rd_lock_try())
+      return;
+  }
+
+  IF_WIN(AcquireSRWLockShared(&lock), rw_rdlock(&lock));
+}
+
+template<> void srw_lock_<true>::wr_wait()
+{
+  const unsigned delay= srw_pause_delay();
+
+  for (auto spin= srv_n_spin_wait_rounds; spin; spin--)
+  {
+    srw_pause(delay);
+    if (wr_lock_try())
+      return;
+  }
+
+  IF_WIN(AcquireSRWLockExclusive(&lock), rw_wrlock(&lock));
+}
+#endif
+
 #ifdef UNIV_PFS_RWLOCK
-# if defined _WIN32 || defined SUX_LOCK_GENERIC
-#  define void_srw_lock void srw_lock_impl
-# else
-#  define void_srw_lock template<bool spinloop> void srw_lock_impl<spinloop>
 template void srw_lock_impl<false>::psi_rd_lock(const char*, unsigned);
 template void srw_lock_impl<false>::psi_wr_lock(const char*, unsigned);
 template void srw_lock_impl<true>::psi_rd_lock(const char*, unsigned);
 template void srw_lock_impl<true>::psi_wr_lock(const char*, unsigned);
-# endif
-void_srw_lock::psi_rd_lock(const char *file, unsigned line)
+
+template<bool spinloop>
+void srw_lock_impl<spinloop>::psi_rd_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   const bool nowait= lock.rd_lock_try();
@@ -418,7 +515,8 @@ void_srw_lock::psi_rd_lock(const char *file, unsigned line)
     lock.rd_lock();
 }
 
-void_srw_lock::psi_wr_lock(const char *file, unsigned line)
+template<bool spinloop>
+void srw_lock_impl<spinloop>::psi_wr_lock(const char *file, unsigned line)
 {
   PSI_rwlock_locker_state state;
   const bool nowait= lock.wr_lock_try();

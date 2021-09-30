@@ -377,6 +377,12 @@ struct my_collation_handler_st
   void (*hash_sort)(CHARSET_INFO *cs, const uchar *key, size_t len,
 		    ulong *nr1, ulong *nr2); 
   my_bool (*propagate)(CHARSET_INFO *cs, const uchar *str, size_t len);
+  /*
+    Make minimum and maximum strings for the collation.
+    Put not more than "nchars" characters.
+  */
+  size_t (*min_str)(CHARSET_INFO *cs, uchar *dst, size_t dstlen, size_t nchars);
+  size_t (*max_str)(CHARSET_INFO *cs, uchar *dst, size_t dstlen, size_t nchars);
 };
 
 extern MY_COLLATION_HANDLER my_collation_8bit_bin_handler;
@@ -589,8 +595,23 @@ struct charset_info_st
   uchar     casedn_multiply;
   uint      mbminlen;
   uint      mbmaxlen;
+  /*
+    min_sort_char and max_sort_char represent the minimum
+    and the maximum character in the collation respectively.
+
+    For Unicode collations, these numbers are Unicode code points.
+    For non-Unicode collations these numbers are native character codes.
+    For example, in all 8bit collations these numbers are
+    in the range 0x00..0xFF.
+
+    min_sort_char and max_sort_char normally should not be used directly.
+    They are used internally in the following virtual functions:
+    - MY_COLLATION_HANDLER::like_range()
+    - MY_COLLATION_HANDLER::min_str()
+    - MY_COLLATION_HANDLER::max_str()
+  */
   my_wc_t   min_sort_char;
-  my_wc_t   max_sort_char; /* For LIKE optimization */
+  my_wc_t   max_sort_char;
   uchar     pad_char;
   my_bool   escape_with_backslash_is_dangerous;
   uchar     levels_for_order;
@@ -852,6 +873,16 @@ struct charset_info_st
     return (coll->propagate)(this, str, len);
   }
 
+  size_t min_str(uchar *dst, size_t dstlen, size_t nchars) const
+  {
+    return (coll->min_str)(this, dst, dstlen, nchars);
+  }
+
+  size_t max_str(uchar *dst, size_t dstlen, size_t nchars) const
+  {
+    return (coll->max_str)(this, dst, dstlen, nchars);
+  }
+
 #endif /* __cplusplus */
 };
 
@@ -1110,7 +1141,7 @@ extern struct charset_info_st my_charset_big5_bin;
 extern struct charset_info_st my_charset_big5_chinese_ci;
 extern struct charset_info_st my_charset_big5_nopad_bin;
 extern struct charset_info_st my_charset_big5_chinese_nopad_ci;
-extern struct charset_info_st my_charset_cp1250_czech_ci;
+extern struct charset_info_st my_charset_cp1250_czech_cs;
 extern struct charset_info_st my_charset_cp932_bin;
 extern struct charset_info_st my_charset_cp932_japanese_ci;
 extern struct charset_info_st my_charset_cp932_nopad_bin;
@@ -1134,7 +1165,7 @@ extern struct charset_info_st my_charset_gbk_chinese_nopad_ci;
 extern struct charset_info_st my_charset_latin1_bin;
 extern struct charset_info_st my_charset_latin1_nopad_bin;
 extern struct charset_info_st my_charset_latin1_german2_ci;
-extern struct charset_info_st my_charset_latin2_czech_ci;
+extern struct charset_info_st my_charset_latin2_czech_cs;
 extern struct charset_info_st my_charset_sjis_bin;
 extern struct charset_info_st my_charset_sjis_japanese_ci;
 extern struct charset_info_st my_charset_sjis_nopad_bin;

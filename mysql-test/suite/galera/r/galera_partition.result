@@ -424,3 +424,5 @@ connection node_4;
 connection node_1;
 DROP TABLE t1;
 DROP PROCEDURE p1;
+disconnect node_3;
+disconnect node_4;

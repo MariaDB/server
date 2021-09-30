@@ -760,11 +760,264 @@ test_strcollsp()
 }
 
 
+typedef struct
+{
+  size_t size;
+  size_t nchars;
+  LEX_CSTRING min;
+  LEX_CSTRING max;
+} MINMAX_PARAM;
+
+
+static MINMAX_PARAM minmax_param_latin1_swedish_ci[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {1, 2, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {1, 3, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {2, 2, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {2, 3, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {3, 2, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {3, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xFF\xFF\xFF")}}
+};
+
+
+static MINMAX_PARAM minmax_param_latin1_nopad_bin[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("")},             {CSTR("\xFF")}},
+  {1, 2, {CSTR("")},             {CSTR("\xFF")}},
+  {1, 3, {CSTR("")},             {CSTR("\xFF")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("")},             {CSTR("\xFF")}},
+  {2, 2, {CSTR("")},             {CSTR("\xFF\xFF")}},
+  {2, 3, {CSTR("")},             {CSTR("\xFF\xFF")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("")},             {CSTR("\xFF")}},
+  {3, 2, {CSTR("")},             {CSTR("\xFF\xFF")}},
+  {3, 3, {CSTR("")},             {CSTR("\xFF\xFF\xFF")}}
+};
+
+
+static MINMAX_PARAM minmax_param_utf8mb3_unicode_ci[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x09")},         {CSTR("")}},
+  {1, 2, {CSTR("\x09")},         {CSTR("")}},
+  {1, 3, {CSTR("\x09")},         {CSTR("")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x09")},         {CSTR("")}},
+  {2, 2, {CSTR("\x09\x09")},     {CSTR("")}},
+  {2, 3, {CSTR("\x09\x09")},     {CSTR("")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {3, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF")}},
+  {3, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF")}},
+  {4, 0, {CSTR("")},             {CSTR("")}},
+  {4, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {4, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF")}},
+  {4, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF")}},
+  {5, 0, {CSTR("")},             {CSTR("")}},
+  {5, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {5, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF")}},
+  {5, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF")}},
+  {6, 0, {CSTR("")},             {CSTR("")}},
+  {6, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {6, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {6, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {7, 0, {CSTR("")},             {CSTR("")}},
+  {7, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {7, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {7, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {8, 0, {CSTR("")},             {CSTR("")}},
+  {8, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {8, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {8, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {9, 0, {CSTR("")},             {CSTR("")}},
+  {9, 1, {CSTR("\x09")},         {CSTR("\xEF\xBF\xBF")}},
+  {9, 2, {CSTR("\x09\x09")},     {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF")}},
+  {9, 3, {CSTR("\x09\x09\x09")}, {CSTR("\xEF\xBF\xBF\xEF\xBF\xBF\xEF\xBF\xBF")}},
+};
+
+
+#ifdef HAVE_CHARSET_big5
+static MINMAX_PARAM minmax_param_big5_chinese_ci[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x00")},         {CSTR("")}},
+  {1, 2, {CSTR("\x00")},         {CSTR("")}},
+  {1, 3, {CSTR("\x00")},         {CSTR("")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {2, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5")}},
+  {2, 3, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {3, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5")}},
+  {3, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5")}},
+  {4, 0, {CSTR("")},             {CSTR("")}},
+  {4, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {4, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {4, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5")}},
+  {5, 0, {CSTR("")},             {CSTR("")}},
+  {5, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {5, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {5, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5")}},
+  {6, 0, {CSTR("")},             {CSTR("")}},
+  {6, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {6, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {6, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5\xF9\xD5")}},
+  {7, 0, {CSTR("")},             {CSTR("")}},
+  {7, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {7, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {7, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5\xF9\xD5")}},
+  {8, 0, {CSTR("")},             {CSTR("")}},
+  {8, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {8, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {8, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5\xF9\xD5")}},
+  {9, 0, {CSTR("")},             {CSTR("")}},
+  {9, 1, {CSTR("\x00")},         {CSTR("\xF9\xD5")}},
+  {9, 2, {CSTR("\x00\x00")},     {CSTR("\xF9\xD5\xF9\xD5")}},
+  {9, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xF9\xD5\xF9\xD5\xF9\xD5")}},
+};
+#endif
+
+#ifdef HAVE_CHARSET_cp1250
+static MINMAX_PARAM minmax_param_cp1250_czech_cs[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {1, 2, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {1, 3, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {2, 2, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {2, 3, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x00")},         {CSTR("\xFF")}},
+  {3, 2, {CSTR("\x00\x00")},     {CSTR("\xFF\xFF")}},
+  {3, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xFF\xFF\xFF")}}
+};
+#endif
+
+
+#ifdef HAVE_CHARSET_latin2
+static MINMAX_PARAM minmax_param_latin2_czech_cs[]=
+{
+  {0, 0, {CSTR("")},             {CSTR("")}},
+  {0, 1, {CSTR("")},             {CSTR("")}},
+  {0, 2, {CSTR("")},             {CSTR("")}},
+  {0, 3, {CSTR("")},             {CSTR("")}},
+  {1, 0, {CSTR("")},             {CSTR("")}},
+  {1, 1, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {1, 2, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {1, 3, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {2, 0, {CSTR("")},             {CSTR("")}},
+  {2, 1, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {2, 2, {CSTR("\x00\x00")},     {CSTR("\xAE\xAE")}},
+  {2, 3, {CSTR("\x00\x00")},     {CSTR("\xAE\xAE")}},
+  {3, 0, {CSTR("")},             {CSTR("")}},
+  {3, 1, {CSTR("\x00")},         {CSTR("\xAE")}},
+  {3, 2, {CSTR("\x00\x00")},     {CSTR("\xAE\xAE")}},
+  {3, 3, {CSTR("\x00\x00\x00")}, {CSTR("\xAE\xAE\xAE")}}
+};
+#endif
+
+
+static int test_minmax_str_one(CHARSET_INFO *cs,
+                               const MINMAX_PARAM *params, size_t count)
+{
+  size_t i;
+  int failed_total= 0;
+  for (i= 0; i < count; i++)
+  {
+    int failed;
+    char min[32], hmin[64];
+    char max[32], hmax[64];
+    const MINMAX_PARAM *prm= &params[i];
+    size_t minlen= cs->coll->min_str(cs, (uchar *) min, prm->size,
+                                                        prm->nchars);
+    size_t maxlen= cs->coll->max_str(cs, (uchar *) max, prm->size,
+                                                        prm->nchars);
+    failed= minlen != prm->min.length || memcmp(min, prm->min.str, minlen) ||
+            maxlen != prm->max.length || memcmp(max, prm->max.str, maxlen);
+
+    str2hex(hmin, sizeof(hmin), min, minlen);
+    str2hex(hmax, sizeof(hmax), max, maxlen);
+    diag("%-32s %2d %2d   %-10s   %-10s%s",
+         cs->coll_name.str, (int) prm->size, (int) prm->nchars, hmin, hmax,
+         failed ? " FAILED" : "");
+    if (failed)
+    {
+      str2hex(hmin, sizeof(hmin), prm->min.str, prm->min.length);
+      str2hex(hmax, sizeof(hmax), prm->max.str, prm->max.length);
+      diag("%-40s %-10s   %-10s EXPECTED", cs->coll_name.str, hmin, hmax);
+    }
+    failed_total+= failed;
+  }
+  return failed_total;
+}
+
+
+static int test_minmax_str()
+{
+  int failed= 0;
+  failed+= test_minmax_str_one(&my_charset_latin1_nopad_bin,
+                               minmax_param_latin1_nopad_bin,
+                               array_elements(minmax_param_latin1_nopad_bin));
+  failed+= test_minmax_str_one(&my_charset_latin1,
+                               minmax_param_latin1_swedish_ci,
+                               array_elements(minmax_param_latin1_swedish_ci));
+  failed+= test_minmax_str_one(&my_charset_utf8mb3_unicode_ci,
+                               minmax_param_utf8mb3_unicode_ci,
+                               array_elements(minmax_param_utf8mb3_unicode_ci));
+#ifdef HAVE_CHARSET_big5
+  failed+= test_minmax_str_one(&my_charset_big5_chinese_ci,
+                               minmax_param_big5_chinese_ci,
+                               array_elements(minmax_param_big5_chinese_ci));
+#endif
+#ifdef HAVE_CHARSET_cp1250
+  failed+= test_minmax_str_one(&my_charset_cp1250_czech_cs,
+                               minmax_param_cp1250_czech_cs,
+                               array_elements(minmax_param_cp1250_czech_cs));
+#endif
+#ifdef HAVE_CHARSET_latin2
+  failed+= test_minmax_str_one(&my_charset_latin2_czech_cs,
+                               minmax_param_latin2_czech_cs,
+                               array_elements(minmax_param_latin2_czech_cs));
+#endif
+  return failed;
+}
+
 int main()
 {
   size_t i, failed= 0;
   
-  plan(2);
+  plan(3);
   diag("Testing my_like_range_xxx() functions");
   
   for (i= 0; i < array_elements(charset_list); i++)
@@ -781,6 +1034,10 @@ int main()
   diag("my_ci_strnncollsp()");
   failed= test_strcollsp();
   ok(failed == 0, "Testing my_ci_strnncollsp()");
+
+  diag("Testing min_str() and max_str()");
+  failed= test_minmax_str();
+  ok(failed == 0, "Testing min_str() and max_str() functions");
 
   return exit_status();
 }
