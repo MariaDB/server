@@ -4259,14 +4259,18 @@ static ACL_USER * find_user_wild(const char *host, const char *user, const char 
 */
 static ACL_ROLE *find_acl_role(const char *role)
 {
+  size_t length= strlen(role);
   DBUG_ENTER("find_acl_role");
   DBUG_PRINT("enter",("role: '%s'", role));
   DBUG_PRINT("info", ("Hash elements: %ld", acl_roles.records));
 
   mysql_mutex_assert_owner(&acl_cache->lock);
 
+  if (!length)
+    DBUG_RETURN(NULL);
+
   ACL_ROLE *r= (ACL_ROLE *)my_hash_search(&acl_roles, (uchar *)role,
-                                          strlen(role));
+                                          length);
   DBUG_RETURN(r);
 }
 
