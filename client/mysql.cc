@@ -2319,11 +2319,14 @@ static bool add_line(String &buffer, char *line, size_t line_length,
     {
       // Found possbile one character command like \c
 
-      inchar = (uchar) *++pos;
-      // In Binary mode , when in_string is not null \0 should not be treated as
-      // end statement. This can happen when we are in middle of binary data which
-      // can contain \0 and its quoted with ' '.
-      if (!real_binary_mode && !*in_string && !inchar)
+      /*
+        The null-terminating character (ASCII '\0') marks the end of user
+        input. Then, by default, upon encountering a '\0' while parsing, it
+        should stop.  However, some data naturally contains binary zeros
+        (e.g., zipped files). Real_binary_mode signals the parser to expect
+        '\0' within the data and not to end parsing if found.
+       */
+      if (!(inchar = (uchar) *++pos) && (!real_binary_mode || !*in_string))
         break;				// readline adds one '\'
       if (*in_string || inchar == 'N')	// \N is short for NULL
       {					// Don't allow commands in string

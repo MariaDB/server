@@ -1,6 +1,0 @@
-CREATE TABLE `tb` (`id` int(11) NOT NULL AUTO_INCREMENT,`cb` longblob DEFAULT NULL,
-PRIMARY KEY (`id`)) ENGINE=myisam AUTO_INCREMENT=5 DEFAULT CHARSET=latin1;
-select count(*)=2 from tb;
-count(*)=2
-1
-drop table tb;
