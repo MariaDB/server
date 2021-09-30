@@ -1632,7 +1632,8 @@ scan_one_gtid_slave_pos_table(THD *thd, HASH *hash, DYNAMIC_ARRAY *array,
       goto end;
     }
 
-    if ((rec= my_hash_search(hash, (const uchar *)&domain_id, 0)))
+    if ((rec= my_hash_search(hash, (const uchar *)&domain_id,
+                             sizeof(domain_id))))
     {
       entry= (struct gtid_pos_element *)rec;
       if (entry->sub_id >= sub_id)

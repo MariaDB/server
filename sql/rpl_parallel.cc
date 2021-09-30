@@ -2347,7 +2347,8 @@ rpl_parallel::find(uint32 domain_id)
   struct rpl_parallel_entry *e;
 
   if (!(e= (rpl_parallel_entry *)my_hash_search(&domain_hash,
-                                                (const uchar *)&domain_id, 0)))
+                                                (const uchar *)&domain_id,
+                                                sizeof(domain_id))))
   {
     /* Allocate a new, empty one. */
     ulong count= opt_slave_domain_parallel_threads;

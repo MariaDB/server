@@ -249,8 +249,9 @@ rpl_slave_state::rpl_slave_state()
 {
   mysql_mutex_init(key_LOCK_slave_state, &LOCK_slave_state,
                    MY_MUTEX_INIT_SLOW);
-  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32, offsetof(element, domain_id),
-               sizeof(uint32), NULL, rpl_slave_state_free_element, HASH_UNIQUE);
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
+               offsetof(element, domain_id), sizeof(element::domain_id),
+               NULL, rpl_slave_state_free_element, HASH_UNIQUE);
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid),
                         8, 8, MYF(0));
 }
@@ -366,7 +367,8 @@ rpl_slave_state::get_element(uint32 domain_id)
 {
   struct element *elem;
 
-  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
+  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                  sizeof(domain_id));
   if (elem)
     return elem;
 
@@ -402,7 +404,8 @@ rpl_slave_state::put_back_list(list_element *list)
     list_element *next= list->next;
 
     if ((!e || e->domain_id != list->domain_id) &&
-        !(e= (element *)my_hash_search(&hash, (const uchar *)&list->domain_id, 0)))
+        !(e= (element *)my_hash_search(&hash, (const uchar *)&list->domain_id,
+                                       sizeof(list->domain_id))))
     {
       err= 1;
       goto end;
@@ -1107,8 +1110,8 @@ rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
   bool locked= false;
 
   my_hash_init(PSI_INSTRUMENT_ME, &gtid_hash, &my_charset_bin, 32,
-               offsetof(rpl_gtid, domain_id), sizeof(uint32), NULL, NULL,
-               HASH_UNIQUE);
+               offsetof(rpl_gtid, domain_id), sizeof(rpl_gtid::domain_id),
+               NULL, NULL, HASH_UNIQUE);
   for (i= 0; i < num_extra; ++i)
     if (extra_gtids[i].server_id == global_system_variables.server_id &&
         my_hash_insert(&gtid_hash, (uchar *)(&extra_gtids[i])))
@@ -1143,7 +1146,8 @@ rpl_slave_state::iterate(int (*cb)(rpl_gtid *, void *), void *data,
     }
 
     /* Check if we have something newer in the extra list. */
-    rec= my_hash_search(&gtid_hash, (const uchar *)&best_gtid.domain_id, 0);
+    rec= my_hash_search(&gtid_hash, (const uchar *)&best_gtid.domain_id,
+                        sizeof(best_gtid.domain_id));
     if (rec)
     {
       gtid= (rpl_gtid *)rec;
@@ -1243,7 +1247,8 @@ rpl_slave_state::domain_to_gtid(uint32 domain_id, rpl_gtid *out_gtid)
   uint64 best_sub_id;
 
   mysql_mutex_lock(&LOCK_slave_state);
-  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
+  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                  sizeof(domain_id));
   if (!elem || !(list= elem->list))
   {
     mysql_mutex_unlock(&LOCK_slave_state);
@@ -1477,8 +1482,9 @@ rpl_slave_state::alloc_gtid_pos_table(LEX_CSTRING *table_name, void *hton,
 
 void rpl_binlog_state::init()
 {
-  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32, offsetof(element, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+  my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
+               offsetof(element, domain_id), sizeof(element::domain_id),
+               NULL, my_free, HASH_UNIQUE);
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
   mysql_mutex_init(key_LOCK_binlog_state, &LOCK_binlog_state,
                    MY_MUTEX_INIT_SLOW);
@@ -1580,7 +1586,8 @@ rpl_binlog_state::update_nolock(const struct rpl_gtid *gtid, bool strict)
   element *elem;
 
   if ((elem= (element *)my_hash_search(&hash,
-                                       (const uchar *)(&gtid->domain_id), 0)))
+                                       (const uchar *)(&gtid->domain_id),
+                                       sizeof(gtid->domain_id))))
   {
     if (strict && elem->last_gtid && elem->last_gtid->seq_no >= gtid->seq_no)
     {
@@ -1628,7 +1635,8 @@ rpl_binlog_state::update_with_next_gtid(uint32 domain_id, uint32 server_id,
   gtid->server_id= server_id;
 
   mysql_mutex_lock(&LOCK_binlog_state);
-  if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id), 0)))
+  if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id),
+                                       sizeof(domain_id))))
   {
     gtid->seq_no= ++elem->seq_no_counter;
     if (!elem->update_element(gtid))
@@ -1667,7 +1675,8 @@ rpl_binlog_state::element::update_element(const rpl_gtid *gtid)
   }
 
   lookup_gtid= (rpl_gtid *)
-    my_hash_search(&hash, (const uchar *)&gtid->server_id, 0);
+    my_hash_search(&hash, (const uchar *)&gtid->server_id,
+                           sizeof(gtid->server_id));
   if (lookup_gtid)
   {
     lookup_gtid->seq_no= gtid->seq_no;
@@ -1705,8 +1714,8 @@ rpl_binlog_state::alloc_element_nolock(const rpl_gtid *gtid)
   {
     elem->domain_id= gtid->domain_id;
     my_hash_init(PSI_INSTRUMENT_ME, &elem->hash, &my_charset_bin, 32,
-                 offsetof(rpl_gtid, server_id), sizeof(uint32), NULL, my_free,
-                 HASH_UNIQUE);
+                 offsetof(rpl_gtid, server_id), sizeof(rpl_gtid::domain_id),
+                 NULL, my_free, HASH_UNIQUE);
     elem->last_gtid= lookup_gtid;
     elem->seq_no_counter= gtid->seq_no;
     memcpy(lookup_gtid, gtid, sizeof(*lookup_gtid));
@@ -1741,7 +1750,8 @@ rpl_binlog_state::check_strict_sequence(uint32 domain_id, uint32 server_id,
 
   mysql_mutex_lock(&LOCK_binlog_state);
   if ((elem= (element *)my_hash_search(&hash,
-                                       (const uchar *)(&domain_id), 0)) &&
+                                       (const uchar *)(&domain_id),
+                                       sizeof(domain_id))) &&
       elem->last_gtid && elem->last_gtid->seq_no >= seq_no)
   {
     my_error(ER_GTID_STRICT_OUT_OF_ORDER, MYF(0), domain_id, server_id, seq_no,
@@ -1768,7 +1778,8 @@ rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
   int res;
 
   mysql_mutex_lock(&LOCK_binlog_state);
-  if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id), 0)))
+  if ((elem= (element *)my_hash_search(&hash, (const uchar *)(&domain_id),
+                                       sizeof(domain_id))))
   {
     if (elem->seq_no_counter < seq_no)
       elem->seq_no_counter= seq_no;
@@ -1786,8 +1797,8 @@ rpl_binlog_state::bump_seq_no_if_needed(uint32 domain_id, uint64 seq_no)
 
   elem->domain_id= domain_id;
   my_hash_init(PSI_INSTRUMENT_ME, &elem->hash, &my_charset_bin, 32,
-               offsetof(rpl_gtid, server_id), sizeof(uint32), NULL, my_free,
-               HASH_UNIQUE);
+               offsetof(rpl_gtid, server_id), sizeof(rpl_gtid::server_id),
+               NULL, my_free, HASH_UNIQUE);
   elem->last_gtid= NULL;
   elem->seq_no_counter= seq_no;
   if (0 == my_hash_insert(&hash, (const uchar *)elem))
@@ -1891,9 +1902,11 @@ rpl_gtid *
 rpl_binlog_state::find_nolock(uint32 domain_id, uint32 server_id)
 {
   element *elem;
-  if (!(elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
+  if (!(elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                        sizeof(domain_id))))
     return NULL;
-  return (rpl_gtid *)my_hash_search(&elem->hash, (const uchar *)&server_id, 0);
+  return (rpl_gtid *)my_hash_search(&elem->hash, (const uchar *)&server_id,
+                                    sizeof(server_id));
 }
 
 rpl_gtid *
@@ -1913,7 +1926,8 @@ rpl_binlog_state::find_most_recent(uint32 domain_id)
   rpl_gtid *gtid= NULL;
 
   mysql_mutex_lock(&LOCK_binlog_state);
-  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id, 0);
+  elem= (element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                  sizeof(domain_id));
   if (elem && elem->last_gtid)
     gtid= elem->last_gtid;
   mysql_mutex_unlock(&LOCK_binlog_state);
@@ -2182,7 +2196,8 @@ rpl_binlog_state::drop_domain(DYNAMIC_ARRAY *ids,
 
     ptr_domain_id= (uint32*) dynamic_array_ptr(ids, i);
     elem= (rpl_binlog_state::element *)
-      my_hash_search(&hash, (const uchar *) ptr_domain_id, 0);
+      my_hash_search(&hash, (const uchar *) ptr_domain_id,
+                     sizeof(ptr_domain_id[0]));
     if (!elem)
     {
       push_warning_printf(current_thd, Sql_condition::WARN_LEVEL_WARN,
@@ -2243,7 +2258,7 @@ slave_connection_state::slave_connection_state()
 {
   my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
                offsetof(entry, gtid) + offsetof(rpl_gtid, domain_id),
-               sizeof(uint32), NULL, my_free, HASH_UNIQUE);
+               sizeof(rpl_gtid::domain_id), NULL, my_free, HASH_UNIQUE);
   my_init_dynamic_array(PSI_INSTRUMENT_ME, &gtid_sort_array, sizeof(rpl_gtid), 8, 8, MYF(0));
 }
 
@@ -2298,7 +2313,8 @@ slave_connection_state::load(const char *slave_request, size_t len)
       return 1;
     }
     if ((e= (const entry *)
-         my_hash_search(&hash, (const uchar *)(&gtid->domain_id), 0)))
+         my_hash_search(&hash, (const uchar *)(&gtid->domain_id),
+                        sizeof(gtid->domain_id))))
     {
       my_error(ER_DUPLICATE_GTID_DOMAIN, MYF(0), gtid->domain_id,
                gtid->server_id, (ulonglong)gtid->seq_no, e->gtid.domain_id,
@@ -2365,7 +2381,8 @@ slave_connection_state::load(rpl_slave_state *state,
 slave_connection_state::entry *
 slave_connection_state::find_entry(uint32 domain_id)
 {
-  return (entry *) my_hash_search(&hash, (const uchar *)(&domain_id), 0);
+  return (entry *) my_hash_search(&hash, (const uchar *)(&domain_id),
+                                  sizeof(domain_id));
 }
 
 
@@ -2383,7 +2400,8 @@ int
 slave_connection_state::update(const rpl_gtid *in_gtid)
 {
   entry *e;
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                             sizeof(in_gtid->domain_id));
   if (rec)
   {
     e= (entry *)rec;
@@ -2408,7 +2426,8 @@ slave_connection_state::update(const rpl_gtid *in_gtid)
 void
 slave_connection_state::remove(const rpl_gtid *in_gtid)
 {
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                             sizeof(in_gtid->domain_id));
 #ifdef DBUG_ASSERT_EXISTS
   bool err;
   rpl_gtid *slave_gtid= &((entry *)rec)->gtid;
@@ -2425,7 +2444,8 @@ slave_connection_state::remove(const rpl_gtid *in_gtid)
 void
 slave_connection_state::remove_if_present(const rpl_gtid *in_gtid)
 {
-  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id), 0);
+  uchar *rec= my_hash_search(&hash, (const uchar *)(&in_gtid->domain_id),
+                             sizeof(in_gtid->domain_id));
   if (rec)
     my_hash_delete(&hash, rec);
 }
@@ -2869,7 +2889,8 @@ void
 gtid_waiting::init()
 {
   my_hash_init(PSI_INSTRUMENT_ME, &hash, &my_charset_bin, 32,
-               offsetof(hash_element, domain_id), sizeof(uint32), NULL,
+               offsetof(hash_element, domain_id),
+               sizeof(hash_element::domain_id), NULL,
                free_hash_element, HASH_UNIQUE);
   mysql_mutex_init(key_LOCK_gtid_waiting, &LOCK_gtid_waiting, 0);
 }
@@ -2902,7 +2923,8 @@ gtid_waiting::get_entry(uint32 domain_id)
 {
   hash_element *e;
 
-  if ((e= (hash_element *)my_hash_search(&hash, (const uchar *)&domain_id, 0)))
+  if ((e= (hash_element *)my_hash_search(&hash, (const uchar *)&domain_id,
+                                         sizeof(domain_id))))
     return e;
 
   if (!(e= (hash_element *)my_malloc(PSI_INSTRUMENT_ME, sizeof(*e), MYF(MY_WME))))
