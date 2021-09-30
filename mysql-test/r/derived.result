@@ -1204,5 +1204,46 @@ REPLACE INTO v2 ( SELECT * FROM v4 ) UNION ( SELECT f FROM v2 );
 drop view v1,v2,v3,v4;
 drop table t1,t2,t3;
 #
+# MDEV-42383 SIGSEGV in heap_info from make_join_statistics on 2nd SP exec.
+#
+CREATE TABLE t1 (name varchar(100));
+insert into t1 values ("one"), ("two"), ("threee");
+CREATE PROCEDURE p() SELECT * FROM (SELECT 1 FROM t1) AS a;
+SET SESSION optimizer_switch="derived_merge=OFF";
+CALL p();
+1
+1
+1
+1
+SET SESSION optimizer_switch="derived_merge=ON";
+CALL p();
+1
+1
+1
+1
+drop procedure p;
+SET GLOBAL optimizer_switch="derived_merge=OFF";
+connect  con1,localhost,root,,;
+connection con1;
+CREATE PROCEDURE p() SELECT * FROM (SELECT 1 FROM t1) AS a;
+CALL p();
+1
+1
+1
+1
+connection default;
+SET GLOBAL optimizer_switch="derived_merge=ON";
+connection con1;
+CALL p();
+1
+1
+1
+1
+drop procedure p;
+connection default;
+disconnect con1;
+drop table t1;
+set optimizer_switch=@save_derived_optimizer_switch;
+#
 # End of 10.2 tests
 #

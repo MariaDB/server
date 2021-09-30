@@ -1037,5 +1037,34 @@ drop view v1,v2,v3,v4;
 drop table t1,t2,t3;
 
 --echo #
+--echo # MDEV-42383 SIGSEGV in heap_info from make_join_statistics on 2nd SP exec.
+--echo #
+CREATE TABLE t1 (name varchar(100));
+insert into t1 values ("one"), ("two"), ("threee");
+CREATE PROCEDURE p() SELECT * FROM (SELECT 1 FROM t1) AS a;
+SET SESSION optimizer_switch="derived_merge=OFF";
+CALL p();
+SET SESSION optimizer_switch="derived_merge=ON";
+CALL p();
+drop procedure p;
+
+SET GLOBAL optimizer_switch="derived_merge=OFF";
+connect (con1,localhost,root,,);
+connection con1;
+CREATE PROCEDURE p() SELECT * FROM (SELECT 1 FROM t1) AS a;
+CALL p();
+
+connection default;
+SET GLOBAL optimizer_switch="derived_merge=ON";
+connection con1;
+CALL p();
+drop procedure p;
+connection default;
+disconnect con1;
+
+drop table t1;
+set optimizer_switch=@save_derived_optimizer_switch;
+
+--echo #
 --echo # End of 10.2 tests
 --echo #

@@ -1353,8 +1353,7 @@ void THD::change_user(void)
   my_hash_init(&user_vars, system_charset_info, USER_VARS_HASH_SIZE, 0, 0,
                (my_hash_get_key) get_var_key,
                (my_hash_free_key) free_user_var, 0);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
+  clear_sp_caches();
 }
 
 
@@ -1410,8 +1409,7 @@ void THD::cleanup(void)
 #endif /* defined(ENABLED_DEBUG_SYNC) */
 
   my_hash_free(&user_vars);
-  sp_cache_clear(&sp_proc_cache);
-  sp_cache_clear(&sp_func_cache);
+  clear_sp_caches();
   auto_inc_intervals_forced.empty();
   auto_inc_intervals_in_cur_stmt_for_binlog.empty();
 
@@ -2120,6 +2118,13 @@ void THD::cleanup_after_query()
 #endif /* WITH_WSREP */
 
   DBUG_VOID_RETURN;
+}
+
+
+void THD::clear_sp_caches()
+{
+  sp_cache_clear(&sp_proc_cache);
+  sp_cache_clear(&sp_func_cache);
 }
 
 

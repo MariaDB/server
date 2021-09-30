@@ -3209,6 +3209,7 @@ public:
   void change_user(void);
   void cleanup(void);
   void cleanup_after_query();
+  void clear_sp_caches();
   void free_connection();
   void reset_for_reuse();
   bool store_globals();

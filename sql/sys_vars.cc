@@ -53,6 +53,7 @@
 #include "log_slow.h"
 #include "debug_sync.h"                         // DEBUG_SYNC
 #include "sql_show.h"
+#include "sp_cache.h"                           // sp_cache_invalidate()
 
 #include "log_event.h"
 #ifdef WITH_PERFSCHEMA_STORAGE_ENGINE
@@ -2469,6 +2470,11 @@ static bool fix_optimizer_switch(sys_var *self, THD *thd,
                         ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT,
                         ER_THD(thd, ER_WARN_DEPRECATED_SYNTAX_NO_REPLACEMENT),
                         "engine_condition_pushdown=on");
+  if (type == OPT_GLOBAL)
+    sp_cache_invalidate();
+  else
+    thd->clear_sp_caches();
+
   return false;
 }
 static bool check_legal_optimizer_switch(sys_var *self, THD *thd,
