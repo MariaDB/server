@@ -3555,6 +3555,11 @@ simple_target_specification:
           }
         | '@' ident_or_text
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$2);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -10934,6 +10939,11 @@ variable_aux:
           ident_or_text SET_VAR expr
           {
             Item_func_set_user_var *item;
+            if (!$1.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
             $$= item= new (thd->mem_root) Item_func_set_user_var(thd, &$1, $3);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -10943,6 +10953,11 @@ variable_aux:
           }
         | ident_or_text
           {
+            if (!$1.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
             $$= new (thd->mem_root) Item_func_get_user_var(thd, &$1);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -12584,6 +12599,12 @@ select_var_ident: select_outvar
 select_outvar:
           '@' ident_or_text
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
+
             $$ = Lex->result ? new (thd->mem_root) my_var_user(&$2) : NULL;
           }
         | ident_or_text
@@ -14564,6 +14585,12 @@ field_or_var:
           simple_ident_nospvar {$$= $1;}
         | '@' ident_or_text
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
+
             $$= new (thd->mem_root) Item_user_var_as_out_param(thd, &$2);
             if (unlikely($$ == NULL))
               MYSQL_YYABORT;
@@ -16379,6 +16406,12 @@ option_value_no_option_type:
           }
         | '@' ident_or_text equal
           {
+            if (!$2.length)
+            {
+              thd->parse_error();
+              YYABORT;
+            }
+
             if (sp_create_assignment_lex(thd, $1.str))
               MYSQL_YYABORT;
           }
