@@ -102,7 +102,8 @@ CREATE TABLE `t1` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t1` VALUES (1,'first value'),
+INSERT  DELAYED IGNORE INTO `t1` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -118,7 +119,8 @@ CREATE TABLE `t2` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t2` VALUES (1,'first value'),
+INSERT  DELAYED IGNORE INTO `t2` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -134,7 +136,8 @@ CREATE TABLE `t3` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t3` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t3` VALUES (1,'first value'),
+INSERT  DELAYED IGNORE INTO `t3` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -150,7 +153,8 @@ CREATE TABLE `t4` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t4` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t4` VALUES (1,'first value'),
+INSERT  DELAYED IGNORE INTO `t4` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -166,7 +170,8 @@ CREATE TABLE `t5` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t5` DISABLE KEYS */;
-INSERT  DELAYED IGNORE INTO `t5` VALUES (1,'first value'),
+INSERT  DELAYED IGNORE INTO `t5` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -182,7 +187,8 @@ CREATE TABLE `t6` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t6` DISABLE KEYS */;
-INSERT  IGNORE INTO `t6` VALUES (1,'first value'),
+INSERT  IGNORE INTO `t6` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -223,7 +229,8 @@ CREATE TABLE `t1` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t1` DISABLE KEYS */;
-INSERT  DELAYED INTO `t1` VALUES (1,'first value'),
+INSERT  DELAYED INTO `t1` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -239,7 +246,8 @@ CREATE TABLE `t2` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t2` DISABLE KEYS */;
-INSERT  DELAYED INTO `t2` VALUES (1,'first value'),
+INSERT  DELAYED INTO `t2` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -255,7 +263,8 @@ CREATE TABLE `t3` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t3` DISABLE KEYS */;
-INSERT  DELAYED INTO `t3` VALUES (1,'first value'),
+INSERT  DELAYED INTO `t3` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -271,7 +280,8 @@ CREATE TABLE `t4` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t4` DISABLE KEYS */;
-INSERT  DELAYED INTO `t4` VALUES (1,'first value'),
+INSERT  DELAYED INTO `t4` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -287,7 +297,8 @@ CREATE TABLE `t5` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t5` DISABLE KEYS */;
-INSERT  DELAYED INTO `t5` VALUES (1,'first value'),
+INSERT  DELAYED INTO `t5` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),
@@ -303,7 +314,8 @@ CREATE TABLE `t6` (
 /*!40101 SET character_set_client = @saved_cs_client */;
 
 /*!40000 ALTER TABLE `t6` DISABLE KEYS */;
-INSERT INTO `t6` VALUES (1,'first value'),
+INSERT INTO `t6` VALUES
+(1,'first value'),
 (2,'first value'),
 (3,'first value'),
 (4,'first value'),

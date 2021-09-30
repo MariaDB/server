@@ -3412,9 +3412,10 @@ static uint get_table_structure(const char *table, const char *db, char *table_t
       }
       else
       {
-        dynstr_append_checked(&insert_pat, " VALUES ");
-        if (!extended_insert)
-          dynstr_append_checked(&insert_pat, "(");
+        if (extended_insert)
+          dynstr_append_checked(&insert_pat, " VALUES\n");
+        else
+          dynstr_append_checked(&insert_pat, " VALUES (");
       }
     }
 
